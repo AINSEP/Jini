@@ -112,6 +112,10 @@
       "./screens/workspace/Workspace": "browser",
       "./screens/workspace/rules": "browser",
       "./screens/workspace/hooks/workspace-port.hooks": "universal",
+      "./screens/sites/AllSitesTab": "browser",
+      "./screens/sites/SiteCardView": "browser",
+      "./screens/sites/SiteTrashTab": "browser",
+      "./screens/sites/sites-screen-ports": "universal",
       "./screens/workspace/hooks/use-workspace.hooks": "browser",
       "./shell/lib/editor-failure-i18n": "browser",
       "./shell/lib/editor-template-options.rules": "browser",
@@ -240,6 +244,10 @@
         "./screens/workspace/Workspace": "browser",
         "./screens/workspace/rules": "browser",
         "./screens/workspace/hooks/workspace-port.hooks": "universal",
+        "./screens/sites/AllSitesTab": "browser",
+        "./screens/sites/SiteCardView": "browser",
+        "./screens/sites/SiteTrashTab": "browser",
+        "./screens/sites/sites-screen-ports": "universal",
         "./screens/workspace/hooks/use-workspace.hooks": "browser",
         "./shell/lib/editor-failure-i18n": "browser",
         "./shell/lib/editor-template-options.rules": "browser",
@@ -774,6 +782,26 @@
       "types": "./dist/screens/workspace/Workspace.d.ts",
       "import": "./dist/screens/workspace/Workspace.js",
       "default": "./dist/screens/workspace/Workspace.js"
+    },
+    "./screens/sites/AllSitesTab": {
+      "types": "./dist/screens/sites/AllSitesTab.d.ts",
+      "import": "./dist/screens/sites/AllSitesTab.js",
+      "default": "./dist/screens/sites/AllSitesTab.js"
+    },
+    "./screens/sites/SiteCardView": {
+      "types": "./dist/screens/sites/SiteCardView.d.ts",
+      "import": "./dist/screens/sites/SiteCardView.js",
+      "default": "./dist/screens/sites/SiteCardView.js"
+    },
+    "./screens/sites/SiteTrashTab": {
+      "types": "./dist/screens/sites/SiteTrashTab.d.ts",
+      "import": "./dist/screens/sites/SiteTrashTab.js",
+      "default": "./dist/screens/sites/SiteTrashTab.js"
+    },
+    "./screens/sites/sites-screen-ports": {
+      "types": "./dist/screens/sites/sites-screen-ports.d.ts",
+      "import": "./dist/screens/sites/sites-screen-ports.js",
+      "default": "./dist/screens/sites/sites-screen-ports.js"
     },
     "./screens/workspace/rules": {
       "types": "./dist/screens/workspace/rules.d.ts",
