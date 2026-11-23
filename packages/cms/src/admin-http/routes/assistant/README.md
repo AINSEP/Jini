@@ -6,6 +6,9 @@ calling admin's own execution credential (`GET`/`PUT`/`DELETE .../site-credentia
 `.../execution-credential`), the "Execution mode" probes (`POST .../execution/test-agent`,
 `.../execution/detect-agents`, `.../execution/test-connection`, `.../execution/models`) and the
 visitor-tools admin pair (`GET`/`PUT .../visitor-tools`).
+`get-chat-attachment.ts` is the one non-JSON route here: a core `ServerRoute` factory
+(`createChatAttachmentReadRoute`) for `GET /api/attachments/:ref`, which streams a staged chat
+attachment's bytes back to its uploader (sniffed type, forced download for HTML, `Range`).
 `execution-request-fields.ts` is the shared body parsing for the BYOK probe routes, and
 `stored-credential-probe.ts` is their single key/endpoint chokepoint (which key a probe sends, and
 the endpoint pin for a stored, write-only key).
@@ -33,6 +36,14 @@ the endpoint pin for a stored, write-only key).
   errors. Plus the host's
   `JsonRoutePorts`: `workspace` (404 on a foreign workspace), `authenticate` (supplies
   `AssistantRoutePrincipal`), `authorize` (403) and `onError` (redacted 500).
+- **Chat attachment read** (`ChatAttachmentReadRouteDeps`) — `readAttachment` (the host's
+  owner-scoped reader, bound to its upload directory), `ownerIdOf` (the session principal from the
+  request locals; throws when the session gate did not run), `sniffContentType`, `parseRangeHeader`
+  (the host binds `@jini-ai/http-kit/range`'s), the host media route's `disallowedInlineContentTypes`
+  and `svgContentSecurityPolicy`, and `failureResponse` (the host's redacted admin 500 as a web
+  `Response`). The host mounts it through `@jini-ai/http-kit/node-bridge`'s `createNodeDispatcher`
+  behind its session gate on the `/api/attachments` prefix; a host whose previous route answered
+  through Express's `res.send` also keeps that ETag/304 behaviour in its mount.
 - **Provides** — the route specs, `resolveTestAgentOutcome` (pure CLI-check verdict) and the
   shared helpers in `shared.ts`.
 - **Host wiring**:
@@ -47,7 +58,8 @@ the endpoint pin for a stored, write-only key).
   } });
   ```
 - **Bound by** — the host's AI Assistant composition modules (the execution-probe module mounts the
-  four probes; the settings module mounts settings, credentials and visitor tools). The host's
+  four probes; the settings module mounts settings, credentials and visitor tools; the assistant
+  module mounts the chat attachment read through a small binding module beside it). The host's
   registrar deps slices and registrar types stay host-side in those modules: they are Express- and
   host-`RouteDeps`-shaped composition, not part of the route contract.
 - **Never imports** — a server framework, `@jini-ai/agent-runtime` implementations (the detector is

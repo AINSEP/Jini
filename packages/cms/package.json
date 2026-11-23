@@ -160,6 +160,7 @@
       "./admin-http/routes/assistant/test-connection": "universal",
       "./admin-http/routes/assistant/detect-agents": "universal",
       "./admin-http/routes/assistant/visitor-tools": "universal",
+      "./admin-http/routes/assistant/get-chat-attachment": "universal",
       "./admin-http/routes/assistant/stored-credential-probe": "universal",
       "./admin-http/routes/assistant/put-site-credential": "universal",
       "./admin-http/routes/assistant/put-settings": "universal",
@@ -1075,6 +1076,11 @@
       "types": "./dist/admin-http/routes/assistant/visitor-tools.d.ts",
       "import": "./dist/admin-http/routes/assistant/visitor-tools.js",
       "default": "./dist/admin-http/routes/assistant/visitor-tools.js"
+    },
+    "./admin-http/routes/assistant/get-chat-attachment": {
+      "types": "./dist/admin-http/routes/assistant/get-chat-attachment.d.ts",
+      "import": "./dist/admin-http/routes/assistant/get-chat-attachment.js",
+      "default": "./dist/admin-http/routes/assistant/get-chat-attachment.js"
     },
     "./admin-http/routes/assistant/stored-credential-probe": {
       "types": "./dist/admin-http/routes/assistant/stored-credential-probe.d.ts",
