@@ -150,7 +150,10 @@
       "./public-http/http/site/render/media-playback-copy": "universal",
       "./public-http/http/site/render/value-readers": "universal",
       "./public-http/routes/site/pages/listing/listing-state": "universal",
-      "./media/site/import-media-entity": "node"
+      "./media/site/import-media-entity": "node",
+      "./admin-http/routes/media/get-providers": "universal",
+      "./admin-http/routes/media/delete": "universal",
+      "./admin-http/routes/media/trash": "universal"
     },
     "isolation": {
       "domains": {
@@ -243,7 +246,10 @@
         "./admin-http/routes/redirects/shared": "redirects",
         "./admin-http/routes/redirects/tombstone": "redirects",
         "./admin-http/routes/redirects/update": "redirects",
-        "./public-http/routes/site/pages/listing/listing-state": "listing"
+        "./public-http/routes/site/pages/listing/listing-state": "listing",
+        "./admin-http/routes/media/get-providers": "media",
+        "./admin-http/routes/media/delete": "media",
+        "./admin-http/routes/media/trash": "media"
       }
     },
     "optionalPeers": {
@@ -949,6 +955,21 @@
       "types": "./dist/media/site/import-media-entity.d.ts",
       "import": "./dist/media/site/import-media-entity.js",
       "default": "./dist/media/site/import-media-entity.js"
+    },
+    "./admin-http/routes/media/get-providers": {
+      "types": "./dist/admin-http/routes/media/get-providers.d.ts",
+      "import": "./dist/admin-http/routes/media/get-providers.js",
+      "default": "./dist/admin-http/routes/media/get-providers.js"
+    },
+    "./admin-http/routes/media/delete": {
+      "types": "./dist/admin-http/routes/media/delete.d.ts",
+      "import": "./dist/admin-http/routes/media/delete.js",
+      "default": "./dist/admin-http/routes/media/delete.js"
+    },
+    "./admin-http/routes/media/trash": {
+      "types": "./dist/admin-http/routes/media/trash.d.ts",
+      "import": "./dist/admin-http/routes/media/trash.js",
+      "default": "./dist/admin-http/routes/media/trash.js"
     }
   },
   "files": [

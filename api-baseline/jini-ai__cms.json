@@ -3040,5 +3040,28 @@
    "WorkspacesTable": "interface:7ee61024eb",
    "workspaceRepoFor": "function:601af3e42b"
   }
+ },
+ "./admin-http/routes/media/delete": {
+  "types": "./dist/admin-http/routes/media/delete.d.ts",
+  "symbols": {
+   "MediaDeleteRouteDeps": "interface:655fcd058f",
+   "mediaDeleteRoute": "variable:8c932458e1"
+  }
+ },
+ "./admin-http/routes/media/get-providers": {
+  "types": "./dist/admin-http/routes/media/get-providers.d.ts",
+  "symbols": {
+   "MediaGetProvidersRouteDeps": "interface:f8db502d2f",
+   "MediaProviderMarkerMap": "type:abcb06986f",
+   "mediaGetProvidersRoute": "variable:5d55d42703"
+  }
+ },
+ "./admin-http/routes/media/trash": {
+  "types": "./dist/admin-http/routes/media/trash.d.ts",
+  "symbols": {
+   "MediaTrashRemove": "type:0505625385",
+   "MediaTrashRouteDeps": "interface:47127fc293",
+   "mediaTrashRoute": "variable:7dd7dd6318"
+  }
  }
 }
