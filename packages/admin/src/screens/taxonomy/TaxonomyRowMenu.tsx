@@ -1,6 +1,6 @@
 import { createPortal } from "react-dom";
 import type { CSSProperties, JSX } from "react";
-import { resolveTone, toneClassName } from "../../react/types.js";
+import { resolveTone, type ConfirmTone } from "../../react/types.js";
 import type { RowMenuProps } from "../../react/components/RowMenu/RowMenu.js";
 import { agentHandle, buildAgentListHandles } from "@jini-ai/core/agent-handles";
 import type { useTaxonomyRowMenu } from "./TaxonomyRowMenu.hooks.js";
@@ -77,6 +77,17 @@ function popupStyle({ position }: { position: MenuState["position"] }): CSSPrope
   };
 }
 
+/**
+ * A menu item's classes. Deliberately not the shared `toneClassName` (which emits the host's
+ * unprefixed `btn-danger`/`btn-warning`): every class this engine screen emits is `jini-*`, so the
+ * host styles the tones through its own `jini-taxonomy-row-menu-item-{danger,warning}` selectors.
+ * @param required - The item's resolved tone.
+ * @returns The space-separated class list.
+ */
+function itemClassName({ tone }: { tone: ConfirmTone }): string {
+  return tone === "default" ? "jini-taxonomy-row-menu-item" : `jini-taxonomy-row-menu-item jini-taxonomy-row-menu-item-${tone}`;
+}
+
 interface TaxonomyRowMenuPopupProps {
   menu: MenuState;
   items: TaxonomyRowMenuProps["items"];
@@ -102,7 +113,7 @@ function TaxonomyRowMenuPopup({ menu, items, triggerLabel, itemHandles }: Taxono
       type="button"
       role="menuitem"
       tabIndex={-1}
-      className={["jini-taxonomy-row-menu-item", toneClassName({ tone: resolveTone({}, item) })].filter(Boolean).join(" ")}
+      className={itemClassName({ tone: resolveTone({}, item) })}
       onClick={() => menu.selectItem({ onSelect: item.onSelect })}
       {...buttonHandleProps({ handle: itemHandles?.[index], label: item.label })}
     >{item.label}</button>)}

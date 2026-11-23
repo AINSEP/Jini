@@ -6,7 +6,7 @@ import assert from "node:assert/strict";
 
 import { installWebviewGuestPolicy } from "../guest-navigation.js";
 import type { GuestContents } from "../guest-navigation.js";
-import type { WindowOpenResponse } from "../window-navigation-policy.js";
+import type { WindowOpenResponse } from "../../electron/navigation-policy/index.js";
 
 const SITE = "http://127.0.0.1:4567";
 const OTHER_SITE = "http://127.0.0.1:4600";

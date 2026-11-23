@@ -40,7 +40,7 @@ describe("taxonomy menus compatible with published admin", () => {
     const menu = within(host).getByRole("menu", { name: "Actions for Category" });
     expect(menu.parentElement).toBe(host);
     expect(menu.style.position).toBe("fixed");
-    expect(within(menu).getByRole("menuitem", { name: "Delete" })).toHaveClass("btn-danger");
+    expect(within(menu).getByRole("menuitem", { name: "Delete" })).toHaveClass("jini-taxonomy-row-menu-item-danger");
     expect(within(menu).getByRole("menuitem", { name: "Delete" })).toHaveAttribute("data-agent-element", "category-menu-item-delete");
     unmount();
     expect(container.querySelector('[role="menu"]')).toBeNull();
@@ -131,6 +131,23 @@ describe("taxonomy menus compatible with published admin", () => {
     const item = within(host).getByRole("menuitem", { name: "Edit" });
     expect(item).not.toHaveAttribute("data-agent-element");
     expect(item.className).toBe("jini-taxonomy-row-menu-item");
+    host.remove();
+  });
+
+  it("emits only jini-prefixed tone classes for danger and warning items", async () => {
+    const host = document.createElement("main");
+    document.body.append(host);
+    render(<TaxonomyRowMenu useTaxonomyRowMenuHook={useTaxonomyRowMenu} portalContainer={host} triggerLabel="Actions" items={[
+      { key: "delete", label: "Delete", tone: "danger", onSelect: vi.fn() },
+      { key: "disable", label: "Disable", tone: "warning", onSelect: vi.fn() },
+      { key: "legacy", label: "Legacy delete", destructive: true, onSelect: vi.fn() },
+    ]} />, { container: host });
+    await userEvent.click(screen.getByRole("button", { name: "Actions" }));
+    const menu = within(host).getByRole("menu");
+    expect(within(menu).getByRole("menuitem", { name: "Delete" }).className).toBe("jini-taxonomy-row-menu-item jini-taxonomy-row-menu-item-danger");
+    expect(within(menu).getByRole("menuitem", { name: "Disable" }).className).toBe("jini-taxonomy-row-menu-item jini-taxonomy-row-menu-item-warning");
+    // The deprecated `destructive` flag still resolves to the danger tone.
+    expect(within(menu).getByRole("menuitem", { name: "Legacy delete" }).className).toBe("jini-taxonomy-row-menu-item jini-taxonomy-row-menu-item-danger");
     host.remove();
   });
 

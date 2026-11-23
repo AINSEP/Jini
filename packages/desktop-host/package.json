@@ -35,9 +35,6 @@
       "./shell/auto-update-controller": "node",
       "./shell/spellcheck-menu": "desktop",
       "./electron/selftest": "desktop",
-      "./shell/window-bounds-store": "desktop",
-      "./shell/webview-guest-policy": "desktop",
-      "./shell/window-navigation-policy": "desktop",
       "./shell/guest-navigation": "desktop",
       "./shell/site-presence": "universal",
       "./electron/handoff": "desktop"
@@ -48,9 +45,6 @@
         "./shell/instance-presence": "electron",
         "./shell/auto-update-controller": "electron",
         "./shell/spellcheck-menu": "electron",
-        "./shell/window-bounds-store": "electron",
-        "./shell/webview-guest-policy": "electron",
-        "./shell/window-navigation-policy": "electron",
         "./shell/guest-navigation": "electron"
       }
     }
@@ -165,21 +159,6 @@
       "types": "./dist/electron/selftest/index.d.ts",
       "import": "./dist/electron/selftest/index.js",
       "default": "./dist/electron/selftest/index.js"
-    },
-    "./shell/window-bounds-store": {
-      "types": "./dist/shell/window-bounds-store.d.ts",
-      "import": "./dist/shell/window-bounds-store.js",
-      "default": "./dist/shell/window-bounds-store.js"
-    },
-    "./shell/webview-guest-policy": {
-      "types": "./dist/shell/webview-guest-policy.d.ts",
-      "import": "./dist/shell/webview-guest-policy.js",
-      "default": "./dist/shell/webview-guest-policy.js"
-    },
-    "./shell/window-navigation-policy": {
-      "types": "./dist/shell/window-navigation-policy.d.ts",
-      "import": "./dist/shell/window-navigation-policy.js",
-      "default": "./dist/shell/window-navigation-policy.js"
     },
     "./shell/guest-navigation": {
       "types": "./dist/shell/guest-navigation.d.ts",
