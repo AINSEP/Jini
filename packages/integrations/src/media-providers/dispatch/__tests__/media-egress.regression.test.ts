@@ -1,5 +1,5 @@
 import { createBuiltinVendorAdapterRegistry } from '../vendor-registry.js';
-import { createNodeMediaHttpClient } from '../node.js';
+import { createNodeMediaHttpClient, nodeMediaGuardedFetch } from '../node.js';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { createHttpClient } from '@jini-ai/platform/http/guarded';
 import type { HttpClientPort } from '@jini-ai/core/primitives';
@@ -28,7 +28,7 @@ afterEach(() => { vi.unstubAllGlobals(); vi.restoreAllMocks(); });
 function context(httpClient: HttpClientPort = createNodeMediaHttpClient({})): RenderContext {
   return { ...buildRenderContext({ request: { surface: 'image', model: 'dall-e-3' },
     resolvedAudioKind: undefined, length: undefined, duration: undefined }),
-    ...(httpClient === undefined ? {} : { httpClient }) };
+    guardedFetch: nodeMediaGuardedFetch, ...(httpClient === undefined ? {} : { httpClient }) };
 }
 
 const adapter: PollingVendorAdapter = {
@@ -58,7 +58,7 @@ const paths: Path[] = [
     const store = createInMemoryAsyncOperationStore();
     const outcome = await startOperation({ store, signer: ({ request }) => ({ url, init: request.init }),
       adapter, ctx, providerId: 'fixture', routeKey: 'image', ownerRef: 'fixture' },
-      { graceMs: 1000, ...(ctx.httpClient === undefined ? {} : { httpClient: ctx.httpClient }) });
+      { graceMs: 1000, guardedFetch: nodeMediaGuardedFetch, ...(ctx.httpClient === undefined ? {} : { httpClient: ctx.httpClient }) });
     if (outcome.done) return outcome.result.bytes;
     const row = await store.get({ id: outcome.operationId });
     throw new Error(row?.error?.message ?? 'operation did not complete');
@@ -117,33 +117,33 @@ describe('DNS, development and timeout policy', () => {
     const raw = wire('https://cdn.example/a');
     const init: RequestInit = {};
     Object.defineProperty(init, 'dispatcher', { value: {}, enumerable: true });
-    await expect(fetchMediaOutbound({ url: 'https://cdn.example/a', timeoutMs: 1000, httpClient: createNodeMediaHttpClient({}) }, { init }))
+    await expect(fetchMediaOutbound({ url: 'https://cdn.example/a', timeoutMs: 1000, httpClient: createNodeMediaHttpClient({}), guardedFetch: nodeMediaGuardedFetch }, { init }))
       .rejects.toThrow(/guarded HTTP client/);
     expect(raw).not.toHaveBeenCalled();
   });
   // REGRESSION: fails if fetchMediaOutbound accepts an unsupported body/method.
   it('refuses transport overrides and unsupported wire requests before I/O', async () => {
     const raw = wire('https://cdn.example/a');
-    await expect(fetchMediaOutbound({ url: 'https://cdn.example/a', timeoutMs: 1000, httpClient: createNodeMediaHttpClient({}) }, { init: { method: 'CONNECT' } })).rejects.toThrow(/method/);
-    await expect(fetchMediaOutbound({ url: 'https://cdn.example/a', timeoutMs: 1000, httpClient: createNodeMediaHttpClient({}) }, { init: { body: new Blob(['binary']), method: 'POST' } })).rejects.toThrow(/body/);
+    await expect(fetchMediaOutbound({ url: 'https://cdn.example/a', timeoutMs: 1000, httpClient: createNodeMediaHttpClient({}), guardedFetch: nodeMediaGuardedFetch }, { init: { method: 'CONNECT' } })).rejects.toThrow(/method/);
+    await expect(fetchMediaOutbound({ url: 'https://cdn.example/a', timeoutMs: 1000, httpClient: createNodeMediaHttpClient({}), guardedFetch: nodeMediaGuardedFetch }, { init: { body: new Blob(['binary']), method: 'POST' } })).rejects.toThrow(/body/);
     expect(raw).not.toHaveBeenCalled();
   });
   // REGRESSION: fails if fetchMediaOutbound returns a truncated guarded response as successful media bytes.
   it('refuses clipped bytes instead of returning a corrupt artifact', async () => {
     const client: HttpClientPort = { send: async () => ({ status: 200, headers: {},
       bodyText: 'partial', bodyBytes: new Uint8Array([0xff]), bodyBytesTruncated: true }) };
-    await expect(fetchMediaOutbound({ url: 'https://cdn.example/a', timeoutMs: 1000, httpClient: client })).rejects.toThrow(/truncated/);
+    await expect(fetchMediaOutbound({ guardedFetch: nodeMediaGuardedFetch, url: 'https://cdn.example/a', timeoutMs: 1000, httpClient: client })).rejects.toThrow(/truncated/);
   });
   // REGRESSION: fails if fetchMediaOutbound omits its default maxResponseBytes policy or totalDeadlineMs.
   it('bounds default media buffering and preserves caller cancellation', async () => {
     testPinnedRequests.length = 0;
     wire('https://cdn.example/a');
     const abort = new AbortController();
-    await fetchMediaOutbound({ url: 'https://cdn.example/a', timeoutMs: 1000, httpClient: createNodeMediaHttpClient({}) }, { init: { signal: abort.signal } });
+    await fetchMediaOutbound({ url: 'https://cdn.example/a', timeoutMs: 1000, httpClient: createNodeMediaHttpClient({}), guardedFetch: nodeMediaGuardedFetch }, { init: { signal: abort.signal } });
     expect(testPinnedRequests[0]?.maxResponseBytes).toBe(96 * 1024 * 1024);
     expect(testPinnedRequests[0]?.totalDeadlineMs).toBe(1000);
     abort.abort(new Error('caller stopped'));
-    await expect(fetchMediaOutbound({ url: 'https://cdn.example/a', timeoutMs: 1000, httpClient: createNodeMediaHttpClient({}) }, { init: { signal: abort.signal } })).rejects.toThrow('caller stopped');
+    await expect(fetchMediaOutbound({ url: 'https://cdn.example/a', timeoutMs: 1000, httpClient: createNodeMediaHttpClient({}), guardedFetch: nodeMediaGuardedFetch }, { init: { signal: abort.signal } })).rejects.toThrow('caller stopped');
     expect(testPinnedRequests).toHaveLength(1);
   });
   // REGRESSION: fails if validateBaseUrlResolved skips loopback answers or returns ok:true on lookup failure.
@@ -160,6 +160,7 @@ describe('DNS, development and timeout policy', () => {
     for (const address of ['10.0.0.1', '::1', '169.254.169.254']) {
       await expect(assertAndFetchExternalAsset({ url: 'https://cdn.example/a' }, {
         httpClient: createNodeMediaHttpClient({}, { dns: { resolve: async () => ['93.184.216.34', address] } }),
+        guardedFetch: nodeMediaGuardedFetch,
       })).rejects.toThrow(/rejected/);
     }
     expect(raw).not.toHaveBeenCalled();
@@ -168,10 +169,10 @@ describe('DNS, development and timeout policy', () => {
   it('requires explicit development opt-in and still refuses redirects', async () => {
     const url = 'http://127.0.0.1/asset';
     wire(url);
-    await expect(fetchMediaOutbound({ url, timeoutMs: 1000, httpClient: createNodeMediaHttpClient({}) })).rejects.toThrow(/rejected/);
-    expect((await fetchMediaOutbound({ url, timeoutMs: 1000, httpClient: createNodeMediaHttpClient({}, { allowPrivateNetwork: true }) }, { allowPrivateNetwork: true })).status).toBe(200);
+    await expect(fetchMediaOutbound({ url, timeoutMs: 1000, httpClient: createNodeMediaHttpClient({}), guardedFetch: nodeMediaGuardedFetch })).rejects.toThrow(/rejected/);
+    expect((await fetchMediaOutbound({ guardedFetch: nodeMediaGuardedFetch, url, timeoutMs: 1000, httpClient: createNodeMediaHttpClient({}, { allowPrivateNetwork: true }) }, { allowPrivateNetwork: true })).status).toBe(200);
     wire(url, true);
-    await expect(fetchMediaOutbound({ url, timeoutMs: 1000, httpClient: createNodeMediaHttpClient({}, { allowPrivateNetwork: true }) }, { allowPrivateNetwork: true, init: { redirect: 'follow' } })).rejects.toThrow(/redirect/);
+    await expect(fetchMediaOutbound({ guardedFetch: nodeMediaGuardedFetch, url, timeoutMs: 1000, httpClient: createNodeMediaHttpClient({}, { allowPrivateNetwork: true }) }, { allowPrivateNetwork: true, init: { redirect: 'follow' } })).rejects.toThrow(/redirect/);
   });
   // REGRESSION: fails if the engine drops its required httpClient when constructing RenderContext.
   it('threads the host guard through engine generation and provider asset parsing', async () => {
@@ -203,7 +204,7 @@ describe('DNS, development and timeout policy', () => {
         return { kind: 'complete', result: { providerNote: 'asset', bytes:
           await bytesFromOpenAICompatibleData({ data: { data: [{ url: 'https://cdn.example/a' }] }, providerTag: 'fixture' }, ctx) } };
       } }, ctx: context(), providerId: 'fixture', routeKey: 'image', ownerRef: 'fixture' },
-      { httpClient: { send }, graceMs: 1000 });
+      { httpClient: { send }, guardedFetch: nodeMediaGuardedFetch, graceMs: 1000 });
     expect(outcome.done).toBe(true);
     expect(send).toHaveBeenCalledTimes(2);
     expect(send.mock.calls[1]?.[0].request.url).toBe('https://cdn.example/a');
@@ -215,7 +216,7 @@ describe('DNS, development and timeout policy', () => {
     await store.update({ id: 'poll', patch: { status: 'polling', state: { jobId: 'job' } } });
     const raw = wire('http://10.0.0.1/poll');
     const stats = await pollDueOperations({ store, signer: ({ request }) => ({ url: 'http://10.0.0.1/poll', init: request.init }),
-      adapters: () => adapter, resolveContext: () => context(), leaseOwner: 'worker', leaseMs: 1000 }, { clock: () => 1, httpClient: createNodeMediaHttpClient({}) });
+      adapters: () => adapter, resolveContext: () => context(), leaseOwner: 'worker', leaseMs: 1000 }, { clock: () => 1, httpClient: createNodeMediaHttpClient({}), guardedFetch: nodeMediaGuardedFetch });
     expect(stats.pending).toBe(1);
     expect((await store.get({ id: 'poll' }))?.error?.message).toMatch(/rejected/);
     expect(raw).not.toHaveBeenCalled();

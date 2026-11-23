@@ -268,3 +268,15 @@ describe("real guarded HTTP with fake DNS and pinned transport", () => {
     await expect(run(f)).rejects.toMatchObject({ message: "Saved request refused: execution_failed" });
   });
 });
+
+// XC-5: the guarded client comes from the host-bound factory with the single-hop HTTPS policy, never a package import.
+describe("host-bound guarded client factory", () => {
+  test("builds the client through deps.createHttpClient with the single-hop HTTPS policy", async () => {
+    const f = fixture();
+    expect(await run(f)).toEqual({ trust: "untrusted", items: [{ title: "Public" }] });
+    expect(f.clientPolicies).toEqual([{
+      allowedSchemes: ["https"], denyPrivateAddresses: true, devHostAllowlist: [], maxRedirects: 0,
+      connectTimeoutMs: 10_000, maxResponseBytes: 65_536, maxDecompressedBytes: 65_536,
+    }]);
+  });
+});

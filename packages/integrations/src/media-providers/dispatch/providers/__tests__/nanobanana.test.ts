@@ -1,4 +1,4 @@
-import { createNodeMediaHttpClient } from '../../node.js';
+import { createNodeMediaHttpClient, nodeMediaGuardedFetch } from '../../node.js';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { renderNanoBananaImage } from '../nanobanana.js';
 import type { RenderContext } from '../../types.js';
@@ -10,7 +10,7 @@ afterEach(() => {
 
 function baseCtx(overrides: Partial<RenderContext> = {}): RenderContext {
   return {
-    httpClient: createNodeMediaHttpClient({}),
+    httpClient: createNodeMediaHttpClient({}), guardedFetch: nodeMediaGuardedFetch,
     surface: 'image',
     model: 'gemini-3.1-flash-image-preview',
     wireModel: 'gemini-3.1-flash-image-preview',
@@ -78,7 +78,7 @@ describe('renderNanoBananaImage', () => {
             return contentResponse(Buffer.from('x').toString('base64'));
         });
         vi.stubGlobal('fetch', fetchMock);
-        await renderNanoBananaImage({ ctx: baseCtx({ httpClient: testHttpClient(fetchMock) }), credentials: { apiKey: 'g-key', baseUrl: 'not a url' } });
+        await renderNanoBananaImage({ ctx: baseCtx({ httpClient: testHttpClient(fetchMock), guardedFetch: nodeMediaGuardedFetch }), credentials: { apiKey: 'g-key', baseUrl: 'not a url' } });
         expect(fetchMock).toHaveBeenCalledTimes(1);
     });
     it('rejects an unparseable baseUrl before transport I/O with the default guarded client', async () => {

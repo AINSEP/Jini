@@ -20,7 +20,7 @@ import { statSync } from 'node:fs';
 import { createRequire } from 'node:module';
 
 import { definePack, type Principal, type ToolRegistration } from '@jini-ai/core';
-import { getAgentDef, type DetectedAgent, type OAuthCallbackListener } from '@jini-ai/agent-runtime';
+import { getAgentDef, runAnthropicToolTurn, runAzureToolTurn, runGoogleToolTurn, runOllamaToolTurn, runOpenAiToolTurn, validateBaseUrl, type DetectedAgent, type OAuthCallbackListener } from '@jini-ai/agent-runtime';
 import {
   createDefaultRunStartHandler,
   createRemoteToolEventRecorder,
@@ -366,7 +366,7 @@ export function createBuiltInFeatures(options: BuiltInFeatureOptions = {}): read
         deps: [],
         services: () => ({ context }),
       }, {
-        http: ({ app, services }) => mountRoutes({ app, routes: modelProxyRoutes({ deps: {}, host: services.context.routeHost }) }),
+        http: ({ app, services }) => mountRoutes({ app, routes: modelProxyRoutes({ deps: { toolTurns: { anthropic: runAnthropicToolTurn, openai: runOpenAiToolTurn, azure: runAzureToolTurn, google: runGoogleToolTurn, ollama: runOllamaToolTurn } }, host: services.context.routeHost }) }),
       }),
     }),
   });
@@ -529,7 +529,7 @@ export function createBuiltInFeatures(options: BuiltInFeatureOptions = {}): read
         deps: [],
         services: () => ({ context }),
       }, {
-        http: ({ app, services }) => mountRoutes({ app, routes: researchRoutes({ deps: {}, host: services.context.routeHost }) }),
+        http: ({ app, services }) => mountRoutes({ app, routes: researchRoutes({ deps: { baseUrlGuard: { validate: validateBaseUrl } }, host: services.context.routeHost }) }),
       }),
     }),
   });

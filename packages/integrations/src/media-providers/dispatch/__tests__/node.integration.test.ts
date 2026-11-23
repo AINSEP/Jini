@@ -5,7 +5,7 @@ import { gzipSync } from 'node:zlib';
 import { describe, expect, it, vi } from 'vitest';
 import type { HttpClientPort } from '@jini-ai/core/primitives';
 import type { createNodeGuardedHttpPorts } from '@jini-ai/platform/http/guarded';
-import { createNodeMediaHttpClient } from '../node.js';
+import { createNodeMediaHttpClient, nodeMediaGuardedFetch } from '../node.js';
 import { fetchMediaOutbound } from '../outbound.js';
 
 type NativeRequest = NonNullable<ConstructorParameters<typeof import('@jini-ai/platform/http/guarded').FetchHttpTransportAdapter>[1]>['request'];
@@ -68,7 +68,7 @@ describe('media outbound through the native transport request seam', () => {
     const state = fixture();
     const resolve = vi.fn().mockResolvedValueOnce(['93.184.216.34']).mockResolvedValue(['10.0.0.5']);
     const httpClient = createNodeMediaHttpClient({}, { dns: { resolve } });
-    const response = await fetchMediaOutbound({ url, timeoutMs: 1000, httpClient });
+    const response = await fetchMediaOutbound({ guardedFetch: nodeMediaGuardedFetch, url, timeoutMs: 1000, httpClient });
     expect(Buffer.from(await response.arrayBuffer())).toEqual(Buffer.from([0xff, 0, 0x80, 0x42]));
     expect(resolve.mock.calls).toEqual([[{ hostname: 'pinned.example' }]]);
     expect(state.sent).toHaveLength(1);
@@ -81,7 +81,7 @@ describe('media outbound through the native transport request seam', () => {
   it('refuses a redirect before a second connection even with private-network opt-in', async () => {
     const state = fixture({ status: 302, bytes: Buffer.alloc(0), headers: { location: 'http://127.0.0.1/secret' } });
     const httpClient = createNodeMediaHttpClient({}, { allowPrivateNetwork: true, dns: { resolve: async () => ['127.0.0.1'] } });
-    await expect(fetchMediaOutbound({ url, timeoutMs: 1000, httpClient }, { init: { redirect: 'follow' } }))
+    await expect(fetchMediaOutbound({ guardedFetch: nodeMediaGuardedFetch, url, timeoutMs: 1000, httpClient }, { init: { redirect: 'follow' } }))
       .rejects.toThrow(/redirect/);
     expect(state.sent).toHaveLength(1);
   });
@@ -90,7 +90,7 @@ describe('media outbound through the native transport request seam', () => {
     const state = fixture({ stall: true });
     const caller = new AbortController();
     const httpClient = createNodeMediaHttpClient({}, { dns: { resolve: async () => ['93.184.216.34'] } });
-    const pending = fetchMediaOutbound({ url, timeoutMs: 1000, httpClient }, { init: { signal: caller.signal } });
+    const pending = fetchMediaOutbound({ guardedFetch: nodeMediaGuardedFetch, url, timeoutMs: 1000, httpClient }, { init: { signal: caller.signal } });
     const reason = new Error('caller stopped');
     const rejected = expect(pending).rejects.toBe(reason);
     await state.bodyStarted;
@@ -104,7 +104,7 @@ describe('media outbound through the native transport request seam', () => {
     const state = fixture();
     const resolve = vi.fn(() => new Promise<readonly string[]>(() => {}));
     const httpClient = createNodeMediaHttpClient({}, { dns: { resolve } });
-    await expect(fetchMediaOutbound({ url, timeoutMs: 25, httpClient }))
+    await expect(fetchMediaOutbound({ guardedFetch: nodeMediaGuardedFetch, url, timeoutMs: 25, httpClient }))
       .rejects.toMatchObject({ name: 'FetchTimeoutError', message: `fetch timed out after 25ms: ${new URL(url).origin}`, timeoutMs: 25 });
     expect(resolve).toHaveBeenCalledTimes(1);
     expect(state.sent).toHaveLength(0);
@@ -113,7 +113,7 @@ describe('media outbound through the native transport request seam', () => {
   it('enforces the deadline through an unfinished decoded body', async () => {
     const state = fixture({ stall: true });
     const httpClient = createNodeMediaHttpClient({}, { dns: { resolve: async () => ['93.184.216.34'] } });
-    await expect(fetchMediaOutbound({ url, timeoutMs: 25, httpClient }))
+    await expect(fetchMediaOutbound({ guardedFetch: nodeMediaGuardedFetch, url, timeoutMs: 25, httpClient }))
       .rejects.toMatchObject({ name: 'FetchTimeoutError', message: `fetch timed out after 25ms: ${new URL(url).origin}`, timeoutMs: 25 });
     expect(state.destroyed()).toBe(true);
   });
@@ -124,7 +124,7 @@ describe('media outbound through the native transport request seam', () => {
     const nodeClient = createNodeMediaHttpClient({}, { dns: { resolve: async () => ['93.184.216.34'] } });
     const httpClient: HttpClientPort = { send: ({ request }, options) =>
       nodeClient.send({ request: { ...request, maxResponseBytes: 4 } }, options) };
-    await expect(fetchMediaOutbound({ url, timeoutMs: 1000, httpClient })).rejects.toThrow('truncated');
+    await expect(fetchMediaOutbound({ guardedFetch: nodeMediaGuardedFetch, url, timeoutMs: 1000, httpClient })).rejects.toThrow('truncated');
     expect(state.destroyed()).toBe(true);
   });
 });

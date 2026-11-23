@@ -2,6 +2,7 @@ import type { HttpRequest, HttpResponse } from "@jini-ai/core/primitives";
 import type { PinnedPeer } from "@jini-ai/core/contracts/runtime";
 import { InMemoryCredentialedRequestAuditLog, makeCredentialedRequest } from "../../credentialed-http/credentialed-request.js";
 import type { SavedRequestDefinition, SavedRequestDeps } from "../types.js";
+import { createHttpClient } from "@jini-ai/platform/http/guarded";
 
 export function definition(overrides: Partial<SavedRequestDefinition> = {}): SavedRequestDefinition {
   return {
@@ -19,6 +20,7 @@ export function fixture() {
   const resolutions: { workspaceId: string; credentialId: string }[] = [];
   const lookups: string[] = [];
   const deadlines: number[] = [];
+  const clientPolicies: unknown[] = [];
   const state = {
     response: { status: 200, headers: { "content-type": "application/json" }, bodyText: JSON.stringify({ products: [{ title: "Public", private: "hidden" }] }) } as HttpResponse,
     credential: { baseUrl: "https://api.example/v1", additionalHosts: ["https://other.example"], connection: { token: "secret-token-value" }, revision: "rev-1" } as Awaited<ReturnType<SavedRequestDeps["credentials"]["resolve"]>>,
@@ -40,7 +42,9 @@ export function fixture() {
       if (state.send) return state.send(request);
       return state.response;
     } },
-    userAgent: "SavedRequestTest/1", forbiddenOrigins: ["https://site.example", "https://admin.example"],
+    userAgent: "SavedRequestTest/1",
+    createHttpClient: (required) => { clientPolicies.push(required.policy); return createHttpClient(required); },
+    forbiddenOrigins: ["https://site.example", "https://admin.example"],
   };
-  return { deps, state, calls, resolutions, lookups, deadlines, audit };
+  return { deps, state, calls, resolutions, lookups, deadlines, audit, clientPolicies };
 }
