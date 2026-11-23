@@ -475,6 +475,13 @@
    "WorkspaceContextItem": "interface:95f545c991"
   }
  },
+ "./contracts/agents/inventory": {
+  "types": "./dist/contracts/agents/inventory.d.ts",
+  "symbols": {
+   "AgentInventoryOption": "type:f127589505",
+   "AgentInventorySummary": "interface:8635af2893"
+  }
+ },
  "./contracts/ai-trace": {
   "types": "./dist/contracts/ai-trace/index.d.ts",
   "symbols": {
