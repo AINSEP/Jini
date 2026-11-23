@@ -84,6 +84,9 @@
       "./contracts/site/agent-plugins-manifest": "universal",
       "./contracts/site/agent-runtime": "universal",
       "./contracts/site/agentic": "universal",
+      "./contracts/site/hooks-sites-port-hooks": "universal",
+      "./contracts/site/contracts-resources": "universal",
+      "./contracts/site/agentic-dom": "universal",
       "./contracts/site/api-ai-assistant-api-types": "universal",
       "./contracts/site/cms-forms": "universal",
       "./contracts/site/cms-media": "universal",
@@ -615,6 +618,21 @@
       "types": "./dist/contracts/site/agentic.d.ts",
       "import": "./dist/contracts/site/agentic.js",
       "default": "./dist/contracts/site/agentic.js"
+    },
+    "./contracts/site/hooks-sites-port-hooks": {
+      "types": "./dist/contracts/site/hooks-sites-port-hooks.d.ts",
+      "import": "./dist/contracts/site/hooks-sites-port-hooks.js",
+      "default": "./dist/contracts/site/hooks-sites-port-hooks.js"
+    },
+    "./contracts/site/contracts-resources": {
+      "types": "./dist/contracts/site/contracts-resources.d.ts",
+      "import": "./dist/contracts/site/contracts-resources.js",
+      "default": "./dist/contracts/site/contracts-resources.js"
+    },
+    "./contracts/site/agentic-dom": {
+      "types": "./dist/contracts/site/agentic-dom.d.ts",
+      "import": "./dist/contracts/site/agentic-dom.js",
+      "default": "./dist/contracts/site/agentic-dom.js"
     },
     "./contracts/site/api-ai-assistant-api-types": {
       "types": "./dist/contracts/site/api-ai-assistant-api-types.d.ts",
