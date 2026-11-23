@@ -128,6 +128,14 @@ both `(required, optional?)`), `useBootScope`, the host's `useFetchQuery`/`useIn
 `UseAdminLocaleHook` and passes that same function to `AdminKitHooks.useAdminLocale` and to every
 mount whose required `useAdminLocaleHook` prop needs it. There is no default hook in this package.
 
+**Settings-dialog tabs.** `SettingsDialogTab<TId>` (`@jini-ai/admin/react/kit`) is the kit's
+structural mirror of the UI library's tab type (`id`, `label`, `navHint`, `title`, `subtitle`,
+`icon`, `panel`). Host screens type their tab arrays with it and mount them through the
+`SettingsDialogShell` slot, which the host binds in its `AdminKit` alongside `I18nProvider` and
+`Icon`. The two declarations are intentional; the host's kit integration test asserts they stay
+mutually assignable. `SettingsDialogShellProps` does not declare the UI shell's `labels` prop yet,
+so screens that pass `labels` still mount the UI library's shell directly.
+
 ## Errors
 
 Route groups throw `AdminApiError` (`status`, `code`, raw `body`). There is deliberately **no**

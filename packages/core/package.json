@@ -157,6 +157,10 @@
       "./env/parse-env": "universal",
       "./env/format-env-issue": "universal",
       "./env/describe-env-for-diagnostics": "universal",
+      "./contracts/headless/chart-providers": "universal",
+      "./contracts/headless/chat-attachment": "universal",
+      "./contracts/headless/contracts": "universal",
+      "./contracts/headless/member-login": "universal",
       "./contracts/headless/form-delivery-status": "universal",
       "./contracts/headless/operator-locale": "universal",
       "./contracts/headless/plugin-export-catalog": "universal",
@@ -955,6 +959,26 @@
       "types": "./dist/errors/route-refusal.d.ts",
       "import": "./dist/errors/route-refusal.js",
       "default": "./dist/errors/route-refusal.js"
+    },
+    "./contracts/headless/chart-providers": {
+      "types": "./dist/contracts/headless/chart-providers.d.ts",
+      "import": "./dist/contracts/headless/chart-providers.js",
+      "default": "./dist/contracts/headless/chart-providers.js"
+    },
+    "./contracts/headless/chat-attachment": {
+      "types": "./dist/contracts/headless/chat-attachment.d.ts",
+      "import": "./dist/contracts/headless/chat-attachment.js",
+      "default": "./dist/contracts/headless/chat-attachment.js"
+    },
+    "./contracts/headless/contracts": {
+      "types": "./dist/contracts/headless/contracts.d.ts",
+      "import": "./dist/contracts/headless/contracts.js",
+      "default": "./dist/contracts/headless/contracts.js"
+    },
+    "./contracts/headless/member-login": {
+      "types": "./dist/contracts/headless/member-login.d.ts",
+      "import": "./dist/contracts/headless/member-login.js",
+      "default": "./dist/contracts/headless/member-login.js"
     },
     "./contracts/headless/form-delivery-status": {
       "types": "./dist/contracts/headless/form-delivery-status.d.ts",

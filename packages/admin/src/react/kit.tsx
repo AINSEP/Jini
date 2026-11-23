@@ -176,6 +176,14 @@ export interface SettingsDialogShellProps {
   readonly onActiveTabIdChange?: (tabId: string) => void; readonly onClose?: () => void; readonly presentation?: 'modal' | 'inline';
   readonly welcome?: boolean; readonly defaultSidebarCollapsed?: boolean; readonly fullscreenEnabled?: boolean; readonly defaultFullscreen?: boolean;
   readonly chromeExtra?: ReactNode; readonly dialogAriaLabelledBy?: string; readonly className?: string;
+  /** Chrome labels the shell renders itself; mirrors the UI owner's `TabbedDialogChromeLabels` (all optional). */
+  readonly labels?: SettingsDialogChromeLabels;
+}
+/** Kit mirror of the UI shell's chrome labels (kicker, welcome copy, close/fullscreen/sidebar labels). */
+export interface SettingsDialogChromeLabels {
+  readonly kicker?: string; readonly welcomeKicker?: string; readonly welcomeTitle?: string; readonly welcomeSubtitle?: string;
+  readonly closeLabel?: string; readonly fullscreenLabel?: string; readonly exitFullscreenLabel?: string;
+  readonly collapseSidebarLabel?: string; readonly expandSidebarLabel?: string; readonly sidebarAriaLabel?: string;
 }
 export interface CodeWithLinesProps { readonly text: string; readonly wrap?: boolean }
 export interface CodeWrapToggleProps { readonly wrap: boolean; readonly onToggle: () => void; readonly t: Translate; readonly agentHandleId: string; readonly className?: string }
