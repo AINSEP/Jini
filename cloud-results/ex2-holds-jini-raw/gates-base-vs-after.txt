@@ -1,0 +1,18 @@
+base exits (unmodified tree):
+guard 0, api:check 0, check:size 1, check:complexity 1, check:why-comments 1 (10 blocks), check:hooks 0, check:errors 0, cross-package 1 (760 lines)
+
+after exits (first full run, before the gates-fix commit):
+install 0
+build 0
+typecheck 0
+guard 1
+api:check 0
+check:size 1
+check:complexity 1
+check:why-comments 1
+check:hooks 0
+check:errors 0
+xpkg 1
+ALLDONE
+
+after the gates-fix commit: guard 0; why-comments 1 (10 blocks = base); cross-package with JINI_DECLARATION_BASELINE_DIR 1 (760 lines, identical to base after sort); size/complexity: identical New-violation/stale lines to base; api:check 0; hooks 0; errors 0; tsc scripts 0

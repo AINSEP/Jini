@@ -6,6 +6,8 @@ spec_mode: reverse_spec
 
 # API Contract: @jini-ai/infra
 
+> **RT-2 (2026-11-22):** the `./db/core` and `./db/sqlite` shims this spec describes were removed; their owner is `@jini-ai/db` (`./core`, `./sqlite`). The package now exports only `./events/outbox` — see `README.md`. Text below about the shims is historical.
+
 ## Public entry points
 
 This package is a deprecated ESM compatibility shim. Its complete export map is `./db/core` and `./db/sqlite`; there is no root entry. Prefer the equivalent `@jini-ai/db/core` and `@jini-ai/db/sqlite` imports for new consumers. The source says the shim is removed after one release, without identifying a removal version.

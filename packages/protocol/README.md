@@ -28,7 +28,7 @@ No peer dependencies. `zod` and `@jini-ai/core` are regular dependencies, instal
   edit), `createApiError`/`createApiErrorResponse`, and `RunErrorPayload`.
 - **Durable event log port** — `EventLog`, `EventLogEntry`, `EventLogAppendInput`,
   `EventLogReplayResult` (the async, dedupe-aware, gap-detecting log interface that
-  `@jini-ai/daemon`'s in-memory implementation and `@jini-ai/sqlite-chat`'s durable adapter both
+  `@jini-ai/daemon`'s in-memory implementation and `@jini-ai/daemon/store/event-log/sqlite`'s durable adapter both
   implement).
 - **Agent catalog vocabulary** — `AgentDefinition`, `ModelProvider`, `ModelCatalogOption`,
   `CredentialStatus`, `AgentDiagnostic`/`AgentDiagnosticReason`/`AgentDiagnosticSeverity`,
@@ -77,7 +77,7 @@ function toEntry(e: EventLogEntry): { cursor: string; event: string } {
 ## What's swappable
 
 This package defines contracts only — nothing to inject. `EventLog` is the one interface meant
-to be *implemented* by other packages (`@jini-ai/daemon`'s in-memory log, `@jini-ai/sqlite-chat`'s
+to be *implemented* by other packages (`@jini-ai/daemon`'s in-memory log, `@jini-ai/daemon/store/event-log/sqlite`'s
 durable adapter, `RegistryBackend`/`RegistryBackendFactory` similarly for a registry storage
 backend) rather than by protocol itself, which only carries the shapes.
 

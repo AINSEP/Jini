@@ -1,42 +1,13 @@
 # `@jini-ai/infra`
 
-Deprecated compatibility package: replace `@jini-ai/infra/db/core` with `@jini-ai/db/core` and
-`@jini-ai/infra/db/sqlite` with `@jini-ai/db/sqlite`.
+The event outbox owner, published as `@jini-ai/infra/events/outbox`. It needs only the regular
+`@jini-ai/core` dependency.
 
-This package and its published exports remain available for compatibility. The package owner
-applies npm registry deprecation at publish time; the manifest notice does not deprecate existing
-registry versions by itself. The retained outbox owner is exposed as `@jini-ai/infra/events/outbox`;
-the database entries remain compatibility shims.
-
-`@jini-ai/db` is an optional peer, required only by `./db/core` and `./db/sqlite`.
-Hosts using those entries must declare and install it explicitly; the published peer range
-tracks the matching workspace db release. `./events/outbox` works without db installed and
-requires only the regular `@jini-ai/core` dependency. The compatibility entries continue to
-re-export db's implementations; no database driver is loaded by the shim itself.
-
-Version 0.4.0 keeps the 0.3.3 names at `@jini-ai/infra/db/core` and
-`@jini-ai/infra/db/sqlite` for existing ESM consumers. Database implementations and their tests
-now live in `@jini-ai/db`. This shim has no driver peer dependency and no CommonJS build.
-
-```ts
-import type { DbOpsPort } from '@jini-ai/db/core';
-import { openSqliteConnection, SqliteDbOpsAdapter } from '@jini-ai/db/sqlite';
-import Database from 'better-sqlite3';
-
-const connection = openSqliteConnection({
-  filePath: 'app.db',
-  open: (filePath, options) => new Database(filePath, options),
-});
-```
-
-`openSqliteConnection` now requires an injected `open`. It has no known host callers; the existing
-consumer uses `SqliteDbOpsAdapter`. The injected opener returns the host's own driver handle, and
-custom pragmas still replace the defaults. See `packages/db/README.md` for the complete subpath map,
-load-time requirements and isolation tests.
-
-`src/db/core` remains an R12 neutral directory declaring the naming port. The published `./db/core`
-compatibility entry binds that port in `src/db/driver` and preserves the canonical helper identities
-and original exports, including erased types. `shim-surface.test.ts` freezes both original name lists.
+The `@jini-ai/infra/db/core` and `@jini-ai/infra/db/sqlite` compatibility shims were removed (RT-2,
+owner retire order of 2026-11-22). Import their names from the owner: `@jini-ai/db/core`
+(`DbOpsPort`, `restorePointFilename`, `sanitizeForFilename`, the restore-point types) and
+`@jini-ai/db/sqlite` (`openSqliteConnection`, `DEFAULT_PRAGMAS`, `SqliteDbOpsAdapter`); the SQLite
+option types are in `@jini-ai/core/contracts/storage`. See `packages/db/README.md`.
 
 ## Design decisions
 

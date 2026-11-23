@@ -17,19 +17,19 @@
  * addition beyond the port interface to release the file handle — the same
  * shape `SqliteEventLog extends EventLog` already established.
  *
- * **Why this lives in `@jini-ai/media` itself, not `@jini-ai/sqlite-chat`** (the
+ * **Why this lives in `@jini-ai/media` itself, not a separate SQLite storage package** (the
  * "natural" home per the `EventLog` precedent, where the durable adapter
- * lives in a separate package from the port it implements): `@jini-ai/sqlite-chat`
+ * lives in a separate package from the port it implements): that package
  * is one of `scripts/check-engine-boundaries.ts`'s 14 *locked* packages;
  * `@jini-ai/media` is listed in `UNLOCKED.md` with `status: "incubating"`.
  * `check-engine-boundaries.ts`'s R7 rule forbids a locked package from
- * importing an unlocked, non-`"stable"` one — `@jini-ai/sqlite-chat` depending on
+ * importing an unlocked, non-`"stable"` one — that package depending on
  * `@jini-ai/media` for `MediaTaskStore`'s types would fail `pnpm guard`
  * outright. Implementing the adapter inside `@jini-ai/media` (itself
  * unlocked, so unrestricted in what it may depend on) keeps the exact same
  * schema/transaction/WAL/`close()` conventions without a guard violation.
  * See `ADS-memory/reports/proposals/PROP-media-durable-tasks-2026-07-21.md`
- * for the open question of whether this should move to `@jini-ai/sqlite-chat` once
+ * for the open question of whether this should move beside the other SQLite stores (for example `@jini-ai/daemon/store/event-log/sqlite`) once
  * `@jini-ai/media` is promoted to `"stable"`.
  *
  * Implements `task-store.ts`'s `MediaTaskStore` port exactly: same

@@ -1,0 +1,5 @@
+NO    old | match new | moved host-binding (Jini specifier)
+match old | NO    new | original host-binding (relative specifier, source deleted after move)
+NO    old | NO    new | BAD: import removed, array re-declared as a private literal
+NO    old | NO    new | BAD: imported from some other module
+NO    old | NO    new | BAD: imported from a look-alike Jini subpath

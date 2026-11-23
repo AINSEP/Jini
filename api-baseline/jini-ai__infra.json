@@ -1,29 +1,4 @@
 {
- "./db/core": {
-  "types": "./dist/db/driver/index.d.ts",
-  "symbols": {
-   "DbOpsPort": "interface:619ff1ebc5",
-   "RestoreCapability": "interface:b53889acdd",
-   "RestoreCostClass": "type:50db5a78d4",
-   "RestoreKind": "type:8300bf3c1d",
-   "RestorePoint": "interface:025ddcbede",
-   "WatermarkReader": "type:d8713522b8",
-   "restorePointFilename": "variable:cb309a31c8",
-   "sanitizeForFilename": "variable:f5a8ab0ae2"
-  }
- },
- "./db/sqlite": {
-  "types": "./dist/db/sqlite/index.d.ts",
-  "symbols": {
-   "DEFAULT_PRAGMAS": "variable:45459e26c9",
-   "OpenSqliteConnectionOptions": "interface:726e2158d1",
-   "SqliteBackupSource": "type:8d2d1cfab5",
-   "SqliteDbOpsAdapter": "class:45c824b307",
-   "SqliteDbOpsAdapterDeps": "interface:f4add4c5c9",
-   "SqliteRecoveryHook": "type:6d2e647a05",
-   "openSqliteConnection": "function:b1fd8e4121"
-  }
- },
  "./events/outbox": {
   "types": "./dist/events/outbox/index.d.ts",
   "symbols": {

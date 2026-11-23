@@ -17,7 +17,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
 import * as sqlite from '../../sqlite/index.js';
 
-describe('@jini-ai/infra/db/sqlite barrel', () => {
+describe('@jini-ai/db/sqlite barrel', () => {
   let dir: string;
 
   beforeEach(() => {

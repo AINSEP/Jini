@@ -6,7 +6,7 @@ Checked 2026-10-07 against the working tree. Find the owning entry point here, t
 
 **Used by:** direct static/dynamic imports and re-exports found with `rg` in other Jini packages and `Tovu/apps`, including type-only contract users. Tests, fixtures, generated output, examples, scripts and same-package imports are excluded. `none yet` describes that entry point in this scope; its implementation may still be used internally or through a broader barrel. Commerce imports include retained, currently unmounted host adapters.
 
-**Runtime:** per-entry `jini.entries` first, otherwise package metadata; driver-free `db/core` and its `infra/db/core` shim are universal by source. `node (desktop)` maps the declared desktop runtime to its native host requirements. CSS/static assets use their declared runtime. `AVAILABLE, unused: keep (owner 10-07)` records the owner’s retention decision, not a deletion candidate.
+**Runtime:** per-entry `jini.entries` first, otherwise package metadata; driver-free `db/core` is universal by source. `node (desktop)` maps the declared desktop runtime to its native host requirements. CSS/static assets use their declared runtime. `AVAILABLE, unused: keep (owner 10-07)` records the owner’s retention decision, not a deletion candidate.
 
 ## Looking for X?
 
@@ -73,6 +73,7 @@ kernel · [README](packages/core/README.md)
 | `@jini-ai/core/provider-registry` | One keyed provider registry per contract (core throws, plugin contributions become refusals) plus shared `ProviderResult`/`ProviderContext`/`DomainRequirement` types. Frozen contract: [docs](packages/core/docs/provider-registry.md). | `createProviderRegistry`, `PROVIDER_ID_PATTERN`, `ProviderResult`, `ProviderContext`, `DomainRequirement` | universal | none yet |
 | `@jini-ai/core/object-store` | The one object-storage contract (key → bytes, atomic create-only put, optional public-read access) and its keyed provider registry (default `local`). | `ObjectStore`, `ObjectStoreProvider`, `createObjectStoreRegistry`, `objectStoreProviderFault` | universal | Tovu media + shares |
 | `@jini-ai/core/naming` | Find collision-free names using the host's suffix and exhaustion policy. | `deriveAvailableName`, `deriveDuplicateName` | universal | Tovu: website |
+| `@jini-ai/core/extension-capability-vocabulary` | The capability strings a host's plugin runtime and site glue share, declared once and frozen. | `SHARED_EXTENSION_CAPABILITIES`, `SharedExtensionCapability` | universal | none yet |
 | `@jini-ai/core/primitives` | Canonical clocks, IDs, JSON, HTTP, inbound SSE framing, logging, Result and lexical path containment. | `Clock`, `IdGenerator`, `JsonValue`, `HttpClientPort`, `decodeSseFrames`, `parseSseRecord`, `pathContains` | universal | Tovu: website; Jini: agent-plugins, agent-runtime, agentic, analytics, chat, cms, cms-forms, commerce, daemon, db, desktop-host, devops, diagnostics, http-kit, infra, integrations, mcp, oauth, platform, protocol, registry, ui, user-management |
 | `@jini-ai/core/filesystem` | Shared guarded-reader contracts and path-refusal identity; native operations stay in platform. | `GuardedFileReader`, `FsFilePathError` | universal | Jini: platform, vibecoding |
 | `@jini-ai/core/fetch` | Framework-neutral query keys, transport callbacks, cache and host clock/scheduler/environment ports. | `FetchQueryCache`, `QueryKey`, `QueryResult`, `FetchQueryEnvironmentPort` | universal | Tovu: admin; Jini: ui |
@@ -145,8 +146,8 @@ persistence-adapter · [README](packages/db/README.md)
 
 | Entry point | What it does | Key exports / assets | Runtime | Used by |
 |---|---|---|---|---|
-| `@jini-ai/db/core` | Driver-free DB operations, restore-point contracts, row parsing and SQL constants. | `DbOpsPort`, `restorePointFilename`, `parseInt8`, `row` | universal | Tovu: website; Jini: chat, daemon, infra, server, sqlite |
-| `@jini-ai/db/sqlite` | Inject/open SQLite handles; inspection, integrity and restore operations. | `openSqliteConnection`, `SqliteDbOpsAdapter`, `inspectSqliteDatabase` | node | Tovu: website; Jini: chat, daemon, infra, registry, server, sqlite |
+| `@jini-ai/db/core` | Driver-free DB operations, restore-point contracts, row parsing and SQL constants. | `DbOpsPort`, `restorePointFilename`, `parseInt8`, `row` | universal | Tovu: website; Jini: chat, daemon, server |
+| `@jini-ai/db/sqlite` | Inject/open SQLite handles; inspection, integrity and restore operations. | `openSqliteConnection`, `SqliteDbOpsAdapter`, `inspectSqliteDatabase` | node | Tovu: website; Jini: chat, daemon, registry, server |
 | `@jini-ai/db/pglite` | Manage an embedded Postgres owner, private socket and owner lock. | `startPgliteOwner`, `runningPgliteOwner`, `acquireOwnerLock` | node | Tovu: website |
 | `@jini-ai/db/postgres` | Structural Postgres driver ports and timestamp/integer parser setup. | `pgTypesFor` | node | none yet |
 | `@jini-ai/db/kernel` | Kysely storage kernel, transactions, turn locks, introspection and storage operations. | `StorageKernel`, `buildKernel`, `TurnLock` | node | Tovu: website; Jini: chat, commerce, daemon |
@@ -177,8 +178,7 @@ persistence-adapter · [README](packages/infra/README.md)
 
 | Entry point | What it does | Key exports / assets | Runtime | Used by |
 |---|---|---|---|---|
-| `@jini-ai/infra/db/core` | Deprecated DB-contract shim; new code uses @jini-ai/db/core. | `DbOpsPort`, `restorePointFilename` | universal | none yet |
-| `@jini-ai/infra/db/sqlite` | Deprecated SQLite shim; new code uses @jini-ai/db/sqlite. | `openSqliteConnection`, `SqliteDbOpsAdapter` | node | none yet |
+| `@jini-ai/infra/events/outbox` | Host-composed event outbox: enqueue, fenced drain, retry policy and serial pump. | `processOutbox`, `processFencedOutbox`, `createSerialPump`, `InMemoryFencedOutbox` | node | Tovu: website |
 
 ## server · `@jini-ai/server`
 
@@ -190,14 +190,6 @@ host · [README](packages/server/README.md)
 | `@jini-ai/server/storage` | Resolve backend configuration; does not select or open a driver. | `resolveSqliteBackendConfig` | node | none yet |
 | `@jini-ai/server/storage/legacy/sqlite` | Explicit legacy app.sqlite acquisition and unchanged concern schema bootstrap. | `migrate`, `openDatabase`, `closeDatabase` | node | none yet |
 | `@jini-ai/server/store/projects/sqlite` | Legacy project CRUD and run/awaiting-input projections on a borrowed handle. | `listProjects`, `listLatestProjectRunStatuses`, `listLatestConversationRunStatuses` | node | none yet |
-
-## server · `@jini-ai/sqlite`
-
-persistence-adapter · [README](packages/sqlite/README.md)
-
-| Entry point | What it does | Key exports / assets | Runtime | Used by |
-|---|---|---|---|---|
-| `@jini-ai/sqlite` | Deprecated concern re-exports; use chat/daemon/registry/db owner subpaths in new code. | `createSqliteEventLog`, `createChatHistoryStore`, `searchToolCatalog` | node | none yet |
 
 ## platform · `@jini-ai/desktop-host`
 

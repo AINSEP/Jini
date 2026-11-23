@@ -92,7 +92,7 @@ function writePublishManifests({ write, manifest }: ReturnType<typeof createPubl
   manifest('http-kit', { '@jini-ai/cms': '*' }); manifest('cms');
   manifest('chat', { '@jini-ai/platform': '*', '@jini-ai/ui': '*' }); manifest('ui', { '@jini-ai/platform': '*' });
   manifest('analytics', { '@jini-ai/core': '*' });
-  manifest('sqlite', { '@jini-ai/server': '*' }); manifest('server');
+  manifest('infra', { '@jini-ai/server': '*' }); manifest('server');
   manifest('user-management', {}, { peerDependencies: { '@jini-ai/ui': '*' }, peerDependenciesMeta: { '@jini-ai/ui': { optional: true } } });
 
 }
@@ -134,8 +134,8 @@ function checkLayerFixtures({ root, expect }: ReturnType<typeof createPublishFix
   expect(!layerHas('chat/package.json', 'L1-layer-edge'), 'chat UI declaration must cover React integration');
   expect(layerHas('chat/src/core/bad.tsx', 'L1-layer-edge') && layerHas('chat/src/reactive/bad.ts', 'L1-layer-edge'), 'chat UI imports must stay inside src/react');
   expect(layerHas('analytics/src/bad.ts', 'L1-layer-edge'), 'analytics domain peer must fail');
-  // PARITY: the deprecated sqlite facade still cannot depend on its server peer.
-  expect(layerHas('sqlite/package.json', 'L1-layer-edge'), 'sqlite server edge must fail');
+  // PARITY: a layer-6 package still cannot depend on its server peer (infra took over the retired sqlite facade's fixture).
+  expect(layerHas('infra/package.json', 'L1-layer-edge'), 'infra server edge must fail');
   for (const file of ['cli/src/ok.ts', 'ui/src/ok.ts', 'user-management/src/react/ok.ts', 'chat/src/react/components/ok.tsx', 'chat/src/react/hooks/ok.ts', 'analytics/src/ok.ts', 'analytics/package.json']) {
     expect(!layers.some(v => v.file.endsWith(file)), `${file} listed exception must pass`);
   }

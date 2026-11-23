@@ -6,7 +6,7 @@ import type { Logger } from '@jini-ai/core/primitives';
  * into `ChatPane`'s `leadingAccessory` slot — it needs no changes to `ChatPane` itself.
  *
  * Storage-agnostic by construction. It takes data and callbacks and owns nothing durable, so a
- * host backs it with `@jini-ai/sqlite-chat`'s `ChatHistoryStore`, an HTTP endpoint, or an in-memory
+ * host backs it with `@jini-ai/chat/store/sqlite`'s `ChatHistoryStore`, an HTTP endpoint, or an in-memory
  * array without this file knowing the difference.
  *
  * Search is a **client-side filter by default**, and delegates to `onSearch` when a host provides

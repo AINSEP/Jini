@@ -4,7 +4,7 @@ import type { SqliteSyncOpener } from '@jini-ai/core/contracts/storage';
  * @module create-local-node-daemon
  *
  * The "host preset" (extraction-plan.md §2.4) that lets a brand-new product boot a running daemon
- * process by implementing zero interfaces: assembles `@jini-ai/sqlite`'s durable `EventLog`,
+ * process by implementing zero interfaces: assembles `@jini-ai/daemon/store/event-log/sqlite`'s durable `EventLog`,
  * `@jini-ai/daemon`'s `RunLifecycle` and `AgentExecutor` (the driver that actually spawns an agent
  * CLI subprocess for 23 of the 24 registered defs — see `@jini-ai/daemon`'s own archived provenance ledger), an HTTP
  * app wrapped in `@jini-ai/http-kit`'s route-registration guard and security middleware, a caller's own

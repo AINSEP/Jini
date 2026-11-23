@@ -26,7 +26,7 @@ export * from './agentic/index.js';
 /**
  * Durable chat history — the storage-neutral `ChatHistoryStore` port and the local title
  * heuristic. Types and pure functions only, so this package stays framework-free and
- * `runtime: universal`; the SQLite implementation lives in `@jini-ai/sqlite-chat`'s `chat-history`
+ * `runtime: universal`; the SQLite implementation lives in `@jini-ai/chat/store/sqlite`'s `chat-history`
  * module, and a host binds it to its own authentication.
  */
 export * from './persistence/index.js';

@@ -1,0 +1,4 @@
+chat:  Test Files 321 passed | 1 skipped (322)  Tests 4508 passed | 1 skipped (4509) 
+daemon:  Test Files 251 passed | 1 skipped (252)  Tests 4854 passed | 1 skipped (4855) 
+integrations:  Test Files 101 passed (101)  Tests 2077 passed (2077) 
+server:  Test Files 31 passed (31)  Tests 469 passed | 1 skipped (470) 
