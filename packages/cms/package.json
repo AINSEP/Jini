@@ -217,7 +217,9 @@
       "./admin-http/routes/widgets/agent-tools-place": "universal",
       "./admin-http/routes/widgets/agent-tools-create": "universal",
       "./admin-http/routes/widgets/agent-tools-remove": "universal",
-      "./admin-http/routes/widgets/agent-tools-diagnose": "universal"
+      "./admin-http/routes/widgets/agent-tools-diagnose": "universal",
+      "./navigation/site/import-menu": "universal",
+      "./navigation/site/repoint-menu-refs": "universal"
     },
     "isolation": {
       "domains": {
@@ -1405,6 +1407,16 @@
       "types": "./dist/admin-http/routes/widgets/agent-tools-diagnose.d.ts",
       "import": "./dist/admin-http/routes/widgets/agent-tools-diagnose.js",
       "default": "./dist/admin-http/routes/widgets/agent-tools-diagnose.js"
+    },
+    "./navigation/site/import-menu": {
+      "types": "./dist/navigation/site/import-menu.d.ts",
+      "import": "./dist/navigation/site/import-menu.js",
+      "default": "./dist/navigation/site/import-menu.js"
+    },
+    "./navigation/site/repoint-menu-refs": {
+      "types": "./dist/navigation/site/repoint-menu-refs.d.ts",
+      "import": "./dist/navigation/site/repoint-menu-refs.js",
+      "default": "./dist/navigation/site/repoint-menu-refs.js"
     }
   },
   "files": [
