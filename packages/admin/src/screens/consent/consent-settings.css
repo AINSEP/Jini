@@ -1,0 +1,145 @@
+/* Administration → Cookie Consent. Feature-scoped: `.jini-consent-*` page classes plus the plain
+   `jini-consent-*` classes the consent engine's field sections and preview frame render (the engine
+   ships no CSS for them; this admin sheet styles them, and the host loads it). Only admin tokens, so light and dark follow the admin theme. */
+
+/* Every tab sits flat on the page, no card frame; headings, spacing and hairlines group the content
+   instead. The `.card` classes stay on the markup for their type scale (`.card p` → 13px). */
+.jini-consent-page .card { background: none; border: 0; border-radius: 0; box-shadow: none; padding: 0; backdrop-filter: none; }
+.jini-consent-page .card-head { margin: 0 0 var(--space-2); padding: 0; border-bottom: 0; }
+/* Stacked sections (Overview, Rules) read as separate groups through a hairline between them. */
+.jini-consent-overview > .card + .card,
+.jini-consent-editor:not(.jini-consent-editor-with-preview) > .card + .card { border-top: 1px solid var(--border); padding-top: var(--space-5); }
+
+/* Overview: the same rhythm as Deployment's tabs, so sections never touch. */
+.jini-consent-overview { display: flex; flex-direction: column; gap: var(--space-5); margin-top: var(--space-5); }
+.jini-consent-note { margin: var(--space-3) 0 0; font-size: var(--text-sm); color: var(--muted); }
+.jini-consent-problem-list,
+.jini-consent-paused-list { list-style: none; margin: var(--space-3) 0 0; padding: 0; display: flex; flex-direction: column; gap: var(--space-2); }
+.jini-consent-problem-list li { display: flex; align-items: baseline; flex-wrap: wrap; gap: var(--space-1) var(--space-3); color: var(--fg-2); }
+.jini-consent-fix-link { font-weight: 600; white-space: nowrap; }
+/* Label left, count right, a hairline between rows: a scannable tally, not a run-on word. */
+.jini-consent-paused-list { gap: 0; max-width: 24rem; }
+.jini-consent-paused-list li {
+  display: flex; justify-content: space-between; align-items: baseline; gap: var(--space-4);
+  padding: var(--space-2) 0; border-bottom: 1px solid var(--border); color: var(--fg-2);
+}
+.jini-consent-paused-list li:last-child { border-bottom: 0; }
+.jini-consent-paused-list strong { color: var(--fg); font-variant-numeric: tabular-nums; }
+
+/* Header status beside Publish. */
+.jini-consent-save-status { font-size: var(--text-sm); color: var(--muted); }
+
+/* Editor tabs: fields left, live preview right; one column once the pair would squeeze below
+   ~26rem each. The preview sticks while the longer field column scrolls past it. */
+.jini-consent-editor { display: grid; gap: var(--space-5); margin-top: var(--space-5); align-items: start; }
+.jini-consent-editor-with-preview { grid-template-columns: repeat(auto-fit, minmax(min(100%, 26rem), 1fr)); }
+.jini-consent-editor > * { min-width: 0; }
+/* Rules has no preview: keep its fields at a readable measure instead of the full content width. */
+.jini-consent-editor:not(.jini-consent-editor-with-preview) { max-width: 48rem; }
+.jini-consent-preview-pane { position: sticky; top: var(--space-4); display: flex; flex-direction: column; gap: var(--space-3); }
+.jini-consent-fixed-rules { margin: 0; padding-left: 1.1rem; display: flex; flex-direction: column; gap: var(--space-2); color: var(--fg-2); }
+
+/* Jini field sections. The legend matches the shared `.card-title`
+   (styles.css): the heading face at 14px/600, not a second, larger display-face tier. */
+.jini-consent-settings-fields { border: 0; padding: 0; margin: 0; min-width: 0; display: grid; gap: var(--space-4); }
+.jini-consent-settings-fields legend {
+  padding: 0; margin-bottom: var(--space-2);
+  font-family: var(--jini-font-heading); font-size: var(--text-base); font-weight: 600; line-height: 1.3; color: var(--fg);
+}
+/* The legend only repeats the active tab's name ("Look & position" under Look & Position), so it is
+   hidden from view but kept as the field group's accessible name. */
+.jini-consent-editor .jini-consent-settings-fields > legend {
+  position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0;
+}
+.jini-consent-settings-field { display: grid; gap: var(--space-1); min-width: 0; align-content: start; }
+/* Native radio group: options wrap before they squeeze, with a stable space for the own-banner hint. */
+.jini-consent-banner-modes { border: 0; padding: 0; margin: 0; min-width: 0; }
+.jini-consent-banner-options { display: flex; flex-wrap: wrap; gap: var(--space-2) var(--space-4); }
+.jini-consent-banner-options label { display: flex; align-items: center; gap: var(--space-2); min-height: 2.75rem; color: var(--fg); font-size: var(--text-sm); cursor: pointer; }
+.jini-consent-banner-options input[type="radio"] { flex-shrink: 0; margin: 0; accent-color: var(--primary); }
+.jini-consent-banner-options input:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px; }
+.jini-consent-banner-mode-hint { overflow-wrap: anywhere; }
+.jini-consent-css-warnings { overflow-wrap: anywhere; }
+.jini-consent-css-warnings p { margin: 0; }
+.jini-consent-css-warnings ul { margin: var(--space-2) 0 0; padding-inline-start: var(--space-4); }
+@media (max-width: 480px) {
+  .jini-consent-banner-options { flex-direction: column; gap: 0; }
+}
+/* The admin's input type (styles.css `input, select, textarea`), not the 16px page text. */
+.jini-consent-settings-field .jini-input { width: 100%; min-width: 0; max-width: 100%; font-family: var(--font-ui); font-size: var(--text-sm); }
+.jini-consent-settings-field textarea { resize: vertical; }
+/* Each control sized to what it holds, not the column: selects to their longest option, short text
+   and the policy version to a field's width, the banner message and Custom CSS capped at one shared
+   readable measure so their right edges line up. The field is a grid, which stretches its children,
+   so a select also needs `justify-self: start` for `width: auto` to take. */
+.jini-consent-page .jini-consent-settings-field select.jini-input { justify-self: start; width: auto; min-width: 12rem; max-width: min(18rem, 100%); }
+.jini-consent-page .jini-consent-settings-field input[type="text"].jini-input { max-width: 16rem; }
+/* Banner fields by position (Jini renders them in a fixed order with no per-field hook): the title
+   reads as a short sentence, the two link URLs can be full addresses; the button labels and link
+   text keep the 16rem above. */
+.jini-consent-page .jini-consent-settings-fields:has(input[type="text"]) > .jini-consent-settings-field:nth-of-type(1) input.jini-input { max-width: 24rem; }
+.jini-consent-page .jini-consent-settings-fields:has(input[type="text"]) > .jini-consent-settings-field:is(:nth-of-type(6), :nth-of-type(8)) input.jini-input { max-width: 36rem; }
+.jini-consent-page .jini-consent-editor:not(.jini-consent-editor-with-preview) .jini-consent-settings-field input[type="text"].jini-input { max-width: 12rem; }
+.jini-consent-page .jini-consent-settings-field input[type="number"].jini-input { max-width: 8rem; }
+.jini-consent-page .jini-consent-settings-field textarea.jini-input { max-width: 36rem; }
+/* The on/off row only needs its label and switch side by side; wider and the switch drifts away. */
+.jini-consent-page .jini-consent-editor .jini-toggle-row { max-width: 24rem; }
+/* On a phone the column is already narrow: text fields take all of it so their edges line up instead
+   of stepping between 12, 16, 24rem and full width. Selects and px fields keep their own size. Same
+   specificity as the banner by-position rules above, so this later rule wins. */
+@media (max-width: 480px) {
+  .jini-consent-page .jini-consent-settings-fields:has(input[type="text"]) > .jini-consent-settings-field input[type="text"].jini-input { max-width: 100%; }
+  .jini-consent-page .jini-consent-editor .jini-toggle-row { max-width: none; }
+}
+.jini-consent-settings-fields .jini-hint { margin: 0; font-size: var(--text-sm); color: var(--muted); }
+.jini-consent-field-problems { display: grid; gap: var(--space-1); }
+.jini-consent-settings-fields .jini-hint-error { color: var(--danger); }
+.jini-consent-css { font-family: var(--font-mono); font-size: var(--text-sm); }
+
+/* Appearance tokens: an even grid of small controls, as many per row as fit, each column only as
+   wide as a swatch row needs. */
+.jini-consent-page .jini-consent-token-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(8rem, 10rem)); gap: var(--space-4); }
+.jini-consent-color-row { display: flex; align-items: center; gap: var(--space-2); min-height: 2.25rem; }
+.jini-consent-color {
+  inline-size: 2.25rem; block-size: 2.25rem; flex-shrink: 0; padding: 2px; cursor: pointer;
+  border: 1px solid var(--border-strong); border-radius: var(--r-sm); background: var(--surface);
+}
+.jini-consent-color-row code { font-family: var(--font-mono); font-size: var(--text-xs); color: var(--muted); }
+.jini-consent-color-row .jini-btn-link {
+  margin-left: auto; padding: 0; border: 0; background: none; cursor: pointer;
+  font-size: var(--text-sm); color: var(--accent-text, var(--accent));
+}
+
+/* Preview: Phone/Desktop as the admin's segmented control, the page in a framed viewport. */
+.jini-consent-preview { display: flex; flex-direction: column; gap: var(--space-3); min-width: 0; }
+.jini-consent-preview-widths {
+  display: inline-flex; align-self: flex-start; gap: 0.25rem; padding: 0.2rem;
+  border: 1px solid var(--border); border-radius: 8px; background: var(--surface-2);
+}
+.jini-consent-preview-widths button {
+  border: 0; background: transparent; padding: 0.35rem 0.75rem; border-radius: 6px;
+  font: inherit; font-size: 0.85rem; cursor: pointer; color: var(--muted); box-shadow: none;
+}
+.jini-consent-preview-widths button[aria-pressed="true"] { background: var(--surface); color: var(--fg); box-shadow: var(--jini-control-shadow-segment); }
+.jini-consent-preview-frame {
+  display: block; max-width: 100%; block-size: 34rem; margin-inline: auto;
+  border: 1px solid var(--border); border-radius: var(--r-md); background: #fff;
+}
+/* Desktop lays the page out at a real desktop width (set from rules.ts) and scales it to the pane,
+   so the banner shows its desktop layout, not the phone sheet it uses at 480px and below. The
+   negative margins give back the layout space the scale-down frees. Jini sets an inline width. */
+.jini-consent-preview-pane .jini-consent-preview-frame.is-desktop {
+  box-sizing: border-box; max-width: none; margin: 0;
+  width: var(--consent-preview-desktop-width, 100%) !important;
+  block-size: calc(34rem / var(--consent-preview-scale, 1));
+  margin-block-end: calc(34rem - 34rem / var(--consent-preview-scale, 1));
+  margin-inline-end: calc(var(--consent-preview-desktop-width, 0px) * (var(--consent-preview-scale, 1) - 1));
+  transform: scale(var(--consent-preview-scale, 1)); transform-origin: 0 0;
+}
+.jini-consent-preview-empty {
+  display: grid; place-items: center; block-size: 34rem; margin: 0;
+  border: 1px dashed var(--border); border-radius: var(--r-md); color: var(--muted);
+}
+
+/* Look & Position: "Reset to default" under Custom CSS, shown once the owner changed the default. */
+.jini-consent-css-reset { display: flex; justify-content: flex-end; margin-top: var(--space-3); }
