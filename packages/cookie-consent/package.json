@@ -29,7 +29,12 @@
       "./banner.css": "browser",
       "./server": "universal",
       "./node": "node",
-      "./extensions.min.js": "browser"
+      "./extensions.min.js": "browser",
+      "./site/config": "universal",
+      "./site/cookie-consent": "universal",
+      "./site/validation": "universal",
+      "./site/revisions": "universal",
+      "./site/privacy-page-template": "universal"
     },
     "optionalPeers": {
       "react": "opt-in: react consent settings; import @jini-ai/cookie-consent/react — React consent settings could not load react. Install react to enable this feature, or check its installed version."
@@ -85,7 +90,32 @@
       "import": "./dist/node/index.js",
       "default": "./dist/node/index.js"
     },
-    "./extensions.min.js": "./dist/extensions.min.js"
+    "./extensions.min.js": "./dist/extensions.min.js",
+    "./site/config": {
+      "types": "./dist/site/config.d.ts",
+      "import": "./dist/site/config.js",
+      "default": "./dist/site/config.js"
+    },
+    "./site/cookie-consent": {
+      "types": "./dist/site/cookie-consent.d.ts",
+      "import": "./dist/site/cookie-consent.js",
+      "default": "./dist/site/cookie-consent.js"
+    },
+    "./site/validation": {
+      "types": "./dist/site/validation.d.ts",
+      "import": "./dist/site/validation.js",
+      "default": "./dist/site/validation.js"
+    },
+    "./site/revisions": {
+      "types": "./dist/site/revisions.d.ts",
+      "import": "./dist/site/revisions.js",
+      "default": "./dist/site/revisions.js"
+    },
+    "./site/privacy-page-template": {
+      "types": "./dist/site/privacy-page-template.d.ts",
+      "import": "./dist/site/privacy-page-template.js",
+      "default": "./dist/site/privacy-page-template.js"
+    }
   },
   "files": [
     "dist",
@@ -104,7 +134,9 @@
     "test": "vitest run",
     "test:coverage": "vitest run --coverage"
   },
-  "dependencies": {},
+  "dependencies": {
+    "@jini-ai/core": "workspace:^"
+  },
   "devDependencies": {
     "@testing-library/jest-dom": "^6.6.3",
     "@testing-library/react": "^16.3.0",

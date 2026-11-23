@@ -178,5 +178,55 @@
    "readConsent": "function:bb8c8747a5",
    "resolveRegion": "function:6f1abffc4b"
   }
+ },
+ "./site/config": {
+  "types": "./dist/site/config.d.ts",
+  "symbols": {
+   "SITE_CONSENT_BANNER_MODES": "variable:9b1c5fe2ff",
+   "SITE_CONSENT_DEFAULTS": "variable:64a7cd7d70",
+   "SITE_CONSENT_DEFAULT_CSS": "variable:ef1b775a37",
+   "SITE_CONSENT_NAMESPACE": "variable:68041705b1",
+   "SITE_CONSENT_PLACEMENTS": "variable:4cf9b79313",
+   "SITE_CONSENT_REGION_MODES": "variable:cac2529e13",
+   "SITE_CONSENT_TEXT_LIMITS": "variable:b0c241583f",
+   "SiteConsentBannerMode": "type:e091e9f1d0",
+   "SiteConsentPlacement": "type:8d3c8ad4e1",
+   "SiteConsentRegionMode": "type:14e19d4e65",
+   "SiteConsentSettings": "type:f79aa373e1",
+   "siteConsentLinkProblem": "function:eaa3e071f0",
+   "withSiteConsentDefaultCss": "function:6a89739806"
+  }
+ },
+ "./site/cookie-consent": {
+  "types": "./dist/site/cookie-consent.d.ts",
+  "symbols": {
+   "SiteConsentSource": "interface:e57899cb50",
+   "SiteCookieConsent": "interface:d55ef7e3e7",
+   "renderSiteConsentPreview": "function:fe9d31eeb8",
+   "siteBannerMode": "function:1d1a773cf3",
+   "toSiteCookieConsent": "function:b38bba7957"
+  }
+ },
+ "./site/privacy-page-template": {
+  "types": "./dist/site/privacy-page-template.d.ts",
+  "symbols": {
+   "privacyPageTemplate": "function:f86fd82cb3"
+  }
+ },
+ "./site/revisions": {
+  "types": "./dist/site/revisions.d.ts",
+  "symbols": {
+   "SiteConsentConflict": "class:3b7dd493bc",
+   "SiteConsentRevision": "interface:2723553d42",
+   "SiteConsentState": "interface:0fe7545e5e",
+   "SiteConsentStore": "interface:84bae27c99"
+  }
+ },
+ "./site/validation": {
+  "types": "./dist/site/validation.d.ts",
+  "symbols": {
+   "consentConfigProblems": "function:0d20fccb05",
+   "parseConsentConfig": "function:8ed869d798"
+  }
  }
 }
