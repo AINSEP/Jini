@@ -20,6 +20,8 @@ design and are injected.
 | `pages/pages-list-rules` | `pageRowMenuItems`, `buildPageRowMenuHandleMap`, `PageRowMenuHandlers` — list-only row-menu logic. |
 | `pages/pages-i18n` | `PAGES_DICT`, `t` — the Pages list screen dictionary (all locales), falling back to `ADMIN_COMMON_I18N`. |
 | `pages/hooks/use-interactive-flush.hooks` | `useInteractiveEditorFlush`, `INTERACTIVE_FLUSH_TIMEOUT_MS`, `InteractiveFlushCollaborators` — folds an open Interactive-tab edit into the working copy before a save, tab switch or template change, bounded by a timeout. |
+| `pages/page-editor-rules` | `PageEditorView`, `PageSavePlan`, `buildPageSavePlan`, `buildPageAutosaveDraft`, `pageAcceptsHtmlBody`, `THEME_DEFAULT_SENTINEL`/`pickerValueToChoice`, the save/partial-save/unchanged/conflict/stale-basis messages, `PAGE_PREVIEW_IFRAME_SANDBOX`, `PAGE_EXTERNAL_CHANGE_MESSAGE`, `pageEditableHtml`, `pagePreviewFormTarget`, `pageDirtyGuardBaseline`, `pageRefreshMayHaveUnsavedEdits` — the editor's pure rules, over structural views (`PageEditorRecord`, `PageAutosaveStaleBasis`, `PageVersionConflictBasis`). |
+| `pages/page-editor-i18n` | `PAGE_EDITOR_DICT`, `SCRIPT_BLOCK_DICT`, `createPageEditorTranslator`, `PageEditorTranslator` — the editor dictionaries (all locales) and their translator factory. `createPageEditorTranslator` takes the host's common dictionary (required) and optionally `sharedEditorTranslator` (the host's Posts editor translator; it receives exactly the shared editor-vocabulary keys). |
 | `pages/hooks/use-editor-html-jump.hooks` | `useEditorHtmlJump`, `measureTextareaCaretTop`, `RequestEditHtml`, `FindEditorBlockOpening` — the canvas's "Edit HTML" jump to a block's exact opening tag in the HTML tab. |
 
 ## Wiring

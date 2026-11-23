@@ -32,6 +32,7 @@ import type { MailStatus } from "@jini-ai/core/contracts/mail";
 import type { OriginRegistryPort } from "@jini-ai/core/contracts/server/verified-origin";
 import type { PasswordHasherPort, PrincipalRepoPort } from "../core/index.js";
 import type { StorageKernel } from "@jini-ai/core/contracts/storage";
+import type { RenderEmailForSend } from "./auth-mail.js";
 import type {
   ConsentPurpose,
   MagicLinkTokenRecord,
@@ -268,6 +269,28 @@ export interface MembersWriteServiceDeps {
    * `SenderIdentityNotConfiguredError`.
    */
   senderIdentity?: MailSenderIdentityPort | undefined;
+  /**
+   * The host's mail transport for sign-in and reset challenges. Optional so compositions that
+   * never issue a challenge keep working; absent, a challenge request refuses with
+   * `MemberSignInUnavailableError` before any address lookup.
+   */
+  mailTransport?: MembersMailTransport | undefined;
+}
+
+/**
+ * The host-owned mail collaborators the member challenge flow runs on. This package never imports
+ * the host's mail platform; the host binds its own functions here.
+ */
+export interface MembersMailTransport {
+  /** Synchronous capability read; a non-delivering (console) mailer reports false. Sends nothing. */
+  isDeliveryAvailable: (mailer: MailerPort) => boolean;
+  /** The composed sender resolver when supplied, else one over `mailer` with nothing configured. */
+  senderIdentityFor: (
+    required: { mailer: MailerPort },
+    optional?: { senderIdentity?: MailSenderIdentityPort },
+  ) => MailSenderIdentityPort;
+  /** Renders the member auth mail template; see `renderMemberAuthMail`. */
+  renderEmailForSend: RenderEmailForSend;
 }
 
 export type MembersWriteServiceSourceDeps = {
@@ -283,6 +306,7 @@ export type MembersWriteServiceSourceDeps = {
   originRegistry?: MembersWriteServiceDeps["origin"];
   principalRepo: MembersWriteServiceDeps["principals"];
   mailSenderIdentity?: MembersWriteServiceDeps["senderIdentity"];
+  mailTransport?: MembersWriteServiceDeps["mailTransport"];
 };
 
 /** Assembles the write-service bundle in the feature: importing from the HTTP admin layer would
@@ -304,6 +328,7 @@ export function buildMembersWriteServiceDeps(
     origin: deps.originRegistry,
     principals: deps.principalRepo,
     senderIdentity: deps.mailSenderIdentity,
+    mailTransport: deps.mailTransport,
   };
 }
 

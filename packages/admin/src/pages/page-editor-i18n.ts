@@ -403,8 +403,8 @@ export const SCRIPT_BLOCK_DICT: Record<string, Record<string, string>> = {
   "bn": {"Animation · Kuinetic": "অ্যানিমেশন · Kuinetic", "Canvas": "ক্যানভাস", "Autoplay video": "স্বয়ংক্রিয় ভিডিও", "Scripted section": "স্ক্রিপ্ট অংশ", "Locked · Edit in HTML · Preview plays it": "লক · HTML-এ সম্পাদনা · প্রিভিউতে চালান", "Edit HTML": "HTML সম্পাদনা", "Can't edit this source visually. Use HTML.": "দৃশ্যমান সম্পাদনা সম্ভব নয়। HTML ব্যবহার করুন।"},
   "th": {"Animation · Kuinetic": "แอนิเมชัน · Kuinetic", "Canvas": "แคนวาส", "Autoplay video": "วิดีโออัตโนมัติ", "Scripted section": "ส่วนสคริปต์", "Locked · Edit in HTML · Preview plays it": "ล็อก · แก้ไขใน HTML · เล่นในตัวอย่าง", "Edit HTML": "แก้ไข HTML", "Can't edit this source visually. Use HTML.": "แก้ไขด้วยภาพไม่ได้ ใช้ HTML"},
 };
-const scriptBlockKeys = new Set(Object.keys(SCRIPT_BLOCK_DICT.es));
-const markupKeys = new Set(Object.keys(pageEditorMarkupTranslations.es));
+const scriptBlockKeys = new Set(Object.keys(SCRIPT_BLOCK_DICT.es ?? {}));
+const markupKeys = new Set(Object.keys(pageEditorMarkupTranslations.es ?? {}));
 const EDITOR_CONTROL_KEYS = ["Move", "Desktop", "Tablet", "Mobile", "Interactive", "Preview"];
 
 /** The Page editor's locale-aware translator, as its call sites use it. */

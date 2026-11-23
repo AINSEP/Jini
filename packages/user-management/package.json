@@ -44,6 +44,7 @@
       "./members/consent-service": "universal",
       "./members/member-admin-writes": "universal",
       "./members/member-challenge": "node",
+      "./members/member-challenge-request": "node",
       "./members/member-credentials": "node",
       "./members/member-sign-in": "node",
       "./members/member-validation": "universal",
@@ -52,7 +53,8 @@
       "./members/repo.memory": "universal",
       "./members/subscriber-directory": "universal",
       "./members/trash-member": "universal",
-      "./members/types": "universal"
+      "./members/types": "universal",
+      "./members/write-service": "node"
     },
     "optionalPeers": {
       "argon2": "opt-in: argon2 password hashing; import @jini-ai/user-management/server — Argon2 password hashing could not load argon2. Install argon2 to enable this feature, or check its installed version and native binaries.",
@@ -229,6 +231,11 @@
       "types": "./dist/members/member-challenge.d.ts",
       "import": "./dist/members/member-challenge.js",
       "default": "./dist/members/member-challenge.js"
+    },
+    "./members/member-challenge-request": {
+      "types": "./dist/members/member-challenge-request.d.ts",
+      "import": "./dist/members/member-challenge-request.js",
+      "default": "./dist/members/member-challenge-request.js"
     },
     "./members/member-credentials": {
       "types": "./dist/members/member-credentials.d.ts",
