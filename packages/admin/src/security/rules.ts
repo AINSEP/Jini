@@ -82,12 +82,18 @@ export function buildCredentialPatch({ draft, providers }: { draft: CredentialDr
 export function isRootKeyLocked({ status }: { status: RootKeyStatus | null }, _optional = {}) { return status?.state === 'missing-with-data' || status?.state === 'mismatch'; }
 /** Server refusal codes for a root-key write, grouped by what the operator can do next. */
 export type RootKeyRefusalKind = 'locked' | 'refused' | 'already-exists' | 'generic';
-export interface RootKeyRefusal { readonly kind: RootKeyRefusalKind; readonly detail?: string }
-const REFUSAL_KINDS: Readonly<Record<string, RootKeyRefusalKind>> = { KEY_DEPENDENT_DATA: 'locked', KEY_MISMATCH: 'locked', KEY_INVALID: 'refused', SITE_META_UNREADABLE: 'refused', ALREADY_EXISTS: 'already-exists' };
-/** Only the server's own public `detail` travels on; a raw error message may echo the key. */
-export function classifyRootKeyRefusal({ code, detail }: { code?: string | undefined; detail?: string | undefined }, _optional = {}): RootKeyRefusal {
-  const kind = (code !== undefined && REFUSAL_KINDS[code]) || 'generic';
-  return kind === 'already-exists' || detail === undefined ? { kind } : { kind, detail };
+const REFUSAL_KINDS = { KEY_DEPENDENT_DATA: 'locked', KEY_MISMATCH: 'locked', KEY_INVALID: 'refused', SITE_META_UNREADABLE: 'refused', ALREADY_EXISTS: 'already-exists' } as const satisfies Readonly<Record<string, RootKeyRefusalKind>>;
+/** A refusal code this module knows; the host maps it to approved public copy. */
+export type RootKeyRefusalCode = keyof typeof REFUSAL_KINDS;
+/** A classified refusal: a known code, or `generic` with no code. Never carries reader text. */
+export interface RootKeyRefusal { readonly kind: RootKeyRefusalKind; readonly code?: RootKeyRefusalCode }
+const isKnownCode = (code: string | undefined): code is RootKeyRefusalCode => code !== undefined && Object.hasOwn(REFUSAL_KINDS, code);
+/**
+ * Keeps only a known code. The reader's `detail` is ignored: it is untrusted and may echo the key, so
+ * public copy is resolved from the code at the host boundary, with fixed fallback copy otherwise.
+ */
+export function classifyRootKeyRefusal({ code }: { code?: string | undefined; detail?: string | undefined }, _optional = {}): RootKeyRefusal {
+  return isKnownCode(code) ? { kind: REFUSAL_KINDS[code], code } : { kind: 'generic' };
 }
 export interface RootKeyBadge { readonly label: string; readonly vars?: Readonly<Record<string, string>>; readonly tone: 'warning' | 'success' | 'info' }
 /** Badge copy keeps environment provenance in the rules so rendering has no source policy. */

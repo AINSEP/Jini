@@ -103,15 +103,28 @@ describe('root-key tab presentation through the module (SEC-5)', () => {
     expect(await screen.findByText('A key is created automatically when this site starts.')).toBeTruthy();
     expect(screen.queryByRole('button', { name: 'Create root key' })).toBeNull();
   });
-  it('translates the badge and shows a refusal detail from the host reader', async () => {
-    const feature = makeFeature({ describeRootKeyError: () => ({ code: 'KEY_INVALID', detail: 'The stamp is unreadable.' }) });
+  it('translates the badge and shows host-approved copy for a known refusal code, never the reader detail', async () => {
+    const secret = 'a3f9'.repeat(16);
+    const feature = makeFeature({ describeRootKeyError: () => ({ code: 'KEY_INVALID', detail: `The stamp ${secret} is unreadable.` }), describeRootKeyRefusal: ({ code }) => code === 'KEY_INVALID' ? 'Approved: the site stamp is unreadable.' : undefined });
     const root = createMemoryRootKey({}); root.generate = () => Promise.reject(new Error('raw'));
     const admin = createAdmin({ modules: [feature], ports: { securityApi: createMemorySecurityApi({}), rootKey: root } }, { permissions: ['security.read', ROOT] });
     const { Page, tabs } = feature.react.pages.secrets;
     render(<AdminKitProvider kit={testAdminKit}><feature.react.Provider admin={admin} t={key => key === 'None' ? 'Ninguna' : key}><Suspense fallback="Loading"><Page tabs={tabs} description={admin.describe().pages[0]!} requestedTab="root-key" /></Suspense></feature.react.Provider></AdminKitProvider>);
     expect(await screen.findByText('Ninguna')).toBeTruthy();
     fireEvent.click(screen.getByRole('button', { name: 'Create root key' }));
-    expect(await screen.findByText('The stamp is unreadable.')).toBeTruthy();
-    expect(document.body.textContent).not.toContain('raw');
+    expect(await screen.findByText('Approved: the site stamp is unreadable.')).toBeTruthy();
+    expect(document.body.textContent).not.toContain('raw'); expect(document.body.textContent).not.toContain(secret);
   });
+  it('uses fixed fallback copy for an unknown refusal code, with the echoed secret absent from the DOM', async () => {
+    const secret = 'b4e0'.repeat(16);
+    const feature = makeFeature({ describeRootKeyError: () => ({ code: 'SOMETHING_NEW', detail: `key ${secret}` }) });
+    const root = createMemoryRootKey({}); root.generate = () => Promise.reject(new Error('raw'));
+    const admin = createAdmin({ modules: [feature], ports: { securityApi: createMemorySecurityApi({}), rootKey: root } }, { permissions: ['security.read', ROOT] });
+    const { Page, tabs } = feature.react.pages.secrets;
+    render(<AdminKitProvider kit={testAdminKit}><feature.react.Provider admin={admin} t={key => key}><Suspense fallback="Loading"><Page tabs={tabs} description={admin.describe().pages[0]!} requestedTab="root-key" /></Suspense></feature.react.Provider></AdminKitProvider>);
+    fireEvent.click(await screen.findByRole('button', { name: 'Create root key' }));
+    expect(await screen.findByText('The root key could not be created.')).toBeTruthy();
+    expect(document.body.textContent).not.toContain(secret);
+  });
+
 });

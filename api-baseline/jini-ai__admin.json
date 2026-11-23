@@ -1162,7 +1162,8 @@
    "RootKeyNote": "interface:eedc833215",
    "RootKeyPort": "interface:1e327b53c1",
    "RootKeyPreview": "interface:e158d49a2d",
-   "RootKeyRefusal": "interface:f28e8aa085",
+   "RootKeyRefusal": "interface:7456384a62",
+   "RootKeyRefusalCode": "type:89dd85a856",
    "RootKeyRefusalKind": "type:f5c90ec7df",
    "RootKeyResult": "interface:6db62e7f4e",
    "RootKeyState": "type:75840949ee",
@@ -1173,7 +1174,7 @@
    "SecurityTransportPort": "interface:03f6485de8",
    "blankCredentialDraft": "function:9c6aae1e9b",
    "buildCredentialPatch": "function:d7156dee21",
-   "classifyRootKeyRefusal": "function:a033b7c939",
+   "classifyRootKeyRefusal": "function:69d3e9fc6d",
    "createAccessTokensController": "function:22b052dc57",
    "createOtherCredentialsController": "function:f9699a0d31",
    "createRootKeyController": "function:fd8cc94358",
@@ -1222,10 +1223,10 @@
   "types": "./dist/security/react/index.d.ts",
   "symbols": {
    "DescribeRootKeyError": "type:39955f6db6",
-   "SecurityOptions": "interface:536af83308",
+   "SecurityOptions": "interface:67362f8b97",
    "SecurityRootKeyTabOptions": "interface:20f25ecf87",
    "SecurityTranslator": "type:36a7df8662",
-   "security": "function:2ef0164d6b",
+   "security": "function:31cb68d3ad",
    "useSecurityPorts": "function:a0ed09c781"
   }
  },

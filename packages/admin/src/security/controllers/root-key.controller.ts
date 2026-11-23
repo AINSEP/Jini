@@ -3,6 +3,7 @@ import type { RootKeyPort } from '../ports.js';
 import type { RootKeyStatus, RootKeyPreview, RootKeyResult } from '../models.js';
 import { ROOT_KEY_PERMISSION, START_FRESH_CONFIRMATION, isRootKeyLocked, classifyRootKeyRefusal, type RootKeyRefusal } from '../rules.js';
 /** Reads a refusal's public fields. The host knows its error type; the controller never reads `message`. */
+/** Reads a host error's public code. Any `detail` it returns is ignored (untrusted, may echo the key). */
 export type DescribeRootKeyError = (required: { error: unknown }, optional?: Record<string, never>) => { code?: string; detail?: string };
 const describeNothing: DescribeRootKeyError = () => ({});
 const receiverLabel = (w: NonNullable<RootKeyResult['affectedWebhooks']>[number]) => `${w.label} (${w.targetUrl})`;

@@ -39,18 +39,21 @@ describe('root-key refusals (SEC-5, ported from site-key-generate-error)', () =>
   it.each([['KEY_DEPENDENT_DATA', 'locked'], ['KEY_MISMATCH', 'locked'], ['KEY_INVALID', 'refused'], ['SITE_META_UNREADABLE', 'refused'], ['ALREADY_EXISTS', 'already-exists'], ['OTHER', 'generic']] as const)('%s is %s', (code, kind) => {
     expect(classifyRootKeyRefusal({ code, detail: 'd' }).kind).toBe(kind);
   });
-  it('keeps an intentionally empty detail and drops detail for already-exists', () => {
-    expect(classifyRootKeyRefusal({ code: 'KEY_INVALID', detail: '' })).toEqual({ kind: 'refused', detail: '' });
-    expect(classifyRootKeyRefusal({ code: 'ALREADY_EXISTS', detail: 'x' })).toEqual({ kind: 'already-exists' });
+  it('classifies only known codes and never carries the reader detail', () => {
+    expect(classifyRootKeyRefusal({ code: 'KEY_INVALID', detail: '' })).toEqual({ kind: 'refused', code: 'KEY_INVALID' });
+    expect(classifyRootKeyRefusal({ code: 'ALREADY_EXISTS', detail: 'x' })).toEqual({ kind: 'already-exists', code: 'ALREADY_EXISTS' });
+    expect(classifyRootKeyRefusal({ code: 'OTHER', detail: `echo ${KEY}` })).toEqual({ kind: 'generic' });
   });
-  it('KEY_DEPENDENT_DATA sets the locked refusal', async () => {
+  it('KEY_DEPENDENT_DATA sets the locked refusal by code only', async () => {
     const { c } = await controller(status('missing'), new Refusal('KEY_DEPENDENT_DATA', 'Saved data needs its key.'));
     expect(await c.generate({})).toBe(false);
-    expect(c.getSnapshot().generateError).toEqual({ kind: 'locked', detail: 'Saved data needs its key.' });
+    expect(c.getSnapshot().generateError).toEqual({ kind: 'locked', code: 'KEY_DEPENDENT_DATA' });
   });
-  it('KEY_INVALID keeps its detail', async () => {
-    const { c } = await controller(status('missing'), new Refusal('KEY_INVALID', 'The site meta stamp is not hex.'));
-    await c.generate({}); expect(c.getSnapshot().generateError).toEqual({ kind: 'refused', detail: 'The site meta stamp is not hex.' });
+  it('a secret echoed in the reader detail never reaches the snapshot, for a known or an unknown code', async () => {
+    for (const code of ['KEY_INVALID', 'OTHER']) {
+      const { c } = await controller(status('missing'), new Refusal(code, `stamp ${KEY} is not hex`));
+      await c.generate({}); expect(JSON.stringify(c.getSnapshot())).not.toContain(KEY);
+    }
   });
   it('never puts a raw error message that echoes a key into any snapshot field', async () => {
     const { c } = await controller(status('missing'), new Refusal('OTHER'));

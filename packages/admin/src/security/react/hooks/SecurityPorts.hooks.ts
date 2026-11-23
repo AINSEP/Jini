@@ -3,6 +3,9 @@ import type { ReactNode } from 'react';
 import type { SecurityApiPort, OtherCredentialsPort, RootKeyPort } from '../../ports.js';
 import { englishSecurity, type SecurityTranslator } from '../../messages.en.js';
 import type { DescribeRootKeyError } from '../../controllers/root-key.controller.js';
+import type { RootKeyRefusalCode } from '../../rules.js';
+/** Maps a known refusal code to approved public copy (already translated), or `undefined`. */
+export type DescribeRootKeyRefusal = (required: { code: RootKeyRefusalCode }) => string | undefined;
 import { AdminConfigError } from '@jini-ai/core/admin-runtime';
 export interface SecurityPorts { readonly securityApi: SecurityApiPort; readonly otherCredentials?: OtherCredentialsPort; readonly rootKey?: RootKeyPort }
 const refuse = async (): Promise<never> => { throw new Error('Unavailable'); };
@@ -22,6 +25,8 @@ export interface SecurityChrome {
   readonly ownerControls?: ReactNode;
   /** Reads a root-key refusal's public code and detail from the host's error type. */
   readonly describeRootKeyError?: DescribeRootKeyError;
+  /** Host-approved public copy for a known root-key refusal code; `undefined` uses the fixed fallback. */
+  readonly describeRootKeyRefusal?: DescribeRootKeyRefusal;
 }
 export const SecurityChromeContext = createContext<SecurityChrome>({ t: englishSecurity, tabIcons: {} });
 export function useSecurityChrome(_required: Record<string, never> = {}, _optional: Record<string, never> = {}): SecurityChrome {
