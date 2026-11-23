@@ -2396,12 +2396,6 @@
    "TransactionRunner": "type:78fd7b4865"
   }
  },
- "./trash/site/registry": {
-  "types": "./dist/trash/site/registry.d.ts",
-  "symbols": {
-   "buildTrashRegistry": "function:89f9270b79"
-  }
- },
  "./trash/site/remove-without-blocker": {
   "types": "./dist/trash/site/remove-without-blocker.d.ts",
   "symbols": {

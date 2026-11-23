@@ -55,7 +55,6 @@
       "./trash/site/adapters/plugin": "universal",
       "./trash/site/adapters/theme": "universal",
       "./trash/site/ports": "universal",
-      "./trash/site/registry": "universal",
       "./trash/site/remove-without-blocker": "universal",
       "./trash/site/scheduler.node": "node",
       "./trash/site/widget-removal": "universal",
@@ -457,11 +456,6 @@
       "types": "./dist/trash/site/ports.d.ts",
       "import": "./dist/trash/site/ports.js",
       "default": "./dist/trash/site/ports.js"
-    },
-    "./trash/site/registry": {
-      "types": "./dist/trash/site/registry.d.ts",
-      "import": "./dist/trash/site/registry.js",
-      "default": "./dist/trash/site/registry.js"
     },
     "./trash/site/remove-without-blocker": {
       "types": "./dist/trash/site/remove-without-blocker.d.ts",
