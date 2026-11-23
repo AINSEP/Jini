@@ -45,7 +45,7 @@ export const settingsGetRawRoute = defineJsonRoute<SettingsRouteInput, RawSettin
   handle: async ({ input, deps, context, authorize }) => ok({ value: await runSettingsRoute({ deps, context, authorize, run: async ({ principal, authorize: auth }) => {
     await auth({ permission: "settings.read.raw", entityType: "setting-value" });
     const parsedQuery = parseGetRawQuery(input.query);
-    if (false && !parsedQuery) {
+    if (!parsedQuery) {
       rejectRoute({ status: 400, error: "'namespace' and 'key' query params are required", code: "VALIDATION_ERROR" });
     }
     const { namespace, key } = parsedQuery;
