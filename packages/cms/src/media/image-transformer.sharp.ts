@@ -3,7 +3,7 @@ import type { ImageCodecPort, ImageCodecLimits, ImageMetadata, ImageEncodeInput,
 import { requireSharp, configureSharpRuntime } from "./adapters/sharp-runtime.js";
 
 import type { ImageTransformerPort, TransformImageInput, TransformImageOutput } from "./image-transformer.js";
-import type { TransformFormat } from "./transform-types.js";
+import type { TransformFit, TransformFormat, TransformParams } from "./transform-types.js";
 import { mimeForTransformFormat } from "./transform-types.js";
 
 /** Thrown by {@link SharpImageTransformer.transform} when the `sharp` package cannot be loaded. */
@@ -65,6 +65,14 @@ export interface SharpImageTransformerOptional {
  * comment for why loading animated but encoding to a non-animated format must NOT happen.
  */
 const ANIMATION_CAPABLE_FORMATS: ReadonlySet<TransformFormat> = new Set(["webp", "gif"]);
+
+/** Fits whose output is exactly `width × height`; `inside`/`outside` only bound the size. */
+const BOX_FILLING_FITS: ReadonlySet<TransformFit> = new Set(["contain", "fill"]);
+
+/** True when the definition promises an exact output box, so enlargement must stay allowed. */
+function isExactBox({ params, fit }: { params: TransformParams; fit: TransformFit }): boolean {
+  return params.width !== undefined && params.height !== undefined && BOX_FILLING_FITS.has(fit);
+}
 
 /**
  * Lazily resolves the `sharp` module. See `adapters/sharp-runtime.ts` for why this is a
@@ -203,10 +211,13 @@ export class SharpImageTransformer implements ImageTransformerPort, ImageCodecPo
       ).rotate();
 
       if (input.params.width !== undefined || input.params.height !== undefined) {
+        const fit = input.params.fit ?? "cover";
         pipeline = pipeline.resize(input.params.width, input.params.height, {
-          fit: input.params.fit ?? "cover",
-          // Never upscale (B060): enlarging a narrow source only adds blur and bytes.
-          withoutEnlargement: true,
+          fit,
+          // Never upscale a bound (B060): enlarging a narrow source only adds blur and bytes. An exact
+          // box (both sides, box-filling fit) is a promised output size, e.g. the `og` card whose page
+          // declares og:image:width/height, so it must still fill that box from a small source.
+          withoutEnlargement: !isExactBox({ params: input.params, fit }),
         });
       }
 

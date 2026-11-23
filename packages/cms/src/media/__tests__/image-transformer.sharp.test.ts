@@ -252,3 +252,21 @@ test('a narrow source is never enlarged past its own size', async () => {
   assert.equal(decoded.width, 20);
   assert.equal(decoded.height, 10);
 });
+
+// B060 boundary: a definition naming an exact box (both sides, box-filling fit) promises that size, e.g. the
+// `og` share card whose rendered page declares og:image:width/height 1200 × 630, so it must still fill the box.
+test('an exact-box cover crop still fills its declared size from a small source', async () => {
+  const source = await sharp({ create: { width: 12, height: 8, channels: 3, background: { r: 1, g: 2, b: 3 } } }).png().toBuffer();
+  const result = await new SharpImageTransformer().transform({ bytes: new Uint8Array(source), params: { width: 120, height: 63, fit: 'cover', format: 'jpeg' } });
+  const decoded = await sharp(result.bytes).metadata();
+  assert.equal(decoded.width, 120);
+  assert.equal(decoded.height, 63);
+});
+
+test('a bounding-box inside fit with both sides still never enlarges a small source', async () => {
+  const source = await sharp({ create: { width: 12, height: 8, channels: 3, background: { r: 1, g: 2, b: 3 } } }).png().toBuffer();
+  const result = await new SharpImageTransformer().transform({ bytes: new Uint8Array(source), params: { width: 120, height: 63, fit: 'inside', format: 'webp' } });
+  const decoded = await sharp(result.bytes).metadata();
+  assert.equal(decoded.width, 12);
+  assert.equal(decoded.height, 8);
+});
