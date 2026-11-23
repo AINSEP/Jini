@@ -167,11 +167,11 @@
     },
     {
       "id": "881b3c551663",
-      "reason": "packages/daemon/src/http/__tests__/daemon-status.test.ts:137-138 (\"redacted, not echoed — the adapter's catch is a last-resort handler fo...\"): Reworded in place in db7994a1 when its subject moved to the route-data API (register* -> *Routes, Express fakes -> web Request/Response); the same statement is at packages/daemon/src/http/__tests__/daemon-status.test.ts:101. Closest surviving wording: packages/daemon/src/http/__tests__/daemon-status.test.ts:101 (containment 0.64)."
+      "reason": "packages/daemon/src/http/__tests__/daemon-status.test.ts:137-138 (\"redacted, not echoed \u2014 the adapter's catch is a last-resort handler fo...\"): Reworded in place in db7994a1 when its subject moved to the route-data API (register* -> *Routes, Express fakes -> web Request/Response); the same statement is at packages/daemon/src/http/__tests__/daemon-status.test.ts:101. Closest surviving wording: packages/daemon/src/http/__tests__/daemon-status.test.ts:101 (containment 0.64)."
     },
     {
       "id": "f5c21563d5a5",
-      "reason": "packages/daemon/src/http/__tests__/delegated-tools.test.ts:477-478 (\"the client already disconnected — `mountjsonroute` deliberately withho...\"): Test comment in delegated-tools.test.ts about the deleted Express test harness (fake req/res, MockApp, captured handlers or a real-Express-socket suite) for routes removed in 3800e9b8; the suite was rewritten against the route-data/web-Response API and the harness it explains no longer exists."
+      "reason": "packages/daemon/src/http/__tests__/delegated-tools.test.ts:477-478 (\"the client already disconnected \u2014 `mountjsonroute` deliberately withho...\"): Test comment in delegated-tools.test.ts about the deleted Express test harness (fake req/res, MockApp, captured handlers or a real-Express-socket suite) for routes removed in 3800e9b8; the suite was rewritten against the route-data/web-Response API and the harness it explains no longer exists."
     },
     {
       "id": "2f8fb6c5b5b7",
@@ -215,7 +215,7 @@
     },
     {
       "id": "6477537aded2",
-      "reason": "packages/daemon/src/http/__tests__/message-relay.test.ts:42-43 (\"f1 fix wave (stryker l8 §4 message-relay.ts:23-28,36,42): exact refusa...\"): Header of the Stryker F1 describe block that drove the deleted Express registerMessageRelayRoutes; 64553c8a rewrote the suite against messageRelayRoutes (route data), the F1 refusal cases now sit in that suite."
+      "reason": "packages/daemon/src/http/__tests__/message-relay.test.ts:42-43 (\"f1 fix wave (stryker l8 \u00a74 message-relay.ts:23-28,36,42): exact refusa...\"): Header of the Stryker F1 describe block that drove the deleted Express registerMessageRelayRoutes; 64553c8a rewrote the suite against messageRelayRoutes (route data), the F1 refusal cases now sit in that suite."
     },
     {
       "id": "9409fe452056",
@@ -263,7 +263,7 @@
     },
     {
       "id": "456f1542f5d0",
-      "reason": "packages/daemon/src/http/__tests__/route-manifest.test.ts:48-48 (\"registrars only need deps at request time, never at mount time — see `...\"): Reworded in place in aa888488 when its subject moved to the route-data API (register* -> *Routes, Express fakes -> web Request/Response); the same statement is at packages/daemon/src/http/__tests__/route-manifest.test.ts:25. Closest surviving wording: packages/daemon/src/http/__tests__/route-manifest.test.ts:25 (containment 0.45)."
+      "reason": "packages/daemon/src/http/__tests__/route-manifest.test.ts:48-48 (\"registrars only need deps at request time, never at mount time \u2014 see `...\"): Reworded in place in aa888488 when its subject moved to the route-data API (register* -> *Routes, Express fakes -> web Request/Response); the same statement is at packages/daemon/src/http/__tests__/route-manifest.test.ts:25. Closest surviving wording: packages/daemon/src/http/__tests__/route-manifest.test.ts:25 (containment 0.45)."
     },
     {
       "id": "fe8433db5bd5",
@@ -291,11 +291,11 @@
     },
     {
       "id": "64f9d97a690f",
-      "reason": "packages/daemon/src/http/__tests__/runs.test.ts:84-84 (\"parses the json body `sendrawapierror` wrote via `res.end(...)` — the ...\"): Test comment in runs.test.ts about the deleted Express test harness (fake req/res, MockApp, captured handlers or a real-Express-socket suite) for routes removed in a9498587; the suite was rewritten against the route-data/web-Response API and the harness it explains no longer exists."
+      "reason": "packages/daemon/src/http/__tests__/runs.test.ts:84-84 (\"parses the json body `sendrawapierror` wrote via `res.end(...)` \u2014 the ...\"): Test comment in runs.test.ts about the deleted Express test harness (fake req/res, MockApp, captured handlers or a real-Express-socket suite) for routes removed in a9498587; the suite was rewritten against the route-data/web-Response API and the harness it explains no longer exists."
     },
     {
       "id": "280d77c8b3c8",
-      "reason": "packages/daemon/src/http/__tests__/runs.test.ts:497-500 (\"regression: `channel.abandon()` (not `channel.end()`) must run here — ...\"): Test comment in runs.test.ts about the deleted Express test harness (fake req/res, MockApp, captured handlers or a real-Express-socket suite) for routes removed in a9498587; the suite was rewritten against the route-data/web-Response API and the harness it explains no longer exists."
+      "reason": "packages/daemon/src/http/__tests__/runs.test.ts:497-500 (\"regression: `channel.abandon()` (not `channel.end()`) must run here \u2014 ...\"): Test comment in runs.test.ts about the deleted Express test harness (fake req/res, MockApp, captured handlers or a real-Express-socket suite) for routes removed in a9498587; the suite was rewritten against the route-data/web-Response API and the harness it explains no longer exists."
     },
     {
       "id": "c13bb564bfd1",
@@ -335,7 +335,7 @@
     },
     {
       "id": "5aa14cc34316",
-      "reason": "packages/daemon/src/http/__tests__/runs.test.ts:836-836 (\"never drains — a permanently stalled consumer...\"): Test comment in runs.test.ts about the deleted Express test harness (fake req/res, MockApp, captured handlers or a real-Express-socket suite) for routes removed in a9498587; the suite was rewritten against the route-data/web-Response API and the harness it explains no longer exists."
+      "reason": "packages/daemon/src/http/__tests__/runs.test.ts:836-836 (\"never drains \u2014 a permanently stalled consumer...\"): Test comment in runs.test.ts about the deleted Express test harness (fake req/res, MockApp, captured handlers or a real-Express-socket suite) for routes removed in a9498587; the suite was rewritten against the route-data/web-Response API and the harness it explains no longer exists."
     },
     {
       "id": "d77cc3f42bf0",
@@ -399,7 +399,7 @@
     },
     {
       "id": "7dd666437600",
-      "reason": "packages/daemon/src/http/frontend-control.ts:52-62 (\"the context {@link frontendcontrol.httpextension} actually reads — jus...\"): Code gone: FrontendHttpExtension and FrontendControl.httpExtension (an Express-app mount facade) were deleted in 8c00e560; the control now hands out route lists, documented in packages/daemon/src/http/frontend-control.ts."
+      "reason": "packages/daemon/src/http/frontend-control.ts:52-62 (\"the context {@link frontendcontrol.httpextension} actually reads \u2014 jus...\"): Code gone: FrontendHttpExtension and FrontendControl.httpExtension (an Express-app mount facade) were deleted in 8c00e560; the control now hands out route lists, documented in packages/daemon/src/http/frontend-control.ts."
     },
     {
       "id": "9f6c325d7f75",
@@ -527,7 +527,7 @@
     },
     {
       "id": "4dd37ae84836",
-      "reason": "packages/daemon/src/http/runs.ts:288-294 (\"the core of `get /api/runs/:runid/events` — canonical events as sse, w...\"): Code gone: the Express/createSseChannel run event stream (handleRunEventStreamRequest, registerRunEventStream, registerRunRoutes, channel.open/abandon/end) was deleted in a9498587 (daemon-r7: run routes are data, the stream is a committed SSE Response). The why of the new open/commit/unsubscribe/failure order is written at packages/daemon/src/http/runs.ts:285-327."
+      "reason": "packages/daemon/src/http/runs.ts:288-294 (\"the core of `get /api/runs/:runid/events` \u2014 canonical events as sse, w...\"): Code gone: the Express/createSseChannel run event stream (handleRunEventStreamRequest, registerRunEventStream, registerRunRoutes, channel.open/abandon/end) was deleted in a9498587 (daemon-r7: run routes are data, the stream is a committed SSE Response). The why of the new open/commit/unsubscribe/failure order is written at packages/daemon/src/http/runs.ts:285-327."
     },
     {
       "id": "dddfaa76c884",
@@ -543,7 +543,7 @@
     },
     {
       "id": "ae166f8877e3",
-      "reason": "packages/daemon/src/http/runs.ts:340-343 (\"`channel.open()` never ran (or never got past `flushheaders`) — abando...\"): Code gone: the Express/createSseChannel run event stream (handleRunEventStreamRequest, registerRunEventStream, registerRunRoutes, channel.open/abandon/end) was deleted in a9498587 (daemon-r7: run routes are data, the stream is a committed SSE Response). The why of the new open/commit/unsubscribe/failure order is written at packages/daemon/src/http/runs.ts:285-327."
+      "reason": "packages/daemon/src/http/runs.ts:340-343 (\"`channel.open()` never ran (or never got past `flushheaders`) \u2014 abando...\"): Code gone: the Express/createSseChannel run event stream (handleRunEventStreamRequest, registerRunEventStream, registerRunRoutes, channel.open/abandon/end) was deleted in a9498587 (daemon-r7: run routes are data, the stream is a committed SSE Response). The why of the new open/commit/unsubscribe/failure order is written at packages/daemon/src/http/runs.ts:285-327."
     },
     {
       "id": "2903696d87a6",
@@ -551,7 +551,7 @@
     },
     {
       "id": "dc7910051e4e",
-      "reason": "packages/daemon/src/http/runs.ts:361-361 (\"express mounting glue for {@link handleruneventstreamrequest} — resolv...\"): Code gone: the Express/createSseChannel run event stream (handleRunEventStreamRequest, registerRunEventStream, registerRunRoutes, channel.open/abandon/end) was deleted in a9498587 (daemon-r7: run routes are data, the stream is a committed SSE Response). The why of the new open/commit/unsubscribe/failure order is written at packages/daemon/src/http/runs.ts:285-327."
+      "reason": "packages/daemon/src/http/runs.ts:361-361 (\"express mounting glue for {@link handleruneventstreamrequest} \u2014 resolv...\"): Code gone: the Express/createSseChannel run event stream (handleRunEventStreamRequest, registerRunEventStream, registerRunRoutes, channel.open/abandon/end) was deleted in a9498587 (daemon-r7: run routes are data, the stream is a committed SSE Response). The why of the new open/commit/unsubscribe/failure order is written at packages/daemon/src/http/runs.ts:285-327."
     },
     {
       "id": "f94ccd1d26a6",
@@ -563,7 +563,7 @@
     },
     {
       "id": "d3eff09d57b3",
-      "reason": "packages/daemon/src/http/terminals.ts:229-229 (\"the wire shape `sse.ts`'s generic channel streams for a terminal — the...\"): Code gone: registerTerminalEventStream, createDeferredEndGate, DeferredEndChannel and registerTerminalRoutes were deleted in 46a8e83c (terminal routes are data; the stream is a Response on core's SSE stream). The attach-may-end-synchronously reasoning is restated for the new code at packages/daemon/src/http/terminals.ts:255-263 and the wire shape at :245. Closest surviving wording: packages/daemon/src/http/terminals.ts:245 (containment 0.68)."
+      "reason": "packages/daemon/src/http/terminals.ts:229-229 (\"the wire shape `sse.ts`'s generic channel streams for a terminal \u2014 the...\"): Code gone: registerTerminalEventStream, createDeferredEndGate, DeferredEndChannel and registerTerminalRoutes were deleted in 46a8e83c (terminal routes are data; the stream is a Response on core's SSE stream). The attach-may-end-synchronously reasoning is restated for the new code at packages/daemon/src/http/terminals.ts:255-263 and the wire shape at :245. Closest surviving wording: packages/daemon/src/http/terminals.ts:245 (containment 0.68)."
     },
     {
       "id": "f8e9c2efe6af",
@@ -643,7 +643,7 @@
     },
     {
       "id": "a90fb3cbeb7e",
-      "reason": "packages/http-kit/src/__tests__/raw-sse.test.ts:238-238 (\"would be queued 4 — over the cap...\"): Test comment of raw-sse.test.ts, deleted with its only subject createSseResponse in b6605838 (20 cases of the deleted primitive). Nothing left for it to explain; streamed-answer behaviour is pinned by http-kit's node-bridge tests and core's sse tests."
+      "reason": "packages/http-kit/src/__tests__/raw-sse.test.ts:238-238 (\"would be queued 4 \u2014 over the cap...\"): Test comment of raw-sse.test.ts, deleted with its only subject createSseResponse in b6605838 (20 cases of the deleted primitive). Nothing left for it to explain; streamed-answer behaviour is pinned by http-kit's node-bridge tests and core's sse tests."
     },
     {
       "id": "b8e014589018",
@@ -675,7 +675,7 @@
     },
     {
       "id": "dcb40cab3a99",
-      "reason": "packages/daemon/src/http/__tests__/delegated-tools.test.ts:454-456 (\"disconnect is observed on `res`, not `req` — see `adapter.ts`'s own co...\"): Test comment in delegated-tools.test.ts about the deleted Express test harness (fake req/res, MockApp, captured handlers or a real-Express-socket suite) for routes removed in 3800e9b8; the suite was rewritten against the route-data/web-Response API and the harness it explains no longer exists."
+      "reason": "packages/daemon/src/http/__tests__/delegated-tools.test.ts:454-456 (\"disconnect is observed on `res`, not `req` \u2014 see `adapter.ts`'s own co...\"): Test comment in delegated-tools.test.ts about the deleted Express test harness (fake req/res, MockApp, captured handlers or a real-Express-socket suite) for routes removed in 3800e9b8; the suite was rewritten against the route-data/web-Response API and the harness it explains no longer exists."
     },
     {
       "id": "5b06a5efa499",
@@ -719,7 +719,7 @@
     },
     {
       "id": "9b7575b24464",
-      "reason": "packages/daemon/src/http/model-proxy.ts:636-638 (\"no sse channel can exist yet at this point — `runproxystream` owns ope...\"): Code gone: runProxyStream's createSseChannel lifecycle, respondInternalError, the Express catch-all and registerModelProxyRoutes were deleted in 7b7d7795 (each route is a Response; the provider is not awaited before the stream is returned). Failure handling of the new code is documented at packages/daemon/src/http/model-proxy.ts:376-470 and the route list at :575/:635."
+      "reason": "packages/daemon/src/http/model-proxy.ts:636-638 (\"no sse channel can exist yet at this point \u2014 `runproxystream` owns ope...\"): Code gone: runProxyStream's createSseChannel lifecycle, respondInternalError, the Express catch-all and registerModelProxyRoutes were deleted in 7b7d7795 (each route is a Response; the provider is not awaited before the stream is returned). Failure handling of the new code is documented at packages/daemon/src/http/model-proxy.ts:376-470 and the route list at :575/:635."
     },
     {
       "id": "4d5c4718e81d",
@@ -727,7 +727,7 @@
     },
     {
       "id": "203e17ec3745",
-      "reason": "packages/daemon/src/http/terminals.ts:286-296 (\"`get /api/terminals/:id/stream` — sse, with `last-event-id`/`aftercurs...\"): Code gone: registerTerminalEventStream, createDeferredEndGate, DeferredEndChannel and registerTerminalRoutes were deleted in 46a8e83c (terminal routes are data; the stream is a Response on core's SSE stream). The attach-may-end-synchronously reasoning is restated for the new code at packages/daemon/src/http/terminals.ts:255-263 and the wire shape at :245. Closest surviving wording: packages/daemon/src/http/memory.ts:548 (containment 0.31)."
+      "reason": "packages/daemon/src/http/terminals.ts:286-296 (\"`get /api/terminals/:id/stream` \u2014 sse, with `last-event-id`/`aftercurs...\"): Code gone: registerTerminalEventStream, createDeferredEndGate, DeferredEndChannel and registerTerminalRoutes were deleted in 46a8e83c (terminal routes are data; the stream is a Response on core's SSE stream). The attach-may-end-synchronously reasoning is restated for the new code at packages/daemon/src/http/terminals.ts:255-263 and the wire shape at :245. Closest surviving wording: packages/daemon/src/http/memory.ts:548 (containment 0.31)."
     },
     {
       "id": "46f4dd85bd28",
