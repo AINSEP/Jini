@@ -13,10 +13,11 @@ function rootKeyProgress({ snapshot: s }: { snapshot: RootKeySnapshot | null }, 
 function rootKeyInputs({ snapshot: s }: { snapshot: RootKeySnapshot | null }, _optional = {}) {
   return { token: s?.token ?? '', confirm: s?.confirm ?? '', confirming: s?.confirming ?? false, preview: s?.preview };
 }
-/** Create-only, matching the controller's guard; a host may also hide create outright. */
+/** Create-only, matching the controller's guard: no key, nothing sealed, no env or file source. */
+const isCreatable = (status: RootKeyStatus | null | undefined) => !!status && status.state === 'missing' && !status.active && status.source === 'none';
+/** A host may also hide create outright. */
 function rootKeyFlags({ snapshot: s, generateHidden }: { snapshot: RootKeySnapshot | null; generateHidden: boolean }, _optional = {}) {
-  const missing = s?.status?.state === 'missing' && !s.status.active && s.status.source === 'none';
-  return { locked: isRootKeyLocked({ status: s?.status ?? null }), canGenerate: !generateHidden && missing, canConfirm: !!s?.preview && s.confirm === START_FRESH_CONFIRMATION };
+  return { locked: isRootKeyLocked({ status: s?.status ?? null }), canGenerate: !generateHidden && isCreatable(s?.status), canConfirm: !!s?.preview && s.confirm === START_FRESH_CONFIRMATION };
 }
 const translateCopy = ({ copy, t }: { copy: RootKeyCopy; t: SecurityTranslator }) => ({ text: t(copy.key, copy.vars), ...(copy.path === undefined ? {} : { path: copy.path }) });
 /** Badge, fingerprint hint, source note and the runtime-dependent scope copy, translated. */
