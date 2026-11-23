@@ -177,6 +177,10 @@
       "./roles/rules": "universal",
       "./roles/roles-i18n": "universal",
       "./roles/i18n/roles-sentence-parts": "universal",
+      "./roles/Roles": "browser",
+      "./roles/RolesSection": "browser",
+      "./roles/PolicyRow": "browser",
+      "./roles/hooks/use-roles.hooks": "browser",
       "./screens/auth/hooks/login-port.hooks": "browser",
       "./screens/auth/Login.hooks": "browser",
       "./shell/lib/boot-token-fragment": "browser"
@@ -260,6 +264,10 @@
         "./shell/lib/tab-event-source": "browser",
         "./shell/hooks/use-external-entry-refresh.hooks": "browser",
         "./roles/Roles.hooks": "browser",
+        "./roles/Roles": "browser",
+        "./roles/RolesSection": "browser",
+        "./roles/PolicyRow": "browser",
+        "./roles/hooks/use-roles.hooks": "browser",
         "./screens/auth/hooks/login-port.hooks": "browser",
         "./screens/auth/Login.hooks": "browser",
         "./shell/lib/boot-token-fragment": "browser"
@@ -1084,6 +1092,26 @@
       "types": "./dist/roles/i18n/roles-sentence-parts.d.ts",
       "import": "./dist/roles/i18n/roles-sentence-parts.js",
       "default": "./dist/roles/i18n/roles-sentence-parts.js"
+    },
+    "./roles/Roles": {
+      "types": "./dist/roles/Roles.d.ts",
+      "import": "./dist/roles/Roles.js",
+      "default": "./dist/roles/Roles.js"
+    },
+    "./roles/RolesSection": {
+      "types": "./dist/roles/RolesSection.d.ts",
+      "import": "./dist/roles/RolesSection.js",
+      "default": "./dist/roles/RolesSection.js"
+    },
+    "./roles/PolicyRow": {
+      "types": "./dist/roles/PolicyRow.d.ts",
+      "import": "./dist/roles/PolicyRow.js",
+      "default": "./dist/roles/PolicyRow.js"
+    },
+    "./roles/hooks/use-roles.hooks": {
+      "types": "./dist/roles/hooks/use-roles.hooks.d.ts",
+      "import": "./dist/roles/hooks/use-roles.hooks.js",
+      "default": "./dist/roles/hooks/use-roles.hooks.js"
     },
     "./screens/auth/hooks/login-port.hooks": {
       "types": "./dist/screens/auth/hooks/login-port.hooks.d.ts",

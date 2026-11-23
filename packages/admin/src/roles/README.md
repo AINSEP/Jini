@@ -1,13 +1,15 @@
 # roles
 
-The host-neutral half of the admin's Roles & Policies screen. Today this folder holds the leaf
-slice only: the tab system, the rules and the dictionary. The screen itself (`Roles`, its sections, dialogs,
-controller hooks, rules and dictionary) still lives in the host until its prerequisites land (the
-host's admin HTTP client, and a size-policy home for the locale dictionary). Why the engine/host
-split is drawn this way: [`ADS-memory/reports/jini-port/extraction-plan.md`](../../../../ADS-memory/reports/jini-port/extraction-plan.md).
+The admin's Roles & Policies screen: the screen body, its sections and dialogs, the controller
+hooks, the tab system, the rules and the dictionary. Only the host's HTTP client (`rolesApi`), its
+`RolesPort` binding and its `ApiError` class stay with the host. Why the engine/host split is drawn
+this way: [`ADS-memory/reports/jini-port/extraction-plan.md`](../../../../ADS-memory/reports/jini-port/extraction-plan.md).
 
 | file | what it is |
 |---|---|
+| `Roles.tsx` | The screen body: header, row-error banner, tab strip, the two tab panels and the three confirm dialogs. |
+| `RolesSection.tsx`, `PoliciesSection.tsx`, `PolicyRow.tsx`, `PolicyPermissionForm.tsx`, `RoleConfirmDialogs.tsx` | The sections, rows and dialogs `Roles.tsx` composes. |
+| `hooks/use-roles.hooks.ts` | `useRoles(deps)`, `RolesController`, `RolesDependencies`; composes `use-roles-state`, `use-roles-mutations` and the action factories (`roles-row-actions`, `roles-permission-actions`, `roles-controller`). |
 | `Roles.hooks.tsx` | `ROLES_TAB_IDS`, `resolveRolesTabId`, `resolveRolesTabs`, and the two tab glyphs. |
 | `rules.ts` | `KEYS`, the row-menu builders, and `describeApiError` (the screen's error-code copy over a host-injected `RolesApiErrorPort`). |
 | `roles-i18n.ts` | The screen's dictionary `t`, merged from `i18n/roles-translations-{a,b,c}.ts` (per-locale-group parts, split only to stay under the file-size limit) over `ADMIN_COMMON_I18N`. |
@@ -18,13 +20,17 @@ The wire types (`AdminRole`, `AdminPolicy`, `AdminPolicyPermission`) have one ow
 
 ## Wiring
 
-**Needs injected:** a bound `Translate` (`@jini-ai/core/text`) passed as `resolveRolesTabs({ t })` — the
-host's roles dictionary stays with the host, so the labels are translated by whatever `t` the host
-binds. The `?tab=` navigation is the host's too: the host binds the tab strip's `onChange` to its
-own router call (Tovu: `features/roles/roles-host-binding.ts`, with `replace: true`). `describeApiError`
-needs a `RolesApiErrorPort` as its `errors` field: the host's admin HTTP error class (as
-`isApiError`) and its shared default describer. No hook,
-port or provider is read from inside this folder.
+**Needs injected:** `useRoles(deps: RolesDependencies)` takes `port` (the `RolesPort` from
+`@jini-ai/core/contracts/site/user-management-react`), `errors` (a `RolesApiErrorPort`: the host's
+admin HTTP error class as `isApiError` and its default describer) and `useAdminLocale` (the host's
+locale hook, REQUIRED). `Roles` takes `useRolesHook` (REQUIRED; the host composes `useRoles` with its
+deps), `goToTab` (the host's `?tab=` navigation) and `usersHref` (the host's users route). The
+list/mutation reads go through the kit facades `useFetchQuery`/`useFetchMutation` (`../react/kit.js`),
+so the host mounts its `AdminKitProvider` and a `FetchQueryProvider`. `resolveRolesTabs({ t })` takes a
+bound `Translate`. Tovu's binding: `features/roles/index.tsx`, `hooks/use-wired-roles.hooks.ts`,
+`roles-host-binding.ts`. CSS: `jini-page`/`jini-card`/`jini-notice` family plus
+`jini-roles-{list-table,table-scroll,muted-cell,integrations-form,form-measure,permission-list,permission-form-fields}`,
+which the host styles.
 
 **Provides:** the tab descriptors in the kit's `TabBarTab` shape and a `?tab=` guard that falls
 back to `roles`.
