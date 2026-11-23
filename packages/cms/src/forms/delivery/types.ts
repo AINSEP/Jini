@@ -4,22 +4,11 @@
  * Kept free of behaviour so hosts and adapter ABIs can import the shapes without pulling logic.
  */
 import type { DomainEvent } from "@jini-ai/core/contracts/events";
+import type { FormDeliveryBinding, FormDeliveryErrorCode } from "@jini-ai/core/contracts/site/cms-forms";
+export type { FormDeliveryBinding, FormDeliveryErrorCode } from "@jini-ai/core/contracts/site/cms-forms";
 
 /** Outbox event name of one child delivery job (one per selected binding per submission). */
 export const FORM_DELIVERY_EVENT = "form.submission.delivery";
-
-/** One configured destination. Credentials are never stored here, only a reference the host
- * resolves fresh on each attempt, so a rotated or revoked credential takes effect at once. */
-export interface FormDeliveryBinding {
-  readonly bindingId: string;
-  readonly adapterId: string;
-  readonly connectionRef: string;
-  readonly enabled: boolean;
-  /** Absent = every form; [] = no form. */
-  readonly formIds?: readonly string[];
-  /** Adapter-owned non-secret configuration. */
-  readonly config: Readonly<Record<string, unknown>>;
-}
 
 /** One field as a destination sees it. `name` is the stable field id that keys `answers`;
  * `label`/`type` are optional so adapters written before them keep working. */
@@ -77,18 +66,6 @@ export interface FormDeliveryPlan {
   /** Child outbox events; their ids are generated here and never regenerated. */
   readonly jobs: readonly DomainEvent<FormDeliveryQueuedJob>[];
 }
-
-/** The only error codes that may reach the outbox ledger or a status read. */
-export type FormDeliveryErrorCode =
-  | "authorization-required"
-  | "rate-limited"
-  | "configuration-invalid"
-  | "mapping-invalid"
-  | "resource-not-granted"
-  | "destination-limit"
-  | "outcome-unknown"
-  | "adapter-unavailable"
-  | "delivery-failed";
 
 /** What a push adapter may return. `void` (legacy adapters) means success. */
 export type FormDeliveryResult =

@@ -1,22 +1,11 @@
 
-import type { PasskeyOptions } from '../../core/types.js';
 import { runPasskeyCeremony } from './passkey-browser.js';
 import { usePasskeySettings, usePasskeySignIn } from './Passkeys.hooks.js';
 
 import { type Translate } from '@jini-ai/core/text';
-type Started = { pendingToken: string; options: PasskeyOptions };
-type Finish = { pendingToken: string; response: unknown };
+import type { PasskeySettingsPort, PasskeySignInPort } from '@jini-ai/core/contracts/site/user-management-react';
+export type { PasskeySettingsPort, PasskeySignInPort } from '@jini-ai/core/contracts/site/user-management-react';
 type Ceremony = typeof runPasskeyCeremony;
-export interface PasskeySignInPort {
-  begin(input: { pendingToken: string }): Promise<Started>;
-  complete(input: Finish): Promise<void>;
-}
-export interface PasskeySettingsPort {
-  status(): Promise<{ isOwner: boolean; credentials: { id: string }[] }>;
-  enroll(input: { password: string; code: string }): Promise<Started>;
-  confirm(input: Finish): Promise<void>;
-  remove(input: { id: string; password: string; code: string }): Promise<void>;
-}
 
 /** Explicit alternative to a TOTP code; password proof remains required. O(1), two single-send calls. */
 export function PasskeySignIn({ port, pendingToken, onComplete, translate: t, ceremony = runPasskeyCeremony, usePasskeySignInHook = usePasskeySignIn }: {
