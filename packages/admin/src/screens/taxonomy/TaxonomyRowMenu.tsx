@@ -3,14 +3,15 @@ import type { CSSProperties, JSX } from "react";
 import { resolveTone, toneClassName } from "../../react/types.js";
 import type { RowMenuProps } from "../../react/components/RowMenu/RowMenu.js";
 import { agentHandle, buildAgentListHandles } from "@jini-ai/core/agent-handles";
-import { useTaxonomyRowMenu } from "./TaxonomyRowMenu.hooks.js";
+import type { useTaxonomyRowMenu } from "./TaxonomyRowMenu.hooks.js";
 
 type MenuState = ReturnType<typeof useTaxonomyRowMenu>;
 
 export type TaxonomyRowMenuProps = Pick<RowMenuProps, "items" | "triggerLabel" | "agentHandle"> & {
   /** Mounted page root, outside the row scroller and inside the scoped agent driver. */
   portalContainer: HTMLElement | null;
-  useTaxonomyRowMenuHook?: typeof useTaxonomyRowMenu;
+  /** The menu state hook; the host injects `useTaxonomyRowMenu` (or a test double). */
+  useTaxonomyRowMenuHook: typeof useTaxonomyRowMenu;
 };
 
 /**
@@ -19,17 +20,18 @@ export type TaxonomyRowMenuProps = Pick<RowMenuProps, "items" | "triggerLabel" |
  * Keep the host-specific portal here until a published component offers the same contract.
  * @param props - Actions, accessible trigger name, optional agent handle and mounted page root.
  * @returns Trigger plus a fixed popup; no popup is allowed before the page root mounts.
- * @example <TaxonomyRowMenu items={actions} triggerLabel="Actions" portalContainer={pageRoot} />
+ * Classes are `jini-taxonomy-row-menu-*`; the host styles them (aliases of its row-menu rules).
+ * @example <TaxonomyRowMenu items={actions} triggerLabel="Actions" portalContainer={pageRoot} useTaxonomyRowMenuHook={useTaxonomyRowMenu} />
  */
 export function TaxonomyRowMenu({ items, triggerLabel, agentHandle: baseHandle, portalContainer,
-  useTaxonomyRowMenuHook = useTaxonomyRowMenu }: TaxonomyRowMenuProps): JSX.Element {
+  useTaxonomyRowMenuHook }: TaxonomyRowMenuProps): JSX.Element {
   const menu = useTaxonomyRowMenuHook({ itemCount: items.length });
   const itemHandles = baseHandle ? buildAgentListHandles({ prefix: `${baseHandle}-item`, ids: items.map((item) => item.key) }) : undefined;
   return <>
     <button
       ref={menu.triggerRef}
       type="button"
-      className="row-menu-trigger"
+      className="jini-taxonomy-row-menu-trigger"
       aria-label={triggerLabel}
       aria-haspopup="menu"
       aria-expanded={menu.open}
@@ -90,7 +92,7 @@ function TaxonomyRowMenuPopup({ menu, items, triggerLabel, itemHandles }: Taxono
     ref={menu.menuRef}
     role="menu"
     aria-label={triggerLabel}
-    className={`row-menu-popup${above ? " row-menu-popup-above" : ""}`}
+    className={`jini-taxonomy-row-menu-popup${above ? " jini-taxonomy-row-menu-popup-above" : ""}`}
     style={popupStyle({ position: menu.position })}
     onKeyDown={menu.onMenuKeyDown}
   >
@@ -100,7 +102,7 @@ function TaxonomyRowMenuPopup({ menu, items, triggerLabel, itemHandles }: Taxono
       type="button"
       role="menuitem"
       tabIndex={-1}
-      className={["row-menu-item", toneClassName({ tone: resolveTone({}, item) })].filter(Boolean).join(" ")}
+      className={["jini-taxonomy-row-menu-item", toneClassName({ tone: resolveTone({}, item) })].filter(Boolean).join(" ")}
       onClick={() => menu.selectItem({ onSelect: item.onSelect })}
       {...buttonHandleProps({ handle: itemHandles?.[index], label: item.label })}
     >{item.label}</button>)}

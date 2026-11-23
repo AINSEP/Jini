@@ -3,6 +3,7 @@ import { fireEvent, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 import { TaxonomyRowMenu } from "../TaxonomyRowMenu.js";
+import { useTaxonomyRowMenu } from "../TaxonomyRowMenu.hooks.js";
 
 // F1.1/F6.2: real menu, real focus and events. Only action callbacks are faked.
 function renderMenu() {
@@ -11,6 +12,7 @@ function renderMenu() {
   const edit = vi.fn();
   const remove = vi.fn();
   const view = render(<TaxonomyRowMenu
+    useTaxonomyRowMenuHook={useTaxonomyRowMenu}
     portalContainer={host}
     triggerLabel="Actions for Category"
     agentHandle="category-menu"
@@ -24,9 +26,10 @@ function renderMenu() {
 
 describe("taxonomy menus compatible with published admin", () => {
   it("keeps the trigger disabled until a page-owned popup container is mounted", () => {
-    render(<TaxonomyRowMenu portalContainer={null} triggerLabel="Actions" items={[{ key: "edit", label: "Edit", onSelect: vi.fn() }]} />);
+    render(<TaxonomyRowMenu useTaxonomyRowMenuHook={useTaxonomyRowMenu} portalContainer={null} triggerLabel="Actions" items={[{ key: "edit", label: "Edit", onSelect: vi.fn() }]} />);
     expect(screen.getByRole("button", { name: "Actions" })).toBeDisabled();
     expect(screen.queryByRole("menu")).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Actions" })).toHaveClass("jini-taxonomy-row-menu-trigger");
   });
 
   it("renders its popup in the supplied page scope, outside the row, and cleans up on unmount", async () => {
@@ -111,7 +114,7 @@ describe("taxonomy menus compatible with published admin", () => {
     });
     await userEvent.click(trigger);
     const menu = within(host).getByRole("menu");
-    expect(menu).toHaveClass("row-menu-popup", "row-menu-popup-above");
+    expect(menu).toHaveClass("jini-taxonomy-row-menu-popup", "jini-taxonomy-row-menu-popup-above");
     expect(menu.style.top).toBe(`${window.innerHeight - 27}px`);
     expect(menu.style.transform).toBe("translateY(-100%)");
     expect(menu.style.visibility).toBe("visible");
@@ -121,20 +124,20 @@ describe("taxonomy menus compatible with published admin", () => {
   it("publishes no agent handles on the trigger or its items when no base handle is given", async () => {
     const host = document.createElement("main");
     document.body.append(host);
-    render(<TaxonomyRowMenu portalContainer={host} triggerLabel="Actions" items={[{ key: "edit", label: "Edit", onSelect: vi.fn() }]} />, { container: host });
+    render(<TaxonomyRowMenu useTaxonomyRowMenuHook={useTaxonomyRowMenu} portalContainer={host} triggerLabel="Actions" items={[{ key: "edit", label: "Edit", onSelect: vi.fn() }]} />, { container: host });
     const trigger = screen.getByRole("button", { name: "Actions" });
     await userEvent.click(trigger);
     expect(trigger).not.toHaveAttribute("data-agent-element");
     const item = within(host).getByRole("menuitem", { name: "Edit" });
     expect(item).not.toHaveAttribute("data-agent-element");
-    expect(item.className).toBe("row-menu-item");
+    expect(item.className).toBe("jini-taxonomy-row-menu-item");
     host.remove();
   });
 
   it("keeps the trigger disabled when there are no actions to offer", () => {
     const host = document.createElement("main");
     document.body.append(host);
-    render(<TaxonomyRowMenu portalContainer={host} triggerLabel="Actions" items={[]} />, { container: host });
+    render(<TaxonomyRowMenu useTaxonomyRowMenuHook={useTaxonomyRowMenu} portalContainer={host} triggerLabel="Actions" items={[]} />, { container: host });
     expect(screen.getByRole("button", { name: "Actions" })).toBeDisabled();
     host.remove();
   });
