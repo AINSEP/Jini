@@ -1260,6 +1260,20 @@
    "useEditMediaModal": "function:77bc12dd3a"
   }
  },
+ "./screens/media/hooks/use-media-card-details.hooks": {
+  "types": "./dist/screens/media/hooks/use-media-card-details.hooks.d.ts",
+  "symbols": {
+   "useMediaCardDetails": "function:bd091d1eb0"
+  }
+ },
+ "./screens/media/hooks/use-media-card-metadata.hooks": {
+  "types": "./dist/screens/media/hooks/use-media-card-metadata.hooks.d.ts",
+  "symbols": {
+   "MediaCardMetadataSource": "interface:dbea75d561",
+   "MediaMetadataFormatters": "interface:888daeb5f1",
+   "useMediaCardMetadata": "function:908e0588b8"
+  }
+ },
  "./security": {
   "types": "./dist/security/index.d.ts",
   "symbols": {

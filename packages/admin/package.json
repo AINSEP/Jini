@@ -148,7 +148,9 @@
       "./posts/editor/notices/PostAutosaveRecoveryBanner": "browser",
       "./posts/editor/notices/PostAutosaveStaleBanner": "browser",
       "./posts/editor/notices/PostVersionConflictBanner": "browser",
-      "./posts/editor/toolbar/ToolbarOverflowMenu": "browser"
+      "./posts/editor/toolbar/ToolbarOverflowMenu": "browser",
+      "./screens/media/hooks/use-media-card-metadata.hooks": "browser",
+      "./screens/media/hooks/use-media-card-details.hooks": "browser"
     },
     "isolation": {
       "shared": [
@@ -228,7 +230,9 @@
         "./shell/components/Select/Select.hooks": "browser",
         "./shell/lib/tab-event-source": "browser",
         "./shell/hooks/use-external-entry-refresh.hooks": "browser",
-        "./screens/media/hooks/use-edit-media-modal.hooks": "browser"
+        "./screens/media/hooks/use-edit-media-modal.hooks": "browser",
+        "./screens/media/hooks/use-media-card-metadata.hooks": "browser",
+        "./screens/media/hooks/use-media-card-details.hooks": "browser"
       }
     },
     "optionalPeers": {
@@ -910,6 +914,16 @@
       "types": "./dist/posts/editor/toolbar/ToolbarOverflowMenu.d.ts",
       "import": "./dist/posts/editor/toolbar/ToolbarOverflowMenu.js",
       "default": "./dist/posts/editor/toolbar/ToolbarOverflowMenu.js"
+    },
+    "./screens/media/hooks/use-media-card-metadata.hooks": {
+      "types": "./dist/screens/media/hooks/use-media-card-metadata.hooks.d.ts",
+      "import": "./dist/screens/media/hooks/use-media-card-metadata.hooks.js",
+      "default": "./dist/screens/media/hooks/use-media-card-metadata.hooks.js"
+    },
+    "./screens/media/hooks/use-media-card-details.hooks": {
+      "types": "./dist/screens/media/hooks/use-media-card-details.hooks.d.ts",
+      "import": "./dist/screens/media/hooks/use-media-card-details.hooks.js",
+      "default": "./dist/screens/media/hooks/use-media-card-details.hooks.js"
     }
   },
   "files": [
@@ -982,6 +996,12 @@
       ],
       "posts/editor/toolbar/ToolbarOverflowMenu": [
         "./dist/posts/editor/toolbar/ToolbarOverflowMenu.d.ts"
+      ],
+      "screens/media/hooks/use-media-card-metadata.hooks": [
+        "./dist/screens/media/hooks/use-media-card-metadata.hooks.d.ts"
+      ],
+      "screens/media/hooks/use-media-card-details.hooks": [
+        "./dist/screens/media/hooks/use-media-card-details.hooks.d.ts"
       ]
     }
   },
