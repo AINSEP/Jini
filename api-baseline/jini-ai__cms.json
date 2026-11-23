@@ -286,6 +286,15 @@
    "formsProvidersRoute": "variable:dda5a29300"
   }
  },
+ "./admin-http/routes/forms/pull-submissions": {
+  "types": "./dist/admin-http/routes/forms/pull-submissions.d.ts",
+  "symbols": {
+   "FormsPullFailedError": "class:ae7f55b9ee",
+   "FormsPullSubmissionsInput": "interface:61671fe1e0",
+   "FormsPullSubmissionsRouteDeps": "interface:a29b834fde",
+   "formsPullSubmissionsRoute": "variable:8fc904132d"
+  }
+ },
  "./admin-http/routes/forms/resolve-definition": {
   "types": "./dist/admin-http/routes/forms/resolve-definition.d.ts",
   "symbols": {
