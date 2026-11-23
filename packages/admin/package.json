@@ -95,7 +95,20 @@
       "./screens/taxonomy/hooks/new-taxonomy-form-port.hooks": "universal",
       "./screens/taxonomy/hooks/new-term-form-port.hooks": "universal",
       "./screens/taxonomy/hooks/taxonomy-port.hooks": "universal",
-      "./screens/taxonomy/hooks/term-picker-port.hooks": "universal"
+      "./screens/taxonomy/hooks/term-picker-port.hooks": "universal",
+      "./screens/comments/api/comments-api.types": "universal",
+      "./screens/forms/api/forms-api.types": "universal",
+      "./screens/forms/index-aligned-translations": "universal",
+      "./screens/forms/forms-field-settings-i18n": "universal",
+      "./screens/forms/forms-leave-guard-i18n": "universal",
+      "./screens/menus/api/menus-api.types": "universal",
+      "./screens/widgets/api/widgets-api.types": "universal",
+      "./screens/menus/page-link-rules": "universal",
+      "./screens/menus/html-rules": "universal",
+      "./screens/menus/hooks/menus-port.hooks": "universal",
+      "./screens/menus/MenuEditor.hooks": "browser",
+      "./screens/menus/MenuPageLinkFields.hooks": "browser",
+      "./screens/menus/MenuPageLinkFields": "browser"
     },
     "isolation": {
       "shared": [
@@ -527,6 +540,71 @@
       "types": "./dist/screens/taxonomy/hooks/term-picker-port.hooks.d.ts",
       "import": "./dist/screens/taxonomy/hooks/term-picker-port.hooks.js",
       "default": "./dist/screens/taxonomy/hooks/term-picker-port.hooks.js"
+    },
+    "./screens/comments/api/comments-api.types": {
+      "types": "./dist/screens/comments/api/comments-api.types.d.ts",
+      "import": "./dist/screens/comments/api/comments-api.types.js",
+      "default": "./dist/screens/comments/api/comments-api.types.js"
+    },
+    "./screens/forms/api/forms-api.types": {
+      "types": "./dist/screens/forms/api/forms-api.types.d.ts",
+      "import": "./dist/screens/forms/api/forms-api.types.js",
+      "default": "./dist/screens/forms/api/forms-api.types.js"
+    },
+    "./screens/forms/index-aligned-translations": {
+      "types": "./dist/screens/forms/index-aligned-translations.d.ts",
+      "import": "./dist/screens/forms/index-aligned-translations.js",
+      "default": "./dist/screens/forms/index-aligned-translations.js"
+    },
+    "./screens/forms/forms-field-settings-i18n": {
+      "types": "./dist/screens/forms/forms-field-settings-i18n.d.ts",
+      "import": "./dist/screens/forms/forms-field-settings-i18n.js",
+      "default": "./dist/screens/forms/forms-field-settings-i18n.js"
+    },
+    "./screens/forms/forms-leave-guard-i18n": {
+      "types": "./dist/screens/forms/forms-leave-guard-i18n.d.ts",
+      "import": "./dist/screens/forms/forms-leave-guard-i18n.js",
+      "default": "./dist/screens/forms/forms-leave-guard-i18n.js"
+    },
+    "./screens/menus/api/menus-api.types": {
+      "types": "./dist/screens/menus/api/menus-api.types.d.ts",
+      "import": "./dist/screens/menus/api/menus-api.types.js",
+      "default": "./dist/screens/menus/api/menus-api.types.js"
+    },
+    "./screens/widgets/api/widgets-api.types": {
+      "types": "./dist/screens/widgets/api/widgets-api.types.d.ts",
+      "import": "./dist/screens/widgets/api/widgets-api.types.js",
+      "default": "./dist/screens/widgets/api/widgets-api.types.js"
+    },
+    "./screens/menus/page-link-rules": {
+      "types": "./dist/screens/menus/page-link-rules.d.ts",
+      "import": "./dist/screens/menus/page-link-rules.js",
+      "default": "./dist/screens/menus/page-link-rules.js"
+    },
+    "./screens/menus/html-rules": {
+      "types": "./dist/screens/menus/html-rules.d.ts",
+      "import": "./dist/screens/menus/html-rules.js",
+      "default": "./dist/screens/menus/html-rules.js"
+    },
+    "./screens/menus/hooks/menus-port.hooks": {
+      "types": "./dist/screens/menus/hooks/menus-port.hooks.d.ts",
+      "import": "./dist/screens/menus/hooks/menus-port.hooks.js",
+      "default": "./dist/screens/menus/hooks/menus-port.hooks.js"
+    },
+    "./screens/menus/MenuEditor.hooks": {
+      "types": "./dist/screens/menus/MenuEditor.hooks.d.ts",
+      "import": "./dist/screens/menus/MenuEditor.hooks.js",
+      "default": "./dist/screens/menus/MenuEditor.hooks.js"
+    },
+    "./screens/menus/MenuPageLinkFields.hooks": {
+      "types": "./dist/screens/menus/MenuPageLinkFields.hooks.d.ts",
+      "import": "./dist/screens/menus/MenuPageLinkFields.hooks.js",
+      "default": "./dist/screens/menus/MenuPageLinkFields.hooks.js"
+    },
+    "./screens/menus/MenuPageLinkFields": {
+      "types": "./dist/screens/menus/MenuPageLinkFields.d.ts",
+      "import": "./dist/screens/menus/MenuPageLinkFields.js",
+      "default": "./dist/screens/menus/MenuPageLinkFields.js"
     }
   },
   "files": [

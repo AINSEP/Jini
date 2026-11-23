@@ -1137,6 +1137,12 @@
    "resolveConfiguredOrigin": "function:15a98e5b94"
   }
  },
+ "./contracts/site/core-runtime-mode": {
+  "types": "./dist/contracts/site/core-runtime-mode.d.ts",
+  "symbols": {
+   "RuntimeMode": "type:ee7fa51b45"
+  }
+ },
  "./contracts/site/daemon-surface-exchanges": {
   "types": "./dist/contracts/site/daemon-surface-exchanges.d.ts",
   "symbols": {

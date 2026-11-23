@@ -62,6 +62,7 @@
       "./contracts/forms": "universal",
       "./contracts/charts": "universal",
       "./contracts/plugin-sdk": "universal",
+      "./contracts/site/core-runtime-mode": "universal",
       "./contracts/site/daemon-surface-exchanges": "universal",
       "./contracts/site/gated-results": "universal",
       "./contracts/site/post-author": "universal",
@@ -399,6 +400,11 @@
       "types": "./dist/contracts/plugin-sdk.d.ts",
       "import": "./dist/contracts/plugin-sdk.js",
       "default": "./dist/contracts/plugin-sdk.js"
+    },
+    "./contracts/site/core-runtime-mode": {
+      "types": "./dist/contracts/site/core-runtime-mode.d.ts",
+      "import": "./dist/contracts/site/core-runtime-mode.js",
+      "default": "./dist/contracts/site/core-runtime-mode.js"
     },
     "./contracts/site/daemon-surface-exchanges": {
       "types": "./dist/contracts/site/daemon-surface-exchanges.d.ts",
