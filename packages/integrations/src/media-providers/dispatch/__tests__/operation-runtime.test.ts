@@ -615,12 +615,13 @@ describe('operation runtime — defaults and outbound threading', () => {
         const seen: RenderContext[] = [];
         const outboundMessages = { dispatcherRefused: 'custom dispatcher refusal' };
         await pollDueOperations(...partitionArgs({ value: {
-            store, signer, httpClient: testHttpClient(vi.fn(async () => json({}))), allowPrivateNetwork: false, outboundMessages,
+            store, signer, httpClient: testHttpClient(vi.fn(async () => json({}))), guardedFetch: nodeMediaGuardedFetch, allowPrivateNetwork: false, outboundMessages,
             adapters: () => capturingAdapter(seen), resolveContext: () => CTX, leaseOwner: 'w1', leaseMs: 1000, clock: () => T0,
         }, requiredKeys: ["store", "signer", "adapters", "resolveContext", "leaseOwner", "leaseMs"] }));
         expect(seen[0]?.allowPrivateNetwork).toBe(false);
         expect(seen[0]?.outboundMessages).toBe(outboundMessages);
         expect(seen[0]?.httpClient).toBeDefined();
+        expect(seen[0]?.guardedFetch).toBe(nodeMediaGuardedFetch);
     });
 
     it('refuses network I/O and records the failure without invoking the parser when no client is given', async () => {

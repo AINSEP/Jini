@@ -3,6 +3,9 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { HttpClientPort, HttpRequest } from '@jini-ai/core/primitives';
 import type { DnsResolver } from '@jini-ai/core/contracts/runtime';
 import { defaultMediaOutboundMessages, fetchMediaOutbound } from '../outbound.js';
+import type { MediaGuardedFetch } from '../outbound.js';
+import { dispatchVendorRequest } from '../vendor-adapter.js';
+import { buildRenderContext } from '../context.js';
 import { testPinnedRequests } from './outbound-fixtures.js';
 
 // Explicit Node clients use a deterministic transport fixture; the real guard policy still runs.
@@ -206,5 +209,39 @@ describe('fetchMediaOutbound with the explicit Node policy client', () => {
     await fetchMediaOutbound({ guardedFetch: nodeMediaGuardedFetch, url: 'http://127.0.0.1/a', timeoutMs: 500, httpClient: client }, { allowPrivateNetwork: false });
     expect(sent).toHaveLength(1);
     expect(testPinnedRequests).toHaveLength(0);
+  });
+});
+
+describe('fetchMediaOutbound injected guarded fetch', () => {
+  // REGRESSION: fails if outbound imports a guarded/global fetch instead of calling the injected port.
+  it('sends every outbound call through the injected guarded fetch with the media wire policy', async () => {
+    const raw = vi.fn(async () => new Response('must not fetch'));
+    vi.stubGlobal('fetch', raw);
+    const { client, sent } = recordingClient();
+    const injected = vi.fn<MediaGuardedFetch>(async () => new Response('from injected port', { status: 201 }));
+    const resp = await fetchMediaOutbound({ url: URL_A, timeoutMs: 750, httpClient: client, guardedFetch: injected },
+      { init: { method: 'post', body: 'x', headers: { 'x-a': '1' } } });
+    expect(resp.status).toBe(201);
+    expect(await resp.text()).toBe('from injected port');
+    expect(injected).toHaveBeenCalledTimes(1);
+    expect(injected).toHaveBeenCalledWith({ client, url: URL_A, timeoutMs: 750 },
+      { method: 'POST', body: 'x', headers: { 'x-a': '1' }, totalDeadlineMs: 750, redirect: 'error' });
+    // The port owns the client hop: outbound itself never sends or fetches.
+    expect(sent).toHaveLength(0);
+    expect(raw).not.toHaveBeenCalled();
+  });
+
+  it('fails closed before I/O when a render context carries no guarded fetch', async () => {
+    const raw = vi.fn(async () => new Response('must not fetch'));
+    vi.stubGlobal('fetch', raw);
+    const { client, sent } = recordingClient();
+    const ctx = { ...buildRenderContext({ request: { surface: 'image', model: 'dall-e-3' },
+      resolvedAudioKind: undefined, length: undefined, duration: undefined }), httpClient: client };
+    await expect(dispatchVendorRequest({ ctx, credentials: {}, adapter: {
+      buildRequest: () => ({ url: URL_A, init: {}, meta: undefined }),
+      parseResponse: async () => ({ bytes: Buffer.from('x'), providerNote: 'x' }),
+    } })).rejects.toThrow(new TypeError('Media outbound requires an injected guarded fetch'));
+    expect(sent).toHaveLength(0);
+    expect(raw).not.toHaveBeenCalled();
   });
 });

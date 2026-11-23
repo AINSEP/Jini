@@ -160,6 +160,7 @@ describe('DNS, development and timeout policy', () => {
     for (const address of ['10.0.0.1', '::1', '169.254.169.254']) {
       await expect(assertAndFetchExternalAsset({ url: 'https://cdn.example/a' }, {
         httpClient: createNodeMediaHttpClient({}, { dns: { resolve: async () => ['93.184.216.34', address] } }),
+        guardedFetch: nodeMediaGuardedFetch,
       })).rejects.toThrow(/rejected/);
     }
     expect(raw).not.toHaveBeenCalled();
@@ -203,7 +204,7 @@ describe('DNS, development and timeout policy', () => {
         return { kind: 'complete', result: { providerNote: 'asset', bytes:
           await bytesFromOpenAICompatibleData({ data: { data: [{ url: 'https://cdn.example/a' }] }, providerTag: 'fixture' }, ctx) } };
       } }, ctx: context(), providerId: 'fixture', routeKey: 'image', ownerRef: 'fixture' },
-      { httpClient: { send }, graceMs: 1000 });
+      { httpClient: { send }, guardedFetch: nodeMediaGuardedFetch, graceMs: 1000 });
     expect(outcome.done).toBe(true);
     expect(send).toHaveBeenCalledTimes(2);
     expect(send.mock.calls[1]?.[0].request.url).toBe('https://cdn.example/a');
