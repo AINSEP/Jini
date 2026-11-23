@@ -3,7 +3,7 @@ import { createPostsApi, type PostsApiDeps } from '../api/posts-api.js';
 
 /** The client only names paths, methods and bodies over the injected collaborators. */
 function bind(overrides: Partial<PostsApiDeps> = {}) {
-  const request = vi.fn(async () => ({}));
+  const request = vi.fn(async (..._args: unknown[]) => ({}));
   const deps: PostsApiDeps = {
     request: request as unknown as PostsApiDeps['request'],
     workspaceId: 'ws-1', base: '/api/x', siteUrl: ({ path }) => `https://site.test${path}`,

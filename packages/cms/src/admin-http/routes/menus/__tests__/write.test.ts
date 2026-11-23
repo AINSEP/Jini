@@ -149,4 +149,16 @@ describe("menus route specs outward copy", () => {
     expect(await refusalOf(() => menuCreateRoute.handle({ input: { title: "", slug: "x", items: undefined, authoring: {} }, deps, context: PRINCIPAL, authorize: allow() }, { signal })))
       .toEqual({ status: 400, body: { error: "host: title is required" } });
   });
+
+  it("answers a trashed menu's not-live 409 with the host's outward message, keeping the guard's code", async () => {
+    const { menu } = await created();
+    const deps = { ...makeMenuDeps(), outwardErrorMessage: ({ error }: { error: Error }) => `host: ${error.constructor.name}` };
+    const notLive = new EntityNotLiveError({ entityType: "menu", entityId: menu.id, state: "trashed" });
+    deps.menuRepo.findById = async () => { throw notLive; };
+    const input = { menuId: menu.id, items: [ITEM], expectedVersion: 1, title: undefined, slug: undefined, authoring: {} };
+    expect(await refusalOf(() => menuUpdateTreeRoute.handle({ input, deps, context: PRINCIPAL, authorize: allow() }, { signal })))
+      .toEqual({ status: 409, body: { error: "host: EntityNotLiveError", code: "ENTITY_IN_TRASH" } });
+    expect(await refusalOf(() => menuAssignLocationRoute.handle({ input: { menuId: menu.id, locationKey: "primary" }, deps, context: PRINCIPAL, authorize: allow() }, { signal })))
+      .toEqual({ status: 409, body: { error: "host: EntityNotLiveError", code: "ENTITY_IN_TRASH" } });
+  });
 });

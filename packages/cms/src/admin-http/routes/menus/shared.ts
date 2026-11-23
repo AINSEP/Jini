@@ -34,9 +34,10 @@ export function mapMenuError(
   return ({ err, outwardErrorMessage }) => (err instanceof errorClass ? { status, error: outwardErrorMessage({ error: err }), ...(code === undefined ? {} : { code }) } : null);
 }
 
-/** A trashed menu: the 409 `entityNotLiveResponse` writes, with the error's own code. */
-export const MENU_NOT_LIVE_MAPPING: MenuErrorMapping = ({ err }) => {
-  const live = entityNotLiveResponse({ err });
+/** A trashed menu: the 409 `entityNotLiveResponse` writes, with the error's own code and the host's
+ *  outward message. */
+export const MENU_NOT_LIVE_MAPPING: MenuErrorMapping = ({ err, outwardErrorMessage }) => {
+  const live = entityNotLiveResponse({ err, outwardErrorMessage });
   return live ? { status: live.status, ...live.body } : null;
 };
 

@@ -77,7 +77,7 @@ function createMergeTermExecuteAction(
   { confirmationToken, term, setBusy, setError, executeMutation, intoTermId, activeTermIdRef, onMerged, locale, kit }:
     Pick<ReturnType<typeof useMergeTermState>, "confirmationToken" | "term" | "setBusy" | "setError" | "executeMutation" | "intoTermId" | "activeTermIdRef"
     | "onMerged"> &
-    { locale: Parameters<typeof useMergeTermSection>[2]; kit: TaxonomyHostKit }
+    { locale: UseMergeTermSectionArgs["locale"]; kit: TaxonomyHostKit }
 ) {
   async function doExecute() {
     if (!confirmationToken) return;
@@ -107,7 +107,7 @@ function createMergeTermPlanningActions(
   { intoTermId, term, setBusy, setError, planMutation, activeTermIdRef, setPlan, setStep, locale, plan, confirmMutation, setConfirmationToken, kit }:
     Pick<ReturnType<typeof useMergeTermState>, "intoTermId" | "term" | "setBusy" | "setError" | "planMutation" | "activeTermIdRef" | "setPlan" | "setStep"
     | "plan" | "confirmMutation" | "setConfirmationToken"> &
-    { locale: Parameters<typeof useMergeTermSection>[2]; kit: TaxonomyHostKit }
+    { locale: UseMergeTermSectionArgs["locale"]; kit: TaxonomyHostKit }
 ) {
   async function startPlan() {
     if (!intoTermId) return;
@@ -149,7 +149,7 @@ function createMergeTermPlanningActions(
 
 function useMergeTermState(
   { options, port }:
-    { options: Parameters<typeof useMergeTermSection>[0]; port: Parameters<typeof useMergeTermSection>[1] }
+    { options: UseMergeTermSectionArgs["options"]; port: UseMergeTermSectionArgs["port"] }
 ) {
   const { term, onMerged } = options;
   const [intoTermId, setIntoTermId] = useState("");

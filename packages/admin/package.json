@@ -152,6 +152,7 @@
       "./posts/api/posts-api.types": "universal",
       "./posts/api/posts-api": "universal",
       "./posts/editor/PostDeleteConfirmDialog": "browser",
+      "./posts/editor/template/PostEditorTemplateModalGate": "browser",
       "./posts/hooks/posts-list-port.hooks": "universal",
       "./posts/hooks/use-post-editor-ui.hooks": "browser",
       "./screens/collections/api/collections-api.types": "universal",
@@ -185,6 +186,8 @@
       "./screens/taxonomy/hooks/use-new-term-form.hooks": "browser",
       "./screens/taxonomy/hooks/use-term-detail-panel.hooks": "browser",
       "./screens/taxonomy/hooks/use-merge-term-section.hooks": "browser",
+      "./screens/taxonomy/hooks/use-taxonomy.hooks": "browser",
+      "./screens/taxonomy/hooks/use-term-picker.hooks": "browser",
       "./screens/comments/api/comments-api.types": "universal",
       "./screens/comments/api/comments-api": "universal",
       "./screens/forms/api/forms-api.types": "universal",
@@ -992,6 +995,11 @@
       "import": "./dist/posts/editor/PostDeleteConfirmDialog.js",
       "default": "./dist/posts/editor/PostDeleteConfirmDialog.js"
     },
+    "./posts/editor/template/PostEditorTemplateModalGate": {
+      "types": "./dist/posts/editor/template/PostEditorTemplateModalGate.d.ts",
+      "import": "./dist/posts/editor/template/PostEditorTemplateModalGate.js",
+      "default": "./dist/posts/editor/template/PostEditorTemplateModalGate.js"
+    },
     "./posts/hooks/posts-list-port.hooks": {
       "types": "./dist/posts/hooks/posts-list-port.hooks.d.ts",
       "import": "./dist/posts/hooks/posts-list-port.hooks.js",
@@ -1156,6 +1164,16 @@
       "types": "./dist/screens/taxonomy/hooks/use-merge-term-section.hooks.d.ts",
       "import": "./dist/screens/taxonomy/hooks/use-merge-term-section.hooks.js",
       "default": "./dist/screens/taxonomy/hooks/use-merge-term-section.hooks.js"
+    },
+    "./screens/taxonomy/hooks/use-taxonomy.hooks": {
+      "types": "./dist/screens/taxonomy/hooks/use-taxonomy.hooks.d.ts",
+      "import": "./dist/screens/taxonomy/hooks/use-taxonomy.hooks.js",
+      "default": "./dist/screens/taxonomy/hooks/use-taxonomy.hooks.js"
+    },
+    "./screens/taxonomy/hooks/use-term-picker.hooks": {
+      "types": "./dist/screens/taxonomy/hooks/use-term-picker.hooks.d.ts",
+      "import": "./dist/screens/taxonomy/hooks/use-term-picker.hooks.js",
+      "default": "./dist/screens/taxonomy/hooks/use-term-picker.hooks.js"
     },
     "./screens/comments/api/comments-api.types": {
       "types": "./dist/screens/comments/api/comments-api.types.d.ts",
@@ -1389,6 +1407,12 @@
       "screens/taxonomy/hooks/use-merge-term-section.hooks": [
         "./dist/screens/taxonomy/hooks/use-merge-term-section.hooks.d.ts"
       ],
+      "screens/taxonomy/hooks/use-taxonomy.hooks": [
+        "./dist/screens/taxonomy/hooks/use-taxonomy.hooks.d.ts"
+      ],
+      "screens/taxonomy/hooks/use-term-picker.hooks": [
+        "./dist/screens/taxonomy/hooks/use-term-picker.hooks.d.ts"
+      ],
       "screens/library/rules": [
         "./dist/screens/library/rules.d.ts"
       ],
@@ -1415,6 +1439,9 @@
       ],
       "posts/api/posts-api": [
         "./dist/posts/api/posts-api.d.ts"
+      ],
+      "posts/editor/template/PostEditorTemplateModalGate": [
+        "./dist/posts/editor/template/PostEditorTemplateModalGate.d.ts"
       ],
       "posts/editor/PostDeleteConfirmDialog": [
         "./dist/posts/editor/PostDeleteConfirmDialog.d.ts"

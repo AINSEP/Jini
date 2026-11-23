@@ -2,4 +2,4 @@
 "@jini-ai/admin": patch
 ---
 
-Add the taxonomy screen's rules, host kit, live/fake taxonomy port and hooks under `@jini-ai/admin/screens/taxonomy/*`.
+Taxonomy hooks take object args; `useTaxonomy` and `useTermPicker` move into the taxonomy screen, split into sub-hooks.

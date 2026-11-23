@@ -7,7 +7,7 @@ export type PostsRequestFn = <T>(
   required: { path: string },
   optional?: {
     init?: RequestInit;
-    onOk?: (required: { response: Response }, optional?: Record<string, never>) => void;
+    onOk?: ((required: { response: Response }, optional?: Record<string, never>) => void) | undefined;
     options?: { failureEntry?: "page" };
   }
 ) => Promise<T>;

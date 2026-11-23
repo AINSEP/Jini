@@ -23,8 +23,12 @@ The host injects everything this folder needs; nothing here reaches a host modul
   host's generic single-item Trash client; `createFakeTaxonomyPort({ blockedError }, options)` takes
   the host's real request-error factory so blocked-delete seeds narrow like production errors.
 - `hooks/use-new-taxonomy-form`, `use-new-term-form`, `use-term-detail-panel`,
-  `use-merge-term-section` — each `useX(options, port, locale, kit)`. The host binds its zero-argument
-  `useWiredX` (admin locale + live port + kit); `use-term-list-reveal` and `use-taxonomy-html-embed`
-  are pure view-state hooks.
+  `use-merge-term-section` — each `useX({ options, port, locale, kit })`. `use-taxonomy` takes
+  `useTaxonomy({ port, locale, t, kit })` (`t` is the host's bound translator the screen reads its
+  copy through) and `use-term-picker` takes `useTermPicker({ target, port, locale, kit })` (`target`
+  is the `{ contentType, contentId }` the box tags). The host binds its zero-argument `useWiredX`
+  (admin locale + live port + kit); `use-term-list-reveal` and `use-taxonomy-html-embed` are pure
+  view-state hooks. `use-taxonomy` subscribes to `shell/lib/content-refresh-bus` itself, so a host
+  publishing there refreshes the list.
 - `TaxonomyRowMenu.tsx` emits only `jini-taxonomy-row-menu-*` classes; the host styles the
   `-danger`/`-warning` tones through its own selectors.
