@@ -103,7 +103,11 @@
       "./tool-metadata/navigation": "universal",
       "./tool-metadata/observability": "universal",
       "./tool-metadata/pages": "universal",
-      "./contracts/site/diagnostics-observability": "universal"
+      "./contracts/site/diagnostics-observability": "universal",
+      "./contracts/site/daemon": "universal",
+      "./contracts/site/plugins-host": "universal",
+      "./contracts/site/db-data-modules": "universal",
+      "./contracts/site/assistant-tool-contributions": "universal"
     },
     "isolation": {
       "entries": {
@@ -610,6 +614,26 @@
       "types": "./dist/contracts/site/diagnostics-observability.d.ts",
       "import": "./dist/contracts/site/diagnostics-observability.js",
       "default": "./dist/contracts/site/diagnostics-observability.js"
+    },
+    "./contracts/site/daemon": {
+      "types": "./dist/contracts/site/daemon.d.ts",
+      "import": "./dist/contracts/site/daemon.js",
+      "default": "./dist/contracts/site/daemon.js"
+    },
+    "./contracts/site/plugins-host": {
+      "types": "./dist/contracts/site/plugins-host.d.ts",
+      "import": "./dist/contracts/site/plugins-host.js",
+      "default": "./dist/contracts/site/plugins-host.js"
+    },
+    "./contracts/site/db-data-modules": {
+      "types": "./dist/contracts/site/db-data-modules.d.ts",
+      "import": "./dist/contracts/site/db-data-modules.js",
+      "default": "./dist/contracts/site/db-data-modules.js"
+    },
+    "./contracts/site/assistant-tool-contributions": {
+      "types": "./dist/contracts/site/assistant-tool-contributions.d.ts",
+      "import": "./dist/contracts/site/assistant-tool-contributions.js",
+      "default": "./dist/contracts/site/assistant-tool-contributions.js"
     }
   },
   "files": [

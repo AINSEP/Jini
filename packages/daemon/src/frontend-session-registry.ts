@@ -47,13 +47,9 @@
  */
 import { randomUUID } from 'node:crypto';
 import type { ToolApprovalDecision, ToolExecutionOptions } from '@jini-ai/core';
+import type { FrontendSessionOwner } from "@jini-ai/core/contracts/site/daemon";
 
-/** Host-authenticated ownership, never derived from a model/run context blob. */
-export interface FrontendSessionOwner {
-  readonly workspaceId: string;
-  readonly principalId: string;
-  readonly tabId: string;
-}
+export type { FrontendSessionOwner } from "@jini-ai/core/contracts/site/daemon";
 
 /** Shared owner comparison for attachment, binding and human-only reply gates. */
 export function sameFrontendOwner({ expected: a, actual: b }: { expected: FrontendSessionOwner | undefined; actual: FrontendSessionOwner | undefined }, _options = {}): boolean {

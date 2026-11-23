@@ -1,5 +1,6 @@
 import type { Principal, RunRef, ToolDescriptor, AuthorizationDecision, SurfaceEmitter, ToolRegistry, ToolHandler } from '@jini-ai/core';
 import type { ToolInvocationAuthorization } from '@jini-ai/core/composition';
+import type { PrepareToolGuidance } from "@jini-ai/core/contracts/site/daemon";
 
 
 export type ConfirmationDecision = 'confirm' | 'deny';
@@ -127,8 +128,7 @@ export interface ToolExecutor {
   getAuditRecord(args: { readonly executionId: string }): ToolExecutionAuditRecord | null;
 }
 
-/** Advisory preparation after authorization/confirmation, before the handler. A failure is fail-open. */
-export type PrepareToolGuidance = (required: { principal: Principal; run: RunRef; tool: ToolDescriptor; signal: AbortSignal; emitSurface?: SurfaceEmitter }, optional?: Record<string, never>) => Promise<string>;
+export type { PrepareToolGuidance } from "@jini-ai/core/contracts/site/daemon";
 
 export interface CreateToolExecutorOptions {
   readonly prepareGuidance?: PrepareToolGuidance;

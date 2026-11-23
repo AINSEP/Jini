@@ -26,32 +26,9 @@ import { nowIso as clockNowIso } from "@jini-ai/core/primitives";
  */
 import type { Clock as ClockPort, UUID } from "@jini-ai/core/primitives";
 import type { PluginDiscoveryRecord } from "./discovery-types.js";
+import type { PluginActivationRecord, PluginActivationRepoPort } from "@jini-ai/core/contracts/site/plugins-host";
 
-/** `plugin_activations` row (durable, behind the gateway) — state.spec.md §2. */
-export interface PluginActivationRecord {
-  readonly pluginId: string;
-  readonly workspaceId: UUID;
-  /** The active (enabled) installed version — the "active pointer". */
-  readonly version: string;
-  readonly enabled: boolean;
-  readonly updatedAt: string;
-  /** Present only while automatic quarantine is active. A normal enable/disable save omits these
-   * fields, which clears the durable marker and makes re-enable the operator recovery action. */
-  readonly quarantinedAt?: string;
-  readonly quarantineReason?: string;
-  readonly quarantineFailureCount?: number;
-}
-
-/** Persistence contract — shaped identically to `PresentationSettingsRepoPort` (rule-of-two, two
- * adapters from day one: `repo.memory.ts` / `repo.sqlite.ts`). */
-export interface PluginActivationRepoPort {
-  getActivation(required: { workspaceId: UUID; pluginId: string }, optional?: Record<string, never>): Promise<PluginActivationRecord | null>;
-  save(record: PluginActivationRecord, optional?: Record<string, never>): Promise<void>;
-  deleteActivation(required: { workspaceId: UUID; pluginId: string }, optional?: Record<string, never>): Promise<void>;
-  /** Every row across every workspace — used by discovery's `enabled` projection and by any
-   * future migration, mirrors `PresentationSettingsRepoPort.listAll`. */
-  listAll(required?: Record<string, never>, optional?: Record<string, never>): Promise<PluginActivationRecord[]>;
-}
+export type { PluginActivationRecord, PluginActivationRepoPort } from "@jini-ai/core/contracts/site/plugins-host";
 
 /**
  * Restores the repo to its pre-transition state after a side-effect hook (`onEnabled`/

@@ -5,7 +5,7 @@
 import { PluginNotFoundError } from "./activation.js";
 import type { PluginActivationRepoPort } from "./activation.js";
 import type { PluginDiscoveryRecord } from "./discovery-types.js";
-import type { RemoveEntity } from "./ports.js";
+import type { RemovePluginFn } from "@jini-ai/core/contracts/site/plugins-host";
 
 /** A built-in plugin has no on-disk artifact — there is nothing for `DELETE .../plugins/:id` to
  * remove. Distinct from `PluginNotFoundError` (id doesn't exist at all) so the route can map each
@@ -24,7 +24,7 @@ export class PluginChangedSincePreviewError extends Error {}
 
 export class PluginAlreadyInTrashError extends Error {}
 
-export type RemovePluginFn = RemoveEntity;
+export type { RemovePluginFn } from "@jini-ai/core/contracts/site/plugins-host";
 
 export interface UninstallPluginDeps {
   readonly repo: PluginActivationRepoPort;
