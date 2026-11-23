@@ -285,3 +285,90 @@ test('type test: kind "content" does not compile', () => {
   assert.equal(content.kind, 'content');
   assert.equal(history.kind, 'history');
 });
+
+test('a collaborator that synchronously requests another pass cannot start an overlapping one', async () => {
+  const recorder: Recorder = { events: [] };
+  let active = 0;
+  let maxActive = 0;
+  let reentered: Promise<RetentionPassResult> | undefined;
+  const holder: { runner?: ReturnType<typeof makeRunner>['runner'] } = {};
+  const enter = () => { active++; maxActive = Math.max(maxActive, active); };
+  const { runner } = makeRunner([
+    policy('p', recorder, {
+      measure: async () => {
+        enter();
+        // Synchronous re-entry, before the first await: the runner must already show this pass in flight.
+        reentered ??= holder.runner!.runOnce({ dryRun: false });
+        recorder.events.push('p:measure');
+        await settle();
+        active--;
+        return { bytes: 1 };
+      },
+      sweep: async () => { enter(); recorder.events.push('p:sweep'); active--; return { freedBytes: 0, removed: 0 }; },
+    }),
+  ]);
+  holder.runner = runner;
+  const dry = await runner.runOnce({ dryRun: true });
+  assert.deepEqual(statuses(dry), ['p:measured']);
+  assert.deepEqual(statuses(await reentered!), ['p:swept']);
+  assert.equal(maxActive, 1);
+  assert.deepEqual(recorder.events, ['p:measure', 'p:sweep']);
+});
+
+test('a throwing clock fails that pass, and the queue still advances and recovers', async () => {
+  const recorder: Recorder = { events: [] };
+  const { scheduler } = fakeScheduler();
+  let calls = 0;
+  const runner = createRetentionRunner({
+    policies: [policy('p', recorder)],
+    clock: { now: () => { calls++; if (calls === 1) throw new Error('clock is broken /secret/path'); return calls; } },
+    scheduler,
+    reportError: () => {},
+  });
+  const live = runner.runOnce({ dryRun: false });
+  const waitingDry = runner.runOnce({ dryRun: true });
+  await assert.rejects(live, /clock is broken/);
+  assert.deepEqual(statuses(await waitingDry), ['p:measured'], 'the opposite-mode waiter runs after the failed pass');
+  assert.deepEqual(statuses(await runner.runOnce({ dryRun: false })), ['p:swept'], 'a later pass starts normally');
+  await runner.stop();
+});
+
+test('a scheduled pass that fails is reported through the injected reporter, never as an unhandled rejection', async () => {
+  const recorder: Recorder = { events: [] };
+  const { scheduler, timers } = fakeScheduler();
+  const errors: Array<{ error: Error; policyId: string | undefined }> = [];
+  const boom = new Error('clock is broken /secret/path');
+  let throwing = true;
+  const runner = createRetentionRunner({
+    policies: [policy('p', recorder)],
+    clock: { now: () => { if (throwing) throw boom; return 1; } },
+    scheduler,
+    reportError: (error, { policyId }) => { errors.push({ error, policyId }); },
+  });
+  runner.start();
+  await settle();
+  assert.equal(errors.length, 1);
+  assert.equal(errors[0]!.error.message, 'A scheduled storage cleanup pass could not run.');
+  assert.equal(errors[0]!.error.cause, boom);
+  assert.equal(errors[0]!.policyId, undefined);
+  throwing = false;
+  timers[0]!.callback();
+  await settle();
+  assert.deepEqual(recorder.events, ['p:measure'], 'the next scheduled pass runs');
+  await runner.stop();
+});
+
+test('stop resolves even when the pass in flight failed', async () => {
+  const recorder: Recorder = { events: [] };
+  const { scheduler } = fakeScheduler();
+  const runner = createRetentionRunner({
+    policies: [policy('p', recorder)],
+    clock: { now: () => { throw new Error('no clock'); } },
+    scheduler,
+    reportError: () => {},
+  });
+  const live = runner.runOnce({ dryRun: false });
+  const stopping = runner.stop();
+  await assert.rejects(live, /no clock/);
+  await stopping;
+});

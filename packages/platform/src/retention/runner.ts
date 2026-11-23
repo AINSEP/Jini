@@ -54,7 +54,8 @@ export interface RetentionRunnerRequired {
   readonly policies: readonly RetentionPolicy[];
   readonly clock: { now(): number };
   readonly scheduler: RetentionScheduler;
-  /** Receives plain-words errors; `policyId` is absent when the report sink itself failed. */
+  /** Receives plain-words errors; `policyId` is absent for pass-level failures (a scheduled pass that
+   * could not run, or a report that could not be delivered). */
   readonly reportError: (error: Error, context: { readonly policyId?: string }) => void;
 }
 
@@ -89,13 +90,18 @@ export function createRetentionRunner(
   }
   const queue = createPassQueue({ execute: dryRun => executePass({ ...required, policies, dryRun, onReport }) });
   let timer: { handle: unknown } | undefined;
+  const scheduledPass = () => {
+    queue.request({ dryRun: scheduledDryRun }).catch((error: unknown) => {
+      report({ reportError: required.reportError, error: new Error('A scheduled storage cleanup pass could not run.', { cause: error }) });
+    });
+  };
   return {
     runOnce: ({ dryRun }) => queue.request({ dryRun }),
     start() {
       if (queue.isStopped()) throw new Error('This storage cleanup runner was stopped; create a new one to start again.');
       if (timer) return;
-      timer = { handle: required.scheduler.setInterval(() => { void queue.request({ dryRun: scheduledDryRun }); }, intervalMs) };
-      void queue.request({ dryRun: scheduledDryRun });
+      timer = { handle: required.scheduler.setInterval(scheduledPass, intervalMs) };
+      scheduledPass();
     },
     async stop() {
       if (timer) required.scheduler.clearInterval(timer.handle);
@@ -124,41 +130,57 @@ interface PendingPass {
   readonly dryRun: boolean;
   readonly promise: Promise<RetentionPassResult>;
   readonly resolve: (result: RetentionPassResult) => void;
+  readonly reject: (error: unknown) => void;
 }
 
-/** The serialization core: one running pass, at most one waiting pass of the other mode. */
+function pendingPass(
+  { dryRun }: { dryRun: boolean },
+  _optional: Record<string, never> = {},
+): PendingPass {
+  let resolve!: PendingPass['resolve'];
+  let reject!: PendingPass['reject'];
+  const promise = new Promise<RetentionPassResult>((settle, fail) => { resolve = settle; reject = fail; });
+  return { dryRun, promise, resolve, reject };
+}
+
+/** The serialization core: one running pass, at most one waiting pass of the other mode.
+ * The running slot is published before `execute` is called, so a collaborator that synchronously
+ * requests another pass joins or queues behind this one instead of starting an overlapping pass. The
+ * queue advances whether the pass fulfils or rejects, so a failed pass never strands a waiter. */
 function createPassQueue(
   { execute }: { execute: (dryRun: boolean) => Promise<RetentionPassResult> },
   _optional: Record<string, never> = {},
 ) {
-  let running: { dryRun: boolean; promise: Promise<RetentionPassResult> } | undefined;
+  let running: PendingPass | undefined;
   let waiting: PendingPass | undefined;
   let stopped = false;
 
-  const begin = (dryRun: boolean): Promise<RetentionPassResult> => {
-    const promise = execute(dryRun).then(result => {
+  const begin = (pass: PendingPass): void => {
+    running = pass;
+    const advance = (settle: () => void) => {
       running = undefined;
       const next = waiting;
       waiting = undefined;
-      if (next) begin(next.dryRun).then(next.resolve);
-      return result;
-    });
-    running = { dryRun, promise };
-    return promise;
+      if (next) begin(next);
+      settle();
+    };
+    // The executor runs synchronously, so a synchronous throw becomes this pass's rejection.
+    new Promise<RetentionPassResult>(resolve => resolve(execute(pass.dryRun)))
+      .then(result => advance(() => pass.resolve(result)), (error: unknown) => advance(() => pass.reject(error)));
   };
 
   return {
     isStopped: () => stopped,
     request({ dryRun }: { dryRun: boolean }): Promise<RetentionPassResult> {
       if (stopped) return Promise.resolve({ status: 'stopped', dryRun });
-      if (!running) return begin(dryRun);
+      if (!running) {
+        const pass = pendingPass({ dryRun });
+        begin(pass);
+        return pass.promise;
+      }
       if (running.dryRun === dryRun) return running.promise;
       // The waiting pass is always the other mode from the running one, so a same-mode request joins it.
-      if (!waiting) {
-        let resolve!: (result: RetentionPassResult) => void;
-        const promise = new Promise<RetentionPassResult>(settle => { resolve = settle; });
-        waiting = { dryRun, promise, resolve };
-      }
+      waiting ??= pendingPass({ dryRun });
       return waiting.promise;
     },
     async stop(): Promise<void> {
@@ -166,7 +188,8 @@ function createPassQueue(
       const cancelled = waiting;
       waiting = undefined;
       cancelled?.resolve({ status: 'stopped', dryRun: cancelled.dryRun });
-      if (running) await running.promise;
+      // The pass's own requester observes a failure; stop only waits for the pass to end.
+      if (running) await running.promise.catch(() => undefined);
     },
   };
 }
