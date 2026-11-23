@@ -1,4 +1,4 @@
-import type { ChangeEvent, CSSProperties, ReactNode } from 'react';
+import { useId, type ChangeEvent, type CSSProperties, type ReactNode } from 'react';
 import { SecretInput, SecretTextarea } from '@jini-ai/ui';
 import type { DirectionCard, FormOption, QuestionForm as QuestionFormType } from '../../core/index.js';
 import { isSecretQuestion, questionTextInputProps, questionTextareaProps } from '../../core/index.js';
@@ -18,6 +18,11 @@ interface FieldContext extends FieldHandlers {
   t: ReturnType<typeof useT>;
 }
 
+/** A field context plus the id its single control carries so the visible `<label>` can point at it. */
+interface ControlContext extends FieldContext {
+  controlId: string;
+}
+
 function questionHelpId(formId: string, q: Question): string {
   return `${formId}-${q.id}-help`;
 }
@@ -27,12 +32,18 @@ function fieldAria(formId: string, q: Question) {
   return { 'aria-required': q.required || undefined, 'aria-describedby': q.help ? questionHelpId(formId, q) : undefined };
 }
 
+/** Controls that are ONE focusable element; radio/checkbox/card groups are many, so a single `for` would mislabel them. */
+const SINGLE_CONTROL_TYPES: ReadonlySet<Question['type']> = new Set(['text', 'textarea', 'select', 'number', 'range', 'date', 'time', 'datetime-local', 'url', 'email', 'tel', 'color', 'file', 'switch']);
+
 export function QuestionField(ctx: FieldContext) {
   const { q, t } = ctx;
   const renderControl = QUESTION_CONTROLS[q.type];
+  // Why useId: the same question id can render in two forms on one page, so an id built from
+  // `q.id` could collide and point a label at the wrong form's control.
+  const controlId = useId();
   return (
     <div className="qf-field">
-      <label className="qf-label">
+      <label className="qf-label" htmlFor={SINGLE_CONTROL_TYPES.has(q.type) ? controlId : undefined}>
         <span>{q.label}</span>
         {q.required ? (
           <span className="qf-required" aria-label={t('required')}>
@@ -42,7 +53,7 @@ export function QuestionField(ctx: FieldContext) {
       </label>
       {q.help ? <div className="qf-help" id={questionHelpId(ctx.formId, q)}>{q.help}</div> : null}
       {isSecretQuestion({ question: q }) ? <div className="qf-help">{t(CREDENTIAL_CARD_GUIDANCE)}</div> : null}
-      {renderControl ? renderControl(ctx) : null}
+      {renderControl ? renderControl({ ...ctx, controlId }) : null}
     </div>
   );
 }
@@ -106,12 +117,12 @@ function CheckboxControl(ctx: FieldContext) {
   );
 }
 
-function SelectControl(ctx: FieldContext) {
+function SelectControl(ctx: ControlContext) {
   const { q, value, locked, t, update } = ctx;
   if (!q.options) return null;
   return (
     <>
-      <select className="qf-select" aria-label={q.label} {...fieldAria(ctx.formId, q)} value={typeof value === 'string' && questionValueIsKnown({ q, value }) ? value : ''} disabled={locked} onChange={(e) => update(q.id, e.target.value)}>
+      <select id={ctx.controlId} className="qf-select" aria-label={q.label} {...fieldAria(ctx.formId, q)} value={typeof value === 'string' && questionValueIsKnown({ q, value }) ? value : ''} disabled={locked} onChange={(e) => update(q.id, e.target.value)}>
         <option value="" disabled>
           {q.placeholder ?? t('Choose one')}
         </option>
@@ -142,8 +153,8 @@ function DirectionCardsControl(ctx: FieldContext) {
 }
 
 /** A credential-shaped text question gets the shared eye toggle (hidden by default). */
-function TextControl({ q, value, locked, update, t, formId }: FieldContext) {
-  const shared = { className: 'qf-input', value: stringValue(value), placeholder: q.placeholder, disabled: locked, onChange: (e: ChangeEvent<HTMLInputElement>) => update(q.id, e.target.value) };
+function TextControl({ q, value, locked, update, t, formId, controlId }: ControlContext) {
+  const shared = { id: controlId, className: 'qf-input', value: stringValue(value), placeholder: q.placeholder, disabled: locked, onChange: (e: ChangeEvent<HTMLInputElement>) => update(q.id, e.target.value) };
   const props = questionTextInputProps({ question: q });
   const { type, ...secretProps } = props;
   if (type === 'password') {
@@ -153,8 +164,8 @@ function TextControl({ q, value, locked, update, t, formId }: FieldContext) {
 }
 
 /** A credential-shaped textarea gets the same eye toggle; `SecretTextarea` owns the masking style. */
-function TextareaControl({ q, value, locked, update, t, formId }: FieldContext) {
-  const shared = { className: 'qf-textarea', value: stringValue(value), placeholder: q.placeholder, disabled: locked, rows: 3, onChange: (e: ChangeEvent<HTMLTextAreaElement>) => update(q.id, e.target.value) };
+function TextareaControl({ q, value, locked, update, t, formId, controlId }: ControlContext) {
+  const shared = { id: controlId, className: 'qf-textarea', value: stringValue(value), placeholder: q.placeholder, disabled: locked, rows: 3, onChange: (e: ChangeEvent<HTMLTextAreaElement>) => update(q.id, e.target.value) };
   const props = questionTextareaProps({ question: q });
   if (isSecretQuestion({ question: q })) {
     return <SecretTextarea {...props} {...shared} aria-label={q.label} label={q.label} toggleLabels={{ show: `${t('Show')} ${q.label}`, hide: `${t('Hide')} ${q.label}` }} />;
@@ -163,20 +174,20 @@ function TextareaControl({ q, value, locked, update, t, formId }: FieldContext) 
 }
 
 /** date/time/datetime-local and url/email/tel share one plain input whose `type` is the question type. */
-function TypedInputControl({ q, value, locked, update, formId }: FieldContext) {
-  return <input type={q.type} className="qf-input" aria-label={q.label} {...fieldAria(formId, q)} value={stringValue(value)} placeholder={q.placeholder} disabled={locked} onChange={(e) => update(q.id, e.target.value)} />;
+function TypedInputControl({ q, value, locked, update, formId, controlId }: ControlContext) {
+  return <input id={controlId} type={q.type} className="qf-input" aria-label={q.label} {...fieldAria(formId, q)} value={stringValue(value)} placeholder={q.placeholder} disabled={locked} onChange={(e) => update(q.id, e.target.value)} />;
 }
 
-const QUESTION_CONTROLS: Record<Question['type'], (ctx: FieldContext) => ReactNode> = {
+const QUESTION_CONTROLS: Record<Question['type'], (ctx: ControlContext) => ReactNode> = {
   radio: RadioControl,
   checkbox: CheckboxControl,
   select: SelectControl,
   'direction-cards': DirectionCardsControl,
   text: TextControl,
-  number: ({ q, value, locked, update, formId }) => <input type="number" className="qf-input" aria-label={q.label} {...fieldAria(formId, q)} value={stringValue(value)} placeholder={q.placeholder} min={q.min} max={q.max} step={q.step} disabled={locked} onChange={(e) => update(q.id, e.target.value)} />,
-  range: ({ q, value, locked, update, formId }) => (
+  number: ({ q, value, locked, update, formId, controlId }) => <input id={controlId} type="number" className="qf-input" aria-label={q.label} {...fieldAria(formId, q)} value={stringValue(value)} placeholder={q.placeholder} min={q.min} max={q.max} step={q.step} disabled={locked} onChange={(e) => update(q.id, e.target.value)} />,
+  range: ({ q, value, locked, update, formId, controlId }) => (
     <div className="qf-range-wrap">
-      <input type="range" className="qf-range" aria-label={q.label} {...fieldAria(formId, q)} value={rangeValue(q, value)} min={q.min} max={q.max} step={q.step} disabled={locked} onChange={(e) => update(q.id, e.target.value)} />
+      <input id={controlId} type="range" className="qf-range" aria-label={q.label} {...fieldAria(formId, q)} value={rangeValue(q, value)} min={q.min} max={q.max} step={q.step} disabled={locked} onChange={(e) => update(q.id, e.target.value)} />
       <output className="qf-range-value">{rangeValue(q, value)}</output>
     </div>
   ),
@@ -186,16 +197,16 @@ const QUESTION_CONTROLS: Record<Question['type'], (ctx: FieldContext) => ReactNo
   url: TypedInputControl,
   email: TypedInputControl,
   tel: TypedInputControl,
-  color: ({ q, value, locked, update, formId }) => <input type="color" className="qf-color" aria-label={q.label} {...fieldAria(formId, q)} value={normalizeColorInputValue(value)} disabled={locked} onChange={(e) => update(q.id, e.target.value)} />,
-  file: ({ q, value, locked, selectFiles, formId }) => (
+  color: ({ q, value, locked, update, formId, controlId }) => <input id={controlId} type="color" className="qf-color" aria-label={q.label} {...fieldAria(formId, q)} value={normalizeColorInputValue(value)} disabled={locked} onChange={(e) => update(q.id, e.target.value)} />,
+  file: ({ q, value, locked, selectFiles, formId, controlId }) => (
     <div className="qf-file-wrap">
-      <input type="file" className="qf-file" aria-label={q.label} {...fieldAria(formId, q)} multiple={q.multiple} accept={q.accept} disabled={locked} onChange={(e) => selectFiles(q, e.target.files)} />
+      <input id={controlId} type="file" className="qf-file" aria-label={q.label} {...fieldAria(formId, q)} multiple={q.multiple} accept={q.accept} disabled={locked} onChange={(e) => selectFiles(q, e.target.files)} />
       {fileValueLabel(value) ? <div className="qf-file-summary">{fileValueLabel(value)}</div> : null}
     </div>
   ),
-  switch: ({ q, value, locked, update, formId }) => (
+  switch: ({ q, value, locked, update, formId, controlId }) => (
     <label className="qf-switch">
-      <input type="checkbox" role="switch" aria-label={q.label} {...fieldAria(formId, q)} checked={value === 'true'} disabled={locked} onChange={(e) => update(q.id, e.target.checked ? 'true' : 'false')} />
+      <input id={controlId} type="checkbox" role="switch" aria-label={q.label} {...fieldAria(formId, q)} checked={value === 'true'} disabled={locked} onChange={(e) => update(q.id, e.target.checked ? 'true' : 'false')} />
       <span aria-hidden />
     </label>
   ),
