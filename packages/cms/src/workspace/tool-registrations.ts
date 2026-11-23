@@ -1,6 +1,6 @@
 /**
  * @file Workspace's half of the cross-domain agent-tool wiring split: maps the wireable subset of
- * `agent-tools.ts`'s four catalog entries onto the current-workspace read and the narrow rename
+ * `agent-tools.ts`'s five catalog entries onto the current-workspace reads and the narrow rename
  * write, as `ToolRegistration`s.
  *
  * Risk framing: this is the highest-stakes domain wired so far — `create` and `delete` are
@@ -15,11 +15,11 @@
  */
 import type { AuthorizeFn } from "@jini-ai/core/contracts/events";
 import { requireExpectedVersion } from "@jini-ai/core/optimistic-concurrency";
-import { buildDomainRegistrations, indexCatalogById, optionalString, requireInputRecord, requireNoInput, type AgentToolSideEffect, type DerivedRiskByToolId, type ToolHandler, type ToolRegistration } from "@jini-ai/core";
+import { buildDomainRegistrations, indexCatalogById, optionalString, requireInputRecord, requireNoInput, requireString, ToolInputError, type AgentToolSideEffect, type DerivedRiskByToolId, type ToolExecutionContext, type ToolHandler, type ToolRegistration } from "@jini-ai/core";
 import { adaptLegacyAuthorize, requireToolPermission } from "../core/tools/index.js";
 import { getWorkspaceAgentToolCatalog } from "./agent-tools.js";
 import { updateWorkspace } from "./update.js";
-import type { WorkspaceRepoPort } from "./create.js";
+import { WorkspaceNotFoundError, type WorkspaceRecord, type WorkspaceRepoPort } from "./create.js";
 
 const CATALOG_BY_ID = indexCatalogById({ catalog: getWorkspaceAgentToolCatalog() });
 
@@ -49,6 +49,9 @@ export const workspaceDerivedRisk: ReadonlyMap<string, AgentToolSideEffect> = ne
   //    checks slug uniqueness excluding the row itself, writes. No domain event enqueued (matches
   // update.ts's own header: doesn't ask for one). See docs/decisions/DR-007-workspace-and-owner-floors.md.
   ["workspace_update", "mutates-durable-state"],
+  // -> the same permission-gated read as workspace_get, projected as a one-element list: v1 lists
+  //    only the boot-addressable workspace and never calls workspaceRepo.list().
+  ["workspace_list", "none"],
 ]);
 
 /** Workspace catalog entries this pass does not wire, and why — see `./agent-tools.ts`'s own per-entry comments for the full reasoning. */
@@ -63,20 +66,41 @@ const UNWIRED_WORKSPACE_TOOL_IDS: ReadonlySet<string> = new Set([
   "workspace_delete",
 ]);
 
+/**
+ * The one current-workspace read every read tool shares: refuses input, checks `workspace.manage`,
+ * then reads the boot-wired row. Only the missing-row refusal becomes the domain's
+ * `WorkspaceNotFoundError`, so arbitrary repository errors keep the transport's redaction.
+ */
+async function readCurrentWorkspace({ routeDeps, ctx }: { routeDeps: WorkspaceToolDeps; ctx: ToolExecutionContext }): Promise<{ workspace: WorkspaceRecord }> {
+  requireNoInput({ input: ctx.input });
+  await requireToolPermission({ authorize: adaptLegacyAuthorize({ authorize: routeDeps.authorize }), workspaceId: routeDeps.workspaceId, principalId: ctx.principal.id, permission: "workspace.manage" }, { entityType: "workspace" });
+
+  const workspace = await routeDeps.workspaceRepo.findById({ id: routeDeps.workspaceId });
+  if (!workspace) {
+    // Defensive: the boot-wired workspaceId always resolves to a real row by construction.
+    // Not an expected runtime path.
+    throw new WorkspaceNotFoundError({ message: `workspace '${routeDeps.workspaceId}' was not found` });
+  }
+  return { workspace };
+}
+
+/**
+ * `workspace_get`: with no `workspaceId` it is the plain current read; with one, it reads first
+ * (so a denial or a missing row still wins) and then refuses any id but the boot-wired one.
+ */
+async function getWorkspace({ routeDeps, ctx }: { routeDeps: WorkspaceToolDeps; ctx: ToolExecutionContext }): Promise<{ workspace: WorkspaceRecord }> {
+  if (ctx.input === undefined) return readCurrentWorkspace({ routeDeps, ctx });
+  const input = requireInputRecord({ input: ctx.input });
+  if (input.workspaceId === undefined) return readCurrentWorkspace({ routeDeps, ctx });
+  const workspaceId = requireString({ input, key: "workspaceId" });
+  const result = await readCurrentWorkspace({ routeDeps, ctx: { ...ctx, input: {} } });
+  if (workspaceId !== routeDeps.workspaceId) throw new ToolInputError({ message: `workspace '${workspaceId}' is not addressable — only '${routeDeps.workspaceId}' is available in this server` });
+  return result;
+}
+
 export function buildWorkspaceRegistrations(routeDeps: WorkspaceToolDeps, optional: { readToolId?: string } = {}): ToolRegistration[] {
   const handlers: Record<string, ToolHandler> = {
-    workspace_get: async (ctx) => {
-      requireNoInput({ input: ctx.input });
-      await requireToolPermission({ authorize: adaptLegacyAuthorize({ authorize: routeDeps.authorize }), workspaceId: routeDeps.workspaceId, principalId: ctx.principal.id, permission: "workspace.manage" }, { entityType: "workspace" });
-
-      const workspace = await routeDeps.workspaceRepo.findById({ id: routeDeps.workspaceId });
-      if (!workspace) {
-        // Defensive: the boot-wired workspaceId always resolves to a real row by construction.
-        // Not an expected runtime path.
-        throw new Error(`workspace '${routeDeps.workspaceId}' was not found`);
-      }
-      return { workspace };
-    },
+    workspace_get: async (ctx) => getWorkspace({ routeDeps, ctx }),
 
     workspace_update: async (ctx) => {
       const input = requireInputRecord({ input: ctx.input });
@@ -97,6 +121,11 @@ export function buildWorkspaceRegistrations(routeDeps: WorkspaceToolDeps, option
         },
       }, { expectedVersion });
       return { workspace };
+    },
+
+    workspace_list: async (ctx) => {
+      const { workspace } = await readCurrentWorkspace({ routeDeps, ctx });
+      return { workspaces: [workspace] };
     },
   };
 

@@ -107,8 +107,15 @@
       "./screens/assistant-settings/use-visitor-credential-form.hooks": "browser",
       "./screens/assistant-settings/use-visitor-assistant-panel.hooks": "browser",
       "./screens/assistant-settings/VisitorAssistantPanel": "browser",
+      "./screens/assistant-settings/AssistantDaemonRestart": "browser",
+      "./screens/assistant-settings/AdminAssistantSwitch": "browser",
+      "./screens/assistant-settings/use-admin-assistant-switch.hooks": "browser",
+      "./screens/assistant-settings/use-ai-assistant.hooks": "browser",
       "./screens/webmcp/webmcp-i18n": "universal",
+      "./screens/webmcp/browser-agent-settings.hooks": "browser",
+      "./screens/webmcp/BrowserAgentSettingsPanel": "browser",
       "./screens/fs-files/folder-drop-port": "browser",
+      "./screens/fs-files/use-native-folder-picker.hooks": "browser",
       "./screens/workspace/Workspace": "browser",
       "./screens/workspace/rules": "browser",
       "./screens/workspace/hooks/workspace-port.hooks": "universal",
@@ -239,8 +246,15 @@
         "./screens/assistant-settings/use-visitor-credential-form.hooks": "browser",
         "./screens/assistant-settings/use-visitor-assistant-panel.hooks": "browser",
         "./screens/assistant-settings/VisitorAssistantPanel": "browser",
+        "./screens/assistant-settings/AssistantDaemonRestart": "browser",
+        "./screens/assistant-settings/AdminAssistantSwitch": "browser",
+        "./screens/assistant-settings/use-admin-assistant-switch.hooks": "browser",
+        "./screens/assistant-settings/use-ai-assistant.hooks": "browser",
         "./screens/webmcp/webmcp-i18n": "universal",
+        "./screens/webmcp/browser-agent-settings.hooks": "browser",
+        "./screens/webmcp/BrowserAgentSettingsPanel": "browser",
         "./screens/fs-files/folder-drop-port": "browser",
+        "./screens/fs-files/use-native-folder-picker.hooks": "browser",
         "./screens/workspace/Workspace": "browser",
         "./screens/workspace/rules": "browser",
         "./screens/workspace/hooks/workspace-port.hooks": "universal",
@@ -768,15 +782,50 @@
       "import": "./dist/screens/assistant-settings/VisitorAssistantPanel.js",
       "default": "./dist/screens/assistant-settings/VisitorAssistantPanel.js"
     },
+    "./screens/assistant-settings/AssistantDaemonRestart": {
+      "types": "./dist/screens/assistant-settings/AssistantDaemonRestart.d.ts",
+      "import": "./dist/screens/assistant-settings/AssistantDaemonRestart.js",
+      "default": "./dist/screens/assistant-settings/AssistantDaemonRestart.js"
+    },
+    "./screens/assistant-settings/AdminAssistantSwitch": {
+      "types": "./dist/screens/assistant-settings/AdminAssistantSwitch.d.ts",
+      "import": "./dist/screens/assistant-settings/AdminAssistantSwitch.js",
+      "default": "./dist/screens/assistant-settings/AdminAssistantSwitch.js"
+    },
+    "./screens/assistant-settings/use-admin-assistant-switch.hooks": {
+      "types": "./dist/screens/assistant-settings/use-admin-assistant-switch.hooks.d.ts",
+      "import": "./dist/screens/assistant-settings/use-admin-assistant-switch.hooks.js",
+      "default": "./dist/screens/assistant-settings/use-admin-assistant-switch.hooks.js"
+    },
+    "./screens/assistant-settings/use-ai-assistant.hooks": {
+      "types": "./dist/screens/assistant-settings/use-ai-assistant.hooks.d.ts",
+      "import": "./dist/screens/assistant-settings/use-ai-assistant.hooks.js",
+      "default": "./dist/screens/assistant-settings/use-ai-assistant.hooks.js"
+    },
     "./screens/webmcp/webmcp-i18n": {
       "types": "./dist/screens/webmcp/webmcp-i18n.d.ts",
       "import": "./dist/screens/webmcp/webmcp-i18n.js",
       "default": "./dist/screens/webmcp/webmcp-i18n.js"
     },
+    "./screens/webmcp/browser-agent-settings.hooks": {
+      "types": "./dist/screens/webmcp/browser-agent-settings.hooks.d.ts",
+      "import": "./dist/screens/webmcp/browser-agent-settings.hooks.js",
+      "default": "./dist/screens/webmcp/browser-agent-settings.hooks.js"
+    },
+    "./screens/webmcp/BrowserAgentSettingsPanel": {
+      "types": "./dist/screens/webmcp/BrowserAgentSettingsPanel.d.ts",
+      "import": "./dist/screens/webmcp/BrowserAgentSettingsPanel.js",
+      "default": "./dist/screens/webmcp/BrowserAgentSettingsPanel.js"
+    },
     "./screens/fs-files/folder-drop-port": {
       "types": "./dist/screens/fs-files/folder-drop-port.d.ts",
       "import": "./dist/screens/fs-files/folder-drop-port.js",
       "default": "./dist/screens/fs-files/folder-drop-port.js"
+    },
+    "./screens/fs-files/use-native-folder-picker.hooks": {
+      "types": "./dist/screens/fs-files/use-native-folder-picker.hooks.d.ts",
+      "import": "./dist/screens/fs-files/use-native-folder-picker.hooks.js",
+      "default": "./dist/screens/fs-files/use-native-folder-picker.hooks.js"
     },
     "./screens/workspace/Workspace": {
       "types": "./dist/screens/workspace/Workspace.d.ts",
