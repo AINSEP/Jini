@@ -364,7 +364,8 @@
       "./admin-http/routes/plugins/project-key-use": "universal",
       "./admin-http/routes/publish-content/transport-shared": "universal",
       "./admin-http/routes/publish-content/peers": "universal",
-      "./admin-http/routes/publish-content/destination": "universal"
+      "./admin-http/routes/publish-content/destination": "universal",
+      "./admin-http/routes/publish-content/bundle-create": "universal"
     },
     "isolation": {
       "domains": {
@@ -540,7 +541,8 @@
         "./admin-http/routes/plugins/project-key-use": "core",
         "./admin-http/routes/publish-content/transport-shared": "publish",
         "./admin-http/routes/publish-content/peers": "publish",
-        "./admin-http/routes/publish-content/destination": "publish"
+        "./admin-http/routes/publish-content/destination": "publish",
+        "./admin-http/routes/publish-content/bundle-create": "publish"
       }
     },
     "optionalPeers": {
@@ -2316,6 +2318,11 @@
       "types": "./dist/admin-http/routes/publish-content/destination.d.ts",
       "import": "./dist/admin-http/routes/publish-content/destination.js",
       "default": "./dist/admin-http/routes/publish-content/destination.js"
+    },
+    "./admin-http/routes/publish-content/bundle-create": {
+      "types": "./dist/admin-http/routes/publish-content/bundle-create.d.ts",
+      "import": "./dist/admin-http/routes/publish-content/bundle-create.js",
+      "default": "./dist/admin-http/routes/publish-content/bundle-create.js"
     }
   },
   "files": [
