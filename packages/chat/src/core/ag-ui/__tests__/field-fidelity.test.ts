@@ -4,10 +4,10 @@
  * call's bytes are what they were before. */
 import { EventSchemas, EventType } from '@ag-ui/core';
 import { describe, expect, it } from 'vitest';
-import type { AgentEvent } from '../../events.js';
 import { createAgUiTranslationState, translateAgentEventToAgUi, type AgUiEvent } from '../event-projection.js';
 import { createAgUiToAgentTranslationState, translateAgUiEventToAgentEvent } from '../event-reduction.js';
 import { IDS, NAMES } from './wire-fixture.js';
+import type { AgentEvent } from "@jini-ai/core/contracts/site/chat-core";
 
 const project = (events: readonly AgentEvent[]): AgUiEvent[] => {
   const state = createAgUiTranslationState({ ids: IDS, customEventNames: NAMES });

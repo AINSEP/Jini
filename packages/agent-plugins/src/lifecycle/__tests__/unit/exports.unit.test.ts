@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { parseAgentPluginExports, parseAgentPluginManifest, validateAgentPluginExportProps, type AgentPluginExport } from '../../manifest.js';
+import { parseAgentPluginExports, parseAgentPluginManifest, validateAgentPluginExportProps } from '../../manifest.js';
+import type { AgentPluginExport } from "@jini-ai/core/contracts/site/agent-plugins-manifest";
 
 const definition: AgentPluginExport = {
   template: 'exports/sign-in.html',

@@ -4,7 +4,7 @@ import { test } from "vitest";
 import { closeAgUiRun as close, createAgUiTranslationState as create, translateAgentEventToAgUi as translate } from '../event-projection.js';
 import { terminalReasonNotice as reason, translateRunAgentPayload as reduce } from '../../run-events/entry.js';
 import { notices } from '../../run-events/__tests__/fixture.js';
-import type { AgentEvent } from '../../events.js';
+import type { AgentEvent } from "@jini-ai/core/contracts/site/chat-core";
 const createAgUiTranslationState = () => create({
   ids: { next: ({ prefix, ordinal }) => `${prefix}_${ordinal}` },
   customEventNames: { usage: 'example.usage', status: 'example.status', extensionPrefix: 'example.ext.' },
