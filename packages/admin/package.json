@@ -141,7 +141,9 @@
       "./shell/components/InstallTabCard/use-folder-upload.hooks": "browser",
       "./shell/components/Select/Select.hooks": "browser",
       "./shell/lib/tab-event-source": "browser",
-      "./shell/hooks/use-external-entry-refresh.hooks": "browser"
+      "./shell/hooks/use-external-entry-refresh.hooks": "browser",
+      "./posts/PostAuthorFields": "browser",
+      "./posts/PostPublishingFields": "browser"
     },
     "isolation": {
       "shared": [
@@ -224,8 +226,8 @@
       }
     },
     "optionalPeers": {
-      "react": "opt-in: react admin bindings; import @jini-ai/admin/react \u2014 React admin bindings could not load react. Install react to enable this feature, or check its installed version.",
-      "react-dom": "opt-in: react admin bindings; import @jini-ai/admin/react \u2014 React admin bindings could not load react-dom. Install react-dom to enable this feature, or check its installed version."
+      "react": "opt-in: react admin bindings; import @jini-ai/admin/react — React admin bindings could not load react. Install react to enable this feature, or check its installed version.",
+      "react-dom": "opt-in: react admin bindings; import @jini-ai/admin/react — React admin bindings could not load react-dom. Install react-dom to enable this feature, or check its installed version."
     }
   },
   "type": "module",
@@ -867,6 +869,16 @@
       "types": "./dist/shell/hooks/use-external-entry-refresh.hooks.d.ts",
       "import": "./dist/shell/hooks/use-external-entry-refresh.hooks.js",
       "default": "./dist/shell/hooks/use-external-entry-refresh.hooks.js"
+    },
+    "./posts/PostAuthorFields": {
+      "types": "./dist/posts/PostAuthorFields.d.ts",
+      "import": "./dist/posts/PostAuthorFields.js",
+      "default": "./dist/posts/PostAuthorFields.js"
+    },
+    "./posts/PostPublishingFields": {
+      "types": "./dist/posts/PostPublishingFields.d.ts",
+      "import": "./dist/posts/PostPublishingFields.js",
+      "default": "./dist/posts/PostPublishingFields.js"
     }
   },
   "files": [

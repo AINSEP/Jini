@@ -96,6 +96,13 @@ await client.transport.request({ path: '/one-off' });
 `AdminTransport` also supports non-HTTP adapters. Hosts bind authentication,
 workspace scope and error handling at that boundary.
 
+## Wiring
+
+`src/posts/` holds the post editor's field components (`PostAuthorFields`, `PostPublishAtField`).
+They own no state: the host's editor hook passes the values, their setters and `t` as required
+props. Labels carry the `jini-field-label` class (inside `jini-post-publishing__field`); the host
+stylesheet styles that class, so no bare host class names leak into the package.
+
 ## Errors
 
 Route groups throw `AdminApiError` (`status`, `code`, raw `body`). There is deliberately **no**
