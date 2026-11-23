@@ -189,6 +189,37 @@
    "usersKitNeeds": "variable:8f44899bcc"
   }
  },
+ "./identity/api-key-secret": {
+  "types": "./dist/identity/api-key-secret.d.ts",
+  "symbols": {
+   "ApiKeySecret": "interface:dc1f28850e",
+   "MintedApiKey": "interface:e95d47a07f",
+   "ScryptApiKeySecretHasher": "class:82a450bf5a",
+   "createApiKeySecret": "function:b3b8597eab",
+   "decoyKeyHash": "function:eb43ed5784"
+  }
+ },
+ "./identity/api-key-service": {
+  "types": "./dist/identity/api-key-service.d.ts",
+  "symbols": {
+   "ApiKeyServiceDeps": "interface:043b6a635b",
+   "CreateApiKeyPrincipalInput": "interface:1371c05022",
+   "IssueApiKeyInput": "interface:8391eea3dc",
+   "authenticateApiKey": "function:e51076bb6a",
+   "createApiKeyPrincipal": "function:937aca0ddd",
+   "createApiKeyService": "function:00fd0a06ff",
+   "issueApiKey": "function:88d36e3d0d",
+   "revokeApiKey": "function:877c13e073"
+  }
+ },
+ "./identity/api-key-types": {
+  "types": "./dist/identity/api-key-types.d.ts",
+  "symbols": {
+   "ApiKeyRecord": "interface:9c524406ea",
+   "ApiKeyRepoPort": "interface:b8890a702f",
+   "ApiKeySecretHasherPort": "interface:1d1f063c0f"
+  }
+ },
  "./identity/boot-session-token": {
   "types": "./dist/identity/boot-session-token.d.ts",
   "symbols": {
@@ -210,11 +241,44 @@
    "createBuiltinRoleGrantRegistry": "function:353e6f42f7"
   }
  },
+ "./identity/delete-user-service": {
+  "types": "./dist/identity/delete-user-service.d.ts",
+  "symbols": {
+   "DeleteUserDeps": "interface:e407091377",
+   "DeleteUserInput": "interface:5ece6943aa",
+   "RemoveUserFn": "type:20c3e622d0",
+   "SelfDeleteError": "class:bc93413f4e",
+   "TrashUserService": "interface:01ee0f8c2c",
+   "TrashUserToolDeps": "type:d1e33bae56",
+   "UserAccountAction": "type:abeab47995",
+   "UserInTrashError": "class:7f1f44bdf5",
+   "UsernameInTrashError": "class:1588883707",
+   "assertActiveOwnerFloor": "function:2a9be94b31",
+   "assertUserAccountAction": "function:568b874421",
+   "callerMayManageUserTrash": "function:0455abbbff",
+   "createTrashUserService": "function:04008d7df1",
+   "principalHoldsBuiltinAdminRole": "function:e72f2b9b42",
+   "principalHoldsOwnerWildcard": "function:18bea0b606",
+   "userAccountProtection": "function:3f827f299e"
+  }
+ },
+ "./identity/owner-reset-env": {
+  "types": "./dist/identity/owner-reset-env.d.ts",
+  "symbols": {
+   "applyOwnerPasswordReset": "function:091546df11"
+  }
+ },
  "./identity/permission-grants": {
   "types": "./dist/identity/permission-grants.d.ts",
   "symbols": {
    "PermissionGrantRegistry": "interface:8ca9edf659",
    "createPermissionGrantRegistry": "function:ad1b3e1f21"
+  }
+ },
+ "./identity/repo.memory": {
+  "types": "./dist/identity/repo.memory.d.ts",
+  "symbols": {
+   "InMemoryApiKeyRepo": "class:0c49f42853"
   }
  },
  "./identity/role-manage-permission": {
@@ -228,6 +292,22 @@
   "types": "./dist/identity/user-manage-permission.d.ts",
   "symbols": {
    "registerUserManagePermissionGrants": "function:3a7e2cc229"
+  }
+ },
+ "./identity/user-purge-types": {
+  "types": "./dist/identity/user-purge-types.d.ts",
+  "symbols": {
+   "InMemoryUserPurge": "class:46b50c9a65",
+   "PurgeCounts": "interface:a13f6b4453",
+   "UserDeleteUnsupportedError": "class:e8d4f0dce9",
+   "UserPurgePort": "interface:c7720b2396",
+   "UserPurgeReason": "type:3ab78a8dc1"
+  }
+ },
+ "./identity/username-change-ports": {
+  "types": "./dist/identity/username-change-ports.d.ts",
+  "symbols": {
+   "createUsernameChangePort": "function:a8f4d2a6a1"
   }
  },
  "./react": {
@@ -247,6 +327,8 @@
    "GrantSelectController": "interface:45d694797d",
    "IdentityAdminPort": "interface:cf5f3d4d30",
    "IdentityRefreshPort": "interface:bcecb58246",
+   "LocalizedUsersController": "type:c876a59b06",
+   "LocalizedUsersDependencies": "interface:bcd517aeff",
    "Login": "function:99ebe0b5c1",
    "LoginController": "interface:1fcf24f8c6",
    "LoginHookProps": "interface:29b15160ae",
@@ -297,11 +379,15 @@
    "UsersHook": "type:82b2919b0d",
    "UsersHookDependencies": "type:124f280956",
    "UsersOptions": "interface:f445597f1a",
+   "UsersPanel": "function:1927467370",
+   "UsersPanelProps": "interface:24bff79d02",
    "UsersPort": "interface:c34e24a18f",
    "UsersProps": "type:0dcdab862a",
    "UsersTableProps": "interface:102cb1bdeb",
+   "WiredUsersHook": "type:cc4483e6ab",
    "createOwnerRecoveryKitDownload": "function:0297cc1cde",
    "createRecoveryKitDownload": "function:7f7aeb7ad1",
+   "createUsersControllerHook": "function:3722303793",
    "describeIdentityError": "function:5b34526624",
    "describeMembersError": "function:121ee91758",
    "describeUsersError": "function:198a9f36dc",
@@ -310,10 +396,12 @@
    "grantOptionLabel": "function:17054ffd30",
    "isOwnerAccount": "function:d7fb407e7f",
    "memberRowMenuItems": "function:b859f660ed",
+   "passwordResetNotice": "function:dcfa890181",
    "runPasskeyCeremony": "function:5ced5cd42d",
    "saveTextFileViaDom": "function:e94aed9c2e",
    "useChangeUsername": "function:4dfb964add",
    "useDesktopOwnerReset": "function:9176769ded",
+   "useLocalizedUsers": "function:9bf42aefcf",
    "useLogin": "function:fc212f1b85",
    "useMembers": "function:ed97d73b45",
    "useOwnerPasswordReset": "function:4258aeee0b",
@@ -324,6 +412,37 @@
    "useUsers": "function:29ef80cb59",
    "userAccountCapabilities": "function:8e100655af",
    "userRowMenuItems": "function:97035d229a"
+  }
+ },
+ "./react/auth/local-owner-signin": {
+  "types": "./dist/react/auth/local-owner-signin.d.ts",
+  "symbols": {
+   "LocalOwnerApiErrorClass": "type:10b4432a19",
+   "LocalOwnerReadInitialSession": "type:14fc99ad4f",
+   "LocalOwnerSessionPort": "interface:6a4cf9079e",
+   "createLocalOwnerSignIn": "function:e283514184",
+   "isLocalOwnerSignInHost": "function:89d14e01df"
+  }
+ },
+ "./react/auth/owner-mfa-api": {
+  "types": "./dist/react/auth/owner-mfa-api.d.ts",
+  "symbols": {
+   "createOwnerMfaPort": "function:84af4e473e"
+  }
+ },
+ "./react/auth/owner-passkey-api": {
+  "types": "./dist/react/auth/owner-passkey-api.d.ts",
+  "symbols": {
+   "createOwnerPasskeyPorts": "function:b96d888c6d"
+  }
+ },
+ "./react/auth/owner-recovery-api": {
+  "types": "./dist/react/auth/owner-recovery-api.d.ts",
+  "symbols": {
+   "OwnerRecoveryFailureArgs": "interface:b45e6a7596",
+   "OwnerRecoveryPort": "interface:90a2870a45",
+   "OwnerRecoveryStatus": "interface:f90f5df566",
+   "createOwnerRecoveryClient": "function:428fef6b79"
   }
  },
  "./react/kit": {
