@@ -16,8 +16,10 @@ All subpaths declare the Node runtime. The root entry is a domain marker.
 | `./agent-jobs` | Jobs; repository/executable/model/effort/sandbox/addDirs/concurrency/dispatchPrefix/outputDirectory; filesystem and CLI runner | `runAgentJobs`, `parseCodexRun`, `buildCodexInvocation`, Node CLI/filesystem adapters, `readPromptJobs` |
 | `./checks/published-types` | Projects, npm scope, filesystem, process runner and installer; scratch/shadow paths and compiler requests | `check`, `registryDependencies`, `parseDiagnosticBlocks`, `diagnosePublishedTypes` |
 | `./checks/coverage` | LCOV/root/source inventories, classifiers, thresholds, baseline/diff/source-reader ports | Parsing, floors, tier/diff, integrity, baseline and disk/runner inventory helpers |
-| `./checks/node` | Executable/runner for installation; Node adapter factories take `{}` when no inputs are needed | `createNodeFilesystem`, `createNodeProcessRunner`, `createNodeEnvLoader`, `createNpmInstaller` |
+| `./checks/node` | Executable/runner for installation; Node adapter factories take `{}` when no inputs are needed. Mount smoke: `createDom` (fresh DOM + `dispose` per call), mount id, page HTML, url, scenarios; optional `wait`/`settleMs`/`log`/`label`; CLI `readText`/`check`/`error`/`exit` | `createNodeFilesystem`, `createNodeProcessRunner`, `createNodeEnvLoader`, `createNpmInstaller`, `runBundleScenario`, `checkBundleMounts`, `runBundleCheckCli`, `isEntryPoint`, `BundleCheckError`, `fail`, `isNavigationError` |
 | `./local-dev` | Complete environment-file path/filesystem/loader; listener command factory/runner | `loadRepoRootEnvFile`, `parseLsofListeners`, `listenersOn` |
+
+Post-build smoke: the host supplies `createDom` (e.g. jsdom), the mount id, page HTML and scenarios; Jini executes the built bundle per scenario in a fresh DOM and fails on any load or post-mount error.
 
 ## Fetch composition
 

@@ -19,7 +19,7 @@ public subpath and permission boundary.
 | `./backup/push-jobs` | In-memory backup push jobs with progress, cancellation and bounded waits. |
 | `./checks/published-types` | Published type-surface, registry-drift, linked-package and captured-log checks. |
 | `./checks/coverage` | LCOV, floor, diff, disk-inventory and contamination/baseline policies. |
-| `./checks/node` | Explicit filesystem, process, environment-loader and installer adapters. |
+| `./checks/node` | Explicit filesystem, process, environment-loader and installer adapters; the post-build mount smoke harness (`runBundleScenario`, `checkBundleMounts`, `runBundleCheckCli`, `isEntryPoint`). Post-build smoke: the host supplies `createDom` (e.g. jsdom), the mount id, page HTML and scenarios; Jini executes the built bundle per scenario in a fresh DOM, disposes it on every exit, and fails on any load or post-mount error. See `src/checks/README.md`. |
 | `./local-dev` | Environment-file, listener lookup and advisory free-port helpers with host-supplied paths/commands. |
 | `./ci-cd` | Reserved for pipeline definitions, run status, logs, cancellation, and deployment orchestration. |
 
