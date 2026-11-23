@@ -1,7 +1,8 @@
 # fs-files (admin screens)
 
-Renderer-side pieces of the folder-files feature: the desktop folder-drop port reader and the
-composer's native-folder-picker hook. The drop hook and the HTTP client still live in the host.
+Renderer-side pieces of the folder-files feature: the desktop folder-drop port reader, the
+composer's native-folder-picker hook, and the folder-drop hook (`useFolderDrop`: folder chips plus
+the `custom` root write, last folder wins) with its pure rules. The HTTP client stays in the host.
 
 ## Wiring
 
@@ -15,11 +16,23 @@ Architecture: [DR-005 portable package boundaries](../../../../../docs/decisions
   GET/POST calls) and `deps.isDialogAlreadyOpen(error)` (the host's 409 "another tab has the dialog
   open" check). The host binds all three in its fs-files API module (`nativeFolderPickerDeps`) and
   passes them from its assistant dock state hook.
+- `useFolderDrop(input, deps)` — `deps.getPort` (the host's `getFolderDropPort` call with its bridge
+  key), `deps.getCustomRoot` / `deps.setCustomRoot` (the host's custom-root GET/PUT),
+  `deps.folderPathsFromDataTransfer` (`@jini-ai/ui/core`'s), and `deps.readFailure(error)` (reads the
+  host API error's `code` and server message, `null` for any other throw). The host binds all five in
+  its fs-files API module (`folderDropDeps`) and passes them from its assistant dock's composer-files
+  hook. `input.composerHandle` needs only `addFolders` of `@jini-ai/chat`'s composer handle.
+- `useFolderDrop` reads `useSerialWrites` / `useSettlementGeneration` from the admin kit
+  (`@jini-ai/admin/react/kit`), so it must render under the host's `AdminKitProvider`.
 
 **Provides**
 - `getFolderDropPort({ targetWindow, bridgeKey })` → `FolderDropPort | null` (`null` in a plain browser tab).
 - `FolderDropPort` — an alias of `@jini-ai/ui/core`'s `FolderPathDropPort`.
 - `useNativeFolderPicker` → `{ available, picking, pickFolder }` (`@jini-ai/admin/screens/fs-files/use-native-folder-picker.hooks`).
+- `useFolderDrop` → `{ notice, dismiss, retry, handleDropCapture, insertFolderPath, showPathHint }`
+  (`@jini-ai/admin/screens/fs-files/use-folder-drop.hooks`).
+- `FolderDropNotice`, `FolderDropErrorReason`, `CustomRootFailure`, `reasonForCustomRootFailure`,
+  `dropHasFolder`, `confirmationNotice` (`@jini-ai/admin/screens/fs-files/folder-drop.rules`).
 
 **Host wiring example**
 
