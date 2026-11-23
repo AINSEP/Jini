@@ -1,5 +1,5 @@
 import { ToolInputError } from "@jini-ai/core";
-import { buildDomainRegistrations, indexCatalogById, requireNoInput, type AgentToolDefinition, type DerivedRiskByToolId, type ToolRegistration } from "@jini-ai/core";
+import { buildDomainRegistrations, indexCatalogById, requireNoInput, type AgentToolDefinition, type AgentToolSideEffect, type ToolRegistration } from "@jini-ai/core";
 import { adaptLegacyAuthorize, requireToolPermission } from "../../core/tools/args.js";
 import type { AuthorizeFn } from "@jini-ai/core/contracts/events";
 
@@ -22,7 +22,7 @@ export const uiLocalesAgentToolCatalog: AgentToolDefinition[] = [{
   inputSchema: { type: "object", properties: {}, additionalProperties: false },
 }];
 
-export const uiLocalesDerivedRisk: DerivedRiskByToolId = new Map([
+export const uiLocalesDerivedRisk: ReadonlyMap<string, AgentToolSideEffect> = new Map<string, AgentToolSideEffect>([
   // -> requireToolPermission + a copy of the host's offered locales; no setting or other durable state is written.
   ["settings_list_ui_locales", "none"],
 ]);

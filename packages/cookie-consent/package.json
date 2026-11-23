@@ -15,8 +15,13 @@
     "isolation": {
       "entries": {
         "./client.min.js": "client",
-        "./extensions.min.js": "client"
-      }
+        "./extensions.min.js": "client",
+        "./site/cookie-consent": "render",
+        "./site/validation": "render"
+      },
+      "shared": [
+        "src/site/config.ts"
+      ]
     },
     "entries": {
       ".": "universal",
