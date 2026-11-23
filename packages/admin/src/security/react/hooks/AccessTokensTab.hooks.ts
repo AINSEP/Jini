@@ -95,7 +95,7 @@ function accessRemovalView({ removal, snapshot: s, t }: { removal: Removal | nul
 }
 /** SEC-14: both controllers take the host's refresh subscription and failure describer. */
 function hostOptions({ host }: { host: SecurityCredentialsHost }, _optional = {}) {
-  return { refreshSignal: host.refreshSignal, describeError: host.describeError };
+  return { refreshSignal: host.refreshSignal, describeError: host.describeError, draftError: host.draftError };
 }
 function providerOptions({ snapshot: s, controller, scope }: { snapshot: AccessSnapshot | null; controller: AccessController | null; scope: Omit<RowScope, 'setRemoval'> }, _optional = {}) {
   const { permissions, query, category } = scope;
@@ -114,10 +114,15 @@ function errorList({ access: s, other: o, t }: { access: AccessSnapshot | null; 
   // Controller messages are English keys; a host translator relabels them with the rest of the page.
   return [...(s?.error ? [s.error] : []), ...Object.values(s?.errors ?? {}), ...Object.values(o?.errors ?? {})].map(message => t(message));
 }
+/** After a Shared Keys grant the host's publication runs exactly once; its own refresh subscription then reloads this
+ * tab, so a direct reload would read every store twice. A host with no publication or no subscription keeps the direct reload. */
+function grantedRefresh({ host, reload }: { host: SecurityCredentialsHost; reload: () => void }, _optional = {}) {
+  return () => { host.onCredentialsChanged?.({}); if (!host.onCredentialsChanged || !host.refreshSignal) reload(); };
+}
 export function useAccessTokensTab({ permissions = [], params = {} }: TabViewProps, _optional = {}) {
   const ports = useSecurityPorts({}); const t = useSecurityTranslation({}); const host = useSecurityCredentialsHost({}); const key = permissions.join('\0'); const canRead = permissions.includes('security.read');
-  const access = useController({ create: () => createAccessTokensController({ api: ports.securityApi, permissions }, hostOptions({ host })), dependencies: [ports.securityApi, key, host.refreshSignal, host.describeError] }, { start: ({ controller }) => { void controller.load({}); } });
-  const other = useController({ create: () => createOtherCredentialsController({ api: ports.otherCredentials ?? noOtherCredentials, permissions }, hostOptions({ host })), dependencies: [ports.otherCredentials, key, host.refreshSignal, host.describeError] }, { start: ({ controller }) => { void controller.load({}); } });
+  const access = useController({ create: () => createAccessTokensController({ api: ports.securityApi, permissions }, hostOptions({ host })), dependencies: [ports.securityApi, key, host.refreshSignal, host.describeError, host.draftError] }, { start: ({ controller }) => { void controller.load({}); } });
+  const other = useController({ create: () => createOtherCredentialsController({ api: ports.otherCredentials ?? noOtherCredentials, permissions }, hostOptions({ host })), dependencies: [ports.otherCredentials, key, host.refreshSignal, host.describeError, host.draftError] }, { start: ({ controller }) => { void controller.load({}); } });
   const [removal, setRemoval] = useState<Removal | null>(null);
   const s = access.snapshot, o = other.snapshot; const { query, category } = currentFilter({ snapshot: s });
   const scope: RowScope = { permissions, query, category, setRemoval };
@@ -134,7 +139,7 @@ export function useAccessTokensTab({ permissions = [], params = {} }: TabViewPro
     onQuery({ value }: { value: string }) { access.controller?.filter({ query: value }); },
     onCategory({ value }: { value: string }) { access.controller?.filter({ category: value as CredentialCategory | 'all' }); },
     reload, pluginsHref: typeof params.pluginsHref === 'string' ? params.pluginsHref : null,
-    sharedKeys: sharedKeysEntry({ api: ports.securityApi, permissions, t, onGranted: reload }),
+    sharedKeys: sharedKeysEntry({ api: ports.securityApi, permissions, t, onGranted: grantedRefresh({ host, reload }) }),
     cancelRemove() { if (!s?.saving && !o?.saving) setRemoval(null); },
     async confirmRemove() { if (!removal) return;
       const ok = removal.type === 'access' ? await access.controller?.remove({ row: removal.row as CredentialSummary }) : await other.controller?.remove({ row: removal.row as OtherCredentialSummary }); if (!ok) throw new Error('Unable to remove credential');

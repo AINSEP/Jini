@@ -29,9 +29,13 @@ What the host injects, and where:
     store; product routes stay in the host.
   - `refreshSignal?` (SEC-14, OD-3 d): the host's content-refresh subscription; both credential controllers
     subscribe when created and unsubscribe on dispose. `onCredentialsChanged?` is the host's publication
-    callback (read with `useSecurityCredentialsHost`).
+    callback (read with `useSecurityCredentialsHost`); a Shared Keys grant calls it exactly once. When both
+    are wired the publication's own subscription does the reload; otherwise the tab also reloads directly.
   - `describeCredentialError?` (SEC-14): actionable, translated copy for a failed credential write. Submitted
     secrets are cut out of it; without it, fixed copy shows.
+  - `credentialDraftError?` (SEC-14): the draft token check run before any write (`required` on a create).
+    The host binds the exported `credentialDraftError({ value, assertToken, describeInputError }, { required })`
+    to its token validator and its locale copy; the returned copy is cut against the typed draft.
 - **HTTP other stores** (`createHttpOtherCredentials(…, { mediaOrder?, tokenHints?, mediaLabels? })`):
   `mediaOrder: 'replaced-last'` keeps a host's existing W12 byte order; `tokenHints: true` opts in to
   server-approved masked hints. Built-in MCP servers are never listed.

@@ -2,7 +2,7 @@ import { createControllerStore } from '@jini-ai/core/admin-runtime';
 import type { SecurityApiPort } from '../ports.js';
 import type { CredentialSummary, CredentialProvider, CredentialDraft, CredentialKind, CredentialCategory, CredentialInput, CredentialStoreSnapshot } from '../models.js';
 import type { AdminPublishCredentialVerification, AdminPublishExecutionMode } from '@jini-ai/core/contracts/site/api-security-api-types';
-import { credentialFailureText, type DescribeCredentialError } from '../credential-failure.js';
+import { credentialFailureText, redactSecrets, type CredentialDraftError, type DescribeCredentialError } from '../credential-failure.js';
 import type { SecurityRefreshSignal } from '../ports.js';
 import type { SavedCredentialFacts } from '../credential-forms.rules.js';
 import { blankCredentialDraft, buildCredentialPatch, credentialCategory, credentialStore, validateCredentialDraft, writePermission, credentialLabel } from '../rules.js';
@@ -67,9 +67,9 @@ function createCredentialLoader(
     await Promise.all(tasks); if (isCurrent(ticket)) store.set({ patch: { loading: false } });
   }
 }
-/** Host collaborators (SEC-14): the content-refresh subscription and the failure describer. */
-export interface AccessTokensControllerOptions { readonly refreshSignal?: SecurityRefreshSignal | undefined; readonly describeError?: DescribeCredentialError | undefined }
-export function createAccessTokensController({ api, permissions = [] }: { api: SecurityApiPort; permissions?: readonly string[] }, { refreshSignal, describeError }: AccessTokensControllerOptions = {}) {
+/** Host collaborators (SEC-14): the content-refresh subscription, the failure describer and the draft token check. */
+export interface AccessTokensControllerOptions { readonly refreshSignal?: SecurityRefreshSignal | undefined; readonly describeError?: DescribeCredentialError | undefined; readonly draftError?: CredentialDraftError | undefined }
+export function createAccessTokensController({ api, permissions = [] }: { api: SecurityApiPort; permissions?: readonly string[] }, { refreshSignal, describeError, draftError }: AccessTokensControllerOptions = {}) {
   const grants = new Set(permissions);
   const store = createAccessTokenStore();
   let generation = 0;
@@ -81,9 +81,14 @@ export function createAccessTokensController({ api, permissions = [] }: { api: S
     const draft = row ? draftFromRow({ row, providers: store.getSnapshot().providers }) : blankCredentialDraft({ kind: k, ...(providerId ? { providerId } : {}) });
     store.set({ patch: { draft, error: null } });
   }
+  /** The host's draft check: a create must carry a token, an edit may leave it blank. Its copy is cut against the typed draft. */
+  function refusedToken({ draft }: { draft: CredentialDraft }, _optional = {}) {
+    const text = draftError?.({ value: draft.token }, { required: !draft.id });
+    return text ? redactSecrets({ text, secrets: [draft.token] }) : null;
+  }
   async function save(_required: Record<string, never>, _optional = {}) {
     const state = store.getSnapshot(), draft = state.draft; if (!draft || !allowed(draft.kind) || state.saving) return false;
-    const error = validateCredentialDraft({ draft, rows: state.rows, providers: state.providers }); if (error) { store.set({ patch: { error } }); return false; }
+    const error = validateCredentialDraft({ draft, rows: state.rows, providers: state.providers }) ?? refusedToken({ draft }); if (error) { store.set({ patch: { error } }); return false; }
     const patch = pendingPatch({ draft, rows: state.rows, providers: state.providers })!; const target = credentialStore({ api, kind: draft.kind });
     // An edit that changes nothing has no diff to send: no write, and the draft stays open.
     if (draft.id && Object.keys(patch).length === 0) return false;

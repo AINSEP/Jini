@@ -2,9 +2,9 @@ import { createControllerStore } from '@jini-ai/core/admin-runtime';
 import type { OtherCredentialsPort, SecurityRefreshSignal } from '../ports.js';
 import type { OtherCredentialSummary, OtherStoreId } from '../models.js';
 import { OTHER_STORES, otherWritePermission } from '../rules.js';
-import { credentialFailureText, type DescribeCredentialError } from '../credential-failure.js';
+import { credentialFailureText, redactSecrets, type CredentialDraftError, type DescribeCredentialError } from '../credential-failure.js';
 /** Host collaborators (SEC-14): the content-refresh subscription and the failure describer. */
-export interface OtherCredentialsControllerOptions { readonly refreshSignal?: SecurityRefreshSignal | undefined; readonly describeError?: DescribeCredentialError | undefined }
+export interface OtherCredentialsControllerOptions { readonly refreshSignal?: SecurityRefreshSignal | undefined; readonly describeError?: DescribeCredentialError | undefined; readonly draftError?: CredentialDraftError | undefined }
 const rowKey = (row: Pick<OtherCredentialSummary, 'store' | 'id'>) => `${row.store}:${row.id}`;
 function without<T>(record: Readonly<Record<string, T>>, key: string) { const next = { ...record }; delete next[key]; return next; }
 function createOtherStore() {
@@ -13,7 +13,7 @@ function createOtherStore() {
     // `pending` / `rowErrors`: per-row write feedback, keyed `store:id`.
     rowErrors: {} as Readonly<Record<string, string>>, loaded: {} as Readonly<Record<string, boolean>>, pending: null as string | null, loading: false, saving: false } });
 }
-export function createOtherCredentialsController({ api, permissions = [] }: { api: OtherCredentialsPort; permissions?: readonly string[] }, { refreshSignal, describeError }: OtherCredentialsControllerOptions = {}) {
+export function createOtherCredentialsController({ api, permissions = [] }: { api: OtherCredentialsPort; permissions?: readonly string[] }, { refreshSignal, describeError, draftError }: OtherCredentialsControllerOptions = {}) {
   const grants = new Set(permissions); let generation = 0;
   const store = createOtherStore();
   async function read(id: OtherStoreId, ticket: number) {
@@ -45,10 +45,15 @@ export function createOtherCredentialsController({ api, permissions = [] }: { ap
     } finally { store.set({ patch: { saving: false, pending: null } }); }
     return saved;
   }
+  /** The host's draft check runs before any replace; its copy is cut against the typed draft before it reaches the row. */
+  function refusedDraft(key: string, draft: string) {
+    const text = draftError?.({ value: draft }); if (!text) return false;
+    store.set({ patch: { rowErrors: { ...store.getSnapshot().rowErrors, [key]: redactSecrets({ text, secrets: [draft] }) } } }); return true;
+  }
   function write(row: OtherCredentialSummary, remove: boolean) {
     const permitted = grants.has('security.read') && grants.has(otherWritePermission({ store: row.store }));
     if (store.signal.aborted || !permitted || (!remove && !row.supportsReplace)) return Promise.resolve(false);
-    const token = store.getSnapshot().drafts[rowKey(row)]?.trim() ?? ''; if (!remove && !token) return Promise.resolve(false);
+    const draft = store.getSnapshot().drafts[rowKey(row)] ?? ''; const token = draft.trim(); if (!remove && (!token || refusedDraft(rowKey(row), draft))) return Promise.resolve(false);
     const run = lane.then(() => (store.signal.aborted ? false : attempt(row, remove, token))); lane = run.then(() => undefined); return run;
   }
   return {

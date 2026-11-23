@@ -17,3 +17,22 @@ export function credentialFailureText({ error, fallback, secrets }: { error: unk
   try { described = describeError?.({ error }); } catch { described = undefined; }
   return described ? redactSecrets({ text: described, secrets }) : fallback;
 }
+/** The host's token check (for example the platform's `assertCredentialToken`): it throws on a rule break, and its
+ * input error names the rule, never the value. */
+export type CredentialTokenAssert = (required: { value: string }, optional?: Record<string, never>) => void;
+/** Display copy for the token check's own input error, or `undefined` for any other failure, which is rethrown. */
+export type DescribeTokenInputError = (required: { error: unknown }, optional?: Record<string, never>) => string | undefined;
+/** The draft check a controller runs before a write: copy for a refused draft, else `null`. `required` is set for a create. */
+export type CredentialDraftError = (required: { value: string }, optional?: { required?: boolean }) => string | null;
+/** Preserve the draft bytes; an exact blank update keeps the saved secret. Only the token
+ *  validator's own input error becomes display copy; any other failure is rethrown so an
+ *  unknown exception never gains display permission. */
+export function credentialDraftError({ value, assertToken, describeInputError }: { value: string; assertToken: CredentialTokenAssert; describeInputError: DescribeTokenInputError }, { required = false }: { required?: boolean } = {}): string | null {
+  if (value === '' && !required) return null;
+  try { assertToken({ value }); return null; }
+  catch (error) {
+    const copy = describeInputError({ error });
+    if (copy !== undefined) return copy;
+    throw error;
+  }
+}

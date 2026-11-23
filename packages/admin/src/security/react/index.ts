@@ -4,7 +4,7 @@ import { securityModule } from '../security.module.js';
 import { englishSecurity, type SecurityTranslator } from '../messages.en.js';
 import { SecurityPortsContext, SecurityTranslationContext, SecurityOwnerControlsContext, SecurityRootKeyHostContext, SecurityCredentialsHostContext, type SecurityCredentialsHost } from './hooks/SecurityPorts.hooks.js';
 import type { SecurityRefreshSignal } from '../ports.js';
-import type { DescribeCredentialError } from '../credential-failure.js';
+import type { CredentialDraftError, DescribeCredentialError } from '../credential-failure.js';
 import type { OtherStoreLinks } from '../other-credentials.rules.js';
 import { loadAccessTokensTab, loadRootKeyTab, loadSecurityPage } from './bindings.js';
 import type { SecurityTabIcons } from './hooks/SecurityPage.hooks.js';
@@ -49,6 +49,8 @@ export interface SecurityModuleOptions {
   readonly onCredentialsChanged?: SecurityCredentialsHost['onCredentialsChanged'];
   /** SEC-14: actionable, translated copy for a failed credential write. Submitted secrets are cut out of it. */
   readonly describeCredentialError?: DescribeCredentialError;
+  /** SEC-14: the host's draft token check (Tovu binds `credentialDraftError` to its validator and locale copy). */
+  readonly credentialDraftError?: CredentialDraftError;
 }
 /** Resolved at copy time, so a missing or denied browser clipboard fails silently inside the copy. */
 const browserClipboard: RevealClipboard = { writeText: (text) => globalThis.navigator.clipboard.writeText(text) };
@@ -62,8 +64,8 @@ function withRootKeyParams({ params }: { params: Readonly<Record<string, unknown
   return { ...securityModule, pages: { ...pages, secrets: { ...pages.secrets, tabs: { ...tabs, 'root-key': { ...tabs['root-key'], params } } } } };
 }
 /** One stable value per module, so the credential controllers are not rebuilt on every Provider render. */
-function credentialsHostOf({ options: o }: { options: Pick<SecurityModuleOptions, 'otherStores' | 'refreshSignal' | 'onCredentialsChanged' | 'describeCredentialError'> }, _optional: Record<string, never> = {}): SecurityCredentialsHost {
-  return { ...(o.otherStores ? { otherStores: o.otherStores } : {}), ...(o.refreshSignal ? { refreshSignal: o.refreshSignal } : {}), ...(o.onCredentialsChanged ? { onCredentialsChanged: o.onCredentialsChanged } : {}), ...(o.describeCredentialError ? { describeError: o.describeCredentialError } : {}) };
+function credentialsHostOf({ options: o }: { options: Pick<SecurityModuleOptions, 'otherStores' | 'refreshSignal' | 'onCredentialsChanged' | 'describeCredentialError' | 'credentialDraftError'> }, _optional: Record<string, never> = {}): SecurityCredentialsHost {
+  return { ...(o.otherStores ? { otherStores: o.otherStores } : {}), ...(o.refreshSignal ? { refreshSignal: o.refreshSignal } : {}), ...(o.onCredentialsChanged ? { onCredentialsChanged: o.onCredentialsChanged } : {}), ...(o.describeCredentialError ? { describeError: o.describeCredentialError } : {}), ...(o.credentialDraftError ? { draftError: o.credentialDraftError } : {}) };
 }
 /** Merges the Access Tokens tab options into that tab's params (K3: the host's plugins page stays a host value). */
 function withAccessTokensParams<M extends ReturnType<typeof withRootKeyParams>>({ module, params }: { module: M; params: Readonly<Record<string, unknown>> }, _optional: Record<string, never> = {}): M {

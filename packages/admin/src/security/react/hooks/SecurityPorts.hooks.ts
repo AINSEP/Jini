@@ -5,7 +5,7 @@ import { englishSecurity, type SecurityTranslator } from '../../messages.en.js';
 import type { DescribeRootKeyError, DescribeRootKeyRefusal } from '../../rules.js';
 import type { RevealClipboard } from '../../controllers/root-key-reveal.js';
 import type { SecurityRefreshSignal } from '../../ports.js';
-import type { DescribeCredentialError } from '../../credential-failure.js';
+import type { CredentialDraftError, DescribeCredentialError } from '../../credential-failure.js';
 import type { OtherStoreLinks } from '../../other-credentials.rules.js';
 export interface SecurityPorts { readonly securityApi: SecurityApiPort; readonly otherCredentials?: OtherCredentialsPort; readonly rootKey?: RootKeyPort }
 const refuse = async (): Promise<never> => { throw new Error('Unavailable'); };
@@ -34,10 +34,11 @@ export interface SecurityRootKeyHost {
 }
 /** What the host supplies the credential controllers and views (SEC-13/14): deep links to each other
  * store's own screen, its content-refresh subscription, a publication callback for a credential change
- * made here, and an actionable failure describer. Every field is optional. */
+ * made here, an actionable failure describer and a draft token check. Every field is optional. */
 export interface SecurityCredentialsHost {
   readonly otherStores?: OtherStoreLinks; readonly refreshSignal?: SecurityRefreshSignal;
   readonly onCredentialsChanged?: (required: Record<string, never>, optional?: Record<string, never>) => void; readonly describeError?: DescribeCredentialError;
+  readonly draftError?: CredentialDraftError;
 }
 export const SecurityCredentialsHostContext = createContext<SecurityCredentialsHost>({});
 export function useSecurityCredentialsHost(_required: Record<string, never> = {}, _optional: Record<string, never> = {}): SecurityCredentialsHost {
