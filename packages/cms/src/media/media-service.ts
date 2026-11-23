@@ -127,6 +127,10 @@ function formatMaxUploadBytesAsMb(bytes: number): string {
  * client-declared-string check item 4 above already discloses as untrusted —
  * no new ingress hardening was added for video.
  *
+ * `video/quicktime`/`video/x-m4v` (owner 2026-10-31, the ".MOV gap"): accepted and stored as-is on
+ * the same original-byte path as MP4/WebM, identified by their `ftyp` major brand. Converting them
+ * to a more widely playable format is a separate job, not done here.
+ *
  * Audio (owner-approved mediawidget, 2026-10-10/11) follows that same original-byte
  * lifecycle. Only formats recognized by the shared sniffer are allowed; no image
  * transform is requested for them.
@@ -139,6 +143,8 @@ export const DEFAULT_ALLOWED_MIME_TYPES: ReadonlySet<string> = new Set([
   "image/avif",
   "image/svg+xml",
   "video/mp4",
+  "video/quicktime",
+  "video/x-m4v",
   "video/webm",
   "audio/wav",
   "audio/mpeg",

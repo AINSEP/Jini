@@ -2,6 +2,7 @@
 const EXTENSION_BY_CONTENT_TYPE: Readonly<Record<string, string>> = {
   "image/png": "png", "image/jpeg": "jpg", "image/gif": "gif", "image/webp": "webp",
   "image/avif": "avif", "image/svg+xml": "svg", "video/mp4": "mp4", "video/webm": "webm",
+  "video/quicktime": "mov", "video/x-m4v": "m4v",
   "audio/wav": "wav", "audio/mpeg": "mp3", "audio/flac": "flac", "audio/mp4": "m4a", "audio/ogg": "ogg",
   "application/pdf": "pdf", "application/octet-stream": "bin",
 };

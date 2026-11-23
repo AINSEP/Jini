@@ -8,6 +8,8 @@ test("original filenames use server-validated MIME extensions rather than a clai
     ["image/svg+xml", "svg"], ["video/mp4", "mp4"], ["application/pdf", "pdf"],
     ["image/jpeg", "jpg"], ["audio/mpeg", "mp3"], ["video/webm", "webm"],
     ["audio/wav", "wav"], ["audio/flac", "flac"], ["audio/mp4", "m4a"], ["audio/ogg", "ogg"],
+    // .MOV gap (owner 2026-10-31): QuickTime and M4V originals keep their own extensions.
+    ["video/quicktime", "mov"], ["video/x-m4v", "m4v"],
   ] as const) {
     assert.equal(mediaFileExtension({ contentType }), extension);
     assert.equal(buildImportFilename({ url: new URL("https://example.test/fake.exe"), contentType }), `fake.${extension}`);

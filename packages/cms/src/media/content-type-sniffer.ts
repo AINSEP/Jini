@@ -39,6 +39,8 @@ export type SniffedContentType =
   | "image/webp"
   | "image/avif"
   | "video/mp4"
+  | "video/quicktime"
+  | "video/x-m4v"
   | "video/webm"
   | "audio/wav"
   | "audio/mpeg"
@@ -144,6 +146,25 @@ function isAvif(bytes: Uint8Array): boolean {
   return false;
 }
 
+/**
+ * QuickTime `.mov` (owner request 2026-10-31, the ".MOV gap"). Only the `ftyp` MAJOR brand is read:
+ * plenty of ordinary MP4s list `qt  ` among their compatible brands, and those must stay
+ * `video/mp4` exactly as before.
+ *
+ * Classic QuickTime files that open with a bare `moov`/`mdat`/`wide`/`free` atom (no `ftyp`) are
+ * deliberately NOT recognized: those tags are generic four-letter words, so matching them at offset 4
+ * would claim arbitrary bytes ahead of the HTML/SVG checks and weaken this sniffer's allowlist
+ * contract. Current QuickTime and iPhone/iPad recordings all write `ftyp qt  `.
+ */
+const QUICKTIME_BRANDS = ["qt  "] as const;
+/** Apple M4V brands: plain, HD (`M4VH`) and protected (`M4VP`). An M4V that declares an ordinary MP4
+ * major brand (common for HandBrake output) stays `video/mp4`. */
+const M4V_BRANDS = ["M4V ", "M4VH", "M4VP"] as const;
+
+function hasMajorBrand(bytes: Uint8Array, brands: readonly string[]): boolean {
+  return isIsoBmffFtyp(bytes) && brands.some((brand) => asciiEqualAt(bytes, FTYP_MAJOR_BRAND_OFFSET, brand));
+}
+
 function isWebm(bytes: Uint8Array): boolean {
   return bytesEqualAt(bytes, 0, EBML_SIGNATURE);
 }
@@ -201,6 +222,10 @@ const BINARY_SIGNATURES: ReadonlyArray<readonly [(bytes: Uint8Array) => boolean,
   // Audio support (owner-approved mediawidget, 2026-10-10/11) shares the original-byte
   // path. Distinguish explicit M4A brands before the existing ISO-BMFF video fallback.
   [(bytes) => isIsoBmffFtyp(bytes) && asciiEqualAt(bytes, 8, "M4A "), "audio/mp4"],
+  // Brand-specific video labels, also ahead of the brand-blind MP4 fallback (and after AVIF, so an
+  // image whose compatible brands name `avif` is still an image).
+  [(bytes) => hasMajorBrand(bytes, QUICKTIME_BRANDS), "video/quicktime"],
+  [(bytes) => hasMajorBrand(bytes, M4V_BRANDS), "video/x-m4v"],
   [isIsoBmffFtyp, "video/mp4"],
   [isWebm, "video/webm"],
   [(bytes) => asciiEqualAt(bytes, 0, "RIFF") && asciiEqualAt(bytes, 8, "WAVE"), "audio/wav"],
