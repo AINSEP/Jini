@@ -13,7 +13,9 @@ import type { Response } from 'express';
  */
 export interface JsonRoutePorts<Deps, Context = undefined> {
   readonly workspace?: (requiredArgs: { readonly raw: RouteInputContext; readonly deps: Deps }) => void | Promise<void>;
-  readonly authenticate?: (requiredArgs: { readonly raw: RouteInputContext; readonly res: Response; readonly deps: Deps }) => Context | Promise<Context>;
+  /** May answer `undefined` (no principal yet): the handler then sees no `context`, and the host's
+   *  `authorize` port decides — after `parse`, so a body refusal still wins over a missing session. */
+  readonly authenticate?: (requiredArgs: { readonly raw: RouteInputContext; readonly res: Response; readonly deps: Deps }) => Context | undefined | Promise<Context | undefined>;
   readonly authorize?: (requiredArgs: { readonly context: Context | undefined; readonly deps: Deps; readonly permission: string; readonly entityType: string }, optionalArgs?: JsonRouteAuthorizeScope) => void | Promise<void>;
   readonly onError?: (requiredArgs: { readonly res: Response; readonly error: unknown }) => void;
   /**
