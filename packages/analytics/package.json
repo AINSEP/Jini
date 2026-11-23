@@ -18,7 +18,9 @@
       "./site/agent-tools": "universal",
       "./site/ports": "universal",
       "./site/contracts": "universal",
-      "./site/forwarding": "universal"
+      "./site/forwarding": "universal",
+      "./site/jini-adapters": "universal",
+      "./site/salt": "node"
     }
   },
   "type": "module",
@@ -55,6 +57,16 @@
       "types": "./dist/site/forwarding.d.ts",
       "import": "./dist/site/forwarding.js",
       "default": "./dist/site/forwarding.js"
+    },
+    "./site/jini-adapters": {
+      "types": "./dist/site/jini-adapters.d.ts",
+      "import": "./dist/site/jini-adapters.js",
+      "default": "./dist/site/jini-adapters.js"
+    },
+    "./site/salt": {
+      "types": "./dist/site/salt.d.ts",
+      "import": "./dist/site/salt.js",
+      "default": "./dist/site/salt.js"
     }
   },
   "files": [
