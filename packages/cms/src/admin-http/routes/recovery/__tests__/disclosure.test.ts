@@ -1,16 +1,17 @@
 import { describe, expect, it, vi } from "vitest";
 import { RouteRefusalError } from "@jini-ai/core/errors/route-refusal";
 
-import { computeDisclosure } from "@jini-ai/db/recovery/disclosure";
 import { recoveryDisclosureRoute, type RecoveryDisclosureRouteDeps } from "../disclosure.js";
 
-function harness(baseline: { available: boolean; watermarkAtCapture?: number | null } = { available: false }) {
-  const watermarkSource = { getBaseline: vi.fn(async () => baseline), getCategoryCounts: vi.fn(async () => ({ posts_pages: 2, plugin_table: 0, entries: 9 })) };
-  // Bound exactly as the host binds it: the real computation over the injected watermark source.
-  const deps: RecoveryDisclosureRouteDeps = {
-    computeDisclosure: ({ restorePointId, coveredCategories }) => computeDisclosure({ deps: { watermarkSource, coveredCategories }, input: { restorePointId } }),
-  };
-  return { deps, authorize: vi.fn(async () => undefined) };
+const disclosure = { partial: true, watermarkBaselineAvailable: false, counts: { posts_pages: "unknown", plugin_table: "unknown" } };
+
+/** A typed fake on the same seam production injects: the host binds `computeDisclosure` to the
+ *  database package's computation; this spec forwards the id plus its covered-category list and
+ *  answers the result as-is. */
+function harness() {
+  const computeDisclosure = vi.fn<RecoveryDisclosureRouteDeps["computeDisclosure"]>(async () => disclosure);
+  const deps: RecoveryDisclosureRouteDeps = { computeDisclosure };
+  return { deps, computeDisclosure, authorize: vi.fn(async () => undefined) };
 }
 
 async function refusal(promise: Promise<unknown>) {
@@ -25,29 +26,26 @@ describe("recoveryDisclosureRoute", () => {
     expect(recoveryDisclosureRoute.path).toBe("/api/admin/v1/recovery/disclosure");
   });
 
-  it("renders 'unknown' for every covered category while no baseline exists, after authorizing backup.read", async () => {
-    const { deps, authorize } = harness();
+  it("forwards the restore point and covered categories after authorizing backup.read, answering the computation as-is", async () => {
+    const { deps, computeDisclosure, authorize } = harness();
     const parsed = recoveryDisclosureRoute.parse({ body: { restorePointId: "rp-1" }, query: {}, params: {} });
     if (!parsed.ok) throw new Error("parse must be total");
     const result = await recoveryDisclosureRoute.handle({ input: parsed.value, deps, context: { id: "p-1" }, authorize }, {});
-    expect(result).toEqual({ ok: true, value: { partial: true, watermarkBaselineAvailable: false, counts: { posts_pages: "unknown", plugin_table: "unknown" } } });
+    expect(result).toEqual({ ok: true, value: disclosure });
     expect(authorize).toHaveBeenCalledWith({ permission: "backup.read", entityType: "restore-point" });
-  });
-
-  it("limits real counts to the covered categories", async () => {
-    const { deps, authorize } = harness({ available: true, watermarkAtCapture: 1 });
-    const result = await recoveryDisclosureRoute.handle({ input: { restorePointId: "rp-1" }, deps, context: { id: "p-1" }, authorize }, {});
-    expect(result.ok && Object.keys((result.value as { counts: object }).counts).sort()).toEqual(["plugin_table", "posts_pages"]);
+    // The versioned covered list lives in this spec: only write paths confirmed watermark-stamped.
+    expect(computeDisclosure.mock.calls).toEqual([[{ restorePointId: "rp-1", coveredCategories: ["posts_pages", "plugin_table"] }]]);
   });
 
   it("refuses a missing, non-string or absent-body restorePointId with 400 VALIDATION_ERROR, after authorizing", async () => {
     for (const body of [{}, undefined, { restorePointId: 42 }]) {
-      const { deps, authorize } = harness();
+      const { deps, computeDisclosure, authorize } = harness();
       const parsed = recoveryDisclosureRoute.parse({ body, query: {}, params: {} });
       if (!parsed.ok) throw new Error("parse must be total");
       const response = await refusal(Promise.resolve(recoveryDisclosureRoute.handle({ input: parsed.value, deps, context: { id: "p-1" }, authorize }, {})));
       expect(response).toEqual({ status: 400, body: { error: "'restorePointId' (string) is required", code: "VALIDATION_ERROR" } });
       expect(authorize).toHaveBeenCalledOnce();
+      expect(computeDisclosure).not.toHaveBeenCalled();
     }
   });
 

@@ -1,18 +1,18 @@
 import { describe, expect, it, vi } from "vitest";
 import { RouteRefusalError } from "@jini-ai/core/errors/route-refusal";
 
-import { resolveDeepLinkContext, type DatabaseContextEnvelope } from "@jini-ai/db/recovery/deep-link";
 import { recoveryDeepLinkRoute, type RecoveryDeepLinkRouteDeps } from "../deep-link.js";
 
 const envelope = { v: 1, correlationId: "c", siteId: "s", ledgerEventId: null, restorePointId: "rp-1", drift: "none", intent: "inspect", issuedAt: "2026-01-01T00:00:00Z" };
+const resolved = { found: true, restorePoint: { restorePointId: "rp-1", capturedAt: "2026-01-01T00:00:00Z" } };
 
-function harness(found: { restorePointId: string; capturedAt: string } | null = null) {
-  const lookup = { findRestorePointById: vi.fn(async () => found) };
-  // Bound exactly as the host binds it: the real re-resolution over the injected lookup port.
-  const deps: RecoveryDeepLinkRouteDeps & { lookup: typeof lookup } = { lookup,
-    resolveDeepLinkContext: (input) => resolveDeepLinkContext({ deps: { lookup }, input: { ...input, envelope: input.envelope as DatabaseContextEnvelope } }) };
+/** A typed fake on the same seam production injects: the host binds `resolveDeepLinkContext` to the
+ *  database package's re-resolution; this spec only forwards to it and answers its result as-is. */
+function harness() {
+  const resolveDeepLinkContext = vi.fn<RecoveryDeepLinkRouteDeps["resolveDeepLinkContext"]>(async () => resolved);
+  const deps: RecoveryDeepLinkRouteDeps = { resolveDeepLinkContext };
   const authorize = vi.fn(async () => undefined);
-  return { deps, authorize };
+  return { deps, resolveDeepLinkContext, authorize };
 }
 
 async function refusal(promise: Promise<unknown>) {
@@ -28,33 +28,35 @@ describe("recoveryDeepLinkRoute", () => {
   });
 
   it("re-resolves the envelope server-side after authorizing backup.read on restore-point", async () => {
-    const { deps, authorize } = harness({ restorePointId: "rp-1", capturedAt: "2026-01-01T00:00:00Z" });
+    const { deps, resolveDeepLinkContext, authorize } = harness();
     const parsed = recoveryDeepLinkRoute.parse({ body: { envelope }, query: {}, params: {} });
     expect(parsed.ok).toBe(true);
     if (!parsed.ok) return;
     const result = await recoveryDeepLinkRoute.handle({ input: parsed.value, deps, context: { id: "p-1" }, authorize }, {});
-    expect(result).toEqual({ ok: true, value: { found: true, restorePoint: { restorePointId: "rp-1", capturedAt: "2026-01-01T00:00:00Z" } } });
+    expect(result).toEqual({ ok: true, value: resolved });
     expect(authorize).toHaveBeenCalledWith({ permission: "backup.read", entityType: "restore-point" });
-    expect(deps.lookup.findRestorePointById).toHaveBeenCalledWith("rp-1");
+    expect(resolveDeepLinkContext.mock.calls).toEqual([[{ principalId: "p-1", principalKind: "user", envelope }]]);
   });
 
   it("refuses a missing, absent-body or non-object envelope with 400 VALIDATION_ERROR, after authorizing", async () => {
     for (const body of [{}, undefined, { envelope: "nope" }]) {
-      const { deps, authorize } = harness();
+      const { deps, resolveDeepLinkContext, authorize } = harness();
       const parsed = recoveryDeepLinkRoute.parse({ body, query: {}, params: {} });
       expect(parsed.ok).toBe(true);
       if (!parsed.ok) return;
       const response = await refusal(Promise.resolve(recoveryDeepLinkRoute.handle({ input: parsed.value, deps, context: { id: "p-1" }, authorize }, {})));
       expect(response).toEqual({ status: 400, body: { error: "'envelope' (object) is required", code: "VALIDATION_ERROR" } });
       expect(authorize).toHaveBeenCalledOnce();
+      expect(resolveDeepLinkContext).not.toHaveBeenCalled();
     }
   });
 
   it("lets an authorization refusal win over invalid input", async () => {
-    const { deps } = harness();
+    const { deps, resolveDeepLinkContext } = harness();
     const authorize = vi.fn(async () => { throw new RouteRefusalError({ status: 403, body: { error: "no" } }); });
     const response = await refusal(Promise.resolve(recoveryDeepLinkRoute.handle({ input: {}, deps, context: { id: "p-1" }, authorize }, {})));
     expect(response.status).toBe(403);
+    expect(resolveDeepLinkContext).not.toHaveBeenCalled();
   });
 
   it("throws when mounted without a principal or an authorizer", async () => {
