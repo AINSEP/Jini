@@ -161,7 +161,8 @@
       "./admin-http/routes/menus/delete": "universal",
       "./admin-http/http/plugin-hook-error": "universal",
       "./admin-http/routes/pages/list": "universal",
-      "./admin-http/routes/pages/get-by-id": "universal"
+      "./admin-http/routes/pages/get-by-id": "universal",
+      "./admin-http/routes/posts/autosave": "universal"
     },
     "isolation": {
       "domains": {
@@ -1024,6 +1025,11 @@
       "types": "./dist/admin-http/routes/pages/get-by-id.d.ts",
       "import": "./dist/admin-http/routes/pages/get-by-id.js",
       "default": "./dist/admin-http/routes/pages/get-by-id.js"
+    },
+    "./admin-http/routes/posts/autosave": {
+      "types": "./dist/admin-http/routes/posts/autosave.d.ts",
+      "import": "./dist/admin-http/routes/posts/autosave.js",
+      "default": "./dist/admin-http/routes/posts/autosave.js"
     }
   },
   "files": [
