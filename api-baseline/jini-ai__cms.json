@@ -2087,6 +2087,12 @@
    "applyHeadElements": "function:6bf5c82dce"
   }
  },
+ "./seo/site/page-head-contributor": {
+  "types": "./dist/seo/site/page-head-contributor.d.ts",
+  "symbols": {
+   "createSeoPageHeadHook": "function:8f46e300eb"
+  }
+ },
  "./settings": {
   "types": "./dist/settings/index.d.ts",
   "symbols": {
@@ -2206,6 +2212,74 @@
    "translateSettingsDialog": "function:287258fbdf",
    "validateDefinitionInput": "function:60d1d6a70a",
    "validateValueAgainstSchema": "function:3a9138d461"
+  }
+ },
+ "./settings/site/admin-interface": {
+  "types": "./dist/settings/site/admin-interface.d.ts",
+  "symbols": {
+   "ADMIN_INTERFACE_NAMESPACE": "variable:db7696c333",
+   "ADMIN_THEME_ACCENTS_KEY": "variable:65e655c37e",
+   "ADMIN_THEME_KEY": "variable:7357cc3313",
+   "CHAT_AGENT_PLUGINS_KEY": "variable:293484c3b4",
+   "CHAT_SHOW_THINKING_KEY": "variable:ff55248483",
+   "CHAT_SHOW_USAGE_LINE_KEY": "variable:04a4868d95",
+   "CHAT_TOOL_CALLS_KEY": "variable:a38e4b74e6",
+   "EnsureAdminInterfaceSettingDefinitionsInput": "interface:e5b064ebcf",
+   "HIDE_CHAT_FAB_WHILE_OPEN_KEY": "variable:32f6ef6216",
+   "PREFER_SUBAGENTS_KEY": "variable:b591f36635",
+   "REPLY_LENGTH_KEY": "variable:d99757e068",
+   "SITE_LIST_KEY": "variable:90dbed8f34",
+   "USE_CLAUDE_IN_CHROME_KEY": "variable:d91aca077b",
+   "WRAP_TABS_KEY": "variable:e211764609",
+   "ensureAdminInterfaceSettingDefinitions": "function:357c1d1450"
+  }
+ },
+ "./settings/site/chart-provider": {
+  "types": "./dist/settings/site/chart-provider.d.ts",
+  "symbols": {
+   "ensureChartProviderSetting": "function:c0b130d434"
+  }
+ },
+ "./settings/site/form-delivery": {
+  "types": "./dist/settings/site/form-delivery.d.ts",
+  "symbols": {
+   "enforceFormDeliveryBindingsWrite": "function:02c7d61e1b",
+   "ensureFormDeliverySettings": "function:1479162517",
+   "parseFormDeliveryBindings": "function:715627f673",
+   "readFormDeliveryBindings": "function:96acd53a40",
+   "readFormsAutoPull": "function:d00ce48432"
+  }
+ },
+ "./settings/site/form-destination": {
+  "types": "./dist/settings/site/form-destination.d.ts",
+  "symbols": {
+   "ensureFormDestinationSetting": "function:25d6066ff9",
+   "readFormDestinationSetting": "function:cf4dc9f437"
+  }
+ },
+ "./settings/site/mail-sender": {
+  "types": "./dist/settings/site/mail-sender.d.ts",
+  "symbols": {
+   "MAIL_SENDER_EMAIL_KEY": "variable:1286ed294e",
+   "MAIL_SENDER_NAMESPACE": "variable:c6e93010fb",
+   "MAIL_SENDER_NAME_KEY": "variable:20aa32f94f",
+   "ensureMailSenderSettings": "function:82cd9a901a",
+   "readMailSenderSetting": "function:3167766414"
+  }
+ },
+ "./settings/site/site-timezone": {
+  "types": "./dist/settings/site/site-timezone.d.ts",
+  "symbols": {
+   "ResolveSiteTimeZoneDeps": "interface:c6b2379b4f",
+   "SITE_TIMEZONE_KEY": "variable:bf6c5f9944",
+   "SITE_TIMEZONE_NAMESPACE": "variable:e9eb835f34",
+   "SITE_TIME_ZONE_FALLBACK_MESSAGE": "variable:e41469da8c",
+   "SiteCreationTimeZoneSource": "interface:2f3a85e9f0",
+   "SiteTimeZoneFallbackEvent": "interface:57c0f52fe9",
+   "SiteTimeZoneFallbackReporter": "type:457d46794a",
+   "createSiteTimeZonePort": "function:3192b8f7e0",
+   "ensureSiteTimeZoneSettingDefinition": "function:022adbd2aa",
+   "resolveSiteTimeZone": "function:0125f4b887"
   }
  },
  "./taxonomy": {
