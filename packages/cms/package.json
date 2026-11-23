@@ -195,7 +195,8 @@
       "./settings/site/form-destination": "universal",
       "./settings/site/mail-sender": "universal",
       "./settings/site/site-timezone": "universal",
-      "./seo/site/page-head-contributor": "node"
+      "./seo/site/page-head-contributor": "node",
+      "./redirects/site/phase-handler": "universal"
     },
     "isolation": {
       "domains": {
@@ -1224,6 +1225,11 @@
       "types": "./dist/seo/site/page-head-contributor.d.ts",
       "import": "./dist/seo/site/page-head-contributor.js",
       "default": "./dist/seo/site/page-head-contributor.js"
+    },
+    "./redirects/site/phase-handler": {
+      "types": "./dist/redirects/site/phase-handler.d.ts",
+      "import": "./dist/redirects/site/phase-handler.js",
+      "default": "./dist/redirects/site/phase-handler.js"
     }
   },
   "files": [
