@@ -164,7 +164,13 @@
       "./admin-http/routes/members/get-by-id": "universal",
       "./admin-http/routes/members/delete": "universal",
       "./admin-http/routes/members/disable": "universal",
-      "./admin-http/http/members": "universal"
+      "./admin-http/http/members": "universal",
+      "./admin-http/routes/trash/list": "universal",
+      "./admin-http/routes/trash/items": "universal",
+      "./admin-http/routes/trash/purge": "universal",
+      "./admin-http/routes/trash/restore": "universal",
+      "./admin-http/routes/trash/shared": "universal",
+      "./admin-http/http/trash": "universal"
     },
     "isolation": {
       "domains": {
@@ -266,7 +272,13 @@
         "./admin-http/routes/menus/create": "navigation",
         "./admin-http/routes/menus/update-tree": "navigation",
         "./admin-http/routes/menus/assign-location": "navigation",
-        "./admin-http/routes/menus/delete": "navigation"
+        "./admin-http/routes/menus/delete": "navigation",
+        "./admin-http/routes/trash/list": "trash",
+        "./admin-http/routes/trash/items": "trash",
+        "./admin-http/routes/trash/purge": "trash",
+        "./admin-http/routes/trash/restore": "trash",
+        "./admin-http/routes/trash/shared": "trash",
+        "./admin-http/http/trash": "trash"
       }
     },
     "optionalPeers": {
@@ -1041,6 +1053,36 @@
       "types": "./dist/admin-http/http/members.d.ts",
       "import": "./dist/admin-http/http/members.js",
       "default": "./dist/admin-http/http/members.js"
+    },
+    "./admin-http/routes/trash/list": {
+      "types": "./dist/admin-http/routes/trash/list.d.ts",
+      "import": "./dist/admin-http/routes/trash/list.js",
+      "default": "./dist/admin-http/routes/trash/list.js"
+    },
+    "./admin-http/routes/trash/items": {
+      "types": "./dist/admin-http/routes/trash/items.d.ts",
+      "import": "./dist/admin-http/routes/trash/items.js",
+      "default": "./dist/admin-http/routes/trash/items.js"
+    },
+    "./admin-http/routes/trash/purge": {
+      "types": "./dist/admin-http/routes/trash/purge.d.ts",
+      "import": "./dist/admin-http/routes/trash/purge.js",
+      "default": "./dist/admin-http/routes/trash/purge.js"
+    },
+    "./admin-http/routes/trash/restore": {
+      "types": "./dist/admin-http/routes/trash/restore.d.ts",
+      "import": "./dist/admin-http/routes/trash/restore.js",
+      "default": "./dist/admin-http/routes/trash/restore.js"
+    },
+    "./admin-http/routes/trash/shared": {
+      "types": "./dist/admin-http/routes/trash/shared.d.ts",
+      "import": "./dist/admin-http/routes/trash/shared.js",
+      "default": "./dist/admin-http/routes/trash/shared.js"
+    },
+    "./admin-http/http/trash": {
+      "types": "./dist/admin-http/http/trash.d.ts",
+      "import": "./dist/admin-http/http/trash.js",
+      "default": "./dist/admin-http/http/trash.js"
     }
   },
   "files": [

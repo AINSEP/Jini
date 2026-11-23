@@ -76,6 +76,13 @@
    "toAdminRedirectResponse": "function:6b9d17f992"
   }
  },
+ "./admin-http/http/trash": {
+  "types": "./dist/admin-http/http/trash.d.ts",
+  "symbols": {
+   "AdminTrashRow": "interface:6e65f18e2a",
+   "toAdminTrashResponse": "function:9b48386462"
+  }
+ },
  "./admin-http/limits": {
   "types": "./dist/admin-http/limits.d.ts",
   "symbols": {
@@ -336,6 +343,59 @@
    "ModuleStatusPrincipal": "interface:4602c99ced",
    "ModuleStatusSnapshot": "interface:8b51e5ccec",
    "moduleStatusRoute": "variable:ebdbd5f9da"
+  }
+ },
+ "./admin-http/routes/trash/items": {
+  "types": "./dist/admin-http/routes/trash/items.d.ts",
+  "symbols": {
+   "AdminTrashMoveEnvelope": "interface:f54708328e",
+   "TrashMoveFn": "type:6d2af7d3f6",
+   "TrashMoveOutcome": "type:44965430fd",
+   "TrashMoveRouteDeps": "interface:a1e0c17b5c",
+   "trashMoveRoute": "variable:387ffa9c7e"
+  }
+ },
+ "./admin-http/routes/trash/list": {
+  "types": "./dist/admin-http/routes/trash/list.d.ts",
+  "symbols": {
+   "AdminTrashListEnvelope": "interface:0145423200",
+   "TrashListInput": "interface:9bf5bcea97",
+   "TrashListRouteDeps": "interface:7fe5d9972c",
+   "TrashPostDisplayKindsFn": "type:19c10b6c79",
+   "TrashUserLister": "interface:7d94839533",
+   "TrashVisibilityFilterFn": "type:3e4b0bc186",
+   "trashListRoute": "variable:e803d2eb77"
+  }
+ },
+ "./admin-http/routes/trash/purge": {
+  "types": "./dist/admin-http/routes/trash/purge.d.ts",
+  "symbols": {
+   "AdminTrashPurgeEnvelope": "interface:fa14cc2523",
+   "TrashPurgeRouteDeps": "interface:dc48f331f6",
+   "trashPurgeRoute": "variable:6a9d5ce280"
+  }
+ },
+ "./admin-http/routes/trash/restore": {
+  "types": "./dist/admin-http/routes/trash/restore.d.ts",
+  "symbols": {
+   "AdminTrashRestoreEnvelope": "interface:35f461f0ec",
+   "TrashRestoreRouteDeps": "interface:272f209cfb",
+   "trashRestoreRoute": "variable:eea9fff1fa"
+  }
+ },
+ "./admin-http/routes/trash/shared": {
+  "types": "./dist/admin-http/routes/trash/shared.d.ts",
+  "symbols": {
+   "DEFAULT_TRASH_PAGE_SIZE": "variable:84856d8159",
+   "MAX_TRASH_PAGE_SIZE": "variable:8b7f03ef26",
+   "MAX_TRASH_SELECTION": "variable:3c492f93d2",
+   "TrashBodyInput": "interface:7b09ca1fcc",
+   "TrashEntryGateFn": "type:c696df3c63",
+   "TrashKindGateFn": "type:e96dfb6966",
+   "TrashRoutePrincipal": "interface:56844a3158",
+   "readSelection": "function:c10b2eb2a2",
+   "requireTrashEntry": "function:d16d2ebf6c",
+   "trashActorId": "function:20dcfd12f4"
   }
  },
  "./admin-http/sea-runtime": {
