@@ -12,6 +12,8 @@ export { useEmbedChatDialog } from './dialog.hooks.js';
 import type { EmbedHeaderCopy, EscapeKeyPort } from './header.js';
 export { EmbedChatHeader } from './header.js';
 export type { EmbedChatHeaderArgs, EmbedHeaderCopy, EscapeKeyPort } from './header.js';
+export { createViewEscapeKeyPort } from './escape-key-port.js';
+export type { EscapeKeyView } from './escape-key-port.js';
 
 export interface EmbedChatCopy extends EmbedHeaderCopy {
   readonly title: string;
