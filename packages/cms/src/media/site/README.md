@@ -16,6 +16,9 @@ Site-level media commands and helpers extracted from a host CMS. Each module is 
 - `view-image-tool` — `contributeMediaViewImageTools()` / `buildMediaViewImageRegistrations(deps)`. The host's
   deps carry `mediaRepo`, `assetBlobRepo`, `blobStore`, `authorize`, `workspaceId` and an `imageCodec: ImageCodecPort`
   (no codec means the tool refuses rather than loading a native vendor itself).
+- `duplicate-asset` — `contributeMediaDuplicateHandlers({ deriveDuplicateName })` / `duplicateMediaAsset({ routeDeps,
+  deriveDuplicateName, ... })`: `content_duplicate`'s `"media"` resource. The host injects its content-duplication naming
+  policy (`DeriveDuplicateName`) for a copy's default title; `routeDeps` is `MediaToolDeps & MediaPublicUrlDeps`.
 
 ### `import-media-entity`
 

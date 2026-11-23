@@ -30,5 +30,10 @@ The host injects everything this folder needs; nothing here reaches a host modul
   (admin locale + live port + kit); `use-term-list-reveal` and `use-taxonomy-html-embed` are pure
   view-state hooks. `use-taxonomy` subscribes to `shell/lib/content-refresh-bus` itself, so a host
   publishing there refreshes the list.
+- `TermPicker.tsx` — the editors' Categories & Tags box. Both hooks are REQUIRED props: the host
+  passes `useTermPickerHook` (its `useTermPicker` bound to its live port, locale and kit) and
+  `useTermListRevealHook` (`useTermListReveal` or a double). Copy comes through the controller's `t`.
+  It emits `jini-term-picker*` classes plus the host's shared `card`, `field-*`, `btn-*`, `save-*`,
+  `editor-actions`, `form-checkbox-field` and `link-button` design classes; the host styles them.
 - `TaxonomyRowMenu.tsx` emits only `jini-taxonomy-row-menu-*` classes; the host styles the
   `-danger`/`-warning` tones through its own selectors.

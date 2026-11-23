@@ -172,6 +172,7 @@
       "./screens/taxonomy/html-rules": "universal",
       "./screens/taxonomy/TaxonomyRowMenu.hooks": "browser",
       "./screens/taxonomy/TaxonomyRowMenu": "browser",
+      "./screens/taxonomy/TermPicker": "browser",
       "./screens/taxonomy/hooks/merge-term-section-port.hooks": "universal",
       "./screens/taxonomy/hooks/new-taxonomy-form-port.hooks": "universal",
       "./screens/taxonomy/hooks/new-term-form-port.hooks": "universal",
@@ -211,6 +212,11 @@
       "./screens/menus/html-rules": "universal",
       "./screens/menus/hooks/menus-port.hooks": "universal",
       "./screens/menus/hooks/menus-dependencies.hooks": "universal",
+      "./screens/collections/rules": "universal",
+      "./screens/collections/collections-host-kit": "universal",
+      "./screens/menus/Menus": "browser",
+      "./screens/menus/hooks/use-menus.hooks": "browser",
+      "./screens/menus/menus-host-kit": "universal",
       "./screens/menus/MenuEditor.hooks": "browser",
       "./screens/menus/MenuPageLinkFields.hooks": "browser",
       "./screens/menus/MenuPageLinkFields": "browser",
@@ -1106,6 +1112,11 @@
       "import": "./dist/screens/taxonomy/TaxonomyRowMenu.js",
       "default": "./dist/screens/taxonomy/TaxonomyRowMenu.js"
     },
+    "./screens/taxonomy/TermPicker": {
+      "types": "./dist/screens/taxonomy/TermPicker.d.ts",
+      "import": "./dist/screens/taxonomy/TermPicker.js",
+      "default": "./dist/screens/taxonomy/TermPicker.js"
+    },
     "./screens/taxonomy/hooks/merge-term-section-port.hooks": {
       "types": "./dist/screens/taxonomy/hooks/merge-term-section-port.hooks.d.ts",
       "import": "./dist/screens/taxonomy/hooks/merge-term-section-port.hooks.js",
@@ -1296,6 +1307,31 @@
       "import": "./dist/screens/menus/hooks/menus-port.hooks.js",
       "default": "./dist/screens/menus/hooks/menus-port.hooks.js"
     },
+    "./screens/menus/menus-host-kit": {
+      "types": "./dist/screens/menus/menus-host-kit.d.ts",
+      "import": "./dist/screens/menus/menus-host-kit.js",
+      "default": "./dist/screens/menus/menus-host-kit.js"
+    },
+    "./screens/menus/hooks/use-menus.hooks": {
+      "types": "./dist/screens/menus/hooks/use-menus.hooks.d.ts",
+      "import": "./dist/screens/menus/hooks/use-menus.hooks.js",
+      "default": "./dist/screens/menus/hooks/use-menus.hooks.js"
+    },
+    "./screens/menus/Menus": {
+      "types": "./dist/screens/menus/Menus.d.ts",
+      "import": "./dist/screens/menus/Menus.js",
+      "default": "./dist/screens/menus/Menus.js"
+    },
+    "./screens/collections/collections-host-kit": {
+      "types": "./dist/screens/collections/collections-host-kit.d.ts",
+      "import": "./dist/screens/collections/collections-host-kit.js",
+      "default": "./dist/screens/collections/collections-host-kit.js"
+    },
+    "./screens/collections/rules": {
+      "types": "./dist/screens/collections/rules.d.ts",
+      "import": "./dist/screens/collections/rules.js",
+      "default": "./dist/screens/collections/rules.js"
+    },
     "./screens/menus/hooks/menus-dependencies.hooks": {
       "types": "./dist/screens/menus/hooks/menus-dependencies.hooks.d.ts",
       "import": "./dist/screens/menus/hooks/menus-dependencies.hooks.js",
@@ -1449,6 +1485,21 @@
       "screens/taxonomy/rules": [
         "./dist/screens/taxonomy/rules.d.ts"
       ],
+      "screens/menus/menus-host-kit": [
+        "./dist/screens/menus/menus-host-kit.d.ts"
+      ],
+      "screens/menus/hooks/use-menus.hooks": [
+        "./dist/screens/menus/hooks/use-menus.hooks.d.ts"
+      ],
+      "screens/menus/Menus": [
+        "./dist/screens/menus/Menus.d.ts"
+      ],
+      "screens/collections/collections-host-kit": [
+        "./dist/screens/collections/collections-host-kit.d.ts"
+      ],
+      "screens/collections/rules": [
+        "./dist/screens/collections/rules.d.ts"
+      ],
       "screens/menus/hooks/menus-dependencies.hooks": [
         "./dist/screens/menus/hooks/menus-dependencies.hooks.d.ts"
       ],
@@ -1469,6 +1520,9 @@
       ],
       "screens/taxonomy/taxonomy-host-kit": [
         "./dist/screens/taxonomy/taxonomy-host-kit.d.ts"
+      ],
+      "screens/taxonomy/TermPicker": [
+        "./dist/screens/taxonomy/TermPicker.d.ts"
       ],
       "screens/comments": [
         "./dist/screens/comments/index.d.ts"
