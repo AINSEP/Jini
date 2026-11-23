@@ -38,6 +38,7 @@ import type { AuthorizeFn } from "@jini-ai/core/contracts/events";
 import { buildDomainRegistrations, indexCatalogById, requireInputRecord, requireString, withSchemaOnRejection, type AgentToolSideEffect, type DerivedRiskByToolId, type ToolHandler, type ToolRegistration } from "@jini-ai/core";
 import { adaptLegacyAuthorize, requireToolPermission } from "../core/tools/index.js";
 import { mediaAgentToolCatalog } from "./agent-tools.js";
+import { buildConvertVideoRegistrations, type VideoConversionToolOptions } from "./convert-video-tool.js";
 import { MediaValidationError, rollbackUploadedMedia, trashMedia, updateMediaMetadata, uploadMedia } from "./media-service.js";
 import type { AssetBlobRepoPort, AssetRenditionRepoPort, BlobStorePort, MediaRepoPort } from "./ports.js";
 import { MediaNotFoundError, type MediaRecord } from "./types.js";
@@ -114,6 +115,8 @@ export interface MediaToolDeps {
    * contract {@link resolvePublicUrls} and {@link recordUploadContentType} already established.
    */
   maxUploadBytes?: number | undefined;
+  /** Optional video transcoder; when present, `media_convert_video` is registered (see convert-video-tool.ts). */
+  videoConversion?: VideoConversionToolOptions | undefined;
 }
 
 /**
@@ -363,7 +366,7 @@ function mediaTrashHandlers(routeDeps: MediaToolDeps): Record<string, ToolHandle
   };
 }
 
-export function buildMediaRegistrations(required: Omit<MediaToolDeps, "resolvePublicUrls" | "recordUploadContentType" | "maxUploadBytes" | "listContentTypes">, optional: Pick<MediaToolDeps, "resolvePublicUrls" | "recordUploadContentType" | "maxUploadBytes" | "listContentTypes"> = {}): ToolRegistration[] {
+export function buildMediaRegistrations(required: Omit<MediaToolDeps, "resolvePublicUrls" | "recordUploadContentType" | "maxUploadBytes" | "listContentTypes" | "videoConversion">, optional: Pick<MediaToolDeps, "resolvePublicUrls" | "recordUploadContentType" | "maxUploadBytes" | "listContentTypes" | "videoConversion"> = {}): ToolRegistration[] {
   const routeDeps: MediaToolDeps = {
     authorize: required.authorize,
     workspaceId: required.workspaceId,
@@ -386,11 +389,14 @@ export function buildMediaRegistrations(required: Omit<MediaToolDeps, "resolvePu
   };
 
   // No `unwiredToolIds`: Media wires its ENTIRE catalog, same tripwire discipline as Forms.
-  return buildDomainRegistrations({
+  const registrations = buildDomainRegistrations({
     domain: "media",
     catalogModule: "media/agent-tools.ts",
     catalog: CATALOG_BY_ID,
     handlers,
     derivedRisk: mediaDerivedRisk,
   });
+  // A host without a transcoder never exposes a conversion tool the assistant could not run.
+  const { videoConversion } = routeDeps;
+  return videoConversion ? [...registrations, ...buildConvertVideoRegistrations({ ...routeDeps, ...videoConversion })] : registrations;
 }
