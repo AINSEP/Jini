@@ -8,6 +8,14 @@ import type { FilesystemPort, PackageInstallerPort, ProcessRunnerPort } from './
 export { createHardwiringInspector, diffHardwiringDebt, HARDWIRING_RULES } from './hardwiring.js';
 export { sourceFiles, createResolver, displayGraphFile, installedPublicFunctions, runHardwiring } from './hardwiring-node.js';
 export type { HardwiringSource, HardwiringViolation } from './hardwiring.js';
+// Post-build mount smoke: the host injects its DOM library, so this entry stays DOM-library free.
+export {
+  BundleCheckError, checkBundleMounts, fail, isEntryPoint, isNavigationError, runBundleCheckCli, runBundleScenario,
+} from './bundle-mount-smoke.js';
+export type {
+  BundleCheckCliPorts, BundleScenario, BundleScenarioOptions, BundleSmokeDom, BundleSmokeElement, BundleSmokeErrorEvent,
+  BundleSmokeMediaQueryList, BundleSmokePage, BundleSmokeWindow, CreateBundleDom,
+} from './bundle-mount-smoke.js';
 
 /** Explicit Node filesystem adapter. Temporary parents must already exist. */
 export function createNodeFilesystem(_args: Record<string, never>, _optional: Record<string, never> = {}): FilesystemPort {
