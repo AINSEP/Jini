@@ -620,10 +620,12 @@
  "./webhooks/sql": {
   "types": "./dist/webhooks/sql/index.d.ts",
   "symbols": {
+   "AssertVersionedWritePort": "type:d2484ce25d",
    "SqlWebhookDeliveryRepo": "class:d69f918e27",
-   "SqlWebhookSubscriptionRepo": "class:23e17b056e",
+   "SqlWebhookSubscriptionRepo": "class:e1857202a7",
    "WebhookDeliveriesTable": "interface:056ae2671e",
    "WebhookSqlRequired": "interface:663384b3cb",
+   "WebhookSubscriptionSqlRequired": "interface:96580e91b2",
    "WebhookSubscriptionsTable": "interface:d64aafc4e6",
    "WebhookTables": "interface:71173da156"
   }

@@ -1,5 +1,4 @@
 import type { Insertable, Kysely, Selectable } from "kysely";
-import { assertVersionedWrite } from "@jini-ai/core/optimistic-concurrency";
 import type { StorageKernel } from "@jini-ai/core/contracts/storage";
 
 import type { WebhookDeliveriesTable, WebhookSubscriptionsTable } from "./repo.rows.js";
@@ -51,6 +50,22 @@ import type {
 /** Host-owned table names. No schema or product table defaults live in the adapter. */
 export interface WebhookTables { webhookSubscriptions: string; webhookDeliveries: string }
 export interface WebhookSqlRequired { kernel: StorageKernel<Kysely<unknown>, unknown>; tables: WebhookTables }
+
+/**
+ * Finishes a conditional subscription save: changed rows mean done; none means re-read the live
+ * version and throw the host's conflict error. The host binds its optimistic-concurrency
+ * implementation (normally `@jini-ai/core/optimistic-concurrency`'s `assertVersionedWrite`).
+ */
+export type AssertVersionedWritePort = (required: {
+  changedRows: number | bigint;
+  recordKind: string;
+  recordId: string;
+  expectedVersion: number;
+  readCurrentVersion: () => Promise<number | null>;
+}) => Promise<void>;
+
+/** The subscription adapter's constructor object: the shared SQL deps plus its versioned-write collaborator. */
+export interface WebhookSubscriptionSqlRequired extends WebhookSqlRequired { assertVersionedWrite: AssertVersionedWritePort }
 
 function topicsToJson(topics: readonly WebhookTopic[]): string {
   return JSON.stringify(topics);
@@ -120,9 +135,11 @@ function topicMatches(subscribedTopics: readonly WebhookTopic[], topic: WebhookT
 export class SqlWebhookSubscriptionRepo implements WebhookSubscriptionRepoPort {
   protected readonly kernel: StorageKernel<Kysely<unknown>, unknown>;
   protected readonly tables: WebhookTables;
-  constructor({ kernel, tables }: WebhookSqlRequired, _optional: Record<string, never> = {}) {
+  private readonly assertVersionedWrite: AssertVersionedWritePort;
+  constructor({ kernel, tables, assertVersionedWrite }: WebhookSubscriptionSqlRequired, _optional: Record<string, never> = {}) {
     this.kernel = kernel;
     this.tables = tables;
+    this.assertVersionedWrite = assertVersionedWrite;
   }
 
   /** Host-owned table name needs an explicit column schema, as in the outbox adapter. */
@@ -143,7 +160,7 @@ export class SqlWebhookSubscriptionRepo implements WebhookSubscriptionRepoPort {
       const result = await this.kernel.run((db) => this.table(db).updateTable(this.tables.webhookSubscriptions).set(values)
         .where("workspace_id", "=", record.workspaceId).where("id", "=", record.id)
         .where("version", "=", expectedVersion).executeTakeFirst());
-      await assertVersionedWrite({ changedRows: result.numUpdatedRows, recordKind: "webhook subscription", recordId: record.id,
+      await this.assertVersionedWrite({ changedRows: result.numUpdatedRows, recordKind: "webhook subscription", recordId: record.id,
         expectedVersion, readCurrentVersion: async () => (await this.findById({ workspaceId: record.workspaceId, id: record.id }))?.version ?? null });
       return;
     }

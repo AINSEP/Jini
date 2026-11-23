@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { afterAll, describe, test } from "vitest";
-import { RecordVersionConflictError } from "@jini-ai/core/optimistic-concurrency";
+import { assertVersionedWrite, RecordVersionConflictError } from "@jini-ai/core/optimistic-concurrency";
 import type { KyselyKernel } from "@jini-ai/db/kernel";
 import type { WebhookDeliveryRecord, WebhookEventEnvelope, WebhookSubscriptionRecord } from "../../types.js";
 import { SqlWebhookDeliveryRepo, SqlWebhookSubscriptionRepo } from "../webhook-repo.js";
@@ -29,7 +29,7 @@ describe.each(["sqlite", "postgres"] as const)("webhook sql adapters [%s]", (dia
     const kernel = await openWebhookKernel({ dialect });
     opened.push(kernel);
     return {
-      subscriptions: new SqlWebhookSubscriptionRepo({ kernel, tables: TABLES }, {}),
+      subscriptions: new SqlWebhookSubscriptionRepo({ kernel, tables: TABLES, assertVersionedWrite }, {}),
       deliveries: new SqlWebhookDeliveryRepo({ kernel, tables: TABLES }, {}),
     };
   }
@@ -43,6 +43,24 @@ describe.each(["sqlite", "postgres"] as const)("webhook sql adapters [%s]", (dia
     const saved = await subscriptions.findById({ workspaceId: "ws", id: "sub" });
     assert.equal(saved?.label, "First");
     assert.equal(saved?.version, 2);
+  });
+
+  test("the conditional save finishes through the injected versioned-write collaborator", async () => {
+    const kernel = await openWebhookKernel({ dialect });
+    opened.push(kernel);
+    const calls: { changedRows: number | bigint; recordKind: string; recordId: string; expectedVersion: number }[] = [];
+    const subscriptions = new SqlWebhookSubscriptionRepo({ kernel, tables: TABLES, assertVersionedWrite: async (required) => {
+      const { readCurrentVersion: _read, ...facts } = required;
+      calls.push(facts);
+      if (Number(required.changedRows) === 0) throw new Error(`injected refusal at ${String(await required.readCurrentVersion())}`);
+    } }, {});
+    await subscriptions.save(subscription);
+    await subscriptions.save({ ...subscription, label: "First", version: 2 }, { expectedVersion: 1 });
+    await assert.rejects(subscriptions.save({ ...subscription, label: "Second", version: 3 }, { expectedVersion: 1 }), /injected refusal at 2/);
+    assert.deepEqual(calls.map(({ changedRows, ...rest }) => ({ ...rest, changedRows: Number(changedRows) })), [
+      { recordKind: "webhook subscription", recordId: "sub", expectedVersion: 1, changedRows: 1 },
+      { recordKind: "webhook subscription", recordId: "sub", expectedVersion: 1, changedRows: 0 },
+    ]);
   });
 
   test("a conditional save cannot create a missing subscription", async () => {
