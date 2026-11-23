@@ -154,6 +154,47 @@
    "usersKitNeeds": "variable:8f44899bcc"
   }
  },
+ "./identity/boot-session-token": {
+  "types": "./dist/identity/boot-session-token.d.ts",
+  "symbols": {
+   "BootSessionTokenStore": "interface:85619a3a8b",
+   "createBootSessionTokenStore": "function:09abbdf5e7",
+   "isBootSessionTokenArmed": "function:20fad0369c",
+   "mintBootSessionToken": "function:c5c3705ca4",
+   "redeemBootSessionToken": "function:78343bda8a"
+  }
+ },
+ "./identity/builtin-role-grants": {
+  "types": "./dist/identity/builtin-role-grants.d.ts",
+  "symbols": {
+   "ApplyBuiltinRoleGrantsDeps": "interface:c4979e34cc",
+   "ApplyBuiltinRoleGrantsResult": "interface:80a01aa42a",
+   "BuiltinRoleGrant": "interface:dee5dfd104",
+   "BuiltinRoleGrantRegistry": "interface:799a563efa",
+   "applyBuiltinRoleGrants": "function:92123ea2c4",
+   "createBuiltinRoleGrantRegistry": "function:353e6f42f7"
+  }
+ },
+ "./identity/permission-grants": {
+  "types": "./dist/identity/permission-grants.d.ts",
+  "symbols": {
+   "PermissionGrantRegistry": "interface:8ca9edf659",
+   "createPermissionGrantRegistry": "function:ad1b3e1f21"
+  }
+ },
+ "./identity/role-manage-permission": {
+  "types": "./dist/identity/role-manage-permission.d.ts",
+  "symbols": {
+   "ROLE_MANAGE_PERMISSION": "variable:22db1ce7a1",
+   "registerRoleManagePermissionGrants": "function:234f216e42"
+  }
+ },
+ "./identity/user-manage-permission": {
+  "types": "./dist/identity/user-manage-permission.d.ts",
+  "symbols": {
+   "registerUserManagePermissionGrants": "function:3a7e2cc229"
+  }
+ },
  "./react": {
   "types": "./dist/react/index.d.ts",
   "symbols": {
