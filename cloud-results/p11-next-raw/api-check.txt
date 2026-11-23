@@ -1,0 +1,21 @@
+ WARN  Unsupported engine: wanted: {"node":"~24"} (current: {"node":"v22.23.5","pnpm":"10.33.2"})
+
+> jini@ api:check /home/user/Jini
+> node --import tsx ./scripts/check-api-surface.ts
+
+[api] @jini-ai/core
+  added export    ./contracts/storage#SqliteCompactionFs
+  added export    ./contracts/storage#SqliteCompactionHoldReason
+  added export    ./contracts/storage#SqliteCompactionMarker
+  added export    ./contracts/storage#SqliteCompactionMarkerStore
+  added export    ./contracts/storage#SqliteConversionOutcome
+  added export    ./contracts/storage#SqliteFileSizes
+  added export    ./contracts/storage#SqliteVacuumStepOutcome
+[api] @jini-ai/db
+  added export    ./sqlite#COMPACTION_MESSAGES
+  added export    ./sqlite#compactionRecoveryCopyPath
+  added export    ./sqlite#convertToIncrementalVacuum
+  added export    ./sqlite#incrementalVacuumStep
+  added export    ./sqlite#nodeCompactionFs
+[api] checked 40 packages, 695 entries, 17257 symbols
+api exit 0

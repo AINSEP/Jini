@@ -1,0 +1,26 @@
+## M2 drop the exclusive busy admission gate
+   ✓ convertToIncrementalVacuum > marker only after auto_vacuum reads 2 62ms
+   ✓ convertToIncrementalVacuum > a failed check after the rewrite records needs-attention and never converted 31ms
+   × convertToIncrementalVacuum > pinned WAL reader → deferred, file intact 24ms
+   × convertToIncrementalVacuum > competing writer → busy deferral 24ms
+   ✓ convertToIncrementalVacuum > low disk → deferred with plain message 22ms
+   ✓ convertToIncrementalVacuum > budgets the copy and the rewrite on each filesystem they use 36ms
+   ✓ convertToIncrementalVacuum > refused while the running lease is not held, before the file is opened 16ms
+   ✓ convertToIncrementalVacuum > interrupt after the copy, then restart completes with the same recovery copy 37ms
+   ✓ convertToIncrementalVacuum > interrupt after the rewrite, then restart verifies and records completion 37ms
+   ✓ convertToIncrementalVacuum > an already converted file for the same identity is left alone 32ms
+   ✓ convertToIncrementalVacuum > names the recovery copy apart from pre-migration copies and from the other database 14ms
+   ✓ convertToIncrementalVacuum > refuses a recovery copy path that is the database itself or already exists 14ms
+   ✓ incrementalVacuumStep > unconverted file is skipped 14ms
+   ✓ incrementalVacuumStep > a file replaced after conversion does not inherit the marker 33ms
+   ✓ incrementalVacuumStep > report has main and WAL sizes and reclaims at most maxPages 34ms
+   ✓ incrementalVacuumStep > busy defers and restores the connection busy timeout 37ms
+   ✓ incrementalVacuumStep > nothing to reclaim below both thresholds 37ms
+   ✓ incrementalVacuumStep > refuses to run inside a transaction 33ms
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 2 ⎯⎯⎯⎯⎯⎯⎯
+ FAIL  src/__tests__/sqlite/compaction.test.ts > convertToIncrementalVacuum > pinned WAL reader → deferred, file intact
+ FAIL  src/__tests__/sqlite/compaction.test.ts > convertToIncrementalVacuum > pinned WAL reader → deferred, file intact
+ FAIL  src/__tests__/sqlite/compaction.test.ts > convertToIncrementalVacuum > competing writer → busy deferral
+      Tests  2 failed | 16 passed (18)
+## restored
+      Tests  18 passed (18)

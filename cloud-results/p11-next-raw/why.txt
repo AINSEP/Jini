@@ -1,0 +1,3 @@
+why-comments: 3 files with removed lines checked against origin/integ/merge-14-2026-11-22..HEAD, 0 comment blocks lost (0 allow-listed)
+why-comments: ok
+why exit 0

@@ -1,0 +1,26 @@
+## M1 write the marker before verification
+ packages/db/src/sqlite/compaction.ts | 1 +
+ 1 file changed, 1 insertion(+)
+   × convertToIncrementalVacuum > marker only after auto_vacuum reads 2 66ms
+   × convertToIncrementalVacuum > a failed check after the rewrite records needs-attention and never converted 30ms
+   ✓ convertToIncrementalVacuum > pinned WAL reader → deferred, file intact 20ms
+   ✓ convertToIncrementalVacuum > competing writer → busy deferral 16ms
+   ✓ convertToIncrementalVacuum > low disk → deferred with plain message 17ms
+   ✓ convertToIncrementalVacuum > budgets the copy and the rewrite on each filesystem they use 34ms
+   ✓ convertToIncrementalVacuum > refused while the running lease is not held, before the file is opened 15ms
+   ✓ convertToIncrementalVacuum > interrupt after the copy, then restart completes with the same recovery copy 38ms
+   × convertToIncrementalVacuum > interrupt after the rewrite, then restart verifies and records completion 26ms
+   ✓ convertToIncrementalVacuum > an already converted file for the same identity is left alone 35ms
+   ✓ convertToIncrementalVacuum > names the recovery copy apart from pre-migration copies and from the other database 17ms
+   ✓ convertToIncrementalVacuum > refuses a recovery copy path that is the database itself or already exists 16ms
+   ✓ incrementalVacuumStep > unconverted file is skipped 14ms
+   ✓ incrementalVacuumStep > a file replaced after conversion does not inherit the marker 35ms
+   ✓ incrementalVacuumStep > report has main and WAL sizes and reclaims at most maxPages 30ms
+   ✓ incrementalVacuumStep > busy defers and restores the connection busy timeout 34ms
+   ✓ incrementalVacuumStep > nothing to reclaim below both thresholds 30ms
+   ✓ incrementalVacuumStep > refuses to run inside a transaction 34ms
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 3 ⎯⎯⎯⎯⎯⎯⎯
+ FAIL  src/__tests__/sqlite/compaction.test.ts > convertToIncrementalVacuum > marker only after auto_vacuum reads 2
+ FAIL  src/__tests__/sqlite/compaction.test.ts > convertToIncrementalVacuum > a failed check after the rewrite records needs-attention and never converted
+ FAIL  src/__tests__/sqlite/compaction.test.ts > convertToIncrementalVacuum > interrupt after the rewrite, then restart verifies and records completion
+      Tests  3 failed | 15 passed (18)

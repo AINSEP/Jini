@@ -36,7 +36,10 @@ export const COMPACTION_MESSAGES = {
 
 /** Node's filesystem behind the compaction port. `freeBytes` counts blocks available to this user. */
 export const nodeCompactionFs: SqliteCompactionFs = {
-  size: async (file) => fs.stat(file).then((s) => s.size, (error: NodeJS.ErrnoException) => { if (error.code === 'ENOENT') return 0; throw error; }),
+  size: async (file) => fs.stat(file).then((s) => s.size, (error: NodeJS.ErrnoException) => {
+    if (error.code === 'ENOENT') return 0;
+    throw error;
+  }),
   exists: async (file) => fs.lstat(file).then(() => true, () => false),
   freeBytes: async (directory) => fs.statfs(directory).then((s) => s.bavail * s.bsize),
   deviceOf: async (directory) => String((await fs.stat(directory)).dev),
@@ -180,34 +183,55 @@ type StepOptional = { maxPages?: number; minFreeRatio?: number; minFreeBytes?: n
  * @complexity O(maxPages) page moves; two metadata reads before and after.
  */
 export async function incrementalVacuumStep(required: StepRequired, _optional: StepOptional = {}): Promise<SqliteVacuumStepOutcome> {
-  const { maxPages = 2048, minFreeRatio = 0.2, minFreeBytes = 8 * MB, busyTimeoutMs = 250, fs: io = nodeCompactionFs, now = () => Date.now() } = _optional;
-  const { db, filePath, marker } = required;
+  const options = stepOptions(_optional);
+  const { db, filePath } = required;
   if (db.inTransaction) throw new Error('incrementalVacuumStep must run outside a transaction.');
-  const recorded = await marker.read();
-  const converted = recorded?.state === 'converted' && recorded.identity === await io.identity(filePath);
-  if (!converted || db.pragma('auto_vacuum', { simple: true }) !== AUTO_VACUUM_INCREMENTAL) {
+  if (!(await isConverted({ ...required, io: options.io }))) {
     return { status: 'skipped', reason: 'not-converted', message: COMPACTION_MESSAGES.notConverted };
   }
-  const before = await measure({ db, filePath, io });
-  const pageCount = Number(db.pragma('page_count', { simple: true }));
-  const freeBytes = before.freePages * before.pageSize;
-  if (before.freePages === 0 || (freeBytes < minFreeBytes && before.freePages / pageCount < minFreeRatio)) {
+  const before = await measure({ db, filePath, io: options.io });
+  if (!worthReclaiming({ db, before, ...options })) {
     return { status: 'skipped', reason: 'nothing-to-reclaim', message: COMPACTION_MESSAGES.nothingToReclaim, before };
   }
-  const started = now();
+  const started = options.now();
+  if (!runBounded({ db, maxPages: options.maxPages, busyTimeoutMs: options.busyTimeoutMs })) {
+    return { status: 'skipped', reason: 'busy', message: COMPACTION_MESSAGES.busy, before };
+  }
+  const after = await measure({ db, filePath, io: options.io });
+  return {
+    status: 'reclaimed', before, after, elapsedMs: options.now() - started,
+    message: `Reclaimed ${before.freePages - after.freePages} free pages. The file shrinks on disk at the next checkpoint; a long-running reader can delay that.`,
+  };
+}
+
+function stepOptions({ maxPages = 2048, minFreeRatio = 0.2, minFreeBytes = 8 * MB, busyTimeoutMs = 250, fs: io = nodeCompactionFs, now = () => Date.now() }: StepOptional) {
+  return { maxPages, minFreeRatio, minFreeBytes, busyTimeoutMs, io, now };
+}
+
+/** Both proofs: the marker names this exact file, and SQLite itself reports incremental mode. */
+async function isConverted({ db, filePath, marker, io }: StepRequired & { io: SqliteCompactionFs }): Promise<boolean> {
+  const recorded = await marker.read();
+  if (recorded?.state !== 'converted' || recorded.identity !== await io.identity(filePath)) return false;
+  return db.pragma('auto_vacuum', { simple: true }) === AUTO_VACUUM_INCREMENTAL;
+}
+
+function worthReclaiming({ db, before, minFreeBytes, minFreeRatio }: { db: SqliteDb; before: SqliteFileSizes; minFreeBytes: number; minFreeRatio: number }): boolean {
+  if (before.freePages === 0) return false;
+  const pageCount = Number(db.pragma('page_count', { simple: true }));
+  return before.freePages * before.pageSize >= minFreeBytes || before.freePages / pageCount >= minFreeRatio;
+}
+
+/** @returns false when SQLite reported busy/locked; the handle's own busy timeout is always restored. */
+function runBounded({ db, maxPages, busyTimeoutMs }: { db: SqliteDb; maxPages: number; busyTimeoutMs: number }): boolean {
   const previousTimeout = db.pragma('busy_timeout', { simple: true });
   db.pragma(`busy_timeout = ${Math.max(0, Math.floor(busyTimeoutMs))}`);
   try {
     db.pragma(`incremental_vacuum(${Math.max(1, Math.floor(maxPages))})`);
+    return true;
   } catch (error) {
     if (!isBusy(error)) throw error;
-    return { status: 'skipped', reason: 'busy', message: COMPACTION_MESSAGES.busy, before };
+    return false;
   } finally {
     db.pragma(`busy_timeout = ${Number(previousTimeout)}`);
   }
-  const after = await measure({ db, filePath, io });
-  return {
-    status: 'reclaimed', before, after, elapsedMs: now() - started,
-    message: `Reclaimed ${before.freePages - after.freePages} free pages. The file shrinks on disk at the next checkpoint; a long-running reader can delay that.`,
-  };
 }

@@ -109,6 +109,23 @@ application name, owner lock filename, run directory name, driver modules and wa
 - `pgliteOps({ kernel, PGlite, ledgerTable, ownerLockFileName }, { pgliteOwner })` and
   `postgresOps({ kernel, ledgerTable })`: compaction verifies the host's ledger.
 
+### Wiring: SQLite compaction (`./sqlite` `compaction.ts`)
+
+Two separate operations; neither is a migration (the runner wraps steps in a transaction).
+
+- `convertToIncrementalVacuum({ filePath, open, marker, holdsRunningLease }, { recoveryCopyPath?, reserveBytes?, fs?, now? })`
+  converts a **stopped** file once. The host passes its own opener, its running-lease probe and a
+  per-file `SqliteCompactionMarkerStore` (types in `@jini-ai/core/contracts/storage`). Admission is
+  SQLite's exclusive lock, taken before any byte changes: any other open connection defers with
+  `reason: "busy"`. Then a per-filesystem disk budget, a checked and durably published
+  `pre-compact-<db>-<ms>.db` copy (outside the `pre-migrations-*` rotation; the host owns its
+  retention), the rewrite, the check, and the `converted` marker with the file's identity. A failed
+  check records `needs-attention` and is never retried automatically.
+- `incrementalVacuumStep({ db, filePath, marker }, { maxPages?, minFreeRatio?, minFreeBytes?, busyTimeoutMs? })`
+  runs on the host's coordinated handle, outside a transaction, only for a file converted under its
+  current identity. Busy or locked defers; the handle's busy timeout is restored.
+- Every outcome carries plain owner words (`COMPACTION_MESSAGES`); driver errors never reach them.
+
 `DbOpsPort` is the restore-point contract with an injected watermark reader. `StorageOps` is the
 kernel copy/compaction contract. They remain distinct because their operations and inputs differ.
 
