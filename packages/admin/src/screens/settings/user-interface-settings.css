@@ -1,4 +1,4 @@
-/* Settings → User Interface (the host's `UserInterfaceSettingsPanel.tsx`, which imports this file): a label
+/* Settings → User Interface (`UserInterfaceSettingsPanel.tsx`; the host imports this file): a label
    and hint on the left, the switch on the right, the hint wrapping under the label at any width. Values are read as `--jini-admin-*` (the host maps them to
    its theme names), falling back to the shared `--jini-*` tokens. */
 .jini-settings-interface-row {

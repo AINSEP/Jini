@@ -25,6 +25,12 @@ which imports these by subpath.
   (title/body for the confirm dialog); the returned `copy` is exactly what it built.
 - `useExternalMcpToolsModalEscape({ onClose })` and `useExternalMcpRemoveConfirm` trap Tab through the
   kit's `useFocusTrap`, so both need the host's `<AdminKitProvider>` above them.
+- `UserInterfaceSettingsPanel<TSlice>({ slice, locale, useUserInterfaceTabHook })` — required
+  `useUserInterfaceTabHook: UseUserInterfaceSettingsTab<TSlice>`: the host's tab hook maps its own
+  settings slice (opaque here, passed straight through) onto `UserInterfaceSettingsPanelTab`
+  (`hideChatFabWhileOpen`/`wrapTabs` + their toggles). The switch renders
+  `jini-settings-interface-switch` / `-switch-knob` only; the host paints them (it appends those
+  selectors to its own switch rules) and imports `user-interface-settings.css` for the rows.
 - `useSettingsActiveTabScroll({ ready, tabId }, { isPhone })` — no injection; `isPhone` defaults to a
   `(max-width: 640px)` media query.
 - `useSettingsLocaleSync({ locale }, { activeLocale, setLocale })` — the UI library's locale pair;
@@ -62,7 +68,7 @@ back to `ADMIN_COMMON_I18N`; `createUserInterfaceSettingsPanelTranslator`; `useS
 `external-mcp-i18n.ts` (`t`; 21 locales split across `.locales-a/-b/-c` for the size limit);
 `useExternalMcpOAuthConnect`;
 `settings-execution-i18n.ts` (`t`, `aiAgentPanelDictionaries`); `createSettingsUiTranslators`,
-`createSettingsTabChange`; `ExternalMcpRemoveConfirmDialog`;
+`createSettingsTabChange`; `ExternalMcpRemoveConfirmDialog`; `UserInterfaceSettingsPanel`;
 `user-interface-settings.css` (`jini-settings-interface-row/-text/-label/-hint`, styled from
 `--jini-admin-space-3/-4`, `--jini-admin-fg`, `--jini-admin-muted`, `--jini-admin-text-sm`, each falling back to the
 shared `--jini-*` token; a host with its own theme names maps them on the rows).

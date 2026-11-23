@@ -201,6 +201,7 @@
       "./screens/settings/settings-interface-i18n": "universal",
       "./screens/settings/settings-memory-i18n": "universal",
       "./screens/settings/UserInterfaceSettingsPanel.hooks": "universal",
+      "./screens/settings/UserInterfaceSettingsPanel": "browser",
       "./screens/settings/hooks/use-settings-locale-sync.hooks": "browser",
       "./screens/settings/ExternalMcpSharedChoice": "browser",
       "./screens/settings/ExternalMcpSharedChoice.hooks": "browser",
@@ -1240,6 +1241,11 @@
       "types": "./dist/screens/settings/settings-memory-i18n.d.ts",
       "import": "./dist/screens/settings/settings-memory-i18n.js",
       "default": "./dist/screens/settings/settings-memory-i18n.js"
+    },
+    "./screens/settings/UserInterfaceSettingsPanel": {
+      "types": "./dist/screens/settings/UserInterfaceSettingsPanel.d.ts",
+      "import": "./dist/screens/settings/UserInterfaceSettingsPanel.js",
+      "default": "./dist/screens/settings/UserInterfaceSettingsPanel.js"
     },
     "./screens/settings/UserInterfaceSettingsPanel.hooks": {
       "types": "./dist/screens/settings/UserInterfaceSettingsPanel.hooks.d.ts",
