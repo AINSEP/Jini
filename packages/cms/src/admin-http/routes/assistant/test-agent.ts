@@ -36,6 +36,21 @@ function detectedTestAgentOutcome(
  * POST a per-agent check: is the named local CLI installed, authenticated, and does it still offer
  * the operator's chosen model? Authorization runs before the `agentId` check (400 `BAD_REQUEST`).
  * Answers `{ ok, message }` — a failed check is a 200 with `ok: false`, not an HTTP error.
+ *
+ * Implemented as a fresh `detectAgents()` run scoped to the requested id rather than a new probing
+ * mechanism. That run already spawns each CLI's `--version` and its declared auth probe, which is
+ * exactly the question the button asks: is this CLI present, and is it signed in *right now*?
+ * Reusing it adds no new subprocess surface beyond what detection already exposes on this same
+ * permission.
+ *
+ * What this deliberately does NOT do is dispatch a real prompt through the agent: a settings
+ * screen that silently bills the operator for a model call is a different and more expensive
+ * promise than "check this is set up". The response says which check ran so the result cannot be
+ * over-read.
+ *
+ * Outcome split: **200 `{ok:false}`** — the probe RAN and the CLI is not usable (missing, or
+ * needing authentication); that verdict is the answer, so it is a value. **5xx** — the probe
+ * itself could not run, so there is no verdict to report.
  */
 export const testAgentRoute = defineJsonRoute<TestAgentInput, TestAgentOutcome, TestAgentRouteDeps, AssistantRoutePrincipal>({
   method: "post",

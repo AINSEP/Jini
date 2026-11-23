@@ -59,6 +59,8 @@ export function credentialRefusal(
 }
 
 /** A body field that is present but not a string is a 400 with `code`; `undefined` means "leave alone".
+ * Present-but-wrong-type is a REJECTION (a stray `{apiKey: 12345}`), never silently reinterpreted
+ * as "the caller sent nothing", which would leave a bad request looking like a no-op success.
  * @throws {RouteRefusalError} for the first present non-string field.
  * @complexity O(fields).
  */

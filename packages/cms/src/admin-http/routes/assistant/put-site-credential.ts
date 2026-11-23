@@ -22,8 +22,14 @@ const VALIDATION_CODE = "SITE_CREDENTIAL_VALIDATION_ERROR";
 
 /**
  * PUT (partial) the workspace's SITE assistant credential. Body `{ apiKey?, provider?, baseUrl?,
- * model? }`; the response never echoes the key. 400 `SITE_CREDENTIAL_VALIDATION_ERROR`, 503
- * `SECRET_STORE_UNCONFIGURED`, 500 everything else. Authorization runs before body validation.
+ * model? }` — an omitted `apiKey` leaves the stored key untouched; an empty string is rejected
+ * (DELETE clears the key). The response NEVER echoes the key, only the same view GET returns.
+ * 400 `SITE_CREDENTIAL_VALIDATION_ERROR`, 503 `SECRET_STORE_UNCONFIGURED`, 500 everything else.
+ * Authorization runs before body validation.
+ *
+ * Three outcomes, not two: the 503 sits on top of the usual 400-validation/500-other split — a
+ * missing site key is a distinct, actionable operator error, not a generic 500, and not a
+ * validation problem with the request body.
  */
 export const putSiteCredentialRoute = defineJsonRoute<Record<string, unknown>, { data: unknown }, PutSiteCredentialRouteDeps, AssistantRoutePrincipal>({
   method: "put",

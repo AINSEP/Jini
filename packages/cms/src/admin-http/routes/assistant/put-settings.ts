@@ -16,9 +16,12 @@ export interface PutAssistantSettingsRouteDeps extends AssistantPermissionDeps {
 }
 
 /**
- * PUT (partial) the workspace's public-assistant settings. The body is the patch; a host that
- * mounts no JSON body parser hands `undefined`, which is the empty patch. 400
- * `ASSISTANT_SETTINGS_VALIDATION_ERROR` for a rejected value, 500 everything else.
+ * PUT (partial) the workspace's public-assistant settings — the route the admin's AI Assistant
+ * screen flips the public switch through. The body is the patch; a host that mounts no JSON body
+ * parser hands `undefined`, which is the empty patch. Same auth gate as the matching GET, same
+ * `{ data }` envelope, 400 `ASSISTANT_SETTINGS_VALIDATION_ERROR` for a rejected value, 500
+ * everything else, and the settings are returned AS THEY NOW READ so the client renders the
+ * persisted truth rather than the value it optimistically sent.
  */
 export const putAssistantSettingsRoute = defineJsonRoute<unknown, { data: unknown }, PutAssistantSettingsRouteDeps, AssistantRoutePrincipal>({
   method: "put",
