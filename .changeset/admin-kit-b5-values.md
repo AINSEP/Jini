@@ -1,0 +1,5 @@
+---
+"@jini-ai/admin": minor
+---
+
+The admin kit grows the names the admin shell and screens still imported from the UI and chat libraries: component slots `RemixIcon`, `Toast`, `I18nProvider`, `SettingsDialogShell`, `CodeWithLines`, `CodeWrapToggle`, `PreviewModalShell`; hook facades `useTabBarKeyboard`, `useSerialWrites`, `useCodeWrap`, `useInfoTip`, `usePanelPosition`, `useSelectDropdown`; `values` entries `buildSandboxProxyDataUrl`, `openLightboxDialog`, `closeLightboxDialog`, `resolveTabBarTabIndex`, `hasPermission`, `standingDraftRecoveryMessage`, `createStandingDraftLocalBackup`, `createFailureChannel`; and in `chat`, `useFabPosition`, `resolveChatPaneSelection`, `SECRET_REDACTED_NOTICE` and `CREDENTIAL_CARD_GUIDANCE` (read with `useAdminKitChatValues`). The chat and UI types those carry (`ChatMessage`, `ChatTransport`, `RunHandlers`, `ChatPaneAgent*`, `SettingsDialogTab`, `StandingDraftAutosave*`, `FailureChannel`, …) are restated structurally. Hosts extend their `satisfies AdminKit` assignment; `fakeAdminKit()` supplies stand-ins.
