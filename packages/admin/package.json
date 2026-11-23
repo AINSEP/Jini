@@ -81,7 +81,69 @@
       "./widgets/adapters/memory": "universal",
       "./widgets/conformance": "universal",
       "./posts/PostAuthorFields": "browser",
-      "./posts/PostPublishingFields": "browser"
+      "./posts/PostPublishingFields": "browser",
+      "./shell/components/AssistantDock/agent-failure-scanners": "browser",
+      "./shell/components/AssistantDock/hooks/use-composer-send-stop-guard.hooks": "browser",
+      "./shell/components/AssistantDock/hooks/useOverflowDetection.hooks": "browser",
+      "./shell/components/DevicePreview/DevicePreview.hooks": "browser",
+      "./shell/components/InstallTabCard/use-zip-drop.hooks": "browser",
+      "./shell/components/TemplateSource/template-source-port.hooks": "browser",
+      "./shell/components/line-icon": "browser",
+      "./shell/lib/acceptance-cancellation": "browser",
+      "./shell/lib/addons-routes": "browser",
+      "./shell/lib/admin-boot-scope": "browser",
+      "./shell/lib/admin-draft-identity": "browser",
+      "./shell/lib/agent-screenshot-bus": "browser",
+      "./shell/lib/ascii-slug": "browser",
+      "./shell/lib/assistant-dock-bus": "browser",
+      "./shell/lib/content-refresh-bus": "browser",
+      "./shell/lib/editor-failure-i18n": "browser",
+      "./shell/lib/editor-template-options.rules": "browser",
+      "./shell/lib/escape-owned-by-inner-layer": "browser",
+      "./shell/lib/external-entry-refresh": "browser",
+      "./shell/lib/fetch-query/adapter-context": "browser",
+      "./shell/lib/merge-locale-overlays": "browser",
+      "./shell/lib/page-lifecycle": "browser",
+      "./shell/lib/plain-text-blocks": "browser",
+      "./shell/lib/playground-render-target-bus": "browser",
+      "./shell/lib/queued-daemon-start": "browser",
+      "./shell/lib/router": "browser",
+      "./shell/lib/server-failure": "browser",
+      "./shell/lib/settings-effective-reads": "browser",
+      "./shell/lib/slug-redirect-path": "browser",
+      "./shell/lib/translation-entry": "browser",
+      "./shell/lib/unchanged-save-warning": "browser",
+      "./shell/lib/unique-id": "browser",
+      "./shell/lib/viewer-time-zone": "browser",
+      "./shell/lib/widget-embed-placement-content": "browser",
+      "./shell/lib/admin-frontend-session": "browser",
+      "./shell/lib/agent-screen-context": "browser",
+      "./shell/lib/import-export-routes": "browser",
+      "./shell/lib/settings-refresh-bus": "browser",
+      "./shell/lib/shell-failure-log": "browser",
+      "./shell/hooks/admin-locale-port.hooks": "browser",
+      "./shell/hooks/use-admin-document-locale.hooks": "browser",
+      "./shell/hooks/use-cms-sidebar-label-tooltips.hooks": "browser",
+      "./shell/hooks/use-dock-auto-rail.hooks": "browser",
+      "./shell/hooks/use-drawer-active-item-centring.hooks": "browser",
+      "./shell/hooks/use-list-table-cell-labels.hooks": "browser",
+      "./shell/hooks/use-sidebar-empty-click-toggle.hooks": "browser",
+      "./shell/hooks/use-content-refresh-subscription.hooks": "browser",
+      "./shell/hooks/use-agent-screen-context.hooks": "browser",
+      "./shell/lib/stream-activity": "browser",
+      "./shell/lib/assistant-prompt-bus": "browser",
+      "./shell/lib/browser-stream": "browser",
+      "./shell/lib/credential-card-guidance": "browser",
+      "./shell/lib/admin-nav-i18n": "browser",
+      "./shell/components/AssistantDock/hooks/use-assistant-empty-state.hooks": "browser",
+      "./shell/components/AssistantDock/local-cli-selection-echo": "browser",
+      "./shell/components/AssistantDock/MessageOverflowModal.hooks": "browser",
+      "./shell/components/AssistantDock/SlowRunNoticeCard.hooks": "browser",
+      "./shell/components/CodeView/preview-modal-icons": "browser",
+      "./shell/components/InstallTabCard/use-folder-upload.hooks": "browser",
+      "./shell/components/Select/Select.hooks": "browser",
+      "./shell/lib/tab-event-source": "browser",
+      "./shell/hooks/use-external-entry-refresh.hooks": "browser"
     },
     "isolation": {
       "shared": [
@@ -97,6 +159,70 @@
           "react",
           "react-dom"
         ]
+      },
+      "entries": {
+        "./shell/components/AssistantDock/agent-failure-scanners": "browser",
+        "./shell/components/AssistantDock/hooks/use-composer-send-stop-guard.hooks": "browser",
+        "./shell/components/AssistantDock/hooks/useOverflowDetection.hooks": "browser",
+        "./shell/components/DevicePreview/DevicePreview.hooks": "browser",
+        "./shell/components/InstallTabCard/use-zip-drop.hooks": "browser",
+        "./shell/components/TemplateSource/template-source-port.hooks": "browser",
+        "./shell/components/line-icon": "browser",
+        "./shell/lib/acceptance-cancellation": "browser",
+        "./shell/lib/addons-routes": "browser",
+        "./shell/lib/admin-boot-scope": "browser",
+        "./shell/lib/admin-draft-identity": "browser",
+        "./shell/lib/agent-screenshot-bus": "browser",
+        "./shell/lib/ascii-slug": "browser",
+        "./shell/lib/assistant-dock-bus": "browser",
+        "./shell/lib/content-refresh-bus": "browser",
+        "./shell/lib/editor-failure-i18n": "browser",
+        "./shell/lib/editor-template-options.rules": "browser",
+        "./shell/lib/escape-owned-by-inner-layer": "browser",
+        "./shell/lib/external-entry-refresh": "browser",
+        "./shell/lib/fetch-query/adapter-context": "browser",
+        "./shell/lib/merge-locale-overlays": "browser",
+        "./shell/lib/page-lifecycle": "browser",
+        "./shell/lib/plain-text-blocks": "browser",
+        "./shell/lib/playground-render-target-bus": "browser",
+        "./shell/lib/queued-daemon-start": "browser",
+        "./shell/lib/router": "browser",
+        "./shell/lib/server-failure": "browser",
+        "./shell/lib/settings-effective-reads": "browser",
+        "./shell/lib/slug-redirect-path": "browser",
+        "./shell/lib/translation-entry": "browser",
+        "./shell/lib/unchanged-save-warning": "browser",
+        "./shell/lib/unique-id": "browser",
+        "./shell/lib/viewer-time-zone": "browser",
+        "./shell/lib/widget-embed-placement-content": "browser",
+        "./shell/lib/admin-frontend-session": "browser",
+        "./shell/lib/agent-screen-context": "browser",
+        "./shell/lib/import-export-routes": "browser",
+        "./shell/lib/settings-refresh-bus": "browser",
+        "./shell/lib/shell-failure-log": "browser",
+        "./shell/hooks/admin-locale-port.hooks": "browser",
+        "./shell/hooks/use-admin-document-locale.hooks": "browser",
+        "./shell/hooks/use-cms-sidebar-label-tooltips.hooks": "browser",
+        "./shell/hooks/use-dock-auto-rail.hooks": "browser",
+        "./shell/hooks/use-drawer-active-item-centring.hooks": "browser",
+        "./shell/hooks/use-list-table-cell-labels.hooks": "browser",
+        "./shell/hooks/use-sidebar-empty-click-toggle.hooks": "browser",
+        "./shell/hooks/use-content-refresh-subscription.hooks": "browser",
+        "./shell/hooks/use-agent-screen-context.hooks": "browser",
+        "./shell/lib/stream-activity": "browser",
+        "./shell/lib/assistant-prompt-bus": "browser",
+        "./shell/lib/browser-stream": "browser",
+        "./shell/lib/credential-card-guidance": "browser",
+        "./shell/lib/admin-nav-i18n": "browser",
+        "./shell/components/AssistantDock/hooks/use-assistant-empty-state.hooks": "browser",
+        "./shell/components/AssistantDock/local-cli-selection-echo": "browser",
+        "./shell/components/AssistantDock/MessageOverflowModal.hooks": "browser",
+        "./shell/components/AssistantDock/SlowRunNoticeCard.hooks": "browser",
+        "./shell/components/CodeView/preview-modal-icons": "browser",
+        "./shell/components/InstallTabCard/use-folder-upload.hooks": "browser",
+        "./shell/components/Select/Select.hooks": "browser",
+        "./shell/lib/tab-event-source": "browser",
+        "./shell/hooks/use-external-entry-refresh.hooks": "browser"
       }
     },
     "optionalPeers": {
@@ -443,6 +569,316 @@
       "types": "./dist/posts/PostPublishingFields.d.ts",
       "import": "./dist/posts/PostPublishingFields.js",
       "default": "./dist/posts/PostPublishingFields.js"
+    },
+    "./shell/components/AssistantDock/agent-failure-scanners": {
+      "types": "./dist/shell/components/AssistantDock/agent-failure-scanners.d.ts",
+      "import": "./dist/shell/components/AssistantDock/agent-failure-scanners.js",
+      "default": "./dist/shell/components/AssistantDock/agent-failure-scanners.js"
+    },
+    "./shell/components/AssistantDock/hooks/use-composer-send-stop-guard.hooks": {
+      "types": "./dist/shell/components/AssistantDock/hooks/use-composer-send-stop-guard.hooks.d.ts",
+      "import": "./dist/shell/components/AssistantDock/hooks/use-composer-send-stop-guard.hooks.js",
+      "default": "./dist/shell/components/AssistantDock/hooks/use-composer-send-stop-guard.hooks.js"
+    },
+    "./shell/components/AssistantDock/hooks/useOverflowDetection.hooks": {
+      "types": "./dist/shell/components/AssistantDock/hooks/useOverflowDetection.hooks.d.ts",
+      "import": "./dist/shell/components/AssistantDock/hooks/useOverflowDetection.hooks.js",
+      "default": "./dist/shell/components/AssistantDock/hooks/useOverflowDetection.hooks.js"
+    },
+    "./shell/components/DevicePreview/DevicePreview.hooks": {
+      "types": "./dist/shell/components/DevicePreview/DevicePreview.hooks.d.ts",
+      "import": "./dist/shell/components/DevicePreview/DevicePreview.hooks.js",
+      "default": "./dist/shell/components/DevicePreview/DevicePreview.hooks.js"
+    },
+    "./shell/components/InstallTabCard/use-zip-drop.hooks": {
+      "types": "./dist/shell/components/InstallTabCard/use-zip-drop.hooks.d.ts",
+      "import": "./dist/shell/components/InstallTabCard/use-zip-drop.hooks.js",
+      "default": "./dist/shell/components/InstallTabCard/use-zip-drop.hooks.js"
+    },
+    "./shell/components/TemplateSource/template-source-port.hooks": {
+      "types": "./dist/shell/components/TemplateSource/template-source-port.hooks.d.ts",
+      "import": "./dist/shell/components/TemplateSource/template-source-port.hooks.js",
+      "default": "./dist/shell/components/TemplateSource/template-source-port.hooks.js"
+    },
+    "./shell/components/line-icon": {
+      "types": "./dist/shell/components/line-icon.d.ts",
+      "import": "./dist/shell/components/line-icon.js",
+      "default": "./dist/shell/components/line-icon.js"
+    },
+    "./shell/lib/acceptance-cancellation": {
+      "types": "./dist/shell/lib/acceptance-cancellation.d.ts",
+      "import": "./dist/shell/lib/acceptance-cancellation.js",
+      "default": "./dist/shell/lib/acceptance-cancellation.js"
+    },
+    "./shell/lib/addons-routes": {
+      "types": "./dist/shell/lib/addons-routes.d.ts",
+      "import": "./dist/shell/lib/addons-routes.js",
+      "default": "./dist/shell/lib/addons-routes.js"
+    },
+    "./shell/lib/admin-boot-scope": {
+      "types": "./dist/shell/lib/admin-boot-scope.d.ts",
+      "import": "./dist/shell/lib/admin-boot-scope.js",
+      "default": "./dist/shell/lib/admin-boot-scope.js"
+    },
+    "./shell/lib/admin-draft-identity": {
+      "types": "./dist/shell/lib/admin-draft-identity.d.ts",
+      "import": "./dist/shell/lib/admin-draft-identity.js",
+      "default": "./dist/shell/lib/admin-draft-identity.js"
+    },
+    "./shell/lib/agent-screenshot-bus": {
+      "types": "./dist/shell/lib/agent-screenshot-bus.d.ts",
+      "import": "./dist/shell/lib/agent-screenshot-bus.js",
+      "default": "./dist/shell/lib/agent-screenshot-bus.js"
+    },
+    "./shell/lib/ascii-slug": {
+      "types": "./dist/shell/lib/ascii-slug.d.ts",
+      "import": "./dist/shell/lib/ascii-slug.js",
+      "default": "./dist/shell/lib/ascii-slug.js"
+    },
+    "./shell/lib/assistant-dock-bus": {
+      "types": "./dist/shell/lib/assistant-dock-bus.d.ts",
+      "import": "./dist/shell/lib/assistant-dock-bus.js",
+      "default": "./dist/shell/lib/assistant-dock-bus.js"
+    },
+    "./shell/lib/content-refresh-bus": {
+      "types": "./dist/shell/lib/content-refresh-bus.d.ts",
+      "import": "./dist/shell/lib/content-refresh-bus.js",
+      "default": "./dist/shell/lib/content-refresh-bus.js"
+    },
+    "./shell/lib/editor-failure-i18n": {
+      "types": "./dist/shell/lib/editor-failure-i18n.d.ts",
+      "import": "./dist/shell/lib/editor-failure-i18n.js",
+      "default": "./dist/shell/lib/editor-failure-i18n.js"
+    },
+    "./shell/lib/editor-template-options.rules": {
+      "types": "./dist/shell/lib/editor-template-options.rules.d.ts",
+      "import": "./dist/shell/lib/editor-template-options.rules.js",
+      "default": "./dist/shell/lib/editor-template-options.rules.js"
+    },
+    "./shell/lib/escape-owned-by-inner-layer": {
+      "types": "./dist/shell/lib/escape-owned-by-inner-layer.d.ts",
+      "import": "./dist/shell/lib/escape-owned-by-inner-layer.js",
+      "default": "./dist/shell/lib/escape-owned-by-inner-layer.js"
+    },
+    "./shell/lib/external-entry-refresh": {
+      "types": "./dist/shell/lib/external-entry-refresh.d.ts",
+      "import": "./dist/shell/lib/external-entry-refresh.js",
+      "default": "./dist/shell/lib/external-entry-refresh.js"
+    },
+    "./shell/lib/fetch-query/adapter-context": {
+      "types": "./dist/shell/lib/fetch-query/adapter-context.d.ts",
+      "import": "./dist/shell/lib/fetch-query/adapter-context.js",
+      "default": "./dist/shell/lib/fetch-query/adapter-context.js"
+    },
+    "./shell/lib/merge-locale-overlays": {
+      "types": "./dist/shell/lib/merge-locale-overlays.d.ts",
+      "import": "./dist/shell/lib/merge-locale-overlays.js",
+      "default": "./dist/shell/lib/merge-locale-overlays.js"
+    },
+    "./shell/lib/page-lifecycle": {
+      "types": "./dist/shell/lib/page-lifecycle.d.ts",
+      "import": "./dist/shell/lib/page-lifecycle.js",
+      "default": "./dist/shell/lib/page-lifecycle.js"
+    },
+    "./shell/lib/plain-text-blocks": {
+      "types": "./dist/shell/lib/plain-text-blocks.d.ts",
+      "import": "./dist/shell/lib/plain-text-blocks.js",
+      "default": "./dist/shell/lib/plain-text-blocks.js"
+    },
+    "./shell/lib/playground-render-target-bus": {
+      "types": "./dist/shell/lib/playground-render-target-bus.d.ts",
+      "import": "./dist/shell/lib/playground-render-target-bus.js",
+      "default": "./dist/shell/lib/playground-render-target-bus.js"
+    },
+    "./shell/lib/queued-daemon-start": {
+      "types": "./dist/shell/lib/queued-daemon-start.d.ts",
+      "import": "./dist/shell/lib/queued-daemon-start.js",
+      "default": "./dist/shell/lib/queued-daemon-start.js"
+    },
+    "./shell/lib/router": {
+      "types": "./dist/shell/lib/router.d.ts",
+      "import": "./dist/shell/lib/router.js",
+      "default": "./dist/shell/lib/router.js"
+    },
+    "./shell/lib/server-failure": {
+      "types": "./dist/shell/lib/server-failure.d.ts",
+      "import": "./dist/shell/lib/server-failure.js",
+      "default": "./dist/shell/lib/server-failure.js"
+    },
+    "./shell/lib/settings-effective-reads": {
+      "types": "./dist/shell/lib/settings-effective-reads.d.ts",
+      "import": "./dist/shell/lib/settings-effective-reads.js",
+      "default": "./dist/shell/lib/settings-effective-reads.js"
+    },
+    "./shell/lib/slug-redirect-path": {
+      "types": "./dist/shell/lib/slug-redirect-path.d.ts",
+      "import": "./dist/shell/lib/slug-redirect-path.js",
+      "default": "./dist/shell/lib/slug-redirect-path.js"
+    },
+    "./shell/lib/translation-entry": {
+      "types": "./dist/shell/lib/translation-entry.d.ts",
+      "import": "./dist/shell/lib/translation-entry.js",
+      "default": "./dist/shell/lib/translation-entry.js"
+    },
+    "./shell/lib/unchanged-save-warning": {
+      "types": "./dist/shell/lib/unchanged-save-warning.d.ts",
+      "import": "./dist/shell/lib/unchanged-save-warning.js",
+      "default": "./dist/shell/lib/unchanged-save-warning.js"
+    },
+    "./shell/lib/unique-id": {
+      "types": "./dist/shell/lib/unique-id.d.ts",
+      "import": "./dist/shell/lib/unique-id.js",
+      "default": "./dist/shell/lib/unique-id.js"
+    },
+    "./shell/lib/viewer-time-zone": {
+      "types": "./dist/shell/lib/viewer-time-zone.d.ts",
+      "import": "./dist/shell/lib/viewer-time-zone.js",
+      "default": "./dist/shell/lib/viewer-time-zone.js"
+    },
+    "./shell/lib/widget-embed-placement-content": {
+      "types": "./dist/shell/lib/widget-embed-placement-content.d.ts",
+      "import": "./dist/shell/lib/widget-embed-placement-content.js",
+      "default": "./dist/shell/lib/widget-embed-placement-content.js"
+    },
+    "./shell/lib/admin-frontend-session": {
+      "types": "./dist/shell/lib/admin-frontend-session.d.ts",
+      "import": "./dist/shell/lib/admin-frontend-session.js",
+      "default": "./dist/shell/lib/admin-frontend-session.js"
+    },
+    "./shell/lib/agent-screen-context": {
+      "types": "./dist/shell/lib/agent-screen-context.d.ts",
+      "import": "./dist/shell/lib/agent-screen-context.js",
+      "default": "./dist/shell/lib/agent-screen-context.js"
+    },
+    "./shell/lib/import-export-routes": {
+      "types": "./dist/shell/lib/import-export-routes.d.ts",
+      "import": "./dist/shell/lib/import-export-routes.js",
+      "default": "./dist/shell/lib/import-export-routes.js"
+    },
+    "./shell/lib/settings-refresh-bus": {
+      "types": "./dist/shell/lib/settings-refresh-bus.d.ts",
+      "import": "./dist/shell/lib/settings-refresh-bus.js",
+      "default": "./dist/shell/lib/settings-refresh-bus.js"
+    },
+    "./shell/lib/shell-failure-log": {
+      "types": "./dist/shell/lib/shell-failure-log.d.ts",
+      "import": "./dist/shell/lib/shell-failure-log.js",
+      "default": "./dist/shell/lib/shell-failure-log.js"
+    },
+    "./shell/hooks/admin-locale-port.hooks": {
+      "types": "./dist/shell/hooks/admin-locale-port.hooks.d.ts",
+      "import": "./dist/shell/hooks/admin-locale-port.hooks.js",
+      "default": "./dist/shell/hooks/admin-locale-port.hooks.js"
+    },
+    "./shell/hooks/use-admin-document-locale.hooks": {
+      "types": "./dist/shell/hooks/use-admin-document-locale.hooks.d.ts",
+      "import": "./dist/shell/hooks/use-admin-document-locale.hooks.js",
+      "default": "./dist/shell/hooks/use-admin-document-locale.hooks.js"
+    },
+    "./shell/hooks/use-cms-sidebar-label-tooltips.hooks": {
+      "types": "./dist/shell/hooks/use-cms-sidebar-label-tooltips.hooks.d.ts",
+      "import": "./dist/shell/hooks/use-cms-sidebar-label-tooltips.hooks.js",
+      "default": "./dist/shell/hooks/use-cms-sidebar-label-tooltips.hooks.js"
+    },
+    "./shell/hooks/use-dock-auto-rail.hooks": {
+      "types": "./dist/shell/hooks/use-dock-auto-rail.hooks.d.ts",
+      "import": "./dist/shell/hooks/use-dock-auto-rail.hooks.js",
+      "default": "./dist/shell/hooks/use-dock-auto-rail.hooks.js"
+    },
+    "./shell/hooks/use-drawer-active-item-centring.hooks": {
+      "types": "./dist/shell/hooks/use-drawer-active-item-centring.hooks.d.ts",
+      "import": "./dist/shell/hooks/use-drawer-active-item-centring.hooks.js",
+      "default": "./dist/shell/hooks/use-drawer-active-item-centring.hooks.js"
+    },
+    "./shell/hooks/use-list-table-cell-labels.hooks": {
+      "types": "./dist/shell/hooks/use-list-table-cell-labels.hooks.d.ts",
+      "import": "./dist/shell/hooks/use-list-table-cell-labels.hooks.js",
+      "default": "./dist/shell/hooks/use-list-table-cell-labels.hooks.js"
+    },
+    "./shell/hooks/use-sidebar-empty-click-toggle.hooks": {
+      "types": "./dist/shell/hooks/use-sidebar-empty-click-toggle.hooks.d.ts",
+      "import": "./dist/shell/hooks/use-sidebar-empty-click-toggle.hooks.js",
+      "default": "./dist/shell/hooks/use-sidebar-empty-click-toggle.hooks.js"
+    },
+    "./shell/hooks/use-content-refresh-subscription.hooks": {
+      "types": "./dist/shell/hooks/use-content-refresh-subscription.hooks.d.ts",
+      "import": "./dist/shell/hooks/use-content-refresh-subscription.hooks.js",
+      "default": "./dist/shell/hooks/use-content-refresh-subscription.hooks.js"
+    },
+    "./shell/hooks/use-agent-screen-context.hooks": {
+      "types": "./dist/shell/hooks/use-agent-screen-context.hooks.d.ts",
+      "import": "./dist/shell/hooks/use-agent-screen-context.hooks.js",
+      "default": "./dist/shell/hooks/use-agent-screen-context.hooks.js"
+    },
+    "./shell/lib/stream-activity": {
+      "types": "./dist/shell/lib/stream-activity.d.ts",
+      "import": "./dist/shell/lib/stream-activity.js",
+      "default": "./dist/shell/lib/stream-activity.js"
+    },
+    "./shell/lib/assistant-prompt-bus": {
+      "types": "./dist/shell/lib/assistant-prompt-bus.d.ts",
+      "import": "./dist/shell/lib/assistant-prompt-bus.js",
+      "default": "./dist/shell/lib/assistant-prompt-bus.js"
+    },
+    "./shell/lib/browser-stream": {
+      "types": "./dist/shell/lib/browser-stream.d.ts",
+      "import": "./dist/shell/lib/browser-stream.js",
+      "default": "./dist/shell/lib/browser-stream.js"
+    },
+    "./shell/lib/credential-card-guidance": {
+      "types": "./dist/shell/lib/credential-card-guidance.d.ts",
+      "import": "./dist/shell/lib/credential-card-guidance.js",
+      "default": "./dist/shell/lib/credential-card-guidance.js"
+    },
+    "./shell/lib/admin-nav-i18n": {
+      "types": "./dist/shell/lib/admin-nav-i18n.d.ts",
+      "import": "./dist/shell/lib/admin-nav-i18n.js",
+      "default": "./dist/shell/lib/admin-nav-i18n.js"
+    },
+    "./shell/components/AssistantDock/hooks/use-assistant-empty-state.hooks": {
+      "types": "./dist/shell/components/AssistantDock/hooks/use-assistant-empty-state.hooks.d.ts",
+      "import": "./dist/shell/components/AssistantDock/hooks/use-assistant-empty-state.hooks.js",
+      "default": "./dist/shell/components/AssistantDock/hooks/use-assistant-empty-state.hooks.js"
+    },
+    "./shell/components/AssistantDock/local-cli-selection-echo": {
+      "types": "./dist/shell/components/AssistantDock/local-cli-selection-echo.d.ts",
+      "import": "./dist/shell/components/AssistantDock/local-cli-selection-echo.js",
+      "default": "./dist/shell/components/AssistantDock/local-cli-selection-echo.js"
+    },
+    "./shell/components/AssistantDock/MessageOverflowModal.hooks": {
+      "types": "./dist/shell/components/AssistantDock/MessageOverflowModal.hooks.d.ts",
+      "import": "./dist/shell/components/AssistantDock/MessageOverflowModal.hooks.js",
+      "default": "./dist/shell/components/AssistantDock/MessageOverflowModal.hooks.js"
+    },
+    "./shell/components/AssistantDock/SlowRunNoticeCard.hooks": {
+      "types": "./dist/shell/components/AssistantDock/SlowRunNoticeCard.hooks.d.ts",
+      "import": "./dist/shell/components/AssistantDock/SlowRunNoticeCard.hooks.js",
+      "default": "./dist/shell/components/AssistantDock/SlowRunNoticeCard.hooks.js"
+    },
+    "./shell/components/CodeView/preview-modal-icons": {
+      "types": "./dist/shell/components/CodeView/preview-modal-icons.d.ts",
+      "import": "./dist/shell/components/CodeView/preview-modal-icons.js",
+      "default": "./dist/shell/components/CodeView/preview-modal-icons.js"
+    },
+    "./shell/components/InstallTabCard/use-folder-upload.hooks": {
+      "types": "./dist/shell/components/InstallTabCard/use-folder-upload.hooks.d.ts",
+      "import": "./dist/shell/components/InstallTabCard/use-folder-upload.hooks.js",
+      "default": "./dist/shell/components/InstallTabCard/use-folder-upload.hooks.js"
+    },
+    "./shell/components/Select/Select.hooks": {
+      "types": "./dist/shell/components/Select/Select.hooks.d.ts",
+      "import": "./dist/shell/components/Select/Select.hooks.js",
+      "default": "./dist/shell/components/Select/Select.hooks.js"
+    },
+    "./shell/lib/tab-event-source": {
+      "types": "./dist/shell/lib/tab-event-source.d.ts",
+      "import": "./dist/shell/lib/tab-event-source.js",
+      "default": "./dist/shell/lib/tab-event-source.js"
+    },
+    "./shell/hooks/use-external-entry-refresh.hooks": {
+      "types": "./dist/shell/hooks/use-external-entry-refresh.hooks.d.ts",
+      "import": "./dist/shell/hooks/use-external-entry-refresh.hooks.js",
+      "default": "./dist/shell/hooks/use-external-entry-refresh.hooks.js"
     }
   },
   "files": [
@@ -497,6 +933,9 @@
       ],
       "core/i18n-common": [
         "./dist/core/i18n-common.d.ts"
+      ],
+      "shell/*": [
+        "./dist/shell/*.d.ts"
       ]
     }
   },
