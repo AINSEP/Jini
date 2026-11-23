@@ -140,7 +140,9 @@
       "./admin-http/sea-runtime": "node",
       "./public-http/http/site/render/media-playback-copy": "universal",
       "./public-http/http/site/render/value-readers": "universal",
-      "./public-http/routes/site/pages/listing/listing-state": "universal"
+      "./public-http/routes/site/pages/listing/listing-state": "universal",
+      "./pages/authoring-html": "universal",
+      "./pages/hidden-until-script": "universal"
     },
     "isolation": {
       "domains": {
@@ -888,6 +890,16 @@
       "types": "./dist/public-http/routes/site/pages/listing/listing-state.d.ts",
       "import": "./dist/public-http/routes/site/pages/listing/listing-state.js",
       "default": "./dist/public-http/routes/site/pages/listing/listing-state.js"
+    },
+    "./pages/authoring-html": {
+      "types": "./dist/pages/authoring-html.d.ts",
+      "import": "./dist/pages/authoring-html.js",
+      "default": "./dist/pages/authoring-html.js"
+    },
+    "./pages/hidden-until-script": {
+      "types": "./dist/pages/hidden-until-script.d.ts",
+      "import": "./dist/pages/hidden-until-script.js",
+      "default": "./dist/pages/hidden-until-script.js"
     }
   },
   "files": [

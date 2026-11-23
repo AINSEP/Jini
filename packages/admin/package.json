@@ -141,7 +141,14 @@
       "./shell/components/InstallTabCard/use-folder-upload.hooks": "browser",
       "./shell/components/Select/Select.hooks": "browser",
       "./shell/lib/tab-event-source": "browser",
-      "./shell/hooks/use-external-entry-refresh.hooks": "browser"
+      "./shell/hooks/use-external-entry-refresh.hooks": "browser",
+      "./pages/api/pages-api.types": "universal",
+      "./pages/hooks/pages-tab-url.hooks": "browser",
+      "./pages/Pages.hooks": "browser",
+      "./pages/lib/page-preview-youtube": "universal",
+      "./pages/lib/prettify-html": "universal",
+      "./pages/lib/embed-placeholder": "browser",
+      "./pages/pages-i18n": "universal"
     },
     "isolation": {
       "shared": [
@@ -224,8 +231,8 @@
       }
     },
     "optionalPeers": {
-      "react": "opt-in: react admin bindings; import @jini-ai/admin/react \u2014 React admin bindings could not load react. Install react to enable this feature, or check its installed version.",
-      "react-dom": "opt-in: react admin bindings; import @jini-ai/admin/react \u2014 React admin bindings could not load react-dom. Install react-dom to enable this feature, or check its installed version."
+      "react": "opt-in: react admin bindings; import @jini-ai/admin/react — React admin bindings could not load react. Install react to enable this feature, or check its installed version.",
+      "react-dom": "opt-in: react admin bindings; import @jini-ai/admin/react — React admin bindings could not load react-dom. Install react-dom to enable this feature, or check its installed version."
     }
   },
   "type": "module",
@@ -867,6 +874,41 @@
       "types": "./dist/shell/hooks/use-external-entry-refresh.hooks.d.ts",
       "import": "./dist/shell/hooks/use-external-entry-refresh.hooks.js",
       "default": "./dist/shell/hooks/use-external-entry-refresh.hooks.js"
+    },
+    "./pages/api/pages-api.types": {
+      "types": "./dist/pages/api/pages-api.types.d.ts",
+      "import": "./dist/pages/api/pages-api.types.js",
+      "default": "./dist/pages/api/pages-api.types.js"
+    },
+    "./pages/hooks/pages-tab-url.hooks": {
+      "types": "./dist/pages/hooks/pages-tab-url.hooks.d.ts",
+      "import": "./dist/pages/hooks/pages-tab-url.hooks.js",
+      "default": "./dist/pages/hooks/pages-tab-url.hooks.js"
+    },
+    "./pages/Pages.hooks": {
+      "types": "./dist/pages/Pages.hooks.d.ts",
+      "import": "./dist/pages/Pages.hooks.js",
+      "default": "./dist/pages/Pages.hooks.js"
+    },
+    "./pages/lib/page-preview-youtube": {
+      "types": "./dist/pages/lib/page-preview-youtube.d.ts",
+      "import": "./dist/pages/lib/page-preview-youtube.js",
+      "default": "./dist/pages/lib/page-preview-youtube.js"
+    },
+    "./pages/lib/prettify-html": {
+      "types": "./dist/pages/lib/prettify-html.d.ts",
+      "import": "./dist/pages/lib/prettify-html.js",
+      "default": "./dist/pages/lib/prettify-html.js"
+    },
+    "./pages/lib/embed-placeholder": {
+      "types": "./dist/pages/lib/embed-placeholder.d.ts",
+      "import": "./dist/pages/lib/embed-placeholder.js",
+      "default": "./dist/pages/lib/embed-placeholder.js"
+    },
+    "./pages/pages-i18n": {
+      "types": "./dist/pages/pages-i18n.d.ts",
+      "import": "./dist/pages/pages-i18n.js",
+      "default": "./dist/pages/pages-i18n.js"
     }
   },
   "files": [
@@ -924,6 +966,27 @@
       ],
       "shell/*": [
         "./dist/shell/*.d.ts"
+      ],
+      "pages/api/pages-api.types": [
+        "./dist/pages/api/pages-api.types.d.ts"
+      ],
+      "pages/hooks/pages-tab-url.hooks": [
+        "./dist/pages/hooks/pages-tab-url.hooks.d.ts"
+      ],
+      "pages/Pages.hooks": [
+        "./dist/pages/Pages.hooks.d.ts"
+      ],
+      "pages/lib/page-preview-youtube": [
+        "./dist/pages/lib/page-preview-youtube.d.ts"
+      ],
+      "pages/lib/prettify-html": [
+        "./dist/pages/lib/prettify-html.d.ts"
+      ],
+      "pages/lib/embed-placeholder": [
+        "./dist/pages/lib/embed-placeholder.d.ts"
+      ],
+      "pages/pages-i18n": [
+        "./dist/pages/pages-i18n.d.ts"
       ]
     }
   },
