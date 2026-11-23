@@ -42,7 +42,8 @@ export function describeRoutes({ routes }: { readonly routes: readonly ServerRou
 }
 
 /**
- * One JSON route spec as a daemon route: the host's incident reporter and body limit applied, and a
+ * One JSON route spec as a daemon route: the host's incident reporter applied, the body limit the
+ * tighter of the spec's and the host's, and a
  * `same-origin` gate named when the spec asks for it (the JSON route itself runs that check).
  * @param required.spec - The route's declaration.
  * @param required.deps - What the route's `handle` is given.
@@ -52,8 +53,11 @@ export function gatedJsonRoute<Input, Output, Deps>(
   { spec, deps, host }: { readonly spec: JsonRouteSpec<Input, Output, Deps>; readonly deps: Deps; readonly host: DaemonRouteHost },
   _optional: Record<string, never> = {},
 ): DaemonRoute {
+  // The host's limit bounds the spec's, never replaces it: overwriting dropped a route's tighter
+  // declared ceiling, and a larger one is clamped because the host parser reads the wire first.
+  const maxBodyBytes = Math.min(spec.maxBodyBytes ?? host.jsonBodyMaxBytes, host.jsonBodyMaxBytes);
   return gated({
-    route: jsonRoute({ spec: { ...spec, maxBodyBytes: host.jsonBodyMaxBytes }, deps, reportInternalError: host.reportInternalError }, { host: host.context }),
+    route: jsonRoute({ spec: { ...spec, maxBodyBytes }, deps, reportInternalError: host.reportInternalError }, { host: host.context }),
     gates: spec.requireSameOrigin ? [{ name: 'same-origin' }] : [],
   });
 }
