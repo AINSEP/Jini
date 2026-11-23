@@ -23,7 +23,8 @@
       "./admin/react": "browser",
       "./admin/adapters/http": "universal",
       "./admin/adapters/memory": "universal",
-      "./admin/conformance": "universal"
+      "./admin/conformance": "universal",
+      "./admin-http/http/users": "universal"
     },
     "optionalPeers": {
       "argon2": "opt-in: argon2 password hashing; import @jini-ai/user-management/server — Argon2 password hashing could not load argon2. Install argon2 to enable this feature, or check its installed version and native binaries.",
@@ -89,6 +90,11 @@
       "types": "./dist/admin/conformance/index.d.ts",
       "import": "./dist/admin/conformance/index.js",
       "default": "./dist/admin/conformance/index.js"
+    },
+    "./admin-http/http/users": {
+      "types": "./dist/admin-http/http/users.d.ts",
+      "import": "./dist/admin-http/http/users.js",
+      "default": "./dist/admin-http/http/users.js"
     }
   },
   "files": [
