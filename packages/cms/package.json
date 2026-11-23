@@ -202,7 +202,8 @@
       "./admin-http/routes/seo/get-entry": "node",
       "./admin-http/routes/seo/get-entry-analyze": "node",
       "./admin-http/routes/seo/put-entry": "node",
-      "./seo/site/capability-card": "universal"
+      "./seo/site/capability-card": "universal",
+      "./settings/site/ui-locales-tool": "universal"
     },
     "isolation": {
       "domains": {
@@ -1266,6 +1267,11 @@
       "types": "./dist/seo/site/capability-card.d.ts",
       "import": "./dist/seo/site/capability-card.js",
       "default": "./dist/seo/site/capability-card.js"
+    },
+    "./settings/site/ui-locales-tool": {
+      "types": "./dist/settings/site/ui-locales-tool.d.ts",
+      "import": "./dist/settings/site/ui-locales-tool.js",
+      "default": "./dist/settings/site/ui-locales-tool.js"
     }
   },
   "files": [
