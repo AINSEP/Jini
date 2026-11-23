@@ -163,6 +163,10 @@
       "./public-http/routes/api-connections/oauth-callback": "universal",
       "./public-http/routes/external-mcp/oauth-callback": "universal",
       "./public-http/routes/external-mcp/oauth-callback-url": "universal",
+      "./admin-http/routes/agent-plugins/list": "universal",
+      "./admin-http/routes/agent-plugins/files": "universal",
+      "./admin-http/routes/agent-plugins/set-enabled": "universal",
+      "./admin-http/http/agent-plugins": "universal",
       "./admin-http/routes/external-mcp/list": "universal",
       "./admin-http/routes/external-mcp/admissions": "universal",
       "./admin-http/routes/external-mcp/delete": "universal",
@@ -1035,6 +1039,26 @@
       "types": "./dist/public-http/routes/external-mcp/oauth-callback-url.d.ts",
       "import": "./dist/public-http/routes/external-mcp/oauth-callback-url.js",
       "default": "./dist/public-http/routes/external-mcp/oauth-callback-url.js"
+    },
+    "./admin-http/routes/agent-plugins/list": {
+      "types": "./dist/admin-http/routes/agent-plugins/list.d.ts",
+      "import": "./dist/admin-http/routes/agent-plugins/list.js",
+      "default": "./dist/admin-http/routes/agent-plugins/list.js"
+    },
+    "./admin-http/routes/agent-plugins/files": {
+      "types": "./dist/admin-http/routes/agent-plugins/files.d.ts",
+      "import": "./dist/admin-http/routes/agent-plugins/files.js",
+      "default": "./dist/admin-http/routes/agent-plugins/files.js"
+    },
+    "./admin-http/routes/agent-plugins/set-enabled": {
+      "types": "./dist/admin-http/routes/agent-plugins/set-enabled.d.ts",
+      "import": "./dist/admin-http/routes/agent-plugins/set-enabled.js",
+      "default": "./dist/admin-http/routes/agent-plugins/set-enabled.js"
+    },
+    "./admin-http/http/agent-plugins": {
+      "types": "./dist/admin-http/http/agent-plugins.d.ts",
+      "import": "./dist/admin-http/http/agent-plugins.js",
+      "default": "./dist/admin-http/http/agent-plugins.js"
     },
     "./admin-http/routes/external-mcp/list": {
       "types": "./dist/admin-http/routes/external-mcp/list.d.ts",
