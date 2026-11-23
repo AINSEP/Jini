@@ -1,6 +1,7 @@
 import { defineJsonRoute, ok } from "@jini-ai/core/contracts/server";
+import type { ExternalMcpListEnvelope } from "@jini-ai/core/contracts/site/cms-external-mcp";
 
-import { authorizeExternalMcp, type ExternalMcpDescribeOwnershipFn, type ExternalMcpOwnedServer, type ExternalMcpRoutePrincipal } from "./shared.js";
+import { authorizeExternalMcp, type ExternalMcpDescribeOwnershipFn, type ExternalMcpRoutePrincipal } from "./shared.js";
 
 /** Host collaborator: the workspace's server read model (never env VALUES; safe hints only). */
 export type ExternalMcpListServersFn = (required: { workspaceId: string }) => Promise<ReadonlyArray<{ serverId: string }>>;
@@ -25,13 +26,13 @@ export interface ExternalMcpListRouteDeps {
  * Owner 2026-10-07: safe hints now unseal on the server, without returning secret values. Missing
  * keys still degrade to metadata-only reads; they must not make this settings list unavailable.
  */
-export const externalMcpListRoute = defineJsonRoute<Record<string, never>, { servers: ExternalMcpOwnedServer<{ serverId: string }>[] }, ExternalMcpListRouteDeps, ExternalMcpRoutePrincipal>({
+export const externalMcpListRoute = defineJsonRoute<Record<string, never>, ExternalMcpListEnvelope, ExternalMcpListRouteDeps, ExternalMcpRoutePrincipal>({
   method: "get",
   path: "/api/admin/v1/workspaces/:workspaceId/mcp-servers",
   parse: () => ok({ value: {} }),
   handle: async ({ deps, authorize }) => {
     await authorizeExternalMcp({ authorize });
     const servers = await deps.listServers({ workspaceId: deps.workspaceId });
-    return ok({ value: { servers: servers.map((server) => deps.describeOwnership(server)) } });
+    return ok({ value: { servers: servers.map((server) => deps.describeOwnership({ server })) } });
   },
 });

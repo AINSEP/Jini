@@ -5,7 +5,7 @@ import { PERMISSION_CALL, PRINCIPAL, raw, recordingAuthorize, refusalOf, signal,
 function deps(removed: boolean | Error = true): ExternalMcpDeleteRouteDeps & { asked: unknown[] } {
   const asked: unknown[] = [];
   return {
-    asked, workspaceId: WORKSPACE_ID, isBuiltInServer: (serverId) => serverId === "built-in",
+    asked, workspaceId: WORKSPACE_ID, isBuiltInServer: ({ serverId }) => serverId === "built-in",
     deleteServer: async (input) => { asked.push(input); if (removed instanceof Error) throw removed; return removed; },
   };
 }

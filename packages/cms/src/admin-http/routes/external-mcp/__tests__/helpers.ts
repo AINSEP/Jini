@@ -1,5 +1,7 @@
 import { RouteRefusalError } from "@jini-ai/core/errors/route-refusal";
 
+import type { ExternalMcpErrorPredicate } from "../shared.js";
+
 /**
  * @file Fakes shared by the external-MCP route spec tests: a recording/denying authorizer, the
  * refusal reader, a raw-request builder and stand-ins for the host's error classes (which live in
@@ -50,10 +52,15 @@ export class FakeOAuthError extends Error {
   constructor(message: string, readonly code: string, readonly retryable: boolean, readonly operatorAction: string, readonly retryAfterSeconds?: number) { super(message); }
 }
 
-export const isValidationError = (err: unknown): err is FakeValidationError => err instanceof FakeValidationError;
-export const isSecretStoreUnconfiguredError = (err: unknown): err is FakeSecretStoreError => err instanceof FakeSecretStoreError;
+/** The predicate a registrar binds for one error class: `instanceof`, as a guard over the object argument. */
+export function instanceOf<E>({ ErrorClass }: { ErrorClass: abstract new (...args: never[]) => E }, _optional: Record<string, never> = {}): ExternalMcpErrorPredicate<E> {
+  return (required): required is { err: E } => required.err instanceof ErrorClass;
+}
+
+export const isValidationError = instanceOf({ ErrorClass: FakeValidationError });
+export const isSecretStoreUnconfiguredError = instanceOf({ ErrorClass: FakeSecretStoreError });
 
 /** The ownership tagger the host binds: built-in when the id is on the runtime's provenance list. */
 export function describeOwnershipFor(ids: readonly string[]) {
-  return <T extends { serverId: string }>(server: T) => ({ ...server, builtIn: ids.includes(server.serverId) });
+  return <T extends { serverId: string }>({ server }: { server: T }, _optional: Record<string, never> = {}) => ({ ...server, builtIn: ids.includes(server.serverId) });
 }

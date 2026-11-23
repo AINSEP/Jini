@@ -1,4 +1,5 @@
 import { defineJsonRoute, ok } from "@jini-ai/core/contracts/server";
+import type { ExternalMcpDeleteEnvelope } from "@jini-ai/core/contracts/site/cms-external-mcp";
 import { rejectRoute } from "@jini-ai/core/errors/route-refusal";
 
 import { authorizeExternalMcp, externalMcpParam, type ExternalMcpRoutePrincipal } from "./shared.js";
@@ -9,7 +10,7 @@ export type ExternalMcpDeleteServerFn = (required: { workspaceId: string; server
 /** The deps this route reads: the runtime's built-in provenance check and the host's delete. */
 export interface ExternalMcpDeleteRouteDeps {
   workspaceId: string;
-  isBuiltInServer: (serverId: string) => boolean;
+  isBuiltInServer: (required: { serverId: string }, optional?: Record<string, never>) => boolean;
   deleteServer: ExternalMcpDeleteServerFn;
 }
 
@@ -25,13 +26,13 @@ export interface ExternalMcpDeleteRouteDeps {
  * because the running assistant still holds the open connection and lists the tools until it
  * restarts. The delete itself is unchanged and permanent.
  */
-export const externalMcpDeleteRoute = defineJsonRoute<{ serverId: string }, { removed: true; restartRequired: true }, ExternalMcpDeleteRouteDeps, ExternalMcpRoutePrincipal>({
+export const externalMcpDeleteRoute = defineJsonRoute<{ serverId: string }, ExternalMcpDeleteEnvelope, ExternalMcpDeleteRouteDeps, ExternalMcpRoutePrincipal>({
   method: "delete",
   path: "/api/admin/v1/workspaces/:workspaceId/mcp-servers/:serverId",
-  parse: (raw) => ok({ value: { serverId: externalMcpParam(raw.params, "serverId") } }),
+  parse: (raw) => ok({ value: { serverId: externalMcpParam({ params: raw.params, name: "serverId" }) } }),
   handle: async ({ input, deps, authorize }) => {
     await authorizeExternalMcp({ authorize });
-    if (deps.isBuiltInServer(input.serverId)) rejectRoute({ status: 409, error: "built-in MCP connections cannot be removed", code: "BUILT_IN_CONNECTION" });
+    if (deps.isBuiltInServer({ serverId: input.serverId })) rejectRoute({ status: 409, error: "built-in MCP connections cannot be removed", code: "BUILT_IN_CONNECTION" });
     const removed = await deps.deleteServer({ workspaceId: deps.workspaceId, serverId: input.serverId });
     if (!removed) rejectRoute({ status: 404, error: "external MCP server was not found", code: "NOT_FOUND" });
     return ok({ value: { removed: true, restartRequired: true } });

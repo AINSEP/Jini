@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { externalMcpOAuthDisconnectRoute, type ExternalMcpOAuthDisconnectRouteDeps } from "../oauth-disconnect.js";
 import {
-  FakeApiConnectionError, FakeOAuthError, FakeReauthError, FakeSecretStoreError, FakeValidationError, isSecretStoreUnconfiguredError, isValidationError,
+  FakeApiConnectionError, FakeOAuthError, FakeReauthError, FakeSecretStoreError, FakeValidationError, instanceOf, isSecretStoreUnconfiguredError, isValidationError,
   PERMISSION_CALL, PRINCIPAL, raw, recordingAuthorize, refusalOf, signal, WORKSPACE_ID,
 } from "./helpers.js";
 
@@ -10,11 +10,11 @@ function deps(outcome?: Error) {
   const d: ExternalMcpOAuthDisconnectRouteDeps = {
     workspaceId: WORKSPACE_ID,
     disconnect: async (input) => { asked.push(input); if (outcome) throw outcome; },
-    isApiConnectionError: (err): err is FakeApiConnectionError => err instanceof FakeApiConnectionError,
+    isApiConnectionError: instanceOf({ ErrorClass: FakeApiConnectionError }),
     isValidationError,
-    isReauthRequiredError: (err): err is FakeReauthError => err instanceof FakeReauthError,
+    isReauthRequiredError: instanceOf({ ErrorClass: FakeReauthError }),
     isSecretStoreUnconfiguredError,
-    isOAuthError: (err): err is FakeOAuthError => err instanceof FakeOAuthError,
+    isOAuthError: instanceOf({ ErrorClass: FakeOAuthError }),
   };
   return { d, asked };
 }

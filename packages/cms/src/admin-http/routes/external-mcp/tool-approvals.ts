@@ -1,4 +1,7 @@
 import { defineJsonRoute, ok } from "@jini-ai/core/contracts/server";
+import type {
+  ExternalMcpToolApprovalRevokeEnvelope, ExternalMcpToolApprovalsEnvelope,
+} from "@jini-ai/core/contracts/site/cms-external-mcp";
 import { rejectRoute } from "@jini-ai/core/errors/route-refusal";
 
 import { authorizeExternalMcp, externalMcpParam, type ExternalMcpRoutePrincipal } from "./shared.js";
@@ -18,7 +21,7 @@ import { authorizeExternalMcp, externalMcpParam, type ExternalMcpRoutePrincipal 
  * list is empty and every revoke is a 404 — the truthful answer, not an error.
  */
 
-/** One saved grant as the store returns it (other fields, e.g. the fingerprint, are never sent). */
+/** One saved grant as the store returns it; only the `ExternalMcpToolApprovalDto` fields are sent (never e.g. the fingerprint). */
 export interface ExternalMcpToolApprovalRow { serverId: string; toolName: string; grantedByPrincipalId: string; grantedAt: string }
 
 /** The host's workspace-scoped approval store, only the two methods these routes call. */
@@ -34,7 +37,7 @@ export interface ExternalMcpToolApprovalsRouteDeps {
 }
 
 /** GET the saved "Always allow" grants, sorted by server then tool. */
-export const externalMcpToolApprovalsListRoute = defineJsonRoute<Record<string, never>, { approvals: ExternalMcpToolApprovalRow[] }, ExternalMcpToolApprovalsRouteDeps, ExternalMcpRoutePrincipal>({
+export const externalMcpToolApprovalsListRoute = defineJsonRoute<Record<string, never>, ExternalMcpToolApprovalsEnvelope, ExternalMcpToolApprovalsRouteDeps, ExternalMcpRoutePrincipal>({
   method: "get",
   path: "/api/admin/v1/workspaces/:workspaceId/mcp-servers/tool-approvals",
   parse: () => ok({ value: {} }),
@@ -49,10 +52,10 @@ export const externalMcpToolApprovalsListRoute = defineJsonRoute<Record<string, 
 });
 
 /** DELETE one saved grant; 404 when none was saved for that tool. */
-export const externalMcpToolApprovalRevokeRoute = defineJsonRoute<{ serverId: string; toolName: string }, { removed: true }, ExternalMcpToolApprovalsRouteDeps, ExternalMcpRoutePrincipal>({
+export const externalMcpToolApprovalRevokeRoute = defineJsonRoute<{ serverId: string; toolName: string }, ExternalMcpToolApprovalRevokeEnvelope, ExternalMcpToolApprovalsRouteDeps, ExternalMcpRoutePrincipal>({
   method: "delete",
   path: "/api/admin/v1/workspaces/:workspaceId/mcp-servers/:serverId/tool-approvals/:toolName",
-  parse: (raw) => ok({ value: { serverId: externalMcpParam(raw.params, "serverId"), toolName: externalMcpParam(raw.params, "toolName") } }),
+  parse: (raw) => ok({ value: { serverId: externalMcpParam({ params: raw.params, name: "serverId" }), toolName: externalMcpParam({ params: raw.params, name: "toolName" }) } }),
   handle: async ({ input, deps, authorize }) => {
     await authorizeExternalMcp({ authorize });
     const removed = (await deps.toolApprovalRepo?.delete({ workspaceId: deps.workspaceId, serverId: input.serverId, toolName: input.toolName })) ?? false;

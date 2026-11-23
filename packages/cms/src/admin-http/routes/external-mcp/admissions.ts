@@ -1,4 +1,5 @@
 import { defineJsonRoute, ok } from "@jini-ai/core/contracts/server";
+import type { ExternalMcpAdmissionsEnvelope } from "@jini-ai/core/contracts/site/cms-external-mcp";
 import { RouteRefusalError } from "@jini-ai/core/errors/route-refusal";
 
 import { authorizeExternalMcp, type ExternalMcpRoutePrincipal } from "./shared.js";
@@ -13,9 +14,6 @@ export interface ExternalMcpAdmissionsRouteDeps {
   workspaceId: string;
   readAdmissions: () => Promise<ExternalMcpAdmissionsResult>;
 }
-
-/** The success envelope: `configFailures` only when the reader reported them. */
-export interface ExternalMcpAdmissionsEnvelope { connections: unknown; configFailures?: unknown }
 
 /**
  * Reports the server-owned federation's live admissions after the workspace/permission gate.

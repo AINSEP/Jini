@@ -4,7 +4,7 @@ import { describe, expect, it } from "vitest";
 import { externalMcpPutRoute, type ExternalMcpPutRouteDeps } from "../put.js";
 import { parseExternalMcpPutBody } from "../put-body.js";
 import {
-  describeOwnershipFor, FakeLoweringError, FakeSecretStoreError, FakeValidationError, isSecretStoreUnconfiguredError, isValidationError,
+  describeOwnershipFor, FakeLoweringError, FakeSecretStoreError, FakeValidationError, instanceOf, isSecretStoreUnconfiguredError, isValidationError,
   PERMISSION_CALL, PRINCIPAL, raw, recordingAuthorize, refusalOf, signal, WORKSPACE_ID,
 } from "./helpers.js";
 
@@ -16,7 +16,7 @@ function deps(saved: { serverId: string; enabled: boolean } | Error = { serverId
     saveServer: async (input) => { saves.push(input); if (saved instanceof Error) throw saved; return saved; },
     notifyRosterChanged: async (...args) => { notices.push(args); },
     describeOwnership: describeOwnershipFor(["s1"]),
-    isToolAccessLoweringError: (err): err is FakeLoweringError => err instanceof FakeLoweringError,
+    isToolAccessLoweringError: instanceOf({ ErrorClass: FakeLoweringError }),
     isValidationError, isSecretStoreUnconfiguredError,
   };
   return { d, saves, notices };

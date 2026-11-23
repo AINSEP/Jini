@@ -1,3 +1,4 @@
+import type { ExternalMcpOwnedServerDto } from "@jini-ai/core/contracts/site/cms-external-mcp";
 import type { JsonRouteAuthorize } from "@jini-ai/core/contracts/server";
 import { RouteRefusalError } from "@jini-ai/core/errors/route-refusal";
 
@@ -30,14 +31,15 @@ export const EXTERNAL_MCP_PERMISSION = "admin.integrations.manage";
 /** The principal fields these routes read: only the id (the PUT's write-grant attribution). */
 export interface ExternalMcpRoutePrincipal { id: string }
 
-/** A server row as the routes read it: the id, whether it is on, and whatever else the host's read model carries. */
-export interface ExternalMcpServerSummary { serverId: string; enabled: boolean }
-
-/** A read-model row tagged with whether the runtime provisioned it (built-in) or the operator did. */
-export type ExternalMcpOwnedServer<T extends { serverId: string } = ExternalMcpServerSummary> = T & { builtIn: boolean };
-
 /** Host collaborator: tags a server row with its built-in ownership (the runtime's provenance list). */
-export type ExternalMcpDescribeOwnershipFn = <T extends { serverId: string }>(server: T) => ExternalMcpOwnedServer<T>;
+export type ExternalMcpDescribeOwnershipFn = <T extends { serverId: string }>(required: { server: T }, optional?: Record<string, never>) => ExternalMcpOwnedServerDto<T>;
+
+/**
+ * Host-bound classifier: whether a thrown error is an instance of one host/other-package error class.
+ * A type guard over the object argument, so the registrar's binding still proves at compile time that
+ * the real class carries the fields (`E`) the rung's body reads.
+ */
+export type ExternalMcpErrorPredicate<E> = (required: { err: unknown }, optional?: Record<string, never>) => required is { err: E };
 
 /** A thrown error that carries its own `message` and `code`. */
 export interface ExternalMcpCodedError { message: string; code: string }
@@ -62,15 +64,15 @@ export function externalMcpActorId({ context }: { context: ExternalMcpRoutePrinc
 }
 
 /** One path segment; Express always fills it, the `?? ""` mirrors the hand-written routes. @complexity O(1). */
-export function externalMcpParam(params: Record<string, string | undefined>, name: string): string {
+export function externalMcpParam({ params, name }: { params: Record<string, string | undefined>; name: string }, _optional: Record<string, never> = {}): string {
   return String(params[name] ?? "");
 }
 
 /** One `catch` rung: a predicate and the status + exact body it answers with. */
 export interface ExternalMcpErrorMapping {
-  readonly matches: (err: unknown) => boolean;
-  readonly status: (err: unknown) => number;
-  readonly body: (err: unknown) => unknown;
+  readonly matches: (required: { err: unknown }, optional?: Record<string, never>) => boolean;
+  readonly status: (required: { err: unknown }, optional?: Record<string, never>) => number;
+  readonly body: (required: { err: unknown }, optional?: Record<string, never>) => unknown;
 }
 
 /**
@@ -79,25 +81,25 @@ export interface ExternalMcpErrorMapping {
  * @complexity O(n) in the mapping table length, a small fixed list per route.
  */
 export function rejectExternalMcpError({ err, mappings }: { err: unknown; mappings: readonly ExternalMcpErrorMapping[] }, _optional: Record<string, never> = {}): never {
-  const mapping = mappings.find((candidate) => candidate.matches(err));
+  const mapping = mappings.find((candidate) => candidate.matches({ err }));
   if (!mapping) throw err;
-  throw new RouteRefusalError({ status: mapping.status(err), body: mapping.body(err) });
+  throw new RouteRefusalError({ status: mapping.status({ err }), body: mapping.body({ err }) });
 }
 
 /** `400 INVALID_MCP_SERVER` with the offending field — the store's validation error, in every route that surfaces it. @complexity O(1). */
-export function invalidServerMapping(isValidationError: (err: unknown) => err is ExternalMcpFieldError): ExternalMcpErrorMapping {
+export function invalidServerMapping({ isValidationError }: { isValidationError: ExternalMcpErrorPredicate<ExternalMcpFieldError> }, _optional: Record<string, never> = {}): ExternalMcpErrorMapping {
   return {
     matches: isValidationError,
     status: () => 400,
-    body: (err) => ({ error: (err as ExternalMcpFieldError).message, code: "INVALID_MCP_SERVER", details: { field: (err as ExternalMcpFieldError).field } }),
+    body: ({ err }) => ({ error: (err as ExternalMcpFieldError).message, code: "INVALID_MCP_SERVER", details: { field: (err as ExternalMcpFieldError).field } }),
   };
 }
 
 /** `503 SECRET_STORE_UNCONFIGURED` — the missing/rotated site key, one contract for the admin client. @complexity O(1). */
-export function secretStoreMapping(isSecretStoreUnconfiguredError: (err: unknown) => err is { message: string }): ExternalMcpErrorMapping {
+export function secretStoreMapping({ isSecretStoreUnconfiguredError }: { isSecretStoreUnconfiguredError: ExternalMcpErrorPredicate<{ message: string }> }, _optional: Record<string, never> = {}): ExternalMcpErrorMapping {
   return {
     matches: isSecretStoreUnconfiguredError,
     status: () => 503,
-    body: (err) => ({ error: (err as { message: string }).message, code: "SECRET_STORE_UNCONFIGURED" }),
+    body: ({ err }) => ({ error: (err as { message: string }).message, code: "SECRET_STORE_UNCONFIGURED" }),
   };
 }

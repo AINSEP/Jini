@@ -1,17 +1,18 @@
 import { ToolInputError } from "@jini-ai/core";
 import { defineJsonRoute, ok } from "@jini-ai/core/contracts/server";
 import type { SaveExternalMcpServerInput } from "@jini-ai/core/contracts/hosted-mcp";
+import type { ExternalMcpPutEnvelope, ExternalMcpServerSummaryDto } from "@jini-ai/core/contracts/site/cms-external-mcp";
 import { RecordVersionConflictError, versionConflictBody } from "@jini-ai/core/optimistic-concurrency";
 
 import { parseExternalMcpPutBody } from "./put-body.js";
 import {
   authorizeExternalMcp, externalMcpActorId, externalMcpParam, invalidServerMapping, rejectExternalMcpError, secretStoreMapping,
-  type ExternalMcpCodedError, type ExternalMcpDescribeOwnershipFn, type ExternalMcpErrorMapping, type ExternalMcpFieldError,
-  type ExternalMcpOwnedServer, type ExternalMcpRoutePrincipal, type ExternalMcpServerSummary,
+  type ExternalMcpCodedError, type ExternalMcpDescribeOwnershipFn, type ExternalMcpErrorMapping, type ExternalMcpErrorPredicate,
+  type ExternalMcpFieldError, type ExternalMcpRoutePrincipal,
 } from "./shared.js";
 
 /** Host collaborator: validates, seals and stores one row (the host's store owns the secret sealer). */
-export type ExternalMcpSaveServerFn = (input: SaveExternalMcpServerInput & { principalId: string }) => Promise<ExternalMcpServerSummary>;
+export type ExternalMcpSaveServerFn = (input: SaveExternalMcpServerInput & { principalId: string }) => Promise<ExternalMcpServerSummaryDto>;
 
 /** Host collaborator: the federation hot-reload trigger; `lowered` names connections whose access drops now. */
 export type ExternalMcpRosterChangedFn = (optional?: { lowered: { serverIds: string[] } }) => Promise<unknown>;
@@ -22,9 +23,9 @@ export interface ExternalMcpPutRouteDeps {
   saveServer: ExternalMcpSaveServerFn;
   notifyRosterChanged: ExternalMcpRosterChangedFn;
   describeOwnership: ExternalMcpDescribeOwnershipFn;
-  isToolAccessLoweringError: (err: unknown) => err is ExternalMcpCodedError;
-  isValidationError: (err: unknown) => err is ExternalMcpFieldError;
-  isSecretStoreUnconfiguredError: (err: unknown) => err is { message: string };
+  isToolAccessLoweringError: ExternalMcpErrorPredicate<ExternalMcpCodedError>;
+  isValidationError: ExternalMcpErrorPredicate<ExternalMcpFieldError>;
+  isSecretStoreUnconfiguredError: ExternalMcpErrorPredicate<{ message: string }>;
 }
 
 /**
@@ -33,13 +34,13 @@ export interface ExternalMcpPutRouteDeps {
  * access or a missing secret store, 500 for anything else (rethrown to the host's failure port).
  * @complexity O(1).
  */
-function putErrorMappings(deps: ExternalMcpPutRouteDeps): readonly ExternalMcpErrorMapping[] {
+function putErrorMappings({ deps }: { deps: ExternalMcpPutRouteDeps }, _optional: Record<string, never> = {}): readonly ExternalMcpErrorMapping[] {
   return [
-    { matches: deps.isToolAccessLoweringError, status: () => 503, body: (err) => ({ error: (err as ExternalMcpCodedError).message, code: (err as ExternalMcpCodedError).code }) },
-    { matches: (err) => err instanceof RecordVersionConflictError, status: () => 409, body: (err) => versionConflictBody({ error: err as RecordVersionConflictError }) },
-    { matches: (err) => err instanceof ToolInputError, status: () => 400, body: (err) => ({ error: (err as ToolInputError).message, code: "VALIDATION_ERROR" }) },
-    invalidServerMapping(deps.isValidationError),
-    secretStoreMapping(deps.isSecretStoreUnconfiguredError),
+    { matches: deps.isToolAccessLoweringError, status: () => 503, body: ({ err }) => ({ error: (err as ExternalMcpCodedError).message, code: (err as ExternalMcpCodedError).code }) },
+    { matches: ({ err }) => err instanceof RecordVersionConflictError, status: () => 409, body: ({ err }) => versionConflictBody({ error: err as RecordVersionConflictError }) },
+    { matches: ({ err }) => err instanceof ToolInputError, status: () => 400, body: ({ err }) => ({ error: (err as ToolInputError).message, code: "VALIDATION_ERROR" }) },
+    invalidServerMapping({ isValidationError: deps.isValidationError }),
+    secretStoreMapping({ isSecretStoreUnconfiguredError: deps.isSecretStoreUnconfiguredError }),
   ];
 }
 
@@ -80,10 +81,10 @@ function putErrorMappings(deps: ExternalMcpPutRouteDeps): readonly ExternalMcpEr
  * exactly the "operator save/approve" trigger the feature's own spec calls out as the SECONDARY path,
  * next to a completed OAuth sign-in as the primary one.
  */
-export const externalMcpPutRoute = defineJsonRoute<{ serverId: string; body: unknown }, { server: ExternalMcpOwnedServer; restartRequired: true }, ExternalMcpPutRouteDeps, ExternalMcpRoutePrincipal>({
+export const externalMcpPutRoute = defineJsonRoute<{ serverId: string; body: unknown }, ExternalMcpPutEnvelope, ExternalMcpPutRouteDeps, ExternalMcpRoutePrincipal>({
   method: "put",
   path: "/api/admin/v1/workspaces/:workspaceId/mcp-servers/:serverId",
-  parse: (raw) => ok({ value: { serverId: externalMcpParam(raw.params, "serverId"), body: raw.body } }),
+  parse: (raw) => ok({ value: { serverId: externalMcpParam({ params: raw.params, name: "serverId" }), body: raw.body } }),
   handle: async ({ input, deps, context, authorize }) => {
     await authorizeExternalMcp({ authorize });
     // The gate above already authorized this same principal — used ONLY to attribute a change to
@@ -94,9 +95,9 @@ export const externalMcpPutRoute = defineJsonRoute<{ serverId: string; body: unk
       // Ordinary discovery is best effort. OFF awaits Stop/cleanup before reporting success.
       if (server.enabled) void deps.notifyRosterChanged();
       else await deps.notifyRosterChanged({ lowered: { serverIds: [server.serverId] } });
-      return ok({ value: { server: deps.describeOwnership(server), restartRequired: true } });
+      return ok({ value: { server: deps.describeOwnership({ server }), restartRequired: true } });
     } catch (err) {
-      return rejectExternalMcpError({ err, mappings: putErrorMappings(deps) });
+      return rejectExternalMcpError({ err, mappings: putErrorMappings({ deps }) });
     }
   },
 });
