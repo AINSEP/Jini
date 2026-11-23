@@ -265,6 +265,56 @@ contextBridge.exposeInMainWorld('hostBridge', { onZoomCommand: ({ listener }) =>
 
 Architecture: [extraction-plan.md](../../ADS-memory/reports/jini-port/extraction-plan.md).
 
+### Wiring: boot-time toolchain setup and site-discovery lanes
+
+- **Needs injected:** for `prepareNodeToolchainEnvBestEffort` (`./node-toolchain`), the host's bound
+  `writeNodeToolchain` (returns `null` for a transient launch, may throw), its bound
+  `buildNodeToolchainEnv` (which carries the host's own env-variable names) and a `report` sink for
+  `NodeToolchainSetupEvent`s. For `createSiteDiscoveryLanes`, the host's `discover({ scanRoots, signal })`.
+- **Provides:** the toolchain env or `undefined`, never a throw; and `SiteDiscoveryLanes` whose rescan
+  and picker-validation lanes cancel only their own previous scan, with `abortAll` for before-quit.
+  A discoverer that throws synchronously rejects its scan instead of throwing into the boot path.
+- **Stays with the host:** boot-mode choice, user-data and toolchain paths, env-variable names, and the
+  warning copy for each setup event.
+- **Never imports:** `electron`, `node:fs`, or a console/logging formatter.
+
+```ts
+import { createSiteDiscoveryLanes, prepareNodeToolchainEnvBestEffort } from '@jini-ai/desktop-host/node-toolchain';
+
+const toolchainEnv = prepareNodeToolchainEnvBestEffort({ userDataDir, electronPath: process.execPath, npmRoot,
+  writeNodeToolchain, buildNodeToolchainEnv, report: (event) => warn({ message: hostWarningFor({ event }) }) });
+const discovery = createSiteDiscoveryLanes({ discover: ({ scanRoots, signal }) => discoverSites({ scanRoots, signal }) });
+app.on('before-quit', () => discovery.abortAll());
+```
+
+Architecture: [extraction-plan.md](../../ADS-memory/reports/jini-port/extraction-plan.md).
+
+### Wiring: Electron session bootstrap
+
+- **Needs injected:** a `SessionNet` (Electron `net`), the partition's `Session` (`CookieJarSession` for
+  the cookie lookup, `HeaderArmingSession` for header arming), and every host value: URLs (already
+  guarded, e.g. loopback-only, before the call), the session cookie name, the partition prefix and
+  key, the header name/value, and the outcome `label`.
+- **Provides:** `exchangeSessionJson` / `exchangeSessionRequest` (a request bound to the session's own
+  cookie jar via `useSessionCookies`, drained, resolving `SessionOutcome` only on `end` and never
+  rejecting for an HTTP or transport failure), `probeSession` (cookie-by-name cheap negative, then the
+  server's answer), `hasSessionCookie`, `persistentPartitionName`, and `armExactUrlHeader`.
+- **Stays with the host:** endpoint paths, cookie/partition/header names, the URL guard and its refusal
+  copy, credential validation, and the probe-then-redeem policy.
+- **Never imports:** `electron`, other `@jini-ai/*` implementations, or a logger.
+
+```ts
+import { exchangeSessionJson, probeSession, persistentPartitionName } from '@jini-ai/desktop-host/electron/session-bootstrap';
+
+const partition = persistentPartitionName({ prefix: 'site-', key: path.resolve(siteDir) });
+const jar = session.fromPartition(partition);
+const origin = assertLoopback({ url: adminUrl });
+const valid = await probeSession({ net, session: jar, url: new URL(ME_PATH, origin).href, cookieName: SESSION_COOKIE });
+if (!valid) await exchangeSessionJson({ net, session: jar, url: new URL(REDEEM_PATH, origin).href, body: JSON.stringify({ token }), label: 'redeem' });
+```
+
+Architecture: [extraction-plan.md](../../ADS-memory/reports/jini-port/extraction-plan.md).
+
 File logging uses core `Logger`; `error` in the optional bag is normalized into the JSON metadata alongside `meta`, consistently across all three levels.
 
 ## Native speech runtime asset
