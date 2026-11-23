@@ -153,7 +153,9 @@
       "./media/site/import-media-entity": "node",
       "./admin-http/routes/media/get-providers": "universal",
       "./admin-http/routes/media/delete": "universal",
-      "./admin-http/routes/media/trash": "universal"
+      "./admin-http/routes/media/trash": "universal",
+      "./admin-http/routes/media/where-used": "universal",
+      "./admin-http/routes/media/import-url": "universal"
     },
     "isolation": {
       "domains": {
@@ -249,7 +251,9 @@
         "./public-http/routes/site/pages/listing/listing-state": "listing",
         "./admin-http/routes/media/get-providers": "media",
         "./admin-http/routes/media/delete": "media",
-        "./admin-http/routes/media/trash": "media"
+        "./admin-http/routes/media/trash": "media",
+        "./admin-http/routes/media/where-used": "media",
+        "./admin-http/routes/media/import-url": "media"
       }
     },
     "optionalPeers": {
@@ -970,6 +974,16 @@
       "types": "./dist/admin-http/routes/media/trash.d.ts",
       "import": "./dist/admin-http/routes/media/trash.js",
       "default": "./dist/admin-http/routes/media/trash.js"
+    },
+    "./admin-http/routes/media/where-used": {
+      "types": "./dist/admin-http/routes/media/where-used.d.ts",
+      "import": "./dist/admin-http/routes/media/where-used.js",
+      "default": "./dist/admin-http/routes/media/where-used.js"
+    },
+    "./admin-http/routes/media/import-url": {
+      "types": "./dist/admin-http/routes/media/import-url.d.ts",
+      "import": "./dist/admin-http/routes/media/import-url.js",
+      "default": "./dist/admin-http/routes/media/import-url.js"
     }
   },
   "files": [

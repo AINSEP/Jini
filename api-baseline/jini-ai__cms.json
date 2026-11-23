@@ -3063,5 +3063,20 @@
    "MediaTrashRouteDeps": "interface:47127fc293",
    "mediaTrashRoute": "variable:7dd7dd6318"
   }
+ },
+ "./admin-http/routes/media/import-url": {
+  "types": "./dist/admin-http/routes/media/import-url.d.ts",
+  "symbols": {
+   "MediaImportUpload": "interface:f4ba44fcdf",
+   "MediaImportUrlRouteDeps": "interface:1e40b3fbe5",
+   "mediaImportUrlRoute": "variable:b2cb43c8fc"
+  }
+ },
+ "./admin-http/routes/media/where-used": {
+  "types": "./dist/admin-http/routes/media/where-used.d.ts",
+  "symbols": {
+   "MediaWhereUsedRouteDeps": "interface:dea3d426a8",
+   "mediaWhereUsedRoute": "variable:7a255bb68e"
+  }
  }
 }
