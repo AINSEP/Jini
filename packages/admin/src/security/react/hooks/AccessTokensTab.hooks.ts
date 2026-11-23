@@ -3,8 +3,8 @@ import { useController } from '../../../core/react/use-controller.js';
 import type { TabViewProps } from '@jini-ai/core/contracts/admin-module';
 import { createAccessTokensController } from '../../controllers/access-tokens.controller.js';
 import { createOtherCredentialsController } from '../../controllers/other-credentials.controller.js';
-import type { CredentialSummary, OtherCredentialSummary, CredentialCategory } from '../../models.js';
-import { CATEGORIES, credentialLabel, filterCredentials, filterOtherCredentials, otherWritePermission, writePermission } from '../../rules.js';
+import type { CredentialSummary, OtherCredentialSummary, CredentialCategory, CredentialKind, CredentialProvider } from '../../models.js';
+import { CATEGORIES, credentialCategory, credentialCountText, credentialLabel, filterCredentials, filterOtherCredentials, otherWritePermission, providerMatchesQuery, providersWithSavedRows, sortCredentialGroups, writePermission } from '../../rules.js';
 import { noOtherCredentials, useSecurityPorts } from './SecurityPorts.hooks.js';
 type AccessController = ReturnType<typeof createAccessTokensController>;
 type AccessSnapshot = ReturnType<AccessController['getSnapshot']>;
@@ -16,7 +16,24 @@ function currentFilter({ snapshot: s }: { snapshot: AccessSnapshot | null }, _op
 function accessRows({ snapshot: s, controller, scope }: { snapshot: AccessSnapshot | null; controller: AccessController | null; scope: RowScope }, _optional = {}) {
   if (!s) return [];
   const { permissions, query, category, setRemoval } = scope;
-  return filterCredentials({ rows: s.rows, providers: s.providers, query, category }).map(row => ({ row, label: credentialLabel({ row, providers: s.providers }), canWrite: permissions.includes(writePermission({ kind: row.kind })), edit() { controller?.begin({ row }); }, remove() { setRemoval({ row, type: 'access' }); }, makeDefault() { void controller?.makeDefault({ row }); } }));
+  return filterCredentials({ rows: s.rows, providers: s.providers, query, category }).map(row => ({ row, label: credentialLabel({ row, providers: s.providers }, { rows: s.rows }), verification: s.verifications[`${row.kind}:${row.id}`] ?? row.lastVerification ?? null, canWrite: permissions.includes(writePermission({ kind: row.kind })), edit() { controller?.begin({ row }); }, remove() { setRemoval({ row, type: 'access' }); }, makeDefault() { void controller?.makeDefault({ row }); } }));
+}
+type AccessRow = ReturnType<typeof accessRows>[number];
+/** A custom row is its own group; a catalog or unlisted provider groups its saved rows. */
+export type CredentialGroupProvider = Pick<CredentialProvider, 'id' | 'label' | 'category'> & Partial<Omit<CredentialProvider, 'kind'>> & { readonly kind: CredentialKind };
+/** Merged groups across the publish, source-control and custom stores, in the shared sort order. */
+function credentialGroups({ snapshot: s, rows, controller, scope }: { snapshot: AccessSnapshot | null; rows: readonly AccessRow[]; controller: AccessController | null; scope: Omit<RowScope, 'setRemoval'> }, _optional = {}) {
+  if (!s) return [];
+  const { permissions, query, category } = scope;
+  const listed = providersWithSavedRows({ providers: s.providers, rows: s.rows }).map(provider => ({ key: `${provider.kind}:${provider.id}`, provider: provider as CredentialGroupProvider, rows: rows.filter(v => v.row.kind === provider.kind && v.row.providerId === provider.id),
+    canWrite: permissions.includes(writePermission({ kind: provider.kind })), add() { controller?.begin({ kind: provider.kind, providerId: provider.id }); } }));
+  const custom = rows.filter(v => v.row.kind === 'custom').map(v => ({ key: `custom:${v.row.id}`, provider: { kind: 'custom' as const, id: v.row.id, label: v.label, category: credentialCategory({ row: v.row }) } as CredentialGroupProvider, rows: [v], canWrite: v.canWrite, add() {} }));
+  const visible = listed.filter(g => (category === 'all' || g.provider.category === category) && (g.rows.length > 0 || providerMatchesQuery({ provider: g.provider, query })));
+  return sortCredentialGroups({ groups: [...visible, ...custom] });
+}
+/** The hosting filter can be empty while source-control groups still exist. */
+function hostingEmpty({ snapshot: s, groups, query, category }: { snapshot: AccessSnapshot | null; groups: ReturnType<typeof credentialGroups>; query: string; category: CredentialCategory | 'all' }, _optional = {}) {
+  return s?.loading === false && !query && (category === 'all' || category === 'hosting') && !groups.some(g => g.provider.category === 'hosting');
 }
 function otherRowsView({ snapshot: o, controller, scope }: { snapshot: OtherSnapshot | null; controller: OtherController | null; scope: RowScope }, _optional = {}) {
   if (!o) return [];
@@ -49,8 +66,9 @@ export function useAccessTokensTab({ permissions = [] }: TabViewProps, _optional
   const rows = accessRows({ snapshot: s, controller: access.controller, scope });
   const otherRows = otherRowsView({ snapshot: o, controller: other.controller, scope });
   const providers = providerOptions({ snapshot: s, controller: access.controller, scope });
-  return { denied: !canRead, ...tabStatus({ access: s, other: o }), rows, otherRows, providers, categories: CATEGORIES, query, category, ...tokenCounts({ access: s, other: o, query }), removal,
-    draft: s?.draft ?? null, errors: errorList({ access: s, other: o }),
+  const groups = credentialGroups({ snapshot: s, rows, controller: access.controller, scope }); const counts = tokenCounts({ access: s, other: o, query });
+  return { denied: !canRead, ...tabStatus({ access: s, other: o }), rows, otherRows, providers, groups, hostingEmpty: hostingEmpty({ snapshot: s, groups, query, category }), categories: CATEGORIES, query, category, ...counts, countText: credentialCountText({ total: counts.total, matched: counts.matched, query }), removal,
+    draft: s?.draft ?? null, errors: errorList({ access: s, other: o }), executionMode: s?.executionMode ?? null,
     canAddCustom: permissions.includes('custom-credentials.write'),
     addCustom() { access.controller?.begin({ kind: 'custom' }); },
     onQuery({ value }: { value: string }) { access.controller?.filter({ query: value }); },

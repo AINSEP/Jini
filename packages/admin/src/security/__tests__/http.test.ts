@@ -183,7 +183,7 @@ describe('SEC-4 root-key wire parity with Tovu site-key', () => {
       const { token, ...refused } = c.getSnapshot(); expect(token).toBe(FIXTURE_KEY); // the operator's own field keeps their input for the retry
       expect(refused.error).toBe('Recovery refused. Check the host key configuration.'); expect(JSON.stringify(refused)).not.toContain(FIXTURE_KEY);
       expect(await c.importToken({})).toBe(true);
-      expect(c.getSnapshot()).toMatchObject({ token: '', error: null, result: 'Unlocked. Saved credentials work again.', status: { active: true, fingerprint: 'fp-42' } });
+      expect(c.getSnapshot()).toMatchObject({ token: '', error: null, result: 'Unlocked. Saved credentials work again. 3 saved since were moved over.', status: { active: true, fingerprint: 'fp-42' } });
       expect(JSON.stringify(c.getSnapshot())).not.toContain(FIXTURE_KEY);
       expect(calls).toEqual([`GET ${TOVU_WS}/system/site-key`, `POST ${TOVU_WS}/system/site-key/import`, `POST ${TOVU_WS}/system/site-key/import`, `GET ${TOVU_WS}/system/site-key`]);
       for (const spy of spies) expect(JSON.stringify(spy.mock.calls.map(args => args.map(String)))).not.toContain(FIXTURE_KEY);

@@ -3,7 +3,9 @@ import type { ReactNode } from 'react';
 import { describe, expect, it, vi } from 'vitest';
 import { useAccessTokensTab } from '../hooks/AccessTokensTab.hooks.js';
 import { useRootKeyTab } from '../hooks/RootKeyTab.hooks.js';
-import { SecurityPortsContext, noOtherCredentials, unavailableRootKey, useSecurityPorts } from '../hooks/SecurityPorts.hooks.js';
+import { SecurityPortsContext, noOtherCredentials, unavailableRootKey, useSecurityPorts, useSecurityTranslation, useSecurityRootKeyHost } from '../hooks/SecurityPorts.hooks.js';
+import { useController } from '../../../core/react/use-controller.js';
+const ROOT_KEY_HOOKS = { useSecurityPortsHook: useSecurityPorts, useSecurityTranslationHook: useSecurityTranslation, useRootKeyHostHook: useSecurityRootKeyHost, useControllerHook: useController };
 import type { SecurityPorts } from '../hooks/SecurityPorts.hooks.js';
 import { createMemoryOtherCredentials, createMemoryRootKey, createMemorySecurityApi } from '../../adapters/memory.js';
 import type { CredentialProvider, CredentialSummary, OtherCredentialSummary, RootKeyStatus } from '../../models.js';
@@ -173,7 +175,8 @@ describe('useAccessTokensTab', () => {
     const list = vi.spyOn(view.securityApi, 'providers');
     act(() => view.result.current.reload());
     await settled(view);
-    expect(list).toHaveBeenCalledTimes(1);
+    // SEC-9: one independent catalog read per kind.
+    expect(list).toHaveBeenCalledTimes(2);
   });
 
   it('keeps first-render handlers inert before the controllers exist', async () => {
@@ -195,7 +198,7 @@ function mountRoot({ permissions = ['admin.security.tokens.manage'], rootKey = c
   permissions?: string[]; rootKey?: SecurityPorts['rootKey'] | null; params?: Record<string, unknown>;
 } = {}) {
   let first: ReturnType<typeof useRootKeyTab> | undefined;
-  const view = renderHook(() => { const vm = useRootKeyTab({ params, permissions }); first ??= vm; return vm; },
+  const view = renderHook(() => { const vm = useRootKeyTab({ params, permissions }, ROOT_KEY_HOOKS); first ??= vm; return vm; },
     { wrapper: wrap({ securityApi: createMemorySecurityApi({}), ...(rootKey ? { rootKey } : {}) }) });
   return { ...view, rootKey, first: () => first! };
 }

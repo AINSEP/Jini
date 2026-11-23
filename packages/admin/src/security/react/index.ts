@@ -2,14 +2,18 @@ import { createElement, type ComponentType, type ReactNode } from 'react';
 import type { AdminInstance, AdminModuleUi, ModulePageProps, TabViewProps } from '@jini-ai/core/contracts/admin-module';
 import { securityModule } from '../security.module.js';
 import { englishSecurity, type SecurityTranslator } from '../messages.en.js';
-import { SecurityPortsContext, SecurityTranslationContext, SecurityOwnerControlsContext, SecurityErrorDescriberContext } from './hooks/SecurityPorts.hooks.js';
+import { SecurityPortsContext, SecurityTranslationContext, SecurityOwnerControlsContext, SecurityRootKeyHostContext } from './hooks/SecurityPorts.hooks.js';
+import { loadRootKeyTab, loadSecurityPage } from './bindings.js';
 import type { SecurityTabIcons } from './hooks/SecurityPage.hooks.js';
-import type { DescribeRootKeyError } from '../rules.js';
+import type { DescribeRootKeyError, DescribeRootKeyRefusal } from '../rules.js';
+import type { RevealClipboard } from '../controllers/root-key-reveal.js';
 export { useSecurityPorts, useSecurityTranslation, useSecurityOwnerControls } from './hooks/SecurityPorts.hooks.js';
 export type { SecurityTranslator } from '../messages.en.js';
 export type { SecurityTabIcons } from './hooks/SecurityPage.hooks.js';
 /** Root-key tab options, merged into that tab's params. Defaults are the stock behaviour:
- * generate shown, a preview required before start fresh, and no env-var name fallback. */
+ * generate shown, a preview required before start fresh, and no env-var name fallback.
+ * `previewRequired: false` lets a failed preview still open the confirm step (DC-5); the exact
+ * phrase is required either way. */
 export interface SecurityRootKeyTabOptions {
   readonly generate?: 'shown' | 'hidden';
   readonly defaultEnvVarName?: string;
@@ -21,12 +25,17 @@ export interface SecurityModuleOptions {
   readonly rootKeyTab?: SecurityRootKeyTabOptions;
   readonly tabIcons?: SecurityTabIcons;
   /** Reads a failure's server code and public detail (for example from the host's API error). The
-   * module never shows a raw `Error.message`; without a describer, refusals show fixed copy. */
+   * module reads only the code: never a `detail` or raw `Error.message`, which may echo the key. */
   readonly describeError?: DescribeRootKeyError;
+  /** Approved, translated copy for a refusal code; `undefined` (or no describer) shows fixed copy. */
+  readonly describeRefusal?: DescribeRootKeyRefusal;
+  /** The clipboard Copy writes to; defaults to the browser clipboard. A denied write is silent. */
+  readonly clipboard?: RevealClipboard;
 }
+/** Resolved at copy time, so a missing or denied browser clipboard fails silently inside the copy. */
+const browserClipboard: RevealClipboard = { writeText: (text) => globalThis.navigator.clipboard.writeText(text) };
 /** The host injects the renderer helpers; this module states the contract and imports no implementation. */
 type ModuleUi<Page, Tab> = AdminModuleUi<Page, Tab, ComponentType<{ admin: AdminInstance; children: ReactNode }>>;
-type TabbedPageProps = ModulePageProps<ComponentType<TabViewProps>>;
 function rootKeyParams({ rootKeyScopeNotice, rootKeyTab = {} }: Pick<SecurityModuleOptions, 'rootKeyScopeNotice' | 'rootKeyTab'>, _optional: Record<string, never> = {}) {
   return { ...(rootKeyScopeNotice ? { scopeNotice: rootKeyScopeNotice } : {}), ...rootKeyTab };
 }
@@ -40,18 +49,17 @@ function withRootKeyParams({ params }: { params: Readonly<Record<string, unknown
  */
 export function security<Page, Tab>(
   { ui }: { ui: ModuleUi<Page, Tab> },
-  { t = englishSecurity, rootKeyScopeNotice, rootKeyTab, tabIcons, describeError }: SecurityModuleOptions = {},
+  { t = englishSecurity, rootKeyScopeNotice, rootKeyTab, tabIcons, describeError, describeRefusal, clipboard = browserClipboard }: SecurityModuleOptions = {},
 ) {
   // Scope membership uses object identity, so bind and return this same per-admin module.
   const module = withRootKeyParams({ params: rootKeyParams({ ...(rootKeyScopeNotice ? { rootKeyScopeNotice } : {}), ...(rootKeyTab ? { rootKeyTab } : {}) }) });
   const react = ui.bindReact({ module, views: { secrets: {
-    page: async () => {
-      const { SecurityPage } = await import('./pages/SecurityPage.js');
-      return { default: (props: TabbedPageProps) => createElement(SecurityPage, { ...props, ...(tabIcons ? { tabIcons } : {}) }) };
-    },
-    tabs: { 'access-tokens': () => import('./tabs/AccessTokensTab.js'), 'root-key': () => import('./tabs/RootKeyTab.js') },
+    page: () => loadSecurityPage({ tabIcons }),
+    tabs: { 'access-tokens': () => import('./tabs/AccessTokensTab.js'), 'root-key': () => loadRootKeyTab({}) },
   } } }, { context: SecurityPortsContext });
   const ScopeProvider = react.Provider;
+  // One stable value per module, so the root-key controller is not rebuilt on every Provider render.
+  const rootKeyHost = { ...(describeError ? { describeError } : {}), ...(describeRefusal ? { describeRefusal } : {}), clipboard };
   /** A live translator override keeps locale changes inside the existing scope: rebuilding the
    * module would remount the tabs and dispose their controllers.
    * `ownerControls` is the host's owner account settings, rendered once above the tabs while the
@@ -61,7 +69,7 @@ export function security<Page, Tab>(
   function Provider({ admin, children, t: currentTranslation = t, ownerControls = null }: { admin: AdminInstance; children: ReactNode } & { t?: SecurityTranslator; ownerControls?: ReactNode }) {
     return createElement(SecurityTranslationContext.Provider, { value: currentTranslation },
       createElement(SecurityOwnerControlsContext.Provider, { value: ownerControls },
-        createElement(SecurityErrorDescriberContext.Provider, { value: describeError }, createElement(ScopeProvider, { admin, children }))));
+        createElement(SecurityRootKeyHostContext.Provider, { value: rootKeyHost }, createElement(ScopeProvider, { admin, children }))));
   }
   return Object.assign(module, { react: { ...react, Provider } });
 }

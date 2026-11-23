@@ -1,3 +1,4 @@
+import type { AdminPublishCredentialVerification, AdminPublishExecutionMode } from '@jini-ai/core/contracts/site/api-security-api-types';
 export type CredentialKind = 'publish' | 'source-control' | 'custom';
 export type CredentialCategory = 'source-control' | 'hosting' | 'media' | 'ai' | 'ops' | 'general';
 export interface RequestOptions { readonly signal?: AbortSignal }
@@ -6,6 +7,8 @@ export interface CredentialProvider {
   readonly kind: Exclude<CredentialKind, 'custom'>; readonly id: string; readonly label: string;
   readonly vendorLabel: string; readonly category: CredentialCategory; readonly tokenField: string;
   readonly fields: readonly CredentialField[]; readonly tokenPageUrl?: string; readonly help?: string;
+  /** A bare entry for a saved row whose provider is no longer listed (its plugin switched off). */
+  readonly unlisted?: boolean;
 }
 /** A saved token is never read back: label and updatedAt identify a connection without a last-4 hint. */
 export interface CredentialSummary {
@@ -13,7 +16,13 @@ export interface CredentialSummary {
   readonly configured: boolean; readonly isDefault: boolean; readonly createdAt: string; readonly updatedAt: string;
   readonly accountLabel?: string | null; readonly category?: CredentialCategory; readonly baseUrl?: string;
   readonly additionalHosts?: readonly string[]; readonly username?: string;
+  /** Publish and custom rows: a vendor or a custom provider stores them, and the plugin ids they serve. */
+  readonly credentialType?: 'vendor' | 'custom'; readonly worksFor?: readonly string[];
+  /** The verify result a create, update or verify call returned. The server keeps it in memory only. */
+  readonly lastVerification?: AdminPublishCredentialVerification;
 }
+/** One store read: its rows plus store-level facts (the publish store's server-owned `executionMode`). */
+export interface CredentialStoreSnapshot { readonly rows: readonly CredentialSummary[]; readonly executionMode?: AdminPublishExecutionMode }
 export interface CredentialInput {
   readonly label: string; readonly connection: Readonly<Record<string, string>>; readonly isDefault?: boolean;
   readonly category?: CredentialCategory; readonly baseUrl?: string; readonly additionalHosts?: readonly string[];
@@ -54,3 +63,5 @@ export interface RootKeyResult {
   readonly runtimeMode: 'production' | 'local'; readonly resealed?: number; readonly discarded?: number;
   readonly kept?: number; readonly affectedWebhooks?: RootKeyPreview['affectedWebhooks']; readonly restorePointId?: string;
 }
+/** A reveal reply: whether the key is active and, only then, its value. A reply without `hex` reveals nothing. */
+export interface RootKeyReveal { readonly active: boolean; readonly hex?: string }

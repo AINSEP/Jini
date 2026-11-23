@@ -28,9 +28,10 @@ describe('security controller contract', () => {
     await c.load({}); expect(c.getSnapshot().rows).toHaveLength(1); expect(JSON.stringify(c.getSnapshot())).not.toContain('PRIVATE_ERROR_SECRET');
   });
   it('ignores late reads after disposal and aborts transport ownership', async () => {
-    const api = createMemorySecurityApi({ providers }); let done!: (v: readonly typeof providers[number][]) => void; let signal: AbortSignal | undefined;
-    api.providers = (_r, options) => { signal = options?.signal; return new Promise(r => { done = r; }); };
-    const c = createAccessTokensController({ api, permissions: grants }); const loading = c.load({}); c.dispose({}); const snapshot = c.getSnapshot(); done(providers); await loading; expect(signal?.aborted).toBe(true); expect(c.getSnapshot()).toBe(snapshot);
+    const api = createMemorySecurityApi({ providers }); const done: ((v: readonly typeof providers[number][]) => void)[] = []; let signal: AbortSignal | undefined;
+    // SEC-9: each catalog kind is its own read, so every pending read is released late.
+    api.providers = (_r, options) => { signal = options?.signal; return new Promise(r => { done.push(r); }); };
+    const c = createAccessTokensController({ api, permissions: grants }); const loading = c.load({}); c.dispose({}); const snapshot = c.getSnapshot(); for (const release of done) release(providers); await loading; expect(signal?.aborted).toBe(true); expect(c.getSnapshot()).toBe(snapshot);
   });
   it('settles other stores independently and clears accepted replacement material', async () => {
     const api = createMemoryOtherCredentials({ rows: [{ store: 'site-assistant', id: 'site-assistant', label: 'Assistant', category: 'ai', configured: true, supportsReplace: true }] });

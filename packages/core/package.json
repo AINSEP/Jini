@@ -85,6 +85,7 @@
       "./contracts/site/agent-runtime": "universal",
       "./contracts/site/agentic": "universal",
       "./contracts/site/api-ai-assistant-api-types": "universal",
+      "./contracts/site/api-security-api-types": "universal",
       "./contracts/site/cms-forms": "universal",
       "./contracts/site/cms-media": "universal",
       "./contracts/site/cookie-consent-react": "universal",
@@ -599,6 +600,11 @@
       "types": "./dist/contracts/site/api-ai-assistant-api-types.d.ts",
       "import": "./dist/contracts/site/api-ai-assistant-api-types.js",
       "default": "./dist/contracts/site/api-ai-assistant-api-types.js"
+    },
+    "./contracts/site/api-security-api-types": {
+      "types": "./dist/contracts/site/api-security-api-types.d.ts",
+      "import": "./dist/contracts/site/api-security-api-types.js",
+      "default": "./dist/contracts/site/api-security-api-types.js"
     },
     "./contracts/site/cms-forms": {
       "types": "./dist/contracts/site/cms-forms.d.ts",

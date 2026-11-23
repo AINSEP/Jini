@@ -7,6 +7,7 @@ import { createAdmin } from '../../../core/module/index.js';
 import { SecurityPage } from '../pages/SecurityPage.js';
 import { AccessTokensTab } from '../tabs/AccessTokensTab.js';
 import { useSecurityPage } from '../hooks/SecurityPage.hooks.js';
+import { useSecurityTranslation, useSecurityOwnerControls } from '../hooks/SecurityPorts.hooks.js';
 import type { useAccessTokensTab } from '../hooks/AccessTokensTab.hooks.js';
 import { security } from '../index.js';
 import { createMemorySecurityApi, createMemoryRootKey } from '../../adapters/memory.js';
@@ -40,7 +41,7 @@ it('renders an injected denied security page even with read grants', () => {
   const feature = security({ ui: reactModuleUi });
   const admin = createAdmin({ modules: [feature], ports: { securityApi: createMemorySecurityApi({}) } }, { permissions: ['security.read'] });
   render(<SecurityPage tabs={feature.react.pages.secrets.tabs} description={admin.describe().pages[0]!}
-    useSecurityPageHook={(props) => ({ ...useSecurityPage(props), denied: true })} />);
+    useSecurityPageHook={(props) => ({ ...useSecurityPage(props, { useSecurityTranslationHook: useSecurityTranslation, useSecurityOwnerControlsHook: useSecurityOwnerControls }), denied: true })} />);
   expect(screen.getByText('Permission denied')).toBeVisible();
   expect(screen.queryByRole('tab')).toBeNull();
 });
@@ -48,7 +49,7 @@ it('renders an injected denied security page even with read grants', () => {
 it('renders the injected access-token denial without requiring security ports', () => {
   const useAccessTokensTabHook: typeof useAccessTokensTab = () => ({
     denied: true, loading: false, saving: false, rows: [], otherRows: [], providers: [], categories: [],
-    query: '', category: 'all', total: 0, matched: 0, removal: null, draft: null, errors: [], canAddCustom: false,
+    query: '', category: 'all', total: 0, matched: 0, removal: null, draft: null, errors: [], executionMode: null, groups: [], hostingEmpty: false, countText: '0 tokens saved', canAddCustom: false,
     addCustom() {}, onQuery() {}, onCategory() {}, reload() {}, cancelRemove() {}, async confirmRemove() {}, controller: null,
   });
   render(<AccessTokensTab params={{}} permissions={['security.read']} useAccessTokensTabHook={useAccessTokensTabHook} />);

@@ -65,13 +65,16 @@ describe('SEC-5 generate visibility and refusals', () => {
     expect(await screen.findByText('A key is created automatically when this install starts.')).toBeVisible();
     expect(screen.queryByRole('button', { name: 'Create root key' })).toBeNull();
   });
-  it('shows a KEY_INVALID refusal by its described detail and never the raw message', async () => {
+  // rv1123c FIX 1: the server detail is reader text and never reaches the page; host copy per code does.
+  it('shows a KEY_INVALID refusal by host copy for its code, never the detail or raw message', async () => {
     const rootKey = createMemoryRootKey({ status: missing });
     rootKey.generate = () => Promise.reject(Object.assign(new Error(FIXTURE_KEY), { code: 'KEY_INVALID', detail: 'The configured key is not valid.' }));
     const describeError = ({ error }: { error: unknown }) => { const e = error as { code: string; detail: string }; return { code: e.code, detail: e.detail }; };
-    const { container } = mount(missing, { describeError }, rootKey);
+    const describeRefusal = ({ code }: { code: string }) => (code === 'KEY_INVALID' ? 'Host copy: the key is not valid.' : undefined);
+    const { container } = mount(missing, { describeError, describeRefusal }, rootKey);
     fireEvent.click(await screen.findByRole('button', { name: 'Create root key' }));
-    expect(await screen.findByText('The configured key is not valid.')).toBeVisible();
+    expect(await screen.findByText('Host copy: the key is not valid.')).toBeVisible();
+    expect(container.textContent).not.toContain('The configured key is not valid.');
     await waitFor(() => expect(container.textContent).not.toContain(FIXTURE_KEY));
   });
 });

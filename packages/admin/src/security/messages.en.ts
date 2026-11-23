@@ -9,7 +9,10 @@ export const securityMessagesEn = { security: 'Secrets', accessTokens: 'Access t
   rootKeyNoteInvalidEnvUnnamed: 'A key is set in an environment variable, but it is not in a usable format. Fix that value on the server to resolve this.',
   rootKeyNoteInvalidFile: 'This key file is not in a usable format and must be replaced on the server:',
   rootKeyNoteEnv: 'This key was set directly on the server rather than as a file, and it is already active. Changing it means updating it on the server and restarting.',
-  rootKeyNoteFile: 'Stored in a file on this server, at', rootKeyNoteNone: 'A key is created automatically when this install starts.' } as const;
+  rootKeyNoteFile: 'Stored in a file on this server, at', rootKeyNoteNone: 'A key is created automatically when this install starts.',
+  rootKeyUnlocked: 'Unlocked. Saved credentials work again.', rootKeyResealed: '{count} saved since were moved over.',
+  rootKeyStartedFresh: 'Done. Re-enter removed credentials.', rootKeyUpdateReceivers: 'Update receivers: {names}',
+  rootKeyReveal: 'Reveal', rootKeyHide: 'Hide', rootKeyCopy: 'Copy', rootKeyCopied: 'Copied!' } as const;
 /** A host translator: it receives a message key (the names above) and returns display copy. */
 export type SecurityTranslator = (key: string, vars?: Record<string, string | number>) => string;
 /** Default copy; unknown keys stay visible and variables use the native string formatter. */
