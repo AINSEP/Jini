@@ -1,11 +1,8 @@
 import type { ToolMetadataById } from '../tool-metadata-types.js';
 import type { ToolApprovalPolicy } from '../contracts/site/tool-metadata-approval-policy.js';
 
-/** deploy-ops registration declarations; shared placement rationale is in the host aggregator.
- * The site-key secret's env var name is host-owned search vocabulary, so the host passes it in
- * (`siteKeyEnvName`) and the package never names one. */
-export function createDeployOpsToolMetadata({ siteKeyEnvName }: { siteKeyEnvName: string }, _optional: Record<string, never> = {}) {
-  return {
+/** The entries whose search vocabulary names no host value. */
+const STATIC_DEPLOY_OPS_TOOL_METADATA = {
   "deployment_ops_deploy": {
     title: 'Deploy your app',
     summary: 'This starts a deployment of the selected app on its hosting service.',
@@ -16,15 +13,6 @@ export function createDeployOpsToolMetadata({ siteKeyEnvName }: { siteKeyEnvName
       ],
     },
     approval: { class: 'publish', confirmation: 'policy' },
-  },
-  "deployment_ops_list_secrets": {
-    search: {
-      keywords: "list secrets environment variables env vars which secrets are set on my app server host names digests",
-      queries: [
-        "Which secrets are set on my hosted app?", "List the environment variables on the server.", `Is ${siteKeyEnvName} set in production?`, "Show my app's secrets.",
-      ],
-    },
-    approval: { class: 'read', confirmation: 'direct' },
   },
   "deployment_ops_list_targets": {
     search: {
@@ -43,18 +31,6 @@ export function createDeployOpsToolMetadata({ siteKeyEnvName }: { siteKeyEnvName
       ],
     },
     approval: { class: 'read', confirmation: 'direct' },
-  },
-  "deployment_ops_set_secret": {
-    title: 'Set this hosting secret',
-    summary: 'This adds or replaces the selected secret on the hosted app.',
-    search: {
-      keywords: "set secret API_KEY on my app add environment variable env var copy site key to host server rename secret copy secret stage",
-      queries: [
-        `Set ${siteKeyEnvName} on my host from my site key.`, "Copy the site key to the production server.", "Add a secret to my hosted app.", "Copy one secret to a new name on the host.",
-      ],
-    },
-    approval: { class: 'replace-secret', confirmation: 'plan' },
-    mcpUi: { secretField: { secret: true } },
   },
   "deployment_ops_status": {
     search: {
@@ -86,4 +62,38 @@ export function createDeployOpsToolMetadata({ siteKeyEnvName }: { siteKeyEnvName
     approval: { class: 'read', confirmation: 'direct' },
   },
 } as const satisfies ToolMetadataById<ToolApprovalPolicy>;
+
+/** deploy-ops registration declarations; shared placement rationale is in the host aggregator.
+ * The site-key secret's env var name is host-owned search vocabulary, so the host passes it in
+ * (`siteKeyEnvName`) and the package never names one. */
+export function createDeployOpsToolMetadata({ siteKeyEnvName }: { siteKeyEnvName: string }, _optional: Record<string, never> = {}) {
+  return {
+    "deployment_ops_deploy": STATIC_DEPLOY_OPS_TOOL_METADATA.deployment_ops_deploy,
+  "deployment_ops_list_secrets": {
+    search: {
+      keywords: "list secrets environment variables env vars which secrets are set on my app server host names digests",
+      queries: [
+        "Which secrets are set on my hosted app?", "List the environment variables on the server.", `Is ${siteKeyEnvName} set in production?`, "Show my app's secrets.",
+      ],
+    },
+    approval: { class: 'read', confirmation: 'direct' },
+  },
+    "deployment_ops_list_targets": STATIC_DEPLOY_OPS_TOOL_METADATA.deployment_ops_list_targets,
+    "deployment_ops_logs": STATIC_DEPLOY_OPS_TOOL_METADATA.deployment_ops_logs,
+  "deployment_ops_set_secret": {
+    title: 'Set this hosting secret',
+    summary: 'This adds or replaces the selected secret on the hosted app.',
+    search: {
+      keywords: "set secret API_KEY on my app add environment variable env var copy site key to host server rename secret copy secret stage",
+      queries: [
+        `Set ${siteKeyEnvName} on my host from my site key.`, "Copy the site key to the production server.", "Add a secret to my hosted app.", "Copy one secret to a new name on the host.",
+      ],
+    },
+    approval: { class: 'replace-secret', confirmation: 'plan' },
+    mcpUi: { secretField: { secret: true } },
+  },
+    "deployment_ops_status": STATIC_DEPLOY_OPS_TOOL_METADATA.deployment_ops_status,
+    "deployment_ops_unset_secret": STATIC_DEPLOY_OPS_TOOL_METADATA.deployment_ops_unset_secret,
+    "deployment_ops_wait": STATIC_DEPLOY_OPS_TOOL_METADATA.deployment_ops_wait,
+  } as const satisfies ToolMetadataById<ToolApprovalPolicy>;
 }
