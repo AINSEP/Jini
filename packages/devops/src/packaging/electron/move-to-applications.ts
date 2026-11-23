@@ -22,7 +22,6 @@
  * Architecture: `ADS-memory/reports/jini-port/extraction-plan.md`.
  */
 import path from "node:path";
-import { orFallbackSync } from "@jini-ai/core/errors/idioms";
 
 /** The outcome messages the flow shows; the host supplies its own wording. */
 interface MovePromptMessages {
@@ -67,6 +66,12 @@ interface DeclinedVersionStore {
 
 /** Reads a text file; may throw when it is missing or unreadable. */
 type ReadTextFile = (required: { filePath: string }) => string;
+
+/**
+ * Runs `work`; on any failure answers `fallback`. The host binds its own synchronous fallback idiom
+ * (the shape of Core's `orFallbackSync`), so an unreadable bundle is observed the host's way.
+ */
+type OrFallbackSync = <Value>(required: { work: () => Value; fallback: Value; step: string }) => Value;
 
 /**
  * @returns why this launch must NOT offer the move, or `null` when it should.
@@ -116,7 +121,10 @@ function applicationsTargetPath({ bundlePath }: { bundlePath: string }, _options
 
 /** @returns a bundle's `CFBundleShortVersionString` from its XML `Info.plist` (what electron-builder
  *  writes), or `null` when it cannot be read. @complexity O(n) in the plist's size. */
-function readBundleVersion({ bundlePath, readTextFile }: { bundlePath: string; readTextFile: ReadTextFile }, _options = {}): string | null {
+function readBundleVersion(
+  { bundlePath, readTextFile, orFallbackSync }: { bundlePath: string; readTextFile: ReadTextFile; orFallbackSync: OrFallbackSync },
+  _options = {},
+): string | null {
   return orFallbackSync({ work: () => {
     const plist = readTextFile({ filePath: path.join(bundlePath, "Contents", "Info.plist") });
     return /<key>CFBundleShortVersionString<\/key>\s*<string>([^<]+)<\/string>/.exec(plist)?.[1]?.trim() ?? null;
@@ -257,5 +265,6 @@ export type {
   MovePromptEnvironment,
   MovePromptMessages,
   MovePromptOutcome,
+  OrFallbackSync,
   ReadTextFile,
 };

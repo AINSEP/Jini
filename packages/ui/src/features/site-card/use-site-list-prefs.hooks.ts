@@ -40,6 +40,13 @@ export interface UseSiteListPrefsOptions {
    * for this session but is never saved.
    */
   seed?: (() => unknown) | undefined;
+  /**
+   * Start a change's save in the same turn when no save is in flight, instead of queuing it behind
+   * the previous one. For a host whose store saves synchronously (returns nothing): each click is then
+   * written before its handler returns, and back-to-back clicks reach it in order. Off by default, so
+   * an async store's save starts on the next microtask as it always has.
+   */
+  immediateFirstSave?: boolean | undefined;
 }
 
 interface InitialPrefs {
@@ -74,15 +81,15 @@ function startSave(save: () => Promise<void> | void): Promise<void> | null {
 
 /**
  * Applies a change at once and saves it behind the previous save, so two quick clicks cannot land out
- * of order. With no save in flight the save starts in the same turn, and a store that saves
- * synchronously (returns nothing) is done before the click handler returns, so back-to-back changes
- * reach it in order without waiting on a promise. After a failed read nothing is saved: the defaults on
- * screen would overwrite the person's real pins.
+ * of order. With `immediateFirstSave` and no save in flight the save starts in the same turn, and a
+ * store that saves synchronously (returns nothing) is done before the click handler returns, so
+ * back-to-back changes reach it in order without waiting on a promise. After a failed read nothing is
+ * saved: the defaults on screen would overwrite the person's real pins.
  * @returns The current choices and their save state. @complexity O(1) per change.
  */
 export function useSiteListPrefs(
   { port }: { port: SiteListPrefsPort },
-  { describeError = defaultDescribeError, seed }: UseSiteListPrefsOptions = {},
+  { describeError = defaultDescribeError, seed, immediateFirstSave = false }: UseSiteListPrefsOptions = {},
 ): SiteListPrefsController {
   const [initial] = useState(() => initialPrefs({ seed, describeError }));
   const [prefs, setPrefs] = useState<SiteListPrefs>(initial.prefs);
@@ -108,14 +115,18 @@ export function useSiteListPrefs(
     setPrefs(next);
     if (loadError !== null) return;
     const save = () => port.save({ next });
+    const onSaved = () => setSaveError(null);
+    const onFailed = (error: unknown) => setSaveError(describeError({ error }));
+    if (!immediateFirstSave) {
+      // Queued even when nothing is in flight: an async store's save starts on the next microtask.
+      lastSave.current = lastSave.current.then(save).then(onSaved, onFailed);
+      return;
+    }
     const started = pendingSaves.current === 0 ? startSave(save) : lastSave.current.then(save);
-    if (started === null) { setSaveError(null); return; }
+    if (started === null) { onSaved(); return; }
     pendingSaves.current += 1;
-    lastSave.current = started.then(
-      () => setSaveError(null),
-      (error: unknown) => setSaveError(describeError({ error })),
-    ).finally(() => { pendingSaves.current -= 1; });
-  }, [port, loadError, describeError]);
+    lastSave.current = started.then(onSaved, onFailed).finally(() => { pendingSaves.current -= 1; });
+  }, [port, loadError, describeError, immediateFirstSave]);
 
   return { prefs, ready, onPrefsChange, loadError, saveError };
 }

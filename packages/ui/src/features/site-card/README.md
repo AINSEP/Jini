@@ -7,11 +7,14 @@ A site list's card frame (`SiteCard`), its toolbar (`SiteListToolbar`), the pure
 
 ## Wiring
 
-- **Needs injected:** `useSiteListPrefs({ port: SiteListPrefsPort }, { describeError?, seed? })`.
+- **Needs injected:** `useSiteListPrefs({ port: SiteListPrefsPort }, { describeError?, seed?, immediateFirstSave? })`.
   `port.load()` reads the stored choices (async); `port.save({ next })` writes one change and may
   return nothing when the store is synchronous. `seed` is an optional synchronous read for a store
   that answers at once (browser storage): the first render then shows the stored choices and
   `port.load` is never called. `describeError` is host wording for `loadError`/`saveError`.
+  `immediateFirstSave` (default `false`) starts a change's save in the same turn when none is in
+  flight; a host with a synchronous store sets it so each click is written before its handler
+  returns. Left off, every save is queued and starts on the next microtask.
 - **Provides:** `SiteListPrefsController` (`prefs`, `ready`, `onPrefsChange`, `loadError`,
   `saveError`). Saves are ordered; after a failed read nothing is saved, but changes still apply for
   the session.
@@ -26,5 +29,5 @@ const port: SiteListPrefsPort = {
   save: ({ next }) => { localStorage.setItem(KEY, JSON.stringify(next)); },
 };
 const seed = () => JSON.parse(localStorage.getItem(KEY) ?? 'null');
-export const useHostSiteListPrefs = () => useSiteListPrefs({ port }, { seed });
+export const useHostSiteListPrefs = () => useSiteListPrefs({ port }, { seed, immediateFirstSave: true });
 ```

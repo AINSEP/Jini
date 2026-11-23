@@ -6,6 +6,7 @@
 import { test } from "vitest";
 import assert from "node:assert/strict";
 import path from "node:path";
+import { orFallbackSync } from "@jini-ai/core/errors/idioms";
 
 import {
   applicationsTargetPath,
@@ -152,12 +153,19 @@ test("readBundleVersion reads CFBundleShortVersionString from an XML Info.plist,
   const readTextFile = memoryReader(files);
   const bundle = "/tmp/fixture/Example.app";
   const plist = path.join(bundle, "Contents", "Info.plist");
-  assert.equal(readBundleVersion({ bundlePath: bundle, readTextFile }), null);
+  assert.equal(readBundleVersion({ bundlePath: bundle, readTextFile, orFallbackSync }), null);
   files.set(plist, '<?xml version="1.0"?><plist><dict>\n<key>CFBundleName</key>\n<string>Example</string>\n<key>CFBundleShortVersionString</key>\n\t<string>0.1.7</string>\n</dict></plist>');
-  assert.equal(readBundleVersion({ bundlePath: bundle, readTextFile }), "0.1.7");
+  assert.equal(readBundleVersion({ bundlePath: bundle, readTextFile, orFallbackSync }), "0.1.7");
   // A readable plist that simply has no version key (a hand-built or foreign bundle) is unknown too.
   files.set(plist, '<?xml version="1.0"?><plist><dict>\n<key>CFBundleName</key>\n<string>Example</string>\n</dict></plist>');
-  assert.equal(readBundleVersion({ bundlePath: bundle, readTextFile }), null);
+  assert.equal(readBundleVersion({ bundlePath: bundle, readTextFile, orFallbackSync }), null);
+});
+
+test("readBundleVersion answers an unreadable bundle through the host's injected orFallbackSync", () => {
+  const seen: Array<{ step: string; fallback: unknown }> = [];
+  const recording: typeof orFallbackSync = (required) => { seen.push({ step: required.step, fallback: required.fallback }); return orFallbackSync(required); };
+  assert.equal(readBundleVersion({ bundlePath: "/tmp/fixture/Missing.app", readTextFile: memoryReader(new Map()), orFallbackSync: recording }), null);
+  assert.deepEqual(seen, [{ step: "Read application bundle version", fallback: null }]);
 });
 
 // --- A copy already in /Applications -------------------------------------------------------------

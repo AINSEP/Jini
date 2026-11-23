@@ -86,25 +86,47 @@ describe("useSiteListPrefs", () => {
     expect(save).not.toHaveBeenCalled();
   });
 
-  it("with no save in flight a change reaches the store in the same turn, so a synchronous store is written at once", () => {
+  it("by default a change's save is queued, so an async store is not called in the click's own turn", async () => {
     const writes: string[] = [];
     const save: SiteListPrefsPort["save"] = async ({ next }) => { writes.push(next.sort); };
-    const { result } = renderHook(() => useSiteListPrefs({ port: { load: vi.fn(), save } }, { seed: () => null }));
+    const { result } = await ready({ load: async () => undefined, save });
+    act(() => result.current.onPrefsChange({ ...DEFAULT_SITE_LIST_PREFS, sort: "name" }));
+    expect(writes).toEqual([]);
+    await act(async () => { await Promise.resolve(); });
+    expect(writes).toEqual(["name"]);
+  });
+
+  it("with immediateFirstSave and no save in flight a change reaches the store in the same turn", () => {
+    const writes: string[] = [];
+    const save: SiteListPrefsPort["save"] = async ({ next }) => { writes.push(next.sort); };
+    const { result } = renderHook(() => useSiteListPrefs({ port: { load: vi.fn(), save } }, { seed: () => null, immediateFirstSave: true }));
     act(() => result.current.onPrefsChange({ ...DEFAULT_SITE_LIST_PREFS, sort: "name" }));
     expect(writes).toEqual(["name"]);
   });
 
+  it("with immediateFirstSave a save still in flight makes the next one wait its turn", async () => {
+    const first = deferred();
+    const saved: string[] = [];
+    const save = vi.fn(async ({ next }: { next: { sort: string } }) => { if (saved.length === 0) { saved.push("first-started"); await first.promise; } saved.push(next.sort); });
+    const { result } = renderHook(() => useSiteListPrefs({ port: { load: vi.fn(), save } }, { seed: () => null, immediateFirstSave: true }));
+    act(() => result.current.onPrefsChange({ ...DEFAULT_SITE_LIST_PREFS, sort: "oldest" }));
+    act(() => result.current.onPrefsChange({ ...DEFAULT_SITE_LIST_PREFS, sort: "name" }));
+    expect(saved).toEqual(["first-started"]);
+    await act(async () => { first.resolve(); await first.promise; });
+    await waitFor(() => expect(saved).toEqual(["first-started", "oldest", "name"]));
+  });
+
   it("a store that throws instead of rejecting is still reported as a failed save", async () => {
     const save: SiteListPrefsPort["save"] = () => { throw new Error("quota"); };
-    const { result } = renderHook(() => useSiteListPrefs({ port: { load: vi.fn(), save } }, { seed: () => null }));
+    const { result } = renderHook(() => useSiteListPrefs({ port: { load: vi.fn(), save } }, { seed: () => null, immediateFirstSave: true }));
     act(() => result.current.onPrefsChange({ ...DEFAULT_SITE_LIST_PREFS, sort: "name" }));
     await waitFor(() => expect(result.current.saveError).toContain("quota"));
     expect(result.current.prefs.sort).toBe("name");
   });
-  it("a store that saves synchronously gets back-to-back changes at once, in order, with no promise to wait on", () => {
+  it("with immediateFirstSave a store that saves synchronously gets back-to-back changes at once, in order, with no promise to wait on", () => {
     const writes: string[] = [];
     const save: SiteListPrefsPort["save"] = ({ next }) => { writes.push(next.sort); };
-    const { result } = renderHook(() => useSiteListPrefs({ port: { load: vi.fn(), save } }, { seed: () => null }));
+    const { result } = renderHook(() => useSiteListPrefs({ port: { load: vi.fn(), save } }, { seed: () => null, immediateFirstSave: true }));
     act(() => result.current.onPrefsChange({ ...DEFAULT_SITE_LIST_PREFS, sort: "name" }));
     act(() => result.current.onPrefsChange({ ...DEFAULT_SITE_LIST_PREFS, sort: "oldest" }));
     expect(writes).toEqual(["name", "oldest"]);

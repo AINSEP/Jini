@@ -6,6 +6,7 @@
 import { test } from "vitest";
 import assert from "node:assert/strict";
 import type { RuntimeAgentDef } from "@jini-ai/core/contracts/agents";
+import { orFallback } from "@jini-ai/core/errors/idioms";
 import { modelReasoningOptions } from "../../model-discovery-shared.js";
 
 import { createAgentInventory, summarizeAgent, type AgentRuntimePorts } from "../index.js";
@@ -34,6 +35,7 @@ function ports(overrides: Partial<AgentRuntimePorts> = {}): AgentRuntimePorts & 
       return { models: [{ id: `${d.id}-live`, label: "Live", description: "dropped from the summary" }] };
     },
     supportsTools: () => true,
+    orFallback,
     ...overrides,
   };
 }
@@ -62,6 +64,17 @@ test("a failed model probe falls back to the def's own models rather than failin
   assert.deepEqual(summary.models, [{ id: "codex-default", label: "codex default" }]);
   assert.deepEqual(summary.reasoningOptions, []);
   assert.equal("supportsCustomModel" in summary, false, "an unset flag is omitted, not sent as undefined");
+});
+
+test("a failed probe falls back through the host's injected orFallback, labelled with its step", async () => {
+  const steps: string[] = [];
+  const p = ports({
+    probeModels: async () => { throw new Error("probe timed out"); },
+    orFallback: (required) => { steps.push(required.step); return orFallback(required); },
+  });
+  const summary = await summarizeAgent({ def: def("codex"), ports: p });
+  assert.deepEqual(steps, ["Probe inventory agent models"]);
+  assert.deepEqual(summary.models, [{ id: "codex-default", label: "codex default" }]);
 });
 
 test("an absent CLI is never probed, shows its fallbacks, and says why it is unavailable", async () => {

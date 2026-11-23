@@ -37,7 +37,8 @@ Exported from its own subpath, `@jini-ai/devops/packaging/electron/move-to-appli
   live copies), `MovePromptDeps` (Electron's `ask`/`move`/`openExisting`/`quit`/dialog calls,
   `readExistingVersion`, `recordDeclined`, and the host copy `messages: MovePromptMessages`),
   a `DeclinedVersionStore` (the host's atomic durable JSON helper) plus the decline file path, and
-  a `ReadTextFile` for `readBundleVersion`.
+  a `ReadTextFile` and an `OrFallbackSync` (the host's synchronous fallback idiom, e.g. Core's
+  `orFallbackSync`) for `readBundleVersion`.
 - **Provides:** the skip policy, the per-version "Not Now" memory, the `/Applications` clash
   decision (`replace` / `open-existing` / `blocked-by-running-copy`) and the whole prompt flow,
   which never throws on a failed move.

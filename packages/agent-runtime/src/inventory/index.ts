@@ -11,7 +11,12 @@
  */
 import type { RuntimeAgentDef } from "@jini-ai/core/contracts/agents";
 import type { AgentInventorySummary } from "@jini-ai/core/contracts/agents/inventory";
-import { orFallback } from "@jini-ai/core/errors/idioms";
+
+/**
+ * Runs `work`; on any failure answers `fallback`. The host binds its own fallback idiom (the shape of
+ * Core's `orFallback`), so a failed probe is observed the way the rest of the host observes them.
+ */
+type OrFallback = <Value>(required: { work: () => Value | PromiseLike<Value>; fallback: Value; step: string }) => Promise<Value>;
 
 /** The slice of an agent runtime this module reads — injected so tests probe nothing. */
 interface AgentRuntimePorts {
@@ -19,6 +24,8 @@ interface AgentRuntimePorts {
   resolveLaunch: (required: { def: RuntimeAgentDef }) => { launchPath?: string | null; diagnostic?: string | null };
   probeModels: (required: { def: RuntimeAgentDef }) => Promise<{ models: RuntimeAgentDef["fallbackModels"] }>;
   supportsTools: (required: { def: RuntimeAgentDef }) => boolean;
+  /** A model probe that fails falls back to the def's own models through this. */
+  orFallback: OrFallback;
 }
 
 /**
@@ -32,7 +39,7 @@ async function summarizeAgent({ def, ports }: { def: RuntimeAgentDef; ports: Age
   let models = def.fallbackModels;
   if (available) {
     const probe = ports.probeModels({ def });
-    models = (await orFallback({ work: () => probe, fallback: { models: def.fallbackModels }, step: "Probe inventory agent models" })).models;
+    models = (await ports.orFallback({ work: () => probe, fallback: { models: def.fallbackModels }, step: "Probe inventory agent models" })).models;
   }
   return {
     id: def.id,
@@ -66,4 +73,4 @@ function createAgentInventory(ports: AgentRuntimePorts, _optional = {}): (requir
 }
 
 export { createAgentInventory, summarizeAgent };
-export type { AgentRuntimePorts };
+export type { AgentRuntimePorts, OrFallback };
