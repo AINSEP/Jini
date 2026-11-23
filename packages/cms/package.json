@@ -236,6 +236,7 @@
       "./admin-http/routes/trash/shared": "universal",
       "./admin-http/http/trash": "universal",
       "./admin-http/routes/skills/files": "universal",
+      "./admin-http/routes/skills/list": "universal",
       "./admin-http/routes/skills/install": "universal",
       "./admin-http/routes/skills/set-enabled": "universal",
       "./admin-http/routes/skills/uninstall": "universal",
@@ -1665,6 +1666,11 @@
       "types": "./dist/admin-http/http/trash.d.ts",
       "import": "./dist/admin-http/http/trash.js",
       "default": "./dist/admin-http/http/trash.js"
+    },
+    "./admin-http/routes/skills/list": {
+      "types": "./dist/admin-http/routes/skills/list.d.ts",
+      "import": "./dist/admin-http/routes/skills/list.js",
+      "default": "./dist/admin-http/routes/skills/list.js"
     },
     "./admin-http/routes/skills/files": {
       "types": "./dist/admin-http/routes/skills/files.d.ts",
