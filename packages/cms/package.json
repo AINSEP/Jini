@@ -163,6 +163,10 @@
       "./admin-http/routes/menus/update-tree": "universal",
       "./admin-http/routes/menus/assign-location": "universal",
       "./admin-http/routes/menus/delete": "universal",
+      "./admin-http/routes/plugins/list": "universal",
+      "./admin-http/routes/plugins/files": "universal",
+      "./admin-http/routes/plugins/uninstall": "universal",
+      "./admin-http/routes/plugins/preview": "universal",
       "./admin-http/routes/publish-content/transport-shared": "universal",
       "./admin-http/routes/publish-content/peers": "universal",
       "./admin-http/routes/publish-content/destination": "universal"
@@ -269,6 +273,10 @@
         "./admin-http/routes/menus/update-tree": "navigation",
         "./admin-http/routes/menus/assign-location": "navigation",
         "./admin-http/routes/menus/delete": "navigation",
+        "./admin-http/routes/plugins/list": "core",
+        "./admin-http/routes/plugins/files": "core",
+        "./admin-http/routes/plugins/uninstall": "core",
+        "./admin-http/routes/plugins/preview": "core",
         "./admin-http/routes/publish-content/transport-shared": "publish",
         "./admin-http/routes/publish-content/peers": "publish",
         "./admin-http/routes/publish-content/destination": "publish"
@@ -1036,6 +1044,26 @@
       "types": "./dist/admin-http/routes/menus/delete.d.ts",
       "import": "./dist/admin-http/routes/menus/delete.js",
       "default": "./dist/admin-http/routes/menus/delete.js"
+    },
+    "./admin-http/routes/plugins/list": {
+      "types": "./dist/admin-http/routes/plugins/list.d.ts",
+      "import": "./dist/admin-http/routes/plugins/list.js",
+      "default": "./dist/admin-http/routes/plugins/list.js"
+    },
+    "./admin-http/routes/plugins/files": {
+      "types": "./dist/admin-http/routes/plugins/files.d.ts",
+      "import": "./dist/admin-http/routes/plugins/files.js",
+      "default": "./dist/admin-http/routes/plugins/files.js"
+    },
+    "./admin-http/routes/plugins/uninstall": {
+      "types": "./dist/admin-http/routes/plugins/uninstall.d.ts",
+      "import": "./dist/admin-http/routes/plugins/uninstall.js",
+      "default": "./dist/admin-http/routes/plugins/uninstall.js"
+    },
+    "./admin-http/routes/plugins/preview": {
+      "types": "./dist/admin-http/routes/plugins/preview.d.ts",
+      "import": "./dist/admin-http/routes/plugins/preview.js",
+      "default": "./dist/admin-http/routes/plugins/preview.js"
     },
     "./admin-http/routes/publish-content/transport-shared": {
       "types": "./dist/admin-http/routes/publish-content/transport-shared.d.ts",
