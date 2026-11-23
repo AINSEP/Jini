@@ -80,3 +80,51 @@ export function buildCredentialPatch({ draft, providers }: { draft: CredentialDr
   return { label: draft.label.trim(), ...(connection ? { connection } : {}), ...(custom ? customPatchFields({ draft }) : {}) };
 }
 export function isRootKeyLocked({ status }: { status: RootKeyStatus | null }, _optional = {}) { return status?.state === 'missing-with-data' || status?.state === 'mismatch'; }
+/** A translatable line: a message key, its variables, and an optional path rendered as code. */
+export interface RootKeyCopy { readonly key: string; readonly vars: Readonly<Record<string, string>>; readonly path?: string }
+export type RootKeyBadgeTone = 'info' | 'success' | 'warning';
+/** Badge copy keeps env provenance here so rendering has no source policy. The env var name is the
+ * server's, else the host default; a name, never a value. */
+export function rootKeyBadge({ status }: { status: RootKeyStatus }, { defaultEnvVarName }: { defaultEnvVarName?: string } = {}): RootKeyCopy & { readonly tone: RootKeyBadgeTone } {
+  const tone: RootKeyBadgeTone = status.invalid ? 'warning' : status.active ? 'success' : 'info';
+  if (!status.active) return { key: 'rootKeyBadgeNone', vars: {}, tone };
+  if (status.source !== 'env') return { key: 'rootKeyBadgeFile', vars: {}, tone };
+  return { ...envCopy({ key: 'rootKeyBadgeEnv', name: status.envVarName ?? defaultEnvVarName }), tone };
+}
+function envCopy({ key, name }: { key: string; name: string | undefined }, _optional = {}): RootKeyCopy {
+  return name === undefined ? { key: `${key}Unnamed`, vars: {} } : { key, vars: { name } };
+}
+/** One plain sentence per source under the badge; a path is kept out of the prose and shown as code. */
+export function rootKeySourceNote({ status }: { status: RootKeyStatus }, { defaultEnvVarName }: { defaultEnvVarName?: string } = {}): RootKeyCopy {
+  if (status.invalid) return status.source === 'env' ? envCopy({ key: 'rootKeyNoteInvalidEnv', name: status.envVarName ?? defaultEnvVarName }) : { key: 'rootKeyNoteInvalidFile', vars: {}, path: status.keyFilePath };
+  if (status.source === 'env') return { key: 'rootKeyNoteEnv', vars: {} };
+  if (status.source === 'file') return { key: 'rootKeyNoteFile', vars: {}, path: status.keyFilePath };
+  return { key: 'rootKeyNoteNone', vars: {} };
+}
+/** What the host's describer says about a failure: a server code and its public, plain-words detail.
+ * The module never reads a raw `Error.message`, which may echo submitted key material. */
+export interface RootKeyErrorDescription { readonly code?: string; readonly detail?: string }
+export type DescribeRootKeyError = (required: { error: unknown }, optional?: Record<string, never>) => RootKeyErrorDescription;
+/** `locked`: saved credentials need a key that is not here. `refused`: nothing changed for another
+ * reason. `already-exists`: a key appeared mid-request (create-only, never overwrite). */
+export type RootKeyGenerateFailure =
+  | { readonly kind: 'locked'; readonly code: string; readonly detail?: string }
+  | { readonly kind: 'refused'; readonly code: string; readonly detail?: string }
+  | { readonly kind: 'already-exists' }
+  | { readonly kind: 'generic'; readonly detail?: string };
+const LOCKED_CODES: readonly string[] = ['KEY_DEPENDENT_DATA', 'KEY_MISMATCH'];
+const REFUSED_CODES: readonly string[] = ['KEY_INVALID', 'SITE_META_UNREADABLE'];
+export function classifyRootKeyGenerateFailure({ description }: { description: RootKeyErrorDescription }, _optional = {}): RootKeyGenerateFailure {
+  const { code } = description, detail = description.detail === undefined ? {} : { detail: description.detail };
+  if (code !== undefined && LOCKED_CODES.includes(code)) return { kind: 'locked', code, ...detail };
+  if (code !== undefined && REFUSED_CODES.includes(code)) return { kind: 'refused', code, ...detail };
+  if (code === 'ALREADY_EXISTS') return { kind: 'already-exists' };
+  return { kind: 'generic', ...detail };
+}
+export const ROOT_KEY_GENERATE_FAILED = 'Root key could not be created.';
+export const ROOT_KEY_ALREADY_EXISTS = 'A root key already exists. This tab only creates a key; it never overwrites one.';
+/** The shown text is the described detail or fixed copy, so a raw message cannot reach the page. */
+export function rootKeyGenerateFailureText({ failure }: { failure: RootKeyGenerateFailure }, _optional = {}): string {
+  if (failure.kind === 'already-exists') return ROOT_KEY_ALREADY_EXISTS;
+  return failure.detail ? failure.detail : ROOT_KEY_GENERATE_FAILED;
+}

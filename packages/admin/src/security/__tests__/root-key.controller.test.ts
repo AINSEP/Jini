@@ -28,7 +28,7 @@ describe('root key controller: generate', () => {
   it('refuses before status is known', async () => { const api = createMemoryRootKey({}); const spy = vi.spyOn(api, 'generate'); expect(await createRootKeyController({ api, permissions: GRANT }).generate({})).toBe(false); expect(spy).not.toHaveBeenCalled(); });
   it('refuses to replace an active key', async () => { const api = createMemoryRootKey({ status: status('missing', { active: true }) }); const spy = vi.spyOn(api, 'generate'); const c = createRootKeyController({ api, permissions: GRANT }); await c.load({}); expect(await c.generate({})).toBe(false); expect(spy).not.toHaveBeenCalled(); });
   it('refuses when data depends on a missing key', async () => { const { api, c } = await setup({ state: 'missing-with-data' }); const spy = vi.spyOn(api, 'generate'); expect(await c.generate({})).toBe(false); expect(spy).not.toHaveBeenCalled(); });
-  it('reports a refused generation with the fixed message', async () => { const { api, c } = await setup(); api.generate = () => Promise.reject(new Error('PRIVATE')); expect(await c.generate({})).toBe(false); expect(c.getSnapshot()).toMatchObject({ error: 'Recovery refused. Check the host key configuration.', saving: false }); });
+  it('reports a refused generation with the fixed message', async () => { const { api, c } = await setup(); api.generate = () => Promise.reject(new Error('PRIVATE')); expect(await c.generate({})).toBe(false); expect(c.getSnapshot()).toMatchObject({ error: 'Root key could not be created.', saving: false }); expect(JSON.stringify(c.getSnapshot())).not.toContain('PRIVATE'); });
   it('refuses without the grant', async () => { const api = createMemoryRootKey({}); const spy = vi.spyOn(api, 'generate'); const c = createRootKeyController({ api }); expect(await c.generate({})).toBe(false); expect(spy).not.toHaveBeenCalled(); });
   it('returns false when disposed during the write', async () => { const { api, c } = await setup(); const gate = deferred<RootKeyResult>(); api.generate = () => gate.promise; const pending = c.generate({}); c.dispose({}); gate.resolve({ outcome: 'created', fingerprint: 'f', keyFilePath: '/k', runtimeMode: 'local' }); expect(await pending).toBe(false); });
   it('refuses a second write while one is pending', async () => {
@@ -95,5 +95,64 @@ describe('root key controller: start fresh', () => {
   it('does not cancel while saving', async () => {
     const { api, c } = await previewed(); const gate = deferred<RootKeyResult>(); api.startFresh = () => gate.promise; c.setConfirm({ value: 'START FRESH' }); const pending = c.startFresh({});
     c.cancel({}); expect(c.getSnapshot().confirming).toBe(true); gate.reject(new Error('x')); await pending;
+  });
+});
+// SEC-5 (P9-SEC plan v2): create-only generate and typed refusals. Ports the host's
+// `site-key-generate-error.unit.test.ts` classes; the classification reads only what the injected
+// `describeError` returns, never the raw `error.message`.
+describe('root key controller: SEC-5 generate guard and typed refusals', () => {
+  const FIXTURE_KEY = 'a3f9'.repeat(16);
+  function refusing(code: string | undefined, detail?: string, over: Partial<RootKeyStatus> = {}) {
+    const api = createMemoryRootKey({ status: status('missing', over) });
+    api.generate = () => Promise.reject(Object.assign(new Error(FIXTURE_KEY), { code, detail }));
+    const describeError = vi.fn(({ error }: { error: unknown }) => { const e = error as { code?: string; detail?: string }; return { ...(e.code ? { code: e.code } : {}), ...(e.detail === undefined ? {} : { detail: e.detail }) }; });
+    return { api, c: createRootKeyController({ api, permissions: GRANT }, { describeError }), describeError };
+  }
+  it.each([
+    [{ active: true, state: 'active' as RootKeyState }],
+    [{ source: 'env' as const }],
+    [{ source: 'file' as const }],
+  ])('refuses to generate for %j', async (over) => {
+    const api = createMemoryRootKey({ status: status('missing', over) }); const spy = vi.spyOn(api, 'generate');
+    const c = createRootKeyController({ api, permissions: GRANT }); await c.load({});
+    expect(await c.generate({})).toBe(false); expect(spy).not.toHaveBeenCalled();
+  });
+  it.each(['KEY_DEPENDENT_DATA', 'KEY_MISMATCH'])('%s → locked, carrying the server detail', async (code) => {
+    const { c, describeError } = refusing(code, 'Saved credentials need a key that is not here.'); await c.load({});
+    expect(await c.generate({})).toBe(false);
+    expect(describeError).toHaveBeenCalledTimes(1);
+    expect(c.getSnapshot()).toMatchObject({ generateFailure: { kind: 'locked', code, detail: 'Saved credentials need a key that is not here.' }, error: 'Saved credentials need a key that is not here.', saving: false });
+  });
+  it.each(['KEY_INVALID', 'SITE_META_UNREADABLE'])('%s → refused, showing its detail', async (code) => {
+    const { c } = refusing(code, 'not a valid key'); await c.load({}); await c.generate({});
+    expect(c.getSnapshot()).toMatchObject({ generateFailure: { kind: 'refused', code, detail: 'not a valid key' }, error: 'not a valid key' });
+  });
+  it('ALREADY_EXISTS → already-exists with the create-only sentence', async () => {
+    const { c } = refusing('ALREADY_EXISTS', 'exists'); await c.load({}); await c.generate({});
+    expect(c.getSnapshot()).toMatchObject({ generateFailure: { kind: 'already-exists' }, error: 'A root key already exists. This tab only creates a key; it never overwrites one.' });
+  });
+  it('an unknown code → generic, showing the described detail', async () => {
+    const { c } = refusing('ENV_VAR_ACTIVE', 'Host said no.'); await c.load({}); await c.generate({});
+    expect(c.getSnapshot()).toMatchObject({ generateFailure: { kind: 'generic', detail: 'Host said no.' }, error: 'Host said no.' });
+  });
+  it('without describeError, a refusal is generic with the generic message', async () => {
+    const api = createMemoryRootKey({ status: status('missing') }); api.generate = () => Promise.reject(Object.assign(new Error(FIXTURE_KEY), { code: 'KEY_INVALID' }));
+    const c = createRootKeyController({ api, permissions: GRANT }); await c.load({}); await c.generate({});
+    expect(c.getSnapshot()).toMatchObject({ generateFailure: { kind: 'generic' }, error: 'Root key could not be created.' });
+  });
+  it('an error whose message is a key never reaches any snapshot field or console', async () => {
+    const log = vi.spyOn(console, 'error').mockImplementation(() => {}), warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    for (const describe of [undefined, () => ({})]) {
+      const api = createMemoryRootKey({ status: status('missing') }); api.generate = () => Promise.reject(new Error(FIXTURE_KEY));
+      const c = createRootKeyController({ api, permissions: GRANT }, describe ? { describeError: describe } : {}); await c.load({}); await c.generate({});
+      expect(JSON.stringify(c.getSnapshot())).not.toContain(FIXTURE_KEY);
+      expect(c.getSnapshot().error).toBe('Root key could not be created.');
+    }
+    expect(JSON.stringify([...log.mock.calls, ...warn.mock.calls])).not.toContain(FIXTURE_KEY); log.mockRestore(); warn.mockRestore();
+  });
+  it('a later successful generate clears the previous failure', async () => {
+    const { api, c } = refusing('KEY_INVALID', 'not a valid key'); await c.load({}); await c.generate({});
+    api.generate = createMemoryRootKey({ status: status('missing') }).generate; expect(await c.generate({})).toBe(true);
+    expect(c.getSnapshot()).toMatchObject({ generateFailure: null, error: null });
   });
 });

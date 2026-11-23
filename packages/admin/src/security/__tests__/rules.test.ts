@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
-import { blankCredentialDraft, buildCredentialPatch, validateCredentialDraft, credentialLabel, filterCredentials, filterOtherCredentials, writePermission, otherWritePermission, credentialStore, isRootKeyLocked, OTHER_STORES } from '../rules.js';
+import { blankCredentialDraft, buildCredentialPatch, validateCredentialDraft, credentialLabel, filterCredentials, filterOtherCredentials, writePermission, otherWritePermission, credentialStore, isRootKeyLocked, OTHER_STORES, rootKeyBadge, rootKeySourceNote } from '../rules.js';
 import { createMemorySecurityApi } from '../adapters/memory.js';
-import type { CredentialProvider, CredentialSummary, OtherCredentialSummary, RootKeyState } from '../models.js';
+import type { CredentialProvider, CredentialSummary, OtherCredentialSummary, RootKeyState, RootKeyStatus } from '../models.js';
 it('preserves custom username tri-state and additional-host replacement without a secret retype', () => {
   const draft = { ...blankCredentialDraft({ kind: 'custom' }), id: 'one', label: 'Custom', baseUrl: 'https://api.example', additionalHosts: 'https://extra.example\nhttps://two.example', username: '' };
   expect(buildCredentialPatch({ draft, providers: [] })).toEqual({ label: 'Custom', category: 'general', baseUrl: 'https://api.example', additionalHosts: ['https://extra.example', 'https://two.example'], username: null });
@@ -79,5 +79,37 @@ describe('permission and store routing', () => {
     const states: RootKeyState[] = ['active', 'missing', 'missing-with-data', 'mismatch', 'invalid'];
     expect(states.map(state => isRootKeyLocked({ status: { active: false, source: 'none', state, keyFilePath: '/k', runtimeMode: 'local' } }))).toEqual([false, false, true, true, false]);
     expect(isRootKeyLocked({ status: null })).toBe(false);
+  });
+});
+// SEC-5 (P9-SEC plan v2): badge and source note. Ports the host's `site-key-status.rules.unit.test.ts`.
+// Rules return message keys and variables; the tab translates them.
+describe('SEC-5 root key badge and source note', () => {
+  const st = (over: Partial<RootKeyStatus>): RootKeyStatus => ({ active: true, source: 'file', state: 'active', keyFilePath: '/srv/key', runtimeMode: 'local', ...over });
+  it.each(['none', 'file', 'env'] as const)('labels an inactive %s key as none', (source) => {
+    expect(rootKeyBadge({ status: st({ active: false, source, envVarName: 'KEY_VAR' }) })).toEqual({ key: 'rootKeyBadgeNone', vars: {}, tone: 'info' });
+  });
+  it("renders the server's env var name", () => {
+    expect(rootKeyBadge({ status: st({ source: 'env', envVarName: 'KEY_VAR' }) })).toEqual({ key: 'rootKeyBadgeEnv', vars: { name: 'KEY_VAR' }, tone: 'success' });
+    expect(rootKeyBadge({ status: st({ source: 'env', envVarName: 'LEGACY_VAR' }) }, { defaultEnvVarName: 'HOST_VAR' }).vars).toEqual({ name: 'LEGACY_VAR' });
+  });
+  it('uses the host default env var name when the server omits it, and an unnamed label without one', () => {
+    expect(rootKeyBadge({ status: st({ source: 'env' }) }, { defaultEnvVarName: 'HOST_VAR' })).toEqual({ key: 'rootKeyBadgeEnv', vars: { name: 'HOST_VAR' }, tone: 'success' });
+    expect(rootKeyBadge({ status: st({ source: 'env' }) })).toEqual({ key: 'rootKeyBadgeEnvUnnamed', vars: {}, tone: 'success' });
+  });
+  it('labels an active file key without env provenance', () => {
+    expect(rootKeyBadge({ status: st({ envVarName: 'IGNORED' }) })).toEqual({ key: 'rootKeyBadgeFile', vars: {}, tone: 'success' });
+  });
+  it('an invalid key reads as a warning', () => {
+    expect(rootKeyBadge({ status: st({ active: false, invalid: true }) }).tone).toBe('warning');
+  });
+  it.each([
+    [{ invalid: true, source: 'env' as const, envVarName: 'KEY_VAR' }, { key: 'rootKeyNoteInvalidEnv', vars: { name: 'KEY_VAR' } }],
+    [{ invalid: true, source: 'env' as const }, { key: 'rootKeyNoteInvalidEnvUnnamed', vars: {} }],
+    [{ invalid: true, source: 'file' as const }, { key: 'rootKeyNoteInvalidFile', vars: {}, path: '/srv/key' }],
+    [{ source: 'env' as const }, { key: 'rootKeyNoteEnv', vars: {} }],
+    [{ source: 'file' as const }, { key: 'rootKeyNoteFile', vars: {}, path: '/srv/key' }],
+    [{ active: false, source: 'none' as const }, { key: 'rootKeyNoteNone', vars: {} }],
+  ])('source note for %j', (over, expected) => {
+    expect(rootKeySourceNote({ status: st(over) })).toEqual(expected);
   });
 });
