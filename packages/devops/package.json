@@ -37,6 +37,7 @@
       "./dns/site/mail-requirements": "universal",
       "./deploy/site/types": "universal",
       "./deploy/site/publish-credentials/types": "universal",
+      "./deploy/site/publish-credentials/account-label-heal-scheduler": "universal",
       "./backup/site/share-export-failure": "universal",
       "./backup/upload": "node",
       "./backup/plan-store": "node",
@@ -184,6 +185,11 @@
       "types": "./dist/deploy/site/publish-credentials/types.d.ts",
       "import": "./dist/deploy/site/publish-credentials/types.js",
       "default": "./dist/deploy/site/publish-credentials/types.js"
+    },
+    "./deploy/site/publish-credentials/account-label-heal-scheduler": {
+      "types": "./dist/deploy/site/publish-credentials/account-label-heal-scheduler.d.ts",
+      "import": "./dist/deploy/site/publish-credentials/account-label-heal-scheduler.js",
+      "default": "./dist/deploy/site/publish-credentials/account-label-heal-scheduler.js"
     },
     "./backup/site/share-export-failure": {
       "types": "./dist/backup/site/share-export-failure.d.ts",
