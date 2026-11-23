@@ -1,9 +1,9 @@
 # Workspace admin routes
 
 Server-framework-neutral `defineJsonRoute` specs for the workspace admin surface:
-`GET /api/admin/v1/workspaces` (`list.ts`), `GET|PATCH|DELETE /api/admin/v1/workspaces/:workspaceId`
+`GET|POST /api/admin/v1/workspaces` (`list.ts`, `create.ts`), `GET|PATCH|DELETE /api/admin/v1/workspaces/:workspaceId`
 (`get.ts`, `update.ts`, `delete.ts`), plus the wire projection in `../../http/workspace.ts`.
-`POST /api/admin/v1/workspaces` (create) is still host-owned until the outbox runtime has a neutral owner.
+The outbox runtime that delivers `create`'s `workspace.created` event stays host-owned and is injected.
 
 ## Wiring
 
@@ -12,9 +12,11 @@ Server-framework-neutral `defineJsonRoute` specs for the workspace admin surface
   host's 404, before auth), `authenticate` (the session principal), `authorize` (answers the
   `workspace.manage` / `entityType: 'workspace'` request; a refusal is a thrown `RouteRefusalError`),
   `onError` (writes a `RouteRefusalError` verbatim, maps anything else to the host's redacted 500).
-- **Provides** — `workspaceListRoute`, `workspaceGetRoute`, `workspaceUpdateRoute`, `workspaceDeleteRoute`
+  `create.ts` reads the wider `WorkspaceCreateRouteDeps`: the above plus `idGen`, `clock`, `outbox: OutboxPort`
+  and `flushOutbox` (the host's outbox worker, awaited after the create commits and before the `201`).
+- **Provides** — `workspaceCreateRoute` (201 `{ id }`; 400 `VALIDATION_ERROR`, 409 `RESOURCE_CONFLICT`), `workspaceListRoute`, `workspaceGetRoute`, `workspaceUpdateRoute`, `workspaceDeleteRoute`
   (204 on success; refuses the bound workspace with 409 `BOUND_WORKSPACE`), and the pure helpers
-  `parseWorkspaceUpdateBody`, `workspaceUpdateFailure`, `deleteWorkspaceUnlessBound`, `deleteWorkspaceFailure`.
+  `parseWorkspaceCreateBody`, `workspaceCreateFailure`, `parseWorkspaceUpdateBody`, `workspaceUpdateFailure`, `deleteWorkspaceUnlessBound`, `deleteWorkspaceFailure`.
 - **Host wiring**:
 
   ```ts
