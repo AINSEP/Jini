@@ -1399,7 +1399,7 @@
   "types": "./dist/media/site/import-media-entity.d.ts",
   "symbols": {
    "ImportMediaEntityBlockedCode": "type:168c1e4fed",
-   "ImportMediaEntityDeps": "interface:cec6378ba1",
+   "ImportMediaEntityDeps": "interface:046d322a89",
    "ImportMediaEntityInput": "interface:b9f3da48c8",
    "ImportMediaEntityResult": "type:25d384a11d",
    "importMediaEntity": "function:c10428777c",

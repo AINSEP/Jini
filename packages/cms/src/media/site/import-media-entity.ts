@@ -1,4 +1,3 @@
-import { bytesMatchSha256, isValidSha256Hex } from "../../publish/transfer/blob-staging.js";
 
 import { MediaConflictError, MediaSourceImmutableError, resolveWriteOnceSource, replaceMediaFile, MediaValidationError, sniffContentType, MAX_DOCUMENT_BYTES as HOST_MAX_UPLOAD_BYTES } from "../index.js";
 import type { AssetBlobRecord, AssetBlobRepoPort, BlobStorePort, MediaRecord, VersionedMediaRepoPort } from "../index.js";
@@ -84,6 +83,13 @@ export interface ImportMediaEntityDeps {
    *  which always comes from {@link ImportMediaEntityInput.record} verbatim (this file's whole
    *  point). */
   readonly idGen: { newId(): string };
+  /** The staged-bytes digest rule. The host binds the publish transfer's own `isValidSha256Hex` /
+   *  `bytesMatchSha256`, so the import and the transfer agree on one sha256 rule while this media
+   *  module never reaches into the publish domain. */
+  readonly sha256: {
+    isValidSha256Hex(required: { value: string }): boolean;
+    bytesMatchSha256(required: { bytes: Uint8Array; claimedSha256: string }): boolean;
+  };
 }
 
 export interface ImportMediaEntityInput {
@@ -217,7 +223,7 @@ type ImportRefusal = Exclude<ImportMediaEntityResult, { status: "imported" }>;
  *
  * @complexity O(bytes) for the one hash comparison.
  */
-function checkedBytes({ record, bytes }: { record: MediaRecord; bytes: Uint8Array | null }, _options = {}): { bytes: Uint8Array } | ImportRefusal {
+function checkedBytes({ record, bytes, sha256 }: { record: MediaRecord; bytes: Uint8Array | null; sha256: ImportMediaEntityDeps["sha256"] }, _options = {}): { bytes: Uint8Array } | ImportRefusal {
   if (typeof record.source?.sha256 !== "string") {
     return { status: "blocked", code: "precondition", reason: "missing or malformed media source" };
   }
@@ -231,10 +237,10 @@ function checkedBytes({ record, bytes }: { record: MediaRecord; bytes: Uint8Arra
 
   // Safety property 1 (sha256 shape + match) — checked first, before any repo read even, since a
   // malformed/mismatched claim makes every other check moot.
-  if (!isValidSha256Hex({ value: record.source.sha256 })) {
+  if (!sha256.isValidSha256Hex({ value: record.source.sha256 })) {
     return { status: "blocked", code: "precondition", reason: `malformed source sha256 '${record.source.sha256}'` };
   }
-  if (!bytesMatchSha256({ bytes, claimedSha256: record.source.sha256 })) {
+  if (!sha256.bytesMatchSha256({ bytes, claimedSha256: record.source.sha256 })) {
     return {
       status: "blocked",
       code: "precondition",
@@ -354,7 +360,7 @@ export async function importMediaEntity(required: {
   const { deps, input } = required;
   const { workspaceId, record, baseVersion } = input;
 
-  const checked = checkedBytes({ record, bytes: input.bytes });
+  const checked = checkedBytes({ record, bytes: input.bytes, sha256: deps.sha256 });
   if (!("bytes" in checked)) return checked;
 
   const [existingById, slugHolder] = await Promise.all([

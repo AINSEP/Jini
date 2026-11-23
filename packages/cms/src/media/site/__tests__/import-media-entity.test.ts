@@ -3,6 +3,7 @@ import { test } from "vitest";
 
 import { InMemoryAssetBlobRepo, InMemoryBlobStore, InMemoryVersionedMediaRepo, type MediaRecord } from "../../index.js";
 import { importMediaEntity, type ImportMediaEntityDeps } from "../import-media-entity.js";
+import { bytesMatchSha256, isValidSha256Hex } from "../../../publish/transfer/blob-staging.js";
 
 /**
  * @file Characterization of `importMediaEntity` (`../import-media-entity.ts`) in the package: the
@@ -32,6 +33,7 @@ function makeDeps() {
     blobStore: new InMemoryBlobStore(),
     clock: { nowIso: () => "2026-09-18T00:00:00.000Z" },
     idGen: { newId: () => `generated-${++n}` },
+    sha256: { isValidSha256Hex, bytesMatchSha256 },
   } satisfies ImportMediaEntityDeps;
 }
 
@@ -62,4 +64,15 @@ test("importMediaEntity blocks a slug held by a different id", async () => {
     bytes: HELLO_BYTES, blobCreatedByPrincipal: "importer-1", baseVersion: null } });
   assert.equal(result.status, "blocked");
   assert.equal(await deps.mediaRepo.findById({ workspaceId: WORKSPACE_ID, id: "other" }), null);
+});
+
+test("importMediaEntity checks the staged bytes through the host's injected sha256 rule", async () => {
+  // The digest rule arrives through deps (the media domain never reaches the publish transfer module);
+  // a checker that refuses every claim must block the write before any repo read.
+  const deps = { ...makeDeps(), sha256: { isValidSha256Hex: () => true, bytesMatchSha256: () => false } };
+  const result = await importMediaEntity({ deps, input: { workspaceId: WORKSPACE_ID, record: makeRecord(),
+    bytes: HELLO_BYTES, blobCreatedByPrincipal: "importer-1", baseVersion: null } });
+  assert.equal(result.status, "blocked");
+  assert.equal(result.status === "blocked" ? result.code : undefined, "precondition");
+  assert.equal(await deps.mediaRepo.findById({ workspaceId: WORKSPACE_ID, id: "source-asset-1" }), null);
 });
