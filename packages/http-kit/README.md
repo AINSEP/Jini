@@ -72,6 +72,16 @@ The async limiter uses core `Clock.nowMs()` and keeps non-empty-key validation.
 requests; route labels are read at response completion.
 
 
+## Wiring
+
+`mountJsonRoute({ app, spec, deps })` takes a server-neutral spec (`defineJsonRoute`, from
+`@jini-ai/core/contracts/server`) plus the route's own small deps type; host policy arrives as
+`spec.ports` (`workspace`, `authenticate`, `authorize`, `onError`, `onReturnedError`). A handler
+calls `authorize({ permission, entityType }, { entityId })` at its chosen point; a by-id route
+passes `entityId` and the port receives it as its second argument, while an id-free call reaches
+the port with the required arguments alone. Example: the CMS redirects specs, mounted by a host
+whose `authorize` port hands `entityId` to its RBAC check.
+
 See [API.md](https://github.com/AINSEP/Jini/blob/main/packages/http-kit/API.md) for required/optional object contracts. Node runtime, ESM only.
 Apache-2.0; see the repository NOTICE.
 
