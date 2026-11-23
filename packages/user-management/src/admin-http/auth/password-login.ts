@@ -1,6 +1,6 @@
 import { defineJsonRoute, ok } from '@jini-ai/core/contracts/server';
 import { AuthInvalidCredentialsError } from '../../core/types.js';
-import { bodyRecord, refuse, requireAuthRequest, type AuthPrincipal, type AuthRequest, type AuthSessionOptions } from './auth-request.js';
+import { bodyRecord, refuse, requireAuthRequest, type AuthPrincipal, type AuthSessionOptions, type SignInAuth } from './auth-request.js';
 
 export type PasswordLoginOutcome =
   | { readonly mfaRequired: true; readonly [field: string]: unknown }
@@ -35,7 +35,7 @@ async function refusingInvalidCredentials<T>(run: () => Promise<T>): Promise<T> 
   }
 }
 
-async function passwordLogin({ input, deps, auth }: { input: PasswordLoginInput; deps: PasswordLoginRouteDeps; auth: AuthRequest }) {
+async function passwordLogin({ input, deps, auth }: { input: PasswordLoginInput; deps: PasswordLoginRouteDeps; auth: SignInAuth }) {
   await deps.identityReady;
   const rate = await auth.rateLimit.check();
   if (!rate.allowed) {
@@ -57,7 +57,7 @@ async function passwordLogin({ input, deps, auth }: { input: PasswordLoginInput;
 }
 
 /** `POST /api/admin/v1/auth/login`: password sign-in, or the start of an owner MFA challenge. */
-export const passwordLoginRoute = defineJsonRoute<PasswordLoginInput, unknown, PasswordLoginRouteDeps, AuthRequest>({
+export const passwordLoginRoute = defineJsonRoute<PasswordLoginInput, unknown, PasswordLoginRouteDeps, SignInAuth>({
   method: 'post',
   path: '/api/admin/v1/auth/login',
   // Total: the body is carried through; coercion happens in the handler after the limiter.

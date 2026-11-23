@@ -1,5 +1,5 @@
 import { defineJsonRoute, ok } from '@jini-ai/core/contracts/server';
-import { requireAuthRequest, type AuthRequest } from './auth-request.js';
+import { requireAuthRequest, type CurrentPrincipalAuth } from './auth-request.js';
 import { signedInPrincipal } from './current-user.js';
 
 export interface PasswordStatusRouteDeps {
@@ -34,7 +34,7 @@ export function createPasswordStatusRoute(_required: Record<string, never> = {},
     defaultPasswordByHash.set(passwordHash, result);
     return result;
   };
-  return defineJsonRoute<Record<string, never>, { usesDefaultPassword: boolean }, PasswordStatusRouteDeps, AuthRequest>({
+  return defineJsonRoute<Record<string, never>, { usesDefaultPassword: boolean }, PasswordStatusRouteDeps, CurrentPrincipalAuth>({
     method: 'get',
     path: '/api/admin/v1/auth/me/password-status',
     parse: () => ok({ value: {} }),

@@ -36,4 +36,4 @@ export type { OwnerRecoveryPorts, OwnerRecoveryCopy, DescribeRecoveryFailure, Re
 export { RecoveryCodesCard } from './auth/RecoveryCodesCard.js';
 export type { RecoveryCodesCardProps, RecoveryFailureNotice } from './auth/RecoveryCodesCard.js';
 export { useOwnerRecoveryKit, createOwnerRecoveryKitDownload, useDesktopOwnerReset, saveTextFileViaDom } from './auth/RecoveryCodesCard.hooks.js';
-export type { OwnerRecoveryStatus, OwnerRecoveryPort, OwnerRecoveryFailureFormatter } from './auth/RecoveryCodesCard.hooks.js';
+export type { OwnerRecoveryStatus, OwnerRecoveryPort, OwnerRecoveryFailureFormatter, OwnerRecoveryHookArgs, OwnerRecoveryKitHook, DesktopOwnerResetHook } from './auth/RecoveryCodesCard.hooks.js';

@@ -3,7 +3,8 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { formatUserFacingError, type UserFacingError } from '@jini-ai/core';
 import { renderWithUmKit } from '../../__tests__/fake-um-kit.js';
 import { RecoveryCodesCard, type RecoveryCodesCardProps } from '../RecoveryCodesCard.js';
-import { createOwnerRecoveryKitDownload, type OwnerRecoveryFailureFormatter, type OwnerRecoveryPort } from '../RecoveryCodesCard.hooks.js';
+import { createOwnerRecoveryKitDownload, useDesktopOwnerReset, useOwnerRecoveryKit, type OwnerRecoveryFailureFormatter, type OwnerRecoveryHookArgs, type OwnerRecoveryKitHook, type OwnerRecoveryPort } from '../RecoveryCodesCard.hooks.js';
+import { useOwnerPasswordReset, useRecoveryKit } from '../OwnerRecovery.hooks.js';
 
 afterEach(() => { cleanup(); vi.restoreAllMocks(); });
 const CODES = Array.from({ length: 10 }, (_, i) => String(i).padStart(64, 'a'));
@@ -16,8 +17,12 @@ const port = (owner = true, { available = owner, desktopOwnerReset = owner } = {
 const describeFailure = vi.fn<OwnerRecoveryFailureFormatter>(({ error, message, action, step, t, secrets = [] }) =>
   formatUserFacingError({ message: error instanceof Error ? error.message : t(message), action: t(action), step, cause: error }, { exactSecrets: secrets.filter(Boolean) }));
 function FailureNotice({ failure }: { failure: UserFacingError }) { return <p role="alert">{failure.message}</p>; }
+/** Binds the card's hooks the way a host does: each wrapper to its inner owner-recovery hook. */
+function useBoundRecoveryKit(args: OwnerRecoveryHookArgs) { return useOwnerRecoveryKit(args, { useJiniRecoveryKitHook: useRecoveryKit }); }
+function useBoundDesktopOwnerReset(args: OwnerRecoveryHookArgs) { return useDesktopOwnerReset(args, { useOwnerPasswordResetHook: useOwnerPasswordReset }); }
+const HOOKS = { createDownloadHook: createOwnerRecoveryKitDownload, useRecoveryKitHook: useBoundRecoveryKit, useDesktopOwnerResetHook: useBoundDesktopOwnerReset };
 function mount(p: OwnerRecoveryPort, extra: Partial<RecoveryCodesCardProps> = {}) {
-  return renderWithUmKit(<RecoveryCodesCard port={p} describeFailure={describeFailure} FailureNotice={FailureNotice} filename="owner-recovery-codes.txt" {...extra} />);
+  return renderWithUmKit(<RecoveryCodesCard port={p} describeFailure={describeFailure} FailureNotice={FailureNotice} filename="owner-recovery-codes.txt" {...HOOKS} {...extra} />);
 }
 const input = (id: string) => document.getElementById(id) as HTMLInputElement;
 
@@ -142,8 +147,15 @@ describe('owner recovery card (SEC-3, ported from the host)', () => {
     const p = port();
     const { rerender } = mount(p, { t: text => text });
     await screen.findByText('Recovery codes');
-    rerender(<RecoveryCodesCard port={p} describeFailure={describeFailure} FailureNotice={FailureNotice} filename="f" t={text => `translated:${text}`} />);
+    rerender(<RecoveryCodesCard port={p} describeFailure={describeFailure} FailureNotice={FailureNotice} filename="f" {...HOOKS} t={text => `translated:${text}`} />);
     expect(screen.getByText('translated:Recovery codes')).toBeTruthy();
     expect(p.status).toHaveBeenCalledTimes(1);
+  });
+  it('renders through the host-injected recovery-kit hook, never an imported one (rv1123c FIX 3)', async () => {
+    const useRecoveryKitHook = vi.fn<OwnerRecoveryKitHook>(() => ({ password: '', setPassword: vi.fn(), code: '', setCode: vi.fn(), codes: ['injected-fixture-code'], setCodes: vi.fn(), busy: false, error: null, submit: vi.fn() }) as unknown as ReturnType<OwnerRecoveryKitHook>);
+    const p = port(true, { desktopOwnerReset: false });
+    mount(p, { useRecoveryKitHook });
+    expect(await screen.findByText('injected-fixture-code')).toBeTruthy();
+    expect(useRecoveryKitHook).toHaveBeenCalledWith(expect.objectContaining({ port: p, describeFailure }));
   });
 });

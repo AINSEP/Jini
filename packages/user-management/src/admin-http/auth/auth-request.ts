@@ -40,8 +40,29 @@ export interface AuthRequest {
   redeemBootSession(required: { readonly token: unknown }, optional?: { readonly mintLocal?: boolean }): Promise<BootRedemption>;
 }
 
+/*
+ * Per-route views of `AuthRequest` (K1): each route spec names only the operations it uses, so a host
+ * can bind a narrower context for one route and a test fake need not stub the rest. The host's full
+ * `AuthRequest` satisfies every view, so one binding still serves the whole registration.
+ */
+/** Who is signed in; the `/auth/me*` routes read nothing else. */
+export type CurrentPrincipalAuth = Pick<AuthRequest, 'currentPrincipal'>;
+/** The shared limiter and its Retry-After header. */
+type RateLimitedAuth = Pick<AuthRequest, 'rateLimit' | 'retryAfter'>;
+/** What the sign-in signal and the uncacheable answer of a boot redemption need. */
+export type BootAnswerAuth = Pick<AuthRequest, 'noStore' | 'signedIn'>;
+/** Password and MFA sign-in: limiter, session metadata, revocation, the replacement cookie and the signal. */
+export type SignInAuth = RateLimitedAuth & BootAnswerAuth & Pick<AuthRequest, 'sessionOptions' | 'revokeSessions'>
+  & { readonly cookies: Pick<AuthRequest['cookies'], 'replaceSession'> };
+/** Logout: session revocation and clearing the cookies, nothing else. */
+export type LogoutAuth = Pick<AuthRequest, 'revokeSessions'> & { readonly cookies: Pick<AuthRequest['cookies'], 'clearSessions'> };
+/** Boot-token redemption, gated on loopback. */
+export type BootSessionAuth = BootAnswerAuth & Pick<AuthRequest, 'loopback' | 'redeemBootSession'>;
+/** Local owner sign-in: the boot redemption plus its policy and the existing-session check. */
+export type LocalBootSessionAuth = BootSessionAuth & CurrentPrincipalAuth & Pick<AuthRequest, 'localOwnerSignIn'>;
+
 /** The mount binds a context on every request; a missing one is a wiring fault, not a caller error. */
-export function requireAuthRequest({ context }: { context: AuthRequest | undefined }, _optional: Record<string, never> = {}): AuthRequest {
+export function requireAuthRequest<Context>({ context }: { context: Context | undefined }, _optional: Record<string, never> = {}): Context {
   if (!context) throw new Error('owner-auth route mounted without an authenticate port');
   return context;
 }

@@ -1,6 +1,6 @@
 import { defineJsonRoute, ok } from '@jini-ai/core/contracts/server';
 import { MFA_PROOF_REFUSED_MESSAGE, MfaProofRefusedError } from '../../core/types.js';
-import { bodyRecord, refuse, requireAuthRequest, type AuthPrincipal, type AuthRequest, type AuthSessionOptions } from './auth-request.js';
+import { bodyRecord, refuse, requireAuthRequest, type AuthPrincipal, type AuthSessionOptions, type SignInAuth } from './auth-request.js';
 
 export interface MfaLoginRouteDeps {
   readonly workspaceId: string;
@@ -16,7 +16,7 @@ function mfaBodyText(body: Readonly<Record<string, unknown>>, key: string): stri
   return typeof value === 'string' ? value : '';
 }
 
-async function mfaLogin({ input, deps, auth }: { input: MfaLoginInput; deps: MfaLoginRouteDeps; auth: AuthRequest }) {
+async function mfaLogin({ input, deps, auth }: { input: MfaLoginInput; deps: MfaLoginRouteDeps; auth: SignInAuth }) {
   const rate = await auth.rateLimit.check();
   if (!rate.allowed) {
     auth.retryAfter(rate.retryAfterSeconds);
@@ -31,7 +31,7 @@ async function mfaLogin({ input, deps, auth }: { input: MfaLoginInput; deps: Mfa
 }
 
 /** `POST /api/admin/v1/auth/mfa/login`: completes an owner MFA challenge. */
-export const mfaLoginRoute = defineJsonRoute<MfaLoginInput, unknown, MfaLoginRouteDeps, AuthRequest>({
+export const mfaLoginRoute = defineJsonRoute<MfaLoginInput, unknown, MfaLoginRouteDeps, SignInAuth>({
   method: 'post',
   path: '/api/admin/v1/auth/mfa/login',
   parse: raw => { const body = bodyRecord({ body: raw.body }); return ok({ value: { pendingToken: mfaBodyText(body, 'pendingToken'), code: mfaBodyText(body, 'code') } }); },

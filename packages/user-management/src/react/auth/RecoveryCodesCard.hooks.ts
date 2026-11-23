@@ -1,4 +1,4 @@
-import { useRecoveryKit as useJiniRecoveryKit, createRecoveryKitDownload as createJiniRecoveryKitDownload, useOwnerPasswordReset } from './OwnerRecovery.hooks.js';
+import { createRecoveryKitDownload as createJiniRecoveryKitDownload, type useRecoveryKit as useJiniRecoveryKit, type useOwnerPasswordReset } from './OwnerRecovery.hooks.js';
 import type { UserFacingError } from '@jini-ai/core';
 
 import { type Translate } from '@jini-ai/core/text';
@@ -16,9 +16,12 @@ export type OwnerRecoveryFailureFormatter = (
   optional?: Record<string, never>,
 ) => UserFacingError;
 
-/** Issue a fresh recovery kit after password proof. */
-export function useOwnerRecoveryKit({ port, t, describeFailure }: { port: OwnerRecoveryPort; t: Translate; describeFailure: OwnerRecoveryFailureFormatter },
-  { useJiniRecoveryKitHook = useJiniRecoveryKit }: { useJiniRecoveryKitHook?: typeof useJiniRecoveryKit } = {}) {
+/** What the card hands each of its two controller hooks. */
+export interface OwnerRecoveryHookArgs { port: OwnerRecoveryPort; t: Translate; describeFailure: OwnerRecoveryFailureFormatter }
+
+/** Issue a fresh recovery kit after password proof. The host binds the inner `useRecoveryKit` hook. */
+export function useOwnerRecoveryKit({ port, t, describeFailure }: OwnerRecoveryHookArgs,
+  { useJiniRecoveryKitHook }: { useJiniRecoveryKitHook: typeof useJiniRecoveryKit }) {
   const controller = useJiniRecoveryKitHook({
     issue: port.issue,
     describeFailure: ({ error }) => describeFailure({ error, message: 'Recovery codes could not be generated.', action: 'Follow the server explanation before generating another set. Ask the host operator for help if it continues.', step: 'owner-recovery-issue', t, secrets: [controller.password, controller.code] }),
@@ -39,9 +42,10 @@ export function createOwnerRecoveryKitDownload({ codes, dismiss, filename }: { c
   return createJiniRecoveryKitDownload({ codes, dismiss, filename, saveTextFile }, {});
 }
 
-/** Reset the desktop owner's password using its restored owner session. */
-export function useDesktopOwnerReset({ port, t, describeFailure }: { port: OwnerRecoveryPort; t: Translate; describeFailure: OwnerRecoveryFailureFormatter },
-  { useOwnerPasswordResetHook = useOwnerPasswordReset }: { useOwnerPasswordResetHook?: typeof useOwnerPasswordReset } = {}) {
+/** Reset the desktop owner's password using its restored owner session. The host binds the inner
+ * `useOwnerPasswordReset` hook. */
+export function useDesktopOwnerReset({ port, t, describeFailure }: OwnerRecoveryHookArgs,
+  { useOwnerPasswordResetHook }: { useOwnerPasswordResetHook: typeof useOwnerPasswordReset }) {
   const controller = useOwnerPasswordResetHook({
     reset: port.reset, t,
     describeFailure: ({ error }) => describeFailure({ error, message: 'The owner password could not be reset.', action: 'Follow the server explanation. Reopen this site in the desktop app to renew local proof if it was refused.', step: 'desktop-owner-reset', t, secrets: [controller.password] }),
@@ -53,3 +57,8 @@ export function useDesktopOwnerReset({ port, t, describeFailure }: { port: Owner
   }, {});
   return controller;
 }
+
+/** The card's recovery-kit controller hook, already bound by the host to its inner hook. */
+export type OwnerRecoveryKitHook = (required: OwnerRecoveryHookArgs) => ReturnType<typeof useOwnerRecoveryKit>;
+/** The card's desktop-reset controller hook, already bound by the host to its inner hook. */
+export type DesktopOwnerResetHook = (required: OwnerRecoveryHookArgs) => ReturnType<typeof useDesktopOwnerReset>;

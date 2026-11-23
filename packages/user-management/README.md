@@ -120,3 +120,15 @@ envelope (`Cache-Control: no-store` is already set), so proof or token text neve
 A host binding `completeOwnerLogin` must throw `MfaProofRefusedError` for a wrong, replayed or
 expired code. Password login (`POST /api/admin/v1/auth/login`) coerces credential fields only after
 readiness and the limiter, so a denied request always gets its exact 429 and `Retry-After`.
+
+Each route's context is a narrowed view of `AuthRequest` naming only the operations it calls
+(`CurrentPrincipalAuth` for `/auth/me` and `/auth/me/password-status`, `LogoutAuth` = session
+revocation + cookie clearing, `SignInAuth` for password and MFA login, `BootSessionAuth` and
+`LocalBootSessionAuth` for the boot routes). A host binding its full `AuthRequest` satisfies all
+of them; the response policy (cookies, cache headers, limiter, `onError`) stays host code.
+
+`RecoveryCodesCard` (`./react`) takes every hook as a required prop: `createDownloadHook`
+(`createOwnerRecoveryKitDownload`), `useRecoveryKitHook` (`useOwnerRecoveryKit` bound by the host
+to `useRecoveryKit`) and `useDesktopOwnerResetHook` (`useDesktopOwnerReset` bound to
+`useOwnerPasswordReset`). The two wrapper hooks likewise take their inner hook as a required
+second argument; neither the card nor the wrappers default to an imported hook.

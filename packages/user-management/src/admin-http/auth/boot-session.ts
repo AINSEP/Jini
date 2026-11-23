@@ -1,5 +1,5 @@
 import { defineJsonRoute, ok } from '@jini-ai/core/contracts/server';
-import { bodyRecord, refuse, requireAuthRequest, type AuthRequest } from './auth-request.js';
+import { bodyRecord, refuse, requireAuthRequest, type BootSessionAuth } from './auth-request.js';
 import { answerBootRedemption } from './boot-redemption.js';
 
 /** The body stays unread until the loopback check passes. */
@@ -28,7 +28,7 @@ export interface BootSessionInput { readonly body: unknown }
  * a password login. Nothing downstream can tell the difference, and no bypass flag is threaded
  * anywhere.
  */
-export const bootSessionRoute = defineJsonRoute<BootSessionInput, unknown, Record<string, never>, AuthRequest>({
+export const bootSessionRoute = defineJsonRoute<BootSessionInput, unknown, Record<string, never>, BootSessionAuth>({
   method: 'post',
   path: '/api/admin/v1/auth/boot-session',
   parse: raw => ok({ value: { body: raw.body } }),

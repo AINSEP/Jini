@@ -1,5 +1,5 @@
 import { defineJsonRoute, ok } from '@jini-ai/core/contracts/server';
-import { refuse, requireAuthRequest, type AuthPrincipal, type AuthRequest } from './auth-request.js';
+import { refuse, requireAuthRequest, type AuthPrincipal, type CurrentPrincipalAuth } from './auth-request.js';
 
 export interface CurrentUserRouteDeps {
   readonly workspaceId: string;
@@ -12,14 +12,14 @@ export interface CurrentUserRouteDeps {
 }
 
 /** The signed-in principal, or the flat 401 every `/auth/me*` route answers without one. */
-export async function signedInPrincipal({ auth }: { auth: AuthRequest }, _optional: Record<string, never> = {}): Promise<AuthPrincipal> {
+export async function signedInPrincipal({ auth }: { auth: CurrentPrincipalAuth }, _optional: Record<string, never> = {}): Promise<AuthPrincipal> {
   const principal = await auth.currentPrincipal();
   if (!principal) refuse({ status: 401, body: { error: 'unauthenticated', code: 'UNAUTHENTICATED' } });
   return principal;
 }
 
 /** `GET /api/admin/v1/auth/me`: who is signed in and which affordances to show. */
-export const currentUserRoute = defineJsonRoute<Record<string, never>, unknown, CurrentUserRouteDeps, AuthRequest>({
+export const currentUserRoute = defineJsonRoute<Record<string, never>, unknown, CurrentUserRouteDeps, CurrentPrincipalAuth>({
   method: 'get',
   path: '/api/admin/v1/auth/me',
   parse: () => ok({ value: {} }),

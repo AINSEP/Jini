@@ -1,5 +1,5 @@
 import { defineJsonRoute, ok } from '@jini-ai/core/contracts/server';
-import { refuse, requireAuthRequest, type AuthRequest } from './auth-request.js';
+import { refuse, requireAuthRequest, type LocalBootSessionAuth } from './auth-request.js';
 import { answerBootRedemption } from './boot-redemption.js';
 
 /** A desktop launch signs its own browser in without exposing a raw boot token.
@@ -8,7 +8,7 @@ import { answerBootRedemption } from './boot-redemption.js';
  * request uses a request-scoped one-time token; no raw boot token is exposed to JS or logs.
  * Separate stores prevent concurrent tabs, or the desktop's still-armed token, burning each other.
  */
-export const localBootSessionRoute = defineJsonRoute<Record<string, never>, unknown, Record<string, never>, AuthRequest>({
+export const localBootSessionRoute = defineJsonRoute<Record<string, never>, unknown, Record<string, never>, LocalBootSessionAuth>({
   method: 'post',
   path: '/api/admin/v1/auth/local-boot-session',
   parse: () => ok({ value: {} }),

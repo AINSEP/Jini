@@ -1,4 +1,4 @@
-import { createOwnerRecoveryKitDownload, useDesktopOwnerReset, useOwnerRecoveryKit, type OwnerRecoveryFailureFormatter, type OwnerRecoveryPort, type OwnerRecoveryStatus } from './RecoveryCodesCard.hooks.js';
+import type { createOwnerRecoveryKitDownload, DesktopOwnerResetHook, OwnerRecoveryFailureFormatter, OwnerRecoveryKitHook, OwnerRecoveryPort, OwnerRecoveryStatus } from './RecoveryCodesCard.hooks.js';
 import { useEffect, useMemo, useState, type ComponentType } from 'react';
 import type { UserFacingError } from '@jini-ai/core';
 import { AGENT_PRIVATE_ATTRIBUTE } from '@jini-ai/core/agent-handles';
@@ -16,13 +16,17 @@ export interface RecoveryCodesCardProps {
   /** The name the saved kit file gets; host product copy. */
   filename: string;
   t?: Translate;
-  createDownloadHook?: typeof createOwnerRecoveryKitDownload;
+  /** Host-bound hooks (owner rule: no hook is imported by the card): `createOwnerRecoveryKitDownload`,
+   * and `useOwnerRecoveryKit` / `useDesktopOwnerReset` each bound to their inner owner-recovery hook. */
+  createDownloadHook: typeof createOwnerRecoveryKitDownload;
+  useRecoveryKitHook: OwnerRecoveryKitHook;
+  useDesktopOwnerResetHook: DesktopOwnerResetHook;
 }
 
 /** Existing Security page adapter. Codes live only in component memory until saved/dismissed.
  * @complexity O(1), one small status read on mount; one ten-code write per explicit rotation.
  */
-export function RecoveryCodesCard({ port, describeFailure, FailureNotice, filename, t = identityTranslate, createDownloadHook = createOwnerRecoveryKitDownload }: RecoveryCodesCardProps) {
+export function RecoveryCodesCard({ port, describeFailure, FailureNotice, filename, t = identityTranslate, createDownloadHook, useRecoveryKitHook, useDesktopOwnerResetHook }: RecoveryCodesCardProps) {
   const [status, setStatus] = useState<OwnerRecoveryStatus>();
   const [loadError, setLoadError] = useState<{ cause: unknown } | null>(null);
   useEffect(() => {
@@ -43,8 +47,8 @@ export function RecoveryCodesCard({ port, describeFailure, FailureNotice, filena
   return <section className="jini-card">
     <h3>{t('Recovery codes')}</h3>
     <p>{t('Save ten single-use codes somewhere private. Using one resets your owner password, removes authenticators and passkeys, signs out all sessions and invalidates every code in the set.')}</p>
-    <RecoveryKit {...chrome} filename={filename} createDownloadHook={createDownloadHook} />
-    {status.desktopOwnerReset ? <DesktopOwnerReset {...chrome} /> : null}
+    <RecoveryKit {...chrome} filename={filename} createDownloadHook={createDownloadHook} useRecoveryKitHook={useRecoveryKitHook} />
+    {status.desktopOwnerReset ? <DesktopOwnerReset {...chrome} useDesktopOwnerResetHook={useDesktopOwnerResetHook} /> : null}
   </section>;
 }
 
@@ -52,8 +56,8 @@ export function RecoveryCodesCard({ port, describeFailure, FailureNotice, filena
  * @complexity O(1), one rotation per submit and at most ten codes in memory.
  */
 function RecoveryKit({ port, t, describeFailure, FailureNotice, filename, createDownloadHook,
-  useRecoveryKitHook = useOwnerRecoveryKit }: CardChrome & { filename: string; createDownloadHook: typeof createOwnerRecoveryKitDownload;
-  useRecoveryKitHook?: typeof useOwnerRecoveryKit; }) {
+  useRecoveryKitHook }: CardChrome & { filename: string; createDownloadHook: typeof createOwnerRecoveryKitDownload;
+  useRecoveryKitHook: OwnerRecoveryKitHook; }) {
   const { password, setPassword, code, setCode, codes, setCodes, busy, error, submit } = useRecoveryKitHook({ port, t, describeFailure });
   return <div>
     <form onSubmit={submit}>
@@ -84,8 +88,8 @@ function RecoveryKitOutput({ codes, dismiss, t, filename, createDownloadHook }: 
  * @complexity O(1) UI state, one reset request per explicit submit; no staff promotion.
  */
 function DesktopOwnerReset({ port, t, describeFailure, FailureNotice,
-  useDesktopOwnerResetHook = useDesktopOwnerReset }: CardChrome & {
-  useDesktopOwnerResetHook?: typeof useDesktopOwnerReset; }) {
+  useDesktopOwnerResetHook }: CardChrome & {
+  useDesktopOwnerResetHook: DesktopOwnerResetHook; }) {
   const { password, setPassword, confirmation, setConfirmation, busy, message, failure, submit } = useDesktopOwnerResetHook({ port, t, describeFailure });
   return <details><summary>{t('Reset owner password')}</summary>
     <p>{t('Your desktop launch restored your owner session. Choose a new password; this signs out all sessions and invalidates recovery codes.')}</p>
