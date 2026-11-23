@@ -1,3 +1,5 @@
+/** Deprecated re-export: import these from `@jini-ai/core/contracts/site/agent-plugins-lifecycle`; removed at the next major. */
+export type { PluginManifestAuthor } from "@jini-ai/core/contracts/site/agent-plugins-lifecycle";
 export {
   AGENT_PLUGINS_MCP_SCHEMA_URL,
   AGENT_PLUGINS_SCHEMA_URL,
@@ -9,4 +11,4 @@ export {
   validatePluginManifest,
   validateMcpManifest,
 } from './manifest.js';
-export type { McpManifest, McpServerEntry, PluginManifest, PluginManifestAuthor } from './manifest.js';
+export type { McpManifest, McpServerEntry, PluginManifest } from './manifest.js';

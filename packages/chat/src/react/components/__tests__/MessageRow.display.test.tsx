@@ -1,11 +1,12 @@
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it } from 'vitest';
-import type { AgentEvent, ChatMessage } from '../../../core/index.js';
+import type { ChatMessage } from '../../../core/index.js';
 import { assistantContentFromEvents } from '../../../core/index.js';
 import { MessageList } from '../MessageList.js';
 import { I18nContext } from '../../hooks/context.js';
 import { MessageRow } from '../MessageRow.js';
+import type { AgentEvent } from "@jini-ai/core/contracts/site/chat-core";
 
 /**
  * @file MessageRow's display props (2026-10-11): `toolCallDisplay`, `showUsageLine`, `showThinking`.

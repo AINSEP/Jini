@@ -618,7 +618,7 @@
    "contributeProviders": "function:a73cb62064",
    "createAgentPluginActivations": "function:a98be8f4c9",
    "createAgentPluginLayout": "function:07b16a4480",
-   "createAgentPluginLifecycle": "function:c0283c4ca3",
+   "createAgentPluginLifecycle": "function:c8458ea373",
    "createAutomaticAgentPluginUse": "function:b30cfb12d4",
    "createPluginContributionLoader": "function:91849dd6a0",
    "createSkillFileReader": "function:cfa60bca9f",

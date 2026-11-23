@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import type { AgentEvent } from '../events.js';
 import type { ChatMessage } from '../messages.js';
 import { mergeRunEvents, preserveAssistantContent, terminalMessageNotice, continuingRunNotice, recoveredRunEvents } from '../durable-projection.js';
+import type { AgentEvent } from "@jini-ai/core/contracts/site/chat-core";
 
 const partial = 'Need a repo-creation tool. Check the github plugin skill and capabilities.\n\nCreating the repo via the saved `github` credential.\n\nRepo created (private, `main`). Now the backup plan.';
 describe('durable projection', () => {

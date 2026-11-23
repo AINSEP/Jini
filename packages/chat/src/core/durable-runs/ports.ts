@@ -1,5 +1,6 @@
-import type { AgentEvent, ChatMessage } from "../index.js";
+import type { ChatMessage } from "../index.js";
 import type { RunProgress, RunRef, RunSettlement } from "./run-contracts.js";
+import type { AgentEvent } from "@jini-ai/core/contracts/site/chat-core";
 
 export interface AcceptedRunRequest {
   readonly agentId?: string;

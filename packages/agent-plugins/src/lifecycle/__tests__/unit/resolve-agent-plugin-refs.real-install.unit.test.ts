@@ -3,10 +3,11 @@ import { mkdtemp } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { createHash } from 'node:crypto';
-import { createAgentPluginLifecycle, createAgentPluginLayout, type AgentPluginArchiveReaderPort } from '../../index.js';
+import { createAgentPluginLifecycle, createAgentPluginLayout } from '../../index.js';
 import { ports } from '../test-support.js';
 import { createInstalledPackageIndex } from '../../installed-package-index.js';
 import { forceRemove } from '../fixtures/force-remove.js';
+import type { AgentPluginArchiveReaderPort } from "@jini-ai/core/contracts/site/agent-plugins-lifecycle";
 
 // Replaces the consumer's opt-in real-site proof with an isolated, real on-disk installation.
 test('a real install injects exact skill markdown and refuses an absent pinned ref', async () => {

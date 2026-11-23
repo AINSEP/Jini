@@ -1,11 +1,12 @@
 import { createConsoleLogger, type Logger } from '@jini-ai/core/primitives';
-import { recoveredRunEvents, type AgentEvent } from "../../core/index.js";
+import { recoveredRunEvents } from "../../core/index.js";
 import { classifyAgentServiceFailure, startupFailureMessage } from "@jini-ai/agent-runtime";
 import { continuationRequest } from "../../core/durable-runs/continuation.js";
 import { isAwaitingAnswer } from "../../core/run-activity.js";
 import type { DurableRecovery, DurableRun, RecoveryPorts, RecoveryResult, RecoveryTrigger, RunProbe } from "../../core/durable-runs/ports.js";
 
 import { RECOVERY_LIMIT, RUN_STALENESS_MS, SAVED_WORK_NOTICE, AWAITING_ANSWER_NOTICE, EXHAUSTED_NOTICE } from "../../core/durable-runs/policies.js";
+import type { AgentEvent } from "@jini-ai/core/contracts/site/chat-core";
 export { RECOVERY_LIMIT, RECOVERY_WINDOW_MS, RUN_STALENESS_MS, SAVED_WORK_NOTICE, AWAITING_ANSWER_NOTICE, EXHAUSTED_NOTICE } from "../../core/durable-runs/policies.js";
 // Older saved run error frames hold only their message: the daemon's MCP_BRIDGE_UNAVAILABLE
 // code was dropped, so the bridge failure is still matched by its text.
