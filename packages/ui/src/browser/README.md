@@ -12,9 +12,13 @@ window-drag guard. Public entry: `@jini-ai/ui/browser`. Architecture:
   `subscription: DismissSubscriptionPort`; `useMenuKeyboard` an optional `doc: DocumentFocus`.
   `settingsControlHandlers` takes the dropdown's `setOpen`, `disabled`, and the host's
   `onThemeChange`/`onOpenAppearance` callbacks.
+  `mountRenderer` takes `{ document, createRoot, app }` (the `getElementById` slice of `document`,
+  `react-dom/client`'s `createRoot`, the tree) and an optional `{ rootId }` (default `root`).
 - **Provides:** `useDismissibleDropdown<T>()` → `{ open, setOpen, containerRef }` (listens only
   while open; Escape in the capture phase); `settingsControlHandlers` → `{ toggleOpen, chooseTheme,
   openAppearancePage }`.
+  `mountRenderer` → the created root; throws `renderer: #<id> missing from index.html` when the host
+  element is absent, so a missing mount point is a named error, not a blank window.
 - **Hooks reach Jini components as required props:** a host component (the composition root) may
   call these directly; a Jini component takes them as a required hook prop.
 - **Must never import:** host bridges/IPC, host hooks, product copy, `console`.
@@ -28,4 +32,13 @@ function HostSettingsMenu({ onThemeChange, onOpenAppearance, useDropdown = useDi
   return <div ref={containerRef}><button aria-expanded={open} onClick={toggleOpen}>Settings</button>
     {open && <button onClick={() => chooseTheme({ next: 'dark' })}>Dark</button>}</div>;
 }
+```
+
+A renderer entry stays a pure composition root:
+
+```tsx
+import { createRoot } from 'react-dom/client';
+import { mountRenderer } from '@jini-ai/ui/browser';
+
+mountRenderer({ document, createRoot, app: <StrictMode><HostApp /></StrictMode> });
 ```
