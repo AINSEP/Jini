@@ -142,3 +142,8 @@ test("data-media-slug references in raw HTML count, in body HTML and in free tex
 test("a gallery marker with no images array contributes nothing and does not throw", () => {
   assert.deepEqual([...collectReferencedMediaKeys({ state: { bodyHtml: `<div data-embed-config='{"type":"gallery","layout":"grid"}'></div>` } })], []);
 });
+
+test("collectMediaUrlKeys finds every /m/ and /media/ URL key in free text, decoded", () => {
+  const keys = collectMediaUrlKeys({ text: 'See https://site.example/m/hero%20shot/w800.webp and /media/logo/original.png' });
+  assert.deepEqual([...keys].sort(), ["hero shot", "logo"]);
+});
