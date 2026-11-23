@@ -215,6 +215,10 @@ Settings (`src/admin-http/routes/settings/{get-raw,get-effective,list-definition
 `settingsService` factory, `writeServiceDeps`, `resolveReadTarget` + `crossPrincipalReadPermission` and a
 `writeFence` (protected/code-owned namespaces with their copy); `touchesProtectedNamespaces` resolves names,
 renames, aliases and resets.
+Assistant owner grants (`src/admin-http/routes/system/assistant-owner-grant.ts` `createOwnerGrantRoutes({ path, policy })`
+→ `{ get, put }` specs, policies in `assistant-{permanent-deletes,subagents}.ts`) run through the same
+`runSettingsRoute`; the host injects the owner id, clock, setting writer, readiness and the per-grant policy
+(read projection, validation, acknowledgment rule, tool list).
 
 ## Scripts
 
