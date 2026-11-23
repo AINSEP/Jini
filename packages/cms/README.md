@@ -245,6 +245,29 @@ Assistant owner grants (`src/admin-http/routes/system/assistant-owner-grant.ts` 
 `runSettingsRoute`; the host injects the owner id, clock, setting writer, readiness and the per-grant policy
 (read projection, validation, acknowledgment rule, tool list).
 
+SEO (`src/admin-http/routes/seo/*`): get-entry, get-entry-analyze and put-entry authorize
+`admin.seo.manage` on `seo-entry` with `{ entityId }`; get/put-settings (`seo-settings`) and
+sitemap regenerate (`seo-sitemap`) stay id-free. Every spec first awaits the injected `seoReady`.
+The host injects its settings ledger (`readSeoSettings`, `writeSeoSettings`), the sitemap service,
+`invalidateSitemapCache` and `entryAuthorize` (the authorizer `setEntrySeoOverrides` re-checks with).
+The entry specs import `seo/cover-image`, so their entries are `node`.
+
+Media (`src/admin-http/routes/media/*`, DTO in `src/admin-http/http/media.ts`): update, trash and
+delete authorize `media.*` with `{ entityId }`; get/put providers stay id-free. The host injects the
+single-asset DTO lookups (recorded content type, public URL, byte size), its transactional trash flip
+(`removeMedia`), the reference-checked `purgeMedia` + `forgetRemovedMedia`, and the provider
+credential store with its save-error table (`saveErrorMappings`). Delete's 409 carries the
+`referencing` list. `update` imports the node-only media service, so its entry is `node`.
+
+Assistant (`src/admin-http/routes/assistant/*`): settings, visitor tools and the site/execution
+credentials share `shared.ts`; the execution probes (detect-agents, list-models, test-agent,
+test-connection) share `execution-shared.ts`. The host injects its permission name
+(`managePermission`/`manageAssistantPermission`), the settings ledger, the sealed credential stores,
+the visitor-tools service, each route's ordered error table (`errorMappings`, host classes and copy)
+and every probe that touches the agent runtime, a subprocess or the network (`detectAgents`,
+`testAgent`, `listModels`, `testConnection`, `resolveProbeCredential`). Body checks run in `handle`
+after authorization, keeping the routes' 403-before-400 order. No spec echoes a credential.
+
 ## Scripts
 
 ```bash

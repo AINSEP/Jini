@@ -171,7 +171,9 @@
       "./contracts/site/cms-mail": "universal",
       "./contracts/site/cms-system-deploy": "universal",
       "./contracts/site/cms-settings": "universal",
-      "./contracts/site/cms-sites": "universal"
+      "./contracts/site/cms-sites": "universal",
+      "./contracts/site/cms-seo": "universal",
+      "./contracts/site/cms-assistant": "universal"
     },
     "isolation": {
       "entries": {
@@ -1018,6 +1020,16 @@
       "types": "./dist/contracts/site/cms-sites.d.ts",
       "import": "./dist/contracts/site/cms-sites.js",
       "default": "./dist/contracts/site/cms-sites.js"
+    },
+    "./contracts/site/cms-seo": {
+      "types": "./dist/contracts/site/cms-seo.d.ts",
+      "import": "./dist/contracts/site/cms-seo.js",
+      "default": "./dist/contracts/site/cms-seo.js"
+    },
+    "./contracts/site/cms-assistant": {
+      "types": "./dist/contracts/site/cms-assistant.d.ts",
+      "import": "./dist/contracts/site/cms-assistant.js",
+      "default": "./dist/contracts/site/cms-assistant.js"
     }
   },
   "files": [
