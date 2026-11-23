@@ -244,6 +244,8 @@
       "./admin-http/routes/fs-files/custom-root": "universal",
       "./public-http/routes/ops/health": "universal",
       "./public-http/routes/publish-trust/handshake": "universal",
+      "./public-http/routes/members/shared": "universal",
+      "./public-http/routes/members/sign-out": "universal",
       "./admin-http/routes/commerce/status": "universal",
       "./admin-http/routes/consent/routes": "universal",
       "./admin-http/routes/site/profile": "universal",
@@ -1735,6 +1737,16 @@
       "types": "./dist/public-http/routes/publish-trust/handshake.d.ts",
       "import": "./dist/public-http/routes/publish-trust/handshake.js",
       "default": "./dist/public-http/routes/publish-trust/handshake.js"
+    },
+    "./public-http/routes/members/shared": {
+      "types": "./dist/public-http/routes/members/shared.d.ts",
+      "import": "./dist/public-http/routes/members/shared.js",
+      "default": "./dist/public-http/routes/members/shared.js"
+    },
+    "./public-http/routes/members/sign-out": {
+      "types": "./dist/public-http/routes/members/sign-out.d.ts",
+      "import": "./dist/public-http/routes/members/sign-out.js",
+      "default": "./dist/public-http/routes/members/sign-out.js"
     },
     "./admin-http/routes/commerce/status": {
       "types": "./dist/admin-http/routes/commerce/status.d.ts",
