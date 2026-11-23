@@ -72,7 +72,7 @@ test("archive: oversized upload is refused before the reader runs; foreign reade
     error instanceof PluginInstallError && error.message === "ZIP could not be read safely.");
 });
 
-const request: Tier2Request = { kind: "probe", plugin: { pluginId: "t2", entryPath: "/plugins/t2/dist/plugin.js", capabilities: [], hooks: [] } };
+const request: Tier2Request = { kind: "probe", plugin: { pluginId: "t2", entryPath: "/plugins/t2/dist/plugin.js", packageRoot: "/plugins/t2", capabilities: [], hooks: [] } };
 const binding = { pluginSdkBinding, createInvocationCoreDeps };
 
 test("worker start: resolver registers before the real import; the reply is posted once", async () => {
@@ -80,9 +80,9 @@ test("worker start: resolver registers before the real import; the reply is post
   const posted: unknown[] = [];
   await startTier2Worker({
     workerData: request, parentPort: { postMessage: (m) => posted.push(m) }, binding,
-    registerSdkResolver: () => order.push("register"), importPolicy: { sdkSpecifiers: ["@example/sdk"] },
+    registerSdkResolver: () => order.push("register"),
     realImport: async (p) => { order.push(`import ${p}`); return { default: definePlugin({ setup: () => undefined }) }; },
-  }, { registerImportPolicy: () => order.push("policy") });
+  }, { importPolicy: { sdkSpecifiers: ["@example/sdk"] }, registerImportPolicy: () => order.push("policy") });
   assert.deepEqual(order, ["policy", "register", "import /plugins/t2/dist/plugin.js"]);
   assert.equal(posted.length, 1);
   assert.equal((posted[0] as { ok: boolean }).ok, true);
@@ -91,7 +91,7 @@ test("worker start: resolver registers before the real import; the reply is post
 test("worker start: an injected importModule registers nothing; no port throws before anything runs", async () => {
   const order: string[] = [];
   const posted: unknown[] = [];
-  const base = { workerData: request, binding, importPolicy: { sdkSpecifiers: [] }, registerSdkResolver: () => order.push("register"), realImport: async () => { order.push("real"); return {}; } };
+  const base = { workerData: request, binding, registerSdkResolver: () => order.push("register"), realImport: async () => { order.push("real"); return {}; } };
   await startTier2Worker({ ...base, parentPort: { postMessage: (m) => posted.push(m) } }, { importModule: async () => { order.push("injected"); return {}; } });
   assert.deepEqual(order, ["injected"]);
   await assert.rejects(startTier2Worker({ ...base, parentPort: null }), /must run inside a worker_threads Worker/);

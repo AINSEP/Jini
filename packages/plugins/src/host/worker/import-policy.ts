@@ -2,7 +2,8 @@
  * @file The Tier-2 import policy: a Node module-resolution hook that limits what ONE Tier-2 plugin's
  * own modules may import inside its worker. Node adapter only (`node:module` `register()`).
  *
- * A module inside the plugin's package (the entry's grandparent, `<package>/server/index.mjs`) may
+ * A module inside the plugin's package (the canonical root the host registered — an installed
+ * package's root, or a built-in's declared sourceDir — which must contain the entry) may
  * import by name only the host's SDK specifiers plus any EXACT specifiers the host trusts for that
  * entry; `node:fs`, `child_process`, npm packages, `data:` modules and `#imports` are refused. A path
  * import must stay inside the package, or a `../..` climb would reach the same modules. Code outside
@@ -44,6 +45,8 @@ export interface Tier2ImportPolicyData {
 export interface Tier2ImportPolicyRequired {
   /** The entry the worker is about to import (path or `file:` URL). */
   readonly entryPath: string;
+  /** The plugin's canonical package root from host registration (path or `file:` URL). */
+  readonly packageRoot: string;
   readonly policy: Tier2ImportPolicy;
 }
 
@@ -94,10 +97,15 @@ function realEntryFile(entryPath: string): string {
  */
 export function tier2ImportPolicyData(required: Tier2ImportPolicyRequired, _optional: Record<string, never> = {}): Tier2ImportPolicyData {
   const entryFile = realEntryFile(required.entryPath);
+  const packageRoot = realEntryFile(required.packageRoot);
+  const relative = path.relative(packageRoot, entryFile);
+  if (relative === "" || relative === ".." || relative.startsWith(`..${path.sep}`) || path.isAbsolute(relative)) {
+    throw new Error(`The plugin entry ${JSON.stringify(entryFile)} is not inside its registered package ${JSON.stringify(packageRoot)}.`);
+  }
   const { sdkSpecifiers, trustedImports = [] } = required.policy;
   const trusted = trustedImports.filter((decision) => realEntryFile(decision.entryPath) === entryFile).flatMap((decision) => decision.specifiers);
   return {
-    packageUrl: pathToFileURL(path.dirname(path.dirname(entryFile))).href.replace(/\/?$/, "/"),
+    packageUrl: pathToFileURL(packageRoot).href.replace(/\/?$/, "/"),
     allowedSpecifiers: [...sdkSpecifiers, ...trusted],
     sdkSpecifiers: [...sdkSpecifiers],
   };

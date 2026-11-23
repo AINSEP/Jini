@@ -65,9 +65,9 @@ const PROBE_OK: Tier2Reply = { ok: true, kind: "probe", hooks: [HOOK_CONTENT_ENT
 
 test("the probe request carries the manifest's id, capabilities and hooks plus the entry path", async () => {
   const { runCall, requests } = fakeRunner([PROBE_OK]);
-  await createTier2ImportSeam({ manifest, runCall })("/abs/plugin.js");
+  await createTier2ImportSeam({ manifest, runCall })("/abs/server/plugin.js", "/abs");
   assert.deepEqual(requests, [
-    { kind: "probe", plugin: { pluginId: "t2", entryPath: "/abs/plugin.js", capabilities: manifest.capabilities, hooks: manifest.hooks } },
+    { kind: "probe", plugin: { pluginId: "t2", entryPath: "/abs/server/plugin.js", packageRoot: "/abs", capabilities: manifest.capabilities, hooks: manifest.hooks } },
   ]);
 });
 
@@ -77,6 +77,21 @@ test("resolveWorkerEntry decides what the worker imports (a site plugin's snapsh
   await createTier2ImportSeam({ manifest, runCall }, { resolveWorkerEntry: async (p) => { seen.push(p); return "file:///snap/server/index.mjs"; } })("/live/server/index.mjs");
   assert.deepEqual(seen, ["/live/server/index.mjs"]);
   assert.equal(requests[0]!.plugin.entryPath, "file:///snap/server/index.mjs");
+});
+
+test("the worker's package root is the registered root, mapped onto a snapshot by the entry's own relative path", async () => {
+  const { runCall, requests } = fakeRunner([PROBE_OK, PROBE_OK]);
+  await createTier2ImportSeam({ manifest, runCall }, { resolveWorkerEntry: async () => "file:///snap/load-1/server/index.mjs" })("/live/pkg/server/index.mjs", "/live/pkg");
+  assert.equal(requests[0]!.plugin.packageRoot, "/snap/load-1");
+  // A built-in: the entry sits directly in its declared sourceDir, which is the package root as registered.
+  await createTier2ImportSeam({ manifest, runCall })("/app/built-ins/analyzer/index.mjs", "/app/built-ins/analyzer");
+  assert.equal(requests[1]!.plugin.packageRoot, "/app/built-ins/analyzer");
+});
+
+test("a worker entry that does not mirror the registered layout carries no package root (the worker then fails closed)", async () => {
+  const { runCall, requests } = fakeRunner([PROBE_OK]);
+  await createTier2ImportSeam({ manifest, runCall }, { resolveWorkerEntry: async () => "/snap/elsewhere.mjs" })("/live/pkg/server/index.mjs", "/live/pkg");
+  assert.equal("packageRoot" in requests[0]!.plugin, false);
 });
 
 test("a probe transport failure rejects the import (loadPlugin -> CODE_ENTRY_MISSING)", async () => {

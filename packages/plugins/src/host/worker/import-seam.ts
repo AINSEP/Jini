@@ -21,6 +21,9 @@ import type { PluginSdkBinding, PluginModuleImportPort } from "../ports.js";
 import type { ExtPatch } from "@jini-ai/core/contracts/plugin-sdk";
 
 import type { PluginCapability, PluginManifest } from "../manifest.js";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
+
 import type { Tier2CallRunner, Tier2PluginRef } from "./protocol.js";
 
 export interface CreateTier2ImportSeamRequired {
@@ -56,10 +59,13 @@ export function createTier2ImportSeam(
   const HOOK_CONTENT_ENTRY_BEFORE_SAVE = pluginSdkBinding.beforeSaveHook;
   const definePlugin = (definition: Parameters<typeof pluginSdkBinding.definePlugin>[0]) => pluginSdkBinding.definePlugin(definition);
 
-  return async ({ modulePath: entryPath }) => {
+  return async ({ plugin: registered, modulePath: entryPath }) => {
+    const workerEntry = optional.resolveWorkerEntry ? await optional.resolveWorkerEntry({ entryPath }) : entryPath;
+    const packageRoot = workerPackageRoot({ registeredRoot: registered.packageRoot, entryPath, workerEntry });
     const plugin: Tier2PluginRef = {
       pluginId: manifest.id,
-      entryPath: optional.resolveWorkerEntry ? await optional.resolveWorkerEntry({ entryPath }) : entryPath,
+      entryPath: workerEntry,
+      ...(packageRoot === undefined ? {} : { packageRoot }),
       // Same cast `loadPlugin()` makes: validateManifest() has already checked every token.
       capabilities: manifest.capabilities as readonly PluginCapability[],
       hooks: manifest.hooks,
@@ -89,4 +95,20 @@ export function createTier2ImportSeam(
       }),
     };
   };
+}
+
+/** The registered package root, carried over to the file the worker imports: the same root when the
+ * worker imports the registered entry, else the snapshot root that holds the entry at the same relative
+ * path. `undefined` when the worker entry does not mirror that layout (the worker then fails closed).
+ * @complexity O(path length). */
+function workerPackageRoot(
+  { registeredRoot, entryPath, workerEntry }: { registeredRoot: string; entryPath: string; workerEntry: string },
+  _optional: Record<string, never> = {},
+): string | undefined {
+  if (workerEntry === entryPath) return registeredRoot;
+  const relative = path.relative(registeredRoot, entryPath);
+  if (relative === "" || relative.startsWith("..") || path.isAbsolute(relative)) return undefined;
+  const workerFile = workerEntry.startsWith("file:") ? fileURLToPath(workerEntry) : workerEntry;
+  const suffix = `${path.sep}${relative}`;
+  return workerFile.endsWith(suffix) ? workerFile.slice(0, -suffix.length) : undefined;
 }
