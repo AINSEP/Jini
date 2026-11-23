@@ -367,7 +367,8 @@
         "src/navigation/href.ts",
         "src/media/cover-image.ts",
         "src/html/site/slug.ts",
-        "src/navigation/types.ts"
+        "src/navigation/types.ts",
+        "src/admin-http/http/entity-not-live.ts"
       ]
     },
     "optionalPeers": {

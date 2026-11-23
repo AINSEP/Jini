@@ -4,10 +4,8 @@ import {
   contentTypeWriteErrorStatus, parseContentTypeFieldDefs,
   type RegisterContentTypeRequired, type registerContentType,
 } from "../../../content-types/index.js";
-import {
-  authorizeCollections, collectionsBody, collectionsPrincipal, contentTypeWriteDeps, rejectValidation, rejectWriteFailure,
-  type CollectionsRouteBody, type CollectionsRoutePrincipal, type ContentTypeWriteRouteDeps, type OkValue,
-} from "./shared.js";
+import { authorizeCollections, collectionsBody, collectionsPrincipal, rejectValidation, rejectWriteFailure, type CollectionsRouteBody, type CollectionsRoutePrincipal, type OkValue } from "./collections-route.js";
+import { contentTypeWriteDeps, type ContentTypeWriteRouteDeps } from "./shared.js";
 
 /** The deps this route reads. */
 export interface ContentTypeRegisterRouteDeps extends ContentTypeWriteRouteDeps {

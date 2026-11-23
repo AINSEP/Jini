@@ -4,10 +4,8 @@ import {
   CONTENT_TYPE_LIFECYCLE_OPS, contentTypeWriteErrorStatus, parseContentTypeLifecycleOp,
   type ContentTypeLifecycleOp, type IndexProvisionerPort, type TeardownIndexProvisionerPort,
 } from "../../../content-types/index.js";
-import {
-  authorizeCollections, collectionsBody, collectionsPrincipal, contentTypeWriteDeps, rejectValidation, rejectWriteFailure,
-  type CollectionsRouteBody, type CollectionsRoutePrincipal, type ContentTypeWriteRouteDeps, type OkValue, type OutboxDrainDeps,
-} from "./shared.js";
+import { authorizeCollections, collectionsBody, collectionsPrincipal, rejectValidation, rejectWriteFailure, type CollectionsRouteBody, type CollectionsRoutePrincipal, type OkValue, type OutboxDrainDeps } from "./collections-route.js";
+import { contentTypeWriteDeps, type ContentTypeWriteRouteDeps } from "./shared.js";
 
 /** The deps this route reads. */
 export interface ContentTypeLifecycleRouteDeps extends ContentTypeWriteRouteDeps, OutboxDrainDeps {

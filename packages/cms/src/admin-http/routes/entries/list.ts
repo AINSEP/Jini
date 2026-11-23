@@ -1,7 +1,7 @@
 import { defineJsonRoute, ok } from "@jini-ai/core/contracts/server";
 
 import { listEntries, type EntryListPort } from "../../../entries/index.js";
-import { authorizeCollections, type CollectionsRoutePrincipal } from "../content-types/shared.js";
+import { authorizeCollections, type CollectionsRoutePrincipal } from "../content-types/collections-route.js";
 
 /** The deps this route reads. */
 export interface EntryListRouteDeps {

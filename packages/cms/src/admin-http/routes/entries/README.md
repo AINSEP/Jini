@@ -24,4 +24,4 @@ mountJsonRoute({
 ```
 
 **Never imports** `express`, `@jini-ai/http-kit` or host code. Helpers come from
-`../content-types/shared.ts`. See the package [Wiring](../../../../README.md#wiring) section for the shared contract.
+`../content-types/collections-route.ts`. See the package [Wiring](../../../../README.md#wiring) section for the shared contract.

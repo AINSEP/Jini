@@ -6,7 +6,7 @@ Server-neutral `defineJsonRoute` specs for the Collections content-type registry
 
 **Provides** — `contentTypeListRoute` (`GET /api/admin/v1/content-types`), `contentTypeRegisterRoute`
 (`POST`, 201), `contentTypeUpdateFieldsRoute` (`PUT .../:key/fields`) and `contentTypeLifecycleRoute`
-(`POST .../:key/lifecycle`). `shared.ts` holds the helpers the entries specs reuse.
+(`POST .../:key/lifecycle`). `collections-route.ts` holds the request helpers the entries specs reuse (no content-types runtime import, so entries stay in their own isolation domain); `shared.ts` holds the content-type write deps.
 
 **Needs injected** — each spec's own deps type: `ContentTypeListRouteDeps`, `ContentTypeRegisterRouteDeps`
 (adds the host's `registerContentType`, which may pin host-reserved keys), `ContentTypeUpdateFieldsRouteDeps`

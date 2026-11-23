@@ -1,7 +1,7 @@
 import { defineJsonRoute, ok } from "@jini-ai/core/contracts/server";
 
 import { listContentTypes, type ContentTypeListPort, type ContentTypeRecord } from "../../../content-types/index.js";
-import { authorizeCollections, type CollectionsRoutePrincipal } from "./shared.js";
+import { authorizeCollections, type CollectionsRoutePrincipal } from "./collections-route.js";
 
 /** The deps this route reads. */
 export interface ContentTypeListRouteDeps {

@@ -1,10 +1,7 @@
 import { defineJsonRoute, ok } from "@jini-ai/core/contracts/server";
 
 import { entriesDeps, entryWriteErrorStatus, updateEntry, type EntriesToolDeps } from "../../../entries/index.js";
-import {
-  authorizeCollections, collectionsBody, collectionsPrincipal, rejectValidation, rejectWriteFailure,
-  type CollectionsRouteBody, type CollectionsRoutePrincipal, type OkValue, type OutboxDrainDeps,
-} from "../content-types/shared.js";
+import { authorizeCollections, collectionsBody, collectionsPrincipal, rejectValidation, rejectWriteFailure, type CollectionsRouteBody, type CollectionsRoutePrincipal, type OkValue, type OutboxDrainDeps } from "../content-types/collections-route.js";
 
 /** The deps this route reads. */
 export interface EntryUpdateRouteDeps extends EntriesToolDeps, OutboxDrainDeps {}
