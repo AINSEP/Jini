@@ -7,6 +7,8 @@ import {
   createSiteTimeZonePort,
   ensureSiteTimeZoneSettingDefinition,
   resolveSiteTimeZone,
+  SITE_TIME_ZONE_FALLBACK_MESSAGE,
+  type SiteTimeZoneFallbackEvent,
   SITE_TIMEZONE_KEY,
   SITE_TIMEZONE_NAMESPACE,
 } from "../site-timezone.js";
@@ -22,6 +24,8 @@ let idCounter = 0;
 const ids = { newId: () => `site-tz-id-${++idCounter}` };
 const allowAll: AuthorizeFn = async () => ({ allowed: true, reason: "test" });
 const principals = { findActiveById: async () => null };
+
+const ignoreFallback = (): void => {};
 
 let previousTimeZone: string | undefined;
 beforeEach(() => { previousTimeZone = process.env.TZ; process.env.TZ = "UTC"; });
@@ -46,28 +50,42 @@ async function ownerSet(repo: SettingsRepoPort, workspaceId: string, value: stri
 test("an owner-set workspace zone wins over the creation zone", async () => {
   const settingsRepo = await makeRepo();
   await ownerSet(settingsRepo, "ws-1", "Asia/Tokyo");
-  const zone = await resolveSiteTimeZone({ settingsRepo, creationTimeZone: { read: () => "Europe/Paris" } }, { workspaceId: "ws-1" });
+  const zone = await resolveSiteTimeZone({ reportFallback: ignoreFallback, settingsRepo, creationTimeZone: { read: () => "Europe/Paris" } }, { workspaceId: "ws-1" });
   assert.equal(zone, "Asia/Tokyo");
 });
 
 test("without an owner value the creation zone applies, and an invalid creation zone falls to the server zone", async () => {
   const settingsRepo = await makeRepo();
-  assert.equal(await resolveSiteTimeZone({ settingsRepo, creationTimeZone: { read: () => "Europe/Paris" } }, { workspaceId: "ws-2" }), "Europe/Paris");
-  assert.equal(await resolveSiteTimeZone({ settingsRepo, creationTimeZone: { read: () => "Not/AZone" } }, { workspaceId: "ws-2" }), "UTC");
+  assert.equal(await resolveSiteTimeZone({ reportFallback: ignoreFallback, settingsRepo, creationTimeZone: { read: () => "Europe/Paris" } }, { workspaceId: "ws-2" }), "Europe/Paris");
+  assert.equal(await resolveSiteTimeZone({ reportFallback: ignoreFallback, settingsRepo, creationTimeZone: { read: () => "Not/AZone" } }, { workspaceId: "ws-2" }), "UTC");
 });
 
 test("an invalid owner value is ignored in favour of the creation zone", async () => {
   const settingsRepo = await makeRepo();
   await ownerSet(settingsRepo, "ws-3", "Not/AZone");
-  const zone = await resolveSiteTimeZone({ settingsRepo, creationTimeZone: { read: () => "America/New_York" } }, { workspaceId: "ws-3" });
+  const zone = await resolveSiteTimeZone({ reportFallback: ignoreFallback, settingsRepo, creationTimeZone: { read: () => "America/New_York" } }, { workspaceId: "ws-3" });
   assert.equal(zone, "America/New_York");
 });
 
 test("a failed settings read uses the creation zone instead of throwing; the port delegates", async () => {
   const failing = new InMemorySettingsRepo();
   failing.findActiveDefinition = async () => { throw new Error("db down"); };
-  const zone = await resolveSiteTimeZone({ settingsRepo: failing, creationTimeZone: { read: () => "Asia/Kolkata" } }, { workspaceId: "ws-4" });
+  const zone = await resolveSiteTimeZone({ reportFallback: ignoreFallback, settingsRepo: failing, creationTimeZone: { read: () => "Asia/Kolkata" } }, { workspaceId: "ws-4" });
   assert.equal(zone, "Asia/Kolkata");
-  const port = createSiteTimeZonePort({ settingsRepo: failing, creationTimeZone: { read: () => "Asia/Kolkata" } });
+  const port = createSiteTimeZonePort({ reportFallback: ignoreFallback, settingsRepo: failing, creationTimeZone: { read: () => "Asia/Kolkata" } });
   assert.equal(await port.resolveTimeZone({ workspaceId: "ws-4" }), "Asia/Kolkata");
+});
+
+test("a failed read reports fixed text and safe fields only: an error echoing a secret never reaches the report", async () => {
+  const secret = "postgres://admin:hunter2-SECRET@db.internal/site";
+  const failing = new InMemorySettingsRepo();
+  failing.findActiveDefinition = async () => { throw new TypeError(`connect failed for ${secret}`); };
+  const reports: SiteTimeZoneFallbackEvent[] = [];
+  const zone = await resolveSiteTimeZone(
+    { reportFallback: (event) => { reports.push(event); }, settingsRepo: failing, creationTimeZone: { read: () => "Asia/Kolkata" } },
+    { workspaceId: "ws-5" },
+  );
+  assert.equal(zone, "Asia/Kolkata");
+  assert.deepEqual(reports, [{ message: SITE_TIME_ZONE_FALLBACK_MESSAGE, workspaceId: "ws-5", errorClass: "TypeError" }]);
+  assert.equal(JSON.stringify(reports).includes("hunter2"), false);
 });

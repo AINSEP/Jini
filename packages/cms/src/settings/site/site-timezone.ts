@@ -1,9 +1,6 @@
-import { createConsoleLogger } from "@jini-ai/core/primitives";
 import type { UUID } from "@jini-ai/core/primitives";
 import { ensureSettingDefinitions, getEffective, SCOPE_BIT, type EnsureSettingDefinitionsDeps, type SettingsRepoPort } from "@jini-ai/core/settings";
 import { DEFAULT_SITE_TIME_ZONE, normalizeTimeZone, type SiteTimeZonePort } from "../../widgets/date-label.js";
-
-const consoleLogger = createConsoleLogger({ prefix: "" });
 
 /**
  * @file Bug D (2026-10-22): `core.site.timezone`, the IANA zone public pages format post dates in.
@@ -44,8 +41,27 @@ export interface SiteCreationTimeZoneSource {
   read(): string | undefined;
 }
 
+/** The fixed text a failed settings read is reported with. Never interpolates the error. */
+export const SITE_TIME_ZONE_FALLBACK_MESSAGE = "resolveSiteTimeZone: settings read failed; using the creation zone";
+
+/**
+ * What a failed settings read reports: fixed text plus safe structured fields. The error's own
+ * message is never carried, since a repository error can echo a connection string or a stored value.
+ */
+export interface SiteTimeZoneFallbackEvent {
+  readonly message: typeof SITE_TIME_ZONE_FALLBACK_MESSAGE;
+  readonly workspaceId: UUID;
+  /** The thrown value's class name when it is a plain identifier, else `"Unknown"`. */
+  readonly errorClass: string;
+}
+
+/** Host-bound sink for {@link SiteTimeZoneFallbackEvent} (its logger, metrics, or both). Should not throw. */
+export type SiteTimeZoneFallbackReporter = (event: SiteTimeZoneFallbackEvent) => void;
+
 export interface ResolveSiteTimeZoneDeps {
   settingsRepo: SettingsRepoPort;
+  /** Told when a settings read failed and the creation zone was used instead. */
+  reportFallback: SiteTimeZoneFallbackReporter;
   /** Absent (in-memory boots, no site directory) means the server's local zone is the last tier. */
   creationTimeZone?: SiteCreationTimeZoneSource;
 }
@@ -65,6 +81,14 @@ function creationOrDefault(deps: ResolveSiteTimeZoneDeps): string {
   return validTimeZone({ value: deps.creationTimeZone?.read() }) ?? Intl.DateTimeFormat().resolvedOptions().timeZone;
 }
 
+const IDENTIFIER = /^[A-Za-z_$][\w$]{0,63}$/;
+
+/** A thrown value's class name, only when it is a plain identifier (never the error's message). */
+function errorClassOf({ err }: { err: unknown }, _optional: Record<string, never> = {}): string {
+  const name: unknown = err instanceof Error ? err.constructor.name : undefined;
+  return typeof name === "string" && IDENTIFIER.test(name) ? name : "Unknown";
+}
+
 /** A usable owner value: a workspace-layer string `Intl` accepts. */
 function ownerTimeZone({ resolved }: { resolved: { sourceLayer: string; value: unknown } | null }, _optional = {}): string | undefined {
   return resolved?.sourceLayer === "workspace" ? validTimeZone({ value: resolved.value }) : undefined;
@@ -72,7 +96,8 @@ function ownerTimeZone({ resolved }: { resolved: { sourceLayer: string; value: u
 
 /**
  * The zone a public render formats `workspaceId`'s dates in. Reads without a principal, so the user
- * layer never applies. Never throws: a failed settings read logs and uses the creation zone.
+ * layer never applies. Never throws: a failed settings read is reported (fixed text, no error
+ * message) and uses the creation zone.
  * @complexity One settings read.
  */
 export async function resolveSiteTimeZone(deps: ResolveSiteTimeZoneDeps, input: { workspaceId: UUID }): Promise<string> {
@@ -82,7 +107,7 @@ export async function resolveSiteTimeZone(deps: ResolveSiteTimeZoneDeps, input: 
     );
     return ownerTimeZone({ resolved }) ?? creationOrDefault(deps);
   } catch (err) {
-    consoleLogger.error({ message: `resolveSiteTimeZone: using the creation zone for workspace '${input.workspaceId}': ${(err as Error).message}` });
+    deps.reportFallback({ message: SITE_TIME_ZONE_FALLBACK_MESSAGE, workspaceId: input.workspaceId, errorClass: errorClassOf({ err }) });
     return creationOrDefault(deps);
   }
 }

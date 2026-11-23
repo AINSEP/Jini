@@ -2017,10 +2017,13 @@
  "./settings/site/site-timezone": {
   "types": "./dist/settings/site/site-timezone.d.ts",
   "symbols": {
-   "ResolveSiteTimeZoneDeps": "interface:397b91ed58",
+   "ResolveSiteTimeZoneDeps": "interface:c6b2379b4f",
    "SITE_TIMEZONE_KEY": "variable:bf6c5f9944",
    "SITE_TIMEZONE_NAMESPACE": "variable:e9eb835f34",
+   "SITE_TIME_ZONE_FALLBACK_MESSAGE": "variable:e41469da8c",
    "SiteCreationTimeZoneSource": "interface:2f3a85e9f0",
+   "SiteTimeZoneFallbackEvent": "interface:57c0f52fe9",
+   "SiteTimeZoneFallbackReporter": "type:457d46794a",
    "createSiteTimeZonePort": "function:3192b8f7e0",
    "ensureSiteTimeZoneSettingDefinition": "function:022adbd2aa",
    "resolveSiteTimeZone": "function:0125f4b887"

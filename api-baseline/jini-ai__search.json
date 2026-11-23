@@ -82,16 +82,8 @@
   }
  },
  "./site/settings": {
-  "types": "./dist/site/settings.d.ts",
-  "symbols": {
-   "SEARCH_PROVIDER_KEY": "variable:6810ab7360",
-   "SEARCH_SETTINGS_NAMESPACE": "variable:38495614dd",
-   "SearchSettingWriter": "type:510deabe7e",
-   "ensureSearchProviderSetting": "function:4616610313",
-   "isSearchProviderId": "function:ab25ef423d",
-   "readSearchProviderSetting": "function:2dffea8f55",
-   "writeSearchProviderSetting": "function:b6770f3abe"
-  }
+  "types": null,
+  "symbols": {}
  },
  "./testkit": {
   "types": "./dist/testkit/index.d.ts",

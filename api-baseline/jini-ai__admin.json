@@ -1140,17 +1140,12 @@
   }
  },
  "./screens/seo": {
-  "types": "./dist/screens/seo/index.d.ts",
-  "symbols": {
-   "Seo": "function:7bd2a7c79f",
-   "SeoModulePanelHook": "type:8e97440373"
-  }
+  "types": null,
+  "symbols": {}
  },
  "./screens/seo/seo-i18n": {
-  "types": "./dist/screens/seo/seo-i18n.d.ts",
-  "symbols": {
-   "t": "variable:44d298bf90"
-  }
+  "types": null,
+  "symbols": {}
  },
  "./security": {
   "types": "./dist/security/index.d.ts",

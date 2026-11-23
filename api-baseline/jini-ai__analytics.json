@@ -100,33 +100,11 @@
   }
  },
  "./site/agent-tools": {
-  "types": "./dist/site/agent-tools.d.ts",
-  "symbols": {
-   "analyticsAgentToolCatalog": "variable:5a6f63b088"
-  }
+  "types": null,
+  "symbols": {}
  },
  "./site/ports": {
-  "types": "./dist/site/ports.d.ts",
-  "symbols": {
-   "AggregateDelta": "interface:0f8ca7ca7f",
-   "AnalyticsConfigPort": "interface:dae3103921",
-   "AnalyticsDisabledError": "class:06e5a5db7d",
-   "AnalyticsDomainEvent": "type:0b37846009",
-   "AnalyticsHooks": "interface:bd901c5efd",
-   "AnalyticsPiiRejectedError": "class:5e8ae41b9b",
-   "AnalyticsRepoPort": "interface:4572435f7c",
-   "AnalyticsSinkCapabilities": "interface:22dd522124",
-   "AnalyticsSinkPort": "interface:35c93312ae",
-   "AnalyticsValidationError": "class:59c297fc01",
-   "AnalyticsWorkspaceUnresolvedError": "class:5991c39676",
-   "IngestDeps": "interface:3b058b6e3f",
-   "IngestRequired": "interface:3d97583f1e",
-   "QueryDeps": "interface:d9876d7f62",
-   "QueryRequired": "interface:6a1951f55f",
-   "RollupDeps": "interface:82e6c0e042",
-   "RollupInput": "interface:18706572e4",
-   "RollupRequired": "interface:25ddaa6e39",
-   "RollupResult": "interface:2a16ec3070"
-  }
+  "types": null,
+  "symbols": {}
  }
 }
