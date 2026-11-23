@@ -1288,6 +1288,15 @@
    "CommentsSettings": "interface:822d1ed6ee"
   }
  },
+ "./screens/content-analysis/content-analysis-i18n": {
+  "types": "./dist/screens/content-analysis/content-analysis-i18n.d.ts",
+  "symbols": {
+   "CONTENT_ANALYSIS_DICT": "variable:9fe059d821",
+   "CONTENT_ANALYSIS_KEYS": "variable:592a258900",
+   "CONTENT_ANALYSIS_ROWS": "variable:68bcadc775",
+   "t": "variable:44d298bf90"
+  }
+ },
  "./screens/content-analysis/ContentAnalysisCard": {
   "types": "./dist/screens/content-analysis/ContentAnalysisCard.d.ts",
   "symbols": {

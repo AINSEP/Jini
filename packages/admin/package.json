@@ -192,7 +192,8 @@
       "./screens/webmcp/admin-page-tools": "universal",
       "./screens/webmcp/webmcp-i18n": "universal",
       "./screens/skills/skill-drop": "browser",
-      "./screens/skills/use-skills-tabs.hooks": "browser"
+      "./screens/skills/use-skills-tabs.hooks": "browser",
+      "./screens/content-analysis/content-analysis-i18n": "universal"
     },
     "isolation": {
       "shared": [
@@ -1174,6 +1175,11 @@
       "types": "./dist/screens/skills/use-skills-tabs.hooks.d.ts",
       "import": "./dist/screens/skills/use-skills-tabs.hooks.js",
       "default": "./dist/screens/skills/use-skills-tabs.hooks.js"
+    },
+    "./screens/content-analysis/content-analysis-i18n": {
+      "types": "./dist/screens/content-analysis/content-analysis-i18n.d.ts",
+      "import": "./dist/screens/content-analysis/content-analysis-i18n.js",
+      "default": "./dist/screens/content-analysis/content-analysis-i18n.js"
     }
   },
   "files": [
