@@ -6,7 +6,6 @@ import path from "node:path";
 import { test } from "vitest";
 
 import { ACTIVATIONS_FILENAME } from "../../activation.js";
-import { type AgentPluginArchiveEntry, type AgentPluginArchiveReaderPort } from "../../install.js";
 import type { AgentPluginLifecyclePorts, FilesystemPort } from "../../ports.js";
 import { AgentPluginNotUninstallableError, createUninstallModule } from "../../uninstall.js";
 import { forceRemove } from "../fixtures/force-remove.js";
@@ -20,6 +19,7 @@ import {
   resolveAgentPluginLayout,
   setAgentPluginActivation,
 } from "../test-support.js";
+import type { AgentPluginArchiveEntry, AgentPluginArchiveReaderPort } from "@jini-ai/core/contracts/site/agent-plugins-lifecycle";
 
 /**
  * @file Fault-injection boundary tests for `uninstall.ts`'s reversible half: staging package roots

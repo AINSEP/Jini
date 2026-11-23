@@ -6,9 +6,9 @@
  * flag, media and outcome as extra fields; those rows pin them on the wire. */
 import { describe, expect, it } from 'vitest';
 import { translateRunAgentPayload } from '../../run-events/entry.js';
-import type { AgentEvent } from '../../events.js';
 import { closeAgUiRun, createAgUiTranslationState, translateAgentEventToAgUi } from '../event-projection.js';
 import { IDS, NAMES, PAYLOADS } from './wire-fixture.js';
+import type { AgentEvent } from "@jini-ai/core/contracts/site/chat-core";
 
 /** The AG-UI events one reduced event becomes, as the bytes a client would read. */
 function wire(event: AgentEvent | null): string {

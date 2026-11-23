@@ -1,10 +1,10 @@
 import { describe, expect, it } from "vitest";
-import type { AgentEvent } from "../../../core/index.js";
 import type { DurableRun, DurableRunStore, RecoveryPorts, RunProbe } from "../../../core/durable-runs/ports.js";
 import { translateRunFrame } from "../../../core/run-events/entry.js";
 import { notices } from "../../../core/run-events/__tests__/fixture.js";
 import { unusedStoreMethods } from "./store-fake.js";
 import { AWAITING_ANSWER_NOTICE, createDurableRecovery, EXHAUSTED_NOTICE, RECOVERY_LIMIT, RUN_STALENESS_MS, SAVED_WORK_NOTICE } from "../recover.js";
+import type { AgentEvent } from "@jini-ai/core/contracts/site/chat-core";
 
 const TIME = 1_790_000_000_000;
 // Raw stdout that quotes a tool description, as the luvira incident's leaked echo tail did.
@@ -326,7 +326,6 @@ describe("durable recovery: bridge failure is permanent", () => {
     expect(h.settlements).toEqual([]);
   });
 });
-
 
 it("completed_subagent_billing_summary_is_not_executor_failure", async () => {
   const summary = JSON.stringify({ type: "system", subtype: "task_notification", status: "completed", summary: "actual billing isn't verified; OAuth is forbidden here" });

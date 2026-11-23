@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest';
-import type { AgentEvent } from '../events.js';
 import { deriveRunActivity, describeRunActivity, formatActivityClock, humanizeToolName, isAwaitingAnswer } from '../run-activity.js';
 import { acceptedInputUserEvent } from '../accepted-input.js';
 import { SURFACE_QUESTION_META_KEY } from '../question-answer.js';
+import type { AgentEvent } from "@jini-ai/core/contracts/site/chat-core";
 
 const t = (key: string, vars?: Record<string, string | number>) =>
   vars ? key.replace(/\{(\w+)\}/g, (_m, name: string) => String(vars[name])) : key;

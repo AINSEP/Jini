@@ -10,7 +10,8 @@ import { useCallback, useMemo, useState } from 'react';
 import { isTerminalRunStatus, type ChatRunStatus } from '../../core/messages.js';
 import { acceptedInputEvent, recordedSurfaceAnswers } from '../../core/accepted-input.js';
 import type { ExtEventGroup } from './useExtEventGroups.js';
-import type { AgentEvent, IsAnsweredCard } from '../../core/index.js';
+import type { IsAnsweredCard } from '../../core/index.js';
+import type { AgentEvent } from "@jini-ai/core/contracts/site/chat-core";
 
 export interface AnsweredCards {
   /** Live rendering state; a terminal run overrides a stale streaming prop. */

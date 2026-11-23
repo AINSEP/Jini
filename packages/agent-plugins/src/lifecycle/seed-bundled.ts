@@ -87,10 +87,10 @@ import { createBundledDigestsModule } from "./bundled-digests.js";
 import { createBundledSourceArchiveModule } from "./bundled-source-archive.js";
 import type { PackAgentPluginDirectoryOptional } from "./bundled-source-archive.js";
 import { createInstallModule } from "./install.js";
-import type { AgentPluginLayout } from "./layout.js";
 import type {  RetiredAgentPluginOutcome } from "./retire-bundled.js";
 import { createRetireBundledModule } from "./retire-bundled.js";
 import type { AgentPluginLifecyclePorts } from "./ports.js";
+import type { AgentPluginLayout } from "@jini-ai/core/contracts/site/agent-plugins-lifecycle";
 
 export type SeededAgentPluginOutcome =
   | {

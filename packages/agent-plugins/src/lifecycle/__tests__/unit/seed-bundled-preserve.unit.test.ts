@@ -5,10 +5,11 @@ import os from 'node:os';
 import path from 'node:path';
 import { createAgentPluginLayout } from '../../layout.js';
 import { createSeedBundledModule } from '../../seed-bundled.js';
-import { createInstallModule, type AgentPluginArchiveReaderPort } from '../../install.js';
+import { createInstallModule } from '../../install.js';
 import { createBundledDigestsModule } from '../../bundled-digests.js';
 import { ports } from '../test-support.js';
 import { forceRemove } from '../fixtures/force-remove.js';
+import type { AgentPluginArchiveReaderPort } from "@jini-ai/core/contracts/site/agent-plugins-lifecycle";
 
 /**
  * @file Bundled reseeding never deletes a same-name revision (open bug "reseeding prunes

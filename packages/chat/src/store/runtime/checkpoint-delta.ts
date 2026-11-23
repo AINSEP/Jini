@@ -1,6 +1,6 @@
 import { dedupeToolUsesById } from "../../core/tool-events.js";
-import type { AgentEvent } from "../../core/index.js";
 import type { CheckpointState, RunProgress } from "../../core/durable-runs/ledger-contracts.js";
+import type { AgentEvent } from "@jini-ai/core/contracts/site/chat-core";
 
 /** Compare unchanged prefix values; compacting text creates fresh objects, while large tool
  * payloads normally retain their reference. Never parse the saved SQL column here. */
