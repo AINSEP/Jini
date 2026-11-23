@@ -1,0 +1,145 @@
+.                                        |  WARN  Unsupported engine: wanted: {"node":"~24"} (current: {"node":"v22.23.5","pnpm":"10.33.2"})
+Scope: 26 of 51 workspace projects
+packages/core typecheck$ tsc -p tsconfig.json --noEmit
+packages/core typecheck: Done
+packages/db typecheck$ tsc -p tsconfig.json --noEmit
+packages/db typecheck: Done
+packages/chat typecheck$ tsc -p tsconfig.json --noEmit
+packages/cms typecheck$ tsc -p tsconfig.json --noEmit
+packages/plugins typecheck$ tsc -p tsconfig.json --noEmit
+packages/infra typecheck$ tsc -p tsconfig.json --noEmit
+packages/infra typecheck: Done
+packages/registry typecheck$ tsc -p tsconfig.json --noEmit
+packages/registry typecheck: Done
+packages/plugins typecheck: Done
+packages/cms typecheck: Done
+packages/chat typecheck: Done
+examples/notes-app typecheck$ tsc -p tsconfig.json --noEmit
+packages/agent-plugins typecheck$ tsc -p tsconfig.json --noEmit
+packages/cms/forms typecheck$ tsc -p tsconfig.json --noEmit
+packages/commerce typecheck$ tsc -p tsconfig.json --noEmit
+examples/notes-app typecheck: Done
+packages/cms/forms typecheck: Done
+packages/commerce typecheck: Done
+packages/agent-plugins typecheck: Done
+packages/node-adapters typecheck$ tsc -p tsconfig.json --noEmit
+packages/admin typecheck$ tsc -p tsconfig.json --noEmit
+packages/provider-plugins typecheck$ tsc -p tsconfig.json --noEmit && tsc -p tsconfig.charts.json --noEmit
+packages/search typecheck$ tsc -p tsconfig.json --noEmit
+packages/search typecheck: Done
+packages/node-adapters typecheck: Done
+packages/provider-plugins typecheck: Done
+packages/admin typecheck: Done
+packages/daemon typecheck$ tsc -p tsconfig.json --noEmit
+packages/user-management typecheck$ tsc -p tsconfig.json --noEmit
+packages/user-management typecheck: Done
+packages/daemon typecheck: Done
+packages/devops typecheck$ tsc -p tsconfig.json --noEmit
+packages/sqlite typecheck$ tsc -p tsconfig.json --noEmit
+packages/mcp typecheck$ tsc -p tsconfig.json --noEmit
+packages/server typecheck$ tsc -p tsconfig.tests.json && tsc -p tsconfig.json --noEmit
+packages/sqlite typecheck: Done
+packages/server typecheck: Done
+packages/devops typecheck: Done
+packages/mcp typecheck: Done
+examples/reference-web typecheck$ tsc -p tsconfig.json --noEmit
+. typecheck$ pnpm -r --if-present run typecheck && tsc -p scripts/tsconfig.json --noEmit
+examples/neutral-host typecheck$ tsc -p tsconfig.json
+. typecheck: .                                        |  WARN  Unsupported engine: wanted: {"node":"~24"} (current: {"node":"v22.23.5","pnpm":"10.33.2"})
+. typecheck: Scope: 50 of 51 workspace projects
+. typecheck: examples/nlweb-demo typecheck$ tsc -p tsconfig.json --noEmit
+. typecheck: packages/cookie-consent typecheck$ tsc -p tsconfig.json --noEmit
+. typecheck: packages/core typecheck$ tsc -p tsconfig.json --noEmit
+. typecheck: packages/integration-tests typecheck$ tsc -p tsconfig.json --noEmit
+. typecheck: examples/nlweb-demo typecheck: Done
+. typecheck: packages/memory typecheck$ tsc -p tsconfig.json --noEmit
+. typecheck: packages/integration-tests typecheck: Done
+. typecheck: packages/protocol typecheck$ tsc -p tsconfig.json --noEmit
+. typecheck: packages/cookie-consent typecheck: Done
+. typecheck: packages/sandbox typecheck$ tsc -p tsconfig.json --noEmit
+examples/neutral-host typecheck: Done
+. typecheck: packages/memory typecheck: Done
+. typecheck: packages/sandbox typecheck: Done
+. typecheck: packages/protocol typecheck: Done
+examples/reference-web typecheck: Done
+. typecheck: packages/core typecheck: Done
+. typecheck: packages/agentic typecheck$ tsc -p tsconfig.json --noEmit && tsc -p tsconfig.dom.json --noEmit
+. typecheck: packages/analytics typecheck$ tsc -p tsconfig.json --noEmit
+. typecheck: packages/artifacts typecheck$ tsc -p tsconfig.json --noEmit
+. typecheck: packages/capability-providers typecheck$ tsc -p tsconfig.json --noEmit
+. typecheck: packages/artifacts typecheck: Done
+. typecheck: packages/desktop-host typecheck$ tsc -p tsconfig.json --noEmit
+. typecheck: packages/capability-providers typecheck: Done
+. typecheck: packages/http-kit typecheck$ tsc -p tsconfig.json --noEmit
+. typecheck: packages/analytics typecheck: Done
+. typecheck: packages/platform typecheck$ tsc -p tsconfig.json --noEmit
+. typecheck: packages/http-kit typecheck: Done
+. typecheck: packages/ui-kit typecheck$ tsc --noEmit
+. typecheck: packages/desktop-host typecheck: Done
+. typecheck: packages/agentic typecheck: Done
+. typecheck: packages/ui-kit typecheck: Done
+. typecheck: packages/platform typecheck: Done
+. typecheck: examples/reference-desktop typecheck$ tsc -p tsconfig.json --noEmit
+. typecheck: packages/db typecheck$ tsc -p tsconfig.json --noEmit
+. typecheck: packages/diagnostics typecheck$ tsc -p tsconfig.json --noEmit
+. typecheck: packages/oauth typecheck$ tsc -p tsconfig.json --noEmit
+. typecheck: examples/reference-desktop typecheck: Done
+. typecheck: packages/sidecar typecheck$ tsc -p tsconfig.json --noEmit
+. typecheck: packages/oauth typecheck: Done
+. typecheck: packages/vibecoding typecheck$ tsc -p tsconfig.json --noEmit
+. typecheck: packages/diagnostics typecheck: Done
+. typecheck: packages/sidecar typecheck: Done
+. typecheck: packages/vibecoding typecheck: Done
+. typecheck: packages/db typecheck: Done
+. typecheck: packages/cli typecheck$ tsc -p tsconfig.json --noEmit
+. typecheck: packages/cms typecheck$ tsc -p tsconfig.json --noEmit
+. typecheck: packages/infra typecheck$ tsc -p tsconfig.json --noEmit
+. typecheck: packages/integrations typecheck$ tsc -p tsconfig.json --noEmit
+. typecheck: packages/infra typecheck: Done
+. typecheck: packages/plugins typecheck$ tsc -p tsconfig.json --noEmit
+. typecheck: packages/cli typecheck: Done
+. typecheck: packages/registry typecheck$ tsc -p tsconfig.json --noEmit
+. typecheck: packages/registry typecheck: Done
+. typecheck: packages/integrations typecheck: Done
+. typecheck: packages/plugins typecheck: Done
+. typecheck: packages/cms typecheck: Done
+. typecheck: examples/notes-app typecheck$ tsc -p tsconfig.json --noEmit
+. typecheck: packages/agent-plugins typecheck$ tsc -p tsconfig.json --noEmit
+. typecheck: packages/agent-runtime typecheck$ tsc -p tsconfig.json --noEmit
+. typecheck: packages/cms/forms typecheck$ tsc -p tsconfig.json --noEmit
+. typecheck: packages/cms/forms typecheck: Done
+. typecheck: packages/commerce typecheck$ tsc -p tsconfig.json --noEmit
+. typecheck: examples/notes-app typecheck: Done
+. typecheck: packages/commerce typecheck: Done
+. typecheck: packages/agent-plugins typecheck: Done
+. typecheck: packages/agent-runtime typecheck: Done
+. typecheck: packages/node-adapters typecheck$ tsc -p tsconfig.json --noEmit
+. typecheck: packages/search typecheck$ tsc -p tsconfig.json --noEmit
+. typecheck: packages/ui typecheck$ tsc -p tsconfig.json --noEmit
+. typecheck: packages/node-adapters typecheck: Done
+. typecheck: packages/search typecheck: Done
+. typecheck: packages/ui typecheck: Done
+. typecheck: packages/provider-plugins typecheck$ tsc -p tsconfig.json --noEmit && tsc -p tsconfig.charts.json --noEmit
+. typecheck: packages/chat typecheck$ tsc -p tsconfig.json --noEmit
+. typecheck: packages/admin typecheck$ tsc -p tsconfig.json --noEmit
+. typecheck: packages/provider-plugins typecheck: Done
+. typecheck: packages/admin typecheck: Done
+. typecheck: packages/chat typecheck: Done
+. typecheck: packages/daemon typecheck$ tsc -p tsconfig.json --noEmit
+. typecheck: packages/user-management typecheck$ tsc -p tsconfig.json --noEmit
+. typecheck: packages/user-management typecheck: Done
+. typecheck: packages/daemon typecheck: Done
+. typecheck: packages/devops typecheck$ tsc -p tsconfig.json --noEmit
+. typecheck: packages/sqlite typecheck$ tsc -p tsconfig.json --noEmit
+. typecheck: packages/mcp typecheck$ tsc -p tsconfig.json --noEmit
+. typecheck: packages/server typecheck$ tsc -p tsconfig.tests.json && tsc -p tsconfig.json --noEmit
+. typecheck: packages/sqlite typecheck: Done
+. typecheck: packages/server typecheck: Done
+. typecheck: packages/devops typecheck: Done
+. typecheck: packages/mcp typecheck: Done
+. typecheck: examples/neutral-host typecheck$ tsc -p tsconfig.json
+. typecheck: examples/reference-web typecheck$ tsc -p tsconfig.json --noEmit
+. typecheck: examples/neutral-host typecheck: Done
+. typecheck: examples/reference-web typecheck: Done
+. typecheck: Done
+typecheck exit 0

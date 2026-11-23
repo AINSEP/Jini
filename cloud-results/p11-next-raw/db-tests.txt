@@ -1,0 +1,229 @@
+
+> @jini-ai/db@0.7.3-next.2 test
+> vitest run
+
+
+ RUN  v3.2.7 /home/user/Jini/packages/db
+
+ ✓ src/__tests__/tools/transfer-tools-paths.test.ts (31 tests) 21ms
+ ✓ src/__tests__/secrets-vault.repo.contract.test.ts (36 tests) 5625ms
+   ✓ secrets vault contract [pglite] > explicit false stays non-default and omitted/undefined flags auto-default only the first row  2772ms
+   ✓ secrets vault contract [pglite] > findDefault isolates every group dimension, distinguishes null/empty and returns independent records  398ms
+ ✓ src/__tests__/tools/transfer-tools.test.ts (12 tests) 84ms
+ ✓ src/__tests__/pglite-owner.test.ts (19 tests) 10955ms
+   ✓ owner lock > starters racing for one data dir (over a dead pid's lock): exactly one becomes owner  5562ms
+   ✓ kill -9 of the owner mid-write: reopen keeps every acked row, no uncommitted row, and takes over the stale lock and socket  2028ms
+ ✓ src/__tests__/kernel.test.ts (27 tests) 3912ms
+   ✓ storage kernel [pglite] > a transaction commits on resolve and rolls back on throw  1958ms
+   ✓ failed PGlite readiness rejects every database operation without running its body  1812ms
+ ✓ src/__tests__/loads-without-driver.test.ts (34 tests) 10736ms
+ ✓ src/__tests__/sqlite/checked-client.test.ts (23 tests) 31ms
+ ✓ src/__tests__/sqlite/compaction.test.ts (18 tests) 619ms
+ ✓ src/__tests__/migrate/opt-in-runner.test.ts (14 tests) 107ms
+ ✓ src/pglite/__tests__/owner.ports.test.ts (17 tests) 3062ms
+   ✓ startPgliteOwner through its ports > serves under the default socket dir of the process port's home, and is findable in-process until closed  2762ms
+ ✓ src/pglite/__tests__/socket-server.edges.test.ts (10 tests) 3203ms
+ ✓ src/__tests__/transfer/snapshot-catalog.test.ts (8 tests) 25ms
+(node:20128) DeprecationWarning: Calling client.query() when the client is already executing a query is deprecated and will be removed in pg@9.0. Use async/await or an external async flow control mechanism instead.
+(Use `node --trace-deprecation ...` to show where the warning was created)
+ ✓ src/__tests__/sqlite/db-ops.test.ts (15 tests) 119ms
+ ✓ src/__tests__/pglite-socket-server.test.ts (9 tests) 5663ms
+   ✓ over the socket a failing extended query gets exactly one ReadyForQuery (1 E Z)  807ms
+   ✓ idle in a transaction past the timeout: that client is cut off with 25P03 and its writes roll back  327ms
+   ✓ runExclusive waits for an open client transaction, and clients wait while it runs  417ms
+   ✓ two clients: transactions do not interleave, a rollback leaks nothing, no lost updates  320ms
+   ✓ a connection past the cap is refused with FATAL 53300  1002ms
+ ✓ src/__tests__/transfer/internal-ddl.test.ts (17 tests) 6ms
+ ✓ src/__tests__/tools/read-tools.test.ts (5 tests) 9ms
+ ✓ src/__tests__/sqlite/inspect.test.ts (19 tests) 167ms
+ ✓ src/transfer/__tests__/copy-engine.characterization.test.ts (27 tests) 18ms
+ ✓ src/__tests__/migrate/runner-placement.test.ts (12 tests) 8194ms
+   ✓ the ledger's Postgres schema > holds the ledger in the named schema, created with it, and a rerun reads it from there  2016ms
+   ✓ the ledger's Postgres schema > keeps two histories with the same ledger name apart, one per schema  1986ms
+   ✓ two runs racing on pglite > apply a step another run recorded after this one read the ledger exactly once  1870ms
+   ✓ two runs racing on pglite > a run whose step was recorded concurrently with another checksum fails without applying it  2259ms
+ ✓ src/__tests__/runner.test.ts (16 tests) 15193ms
+   ✓ runMigrations on pglite > applies pending steps in order, records them, and a rerun applies nothing  2401ms
+   ✓ runMigrations on pglite > a failing step rolls back its own changes, is not recorded, and stops later steps  1940ms
+   ✓ runMigrations on pglite > prepare runs before up and ledger creation, passes context, and is skipped on rerun  2258ms
+   ✓ runMigrations on pglite > a rejecting prepare preserves existing data, creates no ledger, and stops up and later steps  2326ms
+   ✓ runMigrations on pglite > a recorded step whose checksum changed stops the run before anything is applied  2241ms
+   ✓ runMigrations on pglite > a recorded step this runtime does not know stops the run (database from a newer version)  1964ms
+   ✓ runMigrations on pglite > the ledger is the one the consumer names, and is required  1987ms
+ ✓ src/__tests__/ops.test.ts (9 tests) 10072ms
+   ✓ PGlite in process: copyTo restores the whole data dir into a new one; compactAndVerify reads the ledger back  4460ms
+   ✓ PGlite compactAndVerify refuses an empty migration ledger  2114ms
+   ✓ PGlite socket client: copyTo goes through the owner's exclusive window, and is refused without it  3260ms
+ ✓ src/__tests__/recovery/recovery-orchestrator.test.ts (8 tests) 9ms
+ ✓ src/secrets-vault/__tests__/repo.sql.characterization.test.ts (7 tests) 74ms
+ ✓ src/secrets-vault/__tests__/repo.sql.rows.test.ts (10 tests) 2554ms
+   ✓ meta a driver already parsed into an object is used as is, and round-trips through put  2526ms
+ ✓ src/settings/__tests__/sql.repo.dialects.test.ts (18 tests) 19106ms
+   ✓ settings sql repo [postgres] > definition round-trips, including a retyped coercion tag, secret flag and null default  2588ms
+   ✓ settings sql repo [postgres] > definition lookup separates platform (workspaceId null) from workspace definitions and skips retired ones  2128ms
+   ✓ settings sql repo [postgres] > two writes of one setting at one scope: the second wins and one row remains  2284ms
+   ✓ settings sql repo [postgres] > a cleared value stores SQL NULL while a set JSON null is kept distinct  2116ms
+   ✓ settings sql repo [postgres] > workspace and user rows never leak across workspaces or principals; scoped writes need their ids  1941ms
+   ✓ settings sql repo [postgres] > deleteUserValue and deleteWorkspaceValue remove exactly their row and leave the ledger  1908ms
+   ✓ settings sql repo [postgres] > revisions: seq ascends, listRevisionsSince honours cursor, limit and workspace visibility  2096ms
+   ✓ settings sql repo [postgres] > a platform-wide revision (null workspace) reaches every workspace  1905ms
+   ✓ settings sql repo [postgres] > an empty ledger reports max seq 0; a transaction commits on success and rolls every write back on failure  2050ms
+ ✓ src/__tests__/store-copy.test.ts (3 tests) 9377ms
+   ✓ injected schemas/ledgers select only their tables, preserve ledgers, validate links and reseed ids; borrowed kernels stay open  4672ms
+   ✓ a late fault rolls back copied rows and recreated tables, and a ledger mismatch refuses before copying  4696ms
+ ✓ src/__tests__/kernel-ddl-introspection.test.ts (10 tests) 4839ms
+   ✓ portable DDL and introspection [pglite] > a table declared with columnTypeSql/autoIdColumnSql generates ids and reads back its declared types  2530ms
+   ✓ checkpointWal on Postgres-family kernels is a no-op, even inside a transaction  2194ms
+ ✓ src/__tests__/typegen-schema-shape.test.ts (5 tests) 6777ms
+   ✓ renderDatabaseTypes maps every supported column type, nullability and generation  2567ms
+   ✓ readSchemaShape on Postgres: columns, indexes, constraints and views of the current schema  2065ms
+   ✓ databaseFile names a SQLite file kernel's main file, and null for in-memory or Postgres  2117ms
+ ✓ src/__tests__/transfer/copy-engine-paths.test.ts (8 tests) 12ms
+ ✓ src/__tests__/import-isolation.test.ts (16 tests) 357ms
+   ✓ database import isolation > scans every production TypeScript file and confines optional dependencies  348ms
+ ✓ src/__tests__/transfer/psql-target.test.ts (11 tests) 15ms
+ ✓ src/__tests__/postgres-driver.test.ts (9 tests) 5936ms
+   ✓ postgresOps on a node-postgres kernel > compactAndVerify vacuums and reads the ledger back; a missing or empty ledger is a StorageOpError  346ms
+   ✓ an idle pool connection the server drops is logged, not fatal, and the next query reconnects  2631ms
+ ✓ src/sqlite/__tests__/inspect.characterization.test.ts (17 tests) 53ms
+ ✓ src/__tests__/pglite-dialect.test.ts (5 tests) 6647ms
+   ✓ direct Kysely callers wait outside a rolled-back PGlite transaction  2682ms
+   ✓ connection returns exact rows and affected counts, propagates errors, and refuses streaming  2077ms
+   ✓ driver grants three connection holders in FIFO order and tolerates a second release  1884ms
+ ✓ src/events/__tests__/change-set.sql.repo.dialects.test.ts (10 tests) 10846ms
+   ✓ change-set sql repo [postgres] > a populated change set round-trips through findById with its items in position order  2669ms
+   ✓ change-set sql repo [postgres] > every absent optional field is stored as NULL and read back as undefined  2131ms
+   ✓ change-set sql repo [postgres] > a supplied event lands as the one stored outbox row; no event means no outbox row  1940ms
+   ✓ change-set sql repo [postgres] > a failing item write rolls back the header and the event; a failing event write rolls back header and items  1968ms
+   ✓ change-set sql repo [postgres] > reads answer only for their workspace; save writes status and the two timestamps of its own workspace's row only  2093ms
+ ✓ src/__tests__/testing-helpers.test.ts (6 tests) 2885ms
+   ✓ the copied content schema is valid Postgres: two tables, entries referencing items  2881ms
+ ✓ src/__tests__/recovery/owner-contract.test.ts (4 tests) 4ms
+ ✓ src/__tests__/recovery/migrate-forward-execute.test.ts (5 tests) 4ms
+ ✓ src/events/__tests__/outbox.sql.repo.dialects.test.ts (13 tests) 12948ms
+   ✓ outbox sql adapter [postgres] > enqueue stores the pending row; a repeated id is a no-op even once delivered  2615ms
+   ✓ outbox sql adapter [postgres] > a claim stores a lease of exactly now + claimLeaseMs, returns the due time, and a live lease is not re-claimable  1937ms
+   ✓ outbox sql adapter [postgres] > concurrent claimers take disjoint events and respect batchSize and due time  2344ms
+   ✓ outbox sql adapter [postgres] > markFailed persists the caller's status, error and retry time; markDelivered only the status  2195ms
+   ✓ outbox sql adapter [postgres] > a failed or delivered row is not revived by a late outcome; an unknown id changes nothing  2102ms
+   ✓ outbox sql adapter [postgres] > enqueue inside a transaction that throws leaves no row; one that commits leaves it  1668ms
+ ✓ src/__tests__/tools/restore-points.test.ts (9 tests) 56ms
+ ✓ src/__tests__/tools/timeline.test.ts (8 tests) 3ms
+ ✓ src/pglite/__tests__/socket-server.characterization.test.ts (7 tests) 2840ms
+ ✓ src/kernel/__tests__/store-copy.characterization.test.ts (5 tests) 20537ms
+   ✓ created tables retain non-FK constraints, indexes and generated columns; existing and created FKs are restored before the hook  4772ms
+   ✓ an empty source and target return an empty report without a hook  3939ms
+   ✓ an occupied target refuses under the transaction and rolls back the dropped FK  4059ms
+   ✓ a late hook failure rolls back created tables and existing rows  3920ms
+   ✓ a source with only generated columns cannot transfer its rows (reported, not fixed)  3844ms
+ ✓ src/verified-origin/__tests__/sql.repo.dialects.test.ts (12 tests) 13228ms
+   ✓ verified origin sql [postgres] > reads return only the asked workspace's origin and allowlists; an unknown workspace gets null and empty lists  2568ms
+   ✓ verified origin sql [postgres] > an origin without port or base path reads back without those keys  2145ms
+   ✓ verified origin sql [postgres] > register: inserted, then unchanged for the same origin (verifiedAt ignored), then updated for a changed one  2155ms
+   ✓ verified origin sql [postgres] > register corrects the origin columns only and preserves both allowlists  2188ms
+   ✓ verified origin sql [postgres] > register re-validates the origin: an insecure scheme with a non-loopback source is refused and writes nothing  2219ms
+   ✓ verified origin sql [postgres] > reads wait for the boot write passed as `after`, and fail with it  1892ms
+ ✓ src/__tests__/tools/runtime-messages.test.ts (4 tests) 9ms
+ ✓ src/transfer/__tests__/copy-order.test.ts (6 tests) 8ms
+ ✓ src/log-safety-j.test.ts (6 tests) 49ms
+ ✓ src/transfer/__tests__/postgres-target.psql-fake.test.ts (10 tests) 25ms
+ ✓ src/__tests__/owner-lock.test.ts (5 tests) 65ms
+ ✓ src/pglite/__tests__/owner.characterization.test.ts (10 tests) 27ms
+ ✓ src/__tests__/owner-store-history.unit.test.ts (5 tests) 37ms
+ ✓ src/transfer/__tests__/table-catalog.mapping.test.ts (36 tests) 10ms
+ ✓ src/__tests__/dialect-json.test.ts (16 tests) 3031ms
+   ✓ json dialect helpers [pglite] > jsonScalarEquals matches strings, numbers and booleans by value and type  2904ms
+ ✓ src/__tests__/tools/database-catalog.contract.test.ts (12 tests) 5ms
+ ✓ src/__tests__/kernel-session-lock.test.ts (5 tests) 12ms
+ ✓ src/__tests__/owner-store-rows.unit.test.ts (4 tests) 37ms
+ ✓ src/pglite/__tests__/socket-server.security.test.ts (12 tests) 26ms
+ ✓ src/transfer/__tests__/postgres-target.characterization.test.ts (12 tests) 76ms
+ ✓ src/sqlite/__tests__/stopped.test.ts (4 tests) 5ms
+ ✓ src/__tests__/transfer/transfer-pg-test-db.test.ts (5 tests) 128ms
+ ✓ src/__tests__/tools/read-tools-input.test.ts (4 tests) 6ms
+ ✓ src/__tests__/transfer/postgres-ddl.test.ts (4 tests) 8ms
+ ✓ src/__tests__/tools/plan-store.test.ts (4 tests) 8ms
+ ✓ src/__tests__/tools/transfer-catalog.test.ts (3 tests) 4ms
+ ✓ src/__tests__/sqlite/inspect-transfer.test.ts (3 tests) 24ms
+ ✓ src/__tests__/sqlite/index.test.ts (6 tests) 35ms
+ ✓ src/__tests__/store-copy.created-columns.test.ts (4 tests) 16891ms
+   ✓ recreates identity (ALWAYS and BY DEFAULT), NOT NULL and default columns on the target, and continues the counters  4693ms
+   ✓ refuses a created table whose default comes from a sequence, before writing anything  3931ms
+   ✓ refuses a table whose columns differ between source and target  4106ms
+   ✓ readCatalog lists the scope's tables with their columns and primary keys  4154ms
+ ✓ src/__tests__/pg-fixture.test.ts (5 tests) 3ms
+ ✓ src/__tests__/transfer/script.test.ts (3 tests) 5ms
+ ✓ src/__tests__/backup.test.ts (5 tests) 3435ms
+   ✓ PGlite backupTo writes a data-dir dump  3401ms
+ ✓ src/__tests__/schema-scope.test.ts (2 tests) 3003ms
+   ✓ scoped builders isolate schemas while raw SQL, transactions, locks and close use the underlying kernel  2973ms
+ ✓ src/__tests__/sqlite/backup-policy.test.ts (4 tests) 37ms
+ ✓ src/__tests__/recovery/degraded-banners.test.ts (5 tests) 3ms
+ ✓ src/__tests__/recovery/restore-hooks.test.ts (3 tests) 3ms
+ ✓ src/__tests__/recovery/restore-point-create.test.ts (4 tests) 3ms
+ ✓ src/__tests__/postgres-idle-error-redaction.test.ts (2 tests) 16ms
+ ✓ src/__tests__/transfer/snapshot-source.test.ts (3 tests) 110ms
+ ✓ src/__tests__/recovery/evaluate-boot-migration-policy.test.ts (4 tests) 3ms
+ ✓ src/__tests__/ops.failures.test.ts (3 tests) 4093ms
+   ✓ PGlite copyTo removes a partly restored target and rethrows the restore failure  4067ms
+ ✓ src/__tests__/kernel-core.foreign-join.test.ts (5 tests) 8ms
+ ✓ src/__tests__/recovery/barrels.test.ts (2 tests) 2ms
+ ✓ src/__tests__/recovery/lookup-adapters.test.ts (3 tests) 2ms
+ ✓ src/__tests__/recovery/disclosure.test.ts (3 tests) 3ms
+ ✓ src/__tests__/tools/registration.test.ts (4 tests) 6ms
+ ✓ src/gated-mutations/__tests__/sql.repo.dialects.test.ts (12 tests) 12854ms
+   ✓ token sql store [postgres] > save then findByToken round-trips every binding field; an unknown token is null  2404ms
+   ✓ token sql store [postgres] > tryRedeem redeems once; the second call and ten concurrent calls report exactly one winner  2033ms
+   ✓ token sql store [postgres] > tryRedeem refuses an unknown token (record null) and a past-TTL token without mutating it  2032ms
+   ✓ token sql store [postgres] > save upserts an existing token by its primary key and never duplicates a row  2248ms
+   ✓ token sql store [postgres] > expire revokes only a minted token: redeemed stays terminal and an unknown token inserts nothing  2369ms
+   ✓ token sql store [postgres] > count reflects the saved rows  1707ms
+ ✓ src/__tests__/recovery/deep-link.test.ts (3 tests) 2ms
+ ✓ src/transfer/__tests__/sqlite-source.header-virtual.test.ts (12 tests) 6ms
+ ✓ src/__tests__/sqlite-same-file.test.ts (2 tests) 54ms
+ ✓ src/events/__tests__/sql.lock-keys.test.ts (2 tests) 9ms
+ ✓ src/kernel/__tests__/schema-shape.characterization.test.ts (1 test) 18ms
+ ✓ src/transfer/__tests__/site-schema-name.test.ts (15 tests) 6ms
+ ✓ src/__tests__/kernel-drivers.test.ts (3 tests) 2554ms
+   ✓ Kysely introspection works through the PGlite dialect  2536ms
+ ✓ src/__tests__/migrate/assert-valid-steps.test.ts (25 tests) 5ms
+ ✓ src/verified-origin/__tests__/sql.lock-keys.test.ts (1 test) 3ms
+ ✓ src/__tests__/unit/transaction-outcomes-m2.unit.test.ts (7 tests) 29ms
+ ✓ src/__tests__/core/pg-types.test.ts (6 tests) 5ms
+ ✓ src/settings/__tests__/sql.lock-keys.test.ts (1 test) 2ms
+ ✓ src/__tests__/transfer/completeness.test.ts (5 tests) 9ms
+ ✓ src/__tests__/recovery/reconcile-interrupted-migration.test.ts (2 tests) 2ms
+ ✓ src/__tests__/core/artifact-naming.test.ts (8 tests) 3ms
+(node:20923) ExperimentalWarning: SQLite is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+ ✓ src/__tests__/sqlite-copy-sync.test.ts (1 test) 32ms
+ ✓ src/__tests__/postgres-lock.test.ts (1 test) 2464ms
+   ✓ lock keys are bound independently and advisory locks disappear on commit and rollback  2462ms
+ ✓ src/gated-mutations/__tests__/sql.lock-keys.test.ts (1 test) 2ms
+ ✓ src/__tests__/tools/restore-points-list.test.ts (3 tests) 3ms
+ ✓ src/__tests__/security-defaults.source.test.ts (1 test) 17ms
+ ✓ src/__tests__/transfer/naming.test.ts (1 test) 4ms
+ ✓ src/__tests__/migrate/checksum.test.ts (4 tests) 7ms
+ ✓ src/__tests__/checked-state-w2g.unit.test.ts (2 tests) 4ms
+ ✓ src/__tests__/sqlite/sync-types.test.ts (1 test) 11ms
+ ✓ src/__tests__/core/messages.test.ts (3 tests) 3ms
+ ✓ src/kernel/__tests__/kysely-kernel.test.ts (2 tests) 11ms
+ ✓ src/__tests__/testing-helpers.lazy-user.test.ts (1 test) 8ms
+ ✓ src/__tests__/core/index.test.ts (2 tests) 6ms
+ ✓ src/data-modules/__tests__/public-entry.test.ts (2 tests) 2197ms
+   ✓ public data-modules entry preserves persisted names and provenance on PGlite  2159ms
+ ✓ src/__tests__/settings-revision.test.ts (14 tests) 11280ms
+   ✓ pglite: settings revision check > global: guarded set/clear and stale rollback preserve value and ledger  2116ms
+   ✓ pglite: settings revision check > workspace: guarded set/clear and stale rollback preserve value and ledger  1602ms
+   ✓ pglite: settings revision check > user: guarded set/clear and stale rollback preserve value and ledger  1590ms
+   ✓ pglite: settings revision check > concurrent set/set: exactly one snapshot writer commits  1525ms
+   ✓ pglite: settings revision check > concurrent set/clear: exactly one snapshot writer commits  1403ms
+   ✓ pglite: settings revision check > concurrent clear/set: exactly one snapshot writer commits  1428ms
+   ✓ pglite: settings revision check > concurrent clear/clear: exactly one snapshot writer commits  1443ms
+
+ Test Files  115 passed (115)
+      Tests  968 passed (968)
+   Start at  18:34:40
+   Duration  106.67s (transform 3.17s, setup 0ms, collect 15.84s, tests 259.80s, environment 28ms, prepare 8.49s)
+
+db tests exit 0
