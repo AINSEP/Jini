@@ -130,6 +130,8 @@
       "./contracts/site/plugin-directory": "universal",
       "./contracts/site/recovery-operation-lock": "universal",
       "./contracts/site/recovery-reconcile-interrupted-migration": "universal",
+      "./contracts/site/composition-provider-config-source": "universal",
+      "./contracts/site/cms-trash": "universal",
       "./contracts/site/sandbox-node-worker": "universal",
       "./contracts/site/diagnostics-observability": "universal",
       "./contracts/site/capability-providers-comments": "universal",
@@ -843,6 +845,16 @@
       "types": "./dist/contracts/site/recovery-operation-lock.d.ts",
       "import": "./dist/contracts/site/recovery-operation-lock.js",
       "default": "./dist/contracts/site/recovery-operation-lock.js"
+    },
+    "./contracts/site/cms-trash": {
+      "types": "./dist/contracts/site/cms-trash.d.ts",
+      "import": "./dist/contracts/site/cms-trash.js",
+      "default": "./dist/contracts/site/cms-trash.js"
+    },
+    "./contracts/site/composition-provider-config-source": {
+      "types": "./dist/contracts/site/composition-provider-config-source.d.ts",
+      "import": "./dist/contracts/site/composition-provider-config-source.js",
+      "default": "./dist/contracts/site/composition-provider-config-source.js"
     },
     "./contracts/site/recovery-reconcile-interrupted-migration": {
       "types": "./dist/contracts/site/recovery-reconcile-interrupted-migration.d.ts",
