@@ -143,7 +143,23 @@
       "./shell/lib/tab-event-source": "browser",
       "./shell/hooks/use-external-entry-refresh.hooks": "browser",
       "./posts/PostAuthorFields": "browser",
-      "./posts/PostPublishingFields": "browser"
+      "./posts/PostPublishingFields": "browser",
+      "./screens/collections/api/collections-api.types": "universal",
+      "./screens/collections/hooks/use-json-field-control.hooks": "browser",
+      "./screens/collections/hooks/collection-entries-port.hooks": "universal",
+      "./screens/collections/hooks/collection-entry-editor-port.hooks": "universal",
+      "./screens/collections/hooks/collections-port.hooks": "universal",
+      "./screens/collections/hooks/edit-fields-dialog-port.hooks": "universal",
+      "./screens/collections/hooks/new-content-type-dialog-port.hooks": "universal",
+      "./screens/taxonomy/api/taxonomy-api.types": "universal",
+      "./screens/taxonomy/html-rules": "universal",
+      "./screens/taxonomy/TaxonomyRowMenu.hooks": "browser",
+      "./screens/taxonomy/TaxonomyRowMenu": "browser",
+      "./screens/taxonomy/hooks/merge-term-section-port.hooks": "universal",
+      "./screens/taxonomy/hooks/new-taxonomy-form-port.hooks": "universal",
+      "./screens/taxonomy/hooks/new-term-form-port.hooks": "universal",
+      "./screens/taxonomy/hooks/taxonomy-port.hooks": "universal",
+      "./screens/taxonomy/hooks/term-picker-port.hooks": "universal"
     },
     "isolation": {
       "shared": [
@@ -879,6 +895,86 @@
       "types": "./dist/posts/PostPublishingFields.d.ts",
       "import": "./dist/posts/PostPublishingFields.js",
       "default": "./dist/posts/PostPublishingFields.js"
+    },
+    "./screens/collections/api/collections-api.types": {
+      "types": "./dist/screens/collections/api/collections-api.types.d.ts",
+      "import": "./dist/screens/collections/api/collections-api.types.js",
+      "default": "./dist/screens/collections/api/collections-api.types.js"
+    },
+    "./screens/collections/hooks/use-json-field-control.hooks": {
+      "types": "./dist/screens/collections/hooks/use-json-field-control.hooks.d.ts",
+      "import": "./dist/screens/collections/hooks/use-json-field-control.hooks.js",
+      "default": "./dist/screens/collections/hooks/use-json-field-control.hooks.js"
+    },
+    "./screens/collections/hooks/collection-entries-port.hooks": {
+      "types": "./dist/screens/collections/hooks/collection-entries-port.hooks.d.ts",
+      "import": "./dist/screens/collections/hooks/collection-entries-port.hooks.js",
+      "default": "./dist/screens/collections/hooks/collection-entries-port.hooks.js"
+    },
+    "./screens/collections/hooks/collection-entry-editor-port.hooks": {
+      "types": "./dist/screens/collections/hooks/collection-entry-editor-port.hooks.d.ts",
+      "import": "./dist/screens/collections/hooks/collection-entry-editor-port.hooks.js",
+      "default": "./dist/screens/collections/hooks/collection-entry-editor-port.hooks.js"
+    },
+    "./screens/collections/hooks/collections-port.hooks": {
+      "types": "./dist/screens/collections/hooks/collections-port.hooks.d.ts",
+      "import": "./dist/screens/collections/hooks/collections-port.hooks.js",
+      "default": "./dist/screens/collections/hooks/collections-port.hooks.js"
+    },
+    "./screens/collections/hooks/edit-fields-dialog-port.hooks": {
+      "types": "./dist/screens/collections/hooks/edit-fields-dialog-port.hooks.d.ts",
+      "import": "./dist/screens/collections/hooks/edit-fields-dialog-port.hooks.js",
+      "default": "./dist/screens/collections/hooks/edit-fields-dialog-port.hooks.js"
+    },
+    "./screens/collections/hooks/new-content-type-dialog-port.hooks": {
+      "types": "./dist/screens/collections/hooks/new-content-type-dialog-port.hooks.d.ts",
+      "import": "./dist/screens/collections/hooks/new-content-type-dialog-port.hooks.js",
+      "default": "./dist/screens/collections/hooks/new-content-type-dialog-port.hooks.js"
+    },
+    "./screens/taxonomy/api/taxonomy-api.types": {
+      "types": "./dist/screens/taxonomy/api/taxonomy-api.types.d.ts",
+      "import": "./dist/screens/taxonomy/api/taxonomy-api.types.js",
+      "default": "./dist/screens/taxonomy/api/taxonomy-api.types.js"
+    },
+    "./screens/taxonomy/html-rules": {
+      "types": "./dist/screens/taxonomy/html-rules.d.ts",
+      "import": "./dist/screens/taxonomy/html-rules.js",
+      "default": "./dist/screens/taxonomy/html-rules.js"
+    },
+    "./screens/taxonomy/TaxonomyRowMenu.hooks": {
+      "types": "./dist/screens/taxonomy/TaxonomyRowMenu.hooks.d.ts",
+      "import": "./dist/screens/taxonomy/TaxonomyRowMenu.hooks.js",
+      "default": "./dist/screens/taxonomy/TaxonomyRowMenu.hooks.js"
+    },
+    "./screens/taxonomy/TaxonomyRowMenu": {
+      "types": "./dist/screens/taxonomy/TaxonomyRowMenu.d.ts",
+      "import": "./dist/screens/taxonomy/TaxonomyRowMenu.js",
+      "default": "./dist/screens/taxonomy/TaxonomyRowMenu.js"
+    },
+    "./screens/taxonomy/hooks/merge-term-section-port.hooks": {
+      "types": "./dist/screens/taxonomy/hooks/merge-term-section-port.hooks.d.ts",
+      "import": "./dist/screens/taxonomy/hooks/merge-term-section-port.hooks.js",
+      "default": "./dist/screens/taxonomy/hooks/merge-term-section-port.hooks.js"
+    },
+    "./screens/taxonomy/hooks/new-taxonomy-form-port.hooks": {
+      "types": "./dist/screens/taxonomy/hooks/new-taxonomy-form-port.hooks.d.ts",
+      "import": "./dist/screens/taxonomy/hooks/new-taxonomy-form-port.hooks.js",
+      "default": "./dist/screens/taxonomy/hooks/new-taxonomy-form-port.hooks.js"
+    },
+    "./screens/taxonomy/hooks/new-term-form-port.hooks": {
+      "types": "./dist/screens/taxonomy/hooks/new-term-form-port.hooks.d.ts",
+      "import": "./dist/screens/taxonomy/hooks/new-term-form-port.hooks.js",
+      "default": "./dist/screens/taxonomy/hooks/new-term-form-port.hooks.js"
+    },
+    "./screens/taxonomy/hooks/taxonomy-port.hooks": {
+      "types": "./dist/screens/taxonomy/hooks/taxonomy-port.hooks.d.ts",
+      "import": "./dist/screens/taxonomy/hooks/taxonomy-port.hooks.js",
+      "default": "./dist/screens/taxonomy/hooks/taxonomy-port.hooks.js"
+    },
+    "./screens/taxonomy/hooks/term-picker-port.hooks": {
+      "types": "./dist/screens/taxonomy/hooks/term-picker-port.hooks.d.ts",
+      "import": "./dist/screens/taxonomy/hooks/term-picker-port.hooks.js",
+      "default": "./dist/screens/taxonomy/hooks/term-picker-port.hooks.js"
     }
   },
   "files": [

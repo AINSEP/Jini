@@ -151,7 +151,16 @@
       "./admin-http/sea-runtime": "node",
       "./public-http/http/site/render/media-playback-copy": "universal",
       "./public-http/http/site/render/value-readers": "universal",
-      "./public-http/routes/site/pages/listing/listing-state": "universal"
+      "./public-http/routes/site/pages/listing/listing-state": "universal",
+      "./entries/site/system-content-types": "universal",
+      "./widgets/site/declared-content-type-owners": "universal",
+      "./content-types/site/tool-metadata": "universal",
+      "./entries/site/tool-metadata": "universal",
+      "./entries/site/tool-registrations": "universal",
+      "./entries/site/public-list": "universal",
+      "./entries/site/contracts": "universal",
+      "./taxonomy/site/tool-metadata": "universal",
+      "./taxonomy/site/content-targets": "universal"
     },
     "isolation": {
       "domains": {
@@ -235,7 +244,8 @@
         "src/media/cover-image.ts",
         "src/html/site/slug.ts",
         "src/widgets/markers/gallery.ts",
-        "src/widgets/markers/media-reference.ts"
+        "src/widgets/markers/media-reference.ts",
+        "src/navigation/types.ts"
       ],
       "entries": {
         "./admin-http/http/redirects": "redirects",
@@ -956,6 +966,51 @@
       "types": "./dist/public-http/routes/site/pages/listing/listing-state.d.ts",
       "import": "./dist/public-http/routes/site/pages/listing/listing-state.js",
       "default": "./dist/public-http/routes/site/pages/listing/listing-state.js"
+    },
+    "./entries/site/system-content-types": {
+      "types": "./dist/entries/site/system-content-types.d.ts",
+      "import": "./dist/entries/site/system-content-types.js",
+      "default": "./dist/entries/site/system-content-types.js"
+    },
+    "./widgets/site/declared-content-type-owners": {
+      "types": "./dist/widgets/site/declared-content-type-owners.d.ts",
+      "import": "./dist/widgets/site/declared-content-type-owners.js",
+      "default": "./dist/widgets/site/declared-content-type-owners.js"
+    },
+    "./content-types/site/tool-metadata": {
+      "types": "./dist/content-types/site/tool-metadata.d.ts",
+      "import": "./dist/content-types/site/tool-metadata.js",
+      "default": "./dist/content-types/site/tool-metadata.js"
+    },
+    "./entries/site/tool-metadata": {
+      "types": "./dist/entries/site/tool-metadata.d.ts",
+      "import": "./dist/entries/site/tool-metadata.js",
+      "default": "./dist/entries/site/tool-metadata.js"
+    },
+    "./entries/site/tool-registrations": {
+      "types": "./dist/entries/site/tool-registrations.d.ts",
+      "import": "./dist/entries/site/tool-registrations.js",
+      "default": "./dist/entries/site/tool-registrations.js"
+    },
+    "./entries/site/public-list": {
+      "types": "./dist/entries/site/public-list.d.ts",
+      "import": "./dist/entries/site/public-list.js",
+      "default": "./dist/entries/site/public-list.js"
+    },
+    "./entries/site/contracts": {
+      "types": "./dist/entries/site/contracts.d.ts",
+      "import": "./dist/entries/site/contracts.js",
+      "default": "./dist/entries/site/contracts.js"
+    },
+    "./taxonomy/site/tool-metadata": {
+      "types": "./dist/taxonomy/site/tool-metadata.d.ts",
+      "import": "./dist/taxonomy/site/tool-metadata.js",
+      "default": "./dist/taxonomy/site/tool-metadata.js"
+    },
+    "./taxonomy/site/content-targets": {
+      "types": "./dist/taxonomy/site/content-targets.d.ts",
+      "import": "./dist/taxonomy/site/content-targets.js",
+      "default": "./dist/taxonomy/site/content-targets.js"
     }
   },
   "files": [
