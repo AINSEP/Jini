@@ -139,7 +139,8 @@
       "./shell/components/AssistantDock/SlowRunNoticeCard.hooks": "browser",
       "./shell/components/CodeView/preview-modal-icons": "browser",
       "./shell/components/InstallTabCard/use-folder-upload.hooks": "browser",
-      "./shell/components/Select/Select.hooks": "browser"
+      "./shell/components/Select/Select.hooks": "browser",
+      "./shell/lib/tab-event-source": "browser"
     },
     "isolation": {
       "shared": [
@@ -216,7 +217,8 @@
         "./shell/components/AssistantDock/SlowRunNoticeCard.hooks": "browser",
         "./shell/components/CodeView/preview-modal-icons": "browser",
         "./shell/components/InstallTabCard/use-folder-upload.hooks": "browser",
-        "./shell/components/Select/Select.hooks": "browser"
+        "./shell/components/Select/Select.hooks": "browser",
+        "./shell/lib/tab-event-source": "browser"
       }
     },
     "optionalPeers": {
@@ -853,6 +855,11 @@
       "types": "./dist/shell/components/Select/Select.hooks.d.ts",
       "import": "./dist/shell/components/Select/Select.hooks.js",
       "default": "./dist/shell/components/Select/Select.hooks.js"
+    },
+    "./shell/lib/tab-event-source": {
+      "types": "./dist/shell/lib/tab-event-source.d.ts",
+      "import": "./dist/shell/lib/tab-event-source.js",
+      "default": "./dist/shell/lib/tab-event-source.js"
     }
   },
   "files": [
