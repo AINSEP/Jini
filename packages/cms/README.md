@@ -185,6 +185,13 @@ The host injects its settings ledger (`readSeoSettings`, `writeSeoSettings`), th
 `invalidateSitemapCache` and `entryAuthorize` (the authorizer `setEntrySeoOverrides` re-checks with).
 The entry specs import `seo/cover-image`, so their entries are `node`.
 
+Media (`src/admin-http/routes/media/*`, DTO in `src/admin-http/http/media.ts`): update, trash and
+delete authorize `media.*` with `{ entityId }`; get/put providers stay id-free. The host injects the
+single-asset DTO lookups (recorded content type, public URL, byte size), its transactional trash flip
+(`removeMedia`), the reference-checked `purgeMedia` + `forgetRemovedMedia`, and the provider
+credential store with its save-error table (`saveErrorMappings`). Delete's 409 carries the
+`referencing` list. `update` imports the node-only media service, so its entry is `node`.
+
 ## Scripts
 
 ```bash

@@ -164,7 +164,14 @@
       "./admin-http/routes/seo/put-entry": "node",
       "./admin-http/routes/seo/get-settings": "universal",
       "./admin-http/routes/seo/put-settings": "universal",
-      "./admin-http/routes/seo/post-sitemap-regenerate": "universal"
+      "./admin-http/routes/seo/post-sitemap-regenerate": "universal",
+      "./admin-http/http/media": "universal",
+      "./admin-http/routes/media/shared": "universal",
+      "./admin-http/routes/media/delete": "universal",
+      "./admin-http/routes/media/trash": "universal",
+      "./admin-http/routes/media/get-providers": "universal",
+      "./admin-http/routes/media/put-providers": "universal",
+      "./admin-http/routes/media/update": "node"
     },
     "isolation": {
       "domains": {
@@ -272,7 +279,14 @@
         "./admin-http/routes/seo/put-entry": "seo",
         "./admin-http/routes/seo/get-settings": "seo",
         "./admin-http/routes/seo/put-settings": "seo",
-        "./admin-http/routes/seo/post-sitemap-regenerate": "seo"
+        "./admin-http/routes/seo/post-sitemap-regenerate": "seo",
+        "./admin-http/http/media": "media",
+        "./admin-http/routes/media/shared": "media",
+        "./admin-http/routes/media/delete": "media",
+        "./admin-http/routes/media/trash": "media",
+        "./admin-http/routes/media/get-providers": "media",
+        "./admin-http/routes/media/put-providers": "media",
+        "./admin-http/routes/media/update": "media"
       }
     },
     "optionalPeers": {
@@ -1047,6 +1061,41 @@
       "types": "./dist/admin-http/routes/seo/post-sitemap-regenerate.d.ts",
       "import": "./dist/admin-http/routes/seo/post-sitemap-regenerate.js",
       "default": "./dist/admin-http/routes/seo/post-sitemap-regenerate.js"
+    },
+    "./admin-http/http/media": {
+      "types": "./dist/admin-http/http/media.d.ts",
+      "import": "./dist/admin-http/http/media.js",
+      "default": "./dist/admin-http/http/media.js"
+    },
+    "./admin-http/routes/media/shared": {
+      "types": "./dist/admin-http/routes/media/shared.d.ts",
+      "import": "./dist/admin-http/routes/media/shared.js",
+      "default": "./dist/admin-http/routes/media/shared.js"
+    },
+    "./admin-http/routes/media/delete": {
+      "types": "./dist/admin-http/routes/media/delete.d.ts",
+      "import": "./dist/admin-http/routes/media/delete.js",
+      "default": "./dist/admin-http/routes/media/delete.js"
+    },
+    "./admin-http/routes/media/trash": {
+      "types": "./dist/admin-http/routes/media/trash.d.ts",
+      "import": "./dist/admin-http/routes/media/trash.js",
+      "default": "./dist/admin-http/routes/media/trash.js"
+    },
+    "./admin-http/routes/media/get-providers": {
+      "types": "./dist/admin-http/routes/media/get-providers.d.ts",
+      "import": "./dist/admin-http/routes/media/get-providers.js",
+      "default": "./dist/admin-http/routes/media/get-providers.js"
+    },
+    "./admin-http/routes/media/put-providers": {
+      "types": "./dist/admin-http/routes/media/put-providers.d.ts",
+      "import": "./dist/admin-http/routes/media/put-providers.js",
+      "default": "./dist/admin-http/routes/media/put-providers.js"
+    },
+    "./admin-http/routes/media/update": {
+      "types": "./dist/admin-http/routes/media/update.d.ts",
+      "import": "./dist/admin-http/routes/media/update.js",
+      "default": "./dist/admin-http/routes/media/update.js"
     }
   },
   "files": [
