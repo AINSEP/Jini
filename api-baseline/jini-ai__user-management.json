@@ -158,10 +158,10 @@
   "types": "./dist/identity/boot-session-token.d.ts",
   "symbols": {
    "BootSessionTokenStore": "interface:85619a3a8b",
-   "createBootSessionTokenStore": "function:09abbdf5e7",
-   "isBootSessionTokenArmed": "function:20fad0369c",
-   "mintBootSessionToken": "function:c5c3705ca4",
-   "redeemBootSessionToken": "function:78343bda8a"
+   "createBootSessionTokenStore": "function:f0bb94fe3f",
+   "isBootSessionTokenArmed": "function:43f703c271",
+   "mintBootSessionToken": "function:12297034ce",
+   "redeemBootSessionToken": "function:f0a2ec3b70"
   }
  },
  "./identity/builtin-role-grants": {

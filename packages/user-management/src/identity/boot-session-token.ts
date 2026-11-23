@@ -84,7 +84,7 @@ function digest({ rawToken }: { rawToken: string }, _options = {}): Buffer {
  * @returns a {@link BootSessionTokenStore} holding at most one armed token.
  * @complexity O(1) per operation; O(1) space (one 32-byte digest).
  */
-export function createBootSessionTokenStore(): BootSessionTokenStore {
+export function createBootSessionTokenStore(_optional: Record<string, never> = {}): BootSessionTokenStore {
   let armed: Buffer | null = null;
 
   return {
@@ -94,7 +94,7 @@ export function createBootSessionTokenStore(): BootSessionTokenStore {
       return rawToken;
     },
 
-    redeem({ rawToken }: { rawToken: unknown }, _options = {}): boolean {
+    redeem({ rawToken }: { rawToken: unknown }, _options: Record<string, never> = {}): boolean {
       if (armed === null) return false;
       if (typeof rawToken !== "string" || rawToken.length === 0) return false;
 
@@ -120,16 +120,16 @@ export function createBootSessionTokenStore(): BootSessionTokenStore {
 const processStore = createBootSessionTokenStore();
 
 /** Mint this launch's boot token. Called at most once, by `cli/commands/serve.ts`. */
-export function mintBootSessionToken(): string {
+export function mintBootSessionToken(_optional: Record<string, never> = {}): string {
   return processStore.mint();
 }
 
 /** Redeem a raw boot token. `false` unless one was minted this launch and this is it, first time. */
-export function redeemBootSessionToken({ rawToken }: { rawToken: unknown }, _options = {}): boolean {
+export function redeemBootSessionToken({ rawToken }: { rawToken: unknown }, _options: Record<string, never> = {}): boolean {
   return processStore.redeem({ rawToken });
 }
 
 /** Whether this launch minted a boot token. Diagnostics only. */
-export function isBootSessionTokenArmed(): boolean {
+export function isBootSessionTokenArmed(_optional: Record<string, never> = {}): boolean {
   return processStore.isArmed();
 }
