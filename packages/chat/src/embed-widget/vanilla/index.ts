@@ -5,6 +5,8 @@ import { createVanillaChatController } from './state.js';
 import type { VanillaChatControllerArgs, VanillaChatState } from './state.js';
 export { createVanillaChatController } from './state.js';
 export type { VanillaChatControllerArgs, VanillaChatState } from './state.js';
+export { createSafeMarkdownRenderer } from './safe-markdown.js';
+export type { TrustedMarkdownToHtml, VanillaMarkdownRenderer } from './safe-markdown.js';
 
 export interface VanillaChatCopy {
   readonly title: string;
