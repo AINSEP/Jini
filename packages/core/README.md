@@ -298,3 +298,7 @@ The former core and CMS `./settings/express` entries have been removed.
 `./contracts/site/agent-plugins-lifecycle`, `./agent-plugins-manifest`, `./chat-core` and
 `./diagnostics-observability` own their declarations; `@jini-ai/agent-plugins`, `@jini-ai/chat` and
 `@jini-ai/diagnostics` import them from here rather than keeping copies.
+
+`./tool-metadata/<domain>` ships product-neutral tool metadata maps; a host aggregates them with its
+own maps (for example Tovu keeps `custom-credentials`, whose search vocabulary names providers). A
+test in `src/tool-metadata/__tests__/provider-neutral.test.ts` refuses provider names here.

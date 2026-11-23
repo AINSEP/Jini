@@ -4,15 +4,15 @@ import { test } from "vitest";
 import { projectToolMetadata } from "../tool-metadata.js";
 import type { ToolMetadataById } from "../tool-metadata-types.js";
 import type { ToolApprovalPolicy } from "../contracts/site/tool-metadata-approval-policy.js";
-import { toolMetadata as filesCopy } from "../tool-metadata/site/files-copy.js";
-import { toolMetadata as forms } from "../tool-metadata/site/forms.js";
-import { toolMetadata as identity } from "../tool-metadata/site/identity.js";
-import { toolMetadata as mailStatus } from "../tool-metadata/site/mail-status.js";
-import { toolMetadata as media } from "../tool-metadata/site/media.js";
-import { toolMetadata as mediaImport } from "../tool-metadata/site/media-import.js";
-import { toolMetadata as navigation } from "../tool-metadata/site/navigation.js";
-import { toolMetadata as observability } from "../tool-metadata/site/observability.js";
-import { toolMetadata as pages } from "../tool-metadata/site/pages.js";
+import { toolMetadata as filesCopy } from "../tool-metadata/files-copy.js";
+import { toolMetadata as forms } from "../tool-metadata/forms.js";
+import { toolMetadata as identity } from "../tool-metadata/identity.js";
+import { toolMetadata as mailStatus } from "../tool-metadata/mail-status.js";
+import { toolMetadata as media } from "../tool-metadata/media.js";
+import { toolMetadata as mediaImport } from "../tool-metadata/media-import.js";
+import { toolMetadata as navigation } from "../tool-metadata/navigation.js";
+import { toolMetadata as observability } from "../tool-metadata/observability.js";
+import { toolMetadata as pages } from "../tool-metadata/pages.js";
 
 /**
  * @file Characterization of the site tool-metadata declarations moved from the host. Tool ids are

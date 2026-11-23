@@ -203,10 +203,12 @@ Create and retain one lifecycle per host context:
 ```ts
 import { createAgentPluginLifecycle, createAgentPluginLayout } from '@jini-ai/agent-plugins/lifecycle';
 import { createNodeAgentPluginEffects } from '@jini-ai/node-adapters/agent-plugins';
+import { writeJsonFileAtomicAsync } from '@jini-ai/platform/fs';
+import { readBootIdentity, withFileLock } from '@jini-ai/platform/fs/file-lock';
 
 const layout = createAgentPluginLayout({ root: pluginRoot });
 const lifecycle = createAgentPluginLifecycle({
-  ...createNodeAgentPluginEffects({}),
+  ...createNodeAgentPluginEffects({ withFileLock, writeJsonFileAtomicAsync, readBootIdentity }),
   layout,
   productName,
   extensionNamespace,
@@ -236,8 +238,8 @@ when adopting the package. Prefer pinned hashes for remote installations; trust-
 is an explicit choice in `installAgentPluginFromUrl`.
 
 Filesystem effects use native `node:fs/promises` signatures and native FileHandles. Inject
-instrumented native effects directly through `filesystem`; `createNodeAgentPluginEffects({})`
-provides the default. Clocks extend core `Clock` with `monotonicMs()` and `sleep({ ms })`;
+instrumented native effects directly through `filesystem`; `createNodeAgentPluginEffects({ withFileLock, writeJsonFileAtomicAsync, readBootIdentity })`
+(the platform functions, injected) provides the default. Clocks extend core `Clock` with `monotonicMs()` and `sleep({ ms })`;
 IDs extend core `IdGenerator` with `random()`.
 
 Generic locks are imported directly from `@jini-ai/platform/fs/file-lock`. Lifecycle activation
@@ -271,7 +273,7 @@ See [integration-extraction.md](integration-extraction.md) for the reconciliatio
 rewire ledger and verification commands. All verification is deferred by owner directive.
 
 For a host that needs only activation, use `createAgentPluginActivations` with
-`createNodeAgentPluginEffects({})` instead of supplying unused network/provisioning
+`createNodeAgentPluginEffects({ withFileLock, writeJsonFileAtomicAsync, readBootIdentity })` instead of supplying unused network/provisioning
 ports. Retain one returned object for the process lifetime. See `API.md` for the
 object-shaped reads, filters and optional legacy metadata reader.
 

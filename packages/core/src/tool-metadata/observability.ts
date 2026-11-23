@@ -1,5 +1,5 @@
-import type { ToolMetadataById } from "../../tool-metadata-types.js";
-import type { ToolApprovalPolicy } from "../../contracts/site/tool-metadata-approval-policy.js";
+import type { ToolMetadataById } from "../tool-metadata-types.js";
+import type { ToolApprovalPolicy } from "../contracts/site/tool-metadata-approval-policy.js";
 
 /** A fixed, safe diagnostic; authorization is mandatory, additional confirmation is unnecessary. */
 export const toolMetadata = {

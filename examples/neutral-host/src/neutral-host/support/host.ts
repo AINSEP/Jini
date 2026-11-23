@@ -6,6 +6,8 @@
  */
 import { createAgentPluginLayout, createAgentPluginLifecycle } from '@jini-ai/agent-plugins/lifecycle';
 import { createNodeAgentPluginEffects } from '@jini-ai/node-adapters/agent-plugins';
+import { writeJsonFileAtomicAsync } from '@jini-ai/platform/fs';
+import { readBootIdentity, withFileLock } from '@jini-ai/platform/fs/file-lock';
 import type { AgentPluginHostToolPorts } from '@jini-ai/agent-plugins/lifecycle/host-tools';
 import { countFilesystem, createCostCounters, type CostCounters } from './counters.ts';
 import { createMemorySealer, createMemorySettings, createMemoryVault, type MemorySealer, type MemorySettings, type MemoryVault } from './memory-ports.ts';
@@ -62,7 +64,7 @@ function countLifecycle(required: { readonly lifecycle: Lifecycle; readonly coun
  */
 export function createNeutralHost(required: { readonly root: string }, _optional: Record<string, never> = {}): NeutralHost {
   const counters = createCostCounters();
-  const effects = createNodeAgentPluginEffects({});
+  const effects = createNodeAgentPluginEffects({ withFileLock, writeJsonFileAtomicAsync, readBootIdentity });
   const provisioning: { call: string; pluginId?: string }[] = [];
   const layout = createAgentPluginLayout({ root: required.root });
   const lifecycle = createAgentPluginLifecycle({

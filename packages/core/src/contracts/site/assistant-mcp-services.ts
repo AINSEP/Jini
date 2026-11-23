@@ -1,17 +1,12 @@
 /**
- * @file The host's "Allow for this chat" remembered-approval store port. Types only.
- *
- * A remembered external-tool approval lives with the conversation and is scoped to the person;
- * naming another person's conversation reuses nothing. Fingerprinting, drift checks and
- * destructive-call locks live in `@jini-ai/mcp/federation`.
- *
- * `ConversationToolApprovalKey` is an additive copy of the declaration in `@jini-ai/mcp/federation`
- * (`federation/tool-approvals.ts`), which keeps its identical declaration and export until the
- * paired cutover. The store below is the host-boundary variant: its `grant` takes the
- * (required, optional) argument pair.
+ * @file Host storage contract for remembered "Allow for this chat" external-tool approvals.
+ * This chat grant lives with the conversation and is scoped to the person; naming another
+ * person's conversation reuses nothing. Fingerprinting, drift checks and destructive-call locks
+ * live in `@jini-ai/mcp/federation`; adapters (in-memory, SQL) stay with the host.
  */
 
-/** One saved "Allow for this chat". */
+/** One saved "Allow for this chat". Same shape as `@jini-ai/mcp/federation`'s
+ *  `ConversationToolApprovalKey`, which is expected to re-export this declaration. */
 export interface ConversationToolApprovalKey {
   readonly conversationId: string;
   readonly principalId: string;

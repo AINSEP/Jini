@@ -1,27 +1,29 @@
 /**
- * @file Consent state, saved policy and plugin-slot shapes a banner, plugin or host feature reads.
- *
- * Additive verbatim copy of the declarations in `@jini-ai/cookie-consent` (`contract.ts`, plus
- * `ConsentAppearanceTokens` from `render/css.ts`); cookie-consent keeps its identical declarations,
- * its constants and its exports until the paired cutover. Types only: where the owning package
- * derives a union from a runtime tuple (`OPTIONAL`, `CATEGORIES`, `ACTIONS`, `BANNER_MODES`,
- * `REGION_KIND`), this file spells the same literal members out, because a contract carries no
- * runtime values. The two must list the same members.
+ * @file Cookie-consent contract types shared with hosts and plugins: the consent state, the saved
+ * host policy, plugin contributions, the server region resolver and declared scripts. Moved from
+ * `@jini-ai/cookie-consent` (`contract.ts`, `render/css.ts`), which re-exports them and keeps the
+ * runtime constants (`OPTIONAL`, `CATEGORIES`, `ACTIONS`, `BANNER_MODES`, `REGION_KIND`), each
+ * checked against the unions below with `satisfies`. Types only (XP4).
  */
 
-/** Mirrors `typeof OPTIONAL[number]` (`OPTIONAL = ['functional', 'analytics', 'marketing']`). */
+/** Bounded appearance tokens; colors are opaque hex and must meet 4.5:1 contrast. */
+export interface ConsentAppearanceTokens {
+  backgroundColor?: string; textColor?: string; borderColor?: string; borderRadius?: string;
+  padding?: string; fontSize?: string; maxWidth?: string; fontFamily?: string;
+}
+
+/** The optional categories; `OPTIONAL` in @jini-ai/cookie-consent lists them at runtime. */
 export type Optional = 'functional' | 'analytics' | 'marketing';
-/** Mirrors `typeof CATEGORIES[number]` (`CATEGORIES = ['necessary', ...OPTIONAL]`). */
+/** `CATEGORIES` in @jini-ai/cookie-consent lists them at runtime. */
 export type Category = 'necessary' | Optional;
 export type Flags = Record<Optional, boolean>;
 export type Choices = Readonly<{ necessary: true } & Flags>;
-/** Mirrors `typeof ACTIONS[number]`. */
+/** `ACTIONS` in @jini-ai/cookie-consent lists them at runtime. */
 export type ConsentAction = 'accept' | 'reject' | 'save' | 'do-not-sell' | 'withdraw';
 export type RegionMode = 'opt-in' | 'opt-out';
 /** A resolver's definite answer. Resolvers return null for "unknown: ask the next one". */
 export type RegionHint = 'us' | 'strict';
-/** jini = the built-in banner; headless = "My own" banner; off = anonymous analytics only, no UI.
- * Mirrors `typeof BANNER_MODES[number]`. */
+/** jini = the built-in banner; headless = "My own" banner; off = anonymous analytics only, no UI. */
 export type BannerMode = 'jini' | 'headless' | 'off';
 /** 'stored' = server receipt; 'pending' = sent, unconfirmed; 'local' = browser-only, labelled as such. */
 export type ReceiptStatus = 'none' | 'local' | 'pending' | 'stored';
@@ -43,11 +45,6 @@ export interface ConsentState {
   action: ConsentAction | null;
   at: number | null;
   receipt: ReceiptStatus;
-}
-
-export interface ConsentAppearanceTokens {
-  backgroundColor?: string; textColor?: string; borderColor?: string; borderRadius?: string;
-  padding?: string; fontSize?: string; maxWidth?: string; fontFamily?: string;
 }
 
 /** Saved host policy. Existing revisions keep their field names when execution moves to declarations. */
@@ -81,7 +78,6 @@ export type RawContribution = Contribution & Record<string, unknown>;
 
 // ---- Slot kind: server region resolver ----
 export interface RegionRequest { header(name: string): string | null; ip: string | null }
-/** `kind` mirrors `typeof REGION_KIND` (`REGION_KIND = 'region-resolver'`). */
 export interface RegionResolver extends Contribution<'region-resolver'> {
   resolve(required: { request: RegionRequest }, optional?: { signal?: AbortSignal }): RegionHint | null | Promise<RegionHint | null>;
 }

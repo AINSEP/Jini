@@ -1460,6 +1460,112 @@
    "SqlPresentationSettingsRepo": "class:566b906dff"
   }
  },
+ "./publish/content/agent-tools": {
+  "types": "./dist/publish/content/agent-tools.d.ts",
+  "symbols": {
+   "AgentToolDefinition": "type:874696551d",
+   "AgentToolSideEffect": "type:1baebbfbe6",
+   "PUBLISH_BACKSTOP_GAPS_TOOL_ID": "variable:3d1916176f",
+   "PUBLISH_CONTENT_CONNECT_TOOL_ID": "variable:c2ae4bc61e",
+   "PUBLISH_CONTENT_EXECUTE_PULL_TOOL_ID": "variable:94f86c9ce1",
+   "PUBLISH_CONTENT_PLAN_PULL_TOOL_ID": "variable:1820e8ad84",
+   "PUBLISH_CONTENT_PUBLISH_TOOL_ID": "variable:55c0efe0fc",
+   "PUBLISH_CONTENT_STATUS_TOOL_ID": "variable:6c2aac5805",
+   "publishContentAgentToolCatalog": "variable:88fa91e2ce"
+  }
+ },
+ "./publish/content/baseline-repo": {
+  "types": "./dist/publish/content/baseline-repo.d.ts",
+  "symbols": {
+   "InMemoryPublishContentBaselineRepo": "class:6bf255744a",
+   "PublishContentBaselineRecord": "interface:94f0982f20",
+   "PublishContentBaselineRepoPort": "interface:713be7dea1"
+  }
+ },
+ "./publish/content/content-hash": {
+  "types": "./dist/publish/content/content-hash.d.ts",
+  "symbols": {
+   "CONTENT_HASH_VERSION": "variable:f5f26052c4",
+   "canonicalize": "function:95fa59d041",
+   "contentHash": "function:95236fcf18"
+  }
+ },
+ "./publish/content/execute-import": {
+  "types": "./dist/publish/content/execute-import.d.ts",
+  "symbols": {
+   "RestorePointUnavailableError": "class:5cb98f6ead",
+   "executePublishContentImport": "function:a58877de3f"
+  }
+ },
+ "./publish/content/live-site-policy": {
+  "types": "./dist/publish/content/live-site-policy.d.ts",
+  "symbols": {
+   "CanPublishToLiveOptions": "interface:d988312f1d",
+   "PUBLISH_FROM_LIVE_SITE_CODE": "variable:25e5cec83a",
+   "PUBLISH_FROM_LIVE_SITE_ERROR": "variable:0eb9876131",
+   "RuntimeModeEnvOptions": "interface:55d865c3c9",
+   "canPublishToLive": "function:eb56b3ca95"
+  }
+ },
+ "./publish/content/media-references": {
+  "types": "./dist/publish/content/media-references.d.ts",
+  "symbols": {
+   "collectMediaConfigKeys": "function:c42bf01cf8",
+   "collectMediaUrlKeys": "function:9fe2ca9574",
+   "collectPlacedWidgetMediaKeys": "function:a14ded0319",
+   "collectReferencedMediaKeys": "function:4c57c9a693"
+  }
+ },
+ "./publish/content/peer-url": {
+  "types": "./dist/publish/content/peer-url.d.ts",
+  "symbols": {
+   "PeerBaseUrlAccepted": "interface:bdf32e1f7b",
+   "PeerBaseUrlRefusal": "interface:56dd5b2e9e",
+   "RawUrlCharacterCheck": "type:c43780d29d",
+   "normalizePeerBaseUrl": "function:cf806e7770",
+   "peerHostname": "function:fe80f539a9",
+   "peerUrl": "function:d63b2c6554"
+  }
+ },
+ "./publish/content/precheck-reasons": {
+  "types": "./dist/publish/content/precheck-reasons.d.ts",
+  "symbols": {
+   "addressHeldByOther": "function:ee1b6b2f4b",
+   "addressHeldInTrash": "function:4f48df44c5",
+   "changedSincePlan": "function:f4ea74b1e8",
+   "malformedKey": "function:d7fdbfcb27",
+   "missingDependency": "function:e8ac350a8c",
+   "notWired": "function:07df0df0ef",
+   "tombstonedAtDestination": "function:d82eafd6d8",
+   "trashedAtDestination": "function:f41067234c"
+  }
+ },
+ "./publish/content/publish-readiness": {
+  "types": "./dist/publish/content/publish-readiness.d.ts",
+  "symbols": {
+   "PublishReadiness": "interface:3ace66c900",
+   "PublishReadinessInput": "interface:fd5e5faab8",
+   "PublishReadinessVerdict": "type:a00971cf4c",
+   "describePublishReadiness": "function:2bdc9e420d",
+   "siteLabelFor": "function:cfa3bbe22e"
+  }
+ },
+ "./publish/content/report-contract": {
+  "types": "./dist/publish/content/report-contract.d.ts",
+  "symbols": {
+   "PublishContentOutcomeKindDto": "type:df597e89f9",
+   "PublishContentOutcomeRowDto": "interface:37e38c8737",
+   "PublishContentReferenceHolderDto": "interface:04ba48ff3e",
+   "PublishContentReportDto": "interface:d0622a2aa7",
+   "PublishContentRetireTargetDto": "interface:985b69c222"
+  }
+ },
+ "./publish/content/tool-metadata": {
+  "types": "./dist/publish/content/tool-metadata.d.ts",
+  "symbols": {
+   "toolMetadata": "variable:14f4b5ce33"
+  }
+ },
  "./publish/transfer": {
   "types": "./dist/publish/transfer/index.d.ts",
   "symbols": {
@@ -2525,7 +2631,7 @@
    "MediaHtmlReport": "type:249b212e5f",
    "PageHtmlEmbedRef": "interface:671b817726",
    "PluginExportRender": "interface:002bb4ca8c",
-   "PluginExportTemplate": "interface:e587079599",
+   "PluginExportTemplate": "interface:7814b62913",
    "PluginExportsPort": "interface:e596909e85",
    "ResolveHtmlPageEmbedsDeps": "interface:a1c06d35a0",
    "ResolveHtmlPageEmbedsResult": "type:679fb91ee4",

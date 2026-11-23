@@ -2,7 +2,7 @@
 
 `createAgentPluginLifecycle(required, optional = {})` accepts a native fs/promises operation
 subset and native FileHandles. Native callbacks/handles keep the Node ABI. The opt-in
-`createNodeAgentPluginEffects({}, { filesystem? })` (from `@jini-ai/node-adapters/agent-plugins` since R11a) returns injected filesystem effects directly.
+`createNodeAgentPluginEffects({ withFileLock, writeJsonFileAtomicAsync, readBootIdentity }, { filesystem? })` (the host injects `@jini-ai/platform/fs`'s functions) (from `@jini-ai/node-adapters/agent-plugins` since R11a) returns injected filesystem effects directly.
 
 Clock effects extend core `Clock` with `monotonicMs()` and `sleep({ ms })`; ID effects extend
 core `IdGenerator` with `random()`. Core getters are zero-argument: `nowMs()` / `newId()`.

@@ -1,13 +1,13 @@
 /**
- * @file Browser-facing identity-administration ports, as the admin screens consume them.
- *
- * Additive verbatim copy of the port declarations in `@jini-ai/user-management/react` (`ports.ts`,
- * `auth/TotpSettings.tsx`, `auth/Passkeys.tsx`) plus their structural closure (`models.ts`'s DTOs
- * and `core/types.ts`'s `PasskeyOptions`). The owning package keeps its identical declarations and
- * exports until the paired cutover. The screen controllers (`UsersController`, `MembersController`,
- * `UserManageController`) stay in the owning package: they carry React state-setter types, and core
- * has no React dependency.
+ * @file User-management admin seam types shared with hosts: the browser-facing administration DTOs,
+ * the Users/Roles/Members screen ports and the owner TOTP/passkey ports. Moved from
+ * `@jini-ai/user-management` (`react/models.ts`, `react/ports.ts`, `react/auth/*`, `core/types.ts`),
+ * which re-exports them. Types only (XP4): the screen controllers stay in the package because they
+ * carry React state setters.
  */
+
+/** WebAuthn ceremony JSON shared by server issuance and browser execution. */
+export type PasskeyOptions = { challenge: string; [key: string]: unknown };
 
 /** Browser-facing administration DTOs; no transport or server imports. */
 export interface AdminUser {
@@ -130,8 +130,6 @@ export interface TotpSettingsPort {
   confirm(input: { pendingToken: string; code: string }): Promise<void>;
   remove(input: { password: string; code: string }): Promise<void>;
 }
-
-export type PasskeyOptions = { challenge: string; [key: string]: unknown };
 
 type Started = { pendingToken: string; options: PasskeyOptions };
 type Finish = { pendingToken: string; response: unknown };

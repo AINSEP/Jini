@@ -9,7 +9,8 @@ import { parseRendererToAgentMessage, type RendererToAgentMessage } from '@jini-
 import Database from 'better-sqlite3';
 import { createAgentExecutor } from '@jini-ai/daemon';
 import { nodeAtomicWriter, nodeFileLock } from '@jini-ai/node-adapters/fs';
-import { nodeCommandShell, nodeProcessControl, nodeSpawnPort } from '@jini-ai/node-adapters/process';
+import { createProcessControlPort, nodeCommandShell, nodeSpawnPort } from '@jini-ai/node-adapters/process';
+import { listProcessSnapshots, stopProcesses, waitForProcessExit } from '@jini-ai/platform/process';
 import type { AgentExecutorRuntimePorts } from '@jini-ai/daemon/ports/runtime';
 import { createAgentRuntimeBindings, createNativeAgentRuntime } from '@jini-ai/agent-runtime';
 import type { AgentRuntimePort } from '@jini-ai/daemon/ports/agent-runtime';
@@ -35,6 +36,9 @@ import {
   isLoopbackAddress,
 } from './working-directory-authority.js';
 import { resolveJiniMcpBridge, type JiniMcpBridgeInjection } from './mcp-bridge.js';
+
+/** Platform's process functions behind core's port; node-adapters takes them injected (it imports no other package's implementation). */
+const nodeProcessControl = createProcessControlPort({ functions: { listProcessSnapshots, stopProcesses, waitForProcessExit } });
 
 /** The Node implementations of the OS-facing ports the agent executor needs, bound from the env this host owns. */
 function executorRuntimeFor({ hostEnv }: { hostEnv: NodeJS.ProcessEnv }, _optional: Record<string, never> = {}): AgentExecutorRuntimePorts {

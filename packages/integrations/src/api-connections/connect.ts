@@ -7,6 +7,7 @@ import type { ApiConnectionSignInLink, ApiConnectionConnectMessages, DeclaredApi
 import { ToolInputError } from "@jini-ai/core";
 
 import type { ApiConnectionHost } from "./host.js";
+import type { ApiConnectionConnectStatus } from "@jini-ai/core/contracts/site/integrations-api-connections";
 
 /**
  * @file The plugin-declared API-connection branch of `agent_plugin_connect` (the single sign-in
@@ -26,12 +27,7 @@ export interface ApiConnectionConnectDeps {
   readonly host: ApiConnectionHost;
 }
 
-/**
- * `connectionRef` is the opaque, plugin-scoped key the plugin's tools take as input. It is not a
- * secret: the host refuses it for any plugin that does not declare the connection in this workspace.
- * Returned in both states so a later call can use it once the person finishes signing in.
- */
-export type ApiConnectionConnectStatus = { readonly status: "connected" | "waiting-for-sign-in"; readonly connectionRef: string };
+export type { ApiConnectionConnectStatus } from "@jini-ai/core/contracts/site/integrations-api-connections";
 
 interface ConnectRun {
   readonly signInLink: ApiConnectionSignInLink;

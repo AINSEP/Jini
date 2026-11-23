@@ -1,7 +1,7 @@
-import type { ToolMetadataById } from "../../tool-metadata-types.js";
-import type { ToolApprovalPolicy } from "../../contracts/site/tool-metadata-approval-policy.js";
+import type { ToolMetadataById } from '../tool-metadata-types.js';
+import type { ToolApprovalPolicy } from '../contracts/site/tool-metadata-approval-policy.js';
 
-/** pages registration declarations; shared placement rationale is in the host's tool-metadata catalog index. */
+/** pages registration declarations; shared placement rationale lives in the host aggregator. */
 export const toolMetadata = {
   // Movers use order/position vocabulary only; edit verbs belong to section writers.
   "pages_move_region": {

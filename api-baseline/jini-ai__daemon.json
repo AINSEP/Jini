@@ -859,7 +859,6 @@
  "./surface-exchanges": {
   "types": "./dist/surface-exchanges.d.ts",
   "symbols": {
-   "AssistantSurfaceDeps": "interface:7b0241e5a6",
    "BoundConfirmationBinding": "interface:cc119c2925",
    "BoundConfirmationGate": "interface:dd1489e1c1",
    "BoundConfirmationGatePorts": "interface:d073d072d2",

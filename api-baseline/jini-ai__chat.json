@@ -451,7 +451,7 @@
   "symbols": {
    "RunAgentPayload": "interface:3208b4b660",
    "RunFrameCarry": "interface:548c66b8ae",
-   "RunFrameOutcome": "interface:5e2ebdcd13",
+   "RunFrameOutcome": "interface:3c86386272",
    "RunNotices": "interface:a5ee5c0e87",
    "RunProtocolEventWire": "interface:b6952bee77",
    "TerminalOutcome": "interface:5f5a651e1c",

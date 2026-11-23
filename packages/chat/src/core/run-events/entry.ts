@@ -9,6 +9,7 @@ import { assistantContentFromEvents } from "../assistant-content.js";
 import { recoverableSurfaceResource } from '../surface-recovery.js';
 import { mergeAdjacentTextEvents } from "../compact-events.js";
 import { dedupeToolUsesById } from "../tool-events.js";
+import type { AgentEvent, ToolResultMediaBlock } from "../events.js";
 /**
  * @file The ONE translation from an agent-daemon run stream to chat events, shared by the browser
  * and the server.
@@ -35,18 +36,21 @@ import { dedupeToolUsesById } from "../tool-events.js";
  */
 
 import type { ChatRunStatus } from "../messages.js";
-import type { AgentEvent, ToolResultMediaBlock } from "@jini-ai/core/contracts/site/chat-core";
+import type {
+  RunAgentPayload, RunProtocolEventWire, TerminalOutcome, RunFrameOutcome, RunFrameCarry,
+} from "@jini-ai/core/contracts/site/core-run-events";
+export type {
+  RunAgentPayload, RunProtocolEventWire, TerminalOutcome, RunFrameOutcome, RunFrameCarry,
+} from "@jini-ai/core/contracts/site/core-run-events";
 
-export interface RunAgentPayload {
-  readonly type: string;
-  readonly [key: string]: unknown;
-}
-
-export interface RunProtocolEventWire {
-  readonly runId: string;
-  readonly kind: "start" | "agent" | "stdout" | "stderr" | "error" | "end";
-  readonly payload: unknown;
-}
+/** Compile-time pin: core's `RunFrameOutcome.terminal` is spelled as a literal union because core
+ *  cannot import `ChatRunStatus` (derived from a runtime tuple). Either side drifting fails here. */
+type TerminalChatRunStatus = Extract<ChatRunStatus, "succeeded" | "failed" | "canceled">;
+type FrameTerminal = NonNullable<RunFrameOutcome["terminal"]>;
+type AssertTrue<T extends true> = T;
+type _TerminalStatusPin = AssertTrue<
+  [FrameTerminal] extends [TerminalChatRunStatus] ? ([TerminalChatRunStatus] extends [FrameTerminal] ? true : false) : false
+>;
 
 /** Retain executor-decoded display correlation through both live and saved chat reduction.
  * Only the delegated bridge marks canonical rows; malformed optional metadata is ignored. O(1). */
@@ -79,6 +83,7 @@ export function asString({ value }: { value: unknown }, _options: Record<string,
  * `mcp-ui`/`a2ui` cases (each a one-line unwrap, zero branching — see their own comments below) for
  * a cost that actually came from here.
  */
+
 
 /** Keep numeric usage and the model's stop reason; omit absent or malformed fields. */
 export function parseUsageEvent({ payload }: { payload: RunAgentPayload }, _options: Record<string, never> = {}): AgentEvent {
@@ -238,18 +243,10 @@ export interface RunNotices {
  * what the detail says.
  */
 
+
 /** A host notice for a run that used its tool-step budget. */
 export function terminalReasonNotice({ reason, notice }: { reason: string; notice: Extract<AgentEvent, { kind: "status" }> }, _options: Record<string, never> = {}): AgentEvent | null {
   return reason === "max_tool_turns" ? { ...notice } : null;
-}
-/** A daemon `end` frame's non-successful terminal classification, as the daemon itself recorded it
- *  in `@jini-ai/protocol`'s `RunEndPayload`. */
-
-export interface TerminalOutcome {
-  readonly status: "failed" | "canceled";
-  readonly code: string;
-  readonly signal: string;
-  readonly resumable: string;
 }
 /**
  * Reads that classification off a raw `end` frame, or `null` when the run succeeded, sent nothing,
@@ -270,6 +267,7 @@ export interface TerminalOutcome {
  * exact end the daemon's `failBeforeSpawn` and the host's own start refusals write, and a process
  * that did run always exits with a code or a signal.
  */
+
 
 function neverStarted(outcome: TerminalOutcome): boolean {
   return outcome.status === "failed" && outcome.code === "none" && outcome.signal === "none" && outcome.resumable === "no";
@@ -311,6 +309,7 @@ export function readTerminalOutcome({ raw }: { raw: string | undefined }, _optio
  * Returns `null` for a successful or absent status so a normal turn gains no extra event.
  */
 // "exited without answering" would be false here: no process ever ran.
+
 
 /** A visible terminal classification rendered with host-supplied copy. */
 export function terminalOutcomeNotice({ raw, notices }: { raw: string | undefined; notices: RunNotices }, _options: Record<string, never> = {}): AgentEvent | null {
@@ -359,6 +358,7 @@ export function terminalOutcomeNotice({ raw, notices }: { raw: string | undefine
  * correctness is the goal.
  */
 
+
 /** Report a failed run; operator cancellation is not a failure. */
 export function terminalFailureError({ raw }: { raw: string | undefined }, _options: Record<string, never> = {}): Error | null {
   const outcome = readTerminalOutcome({ raw });
@@ -372,6 +372,7 @@ export function terminalFailureError({ raw }: { raw: string | undefined }, _opti
  *  body prevent the turn from ending: the daemon path wraps it in a `RunProtocolEventWire.payload`,
  *  the BYOK path sends a bare `{reason}`, and `subscribeToRun`'s `end` event may carry no data at
  *  all. A notice is a nicety; finishing the run is not. */
+
 
 /** Read a wrapped daemon or bare provider terminal reason, failing soft. */
 export function readTerminalReason({ raw, wrapped }: { raw: string | undefined; wrapped: boolean }, _options: Record<string, never> = {}): string {
@@ -399,6 +400,7 @@ function chatFrame(frame: DecodedSseFrame): { event: string; data: string } | nu
  * (a bare `event: ping` keepalive, for example, or a frame carrying only an `id:` field).
  */
 
+
 /** Parse the existing named SSE framing; bare keepalive frames return null. */
 export function parseFrame({ rawFrame }: { rawFrame: string }, _options: Record<string, never> = {}): { event: string; data: string } | null {
   return chatFrame(parseSseRecord({ rawFrame }));
@@ -411,6 +413,7 @@ export function parseFrame({ rawFrame }: { rawFrame: string }, _options: Record<
  * not-yet-terminated tail of the current frame.
  * @overallScore 100
  */
+
 
 /** Decode complete named frames; cancellation always releases its reader. Inherits shared framing costs. */
 export async function* readSseFrames({ body }: { body: ReadableStream<Uint8Array> }, _options: Record<string, never> = {}): AsyncGenerator<{ event: string; data: string }> {
@@ -439,6 +442,7 @@ export async function* readSseFrames({ body }: { body: ReadableStream<Uint8Array
  * there is nothing server-side to watch.
  */
 
+
 /** Identify runs held by the daemon using the host's excluded ID prefixes. */
 export function isDaemonRunId({ runId, excludedPrefixes }: { runId: string; excludedPrefixes: readonly string[] }, _options: Record<string, never> = {}): boolean {
   return runId.length > 0 && !excludedPrefixes.some(prefix => runId.startsWith(prefix));
@@ -455,6 +459,7 @@ export function runInterruptedNotice({ notice }: { notice: Extract<AgentEvent, {
  * tool call or card sat between two text runs, so a working note is never glued onto the answer.
  */
 
+
 /** Use the same paragraph-boundary rule as a live chat turn. */
 export function runContentFromEvents({ events }: { events: readonly AgentEvent[] }, _options: Record<string, never> = {}): string {
   return assistantContentFromEvents({ events });
@@ -466,24 +471,13 @@ export function runContentFromEvents({ events }: { events: readonly AgentEvent[]
  * finalizer and the chat PUT route the browser saves through), so both write the same shape.
  */
 
+
 /** Compact adjacent text/thinking deltas and keep the first occurrence of each tool-call ID.
  * Replayed tool calls must not become duplicate history rows. Other events retain their order.
  * @complexity O(n + total text length) time and O(n) space for n events.
  */
 export function runEventsForSave({ events }: { events: readonly AgentEvent[] }, _options: Record<string, never> = {}): AgentEvent[] {
   return mergeAdjacentTextEvents({ events: dedupeToolUsesById({ events: [...events] }) });
-}
-/** What one daemon stream frame means for the turn: events to append, a failure, and whether it ended. */
-/** Set when the frame reports a failure. Once any frame has, the turn is `failed` (the browser's
-   *  `useRunStream` keeps an `'error'` status through a later `onDone`). */
-/** Set only on the `end` frame: the daemon's own terminal classification. */
-
-export interface RunFrameOutcome {
-  readonly events: AgentEvent[];
-
-  readonly error?: Error;
-
-  readonly terminal?: Extract<ChatRunStatus, "succeeded" | "failed" | "canceled">;
 }
 
 function parseWire(raw: string | undefined): RunProtocolEventWire | null {
@@ -519,6 +513,7 @@ function numberOf(value: unknown): number | undefined {
 /** `{attempt, maxAttempts}` from an `api_retry` line, keeping only the fields it actually carries. */
 // `api_retry` is Claude Code's own line shape, so the service it names is Claude.
 
+
 function retryData(line: Record<string, unknown>): Record<string, string | number> {
   const attempt = numberOf(line.attempt);
   const maxAttempts = numberOf(line.max_retries);
@@ -528,6 +523,7 @@ function retryData(line: Record<string, unknown>): Record<string, string | numbe
  * Claude Code's stdout heartbeats → typed `status` events for the live activity line
  * (`@jini-ai/chat`'s `run-activity.ts` reads `code`/`data`). `null` for any other line.
  */
+
 
 function heartbeatStatus(line: Record<string, unknown>): AgentEvent | null {
   if (line.type === "tool_progress") {
@@ -551,22 +547,15 @@ function heartbeatStatus(line: Record<string, unknown>): AgentEvent | null {
  * first piece is not valid JSON on its own. Claude Code writes `type` first on every line.
  */
 
+
 const ECHO_LINE = /^\{"type":"(?:stream_event|assistant|user)"/;
-/**
- * Per-connection memory for {@link translateRunFrame}: which channels are mid-way through an echo
- * line. Only a line's first chunk carries the {@link ECHO_LINE} prefix, so without it the rest of a
- * split `user` echo stays as `raw` — tool-result prose that durable recovery then reads as executor
- * diagnostics. Pass one fresh `{}` per daemon connection (each connection replays from event 0).
- */
-export interface RunFrameCarry {
-  openEchoChannels?: Set<string>;
-}
 /**
  * One CLI stdout/stderr chunk → events. Every JSON line that is a heartbeat also yields a typed
  * `status` event; echo lines ({@link ECHO_LINE}) are dropped — with a `carry`, including the later
  * chunks of a split one; everything else stays in ONE `raw` event, verbatim. A chunk with no JSON
  * lines at all (a plain-format CLI) is one `raw` event, as before.
  */
+
 
 function chunkEvent(raw: string | undefined, channel: string, carry?: RunFrameCarry): AgentEvent[] {
   const frame = parseWire(raw);
@@ -618,6 +607,7 @@ function pieceStatus(piece: string): AgentEvent | null {
 }
 // Order matters and matches the browser's `end` listener: the `max_tool_turns` notice first, then
 // the failed/canceled notice, then the failure itself.
+
 
 function endOutcome(raw: string | undefined, notices: RunNotices): RunFrameOutcome {
   const events: AgentEvent[] = [];

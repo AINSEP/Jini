@@ -1,9 +1,8 @@
 /**
- * @file Fixed-window rate-limit profile and the structural client-IP request shape. Types only.
- *
- * Additive copy of `RateLimitProfile` and `ClientIpSource` from `@jini-ai/http-kit/rate-limit`. The
- * limiter, counter stores and client-IP resolution stay in http-kit, which keeps its identical
- * declarations and exports until the paired cutover.
+ * @file Rate-limit data shapes a host hands to `@jini-ai/http-kit/rate-limit`: the window/budget
+ * profile and the structural request a client address is resolved from. Counting, stores and the
+ * trust policy stay in http-kit; these types sit in core so callers can declare profiles and
+ * request sources without depending on the http-kit package.
  */
 
 /** Host-selected window and request budget; no product profiles live here. */

@@ -1,14 +1,13 @@
 /**
- * @file The chat display-layer run-event vocabulary. Types only; this module owns `AgentEvent` and
- * `ToolResultMediaBlock` (moved from `@jini-ai/chat/core`'s `core/events.ts`).
- *
- * This is the *display-layer* event shape — narrower than `@jini-ai/protocol`'s
- * `RunAgentPayload` (the wire-level per-chunk protocol), and intentionally
- * decoupled from it: a host's transport adapter is responsible for reducing
- * wire deltas (`text_delta`, `thinking_delta`, `tool_input_delta`, ...) into
- * the persisted/renderable `AgentEvent` items below before handing them to
- * chat-core's pure helpers. See archived provenance ledger for the provenance of this
- * split and why chat-core does not itself depend on `@jini-ai/protocol`.
+ * @file The generic run-event vocabulary a chat surface renders, as a type-only contract. Moved here
+ * from `@jini-ai/chat/core`'s `events.ts` (which re-exports it) so hosts and other engine packages
+ * can name the event shape without importing the chat package. This is the *display-layer* event
+ * shape — narrower than `@jini-ai/protocol`'s `RunAgentPayload` (the wire-level per-chunk
+ * protocol), and intentionally decoupled from it: a host's transport adapter is responsible for
+ * reducing wire deltas (`text_delta`, `thinking_delta`, `tool_input_delta`, ...) into the
+ * persisted/renderable `AgentEvent` items below before handing them to chat-core's pure helpers.
+ * See archived provenance ledger for the provenance of this split and why chat-core does not
+ * itself depend on `@jini-ai/protocol`.
  */
 
 /**

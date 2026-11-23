@@ -1,7 +1,7 @@
-import type { ToolMetadataById } from "../../tool-metadata-types.js";
-import type { ToolApprovalPolicy } from "../../contracts/site/tool-metadata-approval-policy.js";
+import type { ToolMetadataById } from '../tool-metadata-types.js';
+import type { ToolApprovalPolicy } from '../contracts/site/tool-metadata-approval-policy.js';
 
-/** navigation registration declarations; shared placement rationale is in the host's tool-metadata catalog index. */
+/** navigation registration declarations; shared placement rationale lives in the host aggregator. */
 export const toolMetadata = {
   "menus_assign_location": {
     search: {

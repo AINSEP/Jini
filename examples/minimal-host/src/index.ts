@@ -22,9 +22,13 @@ import { fetchWithTimeout } from '@jini-ai/platform';
 import { FETCH_TIMEOUT_MS } from '@jini-ai/core/net';
 import { createLocalNodeDaemon } from '@jini-ai/server';
 import { nodeAtomicWriter, nodeFileLock } from '@jini-ai/node-adapters/fs';
-import { nodeCommandShell, nodeProcessControl, nodeSpawnPort } from '@jini-ai/node-adapters/process';
+import { createProcessControlPort, nodeCommandShell, nodeSpawnPort } from '@jini-ai/node-adapters/process';
+import { listProcessSnapshots, stopProcesses, waitForProcessExit } from '@jini-ai/platform/process';
 import type { AgentExecutorRuntimePorts } from '@jini-ai/daemon/ports/runtime';
 import type { AgentRuntimePort } from '@jini-ai/daemon/ports/agent-runtime';
+
+/** Platform's process functions behind core's port; node-adapters takes them injected (it imports no other package's implementation). */
+const nodeProcessControl = createProcessControlPort({ functions: { listProcessSnapshots, stopProcesses, waitForProcessExit } });
 
 /** The Node implementations of the OS-facing ports the agent executor needs, bound from the env this host owns. */
 function executorRuntimeFor({ hostEnv }: { hostEnv: NodeJS.ProcessEnv }, _optional: Record<string, never> = {}): AgentExecutorRuntimePorts {

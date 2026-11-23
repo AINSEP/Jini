@@ -71,11 +71,7 @@ export interface PluginContributionPorts {
   readonly readFile: (input: { readonly plugin: TrustedPluginPackage; readonly filename: string }) => Promise<string>;
   readonly importModule: PluginModuleImportPort;
 }
-/** Structural host removal port, matching the host's trash port without a CMS dependency edge. */
-export type RemoveEntity = (required: {
-  workspaceId: string; id: string; display: { title: string; subtitle?: string | null }; at: string;
-  expectedVersion: number | null; actor: { principalId: string; pluginId?: string | null }; priorMarker?: string | null;
-}) => Promise<{ ok: true; version: number | null } | { ok: false; reason: 'not-found' | 'version-changed' } | { ok: false; reason: 'blocked'; code: string; count: number }>;
+export type { RemoveEntity } from "@jini-ai/core/contracts/site/plugins-host";
 
 /** Review-owned pins supplied by a compiled-in composition source. Never construct these from an
  * installed/custom/marketplace manifest; declaring a tier or provider cannot grant browser trust. */

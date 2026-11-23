@@ -139,20 +139,33 @@
       "./env/parse-env": "universal",
       "./env/format-env-issue": "universal",
       "./env/describe-env-for-diagnostics": "universal",
-      "./tool-metadata/site/files-copy": "universal",
-      "./tool-metadata/site/forms": "universal",
-      "./tool-metadata/site/identity": "universal",
-      "./tool-metadata/site/mail-status": "universal",
-      "./tool-metadata/site/media": "universal",
-      "./tool-metadata/site/media-import": "universal",
-      "./tool-metadata/site/navigation": "universal",
-      "./tool-metadata/site/observability": "universal",
-      "./tool-metadata/site/pages": "universal",
       "./contracts/headless/form-delivery-status": "universal",
       "./contracts/headless/operator-locale": "universal",
       "./contracts/headless/plugin-export-catalog": "universal",
       "./contracts/headless/plugin-host": "universal",
-      "./contracts/headless/site-cookie-consent": "universal"
+      "./contracts/headless/site-cookie-consent": "universal",
+      "./tool-metadata/analytics": "universal",
+      "./tool-metadata/change-sets": "universal",
+      "./tool-metadata/consent": "universal",
+      "./tool-metadata/content-duplication": "universal",
+      "./tool-metadata/content-types": "universal",
+      "./tool-metadata/database-transfer": "universal",
+      "./tool-metadata/database": "universal",
+      "./tool-metadata/email-templates": "universal",
+      "./tool-metadata/entries": "universal",
+      "./tool-metadata/external-mcp": "universal",
+      "./tool-metadata/files-copy": "universal",
+      "./tool-metadata/forms": "universal",
+      "./tool-metadata/identity": "universal",
+      "./tool-metadata/mail-status": "universal",
+      "./tool-metadata/media": "universal",
+      "./tool-metadata/media-import": "universal",
+      "./tool-metadata/navigation": "universal",
+      "./tool-metadata/observability": "universal",
+      "./tool-metadata/pages": "universal",
+      "./contracts/site/integrations-credentialed-http": "universal",
+      "./contracts/site/widgets-html": "universal",
+      "./contracts/site/integrations-api-connections": "universal"
     },
     "isolation": {
       "entries": {
@@ -835,51 +848,6 @@
       "import": "./dist/errors/route-refusal.js",
       "default": "./dist/errors/route-refusal.js"
     },
-    "./tool-metadata/site/files-copy": {
-      "types": "./dist/tool-metadata/site/files-copy.d.ts",
-      "import": "./dist/tool-metadata/site/files-copy.js",
-      "default": "./dist/tool-metadata/site/files-copy.js"
-    },
-    "./tool-metadata/site/forms": {
-      "types": "./dist/tool-metadata/site/forms.d.ts",
-      "import": "./dist/tool-metadata/site/forms.js",
-      "default": "./dist/tool-metadata/site/forms.js"
-    },
-    "./tool-metadata/site/identity": {
-      "types": "./dist/tool-metadata/site/identity.d.ts",
-      "import": "./dist/tool-metadata/site/identity.js",
-      "default": "./dist/tool-metadata/site/identity.js"
-    },
-    "./tool-metadata/site/mail-status": {
-      "types": "./dist/tool-metadata/site/mail-status.d.ts",
-      "import": "./dist/tool-metadata/site/mail-status.js",
-      "default": "./dist/tool-metadata/site/mail-status.js"
-    },
-    "./tool-metadata/site/media": {
-      "types": "./dist/tool-metadata/site/media.d.ts",
-      "import": "./dist/tool-metadata/site/media.js",
-      "default": "./dist/tool-metadata/site/media.js"
-    },
-    "./tool-metadata/site/media-import": {
-      "types": "./dist/tool-metadata/site/media-import.d.ts",
-      "import": "./dist/tool-metadata/site/media-import.js",
-      "default": "./dist/tool-metadata/site/media-import.js"
-    },
-    "./tool-metadata/site/navigation": {
-      "types": "./dist/tool-metadata/site/navigation.d.ts",
-      "import": "./dist/tool-metadata/site/navigation.js",
-      "default": "./dist/tool-metadata/site/navigation.js"
-    },
-    "./tool-metadata/site/observability": {
-      "types": "./dist/tool-metadata/site/observability.d.ts",
-      "import": "./dist/tool-metadata/site/observability.js",
-      "default": "./dist/tool-metadata/site/observability.js"
-    },
-    "./tool-metadata/site/pages": {
-      "types": "./dist/tool-metadata/site/pages.d.ts",
-      "import": "./dist/tool-metadata/site/pages.js",
-      "default": "./dist/tool-metadata/site/pages.js"
-    },
     "./contracts/headless/form-delivery-status": {
       "types": "./dist/contracts/headless/form-delivery-status.d.ts",
       "import": "./dist/contracts/headless/form-delivery-status.js",
@@ -904,6 +872,116 @@
       "types": "./dist/contracts/headless/site-cookie-consent.d.ts",
       "import": "./dist/contracts/headless/site-cookie-consent.js",
       "default": "./dist/contracts/headless/site-cookie-consent.js"
+    },
+    "./tool-metadata/analytics": {
+      "types": "./dist/tool-metadata/analytics.d.ts",
+      "import": "./dist/tool-metadata/analytics.js",
+      "default": "./dist/tool-metadata/analytics.js"
+    },
+    "./tool-metadata/change-sets": {
+      "types": "./dist/tool-metadata/change-sets.d.ts",
+      "import": "./dist/tool-metadata/change-sets.js",
+      "default": "./dist/tool-metadata/change-sets.js"
+    },
+    "./tool-metadata/consent": {
+      "types": "./dist/tool-metadata/consent.d.ts",
+      "import": "./dist/tool-metadata/consent.js",
+      "default": "./dist/tool-metadata/consent.js"
+    },
+    "./tool-metadata/content-duplication": {
+      "types": "./dist/tool-metadata/content-duplication.d.ts",
+      "import": "./dist/tool-metadata/content-duplication.js",
+      "default": "./dist/tool-metadata/content-duplication.js"
+    },
+    "./tool-metadata/content-types": {
+      "types": "./dist/tool-metadata/content-types.d.ts",
+      "import": "./dist/tool-metadata/content-types.js",
+      "default": "./dist/tool-metadata/content-types.js"
+    },
+    "./tool-metadata/database-transfer": {
+      "types": "./dist/tool-metadata/database-transfer.d.ts",
+      "import": "./dist/tool-metadata/database-transfer.js",
+      "default": "./dist/tool-metadata/database-transfer.js"
+    },
+    "./tool-metadata/database": {
+      "types": "./dist/tool-metadata/database.d.ts",
+      "import": "./dist/tool-metadata/database.js",
+      "default": "./dist/tool-metadata/database.js"
+    },
+    "./tool-metadata/email-templates": {
+      "types": "./dist/tool-metadata/email-templates.d.ts",
+      "import": "./dist/tool-metadata/email-templates.js",
+      "default": "./dist/tool-metadata/email-templates.js"
+    },
+    "./tool-metadata/entries": {
+      "types": "./dist/tool-metadata/entries.d.ts",
+      "import": "./dist/tool-metadata/entries.js",
+      "default": "./dist/tool-metadata/entries.js"
+    },
+    "./tool-metadata/external-mcp": {
+      "types": "./dist/tool-metadata/external-mcp.d.ts",
+      "import": "./dist/tool-metadata/external-mcp.js",
+      "default": "./dist/tool-metadata/external-mcp.js"
+    },
+    "./tool-metadata/files-copy": {
+      "types": "./dist/tool-metadata/files-copy.d.ts",
+      "import": "./dist/tool-metadata/files-copy.js",
+      "default": "./dist/tool-metadata/files-copy.js"
+    },
+    "./tool-metadata/forms": {
+      "types": "./dist/tool-metadata/forms.d.ts",
+      "import": "./dist/tool-metadata/forms.js",
+      "default": "./dist/tool-metadata/forms.js"
+    },
+    "./tool-metadata/identity": {
+      "types": "./dist/tool-metadata/identity.d.ts",
+      "import": "./dist/tool-metadata/identity.js",
+      "default": "./dist/tool-metadata/identity.js"
+    },
+    "./tool-metadata/mail-status": {
+      "types": "./dist/tool-metadata/mail-status.d.ts",
+      "import": "./dist/tool-metadata/mail-status.js",
+      "default": "./dist/tool-metadata/mail-status.js"
+    },
+    "./tool-metadata/media": {
+      "types": "./dist/tool-metadata/media.d.ts",
+      "import": "./dist/tool-metadata/media.js",
+      "default": "./dist/tool-metadata/media.js"
+    },
+    "./tool-metadata/media-import": {
+      "types": "./dist/tool-metadata/media-import.d.ts",
+      "import": "./dist/tool-metadata/media-import.js",
+      "default": "./dist/tool-metadata/media-import.js"
+    },
+    "./tool-metadata/navigation": {
+      "types": "./dist/tool-metadata/navigation.d.ts",
+      "import": "./dist/tool-metadata/navigation.js",
+      "default": "./dist/tool-metadata/navigation.js"
+    },
+    "./tool-metadata/observability": {
+      "types": "./dist/tool-metadata/observability.d.ts",
+      "import": "./dist/tool-metadata/observability.js",
+      "default": "./dist/tool-metadata/observability.js"
+    },
+    "./tool-metadata/pages": {
+      "types": "./dist/tool-metadata/pages.d.ts",
+      "import": "./dist/tool-metadata/pages.js",
+      "default": "./dist/tool-metadata/pages.js"
+    },
+    "./contracts/site/integrations-credentialed-http": {
+      "types": "./dist/contracts/site/integrations-credentialed-http.d.ts",
+      "import": "./dist/contracts/site/integrations-credentialed-http.js",
+      "default": "./dist/contracts/site/integrations-credentialed-http.js"
+    },
+    "./contracts/site/widgets-html": {
+      "types": "./dist/contracts/site/widgets-html.d.ts",
+      "import": "./dist/contracts/site/widgets-html.js",
+      "default": "./dist/contracts/site/widgets-html.js"
+    },
+    "./contracts/site/integrations-api-connections": {
+      "types": "./dist/contracts/site/integrations-api-connections.d.ts",
+      "import": "./dist/contracts/site/integrations-api-connections.js",
+      "default": "./dist/contracts/site/integrations-api-connections.js"
     }
   },
   "files": [

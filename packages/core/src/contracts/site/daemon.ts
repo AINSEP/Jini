@@ -1,3 +1,7 @@
+/**
+ * @file Daemon-owned seam types shared with hosts: tool-access lowering, advisory tool guidance
+ * and frontend-session ownership. Types only (XP4); the daemon keeps every value.
+ */
 import type { Principal } from "../../principal.js";
 import type { RunRef, SurfaceEmitter, ToolDescriptor } from "../../tool-registry.js";
 

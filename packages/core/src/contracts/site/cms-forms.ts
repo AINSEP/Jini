@@ -1,17 +1,19 @@
 /**
- * @file Form-destination, durable-delivery and form-definition persistence shapes.
+ * @file Form-delivery and form-destination seam types shared with hosts and agent plugins: the
+ * delivery binding, its job status and safe error codes, the destination form/credential shapes, the
+ * connection port and the publish-side receiver port. Moved from `@jini-ai/cms/forms`
+ * (`delivery/types.ts`, `delivery/status.ts`, `destination-contracts.ts`), which re-exports them.
+ * Types only (XP4).
  *
- * Additive verbatim copy of the declarations in `@jini-ai/cms/forms` (`destination-contracts.ts`,
- * `delivery/types.ts`, `delivery/status.ts`, `ports.ts`, `types.ts`) with their structural
- * closure; cms keeps its identical declarations and exports until the paired cutover. Types only:
- * the owning package derives `FieldType` from its runtime field registry
- * (`keyof typeof FIELD_TYPE_REGISTRY`); this file spells the same keys out, and the two must list
- * the same members.
+ * Also carries the form-definition persistence shapes (`FormDefinitionRecord`,
+ * `FormDefinitionRepoPort` and their closure), an additive copy of cms's `forms/types.ts` and
+ * `forms/ports.ts`; cms keeps its identical declarations until the paired cutover. The owning
+ * package derives `FieldType` from its runtime field registry (`keyof typeof FIELD_TYPE_REGISTRY`);
+ * this file spells the same keys out, and the two must list the same members.
  */
+
 import type { FormFieldDescriptor } from "../forms.js";
 import type { UUID } from "../../primitives/index.js";
-
-// ---- Durable delivery vocabulary (`delivery/types.ts`, `delivery/status.ts`) ----
 
 /** One configured destination. Credentials are never stored here, only a reference the host
  * resolves fresh on each attempt, so a rotated or revoked credential takes effect at once. */
@@ -46,8 +48,6 @@ export interface FormDeliveryJobStatus {
   readonly nextRetryAt: string | null;
   readonly errorCode: FormDeliveryErrorCode | null;
 }
-
-// ---- Form destinations (`destination-contracts.ts`) ----
 
 /** One active form as a destination receives it: names, required flags and lengths only. Never
  *  markup, theme, notification recipients or answers. A publish adds the site's receiver `secret`.

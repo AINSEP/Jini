@@ -11,6 +11,7 @@ import {
 import { createContributionRegistry } from '@jini-ai/core/contribution-registry';
 import { normalizeRoute, resolveClaimConflicts, type ExtensionClaim } from './claim-conflicts.js';
 import type { PluginManifest } from './manifest-types.js';
+import type { PluginContributionsSnapshot } from "@jini-ai/core/contracts/site/plugins-host";
 import type {
   PluginRouteContribution,
   PluginSdk,
@@ -19,13 +20,7 @@ import type {
 } from '@jini-ai/core/contracts/plugin-sdk';
 
 export const PLUGIN_CONTRIBUTION_CAPABILITIES = ['http.route.register', 'tools.register', 'render.contribute', PLUGIN_PROVIDER_CAPABILITY] as const;
-export interface PluginContributionsSnapshot {
-  readonly pluginId: string; readonly sdk: PluginSdk;
-  readonly providers?: readonly PluginProviderContribution[];
-  readonly routes: readonly PluginRouteContribution[];
-  readonly tools: readonly PluginToolContribution[];
-  readonly widgets: readonly PluginWidgetContribution[];
-}
+export type { PluginContributionsSnapshot } from "@jini-ai/core/contracts/site/plugins-host";
 /** The name used by both the claims gate and the assistant's real registry. */
 export function pluginToolIdFor(required: { pluginId: string; name: string }, _optional: Record<string, never> = {}): string {
   return `p_${required.pluginId.replace(/-/g, '_')}__${required.name}`;

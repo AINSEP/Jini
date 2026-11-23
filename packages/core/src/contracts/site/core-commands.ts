@@ -1,21 +1,18 @@
 /**
- * @file The inverse-applier (revert) registry port. Types only.
+ * @file Inverse-applier registry contract.
  *
- * Additive copy of `EntityReverter` and `RevertRegistry` from `@jini-ai/cms/core/commands`
- * (`core/commands/appliers.ts`). The `createRevertRegistry` factory and `revertChangeSet` stay in
- * cms, which keeps its identical declarations and exports until the paired cutover.
- *
- * A generic `(entityType, operation)` -> `EntityReverter` registry that `revert.ts`'s
+ * Purpose:
+ * The type-only half of `@jini-ai/cms/core/commands`'s `appliers.ts` (which re-exports it): a
+ * generic `(entityType, operation)` -> `EntityReverter` registry that `revert.ts`'s
  * `revertChangeSet` consumes to (a) read an entity's current version for the revert guard and (b)
- * restore it from a change-set item's inverse payload. Keeps `revert.ts` free of per-entity-type
- * branching — new revertible entity types register an `EntityReverter` here.
+ * restore it from a change-set item's inverse payload. The registry factory stays in cms.
  *
- * Core holds only the generic registry, never feature-specific reverters.
+ * Core holds only the generic registry contract, never feature-specific reverters.
  * Concrete reverters live with their domains; composition roots construct and register them at
  * boot. They close over the root's shared adapters rather than importing feature or DB code here.
  */
 
-import type { UUID } from "../../primitives/ids.js";
+import type { UUID } from "../../primitives/index.js";
 import type { ChangeSetItemRecord } from "../events/change-set.js";
 
 /** Restore + version-read behavior for one `(entityType, operation)`. */

@@ -1,5 +1,5 @@
-import type { ToolMetadataById } from "../../tool-metadata-types.js";
-import type { ToolApprovalPolicy } from "../../contracts/site/tool-metadata-approval-policy.js";
+import type { ToolMetadataById } from '../tool-metadata-types.js';
+import type { ToolApprovalPolicy } from '../contracts/site/tool-metadata-approval-policy.js';
 
 /** One copy recipe surface; site files reuse the exact-batch fs writer approval exchange. */
 export const toolMetadata = {

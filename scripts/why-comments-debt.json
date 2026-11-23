@@ -1612,6 +1612,14 @@
     {
       "id": "b53db620a866",
       "reason": "RT-1/RT-2: the Q2 forwarders it described were deleted; the header is rewritten in place to say why the exceptions list is now empty and what the test still guards."
+    },
+    {
+      "id": "038b97d439de",
+      "reason": "ex5-fnd-inject K4-seam-1 B6: the additive window this @file described is closed (daemon's duplicate AssistantSurfaceDeps is removed); the rewritten test's header says what it guards now (the live daemon store satisfies core's contract). Was packages/daemon/src/__tests__/surface-deps-core-contract.test.ts:8-12."
+    },
+    {
+      "id": "e0c5d06471c8",
+      "reason": "ex5-fnd-inject XC-6a: the code it described (the pre-bound nodeProcessControl constant) is deleted; hosts now build the port with createProcessControlPort and their own platform functions. Was packages/node-adapters/src/process.ts:41-41."
     }
   ]
 }

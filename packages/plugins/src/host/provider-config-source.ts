@@ -1,12 +1,6 @@
+import type { ProviderKeyUsage, ProviderWriteResult } from "@jini-ai/core/contracts/site/plugins-host";
 /** Storage-neutral contracts for a provider plugin's saved configuration. */
-export interface ProviderKeyUsage {
-  readonly keyId?: string;
-  readonly store: "project" | "site";
-  readonly usedByThisSite: boolean;
-  readonly usedBy: readonly string[];
-}
-
-export interface ProviderWriteResult extends ProviderKeyUsage { readonly keyId: string }
+export type { ProviderKeyUsage, ProviderWriteResult } from "@jini-ai/core/contracts/site/plugins-host";
 
 /** Saved values for one provider plugin; keys are the plugin's declared setting names. */
 export interface ProviderPluginConfig {

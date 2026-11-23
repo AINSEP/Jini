@@ -1,7 +1,7 @@
-import type { ToolMetadataById } from "../../tool-metadata-types.js";
-import type { ToolApprovalPolicy } from "../../contracts/site/tool-metadata-approval-policy.js";
+import type { ToolMetadataById } from '../tool-metadata-types.js';
+import type { ToolApprovalPolicy } from '../contracts/site/tool-metadata-approval-policy.js';
 
-/** media registration declarations; shared placement rationale is in the host's tool-metadata catalog index. */
+/** media registration declarations; shared placement rationale lives in the host aggregator. */
 export const toolMetadata = {
   "library_list": {
     search: { keywords: "library documents document files markdown txt pdf docx csv json saved uploads earlier chat" },

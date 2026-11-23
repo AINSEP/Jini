@@ -8,7 +8,8 @@ import { pathToFileURL } from 'node:url';
 import { expect, it } from 'vitest';
 import type { RunProtocolEvent } from '@jini-ai/protocol';
 import { nodeAtomicWriter, nodeFileLock } from '@jini-ai/node-adapters/fs';
-import { createSpawnPort, nodeCommandShell, nodeProcessControl, type SpawnFunction } from '@jini-ai/node-adapters/process';
+import { createProcessControlPort, createSpawnPort, nodeCommandShell, type SpawnFunction } from '@jini-ai/node-adapters/process';
+import { listProcessSnapshots, stopProcesses, waitForProcessExit } from '@jini-ai/platform/process';
 
 const COMMAND = 'pwd && echo REPRO_OK';
 
@@ -121,7 +122,7 @@ it.skipIf(Boolean(reason))('runs one real Claude Bash command inside the daemon 
     return child;
   }) satisfies SpawnFunction;
   const executor = daemon.createAgentExecutor({ lifecycle, hostEnv: process.env, agentRuntime: createAgentRuntimeBindings({ runtime: createNativeAgentRuntime({ env: process.env }) }), runtime: {
-    spawn: createSpawnPort({ spawn: spawnLive }), processes: nodeProcessControl, fileLock: nodeFileLock, writer: nodeAtomicWriter, commandShell: nodeCommandShell({ env: process.env }),
+    spawn: createSpawnPort({ spawn: spawnLive }), processes: createProcessControlPort({ functions: { listProcessSnapshots, stopProcesses, waitForProcessExit } }), fileLock: nodeFileLock, writer: nodeAtomicWriter, commandShell: nodeCommandShell({ env: process.env }),
   } });
   const timeout = setTimeout(() => {
     controller.abort(new Error('Claude live run exceeded 120 seconds'));

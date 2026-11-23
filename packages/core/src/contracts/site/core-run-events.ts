@@ -1,12 +1,11 @@
 /**
- * @file The daemon run-stream frame and reduction-result shapes shared by live and saved chat turns.
- * Types only.
+ * @file Daemon run-stream frame contracts shared by live and saved chat turns.
  *
- * Additive copy of the declarations in `@jini-ai/chat/core/run-events` (`core/run-events/entry.ts`).
- * The frame translators, readers and notices stay in chat, which keeps its identical declarations
- * and exports until the paired cutover. `RunFrameOutcome.terminal` spells out the three terminal
- * members of chat's runtime-derived `ChatRunStatus` (`Extract<ChatRunStatus, "succeeded" | "failed"
- * | "canceled">`), which is the same type.
+ * The type-only half of `@jini-ai/chat/core/run-events` (which re-exports these names): the wire
+ * frame a daemon run streams, the per-frame translation outcome, the terminal classification read
+ * off an `end` frame, and the per-connection carry. The translation itself (`translateRunFrame`,
+ * notices, SSE reading) stays in the chat package; only the shapes live here so a host or another
+ * engine package can name them without importing chat.
  */
 
 import type { AgentEvent } from "./chat-core.js";
@@ -37,13 +36,16 @@ export interface RunFrameOutcome {
   /** Set when the frame reports a failure. Once any frame has, the turn is `failed` (the browser's
    *  `useRunStream` keeps an `'error'` status through a later `onDone`). */
   readonly error?: Error;
-  /** Set only on the `end` frame: the daemon's own terminal classification. */
+  /** Set only on the `end` frame: the daemon's own terminal classification. These are exactly the
+   *  terminal members of `@jini-ai/chat/core`'s `ChatRunStatus` (declared there from a runtime
+   *  `as const` tuple, so it cannot live in this type-only module); the chat package's
+   *  `run-events/entry.ts` pins the two together at compile time. */
   readonly terminal?: "succeeded" | "failed" | "canceled";
 }
 
 /**
- * Per-connection memory for {@link translateRunFrame}: which channels are mid-way through an echo
- * line. Only a line's first chunk carries the {@link ECHO_LINE} prefix, so without it the rest of a
+ * Per-connection memory for `translateRunFrame`: which channels are mid-way through an echo
+ * line. Only a line's first chunk carries the `ECHO_LINE` prefix, so without it the rest of a
  * split `user` echo stays as `raw` — tool-result prose that durable recovery then reads as executor
  * diagnostics. Pass one fresh `{}` per daemon connection (each connection replays from event 0).
  */

@@ -1,3 +1,20 @@
+/**
+ * @file Declarative plugin data-module grammar: column, index and table declarations, the module
+ * declaration and its provenance. Types only (XP4); `@jini-ai/db` keeps the DDL engine.
+ */
+
+/**
+ * @agent-note Saved format. The first declare that applies DDL stores these fields in
+ * `_plugin_identity`; they are never updated. Later declares compare all three with strict string
+ * equality, so a renamed publisher or moved URL is refused as `consent-required` the next time
+ * that plugin has DDL to apply, unless both sides carry the same `signature`.
+ */
+export interface PluginProvenance {
+  sourceUrl: string;
+  publisher: string;
+  signature?: string;
+}
+
 export type ColumnType = "TEXT" | "INTEGER" | "REAL" | "BLOB";
 export type PluginTier = "tier-1" | "tier-2" | "tier-3";
 
@@ -32,18 +49,6 @@ export interface TableDecl {
   /** Share policy belongs to the table owner. Missing declarations still refuse nonempty data.
    * Portable columns are explicit so later personal fields cannot silently enter an archive. */
   readonly portability?: { readonly kind: "private" } | { readonly kind: "portable"; readonly columns: readonly string[] };
-}
-
-/**
- * @agent-note Saved format. The first declare that applies DDL stores these fields in
- * `_plugin_identity`; they are never updated. Later declares compare all three with strict string
- * equality, so a renamed publisher or moved URL is refused as `consent-required` the next time
- * that plugin has DDL to apply, unless both sides carry the same `signature`.
- */
-export interface PluginProvenance {
-  sourceUrl: string;
-  publisher: string;
-  signature?: string;
 }
 
 export interface DataModuleDecl {

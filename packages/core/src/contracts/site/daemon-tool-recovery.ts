@@ -1,11 +1,9 @@
 /**
- * @file A tool-failure diagnostic's shared, domain-agnostic shape. Types only.
- *
- * Additive copy of `ToolFailureDiagnostic` from `@jini-ai/daemon/tool-recovery`
- * (`tool-recovery/diagnostics.ts`). The issued-diagnostic registry and recovery helpers stay in the
- * daemon, which keeps its identical declaration and export until the paired cutover. "This file's
- * header" in the field docs below means that daemon module's header (the four facets, the honesty
- * contract and the one-cycle guard).
+ * @file The shared, domain-agnostic half of a tool-failure diagnostic. Issuing, provenance and the
+ * one-cycle retry guard live in `@jini-ai/daemon/tool-recovery` (`diagnostics.ts`); "this file's
+ * header" in the comments below refers to that module's header, which documents the four facets,
+ * the honesty contract and the one-cycle guard. The type sits in core so any package can extend or
+ * read a diagnostic without depending on the daemon package.
  */
 
 /**

@@ -1,3 +1,7 @@
+/**
+ * @file Plugin-host seam types shared with hosts: activation records and their repo port, provider
+ * key usage, claim conflicts, the removal port and the contributions snapshot. Types only (XP4).
+ */
 import type { UUID } from "../../primitives/ids.js";
 import type {
   PluginProviderContribution,
