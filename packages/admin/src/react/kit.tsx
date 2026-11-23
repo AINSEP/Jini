@@ -11,7 +11,8 @@
  * FetchQueryBinding, "keep the adapter fixed for this provider's lifetime").
  */
 import { createContext, forwardRef, useContext, useState } from 'react';
-import type { ComponentProps, ComponentType, MouseEvent, ReactNode, Ref, RefObject, SyntheticEvent } from 'react';
+import type { ComponentProps, ComponentType, Dispatch, KeyboardEvent as ReactKeyboardEvent, MouseEvent,
+  ReactElement, ReactNode, Ref, RefObject, SetStateAction, SyntheticEvent } from 'react';
 import type { FetchQueryAdapter } from '@jini-ai/core/fetch';
 import type { Translate } from '@jini-ai/core/text';
 import type { MediaProviderCatalogPolicy, MediaProviderOption } from '@jini-ai/core';
@@ -75,7 +76,12 @@ export interface MenuProps extends Base { readonly label: string; readonly items
 export interface NoticeProps extends Base { readonly children: ReactNode; readonly tone?: Tone }
 export interface SpinnerProps extends Base { readonly label?: string }
 export interface BadgeProps extends Base { readonly children: ReactNode; readonly tone?: Tone }
-export interface InfoTipProps { label: string; agentHandle?: string | false | undefined }
+export interface InfoTipProps {
+  label: string; agentHandle?: string | false | undefined;
+  /** The trigger's accessible name when it differs from the tip text; `descriptionId` ties the tip to a described control. */
+  triggerLabel?: string | undefined; descriptionId?: string | undefined;
+  placement?: 'top' | 'bottom' | 'inline' | undefined; icon?: ReactNode | undefined;
+}
 type LightboxPart = 'dialog' | 'close' | 'previous' | 'next';
 export interface LightboxProps {
   open: boolean; title: string; onClose: () => void; children?: ReactNode;
@@ -90,7 +96,12 @@ export interface WidgetSelectProps {
   placeholder?: string | undefined; id?: string | undefined; 'aria-label'?: string | undefined;
   disabled?: boolean | undefined; agentHandle?: string | false | undefined; translate?: Translate | undefined;
 }
-export interface TabBarTab { readonly id: string; readonly label: string; readonly icon?: ReactNode | undefined; readonly count?: number | undefined; readonly tag?: string | undefined; readonly handle?: string | undefined; readonly handleLabel?: string | undefined }
+/** `disabled` greys the tab out of the tab order; `dot` marks it (e.g. unsaved or failing), with `dotLabel` as the dot's accessible name. */
+export interface TabBarTab {
+  readonly id: string; readonly label: string; readonly icon?: ReactNode | undefined; readonly count?: number | undefined; readonly tag?: string | undefined;
+  readonly disabled?: boolean | undefined; readonly handle?: string | undefined; readonly handleLabel?: string | undefined;
+  readonly dot?: boolean | undefined; readonly dotLabel?: string | undefined;
+}
 export interface TabBarProps { tabs: readonly TabBarTab[]; activeId: string; onChange: (id: string) => void; ariaLabel: string; containerHandle?: string | undefined }
 export interface CanvasEmbedPlaceholderDescriptor { kindLabel: string; identityLabel: string }
 export interface CanvasContentWrapperNode { tagName: string; attributes?: Readonly<Record<string, string>> }
@@ -138,6 +149,52 @@ export interface IconProps {
   readonly focusable?: Booleanish | 'auto' | undefined; readonly 'aria-hidden'?: Booleanish | undefined; readonly 'aria-label'?: string | undefined;
 }
 export interface ErrorNoticeProps { readonly failure: UserFacingError; readonly t?: Translate; readonly className?: string; readonly role?: 'alert' | 'status' }
+/**
+ * A RemixIcon webfont glyph (`ri-<name>`). Unlike `Icon`, the host's own RemixIcon takes any string
+ * (it renders whatever `ri-` class it is given), so there is no narrower host name set to pin here.
+ */
+export interface RemixIconProps { readonly name: string; readonly size?: number; readonly className?: string }
+export type KitToastTone = 'default' | 'success' | 'error' | 'loading';
+export interface ToastProps {
+  readonly message: string; readonly className?: string; readonly details?: string | null; readonly actionLabel?: string | null;
+  readonly actionAriaLabel?: string; readonly onAction?: () => void; readonly code?: string | null; readonly ttlMs?: number;
+  readonly onDismiss?: () => void; readonly role?: 'status' | 'alert'; readonly tone?: KitToastTone; readonly placement?: 'bottom' | 'top';
+}
+/** The UI library's locale code (a plain string tag such as `en`). */
+export type Locale = string;
+/** The UI library's locale provider: admin passes the settings dictionaries and pins the locale. */
+export interface I18nProviderProps {
+  readonly dictionaries?: KitDictionaries; readonly fallbackLocale?: Locale; readonly initialLocale?: Locale;
+  readonly syncDocumentAttributes?: boolean; readonly children: ReactNode;
+}
+/** One tab of the settings dialog shell: its nav entry plus the panel it shows. */
+export interface SettingsDialogTab<TId extends string = string> {
+  id: TId; label: string; navHint?: string; title?: string; subtitle?: string; icon?: ReactNode; panel: ReactNode;
+}
+export interface SettingsDialogShellProps {
+  readonly tabs: readonly SettingsDialogTab[]; readonly initialActiveTabId?: string; readonly activeTabId?: string;
+  readonly onActiveTabIdChange?: (tabId: string) => void; readonly onClose?: () => void; readonly presentation?: 'modal' | 'inline';
+  readonly welcome?: boolean; readonly defaultSidebarCollapsed?: boolean; readonly fullscreenEnabled?: boolean; readonly defaultFullscreen?: boolean;
+  readonly chromeExtra?: ReactNode; readonly dialogAriaLabelledBy?: string; readonly className?: string;
+}
+export interface CodeWithLinesProps { readonly text: string; readonly wrap?: boolean }
+export interface CodeWrapToggleProps { readonly wrap: boolean; readonly onToggle: () => void; readonly t: Translate; readonly agentHandleId: string; readonly className?: string }
+export type KitPreviewModalIconName = 'close' | 'chevron-down' | 'fullscreen' | 'fullscreen-exit';
+export interface PreviewModalView {
+  id: string; label: string; html?: string | null | undefined; error?: string | null | undefined; custom?: ReactNode;
+}
+export interface PreviewModalSidebar {
+  label: string; content: ReactNode; defaultOpen?: boolean | undefined; onToggle?: ((open: boolean) => void) | undefined;
+  contentKey?: string | number | undefined;
+}
+/** The read-only preview modal around admin's code viewers: views, header extras and icon overrides. */
+export interface PreviewModalShellProps {
+  readonly title: string; readonly subtitle?: string | undefined; readonly views: PreviewModalView[]; readonly initialViewId?: string | undefined;
+  readonly onView?: ((viewId: string) => void) | undefined; readonly onClose: () => void; readonly sidebar?: PreviewModalSidebar | undefined;
+  readonly designWidth?: number | undefined; readonly headerExtras?: ReactNode; readonly hideSidebarToggle?: boolean | undefined;
+  readonly onFullscreenClick?: (() => void) | undefined; readonly onSidebarToggleClick?: ((open: boolean) => void) | undefined;
+  readonly icons?: Partial<Record<KitPreviewModalIconName, () => ReactElement>> | undefined; readonly className?: string | undefined;
+}
 
 export interface AdminKitComponents {
   Button: ComponentType<ButtonProps>; IconButton: ComponentType<IconButtonProps>; TextField: ComponentType<TextFieldProps>;
@@ -147,6 +204,9 @@ export interface AdminKitComponents {
   Badge: ComponentType<BadgeProps>; InfoTip: ComponentType<InfoTipProps>; Lightbox: ComponentType<LightboxProps>;
   WidgetSelect: ComponentType<WidgetSelectProps>; TabBar: ComponentType<TabBarProps>; HtmlEditor: ComponentType<HtmlEditorProps>;
   ErrorNotice: ComponentType<ErrorNoticeProps>; Icon: ComponentType<IconProps>;
+  RemixIcon: ComponentType<RemixIconProps>; Toast: ComponentType<ToastProps>; I18nProvider: ComponentType<I18nProviderProps>;
+  SettingsDialogShell: ComponentType<SettingsDialogShellProps>; CodeWithLines: ComponentType<CodeWithLinesProps>;
+  CodeWrapToggle: ComponentType<CodeWrapToggleProps>; PreviewModalShell: ComponentType<PreviewModalShellProps>;
 }
 
 /* ---------- hooks ---------- */
@@ -175,6 +235,31 @@ export interface NativeDialogView {
     readonly onClick: (event: MouseEvent<HTMLDialogElement>) => void;
   };
 }
+export interface TabBarKeyboardHandlers { onKeyDown: (e: ReactKeyboardEvent<HTMLDivElement>) => void }
+/** Runs writes one at a time (per `key`), so a later save never lands before an earlier one. */
+export interface SerialWrites { run<T>(required: { task: () => Promise<T> }, optional?: { key?: string }): Promise<T> }
+export interface CodeWrapController { wrap: boolean; toggleWrap: () => void }
+export interface InfoTipController {
+  open: boolean; placement: 'above' | 'below'; coords: { top: number; left: number; arrowLeft?: number | undefined };
+  iconRef: RefObject<HTMLSpanElement | null>; bubbleRef?: RefObject<HTMLSpanElement | null>;
+  show: () => void; hide: () => void; leave: () => void; toggle: () => void;
+  pointerDown?: (e: { pointerType: string }) => void; handleIconKeyDown: (e: ReactKeyboardEvent<HTMLSpanElement>) => void;
+}
+/** Fixed viewport coordinates for a dropdown panel; exactly one of `top`/`bottom` anchors it. */
+export interface PanelPosition { top?: number | undefined; bottom?: number | undefined; left: number; width: number; maxHeight: number }
+export interface PanelPositionController {
+  position: PanelPosition | null; setPosition: Dispatch<SetStateAction<PanelPosition | null>>; updatePosition: () => void;
+}
+/** The searchable listbox's state and handlers (options use `WidgetSelectOption`, the host's admin-widgets option row). */
+export interface SelectDropdownController {
+  open: boolean; query: string; setQuery: Dispatch<SetStateAction<string>>; highlightedIndex: number;
+  setHighlightedIndex: Dispatch<SetStateAction<number>>; position: PanelPosition | null;
+  triggerRef: RefObject<HTMLButtonElement | null>; panelRef: RefObject<HTMLDivElement | null>; searchInputRef: RefObject<HTMLInputElement | null>;
+  optionRefs: RefObject<Map<number, HTMLLIElement>>; listboxId: string; showSearch: boolean; filtered: WidgetSelectOption[];
+  selectedOption: WidgetSelectOption | null; openPanel: () => void; closePanel: (required: { refocusTrigger: boolean }) => void;
+  selectOption: (option: WidgetSelectOption) => void; handleTriggerKeyDown: (event: ReactKeyboardEvent<HTMLButtonElement>) => void;
+  handlePanelKeyDown: (event: ReactKeyboardEvent<HTMLDivElement>) => void; optionId: (index: number) => string;
+}
 export interface AdminKitHooks {
   useAgentHandle(required: AgentControlProps, optional?: Record<string, never>): string | undefined;
   useFocusTrap(required: { containerRef: RefObject<HTMLElement | null> }, optional?: { active?: boolean | undefined }): void;
@@ -184,6 +269,16 @@ export interface AdminKitHooks {
   useNativeDialog(required: DialogProps, optional?: { initialFocus?: () => void; document?: Pick<Document, 'activeElement'> }): NativeDialogView;
   /** The UI library's translator (its locale context), distinct from any chat translator the host has. */
   useT(): KitTranslator;
+  useTabBarKeyboard(required: { tabs: readonly TabBarTab[]; activeId: string; onChange: (id: string) => void }, optional?: Record<string, never>): TabBarKeyboardHandlers;
+  useSerialWrites(): SerialWrites;
+  useCodeWrap(): CodeWrapController;
+  useInfoTip(required?: Record<string, never>, optional?: { placement?: 'top' | 'bottom' | undefined }): InfoTipController;
+  usePanelPosition(required: {
+    open: boolean; triggerRef: RefObject<HTMLButtonElement | null>; panelRef: RefObject<HTMLDivElement | null>;
+    searchInputRef: RefObject<HTMLInputElement | null>; showSearch: boolean; onOutOfView: () => void;
+  }, optional?: Record<string, never>): PanelPositionController;
+  useSelectDropdown(required: { value: string; onChange: (value: string) => void; options: WidgetSelectOption[] },
+    optional?: { disabled?: boolean | undefined }): SelectDropdownController;
 }
 /** A translator with optional interpolation variables, as the UI library's `useT` returns. */
 export type KitTranslator = (key: string, vars?: Readonly<Record<string, string | number>>) => string;
@@ -224,6 +319,35 @@ export type KitDictionaries = Readonly<Partial<Record<string, Readonly<Record<st
 export interface KitNotificationsPreferences {
   readonly soundEnabled: boolean; readonly successSoundId: string; readonly failureSoundId: string; readonly desktopEnabled: boolean;
 }
+/** A post/page draft as the autosave writes it (block document or raw HTML body). */
+export type StandingDraftAutosaveInput =
+  | { bodyFormat: 'doc'; bodyJson: Record<string, unknown>; title: string; slug: string; baseVersion: number }
+  | { bodyFormat: 'html'; bodyHtml: string; title: string; slug: string; baseVersion: number };
+export interface StandingDraftAutosaveSnapshot {
+  bodyFormat: 'doc' | 'html'; bodyJson?: Record<string, unknown>; bodyHtml?: string; title: string; slug: string; baseVersion: number;
+  savedAt: string; savedByPrincipalId: string; serverUpdatedAt?: string | undefined;
+}
+type BackupPrincipal = { principalId?: string | null | undefined };
+/** The local-tab mirror of an unsaved draft; a `null` principal skips storage entirely. */
+export interface StandingDraftLocalBackup {
+  write: (required: { entryId: string; draft: StandingDraftAutosaveInput; savedAt: string }, optional?: BackupPrincipal) => void;
+  read: (required: { entryId: string }, optional?: BackupPrincipal) => StandingDraftAutosaveSnapshot | null;
+  clear: (required: { entryId: string }, optional?: BackupPrincipal) => void;
+}
+/** One published failure at a time; `reset()` bumps the generation so a stale publish is dropped. */
+export interface FailureChannel {
+  publish(input: { failure: UserFacingError; generation?: number }): void;
+  subscribe(listener: () => void): () => void;
+  getSnapshot(): UserFacingError | null;
+  getGeneration(): number;
+  reset(): void;
+}
+/** The slice of `document` a visibility-aware interval reads. */
+export interface VisibilitySource {
+  readonly visibilityState: 'hidden' | 'visible';
+  addEventListener(type: 'visibilitychange', listener: () => void): void;
+  removeEventListener(type: 'visibilitychange', listener: () => void): void;
+}
 export interface AdminKitValues {
   readonly SETTINGS_DIALOG_DICTIONARIES: KitDictionaries;
   readonly DEFAULT_NOTIFICATIONS_PREFERENCES: KitNotificationsPreferences;
@@ -231,6 +355,42 @@ export interface AdminKitValues {
   readonly UNREACHABLE_RETRY_DELAYS_MS: readonly number[];
   /** The principal id a local-tab draft backup is saved under. */
   readonly LOCAL_BACKUP_PRINCIPAL_ID: string;
+  /** The MCP-UI sandbox proxy as an opaque-origin `data:` URL with the host origin baked in. */
+  readonly buildSandboxProxyDataUrl: (required: { hostOrigin: string }, optional?: Record<string, never>) => string;
+  /** Idempotent native `<dialog>` open/close with the attribute fallback for DOMs without `showModal`. */
+  readonly openLightboxDialog: (dialog: HTMLDialogElement) => void;
+  readonly closeLightboxDialog: (dialog: HTMLDialogElement) => void;
+  /** Roving tabindex for a TabBar tab: 0 for the active (or first enabled) tab, -1 otherwise. */
+  readonly resolveTabBarTabIndex: (required: { tabs: readonly TabBarTab[]; activeId: string; tab: TabBarTab }, optional?: Record<string, never>) => 0 | -1;
+  readonly hasPermission: (required: { permissions: readonly string[]; permission: string }) => boolean;
+  readonly standingDraftRecoveryMessage: (required: { draft: StandingDraftAutosaveSnapshot; t: (key: string) => string; serverUpdatedAt?: string },
+    optional?: { formatSavedAt?: (iso: string) => string }) => string;
+  readonly createStandingDraftLocalBackup: (required: {
+    keyPrefix: string; getStorage: (required: Record<string, never>, optional?: Record<string, never>) => Pick<Storage, 'getItem' | 'setItem' | 'removeItem'>;
+  }, optional?: Record<string, never>) => StandingDraftLocalBackup;
+  readonly createFailureChannel: (required: Record<string, never>, optional?: { onPublish?: (input: { failure: UserFacingError }) => void }) => FailureChannel;
+}
+
+/* ---------- chat (the host's chat library: its translator and the run posters; shapes restated) ---------- */
+export type { AgentEvent, ChatAttachment, ChatMessage, ChatPaneAgent, ChatPaneAgentOption, ChatPaneAgentSelection, ChatPaneComposerHandle, ChatRole, ChatRunStatus, ChatTransport, ExtEventCall, ExtEventRenderProps, FabPositionInput, FabPositionResult, FeedbackChange, I18nAdapter, KitA2uiActionDeliveryOutcome, KitA2uiActionPosterInput, KitChatAttachment, KitChatTranslator, KitDeliverMidRunMessage, KitDeliverTypedAnswer, KitMidRunMessageDelivery, KitPosterRequestOptions, KitRedactUserText, KitSecretRedactionSignal, KitTypedAnswerDelivery, KitUserTextRedactionOptions, ReattachRunOptions, RunHandlers, SecretRedactionSignal, StartRunInput, ToolResultMediaBlock } from './kit-chat-types.js';
+import type { AgentEvent, ChatAttachment, ChatMessage, ChatPaneAgent, ChatPaneAgentOption, ChatPaneAgentSelection, ChatPaneComposerHandle, ChatRole, ChatRunStatus, ChatTransport, ExtEventCall, ExtEventRenderProps, FabPositionInput, FabPositionResult, FeedbackChange, I18nAdapter, KitA2uiActionDeliveryOutcome, KitA2uiActionPosterInput, KitChatAttachment, KitChatTranslator, KitDeliverMidRunMessage, KitDeliverTypedAnswer, KitMidRunMessageDelivery, KitPosterRequestOptions, KitRedactUserText, KitSecretRedactionSignal, KitTypedAnswerDelivery, KitUserTextRedactionOptions, ReattachRunOptions, RunHandlers, SecretRedactionSignal, StartRunInput, ToolResultMediaBlock } from './kit-chat-types.js';
+
+export interface AdminKitChat {
+  /** The chat translator hook. Screens receive it as an injected hook prop (`useChatT`), never a direct import. */
+  useT(): KitChatTranslator;
+  createMidRunMessagePoster(required: { baseUrl: string; fetch: typeof globalThis.fetch },
+    optional?: KitUserTextRedactionOptions & KitPosterRequestOptions): KitDeliverMidRunMessage;
+  createTypedAnswerPoster(required: { baseUrl: string; fetch: typeof globalThis.fetch; toolName: string },
+    optional?: KitUserTextRedactionOptions & KitPosterRequestOptions & { readonly path?: string }): KitDeliverTypedAnswer;
+  createA2uiActionPoster(required: KitA2uiActionPosterInput, optional?: KitPosterRequestOptions)
+    : (runId: string | undefined, message: unknown) => Promise<KitA2uiActionDeliveryOutcome>;
+  /** The chat FAB's drag/persist position hook. */
+  useFabPosition(required: FabPositionInput, optional?: Record<string, never>): FabPositionResult;
+  /** Normalizes a requested agent/model/effort against the inventory, as the chat pane does. */
+  resolveChatPaneSelection(required: { agents: readonly ChatPaneAgent[]; requested: ChatPaneAgentSelection }, optional?: Record<string, never>): ChatPaneAgentSelection;
+  /** The chat library's own copy shown after a typed secret was redacted, and the credential-card guidance line. */
+  readonly SECRET_REDACTED_NOTICE: string;
+  readonly CREDENTIAL_CARD_GUIDANCE: string;
 }
 
 export interface AdminKit {
@@ -240,6 +400,7 @@ export interface AdminKit {
   readonly mediaProviders: AdminMediaProvidersKit;
   readonly theme: AdminThemeKit;
   readonly values: AdminKitValues;
+  readonly chat: AdminKitChat;
 }
 
 /* ---------- provider ---------- */
@@ -287,6 +448,13 @@ export const TabBar = slot('TabBar');
 export const HtmlEditor = slot('HtmlEditor');
 export const ErrorNotice = slot('ErrorNotice');
 export const Icon = slot('Icon');
+export const RemixIcon = slot('RemixIcon');
+export const Toast = slot('Toast');
+export const I18nProvider = slot('I18nProvider');
+export const SettingsDialogShell = slot('SettingsDialogShell');
+export const CodeWithLines = slot('CodeWithLines');
+export const CodeWrapToggle = slot('CodeWrapToggle');
+export const PreviewModalShell = slot('PreviewModalShell');
 
 export const useAgentHandle: AdminKitHooks['useAgentHandle'] = (r, o) => useAdminKit().hooks.useAgentHandle(r, o);
 export const useFocusTrap: AdminKitHooks['useFocusTrap'] = (r, o) => useAdminKit().hooks.useFocusTrap(r, o);
@@ -299,6 +467,34 @@ export const useNativeDialog: AdminKitHooks['useNativeDialog'] = (r, o) => useAd
 /** The host's UI translator, returned as is. The empty objects keep the screen-facing required/optional shape. */
 export function useT(_required: Record<string, never> = {}, _optional: Record<string, never> = {}): KitTranslator {
   return useAdminKit().hooks.useT();
+}
+
+export const useTabBarKeyboard: AdminKitHooks['useTabBarKeyboard'] = (r, o) => useAdminKit().hooks.useTabBarKeyboard(r, o);
+export function useSerialWrites(_required: Record<string, never> = {}, _optional: Record<string, never> = {}): SerialWrites {
+  return useAdminKit().hooks.useSerialWrites();
+}
+export function useCodeWrap(_required: Record<string, never> = {}, _optional: Record<string, never> = {}): CodeWrapController {
+  return useAdminKit().hooks.useCodeWrap();
+}
+export const useInfoTip: AdminKitHooks['useInfoTip'] = (r, o) => useAdminKit().hooks.useInfoTip(r, o);
+export const usePanelPosition: AdminKitHooks['usePanelPosition'] = (r, o) => useAdminKit().hooks.usePanelPosition(r, o);
+export const useSelectDropdown: AdminKitHooks['useSelectDropdown'] = (r, o) => useAdminKit().hooks.useSelectDropdown(r, o);
+
+/** The host's CHAT translator (the chat library's locale context), distinct from the UI `useT` above. */
+export function useChatT(_required: Record<string, never> = {}, _optional: Record<string, never> = {}): KitChatTranslator {
+  return useAdminKit().chat.useT();
+}
+/** The chat poster factories, read once per render; the caller passes both argument objects through untouched. */
+export function useAdminKitChatPosters(_required: Record<string, never> = {}, _optional: Record<string, never> = {})
+  : Pick<AdminKitChat, 'createMidRunMessagePoster' | 'createTypedAnswerPoster' | 'createA2uiActionPoster'> {
+  return useAdminKit().chat;
+}
+
+export const useFabPosition: AdminKitChat['useFabPosition'] = (r, o) => useAdminKit().chat.useFabPosition(r, o);
+/** The chat library's plain values (selection resolver and notice copy), read once per render: the injected object, never copied. */
+export function useAdminKitChatValues(_required: Record<string, never> = {}, _optional: Record<string, never> = {})
+  : Pick<AdminKitChat, 'resolveChatPaneSelection' | 'SECRET_REDACTED_NOTICE' | 'CREDENTIAL_CARD_GUIDANCE'> {
+  return useAdminKit().chat;
 }
 
 export const useFetchQuery: FetchQueryAdapter['useFetchQuery'] = (r, o) => useAdminKit().query.useFetchQuery(r, o);
