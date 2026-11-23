@@ -127,6 +127,10 @@
       "./contracts/site/capability-providers-comments": "universal",
       "./contracts/site/seo-content-analysis": "universal",
       "./contracts/site/ui-sections": "universal",
+      "./contracts/site/admin-surfaces-connections": "universal",
+      "./contracts/site/api-connections-hosted-mcp": "universal",
+      "./contracts/site/media-providers-catalog": "universal",
+      "./contracts/site/core-custom-credential-categories": "universal",
       "./errors/sentences": "universal",
       "./errors/bindings": "universal",
       "./errors/catalog": "universal",
@@ -796,6 +800,26 @@
       "types": "./dist/contracts/site/ui-sections.d.ts",
       "import": "./dist/contracts/site/ui-sections.js",
       "default": "./dist/contracts/site/ui-sections.js"
+    },
+    "./contracts/site/admin-surfaces-connections": {
+      "types": "./dist/contracts/site/admin-surfaces-connections.d.ts",
+      "import": "./dist/contracts/site/admin-surfaces-connections.js",
+      "default": "./dist/contracts/site/admin-surfaces-connections.js"
+    },
+    "./contracts/site/api-connections-hosted-mcp": {
+      "types": "./dist/contracts/site/api-connections-hosted-mcp.d.ts",
+      "import": "./dist/contracts/site/api-connections-hosted-mcp.js",
+      "default": "./dist/contracts/site/api-connections-hosted-mcp.js"
+    },
+    "./contracts/site/media-providers-catalog": {
+      "types": "./dist/contracts/site/media-providers-catalog.d.ts",
+      "import": "./dist/contracts/site/media-providers-catalog.js",
+      "default": "./dist/contracts/site/media-providers-catalog.js"
+    },
+    "./contracts/site/core-custom-credential-categories": {
+      "types": "./dist/contracts/site/core-custom-credential-categories.d.ts",
+      "import": "./dist/contracts/site/core-custom-credential-categories.js",
+      "default": "./dist/contracts/site/core-custom-credential-categories.js"
     },
     "./errors/sentences": {
       "types": "./dist/errors/sentences.d.ts",
