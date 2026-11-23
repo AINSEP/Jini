@@ -27,10 +27,14 @@ export type InputParser<Input> = (raw: RouteInputContext) => Result<Input>;
 /** HTTP verbs a `JsonRouteSpec` can be mounted under. */
 export type HttpMethod = 'get' | 'post' | 'put' | 'delete' | 'patch';
 
+/** The optional scope of one authorization: a by-id route names the entity it acts on, so the
+ *  host's authorizer can decide per entity; list/import routes leave it out. */
+export interface JsonRouteAuthorizeScope { readonly entityId?: string }
+
 /** Explicit authorization remains at the route's chosen point, preserving validation precedence. */
 export type JsonRouteAuthorize = (
   requiredArgs: { readonly permission: string; readonly entityType: string },
-  optionalArgs?: Record<string, never>,
+  optionalArgs?: JsonRouteAuthorizeScope,
 ) => Promise<void>;
 
 /**
@@ -83,7 +87,7 @@ export interface RouteHostContext extends OriginContext {
 export interface JsonRoutePorts<Deps, Context = undefined> {
   readonly workspace?: (required: { readonly raw: RouteInputContext; readonly deps: Deps }) => void | Promise<void>;
   readonly authenticate?: (required: { readonly raw: RouteInputContext; readonly request: Request; readonly locals: Record<string, unknown>; readonly deps: Deps }) => Context | Promise<Context>;
-  readonly authorize?: (required: { readonly context: Context | undefined; readonly deps: Deps; readonly permission: string; readonly entityType: string }) => void | Promise<void>;
+  readonly authorize?: (required: { readonly context: Context | undefined; readonly deps: Deps; readonly permission: string; readonly entityType: string }, optional?: JsonRouteAuthorizeScope) => void | Promise<void>;
   /** Host error policy; returns the answer instead of writing it. */
   readonly onError?: (required: { readonly error: unknown; readonly request: Request }) => Response | Promise<Response>;
 }
@@ -221,9 +225,12 @@ function originRefusal<I, O, D, C>({ spec, request }: RouteCall<I, O, D, C>, { h
 // The route chooses where authorization occurs: reads may authorize before validation,
 // while writes must reject an inconsistent tenant target before asking for a permission.
 function makeAuthorize<I, O, D, C>({ spec, deps, context }: { readonly spec: JsonRouteSpec<I, O, D, C>; readonly deps: D; readonly context: C | undefined }): JsonRouteAuthorize {
-  return async ({ permission, entityType }) => {
+  // A by-id route's scope (`entityId`) reaches the host port; an id-free call reaches it with the
+  // required arguments alone, exactly as before scopes existed.
+  return async ({ permission, entityType }, scope) => {
     if (!spec.ports?.authorize) throw new Error('JSON route authorizer is required');
-    await spec.ports.authorize({ context, deps, permission, entityType });
+    const required = { context, deps, permission, entityType };
+    await (scope ? spec.ports.authorize(required, scope) : spec.ports.authorize(required));
   };
 }
 
