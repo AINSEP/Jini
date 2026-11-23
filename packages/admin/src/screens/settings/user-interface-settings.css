@@ -1,0 +1,9 @@
+/* Settings → User Interface (the host's `UserInterfaceSettingsPanel.tsx`, which imports this file): a label
+   and hint on the left, the switch on the right, the hint wrapping under the label at any width. */
+.jini-settings-interface-row {
+  display: flex; align-items: flex-start; justify-content: space-between; gap: var(--space-4);
+  padding: var(--space-3) 0;
+}
+.jini-settings-interface-text { min-width: 0; }
+.jini-settings-interface-label { font-weight: 600; color: var(--fg); }
+.jini-settings-interface-hint { margin: 4px 0 0; color: var(--muted); font-size: var(--text-sm, 0.875rem); }
