@@ -7,7 +7,7 @@ A − / field / + stepper for a small persisted whole number (a single-digit ran
 
 - **Needs injected:** `bounds: StepperBounds` (`{ min, max }`, product policy), `labels:
   NumberStepperLabels` (`decrease`, `increase`, `field`, `tip`), `labelledBy` (the row label's id),
-  `useNumberStepperHook` (REQUIRED — pass `useNumberStepper`), and a `NumberSetting`. Build that
+  `hooks.useNumberStepper` (REQUIRED — pass `{ useNumberStepper }`), and a `NumberSetting`. Build that
   setting with `useOptimisticNumberSetting({ value, setValue, write, bounds, saveError }, { onSaveFailure })`:
   `value`/`setValue` are the host's live view of the stored value, `write: NumberSettingWrite | undefined`
   is the persistence port (undefined = cannot save; the host leaves the control out), `saveError`
@@ -29,6 +29,6 @@ function useWorkers() {
   const write = api.saveWorkers && (({ next }) => api.saveWorkers({ count: next }));
   return useOptimisticNumberSetting({ value, setValue, write, bounds: BOUNDS, saveError: 'Could not save.' });
 }
-<NumberStepper setting={useWorkers()} bounds={BOUNDS} labelledBy="workers-label" useNumberStepperHook={useNumberStepper}
+<NumberStepper setting={useWorkers()} bounds={BOUNDS} labelledBy="workers-label" hooks={{ useNumberStepper }}
   labels={{ decrease: 'Fewer', increase: 'More', field: 'Workers', tip: 'More workers use more memory.' }} />
 ```

@@ -25,7 +25,8 @@ export interface NumberStepperProps {
   /** Id of the element that names the control (the row's visible label). */
   labelledBy: string;
   /** The host passes `useNumberStepper` (or a stand-in); the component never picks one itself. */
-  useNumberStepperHook: typeof useNumberStepper;
+  /** REQUIRED host-supplied hooks (owner rule: hooks reach a Jini component as props). */
+  hooks: { useNumberStepper: typeof useNumberStepper };
   classNames?: NumberStepperClassNames;
 }
 
@@ -38,8 +39,8 @@ const join = (own: string, host: string | undefined) => (host ? `${own} ${host}`
  * field is `:focus-visible`, which is what the `jini-tooltip` layer needs to show a tip after a touch
  * (a tapped button is not).
  */
-export function NumberStepper({ setting, bounds, labels, labelledBy, useNumberStepperHook, classNames = {} }: NumberStepperProps) {
-  const { draft, setDraft, value, save, onChange, onKeyDown } = useNumberStepperHook({ setting, bounds });
+export function NumberStepper({ setting, bounds, labels, labelledBy, hooks, classNames = {} }: NumberStepperProps) {
+  const { draft, setDraft, value, save, onChange, onKeyDown } = hooks.useNumberStepper({ setting, bounds });
   const tipId = `${labelledBy}-tip`;
   const stepClass = join("jini-number-stepper__step", classNames.step);
   return (

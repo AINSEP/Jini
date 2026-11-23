@@ -67,6 +67,7 @@
         "src/theme/stylesheet.ts",
         "src/theme/validation.ts",
         "src/theme/types.ts",
+        "src/theme/color-scheme.ts",
         "src/browser"
       ]
     },

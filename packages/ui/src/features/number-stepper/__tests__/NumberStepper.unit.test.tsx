@@ -12,7 +12,7 @@ const labels: NumberStepperLabels = { decrease: "Fewer things", increase: "More 
 function Harness({ initial, onSave, classNames }: { initial: number; onSave: (next: number) => void; classNames?: Parameters<typeof NumberStepper>[0]["classNames"] }) {
   const [value, setValue] = useState(initial);
   const setting: NumberSetting = { available: true, value, error: null, save: ({ next }) => { if (next === value) return; onSave(next); setValue(next); } };
-  return <><span id="things-label">Things</span><NumberStepper setting={setting} bounds={bounds} labels={labels} labelledBy="things-label" useNumberStepperHook={useNumberStepper} {...(classNames ? { classNames } : {})} /></>;
+  return <><span id="things-label">Things</span><NumberStepper setting={setting} bounds={bounds} labels={labels} labelledBy="things-label" hooks={{ useNumberStepper: useNumberStepper }} {...(classNames ? { classNames } : {})} /></>;
 }
 
 const field = () => screen.getByRole("spinbutton", { name: "Things" }) as HTMLInputElement;
