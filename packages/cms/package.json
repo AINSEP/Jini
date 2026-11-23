@@ -22,6 +22,14 @@
       "./publish/content/precheck-reasons": "universal",
       "./publish/content/publish-readiness": "universal",
       "./publish/content/report-contract": "universal",
+      "./publish/content/dialog": "universal",
+      "./publish/content/dialog/contract": "universal",
+      "./publish/content/dialog/criteria": "universal",
+      "./publish/content/dialog/phase": "universal",
+      "./publish/content/dialog/publish-order": "universal",
+      "./publish/content/dialog/replan": "universal",
+      "./publish/content/dialog/report-reasons": "universal",
+      "./publish/content/dialog/report-rows": "universal",
       "./publish/content/peer-url": "universal",
       "./publish/trust/grant": "universal",
       "./publish/trust/keys": "node",
@@ -354,6 +362,46 @@
       "types": "./dist/publish/content/report-contract.d.ts",
       "import": "./dist/publish/content/report-contract.js",
       "default": "./dist/publish/content/report-contract.js"
+    },
+    "./publish/content/dialog": {
+      "types": "./dist/publish/content/dialog/index.d.ts",
+      "import": "./dist/publish/content/dialog/index.js",
+      "default": "./dist/publish/content/dialog/index.js"
+    },
+    "./publish/content/dialog/contract": {
+      "types": "./dist/publish/content/dialog/contract.d.ts",
+      "import": "./dist/publish/content/dialog/contract.js",
+      "default": "./dist/publish/content/dialog/contract.js"
+    },
+    "./publish/content/dialog/criteria": {
+      "types": "./dist/publish/content/dialog/criteria.d.ts",
+      "import": "./dist/publish/content/dialog/criteria.js",
+      "default": "./dist/publish/content/dialog/criteria.js"
+    },
+    "./publish/content/dialog/phase": {
+      "types": "./dist/publish/content/dialog/phase.d.ts",
+      "import": "./dist/publish/content/dialog/phase.js",
+      "default": "./dist/publish/content/dialog/phase.js"
+    },
+    "./publish/content/dialog/publish-order": {
+      "types": "./dist/publish/content/dialog/publish-order.d.ts",
+      "import": "./dist/publish/content/dialog/publish-order.js",
+      "default": "./dist/publish/content/dialog/publish-order.js"
+    },
+    "./publish/content/dialog/replan": {
+      "types": "./dist/publish/content/dialog/replan.d.ts",
+      "import": "./dist/publish/content/dialog/replan.js",
+      "default": "./dist/publish/content/dialog/replan.js"
+    },
+    "./publish/content/dialog/report-reasons": {
+      "types": "./dist/publish/content/dialog/report-reasons.d.ts",
+      "import": "./dist/publish/content/dialog/report-reasons.js",
+      "default": "./dist/publish/content/dialog/report-reasons.js"
+    },
+    "./publish/content/dialog/report-rows": {
+      "types": "./dist/publish/content/dialog/report-rows.d.ts",
+      "import": "./dist/publish/content/dialog/report-rows.js",
+      "default": "./dist/publish/content/dialog/report-rows.js"
     },
     "./publish/content/peer-url": {
       "types": "./dist/publish/content/peer-url.d.ts",
