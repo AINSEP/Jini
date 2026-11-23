@@ -183,7 +183,14 @@
       "./admin-http/routes/system/publish-credentials/delete": "universal",
       "./admin-http/routes/system/publish-credentials/shared": "universal",
       "./admin-http/routes/system/deployment-overview": "universal",
-      "./admin-http/routes/system/export-site": "universal"
+      "./admin-http/routes/system/export-site": "universal",
+      "./admin-http/routes/system/mail-providers": "universal",
+      "./admin-http/routes/system/publish-site/status": "universal",
+      "./admin-http/routes/system/publish-site/targets": "universal",
+      "./admin-http/routes/system/publish-site/preview": "universal",
+      "./admin-http/routes/system/assistant-owner-grant": "universal",
+      "./admin-http/routes/system/assistant-permanent-deletes": "universal",
+      "./admin-http/routes/system/assistant-subagents": "universal"
     },
     "isolation": {
       "domains": {
@@ -1155,6 +1162,41 @@
       "types": "./dist/admin-http/routes/system/export-site.d.ts",
       "import": "./dist/admin-http/routes/system/export-site.js",
       "default": "./dist/admin-http/routes/system/export-site.js"
+    },
+    "./admin-http/routes/system/mail-providers": {
+      "types": "./dist/admin-http/routes/system/mail-providers.d.ts",
+      "import": "./dist/admin-http/routes/system/mail-providers.js",
+      "default": "./dist/admin-http/routes/system/mail-providers.js"
+    },
+    "./admin-http/routes/system/publish-site/status": {
+      "types": "./dist/admin-http/routes/system/publish-site/status.d.ts",
+      "import": "./dist/admin-http/routes/system/publish-site/status.js",
+      "default": "./dist/admin-http/routes/system/publish-site/status.js"
+    },
+    "./admin-http/routes/system/publish-site/targets": {
+      "types": "./dist/admin-http/routes/system/publish-site/targets.d.ts",
+      "import": "./dist/admin-http/routes/system/publish-site/targets.js",
+      "default": "./dist/admin-http/routes/system/publish-site/targets.js"
+    },
+    "./admin-http/routes/system/publish-site/preview": {
+      "types": "./dist/admin-http/routes/system/publish-site/preview.d.ts",
+      "import": "./dist/admin-http/routes/system/publish-site/preview.js",
+      "default": "./dist/admin-http/routes/system/publish-site/preview.js"
+    },
+    "./admin-http/routes/system/assistant-owner-grant": {
+      "types": "./dist/admin-http/routes/system/assistant-owner-grant.d.ts",
+      "import": "./dist/admin-http/routes/system/assistant-owner-grant.js",
+      "default": "./dist/admin-http/routes/system/assistant-owner-grant.js"
+    },
+    "./admin-http/routes/system/assistant-permanent-deletes": {
+      "types": "./dist/admin-http/routes/system/assistant-permanent-deletes.d.ts",
+      "import": "./dist/admin-http/routes/system/assistant-permanent-deletes.js",
+      "default": "./dist/admin-http/routes/system/assistant-permanent-deletes.js"
+    },
+    "./admin-http/routes/system/assistant-subagents": {
+      "types": "./dist/admin-http/routes/system/assistant-subagents.d.ts",
+      "import": "./dist/admin-http/routes/system/assistant-subagents.js",
+      "default": "./dist/admin-http/routes/system/assistant-subagents.js"
     }
   },
   "files": [

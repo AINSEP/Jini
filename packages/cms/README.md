@@ -198,6 +198,13 @@ project-key attach, `prepareInvalidation`, the after-save probe, the account-lab
 custom keys, `credentialKindOf(principal)`, `ownerPrincipalId()` and the Shared Keys copy. The publish list
 and custom list/update specs are tested but not yet mounted by Tovu (see its INFO.md).
 
+System deploy (`src/admin-http/routes/system/{deployment-overview,export-site}.ts`,
+`publish-site/{status,preview,targets}.ts`): every process-state read is an injected function —
+`buildSnapshot` and `defaultOwnerPassword` for the overview, `getRunSnapshot`/`startRun` (the host's single
+process-local export slot) for export, `getRunSnapshot`/`previewPublish`/`listTargets` for publish. The export
+trigger answers 202, refuses a second trigger with 409 `{ error, run }` and validates its body in `handle`
+(after auth and the running check) to keep the original order. Overview/export mount `direct`, publish `guarded`.
+
 Settings (`src/admin-http/routes/settings/{get-raw,get-effective,list-definitions,set,clear,reset,register-definitions}.ts`,
 `shared.ts`, `protected-namespaces.ts`): each body runs through `runSettingsRoute` in the order readiness
 (`settingsReady`), principal, protected-namespace write fence, body; each route's domain-error ladder is a

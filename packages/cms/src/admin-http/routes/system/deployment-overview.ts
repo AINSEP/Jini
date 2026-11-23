@@ -82,7 +82,7 @@ async function isOwnerOnDefaultPassword(deps: DeploymentOverviewRouteDeps, _opti
   const principalId = await deps.ownerPrincipalId;
   const owner = await deps.userRepo.findByPrincipalId({ workspaceId: deps.workspaceId, principalId });
   if (!owner) return false;
-  return deps.passwordHasher.verify({ hash: owner.passwordHash, password: '' });
+  return deps.passwordHasher.verify({ hash: owner.passwordHash, password: deps.defaultOwnerPassword });
 }
 
 /** `GET .../system/deployment-overview`: the live deployment snapshot.
