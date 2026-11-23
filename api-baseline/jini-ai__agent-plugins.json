@@ -945,13 +945,6 @@
    "createSurfaceForms": "function:3b2ed81311"
   }
  },
- "./site/descriptor-i18n": {
-  "types": "./dist/site/descriptor-i18n.d.ts",
-  "symbols": {
-   "DescriptorI18n": "type:82724553c3",
-   "parseDescriptorI18n": "function:e15a411868"
-  }
- },
  "./site/memory-i18n": {
   "types": "./dist/site/memory-i18n.d.ts",
   "symbols": {

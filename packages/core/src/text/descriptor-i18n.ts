@@ -8,7 +8,10 @@
  * is harmless (never shown), so a reworded English string only loses its translation, never the host.
  *
  * Shared by every descriptor parser that has person-facing text (deploy targets,
- * `@jini-ai/devops/deploy`'s `parseDeployTargetsFile`; a host's own descriptor parsers).
+ * `@jini-ai/devops/deploy`'s `parseDeployTargetsFile`; a host's own descriptor parsers such as its
+ * deploy-target registry and its source-control (git host) provider registry). Those host parsers
+ * import this module directly: a per-package forwarding wrapper with the same `{ value, at }`
+ * signature would add a second public entry for one implementation.
  */
 
 /** Locale → English source text → translation. */

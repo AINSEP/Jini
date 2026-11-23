@@ -106,7 +106,6 @@
       "./admin-surfaces/node": "node",
       "./site/admin-surfaces/capabilities": "universal",
       "./site/admin-surfaces/forms": "universal",
-      "./site/descriptor-i18n": "universal",
       "./site/memory-i18n": "universal"
     },
     "isolation": {
@@ -303,11 +302,6 @@
       "types": "./dist/site/admin-surfaces/forms.d.ts",
       "import": "./dist/site/admin-surfaces/forms.js",
       "default": "./dist/site/admin-surfaces/forms.js"
-    },
-    "./site/descriptor-i18n": {
-      "types": "./dist/site/descriptor-i18n.d.ts",
-      "import": "./dist/site/descriptor-i18n.js",
-      "default": "./dist/site/descriptor-i18n.js"
     },
     "./site/memory-i18n": {
       "types": "./dist/site/memory-i18n.d.ts",
