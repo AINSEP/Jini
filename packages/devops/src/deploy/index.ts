@@ -20,3 +20,7 @@ export * from './ops-secrets.js';
 export * from './ops-secret-card.js';
 export * from './ops-tools.js';
 export * from './ops-registry.js';
+export * from './site-update/contracts.js';
+export * from './site-update/check-for-update.js';
+export * from './site-update/run-site-update.js';
+export * from './site-update/fake-site-update.js';
