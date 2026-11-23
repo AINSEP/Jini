@@ -773,6 +773,31 @@
    "usePlaygroundPorts": "function:e0df555889"
   }
  },
+ "./posts/editor/notices/PostAutosaveRecoveryBanner": {
+  "types": "./dist/posts/editor/notices/PostAutosaveRecoveryBanner.d.ts",
+  "symbols": {
+   "PostAutosaveRecoveryBanner": "function:ee56d6aee3"
+  }
+ },
+ "./posts/editor/notices/PostAutosaveStaleBanner": {
+  "types": "./dist/posts/editor/notices/PostAutosaveStaleBanner.d.ts",
+  "symbols": {
+   "PostAutosaveStaleBanner": "function:571237915b"
+  }
+ },
+ "./posts/editor/notices/PostVersionConflictBanner": {
+  "types": "./dist/posts/editor/notices/PostVersionConflictBanner.d.ts",
+  "symbols": {
+   "PostVersionConflictBanner": "function:707494eb10"
+  }
+ },
+ "./posts/editor/toolbar/ToolbarOverflowMenu": {
+  "types": "./dist/posts/editor/toolbar/ToolbarOverflowMenu.d.ts",
+  "symbols": {
+   "ToolbarOverflowMenu": "function:c55e693c15",
+   "ToolbarOverflowState": "interface:6480d21a29"
+  }
+ },
  "./posts/PostAuthorFields": {
   "types": "./dist/posts/PostAuthorFields.d.ts",
   "symbols": {
@@ -1226,6 +1251,13 @@
    "useImportRedirectsForm": "function:0a90591982",
    "useRedirects": "function:373d076313",
    "useRedirectsPorts": "function:7814d9eb73"
+  }
+ },
+ "./screens/media/hooks/use-edit-media-modal.hooks": {
+  "types": "./dist/screens/media/hooks/use-edit-media-modal.hooks.d.ts",
+  "symbols": {
+   "EditMediaModalController": "interface:32287e08c0",
+   "useEditMediaModal": "function:77bc12dd3a"
   }
  },
  "./security": {
@@ -2051,38 +2083,6 @@
    "useWidgetsOptions": "function:c4075eb9d5",
    "useWidgetsPorts": "function:262f4fd604",
    "widgets": "function:2f5403fc99"
-  }
- },
- "./screens/media/hooks/use-edit-media-modal.hooks": {
-  "types": "./dist/screens/media/hooks/use-edit-media-modal.hooks.d.ts",
-  "symbols": {
-   "EditMediaModalController": "interface:32287e08c0",
-   "useEditMediaModal": "function:77bc12dd3a"
-  }
- },
- "./posts/editor/notices/PostAutosaveRecoveryBanner": {
-  "types": "./dist/posts/editor/notices/PostAutosaveRecoveryBanner.d.ts",
-  "symbols": {
-   "PostAutosaveRecoveryBanner": "function:ee56d6aee3"
-  }
- },
- "./posts/editor/notices/PostAutosaveStaleBanner": {
-  "types": "./dist/posts/editor/notices/PostAutosaveStaleBanner.d.ts",
-  "symbols": {
-   "PostAutosaveStaleBanner": "function:571237915b"
-  }
- },
- "./posts/editor/notices/PostVersionConflictBanner": {
-  "types": "./dist/posts/editor/notices/PostVersionConflictBanner.d.ts",
-  "symbols": {
-   "PostVersionConflictBanner": "function:707494eb10"
-  }
- },
- "./posts/editor/toolbar/ToolbarOverflowMenu": {
-  "types": "./dist/posts/editor/toolbar/ToolbarOverflowMenu.d.ts",
-  "symbols": {
-   "ToolbarOverflowMenu": "function:c55e693c15",
-   "ToolbarOverflowState": "interface:6480d21a29"
   }
  }
 }
