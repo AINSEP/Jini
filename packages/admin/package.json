@@ -196,7 +196,14 @@
       "./screens/consent/consent-i18n": "universal",
       "./screens/consent/rules": "universal",
       "./screens/consent/settings.hooks": "universal",
-      "./screens/consent/consent-settings.css": "browser"
+      "./screens/consent/consent-settings.css": "browser",
+      "./screens/settings/settings-i18n": "universal",
+      "./screens/settings/settings-interface-i18n": "universal",
+      "./screens/settings/settings-memory-i18n": "universal",
+      "./screens/settings/UserInterfaceSettingsPanel.hooks": "universal",
+      "./screens/settings/hooks/use-settings-locale-sync.hooks": "browser",
+      "./screens/settings/ExternalMcpSharedChoice": "browser",
+      "./screens/settings/ExternalMcpSharedChoice.hooks": "browser"
     },
     "isolation": {
       "shared": [
@@ -1193,7 +1200,42 @@
       "import": "./dist/screens/consent/settings.hooks.js",
       "default": "./dist/screens/consent/settings.hooks.js"
     },
-    "./screens/consent/consent-settings.css": "./src/screens/consent/consent-settings.css"
+    "./screens/consent/consent-settings.css": "./src/screens/consent/consent-settings.css",
+    "./screens/settings/settings-i18n": {
+      "types": "./dist/screens/settings/settings-i18n.d.ts",
+      "import": "./dist/screens/settings/settings-i18n.js",
+      "default": "./dist/screens/settings/settings-i18n.js"
+    },
+    "./screens/settings/settings-interface-i18n": {
+      "types": "./dist/screens/settings/settings-interface-i18n.d.ts",
+      "import": "./dist/screens/settings/settings-interface-i18n.js",
+      "default": "./dist/screens/settings/settings-interface-i18n.js"
+    },
+    "./screens/settings/settings-memory-i18n": {
+      "types": "./dist/screens/settings/settings-memory-i18n.d.ts",
+      "import": "./dist/screens/settings/settings-memory-i18n.js",
+      "default": "./dist/screens/settings/settings-memory-i18n.js"
+    },
+    "./screens/settings/UserInterfaceSettingsPanel.hooks": {
+      "types": "./dist/screens/settings/UserInterfaceSettingsPanel.hooks.d.ts",
+      "import": "./dist/screens/settings/UserInterfaceSettingsPanel.hooks.js",
+      "default": "./dist/screens/settings/UserInterfaceSettingsPanel.hooks.js"
+    },
+    "./screens/settings/hooks/use-settings-locale-sync.hooks": {
+      "types": "./dist/screens/settings/hooks/use-settings-locale-sync.hooks.d.ts",
+      "import": "./dist/screens/settings/hooks/use-settings-locale-sync.hooks.js",
+      "default": "./dist/screens/settings/hooks/use-settings-locale-sync.hooks.js"
+    },
+    "./screens/settings/ExternalMcpSharedChoice": {
+      "types": "./dist/screens/settings/ExternalMcpSharedChoice.d.ts",
+      "import": "./dist/screens/settings/ExternalMcpSharedChoice.js",
+      "default": "./dist/screens/settings/ExternalMcpSharedChoice.js"
+    },
+    "./screens/settings/ExternalMcpSharedChoice.hooks": {
+      "types": "./dist/screens/settings/ExternalMcpSharedChoice.hooks.d.ts",
+      "import": "./dist/screens/settings/ExternalMcpSharedChoice.hooks.js",
+      "default": "./dist/screens/settings/ExternalMcpSharedChoice.hooks.js"
+    }
   },
   "files": [
     "src/themes",
@@ -1320,6 +1362,27 @@
       ],
       "screens/consent/settings.hooks": [
         "./dist/screens/consent/settings.hooks.d.ts"
+      ],
+      "screens/settings/settings-i18n": [
+        "./dist/screens/settings/settings-i18n.d.ts"
+      ],
+      "screens/settings/settings-interface-i18n": [
+        "./dist/screens/settings/settings-interface-i18n.d.ts"
+      ],
+      "screens/settings/settings-memory-i18n": [
+        "./dist/screens/settings/settings-memory-i18n.d.ts"
+      ],
+      "screens/settings/UserInterfaceSettingsPanel.hooks": [
+        "./dist/screens/settings/UserInterfaceSettingsPanel.hooks.d.ts"
+      ],
+      "screens/settings/hooks/use-settings-locale-sync.hooks": [
+        "./dist/screens/settings/hooks/use-settings-locale-sync.hooks.d.ts"
+      ],
+      "screens/settings/ExternalMcpSharedChoice": [
+        "./dist/screens/settings/ExternalMcpSharedChoice.d.ts"
+      ],
+      "screens/settings/ExternalMcpSharedChoice.hooks": [
+        "./dist/screens/settings/ExternalMcpSharedChoice.hooks.d.ts"
       ]
     }
   },
