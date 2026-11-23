@@ -1,4 +1,4 @@
-import type { ProcessPrivateMemory } from "./process.js";
+import type { ProcessPrivateMemory } from "@jini-ai/core/contracts/site/platform-process";
 
 /** top uses binary K/M/G and may append a change marker. Invalid/unsafe values stay unknown. O(1). */
 function topBytes({ text }: { text: string }, _options = {}): number | null {

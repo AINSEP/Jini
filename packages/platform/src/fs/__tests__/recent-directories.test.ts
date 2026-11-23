@@ -1,5 +1,6 @@
 import { expect, test, vi } from "vitest";
-import { readRecentDirectories, rememberRecentDirectory, type DurableJsonFile, type JsonFileRead } from "../index.js";
+import { readRecentDirectories, rememberRecentDirectory, type DurableJsonFile } from "../index.js";
+import type { JsonFileRead } from "@jini-ai/core/contracts/site/fs-durable-json";
 
 const field = "folders";
 const notice = { label: "recent directories", consequence: "the previous list remains in the copy" };
