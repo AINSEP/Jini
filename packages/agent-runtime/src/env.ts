@@ -2,12 +2,12 @@
  * @module env
  * Build proxy-aware spawn environment from inherited and per-agent configured values. Disable
  * OpenCode/MiMo project-config discovery so an automatic install cannot corrupt the host workspace.
- * The host-injected `ProxyEnvPort` owns system proxy discovery and proxy merging. Host-specific profile forwarding, analytics
+ * The shared platform helpers own proxy merging. Host-specific profile forwarding, analytics
  * identity and trace correlation enter through perAgentEnv; sandbox wiring enters through
  * sandboxOverlay. The engine must not import a product's config/sandbox subsystems or env names.
  */
 import os from 'node:os';
-import type { ProxyEnvPort } from './host-ports.js';
+import { mergeProxyAwareEnv, resolveSystemProxyEnv } from '@jini-ai/platform/proxy-env';
 import { expandConfiguredEnv } from './paths.js';
 import { resolveAmrOpenCodeExecutable } from './executables.js';
 
@@ -93,13 +93,10 @@ function applyAgentHousekeeping({ env, agentId }: { env: NodeJS.ProcessEnv; agen
   }
 }
 
-/** Compose one agent's spawn env. `proxyEnv` is the host's proxy port (system lookup and merge);
- * an explicit `systemProxyEnv` skips the lookup. */
-export function spawnEnvForAgent({ agentId, baseEnv, proxyEnv }: { agentId: string; baseEnv: RuntimeEnvMap; proxyEnv: ProxyEnvPort }, { configuredEnv = {}, systemProxyEnv, hooks = {} }: { configuredEnv?: unknown; systemProxyEnv?: RuntimeEnvMap; hooks?: SpawnEnvHooks } = {}
+export function spawnEnvForAgent({ agentId, baseEnv }: { agentId: string; baseEnv: RuntimeEnvMap }, { configuredEnv = {}, systemProxyEnv = resolveSystemProxyEnv(), hooks = {} }: { configuredEnv?: unknown; systemProxyEnv?: RuntimeEnvMap; hooks?: SpawnEnvHooks } = {}
 ): NodeJS.ProcessEnv {
   const expandedConfiguredEnv = expandConfiguredEnv({ configuredEnv: configuredEnv });
-  const env = proxyEnv.mergeProxyAwareEnv({ platform: process.platform,
-    sources: [systemProxyEnv ?? proxyEnv.resolveSystemProxyEnv(), baseEnv, expandedConfiguredEnv] });
+  const env = mergeProxyAwareEnv({ platform: process.platform, sources: [systemProxyEnv, baseEnv, expandedConfiguredEnv] });
 
   applyAgentHousekeeping({ env, agentId });
 

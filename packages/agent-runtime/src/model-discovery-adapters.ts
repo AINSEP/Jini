@@ -14,7 +14,6 @@ import { probeDroidSdk } from './model-discovery-sdk.js';
 import { parseSettingsJson, readModelConfiguration } from './model-discovery-config.js';
 import { ModelProbeError, modelIdentityKind, withModelProbeTimeout } from './core/model-discovery-shared.js';
 import type { AgentDiscoveryConfiguration } from './model-discovery-types.js';
-import type { ProviderCatalogImport, ProviderCatalogVendor } from './host-ports.js';
 import type {
   DiscoveredModel,
   ModelDiscoveryContext,
@@ -310,27 +309,29 @@ function runProcess(input: Parameters<ModelDiscoveryDeps['process']['run']>[0]):
     child.stdin?.end(input.stdin);
   }) }, { signal: input.signal });
 }
-/** Resolve a vendor's default base URL through the host's lazy catalog loader
- * (`AgentRuntimeHostPorts.providerCatalog`), so importing the runtime never loads the catalog owner.
+/** Load the catalog owner only for a default URL, so importing the runtime never needs this peer.
  * @param required - The vendor whose default endpoint is needed.
  * @returns The catalog-owned base URL; explicit host URLs bypass this lookup.
- * @throws An actionable error when no loader is injected or the loader fails; the failure is its cause.
- * @complexity O(1) lookup after the host's cached load.
+ * @throws An actionable load error retaining the original import failure as its cause.
+ * @complexity O(1) lookup after Node's cached module load.
  */
+type ProviderCatalogModule = typeof import('@jini-ai/integrations/media-providers/catalog');
+/** The module-loading port for the optional catalog peer; Node's dynamic import by default. */
+export type ProviderCatalogImport = () => Promise<{ readonly VENDOR_API_BASE_URLS: Readonly<Record<keyof ProviderCatalogModule['VENDOR_API_BASE_URLS'], string>> }>;
+const importProviderCatalog: ProviderCatalogImport = () => import('@jini-ai/integrations/media-providers/catalog');
 async function defaultProviderBaseUrl(
-  { provider }: { provider: ProviderCatalogVendor },
-  { importCatalog }: { importCatalog?: ProviderCatalogImport } = {},
+  { provider }: { provider: keyof ProviderCatalogModule['VENDOR_API_BASE_URLS'] },
+  { importCatalog = importProviderCatalog }: { importCatalog?: ProviderCatalogImport } = {},
 ): Promise<string> {
   try {
-    if (!importCatalog) throw new Error('No provider catalog loader was injected.');
     const { VENDOR_API_BASE_URLS } = await importCatalog();
     return VENDOR_API_BASE_URLS[provider];
   } catch (cause) {
-    throw new Error('Could not load the provider catalog. Pass AgentRuntimeHostPorts.providerCatalog to createNativeAgentRuntime or inject ModelDiscoveryDeps.credential to discover models with default provider URLs.', { cause });
+    throw new Error('Could not load @jini-ai/integrations/media-providers/catalog. Install the optional peer @jini-ai/integrations or inject ModelDiscoveryDeps.credential to discover models with default provider URLs.', { cause });
   }
 }
 
-type ProviderName = ProviderCatalogVendor;
+type ProviderName = keyof typeof import('@jini-ai/integrations/media-providers/catalog').VENDOR_API_BASE_URLS;
 type EnvConnection = {
   protocol: ProviderModelsInput['protocol']; provider: ProviderName; key: string;
   matches(selected: string, agentId: string, env: ModelDiscoveryContext['env']): boolean;
@@ -345,18 +346,18 @@ const ENV_CONNECTIONS: readonly EnvConnection[] = [
     matches: (selected, agentId, env) => /^(openai\/|gpt-|o\d)/.test(selected) || agentId === 'qwen' && Boolean(env.OPENAI_MODEL || env.OPENAI_BASE_URL),
     baseUrl: (env) => env.OPENAI_BASE_URL || env.OPENAI_API_BASE },
 ];
-async function envConnection(rule: EnvConnection, env: ModelDiscoveryContext['env'], importCatalog: ProviderCatalogImport | undefined): Promise<ProviderModelsInput> {
-  return { protocol: rule.protocol, baseUrl: rule.baseUrl(env) || await defaultProviderBaseUrl({ provider: rule.provider }, importCatalog ? { importCatalog } : {}), apiKey: env[rule.key]! };
+async function envConnection(rule: EnvConnection, env: ModelDiscoveryContext['env'], importCatalog: ProviderCatalogImport): Promise<ProviderModelsInput> {
+  return { protocol: rule.protocol, baseUrl: rule.baseUrl(env) || await defaultProviderBaseUrl({ provider: rule.provider }, { importCatalog }), apiKey: env[rule.key]! };
 }
 function selectedModelFromEnv(agentId: string, env: ModelDiscoveryContext['env']): string | undefined {
   if (agentId === 'aider') return env.AIDER_MODEL;
   return agentId === 'qwen' ? env.QWEN_MODEL || env.OPENAI_MODEL : undefined;
 }
-/** The env-backed credential port. `importCatalog` is the host's lazy provider-catalog loader for
- * default base URLs; without it only explicit `*_BASE_URL` env values resolve. */
+/** The env-backed credential port. `importCatalog` loads the optional provider-catalog peer for
+ * default base URLs; injectable so a missing peer is testable without uninstalling it. */
 export function createEnvCredentialPort(
   _required: Record<string, never> = {},
-  { importCatalog }: { importCatalog?: ProviderCatalogImport } = {},
+  { importCatalog = importProviderCatalog }: { importCatalog?: ProviderCatalogImport } = {},
 ): ModelDiscoveryDeps['credential'] {
   return { async connection({ agentId, context }) {
     // Deliberately do not steal tokens from another CLI's store. Hosts can inject keychain/OAuth
@@ -431,10 +432,8 @@ export function parsePiRpcMetadata({ stdout }: { stdout: string }, _optional: Re
 /** Stable dependency identity preserves the existing per-host single-probe budget as well as its cache. */
 export function getRuntimeModelDiscoveryDeps({ state }: { state: AgentRuntimeState }, _optional: Record<string, never> = {}): ModelDiscoveryDeps {
   if (state === defaultRuntimeState) return defaultModelDiscoveryDeps;
-  const importCatalog = state.hostPorts?.providerCatalog;
   state.discoveryDeps ??= { ...defaultModelDiscoveryDeps, cache: state.modelCatalog,
     acp: createAcpDiscoveryAdapter({ probe: state.acpModelProbe ?? nativeAcpModelProbe }),
-    ...(importCatalog ? { credential: createEnvCredentialPort({}, { importCatalog }) } : {}),
   };
   return state.discoveryDeps;
 }

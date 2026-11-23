@@ -23,7 +23,7 @@ it('retains cumulative session snapshots through a real SQLite close/reopen and 
   let db = new Database(path);
   try {
     ensureChatHistoryTables({ db });
-    const original = createChatHistoryStore({ db, sqliteKernel, scope, clock: testClock });
+    const original = createChatHistoryStore({ db, scope, clock: testClock });
     await original.create({ id: 'c' });
     for (const [id, cumulativeCostUsd] of [['a', 2.05], ['b', 2.5]] as const) {
       await original.appendMessage({ conversationId: 'c', message: { id, role: 'assistant', content: id, agentId: 'claude',

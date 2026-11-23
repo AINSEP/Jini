@@ -1,12 +1,10 @@
 import { chmodSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
-import { createEnvCredentialPort, defaultModelDiscoveryDeps, getRuntimeModelDiscoveryDeps, modelProbeTimeoutMs, parseClaudeInitializeMetadata, parsePiRpcMetadata, probeAgentCatalog, probeClaudeInitialize, probeCliCache, probeCliSubcommand, probeProviderApi } from '../model-discovery-adapters.js';
+import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { createEnvCredentialPort, defaultModelDiscoveryDeps, modelProbeTimeoutMs, parseClaudeInitializeMetadata, parsePiRpcMetadata, probeAgentCatalog, probeClaudeInitialize, probeCliCache, probeCliSubcommand, probeProviderApi } from '../model-discovery-adapters.js';
 import { ModelProbeError } from '../model-discovery-shared.js';
 import type { AgentDiscoveryConfiguration } from '../model-discovery-types.js';
-import { createAgentRuntimeState } from '../runtime-state.js';
-import { passthroughProxyEnv } from '../host-ports.js';
 import type {
   ModelDiscoveryContext,
   ModelDiscoveryDeps,
@@ -278,12 +276,8 @@ describe('probeAgentCatalog for AMR', () => {
 });
 
 describe('default credential connection', () => {
-  // The host-wired port: a lazy catalog loader as `AgentRuntimeHostPorts.providerCatalog` supplies it.
-  const credential = createEnvCredentialPort({}, { importCatalog: async () => ({ VENDOR_API_BASE_URLS: {
-    anthropic: 'https://anthropic.catalog.example', google: 'https://google.catalog.example',
-    openrouter: 'https://openrouter.catalog.example', openai: 'https://openai.catalog.example' } }) });
   const connect = (agentId: string, env: Record<string, string>, model?: string) =>
-    credential.connection({ agentId, context: { ...context, env, ...(model ? { model } : {}) }, signal });
+    defaultModelDiscoveryDeps.credential.connection({ agentId, context: { ...context, env, ...(model ? { model } : {}) }, signal });
   it('uses the Anthropic key for Claude regardless of the selected model', async () => {
     expect(await connect('claude', { ANTHROPIC_API_KEY: 'a', ANTHROPIC_BASE_URL: 'https://a.example' })).toEqual({ protocol: 'anthropic', baseUrl: 'https://a.example', apiKey: 'a' });
   });
@@ -459,28 +453,15 @@ describe('env credential port default base URLs', () => {
   const key = ['sk', 'ant', 'env', 'fixture'].join('-');
   const claude = { agentId: 'claude', context: { executable: '/cli', cwd: '/w', env: { ANTHROPIC_API_KEY: key } }, signal };
   it('takes the default base URL from the injected provider catalog', async () => {
-    const VENDOR_API_BASE_URLS = { anthropic: 'https://catalog.example/anthropic', google: 'https://catalog.example/google', openrouter: 'https://catalog.example/openrouter', openai: 'https://catalog.example/openai' };
-    const port = createEnvCredentialPort({}, { importCatalog: async () => ({ VENDOR_API_BASE_URLS }) });
+    const { VENDOR_API_BASE_URLS } = await import('@jini-ai/integrations/media-providers/catalog');
+    const port = createEnvCredentialPort({}, { importCatalog: async () => ({ VENDOR_API_BASE_URLS: { ...VENDOR_API_BASE_URLS, anthropic: 'https://catalog.example/anthropic' } }) });
     expect(await port.connection(claude)).toEqual({ protocol: 'anthropic', baseUrl: 'https://catalog.example/anthropic', apiKey: key });
   });
-  it('binds the host port\'s lazy catalog loader into a host state\'s discovery deps, loading it only on demand', async () => {
-    const state = createAgentRuntimeState({});
-    const providerCatalog = vi.fn(async () => ({ VENDOR_API_BASE_URLS: { anthropic: 'https://host.example/anthropic', google: '', openrouter: '', openai: '' } }));
-    state.hostPorts = { toolchainBins: () => [], proxyEnv: passthroughProxyEnv, providerCatalog };
-    const deps = getRuntimeModelDiscoveryDeps({ state });
-    expect(providerCatalog).not.toHaveBeenCalled();
-    expect(await deps.credential.connection(claude)).toEqual({ protocol: 'anthropic', baseUrl: 'https://host.example/anthropic', apiKey: key });
-    expect(providerCatalog).toHaveBeenCalledTimes(1);
-  });
-  it('refuses a default base URL with an actionable error when no catalog loader is injected', async () => {
-    const error = await createEnvCredentialPort({}).connection(claude).catch((caught: unknown) => caught);
-    expect(error).toMatchObject({ message: expect.stringContaining('Pass AgentRuntimeHostPorts.providerCatalog to createNativeAgentRuntime or inject ModelDiscoveryDeps.credential') });
-  });
-  it('explains how to fix a failing catalog loader, keeping the load failure as the cause', async () => {
+  it('explains how to fix a missing optional catalog peer, keeping the load failure as the cause', async () => {
     const missing = new Error('Cannot find module');
     const port = createEnvCredentialPort({}, { importCatalog: async () => { throw missing; } });
     const error = await port.connection(claude).catch((caught: unknown) => caught);
-    expect(error).toMatchObject({ message: expect.stringContaining('or inject ModelDiscoveryDeps.credential') });
+    expect(error).toMatchObject({ message: expect.stringContaining('Install the optional peer @jini-ai/integrations or inject ModelDiscoveryDeps.credential') });
     expect((error as Error).cause).toBe(missing);
   });
 });

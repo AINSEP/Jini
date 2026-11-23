@@ -1,6 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
 import { spawnEnvForAgent } from '../env.js';
-import { passthroughProxyEnv } from '../host-ports.js';
 import { modelCatalogCacheKey } from '../model-registry.js';
 import { validateBaseUrlResolved } from '../providers/connection-guard.js';
 
@@ -10,7 +9,7 @@ describe('runtime contradiction regressions', () => {
     const identityKey = `${prefix}_PID`;
     const discoveryKey = `${prefix}_DISABLE_PROJECT_CONFIG`;
     const stages: string[] = [];
-    const env = spawnEnvForAgent({ agentId, baseEnv: { [identityKey]: 'inherited' }, proxyEnv: passthroughProxyEnv }, {
+    const env = spawnEnvForAgent({ agentId, baseEnv: { [identityKey]: 'inherited' } }, {
       systemProxyEnv: {},
       hooks: {
         perAgentEnv: ({ env: liveEnv }) => {

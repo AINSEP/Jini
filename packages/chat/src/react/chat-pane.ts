@@ -41,7 +41,6 @@ export type {
   ChatPaneAgentControlOptions,
   ChatPaneAgentOption,
   ChatPaneAgentSelection,
-  ChatPaneNativeToolPolicy,
   ChatPaneAgentToolAction,
   ChatPaneAgentToolDef,
   ChatPaneAgentToolInputSchema,

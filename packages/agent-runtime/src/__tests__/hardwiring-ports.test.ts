@@ -1,7 +1,7 @@
 import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { expect, it, vi } from 'vitest';
+import { expect, it } from 'vitest';
 import { createAgentRuntimeState } from '../runtime-state.js';
 import { bindRuntimeAgentDef } from '../runtime-def-binding.js';
 import { getRememberedLiveModels, isKnownModel, rememberLiveModels, resolveModelForAgent } from '../models.js';
@@ -11,7 +11,6 @@ import { configureExecutableResolutionEnv, userToolchainBinDirs } from '../execu
 import { buildExecutableDiagnostic } from '../diagnostics.js';
 import { getAgentDef } from '../registry.js';
 import { getRuntimeModelDiscoveryDeps } from '../model-discovery-adapters.js';
-import { passthroughProxyEnv } from '../host-ports.js';
 
 // hwb #14: identical agent/scope/binary values belong to different host instances.
 it('isolates remembered models, launch selection, and model-catalog caches', () => {
@@ -59,10 +58,6 @@ it('keeps executable configuration and toolchain caches per host', async () => {
   const dir = await mkdtemp(join(tmpdir(), 'hwb-toolchain-'));
   try {
     const a = createAgentRuntimeState({}); const b = createAgentRuntimeState({});
-    // The host injects the toolchain lookup; the runtime only scopes and caches it per state.
-    const toolchainBins = vi.fn(({ home }: { home: string }) => [join(home, '.local', 'bin')]);
-    const hostPorts = { toolchainBins, proxyEnv: passthroughProxyEnv };
-    a.hostPorts = hostPorts; b.hostPorts = hostPorts;
     configureExecutableResolutionEnv({ overrides: { agentHomeEnvVar: 'HOST_A_HOME' } }, { state: a });
     configureExecutableResolutionEnv({ overrides: { agentHomeEnvVar: 'HOST_B_HOME' } }, { state: b });
     const env = { HOST_A_HOME: join(dir, 'a'), HOST_B_HOME: join(dir, 'b') };
@@ -74,7 +69,6 @@ it('keeps executable configuration and toolchain caches per host', async () => {
     expect(first).not.toContain(join(dir, 'b', '.local', 'bin'));
     expect(userToolchainBinDirs({}, { state: a, env })).toBe(first);
     expect(a.executable.toolchainDirs).not.toBe(b.executable.toolchainDirs);
-    expect(toolchainBins).toHaveBeenCalledWith({ home: join(dir, 'a'), includeSystemBins: false, env: {} });
   } finally { await rm(dir, { recursive: true, force: true }); }
 });
 
