@@ -3,8 +3,7 @@
 The post/page record and the storage-free helpers around it: the record shape and its errors
 (`post.ts`), field normalisation (`post-write-fields.ts`), the optimistic-concurrency parser
 (`expected-version.ts`), the model-facing error rules (`post-tool-errors.ts`), plain-text search
-documents and the in-JS search fallback (`search.ts`), featured-image resolution
-(`featured-image.ts`), the scheduled go-live sweep (`go-live-sweep.ts`), slugs (`slug.ts`) and the
+documents and the in-JS search fallback (`search.ts`), the scheduled go-live sweep (`go-live-sweep.ts`), slugs (`slug.ts`) and the
 before-save hook seam (`post-before-save.ts`). Each is its own `@jini-ai/cms/posts/<name>` subpath.
 
 ## Wiring
@@ -18,5 +17,4 @@ What the host injects:
 - **Go-live sweep** — `startPostGoLiveSweep` takes `deps` (repo-backed `GoLiveCandidatesPort`, outbox,
   clock) and `workspaceId`; optional `tracker` (a core `Tracker`) and `timers` (for tests). The host
   starts it in the serving process and stops it on shutdown.
-- **Featured image** — `FeaturedImageDeps` carries the host's media repo and content-type store.
 - **Clock** — write paths take an optional `Clock`; absent means wall time.

@@ -2,7 +2,7 @@ import type { UUID } from "@jini-ai/core/primitives";
 import { PostValidationError } from "./post.js";
 import type { PostKind } from "@jini-ai/core/contracts/site/post-kind";
 import type { PostStatus } from "../core/index.js";
-import { extractPlainTextFromHtml } from "../seo/index.js";
+import { extractPlainTextFromHtml } from "../seo/html-plain-text.js";
 
 /**
  * @file Ranked full-text search over Posts + Pages — the domain half (contract, input rules, and

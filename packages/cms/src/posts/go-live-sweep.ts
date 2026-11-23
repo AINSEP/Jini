@@ -3,7 +3,7 @@ import type { Tracker } from "@jini-ai/core/contracts/site/diagnostics-observabi
 import type { Clock as ClockPort } from "@jini-ai/core/primitives";
 import { nowIso as clockNowIso } from "@jini-ai/core/primitives";
 
-import { announceDueGoLives, type GoLiveCandidatesPort } from "../entries/index.js";
+import { announceDueGoLives, type GoLiveCandidatesPort } from "../entries/go-live.js";
 
 /**
  * @file The go-live sweep's host scheduling (split from `go-live.ts`, 2026-11-18): an interval

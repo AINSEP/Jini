@@ -82,7 +82,6 @@
       "./html/site/source-edits": "node",
       "./posts/post-before-save": "universal",
       "./posts/slug": "universal",
-      "./posts/featured-image": "universal",
       "./posts/post-tool-errors": "universal",
       "./posts/search": "universal",
       "./posts/post-write-fields": "universal",
@@ -208,6 +207,8 @@
       "./media/site/analytics": "universal",
       "./media/site/contracts": "universal",
       "./media/site/view-image-tool": "universal",
+      "./media/site/duplicate-asset": "universal",
+      "./media/site-import/agent-tools": "universal",
       "./media/site-generation/agent-tools": "universal",
       "./media/site/provider-credential-contracts": "universal",
       "./admin-http/routes/media/get-providers": "universal",
@@ -353,6 +354,8 @@
         ]
       },
       "shared": [
+        "src/seo/html-plain-text.ts",
+        "src/entries/go-live.ts",
         "src/widgets/markers/marker.ts",
         "src/navigation/href.ts",
         "src/media/cover-image.ts",
@@ -802,11 +805,6 @@
       "types": "./dist/posts/slug.d.ts",
       "import": "./dist/posts/slug.js",
       "default": "./dist/posts/slug.js"
-    },
-    "./posts/featured-image": {
-      "types": "./dist/posts/featured-image.d.ts",
-      "import": "./dist/posts/featured-image.js",
-      "default": "./dist/posts/featured-image.js"
     },
     "./posts/post-tool-errors": {
       "types": "./dist/posts/post-tool-errors.d.ts",
@@ -1422,6 +1420,16 @@
       "types": "./dist/media/site/view-image-tool.d.ts",
       "import": "./dist/media/site/view-image-tool.js",
       "default": "./dist/media/site/view-image-tool.js"
+    },
+    "./media/site/duplicate-asset": {
+      "types": "./dist/media/site/duplicate-asset.d.ts",
+      "import": "./dist/media/site/duplicate-asset.js",
+      "default": "./dist/media/site/duplicate-asset.js"
+    },
+    "./media/site-import/agent-tools": {
+      "types": "./dist/media/site-import/agent-tools.d.ts",
+      "import": "./dist/media/site-import/agent-tools.js",
+      "default": "./dist/media/site-import/agent-tools.js"
     },
     "./media/site-generation/agent-tools": {
       "types": "./dist/media/site-generation/agent-tools.d.ts",
