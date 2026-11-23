@@ -120,7 +120,6 @@
       "./public-http/http/site/form-label-inspection": "node",
       "./public-http/http/site/form-validation-i18n": "universal",
       "./public-http/http/site/render/widgets/placeholder": "universal",
-      "./widgets/site/media-html-log": "universal",
       "./navigation/site/menu-html-permission": "universal",
       "./navigation/site/menu-trash-follow-ups": "universal",
       "./navigation/site/trash-menu": "universal",
@@ -767,11 +766,6 @@
       "types": "./dist/public-http/http/site/render/widgets/placeholder.d.ts",
       "import": "./dist/public-http/http/site/render/widgets/placeholder.js",
       "default": "./dist/public-http/http/site/render/widgets/placeholder.js"
-    },
-    "./widgets/site/media-html-log": {
-      "types": "./dist/widgets/site/media-html-log.d.ts",
-      "import": "./dist/widgets/site/media-html-log.js",
-      "default": "./dist/widgets/site/media-html-log.js"
     },
     "./navigation/site/menu-html-permission": {
       "types": "./dist/navigation/site/menu-html-permission.d.ts",

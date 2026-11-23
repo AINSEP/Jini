@@ -1,6 +1,5 @@
 import { randomBytes } from "node:crypto";
-/** The host runtime-mode signal: `"production"` only when the operator opted in, else `"local"`. */
-type RuntimeMode = "production" | "local";
+import type { RuntimeMode } from "@jini-ai/core/contracts/site/core-runtime-mode";
 
 /**
  * @file The salt `POST /api/site/comments` folds into `authorIpHash` (2026-10-08 hardwiring audit
@@ -49,15 +48,15 @@ export type CommentsIpHashSaltSource = "env" | "site-key" | "dev-default" | "eph
  * @param required.mode the resolved runtime mode.
  * @param required.workspaceId scopes the site-key derivation.
  * @param required.keyring the site-key-backed keyring the root already built.
+ * @param required.warn the host's sink for the production fail-safe warning (this module never logs).
  * @param optional.randomHex entropy for the production fail-safe (default: 32 random bytes).
- * @param optional.warn sink for the production fail-safe warning (default: `console.warn`).
  * @returns the salt and where it came from (never logged by this module).
  * @throws never: a keyring failure falls through to the mode-appropriate fallback.
  * @complexity O(1) plus one HKDF derivation.
  */
 export async function resolveCommentsIpHashSalt(
-  required: { env: Readonly<Record<string, string | undefined>>; mode: RuntimeMode; workspaceId: string; keyring: CommentsIpSaltKeyring },
-  optional: { randomHex?: () => string; warn?: (line: string) => void } = {}
+  required: { env: Readonly<Record<string, string | undefined>>; mode: RuntimeMode; workspaceId: string; keyring: CommentsIpSaltKeyring; warn: (line: string) => void },
+  optional: { randomHex?: () => string } = {}
 ): Promise<{ salt: string; source: CommentsIpHashSaltSource }> {
   const configured = required.env[COMMENTS_IP_SALT_ENV_VAR];
   if (configured !== undefined && configured.trim() !== "") return { salt: configured, source: "env" };
@@ -70,7 +69,6 @@ export async function resolveCommentsIpHashSalt(
   }
 
   if (required.mode !== "production") return { salt: DEV_COMMENTS_IP_SALT, source: "dev-default" };
-  const warn = optional.warn ?? ((line: string) => console.warn(line));
-  warn(`[comments] ${COMMENTS_IP_SALT_ENV_VAR} is unset and no site key resolved: using a random per-process salt, so comment IP hashes will not match across restarts. Set ${COMMENTS_IP_SALT_ENV_VAR}.`);
+  required.warn(`[comments] ${COMMENTS_IP_SALT_ENV_VAR} is unset and no site key resolved: using a random per-process salt, so comment IP hashes will not match across restarts. Set ${COMMENTS_IP_SALT_ENV_VAR}.`);
   return { salt: (optional.randomHex ?? (() => randomBytes(32).toString("hex")))(), source: "ephemeral" };
 }
