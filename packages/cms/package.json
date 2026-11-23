@@ -124,7 +124,6 @@
       "./admin-http/routes/recovery/deep-link": "universal",
       "./admin-http/routes/recovery/disclosure": "universal",
       "./admin-http/routes/recovery/restore-points": "universal",
-      "./admin-http/routes/redirects/create": "universal",
       "./admin-http/routes/redirects/get-by-id": "universal",
       "./admin-http/routes/redirects/hits": "universal",
       "./admin-http/routes/redirects/import": "universal",
@@ -786,11 +785,6 @@
       "types": "./dist/admin-http/routes/recovery/restore-points.d.ts",
       "import": "./dist/admin-http/routes/recovery/restore-points.js",
       "default": "./dist/admin-http/routes/recovery/restore-points.js"
-    },
-    "./admin-http/routes/redirects/create": {
-      "types": "./dist/admin-http/routes/redirects/create.d.ts",
-      "import": "./dist/admin-http/routes/redirects/create.js",
-      "default": "./dist/admin-http/routes/redirects/create.js"
     },
     "./admin-http/routes/redirects/get-by-id": {
       "types": "./dist/admin-http/routes/redirects/get-by-id.d.ts",
