@@ -51,6 +51,7 @@
       "./deploy/site/agent-tools": "universal",
       "./deploy/site/deploy-targets/types": "universal",
       "./deploy/site/dockerfile": "node",
+      "./deploy/site/export-run": "node",
       "./deploy/site/publish-credentials/execution-mode": "universal",
       "./deploy/site/static-publish/domain-publish-rows": "universal",
       "./deploy/site/static-publish/types": "universal",
@@ -263,6 +264,11 @@
       "types": "./dist/deploy/site/dockerfile.d.ts",
       "import": "./dist/deploy/site/dockerfile.js",
       "default": "./dist/deploy/site/dockerfile.js"
+    },
+    "./deploy/site/export-run": {
+      "types": "./dist/deploy/site/export-run.d.ts",
+      "import": "./dist/deploy/site/export-run.js",
+      "default": "./dist/deploy/site/export-run.js"
     },
     "./deploy/site/publish-credentials/execution-mode": {
       "types": "./dist/deploy/site/publish-credentials/execution-mode.d.ts",
