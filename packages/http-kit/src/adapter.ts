@@ -104,10 +104,15 @@ export function assertRequestFactsPort({ spec }: { readonly spec: Pick<RouteRequ
   if (spec.requestFacts && !spec.ports?.requestFacts) throw new Error(`route ${spec.path} opts into requestFacts but no requestFacts port is mounted`);
 }
 
-/** Sets static or reply headers; a no-op without any, so a route that declares none writes nothing extra. */
+/** Sets static or reply headers; a no-op without any, so a route that declares none writes nothing extra.
+ *  `Vary` is appended (Express `res.vary`), never overwritten: a host middleware may already vary the
+ *  answer (dev CORS adds `Origin`), and replacing it would let a cache serve one origin's answer to another. */
 export function applyResponseHeaders({ res, headers }: { readonly res: Response; readonly headers: Readonly<Record<string, string>> | undefined }, _optional: Record<string, never> = {}): void {
   if (!headers) return;
-  for (const [name, value] of Object.entries(headers)) res.setHeader(name, value);
+  for (const [name, value] of Object.entries(headers)) {
+    if (name.toLowerCase() === 'vary') res.vary(value);
+    else res.setHeader(name, value);
+  }
 }
 
 /**

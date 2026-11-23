@@ -38,4 +38,15 @@ describe('mountJsonRoute answers a routeReply', () => {
     const response = await answer({ status: 204, body: 'x' }, { successStatus: 201 });
     expect([response.status, await response.json()]).toEqual([201, { status: 204, body: 'x' }]);
   });
+
+  // w3-rtfnd: a host middleware may already have set `Vary` (dev CORS adds `Origin`); a reply's or a
+  // spec's `Vary` must ADD to it like Express `res.vary`, never overwrite it (skills list: `Origin, Cookie`).
+  it('appends a reply Vary to one a host middleware already set', async () => {
+    const route = defineJsonRoute<void, unknown, object>({ method: 'get', path: '/v', parse: () => ok({ value: undefined }), handle: () => ok({ value: routeReply({ status: 200, body: {}, headers: { Vary: 'Cookie' } }) }) });
+    const app = express();
+    app.use((_req, res, next) => { res.vary('Origin'); next(); });
+    mountJsonRoute({ app, spec: route, deps: {} });
+    const response = await fetch(`${await listen({ app })}/v`);
+    expect(response.headers.get('vary')).toBe('Origin, Cookie');
+  });
 });
