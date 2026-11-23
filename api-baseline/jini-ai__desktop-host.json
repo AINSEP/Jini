@@ -411,8 +411,8 @@
    "SpellCheckContextMenuParams": "interface:fe93d23249",
    "SpellCheckMenuHandlers": "interface:fd56e3f1c0",
    "SpellCheckWebContents": "interface:c5d9263f44",
-   "buildSpellCheckMenuTemplate": "function:ae2731555a",
-   "registerSpellCheckContextMenu": "function:b6d76ed43f"
+   "buildSpellCheckMenuTemplate": "function:5da4981b91",
+   "registerSpellCheckContextMenu": "function:a4aa6b4bfd"
   }
  },
  "./shell/webview-guest-policy": {

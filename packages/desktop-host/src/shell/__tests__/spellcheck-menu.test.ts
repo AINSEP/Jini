@@ -6,6 +6,13 @@ import { test } from "vitest";
 import assert from "node:assert/strict";
 
 import { buildSpellCheckMenuTemplate, registerSpellCheckContextMenu, type SpellCheckContextMenuParams } from "../spellcheck-menu.js";
+import type { SpellCheckLabels } from "../../electron/usability/index.js";
+
+// The host's wording, supplied on every call (the package authors no menu copy).
+const labels: SpellCheckLabels = {
+  noSuggestions: "No suggestions", addToDictionary: "Add to Dictionary",
+  cut: "Cut", copy: "Copy", paste: "Paste", selectAll: "Select All",
+};
 
 const EDIT_FLAGS_FULL = { canCut: true, canCopy: true, canPaste: true, canSelectAll: true };
 const EDIT_FLAGS_NONE = { canCut: false, canCopy: false, canPaste: false, canSelectAll: false };
@@ -36,11 +43,11 @@ function shape(template: ReturnType<typeof buildSpellCheckMenuTemplate>) {
 }
 
 test("neither editable nor misspelled: no menu at all", () => {
-  assert.deepEqual(buildSpellCheckMenuTemplate({ params: params(), handlers: fakeHandlers() }), []);
+  assert.deepEqual(buildSpellCheckMenuTemplate({ labels, params: params(), handlers: fakeHandlers() }), []);
 });
 
 test("misspelled with suggestions: each suggestion, a separator, then Add to Dictionary", () => {
-  const template = buildSpellCheckMenuTemplate({ params: params({ misspelledWord: "teh", dictionarySuggestions: ["the", "ten"] }), handlers: fakeHandlers() });
+  const template = buildSpellCheckMenuTemplate({ labels, params: params({ misspelledWord: "teh", dictionarySuggestions: ["the", "ten"] }), handlers: fakeHandlers() });
   assert.deepEqual(shape(template), [
     ["the", undefined],
     ["ten", undefined],
@@ -50,7 +57,7 @@ test("misspelled with suggestions: each suggestion, a separator, then Add to Dic
 });
 
 test("misspelled with no suggestions: a disabled placeholder, still offers Add to Dictionary", () => {
-  const template = buildSpellCheckMenuTemplate({ params: params({ misspelledWord: "asdkjh" }), handlers: fakeHandlers() });
+  const template = buildSpellCheckMenuTemplate({ labels, params: params({ misspelledWord: "asdkjh" }), handlers: fakeHandlers() });
   assert.deepEqual(shape(template), [
     ["No suggestions", false],
     ["separator", undefined],
@@ -60,15 +67,15 @@ test("misspelled with no suggestions: a disabled placeholder, still offers Add t
 
 test("suggestions are capped at 5, even when the dictionary offers more", () => {
   const suggestions = ["a", "b", "c", "d", "e", "f", "g"];
-  const template = buildSpellCheckMenuTemplate({ params: params({ misspelledWord: "x", dictionarySuggestions: suggestions }), handlers: fakeHandlers() });
-  const labels = shape(template).map(([label]) => label);
-  assert.deepEqual(labels.slice(0, 5), ["a", "b", "c", "d", "e"]);
-  assert.ok(!labels.includes("f") && !labels.includes("g"), "suggestions past the cap must not appear");
+  const template = buildSpellCheckMenuTemplate({ labels, params: params({ misspelledWord: "x", dictionarySuggestions: suggestions }), handlers: fakeHandlers() });
+  const captions = shape(template).map(([label]) => label);
+  assert.deepEqual(captions.slice(0, 5), ["a", "b", "c", "d", "e"]);
+  assert.ok(!captions.includes("f") && !captions.includes("g"), "suggestions past the cap must not appear");
 });
 
 test("clicking a suggestion replaces the misspelling with THAT word", () => {
   const handlers = fakeHandlers();
-  const template = buildSpellCheckMenuTemplate({ params: params({ misspelledWord: "teh", dictionarySuggestions: ["the", "ten"] }), handlers });
+  const template = buildSpellCheckMenuTemplate({ labels, params: params({ misspelledWord: "teh", dictionarySuggestions: ["the", "ten"] }), handlers });
   const tenItem = template.find((entry) => "label" in entry && entry.label === "ten");
   assert.ok(tenItem && "click" in tenItem && typeof tenItem.click === "function");
   tenItem.click();
@@ -77,7 +84,7 @@ test("clicking a suggestion replaces the misspelling with THAT word", () => {
 
 test("clicking Add to Dictionary adds the misspelled word, not a suggestion", () => {
   const handlers = fakeHandlers();
-  const template = buildSpellCheckMenuTemplate({ params: params({ misspelledWord: "teh", dictionarySuggestions: ["the"] }), handlers });
+  const template = buildSpellCheckMenuTemplate({ labels, params: params({ misspelledWord: "teh", dictionarySuggestions: ["the"] }), handlers });
   const addItem = template.find((entry) => "label" in entry && entry.label === "Add to Dictionary");
   assert.ok(addItem?.click);
   addItem.click();
@@ -85,7 +92,7 @@ test("clicking Add to Dictionary adds the misspelled word, not a suggestion", ()
 });
 
 test("editable, not misspelled: Cut/Copy/Paste, a separator, Select All — no suggestions section", () => {
-  const template = buildSpellCheckMenuTemplate({ params: params({ isEditable: true, editFlags: EDIT_FLAGS_FULL }), handlers: fakeHandlers() });
+  const template = buildSpellCheckMenuTemplate({ labels, params: params({ isEditable: true, editFlags: EDIT_FLAGS_FULL }), handlers: fakeHandlers() });
   assert.deepEqual(shape(template), [
     ["Cut", true],
     ["Copy", true],
@@ -96,7 +103,7 @@ test("editable, not misspelled: Cut/Copy/Paste, a separator, Select All — no s
 });
 
 test("edit commands respect editFlags — a read-only selection has Copy enabled but not Cut/Paste", () => {
-  const template = buildSpellCheckMenuTemplate({ params: params({ isEditable: true, editFlags: { canCut: false, canCopy: true, canPaste: false, canSelectAll: true } }), handlers: fakeHandlers() });
+  const template = buildSpellCheckMenuTemplate({ labels, params: params({ isEditable: true, editFlags: { canCut: false, canCopy: true, canPaste: false, canSelectAll: true } }), handlers: fakeHandlers() });
   const enabled = Object.fromEntries(shape(template));
   assert.equal(enabled.Cut, false);
   assert.equal(enabled.Copy, true);
@@ -105,7 +112,7 @@ test("edit commands respect editFlags — a read-only selection has Copy enabled
 });
 
 test("misspelled AND editable: suggestions section, a separator, then the edit commands", () => {
-  const template = buildSpellCheckMenuTemplate({ params: params({ isEditable: true, misspelledWord: "teh", dictionarySuggestions: ["the"], editFlags: EDIT_FLAGS_FULL }), handlers: fakeHandlers() });
+  const template = buildSpellCheckMenuTemplate({ labels, params: params({ isEditable: true, misspelledWord: "teh", dictionarySuggestions: ["the"], editFlags: EDIT_FLAGS_FULL }), handlers: fakeHandlers() });
   assert.deepEqual(shape(template), [
     ["the", undefined],
     ["separator", undefined],
@@ -121,7 +128,7 @@ test("misspelled AND editable: suggestions section, a separator, then the edit c
 
 test("clicking an edit command calls the matching webContents method", () => {
   const handlers = fakeHandlers();
-  const template = buildSpellCheckMenuTemplate({ params: params({ isEditable: true, editFlags: EDIT_FLAGS_FULL }), handlers });
+  const template = buildSpellCheckMenuTemplate({ labels, params: params({ isEditable: true, editFlags: EDIT_FLAGS_FULL }), handlers });
   for (const [label, method] of [["Cut", "cut"], ["Copy", "copy"], ["Paste", "paste"], ["Select All", "selectAll"]]) {
     const item = template.find((entry) => "label" in entry && entry.label === label);
     assert.ok(item && "click" in item && typeof item.click === "function", label);
@@ -168,7 +175,7 @@ function fakeMenuBuilder() {
 test("registerSpellCheckContextMenu: a click with nothing to offer shows no menu", () => {
   const webContents = fakeWebContents();
   const menuBuilder = fakeMenuBuilder();
-  registerSpellCheckContextMenu({ webContents, menuBuilder });
+  registerSpellCheckContextMenu({ labels, webContents, menuBuilder });
   webContents.fireContextMenu(params());
   assert.equal(menuBuilder.poppedCount(), 0);
 });
@@ -176,7 +183,7 @@ test("registerSpellCheckContextMenu: a click with nothing to offer shows no menu
 test("registerSpellCheckContextMenu: a misspelling pops the built menu, and its handlers reach the real webContents", () => {
   const webContents = fakeWebContents();
   const menuBuilder = fakeMenuBuilder();
-  registerSpellCheckContextMenu({ webContents, menuBuilder });
+  registerSpellCheckContextMenu({ labels, webContents, menuBuilder });
   webContents.fireContextMenu(params({ isEditable: true, editFlags: EDIT_FLAGS_FULL, misspelledWord: "teh", dictionarySuggestions: ["the"] }));
   assert.equal(menuBuilder.poppedCount(), 1);
 
@@ -199,11 +206,34 @@ test("registerSpellCheckContextMenu: a misspelling pops the built menu, and its 
   // A second guest must add to its own session, never the first guest's dictionary.
   const otherContents = fakeWebContents();
   const otherMenu = fakeMenuBuilder();
-  registerSpellCheckContextMenu({ webContents: otherContents, menuBuilder: otherMenu });
+  registerSpellCheckContextMenu({ labels, webContents: otherContents, menuBuilder: otherMenu });
   otherContents.fireContextMenu(params({ misspelledWord: "tovuword", dictionarySuggestions: ["word"] }));
   const add = otherMenu.templates[0]!.find((entry) => entry.label === "Add to Dictionary");
   assert.equal(typeof add?.click, "function");
   add!.click!();
   assert.deepEqual(otherContents.calls, [["addWordToSpellCheckerDictionary", "tovuword"]]);
   assert.equal(webContents.calls.length, 6, "the first guest's session must not receive the second guest's word");
+});
+
+test("menu wording is the host's: supplied labels replace every item caption", () => {
+  const other: SpellCheckLabels = { noSuggestions: "Keine", addToDictionary: "Hinzu", cut: "X", copy: "C", paste: "V", selectAll: "A" };
+  const template = buildSpellCheckMenuTemplate({ labels: other, params: params({ isEditable: true, misspelledWord: "asdkjh", editFlags: EDIT_FLAGS_FULL }), handlers: fakeHandlers() });
+  const captions = shape(template).map(([label]) => label).filter((label) => label !== undefined && label !== "separator");
+  assert.deepEqual(captions, ["Keine", "Hinzu", "X", "C", "V", "A"]);
+});
+
+test("disposal removes exactly the native listener it registered, and tolerates contents without removeListener", () => {
+  const added: unknown[] = [];
+  const removed: unknown[] = [];
+  const contents = (withRemove: boolean) => ({
+    on: (_event: "context-menu", listener: unknown) => { added.push(listener); },
+    ...(withRemove ? { removeListener: (_event: "context-menu", listener: unknown) => { removed.push(listener); } } : {}),
+    replaceMisspelling() {}, cut() {}, copy() {}, paste() {}, selectAll() {},
+    session: { addWordToSpellCheckerDictionary() {} },
+  });
+  const menuBuilder = { buildFromTemplate: () => ({ popup() {} }) };
+  registerSpellCheckContextMenu({ labels, webContents: contents(true), menuBuilder })();
+  assert.equal(added.length, 1);
+  assert.deepEqual(removed, added, "the disposer must remove the same function it added");
+  assert.doesNotThrow(() => registerSpellCheckContextMenu({ labels, webContents: contents(false), menuBuilder })());
 });

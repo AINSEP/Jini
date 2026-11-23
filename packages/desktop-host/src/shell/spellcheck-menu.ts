@@ -16,6 +16,10 @@
  * split from `findMenu`: a plain function is what `spellcheck-menu.test.ts` can call directly,
  * without a real Electron `Menu` or `webContents` to drive it.
  *
+ * ## Wiring
+ * The host supplies the menu wording as `labels` (`SpellCheckLabels`) and Electron's `Menu` as
+ * `menuBuilder` on each call's required object; this module authors no copy and imports no Electron.
+ *
  * No runtime `electron` import at module scope — the real `Menu` is an explicit injected port,
  * so this stays testable under plain `node --test` the same way
  * `find-in-page-ipc.ts` keeps `BrowserWindow` at arm's length.
@@ -26,22 +30,18 @@ import {
   type SpellCheckContextMenuParams, type SpellCheckLabels, type MenuItemConstructorOptions as SpellCheckMenuItem,
 } from "../electron/usability/index.js";
 export type { SpellCheckContextMenuParams } from "../electron/usability/index.js";
-const labels: SpellCheckLabels = {
-  noSuggestions: "No suggestions", addToDictionary: "Add to Dictionary",
-  cut: "Cut", copy: "Copy", paste: "Paste", selectAll: "Select All",
-};
 export interface SpellCheckMenuHandlers {
   replace(required: { word: string }): void;
   addToDictionary(required: { word: string }): void;
   cut(): void; copy(): void; paste(): void; selectAll(): void;
 }
 /**
- * Build spelling suggestions followed by enabled edit commands with the host's wording. Five matches
+ * Build spelling suggestions followed by enabled edit commands with the host-supplied `labels`. Five matches
  * Chrome's cap: further alternatives add noise. An empty result means no popup, not an empty menu.
  * @complexity O(k) in suggestions, capped at five.
  */
-export function buildSpellCheckMenuTemplate({ params, handlers }: {
-  params: SpellCheckContextMenuParams; handlers: SpellCheckMenuHandlers;
+export function buildSpellCheckMenuTemplate({ labels, params, handlers }: {
+  labels: SpellCheckLabels; params: SpellCheckContextMenuParams; handlers: SpellCheckMenuHandlers;
 }): SpellCheckMenuItem[] {
   return buildTemplate({ params, labels, handlers: {
     replace: ({ word }) => handlers.replace({ word }),
@@ -76,8 +76,8 @@ export interface MenuBuilder {
  * load a native runtime in plain Node tests. A click with no spelling/edit actions shows no popup.
  * @complexity O(1) to register; each popup is capped at five suggestions.
  */
-export function registerSpellCheckContextMenu({ webContents, menuBuilder }: {
-  webContents: SpellCheckWebContents; menuBuilder: MenuBuilder;
+export function registerSpellCheckContextMenu({ labels, webContents, menuBuilder }: {
+  labels: SpellCheckLabels; webContents: SpellCheckWebContents; menuBuilder: MenuBuilder;
 }): () => void {
   let nativeListener: ((event: unknown, params: SpellCheckContextMenuParams) => void) | undefined;
   return registerMenu({ labels, menuBuilder: { buildFromTemplate: ({ template }) => menuBuilder.buildFromTemplate(template) }, webContents: {
