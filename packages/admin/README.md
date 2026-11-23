@@ -272,6 +272,15 @@ factories the host binds once at its composition root:
 - `createVisitorToolsPort({ http, workspaceId })` and `createAssistantPermanentDeletesPort({ http, workspaceId })`
   take the host's bound `authenticatedAdminRequest` (`AdminRequestOps`) and its workspace id; the
   permanent-delete tool list, dangers copy and namespace stay with the host.
+- `createCredentialSubmitErrorClassifier({ isRequestError })` and
+  `createReadInitialAdminSession({ readInitialSession, isRequestError })` take the same guard; the
+  latter also takes the session-bootstrap reader (`@jini-ai/user-management`'s `readInitialSession`,
+  which `@jini-ai/admin` does not depend on), so the bootstrap policy stays with its owner.
+- `createAssistantSubagentsPort({ http, workspaceId })` takes the bound `authenticatedAdminRequest`.
+- `createOwnerMfaPort({ http })`, `createOwnerPasskeyPorts({ http })` and `createOwnerRecoveryPort({ http })`
+  take the host's bound single-send `requestOnce` (`AdminRequestOnceOps`);
+  `createOwnerRecoveryFailure({ describeError, redactionOptions })` takes the host's request-error
+  describer and its secret-redaction options (product vocabulary stays in the host).
 
 ## Wiring: host-owned storage keys (`shell/components/ChatFab`, `shell/lib`)
 

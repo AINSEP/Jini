@@ -117,6 +117,12 @@
       "./shell/lib/assistant-permanent-deletes": "browser",
       "./shell/lib/stored-credential-endpoint": "browser",
       "./shell/lib/version-conflict": "browser",
+      "./shell/lib/assistant-subagents": "browser",
+      "./shell/lib/credential-submit-error": "browser",
+      "./shell/lib/local-owner-signin": "browser",
+      "./shell/lib/owner-mfa-api": "browser",
+      "./shell/lib/owner-passkey-api": "browser",
+      "./shell/lib/owner-recovery-api": "browser",
       "./shell/lib/visitor-tools": "browser",
       "./shell/lib/assistant-agents-snapshot": "browser",
       "./shell/lib/browser-working-directory-access": "browser",
@@ -237,6 +243,12 @@
         "./shell/lib/assistant-permanent-deletes": "browser",
         "./shell/lib/stored-credential-endpoint": "browser",
         "./shell/lib/version-conflict": "browser",
+        "./shell/lib/assistant-subagents": "browser",
+        "./shell/lib/credential-submit-error": "browser",
+        "./shell/lib/local-owner-signin": "browser",
+        "./shell/lib/owner-mfa-api": "browser",
+        "./shell/lib/owner-passkey-api": "browser",
+        "./shell/lib/owner-recovery-api": "browser",
         "./shell/lib/visitor-tools": "browser",
         "./shell/lib/assistant-agents-snapshot": "browser",
         "./shell/lib/browser-working-directory-access": "browser",
@@ -793,6 +805,36 @@
       "types": "./dist/shell/lib/version-conflict.d.ts",
       "import": "./dist/shell/lib/version-conflict.js",
       "default": "./dist/shell/lib/version-conflict.js"
+    },
+    "./shell/lib/assistant-subagents": {
+      "types": "./dist/shell/lib/assistant-subagents.d.ts",
+      "import": "./dist/shell/lib/assistant-subagents.js",
+      "default": "./dist/shell/lib/assistant-subagents.js"
+    },
+    "./shell/lib/credential-submit-error": {
+      "types": "./dist/shell/lib/credential-submit-error.d.ts",
+      "import": "./dist/shell/lib/credential-submit-error.js",
+      "default": "./dist/shell/lib/credential-submit-error.js"
+    },
+    "./shell/lib/local-owner-signin": {
+      "types": "./dist/shell/lib/local-owner-signin.d.ts",
+      "import": "./dist/shell/lib/local-owner-signin.js",
+      "default": "./dist/shell/lib/local-owner-signin.js"
+    },
+    "./shell/lib/owner-mfa-api": {
+      "types": "./dist/shell/lib/owner-mfa-api.d.ts",
+      "import": "./dist/shell/lib/owner-mfa-api.js",
+      "default": "./dist/shell/lib/owner-mfa-api.js"
+    },
+    "./shell/lib/owner-passkey-api": {
+      "types": "./dist/shell/lib/owner-passkey-api.d.ts",
+      "import": "./dist/shell/lib/owner-passkey-api.js",
+      "default": "./dist/shell/lib/owner-passkey-api.js"
+    },
+    "./shell/lib/owner-recovery-api": {
+      "types": "./dist/shell/lib/owner-recovery-api.d.ts",
+      "import": "./dist/shell/lib/owner-recovery-api.js",
+      "default": "./dist/shell/lib/owner-recovery-api.js"
     },
     "./shell/lib/visitor-tools": {
       "types": "./dist/shell/lib/visitor-tools.d.ts",
