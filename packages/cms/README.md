@@ -362,7 +362,9 @@ routes, with the DTO helper at `./admin-http/http/members` and the shared guards
 The members library is not in this package, so the host injects its collaborators: `disableMember` (disable), `trashMember`
 (delete) and `classifyMemberError`, a `(err) => "not-found" | "validation" | "conflict" | undefined` classifier for the
 library's error classes. Each route owns its status table over those kinds (delete 404/409/400, disable 404/400, get-by-id
-404; list maps `ToolInputError` to 400 `VALIDATION_ERROR`); an unclassified error is rethrown for the host's 500.
+404; list maps `ToolInputError` to 400 `VALIDATION_ERROR`); an unclassified error is rethrown for the host's 500. Disable
+also takes `versionConflictMessage`, the host's reload copy: a `conflict` (lost compare-and-set) answers 409
+`VERSION_CONFLICT` with that copy, never the library's message.
 `memberRepo` is Pick'd to `list`/`findById` and read structurally (`AdminMemberSource`). Authorization is `member.manage`
 on the `member` entity (by-id routes pass `{ entityId }`).
 

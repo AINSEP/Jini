@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { resetUserPassword } from "../../../../server/admin-crud-service.js";
+import { assertCallerHasAnyPermission } from "../../../../server/grant-service.js";
 import { userResetPasswordRoute } from "../reset-password.js";
 import { addUser, HostSelfDeleteError, raw, refusalOf, seededIdentity, signal, trashIndex, WORKSPACE_ID, HostInTrashError } from "./helpers.js";
 
@@ -9,7 +10,7 @@ async function resetDeps(guard: () => Promise<void> = async () => {}) {
   const trash = trashIndex();
   const guardCalls: unknown[][] = [];
   const deps = {
-    workspaceId: WORKSPACE_ID, resetUserPassword, identityServices: () => services, isInTrash: trash.isInTrash, isUserInTrashError: ({ err }: { err: unknown }) => err instanceof HostInTrashError, ownerPrincipalId: Promise.resolve(ownerId),
+    workspaceId: WORKSPACE_ID, resetUserPassword, assertCallerHasAnyPermission, identityServices: () => services, isInTrash: trash.isInTrash, isUserInTrashError: ({ err }: { err: unknown }) => err instanceof HostInTrashError, ownerPrincipalId: Promise.resolve(ownerId),
     assertUserAccountAction: async (...args: unknown[]) => { guardCalls.push(args); await guard(); },
     isSelfDeleteError: ({ err }: { err: unknown }) => err instanceof HostSelfDeleteError,
   };
@@ -47,6 +48,20 @@ describe("userResetPasswordRoute", () => {
     expect(await refusalOf(() => userResetPasswordRoute.handle({ input: { principalId: alice, password: NEW_PASSWORD }, deps, context: { id: ownerId } }))).toEqual({
       status: 409, body: { error: "this user is in the Trash; restore them first", code: "USER_IN_TRASH" },
     });
+    expect(guardCalls).toEqual([]);
+    expect(await hashOf()).toBe(before);
+  });
+
+  // B152: Trash membership is private — a caller without `user.manage` must get 403, never a 409 that confirms
+  // the user is in the Trash, so the permission check runs BEFORE the Trash lookup (as enable does).
+  it("answers 403 FORBIDDEN, not USER_IN_TRASH, to a caller without user.manage for a trashed target", async () => {
+    const { deps, services, ownerId, alice, trash, guardCalls, hashOf } = await resetDeps();
+    const bob = await addUser({ services, ownerId, username: "bob" });
+    const before = await hashOf();
+    trash.trashed.add(alice);
+    const forbidden = await refusalOf(() => userResetPasswordRoute.handle({ input: { principalId: alice, password: NEW_PASSWORD }, deps, context: { id: bob } }));
+    expect(forbidden.status).toBe(403);
+    expect(forbidden.body).toMatchObject({ code: "FORBIDDEN", details: { permission: "user.manage" } });
     expect(guardCalls).toEqual([]);
     expect(await hashOf()).toBe(before);
   });

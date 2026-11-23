@@ -1,6 +1,7 @@
 import { defineJsonRoute, ok } from "@jini-ai/core/contracts/server";
 
 import type { resetUserPassword } from "../../../server/admin-crud-service.js";
+import type { assertCallerHasAnyPermission } from "../../../server/grant-service.js";
 import {
   hostRung, principalIdParam, rejectUserError, rejectUserInTrash, USER_FORBIDDEN, USER_NOT_FOUND, USER_OWNER_REQUIRED, USER_VALIDATION, userActorId,
   type AssertUserAccountActionFn, type HostErrorPredicate, type IdentityServicesFn, type IsInTrashFn, type UserErrorRung, type UserRoutePrincipal,
@@ -12,6 +13,7 @@ export interface UserResetPasswordRouteDeps {
   /** Identity service(s), injected: the admin-http entry may not reach the `server` source domain
    *  (subpath isolation); the host binds them from `@jini-ai/user-management/server`. */
   resetUserPassword: typeof resetUserPassword;
+  assertCallerHasAnyPermission: typeof assertCallerHasAnyPermission;
   identityServices: IdentityServicesFn;
   isInTrash: IsInTrashFn;
   /** The seeded (bootstrap) owner's principal id, resolved by the host at boot. */
@@ -54,10 +56,13 @@ export const userResetPasswordRoute = defineJsonRoute<{ principalId: string; pas
     const { principalId, password } = input;
     try {
       const seededOwnerPrincipalId = await deps.ownerPrincipalId;
+      const services = deps.identityServices();
+      // B152: Trash membership is private too — check the caller's permission BEFORE looking it up,
+      // as `enable.ts` does, so a caller without `user.manage` gets 403, not a 409 that reveals it.
+      await deps.assertCallerHasAnyPermission({ deps: services, workspaceId, callerPrincipalId, permissions: ["user.manage"] });
       // OWNER DECISION 2026-09-24 (delete-user plan v2, decision 7) — refuse BEFORE the transition;
       // see `rejectUserInTrash` for why. Not a rung, so `rejectUserError` rethrows it unchanged.
       if (await deps.isInTrash({ principalId })) rejectUserInTrash();
-      const services = deps.identityServices();
       await services.repos.transactions.run({ workspaceId, execute: async () => {
         await deps.assertUserAccountAction({ deps: services, workspaceId, principalId, action: "reset-password" }, { callerPrincipalId, seededOwnerPrincipalId });
         return deps.resetUserPassword({ deps: services, input: { workspaceId, callerPrincipalId, principalId, password, seededOwnerPrincipalId } });

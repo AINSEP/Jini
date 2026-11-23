@@ -40,7 +40,7 @@ export type IsInTrashFn = (required: { principalId: string }, optional?: Record<
  * maps through {@link HostErrorPredicate}, or the identity errors the rungs below already map.
  */
 export type AssertUserAccountActionFn = (
-  required: { deps: AuthServiceDeps; workspaceId: string; principalId: string; action: "disable" | "reset-password" },
+  required: { deps: AuthServiceDeps; workspaceId: string; principalId: string; action: "disable" | "reset-password" | "enable" },
   optional: { callerPrincipalId: string; seededOwnerPrincipalId: string },
 ) => Promise<void>;
 

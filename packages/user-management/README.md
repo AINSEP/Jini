@@ -98,7 +98,8 @@ policy permission. The identity services they call live in the node `./server` e
 takes the one it calls as a required deps field (typed with `typeof`) and the host binds it from
 `@jini-ai/user-management/server`; the specs import only `src/core` errors and types. Host-owned rules
 are injected too: the identity deps assembler (`identityServices`/`identityServiceDeps`, a thunk built
-per request), the Trash index and trash move, the account-protection guard, host error classes as
+per request), the Trash index and trash move, the account-protection guard (`assertUserAccountAction`
+plus the seeded `ownerPrincipalId`, run by disable, enable and reset-password), host error classes as
 predicates (`isUserInTrashError`, `isSelfDeleteError`, …), and the ungrantable-permission list and
 its refusal copy. Authorization happens inside the identity services (`role.manage`, `user.manage`),
 so the specs never call the `authorize` port except `list`, which receives the host's raw

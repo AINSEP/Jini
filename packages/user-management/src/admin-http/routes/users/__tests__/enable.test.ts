@@ -2,15 +2,22 @@ import { describe, expect, it } from "vitest";
 import { enablePrincipal } from "../../../../server/admin-crud-service.js";
 import { assertCallerHasAnyPermission } from "../../../../server/grant-service.js";
 import { disablePrincipal } from "../../../../server/admin-crud-service.js";
+import { OwnerRequiredError } from "../../../../core/types.js";
 import { userEnableRoute } from "../enable.js";
 import { addUser, raw, refusalOf, seededIdentity, signal, trashIndex, WORKSPACE_ID, HostInTrashError } from "./helpers.js";
 
-async function enableDeps() {
+async function enableDeps(guard: () => Promise<void> = async () => {}) {
   const { services, ownerId } = await seededIdentity();
   const alice = await addUser({ services, ownerId, username: "alice" });
   await disablePrincipal({ deps: services, input: { workspaceId: WORKSPACE_ID, callerPrincipalId: ownerId, principalId: alice, seededOwnerPrincipalId: ownerId } });
   const trash = trashIndex();
-  return { deps: { workspaceId: WORKSPACE_ID, enablePrincipal, assertCallerHasAnyPermission, identityServices: () => services, isInTrash: trash.isInTrash, isUserInTrashError: ({ err }: { err: unknown }) => err instanceof HostInTrashError }, services, ownerId, alice, trash };
+  const guardCalls: unknown[][] = [];
+  const deps = {
+    workspaceId: WORKSPACE_ID, enablePrincipal, assertCallerHasAnyPermission, identityServices: () => services, isInTrash: trash.isInTrash,
+    isUserInTrashError: ({ err }: { err: unknown }) => err instanceof HostInTrashError, ownerPrincipalId: Promise.resolve(ownerId),
+    assertUserAccountAction: async (...args: unknown[]) => { guardCalls.push(args); await guard(); },
+  };
+  return { deps, services, ownerId, alice, trash, guardCalls };
 }
 
 describe("userEnableRoute", () => {
@@ -26,6 +33,22 @@ describe("userEnableRoute", () => {
     const { deps, ownerId, alice } = await enableDeps();
     const result = await userEnableRoute.handle({ input: { principalId: alice }, deps, context: { id: ownerId } }, { signal });
     expect(result.ok && result.value.user).toMatchObject({ principalId: alice, status: "active", roleIds: [], policyIds: [] });
+  });
+
+  // B151 (owner rule 2026-11-20): only an owner may turn an admin or owner account back on — `user.manage` alone
+  // would let an admin undo the owner's disable. The host's account guard runs with action "enable", in the write's transaction.
+  it("runs the injected account guard with action enable before re-enabling", async () => {
+    const { deps, services, ownerId, alice, guardCalls } = await enableDeps();
+    await userEnableRoute.handle({ input: { principalId: alice }, deps, context: { id: ownerId } }, { signal });
+    expect(guardCalls).toEqual([[{ deps: services, workspaceId: WORKSPACE_ID, principalId: alice, action: "enable" }, { callerPrincipalId: ownerId, seededOwnerPrincipalId: ownerId }]]);
+  });
+
+  it("maps the guard's owner refusal to 409 OWNER_REQUIRED and leaves the target disabled", async () => {
+    const { deps, services, ownerId, alice } = await enableDeps(async () => { throw new OwnerRequiredError({ message: "only an owner can turn an admin account back on" }); });
+    expect(await refusalOf(() => userEnableRoute.handle({ input: { principalId: alice }, deps, context: { id: ownerId } }))).toEqual({
+      status: 409, body: { error: "only an owner can turn an admin account back on", code: "OWNER_REQUIRED" },
+    });
+    expect((await services.repos.principals.findById({ workspaceId: WORKSPACE_ID, id: alice }))?.status).toBe("disabled");
   });
 
   it("refuses a trashed target with 409 USER_IN_TRASH, but only after the caller's user.manage gate", async () => {

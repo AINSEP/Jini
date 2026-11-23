@@ -2,7 +2,9 @@ import { describe, expect, it } from "vitest";
 import { memberDisableRoute, type MemberDisableFn } from "../disable.js";
 import { classifyMemberError, FakeMemberConflictError, FakeMemberNotFoundError, FakeMemberValidationError, fakeMember, fakeMemberDto, PRINCIPAL, raw, recordingAuthorize, refusalOf, signal, WORKSPACE_ID } from "./helpers.js";
 
-const deps = (disableMember: MemberDisableFn, classify = classifyMemberError) => ({ workspaceId: WORKSPACE_ID, disableMember, classifyMemberError: classify });
+/** The host's product copy for a lost compare-and-set; the spec answers it verbatim. */
+const VERSION_CONFLICT_MESSAGE = "host reload copy";
+const deps = (disableMember: MemberDisableFn, classify = classifyMemberError) => ({ workspaceId: WORKSPACE_ID, disableMember, classifyMemberError: classify, versionConflictMessage: VERSION_CONFLICT_MESSAGE });
 const input = { memberId: "member-1" };
 
 describe("memberDisableRoute", () => {
@@ -37,12 +39,20 @@ describe("memberDisableRoute", () => {
     });
   }
 
-  it("never mapped a conflict: it is rethrown with every other unmapped failure for the host's 500", async () => {
+  // C058: a disable that lost the member compare-and-set to a concurrent writer is a `409 VERSION_CONFLICT`
+  // carrying the host's reload copy (never the library's own message), not an opaque 500.
+  it("maps a conflict to 409 VERSION_CONFLICT with the host's injected reload copy", async () => {
     const { authorize } = recordingAuthorize();
-    for (const error of [new FakeMemberConflictError("clash"), new Error("private storage details")]) {
-      const disableMember: MemberDisableFn = async () => { throw error; };
-      await expect(memberDisableRoute.handle({ input, deps: deps(disableMember), context: PRINCIPAL, authorize })).rejects.toThrow(error.message);
-    }
+    const disableMember: MemberDisableFn = async () => { throw new FakeMemberConflictError("member 'member-1' version mismatch"); };
+    expect(await refusalOf(() => memberDisableRoute.handle({ input, deps: deps(disableMember), context: PRINCIPAL, authorize }))).toEqual({
+      status: 409, body: { error: VERSION_CONFLICT_MESSAGE, code: "VERSION_CONFLICT" },
+    });
+  });
+
+  it("rethrows every unclassified failure for the host's 500", async () => {
+    const { authorize } = recordingAuthorize();
+    const disableMember: MemberDisableFn = async () => { throw new Error("private storage details"); };
+    await expect(memberDisableRoute.handle({ input, deps: deps(disableMember), context: PRINCIPAL, authorize })).rejects.toThrow("private storage details");
   });
 
   it("uses the injected classifier, not a built-in one", async () => {

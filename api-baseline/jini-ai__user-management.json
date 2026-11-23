@@ -194,7 +194,7 @@
  "./admin-http/routes/users/enable": {
   "types": "./dist/admin-http/routes/users/enable.d.ts",
   "symbols": {
-   "UserEnableRouteDeps": "interface:4273e70e8f",
+   "UserEnableRouteDeps": "interface:d4d0c87aa1",
    "userEnableRoute": "variable:8cccd92b7e"
   }
  },
@@ -211,7 +211,7 @@
  "./admin-http/routes/users/reset-password": {
   "types": "./dist/admin-http/routes/users/reset-password.d.ts",
   "symbols": {
-   "UserResetPasswordRouteDeps": "interface:d92f6278d0",
+   "UserResetPasswordRouteDeps": "interface:f965a9f5d7",
    "userResetPasswordRoute": "variable:acc7fd8f22"
   }
  },
