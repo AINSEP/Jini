@@ -28,7 +28,8 @@
       "./webhooks/site/signing.keyring": "node",
       "./webhooks/site/subscriptions": "node",
       "./vendor-credentials/abort-guarded-repo": "node",
-      "./webhooks/sql": "node"
+      "./webhooks/sql": "node",
+      "./webhooks/site/repo.memory": "node"
     },
     "optionalPeers": {
       "better-sqlite3": "opt-in: sqlite storage; import @jini-ai/integrations/media-providers — SQLite storage could not load better-sqlite3. Install better-sqlite3 to enable this feature, or check its installed version and native binaries.",
@@ -119,6 +120,11 @@
       "types": "./dist/webhooks/sql/index.d.ts",
       "import": "./dist/webhooks/sql/index.js",
       "default": "./dist/webhooks/sql/index.js"
+    },
+    "./webhooks/site/repo.memory": {
+      "types": "./dist/webhooks/site/repo.memory.d.ts",
+      "import": "./dist/webhooks/site/repo.memory.js",
+      "default": "./dist/webhooks/site/repo.memory.js"
     }
   },
   "typesVersions": {
@@ -167,6 +173,9 @@
       ],
       "webhooks/sql": [
         "./dist/webhooks/sql/index.d.ts"
+      ],
+      "webhooks/site/repo.memory": [
+        "./dist/webhooks/site/repo.memory.d.ts"
       ]
     }
   },
