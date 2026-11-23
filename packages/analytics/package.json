@@ -17,7 +17,8 @@
       "./product": "universal",
       "./site/agent-tools": "universal",
       "./site/ports": "universal",
-      "./site/contracts": "universal"
+      "./site/contracts": "universal",
+      "./site/forwarding": "universal"
     }
   },
   "type": "module",
@@ -49,6 +50,11 @@
       "types": "./dist/site/contracts.d.ts",
       "import": "./dist/site/contracts.js",
       "default": "./dist/site/contracts.js"
+    },
+    "./site/forwarding": {
+      "types": "./dist/site/forwarding.d.ts",
+      "import": "./dist/site/forwarding.js",
+      "default": "./dist/site/forwarding.js"
     }
   },
   "files": [
