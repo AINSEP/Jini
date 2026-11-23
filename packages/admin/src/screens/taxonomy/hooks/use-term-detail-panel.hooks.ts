@@ -39,11 +39,18 @@ export interface TermDetailPanelController {
   rename: (e: React.FormEvent) => Promise<void>;
 }
 
+/** What the host passes useTermDetailPanel: the caller's options, the bound port, the resolved admin
+ *  locale and the host's {@link TaxonomyHostKit}. */
+export interface UseTermDetailPanelArgs {
+  options: TermDetailPanelOptions;
+  port: TaxonomyPort;
+  locale: string;
+  kit: TaxonomyHostKit;
+}
+
 export function useTermDetailPanel(
-  options: TermDetailPanelOptions,
-  port: TaxonomyPort,
-  locale: string,
-  kit: TaxonomyHostKit
+  { options, port, locale, kit }: UseTermDetailPanelArgs,
+  _optional: Record<string, never> = {}
 ): TermDetailPanelController {
   const { term, onRenamed } = options;
   const [newName, setNewName] = useState(term.name);

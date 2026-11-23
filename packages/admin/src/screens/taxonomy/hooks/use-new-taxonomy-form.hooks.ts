@@ -36,11 +36,18 @@ export interface NewTaxonomyFormController {
   submit: (e: React.FormEvent) => Promise<void>;
 }
 
+/** What the host passes useNewTaxonomyForm: the caller's options, the bound port, the resolved admin
+ *  locale and the host's {@link TaxonomyHostKit}. */
+export interface UseNewTaxonomyFormArgs {
+  options: NewTaxonomyFormOptions;
+  port: NewTaxonomyFormPort;
+  locale: string;
+  kit: TaxonomyHostKit;
+}
+
 export function useNewTaxonomyForm(
-  options: NewTaxonomyFormOptions,
-  port: NewTaxonomyFormPort,
-  locale: string,
-  kit: TaxonomyHostKit
+  { options, port, locale, kit }: UseNewTaxonomyFormArgs,
+  _optional: Record<string, never> = {}
 ): NewTaxonomyFormController {
   const [name, setName] = useState("");
   const [hierarchical, setHierarchical] = useState(false);

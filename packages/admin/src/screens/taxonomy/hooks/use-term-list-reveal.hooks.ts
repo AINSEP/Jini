@@ -22,7 +22,7 @@ export function useTermListReveal(required: {
   selected: ReadonlySet<string>;
   /** The content's own terms are still loading — the ticked snapshot waits for them. */
   loading: boolean;
-}): TermListReveal {
+}, _optional: Record<string, never> = {}): TermListReveal {
   const { terms, selected, loading } = required;
   const [expanded, setExpanded] = useState(false);
   const [query, setQuery] = useState("");

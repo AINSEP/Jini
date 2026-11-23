@@ -48,11 +48,18 @@ export interface MergeTermSectionController {
   doExecute: () => Promise<void>;
 }
 
+/** What the host passes useMergeTermSection: the caller's options, the bound port, the resolved admin
+ *  locale and the host's {@link TaxonomyHostKit}. */
+export interface UseMergeTermSectionArgs {
+  options: MergeTermSectionOptions;
+  port: MergeTermSectionPort;
+  locale: string;
+  kit: TaxonomyHostKit;
+}
+
 export function useMergeTermSection(
-  options: MergeTermSectionOptions,
-  port: MergeTermSectionPort,
-  locale: string,
-  kit: TaxonomyHostKit
+  { options, port, locale, kit }: UseMergeTermSectionArgs,
+  _optional: Record<string, never> = {}
 ): MergeTermSectionController {
   const {
     term, onMerged, intoTermId, setIntoTermId, step, setStep, plan, setPlan, confirmationToken, setConfirmationToken, busy, setBusy, error, setError,

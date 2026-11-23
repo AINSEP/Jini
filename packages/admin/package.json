@@ -150,6 +150,7 @@
       "./posts/PostAuthorFields": "browser",
       "./posts/PostPublishingFields": "browser",
       "./posts/api/posts-api.types": "universal",
+      "./posts/api/posts-api": "universal",
       "./posts/editor/PostDeleteConfirmDialog": "browser",
       "./posts/hooks/posts-list-port.hooks": "universal",
       "./posts/hooks/use-post-editor-ui.hooks": "browser",
@@ -976,6 +977,11 @@
       "import": "./dist/posts/PostPublishingFields.js",
       "default": "./dist/posts/PostPublishingFields.js"
     },
+    "./posts/api/posts-api": {
+      "types": "./dist/posts/api/posts-api.d.ts",
+      "import": "./dist/posts/api/posts-api.js",
+      "default": "./dist/posts/api/posts-api.js"
+    },
     "./posts/api/posts-api.types": {
       "types": "./dist/posts/api/posts-api.types.d.ts",
       "import": "./dist/posts/api/posts-api.types.js",
@@ -1406,6 +1412,9 @@
       ],
       "posts/api/posts-api.types": [
         "./dist/posts/api/posts-api.types.d.ts"
+      ],
+      "posts/api/posts-api": [
+        "./dist/posts/api/posts-api.d.ts"
       ],
       "posts/editor/PostDeleteConfirmDialog": [
         "./dist/posts/editor/PostDeleteConfirmDialog.d.ts"

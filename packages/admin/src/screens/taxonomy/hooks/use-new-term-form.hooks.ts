@@ -45,11 +45,18 @@ export interface NewTermFormController {
   submit: (e: React.FormEvent) => Promise<void>;
 }
 
+/** What the host passes useNewTermForm: the caller's options, the bound port, the resolved admin
+ *  locale and the host's {@link TaxonomyHostKit}. */
+export interface UseNewTermFormArgs {
+  options: NewTermFormOptions;
+  port: NewTermFormPort;
+  locale: string;
+  kit: TaxonomyHostKit;
+}
+
 export function useNewTermForm(
-  options: NewTermFormOptions,
-  port: NewTermFormPort,
-  locale: string,
-  kit: TaxonomyHostKit
+  { options, port, locale, kit }: UseNewTermFormArgs,
+  _optional: Record<string, never> = {}
 ): NewTermFormController {
   const [open, setOpen] = useState(false);
   const [name, setName] = useState("");
