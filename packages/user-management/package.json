@@ -23,7 +23,25 @@
       "./admin/react": "browser",
       "./admin/adapters/http": "universal",
       "./admin/adapters/memory": "universal",
-      "./admin/conformance": "universal"
+      "./admin/conformance": "universal",
+      "./admin-http/http/users": "universal",
+      "./admin-http/owner/mfa-deps": "universal",
+      "./admin-http/routes/users/create-role": "universal",
+      "./admin-http/routes/users/update-role": "universal",
+      "./admin-http/routes/users/delete-role": "universal",
+      "./admin-http/routes/users/create-policy": "universal",
+      "./admin-http/routes/users/update-policy": "universal",
+      "./admin-http/routes/users/delete-policy": "universal",
+      "./admin-http/routes/users/write-policy-permission": "universal",
+      "./admin-http/routes/users/list": "universal",
+      "./admin-http/routes/users/create": "universal",
+      "./admin-http/routes/users/update": "universal",
+      "./admin-http/routes/users/disable": "universal",
+      "./admin-http/routes/users/enable": "universal",
+      "./admin-http/routes/users/reset-password": "universal",
+      "./admin-http/routes/users/delete": "universal",
+      "./admin-http/routes/users/assign-role": "universal",
+      "./admin-http/routes/users/attach-policy": "universal"
     },
     "optionalPeers": {
       "argon2": "opt-in: argon2 password hashing; import @jini-ai/user-management/server — Argon2 password hashing could not load argon2. Install argon2 to enable this feature, or check its installed version and native binaries.",
@@ -89,6 +107,96 @@
       "types": "./dist/admin/conformance/index.d.ts",
       "import": "./dist/admin/conformance/index.js",
       "default": "./dist/admin/conformance/index.js"
+    },
+    "./admin-http/http/users": {
+      "types": "./dist/admin-http/http/users.d.ts",
+      "import": "./dist/admin-http/http/users.js",
+      "default": "./dist/admin-http/http/users.js"
+    },
+    "./admin-http/owner/mfa-deps": {
+      "types": "./dist/admin-http/owner/mfa-deps.d.ts",
+      "import": "./dist/admin-http/owner/mfa-deps.js",
+      "default": "./dist/admin-http/owner/mfa-deps.js"
+    },
+    "./admin-http/routes/users/create-role": {
+      "types": "./dist/admin-http/routes/users/create-role.d.ts",
+      "import": "./dist/admin-http/routes/users/create-role.js",
+      "default": "./dist/admin-http/routes/users/create-role.js"
+    },
+    "./admin-http/routes/users/update-role": {
+      "types": "./dist/admin-http/routes/users/update-role.d.ts",
+      "import": "./dist/admin-http/routes/users/update-role.js",
+      "default": "./dist/admin-http/routes/users/update-role.js"
+    },
+    "./admin-http/routes/users/delete-role": {
+      "types": "./dist/admin-http/routes/users/delete-role.d.ts",
+      "import": "./dist/admin-http/routes/users/delete-role.js",
+      "default": "./dist/admin-http/routes/users/delete-role.js"
+    },
+    "./admin-http/routes/users/create-policy": {
+      "types": "./dist/admin-http/routes/users/create-policy.d.ts",
+      "import": "./dist/admin-http/routes/users/create-policy.js",
+      "default": "./dist/admin-http/routes/users/create-policy.js"
+    },
+    "./admin-http/routes/users/update-policy": {
+      "types": "./dist/admin-http/routes/users/update-policy.d.ts",
+      "import": "./dist/admin-http/routes/users/update-policy.js",
+      "default": "./dist/admin-http/routes/users/update-policy.js"
+    },
+    "./admin-http/routes/users/delete-policy": {
+      "types": "./dist/admin-http/routes/users/delete-policy.d.ts",
+      "import": "./dist/admin-http/routes/users/delete-policy.js",
+      "default": "./dist/admin-http/routes/users/delete-policy.js"
+    },
+    "./admin-http/routes/users/write-policy-permission": {
+      "types": "./dist/admin-http/routes/users/write-policy-permission.d.ts",
+      "import": "./dist/admin-http/routes/users/write-policy-permission.js",
+      "default": "./dist/admin-http/routes/users/write-policy-permission.js"
+    },
+    "./admin-http/routes/users/list": {
+      "types": "./dist/admin-http/routes/users/list.d.ts",
+      "import": "./dist/admin-http/routes/users/list.js",
+      "default": "./dist/admin-http/routes/users/list.js"
+    },
+    "./admin-http/routes/users/create": {
+      "types": "./dist/admin-http/routes/users/create.d.ts",
+      "import": "./dist/admin-http/routes/users/create.js",
+      "default": "./dist/admin-http/routes/users/create.js"
+    },
+    "./admin-http/routes/users/update": {
+      "types": "./dist/admin-http/routes/users/update.d.ts",
+      "import": "./dist/admin-http/routes/users/update.js",
+      "default": "./dist/admin-http/routes/users/update.js"
+    },
+    "./admin-http/routes/users/disable": {
+      "types": "./dist/admin-http/routes/users/disable.d.ts",
+      "import": "./dist/admin-http/routes/users/disable.js",
+      "default": "./dist/admin-http/routes/users/disable.js"
+    },
+    "./admin-http/routes/users/enable": {
+      "types": "./dist/admin-http/routes/users/enable.d.ts",
+      "import": "./dist/admin-http/routes/users/enable.js",
+      "default": "./dist/admin-http/routes/users/enable.js"
+    },
+    "./admin-http/routes/users/reset-password": {
+      "types": "./dist/admin-http/routes/users/reset-password.d.ts",
+      "import": "./dist/admin-http/routes/users/reset-password.js",
+      "default": "./dist/admin-http/routes/users/reset-password.js"
+    },
+    "./admin-http/routes/users/delete": {
+      "types": "./dist/admin-http/routes/users/delete.d.ts",
+      "import": "./dist/admin-http/routes/users/delete.js",
+      "default": "./dist/admin-http/routes/users/delete.js"
+    },
+    "./admin-http/routes/users/assign-role": {
+      "types": "./dist/admin-http/routes/users/assign-role.d.ts",
+      "import": "./dist/admin-http/routes/users/assign-role.js",
+      "default": "./dist/admin-http/routes/users/assign-role.js"
+    },
+    "./admin-http/routes/users/attach-policy": {
+      "types": "./dist/admin-http/routes/users/attach-policy.d.ts",
+      "import": "./dist/admin-http/routes/users/attach-policy.js",
+      "default": "./dist/admin-http/routes/users/attach-policy.js"
     }
   },
   "files": [

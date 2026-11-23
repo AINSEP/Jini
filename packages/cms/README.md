@@ -181,6 +181,15 @@ answer the two from different sources), `normalizeMenuHtml` (a Node host binds
 `normalizeMenuHtml` from `@jini-ai/cms/navigation/node`) and `trashMenu` (the host's trash move).
 Malformed bodies are refused in `parse` with the host's code-less `{ error }` body.
 
+Newsletter (`src/admin-http/routes/newsletter/*`, types in `src/admin-http/http/newsletter.ts`): the
+newsletter domain has no engine code yet, so every spec takes the host's services as required deps
+(`saveCampaign`, `scheduleCampaign`, `openSendPipeline`, `saveList`, `importSubscriptions`, …), plus
+three base fields from `NewsletterRouteBaseDeps`: `workspaceId`, `newsletterReady` (awaited after the
+permission check) and `mapNewsletterError`, the host's error-class → `{ status, body }` table
+(`NewsletterErrorMapper`); an unmapped error is rethrown to the host's 500 port. Routes authorize
+`admin.newsletter.*` on `newsletter_campaign|newsletter_list|newsletter_subscription` without an
+`entityId`, as the hand-written routes did.
+
 ## Scripts
 
 ```bash
