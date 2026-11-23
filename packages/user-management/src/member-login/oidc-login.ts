@@ -229,7 +229,7 @@ export async function sealLoginEmailContinuation(required: {
       || login.connectMemberId !== input.connectMemberId) throw new MemberLoginError({ code: "LOGIN_INVALID" });
     const expiresAt = Date.parse(login.startedAt) + 600000;
     if (!Number.isFinite(expiresAt) || expiresAt <= deps.clock.nowMs()) throw new MemberLoginError({ code: "LOGIN_INVALID" });
-    // Seal directly with the visible continuation aad so a host seal-aad check can verify this call site.
+    // Seal directly with the visible continuation aad so check:seal-aad can verify this call site.
     return await sealState({ deps, plaintext: JSON.stringify({ login, expiresAt }), aad: continuationAad({ deps, input, version: config.version }) });
   } catch {
     throw new MemberLoginError({ code: "LOGIN_INVALID" });

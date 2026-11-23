@@ -1,6 +1,7 @@
 /** Built-in member auth templates. Secrets are filled only for the interactive send payload. */
 
-/** The slice of the host's mail renderer this module calls: static HTML plus field values in, a sendable message out. */
+/** The slice of the host's mail renderer this module calls: static HTML plus field values in, a sendable message out.
+ * Injected as `required.renderEmailForSend`, so this module never imports its owner. */
 export type RenderEmailForSend = (input: { html: string; values: Record<string, string> }) => {
   subject: string; html: string; text: string;
 };
@@ -17,7 +18,6 @@ const TEMPLATES = {
 /**
  * Render static HTML and text with the existing escaping/sanitization owner; no persistence.
  * Reset templates have no code field. Errors from the renderer propagate.
- * The renderer is injected (`required.renderEmailForSend`), so this module never imports its owner.
  * @complexity O(n) in the fixed template and supplied link length.
  */
 export function renderMemberAuthMail(required: {
