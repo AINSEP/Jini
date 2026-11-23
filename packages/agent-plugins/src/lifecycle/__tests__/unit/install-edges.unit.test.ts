@@ -4,11 +4,12 @@ import * as fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { createAgentPluginLayout } from '../../layout.js';
-import { AgentPluginInstallError, createInstallModule, type AgentPluginArchiveEntry, type AgentPluginArchiveReaderPort } from '../../install.js';
+import { AgentPluginInstallError, createInstallModule } from '../../install.js';
 import type { AgentPluginLifecyclePorts, FilesystemPort } from '../../ports.js';
 import { PackagePathViolation } from '../../package-paths.js';
 import { ports } from '../test-support.js';
 import { forceRemove } from '../fixtures/force-remove.js';
+import type { AgentPluginArchiveEntry, AgentPluginArchiveReaderPort } from "@jini-ai/core/contracts/site/agent-plugins-lifecycle";
 
 /**
  * @file `installAgentPlugin` refusal paths that need an adversarial archive reader or an injected

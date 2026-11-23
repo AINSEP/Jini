@@ -1,8 +1,8 @@
 import { describe, it, expect } from 'vitest';
 import type { RunHandlers, ChatTransport } from '../../../core/transport.js';
 import type { ChatMessage } from '../../../core/messages.js';
-import type { AgentEvent } from '../../../core/events.js';
 import { createVanillaChatController } from '../state.js';
+import type { AgentEvent } from "@jini-ai/core/contracts/site/chat-core";
 
 function fixture(initialMessages: ChatMessage[] = []) {
   let handlers: RunHandlers | null = null;

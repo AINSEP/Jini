@@ -4,7 +4,7 @@ import path from "node:path";
 import { AgentPluginInstallError } from "./install-errors.js";
 import { parseAgentPluginManifest as parseAgentPluginManifestValue, type AgentPluginManifest } from "./manifest.js";
 import type { AgentPluginLifecyclePorts } from "./ports.js";
-import type { InstalledAgentPlugin, InstalledAgentPluginSkill } from "./types.js";
+import type { InstalledAgentPlugin, InstalledAgentPluginSkill } from "@jini-ai/core/contracts/site/agent-plugins-lifecycle";
 
 /** Keep undeclared metadata absent, including for older packages. No extra manifest read. */
 function indexedMetadata({ manifest }: { readonly manifest: InstalledAgentPluginMetadata }, _optional = {}) {

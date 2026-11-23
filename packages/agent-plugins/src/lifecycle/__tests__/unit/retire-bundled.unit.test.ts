@@ -11,7 +11,6 @@ import { ACTIVATIONS_FILENAME } from "../../activation.js";
 import { readBundledAgentPluginDigests, recordBundledAgentPluginDigests, removeBundledAgentPluginDigest } from "../test-support.js";
 import { BUNDLED_DIGESTS_FILENAME } from "../../bundled-digests.js";
 import { installAgentPlugin } from "../test-support.js";
-import { type AgentPluginArchiveEntry, type AgentPluginArchiveReaderPort } from "../../install.js";
 import { resolveAgentPluginLayout } from "../test-support.js";
 
 import { listInstalledPlugins } from "../test-support.js";
@@ -22,6 +21,7 @@ import { seedBundledAgentPlugins } from "../test-support.js";
 
 import { uninstallAgentPlugin } from "../test-support.js";
 import { AgentPluginNotUninstallableError } from "../../uninstall.js";
+import type { AgentPluginArchiveEntry, AgentPluginArchiveReaderPort } from "@jini-ai/core/contracts/site/agent-plugins-lifecycle";
 
 /**
  * @file `retireBundledAgentPlugins()` — the boot migration that removes `old-integration` (merged

@@ -1,3 +1,5 @@
+/** Deprecated re-export: import these from `@jini-ai/core/contracts/site/agent-plugins-lifecycle`; removed at the next major. */
+export type { AgentPluginArchiveEntry, AgentPluginArchiveReaderPort, AgentPluginArchiveReaderPort as ArchiveReaderPort, InstalledAgentPluginSkill, InstalledAgentPlugin, AgentPluginLayout, AgentPluginLayoutPort, AgentPluginWorkspaceLayout, SetAgentPluginEnabledInput, SetAgentPluginEnabledResult, UninstallAgentPluginRequired, UninstallAgentPluginOptional, UninstallAgentPluginResult, AgentPluginUninstallPreview } from "@jini-ai/core/contracts/site/agent-plugins-lifecycle";
 export * from './update-plan.js';
 export { AgentPluginUpdateError } from './update-store.js';
 export type { UpdateAgentPluginRequired, UpdateAgentPluginResult } from './update.js';
@@ -47,11 +49,10 @@ export { AgentPluginNotFoundError, AgentPluginNotUninstallableError, AgentPlugin
 export type { AgentPluginOrigin, AgentPluginActivationRecord, AgentPluginActivations, AgentPluginActivationVerdict, SetAgentPluginActivationRequired, SetAgentPluginActivationOptional, BundledAgentPluginEnableOutcome, DeleteAgentPluginActivationRequired } from './activation.js';
 export type { BundledAgentPluginDigests, SeededBundledAgentPluginDigest, InstalledDigestIdentity } from './bundled-digests.js';
 export type { PackedAgentPluginArchive, PackAgentPluginDirectoryOptional } from './bundled-source-archive.js';
-export type { AgentPluginArchiveEntry, AgentPluginArchiveReaderPort, AgentPluginArchiveReaderPort as ArchiveReaderPort, AgentPluginInstallErrorCode, InstalledAgentPluginSkill, InstalledAgentPlugin, InstallAgentPluginRequired, InstallAgentPluginOptional } from './install.js';
+export type { AgentPluginInstallErrorCode, InstallAgentPluginRequired, InstallAgentPluginOptional } from './install.js';
 export type { AgentPluginIntegrity, InstallAgentPluginFromUrlRequired, InstallAgentPluginFromUrlOptional, InstalledAgentPluginFromUrl } from './install-from-url.js';
 export type { AgentPluginDeliveryMode, AgentPluginSkillRequest, ResolveAgentPluginRefsResult } from './resolve-agent-plugin-refs.js';
-export type { SetAgentPluginEnabledInput, SetAgentPluginEnabledResult } from './set-enabled.js';
-export type { UninstallAgentPluginRequired, UninstallAgentPluginOptional, UninstallAgentPluginResult, AgentPluginUninstallPreview, StagedTree } from './uninstall.js';
+export type { StagedTree } from './uninstall.js';
 export type { TrustedPluginPackage, TrustedPluginPackagesQuery, TrustedPluginVerdict } from './trusted-plugin-files.js';
 export type { AgentPluginSearchSkill, AgentPluginSearchCandidate, AgentPluginSearchMatch } from './search.js';
 

@@ -1,11 +1,11 @@
 /** Read display context from a standalone form; its host may not have emitted a tool call. */
 import { parseUIResource, readActionPlan, type UIResource } from '@jini-ai/protocol/mcp-ui';
 import { useMemo, useRef } from 'react';
-import type { AgentEvent } from '../../core/events.js';
 import type { AcceptedInputProjectionOptions } from '../../core/accepted-input.js';
 import { SURFACE_QUESTION_META_KEY } from '../../core/question-answer.js';
 import { useExtEventGroups } from '../hooks/useExtEventGroups.js';
 import { useExtEventRendererRegistry } from '../hooks/context.js';
+import type { AgentEvent } from "@jini-ai/core/contracts/site/chat-core";
 
 /** Feed recovered form context into the existing receipt projection, including after history reload.
  * Grouping owns tool/surface association; this hook only supplies missing presentation context.

@@ -1,7 +1,7 @@
 import { expect, it } from 'vitest';
-import type { AgentEvent } from '../events.js';
 import type { ChatMessage } from '../messages.js';
 import { conversationUsage, replySegments, turnUsage } from '../turn-usage.js';
+import type { AgentEvent } from "@jini-ai/core/contracts/site/chat-core";
 
 it('sums every reported segment field independently without filling unknown fields with zero', () => {
   const total = turnUsage({ events: [
@@ -163,7 +163,6 @@ it('skips user messages and leaves a reply without usage as an undefined segment
   expect([...usage.keys()]).toEqual(['a']);
   expect(usage.get('a')).toEqual({ kind: 'usage', costUsd: 0.5, totalCostUsd: 0.5, segments: [undefined, { kind: 'usage', costUsd: 0.5, totalCostUsd: 0.5 }] });
 });
-
 
 it('counts queued and consumed receipts as one reply boundary and one charge', () => {
   const queued: AgentEvent = { kind: 'ext', name: 'user_message', data: { id: 'u1', text: 'next', deliveryState: 'queued' } };

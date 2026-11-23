@@ -1,17 +1,4 @@
-/**
- * @module compact-events
- *
- * Shrinks a finished turn's events before they are saved.
- *
- * With partial-message streaming on, the CLI reports text a few tokens at a time, so one answer
- * arrives as ~100 `text` events (`"Here"`, `" are your"`, …). Live, that is what makes words appear
- * as they are written. Saved, it only repeats `{"kind":"text","text":…}` per token. Joining each
- * run of back-to-back `text` events (and back-to-back `thinking` events) into one keeps the saved
- * row's meaning intact: nothing is reordered, and any other event between two deltas — a tool call,
- * a card, a status or raw line — still separates them, so `assistantContentFromEvents` and the
- * pane's step layout read the same before and after.
- */
-import type { AgentEvent } from './events.js';
+import type { AgentEvent } from "@jini-ai/core/contracts/site/chat-core";
 
 type DeltaEvent = Extract<AgentEvent, { kind: 'text' | 'thinking' }>;
 

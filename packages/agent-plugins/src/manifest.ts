@@ -1,5 +1,6 @@
 import { validatePluginIdentity } from "@jini-ai/core/plugin-directory";
 import { resolveAgentPluginIdentityNamespace } from './core/identity-namespace.js';
+import type { PluginManifestAuthor } from "@jini-ai/core/contracts/site/agent-plugins-lifecycle";
 /**
  * Types for the Agent Plugins 1.0.0 open standard (published by a Technical Steering Committee
  * with maintainers from Amazon, Cursor, Google, Microsoft, OpenAI, and Vercel). A plugin is a
@@ -19,12 +20,6 @@ export const AGENT_PLUGINS_MCP_SCHEMA_URL = 'https://agent-plugins.org/schemas/1
 export const PLUGIN_MANIFEST_FILENAME = 'plugin.json';
 export const PLUGIN_SKILLS_DIRNAME = 'skills';
 export const PLUGIN_MCP_MANIFEST_FILENAME = 'mcp.json';
-
-export interface PluginManifestAuthor {
-  readonly name?: string;
-  readonly email?: string;
-  readonly url?: string;
-}
 
 export type { PluginIdentityExtension } from "@jini-ai/core/plugin-directory";
 

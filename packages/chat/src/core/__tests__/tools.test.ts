@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import type { AgentEvent } from '../events.js';
 import { dedupeToolUsesById, deriveToolStatus, toRenderProps } from '../tools.js';
+import type { AgentEvent } from "@jini-ai/core/contracts/site/chat-core";
 
 describe('tools: deriveToolStatus / toRenderProps', () => {
   const use: Extract<AgentEvent, { kind: 'tool_use' }> = { kind: 'tool_use', id: 't1', name: 'Read', input: { path: 'a.ts' } };

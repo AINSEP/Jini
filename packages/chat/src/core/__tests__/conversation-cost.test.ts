@@ -1,10 +1,10 @@
 import { expect, it } from 'vitest';
-import type { AgentEvent } from '../events.js';
 import type { ChatMessage } from '../messages.js';
 import { conversationUsage } from '../turn-usage.js';
 import { formatUsageCost } from '../usage-format.js';
 import { mergeRunEvents } from '../durable-projection.js';
 import { parseUsageEvent, translateRunAgentPayload } from '../run-events/entry.js';
+import type { AgentEvent } from "@jini-ai/core/contracts/site/chat-core";
 
 const message = (id: string, events: AgentEvent[], agentId = 'claude'): ChatMessage => ({ id, role: 'assistant', content: '', agentId, events });
 const snapshot = (session: string, cumulative: number): AgentEvent => ({ kind: 'usage', costSessionId: session, cumulativeCostUsd: cumulative });

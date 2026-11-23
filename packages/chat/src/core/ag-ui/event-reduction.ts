@@ -4,9 +4,9 @@
  * names. They are read by `run-events` `translateRunAgentPayload`, the one reducer, so this wire and
  * the daemon wire accept and ignore exactly the same shapes. */
 import { EventType } from '@ag-ui/core';
-import type { AgentEvent } from '../events.js';
 import { asString, translateRunAgentPayload } from '../run-events/entry.js';
 import type { AgUiEvent, CustomEventNames } from './event-projection.js';
+import type { AgentEvent } from "@jini-ai/core/contracts/site/chat-core";
 
 /**
  * Accumulates `TOOL_CALL_ARGS` deltas by `toolCallId` between a call's `TOOL_CALL_START` and

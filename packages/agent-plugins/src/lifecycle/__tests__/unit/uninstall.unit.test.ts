@@ -10,11 +10,11 @@ import { test } from "../legacy-test.js";
 import { forceRemove } from "../fixtures/force-remove.js";
 import { ACTIVATIONS_FILENAME } from "../../activation.js";
 import { installAgentPlugin } from "../test-support.js";
-import { type AgentPluginArchiveEntry, type AgentPluginArchiveReaderPort } from "../../install.js";
 import { resolveAgentPluginLayout } from "../test-support.js";
 
 import { previewAgentPluginUninstall, uninstallAgentPlugin } from "../test-support.js";
 import { AgentPluginChangedSincePreviewError, AgentPluginNotFoundError, AgentPluginNotUninstallableError } from "../../uninstall.js";
+import type { AgentPluginArchiveEntry, AgentPluginArchiveReaderPort } from "@jini-ai/core/contracts/site/agent-plugins-lifecycle";
 
 /**
  * @file `uninstallAgentPlugin()` — the RED/GREEN proof this domain's uninstall was missing entirely

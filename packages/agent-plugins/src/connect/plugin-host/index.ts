@@ -8,13 +8,12 @@ import type { Clock } from "@jini-ai/core/primitives";
 import { describeErrorForLog, redactSecrets, ToolInputError, type AccessApprovalResource } from '@jini-ai/core';
 import type { Logger } from '@jini-ai/core/primitives';
 import { createPluginLookup, readPluginIdentity, assertPluginIdentityAvailable, type PluginIdentityCandidate, type PluginLookupPort, type PluginProvider } from '@jini-ai/core/plugin-directory';
-import type { InstalledAgentPlugin } from '../../lifecycle/types.js';
-import type { SetAgentPluginEnabledInput, SetAgentPluginEnabledResult } from '../../lifecycle/set-enabled.js';
 import { provisionAgentPluginMcpServers, resolveAgentPluginMcpServers, type AgentPluginInstalledMcpReads, type AgentPluginMcpTrustClassifier } from '../federate-mcp.js';
 import { recordAgentPluginAccessDeclined } from '../apply-connect-defaults.js';
 import { previewAgentPluginEnableAccess, type AgentPluginEnableAccessMessages } from '../enable-access.js';
 import type { AgentPluginMcpPort, AgentPluginMcpProjectionPorts } from '../ports.js';
 import type { McpServerConfig } from '../../lifecycle/manifest.js';
+import type { InstalledAgentPlugin, SetAgentPluginEnabledInput, SetAgentPluginEnabledResult } from "@jini-ai/core/contracts/site/agent-plugins-lifecycle";
 
 type AgentPluginLayoutInput = Parameters<typeof resolveAgentPluginMcpServers>[0]['agentPluginLayout'];
 type ProvisioningFailure = Awaited<ReturnType<typeof provisionAgentPluginMcpServers>>['failed'][number];

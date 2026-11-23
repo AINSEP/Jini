@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import type { AgentEvent } from '../events.js';
 import { assistantContentFromEvents, legacyAssistantContentFromEvents } from '../assistant-content.js';
+import type { AgentEvent } from "@jini-ai/core/contracts/site/chat-core";
 
 describe('assistantContentFromEvents — a working note is never glued onto the answer', () => {
   it('puts a paragraph break where a tool call sat between two text runs (the saved-row bug)', () => {

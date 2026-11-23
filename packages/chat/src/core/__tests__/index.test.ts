@@ -1,17 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import {
-  buildTranscript,
-  dedupeToolUsesById,
-  deriveToolStatus,
-  isTerminalRunStatus,
-  parsePartialJson,
-  repairJsonPrefix,
-  splitOnQuestionForms,
-  stripArtifact,
-  type AgentEvent,
-  type ChatMessage,
-  type ChatRunStatus,
-} from '../index.js';
+import { buildTranscript, dedupeToolUsesById, deriveToolStatus, isTerminalRunStatus, parsePartialJson, repairJsonPrefix, splitOnQuestionForms, stripArtifact, type ChatMessage, type ChatRunStatus } from '../index.js';
+import type { AgentEvent } from "@jini-ai/core/contracts/site/chat-core";
 
 describe('@jini-ai/chat/core barrel', () => {
   it('re-exports the full public surface from a single entry point', () => {

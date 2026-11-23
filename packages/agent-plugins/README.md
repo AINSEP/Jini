@@ -327,3 +327,11 @@ for writes and destructive actions. Set discovery `readOnly`/`sideEffects` from
 the effect. Sync after activation changes: absent actions are withdrawn and held
 handlers are revoked. A host may collect its issued sign-in URLs around dispatch;
 return those URLs for the assistant to show. This adapter never opens a browser.
+
+## Wiring
+
+The lifecycle value contracts (`InstalledAgentPlugin`, `SetAgentPluginEnabledInput`/`Result`, the
+layout, uninstall and archive-reader ports, `PluginManifestAuthor`, `AgentPluginExport*`) are declared
+in `@jini-ai/core/contracts/site/agent-plugins-lifecycle` and `./agent-plugins-manifest`. This package
+imports them from core and keeps the runtime; `./lifecycle` and `./manifest` still re-export the names
+as deprecated types until the next major. Hosts import them from core.
