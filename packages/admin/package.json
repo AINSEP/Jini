@@ -141,7 +141,9 @@
       "./shell/components/InstallTabCard/use-folder-upload.hooks": "browser",
       "./shell/components/Select/Select.hooks": "browser",
       "./shell/lib/tab-event-source": "browser",
-      "./shell/hooks/use-external-entry-refresh.hooks": "browser"
+      "./shell/hooks/use-external-entry-refresh.hooks": "browser",
+      "./roles/api/roles-api.types": "browser",
+      "./roles/Roles.hooks": "browser"
     },
     "isolation": {
       "shared": [
@@ -220,7 +222,9 @@
         "./shell/components/InstallTabCard/use-folder-upload.hooks": "browser",
         "./shell/components/Select/Select.hooks": "browser",
         "./shell/lib/tab-event-source": "browser",
-        "./shell/hooks/use-external-entry-refresh.hooks": "browser"
+        "./shell/hooks/use-external-entry-refresh.hooks": "browser",
+        "./roles/api/roles-api.types": "browser",
+        "./roles/Roles.hooks": "browser"
       }
     },
     "optionalPeers": {
@@ -867,6 +871,16 @@
       "types": "./dist/shell/hooks/use-external-entry-refresh.hooks.d.ts",
       "import": "./dist/shell/hooks/use-external-entry-refresh.hooks.js",
       "default": "./dist/shell/hooks/use-external-entry-refresh.hooks.js"
+    },
+    "./roles/api/roles-api.types": {
+      "types": "./dist/roles/api/roles-api.types.d.ts",
+      "import": "./dist/roles/api/roles-api.types.js",
+      "default": "./dist/roles/api/roles-api.types.js"
+    },
+    "./roles/Roles.hooks": {
+      "types": "./dist/roles/Roles.hooks.d.ts",
+      "import": "./dist/roles/Roles.hooks.js",
+      "default": "./dist/roles/Roles.hooks.js"
     }
   },
   "files": [
@@ -924,6 +938,9 @@
       ],
       "shell/*": [
         "./dist/shell/*.d.ts"
+      ],
+      "roles/*": [
+        "./dist/roles/*.d.ts"
       ]
     }
   },
