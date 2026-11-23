@@ -15,7 +15,7 @@ async function refusalOf(fn: () => unknown): Promise<{ status: number; body: unk
 
 function fixture({ gate = { ok: true, switcherBase: '/repo' } as SiteSwitchBase, deny = false } = {}) {
   const calls: unknown[] = [];
-  const deps: SiteCreateRouteDeps & SiteActivateRouteDeps & { workspaceId: string; listTokenSignInPlugins: (r: { workspaceId: string }) => Promise<unknown> } = {
+  const deps: SiteCreateRouteDeps & SiteActivateRouteDeps & { workspaceId: string; listTokenSignInPlugins: (r: { workspaceId: string }) => Promise<readonly unknown[]> } = {
     workspaceId: 'ws',
     siteSwitchBase: () => { calls.push('gate'); return gate; },
     createSite: async (input) => { calls.push(['create', input]); return { ok: true, site: { name: input.name }, agentPluginTokens: [] }; },
