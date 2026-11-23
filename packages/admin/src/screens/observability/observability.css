@@ -29,7 +29,7 @@
     overflow-y: hidden;
     scrollbar-width: thin;
     padding-right: 0;
-    mask-image: linear-gradient(to right, #000 0, #000 calc(100% - 32px), transparent);
+    mask-image: linear-gradient(to right, black 0, black calc(100% - 32px), transparent);
   }
   .admin-layout .page:is(.ai-assistant-page, .jini-observability-page) .jini-tabbed-dialog-nav-item {
     padding-inline: 6px;
