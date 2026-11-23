@@ -310,6 +310,15 @@
    "moduleStatusRoute": "variable:ebdbd5f9da"
   }
  },
+ "./admin-http/routes/workspace/create": {
+  "types": "./dist/admin-http/routes/workspace/create.d.ts",
+  "symbols": {
+   "WorkspaceCreateRouteDeps": "interface:314559ad16",
+   "parseWorkspaceCreateBody": "function:b8c43459fb",
+   "workspaceCreateFailure": "function:bb2bfd4315",
+   "workspaceCreateRoute": "variable:39898400e8"
+  }
+ },
  "./admin-http/routes/workspace/delete": {
   "types": "./dist/admin-http/routes/workspace/delete.d.ts",
   "symbols": {

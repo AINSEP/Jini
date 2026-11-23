@@ -1215,6 +1215,28 @@
    "useRedirectsPorts": "function:7814d9eb73"
   }
  },
+ "./screens/assistant-settings/AssistantToggleRow": {
+  "types": "./dist/screens/assistant-settings/AssistantToggleRow.d.ts",
+  "symbols": {
+   "AssistantToggleRow": "function:1e8bf77f30",
+   "AssistantToggleRowProps": "interface:5280d58b76"
+  }
+ },
+ "./screens/assistant-settings/OwnerGrantStatus": {
+  "types": "./dist/screens/assistant-settings/OwnerGrantStatus.d.ts",
+  "symbols": {
+   "OwnerGrantStatus": "function:a92f03f71c",
+   "OwnerGrantStatusProps": "interface:6926c229b4"
+  }
+ },
+ "./screens/assistant-settings/use-ai-assistant-locale-sync.hooks": {
+  "types": "./dist/screens/assistant-settings/use-ai-assistant-locale-sync.hooks.d.ts",
+  "symbols": {
+   "AiAssistantLocaleSyncDependencies": "interface:43e507b672",
+   "AiAssistantLocaleSyncHookProps": "interface:fdab4e008f",
+   "useAiAssistantLocaleSync": "function:33b86807f8"
+  }
+ },
  "./screens/fs-files/folder-drop-port": {
   "types": "./dist/screens/fs-files/folder-drop-port.d.ts",
   "symbols": {

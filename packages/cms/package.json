@@ -147,6 +147,7 @@
       "./admin-http/routes/workspace/update": "universal",
       "./admin-http/routes/workspace/list": "universal",
       "./admin-http/routes/workspace/get": "universal",
+      "./admin-http/routes/workspace/create": "universal",
       "./admin-http/routes/workspace/deps": "universal",
       "./admin-http/http/workspace": "universal",
       "./site-inspection/site-profile": "universal",
@@ -938,6 +939,11 @@
       "types": "./dist/admin-http/routes/workspace/get.d.ts",
       "import": "./dist/admin-http/routes/workspace/get.js",
       "default": "./dist/admin-http/routes/workspace/get.js"
+    },
+    "./admin-http/routes/workspace/create": {
+      "types": "./dist/admin-http/routes/workspace/create.d.ts",
+      "import": "./dist/admin-http/routes/workspace/create.js",
+      "default": "./dist/admin-http/routes/workspace/create.js"
     },
     "./admin-http/routes/workspace/deps": {
       "types": "./dist/admin-http/routes/workspace/deps.d.ts",
