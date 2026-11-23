@@ -46,7 +46,8 @@
       "./static-export/site/public-origin-policy": "universal",
       "./checks/quality-gates": "universal",
       "./checks/complexity-debt": "universal",
-      "./checks/live-verify-checks": "universal"
+      "./checks/live-verify-checks": "universal",
+      "./packaging/electron/move-to-applications": "node"
     },
     "isolation": {
       "shared": [
@@ -235,6 +236,11 @@
       "types": "./dist/checks/live-verify-checks.d.ts",
       "import": "./dist/checks/live-verify-checks.js",
       "default": "./dist/checks/live-verify-checks.js"
+    },
+    "./packaging/electron/move-to-applications": {
+      "types": "./dist/packaging/electron/move-to-applications.d.ts",
+      "import": "./dist/packaging/electron/move-to-applications.js",
+      "default": "./dist/packaging/electron/move-to-applications.js"
     }
   },
   "files": [
