@@ -13,7 +13,7 @@ test('every published entry has matching runtime metadata and a source module', 
     // A React entry that renders JSX (kit.tsx) has a .tsx source; every other entry is plain .ts.
     const source = existsSync(new URL(`../../${stem}.tsx`, import.meta.url)) ? `${stem}.tsx` : `${stem}.ts`;
     expect(readFileSync(new URL(`../../${source}`, import.meta.url), 'utf8').length, entry).toBeGreaterThan(0);
-    expect(manifest.jini.entries[entry]).toBe((entry.startsWith('./react') || entry === './admin/react') ? 'browser' : entry === './server' ? 'node' : 'universal');
+    expect(manifest.jini.entries[entry]).toBe((entry.startsWith('./react') || entry === './admin/react') ? 'browser' : (entry === './server' || entry === './admin-http/auth') ? 'node' : 'universal');
   }
 });
 
