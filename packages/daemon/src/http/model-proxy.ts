@@ -111,7 +111,7 @@ import {
   type OptionalFieldCheck,
 } from './model-proxy-fields.js';
 
-/** Any recognized provider's turn event, as the proxy relays it: the `/api/proxy/:provider/stream` catch-all's registry (and, transitively, every fixed-path route) only reads the discriminant; the vendor wire shape stays with the host-bound runner. */
+/** The union of every recognized provider's `run{Provider}ToolTurn` event type — what the `/api/proxy/:provider/stream` catch-all's registry (and, transitively, every fixed-path route) can emit — now typed at the injected port boundary (`ProviderTurnEventRecord`): the proxy only reads the discriminant; the vendor wire shape stays with the host-bound runner. */
 type AnyProxyTurnEvent = ProviderTurnEventRecord;
 
 /** Host-owned tool execution for one provider route: takes that provider's tool call, returns its tool result (vendor wire shapes stay with the host). */
@@ -456,7 +456,7 @@ function transportOptions(deps: ModelProxyHttpDeps): { fetchImpl?: PinnedFetch; 
   };
 }
 
-/** `tools` forwarded to the host-bound turn-runner only when present (the parser never inspects tool contents — see `parseCommon`). */
+/** `tools`, forwarded only when present; the cast to the turn-runner's own tool-definition type now happens at the host-bound port (the parser never inspects tool contents — see `parseCommon`). */
 function toolsOption(tools: unknown[] | undefined): { tools?: readonly unknown[] } {
   return tools !== undefined ? { tools } : {};
 }
