@@ -190,6 +190,19 @@ permission check) and `mapNewsletterError`, the host's error-class → `{ status
 `admin.newsletter.*` on `newsletter_campaign|newsletter_list|newsletter_subscription` without an
 `entityId`, as the hand-written routes did.
 
+Content lane (L1). `src/admin-http/http/plugin-hook-error.ts`: `createPluginHookErrorEnvelope` binds the
+`PLUGIN_HOOK_FAILED` 500 envelope to the host's hook-failure class, refusal copy, redaction and log
+sink; a spec calls the bound `rejectPluginHookFailure({ err })` first in its catch. Change sets
+(`routes/change-sets/*`) call cms's own `revertChangeSet` and take the host's DTO mappers and revert
+registry; get and revert authorize `changeset.*` with `{ entityId }`. Email templates
+(`routes/email-templates/*`) take the template operations, their error predicates and the raw-HTML
+edit permission (`editHtmlPermission`) as deps; a host keeps its own body-size binding in front of
+the capped writes when its 413 copy differs from the kit's. Pages (`routes/pages/{list,get-by-id}`),
+posts autosave (`routes/posts/autosave`: read + clear), presentation (`routes/presentation/{get,
+rescan-themes}`) and themes (`routes/themes/{list,duplicate}` and the `explore-*` specs) take the
+host's lookups, DTO mappers, not-found predicates and theme registry reads as functions. Write routes
+that read an `Idempotency-Key` header are not specs yet: a spec's input carries body, query and params only.
+
 ## Scripts
 
 ```bash
