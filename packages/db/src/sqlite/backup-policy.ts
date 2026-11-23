@@ -91,9 +91,30 @@ export function selectDatabaseCopiesToPrune(
     throw new RangeError(`Copy retention keep must be a whole number of at least 1 (got ${keep}).`);
   }
   if (!verifiedNewest) return [];
-  const local = localCopiesNewestFirst({ copies, anchorPath: verifiedNewest });
+  const anchor = path.resolve(verifiedNewest);
+  // Identities, not spellings: an alias of a retained copy must neither take a window slot nor be selected.
+  const local = collapseByIdentity(localCopiesNewestFirst({ copies, anchorPath: anchor }));
   // The anchor has to be the newest listed copy: a newer copy written after verification is unproven.
-  if (local.length === 0 || path.resolve(local[0]!.filePath) !== path.resolve(verifiedNewest)) return [];
-  const isProtected = (filePath: string) => protectedPaths.has(filePath) || protectedPaths.has(path.resolve(filePath));
-  return local.slice(keep).filter(copy => !isProtected(copy.filePath));
+  if (local.length === 0 || local[0]!.identity !== anchor) return [];
+  // The anchor is listed explicitly even though collapse + keep >= 1 already retain it: selection must never
+  // depend on that coupling to spare the only verified copy.
+  const kept = new Set([...[...protectedPaths].map(filePath => path.resolve(filePath)), anchor]);
+  return local.slice(keep).filter(entry => !kept.has(entry.identity)).map(entry => entry.copy);
+}
+
+/** First (newest) row wins for each resolved path; later rows naming the same file are dropped.
+ * @complexity O(n) time, O(n) space. */
+function collapseByIdentity(
+  newestFirst: readonly DatabaseCopy[],
+  _optional: Record<string, never> = {},
+): { readonly copy: DatabaseCopy; readonly identity: string }[] {
+  const seen = new Set<string>();
+  const unique: { readonly copy: DatabaseCopy; readonly identity: string }[] = [];
+  for (const copy of newestFirst) {
+    const identity = path.resolve(copy.filePath);
+    if (seen.has(identity)) continue;
+    seen.add(identity);
+    unique.push({ copy, identity });
+  }
+  return unique;
 }

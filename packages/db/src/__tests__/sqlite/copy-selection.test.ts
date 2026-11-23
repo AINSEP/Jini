@@ -70,3 +70,28 @@ test('keep below 1 or not a whole number is refused in plain words', () => {
     );
   }
 });
+
+test('an alias of a retained copy is never selected and never takes a window slot', () => {
+  // Same files, different spellings: the listing can name one copy twice.
+  const aliasOfNewest = { filePath: `${dir}${path.sep}.${path.sep}copy-08.db`, createdAt: 8000 };
+  const staleAliasOfRetained = { filePath: `${dir}${path.sep}${path.sep}copy-06.db`, createdAt: 1 };
+  const selected = selectDatabaseCopiesToPrune({ copies: [...eight, aliasOfNewest, staleAliasOfRetained], verifiedNewest: copy(8).filePath });
+  assert.deepEqual(selected.map(entry => entry.filePath), [copy(3), copy(2), copy(1)].map(entry => entry.filePath));
+});
+
+test('the verified copy is never selected, whatever spelling the listing or the anchor uses', () => {
+  const aliasOfVerified = { filePath: `${dir}${path.sep}.${path.sep}copy-08.db`, createdAt: 0 };
+  const selected = selectDatabaseCopiesToPrune(
+    { copies: [...eight, aliasOfVerified], verifiedNewest: path.relative(process.cwd(), copy(8).filePath) },
+    { keep: 1 },
+  );
+  assert.deepEqual(names(selected), ['copy-07.db', 'copy-06.db', 'copy-05.db', 'copy-04.db', 'copy-03.db', 'copy-02.db', 'copy-01.db']);
+});
+
+test('a relative protected path protects the matching absolute candidate', () => {
+  const selected = selectDatabaseCopiesToPrune(
+    { copies: eight, verifiedNewest: copy(8).filePath },
+    { protectedPaths: new Set([path.relative(process.cwd(), copy(1).filePath)]) },
+  );
+  assert.deepEqual(names(selected), ['copy-03.db', 'copy-02.db']);
+});
