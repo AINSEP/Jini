@@ -625,6 +625,29 @@
    "withIsolatedPackagedTree": "function:79d56c9cca"
   }
  },
+ "./packaging/electron/move-to-applications": {
+  "types": "./dist/packaging/electron/move-to-applications.d.ts",
+  "symbols": {
+   "DeclineFileRead": "type:b2296a0e56",
+   "DeclinedVersionStore": "interface:f22b84b3a2",
+   "MoveConflictDecision": "type:b52fe3b4aa",
+   "MoveConflictType": "type:c9ef68edf1",
+   "MovePromptDeps": "interface:a1503358e3",
+   "MovePromptEnvironment": "interface:a406185542",
+   "MovePromptMessages": "interface:27a8bf01e4",
+   "MovePromptOutcome": "type:5d6aea0a5c",
+   "ReadTextFile": "type:3f925eee21",
+   "applicationsTargetPath": "function:c925bb19a7",
+   "bundlePathFromExecPath": "function:297ea66fa0",
+   "compareVersions": "function:da113e2ece",
+   "decideMoveConflict": "function:0030c31efb",
+   "movePromptSkipReason": "function:5055461493",
+   "readBundleVersion": "function:77d0b56a54",
+   "readDeclinedVersion": "function:29e4e2d9be",
+   "recordDeclinedVersion": "function:e3c24561df",
+   "runMoveToApplicationsPrompt": "function:8a047d7d45"
+  }
+ },
  "./packaging/electron/typescript": {
   "types": "./dist/packaging/electron/typescript.d.ts",
   "symbols": {

@@ -265,6 +265,25 @@
    "createSelftestTracker": "function:46d7de4d69"
   }
  },
+ "./electron/session-bootstrap": {
+  "types": "./dist/electron/session-bootstrap/index.d.ts",
+  "symbols": {
+   "CookieJarSession": "interface:67a9dc5035",
+   "HeaderArmingSession": "interface:1a0f90f2b4",
+   "SessionBodyRequest": "interface:2a7a3bd701",
+   "SessionNet": "interface:0d00c896ff",
+   "SessionOutcome": "interface:f90c45efa3",
+   "SessionRequest": "interface:dbd6679cae",
+   "SessionRequestOptions": "interface:32066c850a",
+   "SessionResponse": "interface:010ecaef57",
+   "armExactUrlHeader": "function:308f295bbc",
+   "exchangeSessionJson": "function:108cc714d4",
+   "exchangeSessionRequest": "function:72a0555348",
+   "hasSessionCookie": "function:7e15fc3f0e",
+   "persistentPartitionName": "function:4c34b0836d",
+   "probeSession": "function:c6f0fce8b9"
+  }
+ },
  "./electron/updates": {
   "types": "./dist/electron/updates/index.d.ts",
   "symbols": {
@@ -274,6 +293,11 @@
    "AutoUpdateControllerOptions": "interface:580db7d4b7",
    "CheckInput": "interface:62c5f8bc57",
    "CheckableUpdater": "interface:4b392be330",
+   "DesktopNativeUpdater": "interface:915122fbcb",
+   "DesktopUpdater": "interface:155bcea040",
+   "DesktopUpdaterPorts": "interface:99d3986535",
+   "DesktopUpdaterReporter": "interface:8792464cff",
+   "DesktopUpdaterState": "interface:21fb4ef690",
    "ElectronUpdater": "interface:310509434c",
    "FIRST_CHECK_DELAY_MS": "variable:03c045950b",
    "FileInstancePresenceInput": "interface:ae95d140d4",
@@ -282,6 +306,9 @@
    "InstancePresencePort": "interface:fef1c18029",
    "InstanceRecord": "interface:85c7e59c57",
    "LegacyUpdaterLike": "interface:f2517a1c2f",
+   "NativeDialogPort": "interface:b5ce5af537",
+   "NativeMessageBoxOptions": "interface:be22898d34",
+   "OthersOpenCopy": "interface:56b065a33b",
    "PRESENCE_STALE_MS": "variable:8428ca73aa",
    "PresenceFilesystemPort": "interface:2cf14e2158",
    "RestartClickAction": "type:443a384087",
@@ -293,12 +320,16 @@
    "UpdateMessages": "interface:e65806e149",
    "UpdateNotice": "interface:2d733ba312",
    "UpdateNoticeArgs": "interface:2c106e8b7b",
+   "UpdateReadyPromptCopy": "interface:997ed2fb69",
    "UpdateTimer": "interface:8028c07f95",
    "UpdateTimersPort": "interface:dfdebcf021",
    "UpdateTiming": "interface:0df629465a",
    "UpdaterEnvironment": "interface:53e6bb0e4b",
    "UpdaterLike": "type:d1ad813e28",
+   "WindowListPort": "interface:2875b232e4",
    "createAutoUpdateController": "function:3a675f7d9b",
+   "createDesktopUpdater": "function:3f1faa14e1",
+   "createDesktopUpdaterState": "function:22bab72560",
    "createElectronUpdaterAdapter": "function:335bdbfc57",
    "createFileInstancePresence": "function:f8c9f0f5d5",
    "createNodeUpdateTimers": "function:06c0e27b9f",
@@ -308,12 +339,18 @@
    "defaultUpdateMessages": "variable:921a739e34",
    "defaultUpdateTiming": "variable:24c604214f",
    "electUpdaterOwner": "function:f2de1f791e",
+   "explainOthersOpen": "function:43f2ce5be6",
    "isNetworkUpdateError": "function:656356a75d",
    "isPidAlive": "function:fa64356ae2",
+   "othersOpenOptions": "function:03bea8a4c0",
    "presenceDirPath": "function:e3689312b6",
+   "promptUpdateReady": "function:eda13c51a5",
    "registerUpdateCheckIpc": "function:83ff137409",
    "shouldCheckNow": "function:dc55b7edc3",
+   "showNativeNotice": "function:a8a241904e",
+   "showOnFocusedWindow": "function:8876f3e76c",
    "updateErrorMessage": "function:38519cb5e2",
+   "updateReadyPromptOptions": "function:f2184fa548",
    "updaterSkipReason": "function:a5042fa008"
   }
  },
@@ -380,20 +417,37 @@
    "WebviewTagMethods": "interface:ec094d298f"
   }
  },
+ "./electron/windows": {
+  "types": "./dist/electron/windows/index.d.ts",
+  "symbols": {
+   "AppWindow": "interface:b6233b3da3",
+   "AppWindowOptions": "interface:0000ea2978",
+   "AppWindowPorts": "interface:57d9a494e4",
+   "DockIconPort": "interface:699364065f",
+   "appWindowOptions": "function:ace08bb874",
+   "applyDockIcon": "function:05f7004deb",
+   "createAppWindow": "function:30b324dc70"
+  }
+ },
  "./node-toolchain": {
   "types": "./dist/node-toolchain/index.d.ts",
   "symbols": {
    "BuildNodeToolchainEnvInput": "interface:776bf1d69f",
    "BuildNodeToolchainShimsInput": "interface:df142fdb24",
    "NodeToolchainPaths": "interface:2967d9bfa8",
+   "NodeToolchainSetupEvent": "type:8d12eb8a72",
+   "PrepareNodeToolchainEnvBestEffortInput": "interface:adee43b70a",
+   "SiteDiscoveryLanes": "interface:de77187588",
    "ToolchainFilesystemPort": "interface:320d9fe77a",
    "WriteNodeToolchainInput": "interface:7b7e5eb0d8",
    "assertCmdQuotable": "function:deeb9a2a03",
    "buildNodeToolchainEnv": "function:c19d39a648",
    "buildNodeToolchainShims": "function:3e13b6fe2e",
+   "createSiteDiscoveryLanes": "function:62ab7dc178",
    "isReadOnlyVolumeRoot": "function:3801c2d43b",
    "isTransientAppPath": "function:0a530ce86c",
    "launcherNamesDurableInstall": "function:fac1dd48ab",
+   "prepareNodeToolchainEnvBestEffort": "function:1606c90ddc",
    "writeNodeToolchain": "function:8aa0f0410e"
   }
  },
