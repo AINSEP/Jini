@@ -18,6 +18,7 @@ import {
   trashMedia,
   updateMediaMetadata,
   uploadMedia,
+  MEDIA_MAX_DESCRIPTION_LENGTH,
 } from "../media-service.js";
 import {
   InMemoryAssetBlobRepo,
@@ -293,6 +294,46 @@ test("updateMediaMetadata updates only alt/caption/credit/title and bumps versio
   assert.equal(updated.version, 2);
   // source untouched
   assert.equal(updated.source.sha256, media.source.sha256);
+});
+
+/**
+ * Media descriptions for semantic search (todo, Jini half): an optional plain-language `description`
+ * an agent writes about what the media shows. Same omitted/cleared contract as `caption` — omitted
+ * leaves it alone, an empty string clears it — but the key stays ABSENT on rows that never had one, so
+ * a host adapter with no description column keeps round-tripping its rows unchanged.
+ */
+test("updateMediaMetadata sets, keeps and clears description", async () => {
+  const { deps } = makeDeps();
+  const { media } = await uploadMedia({ deps, input: { workspaceId: WORKSPACE_ID, bytes: bytesFrom("dog"), filename: "dog.jpg", contentType: "image/jpeg", createdByPrincipal: "user-1" } });
+  assert.equal("description" in media, false, "an upload without a description stores no description key");
+
+  const { media: described } = await updateMediaMetadata({ deps, input: { workspaceId: WORKSPACE_ID, id: media.id, description: "  A brown dog asleep on a red sofa.  " } });
+  assert.equal(described.description, "A brown dog asleep on a red sofa.");
+  assert.equal((await deps.mediaRepo.findById({ workspaceId: WORKSPACE_ID, id: media.id }))?.description, "A brown dog asleep on a red sofa.");
+
+  const { media: kept } = await updateMediaMetadata({ deps, input: { workspaceId: WORKSPACE_ID, id: media.id, caption: "Nap time" } });
+  assert.equal(kept.description, "A brown dog asleep on a red sofa.");
+
+  const { media: cleared } = await updateMediaMetadata({ deps, input: { workspaceId: WORKSPACE_ID, id: media.id, description: "" } });
+  assert.equal(cleared.description, "");
+  assert.equal(cleared.caption, "Nap time");
+});
+
+test("description is capped at MEDIA_MAX_DESCRIPTION_LENGTH on update and upload, and nothing is written", async () => {
+  const { deps } = makeDeps();
+  const input = { workspaceId: WORKSPACE_ID, bytes: bytesFrom("long"), filename: "long.jpg", contentType: "image/jpeg", createdByPrincipal: "user-1" };
+  const { media } = await uploadMedia({ deps, input: { ...input, description: ` ${"a".repeat(MEDIA_MAX_DESCRIPTION_LENGTH)} ` } });
+  assert.equal(media.description, "a".repeat(MEDIA_MAX_DESCRIPTION_LENGTH), "the bound applies after trimming");
+
+  const tooLong = "a".repeat(MEDIA_MAX_DESCRIPTION_LENGTH + 1);
+  const message = new RegExp(`description must be ${MEDIA_MAX_DESCRIPTION_LENGTH} characters or fewer`);
+  await assert.rejects(() => updateMediaMetadata({ deps, input: { workspaceId: WORKSPACE_ID, id: media.id, description: tooLong } }), (error: unknown) => error instanceof MediaValidationError && message.test(error.message));
+  assert.equal((await deps.mediaRepo.findById({ workspaceId: WORKSPACE_ID, id: media.id }))?.version, 1);
+
+  const before = (await deps.mediaRepo.list({ workspaceId: WORKSPACE_ID })).length;
+  await assert.rejects(() => uploadMedia({ deps, input: { ...input, bytes: bytesFrom("other"), description: tooLong } }), message);
+  assert.equal((await deps.mediaRepo.list({ workspaceId: WORKSPACE_ID })).length, before);
+  assert.equal(await deps.blobRepo.findByHash({ workspaceId: WORKSPACE_ID, sha256: createHash("sha256").update("other").digest("hex") }), null, "no blob was written");
 });
 
 test("updateMediaMetadata throws MediaNotFoundError for a missing id", async () => {

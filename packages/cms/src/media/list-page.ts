@@ -67,7 +67,7 @@ export async function listMediaPage(required: {
   const matching = rows.filter(row => (row.kind ?? 'media') === scope)
     .filter(row => required.library ? row.status === 'active' : row.source.private !== true)
     .filter(row => matchesKind({ row, kind: options.kind, types }))
-    .filter(row => [row.title, row.alt, row.originalFilename ?? '', row.slug].some(text => text.toLowerCase().includes(options.query)))
+    .filter(row => [row.title, row.alt, row.description ?? '', row.originalFilename ?? '', row.slug].some(text => text.toLowerCase().includes(options.query)))
     .filter(row => !options.after || comparePosition(row, options.after) > 0)
     .sort(comparePosition);
   const media = matching.slice(0, options.limit);

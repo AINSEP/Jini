@@ -13,13 +13,14 @@ function describeType({ raw }: { raw: unknown }, _optional = {}): string {
 
 /**
  * `undefined` means "field omitted, leave it alone" and stays `undefined`. `null` means "explicit
- * clear": `alt`/`caption`/`credit` have no "keep existing" fallback in `updateMediaMetadata`
+ * clear": `alt`/`caption`/`credit`/`description` have no "keep existing" fallback in `updateMediaMetadata`
  * (unlike `title` — see {@link parseOptionalTitleField}) — an empty string IS their cleared
  * representation there (`input.alt.trim()`, no `|| existing.alt`), and `uploadMedia` already
  * collapses omitted and empty to the same stored value (`input.alt?.trim() ?? ""`). So `null` maps
  * to `""` here rather than being passed through: both service functions' own input types are
  * `string | undefined` with no `null` case, and forwarding a literal `null` would call `.trim()` on
- * `null` and throw a `TypeError`, not clear the field. Anything that is neither `undefined`, `null`,
+ * `null` and throw a `TypeError`, not clear the field. (`description` differs only at upload: omitted
+ * stores no key rather than `""`; an explicit clear through here still stores `""`.) Anything that is neither `undefined`, `null`,
  * nor a `string` is rejected outright — silently `String()`-coercing an object or array would store
  * its stringified form (e.g. `"[object Object]"`) as visible, screen-reader-announced field text
  * instead of failing loudly.
