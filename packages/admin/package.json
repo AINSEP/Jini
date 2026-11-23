@@ -183,6 +183,11 @@
       "./roles/hooks/use-roles.hooks": "browser",
       "./screens/auth/hooks/login-port.hooks": "browser",
       "./screens/auth/Login.hooks": "browser",
+      "./screens/auth/Login": "browser",
+      "./screens/auth/OwnerRecoverySignIn": "browser",
+      "./screens/auth/OwnerRecoverySignIn.hooks": "browser",
+      "./screens/auth/hooks/use-login.hooks": "browser",
+      "./screens/auth/auth-host-slots": "browser",
       "./shell/lib/boot-token-fragment": "browser"
     },
     "isolation": {
@@ -270,6 +275,11 @@
         "./roles/hooks/use-roles.hooks": "browser",
         "./screens/auth/hooks/login-port.hooks": "browser",
         "./screens/auth/Login.hooks": "browser",
+        "./screens/auth/Login": "browser",
+        "./screens/auth/OwnerRecoverySignIn": "browser",
+        "./screens/auth/OwnerRecoverySignIn.hooks": "browser",
+        "./screens/auth/hooks/use-login.hooks": "browser",
+        "./screens/auth/auth-host-slots": "browser",
         "./shell/lib/boot-token-fragment": "browser"
       }
     },
@@ -1122,6 +1132,31 @@
       "types": "./dist/screens/auth/Login.hooks.d.ts",
       "import": "./dist/screens/auth/Login.hooks.js",
       "default": "./dist/screens/auth/Login.hooks.js"
+    },
+    "./screens/auth/Login": {
+      "types": "./dist/screens/auth/Login.d.ts",
+      "import": "./dist/screens/auth/Login.js",
+      "default": "./dist/screens/auth/Login.js"
+    },
+    "./screens/auth/OwnerRecoverySignIn": {
+      "types": "./dist/screens/auth/OwnerRecoverySignIn.d.ts",
+      "import": "./dist/screens/auth/OwnerRecoverySignIn.js",
+      "default": "./dist/screens/auth/OwnerRecoverySignIn.js"
+    },
+    "./screens/auth/OwnerRecoverySignIn.hooks": {
+      "types": "./dist/screens/auth/OwnerRecoverySignIn.hooks.d.ts",
+      "import": "./dist/screens/auth/OwnerRecoverySignIn.hooks.js",
+      "default": "./dist/screens/auth/OwnerRecoverySignIn.hooks.js"
+    },
+    "./screens/auth/hooks/use-login.hooks": {
+      "types": "./dist/screens/auth/hooks/use-login.hooks.d.ts",
+      "import": "./dist/screens/auth/hooks/use-login.hooks.js",
+      "default": "./dist/screens/auth/hooks/use-login.hooks.js"
+    },
+    "./screens/auth/auth-host-slots": {
+      "types": "./dist/screens/auth/auth-host-slots.d.ts",
+      "import": "./dist/screens/auth/auth-host-slots.js",
+      "default": "./dist/screens/auth/auth-host-slots.js"
     },
     "./shell/lib/boot-token-fragment": {
       "types": "./dist/shell/lib/boot-token-fragment.d.ts",
