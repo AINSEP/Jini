@@ -20,6 +20,12 @@ export { describeIdentityError } from './errors.js';
 export { useChangeUsername } from './users/hooks/use-change-username.hooks.js';
 export type { ChangeUsernameController } from './users/hooks/use-change-username.hooks.js';
 export { ChangeUsernameDialog } from './users/ChangeUsernameDialog.js';
+export { UsersPanel } from './users/UsersPanel.js';
+export type { UsersPanelProps } from './users/UsersPanel.js';
+export { createUsersControllerHook } from './users/UsersPanel.hooks.js';
+export { useLocalizedUsers } from './users/hooks/use-localized-users.hooks.js';
+export type { LocalizedUsersController, LocalizedUsersDependencies, WiredUsersHook } from './users/hooks/use-localized-users.hooks.js';
+export { passwordResetNotice } from './users/password-reset-notice.js';
 
 export { userAccountCapabilities, isOwnerAccount, grantOptionLabel, formatGrantLabel, userRowMenuItems, describeUsersError } from './users/rules.js';
 export type { UserAccountCapabilities, UserRowMenuHandlers } from './users/rules.js';
