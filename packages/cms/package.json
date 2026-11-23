@@ -157,6 +157,7 @@
       "./publish/content/content-hash": "node",
       "./admin-http/http/menus": "universal",
       "./admin-http/http/publish-content": "universal",
+      "./admin-http/http/publish-content": "universal",
       "./admin-http/routes/menus/get-by-id": "universal",
       "./admin-http/routes/menus/list": "universal",
       "./admin-http/routes/menus/create": "universal",
@@ -259,6 +260,7 @@
         "./admin-http/routes/redirects/update": "redirects",
         "./public-http/routes/site/pages/listing/listing-state": "listing",
         "./admin-http/http/menus": "navigation",
+        "./admin-http/http/publish-content": "publish",
         "./admin-http/http/publish-content": "publish",
         "./admin-http/routes/menus/get-by-id": "navigation",
         "./admin-http/routes/menus/list": "navigation",
@@ -995,6 +997,11 @@
       "types": "./dist/admin-http/http/menus.d.ts",
       "import": "./dist/admin-http/http/menus.js",
       "default": "./dist/admin-http/http/menus.js"
+    },
+    "./admin-http/http/publish-content": {
+      "types": "./dist/admin-http/http/publish-content.d.ts",
+      "import": "./dist/admin-http/http/publish-content.js",
+      "default": "./dist/admin-http/http/publish-content.js"
     },
     "./admin-http/http/publish-content": {
       "types": "./dist/admin-http/http/publish-content.d.ts",
