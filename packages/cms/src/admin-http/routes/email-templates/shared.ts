@@ -35,15 +35,15 @@ export interface EmailTemplateErrorDeps {
 }
 
 /**
- * Asks the host for one permission. The hand-written routes named no entity type (nor an entity id, even
- * on by-id routes), and the port requires a type, so an empty one is passed: a scoped grant compares its
- * resource type to it and so never matches, exactly as it never matched an absent type.
+ * Asks the host for one permission on the `email_template` entity type, naming no entity id (the
+ * hand-written routes named none, even on by-id routes). A host whose own routes never forwarded an
+ * entity type drops it in its authorize binding, so a resource-scoped grant cannot start matching.
  * A mount without an authorizer is a wiring bug, not a caller error, so it fails closed.
  * @complexity O(1) plus the injected authorizer.
  */
 export async function authorizeEmailTemplates({ authorize, permission }: { authorize: JsonRouteAuthorize | undefined; permission: string }, _optional: Record<string, never> = {}): Promise<void> {
   if (!authorize) throw new Error("email-templates admin route has no authorizer");
-  await authorize({ permission, entityType: "" });
+  await authorize({ permission, entityType: "email_template" });
 }
 
 /**

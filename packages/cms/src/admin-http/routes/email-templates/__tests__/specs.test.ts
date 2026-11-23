@@ -63,7 +63,7 @@ describe.each(ROWS)("email template $name route", (row) => {
     const calls: Call[] = [];
     const { authorize, calls: asked } = recordingAuthorize();
     const result = await handle(row, ops(calls), authorize);
-    expect(asked).toEqual([{ permission: row.permission, entityType: "" }]);
+    expect(asked).toEqual([{ permission: row.permission, entityType: "email_template" }]);
     expect(calls).toEqual([row.call]);
     expect(result).toEqual({ ok: true, value: { ran: row.call.op } });
   });
