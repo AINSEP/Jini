@@ -32,6 +32,7 @@ test('publishes user management from its canonical folder and preserves runtime 
     './admin/adapters/memory': 'universal',
     './admin/conformance': 'universal',
     './member-login/oidc-login': 'node',
+    './member-login/link-service': 'node',
     './members/auth-mail': 'universal',
     './members/access-resolver': 'node',
     './members/agent-tools': 'universal',
@@ -61,6 +62,7 @@ test('publishes user management from its canonical folder and preserves runtime 
     './newsletter/repo.memory': 'universal',
     './newsletter/unsubscribe': 'node',
     './newsletter/send-pipeline': 'node',
+    './newsletter/data-module-manifest': 'universal',
   });
   expect(Object.keys(manifest.exports).sort()).toEqual(Object.keys(manifest.jini.entries).sort());
   for (const [entry, value] of Object.entries(manifest.exports)) {

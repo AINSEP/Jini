@@ -30,5 +30,27 @@ const deps: OidcLoginDeps = { clock, randomBytesFn, httpPorts, sealer, keyring, 
 const { authorizationUrl, browserBinding } = await beginOidcLogin({ deps, input: { workspaceId, providerId } });
 ```
 
+### Link service
+
+Entry: `@jini-ai/user-management/member-login/link-service` (Node; it reaches the member session minter).
+`resolveFederatedIdentity` resolves/links/activates a verified identity and mints the member session in
+one storage transaction; `requestLoginEmailProof` asks the existing challenge owner for an inbox proof.
+
+**Needs injected** (`MemberLoginLinkDeps`, beyond `MembersWriteServiceDeps` incl. `mailTransport`):
+
+- `identities` (`MemberExternalIdentityRepoPort`)
+- `transaction`, `lockKey` — from the SAME `StorageKernel` (`@jini-ai/core/contracts/storage`) as every member adapter
+- `reportFailure({ operation, error })` (`MemberLoginFailureReporter`, required) — the host's private failure log.
+  The caller only ever sees the fixed `LOGIN_UNAVAILABLE` code (no `cause`), so this is where the original
+  mail/origin failure is recorded. It must not throw.
+
+```ts
+import { requestLoginEmailProof, type MemberLoginLinkDeps } from "@jini-ai/user-management/member-login/link-service";
+
+const links: MemberLoginLinkDeps = { ...membersWriteDeps, identities, transaction: body => kernel.transaction(body),
+  lockKey: key => kernel.lockKey(key), reportFailure: ({ operation, error }) => hostLog.privateFailure({ operation, error }) };
+await requestLoginEmailProof({ deps: links, input: { workspaceId, email } });
+```
+
 **Must never import**: anything but `@jini-ai/core` and this package. The OAuth runtime
 (`@jini-ai/oauth`), `@jini-ai/platform` and `@jini-ai/integrations` reach it only through the host's deps.

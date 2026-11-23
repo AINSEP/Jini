@@ -17,6 +17,7 @@
       "./session-bootstrap": "universal",
       "./server": "node",
       "./member-login/oidc-login": "node",
+      "./member-login/link-service": "node",
       "./react": "browser",
       "./react/testing": "browser",
       "./react/kit": "browser",
@@ -65,11 +66,14 @@
     },
     "isolation": {
       "entries": {
-        "./member-login/oidc-login": "server"
+        "./member-login/oidc-login": "server",
+        "./member-login/link-service": "members"
       },
       "shared": [
         "src/server/auth-challenge.ts",
         "src/server/hasher.ts",
+        "src/server/link-policy.ts",
+        "src/server/login-types.ts",
         "src/server/password-policy.ts",
         "src/server/session-tokens.ts"
       ]
@@ -97,6 +101,11 @@
       "types": "./dist/member-login/oidc-login.d.ts",
       "import": "./dist/member-login/oidc-login.js",
       "default": "./dist/member-login/oidc-login.js"
+    },
+    "./member-login/link-service": {
+      "types": "./dist/member-login/link-service.d.ts",
+      "import": "./dist/member-login/link-service.js",
+      "default": "./dist/member-login/link-service.js"
     },
     "./react": {
       "types": "./dist/react/index.d.ts",
