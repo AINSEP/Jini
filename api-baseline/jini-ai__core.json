@@ -1160,6 +1160,31 @@
    "ToolResultMediaBlock": "type:f9cd93b194"
   }
  },
+ "./contracts/site/cms-agent-plugins": {
+  "types": "./dist/contracts/site/cms-agent-plugins.d.ts",
+  "symbols": {
+   "AdminAgentPluginDto": "interface:f210bba760",
+   "AdminAgentPluginFilesEnvelope": "interface:65573deb72",
+   "AdminAgentPluginLifecycleDto": "interface:2097a79e16",
+   "AdminAgentPluginSetEnabledEnvelope": "interface:61be4329da",
+   "AdminAgentPluginsListEnvelope": "interface:22e8b4ea12"
+  }
+ },
+ "./contracts/site/cms-external-mcp": {
+  "types": "./dist/contracts/site/cms-external-mcp.d.ts",
+  "symbols": {
+   "ExternalMcpAdmissionsEnvelope": "interface:30a90ae29a",
+   "ExternalMcpDeleteEnvelope": "interface:367b781192",
+   "ExternalMcpListEnvelope": "interface:23f501dc75",
+   "ExternalMcpOAuthDisconnectEnvelope": "interface:3228594623",
+   "ExternalMcpOwnedServerDto": "type:47907ba64d",
+   "ExternalMcpPutEnvelope": "interface:fa39bf2e04",
+   "ExternalMcpServerSummaryDto": "interface:2829b7cf2c",
+   "ExternalMcpToolApprovalDto": "interface:d5d6d04831",
+   "ExternalMcpToolApprovalRevokeEnvelope": "interface:1e9da26d88",
+   "ExternalMcpToolApprovalsEnvelope": "interface:26efef9f63"
+  }
+ },
  "./contracts/site/cms-forms": {
   "types": "./dist/contracts/site/cms-forms.d.ts",
   "symbols": {
@@ -1307,6 +1332,16 @@
   "symbols": {
    "CredentialSchemeRegistry": "interface:dc70d21210",
    "CredentialSchemeRule": "interface:3741ac92a0"
+  }
+ },
+ "./contracts/site/oauth-callback-page": {
+  "types": "./dist/contracts/site/oauth-callback-page.d.ts",
+  "symbols": {
+   "OAUTH_CALLBACK_FAILURE_REASONS": "variable:0c27baa657",
+   "OAuthCallbackFailureReason": "type:cb32510fc3",
+   "OAuthCallbackPageArgs": "interface:0913c957ec",
+   "OAuthCallbackPageRenderer": "type:f5dc08df6d",
+   "oauthCallbackPageResponse": "function:b5ccf3e3d6"
   }
  },
  "./contracts/site/plugins-host": {
