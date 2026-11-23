@@ -456,7 +456,7 @@ function transportOptions(deps: ModelProxyHttpDeps): { fetchImpl?: PinnedFetch; 
   };
 }
 
-/** `tools`, forwarded only when present; the cast to the turn-runner's own tool-definition type now happens at the host-bound port (the parser never inspects tool contents — see `parseCommon`). */
+/** `tools` cast to the turn-runner's own tool-definition type, forwarded only when present (the parser never inspects tool contents — see `parseCommon`); the cast itself now happens at the host-bound port. */
 function toolsOption(tools: unknown[] | undefined): { tools?: readonly unknown[] } {
   return tools !== undefined ? { tools } : {};
 }
