@@ -32,6 +32,20 @@ test('publishes user management from its canonical folder and preserves runtime 
     './admin/conformance': 'universal',
     './member-login/oidc-login': 'node',
     './members/auth-mail': 'universal',
+    './members/access-resolver': 'node',
+    './members/agent-tools': 'universal',
+    './members/capability-card': 'universal',
+    './members/consent-service': 'universal',
+    './members/member-admin-writes': 'universal',
+    './members/member-challenge': 'node',
+    './members/member-credentials': 'node',
+    './members/member-sign-in': 'node',
+    './members/member-validation': 'universal',
+    './members/password-auth': 'node',
+    './members/ports': 'universal',
+    './members/repo.memory': 'universal',
+    './members/trash-member': 'universal',
+    './members/types': 'universal',
   });
   expect(Object.keys(manifest.exports).sort()).toEqual(Object.keys(manifest.jini.entries).sort());
   for (const [entry, value] of Object.entries(manifest.exports)) {

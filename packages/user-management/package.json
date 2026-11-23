@@ -20,12 +20,37 @@
       "./react": "browser",
       "./react/testing": "browser",
       "./react/kit": "browser",
+      "./react/members/members-i18n": "universal",
       "./admin": "universal",
       "./admin/react": "browser",
       "./admin/adapters/http": "universal",
       "./admin/adapters/memory": "universal",
       "./admin/conformance": "universal",
-      "./members/auth-mail": "universal"
+      "./members/auth-mail": "universal",
+      "./newsletter/errors": "universal",
+      "./newsletter/types": "universal",
+      "./newsletter/ports": "universal",
+      "./newsletter/campaign": "universal",
+      "./newsletter/hooks": "universal",
+      "./newsletter/lists": "universal",
+      "./newsletter/campaign-write-service": "universal",
+      "./newsletter/launch-gate": "universal",
+      "./newsletter/repo.memory": "universal",
+      "./newsletter/unsubscribe": "node",
+      "./members/access-resolver": "node",
+      "./members/agent-tools": "universal",
+      "./members/capability-card": "universal",
+      "./members/consent-service": "universal",
+      "./members/member-admin-writes": "universal",
+      "./members/member-challenge": "node",
+      "./members/member-credentials": "node",
+      "./members/member-sign-in": "node",
+      "./members/member-validation": "universal",
+      "./members/password-auth": "node",
+      "./members/ports": "universal",
+      "./members/repo.memory": "universal",
+      "./members/trash-member": "universal",
+      "./members/types": "universal"
     },
     "optionalPeers": {
       "argon2": "opt-in: argon2 password hashing; import @jini-ai/user-management/server — Argon2 password hashing could not load argon2. Install argon2 to enable this feature, or check its installed version and native binaries.",
@@ -77,6 +102,11 @@
       "import": "./dist/react/kit.js",
       "default": "./dist/react/kit.js"
     },
+    "./react/members/members-i18n": {
+      "types": "./dist/react/members/members-i18n.d.ts",
+      "import": "./dist/react/members/members-i18n.js",
+      "default": "./dist/react/members/members-i18n.js"
+    },
     "./admin": {
       "types": "./dist/admin/index.d.ts",
       "import": "./dist/admin/index.js",
@@ -106,6 +136,126 @@
       "types": "./dist/members/auth-mail.d.ts",
       "import": "./dist/members/auth-mail.js",
       "default": "./dist/members/auth-mail.js"
+    },
+    "./newsletter/errors": {
+      "types": "./dist/newsletter/errors.d.ts",
+      "import": "./dist/newsletter/errors.js",
+      "default": "./dist/newsletter/errors.js"
+    },
+    "./newsletter/types": {
+      "types": "./dist/newsletter/types.d.ts",
+      "import": "./dist/newsletter/types.js",
+      "default": "./dist/newsletter/types.js"
+    },
+    "./newsletter/ports": {
+      "types": "./dist/newsletter/ports.d.ts",
+      "import": "./dist/newsletter/ports.js",
+      "default": "./dist/newsletter/ports.js"
+    },
+    "./newsletter/campaign": {
+      "types": "./dist/newsletter/campaign.d.ts",
+      "import": "./dist/newsletter/campaign.js",
+      "default": "./dist/newsletter/campaign.js"
+    },
+    "./newsletter/hooks": {
+      "types": "./dist/newsletter/hooks.d.ts",
+      "import": "./dist/newsletter/hooks.js",
+      "default": "./dist/newsletter/hooks.js"
+    },
+    "./newsletter/lists": {
+      "types": "./dist/newsletter/lists.d.ts",
+      "import": "./dist/newsletter/lists.js",
+      "default": "./dist/newsletter/lists.js"
+    },
+    "./newsletter/campaign-write-service": {
+      "types": "./dist/newsletter/campaign-write-service.d.ts",
+      "import": "./dist/newsletter/campaign-write-service.js",
+      "default": "./dist/newsletter/campaign-write-service.js"
+    },
+    "./newsletter/launch-gate": {
+      "types": "./dist/newsletter/launch-gate.d.ts",
+      "import": "./dist/newsletter/launch-gate.js",
+      "default": "./dist/newsletter/launch-gate.js"
+    },
+    "./newsletter/repo.memory": {
+      "types": "./dist/newsletter/repo.memory.d.ts",
+      "import": "./dist/newsletter/repo.memory.js",
+      "default": "./dist/newsletter/repo.memory.js"
+    },
+    "./newsletter/unsubscribe": {
+      "types": "./dist/newsletter/unsubscribe.d.ts",
+      "import": "./dist/newsletter/unsubscribe.js",
+      "default": "./dist/newsletter/unsubscribe.js"
+    },
+    "./members/access-resolver": {
+      "types": "./dist/members/access-resolver.d.ts",
+      "import": "./dist/members/access-resolver.js",
+      "default": "./dist/members/access-resolver.js"
+    },
+    "./members/agent-tools": {
+      "types": "./dist/members/agent-tools.d.ts",
+      "import": "./dist/members/agent-tools.js",
+      "default": "./dist/members/agent-tools.js"
+    },
+    "./members/capability-card": {
+      "types": "./dist/members/capability-card.d.ts",
+      "import": "./dist/members/capability-card.js",
+      "default": "./dist/members/capability-card.js"
+    },
+    "./members/consent-service": {
+      "types": "./dist/members/consent-service.d.ts",
+      "import": "./dist/members/consent-service.js",
+      "default": "./dist/members/consent-service.js"
+    },
+    "./members/member-admin-writes": {
+      "types": "./dist/members/member-admin-writes.d.ts",
+      "import": "./dist/members/member-admin-writes.js",
+      "default": "./dist/members/member-admin-writes.js"
+    },
+    "./members/member-challenge": {
+      "types": "./dist/members/member-challenge.d.ts",
+      "import": "./dist/members/member-challenge.js",
+      "default": "./dist/members/member-challenge.js"
+    },
+    "./members/member-credentials": {
+      "types": "./dist/members/member-credentials.d.ts",
+      "import": "./dist/members/member-credentials.js",
+      "default": "./dist/members/member-credentials.js"
+    },
+    "./members/member-sign-in": {
+      "types": "./dist/members/member-sign-in.d.ts",
+      "import": "./dist/members/member-sign-in.js",
+      "default": "./dist/members/member-sign-in.js"
+    },
+    "./members/member-validation": {
+      "types": "./dist/members/member-validation.d.ts",
+      "import": "./dist/members/member-validation.js",
+      "default": "./dist/members/member-validation.js"
+    },
+    "./members/password-auth": {
+      "types": "./dist/members/password-auth.d.ts",
+      "import": "./dist/members/password-auth.js",
+      "default": "./dist/members/password-auth.js"
+    },
+    "./members/ports": {
+      "types": "./dist/members/ports.d.ts",
+      "import": "./dist/members/ports.js",
+      "default": "./dist/members/ports.js"
+    },
+    "./members/repo.memory": {
+      "types": "./dist/members/repo.memory.d.ts",
+      "import": "./dist/members/repo.memory.js",
+      "default": "./dist/members/repo.memory.js"
+    },
+    "./members/trash-member": {
+      "types": "./dist/members/trash-member.d.ts",
+      "import": "./dist/members/trash-member.js",
+      "default": "./dist/members/trash-member.js"
+    },
+    "./members/types": {
+      "types": "./dist/members/types.d.ts",
+      "import": "./dist/members/types.js",
+      "default": "./dist/members/types.js"
     }
   },
   "files": [
