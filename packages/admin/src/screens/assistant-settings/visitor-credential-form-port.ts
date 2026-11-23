@@ -1,4 +1,4 @@
-import type { ByokConfig, ConnectionTestState, ExecutionPort, ModelDiscoveryState, ProviderPreset } from "@jini-ai/ui/core";
+import type { ProviderPreset as CatalogProviderPreset } from "@jini-ai/core";
 import type { SiteAssistantCredential, SiteAssistantCredentialPatch } from "@jini-ai/core/contracts/site/api-ai-assistant-api-types";
 
 /**
@@ -12,6 +12,76 @@ import type { SiteAssistantCredential, SiteAssistantCredentialPatch } from "@jin
  * Structurally the matching slice of the host's API client, declared here rather than imported whole
  * so the hook depends on the two methods it uses instead of on an ambient singleton.
  */
+
+/* ---------- provider-form shapes (local; structurally equal to the host UI library's) ----------
+ * Admin imports no UI package (see `react/kit.tsx`'s header): these are local copies of the BYOK
+ * form shapes this screen reads and writes, so its published types pin no UI library. The host
+ * proves compatibility where it binds `presetRules` and `createExecutionPort`, so a UI-library shape
+ * change fails the host's typecheck at that binding. */
+
+/** Wire protocol a BYOK endpoint speaks. */
+export type ApiProtocol = "anthropic" | "openai" | "azure" | "google";
+
+/** One host-supplied endpoint preset — the shared catalog shape, over this form's protocols. */
+export type ProviderPreset = CatalogProviderPreset<ApiProtocol>;
+
+/** One provider's saved credential draft, kept per preset id while another preset is selected. */
+export interface ByokProviderCredentials {
+  apiKey: string;
+  baseUrl: string;
+  model: string;
+  maxTokens?: number | undefined;
+}
+
+/** The form's credential draft. `savedByProviderId` is written only by the injected
+ *  `nextConfigForPresetSelect`; this screen carries it through untouched. */
+export interface ByokConfig {
+  protocol: ApiProtocol;
+  /** `null` selects the custom/manual endpoint rather than a preset. */
+  providerId: string | null;
+  apiKey: string;
+  baseUrl: string;
+  model: string;
+  maxTokens?: number | undefined;
+  savedByProviderId?: Readonly<Record<string, ByokProviderCredentials>>;
+}
+
+/** The probe transport — only the two calls this screen makes. */
+export interface ExecutionPort {
+  /** Resolves `ok: false` when the endpoint answered with a refusal; rejects when no answer came. */
+  testConnection(config: ByokConfig): Promise<{ ok: boolean; message?: string }>;
+  /** Optional live model discovery; rejects on any failure rather than resolving `[]`. */
+  listModels?(config: ByokConfig): Promise<readonly string[]>;
+}
+
+/** The connection-test line's state. */
+export type ConnectionTestState =
+  | { status: "idle" }
+  | { status: "testing" }
+  | { status: "ok"; message?: string | undefined }
+  | { status: "error"; message: string };
+
+/** The model-discovery hint's state; `error` is distinct from an empty `ok`. */
+export type ModelDiscoveryState =
+  | { status: "idle" }
+  | { status: "loading" }
+  | { status: "ok"; models: readonly string[] }
+  | { status: "error"; message: string };
+
+/** The provider-catalog rules the host's UI library owns, injected so this screen stays UI-free. */
+export interface VisitorPresetRules {
+  /** Splits the catalog into the protocol row and the gateway row, catalog order kept. */
+  groupPresets(required: { presets: readonly ProviderPreset[] }, optional?: Record<string, never>): {
+    protocols: readonly ProviderPreset[];
+    gateways: readonly ProviderPreset[];
+  };
+  /** Whether `config` holds complete credentials for `preset` (its own saved draft, not the live one). */
+  isProviderConfigured(required: { config: ByokConfig; preset: ProviderPreset | null }, optional?: Record<string, never>): boolean;
+  /** The config after selecting `preset`: snapshots the outgoing provider's draft, loads the incoming one's. */
+  nextConfigForPresetSelect(required: { config: ByokConfig; preset: ProviderPreset }, optional?: Record<string, never>): ByokConfig;
+  /** The preset `config` currently selects, or `null` for the custom endpoint. */
+  resolveSelectedPreset(required: { presets: readonly ProviderPreset[]; config: ByokConfig }, optional?: Record<string, never>): ProviderPreset | null;
+}
 export interface VisitorCredentialFormPort {
   getAssistantSiteCredential(): Promise<{ data: SiteAssistantCredential }>;
   setAssistantSiteCredential(patch: SiteAssistantCredentialPatch, optional?: Record<string, never>): Promise<{ data: SiteAssistantCredential }>;
@@ -36,6 +106,8 @@ export interface VisitorCredentialFormDependencies {
   /** The site-credential client — required, so the real client is supplied exactly once by the host. */
   port: VisitorCredentialFormPort;
   rules: VisitorCredentialFormRules;
+  /** The UI library's preset grouping/selection rules — required, bound once by the host. */
+  presetRules: VisitorPresetRules;
   /** The host's provider catalog. */
   presets: readonly ProviderPreset[];
   /** The preset the form starts on when nothing is saved (an owner default). */

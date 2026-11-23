@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import type { ByokConfig } from "@jini-ai/ui/core";
+import type { ByokConfig } from "../visitor-credential-form-port.js";
+import { TEST_PRESET_RULES } from "./fixtures/preset-rules.js";
 import { TEST_PROVIDER_PRESETS as DEFAULT_PROVIDER_PRESETS } from "./fixtures/provider-presets.js";
 import type { SiteAssistantCredential } from "@jini-ai/core/contracts/site/api-ai-assistant-api-types";
 import {
@@ -76,12 +77,12 @@ describe("configured provider chip identities", () => {
       openrouter: { apiKey: "router-key", baseUrl: "https://openrouter.ai/api/v1", model: "  " },
       ollama: { apiKey: "", baseUrl: "http://localhost:11434/v1", model: "local-model" },
     } });
-    expect([...configuredPresetIds({ presets, config: draft })].sort()).toEqual(["anthropic", "ollama", "openai"]);
+    expect([...configuredPresetIds({ presets, config: draft, isProviderConfigured: TEST_PRESET_RULES.isProviderConfigured })].sort()).toEqual(["anthropic", "ollama", "openai"]);
     expect(draft.model).toBe("");
   });
 
   it("does not mark other providers from the current provider's credentials", () => {
-    expect([...configuredPresetIds({ presets, config: config() })]).toEqual(["google-gemini"]);
+    expect([...configuredPresetIds({ presets, config: config(), isProviderConfigured: TEST_PRESET_RULES.isProviderConfigured })]).toEqual(["google-gemini"]);
   });
 });
 
@@ -141,7 +142,7 @@ describe("saved-credential detection", () => {
 
 describe("provider select groups", () => {
   it("lists protocols then gateways, flagging only configured presets", () => {
-    const groups = visitorProviderGroups({ configuredIds: new Set(["anthropic", "openrouter"]), presets });
+    const groups = visitorProviderGroups({ configuredIds: new Set(["anthropic", "openrouter"]), presets, groupPresets: TEST_PRESET_RULES.groupPresets });
     expect(groups.map((g) => g.label)).toEqual(["Protocols", "Gateways"]);
     const flagged = groups.flatMap((g) => g.options.filter((o) => o.configured).map((o) => o.preset.id)).sort();
     expect(flagged).toEqual(["anthropic", "openrouter"]);

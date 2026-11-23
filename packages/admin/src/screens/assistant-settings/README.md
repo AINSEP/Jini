@@ -35,10 +35,16 @@ Architecture: [DR-005 portable package boundaries](../../../../../docs/decisions
 - `useVisitorCredentialForm(deps, { executionPort? })`: `deps` is `VisitorCredentialFormDependencies`
   — `port` (get/set site credential), `rules` (`describeApiError`, `describeProbeError`,
   `storedKeyIsForOtherEndpoint`, `hasUsableKey`, `storedKeyBlocksProbe` — the host's error copy and
-  stored-key endpoint pin), `presets` (the host's provider catalog), `defaultPresetId`,
+  stored-key endpoint pin), `presetRules` (`groupPresets`, `isProviderConfigured`,
+  `nextConfigForPresetSelect`, `resolveSelectedPreset` — the host's UI library's preset rules, bound
+  with `satisfies VisitorPresetRules`), `presets` (the host's provider catalog), `defaultPresetId`,
   `preferredModel` (the server's own default model) and `createExecutionPort` (the probe transport).
   The host binds all of these once in its visitor-credential-form dependencies hook file
-  (`useWiredVisitorCredentialForm` / `useHostVisitorCredentialForm`).
+  (`useWiredVisitorCredentialForm` / `useHostVisitorCredentialForm`). The BYOK form shapes
+  (`ByokConfig`, `ExecutionPort`, `ConnectionTestState`, `ModelDiscoveryState`, `ApiProtocol`) are
+  local structural copies in `visitor-credential-form-port.ts`; `ProviderPreset` is core's catalog
+  shape. The two Save presses share the admin kit's `useSerialWrites` lane, so the hook needs
+  `<AdminKitProvider>` above it.
 
 **Provides**
 - `AssistantToggleRow` — checkbox or `role="switch"` row; classes `jini-assistant-toggle`,

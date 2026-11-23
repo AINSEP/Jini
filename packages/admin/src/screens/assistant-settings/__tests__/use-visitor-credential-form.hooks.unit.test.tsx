@@ -1,11 +1,19 @@
 // @vitest-environment jsdom
-import { act, renderHook, waitFor } from "@testing-library/react";
+import { act, renderHook as rawRenderHook, waitFor } from "@testing-library/react";
+import type { ReactNode } from "react";
 import { describe, expect, it, vi } from "vitest";
-import type { ExecutionPort } from "@jini-ai/ui/core";
 import type { SiteAssistantCredential, SiteAssistantCredentialPatch } from "@jini-ai/core/contracts/site/api-ai-assistant-api-types";
+import { AdminKitProvider, type AdminKit } from "../../../react/kit.js";
+import { fakeAdminKit } from "../../../react/testing-kit.js";
 import { useVisitorCredentialForm } from "../use-visitor-credential-form.hooks.js";
-import type { VisitorCredentialFormDependencies, VisitorCredentialFormPort } from "../visitor-credential-form-port.js";
+import type { ExecutionPort, VisitorCredentialFormDependencies, VisitorCredentialFormPort } from "../visitor-credential-form-port.js";
+import { TEST_PRESET_RULES } from "./fixtures/preset-rules.js";
 import { TEST_PROVIDER_PRESETS } from "./fixtures/provider-presets.js";
+
+/** The hook's Save lane is the admin kit's `useSerialWrites`, so it mounts under a kit. */
+function renderHook<R>(callback: () => R, kit: AdminKit = fakeAdminKit()) {
+  return rawRenderHook(callback, { wrapper: ({ children }: { children: ReactNode }) => <AdminKitProvider kit={kit}>{children}</AdminKitProvider> });
+}
 
 // The host's characterization suite drives the same hook through its real wiring; these cover the
 // engine seam with fakes: hydration, credential selection and the submission resets.
@@ -31,6 +39,7 @@ function deps(port: VisitorCredentialFormPort, overrides: Partial<VisitorCredent
   const executionPort: ExecutionPort = { testConnection: async () => ({ ok: true }), listModels: async () => ["m1"] } as unknown as ExecutionPort;
   return {
     port,
+    presetRules: TEST_PRESET_RULES,
     presets: TEST_PROVIDER_PRESETS,
     defaultPresetId: "anthropic",
     preferredModel: "preferred",
@@ -46,8 +55,8 @@ function deps(port: VisitorCredentialFormPort, overrides: Partial<VisitorCredent
   };
 }
 
-async function mount(d: VisitorCredentialFormDependencies) {
-  const hook = renderHook(() => useVisitorCredentialForm(d));
+async function mount(d: VisitorCredentialFormDependencies, kit?: AdminKit) {
+  const hook = renderHook(() => useVisitorCredentialForm(d), kit);
   await waitFor(() => expect(hook.result.current.loadState.status).toBe("ready"));
   return hook;
 }
@@ -104,5 +113,17 @@ describe("useVisitorCredentialForm (engine seam)", () => {
     await act(async () => { await result.current.runKeyTest(); });
     expect(result.current.discovery).toEqual({ status: "ok", models: ["a", "preferred"] });
     expect(result.current.config.model).toBe("preferred");
+  });
+
+  it("queues both Save presses through the admin kit's serial-write lane", async () => {
+    const { port, writes } = fakePort();
+    const lane: Promise<unknown>[] = [];
+    const kit = fakeAdminKit({ hooks: { useSerialWrites: () => ({ run: ({ task }) => { const p = task(); lane.push(p); return p; } }) } });
+    const { result } = await mount(deps(port), kit);
+    act(() => result.current.editConfig({ ...result.current.config, apiKey: "sk-typed" }));
+    await act(async () => { await result.current.saveKey(); });
+    await act(async () => { await result.current.saveSettings(); });
+    expect(lane).toHaveLength(2);
+    expect(writes).toHaveLength(2);
   });
 });

@@ -1,6 +1,5 @@
-import { groupPresets, isProviderConfigured, type ApiProtocol, type ByokConfig, type ConnectionTestState, type ProviderPreset } from "@jini-ai/ui/core";
 import type { SiteAssistantCredential } from "@jini-ai/core/contracts/site/api-ai-assistant-api-types";
-import type { VisitorProviderGroup } from "./visitor-credential-form-port.js";
+import type { ApiProtocol, ByokConfig, ConnectionTestState, ProviderPreset, VisitorPresetRules, VisitorProviderGroup } from "./visitor-credential-form-port.js";
 
 /**
  * @file Pure logic for the visitor credential form — everything that computes a value rather than
@@ -65,7 +64,10 @@ export function isPresetSuppliedEndpoint({ baseUrl, presets }: { baseUrl: string
  * @complexity Time: O(p) in the number of provider presets; space: O(k) for the k configured ids.
  * @overallScore 100
  */
-export function configuredPresetIds({ config, presets }: { config: ByokConfig; presets: readonly ProviderPreset[] }, _optional = {}): Set<string> {
+export function configuredPresetIds(
+  { config, presets, isProviderConfigured }: { config: ByokConfig; presets: readonly ProviderPreset[]; isProviderConfigured: VisitorPresetRules["isProviderConfigured"] },
+  _optional = {},
+): Set<string> {
   return new Set(presets.filter((p) => isProviderConfigured({ config, preset: p })).map((p) => p.id));
 }
 
@@ -134,7 +136,9 @@ export function hasSavedVisitorCredential(stored: SiteAssistantCredential): bool
  * @complexity Time: O(p) in the number of provider presets; space: O(p).
  */
 export function visitorProviderGroups(
-  { configuredIds, presets }: { configuredIds: ReadonlySet<string>; presets: readonly ProviderPreset[] },
+  { configuredIds, presets, groupPresets }: {
+    configuredIds: ReadonlySet<string>; presets: readonly ProviderPreset[]; groupPresets: VisitorPresetRules["groupPresets"];
+  },
   _optional: Record<string, never> = {},
 ): VisitorProviderGroup[] {
   const { protocols, gateways } = groupPresets({ presets: [...presets] });

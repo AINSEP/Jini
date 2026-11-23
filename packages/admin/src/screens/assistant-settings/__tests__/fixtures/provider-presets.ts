@@ -1,4 +1,4 @@
-import type { ProviderPreset } from "@jini-ai/ui/core";
+import type { ProviderPreset } from "../../visitor-credential-form-port.js";
 
 /**
  * A host-shaped provider catalog for these tests — the same six presets (ids, protocols, kinds and

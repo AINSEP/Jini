@@ -1,6 +1,5 @@
 import { useEffect, type Dispatch, type MutableRefObject, type SetStateAction } from "react";
-import type { ByokConfig, ExecutionPort, ModelDiscoveryState } from "@jini-ai/ui/core";
-import type { VisitorCredentialFormRules } from "./visitor-credential-form-port.js";
+import type { ByokConfig, ExecutionPort, ModelDiscoveryState, VisitorCredentialFormRules } from "./visitor-credential-form-port.js";
 import { seedDiscoveredModel } from "./visitor-credential-form.rules.js";
 
 /**

@@ -1,6 +1,7 @@
-import type { ByokConfig, ConnectionTestState, ExecutionPort, ModelDiscoveryState } from "@jini-ai/ui/core";
 import type { SiteAssistantCredential, SiteAssistantCredentialPatch } from "@jini-ai/core/contracts/site/api-ai-assistant-api-types";
-import type { SaveState, VisitorCredentialFormPort, VisitorCredentialFormRules } from "./visitor-credential-form-port.js";
+import type {
+  ByokConfig, ConnectionTestState, ExecutionPort, ModelDiscoveryState, SaveState, VisitorCredentialFormPort, VisitorCredentialFormRules,
+} from "./visitor-credential-form-port.js";
 import { connectionTestStateFromResult, seedDiscoveredModel } from "./visitor-credential-form.rules.js";
 
 /**

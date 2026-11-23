@@ -1,8 +1,10 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { nextConfigForPresetSelect, resolveSelectedPreset, type ByokConfig, type ConnectionTestState, type ExecutionPort, type ModelDiscoveryState, type ProviderPreset } from "@jini-ai/ui";
-import { useSerialWrites } from "@jini-ai/ui/panel-kit";
 import type { SiteAssistantCredential } from "@jini-ai/core/contracts/site/api-ai-assistant-api-types";
-import type { SaveState, VisitorCredentialFormController, VisitorCredentialFormDependencies } from "./visitor-credential-form-port.js";
+import { useSerialWrites } from "../../react/kit.js";
+import type {
+  ByokConfig, ConnectionTestState, ExecutionPort, ModelDiscoveryState, ProviderPreset, SaveState,
+  VisitorCredentialFormController, VisitorCredentialFormDependencies,
+} from "./visitor-credential-form-port.js";
 import { configuredPresetIds, defaultVisitorCredentialConfig, hasStoredCredential, hydrateVisitorCredentialConfig, isPresetSuppliedEndpoint, visitorProviderGroups } from "./visitor-credential-form.rules.js";
 import { runVisitorKeyTest, runVisitorTestConnection, saveVisitorKey, saveVisitorSettings } from "./visitor-credential-form-actions.js";
 import { useStoredKeyDiscovery, useTypedKeyDiscovery } from "./use-visitor-credential-discovery.hooks.js";
@@ -101,19 +103,20 @@ function visitorCredentialHandlers(
    * `setConfig({protocol, baseUrl})` here would look correct and quietly lose that.
    */
   const selectPreset = (next: ProviderPreset) => {
-    editConfig(nextConfigForPresetSelect({ config, preset: next }));
+    editConfig(deps.presetRules.nextConfigForPresetSelect({ config, preset: next }));
     // Both are properties OF THE OUTGOING PROVIDER and neither survives the switch. Left in place,
     // the previous provider's "42 models available" and green connection result would sit under a
     // different provider's empty key field, describing a credential that is no longer in the form.
     setDiscovery({ status: "idle" });
     setConnectionTest({ status: "idle" });
   };
-  const configuredIds = configuredPresetIds({ config, presets: deps.presets });
+  const { groupPresets, isProviderConfigured } = deps.presetRules;
+  const configuredIds = configuredPresetIds({ config, presets: deps.presets, isProviderConfigured });
   return {
     editConfig, selectPreset, configuredPresetIds: configuredIds, storedKeyIsForOtherEndpoint,
     hasUsableKey: rules.hasUsableKey(probe),
     hasStoredKey: hasStoredCredential({ stored }),
-    providerGroups: visitorProviderGroups({ configuredIds, presets: deps.presets }),
+    providerGroups: visitorProviderGroups({ configuredIds, presets: deps.presets, groupPresets }),
     selectPresetById: ({ presetId }: { presetId: string }, _options: Record<string, never> = {}) => {
       const next = deps.presets.find((p) => p.id === presetId);
       if (next) selectPreset(next);
@@ -135,6 +138,7 @@ function visitorCredentialHandlers(
  * `port` is injected rather than importing the host's API client directly, so a test can describe
  * hydration/save against a fake instead of stubbing global `fetch` or spying on a module singleton.
  * The host's zero-argument `useWiredVisitorCredentialForm` binds the real client, rules and catalog.
+ * The Save lane is the admin kit's `useSerialWrites`, so `<AdminKitProvider>` must be mounted above.
  *
  * @param deps - The site-credential client, the host's rules, catalog and defaults.
  * @param optional.executionPort - The probe transport; the host's `createExecutionPort()` when absent.
@@ -147,7 +151,7 @@ export function useVisitorCredentialForm(
 ): VisitorCredentialFormController {
   const s = useVisitorCredentialState(deps);
   const { config, stored } = s;
-  const preset = useMemo(() => resolveSelectedPreset({ presets: [...deps.presets], config }), [config]);
+  const preset = useMemo(() => deps.presetRules.resolveSelectedPreset({ presets: [...deps.presets], config }), [config]);
   // One port instance for this component's lifetime. These are the SAME admin routes the Settings
   // screen probes with, and they take the credential in the request body rather than reading a
   // stored one. The host's port opts into its stored credential so both probes work against a key
