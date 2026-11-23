@@ -1410,6 +1410,12 @@
    "stripOscSequences": "function:d0273cacf3"
   }
  },
+ "./shell/components/AssistantDock/hooks/use-assistant-empty-state.hooks": {
+  "types": "./dist/shell/components/AssistantDock/hooks/use-assistant-empty-state.hooks.d.ts",
+  "symbols": {
+   "useAssistantEmptyState": "function:0707ca9ba6"
+  }
+ },
  "./shell/components/AssistantDock/hooks/use-composer-send-stop-guard.hooks": {
   "types": "./dist/shell/components/AssistantDock/hooks/use-composer-send-stop-guard.hooks.d.ts",
   "symbols": {
@@ -1422,6 +1428,32 @@
   "symbols": {
    "UseOverflowDetectionResult": "interface:19a8b8d293",
    "useOverflowDetection": "function:1c8aea7f98"
+  }
+ },
+ "./shell/components/AssistantDock/local-cli-selection-echo": {
+  "types": "./dist/shell/components/AssistantDock/local-cli-selection-echo.d.ts",
+  "symbols": {
+   "isSelectionNormalizationEcho": "function:c414699b1b"
+  }
+ },
+ "./shell/components/AssistantDock/MessageOverflowModal.hooks": {
+  "types": "./dist/shell/components/AssistantDock/MessageOverflowModal.hooks.d.ts",
+  "symbols": {
+   "MessageOverflowModalController": "interface:edeb4ca8ee",
+   "useMessageOverflowModal": "function:b78d1c1e05"
+  }
+ },
+ "./shell/components/AssistantDock/SlowRunNoticeCard.hooks": {
+  "types": "./dist/shell/components/AssistantDock/SlowRunNoticeCard.hooks.d.ts",
+  "symbols": {
+   "isSlowRunNoticeVisible": "function:f61f05d372",
+   "resolveSlowRunDetail": "function:6bc7144fb9"
+  }
+ },
+ "./shell/components/CodeView/preview-modal-icons": {
+  "types": "./dist/shell/components/CodeView/preview-modal-icons.d.ts",
+  "symbols": {
+   "CODE_PREVIEW_MODAL_ICONS": "variable:b5691ca97f"
   }
  },
  "./shell/components/DevicePreview/DevicePreview.hooks": {
@@ -1440,6 +1472,16 @@
    "usePreviewPaneWidth": "function:cc27ee4562"
   }
  },
+ "./shell/components/InstallTabCard/use-folder-upload.hooks": {
+  "types": "./dist/shell/components/InstallTabCard/use-folder-upload.hooks.d.ts",
+  "symbols": {
+   "FOLDER_TOO_MANY": "variable:011da6513c",
+   "FolderZipPort": "interface:591d3a22eb",
+   "FolderZipRefusalReason": "type:fa7b4e5d69",
+   "PickedFolderInput": "interface:ca44a0bdab",
+   "useFolderUpload": "function:fceaef44ec"
+  }
+ },
  "./shell/components/InstallTabCard/use-zip-drop.hooks": {
   "types": "./dist/shell/components/InstallTabCard/use-zip-drop.hooks.d.ts",
   "symbols": {
@@ -1451,6 +1493,23 @@
   "types": "./dist/shell/components/line-icon.d.ts",
   "symbols": {
    "LINE_ICON": "variable:55e15ff8af"
+  }
+ },
+ "./shell/components/Select/Select.hooks": {
+  "types": "./dist/shell/components/Select/Select.hooks.d.ts",
+  "symbols": {
+   "PanelPosition": "interface:3990d9a6e0",
+   "SelectOption": "interface:f8d19f3d08",
+   "applyHighlightKey": "function:eac9d90941",
+   "buildOptionId": "function:3d350e6622",
+   "computePosition": "function:8653e09910",
+   "edgeHighlightIndex": "function:3ae8cd02e4",
+   "focusableInDomOrder": "function:cae1c6e58b",
+   "highlightedOptionOrNull": "function:c4999d2453",
+   "repositionOrClose": "function:20465a758a",
+   "resolveTabTarget": "function:ddf996a34a",
+   "usePanelPosition": "variable:151b5b4d7d",
+   "useSelectDropdown": "function:0f12aabcae"
   }
  },
  "./shell/components/TemplateSource/template-source-port.hooks": {
@@ -1570,6 +1629,13 @@
    "WORKSPACE_ID": "variable:ab262cfda2"
   }
  },
+ "./shell/lib/admin-nav-i18n": {
+  "types": "./dist/shell/lib/admin-nav-i18n.d.ts",
+  "symbols": {
+   "translateAdminNavGroups": "function:3accf542a3",
+   "translateAdminNavLabel": "variable:c276a3de5b"
+  }
+ },
  "./shell/lib/agent-screen-context": {
   "types": "./dist/shell/lib/agent-screen-context.d.ts",
   "symbols": {
@@ -1609,6 +1675,23 @@
    "subscribeToAssistantDockRequests": "function:4d1fd5c4d8"
   }
  },
+ "./shell/lib/assistant-prompt-bus": {
+  "types": "./dist/shell/lib/assistant-prompt-bus.d.ts",
+  "symbols": {
+   "requestAssistantPrompt": "function:e43fb22e13",
+   "resetAssistantPromptBus": "function:0f043d9373",
+   "useAssistantPromptRequests": "function:036fa8e213"
+  }
+ },
+ "./shell/lib/browser-stream": {
+  "types": "./dist/shell/lib/browser-stream.d.ts",
+  "symbols": {
+   "BrowserStreamPorts": "interface:24831c3221",
+   "StreamChannel": "interface:44072a1291",
+   "browserStreamPorts": "function:1e47c440f9",
+   "startBrowserStream": "function:b5ab179b87"
+  }
+ },
  "./shell/lib/content-refresh-bus": {
   "types": "./dist/shell/lib/content-refresh-bus.d.ts",
   "symbols": {
@@ -1617,6 +1700,13 @@
    "publishContentRefresh": "function:6aa2230298",
    "resetContentRefreshBus": "function:feee78c64f",
    "subscribeToContentRefresh": "function:8554e6c7c0"
+  }
+ },
+ "./shell/lib/credential-card-guidance": {
+  "types": "./dist/shell/lib/credential-card-guidance.d.ts",
+  "symbols": {
+   "guideToPendingCredentialCard": "function:9bc6d4e05d",
+   "onAdminSecretRedacted": "function:d2a4c10319"
   }
  },
  "./shell/lib/editor-failure-i18n": {
@@ -1738,6 +1828,17 @@
   "types": "./dist/shell/lib/slug-redirect-path.d.ts",
   "symbols": {
    "slugRedirectPath": "function:8771a9b456"
+  }
+ },
+ "./shell/lib/stream-activity": {
+  "types": "./dist/shell/lib/stream-activity.d.ts",
+  "symbols": {
+   "StreamActivity": "interface:204d4a8190",
+   "TrackedRunHandlers": "type:319d7f49ae",
+   "adminStreamActivity": "variable:37bb24ff76",
+   "createStreamActivity": "function:3d8e068621",
+   "subscriptionEnded": "variable:43216c5280",
+   "trackTransportActivity": "function:8afe35dc3a"
   }
  },
  "./shell/lib/translation-entry": {

@@ -127,7 +127,19 @@
       "./shell/hooks/use-list-table-cell-labels.hooks": "browser",
       "./shell/hooks/use-sidebar-empty-click-toggle.hooks": "browser",
       "./shell/hooks/use-content-refresh-subscription.hooks": "browser",
-      "./shell/hooks/use-agent-screen-context.hooks": "browser"
+      "./shell/hooks/use-agent-screen-context.hooks": "browser",
+      "./shell/lib/stream-activity": "browser",
+      "./shell/lib/assistant-prompt-bus": "browser",
+      "./shell/lib/browser-stream": "browser",
+      "./shell/lib/credential-card-guidance": "browser",
+      "./shell/lib/admin-nav-i18n": "browser",
+      "./shell/components/AssistantDock/hooks/use-assistant-empty-state.hooks": "browser",
+      "./shell/components/AssistantDock/local-cli-selection-echo": "browser",
+      "./shell/components/AssistantDock/MessageOverflowModal.hooks": "browser",
+      "./shell/components/AssistantDock/SlowRunNoticeCard.hooks": "browser",
+      "./shell/components/CodeView/preview-modal-icons": "browser",
+      "./shell/components/InstallTabCard/use-folder-upload.hooks": "browser",
+      "./shell/components/Select/Select.hooks": "browser"
     },
     "isolation": {
       "shared": [
@@ -192,7 +204,19 @@
         "./shell/hooks/use-list-table-cell-labels.hooks": "browser",
         "./shell/hooks/use-sidebar-empty-click-toggle.hooks": "browser",
         "./shell/hooks/use-content-refresh-subscription.hooks": "browser",
-        "./shell/hooks/use-agent-screen-context.hooks": "browser"
+        "./shell/hooks/use-agent-screen-context.hooks": "browser",
+        "./shell/lib/stream-activity": "browser",
+        "./shell/lib/assistant-prompt-bus": "browser",
+        "./shell/lib/browser-stream": "browser",
+        "./shell/lib/credential-card-guidance": "browser",
+        "./shell/lib/admin-nav-i18n": "browser",
+        "./shell/components/AssistantDock/hooks/use-assistant-empty-state.hooks": "browser",
+        "./shell/components/AssistantDock/local-cli-selection-echo": "browser",
+        "./shell/components/AssistantDock/MessageOverflowModal.hooks": "browser",
+        "./shell/components/AssistantDock/SlowRunNoticeCard.hooks": "browser",
+        "./shell/components/CodeView/preview-modal-icons": "browser",
+        "./shell/components/InstallTabCard/use-folder-upload.hooks": "browser",
+        "./shell/components/Select/Select.hooks": "browser"
       }
     },
     "optionalPeers": {
@@ -769,6 +793,66 @@
       "types": "./dist/shell/hooks/use-agent-screen-context.hooks.d.ts",
       "import": "./dist/shell/hooks/use-agent-screen-context.hooks.js",
       "default": "./dist/shell/hooks/use-agent-screen-context.hooks.js"
+    },
+    "./shell/lib/stream-activity": {
+      "types": "./dist/shell/lib/stream-activity.d.ts",
+      "import": "./dist/shell/lib/stream-activity.js",
+      "default": "./dist/shell/lib/stream-activity.js"
+    },
+    "./shell/lib/assistant-prompt-bus": {
+      "types": "./dist/shell/lib/assistant-prompt-bus.d.ts",
+      "import": "./dist/shell/lib/assistant-prompt-bus.js",
+      "default": "./dist/shell/lib/assistant-prompt-bus.js"
+    },
+    "./shell/lib/browser-stream": {
+      "types": "./dist/shell/lib/browser-stream.d.ts",
+      "import": "./dist/shell/lib/browser-stream.js",
+      "default": "./dist/shell/lib/browser-stream.js"
+    },
+    "./shell/lib/credential-card-guidance": {
+      "types": "./dist/shell/lib/credential-card-guidance.d.ts",
+      "import": "./dist/shell/lib/credential-card-guidance.js",
+      "default": "./dist/shell/lib/credential-card-guidance.js"
+    },
+    "./shell/lib/admin-nav-i18n": {
+      "types": "./dist/shell/lib/admin-nav-i18n.d.ts",
+      "import": "./dist/shell/lib/admin-nav-i18n.js",
+      "default": "./dist/shell/lib/admin-nav-i18n.js"
+    },
+    "./shell/components/AssistantDock/hooks/use-assistant-empty-state.hooks": {
+      "types": "./dist/shell/components/AssistantDock/hooks/use-assistant-empty-state.hooks.d.ts",
+      "import": "./dist/shell/components/AssistantDock/hooks/use-assistant-empty-state.hooks.js",
+      "default": "./dist/shell/components/AssistantDock/hooks/use-assistant-empty-state.hooks.js"
+    },
+    "./shell/components/AssistantDock/local-cli-selection-echo": {
+      "types": "./dist/shell/components/AssistantDock/local-cli-selection-echo.d.ts",
+      "import": "./dist/shell/components/AssistantDock/local-cli-selection-echo.js",
+      "default": "./dist/shell/components/AssistantDock/local-cli-selection-echo.js"
+    },
+    "./shell/components/AssistantDock/MessageOverflowModal.hooks": {
+      "types": "./dist/shell/components/AssistantDock/MessageOverflowModal.hooks.d.ts",
+      "import": "./dist/shell/components/AssistantDock/MessageOverflowModal.hooks.js",
+      "default": "./dist/shell/components/AssistantDock/MessageOverflowModal.hooks.js"
+    },
+    "./shell/components/AssistantDock/SlowRunNoticeCard.hooks": {
+      "types": "./dist/shell/components/AssistantDock/SlowRunNoticeCard.hooks.d.ts",
+      "import": "./dist/shell/components/AssistantDock/SlowRunNoticeCard.hooks.js",
+      "default": "./dist/shell/components/AssistantDock/SlowRunNoticeCard.hooks.js"
+    },
+    "./shell/components/CodeView/preview-modal-icons": {
+      "types": "./dist/shell/components/CodeView/preview-modal-icons.d.ts",
+      "import": "./dist/shell/components/CodeView/preview-modal-icons.js",
+      "default": "./dist/shell/components/CodeView/preview-modal-icons.js"
+    },
+    "./shell/components/InstallTabCard/use-folder-upload.hooks": {
+      "types": "./dist/shell/components/InstallTabCard/use-folder-upload.hooks.d.ts",
+      "import": "./dist/shell/components/InstallTabCard/use-folder-upload.hooks.js",
+      "default": "./dist/shell/components/InstallTabCard/use-folder-upload.hooks.js"
+    },
+    "./shell/components/Select/Select.hooks": {
+      "types": "./dist/shell/components/Select/Select.hooks.d.ts",
+      "import": "./dist/shell/components/Select/Select.hooks.js",
+      "default": "./dist/shell/components/Select/Select.hooks.js"
     }
   },
   "files": [

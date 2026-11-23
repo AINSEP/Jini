@@ -812,6 +812,20 @@
       "line": 40,
       "reason": "Moved verbatim from the host admin (A-adm-shell-*, 2026-11-22): browser-tab singleton (one admin per page, no tenant or request state). Instance-owned conversion is a named follow-up.",
       "fingerprint": "0353e1fbeba7813f5b5946711255daba89d3a97b6bbd129df704aa42239810dc"
+    },
+    {
+      "rule": "HW3-module-state",
+      "file": "packages/admin/src/shell/lib/assistant-prompt-bus.ts",
+      "line": 15,
+      "reason": "Moved verbatim from the host admin (A-adm-shell-*, 2026-11-22): browser-tab singleton (one admin per page, no tenant or request state). Instance-owned conversion is a named follow-up.",
+      "fingerprint": "62a2fed3d6e08c44835fce71f02210b1ddabfb066e39edf1e6c261988f824dd3"
+    },
+    {
+      "rule": "HW3-module-state",
+      "file": "packages/admin/src/shell/lib/assistant-prompt-bus.ts",
+      "line": 16,
+      "reason": "Moved verbatim from the host admin (A-adm-shell-*, 2026-11-22): browser-tab singleton (one admin per page, no tenant or request state). Instance-owned conversion is a named follow-up.",
+      "fingerprint": "0353e1fbeba7813f5b5946711255daba89d3a97b6bbd129df704aa42239810dc"
     }
   ]
 }
