@@ -173,6 +173,7 @@
       "./screens/taxonomy/TaxonomyRowMenu.hooks": "browser",
       "./screens/taxonomy/TaxonomyRowMenu": "browser",
       "./screens/taxonomy/TermPicker": "browser",
+      "./screens/taxonomy/Taxonomy": "browser",
       "./screens/taxonomy/hooks/merge-term-section-port.hooks": "universal",
       "./screens/taxonomy/hooks/new-taxonomy-form-port.hooks": "universal",
       "./screens/taxonomy/hooks/new-term-form-port.hooks": "universal",
@@ -1117,6 +1118,11 @@
       "import": "./dist/screens/taxonomy/TermPicker.js",
       "default": "./dist/screens/taxonomy/TermPicker.js"
     },
+    "./screens/taxonomy/Taxonomy": {
+      "types": "./dist/screens/taxonomy/Taxonomy.d.ts",
+      "import": "./dist/screens/taxonomy/Taxonomy.js",
+      "default": "./dist/screens/taxonomy/Taxonomy.js"
+    },
     "./screens/taxonomy/hooks/merge-term-section-port.hooks": {
       "types": "./dist/screens/taxonomy/hooks/merge-term-section-port.hooks.d.ts",
       "import": "./dist/screens/taxonomy/hooks/merge-term-section-port.hooks.js",
@@ -1523,6 +1529,9 @@
       ],
       "screens/taxonomy/TermPicker": [
         "./dist/screens/taxonomy/TermPicker.d.ts"
+      ],
+      "screens/taxonomy/Taxonomy": [
+        "./dist/screens/taxonomy/Taxonomy.d.ts"
       ],
       "screens/comments": [
         "./dist/screens/comments/index.d.ts"

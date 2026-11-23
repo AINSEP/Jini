@@ -207,7 +207,7 @@
       "./media/site/analytics": "universal",
       "./media/site/contracts": "universal",
       "./media/site/view-image-tool": "universal",
-      "./media/site/duplicate-asset": "universal",
+      "./media/site/duplicate-asset": "node",
       "./media/site-import/agent-tools": "universal",
       "./media/site-generation/agent-tools": "universal",
       "./media/site/provider-credential-contracts": "universal",

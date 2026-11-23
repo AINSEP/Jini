@@ -116,6 +116,7 @@
       "./contracts/site/chat-core": "universal",
       "./contracts/site/cms-core": "universal",
       "./contracts/site/post-kind": "universal",
+      "./contracts/site/scheduled-publish": "universal",
       "./contracts/site/core-commands": "universal",
       "./contracts/site/core-run-events": "universal",
       "./contracts/site/daemon-tool-recovery": "universal",
@@ -756,6 +757,11 @@
       "types": "./dist/contracts/site/post-kind.d.ts",
       "import": "./dist/contracts/site/post-kind.js",
       "default": "./dist/contracts/site/post-kind.js"
+    },
+    "./contracts/site/scheduled-publish": {
+      "types": "./dist/contracts/site/scheduled-publish.d.ts",
+      "import": "./dist/contracts/site/scheduled-publish.js",
+      "default": "./dist/contracts/site/scheduled-publish.js"
     },
     "./contracts/site/core-commands": {
       "types": "./dist/contracts/site/core-commands.d.ts",
