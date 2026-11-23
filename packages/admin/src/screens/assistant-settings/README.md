@@ -51,6 +51,21 @@ Architecture: [DR-005 portable package boundaries](../../../../../docs/decisions
   product's own automatic retry), `useAssistantDaemonRestartHook` (the host's bound `useProcessRestart`
   from `@jini-ai/admin/react`) and `useRestartAllowedHook` (the host's Local CLI execution-policy
   verdict; `false` renders nothing).
+- `AdminSubagents` (all REQUIRED): `t`, `InfoTip`, `copy` (`AdminSubagentsCopy`: the master's ⓘ
+  explainer, the tool-sources hint and a per-agent MCP explainer — product policy text) and
+  `useAdminSubagentsHook` (the host's wired Full CLI access controller satisfying
+  `AdminSubagentsController` from `admin-subagents.types`; the capability list, consent copy and
+  port stay in the host).
+- `AdminPermanentDeletes` (all REQUIRED): `t`, `InfoTip`, `copy` (`info`, `noAdminScreen`) and
+  `useAdminPermanentDeletesHook` (normally `useAdminPermanentDeletes` from this folder bound to the
+  host's policy). `useAdminPermanentDeletes` takes `OwnerGrantDependencies`, a `SiteGrantPort` and a
+  `PermanentDeletesPolicy` — `namespace`, `key`, `tools` (id/label/group/adminPath), `groupLabels`,
+  `title`, `dangers`, `confirmLabel`, `failure`.
+- `VisitorAssistantTabs` (all REQUIRED): `t`, `providerPanel`, `toolsPanel` (the host's wired
+  `VisitorToolsPanel`), `useVisitorAssistantTabsHook` (normally `useVisitorAssistantTabs` from this
+  folder), `useTabBarKeyboardHook` and `resolveTabIndex` (the host UI library's TabBar keyboard hook
+  and roving-tabindex rule, typed by this package's kit). The segmented-pill look is the host's
+  `jini-chat-settings-segmented` stylesheet.
 - `useAiAssistant(deps)`: `deps.port` (`AiAssistantPort` — get/set the public assistant settings) and
   `deps.describeError` (the host's error-to-copy rule). Uses the kit's query hooks, so it needs
   `<AdminKitProvider>` above it.
@@ -86,13 +101,26 @@ Architecture: [DR-005 portable package boundaries](../../../../../docs/decisions
   `jini-assistant-daemon-restart(-actions)`, `jini-assistant-muted`, `jini-assistant-save-line`,
   `jini-save-error` (host styles them; buttons reuse `btn-secondary`). Also
   `assistantDaemonStatusMessage`, `assistantRestartResultMessage`.
+- `AdminSubagents` — Full CLI access switch plus per-agent personal-MCP rows; classes
+  `jini-assistant-switch`, `jini-assistant-subagents`, `jini-assistant-tool-sources`,
+  `jini-assistant-grant-note` (host styles them).
+- `AdminPermanentDeletes` — master switch, consent dialog and autosaving per-tool checklist; classes
+  `jini-assistant-switch`, `jini-assistant-permanent-deletes`, `jini-permanent-delete-actions`,
+  `jini-permanent-delete-option`, `jini-assistant-grant-note` (buttons reuse the host's `btn-ghost`).
+- `use-admin-permanent-deletes.hooks` — `useAdminPermanentDeletes`, `PermanentDeletesPolicy`,
+  `PermanentDeleteTool`, `PermanentDeletesSettings` (turning OFF keeps the selection; checklist
+  commands are inert while OFF or unloaded).
+- `VisitorAssistantTabs` + `use-visitor-assistant-tabs.hooks` — the "AI provider | Visitor tools"
+  segmented tablist; class `jini-visitor-assistant-tabs`.
 - `use-ai-assistant.hooks` — `useAiAssistant`, `AiAssistantPort`, `AiAssistantDependencies`,
   `AiAssistantController` (non-optimistic: the screen re-renders from the server's response).
 
 **Host binding files**: the admin's ai-assistant feature binds these in its
 `assistant-owner-grant-dependencies`, `visitor-tools-dependencies` and
 `assistant-daemon-restart-dependencies` hook modules; the screen file itself binds the dock switch,
-the restart gate (its `useHostAssistantRestartAllowed`) and the wired settings hook (`useWiredAiAssistant`).
+the restart gate (its `useHostAssistantRestartAllowed`) and the wired settings hook (`useWiredAiAssistant`). The permanent-deletes policy and port are bound in its `permanent-deletes-dependencies` hook
+module, the Full CLI access controller stays in its `use-admin-subagents` hook module, and both
+screens' product copy and bound props live in its `owner-grant-bindings` module.
 
 **Host wiring example**
 

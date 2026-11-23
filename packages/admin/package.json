@@ -122,6 +122,8 @@
       "./screens/webmcp/BrowserAgentSettingsPanel": "browser",
       "./screens/fs-files/folder-drop-port": "browser",
       "./screens/fs-files/use-native-folder-picker.hooks": "browser",
+      "./screens/fs-files/use-folder-drop.hooks": "browser",
+      "./screens/fs-files/folder-drop.rules": "universal",
       "./screens/workspace/Workspace": "browser",
       "./screens/workspace/rules": "browser",
       "./screens/workspace/hooks/workspace-port.hooks": "universal",
@@ -132,6 +134,9 @@
       "./screens/sites/sites-list-rules": "universal",
       "./screens/sites/use-site-confirm.hooks": "browser",
       "./screens/sites/LocalSiteConfirmDialog": "browser",
+      "./screens/sites/sites-port.hooks": "universal",
+      "./screens/sites/use-sites-snapshot.hooks": "browser",
+      "./screens/sites/use-local-sites.hooks": "browser",
       "./screens/workspace/hooks/use-workspace.hooks": "browser",
       "./shell/lib/editor-failure-i18n": "browser",
       "./shell/lib/editor-template-options.rules": "browser",
@@ -270,6 +275,8 @@
         "./screens/webmcp/BrowserAgentSettingsPanel": "browser",
         "./screens/fs-files/folder-drop-port": "browser",
         "./screens/fs-files/use-native-folder-picker.hooks": "browser",
+        "./screens/fs-files/use-folder-drop.hooks": "browser",
+        "./screens/fs-files/folder-drop.rules": "universal",
         "./screens/workspace/Workspace": "browser",
         "./screens/workspace/rules": "browser",
         "./screens/workspace/hooks/workspace-port.hooks": "universal",
@@ -280,6 +287,9 @@
         "./screens/sites/sites-list-rules": "universal",
         "./screens/sites/use-site-confirm.hooks": "browser",
         "./screens/sites/LocalSiteConfirmDialog": "browser",
+        "./screens/sites/sites-port.hooks": "universal",
+        "./screens/sites/use-sites-snapshot.hooks": "browser",
+        "./screens/sites/use-local-sites.hooks": "browser",
         "./screens/workspace/hooks/use-workspace.hooks": "browser",
         "./shell/lib/editor-failure-i18n": "browser",
         "./shell/lib/editor-template-options.rules": "browser",
@@ -875,6 +885,16 @@
       "import": "./dist/screens/fs-files/use-native-folder-picker.hooks.js",
       "default": "./dist/screens/fs-files/use-native-folder-picker.hooks.js"
     },
+    "./screens/fs-files/use-folder-drop.hooks": {
+      "types": "./dist/screens/fs-files/use-folder-drop.hooks.d.ts",
+      "import": "./dist/screens/fs-files/use-folder-drop.hooks.js",
+      "default": "./dist/screens/fs-files/use-folder-drop.hooks.js"
+    },
+    "./screens/fs-files/folder-drop.rules": {
+      "types": "./dist/screens/fs-files/folder-drop.rules.d.ts",
+      "import": "./dist/screens/fs-files/folder-drop.rules.js",
+      "default": "./dist/screens/fs-files/folder-drop.rules.js"
+    },
     "./screens/workspace/Workspace": {
       "types": "./dist/screens/workspace/Workspace.d.ts",
       "import": "./dist/screens/workspace/Workspace.js",
@@ -909,6 +929,21 @@
       "types": "./dist/screens/sites/use-site-confirm.hooks.d.ts",
       "import": "./dist/screens/sites/use-site-confirm.hooks.js",
       "default": "./dist/screens/sites/use-site-confirm.hooks.js"
+    },
+    "./screens/sites/sites-port.hooks": {
+      "types": "./dist/screens/sites/sites-port.hooks.d.ts",
+      "import": "./dist/screens/sites/sites-port.hooks.js",
+      "default": "./dist/screens/sites/sites-port.hooks.js"
+    },
+    "./screens/sites/use-sites-snapshot.hooks": {
+      "types": "./dist/screens/sites/use-sites-snapshot.hooks.d.ts",
+      "import": "./dist/screens/sites/use-sites-snapshot.hooks.js",
+      "default": "./dist/screens/sites/use-sites-snapshot.hooks.js"
+    },
+    "./screens/sites/use-local-sites.hooks": {
+      "types": "./dist/screens/sites/use-local-sites.hooks.d.ts",
+      "import": "./dist/screens/sites/use-local-sites.hooks.js",
+      "default": "./dist/screens/sites/use-local-sites.hooks.js"
     },
     "./screens/sites/LocalSiteConfirmDialog": {
       "types": "./dist/screens/sites/LocalSiteConfirmDialog.d.ts",
