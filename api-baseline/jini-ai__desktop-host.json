@@ -424,9 +424,9 @@
    "AppWindowOptions": "interface:0000ea2978",
    "AppWindowPorts": "interface:57d9a494e4",
    "DockIconPort": "interface:699364065f",
-   "appWindowOptions": "function:ace08bb874",
+   "appWindowOptions": "function:302d4aa70c",
    "applyDockIcon": "function:05f7004deb",
-   "createAppWindow": "function:30b324dc70"
+   "createAppWindow": "function:50bd9e4ee3"
   }
  },
  "./node-toolchain": {
