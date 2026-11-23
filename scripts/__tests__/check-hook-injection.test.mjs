@@ -13,6 +13,11 @@ test('a hook received as a prop defaulted to the real hook is not flagged', () =
   assert.deepEqual(scanSource('Bar.tsx', src), []);
 });
 
+test('a hook received as a REQUIRED prop from the host (no default) is not flagged', () => {
+  const src = `export function Bar({ useFooHook }: { useFooHook: () => string }) { const foo = useFooHook(); return <i>{foo}</i>; }`;
+  assert.deepEqual(keys(scanSource('Bar.tsx', src)), []);
+});
+
 test('a direct imported custom hook call is flagged with file line, component and hook', () => {
   const src = `import { useFoo } from './foo';\nexport function Bar() {\n  const foo = useFoo();\n  return <i>{foo}</i>;\n}`;
   assert.deepEqual(scanSource('Bar.tsx', src), [{ file: 'Bar.tsx', line: 3, component: 'Bar', hook: 'useFoo' }]);
