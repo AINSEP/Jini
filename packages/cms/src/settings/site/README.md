@@ -1,7 +1,7 @@
 # settings/site
 
 Site-level settings helpers a host composes into its own settings feature: admin-interface keys,
-chart provider, form delivery bindings and destinations, mail sender, site time zone, and the
+chart provider, form delivery bindings and destinations, mail sender, site time zone, site title, and the
 read-only admin-language discovery tool (`ui-locales-tool.ts`).
 
 ## Wiring
@@ -40,6 +40,25 @@ import { ensureSettingDefinitions, getEffective } from "@jini-ai/core/settings";
 const settingsDeps = { settingsRepo, clock, ids, principals, ensureSettingDefinitions };
 await ensureMailSenderSettings({ deps: settingsDeps, systemPrincipalId });
 const sender = await readMailSenderSetting({ settingsRepo, workspaceId, getEffective });
+```
+
+**Needs injected** (`site-title.ts`, `core.site.title`): the host's legacy title, product copy the
+engine never ships, as a required `legacySiteTitle` on three existing args objects — the
+`ensureSiteTitleSettingDefinition` input (the stored definition default), the
+`preserveLegacySiteTitles` input (the workspace pin) and `ResolveSiteTitleDeps` (the render
+fallback). Pass the same value to all three. The ledger's functions arrive the same way as the
+helpers above: `deps.ensureSettingDefinitions` on the registrar, `deps.set` and
+`deps.resolveDefinitionRaw` on `PreserveLegacySiteTitlesDeps`, and `getEffective` on
+`ResolveSiteTitleDeps`. The host also binds the `SiteTitlePreservationStorePort` adapter over its
+own marker table and the `SiteDisplayNameSource` for its site directory.
+
+```ts
+import { ensureSettingDefinitions, getEffective, resolveDefinitionRaw, set } from "@jini-ai/core/settings";
+import { ensureSiteTitleSettingDefinition, preserveLegacySiteTitles, resolveSiteTitle } from "@jini-ai/cms/settings/site/site-title";
+
+await ensureSiteTitleSettingDefinition({ ...settingsDeps, ensureSettingDefinitions }, { systemPrincipalId, legacySiteTitle: HOST_LEGACY_TITLE });
+await preserveLegacySiteTitles({ ...settingsDeps, preservationStore, set, resolveDefinitionRaw }, { systemPrincipalId, legacySiteTitle: HOST_LEGACY_TITLE });
+const title = await resolveSiteTitle({ settingsRepo, preservationStore, workspaceRepo, siteDisplayName, getEffective, legacySiteTitle: HOST_LEGACY_TITLE }, { workspaceId });
 ```
 
 See [`DR-005`](../../../../../docs/decisions/DR-005-portable-package-boundaries.md) for the boundary rule.
