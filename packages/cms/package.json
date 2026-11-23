@@ -333,7 +333,21 @@
       "./admin-http/routes/assistant/delete-site-credential": "universal",
       "./admin-http/routes/assistant/get-execution-credential": "universal",
       "./admin-http/routes/assistant/put-execution-credential": "universal",
-      "./admin-http/routes/assistant/delete-execution-credential": "universal"
+      "./admin-http/routes/assistant/delete-execution-credential": "universal",
+      "./public-http/routes/api-connections/oauth-callback": "universal",
+      "./public-http/routes/external-mcp/oauth-callback": "universal",
+      "./public-http/routes/external-mcp/oauth-callback-url": "universal",
+      "./admin-http/routes/agent-plugins/list": "universal",
+      "./admin-http/routes/agent-plugins/files": "universal",
+      "./admin-http/routes/agent-plugins/set-enabled": "universal",
+      "./admin-http/http/agent-plugins": "universal",
+      "./admin-http/routes/external-mcp/list": "universal",
+      "./admin-http/routes/external-mcp/admissions": "universal",
+      "./admin-http/routes/external-mcp/delete": "universal",
+      "./admin-http/routes/external-mcp/put": "universal",
+      "./admin-http/routes/external-mcp/tool-approvals": "universal",
+      "./admin-http/routes/external-mcp/oauth-disconnect": "universal",
+      "./admin-http/routes/agent-plugins/connection-sign-in": "universal"
     },
     "isolation": {
       "domains": {
@@ -2119,6 +2133,76 @@
       "types": "./dist/admin-http/routes/assistant/delete-execution-credential.d.ts",
       "import": "./dist/admin-http/routes/assistant/delete-execution-credential.js",
       "default": "./dist/admin-http/routes/assistant/delete-execution-credential.js"
+    },
+    "./public-http/routes/api-connections/oauth-callback": {
+      "types": "./dist/public-http/routes/api-connections/oauth-callback.d.ts",
+      "import": "./dist/public-http/routes/api-connections/oauth-callback.js",
+      "default": "./dist/public-http/routes/api-connections/oauth-callback.js"
+    },
+    "./public-http/routes/external-mcp/oauth-callback": {
+      "types": "./dist/public-http/routes/external-mcp/oauth-callback.d.ts",
+      "import": "./dist/public-http/routes/external-mcp/oauth-callback.js",
+      "default": "./dist/public-http/routes/external-mcp/oauth-callback.js"
+    },
+    "./public-http/routes/external-mcp/oauth-callback-url": {
+      "types": "./dist/public-http/routes/external-mcp/oauth-callback-url.d.ts",
+      "import": "./dist/public-http/routes/external-mcp/oauth-callback-url.js",
+      "default": "./dist/public-http/routes/external-mcp/oauth-callback-url.js"
+    },
+    "./admin-http/routes/agent-plugins/list": {
+      "types": "./dist/admin-http/routes/agent-plugins/list.d.ts",
+      "import": "./dist/admin-http/routes/agent-plugins/list.js",
+      "default": "./dist/admin-http/routes/agent-plugins/list.js"
+    },
+    "./admin-http/routes/agent-plugins/files": {
+      "types": "./dist/admin-http/routes/agent-plugins/files.d.ts",
+      "import": "./dist/admin-http/routes/agent-plugins/files.js",
+      "default": "./dist/admin-http/routes/agent-plugins/files.js"
+    },
+    "./admin-http/routes/agent-plugins/set-enabled": {
+      "types": "./dist/admin-http/routes/agent-plugins/set-enabled.d.ts",
+      "import": "./dist/admin-http/routes/agent-plugins/set-enabled.js",
+      "default": "./dist/admin-http/routes/agent-plugins/set-enabled.js"
+    },
+    "./admin-http/http/agent-plugins": {
+      "types": "./dist/admin-http/http/agent-plugins.d.ts",
+      "import": "./dist/admin-http/http/agent-plugins.js",
+      "default": "./dist/admin-http/http/agent-plugins.js"
+    },
+    "./admin-http/routes/external-mcp/list": {
+      "types": "./dist/admin-http/routes/external-mcp/list.d.ts",
+      "import": "./dist/admin-http/routes/external-mcp/list.js",
+      "default": "./dist/admin-http/routes/external-mcp/list.js"
+    },
+    "./admin-http/routes/external-mcp/admissions": {
+      "types": "./dist/admin-http/routes/external-mcp/admissions.d.ts",
+      "import": "./dist/admin-http/routes/external-mcp/admissions.js",
+      "default": "./dist/admin-http/routes/external-mcp/admissions.js"
+    },
+    "./admin-http/routes/external-mcp/delete": {
+      "types": "./dist/admin-http/routes/external-mcp/delete.d.ts",
+      "import": "./dist/admin-http/routes/external-mcp/delete.js",
+      "default": "./dist/admin-http/routes/external-mcp/delete.js"
+    },
+    "./admin-http/routes/external-mcp/put": {
+      "types": "./dist/admin-http/routes/external-mcp/put.d.ts",
+      "import": "./dist/admin-http/routes/external-mcp/put.js",
+      "default": "./dist/admin-http/routes/external-mcp/put.js"
+    },
+    "./admin-http/routes/external-mcp/tool-approvals": {
+      "types": "./dist/admin-http/routes/external-mcp/tool-approvals.d.ts",
+      "import": "./dist/admin-http/routes/external-mcp/tool-approvals.js",
+      "default": "./dist/admin-http/routes/external-mcp/tool-approvals.js"
+    },
+    "./admin-http/routes/external-mcp/oauth-disconnect": {
+      "types": "./dist/admin-http/routes/external-mcp/oauth-disconnect.d.ts",
+      "import": "./dist/admin-http/routes/external-mcp/oauth-disconnect.js",
+      "default": "./dist/admin-http/routes/external-mcp/oauth-disconnect.js"
+    },
+    "./admin-http/routes/agent-plugins/connection-sign-in": {
+      "types": "./dist/admin-http/routes/agent-plugins/connection-sign-in.d.ts",
+      "import": "./dist/admin-http/routes/agent-plugins/connection-sign-in.js",
+      "default": "./dist/admin-http/routes/agent-plugins/connection-sign-in.js"
     }
   },
   "files": [
