@@ -5,7 +5,7 @@ PARTIAL 0651499f4 b9d51d2f: per-file-blocked remainder: Security SEC-6..14/SEC-T
 This was an unattended cloud run, coordinated by Opus at high effort. 18 subagent batches ran in 5 waves, never more than 4 at a time. Each batch's folders were disjoint, and no subagent committed. I reviewed every diff and committed each batch's Jini and Tovu halves separately.
 - Not used: codebase-memory tools, force-push, `--no-verify`, tags, publishing.
 - `main`, `integ/*`, `plan/*` and `release/*` were only fetched.
-- Wall-clock was about 1h40 of the 3.5h cap (19:51–21:30 UTC). I stopped because every per-file-movable item in the lane is done or listed below with its blocker.
+- Wall-clock was about 1h25 of the 3.5h cap (19:51–21:15 UTC). I stopped because every per-file-movable item in the lane is done or listed below with its blocker.
 
 ## Bases and provisional foundation
 - **Jini** `codex/ex7-settings-sec-jini` = `origin/integ/merge-14-2026-11-22` (4902a6a1a) with these merged in:
