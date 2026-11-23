@@ -3,7 +3,7 @@ import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { onTestFinished, test } from 'vitest';
-import { measureStorageTree, type StorageTreeFs } from '../measure-tree.js';
+import { measureStorageTree, nodeStorageTreeFs, type StorageTreeDirectory, type StorageTreeFs, type StorageTreeStats } from '../measure-tree.js';
 
 async function tempTree(): Promise<string> {
   const root = await fs.realpath(await fs.mkdtemp(path.join(os.tmpdir(), 'jini-measure-')));
@@ -22,8 +22,8 @@ async function write(root: string, relative: string, bytes: number): Promise<str
 function deniedFs(denied: ReadonlySet<string>): StorageTreeFs {
   const refuse = (target: string) => Object.assign(new Error(`EACCES: permission denied, '${target}'`), { code: 'EACCES' });
   return {
-    lstat: async target => { if (denied.has(target)) throw refuse(target); return fs.lstat(target); },
-    readdir: async target => { if (denied.has(`${target}/`)) throw refuse(target); return fs.readdir(target); },
+    lstat: async target => { if (denied.has(target)) throw refuse(target); return nodeStorageTreeFs.lstat(target); },
+    openDirectory: async target => { if (denied.has(`${target}/`)) throw refuse(target); return nodeStorageTreeFs.openDirectory(target); },
   };
 }
 
@@ -123,13 +123,19 @@ test('an unreadable file or root is unknown; a file that vanished mid-walk is si
   const root = await tempTree();
   const file = await write(root, 'uploads/a.png', 10);
   const gone = await write(root, 'uploads/b.png', 10);
-  const real: StorageTreeFs = { lstat: target => fs.lstat(target), readdir: target => fs.readdir(target) };
   const flaky: StorageTreeFs = {
-    readdir: real.readdir,
-    lstat: async target => {
-      if (target === file) throw Object.assign(new Error('EIO'), { code: 'EIO' });
-      if (target === gone) throw Object.assign(new Error('ENOENT'), { code: 'ENOENT' });
-      return real.lstat(target);
+    lstat: nodeStorageTreeFs.lstat,
+    openDirectory: async target => {
+      const directory = await nodeStorageTreeFs.openDirectory(target);
+      return {
+        ...directory,
+        lstatChild: async name => {
+          const entry = path.join(target, name);
+          if (entry === file) throw Object.assign(new Error('EIO'), { code: 'EIO' });
+          if (entry === gone) throw Object.assign(new Error('ENOENT'), { code: 'ENOENT' });
+          return directory.lstatChild(name);
+        },
+      };
     },
   };
   const result = await measureStorageTree({ root, targets: [] }, { fs: flaky });
@@ -151,10 +157,12 @@ test('a missing root measures as empty, not unknown', async () => {
 test('special files such as sockets are listed by nobody and counted as nothing', async () => {
   const root = await tempTree();
   const fifo: StorageTreeFs = {
-    readdir: async () => ['pipe'],
-    lstat: async target => (target === root
-      ? fs.lstat(root)
-      : { isSymbolicLink: () => false, isDirectory: () => false, isFile: () => false, size: 123 }),
+    lstat: nodeStorageTreeFs.lstat,
+    openDirectory: async target => ({
+      ...(await nodeStorageTreeFs.openDirectory(target)),
+      list: async () => ['pipe'],
+      lstatChild: async () => ({ isSymbolicLink: () => false, isDirectory: () => false, isFile: () => false, size: 123, dev: 1, ino: 2 }),
+    }),
   };
   const result = await measureStorageTree({ root, targets: [] }, { fs: fifo });
   assert.equal(result.total.bytes, 0);
@@ -190,4 +198,152 @@ test('nested targets: the closest target owns a file', async () => {
   assert.equal(result.targets.ops!.bytes, 4);
   assert.equal(result.targets.shares!.bytes, 10);
   assert.equal(result.total.bytes, 14);
+});
+
+const fakeDir = (ino: number): StorageTreeStats => ({ isSymbolicLink: () => false, isDirectory: () => true, isFile: () => false, size: 0, dev: 1, ino });
+const fakeFile = (size: number, ino: number): StorageTreeStats => ({ isSymbolicLink: () => false, isDirectory: () => false, isFile: () => true, size, dev: 1, ino });
+function fakeDirectory(
+  { identity, children, stillOpened = true }: { identity: StorageTreeStats; children: Record<string, StorageTreeStats>; stillOpened?: boolean },
+): StorageTreeDirectory {
+  return {
+    identity,
+    list: async () => Object.keys(children),
+    lstatChild: async name => children[name]!,
+    stillOpenedDirectory: async () => stillOpened,
+    close: async () => {},
+  };
+}
+
+test('a folder replaced between inspection and enumeration is unknown, and nothing it lists is counted', async () => {
+  const root = path.resolve('/site');
+  const uploads = path.join(root, 'uploads');
+  const opened: string[] = [];
+  const swapped: StorageTreeFs = {
+    lstat: async () => fakeDir(1),
+    openDirectory: async target => {
+      opened.push(target);
+      if (target === root) return fakeDirectory({ identity: fakeDir(1), children: { uploads: fakeDir(2), 'a.txt': fakeFile(5, 3) } });
+      if (target !== uploads) return fakeDirectory({ identity: fakeDir(101), children: {} });
+      // `uploads` was inspected as inode 2; the name now opens another folder (say, the far end of a swap).
+      return fakeDirectory({ identity: fakeDir(99), children: { 'huge.bin': fakeFile(1e9, 100), deeper: fakeDir(101) } });
+    },
+  };
+  const result = await measureStorageTree({ root, targets: [{ id: 'uploads', path: uploads }] }, { fs: swapped });
+  assert.equal(result.targets.uploads!.bytes, null);
+  assert.equal(result.targets.uploads!.knownBytes, 0);
+  assert.deepEqual(result.targets.uploads!.unknownPaths, [uploads]);
+  assert.equal(result.total.knownBytes, 5);
+  assert.deepEqual(opened, [root, uploads], 'nothing inside the replaced folder is walked');
+});
+
+test('a folder whose identity changes during enumeration is unknown and its listing is discarded', async () => {
+  const root = path.resolve('/site');
+  const uploads = path.join(root, 'uploads');
+  const opened: string[] = [];
+  const moving: StorageTreeFs = {
+    lstat: async () => fakeDir(1),
+    openDirectory: async target => {
+      opened.push(target);
+      if (target === root) return fakeDirectory({ identity: fakeDir(1), children: { uploads: fakeDir(2) } });
+      if (target !== uploads) return fakeDirectory({ identity: fakeDir(101), children: {} });
+      return fakeDirectory({ identity: fakeDir(2), children: { 'huge.bin': fakeFile(1e9, 100), deeper: fakeDir(101) }, stillOpened: false });
+    },
+  };
+  const result = await measureStorageTree({ root, targets: [{ id: 'uploads', path: uploads }] }, { fs: moving });
+  assert.equal(result.targets.uploads!.bytes, null);
+  assert.equal(result.total.knownBytes, 0);
+  assert.equal(result.total.files, 0);
+  assert.deepEqual(opened, [root, uploads]);
+});
+
+test('the Node adapter will not enumerate a folder swapped for a symlink after inspection', async () => {
+  const root = await tempTree();
+  const outside = await tempTree();
+  await write(outside, 'huge.bin', 5000);
+  await write(root, 'uploads/a.png', 10);
+  const uploads = path.join(root, 'uploads');
+  const racing: StorageTreeFs = {
+    lstat: nodeStorageTreeFs.lstat,
+    openDirectory: async target => {
+      if (target === uploads) { await fs.rm(uploads, { recursive: true }); await fs.symlink(outside, uploads); }
+      return nodeStorageTreeFs.openDirectory(target);
+    },
+  };
+  const result = await measureStorageTree({ root, targets: [{ id: 'uploads', path: uploads }] }, { fs: racing });
+  assert.equal(result.targets.uploads!.bytes, null);
+  assert.deepEqual(result.targets.uploads!.unknownPaths, [uploads]);
+  assert.equal(result.total.knownBytes, 0);
+});
+
+test('the Node adapter will not enumerate a different folder put in place after inspection', async () => {
+  const root = await tempTree();
+  await write(root, 'uploads/a.png', 10);
+  const uploads = path.join(root, 'uploads');
+  const racing: StorageTreeFs = {
+    lstat: nodeStorageTreeFs.lstat,
+    openDirectory: async target => {
+      if (target === uploads) { await fs.rename(uploads, path.join(root, 'moved')); await write(root, 'uploads/huge.bin', 5000); }
+      return nodeStorageTreeFs.openDirectory(target);
+    },
+  };
+  const result = await measureStorageTree({ root, targets: [{ id: 'uploads', path: uploads }] }, { fs: racing });
+  assert.equal(result.targets.uploads!.bytes, null);
+  assert.ok(result.total.knownBytes < 5000, 'the replacement folder was not counted');
+});
+
+test('the Node adapter notices a folder replaced while its children are read', async () => {
+  const root = await tempTree();
+  await write(root, 'uploads/a.png', 10);
+  const uploads = path.join(root, 'uploads');
+  let swapped = false;
+  const racing: StorageTreeFs = {
+    lstat: nodeStorageTreeFs.lstat,
+    openDirectory: async target => {
+      const directory = await nodeStorageTreeFs.openDirectory(target);
+      if (target !== uploads) return directory;
+      return {
+        ...directory,
+        lstatChild: async name => {
+          const stats = await directory.lstatChild(name);
+          if (!swapped) { swapped = true; await fs.rename(uploads, path.join(root, 'moved')); await fs.mkdir(uploads); }
+          return stats;
+        },
+      };
+    },
+  };
+  const result = await measureStorageTree({ root, targets: [{ id: 'uploads', path: uploads }] }, { fs: racing });
+  assert.equal(result.targets.uploads!.bytes, null);
+  assert.deepEqual(result.targets.uploads!.unknownPaths, [uploads]);
+});
+
+// Linux only: the anchored reads go through /proc/self/fd, which other platforms lack (there the
+// pathname re-check above is the guard, and a swap-and-restore inside the window is not detectable).
+test.skipIf(process.platform !== 'linux')('on Linux, child metadata comes from the opened folder even if its pathname is swapped and restored', async () => {
+  const root = await tempTree();
+  await write(root, 'uploads/a.png', 10);
+  const uploads = path.join(root, 'uploads');
+  const moved = path.join(root, 'moved');
+  const racing: StorageTreeFs = {
+    lstat: nodeStorageTreeFs.lstat,
+    openDirectory: async target => {
+      const directory = await nodeStorageTreeFs.openDirectory(target);
+      if (target !== uploads) return directory;
+      return {
+        ...directory,
+        list: async () => {
+          const names = await directory.list();
+          await fs.rename(uploads, moved);
+          await write(root, 'uploads/a.png', 5000);
+          return names;
+        },
+        stillOpenedDirectory: async () => {
+          await fs.rm(uploads, { recursive: true });
+          await fs.rename(moved, uploads);
+          return directory.stillOpenedDirectory();
+        },
+      };
+    },
+  };
+  const result = await measureStorageTree({ root, targets: [{ id: 'uploads', path: uploads }] }, { fs: racing });
+  assert.equal(result.targets.uploads!.bytes, 10);
 });

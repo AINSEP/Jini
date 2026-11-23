@@ -16,9 +16,12 @@ export {
 } from './runner.js';
 export {
   measureStorageTree,
+  nodeStorageTreeFs,
   type StorageTally,
   type StorageTarget,
+  type StorageTreeDirectory,
   type StorageTreeFs,
+  type StorageTreeIdentity,
   type StorageTreeMeasurement,
   type StorageTreeStats,
 } from './measure-tree.js';
