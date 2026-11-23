@@ -51,15 +51,22 @@ fallback). Pass the same value to all three. The ledger's functions arrive the s
 helpers above: `deps.ensureSettingDefinitions` on the registrar, `deps.set` and
 `deps.resolveDefinitionRaw` on `PreserveLegacySiteTitlesDeps`, and `getEffective` on
 `ResolveSiteTitleDeps`. The host also binds the `SiteTitlePreservationStorePort` adapter over its
-own marker table and the `SiteDisplayNameSource` for its site directory.
+own marker table and the `SiteDisplayNameSource` for its site directory. Logging is injected too:
+`reportSiteTitleFailure` (`SiteTitleFailureReporter`, required on both `PreserveLegacySiteTitlesDeps`
+and `ResolveSiteTitleDeps`) receives a `SiteTitleFailureEvent` of fixed text (`SITE_TITLE_*_MESSAGE`)
+plus `workspaceId` and, when something was thrown, `errorClass`. The thrown error's message is never
+passed, since a repository error can echo a connection string or a stored value. `reportPreservationSummary`
+(required on `PreserveLegacySiteTitlesDeps`) receives each run's `PreserveLegacySiteTitlesResult`.
 
 ```ts
 import { ensureSettingDefinitions, getEffective, resolveDefinitionRaw, set } from "@jini-ai/core/settings";
 import { ensureSiteTitleSettingDefinition, preserveLegacySiteTitles, resolveSiteTitle } from "@jini-ai/cms/settings/site/site-title";
 
 await ensureSiteTitleSettingDefinition({ ...settingsDeps, ensureSettingDefinitions }, { systemPrincipalId, legacySiteTitle: HOST_LEGACY_TITLE });
-await preserveLegacySiteTitles({ ...settingsDeps, preservationStore, set, resolveDefinitionRaw }, { systemPrincipalId, legacySiteTitle: HOST_LEGACY_TITLE });
-const title = await resolveSiteTitle({ settingsRepo, preservationStore, workspaceRepo, siteDisplayName, getEffective, legacySiteTitle: HOST_LEGACY_TITLE }, { workspaceId });
+const reportSiteTitleFailure = (event) => logger.error({ message: event.message }, { meta: { workspaceId: event.workspaceId, errorClass: event.errorClass } });
+const reportPreservationSummary = (result) => logger.info({ message: `pinned=${result.pinnedWorkspaceIds.length} failed=${result.failedWorkspaceIds.length}` });
+await preserveLegacySiteTitles({ ...settingsDeps, preservationStore, set, resolveDefinitionRaw, reportSiteTitleFailure, reportPreservationSummary }, { systemPrincipalId, legacySiteTitle: HOST_LEGACY_TITLE });
+const title = await resolveSiteTitle({ settingsRepo, preservationStore, workspaceRepo, siteDisplayName, getEffective, legacySiteTitle: HOST_LEGACY_TITLE, reportSiteTitleFailure }, { workspaceId });
 ```
 
 **Needs injected** (`site-title-write.ts`, the settings write chokepoint, and the writers that go
