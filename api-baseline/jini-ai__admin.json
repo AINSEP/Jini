@@ -1215,6 +1215,13 @@
    "useRedirectsPorts": "function:7814d9eb73"
   }
  },
+ "./screens/fs-files/folder-drop-port": {
+  "types": "./dist/screens/fs-files/folder-drop-port.d.ts",
+  "symbols": {
+   "FolderDropPort": "type:db2c55e15b",
+   "getFolderDropPort": "function:7e72c1a1de"
+  }
+ },
  "./security": {
   "types": "./dist/security/index.d.ts",
   "symbols": {

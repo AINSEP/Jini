@@ -95,6 +95,7 @@
       "./shell/lib/ascii-slug": "browser",
       "./shell/lib/assistant-dock-bus": "browser",
       "./shell/lib/content-refresh-bus": "browser",
+      "./screens/fs-files/folder-drop-port": "browser",
       "./shell/lib/editor-failure-i18n": "browser",
       "./shell/lib/editor-template-options.rules": "browser",
       "./shell/lib/escape-owned-by-inner-layer": "browser",
@@ -174,6 +175,7 @@
         "./shell/lib/ascii-slug": "browser",
         "./shell/lib/assistant-dock-bus": "browser",
         "./shell/lib/content-refresh-bus": "browser",
+        "./screens/fs-files/folder-drop-port": "browser",
         "./shell/lib/editor-failure-i18n": "browser",
         "./shell/lib/editor-template-options.rules": "browser",
         "./shell/lib/escape-owned-by-inner-layer": "browser",
@@ -632,6 +634,11 @@
       "types": "./dist/shell/lib/content-refresh-bus.d.ts",
       "import": "./dist/shell/lib/content-refresh-bus.js",
       "default": "./dist/shell/lib/content-refresh-bus.js"
+    },
+    "./screens/fs-files/folder-drop-port": {
+      "types": "./dist/screens/fs-files/folder-drop-port.d.ts",
+      "import": "./dist/screens/fs-files/folder-drop-port.js",
+      "default": "./dist/screens/fs-files/folder-drop-port.js"
     },
     "./shell/lib/editor-failure-i18n": {
       "types": "./dist/shell/lib/editor-failure-i18n.d.ts",
