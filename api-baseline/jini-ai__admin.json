@@ -1215,11 +1215,129 @@
    "useRedirectsPorts": "function:7814d9eb73"
   }
  },
+ "./screens/analytics": {
+  "types": "./dist/screens/analytics/index.d.ts",
+  "symbols": {
+   "Analytics": "function:987dfef07e",
+   "AnalyticsProps": "interface:e08512cfff"
+  }
+ },
+ "./screens/analytics/analytics-i18n": {
+  "types": "./dist/screens/analytics/analytics-i18n.d.ts",
+  "symbols": {
+   "t": "variable:44d298bf90"
+  }
+ },
+ "./screens/analytics/api/analytics-api.types": {
+  "types": "./dist/screens/analytics/api/analytics-api.types.d.ts",
+  "symbols": {
+   "AdminAnalyticsHit": "interface:519c0c225b"
+  }
+ },
+ "./screens/analytics/hooks/analytics-dependencies.hooks": {
+  "types": "./dist/screens/analytics/hooks/analytics-dependencies.hooks.d.ts",
+  "symbols": {
+   "FakeAnalyticsPortOptions": "interface:1827f09d2b",
+   "createFakeAnalyticsPort": "function:51eff677d6"
+  }
+ },
+ "./screens/analytics/hooks/analytics-port.hooks": {
+  "types": "./dist/screens/analytics/hooks/analytics-port.hooks.d.ts",
+  "symbols": {
+   "AnalyticsPort": "interface:fec9f1e95d"
+  }
+ },
+ "./screens/analytics/hooks/use-analytics.hooks": {
+  "types": "./dist/screens/analytics/hooks/use-analytics.hooks.d.ts",
+  "symbols": {
+   "AnalyticsController": "interface:a5791c1927",
+   "useAnalytics": "function:e62d0b3464"
+  }
+ },
+ "./screens/content-analysis/ContentAnalysisCard": {
+  "types": "./dist/screens/content-analysis/ContentAnalysisCard.d.ts",
+  "symbols": {
+   "ContentAnalysisCard": "function:149a8e3c75",
+   "ContentAnalysisCardProps": "interface:d2e0aa608a",
+   "ContentAnalysisCardView": "function:553f3a360f",
+   "UseContentAnalysisLocale": "type:2e3e6d7ba6"
+  }
+ },
+ "./screens/content-analysis/hooks/content-analysis-dependencies.hooks": {
+  "types": "./dist/screens/content-analysis/hooks/content-analysis-dependencies.hooks.d.ts",
+  "symbols": {
+   "FakeContentAnalysisPortOptions": "interface:f9705cde58",
+   "createFakeContentAnalysisPort": "function:1ff059623d"
+  }
+ },
+ "./screens/content-analysis/hooks/content-analysis-port.hooks": {
+  "types": "./dist/screens/content-analysis/hooks/content-analysis-port.hooks.d.ts",
+  "symbols": {
+   "ContentAnalysisPort": "interface:4a2f8e975c",
+   "PluginPreviewResponse": "interface:0cc5102284"
+  }
+ },
+ "./screens/content-analysis/hooks/use-content-analysis.hooks": {
+  "types": "./dist/screens/content-analysis/hooks/use-content-analysis.hooks.d.ts",
+  "symbols": {
+   "ContentAnalysisController": "interface:6b8aa5f832",
+   "ContentAnalysisDependencies": "interface:bbc7213f02",
+   "ContentAnalysisTarget": "interface:aa3bbca977",
+   "useContentAnalysis": "function:3b261543ba"
+  }
+ },
+ "./screens/content-analysis/rules": {
+  "types": "./dist/screens/content-analysis/rules.d.ts",
+  "symbols": {
+   "AnalysisCheckItem": "interface:95c35b1a6a",
+   "AnalysisStat": "interface:94d6e9a971",
+   "AnalysisState": "type:cd92f52fa8",
+   "AnalysisTocItem": "interface:531361676b",
+   "CARD_COPY": "variable:a7512d8685",
+   "CONTENT_ANALYZER_PLUGIN_ID": "variable:a9249957c2",
+   "CheckStatus": "type:28a272393c",
+   "ContentAnalysisReport": "interface:48db2d4dac",
+   "ContentAnalysisView": "interface:145f70b973",
+   "ContentCheck": "interface:df4e9afba5",
+   "FreshAnalysis": "interface:1b7e902e23",
+   "PluginPreviewRequest": "interface:216daab648",
+   "ReadabilityBand": "type:344edfbdc7",
+   "TocEntry": "interface:2e9c97ad63",
+   "buildContentAnalysisView": "function:56cfe115af",
+   "contentAnalysisCopyKeys": "function:34d57367ba",
+   "currentAnalysis": "function:95ff40d4db",
+   "describeAnalysisError": "function:9bdac555e3",
+   "isContentAnalysisHidden": "function:7467ea180b",
+   "parseContentAnalysisReport": "function:20521d9b99",
+   "previewAnalysis": "function:4244ba986c",
+   "previewRequestBody": "function:ff2971c233",
+   "storedAnalysis": "function:493b5b863f"
+  }
+ },
+ "./screens/redirects": {
+  "types": "./dist/screens/redirects/index.d.ts",
+  "symbols": {
+   "Redirects": "function:8d40b54ced",
+   "RedirectsModulePanelHook": "type:077a1eb4e2"
+  }
+ },
+ "./screens/redirects/redirects-i18n": {
+  "types": "./dist/screens/redirects/redirects-i18n.d.ts",
+  "symbols": {
+   "actionsForRedirectLabel": "function:1e42672a92",
+   "createdLabel": "function:196391d462",
+   "deleteRedirectBody": "function:22806850fc",
+   "failedItemLabel": "function:42c758093f",
+   "importResultSummary": "function:d8dfd512c1",
+   "importRulesLabel": "function:f2fbb6d6d5",
+   "t": "variable:44d298bf90"
+  }
+ },
  "./screens/seo": {
   "types": "./dist/screens/seo/index.d.ts",
   "symbols": {
    "Seo": "function:7bd2a7c79f",
-   "SeoModulePanelHook": "type:8e97440373"
+   "SeoModulePanelHook": "type:3fcf15b19a"
   }
  },
  "./screens/seo/seo-i18n": {
