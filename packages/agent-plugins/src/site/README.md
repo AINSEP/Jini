@@ -14,3 +14,9 @@ Site-host pieces of Agent Plugins that a host binds at its composition root.
   settings-backed `FormDeliveryBindingsStore`, `newBindingId`, and `deriveConnectionRef` (its
   api-connection key deriver, e.g. `deriveApiConnectionKey` from `@jini-ai/integrations/api-connections`,
   which this package may not import). Bound where the host composes its plugin connection seams.
+- `uninstall-tool.ts` (`./site/uninstall-tool`, node): the Agent Plugin branch of a host's merged
+  plugin-uninstall tool (permission, preview-or-refusal, confirmation, confirmed write). The host
+  injects `uninstallHost` on its `AgentPluginUninstallToolDeps`: its lifecycle preview/uninstall owner,
+  approval handler, not-confirmed result, dialog description and `AgentPluginUninstallCopy` (product
+  name, its uninstall tool id, its external-MCP settings path). Bound at the call site where the host
+  composes its plugin host.

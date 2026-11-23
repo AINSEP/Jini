@@ -73,6 +73,7 @@
       "./contracts/site/soft-delete": "universal",
       "./contracts/site/strict-base64": "node",
       "./contracts/site/tool-metadata-approval-policy": "universal",
+      "./contracts/site/human-confirm": "universal",
       "./contracts/site/daemon": "universal",
       "./contracts/site/plugins-host": "universal",
       "./contracts/site/db-data-modules": "universal",
@@ -150,6 +151,7 @@
       "./tool-metadata/analytics": "universal",
       "./tool-metadata/change-sets": "universal",
       "./tool-metadata/consent": "universal",
+      "./tool-metadata/skills": "universal",
       "./tool-metadata/content-duplication": "universal",
       "./tool-metadata/content-types": "universal",
       "./tool-metadata/database-transfer": "universal",
@@ -541,6 +543,11 @@
       "import": "./dist/contracts/site/tool-metadata-approval-policy.js",
       "default": "./dist/contracts/site/tool-metadata-approval-policy.js"
     },
+    "./contracts/site/human-confirm": {
+      "types": "./dist/contracts/site/human-confirm.d.ts",
+      "import": "./dist/contracts/site/human-confirm.js",
+      "default": "./dist/contracts/site/human-confirm.js"
+    },
     "./contracts/site/daemon": {
       "types": "./dist/contracts/site/daemon.d.ts",
       "import": "./dist/contracts/site/daemon.js",
@@ -905,6 +912,11 @@
       "types": "./dist/tool-metadata/consent.d.ts",
       "import": "./dist/tool-metadata/consent.js",
       "default": "./dist/tool-metadata/consent.js"
+    },
+    "./tool-metadata/skills": {
+      "types": "./dist/tool-metadata/skills.d.ts",
+      "import": "./dist/tool-metadata/skills.js",
+      "default": "./dist/tool-metadata/skills.js"
     },
     "./tool-metadata/content-duplication": {
       "types": "./dist/tool-metadata/content-duplication.d.ts",

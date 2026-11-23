@@ -108,7 +108,8 @@
       "./site/admin-surfaces/forms": "universal",
       "./site/memory-i18n": "universal",
       "./site/admin-surfaces/delivery-bindings": "universal",
-      "./site/supersession": "node"
+      "./site/supersession": "node",
+      "./site/uninstall-tool": "node"
     },
     "isolation": {
       "entries": {
@@ -120,7 +121,8 @@
         "./site/admin-surfaces/capabilities": "admin-surfaces",
         "./site/admin-surfaces/forms": "admin-surfaces",
         "./site/admin-surfaces/delivery-bindings": "admin-surfaces",
-        "./site/supersession": "lifecycle"
+        "./site/supersession": "lifecycle",
+        "./site/uninstall-tool": "lifecycle"
       },
       "shared": [
         "core/persistent-state.js",
@@ -321,6 +323,11 @@
       "types": "./dist/site/supersession.d.ts",
       "import": "./dist/site/supersession.js",
       "default": "./dist/site/supersession.js"
+    },
+    "./site/uninstall-tool": {
+      "types": "./dist/site/uninstall-tool.d.ts",
+      "import": "./dist/site/uninstall-tool.js",
+      "default": "./dist/site/uninstall-tool.js"
     }
   },
   "files": [

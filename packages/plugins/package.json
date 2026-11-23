@@ -28,6 +28,8 @@
       "./runtime/install-tool-catalog": "universal",
       "./runtime/capability-card": "universal",
       "./runtime/plugin-host-copy": "universal",
+      "./runtime/enable-confirmation-ui": "universal",
+      "./runtime/uninstall-confirmation-ui": "universal",
       "./site/lipay/manifest": "universal",
       "./site/store/manifest": "universal"
     },
@@ -120,6 +122,16 @@
       "types": "./dist/runtime/plugin-host-copy.d.ts",
       "import": "./dist/runtime/plugin-host-copy.js",
       "default": "./dist/runtime/plugin-host-copy.js"
+    },
+    "./runtime/enable-confirmation-ui": {
+      "types": "./dist/runtime/enable-confirmation-ui.d.ts",
+      "import": "./dist/runtime/enable-confirmation-ui.js",
+      "default": "./dist/runtime/enable-confirmation-ui.js"
+    },
+    "./runtime/uninstall-confirmation-ui": {
+      "types": "./dist/runtime/uninstall-confirmation-ui.d.ts",
+      "import": "./dist/runtime/uninstall-confirmation-ui.js",
+      "default": "./dist/runtime/uninstall-confirmation-ui.js"
     },
     "./site/lipay/manifest": {
       "types": "./dist/site/lipay/manifest.d.ts",

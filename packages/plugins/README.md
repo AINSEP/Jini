@@ -97,6 +97,13 @@ declarations (`LIPAY_MANIFEST`, `STORE_MANIFEST`). Nothing is injected; the host
 first-party data-module set. Their provenance publisher is `"jini-core"` — persisted in
 `_plugin_identity`, so changing it is a migration (see CHANGELOG).
 
+`./runtime/enable-confirmation-ui` (`describeEnableApproval`, `EnableConfirmationSubject`) and
+`./runtime/uninstall-confirmation-ui` (`describeUninstallApproval`, `PLUGINS_UNINSTALL_TOOL_ID`) are
+pure: they return a `HumanConfirmSpec` (`@jini-ai/core/contracts/site/human-confirm`) and inject
+nothing. The host renders and redeems that spec through its own approval transport; it passes both
+builders as the `descriptions: { enable, uninstall }` field of `PluginManagementToolsRequired`
+(`./host/tools`) when it binds the plugin management tools.
+
 ## Design decisions
 
 - [Attachment vocabulary and failure containment are separate decisions](docs/decisions/DR-001-category-specific-glue-containment.md).
