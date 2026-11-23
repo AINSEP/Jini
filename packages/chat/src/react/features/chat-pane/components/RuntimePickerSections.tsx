@@ -3,10 +3,11 @@ import { AgentIcon, RemixIcon, SearchableModelSelect } from '@jini-ai/ui';
 import { agentHandleProps, agentHandleSegment } from '@jini-ai/core/agent-handles';
 import { InfoTip } from '@jini-ai/ui/admin-widgets';
 import { assessNativeToolPolicy } from '@jini-ai/agent-runtime/native-tool-policy';
+import { modelReasoningOptions } from '@jini-ai/agent-runtime/model-selection';
 import { friendlyModelLabel, pickerModelValue, pickerCatalogNote, pickerModelOptions, shortModelLabel } from '../model-options.js';
 import { definedProps } from '../../../util/defined-props.js';
 import { RuntimeDropUp } from './RuntimeDropUp.js';
-import { chatPaneReasoningOptions, defaultChatPaneSelection, resolveChatPaneSelection } from '../rules.js';
+import { defaultChatPaneSelection, resolveChatPaneSelection } from '../rules.js';
 import type { ChatPaneAgent, ChatPaneAgentSelection, ByokRuntimeSummary } from '../types.js';
 
 export function runtimeAgentStatus({ agent }: { agent: ChatPaneAgent }): string {
@@ -221,7 +222,7 @@ export function RuntimeBarMenus({ base, selectedAgent, value, onChange, modelLab
   // Raw catalog ids (an offline fallback list's rows) read as friendly names in the bar and its list.
   const models = pickerModelOptions(selectedAgent).map((row) => ({ ...row, label: friendlyModelLabel({ label: row.label }) }));
   const selectedModelId = pickerModelValue(selectedAgent, value.model);
-  const efforts = chatPaneReasoningOptions({ agent: selectedAgent, model: selectedModelId });
+  const efforts = modelReasoningOptions({ agent: selectedAgent, model: models.find(option => option.id === selectedModelId) });
   const modelName = friendlyModelLabel({ label: modelLabel });
   return (
     <>

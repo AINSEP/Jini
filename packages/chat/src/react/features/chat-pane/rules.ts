@@ -51,17 +51,12 @@ function resolveRequestedModel({ agent, requested, fallback }: {
   return validatedOptionId(pickerModelOptions(agent), requested, fallback);
 }
 
-/** The reasoning choices the picked model supports (one place for the picker list and selection rules). */
-export function chatPaneReasoningOptions({ agent, model }: { agent: ChatPaneAgent; model: string | undefined }, _optional = {}) {
-  return modelReasoningOptions({ agent, model: pickerModelOptions(agent).find(option => option.id === model) });
-}
-
 export function defaultChatPaneSelection({ agent }: { agent: ChatPaneAgent }): ChatPaneAgentSelection {
   // Legacy hosts without structured resolution retain their first-concrete-entry behavior.
   // Use that fallback for unresolved native defaults too: an off-list alias must not strand
   // a usable catalog. The picker still excludes aliases without concrete model evidence.
   const model = configuredPickerModel(agent) || pickerModelOptions(agent)[0]?.id;
-  const reasoning = preferredOptionId(chatPaneReasoningOptions({ agent, model }));
+  const reasoning = preferredOptionId(modelReasoningOptions({ agent, model: pickerModelOptions(agent).find(option => option.id === model) }));
   return selectionOf({ agentId: agent.id, model, reasoning });
 }
 
@@ -75,7 +70,7 @@ export function resolveChatPaneSelection({ agents, requested }: { agents: readon
   const defaults = defaultChatPaneSelection({ agent: agent });
   if (agent !== requestedAgent) return defaults;
   const model = resolveRequestedModel({ agent, requested: requested.model, fallback: defaults.model });
-  const efforts = chatPaneReasoningOptions({ agent, model });
+  const efforts = modelReasoningOptions({ agent, model: pickerModelOptions(agent).find(option => option.id === model) });
   const reasoning = validatedOptionId(efforts, requested.reasoning, preferredOptionId(efforts));
   return selectionOf({ agentId: agent.id, model, reasoning });
 }

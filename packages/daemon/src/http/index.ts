@@ -22,7 +22,6 @@ export type {
   HostToolLaunchPlan,
   HostToolProbeEnv,
   LaunchHostToolResult,
-  HostToolCommandInvocation,
   Platform,
   RealPlatform,
 } from './host-tools.js';

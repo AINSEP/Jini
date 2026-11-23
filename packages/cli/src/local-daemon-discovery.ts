@@ -17,6 +17,8 @@
  * explicit `registryPath`, when `createLocalNodeDaemon`'s own `discoveryFile` was overridden away
  * from its default) to both sides.
  */
+import { readLiveDaemonRegistryRecord, resolveDaemonRegistryPath } from '@jini-ai/sidecar';
+
 import type { ResolveDaemonUrlOptions } from './daemon-url.js';
 
 /** Explicit registry path or the daemon data directory; neither is defaulted. */
@@ -28,23 +30,12 @@ export type LocalDaemonDiscoveryOptions =
   | { dataDir: string };
 
 /**
- * The on-disk daemon registry, as discovery reads it. The CLI's bin entry binds it (the sidecar
- * package's `resolveDaemonRegistryPath` and `readLiveDaemonRegistryRecord`); this module never
- * imports a registry implementation. `readLiveRecord` must already refuse a stale record (a dead
- * recording pid) by resolving `null`.
- */
-export interface DaemonRegistryReaderPort {
-  resolvePath(required: { dataDir: string }): string;
-  readLiveRecord(required: { registryPath: string }): Promise<{ readonly url: string } | null>;
-}
-
-/**
  * @internal Resolve the registry path this discovery probe should read, from whichever of
  * `registryPath`/`dataDir` was supplied.
  */
-function resolveRegistryPathFromOptions(options: LocalDaemonDiscoveryOptions, registry: DaemonRegistryReaderPort): string {
+function resolveRegistryPathFromOptions(options: LocalDaemonDiscoveryOptions): string {
   if ("registryPath" in options) return options.registryPath;
-  if ("dataDir" in options) return registry.resolvePath({ dataDir: options.dataDir });
+  if ("dataDir" in options) return resolveDaemonRegistryPath({ dataDir: options.dataDir });
   throw new Error('createLocalDaemonDiscovery requires either dataDir or registryPath');
 }
 
@@ -52,7 +43,7 @@ function resolveRegistryPathFromOptions(options: LocalDaemonDiscoveryOptions, re
  * Build a `resolveDaemonUrl({ env }, { discover })`-compatible probe backed by a local, on-disk daemon
  * registry record: reads the record at the resolved registry path, confirms the recording
  * process's pid is still alive (a stale record left behind by a daemon that crashed rather than
- * shut down cleanly is never trusted — see `DaemonRegistryReaderPort.readLiveRecord`), and returns its
+ * shut down cleanly is never trusted — see `readLiveDaemonRegistryRecord`), and returns its
  * `url`. Resolves to `null` (never rejects) when no live record is found, so `resolveDaemonUrl`
  * falls through to its own `defaultUrl`/error exactly as if no `discover` had been supplied at
  * all — a missing or stale local daemon is an ordinary, expected outcome here, not a failure.
@@ -63,12 +54,11 @@ function resolveRegistryPathFromOptions(options: LocalDaemonDiscoveryOptions, re
  * surfacing it immediately.
  */
 export function createLocalDaemonDiscovery(
-  { registry, ...options }: LocalDaemonDiscoveryOptions & { registry: DaemonRegistryReaderPort },
-  _optional: Record<string, never> = {},
+  options: LocalDaemonDiscoveryOptions,
 ): NonNullable<ResolveDaemonUrlOptions['discover']> {
-  const registryPath = resolveRegistryPathFromOptions(options as LocalDaemonDiscoveryOptions, registry);
+  const registryPath = resolveRegistryPathFromOptions(options);
   return async () => {
-    const record = await registry.readLiveRecord({ registryPath });
+    const record = await readLiveDaemonRegistryRecord({ registryPath });
     return record?.url ?? null;
   };
 }

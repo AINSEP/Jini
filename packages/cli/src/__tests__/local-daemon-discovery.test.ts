@@ -4,10 +4,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import { afterEach, describe, expect, it } from 'vitest';
-import { readLiveDaemonRegistryRecord, resolveDaemonRegistryPath, writeDaemonRegistryRecord } from '@jini-ai/sidecar';
-
-/** The real registry reader, bound the way the bin entry binds it. */
-const registry = { resolvePath: resolveDaemonRegistryPath, readLiveRecord: readLiveDaemonRegistryRecord };
+import { resolveDaemonRegistryPath, writeDaemonRegistryRecord } from '@jini-ai/sidecar';
 
 import { resolveDaemonUrl } from '../daemon-url.js';
 import { createLocalDaemonDiscovery } from '../local-daemon-discovery.js';
@@ -58,7 +55,7 @@ describe('createLocalDaemonDiscovery', () => {
       startedAt: new Date().toISOString(),
     } });
 
-    const discover = createLocalDaemonDiscovery({ dataDir, registry });
+    const discover = createLocalDaemonDiscovery({ dataDir });
     await expect(discover({ env: process.env }, { timeoutMs: 800 })).resolves.toBe('http://127.0.0.1:54213');
   });
 
@@ -83,13 +80,13 @@ describe('createLocalDaemonDiscovery', () => {
       startedAt: new Date().toISOString(),
     } });
 
-    const discover = createLocalDaemonDiscovery({ dataDir, registryPath, registry });
+    const discover = createLocalDaemonDiscovery({ dataDir, registryPath });
     await expect(discover({ env: process.env }, { timeoutMs: 800 })).resolves.toBe('http://127.0.0.1:9999');
   });
 
   it('resolves null (not rejects) when no registry file exists at all', async () => {
     const dataDir = await makeTempDataDir();
-    const discover = createLocalDaemonDiscovery({ dataDir, registry });
+    const discover = createLocalDaemonDiscovery({ dataDir });
     await expect(discover({ env: process.env }, { timeoutMs: 800 })).resolves.toBeNull();
   });
 
@@ -104,13 +101,13 @@ describe('createLocalDaemonDiscovery', () => {
       startedAt: new Date().toISOString(),
     } });
 
-    const discover = createLocalDaemonDiscovery({ dataDir, registry });
+    const discover = createLocalDaemonDiscovery({ dataDir });
     await expect(discover({ env: process.env }, { timeoutMs: 800 })).resolves.toBeNull();
   });
 
   it('throws synchronously at build time when neither dataDir nor registryPath is given', () => {
     // @ts-expect-error Deliberately omit the required location to assert runtime validation.
-    expect(() => createLocalDaemonDiscovery({ registry })).toThrow(/requires either dataDir or registryPath/);
+    expect(() => createLocalDaemonDiscovery({})).toThrow(/requires either dataDir or registryPath/);
   });
 
   describe('wired into resolveDaemonUrl', () => {
@@ -123,7 +120,7 @@ describe('createLocalDaemonDiscovery', () => {
         pid: process.pid,
         startedAt: new Date().toISOString(),
       } });
-      const discover = createLocalDaemonDiscovery({ dataDir, registry });
+      const discover = createLocalDaemonDiscovery({ dataDir });
 
       await expect(
         resolveDaemonUrl({ env: process.env }, { discover, defaultUrl: 'http://default.example' }),
@@ -137,29 +134,11 @@ describe('createLocalDaemonDiscovery', () => {
 
     it('falls through to defaultUrl when local discovery finds nothing live', async () => {
       const dataDir = await makeTempDataDir();
-      const discover = createLocalDaemonDiscovery({ dataDir, registry });
+      const discover = createLocalDaemonDiscovery({ dataDir });
 
       await expect(
         resolveDaemonUrl({ env: process.env }, { discover, defaultUrl: 'http://default.example' }),
       ).resolves.toBe('http://default.example');
     });
-  });
-});
-
-// XC-5: discovery resolves the path and reads the record only through the injected registry reader;
-// a stale record (the reader's `null` verdict) is never selected.
-describe('createLocalDaemonDiscovery — injected registry reader', () => {
-  it('reads through the injected path resolver and reader, and never selects a stale record', async () => {
-    const reads: string[] = [];
-    let live: { url: string } | null = { url: 'http://127.0.0.1:4555' };
-    const fakeRegistry = {
-      resolvePath: ({ dataDir }: { dataDir: string }) => `${dataDir}/injected-registry.json`,
-      readLiveRecord: async ({ registryPath }: { registryPath: string }) => { reads.push(registryPath); return live; },
-    };
-    const discover = createLocalDaemonDiscovery({ dataDir: '/data', registry: fakeRegistry });
-    await expect(discover({ env: process.env }, { timeoutMs: 800 })).resolves.toBe('http://127.0.0.1:4555');
-    live = null;
-    await expect(discover({ env: process.env }, { timeoutMs: 800 })).resolves.toBeNull();
-    expect(reads).toEqual(['/data/injected-registry.json', '/data/injected-registry.json']);
   });
 });

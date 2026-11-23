@@ -20,7 +20,7 @@ import { statSync } from 'node:fs';
 import { createRequire } from 'node:module';
 
 import { definePack, type Principal, type ToolRegistration } from '@jini-ai/core';
-import { getAgentDef, type DetectedAgent, type OAuthCallbackListener } from '@jini-ai/agent-runtime';
+import { getAgentDef, runAnthropicToolTurn, runAzureToolTurn, runGoogleToolTurn, runOllamaToolTurn, runOpenAiToolTurn, validateBaseUrl, type DetectedAgent, type OAuthCallbackListener } from '@jini-ai/agent-runtime';
 import {
   createDefaultRunStartHandler,
   createRemoteToolEventRecorder,
@@ -30,7 +30,7 @@ import {
   type ResolveRunInput,
   type TerminalSessionManager,
 } from '@jini-ai/daemon';
-import { buildTerminalService, type TerminalFeatureOptions } from './terminal-service.js'; import { mountRoutes } from './mount-routes.js'; import { baseUrlGuard, hostToolCommandInvocation, providerToolTurns } from './runtime-port-bindings.js';
+import { buildTerminalService, type TerminalFeatureOptions } from './terminal-service.js'; import { mountRoutes } from './mount-routes.js';
 import {
   ensureToolCatalogTables,
   getToolCatalogEntry,
@@ -349,7 +349,7 @@ export function createBuiltInFeatures(options: BuiltInFeatureOptions = {}): read
         services: () => ({ context }),
       }, {
         http: ({ app, services }) => {
-          mountRoutes({ app, routes: hostToolsRoutes({ deps: { commandInvocation: hostToolCommandInvocation,
+          mountRoutes({ app, routes: hostToolsRoutes({ deps: {
             resolveRoot: options.hostTools?.resolveWorkspaceRoot ?? denyAllWorkspaceRoots,
           }, host: services.context.routeHost }) });
         },
@@ -366,7 +366,7 @@ export function createBuiltInFeatures(options: BuiltInFeatureOptions = {}): read
         deps: [],
         services: () => ({ context }),
       }, {
-        http: ({ app, services }) => mountRoutes({ app, routes: modelProxyRoutes({ deps: { toolTurns: providerToolTurns }, host: services.context.routeHost }) }),
+        http: ({ app, services }) => mountRoutes({ app, routes: modelProxyRoutes({ deps: { toolTurns: { anthropic: runAnthropicToolTurn, openai: runOpenAiToolTurn, azure: runAzureToolTurn, google: runGoogleToolTurn, ollama: runOllamaToolTurn } }, host: services.context.routeHost }) }),
       }),
     }),
   });
@@ -529,7 +529,7 @@ export function createBuiltInFeatures(options: BuiltInFeatureOptions = {}): read
         deps: [],
         services: () => ({ context }),
       }, {
-        http: ({ app, services }) => mountRoutes({ app, routes: researchRoutes({ deps: { baseUrlGuard }, host: services.context.routeHost }) }),
+        http: ({ app, services }) => mountRoutes({ app, routes: researchRoutes({ deps: { baseUrlGuard: { validate: validateBaseUrl } }, host: services.context.routeHost }) }),
       }),
     }),
   });
