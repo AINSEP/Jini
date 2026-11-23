@@ -32,7 +32,9 @@ describe('@jini-ai/infra/db/sqlite barrel', () => {
     // 2375af6 added the backup-policy exports (free-space check + newest-five copy retention);
     // moves/w1-batch1 added the stopped-database admission trio (assertSqliteStopped,
     // checkpointStoppedSqliteWal, inspectStoppedSqlite) from sqlite/stopped.ts.
-    expect(Object.keys(sqlite).sort()).toEqual(['DATABASE_COPY_RETENTION', 'DEFAULT_PRAGMAS', 'DatabaseDiskSpaceError', 'SqliteClientError', 'SqliteDbOpsAdapter', 'assertDatabaseCopySpace', 'assertSqliteStopped', 'checkpointStoppedSqliteWal', 'createCheckedSqliteClient', 'inspectSqliteDatabase', 'inspectStoppedSqlite', 'openSqliteConnection', 'pruneDatabaseCopies', 'verifySqliteIntegrity', 'withSqliteTransaction']);
+    // P11 ST-7a added the stopped-site compaction pair (convertToIncrementalVacuum, incrementalVacuumStep)
+    // with its node fs port, recovery-copy naming and owner-facing messages, from sqlite/compaction.ts.
+    expect(Object.keys(sqlite).sort()).toEqual(['COMPACTION_MESSAGES', 'DATABASE_COPY_RETENTION', 'DEFAULT_PRAGMAS', 'DatabaseDiskSpaceError', 'SqliteClientError', 'SqliteDbOpsAdapter', 'assertDatabaseCopySpace', 'assertSqliteStopped', 'checkpointStoppedSqliteWal', 'compactionRecoveryCopyPath', 'convertToIncrementalVacuum', 'createCheckedSqliteClient', 'incrementalVacuumStep', 'inspectSqliteDatabase', 'inspectStoppedSqlite', 'nodeCompactionFs', 'openSqliteConnection', 'pruneDatabaseCopies', 'verifySqliteIntegrity', 'withSqliteTransaction']);
   });
 
   it('re-exports a working connection opener', () => {
