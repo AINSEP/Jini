@@ -144,7 +144,11 @@
       "./shell/components/Select/Select.hooks": "browser",
       "./shell/lib/tab-event-source": "browser",
       "./shell/hooks/use-external-entry-refresh.hooks": "browser",
-      "./screens/media/hooks/use-edit-media-modal.hooks": "browser"
+      "./screens/media/hooks/use-edit-media-modal.hooks": "browser",
+      "./posts/editor/notices/PostAutosaveRecoveryBanner": "browser",
+      "./posts/editor/notices/PostAutosaveStaleBanner": "browser",
+      "./posts/editor/notices/PostVersionConflictBanner": "browser",
+      "./posts/editor/toolbar/ToolbarOverflowMenu": "browser"
     },
     "isolation": {
       "shared": [
@@ -886,6 +890,26 @@
       "types": "./dist/screens/media/hooks/use-edit-media-modal.hooks.d.ts",
       "import": "./dist/screens/media/hooks/use-edit-media-modal.hooks.js",
       "default": "./dist/screens/media/hooks/use-edit-media-modal.hooks.js"
+    },
+    "./posts/editor/notices/PostAutosaveRecoveryBanner": {
+      "types": "./dist/posts/editor/notices/PostAutosaveRecoveryBanner.d.ts",
+      "import": "./dist/posts/editor/notices/PostAutosaveRecoveryBanner.js",
+      "default": "./dist/posts/editor/notices/PostAutosaveRecoveryBanner.js"
+    },
+    "./posts/editor/notices/PostAutosaveStaleBanner": {
+      "types": "./dist/posts/editor/notices/PostAutosaveStaleBanner.d.ts",
+      "import": "./dist/posts/editor/notices/PostAutosaveStaleBanner.js",
+      "default": "./dist/posts/editor/notices/PostAutosaveStaleBanner.js"
+    },
+    "./posts/editor/notices/PostVersionConflictBanner": {
+      "types": "./dist/posts/editor/notices/PostVersionConflictBanner.d.ts",
+      "import": "./dist/posts/editor/notices/PostVersionConflictBanner.js",
+      "default": "./dist/posts/editor/notices/PostVersionConflictBanner.js"
+    },
+    "./posts/editor/toolbar/ToolbarOverflowMenu": {
+      "types": "./dist/posts/editor/toolbar/ToolbarOverflowMenu.d.ts",
+      "import": "./dist/posts/editor/toolbar/ToolbarOverflowMenu.js",
+      "default": "./dist/posts/editor/toolbar/ToolbarOverflowMenu.js"
     }
   },
   "files": [
@@ -946,6 +970,18 @@
       ],
       "screens/media/hooks/use-edit-media-modal.hooks": [
         "./dist/screens/media/hooks/use-edit-media-modal.hooks.d.ts"
+      ],
+      "posts/editor/notices/PostAutosaveRecoveryBanner": [
+        "./dist/posts/editor/notices/PostAutosaveRecoveryBanner.d.ts"
+      ],
+      "posts/editor/notices/PostAutosaveStaleBanner": [
+        "./dist/posts/editor/notices/PostAutosaveStaleBanner.d.ts"
+      ],
+      "posts/editor/notices/PostVersionConflictBanner": [
+        "./dist/posts/editor/notices/PostVersionConflictBanner.d.ts"
+      ],
+      "posts/editor/toolbar/ToolbarOverflowMenu": [
+        "./dist/posts/editor/toolbar/ToolbarOverflowMenu.d.ts"
       ]
     }
   },
