@@ -170,16 +170,24 @@ async function sendOnce<T, E extends AdminHttpError, B extends string, F extends
   const url = `${ports.resolveBasePath({ basePath: options.basePath })}${path}`;
   const res = await fetchBounded(ctx, { url, init: buildFetchInit(init) });
   const { body, wasUnparseable } = await parseJsonBody({ response: res }, { requireJson: res.ok && options.requireJson });
-  if (!res.ok) {
-    // Only a 401 carrying UNAUTHENTICATED invalidates the session: a relayed vendor 401 does not.
-    if (res.status === 401 && ports.decodeApiError({ body }).code === "UNAUTHENTICATED") ports.sessionInvalidated({});
-    const defaultError = responseError(ctx, { status: res.status, body, wasUnparseable, method: init?.method ?? "GET", path });
-    const error = options.errorFactory?.({ response: res, error: defaultError }) ?? defaultError;
-    if (ports.isUpstreamRefused({ response: res })) ctx.upstreamRefused.add(error);
-    throw error;
-  }
+  if (!res.ok) throw failedResponseError(ctx, { res, body, wasUnparseable, method: init?.method ?? "GET", path }, options);
   onOk?.({ response: res });
   return body as T;
+}
+
+/** The non-2xx side effects, in order: session invalidation, the caller's error factory, the refused mark. */
+function failedResponseError<E extends AdminHttpError, B extends string, F extends string>(
+  ctx: Context<E, B, F>,
+  { res, body, wasUnparseable, method, path }: { res: Response; body: Record<string, unknown>; wasUnparseable: boolean; method: string; path: string },
+  options: AdminHttpOptions<E, B, F>,
+): E {
+  const { ports } = ctx;
+  // Only a 401 carrying UNAUTHENTICATED invalidates the session: a relayed vendor 401 does not.
+  if (res.status === 401 && ports.decodeApiError({ body }).code === "UNAUTHENTICATED") ports.sessionInvalidated({});
+  const defaultError = responseError(ctx, { status: res.status, body, wasUnparseable, method, path });
+  const error = options.errorFactory?.({ response: res, error: defaultError }) ?? defaultError;
+  if (ports.isUpstreamRefused({ response: res })) ctx.upstreamRefused.add(error);
+  return error;
 }
 
 /**

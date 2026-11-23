@@ -165,7 +165,8 @@ function responseError(
   { res, body, wasUnparseable }: { readonly res: Response; readonly body: Record<string, unknown>; readonly wasUnparseable: boolean },
   _optional: Record<string, never> = {},
 ): AdminApiError {
-  // Only an unparseable 5xx indicates an unreachable upstream or a crash outside the JSON envelope.
+  // Valid JSON proves the application answered. Only unparseable 5xx responses indicate
+  // an unreachable upstream or a server crash outside the application's JSON envelope.
   const noAppEnvelope = lacksAppEnvelope({ status: res.status, wasUnparseable });
   const fallback = noAppEnvelope ? unreachableApiMessage({ status: res.status }) : `request failed (${res.status})`;
   const serverCode = typeof body?.code === 'string' ? body.code : undefined;
