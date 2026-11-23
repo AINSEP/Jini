@@ -1218,7 +1218,8 @@
    "SecurityRootKeyTabOptions": "interface:20f25ecf87",
    "SecurityTabIcons": "type:76808971db",
    "SecurityTranslator": "type:36a7df8662",
-   "security": "function:dfb72e3c58",
+   "security": "function:0248174f1f",
+   "useSecurityOwnerControls": "function:ac3d8453f3",
    "useSecurityPorts": "function:a0ed09c781",
    "useSecurityTranslation": "function:7d8accfc14"
   }

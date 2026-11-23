@@ -3,7 +3,7 @@ import type { ComponentType, ReactNode } from 'react';
 import type { ModulePageProps, TabViewProps } from '@jini-ai/core/contracts/admin-module';
 import type { TabBarTab } from '../../../react/kit.js';
 import type { SecurityTranslator } from '../../messages.en.js';
-import { useSecurityTranslation } from './SecurityPorts.hooks.js';
+import { useSecurityTranslation, useSecurityOwnerControls } from './SecurityPorts.hooks.js';
 /** The shell passes this page its tabs as renderable components. */
 type TabbedPageProps = ModulePageProps<ComponentType<TabViewProps>>;
 /** Host-supplied tab glyphs; the module ships no icon set. */
@@ -29,12 +29,12 @@ function activeTab({ description, requested }: { description: TabbedPageProps['d
 function pageCopy({ t }: { t: SecurityTranslator }, _optional = {}) {
   return { title: t('security'), kicker: t('kicker'), description: t('description'), tabsLabel: t('tabsLabel'), deniedLabel: t('denied'), loadingLabel: t('loading') };
 }
-export function useSecurityPage(props: TabbedPageProps & { tabIcons?: SecurityTabIcons }, { useSecurityTranslationHook = useSecurityTranslation }: { useSecurityTranslationHook?: typeof useSecurityTranslation } = {}) {
-  const t = useSecurityTranslationHook({});
+export function useSecurityPage(props: TabbedPageProps & { tabIcons?: SecurityTabIcons }, { useSecurityTranslationHook = useSecurityTranslation, useSecurityOwnerControlsHook = useSecurityOwnerControls }: { useSecurityTranslationHook?: typeof useSecurityTranslation; useSecurityOwnerControlsHook?: typeof useSecurityOwnerControls } = {}) {
+  const t = useSecurityTranslationHook({}), ownerControls = useSecurityOwnerControlsHook({});
   const [local, setLocal] = useState('access-tokens');
   const { visible, active, id } = activeTab({ description: props.description, requested: props.requestedTab ?? local });
   const icons = props.tabIcons ?? {};
-  return { denied: !props.description.visible, active: id, ActiveTab: id ? props.tabs[id] : undefined, params: active?.params ?? {}, permissions: props.description.grants,
+  return { denied: !props.description.visible, active: id, ActiveTab: id ? props.tabs[id] : undefined, params: active?.params ?? {}, permissions: props.description.grants, ownerControls,
     ...pageCopy({ t }),
     tabs: visible.map(tab => tabBarTab({ id: tab.id.split('.').at(-1)!, fallbackLabel: tab.label, t, icons })),
     onValueChange({ value }: { value: string }) { setLocal(value); props.onTabChange?.({ tab: value }); },

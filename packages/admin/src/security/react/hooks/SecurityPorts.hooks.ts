@@ -1,4 +1,4 @@
-import { createContext, useContext } from 'react';
+import { createContext, useContext, type ReactNode } from 'react';
 import type { SecurityApiPort, OtherCredentialsPort, RootKeyPort } from '../../ports.js';
 import { AdminConfigError } from '@jini-ai/core/admin-runtime';
 import { englishSecurity, type SecurityTranslator } from '../../messages.en.js';
@@ -15,4 +15,10 @@ export function useSecurityPorts(_required: Record<string, never> = {}, _optiona
 export const SecurityTranslationContext = createContext<SecurityTranslator>(englishSecurity);
 export function useSecurityTranslation(_required: Record<string, never> = {}, _optional: Record<string, never> = {}): SecurityTranslator {
   return useContext(SecurityTranslationContext);
+}
+/** The host's owner account controls (for example authenticator, recovery and passkey settings).
+ * The module Provider sets it; the page renders it once above its tabs. */
+export const SecurityOwnerControlsContext = createContext<ReactNode>(null);
+export function useSecurityOwnerControls(_required: Record<string, never> = {}, _optional: Record<string, never> = {}): ReactNode {
+  return useContext(SecurityOwnerControlsContext);
 }

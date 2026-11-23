@@ -11,6 +11,6 @@ function SecurityHeader({ vm }: { vm: SecurityView }) {
 }
 export function SecurityPage({ useSecurityPageHook = useSecurityPage, ...props }: TabbedPageProps & { tabIcons?: SecurityTabIcons; useSecurityPageHook?: typeof useSecurityPage }) {
   const vm = useSecurityPageHook(props);
-  return <section data-jini-part="security.page"><SecurityHeader vm={vm} />{vm.denied ? <Notice tone="danger">{vm.deniedLabel}</Notice> : <><TabBar ariaLabel={vm.tabsLabel} tabs={vm.tabs} activeId={vm.active} onChange={(value) => vm.onValueChange({ value })} containerHandle={SECURITY_TAB_BAR_HANDLE} /><Suspense fallback={<Spinner label={vm.loadingLabel} />}>{vm.ActiveTab && <vm.ActiveTab key={vm.active} params={vm.params} permissions={vm.permissions} />}</Suspense></>}</section>;
+  return <section data-jini-part="security.page"><SecurityHeader vm={vm} />{vm.denied ? <Notice tone="danger">{vm.deniedLabel}</Notice> : <>{vm.ownerControls != null && <div data-jini-part="security.owner-controls">{vm.ownerControls}</div>}<TabBar ariaLabel={vm.tabsLabel} tabs={vm.tabs} activeId={vm.active} onChange={(value) => vm.onValueChange({ value })} containerHandle={SECURITY_TAB_BAR_HANDLE} /><Suspense fallback={<Spinner label={vm.loadingLabel} />}>{vm.ActiveTab && <vm.ActiveTab key={vm.active} params={vm.params} permissions={vm.permissions} />}</Suspense></>}</section>;
 }
 export default SecurityPage;

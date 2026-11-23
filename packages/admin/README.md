@@ -120,6 +120,8 @@ const secrets = security(
 );
 // Ports: `securityApi` (required), `otherCredentials`, `rootKey` (optional), via createAdmin.
 // Live locale: <secrets.react.Provider admin={admin} t={currentTranslator}> relabels without remounting.
+// Owner controls: <secrets.react.Provider admin={admin} ownerControls={<HostOwnerSettings />}> renders
+// once above the tabs while the page is visible, and is not remounted by a tab change.
 ```
 
 - `rootKeyTab` merges into the `root-key` tab's params. Omitted fields keep the stock behaviour:

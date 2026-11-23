@@ -2,9 +2,9 @@ import { createElement, type ComponentType, type ReactNode } from 'react';
 import type { AdminInstance, AdminModuleUi, ModulePageProps, TabViewProps } from '@jini-ai/core/contracts/admin-module';
 import { securityModule } from '../security.module.js';
 import { englishSecurity, type SecurityTranslator } from '../messages.en.js';
-import { SecurityPortsContext, SecurityTranslationContext } from './hooks/SecurityPorts.hooks.js';
+import { SecurityPortsContext, SecurityTranslationContext, SecurityOwnerControlsContext } from './hooks/SecurityPorts.hooks.js';
 import type { SecurityTabIcons } from './hooks/SecurityPage.hooks.js';
-export { useSecurityPorts, useSecurityTranslation } from './hooks/SecurityPorts.hooks.js';
+export { useSecurityPorts, useSecurityTranslation, useSecurityOwnerControls } from './hooks/SecurityPorts.hooks.js';
 export type { SecurityTranslator } from '../messages.en.js';
 export type { SecurityTabIcons } from './hooks/SecurityPage.hooks.js';
 /** Root-key tab options, merged into that tab's params. Defaults are the stock behaviour:
@@ -50,10 +50,13 @@ export function security<Page, Tab>(
   const ScopeProvider = react.Provider;
   /** A live translator override keeps locale changes inside the existing scope: rebuilding the
    * module would remount the tabs and dispose their controllers.
-   * @example createElement(feature.react.Provider, { admin, t: hostTranslator, children })
+   * `ownerControls` is the host's owner account settings, rendered once above the tabs while the
+   * page is visible; it stays mounted across tab changes.
+   * @example createElement(feature.react.Provider, { admin, t: hostTranslator, ownerControls, children })
    */
-  function Provider({ admin, children, t: currentTranslation = t }: { admin: AdminInstance; children: ReactNode } & { t?: SecurityTranslator }) {
-    return createElement(SecurityTranslationContext.Provider, { value: currentTranslation }, createElement(ScopeProvider, { admin, children }));
+  function Provider({ admin, children, t: currentTranslation = t, ownerControls = null }: { admin: AdminInstance; children: ReactNode } & { t?: SecurityTranslator; ownerControls?: ReactNode }) {
+    return createElement(SecurityTranslationContext.Provider, { value: currentTranslation },
+      createElement(SecurityOwnerControlsContext.Provider, { value: ownerControls }, createElement(ScopeProvider, { admin, children })));
   }
   return Object.assign(module, { react: { ...react, Provider } });
 }
