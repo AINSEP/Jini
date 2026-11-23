@@ -17,6 +17,10 @@ then `readServerLogs`, so a filter means the same thing in the UI and in chat.
   plus `matched`/`buffered`/`truncated`/`capturing`), and the bounds `SERVER_LOG_LEVELS`,
   `DEFAULT_SERVER_LOG_LIMIT`, `MAX_SERVER_LOG_LIMIT`, `MAX_CONTAINS_LENGTH` a host builds its tool
   schema from.
+- **Provides (`./agent-tools`):** `serverLogsAgentToolCatalog`, the catalog entry for the read-only
+  `system_read_server_logs` chat tool (permission `system.read`, `sideEffects: "none"`), whose input
+  schema bounds are the constants above. The host builds the registration (handler, permission
+  check, log source binding) around it.
 - **Host wiring example:**
 
   ```ts
