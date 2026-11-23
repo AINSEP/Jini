@@ -9,7 +9,8 @@
  * `@jini-ai/renderers-react`), not this framework-free package. See
  * archived provenance ledger.
  */
-import type { ToolResultEvent, ToolResultMediaBlock, ToolUseEvent } from './events.js';
+import type { ToolResultEvent, ToolUseEvent } from './events.js';
+import type { ToolResultMediaBlock } from "@jini-ai/core/contracts/site/chat-core";
 
 export { dedupeToolUsesById, foldDelegatedWrapperCalls, isDelegatedWrapperToolName } from './tool-events.js';
 

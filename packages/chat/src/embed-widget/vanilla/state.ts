@@ -1,8 +1,9 @@
-import type { AgentEvent } from '../../core/events.js';
+
 import type { ChatMessage } from '../../core/messages.js';
 import { assistantContentFromEvents } from '../../core/assistant-content.js';
 import type { ChatTransport } from '../../core/transport.js';
 import type { BrowserSessionStore } from '../browser/session-store.js';
+import type { AgentEvent } from "@jini-ai/core/contracts/site/chat-core";
 
 export interface VanillaChatState {
   readonly open: boolean;

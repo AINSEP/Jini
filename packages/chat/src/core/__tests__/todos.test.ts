@@ -1,5 +1,4 @@
 import { describe, expect, it } from 'vitest';
-import type { AgentEvent } from '../events.js';
 import {
   isTodoWriteToolName,
   latestTodosFromEvents,
@@ -8,6 +7,7 @@ import {
   parseTodoWriteInput,
   unfinishedTodosFromEvents,
 } from '../todos.js';
+import type { AgentEvent } from "@jini-ai/core/contracts/site/chat-core";
 
 describe('todos: parseTodoWriteInput', () => {
   it('normalizes several input shapes (todos vs plan array; content/step/label aliases)', () => {

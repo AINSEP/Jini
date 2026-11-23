@@ -1,12 +1,6 @@
-/**
- * A hand-written `ChatTransport` fake for this package's own hook/component
- * tests — no global mocking, per the DI-seam discipline the OD slices use
- * (`dependencies.ts` binds a fake, never a jest/vitest module mock). Not
- * exported from the package's public barrel; import via the relative test
- * path (`../testing/fake-transport.js`).
- */
-import type { AgentEvent } from '../../../core/index.js';
+
 import type { ChatTransport, RunHandlers, StartRunInput } from '../../../core/index.js';
+import type { AgentEvent } from "@jini-ai/core/contracts/site/chat-core";
 
 export interface FakeTransportCall {
   input: StartRunInput;

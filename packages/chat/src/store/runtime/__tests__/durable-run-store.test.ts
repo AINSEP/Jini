@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import type { AgentEvent, ChatMessage } from '../../../core/index.js';
+import type { ChatMessage } from '../../../core/index.js';
 import type { DurableRun, DurableRunStore } from '../../../core/durable-runs/ports.js';
 import { RECOVERY_WINDOW_MS } from '../../../core/durable-runs/policies.js';
 import { CONTINUATION_DIVIDER } from '../../../core/durable-runs/continuation.js';
@@ -7,6 +7,7 @@ import type { ChatStore } from '../../ports.js';
 import { createChatHistoryStore } from '../chat-history-store.js';
 import { attemptCanExecute, createDurableRunStore, RUN_SLOT_BUSY, RunSlotBusyError, savedRunEvents } from '../durable-run-store.js';
 import { runtimeFixture, type RuntimeFixture } from './runtime-fixture.js';
+import type { AgentEvent } from "@jini-ai/core/contracts/site/chat-core";
 
 const scope = { scopeId: 'ws', ownerKind: 'user', ownerId: 'alice' } as const;
 const isDaemonRunId = ({ runId }: { runId: string }) => runId.startsWith('daemon-');

@@ -7,9 +7,9 @@ import { test } from "../legacy-test.js";
 
 import { forceRemove } from "../fixtures/force-remove.js";
 import { resolveAgentPluginLayout } from "../test-support.js";
-import { type AgentPluginLayout } from "../../layout.js";
 import { installAgentPlugin, ports } from "../test-support.js";
-import { createInstallModule, AgentPluginInstallError, type AgentPluginArchiveEntry, type AgentPluginArchiveReaderPort, type InstallAgentPluginRequired } from "../../install.js";
+import { createInstallModule, AgentPluginInstallError, type InstallAgentPluginRequired } from "../../install.js";
+import type { AgentPluginLayout, AgentPluginArchiveEntry, AgentPluginArchiveReaderPort } from "@jini-ai/core/contracts/site/agent-plugins-lifecycle";
 
 /**
  * @file `installAgentPlugin()` — content-addressed extraction of one Agent Plugin archive.

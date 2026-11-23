@@ -3,13 +3,14 @@ import { renderWithChatSurfaces } from '../../__tests__/fake-chat-surfaces.js';
 import { afterEach, expect, it } from 'vitest';
 import { acceptedInputUserEvent } from '../../../core/accepted-input.js';
 import { translateRunAgentPayload } from '../../../core/run-events/entry.js';
-import type { AgentEvent, ChatMessage } from '../../../core/index.js';
+import type { ChatMessage } from '../../../core/index.js';
 import { clearExtEventRenderers } from '../../ext-event-renderer-registry.js';
 import { registerMidRunUserMessageRenderer, MidRunUserMessage } from '../MidRunUserMessage.js';
 import { MessageRow } from '../MessageRow.js';
 import { MessageList } from '../MessageList.js';
 import { ChatPane } from '../../features/chat-pane/components/ChatPane.js';
 import { createFakeChatTransport } from '../../hooks/testing/fake-transport.js';
+import type { AgentEvent } from "@jini-ai/core/contracts/site/chat-core";
 
 afterEach(() => clearExtEventRenderers());
 const receipt = (deliveryState: 'queued' | 'consumed') => translateRunAgentPayload({
@@ -111,7 +112,6 @@ it.each(['button', 'shortcut'] as const)('one %s send is one bubble during a cap
   expect(transport.calls).toHaveLength(1);
   expect(transport.stoppedRunIds).toEqual([]);
 });
-
 
 it('passes injected queued copy and gallery state through to each receipt', async () => {
   renderWithChatSurfaces(<MidRunUserMessage runStreaming events={[

@@ -32,9 +32,9 @@
  */
 
 import { fetchAgentPluginArchive, type FetchAgentPluginArchiveOptional } from "./fetch-archive.js";
-import { createInstallModule, type AgentPluginArchiveReaderPort, type InstalledAgentPlugin } from "./install.js";
+import { createInstallModule } from "./install.js";
 import type { AgentPluginLifecyclePorts } from "./ports.js";
-import type { AgentPluginLayout } from "./layout.js";
+import type { AgentPluginArchiveReaderPort, InstalledAgentPlugin, AgentPluginLayout } from "@jini-ai/core/contracts/site/agent-plugins-lifecycle";
 
 /**
  * See this module's header for why this is a union rather than an optional `expectedSha256`.

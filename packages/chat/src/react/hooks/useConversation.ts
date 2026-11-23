@@ -15,10 +15,11 @@ import { preserveAssistantContent, mergeRunEvents } from '../../core/durable-pro
  * this hook never imports `fetch`/`EventSource` itself.
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import type { AgentEvent, ChatAttachment, ChatMessage, ChatRunStatus } from '../../core/index.js';
+import type { ChatAttachment, ChatMessage, ChatRunStatus } from '../../core/index.js';
 import { assistantContentFromEvents, isTerminalRunStatus } from '../../core/index.js';
 import type { ChatTransport, RunContext } from '../../core/index.js';
 import { useRunStream, type StartRunOptions } from './useRunStream.js';
+import type { AgentEvent } from "@jini-ai/core/contracts/site/chat-core";
 
 export interface UseConversationOptions extends UserTextRedactionOptions {
   report?: Pick<Logger, 'error'> | undefined;
