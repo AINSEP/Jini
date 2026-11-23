@@ -23,6 +23,9 @@
  */
 import type { ListPage } from "@jini-ai/core/list-page";
 import type { Clock as ClockPort, IdGenerator as IdGeneratorPort, ISODateTime, UUID } from "@jini-ai/core/primitives";
+// `MailerPort` is the shared `../mail` core primitive (ADR-037) — re-exported here so existing
+// `members` consumers don't need to know the type moved.
+// Now: there is no members barrel; this module imports `MailerPort` (core's `PositionalMailer`) for its own deps shape.
 import type { PositionalMailer as MailerPort } from "@jini-ai/core/contracts/mail";
 import type { MailSenderIdentityPort } from "@jini-ai/core/contracts/site/platform-mail";
 import type { MailStatus } from "@jini-ai/core/contracts/mail";

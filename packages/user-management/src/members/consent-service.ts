@@ -1,4 +1,5 @@
 import { nowIso as clockNowIso } from "@jini-ai/core/primitives";
+// D1c consent chokepoint (ADR-PIPE-013 Decision §4) — kept separate from `write-service.ts`.
 /**
  * @file The D1c consent chokepoint (ADR-PIPE-013 Decision §4, crosscutting
  * sweep D1c LOCKED 4-0).
