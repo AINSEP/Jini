@@ -5,6 +5,8 @@ import type { ReactNode } from 'react';
 import { describe, it, expect } from 'vitest';
 import { useAccessTokensTab } from '../hooks/AccessTokensTab.hooks.js';
 import { AccessTokensTab } from '../tabs/AccessTokensTab.js';
+import { useCredentialEditor } from '../hooks/CredentialEditor.hooks.js';
+import { useSharedKeysDialog } from '../hooks/SharedKeysDialog.hooks.js';
 import { SecurityPortsContext } from '../hooks/SecurityPorts.hooks.js';
 import { createMemorySecurityApi } from '../../adapters/memory.js';
 import type { CredentialProvider, CredentialSummary } from '../../models.js';
@@ -43,7 +45,7 @@ describe('useAccessTokensTab merged groups (SEC-9)', () => {
     expect(view.result.current.countText).toBe('0 of 3 tokens matching “acme”');
   });
   it('shows the empty-hosting hint when no hosting provider is available', async () => {
-    render(<AccessTokensTab params={{}} permissions={PERMS} />, { wrapper: wrapper(createMemorySecurityApi({ providers: [providers[1]!] })) });
+    render(<AccessTokensTab params={{}} permissions={PERMS} useAccessTokensTabHook={useAccessTokensTab} useCredentialEditorHook={useCredentialEditor} useSharedKeysDialogHook={useSharedKeysDialog} />, { wrapper: wrapper(createMemorySecurityApi({ providers: [providers[1]!] })) });
     expect(await screen.findByText('Enable a hosting plugin to manage its access tokens.')).toBeTruthy();
     expect(screen.getByText('0 tokens saved')).toBeTruthy();
   });

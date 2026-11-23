@@ -50,7 +50,7 @@ describe('search and count copy (P31)', () => {
     expect(credentialCountText({ total: 1, matched: 1, query: '' })).toBe('1 token saved');
     expect(credentialCountText({ total: 3, matched: 3, query: ' ' })).toBe('3 tokens saved');
     expect(credentialCountText({ total: 3, matched: 1, query: 'cd$&' })).toBe('1 of 3 tokens matching “cd$&”');
-    expect(credentialCountText({ total: 1, matched: 0, query: 'x' }, { t: key => key.replace('token', 'TOKEN') })).toBe('0 of 1 TOKEN matching “x”');
+    expect(credentialCountText({ total: 1, matched: 0, query: 'x' }, { t: (key, vars = {}) => `${key}|${vars.matched}|${vars.count}|${vars.query}` })).toBe('tokenCountMatchingOne|0|1|x');
   });
 });
 

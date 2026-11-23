@@ -135,7 +135,8 @@ describe('useAccessTokensTab', () => {
     act(() => view.result.current.otherRows[0]!.remove());
     await act(async () => { await expect(view.result.current.confirmRemove()).rejects.toThrow('Unable to remove credential'); });
     expect(view.result.current.removal).toMatchObject({ type: 'other' });
-    expect(view.result.current.errors).toEqual(['Unable to update credential']);
+    expect(view.result.current.otherRows[0]?.error).toBe('Unable to update credential');
+    expect(view.result.current.errors).toEqual([]);
   });
 
   it('will not dismiss a removal while a write is in flight', async () => {

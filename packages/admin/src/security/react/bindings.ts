@@ -17,3 +17,9 @@ export async function loadRootKeyTab(_required: Record<string, never> = {}, _opt
   const useRootKeyTabHook = (props: TabViewProps) => useRootKeyTab(props, hooks);
   return { default: (props: TabViewProps) => createElement(RootKeyTab, { ...props, useRootKeyTabHook }) };
 }
+/** The Access Tokens tab with its view-model, editor and Shared Keys hooks bound as required inputs. */
+export async function loadAccessTokensTab(_required: Record<string, never> = {}, _optional: Record<string, never> = {}) {
+  const [{ AccessTokensTab }, { useAccessTokensTab }, { useCredentialEditor }, { useSharedKeysDialog }] = await Promise.all([import('./tabs/AccessTokensTab.js'), import('./hooks/AccessTokensTab.hooks.js'), import('./hooks/CredentialEditor.hooks.js'), import('./hooks/SharedKeysDialog.hooks.js')]);
+  const hooks = { useAccessTokensTabHook: useAccessTokensTab, useCredentialEditorHook: useCredentialEditor, useSharedKeysDialogHook: useSharedKeysDialog };
+  return { default: (props: TabViewProps) => createElement(AccessTokensTab, { ...props, ...hooks }) };
+}

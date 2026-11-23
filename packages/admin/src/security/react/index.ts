@@ -2,14 +2,18 @@ import { createElement, type ComponentType, type ReactNode } from 'react';
 import type { AdminInstance, AdminModuleUi, ModulePageProps, TabViewProps } from '@jini-ai/core/contracts/admin-module';
 import { securityModule } from '../security.module.js';
 import { englishSecurity, type SecurityTranslator } from '../messages.en.js';
-import { SecurityPortsContext, SecurityTranslationContext, SecurityOwnerControlsContext, SecurityRootKeyHostContext } from './hooks/SecurityPorts.hooks.js';
-import { loadRootKeyTab, loadSecurityPage } from './bindings.js';
+import { SecurityPortsContext, SecurityTranslationContext, SecurityOwnerControlsContext, SecurityRootKeyHostContext, SecurityCredentialsHostContext, type SecurityCredentialsHost } from './hooks/SecurityPorts.hooks.js';
+import type { SecurityRefreshSignal } from '../ports.js';
+import type { DescribeCredentialError } from '../credential-failure.js';
+import type { OtherStoreLinks } from '../other-credentials.rules.js';
+import { loadAccessTokensTab, loadRootKeyTab, loadSecurityPage } from './bindings.js';
 import type { SecurityTabIcons } from './hooks/SecurityPage.hooks.js';
 import type { DescribeRootKeyError, DescribeRootKeyRefusal } from '../rules.js';
 import type { RevealClipboard } from '../controllers/root-key-reveal.js';
 export { useSecurityPorts, useSecurityTranslation, useSecurityOwnerControls } from './hooks/SecurityPorts.hooks.js';
 export type { SecurityTranslator } from '../messages.en.js';
 export type { SecurityTabIcons } from './hooks/SecurityPage.hooks.js';
+export { useSecurityCredentialsHost, type SecurityCredentialsHost } from './hooks/SecurityPorts.hooks.js';
 /** Root-key tab options, merged into that tab's params. Defaults are the stock behaviour:
  * generate shown, a preview required before start fresh, and no env-var name fallback.
  * `previewRequired: false` lets a failed preview still open the confirm step (DC-5); the exact
@@ -19,7 +23,11 @@ export interface SecurityRootKeyTabOptions {
   readonly defaultEnvVarName?: string;
   readonly previewRequired?: boolean;
 }
+/** Access Tokens tab options, merged into that tab's params. `pluginsHref` is the host's own plugins page,
+ * linked from the empty-hosting hint; omit it and the hint has no link. */
+export interface SecurityAccessTokensTabOptions { readonly pluginsHref?: string }
 export interface SecurityModuleOptions {
+  readonly accessTokensTab?: SecurityAccessTokensTabOptions;
   readonly t?: SecurityTranslator;
   readonly rootKeyScopeNotice?: string;
   readonly rootKeyTab?: SecurityRootKeyTabOptions;
@@ -31,6 +39,14 @@ export interface SecurityModuleOptions {
   readonly describeRefusal?: DescribeRootKeyRefusal;
   /** The clipboard Copy writes to; defaults to the browser clipboard. A denied write is silent. */
   readonly clipboard?: RevealClipboard;
+  /** SEC-13: deep links to the screen that owns each other store (product routes stay in the host). */
+  readonly otherStores?: OtherStoreLinks;
+  /** SEC-14 (OD-3 d): the host's content-refresh subscription; both credential controllers reload on it. */
+  readonly refreshSignal?: SecurityRefreshSignal;
+  /** SEC-14: the host's publication callback for a credential change made on this page. */
+  readonly onCredentialsChanged?: SecurityCredentialsHost['onCredentialsChanged'];
+  /** SEC-14: actionable, translated copy for a failed credential write. Submitted secrets are cut out of it. */
+  readonly describeCredentialError?: DescribeCredentialError;
 }
 /** Resolved at copy time, so a missing or denied browser clipboard fails silently inside the copy. */
 const browserClipboard: RevealClipboard = { writeText: (text) => globalThis.navigator.clipboard.writeText(text) };
@@ -43,23 +59,33 @@ function withRootKeyParams({ params }: { params: Readonly<Record<string, unknown
   const { pages } = securityModule, { tabs } = pages.secrets;
   return { ...securityModule, pages: { ...pages, secrets: { ...pages.secrets, tabs: { ...tabs, 'root-key': { ...tabs['root-key'], params } } } } };
 }
+/** One stable value per module, so the credential controllers are not rebuilt on every Provider render. */
+function credentialsHostOf({ options: o }: { options: Pick<SecurityModuleOptions, 'otherStores' | 'refreshSignal' | 'onCredentialsChanged' | 'describeCredentialError'> }, _optional: Record<string, never> = {}): SecurityCredentialsHost {
+  return { ...(o.otherStores ? { otherStores: o.otherStores } : {}), ...(o.refreshSignal ? { refreshSignal: o.refreshSignal } : {}), ...(o.onCredentialsChanged ? { onCredentialsChanged: o.onCredentialsChanged } : {}), ...(o.describeCredentialError ? { describeError: o.describeCredentialError } : {}) };
+}
+/** Merges the Access Tokens tab options into that tab's params (K3: the host's plugins page stays a host value). */
+function withAccessTokensParams<M extends ReturnType<typeof withRootKeyParams>>({ module, params }: { module: M; params: Readonly<Record<string, unknown>> }, _optional: Record<string, never> = {}): M {
+  const { pages } = module, { tabs } = pages.secrets;
+  return { ...module, pages: { ...pages, secrets: { ...pages.secrets, tabs: { ...tabs, 'access-tokens': { ...tabs['access-tokens'], params } } } } };
+}
 /** One security module per admin scope. Tabs load on demand; host icons reach the page through its
  * lazy wrapper, and the host translator through a context so a locale change never remounts a tab.
  * @example security({ ui: reactModuleUi }, { rootKeyTab: { generate: 'hidden' }, tabIcons })
  */
 export function security<Page, Tab>(
   { ui }: { ui: ModuleUi<Page, Tab> },
-  { t = englishSecurity, rootKeyScopeNotice, rootKeyTab, tabIcons, describeError, describeRefusal, clipboard = browserClipboard }: SecurityModuleOptions = {},
+  { t = englishSecurity, rootKeyScopeNotice, rootKeyTab, tabIcons, describeError, describeRefusal, clipboard = browserClipboard, accessTokensTab, ...credentials }: SecurityModuleOptions = {},
 ) {
   // Scope membership uses object identity, so bind and return this same per-admin module.
-  const module = withRootKeyParams({ params: rootKeyParams({ ...(rootKeyScopeNotice ? { rootKeyScopeNotice } : {}), ...(rootKeyTab ? { rootKeyTab } : {}) }) });
+  const module = withAccessTokensParams({ module: withRootKeyParams({ params: rootKeyParams({ ...(rootKeyScopeNotice ? { rootKeyScopeNotice } : {}), ...(rootKeyTab ? { rootKeyTab } : {}) }) }), params: { ...accessTokensTab } });
   const react = ui.bindReact({ module, views: { secrets: {
     page: () => loadSecurityPage({ tabIcons }),
-    tabs: { 'access-tokens': () => import('./tabs/AccessTokensTab.js'), 'root-key': () => loadRootKeyTab({}) },
+    tabs: { 'access-tokens': () => loadAccessTokensTab({}), 'root-key': () => loadRootKeyTab({}) },
   } } }, { context: SecurityPortsContext });
   const ScopeProvider = react.Provider;
   // One stable value per module, so the root-key controller is not rebuilt on every Provider render.
   const rootKeyHost = { ...(describeError ? { describeError } : {}), ...(describeRefusal ? { describeRefusal } : {}), clipboard };
+  const credentialsHost = credentialsHostOf({ options: credentials });
   /** A live translator override keeps locale changes inside the existing scope: rebuilding the
    * module would remount the tabs and dispose their controllers.
    * `ownerControls` is the host's owner account settings, rendered once above the tabs while the
@@ -69,7 +95,8 @@ export function security<Page, Tab>(
   function Provider({ admin, children, t: currentTranslation = t, ownerControls = null }: { admin: AdminInstance; children: ReactNode } & { t?: SecurityTranslator; ownerControls?: ReactNode }) {
     return createElement(SecurityTranslationContext.Provider, { value: currentTranslation },
       createElement(SecurityOwnerControlsContext.Provider, { value: ownerControls },
-        createElement(SecurityRootKeyHostContext.Provider, { value: rootKeyHost }, createElement(ScopeProvider, { admin, children }))));
+        createElement(SecurityRootKeyHostContext.Provider, { value: rootKeyHost },
+          createElement(SecurityCredentialsHostContext.Provider, { value: credentialsHost }, createElement(ScopeProvider, { admin, children })))));
   }
   return Object.assign(module, { react: { ...react, Provider } });
 }

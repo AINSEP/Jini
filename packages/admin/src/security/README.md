@@ -25,5 +25,21 @@ What the host injects, and where:
   - `describeRefusal?({ code })`: approved, translated copy for a refusal code; otherwise fixed copy.
   - `clipboard?`: what Copy writes to; defaults to the browser clipboard; a denied write is silent.
   - `tabIcons?`, `rootKeyScopeNotice?`, and `ownerControls` on the Provider.
-- **View bindings** (`react/bindings.ts`): the module binds the page and root-key tab hooks
+  - `otherStores?` (SEC-13): `{ [store]: { href, label } }` deep links to the screen that owns each other
+    store; product routes stay in the host.
+  - `refreshSignal?` (SEC-14, OD-3 d): the host's content-refresh subscription; both credential controllers
+    subscribe when created and unsubscribe on dispose. `onCredentialsChanged?` is the host's publication
+    callback (read with `useSecurityCredentialsHost`).
+  - `describeCredentialError?` (SEC-14): actionable, translated copy for a failed credential write. Submitted
+    secrets are cut out of it; without it, fixed copy shows.
+- **HTTP other stores** (`createHttpOtherCredentials(…, { mediaOrder?, tokenHints?, mediaLabels? })`):
+  `mediaOrder: 'replaced-last'` keeps a host's existing W12 byte order; `tokenHints: true` opts in to
+  server-approved masked hints. Built-in MCP servers are never listed.
+- **Shared Keys and project keys** (SEC-12, OD-3 c): `SecurityApiPort.sharedKeys?` and `useProjectKey?`. Omit them and
+  no "Use a saved key" control or Use / Stop using action renders. `createHttpSecurityApi(..., { sharedKeys: true })`
+  adds both; `createHttpCredentialCopy` serves the host's own client names. Hints shown are the server's masked
+  `tokenHint` only. The dialog's parts carry `data-jini-part="security.shared-keys.{source,list,results}"` for host CSS.
+- **Access tokens tab** (`security({ ui }, { accessTokensTab: { pluginsHref } })`): the host's plugins page, linked
+  from the empty-hosting hint. Its copy comes from the translator (`messages.en.ts` keys).
+- **View bindings** (`react/bindings.ts`): the module binds the page, access-tokens tab (view model, editor, Shared Keys) and root-key tab hooks
   (chrome, ports and `useController`) and passes them to the views as required inputs.

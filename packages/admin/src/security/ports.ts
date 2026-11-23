@@ -1,5 +1,6 @@
 import { adminPort } from '@jini-ai/core/contracts/admin-module';
 import type { AdminPublishConnectionInput, AdminPublishCredentialsSnapshot, AdminPublishCredentialSummary, AdminPublishCredentialVerification } from '@jini-ai/core/contracts/site/api-security-api-types';
+import type { AdminCredentialCopyResult, AdminCredentialCopySource } from '@jini-ai/core/contracts/site/api-security-api-types';
 import type { CredentialStoreSnapshot, CredentialSummary, CredentialProvider, CredentialInput, CredentialPatch, RequestOptions, OtherStoreId, OtherCredentialSummary, RootKeyStatus, RootKeyPreview, RootKeyResult, RootKeyReveal } from './models.js';
 /** Separate method groups: connection shapes differ, and deployment and source identities must never merge. */
 export interface CredentialStorePort {
@@ -29,6 +30,15 @@ export interface SecurityApiPort {
   /** Each kind is served from its own endpoint so one catalog failing cannot hide the other; no `kind` returns both. */
   providers(required: { kind?: 'publish' | 'source-control' }, optional?: RequestOptions): Promise<readonly CredentialProvider[]>;
   readonly publish: CredentialStorePort; readonly sourceControl: CredentialStorePort; readonly custom: CredentialStorePort;
+  /** Optional (OD-3 c): a host without Shared Keys omits it, and no Shared Keys control renders. */
+  readonly sharedKeys?: SharedKeysPort;
+  /** Optional (OD-3 c): attach (`use: true`) or detach a project key on this site (W10). */
+  useProjectKey?(required: { keyId: string; use: boolean }, optional?: RequestOptions): Promise<void>;
+}
+/** Shared Keys (W9): an owner-only metadata inventory and a per-site grant. No credential value is ever read or copied back. */
+export interface SharedKeysPort {
+  list(required: Record<string, never>, optional?: RequestOptions): Promise<readonly AdminCredentialCopySource[]>;
+  grant(required: { sourceSiteId: string; ids: readonly string[]; overwrite: boolean }, optional?: RequestOptions): Promise<readonly AdminCredentialCopyResult[]>;
 }
 /** Other stores keep their own endpoint shapes inside the adapter. No saved material leaves it. */
 export interface OtherCredentialsPort {
@@ -36,6 +46,9 @@ export interface OtherCredentialsPort {
   replace(required: { store: OtherStoreId; id: string; token: string }, optional?: RequestOptions): Promise<void>;
   remove(required: { store: OtherStoreId; id: string }, optional?: RequestOptions): Promise<void>;
 }
+/** The host's content-refresh subscription (OD-3 d: a field on `security()`'s optional args, not a
+ * token). Both credential controllers subscribe when created and call the returned function on dispose. */
+export interface SecurityRefreshSignal { subscribe(required: { onRefresh: () => void }, optional?: Record<string, never>): () => void }
 /** The host owns storage, encryption, key creation and recovery. `reveal` is optional and human-only:
  * a host that omits it gets no reveal control, and the revealed value never enters a snapshot. */
 export interface RootKeyPort {

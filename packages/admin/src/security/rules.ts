@@ -1,3 +1,5 @@
+import { englishSecurity, type SecurityTranslator } from './messages.en.js';
+import type { CredentialTokenHint } from '@jini-ai/core/contracts/site/secrets-credential-token';
 import type { CredentialCategory, CredentialDraft, CredentialKind, CredentialPatch, CredentialProvider, CredentialSummary, OtherCredentialSummary, OtherStoreId, RootKeyStatus } from './models.js';
 import type { SecurityApiPort } from './ports.js';
 export const START_FRESH_CONFIRMATION = 'START FRESH';
@@ -59,9 +61,24 @@ export function rowMatchesQuery({ row, provider, query }: { row: CredentialSumma
   return matchesText({ query, texts: [provider.label, categoryLabel({ category: provider.category }), name] });
 }
 /** One whole sentence per state; the noun's plural follows the total, never the matched subset. `query` is shown as typed. */
-export function credentialCountText({ total, matched, query }: { total: number; matched: number; query: string }, { t = (key: string) => key }: { t?: (key: string) => string } = {}) {
-  if (query.trim() === '') return t(total === 1 ? '{count} token saved' : '{count} tokens saved').replace('{count}', String(total));
-  return t(total === 1 ? '{matched} of {count} token matching “{query}”' : '{matched} of {count} tokens matching “{query}”').replace('{matched}', String(matched)).replace('{count}', String(total)).replace('{query}', () => query);
+export function credentialCountText({ total, matched, query }: { total: number; matched: number; query: string }, { t = englishSecurity }: { t?: SecurityTranslator } = {}) {
+  if (query.trim() === '') return t(total === 1 ? 'tokenCountOne' : 'tokenCountMany', { count: total });
+  return t(total === 1 ? 'tokenCountMatchingOne' : 'tokenCountMatchingMany', { matched, count: total, query });
+}
+/** The server's masked hint, displayed exactly as sent: "…last4, N chars", or "N chars" when it sent no tail (OD-3 c). */
+export function formatTokenHint({ hint }: { hint: CredentialTokenHint | null | undefined }, { t = englishSecurity }: { t?: SecurityTranslator } = {}) {
+  if (!hint) return '';
+  const chars = t('tokenHintChars', { length: hint.length });
+  if (hint.last4 === null) return chars;
+  // A literal leading dot belongs to the tail; separate it from the ellipsis without rewriting it.
+  return `…${hint.last4.startsWith('.') ? '\u202f' : ''}${hint.last4}, ${chars}`;
+}
+/** Replacing a project key rewrites the one shared row, so every other site using it switches too.
+ * The owner is warned before saving; null when no other site uses the key. */
+export function sharedKeyRotationWarning({ row }: { row: Pick<CredentialSummary, 'scope' | 'usedBy' | 'usedByThisSite'> }, { t = englishSecurity }: { t?: SecurityTranslator } = {}): string | null {
+  const others = row.scope === 'project' ? (row.usedBy?.length ?? 0) - (row.usedByThisSite ? 1 : 0) : 0;
+  if (others < 1) return null;
+  return others === 1 ? t('sharedKeyRotationOne') : t('sharedKeyRotationMany', { count: others });
 }
 export function credentialCategory({ row }: { row: CredentialSummary }, _optional = {}): CredentialCategory { return row.category ?? defaultCategory({ kind: row.kind }); }
 export function filterCredentials({ rows, query, category, providers }: { rows: readonly CredentialSummary[]; query: string; category: CredentialCategory | 'all'; providers: readonly CredentialProvider[] }, _optional = {}) {

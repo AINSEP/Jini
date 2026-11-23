@@ -1,4 +1,5 @@
 import type { AdminPublishCredentialVerification, AdminPublishExecutionMode } from '@jini-ai/core/contracts/site/api-security-api-types';
+import type { CredentialTokenHint } from '@jini-ai/core/contracts/site/secrets-credential-token';
 export type CredentialKind = 'publish' | 'source-control' | 'custom';
 export type CredentialCategory = 'source-control' | 'hosting' | 'media' | 'ai' | 'ops' | 'general';
 export interface RequestOptions { readonly signal?: AbortSignal }
@@ -10,7 +11,8 @@ export interface CredentialProvider {
   /** A bare entry for a saved row whose provider is no longer listed (its plugin switched off). */
   readonly unlisted?: boolean;
 }
-/** A saved token is never read back: label and updatedAt identify a connection without a last-4 hint. */
+/** A saved token is never read back. `tokenHint` is the server's own masked hint (`{ length, last4 }`, OD-3 c),
+ * shown exactly as sent; a store that sends none shows none. */
 export interface CredentialSummary {
   readonly kind: CredentialKind; readonly id: string; readonly providerId: string; readonly label: string;
   readonly configured: boolean; readonly isDefault: boolean; readonly createdAt: string; readonly updatedAt: string;
@@ -20,12 +22,22 @@ export interface CredentialSummary {
   readonly credentialType?: 'vendor' | 'custom'; readonly worksFor?: readonly string[];
   /** The verify result a create, update or verify call returned. The server keeps it in memory only. */
   readonly lastVerification?: AdminPublishCredentialVerification;
+  /** The server-approved masked hint; never any part of the token beyond what the server chose to send. */
+  readonly tokenHint?: CredentialTokenHint | null;
+  /** Custom rows: a `project` key lives in Shared Keys and is attached per site; a `site` key is this site's only. */
+  readonly scope?: 'project' | 'site'; readonly usedBy?: readonly string[]; readonly usedByThisSite?: boolean;
 }
 /** One store read: its rows plus store-level facts (the publish store's server-owned `executionMode`). */
-export interface CredentialStoreSnapshot { readonly rows: readonly CredentialSummary[]; readonly executionMode?: AdminPublishExecutionMode }
+export interface CredentialStoreSnapshot {
+  readonly rows: readonly CredentialSummary[]; readonly executionMode?: AdminPublishExecutionMode;
+  /** Custom store: whether a new key can be saved to the project (Shared Keys) rather than this site only. */
+  readonly projectKeysAvailable?: boolean;
+}
 export interface CredentialInput {
   readonly label: string; readonly connection: Readonly<Record<string, string>>; readonly isDefault?: boolean;
   readonly category?: CredentialCategory; readonly baseUrl?: string; readonly additionalHosts?: readonly string[];
+  /** Custom create only: where the new key is stored. Sent only when the store reported `projectKeysAvailable`. */
+  readonly scope?: 'project' | 'site';
 }
 export interface CredentialPatch {
   readonly label?: string; readonly connection?: Readonly<Record<string, string>>; readonly isDefault?: boolean;
@@ -43,7 +55,11 @@ export interface OtherCredentialSummary {
   readonly store: OtherStoreId; readonly id: string; readonly label: string; readonly category: CredentialCategory;
   readonly configured: boolean; readonly supportsReplace: boolean; readonly envNames?: readonly string[];
   readonly updatedAt?: string | null;
+  /** A server-approved masked hint (opt-in on the HTTP adapter): at most the last four characters, never the value. */
+  readonly tokenHint?: { readonly last4: string; readonly length?: number };
 }
+/** A host deep link to the screen that owns one other store (Create and the full field set live there). */
+export interface OtherStoreLink { readonly href: string; readonly label: string }
 export type RootKeyState = 'active' | 'missing' | 'missing-with-data' | 'mismatch' | 'invalid';
 export interface RootKeyStatus {
   readonly active: boolean; readonly source: 'env' | 'file' | 'none'; readonly state: RootKeyState;

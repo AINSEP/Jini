@@ -6,3 +6,7 @@ export { securityMessagesEn, englishSecurity, type SecurityTranslator } from './
 export { createAccessTokensController } from './controllers/access-tokens.controller.js';
 export { createOtherCredentialsController } from './controllers/other-credentials.controller.js';
 export { createRootKeyController } from './controllers/root-key.controller.js';
+export { createSharedKeysController, SHARED_KEYS_SOURCE, type SharedKeysFailure } from './controllers/shared-keys.controller.js';
+export * from './credential-failure.js';
+export * from './other-credentials.rules.js';
+export type { MediaWriteOrder } from './adapters/http.js';

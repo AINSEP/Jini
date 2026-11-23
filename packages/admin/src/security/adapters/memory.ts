@@ -1,5 +1,7 @@
 import type { CredentialStorePort, SecurityApiPort, OtherCredentialsPort, RootKeyPort, PublishCredentialsPort } from '../ports.js';
 import type { AdminPublishCredentialSummary, AdminPublishExecutionMode } from '@jini-ai/core/contracts/site/api-security-api-types';
+import type { AdminCredentialCopySource } from '@jini-ai/core/contracts/site/api-security-api-types';
+import type { CredentialInput } from '../models.js';
 import type { CredentialSummary, CredentialProvider, CredentialKind, CredentialPatch, OtherCredentialSummary, RootKeyStatus, RootKeyResult, RootKeyPreview } from '../models.js';
 import { START_FRESH_CONFIRMATION } from '../rules.js';
 function customUsernameField({ patch }: { patch: CredentialPatch }, { initial }: { initial?: CredentialSummary | undefined } = {}) {
@@ -10,8 +12,26 @@ function customHosts({ patch }: { patch: CredentialPatch }, { initial }: { initi
 function customProjection({ patch }: { patch: CredentialPatch }, { initial }: { initial?: CredentialSummary | undefined } = {}) {
   return { category: patch.category ?? initial?.category ?? 'general', baseUrl: patch.baseUrl ?? initial?.baseUrl ?? '', additionalHosts: customHosts({ patch }, { initial }), ...customUsernameField({ patch }, { initial }) };
 }
-/** Fake backend: retains only read models, never credential material. */
-export function createMemorySecurityApi({ providers = [], rows = [], executionMode }: { providers?: readonly CredentialProvider[]; rows?: readonly CredentialSummary[]; executionMode?: AdminPublishExecutionMode }, _optional = {}): SecurityApiPort {
+/** Where a custom key lives: a new key keeps the scope it was created with; an update keeps the saved usage facts. */
+function customStorage({ patch }: { patch: CredentialPatch }, { initial, site }: { initial?: CredentialSummary | undefined; site: string }) {
+  const scope = (patch as CredentialInput).scope ?? initial?.scope;
+  if (initial) return savedStorage({ facts: { scope, usedBy: initial.usedBy, usedByThisSite: initial.usedByThisSite, tokenHint: initial.tokenHint } });
+  return scope === 'project' ? { scope, usedBy: Object.freeze([site]), usedByThisSite: true } : scope ? { scope } : {};
+}
+/** The saved facts that are present; an absent one stays absent rather than becoming `undefined`. */
+function savedStorage({ facts }: { facts: Readonly<Record<'scope' | 'usedBy' | 'usedByThisSite' | 'tokenHint', unknown>> }, _optional = {}) {
+  return Object.fromEntries(Object.entries(facts).filter(([, value]) => value !== undefined && value !== null)) as Partial<CredentialSummary>;
+}
+/** Shared Keys fake: metadata inventory in, one `granted` result per requested id out. */
+function memorySharedKeys({ sources }: { sources: readonly AdminCredentialCopySource[] }, _optional = {}): NonNullable<SecurityApiPort['sharedKeys']> {
+  return {
+    async list(_r, o = {}) { o.signal?.throwIfAborted(); return sources; },
+    async grant({ ids }, o = {}) { o.signal?.throwIfAborted(); return ids.map(id => ({ kind: sources.flatMap(s => s.keys).find(k => k.id === id)?.kind ?? 'custom', id, status: 'granted' as const })); },
+  };
+}
+/** Fake backend: retains only read models, never credential material. `sharedKeys` adds the Shared Keys port;
+ * `projectKeysAvailable` adds project-key use and reports the flag on the custom store's snapshot. */
+export function createMemorySecurityApi({ providers = [], rows = [], executionMode, sharedKeys, projectKeysAvailable, siteName = 'this-site' }: { providers?: readonly CredentialProvider[]; rows?: readonly CredentialSummary[]; executionMode?: AdminPublishExecutionMode; sharedKeys?: { sources: readonly AdminCredentialCopySource[] }; projectKeysAvailable?: boolean; siteName?: string }, _optional = {}): SecurityApiPort {
   let items = rows.map(r => Object.freeze({ ...r })); let sequence = 0;
   const nextSequence = () => { sequence += 1; return sequence; };
   function store(kind: CredentialKind): CredentialStorePort {
@@ -23,7 +43,7 @@ export function createMemorySecurityApi({ providers = [], rows = [], executionMo
     function project({ id, patch, providerId, label }: { id: string; patch: CredentialPatch; providerId: string; label: string }, { initial }: { initial?: CredentialSummary | undefined } = {}): CredentialSummary {
       const now = new Date().toISOString();
       return Object.freeze({ kind, id, providerId, label, configured: true, isDefault: isDefaultFor({ patch, providerId }, { initial }), createdAt: initial?.createdAt ?? now, updatedAt: now,
-        ...(kind === 'custom' ? customProjection({ patch }, { initial }) : {}),
+        ...(kind === 'custom' ? { ...customProjection({ patch }, { initial }), ...customStorage({ patch }, { initial, site: siteName }) } : {}),
       });
     }
     function check(label: string, providerId: string, id?: string) {
@@ -37,7 +57,7 @@ export function createMemorySecurityApi({ providers = [], rows = [], executionMo
     return {
       async list(_r, o = {}) { o.signal?.throwIfAborted(); return Object.freeze(items.filter(r => r.kind === kind)); },
       /** Reads through this port's own `list`, so a replaced `list` (a failing store in a test) also governs the snapshot. */
-      async snapshot(_r, o = {}) { return { rows: await this.list({}, o), ...(kind === 'publish' && executionMode ? { executionMode } : {}) }; },
+      async snapshot(_r, o = {}) { return { rows: await this.list({}, o), ...(kind === 'publish' && executionMode ? { executionMode } : {}), ...(kind === 'custom' && projectKeysAvailable !== undefined ? { projectKeysAvailable } : {}) }; },
       ...(kind === 'publish' ? { async verify({ id }: { id: string }, o: { signal?: AbortSignal } = {}) { o.signal?.throwIfAborted(); if (!items.some(r => r.kind === kind && r.id === id)) throw new Error('Credential not found');
         return { status: 'valid' as const, message: 'Connection verified', checkedAt: new Date().toISOString() }; } } : {}),
       async create(input, o = {}) { o.signal?.throwIfAborted(); if (!Object.values(input.connection).some(v => v.trim()) || !input.label.trim()) throw new Error('Incomplete credential');
@@ -47,7 +67,13 @@ export function createMemorySecurityApi({ providers = [], rows = [], executionMo
       async remove({ id }, o = {}) { o.signal?.throwIfAborted(); const old = items.find(r => r.id === id && r.kind === kind); items = items.filter(r => !(r.id === id && r.kind === kind)); if (old?.isDefault) { const next = items.filter(r => r.kind === kind && r.providerId === old.providerId).sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))[0]; if (next) insert(Object.freeze({ ...next, isDefault: true })); } },
     };
   }
-  return { async providers({ kind }, o = {}) { o.signal?.throwIfAborted(); return kind ? providers.filter(p => p.kind === kind) : providers; }, publish: store('publish'), sourceControl: store('source-control'), custom: store('custom') };
+  /** Attaching adds this site to the key's users; detaching removes it. Other sites keep theirs. */
+  async function useProjectKey({ keyId, use }: { keyId: string; use: boolean }, o: { signal?: AbortSignal } = {}) {
+    o.signal?.throwIfAborted(); if (!items.some(r => r.kind === 'custom' && r.id === keyId && r.scope === 'project')) throw new Error('Project key not found');
+    items = items.map(r => r.kind === 'custom' && r.id === keyId ? Object.freeze({ ...r, usedByThisSite: use, usedBy: Object.freeze([...(r.usedBy ?? []).filter(s => s !== siteName), ...(use ? [siteName] : [])]) }) : r);
+  }
+  return { async providers({ kind }, o = {}) { o.signal?.throwIfAborted(); return kind ? providers.filter(p => p.kind === kind) : providers; }, publish: store('publish'), sourceControl: store('source-control'), custom: store('custom'),
+    ...(sharedKeys ? { sharedKeys: memorySharedKeys(sharedKeys) } : {}), ...(projectKeysAvailable !== undefined ? { useProjectKey } : {}) };
 }
 /** Fake publish client for Deployment and Security: keeps read models only, never the connection's secret fields. */
 export function createMemoryPublishCredentials({ rows = [], executionMode = 'self-hosted-cli' }: { rows?: readonly AdminPublishCredentialSummary[]; executionMode?: AdminPublishExecutionMode }, _optional = {}): PublishCredentialsPort {
