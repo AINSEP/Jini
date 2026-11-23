@@ -2,6 +2,11 @@ import { render, renderHook, screen } from '@testing-library/react';
 import { createRef, type ReactNode } from 'react';
 import { describe, expect, it, vi } from 'vitest';
 import { AdminKitProvider, Button, Icon, TabBar, type AdminKitChat, type KitIconName, useAdminKitChatPosters, useAdminKitValues, useAdminThemeKit, useChatT, useDirtyGuard, useFetchQuery, useMediaProviderRules, useT } from '../kit.js';
+import {
+  CodeWithLines, CodeWrapToggle, I18nProvider, PreviewModalShell, RemixIcon, SettingsDialogShell, Toast,
+  useAdminKitChatValues, useCodeWrap, useFabPosition, useInfoTip, usePanelPosition, useSelectDropdown, useSerialWrites, useTabBarKeyboard,
+  type AdminKit, type AdminKitHooks, type AdminKitValues, type ChatPaneAgent, type FabPositionInput,
+} from '../kit.js';
 import { fakeAdminKit, fixtureQuery } from '../testing-kit.js';
 import { renderWithAdminKit } from './render-with-admin-kit.js';
 
@@ -160,5 +165,119 @@ describe('admin kit: chat translator and run posters (A-K2-0b)', () => {
     renderWithAdminKit(<TabBar tabs={tabs} activeId="a" onChange={() => {}} ariaLabel="Sections" />, { kit });
     expect(screen.getByRole('tablist', { name: 'Sections' })).toBeTruthy();
     expect(seen).toEqual(tabs);
+  });
+});
+
+describe('admin kit: B5 additions (A-K2-0a remainder + A-K2-0.J)', () => {
+  const wrap = (kit: AdminKit) => ({ children }: { children: ReactNode }) => <AdminKitProvider kit={kit}>{children}</AdminKitProvider>;
+
+  it('renders each new UI component through the provider with the props the screen passes', () => {
+    const seen: Record<string, unknown> = {};
+    const record = (name: string) => (props: object) => { seen[name] = props; return <span data-testid={name}>{(props as { children?: ReactNode }).children}</span>; };
+    const kit = fakeAdminKit({ components: {
+      RemixIcon: record('RemixIcon'), Toast: record('Toast'), I18nProvider: record('I18nProvider'), SettingsDialogShell: record('SettingsDialogShell'),
+      CodeWithLines: record('CodeWithLines'), CodeWrapToggle: record('CodeWrapToggle'), PreviewModalShell: record('PreviewModalShell'),
+    } });
+    const onDismiss = () => {};
+    const onToggle = () => {};
+    const onClose = () => {};
+    const t = (key: string) => key;
+    const tabs = [{ id: 'general', label: 'General', panel: <p>panel</p> }];
+    const views = [{ id: 'source', label: 'Source', custom: <p>code</p> }];
+    const icons = { 'fullscreen-exit': () => <i /> };
+    renderWithAdminKit(
+      <I18nProvider initialLocale="en" fallbackLocale="en" syncDocumentAttributes={false}>
+        <RemixIcon name="group-line" size={16} />
+        <Toast message="Saved" role="status" tone="success" ttlMs={5000} onDismiss={onDismiss} />
+        <SettingsDialogShell tabs={tabs} presentation="inline" fullscreenEnabled={false} />
+        <CodeWithLines text={'a\nb'} wrap />
+        <CodeWrapToggle wrap={false} onToggle={onToggle} t={t} agentHandleId="wrap-toggle" />
+        <PreviewModalShell title="theme.html" views={views} onClose={onClose} icons={icons} />
+      </I18nProvider>, { kit });
+    expect(screen.getByTestId('I18nProvider')).toBeTruthy();
+    expect(seen.RemixIcon).toEqual({ name: 'group-line', size: 16, ref: null });
+    expect(seen.Toast).toEqual({ message: 'Saved', role: 'status', tone: 'success', ttlMs: 5000, onDismiss, ref: null });
+    expect(seen.SettingsDialogShell).toEqual({ tabs, presentation: 'inline', fullscreenEnabled: false, ref: null });
+    expect(seen.CodeWithLines).toEqual({ text: 'a\nb', wrap: true, ref: null });
+    expect(seen.CodeWrapToggle).toEqual({ wrap: false, onToggle, t, agentHandleId: 'wrap-toggle', ref: null });
+    expect(seen.PreviewModalShell).toEqual({ title: 'theme.html', views, onClose, icons, ref: null });
+    expect((seen.I18nProvider as { initialLocale: string }).initialLocale).toBe('en');
+  });
+
+  it('each new UI hook facade returns the injected sentinel and passes both argument objects through', () => {
+    const sentinels = {
+      useTabBarKeyboard: { onKeyDown: () => {} }, useSerialWrites: { run: async <T,>({ task }: { task: () => Promise<T> }) => task() },
+      useCodeWrap: { wrap: true, toggleWrap: () => {} },
+    };
+    const useInfoTipImpl = vi.fn(() => 'info-tip-sentinel' as unknown as ReturnType<AdminKitHooks['useInfoTip']>);
+    const usePanelPositionImpl = vi.fn(() => 'panel-sentinel' as unknown as ReturnType<AdminKitHooks['usePanelPosition']>);
+    const useSelectDropdownImpl = vi.fn(() => 'dropdown-sentinel' as unknown as ReturnType<AdminKitHooks['useSelectDropdown']>);
+    const useTabBarKeyboardImpl = vi.fn(() => sentinels.useTabBarKeyboard);
+    const kit = fakeAdminKit({ hooks: {
+      useTabBarKeyboard: useTabBarKeyboardImpl, useSerialWrites: () => sentinels.useSerialWrites, useCodeWrap: () => sentinels.useCodeWrap,
+      useInfoTip: useInfoTipImpl, usePanelPosition: usePanelPositionImpl, useSelectDropdown: useSelectDropdownImpl,
+    } });
+    const tabBarArgs = { tabs: [{ id: 'a', label: 'A' }], activeId: 'a', onChange: () => {} };
+    const panelArgs = { open: true, triggerRef: createRef<HTMLButtonElement>(), panelRef: createRef<HTMLDivElement>(),
+      searchInputRef: createRef<HTMLInputElement>(), showSearch: false, onOutOfView: () => {} };
+    const dropdownArgs = { value: 'b', onChange: () => {}, options: [{ value: 'b', label: 'B', group: 'Pages' }] };
+    const read = renderHook(() => ({
+      tabBar: useTabBarKeyboard(tabBarArgs, {}), serial: useSerialWrites(), codeWrap: useCodeWrap({}, {}),
+      infoTip: useInfoTip({}, { placement: 'bottom' }), panel: usePanelPosition(panelArgs, {}), dropdown: useSelectDropdown(dropdownArgs, { disabled: true }),
+    }), { wrapper: wrap(kit) }).result.current;
+    expect(read.tabBar).toBe(sentinels.useTabBarKeyboard);
+    expect(read.serial).toBe(sentinels.useSerialWrites);
+    expect(read.codeWrap).toBe(sentinels.useCodeWrap);
+    expect(read.infoTip).toBe('info-tip-sentinel');
+    expect(read.panel).toBe('panel-sentinel');
+    expect(read.dropdown).toBe('dropdown-sentinel');
+    expect(useTabBarKeyboardImpl).toHaveBeenCalledWith(tabBarArgs, {});
+    expect(useInfoTipImpl).toHaveBeenCalledWith({}, { placement: 'bottom' });
+    expect(usePanelPositionImpl).toHaveBeenCalledWith(panelArgs, {});
+    expect(useSelectDropdownImpl).toHaveBeenCalledWith(dropdownArgs, { disabled: true });
+  });
+
+  it('the values reader hands back the injected UI functions by identity', () => {
+    const values: Partial<AdminKitValues> = {
+      buildSandboxProxyDataUrl: () => 'data:sentinel', openLightboxDialog: () => {}, closeLightboxDialog: () => {},
+      resolveTabBarTabIndex: () => 0, hasPermission: () => true, standingDraftRecoveryMessage: () => 'recover',
+      createStandingDraftLocalBackup: () => ({ write: () => {}, read: () => null, clear: () => {} }),
+      createFailureChannel: () => ({ publish: () => {}, subscribe: () => () => {}, getSnapshot: () => null, getGeneration: () => 0, reset: () => {} }),
+    };
+    const read = renderHook(() => useAdminKitValues(), { wrapper: wrap(fakeAdminKit({ values })) }).result.current;
+    for (const name of Object.keys(values) as (keyof AdminKitValues)[]) expect(read[name]).toBe(values[name]);
+  });
+
+  it('the fake values behave like the host ones: failure channel drops stale publishes, the backup skips a null principal', () => {
+    const values = renderHook(() => useAdminKitValues(), { wrapper: wrap(fakeAdminKit()) }).result.current;
+    const channel = values.createFailureChannel({}, {});
+    const stale = channel.getGeneration();
+    channel.reset();
+    channel.publish({ failure: { message: 'old' } as never, generation: stale });
+    expect(channel.getSnapshot()).toBeNull();
+    const backup = values.createStandingDraftLocalBackup({ keyPrefix: 'k.', getStorage: () => localStorage }, {});
+    const draft = { bodyFormat: 'html' as const, bodyHtml: '<p>x</p>', title: 'T', slug: 't', baseVersion: 1 };
+    backup.write({ entryId: 'e', draft, savedAt: 'now' }, { principalId: null });
+    expect(backup.read({ entryId: 'e' })).toBeNull();
+    backup.write({ entryId: 'e', draft, savedAt: 'now' });
+    expect(backup.read({ entryId: 'e' })).toMatchObject({ title: 'T', savedAt: 'now' });
+  });
+
+  it('useFabPosition forwards its input to the injected chat hook; the chat values reader returns the injected chat group', () => {
+    const fab = { style: { right: 1, bottom: 2 }, onPointerDown: () => {}, consumeDragFlag: () => true, isDragging: false };
+    const useFabPositionImpl = vi.fn(() => fab);
+    const resolveChatPaneSelection = vi.fn(() => ({ agentId: 'claude', model: 'm' }));
+    const kit = fakeAdminKit({ chat: { useFabPosition: useFabPositionImpl, resolveChatPaneSelection, SECRET_REDACTED_NOTICE: 'redacted-sentinel', CREDENTIAL_CARD_GUIDANCE: 'guidance-sentinel' } });
+    const input: FabPositionInput = { dockOpen: false, avoidBottomPx: 0, storageKey: 'fab', storage: localStorage, viewport: window,
+      pointerEvents: document, edgeMargin: 20, sizePx: 56, dragThresholdPx: 5 };
+    const read = renderHook(() => ({ fab: useFabPosition(input, {}), chat: useAdminKitChatValues() }), { wrapper: wrap(kit) }).result.current;
+    expect(read.fab).toBe(fab);
+    expect(useFabPositionImpl).toHaveBeenCalledWith(input, {});
+    expect(read.chat).toBe(kit.chat);
+    expect(read.chat.SECRET_REDACTED_NOTICE).toBe('redacted-sentinel');
+    expect(read.chat.CREDENTIAL_CARD_GUIDANCE).toBe('guidance-sentinel');
+    const agents: ChatPaneAgent[] = [{ id: 'claude', name: 'Claude' }];
+    expect(read.chat.resolveChatPaneSelection({ agents, requested: { agentId: 'claude' } })).toEqual({ agentId: 'claude', model: 'm' });
+    expect(resolveChatPaneSelection).toHaveBeenCalledWith({ agents, requested: { agentId: 'claude' } });
   });
 });

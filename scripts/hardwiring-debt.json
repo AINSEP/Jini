@@ -707,6 +707,111 @@
       "line": 6,
       "reason": "Module state must be instance-owned; readonly collections or explicitly reviewed path-keyed locks may be retained.",
       "fingerprint": "713b59583c84b68deb1e56dabc40b03dd0cc54546bd206e89a9528c80c60d88a"
+    },
+    {
+      "rule": "HW3-module-state",
+      "file": "packages/admin/src/shell/lib/admin-draft-identity.ts",
+      "line": 2,
+      "reason": "Moved verbatim from the host admin (A-adm-shell-*, 2026-11-22): browser-tab singleton (one admin per page, no tenant or request state). Instance-owned conversion is a named follow-up.",
+      "fingerprint": "c9b41621c877cfd994d57171873320d7d3842442feb340f101116d16e6ac31c5"
+    },
+    {
+      "rule": "HW3-module-state",
+      "file": "packages/admin/src/shell/lib/agent-screenshot-bus.ts",
+      "line": 34,
+      "reason": "Moved verbatim from the host admin (A-adm-shell-*, 2026-11-22): browser-tab singleton (one admin per page, no tenant or request state). Instance-owned conversion is a named follow-up.",
+      "fingerprint": "0353e1fbeba7813f5b5946711255daba89d3a97b6bbd129df704aa42239810dc"
+    },
+    {
+      "rule": "HW3-module-state",
+      "file": "packages/admin/src/shell/lib/assistant-dock-bus.ts",
+      "line": 32,
+      "reason": "Moved verbatim from the host admin (A-adm-shell-*, 2026-11-22): browser-tab singleton (one admin per page, no tenant or request state). Instance-owned conversion is a named follow-up.",
+      "fingerprint": "0353e1fbeba7813f5b5946711255daba89d3a97b6bbd129df704aa42239810dc"
+    },
+    {
+      "rule": "HW3-module-state",
+      "file": "packages/admin/src/shell/lib/assistant-dock-bus.ts",
+      "line": 33,
+      "reason": "Moved verbatim from the host admin (A-adm-shell-*, 2026-11-22): browser-tab singleton (one admin per page, no tenant or request state). Instance-owned conversion is a named follow-up.",
+      "fingerprint": "edcb1d6f1d4f88eae16816705a7c9ba06387a51871e692282af4a3c4a2d8d80d"
+    },
+    {
+      "rule": "HW3-module-state",
+      "file": "packages/admin/src/shell/lib/assistant-dock-bus.ts",
+      "line": 37,
+      "reason": "Moved verbatim from the host admin (A-adm-shell-*, 2026-11-22): browser-tab singleton (one admin per page, no tenant or request state). Instance-owned conversion is a named follow-up.",
+      "fingerprint": "2f1df73dd7785c97e274f358578f0b14ff6588a5f4411f3f03ca64e5ae553e8e"
+    },
+    {
+      "rule": "HW3-module-state",
+      "file": "packages/admin/src/shell/lib/content-refresh-bus.ts",
+      "line": 48,
+      "reason": "Moved verbatim from the host admin (A-adm-shell-*, 2026-11-22): browser-tab singleton (one admin per page, no tenant or request state). Instance-owned conversion is a named follow-up.",
+      "fingerprint": "0353e1fbeba7813f5b5946711255daba89d3a97b6bbd129df704aa42239810dc"
+    },
+    {
+      "rule": "HW3-module-state",
+      "file": "packages/admin/src/shell/lib/playground-render-target-bus.ts",
+      "line": 33,
+      "reason": "Moved verbatim from the host admin (A-adm-shell-*, 2026-11-22): browser-tab singleton (one admin per page, no tenant or request state). Instance-owned conversion is a named follow-up.",
+      "fingerprint": "0353e1fbeba7813f5b5946711255daba89d3a97b6bbd129df704aa42239810dc"
+    },
+    {
+      "rule": "HW3-module-state",
+      "file": "packages/admin/src/shell/lib/playground-render-target-bus.ts",
+      "line": 34,
+      "reason": "Moved verbatim from the host admin (A-adm-shell-*, 2026-11-22): browser-tab singleton (one admin per page, no tenant or request state). Instance-owned conversion is a named follow-up.",
+      "fingerprint": "261d695f8ab03eb57dba276e17ac8b9f6a29af828c8d01f4957daca0f6ead489"
+    },
+    {
+      "rule": "HW3-module-state",
+      "file": "packages/admin/src/shell/lib/settings-effective-reads.ts",
+      "line": 21,
+      "reason": "Moved verbatim from the host admin (A-adm-shell-*, 2026-11-22): browser-tab singleton (one admin per page, no tenant or request state). Instance-owned conversion is a named follow-up.",
+      "fingerprint": "6f7a0d860a3652c5f811d92c9732c8cfedc9b39a7620f508d3a173bd0ea210fe"
+    },
+    {
+      "rule": "HW3-module-state",
+      "file": "packages/admin/src/shell/lib/settings-effective-reads.ts",
+      "line": 39,
+      "reason": "Moved verbatim from the host admin (A-adm-shell-*, 2026-11-22): browser-tab singleton (one admin per page, no tenant or request state). Instance-owned conversion is a named follow-up.",
+      "fingerprint": "d772e940344f696410be559ee0898b8ad0f20157df486c1dc0046d8aa27610e4"
+    },
+    {
+      "rule": "HW3-module-state",
+      "file": "packages/admin/src/shell/lib/settings-effective-reads.ts",
+      "line": 40,
+      "reason": "Moved verbatim from the host admin (A-adm-shell-*, 2026-11-22): browser-tab singleton (one admin per page, no tenant or request state). Instance-owned conversion is a named follow-up.",
+      "fingerprint": "a4bd1cd525eb9cdda988d4b71202fff6c370e147d5ab2d0a5ea394802ebb33e6"
+    },
+    {
+      "rule": "HW3-module-state",
+      "file": "packages/admin/src/shell/lib/unique-id.ts",
+      "line": 7,
+      "reason": "Moved verbatim from the host admin (A-adm-shell-*, 2026-11-22): browser-tab singleton (one admin per page, no tenant or request state). Instance-owned conversion is a named follow-up.",
+      "fingerprint": "e4f98d597da19ff3d442f36b83f5f20b2a1f043a54199ddcae198fe240d0dd65"
+    },
+    {
+      "rule": "HW3-module-state",
+      "file": "packages/admin/src/shell/lib/agent-screen-context.ts",
+      "line": 66,
+      "reason": "Moved verbatim from the host admin (A-adm-shell-*, 2026-11-22): browser-tab singleton (one admin per page, no tenant or request state). Instance-owned conversion is a named follow-up.",
+      "fingerprint": "2c01d4a6a266661584de5b7885adc5320f7e0c6f6de797105110522a1f56f03d"
+    },
+    {
+      "rule": "HW3-module-state",
+      "file": "packages/admin/src/shell/lib/agent-screen-context.ts",
+      "line": 67,
+      "reason": "Moved verbatim from the host admin (A-adm-shell-*, 2026-11-22): browser-tab singleton (one admin per page, no tenant or request state). Instance-owned conversion is a named follow-up.",
+      "fingerprint": "bd410cd89e86669b7d53de4e0e932067d45552d904bfa09948e3935ea76cf58a"
+    },
+    {
+      "rule": "HW3-module-state",
+      "file": "packages/admin/src/shell/lib/settings-refresh-bus.ts",
+      "line": 40,
+      "reason": "Moved verbatim from the host admin (A-adm-shell-*, 2026-11-22): browser-tab singleton (one admin per page, no tenant or request state). Instance-owned conversion is a named follow-up.",
+      "fingerprint": "0353e1fbeba7813f5b5946711255daba89d3a97b6bbd129df704aa42239810dc"
     }
   ]
 }

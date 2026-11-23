@@ -112,7 +112,22 @@
       "./shell/lib/slug-redirect-path": "browser",
       "./shell/lib/translation-entry": "browser",
       "./shell/lib/unchanged-save-warning": "browser",
-      "./shell/lib/unique-id": "browser"
+      "./shell/lib/unique-id": "browser",
+      "./shell/lib/viewer-time-zone": "browser",
+      "./shell/lib/widget-embed-placement-content": "browser",
+      "./shell/lib/admin-frontend-session": "browser",
+      "./shell/lib/agent-screen-context": "browser",
+      "./shell/lib/import-export-routes": "browser",
+      "./shell/lib/settings-refresh-bus": "browser",
+      "./shell/hooks/admin-locale-port.hooks": "browser",
+      "./shell/hooks/use-admin-document-locale.hooks": "browser",
+      "./shell/hooks/use-cms-sidebar-label-tooltips.hooks": "browser",
+      "./shell/hooks/use-dock-auto-rail.hooks": "browser",
+      "./shell/hooks/use-drawer-active-item-centring.hooks": "browser",
+      "./shell/hooks/use-list-table-cell-labels.hooks": "browser",
+      "./shell/hooks/use-sidebar-empty-click-toggle.hooks": "browser",
+      "./shell/hooks/use-content-refresh-subscription.hooks": "browser",
+      "./shell/hooks/use-agent-screen-context.hooks": "browser"
     },
     "isolation": {
       "shared": [
@@ -128,11 +143,61 @@
           "react",
           "react-dom"
         ]
+      },
+      "entries": {
+        "./shell/components/AssistantDock/agent-failure-scanners": "browser",
+        "./shell/components/AssistantDock/hooks/use-composer-send-stop-guard.hooks": "browser",
+        "./shell/components/AssistantDock/hooks/useOverflowDetection.hooks": "browser",
+        "./shell/components/DevicePreview/DevicePreview.hooks": "browser",
+        "./shell/components/InstallTabCard/use-zip-drop.hooks": "browser",
+        "./shell/components/TemplateSource/template-source-port.hooks": "browser",
+        "./shell/components/line-icon": "browser",
+        "./shell/lib/acceptance-cancellation": "browser",
+        "./shell/lib/addons-routes": "browser",
+        "./shell/lib/admin-boot-scope": "browser",
+        "./shell/lib/admin-draft-identity": "browser",
+        "./shell/lib/admin-http/config": "browser",
+        "./shell/lib/agent-screenshot-bus": "browser",
+        "./shell/lib/ascii-slug": "browser",
+        "./shell/lib/assistant-dock-bus": "browser",
+        "./shell/lib/content-refresh-bus": "browser",
+        "./shell/lib/editor-failure-i18n": "browser",
+        "./shell/lib/editor-template-options.rules": "browser",
+        "./shell/lib/escape-owned-by-inner-layer": "browser",
+        "./shell/lib/external-entry-refresh": "browser",
+        "./shell/lib/fetch-query/adapter-context": "browser",
+        "./shell/lib/merge-locale-overlays": "browser",
+        "./shell/lib/page-lifecycle": "browser",
+        "./shell/lib/plain-text-blocks": "browser",
+        "./shell/lib/playground-render-target-bus": "browser",
+        "./shell/lib/queued-daemon-start": "browser",
+        "./shell/lib/router": "browser",
+        "./shell/lib/server-failure": "browser",
+        "./shell/lib/settings-effective-reads": "browser",
+        "./shell/lib/slug-redirect-path": "browser",
+        "./shell/lib/translation-entry": "browser",
+        "./shell/lib/unchanged-save-warning": "browser",
+        "./shell/lib/unique-id": "browser",
+        "./shell/lib/viewer-time-zone": "browser",
+        "./shell/lib/widget-embed-placement-content": "browser",
+        "./shell/lib/admin-frontend-session": "browser",
+        "./shell/lib/agent-screen-context": "browser",
+        "./shell/lib/import-export-routes": "browser",
+        "./shell/lib/settings-refresh-bus": "browser",
+        "./shell/hooks/admin-locale-port.hooks": "browser",
+        "./shell/hooks/use-admin-document-locale.hooks": "browser",
+        "./shell/hooks/use-cms-sidebar-label-tooltips.hooks": "browser",
+        "./shell/hooks/use-dock-auto-rail.hooks": "browser",
+        "./shell/hooks/use-drawer-active-item-centring.hooks": "browser",
+        "./shell/hooks/use-list-table-cell-labels.hooks": "browser",
+        "./shell/hooks/use-sidebar-empty-click-toggle.hooks": "browser",
+        "./shell/hooks/use-content-refresh-subscription.hooks": "browser",
+        "./shell/hooks/use-agent-screen-context.hooks": "browser"
       }
     },
     "optionalPeers": {
-      "react": "opt-in: react admin bindings; import @jini-ai/admin/react — React admin bindings could not load react. Install react to enable this feature, or check its installed version.",
-      "react-dom": "opt-in: react admin bindings; import @jini-ai/admin/react — React admin bindings could not load react-dom. Install react-dom to enable this feature, or check its installed version."
+      "react": "opt-in: react admin bindings; import @jini-ai/admin/react \u2014 React admin bindings could not load react. Install react to enable this feature, or check its installed version.",
+      "react-dom": "opt-in: react admin bindings; import @jini-ai/admin/react \u2014 React admin bindings could not load react-dom. Install react-dom to enable this feature, or check its installed version."
     }
   },
   "type": "module",
@@ -629,6 +694,81 @@
       "types": "./dist/shell/lib/unique-id.d.ts",
       "import": "./dist/shell/lib/unique-id.js",
       "default": "./dist/shell/lib/unique-id.js"
+    },
+    "./shell/lib/viewer-time-zone": {
+      "types": "./dist/shell/lib/viewer-time-zone.d.ts",
+      "import": "./dist/shell/lib/viewer-time-zone.js",
+      "default": "./dist/shell/lib/viewer-time-zone.js"
+    },
+    "./shell/lib/widget-embed-placement-content": {
+      "types": "./dist/shell/lib/widget-embed-placement-content.d.ts",
+      "import": "./dist/shell/lib/widget-embed-placement-content.js",
+      "default": "./dist/shell/lib/widget-embed-placement-content.js"
+    },
+    "./shell/lib/admin-frontend-session": {
+      "types": "./dist/shell/lib/admin-frontend-session.d.ts",
+      "import": "./dist/shell/lib/admin-frontend-session.js",
+      "default": "./dist/shell/lib/admin-frontend-session.js"
+    },
+    "./shell/lib/agent-screen-context": {
+      "types": "./dist/shell/lib/agent-screen-context.d.ts",
+      "import": "./dist/shell/lib/agent-screen-context.js",
+      "default": "./dist/shell/lib/agent-screen-context.js"
+    },
+    "./shell/lib/import-export-routes": {
+      "types": "./dist/shell/lib/import-export-routes.d.ts",
+      "import": "./dist/shell/lib/import-export-routes.js",
+      "default": "./dist/shell/lib/import-export-routes.js"
+    },
+    "./shell/lib/settings-refresh-bus": {
+      "types": "./dist/shell/lib/settings-refresh-bus.d.ts",
+      "import": "./dist/shell/lib/settings-refresh-bus.js",
+      "default": "./dist/shell/lib/settings-refresh-bus.js"
+    },
+    "./shell/hooks/admin-locale-port.hooks": {
+      "types": "./dist/shell/hooks/admin-locale-port.hooks.d.ts",
+      "import": "./dist/shell/hooks/admin-locale-port.hooks.js",
+      "default": "./dist/shell/hooks/admin-locale-port.hooks.js"
+    },
+    "./shell/hooks/use-admin-document-locale.hooks": {
+      "types": "./dist/shell/hooks/use-admin-document-locale.hooks.d.ts",
+      "import": "./dist/shell/hooks/use-admin-document-locale.hooks.js",
+      "default": "./dist/shell/hooks/use-admin-document-locale.hooks.js"
+    },
+    "./shell/hooks/use-cms-sidebar-label-tooltips.hooks": {
+      "types": "./dist/shell/hooks/use-cms-sidebar-label-tooltips.hooks.d.ts",
+      "import": "./dist/shell/hooks/use-cms-sidebar-label-tooltips.hooks.js",
+      "default": "./dist/shell/hooks/use-cms-sidebar-label-tooltips.hooks.js"
+    },
+    "./shell/hooks/use-dock-auto-rail.hooks": {
+      "types": "./dist/shell/hooks/use-dock-auto-rail.hooks.d.ts",
+      "import": "./dist/shell/hooks/use-dock-auto-rail.hooks.js",
+      "default": "./dist/shell/hooks/use-dock-auto-rail.hooks.js"
+    },
+    "./shell/hooks/use-drawer-active-item-centring.hooks": {
+      "types": "./dist/shell/hooks/use-drawer-active-item-centring.hooks.d.ts",
+      "import": "./dist/shell/hooks/use-drawer-active-item-centring.hooks.js",
+      "default": "./dist/shell/hooks/use-drawer-active-item-centring.hooks.js"
+    },
+    "./shell/hooks/use-list-table-cell-labels.hooks": {
+      "types": "./dist/shell/hooks/use-list-table-cell-labels.hooks.d.ts",
+      "import": "./dist/shell/hooks/use-list-table-cell-labels.hooks.js",
+      "default": "./dist/shell/hooks/use-list-table-cell-labels.hooks.js"
+    },
+    "./shell/hooks/use-sidebar-empty-click-toggle.hooks": {
+      "types": "./dist/shell/hooks/use-sidebar-empty-click-toggle.hooks.d.ts",
+      "import": "./dist/shell/hooks/use-sidebar-empty-click-toggle.hooks.js",
+      "default": "./dist/shell/hooks/use-sidebar-empty-click-toggle.hooks.js"
+    },
+    "./shell/hooks/use-content-refresh-subscription.hooks": {
+      "types": "./dist/shell/hooks/use-content-refresh-subscription.hooks.d.ts",
+      "import": "./dist/shell/hooks/use-content-refresh-subscription.hooks.js",
+      "default": "./dist/shell/hooks/use-content-refresh-subscription.hooks.js"
+    },
+    "./shell/hooks/use-agent-screen-context.hooks": {
+      "types": "./dist/shell/hooks/use-agent-screen-context.hooks.d.ts",
+      "import": "./dist/shell/hooks/use-agent-screen-context.hooks.js",
+      "default": "./dist/shell/hooks/use-agent-screen-context.hooks.js"
     }
   },
   "files": [
