@@ -31,3 +31,11 @@ function they wrap (`{ pids }` vs a positional array, `{ pid }` vs a positional 
   source file and test in its own commit.
 - The vendor binding `node-pty` stays in `@jini-ai/server`: moving it here would give every importer a
   native build.
+
+## Wiring
+
+- `@jini-ai/node-adapters/process`: a host building its own agent-executor runtime passes
+  `@jini-ai/platform/process`'s three functions to `createProcessControlPort({ functions })`.
+  `nodeProcessControl` stays pre-bound until the server preset's process cutover lands with XC-6c/d,
+  so `@jini-ai/server`'s kernel needs no direct platform import.
+- `@jini-ai/node-adapters/agent-plugins`: the host passes `{ withFileLock, writeJsonFileAtomicAsync, readBootIdentity }`.
