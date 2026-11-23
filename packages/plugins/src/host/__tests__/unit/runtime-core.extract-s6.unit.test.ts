@@ -115,6 +115,29 @@ describe('createPluginRuntimeCore (second host via @jini-ai/plugins/host/node)',
     await runtime.dispose({}, {});
   });
 
+  it('sends a tier-2 built-in to the worker with its declared sourceDir as the registered package root', async () => {
+    // The entry sits directly inside sourceDir, so the loader's two-levels-up guess would register
+    // the PARENT folder that holds every built-in, and the worker's import policy would treat all
+    // of them as one package.
+    const host = secondHost(() => {});
+    const seen: unknown[] = [];
+    const runCall = vi.fn(async (request: unknown) => { seen.push(request); return { ok: false, stage: 'import', error: 'stop here' }; });
+    const tier2: PluginManifest = { ...manifest, tier: 'tier-2' };
+    const sources = (sourceDir?: string): PluginRuntimeSource[] => [{
+      source: 'built-in', manifest: tier2, entryPath: '/app/built-ins/acme-stamp/plugin.mjs', importModule: host.importModule,
+      ...(sourceDir === undefined ? {} : { sourceDir }),
+    }];
+    for (const [sourceDir, expected] of [['/app/built-ins/acme-stamp', '/app/built-ins/acme-stamp'], [undefined, '/app/built-ins']] as const) {
+      seen.length = 0;
+      const runtime = createPluginRuntimeCore({ ...host.required, sources: sources(sourceDir), tier2CallRunner: runCall as never,
+        hostBinding: { ...hostBinding, tierPolicy: { ...hostBinding.tierPolicy, execution: 'worker' } } });
+      await runtime.onPluginEnabled('acme-stamp').catch(() => undefined);
+      expect(seen).toHaveLength(1);
+      expect((seen[0] as { plugin: { packageRoot?: string } }).plugin.packageRoot).toBe(expected);
+      await runtime.dispose({}, {});
+    }
+  });
+
   it('uses the host scaffold text and install layout, and keeps the uninstall-path error identity', async () => {
     const installDir = await mkdtemp(path.join(os.tmpdir(), 'acme-plugins-'));
     dirs.push(installDir, `${installDir}-runtime`);

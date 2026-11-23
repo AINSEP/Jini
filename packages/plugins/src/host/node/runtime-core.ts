@@ -35,7 +35,7 @@ import { loadPlugin, PluginLoadError } from "./loader.js";
 import { createTier2ImportSeam } from "../worker/import-seam.js";
 
 import type { PluginRuntimeCoreRequired, PluginRuntimeCoreOptional, PluginRuntimeCoreBindings } from "./runtime-contracts.js";
-import { resolveLoadTarget, declaresProviders, type PluginLoadTarget } from "./runtime-load-target.js";
+import { resolveLoadTarget, declaresProviders, withRegisteredPackageRoot, type PluginLoadTarget } from "./runtime-load-target.js";
 import { SAFE_PLUGIN_ID_SEGMENT, PluginUninstallPathError, resolvePackageLocation } from "./runtime-package-location.js";
 
 /**
@@ -238,7 +238,7 @@ export function createPluginRuntimeCore<TEvent, TOptions>(
     // would need the seam's `resolveWorkerEntry` pointed at the integrity-checked module snapshot,
     // since an injected worker seam bypasses the host's default snapshot importer.
     return target.manifest.tier === "tier-2"
-      ? createTier2ImportSeam({ ...runtimeBinding, manifest: target.manifest, runCall: tier2CallRunner })
+      ? withRegisteredPackageRoot({ importModule: createTier2ImportSeam({ ...runtimeBinding, manifest: target.manifest, runCall: tier2CallRunner }), packageRoot: target.packageRoot })
       : required.createModuleImporter({ manifest: target.manifest, source: record.source }, {
           ...(target.importModule === undefined ? {} : { importModule: target.importModule }),
           ...(snapshots === undefined ? {} : { snapshots }),

@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, realpath, rm, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
@@ -21,6 +21,10 @@ import { startTier2Worker } from "../start.js";
  * - the policy package is the host-registered package root as a `/`-ended URL, for both the installed
  *   layout (`<package>/server/index.mjs`) and a built-in whose entry sits directly in its sourceDir;
  *   an entry outside that root is refused.
+ * - both the entry and the root are compared by REAL path (the loader reports a module's real path as
+ *   its `parentURL`): a root reached through a symlink still contains its entry and yields the real
+ *   root's URL, and an entry path inside the root that is a symlink to a file outside it is refused.
+ *   A trusted entry named through a symlink still matches the real entry.
  * - existing hosts that pass no policy keep the old call shape: resolver, then import, no policy.
  * - the worker registers the policy and the SDK resolver on the real-import path, inside the call's
  *   import-stage error handling: a malformed entry URL becomes a structured `stage: "import"` reply
@@ -159,6 +163,41 @@ test("policy data: an entry outside the registered package root (or the root its
     const policy: Tier2ImportPolicy = { sdkSpecifiers: SDK };
     assert.throws(() => tier2ImportPolicyData({ entryPath: entry, packageRoot: elsewhere, policy }), /is not inside its registered package/);
     assert.throws(() => tier2ImportPolicyData({ entryPath: root, packageRoot: root, policy }), /is not inside its registered package/);
+  });
+});
+
+test("policy data (realpath): a package root reached through a symlink still contains its entry, as the real root's URL", async () => {
+  await withPackage(async (root, entry) => {
+    const link = `${root}-link`;
+    await symlink(root, link, "dir");
+    try {
+      const realRoot = await realpath(root);
+      const policy: Tier2ImportPolicy = { sdkSpecifiers: SDK, trustedImports: [{ entryPath: path.join(link, "server", "index.mjs"), specifiers: ["@example/extra"] }] };
+      const expected = { packageUrl: `${pathToFileURL(realRoot).href}/`, allowedSpecifiers: [...SDK, "@example/extra"], sdkSpecifiers: [...SDK] };
+      // Linked root + linked entry, linked root + real entry, real root + linked entry: one answer.
+      assert.deepEqual(tier2ImportPolicyData({ entryPath: path.join(link, "server", "index.mjs"), packageRoot: link, policy }), expected);
+      assert.deepEqual(tier2ImportPolicyData({ entryPath: entry, packageRoot: link, policy }), expected);
+      assert.deepEqual(tier2ImportPolicyData({ entryPath: pathToFileURL(path.join(link, "server", "index.mjs")).href, packageRoot: root, policy }), expected);
+    } finally {
+      await rm(link, { force: true });
+    }
+  });
+});
+
+test("policy data (realpath): an entry inside the root that is a symlink to a file outside it is refused", async () => {
+  await withPackage(async (root) => {
+    const outside = await mkdtemp(path.join(tmpdir(), "jini-tier2-outside-"));
+    try {
+      const target = await touch(path.join(outside, "index.mjs"));
+      const linkedEntry = path.join(root, "server", "linked.mjs");
+      await symlink(target, linkedEntry, "file");
+      assert.throws(
+        () => tier2ImportPolicyData({ entryPath: linkedEntry, packageRoot: root, policy: { sdkSpecifiers: SDK } }),
+        /is not inside its registered package/,
+      );
+    } finally {
+      await rm(outside, { recursive: true, force: true });
+    }
   });
 });
 

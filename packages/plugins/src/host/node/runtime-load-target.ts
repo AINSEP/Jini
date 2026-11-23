@@ -3,6 +3,7 @@ import type { PluginDiscoveryRecord } from "../discovery-types.js";
 import type { AttachmentSource } from "../hook-registry.js";
 import { siteEntryPath } from "./discovery.js";
 import type { PluginRuntimeSource } from "./runtime-contracts.js";
+import type { PluginModuleImportPort } from "../ports.js";
 
 /** What `loadPlugin()` and `attachLoadedPlugin()` need for one enable attempt, resolved by
  * {@link resolveLoadTarget}. `importModule` is omitted (not `undefined`-valued) for a site target
@@ -13,6 +14,9 @@ export interface PluginLoadTarget {
   readonly entryPath: string;
   readonly attachmentSource: AttachmentSource;
   readonly importModule?: (entryPath: string) => Promise<unknown>;
+  /** A built-in's declared `sourceDir`: its registered package root for the Tier-2 worker's import
+   * policy. Omitted ⇒ the loader's root derived from the entry's `<root>/server/index.mjs` layout. */
+  readonly packageRoot?: string;
 }
 
 /**
@@ -49,6 +53,9 @@ export function resolveLoadTarget(params: {
       entryPath: builtIn.entryPath,
       attachmentSource: builtIn.source,
       importModule: builtIn.importModule,
+      // A built-in's entry may sit directly in its sourceDir, where the loader's layout guess would
+      // name the folder holding EVERY built-in as this one's package.
+      ...(builtIn.sourceDir === undefined ? {} : { packageRoot: builtIn.sourceDir }),
     };
   }
 
@@ -66,4 +73,19 @@ export function resolveLoadTarget(params: {
 /** True when a manifest declares provider factories (`contributes.providers`). */
 export function declaresProviders({ manifest }: { manifest: PluginManifest | undefined }): boolean {
   return (manifest?.contributes?.providers?.length ?? 0) > 0;
+}
+
+/**
+ * The importer with the target's registered package root in place of the loader's layout-derived
+ * one; unchanged when the target declares none. Applied to the Tier-2 worker seam only, whose
+ * import policy scopes "the plugin's own files" to that root.
+ * @complexity O(1) per import.
+ */
+export function withRegisteredPackageRoot(
+  required: { importModule: PluginModuleImportPort; packageRoot: string | undefined },
+  _optional: Record<string, never> = {},
+): PluginModuleImportPort {
+  const { importModule, packageRoot } = required;
+  if (packageRoot === undefined) return importModule;
+  return (call) => importModule({ ...call, plugin: { ...call.plugin, packageRoot } });
 }
