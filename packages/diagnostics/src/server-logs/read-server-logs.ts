@@ -22,11 +22,11 @@ export interface ServerLogSourcePort {
 
 export interface ServerLogFilters {
   /** Minimum severity: "warn" returns warn and error. */
-  readonly level?: ServerLogLevel;
-  readonly sinceIso?: string;
+  readonly level?: ServerLogLevel | undefined;
+  readonly sinceIso?: string | undefined;
   /** Case-insensitive substring of the message. */
-  readonly contains?: string;
-  readonly limit?: number;
+  readonly contains?: string | undefined;
+  readonly limit?: number | undefined;
 }
 
 export interface ServerLogsResult {
