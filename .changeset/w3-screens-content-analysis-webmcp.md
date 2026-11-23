@@ -1,0 +1,5 @@
+---
+"@jini-ai/admin": patch
+---
+
+Move the post editor's Content analysis card and the WebMCP admin page-tools adapter into `@jini-ai/admin`. New subpaths: `./screens/content-analysis/ContentAnalysisCard`, `./screens/content-analysis/rules`, `./screens/content-analysis/hooks/use-content-analysis.hooks`, `./screens/content-analysis/hooks/content-analysis-port.hooks`, `./screens/content-analysis/hooks/content-analysis-dependencies.hooks` (the fake port), `./screens/webmcp/BrowserAgentSettingsPanel`, `./screens/webmcp/admin-page-tools`, `./screens/webmcp/webmcp-i18n`. Injected: `ContentAnalysisCard` requires `useContentAnalysisHook` (the host's wired hook); `BrowserAgentSettingsPanel` requires `useBrowserAgentSettingsHook`; `registerAdminPageWebMcpTools`'s first argument now carries `pageCapabilities`, `executePageCapability`, `toWebMcpTool`, `getAgentModelContext` (from `@jini-ai/agentic`, which this package does not depend on), `directPageAction`, `isBrowserAgentEnabled` and `reportRegistrationError` (the defaults for `isEnabled`/`onError`).

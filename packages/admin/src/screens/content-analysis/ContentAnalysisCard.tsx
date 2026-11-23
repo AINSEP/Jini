@@ -10,7 +10,7 @@ import type { ContentAnalysisController, ContentAnalysisTarget, UseContentAnalys
  * (see `ADS-memory/.local-artifacts/aw7-tier2/dx-pain.md`). Mounted by the host's post editor beside
  * the Categories & Tags box; renders nothing unless the plugin is enabled.
  *
- * Renders only `jini-content-analysis-*` classes; the host styles them (in Tovu, as aliases of its
+ * Renders only `jini-content-analysis-*` classes; the host styles them (e.g. as aliases of its own
  * card, button, stat and status-pill rules).
  */
 export function ContentAnalysisCard({

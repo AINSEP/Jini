@@ -1,7 +1,7 @@
 import { useId } from "react";
 import { t } from "./webmcp-i18n.js";
 
-/** The host's browser-agent preference hook (in Tovu, `useBrowserAgentSettings`, which owns the
+/** The host's browser-agent preference hook (e.g. a `useBrowserAgentSettings` that owns the
  *  origin-local storage key and its storage events) — injected so this panel never reaches storage. */
 export type UseBrowserAgentSettingsHook = (required: Record<string, never>) => {
   enabled: boolean;

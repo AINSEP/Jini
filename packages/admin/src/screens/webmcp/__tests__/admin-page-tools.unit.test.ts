@@ -6,7 +6,7 @@ import { registerAdminPageWebMcpTools, type AdminPageToolCollaborators, type Adm
  * @file The adapter's own contract with every collaborator injected as a double: which calls run
  * directly, which go to the host's confirmation channel, and how the injected defaults (`isEnabled`,
  * `onError`, `modelContext`) are used. The host's real policy table and `@jini-ai/agentic` wiring are
- * exercised by the host's own composition tests (Tovu `features/webmcp/__tests__/admin-page-*.unit.test.ts`).
+ * exercised by the host's own composition tests (`features/webmcp/__tests__/admin-page-*.unit.test.ts` there).
  */
 
 type Registration = AdminPageToolRegistration & { readonly execute: (args: Record<string, unknown>) => Promise<unknown> };

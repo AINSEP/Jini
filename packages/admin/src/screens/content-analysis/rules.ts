@@ -11,7 +11,7 @@ import { type Translate, interpolate } from '@jini-ai/core/text';
  *
  * The report types below MIRROR the plugin's `ContentAnalysisReport` (v1, fixed in
  * `ADS-memory/.local-artifacts/aw7-tier2/BRIEF.md`) rather than importing it: a browser bundle cannot
- * import `apps/website` internals — same decoupling every wire type in `lib/api.ts` follows. The
+ * import the server app's internals — same decoupling every wire type in the host API client follows. The
  * parse is defensive for the same reason: whatever arrives (absent, unparseable, a future `v`, a
  * malformed field) becomes an "analysis unavailable" state, never a crash in the post editor.
  */

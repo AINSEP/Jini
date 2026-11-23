@@ -14,7 +14,7 @@ import { VALID_REPORT_JSON, reportJson } from "./content-analysis-fixtures.js";
  * `useContentAnalysisHook` seam; one end-to-end case composes the real hook with the fake port to
  * show Analyze now replacing the stored analysis with the fresh one. Rendered under the Jini test
  * kit (`fetch-query-support`), whose query slot is the real fetch-query binding. The host-wired case
- * (live transport) stays in the host: Tovu `content-analysis-wired.unit.test.tsx`.
+ * (live transport) stays in the host (its `content-analysis-wired.unit.test.tsx`).
  */
 
 const identity = (key: string) => key;
