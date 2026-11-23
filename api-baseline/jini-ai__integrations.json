@@ -496,16 +496,6 @@
    "abortGuardedCredentialRepo": "function:38c11efb44"
   }
  },
- "./vendor-credentials/project-scope": {
-  "types": "./dist/vendor-credentials/project-scope.d.ts",
-  "symbols": {
-   "CredentialProjectHalf": "interface:724cd7c019",
-   "CredentialScope": "type:6831ffe922",
-   "ScopedCredentialDeps": "interface:c82b39ed04",
-   "credentialCreateTarget": "function:9dde8d8ccb",
-   "credentialScopes": "function:ace3c9eec4"
-  }
- },
  "./webhooks": {
   "types": "./dist/webhooks/index.d.ts",
   "symbols": {
