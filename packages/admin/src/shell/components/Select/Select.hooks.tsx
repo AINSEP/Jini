@@ -1,8 +1,6 @@
 import { useSelectDropdown as usePackageDropdown } from "../../../react/kit.js";
 import type { PanelPosition, WidgetSelectOption as SelectOption } from "../../../react/kit.js";
 
-export { usePanelPosition } from "../../../react/kit.js";
-export type { PanelPosition, WidgetSelectOption as SelectOption } from "../../../react/kit.js";
 
 // Live state/effects and their rationale: Jini/packages/ui/src/features/admin-widgets/components/Select/Select.hooks.tsx.
 
@@ -40,7 +38,7 @@ export function focusableInDomOrder({ exclude }: { exclude: HTMLElement | null }
  * there isn't `ESTIMATED_PANEL_HEIGHT` of room below AND there's more room above than below;
  * either way the returned `maxHeight` is the ACTUAL remaining space in that direction, not the
  * estimate, so the panel's own scroll (not the viewport edge) is what ever clips it. */
-export function computePosition(trigger: HTMLElement): PanelPosition {
+export function computePosition({ trigger }: { trigger: HTMLElement }, _options: Record<string, never> = {}): PanelPosition {
   const rect = trigger.getBoundingClientRect();
   const gap = 4;
   const viewportHeight = window.innerHeight;
@@ -83,7 +81,7 @@ export function repositionOrClose({ trigger, onOutOfView, setPosition }: { trigg
     onOutOfView();
     return;
   }
-  setPosition(computePosition(trigger));
+  setPosition(computePosition({ trigger }));
 }
 
 /** True when something other than the trigger (or an ancestor/descendant of it) is rendered at the

@@ -27,7 +27,7 @@ it("calls onRefresh when the notification names this resource", () => {
   const onRefresh = vi.fn();
   renderHook(() => useContentRefreshSubscription({ resource: "posts", onRefresh }));
 
-  publishContentRefresh(["posts"]);
+  publishContentRefresh({ resources: ["posts"] });
 
   expect(onRefresh).toHaveBeenCalledTimes(1);
 });
@@ -36,7 +36,7 @@ it("ignores a notification that names only other resources", () => {
   const onRefresh = vi.fn();
   renderHook(() => useContentRefreshSubscription({ resource: "posts", onRefresh }));
 
-  publishContentRefresh(["taxonomy"]);
+  publishContentRefresh({ resources: ["taxonomy"] });
 
   expect(onRefresh).not.toHaveBeenCalled();
 });
@@ -59,10 +59,10 @@ describe("resubscription", () => {
     });
 
     rerender({ resource: "pages" });
-    publishContentRefresh(["posts"]);
+    publishContentRefresh({ resources: ["posts"] });
     expect(onRefresh).not.toHaveBeenCalled();
 
-    publishContentRefresh(["pages"]);
+    publishContentRefresh({ resources: ["pages"] });
     expect(onRefresh).toHaveBeenCalledTimes(1);
   });
 });
@@ -74,7 +74,7 @@ it("uses the latest onRefresh callback for the same resource", () => {
     initialProps: { onRefresh: oldRefresh },
   });
   rerender({ onRefresh: newRefresh });
-  publishContentRefresh(["posts"]);
+  publishContentRefresh({ resources: ["posts"] });
   expect(oldRefresh).not.toHaveBeenCalled();
   expect(newRefresh).toHaveBeenCalledTimes(1);
 });

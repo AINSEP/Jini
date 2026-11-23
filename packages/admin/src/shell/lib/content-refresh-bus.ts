@@ -68,12 +68,15 @@ export function subscribeToContentRefresh({ listener }: { listener: Listener }, 
  * transport/lifecycle code (a run ending, and later an SSE frame) with no sensible way to handle
  * one screen's failure, and one broken subscriber must not suppress the rest.
  *
- * @param resources - The resource names known to have changed, or omitted for "unknown, refresh
+ * @param input.resources - The resource names known to have changed, or omitted for "unknown, refresh
  *   all". An empty array is normalized to `null` — a publisher that knew of no resources is saying
  *   "no information", not "only these zero", and must not be read as a scope that matches nothing.
  * @complexity O(n) in the listener count.
  */
-export function publishContentRefresh(resources?: readonly string[]): void {
+export function publishContentRefresh(
+  { resources }: { readonly resources?: readonly string[] } = {},
+  _options: Record<string, never> = {},
+): void {
   const scope: ContentRefreshScope = resources && resources.length > 0 ? resources : null;
   for (const listener of [...listeners]) {
     try {

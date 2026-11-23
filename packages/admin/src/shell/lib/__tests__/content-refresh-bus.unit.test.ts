@@ -32,11 +32,11 @@ test("passes resources through, and normalizes 'no information' to null", () => 
   const scopes: unknown[] = [];
   subscribeToContentRefresh({ listener: (scope) => scopes.push(scope) });
 
-  publishContentRefresh(["taxonomy"]);
+  publishContentRefresh({ resources: ["taxonomy"] });
   publishContentRefresh();
   // An empty array means the publisher knew of no resources, which is not the same as "only these
   // zero" — it must not be mistaken for a scope that matches nothing, or the refresh is dropped.
-  publishContentRefresh([]);
+  publishContentRefresh({ resources: [] });
 
   expect(scopes).toEqual([["taxonomy"], null, null]);
 });

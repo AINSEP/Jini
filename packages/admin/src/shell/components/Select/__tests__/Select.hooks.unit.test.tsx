@@ -16,10 +16,9 @@ import {
   highlightedOptionOrNull,
   repositionOrClose,
   resolveTabTarget,
-  usePanelPosition,
   useSelectDropdown,
-  type SelectOption,
 } from "../Select.hooks.js";
+import { usePanelPosition, type WidgetSelectOption as SelectOption } from "../../../../react/kit.js";
 
 /** Renders under the fake admin kit, with the real UI-library pieces these assertions are about swapped in. */
 const wrapperKit = fakeAdminKit({ hooks: { usePanelPosition: uiUsePanelPosition, useSelectDropdown: uiUseSelectDropdown } });
@@ -236,7 +235,7 @@ describe("host-retained Select helpers", () => {
   describe("computePosition", () => {
     it("opens downward below the trigger when there is room for the estimated panel", () => {
       withInnerHeight(800, () => {
-        expect(computePosition(fakeTrigger({ top: 100, bottom: 130, left: 20, width: 200 }))).toEqual({
+        expect(computePosition({ trigger: fakeTrigger({ top: 100, bottom: 130, left: 20, width: 200 }) })).toEqual({
           top: 134,
           left: 20,
           width: 200,
@@ -247,7 +246,7 @@ describe("host-retained Select helpers", () => {
 
     it("opens upward when the room below is short and there is more room above", () => {
       withInnerHeight(800, () => {
-        expect(computePosition(fakeTrigger({ top: 700, bottom: 730, left: 5, width: 150 }))).toEqual({
+        expect(computePosition({ trigger: fakeTrigger({ top: 700, bottom: 730, left: 5, width: 150 }) })).toEqual({
           bottom: 104,
           left: 5,
           width: 150,
@@ -258,7 +257,7 @@ describe("host-retained Select helpers", () => {
 
     it("stays downward when space below is short but space above is shorter still", () => {
       withInnerHeight(200, () => {
-        const position = computePosition(fakeTrigger({ top: 40, bottom: 70, left: 0, width: 100 }));
+        const position = computePosition({ trigger: fakeTrigger({ top: 40, bottom: 70, left: 0, width: 100 }) });
         expect(position).toMatchObject({ top: 74 });
         // 130 px of real room below, minus the 8 px of gaps, is above the 120 px floor.
         expect(position.maxHeight).toBe(122);
@@ -267,8 +266,8 @@ describe("host-retained Select helpers", () => {
 
     it("never shrinks maxHeight below the 120 px floor, in either direction", () => {
       withInnerHeight(150, () => {
-        expect(computePosition(fakeTrigger({ top: 10, bottom: 40, left: 0, width: 100 })).maxHeight).toBe(120);
-        expect(computePosition(fakeTrigger({ top: 100, bottom: 130, left: 0, width: 100 }))).toMatchObject({
+        expect(computePosition({ trigger: fakeTrigger({ top: 10, bottom: 40, left: 0, width: 100 }) }).maxHeight).toBe(120);
+        expect(computePosition({ trigger: fakeTrigger({ top: 100, bottom: 130, left: 0, width: 100 }) })).toMatchObject({
           bottom: 54,
           maxHeight: 120,
         });

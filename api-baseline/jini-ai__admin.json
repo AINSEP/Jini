@@ -1498,17 +1498,14 @@
  "./shell/components/Select/Select.hooks": {
   "types": "./dist/shell/components/Select/Select.hooks.d.ts",
   "symbols": {
-   "PanelPosition": "interface:3990d9a6e0",
-   "SelectOption": "interface:f8d19f3d08",
    "applyHighlightKey": "function:eac9d90941",
    "buildOptionId": "function:3d350e6622",
-   "computePosition": "function:8653e09910",
+   "computePosition": "function:41f413a072",
    "edgeHighlightIndex": "function:3ae8cd02e4",
    "focusableInDomOrder": "function:cae1c6e58b",
    "highlightedOptionOrNull": "function:c4999d2453",
    "repositionOrClose": "function:20465a758a",
    "resolveTabTarget": "function:ddf996a34a",
-   "usePanelPosition": "variable:151b5b4d7d",
    "useSelectDropdown": "function:0f12aabcae"
   }
  },
@@ -1698,7 +1695,7 @@
   "symbols": {
    "ContentRefreshScope": "type:3c5a5dd9cc",
    "contentRefreshApplies": "function:1234bcb6ac",
-   "publishContentRefresh": "function:6aa2230298",
+   "publishContentRefresh": "function:29088588e7",
    "resetContentRefreshBus": "function:feee78c64f",
    "subscribeToContentRefresh": "function:8554e6c7c0"
   }
