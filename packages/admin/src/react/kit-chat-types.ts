@@ -103,6 +103,11 @@ export interface ChatPaneAgent {
   supportsNativeToolAccess?: boolean; fullCliAccessOnly?: boolean; fullCliAccessNote?: string;
 }
 export interface ChatPaneAgentSelection { agentId: string; model?: string; reasoning?: string }
+/** The chat pane's agent inventory, rescan and daemon-health access (the host's runtime wiring). */
+export interface ChatPaneRuntimeAccess {
+  listAgents: () => Promise<readonly ChatPaneAgent[]>; getAgentsRefreshAt?: () => number | undefined;
+  rescanAgents: () => Promise<readonly ChatPaneAgent[]>; daemonOnline: () => Promise<boolean>;
+}
 /** Imperative access to the composer draft, published by the chat pane once mounted. */
 export interface ChatPaneComposerHandle {
   insertText: (text: string) => void;

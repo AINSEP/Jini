@@ -157,6 +157,8 @@
       "./shell/components/shared-components-i18n": "browser",
       "./shell/components/AssistantDock/MessageOverflowModal": "browser",
       "./shell/components/AssistantDock/SelectedAgentPluginTray": "browser",
+      "./shell/components/AssistantDock/AgentFailureCard.hooks": "browser",
+      "./shell/components/AssistantDock/AgentFailureCard": "browser",
       "./shell/components/AssistantDock/SlowRunNoticeCard": "browser",
       "./shell/components/AssistantDock/agent-failure": "browser",
       "./shell/components/AdminFailureNotice/AdminFailureNotice": "browser",
@@ -295,6 +297,8 @@
         "./shell/components/shared-components-i18n": "browser",
         "./shell/components/AssistantDock/MessageOverflowModal": "browser",
         "./shell/components/AssistantDock/SelectedAgentPluginTray": "browser",
+        "./shell/components/AssistantDock/AgentFailureCard.hooks": "browser",
+        "./shell/components/AssistantDock/AgentFailureCard": "browser",
         "./shell/components/AssistantDock/SlowRunNoticeCard": "browser",
         "./shell/components/AssistantDock/agent-failure": "browser",
         "./shell/components/AdminFailureNotice/AdminFailureNotice": "browser",
@@ -1031,6 +1035,16 @@
       "types": "./dist/shell/components/AssistantDock/SelectedAgentPluginTray.d.ts",
       "import": "./dist/shell/components/AssistantDock/SelectedAgentPluginTray.js",
       "default": "./dist/shell/components/AssistantDock/SelectedAgentPluginTray.js"
+    },
+    "./shell/components/AssistantDock/AgentFailureCard.hooks": {
+      "types": "./dist/shell/components/AssistantDock/AgentFailureCard.hooks.d.ts",
+      "import": "./dist/shell/components/AssistantDock/AgentFailureCard.hooks.js",
+      "default": "./dist/shell/components/AssistantDock/AgentFailureCard.hooks.js"
+    },
+    "./shell/components/AssistantDock/AgentFailureCard": {
+      "types": "./dist/shell/components/AssistantDock/AgentFailureCard.d.ts",
+      "import": "./dist/shell/components/AssistantDock/AgentFailureCard.js",
+      "default": "./dist/shell/components/AssistantDock/AgentFailureCard.js"
     },
     "./shell/components/AssistantDock/SlowRunNoticeCard": {
       "types": "./dist/shell/components/AssistantDock/SlowRunNoticeCard.d.ts",
