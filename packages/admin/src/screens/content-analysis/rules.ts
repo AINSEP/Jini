@@ -213,13 +213,13 @@ const BAND_LABELS: Record<ReadabilityBand, string> = {
   "very-difficult": "Very difficult",
 };
 
-/** Status is always shown as text plus an icon, never by colour alone; `tone` reuses the app's
- *  existing `.status-*` pill classes (`styles.css`). */
+/** Status is always shown as text plus an icon, never by colour alone; `tone` is a
+ *  `jini-status-*` pill class; the host stylesheet paints it. */
 const STATUS_META: Record<CheckStatus, { label: string; tone: string; icon: string }> = {
-  pass: { label: "Pass", tone: "status-ok", icon: "✓" },
-  warn: { label: "Warning", tone: "status-warning", icon: "!" },
-  fail: { label: "Fail", tone: "status-error", icon: "✕" },
-  skip: { label: "Skipped", tone: "status-neutral", icon: "–" },
+  pass: { label: "Pass", tone: "jini-status-ok", icon: "✓" },
+  warn: { label: "Warning", tone: "jini-status-warning", icon: "!" },
+  fail: { label: "Fail", tone: "jini-status-error", icon: "✕" },
+  skip: { label: "Skipped", tone: "jini-status-neutral", icon: "–" },
 };
 
 const CHECK_TITLES: Record<string, string> = {

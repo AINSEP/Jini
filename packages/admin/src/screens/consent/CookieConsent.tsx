@@ -69,11 +69,11 @@ function tabsFor(t: Translate): TabBarTab[] {
 
 function PublishBar({ page, t }: { page: ConsentPageController; t: Translate }) {
   return (
-    <div className="page-actions jini-consent-publish">
+    <div className="jini-page-actions jini-consent-publish">
       <span className="jini-consent-save-status" role="status">{t(consentStatusKey({ saveState: page.saveState, hasUnpublished: page.hasUnpublished, everPublished: page.everPublished }))}</span>
       <button
         type="button"
-        className="btn-primary"
+        className="jini-btn-primary"
         disabled={!page.canPublish}
         onClick={() => { void page.publish(); }}
         {...agentHandle({ handle: "consent-publish" }, { role: "button", label: "Publish the cookie consent draft to the live site" })}
@@ -88,13 +88,13 @@ function Notices({ page, t }: { page: ConsentPageController; t: Translate }) {
   return (
     <>
       {page.saveState === "conflict" && (
-        <div className="notice warning" role="alert">
+        <div className="jini-notice jini-notice-warning" role="alert">
           {t("Someone else changed this. Reload to see it.")}{" "}
-          <button type="button" className="btn-secondary" onClick={page.reload}>{t("Reload")}</button>
+          <button type="button" className="jini-btn-secondary" onClick={page.reload}>{t("Reload")}</button>
         </div>
       )}
-      {page.saveError && page.saveState === "error" && <p className="notice error" role="alert">{page.saveError}</p>}
-      {page.publishError && <p className="notice error" role="alert">{page.publishError}</p>}
+      {page.saveError && page.saveState === "error" && <p className="jini-notice jini-notice-error" role="alert">{page.saveError}</p>}
+      {page.publishError && <p className="jini-notice jini-notice-error" role="alert">{page.publishError}</p>}
     </>
   );
 }
@@ -109,7 +109,7 @@ function ResetStyle({ page, t, disabled }: { page: ConsentPageController; t: Tra
     <div className="jini-consent-css-reset">
       <button
         type="button"
-        className="btn-secondary"
+        className="jini-btn-secondary"
         disabled={disabled}
         onClick={() => page.onChange({ patch: { customCss: defaultCss } })}
         {...agentHandle({ handle: "consent-reset-css" }, { role: "button", label: "Put the default cookie banner style back into Custom CSS" })}
@@ -123,7 +123,7 @@ function ResetStyle({ page, t, disabled }: { page: ConsentPageController; t: Tra
 /** Preview-only diagnostics; publish eligibility uses the saved draft's blocking problems. */
 function CssWarnings({ warnings, enabled, t }: { warnings: ConsentFieldProblem[]; enabled: boolean; t: Translate }) {
   if (!enabled || warnings.length === 0) return null;
-  return <div className="notice warning jini-consent-css-warnings" role="status">
+  return <div className="jini-notice jini-notice-warning jini-consent-css-warnings" role="status">
     <p>{t("Some styles were skipped. You can still publish.")}</p>
     <ul>{warnings.map((warning, index) => <li key={`${warning.code}:${index}`}>{warning.message}</li>)}</ul>
   </div>;
@@ -139,8 +139,8 @@ function ConsentPreviewPane({ page, preview, fit, translation, ui }: {
   const value = page.value;
   if (!value) throw new Error("cookie consent preview has no loaded settings");
   return (
-    <div className="card jini-consent-preview-pane" ref={fit.ref} style={{ "--consent-preview-scale": fit.scale, "--consent-preview-desktop-width": `${ui.previewDesktopWidth}px` } as CSSProperties}>
-      {preview.error && <p className="notice error" role="alert">{preview.error}</p>}
+    <div className="jini-card jini-consent-preview-pane" ref={fit.ref} style={{ "--consent-preview-scale": fit.scale, "--consent-preview-desktop-width": `${ui.previewDesktopWidth}px` } as CSSProperties}>
+      {preview.error && <p className="jini-notice jini-notice-error" role="alert">{preview.error}</p>}
       {/* "My own" and "None" render no Jini banner, so its skipped styles are noise there. */}
       <CssWarnings warnings={preview.warnings} enabled={Boolean(page.editor?.bannerModes) && (value.bannerMode ?? "jini") === "jini"} t={translation.t} />
       <ui.PreviewFrame html={preview.html} status={translation.t("Loading preview…")} dictionary={translation.dictionary} />
@@ -159,9 +159,9 @@ function EditorTab({ tab, page, port, translation, delays, errors, ui, hooks = {
   if (tab === "rules") {
     return (
       <div className="jini-consent-editor">
-        <div className="card"><ui.RulesFields {...fields} regionModes={regionModes} /></div>
-        <section className="card jini-consent-card" aria-label={translation.t("Fixed rules")}>
-          <h2 className="card-title">{translation.t("Fixed rules")}</h2>
+        <div className="jini-card"><ui.RulesFields {...fields} regionModes={regionModes} /></div>
+        <section className="jini-card jini-consent-card" aria-label={translation.t("Fixed rules")}>
+          <h2 className="jini-card-title">{translation.t("Fixed rules")}</h2>
           <ul className="jini-consent-fixed-rules">
             <li>{translation.t("Global Privacy Control always turns off analytics and marketing.")}</li>
             <li>{translation.t("Choices are kept for 180 days, then visitors are asked again.")}</li>
@@ -173,7 +173,7 @@ function EditorTab({ tab, page, port, translation, delays, errors, ui, hooks = {
   }
   return (
     <div className="jini-consent-editor jini-consent-editor-with-preview">
-      <div className="card">
+      <div className="jini-card">
         {tab === "banner" ? <ui.BannerFields {...fields} bannerModes={bannerModes} /> : <ui.LookFields {...fields} placements={placements} lightColors={lightColors} />}
         {tab === "look" && <ResetStyle page={page} t={translation.t} disabled={fields.disabled} />}
       </div>
@@ -194,8 +194,8 @@ function ConsentTabContent({ activeTab, page, port, translation, delays, readine
 }) {
   const { t } = translation;
   return <>
-    {page.loadError && <p className="notice error" role="alert">{page.loadError}</p>}
-    {!page.value && !page.loadError && <p className="card-lead">{t("Loading…")}</p>}
+    {page.loadError && <p className="jini-notice jini-notice-error" role="alert">{page.loadError}</p>}
+    {!page.value && !page.loadError && <p className="jini-card-lead">{t("Loading…")}</p>}
     {page.value && activeTab === "overview" && (
       <ConsentOverviewTab liveEnabled={page.liveEnabled} hasUnpublished={page.hasUnpublished} readiness={readiness.readiness} readinessError={readiness.error} t={t} />
     )}
@@ -211,12 +211,12 @@ export function CookieConsent({ tabId, port, useTranslate, errors, ui, delays, h
   // Overview re-checks after each publication and whenever it is reopened on a newer draft.
   const readiness = hooks.useConsentReadiness({ port, refresh: `${page.publishedCount}:${activeTab === "overview" ? page.draftId : ""}`, t, errors });
   return (
-    <div className="page jini-consent-page">
-      <div className="page-header">
-        <div className="page-header-text">
-          <p className="page-kicker">{t("Administration")}</p>
-          <h1 className="page-title">{t("Cookie Consent")}</h1>
-          <p className="page-description">{t("The banner visitors see, and what waits for their choice.")}</p>
+    <div className="jini-consent-page">
+      <div className="jini-page-header">
+        <div className="jini-page-header-text">
+          <p className="jini-page-kicker">{t("Administration")}</p>
+          <h1 className="jini-page-title">{t("Cookie Consent")}</h1>
+          <p className="jini-page-description">{t("The banner visitors see, and what waits for their choice.")}</p>
         </div>
         {page.value && <PublishBar page={page} t={t} />}
       </div>

@@ -16,6 +16,10 @@ revision; the live site changes only on Publish.
   `RulesFields`, `PreviewFrame`, `previewDesktopWidth` and `previewScale`.
 - An `<AdminKitProvider>` above the page (kit `TabBar`, kit theme `defaultAdminTheme.light`).
 - The stylesheet `consent-settings.css` (`jini-consent-*` classes, admin tokens only), loaded by the host.
+- Host CSS for the shared shapes the page renders — `jini-page-header|header-text|kicker|title|description|actions`,
+  `jini-card|card-head|card-title|card-lead`, `jini-notice jini-notice-error|warning`, `jini-btn-primary|secondary`,
+  `jini-status jini-status-ok|neutral`. The root is `.jini-consent-page`, deliberately NOT `.jini-page`, so a
+  host's `.jini-page`-scoped kit rules do not restyle the consent engine's fields; scope these under it.
 
 **Provides**: `CookieConsent`, the revisions port factory and wire types (`settings.hooks`), autosave
 (`consent-autosave`), pure page decisions (`rules`), the page hooks (`use-consent-page.hooks`) and the

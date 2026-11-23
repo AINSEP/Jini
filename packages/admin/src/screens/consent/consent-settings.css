@@ -3,12 +3,12 @@
    ships no CSS for them; this admin sheet styles them, and the host loads it). Only admin tokens, so light and dark follow the admin theme. */
 
 /* Every tab sits flat on the page, no card frame; headings, spacing and hairlines group the content
-   instead. The `.card` classes stay on the markup for their type scale (`.card p` → 13px). */
-.jini-consent-page .card { background: none; border: 0; border-radius: 0; box-shadow: none; padding: 0; backdrop-filter: none; }
-.jini-consent-page .card-head { margin: 0 0 var(--space-2); padding: 0; border-bottom: 0; }
+   instead. The `.jini-card` classes stay on the markup for their type scale (`.jini-card p` → 13px). */
+.jini-consent-page .jini-card { background: none; border: 0; border-radius: 0; box-shadow: none; padding: 0; backdrop-filter: none; }
+.jini-consent-page .jini-card-head { margin: 0 0 var(--space-2); padding: 0; border-bottom: 0; }
 /* Stacked sections (Overview, Rules) read as separate groups through a hairline between them. */
-.jini-consent-overview > .card + .card,
-.jini-consent-editor:not(.jini-consent-editor-with-preview) > .card + .card { border-top: 1px solid var(--border); padding-top: var(--space-5); }
+.jini-consent-overview > .jini-card + .jini-card,
+.jini-consent-editor:not(.jini-consent-editor-with-preview) > .jini-card + .jini-card { border-top: 1px solid var(--border); padding-top: var(--space-5); }
 
 /* Overview: the same rhythm as Deployment's tabs, so sections never touch. */
 .jini-consent-overview { display: flex; flex-direction: column; gap: var(--space-5); margin-top: var(--space-5); }
@@ -39,8 +39,8 @@
 .jini-consent-preview-pane { position: sticky; top: var(--space-4); display: flex; flex-direction: column; gap: var(--space-3); }
 .jini-consent-fixed-rules { margin: 0; padding-left: 1.1rem; display: flex; flex-direction: column; gap: var(--space-2); color: var(--fg-2); }
 
-/* Jini field sections. The legend matches the shared `.card-title`
-   (styles.css): the heading face at 14px/600, not a second, larger display-face tier. */
+/* Jini field sections. The legend matches the shared `.jini-card-title`
+   (host stylesheet): the heading face at 14px/600, not a second, larger display-face tier. */
 .jini-consent-settings-fields { border: 0; padding: 0; margin: 0; min-width: 0; display: grid; gap: var(--space-4); }
 .jini-consent-settings-fields legend {
   padding: 0; margin-bottom: var(--space-2);

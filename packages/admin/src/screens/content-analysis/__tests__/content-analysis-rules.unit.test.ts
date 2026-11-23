@@ -245,13 +245,13 @@ describe("buildContentAnalysisView", () => {
   it("builds every check with a status label, tone, icon and interpolated message", () => {
     const view = buildContentAnalysisView({ state: stored, t: identity });
     expect(view.report?.checks).toEqual([
-      { key: "0-title-length", title: "Title length", status: "pass", statusLabel: "Pass", tone: "status-ok", icon: "✓", message: "Title length is good: 42 characters." },
-      { key: "1-meta-description-length", title: "Meta description", status: "skip", statusLabel: "Skipped", tone: "status-neutral", icon: "–", message: "No meta description is set." },
-      { key: "2-image-alt", title: "Image alt text", status: "fail", statusLabel: "Fail", tone: "status-error", icon: "✕", message: "1 of 3 images are missing alt text." },
-      { key: "3-heading-order", title: "Heading order", status: "warn", statusLabel: "Warning", tone: "status-warning", icon: "!", message: "Heading “Deep dive” jumps from H2 to H4." },
-      { key: "4-single-h1", title: "Single H1", status: "pass", statusLabel: "Pass", tone: "status-ok", icon: "✓", message: "The body has no extra H1; the title is the page’s H1." },
-      { key: "5-content-length", title: "Content length", status: "pass", statusLabel: "Pass", tone: "status-ok", icon: "✓", message: "420 words — a solid length." },
-      { key: "6-subheadings", title: "Subheadings", status: "pass", statusLabel: "Pass", tone: "status-ok", icon: "✓", message: "Subheadings break up the content." },
+      { key: "0-title-length", title: "Title length", status: "pass", statusLabel: "Pass", tone: "jini-status-ok", icon: "✓", message: "Title length is good: 42 characters." },
+      { key: "1-meta-description-length", title: "Meta description", status: "skip", statusLabel: "Skipped", tone: "jini-status-neutral", icon: "–", message: "No meta description is set." },
+      { key: "2-image-alt", title: "Image alt text", status: "fail", statusLabel: "Fail", tone: "jini-status-error", icon: "✕", message: "1 of 3 images are missing alt text." },
+      { key: "3-heading-order", title: "Heading order", status: "warn", statusLabel: "Warning", tone: "jini-status-warning", icon: "!", message: "Heading “Deep dive” jumps from H2 to H4." },
+      { key: "4-single-h1", title: "Single H1", status: "pass", statusLabel: "Pass", tone: "jini-status-ok", icon: "✓", message: "The body has no extra H1; the title is the page’s H1." },
+      { key: "5-content-length", title: "Content length", status: "pass", statusLabel: "Pass", tone: "jini-status-ok", icon: "✓", message: "420 words — a solid length." },
+      { key: "6-subheadings", title: "Subheadings", status: "pass", statusLabel: "Pass", tone: "jini-status-ok", icon: "✓", message: "Subheadings break up the content." },
     ]);
   });
 
