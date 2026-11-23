@@ -117,6 +117,25 @@ createVisitorToolsManagement({ deps: { workspaceId, settings, ready, listCatalog
 contributeSiteSettingPublish({ createRepoPublishHandler, gatewayDeps, publishableSettings, writePolicies, principalLookup });
 ```
 
+**Needs injected** (`settings-confirm-write.ts`, the settings tools' `confirmWrite`):
+`settingsConfirmWrite` takes, all required on its args object, the host's `surfaces`
+(`AssistantSurfaceDeps`), its `routeDeps` (`SettingsToolDeps`, for the workspace, the chat-selection
+reads and `approvalIdentityForRun`), its approval-card engine (`approvalToolHandler`,
+`SettingsConfirmApprovalHandlerPort`), the agent runtime's `validateRuntimeSelection`, and the card's
+wording as `copy` (`SettingsConfirmWriteCopy`: error code, set/clear titles, description suffix, clear
+fallback wording, confirm label and detail labels; product copy the engine never ships). The host
+keeps its rule tables (denied and confirmation-required settings) and tool metadata, and passes them
+to `@jini-ai/core/settings`'s `buildSettingsRegistrations` itself.
+
+**Provides**: `settingsConfirmWrite(args)` → a `SettingsConfirmWriteFn` for `SettingsToolDeps.confirmWrite`.
+
+```ts
+import { settingsConfirmWrite } from "@jini-ai/cms/settings/site/settings-confirm-write";
+
+buildSettingsRegistrations({ ...routeDeps, confirmationSettings: HOST_CONFIRMATION_RULES,
+  confirmWrite: settingsConfirmWrite({ surfaces, routeDeps, approvalToolHandler, validateRuntimeSelection, copy: HOST_SETTINGS_CARD_COPY }) });
+```
+
 See [`DR-005`](../../../../../docs/decisions/DR-005-portable-package-boundaries.md) for the boundary rule.
 
 **Must never import**: a host's locale list, tool-metadata contracts, settings storage or any host
