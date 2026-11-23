@@ -187,7 +187,10 @@
       "./screens/import-export/ImportExport": "browser",
       "./screens/import-export/import-export-i18n": "universal",
       "./screens/import-export/hooks/use-git-backup.hooks": "browser",
-      "./screens/import-export/hooks/git-backup-port.hooks": "universal"
+      "./screens/import-export/hooks/git-backup-port.hooks": "universal",
+      "./screens/webmcp/BrowserAgentSettingsPanel": "browser",
+      "./screens/webmcp/admin-page-tools": "universal",
+      "./screens/webmcp/webmcp-i18n": "universal"
     },
     "isolation": {
       "shared": [
@@ -1143,6 +1146,21 @@
       "types": "./dist/screens/import-export/hooks/git-backup-port.hooks.d.ts",
       "import": "./dist/screens/import-export/hooks/git-backup-port.hooks.js",
       "default": "./dist/screens/import-export/hooks/git-backup-port.hooks.js"
+    },
+    "./screens/webmcp/BrowserAgentSettingsPanel": {
+      "types": "./dist/screens/webmcp/BrowserAgentSettingsPanel.d.ts",
+      "import": "./dist/screens/webmcp/BrowserAgentSettingsPanel.js",
+      "default": "./dist/screens/webmcp/BrowserAgentSettingsPanel.js"
+    },
+    "./screens/webmcp/admin-page-tools": {
+      "types": "./dist/screens/webmcp/admin-page-tools.d.ts",
+      "import": "./dist/screens/webmcp/admin-page-tools.js",
+      "default": "./dist/screens/webmcp/admin-page-tools.js"
+    },
+    "./screens/webmcp/webmcp-i18n": {
+      "types": "./dist/screens/webmcp/webmcp-i18n.d.ts",
+      "import": "./dist/screens/webmcp/webmcp-i18n.js",
+      "default": "./dist/screens/webmcp/webmcp-i18n.js"
     }
   },
   "files": [
