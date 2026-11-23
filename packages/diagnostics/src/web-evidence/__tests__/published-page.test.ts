@@ -1,13 +1,12 @@
 import assert from "node:assert/strict";
 import { onTestFinished, test, vi } from "vitest";
-import { createServer, Server, type RequestListener } from "node:http";
+import { createServer, Server, type RequestListener, type ServerResponse } from "node:http";
 
-import express, { type Express } from "express";
-
-import { fetchPublishedPage } from "../published-page.js";
+import { fetchPublishedPage, type PublishedPageFetchTracker } from "../published-page.js";
 import { DEFAULT_MAX_BODY_BYTES, MAX_MAX_BODY_BYTES } from "../page-body.js";
 import { MAX_PATH_LENGTH, readBoundedBody, SameOriginPathError as PublishedPagePathError, toCookieShapes } from "../index.js";
 import { resolveSitePath as resolveSameOriginPath } from "../site-path-policy.js";
+import { createNoopObservabilityPort } from "@jini-ai/core/contracts/observability";
 
 /** The host's reserved first path segments, as the host binds them in production. */
 const RESERVED_SEGMENTS: ReadonlySet<string> = new Set(["admin", "api"]);
@@ -16,46 +15,51 @@ const RESERVED_SEGMENTS: ReadonlySet<string> = new Set(["admin", "api"]);
  * @file `fetch_published_page`'s same-origin restriction and response projection.
  *
  * The path validator is tested directly (it is the whole SSRF story and deserves per-rule
- * assertions), and the fetch is tested against a REAL Express app booted through the same
+ * assertions), and the fetch is tested against a REAL `node:http` app booted through the same
  * `createSiteApp` seam the production path uses — so "the origin is one this process minted" is
  * exercised rather than asserted.
  */
 
 const BASE = "http://127.0.0.1:53142";
 
-/** A stand-in for the site app: enough real routes to observe status, headers, cookies and bodies. */
-function makeFakeSiteApp(): Express {
-  const app = express();
-  app.get("/", (_req, res) => {
-    res.setHeader("content-security-policy", "default-src 'self'");
-    res.setHeader("set-cookie", ["sid=SUPER_SECRET_SESSION_VALUE; Path=/; HttpOnly; SameSite=Lax", "ab=1; Path=/"]);
-    res.status(200).type("html").send("<!doctype html><html><body>home</body></html>");
-  });
-  app.get("/big", (_req, res) => {
-    res.status(200).type("text/plain").send("z".repeat(50_000));
-  });
-  app.get("/over-hard-cap", (_req, res) => {
-    res.type("text/plain").send("abcdef".repeat(200_000));
-  });
-  app.get("/administer-survey", (_req, res) => {
-    res.type("html").send("<h1>Survey</h1>");
-  });
-  app.get("/echo", (req, res) => {
-    res.status(200).type("text/plain").send(`query=${String(req.query.q ?? "")}`);
-  });
-  app.get("/old", (_req, res) => {
-    res.redirect(301, "/new");
-  });
-  app.get("/api/admin/v1/secret", (_req, res) => {
-    res.status(200).json({ leaked: "ADMIN_API_CANARY" });
-  });
-  app.use((_req, res) => {
-    res.status(404).type("html").send("<h1>not found</h1>");
-  });
-  return app;
+/** Writes one complete response, with the `content-type`/`content-length` a site framework would send. */
+function send(res: ServerResponse, { status, type, body }: { status: number; type: string; body: string }): void {
+  res.statusCode = status;
+  res.setHeader("content-type", `${type}; charset=utf-8`);
+  res.setHeader("content-length", Buffer.byteLength(body));
+  res.end(body);
 }
 
-const DEPS = { createSiteApp: () => makeFakeSiteApp(), reservedSegments: RESERVED_SEGMENTS };
+/**
+ * A stand-in for the site app: enough real routes to observe status, headers, cookies and bodies.
+ * A plain `node:http` request listener — the exact shape `createSiteApp` is typed as — so this
+ * package carries no server framework just to describe its own fixture.
+ */
+function makeFakeSiteApp(): RequestListener {
+  return (req, res) => {
+    const url = new URL(req.url ?? "/", "http://127.0.0.1");
+    switch (req.method === "GET" ? url.pathname : "") {
+      case "/":
+        res.setHeader("content-security-policy", "default-src 'self'");
+        res.setHeader("set-cookie", ["sid=SUPER_SECRET_SESSION_VALUE; Path=/; HttpOnly; SameSite=Lax", "ab=1; Path=/"]);
+        return send(res, { status: 200, type: "text/html", body: "<!doctype html><html><body>home</body></html>" });
+      case "/big": return send(res, { status: 200, type: "text/plain", body: "z".repeat(50_000) });
+      case "/over-hard-cap": return send(res, { status: 200, type: "text/plain", body: "abcdef".repeat(200_000) });
+      case "/administer-survey": return send(res, { status: 200, type: "text/html", body: "<h1>Survey</h1>" });
+      case "/echo": return send(res, { status: 200, type: "text/plain", body: `query=${url.searchParams.get("q") ?? ""}` });
+      case "/old":
+        res.setHeader("location", "/new");
+        return send(res, { status: 301, type: "text/plain", body: "Moved Permanently. Redirecting to /new" });
+      case "/api/admin/v1/secret": return send(res, { status: 200, type: "application/json", body: JSON.stringify({ leaked: "ADMIN_API_CANARY" }) });
+      default: return send(res, { status: 404, type: "text/html", body: "<h1>not found</h1>" });
+    }
+  };
+}
+
+/** The transport untraced: these tests are about the render, not the span (the host owns that proof). */
+const UNTRACKED: PublishedPageFetchTracker = ({ fetch }) => fetch;
+
+const DEPS = { createSiteApp: () => makeFakeSiteApp(), reservedSegments: RESERVED_SEGMENTS, trackFetch: UNTRACKED };
 
 // ---------------------------------------------------------------------------
 // resolveSameOriginPath — one assertion per rule, because each rule closes a different hole.
@@ -473,14 +477,10 @@ test("fetchPublishedPage: refuses an off-site path and never issues the request"
   const attempted: string[] = [];
   const spyDeps = {
     reservedSegments: RESERVED_SEGMENTS,
-    createSiteApp: () => {
-      const app = express();
-      app.use((req, _res, next) => {
-        attempted.push(req.url);
-        next();
-      });
-      app.use((_req, res) => res.status(200).send("ok"));
-      return app;
+    trackFetch: UNTRACKED,
+    createSiteApp: (): RequestListener => (req, res) => {
+      attempted.push(req.url ?? "");
+      send(res, { status: 200, type: "text/html", body: "ok" });
     },
   };
 
@@ -537,10 +537,9 @@ test("fetchPublishedPage: closes the server after success, validation rejection 
   assert.equal(ok.status, 200);
   await assert.rejects(() => fetchPublishedPage({ deps: DEPS, input: { path: "//evil.example" } }), PublishedPagePathError);
   let reached = false;
-  const stalled = { reservedSegments: RESERVED_SEGMENTS, createSiteApp: () => {
-    const app = express();
-    app.get("/stalled", (_req, _res) => { reached = true; });
-    return app;
+  const stalled = { reservedSegments: RESERVED_SEGMENTS, trackFetch: UNTRACKED, createSiteApp: (): RequestListener => (req, res) => {
+    if (req.url === "/stalled") { reached = true; return; }
+    send(res, { status: 404, type: "text/html", body: "<h1>not found</h1>" });
   } };
   await assert.rejects(() => fetchPublishedPage({ deps: stalled, input: { path: "/stalled" } }, { timeoutMs: 500 }),
     { name: "PublishedPageTimeoutError", message: "rendering '/stalled' exceeded 500ms" });
@@ -569,6 +568,7 @@ test("fetchPublishedPage: an invalid path still opens the loopback server first,
   const requests: string[] = [];
   const deps = {
     reservedSegments: RESERVED_SEGMENTS,
+    trackFetch: UNTRACKED,
     createServer: recordingServerFactory(events),
     createSiteApp: () => {
       events.push("app-built");
@@ -593,4 +593,31 @@ for (const name of ["TimeoutError", "AbortError"]) test(`published page ${name} 
   const cause = new DOMException("transport canary", name);
   await assert.rejects(fetchPublishedPage({ deps: { ...DEPS, fetch: async () => { throw cause; } }, input: { path: "/" } }), error =>
     error instanceof Error && error.name === "PublishedPageTimeoutError" && error.cause === cause && /rendering '\/' exceeded/.test(error.message));
+});
+
+test("fetchPublishedPage: the injected tracker wraps the transport once per call, with the call's fetch and the no-op port when untraced", async () => {
+  const seen: { fetch: typeof globalThis.fetch; hasPort: boolean }[] = [];
+  const sent: string[] = [];
+  const fetch: typeof globalThis.fetch = (input, init) => globalThis.fetch(input, init);
+  const trackFetch: PublishedPageFetchTracker = ({ fetch: inner, observability }) => {
+    seen.push({ fetch: inner, hasPort: typeof observability.trackOutboundCall === "function" });
+    return async (input, init) => { sent.push(String(input)); return inner(input, init); };
+  };
+  const result = await fetchPublishedPage({ deps: { ...DEPS, fetch, trackFetch }, input: { path: "/echo?q=traced" } });
+  assert.equal(result.body, "query=traced");
+  assert.equal(seen.length, 1);
+  assert.equal(seen[0]?.fetch, fetch);
+  assert.equal(seen[0]?.hasPort, true);
+  assert.equal(sent.length, 1, "the request must go through the tracked transport, not the bare fetch");
+  assert.match(sent[0] ?? "", /^http:\/\/127\.0\.0\.1:\d+\/echo\?q=traced$/);
+});
+
+test("fetchPublishedPage: a supplied observability port reaches the injected tracker unchanged", async () => {
+  const ports: unknown[] = [];
+  // A distinct object: the no-op factory may hand back one shared instance, which would hide a dropped port.
+  const observability = { ...createNoopObservabilityPort({}) };
+  const trackFetch: PublishedPageFetchTracker = ({ fetch, observability: port }) => { ports.push(port); return fetch; };
+  await fetchPublishedPage({ deps: { ...DEPS, observability, trackFetch }, input: { path: "/" } });
+  assert.deepEqual(ports.length, 1);
+  assert.equal(ports[0], observability);
 });

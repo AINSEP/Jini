@@ -138,8 +138,6 @@
   },
   "devDependencies": {
     "@jini-ai/analytics": "workspace:^",
-    "@types/express": "^4.17.21",
-    "express": "^4.21.0",
     "@jini-ai/core": "workspace:^",
     "@vitest/coverage-v8": "^3.2.6",
     "jszip": "^3.10.1",

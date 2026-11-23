@@ -2,7 +2,6 @@ import { createServer, type RequestListener, type Server } from "node:http";
 import { once } from "node:events";
 import type { AddressInfo } from "node:net";
 
-import { trackFetch } from "@jini-ai/diagnostics/observability";
 import { createNoopObservabilityPort, type ObservabilityPort } from "@jini-ai/core/contracts/observability";
 import { readBoundedBody } from "./bounded-body.js";
 import { toCookieShapes, type CookieShape } from "./cookie-shapes.js";
@@ -108,11 +107,23 @@ export interface FetchPublishedPageDeps {
    *  `RouteDeps.observability` in production; omitted, the render is untraced. */
   readonly observability?: ObservabilityPort;
   /**
+   * Wraps the transport so the loopback render is one outbound span. The host binds
+   * `trackFetch` from `@jini-ai/diagnostics/observability`; it is injected rather than imported so
+   * this evidence module stays out of the observability domain. Called once per request with the
+   * per-call `fetch` and `observability` (the no-op port when {@link observability} is omitted).
+   */
+  readonly trackFetch: PublishedPageFetchTracker;
+  /**
    * The host's reserved first path segments (case-folded, e.g. `admin`, `api`) that
    * {@link resolveSitePath} refuses. Injected so the host stays the one owner of its URL-space policy.
    */
   readonly reservedSegments: ReadonlySet<string>;
 }
+
+/** The shape of the observability subpath's `trackFetch`, as this module consumes it. */
+export type PublishedPageFetchTracker = (
+  required: { fetch: typeof globalThis.fetch; observability: ObservabilityPort },
+) => typeof globalThis.fetch;
 
 const UNTRACED = createNoopObservabilityPort({});
 
@@ -174,7 +185,7 @@ async function requestPublishedPage({ deps, baseUrl, path, timeoutMs }: {
   try {
     // The default global `fetch` is read per call, so a test that swaps it is still honored.
     const { fetch = globalThis.fetch } = deps;
-    const send = trackFetch({ fetch, observability: deps.observability ?? UNTRACED });
+    const send = deps.trackFetch({ fetch, observability: deps.observability ?? UNTRACED });
     return await send(`${baseUrl}${path}`, {
       redirect: "manual",
       signal: AbortSignal.timeout(timeoutMs),

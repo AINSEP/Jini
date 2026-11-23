@@ -53,6 +53,7 @@ test("published-page shaping preserves legacy bytes and applies find/textOnly th
   let html = '\n<p>café &amp; 😀</p>\r\n';
   const deps: FetchPublishedPageDeps = {
     reservedSegments: new Set(["admin", "api"]),
+    trackFetch: ({ fetch }) => fetch,
     createSiteApp: () => () => {},
     createServer: listener => {
       const server = new Server(listener);

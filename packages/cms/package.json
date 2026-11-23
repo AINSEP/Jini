@@ -100,6 +100,7 @@
       "./redirects": "universal",
       "./redirects/sql": "node",
       "./workspace/sql": "node",
+      "./workspace/site/repo.sqlite": "node",
       "./taxonomy/sql": "node",
       "./navigation/sql": "node",
       "./presentation/sql": "node",
@@ -168,6 +169,8 @@
       "./admin-http/routes/workspace/deps": "universal",
       "./admin-http/http/workspace": "universal",
       "./site-inspection/site-profile": "universal",
+      "./webmcp/settings": "universal",
+      "./webmcp/webmcp-i18n": "universal",
       "./site-inspection/site-capabilities": "universal",
       "./site-inspection/section-collector": "universal",
       "./admin-http/routes/system/assistant-daemon": "universal",
@@ -785,6 +788,11 @@
       "import": "./dist/workspace/sql/index.js",
       "default": "./dist/workspace/sql/index.js"
     },
+    "./workspace/site/repo.sqlite": {
+      "types": "./dist/workspace/site/repo.sqlite.d.ts",
+      "import": "./dist/workspace/site/repo.sqlite.js",
+      "default": "./dist/workspace/site/repo.sqlite.js"
+    },
     "./taxonomy/sql": {
       "types": "./dist/taxonomy/sql/index.d.ts",
       "import": "./dist/taxonomy/sql/index.js",
@@ -1104,6 +1112,16 @@
       "types": "./dist/site-inspection/site-profile.d.ts",
       "import": "./dist/site-inspection/site-profile.js",
       "default": "./dist/site-inspection/site-profile.js"
+    },
+    "./webmcp/settings": {
+      "types": "./dist/webmcp/settings.d.ts",
+      "import": "./dist/webmcp/settings.js",
+      "default": "./dist/webmcp/settings.js"
+    },
+    "./webmcp/webmcp-i18n": {
+      "types": "./dist/webmcp/webmcp-i18n.d.ts",
+      "import": "./dist/webmcp/webmcp-i18n.js",
+      "default": "./dist/webmcp/webmcp-i18n.js"
     },
     "./site-inspection/site-capabilities": {
       "types": "./dist/site-inspection/site-capabilities.d.ts",
