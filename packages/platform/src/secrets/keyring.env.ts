@@ -115,7 +115,15 @@ export class EnvOrFileKeyring implements KeyringPort {
 
     const generated = randomBytes(ROOT_KEY_LENGTH_BYTES);
     mkdirSync(dirname(this.keyFilePath), { recursive: true });
-    writeFileSync(this.keyFilePath, generated.toString("hex"), { mode: 0o600 });
+    try {
+      // Exclusive create: another process starting at the same moment may have written its own key
+      // since the existence check above. Overwriting it would orphan everything sealed with it.
+      writeFileSync(this.keyFilePath, generated.toString("hex"), { mode: 0o600, flag: "wx" });
+    } catch (err) {
+      if (!isAlreadyExistsError(err)) throw err;
+      this.cachedRootKey = this.parseFileRootKey(readFileSync(this.keyFilePath, "utf8"));
+      return this.cachedRootKey;
+    }
     this.cachedRootKey = generated;
     return this.cachedRootKey;
   }
