@@ -60,7 +60,11 @@
       "./deploy/site/publish-credentials/execution-mode": "universal",
       "./deploy/site/static-publish/domain-publish-rows": "universal",
       "./deploy/site/static-publish/types": "universal",
-      "./source-control/site/saved-key-bindings": "universal"
+      "./source-control/site/saved-key-bindings": "universal",
+      "./source-control/site/commit-target": "universal",
+      "./source-control/site/provider-kit": "universal",
+      "./source-control/site/provider-module": "universal",
+      "./source-control/site/static-site-packager-port": "universal"
     },
     "isolation": {
       "shared": [
@@ -319,6 +323,26 @@
       "types": "./dist/source-control/site/saved-key-bindings.d.ts",
       "import": "./dist/source-control/site/saved-key-bindings.js",
       "default": "./dist/source-control/site/saved-key-bindings.js"
+    },
+    "./source-control/site/commit-target": {
+      "types": "./dist/source-control/site/commit-target.d.ts",
+      "import": "./dist/source-control/site/commit-target.js",
+      "default": "./dist/source-control/site/commit-target.js"
+    },
+    "./source-control/site/provider-kit": {
+      "types": "./dist/source-control/site/provider-kit.d.ts",
+      "import": "./dist/source-control/site/provider-kit.js",
+      "default": "./dist/source-control/site/provider-kit.js"
+    },
+    "./source-control/site/provider-module": {
+      "types": "./dist/source-control/site/provider-module.d.ts",
+      "import": "./dist/source-control/site/provider-module.js",
+      "default": "./dist/source-control/site/provider-module.js"
+    },
+    "./source-control/site/static-site-packager-port": {
+      "types": "./dist/source-control/site/static-site-packager-port.d.ts",
+      "import": "./dist/source-control/site/static-site-packager-port.js",
+      "default": "./dist/source-control/site/static-site-packager-port.js"
     }
   },
   "files": [
