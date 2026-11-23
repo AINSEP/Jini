@@ -48,6 +48,15 @@
    "toAdminTrashMenuResponse": "function:84a8a19808"
   }
  },
+ "./admin-http/http/publish-content": {
+  "types": "./dist/admin-http/http/publish-content.d.ts",
+  "symbols": {
+   "PublishContentReportSource": "interface:0d1f036c4e",
+   "PublishContentReportSourceRow": "interface:421b0e9a35",
+   "readBackstopApplyReport": "function:e5cb934a66",
+   "toPublishContentReportDto": "function:396d27699a"
+  }
+ },
  "./admin-http/http/redirects": {
   "types": "./dist/admin-http/http/redirects.d.ts",
   "symbols": {
@@ -78,6 +87,21 @@
    "SupportedExecutionProtocol": "type:7252b84293",
    "readOptionalString": "function:5be207b4f4",
    "validateSupportedProtocol": "function:8a9f6350a4"
+  }
+ },
+ "./admin-http/routes/database/migrate-forward": {
+  "types": "./dist/admin-http/routes/database/migrate-forward.d.ts",
+  "symbols": {
+   "DatabaseMigrateForwardConfirmRouteDeps": "interface:ead35a10ce",
+   "DatabaseMigrateForwardExecuteRouteDeps": "interface:8deb0548ba",
+   "DatabaseMigrateForwardInput": "type:09dda40bd3",
+   "DatabaseMigrateForwardPlanRouteDeps": "interface:4ab77ff776",
+   "DatabaseMigrateForwardPrincipal": "interface:89bce67312",
+   "MigrateForwardErrorClass": "type:b44bdb4a4a",
+   "MigrateForwardErrorClasses": "interface:7650056595",
+   "databaseMigrateForwardConfirmRoute": "variable:d045ecaf5e",
+   "databaseMigrateForwardExecuteRoute": "variable:3c58b565f3",
+   "databaseMigrateForwardPlanRoute": "variable:052288fd30"
   }
  },
  "./admin-http/routes/database/restore-points": {
@@ -159,6 +183,92 @@
    "menuUpdateTreeRoute": "variable:9610552709"
   }
  },
+ "./admin-http/routes/plugins/files": {
+  "types": "./dist/admin-http/routes/plugins/files.d.ts",
+  "symbols": {
+   "PluginFilesEnvelope": "interface:9cbd104e4e",
+   "PluginFilesRouteDeps": "interface:b392afa1f2",
+   "pluginFilesRoute": "variable:b30e13a76a"
+  }
+ },
+ "./admin-http/routes/plugins/list": {
+  "types": "./dist/admin-http/routes/plugins/list.d.ts",
+  "symbols": {
+   "AdminPluginListEnvelope": "interface:332a6e1f21",
+   "PluginListRouteDeps": "interface:608ff997e9",
+   "pluginListRoute": "variable:b84f8310e3"
+  }
+ },
+ "./admin-http/routes/plugins/preview": {
+  "types": "./dist/admin-http/routes/plugins/preview.d.ts",
+  "symbols": {
+   "PluginHookFailure": "type:fc1eba157a",
+   "PluginPreviewEntry": "interface:7d0379f906",
+   "PluginPreviewRouteDeps": "interface:0fab974e83",
+   "pluginPreviewRunRoute": "variable:87debaccc9",
+   "pluginPreviewStatusRoute": "variable:968d4a07a7"
+  }
+ },
+ "./admin-http/routes/plugins/uninstall": {
+  "types": "./dist/admin-http/routes/plugins/uninstall.d.ts",
+  "symbols": {
+   "PluginUninstallErrors": "interface:08f624a559",
+   "PluginUninstallInput": "interface:dd8f1efb7d",
+   "PluginUninstallRouteDeps": "interface:0e277aee44",
+   "pluginUninstallRoute": "variable:0b36248f86"
+  }
+ },
+ "./admin-http/routes/publish-content/destination": {
+  "types": "./dist/admin-http/routes/publish-content/destination.d.ts",
+  "symbols": {
+   "DestinationConnectRouteDeps": "interface:b868638b98",
+   "DestinationDisconnectRouteDeps": "interface:e56ddb080e",
+   "DestinationReadRouteDeps": "interface:ea4e6a4c15",
+   "PublishCandidateFn": "type:2d8756a0a2",
+   "PublishConnectedPeer": "type:526389984a",
+   "PublishConnectedPeerFn": "type:a4ca4d56a3",
+   "PublishDestinationConnectFn": "type:c02a133266",
+   "PublishDestinationDisconnectFn": "type:d4d2ccbc30",
+   "PublishDestinationErrorClasses": "interface:8041c73926",
+   "PublishDestinationView": "interface:bc1e2b9f1c",
+   "PublishableTypesFn": "type:089c5b2b67",
+   "destinationConnectRoute": "variable:b7ed61a9e4",
+   "destinationDisconnectRoute": "variable:84bc2b4a2c",
+   "destinationReadRoute": "variable:4bcc2fae75"
+  }
+ },
+ "./admin-http/routes/publish-content/peers": {
+  "types": "./dist/admin-http/routes/publish-content/peers.d.ts",
+  "symbols": {
+   "PeerCreateRouteDeps": "interface:2d0694c1ff",
+   "PeerDeleteRouteDeps": "interface:c4f9823ce5",
+   "PeerListRouteDeps": "interface:d47f1c9f5d",
+   "PeerUpdateRouteDeps": "interface:1892e0b673",
+   "PublishPeerCreateFn": "type:347210980d",
+   "PublishPeerDeleteFn": "type:85e41edd34",
+   "PublishPeerErrorClasses": "interface:9e22ca128e",
+   "PublishPeerFields": "type:3f0526d574",
+   "PublishPeerListFn": "type:66c32d059d",
+   "PublishPeerUpdateFn": "type:c27f23bfb4",
+   "peerCreateRoute": "variable:75c7032d9e",
+   "peerDeleteRoute": "variable:a8c512a316",
+   "peerListRoute": "variable:754c1368f7",
+   "peerUpdateRoute": "variable:949e35d251"
+  }
+ },
+ "./admin-http/routes/publish-content/transport-shared": {
+  "types": "./dist/admin-http/routes/publish-content/transport-shared.d.ts",
+  "symbols": {
+   "PublishContentPeerView": "interface:f1cd158903",
+   "PublishErrorClass": "type:72ba5198cd",
+   "PublishErrorMapping": "interface:de0fb79301",
+   "PublishRoutePrincipal": "interface:7eea9682e3",
+   "authorizePublishContent": "function:824146aa1f",
+   "bodyRecord": "function:d10f9d8c77",
+   "rejectPublishError": "function:3ad75c7370",
+   "routeParam": "function:4f73eedb03"
+  }
+ },
  "./admin-http/routes/recovery/deep-link": {
   "types": "./dist/admin-http/routes/recovery/deep-link.d.ts",
   "symbols": {
@@ -177,12 +287,38 @@
    "recoveryDisclosureRoute": "variable:f926dcb177"
   }
  },
+ "./admin-http/routes/recovery/restore": {
+  "types": "./dist/admin-http/routes/recovery/restore.d.ts",
+  "symbols": {
+   "RecoveryCeremonyError": "interface:bf60eee72a",
+   "RecoveryCeremonyResult": "type:f90701d8b7",
+   "RecoveryRestoreConfirmRouteDeps": "interface:0c123116e0",
+   "RecoveryRestoreExecuteRouteDeps": "interface:cd7dc2b0d8",
+   "RecoveryRestoreInput": "type:0c45730cab",
+   "RecoveryRestorePlanRouteDeps": "interface:a631ea0408",
+   "RecoveryRestorePrincipal": "interface:f74d6304e2",
+   "recoveryRestoreConfirmRoute": "variable:476acbfe90",
+   "recoveryRestoreExecuteRoute": "variable:9e7fba8879",
+   "recoveryRestorePlanRoute": "variable:6a2cee325f"
+  }
+ },
  "./admin-http/routes/recovery/restore-points": {
   "types": "./dist/admin-http/routes/recovery/restore-points.d.ts",
   "symbols": {
    "RecoveryRestorePointsListPrincipal": "interface:a83a34a5c3",
    "RecoveryRestorePointsListRouteDeps": "interface:4139ed36ff",
    "recoveryRestorePointsListRoute": "variable:a6682e4c94"
+  }
+ },
+ "./admin-http/routes/recovery/status": {
+  "types": "./dist/admin-http/routes/recovery/status.d.ts",
+  "symbols": {
+   "RecoveryStatusCapabilities": "interface:34945c1fc7",
+   "RecoveryStatusCostClass": "type:96693c6358",
+   "RecoveryStatusPrincipal": "interface:c5462ebec7",
+   "RecoveryStatusResponse": "interface:7ecdf6ef68",
+   "RecoveryStatusRouteDeps": "interface:4620064b46",
+   "recoveryStatusRoute": "variable:b75aa598d8"
   }
  },
  "./admin-http/routes/redirects/get-by-id": {
