@@ -90,7 +90,7 @@ describe("login success", () => {
       "tokens.newToken",
       "tokens.hashToken",
       "sessions.save",
-      "users.save",
+      "users.recordLogin",
     ]);
     expect(result.rawToken).toBe("tok-1");
     expect(result.principal.id).toBe("p-1");
