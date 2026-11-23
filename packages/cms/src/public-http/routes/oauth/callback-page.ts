@@ -46,15 +46,16 @@ export type OAuthCallbackPageRenderer = (required: OAuthCallbackPageArgs, option
 
 /**
  * The callback page as a web `Response`: `text/html; charset=utf-8`, `Cache-Control: no-store`
- * (a one-time sign-in result must never be served from a cache), plus the caller's own headers in
- * order (`Set-Cookie` may repeat).
+ * (a one-time sign-in result must never be served from a cache), its stated byte length (a finished
+ * page, as the host framework stated it), plus the caller's own headers in order (`Set-Cookie` may repeat).
  * @complexity O(headers) plus the injected renderer.
  */
 export function oauthCallbackPageResponse(
   { status, render, page }: { readonly status: number; readonly render: OAuthCallbackPageRenderer; readonly page: OAuthCallbackPageArgs },
   { headers = [] }: { readonly headers?: readonly (readonly [string, string])[] } = {},
 ): Response {
-  const out = new Headers({ "cache-control": "no-store", "content-type": "text/html; charset=utf-8" });
+  const html = render(page);
+  const out = new Headers({ "cache-control": "no-store", "content-type": "text/html; charset=utf-8", "content-length": String(new TextEncoder().encode(html).byteLength) });
   for (const [name, value] of headers) out.append(name, value);
-  return new Response(render(page), { status, headers: out });
+  return new Response(html, { status, headers: out });
 }

@@ -12,6 +12,7 @@ describe("oauthCallbackPageResponse", () => {
     expect(response.status).toBe(400);
     expect(response.headers.get("content-type")).toBe("text/html; charset=utf-8");
     expect(response.headers.get("cache-control")).toBe("no-store");
+    expect(response.headers.get("content-length")).toBe("30");
     expect(await response.text()).toBe("<p>fail:no_state:host:done</p>");
   });
 
