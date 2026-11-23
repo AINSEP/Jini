@@ -142,7 +142,10 @@
       "./public-http/http/site/render/value-readers": "universal",
       "./public-http/routes/site/pages/listing/listing-state": "universal",
       "./pages/authoring-html": "universal",
-      "./pages/hidden-until-script": "universal"
+      "./pages/hidden-until-script": "universal",
+      "./admin-http/routes/system/observability-status": "universal",
+      "./admin-http/routes/system/tool-gaps": "universal",
+      "./admin-http/routes/system/server-logs": "universal"
     },
     "isolation": {
       "domains": {
@@ -900,6 +903,21 @@
       "types": "./dist/pages/hidden-until-script.d.ts",
       "import": "./dist/pages/hidden-until-script.js",
       "default": "./dist/pages/hidden-until-script.js"
+    },
+    "./admin-http/routes/system/observability-status": {
+      "types": "./dist/admin-http/routes/system/observability-status.d.ts",
+      "import": "./dist/admin-http/routes/system/observability-status.js",
+      "default": "./dist/admin-http/routes/system/observability-status.js"
+    },
+    "./admin-http/routes/system/tool-gaps": {
+      "types": "./dist/admin-http/routes/system/tool-gaps.d.ts",
+      "import": "./dist/admin-http/routes/system/tool-gaps.js",
+      "default": "./dist/admin-http/routes/system/tool-gaps.js"
+    },
+    "./admin-http/routes/system/server-logs": {
+      "types": "./dist/admin-http/routes/system/server-logs.d.ts",
+      "import": "./dist/admin-http/routes/system/server-logs.js",
+      "default": "./dist/admin-http/routes/system/server-logs.js"
     }
   },
   "files": [
