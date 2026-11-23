@@ -1,5 +1,3 @@
-import { hasForbiddenRawUrlCharacter } from "@jini-ai/core/contracts/server/verified-origin";
-
 /**
  * @file Task 10 of the publish-content (Publish Content) feature —
  * `ADS-memory/reports/2026-09-18-publish-feature-implementation-plan.md` §4 task 10.
@@ -10,9 +8,9 @@ import { hasForbiddenRawUrlCharacter } from "@jini-ai/core/contracts/server/veri
  * on a bare VPS).
  *
  * Deliberately modelled on `features/origin/configured-origin.ts`'s refusal pipeline, and reusing
- * its exported {@link hasForbiddenRawUrlCharacter} rather than re-deriving the raw-character class
- * (a backslash becomes a slash and whitespace is stripped once `new URL()` has run, so the check
- * has to happen on the raw string). Same refusals for the same reasons: non-https, userinfo,
+ * its raw-character check (the host injects core's `hasForbiddenRawUrlCharacter`) rather than
+ * re-deriving the raw-character class (a backslash becomes a slash and whitespace is stripped once
+ * `new URL()` has run, so the check has to happen on the raw string). Same refusals for the same reasons: non-https, userinfo,
  * query/fragment, control characters, empty host.
  *
  * ONE DELIBERATE DIFFERENCE, and it is load-bearing: `configured-origin.ts` refuses a LOOPBACK host,
@@ -71,6 +69,9 @@ function refusalReason({ url }: { url: URL }, _optional = {}): string | null {
   return null;
 }
 
+/** True when a raw URL string carries a character `new URL()` would silently normalize away. */
+export type RawUrlCharacterCheck = (required: { raw: string }) => boolean;
+
 /**
  * Validates and normalizes an operator-supplied peer base URL.
  *
@@ -79,12 +80,17 @@ function refusalReason({ url }: { url: URL }, _optional = {}): string | null {
  * `peerUrl()` can join route paths without producing a double slash.
  *
  * @param raw - The untrusted operator-supplied string, exactly as received.
+ * @param hasForbiddenRawUrlCharacter - The raw-character check, run on the trimmed string before
+ * `new URL()` can normalize a backslash or whitespace away.
  * @returns `{baseUrl}` with the normalized origin plus base path, or `{error}` with the single
  * reason it was refused. NEVER throws.
  * @complexity O(n) in the length of `raw` (parser-bound).
  * @example normalizePeerBaseUrl("https://Site.example.com/"); // => { baseUrl: "https://site.example.com" }
  */
-export function normalizePeerBaseUrl({ raw }: { raw: string }, _optional = {}): PeerBaseUrlAccepted | PeerBaseUrlRefusal {
+export function normalizePeerBaseUrl(
+  { raw, hasForbiddenRawUrlCharacter }: { raw: string; hasForbiddenRawUrlCharacter: RawUrlCharacterCheck },
+  _optional = {},
+): PeerBaseUrlAccepted | PeerBaseUrlRefusal {
   const trimmed = raw.trim();
   if (trimmed === "") return { error: "baseUrl is required" };
   if (hasForbiddenRawUrlCharacter({ raw: trimmed })) {
