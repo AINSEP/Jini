@@ -313,3 +313,15 @@ inputs; Jini never names one.
   classes; the host styles them.
 - `shell/components/AssistantDock/hooks/use-routed-a2ui-surface-card.hooks` reads only `events` and
   `onAgentAction` from the a2ui card props (`A2uiSurfaceCardProps`, a structural kit mirror).
+
+## Wiring: admin failure reporter (`shell/lib/admin-failure-reporter`)
+
+- `createAdminFailureReporter({ channel, vocabulary, redaction, appVersion, jiniVersion, decodeError, notRunningCodes }, { now?, mintErrorId? })`
+  returns `{ adminFailureChannel, isPageWideFailure, publishAdminFailure, publishLocalAdminFailure }`
+  bound to one host channel. Jini owns the disclosure rules (approved server wording only after
+  sign-in, redacted unlisted routes, small `{error, code}` replies, "post" -> "page" swap, the
+  page-wide classification). The host injects its channel (`@jini-ai/ui/panel-kit`'s
+  `createFailureChannel`), its failure vocabulary and redaction options, its "Copy details" app
+  label, the error decoder (`@jini-ai/protocol`'s `decodeApiError`; this package does not depend on
+  protocol) and the server codes a passive read answers while the assistant is not running.
+  `isClipboardRefusal` is a plain export. The host calls the factory once in its composition module.

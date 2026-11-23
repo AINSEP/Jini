@@ -125,6 +125,7 @@
       "./shell/lib/owner-recovery-api": "browser",
       "./shell/lib/visitor-tools": "browser",
       "./shell/lib/assistant-agents-snapshot": "browser",
+      "./shell/lib/admin-failure-reporter": "browser",
       "./shell/lib/browser-working-directory-access": "browser",
       "./shell/lib/viewer-time-zone": "browser",
       "./shell/lib/widget-embed-placement-content": "browser",
@@ -258,6 +259,7 @@
         "./shell/lib/owner-recovery-api": "browser",
         "./shell/lib/visitor-tools": "browser",
         "./shell/lib/assistant-agents-snapshot": "browser",
+        "./shell/lib/admin-failure-reporter": "browser",
         "./shell/lib/browser-working-directory-access": "browser",
         "./shell/lib/viewer-time-zone": "browser",
         "./shell/lib/widget-embed-placement-content": "browser",
@@ -859,6 +861,11 @@
       "types": "./dist/shell/lib/assistant-agents-snapshot.d.ts",
       "import": "./dist/shell/lib/assistant-agents-snapshot.js",
       "default": "./dist/shell/lib/assistant-agents-snapshot.js"
+    },
+    "./shell/lib/admin-failure-reporter": {
+      "types": "./dist/shell/lib/admin-failure-reporter.d.ts",
+      "import": "./dist/shell/lib/admin-failure-reporter.js",
+      "default": "./dist/shell/lib/admin-failure-reporter.js"
     },
     "./shell/lib/browser-working-directory-access": {
       "types": "./dist/shell/lib/browser-working-directory-access.d.ts",
