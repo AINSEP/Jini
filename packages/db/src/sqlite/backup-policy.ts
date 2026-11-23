@@ -53,12 +53,68 @@ export async function pruneDatabaseCopies(
     remove?: (copy: DatabaseCopy) => Promise<void>;
   } = {},
 ): Promise<void> {
-  const directory = path.dirname(path.resolve(justWritten));
-  const local = copies.filter(copy => path.dirname(path.resolve(copy.filePath)) === directory);
-  local.sort((a, b) => b.createdAt - a.createdAt || b.filePath.localeCompare(a.filePath));
+  const local = localCopiesNewestFirst({ copies, anchorPath: justWritten });
   const retained = new Set(local.slice(0, DATABASE_COPY_RETENTION).map(copy => copy.filePath));
   for (const copy of local) {
     if (copy.filePath === justWritten || retained.has(copy.filePath) || protectedPaths.has(copy.filePath)) continue;
     await remove(copy);
   }
+}
+
+/** The one ordering and folder rule both the live pruner and the selection pass use, so a pass can
+ * never disagree with boot about which copies are "the newest five".
+ * @complexity O(n log n) time, O(n) space. */
+function localCopiesNewestFirst(
+  { copies, anchorPath }: { copies: readonly DatabaseCopy[]; anchorPath: string },
+  _optional: Record<string, never> = {},
+): DatabaseCopy[] {
+  const directory = path.dirname(path.resolve(anchorPath));
+  const local = copies.filter(copy => path.dirname(path.resolve(copy.filePath)) === directory);
+  return local.sort((a, b) => b.createdAt - a.createdAt || b.filePath.localeCompare(a.filePath));
+}
+
+/** Pure selection for a scheduled retention pass: which caller-owned copies a pass MAY remove.
+ * Nothing is selected unless `verifiedNewest` names the newest local copy, because pruning against an
+ * unverified (possibly torn) copy would spend the only good recovery window. Protected copies are
+ * kept beyond `keep`, and copies outside the anchor's folder are never candidates. Selection only:
+ * the caller removes files, under whatever lock its backup publication and recovery readers share.
+ * @complexity O(n log n) time, O(n) space; no filesystem access.
+ * @example selectDatabaseCopiesToPrune({ copies, verifiedNewest: newest.filePath }, { protectedPaths }); */
+export function selectDatabaseCopiesToPrune(
+  { copies, verifiedNewest }: { copies: readonly DatabaseCopy[]; verifiedNewest: string | null | undefined },
+  { keep = DATABASE_COPY_RETENTION, protectedPaths = new Set<string>() }: {
+    keep?: number;
+    protectedPaths?: ReadonlySet<string>;
+  } = {},
+): DatabaseCopy[] {
+  if (!Number.isInteger(keep) || keep < 1) {
+    throw new RangeError(`Copy retention keep must be a whole number of at least 1 (got ${keep}).`);
+  }
+  if (!verifiedNewest) return [];
+  const anchor = path.resolve(verifiedNewest);
+  // Identities, not spellings: an alias of a retained copy must neither take a window slot nor be selected.
+  const local = collapseByIdentity(localCopiesNewestFirst({ copies, anchorPath: anchor }));
+  // The anchor has to be the newest listed copy: a newer copy written after verification is unproven.
+  if (local.length === 0 || local[0]!.identity !== anchor) return [];
+  // The anchor is listed explicitly even though collapse + keep >= 1 already retain it: selection must never
+  // depend on that coupling to spare the only verified copy.
+  const kept = new Set([...[...protectedPaths].map(filePath => path.resolve(filePath)), anchor]);
+  return local.slice(keep).filter(entry => !kept.has(entry.identity)).map(entry => entry.copy);
+}
+
+/** First (newest) row wins for each resolved path; later rows naming the same file are dropped.
+ * @complexity O(n) time, O(n) space. */
+function collapseByIdentity(
+  newestFirst: readonly DatabaseCopy[],
+  _optional: Record<string, never> = {},
+): { readonly copy: DatabaseCopy; readonly identity: string }[] {
+  const seen = new Set<string>();
+  const unique: { readonly copy: DatabaseCopy; readonly identity: string }[] = [];
+  for (const copy of newestFirst) {
+    const identity = path.resolve(copy.filePath);
+    if (seen.has(identity)) continue;
+    seen.add(identity);
+    unique.push({ copy, identity });
+  }
+  return unique;
 }

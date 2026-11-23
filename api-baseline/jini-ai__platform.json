@@ -662,6 +662,32 @@
    "resolveSystemProxyEnv": "function:3f75e3da90"
   }
  },
+ "./retention": {
+  "types": "./dist/retention/index.d.ts",
+  "symbols": {
+   "RETENTION_DEFAULT_INTERVAL_MS": "variable:debee6be42",
+   "RetentionMeasurement": "interface:3ea146e449",
+   "RetentionPassResult": "type:7f431e55cb",
+   "RetentionPolicy": "interface:890b352e8c",
+   "RetentionPolicyKind": "type:10af32746f",
+   "RetentionPolicyOutcome": "type:dc11c62851",
+   "RetentionRunner": "interface:3f6541065e",
+   "RetentionRunnerOptional": "interface:b7d4199d21",
+   "RetentionRunnerRequired": "interface:167c571e83",
+   "RetentionScheduler": "interface:39d0b07f5f",
+   "RetentionSweepResult": "interface:4f09e258d9",
+   "StorageTally": "interface:84d73b99b3",
+   "StorageTarget": "interface:623a8fe5cd",
+   "StorageTreeDirectory": "interface:eb471ed60b",
+   "StorageTreeFs": "interface:9bf099a22a",
+   "StorageTreeIdentity": "interface:89e6cf31a4",
+   "StorageTreeMeasurement": "interface:9a7f32b887",
+   "StorageTreeStats": "interface:7df0d80cb9",
+   "createRetentionRunner": "function:f091027fb8",
+   "measureStorageTree": "function:308207e10a",
+   "nodeStorageTreeFs": "variable:88fd038cce"
+  }
+ },
  "./secrets": {
   "types": "./dist/secrets/index.d.ts",
   "symbols": {

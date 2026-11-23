@@ -1,0 +1,15 @@
+ST-14 (Jini half) extra mutation: follow symlinks — default fs adapter lstat -> stat in packages/platform/src/retention/measure-tree.ts
+   ✓ targets add up to the walked total, with the rest under other 10ms
+   ✓ a WAL file is not counted as its database, though its name starts with the database name 3ms
+   × a symlink is not followed 12ms
+   × a symlinked root is not followed either 4ms
+   ✓ an unreadable folder is reported unknown, not 0 5ms
+   ✓ an unreadable folder makes every target inside it unknown too 3ms
+   ✓ an unreadable file or root is unknown; a file that vanished mid-walk is simply gone 3ms
+   ✓ a missing root measures as empty, not unknown 1ms
+   ✓ special files such as sockets are listed by nobody and counted as nothing 1ms
+   ✓ relative, duplicate or outside targets are refused in plain words 2ms
+   ✓ nested targets: the closest target owns a file 3ms
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 2 ⎯⎯⎯⎯⎯⎯⎯
+      Tests  2 failed | 9 passed (11)
+restored by byte copy (cmp identical); rerun: 27/27 pass

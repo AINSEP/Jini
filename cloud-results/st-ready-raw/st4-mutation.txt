@@ -1,0 +1,27 @@
+ST-4 named mutation: let runOnce start a second pass while one is running
+plant (packages/platform/src/retention/runner.ts request()): 'if (!running) return begin(dryRun); if (running.dryRun === dryRun) return running.promise;' -> 'if (!running || running.dryRun === dryRun) return begin(dryRun);'
+   ✓ dryRun never calls sweep 2ms
+   ✓ a live pass sweeps each policy with the injected clock 0ms
+   ✓ one failing policy does not stop the next 0ms
+   ✓ a failing measurement is reported in plain words and the pass still completes 0ms
+   ✓ a throwing reportError cannot break the pass 0ms
+   × boot, timer and manual passes share one in-flight pass 8ms
+   ✓ a dry run that arrives during a live pass gets a measurement-only result 1ms
+   × a confirmed cleanup that arrives during a dry run gets an actual sweep 2ms
+   ✓ stop during a queued pass cancels it and still drains the running one 0ms
+   ✓ stop awaits the pass in flight 0ms
+   ✓ after stop no pass starts, the timer is cleared, and start refuses in plain words 1ms
+   ✓ scheduled passes are measure-only unless the host opts in, at the default daily interval 0ms
+   ✓ onReport receives every finished pass and its own failure is reported, not thrown 0ms
+   ✓ kinds outside cache, derived and old-copy are refused at creation 0ms
+   ✓ duplicate policy ids and a bad interval are refused at creation 0ms
+   ✓ type test: kind "content" does not compile 0ms
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 2 ⎯⎯⎯⎯⎯⎯⎯
+      Tests  2 failed | 14 passed (16)
+restored by byte copy (cmp identical); rerun src/retention: 27/27 pass
+Rerun at final tip 908ff341b:
+   × boot, timer and manual passes share one in-flight pass 8ms
+   × a confirmed cleanup that arrives during a dry run gets an actual sweep 3ms
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 2 ⎯⎯⎯⎯⎯⎯⎯
+      Tests  2 failed | 14 passed (16)
+restored (cmp identical)

@@ -32,7 +32,7 @@ describe('@jini-ai/db/sqlite barrel', () => {
     // 2375af6 added the backup-policy exports (free-space check + newest-five copy retention);
     // moves/w1-batch1 added the stopped-database admission trio (assertSqliteStopped,
     // checkpointStoppedSqliteWal, inspectStoppedSqlite) from sqlite/stopped.ts.
-    expect(Object.keys(sqlite).sort()).toEqual(['DATABASE_COPY_RETENTION', 'DEFAULT_PRAGMAS', 'DatabaseDiskSpaceError', 'SqliteClientError', 'SqliteDbOpsAdapter', 'assertDatabaseCopySpace', 'assertSqliteStopped', 'checkpointStoppedSqliteWal', 'createCheckedSqliteClient', 'inspectSqliteDatabase', 'inspectStoppedSqlite', 'openSqliteConnection', 'pruneDatabaseCopies', 'verifySqliteIntegrity', 'withSqliteTransaction']);
+    expect(Object.keys(sqlite).sort()).toEqual(['DATABASE_COPY_RETENTION', 'DEFAULT_PRAGMAS', 'DatabaseDiskSpaceError', 'SqliteClientError', 'SqliteDbOpsAdapter', 'assertDatabaseCopySpace', 'assertSqliteStopped', 'checkpointStoppedSqliteWal', 'createCheckedSqliteClient', 'inspectSqliteDatabase', 'inspectStoppedSqlite', 'openSqliteConnection', 'pruneDatabaseCopies', 'selectDatabaseCopiesToPrune', 'verifySqliteIntegrity', 'withSqliteTransaction']);
   });
 
   it('re-exports a working connection opener', () => {

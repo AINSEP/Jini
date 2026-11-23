@@ -1,0 +1,13 @@
+guard EXIT 0
+size EXIT 1
+complexity EXIT 1
+hooks EXIT 0
+why-base EXIT 0
+why-default EXIT 1
+log-safety EXIT 1
+error-gate EXIT 0
+api-check EXIT 0
+tsc-platform EXIT 0
+tsc-db EXIT 0
+test-platform EXIT 1
+test-db EXIT 0

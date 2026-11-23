@@ -43,7 +43,8 @@
       "./toolchain": "node",
       "./proxy-env": "node",
       "./shell": "node",
-      "./child-environment": "node"
+      "./child-environment": "node",
+      "./retention": "node"
     },
     "isolation": {
       "entries": {
@@ -230,6 +231,11 @@
       "types": "./dist/child-environment.d.ts",
       "import": "./dist/child-environment.js",
       "default": "./dist/child-environment.js"
+    },
+    "./retention": {
+      "types": "./dist/retention/index.d.ts",
+      "import": "./dist/retention/index.js",
+      "default": "./dist/retention/index.js"
     }
   },
   "files": [
