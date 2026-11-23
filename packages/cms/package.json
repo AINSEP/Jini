@@ -204,7 +204,11 @@
       "./admin-http/routes/entries/update": "universal",
       "./admin-http/routes/entries/lifecycle": "universal",
       "./admin-http/routes/taxonomy/list": "universal",
-      "./admin-http/routes/taxonomy/delete-taxonomy": "universal"
+      "./admin-http/routes/taxonomy/delete-taxonomy": "universal",
+      "./admin-http/routes/widgets/embed-insert": "universal",
+      "./admin-http/routes/widgets/embed-remove": "universal",
+      "./admin-http/routes/widgets/embed-reorder": "universal",
+      "./admin-http/routes/widgets/region-mutate-placements": "universal"
     },
     "isolation": {
       "domains": {
@@ -316,7 +320,11 @@
         "./admin-http/routes/entries/update": "entries",
         "./admin-http/routes/entries/lifecycle": "entries",
         "./admin-http/routes/taxonomy/list": "taxonomy",
-        "./admin-http/routes/taxonomy/delete-taxonomy": "taxonomy"
+        "./admin-http/routes/taxonomy/delete-taxonomy": "taxonomy",
+        "./admin-http/routes/widgets/embed-insert": "widgets",
+        "./admin-http/routes/widgets/embed-remove": "widgets",
+        "./admin-http/routes/widgets/embed-reorder": "widgets",
+        "./admin-http/routes/widgets/region-mutate-placements": "widgets"
       },
       "forbidden": {
         "universal": [
@@ -1314,6 +1322,26 @@
       "types": "./dist/admin-http/routes/taxonomy/delete-taxonomy.d.ts",
       "import": "./dist/admin-http/routes/taxonomy/delete-taxonomy.js",
       "default": "./dist/admin-http/routes/taxonomy/delete-taxonomy.js"
+    },
+    "./admin-http/routes/widgets/embed-insert": {
+      "types": "./dist/admin-http/routes/widgets/embed-insert.d.ts",
+      "import": "./dist/admin-http/routes/widgets/embed-insert.js",
+      "default": "./dist/admin-http/routes/widgets/embed-insert.js"
+    },
+    "./admin-http/routes/widgets/embed-remove": {
+      "types": "./dist/admin-http/routes/widgets/embed-remove.d.ts",
+      "import": "./dist/admin-http/routes/widgets/embed-remove.js",
+      "default": "./dist/admin-http/routes/widgets/embed-remove.js"
+    },
+    "./admin-http/routes/widgets/embed-reorder": {
+      "types": "./dist/admin-http/routes/widgets/embed-reorder.d.ts",
+      "import": "./dist/admin-http/routes/widgets/embed-reorder.js",
+      "default": "./dist/admin-http/routes/widgets/embed-reorder.js"
+    },
+    "./admin-http/routes/widgets/region-mutate-placements": {
+      "types": "./dist/admin-http/routes/widgets/region-mutate-placements.d.ts",
+      "import": "./dist/admin-http/routes/widgets/region-mutate-placements.js",
+      "default": "./dist/admin-http/routes/widgets/region-mutate-placements.js"
     }
   },
   "files": [
