@@ -19,7 +19,8 @@
       "./dom": "browser",
       "./skills/install": "node",
       "./skills/install/node": "node",
-      "./skills/tools": "node"
+      "./skills/tools": "node",
+      "./skills/site/live-registration": "node"
     },
     "optionalPeers": {
       "@jini-ai/protocol": "opt-in: agent protocol adapters — Agent protocol adapters could not load @jini-ai/protocol. Install @jini-ai/protocol to enable this feature, or check its installed version and native binaries."
@@ -64,6 +65,11 @@
       "types": "./dist/skills/tools/index.d.ts",
       "import": "./dist/skills/tools/index.js",
       "default": "./dist/skills/tools/index.js"
+    },
+    "./skills/site/live-registration": {
+      "types": "./dist/skills/site/live-registration.d.ts",
+      "import": "./dist/skills/site/live-registration.js",
+      "default": "./dist/skills/site/live-registration.js"
     }
   },
   "files": [

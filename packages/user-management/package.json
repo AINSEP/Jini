@@ -23,7 +23,12 @@
       "./admin/react": "browser",
       "./admin/adapters/http": "universal",
       "./admin/adapters/memory": "universal",
-      "./admin/conformance": "universal"
+      "./admin/conformance": "universal",
+      "./mail/status/agent-tools": "universal",
+      "./mail/status/delivery-agent-tools": "universal",
+      "./mail/status/provider-agent-tools": "universal",
+      "./mail/status/permissions": "universal",
+      "./mail/status/domain-deps": "universal"
     },
     "optionalPeers": {
       "argon2": "opt-in: argon2 password hashing; import @jini-ai/user-management/server — Argon2 password hashing could not load argon2. Install argon2 to enable this feature, or check its installed version and native binaries.",
@@ -89,6 +94,31 @@
       "types": "./dist/admin/conformance/index.d.ts",
       "import": "./dist/admin/conformance/index.js",
       "default": "./dist/admin/conformance/index.js"
+    },
+    "./mail/status/agent-tools": {
+      "types": "./dist/mail/status/agent-tools.d.ts",
+      "import": "./dist/mail/status/agent-tools.js",
+      "default": "./dist/mail/status/agent-tools.js"
+    },
+    "./mail/status/delivery-agent-tools": {
+      "types": "./dist/mail/status/delivery-agent-tools.d.ts",
+      "import": "./dist/mail/status/delivery-agent-tools.js",
+      "default": "./dist/mail/status/delivery-agent-tools.js"
+    },
+    "./mail/status/provider-agent-tools": {
+      "types": "./dist/mail/status/provider-agent-tools.d.ts",
+      "import": "./dist/mail/status/provider-agent-tools.js",
+      "default": "./dist/mail/status/provider-agent-tools.js"
+    },
+    "./mail/status/permissions": {
+      "types": "./dist/mail/status/permissions.d.ts",
+      "import": "./dist/mail/status/permissions.js",
+      "default": "./dist/mail/status/permissions.js"
+    },
+    "./mail/status/domain-deps": {
+      "types": "./dist/mail/status/domain-deps.d.ts",
+      "import": "./dist/mail/status/domain-deps.js",
+      "default": "./dist/mail/status/domain-deps.js"
     }
   },
   "files": [
