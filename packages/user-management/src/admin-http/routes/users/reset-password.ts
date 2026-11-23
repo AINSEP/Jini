@@ -1,6 +1,6 @@
 import { defineJsonRoute, ok } from "@jini-ai/core/contracts/server";
 
-import { resetUserPassword } from "../../../server/admin-crud-service.js";
+import type { resetUserPassword } from "../../../server/admin-crud-service.js";
 import {
   hostRung, principalIdParam, rejectUserError, rejectUserInTrash, USER_FORBIDDEN, USER_NOT_FOUND, USER_OWNER_REQUIRED, USER_VALIDATION, userActorId,
   type AssertUserAccountActionFn, type HostErrorPredicate, type IdentityServicesFn, type IsInTrashFn, type UserErrorRung, type UserRoutePrincipal,
@@ -9,6 +9,9 @@ import {
 /** The deps this route reads. */
 export interface UserResetPasswordRouteDeps {
   workspaceId: string;
+  /** Identity service(s), injected: the admin-http entry may not reach the `server` source domain
+   *  (subpath isolation); the host binds them from `@jini-ai/user-management/server`. */
+  resetUserPassword: typeof resetUserPassword;
   identityServices: IdentityServicesFn;
   isInTrash: IsInTrashFn;
   /** The seeded (bootstrap) owner's principal id, resolved by the host at boot. */
@@ -55,7 +58,7 @@ export const userResetPasswordRoute = defineJsonRoute<{ principalId: string; pas
       const services = deps.identityServices();
       await services.repos.transactions.run({ workspaceId, execute: async () => {
         await deps.assertUserAccountAction({ deps: services, workspaceId, principalId, action: "reset-password" }, { callerPrincipalId, seededOwnerPrincipalId });
-        return resetUserPassword({ deps: services, input: { workspaceId, callerPrincipalId, principalId, password, seededOwnerPrincipalId } });
+        return deps.resetUserPassword({ deps: services, input: { workspaceId, callerPrincipalId, principalId, password, seededOwnerPrincipalId } });
       } });
       return ok({ value: undefined });
     } catch (err) {

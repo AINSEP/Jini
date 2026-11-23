@@ -17,9 +17,9 @@ describe("newsletterCreateCampaignRoute", () => {
     expect(route.parse(raw({}, { ...VALID, preheader: "Hi" }))).toEqual({ ok: true, value: { fields: { ...VALID, preheader: "Hi" } } });
   });
 
-  it.each([
+  it.each<readonly [string, unknown]>([
     ["a missing body", undefined],
-    ...["subject", "fromName", "fromEmail", "replyTo", "listId"].map((name) => [`a non-string ${name}`, { ...VALID, [name]: 1 }] as const),
+    ...["subject", "fromName", "fromEmail", "replyTo", "listId"].map((name): readonly [string, unknown] => [`a non-string ${name}`, { ...VALID, [name]: 1 }]),
     ["a null bodyJson", { ...VALID, bodyJson: null }],
     ["an array bodyJson", { ...VALID, bodyJson: [] }],
     ["a string bodyJson", { ...VALID, bodyJson: "doc" }],

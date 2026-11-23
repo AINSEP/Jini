@@ -2,8 +2,8 @@ import { defineJsonRoute, ok } from "@jini-ai/core/contracts/server";
 import { RouteRefusalError } from "@jini-ai/core/errors/route-refusal";
 
 import { IdentityConflictError } from "../../../core/types.js";
-import { createUser } from "../../../server/grant-service.js";
-import { normalizeUsername } from "../../../server/username.js";
+import type { createUser } from "../../../server/grant-service.js";
+import type { normalizeUsername } from "../../../server/username.js";
 import { toAdminUserResponse, type AdminUserResponse } from "../../http/users.js";
 import {
   rejectUserError, USER_FORBIDDEN, USER_USERNAME_CONFLICT, USER_VALIDATION, userActorId,
@@ -13,6 +13,10 @@ import {
 /** The deps this route reads. */
 export interface UserCreateRouteDeps {
   workspaceId: string;
+  /** Identity service(s), injected: the admin-http entry may not reach the `server` source domain
+   *  (subpath isolation); the host binds them from `@jini-ai/user-management/server`. */
+  createUser: typeof createUser;
+  normalizeUsername: typeof normalizeUsername;
   identityServices: IdentityServicesFn;
   isInTrash: IsInTrashFn;
 }
@@ -35,7 +39,7 @@ const USER_CREATE_ERRORS = [USER_FORBIDDEN, USER_USERNAME_CONFLICT, USER_VALIDAT
  * @complexity O(1): one normalize, one indexed `findByUsername`, one `isInTrash` check.
  */
 async function usernameHeldByTrashedUser({ deps, rawUsername }: { deps: UserCreateRouteDeps; rawUsername: string }, _optional: Record<string, never> = {}): Promise<boolean> {
-  const username = normalizeUsername({ raw: rawUsername });
+  const username = deps.normalizeUsername({ raw: rawUsername });
   if (!username) return false;
   const existingUser = await deps.identityServices().repos.users.findByUsername({ workspaceId: deps.workspaceId, username });
   if (!existingUser) return false;
@@ -64,7 +68,7 @@ export const userCreateRoute = defineJsonRoute<UserCreateInput, { user: AdminUse
   handle: async ({ input, deps, context }) => {
     const callerPrincipalId = userActorId({ context });
     try {
-      const { principal, user } = await createUser({
+      const { principal, user } = await deps.createUser({
         deps: deps.identityServices(),
         input: { workspaceId: deps.workspaceId, callerPrincipalId, username: input.username, password: input.password },
       }, { email: input.email });

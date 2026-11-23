@@ -19,8 +19,8 @@ describe("newsletterUpdateCampaignRoute", () => {
     expect(route.parse(raw({ id: "camp-1" }, undefined))).toEqual({ ok: true, value: { id: "camp-1", body: {} } });
   });
 
-  it.each([
-    ...["subject", "preheader", "fromName", "fromEmail", "replyTo", "listId"].map((name) => [{ [name]: null }, `${name} must be a string when provided`] as const),
+  it.each<readonly [Record<string, unknown>, string]>([
+    ...["subject", "preheader", "fromName", "fromEmail", "replyTo", "listId"].map((name): readonly [Record<string, unknown>, string] => [{ [name]: null }, `${name} must be a string when provided`]),
     [{ subject: 1, bodyJson: null }, "subject must be a string when provided"],
     [{ bodyJson: null }, "bodyJson must be an object when provided"],
     [{ bodyJson: [] }, "bodyJson must be an object when provided"],
@@ -35,11 +35,11 @@ describe("newsletterUpdateCampaignRoute", () => {
 
   it("merges every omitted field from the stored campaign and saves as the principal", async () => {
     const saved: unknown[] = [];
-    const result = await route.handle({ input: { id: "camp-1", body: { subject: "New" } }, deps: deps(saved), context: PRINCIPAL, authorize: recordingAuthorize().authorize });
+    const result = await route.handle({ input: { id: "camp-1", body: { fromName: "New" } }, deps: deps(saved), context: PRINCIPAL, authorize: recordingAuthorize().authorize });
     const existing = fakeCampaign({ preheader: "Old", bodyJson: { type: "old" } });
     expect(saved).toEqual([{
       workspaceId: WORKSPACE_ID, id: "camp-1", actorId: PRINCIPAL.id, expectedVersion: undefined,
-      fields: { subject: "New", bodyJson: existing.bodyJson, preheader: "Old", fromName: existing.fromName, fromEmail: existing.fromEmail, replyTo: existing.replyTo, listId: existing.listId },
+      fields: { subject: existing.subject, bodyJson: existing.bodyJson, preheader: "Old", fromName: "New", fromEmail: existing.fromEmail, replyTo: existing.replyTo, listId: existing.listId },
     }]);
     expect(result).toEqual({ ok: true, value: { data: fakeCampaign({ status: "draft" }) } });
   });

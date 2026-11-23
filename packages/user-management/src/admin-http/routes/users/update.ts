@@ -2,7 +2,7 @@ import { defineJsonRoute, ok } from "@jini-ai/core/contracts/server";
 import { rejectRoute } from "@jini-ai/core/errors/route-refusal";
 
 import { IdentityNotFoundError, type UserRecord } from "../../../core/types.js";
-import { updateUser } from "../../../server/admin-crud-service.js";
+import type { updateUser } from "../../../server/admin-crud-service.js";
 import type { AuthServiceDeps } from "../../../server/auth-service.js";
 import type { AdminUserResponse } from "../../http/users.js";
 import {
@@ -13,6 +13,9 @@ import {
 /** The deps this route reads. */
 export interface UserUpdateRouteDeps {
   workspaceId: string;
+  /** Identity service(s), injected: the admin-http entry may not reach the `server` source domain
+   *  (subpath isolation); the host binds them from `@jini-ai/user-management/server`. */
+  updateUser: typeof updateUser;
   identityServices: IdentityServicesFn;
   isInTrash: IsInTrashFn;
 }
@@ -55,7 +58,7 @@ async function updateInTransaction(
       // The email setter clears an omitted value. HTTP PATCH retains an omitted field;
       // read and write in the same identity transaction so a competing edit cannot be lost.
       const current = email === undefined ? await services.repos.users.findByPrincipalId({ workspaceId, principalId }) : undefined;
-      return updateUser({ deps: services, input: { workspaceId, callerPrincipalId, principalId } }, { email: email === undefined ? current?.email : email, username });
+      return deps.updateUser({ deps: services, input: { workspaceId, callerPrincipalId, principalId } }, { email: email === undefined ? current?.email : email, username });
     },
   });
 }

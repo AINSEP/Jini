@@ -1,6 +1,6 @@
 import { defineJsonRoute, ok } from "@jini-ai/core/contracts/server";
 
-import { disablePrincipal } from "../../../server/admin-crud-service.js";
+import type { disablePrincipal } from "../../../server/admin-crud-service.js";
 import type { AdminUserResponse } from "../../http/users.js";
 import {
   adminUserForPrincipal, hostRung, principalIdParam, rejectUserError, USER_FORBIDDEN, USER_NOT_FOUND, USER_OWNER_REQUIRED, USER_VALIDATION, userActorId,
@@ -10,6 +10,9 @@ import {
 /** The deps this route reads. */
 export interface UserDisableRouteDeps {
   workspaceId: string;
+  /** Identity service(s), injected: the admin-http entry may not reach the `server` source domain
+   *  (subpath isolation); the host binds them from `@jini-ai/user-management/server`. */
+  disablePrincipal: typeof disablePrincipal;
   identityServices: IdentityServicesFn;
   /** The seeded (bootstrap) owner's principal id, resolved by the host at boot. */
   ownerPrincipalId: PromiseLike<string> | string;
@@ -45,7 +48,7 @@ export const userDisableRoute = defineJsonRoute<{ principalId: string }, { user:
       const services = deps.identityServices();
       const { principal } = await services.repos.transactions.run({ workspaceId, execute: async () => {
         await deps.assertUserAccountAction({ deps: services, workspaceId, principalId, action: "disable" }, { callerPrincipalId, seededOwnerPrincipalId });
-        return disablePrincipal({ deps: services, input: { workspaceId, callerPrincipalId, principalId, seededOwnerPrincipalId } });
+        return deps.disablePrincipal({ deps: services, input: { workspaceId, callerPrincipalId, principalId, seededOwnerPrincipalId } });
       } });
       return ok({ value: { user: await adminUserForPrincipal({ repos: services.repos, workspaceId, principal }) } });
     } catch (err) {

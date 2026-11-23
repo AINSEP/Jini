@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { resetUserPassword } from "../../../../server/admin-crud-service.js";
 import { userResetPasswordRoute } from "../reset-password.js";
 import { addUser, HostSelfDeleteError, raw, refusalOf, seededIdentity, signal, trashIndex, WORKSPACE_ID } from "./helpers.js";
 
@@ -8,7 +9,7 @@ async function resetDeps(guard: () => Promise<void> = async () => {}) {
   const trash = trashIndex();
   const guardCalls: unknown[][] = [];
   const deps = {
-    workspaceId: WORKSPACE_ID, identityServices: () => services, isInTrash: trash.isInTrash, ownerPrincipalId: Promise.resolve(ownerId),
+    workspaceId: WORKSPACE_ID, resetUserPassword, identityServices: () => services, isInTrash: trash.isInTrash, ownerPrincipalId: Promise.resolve(ownerId),
     assertUserAccountAction: async (...args: unknown[]) => { guardCalls.push(args); await guard(); },
     isSelfDeleteError: ({ err }: { err: unknown }) => err instanceof HostSelfDeleteError,
   };

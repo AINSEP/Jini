@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { updateUser } from "../../../../server/admin-crud-service.js";
 import { userUpdateRoute } from "../update.js";
 import { addUser, raw, refusalOf, seededIdentity, signal, trashIndex, WORKSPACE_ID } from "./helpers.js";
 
@@ -6,7 +7,7 @@ async function updateDeps() {
   const { services, ownerId } = await seededIdentity();
   const alice = await addUser({ services, ownerId, username: "alice" });
   const trash = trashIndex();
-  return { deps: { workspaceId: WORKSPACE_ID, identityServices: () => services, isInTrash: trash.isInTrash }, services, ownerId, alice, trash };
+  return { deps: { workspaceId: WORKSPACE_ID, updateUser, identityServices: () => services, isInTrash: trash.isInTrash }, services, ownerId, alice, trash };
 }
 const input = (principalId: string, overrides: Partial<{ email: string | undefined; username: string | undefined; usernameIsInvalid: boolean }> = {}) =>
   ({ principalId, email: undefined, username: undefined, usernameIsInvalid: false, ...overrides });

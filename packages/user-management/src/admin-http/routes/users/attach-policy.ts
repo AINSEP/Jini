@@ -1,7 +1,7 @@
 import { defineJsonRoute, ok } from "@jini-ai/core/contracts/server";
 
 import type { PrincipalPolicyRecord } from "../../../core/types.js";
-import { attachPolicy } from "../../../server/grant-service.js";
+import type { attachPolicy } from "../../../server/grant-service.js";
 import {
   principalIdParam, rejectUserError, USER_FORBIDDEN, USER_GRANT_EXCEEDS_ISSUER, USER_NOT_FOUND_CODELESS, USER_OWNER_REQUIRED, USER_VALIDATION,
   userActorId, type IdentityServicesFn, type UserRoutePrincipal,
@@ -10,6 +10,9 @@ import {
 /** The deps this route reads. */
 export interface UserAttachPolicyRouteDeps {
   workspaceId: string;
+  /** Identity service(s), injected: the admin-http entry may not reach the `server` source domain
+   *  (subpath isolation); the host binds them from `@jini-ai/user-management/server`. */
+  attachPolicy: typeof attachPolicy;
   identityServices: IdentityServicesFn;
 }
 
@@ -31,7 +34,7 @@ export const userAttachPolicyRoute = defineJsonRoute<{ principalId: string; poli
   handle: async ({ input, deps, context }) => {
     const callerPrincipalId = userActorId({ context });
     try {
-      const { attachment } = await attachPolicy({
+      const { attachment } = await deps.attachPolicy({
         deps: deps.identityServices(),
         input: { workspaceId: deps.workspaceId, callerPrincipalId, principalId: input.principalId, policyId: input.policyId },
       });

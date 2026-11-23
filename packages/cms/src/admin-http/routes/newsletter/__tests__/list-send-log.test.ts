@@ -1,11 +1,12 @@
 import { describe, expect, it } from "vitest";
 import { encodeListCursor } from "@jini-ai/core/list-page";
+import type { NewsletterCampaign } from "../../../http/newsletter.js";
 import { newsletterListSendLogRoute as route } from "../list-send-log.js";
 import { baseDeps, fakeCampaign, PRINCIPAL, raw, recordingAuthorize, refusalOf, WORKSPACE_ID } from "./helpers.js";
 
 /** @file LIST_SEND_LOG: 404 for an unknown campaign first, then one over-fetched page of send rows after the cursor's id. */
 
-function deps(lookups: unknown[], rows = [{ id: "s1" }, { id: "s2" }, { id: "s3" }], campaign: unknown = fakeCampaign()) {
+function deps(lookups: unknown[], rows = [{ id: "s1" }, { id: "s2" }, { id: "s3" }], campaign: NewsletterCampaign | null = fakeCampaign()) {
   return {
     ...baseDeps(),
     newsletterCampaignRepo: { findById: async () => campaign },

@@ -1,7 +1,7 @@
 import { defineJsonRoute, ok } from "@jini-ai/core/contracts/server";
 
 import type { PrincipalRoleRecord } from "../../../core/types.js";
-import { assignRole } from "../../../server/grant-service.js";
+import type { assignRole } from "../../../server/grant-service.js";
 import {
   principalIdParam, rejectUserError, USER_FORBIDDEN, USER_GRANT_EXCEEDS_ISSUER, USER_NOT_FOUND_CODELESS, USER_OWNER_REQUIRED, USER_VALIDATION,
   userActorId, type IdentityServicesFn, type UserRoutePrincipal,
@@ -10,6 +10,9 @@ import {
 /** The deps this route reads. */
 export interface UserAssignRoleRouteDeps {
   workspaceId: string;
+  /** Identity service(s), injected: the admin-http entry may not reach the `server` source domain
+   *  (subpath isolation); the host binds them from `@jini-ai/user-management/server`. */
+  assignRole: typeof assignRole;
   identityServices: IdentityServicesFn;
 }
 
@@ -30,7 +33,7 @@ export const userAssignRoleRoute = defineJsonRoute<{ principalId: string; roleId
   handle: async ({ input, deps, context }) => {
     const callerPrincipalId = userActorId({ context });
     try {
-      const { assignment } = await assignRole({
+      const { assignment } = await deps.assignRole({
         deps: deps.identityServices(),
         input: { workspaceId: deps.workspaceId, callerPrincipalId, principalId: input.principalId, roleId: input.roleId },
       });

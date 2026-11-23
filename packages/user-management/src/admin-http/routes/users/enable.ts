@@ -1,7 +1,7 @@
 import { defineJsonRoute, ok } from "@jini-ai/core/contracts/server";
 
-import { enablePrincipal } from "../../../server/admin-crud-service.js";
-import { assertCallerHasAnyPermission } from "../../../server/grant-service.js";
+import type { enablePrincipal } from "../../../server/admin-crud-service.js";
+import type { assertCallerHasAnyPermission } from "../../../server/grant-service.js";
 import type { AdminUserResponse } from "../../http/users.js";
 import {
   adminUserForPrincipal, principalIdParam, rejectUserError, rejectUserInTrash, USER_FORBIDDEN, USER_NOT_FOUND, USER_OWNER_REQUIRED, USER_VALIDATION,
@@ -11,6 +11,10 @@ import {
 /** The deps this route reads. */
 export interface UserEnableRouteDeps {
   workspaceId: string;
+  /** Identity service(s), injected: the admin-http entry may not reach the `server` source domain
+   *  (subpath isolation); the host binds them from `@jini-ai/user-management/server`. */
+  enablePrincipal: typeof enablePrincipal;
+  assertCallerHasAnyPermission: typeof assertCallerHasAnyPermission;
   identityServices: IdentityServicesFn;
   isInTrash: IsInTrashFn;
 }
@@ -34,12 +38,12 @@ export const userEnableRoute = defineJsonRoute<{ principalId: string }, { user: 
     try {
       // Trash membership is private too: use the identity owner's gate before looking it up.
       const services = deps.identityServices();
-      await assertCallerHasAnyPermission({ deps: services, workspaceId, callerPrincipalId, permissions: ["user.manage"] });
+      await deps.assertCallerHasAnyPermission({ deps: services, workspaceId, callerPrincipalId, permissions: ["user.manage"] });
       // OWNER DECISION 2026-09-24 (delete-user plan v2, decision 7) — refuse BEFORE the transition:
       // re-activating a trashed principal would leave an ACTIVE user still indexed for purge. The
       // refusal is not a rung, so `rejectUserError` rethrows it unchanged.
       if (await deps.isInTrash({ principalId })) rejectUserInTrash();
-      const { principal } = await enablePrincipal({ deps: services, input: { workspaceId, callerPrincipalId, principalId } });
+      const { principal } = await deps.enablePrincipal({ deps: services, input: { workspaceId, callerPrincipalId, principalId } });
       return ok({ value: { user: await adminUserForPrincipal({ repos: services.repos, workspaceId, principal }) } });
     } catch (err) {
       return rejectUserError({ err, rungs: USER_ENABLE_ERRORS });

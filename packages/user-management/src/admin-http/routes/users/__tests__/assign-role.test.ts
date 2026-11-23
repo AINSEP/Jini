@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { assignRole } from "../../../../server/grant-service.js";
 import { userAssignRoleRoute } from "../assign-role.js";
 import { addUser, raw, refusalOf, seededIdentity, signal, WORKSPACE_ID } from "./helpers.js";
 
@@ -6,7 +7,7 @@ async function grantDeps() {
   const { services, ownerId } = await seededIdentity();
   const alice = await addUser({ services, ownerId, username: "alice" });
   const [grant] = await services.repos.roles.list({ workspaceId: WORKSPACE_ID });
-  return { deps: { workspaceId: WORKSPACE_ID, identityServices: () => services }, services, ownerId, alice, grantId: grant!.id };
+  return { deps: { workspaceId: WORKSPACE_ID, assignRole, identityServices: () => services }, services, ownerId, alice, grantId: grant!.id };
 }
 
 describe("userAssignRoleRoute", () => {

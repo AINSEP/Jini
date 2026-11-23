@@ -1,4 +1,6 @@
 import { describe, expect, it } from "vitest";
+import { enablePrincipal } from "../../../../server/admin-crud-service.js";
+import { assertCallerHasAnyPermission } from "../../../../server/grant-service.js";
 import { disablePrincipal } from "../../../../server/admin-crud-service.js";
 import { userEnableRoute } from "../enable.js";
 import { addUser, raw, refusalOf, seededIdentity, signal, trashIndex, WORKSPACE_ID } from "./helpers.js";
@@ -8,7 +10,7 @@ async function enableDeps() {
   const alice = await addUser({ services, ownerId, username: "alice" });
   await disablePrincipal({ deps: services, input: { workspaceId: WORKSPACE_ID, callerPrincipalId: ownerId, principalId: alice, seededOwnerPrincipalId: ownerId } });
   const trash = trashIndex();
-  return { deps: { workspaceId: WORKSPACE_ID, identityServices: () => services, isInTrash: trash.isInTrash }, services, ownerId, alice, trash };
+  return { deps: { workspaceId: WORKSPACE_ID, enablePrincipal, assertCallerHasAnyPermission, identityServices: () => services, isInTrash: trash.isInTrash }, services, ownerId, alice, trash };
 }
 
 describe("userEnableRoute", () => {

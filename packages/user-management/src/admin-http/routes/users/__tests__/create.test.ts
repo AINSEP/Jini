@@ -1,11 +1,13 @@
 import { describe, expect, it } from "vitest";
+import { createUser } from "../../../../server/grant-service.js";
+import { normalizeUsername } from "../../../../server/username.js";
 import { userCreateRoute } from "../create.js";
 import { addUser, raw, refusalOf, seededIdentity, signal, trashIndex, WORKSPACE_ID } from "./helpers.js";
 
 async function createDeps() {
   const { services, ownerId } = await seededIdentity();
   const trash = trashIndex();
-  return { deps: { workspaceId: WORKSPACE_ID, identityServices: () => services, isInTrash: trash.isInTrash }, services, ownerId, trash };
+  return { deps: { workspaceId: WORKSPACE_ID, createUser, normalizeUsername, identityServices: () => services, isInTrash: trash.isInTrash }, services, ownerId, trash };
 }
 const input = (overrides: Partial<{ username: string; email: string | undefined; password: string }> = {}) =>
   ({ username: "carol", email: undefined, password: "carol-p4ssw0rd!", ...overrides });

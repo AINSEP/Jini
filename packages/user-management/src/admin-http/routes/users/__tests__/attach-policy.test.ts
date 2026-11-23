@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { attachPolicy } from "../../../../server/grant-service.js";
 import { userAttachPolicyRoute } from "../attach-policy.js";
 import { addUser, raw, refusalOf, seededIdentity, signal, WORKSPACE_ID } from "./helpers.js";
 
@@ -6,7 +7,7 @@ async function grantDeps() {
   const { services, ownerId } = await seededIdentity();
   const alice = await addUser({ services, ownerId, username: "alice" });
   const [grant] = await services.repos.policies.list({ workspaceId: WORKSPACE_ID });
-  return { deps: { workspaceId: WORKSPACE_ID, identityServices: () => services }, services, ownerId, alice, grantId: grant!.id };
+  return { deps: { workspaceId: WORKSPACE_ID, attachPolicy, identityServices: () => services }, services, ownerId, alice, grantId: grant!.id };
 }
 
 describe("userAttachPolicyRoute", () => {

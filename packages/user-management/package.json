@@ -33,7 +33,6 @@
       "./admin-http/routes/users/update-policy": "universal",
       "./admin-http/routes/users/delete-policy": "universal",
       "./admin-http/routes/users/write-policy-permission": "universal",
-      "./admin-http/routes/users/remove-policy-permission": "universal",
       "./admin-http/routes/users/shared": "universal",
       "./admin-http/routes/users/list": "universal",
       "./admin-http/routes/users/create": "universal",
@@ -154,11 +153,6 @@
       "types": "./dist/admin-http/routes/users/write-policy-permission.d.ts",
       "import": "./dist/admin-http/routes/users/write-policy-permission.js",
       "default": "./dist/admin-http/routes/users/write-policy-permission.js"
-    },
-    "./admin-http/routes/users/remove-policy-permission": {
-      "types": "./dist/admin-http/routes/users/remove-policy-permission.d.ts",
-      "import": "./dist/admin-http/routes/users/remove-policy-permission.js",
-      "default": "./dist/admin-http/routes/users/remove-policy-permission.js"
     },
     "./admin-http/routes/users/shared": {
       "types": "./dist/admin-http/routes/users/shared.d.ts",

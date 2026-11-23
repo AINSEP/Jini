@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { disablePrincipal } from "../../../../server/admin-crud-service.js";
 import { userDisableRoute } from "../disable.js";
 import { addUser, HostSelfDeleteError, raw, refusalOf, seededIdentity, signal, WORKSPACE_ID } from "./helpers.js";
 
@@ -7,7 +8,7 @@ async function disableDeps(guard: (args: unknown[]) => Promise<void> = async () 
   const alice = await addUser({ services, ownerId, username: "alice" });
   const guardCalls: unknown[][] = [];
   const deps = {
-    workspaceId: WORKSPACE_ID, identityServices: () => services, ownerPrincipalId: Promise.resolve(ownerId),
+    workspaceId: WORKSPACE_ID, disablePrincipal, identityServices: () => services, ownerPrincipalId: Promise.resolve(ownerId),
     assertUserAccountAction: async (...args: unknown[]) => { guardCalls.push(args); await guard(args); },
     isSelfDeleteError: ({ err }: { err: unknown }) => err instanceof HostSelfDeleteError,
   };
