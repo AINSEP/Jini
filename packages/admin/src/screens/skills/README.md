@@ -31,7 +31,10 @@ hooks live here too; the data hooks over the host's skills transport stay in the
 - `skills-screen.types.ts` — view shapes (`SkillRowView`, `SkillsScreenController`, `SkillInstallView`)
   over `InstalledSkill` from `@jini-ai/core/contracts/site/installed-skill`, the type the host's
   transport returns.
-- Classes: this screen's own classes are `jini-skills-*` (styled by the host's `skills.css`); the shared
-  row, button, notice, card and dialog classes (`agent-plugin-*`, `btn-*`, `notice`, `card`,
-  `settings-dialog*`, `editor-actions`, `page`, `settings-ui-section`) are the host design system's and
-  are kept as-is.
+- Classes: this screen's own classes are `jini-skills-*` (styled by the host's `skills.css`). Every
+  shared host design-system class (page, section, card, notice, buttons, dialog, plugin-row look) arrives
+  through a REQUIRED `classNames` prop typed `SkillsScreenClassNames` (`skills-screen.types.ts`); `Skills`
+  passes it to `SkillRow` (`SkillRowClassNames`) and both dialogs (`SkillDialogClassNames`). Nothing
+  host-named is hard-coded here. The reference host binds the map once as `SKILLS_HOST_CLASSNAMES` in
+  `apps/admin/src/features/skills/skill-install-confirmation-host.ts` (also carried by
+  `SKILL_INSTALL_CONFIRMATION_HOST` into the chat dock).

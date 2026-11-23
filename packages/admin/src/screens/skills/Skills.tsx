@@ -3,27 +3,27 @@ import { ErrorNotice, Icon, SettingsDialogShell, type SettingsDialogTab } from "
 import { SkillInstallConfirmation } from "./SkillInstallConfirmation.js";
 import { SkillRemoveConfirmDialog } from "./SkillRemoveConfirmDialog.js";
 import { SkillRow } from "./SkillRow.js";
-import type { SkillFailureHost, SkillsScreenComponents, SkillsScreenController as SkillsController, SkillsScreenHooks } from "./skills-screen.types.js";
+import type { SkillFailureHost, SkillsScreenClassNames, SkillsScreenComponents, SkillsScreenController as SkillsController, SkillsScreenHooks } from "./skills-screen.types.js";
 import { type Translate } from '@jini-ai/core/text';
 const SKILL_FILE_ACCEPT = ".zip,.md,.txt,.json,.yaml,.yml,.csv,.svg,.sh,.py,.js,.ts,.mjs,.png,.jpg,.jpeg,.webp";
 
 /** Installed rows and their loading/empty states share the default Skills tab. */
-function InstalledSkillsPanel({ controller, t, PlainTextBlocks }: { controller: SkillsController; t: Translate; PlainTextBlocks: SkillsScreenComponents<object>["PlainTextBlocks"] }) {
+function InstalledSkillsPanel({ controller, t, PlainTextBlocks, classNames: cx }: { controller: SkillsController; t: Translate; PlainTextBlocks: SkillsScreenComponents<object>["PlainTextBlocks"]; classNames: SkillsScreenClassNames }) {
   return (
     <>
-      {controller.loading ? <div className="notice" role="status">{t("Loading skills…")}</div> : null}
+      {controller.loading ? <div className={cx.notice} role="status">{t("Loading skills…")}</div> : null}
       {controller.empty ? (
-        <div className="card">
-          <div className="empty-state" role="status">
+        <div className={cx.card}>
+          <div className={cx.emptyState} role="status">
             <p>{t("No skills installed yet")}</p>
-            <p className="page-description">{t("Add a GitHub skill or upload files to get started.")}</p>
-            <button type="button" className="btn-primary" onClick={controller.onShowAdd}>{t("Add a skill")}</button>
+            <p className={cx.pageDescription}>{t("Add a GitHub skill or upload files to get started.")}</p>
+            <button type="button" className={cx.buttonPrimary} onClick={controller.onShowAdd}>{t("Add a skill")}</button>
           </div>
         </div>
       ) : null}
       {controller.rows.length > 0 ? (
-        <ul className="agent-plugin-rows" aria-label={t("Installed skills")}>
-          {controller.rows.map(row => <SkillRow key={row.skill.toolId} row={row} t={t} PlainTextBlocks={PlainTextBlocks} />)}
+        <ul className={cx.rows} aria-label={t("Installed skills")}>
+          {controller.rows.map(row => <SkillRow key={row.skill.toolId} row={row} t={t} PlainTextBlocks={PlainTextBlocks} classNames={cx} />)}
         </ul>
       ) : null}
     </>
@@ -31,7 +31,7 @@ function InstalledSkillsPanel({ controller, t, PlainTextBlocks }: { controller: 
 }
 
 /** Install inputs keep their values and pending confirmation in the page controller. */
-function AddSkillPanel({ controller, t, components }: { controller: SkillsController; t: Translate; components: Pick<SkillsScreenComponents<object>, "InstallTabCard" | "InstallTabOption" | "InstallTabFieldRow"> }) {
+function AddSkillPanel({ controller, t, components, classNames: cx }: { controller: SkillsController; t: Translate; components: Pick<SkillsScreenComponents<object>, "InstallTabCard" | "InstallTabOption" | "InstallTabFieldRow">; classNames: SkillsScreenClassNames }) {
   const { InstallTabCard, InstallTabOption, InstallTabFieldRow } = components;
   return (
     <InstallTabCard titleId="skills-add-title" title={t("Add a skill")}>
@@ -47,9 +47,9 @@ function AddSkillPanel({ controller, t, components }: { controller: SkillsContro
           onSubmit={controller.onSubmitGithub}
           action={{ label: t("Add from GitHub"), disabled: controller.githubDisabled, primary: true }}
         />
-        <div className="editor-actions">
-          <button type="button" className="btn-secondary" disabled={controller.addBusy} onClick={controller.onChooseFiles} {...agentHandle({ handle: "skills-add-files" }, { role: "button", label: t("Upload files") })}>{t("Upload files")}</button>
-          <button type="button" className="btn-secondary" disabled={controller.addBusy} onClick={controller.onChooseFolder} {...agentHandle({ handle: "skills-add-folder" }, { role: "button", label: t("Upload folder") })}>{t("Upload folder")}</button>
+        <div className={cx.editorActions}>
+          <button type="button" className={cx.buttonSecondary} disabled={controller.addBusy} onClick={controller.onChooseFiles} {...agentHandle({ handle: "skills-add-files" }, { role: "button", label: t("Upload files") })}>{t("Upload files")}</button>
+          <button type="button" className={cx.buttonSecondary} disabled={controller.addBusy} onClick={controller.onChooseFolder} {...agentHandle({ handle: "skills-add-folder" }, { role: "button", label: t("Upload folder") })}>{t("Upload folder")}</button>
         </div>
       </InstallTabOption>
       <input ref={controller.filesInput} {...agentHandle({ handle: "skills-add-files-input" }, { role: "field", label: t("Choose skill files") })} className="jini-skills-file-input" type="file" aria-label={t("Choose skill files")} multiple accept={SKILL_FILE_ACCEPT} onChange={controller.onFilesChange} hidden />
@@ -59,21 +59,22 @@ function AddSkillPanel({ controller, t, components }: { controller: SkillsContro
 }
 
 /** The failure notice and the two dialogs the page raises; split out so the page body stays under the complexity ceiling. */
-function SkillsOverlays<TFilesModal extends object>({ controller, t, filesModal, PackageFilesModal }: { controller: SkillsController; t: Translate; filesModal: TFilesModal | null; PackageFilesModal: SkillsScreenComponents<TFilesModal>["PackageFilesModal"] }) {
+function SkillsOverlays<TFilesModal extends object>({ controller, t, filesModal, PackageFilesModal, classNames }: { controller: SkillsController; t: Translate; filesModal: TFilesModal | null; PackageFilesModal: SkillsScreenComponents<TFilesModal>["PackageFilesModal"]; classNames: SkillsScreenClassNames }) {
   return (
     <>
       {controller.failure ? <ErrorNotice failure={controller.failure} t={t} /> : null}
-      {controller.removing ? <SkillRemoveConfirmDialog controller={controller} t={t} /> : null}
+      {controller.removing ? <SkillRemoveConfirmDialog controller={controller} t={t} classNames={classNames} /> : null}
       {filesModal ? <PackageFilesModal {...filesModal} /> : null}
     </>
   );
 }
 
 /** Agent Plugins' shared tab shell; navigation and installation behavior live in hooks. */
-export function Skills<TFilesModal extends object>({ hooks, components, failureHost }: {
+export function Skills<TFilesModal extends object>({ hooks, components, failureHost, classNames }: {
   hooks: SkillsScreenHooks<TFilesModal>;
   components: SkillsScreenComponents<TFilesModal>;
   failureHost: SkillFailureHost;
+  classNames: SkillsScreenClassNames;
 }) {
   const themeBoundary = hooks.useAdminThemeBoundary({}, {});
   const locale = hooks.useLocale();
@@ -81,12 +82,12 @@ export function Skills<TFilesModal extends object>({ hooks, components, failureH
   const controller = hooks.useSkills({ t });
   const filesModal = hooks.useSkillFilesModal({ skill: controller.inspecting, onClose: controller.onCloseFiles }, { t });
   const tabs: SettingsDialogTab[] = [
-    { id: "skills", label: t("Skills"), icon: <Icon name="document-marked" size={18} strokeWidth={1.5} />, title: t("Skills"), subtitle: t("Instructions for your assistant. Type /sk in chat to use one."), panel: <InstalledSkillsPanel controller={controller} t={t} PlainTextBlocks={components.PlainTextBlocks} /> },
-    { id: "add", label: t("Add a skill"), title: t("Skills"), subtitle: t("Instructions for your assistant. Type /sk in chat to use one."), panel: <AddSkillPanel controller={controller} t={t} components={components} /> },
+    { id: "skills", label: t("Skills"), icon: <Icon name="document-marked" size={18} strokeWidth={1.5} />, title: t("Skills"), subtitle: t("Instructions for your assistant. Type /sk in chat to use one."), panel: <InstalledSkillsPanel controller={controller} t={t} PlainTextBlocks={components.PlainTextBlocks} classNames={classNames} /> },
+    { id: "add", label: t("Add a skill"), title: t("Skills"), subtitle: t("Instructions for your assistant. Type /sk in chat to use one."), panel: <AddSkillPanel controller={controller} t={t} components={components} classNames={classNames} /> },
   ];
   return (
     // Classic keeps its unverified-dark light pin; Glass follows the document scheme.
-    <section className="page jini-skills-page settings-ui-section" {...themeBoundary} aria-label={t("Skills")}>
+    <section className={`${classNames.page} jini-skills-page ${classNames.section}`} {...themeBoundary} aria-label={t("Skills")}>
       <SettingsDialogShell
         tabs={tabs}
         activeTabId={controller.activeTabId}
@@ -97,9 +98,9 @@ export function Skills<TFilesModal extends object>({ hooks, components, failureH
         dialogAriaLabelledBy="skills-page-title"
         labels={{ kicker: t("Add-Ons"), sidebarAriaLabel: t("Skills sections") }}
       />
-      <SkillInstallConfirmation install={controller.install} locale={locale} hooks={hooks} failureHost={failureHost} />
-      <SkillsOverlays controller={controller} t={t} filesModal={filesModal} PackageFilesModal={components.PackageFilesModal} />
-      <p className="field-hint">{t("Skills work with Claude Code, Codex and BYOK. Aider, Gemini CLI and Pi can't use them.")}</p>
+      <SkillInstallConfirmation install={controller.install} locale={locale} hooks={hooks} failureHost={failureHost} classNames={classNames} />
+      <SkillsOverlays controller={controller} t={t} filesModal={filesModal} PackageFilesModal={components.PackageFilesModal} classNames={classNames} />
+      <p className={classNames.fieldHint}>{t("Skills work with Claude Code, Codex and BYOK. Aider, Gemini CLI and Pi can't use them.")}</p>
     </section>
   );
 }

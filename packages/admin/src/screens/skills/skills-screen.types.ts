@@ -89,3 +89,27 @@ export interface SkillsScreenComponents<TFilesModal extends object> {
   readonly InstallTabOption: ComponentType<{ children?: ReactNode }>;
   readonly InstallTabFieldRow: ComponentType<SkillsInstallFieldRowProps>;
 }
+
+/** The host design-system classes the Skills dialogs (install confirmation and remove) render. */
+export interface SkillDialogClassNames {
+  readonly dialogBackdrop: string; readonly dialog: string; readonly noticeError: string; readonly editorActions: string;
+  readonly buttonPrimary: string; readonly buttonSecondary: string; readonly buttonDanger: string;
+}
+
+/** The host design-system classes an installed-skill row renders (the shared plugin-row look). */
+export interface SkillRowClassNames {
+  readonly row: string; readonly rowMain: string; readonly rowSummary: string; readonly rowGlyph: string;
+  readonly rowText: string; readonly rowHeading: string; readonly rowName: string; readonly rowDesc: string;
+  readonly iconButton: string; readonly rowActions: string; readonly state: string; readonly switch: string;
+  readonly switchKnob: string; readonly rowDetail: string; readonly detailDescription: string;
+}
+
+/**
+ * Every host design-system class the Skills screen renders, bound once by the host. This package
+ * emits only `jini-*` classes of its own; the shared page, card, notice, button, dialog and row
+ * looks belong to the host, so their class names arrive here instead of being hard-coded.
+ */
+export interface SkillsScreenClassNames extends SkillDialogClassNames, SkillRowClassNames {
+  readonly page: string; readonly section: string; readonly notice: string; readonly card: string;
+  readonly emptyState: string; readonly pageDescription: string; readonly rows: string; readonly fieldHint: string;
+}
