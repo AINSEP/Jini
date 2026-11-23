@@ -90,12 +90,33 @@ export function toolRowTarget({ input, resultContent }: { input: unknown; result
   const args = (input ?? {}) as Record<string, unknown>;
   const named = firstReadable(args, SUMMARY_KEYS) ?? resultName(resultContent);
   const target = named ?? batchTarget(args) ?? firstReadable(args, KIND_KEYS) ?? Object.values(args).find(readable);
-  return targetAtOffset({ target, offset: args.offset });
+  return targetAtOffset({ target, offset: args.offset, limit: args.limit });
 }
 
 
-/** Preserve absent/invalid offsets; explicit zero still distinguishes a first-page read. */
-export function targetAtOffset({ target, offset }: { target: string | undefined; offset: unknown }, _options = {}): string | undefined {
-  if (!target || typeof offset !== 'number') return target;
-  return Number.isSafeInteger(offset) && offset >= 0 ? `${target} (offset ${offset})` : target;
+/** An offset is a non-negative whole number; zero is kept because it distinguishes an explicit first-page read. O(1). */
+function offsetNote(offset: unknown): string | undefined {
+  return typeof offset === 'number' && Number.isSafeInteger(offset) && offset >= 0 ? `offset ${offset}` : undefined;
+}
+
+/** A limit is a positive whole number: zero, negatives, fractions and non-numbers carry no window to show. O(1). */
+function limitNote(limit: unknown): string | undefined {
+  return typeof limit === 'number' && Number.isSafeInteger(limit) && limit > 0 ? `limit ${limit}` : undefined;
+}
+
+/**
+ * Appends a read's window to its target — `report.md (offset 10, limit 20)` — so two reads of one
+ * file never look identical. Absent or invalid values are left out; with neither valid the target
+ * is returned untouched (and `undefined` stays `undefined`, since a window alone names nothing).
+ *
+ * The raw `offset`/`limit` words are printed, never a computed "lines 10–29" range: `offset` counts
+ * lines for some read tools and UTF-8 bytes for others (`theme_read_file`), and its base differs by
+ * tool, so a derived range would be wrong for part of the tool set.
+ *
+ * @complexity O(1).
+ */
+export function targetAtOffset({ target, offset, limit }: { target: string | undefined; offset: unknown; limit?: unknown }, _options = {}): string | undefined {
+  const window = [offsetNote(offset), limitNote(limit)].filter((note): note is string => note !== undefined);
+  if (!target || window.length === 0) return target;
+  return `${target} (${window.join(', ')})`;
 }
