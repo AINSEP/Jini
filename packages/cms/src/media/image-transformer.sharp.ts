@@ -67,7 +67,7 @@ export interface SharpImageTransformerOptional {
 const ANIMATION_CAPABLE_FORMATS: ReadonlySet<TransformFormat> = new Set(["webp", "gif"]);
 
 /** Fits whose output is exactly `width × height`; `inside`/`outside` only bound the size. */
-const BOX_FILLING_FITS: ReadonlySet<TransformFit> = new Set(["contain", "fill"]);
+const BOX_FILLING_FITS: ReadonlySet<TransformFit> = new Set(["cover", "contain", "fill"]);
 
 /** True when the definition promises an exact output box, so enlargement must stay allowed. */
 function isExactBox({ params, fit }: { params: TransformParams; fit: TransformFit }): boolean {
