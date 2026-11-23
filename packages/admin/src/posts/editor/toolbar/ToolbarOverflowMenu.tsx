@@ -16,9 +16,11 @@ export interface ToolbarOverflowState {
     below them. Hidden by CSS on wider panes, where every control already shows. Which ranked
     controls (`overflow.slot`) are primary is measured so this button never wraps (2026-10-15). */
 export function ToolbarOverflowMenu({ overflow, t }: { overflow: ToolbarOverflowState; t: Translate }) {
+  // `tb-more` is not a style hook: the host's toolbar-fit measurement queries `.tb-more` to size the
+  // wrapped row, so it stays until that host hook is extracted; the styling class is the jini one.
   return (
     <button
-      className="tb-btn tb-more"
+      className="jini-post-toolbar__btn tb-more"
       title={t("More formatting")}
       aria-label={t("More formatting")}
       aria-expanded={overflow.open}

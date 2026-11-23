@@ -38,7 +38,7 @@ export function PostAutosaveRecoveryBanner({
 }) {
   return (
     <div
-      className="notice warning"
+      className="jini-post-notice jini-post-notice--warning"
       {...agentHandle({ handle: "post-autosave-recovery" }, {
         role: "region",
         label: "An unsaved draft from a previous session was found — restore it or discard it",
@@ -47,7 +47,7 @@ export function PostAutosaveRecoveryBanner({
       <p>{standingDraftRecoveryMessage({ draft: recoverableDraft, t, serverUpdatedAt })}</p>
       <button
         type="button"
-        className="btn-secondary"
+        className="jini-post-notice__btn"
         onClick={onRestore}
         {...agentHandle({ handle: "post-autosave-restore" }, { role: "button", label: "Apply the recovered draft into the editor" })}
       >
@@ -55,7 +55,7 @@ export function PostAutosaveRecoveryBanner({
       </button>
       <button
         type="button"
-        className="btn-secondary"
+        className="jini-post-notice__btn"
         onClick={onDiscard}
         {...agentHandle({ handle: "post-autosave-discard" }, { role: "button", label: "Discard the recovered draft without applying it" })}
       >

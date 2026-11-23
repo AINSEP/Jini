@@ -62,8 +62,9 @@ import { PostPublishAtField } from "@jini-ai/admin/posts/PostPublishingFields";
 - The field components emit `jini-post-publishing__fields`, `jini-post-publishing__field`,
   `jini-field-label` and `jini-post-publishing__scheduled-badge`. No stylesheet in this package ships
   them, so the host styles all four.
-- `notice`, `warning`, `error`, `btn-secondary`, `tb-btn` and `tb-more` remain host-shared
-  classes.
+- The banners render `jini-post-notice` with `jini-post-notice--warning` / `--error` and
+  `jini-post-notice__btn` buttons; the overflow toggle renders `jini-post-toolbar__btn`. The host
+  styles these classes (it extends its own notice/secondary-button/toolbar-button rules to them).
 - The host's toolbar-fit hook queries `.tb-more`, so that class must not be renamed here.
 
 **Must never import.**

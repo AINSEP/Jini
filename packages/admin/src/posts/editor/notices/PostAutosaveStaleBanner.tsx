@@ -38,7 +38,7 @@ export function PostAutosaveStaleBanner<TStaleBasis>({ staleBasis, staleBasisMes
 }) {
   return (
     <div
-      className="notice warning"
+      className="jini-post-notice jini-post-notice--warning"
       {...agentHandle({ handle: "post-autosave-stale" }, {
         role: "region",
         label:

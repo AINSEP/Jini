@@ -35,7 +35,7 @@ export function PostVersionConflictBanner<TConflict>({
 }) {
   return (
     <div
-      className="notice error"
+      className="jini-post-notice jini-post-notice--error"
       {...agentHandle({ handle: "post-version-conflict" }, {
         role: "region",
         label: "Another operator saved this while you were editing — your changes are unsaved and still in the editor",
@@ -43,10 +43,10 @@ export function PostVersionConflictBanner<TConflict>({
     >
       <p>{versionConflictMessage(saveConflict)}</p>
       <p>{t("Loading the latest version discards your unsaved edits.")}</p>
-      <button type="button" className="btn-secondary" onClick={onLoadLatest}>{t("Load latest")}</button>
+      <button type="button" className="jini-post-notice__btn" onClick={onLoadLatest}>{t("Load latest")}</button>
       <button
         type="button"
-        className="btn-secondary"
+        className="jini-post-notice__btn"
         onClick={onSaveAnyway}
         {...agentHandle({ handle: "post-version-conflict-overwrite" }, {
           role: "button",
@@ -57,7 +57,7 @@ export function PostVersionConflictBanner<TConflict>({
       </button>
       <button
         type="button"
-        className="btn-secondary"
+        className="jini-post-notice__btn"
         onClick={onDismiss}
         {...agentHandle({ handle: "post-version-conflict-dismiss" }, {
           role: "button",
