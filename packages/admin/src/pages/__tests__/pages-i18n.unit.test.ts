@@ -26,10 +26,10 @@ describe("PAGES_DICT: cross-locale key parity", () => {
   });
 
   it("every partially-present key is one ADMIN_COMMON_I18N carries in all 21 locales", () => {
-    const allKeys = new Set(locales.flatMap((locale) => Object.keys(PAGES_DICT[locale])));
+    const allKeys = new Set(locales.flatMap((locale) => Object.keys(PAGES_DICT[locale] ?? {})));
     const unrescuable: string[] = [];
     for (const key of allKeys) {
-      const missingIn = locales.filter((locale) => PAGES_DICT[locale][key] === undefined);
+      const missingIn = locales.filter((locale) => PAGES_DICT[locale]?.[key] === undefined);
       if (missingIn.length === 0) continue;
       if (locales.every((locale) => ADMIN_COMMON_I18N[locale]?.[key] !== undefined)) continue;
       unrescuable.push(`${JSON.stringify(key)} missing in ${missingIn.join(",")}`);
@@ -46,7 +46,7 @@ describe("PAGES_DICT: cross-locale key parity", () => {
   };
   it("has a non-empty translation for every key in every locale, except documented deliberate exceptions", () => {
     for (const locale of locales) {
-      for (const [key, value] of Object.entries(PAGES_DICT[locale])) {
+      for (const [key, value] of Object.entries(PAGES_DICT[locale] ?? {})) {
         if (DELIBERATELY_EMPTY[key]?.includes(locale)) continue;
         expect(value.length, `${locale} value for ${JSON.stringify(key)} should not be empty`).toBeGreaterThan(0);
       }
@@ -62,12 +62,12 @@ describe("PAGES_DICT: cross-locale key parity", () => {
  */
 describe("PAGES_DICT: t() falls back to ADMIN_COMMON_I18N", () => {
   it("translates 'Cancel' in German even though PAGES_DICT.de never carries it", () => {
-    expect(PAGES_DICT.de.Cancel).toBeUndefined();
-    expect(t({ locale: "de", key: "Cancel" })).toBe(ADMIN_COMMON_I18N.de.Cancel);
+    expect(PAGES_DICT.de?.Cancel).toBeUndefined();
+    expect(t({ locale: "de", key: "Cancel" })).toBe(ADMIN_COMMON_I18N.de?.Cancel);
   });
 
   it("translates 'Delete permanently' in German even though PAGES_DICT.de never carries it", () => {
-    expect(PAGES_DICT.de["Delete permanently"]).toBeUndefined();
-    expect(t({ locale: "de", key: "Delete permanently" })).toBe(ADMIN_COMMON_I18N.de["Delete permanently"]);
+    expect(PAGES_DICT.de?.["Delete permanently"]).toBeUndefined();
+    expect(t({ locale: "de", key: "Delete permanently" })).toBe(ADMIN_COMMON_I18N.de?.["Delete permanently"]);
   });
 });

@@ -1,4 +1,10 @@
-import type { CanvasEmbedPlaceholderDescriptor } from "../../react/kit.js";
+/** Structural mirror of the html editor's placeholder card descriptor (the host's editor renders it). */
+export interface CanvasEmbedPlaceholderDescriptor {
+  kindLabel: string;
+  identityLabel: string;
+  presentation?: "embed" | "runtime";
+  guidanceLabel?: string;
+}
 import { hasAttributeOnAnyNodeShape } from "@jini-ai/core/primitives";
 import type { AdminPagePluginEmbed } from "../api/pages-api.types.js";
 

@@ -155,7 +155,8 @@ function consumeTag({ html, i, length, tokens }: { html: string; i: number; leng
   if (!match) return null;
 
   const raw = match[0];
-  const { name, tagKind } = parseTagMeta({ raw, tagName: match[1] });
+  // TAG_PATTERN's group 1 is not optional, so a match always carries the tag name.
+  const { name, tagKind } = parseTagMeta({ raw, tagName: match[1] ?? "" });
   tokens.push({ kind: "tag", text: raw, tagKind, name });
   const next = i + raw.length;
 
@@ -259,8 +260,7 @@ export function prettifyHtml({ html }: { html: string }, _options = {}): string 
   let depth = 0;
   let out = "";
 
-  for (let idx = 0; idx < tokens.length; idx++) {
-    const token = tokens[idx];
+  for (const [idx, token] of tokens.entries()) {
 
     // Mirrors `prettifyCss`'s `}` handling: a closing tag renders at its PARENT's depth, so the
     // stack pops (and depth drops) before this token's own indent is computed below.
