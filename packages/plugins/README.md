@@ -56,6 +56,26 @@ Historical note — 2026-08-18: [DR-005 portable package boundaries](../../docs/
 kept the host format reserved until a real consumer justified its implementation. The 2026-10-07
 p6 extraction implements that format under the approved CMS/Jini modular design Rev 3.
 
+## Wiring
+
+`./runtime/*` holds host-neutral pieces lifted from a host's plugin runtime. They need nothing
+injected: `./runtime/plugin-export`'s `readDefinedPlugin({ moduleValue }, {})` is pure and returns
+the module's `definePlugin()` default export (`DefinedPlugin` from `@jini-ai/core/contracts/plugin-sdk`)
+or `null`. A host binds it as its `PluginSdkBinding.readDefinedPlugin`:
+
+```ts
+import type { PluginSdkBinding } from '@jini-ai/plugins/host';
+import { readDefinedPlugin } from '@jini-ai/plugins/runtime/plugin-export';
+
+const pluginSdkBinding: PluginSdkBinding = {
+  ...hostSdkAbi, // hook ids, semantics, runtimeSdkVersion, buildSdk, definePlugin
+  readDefinedPlugin: ({ moduleValue }) => readDefinedPlugin({ moduleValue }, {}),
+};
+```
+
+`./runtime/*` must never import a host SDK package, node built-ins, or another `@jini-ai/*`
+implementation; types come from `@jini-ai/core` contracts. Boundaries: [DR-005](../../docs/decisions/DR-005-portable-package-boundaries.md).
+
 ## Design decisions
 
 - [Attachment vocabulary and failure containment are separate decisions](docs/decisions/DR-001-category-specific-glue-containment.md).

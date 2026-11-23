@@ -396,6 +396,12 @@
    "pluginInstallRiskSentence": "function:974d26528c"
   }
  },
+ "./runtime/plugin-export": {
+  "types": "./dist/runtime/plugin-export.d.ts",
+  "symbols": {
+   "readDefinedPlugin": "function:8ae5b0e72e"
+  }
+ },
  "./runtime/plugin-tool-ids": {
   "types": "./dist/runtime/plugin-tool-ids.d.ts",
   "symbols": {
