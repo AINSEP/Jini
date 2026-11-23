@@ -196,7 +196,12 @@
       "./settings/site/mail-sender": "universal",
       "./settings/site/site-timezone": "universal",
       "./seo/site/page-head-contributor": "node",
-      "./redirects/site/phase-handler": "universal"
+      "./redirects/site/phase-handler": "universal",
+      "./admin-http/routes/seo/deps": "universal",
+      "./admin-http/routes/seo/post-sitemap-regenerate": "universal",
+      "./admin-http/routes/seo/get-entry": "node",
+      "./admin-http/routes/seo/get-entry-analyze": "node",
+      "./admin-http/routes/seo/put-entry": "node"
     },
     "isolation": {
       "domains": {
@@ -1230,6 +1235,31 @@
       "types": "./dist/redirects/site/phase-handler.d.ts",
       "import": "./dist/redirects/site/phase-handler.js",
       "default": "./dist/redirects/site/phase-handler.js"
+    },
+    "./admin-http/routes/seo/deps": {
+      "types": "./dist/admin-http/routes/seo/deps.d.ts",
+      "import": "./dist/admin-http/routes/seo/deps.js",
+      "default": "./dist/admin-http/routes/seo/deps.js"
+    },
+    "./admin-http/routes/seo/post-sitemap-regenerate": {
+      "types": "./dist/admin-http/routes/seo/post-sitemap-regenerate.d.ts",
+      "import": "./dist/admin-http/routes/seo/post-sitemap-regenerate.js",
+      "default": "./dist/admin-http/routes/seo/post-sitemap-regenerate.js"
+    },
+    "./admin-http/routes/seo/get-entry": {
+      "types": "./dist/admin-http/routes/seo/get-entry.d.ts",
+      "import": "./dist/admin-http/routes/seo/get-entry.js",
+      "default": "./dist/admin-http/routes/seo/get-entry.js"
+    },
+    "./admin-http/routes/seo/get-entry-analyze": {
+      "types": "./dist/admin-http/routes/seo/get-entry-analyze.d.ts",
+      "import": "./dist/admin-http/routes/seo/get-entry-analyze.js",
+      "default": "./dist/admin-http/routes/seo/get-entry-analyze.js"
+    },
+    "./admin-http/routes/seo/put-entry": {
+      "types": "./dist/admin-http/routes/seo/put-entry.d.ts",
+      "import": "./dist/admin-http/routes/seo/put-entry.js",
+      "default": "./dist/admin-http/routes/seo/put-entry.js"
     }
   },
   "files": [
