@@ -1,5 +1,5 @@
 /** Admin assistant adapter; no public executor or generic settings path enters these handlers. */
-import { buildDomainRegistrations, indexCatalogById, ToolInputError, type AccessApprovalResource, type AgentToolDefinition, type DerivedRiskByToolId, type ToolContributor, type ToolExecutionContext, type ToolHandler, type ToolMetadataById, type ToolRegistration } from "@jini-ai/core";
+import { buildDomainRegistrations, indexCatalogById, ToolInputError, type AccessApprovalResource, type AgentToolDefinition, type AgentToolSideEffect, type DerivedRiskByToolId, type ToolContributor, type ToolExecutionContext, type ToolHandler, type ToolMetadataById, type ToolRegistration } from "@jini-ai/core";
 import type { AssistantSurfaceDeps } from "@jini-ai/core/contracts/site/daemon-surface-exchanges";
 import type { PreparedVisitorToolsChange, VisitorToolsHostContract, VisitorToolsManagementPort } from "./visitor-tools-contract.js";
 import { VisitorToolsRevisionConflictError } from "./visitor-tools-write.js";
@@ -37,7 +37,7 @@ export interface VisitorToolsToolHostPolicy {
 }
 
 /** Derived from current handlers: only configure writes. T4 must change save/delete risk with its implementation. */
-export const visitorToolsDerivedRisk: DerivedRiskByToolId = new Map([
+export const visitorToolsDerivedRisk: ReadonlyMap<string, AgentToolSideEffect> = new Map<string, AgentToolSideEffect>([
   ["visitor_tools_list", "none"], ["visitor_tool_configure", "mutates-durable-state"], ["visitor_tool_save", "none"], ["visitor_tool_delete", "none"],
 ]);
 

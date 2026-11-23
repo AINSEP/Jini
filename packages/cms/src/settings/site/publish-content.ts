@@ -66,9 +66,9 @@ export interface SiteSettingPublishPorts<TPrincipals> {
   readonly principals: TPrincipals;
 }
 
-/** The slice of the host's publish deps this config reads. */
+/** The slice of the host's publish deps this config reads: `ports["site-setting"]` is absent until wired. */
 export interface SiteSettingPublishDeps<TPrincipals> {
-  readonly ports: { readonly "site-setting": SiteSettingPublishPorts<TPrincipals> };
+  readonly ports: { readonly "site-setting"?: SiteSettingPublishPorts<TPrincipals> | undefined };
   readonly clock: SetValueRequired["deps"]["clock"];
   readonly idGen: SetValueRequired["deps"]["ids"];
 }
@@ -87,7 +87,7 @@ export interface SiteSettingRepoPublishConfig<TPrincipals, TDeps extends SiteSet
   readonly coversTables: readonly string[];
   readonly permission: string;
   readonly dependsOn: readonly string[];
-  readonly ports: (required: { deps: TDeps }, optional?: Record<string, never>) => Ports<TPrincipals>;
+  readonly ports: (required: { deps: TDeps }, optional?: Record<string, never>) => Ports<TPrincipals> | undefined;
   readonly list: (required: { ports: Ports<TPrincipals>; workspaceId: string }, optional?: Record<string, never>) => Promise<readonly SiteSettingRow[]>;
   readonly find: (required: { ports: Ports<TPrincipals>; workspaceId: string; id: string }, optional?: Record<string, never>) => Promise<SiteSettingRow | null>;
   readonly idOf: (required: { row: SiteSettingRow }, optional?: Record<string, never>) => string;

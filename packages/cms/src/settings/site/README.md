@@ -97,6 +97,26 @@ await prepareChatExecutionWrite({ deps, request, validateRuntimeSelection });
 `testMode` registrar, readers and writer, `prepareChatExecutionWrite`/`CHAT_EXECUTION_KEYS`, and the
 `SettingsToolDeps` type.
 
+**Visitor-tools management** (`visitor-tools-{contract,write,configure,service,registrations}.ts`):
+the host owns the visitor-tools policy contract and binds it once as a `VisitorToolsHostContract`
+(`visitor-tools-contract.ts` holds only its structural types): the stored setting coordinates, the
+management permission, default limits and calls per turn, its validation error class, its
+closed-object guard, `parsePolicy` and `resolveChoice`. It reaches the code as the required
+`visitorTools` field on `createVisitorToolsManagement`'s `deps`, on `readVisitorToolsSnapshot` /
+`writeVisitorTools` / `parseVisitorToolsConfigure`, and on the `VisitorToolsToolHostPolicy` that
+`contributeVisitorTools` takes (with the host's catalog copy, tool metadata and approval-card engine).
+`createVisitorToolsManagement` also takes `writePolicies` for the chokepoint write.
+
+**Site-setting publishing** (`publish-content.ts`): `contributeSiteSettingPublish` takes the host's
+repo-backed publish factory (`createRepoPublishHandler`), its gateway accessor (`gatewayDeps`, whose
+`authorize` checks the write), its allowlist (`publishableSettings`: `namespace:key` → label), its
+`writePolicies` and its `principalLookup`, bound once at the host's publish-content manifest.
+
+```ts
+createVisitorToolsManagement({ deps: { workspaceId, settings, ready, listCatalog, visitorTools: HOST_VISITOR_TOOLS, writePolicies } });
+contributeSiteSettingPublish({ createRepoPublishHandler, gatewayDeps, publishableSettings, writePolicies, principalLookup });
+```
+
 See [`DR-005`](../../../../../docs/decisions/DR-005-portable-package-boundaries.md) for the boundary rule.
 
 **Must never import**: a host's locale list, tool-metadata contracts, settings storage or any host
