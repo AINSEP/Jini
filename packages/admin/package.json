@@ -185,13 +185,16 @@
       "./screens/taxonomy/hooks/use-term-detail-panel.hooks": "browser",
       "./screens/taxonomy/hooks/use-merge-term-section.hooks": "browser",
       "./screens/comments/api/comments-api.types": "universal",
+      "./screens/comments/api/comments-api": "universal",
       "./screens/forms/api/forms-api.types": "universal",
+      "./screens/forms/api/forms-api": "universal",
       "./screens/forms/index-aligned-translations": "universal",
       "./screens/forms/forms-field-settings-i18n": "universal",
       "./screens/forms/forms-leave-guard-i18n": "universal",
       "./screens/menus/api/menus-api.types": "universal",
       "./screens/menus/api/menus-api": "universal",
       "./screens/widgets/api/widgets-api.types": "universal",
+      "./screens/widgets/api/widgets-api": "universal",
       "./screens/menus/page-link-rules": "universal",
       "./screens/menus/html-rules": "universal",
       "./screens/menus/hooks/menus-port.hooks": "universal",
@@ -1153,10 +1156,20 @@
       "import": "./dist/screens/comments/api/comments-api.types.js",
       "default": "./dist/screens/comments/api/comments-api.types.js"
     },
+    "./screens/comments/api/comments-api": {
+      "types": "./dist/screens/comments/api/comments-api.d.ts",
+      "import": "./dist/screens/comments/api/comments-api.js",
+      "default": "./dist/screens/comments/api/comments-api.js"
+    },
     "./screens/forms/api/forms-api.types": {
       "types": "./dist/screens/forms/api/forms-api.types.d.ts",
       "import": "./dist/screens/forms/api/forms-api.types.js",
       "default": "./dist/screens/forms/api/forms-api.types.js"
+    },
+    "./screens/forms/api/forms-api": {
+      "types": "./dist/screens/forms/api/forms-api.d.ts",
+      "import": "./dist/screens/forms/api/forms-api.js",
+      "default": "./dist/screens/forms/api/forms-api.js"
     },
     "./screens/forms/index-aligned-translations": {
       "types": "./dist/screens/forms/index-aligned-translations.d.ts",
@@ -1187,6 +1200,11 @@
       "types": "./dist/screens/widgets/api/widgets-api.types.d.ts",
       "import": "./dist/screens/widgets/api/widgets-api.types.js",
       "default": "./dist/screens/widgets/api/widgets-api.types.js"
+    },
+    "./screens/widgets/api/widgets-api": {
+      "types": "./dist/screens/widgets/api/widgets-api.d.ts",
+      "import": "./dist/screens/widgets/api/widgets-api.js",
+      "default": "./dist/screens/widgets/api/widgets-api.js"
     },
     "./screens/menus/page-link-rules": {
       "types": "./dist/screens/menus/page-link-rules.d.ts",
@@ -1323,6 +1341,15 @@
   },
   "typesVersions": {
     "*": {
+      "screens/comments/api/comments-api": [
+        "./dist/screens/comments/api/comments-api.d.ts"
+      ],
+      "screens/forms/api/forms-api": [
+        "./dist/screens/forms/api/forms-api.d.ts"
+      ],
+      "screens/widgets/api/widgets-api": [
+        "./dist/screens/widgets/api/widgets-api.d.ts"
+      ],
       "screens/library/hooks/use-library.hooks": [
         "./dist/screens/library/hooks/use-library.hooks.d.ts"
       ],
