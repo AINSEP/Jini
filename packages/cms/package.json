@@ -30,7 +30,6 @@
       "./trash/adapters/directory": "node",
       "./fs-files/custom-root-permission": "universal",
       "./fs-files/custom-root-store": "node",
-      "./fs-files/native-folder-picker": "node",
       "./themes/files/read-content": "node",
       "./themes/files/moves": "node",
       "./themes/files/trash": "node",
@@ -426,11 +425,6 @@
       "types": "./dist/fs-files/custom-root-store.d.ts",
       "import": "./dist/fs-files/custom-root-store.js",
       "default": "./dist/fs-files/custom-root-store.js"
-    },
-    "./fs-files/native-folder-picker": {
-      "types": "./dist/fs-files/native-folder-picker.d.ts",
-      "import": "./dist/fs-files/native-folder-picker.js",
-      "default": "./dist/fs-files/native-folder-picker.js"
     },
     "./themes/files/read-content": {
       "types": "./dist/themes/files/read-content.node.d.ts",
