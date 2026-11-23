@@ -339,8 +339,28 @@ export async function createRole(required: {
     name,
     isBuiltin: false,
   };
-  await deps.repos.roles.save(role);
+  await inIdentityTransaction({ transactions: deps.repos.transactions, workspaceId: input.workspaceId, execute: async () => {
+    await assertRoleNameAvailable({ repos: deps.repos, workspaceId: input.workspaceId, name });
+    await deps.repos.roles.save(role);
+  } });
   return { role };
+}
+
+/**
+ * Refuse a role name another role in the workspace already holds (B227). Storage may also enforce
+ * this with a unique index, but that surfaces as an untyped driver error; checking here gives every
+ * host the same 409-shaped conflict. Callers run it inside the identity transaction with the save,
+ * so two concurrent writers cannot both pass the check.
+ * @complexity O(1) — one name lookup.
+ */
+export async function assertRoleNameAvailable(
+  required: { repos: Pick<IdentityRepos, "roles">; workspaceId: UUID; name: string },
+  optional: { exceptRoleId?: UUID } = {},
+): Promise<void> {
+  const holder = await required.repos.roles.findByName({ workspaceId: required.workspaceId, name: required.name });
+  if (holder && holder.id !== optional.exceptRoleId) {
+    throw new IdentityConflictError({ message: `A role named "${required.name}" already exists. Pick another name.`, code: "RESOURCE_CONFLICT" });
+  }
 }
 
 /**

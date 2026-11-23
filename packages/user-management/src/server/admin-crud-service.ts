@@ -1,6 +1,7 @@
 import { nowIso as kernelNowIso } from "@jini-ai/core/primitives";
 import type { UUID } from "@jini-ai/core/primitives";
-import { inAuthorizedIdentityTransaction, assertCallerHasAnyPermission, assertGrantClamp, assertOwnerTargetMayBeModified, principalHoldsOwnerWildcard } from "./grant-service.js";
+import { inAuthorizedIdentityTransaction, assertCallerHasAnyPermission, assertRoleNameAvailable, assertGrantClamp, assertOwnerTargetMayBeModified, principalHoldsOwnerWildcard } from "./grant-service.js";
+import { inIdentityTransaction } from "./identity-transaction.js";
 import { validatePasswordPolicy } from "./password-policy.js";
 import { normalizeUsername } from "./username.js";
 import { isKnownPermission } from "../core/permissions.js";
@@ -408,7 +409,10 @@ export async function updateRole(required: {
   if (!name) throw new IdentityValidationError({ message: "role name is required" });
 
   const updated: RoleRecord = { ...target, name };
-  await deps.repos.roles.save(updated);
+  await inIdentityTransaction({ transactions: deps.repos.transactions, workspaceId: input.workspaceId, execute: async () => {
+    await assertRoleNameAvailable({ repos: deps.repos, workspaceId: input.workspaceId, name }, { exceptRoleId: target.id });
+    await deps.repos.roles.save(updated);
+  } });
   return { role: updated };
 }
 
