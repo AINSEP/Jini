@@ -325,3 +325,26 @@ inputs; Jini never names one.
   label, the error decoder (`@jini-ai/protocol`'s `decodeApiError`; this package does not depend on
   protocol) and the server codes a passive read answers while the assistant is not running.
   `isClipboardRefusal` is a plain export. The host calls the factory once in its composition module.
+
+## Wiring: shell components (`shell/components`, step components-4)
+
+- `AdminFailureNotice({ channel, ...errorNoticePorts })` — the host passes its failure channel
+  (`subscribe`/`getSnapshot`/`reset`); renders the kit `ErrorNotice` (needs `AdminKitProvider`).
+  Classes `jini-admin-failure-notice`, `jini-admin-failure-notice__dismiss`: the host stylesheet styles them.
+- `MailStatusBanner({ fetchStatus, labels, storage?, useMailStatusBannerHook })` — the banner state
+  hook is a REQUIRED prop (no default); generic over the host's status and storage types. Kit `Icon`.
+  Classes `jini-mail-status-banner{,-text,-link,-dismiss}`.
+- `SitesSidebarNav({ groups, locale, soonLabel?, options?, port, useSitesSnapshot, translateNavLabel,
+  useSitesSidebarNavHook, SidebarNav, useSidebar })` — every host collaborator, the label hook and the
+  admin `Sidebar.Nav`/`useSidebar` pair are required props (keeps this browser entry out of the react domain).
+  Classes `jini-sites-{label,prefix,name,suffix}`.
+- `WidgetConfigFields/WidgetConfigFields.hooks` — `useFetchedOptions` reads through the kit's
+  `useFetchQuery` (needs `AdminKitProvider`); a cross-realm `DOMException` AbortError keeps its name.
+- `AssistantDock/agent-failure-hints` — `localFailureHints({ agentId })`, pure data.
+- `AssistantDock/AgentFailureCard({ ...extEventProps, useTHook, useAgentFailureCardHook, redactionOptions })`
+  — the chat translator hook, the failure hook and the host's secret-redaction copy (the second
+  argument of `formatUserFacingError`) are REQUIRED props; kit `ErrorNotice` (needs `AdminKitProvider`).
+  Class `jini-agent-failure`.
+- `AssistantDock/AgentFailureCard.hooks` — `useAgentFailureSurface`, `FailureSurfaceContext`,
+  `hasAgentFailureNotice`, and `useAgentFailureCard({ events, runStreaming, runSucceeded, useTHook })`
+  (the translator hook is a required arg). Kit type mirror added: `ChatPaneRuntimeAccess`.

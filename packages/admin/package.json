@@ -159,6 +159,11 @@
       "./shell/components/AssistantDock/SelectedAgentPluginTray": "browser",
       "./shell/components/AssistantDock/SlowRunNoticeCard": "browser",
       "./shell/components/AssistantDock/agent-failure": "browser",
+      "./shell/components/AdminFailureNotice/AdminFailureNotice": "browser",
+      "./shell/components/AssistantDock/agent-failure-hints": "browser",
+      "./shell/components/MailStatusBanner/MailStatusBanner": "browser",
+      "./shell/components/SitesSidebarNav": "browser",
+      "./shell/components/WidgetConfigFields/WidgetConfigFields.hooks": "browser",
       "./shell/components/AssistantDock/hooks/use-routed-a2ui-surface-card.hooks": "browser",
       "./shell/components/CodeView/preview-modal-icons": "browser",
       "./shell/components/InstallTabCard/use-folder-upload.hooks": "browser",
@@ -292,6 +297,11 @@
         "./shell/components/AssistantDock/SelectedAgentPluginTray": "browser",
         "./shell/components/AssistantDock/SlowRunNoticeCard": "browser",
         "./shell/components/AssistantDock/agent-failure": "browser",
+        "./shell/components/AdminFailureNotice/AdminFailureNotice": "browser",
+        "./shell/components/AssistantDock/agent-failure-hints": "browser",
+        "./shell/components/MailStatusBanner/MailStatusBanner": "browser",
+        "./shell/components/SitesSidebarNav": "browser",
+        "./shell/components/WidgetConfigFields/WidgetConfigFields.hooks": "browser",
         "./shell/components/AssistantDock/hooks/use-routed-a2ui-surface-card.hooks": "browser",
         "./shell/components/CodeView/preview-modal-icons": "browser",
         "./shell/components/InstallTabCard/use-folder-upload.hooks": "browser",
@@ -1031,6 +1041,31 @@
       "types": "./dist/shell/components/AssistantDock/agent-failure.d.ts",
       "import": "./dist/shell/components/AssistantDock/agent-failure.js",
       "default": "./dist/shell/components/AssistantDock/agent-failure.js"
+    },
+    "./shell/components/AdminFailureNotice/AdminFailureNotice": {
+      "types": "./dist/shell/components/AdminFailureNotice/AdminFailureNotice.d.ts",
+      "import": "./dist/shell/components/AdminFailureNotice/AdminFailureNotice.js",
+      "default": "./dist/shell/components/AdminFailureNotice/AdminFailureNotice.js"
+    },
+    "./shell/components/AssistantDock/agent-failure-hints": {
+      "types": "./dist/shell/components/AssistantDock/agent-failure-hints.d.ts",
+      "import": "./dist/shell/components/AssistantDock/agent-failure-hints.js",
+      "default": "./dist/shell/components/AssistantDock/agent-failure-hints.js"
+    },
+    "./shell/components/MailStatusBanner/MailStatusBanner": {
+      "types": "./dist/shell/components/MailStatusBanner/MailStatusBanner.d.ts",
+      "import": "./dist/shell/components/MailStatusBanner/MailStatusBanner.js",
+      "default": "./dist/shell/components/MailStatusBanner/MailStatusBanner.js"
+    },
+    "./shell/components/SitesSidebarNav": {
+      "types": "./dist/shell/components/SitesSidebarNav.d.ts",
+      "import": "./dist/shell/components/SitesSidebarNav.js",
+      "default": "./dist/shell/components/SitesSidebarNav.js"
+    },
+    "./shell/components/WidgetConfigFields/WidgetConfigFields.hooks": {
+      "types": "./dist/shell/components/WidgetConfigFields/WidgetConfigFields.hooks.d.ts",
+      "import": "./dist/shell/components/WidgetConfigFields/WidgetConfigFields.hooks.js",
+      "default": "./dist/shell/components/WidgetConfigFields/WidgetConfigFields.hooks.js"
     },
     "./shell/components/AssistantDock/hooks/use-routed-a2ui-surface-card.hooks": {
       "types": "./dist/shell/components/AssistantDock/hooks/use-routed-a2ui-surface-card.hooks.d.ts",
