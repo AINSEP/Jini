@@ -123,7 +123,7 @@
 .jini-consent-preview-widths button[aria-pressed="true"] { background: var(--surface); color: var(--fg); box-shadow: var(--jini-control-shadow-segment); }
 .jini-consent-preview-frame {
   display: block; max-width: 100%; block-size: 34rem; margin-inline: auto;
-  border: 1px solid var(--border); border-radius: var(--r-md); background: #fff;
+  border: 1px solid var(--border); border-radius: var(--r-md); background: var(--jini-preview-frame-bg, white);
 }
 /* Desktop lays the page out at a real desktop width (set from rules.ts) and scales it to the pane,
    so the banner shows its desktop layout, not the phone sheet it uses at 480px and below. The
