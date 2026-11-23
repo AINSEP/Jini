@@ -251,7 +251,7 @@ test("without an injected liveness probe the real process table decides: a live 
 
 test("macOS: with no host override, a hung Squirrel hand-off quits the app after Jini's two-minute deadline", () => {
   vi.useFakeTimers({ toFake: ["setTimeout"] }); onTestFinished(() => { vi.useRealTimers(); });
-  const s = setup({ stageTimeoutMs: undefined });
+  const s = setup({ stageTimeoutMs: undefined } as unknown as Partial<AutoUpdateControllerDeps>);
   s.updater.emit("update-downloaded", { version: "0.2.0" });
   assert.equal(s.controller.beforeFinalQuit(), true);
   vi.advanceTimersByTime(2 * 60 * 1000 - 1);
