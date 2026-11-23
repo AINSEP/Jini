@@ -1,6 +1,7 @@
 /** Browser connection ownership; transport callbacks retain their native retry policy. */
 import type { VisibilitySource } from "../../react/kit.js";
 import type { StreamActivity } from "./stream-activity.js";
+import { reportShellFailure } from "./shell-failure-log.js";
 
 export interface StreamChannel {
   postMessage(value: unknown): void;
@@ -149,8 +150,11 @@ function acquireBrowserStreamLock(state: BrowserStreamState, { key, ports }: { k
         state.releaseLock = resolve;
         try { open(); } catch (error) { reject(error); }
       });
-    } }).catch(() => {
+    } }).catch((error: unknown) => {
+      // An abort is our own disposal/pagehide, not a failure; anything else (a refused or failed lock
+      // request) goes to the host-bound logger, which owns redaction, before the per-tab fallback.
       if (requested.signal.aborted) return;
+      reportShellFailure({ message: `[browser-stream] ${key}: the cross-tab lock was refused; falling back to a per-tab stream`, error });
       halt();
       closeChannel();
       reconcile();

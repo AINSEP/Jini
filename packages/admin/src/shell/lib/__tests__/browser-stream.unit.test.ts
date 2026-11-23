@@ -3,6 +3,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { browserStreamPorts, startBrowserStream, type BrowserStreamPorts } from "../browser-stream.js";
 import { createStreamActivity } from "../stream-activity.js";
 import { fakeBrowserOrigin, settleLocks } from "./browser-stream.fakes.js";
+import { spyShellFailures } from "./shell-failure-log.fakes.js";
 import { orFallbackSync } from "@jini-ai/core/errors/idioms";
 
 describe("browser stream ownership", () => {
@@ -123,16 +124,21 @@ describe("browser stream ownership", () => {
     a(); b();
   });
 
-  it("lock refusal falls back to a visibility-managed per-tab stream", async () => {
+  it("lock refusal falls back to a visibility-managed per-tab stream and reports the refusal to the host logger", async () => {
     const tab = fakeBrowserOrigin().tab();
+    const failures = spyShellFailures();
+    const refusal = new DOMException("unavailable", "SecurityError");
     let closes = 0;
     const stop = startBrowserStream({ key: "feed", connect: () => () => { closes++; } }, {
-      ports: { ...tab.ports, requestLock: async () => { throw new DOMException("unavailable", "SecurityError"); } },
+      ports: { ...tab.ports, requestLock: async () => { throw refusal; } },
     });
     await settleLocks();
+    expect(failures).toHaveBeenCalledOnce();
+    expect(failures).toHaveBeenCalledWith({ message: "[browser-stream] feed: the cross-tab lock was refused; falling back to a per-tab stream" }, { error: refusal });
     tab.hide(); tab.advance(30_000);
     expect(closes).toBe(1);
     stop();
+    failures.mockRestore();
   });
 
   it("ignores frames from a former leader after handoff and never resurrects a disposed follower", async () => {
