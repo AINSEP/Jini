@@ -190,6 +190,13 @@ folder rules; `src/admin-http/routes/system/sites.ts`: `siteTokenSignInPluginsRo
 (filesystem inspection) and the site-admin collaborators. Gates answer before authorization; folder and
 name refusals after it; feature refusals map by code to status.
 
+Saved credentials (`src/admin-http/routes/system/{source-control-credentials,custom-credentials}.ts`,
+`publish-credentials/*`, shared ladder in `credential-routes-shared.ts`): the host injects the credential
+store as functions and its error classes as `storeErrors`; the spec owns the status/code ladder
+(`ToolInputError` → 409 `KEY_IN_USE` first, unmapped rethrown for the host 500). It also injects the
+project-key attach, `prepareInvalidation`, the after-save probe, the account-label heal trigger and, for
+custom keys, `credentialKindOf(principal)`, `ownerPrincipalId()` and the Shared Keys copy.
+
 ## Scripts
 
 ```bash
