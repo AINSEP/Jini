@@ -2,6 +2,7 @@ import type { SecurityApiPort, CredentialStorePort, SecurityTransportPort, Other
 import type { AdminPublishCredentialsSnapshot, AdminPublishCredentialSummary, AdminPublishCredentialVerification, AdminPublishExecutionMode } from '@jini-ai/core/contracts/site/api-security-api-types';
 import type { CredentialTokenHint } from '@jini-ai/core/contracts/site/secrets-credential-token';
 import type { AdminCredentialCopyResult, AdminCredentialCopySource } from '@jini-ai/core/contracts/site/api-security-api-types';
+import type { AdminCustomConnectionInput, AdminCustomCredentialCategoryId, AdminCustomCredentialsSnapshot, AdminCustomCredentialSummary } from '@jini-ai/core/contracts/site/api-security-api-types';
 import type { CredentialKind, CredentialSummary, CredentialProvider, CredentialField, RequestOptions, CredentialCategory, RootKeyStatus, RootKeyResult, RootKeyPreview, RootKeyReveal } from '../models.js';
 type RawRow = Omit<CredentialSummary, 'kind' | 'providerId' | 'lastVerification'> & { providerId?: string };
 /** Explicit projection: a verify result never carries more than its declared fields. */
@@ -121,6 +122,23 @@ export function createHttpPublishCredentials({ transport, workspacePath }: { tra
     async updatePublishCredential({ id, input }, o = {}) { return publishWrite({ reply: await call({ method: 'PUT', path: item(id), body: input }, o) }); },
     async deletePublishCredential({ id }, o = {}) { await call<void>({ method: 'DELETE', path: item(id) }, o); },
     async verifyPublishCredential({ id }, o = {}) { const r = await call<{ verification: AdminPublishCredentialVerification }>({ method: 'POST', path: `${item(id)}/verify` }, o); return { verification: verificationOf({ verification: r.verification }) }; },
+  };
+}
+type CustomCredentialWrite = { credential: AdminCustomCredentialSummary };
+/** W8 create body. `username` travels inside `connection`, never at the top level; omitted `additionalHosts` means none. */
+export interface CustomCredentialCreateBody { scope?: 'project' | 'site'; worksFor?: string[]; label: string; category: AdminCustomCredentialCategoryId; baseUrl: string; additionalHosts?: readonly string[]; connection: AdminCustomConnectionInput }
+/** W8 update body: only changed fields. Omitting `connection` keeps the secret; `username: null` clears it; a supplied `additionalHosts` replaces the list. */
+export interface CustomCredentialUpdateBody { worksFor?: string[]; label?: string; category?: AdminCustomCredentialCategoryId; baseUrl?: string; additionalHosts?: readonly string[]; username?: string | null; connection?: AdminCustomConnectionInput }
+/** The custom credential client under the host's own method names (W8), so a host `securityApi` object
+ * keeps its call sites. Bodies go out exactly as given; ids are path-encoded. */
+export function createHttpCustomCredentials({ transport, workspacePath }: { transport: SecurityTransportPort; workspacePath: string }, _optional = {}) {
+  const path = `${trimBase({ workspacePath })}/system/custom/credentials`; const item = (id: string) => `${path}/${encodeURIComponent(id)}`;
+  async function call<T>(required: Parameters<SecurityTransportPort['request']>[0], options: RequestOptions) { options.signal?.throwIfAborted(); return transport.request<T>(required, options); }
+  return {
+    listCustomCredentials(_r: Record<string, never> = {}, o: RequestOptions = {}) { return call<AdminCustomCredentialsSnapshot>({ method: 'GET', path }, o); },
+    createCustomCredential(input: CustomCredentialCreateBody, o: RequestOptions = {}) { return call<CustomCredentialWrite>({ method: 'POST', path, body: input }, o); },
+    updateCustomCredential({ id, input }: { id: string; input: CustomCredentialUpdateBody }, o: RequestOptions = {}) { return call<CustomCredentialWrite>({ method: 'PUT', path: item(id), body: input }, o); },
+    async deleteCustomCredential({ id }: { id: string }, o: RequestOptions = {}) { await call<void>({ method: 'DELETE', path: item(id) }, o); },
   };
 }
 interface MediaSettings { baseUrl?: string; model?: string; apiKeyConfigured?: boolean; apiKeyTail?: string; apiKey?: string; apiKeyHint?: CredentialTokenHint | null }

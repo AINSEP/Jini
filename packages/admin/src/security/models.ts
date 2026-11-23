@@ -38,17 +38,23 @@ export interface CredentialInput {
   readonly category?: CredentialCategory; readonly baseUrl?: string; readonly additionalHosts?: readonly string[];
   /** Custom create only: where the new key is stored. Sent only when the store reported `projectKeysAvailable`. */
   readonly scope?: 'project' | 'site';
+  /** Publish and custom: the plugin ids this credential serves. Sent only when chosen. */
+  readonly worksFor?: readonly string[];
 }
 export interface CredentialPatch {
   readonly label?: string; readonly connection?: Readonly<Record<string, string>>; readonly isDefault?: boolean;
   readonly category?: CredentialCategory; readonly baseUrl?: string; readonly additionalHosts?: readonly string[];
   /** Omit preserves, null clears, string replaces independently of secret replacement. */
   readonly username?: string | null;
+  /** Publish and custom: omitted preserves compatibility; `[]` clears it without a connection. */
+  readonly worksFor?: readonly string[];
 }
 export interface CredentialDraft {
   readonly kind: CredentialKind; readonly id?: string; readonly providerId: string; readonly label: string;
   readonly token: string; readonly values: Readonly<Record<string, string>>; readonly category: CredentialCategory;
   readonly baseUrl: string; readonly additionalHosts: string; readonly username: string;
+  /** The "Works for" chips (publish and custom). Absent means untouched: nothing is sent. */
+  readonly worksFor?: readonly string[];
 }
 export type OtherStoreId = 'site-assistant' | 'admin-byok' | 'media-provider' | 'external-mcp';
 export interface OtherCredentialSummary {

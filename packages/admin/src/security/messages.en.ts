@@ -31,6 +31,11 @@ export const securityMessagesEn = { security: 'Secrets', accessTokens: 'Access t
   otherNewKey: 'New key for {name}', otherReplace: 'Replace {name}', otherRemove: 'Remove {name}',
   otherRemoveBody: 'This deletes the saved copy of this key. It does not revoke the key at its provider; it stays valid there until you revoke it yourself.',
   otherRemoveBodyMcp: "This deletes the server and its saved credentials. It can't be undone: you would have to set it up again, and sign in again if it uses OAuth.",
+  worksFor: 'Works for', tokenScopeGuidance: 'Which permissions to grant', credentialDefault: 'Default', makeDefault: 'Make default',
+  removeCredentialConfirm: 'Remove credential', removeRevokeOn: 'Revoke it on',
+  removeCredentialBody: 'This deletes the saved copy of this {credentialLabel} token. It does NOT revoke the token on {vendor}; it stays valid there until you revoke it yourself.',
+  removeLastRowNote: 'This is the only saved {provider} token. After removing it, nothing here will be marked as connected.',
+  additionalHostsInvalid: 'Each additional host must be a valid http:// or https:// URL.',
   rootKeyReveal: 'Reveal', rootKeyHide: 'Hide', rootKeyCopy: 'Copy', rootKeyCopied: 'Copied!' } as const;
 /** A host translator: it receives a message key (the names above) and returns display copy. */
 export type SecurityTranslator = (key: string, vars?: Record<string, string | number>) => string;

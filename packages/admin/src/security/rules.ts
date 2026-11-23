@@ -2,6 +2,7 @@ import { englishSecurity, type SecurityTranslator } from './messages.en.js';
 import type { CredentialTokenHint } from '@jini-ai/core/contracts/site/secrets-credential-token';
 import type { CredentialCategory, CredentialDraft, CredentialKind, CredentialPatch, CredentialProvider, CredentialSummary, OtherCredentialSummary, OtherStoreId, RootKeyStatus } from './models.js';
 import type { SecurityApiPort } from './ports.js';
+import { customCreateFields, customUpdateFields, invalidAdditionalHosts, isValidHttpUrl, worksForPart, type SavedCredentialFacts } from './credential-forms.rules.js';
 export const START_FRESH_CONFIRMATION = 'START FRESH';
 export const ROOT_KEY_PERMISSION = 'admin.security.tokens.manage';
 export const CATEGORIES: readonly { value: CredentialCategory | 'all'; label: string }[] = [
@@ -95,8 +96,9 @@ function isDuplicateLabel({ draft, rows }: { draft: CredentialDraft; rows: reado
   return rows.some(r => sameScope(r) && r.label.trim().toLowerCase() === label);
 }
 function customDraftError({ draft }: { draft: CredentialDraft }, _optional = {}): string | null {
-  try { if (!['http:', 'https:'].includes(new URL(draft.baseUrl).protocol)) return 'Enter an HTTP or HTTPS URL'; } catch { return 'Enter an HTTP or HTTPS URL'; }
-  return null;
+  if (!isValidHttpUrl({ value: draft.baseUrl.trim() })) return 'Enter an HTTP or HTTPS URL';
+  // Every additional host is its own origin the credential may call, so each one must parse on its own.
+  return invalidAdditionalHosts({ raw: draft.additionalHosts }).length > 0 ? 'Each additional host must be a valid http:// or https:// URL.' : null;
 }
 function providerDraftError({ draft, providers }: { draft: CredentialDraft; providers: readonly CredentialProvider[] }, _optional = {}): string | null {
   if (draft.id && !draft.token.trim()) return null;
@@ -121,16 +123,17 @@ function providerConnection({ draft, token, providers }: { draft: CredentialDraf
   const extras = provider ? provider.fields.filter(f => f.name !== provider.tokenField && draft.values[f.name]?.trim()).map(f => [f.name, draft.values[f.name]!.trim()]) : [];
   return { providerId: draft.providerId, [provider?.tokenField ?? 'token']: token, ...Object.fromEntries(extras) };
 }
-function customPatchFields({ draft }: { draft: CredentialDraft }, _optional = {}) {
-  return { category: draft.category, baseUrl: draft.baseUrl.trim(), additionalHosts: draft.additionalHosts.split(/[\n,]/).map(s => s.trim()).filter(Boolean), username: draft.username.trim() || null };
-}
-/** Omitting connection preserves the saved secret. Never send an empty or half-blank replacement. */
-export function buildCredentialPatch({ draft, providers }: { draft: CredentialDraft; providers: readonly CredentialProvider[] }, _optional = {}): CredentialPatch {
+/** Omitting connection preserves the saved secret. Never send an empty or half-blank replacement.
+ * A create sends its whole body; an edit (`saved`) sends only what changed (W2/W3/W8): a rename
+ * without a token is `{ label }` alone, and extra fields only ever travel inside `connection`. */
+export function buildCredentialPatch({ draft, providers }: { draft: CredentialDraft; providers: readonly CredentialProvider[] }, { saved }: { saved?: SavedCredentialFacts | undefined } = {}): CredentialPatch {
   const token = draft.token.trim();
   const custom = draft.kind === 'custom';
   const connectionFor = (value: string) => (custom ? customConnection({ draft, token: value }) : providerConnection({ draft, token: value, providers }));
-  const connection = token ? connectionFor(token) : undefined;
-  return { label: draft.label.trim(), ...(connection ? { connection } : {}), ...(custom ? customPatchFields({ draft }) : {}) };
+  const connection = token ? { connection: connectionFor(token) } : {};
+  const label = draft.label.trim();
+  if (!draft.id || !saved) return { label, ...worksForPart({ draft }), ...(custom ? customCreateFields({ draft }) : {}), ...connection };
+  return { ...worksForPart({ draft, saved: saved.worksFor }), ...(label !== saved.label.trim() ? { label } : {}), ...connection, ...(custom ? customUpdateFields({ draft, saved }) : {}) };
 }
 /** Locked: saved credentials need a key that is not here, per the status or a `locked` create refusal. */
 export function isRootKeyLocked({ status, generateFailure = null }: { status: RootKeyStatus | null; generateFailure?: RootKeyGenerateFailure | null }, _optional = {}) {

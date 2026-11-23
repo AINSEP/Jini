@@ -1,3 +1,4 @@
+import { TestChipField } from './chip-field.fixture.js';
 import { cleanup, fireEvent, render, renderHook, screen, waitFor, within } from '@testing-library/react';
 import { testAdminKit } from '../../../__tests__/fetch-query-support.js';
 import { AdminKitProvider } from '../../../react/kit.js';
@@ -25,7 +26,7 @@ const sources: AdminCredentialCopySource[] = [{ siteId: 'shared-keys', name: 'Sh
 const WRITE = ['security.read', 'system.publish', 'custom-credentials.write'];
 function mount({ api, permissions = WRITE, other, t }: { api: SecurityApiPort; permissions?: string[]; other?: ReturnType<typeof createMemoryOtherCredentials>; t?: (key: string, vars?: Record<string, string | number>) => string }, params: Record<string, unknown> = {}) {
   const ports = { securityApi: api, ...(other ? { otherCredentials: other } : {}) };
-  const tree = <AccessTokensTab params={params} permissions={permissions} useAccessTokensTabHook={useAccessTokensTab} useCredentialEditorHook={useCredentialEditor} useSharedKeysDialogHook={useSharedKeysDialog} />;
+  const tree = <AccessTokensTab ChipField={TestChipField} params={params} permissions={permissions} useAccessTokensTabHook={useAccessTokensTab} useCredentialEditorHook={useCredentialEditor} useSharedKeysDialogHook={useSharedKeysDialog} />;
   return render(<AdminKitProvider kit={testAdminKit}><SecurityPortsContext.Provider value={ports}>{t ? <SecurityTranslationContext.Provider value={t}>{tree}</SecurityTranslationContext.Provider> : tree}</SecurityPortsContext.Provider></AdminKitProvider>);
 }
 

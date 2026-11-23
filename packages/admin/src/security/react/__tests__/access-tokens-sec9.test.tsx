@@ -1,3 +1,4 @@
+import { TestChipField } from './chip-field.fixture.js';
 import { render, renderHook, screen, waitFor } from '@testing-library/react';
 import { testAdminKit } from '../../../__tests__/fetch-query-support.js';
 import { AdminKitProvider } from '../../../react/kit.js';
@@ -45,7 +46,7 @@ describe('useAccessTokensTab merged groups (SEC-9)', () => {
     expect(view.result.current.countText).toBe('0 of 3 tokens matching “acme”');
   });
   it('shows the empty-hosting hint when no hosting provider is available', async () => {
-    render(<AccessTokensTab params={{}} permissions={PERMS} useAccessTokensTabHook={useAccessTokensTab} useCredentialEditorHook={useCredentialEditor} useSharedKeysDialogHook={useSharedKeysDialog} />, { wrapper: wrapper(createMemorySecurityApi({ providers: [providers[1]!] })) });
+    render(<AccessTokensTab ChipField={TestChipField} params={{}} permissions={PERMS} useAccessTokensTabHook={useAccessTokensTab} useCredentialEditorHook={useCredentialEditor} useSharedKeysDialogHook={useSharedKeysDialog} />, { wrapper: wrapper(createMemorySecurityApi({ providers: [providers[1]!] })) });
     expect(await screen.findByText('Enable a hosting plugin to manage its access tokens.')).toBeTruthy();
     expect(screen.getByText('0 tokens saved')).toBeTruthy();
   });

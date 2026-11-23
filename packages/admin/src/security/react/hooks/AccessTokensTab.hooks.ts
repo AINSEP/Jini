@@ -72,6 +72,27 @@ function otherView({ snapshot: o, controller, scope, host, removal }: { snapshot
     otherPlaceholders: otherPlaceholderItems({ snapshot: o, scope: { permissions, query, category }, host }),
     removalBody: removal?.type === 'other' ? otherRemovalBody({ row: removal.row as OtherCredentialSummary, t: host.t }) : null };
 }
+/** The catalog (or unlisted) provider a saved row belongs to; a custom row is its own provider. */
+function removalProvider({ row, snapshot: s }: { row: CredentialSummary; snapshot: AccessSnapshot }, _optional = {}) {
+  return row.kind === 'custom' ? undefined : providersWithSavedRows({ providers: s.providers, rows: s.rows }).find(p => p.kind === row.kind && p.id === row.providerId);
+}
+/** The name the dialog uses and whether this is the provider's only saved token (custom rows have no provider to empty). */
+function removalFacts({ row, provider, snapshot: s }: { row: CredentialSummary; provider: CredentialProvider | undefined; snapshot: AccessSnapshot }, _optional = {}) {
+  const label = provider?.label ?? credentialLabel({ row, providers: s.providers }, { rows: s.rows });
+  return { label, last: provider !== undefined && s.rows.filter(r => r.kind === row.kind && r.providerId === row.providerId).length === 1 };
+}
+function revokeLink({ provider, t }: { provider: CredentialProvider | undefined; t: SecurityTranslator }, _optional = {}) {
+  return provider?.tokenPageUrl ? { href: provider.tokenPageUrl, text: t('removeRevokeOn'), vendor: provider.vendorLabel } : null;
+}
+/** SEC-10: what removing a saved access token means. It deletes the saved copy only; the revoke link names
+ * the vendor (where the token is revoked), and the last saved token for a provider says so. */
+function accessRemovalView({ removal, snapshot: s, t }: { removal: Removal | null; snapshot: AccessSnapshot | null; t: SecurityTranslator }, _optional = {}) {
+  if (removal?.type !== 'access' || !s) return null;
+  const row = removal.row as CredentialSummary, provider = removalProvider({ row, snapshot: s });
+  const { label, last } = removalFacts({ row, provider, snapshot: s });
+  return { body: t('removeCredentialBody', { credentialLabel: label, vendor: provider?.vendorLabel ?? label }), revoke: revokeLink({ provider, t }),
+    lastRowNote: last ? t('removeLastRowNote', { provider: label }) : null };
+}
 /** SEC-14: both controllers take the host's refresh subscription and failure describer. */
 function hostOptions({ host }: { host: SecurityCredentialsHost }, _optional = {}) {
   return { refreshSignal: host.refreshSignal, describeError: host.describeError };
@@ -106,6 +127,7 @@ export function useAccessTokensTab({ permissions = [], params = {} }: TabViewPro
   const otherPart = otherView({ snapshot: o, controller: other.controller, scope, host: { t, links: host.otherStores ?? {} }, removal });
   const reload = () => { void access.controller?.load({}); void other.controller?.load({}); };
   return { denied: !canRead, ...tabStatus({ access: s, other: o }), rows, ...otherPart, sections: credentialSections({ groups, otherRows: otherPart.otherRows }), providers, groups, hostingEmpty: hostingEmpty({ snapshot: s, groups, query, category }), categories: CATEGORIES, query, category, ...counts, countText: credentialCountText({ total: counts.total, matched: counts.matched, query }, { t }), removal,
+    accessRemoval: accessRemovalView({ removal, snapshot: s, t }),
     draft: s?.draft ?? null, errors: errorList({ access: s, other: o, t }), executionMode: s?.executionMode ?? null,
     t, canAddCustom: permissions.includes('custom-credentials.write'),
     addCustom() { access.controller?.begin({ kind: 'custom' }); },

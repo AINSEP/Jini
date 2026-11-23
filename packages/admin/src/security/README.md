@@ -41,5 +41,15 @@ What the host injects, and where:
   `tokenHint` only. The dialog's parts carry `data-jini-part="security.shared-keys.{source,list,results}"` for host CSS.
 - **Access tokens tab** (`security({ ui }, { accessTokensTab: { pluginsHref } })`): the host's plugins page, linked
   from the empty-hosting hint. Its copy comes from the translator (`messages.en.ts` keys).
+- **Chip field slot** (SEC-10/11, required): `security({ ui, ChipField })`. `ChipField` is the host's multiple-choice chip
+  component, typed by the Security-owned `SecurityChipFieldProps` (`{ multiple: true, label, options, value, onChange }`); no kit
+  name exists for it. The module passes it through `loadAccessTokensTab({ ChipField })` to the credential editor, which renders
+  "Works for" for publish and custom credentials (a saved id whose plugin is off stays as its own chip). Tovu binds its own chip
+  field at cutover.
+- **Custom credentials client** (SEC-11): `createHttpCustomCredentials({ transport, workspacePath })` serves the host's own
+  method names (`listCustomCredentials`, `createCustomCredential`, `updateCustomCredential`, `deleteCustomCredential`), bodies
+  exactly as given (W8).
+- **Remove copy** (SEC-10): the confirm label is the translator key `removeCredentialConfirm`; a host passes its product
+  wording through `t`.
 - **View bindings** (`react/bindings.ts`): the module binds the page, access-tokens tab (view model, editor, Shared Keys) and root-key tab hooks
   (chrome, ports and `useController`) and passes them to the views as required inputs.

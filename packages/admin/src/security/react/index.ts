@@ -13,6 +13,8 @@ import type { RevealClipboard } from '../controllers/root-key-reveal.js';
 export { useSecurityPorts, useSecurityTranslation, useSecurityOwnerControls } from './hooks/SecurityPorts.hooks.js';
 export type { SecurityTranslator } from '../messages.en.js';
 export type { SecurityTabIcons } from './hooks/SecurityPage.hooks.js';
+export type { SecurityChipField, SecurityChipFieldProps, SecurityChipFieldOption } from './components/chip-field.js';
+import type { SecurityChipField } from './components/chip-field.js';
 export { useSecurityCredentialsHost, type SecurityCredentialsHost } from './hooks/SecurityPorts.hooks.js';
 /** Root-key tab options, merged into that tab's params. Defaults are the stock behaviour:
  * generate shown, a preview required before start fresh, and no env-var name fallback.
@@ -70,17 +72,18 @@ function withAccessTokensParams<M extends ReturnType<typeof withRootKeyParams>>(
 }
 /** One security module per admin scope. Tabs load on demand; host icons reach the page through its
  * lazy wrapper, and the host translator through a context so a locale change never remounts a tab.
- * @example security({ ui: reactModuleUi }, { rootKeyTab: { generate: 'hidden' }, tabIcons })
+ * `ChipField` (required, SEC-10/11) is the host's multiple-choice chip field for "Works for"; the module names no kit slot for it.
+ * @example security({ ui: reactModuleUi, ChipField: HostChipField }, { rootKeyTab: { generate: 'hidden' }, tabIcons })
  */
 export function security<Page, Tab>(
-  { ui }: { ui: ModuleUi<Page, Tab> },
+  { ui, ChipField }: { ui: ModuleUi<Page, Tab>; ChipField: SecurityChipField },
   { t = englishSecurity, rootKeyScopeNotice, rootKeyTab, tabIcons, describeError, describeRefusal, clipboard = browserClipboard, accessTokensTab, ...credentials }: SecurityModuleOptions = {},
 ) {
   // Scope membership uses object identity, so bind and return this same per-admin module.
   const module = withAccessTokensParams({ module: withRootKeyParams({ params: rootKeyParams({ ...(rootKeyScopeNotice ? { rootKeyScopeNotice } : {}), ...(rootKeyTab ? { rootKeyTab } : {}) }) }), params: { ...accessTokensTab } });
   const react = ui.bindReact({ module, views: { secrets: {
     page: () => loadSecurityPage({ tabIcons }),
-    tabs: { 'access-tokens': () => loadAccessTokensTab({}), 'root-key': () => loadRootKeyTab({}) },
+    tabs: { 'access-tokens': () => loadAccessTokensTab({ ChipField }), 'root-key': () => loadRootKeyTab({}) },
   } } }, { context: SecurityPortsContext });
   const ScopeProvider = react.Provider;
   // One stable value per module, so the root-key controller is not rebuilt on every Provider render.

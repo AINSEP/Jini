@@ -1,3 +1,4 @@
+import { TestChipField } from './chip-field.fixture.js';
 import { Suspense } from 'react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { render, screen, fireEvent, cleanup, waitFor } from '../../../__tests__/fetch-query-support.js';
@@ -17,7 +18,7 @@ const HEX = 'a3f9'.repeat(16);
 const ACTIVE: RootKeyStatus = { active: true, source: 'file', state: 'active', keyFilePath: '/srv/root.key', runtimeMode: 'local', fingerprint: 'fp-1' };
 const LOCKED: RootKeyStatus = { active: false, source: 'none', state: 'mismatch', keyFilePath: '/srv/root.key', runtimeMode: 'local' };
 function mount(rootKey = createMemoryRootKey({ status: ACTIVE, revealHex: HEX }), options: SecurityModuleOptions = {}) {
-  const feature = security({ ui: reactModuleUi }, options);
+  const feature = security({ ui: reactModuleUi, ChipField: TestChipField }, options);
   const admin = createAdmin({ modules: [feature], ports: { securityApi: createMemorySecurityApi({}), rootKey } }, { permissions: ['security.read', 'admin.security.tokens.manage'] });
   const { Page, tabs } = feature.react.pages.secrets;
   return { rootKey, ...render(<feature.react.Provider admin={admin}><Suspense fallback="Loading"><Page tabs={tabs} description={admin.describe().pages[0]!} requestedTab="root-key" /></Suspense></feature.react.Provider>) };
