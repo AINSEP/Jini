@@ -146,8 +146,7 @@
       "./public-http/middleware/canonical-site-host": "universal",
       "./public-http/middleware/site-chat-static": "universal",
       "./public-http/routes/site/chat-comparison-html": "universal",
-      "./public-http/routes/site/pages/listing/listing-state": "universal",
-      "./public-http/http/site/site-chat-markup": "universal"
+      "./public-http/routes/site/pages/listing/listing-state": "universal"
     },
     "isolation": {
       "domains": {
@@ -914,11 +913,6 @@
       "types": "./dist/public-http/routes/site/pages/listing/listing-state.d.ts",
       "import": "./dist/public-http/routes/site/pages/listing/listing-state.js",
       "default": "./dist/public-http/routes/site/pages/listing/listing-state.js"
-    },
-    "./public-http/http/site/site-chat-markup": {
-      "types": "./dist/public-http/http/site/site-chat-markup.d.ts",
-      "import": "./dist/public-http/http/site/site-chat-markup.js",
-      "default": "./dist/public-http/http/site/site-chat-markup.js"
     }
   },
   "files": [
