@@ -1,4 +1,4 @@
-import { hasForbiddenRawUrlCharacter } from "@jini-ai/core/contracts/server/verified-origin";
+import type { hasForbiddenRawUrlCharacter as CanonicalRawUrlCheck } from "@jini-ai/core/contracts/server/verified-origin";
 
 /**
  * @file Task 10 of the publish-content (Publish Content) feature —
@@ -31,6 +31,10 @@ import { hasForbiddenRawUrlCharacter } from "@jini-ai/core/contracts/server/veri
  * `https` stays HARD required, on every host including loopback: the peer credential travels as a
  * bearer `Authorization` header on every request, and the peer egress policy's `allowedSchemes` is
  * `["https"]` so this is a structural property, not just this validator's opinion.
+ *
+ * ## Wiring
+ * The host binds the canonical raw-character validator: `normalizePeerBaseUrl` takes
+ * `hasForbiddenRawUrlCharacter` on its required args; this module only type-imports its contract.
  */
 
 /** Refusal shape — a single operator-facing sentence fragment, ready to be embedded in a 400 body.
@@ -79,12 +83,13 @@ function refusalReason({ url }: { url: URL }, _optional = {}): string | null {
  * `peerUrl()` can join route paths without producing a double slash.
  *
  * @param raw - The untrusted operator-supplied string, exactly as received.
+ * @param hasForbiddenRawUrlCharacter - The host-bound raw-string check (the canonical core validator).
  * @returns `{baseUrl}` with the normalized origin plus base path, or `{error}` with the single
  * reason it was refused. NEVER throws.
  * @complexity O(n) in the length of `raw` (parser-bound).
- * @example normalizePeerBaseUrl("https://Site.example.com/"); // => { baseUrl: "https://site.example.com" }
+ * @example normalizePeerBaseUrl({ raw: "https://Site.example.com/", hasForbiddenRawUrlCharacter }); // => { baseUrl: "https://site.example.com" }
  */
-export function normalizePeerBaseUrl({ raw }: { raw: string }, _optional = {}): PeerBaseUrlAccepted | PeerBaseUrlRefusal {
+export function normalizePeerBaseUrl({ raw, hasForbiddenRawUrlCharacter }: { raw: string; hasForbiddenRawUrlCharacter: typeof CanonicalRawUrlCheck }, _optional = {}): PeerBaseUrlAccepted | PeerBaseUrlRefusal {
   const trimmed = raw.trim();
   if (trimmed === "") return { error: "baseUrl is required" };
   if (hasForbiddenRawUrlCharacter({ raw: trimmed })) {

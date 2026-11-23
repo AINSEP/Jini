@@ -1488,7 +1488,7 @@
   "symbols": {
    "PeerBaseUrlAccepted": "interface:bdf32e1f7b",
    "PeerBaseUrlRefusal": "interface:56dd5b2e9e",
-   "normalizePeerBaseUrl": "function:219355e74d",
+   "normalizePeerBaseUrl": "function:29148bb893",
    "peerHostname": "function:fe80f539a9",
    "peerUrl": "function:d63b2c6554"
   }
