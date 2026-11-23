@@ -41,7 +41,11 @@
       "./admin-http/routes/users/reset-password": "universal",
       "./admin-http/routes/users/delete": "universal",
       "./admin-http/routes/users/assign-role": "universal",
-      "./admin-http/routes/users/attach-policy": "universal"
+      "./admin-http/routes/users/attach-policy": "universal",
+      "./admin-http/routes/users/list-roles": "universal",
+      "./admin-http/routes/users/list-policies": "universal",
+      "./admin-http/routes/users/list-policy-permissions": "universal",
+      "./admin-http/routes/users/remove-policy-permission": "universal"
     },
     "optionalPeers": {
       "argon2": "opt-in: argon2 password hashing; import @jini-ai/user-management/server — Argon2 password hashing could not load argon2. Install argon2 to enable this feature, or check its installed version and native binaries.",
@@ -197,6 +201,26 @@
       "types": "./dist/admin-http/routes/users/attach-policy.d.ts",
       "import": "./dist/admin-http/routes/users/attach-policy.js",
       "default": "./dist/admin-http/routes/users/attach-policy.js"
+    },
+    "./admin-http/routes/users/list-roles": {
+      "types": "./dist/admin-http/routes/users/list-roles.d.ts",
+      "import": "./dist/admin-http/routes/users/list-roles.js",
+      "default": "./dist/admin-http/routes/users/list-roles.js"
+    },
+    "./admin-http/routes/users/list-policies": {
+      "types": "./dist/admin-http/routes/users/list-policies.d.ts",
+      "import": "./dist/admin-http/routes/users/list-policies.js",
+      "default": "./dist/admin-http/routes/users/list-policies.js"
+    },
+    "./admin-http/routes/users/list-policy-permissions": {
+      "types": "./dist/admin-http/routes/users/list-policy-permissions.d.ts",
+      "import": "./dist/admin-http/routes/users/list-policy-permissions.js",
+      "default": "./dist/admin-http/routes/users/list-policy-permissions.js"
+    },
+    "./admin-http/routes/users/remove-policy-permission": {
+      "types": "./dist/admin-http/routes/users/remove-policy-permission.d.ts",
+      "import": "./dist/admin-http/routes/users/remove-policy-permission.js",
+      "default": "./dist/admin-http/routes/users/remove-policy-permission.js"
     }
   },
   "files": [

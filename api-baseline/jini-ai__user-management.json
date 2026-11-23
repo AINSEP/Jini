@@ -208,6 +208,36 @@
    "userListRoute": "variable:9bc404cdfc"
   }
  },
+ "./admin-http/routes/users/list-policies": {
+  "types": "./dist/admin-http/routes/users/list-policies.d.ts",
+  "symbols": {
+   "PolicyListRouteDeps": "interface:3452806471",
+   "policyListRoute": "variable:0e7e0d296d"
+  }
+ },
+ "./admin-http/routes/users/list-policy-permissions": {
+  "types": "./dist/admin-http/routes/users/list-policy-permissions.d.ts",
+  "symbols": {
+   "PolicyPermissionListRouteDeps": "interface:442dcc5f2a",
+   "policyPermissionListRoute": "variable:f5f2c011e7"
+  }
+ },
+ "./admin-http/routes/users/list-roles": {
+  "types": "./dist/admin-http/routes/users/list-roles.d.ts",
+  "symbols": {
+   "RoleListRouteDeps": "interface:d564fa6ef3",
+   "roleListRoute": "variable:3efd38c35d"
+  }
+ },
+ "./admin-http/routes/users/remove-policy-permission": {
+  "types": "./dist/admin-http/routes/users/remove-policy-permission.d.ts",
+  "symbols": {
+   "AssertActiveOwnerFloorFn": "type:0436af66a0",
+   "PolicyPermissionRemoveRouteDeps": "interface:38e93426de",
+   "PrincipalHoldsOwnerWildcardFn": "type:a88e3847be",
+   "policyPermissionRemoveRoute": "variable:ba1fe023ea"
+  }
+ },
  "./admin-http/routes/users/reset-password": {
   "types": "./dist/admin-http/routes/users/reset-password.d.ts",
   "symbols": {

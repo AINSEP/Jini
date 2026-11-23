@@ -1,3 +1,4 @@
+import type { JsonRouteAuthorize } from "@jini-ai/core/contracts/server";
 import { RouteRefusalError } from "@jini-ai/core/errors/route-refusal";
 
 import {
@@ -78,6 +79,18 @@ export function rejectAccessError({ err, mappings }: { err: unknown; mappings: r
   const mapping = mappings.find((candidate) => candidate.matches({ err }));
   if (!mapping) throw err;
   throw new RouteRefusalError(mapping.respond({ err }));
+}
+
+/**
+ * The role/policy READ routes (list-roles, list-policies, list-policy-permissions) are the
+ * exception to "the service owns the gate": they have no identity transition to call, so they ask
+ * the host's `authorize` port for `role.manage` themselves — with no `entityType` and no entity
+ * scope, exactly the params the hand-written `deps.authorize` call sent. A mount without an
+ * authorizer is a wiring bug, so it fails closed. @complexity O(1) plus the injected authorizer.
+ */
+export async function authorizeRoleManage({ authorize }: { authorize: JsonRouteAuthorize | undefined }, _optional: Record<string, never> = {}): Promise<void> {
+  if (!authorize) throw new Error("users admin route has no authorizer");
+  await authorize({ permission: "role.manage" });
 }
 
 /** The authenticated caller's id. A missing principal is a wiring bug (the host mounts these behind

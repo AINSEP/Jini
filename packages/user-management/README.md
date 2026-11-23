@@ -103,7 +103,12 @@ plus the seeded `ownerPrincipalId`, run by disable, enable and reset-password), 
 predicates (`isUserInTrashError`, `isSelfDeleteError`, …), and the ungrantable-permission list and
 its refusal copy. Authorization happens inside the identity services (`role.manage`, `user.manage`),
 so the specs never call the `authorize` port except `list`, which receives the host's raw
-`decidePermission` (two permissions, "either one", no entity type).
+`decidePermission` (two permissions, "either one", no entity type). The three role/policy reads
+(`list-roles`, `list-policies`, `list-policy-permissions`) ask the `authorize` port for `role.manage`
+themselves, with no `entityType` and no entity scope (the port receives neither key), and read only
+the `Pick`ed repo methods they call. `remove-policy-permission` takes the identity transaction port,
+the policy-permission row read and two host owner guards (`principalHoldsOwnerWildcard`,
+`assertActiveOwnerFloor`) as deps, and answers its 204 as a bodiless `routeReply`.
 
 `./admin-http/owner/mfa-deps`: `composeOwnerMfaDeps({ deps, authServiceDeps, totp, sealedSecrets })`
 builds `OwnerMfaDeps` from a host's late-bound identity, MFA storage and sealing ports; the host
