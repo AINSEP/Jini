@@ -1165,6 +1165,7 @@
    "RootKeyStatus": "interface:89585e8ffc",
    "START_FRESH_CONFIRMATION": "variable:bd12c30403",
    "SecurityApiPort": "interface:e7ae4d0227",
+   "SecurityTranslator": "type:36a7df8662",
    "SecurityTransportPort": "interface:03f6485de8",
    "blankCredentialDraft": "function:9c6aae1e9b",
    "buildCredentialPatch": "function:d7156dee21",
@@ -1174,6 +1175,7 @@
    "credentialCategory": "function:17bc412cf1",
    "credentialLabel": "function:43bfe06e11",
    "credentialStore": "function:f1f16c983f",
+   "englishSecurity": "variable:b3ca7c0f96",
    "filterCredentials": "function:18bad887d8",
    "filterOtherCredentials": "function:b696bcfd60",
    "isRootKeyLocked": "function:9d60a59798",
@@ -1181,8 +1183,8 @@
    "otherWritePermission": "function:8fc6cb50f7",
    "rootKeyToken": "variable:086162378c",
    "securityApiToken": "variable:457a36222b",
-   "securityMessagesEn": "variable:64aad6ad93",
-   "securityModule": "variable:ab7eb240b1",
+   "securityMessagesEn": "variable:f9c04328a0",
+   "securityModule": "variable:96614251ed",
    "validateCredentialDraft": "function:2c42416b1f",
    "writePermission": "function:eed8d35ca5"
   }
@@ -1212,8 +1214,13 @@
  "./security/react": {
   "types": "./dist/security/react/index.d.ts",
   "symbols": {
-   "security": "function:90cab31763",
-   "useSecurityPorts": "function:a0ed09c781"
+   "SecurityModuleOptions": "interface:50cd9d2cb4",
+   "SecurityRootKeyTabOptions": "interface:20f25ecf87",
+   "SecurityTabIcons": "type:76808971db",
+   "SecurityTranslator": "type:36a7df8662",
+   "security": "function:dfb72e3c58",
+   "useSecurityPorts": "function:a0ed09c781",
+   "useSecurityTranslation": "function:7d8accfc14"
   }
  },
  "./seo": {

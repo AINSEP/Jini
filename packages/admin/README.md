@@ -103,6 +103,32 @@ shared code-to-message table: the same `code` means genuinely different things i
 domains, and a shared table could only pick one. `describeApiError` is the base case only; panels
 layer their own per-code copy on top and fall through to it.
 
+## Wiring: Secrets (`security`)
+
+`@jini-ai/admin/security/react` exports one factory per admin scope. The host injects the module UI
+and every policy value; the module imports no renderer implementation and no host copy.
+
+```ts
+const secrets = security(
+  { ui: reactModuleUi },                       // the host's AdminModuleUi (bindReact + useController)
+  {
+    t: hostTranslator,                         // optional; default `englishSecurity`
+    rootKeyScopeNotice: hostScopeCopy,          // optional; root-key tab `params.scopeNotice`
+    rootKeyTab: { generate: 'hidden', defaultEnvVarName: 'HOST_KEY_ENV', previewRequired: false },
+    tabIcons: { 'access-tokens': <Glyph />, 'root-key': <Glyph /> },
+  },
+);
+// Ports: `securityApi` (required), `otherCredentials`, `rootKey` (optional), via createAdmin.
+// Live locale: <secrets.react.Provider admin={admin} t={currentTranslator}> relabels without remounting.
+```
+
+- `rootKeyTab` merges into the `root-key` tab's params. Omitted fields keep the stock behaviour:
+  generate shown, a preview before start fresh, no env-var name fallback.
+- The page renders the kit `TabBar` with the agent handles `security-tab-access-tokens`,
+  `security-tab-site-key` and container `security-tab-bar`. Tab visibility follows the module's
+  grants: `security.read` for the page, `admin.security.tokens.manage` for `root-key`; a deep link
+  to a hidden tab falls back to Access tokens. The server stays the authorization boundary.
+
 ## Not a security boundary
 
 `hasPermission` and a panel's `permissions` decide whether a control renders. They never run on
