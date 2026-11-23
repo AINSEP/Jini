@@ -167,7 +167,7 @@ export function createExecutionRunHandler({ wantsGuidance, prepareGuidanceSafely
         invokeTool: nestedInvoker({ principal, run, toolId: call.toolId, invocationRegistry: call.invocationRegistry, signal: controller.signal }, { emitSurface }),
       });
       cleanup();
-      return settleOutput({ executionId, rawOutput, descriptor, timedOut: timeout.timedOut(), aborted: controller.signal.aborted }, { guidance, normalizationNotes });
+      return settleOutput({ executionId, runId: run.id, rawOutput, descriptor, timedOut: timeout.timedOut(), aborted: controller.signal.aborted }, { guidance, normalizationNotes });
     } catch (err) {
       cleanup();
       return failureResult({ executionId, err, timedOut: timeout.timedOut(), aborted: controller.signal.aborted }, { normalizationNotes, guidance });

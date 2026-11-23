@@ -42,7 +42,7 @@
  * arguments and constructs no policy, sink, or registry of its own.
  */
 import { createToolExecutor } from '../tool-executor.js';
-import { type ToolExecutor, type PrepareToolGuidance } from '../tool-executor-types.js';
+import { type ToolExecutor, type PrepareToolGuidance, type CreateToolExecutorOptions } from '../tool-executor-types.js';
 import type { ToolRegistry } from "@jini-ai/core";
 import { isNoopObservabilityPort, type ObservabilityPort } from "@jini-ai/core/contracts/observability";
 import type { ToolAttemptAuditSink } from "../core/tool-audit.js";
@@ -57,6 +57,11 @@ import { withToolCallObservability } from "./observability.js";
 export interface AssistantToolExecutorDeps extends Omit<ToolFailureRecoveryDeps, "registry"> {
   readonly registry: ToolRegistry;
   readonly prepareGuidance?: PrepareToolGuidance;
+  /** Host's choice for wrong-shaped tool output (`'enforce'` in dev/test, `'log'` in production);
+   *  omitted means the executor's own default, `'enforce'`. */
+  readonly outputValidation?: CreateToolExecutorOptions['outputValidation'];
+  /** Receives `'log'`-mode output-shape warnings; omitted means the executor's console logger. */
+  readonly outputLogger?: CreateToolExecutorOptions['logger'];
   readonly surfaceExchanges: SurfaceExchangeStore;
   readonly newExecutionId: () => string;
   /** Optional sink is a real supported configuration; never require a dummy observer. */
@@ -78,6 +83,8 @@ function auditOptions(audit: NonNullable<AssistantToolExecutorDeps['toolAttemptA
 export function createAssistantToolExecutor(deps: AssistantToolExecutorDeps, _optional = {}): ToolExecutor {
   const guarded = withReadOnlyToolConstraint({ inner: createToolExecutor({ registry: deps.registry }, {
     ...(deps.prepareGuidance ? { prepareGuidance: deps.prepareGuidance } : {}),
+    ...(deps.outputValidation ? { outputValidation: deps.outputValidation } : {}),
+    ...(deps.outputLogger ? { logger: deps.outputLogger } : {}),
     redactNestedFailure: ({ result, ...context }) => redactFailedResult({ result, ...context, deps: deps.toolFailures }).error,
   }),
     registry: deps.registry, idGenerator: { newId: deps.newExecutionId }, messages: deps.readOnlyMessages }, {});

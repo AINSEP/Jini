@@ -9,7 +9,7 @@ import { createAssistantToolExecutor, issueCredentialSetup, type ToolFailureReco
 const call = { principal: { id: "operator" }, run: { id: "run-1" }, toolId: "deploy", input: {} };
 const readOnlyMessages = { unverifiableMessage: "cannot verify", toolRefusalMessage: () => "write refused", unknownToolMessage: () => "unknown tool" };
 
-function assemble({ audit, guided, toolFailures }: { audit?: { appended: unknown[]; sinkErrors?: unknown[] }; guided?: string[]; toolFailures?: Partial<RedactedToolFailuresDeps> } = {}) {
+function assemble({ audit, guided, toolFailures, output }: { audit?: { appended: unknown[]; sinkErrors?: unknown[] }; guided?: string[]; toolFailures?: Partial<RedactedToolFailuresDeps>; output?: { outputValidation: "enforce" | "log"; outputLogger: { warn: (...args: unknown[]) => void } } } = {}) {
   const registry = createToolRegistry({});
   const failing: ToolRegistration = {
     descriptor: { id: "deploy", metadata: { guidanceCapabilities: ["deploy-checklist"] } },
@@ -31,6 +31,7 @@ function assemble({ audit, guided, toolFailures }: { audit?: { appended: unknown
     formatReadOnlyRemedyRefusal: ({ refusal }) => refusal,
     buildRecoveryForm: () => ({}),
     toolFailures: { mintErrorId: () => "ERR-AAAA-BBBB-CCCC-DDDD", redactSecretShapes: ({ text }) => ({ text, redactions: 0 }), onFailure: (record) => { failures.push(record); }, ...toolFailures },
+    ...(output ?? {}),
     ...(guided ? { prepareGuidance: async ({ tool }: { tool: { id: string } }) => { guided.push(tool.id); return ""; } } : {}),
     ...(audit ? { toolAttemptAudit: {
       sink: { append: async (event: unknown) => { audit.appended.push(event); } },
@@ -50,6 +51,28 @@ test("a failing registered tool comes back redacted with an error id, and the ho
   expect(failures).toHaveLength(1);
   expect(executor.getAuditRecord({ executionId: result.executionId })?.events.at(-1))
     .toMatchObject({ phase: "failed", detail: "upstream 500" });
+});
+
+/** Registers a tool that declares `{ count: number }` but returns `count` as a string. */
+function registerWrongShape({ registry }: { registry: ReturnType<typeof createToolRegistry> }) {
+  registry.register({ descriptor: { id: "count", outputSchema: { type: "object", properties: { count: { type: "number" } } } },
+    handler: async () => ({ count: "three" }), policy: { authorize: () => "allow" } });
+}
+
+test("a wrong-shaped tool output fails through the assembled stack in plain words with an error id", async () => {
+  const { executor, registry } = assemble({ output: { outputValidation: "enforce", outputLogger: { warn: vi.fn() } } });
+  registerWrongShape({ registry });
+  const result = await executor.execute({ ...call, toolId: "count" });
+  expect(result).toMatchObject({ status: "failed", error: "Error ERR-AAAA-BBBB-CCCC-DDDD: The tool count returned data in the wrong shape: count should be a number, but it was a string." });
+});
+
+test("the host's 'log' choice reaches the executor: the output passes and its logger gets the mismatch", async () => {
+  const warn = vi.fn();
+  const { executor, registry } = assemble({ output: { outputValidation: "log", outputLogger: { warn } } });
+  registerWrongShape({ registry });
+  const result = await executor.execute({ ...call, toolId: "count" });
+  expect(result).toMatchObject({ status: "completed", output: { count: "three" } });
+  expect(warn).toHaveBeenCalledTimes(1);
 });
 
 test("batch internal failures get the host's secret-only redaction and one error id, just like single calls", async () => {

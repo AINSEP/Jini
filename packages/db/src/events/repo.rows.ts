@@ -4,6 +4,7 @@ import type {
   ChangeSetOperation,
   ChangeSetRecord,
   ChangeSetStatus,
+  ActorKind,
 } from "@jini-ai/core/contracts/events";
 
 /** Stored column shapes, copied without schema changes; the table names are host-owned (see `ChangeSetTables`, `OutboxTables`). */
@@ -24,6 +25,8 @@ export interface ChangeSetsTable {
   id: string;
   workspace_id: string;
   actor_id: string | null;
+  /** Added 2026-11 as a nullable column with no backfill; the host's migration adds it. */
+  actor_kind: string | null;
   status: string;
   summary: string;
   idempotency_key: string | null;
@@ -49,6 +52,7 @@ export function toRecord(row: Selectable<ChangeSetsTable>): ChangeSetRecord {
     id: row.id,
     workspaceId: row.workspace_id,
     actorId: row.actor_id ?? undefined,
+    actorKind: (row.actor_kind ?? undefined) as ActorKind | undefined,
     status: row.status as ChangeSetStatus,
     summary: row.summary,
     idempotencyKey: row.idempotency_key ?? undefined,
@@ -74,12 +78,17 @@ export function toItemRecord(row: Selectable<ChangeSetItemsTable>): ChangeSetIte
   };
 }
 
-/** `toRecord`'s inverse: every absent optional field is written as SQL NULL. */
+/**
+ * `toRecord`'s inverse: every absent optional field is written as SQL NULL, except `actor_kind`,
+ * which is left out of the insert when absent so a host table not yet migrated to that column
+ * keeps accepting change sets from callers that do not record a kind.
+ */
 export function toRow(record: ChangeSetRecord): Insertable<ChangeSetsTable> {
   return {
     id: record.id,
     workspace_id: record.workspaceId,
     actor_id: record.actorId ?? null,
+    ...(record.actorKind === undefined ? {} : { actor_kind: record.actorKind }),
     status: record.status,
     summary: record.summary,
     idempotency_key: record.idempotencyKey ?? null,

@@ -1,5 +1,5 @@
 import type { ISODateTime, JsonObject, UUID } from "../../primitives/index.js";
-import type { DomainEvent } from "./ports.js";
+import type { ActorKind, DomainEvent } from "./ports.js";
 
 /**
  * @file Change-set vocabulary and persistence contract.
@@ -34,6 +34,8 @@ export interface ChangeSetRecord {
   workspaceId: UUID;
   /** Principal (user or agent) that caused the change. */
   actorId?: UUID | undefined;
+  /** Kind of the principal in `actorId`; undefined on rows written before it was recorded. */
+  actorKind?: ActorKind | undefined;
   status: ChangeSetStatus;
   /** Human-readable description shown in audit/review UIs. */
   summary: string;

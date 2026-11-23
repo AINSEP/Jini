@@ -16,6 +16,15 @@
 import type { UUID, ISODateTime } from "../../primitives/index.js";
 
 /**
+ * What kind of principal caused a mutation or event, recorded for audit beside `actorId`.
+ * A closed union of its own rather than the gated-mutations `PrincipalKind`: that type names the
+ * credential that authorized a call (`api_key` is how, not who) and is open-ended, while audit needs
+ * a fixed "who" set that also covers work no principal requested (`system`: schedules, migrations).
+ * `CommandActor.kind` is assignable to it.
+ */
+export type ActorKind = "user" | "agent" | "system";
+
+/**
  * Immutable domain event emitted by synchronous command handlers and delivered
  * asynchronously via the outbox pipeline.
  */
@@ -39,6 +48,8 @@ export interface DomainEvent<TPayload = Record<string, unknown>> {
    * vocabulary; optional until the identity library lands.
    */
   actorId?: UUID;
+  /** Kind of the principal in `actorId`; absent when the producer does not know it (never guessed). */
+  actorKind?: ActorKind;
   /**
    * Change set this event belongs to, enabling propose/preview/apply/revert
    * grouping. Reserved change-set vocabulary.

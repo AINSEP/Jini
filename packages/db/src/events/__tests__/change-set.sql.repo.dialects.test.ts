@@ -15,7 +15,7 @@ import { openEventsKernel, TABLES } from "./support/events-tables.fixture.js";
 
 const AT = "2026-11-18T00:00:00.000Z";
 const header = (over: Partial<ChangeSetRecord> = {}): ChangeSetRecord => ({
-  id: "cs-a", workspaceId: "ws-a", actorId: "user-1", status: "proposed", summary: "Renamed a post", idempotencyKey: "idem-1", intentRef: "chat-1", createdAt: AT, ...over,
+  id: "cs-a", workspaceId: "ws-a", actorId: "user-1", actorKind: "user", status: "proposed", summary: "Renamed a post", idempotencyKey: "idem-1", intentRef: "chat-1", createdAt: AT, ...over,
 });
 const item = (over: Partial<ChangeSetItemRecord> = {}): ChangeSetItemRecord => ({
   id: "csi-a", changeSetId: "cs-a", entityType: "post", entityId: "post-1", operation: "update", beforeRevisionId: "rev-0", afterRevisionId: "rev-1",
@@ -46,15 +46,39 @@ describe.each(["sqlite", "postgres"] as const)("change-set sql repo [%s]", (dial
     const { kernel, repo } = await make();
     const bare = { id: "cs-a", workspaceId: "ws-a", status: "proposed", summary: "s", createdAt: AT } as const;
     await repo.insert({ record: bare, items: [{ id: "csi-a", changeSetId: "cs-a", entityType: "post", entityId: "p", operation: "create", position: 0 }] });
-    const [stored] = await kernel.query<Record<string, unknown>>(sql`SELECT actor_id, idempotency_key, intent_ref, applied_at, reverted_at FROM change_sets`);
-    assert.deepEqual(stored, { actor_id: null, idempotency_key: null, intent_ref: null, applied_at: null, reverted_at: null });
+    const [stored] = await kernel.query<Record<string, unknown>>(sql`SELECT actor_id, actor_kind, idempotency_key, intent_ref, applied_at, reverted_at FROM change_sets`);
+    assert.deepEqual(stored, { actor_id: null, actor_kind: null, idempotency_key: null, intent_ref: null, applied_at: null, reverted_at: null });
     const found = await repo.findById({ workspaceId: "ws-a", id: "cs-a" });
     // Absent columns come back as explicit `undefined` properties (the stored-row mapper's long-standing shape), not missing keys.
-    assert.deepEqual(found?.changeSet, { ...bare, actorId: undefined, idempotencyKey: undefined, intentRef: undefined, appliedAt: undefined, revertedAt: undefined });
+    assert.deepEqual(found?.changeSet, { ...bare, actorId: undefined, actorKind: undefined, idempotencyKey: undefined, intentRef: undefined, appliedAt: undefined, revertedAt: undefined });
     assert.deepEqual(found?.items, [{
       id: "csi-a", changeSetId: "cs-a", entityType: "post", entityId: "p", operation: "create", position: 0,
       beforeRevisionId: undefined, afterRevisionId: undefined, inversePayload: undefined, entityVersionAtApply: undefined,
     }]);
+  });
+
+  test("a change set round-trips its actor kind", async () => {
+    const { kernel, repo } = await make();
+    await repo.insert({ record: header({ actorId: "agent-1", actorKind: "agent" }), items: [item()] });
+    const [stored] = await kernel.query<{ actor_kind: unknown }>(sql`SELECT actor_kind FROM change_sets`);
+    assert.equal(stored?.actor_kind, "agent");
+    assert.equal((await repo.findById({ workspaceId: "ws-a", id: "cs-a" }))?.changeSet.actorKind, "agent");
+  });
+
+  test("a change set without actor kind reads back undefined", async () => {
+    const { kernel, repo } = await make();
+    // A row written before the column existed: inserted directly, actor_kind left NULL.
+    await kernel.execute(sql`INSERT INTO change_sets (id, workspace_id, actor_id, status, summary, created_at) VALUES ('cs-old', 'ws-a', 'user-1', 'applied', 'Old row', ${AT})`);
+    const found = await repo.findById({ workspaceId: "ws-a", id: "cs-old" });
+    assert.equal(found?.changeSet.actorId, "user-1");
+    assert.equal(found?.changeSet.actorKind, undefined);
+  });
+
+  test("a host table not yet migrated to actor_kind still accepts change sets that carry no actor kind", async () => {
+    const { kernel, repo } = await make();
+    await kernel.execute(sql`ALTER TABLE change_sets DROP COLUMN actor_kind`);
+    await repo.insert({ record: header({ actorKind: undefined }), items: [item()] });
+    assert.deepEqual((await repo.findById({ workspaceId: "ws-a", id: "cs-a" }))?.changeSet, header({ actorKind: undefined, appliedAt: undefined, revertedAt: undefined }));
   });
 
   test("a supplied event lands as the one stored outbox row; no event means no outbox row", async () => {

@@ -49,7 +49,8 @@ import type { CreateToolExecutorOptions, ToolExecutor } from './tool-executor-ty
 import { createExecutionState, createExecutionRetireAudit, createExecutionAppendEvent, createExecutionOpenAudit, createExecutionGetAuditRecord } from './tool-executor-audit.js';
 import { createExecutionApprovalStateChange, createExecutionApprovalRefusal, createExecutionRequestConfirmation, createExecutionResumeConfirmation, createExecutionCancel, createExecutionWatchTransportAbort, createExecutionConfirmGate } from './tool-executor-approval.js';
 import { createExecutionAuthorize, createExecutionAuthorizationFailure, createExecutionAdmitAuthorized } from './tool-executor-authorization.js';
-import { createExecutionTerminal, createExecutionOperationalFailure, createExecutionFailureResult, createExecutionSettleOutput } from './tool-executor-output.js';
+import { createExecutionTerminal, createExecutionOperationalFailure, createExecutionFailureResult, createExecutionCheckOutput, createExecutionSettleOutput } from './tool-executor-output.js';
+import { createConsoleLogger } from '@jini-ai/core/primitives';
 import { createExecutionPrepareGuidanceSafely, createExecutionWantsGuidance, createExecutionNestedFailureMessage, createExecutionNestedInvoker, createExecutionRunHandler } from './tool-executor-handler.js';
 import { createExecutionExecute } from './tool-executor-invocation.js';
 
@@ -67,10 +68,14 @@ import { createExecutionExecute } from './tool-executor-invocation.js';
  * @param options.delegate - Transport-supplied authorize/confirm UI seam;
  * omit for a headless caller whose tools never need interactive gating.
  * @param options.maxAuditRecords - Finished audit records kept, see {@link DEFAULT_MAX_AUDIT_RECORDS}.
+ * @param options.outputValidation - `'enforce'` (default) fails a call whose output misses its
+ * descriptor's `outputSchema`; `'log'` passes it through and warns. The host chooses (typically
+ * `'log'` in production); see `ToolOutputValidation` in `tool-executor-types.ts`.
+ * @param options.logger - Receives `'log'`-mode mismatch warnings; defaults to a console logger.
  * @complexity Known-id `execute` adds schema-guided normalization to the handler's cost; unknown ids scan O(n) descriptors for hints. `resumeConfirmation`/`cancel`/`getAuditRecord` are O(1) map lookups.
  * @overallScore 100/100
  */
-export function createToolExecutor(requiredArgs: Pick<CreateToolExecutorOptions, "registry">, optionalArgs: Pick<CreateToolExecutorOptions, "delegate" | "now" | "prepareGuidance" | "redactNestedFailure" | "maxAuditRecords"> = {}): ToolExecutor {
+export function createToolExecutor(requiredArgs: Pick<CreateToolExecutorOptions, "registry">, optionalArgs: Pick<CreateToolExecutorOptions, "delegate" | "now" | "prepareGuidance" | "redactNestedFailure" | "maxAuditRecords" | "outputValidation" | "logger"> = {}): ToolExecutor {
   const options: CreateToolExecutorOptions = { ...requiredArgs, ...optionalArgs };
   const { registry, delegate, now, maxAuditRecords, audits, finishedAudits, pendingConfirmations, approvalWaits, activeControllers, cancelledConfirmations } = createExecutionState(options);
   const approvalStateChange = createExecutionApprovalStateChange({ approvalWaits });
@@ -93,7 +98,8 @@ export function createToolExecutor(requiredArgs: Pick<CreateToolExecutorOptions,
   const wantsGuidance = createExecutionWantsGuidance({ options });
   const nestedFailureMessage = createExecutionNestedFailureMessage({ options });
   const nestedInvoker = createExecutionNestedInvoker({ getExecute: () => execute, nestedFailureMessage });
-  const settleOutput = createExecutionSettleOutput({ failureResult, appendEvent });
+  const checkOutput = createExecutionCheckOutput({ outputValidation: options.outputValidation ?? 'enforce', logger: options.logger ?? createConsoleLogger({ prefix: '[@jini-ai/daemon] tool-executor:' }) });
+  const settleOutput = createExecutionSettleOutput({ failureResult, appendEvent, checkOutput });
   const runHandler = createExecutionRunHandler({ wantsGuidance, prepareGuidanceSafely, terminal, approvalRefusal, approvalStateChange, appendEvent, nestedInvoker, settleOutput, failureResult });
   const execute = createExecutionExecute({ registry, openAudit, terminal, activeControllers, watchTransportAbort, authorize, authorizationFailure, admitAuthorized, confirmGate, runHandler });
   const getAuditRecord = createExecutionGetAuditRecord({ audits });

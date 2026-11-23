@@ -1,6 +1,8 @@
 import type { createExecutionAppendEvent } from './tool-executor-audit.js';
-import type { ToolExecutionResult, ToolExecutionErrorKind } from './tool-executor-types.js';
+import type { ToolExecutionResult, ToolExecutionErrorKind, ToolOutputValidation } from './tool-executor-types.js';
 import { withNormalizationNotes, ToolInputError, type ToolDescriptor } from '@jini-ai/core';
+import type { Logger } from '@jini-ai/core/primitives';
+import { findOutputSchemaProblem } from './tool-executor-output-schema.js';
 
 
 /**
@@ -62,14 +64,35 @@ export function createExecutionFailureResult({ terminal, appendEvent }: { termin
   return failureResult;
 }
 
-export function createExecutionSettleOutput({ failureResult, appendEvent }: { failureResult: ReturnType<typeof createExecutionFailureResult>; appendEvent: ReturnType<typeof createExecutionAppendEvent> }) {
+export function createExecutionCheckOutput({ outputValidation, logger }: { outputValidation: ToolOutputValidation; logger: Pick<Logger, 'warn'> }) {
+  /**
+   * Checks a resolved handler output against `descriptor.outputSchema`. Returns the error that
+   * should fail the call (`'enforce'`), or `undefined` to let the output through — after one
+   * warning in `'log'` mode. A descriptor without an `outputSchema` is never inspected, so such a
+   * tool's result is byte-identical to before this check existed.
+   */
+  function checkOutput({ executionId, runId, rawOutput, descriptor }: { executionId: string; runId: string; rawOutput: unknown; descriptor: ToolDescriptor }): Error | undefined {
+    if (descriptor.outputSchema === undefined) return undefined;
+    const problem = findOutputSchemaProblem({ value: rawOutput, schema: descriptor.outputSchema });
+    if (!problem) return undefined;
+    const message = `The tool ${descriptor.id} returned data in the wrong shape: ${problem}.`;
+    // A plain Error, not a ToolInputError: the TOOL broke its contract, not the caller, so the
+    // result is tagged 'internal' and the host's redaction layer mints the ERR- id for it.
+    if (outputValidation === 'enforce') return new Error(message);
+    logger.warn({ message }, { meta: { toolId: descriptor.id, executionId, runId } });
+    return undefined;
+  }
+  return checkOutput;
+}
+
+export function createExecutionSettleOutput({ failureResult, appendEvent, checkOutput }: { failureResult: ReturnType<typeof createExecutionFailureResult>; appendEvent: ReturnType<typeof createExecutionAppendEvent>; checkOutput: ReturnType<typeof createExecutionCheckOutput> }) {
   /**
    * Turns a resolved handler output into the terminal result: `completed` with the (guidance-
    * annotated, normalization-noted, truncated) output, or the terminal state the call already
    * reached when the handler resolved after it.
    */
   function settleOutput(
-    { executionId, rawOutput, descriptor, timedOut, aborted }: { executionId: string; rawOutput: unknown; descriptor: ToolDescriptor; timedOut: boolean; aborted: boolean },
+    { executionId, runId, rawOutput, descriptor, timedOut, aborted }: { executionId: string; runId: string; rawOutput: unknown; descriptor: ToolDescriptor; timedOut: boolean; aborted: boolean },
     { guidance, normalizationNotes }: { guidance: string; normalizationNotes: readonly string[] },
   ): ToolExecutionResult {
     // A handler is not OBLIGED to honour `signal` — it is handed one, not policed by one. A
@@ -82,6 +105,9 @@ export function createExecutionSettleOutput({ failureResult, appendEvent }: { fa
     if (timedOut || aborted) {
       return failureResult({ executionId, err: new Error('handler resolved after the execution was already terminal'), timedOut, aborted });
     }
+    // Checked on the handler's own value, before guidance/notes/truncation reshape it.
+    const shapeError = checkOutput({ executionId, runId, rawOutput, descriptor });
+    if (shapeError) return failureResult({ executionId, err: shapeError, timedOut: false, aborted: false }, { normalizationNotes, guidance });
     const { output, truncated } = truncateOutput(withNormalizationNotes({ output: attachToolGuidance({ output: rawOutput, guidance }), notes: normalizationNotes }), descriptor.maxOutputBytes);
     appendEvent(executionId, 'completed');
     return { executionId, status: 'completed', output, truncated, ...(normalizationNotes.length ? { normalizationNotes } : {}) };

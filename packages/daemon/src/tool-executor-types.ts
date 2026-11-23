@@ -1,5 +1,6 @@
 import type { Principal, RunRef, ToolDescriptor, AuthorizationDecision, SurfaceEmitter, ToolRegistry, ToolHandler } from '@jini-ai/core';
 import type { ToolInvocationAuthorization } from '@jini-ai/core/composition';
+import type { Logger } from '@jini-ai/core/primitives';
 
 
 export type ConfirmationDecision = 'confirm' | 'deny';
@@ -130,7 +131,25 @@ export interface ToolExecutor {
 /** Advisory preparation after authorization/confirmation, before the handler. A failure is fail-open. */
 export type PrepareToolGuidance = (required: { principal: Principal; run: RunRef; tool: ToolDescriptor; signal: AbortSignal; emitSurface?: SurfaceEmitter }, optional?: Record<string, never>) => Promise<string>;
 
+/**
+ * What `ToolExecutor` does when a handler's output does not fit its descriptor's `outputSchema`:
+ * `'enforce'` turns the call into a `failed` result (`errorKind: 'internal'`, so the host's
+ * redaction layer mints its `ERR-` id); `'log'` returns the output untouched and warns once through
+ * {@link CreateToolExecutorOptions.logger}. The HOST picks: the intended split is `'enforce'` in
+ * development and tests, `'log'` in production until a tool's schema has proven itself. The
+ * executor never reads the environment to decide.
+ */
+export type ToolOutputValidation = 'enforce' | 'log';
+
 export interface CreateToolExecutorOptions {
+  /**
+   * Policy for a handler output that disagrees with its `outputSchema`. Defaults to `'enforce'`:
+   * a declared contract that is silently ignored is worse than none, so a host that wants
+   * leniency (production) says so explicitly. Tools without an `outputSchema` are never checked.
+   */
+  readonly outputValidation?: ToolOutputValidation;
+  /** Receives the `'log'`-mode mismatch warning. Defaults to a console logger. */
+  readonly logger?: Pick<Logger, 'warn'>;
   readonly prepareGuidance?: PrepareToolGuidance;
   /** Host redaction for nested internal failures only; top-level failures keep their wrapper path. */
   readonly redactNestedFailure?: (required: { result: ToolExecutionResult; toolId: string; runId: string; principalId: string }) => string | undefined;
