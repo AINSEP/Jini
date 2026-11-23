@@ -118,6 +118,16 @@ describe('McpUiSurfaceCard', () => {
       expect(container.querySelector('iframe')).toBeNull();
     });
 
+    it('shows a declined question as "Declined" once, on the closed card, with no user bubble', () => {
+      // B090: a decline is not something the person said, so it must not also echo as a user message.
+      const { container } = renderWithChatSurfaces(
+        <McpUiSurfaceCard {...BASE_PROPS} runStreaming events={card} call={{ ...askCall, result: { content: '{"submitted":false,"reason":"cancelled"}', isError: false } }} />,
+      );
+      expect(container.querySelector('.mcpui-surface-card-closed')).toHaveTextContent('Pick a plan: Declined');
+      expect(container.querySelector('.jini-message-user')).toBeNull();
+      expect(container.textContent?.match(/Declined/g)).toHaveLength(1);
+    });
+
     it('shows "This question expired" when the call ended without an answer', () => {
       const { container, getByRole } = renderWithChatSurfaces(
         <McpUiSurfaceCard

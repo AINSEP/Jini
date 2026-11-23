@@ -298,8 +298,9 @@ function answeredSurface({ answerRecorded, answer, closed, call, standalone, t }
   // MOVE: The accepted-input receipt owns its bubble; the closed card retains the question's context.
   if (answerRecorded) return <ClosedSurface call={call} label={recordedAnswerLabel({ answer, closed, t })} />;
   if (answer === undefined) return undefined;
-  const label = answer === 'Declined' ? t('Declined') : answer;
-  return <><ClosedSurface call={call} label={label} /><MidRunUserMessage events={[{ text: standalone ? surfaceAnswerLabel({ call, label }) : label }]} /></>;
+  // A decline is not something the person said: the closed card states it once, with no echoed user bubble.
+  if (answer === 'Declined') return <ClosedSurface call={call} label={t('Declined')} />;
+  return <><ClosedSurface call={call} label={answer} /><MidRunUserMessage events={[{ text: standalone ? surfaceAnswerLabel({ call, label: answer }) : answer }]} /></>;
 }
 
 /** Rendering priority stays receipt, answer, closure, then the live documents. */
