@@ -33,8 +33,9 @@ it('gives each kernel a separate state, shares it with its executor, and clears 
           }) } };
       },
       runtime: {
+        ...nodeOsPorts,
         spawn: createSpawnPort({ spawn: ((_command: string, argv: readonly string[]) => { captured.push([...argv]); throw new Error('fixture spawn stop'); }) as SpawnFunction }),
-        ...nodeOsPorts, commandShell: nodeCommandShell({ env: {} }),
+        commandShell: nodeCommandShell({ env: {} }),
       },
     } }) };
   };

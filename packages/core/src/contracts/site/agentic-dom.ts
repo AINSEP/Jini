@@ -1,9 +1,8 @@
 /**
  * @file The page a DOM page driver may navigate to, and the navigation input/result it answers with.
  *
- * Additive verbatim copy of the declarations in `@jini-ai/agentic` (`core/dom/dom-page-driver.ts`,
- * `core/page-navigation.ts`); agentic keeps its identical declarations and exports until the paired
- * cutover.
+ * Owner of these declarations; `@jini-ai/agentic` imports them from here and re-exports them from
+ * its `core` and `core/dom` entries.
  */
 import type { AgentNavigationScreen, ResolvedPageEntity } from './agentic.js';
 

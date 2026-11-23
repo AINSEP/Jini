@@ -26,5 +26,6 @@ export * from './provider-host.js';
 export * from './provider-revision-watch.js';
 export * from './provider-setting-required.js';
 export * from './provider-settings-migrations.js';
-export type { ProviderConfigSource, ProviderKeyUsage, ProviderPluginConfig, ProviderSettingsView, ProviderWriteResult } from './provider-config-source.js';
+export type { ProviderConfigSource, ProviderPluginConfig, ProviderSettingsView } from '@jini-ai/core/contracts/site/composition-provider-config-source';
+export type { ProviderKeyUsage, ProviderWriteResult } from '@jini-ai/core/contracts/site/plugins-host';
 export * from './admin-response.js';

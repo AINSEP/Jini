@@ -3,9 +3,8 @@
  * `pluginId → { settings, secrets }`, so boot and the admin settings card never know which store
  * answered. Types only.
  *
- * Additive copy of the declarations in `@jini-ai/plugins/host` (`host/provider-config-source.ts`),
- * which keeps its identical declarations and exports until the paired cutover. The host supplies
- * the adapters (site vault, project store); none live here.
+ * Owner of these declarations; `@jini-ai/plugins/host` re-exports the types from here. The host
+ * supplies the adapters (site vault, project store); none live here.
  */
 import type { ProviderKeyUsage, ProviderWriteResult } from "./plugins-host.js";
 

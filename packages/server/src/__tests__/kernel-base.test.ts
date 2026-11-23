@@ -221,3 +221,24 @@ describe('createJiniKernelBase aiTrace option', () => {
     }
   });
 });
+
+describe('createJiniKernelBase osPorts (K5: the host binds every OS-facing port)', () => {
+  it('stamps durable events with the injected clock and builds the command shell from the resolved host env', async () => {
+    const dataDir = makeTempDataDir();
+    const hostEnv = { PATH: '/injected/bin', ComSpec: 'C:\\injected\\cmd.exe' };
+    const commandShell = vi.fn(({ env }: { readonly env: Readonly<Record<string, string | undefined>> }) => ({ platform: 'linux' as const, fallbackComSpec: env.ComSpec }));
+    const base = await createJiniKernelBase({
+      storage: { kind: 'sqlite', dataDir, open: (file, settings) => new Database(file, settings) },
+      osPorts: { ...nodeOsPorts, commandShell, clock: { nowMs: () => 4242 } },
+      agentExecutor: { hostEnv },
+    });
+    try {
+      const entry = await base.eventLog.append({ runId: 'r-clock', event: 'probe', data: 1 });
+      expect(entry.recordedAt).toBe(4242);
+      expect(commandShell).toHaveBeenCalledTimes(1);
+      expect(commandShell.mock.calls[0]![0].env).toMatchObject(hostEnv);
+    } finally {
+      await base.close();
+    }
+  });
+});

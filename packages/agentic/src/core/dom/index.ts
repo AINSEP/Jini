@@ -10,8 +10,8 @@ export {
   currentAgentPage,
   type DomPageDriverRequired,
   type DomPageDriverOptions,
-  type DomPageDriverPage,
 } from './dom-page-driver.js';
+export type { DomPageDriverPage } from '@jini-ai/core/contracts/site/agentic-dom';
 
 /** Browser WebMCP feature detection. See model-context.ts for why it lives here rather than
  * beside the DOM-free webmcp.ts projection. */

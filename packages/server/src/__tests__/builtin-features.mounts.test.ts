@@ -9,6 +9,7 @@ import { type RouteHostContext } from '@jini-ai/core/contracts/server';
 import { createTestRouteHost } from '@jini-ai/core/contracts/server/testing';
 import type { DetectedAgent } from '@jini-ai/agent-runtime';
 import { composeJiniKernel, type JiniKernel } from '../compose-jini-kernel.js';
+import { nodeOsPorts } from './fixtures/node-os-ports.js';
 import { ANONYMOUS_DELEGATED_PRINCIPAL, LOCAL_DAEMON_PRINCIPAL, projectDetectedAgent } from '../builtin-features.js';
 
 /** L9 §4 builtin-features: the egress families actually REGISTER their routes when activated (a
@@ -30,7 +31,7 @@ async function routesFor(features: Record<string, true>, storage: 'memory' | 'sq
   const resolvedPortRef = { current: 0 };
   let dataDir: string | undefined;
   if (storage === 'sqlite') { dataDir = mkdtempSync(join(tmpdir(), 'jini-mounts-')); cleanups.push(() => rmSync(dataDir!, { recursive: true, force: true })); }
-  const kernel: JiniKernel = await composeJiniKernel({ app, adapter, resolvedPortRef, security: { mode: 'host' }, profile: 'agent-core-v1',
+  const kernel: JiniKernel = await composeJiniKernel({ app, adapter, resolvedPortRef, security: { mode: 'host' }, profile: 'agent-core-v1', osPorts: nodeOsPorts,
     storage: storage === 'memory' ? { kind: 'memory' } : { kind: 'sqlite', open: (file: string) => new Database(file) as never, dataDir: dataDir! },
     capabilities: { 'net:egress': true }, features, featureOptions } as never);
   cleanups.push(() => kernel.close());

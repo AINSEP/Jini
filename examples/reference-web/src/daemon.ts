@@ -12,6 +12,7 @@ import { createAtomicWriterPort, createFileLockPort } from '@jini-ai/node-adapte
 import { backupOriginalOnce, withFileLock, writeFileAtomicAsync, writeJsonFileAtomicAsync } from '@jini-ai/platform/fs';
 import { createProcessControlPort, nodeCommandShell, nodeSpawnPort } from '@jini-ai/node-adapters/process';
 import { listProcessSnapshots, stopProcesses, waitForProcessExit } from '@jini-ai/platform/process';
+import { createSystemClock } from '@jini-ai/platform/system';
 import type { AgentExecutorRuntimePorts } from '@jini-ai/daemon/ports/runtime';
 import { createAgentRuntimeBindings, createNativeAgentRuntime, runAnthropicToolTurn, runAzureToolTurn, runGoogleToolTurn, runOllamaToolTurn, runOpenAiToolTurn, validateBaseUrl } from '@jini-ai/agent-runtime';
 import type { AgentRuntimePort } from '@jini-ai/daemon/ports/agent-runtime';
@@ -417,7 +418,7 @@ async function main(): Promise<void> {
       toolTurns: { anthropic: runAnthropicToolTurn, openai: runOpenAiToolTurn, azure: runAzureToolTurn, google: runGoogleToolTurn, ollama: runOllamaToolTurn },
       baseUrlGuard: { validate: validateBaseUrl },
       // Process control, file lock and atomic writer are host-bound too: the preset imports no platform implementation.
-      osPorts: { processes: nodeProcessControl, fileLock: nodeFileLock, writer: nodeAtomicWriter },
+      osPorts: { spawn: nodeSpawnPort, processes: nodeProcessControl, fileLock: nodeFileLock, writer: nodeAtomicWriter, commandShell: nodeCommandShell, clock: createSystemClock() },
       dataDir,
       // The host supplies the SQLite driver; Jini never autoloads it.
       open: (file, options) => new Database(file, options),

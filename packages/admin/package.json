@@ -148,6 +148,8 @@
       "./shell/components/Select/Select.hooks": "browser",
       "./shell/lib/tab-event-source": "browser",
       "./shell/hooks/use-external-entry-refresh.hooks": "browser",
+      "./shell/hooks/admin-execution-credential-port.hooks": "browser",
+      "./shell/hooks/use-sites-sidebar-nav.hooks": "browser",
       "./posts/PostAuthorFields": "browser",
       "./posts/PostPublishingFields": "browser",
       "./screens/collections/api/collections-api.types": "universal",
@@ -261,7 +263,9 @@
         "./shell/components/InstallTabCard/use-folder-upload.hooks": "browser",
         "./shell/components/Select/Select.hooks": "browser",
         "./shell/lib/tab-event-source": "browser",
-        "./shell/hooks/use-external-entry-refresh.hooks": "browser"
+        "./shell/hooks/use-external-entry-refresh.hooks": "browser",
+        "./shell/hooks/admin-execution-credential-port.hooks": "browser",
+        "./shell/hooks/use-sites-sidebar-nav.hooks": "browser"
       }
     },
     "optionalPeers": {
@@ -938,6 +942,16 @@
       "types": "./dist/shell/hooks/use-external-entry-refresh.hooks.d.ts",
       "import": "./dist/shell/hooks/use-external-entry-refresh.hooks.js",
       "default": "./dist/shell/hooks/use-external-entry-refresh.hooks.js"
+    },
+    "./shell/hooks/admin-execution-credential-port.hooks": {
+      "types": "./dist/shell/hooks/admin-execution-credential-port.hooks.d.ts",
+      "import": "./dist/shell/hooks/admin-execution-credential-port.hooks.js",
+      "default": "./dist/shell/hooks/admin-execution-credential-port.hooks.js"
+    },
+    "./shell/hooks/use-sites-sidebar-nav.hooks": {
+      "types": "./dist/shell/hooks/use-sites-sidebar-nav.hooks.d.ts",
+      "import": "./dist/shell/hooks/use-sites-sidebar-nav.hooks.js",
+      "default": "./dist/shell/hooks/use-sites-sidebar-nav.hooks.js"
     },
     "./posts/PostAuthorFields": {
       "types": "./dist/posts/PostAuthorFields.d.ts",

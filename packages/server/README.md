@@ -90,7 +90,10 @@ The old entry type is gone: use `VaultArchiveEntry` from `@jini-ai/platform/secr
 
 `createJiniKernelBase` / `composeJiniKernel` take the agent-executor ports through
 `agentExecutor.runtime` (spawn, processes, fileLock, writer, commandShell). Omitted, the preset builds it
-from the required `osPorts` (`KernelOsPorts`: processes, fileLock, writer — the host binds them with
-`@jini-ai/node-adapters`' builders over `@jini-ai/platform`'s functions) plus node-adapters' Node spawn
-and command shell. `createLocalNodeDaemon` takes the same `osPorts` and writes its discovery record
-with `osPorts.writer`; the server imports no `@jini-ai/platform/fs` or `/process` implementation.
+from the required `osPorts` (`KernelOsPorts`: spawn, processes, fileLock, writer, a `commandShell`
+builder the kernel calls with the resolved host env, and the `clock` that stamps sqlite event-log
+entries — the host binds them with `@jini-ai/node-adapters`' builders (`nodeSpawnPort`,
+`nodeCommandShell`) over `@jini-ai/platform`'s functions and `createSystemClock()`).
+`createLocalNodeDaemon` takes the same `osPorts` and writes its discovery record with
+`osPorts.writer`; the server imports no `@jini-ai/platform/fs`, `/process`, `/system` or
+`@jini-ai/node-adapters` implementation.
