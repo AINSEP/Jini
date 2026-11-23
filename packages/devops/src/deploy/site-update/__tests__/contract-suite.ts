@@ -4,7 +4,7 @@
  * never update without an approved plan). The caller supplies its test runner, the same way
  * `serverConformance` in `@jini-ai/core` does, so this file imports none.
  */
-import type { SiteUpdateApproval, SiteUpdatePlan, SiteUpdatePort } from '../contract.js';
+import type { SiteUpdateApproval, SiteUpdatePlan, SiteUpdatePort, SiteUpdateRollbackApproval } from '../contract.js';
 
 /** The test-runner functions the suite needs (vitest, jest and node:test wrappers all fit). */
 export interface SiteUpdateSuiteRunner {
@@ -38,6 +38,7 @@ const RELEASES = [
 const BASE: SiteUpdateScenario = { runningVersion: '1.0.0', releases: RELEASES, backups: ['backup-1'] };
 
 const approve = (plan: SiteUpdatePlan): SiteUpdateApproval => ({ planId: plan.planId, receipt: 'card-receipt-1', approvedBy: 'human' });
+const approveRollback = (to: string): SiteUpdateRollbackApproval => ({ to, receipt: 'card-receipt-2', approvedBy: 'human' });
 
 async function planned(port: SiteUpdatePort): Promise<SiteUpdatePlan> {
   const result = await port.planUpdate({ runningVersion: '1.0.0', targetVersion: '1.1.0' });
@@ -153,12 +154,23 @@ export function siteUpdateContractSuite(
       const port = makePort({ scenario: BASE });
       const plan = await planned(port);
       await port.applyUpdate({ plan, backupId: 'backup-1', approval: approve(plan) });
-      expect(await port.rollback({ to: '1.0.0' })).toEqual({ status: 'rolled_back', runningVersion: '1.0.0' });
+      expect(await port.rollback({ to: '1.0.0', approval: approveRollback('1.0.0') })).toEqual({ status: 'rolled_back', runningVersion: '1.0.0' });
+    });
+
+    it('refuses a rollback without a person approving that version, and changes nothing', async () => {
+      const port = makePort({ scenario: BASE });
+      const plan = await planned(port);
+      await port.applyUpdate({ plan, backupId: 'backup-1', approval: approve(plan) });
+      const missing = await port.rollback({ to: '1.0.0', approval: null });
+      const mismatch = await port.rollback({ to: '1.0.0', approval: approveRollback('1.1.0') });
+      expect([missing.status === 'refused' && missing.reason, mismatch.status === 'refused' && mismatch.reason]).toEqual(['approval_missing', 'approval_mismatch']);
+      if (missing.status === 'refused') expect(missing.message).toMatch(ERR_MESSAGE);
+      expect((await port.verifyUpdate({ expectedVersion: '1.1.0' })).status).toBe('passed');
     });
 
     it('refuses to roll back to an unknown version, with a plain ERR- message', async () => {
       const port = makePort({ scenario: BASE });
-      const result = await port.rollback({ to: '0.0.1' });
+      const result = await port.rollback({ to: '0.0.1', approval: approveRollback('0.0.1') });
       expect(result.status).toBe('refused');
       if (result.status !== 'refused') return;
       expect(result.reason).toBe('unknown_version');
