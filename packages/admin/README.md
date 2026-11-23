@@ -133,8 +133,8 @@ structural mirror of the UI library's tab type (`id`, `label`, `navHint`, `title
 `icon`, `panel`). Host screens type their tab arrays with it and mount them through the
 `SettingsDialogShell` slot, which the host binds in its `AdminKit` alongside `I18nProvider` and
 `Icon`. The two declarations are intentional; the host's kit integration test asserts they stay
-mutually assignable. `SettingsDialogShellProps` does not declare the UI shell's `labels` prop yet,
-so screens that pass `labels` still mount the UI library's shell directly.
+mutually assignable. `SettingsDialogShellProps.labels` is `SettingsDialogChromeLabels`, the kit mirror of the UI
+shell's chrome labels, so labelled screens mount the kit facade too.
 
 ## Errors
 
