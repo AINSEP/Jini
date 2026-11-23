@@ -25,6 +25,13 @@ const formsKit: AdminKit = {
     HtmlEditor: () => { throw new Error('Forms tests do not supply HtmlEditor'); },
     ErrorNotice: () => { throw new Error('Forms tests do not supply ErrorNotice'); },
     Icon: () => { throw new Error('Forms tests do not supply Icon'); },
+    RemixIcon: () => { throw new Error('Forms tests do not supply RemixIcon'); },
+    Toast: () => { throw new Error('Forms tests do not supply Toast'); },
+    I18nProvider: () => { throw new Error('Forms tests do not supply I18nProvider'); },
+    SettingsDialogShell: () => { throw new Error('Forms tests do not supply SettingsDialogShell'); },
+    CodeWithLines: () => { throw new Error('Forms tests do not supply CodeWithLines'); },
+    CodeWrapToggle: () => { throw new Error('Forms tests do not supply CodeWrapToggle'); },
+    PreviewModalShell: () => { throw new Error('Forms tests do not supply PreviewModalShell'); },
   },
   hooks: {
     useAgentHandle: ({ agentHandle }) => agentHandle === false ? undefined : agentHandle ?? 'fake-handle',
@@ -55,11 +62,18 @@ const formsKit: AdminKit = {
     },
     useConfirmController, useNativeDialog,
     useT: () => { throw new Error('Forms tests do not supply useT'); },
+    useTabBarKeyboard: () => { throw new Error('Forms tests do not supply useTabBarKeyboard'); },
+    useSerialWrites: () => { throw new Error('Forms tests do not supply useSerialWrites'); },
+    useCodeWrap: () => { throw new Error('Forms tests do not supply useCodeWrap'); },
+    useInfoTip: () => { throw new Error('Forms tests do not supply useInfoTip'); },
+    usePanelPosition: () => { throw new Error('Forms tests do not supply usePanelPosition'); },
+    useSelectDropdown: () => { throw new Error('Forms tests do not supply useSelectDropdown'); },
   },
   query: { useFetchQuery, useFetchMutation, useCachedLoader, useInvalidate, useFetchQueryScope },
   get mediaProviders(): never { throw new Error('Forms tests do not supply mediaProviders'); },
   get theme(): never { throw new Error('Forms tests do not supply theme'); },
   get values(): never { throw new Error('Forms tests do not supply values'); },
+  get chat(): never { throw new Error('Forms tests do not supply chat'); },
 };
 
 function scope(wrapper?: ComponentType<{ children: ReactNode }>) {
