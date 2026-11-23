@@ -143,7 +143,9 @@
       "./shell/components/InstallTabCard/use-folder-upload.hooks": "browser",
       "./shell/components/Select/Select.hooks": "browser",
       "./shell/lib/tab-event-source": "browser",
-      "./shell/hooks/use-external-entry-refresh.hooks": "browser"
+      "./shell/hooks/use-external-entry-refresh.hooks": "browser",
+      "./screens/redirects": "browser",
+      "./screens/redirects/redirects-i18n": "browser"
     },
     "isolation": {
       "shared": [
@@ -879,6 +881,16 @@
       "types": "./dist/shell/hooks/use-external-entry-refresh.hooks.d.ts",
       "import": "./dist/shell/hooks/use-external-entry-refresh.hooks.js",
       "default": "./dist/shell/hooks/use-external-entry-refresh.hooks.js"
+    },
+    "./screens/redirects": {
+      "types": "./dist/screens/redirects/index.d.ts",
+      "import": "./dist/screens/redirects/index.js",
+      "default": "./dist/screens/redirects/index.js"
+    },
+    "./screens/redirects/redirects-i18n": {
+      "types": "./dist/screens/redirects/redirects-i18n.d.ts",
+      "import": "./dist/screens/redirects/redirects-i18n.js",
+      "default": "./dist/screens/redirects/redirects-i18n.js"
     }
   },
   "files": [
@@ -942,6 +954,12 @@
       ],
       "shell/*": [
         "./dist/shell/*.d.ts"
+      ],
+      "screens/redirects": [
+        "./dist/screens/redirects/index.d.ts"
+      ],
+      "screens/redirects/redirects-i18n": [
+        "./dist/screens/redirects/redirects-i18n.d.ts"
       ]
     }
   },
