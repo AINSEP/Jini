@@ -1,4 +1,4 @@
-import type { AgentEvent } from "../../core/index.js";
+
 import { dedupeToolUsesById } from "../../core/tool-events.js";
 import { sql, type ExpressionBuilder } from "kysely";
 import { sqliteReadVersion } from "../sql/read-version.js";
@@ -9,6 +9,7 @@ import type { ChatDatabase, ChatKernel } from "./kernel.js";
 import { chatKernelTables } from "../sql/boundary.js";
 import { createDurableRunStore } from "./durable-run-store.js";
 import type { RunIdPolicy } from "../../core/durable-runs/ports.js";
+import type { AgentEvent } from "@jini-ai/core/contracts/site/chat-core";
 
 /**
  * @file The run-status half of chat history: the writes that decide how an assistant turn ENDS.
@@ -130,7 +131,6 @@ export function createChatRunLedger<DB extends ChatDatabase>(
   const kernel = chatKernelTables<DB, ChatDatabase>({ kernel: hostKernel }, {});
   const version = kernel.dialect === 'sqlite' ? sqliteReadVersion({ kernel }) : sql<string>`cast(ai_chat_messages.xmin as text)`;
   const returnedVersion = kernel.dialect === 'sqlite' ? sql<string | null>`null` : version;
-
 
   async function isSettled(run: RunRef): Promise<boolean> {
     const row = await kernel.run((db) =>

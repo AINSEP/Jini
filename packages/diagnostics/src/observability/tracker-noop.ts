@@ -1,4 +1,4 @@
-import type { Tracker, TrackerSpan } from "./tracker-types.js";
+import type { Tracker, TrackerSpan } from "@jini-ai/core/contracts/site/diagnostics-observability";
 
 const SPAN: TrackerSpan<unknown> = Object.freeze({ setOutcome() {} });
 const trace = async <T, Outcome>({ run }: { name: string; run: (span: TrackerSpan<Outcome>) => T | Promise<T> }): Promise<T> => run(SPAN);

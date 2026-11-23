@@ -1,5 +1,6 @@
-import type { AgentEvent } from './events.js';
+
 import type { ChatMessage } from './messages.js';
+import type { AgentEvent } from "@jini-ai/core/contracts/site/chat-core";
 
 function identity(event: AgentEvent, usageOccurrences: Map<string, number>): string {
   const wire = event as AgentEvent & { cursor?: string | number; eventId?: string };

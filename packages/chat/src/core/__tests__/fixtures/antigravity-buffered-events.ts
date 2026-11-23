@@ -1,4 +1,4 @@
-import type { AgentEvent } from '../../events.js';
+import type { AgentEvent } from "@jini-ai/core/contracts/site/chat-core";
 
 /** Exact tool-event subsequence from fake-test-site/data.nosync/chat.db message
  * 3a080c0e-d795-438e-a037-adcedccb3cf4, copied via sqlite3 -readonly on 2026-11-01.

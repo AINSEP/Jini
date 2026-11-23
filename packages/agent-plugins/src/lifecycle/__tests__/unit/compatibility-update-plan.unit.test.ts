@@ -6,7 +6,7 @@ import {
 } from '../../compatibility.js';
 import { planAgentPluginUpdate } from '../../update-plan.js';
 import type { AgentPluginActivations } from '../../activation.js';
-import type { InstalledAgentPlugin } from '../../types.js';
+import type { InstalledAgentPlugin } from "@jini-ai/core/contracts/site/agent-plugins-lifecycle";
 
 const id = 'example/sample';
 const manifest = { $schema: 'https://agent-plugins.org/schemas/1.0.0/plugin.schema.json', name: 'sample' };

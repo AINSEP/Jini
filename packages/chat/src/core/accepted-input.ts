@@ -1,8 +1,8 @@
 /** Accepted composer input has one identity across optimistic display, replay and recall. */
 import { questionAnswerFromResult, questionAnswerLabel } from './question-answer.js';
-import type { AgentEvent } from './events.js';
 import type { ChatAttachment, ChatMessage } from './messages.js';
 import { MID_RUN_USER_MESSAGE_EVENT_NAME } from './turn-usage.js';
+import type { AgentEvent } from "@jini-ai/core/contracts/site/chat-core";
 
 export interface AcceptedChatInput {
   id: string;

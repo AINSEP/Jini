@@ -4,8 +4,8 @@ import { buildDomainRegistrations, indexCatalogById, requireInputRecord, ToolInp
 import { listPageForModel, parseListPageRequest } from '@jini-ai/core/list-page';
 import { redactUserText, type RedactUserText } from '../../core/user-text-redaction.js';
 import type { ChatHistoryReader, ChatHistoryStore } from '../ports.js';
-import type { AgentEvent } from '../../core/events.js';
 import { assistantHistoryToolMetadata } from '../../core/history-tool-metadata.js';
+import type { AgentEvent } from "@jini-ai/core/contracts/site/chat-core";
 
 export const HISTORY_MESSAGE_CHAR_CAP = 8_000;
 export const HISTORY_TOTAL_CHAR_CAP = 40_000;

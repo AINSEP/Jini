@@ -2,7 +2,7 @@ import { I18nContext } from '../../hooks/context.js';
 import { act, fireEvent, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import type { AgentEvent, ChatMessage } from '../../../core/index.js';
+import type { ChatMessage } from '../../../core/index.js';
 import { assistantContentFromEvents } from '../../../core/index.js';
 import { translateRunAgentPayload } from '../../../core/run-events/entry.js';
 import { clearExtEventRenderers, registerExtEventRenderer } from '../../ext-event-renderer-registry.js';
@@ -12,6 +12,7 @@ import {
 } from '../../hooks/attachment-preview-cache.js';
 import { MessageRow } from '../MessageRow.js';
 import { registerMidRunUserMessageRenderer } from '../MidRunUserMessage.js';
+import type { AgentEvent } from "@jini-ai/core/contracts/site/chat-core";
 
 describe('MessageRow', () => {
   it('shows one translated access note at the top of its run, including after replay', () => {

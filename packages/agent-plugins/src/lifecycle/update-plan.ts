@@ -1,5 +1,5 @@
 import * as semver from 'semver';
-import type { InstalledAgentPlugin } from './types.js';
+import type { InstalledAgentPlugin } from "@jini-ai/core/contracts/site/agent-plugins-lifecycle";
 
 type Revision = Pick<InstalledAgentPlugin, 'pluginId' | 'archiveDigest' | 'version'> & { readonly enabled?: boolean };
 export interface AgentPluginUpdatePlan {

@@ -57,19 +57,21 @@
  */
 import { isAgentPluginName, MAX_NAME_LENGTH } from '../core/plugin-name.js';
 import { resolveAgentPluginIdentityNamespace, readCompatibleAgentPluginServerMetadata, hasLegacyAgentPluginServerMetadata, legacyAgentPluginMetadataWarning, readAgentPluginCompatibilityWarnings, isPortableAgentPluginNamespace } from '../core/identity-namespace.js';
+import type { AgentPluginExportMetadata, PluginManifestAuthor } from "@jini-ai/core/contracts/site/agent-plugins-lifecycle";
 export { resolveAgentPluginIdentityNamespace, readAgentPluginPortableExtension, readAgentPluginCompatibilityWarnings, legacyAgentPluginMetadataWarning } from '../core/identity-namespace.js';
 import { readAgentPluginMetadata, type AgentPluginMetadata } from './metadata.js';
 export * from './metadata.js';
 export * from './credential-card-metadata.js';
 export { isAgentPluginName } from '../core/plugin-name.js';
 import { readAgentPluginCompatibilityMetadata } from "./compatibility-metadata.js";
-import { parseAgentPluginExports, type AgentPluginExportMetadata } from './exports.js';
+import { parseAgentPluginExports } from './exports.js';
 export * from './exports.js';
 import { readPluginIdentity, validatePluginIdentity } from "@jini-ai/core/plugin-directory";
 export { validatePluginManifest, validateMcpManifest } from '../manifest.js';
 export type { PluginManifest, McpManifest, McpServerEntry } from '../manifest.js';
-import type { PluginManifestAuthor } from '../manifest.js';
-export type { PluginManifestAuthor } from '../manifest.js';
+/** Deprecated re-export: import these from `@jini-ai/core/contracts/site/agent-plugins-lifecycle` and `-manifest`; removed at the next major. */
+export type { AgentPluginExportMetadata, PluginManifestAuthor } from "@jini-ai/core/contracts/site/agent-plugins-lifecycle";
+export type { AgentPluginExport, AgentPluginExportConsent, AgentPluginExportExternalHosts, AgentPluginExportStaticMode } from "@jini-ai/core/contracts/site/agent-plugins-manifest";
 /** Agent Plugins 1.0.0/1.1.0 parsing, with application metadata confined to an explicit namespace. */
 export type AgentPluginServerMetadataReader = (required: { readonly serverId: string; readonly value: Readonly<Record<string, unknown>>; readonly server: Readonly<Record<string, unknown>> }) => Readonly<Record<string, unknown>>;
 
@@ -118,7 +120,6 @@ function readSpecVersion(value: unknown, file: "plugin" | "mcp"): SpecVersion {
   const newest = KNOWN_SPEC_VERSIONS[KNOWN_SPEC_VERSIONS.length - 1];
   return { version, warning: `${file}.json targets Agent Plugins ${version}, newer than this loader knows; validated with the ${newest} grammar` };
 }
-
 
 export interface AgentPluginManifest extends AgentPluginExportMetadata, AgentPluginMetadata {
   readonly name: string;

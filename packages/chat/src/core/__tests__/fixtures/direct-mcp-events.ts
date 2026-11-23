@@ -1,4 +1,4 @@
-import type { AgentEvent } from '../../events.js';
+import type { AgentEvent } from "@jini-ai/core/contracts/site/chat-core";
 
 /** Exact tool events extracted with sqlite3 -readonly from fake-test-site chat.db message
  * d8b333a5-02df-4d7a-acf9-c86210c88414, conversation 52f9659b-799c-4e13-99c1-e465fbcf398c.

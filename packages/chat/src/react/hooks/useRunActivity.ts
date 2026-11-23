@@ -6,9 +6,10 @@
  * so the caller renders nothing and no timer runs.
  */
 import { useEffect, useMemo, useRef, useState } from 'react';
-import type { AgentEvent, IsAnsweredCard } from '../../core/index.js';
+import type { IsAnsweredCard } from '../../core/index.js';
 import { deriveRunActivity, describeRunActivity } from '../../core/index.js';
 import { useT } from './context.js';
+import type { AgentEvent } from "@jini-ai/core/contracts/site/chat-core";
 
 /** Wall-clock source, swappable in tests. */
 export type NowFn = () => number;

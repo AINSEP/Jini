@@ -266,3 +266,9 @@ React hosts can import `@jini-ai/chat/react/styles/chat-settings.css` for
 colors, controls, keyboard focus, and bounded scrolling. Bind its
 `--jini-chat-settings-*` custom properties to the host theme when needed; no
 reference or host stylesheet is required for the settings presentation.
+
+## Wiring
+
+`AgentEvent` and `ToolResultMediaBlock` are declared in `@jini-ai/core/contracts/site/chat-core`;
+`./core` imports them and keeps a deprecated type re-export until the next major. Hosts import them
+from core.
