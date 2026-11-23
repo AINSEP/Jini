@@ -121,6 +121,7 @@
       "./shell/lib/settings-refresh-bus": "browser",
       "./shell/lib/shell-failure-log": "browser",
       "./shell/hooks/admin-locale-port.hooks": "browser",
+      "./shell/hooks/use-admin-locale.hooks": "browser",
       "./shell/hooks/use-admin-document-locale.hooks": "browser",
       "./shell/hooks/use-cms-sidebar-label-tooltips.hooks": "browser",
       "./shell/hooks/use-dock-auto-rail.hooks": "browser",
@@ -763,6 +764,11 @@
       "types": "./dist/shell/hooks/admin-locale-port.hooks.d.ts",
       "import": "./dist/shell/hooks/admin-locale-port.hooks.js",
       "default": "./dist/shell/hooks/admin-locale-port.hooks.js"
+    },
+    "./shell/hooks/use-admin-locale.hooks": {
+      "types": "./dist/shell/hooks/use-admin-locale.hooks.d.ts",
+      "import": "./dist/shell/hooks/use-admin-locale.hooks.js",
+      "default": "./dist/shell/hooks/use-admin-locale.hooks.js"
     },
     "./shell/hooks/use-admin-document-locale.hooks": {
       "types": "./dist/shell/hooks/use-admin-document-locale.hooks.d.ts",

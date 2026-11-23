@@ -116,6 +116,13 @@ classification, JSON body parse and app-envelope rule in `core/transport/http.ts
 
 Converging the two into one transport is a follow-up (P12 ledger), not part of this cut.
 
+**Admin locale.** `useAdminLocale(required)` (`@jini-ai/admin/shell/hooks/use-admin-locale.hooks`)
+takes every collaborator from the host: the `AdminLocalePort` (load + namespace-filtered refresh,
+both `(required, optional?)`), `useBootScope`, the host's `useFetchQuery`/`useInvalidate`, the
+`queryPrefix` and the `fallbackLocale`. The host binds it **once** into a zero-input
+`UseAdminLocaleHook` and passes that same function to `AdminKitHooks.useAdminLocale` and to every
+mount whose required `useAdminLocaleHook` prop needs it. There is no default hook in this package.
+
 ## Errors
 
 Route groups throw `AdminApiError` (`status`, `code`, raw `body`). There is deliberately **no**
