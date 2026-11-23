@@ -187,7 +187,16 @@
       "./screens/content-analysis/hooks/use-content-analysis.hooks": "browser",
       "./screens/content-analysis/hooks/content-analysis-port.hooks": "universal",
       "./screens/content-analysis/hooks/content-analysis-dependencies.hooks": "universal",
-      "./screens/content-analysis/rules": "universal"
+      "./screens/content-analysis/rules": "universal",
+      "./screens/consent/CookieConsent": "browser",
+      "./screens/consent/ConsentOverviewTab": "browser",
+      "./screens/consent/use-consent-page.hooks": "browser",
+      "./screens/consent/consent-autosave": "universal",
+      "./screens/consent/consent-dictionary": "universal",
+      "./screens/consent/consent-i18n": "universal",
+      "./screens/consent/rules": "universal",
+      "./screens/consent/settings.hooks": "universal",
+      "./screens/consent/consent-settings.css": "browser"
     },
     "isolation": {
       "shared": [
@@ -1143,10 +1152,52 @@
       "types": "./dist/screens/content-analysis/rules.d.ts",
       "import": "./dist/screens/content-analysis/rules.js",
       "default": "./dist/screens/content-analysis/rules.js"
-    }
+    },
+    "./screens/consent/CookieConsent": {
+      "types": "./dist/screens/consent/CookieConsent.d.ts",
+      "import": "./dist/screens/consent/CookieConsent.js",
+      "default": "./dist/screens/consent/CookieConsent.js"
+    },
+    "./screens/consent/ConsentOverviewTab": {
+      "types": "./dist/screens/consent/ConsentOverviewTab.d.ts",
+      "import": "./dist/screens/consent/ConsentOverviewTab.js",
+      "default": "./dist/screens/consent/ConsentOverviewTab.js"
+    },
+    "./screens/consent/use-consent-page.hooks": {
+      "types": "./dist/screens/consent/use-consent-page.hooks.d.ts",
+      "import": "./dist/screens/consent/use-consent-page.hooks.js",
+      "default": "./dist/screens/consent/use-consent-page.hooks.js"
+    },
+    "./screens/consent/consent-autosave": {
+      "types": "./dist/screens/consent/consent-autosave.d.ts",
+      "import": "./dist/screens/consent/consent-autosave.js",
+      "default": "./dist/screens/consent/consent-autosave.js"
+    },
+    "./screens/consent/consent-dictionary": {
+      "types": "./dist/screens/consent/consent-dictionary.d.ts",
+      "import": "./dist/screens/consent/consent-dictionary.js",
+      "default": "./dist/screens/consent/consent-dictionary.js"
+    },
+    "./screens/consent/consent-i18n": {
+      "types": "./dist/screens/consent/consent-i18n.d.ts",
+      "import": "./dist/screens/consent/consent-i18n.js",
+      "default": "./dist/screens/consent/consent-i18n.js"
+    },
+    "./screens/consent/rules": {
+      "types": "./dist/screens/consent/rules.d.ts",
+      "import": "./dist/screens/consent/rules.js",
+      "default": "./dist/screens/consent/rules.js"
+    },
+    "./screens/consent/settings.hooks": {
+      "types": "./dist/screens/consent/settings.hooks.d.ts",
+      "import": "./dist/screens/consent/settings.hooks.js",
+      "default": "./dist/screens/consent/settings.hooks.js"
+    },
+    "./screens/consent/consent-settings.css": "./src/screens/consent/consent-settings.css"
   },
   "files": [
     "src/themes",
+    "src/screens/**/*.css",
     "dist",
     "README.md",
     "CHANGELOG.md",
@@ -1245,6 +1296,30 @@
       ],
       "screens/content-analysis/rules": [
         "./dist/screens/content-analysis/rules.d.ts"
+      ],
+      "screens/consent/CookieConsent": [
+        "./dist/screens/consent/CookieConsent.d.ts"
+      ],
+      "screens/consent/ConsentOverviewTab": [
+        "./dist/screens/consent/ConsentOverviewTab.d.ts"
+      ],
+      "screens/consent/use-consent-page.hooks": [
+        "./dist/screens/consent/use-consent-page.hooks.d.ts"
+      ],
+      "screens/consent/consent-autosave": [
+        "./dist/screens/consent/consent-autosave.d.ts"
+      ],
+      "screens/consent/consent-dictionary": [
+        "./dist/screens/consent/consent-dictionary.d.ts"
+      ],
+      "screens/consent/consent-i18n": [
+        "./dist/screens/consent/consent-i18n.d.ts"
+      ],
+      "screens/consent/rules": [
+        "./dist/screens/consent/rules.d.ts"
+      ],
+      "screens/consent/settings.hooks": [
+        "./dist/screens/consent/settings.hooks.d.ts"
       ]
     }
   },
