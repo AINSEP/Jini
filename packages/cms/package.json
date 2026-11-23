@@ -157,13 +157,15 @@
       "./publish/content/content-hash": "node",
       "./admin-http/http/menus": "universal",
       "./admin-http/http/publish-content": "universal",
-      "./admin-http/http/publish-content": "universal",
       "./admin-http/routes/menus/get-by-id": "universal",
       "./admin-http/routes/menus/list": "universal",
       "./admin-http/routes/menus/create": "universal",
       "./admin-http/routes/menus/update-tree": "universal",
       "./admin-http/routes/menus/assign-location": "universal",
-      "./admin-http/routes/menus/delete": "universal"
+      "./admin-http/routes/menus/delete": "universal",
+      "./admin-http/routes/publish-content/transport-shared": "universal",
+      "./admin-http/routes/publish-content/peers": "universal",
+      "./admin-http/routes/publish-content/destination": "universal"
     },
     "isolation": {
       "domains": {
@@ -261,13 +263,15 @@
         "./public-http/routes/site/pages/listing/listing-state": "listing",
         "./admin-http/http/menus": "navigation",
         "./admin-http/http/publish-content": "publish",
-        "./admin-http/http/publish-content": "publish",
         "./admin-http/routes/menus/get-by-id": "navigation",
         "./admin-http/routes/menus/list": "navigation",
         "./admin-http/routes/menus/create": "navigation",
         "./admin-http/routes/menus/update-tree": "navigation",
         "./admin-http/routes/menus/assign-location": "navigation",
-        "./admin-http/routes/menus/delete": "navigation"
+        "./admin-http/routes/menus/delete": "navigation",
+        "./admin-http/routes/publish-content/transport-shared": "publish",
+        "./admin-http/routes/publish-content/peers": "publish",
+        "./admin-http/routes/publish-content/destination": "publish"
       }
     },
     "optionalPeers": {
@@ -1003,11 +1007,6 @@
       "import": "./dist/admin-http/http/publish-content.js",
       "default": "./dist/admin-http/http/publish-content.js"
     },
-    "./admin-http/http/publish-content": {
-      "types": "./dist/admin-http/http/publish-content.d.ts",
-      "import": "./dist/admin-http/http/publish-content.js",
-      "default": "./dist/admin-http/http/publish-content.js"
-    },
     "./admin-http/routes/menus/get-by-id": {
       "types": "./dist/admin-http/routes/menus/get-by-id.d.ts",
       "import": "./dist/admin-http/routes/menus/get-by-id.js",
@@ -1037,6 +1036,21 @@
       "types": "./dist/admin-http/routes/menus/delete.d.ts",
       "import": "./dist/admin-http/routes/menus/delete.js",
       "default": "./dist/admin-http/routes/menus/delete.js"
+    },
+    "./admin-http/routes/publish-content/transport-shared": {
+      "types": "./dist/admin-http/routes/publish-content/transport-shared.d.ts",
+      "import": "./dist/admin-http/routes/publish-content/transport-shared.js",
+      "default": "./dist/admin-http/routes/publish-content/transport-shared.js"
+    },
+    "./admin-http/routes/publish-content/peers": {
+      "types": "./dist/admin-http/routes/publish-content/peers.d.ts",
+      "import": "./dist/admin-http/routes/publish-content/peers.js",
+      "default": "./dist/admin-http/routes/publish-content/peers.js"
+    },
+    "./admin-http/routes/publish-content/destination": {
+      "types": "./dist/admin-http/routes/publish-content/destination.d.ts",
+      "import": "./dist/admin-http/routes/publish-content/destination.js",
+      "default": "./dist/admin-http/routes/publish-content/destination.js"
     }
   },
   "files": [
