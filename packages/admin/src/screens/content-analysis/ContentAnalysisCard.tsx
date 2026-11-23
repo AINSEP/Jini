@@ -23,11 +23,13 @@ export interface ContentAnalysisCardProps extends ContentAnalysisTarget {
   port: ContentAnalysisPort;
   /** The host's admin-locale hook, called once per render. */
   useAdminLocale: UseContentAnalysisLocale;
+  /** The package's own controller hook, injectable for tests; defaults to `useContentAnalysis`. */
+  useContentAnalysisHook?: typeof useContentAnalysis;
 }
 
-export function ContentAnalysisCard({ port, useAdminLocale, ...props }: ContentAnalysisCardProps) {
+export function ContentAnalysisCard({ port, useAdminLocale, useContentAnalysisHook = useContentAnalysis, ...props }: ContentAnalysisCardProps) {
   const locale = useAdminLocale();
-  const controller = useContentAnalysis({ post: props.post, title: props.title, bodyJson: props.bodyJson }, { port, locale });
+  const controller = useContentAnalysisHook({ post: props.post, title: props.title, bodyJson: props.bodyJson }, { port, locale });
   return <ContentAnalysisCardView controller={controller} />;
 }
 

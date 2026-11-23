@@ -54,12 +54,16 @@ function findComponents(sf) {
   return found;
 }
 
-/** Names of destructured props that default to a hook: `{ useFooHook = useFoo }`. */
+/**
+ * Names of destructured hook props: defaulted `{ useFooHook = useFoo }`, or REQUIRED `{ useFooHook }`
+ * (owner rule: a host hook reaches a package component as a required prop, with no package default).
+ * Either way the component calls what its caller passed in, not an imported hook.
+ */
 function injectedHooks(fn) {
   const pattern = fn.parameters[0]?.name;
   if (!pattern || !ts.isObjectBindingPattern(pattern)) return new Set();
   const names = pattern.elements
-    .filter(el => el.initializer && ts.isIdentifier(el.name) && HOOK_NAME.test(el.name.text))
+    .filter(el => ts.isIdentifier(el.name) && HOOK_NAME.test(el.name.text))
     .map(el => el.name.text);
   return new Set(names);
 }

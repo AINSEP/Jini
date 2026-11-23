@@ -148,10 +148,10 @@ function ConsentPreviewPane({ page, preview, fit, translation, ui }: {
   );
 }
 
-function EditorTab({ tab, page, port, translation, delays, errors, ui, hooks = { useConsentPreview, useConsentPreviewScale } }: { tab: Exclude<ConsentTabId, "overview">; page: ConsentPageController; port: ConsentRevisionsPort; translation: ConsentTranslation; delays: CookieConsentProps["delays"]; errors: ConsentErrors; ui: ConsentScreenUi; hooks?: { useConsentPreview: typeof useConsentPreview; useConsentPreviewScale: typeof useConsentPreviewScale }; }) {
+function EditorTab({ tab, page, port, translation, delays, errors, ui, hooks = { useConsentPreview, useConsentPreviewScale, useAdminKit } }: { tab: Exclude<ConsentTabId, "overview">; page: ConsentPageController; port: ConsentRevisionsPort; translation: ConsentTranslation; delays: CookieConsentProps["delays"]; errors: ConsentErrors; ui: ConsentScreenUi; hooks?: { useConsentPreview: typeof useConsentPreview; useConsentPreviewScale: typeof useConsentPreviewScale; useAdminKit: typeof useAdminKit }; }) {
   const preview = hooks.useConsentPreview({ port, config: tab === "rules" ? null : page.value, t: translation.t, errors }, consentDelayOptions({ delayMs: delays?.previewMs }));
   const fit = hooks.useConsentPreviewScale({ previewScale: ui.previewScale });
-  const lightColors = useAdminKit().theme.defaultAdminTheme.light;
+  const lightColors = hooks.useAdminKit().theme.defaultAdminTheme.light;
   const value = page.value;
   if (!value) throw new Error("cookie consent editor has no loaded settings");
   const { textLimits, regionModes, bannerModes, placements } = page.editor ?? {};
