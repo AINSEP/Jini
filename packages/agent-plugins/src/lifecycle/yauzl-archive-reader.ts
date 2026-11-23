@@ -1,3 +1,4 @@
+import type { AgentPluginArchiveEntry, AgentPluginArchiveReaderPort } from "@jini-ai/core/contracts/site/agent-plugins-lifecycle";
 /**
  * @file The real `AgentPluginArchiveReaderPort` adapter, backed by `yauzl`.
  *
@@ -51,8 +52,6 @@ export interface YauzlZipFile {
 export interface YauzlPort {
   fromBufferPromise(buffer: Buffer, options: { lazyEntries: boolean; validateEntrySizes: boolean }): Promise<YauzlZipFile>;
 }
-
-import type { AgentPluginArchiveEntry, AgentPluginArchiveReaderPort } from "./install.js";
 
 /**
  * Unix `st_mode` file-type mask and the symlink bit pattern within it (`S_IFMT` / `S_IFLNK`).

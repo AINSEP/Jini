@@ -1,5 +1,6 @@
-import type { AgentEvent } from './events.js';
+
 import type { ChatMessage } from './messages.js';
+import type { AgentEvent } from "@jini-ai/core/contracts/site/chat-core";
 type UsageEvent = Extract<AgentEvent, { kind: 'usage' }>;
 /** A turn's reported usage plus the conversation's prefix total. `segments` is present only when the
  * message holds more than one reply (a mid-run message started a new one): one entry per reply, in

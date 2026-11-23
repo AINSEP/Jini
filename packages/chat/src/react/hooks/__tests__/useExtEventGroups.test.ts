@@ -1,7 +1,7 @@
 import { renderHook } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
-import type { AgentEvent } from '../../../core/index.js';
 import { useExtEventGroups } from '../useExtEventGroups.js';
+import type { AgentEvent } from "@jini-ai/core/contracts/site/chat-core";
 
 describe('useExtEventGroups', () => {
   it('returns an empty array for events with no ext kind', () => {

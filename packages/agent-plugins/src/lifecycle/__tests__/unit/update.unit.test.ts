@@ -3,12 +3,13 @@ import * as fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { createHash } from 'node:crypto';
-import { createAgentPluginLifecycle, createAgentPluginLayout, type AgentPluginArchiveReaderPort, type AgentPluginLifecyclePorts } from '../../index.js';
+import { createAgentPluginLifecycle, createAgentPluginLayout, type AgentPluginLifecyclePorts } from '../../index.js';
 import { createAgentPluginUpdateStore, AgentPluginUpdateError, isMissing, type AgentPluginUpdateJournal } from '../../update-store.js';
 import { createUpdateModule } from '../../update.js';
 import { createInstallModule } from '../../install.js';
 import { ports } from '../test-support.js';
 import { forceRemove } from '../fixtures/force-remove.js';
+import type { AgentPluginArchiveReaderPort } from "@jini-ai/core/contracts/site/agent-plugins-lifecycle";
 
 const workspaceId = 'workspace-a';
 const pluginId = 'operator-plugin';

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import type { AgentEvent } from '../../core/index.js';
 import { interleaveMessageBlocks } from '../message-blocks.js';
+import type { AgentEvent } from "@jini-ai/core/contracts/site/chat-core";
 
 /**
  * @file Ordering is the visible feature; the refusal paths are the safety net, so they get the

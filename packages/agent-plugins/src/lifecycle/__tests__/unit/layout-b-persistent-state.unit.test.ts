@@ -4,13 +4,14 @@ import path from 'node:path';
 import os from 'node:os';
 import { createHash } from 'node:crypto';
 import { createAgentPluginLayout } from '../../layout.js';
-import { createInstallModule, type AgentPluginArchiveReaderPort } from '../../install.js';
+import { createInstallModule } from '../../install.js';
 import { createResolveAgentPluginRefsModule } from '../../resolve-agent-plugin-refs.js';
 import { createPersistentStateModule } from '../../persistent-state.js';
 import { createUninstallModule } from '../../uninstall.js';
 import { ports as defaultPorts, assertContainedOnDisk, withFileLock } from '../test-support.js';
 import { forceRemove } from '../fixtures/force-remove.js';
 import { migratePluginLayout } from '../../../../persistent-state.js';
+import type { AgentPluginArchiveReaderPort } from "@jini-ai/core/contracts/site/agent-plugins-lifecycle";
 
 test('neutral lifecycle uses Layout B, never refreezes a deduplicated install, and preserves notes/data through update', async () => {
   const temporary = await fs.realpath(await fs.mkdtemp(path.join(os.tmpdir(), 'jini-layout-b-')));

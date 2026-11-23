@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import type { AgentEvent } from '../events.js';
 import { mergeAdjacentTextEvents } from '../compact-events.js';
 import { assistantContentFromEvents } from '../assistant-content.js';
+import type { AgentEvent } from "@jini-ai/core/contracts/site/chat-core";
 
 describe('mergeAdjacentTextEvents', () => {
   it('joins streamed text deltas into one text event and thinking deltas into one thinking event', () => {

@@ -1,7 +1,8 @@
 import assert from "node:assert/strict";
 import { afterEach, beforeEach, describe, it } from "vitest";
 
-import type { AgentEvent, ChatMessage } from "@jini-ai/chat/core";
+import type { ChatMessage } from "@jini-ai/chat/core";
+import type { AgentEvent } from "@jini-ai/core/contracts/site/chat-core";
 import type { ChatTransport, RunHandlers, StartRunInput } from "@jini-ai/chat/react";
 
 import { decodeSseStream } from '@jini-ai/agent-runtime/providers/sse-decode';

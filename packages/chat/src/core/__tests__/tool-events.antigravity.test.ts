@@ -1,8 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import type { AgentEvent, ToolUseEvent } from '../events.js';
+import type { ToolUseEvent } from '../events.js';
 import { foldDelegatedWrapperCalls } from '../tool-events.js';
 import { AGY_DIRECT, AGY_GATEWAY } from './fixtures/cli-tool-events.js';
 import { ANTIGRAVITY_BUFFERED_EVENTS } from './fixtures/antigravity-buffered-events.js';
+import type { AgentEvent } from "@jini-ai/core/contracts/site/chat-core";
 
 // Canonical bridge shapes copied from the same chat.db messages as the receipts.
 function bridge(wrapper: ToolUseEvent, id = 'bridge'): ToolUseEvent {

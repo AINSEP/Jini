@@ -4,10 +4,10 @@ import { describeAgentPluginCompatibility, agentPluginDependentWarnings } from "
 import { projectAgentPluginSearchPage } from "../search-projection.js";
 import type { AgentPluginSearchCandidate } from "../search.js";
 import type { AgentPluginActivations } from "../activation.js";
-import type { InstalledAgentPlugin } from "../types.js";
 import { readInstalledAgentPluginIdentity, type PluginMaturity } from "./identity.js";
 import { readInstalledSkillDetail, type AgentPluginSkillDetail } from "./skill-tool.js";
 import type { AgentPluginHostToolPorts, HostSearchToolNames, HostToolMessages, RequireHostToolPermission } from "./ports.js";
+import type { InstalledAgentPlugin } from "@jini-ai/core/contracts/site/agent-plugins-lifecycle";
 
 /**
  * ===========================================================================================
