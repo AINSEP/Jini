@@ -1,12 +1,16 @@
 import { describe, expect, it, vi } from "vitest";
 import { RouteRefusalError } from "@jini-ai/core/errors/route-refusal";
 
+import { resolveDeepLinkContext, type DatabaseContextEnvelope } from "@jini-ai/db/recovery/deep-link";
 import { recoveryDeepLinkRoute, type RecoveryDeepLinkRouteDeps } from "../deep-link.js";
 
 const envelope = { v: 1, correlationId: "c", siteId: "s", ledgerEventId: null, restorePointId: "rp-1", drift: "none", intent: "inspect", issuedAt: "2026-01-01T00:00:00Z" };
 
 function harness(found: { restorePointId: string; capturedAt: string } | null = null) {
-  const deps: RecoveryDeepLinkRouteDeps = { deepLinkRestorePointLookup: { findRestorePointById: vi.fn(async () => found) } };
+  const lookup = { findRestorePointById: vi.fn(async () => found) };
+  // Bound exactly as the host binds it: the real re-resolution over the injected lookup port.
+  const deps: RecoveryDeepLinkRouteDeps & { lookup: typeof lookup } = { lookup,
+    resolveDeepLinkContext: (input) => resolveDeepLinkContext({ deps: { lookup }, input: { ...input, envelope: input.envelope as DatabaseContextEnvelope } }) };
   const authorize = vi.fn(async () => undefined);
   return { deps, authorize };
 }
@@ -31,7 +35,7 @@ describe("recoveryDeepLinkRoute", () => {
     const result = await recoveryDeepLinkRoute.handle({ input: parsed.value, deps, context: { id: "p-1" }, authorize }, {});
     expect(result).toEqual({ ok: true, value: { found: true, restorePoint: { restorePointId: "rp-1", capturedAt: "2026-01-01T00:00:00Z" } } });
     expect(authorize).toHaveBeenCalledWith({ permission: "backup.read", entityType: "restore-point" });
-    expect(deps.deepLinkRestorePointLookup.findRestorePointById).toHaveBeenCalledWith("rp-1");
+    expect(deps.lookup.findRestorePointById).toHaveBeenCalledWith("rp-1");
   });
 
   it("refuses a missing, absent-body or non-object envelope with 400 VALIDATION_ERROR, after authorizing", async () => {

@@ -1,5 +1,4 @@
 import { defineJsonRoute, ok } from "@jini-ai/core/contracts/server";
-import { listRestorePoints, type RestorePointListPort, type RestorePointRecord } from "@jini-ai/db/tools";
 
 /**
  * @file design-spec.md §4.2/§4.8 — `GET /api/admin/v1/recovery/restore-points` (Recovery's own
@@ -10,16 +9,17 @@ import { listRestorePoints, type RestorePointListPort, type RestorePointRecord }
  * ADR-045 §1 ("Database and Recovery are sibling faces" of the same underlying record).
  */
 
-/** The only deps field this route reads; the host adds its own workspace/authorize port fields. */
+/** The one collaborator this route calls: the database package's restore-point listing, bound by
+ * the host to its repository (read per request). The host adds its workspace/authorize fields. */
 export interface RecoveryRestorePointsListRouteDeps {
-  restorePointsRepo: RestorePointListPort;
+  listRestorePoints: () => Promise<{ items: readonly unknown[] }>;
 }
 
 /** The principal fields this route reads: only its presence (authorization keys on it). */
 export interface RecoveryRestorePointsListPrincipal { id: string }
 
 /** Framework-neutral spec; the host mounts it with direct (non-publish-credential) authorization. */
-export const recoveryRestorePointsListRoute = defineJsonRoute<undefined, { items: RestorePointRecord[] }, RecoveryRestorePointsListRouteDeps, RecoveryRestorePointsListPrincipal>({
+export const recoveryRestorePointsListRoute = defineJsonRoute<undefined, { items: readonly unknown[] }, RecoveryRestorePointsListRouteDeps, RecoveryRestorePointsListPrincipal>({
   method: "get",
   path: "/api/admin/v1/recovery/restore-points",
   parse: () => ok({ value: undefined }),
@@ -27,6 +27,6 @@ export const recoveryRestorePointsListRoute = defineJsonRoute<undefined, { items
     if (!context) throw new Error("recovery restore-points route has no authenticated principal");
     if (!authorize) throw new Error("recovery restore-points route authorizer is required");
     await authorize({ permission: "backup.read", entityType: "restore-point" });
-    return ok({ value: await listRestorePoints({ repo: deps.restorePointsRepo }) });
+    return ok({ value: await deps.listRestorePoints() });
   },
 });

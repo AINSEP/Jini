@@ -1,6 +1,5 @@
 import { defineJsonRoute, ok, type RouteInputContext } from "@jini-ai/core/contracts/server";
 import { rejectRoute } from "@jini-ai/core/errors/route-refusal";
-import { computeDisclosure, type DisclosureResult, type DisclosureWatermarkSourcePort } from "@jini-ai/db/recovery/disclosure";
 
 /** ADR-045 §3 Step 2 / `disclosure.ts`'s own file header — the versioned, single, auditable list
  * of write-path categories this disclosure may ever claim to cover. A category is added here only
@@ -19,9 +18,11 @@ const COVERED_CATEGORIES = ["posts_pages", "plugin_table"] as const;
  * covered category, never a fabricated `0`.
  */
 
-/** The only deps field this route reads; the host adds its own workspace/authorize port fields. */
+/** The one collaborator this route calls: the database package's disclosure computation, bound by
+ * the host to its watermark source (read per request). The covered-category list stays here.
+ * The host adds its workspace/authorize fields. */
 export interface RecoveryDisclosureRouteDeps {
-  disclosureWatermarkSource: DisclosureWatermarkSourcePort;
+  computeDisclosure: (input: { restorePointId: string; coveredCategories: readonly string[] }) => Promise<unknown>;
 }
 
 /** The principal fields this route reads: only its presence (authorization keys on it). */
@@ -31,7 +32,7 @@ export interface RecoveryDisclosurePrincipal { id: string }
 export type RecoveryDisclosureInput = RouteInputContext["body"];
 
 /** Framework-neutral spec; the host mounts it with direct (non-publish-credential) authorization. */
-export const recoveryDisclosureRoute = defineJsonRoute<RecoveryDisclosureInput, DisclosureResult, RecoveryDisclosureRouteDeps, RecoveryDisclosurePrincipal>({
+export const recoveryDisclosureRoute = defineJsonRoute<RecoveryDisclosureInput, unknown, RecoveryDisclosureRouteDeps, RecoveryDisclosurePrincipal>({
   method: "post",
   path: "/api/admin/v1/recovery/disclosure",
   // Total: an unauthorized caller must see 403 before any 400 about its body.
@@ -46,10 +47,7 @@ export const recoveryDisclosureRoute = defineJsonRoute<RecoveryDisclosureInput, 
       rejectRoute({ status: 400, error: "'restorePointId' (string) is required", code: "VALIDATION_ERROR" });
     }
 
-    const disclosure = await computeDisclosure({
-      deps: { watermarkSource: deps.disclosureWatermarkSource, coveredCategories: COVERED_CATEGORIES },
-      input: { restorePointId: body.restorePointId },
-    });
+    const disclosure = await deps.computeDisclosure({ restorePointId: body.restorePointId, coveredCategories: COVERED_CATEGORIES });
     return ok({ value: disclosure });
   },
 });

@@ -1,11 +1,14 @@
 import { describe, expect, it, vi } from "vitest";
 import { RouteRefusalError } from "@jini-ai/core/errors/route-refusal";
 
+import { computeDisclosure } from "@jini-ai/db/recovery/disclosure";
 import { recoveryDisclosureRoute, type RecoveryDisclosureRouteDeps } from "../disclosure.js";
 
 function harness(baseline: { available: boolean; watermarkAtCapture?: number | null } = { available: false }) {
+  const watermarkSource = { getBaseline: vi.fn(async () => baseline), getCategoryCounts: vi.fn(async () => ({ posts_pages: 2, plugin_table: 0, entries: 9 })) };
+  // Bound exactly as the host binds it: the real computation over the injected watermark source.
   const deps: RecoveryDisclosureRouteDeps = {
-    disclosureWatermarkSource: { getBaseline: vi.fn(async () => baseline), getCategoryCounts: vi.fn(async () => ({ posts_pages: 2, plugin_table: 0, entries: 9 })) },
+    computeDisclosure: ({ restorePointId, coveredCategories }) => computeDisclosure({ deps: { watermarkSource, coveredCategories }, input: { restorePointId } }),
   };
   return { deps, authorize: vi.fn(async () => undefined) };
 }
@@ -34,7 +37,7 @@ describe("recoveryDisclosureRoute", () => {
   it("limits real counts to the covered categories", async () => {
     const { deps, authorize } = harness({ available: true, watermarkAtCapture: 1 });
     const result = await recoveryDisclosureRoute.handle({ input: { restorePointId: "rp-1" }, deps, context: { id: "p-1" }, authorize }, {});
-    expect(result.ok && Object.keys(result.value.counts).sort()).toEqual(["plugin_table", "posts_pages"]);
+    expect(result.ok && Object.keys((result.value as { counts: object }).counts).sort()).toEqual(["plugin_table", "posts_pages"]);
   });
 
   it("refuses a missing, non-string or absent-body restorePointId with 400 VALIDATION_ERROR, after authorizing", async () => {

@@ -1,11 +1,5 @@
 import { defineJsonRoute, ok, type RouteInputContext } from "@jini-ai/core/contracts/server";
 import { rejectRoute } from "@jini-ai/core/errors/route-refusal";
-import {
-  resolveDeepLinkContext,
-  type DatabaseContextEnvelope,
-  type DeepLinkRestorePointLookupPort,
-  type RecoveryContextResponse,
-} from "@jini-ai/db/recovery/deep-link";
 
 /**
  * @file design-spec.md §4.5/§4.8 — `POST /api/admin/v1/recovery/deep-link` (re-resolves a
@@ -13,9 +7,10 @@ import {
  * `backup.read`.
  */
 
-/** The only deps field this route reads; the host adds its own workspace/authorize port fields. */
+/** The one collaborator this route calls: the database package's deep-link re-resolution, bound by
+ * the host to its restore-point lookup (read per request). The host adds its workspace/authorize fields. */
 export interface RecoveryDeepLinkRouteDeps {
-  deepLinkRestorePointLookup: DeepLinkRestorePointLookupPort;
+  resolveDeepLinkContext: (input: { principalId: string; principalKind: "user"; envelope: object }) => Promise<unknown>;
 }
 
 /** The principal fields this route reads: the id it re-resolves the envelope for. */
@@ -25,7 +20,7 @@ export interface RecoveryDeepLinkPrincipal { id: string }
 export type RecoveryDeepLinkInput = RouteInputContext["body"];
 
 /** Framework-neutral spec; the host mounts it with direct (non-publish-credential) authorization. */
-export const recoveryDeepLinkRoute = defineJsonRoute<RecoveryDeepLinkInput, RecoveryContextResponse, RecoveryDeepLinkRouteDeps, RecoveryDeepLinkPrincipal>({
+export const recoveryDeepLinkRoute = defineJsonRoute<RecoveryDeepLinkInput, unknown, RecoveryDeepLinkRouteDeps, RecoveryDeepLinkPrincipal>({
   method: "post",
   path: "/api/admin/v1/recovery/deep-link",
   // Total: an unauthorized caller must see 403 before any 400 about its body.
@@ -36,15 +31,12 @@ export const recoveryDeepLinkRoute = defineJsonRoute<RecoveryDeepLinkInput, Reco
     await authorize({ permission: "backup.read", entityType: "restore-point" });
 
     const body = (input ?? {}) as { envelope?: unknown };
-    const envelope = body.envelope as DatabaseContextEnvelope | undefined;
+    const envelope = body.envelope as object | undefined;
     if (!envelope || typeof envelope !== "object") {
       rejectRoute({ status: 400, error: "'envelope' (object) is required", code: "VALIDATION_ERROR" });
     }
 
-    const result = await resolveDeepLinkContext({
-      deps: { lookup: deps.deepLinkRestorePointLookup },
-      input: { principalId: context.id, principalKind: "user", envelope },
-    });
+    const result = await deps.resolveDeepLinkContext({ principalId: context.id, principalKind: "user", envelope });
     return ok({ value: result });
   },
 });
