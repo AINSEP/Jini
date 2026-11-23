@@ -1181,6 +1181,24 @@
    "resolveConfiguredOrigin": "function:15a98e5b94"
   }
  },
+ "./contracts/site/admin-surfaces-connections": {
+  "types": "./dist/contracts/site/admin-surfaces-connections.d.ts",
+  "symbols": {
+   "AdminSurfaceAccountAction": "interface:1c0b431587",
+   "AdminSurfaceCallbackFieldKey": "interface:f90d593787",
+   "AdminSurfaceCallbackInbox": "interface:c12e1b7505",
+   "AdminSurfaceConnectionAccount": "interface:ab0ec6074c",
+   "AdminSurfaceConnectionRecord": "interface:c6ad524971",
+   "AdminSurfaceConnectionsHost": "interface:991b5067be",
+   "AdminSurfaceDeclaredConnection": "interface:fbb2763b54",
+   "AdminSurfaceDisconnected": "interface:eef849831c",
+   "AdminSurfaceSignInStart": "interface:810e7369b8",
+   "AdminSurfaceSignInStarted": "interface:28084be007",
+   "AdminSurfaceStagedAccount": "interface:2cd5aa0a33",
+   "AdminSurfaceStatusView": "interface:2ceee54d6c",
+   "IssuedSignIn": "interface:b0539d2556"
+  }
+ },
  "./contracts/site/agent-plugins-admin-surfaces": {
   "types": "./dist/contracts/site/agent-plugins-admin-surfaces.d.ts",
   "symbols": {
@@ -1293,6 +1311,14 @@
    "SiteAssistantCredentialPatch": "interface:33ba95fcc3"
   }
  },
+ "./contracts/site/api-connections-hosted-mcp": {
+  "types": "./dist/contracts/site/api-connections-hosted-mcp.d.ts",
+  "symbols": {
+   "DeviceAuthorizationStore": "interface:2c744e5c50",
+   "ExternalMcpOAuthDeps": "interface:119a2bc1e9",
+   "ExternalMcpOAuthService": "interface:4474d19158"
+  }
+ },
  "./contracts/site/assistant-host-ports": {
   "types": "./dist/contracts/site/assistant-host-ports.d.ts",
   "symbols": {
@@ -1312,6 +1338,23 @@
   "symbols": {
    "DuplicateResourceHandler": "interface:5207cf7cfb",
    "DuplicateResourceHandlerContributor": "interface:6af81f3002"
+  }
+ },
+ "./contracts/site/capability-providers-comments": {
+  "types": "./dist/contracts/site/capability-providers-comments.d.ts",
+  "symbols": {
+   "CommentModerationPort": "interface:55829e3038",
+   "CommentStatus": "type:d2ceb0a3ce",
+   "CommentSubmissionPort": "interface:9e0824bd7a",
+   "CommentThreadRendererPort": "interface:5c6c47a049",
+   "CommentThreadScript": "interface:587d387c78",
+   "CommentsProviderAdapter": "type:0f967c5976",
+   "CommentsProviderBinding": "interface:5969766411",
+   "CommentsProviderDefinition": "interface:4f3ec9b68f",
+   "CommentsProviderRegistry": "interface:f838c71e70",
+   "CommentsSelection": "interface:b8a20e8b0a",
+   "CommentsSelectionStorePort": "interface:bf8df426f1",
+   "CommentsSettingField": "interface:a97f865de8"
   }
  },
  "./contracts/site/chat-core": {
@@ -1371,6 +1414,15 @@
    "TransformParams": "interface:37f709014d"
   }
  },
+ "./contracts/site/commerce": {
+  "types": "./dist/contracts/site/commerce.d.ts",
+  "symbols": {
+   "CommercePaymentConfirmation": "type:b99080fd1f",
+   "CommercePaymentProvider": "interface:6a70579c0a",
+   "CommercePaymentProviderCapabilities": "interface:2990ed9beb",
+   "CommercePaymentRuntimePort": "interface:f03206b6c3"
+  }
+ },
  "./contracts/site/cookie-consent": {
   "types": "./dist/contracts/site/cookie-consent.d.ts",
   "symbols": {
@@ -1413,6 +1465,12 @@
   "types": "./dist/contracts/site/core-consent-refusal.d.ts",
   "symbols": {
    "ConsentProblem": "type:3c967892e8"
+  }
+ },
+ "./contracts/site/core-custom-credential-categories": {
+  "types": "./dist/contracts/site/core-custom-credential-categories.d.ts",
+  "symbols": {
+   "CustomCredentialCategoryId": "type:e2a87724c8"
   }
  },
  "./contracts/site/core-public-page-security-headers": {
@@ -1509,6 +1567,12 @@
    "DeployTargetCredential": "type:ab3baf1da1"
   }
  },
+ "./contracts/site/diagnostics-domain-dns": {
+  "types": "./dist/contracts/site/diagnostics-domain-dns.d.ts",
+  "symbols": {
+   "TlsStatus": "interface:9f75f63f0b"
+  }
+ },
  "./contracts/site/diagnostics-observability": {
   "types": "./dist/contracts/site/diagnostics-observability.d.ts",
   "symbols": {
@@ -1529,6 +1593,14 @@
    "OutboxFailureCodes": "interface:3c1c65d02f",
    "OutboxRetryPolicy": "interface:b7fabb2f2f",
    "OutboxRetryPolicyResolver": "type:6dfe580331"
+  }
+ },
+ "./contracts/site/fs-durable-json": {
+  "types": "./dist/contracts/site/fs-durable-json.d.ts",
+  "symbols": {
+   "FileLockOptions": "interface:a81cab9de2",
+   "JsonFileRead": "type:7b92e585fe",
+   "QuarantineNotice": "interface:2667f47622"
   }
  },
  "./contracts/site/headless-assistant-permanent-deletes-policy": {
@@ -1587,12 +1659,27 @@
    "ProviderStatusRow": "interface:35684ffbba"
   }
  },
+ "./contracts/site/media-providers-catalog": {
+  "types": "./dist/contracts/site/media-providers-catalog.d.ts",
+  "symbols": {
+   "MediaModel": "interface:9cca162139",
+   "MediaProvider": "interface:5f8cffc486"
+  }
+ },
  "./contracts/site/nav": {
   "types": "./dist/contracts/site/nav.d.ts",
   "symbols": {
    "AdminNavEntry": "interface:298ea2ef9c",
    "AdminNavGroup": "interface:7da6b80859",
    "AdminNavItem": "interface:27c563540a"
+  }
+ },
+ "./contracts/site/packaging-electron": {
+  "types": "./dist/contracts/site/packaging-electron.d.ts",
+  "symbols": {
+   "AsarHeaderNode": "interface:11eea7b90d",
+   "AsarMismatch": "interface:f296a9828b",
+   "AsarVerification": "interface:bcfe772663"
   }
  },
  "./contracts/site/platform-mail": {
@@ -1616,6 +1703,13 @@
    "MailSuppressionListFilter": "interface:f2e8a0bba7",
    "MailSuppressionReason": "type:8518d7b45c",
    "MailSuppressionRemoval": "interface:090f879f5e"
+  }
+ },
+ "./contracts/site/platform-process": {
+  "types": "./dist/contracts/site/platform-process.d.ts",
+  "symbols": {
+   "ProcessPrivateMemory": "type:d8e82a4a5c",
+   "ProcessUsage": "type:9729fdec08"
   }
  },
  "./contracts/site/platform-server-logs": {
@@ -1741,6 +1835,35 @@
    "CredentialTokenHint": "interface:30dedc622b"
   }
  },
+ "./contracts/site/seo-content-analysis": {
+  "types": "./dist/contracts/site/seo-content-analysis.d.ts",
+  "symbols": {
+   "ContentBlock": "type:2311fec36a",
+   "HeadingLevel": "type:f127b16b2e"
+  }
+ },
+ "./contracts/site/site-key": {
+  "types": "./dist/contracts/site/site-key.d.ts",
+  "symbols": {
+   "AdminGeneratedSiteKey": "interface:6bf68babed",
+   "AdminImportedSiteKey": "interface:de7d55a82c",
+   "AdminRevealedSiteKey": "interface:52cf57be52",
+   "AdminSiteKeyAffectedWebhook": "interface:528e383009",
+   "AdminSiteKeyGenerateOutcome": "type:889ed2c5dc",
+   "AdminSiteKeyRuntimeMode": "type:8f86adc94d",
+   "AdminSiteKeyStartFreshPreview": "interface:b59e3bea9e",
+   "AdminSiteKeyState": "type:4e0c0bc1f5",
+   "AdminSiteKeyStatus": "interface:7c27f0a100",
+   "AdminStartedFreshSiteKey": "interface:f9f2351943"
+  }
+ },
+ "./contracts/site/skills-install": {
+  "types": "./dist/contracts/site/skills-install.d.ts",
+  "symbols": {
+   "SkillInstallInput": "type:348e65a008",
+   "SkillUploadFile": "interface:af02152a6c"
+  }
+ },
  "./contracts/site/soft-delete": {
   "types": "./dist/contracts/site/soft-delete.d.ts",
   "symbols": {
@@ -1758,6 +1881,12 @@
   "symbols": {
    "ToolApprovalClass": "type:04963137d2",
    "ToolApprovalPolicy": "interface:ac6a5711ce"
+  }
+ },
+ "./contracts/site/ui-sections": {
+  "types": "./dist/contracts/site/ui-sections.d.ts",
+  "symbols": {
+   "PublishSection": "interface:2d46921b2e"
   }
  },
  "./contracts/site/user-management": {
@@ -1818,6 +1947,22 @@
    "MfaStore": "interface:508412231e",
    "SessionTokenPort": "interface:ad050e6777",
    "UsernameChangePort": "interface:e7132fdde4"
+  }
+ },
+ "./contracts/site/web-evidence-capture-budget": {
+  "types": "./dist/contracts/site/web-evidence-capture-budget.d.ts",
+  "symbols": {
+   "CaptureBudgetLimits": "interface:0f34c6ffdb"
+  }
+ },
+ "./contracts/site/web-evidence-playwright": {
+  "types": "./dist/contracts/site/web-evidence-playwright.d.ts",
+  "symbols": {
+   "AbortReason": "type:f6894099f4",
+   "RequestDecision": "type:c18557c50f",
+   "RequestRouterReport": "interface:cadd90c251",
+   "RoutedMethod": "type:17621604ab",
+   "RoutedRequest": "interface:00a38aa4ff"
   }
  },
  "./contracts/storage": {
@@ -2528,21 +2673,6 @@
   "types": "./dist/tool-metadata/site/pages.d.ts",
   "symbols": {
    "toolMetadata": "variable:6636a3b125"
-  }
- },
- "./contracts/site/site-key": {
-  "types": "./dist/contracts/site/site-key.d.ts",
-  "symbols": {
-   "AdminGeneratedSiteKey": "interface:6bf68babed",
-   "AdminImportedSiteKey": "interface:de7d55a82c",
-   "AdminRevealedSiteKey": "interface:52cf57be52",
-   "AdminSiteKeyAffectedWebhook": "interface:528e383009",
-   "AdminSiteKeyGenerateOutcome": "type:889ed2c5dc",
-   "AdminSiteKeyRuntimeMode": "type:8f86adc94d",
-   "AdminSiteKeyStartFreshPreview": "interface:b59e3bea9e",
-   "AdminSiteKeyState": "type:4e0c0bc1f5",
-   "AdminSiteKeyStatus": "interface:7c27f0a100",
-   "AdminStartedFreshSiteKey": "interface:f9f2351943"
   }
  }
 }

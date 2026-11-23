@@ -131,6 +131,14 @@
       "./contracts/site/api-connections-hosted-mcp": "universal",
       "./contracts/site/media-providers-catalog": "universal",
       "./contracts/site/core-custom-credential-categories": "universal",
+      "./contracts/site/packaging-electron": "universal",
+      "./contracts/site/platform-process": "universal",
+      "./contracts/site/fs-durable-json": "universal",
+      "./contracts/site/diagnostics-domain-dns": "universal",
+      "./contracts/site/web-evidence-playwright": "universal",
+      "./contracts/site/web-evidence-capture-budget": "universal",
+      "./contracts/site/commerce": "universal",
+      "./contracts/site/skills-install": "universal",
       "./errors/sentences": "universal",
       "./errors/bindings": "universal",
       "./errors/catalog": "universal",
@@ -820,6 +828,46 @@
       "types": "./dist/contracts/site/core-custom-credential-categories.d.ts",
       "import": "./dist/contracts/site/core-custom-credential-categories.js",
       "default": "./dist/contracts/site/core-custom-credential-categories.js"
+    },
+    "./contracts/site/packaging-electron": {
+      "types": "./dist/contracts/site/packaging-electron.d.ts",
+      "import": "./dist/contracts/site/packaging-electron.js",
+      "default": "./dist/contracts/site/packaging-electron.js"
+    },
+    "./contracts/site/platform-process": {
+      "types": "./dist/contracts/site/platform-process.d.ts",
+      "import": "./dist/contracts/site/platform-process.js",
+      "default": "./dist/contracts/site/platform-process.js"
+    },
+    "./contracts/site/fs-durable-json": {
+      "types": "./dist/contracts/site/fs-durable-json.d.ts",
+      "import": "./dist/contracts/site/fs-durable-json.js",
+      "default": "./dist/contracts/site/fs-durable-json.js"
+    },
+    "./contracts/site/diagnostics-domain-dns": {
+      "types": "./dist/contracts/site/diagnostics-domain-dns.d.ts",
+      "import": "./dist/contracts/site/diagnostics-domain-dns.js",
+      "default": "./dist/contracts/site/diagnostics-domain-dns.js"
+    },
+    "./contracts/site/web-evidence-playwright": {
+      "types": "./dist/contracts/site/web-evidence-playwright.d.ts",
+      "import": "./dist/contracts/site/web-evidence-playwright.js",
+      "default": "./dist/contracts/site/web-evidence-playwright.js"
+    },
+    "./contracts/site/web-evidence-capture-budget": {
+      "types": "./dist/contracts/site/web-evidence-capture-budget.d.ts",
+      "import": "./dist/contracts/site/web-evidence-capture-budget.js",
+      "default": "./dist/contracts/site/web-evidence-capture-budget.js"
+    },
+    "./contracts/site/commerce": {
+      "types": "./dist/contracts/site/commerce.d.ts",
+      "import": "./dist/contracts/site/commerce.js",
+      "default": "./dist/contracts/site/commerce.js"
+    },
+    "./contracts/site/skills-install": {
+      "types": "./dist/contracts/site/skills-install.d.ts",
+      "import": "./dist/contracts/site/skills-install.js",
+      "default": "./dist/contracts/site/skills-install.js"
     },
     "./errors/sentences": {
       "types": "./dist/errors/sentences.d.ts",

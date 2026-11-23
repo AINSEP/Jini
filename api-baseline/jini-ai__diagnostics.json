@@ -155,7 +155,9 @@
    "SECRET_PATTERNS": "variable:944cad241e",
    "SecretPattern": "interface:93cf1f033d",
    "SecretRedaction": "interface:20b483383d",
-   "redactSecretShapes": "function:a3202bc475"
+   "SecretScanHit": "interface:8c2fda2048",
+   "redactSecretShapes": "function:a3202bc475",
+   "scanTextForSecrets": "function:a935151454"
   }
  },
  "./web-evidence": {
