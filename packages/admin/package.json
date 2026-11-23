@@ -172,7 +172,11 @@
       "./screens/settings/UserInterfaceSettingsPanel.hooks": "universal",
       "./screens/settings/hooks/use-settings-locale-sync.hooks": "browser",
       "./screens/settings/ExternalMcpSharedChoice": "browser",
-      "./screens/settings/ExternalMcpSharedChoice.hooks": "browser"
+      "./screens/settings/ExternalMcpSharedChoice.hooks": "browser",
+      "./screens/settings/hooks/use-settings-active-tab-scroll.hooks": "browser",
+      "./screens/settings/ExternalMcpToolsModal.hooks": "browser",
+      "./screens/settings/hooks/use-external-mcp-remove-confirm.hooks": "browser",
+      "./screens/settings/user-interface-settings.css": "browser"
     },
     "isolation": {
       "shared": [
@@ -261,7 +265,8 @@
   },
   "type": "module",
   "sideEffects": [
-    "./src/themes/**/*.css"
+    "./src/themes/**/*.css",
+    "./src/screens/**/*.css"
   ],
   "main": "./dist/core/index.js",
   "types": "./dist/core/index.d.ts",
@@ -1049,7 +1054,23 @@
       "types": "./dist/screens/settings/ExternalMcpSharedChoice.hooks.d.ts",
       "import": "./dist/screens/settings/ExternalMcpSharedChoice.hooks.js",
       "default": "./dist/screens/settings/ExternalMcpSharedChoice.hooks.js"
-    }
+    },
+    "./screens/settings/hooks/use-settings-active-tab-scroll.hooks": {
+      "types": "./dist/screens/settings/hooks/use-settings-active-tab-scroll.hooks.d.ts",
+      "import": "./dist/screens/settings/hooks/use-settings-active-tab-scroll.hooks.js",
+      "default": "./dist/screens/settings/hooks/use-settings-active-tab-scroll.hooks.js"
+    },
+    "./screens/settings/ExternalMcpToolsModal.hooks": {
+      "types": "./dist/screens/settings/ExternalMcpToolsModal.hooks.d.ts",
+      "import": "./dist/screens/settings/ExternalMcpToolsModal.hooks.js",
+      "default": "./dist/screens/settings/ExternalMcpToolsModal.hooks.js"
+    },
+    "./screens/settings/hooks/use-external-mcp-remove-confirm.hooks": {
+      "types": "./dist/screens/settings/hooks/use-external-mcp-remove-confirm.hooks.d.ts",
+      "import": "./dist/screens/settings/hooks/use-external-mcp-remove-confirm.hooks.js",
+      "default": "./dist/screens/settings/hooks/use-external-mcp-remove-confirm.hooks.js"
+    },
+    "./screens/settings/user-interface-settings.css": "./src/screens/settings/user-interface-settings.css"
   },
   "files": [
     "src/themes",
@@ -1197,6 +1218,15 @@
       ],
       "screens/settings/ExternalMcpSharedChoice.hooks": [
         "./dist/screens/settings/ExternalMcpSharedChoice.hooks.d.ts"
+      ],
+      "screens/settings/hooks/use-settings-active-tab-scroll.hooks": [
+        "./dist/screens/settings/hooks/use-settings-active-tab-scroll.hooks.d.ts"
+      ],
+      "screens/settings/ExternalMcpToolsModal.hooks": [
+        "./dist/screens/settings/ExternalMcpToolsModal.hooks.d.ts"
+      ],
+      "screens/settings/hooks/use-external-mcp-remove-confirm.hooks": [
+        "./dist/screens/settings/hooks/use-external-mcp-remove-confirm.hooks.d.ts"
       ]
     }
   },
