@@ -2052,5 +2052,12 @@
    "useWidgetsPorts": "function:262f4fd604",
    "widgets": "function:2f5403fc99"
   }
+ },
+ "./screens/media/hooks/use-edit-media-modal.hooks": {
+  "types": "./dist/screens/media/hooks/use-edit-media-modal.hooks.d.ts",
+  "symbols": {
+   "EditMediaModalController": "interface:32287e08c0",
+   "useEditMediaModal": "function:77bc12dd3a"
+  }
  }
 }
