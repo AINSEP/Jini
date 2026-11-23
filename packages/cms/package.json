@@ -320,6 +320,7 @@
       "./admin-http/routes/media/delete": "universal",
       "./admin-http/routes/media/trash": "universal",
       "./admin-http/routes/media/get-providers": "universal",
+      "./admin-http/routes/media/where-used": "universal",
       "./admin-http/routes/media/put-providers": "universal",
       "./admin-http/routes/media/update": "node",
       "./admin-http/routes/assistant/execution-shared": "universal",
@@ -343,6 +344,7 @@
       "./admin-http/routes/agent-plugins/list": "universal",
       "./admin-http/routes/agent-plugins/files": "universal",
       "./admin-http/routes/agent-plugins/set-enabled": "universal",
+      "./admin-http/routes/agent-plugins/memory": "universal",
       "./admin-http/http/agent-plugins": "universal",
       "./admin-http/routes/external-mcp/list": "universal",
       "./admin-http/routes/external-mcp/admissions": "universal",
@@ -2094,6 +2096,11 @@
       "import": "./dist/admin-http/routes/media/get-providers.js",
       "default": "./dist/admin-http/routes/media/get-providers.js"
     },
+    "./admin-http/routes/media/where-used": {
+      "types": "./dist/admin-http/routes/media/where-used.d.ts",
+      "import": "./dist/admin-http/routes/media/where-used.js",
+      "default": "./dist/admin-http/routes/media/where-used.js"
+    },
     "./admin-http/routes/media/put-providers": {
       "types": "./dist/admin-http/routes/media/put-providers.d.ts",
       "import": "./dist/admin-http/routes/media/put-providers.js",
@@ -2208,6 +2215,11 @@
       "types": "./dist/admin-http/routes/agent-plugins/set-enabled.d.ts",
       "import": "./dist/admin-http/routes/agent-plugins/set-enabled.js",
       "default": "./dist/admin-http/routes/agent-plugins/set-enabled.js"
+    },
+    "./admin-http/routes/agent-plugins/memory": {
+      "types": "./dist/admin-http/routes/agent-plugins/memory.d.ts",
+      "import": "./dist/admin-http/routes/agent-plugins/memory.js",
+      "default": "./dist/admin-http/routes/agent-plugins/memory.js"
     },
     "./admin-http/http/agent-plugins": {
       "types": "./dist/admin-http/http/agent-plugins.d.ts",
