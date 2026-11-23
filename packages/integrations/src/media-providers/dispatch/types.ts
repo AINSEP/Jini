@@ -23,7 +23,7 @@ import type { RequiredArgs, OptionalArgs } from '../../args.js';
  * attachments; provider dispatch performs network I/O through its transport.
  */
 import type { HttpClientPort } from '@jini-ai/core/primitives';
-import type { MediaOutboundOptions } from './outbound.js';
+import type { MediaGuardedFetch, MediaOutboundOptions } from './outbound.js';
 import type { AudioKind, MediaModel, MediaProvider, MediaSurface } from '../types.js';
 
 /** Per-provider credentials a host resolves however it wants (env vars, a secrets manager, a config file, ...). This engine never reads `process.env` itself — see `resolveProviderCredentialsFromEnv` in `credentials.ts` for an opt-in reference resolver a host may use to build this map. */
@@ -107,9 +107,15 @@ export interface VendorAdapterLookup {
 export interface MediaDispatchEngineRequired {
   readonly registry: VendorAdapterLookup;
   readonly httpClient: HttpClientPort;
+  /**
+   * Projects `httpClient` responses into fetch `Response`s for vendor adapters. Composition binds
+   * `nodeMediaGuardedFetch` from `@jini-ai/integrations/media-providers/node`. Optional only for
+   * hosts that predate the port: the engine then binds that same node adapter itself.
+   */
+  readonly guardedFetch?: MediaGuardedFetch;
 }
 
-export interface MediaDispatchEngineOptions extends Omit<MediaOutboundOptions, 'httpClient'> {
+export interface MediaDispatchEngineOptions extends Omit<MediaOutboundOptions, 'httpClient' | 'guardedFetch'> {
   /** Per-provider credentials, keyed by provider id (see `providers.ts`'s `MEDIA_PROVIDERS` for valid ids). */
   readonly credentials?: Readonly<Record<string, ProviderCredentials>>;
   /**

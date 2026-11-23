@@ -1,4 +1,6 @@
 import { requireMediaHttpClient } from './outbound.js';
+import type { MediaGuardedFetch } from './outbound.js';
+import { nodeMediaGuardedFetch } from './node.js';
 import { normalizeMediaProviderMap } from '../providers.js';
 import type { RequiredArgs, OptionalArgs } from '../../args.js';
 /** Media dispatch validates catalogue inputs, resolves live credentials and returns generated
@@ -128,8 +130,11 @@ function resolveRenderer({ registry, providerId, routeKey }: { registry: VendorA
 /** Creates an engine over the host's registry; registration remains live between requests.
  * @returns A generation service; validation, missing routes and provider failures reject generate.
  */
-export function createMediaDispatchEngine({ registry, httpClient }: MediaDispatchEngineRequired, options: MediaDispatchEngineOptions = {}): MediaDispatchEngine {
+export function createMediaDispatchEngine({ registry, httpClient, guardedFetch }: MediaDispatchEngineRequired, options: MediaDispatchEngineOptions = {}): MediaDispatchEngine {
   requireMediaHttpClient({ httpClient });
+  // Compatibility seam: hosts that predate the injected guarded fetch pass only `httpClient`, so the
+  // engine binds the node composer's adapter. Hosts should pass `guardedFetch` explicitly.
+  const boundGuardedFetch = guardedFetch ?? nodeMediaGuardedFetch;
   const allowStubFallback = options.allowStubFallback === true;
   const catalog = options.catalog ?? STATIC_CATALOG;
 
@@ -141,7 +146,7 @@ export function createMediaDispatchEngine({ registry, httpClient }: MediaDispatc
       assertRequestShape(request);
       const { def, resolvedAudioKind } = resolveCatalogModel(request, catalog);
       const { length, duration, warnings } = clampRequestInputs(request);
-      const ctx = engineRenderContext({ request, resolvedAudioKind, length, duration, options: { ...options, httpClient } });
+      const ctx = engineRenderContext({ request, resolvedAudioKind, length, duration, options: { ...options, httpClient, guardedFetch: boundGuardedFetch } });
       const { providerId, renderer, credentials } = selectRenderer({ registry, def, surface: request.surface, resolvedAudioKind, ctx, configuredCredentials });
 
       if (!renderer) {
@@ -213,12 +218,13 @@ function engineRenderContext(required: {
   resolvedAudioKind: AudioKind | undefined;
   length: number | undefined;
   duration: number | undefined;
-  options: MediaDispatchEngineOptions & Pick<MediaDispatchEngineRequired, 'httpClient'>;
+  options: MediaDispatchEngineOptions & Pick<MediaDispatchEngineRequired, 'httpClient'> & { guardedFetch: MediaGuardedFetch };
 }): RenderContext {
   const { request, resolvedAudioKind, length, duration, options } = required;
   return {
     ...buildRenderContext({ request: request, resolvedAudioKind: resolvedAudioKind, length: length, duration: duration }),
     httpClient: options.httpClient,
+    guardedFetch: options.guardedFetch,
     ...(options.allowPrivateNetwork === undefined ? {} : { allowPrivateNetwork: options.allowPrivateNetwork }),
     ...(options.outboundMessages === undefined ? {} : { outboundMessages: options.outboundMessages }),
   };
