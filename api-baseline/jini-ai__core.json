@@ -1741,6 +1741,21 @@
    "CredentialTokenHint": "interface:30dedc622b"
   }
  },
+ "./contracts/site/site-key": {
+  "types": "./dist/contracts/site/site-key.d.ts",
+  "symbols": {
+   "AdminGeneratedSiteKey": "interface:6bf68babed",
+   "AdminImportedSiteKey": "interface:de7d55a82c",
+   "AdminRevealedSiteKey": "interface:52cf57be52",
+   "AdminSiteKeyAffectedWebhook": "interface:528e383009",
+   "AdminSiteKeyGenerateOutcome": "type:889ed2c5dc",
+   "AdminSiteKeyRuntimeMode": "type:8f86adc94d",
+   "AdminSiteKeyStartFreshPreview": "interface:b59e3bea9e",
+   "AdminSiteKeyState": "type:4e0c0bc1f5",
+   "AdminSiteKeyStatus": "interface:7c27f0a100",
+   "AdminStartedFreshSiteKey": "interface:f9f2351943"
+  }
+ },
  "./contracts/site/soft-delete": {
   "types": "./dist/contracts/site/soft-delete.d.ts",
   "symbols": {
@@ -2528,21 +2543,6 @@
   "types": "./dist/tool-metadata/site/pages.d.ts",
   "symbols": {
    "toolMetadata": "variable:6636a3b125"
-  }
- },
- "./contracts/site/site-key": {
-  "types": "./dist/contracts/site/site-key.d.ts",
-  "symbols": {
-   "AdminGeneratedSiteKey": "interface:6bf68babed",
-   "AdminImportedSiteKey": "interface:de7d55a82c",
-   "AdminRevealedSiteKey": "interface:52cf57be52",
-   "AdminSiteKeyAffectedWebhook": "interface:528e383009",
-   "AdminSiteKeyGenerateOutcome": "type:889ed2c5dc",
-   "AdminSiteKeyRuntimeMode": "type:8f86adc94d",
-   "AdminSiteKeyStartFreshPreview": "interface:b59e3bea9e",
-   "AdminSiteKeyState": "type:4e0c0bc1f5",
-   "AdminSiteKeyStatus": "interface:7c27f0a100",
-   "AdminStartedFreshSiteKey": "interface:f9f2351943"
   }
  }
 }
