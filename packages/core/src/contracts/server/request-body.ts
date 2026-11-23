@@ -16,8 +16,6 @@ export function payloadTooLargeError({ maxBytes }: { readonly maxBytes: number }
   return ({ code: 'PAYLOAD_TOO_LARGE', message: `The request body is larger than the ${maxBytes} bytes this address accepts. Send less data.` });
 }
 
-const tooLarge = (maxBytes: number): ServerApiError => payloadTooLargeError({ maxBytes });
-
 /**
  * Reads the whole body as bytes, refusing (413, `PAYLOAD_TOO_LARGE`) as soon as it passes
  * `maxBytes` — a declared `content-length` above the limit is refused before reading anything.
@@ -32,7 +30,7 @@ export async function readBodyBytes({ request }: { readonly request: Request }, 
   // malicious input, including text aimed at hijacking the AI. No known client sends compressed bodies.
   if (encoding !== 'identity') return err({ error: { code: 'UNSUPPORTED_MEDIA_TYPE', message: 'This address does not accept compressed request bodies. Send the body uncompressed (no Content-Encoding).' } });
   const declared = Number(request.headers.get('content-length') ?? '0');
-  if (declared > maxBytes) return err({ error: tooLarge(maxBytes) });
+  if (declared > maxBytes) return err({ error: payloadTooLargeError({ maxBytes }) });
   if (!request.body) return ok({ value: new Uint8Array(0) });
   return collectBody({ body: request.body, maxBytes });
 }
@@ -48,7 +46,7 @@ async function collectBody({ body, maxBytes }: { readonly body: ReadableStream<U
     if (total > maxBytes) {
       // Stop pulling from the socket at once: an oversized upload must not be buffered to the end.
       await reader.cancel();
-      return err({ error: tooLarge(maxBytes) });
+      return err({ error: payloadTooLargeError({ maxBytes }) });
     }
     chunks.push(value);
   }

@@ -86,15 +86,18 @@ function stablePanelPath({ parts, query, policy }: SplitRoute): string | undefin
 function legacyRedirectPath({ parts, query, policy }: SplitRoute): string | undefined {
   const [section = ""] = parts;
   const { detail, panelPaths, legacyDefaults = {} } = policy;
-  if (detail && parts.length === 2 && section === detail.legacySection) {
-    const base = panelPaths[detail.panelId];
-    return base === undefined ? undefined : `${base}/${parts[1]}${query}`;
-  }
+  if (detail && parts.length === 2 && section === detail.legacySection) return legacyDetailPath({ parts, query, policy });
   // `hasOwn` keeps prototype names such as `/constructor` from resolving to a destination.
   if (parts.length !== 1 || !Object.hasOwn(panelPaths, section)) return undefined;
   const legacyDefault = Object.hasOwn(legacyDefaults, section) ? legacyDefaults[section] : undefined;
   if (legacyDefault) return `${legacyDefault.path}${withDefaultTab({ query, tab: legacyDefault.tab })}`;
   return `${panelPaths[section]}${query}`;
+}
+
+/** A legacy two-segment detail URL (`/<legacySection>/<id>`) moved under its panel's path; undefined when that panel has no path. */
+function legacyDetailPath({ parts, query, policy }: SplitRoute): string | undefined {
+  const base = policy.detail ? policy.panelPaths[policy.detail.panelId] : undefined;
+  return base === undefined ? undefined : `${base}/${parts[1]}${query}`;
 }
 
 /** Bare legacy links keep their former default tab; explicit tabs survive. */

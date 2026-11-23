@@ -12,7 +12,7 @@ export interface ShellFailureLogger {
   error(required: { message: string }, optional?: { error?: unknown }): void;
 }
 
-let bound: ShellFailureLogger | undefined;
+let boundLogger: ShellFailureLogger | undefined;
 
 /**
  * Binds the host's logger for every shell bus. Rebinding replaces the previous logger.
@@ -20,9 +20,9 @@ let bound: ShellFailureLogger | undefined;
  * @example bindShellFailureLogger({ logger: createConsoleLogger({ prefix: "[admin]" }) })
  */
 export function bindShellFailureLogger({ logger }: { logger: ShellFailureLogger }, _options: Record<string, never> = {}): () => void {
-  bound = logger;
+  boundLogger = logger;
   return () => {
-    if (bound === logger) bound = undefined;
+    if (boundLogger === logger) boundLogger = undefined;
   };
 }
 
@@ -33,7 +33,7 @@ export function bindShellFailureLogger({ logger }: { logger: ShellFailureLogger 
  */
 export function reportShellFailure({ message, error }: { message: string; error: unknown }, _options: Record<string, never> = {}): void {
   try {
-    bound?.error({ message }, { error });
+    boundLogger?.error({ message }, { error });
   } catch {
     // The logger itself failed; nothing safer is left to report it to, and the bus must keep going.
   }

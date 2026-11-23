@@ -31,7 +31,9 @@ export const redirectTombstoneRoute = defineJsonRoute<{ id: string }, AdminRedir
       });
       return ok({ value: toAdminRedirectResponse(record) });
     } catch (err) {
-      if (err instanceof RedirectNotFoundError) rejectRoute({ status: 404, error: err.message, code: "REDIRECT_NOT_FOUND" });
+      // Fixed copy rebuilt from the requested id (same words the write path throws, and get-by-id's
+      // 404), so no caught error text is copied into the client envelope.
+      if (err instanceof RedirectNotFoundError) rejectRoute({ status: 404, error: `redirect '${input.id}' was not found`, code: "REDIRECT_NOT_FOUND" });
       throw err;
     }
   },

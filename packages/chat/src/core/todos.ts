@@ -1,4 +1,11 @@
-
+/**
+ * @module todos
+ *
+ * Pure TodoWrite-style plan-tool snapshot parsing/derivation. Reads the
+ * structured plan a `TodoWrite`/`update_plan`-shaped tool call carries and
+ * derives the "latest plan state" a pinned progress card renders — no I/O,
+ * no framework.
+ */
 import { isTerminalRunStatus, type ChatRunStatus } from './messages.js';
 import type { AgentEvent } from "@jini-ai/core/contracts/site/chat-core";
 

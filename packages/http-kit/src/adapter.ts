@@ -4,7 +4,7 @@
  * file in the module that knows about Express `req`/`res` on the mounting side.
  */
 import type { Express, Request, Response } from 'express';
-import { ClientFacingError, payloadTooLargeError, statusForError, type JsonRouteAuthorize, type Result, type RouteHostInternalErrorContext, type RouteHostContext, type ServerApiError } from '@jini-ai/core/contracts/server';
+import { ClientFacingError, payloadTooLargeError, statusForError, type JsonRouteAuthorize, type Result, type RouteHostInternalErrorContext, type RouteHostContext, type RouteInputContext, type ServerApiError } from '@jini-ai/core/contracts/server';
 import { reportRouteInternalError } from './internal-error.js';
 import { rawInput } from './request.js';
 import { sendApiError, sendJson } from './response.js';
@@ -63,20 +63,34 @@ export function mountJsonRoute<Input, Output, Deps, Context = undefined>({ app, 
       if (!allowRouteOrigin({ req, res, spec, adapter })) return;
       let context: Context | undefined;
       if (spec.ports?.authenticate) context = await spec.ports.authenticate({ raw, res, deps });
-      const parsed = spec.parse(raw);
-      if (!parsed.ok) {
-        sendReturnedFailure({ res, onReturnedError, error: parsed.error, phase: 'parse' });
-        return;
-      }
-      const authorize = routeAuthorize({ ports: spec.ports, deps, context });
-      const result = await spec.handle({ input: parsed.value, deps, context, authorize }, { signal: abortController.signal });
-      sendRouteResult({ res, result, spec: { successStatus: spec.successStatus, onReturnedError }, signal: abortController.signal });
+      await parseHandleAndSend({ res, raw, spec, deps, context, onReturnedError, signal: abortController.signal });
     } catch (e) {
       sendRouteException({ res, spec, adapter, error: e });
     } finally {
       res.off?.('close', onResponseClose);
     }
   });
+}
+
+/**
+ * Parse, authorize, handle and answer, after the pre-parse gates admitted the request. Split out of
+ * the per-request callback only to keep it within the complexity budget. Not awaited-before-handle:
+ * `parse` and `authorize` are synchronous, so `handle` still starts in the same tick as before the
+ * split (adapter-pins.test.ts pins that a disconnect right after dispatch reaches `handle`'s signal).
+ */
+async function parseHandleAndSend<Input, Output, Deps, Context>({ res, raw, spec, deps, context, onReturnedError, signal }: {
+  readonly res: Response; readonly raw: RouteInputContext; readonly spec: JsonRouteSpec<Input, Output, Deps, Context>;
+  readonly deps: Deps; readonly context: Context | undefined;
+  readonly onReturnedError: JsonRoutePorts<Deps, Context>['onReturnedError']; readonly signal: AbortSignal;
+}): Promise<void> {
+  const parsed = spec.parse(raw);
+  if (!parsed.ok) {
+    sendReturnedFailure({ res, onReturnedError, error: parsed.error, phase: 'parse' });
+    return;
+  }
+  const authorize = routeAuthorize({ ports: spec.ports, deps, context });
+  const result = await spec.handle({ input: parsed.value, deps, context, authorize }, { signal });
+  sendRouteResult({ res, result, spec: { successStatus: spec.successStatus, onReturnedError }, signal });
 }
 
 /** UTF-8 size of a body the host's parser already read: the bytes themselves, or its JSON re-serialization. */
@@ -147,7 +161,7 @@ function sendRouteResult<Output>({ res, result, spec, signal }: {
   readonly signal: AbortSignal;
 }, _optional: Record<string, never> = {}): void {
   // `signal` can only have been aborted by `onResponseClose` firing while the
-  // `await spec.handle` in the request handler was pending — nothing here runs concurrently
+  // `await spec.handle` in `parseHandleAndSend` was pending — nothing here runs concurrently
   // with it — so this unambiguously means the client was already gone before any response was
   // sent. Writing one now would be wasted work at best and, worse, would route a benign
   // disconnect into the SEC-005 catch as a false internal error if the socket rejects the write.

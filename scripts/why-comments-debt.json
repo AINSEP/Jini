@@ -1620,6 +1620,18 @@
     {
       "id": "e0c5d06471c8",
       "reason": "ex5-fnd-inject XC-6a: the code it described (the pre-bound nodeProcessControl constant) is deleted; hosts now build the port with createProcessControlPort and their own platform functions. Was packages/node-adapters/src/process.ts:41-41."
+    },
+    {
+      "id": "a6b4eeb10a6a",
+      "reason": "B166 (c6547eb10) made the plan cap per principal; 'O(plans held), at most DEFAULT_MAX_PLANS' described the old global cap and is false now. The rewritten line beside save() says 'at most DEFAULT_MAX_PLANS per principal, expired ones pruned first'."
+    },
+    {
+      "id": "084b313a5071",
+      "reason": "B166 (c6547eb10) replaced the global keys-only oldest-first eviction loop this explained (and its note about the removed `oldest === undefined` guard) with a per-principal loop; the replacement comment beside the new loop explains the per-principal eviction and why (B166)."
+    },
+    {
+      "id": "b81ff738f308",
+      "reason": "ex2-holds (24e1f7b9a) retired the deprecated sqlite facade and its fixture, so the sqlite parity assertion this explained is gone; the replacement PARITY comment on the same line names the infra fixture that took over."
     }
   ]
 }

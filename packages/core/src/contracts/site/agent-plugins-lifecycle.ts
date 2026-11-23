@@ -150,6 +150,7 @@ export type AgentPluginArchiveEntry =
  * `entries` must be a pure function of the archive bytes: an install iterates it twice, once to
  * check entry-count limits from metadata alone and once to extract.
  */
+/** `entries` is a pure function of archive bytes: metadata preflight and extraction iterate it twice. */
 export interface AgentPluginArchiveReaderPort {
   entries(required: { readonly archive: Uint8Array }): AsyncIterable<AgentPluginArchiveEntry>;
 }
