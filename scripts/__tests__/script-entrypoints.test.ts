@@ -36,7 +36,7 @@ function guardFixture(root: string): string {
     'check-driver-isolation': 'checkDriverIsolation', 'check-hardwiring': 'checkHardwiring', 'check-env-access': 'checkEnvAccess',
     'check-engine-boundaries': 'checkEngineBoundaries', 'check-extensionless-imports': 'checkExtensionlessImports',
     'check-model-fallback-freshness': 'checkModelFallbackFreshness', 'check-protocol-purity': 'checkProtocolPurity',
-    'check-package-layers': 'checkPackageLayers', 'check-plugin-packages': 'checkPluginPackages',
+    'check-package-layers': 'checkPackageLayers', 'lib/injection-gate': 'injectionViolations', 'lib/package-sources': 'sourcePackages', 'check-plugin-packages': 'checkPluginPackages',
     'check-subpath-isolation': 'checkSubpathIsolation', 'lib/source-neutrality': 'checkSourceNeutrality',
     'lib/publish-hygiene-self-test': 'runPublishHygieneSelfTest', 'lib/self-test': 'runGuardSelfTest',
     'check-runtime-cycles': 'checkRuntimeCycles', 'lib/runtime-cycles-self-test': 'runRuntimeCycleSelfTest',
