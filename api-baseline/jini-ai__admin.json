@@ -1195,8 +1195,6 @@
    "AdminTaxonomy": "interface:5a0d170ed2",
    "AdminTaxonomyWithTerms": "interface:8c758e6bf5",
    "AdminTerm": "interface:47515e70ff",
-   "GatedConfirmResult": "interface:8d209a8af6",
-   "GatedPlanResult": "interface:d1492119c5",
    "MergeTermPlanDetails": "interface:50d7e125b4"
   }
  },
@@ -1240,7 +1238,7 @@
   "types": "./dist/screens/taxonomy/TaxonomyRowMenu.d.ts",
   "symbols": {
    "TaxonomyRowMenu": "function:30785b7b3b",
-   "TaxonomyRowMenuProps": "type:c208993241"
+   "TaxonomyRowMenuProps": "type:4dca7767a9"
   }
  },
  "./screens/taxonomy/TaxonomyRowMenu.hooks": {

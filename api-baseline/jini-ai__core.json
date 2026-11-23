@@ -1143,6 +1143,13 @@
    "AssistantSurfaceDeps": "interface:7b0241e5a6"
   }
  },
+ "./contracts/site/gated-results": {
+  "types": "./dist/contracts/site/gated-results.d.ts",
+  "symbols": {
+   "GatedConfirmResult": "interface:8d209a8af6",
+   "GatedPlanResult": "interface:d1492119c5"
+  }
+ },
  "./contracts/site/post-author": {
   "types": "./dist/contracts/site/post-author.d.ts",
   "symbols": {

@@ -398,22 +398,6 @@
    "widgetCollectionListPort": "variable:6f30b839f8"
   }
  },
- "./entries/site/public-read": {
-  "types": "./dist/entries/site/public-read.d.ts",
-  "symbols": {
-   "ParseCollectionListConfigResult": "type:8866546d83",
-   "entryPublicHref": "function:40a50314b8",
-   "humanizeFieldName": "function:2f921dfc74",
-   "parseCollectionListConfig": "function:f125cbac6e"
-  }
- },
- "./entries/site/render-entry": {
-  "types": "./dist/entries/site/render-entry.d.ts",
-  "symbols": {
-   "COLLECTION_LIST_FAQ_PAGE": "variable:b4b7d9d5a0",
-   "isCollectionListLayout": "function:bb942cfb86"
-  }
- },
  "./entries/site/system-content-types": {
   "types": "./dist/entries/site/system-content-types.d.ts",
   "symbols": {
@@ -2783,12 +2767,6 @@
   "symbols": {
    "DECLARED_CONTENT_TYPE_OWNERS": "variable:413e924240",
    "declaredOwnerFor": "function:2cce297a7a"
-  }
- },
- "./widgets/site/entry-refs-extractor": {
-  "types": "./dist/widgets/site/entry-refs-extractor.d.ts",
-  "symbols": {
-   "extractHtmlEntryRefs": "function:d2091cdde2"
   }
  },
  "./widgets/sql": {
