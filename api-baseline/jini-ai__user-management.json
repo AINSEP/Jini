@@ -154,6 +154,29 @@
    "usersKitNeeds": "variable:8f44899bcc"
   }
  },
+ "./member-login/oidc-login": {
+  "types": "./dist/member-login/oidc-login.d.ts",
+  "symbols": {
+   "CompletedOidcLogin": "interface:280b8d9040",
+   "CreateSealerStateCodec": "type:1790d580a9",
+   "FormatAad": "type:cda6e8c6d1",
+   "LoginContext": "interface:a060d3eb98",
+   "OidcLoginDeps": "interface:54b94b7c49",
+   "ValidateOidcIdToken": "type:aa1afe2525",
+   "beginOidcLogin": "function:7109446a18",
+   "completeOidcLogin": "function:4dfff526fa",
+   "memberLoginCallbackUrl": "function:07630adf06",
+   "openLoginEmailContinuation": "function:60bbf67fd7",
+   "sealLoginEmailContinuation": "function:8cdefe33ad"
+  }
+ },
+ "./members/auth-mail": {
+  "types": "./dist/members/auth-mail.d.ts",
+  "symbols": {
+   "RenderEmailForSend": "type:30d0e385d9",
+   "renderMemberAuthMail": "function:1c45cf5f2d"
+  }
+ },
  "./react": {
   "types": "./dist/react/index.d.ts",
   "symbols": {
