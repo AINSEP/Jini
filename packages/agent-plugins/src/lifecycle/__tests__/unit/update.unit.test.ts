@@ -674,6 +674,44 @@ test('a plugin lock that stays busy at boot leaves the plugin on and retries rec
   });
 });
 
+// REGRESSION (A007): reprovisionOld turned every exception into "restored but off", so an activations
+// lock wait while re-provisioning the old revision's MCP roster disabled the plugin for good.
+test('a lock wait while re-provisioning the old revision at boot keeps the journal and recovers the prior activation once the lock clears', async () => {
+  let failRestore = false;
+  let busyFor = 1;
+  await fixture(async h => {
+    const instrumented = faulty(h, { rename: to => failRestore && to.includes(path.join(h.workspace.pluginPackagesDir({ pluginId }), h.previous.archiveDigest)) },
+      { mcpProvisioning: { ...ports.mcpProvisioning, provision: async () => { failRestore = true; throw new Error('activate failed'); } } });
+    await expect(instrumented.updateAgentPlugin(h.input)).rejects.toMatchObject({ code: 'PLUGIN_ROLLBACK_INCOMPLETE' });
+    failRestore = false;
+    const lockedOnce = async (...args: Parameters<typeof ports.mcpProvisioning.provision>): Promise<void> => {
+      if (busyFor > 0) { busyFor -= 1; throw busyLock(); }
+      return ports.mcpProvisioning.provision(...args);
+    };
+    const boot = createAgentPluginLifecycle({ ...h.context, mcpProvisioning: { ...ports.mcpProvisioning, provision: lockedOnce }, clock: { ...h.context.clock, sleep: async () => undefined } });
+    await expect(boot.reconcileAgentPluginUpdates({ workspaceId })).resolves.toBeUndefined();
+    expect(h.warnings).toEqual(['agent-plugin-update-recovery-waiting']);
+    expect((await h.store.read({}))?.state, 'the journal is kept while the lock is busy').toBe('published');
+    await settle(h, 'agent-plugin-update-recovery-resumed');
+    expect(h.warnings).toEqual(['agent-plugin-update-recovery-waiting', 'agent-plugin-update-recovery-resumed']);
+    expect(await h.store.read({})).toBeUndefined();
+    await expectRestored(h, 'active');
+  });
+});
+
+test('background recovery waits through the host\'s background sleep (which may let the process exit), not the ordinary one', async () => {
+  const fileLock = { ...ports.fileLock, withFileLock: (() => { throw busyLock(); }) as typeof ports.fileLock.withFileLock };
+  const waits: string[] = [];
+  await fixture(async h => {
+    await fs.writeFile(path.join(h.pluginRoot, 'update-journal.json'), '{');
+    const clock = { ...h.context.clock, sleep: async () => { waits.push('sleep'); }, sleepInBackground: async () => { waits.push('background'); } };
+    const boot = createAgentPluginLifecycle({ ...h.context, fileLock, clock });
+    await boot.reconcileAgentPluginUpdates({ workspaceId });
+    await settle(h, 'agent-plugin-update-recovery-gave-up');
+    expect(waits).toEqual(['background', 'background', 'background', 'background']);
+  });
+});
+
 test('a lock that never frees gives up with a named line and still leaves the plugin on', async () => {
   const fileLock = { ...ports.fileLock, withFileLock: (() => { throw busyLock(); }) as typeof ports.fileLock.withFileLock };
   await fixture(async h => {

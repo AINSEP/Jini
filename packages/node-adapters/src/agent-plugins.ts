@@ -54,6 +54,8 @@ export function createNodeAgentPluginEffects(required: AgentPluginPlatformFuncti
       nowMs: () => Date.now(),
       monotonicMs: () => performance.now(),
       sleep: ({ ms }) => setTimeout(ms),
+      // Background recovery retries must not keep the process alive (a referenced timer would hold exit for up to 10 minutes).
+      sleepInBackground: ({ ms }) => setTimeout(ms, undefined, { ref: false }),
     },
     ids: { newId: () => randomUUID(), random: () => randomInt(RANDOM_RESOLUTION) / RANDOM_RESOLUTION },
     process: {

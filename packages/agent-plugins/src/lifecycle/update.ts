@@ -281,7 +281,9 @@ async function restoreOldBytes({ scope, store, journal, oldRoot }: {
 }
 
 /** @returns false when the old revision's MCP roster could not be re-provisioned; the bytes are
- * already back, so the caller degrades to "restored but off" instead of wedging the journal. */
+ * already back, so the caller degrades to "restored but off" instead of wedging the journal.
+ * @throws a lock wait ({@link isLockWait}) unchanged: it says nothing about the roster, so it must
+ *   reach the retry path with the journal kept, never be turned into "restored but off". */
 async function reprovisionOld({ scope, workspaceId, journal, oldRoot }: {
   scope: UpdateScope;
   workspaceId: string;
@@ -292,7 +294,10 @@ async function reprovisionOld({ scope, workspaceId, journal, oldRoot }: {
     const installed = await scope.index.indexInstalledRoot({ packageRoot: oldRoot, archiveDigest: journal.fromDigest });
     await provisionAgentPluginMcp({ mcpProvisioning: scope.ports.mcpProvisioning, workspaceId, installed });
     return true;
-  } catch { return false; }
+  } catch (error) {
+    if (isLockWait({ error })) throw error;
+    return false;
+  }
 }
 
 /** How long background recovery waits before each new attempt after a lock wait at boot. */
@@ -341,7 +346,7 @@ async function reconcileUnderLock({ scope, workspaceId, pluginId }: { scope: Upd
  * the next boot). @complexity O(r) attempts, each one a full recovery of one plugin. */
 async function retryRecoveryInBackground({ scope, workspaceId, pluginId }: { scope: UpdateScope; workspaceId: string; pluginId: string }): Promise<void> {
   for (const delayMs of RECOVERY_RETRY_DELAYS_MS) {
-    await scope.ports.clock.sleep({ ms: delayMs });
+    await (scope.ports.clock.sleepInBackground ?? scope.ports.clock.sleep)({ ms: delayMs });
     try {
       await reconcileUnderLock({ scope, workspaceId, pluginId });
       scope.ports.onEvent?.({ event: 'agent-plugin-update-recovery-resumed', pluginId, message: `Plugin '${pluginId}': the lock was released and the interrupted update has now been recovered.` });
