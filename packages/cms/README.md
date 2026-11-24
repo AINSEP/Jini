@@ -627,13 +627,13 @@ host injects the profile builder plus the builder's own section vocabulary and p
 400 `VALIDATION_ERROR` before authorization, write-chokepoint errors via the shared `REDIRECT_WRITE_ERROR_MAPPINGS`; it reads
 `workspaceId` and `redirectsWriteDeps` only.
 
-`./public-http/http/site/member-auth-script`: `injectMemberAuthScript({ html, workspaceId, marker })` adds the member sign-in `<style>` and
-`<script>` (`MEMBER_AUTH_STYLE`/`MEMBER_AUTH_SCRIPT`) before `</body>` when the page has a `data-member-nav`/`data-member-page` hook. The
+`./public-http/http/site/member-auth-script`: `injectMemberAuthScript({ html, workspaceId, marker, names })` adds the member sign-in `<style>` and
+`<script>` (`memberAuthStyle({ names })`/`memberAuthScript({ names })`) before `</body>` when the page has a `data-member-nav`/`data-member-page` hook. The
 host injects `marker`, the one fixed boolean attribute stamped on both elements (its presence is the idempotency check); the engine
-ships no product-branded name. The script talks to the `/api/members/v1/workspaces/:id` routes under `./public-http/routes/members/*`.
+ships no product-branded name. The host also injects `names` (`MemberAuthNames`: every class the style selects and the script emits, the provider button's theme classes and the two fallback custom properties). The script talks to the `/api/members/v1/workspaces/:id` routes under `./public-http/routes/members/*`.
 
 `./public-http/http/site/form-presentation-assets`: `formBaselineStyle({ names })` returns the `<style>` baseline every form-rendering widget carries,
 `formRangeReadoutJs({ names })`/`formRangeReadoutScript({ names })` the range-slider value readout. Wiring: the host injects `names`
-(`FormPresentationNames`: `formClass`, `errorClass`, `formAttr`, `errorAttr`, `rangeValueClass`, `rangeMarkerAttr`,
+(`FormPresentationNames`: `formClass`, `errorClass`, `fieldClass`, `fieldHelpClass`, `fieldCheckboxClass`, `fieldErrorClass`, `formAttr`, `errorAttr`, `rangeValueClass`, `rangeMarkerAttr`,
 `dangerFallbackProp`, `successFallbackProp`), the class/attribute/custom-property names its themes already select; the engine ships no
 product-branded name and interpolates each verbatim. `FORM_SUCCESS_CLASS` and `FORM_SLUG_ATTR` are the generic names.

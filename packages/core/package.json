@@ -56,6 +56,7 @@
       "./contracts/capabilities": "universal",
       "./net": "universal",
       "./contracts/blob": "universal",
+      "./contracts/run-attempt": "universal",
       "./contracts/runtime": "universal",
       "./contracts/runtime/testing": "universal",
       "./contracts/admin-module": "universal",
@@ -461,6 +462,11 @@
       "types": "./dist/net/index.d.ts",
       "import": "./dist/net/index.js",
       "default": "./dist/net/index.js"
+    },
+    "./contracts/run-attempt": {
+      "types": "./dist/contracts/run-attempt.d.ts",
+      "import": "./dist/contracts/run-attempt.js",
+      "default": "./dist/contracts/run-attempt.js"
     },
     "./contracts/blob": {
       "types": "./dist/contracts/blob.d.ts",
