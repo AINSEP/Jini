@@ -59,7 +59,6 @@ export interface McpRosterChangeBus {
 /** Bounds one `notify()` call: one on-demand, idempotent attempt should fail fast rather than hold a
  *  caller's response open, applied across every registered listener at once. */
 const DEFAULT_WAIT_MS = 5_000;
-const listenersByKey = new Map<string, McpRosterChangeListener>();
 
 /** Invokes a listener without letting a synchronous throw escape before `Promise.allSettled` ever
  *  sees it — `Array.prototype.map` would otherwise abort the whole fan-out on the first offender. */
@@ -108,6 +107,7 @@ function awaitRefresh(listeners: readonly McpRosterChangeListener[], waitMs: num
  * @complexity `notify` is O(1) plus the cost of every registered listener, in parallel, once.
  */
 export function createMcpRosterChangeBus(deps: McpRosterChangeBusDeps, _optional = {}): McpRosterChangeBus {
+  const listenersByKey = new Map<string, McpRosterChangeListener>();
   const defaultWaitMs = deps.defaultWaitMs ?? DEFAULT_WAIT_MS;
   return {
     on({ key, listener }) {
