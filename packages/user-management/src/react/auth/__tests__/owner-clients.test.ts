@@ -86,3 +86,59 @@ it("local sign-in bootstraps only an unauthenticated local browser, recognized t
   expect(isLocalOwnerSignInHost({ hostname: "[::1]" })).toBe(true);
   expect(isLocalOwnerSignInHost({ hostname: "localhost.evil.example" })).toBe(false);
 });
+
+// Carried from w3-fnd's duplicate `admin/shell/lib` copy (rv1123l FIX 10): its port-level pins,
+// rebuilt over this module's factory so the single surviving owner keeps both lanes' coverage.
+it.each(["localhost", "127.0.0.1", "[::1]"])("admits the local browser %s", (hostname) => {
+  expect(isLocalOwnerSignInHost({ hostname })).toBe(true);
+});
+
+it.each(["example.com", "localhost.evil.example", "0.0.0.0", "192.168.1.2"])("never admits the remote browser %s", (hostname) => {
+  expect(isLocalOwnerSignInHost({ hostname })).toBe(false);
+});
+
+type ReaderPorts = Parameters<Parameters<typeof createLocalOwnerSignIn>[0]["readInitialSession"]>[0];
+function captureReader() {
+  const seen: { ports?: ReaderPorts; optional?: { onBootstrapped?: () => void } | undefined } = {};
+  const reader = (async (ports: ReaderPorts, optional?: { onBootstrapped?: () => void }) => {
+    seen.ports = ports; seen.optional = optional; return "session";
+  }) as Parameters<typeof createLocalOwnerSignIn>[0]["readInitialSession"];
+  return { seen, ...createLocalOwnerSignIn({ apiErrorClass: FixtureApiError, readInitialSession: reader }) };
+}
+
+it("hands the reader the port's identity read, the local bootstrap and the hostname admission", async () => {
+  const { seen, readInitialAdminSession } = captureReader();
+  const bootstraps: string[] = [];
+  const port = { async signInLocalOwner() { bootstraps.push("bootstrap"); }, async me() { return { id: "owner" }; } };
+  await expect(readInitialAdminSession({ hostname: "example.com", port })).resolves.toBe("session");
+  await expect(seen.ports!.me()).resolves.toEqual({ id: "owner" });
+  await seen.ports!.bootstrap();
+  expect(bootstraps).toEqual(["bootstrap"]);
+  expect(seen.ports!.admit()).toBe(false);
+  expect(seen.optional).toEqual({});
+});
+
+it("treats only the host's 401 UNAUTHENTICATED error class as unauthenticated", async () => {
+  const { seen, readInitialAdminSession } = captureReader();
+  await readInitialAdminSession({ hostname: "localhost", port: { async signInLocalOwner() {}, async me() { return null; } } });
+  const isUnauthenticated = (error: unknown) => seen.ports!.isUnauthenticated({ error });
+  expect(isUnauthenticated(new FixtureApiError(401, "UNAUTHENTICATED"))).toBe(true);
+  expect(isUnauthenticated(new FixtureApiError(401, "UPSTREAM_REQUEST_FAILED"))).toBe(false);
+  expect(isUnauthenticated(new FixtureApiError(500, "UNAUTHENTICATED"))).toBe(false);
+  expect(isUnauthenticated(Object.assign(new Error("unauthenticated"), { status: 401, code: "UNAUTHENTICATED" }))).toBe(false);
+});
+
+it("never bootstraps a remote browser even on a 401 UNAUTHENTICATED", async () => {
+  const { readInitialAdminSession } = createLocalOwnerSignIn({ apiErrorClass: FixtureApiError, readInitialSession });
+  const denied = new FixtureApiError(401, "UNAUTHENTICATED");
+  const calls: string[] = [];
+  await expect(readInitialAdminSession({ hostname: "example.com", port: { async signInLocalOwner() { calls.push("bootstrap"); }, async me() { throw denied; } } })).rejects.toBe(denied);
+  expect(calls).toEqual([]);
+});
+
+it("maps onLocalSignIn to the reader's onBootstrapped", async () => {
+  const { seen, readInitialAdminSession } = captureReader();
+  const onLocalSignIn = () => undefined;
+  await readInitialAdminSession({ hostname: "localhost", port: { async signInLocalOwner() {}, async me() { return null; } } }, { onLocalSignIn });
+  expect(seen.optional).toEqual({ onBootstrapped: onLocalSignIn });
+});
