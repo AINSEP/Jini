@@ -6,8 +6,8 @@ import { orFallbackSync } from "@jini-ai/core/errors/idioms";
 /**
  * @file Builds this workspace's media-generation provider registry ONCE at composition: the built-in
  * vendors (`@jini-ai/integrations/media-providers`'s default contribution set) plus every vendor an
- * Agent Plugin contributes — the same seam the mail adapters use
- * (`features/agent-plugins/mail-adapter-registry.ts`), on the shared `defineProviderContribution`.
+ * Agent Plugin contributes — the same seam the mail adapters use (the host's mail adapter registry),
+ * on the shared `defineProviderContribution`.
  *
  * A plugin opts in by shipping the host-named manifest file (`ports.filename`, injected) at its root: a data-only
  * `{ schemaVersion: 1, providers: [{ id, module, label? }] }`. `module` is a plain-JS `.mjs` inside the
