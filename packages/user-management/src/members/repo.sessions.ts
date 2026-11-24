@@ -4,7 +4,7 @@
  */
 import type { Kysely } from "kysely";
 import type { StorageKernel } from "@jini-ai/core/contracts/storage";
-import { MemberAuthError } from "./types.js";
+import { MagicLinkTokenRejectedError, MemberAuthError } from "./types.js";
 import type { MagicLinkTokenRepoPort, MemberSessionRepoPort } from "./ports.js";
 import {
   toMagicLinkTokenRecord,
@@ -189,13 +189,13 @@ export class SqlMagicLinkTokenRepo implements MagicLinkTokenRepoPort {
           .executeTakeFirst()
       );
       if (!existing) {
-        throw new Error(`magic link token '${required.id}' was not found`);
+        throw new MagicLinkTokenRejectedError({ id: required.id, reason: "not_found" });
       }
       if (existing.expires_at <= required.consumedAt) {
-        throw new Error(`magic link token '${required.id}' has expired`);
+        throw new MagicLinkTokenRejectedError({ id: required.id, reason: "expired" });
       }
       if (existing.consumed_at) {
-        throw new Error(`magic link token '${required.id}' was already consumed`);
+        throw new MagicLinkTokenRejectedError({ id: required.id, reason: "already_consumed" });
       }
       await this.kernel.run((db) =>
         on<MemberMagicTokensTable>(db)

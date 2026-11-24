@@ -17,7 +17,7 @@ import { pageFromArray, type ListPage } from "@jini-ai/core/list-page";
 import { assertVersionedWrite } from "@jini-ai/core/optimistic-concurrency";
 import { afterSettled } from "@jini-ai/core/errors/idioms";
 import { matchesRecordFields, upsertRecord } from "@jini-ai/core/records";
-import { MemberAuthError, MemberConflictError } from "./types.js";
+import { MagicLinkTokenRejectedError, MemberAuthError, MemberConflictError } from "./types.js";
 import type {
   ConsentPurpose,
   MagicLinkTokenRecord,
@@ -428,13 +428,13 @@ export class InMemoryMagicLinkTokenRepo implements MagicLinkTokenRepoPort {
     );
     const row = this.rows[index];
     if (row === undefined) {
-      throw new Error(`magic link token '${required.id}' was not found`);
+      throw new MagicLinkTokenRejectedError({ id: required.id, reason: "not_found" });
     }
     if (row.expiresAt <= required.consumedAt) {
-      throw new Error(`magic link token '${required.id}' has expired`);
+      throw new MagicLinkTokenRejectedError({ id: required.id, reason: "expired" });
     }
     if (row.consumedAt) {
-      throw new Error(`magic link token '${required.id}' was already consumed`);
+      throw new MagicLinkTokenRejectedError({ id: required.id, reason: "already_consumed" });
     }
 
     this.rows[index] = { ...row, consumedAt: required.consumedAt };

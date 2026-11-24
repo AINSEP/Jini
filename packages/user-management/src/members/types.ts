@@ -243,6 +243,23 @@ export interface MemberAccessDecision {
 
 /** Raised when a member sign-in credential is invalid, expired, or consumed. */
 export class MemberAuthError extends Error {}
+/** Why a sign-in link or code was refused at consumption time. */
+export type MagicLinkTokenRejection = "not_found" | "expired" | "already_consumed";
+const MAGIC_LINK_REJECTION_TEXT: Record<MagicLinkTokenRejection, string> = {
+  not_found: "was not found", expired: "has expired", already_consumed: "was already consumed",
+};
+/**
+ * Raised by a magic-link repo when it refuses to consume a token for a known single-use reason.
+ * Callers match on the class and `reason`, never on message text; any other error is an outage.
+ */
+export class MagicLinkTokenRejectedError extends Error {
+  readonly reason: MagicLinkTokenRejection;
+  constructor({ id, reason }: { id: string; reason: MagicLinkTokenRejection }, _options: Record<string, never> = {}) {
+    super(`magic link token '${id}' ${MAGIC_LINK_REJECTION_TEXT[reason]}`);
+    this.name = "MagicLinkTokenRejectedError";
+    this.reason = reason;
+  }
+}
 /** A passwordless member must prove inbox access again before setting a password. */
 export class MemberReauthenticationRequiredError extends MemberAuthError {}
 /** Site-wide setup failure; safe to expose before any per-address lookup. */
