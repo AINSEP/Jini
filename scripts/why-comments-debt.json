@@ -1632,6 +1632,30 @@
     {
       "id": "b81ff738f308",
       "reason": "ex2-holds (24e1f7b9a) retired the deprecated sqlite facade and its fixture, so the sqlite parity assertion this explained is gone; the replacement PARITY comment on the same line names the infra fixture that took over."
+    },
+    {
+      "id": "79f782564d64",
+      "reason": "w3-users-sec SEC-12 (OD-3 c): the claim 'without a last-4 hint' is no longer true; models.ts:14 keeps 'A saved token is never read back' and states the new masked tokenHint ({ length, last4 }) from core CredentialTokenHint."
+    },
+    {
+      "id": "d7acce3ff348",
+      "reason": "w3-users-sec SEC-6 (OD-3 a): RootKeyPort now HAS an optional human-only reveal, so 'no reveal operation' is obsolete; ports.ts:52-53 keeps 'the host owns storage, encryption, key creation and recovery' and documents reveal."
+    },
+    {
+      "id": "68e242e54cfb",
+      "reason": "w3-users-sec rv1123c FIX 1 (60bccdaa ported): refusals keep only their code; the host 'error describer (server code and public detail)' context was replaced by SecurityRootKeyHostContext/describeRefusal({ code }) whose doc says what the host passes now."
+    },
+    {
+      "id": "f0d716f39d4b",
+      "reason": "w3-users-sec rv1123c FIX 1: the module option no longer reads a failure's public detail (untrusted detail stays out of snapshots/notices); replaced by describeRefusal({ code }) + fixed copy, documented on SecurityModuleOptions."
+    },
+    {
+      "id": "0ec790a051bc",
+      "reason": "w3-users-sec rv1123c FIX 1: the describer no longer returns a detail; rootKeyRefusalText({ code, fallback }, { describeRefusal }) at rules.ts:189 documents that shown text is host copy for the code or fixed copy."
+    },
+    {
+      "id": "2323b4a579a7",
+      "reason": "w3-users-sec rv1123c FIX 1: same rationale now lives on rootKeyRefusalText (rules.ts:189): shown text is host copy per code or fixed copy, so a raw message cannot reach the page."
     }
   ]
 }
