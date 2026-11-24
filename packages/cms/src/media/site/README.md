@@ -13,7 +13,10 @@ Site-level media commands and helpers extracted from a host CMS. Each module is 
 - `provider-credential-contracts` — types only: `MediaProviderCredentialRecord`, `MediaProviderCredentialRepoPort`
   and the replace-plan types. `sealed` is `@jini-ai/core/contracts/vault`'s `SealedSecret`; the host supplies the
   vault-backed repo and the sealer.
-- `view-image-tool` — `contributeMediaViewImageTools()` / `buildMediaViewImageRegistrations(deps)`. The host's
+- `view-image-tool` — `contributeMediaViewImageTools({ mediaAssetReadToolId })` /
+  `buildMediaViewImageRegistrations({ deps, mediaAssetReadToolId })` / `buildMediaViewImageAgentToolCatalog({ mediaAssetReadToolId })`.
+  `mediaAssetReadToolId` is the host's read tool id for one media asset (named in the description and the
+  not-found refusal; the catalog is built per call, never held as module state). The host's
   deps carry `mediaRepo`, `assetBlobRepo`, `blobStore`, `authorize`, `workspaceId` and an `imageCodec: ImageCodecPort`
   (no codec means the tool refuses rather than loading a native vendor itself).
 - `duplicate-asset` — `contributeMediaDuplicateHandlers({ deriveDuplicateName })` / `duplicateMediaAsset({ routeDeps,

@@ -1,7 +1,7 @@
 import { toolMetadata } from '@jini-ai/core/tool-metadata/media';
 import { adaptLegacyAuthorize } from "../../core/tools/index.js";
 import { ToolInputError } from "@jini-ai/core";
-import { buildDomainRegistrations, indexCatalogById, requireInputRecord, requireString, type AgentToolDefinition as SharedAgentToolDefinition, type AgentToolSideEffect, type DerivedRiskByToolId, type ToolHandler, type ToolRegistration } from "@jini-ai/core";
+import { buildDomainRegistrations, indexCatalogById, requireInputRecord, requireString, type AgentToolDefinition as SharedAgentToolDefinition, type AgentToolSideEffect, type ToolHandler, type ToolRegistration } from "@jini-ai/core";
 import { requireToolPermission } from "../../core/tools/index.js";
 import type { ImageCodecPort } from "../index.js";
 
@@ -23,9 +23,11 @@ import { sniffContentType, type AssetBlobRepoPort, type BlobStorePort, type Medi
  * verbatim, and the BYOK surface maps it onto each provider's own image part
  * (the host BYOK provider turn).
  *
- * Named `media_*`, not `content_read.*`: that prefix means "one of the host content-read tool's
- * 29 derived cards" — `content-read-tool.test.ts` and the parent-tool-read eval both identify cards by
- * it — and this is an ordinary contributor with no older read tool to collapse.
+ * Named `media_*`, not with the host content-read tool's card prefix: that prefix means "one of the
+ * host content-read tool's 29 derived cards" — the host's content-read tool test and the parent-tool-read
+ * eval both identify cards by it — and this is an ordinary contributor with no older read tool to collapse.
+ * The host passes that read tool's media-asset card id in as `mediaAssetReadToolId`, where the model is
+ * told how to find an id or slug.
  *
  * ## Size
  *
@@ -64,13 +66,23 @@ export interface MediaViewImageToolDeps {
 /** This wired tool requires the input schema that the shared catalog contract allows to be absent. */
 type AgentToolDefinition = SharedAgentToolDefinition & { inputSchema: Readonly<Record<string, unknown>> };
 
-export const mediaViewImageAgentToolCatalog: AgentToolDefinition[] = [
-  {
+/** Required args for {@link buildMediaViewImageAgentToolCatalog}. */
+export interface MediaViewImageAgentToolCatalogArgs {
+  /** The host's read tool id for one media asset, named where the model is told how to find an id or slug. */
+  mediaAssetReadToolId: string;
+}
+
+/** Builds the tool's catalog with the host's media-asset read tool id bound into its description. */
+export function buildMediaViewImageAgentToolCatalog(
+  { mediaAssetReadToolId }: MediaViewImageAgentToolCatalogArgs,
+  _optional: Record<string, never> = {},
+): AgentToolDefinition[] {
+  return [{
     name: MEDIA_VIEW_IMAGE_TOOL_ID,
     description:
       "THIS IS HOW TO LOOK AT / SEE / VIEW AN IMAGE in the media library — opens one image and returns the actual picture so you can see what it shows. " +
       "Call this before writing or improving alt text, writing a caption, describing a photo, checking what a picture contains, or choosing between images; " +
-      "never guess what an image shows from its title or filename. Pass exactly one of `mediaId` or `slug` (find them with content_read.media_asset). " +
+      `never guess what an image shows from its title or filename. Pass exactly one of \`mediaId\` or \`slug\` (find them with ${mediaAssetReadToolId}). ` +
       `Returns the image (WebP, long edge at most ${VIEW_IMAGE_MAX_EDGE_PX}px, downscaled when larger) plus its metadata as JSON: id, slug, title, current alt, caption, status, the original's type and dimensions, and the returned dimensions. ` +
       "Read-only: it changes nothing — to save new alt text afterwards, use media_update_metadata. For video still frames use media_view_video; this tool refuses anything that is not a still image.",
     sideEffects: "none",
@@ -83,16 +95,14 @@ export const mediaViewImageAgentToolCatalog: AgentToolDefinition[] = [
         slug: { type: "string", description: "The media asset's slug (short lookup name). Pass this or `mediaId`, not both." },
       },
     },
-  },
-];
+  }];
+}
 
-export const mediaViewImageDerivedRisk: DerivedRiskByToolId = new Map<string, AgentToolSideEffect>([
+export const mediaViewImageDerivedRisk: ReadonlyMap<string, AgentToolSideEffect> = new Map<string, AgentToolSideEffect>([
   // -> mediaRepo.findById/findBySlug + assetBlobRepo.findByHash + blobStore.get + an in-memory
   // re-encode. Nothing is written anywhere.
   [MEDIA_VIEW_IMAGE_TOOL_ID, "none"],
 ]);
-
-const CATALOG_BY_ID = indexCatalogById({ catalog: mediaViewImageAgentToolCatalog });
 
 /** Prefixes every refusal with the tool id, so the model can tell which call it came from. */
 function refusal({ message }: { message: string }, _optional: Record<string, never> = {}): ToolInputError {
@@ -100,11 +110,11 @@ function refusal({ message }: { message: string }, _optional: Record<string, nev
 }
 
 /** @throws {ToolInputError} When no asset matches. */
-async function findAsset({ deps, mediaId }: { deps: MediaViewImageToolDeps; mediaId: string }, _options = {}): Promise<MediaRecord> {
+async function findAsset({ deps, mediaId, mediaAssetReadToolId }: { deps: MediaViewImageToolDeps; mediaId: string; mediaAssetReadToolId: string }, _options = {}): Promise<MediaRecord> {
   // The shared assistant adapter resolves slugs; this domain reads only the authorized id.
   const found = await deps.mediaRepo.findById({ workspaceId: deps.workspaceId, id: mediaId });
   if (!found) {
-    throw refusal({ message: `no media asset with id or slug '${mediaId}'. Use content_read.media_asset to list the library and find the right id or slug.` });
+    throw refusal({ message: `no media asset with id or slug '${mediaId}'. Use ${mediaAssetReadToolId} to list the library and find the right id or slug.` });
   }
   return found;
 }
@@ -170,13 +180,16 @@ function assertStillImage({ asset, contentType }: { asset: MediaRecord; contentT
  *
  * @returns One registration: `media_view_image`, read-only.
  */
-export function buildMediaViewImageRegistrations(deps: MediaViewImageToolDeps): ToolRegistration[] {
+export function buildMediaViewImageRegistrations(
+  { deps, mediaAssetReadToolId }: { deps: MediaViewImageToolDeps } & MediaViewImageAgentToolCatalogArgs,
+  _optional: Record<string, never> = {},
+): ToolRegistration[] {
   const handlers: Record<string, ToolHandler> = {
     [MEDIA_VIEW_IMAGE_TOOL_ID]: async (ctx) => {
       const mediaId = requireString({ input: requireInputRecord({ input: ctx.input }), key: "mediaId" });
       await requireToolPermission({ authorize: adaptLegacyAuthorize({ authorize: deps.authorize }), workspaceId: deps.workspaceId, principalId: ctx.principal.id, permission: "media.read" }, { entityType: "media" });
 
-      const asset = await findAsset({ deps, mediaId });
+      const asset = await findAsset({ deps, mediaId, mediaAssetReadToolId });
       const bytes = await readStoredBytes({ deps, asset, errorPrefix: "media_view_image" });
       const contentType = sniffContentType({ bytes });
       assertStillImage({ asset, contentType });
@@ -209,13 +222,16 @@ export function buildMediaViewImageRegistrations(deps: MediaViewImageToolDeps): 
   return buildDomainRegistrations({ metadata: toolMetadata,
     domain: "media-view",
     catalogModule: "features/media/view-image-tool.ts",
-    catalog: CATALOG_BY_ID,
+    catalog: indexCatalogById({ catalog: buildMediaViewImageAgentToolCatalog({ mediaAssetReadToolId }) }),
     handlers,
     derivedRisk: mediaViewImageDerivedRisk,
   });
 }
 
 /** Contributes the tool to the assistant catalog — installed by `tool-catalog-manifest.ts`. */
-export function contributeMediaViewImageTools(): ToolContributor<MediaViewImageToolDeps, unknown> {
-  return { domain: "media-view", build: buildMediaViewImageRegistrations, risk: mediaViewImageDerivedRisk };
+export function contributeMediaViewImageTools(
+  { mediaAssetReadToolId }: MediaViewImageAgentToolCatalogArgs,
+  _optional: Record<string, never> = {},
+): ToolContributor<MediaViewImageToolDeps, unknown> {
+  return { domain: "media-view", build: (deps) => buildMediaViewImageRegistrations({ deps, mediaAssetReadToolId }), risk: mediaViewImageDerivedRisk };
 }
