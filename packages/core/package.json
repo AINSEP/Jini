@@ -160,7 +160,6 @@
       "./tool-metadata/agent-plugins": "universal",
       "./tool-metadata/comments": "universal",
       "./tool-metadata/commerce": "universal",
-      "./tool-metadata/content-read": "universal",
       "./tool-metadata/custom-credentials": "universal",
       "./tool-metadata/frontend-control": "universal",
       "./tool-metadata/fs-files": "universal",
@@ -1053,11 +1052,6 @@
       "types": "./dist/tool-metadata/commerce.d.ts",
       "import": "./dist/tool-metadata/commerce.js",
       "default": "./dist/tool-metadata/commerce.js"
-    },
-    "./tool-metadata/content-read": {
-      "types": "./dist/tool-metadata/content-read.d.ts",
-      "import": "./dist/tool-metadata/content-read.js",
-      "default": "./dist/tool-metadata/content-read.js"
     },
     "./tool-metadata/custom-credentials": {
       "types": "./dist/tool-metadata/custom-credentials.d.ts",
