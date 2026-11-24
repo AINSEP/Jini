@@ -31,7 +31,7 @@ function isValidSlugFormat({ slug }: { slug: string }, _optional: Record<string,
 }
 
 /**
- * behavior.spec.md BR-02/BR-03 reserved-word rule — the host owns the reserved segments. One
+ * behavior.spec.md BR-02/BR-03 reserved-word rule — the platform owns the reserved segments. One
  * check, one message, for both `createPost`'s explicit slug and `updatePost`'s rename: the update
  * path used to check format only, so create refused `admin` and a rename onto it succeeded.
  *
