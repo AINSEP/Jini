@@ -21,7 +21,6 @@
       "./publish/content/execute-import": "universal",
       "./publish/content/precheck-reasons": "universal",
       "./publish/content/publish-readiness": "universal",
-      "./publish/content/report-contract": "universal",
       "./publish/content/peer-url": "universal",
       "./themes/template-applicability": "universal",
       "./themes/preview/roster": "node",
@@ -220,7 +219,95 @@
       "./settings/site/visitor-tools-service": "universal",
       "./settings/site/visitor-tools-registrations": "universal",
       "./settings/site/publish-content": "universal",
-      "./settings/site/settings-confirm-write": "universal"
+      "./settings/site/settings-confirm-write": "universal",
+      "./admin-http/http/menus": "universal",
+      "./admin-http/routes/menus/get-by-id": "universal",
+      "./admin-http/routes/menus/list": "universal",
+      "./admin-http/routes/menus/create": "universal",
+      "./admin-http/routes/menus/update-tree": "universal",
+      "./admin-http/routes/menus/assign-location": "universal",
+      "./admin-http/routes/menus/delete": "universal",
+      "./admin-http/routes/system/mail-status": "universal",
+      "./admin-http/routes/system/source-control-credentials": "universal",
+      "./admin-http/routes/system/mail-dns": "universal",
+      "./admin-http/routes/sites/sites-home": "universal",
+      "./admin-http/routes/system/sites": "universal",
+      "./admin-http/routes/system/mail-test-send": "universal",
+      "./admin-http/routes/system/custom-credentials": "universal",
+      "./admin-http/routes/settings/shared": "universal",
+      "./admin-http/routes/settings/protected-namespaces": "universal",
+      "./admin-http/routes/settings/get-raw": "universal",
+      "./admin-http/routes/settings/get-effective": "universal",
+      "./admin-http/routes/settings/list-definitions": "universal",
+      "./admin-http/routes/settings/set": "universal",
+      "./admin-http/routes/settings/clear": "universal",
+      "./admin-http/routes/settings/reset": "universal",
+      "./admin-http/routes/settings/register-definitions": "universal",
+      "./admin-http/routes/system/mail-activity": "universal",
+      "./admin-http/routes/system/publish-credentials/create": "universal",
+      "./admin-http/routes/system/publish-credentials/update": "universal",
+      "./admin-http/routes/system/publish-credentials/verify": "universal",
+      "./admin-http/routes/system/publish-credentials/delete": "universal",
+      "./admin-http/routes/system/publish-credentials/shared": "universal",
+      "./admin-http/routes/system/deployment-overview": "universal",
+      "./admin-http/routes/system/export-site": "universal",
+      "./admin-http/routes/system/mail-providers": "universal",
+      "./admin-http/routes/system/publish-site/status": "universal",
+      "./admin-http/routes/system/publish-site/targets": "universal",
+      "./admin-http/routes/system/publish-site/preview": "universal",
+      "./admin-http/routes/system/assistant-owner-grant": "universal",
+      "./admin-http/routes/system/assistant-permanent-deletes": "universal",
+      "./admin-http/routes/system/assistant-subagents": "universal",
+      "./admin-http/routes/seo/get-settings": "universal",
+      "./admin-http/routes/seo/put-settings": "universal",
+      "./admin-http/http/media": "universal",
+      "./admin-http/routes/media/shared": "universal",
+      "./admin-http/routes/media/delete": "universal",
+      "./admin-http/routes/media/trash": "universal",
+      "./admin-http/routes/media/get-providers": "universal",
+      "./admin-http/routes/media/put-providers": "universal",
+      "./admin-http/routes/media/update": "node",
+      "./admin-http/routes/assistant/execution-shared": "universal",
+      "./admin-http/routes/assistant/detect-agents": "universal",
+      "./admin-http/routes/assistant/list-models": "universal",
+      "./admin-http/routes/assistant/test-agent": "universal",
+      "./admin-http/routes/assistant/test-connection": "universal",
+      "./admin-http/routes/assistant/shared": "universal",
+      "./admin-http/routes/assistant/get-settings": "universal",
+      "./admin-http/routes/assistant/put-settings": "universal",
+      "./admin-http/routes/assistant/visitor-tools": "universal",
+      "./admin-http/routes/assistant/get-site-credential": "universal",
+      "./admin-http/routes/assistant/put-site-credential": "universal",
+      "./admin-http/routes/assistant/delete-site-credential": "universal",
+      "./admin-http/routes/assistant/get-execution-credential": "universal",
+      "./admin-http/routes/assistant/put-execution-credential": "universal",
+      "./admin-http/routes/assistant/delete-execution-credential": "universal",
+      "./public-http/routes/api-connections/oauth-callback": "universal",
+      "./public-http/routes/external-mcp/oauth-callback": "universal",
+      "./public-http/routes/external-mcp/oauth-callback-url": "universal",
+      "./admin-http/routes/agent-plugins/list": "universal",
+      "./admin-http/routes/agent-plugins/files": "universal",
+      "./admin-http/routes/agent-plugins/set-enabled": "universal",
+      "./admin-http/http/agent-plugins": "universal",
+      "./admin-http/routes/external-mcp/list": "universal",
+      "./admin-http/routes/external-mcp/admissions": "universal",
+      "./admin-http/routes/external-mcp/delete": "universal",
+      "./admin-http/routes/external-mcp/put": "universal",
+      "./admin-http/routes/external-mcp/tool-approvals": "universal",
+      "./admin-http/routes/external-mcp/oauth-disconnect": "universal",
+      "./admin-http/routes/agent-plugins/connection-sign-in": "universal",
+      "./admin-http/routes/database/migrate-forward": "universal",
+      "./admin-http/routes/recovery/restore": "universal",
+      "./admin-http/routes/recovery/status": "universal",
+      "./admin-http/http/publish-content": "universal",
+      "./admin-http/routes/plugins/list": "universal",
+      "./admin-http/routes/plugins/files": "universal",
+      "./admin-http/routes/plugins/uninstall": "universal",
+      "./admin-http/routes/plugins/preview": "universal",
+      "./admin-http/routes/plugins/set-enabled": "universal",
+      "./admin-http/routes/publish-content/transport-shared": "universal",
+      "./admin-http/routes/publish-content/peers": "universal",
+      "./admin-http/routes/publish-content/destination": "universal"
     },
     "isolation": {
       "domains": {
@@ -326,7 +413,47 @@
         "./admin-http/routes/seo/get-entry": "seo",
         "./admin-http/routes/seo/get-entry-analyze": "seo",
         "./admin-http/routes/seo/post-sitemap-regenerate": "seo",
-        "./admin-http/routes/seo/put-entry": "seo"
+        "./admin-http/routes/seo/put-entry": "seo",
+        "./admin-http/http/menus": "navigation",
+        "./admin-http/routes/menus/get-by-id": "navigation",
+        "./admin-http/routes/menus/list": "navigation",
+        "./admin-http/routes/menus/create": "navigation",
+        "./admin-http/routes/menus/update-tree": "navigation",
+        "./admin-http/routes/menus/assign-location": "navigation",
+        "./admin-http/routes/menus/delete": "navigation",
+        "./admin-http/routes/seo/get-settings": "seo",
+        "./admin-http/routes/seo/put-settings": "seo",
+        "./admin-http/http/media": "media",
+        "./admin-http/routes/media/shared": "media",
+        "./admin-http/routes/media/delete": "media",
+        "./admin-http/routes/media/trash": "media",
+        "./admin-http/routes/media/get-providers": "media",
+        "./admin-http/routes/media/put-providers": "media",
+        "./admin-http/routes/media/update": "media",
+        "./admin-http/routes/assistant/execution-shared": "admin-http",
+        "./admin-http/routes/assistant/detect-agents": "admin-http",
+        "./admin-http/routes/assistant/list-models": "admin-http",
+        "./admin-http/routes/assistant/test-agent": "admin-http",
+        "./admin-http/routes/assistant/test-connection": "admin-http",
+        "./admin-http/routes/assistant/shared": "settings",
+        "./admin-http/routes/assistant/get-settings": "settings",
+        "./admin-http/routes/assistant/put-settings": "settings",
+        "./admin-http/routes/assistant/visitor-tools": "settings",
+        "./admin-http/routes/assistant/get-site-credential": "settings",
+        "./admin-http/routes/assistant/put-site-credential": "settings",
+        "./admin-http/routes/assistant/delete-site-credential": "settings",
+        "./admin-http/routes/assistant/get-execution-credential": "settings",
+        "./admin-http/routes/assistant/put-execution-credential": "settings",
+        "./admin-http/routes/assistant/delete-execution-credential": "settings",
+        "./admin-http/http/publish-content": "publish",
+        "./admin-http/routes/plugins/list": "core",
+        "./admin-http/routes/plugins/files": "core",
+        "./admin-http/routes/plugins/uninstall": "core",
+        "./admin-http/routes/plugins/preview": "core",
+        "./admin-http/routes/plugins/set-enabled": "core",
+        "./admin-http/routes/publish-content/transport-shared": "publish",
+        "./admin-http/routes/publish-content/peers": "publish",
+        "./admin-http/routes/publish-content/destination": "publish"
       }
     },
     "optionalPeers": {
@@ -382,11 +509,6 @@
       "types": "./dist/publish/content/publish-readiness.d.ts",
       "import": "./dist/publish/content/publish-readiness.js",
       "default": "./dist/publish/content/publish-readiness.js"
-    },
-    "./publish/content/report-contract": {
-      "types": "./dist/publish/content/report-contract.d.ts",
-      "import": "./dist/publish/content/report-contract.js",
-      "default": "./dist/publish/content/report-contract.js"
     },
     "./publish/content/peer-url": {
       "types": "./dist/publish/content/peer-url.d.ts",
@@ -1382,6 +1504,446 @@
       "types": "./dist/settings/site/settings-confirm-write.d.ts",
       "import": "./dist/settings/site/settings-confirm-write.js",
       "default": "./dist/settings/site/settings-confirm-write.js"
+    },
+    "./admin-http/http/menus": {
+      "types": "./dist/admin-http/http/menus.d.ts",
+      "import": "./dist/admin-http/http/menus.js",
+      "default": "./dist/admin-http/http/menus.js"
+    },
+    "./admin-http/routes/menus/get-by-id": {
+      "types": "./dist/admin-http/routes/menus/get-by-id.d.ts",
+      "import": "./dist/admin-http/routes/menus/get-by-id.js",
+      "default": "./dist/admin-http/routes/menus/get-by-id.js"
+    },
+    "./admin-http/routes/menus/list": {
+      "types": "./dist/admin-http/routes/menus/list.d.ts",
+      "import": "./dist/admin-http/routes/menus/list.js",
+      "default": "./dist/admin-http/routes/menus/list.js"
+    },
+    "./admin-http/routes/menus/create": {
+      "types": "./dist/admin-http/routes/menus/create.d.ts",
+      "import": "./dist/admin-http/routes/menus/create.js",
+      "default": "./dist/admin-http/routes/menus/create.js"
+    },
+    "./admin-http/routes/menus/update-tree": {
+      "types": "./dist/admin-http/routes/menus/update-tree.d.ts",
+      "import": "./dist/admin-http/routes/menus/update-tree.js",
+      "default": "./dist/admin-http/routes/menus/update-tree.js"
+    },
+    "./admin-http/routes/menus/assign-location": {
+      "types": "./dist/admin-http/routes/menus/assign-location.d.ts",
+      "import": "./dist/admin-http/routes/menus/assign-location.js",
+      "default": "./dist/admin-http/routes/menus/assign-location.js"
+    },
+    "./admin-http/routes/menus/delete": {
+      "types": "./dist/admin-http/routes/menus/delete.d.ts",
+      "import": "./dist/admin-http/routes/menus/delete.js",
+      "default": "./dist/admin-http/routes/menus/delete.js"
+    },
+    "./admin-http/routes/system/mail-status": {
+      "types": "./dist/admin-http/routes/system/mail-status.d.ts",
+      "import": "./dist/admin-http/routes/system/mail-status.js",
+      "default": "./dist/admin-http/routes/system/mail-status.js"
+    },
+    "./admin-http/routes/system/source-control-credentials": {
+      "types": "./dist/admin-http/routes/system/source-control-credentials.d.ts",
+      "import": "./dist/admin-http/routes/system/source-control-credentials.js",
+      "default": "./dist/admin-http/routes/system/source-control-credentials.js"
+    },
+    "./admin-http/routes/system/mail-dns": {
+      "types": "./dist/admin-http/routes/system/mail-dns.d.ts",
+      "import": "./dist/admin-http/routes/system/mail-dns.js",
+      "default": "./dist/admin-http/routes/system/mail-dns.js"
+    },
+    "./admin-http/routes/sites/sites-home": {
+      "types": "./dist/admin-http/routes/sites/sites-home.d.ts",
+      "import": "./dist/admin-http/routes/sites/sites-home.js",
+      "default": "./dist/admin-http/routes/sites/sites-home.js"
+    },
+    "./admin-http/routes/system/sites": {
+      "types": "./dist/admin-http/routes/system/sites.d.ts",
+      "import": "./dist/admin-http/routes/system/sites.js",
+      "default": "./dist/admin-http/routes/system/sites.js"
+    },
+    "./admin-http/routes/system/mail-test-send": {
+      "types": "./dist/admin-http/routes/system/mail-test-send.d.ts",
+      "import": "./dist/admin-http/routes/system/mail-test-send.js",
+      "default": "./dist/admin-http/routes/system/mail-test-send.js"
+    },
+    "./admin-http/routes/system/custom-credentials": {
+      "types": "./dist/admin-http/routes/system/custom-credentials.d.ts",
+      "import": "./dist/admin-http/routes/system/custom-credentials.js",
+      "default": "./dist/admin-http/routes/system/custom-credentials.js"
+    },
+    "./admin-http/routes/settings/shared": {
+      "types": "./dist/admin-http/routes/settings/shared.d.ts",
+      "import": "./dist/admin-http/routes/settings/shared.js",
+      "default": "./dist/admin-http/routes/settings/shared.js"
+    },
+    "./admin-http/routes/settings/protected-namespaces": {
+      "types": "./dist/admin-http/routes/settings/protected-namespaces.d.ts",
+      "import": "./dist/admin-http/routes/settings/protected-namespaces.js",
+      "default": "./dist/admin-http/routes/settings/protected-namespaces.js"
+    },
+    "./admin-http/routes/settings/get-raw": {
+      "types": "./dist/admin-http/routes/settings/get-raw.d.ts",
+      "import": "./dist/admin-http/routes/settings/get-raw.js",
+      "default": "./dist/admin-http/routes/settings/get-raw.js"
+    },
+    "./admin-http/routes/settings/get-effective": {
+      "types": "./dist/admin-http/routes/settings/get-effective.d.ts",
+      "import": "./dist/admin-http/routes/settings/get-effective.js",
+      "default": "./dist/admin-http/routes/settings/get-effective.js"
+    },
+    "./admin-http/routes/settings/list-definitions": {
+      "types": "./dist/admin-http/routes/settings/list-definitions.d.ts",
+      "import": "./dist/admin-http/routes/settings/list-definitions.js",
+      "default": "./dist/admin-http/routes/settings/list-definitions.js"
+    },
+    "./admin-http/routes/settings/set": {
+      "types": "./dist/admin-http/routes/settings/set.d.ts",
+      "import": "./dist/admin-http/routes/settings/set.js",
+      "default": "./dist/admin-http/routes/settings/set.js"
+    },
+    "./admin-http/routes/settings/clear": {
+      "types": "./dist/admin-http/routes/settings/clear.d.ts",
+      "import": "./dist/admin-http/routes/settings/clear.js",
+      "default": "./dist/admin-http/routes/settings/clear.js"
+    },
+    "./admin-http/routes/settings/reset": {
+      "types": "./dist/admin-http/routes/settings/reset.d.ts",
+      "import": "./dist/admin-http/routes/settings/reset.js",
+      "default": "./dist/admin-http/routes/settings/reset.js"
+    },
+    "./admin-http/routes/settings/register-definitions": {
+      "types": "./dist/admin-http/routes/settings/register-definitions.d.ts",
+      "import": "./dist/admin-http/routes/settings/register-definitions.js",
+      "default": "./dist/admin-http/routes/settings/register-definitions.js"
+    },
+    "./admin-http/routes/system/mail-activity": {
+      "types": "./dist/admin-http/routes/system/mail-activity.d.ts",
+      "import": "./dist/admin-http/routes/system/mail-activity.js",
+      "default": "./dist/admin-http/routes/system/mail-activity.js"
+    },
+    "./admin-http/routes/system/publish-credentials/create": {
+      "types": "./dist/admin-http/routes/system/publish-credentials/create.d.ts",
+      "import": "./dist/admin-http/routes/system/publish-credentials/create.js",
+      "default": "./dist/admin-http/routes/system/publish-credentials/create.js"
+    },
+    "./admin-http/routes/system/publish-credentials/update": {
+      "types": "./dist/admin-http/routes/system/publish-credentials/update.d.ts",
+      "import": "./dist/admin-http/routes/system/publish-credentials/update.js",
+      "default": "./dist/admin-http/routes/system/publish-credentials/update.js"
+    },
+    "./admin-http/routes/system/publish-credentials/verify": {
+      "types": "./dist/admin-http/routes/system/publish-credentials/verify.d.ts",
+      "import": "./dist/admin-http/routes/system/publish-credentials/verify.js",
+      "default": "./dist/admin-http/routes/system/publish-credentials/verify.js"
+    },
+    "./admin-http/routes/system/publish-credentials/delete": {
+      "types": "./dist/admin-http/routes/system/publish-credentials/delete.d.ts",
+      "import": "./dist/admin-http/routes/system/publish-credentials/delete.js",
+      "default": "./dist/admin-http/routes/system/publish-credentials/delete.js"
+    },
+    "./admin-http/routes/system/publish-credentials/shared": {
+      "types": "./dist/admin-http/routes/system/publish-credentials/shared.d.ts",
+      "import": "./dist/admin-http/routes/system/publish-credentials/shared.js",
+      "default": "./dist/admin-http/routes/system/publish-credentials/shared.js"
+    },
+    "./admin-http/routes/system/deployment-overview": {
+      "types": "./dist/admin-http/routes/system/deployment-overview.d.ts",
+      "import": "./dist/admin-http/routes/system/deployment-overview.js",
+      "default": "./dist/admin-http/routes/system/deployment-overview.js"
+    },
+    "./admin-http/routes/system/export-site": {
+      "types": "./dist/admin-http/routes/system/export-site.d.ts",
+      "import": "./dist/admin-http/routes/system/export-site.js",
+      "default": "./dist/admin-http/routes/system/export-site.js"
+    },
+    "./admin-http/routes/system/mail-providers": {
+      "types": "./dist/admin-http/routes/system/mail-providers.d.ts",
+      "import": "./dist/admin-http/routes/system/mail-providers.js",
+      "default": "./dist/admin-http/routes/system/mail-providers.js"
+    },
+    "./admin-http/routes/system/publish-site/status": {
+      "types": "./dist/admin-http/routes/system/publish-site/status.d.ts",
+      "import": "./dist/admin-http/routes/system/publish-site/status.js",
+      "default": "./dist/admin-http/routes/system/publish-site/status.js"
+    },
+    "./admin-http/routes/system/publish-site/targets": {
+      "types": "./dist/admin-http/routes/system/publish-site/targets.d.ts",
+      "import": "./dist/admin-http/routes/system/publish-site/targets.js",
+      "default": "./dist/admin-http/routes/system/publish-site/targets.js"
+    },
+    "./admin-http/routes/system/publish-site/preview": {
+      "types": "./dist/admin-http/routes/system/publish-site/preview.d.ts",
+      "import": "./dist/admin-http/routes/system/publish-site/preview.js",
+      "default": "./dist/admin-http/routes/system/publish-site/preview.js"
+    },
+    "./admin-http/routes/system/assistant-owner-grant": {
+      "types": "./dist/admin-http/routes/system/assistant-owner-grant.d.ts",
+      "import": "./dist/admin-http/routes/system/assistant-owner-grant.js",
+      "default": "./dist/admin-http/routes/system/assistant-owner-grant.js"
+    },
+    "./admin-http/routes/system/assistant-permanent-deletes": {
+      "types": "./dist/admin-http/routes/system/assistant-permanent-deletes.d.ts",
+      "import": "./dist/admin-http/routes/system/assistant-permanent-deletes.js",
+      "default": "./dist/admin-http/routes/system/assistant-permanent-deletes.js"
+    },
+    "./admin-http/routes/system/assistant-subagents": {
+      "types": "./dist/admin-http/routes/system/assistant-subagents.d.ts",
+      "import": "./dist/admin-http/routes/system/assistant-subagents.js",
+      "default": "./dist/admin-http/routes/system/assistant-subagents.js"
+    },
+    "./admin-http/routes/seo/get-settings": {
+      "types": "./dist/admin-http/routes/seo/get-settings.d.ts",
+      "import": "./dist/admin-http/routes/seo/get-settings.js",
+      "default": "./dist/admin-http/routes/seo/get-settings.js"
+    },
+    "./admin-http/routes/seo/put-settings": {
+      "types": "./dist/admin-http/routes/seo/put-settings.d.ts",
+      "import": "./dist/admin-http/routes/seo/put-settings.js",
+      "default": "./dist/admin-http/routes/seo/put-settings.js"
+    },
+    "./admin-http/http/media": {
+      "types": "./dist/admin-http/http/media.d.ts",
+      "import": "./dist/admin-http/http/media.js",
+      "default": "./dist/admin-http/http/media.js"
+    },
+    "./admin-http/routes/media/shared": {
+      "types": "./dist/admin-http/routes/media/shared.d.ts",
+      "import": "./dist/admin-http/routes/media/shared.js",
+      "default": "./dist/admin-http/routes/media/shared.js"
+    },
+    "./admin-http/routes/media/delete": {
+      "types": "./dist/admin-http/routes/media/delete.d.ts",
+      "import": "./dist/admin-http/routes/media/delete.js",
+      "default": "./dist/admin-http/routes/media/delete.js"
+    },
+    "./admin-http/routes/media/trash": {
+      "types": "./dist/admin-http/routes/media/trash.d.ts",
+      "import": "./dist/admin-http/routes/media/trash.js",
+      "default": "./dist/admin-http/routes/media/trash.js"
+    },
+    "./admin-http/routes/media/get-providers": {
+      "types": "./dist/admin-http/routes/media/get-providers.d.ts",
+      "import": "./dist/admin-http/routes/media/get-providers.js",
+      "default": "./dist/admin-http/routes/media/get-providers.js"
+    },
+    "./admin-http/routes/media/put-providers": {
+      "types": "./dist/admin-http/routes/media/put-providers.d.ts",
+      "import": "./dist/admin-http/routes/media/put-providers.js",
+      "default": "./dist/admin-http/routes/media/put-providers.js"
+    },
+    "./admin-http/routes/media/update": {
+      "types": "./dist/admin-http/routes/media/update.d.ts",
+      "import": "./dist/admin-http/routes/media/update.js",
+      "default": "./dist/admin-http/routes/media/update.js"
+    },
+    "./admin-http/routes/assistant/execution-shared": {
+      "types": "./dist/admin-http/routes/assistant/execution-shared.d.ts",
+      "import": "./dist/admin-http/routes/assistant/execution-shared.js",
+      "default": "./dist/admin-http/routes/assistant/execution-shared.js"
+    },
+    "./admin-http/routes/assistant/detect-agents": {
+      "types": "./dist/admin-http/routes/assistant/detect-agents.d.ts",
+      "import": "./dist/admin-http/routes/assistant/detect-agents.js",
+      "default": "./dist/admin-http/routes/assistant/detect-agents.js"
+    },
+    "./admin-http/routes/assistant/list-models": {
+      "types": "./dist/admin-http/routes/assistant/list-models.d.ts",
+      "import": "./dist/admin-http/routes/assistant/list-models.js",
+      "default": "./dist/admin-http/routes/assistant/list-models.js"
+    },
+    "./admin-http/routes/assistant/test-agent": {
+      "types": "./dist/admin-http/routes/assistant/test-agent.d.ts",
+      "import": "./dist/admin-http/routes/assistant/test-agent.js",
+      "default": "./dist/admin-http/routes/assistant/test-agent.js"
+    },
+    "./admin-http/routes/assistant/test-connection": {
+      "types": "./dist/admin-http/routes/assistant/test-connection.d.ts",
+      "import": "./dist/admin-http/routes/assistant/test-connection.js",
+      "default": "./dist/admin-http/routes/assistant/test-connection.js"
+    },
+    "./admin-http/routes/assistant/shared": {
+      "types": "./dist/admin-http/routes/assistant/shared.d.ts",
+      "import": "./dist/admin-http/routes/assistant/shared.js",
+      "default": "./dist/admin-http/routes/assistant/shared.js"
+    },
+    "./admin-http/routes/assistant/get-settings": {
+      "types": "./dist/admin-http/routes/assistant/get-settings.d.ts",
+      "import": "./dist/admin-http/routes/assistant/get-settings.js",
+      "default": "./dist/admin-http/routes/assistant/get-settings.js"
+    },
+    "./admin-http/routes/assistant/put-settings": {
+      "types": "./dist/admin-http/routes/assistant/put-settings.d.ts",
+      "import": "./dist/admin-http/routes/assistant/put-settings.js",
+      "default": "./dist/admin-http/routes/assistant/put-settings.js"
+    },
+    "./admin-http/routes/assistant/visitor-tools": {
+      "types": "./dist/admin-http/routes/assistant/visitor-tools.d.ts",
+      "import": "./dist/admin-http/routes/assistant/visitor-tools.js",
+      "default": "./dist/admin-http/routes/assistant/visitor-tools.js"
+    },
+    "./admin-http/routes/assistant/get-site-credential": {
+      "types": "./dist/admin-http/routes/assistant/get-site-credential.d.ts",
+      "import": "./dist/admin-http/routes/assistant/get-site-credential.js",
+      "default": "./dist/admin-http/routes/assistant/get-site-credential.js"
+    },
+    "./admin-http/routes/assistant/put-site-credential": {
+      "types": "./dist/admin-http/routes/assistant/put-site-credential.d.ts",
+      "import": "./dist/admin-http/routes/assistant/put-site-credential.js",
+      "default": "./dist/admin-http/routes/assistant/put-site-credential.js"
+    },
+    "./admin-http/routes/assistant/delete-site-credential": {
+      "types": "./dist/admin-http/routes/assistant/delete-site-credential.d.ts",
+      "import": "./dist/admin-http/routes/assistant/delete-site-credential.js",
+      "default": "./dist/admin-http/routes/assistant/delete-site-credential.js"
+    },
+    "./admin-http/routes/assistant/get-execution-credential": {
+      "types": "./dist/admin-http/routes/assistant/get-execution-credential.d.ts",
+      "import": "./dist/admin-http/routes/assistant/get-execution-credential.js",
+      "default": "./dist/admin-http/routes/assistant/get-execution-credential.js"
+    },
+    "./admin-http/routes/assistant/put-execution-credential": {
+      "types": "./dist/admin-http/routes/assistant/put-execution-credential.d.ts",
+      "import": "./dist/admin-http/routes/assistant/put-execution-credential.js",
+      "default": "./dist/admin-http/routes/assistant/put-execution-credential.js"
+    },
+    "./admin-http/routes/assistant/delete-execution-credential": {
+      "types": "./dist/admin-http/routes/assistant/delete-execution-credential.d.ts",
+      "import": "./dist/admin-http/routes/assistant/delete-execution-credential.js",
+      "default": "./dist/admin-http/routes/assistant/delete-execution-credential.js"
+    },
+    "./public-http/routes/api-connections/oauth-callback": {
+      "types": "./dist/public-http/routes/api-connections/oauth-callback.d.ts",
+      "import": "./dist/public-http/routes/api-connections/oauth-callback.js",
+      "default": "./dist/public-http/routes/api-connections/oauth-callback.js"
+    },
+    "./public-http/routes/external-mcp/oauth-callback": {
+      "types": "./dist/public-http/routes/external-mcp/oauth-callback.d.ts",
+      "import": "./dist/public-http/routes/external-mcp/oauth-callback.js",
+      "default": "./dist/public-http/routes/external-mcp/oauth-callback.js"
+    },
+    "./public-http/routes/external-mcp/oauth-callback-url": {
+      "types": "./dist/public-http/routes/external-mcp/oauth-callback-url.d.ts",
+      "import": "./dist/public-http/routes/external-mcp/oauth-callback-url.js",
+      "default": "./dist/public-http/routes/external-mcp/oauth-callback-url.js"
+    },
+    "./admin-http/routes/agent-plugins/list": {
+      "types": "./dist/admin-http/routes/agent-plugins/list.d.ts",
+      "import": "./dist/admin-http/routes/agent-plugins/list.js",
+      "default": "./dist/admin-http/routes/agent-plugins/list.js"
+    },
+    "./admin-http/routes/agent-plugins/files": {
+      "types": "./dist/admin-http/routes/agent-plugins/files.d.ts",
+      "import": "./dist/admin-http/routes/agent-plugins/files.js",
+      "default": "./dist/admin-http/routes/agent-plugins/files.js"
+    },
+    "./admin-http/routes/agent-plugins/set-enabled": {
+      "types": "./dist/admin-http/routes/agent-plugins/set-enabled.d.ts",
+      "import": "./dist/admin-http/routes/agent-plugins/set-enabled.js",
+      "default": "./dist/admin-http/routes/agent-plugins/set-enabled.js"
+    },
+    "./admin-http/http/agent-plugins": {
+      "types": "./dist/admin-http/http/agent-plugins.d.ts",
+      "import": "./dist/admin-http/http/agent-plugins.js",
+      "default": "./dist/admin-http/http/agent-plugins.js"
+    },
+    "./admin-http/routes/external-mcp/list": {
+      "types": "./dist/admin-http/routes/external-mcp/list.d.ts",
+      "import": "./dist/admin-http/routes/external-mcp/list.js",
+      "default": "./dist/admin-http/routes/external-mcp/list.js"
+    },
+    "./admin-http/routes/external-mcp/admissions": {
+      "types": "./dist/admin-http/routes/external-mcp/admissions.d.ts",
+      "import": "./dist/admin-http/routes/external-mcp/admissions.js",
+      "default": "./dist/admin-http/routes/external-mcp/admissions.js"
+    },
+    "./admin-http/routes/external-mcp/delete": {
+      "types": "./dist/admin-http/routes/external-mcp/delete.d.ts",
+      "import": "./dist/admin-http/routes/external-mcp/delete.js",
+      "default": "./dist/admin-http/routes/external-mcp/delete.js"
+    },
+    "./admin-http/routes/external-mcp/put": {
+      "types": "./dist/admin-http/routes/external-mcp/put.d.ts",
+      "import": "./dist/admin-http/routes/external-mcp/put.js",
+      "default": "./dist/admin-http/routes/external-mcp/put.js"
+    },
+    "./admin-http/routes/external-mcp/tool-approvals": {
+      "types": "./dist/admin-http/routes/external-mcp/tool-approvals.d.ts",
+      "import": "./dist/admin-http/routes/external-mcp/tool-approvals.js",
+      "default": "./dist/admin-http/routes/external-mcp/tool-approvals.js"
+    },
+    "./admin-http/routes/external-mcp/oauth-disconnect": {
+      "types": "./dist/admin-http/routes/external-mcp/oauth-disconnect.d.ts",
+      "import": "./dist/admin-http/routes/external-mcp/oauth-disconnect.js",
+      "default": "./dist/admin-http/routes/external-mcp/oauth-disconnect.js"
+    },
+    "./admin-http/routes/agent-plugins/connection-sign-in": {
+      "types": "./dist/admin-http/routes/agent-plugins/connection-sign-in.d.ts",
+      "import": "./dist/admin-http/routes/agent-plugins/connection-sign-in.js",
+      "default": "./dist/admin-http/routes/agent-plugins/connection-sign-in.js"
+    },
+    "./admin-http/routes/database/migrate-forward": {
+      "types": "./dist/admin-http/routes/database/migrate-forward.d.ts",
+      "import": "./dist/admin-http/routes/database/migrate-forward.js",
+      "default": "./dist/admin-http/routes/database/migrate-forward.js"
+    },
+    "./admin-http/routes/recovery/restore": {
+      "types": "./dist/admin-http/routes/recovery/restore.d.ts",
+      "import": "./dist/admin-http/routes/recovery/restore.js",
+      "default": "./dist/admin-http/routes/recovery/restore.js"
+    },
+    "./admin-http/routes/recovery/status": {
+      "types": "./dist/admin-http/routes/recovery/status.d.ts",
+      "import": "./dist/admin-http/routes/recovery/status.js",
+      "default": "./dist/admin-http/routes/recovery/status.js"
+    },
+    "./admin-http/http/publish-content": {
+      "types": "./dist/admin-http/http/publish-content.d.ts",
+      "import": "./dist/admin-http/http/publish-content.js",
+      "default": "./dist/admin-http/http/publish-content.js"
+    },
+    "./admin-http/routes/plugins/list": {
+      "types": "./dist/admin-http/routes/plugins/list.d.ts",
+      "import": "./dist/admin-http/routes/plugins/list.js",
+      "default": "./dist/admin-http/routes/plugins/list.js"
+    },
+    "./admin-http/routes/plugins/files": {
+      "types": "./dist/admin-http/routes/plugins/files.d.ts",
+      "import": "./dist/admin-http/routes/plugins/files.js",
+      "default": "./dist/admin-http/routes/plugins/files.js"
+    },
+    "./admin-http/routes/plugins/uninstall": {
+      "types": "./dist/admin-http/routes/plugins/uninstall.d.ts",
+      "import": "./dist/admin-http/routes/plugins/uninstall.js",
+      "default": "./dist/admin-http/routes/plugins/uninstall.js"
+    },
+    "./admin-http/routes/plugins/preview": {
+      "types": "./dist/admin-http/routes/plugins/preview.d.ts",
+      "import": "./dist/admin-http/routes/plugins/preview.js",
+      "default": "./dist/admin-http/routes/plugins/preview.js"
+    },
+    "./admin-http/routes/plugins/set-enabled": {
+      "types": "./dist/admin-http/routes/plugins/set-enabled.d.ts",
+      "import": "./dist/admin-http/routes/plugins/set-enabled.js",
+      "default": "./dist/admin-http/routes/plugins/set-enabled.js"
+    },
+    "./admin-http/routes/publish-content/transport-shared": {
+      "types": "./dist/admin-http/routes/publish-content/transport-shared.d.ts",
+      "import": "./dist/admin-http/routes/publish-content/transport-shared.js",
+      "default": "./dist/admin-http/routes/publish-content/transport-shared.js"
+    },
+    "./admin-http/routes/publish-content/peers": {
+      "types": "./dist/admin-http/routes/publish-content/peers.d.ts",
+      "import": "./dist/admin-http/routes/publish-content/peers.js",
+      "default": "./dist/admin-http/routes/publish-content/peers.js"
+    },
+    "./admin-http/routes/publish-content/destination": {
+      "types": "./dist/admin-http/routes/publish-content/destination.d.ts",
+      "import": "./dist/admin-http/routes/publish-content/destination.js",
+      "default": "./dist/admin-http/routes/publish-content/destination.js"
     }
   },
   "files": [

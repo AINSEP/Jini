@@ -1,22 +1,27 @@
 import { defineJsonRoute, ok } from "@jini-ai/core/contracts/server";
+import type { AdminSeoSitemapRegenerateEnvelope } from "@jini-ai/core/contracts/site/cms-seo";
 
-import type { createSitemapService } from "../../../seo/index.js";
-import { authorizeSeoManage, type SeoRouteBaseDeps, type SeoRoutePrincipal } from "./deps.js";
+import type { createSitemapService } from "../../../seo/sitemap.js";
 
-/** The deps this route reads: the host's one sitemap service, so routes/tools/subscriptions share its cache. */
-export interface SeoPostSitemapRegenerateRouteDeps extends SeoRouteBaseDeps {
-  sitemapService: Pick<ReturnType<typeof createSitemapService>, "regenerateSitemapCache">;
+/** The sitemap service the host builds once per app (`createSitemapService`). */
+type SitemapService = ReturnType<typeof createSitemapService>;
+import { authorizeSeo, type SeoRoutePrincipal } from "./shared.js";
+
+/** The deps this route reads: the app's one sitemap cache (routes, tools and subscriptions share it). */
+export interface SeoPostSitemapRegenerateRouteDeps {
+  workspaceId: string;
+  seoReady: PromiseLike<unknown>;
+  sitemapService: Pick<SitemapService, "regenerateSitemapCache">;
 }
 
-/** POST force-rebuild the cached sitemap (SPEC-008 api.spec.md `SEO_POST_SITEMAP_REGENERATE`, tasks.md T047). */
-export const seoPostSitemapRegenerateRoute = defineJsonRoute<Record<string, never>, { data: { accepted: true } }, SeoPostSitemapRegenerateRouteDeps, SeoRoutePrincipal>({
+/** POST force-rebuild the cached sitemap (SPEC-008 `SEO_POST_SITEMAP_REGENERATE`); answers 202. */
+export const seoPostSitemapRegenerateRoute = defineJsonRoute<Record<string, never>, AdminSeoSitemapRegenerateEnvelope, SeoPostSitemapRegenerateRouteDeps, SeoRoutePrincipal>({
   method: "post",
   path: "/api/admin/v1/workspaces/:workspaceId/seo/sitemap/regenerate",
   parse: () => ok({ value: {} }),
   handle: async ({ deps, authorize }) => {
-    await deps.seoReady;
-    await authorizeSeoManage({ authorize, entityType: "seo-sitemap" });
+    await authorizeSeo({ authorize, ready: deps.seoReady, entityType: "seo-sitemap" });
     await deps.sitemapService.regenerateSitemapCache({ workspaceId: deps.workspaceId }, {});
-    return ok({ value: { data: { accepted: true } } });
+    return ok({ value: { data: { accepted: true as const } } });
   },
 }, { successStatus: 202 });

@@ -77,7 +77,8 @@ async function runLifecycle(
   }
 }
 
-const flag = (body: unknown, key: 'checked' | 'confirmed'): boolean =>
+/** Whether a confirmation flag is literally `true` (any other value, or a non-object body, is `false`). @complexity O(1). */
+const flag = ({ body, key }: { body: unknown; key: 'checked' | 'confirmed' }, _optional: Record<string, never> = {}): boolean =>
   typeof body === 'object' && body !== null && (body as Record<string, unknown>)[key] === true;
 
 /** One lifecycle `POST` spec: a total parse (gates run in the handler, before any validation). */
@@ -85,7 +86,7 @@ function lifecycleRoute({ path, action }: { path: string; action: LifecycleActio
   return defineJsonRoute<LocalSiteLifecycleInput, unknown, LocalSiteLifecycleRouteDeps, LocalSitePrincipal>({
     method: 'post',
     path,
-    parse: (raw) => ok({ value: { name: String(raw.params.name ?? ''), id: String(raw.params.id ?? ''), checked: flag(raw.body, 'checked'), confirmed: flag(raw.body, 'confirmed') } }),
+    parse: (raw) => ok({ value: { name: String(raw.params.name ?? ''), id: String(raw.params.id ?? ''), checked: flag({ body: raw.body, key: 'checked' }), confirmed: flag({ body: raw.body, key: 'confirmed' }) } }),
     handle: async ({ input, deps, authorize }) => ok({ value: await runLifecycle({ input, deps, authorize, action }) }),
   });
 }
