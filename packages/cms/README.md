@@ -228,6 +228,14 @@ specs with `bufferedReply`): the host injects `plan`/`push` (its backup service;
 `mapBackupError` (the service's known errors as `{ status, body }`, `undefined` for the mount's redacted 500), and
 mounts them with its own plain-text workspace refusal; the no-store / nosniff headers come from the specs.
 
+Shared Keys picker (`src/admin-http/routes/system/credential-copy.ts`: `credentialCopyListRoute`,
+`credentialCopyGrantRoute`, w4-routes K): the host injects `ownerPrincipalId()` (the seeded owner),
+`admitInstance({ principalId, permission })` (its optional instance admission; `true` when it has none),
+`projectKeys()` (`listChoices`/`permissionFor`/`use`, or `undefined`) and `isLocalRequest({ context })` (whether this
+request came from a browser on the host machine). It mounts both with `Cache-Control: no-store` on every answer, a
+session-credential-only 403 ahead of the workspace 404, and its redacted `copy-failed` 500; the specs answer
+owner-only, RBAC (`system.write`, then the selected key's own permission), local-host-only, 400 and the 409.
+
 System mail (`src/admin-http/routes/system/mail-{status,dns,test-send,activity}.ts`, guards in
 `mail-shared.ts`): the host binds every collaborator as a required function-typed dep — the live
 mailer predicate and cached status, the DNS operations, the recipient rules and plan-then-run send,
