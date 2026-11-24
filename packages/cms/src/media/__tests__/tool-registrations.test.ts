@@ -446,16 +446,3 @@ test("library_list shows unknown attribution as null and refuses to guess a type
   await assert.rejects(tool({ ...deps, mediaRepo: broken }, "library_list").handler(executionContext({})), /document filename must be a plain filename/);
   assert.equal((await mediaRepo.list({ workspaceId: WORKSPACE_ID })).length, 1);
 });
-
-test("media_update_metadata passes description through to the record and returns it on the view", async () => {
-  const { deps, mediaRepo } = fakeDeps();
-  const mediaId = await seedAsset(deps);
-  const registrations = buildMediaRegistrations(deps, { resolvePublicUrls: deps.resolvePublicUrls, recordUploadContentType: deps.recordUploadContentType, maxUploadBytes: deps.maxUploadBytes });
-  const update = registrations.find((r) => r.descriptor.id === "media_update_metadata");
-  assert.ok(update, "media_update_metadata must be wired");
-
-  const result = (await update.handler(executionContext({ mediaId, description: "A brown dog asleep on a red sofa." }))) as { media: { description: string } };
-
-  assert.equal(result.media.description, "A brown dog asleep on a red sofa.");
-  assert.equal((await mediaRepo.findById({ workspaceId: WORKSPACE_ID, id: mediaId }))?.description, "A brown dog asleep on a red sofa.");
-});

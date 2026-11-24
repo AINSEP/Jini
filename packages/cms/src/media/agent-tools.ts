@@ -51,7 +51,7 @@ import type { AgentToolDefinition } from "@jini-ai/core";
  */
 
 import { MEDIA_HTML_ATTRIBUTE_ALLOWED_NAMES } from "./html-attributes.js";
-import { DEFAULT_ALLOWED_MIME_TYPES, MEDIA_MAX_DESCRIPTION_LENGTH } from "./media-service.js";
+import { DEFAULT_ALLOWED_MIME_TYPES } from "./media-service.js";
 
 
 
@@ -76,7 +76,7 @@ const MEDIA_ID_SCHEMA = {
  * an existing asset (there is no dedicated get-by-id admin route to wrap instead).
  */
 const listProperties = {
-  query: { type: 'string', maxLength: 1000, description: 'Case-insensitive substring of name, title, alt or description.' },
+  query: { type: 'string', maxLength: 1000, description: 'Case-insensitive substring of name, title or alt.' },
   kind: { type: 'string', enum: ['media', 'image', 'video', 'audio', 'document', 'other'], description: 'Asset family. Library always stays private documents only.' },
   limit: { type: 'integer', minimum: 1, maximum: 100, default: 50, description: 'Page size; default 50, maximum 100.' },
   cursor: { type: 'string', description: 'nextCursor from the preceding page; keep filters unchanged.' },
@@ -102,7 +102,7 @@ export const mediaAgentToolCatalog: AgentToolDefinition[] = [
   {
     name: "media_list_assets",
     description:
-      "Searches media assets in the workspace (active and trashed by default) by name, title, alt text or description, with id, slug, title, alt, caption, credit, sha256, status and known source provenance. Returns at most 50 by default (maximum 100); follow nextCursor with the same filters until null. Call this to find a mediaId before updating or trashing an asset.",
+      "Searches media assets in the workspace (active and trashed by default), with id, slug, title, alt, caption, credit, sha256, status and known source provenance. Returns at most 50 by default (maximum 100); follow nextCursor with the same filters until null. Call this to find a mediaId before updating or trashing an asset.",
     sideEffects: "none",
     authorization: { permission: "media.read" },
     inputSchema: {
@@ -139,7 +139,6 @@ export const mediaAgentToolCatalog: AgentToolDefinition[] = [
         },
         alt: { type: "string", description: "Optional accessibility alt text." },
         caption: { type: "string", description: "Optional display caption." },
-        description: { type: "string", maxLength: MEDIA_MAX_DESCRIPTION_LENGTH, description: "Optional plain-language description of what the media shows, used by search." },
         credit: { type: "string", description: "Optional attribution/credit line." },
       },
     },
@@ -147,7 +146,7 @@ export const mediaAgentToolCatalog: AgentToolDefinition[] = [
   {
     name: "media_update_metadata",
     description:
-      "Updates a media asset's metadata: title, alt, caption, credit, description, and its asset-wide presentation (cssClass, " +
+      "Updates a media asset's metadata: title, alt, caption, credit, and its asset-wide presentation (cssClass, " +
       "htmlAttributes). Omit a field to leave it unchanged. htmlAttributes/cssClass apply EVERYWHERE this asset " +
       "renders; to change one placement on one page only, put the attribute on that page's data-embed-config " +
       "marker element instead (pages_write_region). This metadata command cannot replace file bytes. " +
@@ -164,7 +163,6 @@ export const mediaAgentToolCatalog: AgentToolDefinition[] = [
         alt: { type: "string", description: "New alt text. Omit to leave unchanged." },
         caption: { type: "string", description: "New caption. Omit to leave unchanged." },
         credit: { type: "string", description: "New credit line. Omit to leave unchanged." },
-        description: { type: "string", maxLength: MEDIA_MAX_DESCRIPTION_LENGTH, description: "Plain-language description of what the media shows, used by search." },
         slug: {
           type: "string",
           description:

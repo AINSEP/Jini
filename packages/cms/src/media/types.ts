@@ -86,14 +86,6 @@ export interface MediaRecord {
   alt: string;
   caption: string;
   credit: string;
-  /**
-   * Plain-language description of what the media shows, written for search (an agent can fill it in
-   * after looking at an image). Optional, unlike `caption`: absent means "never described", and a host
-   * repo adapter with no column for it keeps compiling and round-tripping its rows unchanged. Once
-   * written, an empty string is its cleared form, the same as `caption`. Bounded by
-   * `MEDIA_MAX_DESCRIPTION_LENGTH` (`media-service.ts`).
-   */
-  description?: string | undefined;
   /** Write-once (see {@link MediaSource} doc). Always set by the time a row exists. */
   source: MediaSource;
   status: MediaStatus;

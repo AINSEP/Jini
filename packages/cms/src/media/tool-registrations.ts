@@ -154,8 +154,6 @@ interface MediaToolView {
   title: string;
   alt: string;
   caption: string;
-  /** Plain-language description written for search; empty when never described. */
-  description: string;
   credit: string;
   sha256: string;
   status: MediaRecord["status"];
@@ -181,7 +179,6 @@ function toMediaToolView(record: MediaRecord): MediaToolView {
     title: record.title,
     alt: record.alt,
     caption: record.caption,
-    description: record.description ?? "",
     credit: record.credit,
     sha256: record.source.sha256,
     status: record.status,
@@ -296,7 +293,6 @@ function mediaUploadHandlers(routeDeps: MediaToolDeps): Record<string, ToolHandl
             contentType: requireString({ input, key: "contentType" }),
             alt: typeof input.alt === "string" ? input.alt : undefined,
             caption: typeof input.caption === "string" ? input.caption : undefined,
-            description: typeof input.description === "string" ? input.description : undefined,
             credit: typeof input.credit === "string" ? input.credit : undefined,
             createdByPrincipal: ctx.principal.id,
           },
@@ -343,7 +339,6 @@ function mediaUpdateHandlers(routeDeps: MediaToolDeps): Record<string, ToolHandl
             title: typeof input.title === "string" ? input.title : undefined,
             alt: typeof input.alt === "string" ? input.alt : undefined,
             caption: typeof input.caption === "string" ? input.caption : undefined,
-            description: typeof input.description === "string" ? input.description : undefined,
             credit: typeof input.credit === "string" ? input.credit : undefined,
             slug: typeof input.slug === "string" ? input.slug : undefined,
             cssClass: typeof input.cssClass === "string" ? input.cssClass : undefined,
