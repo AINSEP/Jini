@@ -9,7 +9,7 @@
  * revision write in the SAME transaction (INV-01: a campaign row must never exist without a
  * same-tx revision row).
  */
-import type { UUID } from "@jini-ai/core/primitives";
+import type { CreatorKind, UUID } from "@jini-ai/core/primitives";
 import { transitionCampaignStatus, type CampaignActorTier } from "./campaign.js";
 import {
   NewsletterCampaignNotEditableError,
@@ -93,6 +93,11 @@ export async function saveCampaign(required: {
     workspaceId: UUID;
     id?: UUID;
     actorId: UUID;
+    /** Who is creating the campaign, recorded once as `created_by_kind` (H4, 2026-11-24). Omitted
+     *  means `"person"`: the admin routes pass nothing, the agent tools pass `"agent"` (an agent
+     *  acts under the real human's `actorId`, so the kind cannot be recovered from it later).
+     *  Ignored on a re-save — the stored kind is write-once. */
+    creatorKind?: CreatorKind;
     expectedVersion?: number;
     fields: {
       subject: string;
@@ -186,6 +191,7 @@ function newDraftCampaign(required: {
     counters: ZERO_COUNTERS,
     version: 1,
     createdByPrincipal: input.actorId,
+    createdByKind: input.creatorKind ?? "person",
     createdAt: now,
     updatedAt: now,
   };

@@ -772,7 +772,7 @@
    "SUBJECT_MIN": "variable:d7e301eab2",
    "cancelCampaign": "function:b4b1b50060",
    "isValidScheduleTimestamp": "function:beeb9515ef",
-   "saveCampaign": "function:ac7cd796d0",
+   "saveCampaign": "function:ded2ce773c",
    "scheduleCampaign": "function:460952e337"
   }
  },
@@ -898,7 +898,7 @@
    "CampaignRevisionsTable": "interface:ff97dad769",
    "CampaignTableRow": "type:b6393785b7",
    "CampaignTableViews": "type:881f28934a",
-   "CampaignsTable": "interface:cb50522c86",
+   "CampaignsTable": "interface:77d8f3c8e0",
    "ConfirmationTokenTableRow": "type:936652fd3e",
    "ConfirmationTokenTableViews": "type:2e8b84e110",
    "ListTableRow": "type:9232393637",
@@ -955,7 +955,7 @@
    "BeforeSendHookContext": "interface:4760f6b8b1",
    "CampaignCounters": "interface:401901ccb3",
    "CampaignFields": "interface:13818a82a1",
-   "CampaignRecord": "interface:cafcbc6c74",
+   "CampaignRecord": "interface:07acbad202",
    "CampaignRevision": "interface:d5548beef5",
    "CampaignScheduledEvent": "type:f52218df0e",
    "CampaignScheduledPayload": "interface:8d178a6714",

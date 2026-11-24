@@ -4851,7 +4851,7 @@
    "PostBodyFormat": "type:4d3bad74c0",
    "PostConflictError": "class:8fce736287",
    "PostNotFoundError": "class:4e2f464212",
-   "PostRecord": "interface:737da5134e",
+   "PostRecord": "interface:0a3a8633df",
    "PostRepoPort": "interface:392e2f8cd4",
    "PostRevisionAppendResult": "interface:9e7c7da1e8",
    "PostRevisionInput": "interface:5e1adc2147",
