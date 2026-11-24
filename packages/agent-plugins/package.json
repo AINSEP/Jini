@@ -109,7 +109,8 @@
       "./site/memory-i18n": "universal",
       "./site/admin-surfaces/delivery-bindings": "universal",
       "./site/supersession": "node",
-      "./site/uninstall-tool": "node"
+      "./site/uninstall-tool": "node",
+      "./site/host-plugin-guidance": "node"
     },
     "isolation": {
       "entries": {
@@ -122,7 +123,8 @@
         "./site/admin-surfaces/forms": "admin-surfaces",
         "./site/admin-surfaces/delivery-bindings": "admin-surfaces",
         "./site/supersession": "lifecycle",
-        "./site/uninstall-tool": "lifecycle"
+        "./site/uninstall-tool": "lifecycle",
+        "./site/host-plugin-guidance": "lifecycle"
       },
       "shared": [
         "core/persistent-state.js",
@@ -328,6 +330,11 @@
       "types": "./dist/site/uninstall-tool.d.ts",
       "import": "./dist/site/uninstall-tool.js",
       "default": "./dist/site/uninstall-tool.js"
+    },
+    "./site/host-plugin-guidance": {
+      "types": "./dist/site/host-plugin-guidance.d.ts",
+      "import": "./dist/site/host-plugin-guidance.js",
+      "default": "./dist/site/host-plugin-guidance.js"
     }
   },
   "files": [
@@ -393,6 +400,9 @@
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "vitest run",
     "test:coverage": "vitest run --coverage"
+  },
+  "dependencies": {
+    "js-yaml": "^5.3.0"
   },
   "devDependencies": {
     "@vitest/coverage-v8": "^3.2.6",

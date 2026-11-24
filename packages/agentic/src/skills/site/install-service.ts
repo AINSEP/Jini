@@ -1,6 +1,6 @@
 import path from "node:path";
 import { randomUUID } from "node:crypto";
-import { createSkillInstaller, prepareSkillInstall as prepare, createSkillFetchAdapter, type SkillInstaller, type SkillInstallInput as JiniSkillInstallInput, type PreparedSkillInstall, type SkillInstallDeps } from "../install/index.js";
+import { createSkillInstaller, SKILL_STATE_FILE_NAME, prepareSkillInstall as prepare, createSkillFetchAdapter, type SkillInstaller, type SkillInstallInput as JiniSkillInstallInput, type PreparedSkillInstall, type SkillInstallDeps } from "../install/index.js";
 import type { SkillLayout, SkillSiteHost } from "./layout.js";
 import { loadInstalledSkillToolSources } from "./tool-registrations.js";
 export interface SkillSiteContext { readonly skillLayout: SkillLayout; readonly siteBinding: { readonly dir: string } }
@@ -18,7 +18,7 @@ function dependencies(input: SkillSiteContext, optional: { fetchImpl?: typeof fe
   const binding = input.siteBinding;
   return { filesystem: layout.host.filesystem, ...preparationDependencies({ host: layout.host }, optional),
     ids: { next: () => randomUUID() },
-    layout: { resolve: ({ workspaceId }) => ({ workspaceRoot: layout.forWorkspace({ workspaceId }).root, stagingRoot: path.join(layout.root, ".staging"), stateFileName: layout.host.stateFileName }) },
+    layout: { resolve: ({ workspaceId }) => ({ workspaceRoot: layout.forWorkspace({ workspaceId }).root, stagingRoot: path.join(layout.root, ".staging"), stateFileName: SKILL_STATE_FILE_NAME, legacyStateFileNames: layout.host.legacyStateFileNames }) },
     toolSourceLoader: { load: async (input, optional) => (await loadInstalledSkillToolSources({ ...input, ...optional, skillLayout: layout, siteBinding: binding })).map(source => {
       if (source.directory === undefined) throw new Error("Installed skill tool source has no directory");
       return { ...source, directory: source.directory };

@@ -6,7 +6,7 @@ export interface YamlReaderPort { read(required: { yaml: string }): unknown }
 
 /** Layout is host-owned. Staging and workspace roots must share a rename-capable filesystem. */
 export interface SkillLayoutPort {
-  resolve(required: { workspaceId: string }): { workspaceRoot: string; stagingRoot: string; stateFileName: string };
+  resolve(required: { workspaceId: string }): { workspaceRoot: string; stagingRoot: string; stateFileName: string; legacyStateFileNames?: readonly string[] | undefined };
 }
 export interface SkillFilesystemPort {
   mkdir(required: { path: string }): Promise<void>;

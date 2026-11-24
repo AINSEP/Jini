@@ -30,6 +30,7 @@
       "./runtime/plugin-host-copy": "universal",
       "./runtime/enable-confirmation-ui": "universal",
       "./runtime/uninstall-confirmation-ui": "universal",
+      "./runtime/lower-tool-access": "universal",
       "./site/lipay/manifest": "universal",
       "./site/store/manifest": "universal"
     },
@@ -117,6 +118,11 @@
       "types": "./dist/runtime/capability-card.d.ts",
       "import": "./dist/runtime/capability-card.js",
       "default": "./dist/runtime/capability-card.js"
+    },
+    "./runtime/lower-tool-access": {
+      "types": "./dist/runtime/lower-tool-access.d.ts",
+      "import": "./dist/runtime/lower-tool-access.js",
+      "default": "./dist/runtime/lower-tool-access.js"
     },
     "./runtime/plugin-host-copy": {
       "types": "./dist/runtime/plugin-host-copy.d.ts",

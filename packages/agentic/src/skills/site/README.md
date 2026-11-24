@@ -11,8 +11,9 @@ Site-side bindings of `skills/install` onto the core tool registry.
 - `resolveSkillLayout({ host, ... })` (`./layout.ts`): the host passes a `SkillSiteHost` where it resolves its
   booted skills layout (site composition and its test fixtures). The returned layout carries it, so
   `./install-service.ts`, `./tool-registrations.ts`, `./install-tool.ts` and the host's admin routes reach the
-  same bindings through `skillLayout.host`: the override env variable name, the persisted install-state file
-  name (keep it byte-stable), the process environment, the site-root resolver, the filesystem/archive/YAML
+  same bindings through `skillLayout.host`: the override env variable name, the host's legacy install-state file
+  names (`legacyStateFileNames`: READ after the engine's own `SKILL_STATE_FILE_NAME`, never written; `[]` if none),
+  the process environment, the site-root resolver, the filesystem/archive/YAML
   install adapters, the frontmatter reader, the contained supporting-file reader, the per-root installer
   queues (host-owned state) and the tool permission check `skills_install` runs first.
   The same `SkillSiteHost` carries the two log reporters, because the engine never writes the console:

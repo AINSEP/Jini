@@ -229,6 +229,7 @@
       "./screens/plugins/hooks/agent-plugin-surfaces-port.hooks": "universal",
       "./screens/plugins/hooks/use-linked-lock-tip.hooks": "browser",
       "./screens/plugins/plugins-memory-i18n": "universal",
+      "./screens/plugins/plugins-i18n": "universal",
       "./screens/skills/skill-failure": "universal",
       "./screens/skills/skill-upload": "universal",
       "./screens/skills/SkillInstallConfirmation": "browser",
@@ -259,6 +260,7 @@
       "./screens/email/hooks/use-email.hooks": "browser",
       "./screens/email/hooks/use-email-overview.hooks": "browser",
       "./screens/email/hooks/use-email-sender.hooks": "browser",
+      "./screens/email/hooks/use-email-provider.hooks": "browser",
       "./screens/email/hooks/use-email-templates.hooks": "browser",
       "./screens/email/hooks/use-email-template-editor.hooks": "browser",
       "./screens/email/hooks/use-email-activity.hooks": "browser",
@@ -1709,6 +1711,11 @@
       "import": "./dist/screens/plugins/plugins-memory-i18n.js",
       "default": "./dist/screens/plugins/plugins-memory-i18n.js"
     },
+    "./screens/plugins/plugins-i18n": {
+      "types": "./dist/screens/plugins/plugins-i18n.d.ts",
+      "import": "./dist/screens/plugins/plugins-i18n.js",
+      "default": "./dist/screens/plugins/plugins-i18n.js"
+    },
     "./screens/skills/skill-failure": {
       "types": "./dist/screens/skills/skill-failure.d.ts",
       "import": "./dist/screens/skills/skill-failure.js",
@@ -1858,6 +1865,11 @@
       "types": "./dist/screens/email/hooks/use-email-sender.hooks.d.ts",
       "import": "./dist/screens/email/hooks/use-email-sender.hooks.js",
       "default": "./dist/screens/email/hooks/use-email-sender.hooks.js"
+    },
+    "./screens/email/hooks/use-email-provider.hooks": {
+      "types": "./dist/screens/email/hooks/use-email-provider.hooks.d.ts",
+      "import": "./dist/screens/email/hooks/use-email-provider.hooks.js",
+      "default": "./dist/screens/email/hooks/use-email-provider.hooks.js"
     },
     "./screens/email/hooks/use-email-templates.hooks": {
       "types": "./dist/screens/email/hooks/use-email-templates.hooks.d.ts",

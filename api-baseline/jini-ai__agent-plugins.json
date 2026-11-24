@@ -954,6 +954,23 @@
    "createSurfaceForms": "function:3b2ed81311"
   }
  },
+ "./site/host-plugin-guidance": {
+  "types": "./dist/site/host-plugin-guidance.d.ts",
+  "symbols": {
+   "HOST_PLUGIN_FILE_PREFIX": "variable:59b10c788b",
+   "HostPluginGuidance": "interface:1396d57337",
+   "HostPluginRefOptions": "interface:5f10e9cef9",
+   "MAX_HOST_PLUGIN_FILE_BYTES": "variable:090433b852",
+   "PluginToolGuidance": "interface:6e449d2ea6",
+   "deliverHostPluginGuidance": "function:fda3bb3aab",
+   "isHostPluginFileRequest": "function:0c25a5faae",
+   "readHostPluginFile": "function:23808e618f",
+   "readHostPluginGuidance": "function:6fb0f630d9",
+   "readHostPluginRefOverlays": "function:032f9b16b0",
+   "removeChatRefusedToolPermissions": "function:8049b7bbad",
+   "splitHostPluginRefRequest": "function:1088210b79"
+  }
+ },
  "./site/memory-i18n": {
   "types": "./dist/site/memory-i18n.d.ts",
   "symbols": {
