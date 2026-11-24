@@ -147,6 +147,7 @@ export {
   decideMediaOriginalReply, decideMediaOriginalForAsset,
   type MediaOriginalReply, type MediaOriginalType, type MediaOriginalBlob, type MediaOriginalLookup,
 } from "./original-response.js";
+export { PRIVATE_NO_STORE, REVALIDATING_PUBLIC, resolveRenditionTransformSpec, ifNoneMatchSatisfied, renditionCacheControl } from "./rendition-negotiation.js";
 
 /** The agent-tool catalog for this domain (see `agent-tools.ts` for what is deliberately omitted). */
 export {

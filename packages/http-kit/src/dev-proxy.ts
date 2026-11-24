@@ -26,16 +26,20 @@ import type { Request, RequestHandler, Response } from "express";
 /**
  * A TLS agent scoped to ONE dev-only upstream: Vite's own mkcert-issued certificate is
  * locally-trusted in the OS/browser store but not in Node's separate bundled CA list — the same gap
- * `apps/admin/vite.config.ts`'s own `/api` proxy entries hit and fix with `secure: false`. Scoped to
+ * a Vite config's own `/api` proxy entries hit and fix with `secure: false`. Scoped to
  * this module's own outbound connections only; `NODE_TLS_REJECT_UNAUTHORIZED` is never touched, so
  * every other TLS connection this process makes (including real calls to third-party provider APIs)
  * keeps full certificate verification. `keepAlive` reuses one TLS connection across the many small
  * ESM module requests a Vite dev page issues, rather than a fresh handshake per file.
  */
-const devUpstreamHttpsAgent = new HttpsAgent({ rejectUnauthorized: false, keepAlive: true });
+function createDevUpstreamHttpsAgent(): HttpsAgent {
+  return new HttpsAgent({ rejectUnauthorized: false, keepAlive: true });
+}
 
 /** Plain-HTTP counterpart for a boot with dev TLS disabled — kept for parity, not certificate-related. */
-const devUpstreamHttpAgent = new HttpAgent({ keepAlive: true });
+function createDevUpstreamHttpAgent(): HttpAgent {
+  return new HttpAgent({ keepAlive: true });
+}
 
 /**
  * Rewrites a bare `/admin` request to `/admin/` before it reaches Vite. Vite's `base: "/admin/"`
@@ -102,7 +106,8 @@ function resolveDevProxyUpstream({ devProxyUrl, basePath }: { devProxyUrl: strin
     basePath,
     target,
     requestFn: isHttps ? httpsRequest : httpRequest,
-    agent: isHttps ? devUpstreamHttpsAgent : devUpstreamHttpAgent,
+    // One agent per proxy instance (not module state): the keep-alive pool lives and dies with its proxy.
+    agent: isHttps ? createDevUpstreamHttpsAgent() : createDevUpstreamHttpAgent(),
   };
 }
 

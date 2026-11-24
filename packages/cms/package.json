@@ -185,6 +185,11 @@
       "./public-http/http/site/member-auth-script": "universal",
       "./public-http/http/site/form-presentation-assets": "universal",
       "./public-http/http/site/render/widgets/placeholder": "universal",
+      "./public-http/http/site/render/contact-form-widget": "universal",
+      "./public-http/http/site/render/widgets/media": "universal",
+      "./public-http/http/site/render/widgets/social-entries": "universal",
+      "./public-http/http/site/render/widgets/post-content": "universal",
+      "./public-http/http/site/render/widgets/widget-render-contract": "universal",
       "./navigation/site/menu-html-permission": "universal",
       "./navigation/site/menu-trash-follow-ups": "universal",
       "./navigation/site/trash-menu": "universal",
@@ -314,6 +319,7 @@
       "./admin-http/routes/themes/explore-file-rename": "universal",
       "./admin-http/routes/system/mail-status": "universal",
       "./admin-http/routes/system/site-backups": "universal",
+      "./admin-http/routes/system/site-imports": "universal",
       "./admin-http/routes/system/site-shares": "universal",
       "./admin-http/routes/system/credential-copy": "universal",
       "./admin-http/routes/system/browser-telemetry": "universal",
@@ -1502,6 +1508,31 @@
       "import": "./dist/public-http/http/site/render/widgets/placeholder.js",
       "default": "./dist/public-http/http/site/render/widgets/placeholder.js"
     },
+    "./public-http/http/site/render/contact-form-widget": {
+      "types": "./dist/public-http/http/site/render/contact-form-widget.d.ts",
+      "import": "./dist/public-http/http/site/render/contact-form-widget.js",
+      "default": "./dist/public-http/http/site/render/contact-form-widget.js"
+    },
+    "./public-http/http/site/render/widgets/media": {
+      "types": "./dist/public-http/http/site/render/widgets/media.d.ts",
+      "import": "./dist/public-http/http/site/render/widgets/media.js",
+      "default": "./dist/public-http/http/site/render/widgets/media.js"
+    },
+    "./public-http/http/site/render/widgets/social-entries": {
+      "types": "./dist/public-http/http/site/render/widgets/social-entries.d.ts",
+      "import": "./dist/public-http/http/site/render/widgets/social-entries.js",
+      "default": "./dist/public-http/http/site/render/widgets/social-entries.js"
+    },
+    "./public-http/http/site/render/widgets/post-content": {
+      "types": "./dist/public-http/http/site/render/widgets/post-content.d.ts",
+      "import": "./dist/public-http/http/site/render/widgets/post-content.js",
+      "default": "./dist/public-http/http/site/render/widgets/post-content.js"
+    },
+    "./public-http/http/site/render/widgets/widget-render-contract": {
+      "types": "./dist/public-http/http/site/render/widgets/widget-render-contract.d.ts",
+      "import": "./dist/public-http/http/site/render/widgets/widget-render-contract.js",
+      "default": "./dist/public-http/http/site/render/widgets/widget-render-contract.js"
+    },
     "./navigation/site/menu-html-permission": {
       "types": "./dist/navigation/site/menu-html-permission.d.ts",
       "import": "./dist/navigation/site/menu-html-permission.js",
@@ -2146,6 +2177,11 @@
       "types": "./dist/admin-http/routes/system/site-backups.d.ts",
       "import": "./dist/admin-http/routes/system/site-backups.js",
       "default": "./dist/admin-http/routes/system/site-backups.js"
+    },
+    "./admin-http/routes/system/site-imports": {
+      "types": "./dist/admin-http/routes/system/site-imports.d.ts",
+      "import": "./dist/admin-http/routes/system/site-imports.js",
+      "default": "./dist/admin-http/routes/system/site-imports.js"
     },
     "./admin-http/routes/system/site-shares": {
       "types": "./dist/admin-http/routes/system/site-shares.d.ts",
