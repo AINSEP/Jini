@@ -319,7 +319,6 @@
       "./admin-http/routes/settings/reset": "universal",
       "./admin-http/routes/settings/register-definitions": "universal",
       "./admin-http/routes/system/mail-activity": "universal",
-      "./admin-http/routes/system/publish-credentials/list": "universal",
       "./admin-http/routes/system/publish-credentials/create": "universal",
       "./admin-http/routes/system/publish-credentials/update": "universal",
       "./admin-http/routes/system/publish-credentials/verify": "universal",
@@ -2148,11 +2147,6 @@
       "types": "./dist/admin-http/routes/system/mail-activity.d.ts",
       "import": "./dist/admin-http/routes/system/mail-activity.js",
       "default": "./dist/admin-http/routes/system/mail-activity.js"
-    },
-    "./admin-http/routes/system/publish-credentials/list": {
-      "types": "./dist/admin-http/routes/system/publish-credentials/list.d.ts",
-      "import": "./dist/admin-http/routes/system/publish-credentials/list.js",
-      "default": "./dist/admin-http/routes/system/publish-credentials/list.js"
     },
     "./admin-http/routes/system/publish-credentials/create": {
       "types": "./dist/admin-http/routes/system/publish-credentials/create.d.ts",

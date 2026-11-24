@@ -101,6 +101,10 @@ authorize }, { signal })` returns a web `Response`, written back with every head
 `Set-Cookie` separately) and its body (streamed, and cancelled when the client leaves). `raw.body`
 is whatever the host's per-route parser left (`express.raw` gives a `Buffer`). It mounts with
 `app[method](path)`, never `app.use`, so route-table inventories see one route per spec.
+A raw spec that sets `bufferedReply: true` is not streamed: its whole body is read and answered through
+Express's `res.send(Buffer)`, so it gets `Content-Length`, the host app's ETag (Express's default weak one)
+and a bodiless 304 for a fresh GET/HEAD (`If-None-Match` / `If-Modified-Since`), exactly as a hand-written
+`res.send` route did (`raw-route-buffered.test.ts` compares both on the wire). Without it nothing changes.
 
 See [API.md](https://github.com/AINSEP/Jini/blob/main/packages/http-kit/API.md) for required/optional object contracts. Node runtime, ESM only.
 Apache-2.0; see the repository NOTICE.

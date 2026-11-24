@@ -473,6 +473,12 @@ host resolves `origin` with this package's `./seo` lookup, injects its `toAbsolu
 `resolveHtmlEmbeds`, `resolveSiteTitle`, `resolveSiteTimeZone` and `renderSite`. The host owns the route table, the
 admin-session + `theme.set` gate on the templated route (before the call), and failure reporting, writing
 `templatedPreviewFailureResponse({ errorId })` for a thrown render.
+`./public-http/routes/agent-plugin-surfaces/files` (w4-routes): `createAdminSurfaceFilesRoute<Surface>({ pathPrefix })` is the
+public raw spec (`GET <prefix>/:pluginId/:surfaceId/*`, `requestFacts`, `bufferedReply`) for a plugin admin surface's static
+files. The host mounts it on its public raw mount (with the `requestFacts` port: `raw.facts.clientAddress` is the limiter key)
+and injects `limiter` (`check({ key })`, charged before any lookup), `findSurface({ pluginId, surfaceId })` (its admitted
+surface or `undefined`) and `readSurfaceFile({ surface, path })` (its contained read: `{ ok: true, body, headers }` with the
+isolation headers, or `{ ok: false }`). Every refusal or fault is a plain 404; a limited client gets 429 + `Retry-After`.
 
 `./publish/content`: `normalizePeerBaseUrl({ raw, hasForbiddenRawUrlCharacter })` takes the raw-URL
 character check from the host (Tovu passes `@jini-ai/core/contracts/server/verified-origin`'s), and
