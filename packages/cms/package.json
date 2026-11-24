@@ -185,6 +185,7 @@
       "./forms/site/mail-outbox-readiness": "universal",
       "./forms/destinations/pull": "universal",
       "./forms/destinations/select": "universal",
+      "./forms/destinations/key-store": "universal",
       "./comments/site/comment-targets": "universal",
       "./admin-http/http/forms": "node",
       "./comments/site/ip-hash-salt": "node",
@@ -196,6 +197,7 @@
       "./media/site/hydrate-blob-store-from-seed": "node",
       "./media/site/original-bytes": "node",
       "./media/site/public-path": "node",
+      "./media/site/public-urls": "node",
       "./media/site/upload-content-type": "node",
       "./admin-http/http/menus": "universal",
       "./admin-http/routes/menus/get-by-id": "universal",
@@ -1320,6 +1322,11 @@
       "import": "./dist/forms/destinations/select.js",
       "default": "./dist/forms/destinations/select.js"
     },
+    "./forms/destinations/key-store": {
+      "types": "./dist/forms/destinations/key-store.d.ts",
+      "import": "./dist/forms/destinations/key-store.js",
+      "default": "./dist/forms/destinations/key-store.js"
+    },
     "./comments/site/comment-targets": {
       "types": "./dist/comments/site/comment-targets.d.ts",
       "import": "./dist/comments/site/comment-targets.js",
@@ -1374,6 +1381,11 @@
       "types": "./dist/media/site/public-path.d.ts",
       "import": "./dist/media/site/public-path.js",
       "default": "./dist/media/site/public-path.js"
+    },
+    "./media/site/public-urls": {
+      "types": "./dist/media/site/public-urls.d.ts",
+      "import": "./dist/media/site/public-urls.js",
+      "default": "./dist/media/site/public-urls.js"
     },
     "./media/site/upload-content-type": {
       "types": "./dist/media/site/upload-content-type.d.ts",
