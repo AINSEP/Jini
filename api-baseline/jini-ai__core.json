@@ -1409,7 +1409,7 @@
   "symbols": {
    "AdminWebhookDeliveryResponse": "interface:1f4314d8db",
    "AdminWebhookDeliverySummary": "interface:b654df9045",
-   "AdminWebhookSubscriptionResponse": "interface:0eae22c87c"
+   "AdminWebhookSubscriptionResponse": "interface:5e2f347027"
   }
  },
  "./contracts/site/cms-mail": {
