@@ -217,6 +217,12 @@ catalogue, the preview-refresh signal and the response DTO; one ladder over the 
 or styling error as a flat 400 and a missing row as a flat 404, and rethrows the rest to the host's
 operation-only failure copy.
 
+Site backups (`src/admin-http/routes/system/site-backups.ts`: `siteBackupPlanRoute`, `siteBackupPushRoute`, raw
+specs with `bufferedReply`): the host injects `plan`/`push` (its backup service; `push` bound with
+`PUSH_POLL_WAIT_MS`), `isPublishTrusted({ context })` (a publishing credential answers `403 Forbidden` text),
+`mapBackupError` (the service's known errors as `{ status, body }`, `undefined` for the mount's redacted 500), and
+mounts them with its own plain-text workspace refusal; the no-store / nosniff headers come from the specs.
+
 System mail (`src/admin-http/routes/system/mail-{status,dns,test-send,activity}.ts`, guards in
 `mail-shared.ts`): the host binds every collaborator as a required function-typed dep — the live
 mailer predicate and cached status, the DNS operations, the recipient rules and plan-then-run send,
@@ -583,3 +589,9 @@ host injects the profile builder plus the builder's own section vocabulary and p
 `<script>` (`MEMBER_AUTH_STYLE`/`MEMBER_AUTH_SCRIPT`) before `</body>` when the page has a `data-member-nav`/`data-member-page` hook. The
 host injects `marker`, the one fixed boolean attribute stamped on both elements (its presence is the idempotency check); the engine
 ships no product-branded name. The script talks to the `/api/members/v1/workspaces/:id` routes under `./public-http/routes/members/*`.
+
+`./public-http/http/site/form-presentation-assets`: `formBaselineStyle({ names })` returns the `<style>` baseline every form-rendering widget carries,
+`formRangeReadoutJs({ names })`/`formRangeReadoutScript({ names })` the range-slider value readout. Wiring: the host injects `names`
+(`FormPresentationNames`: `formClass`, `errorClass`, `formAttr`, `errorAttr`, `rangeValueClass`, `rangeMarkerAttr`,
+`dangerFallbackProp`, `successFallbackProp`), the class/attribute/custom-property names its themes already select; the engine ships no
+product-branded name and interpolates each verbatim. `FORM_SUCCESS_CLASS` and `FORM_SLUG_ATTR` are the generic names.

@@ -175,6 +175,7 @@
       "./public-http/middleware/theme-page-preview": "universal",
       "./public-http/http/site/form-validation-i18n": "universal",
       "./public-http/http/site/member-auth-script": "universal",
+      "./public-http/http/site/form-presentation-assets": "universal",
       "./public-http/http/site/render/widgets/placeholder": "universal",
       "./navigation/site/menu-html-permission": "universal",
       "./navigation/site/menu-trash-follow-ups": "universal",
@@ -303,6 +304,7 @@
       "./admin-http/routes/themes/explore-file-copy": "universal",
       "./admin-http/routes/themes/explore-file-rename": "universal",
       "./admin-http/routes/system/mail-status": "universal",
+      "./admin-http/routes/system/site-backups": "universal",
       "./admin-http/routes/system/browser-telemetry": "universal",
       "./admin-http/routes/system/source-control-credentials": "universal",
       "./admin-http/routes/system/mail-dns": "universal",
@@ -375,6 +377,7 @@
       "./admin-http/routes/agent-plugins/files": "universal",
       "./admin-http/routes/agent-plugins/set-enabled": "universal",
       "./admin-http/routes/agent-plugins/memory": "universal",
+      "./admin-http/routes/agent-plugins/install": "universal",
       "./admin-http/http/agent-plugins": "universal",
       "./admin-http/http/change-sets": "universal",
       "./admin-http/routes/external-mcp/list": "universal",
@@ -1429,6 +1432,11 @@
       "import": "./dist/public-http/http/site/member-auth-script.js",
       "default": "./dist/public-http/http/site/member-auth-script.js"
     },
+    "./public-http/http/site/form-presentation-assets": {
+      "types": "./dist/public-http/http/site/form-presentation-assets.d.ts",
+      "import": "./dist/public-http/http/site/form-presentation-assets.js",
+      "default": "./dist/public-http/http/site/form-presentation-assets.js"
+    },
     "./public-http/http/site/render/widgets/placeholder": {
       "types": "./dist/public-http/http/site/render/widgets/placeholder.d.ts",
       "import": "./dist/public-http/http/site/render/widgets/placeholder.js",
@@ -2069,6 +2077,11 @@
       "import": "./dist/admin-http/routes/system/mail-status.js",
       "default": "./dist/admin-http/routes/system/mail-status.js"
     },
+    "./admin-http/routes/system/site-backups": {
+      "types": "./dist/admin-http/routes/system/site-backups.d.ts",
+      "import": "./dist/admin-http/routes/system/site-backups.js",
+      "default": "./dist/admin-http/routes/system/site-backups.js"
+    },
     "./admin-http/routes/system/browser-telemetry": {
       "types": "./dist/admin-http/routes/system/browser-telemetry.d.ts",
       "import": "./dist/admin-http/routes/system/browser-telemetry.js",
@@ -2423,6 +2436,11 @@
       "types": "./dist/admin-http/routes/agent-plugins/memory.d.ts",
       "import": "./dist/admin-http/routes/agent-plugins/memory.js",
       "default": "./dist/admin-http/routes/agent-plugins/memory.js"
+    },
+    "./admin-http/routes/agent-plugins/install": {
+      "types": "./dist/admin-http/routes/agent-plugins/install.d.ts",
+      "import": "./dist/admin-http/routes/agent-plugins/install.js",
+      "default": "./dist/admin-http/routes/agent-plugins/install.js"
     },
     "./admin-http/routes/media/byte-size": {
       "types": "./dist/admin-http/routes/media/byte-size.d.ts",
