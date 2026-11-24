@@ -37,7 +37,8 @@ export const DEFAULT_OUTBOX_DRAIN_INTERVAL_MS = 1000;
  * failure is expected to be a real bug or a short-lived dependency outage, not a slow external
  * endpoint, so this window is far shorter than a webhook worker's ~1-day one.
  *
- * Randomness is always supplied by the host (injectable for deterministic tests).
+ * Source equal-jitter retry formula. Randomness is always supplied by the host.
+ * Injectable for deterministic tests.
  *
  * @throws RangeError for invalid attempts or randomness.
  */
