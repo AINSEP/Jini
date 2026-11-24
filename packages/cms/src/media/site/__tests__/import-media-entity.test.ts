@@ -34,6 +34,7 @@ function makeDeps() {
     clock: { nowIso: () => "2026-09-18T00:00:00.000Z" },
     idGen: { newId: () => `generated-${++n}` },
     sha256: { isValidSha256Hex, bytesMatchSha256 },
+    outwardErrorMessage: ({ error }: { error: Error }) => error.message,
   } satisfies ImportMediaEntityDeps;
 }
 
@@ -75,4 +76,36 @@ test("importMediaEntity checks the staged bytes through the host's injected sha2
   assert.equal(result.status, "blocked");
   assert.equal(result.status === "blocked" ? result.code : undefined, "precondition");
   assert.equal(await deps.mediaRepo.findById({ workspaceId: WORKSPACE_ID, id: "source-asset-1" }), null);
+});
+
+/** Words every classified refusal through the injected port and records which error it was handed. */
+function recordingOutwardPort() {
+  const seen: Error[] = [];
+  return { seen, outwardErrorMessage: ({ error }: { error: Error }) => { seen.push(error); return `outward:${error.constructor.name}`; } };
+}
+
+test("importMediaEntity words a write-once source refusal through the host's outward error port", async () => {
+  // Stored error text never leaves engine code raw: the host decides what a caller may read.
+  const port = recordingOutwardPort();
+  const deps = { ...makeDeps(), outwardErrorMessage: port.outwardErrorMessage,
+    sha256: { isValidSha256Hex: () => true, bytesMatchSha256: () => true } };
+  await importMediaEntity({ deps, input: { workspaceId: WORKSPACE_ID, record: makeRecord(),
+    bytes: HELLO_BYTES, blobCreatedByPrincipal: "importer-1", baseVersion: null } });
+  const result = await importMediaEntity({ deps, input: { workspaceId: WORKSPACE_ID,
+    record: makeRecord({ source: { sha256: "a".repeat(64) } }), bytes: HELLO_BYTES, blobCreatedByPrincipal: "importer-1", baseVersion: 1 } });
+  assert.deepEqual(result, { status: "blocked", code: "precondition", reason: "outward:MediaSourceImmutableError" });
+  assert.equal(port.seen.length, 1);
+});
+
+test("importMediaEntity words a reviewed-replacement refusal through the host's outward error port", async () => {
+  const port = recordingOutwardPort();
+  const deps = { ...makeDeps(), outwardErrorMessage: port.outwardErrorMessage,
+    sha256: { isValidSha256Hex: () => true, bytesMatchSha256: () => true } };
+  await importMediaEntity({ deps, input: { workspaceId: WORKSPACE_ID, record: makeRecord(),
+    bytes: HELLO_BYTES, blobCreatedByPrincipal: "importer-1", baseVersion: null } });
+  const result = await importMediaEntity({ deps, input: { workspaceId: WORKSPACE_ID,
+    record: makeRecord({ source: { sha256: "a".repeat(64) } }), bytes: HELLO_BYTES, blobCreatedByPrincipal: "importer-1",
+    baseVersion: 1, sourceReplacement: { version: 1, sourceSha256: HELLO_SHA256 } } });
+  assert.equal(port.seen.length, 1);
+  assert.deepEqual(result, { status: "blocked", code: "precondition", reason: `outward:${port.seen[0]?.constructor.name}` });
 });

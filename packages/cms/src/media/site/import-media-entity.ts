@@ -1,6 +1,7 @@
 
 import { MediaConflictError, MediaSourceImmutableError, resolveWriteOnceSource, replaceMediaFile, MediaValidationError, sniffContentType, MAX_DOCUMENT_BYTES as HOST_MAX_UPLOAD_BYTES } from "../index.js";
 import type { AssetBlobRecord, AssetBlobRepoPort, BlobStorePort, MediaRecord, VersionedMediaRepoPort } from "../index.js";
+import type { OutwardErrorMessage } from "../../admin-http/http/outward-error-message.js";
 
 /** The reviewed source a replace-on-import may overwrite (publish-content's precheck refusal carries it). */
 interface MediaSourceReplacement {
@@ -90,6 +91,10 @@ export interface ImportMediaEntityDeps {
     isValidSha256Hex(required: { value: string }): boolean;
     bytesMatchSha256(required: { bytes: Uint8Array; claimedSha256: string }): boolean;
   };
+  /** Words a classified media error (write-once source, validation, slug conflict) for a refusal's
+   *  `reason`. This module keeps the classification (status, code); the host decides what a caller
+   *  may read, so stored error text never leaves engine code raw. */
+  readonly outwardErrorMessage: OutwardErrorMessage;
 }
 
 export interface ImportMediaEntityInput {
@@ -283,7 +288,10 @@ function basisRefusal(
  *
  * @complexity O(1).
  */
-function writeOnceSource({ record, existingById }: { record: MediaRecord; existingById: MediaRecord | null }, _options = {}): { source: MediaRecord["source"] } | ImportRefusal {
+function writeOnceSource(
+  { record, existingById, outwardErrorMessage }: { record: MediaRecord; existingById: MediaRecord | null; outwardErrorMessage: OutwardErrorMessage },
+  _options = {}
+): { source: MediaRecord["source"] } | ImportRefusal {
   try {
     const checked = resolveWriteOnceSource({ existing: existingById?.source, requestedSha256: record.source.sha256 });
     // The guard owns hash immutability; the import must also retain hashed source metadata.
@@ -291,7 +299,7 @@ function writeOnceSource({ record, existingById }: { record: MediaRecord; existi
     return { source: { ...(existingById?.source ?? record.source), ...checked } };
   } catch (error) {
     if (error instanceof MediaSourceImmutableError) {
-      return { status: "blocked", code: "precondition", reason: error.message };
+      return { status: "blocked", code: "precondition", reason: outwardErrorMessage({ error }) };
     }
     throw error;
   }
@@ -379,7 +387,7 @@ export async function importMediaEntity(required: {
     return replaceImportedMedia({ deps, input, existing: existingById, bytes: checked.bytes });
   }
 
-  const resolved = writeOnceSource({ record, existingById });
+  const resolved = writeOnceSource({ record, existingById, outwardErrorMessage: deps.outwardErrorMessage });
   if (!("source" in resolved)) return resolved;
 
   const blobWritten = await ensureAssetBlob({ deps, input, bytes: checked.bytes });
@@ -417,13 +425,18 @@ async function replaceImportedMedia({ deps, input, existing, bytes }: {
     return saved ? { status: "imported", id: existing.id, blobWritten }
       : { status: "conflict", reason: "The live file changed during replacement. Plan publishing again." };
   } catch (error) {
-    return importedMediaReplacementError(error);
+    return importedMediaReplacementError({ error, outwardErrorMessage: deps.outwardErrorMessage });
   }
 }
 
-function importedMediaReplacementError(error: unknown): ImportMediaEntityResult {
-  if (error instanceof MediaValidationError) return { status: "blocked", code: "precondition", reason: error.message };
-  if (error instanceof MediaConflictError) return { status: "blocked", code: "slug-taken", reason: error.message };
+/** Classifies a replacement failure; the host's outward port words the refusal's reason.
+ * @throws Any failure other than a validation or slug conflict, unchanged. @complexity O(1). */
+function importedMediaReplacementError(
+  { error, outwardErrorMessage }: { error: unknown; outwardErrorMessage: OutwardErrorMessage },
+  _options = {}
+): ImportMediaEntityResult {
+  if (error instanceof MediaValidationError) return { status: "blocked", code: "precondition", reason: outwardErrorMessage({ error }) };
+  if (error instanceof MediaConflictError) return { status: "blocked", code: "slug-taken", reason: outwardErrorMessage({ error }) };
   throw error;
 }
 
