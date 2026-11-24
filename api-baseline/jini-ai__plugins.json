@@ -426,6 +426,13 @@
    "createInstallToolCatalog": "function:fb198fe2fa"
   }
  },
+ "./runtime/lower-tool-access": {
+  "types": "./dist/runtime/lower-tool-access.d.ts",
+  "symbols": {
+   "NotifyToolAccessChanged": "type:5eacbbd7df",
+   "lowerPluginToolAccess": "function:34f0808570"
+  }
+ },
  "./runtime/plugin-export": {
   "types": "./dist/runtime/plugin-export.d.ts",
   "symbols": {
@@ -460,6 +467,20 @@
    "restartNote": "function:a5d82f4070",
    "retryInstallHint": "variable:de703b90cc",
    "updatePendingNextStep": "function:30595055b7"
+  }
+ },
+ "./runtime/sdk-resolver": {
+  "types": "./dist/runtime/sdk-resolver.d.ts",
+  "symbols": {
+   "PluginSdkResolverAlreadyRegisteredError": "class:06876bcd61",
+   "registerPluginSdkResolver": "function:b9e0456369"
+  }
+ },
+ "./runtime/service-ports": {
+  "types": "./dist/runtime/service-ports.d.ts",
+  "symbols": {
+   "PluginPostReadPort": "interface:1726da2d09",
+   "PluginProviderFacesPort": "interface:bed5230290"
   }
  },
  "./runtime/source-tool-catalog": {

@@ -468,7 +468,7 @@
    "MailerSendRequired": "type:48be93753b",
    "MailerSendResult": "type:8d2dc3dc5b",
    "NON_DELIVERING_MAIL_DRIVERS": "variable:fc78efedaa",
-   "OutboundEmail": "interface:b13b8d318e",
+   "OutboundEmail": "interface:22459fb92f",
    "PluginMailHttpClient": "interface:ee979068d5",
    "PositionalMailer": "interface:7ada489e87",
    "PreparedSenderEmail": "interface:635ea94f0b",

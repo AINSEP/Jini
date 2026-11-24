@@ -112,6 +112,16 @@
    "waitForHostedSignIn": "function:8594374a85"
   }
  },
+ "./api-connections/form-delivery-connection": {
+  "types": "./dist/api-connections/form-delivery-connection.d.ts",
+  "symbols": {
+   "OAuthFormDeliveryConnectionPort": "type:52d254ee61",
+   "OAuthFormDeliveryCredential": "type:56cd4f90a4",
+   "OAuthFormDeliveryErrorFactory": "type:4330af9b89",
+   "OAuthFormDeliveryHost": "type:b52c918618",
+   "createOAuthFormDeliveryConnectionPort": "function:adb1a4ad5c"
+  }
+ },
  "./api-connections/hosted-mcp": {
   "types": "./dist/api-connections/hosted-mcp/index.d.ts",
   "symbols": {
@@ -131,6 +141,17 @@
    "createDeviceAuthorizationStore": "function:379f0fd6de",
    "createHostedMcpSignInService": "function:9c8ff751ca",
    "createSharedExternalMcpOAuth": "function:3b7881a53b"
+  }
+ },
+ "./api-connections/shared-api": {
+  "types": "./dist/api-connections/shared-api.d.ts",
+  "symbols": {
+   "SharedApiConnectionDeps": "interface:4312aa95f5",
+   "SharedApiKeyAttachments": "interface:3f67841143",
+   "SharedApiOwnerStorage": "interface:60f6e0166e",
+   "SharedApiSiteBindings": "interface:e1597d27dd",
+   "SharedApiTransaction": "type:7d5b125b17",
+   "createSharedApiConnections": "function:58f2d92ba6"
   }
  },
  "./credentialed-http": {
@@ -244,6 +265,75 @@
    "createCredentialCopyRegistrations": "function:5772277235",
    "createCredentialSaveHandlers": "function:f8aef419b9",
    "createCredentialToolRegistrations": "function:66922d093f"
+  }
+ },
+ "./custom-credentials/agent-tools": {
+  "types": "./dist/custom-credentials/agent-tools.d.ts",
+  "symbols": {
+   "CustomCredentialsAgentToolCopy": "interface:3e3e740ea1",
+   "CustomCredentialsAgentToolIds": "interface:6dd12ba1b3",
+   "buildCustomCredentialsAgentToolCatalog": "function:69bc6df15b"
+  }
+ },
+ "./custom-credentials/card-token": {
+  "types": "./dist/custom-credentials/card-token.d.ts",
+  "symbols": {
+   "TOKEN_PASTE_AGAIN_MESSAGE": "variable:c9fa914e3f",
+   "cleanCardToken": "function:dcbb909498"
+  }
+ },
+ "./custom-credentials/credential-ports": {
+  "types": "./dist/custom-credentials/credential-ports.d.ts",
+  "symbols": {
+   "CredentialedRequestHostOperations": "interface:553fe1343b",
+   "EgressRefusedErrorClass": "interface:ef7be72a61",
+   "bindCredentialedRequestPort": "function:7169deef02",
+   "classifyCredentialedRequestError": "function:ee5ad47855"
+  }
+ },
+ "./custom-credentials/credential-recovery": {
+  "types": "./dist/custom-credentials/credential-recovery.d.ts",
+  "symbols": {
+   "CredentialSetupFailure": "interface:d64d76548d",
+   "IssueCredentialSetup": "type:f527109660",
+   "withCustomCredentialSetup": "function:116cd2f341"
+  }
+ },
+ "./custom-credentials/credentialed-request": {
+  "types": "./dist/custom-credentials/credentialed-request.d.ts",
+  "symbols": {
+   "CustomCredentialRequestHost": "interface:bdc1828072",
+   "CustomCredentialRequestHostDeps": "interface:51ec7188da",
+   "CustomCredentialRequestInput": "type:efdfc53cff",
+   "CustomCredentialRequestOperations": "interface:9e4014ea4b",
+   "bindCustomCredentialRequestOperations": "function:6289b1d6a0"
+  }
+ },
+ "./custom-credentials/custom-credential-create-ui": {
+  "types": "./dist/custom-credentials/custom-credential-create-ui.d.ts",
+  "symbols": {
+   "CreateCredentialPrefill": "interface:a915cf341c",
+   "SuggestWorksFor": "type:e9c6905eff",
+   "buildCreateForm": "function:1bd419c978",
+   "buildCreateOutcome": "function:e06b35392e"
+  }
+ },
+ "./custom-credentials/custom-credential-set-token-ui": {
+  "types": "./dist/custom-credentials/custom-credential-set-token-ui.d.ts",
+  "symbols": {
+   "setTokenForm": "function:0daf306ea3",
+   "setTokenOutcome": "function:5917e5cbc8"
+  }
+ },
+ "./custom-credentials/provider-settings-card": {
+  "types": "./dist/custom-credentials/provider-settings-card.d.ts",
+  "symbols": {
+   "ProviderSettingsCardIdentity": "interface:d36de3c7a4",
+   "ProviderSettingsCardPorts": "interface:7d20406eb8",
+   "ProviderSettingsSaveResult": "type:773f2fcacf",
+   "buildProviderSettingsCredentialHandler": "function:41fc2f72bd",
+   "buildProviderSettingsForm": "function:66eff209ba",
+   "readProviderSettingsValues": "function:269166b63c"
   }
  },
  "./media-providers": {
@@ -495,6 +585,16 @@
   "types": "./dist/vendor-credentials/abort-guarded-repo.d.ts",
   "symbols": {
    "abortGuardedCredentialRepo": "function:38c11efb44"
+  }
+ },
+ "./vendor-credentials/project-scope": {
+  "types": "./dist/vendor-credentials/project-scope.d.ts",
+  "symbols": {
+   "CredentialProjectHalf": "interface:724cd7c019",
+   "CredentialScope": "type:6831ffe922",
+   "ScopedCredentialDeps": "interface:c82b39ed04",
+   "credentialCreateTarget": "function:78df0c6acb",
+   "credentialScopes": "function:08399a70cb"
   }
  },
  "./web-screenshot/capture-files": {
