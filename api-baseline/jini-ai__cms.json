@@ -131,6 +131,12 @@
    "createPluginHookErrorEnvelope": "function:3e49122acc"
   }
  },
+ "./admin-http/http/posts": {
+  "types": "./dist/admin-http/http/posts.d.ts",
+  "symbols": {
+   "toAdminPostResponse": "function:c589545dfa"
+  }
+ },
  "./admin-http/http/publish-content": {
   "types": "./dist/admin-http/http/publish-content.d.ts",
   "symbols": {
@@ -728,6 +734,32 @@
    "ExternalMcpToolApprovalsLister": "type:6a0875e5b8",
    "externalMcpToolApprovalRevokeRoute": "variable:f1f6c3bf41",
    "externalMcpToolApprovalsListRoute": "variable:e14be8baba"
+  }
+ },
+ "./admin-http/routes/forms/authoring": {
+  "types": "./dist/admin-http/routes/forms/authoring.d.ts",
+  "symbols": {
+   "FormsAuthoringDefinitionFn": "type:222fa4d599",
+   "FormsAuthoringInput": "interface:8c8868c986",
+   "FormsAuthoringRouteDeps": "interface:5c8956dad0",
+   "formsAuthoringRoute": "variable:7094190d1e"
+  }
+ },
+ "./admin-http/routes/forms/create": {
+  "types": "./dist/admin-http/routes/forms/create.d.ts",
+  "symbols": {
+   "FormsCreateDefinitionFn": "type:4851a439d6",
+   "FormsCreateFields": "type:b5cd401219",
+   "FormsCreateInput": "interface:3dd04bbcc3",
+   "FormsCreateRouteDeps": "interface:d393877913",
+   "formsCreateRoute": "variable:3405b5170c"
+  }
+ },
+ "./admin-http/routes/forms/delete-submission": {
+  "types": "./dist/admin-http/routes/forms/delete-submission.d.ts",
+  "symbols": {
+   "FormsDeleteSubmissionRouteDeps": "interface:00c6725d49",
+   "formsDeleteSubmissionRoute": "variable:0f5f4a64f6"
   }
  },
  "./admin-http/routes/forms/get-by-id": {
@@ -2372,6 +2404,30 @@
   "symbols": {
    "TaxonomyListRouteDeps": "interface:724d3fbec1",
    "taxonomyListRoute": "variable:9cfb99bc07"
+  }
+ },
+ "./admin-http/routes/taxonomy/merge-confirm": {
+  "types": "./dist/admin-http/routes/taxonomy/merge-confirm.d.ts",
+  "symbols": {
+   "TaxonomyMergeConfirmOutput": "interface:e75d4c3c03",
+   "TaxonomyMergeConfirmRouteDeps": "interface:f0ea81952d",
+   "taxonomyMergeConfirmRoute": "variable:f7004ebfc0"
+  }
+ },
+ "./admin-http/routes/taxonomy/merge-execute": {
+  "types": "./dist/admin-http/routes/taxonomy/merge-execute.d.ts",
+  "symbols": {
+   "TaxonomyMergeExecuteOutput": "interface:38bf3191fd",
+   "TaxonomyMergeExecuteRouteDeps": "interface:307df051b4",
+   "taxonomyMergeExecuteRoute": "variable:4cc47be5c3"
+  }
+ },
+ "./admin-http/routes/taxonomy/merge-plan": {
+  "types": "./dist/admin-http/routes/taxonomy/merge-plan.d.ts",
+  "symbols": {
+   "TaxonomyMergePlanOutput": "interface:7d39ad9951",
+   "TaxonomyMergePlanRouteDeps": "interface:af523feaea",
+   "taxonomyMergePlanRoute": "variable:facc0aec6b"
   }
  },
  "./admin-http/routes/taxonomy/rename-term": {
@@ -5090,6 +5146,19 @@
    "SqlPresentationSettingsRepo": "class:566b906dff"
   }
  },
+ "./public-http/http/content/posts": {
+  "types": "./dist/public-http/http/content/posts.d.ts",
+  "symbols": {
+   "toContentPostResponse": "function:89c988647f"
+  }
+ },
+ "./public-http/http/shared/post": {
+  "types": "./dist/public-http/http/shared/post.d.ts",
+  "symbols": {
+   "toHeadlessContentPost": "function:f685d7782f",
+   "toHeadlessPost": "function:28f4473961"
+  }
+ },
  "./public-http/http/site/form-label-inspection": {
   "types": "./dist/public-http/http/site/form-label-inspection.d.ts",
   "symbols": {
@@ -5121,6 +5190,22 @@
    "injectMemberAuthScript": "function:2222eea51a",
    "memberAuthScript": "function:7224228e8c",
    "memberAuthStyle": "function:977ea57fc7"
+  }
+ },
+ "./public-http/http/site/render-context": {
+  "types": "./dist/public-http/http/site/render-context.d.ts",
+  "symbols": {
+   "SiteProduct": "interface:ba63182a4d",
+   "SiteRenderContext": "interface:b68088e2e0"
+  }
+ },
+ "./public-http/http/site/render/components/layout": {
+  "types": "./dist/public-http/http/site/render/components/layout.d.ts",
+  "symbols": {
+   "siteFooter": "function:dfda9235a7",
+   "siteFooterRich": "function:bae3495ee7",
+   "siteHeader": "function:2244a3eac2",
+   "siteNav": "function:c8e58f8dcc"
   }
  },
  "./public-http/http/site/render/contact-form-widget": {
@@ -5240,6 +5325,12 @@
    "ToAbsoluteUrl": "type:ce7090157e",
    "canonicalSiteHostRedirectLocation": "function:2d0ff34c7c",
    "isCanonicalSiteHostCandidate": "function:2960496220"
+  }
+ },
+ "./public-http/middleware/public-page-security-headers": {
+  "types": "./dist/public-http/middleware/public-page-security-headers.d.ts",
+  "symbols": {
+   "createPublicPageSecurityHeaderSet": "function:58ce0e052e"
   }
  },
  "./public-http/middleware/render-theme-override": {
@@ -5430,6 +5521,20 @@
    "publishTrustSessionRoute": "variable:ffdf59f428"
   }
  },
+ "./public-http/routes/site/feed": {
+  "types": "./dist/public-http/routes/site/feed.d.ts",
+  "symbols": {
+   "FeedRouteDeps": "interface:abd7d42608",
+   "feedRoute": "variable:5e221c5972"
+  }
+ },
+ "./public-http/routes/site/llms": {
+  "types": "./dist/public-http/routes/site/llms.d.ts",
+  "symbols": {
+   "LlmsTxtRouteDeps": "interface:9ccf63c3b2",
+   "llmsTxtRoute": "variable:4c3b844503"
+  }
+ },
  "./public-http/routes/site/pages/listing/listing-state": {
   "types": "./dist/public-http/routes/site/pages/listing/listing-state.d.ts",
   "symbols": {
@@ -5469,6 +5574,45 @@
    "resolveStaticMenusForIds": "function:59025d13ad"
   }
  },
+ "./public-http/routes/site/pages/render-context/taxonomy": {
+  "types": "./dist/public-http/routes/site/pages/render-context/taxonomy.d.ts",
+  "symbols": {
+   "placeAfterCurrentContent": "function:c57a13901e",
+   "resolveAssignedTermsForRender": "function:372e853e18"
+  }
+ },
+ "./public-http/routes/site/product-checkout": {
+  "types": "./dist/public-http/routes/site/product-checkout.d.ts",
+  "symbols": {
+   "ProductCheckoutReadiness": "interface:d75e14374b",
+   "appendProductCheckout": "function:3aee5e3b9d",
+   "productCheckoutWhenReady": "function:54e014f5c7"
+  }
+ },
+ "./public-http/routes/site/robots": {
+  "types": "./dist/public-http/routes/site/robots.d.ts",
+  "symbols": {
+   "RobotsRouteDeps": "interface:3e5fdb1055",
+   "RobotsSeoDeps": "type:da028cb1be",
+   "robotsRoute": "variable:b6a8c222c7"
+  }
+ },
+ "./public-http/routes/site/seo-route-shared": {
+  "types": "./dist/public-http/routes/site/seo-route-shared.d.ts",
+  "symbols": {
+   "PublicSeoRawRoute": "interface:d2a2e80b80",
+   "servingOriginOf": "function:37711ddfba",
+   "textDocument": "function:8957b32e4d",
+   "withServingOrigin": "function:8413e44313"
+  }
+ },
+ "./public-http/routes/site/sitemap": {
+  "types": "./dist/public-http/routes/site/sitemap.d.ts",
+  "symbols": {
+   "SitemapRouteDeps": "interface:515f358359",
+   "sitemapRoute": "variable:62dc524fe1"
+  }
+ },
  "./publish/content/agent-tools": {
   "types": "./dist/publish/content/agent-tools.d.ts",
   "symbols": {
@@ -5483,6 +5627,16 @@
    "publishContentAgentToolCatalog": "variable:88fa91e2ce"
   }
  },
+ "./publish/content/apply-failure": {
+  "types": "./dist/publish/content/apply-failure.d.ts",
+  "symbols": {
+   "ApplyRowResult": "type:1851047d4e",
+   "PluginHookFailure": "type:fc1eba157a",
+   "downgradeOrRethrow": "function:cb64e460d6",
+   "downgradedRow": "function:00fb8e31e4",
+   "withRefusedItem": "function:634dd374a5"
+  }
+ },
  "./publish/content/apply-retire": {
   "types": "./dist/publish/content/apply-retire.d.ts",
   "symbols": {
@@ -5495,10 +5649,59 @@
    "applyRetiringRow": "function:4286e10aea"
   }
  },
+ "./publish/content/apply-row": {
+  "types": "./dist/publish/content/apply-row.d.ts",
+  "symbols": {
+   "ApplyRowContext": "interface:4b1fae7ad1",
+   "ApplyRowStep": "interface:ca0d90a506",
+   "InspectedRow": "type:21754f8625",
+   "RetiringRowStep": "type:e675535ef3",
+   "applyOrdinaryRow": "function:fe3b97f319",
+   "applyRetiringRow": "function:31f939a237",
+   "checkAgreement": "function:085cfb89d3",
+   "checkExistence": "function:091e953d83",
+   "refreshBaseline": "function:e2df84c637",
+   "refreshNonWritingRow": "function:e7932119af"
+  }
+ },
+ "./publish/content/apply-run": {
+  "types": "./dist/publish/content/apply-run.d.ts",
+  "symbols": {
+   "ApplyRun": "interface:5b20110c7a",
+   "ApplyRunIdentity": "interface:2c6eb49c0b",
+   "CreatePublishContentApplyPortInput": "interface:fa46e7fed8",
+   "RunProgress": "interface:1802141911",
+   "currentChangeSetIds": "function:a14180c5cc",
+   "currentReport": "function:67d61bac84",
+   "currentRetiredChangeSetIds": "function:a0a75b8b2f",
+   "runItemStates": "function:0148863653",
+   "saveRunRecord": "function:cb40a4c605",
+   "saveRunSnapshot": "function:f85db2b066"
+  }
+ },
+ "./publish/content/backstop-preview": {
+  "types": "./dist/publish/content/backstop-preview.d.ts",
+  "symbols": {
+   "BackstopPreview": "interface:4e2b0c2181",
+   "buildBackstopPreview": "function:06fd61fb9b"
+  }
+ },
  "./publish/content/backstop-refusal": {
   "types": "./dist/publish/content/backstop-refusal.d.ts",
   "symbols": {
-   "BackstopRefusal": "class:0c0ac2bded"
+   "BackstopRefusal": "class:0c0ac2bded",
+   "RawBackstopPolicy": "interface:471442848e",
+   "RawFilePolicy": "interface:2119345985"
+  }
+ },
+ "./publish/content/backstop-service": {
+  "types": "./dist/publish/content/backstop-service.d.ts",
+  "symbols": {
+   "BACKSTOP_FORBIDDEN": "variable:e5ed687a0e",
+   "BackstopService": "interface:d4c9a36a69",
+   "BackstopServicePolicy": "interface:31ab908a51",
+   "createBackstopService": "function:963fde144d",
+   "mayUseBackstop": "function:b65a39a036"
   }
  },
  "./publish/content/baseline-repo": {
@@ -5526,11 +5729,41 @@
    "contentHash": "function:95236fcf18"
   }
  },
+ "./publish/content/content-references": {
+  "types": "./dist/publish/content/content-references.d.ts",
+  "symbols": {
+   "collectBodyReferences": "function:c4ed5f5f57",
+   "collectPlacementReferences": "function:cf889ad259"
+  }
+ },
  "./publish/content/execute-import": {
   "types": "./dist/publish/content/execute-import.d.ts",
   "symbols": {
    "RestorePointUnavailableError": "class:5cb98f6ead",
    "executePublishContentImport": "function:a58877de3f"
+  }
+ },
+ "./publish/content/export-bundle": {
+  "types": "./dist/publish/content/export-bundle.d.ts",
+  "symbols": {
+   "PackAuthorizedEntitiesDeps": "interface:644ec753e5",
+   "PublishContentAuthorize": "type:acf26ee996",
+   "PublishContentExportEnvelope": "interface:e595c501ee",
+   "ReferenceHandlers": "type:8791f8f5ec",
+   "ReferencedEntityInclusion": "interface:cf1bf85c13",
+   "applyPublishScope": "function:82c6b73cfe",
+   "buildExportBundle": "function:227d2e4070",
+   "collectSkippedEntities": "function:584ee7896b",
+   "includeReferencedEntities": "function:5af62f1d1b",
+   "packAuthorizedEntities": "function:c970c2e13d",
+   "packHandlerEntities": "function:1d62979ad6",
+   "selectBundleEntities": "function:148f5f5b80"
+  }
+ },
+ "./publish/content/idempotency": {
+  "types": "./dist/publish/content/idempotency.d.ts",
+  "symbols": {
+   "publishContentItemIdempotencyKey": "function:0a159e8108"
   }
  },
  "./publish/content/live-site-policy": {
@@ -5573,6 +5806,26 @@
    "PublishContentPeerValidationError": "class:b66d1cb3f1"
   }
  },
+ "./publish/content/plan-rows": {
+  "types": "./dist/publish/content/plan-rows.d.ts",
+  "symbols": {
+   "BaselineRecord": "interface:a70af54f9e",
+   "PublishContentBundle": "interface:2ac0875ed5",
+   "PublishContentOutcomeKind": "type:bc3eb16b14",
+   "PublishContentOutcomeRow": "interface:cb3a17dd5e",
+   "PublishContentReport": "interface:f49d0ea719",
+   "entityDisplayLabel": "function:d4545ae1e1",
+   "entityKey": "function:9bcb6a99a1",
+   "packedEntityLabel": "function:0fa4e383de"
+  }
+ },
+ "./publish/content/planner": {
+  "types": "./dist/publish/content/planner.d.ts",
+  "symbols": {
+   "PlanImportDeps": "interface:c39676eff8",
+   "planImport": "function:209d9af113"
+  }
+ },
  "./publish/content/precheck-reasons": {
   "types": "./dist/publish/content/precheck-reasons.d.ts",
   "symbols": {
@@ -5584,6 +5837,13 @@
    "notWired": "function:07df0df0ef",
    "tombstonedAtDestination": "function:d82eafd6d8",
    "trashedAtDestination": "function:f41067234c"
+  }
+ },
+ "./publish/content/publish-backstop-file": {
+  "types": "./dist/publish/content/publish-backstop-file.d.ts",
+  "symbols": {
+   "BackstopFilesystem": "type:fc9f264dba",
+   "createRawFileSitePort": "function:9a84fe0fcd"
   }
  },
  "./publish/content/publish-ports": {
@@ -5602,6 +5862,27 @@
    "PublishReadinessVerdict": "type:a00971cf4c",
    "describePublishReadiness": "function:2bdc9e420d",
    "siteLabelFor": "function:cfa3bbe22e"
+  }
+ },
+ "./publish/content/repo-handler": {
+  "types": "./dist/publish/content/repo-handler.d.ts",
+  "symbols": {
+   "FieldDisposition": "type:9a2243b9d8",
+   "RepoPublishTypeConfig": "interface:2916b906f6",
+   "RepoWriteContext": "interface:0690c9626a",
+   "RepoWriteResult": "interface:5b9cde3c44",
+   "createRepoPublishHandler": "function:2ccc577301",
+   "gatewayDeps": "function:7e5e4b8f19",
+   "okOrThrow": "function:65fae29ed3"
+  }
+ },
+ "./publish/content/report-labels": {
+  "types": "./dist/publish/content/report-labels.d.ts",
+  "symbols": {
+   "appendSkippedRowsToPeerPlan": "function:5cc8af66f8",
+   "keepChangingIncludedEntities": "function:1f75c0e653",
+   "labelPeerPlanRows": "function:abf8df9595",
+   "tagTrashingRows": "function:d1a164f4fa"
   }
  },
  "./publish/content/run-repo": {
@@ -7031,6 +7312,12 @@
    "applicableThemeTemplates": "function:448ee9bec0",
    "parseTemplateFor": "function:e32e31dc73",
    "rejectTemplateFor": "function:8fd4ea8a1f"
+  }
+ },
+ "./themes/theme-slots": {
+  "types": "./dist/themes/theme-slots.d.ts",
+  "symbols": {
+   "DEFAULT_THEME_SLOTS": "variable:0994d58123"
   }
  },
  "./themes/token-aliases": {

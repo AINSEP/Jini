@@ -1205,7 +1205,7 @@
    "RouteInputContext": "interface:c6b8e27c78",
    "RouteMatch": "type:2d41b49165",
    "RouteReply": "interface:c05c291056",
-   "RouteRequestFacts": "interface:9d2a3d9c32",
+   "RouteRequestFacts": "interface:34ed01a31c",
    "RouteTable": "interface:5351d2527c",
    "RouteTableOptions": "interface:d2e60237c4",
    "SameOriginPolicyPort": "interface:7ab05d8a4f",
@@ -2884,6 +2884,12 @@
    "deriveDuplicateName": "function:2a93611bd7"
   }
  },
+ "./native-approval-memory": {
+  "types": "./dist/native-approval-memory.d.ts",
+  "symbols": {
+   "createNativeApprovalMemory": "function:734cdd3d56"
+  }
+ },
  "./net": {
   "types": "./dist/net/index.d.ts",
   "symbols": {
@@ -2921,6 +2927,12 @@
    "createObjectStoreRegistry": "function:7d9a19ebc0",
    "deferObjectStore": "function:9a4cfd9470",
    "objectStoreProviderFault": "function:6e8d3a4546"
+  }
+ },
+ "./operator-locale": {
+  "types": "./dist/operator-locale.d.ts",
+  "symbols": {
+   "resolveOperatorLocale": "function:9c93967702"
   }
  },
  "./optimistic-concurrency": {
@@ -3263,6 +3275,12 @@
    "missingArgumentGuidance": "function:6e67772d50"
   }
  },
+ "./tool-metadata/agent-plugins": {
+  "types": "./dist/tool-metadata/agent-plugins.d.ts",
+  "symbols": {
+   "createAgentPluginsToolMetadata": "function:b07e908a48"
+  }
+ },
  "./tool-metadata/analytics": {
   "types": "./dist/tool-metadata/analytics.d.ts",
   "symbols": {
@@ -3273,6 +3291,18 @@
   "types": "./dist/tool-metadata/change-sets.d.ts",
   "symbols": {
    "toolMetadata": "variable:ba47d00346"
+  }
+ },
+ "./tool-metadata/comments": {
+  "types": "./dist/tool-metadata/comments.d.ts",
+  "symbols": {
+   "toolMetadata": "variable:09f2cab45d"
+  }
+ },
+ "./tool-metadata/commerce": {
+  "types": "./dist/tool-metadata/commerce.d.ts",
+  "symbols": {
+   "toolMetadata": "variable:dc0b3a68b3"
   }
  },
  "./tool-metadata/consent": {
@@ -3291,6 +3321,12 @@
   "types": "./dist/tool-metadata/content-types.d.ts",
   "symbols": {
    "toolMetadata": "variable:74576ceb2a"
+  }
+ },
+ "./tool-metadata/custom-credentials": {
+  "types": "./dist/tool-metadata/custom-credentials.d.ts",
+  "symbols": {
+   "toolMetadata": "variable:f6add15e4c"
   }
  },
  "./tool-metadata/database": {
@@ -3353,6 +3389,18 @@
    "toolMetadata": "variable:a2cfdfe9ba"
   }
  },
+ "./tool-metadata/frontend-control": {
+  "types": "./dist/tool-metadata/frontend-control.d.ts",
+  "symbols": {
+   "toolMetadata": "variable:34bac24382"
+  }
+ },
+ "./tool-metadata/fs-files": {
+  "types": "./dist/tool-metadata/fs-files.d.ts",
+  "symbols": {
+   "toolMetadata": "variable:83c9b4e8d8"
+  }
+ },
  "./tool-metadata/identity": {
   "types": "./dist/tool-metadata/identity.d.ts",
   "symbols": {
@@ -3375,6 +3423,12 @@
   "types": "./dist/tool-metadata/media.d.ts",
   "symbols": {
    "toolMetadata": "variable:e7966c9270"
+  }
+ },
+ "./tool-metadata/media-generation": {
+  "types": "./dist/tool-metadata/media-generation.d.ts",
+  "symbols": {
+   "toolMetadata": "variable:77ca98b0bf"
   }
  },
  "./tool-metadata/media-import": {
@@ -3413,10 +3467,46 @@
    "toolMetadata": "variable:6636a3b125"
   }
  },
+ "./tool-metadata/permanent-delete": {
+  "types": "./dist/tool-metadata/permanent-delete.d.ts",
+  "symbols": {
+   "toolMetadata": "variable:ad60648e21"
+  }
+ },
+ "./tool-metadata/plugin-runtime": {
+  "types": "./dist/tool-metadata/plugin-runtime.d.ts",
+  "symbols": {
+   "createPluginRuntimeToolMetadata": "function:fa3f0aca82"
+  }
+ },
  "./tool-metadata/post": {
   "types": "./dist/tool-metadata/post.d.ts",
   "symbols": {
    "toolMetadata": "variable:3c29710a1a"
+  }
+ },
+ "./tool-metadata/recovery": {
+  "types": "./dist/tool-metadata/recovery.d.ts",
+  "symbols": {
+   "toolMetadata": "variable:b5b2f2df0f"
+  }
+ },
+ "./tool-metadata/redirects": {
+  "types": "./dist/tool-metadata/redirects.d.ts",
+  "symbols": {
+   "toolMetadata": "variable:0135e81c16"
+  }
+ },
+ "./tool-metadata/search": {
+  "types": "./dist/tool-metadata/search.d.ts",
+  "symbols": {
+   "toolMetadata": "variable:14cee660d9"
+  }
+ },
+ "./tool-metadata/seo": {
+  "types": "./dist/tool-metadata/seo.d.ts",
+  "symbols": {
+   "toolMetadata": "variable:6f15fa5416"
   }
  },
  "./tool-metadata/server-logs": {
@@ -3425,10 +3515,40 @@
    "toolMetadata": "variable:aae9f5a60f"
   }
  },
+ "./tool-metadata/settings": {
+  "types": "./dist/tool-metadata/settings.d.ts",
+  "symbols": {
+   "toolMetadata": "variable:038284e1c4"
+  }
+ },
  "./tool-metadata/site-backup": {
   "types": "./dist/tool-metadata/site-backup.d.ts",
   "symbols": {
    "createSiteBackupToolMetadata": "function:5dafe8faf8"
+  }
+ },
+ "./tool-metadata/site-evidence": {
+  "types": "./dist/tool-metadata/site-evidence.d.ts",
+  "symbols": {
+   "toolMetadata": "variable:7ea0283768"
+  }
+ },
+ "./tool-metadata/site-guide": {
+  "types": "./dist/tool-metadata/site-guide.d.ts",
+  "symbols": {
+   "createSiteGuideToolMetadata": "function:4781aac646"
+  }
+ },
+ "./tool-metadata/site-inspection": {
+  "types": "./dist/tool-metadata/site-inspection.d.ts",
+  "symbols": {
+   "toolMetadata": "variable:818f929a60"
+  }
+ },
+ "./tool-metadata/sites": {
+  "types": "./dist/tool-metadata/sites.d.ts",
+  "symbols": {
+   "toolMetadata": "variable:f76f31622a"
   }
  },
  "./tool-metadata/skills": {
@@ -3441,6 +3561,42 @@
   "types": "./dist/tool-metadata/source-control.d.ts",
   "symbols": {
    "toolMetadata": "variable:7dd3d42eff"
+  }
+ },
+ "./tool-metadata/trash": {
+  "types": "./dist/tool-metadata/trash.d.ts",
+  "symbols": {
+   "toolMetadata": "variable:9bca0bbde8"
+  }
+ },
+ "./tool-metadata/visitor-tools": {
+  "types": "./dist/tool-metadata/visitor-tools.d.ts",
+  "symbols": {
+   "toolMetadata": "variable:ba9c01bcf4"
+  }
+ },
+ "./tool-metadata/web": {
+  "types": "./dist/tool-metadata/web.d.ts",
+  "symbols": {
+   "toolMetadata": "variable:d2b6d3d3b1"
+  }
+ },
+ "./tool-metadata/web-screenshot": {
+  "types": "./dist/tool-metadata/web-screenshot.d.ts",
+  "symbols": {
+   "toolMetadata": "variable:94005d6d74"
+  }
+ },
+ "./tool-metadata/webhooks": {
+  "types": "./dist/tool-metadata/webhooks.d.ts",
+  "symbols": {
+   "toolMetadata": "variable:215df294ed"
+  }
+ },
+ "./tool-metadata/widgets": {
+  "types": "./dist/tool-metadata/widgets.d.ts",
+  "symbols": {
+   "toolMetadata": "variable:4953529b7b"
   }
  },
  "./tool-metadata/workspace": {
