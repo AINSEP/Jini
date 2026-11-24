@@ -10,3 +10,9 @@ Generic plugin-host pieces extracted from a site host. Everything product-specif
 - `deploy-split-activation.ts` (`./site/deploy-split-activation`): the host injects `activations`
   (its lifecycle owner's activation calls) and runs it before bundled seeding.
 - `admin-surfaces/` (`./site/admin-surfaces/*`): see that folder's README.
+- `customize-tool.ts` (`./site/customize-tool`): the host injects `lifecycle` (its lifecycle owner's
+  `listInstalledPlugins`, `readBundledAgentPluginDigests`, `preferBundledAgentPluginDigests`,
+  `maxAgentPluginInstallArchiveBytes`) on the existing args object; the host keeps the tool definition and
+  its model-facing copy, and calls this from its install tool after authorization.
+- `activation-effects.ts` (`./site/activation-effects`): the host injects `resolveAgentPluginActivation`
+  (its lifecycle owner's activation resolution, so all writers share one queue) next to `workspaceRoot`.

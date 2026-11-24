@@ -109,7 +109,10 @@
       "./site/memory-i18n": "universal",
       "./site/admin-surfaces/public-config": "universal",
       "./site/deploy-split-activation": "universal",
-      "./site/retired-plugin-tool-aliases": "universal"
+      "./site/retired-plugin-tool-aliases": "universal",
+      "./site/admin-surfaces/handlers": "universal",
+      "./site/customize-tool": "node",
+      "./site/activation-effects": "node"
     },
     "isolation": {
       "entries": {
@@ -120,7 +123,8 @@
         "./connect/plugin-host": "lifecycle",
         "./site/admin-surfaces/capabilities": "admin-surfaces",
         "./site/admin-surfaces/forms": "admin-surfaces",
-        "./site/admin-surfaces/public-config": "admin-surfaces"
+        "./site/admin-surfaces/public-config": "admin-surfaces",
+        "./site/admin-surfaces/handlers": "admin-surfaces"
       },
       "shared": [
         "core/persistent-state.js",
@@ -326,6 +330,21 @@
       "types": "./dist/site/retired-plugin-tool-aliases.d.ts",
       "import": "./dist/site/retired-plugin-tool-aliases.js",
       "default": "./dist/site/retired-plugin-tool-aliases.js"
+    },
+    "./site/admin-surfaces/handlers": {
+      "types": "./dist/site/admin-surfaces/handlers.d.ts",
+      "import": "./dist/site/admin-surfaces/handlers.js",
+      "default": "./dist/site/admin-surfaces/handlers.js"
+    },
+    "./site/customize-tool": {
+      "types": "./dist/site/customize-tool.d.ts",
+      "import": "./dist/site/customize-tool.js",
+      "default": "./dist/site/customize-tool.js"
+    },
+    "./site/activation-effects": {
+      "types": "./dist/site/activation-effects.d.ts",
+      "import": "./dist/site/activation-effects.js",
+      "default": "./dist/site/activation-effects.js"
     }
   },
   "files": [

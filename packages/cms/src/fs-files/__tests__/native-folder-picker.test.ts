@@ -45,7 +45,7 @@ test("chosenFolderPath strips the trailing newline and a POSIX trailing slash, a
 
 test("pick runs the fixed argv with a timeout and returns the chosen path", async () => {
   const exec = fakeExec({ stdout: "/tmp/picked/\n" });
-  const picker = createNativeFolderPicker({}, { platform: "darwin", env: {}, exists: everyFileExists, execFile: exec.execFile });
+  const picker = createNativeFolderPicker({ env: {} }, { platform: "darwin", exists: everyFileExists, execFile: exec.execFile });
   assert.equal(picker.available, true);
   assert.equal(await picker.pick(), "/tmp/picked");
   assert.equal(exec.calls.length, 1);
@@ -61,21 +61,21 @@ test("a user cancel or a timed-out dialog is a null pick, never an error", async
   ] as const;
   for (const { platform, failure } of cancels) {
     const exec = fakeExec({ failure });
-    const picker = createNativeFolderPicker({}, { platform, env: { DISPLAY: ":0" }, exists: everyFileExists, execFile: exec.execFile });
+    const picker = createNativeFolderPicker({ env: { DISPLAY: ":0" } }, { platform, exists: everyFileExists, execFile: exec.execFile });
     assert.equal(await picker.pick(), null, `${platform} ${JSON.stringify(failure)}`);
   }
-  const windowsCancel = createNativeFolderPicker({}, { platform: "win32", env: {}, exists: everyFileExists, execFile: fakeExec({ stdout: "" }).execFile });
+  const windowsCancel = createNativeFolderPicker({ env: {} }, { platform: "win32", exists: everyFileExists, execFile: fakeExec({ stdout: "" }).execFile });
   assert.equal(await windowsCancel.pick(), null);
 });
 
 test("any other chooser failure is thrown, and a machine with no chooser is unavailable", async () => {
-  const notCancel = createNativeFolderPicker({}, { platform: "darwin", env: {}, exists: everyFileExists,
+  const notCancel = createNativeFolderPicker({ env: {} }, { platform: "darwin", exists: everyFileExists,
     execFile: fakeExec({ failure: { code: 1, stderr: "execution error: Not authorized (-1743)" } }).execFile });
   await assert.rejects(notCancel.pick(), /exec failed/);
-  const missing = createNativeFolderPicker({}, { platform: "darwin", env: {}, exists: everyFileExists,
+  const missing = createNativeFolderPicker({ env: {} }, { platform: "darwin", exists: everyFileExists,
     execFile: fakeExec({ failure: { code: "ENOENT" } }).execFile });
   await assert.rejects(missing.pick(), /exec failed/);
-  const none = createNativeFolderPicker({}, { platform: "linux", env: {}, exists: everyFileExists, execFile: fakeExec({}).execFile });
+  const none = createNativeFolderPicker({ env: {} }, { platform: "linux", exists: everyFileExists, execFile: fakeExec({}).execFile });
   assert.equal(none.available, false);
   await assert.rejects(none.pick(), /no native folder chooser/);
 });

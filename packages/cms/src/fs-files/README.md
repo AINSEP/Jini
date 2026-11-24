@@ -7,7 +7,8 @@ through `execFile` with a fixed absolute binary and fixed argv. Node-only entry
 
 ## Wiring
 
-The host injects nothing required. Optional test seams on `createNativeFolderPicker({}, optional)`:
-`platform`, `env`, `exists`, `execFile`. The admission rule ("own machine only") belongs to the
+The host injects its environment map as `required.env` (`createNativeFolderPicker({ env }, optional)`;
+only a declared process entry may read `process.env`). Optional test seams: `platform`, `exists`,
+`execFile`. The admission rule ("own machine only") belongs to the
 host route that calls `pick()`; this module only knows how to show the dialog. A host creates it once
 where it mounts its admin system routes and hands it to its folder-picker route.

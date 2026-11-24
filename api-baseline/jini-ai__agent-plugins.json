@@ -945,12 +945,24 @@
    "createSurfaceForms": "function:3b2ed81311"
   }
  },
+ "./site/admin-surfaces/handlers": {
+  "types": "./dist/site/admin-surfaces/handlers.d.ts",
+  "symbols": {
+   "AgentPluginAdminSurfaceHandlers": "interface:780f56f356",
+   "LoadAdminSurfaceHandlers": "type:9e0bf0aed9",
+   "createAgentPluginAdminSurfaceHandlers": "function:e983921cdf"
+  }
+ },
  "./site/admin-surfaces/public-config": {
   "types": "./dist/site/admin-surfaces/public-config.d.ts",
   "symbols": {
    "PUBLIC_CONFIG_REFUSED_MESSAGE": "variable:0636d7b9a0",
    "createAdminSurfacePublicConfig": "function:1e7cee417e"
   }
+ },
+ "./site/customize-tool": {
+  "types": null,
+  "symbols": {}
  },
  "./site/deploy-split-activation": {
   "types": "./dist/site/deploy-split-activation.d.ts",

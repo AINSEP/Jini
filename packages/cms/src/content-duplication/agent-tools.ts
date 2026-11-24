@@ -27,7 +27,14 @@ export type AgentToolSideEffect = "none" | "mutates-durable-state" | "deletes-du
 
 export type AgentToolDefinition = SharedAgentToolDefinition;
 
-export const contentDuplicationAgentToolCatalog: AgentToolDefinition[] = [
+/**
+ * Builds the `content_duplicate` catalog. The host injects `readToolName` — the name of its own
+ * read tool (whose `<name>.content_post` / `.form_definition` / `.media_asset` members return the
+ * source ids) — so this description never hard-codes a host tool name.
+ * @complexity O(1).
+ */
+export function buildContentDuplicationAgentToolCatalog({ readToolName }: { readToolName: string }, _optional: Record<string, never> = {}): AgentToolDefinition[] {
+  return [
   {
     name: "content_duplicate",
     description:
@@ -38,8 +45,8 @@ export const contentDuplicationAgentToolCatalog: AgentToolDefinition[] = [
       "resource names WHICH kind of thing to copy — currently 'post', 'page', 'form', or 'media'. An unrecognized " +
       "resource is rejected with the exact list of resources this workspace currently supports; if what you need " +
       "is not on that list, this tool cannot copy it yet and no spelling of it will work. " +
-      "id is the source resource's own id (for post/page, as returned by content_read.content_post; for " +
-      "form, as returned by content_read.form_definition; for media, as returned by content_read.media_asset — a media slug " +
+      `id is the source resource's own id (for post/page, as returned by ${readToolName}.content_post; for ` +
+      `form, as returned by ${readToolName}.form_definition; for media, as returned by ${readToolName}.media_asset — a media slug ` +
       "works there too). " +
       "overrides carries optional fields for the copy — title, slug, status — and not every resource type honors " +
       "every field; a resource rejects an override it cannot honor rather than ignoring it. " +
@@ -102,3 +109,4 @@ export const contentDuplicationAgentToolCatalog: AgentToolDefinition[] = [
     },
   },
 ];
+}

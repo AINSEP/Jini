@@ -1251,7 +1251,7 @@
   "symbols": {
    "AgentToolDefinition": "type:192671f78a",
    "AgentToolSideEffect": "type:1baebbfbe6",
-   "contentDuplicationAgentToolCatalog": "variable:18cabe7dd9"
+   "buildContentDuplicationAgentToolCatalog": "function:258bdb1f27"
   }
  },
  "./content-duplication/derive-available-name": {
@@ -1992,7 +1992,7 @@
    "FolderChooserCommand": "interface:b82ce1fb06",
    "NativeFolderPicker": "interface:c796a05e02",
    "chosenFolderPath": "function:099a26a37f",
-   "createNativeFolderPicker": "function:b02ec7a0db",
+   "createNativeFolderPicker": "function:ac10abe7e4",
    "folderChooserCommand": "function:e8143fb3a9"
   }
  },
