@@ -449,6 +449,7 @@
  "./deploy/site/export-run": {
   "types": "./dist/deploy/site/export-run.d.ts",
   "symbols": {
+   "DescribeExportError": "type:7a7dd222c7",
    "ExportEngine": "type:6fca04723b",
    "ExportRunCounts": "interface:9466f113a8",
    "ExportRunDiagnostics": "type:e16939cf74",
@@ -457,7 +458,7 @@
    "ExportRunStatus": "type:40a5c173f5",
    "ExportRunner": "interface:865f74cc58",
    "StartExportRunOptions": "interface:f28372fa4b",
-   "createExportRunner": "function:26ede1445e"
+   "createExportRunner": "function:8a5b9725bb"
   }
  },
  "./deploy/site/publish-credentials/account-label-heal-scheduler": {

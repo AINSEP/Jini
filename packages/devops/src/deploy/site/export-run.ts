@@ -160,7 +160,10 @@ function summarizeCompletedReport(report: ExportRunReportLike): ExportRunDiagnos
  * @returns Closures over the instance's slot; safe to destructure.
  * @complexity O(1).
  */
-export function createExportRunner(_required: Record<string, never>, _optional: Record<string, never> = {}): ExportRunner {
+/** Turns a failed run's caught value into the text the errored snapshot stores (host-owned wording). */
+export type DescribeExportError = (required: { error: unknown }) => string;
+
+export function createExportRunner({ describeError }: { describeError: DescribeExportError }, _optional: Record<string, never> = {}): ExportRunner {
   /** The idle snapshot this runner reports before its first run. */
   const IDLE_RUN: ExportRunSnapshot = { status: "idle", startedAtIso: null, finishedAtIso: null, outputDir: null };
   /** The instance's mutable slot — every operation below reads and writes this one value. */
@@ -233,7 +236,7 @@ export function createExportRunner(_required: Record<string, never>, _optional: 
           startedAtIso,
           finishedAtIso: nowIso({ clock: routeDeps.clock }),
           outputDir,
-          error: err instanceof Error ? err.message : String(err),
+          error: describeError({ error: err }),
         };
       })
       .finally(() => {

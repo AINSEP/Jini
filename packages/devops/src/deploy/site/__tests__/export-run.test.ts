@@ -1,6 +1,7 @@
 import { existsSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { createExportRunner, type ExportRunReportLike } from "../export-run.js";
+const DESCRIBE = { describeError: ({ error }: { error: unknown }) => (error instanceof Error ? error.message : String(error)) };
 
 /** The single-flight contract: one runner = one slot shared by the export route, the trigger tool
  *  and the read-only diagnostic. Cases mirror the host's pin, run here against the factory. */
@@ -14,7 +15,7 @@ const alreadyRunning = expect.objectContaining({ code: "ALREADY_RUNNING", messag
 
 describe("createExportRunner", () => {
   it("starts idle, reports running immediately and settles to a completed snapshot with failure detail", async () => {
-    const runner = createExportRunner({});
+    const runner = createExportRunner(DESCRIBE);
     expect(runner.getExportRunSnapshot()).toEqual({ status: "idle", startedAtIso: null, finishedAtIso: null, outputDir: null });
     let resolve!: (value: ExportRunReportLike) => void;
     const calls: unknown[] = [];
@@ -32,7 +33,7 @@ describe("createExportRunner", () => {
   });
 
   it("records a rejected export as errored with its message and tells the settle hook and tracker", async () => {
-    const runner = createExportRunner({});
+    const runner = createExportRunner(DESCRIBE);
     const settled: unknown[] = [];
     const captured: unknown[] = [];
     const tracker = { capture: async (...args: unknown[]) => { captured.push(args); } };
@@ -44,7 +45,7 @@ describe("createExportRunner", () => {
   });
 
   it("refuses a trigger and a diagnostic while a run is in flight, then frees the slot", async () => {
-    const runner = createExportRunner({});
+    const runner = createExportRunner(DESCRIBE);
     let resolve!: (value: ExportRunReportLike) => void;
     runner.startExportRun({ routeDeps: deps(), runExportSite: () => new Promise((done) => { resolve = done; }), clean: false });
     let engineCalls = 0;
@@ -58,7 +59,7 @@ describe("createExportRunner", () => {
   });
 
   it("a diagnostic reserves the slot, removes its temp output and restores the prior snapshot, even on failure", async () => {
-    const runner = createExportRunner({});
+    const runner = createExportRunner(DESCRIBE);
     const before = runner.getExportRunSnapshot();
     let outputDir = "";
     let refusedDuring = false;
@@ -78,11 +79,17 @@ describe("createExportRunner", () => {
   });
 
   it("two runners own independent slots", () => {
-    const first = createExportRunner({});
-    const second = createExportRunner({});
+    const first = createExportRunner(DESCRIBE);
+    const second = createExportRunner(DESCRIBE);
     first.startExportRun({ routeDeps: deps(), runExportSite: () => new Promise(() => {}), clean: false });
     expect(() => first.assertExportNotRunning({})).toThrow(alreadyRunning);
     expect(() => second.assertExportNotRunning({})).not.toThrow();
     expect(second.getExportRunSnapshot().status).toBe("idle");
+  });
+  it("an errored run stores the host-described text, not the raw caught value", async () => {
+    const runner = createExportRunner({ describeError: ({ error }) => `described: ${(error as Error).message}` });
+    runner.startExportRun({ routeDeps: deps(), runExportSite: async () => { throw new Error("disk full"); }, clean: false });
+    await tick(); await tick();
+    expect(runner.getExportRunSnapshot()).toMatchObject({ status: "errored", error: "described: disk full" });
   });
 });
