@@ -1,7 +1,7 @@
 import { fireEvent, render, screen, within } from '../../../../../__tests__/ui-kit-render-support.js';
 import { describe, expect, it, vi } from 'vitest';
 import { ByokProviderForm } from '../../../react/components/ByokProviderForm.js';
-import type { ByokConfig, ProviderPreset } from '../../../types.js';
+import type { ByokConfig, ProviderPreset } from '@jini-ai/core/contracts/execution';
 
 /**
  * @file The two opt-in host layout props added for Tovu's Visitor AI key step (2026-10-09):

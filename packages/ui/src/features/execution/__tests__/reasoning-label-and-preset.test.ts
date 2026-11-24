@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { CUSTOM_PRESET_ID } from '../constants.js';
 import { customPreset, modelIdForReasoningLevel, presetsForProtocol, reasoningModelGroups } from '../rules.js';
-import type { AgentModelOption } from '../types.js';
+import type { AgentModelOption } from '@jini-ai/core/contracts/execution';
 
 const LEVELS: readonly AgentModelOption[] = [
   { id: 'high', label: 'High' },

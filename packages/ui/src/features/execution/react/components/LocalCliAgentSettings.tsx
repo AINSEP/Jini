@@ -1,13 +1,13 @@
 import { agentHandleProps, agentSubHandle } from '@jini-ai/core/agent-handles';
 import { useT } from '../../../i18n/index.js';
 import { CUSTOM_MODEL_SENTINEL } from '../../constants.js';
-import type { AgentCliEnvFieldSpec, DetectedAgent, LocalCliConfig } from '../../types.js';
+import type { AgentCliEnvFieldSpec, ExecutionCardAgent, LocalCliConfig } from '@jini-ai/core/contracts/execution';
 import type { UseLocalCliAgentCardResult } from '../hooks/useLocalCliAgentCard.js';
 import { AgentCliEnvFields } from './AgentCliEnvFields.js';
 import { SearchableModelSelect } from './SearchableModelSelect.js';
 
 export interface LocalCliAgentSettingsProps {
-  agent: DetectedAgent;
+  agent: ExecutionCardAgent;
   config: LocalCliConfig;
   card: UseLocalCliAgentCardResult;
   cliEnvFields: readonly AgentCliEnvFieldSpec[];

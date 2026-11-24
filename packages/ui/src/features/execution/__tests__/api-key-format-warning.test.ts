@@ -6,7 +6,7 @@ import {
   MIN_PLAUSIBLE_API_KEY_LENGTH,
 } from '../constants.js';
 import { apiKeyFormatWarning, missingRequiredFields, resolveSelectedPreset } from '../rules.js';
-import type { ByokConfig, ProviderPreset } from '../types.js';
+import type { ByokConfig, ProviderPreset } from '@jini-ai/core/contracts/execution';
 
 /**
  * @file `apiKeyFormatWarning` as a rule, plus the three properties that make it safe to ship: it

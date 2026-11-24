@@ -2,7 +2,7 @@ import type { CSSProperties, ReactNode } from 'react';
 import { agentHandleProps, agentSubHandle } from '@jini-ai/core/agent-handles';
 import { useT } from '../../../i18n/index.js';
 import { DEFAULT_AGENT_CLI_ENV_FIELDS } from '../../constants.js';
-import type { ExecutionPort } from '../../ports.js';
+import type { AgentCliEnvFieldSpec, ExecutionCardAgent, ExecutionConfig, ExecutionMode, ExecutionPort, ProviderPreset } from '@jini-ai/core/contracts/execution';
 import {
   nextConfigForAgentCliEnvChange,
   nextConfigForAgentModel,
@@ -10,13 +10,6 @@ import {
   nextConfigForAgentSelect,
   selectedAgentModel,
 } from '../../rules.js';
-import type {
-  AgentCliEnvFieldSpec,
-  DetectedAgent,
-  ExecutionConfig,
-  ExecutionMode,
-  ProviderPreset,
-} from '../../types.js';
 import type { useExecutionTab } from '../hooks/useExecutionTab.js';
 import { useByokPane, useExecutionTabView } from './ExecutionTab.hooks.js';
 import { ByokProviderForm } from './ByokProviderForm.js';
@@ -39,7 +32,7 @@ export interface ExecutionTabProps {
   localCliUnavailableReason?: string;
   /** Rendered in each agent card's icon slot — vendor marks are the host's to
    *  supply, since this package ships no logo set. */
-  renderAgentIcon?: (agent: DetectedAgent) => ReactNode;
+  renderAgentIcon?: (agent: ExecutionCardAgent) => ReactNode;
   /** Where local-CLI detection actually runs, in the host's words. See
    *  `LocalCliAgentListProps.scopeLabel` — a hosted deployment must not tell
    *  the operator these are the CLIs "on this machine". */

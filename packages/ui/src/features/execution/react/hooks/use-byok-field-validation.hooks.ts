@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { isBaseUrlInvalid, missingRequiredFields } from '../../rules.js';
-import type { ByokConfig, ProviderPreset } from '../../types.js';
+import type { ByokConfig, ProviderPreset } from '@jini-ai/core/contracts/execution';
 
 type Field = 'apiKey' | 'baseUrl' | 'model';
 

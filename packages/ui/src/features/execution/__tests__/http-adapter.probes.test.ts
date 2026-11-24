@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { createExecutionHttpAdapter, type ExecutionProbeTransport } from '../http-adapter.js';
-import type { ByokConfig } from '../types.js';
+import type { ByokConfig } from '@jini-ai/core/contracts/execution';
 
 const config: ByokConfig = { protocol: 'openai', providerId: null, baseUrl: 'https://example.test', apiKey: '', model: 'model' };
 

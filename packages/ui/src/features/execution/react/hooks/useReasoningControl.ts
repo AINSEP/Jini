@@ -12,13 +12,13 @@ import {
 } from '../../rules.js';
 import type {
   AgentModelOption,
-  DetectedAgent,
+  ExecutionCardAgent,
   LocalCliConfig,
   ReasoningModelGroup,
-} from '../../types.js';
+} from '@jini-ai/core/contracts/execution';
 
 export interface UseReasoningControlOptions {
-  agent: DetectedAgent;
+  agent: ExecutionCardAgent;
   config: LocalCliConfig;
   explicitCustomMode?: boolean | undefined;
   /**
@@ -104,12 +104,12 @@ export interface UseReasoningControlResult {
  */
 export function useReasoningControl(options: UseReasoningControlOptions): UseReasoningControlResult;
 export function useReasoningControl(
-  agent: DetectedAgent,
+  agent: ExecutionCardAgent,
   config: LocalCliConfig,
   explicitCustomMode?: boolean,
 ): UseReasoningControlResult;
 export function useReasoningControl(
-  optionsOrAgent: UseReasoningControlOptions | DetectedAgent,
+  optionsOrAgent: UseReasoningControlOptions | ExecutionCardAgent,
   maybeConfig?: LocalCliConfig,
   maybeExplicitCustomMode = false,
 ): UseReasoningControlResult {
@@ -211,13 +211,13 @@ export function useReasoningControl(
 /** The two call shapes (options object, or the older positional `agent, config, explicitCustomMode`)
  *  as one options object. */
 function reasoningControlOptions(
-  optionsOrAgent: UseReasoningControlOptions | DetectedAgent,
+  optionsOrAgent: UseReasoningControlOptions | ExecutionCardAgent,
   maybeConfig: LocalCliConfig | undefined,
   maybeExplicitCustomMode = false,
 ): UseReasoningControlOptions {
   if ('agent' in optionsOrAgent && 'config' in optionsOrAgent) return optionsOrAgent;
   return {
-    agent: optionsOrAgent as DetectedAgent,
+    agent: optionsOrAgent as ExecutionCardAgent,
     config: maybeConfig!,
     explicitCustomMode: maybeExplicitCustomMode ?? false,
   };
@@ -243,7 +243,7 @@ function reasoningControlOptions(
  *                            rejects one), so a fixed dropdown would offer ids the CLI refuses.
  */
 function suffixReasoning({ agent, models, resolvedModel }: {
-  agent: DetectedAgent;
+  agent: ExecutionCardAgent;
   models: readonly AgentModelOption[];
   resolvedModel: string;
 }) {
@@ -282,7 +282,7 @@ function effortOptions({ flatReasoningOptions, activeGroup, models, resolvedMode
 /** The value the reasoning select renders: the persisted / derived pick, or the first offered level
  *  when that pick is not among the options. */
 function effortValue({ agent, config, flatReasoningOptions, activeLevel, reasoningOptions }: {
-  agent: DetectedAgent;
+  agent: ExecutionCardAgent;
   config: LocalCliConfig;
   flatReasoningOptions: readonly AgentModelOption[];
   activeLevel: string | null;
@@ -305,7 +305,7 @@ function effortValue({ agent, config, flatReasoningOptions, activeLevel, reasoni
 /** Whether the agent's persisted flat-reasoning pick names a level the current options no longer
  *  offer, so the hook should ask the host to clear it. */
 function isStaleReasoningPick({ agent, config, flatReasoningOptions, reasoningOptions }: {
-  agent: DetectedAgent;
+  agent: ExecutionCardAgent;
   config: LocalCliConfig;
   flatReasoningOptions: readonly AgentModelOption[];
   reasoningOptions: readonly AgentModelOption[];
@@ -336,7 +336,7 @@ function modelSelectValue({ customActive, modelGroups, activeGroup, models, reso
 
 /** Whether this agent takes a free-text model id at all, and whether the free-text box is open now. */
 function customModelState({ agent, modelGroups, models, resolvedModel, explicitCustomMode }: {
-  agent: DetectedAgent;
+  agent: ExecutionCardAgent;
   modelGroups: readonly ReasoningModelGroup[] | null;
   models: readonly AgentModelOption[];
   resolvedModel: string;

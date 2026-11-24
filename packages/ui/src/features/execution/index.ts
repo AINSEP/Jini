@@ -11,7 +11,6 @@ export {
   PROTOCOL_OPTIONS,
 } from './constants.js';
 export { createFakeExecutionPort, type FakeExecutionPortOptions } from './dependencies.js';
-export type { ExecutionPort } from './ports.js';
 export {
   agentCliEnvValue,
   agentDiagnosticTooltip,
@@ -53,35 +52,6 @@ export {
   partitionAgentsByInstalled,
   splitReasoningModelId,
 } from './rules.js';
-export type {
-  AgentAuthStatus,
-  AgentCliEnvFieldSpec,
-  AgentDiagnostic,
-  AgentDiagnosticReason,
-  AgentDiagnosticSeverity,
-  AgentExecutableRepair,
-  AgentExecutableSource,
-  AgentFixIntent,
-  AgentModelOption,
-  AgentModelSource,
-  AgentScanState,
-  ApiKeyWarning,
-  AgentSupportsCustomModel,
-  AgentTestState,
-  ApiProtocol,
-  ByokConfig,
-  ByokProviderCredentials,
-  ByokRequiredField,
-  ConnectionTestState,
-  DetectedAgent,
-  ExecutionConfig,
-  ExecutionMode,
-  LocalCliConfig,
-  ModelDiscoveryState,
-  ProviderPreset,
-  ProviderPresetKind,
-  ReasoningModelGroup,
-} from './types.js';
 
 export { ExecutionTab } from './react/components/ExecutionTab.js';
 export type { ExecutionTabProps } from './react/components/ExecutionTab.js';

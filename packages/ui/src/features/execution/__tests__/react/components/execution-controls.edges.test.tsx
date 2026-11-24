@@ -5,7 +5,7 @@ import { ProviderChipGroup } from '../../../react/components/ProviderChipGroup.j
 import { SearchableModelSelect } from '../../../react/components/SearchableModelSelect.js';
 import { useByokFieldValidation } from '../../../react/hooks/use-byok-field-validation.hooks.js';
 import { useLocalCliAgentCard } from '../../../react/hooks/useLocalCliAgentCard.js';
-import type { ByokConfig, DetectedAgent } from '../../../types.js';
+import type { ByokConfig, ExecutionCardAgent } from '@jini-ai/core/contracts/execution';
 
 describe('ProviderChipGroup', () => {
   it('renders no labelled row at all when the catalog half it was given is empty', () => {
@@ -49,7 +49,7 @@ describe('useByokFieldValidation', () => {
 
 describe('useLocalCliAgentCard', () => {
   it('clears a persisted effort the agent no longer offers, scoped to that agent', () => {
-    const agent: DetectedAgent = { id: 'local', label: 'Local CLI', installed: true, reasoningOptions: [{ id: 'high', label: 'High' }] };
+    const agent: ExecutionCardAgent = { id: 'local', label: 'Local CLI', installed: true, reasoningOptions: [{ id: 'high', label: 'High' }] };
     const onReasoningChange = vi.fn<(agentId: string, reasoning: string) => void>();
     renderHook(() => useLocalCliAgentCard({
       agent, config: { agentId: 'local', reasoningByAgentId: { local: 'medium' } }, agentTest: { status: 'idle' },

@@ -67,6 +67,11 @@
       "./forms/conformance": "universal",
       "./comments": "universal",
       "./comments/react": "browser",
+      "./comments/react/comments-i18n/comments-row-menu-i18n": "universal",
+      "./comments/react/comments-i18n/comments-queue-i18n": "universal",
+      "./comments/react/comments-i18n/comments-settings-i18n": "universal",
+      "./comments/react/comments-i18n/comments-hooks-i18n": "universal",
+      "./comments/react/comments-i18n/create-comments-dictionary": "universal",
       "./comments/adapters/http": "universal",
       "./comments/adapters/memory": "universal",
       "./comments/conformance": "universal",
@@ -82,6 +87,12 @@
       "./seo/conformance": "universal",
       "./widgets": "universal",
       "./widgets/react": "browser",
+      "./widgets/react/widgets-i18n/widgets-regions-i18n": "universal",
+      "./widgets/react/widgets-i18n/widgets-library-i18n": "universal",
+      "./widgets/react/widgets-i18n/widgets-editors-i18n": "universal",
+      "./widgets/react/widgets-i18n/widgets-hooks-i18n": "universal",
+      "./widgets/react/widgets-i18n/widgets-preview-i18n": "universal",
+      "./widgets/react/widgets-i18n/create-widgets-dictionary": "universal",
       "./widgets/adapters/http": "universal",
       "./widgets/adapters/memory": "universal",
       "./widgets/conformance": "universal",
@@ -219,6 +230,13 @@
       "./screens/forms/index-aligned-translations": "universal",
       "./screens/forms/forms-field-settings-i18n": "universal",
       "./screens/forms/forms-leave-guard-i18n": "universal",
+      "./screens/forms/forms-editor-chrome-i18n": "universal",
+      "./screens/forms/forms-list-i18n": "universal",
+      "./screens/forms/forms-field-editor-i18n": "universal",
+      "./screens/forms/forms-submissions-i18n": "universal",
+      "./screens/forms/forms-editor-i18n": "universal",
+      "./screens/forms/forms-attributes-explainer-i18n": "universal",
+      "./screens/forms/create-forms-dictionary": "universal",
       "./screens/menus/api/menus-api.types": "universal",
       "./screens/menus/api/menus-api": "universal",
       "./screens/widgets/api/widgets-api.types": "universal",
@@ -252,7 +270,13 @@
       "./screens/media/hooks/use-media-card-metadata.hooks": "browser",
       "./screens/media/grid-size": "universal",
       "./screens/media/hooks/use-media-grid-size.hooks": "browser",
-      "./screens/media/hooks/use-media-card-details.hooks": "browser"
+      "./screens/media/hooks/use-media-card-details.hooks": "browser",
+      "./screens/taxonomy/taxonomy-i18n/taxonomy-screen-i18n": "universal",
+      "./screens/taxonomy/taxonomy-i18n/taxonomy-merge-i18n": "universal",
+      "./screens/taxonomy/taxonomy-i18n/taxonomy-detail-i18n": "universal",
+      "./screens/taxonomy/taxonomy-i18n/taxonomy-hooks-i18n": "universal",
+      "./screens/taxonomy/taxonomy-i18n/taxonomy-term-picker-i18n": "universal",
+      "./screens/taxonomy/taxonomy-i18n/create-taxonomy-dictionary": "universal"
     },
     "isolation": {
       "shared": [
@@ -606,6 +630,31 @@
       "import": "./dist/comments/react/index.js",
       "default": "./dist/comments/react/index.js"
     },
+    "./comments/react/comments-i18n/comments-row-menu-i18n": {
+      "types": "./dist/comments/react/comments-i18n/comments-row-menu-i18n.d.ts",
+      "import": "./dist/comments/react/comments-i18n/comments-row-menu-i18n.js",
+      "default": "./dist/comments/react/comments-i18n/comments-row-menu-i18n.js"
+    },
+    "./comments/react/comments-i18n/comments-queue-i18n": {
+      "types": "./dist/comments/react/comments-i18n/comments-queue-i18n.d.ts",
+      "import": "./dist/comments/react/comments-i18n/comments-queue-i18n.js",
+      "default": "./dist/comments/react/comments-i18n/comments-queue-i18n.js"
+    },
+    "./comments/react/comments-i18n/comments-settings-i18n": {
+      "types": "./dist/comments/react/comments-i18n/comments-settings-i18n.d.ts",
+      "import": "./dist/comments/react/comments-i18n/comments-settings-i18n.js",
+      "default": "./dist/comments/react/comments-i18n/comments-settings-i18n.js"
+    },
+    "./comments/react/comments-i18n/comments-hooks-i18n": {
+      "types": "./dist/comments/react/comments-i18n/comments-hooks-i18n.d.ts",
+      "import": "./dist/comments/react/comments-i18n/comments-hooks-i18n.js",
+      "default": "./dist/comments/react/comments-i18n/comments-hooks-i18n.js"
+    },
+    "./comments/react/comments-i18n/create-comments-dictionary": {
+      "types": "./dist/comments/react/comments-i18n/create-comments-dictionary.d.ts",
+      "import": "./dist/comments/react/comments-i18n/create-comments-dictionary.js",
+      "default": "./dist/comments/react/comments-i18n/create-comments-dictionary.js"
+    },
     "./comments/adapters/http": {
       "types": "./dist/comments/adapters/http.d.ts",
       "import": "./dist/comments/adapters/http.js",
@@ -680,6 +729,36 @@
       "types": "./dist/widgets/react/index.d.ts",
       "import": "./dist/widgets/react/index.js",
       "default": "./dist/widgets/react/index.js"
+    },
+    "./widgets/react/widgets-i18n/widgets-regions-i18n": {
+      "types": "./dist/widgets/react/widgets-i18n/widgets-regions-i18n.d.ts",
+      "import": "./dist/widgets/react/widgets-i18n/widgets-regions-i18n.js",
+      "default": "./dist/widgets/react/widgets-i18n/widgets-regions-i18n.js"
+    },
+    "./widgets/react/widgets-i18n/widgets-library-i18n": {
+      "types": "./dist/widgets/react/widgets-i18n/widgets-library-i18n.d.ts",
+      "import": "./dist/widgets/react/widgets-i18n/widgets-library-i18n.js",
+      "default": "./dist/widgets/react/widgets-i18n/widgets-library-i18n.js"
+    },
+    "./widgets/react/widgets-i18n/widgets-editors-i18n": {
+      "types": "./dist/widgets/react/widgets-i18n/widgets-editors-i18n.d.ts",
+      "import": "./dist/widgets/react/widgets-i18n/widgets-editors-i18n.js",
+      "default": "./dist/widgets/react/widgets-i18n/widgets-editors-i18n.js"
+    },
+    "./widgets/react/widgets-i18n/widgets-hooks-i18n": {
+      "types": "./dist/widgets/react/widgets-i18n/widgets-hooks-i18n.d.ts",
+      "import": "./dist/widgets/react/widgets-i18n/widgets-hooks-i18n.js",
+      "default": "./dist/widgets/react/widgets-i18n/widgets-hooks-i18n.js"
+    },
+    "./widgets/react/widgets-i18n/widgets-preview-i18n": {
+      "types": "./dist/widgets/react/widgets-i18n/widgets-preview-i18n.d.ts",
+      "import": "./dist/widgets/react/widgets-i18n/widgets-preview-i18n.js",
+      "default": "./dist/widgets/react/widgets-i18n/widgets-preview-i18n.js"
+    },
+    "./widgets/react/widgets-i18n/create-widgets-dictionary": {
+      "types": "./dist/widgets/react/widgets-i18n/create-widgets-dictionary.d.ts",
+      "import": "./dist/widgets/react/widgets-i18n/create-widgets-dictionary.js",
+      "default": "./dist/widgets/react/widgets-i18n/create-widgets-dictionary.js"
     },
     "./widgets/adapters/http": {
       "types": "./dist/widgets/adapters/http.d.ts",
@@ -1366,6 +1445,41 @@
       "import": "./dist/screens/forms/forms-leave-guard-i18n.js",
       "default": "./dist/screens/forms/forms-leave-guard-i18n.js"
     },
+    "./screens/forms/forms-editor-chrome-i18n": {
+      "types": "./dist/screens/forms/forms-editor-chrome-i18n.d.ts",
+      "import": "./dist/screens/forms/forms-editor-chrome-i18n.js",
+      "default": "./dist/screens/forms/forms-editor-chrome-i18n.js"
+    },
+    "./screens/forms/forms-list-i18n": {
+      "types": "./dist/screens/forms/forms-list-i18n.d.ts",
+      "import": "./dist/screens/forms/forms-list-i18n.js",
+      "default": "./dist/screens/forms/forms-list-i18n.js"
+    },
+    "./screens/forms/forms-field-editor-i18n": {
+      "types": "./dist/screens/forms/forms-field-editor-i18n.d.ts",
+      "import": "./dist/screens/forms/forms-field-editor-i18n.js",
+      "default": "./dist/screens/forms/forms-field-editor-i18n.js"
+    },
+    "./screens/forms/forms-submissions-i18n": {
+      "types": "./dist/screens/forms/forms-submissions-i18n.d.ts",
+      "import": "./dist/screens/forms/forms-submissions-i18n.js",
+      "default": "./dist/screens/forms/forms-submissions-i18n.js"
+    },
+    "./screens/forms/forms-editor-i18n": {
+      "types": "./dist/screens/forms/forms-editor-i18n.d.ts",
+      "import": "./dist/screens/forms/forms-editor-i18n.js",
+      "default": "./dist/screens/forms/forms-editor-i18n.js"
+    },
+    "./screens/forms/forms-attributes-explainer-i18n": {
+      "types": "./dist/screens/forms/forms-attributes-explainer-i18n.d.ts",
+      "import": "./dist/screens/forms/forms-attributes-explainer-i18n.js",
+      "default": "./dist/screens/forms/forms-attributes-explainer-i18n.js"
+    },
+    "./screens/forms/create-forms-dictionary": {
+      "types": "./dist/screens/forms/create-forms-dictionary.d.ts",
+      "import": "./dist/screens/forms/create-forms-dictionary.js",
+      "default": "./dist/screens/forms/create-forms-dictionary.js"
+    },
     "./screens/menus/api/menus-api": {
       "types": "./dist/screens/menus/api/menus-api.d.ts",
       "import": "./dist/screens/menus/api/menus-api.js",
@@ -1531,6 +1645,36 @@
       "types": "./dist/screens/media/hooks/use-media-card-details.hooks.d.ts",
       "import": "./dist/screens/media/hooks/use-media-card-details.hooks.js",
       "default": "./dist/screens/media/hooks/use-media-card-details.hooks.js"
+    },
+    "./screens/taxonomy/taxonomy-i18n/taxonomy-screen-i18n": {
+      "types": "./dist/screens/taxonomy/taxonomy-i18n/taxonomy-screen-i18n.d.ts",
+      "import": "./dist/screens/taxonomy/taxonomy-i18n/taxonomy-screen-i18n.js",
+      "default": "./dist/screens/taxonomy/taxonomy-i18n/taxonomy-screen-i18n.js"
+    },
+    "./screens/taxonomy/taxonomy-i18n/taxonomy-merge-i18n": {
+      "types": "./dist/screens/taxonomy/taxonomy-i18n/taxonomy-merge-i18n.d.ts",
+      "import": "./dist/screens/taxonomy/taxonomy-i18n/taxonomy-merge-i18n.js",
+      "default": "./dist/screens/taxonomy/taxonomy-i18n/taxonomy-merge-i18n.js"
+    },
+    "./screens/taxonomy/taxonomy-i18n/taxonomy-detail-i18n": {
+      "types": "./dist/screens/taxonomy/taxonomy-i18n/taxonomy-detail-i18n.d.ts",
+      "import": "./dist/screens/taxonomy/taxonomy-i18n/taxonomy-detail-i18n.js",
+      "default": "./dist/screens/taxonomy/taxonomy-i18n/taxonomy-detail-i18n.js"
+    },
+    "./screens/taxonomy/taxonomy-i18n/taxonomy-hooks-i18n": {
+      "types": "./dist/screens/taxonomy/taxonomy-i18n/taxonomy-hooks-i18n.d.ts",
+      "import": "./dist/screens/taxonomy/taxonomy-i18n/taxonomy-hooks-i18n.js",
+      "default": "./dist/screens/taxonomy/taxonomy-i18n/taxonomy-hooks-i18n.js"
+    },
+    "./screens/taxonomy/taxonomy-i18n/taxonomy-term-picker-i18n": {
+      "types": "./dist/screens/taxonomy/taxonomy-i18n/taxonomy-term-picker-i18n.d.ts",
+      "import": "./dist/screens/taxonomy/taxonomy-i18n/taxonomy-term-picker-i18n.js",
+      "default": "./dist/screens/taxonomy/taxonomy-i18n/taxonomy-term-picker-i18n.js"
+    },
+    "./screens/taxonomy/taxonomy-i18n/create-taxonomy-dictionary": {
+      "types": "./dist/screens/taxonomy/taxonomy-i18n/create-taxonomy-dictionary.d.ts",
+      "import": "./dist/screens/taxonomy/taxonomy-i18n/create-taxonomy-dictionary.js",
+      "default": "./dist/screens/taxonomy/taxonomy-i18n/create-taxonomy-dictionary.js"
     }
   },
   "files": [

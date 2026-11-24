@@ -3,7 +3,7 @@ import { fireEvent, render, screen } from '../../../../../__tests__/ui-kit-rende
 import { describe, expect, it, vi } from 'vitest';
 import { AgentCliEnvFields } from '../../../react/components/AgentCliEnvFields.js';
 import { ByokProviderForm } from '../../../react/components/ByokProviderForm.js';
-import type { AgentCliEnvFieldSpec, ByokConfig, LocalCliConfig, ProviderPreset } from '../../../types.js';
+import type { AgentCliEnvFieldSpec, ByokConfig, LocalCliConfig, ProviderPreset } from '@jini-ai/core/contracts/execution';
 
 /**
  * @file Two defects reported together on one screen, which turned out to be one defect and one

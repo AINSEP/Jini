@@ -7,13 +7,13 @@ import { describe, expect, it, vi } from 'vitest';
 import type {
   AgentCliEnvFieldSpec,
   AgentTestState,
-  DetectedAgent,
+  ExecutionCardAgent,
   LocalCliConfig,
-} from '../../../types.js';
+} from '@jini-ai/core/contracts/execution';
 import { LocalCliAgentCard } from '../../../react/components/LocalCliAgentCard.js';
 import { LocalCliAgentList } from '../../../react/components/LocalCliAgentList.js';
 
-function agent(overrides: Partial<DetectedAgent> = {}): DetectedAgent {
+function agent(overrides: Partial<ExecutionCardAgent> = {}): ExecutionCardAgent {
   return { id: 'claude', label: 'Claude Code', installed: true, ...overrides };
 }
 
@@ -498,7 +498,7 @@ describe('LocalCliAgentCard — executable path repair', () => {
 
 /**
  * The second reasoning shape: a runtime whose effort rides INSIDE the model id
- * (`DetectedAgent.reasoningInModelId`; antigravity is the only declarer today).
+ * (`ExecutionCardAgent.reasoningInModelId`; antigravity is the only declarer today).
  *
  * The card must branch on that DECLARATION, never on the agent's id — and the effort options it
  * offers must come from the agent's own model list, because the levels are not uniform across base
@@ -524,7 +524,7 @@ describe('LocalCliAgentCard — effort encoded in the model id', () => {
     ],
   };
 
-  function agyAgent(overrides: Partial<DetectedAgent> = {}): DetectedAgent {
+  function agyAgent(overrides: Partial<ExecutionCardAgent> = {}): ExecutionCardAgent {
     return {
       id: 'antigravity',
       label: 'Antigravity',

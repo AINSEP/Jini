@@ -2,7 +2,7 @@ import { useId, type ChangeEvent } from 'react';
 import { useT } from '../../../i18n/index.js';
 import { SecretInput } from '../../../../react/components/SecretInput.js';
 import { agentCliEnvValue, cliEnvFieldsForAgent } from '../../rules.js';
-import type { AgentCliEnvFieldSpec, LocalCliConfig } from '../../types.js';
+import type { AgentCliEnvFieldSpec, LocalCliConfig } from '@jini-ai/core/contracts/execution';
 
 export interface AgentCliEnvFieldsProps {
   agentId: string;

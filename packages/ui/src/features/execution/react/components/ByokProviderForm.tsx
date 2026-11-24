@@ -18,7 +18,7 @@ import type {
   ConnectionTestState,
   ModelDiscoveryState,
   ProviderPreset,
-} from '../../types.js';
+} from '@jini-ai/core/contracts/execution';
 
 export interface ByokProviderFormProps {
   config: ByokConfig;

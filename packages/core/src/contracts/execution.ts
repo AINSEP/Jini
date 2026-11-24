@@ -1,4 +1,4 @@
-import type { ProviderPreset as SharedProviderPreset } from '@jini-ai/core';
+import type { ProviderPreset as SharedProviderPreset } from '../provider-catalog.js';
 /**
  * Origin: the inline `execution` tab body in `SettingsDialog.tsx`
  * (lines 4080-5336), classified MIXED by
@@ -30,7 +30,7 @@ export type ApiProtocol = 'anthropic' | 'openai' | 'azure' | 'google';
 /** Where a preset renders in the chip strip. The origin drew one row of
  *  protocol presets and one of gateway presets; hosts that don't care can
  *  leave this unset and get a single row. */
-export type { ProviderPresetKind } from '@jini-ai/core';
+export type { ProviderPresetKind } from '../provider-catalog.js';
 
 /** One selectable endpoint preset supplied by the host. */
 export interface ProviderPreset extends SharedProviderPreset<ApiProtocol> {}
@@ -118,7 +118,7 @@ export interface AgentModelOption {
    * levels genuinely differ between models on the same CLI.
    *
    * `undefined` means "nothing model-specific to say" and is read as agent-wide by
-   * `useReasoningControl`'s narrowing rule — it falls back to `DetectedAgent.reasoningOptions`'s
+   * `useReasoningControl`'s narrowing rule — it falls back to `ExecutionCardAgent.reasoningOptions`'s
    * union, the same list every model showed before this field existed. It is NOT a synonym for "zero
    * levels". An explicit `[]` means the catalog said so outright, and is honored as-is even though it
    * hides the effort control for that model.
@@ -157,7 +157,7 @@ export type AgentSupportsCustomModel = boolean;
  * intersection) already carries every field here, so narrowing the payload at
  * the route boundary throws away data the card is built to render.
  */
-export interface DetectedAgent {
+export interface ExecutionCardAgent {
   /** Cached inventory is usable now; retry a normal read until background discovery settles. */
   discoveryPending?: boolean;
   id: string;
@@ -235,7 +235,7 @@ export interface DetectedAgent {
  * `AgentFixIntent`, vendored into `@jini-ai/protocol`'s `agent-catalog.ts`
  * (2026-07-29) unmodified. Mirrored here field-for-field rather than
  * imported — this file has zero imports of its own (framework-free, part of
- * this package's `./core` subpath), the same reasoning `DetectedAgent`'s own
+ * this package's `./core` subpath), the same reasoning `ExecutionCardAgent`'s own
  * doc comment gives for mirroring `@jini-ai/agent-runtime`'s shape instead of
  * depending on that Node-only package. A host on `@jini-ai/agent-runtime` /
  * `@jini-ai/protocol` passes its `AgentDiagnostic[]` straight through
@@ -408,7 +408,7 @@ export interface AgentExecutableRepair {
 }
 
 /**
- * One base model of a `DetectedAgent.reasoningInModelId` agent, together with the effort levels
+ * One base model of a `ExecutionCardAgent.reasoningInModelId` agent, together with the effort levels
  * that model ACTUALLY has — derived from the agent's own model list by `reasoningModelGroups`
  * (`rules.ts`), never declared.
  *
@@ -455,3 +455,77 @@ export type ModelDiscoveryState =
   | { status: 'loading' }
   | { status: 'ok'; models: readonly string[] }
   | { status: 'error'; message: string };
+
+/**
+ * The host-specific transport this tab needs. Genuinely host-owned: the origin
+ * called its own daemon's agent-scan and connection-test endpoints. This
+ * feature ships only a fake in `dependencies.ts`; a real host supplies its own
+ * implementation (same convention as `McpIntegrationsPort`).
+ */
+export interface ExecutionPort {
+  /** Code-agent CLIs present on this machine. Called on mount and on rescan.
+   *  REJECTS if detection itself fails (host process crashed, the host's
+   *  transport to its own probing mechanism is down, etc.) — an empty
+   *  resolved array means "detection ran and found nothing," a genuinely
+   *  different state from "detection could not run." A host implementation
+   *  must not collapse the two into the same `[]`. */
+  detectLocalAgents(): Promise<readonly ExecutionCardAgent[]>;
+
+  /**
+   * Probes the BYOK endpoint with the supplied credentials. Two distinct
+   * outcomes, both documented per this package's error-reporting contract
+   * (§3.1 — a domain-outcome exception to "ports reject"):
+   *  - **Resolves** with `ok: false` when the endpoint was REACHED and it
+   *    rejected the credentials/model — that rejection IS the answer to
+   *    "does this connection work?", so it is a value, not a failure.
+   *  - **Rejects** when the test itself could not run — a transport failure,
+   *    timeout, or malformed base URL never got an answer FROM the provider
+   *    at all, so there is nothing to report as a value.
+   */
+  testConnection(config: ByokConfig): Promise<{ ok: boolean; message?: string }>;
+
+  /** Live model discovery. Optional — without it the model field falls back to
+   *  the selected preset's `preferredModels` plus free text. REJECTS on any
+   *  failure (auth, timeout, unreachable endpoint, unsupported protocol) —
+   *  unlike `testConnection`, there is no legitimate "reachable but empty"
+   *  answer worth treating as a value here: a provider genuinely reporting
+   *  zero models is indistinguishable in practice from "the call to list
+   *  them failed," so every non-crash outcome resolves either a real,
+   *  non-empty list or rejects with why it couldn't. A host must not resolve
+   *  `[]` to mean "the request failed." */
+  listModels?(config: ByokConfig): Promise<readonly string[]>;
+
+  /** Re-runs the host's own agent detection (e.g. after the operator installs
+   *  a CLI). Optional; without it the rescan button is not rendered. Same
+   *  reject-on-failure contract as `detectLocalAgents`. */
+  rescanLocalAgents?(): Promise<readonly ExecutionCardAgent[]>;
+
+  /**
+   * Checks that a detected CLI can actually run — the Local CLI counterpart of
+   * `testConnection`, and it splits its outcomes the same way (§3.1):
+   *  - **Resolves** with `ok: false` when the CLI was reached and reported a
+   *    problem the operator can fix (not signed in, expired credentials, an
+   *    unusable model choice). That report IS the answer to "does this work?".
+   *  - **Rejects** when the check could not run at all — the host could not
+   *    spawn the binary, its transport to the probing host is down, the
+   *    request timed out. There is no answer to report as a value.
+   *
+   * Optional; without it no Test button is rendered on the selected card.
+   * `model` is the operator's current per-agent pick, so a host whose probe
+   * can validate the model choice gets the chance to.
+   *
+   * `usedExecutableSource`/`detectedExecutablePath` are optional: a host
+   * whose probe can tell which binary it actually invoked reports them so
+   * the card can offer `agentExecutableRepairState`'s repair affordance;
+   * a host that can't just omits both and the affordance never renders.
+   */
+  testAgent?(
+    agentId: string,
+    model?: string | undefined,
+  ): Promise<{
+    ok: boolean;
+    message?: string;
+    usedExecutableSource?: AgentExecutableSource;
+    detectedExecutablePath?: string;
+  }>;
+}

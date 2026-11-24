@@ -1,13 +1,13 @@
 import { useState } from 'react';
 import { CUSTOM_MODEL_SENTINEL } from '../../constants.js';
 import { agentExecutableRepairState, binPathEnvField, cliEnvFieldsForAgent } from '../../rules.js';
-import type { AgentCliEnvFieldSpec, AgentTestState, DetectedAgent, LocalCliConfig } from '../../types.js';
+import type { AgentCliEnvFieldSpec, AgentTestState, ExecutionCardAgent, LocalCliConfig } from '@jini-ai/core/contracts/execution';
 import { useReasoningControl, type UseReasoningControlResult } from './useReasoningControl.js';
 
 type Translate = (key: string) => string;
 
 export interface UseLocalCliAgentCardInput {
-  agent: DetectedAgent;
+  agent: ExecutionCardAgent;
   config: LocalCliConfig;
   agentTest: AgentTestState;
   cliEnvFields: readonly AgentCliEnvFieldSpec[];
@@ -15,7 +15,7 @@ export interface UseLocalCliAgentCardInput {
   onReasoningChange: (agentId: string, reasoning: string) => void;
   onRescan?: (() => void) | undefined;
   /** Only its presence matters here: a Test button alone is enough to show the settings strip. */
-  onTest?: ((agent: DetectedAgent) => void) | undefined;
+  onTest?: ((agent: ExecutionCardAgent) => void) | undefined;
   t: Translate;
 }
 
@@ -25,7 +25,7 @@ export interface UseLocalCliAgentCardResult {
    *  as an empty bordered box for a CLI with no models, effort, Test or env fields. */
   hasSettings: boolean;
   /** `agent.modelsSource`, passed through for the badge's modifier class. */
-  source: DetectedAgent['modelsSource'];
+  source: ExecutionCardAgent['modelsSource'];
   sourceLabel: string;
   sourceHint: string;
   testing: boolean;
@@ -131,7 +131,7 @@ export function useLocalCliAgentCard({
 
 /** Model-list provenance claims, translated only when the host supplied a source. */
 function modelSourcePresentation(
-  { source, t }: { source: DetectedAgent['modelsSource']; t: Translate },
+  { source, t }: { source: ExecutionCardAgent['modelsSource']; t: Translate },
   _options = {},
 ): Pick<UseLocalCliAgentCardResult, 'source' | 'sourceLabel' | 'sourceHint'> {
   // `modelsSource` is optional in the contract, so an absent value means the

@@ -2,7 +2,7 @@
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
-import type { DetectedAgent, LocalCliConfig } from '../../../types.js';
+import type { ExecutionCardAgent, LocalCliConfig } from '@jini-ai/core/contracts/execution';
 import { LocalCliAgentList } from '../../../react/components/LocalCliAgentList.js';
 import { partitionAgentsByInstalled } from '../../../rules.js';
 
@@ -11,7 +11,7 @@ import { partitionAgentsByInstalled } from '../../../rules.js';
  * "Show N not installed" toggle (2026-10-09 AI Assistant redesign: a dozen uninstalled cards had
  * pushed every setting below the grid off-screen).
  */
-const AGENTS: DetectedAgent[] = [
+const AGENTS: ExecutionCardAgent[] = [
   { id: 'claude', label: 'Claude Code', installed: true },
   { id: 'codex', label: 'Codex CLI', installed: true },
   { id: 'kimi', label: 'Kimi CLI', installed: false },

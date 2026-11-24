@@ -15,13 +15,13 @@ import type {
   ByokConfig,
   ByokProviderCredentials,
   ByokRequiredField,
-  DetectedAgent,
+  ExecutionCardAgent,
   ExecutionConfig,
   ExecutionMode,
   LocalCliConfig,
   ProviderPreset,
   ReasoningModelGroup,
-} from './types.js';
+} from '@jini-ai/core/contracts/execution';
 
 /**
  * Pure decision logic for the execution tab. Everything here is total and
@@ -408,7 +408,7 @@ export interface AgentMetaLabels {
  * binary path, so the card stays one line without discarding either.
  */
 export function agentMetaLabel(
-  { agent, labels }: { agent: DetectedAgent; labels: AgentMetaLabels },
+  { agent, labels }: { agent: ExecutionCardAgent; labels: AgentMetaLabels },
   _optional: Record<string, never> = {},
 ): { text: string; title: string } {
   const authUnresolved = agent.authStatus === 'missing' || agent.authStatus === 'unknown';
@@ -424,7 +424,7 @@ export function agentMetaLabel(
 /** The model an agent will actually run: the operator's explicit per-agent
  *  pick when they made one, else the first entry of whatever list the host
  *  reported, else nothing. */
-export function selectedAgentModel({ config, agent }: { config: LocalCliConfig; agent: DetectedAgent }, _optional: Record<string, never> = {}): string {
+export function selectedAgentModel({ config, agent }: { config: LocalCliConfig; agent: ExecutionCardAgent }, _optional: Record<string, never> = {}): string {
   const chosen = config.modelByAgentId?.[agent.id]?.trim();
   if (chosen) return chosen;
   return agent.models?.[0]?.id ?? '';
@@ -434,7 +434,7 @@ export function selectedAgentModel({ config, agent }: { config: LocalCliConfig; 
  *  on unselected cards. Falls back to the raw id when the host reported a
  *  model list that doesn't contain the operator's saved pick — a stale saved
  *  choice is still the choice, and hiding it would misreport what will run. */
-export function agentModelSummary({ config, agent }: { config: LocalCliConfig; agent: DetectedAgent }, _optional: Record<string, never> = {}): string {
+export function agentModelSummary({ config, agent }: { config: LocalCliConfig; agent: ExecutionCardAgent }, _optional: Record<string, never> = {}): string {
   const id = selectedAgentModel({ config, agent });
   if (!id) return '';
   return agent.models?.find((model) => model.id === id)?.label ?? id;
@@ -469,7 +469,7 @@ export function nextConfigForAgentModel(
  *  whatever `reasoningOptions` the host reported, else nothing. Mirrors
  *  `selectedAgentModel` exactly — a reasoning choice is a model-catalog
  *  pick from a second, independent list. */
-export function selectedAgentReasoning({ config, agent }: { config: LocalCliConfig; agent: DetectedAgent }, _optional: Record<string, never> = {}): string {
+export function selectedAgentReasoning({ config, agent }: { config: LocalCliConfig; agent: ExecutionCardAgent }, _optional: Record<string, never> = {}): string {
   const chosen = config.reasoningByAgentId?.[agent.id]?.trim();
   if (chosen) return chosen;
   return agent.reasoningOptions?.[0]?.id ?? '';
@@ -666,7 +666,7 @@ export function agentDiagnosticTooltip(diagnostic: AgentDiagnostic): string {
 
 /**
  * Splits a model id into its base and its reasoning-effort suffix, for a runtime that encodes
- * effort inside the id (`DetectedAgent.reasoningInModelId`).
+ * effort inside the id (`ExecutionCardAgent.reasoningInModelId`).
  *
  * Only a trailing `-<token>` whose token appears in `levelIds` is a level. Everything else stays
  * part of the base id — which is the whole point: `claude-opus-4-6-thinking` ends in `-thinking`,

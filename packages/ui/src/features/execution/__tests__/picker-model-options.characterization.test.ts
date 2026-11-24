@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { pickerModelOptions } from '../rules.js';
-import type { AgentModelOption } from '../types.js';
+import type { AgentModelOption } from '@jini-ai/core/contracts/execution';
 
 describe('pickerModelOptions characterization', () => {
   it('returns no choices for an empty catalog', () => {
