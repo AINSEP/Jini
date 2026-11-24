@@ -659,7 +659,19 @@
       "./screens/voice-input/hooks/space-hold-config": "universal",
       "./screens/voice-input/push-to-talk-mic-button.css": "browser",
       "./screens/voice-input/voice-input-config": "universal",
-      "./screens/voice-input/voice-unavailability": "universal"
+      "./screens/voice-input/voice-unavailability": "universal",
+      "./screens/authentication/authentication.css": "browser",
+      "./screens/database/Database.hooks": "browser",
+      "./screens/email/email.css": "browser",
+      "./screens/email/EmailProviderTab.hooks": "browser",
+      "./screens/email/hooks/use-email-template-view.hooks": "browser",
+      "./screens/media/hooks/use-media-tabs.hooks": "browser",
+      "./screens/media/pinned-media-providers": "universal",
+      "./screens/plugins/hooks/use-agent-plugin-surfaces.hooks": "browser",
+      "./screens/plugins/hooks/use-agent-plugin-tab.hooks": "browser",
+      "./screens/plugins/provider-settings-dialog.css": "browser",
+      "./screens/import-export/GitBackupCard": "browser",
+      "./screens/import-export/import-export-links": "universal"
     },
     "isolation": {
       "shared": [
@@ -918,6 +930,7 @@
         "./screens/observability/recent-errors-panel": "browser",
         "./screens/observability/recent-errors-rules": "browser",
         "./screens/observability/tool-gaps-panel": "browser",
+        "./screens/email/hooks/use-email-template-view.hooks": "browser",
         "./screens/media/hooks/use-media-card-metadata.hooks": "media"
       }
     },
@@ -4121,6 +4134,54 @@
       "types": "./dist/screens/voice-input/voice-unavailability.d.ts",
       "import": "./dist/screens/voice-input/voice-unavailability.js",
       "default": "./dist/screens/voice-input/voice-unavailability.js"
+    },
+    "./screens/authentication/authentication.css": "./src/screens/authentication/authentication.css",
+    "./screens/database/Database.hooks": {
+      "types": "./dist/screens/database/Database.hooks.d.ts",
+      "import": "./dist/screens/database/Database.hooks.js",
+      "default": "./dist/screens/database/Database.hooks.js"
+    },
+    "./screens/email/email.css": "./src/screens/email/email.css",
+    "./screens/email/EmailProviderTab.hooks": {
+      "types": "./dist/screens/email/EmailProviderTab.hooks.d.ts",
+      "import": "./dist/screens/email/EmailProviderTab.hooks.js",
+      "default": "./dist/screens/email/EmailProviderTab.hooks.js"
+    },
+    "./screens/email/hooks/use-email-template-view.hooks": {
+      "types": "./dist/screens/email/hooks/use-email-template-view.hooks.d.ts",
+      "import": "./dist/screens/email/hooks/use-email-template-view.hooks.js",
+      "default": "./dist/screens/email/hooks/use-email-template-view.hooks.js"
+    },
+    "./screens/media/hooks/use-media-tabs.hooks": {
+      "types": "./dist/screens/media/hooks/use-media-tabs.hooks.d.ts",
+      "import": "./dist/screens/media/hooks/use-media-tabs.hooks.js",
+      "default": "./dist/screens/media/hooks/use-media-tabs.hooks.js"
+    },
+    "./screens/media/pinned-media-providers": {
+      "types": "./dist/screens/media/pinned-media-providers.d.ts",
+      "import": "./dist/screens/media/pinned-media-providers.js",
+      "default": "./dist/screens/media/pinned-media-providers.js"
+    },
+    "./screens/plugins/hooks/use-agent-plugin-surfaces.hooks": {
+      "types": "./dist/screens/plugins/hooks/use-agent-plugin-surfaces.hooks.d.ts",
+      "import": "./dist/screens/plugins/hooks/use-agent-plugin-surfaces.hooks.js",
+      "default": "./dist/screens/plugins/hooks/use-agent-plugin-surfaces.hooks.js"
+    },
+    "./screens/plugins/hooks/use-agent-plugin-tab.hooks": {
+      "types": "./dist/screens/plugins/hooks/use-agent-plugin-tab.hooks.d.ts",
+      "import": "./dist/screens/plugins/hooks/use-agent-plugin-tab.hooks.js",
+      "default": "./dist/screens/plugins/hooks/use-agent-plugin-tab.hooks.js"
+    },
+    "./screens/plugins/provider-settings-dialog.css": "./src/screens/plugins/provider-settings-dialog.css",
+    "./screens/import-export/GitBackupCard": {
+      "types": "./dist/screens/import-export/GitBackupCard.d.ts",
+      "import": "./dist/screens/import-export/GitBackupCard.js",
+      "default": "./dist/screens/import-export/GitBackupCard.js"
+    },
+    "./screens/import-export/import-export-links": {
+      "types": "./dist/screens/import-export/import-export-links.d.ts",
+      "import": "./dist/screens/import-export/import-export-links.js",
+      "default": "./dist/screens/import-export/import-export-links.js"
     }
   },
   "files": [
