@@ -1,6 +1,7 @@
 import type { MarkerAttribute } from "./markers/marker.js";
 import { NO_MARKER_ATTRIBUTES, mediaAltAttrValue, mediaDimensionAttr, resolveEmbedHtmlAttributes, foldHtmlAttributesClass, mergeMediaClassAttr, attributeValueHtml, mergeMediaExtraAttributes, omitKey } from "./media-attributes.js";
 import { escapeHtml } from "@jini-ai/core/text";
+import { renderCaptionTrack, type CaptionTrackInput } from "./caption-track.js";
 
 /** Names {@link renderImageTag} renders itself at a fixed position — kept out of
  *  {@link mergeMediaExtraAttributes}'s generic tail so none of them is ever emitted twice. */
@@ -80,7 +81,11 @@ export function renderVideoTag(props: {
    *  forwarded attribute of that name; see {@link MEDIA_VIDEO_FIXED_ATTRIBUTE_NAMES}'s own doc.
    *  Defaults to `true` (the pre-existing, only-ever behavior before this prop existed). */
   readonly controls?: boolean;
-}, _optional: Record<string, never> = {}): string {
+}, _optional: {
+  /** Optional WebVTT captions (G7-9). Absent, `null`, or refused by {@link renderCaptionTrack}'s
+   *  same-origin `.vtt` guard all render the exact uncaptioned player. */
+  readonly captionsTrack?: CaptionTrackInput | null;
+} = {}): string {
   const tag = props.kind ?? "video";
   const markerAttributes = props.markerAttributes ?? NO_MARKER_ATTRIBUTES;
   const controlsAttr = (props.controls ?? true) ? " controls" : "";
@@ -105,7 +110,9 @@ export function renderVideoTag(props: {
   // design — D6 — so a marker attribute's value carries no less trust here than it does anywhere else
   // on the same page).
   const fallback = playerFallback({ markerAttributes, alt: props.alt, fallbackText: props.fallbackText });
-  return `<${tag} src="${escapeHtml({ text: props.src })}"${controlsAttr}${widthAttr}${heightAttr}${classAttr}${extraAttrs}>${fallback}</${tag}>`;
+  // `<track>` must precede the fallback content inside the media element; "" when there is none.
+  const captions = renderCaptionTrack({ track: _optional.captionsTrack });
+  return `<${tag} src="${escapeHtml({ text: props.src })}"${controlsAttr}${widthAttr}${heightAttr}${classAttr}${extraAttrs}>${captions}${fallback}</${tag}>`;
 }
 
 function playerFallback({ markerAttributes, alt, fallbackText }: { markerAttributes: readonly MarkerAttribute[]; alt: string; fallbackText: string }, _optional: Record<string, never> = {}): string {

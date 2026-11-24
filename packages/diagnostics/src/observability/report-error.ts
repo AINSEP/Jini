@@ -1,6 +1,6 @@
 import { AsyncLocalStorage } from "node:async_hooks";
 
-import { redactSecrets } from "@jini-ai/core";
+import { redactSecrets, type SecretRedactionPattern } from "@jini-ai/core";
 import type { ObservabilityPort } from "@jini-ai/core/contracts/observability";
 
 /**
@@ -33,18 +33,22 @@ export function runWithErrorReportScope<T>({ scope, work }: { scope: ErrorReport
 }
 
 type ExactSecrets = readonly string[] | undefined;
-const redact = (text: string, exactSecrets: ExactSecrets): string => redactSecrets({ input: text }, exactSecrets ? { exactSecrets } : {});
+type ExtraPatterns = readonly SecretRedactionPattern[] | undefined;
+interface RedactOptions { exactSecrets?: ExactSecrets; extraPatterns?: ExtraPatterns }
+const redact = (text: string, { exactSecrets, extraPatterns }: RedactOptions): string =>
+  redactSecrets({ input: text }, { ...(exactSecrets ? { exactSecrets } : {}), ...(extraPatterns ? { extraPatterns } : {}) });
 
 /**
  * A copy of `error` with its message and stack redacted, or the original when nothing needed
  * redacting (so identity survives for callers that compare). Non-Error throws become an Error.
- * `exactSecrets` (e.g. the credential a failing call used) are blanked even without a known shape.
+ * `exactSecrets` (e.g. the credential a failing call used) are blanked even without a known shape;
+ * `extraPatterns` are host-owned credential shapes (a product's own key format) Jini cannot know.
  * @complexity O(n) in message + stack length.
  */
-export function redactedError({ error }: { error: unknown }, { exactSecrets }: { exactSecrets?: ExactSecrets } = {}): Error {
-  if (!(error instanceof Error)) return new Error(redact(typeof error === "string" ? error : `non-Error thrown: ${typeof error}`, exactSecrets));
-  const message = redact(error.message, exactSecrets);
-  const stack = error.stack === undefined ? undefined : redact(error.stack, exactSecrets);
+export function redactedError({ error }: { error: unknown }, options: RedactOptions = {}): Error {
+  if (!(error instanceof Error)) return new Error(redact(typeof error === "string" ? error : `non-Error thrown: ${typeof error}`, options));
+  const message = redact(error.message, options);
+  const stack = error.stack === undefined ? undefined : redact(error.stack, options);
   if (message === error.message && stack === error.stack) return error;
   const copy = new Error(message);
   copy.name = error.name;
