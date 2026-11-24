@@ -686,7 +686,8 @@
       "./screens/email/EmailOverviewTab": "browser",
       "./screens/email/EmailSenderTab": "browser",
       "./screens/email/EmailActivityTab": "browser",
-      "./screens/email/EmailTemplatesTab": "browser"
+      "./screens/email/EmailTemplatesTab": "browser",
+      "./screens/trash/trash-i18n/create-trash-dictionary": "universal"
     },
     "isolation": {
       "shared": [
@@ -4265,6 +4266,11 @@
       "types": "./dist/screens/email/EmailTemplatesTab.d.ts",
       "import": "./dist/screens/email/EmailTemplatesTab.js",
       "default": "./dist/screens/email/EmailTemplatesTab.js"
+    },
+    "./screens/trash/trash-i18n/create-trash-dictionary": {
+      "types": "./dist/screens/trash/trash-i18n/create-trash-dictionary.d.ts",
+      "import": "./dist/screens/trash/trash-i18n/create-trash-dictionary.js",
+      "default": "./dist/screens/trash/trash-i18n/create-trash-dictionary.js"
     }
   },
   "files": [

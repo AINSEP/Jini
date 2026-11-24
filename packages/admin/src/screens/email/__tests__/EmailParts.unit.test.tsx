@@ -30,7 +30,7 @@ describe("EmailParts", () => {
     expect(screen.getByRole("status").textContent).toBe("Loading…");
     rerender(<Loaded view={{ kind: "forbidden" }} locale="en">{() => null}</Loaded>);
     expect(screen.getByText("You don't have permission to see this.")).toBeTruthy();
-    rerender(<Loaded view={{ kind: "failed", message: "boom" }} locale="en" retry={retry}>{() => null}</Loaded>);
+    rerender(<Loaded view={{ kind: "error", message: "boom" }} locale="en" retry={retry}>{() => null}</Loaded>);
     expect(screen.getByRole("alert").textContent).toContain("boom");
     fireEvent.click(screen.getByRole("button", { name: "Retry" }));
     expect(retry).toHaveBeenCalledTimes(1);
