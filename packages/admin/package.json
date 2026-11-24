@@ -184,6 +184,7 @@
       "./shell/lib/shell-failure-log": "browser",
       "./shell/hooks/admin-locale-port.hooks": "browser",
       "./shell/hooks/use-admin-locale.hooks": "browser",
+      "./shell/hooks/use-credential-hint.hooks": "browser",
       "./shell/hooks/use-admin-document-locale.hooks": "browser",
       "./shell/hooks/use-interface-preferences.hooks": "browser",
       "./shell/hooks/use-admin-appearance-snapshot.hooks": "browser",
@@ -311,6 +312,12 @@
       "./screens/menus/api/menus-api.types": "universal",
       "./screens/widgets/api/widgets-api.types": "universal",
       "./screens/providers/api/providers-api": "universal",
+      "./screens/analytics/api/analytics-api": "universal",
+      "./screens/auth/api/auth-api": "universal",
+      "./screens/database/api/database-api": "universal",
+      "./screens/email/api/mail-status-api": "universal",
+      "./screens/trash/api/trash-api": "universal",
+      "./shell/lib/admin-http/settings-api": "browser",
       "./agent-plugins/models": "universal",
       "./screens/integrations/api/integrations-api": "universal",
       "./screens/integrations/IntegrationsRedirect": "universal",
@@ -718,6 +725,7 @@
         "./shell/lib/addons-routes": "browser",
         "./shell/lib/admin-http/config": "universal",
         "./shell/lib/admin-http/settings-api.types": "universal",
+        "./shell/lib/admin-http/settings-api": "browser",
         "./shell/lib/admin-http/urls": "universal",
         "./shell/lib/admin-post-list-sort": "universal",
         "./shell/lib/descriptor-i18n": "universal",
@@ -1805,6 +1813,11 @@
       "import": "./dist/shell/hooks/use-admin-locale.hooks.js",
       "default": "./dist/shell/hooks/use-admin-locale.hooks.js"
     },
+    "./shell/hooks/use-credential-hint.hooks": {
+      "types": "./dist/shell/hooks/use-credential-hint.hooks.d.ts",
+      "import": "./dist/shell/hooks/use-credential-hint.hooks.js",
+      "default": "./dist/shell/hooks/use-credential-hint.hooks.js"
+    },
     "./shell/hooks/use-admin-document-locale.hooks": {
       "types": "./dist/shell/hooks/use-admin-document-locale.hooks.d.ts",
       "import": "./dist/shell/hooks/use-admin-document-locale.hooks.js",
@@ -2427,6 +2440,36 @@
       "types": "./dist/screens/providers/api/providers-api.d.ts",
       "import": "./dist/screens/providers/api/providers-api.js",
       "default": "./dist/screens/providers/api/providers-api.js"
+    },
+    "./screens/analytics/api/analytics-api": {
+      "types": "./dist/screens/analytics/api/analytics-api.d.ts",
+      "import": "./dist/screens/analytics/api/analytics-api.js",
+      "default": "./dist/screens/analytics/api/analytics-api.js"
+    },
+    "./screens/auth/api/auth-api": {
+      "types": "./dist/screens/auth/api/auth-api.d.ts",
+      "import": "./dist/screens/auth/api/auth-api.js",
+      "default": "./dist/screens/auth/api/auth-api.js"
+    },
+    "./screens/database/api/database-api": {
+      "types": "./dist/screens/database/api/database-api.d.ts",
+      "import": "./dist/screens/database/api/database-api.js",
+      "default": "./dist/screens/database/api/database-api.js"
+    },
+    "./screens/email/api/mail-status-api": {
+      "types": "./dist/screens/email/api/mail-status-api.d.ts",
+      "import": "./dist/screens/email/api/mail-status-api.js",
+      "default": "./dist/screens/email/api/mail-status-api.js"
+    },
+    "./screens/trash/api/trash-api": {
+      "types": "./dist/screens/trash/api/trash-api.d.ts",
+      "import": "./dist/screens/trash/api/trash-api.js",
+      "default": "./dist/screens/trash/api/trash-api.js"
+    },
+    "./shell/lib/admin-http/settings-api": {
+      "types": "./dist/shell/lib/admin-http/settings-api.d.ts",
+      "import": "./dist/shell/lib/admin-http/settings-api.js",
+      "default": "./dist/shell/lib/admin-http/settings-api.js"
     },
     "./agent-plugins/models": {
       "types": "./dist/agent-plugins/models.d.ts",
@@ -4320,6 +4363,9 @@
       ],
       "screens/analytics/api/analytics-api.types": [
         "./dist/screens/analytics/api/analytics-api.types.d.ts"
+      ],
+      "screens/analytics/api/analytics-api": [
+        "./dist/screens/analytics/api/analytics-api.d.ts"
       ],
       "screens/analytics/hooks/analytics-port.hooks": [
         "./dist/screens/analytics/hooks/analytics-port.hooks.d.ts"
