@@ -41,6 +41,13 @@ test('twelve-day-stale bundle is refused with the caller remedy; zero/newer/equa
   assert.match(failure!, /STALE/); assert.match(failure!, /12\.0 day\(s\)/); assert.match(failure!, /build shell/);
   for (const [builtAt, sourceAt] of [[0, 100], [100, 0], [100, 100], [200, 100]]) assert.equal(shellStalenessFailure({ builtAt: builtAt!, sourceAt: sourceAt!, shell }), null);
 });
+test('an injected consequence sits between the age and the remedy; one second is still stale and age is whole-day rounded', () => {
+  const shell = { relative: 'shell/dist', marker: 'index.html', buildWith: 'build shell' };
+  const failure = shellStalenessFailure({ builtAt: 1, sourceAt: 3 * 86_400_000 + 1, shell }, { consequence: 'Packaging this ships stale code.' });
+  assert.match(failure!, /3\.0 day\(s\) older than its own source\. Packaging this ships stale code\. Rebuild it with: build shell$/);
+  assert.doesNotMatch(shellStalenessFailure({ builtAt: 1, sourceAt: 2, shell })!, /Packaging/);
+  assert.ok(shellStalenessFailure({ builtAt: 1_000, sourceAt: 2_000, shell }), 'no tolerance window');
+});
 test('tests and measurements do not make a shell stale, conservative ordinary filenames do', () => {
   for (const relPath of ['src/__tests__/unit/a.tsx', '__tests__/a.ts', 'src/a.test.tsx', 'src/a.spec.mjs', 'src/__measurements__/perf.ts', String.raw`src\__tests__\a.ts`]) assert.equal(isBundleInput({ relPath }), false);
   for (const relPath of ['src/test-utils.ts', 'src/testing.ts', 'src/contest.ts', 'package.json', 'styles.css']) assert.equal(isBundleInput({ relPath }), true);

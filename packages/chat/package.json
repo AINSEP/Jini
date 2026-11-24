@@ -18,6 +18,9 @@
       "./core": "universal",
       "./react": "browser",
       "./react/chat-pane": "browser",
+      "./react/conversation-chat-pane": "browser",
+      "./react/conversations": "browser",
+      "./react/bridged-chat": "browser",
       "./react/styles/reference.css": "browser",
       "./store": "universal",
       "./store/sqlite": "node",
@@ -102,6 +105,21 @@
       "types": "./dist/react/chat-pane.d.ts",
       "import": "./dist/react/chat-pane.js",
       "default": "./dist/react/chat-pane.js"
+    },
+    "./react/conversation-chat-pane": {
+      "types": "./dist/react/features/conversation-chat-pane/index.d.ts",
+      "import": "./dist/react/features/conversation-chat-pane/index.js",
+      "default": "./dist/react/features/conversation-chat-pane/index.js"
+    },
+    "./react/conversations": {
+      "types": "./dist/react/features/conversations/index.d.ts",
+      "import": "./dist/react/features/conversations/index.js",
+      "default": "./dist/react/features/conversations/index.js"
+    },
+    "./react/bridged-chat": {
+      "types": "./dist/react/features/bridged-chat/index.d.ts",
+      "import": "./dist/react/features/bridged-chat/index.js",
+      "default": "./dist/react/features/bridged-chat/index.js"
     },
     "./react/styles/reference.css": "./dist/react/styles/reference.css",
     "./store": {
@@ -321,6 +339,15 @@
       ],
       "react/chat-pane": [
         "./dist/react/chat-pane.d.ts"
+      ],
+      "react/conversation-chat-pane": [
+        "./dist/react/features/conversation-chat-pane/index.d.ts"
+      ],
+      "react/conversations": [
+        "./dist/react/features/conversations/index.d.ts"
+      ],
+      "react/bridged-chat": [
+        "./dist/react/features/bridged-chat/index.d.ts"
       ],
       "core/run-events": [
         "./dist/core/run-events/entry.d.ts"

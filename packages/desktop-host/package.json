@@ -38,6 +38,8 @@
       "./electron/selftest": "desktop",
       "./shell/guest-navigation": "desktop",
       "./shell/site-presence": "universal",
+      "./shell/supervised-site-url": "universal",
+      "./shell/copied-site-databases": "node",
       "./electron/handoff": "desktop",
       "./electron/preload": "desktop",
       "./electron/webview": "desktop",
@@ -187,6 +189,16 @@
       "types": "./dist/shell/site-presence.d.ts",
       "import": "./dist/shell/site-presence.js",
       "default": "./dist/shell/site-presence.js"
+    },
+    "./shell/supervised-site-url": {
+      "types": "./dist/shell/supervised-site-url.d.ts",
+      "import": "./dist/shell/supervised-site-url.js",
+      "default": "./dist/shell/supervised-site-url.js"
+    },
+    "./shell/copied-site-databases": {
+      "types": "./dist/shell/copied-site-databases.d.ts",
+      "import": "./dist/shell/copied-site-databases.js",
+      "default": "./dist/shell/copied-site-databases.js"
     },
     "./electron/handoff": {
       "types": "./dist/electron/handoff/index.d.ts",

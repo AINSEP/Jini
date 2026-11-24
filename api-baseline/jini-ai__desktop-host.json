@@ -361,7 +361,7 @@
    "DisplayPort": "interface:836a7576b5",
    "FindCommandWindow": "interface:19d30a5062",
    "FindInPageQuery": "interface:cc43b4b8c0",
-   "FindInPageResult": "interface:52d677037f",
+   "FindInPageResult": "interface:e5e3a186dc",
    "FindIpcPort": "interface:9f0285bc1d",
    "FindMenu": "interface:0c80e64b90",
    "FindMenuItem": "interface:235a661832",
@@ -382,7 +382,7 @@
    "ViewMenu": "interface:165fd960cd",
    "WindowBounds": "interface:c34cf526c0",
    "WorkspaceMenuEntry": "type:7ec226a038",
-   "ZoomCommandDirection": "type:711ba54e4c",
+   "ZoomCommandDirection": "type:28ab8d7584",
    "ZoomCommandWindow": "interface:968d2cdda5",
    "ZoomMenuItem": "interface:6ce68290f7",
    "boundsOnScreen": "function:afcf4af5b0",
@@ -466,6 +466,15 @@
    "AutoUpdateController": "interface:0b5fb6bd97",
    "AutoUpdateControllerDeps": "interface:ece0beef05",
    "createAutoUpdateController": "function:59042fc22a"
+  }
+ },
+ "./shell/copied-site-databases": {
+  "types": "./dist/shell/copied-site-databases.d.ts",
+  "symbols": {
+   "CopiedDatabaseFilesystem": "interface:742424af61",
+   "CopiedDatabaseRequired": "interface:fb441d493f",
+   "CopiedDatabaseSource": "interface:2ad381607c",
+   "commitWithCopiedDatabases": "function:4211a4e6ff"
   }
  },
  "./shell/find-in-page-verify": {
@@ -564,6 +573,12 @@
    "SpellCheckWebContents": "interface:c5d9263f44",
    "buildSpellCheckMenuTemplate": "function:5da4981b91",
    "registerSpellCheckContextMenu": "function:a4aa6b4bfd"
+  }
+ },
+ "./shell/supervised-site-url": {
+  "types": "./dist/shell/supervised-site-url.d.ts",
+  "symbols": {
+   "isSupervisedSiteUrl": "function:5d0f44d3e4"
   }
  },
  "./shutdown": {

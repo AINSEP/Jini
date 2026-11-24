@@ -8,9 +8,9 @@
  * this permits one global registration after readiness without window-scoped handler state.
  */
 export interface FindInPageQuery { text: string; forward: boolean; findNext: boolean }
-/** Electron reports activeMatchOrdinal as 1-based and matches as the total count, including
- * zero when nothing matched; consumers must preserve those display semantics. */
-export interface FindInPageResult { activeMatchOrdinal: number; matches: number }
+/** Wire shape owned by core (1-based ordinal + total, zero when nothing matched); see its doc. */
+export type { FindInPageResult } from "@jini-ai/core/contracts/find-in-page";
+import type { FindInPageResult } from "@jini-ai/core/contracts/find-in-page";
 export interface FindWebContentsPort {
   findInPage(args: { text: string }, options?: { forward?: boolean; findNext?: boolean }): unknown;
   stopFindInPage(args: { action: "clearSelection" }): void;
