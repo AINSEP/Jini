@@ -264,6 +264,10 @@ async function provisionPluginMcp<UninstallInput, Layout extends AgentPluginLayo
       servers,
     }, { skipServerKeys: result.failed.map(failure => failure.serverKey), ...(approvedEnable ? { approvedEnable } : {}) });
   } catch (error) {
+    // A ToolInputError here is one of our own deliberate, owner-facing refusals (missing snapshot, the
+    // failed server and its redacted reason, the grant owner's "changed after approval"): its message
+    // already says what to do, so the generic load failure below must not replace it with a class name.
+    if (execution.approvedEnable && error instanceof ToolInputError) throw error;
     const detail = describeErrorForLog({ err: error });
     if (execution.approvedEnable) throw new ToolInputError({ message: redactSecrets({ input: deps.messages.approvedLoadFailed({ detail }) }) });
     // An injected reporter receives the caught value itself; the default channel logs its class only.
