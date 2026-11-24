@@ -8,6 +8,7 @@ export * from "./refusal-notice.js";
 export * from "./registrations.js";
 export * from "./bootstrap.js";
 export * from "./reload.js";
+export * from "./roster-change.js";
 export * from "./admissions.js";
 export * from "./tool-approvals.js";
 export * from "./approvals/index.js";
