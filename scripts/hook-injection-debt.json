@@ -14,6 +14,13 @@
         "packages/admin/src/screens/taxonomy/TaxonomyRowMenu.tsx"
       ],
       "reason": "Correct as is: the hook is a REQUIRED prop the host supplies (owner rule, no default imported hook; commit 63c660294). This checker only recognises the older defaulted-prop form, so a required injected prop reads as a direct call. Remove once the checker accepts required hook props."
+    },
+    "SubagentsIndicator::useSettings": {
+      "count": 1,
+      "files": [
+        "packages/admin/src/shell/components/AssistantDock/SubagentsIndicator.tsx"
+      ],
+      "reason": "Correct as is: the hook is a REQUIRED prop the host supplies (owner rule, no default imported hook; w4-admin-shell). This checker only recognises the older defaulted-prop form, so a required injected prop reads as a direct call. Remove once the checker accepts required hook props."
     }
   }
 }

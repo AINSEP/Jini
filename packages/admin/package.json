@@ -176,7 +176,12 @@
       "./screens/menus/MenuPageLinkFields.hooks": "browser",
       "./screens/menus/MenuPageLinkFields": "browser",
       "./shell/components/TemplateSource/ViewTemplateButton": "browser",
-      "./shell/hooks/use-desktop-view-release.hooks": "browser"
+      "./shell/hooks/use-desktop-view-release.hooks": "browser",
+      "./shell/components/AssistantDock/chat-agent-plugin-preferences": "universal",
+      "./shell/components/AssistantDock/hooks/use-chat-agent-plugins.hooks": "browser",
+      "./shell/components/AssistantDock/hooks/use-assistant-runtime-preferences.hooks": "browser",
+      "./shell/components/AssistantDock/hooks/use-selected-agent-auth-warning.hooks": "browser",
+      "./shell/components/AssistantDock/SubagentsIndicator": "browser"
     },
     "isolation": {
       "shared": [
@@ -257,7 +262,12 @@
         "./shell/lib/tab-event-source": "browser",
         "./shell/hooks/use-external-entry-refresh.hooks": "browser",
         "./shell/components/TemplateSource/ViewTemplateButton": "browser",
-        "./shell/hooks/use-desktop-view-release.hooks": "browser"
+        "./shell/hooks/use-desktop-view-release.hooks": "browser",
+        "./shell/components/AssistantDock/chat-agent-plugin-preferences": "universal",
+        "./shell/components/AssistantDock/hooks/use-chat-agent-plugins.hooks": "browser",
+        "./shell/components/AssistantDock/hooks/use-assistant-runtime-preferences.hooks": "browser",
+        "./shell/components/AssistantDock/hooks/use-selected-agent-auth-warning.hooks": "browser",
+        "./shell/components/AssistantDock/SubagentsIndicator": "browser"
       }
     },
     "optionalPeers": {
@@ -1079,6 +1089,31 @@
       "types": "./dist/shell/hooks/use-desktop-view-release.hooks.d.ts",
       "import": "./dist/shell/hooks/use-desktop-view-release.hooks.js",
       "default": "./dist/shell/hooks/use-desktop-view-release.hooks.js"
+    },
+    "./shell/components/AssistantDock/chat-agent-plugin-preferences": {
+      "types": "./dist/shell/components/AssistantDock/chat-agent-plugin-preferences.d.ts",
+      "import": "./dist/shell/components/AssistantDock/chat-agent-plugin-preferences.js",
+      "default": "./dist/shell/components/AssistantDock/chat-agent-plugin-preferences.js"
+    },
+    "./shell/components/AssistantDock/hooks/use-chat-agent-plugins.hooks": {
+      "types": "./dist/shell/components/AssistantDock/hooks/use-chat-agent-plugins.hooks.d.ts",
+      "import": "./dist/shell/components/AssistantDock/hooks/use-chat-agent-plugins.hooks.js",
+      "default": "./dist/shell/components/AssistantDock/hooks/use-chat-agent-plugins.hooks.js"
+    },
+    "./shell/components/AssistantDock/hooks/use-assistant-runtime-preferences.hooks": {
+      "types": "./dist/shell/components/AssistantDock/hooks/use-assistant-runtime-preferences.hooks.d.ts",
+      "import": "./dist/shell/components/AssistantDock/hooks/use-assistant-runtime-preferences.hooks.js",
+      "default": "./dist/shell/components/AssistantDock/hooks/use-assistant-runtime-preferences.hooks.js"
+    },
+    "./shell/components/AssistantDock/hooks/use-selected-agent-auth-warning.hooks": {
+      "types": "./dist/shell/components/AssistantDock/hooks/use-selected-agent-auth-warning.hooks.d.ts",
+      "import": "./dist/shell/components/AssistantDock/hooks/use-selected-agent-auth-warning.hooks.js",
+      "default": "./dist/shell/components/AssistantDock/hooks/use-selected-agent-auth-warning.hooks.js"
+    },
+    "./shell/components/AssistantDock/SubagentsIndicator": {
+      "types": "./dist/shell/components/AssistantDock/SubagentsIndicator.d.ts",
+      "import": "./dist/shell/components/AssistantDock/SubagentsIndicator.js",
+      "default": "./dist/shell/components/AssistantDock/SubagentsIndicator.js"
     }
   },
   "files": [
