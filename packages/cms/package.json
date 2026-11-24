@@ -494,7 +494,32 @@
       "./publish/trust/provisioning.node-io": "node",
       "./publish/trust/revocations": "universal",
       "./trash/site/directory-rollback-log": "universal",
-      "./trash/permanent/agent-tools": "universal"
+      "./trash/permanent/agent-tools": "universal",
+      "./publish/content/run-repo": "universal",
+      "./publish/content/seed-hash": "universal",
+      "./publish/content/backstop-refusal": "universal",
+      "./publish/content/peers": "universal",
+      "./publish/content/apply-retire": "universal",
+      "./publish/content/composite-blob-source": "node",
+      "./trash/site/adapters/marker-sql": "node",
+      "./posts/tiptap-text-schema": "universal",
+      "./taxonomy/site/publish-term-ids": "universal",
+      "./forms/destinations/key-store": "universal",
+      "./settings/site/site-title-preservation": "node",
+      "./media/site/public-urls": "node",
+      "./fs-files/native-folder-picker": "node",
+      "./fs-files/write-files": "node",
+      "./content-duplication/derive-available-name": "universal",
+      "./content-duplication/agent-tools": "universal",
+      "./change-sets/agent-tools": "universal",
+      "./forms/destinations/rewrite-actions": "node",
+      "./navigation/site/reverters": "universal",
+      "./media/site/document-archive": "node",
+      "./change-sets/tool-registrations": "universal",
+      "./forms/destinations/deliver": "universal",
+      "./media/site-generation/media-provider-registry": "node",
+      "./entries/site/unreadable-owner-entries-repair": "universal",
+      "./forms/site/submission-ip-expiry-sweep": "node"
     },
     "isolation": {
       "domains": {
@@ -3135,6 +3160,131 @@
       "types": "./dist/trash/permanent/agent-tools.d.ts",
       "import": "./dist/trash/permanent/agent-tools.js",
       "default": "./dist/trash/permanent/agent-tools.js"
+    },
+    "./publish/content/run-repo": {
+      "types": "./dist/publish/content/run-repo.d.ts",
+      "import": "./dist/publish/content/run-repo.js",
+      "default": "./dist/publish/content/run-repo.js"
+    },
+    "./publish/content/seed-hash": {
+      "types": "./dist/publish/content/seed-hash.d.ts",
+      "import": "./dist/publish/content/seed-hash.js",
+      "default": "./dist/publish/content/seed-hash.js"
+    },
+    "./publish/content/backstop-refusal": {
+      "types": "./dist/publish/content/backstop-refusal.d.ts",
+      "import": "./dist/publish/content/backstop-refusal.js",
+      "default": "./dist/publish/content/backstop-refusal.js"
+    },
+    "./publish/content/peers": {
+      "types": "./dist/publish/content/peers.d.ts",
+      "import": "./dist/publish/content/peers.js",
+      "default": "./dist/publish/content/peers.js"
+    },
+    "./publish/content/apply-retire": {
+      "types": "./dist/publish/content/apply-retire.d.ts",
+      "import": "./dist/publish/content/apply-retire.js",
+      "default": "./dist/publish/content/apply-retire.js"
+    },
+    "./publish/content/composite-blob-source": {
+      "types": "./dist/publish/content/composite-blob-source.d.ts",
+      "import": "./dist/publish/content/composite-blob-source.js",
+      "default": "./dist/publish/content/composite-blob-source.js"
+    },
+    "./trash/site/adapters/marker-sql": {
+      "types": "./dist/trash/site/adapters/marker-sql.d.ts",
+      "import": "./dist/trash/site/adapters/marker-sql.js",
+      "default": "./dist/trash/site/adapters/marker-sql.js"
+    },
+    "./posts/tiptap-text-schema": {
+      "types": "./dist/posts/tiptap-text-schema.d.ts",
+      "import": "./dist/posts/tiptap-text-schema.js",
+      "default": "./dist/posts/tiptap-text-schema.js"
+    },
+    "./taxonomy/site/publish-term-ids": {
+      "types": "./dist/taxonomy/site/publish-term-ids.d.ts",
+      "import": "./dist/taxonomy/site/publish-term-ids.js",
+      "default": "./dist/taxonomy/site/publish-term-ids.js"
+    },
+    "./forms/destinations/key-store": {
+      "types": "./dist/forms/destinations/key-store.d.ts",
+      "import": "./dist/forms/destinations/key-store.js",
+      "default": "./dist/forms/destinations/key-store.js"
+    },
+    "./settings/site/site-title-preservation": {
+      "types": "./dist/settings/site/site-title-preservation.d.ts",
+      "import": "./dist/settings/site/site-title-preservation.js",
+      "default": "./dist/settings/site/site-title-preservation.js"
+    },
+    "./media/site/public-urls": {
+      "types": "./dist/media/site/public-urls.d.ts",
+      "import": "./dist/media/site/public-urls.js",
+      "default": "./dist/media/site/public-urls.js"
+    },
+    "./fs-files/native-folder-picker": {
+      "types": "./dist/fs-files/native-folder-picker.d.ts",
+      "import": "./dist/fs-files/native-folder-picker.js",
+      "default": "./dist/fs-files/native-folder-picker.js"
+    },
+    "./fs-files/write-files": {
+      "types": "./dist/fs-files/write-files.d.ts",
+      "import": "./dist/fs-files/write-files.js",
+      "default": "./dist/fs-files/write-files.js"
+    },
+    "./content-duplication/derive-available-name": {
+      "types": "./dist/content-duplication/derive-available-name.d.ts",
+      "import": "./dist/content-duplication/derive-available-name.js",
+      "default": "./dist/content-duplication/derive-available-name.js"
+    },
+    "./content-duplication/agent-tools": {
+      "types": "./dist/content-duplication/agent-tools.d.ts",
+      "import": "./dist/content-duplication/agent-tools.js",
+      "default": "./dist/content-duplication/agent-tools.js"
+    },
+    "./change-sets/agent-tools": {
+      "types": "./dist/change-sets/agent-tools.d.ts",
+      "import": "./dist/change-sets/agent-tools.js",
+      "default": "./dist/change-sets/agent-tools.js"
+    },
+    "./forms/destinations/rewrite-actions": {
+      "types": "./dist/forms/destinations/rewrite-actions.d.ts",
+      "import": "./dist/forms/destinations/rewrite-actions.js",
+      "default": "./dist/forms/destinations/rewrite-actions.js"
+    },
+    "./navigation/site/reverters": {
+      "types": "./dist/navigation/site/reverters.d.ts",
+      "import": "./dist/navigation/site/reverters.js",
+      "default": "./dist/navigation/site/reverters.js"
+    },
+    "./media/site/document-archive": {
+      "types": "./dist/media/site/document-archive.d.ts",
+      "import": "./dist/media/site/document-archive.js",
+      "default": "./dist/media/site/document-archive.js"
+    },
+    "./change-sets/tool-registrations": {
+      "types": "./dist/change-sets/tool-registrations.d.ts",
+      "import": "./dist/change-sets/tool-registrations.js",
+      "default": "./dist/change-sets/tool-registrations.js"
+    },
+    "./forms/destinations/deliver": {
+      "types": "./dist/forms/destinations/deliver.d.ts",
+      "import": "./dist/forms/destinations/deliver.js",
+      "default": "./dist/forms/destinations/deliver.js"
+    },
+    "./media/site-generation/media-provider-registry": {
+      "types": "./dist/media/site-generation/media-provider-registry.d.ts",
+      "import": "./dist/media/site-generation/media-provider-registry.js",
+      "default": "./dist/media/site-generation/media-provider-registry.js"
+    },
+    "./entries/site/unreadable-owner-entries-repair": {
+      "types": "./dist/entries/site/unreadable-owner-entries-repair.d.ts",
+      "import": "./dist/entries/site/unreadable-owner-entries-repair.js",
+      "default": "./dist/entries/site/unreadable-owner-entries-repair.js"
+    },
+    "./forms/site/submission-ip-expiry-sweep": {
+      "types": "./dist/forms/site/submission-ip-expiry-sweep.d.ts",
+      "import": "./dist/forms/site/submission-ip-expiry-sweep.js",
+      "default": "./dist/forms/site/submission-ip-expiry-sweep.js"
     }
   },
   "files": [

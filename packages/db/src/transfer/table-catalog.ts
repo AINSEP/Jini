@@ -34,6 +34,7 @@ function introspectedColumn(column: SourceColumn, rowId: boolean): TransferColum
 /** A table no host schema file describes, in the layout the snapshot declares. */
 export function introspectedTable({ name, layout }: { name: string; layout: SourceTableLayout }, _optional = {}): TransferTable {
   const primaryKey = layout.columns.filter((column) => column.primaryKeyPosition > 0).sort((a, b) => a.primaryKeyPosition - b.primaryKeyPosition).map((column) => column.name);
+  // A lone INTEGER primary key is SQLite's auto-numbered row id, so it becomes an identity column.
   const rowIdColumn = primaryKey.length === 1 ? layout.columns.find((column) => column.name === primaryKey[0] && column.declaredType.toUpperCase() === "INTEGER") : undefined;
   const indexes = layout.indexes
     .filter((index) => index.origin !== "pk" && !index.partial && index.columns.every((column) => column !== null))

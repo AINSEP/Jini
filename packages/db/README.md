@@ -15,7 +15,7 @@ subpaths as deprecated re-export shims for one release; import db directly in ne
 | `./kernel/pglite` | `openPgliteKernel`, `PgKernel`, `PgliteDialect`, `pgliteOps`, served-data copy and restore types | `kysely` |
 | `./kernel/postgres` | `openPostgresKernel`, `openPgliteSocketKernel`, `postgresOps` | `kysely` |
 | `./migrate` | `runMigrations`, `assertValidSteps`, `hasLedger`, `sourceChecksum`, step/error types | `kysely` |
-| `./transfer` | Snapshot sources, completeness, DDL and transactional psql COPY | Nothing |
+| `./transfer` | Snapshot sources, completeness, DDL, transactional psql COPY and the ORM-neutral schema catalog (`CatalogIntrospection` injected by the host) | Nothing |
 | `./kernel/store-copy` | Scope-selected Postgres store copy over borrowed kernels | `kysely` |
 | `./tools` | DB catalogs, portable read/restore-point/transfer handlers and injected ports | `@jini-ai/core` |
 

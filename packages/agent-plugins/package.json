@@ -110,7 +110,20 @@
       "./site/admin-surfaces/delivery-bindings": "universal",
       "./site/supersession": "node",
       "./site/uninstall-tool": "node",
-      "./site/host-plugin-guidance": "node"
+      "./site/admin-surfaces/public-config": "universal",
+      "./site/deploy-split-activation": "universal",
+      "./site/bundled-id-upgrade": "node",
+      "./site/retired-plugin-tool-aliases": "universal",
+      "./site/admin-surfaces/handlers": "universal",
+      "./site/customize-tool": "node",
+      "./site/activation-effects": "node",
+      "./site/service-ports": "universal",
+      "./site/provider-plugin-link": "node",
+      "./site/host-plugin-guidance": "node",
+      "./site/analytics-provider-registry": "node",
+      "./site/host-signals": "node",
+      "./site/bundled-contribution-sources": "node",
+      "./site/auth-schemes": "node"
     },
     "isolation": {
       "entries": {
@@ -124,7 +137,15 @@
         "./site/admin-surfaces/delivery-bindings": "admin-surfaces",
         "./site/supersession": "lifecycle",
         "./site/uninstall-tool": "lifecycle",
-        "./site/host-plugin-guidance": "lifecycle"
+        "./site/admin-surfaces/public-config": "admin-surfaces",
+        "./site/admin-surfaces/handlers": "admin-surfaces",
+        "./site/customize-tool": "folder-zip",
+        "./site/activation-effects": "lifecycle",
+        "./site/provider-plugin-link": "lifecycle",
+        "./site/analytics-provider-registry": "lifecycle",
+        "./site/host-signals": "lifecycle",
+        "./site/bundled-contribution-sources": "lifecycle",
+        "./site/auth-schemes": "lifecycle"
       },
       "shared": [
         "core/persistent-state.js",
@@ -331,10 +352,75 @@
       "import": "./dist/site/uninstall-tool.js",
       "default": "./dist/site/uninstall-tool.js"
     },
+    "./site/admin-surfaces/public-config": {
+      "types": "./dist/site/admin-surfaces/public-config.d.ts",
+      "import": "./dist/site/admin-surfaces/public-config.js",
+      "default": "./dist/site/admin-surfaces/public-config.js"
+    },
+    "./site/deploy-split-activation": {
+      "types": "./dist/site/deploy-split-activation.d.ts",
+      "import": "./dist/site/deploy-split-activation.js",
+      "default": "./dist/site/deploy-split-activation.js"
+    },
+    "./site/bundled-id-upgrade": {
+      "types": "./dist/site/bundled-id-upgrade.d.ts",
+      "import": "./dist/site/bundled-id-upgrade.js",
+      "default": "./dist/site/bundled-id-upgrade.js"
+    },
+    "./site/retired-plugin-tool-aliases": {
+      "types": "./dist/site/retired-plugin-tool-aliases.d.ts",
+      "import": "./dist/site/retired-plugin-tool-aliases.js",
+      "default": "./dist/site/retired-plugin-tool-aliases.js"
+    },
+    "./site/admin-surfaces/handlers": {
+      "types": "./dist/site/admin-surfaces/handlers.d.ts",
+      "import": "./dist/site/admin-surfaces/handlers.js",
+      "default": "./dist/site/admin-surfaces/handlers.js"
+    },
+    "./site/customize-tool": {
+      "types": "./dist/site/customize-tool.d.ts",
+      "import": "./dist/site/customize-tool.js",
+      "default": "./dist/site/customize-tool.js"
+    },
+    "./site/activation-effects": {
+      "types": "./dist/site/activation-effects.d.ts",
+      "import": "./dist/site/activation-effects.js",
+      "default": "./dist/site/activation-effects.js"
+    },
+    "./site/service-ports": {
+      "types": "./dist/site/service-ports.d.ts",
+      "import": "./dist/site/service-ports.js",
+      "default": "./dist/site/service-ports.js"
+    },
+    "./site/provider-plugin-link": {
+      "types": "./dist/site/provider-plugin-link.d.ts",
+      "import": "./dist/site/provider-plugin-link.js",
+      "default": "./dist/site/provider-plugin-link.js"
+    },
     "./site/host-plugin-guidance": {
       "types": "./dist/site/host-plugin-guidance.d.ts",
       "import": "./dist/site/host-plugin-guidance.js",
       "default": "./dist/site/host-plugin-guidance.js"
+    },
+    "./site/analytics-provider-registry": {
+      "types": "./dist/site/analytics-provider-registry.d.ts",
+      "import": "./dist/site/analytics-provider-registry.js",
+      "default": "./dist/site/analytics-provider-registry.js"
+    },
+    "./site/host-signals": {
+      "types": "./dist/site/host-signals.d.ts",
+      "import": "./dist/site/host-signals.js",
+      "default": "./dist/site/host-signals.js"
+    },
+    "./site/bundled-contribution-sources": {
+      "types": "./dist/site/bundled-contribution-sources.d.ts",
+      "import": "./dist/site/bundled-contribution-sources.js",
+      "default": "./dist/site/bundled-contribution-sources.js"
+    },
+    "./site/auth-schemes": {
+      "types": "./dist/site/auth-schemes.d.ts",
+      "import": "./dist/site/auth-schemes.js",
+      "default": "./dist/site/auth-schemes.js"
     }
   },
   "files": [

@@ -1306,6 +1306,32 @@
    "writePolicyPermission": "function:acfabfb9b2"
   }
  },
+ "./server/sql": {
+  "types": "./dist/server/sql/index.d.ts",
+  "symbols": {
+   "AssignmentSqlRequired": "interface:2a582ae970",
+   "MfaFactorsTable": "interface:3b7771a893",
+   "MfaPendingTable": "interface:a38a573dd2",
+   "MfaTables": "interface:04847ca38c",
+   "PasskeyTables": "interface:a57c720e5c",
+   "PasskeysTable": "interface:f1208c1827",
+   "PrincipalPoliciesTable": "interface:56d52763d7",
+   "PrincipalPolicyTables": "interface:8682c95bdc",
+   "PrincipalRoleTables": "interface:df96b1974f",
+   "PrincipalRolesTable": "interface:a48432c954",
+   "RecoveryCodeTables": "interface:9d405ad99e",
+   "RecoveryCodesTable": "interface:54326721b6",
+   "RolePoliciesTable": "interface:1226e67381",
+   "RolePolicyTables": "interface:b1d0e86249",
+   "SqlIdentityKernel": "type:3169297056",
+   "SqlPrincipalPolicyRepo": "class:c32bdab054",
+   "SqlPrincipalRoleRepo": "class:071095f623",
+   "SqlRolePolicyRepo": "class:7a3c576548",
+   "createSqlMfaStore": "function:ec68c991be",
+   "createSqlPasskeyStore": "function:449566bb0f",
+   "createSqlRecoveryCodeStore": "function:5c24f041f3"
+  }
+ },
  "./session-bootstrap": {
   "types": "./dist/session-bootstrap/index.d.ts",
   "symbols": {

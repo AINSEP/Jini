@@ -343,3 +343,5 @@ as deprecated types until the next major. Hosts import them from core.
 and calls `tokensForCreate({ values })`; `undefined` means "send the create input unchanged". The
 host's create-form hook owns the inputs, the bridge and the copy; the receiving side validates with
 `parsePluginTokenMap` and the host's limits.
+
+MCP trust admission: hosts bind the lifecycle owner's `classifyAgentPluginMcpServerTrust({ server })` into the planners' positional `classifyTrust` callback (`stdio` always `requires-confirmation`) and read installed skills/`mcp.json` through `readInstalledSkillMarkdown`/`readInstalledMcpServers`/`readInstalledMcpServerIds`; metadata warnings arrive on `onEvent` as `agent-plugin-metadata-warning`.

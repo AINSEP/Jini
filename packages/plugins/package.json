@@ -32,7 +32,10 @@
       "./runtime/uninstall-confirmation-ui": "universal",
       "./runtime/lower-tool-access": "universal",
       "./site/lipay/manifest": "universal",
-      "./site/store/manifest": "universal"
+      "./site/store/manifest": "universal",
+      "./runtime/lower-tool-access": "universal",
+      "./runtime/sdk-resolver": "node",
+      "./runtime/service-ports": "universal"
     },
     "isolation": {
       "forbidden": {
@@ -148,6 +151,21 @@
       "types": "./dist/site/store/manifest.d.ts",
       "import": "./dist/site/store/manifest.js",
       "default": "./dist/site/store/manifest.js"
+    },
+    "./runtime/lower-tool-access": {
+      "types": "./dist/runtime/lower-tool-access.d.ts",
+      "import": "./dist/runtime/lower-tool-access.js",
+      "default": "./dist/runtime/lower-tool-access.js"
+    },
+    "./runtime/sdk-resolver": {
+      "types": "./dist/runtime/sdk-resolver.d.ts",
+      "import": "./dist/runtime/sdk-resolver.js",
+      "default": "./dist/runtime/sdk-resolver.js"
+    },
+    "./runtime/service-ports": {
+      "types": "./dist/runtime/service-ports.d.ts",
+      "import": "./dist/runtime/service-ports.js",
+      "default": "./dist/runtime/service-ports.js"
     }
   },
   "files": [

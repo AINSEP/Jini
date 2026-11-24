@@ -50,7 +50,8 @@
       "./shell": "node",
       "./child-environment": "node",
       "./retention": "node",
-      "./object-store/site/setting": "node"
+      "./object-store/site/setting": "node",
+      "./object-store/site/registry": "node"
     },
     "isolation": {
       "entries": {
@@ -273,6 +274,11 @@
       "types": "./dist/object-store/site/setting.d.ts",
       "import": "./dist/object-store/site/setting.js",
       "default": "./dist/object-store/site/setting.js"
+    },
+    "./object-store/site/registry": {
+      "types": "./dist/object-store/site/registry.d.ts",
+      "import": "./dist/object-store/site/registry.js",
+      "default": "./dist/object-store/site/registry.js"
     }
   },
   "files": [

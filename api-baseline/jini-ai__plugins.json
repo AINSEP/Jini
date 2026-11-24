@@ -469,6 +469,21 @@
    "updatePendingNextStep": "function:30595055b7"
   }
  },
+ "./runtime/sdk-resolver": {
+  "types": "./dist/runtime/sdk-resolver.d.ts",
+  "symbols": {
+   "PluginSdkResolverAlreadyRegisteredError": "class:06876bcd61",
+   "registerPluginSdkResolver": "function:b9e0456369",
+   "sdkModuleUrl": "function:43f3c355a7"
+  }
+ },
+ "./runtime/service-ports": {
+  "types": "./dist/runtime/service-ports.d.ts",
+  "symbols": {
+   "PluginPostReadPort": "interface:1726da2d09",
+   "PluginProviderFacesPort": "interface:bed5230290"
+  }
+ },
  "./runtime/source-tool-catalog": {
   "types": "./dist/runtime/source-tool-catalog.d.ts",
   "symbols": {
