@@ -184,6 +184,7 @@
       "./shell/lib/shell-failure-log": "browser",
       "./shell/hooks/admin-locale-port.hooks": "browser",
       "./shell/hooks/use-admin-locale.hooks": "browser",
+      "./shell/hooks/use-credential-hint.hooks": "browser",
       "./shell/hooks/use-admin-document-locale.hooks": "browser",
       "./shell/hooks/use-cms-sidebar-label-tooltips.hooks": "browser",
       "./shell/hooks/use-dock-auto-rail.hooks": "browser",
@@ -1796,6 +1797,11 @@
       "types": "./dist/shell/hooks/use-admin-locale.hooks.d.ts",
       "import": "./dist/shell/hooks/use-admin-locale.hooks.js",
       "default": "./dist/shell/hooks/use-admin-locale.hooks.js"
+    },
+    "./shell/hooks/use-credential-hint.hooks": {
+      "types": "./dist/shell/hooks/use-credential-hint.hooks.d.ts",
+      "import": "./dist/shell/hooks/use-credential-hint.hooks.js",
+      "default": "./dist/shell/hooks/use-credential-hint.hooks.js"
     },
     "./shell/hooks/use-admin-document-locale.hooks": {
       "types": "./dist/shell/hooks/use-admin-document-locale.hooks.d.ts",
