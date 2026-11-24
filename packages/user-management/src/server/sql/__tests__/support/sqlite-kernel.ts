@@ -23,7 +23,7 @@ export function sqliteTestKernel(): TestSqliteKernel {
   const events: string[] = [];
   const db = new Kysely<unknown>({
     dialect: new SqliteDialect({ database: new Database(":memory:") }),
-    log: event => { if (event.level === "query") queries.push(event.query.sql); },
+    log: event => { if (event.level === "query" && !/^(begin|commit|rollback)/i.test(event.query.sql)) queries.push(event.query.sql); },
   });
   const active = new AsyncLocalStorage<Kysely<unknown>>();
   const kernel: StorageKernel<Kysely<unknown>, unknown> = {
