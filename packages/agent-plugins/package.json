@@ -117,7 +117,9 @@
       "./site/provider-plugin-link": "node",
       "./site/host-plugin-guidance": "node",
       "./site/analytics-provider-registry": "node",
-      "./site/host-signals": "node"
+      "./site/host-signals": "node",
+      "./site/bundled-contribution-sources": "node",
+      "./site/auth-schemes": "node"
     },
     "isolation": {
       "entries": {
@@ -134,7 +136,9 @@
         "./site/activation-effects": "lifecycle",
         "./site/provider-plugin-link": "lifecycle",
         "./site/analytics-provider-registry": "lifecycle",
-        "./site/host-signals": "lifecycle"
+        "./site/host-signals": "lifecycle",
+        "./site/bundled-contribution-sources": "lifecycle",
+        "./site/auth-schemes": "lifecycle"
       },
       "shared": [
         "core/persistent-state.js",
@@ -380,6 +384,16 @@
       "types": "./dist/site/host-signals.d.ts",
       "import": "./dist/site/host-signals.js",
       "default": "./dist/site/host-signals.js"
+    },
+    "./site/bundled-contribution-sources": {
+      "types": "./dist/site/bundled-contribution-sources.d.ts",
+      "import": "./dist/site/bundled-contribution-sources.js",
+      "default": "./dist/site/bundled-contribution-sources.js"
+    },
+    "./site/auth-schemes": {
+      "types": "./dist/site/auth-schemes.d.ts",
+      "import": "./dist/site/auth-schemes.js",
+      "default": "./dist/site/auth-schemes.js"
     }
   },
   "files": [
