@@ -181,6 +181,48 @@ answer the two from different sources), `normalizeMenuHtml` (a Node host binds
 `normalizeMenuHtml` from `@jini-ai/cms/navigation/node`) and `trashMenu` (the host's trash move).
 Malformed bodies are refused in `parse` with the host's code-less `{ error }` body.
 
+System mail (`src/admin-http/routes/system/mail-{status,dns,test-send,activity}.ts`, guards in
+`mail-shared.ts`): the host binds every collaborator as a required function-typed dep — the live
+mailer predicate and cached status, the DNS operations, the recipient rules and plan-then-run send,
+the platform activity/suppression operations with a `classifyMailActivityError` mapper — plus the
+permission names. The test send's local duplicate/rate guard answers 429 with the same `{ sent, result }` body.
+Mail providers (`src/admin-http/routes/system/mail-providers.ts`: list, credential plan, activate) map the host's
+classified failures through `mailProviderRefusal`, which the host's hand-written credential save shares, so both
+answer from one status table.
+
+Sites (`src/admin-http/routes/sites/sites-home.ts`: `sitesConfigReadRoute`, `sitesHomeSetRoute` and the
+folder rules; `src/admin-http/routes/system/sites.ts`: `siteTokenSignInPluginsRoute`, `siteCreateRoute`,
+`siteActivateRoute`): the host injects the deployment gate, its sites workspace, a `SitesDirectoryProbe`
+(filesystem inspection) and the site-admin collaborators. Gates answer before authorization; folder and
+name refusals after it; feature refusals map by code to status.
+
+Saved credentials (`src/admin-http/routes/system/{source-control-credentials,custom-credentials}.ts`,
+`publish-credentials/*`, shared ladder in `credential-routes-shared.ts`): the host injects the credential
+store as functions and its error classes as `storeErrors`; the spec owns the status/code ladder
+(`ToolInputError` → 409 `KEY_IN_USE` first, unmapped rethrown for the host 500). It also injects the
+project-key attach, `prepareInvalidation`, the after-save probe, the account-label heal trigger and, for
+custom keys, `credentialKindOf(principal)`, `ownerPrincipalId()` and the Shared Keys copy. The publish list
+and custom list/update specs are tested but not yet mounted by Tovu (see its INFO.md).
+
+System deploy (`src/admin-http/routes/system/{deployment-overview,export-site}.ts`,
+`publish-site/{status,preview,targets}.ts`): every process-state read is an injected function —
+`buildSnapshot` and `defaultOwnerPassword` for the overview, `getRunSnapshot`/`startRun` (the host's single
+process-local export slot) for export, `getRunSnapshot`/`previewPublish`/`listTargets` for publish. The export
+trigger answers 202, refuses a second trigger with 409 `{ error, run }` and validates its body in `handle`
+(after auth and the running check) to keep the original order. Overview/export mount `direct`, publish `guarded`.
+
+Settings (`src/admin-http/routes/settings/{get-raw,get-effective,list-definitions,set,clear,reset,register-definitions}.ts`,
+`shared.ts`, `protected-namespaces.ts`): each body runs through `runSettingsRoute` in the order readiness
+(`settingsReady`), principal, protected-namespace write fence, body; each route's domain-error ladder is a
+`SettingsErrorRung` table and unmapped errors are rethrown to the host 500. The host injects a
+`settingsService` factory, `writeServiceDeps`, `resolveReadTarget` + `crossPrincipalReadPermission` and a
+`writeFence` (protected/code-owned namespaces with their copy); `touchesProtectedNamespaces` resolves names,
+renames, aliases and resets.
+Assistant owner grants (`src/admin-http/routes/system/assistant-owner-grant.ts` `createOwnerGrantRoutes({ path, policy })`
+→ `{ get, put }` specs, policies in `assistant-{permanent-deletes,subagents}.ts`) run through the same
+`runSettingsRoute`; the host injects the owner id, clock, setting writer, readiness and the per-grant policy
+(read projection, validation, acknowledgment rule, tool list).
+
 ## Scripts
 
 ```bash
