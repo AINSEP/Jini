@@ -8,7 +8,8 @@
 import assert from 'node:assert/strict';
 import { renderHook } from '@testing-library/react';
 import { afterEach, test } from 'vitest';
-import { useZoom, type ZoomableGuest, type ZoomBridge, type ZoomDirection } from '../use-zoom.js';
+import type { ZoomDirection } from '@jini-ai/core/contracts/desktop-zoom';
+import { useZoom, type ZoomableGuest, type ZoomBridge } from '../use-zoom.js';
 
 const keyPrefix = 'host:zoom:';
 const cleanups: (() => void)[] = [];

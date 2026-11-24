@@ -4,7 +4,7 @@
  * zoom roles target the focused window's top-level webContents, which is wrong when a guest tab
  * is visible. Keep native menu construction outside this module to avoid a runtime Electron dependency.
  */
-type ZoomCommandDirection = "in" | "out" | "reset";
+import type { ZoomDirection as ZoomCommandDirection } from "@jini-ai/core/contracts/desktop-zoom";
 
 interface ZoomCommandWindow {
   isDestroyed(): boolean;

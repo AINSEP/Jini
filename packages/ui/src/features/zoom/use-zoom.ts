@@ -27,9 +27,9 @@
  */
 import { useCallback, useEffect, useRef } from 'react';
 
-/** Which way one zoom command moves. `'reset'` returns to 100% (zoom level 0) outright rather than
- *  stepping toward it. */
-export type ZoomDirection = 'in' | 'out' | 'reset';
+// Which way one zoom command moves is core's `ZoomDirection` wire type. `'reset'` returns to 100%
+// (zoom level 0) outright rather than stepping toward it.
+import type { ZoomDirection } from '@jini-ai/core/contracts/desktop-zoom';
 
 /** The slice of Electron's `<webview>` this file drives. A fake of it is what tests pass.
  *

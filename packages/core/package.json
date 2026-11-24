@@ -45,6 +45,7 @@
       "./contracts/credentials": "universal",
       "./contracts/mail": "universal",
       "./contracts/find-in-page": "universal",
+      "./contracts/desktop-zoom": "universal",
       "./contracts/vault": "universal",
       "./contracts/oauth": "universal",
       "./contracts/content-types": "universal",
@@ -402,6 +403,11 @@
       "types": "./dist/contracts/credentials.d.ts",
       "import": "./dist/contracts/credentials.js",
       "default": "./dist/contracts/credentials.js"
+    },
+    "./contracts/desktop-zoom": {
+      "types": "./dist/contracts/desktop-zoom.d.ts",
+      "import": "./dist/contracts/desktop-zoom.js",
+      "default": "./dist/contracts/desktop-zoom.js"
     },
     "./contracts/find-in-page": {
       "types": "./dist/contracts/find-in-page.d.ts",
