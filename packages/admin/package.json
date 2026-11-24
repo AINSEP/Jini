@@ -39,6 +39,10 @@
       "./security/adapters/http": "universal",
       "./security/adapters/memory": "universal",
       "./security/conformance": "universal",
+      "./security/host/SiteKeyTab.hooks": "browser",
+      "./security/host/hooks/security-permissions-port.hooks": "universal",
+      "./security/host/hooks/access-tokens-port.hooks": "universal",
+      "./security/host/hooks/use-security-permissions.hooks": "browser",
       "./playground": "universal",
       "./playground/react": "browser",
       "./playground/adapters/http": "universal",
@@ -212,6 +216,12 @@
       "./shell/components/Select/Select.hooks": "browser",
       "./shell/lib/tab-event-source": "browser",
       "./shell/hooks/use-external-entry-refresh.hooks": "browser",
+      "./posts/Posts.hooks": "universal",
+      "./posts/post-editor-route-keys": "universal",
+      "./pages/ThemePageDetailsModal.hooks": "browser",
+      "./pages/hooks/theme-canvas-port.hooks": "universal",
+      "./pages/hooks/theme-pages-port.hooks": "universal",
+      "./pages/hooks/theme-canvas-wrapper": "browser",
       "./shell/hooks/admin-execution-credential-port.hooks": "browser",
       "./shell/hooks/use-sites-sidebar-nav.hooks": "browser",
       "./posts/PostAuthorFields": "browser",
@@ -230,6 +240,19 @@
       "./screens/plugins/hooks/use-linked-lock-tip.hooks": "browser",
       "./screens/plugins/plugins-memory-i18n": "universal",
       "./screens/plugins/plugins-i18n": "universal",
+      "./security/security-i18n": "universal",
+      "./screens/collections/collections-i18n": "universal",
+      "./screens/taxonomy/taxonomy-i18n": "universal",
+      "./screens/comments/comments-i18n": "universal",
+      "./screens/menus/menus-i18n": "universal",
+      "./screens/integrations/integrations-i18n": "universal",
+      "./screens/providers/providers-i18n": "universal",
+      "./screens/settings/settings-capabilities-i18n": "universal",
+      "./screens/settings/external-mcp-drift-types": "universal",
+      "./screens/settings/external-mcp-tool-drift": "universal",
+      "./screens/settings/external-mcp-connection-drift": "universal",
+      "./screens/settings/external-mcp-tool-picker-rules": "universal",
+      "./core/bind-dictionary-names": "universal",
       "./screens/skills/skill-failure": "universal",
       "./screens/skills/skill-upload": "universal",
       "./screens/skills/SkillInstallConfirmation": "browser",
@@ -270,12 +293,79 @@
       "./screens/forms/forms-leave-guard-i18n": "universal",
       "./screens/menus/api/menus-api.types": "universal",
       "./screens/widgets/api/widgets-api.types": "universal",
+      "./screens/providers/api/providers-api": "universal",
+      "./agent-plugins/models": "universal",
+      "./screens/integrations/api/integrations-api": "universal",
+      "./screens/integrations/IntegrationsRedirect": "universal",
+      "./screens/providers/always-allow-rules": "universal",
+      "./screens/providers/always-allow-ports": "universal",
+      "./screens/integrations/integrations-ports": "universal",
+      "./screens/integrations/agent-plugin-ports": "universal",
+      "./security/api/security-api.types": "universal",
+      "./security/api/security-api": "universal",
+      "./security/access-token-rows": "universal",
+      "./security/access-token-categories": "universal",
+      "./security/access-token-providers": "universal",
+      "./security/custom-credential-forms": "universal",
+      "./source-control/api/source-control-api.types": "universal",
+      "./source-control/api/source-control-api": "universal",
+      "./source-control/host/hooks/source-control-credentials-port.hooks": "universal",
+      "./deployment/api/deployment-api.types": "universal",
+      "./deployment/api/deployment-api": "universal",
+      "./deployment/host/hooks/deployment-overview-port.hooks": "universal",
+      "./deployment/host/hooks/dockerfile-source-port.hooks": "universal",
+      "./deployment/host/hooks/publish-credentials-port.hooks": "universal",
       "./screens/menus/page-link-rules": "universal",
       "./screens/menus/html-rules": "universal",
       "./screens/menus/hooks/menus-port.hooks": "universal",
       "./screens/menus/MenuEditor.hooks": "browser",
       "./screens/menus/MenuPageLinkFields.hooks": "browser",
       "./screens/menus/MenuPageLinkFields": "browser",
+      "./screens/plugins/api/plugins-api.types": "universal",
+      "./screens/plugins/api/plugins-api": "universal",
+      "./screens/plugins/selected-skills": "universal",
+      "./screens/plugins/hooks/use-plugin-row-focus.hooks": "browser",
+      "./screens/plugins/hooks/agent-plugin-memory-port.hooks": "universal",
+      "./screens/plugins/hooks/plugin-install-port.hooks": "universal",
+      "./screens/plugins/hooks/plugins-port.hooks": "universal",
+      "./screens/plugins/PluginProviderSettingField.hooks": "browser",
+      "./screens/plugins/hooks/use-plugin-provider-settings.hooks": "browser",
+      "./screens/plugins/AgentPlugins.hooks": "browser",
+      "./screens/providers/hooks/use-providers.hooks": "browser",
+      "./screens/trash/rules": "universal",
+      "./sites/transfer/use-export-password.hooks": "browser",
+      "./shell/lib/live-tiptap-editor": "universal",
+      "./shell/lib/media-image-extension.hooks": "universal",
+      "./shell/components/TemplateSource/ViewTemplateButton": "browser",
+      "./shell/hooks/use-desktop-view-release.hooks": "browser",
+      "./shell/lib/agent-screenshot": "browser",
+      "./shell/components/AssistantDock/chat-agent-plugin-preferences": "universal",
+      "./shell/components/AssistantDock/hooks/use-chat-agent-plugins.hooks": "browser",
+      "./shell/components/AssistantDock/hooks/use-assistant-runtime-preferences.hooks": "browser",
+      "./shell/components/AssistantDock/hooks/use-chat-display-preferences.hooks": "browser",
+      "./shell/components/AssistantDock/hooks/open-mcp-ui-link": "universal",
+      "./shell/components/AssistantDock/hooks/use-selected-agent-auth-warning.hooks": "browser",
+      "./shell/components/AssistantDock/SubagentsIndicator": "browser",
+      "./shell/components/MediaEditDialog/MediaEditDialog.hooks": "browser",
+      "./shell/lib/media-embed-extension.hooks": "browser",
+      "./shell/components/AssistantDock/hooks/chat-package-kind": "universal",
+      "./shell/hooks/assistant-chats-port.hooks": "browser",
+      "./shell/hooks/use-assistant-chats.hooks": "browser",
+      "./shell/components/AssistantDock/hooks/conversation-refresh.hooks": "browser",
+      "./shell/components/AssistantDock/assistant-dock-i18n": "universal",
+      "./shell/components/AssistantDock/FolderDropConfirmation": "browser",
+      "./shell/components/AssistantDock/FolderDropError": "browser",
+      "./shell/components/AssistantDock/FolderDropPathHint": "browser",
+      "./shell/components/AssistantDock/FolderPathButton": "browser",
+      "./shell/components/AssistantDock/dock-header-rules": "browser",
+      "./shell/components/AssistantDock/DockHeaderTip.hooks": "browser",
+      "./shell/components/WidgetConfigFields/HtmlAttributeRows.hooks": "browser",
+      "./shell/components/MediaPickerDialog/JiniMediaPicker.hooks": "browser",
+      "./shell/components/WidgetConfigFields/PlacementContentFields": "browser",
+      "./shell/components/AssistantDock/DockSettingsMenu": "browser",
+      "./posts/view-tabs": "universal",
+      "./pages/hooks/use-theme-pages.hooks": "browser",
+      "./pages/hooks/theme-pages-fake-port": "universal",
       "./roles/Roles.hooks": "browser",
       "./roles/rules": "universal",
       "./roles/roles-i18n": "universal",
@@ -426,7 +516,9 @@
         "src/shell/lib/viewer-time-zone.ts",
         "src/shell/lib/router.ts",
         "src/browser/shell-navigation.ts",
-        "src/browser/navigation.ts"
+        "src/browser/navigation.ts",
+        "src/shell/components/AssistantDock/chat-agent-plugin-preferences.ts",
+        "src/media/html-attributes.ts"
       ],
       "forbidden": {
         "universal": [
@@ -566,6 +658,35 @@
         "./shell/components/Select/Select.hooks": "browser",
         "./shell/lib/tab-event-source": "browser",
         "./shell/hooks/use-external-entry-refresh.hooks": "browser",
+        "./shell/lib/live-tiptap-editor": "universal",
+        "./shell/lib/media-image-extension.hooks": "universal",
+        "./shell/components/TemplateSource/ViewTemplateButton": "browser",
+        "./shell/hooks/use-desktop-view-release.hooks": "browser",
+        "./shell/lib/agent-screenshot": "browser",
+        "./shell/components/AssistantDock/chat-agent-plugin-preferences": "universal",
+        "./shell/components/AssistantDock/hooks/use-chat-agent-plugins.hooks": "browser",
+        "./shell/components/AssistantDock/hooks/use-assistant-runtime-preferences.hooks": "browser",
+        "./shell/components/AssistantDock/hooks/use-chat-display-preferences.hooks": "browser",
+        "./shell/components/AssistantDock/hooks/open-mcp-ui-link": "universal",
+        "./shell/components/AssistantDock/hooks/use-selected-agent-auth-warning.hooks": "browser",
+        "./shell/components/AssistantDock/SubagentsIndicator": "browser",
+        "./shell/components/MediaEditDialog/MediaEditDialog.hooks": "browser",
+        "./shell/lib/media-embed-extension.hooks": "browser",
+        "./shell/components/AssistantDock/hooks/chat-package-kind": "universal",
+        "./shell/hooks/assistant-chats-port.hooks": "browser",
+        "./shell/hooks/use-assistant-chats.hooks": "browser",
+        "./shell/components/AssistantDock/hooks/conversation-refresh.hooks": "browser",
+        "./shell/components/AssistantDock/assistant-dock-i18n": "universal",
+        "./shell/components/AssistantDock/FolderDropConfirmation": "browser",
+        "./shell/components/AssistantDock/FolderDropError": "browser",
+        "./shell/components/AssistantDock/FolderDropPathHint": "browser",
+        "./shell/components/AssistantDock/FolderPathButton": "browser",
+        "./shell/components/AssistantDock/dock-header-rules": "browser",
+        "./shell/components/AssistantDock/DockHeaderTip.hooks": "browser",
+        "./shell/components/WidgetConfigFields/HtmlAttributeRows.hooks": "browser",
+        "./shell/components/MediaPickerDialog/JiniMediaPicker.hooks": "browser",
+        "./shell/components/WidgetConfigFields/PlacementContentFields": "browser",
+        "./shell/components/AssistantDock/DockSettingsMenu": "browser",
         "./shell/hooks/admin-execution-credential-port.hooks": "browser",
         "./shell/hooks/use-sites-sidebar-nav.hooks": "browser",
         "./roles/Roles.hooks": "browser",
@@ -760,6 +881,26 @@
       "types": "./dist/security/conformance/security-api.conformance.d.ts",
       "import": "./dist/security/conformance/security-api.conformance.js",
       "default": "./dist/security/conformance/security-api.conformance.js"
+    },
+    "./security/host/SiteKeyTab.hooks": {
+      "types": "./dist/security/host/SiteKeyTab.hooks.d.ts",
+      "import": "./dist/security/host/SiteKeyTab.hooks.js",
+      "default": "./dist/security/host/SiteKeyTab.hooks.js"
+    },
+    "./security/host/hooks/security-permissions-port.hooks": {
+      "types": "./dist/security/host/hooks/security-permissions-port.hooks.d.ts",
+      "import": "./dist/security/host/hooks/security-permissions-port.hooks.js",
+      "default": "./dist/security/host/hooks/security-permissions-port.hooks.js"
+    },
+    "./security/host/hooks/access-tokens-port.hooks": {
+      "types": "./dist/security/host/hooks/access-tokens-port.hooks.d.ts",
+      "import": "./dist/security/host/hooks/access-tokens-port.hooks.js",
+      "default": "./dist/security/host/hooks/access-tokens-port.hooks.js"
+    },
+    "./security/host/hooks/use-security-permissions.hooks": {
+      "types": "./dist/security/host/hooks/use-security-permissions.hooks.d.ts",
+      "import": "./dist/security/host/hooks/use-security-permissions.hooks.js",
+      "default": "./dist/security/host/hooks/use-security-permissions.hooks.js"
     },
     "./playground": {
       "types": "./dist/playground/index.d.ts",
@@ -1626,6 +1767,36 @@
       "import": "./dist/shell/hooks/use-external-entry-refresh.hooks.js",
       "default": "./dist/shell/hooks/use-external-entry-refresh.hooks.js"
     },
+    "./posts/Posts.hooks": {
+      "types": "./dist/posts/Posts.hooks.d.ts",
+      "import": "./dist/posts/Posts.hooks.js",
+      "default": "./dist/posts/Posts.hooks.js"
+    },
+    "./posts/post-editor-route-keys": {
+      "types": "./dist/posts/post-editor-route-keys.d.ts",
+      "import": "./dist/posts/post-editor-route-keys.js",
+      "default": "./dist/posts/post-editor-route-keys.js"
+    },
+    "./pages/ThemePageDetailsModal.hooks": {
+      "types": "./dist/pages/ThemePageDetailsModal.hooks.d.ts",
+      "import": "./dist/pages/ThemePageDetailsModal.hooks.js",
+      "default": "./dist/pages/ThemePageDetailsModal.hooks.js"
+    },
+    "./pages/hooks/theme-canvas-port.hooks": {
+      "types": "./dist/pages/hooks/theme-canvas-port.hooks.d.ts",
+      "import": "./dist/pages/hooks/theme-canvas-port.hooks.js",
+      "default": "./dist/pages/hooks/theme-canvas-port.hooks.js"
+    },
+    "./pages/hooks/theme-pages-port.hooks": {
+      "types": "./dist/pages/hooks/theme-pages-port.hooks.d.ts",
+      "import": "./dist/pages/hooks/theme-pages-port.hooks.js",
+      "default": "./dist/pages/hooks/theme-pages-port.hooks.js"
+    },
+    "./pages/hooks/theme-canvas-wrapper": {
+      "types": "./dist/pages/hooks/theme-canvas-wrapper.d.ts",
+      "import": "./dist/pages/hooks/theme-canvas-wrapper.js",
+      "default": "./dist/pages/hooks/theme-canvas-wrapper.js"
+    },
     "./shell/hooks/admin-execution-credential-port.hooks": {
       "types": "./dist/shell/hooks/admin-execution-credential-port.hooks.d.ts",
       "import": "./dist/shell/hooks/admin-execution-credential-port.hooks.js",
@@ -1715,6 +1886,71 @@
       "types": "./dist/screens/plugins/plugins-i18n.d.ts",
       "import": "./dist/screens/plugins/plugins-i18n.js",
       "default": "./dist/screens/plugins/plugins-i18n.js"
+    },
+    "./security/security-i18n": {
+      "types": "./dist/security/security-i18n.d.ts",
+      "import": "./dist/security/security-i18n.js",
+      "default": "./dist/security/security-i18n.js"
+    },
+    "./screens/collections/collections-i18n": {
+      "types": "./dist/screens/collections/collections-i18n.d.ts",
+      "import": "./dist/screens/collections/collections-i18n.js",
+      "default": "./dist/screens/collections/collections-i18n.js"
+    },
+    "./screens/taxonomy/taxonomy-i18n": {
+      "types": "./dist/screens/taxonomy/taxonomy-i18n.d.ts",
+      "import": "./dist/screens/taxonomy/taxonomy-i18n.js",
+      "default": "./dist/screens/taxonomy/taxonomy-i18n.js"
+    },
+    "./screens/comments/comments-i18n": {
+      "types": "./dist/screens/comments/comments-i18n.d.ts",
+      "import": "./dist/screens/comments/comments-i18n.js",
+      "default": "./dist/screens/comments/comments-i18n.js"
+    },
+    "./screens/menus/menus-i18n": {
+      "types": "./dist/screens/menus/menus-i18n.d.ts",
+      "import": "./dist/screens/menus/menus-i18n.js",
+      "default": "./dist/screens/menus/menus-i18n.js"
+    },
+    "./screens/integrations/integrations-i18n": {
+      "types": "./dist/screens/integrations/integrations-i18n.d.ts",
+      "import": "./dist/screens/integrations/integrations-i18n.js",
+      "default": "./dist/screens/integrations/integrations-i18n.js"
+    },
+    "./screens/providers/providers-i18n": {
+      "types": "./dist/screens/providers/providers-i18n.d.ts",
+      "import": "./dist/screens/providers/providers-i18n.js",
+      "default": "./dist/screens/providers/providers-i18n.js"
+    },
+    "./screens/settings/settings-capabilities-i18n": {
+      "types": "./dist/screens/settings/settings-capabilities-i18n.d.ts",
+      "import": "./dist/screens/settings/settings-capabilities-i18n.js",
+      "default": "./dist/screens/settings/settings-capabilities-i18n.js"
+    },
+    "./screens/settings/external-mcp-drift-types": {
+      "types": "./dist/screens/settings/external-mcp-drift-types.d.ts",
+      "import": "./dist/screens/settings/external-mcp-drift-types.js",
+      "default": "./dist/screens/settings/external-mcp-drift-types.js"
+    },
+    "./screens/settings/external-mcp-tool-drift": {
+      "types": "./dist/screens/settings/external-mcp-tool-drift.d.ts",
+      "import": "./dist/screens/settings/external-mcp-tool-drift.js",
+      "default": "./dist/screens/settings/external-mcp-tool-drift.js"
+    },
+    "./screens/settings/external-mcp-connection-drift": {
+      "types": "./dist/screens/settings/external-mcp-connection-drift.d.ts",
+      "import": "./dist/screens/settings/external-mcp-connection-drift.js",
+      "default": "./dist/screens/settings/external-mcp-connection-drift.js"
+    },
+    "./screens/settings/external-mcp-tool-picker-rules": {
+      "types": "./dist/screens/settings/external-mcp-tool-picker-rules.d.ts",
+      "import": "./dist/screens/settings/external-mcp-tool-picker-rules.js",
+      "default": "./dist/screens/settings/external-mcp-tool-picker-rules.js"
+    },
+    "./core/bind-dictionary-names": {
+      "types": "./dist/core/bind-dictionary-names.d.ts",
+      "import": "./dist/core/bind-dictionary-names.js",
+      "default": "./dist/core/bind-dictionary-names.js"
     },
     "./screens/skills/skill-failure": {
       "types": "./dist/screens/skills/skill-failure.d.ts",
@@ -1916,6 +2152,116 @@
       "import": "./dist/screens/widgets/api/widgets-api.types.js",
       "default": "./dist/screens/widgets/api/widgets-api.types.js"
     },
+    "./screens/providers/api/providers-api": {
+      "types": "./dist/screens/providers/api/providers-api.d.ts",
+      "import": "./dist/screens/providers/api/providers-api.js",
+      "default": "./dist/screens/providers/api/providers-api.js"
+    },
+    "./agent-plugins/models": {
+      "types": "./dist/agent-plugins/models.d.ts",
+      "import": "./dist/agent-plugins/models.js",
+      "default": "./dist/agent-plugins/models.js"
+    },
+    "./screens/integrations/api/integrations-api": {
+      "types": "./dist/screens/integrations/api/integrations-api.d.ts",
+      "import": "./dist/screens/integrations/api/integrations-api.js",
+      "default": "./dist/screens/integrations/api/integrations-api.js"
+    },
+    "./screens/integrations/IntegrationsRedirect": {
+      "types": "./dist/screens/integrations/IntegrationsRedirect.d.ts",
+      "import": "./dist/screens/integrations/IntegrationsRedirect.js",
+      "default": "./dist/screens/integrations/IntegrationsRedirect.js"
+    },
+    "./screens/providers/always-allow-rules": {
+      "types": "./dist/screens/providers/always-allow-rules.d.ts",
+      "import": "./dist/screens/providers/always-allow-rules.js",
+      "default": "./dist/screens/providers/always-allow-rules.js"
+    },
+    "./screens/providers/always-allow-ports": {
+      "types": "./dist/screens/providers/always-allow-ports.d.ts",
+      "import": "./dist/screens/providers/always-allow-ports.js",
+      "default": "./dist/screens/providers/always-allow-ports.js"
+    },
+    "./screens/integrations/integrations-ports": {
+      "types": "./dist/screens/integrations/integrations-ports.d.ts",
+      "import": "./dist/screens/integrations/integrations-ports.js",
+      "default": "./dist/screens/integrations/integrations-ports.js"
+    },
+    "./screens/integrations/agent-plugin-ports": {
+      "types": "./dist/screens/integrations/agent-plugin-ports.d.ts",
+      "import": "./dist/screens/integrations/agent-plugin-ports.js",
+      "default": "./dist/screens/integrations/agent-plugin-ports.js"
+    },
+    "./security/api/security-api.types": {
+      "types": "./dist/security/api/security-api.types.d.ts",
+      "import": "./dist/security/api/security-api.types.js",
+      "default": "./dist/security/api/security-api.types.js"
+    },
+    "./security/api/security-api": {
+      "types": "./dist/security/api/security-api.d.ts",
+      "import": "./dist/security/api/security-api.js",
+      "default": "./dist/security/api/security-api.js"
+    },
+    "./security/access-token-rows": {
+      "types": "./dist/security/access-token-rows.d.ts",
+      "import": "./dist/security/access-token-rows.js",
+      "default": "./dist/security/access-token-rows.js"
+    },
+    "./security/access-token-categories": {
+      "types": "./dist/security/access-token-categories.d.ts",
+      "import": "./dist/security/access-token-categories.js",
+      "default": "./dist/security/access-token-categories.js"
+    },
+    "./security/access-token-providers": {
+      "types": "./dist/security/access-token-providers.d.ts",
+      "import": "./dist/security/access-token-providers.js",
+      "default": "./dist/security/access-token-providers.js"
+    },
+    "./security/custom-credential-forms": {
+      "types": "./dist/security/custom-credential-forms.d.ts",
+      "import": "./dist/security/custom-credential-forms.js",
+      "default": "./dist/security/custom-credential-forms.js"
+    },
+    "./source-control/api/source-control-api.types": {
+      "types": "./dist/source-control/api/source-control-api.types.d.ts",
+      "import": "./dist/source-control/api/source-control-api.types.js",
+      "default": "./dist/source-control/api/source-control-api.types.js"
+    },
+    "./source-control/api/source-control-api": {
+      "types": "./dist/source-control/api/source-control-api.d.ts",
+      "import": "./dist/source-control/api/source-control-api.js",
+      "default": "./dist/source-control/api/source-control-api.js"
+    },
+    "./source-control/host/hooks/source-control-credentials-port.hooks": {
+      "types": "./dist/source-control/host/hooks/source-control-credentials-port.hooks.d.ts",
+      "import": "./dist/source-control/host/hooks/source-control-credentials-port.hooks.js",
+      "default": "./dist/source-control/host/hooks/source-control-credentials-port.hooks.js"
+    },
+    "./deployment/api/deployment-api.types": {
+      "types": "./dist/deployment/api/deployment-api.types.d.ts",
+      "import": "./dist/deployment/api/deployment-api.types.js",
+      "default": "./dist/deployment/api/deployment-api.types.js"
+    },
+    "./deployment/api/deployment-api": {
+      "types": "./dist/deployment/api/deployment-api.d.ts",
+      "import": "./dist/deployment/api/deployment-api.js",
+      "default": "./dist/deployment/api/deployment-api.js"
+    },
+    "./deployment/host/hooks/deployment-overview-port.hooks": {
+      "types": "./dist/deployment/host/hooks/deployment-overview-port.hooks.d.ts",
+      "import": "./dist/deployment/host/hooks/deployment-overview-port.hooks.js",
+      "default": "./dist/deployment/host/hooks/deployment-overview-port.hooks.js"
+    },
+    "./deployment/host/hooks/dockerfile-source-port.hooks": {
+      "types": "./dist/deployment/host/hooks/dockerfile-source-port.hooks.d.ts",
+      "import": "./dist/deployment/host/hooks/dockerfile-source-port.hooks.js",
+      "default": "./dist/deployment/host/hooks/dockerfile-source-port.hooks.js"
+    },
+    "./deployment/host/hooks/publish-credentials-port.hooks": {
+      "types": "./dist/deployment/host/hooks/publish-credentials-port.hooks.d.ts",
+      "import": "./dist/deployment/host/hooks/publish-credentials-port.hooks.js",
+      "default": "./dist/deployment/host/hooks/publish-credentials-port.hooks.js"
+    },
     "./screens/menus/page-link-rules": {
       "types": "./dist/screens/menus/page-link-rules.d.ts",
       "import": "./dist/screens/menus/page-link-rules.js",
@@ -1945,6 +2291,231 @@
       "types": "./dist/screens/menus/MenuPageLinkFields.d.ts",
       "import": "./dist/screens/menus/MenuPageLinkFields.js",
       "default": "./dist/screens/menus/MenuPageLinkFields.js"
+    },
+    "./screens/plugins/api/plugins-api.types": {
+      "types": "./dist/screens/plugins/api/plugins-api.types.d.ts",
+      "import": "./dist/screens/plugins/api/plugins-api.types.js",
+      "default": "./dist/screens/plugins/api/plugins-api.types.js"
+    },
+    "./screens/plugins/api/plugins-api": {
+      "types": "./dist/screens/plugins/api/plugins-api.d.ts",
+      "import": "./dist/screens/plugins/api/plugins-api.js",
+      "default": "./dist/screens/plugins/api/plugins-api.js"
+    },
+    "./screens/plugins/selected-skills": {
+      "types": "./dist/screens/plugins/selected-skills.d.ts",
+      "import": "./dist/screens/plugins/selected-skills.js",
+      "default": "./dist/screens/plugins/selected-skills.js"
+    },
+    "./screens/plugins/hooks/use-plugin-provider-settings.hooks": {
+      "types": "./dist/screens/plugins/hooks/use-plugin-provider-settings.hooks.d.ts",
+      "import": "./dist/screens/plugins/hooks/use-plugin-provider-settings.hooks.js",
+      "default": "./dist/screens/plugins/hooks/use-plugin-provider-settings.hooks.js"
+    },
+    "./screens/plugins/AgentPlugins.hooks": {
+      "types": "./dist/screens/plugins/AgentPlugins.hooks.d.ts",
+      "import": "./dist/screens/plugins/AgentPlugins.hooks.js",
+      "default": "./dist/screens/plugins/AgentPlugins.hooks.js"
+    },
+    "./screens/trash/rules": {
+      "types": "./dist/screens/trash/rules.d.ts",
+      "import": "./dist/screens/trash/rules.js",
+      "default": "./dist/screens/trash/rules.js"
+    },
+    "./screens/providers/hooks/use-providers.hooks": {
+      "types": "./dist/screens/providers/hooks/use-providers.hooks.d.ts",
+      "import": "./dist/screens/providers/hooks/use-providers.hooks.js",
+      "default": "./dist/screens/providers/hooks/use-providers.hooks.js"
+    },
+    "./screens/plugins/hooks/use-plugin-row-focus.hooks": {
+      "types": "./dist/screens/plugins/hooks/use-plugin-row-focus.hooks.d.ts",
+      "import": "./dist/screens/plugins/hooks/use-plugin-row-focus.hooks.js",
+      "default": "./dist/screens/plugins/hooks/use-plugin-row-focus.hooks.js"
+    },
+    "./screens/plugins/hooks/agent-plugin-memory-port.hooks": {
+      "types": "./dist/screens/plugins/hooks/agent-plugin-memory-port.hooks.d.ts",
+      "import": "./dist/screens/plugins/hooks/agent-plugin-memory-port.hooks.js",
+      "default": "./dist/screens/plugins/hooks/agent-plugin-memory-port.hooks.js"
+    },
+    "./screens/plugins/hooks/plugin-install-port.hooks": {
+      "types": "./dist/screens/plugins/hooks/plugin-install-port.hooks.d.ts",
+      "import": "./dist/screens/plugins/hooks/plugin-install-port.hooks.js",
+      "default": "./dist/screens/plugins/hooks/plugin-install-port.hooks.js"
+    },
+    "./screens/plugins/hooks/plugins-port.hooks": {
+      "types": "./dist/screens/plugins/hooks/plugins-port.hooks.d.ts",
+      "import": "./dist/screens/plugins/hooks/plugins-port.hooks.js",
+      "default": "./dist/screens/plugins/hooks/plugins-port.hooks.js"
+    },
+    "./screens/plugins/PluginProviderSettingField.hooks": {
+      "types": "./dist/screens/plugins/PluginProviderSettingField.hooks.d.ts",
+      "import": "./dist/screens/plugins/PluginProviderSettingField.hooks.js",
+      "default": "./dist/screens/plugins/PluginProviderSettingField.hooks.js"
+    },
+    "./sites/transfer/use-export-password.hooks": {
+      "types": "./dist/sites/transfer/use-export-password.hooks.d.ts",
+      "import": "./dist/sites/transfer/use-export-password.hooks.js",
+      "default": "./dist/sites/transfer/use-export-password.hooks.js"
+    },
+    "./shell/lib/live-tiptap-editor": {
+      "types": "./dist/shell/lib/live-tiptap-editor.d.ts",
+      "import": "./dist/shell/lib/live-tiptap-editor.js",
+      "default": "./dist/shell/lib/live-tiptap-editor.js"
+    },
+    "./shell/lib/media-image-extension.hooks": {
+      "types": "./dist/shell/lib/media-image-extension.hooks.d.ts",
+      "import": "./dist/shell/lib/media-image-extension.hooks.js",
+      "default": "./dist/shell/lib/media-image-extension.hooks.js"
+    },
+    "./shell/components/TemplateSource/ViewTemplateButton": {
+      "types": "./dist/shell/components/TemplateSource/ViewTemplateButton.d.ts",
+      "import": "./dist/shell/components/TemplateSource/ViewTemplateButton.js",
+      "default": "./dist/shell/components/TemplateSource/ViewTemplateButton.js"
+    },
+    "./shell/hooks/use-desktop-view-release.hooks": {
+      "types": "./dist/shell/hooks/use-desktop-view-release.hooks.d.ts",
+      "import": "./dist/shell/hooks/use-desktop-view-release.hooks.js",
+      "default": "./dist/shell/hooks/use-desktop-view-release.hooks.js"
+    },
+    "./shell/lib/agent-screenshot": {
+      "types": "./dist/shell/lib/agent-screenshot.d.ts",
+      "import": "./dist/shell/lib/agent-screenshot.js",
+      "default": "./dist/shell/lib/agent-screenshot.js"
+    },
+    "./shell/components/AssistantDock/chat-agent-plugin-preferences": {
+      "types": "./dist/shell/components/AssistantDock/chat-agent-plugin-preferences.d.ts",
+      "import": "./dist/shell/components/AssistantDock/chat-agent-plugin-preferences.js",
+      "default": "./dist/shell/components/AssistantDock/chat-agent-plugin-preferences.js"
+    },
+    "./shell/components/AssistantDock/hooks/use-chat-agent-plugins.hooks": {
+      "types": "./dist/shell/components/AssistantDock/hooks/use-chat-agent-plugins.hooks.d.ts",
+      "import": "./dist/shell/components/AssistantDock/hooks/use-chat-agent-plugins.hooks.js",
+      "default": "./dist/shell/components/AssistantDock/hooks/use-chat-agent-plugins.hooks.js"
+    },
+    "./shell/components/AssistantDock/hooks/use-assistant-runtime-preferences.hooks": {
+      "types": "./dist/shell/components/AssistantDock/hooks/use-assistant-runtime-preferences.hooks.d.ts",
+      "import": "./dist/shell/components/AssistantDock/hooks/use-assistant-runtime-preferences.hooks.js",
+      "default": "./dist/shell/components/AssistantDock/hooks/use-assistant-runtime-preferences.hooks.js"
+    },
+    "./shell/components/AssistantDock/hooks/use-chat-display-preferences.hooks": {
+      "types": "./dist/shell/components/AssistantDock/hooks/use-chat-display-preferences.hooks.d.ts",
+      "import": "./dist/shell/components/AssistantDock/hooks/use-chat-display-preferences.hooks.js",
+      "default": "./dist/shell/components/AssistantDock/hooks/use-chat-display-preferences.hooks.js"
+    },
+    "./shell/components/AssistantDock/hooks/open-mcp-ui-link": {
+      "types": "./dist/shell/components/AssistantDock/hooks/open-mcp-ui-link.d.ts",
+      "import": "./dist/shell/components/AssistantDock/hooks/open-mcp-ui-link.js",
+      "default": "./dist/shell/components/AssistantDock/hooks/open-mcp-ui-link.js"
+    },
+    "./shell/components/AssistantDock/hooks/use-selected-agent-auth-warning.hooks": {
+      "types": "./dist/shell/components/AssistantDock/hooks/use-selected-agent-auth-warning.hooks.d.ts",
+      "import": "./dist/shell/components/AssistantDock/hooks/use-selected-agent-auth-warning.hooks.js",
+      "default": "./dist/shell/components/AssistantDock/hooks/use-selected-agent-auth-warning.hooks.js"
+    },
+    "./shell/components/AssistantDock/SubagentsIndicator": {
+      "types": "./dist/shell/components/AssistantDock/SubagentsIndicator.d.ts",
+      "import": "./dist/shell/components/AssistantDock/SubagentsIndicator.js",
+      "default": "./dist/shell/components/AssistantDock/SubagentsIndicator.js"
+    },
+    "./shell/components/MediaEditDialog/MediaEditDialog.hooks": {
+      "types": "./dist/shell/components/MediaEditDialog/MediaEditDialog.hooks.d.ts",
+      "import": "./dist/shell/components/MediaEditDialog/MediaEditDialog.hooks.js",
+      "default": "./dist/shell/components/MediaEditDialog/MediaEditDialog.hooks.js"
+    },
+    "./shell/lib/media-embed-extension.hooks": {
+      "types": "./dist/shell/lib/media-embed-extension.hooks.d.ts",
+      "import": "./dist/shell/lib/media-embed-extension.hooks.js",
+      "default": "./dist/shell/lib/media-embed-extension.hooks.js"
+    },
+    "./shell/components/AssistantDock/hooks/chat-package-kind": {
+      "types": "./dist/shell/components/AssistantDock/hooks/chat-package-kind.d.ts",
+      "import": "./dist/shell/components/AssistantDock/hooks/chat-package-kind.js",
+      "default": "./dist/shell/components/AssistantDock/hooks/chat-package-kind.js"
+    },
+    "./shell/hooks/assistant-chats-port.hooks": {
+      "types": "./dist/shell/hooks/assistant-chats-port.hooks.d.ts",
+      "import": "./dist/shell/hooks/assistant-chats-port.hooks.js",
+      "default": "./dist/shell/hooks/assistant-chats-port.hooks.js"
+    },
+    "./shell/hooks/use-assistant-chats.hooks": {
+      "types": "./dist/shell/hooks/use-assistant-chats.hooks.d.ts",
+      "import": "./dist/shell/hooks/use-assistant-chats.hooks.js",
+      "default": "./dist/shell/hooks/use-assistant-chats.hooks.js"
+    },
+    "./shell/components/AssistantDock/hooks/conversation-refresh.hooks": {
+      "types": "./dist/shell/components/AssistantDock/hooks/conversation-refresh.hooks.d.ts",
+      "import": "./dist/shell/components/AssistantDock/hooks/conversation-refresh.hooks.js",
+      "default": "./dist/shell/components/AssistantDock/hooks/conversation-refresh.hooks.js"
+    },
+    "./shell/components/AssistantDock/assistant-dock-i18n": {
+      "types": "./dist/shell/components/AssistantDock/assistant-dock-i18n.d.ts",
+      "import": "./dist/shell/components/AssistantDock/assistant-dock-i18n.js",
+      "default": "./dist/shell/components/AssistantDock/assistant-dock-i18n.js"
+    },
+    "./shell/components/AssistantDock/FolderDropConfirmation": {
+      "types": "./dist/shell/components/AssistantDock/FolderDropConfirmation.d.ts",
+      "import": "./dist/shell/components/AssistantDock/FolderDropConfirmation.js",
+      "default": "./dist/shell/components/AssistantDock/FolderDropConfirmation.js"
+    },
+    "./shell/components/AssistantDock/FolderDropError": {
+      "types": "./dist/shell/components/AssistantDock/FolderDropError.d.ts",
+      "import": "./dist/shell/components/AssistantDock/FolderDropError.js",
+      "default": "./dist/shell/components/AssistantDock/FolderDropError.js"
+    },
+    "./shell/components/AssistantDock/FolderDropPathHint": {
+      "types": "./dist/shell/components/AssistantDock/FolderDropPathHint.d.ts",
+      "import": "./dist/shell/components/AssistantDock/FolderDropPathHint.js",
+      "default": "./dist/shell/components/AssistantDock/FolderDropPathHint.js"
+    },
+    "./shell/components/AssistantDock/FolderPathButton": {
+      "types": "./dist/shell/components/AssistantDock/FolderPathButton.d.ts",
+      "import": "./dist/shell/components/AssistantDock/FolderPathButton.js",
+      "default": "./dist/shell/components/AssistantDock/FolderPathButton.js"
+    },
+    "./shell/components/AssistantDock/dock-header-rules": {
+      "types": "./dist/shell/components/AssistantDock/dock-header-rules.d.ts",
+      "import": "./dist/shell/components/AssistantDock/dock-header-rules.js",
+      "default": "./dist/shell/components/AssistantDock/dock-header-rules.js"
+    },
+    "./shell/components/AssistantDock/DockHeaderTip.hooks": {
+      "types": "./dist/shell/components/AssistantDock/DockHeaderTip.hooks.d.ts",
+      "import": "./dist/shell/components/AssistantDock/DockHeaderTip.hooks.js",
+      "default": "./dist/shell/components/AssistantDock/DockHeaderTip.hooks.js"
+    },
+    "./shell/components/WidgetConfigFields/HtmlAttributeRows.hooks": {
+      "types": "./dist/shell/components/WidgetConfigFields/HtmlAttributeRows.hooks.d.ts",
+      "import": "./dist/shell/components/WidgetConfigFields/HtmlAttributeRows.hooks.js",
+      "default": "./dist/shell/components/WidgetConfigFields/HtmlAttributeRows.hooks.js"
+    },
+    "./shell/components/MediaPickerDialog/JiniMediaPicker.hooks": {
+      "types": "./dist/shell/components/MediaPickerDialog/JiniMediaPicker.hooks.d.ts",
+      "import": "./dist/shell/components/MediaPickerDialog/JiniMediaPicker.hooks.js",
+      "default": "./dist/shell/components/MediaPickerDialog/JiniMediaPicker.hooks.js"
+    },
+    "./shell/components/WidgetConfigFields/PlacementContentFields": {
+      "types": "./dist/shell/components/WidgetConfigFields/PlacementContentFields.d.ts",
+      "import": "./dist/shell/components/WidgetConfigFields/PlacementContentFields.js",
+      "default": "./dist/shell/components/WidgetConfigFields/PlacementContentFields.js"
+    },
+    "./shell/components/AssistantDock/DockSettingsMenu": {
+      "types": "./dist/shell/components/AssistantDock/DockSettingsMenu.d.ts",
+      "import": "./dist/shell/components/AssistantDock/DockSettingsMenu.js",
+      "default": "./dist/shell/components/AssistantDock/DockSettingsMenu.js"
+    },
+    "./posts/view-tabs": {
+      "types": "./dist/posts/view-tabs.d.ts",
+      "import": "./dist/posts/view-tabs.js",
+      "default": "./dist/posts/view-tabs.js"
+    },
+    "./pages/hooks/use-theme-pages.hooks": {
+      "types": "./dist/pages/hooks/use-theme-pages.hooks.d.ts",
+      "import": "./dist/pages/hooks/use-theme-pages.hooks.js",
+      "default": "./dist/pages/hooks/use-theme-pages.hooks.js"
+    },
+    "./pages/hooks/theme-pages-fake-port": {
+      "types": "./dist/pages/hooks/theme-pages-fake-port.d.ts",
+      "import": "./dist/pages/hooks/theme-pages-fake-port.js",
+      "default": "./dist/pages/hooks/theme-pages-fake-port.js"
     },
     "./roles/Roles.hooks": {
       "types": "./dist/roles/Roles.hooks.d.ts",

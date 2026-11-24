@@ -1,28 +1,29 @@
 # screens/plugins
 
-Leaves of the host admin's Plugins and Agent Plugins screens that carry no host transport:
-the tab "Soon" tags, the agent-plugin glyphs, the plugin-memory copy, the linked-padlock tip
-controller and the admin-surface port's types. The screens themselves (rows, panels, dialogs,
-data hooks) still live in the host.
+The site (CMS/runtime) Plugins screen's wire types, API client, ports and small hooks. Agent
+Plugins live separately in `../../agent-plugins/`; nothing here duplicates that module.
 
 ## Wiring
 
-- `add-plugin-tab-soon.ts` — `addPluginTabSoonTag` / `marketplaceTabSoonTag` take
-  `translateAdminNavLabel` (an `AdminNavLabelTranslator`): the package ships `ADMIN_NAV_DICT`, the
-  host binds the callable once (in the reference host: `apps/admin/src/lib/admin-nav-i18n.ts`) and
-  passes it from its Plugins and Agent Plugins pages.
-- `agent-plugins-visuals.tsx`, `hooks/use-linked-lock-tip.hooks.ts` — draw through the injected
-  admin kit (`Icon`, `useInfoTip` from `react/kit.tsx`); the host mounts `<AdminKitProvider>` at its
-  root. The row chevron carries `jini-agent-plugin-chevron-glyph`; the host styles its rotation.
-- `plugins-memory-i18n.ts` — falls back to `ADMIN_COMMON_I18N` (`core/i18n-common.ts`); nothing injected.
-- `hooks/agent-plugin-surfaces-port.hooks.ts` — types only (`AgentPluginSurfacesPort`); the host
-  implements the port against its own admin-surface routes.
-- `composer-capabilities.ts` — the composer-capability contract (`ComposerCapability`,
-  `ComposerCapabilitySource`, `ComposerCapabilityProjection`, `ComposerHostBinding`), the
-  fail-closed `projectComposerCapabilities`, `emptyComposerCapabilityProjection` and the name-first
-  `rankComposerDiscoveryGroups`. Nothing is imported from the host: it injects its capability
-  sources through the existing `sources` field (in the reference host: the bundled catalog and the
-  installed-skills source under `apps/admin/src/features/plugins/`, assembled by
-  `components/AssistantDock/hooks/composer-discovery.hooks.ts`) and keeps its own route resolver.
-  `ComposerDiscoveryItem`/`ComposerDiscoveryGroup` here restate `@jini-ai/chat/react`'s shapes
-  structurally, since this package may not import chat.
+What the host injects for each module:
+
+- `api/plugins-api.ts` — `createPluginsApi({ request, workspaceId })`: the host's authenticated
+  admin `request` and the workspace id every `/workspaces/<id>/plugins` path is scoped under. The
+  host builds one singleton (`pluginsApi`) and every caller reads it.
+- `api/plugins-api.types.ts` — provider-settings wire types only; nothing injected. The plugin row, the
+  package-files envelope and the install conflict come from Core's `contracts/site` declarations.
+- `hooks/plugins-port.hooks.ts`, `hooks/plugin-install-port.hooks.ts`,
+  `hooks/agent-plugin-memory-port.hooks.ts` — port interfaces; the host implements them over its
+  own API clients and passes the implementation to the hooks that consume them.
+- `hooks/use-plugin-row-focus.hooks.ts` — the host passes `focused` and, as the required
+  `summarySelector`, the CSS selector of its row's summary button; it attaches the returned ref to
+  its `<li>`.
+- `PluginProviderSettingField.hooks.ts` — nothing injected; the host field passes the
+  `field`, `value` and `onChange` it renders.
+- `selected-skills.ts` — pure composer-skill selection rules; nothing injected.
+
+`createPluginsApi`'s `listPlugins` returns Core's `AdminPluginDto` rows
+(`@jini-ai/core/contracts/site/cms-plugins`), the same declaration the server routes serialize, and
+`getPluginFiles` returns its `AdminPluginFilesEnvelope`; a row from a server predating `conflicts`
+gets an empty list at that client boundary. `src/core/ports/plugins.ts`'s `AdminPlugin` is the
+narrower, readonly port-level view for the extensions port; the two are different types on purpose.

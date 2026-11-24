@@ -10,6 +10,7 @@
  * envelope is assignable to {@link AdminPluginDto}. Keep the two sides identical.
  */
 
+import type { PluginPackageFile } from './host-node.js';
 import type { PluginConflict } from './plugins-host.js';
 
 /** Where a plugin was discovered: shipped with the host, or installed on this site. */
@@ -66,4 +67,25 @@ export interface AdminPluginListEnvelope {
 export interface AdminPluginSetEnabledEnvelope {
   plugin: AdminPluginDto;
   changeSetId: string;
+}
+
+/** The listing bounds the server applied to a package-files read, echoed so a viewer never hardcodes them. */
+export interface AdminPluginFileLimitsDto {
+  readonly maxFiles: number;
+  readonly maxEntries: number;
+  readonly maxFileBytes: number;
+  readonly maxTotalBytes: number;
+}
+
+/**
+ * `GET …/plugins/:pluginId/files` (`PLUGIN_FILES`): the files in one plugin's own directory, whether
+ * the server's caps cut the listing short, and those caps. A file's `content` is `null` exactly when
+ * its `omitted` reason is set.
+ */
+export interface AdminPluginFilesEnvelope {
+  readonly pluginId: string;
+  readonly source: AdminPluginSource;
+  readonly files: readonly PluginPackageFile[];
+  readonly truncated: boolean;
+  readonly limits: AdminPluginFileLimitsDto;
 }

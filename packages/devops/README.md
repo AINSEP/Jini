@@ -23,6 +23,7 @@ public subpath and permission boundary.
 | `./checks/coverage` | LCOV, floor, diff, disk-inventory and contamination/baseline policies. |
 | `./checks/node` | Explicit filesystem, process, environment-loader and installer adapters. |
 | `./local-dev` | Environment-file, listener lookup and advisory free-port helpers with host-supplied paths/commands. |
+| `./local-dev/dev-proxy-upstream` | Dropped-upstream lifecycle and `EventSource` reconnect handling for a dev reverse proxy, over structural ports; the host supplies the refusal answer. |
 | `./ci-cd` | Reserved for pipeline definitions, run status, logs, cancellation, and deployment orchestration. |
 
 ```ts

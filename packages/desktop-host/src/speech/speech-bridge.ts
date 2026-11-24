@@ -2,12 +2,8 @@ import { speechChannels } from "./channels.js";
 // Sandboxed Electron preloads have a restricted require polyfill. Bundle this bridge into the
 // CommonJS preload so only Electron remains external; runtime package/sibling requires would fail.
 // Expose a narrow bridge through context isolation rather than granting the page Node/Electron APIs.
-import type { TranscriptionAvailability, TranscriptionResult } from "./transcription-port.js";
+import type { SpeechBridge, TranscriptionAvailability, TranscriptionResult } from "@jini-ai/core/contracts/speech-transcription";
 export interface SpeechRendererIpcPort { invoke(requiredArgs: { channel: string }, optionalArgs?: { args?: unknown[] }): Promise<unknown> }
-export interface SpeechBridge {
-  isAvailable(): Promise<TranscriptionAvailability>;
-  transcribe(args: { samples: Float32Array | readonly number[]; sampleRate: number }): Promise<TranscriptionResult>;
-}
 /** Build a narrow renderer bridge. Bundle into sandboxed preloads before loading. */
 export function createSpeechBridge({ ipcRenderer, channelNamespace }: { ipcRenderer: SpeechRendererIpcPort; channelNamespace: string }): SpeechBridge {
   const channels = speechChannels({ channelNamespace });

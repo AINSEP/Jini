@@ -28,8 +28,9 @@ function inspectorStatus({ state, hasFiles }: { state: AgentPluginFilesState | n
 }
 const fileGlyphs = { json: '{}', markdown: 'M↓', javascript: 'JS', typescript: 'TS', config: '⚙', html: '<>', css: '#', image: '▧', shell: '>', text: '¶', file: '▤' };
 const folderGlyph = (expanded: boolean) => (expanded ? '▾' : '▸');
-export function useAgentPluginFileTree({ files, selectedPath, onOpen }: { files: readonly AgentPluginPackageFile[]; selectedPath: string | null; onOpen: (required: { path: string }, optional?: Record<string, never>) => void }, _optional = {}) {
-  const tree = buildPackageFileTree({ paths: files.map(f => f.relativePath) }), [toggled, setToggled] = useState<ReadonlyMap<string, boolean>>(new Map());
+export function useAgentPluginFileTree({ files, selectedPath, onOpen }: { files: readonly AgentPluginPackageFile[]; selectedPath: string | null; onOpen: (required: { path: string }, optional?: Record<string, never>) => void }, { locale }: { locale?: string | string[] } = {}) {
+  // The host passes its locale so sibling order matches the host's own sorting; omitted, the package default applies.
+  const tree = buildPackageFileTree({ paths: files.map(f => f.relativePath) }, locale === undefined ? {} : { locale }), [toggled, setToggled] = useState<ReadonlyMap<string, boolean>>(new Map());
   // Set by keyboard navigation to the tree that received the key, so the effect always has a real element.
   const [focused, setFocused] = useState<string | null>(null), focusWithin = useRef<HTMLElement | null>(null);
   // Expansion is derived from selected ancestors until the viewer explicitly toggles a folder.

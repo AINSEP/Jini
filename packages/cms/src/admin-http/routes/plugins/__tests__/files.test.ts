@@ -2,11 +2,12 @@ import { describe, expect, it } from "vitest";
 import { pluginFilesRoute, type PluginFilesRouteDeps } from "../files.js";
 import { FakeUnsafePathError, PRINCIPAL, raw, RECORDS, recordingAuthorize, refusalOf, signal, WORKSPACE_ID } from "./helpers.js";
 
-const LIMITS = { maxFiles: 3 };
+const LIMITS = { maxFiles: 3, maxEntries: 30, maxFileBytes: 1024, maxTotalBytes: 4096 };
+const manifestFile = (id: string) => ({ relativePath: `${id}/plugin.json`, sizeBytes: 2, content: "{}", omitted: null });
 function deps(overrides: Partial<PluginFilesRouteDeps> = {}): PluginFilesRouteDeps {
   return {
     workspaceId: WORKSPACE_ID, discoverPlugins: async () => RECORDS,
-    readPluginPackageFiles: async (record) => ({ files: [{ path: `${record.id}/plugin.json` }], truncated: false }),
+    readPluginPackageFiles: async (record) => ({ files: [manifestFile(record.id)], truncated: false }),
     packageFileLimits: LIMITS, unsafePathError: FakeUnsafePathError, ...overrides,
   };
 }
@@ -23,7 +24,7 @@ describe("pluginFilesRoute", () => {
 
   it("authorizes admin.plugins.read, lists the discovered record's files and echoes the injected limits", async () => {
     const { authorize, calls } = recordingAuthorize();
-    expect(await run(deps(), authorize)).toEqual({ ok: true, value: { pluginId: "word-count", source: "site", files: [{ path: "word-count/plugin.json" }], truncated: false, limits: LIMITS } });
+    expect(await run(deps(), authorize)).toEqual({ ok: true, value: { pluginId: "word-count", source: "site", files: [manifestFile("word-count")], truncated: false, limits: LIMITS } });
     expect(calls).toEqual([{ permission: "admin.plugins.read", entityType: "plugin" }]);
   });
 

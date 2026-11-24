@@ -90,6 +90,6 @@ describe('@jini-ai/integrations/media-providers/catalog', () => {
   it('never reaches the dispatch, staging, or sqlite modules', () => {
     const { files } = walkGraph(CATALOG_ENTRY);
     const reachable = files.map((f) => relative(MEDIA_ROOT, f)).sort();
-    expect(reachable).toEqual(['catalog.ts', 'image-model-ids.ts', 'providers.ts', 'types.ts', 'ui-defaults.ts']);
+    expect(reachable).toEqual(['catalog.ts', 'configurable-catalog.ts', 'image-model-ids.ts', 'providers.ts', 'types.ts', 'ui-defaults.ts']);
   });
 });

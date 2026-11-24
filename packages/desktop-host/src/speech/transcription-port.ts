@@ -1,8 +1,6 @@
 /** The recognizer is swappable without coupling IPC handlers or composer UI to a native backend.
  * Platform selection is injected so capability policy can be checked without native I/O. */
-/** Successful recognition of silence returns empty text, never null; elapsedMs supports latency logs. */
-export interface TranscriptionResult { text: string; elapsedMs: number }
-export interface TranscriptionAvailability { available: boolean; reason?: string | undefined }
+import type { TranscriptionAvailability, TranscriptionResult } from "@jini-ai/core/contracts/speech-transcription";
 export interface TranscriptionPort {
   /** Probe capability without capturing audio or prompting for authorization. */
   isAvailable(): Promise<TranscriptionAvailability>;

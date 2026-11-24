@@ -1,4 +1,5 @@
 import type { JsonRouteAuthorize } from "@jini-ai/core/contracts/server";
+import type { AdminPluginSource } from "@jini-ai/core/contracts/site/cms-plugins";
 import { rejectRoute } from "@jini-ai/core/errors/route-refusal";
 
 /**
@@ -15,7 +16,7 @@ import { rejectRoute } from "@jini-ai/core/errors/route-refusal";
 export interface PluginsRoutePrincipal { id: string }
 
 /** The discovery-record fields the specs read; the host's full record passes through untouched. */
-export interface PluginRouteRecord { readonly id: string; readonly source: string }
+export interface PluginRouteRecord { readonly id: string; readonly source: AdminPluginSource }
 
 /** An injected error class a route maps (`instanceof` is checked against it). */
 export type PluginErrorClass<E extends Error = Error> = abstract new (...args: never[]) => E;
