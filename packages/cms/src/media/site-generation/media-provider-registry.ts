@@ -1,6 +1,7 @@
 import path from "node:path";
 
 import type { ProviderDefinition, ProviderRegistry } from "@jini-ai/core/provider-registry";
+import { orFallbackSync } from "@jini-ai/core/errors/idioms";
 
 /**
  * @file Builds this workspace's media-generation provider registry ONCE at composition: the built-in
@@ -113,12 +114,11 @@ function contributeOne<C extends MediaProviderContributionShape>(
   { registry, item, ports }: { readonly registry: MediaProviderRegistrySlice<C>; readonly item: LoadedMediaProviderItem<C>; readonly ports: MediaProviderRegistryContributionPorts<C> },
   _optional: Record<string, never> = {},
 ): readonly string[] {
-  try {
-    const matching = keepMatchingIds([item], ports);
-    return ports.contributeProviders({ registry: registry.providers, loaded: matching }).refusals;
-  } catch {
-    return [`media provider '${item.definition.id}' from '${item.pluginId}' was not loaded: its contribution could not be registered`];
-  }
+  return orFallbackSync<readonly string[]>({
+    work: () => ports.contributeProviders({ registry: registry.providers, loaded: keepMatchingIds([item], ports) }).refusals,
+    fallback: [`media provider '${item.definition.id}' from '${item.pluginId}' was not loaded: its contribution could not be registered`],
+    step: "register media provider contribution",
+  });
 }
 
 /** Drops items whose manifest id is not the registry key of the vendor they export. @complexity O(n). */

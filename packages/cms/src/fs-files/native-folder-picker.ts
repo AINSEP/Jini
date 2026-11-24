@@ -130,6 +130,8 @@ async function runChooser({ command, execFile }: { command: FolderChooserCommand
 /**
  * The real picker for this process. The chooser is resolved once, at creation.
  *
+ * @param required.platform The host's `process.platform`. Like `env`, only a declared process entry
+ *   may read `process`, so the host passes it in.
  * @param required.env The host's environment map (`SystemRoot` on Windows; `DISPLAY`/`WAYLAND_DISPLAY`
  *   on Linux). Only a declared process entry may read `process.env`, so the host passes it in.
  * @param optional Test seams; every real caller passes none. `execFile` is the only thing that
@@ -137,15 +139,14 @@ async function runChooser({ command, execFile }: { command: FolderChooserCommand
  * @complexity O(1) to create; `pick` waits on the user.
  */
 export function createNativeFolderPicker(
-  required: { env: Readonly<Record<string, string | undefined>> },
+  required: { platform: string; env: Readonly<Record<string, string | undefined>> },
   optional: {
-    platform?: string;
     exists?: (file: string) => boolean;
     execFile?: ExecFilePort;
   } = {},
 ): NativeFolderPicker {
   const command = folderChooserCommand(
-    { platform: optional.platform ?? process.platform, env: required.env },
+    { platform: required.platform, env: required.env },
     optional.exists ? { exists: optional.exists } : {},
   );
   const execFile = optional.execFile ?? (promisify(execFileCallback) as unknown as ExecFilePort);

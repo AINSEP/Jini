@@ -1,6 +1,8 @@
 import { readFileSync } from "node:fs";
 import path from "node:path";
 
+import { orFallbackSync } from "@jini-ai/core/errors/idioms";
+
 import { asDeployConfigGeneratorModule, parseDeployConfigsFile, type DeployConfigGeneratorDescriptor, type DeployConfigGeneratorRegistry, type LoadedDeployConfigGenerator } from "../config-descriptors.js";
 import type { DeployConfigGeneratorModule } from "../config-contracts.js";
 
@@ -110,12 +112,8 @@ function workflowFilesOf({ descriptors }: { descriptors: readonly DeployConfigGe
  * @complexity O(g) in the declared generator count.
  */
 export function readDeployConfigTargetIdsFromSource({ plugin, filename }: { readonly plugin: DeployConfigPluginSource; readonly filename: string }, _optional = {}): readonly string[] {
-  let raw: string;
-  try {
-    raw = readFileSync(path.join(plugin.packageRoot, filename), "utf8");
-  } catch {
-    return [];
-  }
+  const raw = orFallbackSync<string | undefined>({ work: () => readFileSync(path.join(plugin.packageRoot, filename), "utf8"), fallback: undefined, step: "read deploy config manifest" });
+  if (raw === undefined) return [];
   const parsed = parseDeployConfigsFile({ raw });
   return parsed.ok ? parsed.descriptors.map((descriptor) => descriptor.id) : [];
 }
@@ -129,14 +127,15 @@ export function readBundledDeployConfigDescriptors<Plugin extends DeployConfigPl
 ): readonly DeployConfigGeneratorDescriptor[] {
   const { sourceRoot, filename } = required;
   // Composition roots call this eagerly; a missing bundled root yields no hints rather than a boot failure.
-  let sources: readonly Plugin[];
-  try { sources = required.contributionSources({ sourceRoot, filename }); } catch { return []; }
-  const descriptors = sources.flatMap(plugin => {
-    try {
+  const sources = orFallbackSync<readonly Plugin[]>({ work: () => required.contributionSources({ sourceRoot, filename }), fallback: [], step: "list bundled deploy config sources" });
+  const descriptors = sources.flatMap(plugin => orFallbackSync<readonly DeployConfigGeneratorDescriptor[]>({
+    work: () => {
       const parsed = parseDeployConfigsFile({ raw: readFileSync(path.join(plugin.packageRoot, filename), "utf8") });
       return parsed.ok ? parsed.descriptors : [];
-    } catch { return []; }
-  });
+    },
+    fallback: [],
+    step: "read bundled deploy config manifest",
+  }));
   const counts = new Map<string, number>();
   for (const entry of descriptors) counts.set(entry.id, (counts.get(entry.id) ?? 0) + 1);
   return descriptors.filter(entry => counts.get(entry.id) === 1);

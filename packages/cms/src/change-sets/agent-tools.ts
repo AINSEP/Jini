@@ -7,12 +7,12 @@ import type { AgentToolDefinition } from "@jini-ai/core";
  * `.../revert.ts`).
  *
  * Scope, stated plainly because it is also this pass's own limit, not an oversight: a change set
- * exists today only for a post/page create/update/delete (`features/post/reverters.ts` registers
+ * exists today only for a post/page create/update/delete (the host's post reverters register
  * exactly `post/update` and `post/delete` into the shared `RevertRegistry`; nothing else in this
  * codebase writes a change-set row yet). So "undo" through these two tools covers post and page
  * edits and deletes — nothing wider. Both tool descriptions say this outright, so an agent does not
  * infer a general-purpose undo that does not exist. Deleted items have their OWN, more direct undo
- * (`trash_restore_item`, `features/trash/tool-registrations.ts`) — a change-set revert of a delete
+ * (`trash_restore_item`, in the host's trash tool registrations) — a change-set revert of a delete
  * would work too (the post reverter restores the row), but trash is the narrower, purpose-built
  * tool for "bring this back", so both descriptions point there instead of leaving an agent to
  * guess which one to reach for.

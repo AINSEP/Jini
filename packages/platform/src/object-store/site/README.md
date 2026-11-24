@@ -11,5 +11,5 @@ provider registry loader (`registry.ts`).
   `readBundledObjectStoreEnvDeclarations` are generic over the provider host object (`Host`) and the
   host's contribution `Definition`. The host injects the agent-plugins contribution seam
   (`defineProviderContribution`, `contributeProviders`) and its plugin loaders (`loadContributions`,
-  `bundledContributionSources`, `loadPluginContributionsFromSource`) as required fields. Tovu binds
-  them in `server/runtime/composition/site-deps/media-storage.ts`.
+  `bundledContributionSources`, `loadPluginContributionsFromSource`) as required fields. The host binds
+  them in its media-storage composition.

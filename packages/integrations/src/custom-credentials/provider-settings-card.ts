@@ -61,14 +61,28 @@ function fieldRequirements({ field }: { field: PluginProviderSettingField }, _op
 
 /** A declared public field with choices: a select (plus "Custom…" and its text field when allowed). */
 function choiceFields({ field, value }: { field: PluginProviderSettingField; value?: string | undefined }): SecretCardField[] {
+  const custom = isCustomChoice({ field, value });
+  const select = choiceSelectOf({ field, selected: custom && field.allowCustom ? CUSTOM : value ?? field.default });
+  if (!field.allowCustom) return [select];
+  return [select, customTextOf({ field, value: custom ? value : undefined })];
+}
+
+/** A saved value that is none of the declared choices (so it was typed into "Custom…"). */
+function isCustomChoice({ field, value }: { field: PluginProviderSettingField; value?: string | undefined }, _optional = {}): boolean {
+  return Boolean(value) && !(field.options ?? []).some((option) => option.value === value);
+}
+
+/** The select over the declared choices, plus the "Custom…" choice when allowed. */
+function choiceSelectOf({ field, selected }: { field: PluginProviderSettingField; selected?: string | undefined }, _optional = {}): SecretCardField {
   const options = field.options ?? [];
-  const custom = Boolean(value) && !options.some((option) => option.value === value);
-  const selected = custom && field.allowCustom ? CUSTOM : value ?? field.default;
-  const select: SecretCardField = { kind: "enum", name: field.name, label: field.label, required: field.required === true,
+  return { kind: "enum", name: field.name, label: field.label, required: field.required === true,
     ...fieldRequirements({ field }),
     options: [...options, ...(field.allowCustom ? [{ value: CUSTOM, label: "Custom…" }] : [])], ...(selected !== undefined ? { value: selected } : {}) };
-  if (!field.allowCustom) return [select];
-  return [select, { kind: "string", name: customName({ name: field.name }), label: `Custom ${field.label.toLowerCase()}`, ...(field.hint ? { hint: field.hint } : {}), ...(custom && value ? { value } : {}) }];
+}
+
+/** The free-text twin of a select that allows a custom value; `value` is set only for a custom choice. */
+function customTextOf({ field, value }: { field: PluginProviderSettingField; value?: string | undefined }, _optional = {}): SecretCardField {
+  return { kind: "string", name: customName({ name: field.name }), label: `Custom ${field.label.toLowerCase()}`, ...(field.hint ? { hint: field.hint } : {}), ...(value ? { value } : {}) };
 }
 
 /** A secret control never carries its value; conditional blanks reach the shared server save rule. */

@@ -63,12 +63,16 @@ test("every provider activation write in this workspace moves its face; other wo
 });
 
 test("a face that cannot follow is reported to the warn sink, never fails the provider decision; a failed provider write moves nothing", async () => {
-  const warnings: string[] = [];
-  const failing: ProviderFacePorts = { ...fakeFaces({}, { metrics: "metrics-provider" }).ports, reconcileFace: async () => { throw new Error("disk full"); } };
-  const repo = followProviderActivations({ repo: new MemoryActivationRepo(), workspaceId: WS, ports: failing, warn: message => warnings.push(message) });
+  const warnings: { pluginId: string; error: unknown }[] = [];
+  const failure = new Error("disk full");
+  const failing: ProviderFacePorts = { ...fakeFaces({}, { metrics: "metrics-provider" }).ports, reconcileFace: async () => { throw failure; } };
+  const repo = followProviderActivations({ repo: new MemoryActivationRepo(), workspaceId: WS, ports: failing, warn: entry => warnings.push(entry) });
   await repo.save(row("metrics-provider", true));
   assert.equal((await repo.getActivation({ workspaceId: WS, pluginId: "metrics-provider" }))?.enabled, true);
-  assert.deepEqual(warnings, ["the assistant face of 'metrics-provider' could not follow it; the next start retries: disk full"]);
+  // The sink gets structured data (the host formats its own line); the raw failure is passed as-is.
+  assert.equal(warnings.length, 1);
+  assert.equal(warnings[0]?.pluginId, "metrics-provider");
+  assert.equal(warnings[0]?.error, failure);
 
   const { faces, ports } = fakeFaces({ metrics: false }, { metrics: "metrics-provider" });
   const inner = new MemoryActivationRepo();

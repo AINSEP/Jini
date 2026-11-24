@@ -73,19 +73,10 @@
    "HOST_BUDGET_MAXIMUM": "variable:0015161289",
    "OAuthConnectionOwner": "interface:a39854a8d9",
    "OAuthConnectionStatus": "type:fd431c938f",
-   "OAuthFormDeliveryConnectionPort": "type:52d254ee61",
-   "OAuthFormDeliveryCredential": "type:56cd4f90a4",
-   "OAuthFormDeliveryErrorFactory": "type:4330af9b89",
-   "OAuthFormDeliveryHost": "type:b52c918618",
    "OAuthTokenStoreErrorCode": "type:012c0751e4",
    "OAuthTokenVaultPort": "interface:63df157c6c",
    "PluginHttp": "interface:de24add2e7",
    "ReadConnectionGeneration": "type:d52d8a0f25",
-   "SharedApiConnectionDeps": "interface:4312aa95f5",
-   "SharedApiKeyAttachments": "interface:3f67841143",
-   "SharedApiOwnerStorage": "interface:60f6e0166e",
-   "SharedApiSiteBindings": "interface:e1597d27dd",
-   "SharedApiTransaction": "type:7d5b125b17",
    "SharedOAuthConnection": "interface:9c42aad9c9",
    "SharedOAuthConsumer": "type:dae0d67e54",
    "SharedOAuthConsumerDeps": "interface:43d2aac18d",
@@ -105,8 +96,6 @@
    "createApiConnectionService": "function:2370dcfa98",
    "createConnectionBudgets": "function:6c8d17118e",
    "createConnectionHookHttp": "function:c9669a9472",
-   "createOAuthFormDeliveryConnectionPort": "function:adb1a4ad5c",
-   "createSharedApiConnections": "function:58f2d92ba6",
    "createSharedOAuthConsumer": "function:c8ba4265dd",
    "createSignInHandoffs": "function:434719bb49",
    "createVaultOAuthTokenStore": "function:7d9a251e3d",
@@ -121,6 +110,16 @@
    "runApiConnectionConnect": "function:12606f0f38",
    "startApiConnectionSignIn": "function:45ddb2c7cf",
    "waitForHostedSignIn": "function:8594374a85"
+  }
+ },
+ "./api-connections/form-delivery-connection": {
+  "types": "./dist/api-connections/form-delivery-connection.d.ts",
+  "symbols": {
+   "OAuthFormDeliveryConnectionPort": "type:52d254ee61",
+   "OAuthFormDeliveryCredential": "type:56cd4f90a4",
+   "OAuthFormDeliveryErrorFactory": "type:4330af9b89",
+   "OAuthFormDeliveryHost": "type:b52c918618",
+   "createOAuthFormDeliveryConnectionPort": "function:adb1a4ad5c"
   }
  },
  "./api-connections/hosted-mcp": {
@@ -142,6 +141,17 @@
    "createDeviceAuthorizationStore": "function:379f0fd6de",
    "createHostedMcpSignInService": "function:9c8ff751ca",
    "createSharedExternalMcpOAuth": "function:3b7881a53b"
+  }
+ },
+ "./api-connections/shared-api": {
+  "types": "./dist/api-connections/shared-api.d.ts",
+  "symbols": {
+   "SharedApiConnectionDeps": "interface:4312aa95f5",
+   "SharedApiKeyAttachments": "interface:3f67841143",
+   "SharedApiOwnerStorage": "interface:60f6e0166e",
+   "SharedApiSiteBindings": "interface:e1597d27dd",
+   "SharedApiTransaction": "type:7d5b125b17",
+   "createSharedApiConnections": "function:58f2d92ba6"
   }
  },
  "./credentialed-http": {

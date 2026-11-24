@@ -2,7 +2,7 @@
  * @file The `content-duplication` domain's agent-tool catalog — ONE tool, `content_duplicate`,
  * generic over a `resource` parameter rather than one bespoke `*_duplicate` tool per resource.
  *
- * Owner's explicit design correction (`ADS-memory/reports/2026-09-07-page-tool-gap.md`'s follow-up,
+ * Owner's explicit design correction (the host's 2026-09-07 page-tool-gap report's follow-up,
  * her own words): *"if we had, like, a copy tool and then we could pass arguments to copy a post,
  * copy a media provider, copy a form… We're not collapsing a bunch of tools into one thing. We are
  * having, like, a category of a tool and then having it flexible enough to do multiple things, like

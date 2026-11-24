@@ -20,6 +20,6 @@ temp-file-then-rename writes; `requirePickedFolder` applies the picked-folder ru
 ### Wiring (write-files)
 
 The host injects its guarded path resolver (the read tools' denylist + containment) as the REQUIRED
-`resolveFsFilePath` field on `inspectWriteTarget`, `prepareFileWrites` and `writePreparedFiles`. Tovu
-binds its `features/fs-files/fs-files.ts` `resolveFsFilePath` at each call site
-(`fs-files/tool-registrations.ts`, `asset-transfer/asset-destinations.ts`, `asset-transfer/asset-sources.ts`).
+`resolveFsFilePath` field on `inspectWriteTarget`, `prepareFileWrites` and `writePreparedFiles`. The host
+binds its own guarded `resolveFsFilePath` at each call site (its fs-files tool registrations and its
+asset-transfer destinations and sources).

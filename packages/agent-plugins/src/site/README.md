@@ -8,7 +8,8 @@ Generic plugin-host pieces extracted from a site host. Everything product-specif
   (its retired plugin id -> successor catalog) and `toToolId` (its plugin id -> tool id rule) on the
   existing `required` object, at the composition root that registers the agent-plugin tool family.
 - `deploy-split-activation.ts` (`./site/deploy-split-activation`): the host injects `activations`
-  (its lifecycle owner's activation calls) and runs it before bundled seeding.
+  (its lifecycle owner's activation calls) plus the retired plugin id (`fromPluginId`), its successor
+  (`toPluginId`) and the write `actor`, and runs it before bundled seeding.
 - `admin-surfaces/` (`./site/admin-surfaces/*`): see that folder's README.
 - `customize-tool.ts` (`./site/customize-tool`): the host injects `lifecycle` (its lifecycle owner's
   `listInstalledPlugins`, `readBundledAgentPluginDigests`, `preferBundledAgentPluginDigests`,

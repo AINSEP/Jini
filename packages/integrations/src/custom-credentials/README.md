@@ -36,8 +36,8 @@ Small generic helpers for host credential cards and credentialed calls.
   `resolveRequestTarget`, `verifyCustomCredential` and `probeCredentialConnection` — alongside the `deps`
   they consume, plus `EgressRefusedError` — the host's guarded-client refusal class (`@jini-ai/platform/http/guarded`),
   which this package may not import. `classifyCredentialedRequestError` takes the same class on its required
-  args; the port forwards its own. A host binds the class at each call site (Tovu: `tool-registrations.ts`
-  and `deployments/deploy-ops/run-ops.ts`).
+  args; the port forwards its own. A host binds the class at each call site (its tool registrations
+  and deploy-ops runner).
 - `buildCustomCredentialsAgentToolCatalog` takes the host's tool `ids`, `permissions` (read/write), every
   description sentence (`copy`) and its enforced `writeFilesLimits.maxFiles`. The host binds it where it
   declares its credential tool catalog (the same catalog it passes as `vocabulary.catalog`).

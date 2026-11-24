@@ -191,7 +191,7 @@ export function buildChangeSetsRegistrations(routeDeps: ChangeSetToolDeps): Tool
 
 /**
  * Contributes `change_sets_list`/`change_sets_revert` to the assistant's catalog — called once by
- * `server/runtime/composition/tool-catalog-manifest.ts`'s `installFirstPartyToolContributors()`.
+ * the host's tool-catalog manifest's `installFirstPartyToolContributors()`.
  * Domain key `"change-sets"` — its own key, since the tool-contribution registry replaces a
  * domain's ENTIRE contribution on re-registration by that key.
  */

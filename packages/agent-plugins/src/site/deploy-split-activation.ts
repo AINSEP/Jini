@@ -14,17 +14,17 @@ export interface DeploySplitActivationPort {
 /** Rename precedes split seeding: an existing Pages decision wins over old deploy inheritance.
  * Explicit successor decisions win, even when they disagree. Corrupt records fail closed.
  * @complexity O(1), two strict verdicts and at most one activation write. */
-export async function carryCloudflareActivation(required: { readonly workspaceRoot: string; readonly activations: DeploySplitActivationPort }, _optional: Record<string, never> = {}): Promise<void> {
-  const { workspaceRoot, activations } = required;
+export async function carryCloudflareActivation(required: { readonly workspaceRoot: string; readonly activations: DeploySplitActivationPort; readonly fromPluginId: string; readonly toPluginId: string; readonly actor: string }, _optional: Record<string, never> = {}): Promise<void> {
+  const { workspaceRoot, activations, fromPluginId, toPluginId, actor } = required;
   await activations.assertAgentPluginActivationsWritable({ workspaceRoot });
-  for (const pluginId of ["cloudflare-pages", "cloudflare"]) {
+  for (const pluginId of [fromPluginId, toPluginId]) {
     const verdict = await activations.resolveAgentPluginActivation({ workspaceRoot, pluginId });
     if (verdict.verdict === "undetermined") throw new Error(`Cannot carry ${pluginId} activation: ${verdict.reason}`);
   }
   const { plugins } = await activations.readAgentPluginActivations({ workspaceRoot });
-  const previous = plugins["cloudflare-pages"];
-  const successor = plugins.cloudflare;
+  const previous = plugins[fromPluginId];
+  const successor = plugins[toPluginId];
   if (successor !== undefined && successor.updatedBy !== "system:seed") return;
   if (previous === undefined || previous.updatedBy === "system:seed") return;
-  await activations.setAgentPluginActivation({ workspaceRoot, pluginId: "cloudflare", enabled: previous.enabled, actor: "migration:cloudflare-plugin" }, { origin: "bundled" });
+  await activations.setAgentPluginActivation({ workspaceRoot, pluginId: toPluginId, enabled: previous.enabled, actor }, { origin: "bundled" });
 }

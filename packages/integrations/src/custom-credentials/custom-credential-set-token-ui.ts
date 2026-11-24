@@ -27,8 +27,8 @@ import type { SecretCardForm, SurfaceCardApp, SurfaceOutcomeSpec } from "@jini-a
  *
  * ## Form, then a replacing result — not a bare confirm/cancel
  *
- * Structurally this is `buildProposeCredentialForm`'s sibling (`features/deployments/
- * publish-agent-tools.ts`) more than `delete-request-confirmation-ui.ts`'s: a form collecting a
+ * Structurally this is `buildProposeCredentialForm`'s sibling (the host's deployment
+ * agent tools) more than `delete-request-confirmation-ui.ts`'s: a form collecting a
  * secret field, not a yes/no dialog naming a destructive action. Unlike that S3-compatible form,
  * though, `tool-registrations.ts` drives this one through `askThenReport`, not `askOnce` — see that
  * function's own doc for the defect this avoids (a submission's `tools/call` round trip resolving

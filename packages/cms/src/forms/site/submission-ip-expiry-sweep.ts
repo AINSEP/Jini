@@ -1,3 +1,5 @@
+import { orFallbackSync } from "@jini-ai/core/errors/idioms";
+
 import type { SubmissionIpRetentionPort, sweepExpiredSubmissionIps } from "../submission-ip-retention.js";
 
 /** The sweep one pass runs; the host passes Jini's `sweepExpiredSubmissionIps` (or its own resolution of it). */
@@ -31,7 +33,8 @@ export function startSubmissionIpExpirySweep(
   const { intervalMs = SUBMISSION_IP_SWEEP_INTERVAL_MS, now = Date.now } = optional;
   assertSubmissionIpSweepInterval({ intervalMs });
   const report = ({ error }: { error: unknown }, _optional = {}): void => {
-    try { onError({ error }); } catch { /* A logging failure cannot reject timer work. */ }
+    // A logging failure cannot reject timer work.
+    orFallbackSync({ work: () => { onError({ error }); }, fallback: undefined, step: "submission ip sweep error report" });
   };
   let active: Promise<void> | undefined;
   let stopped = false;

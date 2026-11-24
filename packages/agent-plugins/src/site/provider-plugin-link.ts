@@ -68,17 +68,18 @@ export async function syncProviderFaces(
 /**
  * The provider activation repo, with every write of THIS workspace's rows mirrored onto the linked
  * faces. A mirror failure is reported to the host's `warn` sink, never thrown: the provider decision
- * already stands, and the next boot's {@link syncProviderFaces} repairs the face.
+ * already stands, and the next boot's {@link syncProviderFaces} repairs the face. The sink gets the
+ * provider id and the raw failure; the host formats (and redacts) its own log line.
  * @complexity As the wrapped write, plus {@link syncProviderFaces} for that one provider.
  */
 export function followProviderActivations(
-  { repo, workspaceId, ports, warn }: { repo: PluginActivationRepoPort; workspaceId: string; ports: ProviderFacePorts; warn: (message: string) => void },
+  { repo, workspaceId, ports, warn }: { repo: PluginActivationRepoPort; workspaceId: string; ports: ProviderFacePorts; warn: (required: { readonly pluginId: string; readonly error: unknown }) => void },
   _optional: Record<string, never> = {},
 ): PluginActivationRepoPort {
   const mirror = async ({ row }: { row: { workspaceId: string; pluginId: string } }) => {
     if (row.workspaceId !== workspaceId) return;
     try { await syncProviderFaces({ ports, providerEnabled: async ({ pluginId }) => (await repo.getActivation({ workspaceId, pluginId }))?.enabled ?? false }, { providerId: row.pluginId }); }
-    catch (error) { warn(`the assistant face of '${row.pluginId}' could not follow it; the next start retries: ${error instanceof Error ? error.message : String(error)}`); }
+    catch (error) { warn({ pluginId: row.pluginId, error }); }
   };
   return {
     getActivation: (required, opts) => repo.getActivation(required, opts),

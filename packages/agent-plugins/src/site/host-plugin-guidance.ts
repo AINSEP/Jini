@@ -29,7 +29,7 @@ export const MAX_HOST_PLUGIN_FILE_BYTES = 256 * 1024;
 export const HOST_PLUGIN_FILE_PREFIX = "host/";
 
 // One path segment each: no dot, slash or backslash can reach `path.join`, so no traversal and
-// no absolute name. The overlay test (`site-import-overlay.test.mjs`) pins the same file rule.
+// no absolute name. The host's overlay test pins the same file rule.
 const PLUGIN_ID_PATTERN = /^[a-z0-9][a-z0-9-]*$/;
 const HOST_FILE_PATTERN = /^host\/[a-z0-9-]+\.md$/;
 const GUIDANCE_FILE = "GUIDANCE.md";
@@ -110,7 +110,7 @@ export async function readHostPluginFile(required: { pluginId: string; file: str
   return { note: `Host file${label} ${reason} for the '${required.pluginId}' plugin. Valid host files: ${valid.join(", ") || "(none)"}.` };
 }
 
-// The host's chat has no shell. w1 ui-ux wording (owner-approved 11-02): the shared shadcn skill keeps
+// The host's chat has no shell: the shared shadcn skill keeps
 // `"Bash"` in `allowed-tools` for coding hosts; a chat host removes that permission from what it delivers.
 const REFUSED_TOOL_ITEM = /^\s+-\s*["']?Bash["']?\s*$/;
 type FrontmatterState = "body" | "frontmatter" | "allowedTools";

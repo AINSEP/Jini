@@ -20,7 +20,7 @@ import type { SecretCardForm, SurfaceCardApp, SurfaceOutcomeSpec } from "@jini-a
  * own filter set, `types.ts`'s `CUSTOM_CREDENTIAL_CATEGORIES`).
  *
  * Structurally closer to `deployment_propose_custom_provider_credential`'s own multi-field form
- * (`features/deployments/publish-agent-tools.ts`'s `buildProposeCredentialForm`) than to
+ * (the host's `buildProposeCredentialForm`) than to
  * `custom_credential_set_token`'s single-field one — both collect several non-secret fields alongside
  * one secret. Driven by the engine's `askThenReport`, like `custom_credential_set_token`: the shared
  * engine's documented premature-Done defect applies here too (a submission's `tools/call` round trip resolving the instant the

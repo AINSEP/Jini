@@ -20,6 +20,8 @@
       "./webhooks": "node",
       "./api-connections": "node",
       "./api-connections/hosted-mcp": "node",
+      "./api-connections/shared-api": "node",
+      "./api-connections/form-delivery-connection": "node",
       "./media-providers/node": "node",
       "./saved-requests": "node",
       "./credentialed-http/tools": "node",
@@ -92,6 +94,16 @@
       "types": "./dist/api-connections/hosted-mcp/index.d.ts",
       "import": "./dist/api-connections/hosted-mcp/index.js",
       "default": "./dist/api-connections/hosted-mcp/index.js"
+    },
+    "./api-connections/shared-api": {
+      "types": "./dist/api-connections/shared-api.d.ts",
+      "import": "./dist/api-connections/shared-api.js",
+      "default": "./dist/api-connections/shared-api.js"
+    },
+    "./api-connections/form-delivery-connection": {
+      "types": "./dist/api-connections/form-delivery-connection.d.ts",
+      "import": "./dist/api-connections/form-delivery-connection.js",
+      "default": "./dist/api-connections/form-delivery-connection.js"
     },
     "./media-providers/node": {
       "types": "./dist/media-providers/dispatch/node.d.ts",
@@ -193,6 +205,12 @@
       ],
       "api-connections": [
         "./dist/api-connections/index.d.ts"
+      ],
+      "api-connections/shared-api": [
+        "./dist/api-connections/shared-api.d.ts"
+      ],
+      "api-connections/form-delivery-connection": [
+        "./dist/api-connections/form-delivery-connection.d.ts"
       ],
       "media-providers/node": [
         "./dist/media-providers/dispatch/node.d.ts"

@@ -1,6 +1,7 @@
 import { FormDeliveryError, type FormDeliveryJob, type FormDeliveryResult } from "../index.js";
 import type { FormDestinationKit, FormDestinationPluginState, FormDestinationRegistry } from "../index.js";
 import type { FormDeliveryConnectionPort, FormDestinationCredential } from "@jini-ai/core/contracts/site/cms-forms";
+import { orFallback } from "@jini-ai/core/errors/idioms";
 
 /**
  * @file The host half of one push-delivery attempt: find the binding's adapter among the loaded
@@ -69,13 +70,14 @@ function credentialScopedKit(required: { kit: FormDestinationKit; credential: Fo
   const { kit, credential, workspaceId, connectionRef, resolveRequestTarget } = required;
   const target = { baseUrl: credential.baseUrl, additionalHosts: credential.additionalHosts ?? [] };
   const fetch: FormDestinationKit["fetch"] = async (url, init, options) => {
-    try {
-      await resolveRequestTarget({ resolver: { describe: async () => target }, input: { workspaceId, label: connectionRef, url } });
-    } catch {
-      // The resolver above cannot fail, so every refusal is the host check's. Its message names the
-      // URL, which may carry answers; only the safe code leaves this function.
-      throw new FormDeliveryError({ code: "configuration-invalid", retryable: false, outcome: "not-applied" });
-    }
+    const allowed = await orFallback({
+      work: async () => { await resolveRequestTarget({ resolver: { describe: async () => target }, input: { workspaceId, label: connectionRef, url } }); return true; },
+      fallback: false,
+      step: "form delivery request target",
+    });
+    // The resolver above cannot fail, so every refusal is the host check's. Its message names the
+    // URL, which may carry answers; only the safe code leaves this function.
+    if (!allowed) throw new FormDeliveryError({ code: "configuration-invalid", retryable: false, outcome: "not-applied" });
     return kit.fetch(url, init, options);
   };
   const now = kit.now?.bind(kit);

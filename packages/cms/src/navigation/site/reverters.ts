@@ -8,10 +8,10 @@ import type { MenuRepoPort, NavItemNode } from "../index.js";
 
 /**
  * @file Menu-domain entity reverters — R4 of
- * `ADS-memory/.local-artifacts/plan-publish-repoint-menus-2026-09-24.md` §2.4/§3. The concrete
+ * the host's plan-publish-repoint-menus plan (2026-09-24) §2.4/§3. The concrete
  * `menu/update` inverse applier Jini `cms/core/commands/revert.ts`'s generic `RevertRegistry` dispatches to,
  * so a repoint change set (R3's `repointReferences`, in the host's navigation publish contributor) is undoable from History
- * like any other publish write. Mirrors `features/post/reverters.ts`'s shape exactly: adapter code,
+ * like any other publish write. Mirrors the host's post reverters' shape exactly: adapter code,
  * not core, needing real domain knowledge (`MenuRepoPort`, `updateMenuTree`) `core/commands` must
  * never import.
  *
@@ -34,7 +34,7 @@ export interface MenuReverterDeps {
  * Restores a menu's item tree to the `items` captured before a `menu/update` change set — the only
  * pre-image a repoint's inverse carries (R3's `repointReferences`, `captureInverse: async () =>
  * ({items: <prior items>})`). Writes through `updateMenuTree` (never a raw `menuRepo.save()`),
- * unlike `features/post/reverters.ts`'s two reverters: menus have no `content.entry.beforeSave` hook
+ * unlike the host's two post reverters: menus have no `content.entry.beforeSave` hook
  * chain to avoid re-firing (this file's header — S3's own doc — records that menus have no real
  * command-gateway write path of their own yet either), so there is no BR-08-shaped reason to bypass
  * the domain function the way post's reverters must.
