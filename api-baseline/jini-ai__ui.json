@@ -1844,6 +1844,15 @@
   "types": null,
   "symbols": {}
  },
+ "./app-version": {
+  "types": "./dist/features/app-version/use-app-version.d.ts",
+  "symbols": {
+   "AppVersionLoaderPort": "interface:98d6cf786f",
+   "UpdateCheckPort": "interface:15b90ce61c",
+   "useAppVersion": "function:f915561cdf",
+   "useUpdateCheck": "function:506cf869d1"
+  }
+ },
  "./browser": {
   "types": "./dist/browser/index.d.ts",
   "symbols": {
@@ -2243,6 +2252,7 @@
    "mergeDaemonProviders": "function:b494de15d6",
    "methodLabelForClient": "function:5ca7cc5960",
    "missingRequiredFields": "function:d2cc2e0d42",
+   "navAvailability": "function:713b6be6e3",
    "nextConfigForAgentCliEnvChange": "function:74d176a1e6",
    "nextConfigForAgentModel": "function:c75bffe055",
    "nextConfigForAgentReasoning": "function:19fd9078cd",
@@ -2373,6 +2383,42 @@
    "useInvalidate": "variable:1d4817e1dd"
   }
  },
+ "./find": {
+  "types": "./dist/features/find/index.d.ts",
+  "symbols": {
+   "AnchorSelection": "type:1973bec5e4",
+   "FIND_FOCUS_RECLAIM_MS": "variable:ce50621bdd",
+   "FIND_QUERY_SETTLE_MS": "variable:291c4f6118",
+   "FindBarAction": "type:5d8afde515",
+   "FindBarState": "interface:458613966c",
+   "FindBridge": "interface:8cabe5902c",
+   "FindFocusClock": "interface:0c1b53686b",
+   "FindMatchCountLabels": "interface:01ab8f5274",
+   "FindQueryClock": "interface:9ef5c16311",
+   "FindTarget": "type:9730f4c635",
+   "FindableGuest": "interface:d80061694f",
+   "FindableGuestFoundEvent": "interface:9406e52441",
+   "UseFindBarStateOptions": "interface:007d3190ac",
+   "createFindQueryScheduler": "function:245a338b10",
+   "findBarReducer": "function:262bdd1909",
+   "formatFindMatchCount": "function:155af21885",
+   "initialFindBarState": "variable:ae205bd103",
+   "liveAnchorSelection": "function:8aa29e5906",
+   "liveFindClock": "variable:4f5fcdd8d4",
+   "resolveFindTarget": "function:c9f63729bf",
+   "restoreFindInputFocus": "function:09c558f915",
+   "runFind": "function:d42de7cdde",
+   "shouldCloseOnGuestChange": "function:e9d61bc849",
+   "shouldKeepReclaimingFindFocus": "function:f4ba309993",
+   "shouldReclaimFindFocus": "function:7fe4c9bec6",
+   "stopFind": "function:86793e7871",
+   "subscribeToFindResults": "function:04128ce792",
+   "useFindBarEffects": "function:b5ed3e57f9",
+   "useFindBarState": "function:bd2dd73695",
+   "useFindFocusReclaim": "function:89beb43077",
+   "useFindInputBinding": "function:04cd32f18d"
+  }
+ },
  "./html-editor": {
   "types": "./dist/features/html-editor/index.d.ts",
   "symbols": {
@@ -2397,6 +2443,14 @@
    "registerProtectedElementType": "function:e7e14f916c",
    "serializeEditorSource": "function:4fcdf850e7",
    "useInteractiveHtmlEditor": "function:4796d22d88"
+  }
+ },
+ "./import-handoff": {
+  "types": "./dist/features/import-handoff/use-import-handoff.d.ts",
+  "symbols": {
+   "ImportHandoffBridge": "interface:4416dbafd0",
+   "handoffAddress": "function:2fa5b45950",
+   "useImportHandoff": "function:25c458bcba"
   }
  },
  "./interactive-ui": {
@@ -2469,6 +2523,20 @@
    "shadcnSelectPropsSchema": "variable:e862b7d1de",
    "shadcnTextInputManifest": "variable:e46aa5e3b8",
    "shadcnTextInputPropsSchema": "variable:436546c59d"
+  }
+ },
+ "./live-views": {
+  "types": "./dist/features/live-views/index.d.ts",
+  "symbols": {
+   "LiveViewBounds": "interface:964f9440d4",
+   "LiveViewPreferenceBridge": "interface:2bcaa41818",
+   "LiveViews": "interface:2ddd4d5a08",
+   "LoadFailureEvent": "interface:745ff3b365",
+   "LoadFailureGuest": "interface:4a889c98d4",
+   "liveViewLimit": "function:429c88f6c1",
+   "useLiveViews": "function:bdab26c800",
+   "useSiteViewPreference": "function:e43af3ea14",
+   "useWebviewLoadFailure": "function:28f1353969"
   }
  },
  "./mcp-ui": {
@@ -3004,6 +3072,17 @@
    "wrapFragmentAsDocument": "function:b18c8bc59a"
   }
  },
+ "./resource-monitor": {
+  "types": "./dist/features/resource-monitor/index.d.ts",
+  "symbols": {
+   "ResourceReadingsPorts": "interface:38bdbb4056",
+   "ResourceReadingsRequest": "interface:8fa614f33f",
+   "ResourceReadingsSnapshot": "interface:3827a321ad",
+   "StoppableSite": "interface:1d4418f2fd",
+   "createResourceStop": "function:62230b38ec",
+   "useResourceReadings": "function:e88e55c8c2"
+  }
+ },
  "./settings-dialog.css": {
   "types": null,
   "symbols": {}
@@ -3013,6 +3092,7 @@
   "symbols": {
    "CardOpenKeyEvent": "interface:cfbeab8784",
    "DEFAULT_SITE_LIST_PREFS": "variable:3d11712410",
+   "PreviewFetchPlan": "type:4fad4faf4a",
    "SiteCard": "function:eb03570a43",
    "SiteCardPin": "function:94a7af3504",
    "SiteCardProps": "interface:0adb5c2add",
@@ -3027,13 +3107,17 @@
    "SiteListSort": "type:747d94080e",
    "SiteListToolbar": "function:4ca42d5a6b",
    "SiteListToolbarCopy": "interface:1176bf2546",
+   "SitePreviewBridge": "interface:757af2dfc2",
    "cardOpenProps": "function:9f381955f3",
    "closeMenuThen": "function:9aaecafa55",
    "duplicateDisplayNames": "function:eb249bdaf3",
    "isCardOpenKey": "function:4365623bd3",
+   "nextPreviewUrl": "function:603a45380b",
    "parseSiteListPrefs": "function:ff022d3a39",
+   "previewFetchPlan": "function:e93fe573bb",
    "useSiteListPrefs": "function:e10863c362",
-   "useSiteListView": "function:c30cb0856b"
+   "useSiteListView": "function:c30cb0856b",
+   "useSitePreview": "function:52ac35e190"
   }
  },
  "./site-card.css": {
@@ -3204,6 +3288,24 @@
    "IntervalTimers": "interface:259c047ee8",
    "VisibilitySource": "interface:1a87a3e77b",
    "startVisibleInterval": "function:f5203185f5"
+  }
+ },
+ "./zoom": {
+  "types": "./dist/features/zoom/use-zoom.d.ts",
+  "symbols": {
+   "UseZoom": "interface:ba54bf3dd3",
+   "ZoomBridge": "interface:bc1c4576a3",
+   "ZoomStorage": "type:ffeb9497aa",
+   "ZoomTarget": "type:8d064ecb71",
+   "ZoomableGuest": "interface:fb756f6413",
+   "applyStoredZoom": "function:622396dc4c",
+   "applyZoomCommand": "function:75c2348ca6",
+   "nextZoomLevel": "function:57798ac1d7",
+   "readStoredZoom": "function:bc79a2c37f",
+   "resolveZoomTarget": "function:d89b448be7",
+   "useZoom": "function:7ebce6d117",
+   "windowZoomStorage": "variable:5ddb9b15ac",
+   "writeStoredZoom": "function:d51506cad7"
   }
  }
 }

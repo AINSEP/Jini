@@ -638,6 +638,12 @@
    "SourceControlWriterBuildResult": "type:3d0c838773"
   }
  },
+ "./contracts/desktop-zoom": {
+  "types": "./dist/contracts/desktop-zoom.d.ts",
+  "symbols": {
+   "ZoomDirection": "type:28ab8d7584"
+  }
+ },
  "./contracts/env": {
   "types": "./dist/contracts/env.d.ts",
   "symbols": {
@@ -675,6 +681,12 @@
    "OutboxPort": "interface:053c1c807d",
    "OutboxRecord": "interface:6d13316eb7",
    "TransactionalRepoPort": "interface:5f66eb000a"
+  }
+ },
+ "./contracts/find-in-page": {
+  "types": "./dist/contracts/find-in-page.d.ts",
+  "symbols": {
+   "FindInPageResult": "interface:e5e3a186dc"
   }
  },
  "./contracts/forms": {

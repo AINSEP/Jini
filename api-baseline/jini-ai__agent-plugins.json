@@ -313,6 +313,7 @@
    "storedAgentPluginGrants": "function:d167e4c974",
    "switchOnSavedTokenConnection": "function:215624a267",
    "titleCaseFromPluginId": "function:2657f81520",
+   "tokensForCreate": "function:d56b9956d4",
    "validatedAgentPluginToolGrant": "function:bc7bbed2e9",
    "waitAtAgentPluginSignInCardWithPorts": "function:7581cc44e2"
   }

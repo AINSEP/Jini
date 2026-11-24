@@ -752,6 +752,17 @@
    "writeCachedAttachmentBatchId": "function:791bb8a878"
   }
  },
+ "./react/bridged-chat": {
+  "types": "./dist/react/features/bridged-chat/index.d.ts",
+  "symbols": {
+   "AttachmentStagingPort": "interface:ca68b0d8aa",
+   "BridgedChatTransport": "interface:3e58cb16b8",
+   "ChatBridgePort": "interface:3ecaa75060",
+   "DisposableChatTransport": "interface:a2cfd3a337",
+   "createStagedAttachmentUploader": "function:1598d27ed1",
+   "useBridgedChatTransport": "function:a4290500d9"
+  }
+ },
  "./react/chat-pane": {
   "types": "./dist/react/chat-pane.d.ts",
   "symbols": {
@@ -807,6 +818,41 @@
    "useChatPaneAgentControl": "function:22dfeb4f1a",
    "useChatPaneRuntimeInventory": "function:2e88f07d8b",
    "useChatPaneWorkingDirectory": "function:ede0694c2a"
+  }
+ },
+ "./react/conversation-chat-pane": {
+  "types": "./dist/react/features/conversation-chat-pane/index.d.ts",
+  "symbols": {
+   "ConversationChatPane": "function:b571b56f74",
+   "ConversationChatPaneComponents": "interface:0af4e39cee",
+   "ConversationChatPaneConversations": "interface:1c5bcf1163",
+   "ConversationChatPaneDeleteConfirmation": "interface:77d8cfcb1e",
+   "ConversationChatPaneFolderDrop": "type:fe5ac30cf8",
+   "ConversationChatPaneHooks": "interface:d842fc1146",
+   "ConversationChatPaneInput": "interface:a130be83d9",
+   "ConversationChatPaneLabels": "interface:7ddd1634b0",
+   "ConversationChatPaneProps": "interface:c92744fa79",
+   "ConversationChatPaneState": "interface:e96ea8bc3f",
+   "ConversationChatPaneTransport": "interface:6765b777e1",
+   "ConversationListView": "interface:c1b622ac94",
+   "conversationListView": "function:023f671e61",
+   "selectionRunContext": "variable:9f0c2c9d88",
+   "useConversationChatPane": "function:ed7d51d03a"
+  }
+ },
+ "./react/conversations": {
+  "types": "./dist/react/features/conversations/index.d.ts",
+  "symbols": {
+   "ConversationController": "interface:883a3dfb4c",
+   "ConversationDeleteConfirmationState": "interface:04ce99898a",
+   "ConversationLog": "type:75a33e679f",
+   "ConversationState": "interface:e71f21a8e0",
+   "ConversationStorePort": "interface:cab106f291",
+   "ConversationSummaryLike": "interface:c525f0e34d",
+   "UseStoredConversations": "interface:d801a222f5",
+   "createConversationController": "function:8a65f788f6",
+   "useConversationDeleteConfirmation": "function:2898c76a07",
+   "useStoredConversations": "function:1280c3ba6a"
   }
  },
  "./react/embed": {

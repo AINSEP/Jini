@@ -589,7 +589,7 @@
    "resolveNpmLsCommand": "function:3956b7cb07",
    "resolveTargets": "function:8eede240e8",
    "sampleMovingRoots": "function:efab7bf16b",
-   "shellStalenessFailure": "function:bbfc258abf",
+   "shellStalenessFailure": "function:0158383aca",
    "stageBundledNpm": "function:b64314e4b6",
    "stageDir": "function:61335362c4",
    "stagePackedWorkspace": "function:968e7b92b6",
