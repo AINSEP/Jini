@@ -158,9 +158,11 @@ export function memberAuthStyle({ names: n }: NamesArgs, _optional: NoOptions = 
     `.${n.authClass} [data-member-ok]{color:var(--success,var(${n.successFallbackProp}));font-weight:600;font-size:0.9rem;}`);
 }
 
-/** The browser half. `base` is the member API root for this site's workspace. */
-export function memberAuthScript({ names: n }: NamesArgs, _optional: NoOptions = {}): string {
-  return String.raw`(function (base) {
+/**
+ * The browser half before the host names are baked in: each `@@name@@` token is a {@link MemberAuthNames} field.
+ * Kept as data (not a function body) so the script text is one template the namer fills.
+ */
+const MEMBER_AUTH_SCRIPT_TEMPLATE = String.raw`(function (base) {
   "use strict";
   var doc = document;
   function one(sel, root) { return (root || doc).querySelector(sel); }
@@ -209,7 +211,7 @@ export function memberAuthScript({ names: n }: NamesArgs, _optional: NoOptions =
   }
   function startLink(p, text) {
     var a = doc.createElement("a");
-    a.className = "${n.providerThemeClasses} ${n.providerClass}";
+    a.className = "@@providerThemeClasses@@ @@providerClass@@";
     a.href = base + "/oidc/" + p.id + "/start";
     a.textContent = text;
     return a;
@@ -243,10 +245,10 @@ export function memberAuthScript({ names: n }: NamesArgs, _optional: NoOptions =
     var account = doc.createElement("a");
     account.href = "/account";
     var full = doc.createElement("span");
-    full.className = "${n.accountEmailClass}";
+    full.className = "@@accountEmailClass@@";
     full.textContent = m.email;
     var short = doc.createElement("span");
-    short.className = "${n.accountShortClass}";
+    short.className = "@@accountShortClass@@";
     short.textContent = "Account";
     account.append(full, short);
     account.title = m.email;
@@ -403,10 +405,10 @@ export function memberAuthScript({ names: n }: NamesArgs, _optional: NoOptions =
       var reveal = input.type === "password";
       input.type = reveal ? "text" : "password";
       button.setAttribute("aria-label", button.getAttribute(reveal ? "data-hide-label" : "data-show-label"));
-      button.querySelector(".${n.passwordSlashClass}").toggleAttribute("hidden", !reveal);
+      button.querySelector(".@@passwordSlashClass@@").toggleAttribute("hidden", !reveal);
     });
   });
-  all(".${n.tipClass}", page).forEach(function (tip) {
+  all(".@@tipClass@@", page).forEach(function (tip) {
     var text = doc.getElementById(tip.getAttribute("aria-controls"));
     tip.addEventListener("click", function () {
       var open = tip.getAttribute("aria-expanded") !== "true";
@@ -436,12 +438,12 @@ export function memberAuthScript({ names: n }: NamesArgs, _optional: NoOptions =
   var accounts = one("[data-member-identities]", page);
   function identityRow(i) {
     var li = doc.createElement("li");
-    li.className = "${n.identityClass}";
+    li.className = "@@identityClass@@";
     var text = doc.createElement("span");
     text.textContent = i.label + " connected";
     var unlink = doc.createElement("button");
     unlink.type = "button";
-    unlink.className = "${n.linkClass}";
+    unlink.className = "@@linkClass@@";
     unlink.textContent = "Unlink";
     unlink.setAttribute("aria-label", "Unlink " + i.label);
     unlink.addEventListener("click", function () { unlinkIdentity(unlink, i); });
@@ -495,6 +497,10 @@ export function memberAuthScript({ names: n }: NamesArgs, _optional: NoOptions =
     show(m ? "signed-in" : params.get("view") === "code" ? "code-request" : "password", false);
   });
 })`;
+
+/** The browser half. `base` is the member API root for this site's workspace. @complexity O(n) in the template. */
+export function memberAuthScript({ names: n }: NamesArgs, _optional: NoOptions = {}): string {
+  return MEMBER_AUTH_SCRIPT_TEMPLATE.replace(/@@(\w+)@@/g, (_token, key: string) => String(n[key as keyof MemberAuthNames]));
 }
 
 /**

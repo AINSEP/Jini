@@ -74,6 +74,13 @@ export function mapImportFailure(
 ): SiteImportReply | undefined {
   const refusal = collaborators.asRefusal({ error });
   if (refusal) return { status: refusal.code === "NOT_FOUND" ? 404 : 400, body: { code: refusal.code, message: `${step} failed: ${refusal.message}` } };
+  return parserFailureReply({ step, error, collaborators });
+}
+
+/** A body-parser error's 413/400 answer, or `undefined` for anything that is not a parser refusal. @complexity O(1). */
+function parserFailureReply(
+  { step, error, collaborators }: { step: string; error: unknown; collaborators: SiteImportFailureCollaborators },
+): SiteImportReply | undefined {
   // entity.too.large carries the parser's configured byte limit, independent of the step label.
   const { type, limit } = (error ?? {}) as { type?: string; limit: number };
   const tooLarge = type === "entity.too.large";
