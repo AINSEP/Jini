@@ -185,6 +185,9 @@
       "./shell/hooks/admin-locale-port.hooks": "browser",
       "./shell/hooks/use-admin-locale.hooks": "browser",
       "./shell/hooks/use-admin-document-locale.hooks": "browser",
+      "./shell/hooks/use-interface-preferences.hooks": "browser",
+      "./shell/hooks/use-admin-appearance-snapshot.hooks": "browser",
+      "./shell/lib/i18n-common": "universal",
       "./shell/hooks/use-cms-sidebar-label-tooltips.hooks": "browser",
       "./shell/hooks/use-dock-auto-rail.hooks": "browser",
       "./shell/hooks/use-drawer-active-item-centring.hooks": "browser",
@@ -801,6 +804,9 @@
         "./shell/lib/shell-failure-log": "browser",
         "./shell/hooks/admin-locale-port.hooks": "browser",
         "./shell/hooks/use-admin-document-locale.hooks": "browser",
+        "./shell/hooks/use-interface-preferences.hooks": "browser",
+        "./shell/hooks/use-admin-appearance-snapshot.hooks": "browser",
+        "./shell/lib/i18n-common": "universal",
         "./shell/hooks/use-cms-sidebar-label-tooltips.hooks": "browser",
         "./shell/hooks/use-dock-auto-rail.hooks": "browser",
         "./shell/hooks/use-drawer-active-item-centring.hooks": "browser",
@@ -1801,6 +1807,21 @@
       "types": "./dist/shell/hooks/use-admin-document-locale.hooks.d.ts",
       "import": "./dist/shell/hooks/use-admin-document-locale.hooks.js",
       "default": "./dist/shell/hooks/use-admin-document-locale.hooks.js"
+    },
+    "./shell/hooks/use-interface-preferences.hooks": {
+      "types": "./dist/shell/hooks/use-interface-preferences.hooks.d.ts",
+      "import": "./dist/shell/hooks/use-interface-preferences.hooks.js",
+      "default": "./dist/shell/hooks/use-interface-preferences.hooks.js"
+    },
+    "./shell/hooks/use-admin-appearance-snapshot.hooks": {
+      "types": "./dist/shell/hooks/use-admin-appearance-snapshot.hooks.d.ts",
+      "import": "./dist/shell/hooks/use-admin-appearance-snapshot.hooks.js",
+      "default": "./dist/shell/hooks/use-admin-appearance-snapshot.hooks.js"
+    },
+    "./shell/lib/i18n-common": {
+      "types": "./dist/shell/lib/i18n-common.d.ts",
+      "import": "./dist/shell/lib/i18n-common.js",
+      "default": "./dist/shell/lib/i18n-common.js"
     },
     "./shell/hooks/use-cms-sidebar-label-tooltips.hooks": {
       "types": "./dist/shell/hooks/use-cms-sidebar-label-tooltips.hooks.d.ts",
