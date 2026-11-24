@@ -92,6 +92,7 @@ test("the other moved maps keep their ids and approval classes", () => {
     "mail_get_activity read/direct",
     "mail_list_suppressions read/direct",
     "mail_remove_suppression escalation/plan",
+    "mail_clear_captured delete/plan",
     "mail_get_feedback_setup read/direct",
   ]);
   assert.deepEqual(approvalsOf(media), [
@@ -130,11 +131,12 @@ test("the other moved maps keep their ids and approval classes", () => {
 
 test("projected together, the moved maps gate exactly the plan/policy tools and one secret form", () => {
   const projected = projectToolMetadata<ToolApprovalPolicy>({ domains });
-  assert.equal(Object.keys(projected.byId).length, 62);
+  assert.equal(Object.keys(projected.byId).length, 63);
   assert.deepEqual([...projected.policyConfirmationIds].sort(), [
     "files_copy",
     "identity_policy_delete",
     "identity_role_delete",
+    "mail_clear_captured",
     "mail_remove_suppression",
     "mail_send_test",
     "mail_set_provider",
