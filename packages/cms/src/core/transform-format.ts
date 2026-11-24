@@ -2,12 +2,11 @@
  * either domain's runtime; media/transform-types.ts preserves its existing public exports.
  */
 
-/**
- * Output re-encode format. Matches `media-service.ts`'s
- * `DEFAULT_ALLOWED_MIME_TYPES` image set minus SVG (never a transform output —
- * SVG has no raster pixels to resize).
- */
-export type TransformFormat = "jpeg" | "png" | "webp" | "gif";
+import type { TransformFormat } from "@jini-ai/core/contracts/site/cms-media";
+
+// `TransformFormat` is owned by the neutral core media contract (shared with host share/export
+// policy); this leaf keeps its runtime MIME map and re-exports the type for existing importers.
+export type { TransformFormat };
 
 /** Maps a {@link TransformFormat} to the MIME type served on the rendition response. */
 export const MIME_BY_TRANSFORM_FORMAT: Record<TransformFormat, string> = {
