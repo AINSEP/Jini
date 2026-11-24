@@ -64,6 +64,7 @@
       "./contracts/charts": "universal",
       "./contracts/execution": "universal",
       "./contracts/plugin-sdk": "universal",
+      "./contracts/site/comments-providers": "universal",
       "./contracts/site/core-runtime-mode": "universal",
       "./contracts/site/daemon-surface-exchanges": "universal",
       "./contracts/site/gated-results": "universal",
@@ -513,6 +514,11 @@
       "types": "./dist/contracts/plugin-sdk.d.ts",
       "import": "./dist/contracts/plugin-sdk.js",
       "default": "./dist/contracts/plugin-sdk.js"
+    },
+    "./contracts/site/comments-providers": {
+      "types": "./dist/contracts/site/comments-providers.d.ts",
+      "import": "./dist/contracts/site/comments-providers.js",
+      "default": "./dist/contracts/site/comments-providers.js"
     },
     "./contracts/site/core-runtime-mode": {
       "types": "./dist/contracts/site/core-runtime-mode.d.ts",
