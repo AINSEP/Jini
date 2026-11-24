@@ -24,6 +24,7 @@ function deps({ fetchFails, uploadFails, egress }: { fetchFails?: unknown; uploa
     },
     uploadMedia: async (input) => { uploads.push(input); if (uploadFails) throw uploadFails; return { media: STORED }; },
     mediaContentTypeStore: { set: async (input) => { recorded.push(input); } },
+    outwardErrorMessage: ({ error }) => error.message,
     egressRefusalMessage: ({ error }) => (error instanceof Error && error.message === "egress" ? egress : undefined),
     toMediaResponse: async ({ media, contentType, byteSize }) => ({ id: media.id, contentType, byteSize }),
   };
@@ -89,6 +90,11 @@ describe("mediaImportUrlRoute", () => {
     const d = deps({ fetchFails: new Error("egress"), egress: "Target is not public" });
     expect(await refusalOf(() => handle(d, { url: "https://cdn.example/a" }))).toEqual({ status: 400, body: { error: "Target is not public" } });
     expect(d.uploads).toEqual([]);
+  });
+
+  it("words a validation failure through the host's outwardErrorMessage, never the raw error text", async () => {
+    const d = { ...deps({ fetchFails: new MediaImportValidationError({ message: "stored text" }) }), outwardErrorMessage: () => "outward copy" };
+    expect(await refusalOf(() => handle(d, { url: "https://cdn.example/a" }))).toEqual({ status: 400, body: { error: "outward copy" } });
   });
 
   it("maps fetch and upload validation failures to 400 with their message", async () => {

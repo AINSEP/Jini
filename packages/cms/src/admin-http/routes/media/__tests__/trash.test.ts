@@ -1,84 +1,53 @@
 import { describe, expect, it } from "vitest";
-import type { MediaRecord } from "../../../../media/types.js";
-import { mediaTrashRoute, type MediaTrashRouteDeps } from "../trash.js";
-import { fakeMedia, PRINCIPAL, raw, recordingAuthorize, refusalOf, signal, WORKSPACE_ID } from "./helpers.js";
+import { mediaTrashRoute, type MediaRemoveFn, type MediaTrashRouteDeps } from "../trash.js";
+import { fakeMedia, fakeMediaDto, LOOKUPS, mediaRepoWith, NOW, PRINCIPAL, raw, recordingAuthorize, refusalOf, signal, WORKSPACE_ID } from "./helpers.js";
 
-const NOW = "2026-11-23T00:00:00.000Z";
-
-/** Fakes whose repo answers `reads` in order (the pre-flip read, then the re-read). */
-function deps({ reads = [fakeMedia(), fakeMedia({ status: "trashed", version: 4 } as Partial<MediaRecord>)], removed = { ok: true as const } }: {
-  reads?: Array<MediaRecord | null>; removed?: { ok: true } | { ok: false; reason: string };
-} = {}): MediaTrashRouteDeps & { removals: unknown[]; lookups: unknown[] } {
-  const removals: unknown[] = [];
-  const lookups: unknown[] = [];
-  const queue = [...reads];
+function trashDeps(overrides: Partial<MediaTrashRouteDeps> = {}): MediaTrashRouteDeps & { removed: unknown[] } {
+  const removed: unknown[] = [];
   return {
-    removals, lookups, workspaceId: WORKSPACE_ID,
-    mediaRepo: { findById: async (input) => { lookups.push(input); return queue.shift() ?? null; } },
-    removeMedia: async (input) => { removals.push(input); return removed; },
-    clock: { nowIso: () => NOW },
-    toMediaResponse: async ({ media }) => ({ id: media.id, version: media.version, shaped: true }),
+    removed, workspaceId: WORKSPACE_ID, mediaRepo: mediaRepoWith(), clock: { nowIso: () => NOW }, ...LOOKUPS,
+    removeMedia: async (input) => { removed.push(input); return { ok: true }; },
+    ...overrides,
   };
 }
 
 describe("mediaTrashRoute", () => {
-  it("keeps the method and path and reads :mediaId, falling back to an empty id", () => {
-    expect(mediaTrashRoute.method).toBe("post");
-    expect(mediaTrashRoute.path).toBe("/api/admin/v1/workspaces/:workspaceId/media/:mediaId/trash");
-    expect(mediaTrashRoute.parse(raw({ mediaId: "asset-1" }))).toEqual({ ok: true, value: { mediaId: "asset-1" } });
+  it("keeps the method, path, status and no body cap, and reads :mediaId with the empty fallback", () => {
+    expect([mediaTrashRoute.method, mediaTrashRoute.path, mediaTrashRoute.successStatus, mediaTrashRoute.maxBodyBytes])
+      .toEqual(["post", "/api/admin/v1/workspaces/:workspaceId/media/:mediaId/trash", undefined, undefined]);
+    expect(mediaTrashRoute.parse(raw({ mediaId: "a1" }))).toEqual({ ok: true, value: { mediaId: "a1" } });
     expect(mediaTrashRoute.parse(raw({}))).toEqual({ ok: true, value: { mediaId: "" } });
   });
 
-  it("authorizes media.delete for the asset, flips the marker with a column-only snapshot and answers the re-read", async () => {
+  it("authorizes media.delete for the asset, flips the marker as the principal and answers the re-read asset", async () => {
+    const deps = trashDeps();
     const { authorize, calls } = recordingAuthorize();
-    const d = deps();
-    const result = await mediaTrashRoute.handle({ input: { mediaId: "asset-1" }, deps: d, context: PRINCIPAL, authorize }, { signal });
-    expect(calls).toEqual([{ permission: "media.delete", entityType: "media", entityId: "asset-1" }]);
-    expect(d.removals).toEqual([{
-      workspaceId: WORKSPACE_ID, id: "asset-1", display: { title: "Sunset", subtitle: "sunset" }, at: NOW, expectedVersion: 3, actor: { principalId: PRINCIPAL.id },
-    }]);
-    expect(d.lookups).toEqual([{ workspaceId: WORKSPACE_ID, id: "asset-1" }, { workspaceId: WORKSPACE_ID, id: "asset-1" }]);
-    expect(result).toEqual({ ok: true, value: { media: { id: "asset-1", version: 4, shaped: true } } });
+    const result = await mediaTrashRoute.handle({ input: { mediaId: "a1" }, deps, context: PRINCIPAL, authorize }, { signal });
+    expect(calls).toEqual([{ permission: "media.delete", entityType: "media", entityId: "a1" }]);
+    expect(deps.removed).toEqual([{ workspaceId: WORKSPACE_ID, id: "a1", display: { title: "Hero", subtitle: "hero" }, at: NOW, expectedVersion: 3, actor: { principalId: PRINCIPAL.id } }]);
+    expect(result).toEqual({ ok: true, value: { media: fakeMediaDto() } });
   });
 
-  it("refuses an unknown asset with 404 before any flip", async () => {
+  it("answers 404 for an unknown asset, a vanished row, and a re-read miss; 409 for a lost race", async () => {
     const { authorize } = recordingAuthorize();
-    const d = deps({ reads: [null] });
-    expect(await refusalOf(() => mediaTrashRoute.handle({ input: { mediaId: "missing" }, deps: d, context: PRINCIPAL, authorize }))).toEqual({
-      status: 404, body: { error: "media 'missing' was not found" },
-    });
-    expect(d.removals).toEqual([]);
+    const call = (deps: MediaTrashRouteDeps) => refusalOf(() => mediaTrashRoute.handle({ input: { mediaId: "a1" }, deps, context: PRINCIPAL, authorize }));
+    const notFound = { status: 404, body: { error: "media 'a1' was not found" } };
+    expect(await call(trashDeps({ mediaRepo: mediaRepoWith([]) }))).toEqual(notFound);
+    const refuse = (reason: string): MediaRemoveFn => async () => ({ ok: false, reason });
+    expect(await call(trashDeps({ removeMedia: refuse("not-found") }))).toEqual(notFound);
+    expect(await call(trashDeps({ removeMedia: refuse("version-conflict") }))).toEqual({ status: 409, body: { error: "media 'a1' changed while it was being trashed" } });
+    let reads = 0;
+    const flaky = { findById: async () => (reads++ === 0 ? fakeMedia() : null) };
+    expect(await call(trashDeps({ mediaRepo: flaky }))).toEqual(notFound);
   });
 
-  it("maps a not-found flip to 404 and any other refused flip to 409", async () => {
-    const { authorize } = recordingAuthorize();
-    const gone = deps({ removed: { ok: false, reason: "not-found" } });
-    expect(await refusalOf(() => mediaTrashRoute.handle({ input: { mediaId: "asset-1" }, deps: gone, context: PRINCIPAL, authorize }))).toEqual({
-      status: 404, body: { error: "media 'asset-1' was not found" },
-    });
-    const raced = deps({ removed: { ok: false, reason: "version-changed" } });
-    expect(await refusalOf(() => mediaTrashRoute.handle({ input: { mediaId: "asset-1" }, deps: raced, context: PRINCIPAL, authorize }))).toEqual({
-      status: 409, body: { error: "media 'asset-1' changed while it was being trashed" },
-    });
-  });
-
-  it("refuses with 404 when the asset vanished between the flip and the re-read", async () => {
-    const { authorize } = recordingAuthorize();
-    const d = deps({ reads: [fakeMedia(), null] });
-    expect(await refusalOf(() => mediaTrashRoute.handle({ input: { mediaId: "asset-1" }, deps: d, context: PRINCIPAL, authorize }))).toEqual({
-      status: 404, body: { error: "media 'asset-1' was not found" },
-    });
-  });
-
-  it("does not read or flip when authorization refuses", async () => {
-    const d = deps();
-    await expect(mediaTrashRoute.handle({ input: { mediaId: "asset-1" }, deps: d, context: PRINCIPAL, authorize: async () => { throw new Error("denied"); } })).rejects.toThrow("denied");
-    expect(d.lookups).toEqual([]);
-    expect(d.removals).toEqual([]);
-  });
-
-  it("refuses to run without an authenticated principal", async () => {
-    const { authorize } = recordingAuthorize();
-    await expect(mediaTrashRoute.handle({ input: { mediaId: "asset-1" }, deps: deps(), authorize })).rejects.toThrow("media admin route has no authenticated principal");
+  it("touches nothing when authorization refuses, rethrows unmapped errors, and fails closed without principal/authorizer", async () => {
+    const deps = trashDeps();
+    await expect(mediaTrashRoute.handle({ input: { mediaId: "a1" }, deps, context: PRINCIPAL, authorize: recordingAuthorize(["media.delete"]).authorize })).rejects.toThrow("denied");
+    expect(deps.removed).toEqual([]);
+    const boom = trashDeps({ removeMedia: async () => { throw new Error("disk gone"); } });
+    await expect(mediaTrashRoute.handle({ input: { mediaId: "a1" }, deps: boom, context: PRINCIPAL, authorize: recordingAuthorize().authorize })).rejects.toThrow("disk gone");
+    await expect(mediaTrashRoute.handle({ input: { mediaId: "a1" }, deps, authorize: recordingAuthorize().authorize })).rejects.toThrow(/no authenticated principal/);
+    await expect(mediaTrashRoute.handle({ input: { mediaId: "a1" }, deps, context: PRINCIPAL })).rejects.toThrow(/no authorizer/);
   });
 });

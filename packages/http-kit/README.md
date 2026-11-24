@@ -88,6 +88,10 @@ A spec whose `successStatus` is a no-content status (204, 205, 304) answers with
 See [API.md](https://github.com/AINSEP/Jini/blob/main/packages/http-kit/API.md) for required/optional object contracts. Node runtime, ESM only.
 Apache-2.0; see the repository NOTICE.
 
+`authenticate` may answer `undefined` when the request carries no principal yet; the handler then
+gets no `context` and the host's `authorize` port decides. A host uses that to keep a body refusal
+from `parse` ahead of its missing-session failure (`adapter-ports.test.ts` pins the order).
+
 ## Design decisions
 
 - [Reject ambiguous redirect URLs before normalization](docs/decisions/DR-001-redirect-normalization.md).

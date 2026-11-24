@@ -2,3 +2,4 @@
 export type * from './hosted-mcp/vocabulary.js';
 export type * from './hosted-mcp/record.js';
 export type * from './hosted-mcp/config.js';
+export type * from './hosted-mcp/admissions.js';

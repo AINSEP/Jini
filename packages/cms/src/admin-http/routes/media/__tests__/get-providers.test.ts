@@ -13,7 +13,7 @@ describe("mediaGetProvidersRoute", () => {
     const { authorize, calls } = recordingAuthorize();
     const reads: unknown[] = [];
     const providers = { openai: { apiKeyConfigured: true, apiKeyTail: "abcd" } };
-    const deps = { workspaceId: WORKSPACE_ID, getMediaProviderCredentials: async (input: { workspaceId: string }) => { reads.push(input); return providers; } };
+    const deps = { workspaceId: WORKSPACE_ID, getProviders: async (input: { workspaceId: string }) => { reads.push(input); return providers; } };
     const result = await mediaGetProvidersRoute.handle({ input: {}, deps, context: PRINCIPAL, authorize }, { signal });
     expect(calls).toEqual([{ permission: "media.read", entityType: "media" }]);
     expect(reads).toEqual([{ workspaceId: WORKSPACE_ID }]);
@@ -22,13 +22,13 @@ describe("mediaGetProvidersRoute", () => {
 
   it("answers an empty map as-is, distinct from an unreachable store", async () => {
     const { authorize } = recordingAuthorize();
-    const deps = { workspaceId: WORKSPACE_ID, getMediaProviderCredentials: async () => ({}) };
+    const deps = { workspaceId: WORKSPACE_ID, getProviders: async () => ({}) };
     expect(await mediaGetProvidersRoute.handle({ input: {}, deps, context: PRINCIPAL, authorize }, { signal })).toEqual({ ok: true, value: {} });
   });
 
   it("does not read credentials when authorization refuses", async () => {
     let reads = 0;
-    const deps = { workspaceId: WORKSPACE_ID, getMediaProviderCredentials: async () => { reads += 1; return {}; } };
+    const deps = { workspaceId: WORKSPACE_ID, getProviders: async () => { reads += 1; return {}; } };
     await expect(mediaGetProvidersRoute.handle({ input: {}, deps, context: PRINCIPAL, authorize: async () => { throw new Error("denied"); } })).rejects.toThrow("denied");
     expect(reads).toBe(0);
   });

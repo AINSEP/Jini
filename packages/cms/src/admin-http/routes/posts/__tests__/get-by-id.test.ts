@@ -10,6 +10,7 @@ function deps(overrides: Partial<PostGetRouteDeps> = {}): PostGetRouteDeps & { r
     reads, workspaceId: WORKSPACE_ID,
     readPost: async (input) => { reads.push(input); return { post: { id: "p1", slug: "home" }, everPublished: true }; },
     isPostNotFound: ({ err }) => err instanceof FakeNotFound,
+    outwardErrorMessage: ({ error }) => error.message,
     ...overrides,
   };
 }
@@ -29,6 +30,14 @@ describe("postGetRoute", () => {
     expect(calls).toEqual([{ permission: "content.read", entityType: "post" }]);
     expect(d.reads).toEqual([{ workspaceId: WORKSPACE_ID, idOrSlug: "home" }]);
     expect(result).toEqual({ ok: true, value: { post: { id: "p1", slug: "home", everPublished: true } } });
+  });
+
+  it("words the 404 through the host's outwardErrorMessage, never the raw error text", async () => {
+    const { authorize } = recordingAuthorize();
+    const d = deps({ readPost: async () => { throw new FakeNotFound("stored text"); }, outwardErrorMessage: () => "outward copy" });
+    expect(await refusalOf(() => postGetRoute.handle({ input: { idOrSlug: "missing" }, deps: d, context: PRINCIPAL, authorize }))).toEqual({
+      status: 404, body: { error: "outward copy" },
+    });
   });
 
   it("refuses an unknown post with 404 and the domain's own message, no code", async () => {

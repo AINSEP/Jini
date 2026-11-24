@@ -1,6 +1,7 @@
 import { defineJsonRoute, ok } from "@jini-ai/core/contracts/server";
 import { rejectRoute } from "@jini-ai/core/errors/route-refusal";
 
+import type { OutwardErrorMessage } from "../../http/outward-error-message.js";
 import { authorizePostRead, type PostRoutePrincipal } from "./shared.js";
 
 /** The deps this route reads. `readPost` is the host's id-or-slug lookup plus its admin post DTO and
@@ -9,6 +10,8 @@ export interface PostGetRouteDeps {
   workspaceId: string;
   readPost: (required: { workspaceId: string; idOrSlug: string }) => Promise<{ post: object; everPublished: boolean }>;
   isPostNotFound: (required: { err: unknown }) => boolean;
+  /** Words the classified not-found refusal for the caller (see {@link OutwardErrorMessage}). */
+  outwardErrorMessage: OutwardErrorMessage;
 }
 
 /** Gated by `content.read` (2026-07-16 authz sweep — see `posts/list.ts`'s identical fix/note). */
@@ -25,8 +28,8 @@ export const postGetRoute = defineJsonRoute<{ idOrSlug: string }, { post: object
       const { post, everPublished } = await deps.readPost({ workspaceId: deps.workspaceId, idOrSlug: input.idOrSlug });
       return ok({ value: { post: { ...post, everPublished } } });
     } catch (err) {
-      // The domain's own message, no code: the legacy shape this route has always answered.
-      if (deps.isPostNotFound({ err })) rejectRoute({ status: 404, error: err instanceof Error ? err.message : String(err) });
+      // No code: the legacy shape this route has always answered. The copy is the host's outward wording of the not-found error.
+      if (deps.isPostNotFound({ err })) rejectRoute({ status: 404, error: err instanceof Error ? deps.outwardErrorMessage({ error: err }) : String(err) });
       throw err;
     }
   },

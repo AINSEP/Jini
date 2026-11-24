@@ -3,62 +3,58 @@ import { MediaNotFoundError, MediaStillReferencedError } from "../../../../media
 import { mediaDeleteRoute, type MediaDeleteRouteDeps } from "../delete.js";
 import { PRINCIPAL, raw, recordingAuthorize, refusalOf, signal, WORKSPACE_ID } from "./helpers.js";
 
-function deps(overrides: Partial<MediaDeleteRouteDeps> = {}): MediaDeleteRouteDeps & { purges: unknown[]; forgets: unknown[] } {
-  const purges: unknown[] = [];
-  const forgets: unknown[] = [];
+function deleteDeps(overrides: Partial<MediaDeleteRouteDeps> = {}): MediaDeleteRouteDeps & { calls: string[] } {
+  const calls: string[] = [];
   return {
-    purges, forgets, workspaceId: WORKSPACE_ID,
-    purgeMedia: async (input) => { purges.push(input); return { purged: true }; },
-    forgetRemovedMedia: async (input) => { forgets.push(input); },
+    calls, workspaceId: WORKSPACE_ID, outwardErrorMessage: ({ error }) => error.message,
+    purgeMedia: async ({ workspaceId, id }) => { calls.push(`purge ${workspaceId}/${id}`); return { purged: true }; },
+    forgetRemovedMedia: async ({ workspaceId, id }) => { calls.push(`forget ${workspaceId}/${id}`); },
     ...overrides,
   };
 }
 
 describe("mediaDeleteRoute", () => {
-  it("keeps the method and path and reads :mediaId, falling back to an empty id", () => {
-    expect(mediaDeleteRoute.method).toBe("delete");
-    expect(mediaDeleteRoute.path).toBe("/api/admin/v1/workspaces/:workspaceId/media/:mediaId");
-    expect(mediaDeleteRoute.parse(raw({ mediaId: "asset-1" }))).toEqual({ ok: true, value: { mediaId: "asset-1" } });
+  it("keeps the method, path, status and no body cap, and reads :mediaId with the empty fallback", () => {
+    expect([mediaDeleteRoute.method, mediaDeleteRoute.path, mediaDeleteRoute.successStatus, mediaDeleteRoute.maxBodyBytes])
+      .toEqual(["delete", "/api/admin/v1/workspaces/:workspaceId/media/:mediaId", undefined, undefined]);
+    expect(mediaDeleteRoute.parse(raw({ mediaId: "a1" }))).toEqual({ ok: true, value: { mediaId: "a1" } });
     expect(mediaDeleteRoute.parse(raw({}))).toEqual({ ok: true, value: { mediaId: "" } });
   });
 
-  it("authorizes media.delete.force for the asset, purges it and forgets its Trash row", async () => {
+  it("authorizes media.delete.force for the asset, purges, then forgets the Trash row", async () => {
+    const deps = deleteDeps();
     const { authorize, calls } = recordingAuthorize();
-    const d = deps();
-    const result = await mediaDeleteRoute.handle({ input: { mediaId: "asset-1" }, deps: d, context: PRINCIPAL, authorize }, { signal });
-    expect(calls).toEqual([{ permission: "media.delete.force", entityType: "media", entityId: "asset-1" }]);
-    expect(d.purges).toEqual([{ workspaceId: WORKSPACE_ID, id: "asset-1" }]);
-    expect(d.forgets).toEqual([{ workspaceId: WORKSPACE_ID, id: "asset-1" }]);
+    const result = await mediaDeleteRoute.handle({ input: { mediaId: "a1" }, deps, context: PRINCIPAL, authorize }, { signal });
+    expect(calls).toEqual([{ permission: "media.delete.force", entityType: "media", entityId: "a1" }]);
+    expect(deps.calls).toEqual([`purge ${WORKSPACE_ID}/a1`, `forget ${WORKSPACE_ID}/a1`]);
     expect(result).toEqual({ ok: true, value: { purged: true } });
   });
 
-  it("refuses a still-referenced asset with 409 and the referencing list, forgetting nothing", async () => {
+  it("maps a still-referenced asset to 409 with the list (before the conflict superclass) and an unknown one to 404", async () => {
     const { authorize } = recordingAuthorize();
-    const d = deps({ purgeMedia: async () => { throw new MediaStillReferencedError({ message: "media 'asset-1' must be trashed before it can be purged", referencing: ["media 'asset-1' is still active"] }); } });
-    expect(await refusalOf(() => mediaDeleteRoute.handle({ input: { mediaId: "asset-1" }, deps: d, context: PRINCIPAL, authorize }))).toEqual({
-      status: 409, body: { error: "media 'asset-1' must be trashed before it can be purged", referencing: ["media 'asset-1' is still active"] },
-    });
-    expect(d.forgets).toEqual([]);
+    const failWith = (error: Error) => deleteDeps({ purgeMedia: async () => { throw error; } });
+    const call = (deps: MediaDeleteRouteDeps) => refusalOf(() => mediaDeleteRoute.handle({ input: { mediaId: "a1" }, deps, context: PRINCIPAL, authorize }));
+    expect(await call(failWith(new MediaStillReferencedError({ message: "still used", referencing: ["e1:body"] }))))
+      .toEqual({ status: 409, body: { error: "still used", referencing: ["e1:body"] } });
+    expect(await call(failWith(new MediaNotFoundError({ message: "media 'a1' was not found" })))).toEqual({ status: 404, body: { error: "media 'a1' was not found" } });
   });
 
-  it("refuses an unknown asset with 404 and the domain message", async () => {
+  it("words the 409 and 404 refusals through the host's outwardErrorMessage, never the raw error text", async () => {
     const { authorize } = recordingAuthorize();
-    const d = deps({ purgeMedia: async () => { throw new MediaNotFoundError({ message: "media 'missing' was not found" }); } });
-    expect(await refusalOf(() => mediaDeleteRoute.handle({ input: { mediaId: "missing" }, deps: d, context: PRINCIPAL, authorize }))).toEqual({
-      status: 404, body: { error: "media 'missing' was not found" },
-    });
+    const outwardErrorMessage: MediaDeleteRouteDeps["outwardErrorMessage"] = ({ error }) => `outward:${error.constructor.name}`;
+    const failWith = (error: Error) => deleteDeps({ outwardErrorMessage, purgeMedia: async () => { throw error; } });
+    const call = (deps: MediaDeleteRouteDeps) => refusalOf(() => mediaDeleteRoute.handle({ input: { mediaId: "a1" }, deps, context: PRINCIPAL, authorize }));
+    expect(await call(failWith(new MediaStillReferencedError({ message: "stored text", referencing: ["e1:body"] }))))
+      .toEqual({ status: 409, body: { error: "outward:MediaStillReferencedError", referencing: ["e1:body"] } });
+    expect(await call(failWith(new MediaNotFoundError({ message: "stored text" })))).toEqual({ status: 404, body: { error: "outward:MediaNotFoundError" } });
   });
 
-  it("rethrows any other failure unchanged for the host's error port", async () => {
-    const { authorize } = recordingAuthorize();
-    const failure = new Error("private store failure");
-    const d = deps({ forgetRemovedMedia: async () => { throw failure; } });
-    await expect(mediaDeleteRoute.handle({ input: { mediaId: "asset-1" }, deps: d, context: PRINCIPAL, authorize })).rejects.toBe(failure);
-  });
-
-  it("does not purge when authorization refuses", async () => {
-    const d = deps();
-    await expect(mediaDeleteRoute.handle({ input: { mediaId: "asset-1" }, deps: d, context: PRINCIPAL, authorize: async () => { throw new Error("denied"); } })).rejects.toThrow("denied");
-    expect(d.purges).toEqual([]);
+  it("purges nothing when authorization refuses and rethrows unmapped errors", async () => {
+    const deps = deleteDeps();
+    await expect(mediaDeleteRoute.handle({ input: { mediaId: "a1" }, deps, context: PRINCIPAL, authorize: recordingAuthorize(["media.delete.force"]).authorize })).rejects.toThrow("denied");
+    expect(deps.calls).toEqual([]);
+    const boom = deleteDeps({ forgetRemovedMedia: async () => { throw new Error("index gone"); } });
+    await expect(mediaDeleteRoute.handle({ input: { mediaId: "a1" }, deps: boom, context: PRINCIPAL, authorize: recordingAuthorize().authorize })).rejects.toThrow("index gone");
+    await expect(mediaDeleteRoute.handle({ input: { mediaId: "a1" }, deps })).rejects.toThrow(/no authorizer/);
   });
 });

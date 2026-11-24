@@ -2,7 +2,8 @@ import { defineJsonRoute, ok } from "@jini-ai/core/contracts/server";
 
 import { MenuConflictError, MenuNotFoundError } from "../../../navigation/menu-service.js";
 import { trashMenu, type TrashMenuDeps } from "../../../navigation/site/trash-menu.js";
-import { toAdminTrashMenuResponse, type AdminTrashMenuEnvelope } from "../../http/menus.js";
+import type { AdminTrashMenuEnvelope } from "@jini-ai/core/contracts/site/cms-menus";
+import { toAdminTrashMenuResponse } from "../../http/menus.js";
 import { authorizeMenus, mapMenuError, menuActorId, menuIdParam, rejectMenuError, type MenuErrorMapping, type MenuRoutePrincipal } from "./shared.js";
 import type { OutwardErrorMessage } from "../../http/outward-error-message.js";
 

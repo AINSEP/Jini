@@ -1,7 +1,8 @@
 import { defineJsonRoute, ok } from "@jini-ai/core/contracts/server";
 
-import type { MenuRepoPort } from "../../../navigation/repo.memory.js";
-import { toAdminMenuListResponse, type AdminMenuListEnvelope } from "../../http/menus.js";
+import type { MenuRepoPort } from "../../../navigation/index.js";
+import type { AdminMenuListEnvelope } from "@jini-ai/core/contracts/site/cms-menus";
+import { toAdminMenuListResponse } from "../../http/menus.js";
 import { authorizeMenus, type MenuRoutePrincipal } from "./shared.js";
 
 /** The deps this route reads. */
@@ -11,18 +12,13 @@ export interface MenuListRouteDeps {
 }
 
 /**
- * GET the workspace's menus (admin list view, ADR-029).
+ * GET the workspace's menus (admin list view, ADR-029). Gated by `admin.menus.read`, id-free.
  *
- * Reads go straight through `MenuRepoPort.list` — `navigation` ships no
- * `listMenus` service wrapper (only the mutation slice: create/update-tree/
- * assign/delete in `menu-service.ts`), so there is no business logic to
- * front this plain repo read with. See the handoff report's "interface
- * friction" note. This D-9 service-layer-bypass gap is unchanged by
- * ADR-PIPE-012 — only the permission naming below is in scope for this
- * remediation (see ADR-PIPE-012's "Note on D-9").
- *
- * Gated by `admin.menus.read` (ADR-PIPE-012 D-1/D-2/D-9 — renamed/split from
- * the old flat navigation permission).
+ * Reads go straight through `MenuRepoPort.list`: `navigation` ships no list service (only the
+ * mutation slice: create/update-tree/assign/delete in `menu-service.ts`), so there is no business
+ * rule to front this plain repo read with. This service-layer bypass (D-9) is unchanged by
+ * ADR-PIPE-012, which only renamed the permission: `admin.menus.read` (D-1/D-2/D-9) replaced the
+ * old flat navigation permission.
  */
 export const menuListRoute = defineJsonRoute<Record<string, never>, AdminMenuListEnvelope, MenuListRouteDeps, MenuRoutePrincipal>({
   method: "get",

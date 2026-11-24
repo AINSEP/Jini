@@ -1,6 +1,7 @@
 import type { JsonRouteAuthorize, JsonRouteAuthorizeScope } from "@jini-ai/core/contracts/server";
 import { rejectRoute } from "@jini-ai/core/errors/route-refusal";
 
+import { isMenuHtmlAuthoring, type MenuHtmlAuthoring } from "../../../navigation/index.js";
 import { entityNotLiveResponse } from "../../http/entity-not-live.js";
 import type { OutwardErrorMessage } from "../../http/outward-error-message.js";
 
@@ -75,6 +76,21 @@ export async function authorizeMenus(
 }
 
 /**
+ * Menu HTML is trusted raw markup, so a write carrying it also needs the host's raw-HTML permission
+ * (injected: which permission guards raw HTML is the host's policy, not the engine's). Switching
+ * back to items authors nothing and passes without asking.
+ *
+ * @complexity O(1) plus the injected authorizer.
+ */
+export async function authorizeMenuHtml(
+  { authorize, permission, authoring }: { authorize: JsonRouteAuthorize | undefined; permission: string; authoring: MenuHtmlAuthoring },
+  optional: JsonRouteAuthorizeScope = {},
+): Promise<void> {
+  if (!isMenuHtmlAuthoring(authoring)) return;
+  await authorizeMenus({ authorize, permission }, optional);
+}
+
+/**
  * The authenticated principal's id, recorded as the write's actor.
  *
  * @complexity O(1).
@@ -85,6 +101,6 @@ export function menuActorId({ context }: { context: MenuRoutePrincipal | undefin
 }
 
 /** The `:menuId` path param; `?? ""` keeps a hand-built request without it on the ordinary not-found. */
-export function menuIdParam({ params }: { params: Record<string, string> }, _options: Record<string, never> = {}): string {
+export function menuIdParam({ params }: { params: Record<string, string | undefined> }, _options: Record<string, never> = {}): string {
   return String(params.menuId ?? "");
 }

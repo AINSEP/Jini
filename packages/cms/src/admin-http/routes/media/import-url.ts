@@ -1,6 +1,7 @@
 import { defineJsonRoute, ok } from "@jini-ai/core/contracts/server";
 import { rejectRoute } from "@jini-ai/core/errors/route-refusal";
 
+import type { OutwardErrorMessage } from "../../http/outward-error-message.js";
 import { buildImportFilename, MediaImportValidationError, type FetchedImage } from "../../../media/import/fetch-image.js";
 import { parseOptionalStringField } from "../../../media/metadata-fields.js";
 import { MediaValidationError, type MediaRecord } from "../../../media/types.js";
@@ -30,6 +31,8 @@ export interface MediaImportUrlRouteDeps {
   uploadMedia: (required: MediaImportUpload) => Promise<{ media: MediaRecord }>;
   mediaContentTypeStore: { set: (required: { workspaceId: string; sha256: string; contentType: string }) => Promise<unknown> };
   egressRefusalMessage: (required: { error: unknown }) => string | undefined;
+  /** Words a classified validation failure for the caller (see {@link OutwardErrorMessage}); the egress refusal keeps its own caller-safe sentence. */
+  outwardErrorMessage: OutwardErrorMessage;
   toMediaResponse: (required: { media: MediaRecord; contentType: string; byteSize: number }) => Promise<object>;
 }
 
@@ -94,12 +97,12 @@ export const mediaImportUrlRoute = defineJsonRoute<{ body: unknown }, { media: o
 
 /** An egress refusal answers only its caller-safe sentence (the full DNS diagnosis stays in the
  *  operator log, matching the assistant tool's refusal contract); a request/byte validation failure
- *  is the caller's fault and its message is safe (400); anything else is rethrown for the host's
+ *  is the caller's fault and answers the host's `outwardErrorMessage` copy (400); anything else is rethrown for the host's
  *  error port to answer as a private 500.
  *  @complexity O(1) plus the injected egress classifier. */
 function rejectImportFailure({ err, deps }: { err: unknown; deps: MediaImportUrlRouteDeps }, _optional: Record<string, never> = {}): never {
   const callerSafe = deps.egressRefusalMessage({ error: err });
   if (callerSafe !== undefined) rejectRoute({ status: 400, error: callerSafe });
-  if (err instanceof MediaImportValidationError || err instanceof MediaValidationError) rejectRoute({ status: 400, error: err.message });
+  if (err instanceof MediaImportValidationError || err instanceof MediaValidationError) rejectRoute({ status: 400, error: deps.outwardErrorMessage({ error: err }) });
   throw err;
 }

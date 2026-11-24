@@ -24,7 +24,7 @@ describe("menuListRoute", () => {
 
   it("stops on a denial before reading", async () => {
     const deps = { workspaceId: WORKSPACE_ID, menuRepo: { list: async () => { throw new Error("read before auth"); } } };
-    await expect(menuListRoute.handle({ input: {}, deps, context: PRINCIPAL, authorize: recordingAuthorize({ deny: "admin.menus.read" }).authorize }, { signal })).rejects.toThrow("denied admin.menus.read");
+    await expect(menuListRoute.handle({ input: {}, deps, context: PRINCIPAL, authorize: recordingAuthorize(["admin.menus.read"]).authorize }, { signal })).rejects.toThrow("denied admin.menus.read");
   });
 });
 
