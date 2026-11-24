@@ -4,14 +4,14 @@ import { useAdminKitValues } from "../react/kit.js";
 
 /**
  * @file `ThemePageDetailsModal`'s `<dialog>` lifecycle — same native `<dialog>` foundation and the
- * same open/close/backdrop/Escape handling as `AssistantDock/MessageOverflowModal.hooks.tsx` (real
+ * same open/close/backdrop/Escape handling as the host's assistant-dock message-overflow modal hook (real
  * focus trapping and Escape-as-close courtesy of the browser's own top layer, focus returned to
  * whichever `RowMenu` "Details" trigger opened this once it closes). Owned locally rather than
  * imported from that file — same reasoning that file's own header gives for not reusing
- * `Jini packages/ui/src/features/admin-widgets/components/ImagePreviewModal.hooks.tsx`: a future chat-pane-specific tweak to that hook should never
+ * `@jini-ai/ui`'s admin-widgets `ImagePreviewModal.hooks.tsx`: a future chat-pane-specific tweak to that hook should never
  * silently change this unrelated admin-table modal's behavior too, and vice versa.
  *
- * Only one instance of this modal is ever mounted at a time — `ThemePagesTab.tsx` keeps a single
+ * Only one instance of this modal is ever mounted at a time — the host's `ThemePagesTab` keeps a single
  * `detailPageId` state and renders exactly one `<ThemePageDetailsModal>`, never one per row — so
  * there is no risk of the double-mount shape a per-row modal would have needed to avoid.
  */

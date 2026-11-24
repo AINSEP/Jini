@@ -1,19 +1,17 @@
 /**
  * @file What `use-theme-canvas-styling.hooks.ts` needs from the outside world, as an interface rather
  * than a direct `fetch` call. Follows the `useX(dependencies)` / `useWiredX()` pair documented in
- * `development/docs/architecture/wired-hooks-convention.md`.
+ * the host's wired-hooks convention doc.
  *
- * Like the host's template-source port — and unlike most ports in this app — the real
- * implementation wraps the browser's global `fetch`, not `lib/api`'s `api` client: a theme's token
+ * Like the host's template-source port — and unlike most of the host's ports — the real
+ * implementation wraps the browser's global `fetch`, not the host's JSON API client: a theme's token
  * files are served as static assets under `/theme-assets/{themeId}/tokens.json`
- * (`theme-static-assets.ts`'s `express.static` mount, proxied through Vite in dev by
- * the host's dev server config), outside the JSON API entirely.
+ * (the host's static theme-asset mount, proxied in dev by the host's dev server config), outside the JSON API entirely.
  */
 
 /** One theme's design tokens exactly as `tokens.json` stores them: CSS custom property names
  *  (`--bg`, `--font-body`, …) mapped to their values. The key IS the property name — that is the
- *  theme contract every emitter relies on (`features/theme/static-render.ts`'s `tokensToRootCss`
- *  server-side, each theme's own `build-preview.mjs` at authoring time). */
+ *  theme contract every emitter relies on (the host's server-side static renderer's `tokensToRootCss`, each theme's own `build-preview.mjs` at authoring time). */
 export type ThemeTokens = Record<string, string>;
 
 export interface ThemeCanvasPort {

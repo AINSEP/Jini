@@ -14,8 +14,13 @@ What the host injects for each module:
 - `hooks/plugins-port.hooks.ts`, `hooks/plugin-install-port.hooks.ts`,
   `hooks/agent-plugin-memory-port.hooks.ts` — port interfaces; the host implements them over its
   own API clients and passes the implementation to the hooks that consume them.
-- `hooks/use-plugin-row-focus.hooks.ts` — nothing injected; the host row calls it with `focused`
-  and attaches the returned ref to its `<li>` (the hook focuses the row's `.plugin-row-summary`).
+- `hooks/use-plugin-row-focus.hooks.ts` — the host passes `focused` and, as the required
+  `summarySelector`, the CSS selector of its row's summary button; it attaches the returned ref to
+  its `<li>`.
 - `PluginProviderSettingField.hooks.ts` — nothing injected; the host field passes the
   `field`, `value` and `onChange` it renders.
 - `selected-skills.ts` — pure composer-skill selection rules; nothing injected.
+
+`api/plugins-api.types.ts`'s `AdminPlugin` is the full admin wire shape the API client returns;
+`core/ports/plugins.ts`'s `AdminPlugin` is the narrower, readonly port-level view. They are different
+types on purpose.

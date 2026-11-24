@@ -1,12 +1,12 @@
 /**
  * @file What `use-theme-pages.hooks.ts` needs from the outside world, as an interface rather than a
- * direct `lib/api` import. Follows the `useX(dependencies)` / `useWiredX()` pair documented in
- * `development/docs/architecture/wired-hooks-convention.md`.
+ * direct API-client import. Follows the `useX(dependencies)` / `useWiredX()` pair documented in
+ * the host's wired-hooks convention doc.
  *
  * 2026-08-30 (deep-link/publish-toggle pass): this port grew from one route (`getPresentation`) to
  * three. The Theme Pages tab used to show every `activeThemeStaticPageIds` entry with no publish
  * state and no way to tell a real page apart from `index`/`404`/a declared Post-or-Page template
- * shell — `getPresentation()` alone has neither fact (`presentation/get.ts`'s own
+ * shell — `getPresentation()` alone has neither fact (the server presentation read's own
  * `activeThemeStaticPageIds` is a bare `Object.keys(activeTheme.pages)`, unfiltered). Both already
  * exist on the SAME route Theme Studio's Explore screen uses (`getThemeDetail`'s per-file
  * `published: boolean | null`, straight from the server's `isStandaloneThemePage`) — so this port
@@ -16,7 +16,7 @@
  * is the active theme's page ids PLUS the two facts this tab was previously missing.
  *
  * Deliberately NOT importing `ThemeExplorePort`'s identical-looking `getThemeDetail`/
- * `setPagePublished` shapes from `features/themes/hooks/theme-explore-port.hooks.ts` — same
+ * `setPagePublished` shapes from the host's theme-explore port — same
  * "NOT shared with `themes-port.hooks.ts`" reasoning this file's own header already gave: each
  * feature's port independently declares the narrow slice of the wire contract it actually reads,
  * so two features touching the same two ROUTES is not a reason to couple them through one shared
