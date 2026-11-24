@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it } from 'vitest';
 import { agentCapabilities } from '../../capabilities.js';
-import { cursorAgentDef, parseCursorAgentModels } from '../cursor-agent.js';
+import { cursorAgentDef, parseCursorAgentModels } from '../cursor-agent/index.js';
 import { cliOutputDiscoveryDeps, discoveryContext, offlineDiscoveryDeps } from './discovery-fakes.js';
 
 afterEach(() => {

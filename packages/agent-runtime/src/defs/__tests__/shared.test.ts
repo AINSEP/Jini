@@ -7,7 +7,7 @@ import {
   execAgentFile,
   DEFAULT_MODEL_OPTION,
 } from '../shared.js';
-import { claudeAgentDef } from '../claude.js';
+import { claudeAgentDef } from '../claude/index.js';
 import { codebuddyAgentDef } from '../codebuddy/index.js';
 
 describe('shared re-exports', () => {

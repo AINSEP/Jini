@@ -114,15 +114,15 @@ interface GuardedDef {
 const GUARDED_DEFS: readonly GuardedDef[] = [
   {
     agentId: 'claude',
-    file: 'packages/agent-runtime/src/defs/claude.ts',
-    modulePath: join(REPO_ROOT, 'packages/agent-runtime/src/defs/claude.ts'),
+    file: 'packages/agent-runtime/src/defs/claude/index.ts',
+    modulePath: join(REPO_ROOT, 'packages/agent-runtime/src/defs/claude/index.ts'),
     exportName: 'claudeAgentDef',
     liveSource: 'claude-code-picker-cache',
   },
   {
     agentId: 'codex',
-    file: 'packages/agent-runtime/src/defs/codex.ts',
-    modulePath: join(REPO_ROOT, 'packages/agent-runtime/src/defs/codex.ts'),
+    file: 'packages/agent-runtime/src/defs/codex/index.ts',
+    modulePath: join(REPO_ROOT, 'packages/agent-runtime/src/defs/codex/index.ts'),
     exportName: 'codexAgentDef',
     liveSource: 'codex-catalog',
   },
@@ -142,8 +142,8 @@ const GUARDED_DEFS: readonly GuardedDef[] = [
   },
   {
     agentId: 'aider',
-    file: 'packages/agent-runtime/src/defs/aider.ts',
-    modulePath: join(REPO_ROOT, 'packages/agent-runtime/src/defs/aider.ts'),
+    file: 'packages/agent-runtime/src/defs/aider/index.ts',
+    modulePath: join(REPO_ROOT, 'packages/agent-runtime/src/defs/aider/index.ts'),
     exportName: 'aiderAgentDef',
     liveSource: 'none',
   },

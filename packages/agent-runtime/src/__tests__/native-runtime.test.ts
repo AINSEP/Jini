@@ -125,7 +125,7 @@ it('binds model probing and launch resolution to the host env, and refuses probi
   const { tmpdir } = await import('node:os');
   const path = await import('node:path');
   const { kimiAgentDef } = await import('../defs/kimi.js');
-  const { aiderAgentDef } = await import('../defs/aider.js');
+  const { aiderAgentDef } = await import('../defs/aider/index.js');
   const { offlineDiscoveryDeps } = await import('../defs/__tests__/discovery-fakes.js');
   const root = await mkdtemp(path.join(tmpdir(), 'native-runtime-'));
   try {

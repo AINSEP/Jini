@@ -2,17 +2,17 @@
  * @module defs/index
  * Declarative per-CLI RuntimeAgentDef catalog with AMR/Vela parsing and Antigravity's model lock.
  */
-export * from './aider.js';
+export * from './aider/index.js';
 export * from './amp/index.js';
 export * from './amr/index.js';
 export * from './antigravity/index.js';
-export * from './auggie.js';
-export * from './claude.js';
-export * from './cline.js';
+export * from './auggie/index.js';
+export * from './claude/index.js';
+export * from './cline/index.js';
 export * from './codebuddy/index.js';
-export * from './codex.js';
-export * from './crush.js';
-export * from './cursor-agent.js';
+export * from './codex/index.js';
+export * from './crush/index.js';
+export * from './cursor-agent/index.js';
 export * from './droid.js';
 export * from './deepseek.js';
 export * from './devin.js';

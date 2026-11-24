@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os';
 import { join, relative, resolve } from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { assertClaudeFilesystemSupport, claudeFilesystemRuntimePaths, createClaudeFilesystemSupportProbe, claudeFilesystemSettings, validateFilesystemLaunch } from '../../claude-filesystem-policy.js';
-import { claudeAgentDef } from '../claude.js';
+import { claudeAgentDef } from '../claude/index.js';
 import { buildClaudeMcpConfigArgs } from '../shared.js';
 
 // Owner decision 2026-10-23 / FS-REVIEW phase 1. Real filesystem canaries, no mocked containment.

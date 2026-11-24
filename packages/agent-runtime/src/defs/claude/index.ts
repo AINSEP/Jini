@@ -1,6 +1,6 @@
-import { resolveNativeCapabilityDenies, resolveNativeToolDenies } from '../native-tool-policy.js';
-import { claudeFilesystemSettings, validateFilesystemLaunch, validateReadOnlyExtraDirs } from '../claude-filesystem-policy.js';
-import { createAgentModelDiscovery } from '../model-discovery-native.js';
+import { resolveNativeCapabilityDenies, resolveNativeToolDenies } from '../../native-tool-policy.js';
+import { claudeFilesystemSettings, validateFilesystemLaunch, validateReadOnlyExtraDirs } from '../../claude-filesystem-policy.js';
+import { createAgentModelDiscovery } from '../../model-discovery-native.js';
 /**
  * Claude Code has no dedicated image-attachment flag. imageDelivery: 'prompt-path' makes the
  * executor append local image paths to the prompt and add their directories to extraAllowedDirs;
@@ -9,11 +9,11 @@ import { createAgentModelDiscovery } from '../model-discovery-native.js';
  * A filesystemRoot launch instead validates these directories and omits --add-dir entirely;
  * hosts must stage attachments inside that root (owner boundary introduced 2026-10-23).
  */
-import { addDirArgs, nonDefaultFlag, permissionModeArgs, resolveCapabilities, sessionArgs } from './claude-compatible-args.js';
-import { buildClaudeMcpConfigArgs, DEFAULT_MODEL_OPTION } from './shared.js';
-import { loadMmdRouteModels } from '../mmd-routes.js';
-import { loadAnthropicLiveModels, mergeLiveModels } from '../anthropic-live-models.js';
-import { loadClaudeCodeModels } from '../claude-code-models.js';
+import { addDirArgs, nonDefaultFlag, permissionModeArgs, resolveCapabilities, sessionArgs } from '../claude-compatible-args.js';
+import { buildClaudeMcpConfigArgs, DEFAULT_MODEL_OPTION } from '../shared.js';
+import { loadMmdRouteModels } from '../../mmd-routes.js';
+import { loadAnthropicLiveModels, mergeLiveModels } from '../../anthropic-live-models.js';
+import { loadClaudeCodeModels } from '../../claude-code-models.js';
 import type {
   RuntimeAgentDef,
   RuntimeBuildOptions,

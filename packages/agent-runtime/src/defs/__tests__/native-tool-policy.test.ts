@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { resolveNativeToolDenies } from '../../native-tool-policy.js';
-import { claudeAgentDef } from '../claude.js';
-import { codexAgentDef } from '../codex.js';
+import { claudeAgentDef } from '../claude/index.js';
+import { codexAgentDef } from '../codex/index.js';
 
 describe('explicit native fallback grant', () => {
   it('lifts shell/edit denies only; path, scheduling and subagent denies survive', () => {

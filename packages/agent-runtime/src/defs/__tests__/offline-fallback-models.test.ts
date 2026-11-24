@@ -5,11 +5,11 @@
  */
 import { describe, expect, it } from 'vitest';
 import { normalizeDiscoveredModels } from '../../model-discovery.js';
-import { aiderAgentDef } from '../aider.js';
+import { aiderAgentDef } from '../aider/index.js';
 import { ampAgentDef } from '../amp/index.js';
-import { auggieAgentDef } from '../auggie.js';
-import { clineAgentDef } from '../cline.js';
-import { crushAgentDef } from '../crush.js';
+import { auggieAgentDef } from '../auggie/index.js';
+import { clineAgentDef } from '../cline/index.js';
+import { crushAgentDef } from '../crush/index.js';
 import { deepseekAgentDef } from '../deepseek.js';
 import { droidAgentDef } from '../droid.js';
 import { gooseAgentDef } from '../goose.js';

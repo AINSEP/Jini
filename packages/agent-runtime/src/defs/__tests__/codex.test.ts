@@ -5,7 +5,7 @@ import {
   codexNeedsDangerFullAccessSandbox,
   parseCodexDebugModels,
   unionModelReasoningOptions,
-} from '../codex.js';
+} from '../codex/index.js';
 import { cliOutputDiscoveryDeps, discoveryContext, offlineDiscoveryDeps } from './discovery-fakes.js';
 
 describe('codexAgentDef shape', () => {

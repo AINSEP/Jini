@@ -2,7 +2,7 @@
  * binding Codex needs the Codex argument builder, and the Codex definition's own imports reach `runtime-state.ts`. */
 import type { RuntimeAgentDef } from '@jini-ai/core/contracts/agents';
 import type { AgentRuntimeState } from './runtime-state.js';
-import { buildCodexArgs, codexAgentDef } from './defs/codex.js';
+import { buildCodexArgs, codexAgentDef } from './defs/codex/index.js';
 import type { CodexDefOptions } from './defs/codex/options.js';
 
 /** Bind model probes and the argument builder to the host transport, capability state and plugin policy.

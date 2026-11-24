@@ -1,6 +1,6 @@
-import { createAgentModelDiscovery } from '../model-discovery-native.js';
-import { DEFAULT_MODEL_OPTION } from './shared.js';
-import { agentCapabilities } from '../capabilities.js';
+import { createAgentModelDiscovery } from '../../model-discovery-native.js';
+import { DEFAULT_MODEL_OPTION } from '../shared.js';
+import { agentCapabilities } from '../../capabilities.js';
 import type {
   RuntimeAgentDef,
   RuntimeBuildOptions,
