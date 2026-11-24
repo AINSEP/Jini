@@ -1,6 +1,6 @@
 import { nowIso } from "@jini-ai/core/primitives";
 import { IntegrationError } from "../argument-error.js";
-import type { Clock, IdGenerator, UUID } from "@jini-ai/core/primitives";
+import type { Clock, CreatorKind, IdGenerator, UUID } from "@jini-ai/core/primitives";
 
 import type { WebhookSubscriptionRepoPort } from "./ports.js";
 import type { WebhookSubscriptionRecord, WebhookTopic } from "./types.js";
@@ -31,7 +31,11 @@ export interface CreateSubscriptionRequired {
   input: CreateSubscriptionInput;
 }
 
-export interface WebhookSubscriptionOptional { createdByPluginId?: string | null; }
+export interface WebhookSubscriptionOptional {
+  createdByPluginId?: string | null;
+  /** Who is creating it; agent tool paths pass `"agent"`. Defaults to `"person"`. Ignored on edits. */
+  createdByKind?: CreatorKind;
+}
 
 /** Validate the replacement fields in the same order used for creation and updates. */
 async function validateSubscriptionFields(
@@ -76,6 +80,7 @@ export async function createSubscription(
     status: "active",
     createdByPrincipalId: input.createdByPrincipalId,
     createdByPluginId: optional.createdByPluginId ?? null,
+    createdByKind: optional.createdByKind ?? "person",
     createdAt: now,
     updatedAt: now,
     version: 1,
