@@ -227,7 +227,7 @@ function writeAllAgUiEvents({ write, events }: { write: (event: AgUiEvent) => vo
  *
  * The `RUN_ERROR` message is the host's `failureMessage` sentence, never the daemon's own text: that
  * text (an exit code, a transport error, a path) is not something a site owner can act on, and it
- * stays visible only through the `status` event the same frame already produced.
+ * is likewise replaced by that sentence in the `status` event an `error` frame produces (its code is kept).
  *
  * @returns the run's final status once a terminal frame has closed it — the caller stops reading
  *   further frames and ends the response — else `null`.
@@ -236,7 +236,14 @@ function writeFrameOutcome(
   { frame, outcome, ctx, failureMessage }: { frame: { data: string }; outcome: RunFrameOutcome; ctx: AgUiFrameContext; failureMessage: string },
   _optional = {},
 ): "succeeded" | "failed" | "canceled" | null {
-  for (const event of outcome.events) writeAllAgUiEvents({ write: ctx.write, events: translateAgentEventToAgUi({ event, state: ctx.state }) });
+  // An `error` frame (error, no terminal) yields one status event labeled with the daemon's own
+  // message; the shared decoder keeps that for its other consumers, but the AG-UI wire carries the
+  // host sentence there too (the error code survives).
+  const daemonError = Boolean(outcome.error) && !outcome.terminal;
+  for (const event of outcome.events) {
+    const wireEvent = daemonError && event.kind === "status" ? { kind: "status" as const, label: failureMessage, ...(event.code ? { code: event.code } : {}) } : event;
+    writeAllAgUiEvents({ write: ctx.write, events: translateAgentEventToAgUi({ event: wireEvent, state: ctx.state }) });
+  }
   if (!outcome.error && !outcome.terminal) return null;
   writeAllAgUiEvents({ write: ctx.write, events: closeAgUiRun({ state: ctx.state }) });
   if (outcome.error) {
