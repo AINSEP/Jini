@@ -256,7 +256,14 @@
       "./screens/settings/hooks/use-external-mcp-oauth-connect.hooks": "browser",
       "./screens/settings/settings-execution-i18n": "universal",
       "./screens/settings/SettingsUi.hooks": "browser",
-      "./screens/settings/ExternalMcpRemoveConfirmDialog": "browser"
+      "./screens/settings/ExternalMcpRemoveConfirmDialog": "browser",
+      "./screens/content-analysis/ContentAnalysisCard": "browser",
+      "./screens/content-analysis/rules": "universal",
+      "./screens/content-analysis/hooks/use-content-analysis.hooks": "browser",
+      "./screens/content-analysis/hooks/content-analysis-port.hooks": "universal",
+      "./screens/content-analysis/hooks/content-analysis-dependencies.hooks": "universal",
+      "./screens/import-export/ImportExport": "browser",
+      "./screens/content-analysis/content-analysis-i18n": "universal"
     },
     "isolation": {
       "shared": [
@@ -1601,6 +1608,41 @@
       "types": "./dist/screens/settings/ExternalMcpRemoveConfirmDialog.d.ts",
       "import": "./dist/screens/settings/ExternalMcpRemoveConfirmDialog.js",
       "default": "./dist/screens/settings/ExternalMcpRemoveConfirmDialog.js"
+    },
+    "./screens/content-analysis/ContentAnalysisCard": {
+      "types": "./dist/screens/content-analysis/ContentAnalysisCard.d.ts",
+      "import": "./dist/screens/content-analysis/ContentAnalysisCard.js",
+      "default": "./dist/screens/content-analysis/ContentAnalysisCard.js"
+    },
+    "./screens/content-analysis/rules": {
+      "types": "./dist/screens/content-analysis/rules.d.ts",
+      "import": "./dist/screens/content-analysis/rules.js",
+      "default": "./dist/screens/content-analysis/rules.js"
+    },
+    "./screens/content-analysis/hooks/use-content-analysis.hooks": {
+      "types": "./dist/screens/content-analysis/hooks/use-content-analysis.hooks.d.ts",
+      "import": "./dist/screens/content-analysis/hooks/use-content-analysis.hooks.js",
+      "default": "./dist/screens/content-analysis/hooks/use-content-analysis.hooks.js"
+    },
+    "./screens/content-analysis/hooks/content-analysis-port.hooks": {
+      "types": "./dist/screens/content-analysis/hooks/content-analysis-port.hooks.d.ts",
+      "import": "./dist/screens/content-analysis/hooks/content-analysis-port.hooks.js",
+      "default": "./dist/screens/content-analysis/hooks/content-analysis-port.hooks.js"
+    },
+    "./screens/content-analysis/hooks/content-analysis-dependencies.hooks": {
+      "types": "./dist/screens/content-analysis/hooks/content-analysis-dependencies.hooks.d.ts",
+      "import": "./dist/screens/content-analysis/hooks/content-analysis-dependencies.hooks.js",
+      "default": "./dist/screens/content-analysis/hooks/content-analysis-dependencies.hooks.js"
+    },
+    "./screens/import-export/ImportExport": {
+      "types": "./dist/screens/import-export/ImportExport.d.ts",
+      "import": "./dist/screens/import-export/ImportExport.js",
+      "default": "./dist/screens/import-export/ImportExport.js"
+    },
+    "./screens/content-analysis/content-analysis-i18n": {
+      "types": "./dist/screens/content-analysis/content-analysis-i18n.d.ts",
+      "import": "./dist/screens/content-analysis/content-analysis-i18n.js",
+      "default": "./dist/screens/content-analysis/content-analysis-i18n.js"
     }
   },
   "files": [
