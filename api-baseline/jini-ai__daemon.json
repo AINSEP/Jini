@@ -589,6 +589,7 @@
    "agentListRoute": "variable:78c95d33f7",
    "agentRescanRoute": "variable:2d9345ee8d",
    "agentRoutes": "function:45e0055aad",
+   "answerA2uiAction": "function:9a06454b49",
    "answerSurfaceCallback": "function:c013347eae",
    "apiHealthRoute": "variable:fdf73bac6a",
    "apiReadyRoute": "variable:70d0cdd83b",
