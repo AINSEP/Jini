@@ -1,26 +1,36 @@
 import { useSyncExternalStore } from "react";
-import { ErrorNotice, type ErrorNoticeProps, type FailureChannel } from "../../../react/kit.js";
-import { t } from "../shared-components-i18n.js";
+import type { UserFacingError } from "@jini-ai/core";
 
-/** The host's admin failure channel: the notice reads, subscribes to and clears it. */
-export type AdminFailureNoticeChannel = Pick<FailureChannel, "subscribe" | "getSnapshot" | "reset">;
+import { ErrorNotice, type ErrorNoticeProps } from "../../../react/kit.js";
 
-export type AdminFailureNoticeProps = Omit<ErrorNoticeProps, "failure" | "role"> & { readonly channel: AdminFailureNoticeChannel };
+/** The slice of the host's retained-failure store the notice reads and resets (a `useSyncExternalStore`
+ *  source); `@jini-ai/ui/panel-kit`'s `createFailureChannel` satisfies it. */
+export interface AdminFailureNoticeChannel {
+  subscribe(listener: () => void): () => void;
+  getSnapshot(): UserFacingError | null;
+  reset(): void;
+}
+
+/** Required: the host's failure channel and the translated Dismiss label (this notice also mounts before
+ *  sign-in, so the host resolves the locale). The rest passes through to the kit's `ErrorNotice`. */
+export type AdminFailureNoticeProps = Omit<ErrorNoticeProps, "failure" | "role"> & {
+  channel: AdminFailureNoticeChannel;
+  dismissLabel: string;
+};
 
 /** The existing shared ErrorNotice beside the restart banner, retained until the operator dismisses it.
  * Optional clipboard ports preserve selectable details when browser copying is unavailable.
- * The host injects its failure `channel` and styles the `jini-admin-failure-notice` classes.
  * @complexity O(one bounded copy block) per incident render, no requests or polling.
  * @overallScore 99 — layout uses the existing host notice styling; Chrome visual review remains external.
+ * Now: the clipboard ports travel through the host's kit `ErrorNotice` binding. Styles:
+ * `admin-failure-notice.css` beside this file, imported by the host.
  */
-export function AdminFailureNotice({ channel, ...ports }: AdminFailureNoticeProps) {
-  // This notice also mounts before sign-in; reuse the shell's document locale without reading settings.
-  const locale = typeof document === "undefined" ? "en" : document.documentElement.lang || "en";
+export function AdminFailureNotice({ channel, dismissLabel, ...notice }: AdminFailureNoticeProps) {
   const failure = useSyncExternalStore(channel.subscribe, channel.getSnapshot, channel.getSnapshot);
   if (!failure) return null;
   // A floating card with Dismiss inside it: a full-width strip above the sidebar pushed the whole layout down.
   return <section className="jini-admin-failure-notice">
-    <ErrorNotice failure={failure} role="status" {...ports} />
-    <button type="button" className="jini-admin-failure-notice__dismiss" aria-label={t({ locale, key: "Dismiss error" })} onClick={() => channel.reset()}>×</button>
+    <ErrorNotice failure={failure} role="status" {...notice} />
+    <button type="button" className="jini-admin-failure-notice__dismiss" aria-label={dismissLabel} onClick={() => channel.reset()}>×</button>
   </section>;
 }

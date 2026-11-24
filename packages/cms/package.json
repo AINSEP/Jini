@@ -313,7 +313,6 @@
       "./admin-http/routes/settings/reset": "universal",
       "./admin-http/routes/settings/register-definitions": "universal",
       "./admin-http/routes/system/mail-activity": "universal",
-      "./admin-http/routes/system/publish-credentials/list": "universal",
       "./admin-http/routes/system/publish-credentials/create": "universal",
       "./admin-http/routes/system/publish-credentials/update": "universal",
       "./admin-http/routes/system/publish-credentials/verify": "universal",
@@ -406,7 +405,6 @@
       "./redirects/site/phase-handler": "universal",
       "./redirects/site/publish-content": "universal",
       "./redirects/site/tool-registrations": "universal",
-      "./admin-http/routes/seo/deps": "universal",
       "./seo/site/capability-card": "universal",
       "./seo/site/settings": "universal",
       "./seo/site/tool-registrations": "universal",
@@ -423,7 +421,6 @@
       "./settings/site/visitor-tools-registrations": "universal",
       "./settings/site/publish-content": "universal",
       "./settings/site/settings-confirm-write": "universal",
-      "./publish/content/report-contract": "universal",
       "./publish/content/type-registry": "universal",
       "./publish/content/dialog": "universal",
       "./publish/content/dialog/contract": "universal",
@@ -2154,11 +2151,6 @@
       "import": "./dist/admin-http/routes/system/mail-activity.js",
       "default": "./dist/admin-http/routes/system/mail-activity.js"
     },
-    "./admin-http/routes/system/publish-credentials/list": {
-      "types": "./dist/admin-http/routes/system/publish-credentials/list.d.ts",
-      "import": "./dist/admin-http/routes/system/publish-credentials/list.js",
-      "default": "./dist/admin-http/routes/system/publish-credentials/list.js"
-    },
     "./admin-http/routes/system/publish-credentials/create": {
       "types": "./dist/admin-http/routes/system/publish-credentials/create.d.ts",
       "import": "./dist/admin-http/routes/system/publish-credentials/create.js",
@@ -2619,11 +2611,6 @@
       "import": "./dist/redirects/site/tool-registrations.js",
       "default": "./dist/redirects/site/tool-registrations.js"
     },
-    "./admin-http/routes/seo/deps": {
-      "types": "./dist/admin-http/routes/seo/deps.d.ts",
-      "import": "./dist/admin-http/routes/seo/deps.js",
-      "default": "./dist/admin-http/routes/seo/deps.js"
-    },
     "./seo/site/capability-card": {
       "types": "./dist/seo/site/capability-card.d.ts",
       "import": "./dist/seo/site/capability-card.js",
@@ -2708,11 +2695,6 @@
       "types": "./dist/publish/content/type-registry.d.ts",
       "import": "./dist/publish/content/type-registry.js",
       "default": "./dist/publish/content/type-registry.js"
-    },
-    "./publish/content/report-contract": {
-      "types": "./dist/publish/content/report-contract.d.ts",
-      "import": "./dist/publish/content/report-contract.js",
-      "default": "./dist/publish/content/report-contract.js"
     },
     "./publish/content/dialog": {
       "types": "./dist/publish/content/dialog/index.d.ts",
