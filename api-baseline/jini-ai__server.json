@@ -80,15 +80,15 @@
    "ClosableServer": "interface:2341a9f357",
    "ShutdownProcess": "interface:361d793bb2",
    "ShutdownStore": "interface:895e3bb5a1",
-   "closeStoreOnShutdown": "function:ec99ab9958",
-   "closeWithinBound": "function:a560059691",
+   "closeStoreOnShutdown": "function:66b3054e33",
+   "closeWithinBound": "function:aba518e818",
    "stopServingWithinGrace": "function:11ea2e1fa7"
   }
  },
  "./shutdown/boot-work": {
   "types": "./dist/shutdown/await-boot-work.d.ts",
   "symbols": {
-   "awaitBootWorkWithinBound": "function:3218bf4e3f"
+   "awaitBootWorkWithinBound": "function:4062626764"
   }
  },
  "./shutdown/idle-park": {

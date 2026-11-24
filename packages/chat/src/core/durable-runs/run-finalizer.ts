@@ -1,3 +1,4 @@
+import { observed } from "@jini-ai/core/errors/idioms";
 import type { checkpointProgress } from "../checkpoint-interval.js";
 
 /**
@@ -93,9 +94,8 @@ export function hasUnsavedCheckpointGrowth({ watch, progress }: { watch: SavedCh
 export function reportSafely({ report }: { report: () => unknown }, _optional = {}): void {
   // The executor runs `report` synchronously and turns a synchronous throw into the same rejection
   // an asynchronous reporter produces, so one handler contains both.
-  new Promise<unknown>((resolve) => { resolve(report()); }).catch(() => {
-    // Nothing to do, and nowhere left to say so: see the comment above.
-  });
+  // Nothing to do with a failure, and nowhere left to say so: see the comment above.
+  observed({ promise: new Promise<unknown>((resolve) => { resolve(report()); }) });
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -107,5 +107,6 @@ export function reportSafely({ report }: { report: () => unknown }, _optional = 
  * not stall the watch. A failed cancel has nothing left to release.
  * @complexity O(1); starts one cancel and returns. */
 export function releaseUnreadBody({ response }: { response: Response }, _optional = {}): void {
-  void response.body?.cancel().catch(() => undefined);
+  const cancelling = response.body?.cancel();
+  if (cancelling !== undefined) observed({ promise: cancelling });
 }

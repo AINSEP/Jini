@@ -101,7 +101,7 @@
    "PLUGIN_SDK_SPECIFIER": "variable:fb4103d97f",
    "PLUGIN_SDK_SPECIFIERS": "variable:bfb154bb54",
    "ParseDeclaredContentTypesResult": "interface:016e926d22",
-   "PluginActivationPollDeps": "interface:0260fe98d1",
+   "PluginActivationPollDeps": "interface:1af8adc816",
    "PluginActivationRecord": "interface:abd0489e33",
    "PluginActivationRepoPort": "interface:b30e6b87f3",
    "PluginAlreadyInTrashError": "class:6ff5b7f47c",

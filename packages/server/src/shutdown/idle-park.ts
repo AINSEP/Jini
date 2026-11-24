@@ -5,6 +5,7 @@
  * when it returns `undefined` (the fence is up), and calls the returned `release` when the request
  * ends (finish or close — `release` is idempotent, so wiring both is safe).
  */
+import { orFallback } from "@jini-ai/core/errors/idioms";
 
 /** Inject the ledger, the shared finalizer, the existing graceful stop and the exit code it should
  * carry. Uncertainty is busy. Any admitted request holds intake until it is released. Disconnected
@@ -42,15 +43,19 @@ export function createIdlePark({ hasActiveRuns, hasBackgroundWork, activeCount, 
       if (fenced || probing) return { idle: false };
       probing = true;
       try {
-        if (hasOpenWork()) return { idle: false };
-        if (await hasActiveRuns()) return { idle: false };
-        if (await hasBackgroundWork()) return { idle: false };
-        if (hasOpenWork()) return { idle: false };
-        fenced = true;
-        stop({ exitCode });
-        return { idle: true };
-      } catch { fenced = false; return { idle: false }; }
-      finally { probing = false; }
+        // Any failure (a probe or the stop) means "not idle" and reopens intake.
+        const idle = await orFallback({ step: "idle-park probe", fallback: false, work: async () => {
+          if (hasOpenWork()) return false;
+          if (await hasActiveRuns()) return false;
+          if (await hasBackgroundWork()) return false;
+          if (hasOpenWork()) return false;
+          fenced = true;
+          stop({ exitCode });
+          return true;
+        } });
+        if (!idle) fenced = false;
+        return { idle };
+      } finally { probing = false; }
     },
   };
 }

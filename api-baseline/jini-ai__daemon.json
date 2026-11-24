@@ -171,6 +171,7 @@
    "TerminalSessionManager": "interface:da588c1186",
    "TerminalToolRegistrations": "interface:4f5630e364",
    "ToolAccessChange": "interface:15c759db73",
+   "ToolAccessLoweringError": "class:ca621f5ff9",
    "ToolAccessRun": "interface:5641ea62e6",
    "ToolAccessStopResult": "interface:b40200676b",
    "ToolAuthorizationRequest": "interface:3597010563",

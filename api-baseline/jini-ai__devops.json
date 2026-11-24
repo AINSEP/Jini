@@ -438,7 +438,7 @@
    "DomainBindingSweepScheduler": "interface:3c70c13c9c",
    "DomainBindingSweepTimer": "interface:378a81a124",
    "DomainBindingSweeper": "interface:d971df327f",
-   "DomainBindingSweeperOptional": "interface:c57514d759",
+   "DomainBindingSweeperOptional": "interface:29f088ae42",
    "FIRST_CHECK_DELAY_MS": "variable:dc206a51e9",
    "MANUAL_DNS_PROVIDER_ID": "variable:1f45a6bc74",
    "MAX_CHECK_DELAY_MS": "variable:a98554c219",
@@ -482,7 +482,7 @@
    "sameValueSet": "function:dee26eca51",
    "settlePort": "function:ef9f5014dd",
    "spfSatisfies": "function:85c9fb5864",
-   "startDomainBindingSweeper": "function:774f5bc1cf",
+   "startDomainBindingSweeper": "function:0f3b970dff",
    "unquoteTxt": "function:ea91a3546b",
    "verifyRequirements": "function:707cab6a69"
   }

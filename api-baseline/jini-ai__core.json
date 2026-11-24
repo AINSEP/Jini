@@ -1967,8 +1967,7 @@
  "./contracts/site/tool-access-change": {
   "types": "./dist/contracts/site/tool-access-change.d.ts",
   "symbols": {
-   "NotifyToolAccessChanged": "type:5eacbbd7df",
-   "ToolAccessLoweringError": "class:ca621f5ff9"
+   "NotifyToolAccessChanged": "type:5eacbbd7df"
   }
  },
  "./contracts/site/tool-metadata-approval-policy": {
