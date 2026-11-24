@@ -115,7 +115,9 @@
       "./site/activation-effects": "node",
       "./site/service-ports": "universal",
       "./site/provider-plugin-link": "node",
-      "./site/host-plugin-guidance": "node"
+      "./site/host-plugin-guidance": "node",
+      "./site/analytics-provider-registry": "node",
+      "./site/host-signals": "node"
     },
     "isolation": {
       "entries": {
@@ -130,7 +132,9 @@
         "./site/admin-surfaces/handlers": "admin-surfaces",
         "./site/customize-tool": "folder-zip",
         "./site/activation-effects": "lifecycle",
-        "./site/provider-plugin-link": "lifecycle"
+        "./site/provider-plugin-link": "lifecycle",
+        "./site/analytics-provider-registry": "lifecycle",
+        "./site/host-signals": "lifecycle"
       },
       "shared": [
         "core/persistent-state.js",
@@ -366,6 +370,16 @@
       "types": "./dist/site/host-plugin-guidance.d.ts",
       "import": "./dist/site/host-plugin-guidance.js",
       "default": "./dist/site/host-plugin-guidance.js"
+    },
+    "./site/analytics-provider-registry": {
+      "types": "./dist/site/analytics-provider-registry.d.ts",
+      "import": "./dist/site/analytics-provider-registry.js",
+      "default": "./dist/site/analytics-provider-registry.js"
+    },
+    "./site/host-signals": {
+      "types": "./dist/site/host-signals.d.ts",
+      "import": "./dist/site/host-signals.js",
+      "default": "./dist/site/host-signals.js"
     }
   },
   "files": [

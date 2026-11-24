@@ -12,3 +12,14 @@ only a declared process entry may read `process.env`). Optional test seams: `pla
 `execFile`. The admission rule ("own machine only") belongs to the
 host route that calls `pick()`; this module only knows how to show the dialog. A host creates it once
 where it mounts its admin system routes and hands it to its folder-picker route.
+
+`write-files.ts` — batched, approved writes into an owner-picked folder (`@jini-ai/cms/fs-files/write-files`,
+node): plain-relative path shape, lstat walk refusing every symlink, caps, canonical base64, and
+temp-file-then-rename writes; `requirePickedFolder` applies the picked-folder rule.
+
+### Wiring (write-files)
+
+The host injects its guarded path resolver (the read tools' denylist + containment) as the REQUIRED
+`resolveFsFilePath` field on `inspectWriteTarget`, `prepareFileWrites` and `writePreparedFiles`. Tovu
+binds its `features/fs-files/fs-files.ts` `resolveFsFilePath` at each call site
+(`fs-files/tool-registrations.ts`, `asset-transfer/asset-destinations.ts`, `asset-transfer/asset-sources.ts`).

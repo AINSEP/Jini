@@ -11,6 +11,8 @@ Small generic helpers for host credential cards and credentialed calls.
   replacing outcome documents) for creating an API credential and replacing its token.
 - `provider-settings-card` — the `credential_save` adapter that renders a provider plugin's declared
   settings as a secret card and saves them through host ports.
+- `agent-tools` — `buildCustomCredentialsAgentToolCatalog`: the list / verify / make-request / set-username /
+  write-files tool input-schema shapes the credential handlers validate against.
 - `credential-ports` — `classifyCredentialedRequestError` and `bindCredentialedRequestPort`, the core
   `CredentialedRequestPort` bound over a host's existing request functions.
 
@@ -36,3 +38,6 @@ Small generic helpers for host credential cards and credentialed calls.
   which this package may not import. `classifyCredentialedRequestError` takes the same class on its required
   args; the port forwards its own. A host binds the class at each call site (Tovu: `tool-registrations.ts`
   and `deployments/deploy-ops/run-ops.ts`).
+- `buildCustomCredentialsAgentToolCatalog` takes the host's tool `ids`, `permissions` (read/write), every
+  description sentence (`copy`) and its enforced `writeFilesLimits.maxFiles`. The host binds it where it
+  declares its credential tool catalog (the same catalog it passes as `vocabulary.catalog`).

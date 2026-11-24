@@ -281,6 +281,7 @@
       "./admin-http/routes/publish-content/peers": "universal",
       "./admin-http/routes/publish-content/destination": "universal",
       "./fs-files/native-folder-picker": "node",
+      "./fs-files/write-files": "node",
       "./content-duplication/derive-available-name": "universal",
       "./content-duplication/agent-tools": "universal",
       "./change-sets/agent-tools": "universal",
@@ -1788,6 +1789,11 @@
       "types": "./dist/fs-files/native-folder-picker.d.ts",
       "import": "./dist/fs-files/native-folder-picker.js",
       "default": "./dist/fs-files/native-folder-picker.js"
+    },
+    "./fs-files/write-files": {
+      "types": "./dist/fs-files/write-files.d.ts",
+      "import": "./dist/fs-files/write-files.js",
+      "default": "./dist/fs-files/write-files.js"
     },
     "./content-duplication/derive-available-name": {
       "types": "./dist/content-duplication/derive-available-name.d.ts",

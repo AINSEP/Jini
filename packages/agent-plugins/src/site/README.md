@@ -23,5 +23,11 @@ Generic plugin-host pieces extracted from a site host. Everything product-specif
 - `host-plugin-guidance.ts` (`./site/host-plugin-guidance`): the host injects `overlaysDir` (its shipped overlays)
   on every reader's required args, and `isYamlMapping` (its failsafe YAML reader) into
   `removeChatRefusedToolPermissions` / `deliverHostPluginGuidance`.
+- `analytics-provider-registry.ts` (`./site/analytics-provider-registry`): the host injects `analytics` (its analytics
+  package's forwarder/ingest-hook `contract`s and `validate`rs, `createForwarderRegistry`, and its product-named
+  manifest `filename`s) next to `loadContributions` (its lifecycle owner's trust-gated loader) into `loadAnalyticsProviders`.
+- `host-signals.ts` (`./site/host-signals`): the host injects `sources` (its hermetic bundled-source policy) on
+  `readBundledHostSignalDeclaration`, and `sources` plus its core policy functions `evaluateHostSignals` /
+  `selectCoreHostSignalDeclaration` (which own the security fallback) on `resolveBundledHostSignals`.
 - `service-ports.ts` (`./site/service-ports`): types only; `AgentPluginApiConnectionsPort<TConnection>` is
   instantiated with the host's declared-connection record.

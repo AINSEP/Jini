@@ -1,16 +1,13 @@
 import { ApiConnectionError } from './errors.js';
-import type { ApiConnectionSharedFactoryInput, ApiConnectionSharedIssuingContext, DeclaredApiConnection } from './host-ports.js';
+import type { ApiConnectionSharedFactoryInput, ApiConnectionSharedIssuingContext, ApiConnectionSharedStorage, DeclaredApiConnection } from './host-ports.js';
 import { deriveApiConnectionKey } from './keys.js';
-import type { ApiConnectionRecordStore } from './ports.js';
 import type { ApiConnectionService } from './service.js';
 import { assertSharedOAuthCompatibility, createSharedOAuthConsumer, type SharedOAuthConnection } from './shared.js';
 
 type SharedOAuthIssuingContext = ApiConnectionSharedIssuingContext;
 
-/** The host's sealed owner store: selected record, issuing-context and connection reads plus one context save. */
-export interface SharedApiOwnerStorage {
-  readonly records: Pick<ApiConnectionRecordStore, 'read'>;
-  readContext(required: { credentialId: string }): Promise<SharedOAuthIssuingContext | null>;
+/** The host's sealed owner store (the runtime host's shared storage) plus its connection read and one context save. */
+export interface SharedApiOwnerStorage extends ApiConnectionSharedStorage {
   readConnection(required: { credentialId: string }): Promise<SharedOAuthConnection | null>;
   saveContext(required: { credentialId: string; context: SharedOAuthIssuingContext }): Promise<void>;
 }
@@ -65,7 +62,7 @@ function createSharedApiConsumer(required: Parameters<typeof createSharedApiConn
         if (!context || record?.generation !== expectedGeneration) throw unavailable();
         let service = services.get(credentialId);
         if (!service) { service = required.createService({ connection: await declared(context), context }); services.set(credentialId, service); }
-        return service.getAccessToken({ connectionRef: credentialId, workspaceId: 'project' }, { expectedAccountId });
+        return service.getAccessToken({ connectionRef: credentialId, workspaceId: 'project' }, expectedAccountId === undefined ? {} : { expectedAccountId });
       },
     },
   });
@@ -114,7 +111,7 @@ function createSharedApiPreparation(required: Parameters<typeof createSharedApiC
       const generation = (await storage.records.read({ key: context.credentialId }))?.generation ?? 0;
       const liveConnection = await declared(context);
       await storage.saveContext({ credentialId: context.credentialId, context });
-      const service = required.createService({ connection: liveConnection, context, redirectUri });
+      const service = required.createService({ connection: liveConnection, context, ...(redirectUri === undefined ? {} : { redirectUri }) });
       // The person's explicit choice grants this site before the provider round trip. A stop
       // removes that grant; a late callback only verifies it and can never restore it.
       await required.transaction({ run: async () => {

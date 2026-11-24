@@ -171,3 +171,13 @@ Authorize the caller for a workspace before any call and pass that `workspaceId`
 `cancelSwitchAccount`); the service refuses a ref whose record belongs to another workspace,
 plugin or connection with the same `connection-not-found`. Seal tokens at rest, make
 `compareAndSet` and `takeAttempt` atomic, and pass the exact callback URL a request arrived on.
+
+## Wiring
+
+- `createSharedApiConnections` (`shared-api.ts`) takes `SharedApiConnectionDeps`: the host's sealed owner
+  `storage`, per-site `bindings`, site-to-key `attachments`, owner `transaction`, `siteId`/`siteName` and
+  `ownerPrincipalId`, plus the `ApiConnectionSharedFactoryInput` the runtime host supplies. The host binds
+  it as `ApiConnectionHostPorts.createSharedConnections`.
+- `createOAuthFormDeliveryConnectionPort` (`form-delivery-connection.ts`) takes `hostFor`, `adapterPluginId`
+  and `deliveryError` (builds the forms ledger's `FormDeliveryError`, which this package may not import).
+  The host binds it in its form-delivery deliverer, ahead of its saved-custom-credential port.
