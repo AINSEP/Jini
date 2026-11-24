@@ -1,5 +1,5 @@
 import { useCallback, useMemo, useState } from "react";
-import { useFetchQuery, useFetchMutation, useCachedLoader } from "../../react/kit.js";
+import type { FetchQueryAdapter } from "@jini-ai/core/fetch";
 import type { ThemePagesFileEntry, ThemePagesPort, ThemePageSlugCollision } from "./theme-pages-port.hooks.js";
 
 /**
@@ -140,7 +140,12 @@ function themePagesDisplayState(
  * one on each publish toggle.
  */
 export function useThemePages(
-  { port, noThemeId }: { port: ThemePagesPort; noThemeId: string },
+  { port, noThemeId, useFetchQuery, useFetchMutation, useCachedLoader }: {
+    port: ThemePagesPort; noThemeId: string;
+    /** The host's query hooks, REQUIRED (custom hooks reach Jini only as injected fields). */
+    useFetchQuery: FetchQueryAdapter["useFetchQuery"]; useFetchMutation: FetchQueryAdapter["useFetchMutation"];
+    useCachedLoader: FetchQueryAdapter["useCachedLoader"];
+  },
   _optional: Record<string, never> = {},
 ): ThemePagesController {
   // Resolve prerequisites separately: a detail failure must not erase the theme id

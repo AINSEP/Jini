@@ -1,6 +1,8 @@
 // @vitest-environment jsdom
 import { act, renderHook, waitFor } from "../../__tests__/fetch-query-support.js";
 import { describe, expect, it, vi } from "vitest";
+import { useFetchQuery, useFetchMutation, useCachedLoader } from "../../react/kit.js";
+const KIT_HOOKS = { useFetchQuery, useFetchMutation, useCachedLoader };
 
 import { createFakeThemePagesPort } from "../hooks/theme-pages-fake-port.js";
 import type { ThemePagesFileEntry, ThemePagesPort } from "../hooks/theme-pages-port.hooks.js";
@@ -16,7 +18,7 @@ describe("theme pages display state characterization", () => {
     let release!: (value: Awaited<ReturnType<typeof port.getPresentation>>) => void;
     const pending = new Promise<Awaited<ReturnType<typeof port.getPresentation>>>((resolve) => { release = resolve; });
     port.getPresentation = () => pending;
-    const { result } = renderHook(() => useThemePages({ port, noThemeId: "none" }));
+    const { result } = renderHook(() => useThemePages({ port, noThemeId: "none", ...KIT_HOOKS }));
     expect(result.current.pages).toBeNull();
     expect(result.current.pageCount).toBe(0);
     expect(result.current.error).toBeNull();
@@ -32,7 +34,7 @@ describe("theme pages display state characterization", () => {
       { ...ABOUT, path: "render/pages/contact.html", published: true },
       { path: "theme.css", group: "style", published: null, resettable: false },
     ] });
-    const { result } = renderHook(() => useThemePages({ port, noThemeId: "none" }));
+    const { result } = renderHook(() => useThemePages({ port, noThemeId: "none", ...KIT_HOOKS }));
     await waitFor(() => expect(result.current.pageCount).toBe(2));
     expect(result.current.pages).toEqual([
       { pageId: "about", filePath: ABOUT.path, published: false, resettable: true, collidingContent: null },
@@ -44,7 +46,7 @@ describe("theme pages display state characterization", () => {
   it.each(["presentation failed", ""])("retains presentation error message %j and unloaded rows", async (message) => {
     const port = createFakeThemePagesPort({ getPresentationError: new Error(message) });
     const detail = vi.spyOn(port, "getThemeDetail");
-    const { result } = renderHook(() => useThemePages({ port, noThemeId: "none" }));
+    const { result } = renderHook(() => useThemePages({ port, noThemeId: "none", ...KIT_HOOKS }));
     await waitFor(() => expect(result.current.error).toBe(message));
     expect(result.current.pages).toBeNull();
     expect(result.current.pageCount).toBe(0);
@@ -53,7 +55,7 @@ describe("theme pages display state characterization", () => {
 
   it.each(["detail failed", ""])("retains detail error message %j and unloaded rows", async (message) => {
     const port = createFakeThemePagesPort({ getThemeDetailError: new Error(message) });
-    const { result } = renderHook(() => useThemePages({ port, noThemeId: "none" }));
+    const { result } = renderHook(() => useThemePages({ port, noThemeId: "none", ...KIT_HOOKS }));
     await waitFor(() => expect(result.current.error).toBe(message));
     expect(result.current.activeThemeId).toBe("basic");
     expect(result.current.pages).toBeNull();
@@ -63,7 +65,7 @@ describe("theme pages display state characterization", () => {
   it.each(["publish failed", ""])("prefers action error %j over detail failure and clears it on the next action", async (message) => {
     const port = createFakeThemePagesPort({ getThemeDetailError: new Error("detail failed") });
     port.setPagePublished = vi.fn<ThemePagesPort["setPagePublished"]>().mockRejectedValue(new Error(message));
-    const { result } = renderHook(() => useThemePages({ port, noThemeId: "none" }));
+    const { result } = renderHook(() => useThemePages({ port, noThemeId: "none", ...KIT_HOOKS }));
     await waitFor(() => expect(result.current.error).toBe("detail failed"));
     await act(() => result.current.setPagePublished("about", true));
     expect(result.current.error).toBe(message);

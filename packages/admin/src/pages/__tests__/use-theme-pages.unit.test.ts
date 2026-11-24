@@ -1,6 +1,8 @@
 // @vitest-environment jsdom
 import { renderHook, waitFor, act } from "../../__tests__/fetch-query-support.js";
 import { describe, expect, it, vi } from "vitest";
+import { useFetchQuery, useFetchMutation, useCachedLoader } from "../../react/kit.js";
+const KIT_HOOKS = { useFetchQuery, useFetchMutation, useCachedLoader };
 
 import { createFakeThemePagesPort } from "../hooks/theme-pages-fake-port.js";
 import { useThemePages, type ThemePageRow } from "../hooks/use-theme-pages.hooks.js";
@@ -17,7 +19,7 @@ import type { ThemePagesFileEntry, ThemePagesPort } from "../hooks/theme-pages-p
  */
 
 const NO_THEME_ID = "none";
-const useThemePagesFor = (port: ThemePagesPort) => useThemePages({ port, noThemeId: NO_THEME_ID });
+const useThemePagesFor = (port: ThemePagesPort) => useThemePages({ port, noThemeId: NO_THEME_ID, ...KIT_HOOKS });
 
 const ABOUT: ThemePagesFileEntry = { path: "render/pages/about.html", group: "page", published: false, resettable: true };
 const PRICING: ThemePagesFileEntry = { path: "render/pages/pricing.html", group: "page", published: true, resettable: true };
