@@ -88,3 +88,16 @@ test("a captions track reference names a sibling asset id and a language", () =>
   assert.equal(ref.srclang, "en");
   assert.equal(ref.label, null);
 });
+
+test("renderVideoTag shape-reads an untrusted captions value itself (public-http passes IR/meta through raw)", () => {
+  const baseline = '<video src="/m/clip/original.mp4" controls>Playback unavailable</video>';
+  // Wrong shapes off a widget IR prop / JSON render meta fail closed instead of throwing.
+  for (const captionsTrack of [{ src: 5, srclang: "en" }, ["/m/a.vtt", "en"], "/m/a.vtt", { src: "/m/a/original.vtt" }]) {
+    assert.equal(renderVideoTag(player, { captionsTrack }), baseline, JSON.stringify(captionsTrack));
+  }
+  // A JSON-round-tripped track with a non-string label renders without the label.
+  assert.equal(
+    renderVideoTag(player, { captionsTrack: JSON.parse('{"src":"/m/cc/original.vtt","srclang":"en","label":7}') }),
+    '<video src="/m/clip/original.mp4" controls><track kind="captions" src="/m/cc/original.vtt" srclang="en" default>Playback unavailable</video>',
+  );
+});

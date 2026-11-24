@@ -1,7 +1,7 @@
 import type { MarkerAttribute } from "./markers/marker.js";
 import { NO_MARKER_ATTRIBUTES, mediaAltAttrValue, mediaDimensionAttr, resolveEmbedHtmlAttributes, foldHtmlAttributesClass, mergeMediaClassAttr, attributeValueHtml, mergeMediaExtraAttributes, omitKey } from "./media-attributes.js";
 import { escapeHtml } from "@jini-ai/core/text";
-import { renderCaptionTrack, type CaptionTrackInput } from "./caption-track.js";
+import { readCaptionTrackInput, renderCaptionTrack } from "./caption-track.js";
 
 /** Names {@link renderImageTag} renders itself at a fixed position — kept out of
  *  {@link mergeMediaExtraAttributes}'s generic tail so none of them is ever emitted twice. */
@@ -83,8 +83,10 @@ export function renderVideoTag(props: {
   readonly controls?: boolean;
 }, _optional: {
   /** Optional WebVTT captions (G7-9). Absent, `null`, or refused by {@link renderCaptionTrack}'s
-   *  same-origin `.vtt` guard all render the exact uncaptioned player. */
-  readonly captionsTrack?: CaptionTrackInput | null;
+   *  same-origin `.vtt` guard all render the exact uncaptioned player. Typed `unknown` on purpose: the
+   *  public-http renderers pass a widget IR prop / JSON render meta through raw (they may not import the
+   *  `widgets` domain), so the shape read ({@link readCaptionTrackInput}) happens here, beside the guard. */
+  readonly captionsTrack?: unknown;
 } = {}): string {
   const tag = props.kind ?? "video";
   const markerAttributes = props.markerAttributes ?? NO_MARKER_ATTRIBUTES;
@@ -111,7 +113,7 @@ export function renderVideoTag(props: {
   // on the same page).
   const fallback = playerFallback({ markerAttributes, alt: props.alt, fallbackText: props.fallbackText });
   // `<track>` must precede the fallback content inside the media element; "" when there is none.
-  const captions = renderCaptionTrack({ track: _optional.captionsTrack });
+  const captions = renderCaptionTrack({ track: readCaptionTrackInput({ value: _optional.captionsTrack }) });
   return `<${tag} src="${escapeHtml({ text: props.src })}"${controlsAttr}${widthAttr}${heightAttr}${classAttr}${extraAttrs}>${captions}${fallback}</${tag}>`;
 }
 
