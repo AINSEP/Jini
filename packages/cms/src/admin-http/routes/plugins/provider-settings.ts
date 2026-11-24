@@ -105,13 +105,21 @@ function fieldPresentation({ field }: { field: PluginProviderSettingField }, _op
 
 type SavedView = Awaited<ReturnType<ProviderSettingsStore["readSettings"]>>;
 
+/**
+ * What the card shows of a field's saved value. A secret only ever reports presence, never its value; a public
+ * field echoes its value whenever one is stored (an empty string included), but an empty string does not count as saved.
+ */
+function savedProjection({ field, saved }: { field: PluginProviderSettingField; saved: SavedView }, _optional: Record<string, never> = {}): Pick<ProviderSettingsCardField, "saved" | "value"> {
+  if (field.secret === true) return { saved: saved?.secretNames.includes(field.name) ?? false };
+  const value = saved?.settings[field.name];
+  return { saved: value !== undefined && value !== "", ...(value === undefined ? {} : { value }) };
+}
+
 function cardField({ field, saved }: { field: PluginProviderSettingField; saved: SavedView }, _optional: Record<string, never> = {}): ProviderSettingsCardField {
-  const secret = field.secret === true;
-  const value = secret ? undefined : saved?.settings[field.name];
-  return { name: field.name, label: field.label, ...fieldPresentation({ field }), secret, required: field.required === true,
+  return { name: field.name, label: field.label, ...fieldPresentation({ field }), secret: field.secret === true, required: field.required === true,
     ...(field.requiredUnless ? { requiredUnless: field.requiredUnless } : {}),
     ...(field.requiredWhen ? { requiredWhen: field.requiredWhen } : {}),
-    saved: secret ? (saved?.secretNames.includes(field.name) ?? false) : value !== undefined && value !== "", ...(value === undefined ? {} : { value }) };
+    ...savedProjection({ field, saved }) };
 }
 
 /** The card: usage, scope, apply timing, notices and one row per declared field. @complexity O(f) plus three store reads. */

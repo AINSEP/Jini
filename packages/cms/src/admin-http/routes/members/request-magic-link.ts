@@ -24,8 +24,17 @@ export interface MemberRequestMagicLinkRouteDeps {
   senderNotConfiguredMessage: string;
 }
 
-/** The raw body fields, string-coerced as the hand-written route read them; nothing is refused before authorization. */
-interface MagicLinkInput { rawEmail: string; redirectPath: string | undefined }
+/**
+ * The request body exactly as received. Its two fields are string-coerced in `handle`, after authorization, because
+ * the hand-written route coerced them there: a body whose fields cannot be coerced must still get the denied
+ * caller's 403, never a coercion 500 answered before the permission check.
+ */
+type MagicLinkInput = Readonly<Record<string, unknown>>;
+
+/** The two body fields, string-coerced as the hand-written route read them; nothing is refused here. */
+function magicLinkFields(body: MagicLinkInput, _optional: Record<string, never> = {}): { rawEmail: string; redirectPath: string | undefined } {
+  return { rawEmail: String(body.email ?? ""), redirectPath: body.redirectPath ? String(body.redirectPath) : undefined };
+}
 
 /** The library failures this route answers itself; a not-found or conflict was never mapped here (a redacted 500). */
 const MAGIC_LINK_ERRORS: MemberErrorStatuses = { validation: 400 };
@@ -84,16 +93,15 @@ function rejectMagicLinkError({ err, deps }: { err: unknown; deps: MemberRequest
 export const memberRequestMagicLinkRoute = defineJsonRoute<MagicLinkInput, MemberSignInLinkResult | RouteReply, MemberRequestMagicLinkRouteDeps, MemberRoutePrincipal>({
   method: "post",
   path: "/api/admin/v1/workspaces/:workspaceId/members/request-magic-link",
-  parse: (raw) => {
-    const body = (raw.body ?? {}) as Record<string, unknown>;
-    return ok({ value: { rawEmail: String(body.email ?? ""), redirectPath: body.redirectPath ? String(body.redirectPath) : undefined } });
-  },
+  parse: (raw) => ok({ value: (raw.body ?? {}) as MagicLinkInput }),
   handle: async ({ input, deps, authorize }) => {
     await authorizeMemberManage({ authorize });
     try {
-      const limited = await rateLimitReply({ deps, rawEmail: input.rawEmail });
+      // Inside the try, as in the hand-written route: a coercion failure takes the unclassified-error path.
+      const { rawEmail, redirectPath } = magicLinkFields(input);
+      const limited = await rateLimitReply({ deps, rawEmail });
       if (limited) return ok({ value: limited });
-      return ok({ value: await deps.requestSignInLink({ workspaceId: deps.workspaceId, email: input.rawEmail, redirectPath: input.redirectPath }) });
+      return ok({ value: await deps.requestSignInLink({ workspaceId: deps.workspaceId, email: rawEmail, redirectPath }) });
     } catch (err) {
       return rejectMagicLinkError({ err, deps });
     }

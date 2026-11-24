@@ -234,6 +234,25 @@ async function pipeBody({ body, out }: { body: ReadableStream<Uint8Array>; out: 
 }
 
 /**
+ * The `Vary` value that keeps every field already set on the response (by middleware, or a raw spec's static
+ * `responseHeaders`) and adds the response's own, each once (case-insensitive, first spelling kept); `*` absorbs
+ * everything. Replacing instead would let a shared cache serve one variant across the fields the earlier layers named.
+ * @complexity O(n) in the number of listed fields.
+ */
+function unionVary({ existing, added }: { existing: number | string | string[] | undefined; added: string }): string {
+  const fields: string[] = [];
+  const seen = new Set<string>();
+  for (const field of [existing ?? ''].flat().join(',').concat(',', added).split(',')) {
+    const name = field.trim();
+    if (!name || seen.has(name.toLowerCase())) continue;
+    if (name === '*') return '*';
+    seen.add(name.toLowerCase());
+    fields.push(name);
+  }
+  return fields.join(', ');
+}
+
+/**
  * Writes a web `Response` to a Node `ServerResponse`: status, headers (each `Set-Cookie` on its own line), then the
  * body with backpressure, headers flushed before the first chunk so a stream reaches the client before its first event.
  * For a host that builds its own `Response` and answers through Node (Express) instead of registering a route, so it
@@ -247,7 +266,8 @@ export async function sendWebResponse({ response, res }: { response: Response; r
   // Set-Cookie cannot be comma-joined (cookie dates contain commas), so each one gets its own line.
   const cookies = response.headers.getSetCookie();
   response.headers.forEach((value, name) => {
-    if (name !== 'set-cookie') out.setHeader(name, value);
+    if (name === 'vary') out.setHeader(name, unionVary({ existing: out.getHeader('vary'), added: value }));
+    else if (name !== 'set-cookie') out.setHeader(name, value);
   });
   for (const cookie of cookies) out.appendHeader('set-cookie', cookie);
   if (!response.body || headOnly) {
