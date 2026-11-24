@@ -33,6 +33,7 @@
       "./records": "universal",
       "./optimistic-concurrency": "universal",
       "./list-page": "universal",
+      "./keyset-cursor": "universal",
       "./primitives": "universal",
       "./fetch": "universal",
       "./text": "universal",
@@ -332,6 +333,11 @@
       "types": "./dist/list-page.d.ts",
       "import": "./dist/list-page.js",
       "default": "./dist/list-page.js"
+    },
+    "./keyset-cursor": {
+      "types": "./dist/keyset-cursor.d.ts",
+      "import": "./dist/keyset-cursor.js",
+      "default": "./dist/keyset-cursor.js"
     },
     "./primitives": {
       "types": "./dist/primitives/index.d.ts",

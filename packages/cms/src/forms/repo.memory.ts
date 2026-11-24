@@ -1,7 +1,7 @@
 import { deleteMapRecord } from "@jini-ai/core/records";
 import { assertVersionedWrite } from "@jini-ai/core/optimistic-concurrency";
 // The local trash fork was removed; @jini-ai/cms/trash owns the shared adapter/hooks.
-import { encodeKeysetCursor } from "../core/keyset-cursor.js";
+import { encodeKeysetCursor } from "@jini-ai/core/keyset-cursor";
 import type { UUID } from "@jini-ai/core/primitives";
 import { FormSlugConflictError } from "./errors.js";
 import type { FormDefinitionRepoPort, FormSubmissionRepoPort } from "./ports.js";

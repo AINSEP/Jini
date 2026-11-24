@@ -504,5 +504,17 @@
    "SqlOriginSettingRepo": "class:8f37d8b218",
    "registerConfiguredOrigin": "function:51aa4653bf"
   }
+ },
+ "./watermark/kernel": {
+  "types": "./dist/watermark/kernel.d.ts",
+  "symbols": {
+   "WriteWatermarkMirror": "interface:15275d0aea",
+   "WriteWatermarkRequired": "interface:8e9d00de16",
+   "WriteWatermarkTable": "interface:21230596e2",
+   "WriteWatermarkTables": "interface:19af91c575",
+   "kernelStampWatermark": "function:deea291a4f",
+   "readKernelWatermark": "function:fe83da4f32",
+   "reconcileMirror": "function:b0eb38fed8"
+  }
  }
 }
