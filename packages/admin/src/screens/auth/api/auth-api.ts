@@ -25,8 +25,8 @@ export function createAuthApi({ request, requestOnce }: AuthApiDeps, _optional: 
     /**
      * Exchanges a single-use loopback boot token (the zip launcher's `#boot=<token>` sign-in link,
      * run-from-zip plan S2) for a real admin session cookie — the SAME route the desktop shell already
-     * redeems (`server/inbound/admin-http/dev-auth.ts`'s `POST /auth/boot-session`; no new server
-     * route). `apps/admin/src/App.hooks.ts`'s boot effect calls this with whatever `takeBootToken` read off the URL
+     * redeems (the host's dev-auth `POST /auth/boot-session`; no new server
+     * route). The host's boot effect calls this with whatever `takeBootToken` read off the URL
      * fragment, then runs its existing `api.me()` chain unchanged — a rejected redemption (invalid,
      * spent, or absent) is swallowed by that caller and falls through to the normal `<Login>` screen.
      */

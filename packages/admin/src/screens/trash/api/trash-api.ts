@@ -33,7 +33,7 @@ export function createTrashApi({ authenticatedAdminRequest, workspaceId }: Trash
       authenticatedAdminRequest<AdminTrashRestoreReportDto>({ method: "POST", path: `/workspaces/${workspaceId}/trash/restore`, body: { items } }),
     purgeTrashItems: ({ ids }: { ids: string[] }) =>
       authenticatedAdminRequest<AdminTrashPurgeReportDto>({ method: "POST", path: `/workspaces/${workspaceId}/trash/purge`, body: { ids } }),
-    /** The generic single-item trash endpoint (`POST /trash/items`, `W/features/trash/`): the way
+    /** The generic single-item trash endpoint (`POST /trash/items`): the way
      *  every OTHER admin feature's delete button (forms, widgets, menus, terms, taxonomies) moves one
      *  row to the Trash, instead of each domain keeping its own bespoke delete call. */
     trash: ({ type, id }: { type: string; id: string }) =>
