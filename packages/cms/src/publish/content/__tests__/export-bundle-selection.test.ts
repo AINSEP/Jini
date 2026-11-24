@@ -39,7 +39,7 @@ function entity(over: { entityType: string; id: string; requiredBlobs?: readonly
 const ENVELOPE: PublishContentExportEnvelope = {
   artifactFormatVersion: PUBLISH_CONTENT_ARTIFACT_FORMAT_VERSION,
   hashVersion: CONTENT_HASH_VERSION,
-  sourceLabel: "Tovu",
+  sourceLabel: "Example Site",
   entities: [
     entity({ entityType: "media", id: "m1", requiredBlobs: ["sha-a"] }),
     entity({ entityType: "media", id: "m2", requiredBlobs: ["sha-b"] }),

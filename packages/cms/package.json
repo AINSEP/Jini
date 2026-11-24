@@ -510,7 +510,7 @@
       "./publish/content/apply-run": "universal",
       "./publish/content/repo-handler": "node",
       "./publish/content/planner": "node",
-      "./publish/content/export-bundle": "universal",
+      "./publish/content/export-bundle": "node",
       "./publish/content/seed-hash": "universal",
       "./publish/content/backstop-refusal": "universal",
       "./publish/content/backstop-preview": "node",
