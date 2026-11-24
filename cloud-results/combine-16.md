@@ -1,4 +1,4 @@
-TRAIN 7 merged | FILES LEFT 2,187 / 2,076 | 02:24Z 2026-11-24 (running)
+PARTIAL 79aa0025d 8e6715a0ba: TRAIN 7 merged (k1-pilot, p12-cut7, p12-cut46, rt-l2-system, rt-l3-pubsite, rt-l4-oauth, rt-l5-recovery; every review FIX applied or stale, none deferred except p12-cut46-tovu FIX 1 which lives on plan/*) | FILES LEFT 2,269 -> 2,187 / excl. themes 2,158 -> 2,076 | 02:25Z 2026-11-24 | stopped at the tool-call cap; rt-i2, rt-l1, rt-i1, p12-gates, w3-fnd/settings/screens, todos, bugs-low, p13-ready READY but not merged
 
 # combine-16 (2026-11-23/24): rolling merge train, Jini + Tovu `integ/merge-16-2026-11-23`
 
@@ -30,12 +30,18 @@ Unattended cloud run, Opus high. `AI-Dev-Shop/agents/programmer/skills.md` (v1.7
 | 6 merges (+ rt-l2-system, rt-l3-pubsite, rt-l4-oauth merge; T `6da8e9f711`) | 2,201 | 0 | **2,201** | **2,090** |
 | 7 merges (+ rt-l5-recovery; T `1b9313042b`) | 2,187 | 0 | **2,187** | **2,076** |
 
-## Held branches
-(none yet)
+## Held / not merged (READY, stopped at the run's tool-call cap)
+No merged branch was reverted. These were READY (final report + Codex row) but not merged; the run stopped near its 300-tool-call cap after 7 merges, per the iron rule (push what is merged and green, report, stop).
+- **rt-i2** (T `24297346ad`): merge attempted at 02:27 and **aborted before commit** (nothing pushed). 13 conflicts, and the moved `members/disable` route must absorb combine-15's **C058** compare-and-set fix (`MemberConflictError` → 409 `VERSION_CONFLICT` + reload copy) inside the Jini spec before the host file can be deleted, on top of rv1123j's 6 FIXes. Do this first next run: port C058 into `@jini-ai/cms` members disable spec (with its RED test + mutation), then delete the host route.
+- **rt-l1-content** (T `c95dabc3ee`): 8 FIXes in rv1123i; the review says replay L1's first-parent commits onto the corrected pilot (merge-16 already has the corrected pilot and the k1 fix round, so a plain merge keeps the pilot versions; verify `menus/update-tree.ts` keeps the conditional `entityId` omission).
+- **rt-i1** (T `4800acca89`): 7 FIXes in rv1123j (Core user/role/policy/newsletter DTOs, `deferMissingPrincipal` on 7 newsletter mounts, request-time reads, users POST `forwardRejection` row).
+- **p12-gates** (PARTIAL; 5 FIXes in rv1123e, mostly gate-script work).
+- **w3-fnd, w3-settings, w3-screens** (PARTIAL; reviewed in rv1123k at ~00:59). Note rv1123k says w3-screens/w3-settings duplicate moves must be reconciled with their paired owners.
+- **todos-a/b, bugs-low-a/b, p13-ready** (reviewed in rv1123f/h; lower priority).
+- Not READY at the last fetch: w3-addons/content/deploy/pages-members/sites/users-sec/rtfnd (no review row; w3-rtfnd's report landed 00:39).
 
-## Not READY at last loop
-- At 00:59 the rt-* reviews (rv1123i/j) and w3-fnd/settings/screens reviews (rv1123k) landed; those lanes are READY and queued in priority order.
-- `codex/w3-addons/content/deploy/pages-members/sites/users-sec/rtfnd`: no final report and/or no review yet.
+## Queue notes
+- See "Held / not merged" above for the READY queue left for the next train.
 
 ## Environment notes
 - The container's default `node` is 22; both repos require Node 24 (`engines`). All gates/tests here run with `/opt/node24/bin` first on PATH. Under Node 22, `RegExp.escape` (Jini `cms/forms/result-html.ts`) and tsx's hook order make 2 Tovu tests red — env-only, green on 24.
