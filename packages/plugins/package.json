@@ -22,6 +22,7 @@
       "./runtime/install-consent": "universal",
       "./runtime/lower-tool-access": "universal",
       "./runtime/plugin-tool-ids": "universal",
+      "./runtime/sdk-resolver": "node",
       "./runtime/service-ports": "universal"
     },
     "isolation": {
@@ -83,6 +84,11 @@
       "types": "./dist/runtime/plugin-tool-ids.d.ts",
       "import": "./dist/runtime/plugin-tool-ids.js",
       "default": "./dist/runtime/plugin-tool-ids.js"
+    },
+    "./runtime/sdk-resolver": {
+      "types": "./dist/runtime/sdk-resolver.d.ts",
+      "import": "./dist/runtime/sdk-resolver.js",
+      "default": "./dist/runtime/sdk-resolver.js"
     },
     "./runtime/service-ports": {
       "types": "./dist/runtime/service-ports.d.ts",
