@@ -112,3 +112,12 @@ See [API.md](https://github.com/AINSEP/Jini/blob/main/packages/diagnostics/API.m
 - [Build evidence URLs from verified host configuration](docs/decisions/DR-001-trusted-evidence-addresses.md).
 
 Bundle collection, inbound request hooks and web evidence share `Clock` from `@jini-ai/core/primitives` (`nowMs()` with no empty argument); the old package-local clock types are removed. Credential regexes come only from core's eleven-entry `SECRET_SHAPE_PATTERNS`; diagnostics keeps its own redaction policies and existing scanner/redactor export names. See [API.md](https://github.com/AINSEP/Jini/blob/main/packages/diagnostics/API.md) for migration details.
+
+## Wiring
+
+**Global error reporting** (`installGlobalErrorReporting` from `./observability`). The host injects
+`target` (its `window`) and `report` — its own sink that maps `{ message, stack }` onto its telemetry
+vocabulary (payload kind, IPC channel, bridge) and swallows bridge failures. Optional
+`maxMessageLength`/`maxStackLength`/`rejectionFallback` override the 1000/8000/"Unhandled rejection"
+defaults. The host's renderer boot module calls it once before the UI mounts and keeps the teardown
+for tests.

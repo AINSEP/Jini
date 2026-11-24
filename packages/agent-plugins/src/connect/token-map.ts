@@ -44,6 +44,24 @@ export function parsePluginTokenMap(
   return { ok: true, tokens };
 }
 
+/**
+ * The tokens a create form sends, from its `{ [pluginId]: typed value }` fields: trimmed, blanks
+ * dropped (a whitespace-only field means "skip", like an empty one), `undefined` when nothing was
+ * typed — so a create with no token sends exactly the input it always did. The client half of
+ * `parsePluginTokenMap`; the receiving side still validates with the host's limits.
+ * @complexity O(n) in the offered services.
+ */
+export function tokensForCreate(
+  required: { readonly values: Readonly<Record<string, string>> },
+  _optional: Record<string, never> = {},
+): Record<string, string> | undefined {
+  const out: Record<string, string> = {};
+  for (const [pluginId, value] of Object.entries(required.values)) {
+    if (value.trim() !== '') out[pluginId] = value.trim();
+  }
+  return Object.keys(out).length > 0 ? out : undefined;
+}
+
 /** A string token within the host's length limit, under an id the host's grammar admits. */
 function isAcceptableEntry(
   required: { readonly pluginId: string; readonly value: unknown; readonly limits: TokenMapLimits },

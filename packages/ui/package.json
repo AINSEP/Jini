@@ -40,6 +40,7 @@
       "./tab-strip": "browser",
       "./find": "browser",
       "./site-card": "browser",
+      "./resource-monitor": "browser",
       "./zoom": "browser",
       "./app-version": "browser",
       "./live-views": "browser",
@@ -218,6 +219,11 @@
       "types": "./dist/features/site-card/index.d.ts",
       "import": "./dist/features/site-card/index.js",
       "default": "./dist/features/site-card/index.js"
+    },
+    "./resource-monitor": {
+      "types": "./dist/features/resource-monitor/index.d.ts",
+      "import": "./dist/features/resource-monitor/index.js",
+      "default": "./dist/features/resource-monitor/index.js"
     },
     "./zoom": {
       "types": "./dist/features/zoom/use-zoom.d.ts",
