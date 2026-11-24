@@ -149,7 +149,7 @@ export const importPlanRoute = defineJsonRoute<PlanInput, Record<string, unknown
     const principal = principalOf({ context });
     const { result, report } = await deps.planImport({ context: principal, ...input });
     const backstopPreview = await rawPlanPreview({ deps, context: principal, bundleId: input.bundleId, report });
-    return ok({ value: { ...result, details: toPublishContentReportDto(report), ...(backstopPreview === undefined ? {} : { backstopPreview }) } });
+    return ok({ value: { ...result, details: toPublishContentReportDto({ report }), ...(backstopPreview === undefined ? {} : { backstopPreview }) } });
   } }),
 });
 
