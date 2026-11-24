@@ -9,7 +9,8 @@ import { type Translate } from '@jini-ai/core/text';
 /**
  * @file Everything the Menus LIST does, so `Menus.tsx` is only markup.
  *
- * Naming follows the `use-<thing>.hooks.ts` convention.
+ * Naming follows the `use-<thing>.hooks.ts` convention. Screen-local because nothing outside the
+ * menus screen needs it; promote to a shared hooks folder only when a second screen actually does.
  *
  * `deps.port` is injected (see `menus-port.hooks.ts`) rather than reaching for the host's admin
  * client directly, sharing the `MenusPort` the menu editor hook also injects.

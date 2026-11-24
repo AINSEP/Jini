@@ -31,6 +31,11 @@ one) and `restoreImportedMedia` undoes it. It needs one deps object, `ImportMedi
 - `mediaRepo: VersionedMediaRepoPort` — compare-and-set media rows (`insertIfAbsent` / `saveIfVersion`).
 - `assetBlobRepo: AssetBlobRepoPort`, `blobStore: BlobStorePort` — content-addressed bytes.
 - `clock: { nowIso(): string }`, `idGen: { newId(): string }` — only for a new blob row's id.
+- `sha256: { isValidSha256Hex, bytesMatchSha256 }` — the staged-bytes digest rule the host's publish transfer uses.
+- `outwardErrorMessage: OutwardErrorMessage` (required) — words a classified media error (write-once
+  source, validation, slug conflict) for a `blocked` result's `reason`. This module keeps the
+  classification (`status`, `code`); the host decides what the caller may read (pass the message
+  through, redact or translate it).
 
 It provides `ImportMediaEntityResult` (`imported` | `blocked` | `conflict`); every refusal is a
 typed result, and only unexpected storage failures throw.
@@ -39,7 +44,7 @@ typed result, and only unexpected storage failures throw.
 import { importMediaEntity } from "@jini-ai/cms/media/site/import-media-entity";
 
 const result = await importMediaEntity({
-  deps: { mediaRepo, assetBlobRepo, blobStore, clock, idGen },
+  deps: { mediaRepo, assetBlobRepo, blobStore, clock, idGen, sha256, outwardErrorMessage: ({ error }) => error.message },
   input: { workspaceId, record, bytes, blobCreatedByPrincipal: principalId, baseVersion: expectedVersion ?? null },
 });
 if (result.status !== "imported") return result; // the host maps blocked/conflict to its own report

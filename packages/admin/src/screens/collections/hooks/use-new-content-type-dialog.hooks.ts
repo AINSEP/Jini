@@ -63,7 +63,7 @@ export function useNewContentTypeDialog(
 ): NewContentTypeDialogController {
   const [label, setLabel] = useState("");
   const [key, setKey] = useState("");
-  const [fields, setFields] = useState<DraftField[]>([emptyField()]);
+  const [fields, setFields] = useState<DraftField[]>(() => [emptyField({ kit })]);
   const [validationError, setValidationError] = useState<string | null>(null);
   const inFlightRef = useRef(false);
 
@@ -88,7 +88,7 @@ export function useNewContentTypeDialog(
   }
 
   function addField() {
-    setFields((current) => addDraftField({ fields: current }));
+    setFields((current) => addDraftField({ fields: current, kit }));
   }
 
   async function submit(e: React.FormEvent) {

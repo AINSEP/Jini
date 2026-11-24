@@ -1,5 +1,4 @@
 import type { RowMenuItem } from "../../react/index.js";
-import { embedMarkerSnippet } from "@jini-ai/cms/widgets/markers";
 
 import type { AdminContentType, ContentTypeFieldDef } from "./api/collections-api.types.js";
 import type { CollectionsHostKit } from "./collections-host-kit.js";
@@ -14,13 +13,15 @@ import { type Translate } from '@jini-ai/core/text';
  * the posts screen's rules module establishes: no React, no hooks, importable and directly testable.
  *
  * One deliberate exception to "pure": {@link emptyField} and {@link draftFieldsFromContentType}
- * both advance a shared, module-level `nextRowId` counter. It has to be ONE shared counter rather
- * than one per hook file — `NewContentTypeDialog` and `EditFieldsDialog` are mutually exclusive in
- * the UI, but the pre-extraction code already shared a single counter across both (open New,
- * cancel, then open Edit continues the same sequence rather than resetting), and splitting it into
- * two independent counters per hook file would be an observable behaviour change, not a neutral
- * refactor. Keeping it here, imported by both hook files, is what preserves the single instance —
- * ES modules are singletons, so both hooks see the same counter.
+ * both advance a shared row-id counter. It has to be ONE shared counter rather than one per hook
+ * file — `NewContentTypeDialog` and `EditFieldsDialog` are mutually exclusive in the UI, but the
+ * pre-extraction code already shared a single counter across both (open New, cancel, then open
+ * Edit continues the same sequence rather than resetting), and splitting it into two independent
+ * counters per hook file would be an observable behaviour change, not a neutral refactor. The
+ * counter is no longer module state: {@link createDraftRowIdCounter} builds one, the host binds it
+ * once into its {@link CollectionsHostKit} as `nextDraftRowId`, and both dialog hooks receive that
+ * same kit — so both still see the same counter, owned by the host's composition root instead of
+ * this module's singleton instance.
  *
  * Every function that reads host knowledge (the collections dictionary, the admin request error
  * class, the version-conflict test) takes the host's {@link CollectionsHostKit} as `kit`;
@@ -74,15 +75,16 @@ export function isUserCollection({ key }: { key: string }, _optional = {}): bool
  * fallback, per the fix landed in `a9ab19c4f`). Keeps the wrapper `<div data-embed-config='...'>`
  * shape every other embeddable type already uses.
  *
- * A thin wrapper over `@jini-ai/cms/widgets/markers`'s generalised `embedMarkerSnippet` (readable-slugs S5b,
- * 2026-09-23) — this was the one admin-generated marker that existed before that generalisation, so
- * it moved onto the shared builder rather than keeping its own copy of the template. Byte-for-byte
- * unchanged output.
+ * A thin wrapper over the generalised marker-snippet builder (readable-slugs S5b, 2026-09-23) —
+ * this was the one admin-generated marker that existed before that generalisation, so it moved
+ * onto the shared builder rather than keeping its own copy of the template. Byte-for-byte unchanged
+ * output. The builder arrives as `kit.embedMarkerSnippet` (the host binds the CMS marker module's
+ * `embedMarkerSnippet`), since this package may not import the CMS package directly.
  *
  * @complexity Time/space: O(1) — one template string.
  */
-export function collectionEmbedSnippet({ key }: { key: string }, _optional = {}): string {
-  return embedMarkerSnippet({ type: "collection", key: "id", value: key });
+export function collectionEmbedSnippet({ key, kit }: { key: string; kit: CollectionsHostKit }, _optional = {}): string {
+  return kit.embedMarkerSnippet({ type: "collection", key: "id", value: key });
 }
 
 /**
@@ -122,7 +124,7 @@ export function visibleEntryEditorError(params: {
 }
 
 const KEY_GRAMMAR = /^[a-z][a-z0-9_]{0,63}$/;
-const RESERVED_KEYS = new Set(["post", "page"]);
+const RESERVED_KEYS: ReadonlySet<string> = new Set(["post", "page"]);
 
 type LocaleOrTranslate = string | Translate;
 
@@ -162,22 +164,30 @@ export interface DraftField extends ContentTypeFieldDef {
   _rowId: number;
 }
 
-let nextRowId = 1;
+/**
+ * A fresh draft row-id counter: each call returns the next id, starting at 1. The host builds ONE
+ * and binds it into its {@link CollectionsHostKit} as `nextDraftRowId`, so every draft that host
+ * opens (New and Edit alike) shares a single monotonic sequence — see this file's header.
+ *
+ * @complexity Time/space: O(1) per call.
+ */
+export function createDraftRowIdCounter(_optional: Record<string, never> = {}): () => number {
+  let nextRowId = 1;
+  return () => {
+    const rowId = nextRowId;
+    nextRowId += 1;
+    return rowId;
+  };
+}
 
-export function emptyField(_optional: Record<string, never> = {}): DraftField {
-  const _rowId = nextRowId;
-  nextRowId += 1;
-  return { _rowId, name: "", kind: "text", required: false, queryable: false };
+export function emptyField({ kit }: { kit: CollectionsHostKit }, _optional: Record<string, never> = {}): DraftField {
+  return { _rowId: kit.nextDraftRowId(), name: "", kind: "text", required: false, queryable: false };
 }
 
 /** Seeds `EditFieldsDialog`'s draft list from a saved content type's fields, assigning each a
  *  fresh local row id off the same shared counter {@link emptyField} uses. */
-export function draftFieldsFromContentType({ fields }: { fields: ContentTypeFieldDef[] }, _optional = {}): DraftField[] {
-  return fields.map((f) => {
-    const _rowId = nextRowId;
-    nextRowId += 1;
-    return { ...f, _rowId };
-  });
+export function draftFieldsFromContentType({ fields, kit }: { fields: ContentTypeFieldDef[]; kit: CollectionsHostKit }, _optional = {}): DraftField[] {
+  return fields.map((f) => ({ ...f, _rowId: kit.nextDraftRowId() }));
 }
 
 /** @complexity Time/space: O(n) in `fields.length`. */
@@ -191,8 +201,8 @@ export function removeDraftField({ fields, rowId }: { fields: DraftField[]; rowI
 }
 
 /** @complexity Time/space: O(n) in `fields.length`. */
-export function addDraftField({ fields }: { fields: DraftField[] }, _optional = {}): DraftField[] {
-  return [...fields, emptyField()];
+export function addDraftField({ fields, kit }: { fields: DraftField[]; kit: CollectionsHostKit }, _optional = {}): DraftField[] {
+  return [...fields, emptyField({ kit })];
 }
 
 /** Drops the local-only `_rowId` before a draft list is sent as an `api.*` payload.
@@ -354,6 +364,10 @@ type WithoutKit<F> = F extends (required: infer R, ...rest: infer O) => infer T 
 /** The kit-reading rules above with one host {@link CollectionsHostKit} bound, so a host's call sites
  *  keep their kit-free shape. The host binds this once at its composition root. */
 export interface BoundCollectionsRules {
+  collectionEmbedSnippet: WithoutKit<typeof collectionEmbedSnippet>;
+  emptyField: WithoutKit<typeof emptyField>;
+  draftFieldsFromContentType: WithoutKit<typeof draftFieldsFromContentType>;
+  addDraftField: WithoutKit<typeof addDraftField>;
   visibleEntryEditorError: WithoutKit<typeof visibleEntryEditorError>;
   validateKey: WithoutKit<typeof validateKey>;
   validateFieldName: WithoutKit<typeof validateFieldName>;
@@ -368,6 +382,10 @@ export interface BoundCollectionsRules {
 /** Binds `kit` into every kit-reading rule. @complexity Time/space: O(1). */
 export function bindCollectionsRules({ kit }: { kit: CollectionsHostKit }, _optional: Record<string, never> = {}): BoundCollectionsRules {
   return {
+    collectionEmbedSnippet: (required, optional = {}) => collectionEmbedSnippet({ ...required, kit }, optional),
+    emptyField: (required, optional = {}) => emptyField({ ...required, kit }, optional),
+    draftFieldsFromContentType: (required, optional = {}) => draftFieldsFromContentType({ ...required, kit }, optional),
+    addDraftField: (required, optional = {}) => addDraftField({ ...required, kit }, optional),
     visibleEntryEditorError: (params, optional = {}) => visibleEntryEditorError({ ...params, kit }, optional),
     validateKey: (required, optional = {}) => validateKey({ ...required, kit }, optional),
     validateFieldName: (required, optional = {}) => validateFieldName({ ...required, kit }, optional),

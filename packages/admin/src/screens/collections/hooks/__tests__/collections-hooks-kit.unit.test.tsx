@@ -6,6 +6,7 @@ import { describe, expect, it } from "vitest";
 import { AdminKitProvider, type AdminKit } from "../../../../react/kit.js";
 import { fakeAdminKit } from "../../../../react/testing-kit.js";
 import type { CollectionsApiErrorLike, CollectionsHostKit } from "../../collections-host-kit.js";
+import { createDraftRowIdCounter } from "../../rules.js";
 import { createFakeCollectionsPort } from "../collections-dependencies.hooks.js";
 import { createFakeCollectionEntriesPort } from "../collection-entries-dependencies.hooks.js";
 import { createFakeNewContentTypeDialogPort } from "../new-content-type-dialog-dependencies.hooks.js";
@@ -26,6 +27,8 @@ const kit: CollectionsHostKit = {
   isApiError: (_e): _e is CollectionsApiErrorLike => false,
   describeApiError: ({ fallback }) => `described(${fallback})`,
   isVersionConflict: () => false,
+  embedMarkerSnippet: ({ type, key, value }) => `marker(${type},${key},${value})`,
+  nextDraftRowId: createDraftRowIdCounter(),
 };
 
 function wrap(adminKit: AdminKit) {

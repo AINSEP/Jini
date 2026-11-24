@@ -129,7 +129,7 @@ export function useCollections(
   }
 
   async function copyEmbedCode(contentType: AdminContentType): Promise<void> {
-    const snippet = collectionEmbedSnippet({ key: contentType.key });
+    const snippet = collectionEmbedSnippet({ key: contentType.key, kit });
     try {
       await navigator.clipboard.writeText(snippet);
       setCopyFallback(null);

@@ -55,7 +55,7 @@ export function useEditFieldsDialog(
   options: { t?: Translate } = {},
 ): EditFieldsDialogController {
   const t = options.t ?? ((key: string) => key);
-  const [fields, setFields] = useState<DraftField[]>(() => draftFieldsFromContentType({ fields: props.contentType.fields }));
+  const [fields, setFields] = useState<DraftField[]>(() => draftFieldsFromContentType({ fields: props.contentType.fields, kit }));
   const [validationError, setValidationError] = useState<string | null>(null);
   const inFlightRef = useRef(false);
 
@@ -80,7 +80,7 @@ export function useEditFieldsDialog(
   }
 
   function addField() {
-    setFields((current) => addDraftField({ fields: current }));
+    setFields((current) => addDraftField({ fields: current, kit }));
   }
 
   async function submit(e: React.FormEvent) {
