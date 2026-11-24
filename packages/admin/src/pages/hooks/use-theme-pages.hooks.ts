@@ -19,7 +19,7 @@ import type { ThemePagesFileEntry, ThemePagesPort, ThemePageSlugCollision } from
  * `getPresentation()` resolves `activeThemeId`, then `getThemeDetail(activeThemeId)` resolves the
  * page rows.
  *
- * `port` is injected — see `theme-pages-port.hooks.ts` — rather than importing `lib/api` directly,
+ * `port` is injected — see `theme-pages-port.hooks.ts` — rather than importing the API client directly,
  * so a test can describe the load against `createFakeThemePagesPort` instead of stubbing global
  * `fetch`. The host binds the live port and its `noThemeId` sentinel.
  */

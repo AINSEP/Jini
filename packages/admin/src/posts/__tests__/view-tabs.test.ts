@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { VIEWS, VIEW_TABS } from "../view-tabs";
+import { VIEWS, VIEW_TABS } from "../view-tabs.js";
 
 describe("post editor view tabs", () => {
   it("offers exactly the Editor and Preview views, in order, with distinct agent handles", () => {
