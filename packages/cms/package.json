@@ -157,6 +157,8 @@
       "./public-http/http/site/render/media-playback-copy": "universal",
       "./public-http/http/site/render/value-readers": "universal",
       "./public-http/routes/site/pages/listing/listing-state": "universal",
+      "./public-http/routes/site/pages/redirect-phase": "universal",
+      "./public-http/routes/site/pages/render-context/collection-lists": "universal",
       "./entries/site/system-content-types": "universal",
       "./widgets/site/declared-content-type-owners": "universal",
       "./entries/site/tool-registrations": "universal",
@@ -165,6 +167,10 @@
       "./taxonomy/site/tool-metadata": "universal",
       "./taxonomy/site/content-targets": "universal",
       "./public-http/http/site/form-label-inspection": "node",
+      "./public-http/middleware/canonical-site-host": "node",
+      "./public-http/middleware/theme-asset-dirs": "node",
+      "./public-http/middleware/theme-content-security-headers": "node",
+      "./public-http/middleware/theme-static-assets": "universal",
       "./public-http/http/site/form-validation-i18n": "universal",
       "./public-http/http/site/member-auth-script": "universal",
       "./public-http/http/site/render/widgets/placeholder": "universal",
@@ -537,6 +543,7 @@
         "./admin-http/routes/pages/update": "core",
         "./admin-http/routes/pages/delete": "core",
         "./admin-http/routes/presentation/get": "presentation",
+        "./admin-http/routes/presentation/patch": "presentation",
         "./admin-http/routes/themes/list": "presentation",
         "./admin-http/routes/pages/get-by-id": "widgets",
         "./admin-http/routes/seo/get-entry": "seo",
@@ -1328,6 +1335,16 @@
       "import": "./dist/public-http/routes/site/pages/listing/listing-state.js",
       "default": "./dist/public-http/routes/site/pages/listing/listing-state.js"
     },
+    "./public-http/routes/site/pages/redirect-phase": {
+      "types": "./dist/public-http/routes/site/pages/redirect-phase.d.ts",
+      "import": "./dist/public-http/routes/site/pages/redirect-phase.js",
+      "default": "./dist/public-http/routes/site/pages/redirect-phase.js"
+    },
+    "./public-http/routes/site/pages/render-context/collection-lists": {
+      "types": "./dist/public-http/routes/site/pages/render-context/collection-lists.d.ts",
+      "import": "./dist/public-http/routes/site/pages/render-context/collection-lists.js",
+      "default": "./dist/public-http/routes/site/pages/render-context/collection-lists.js"
+    },
     "./entries/site/system-content-types": {
       "types": "./dist/entries/site/system-content-types.d.ts",
       "import": "./dist/entries/site/system-content-types.js",
@@ -1362,6 +1379,26 @@
       "types": "./dist/taxonomy/site/content-targets.d.ts",
       "import": "./dist/taxonomy/site/content-targets.js",
       "default": "./dist/taxonomy/site/content-targets.js"
+    },
+    "./public-http/middleware/canonical-site-host": {
+      "types": "./dist/public-http/middleware/canonical-site-host.d.ts",
+      "import": "./dist/public-http/middleware/canonical-site-host.js",
+      "default": "./dist/public-http/middleware/canonical-site-host.js"
+    },
+    "./public-http/middleware/theme-asset-dirs": {
+      "types": "./dist/public-http/middleware/theme-asset-dirs.d.ts",
+      "import": "./dist/public-http/middleware/theme-asset-dirs.js",
+      "default": "./dist/public-http/middleware/theme-asset-dirs.js"
+    },
+    "./public-http/middleware/theme-content-security-headers": {
+      "types": "./dist/public-http/middleware/theme-content-security-headers.d.ts",
+      "import": "./dist/public-http/middleware/theme-content-security-headers.js",
+      "default": "./dist/public-http/middleware/theme-content-security-headers.js"
+    },
+    "./public-http/middleware/theme-static-assets": {
+      "types": "./dist/public-http/middleware/theme-static-assets.d.ts",
+      "import": "./dist/public-http/middleware/theme-static-assets.js",
+      "default": "./dist/public-http/middleware/theme-static-assets.js"
     },
     "./public-http/http/site/form-label-inspection": {
       "types": "./dist/public-http/http/site/form-label-inspection.d.ts",
