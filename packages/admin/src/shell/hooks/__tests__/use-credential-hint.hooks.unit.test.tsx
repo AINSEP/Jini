@@ -1,3 +1,4 @@
+// @vitest-environment jsdom
 import { renderHook } from "@testing-library/react";
 import { expect, test, vi } from "vitest";
 import { useCredentialHint, useStoredCredentialHint } from "../use-credential-hint.hooks";
