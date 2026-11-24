@@ -380,7 +380,8 @@
       "./admin-http/routes/publish-content/destination": "universal",
       "./admin-http/routes/publish-content/bundle-create": "universal",
       "./admin-http/routes/publish-content/capabilities": "universal",
-      "./admin-http/routes/publish-content/import": "universal"
+      "./admin-http/routes/publish-content/import": "universal",
+      "./admin-http/routes/publish-content/backstop": "universal"
     },
     "isolation": {
       "domains": {
@@ -567,7 +568,8 @@
         "./admin-http/routes/publish-content/destination": "publish",
         "./admin-http/routes/publish-content/bundle-create": "publish",
         "./admin-http/routes/publish-content/capabilities": "publish",
-        "./admin-http/routes/publish-content/import": "publish"
+        "./admin-http/routes/publish-content/import": "publish",
+        "./admin-http/routes/publish-content/backstop": "publish"
       }
     },
     "optionalPeers": {
@@ -2423,6 +2425,11 @@
       "types": "./dist/admin-http/routes/publish-content/import.d.ts",
       "import": "./dist/admin-http/routes/publish-content/import.js",
       "default": "./dist/admin-http/routes/publish-content/import.js"
+    },
+    "./admin-http/routes/publish-content/backstop": {
+      "types": "./dist/admin-http/routes/publish-content/backstop.d.ts",
+      "import": "./dist/admin-http/routes/publish-content/backstop.js",
+      "default": "./dist/admin-http/routes/publish-content/backstop.js"
     }
   },
   "files": [
