@@ -1,6 +1,6 @@
 import { useEffect, useRef, type RefObject } from "react";
 
-import { useFocusTrap } from "../../react/kit.js";
+import type { AdminKitHooks } from "../../react/kit.js";
 
 /**
  * @file `ExternalMcpToolsModal.tsx`'s own derived-value logic, split out per the
@@ -42,10 +42,10 @@ export interface ExternalMcpToolsModalController {
  *  restoring it to whatever had focus beforehand on unmount — see this file's header.
  *
  *  @complexity O(1) per keypress; one listener for the lifetime of the mount. */
-export function useExternalMcpToolsModalEscape({ onClose }: { onClose: () => void }, _options = {}): ExternalMcpToolsModalController {
+export function useExternalMcpToolsModalEscape({ onClose, useFocusTrapHook }: { onClose: () => void; useFocusTrapHook: AdminKitHooks['useFocusTrap'] }, _options = {}): ExternalMcpToolsModalController {
   const dialogRef = useRef<HTMLDivElement | null>(null);
   const closeRef = useRef<HTMLButtonElement | null>(null);
-  useFocusTrap({ containerRef: dialogRef });
+  useFocusTrapHook({ containerRef: dialogRef });
 
   // Captured at mount, before focus moves onto Close below — the element that had focus then is,
   // by construction, whatever opened this modal (the row's "Tools" button). Restored on unmount.

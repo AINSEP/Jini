@@ -1,6 +1,6 @@
 import { useEffect, useRef, type RefObject } from "react";
 
-import { useFocusTrap } from "../../../react/kit.js";
+import type { AdminKitHooks } from "../../../react/kit.js";
 
 import { type Translate } from '@jini-ai/core/text';
 /**
@@ -44,10 +44,12 @@ export function useExternalMcpRemoveConfirm<TCopy>(props: {
   onCancel: () => void;
   t?: Translate;
   buildCopy: ExternalMcpRemoveConfirmCopyBuilder<TCopy>;
+  /** The kit's focus-trap hook, injected by the host. */
+  useFocusTrapHook: AdminKitHooks['useFocusTrap'];
 }): ExternalMcpRemoveConfirmController<TCopy> {
   const { onCancel } = props;
   const dialogRef = useRef<HTMLDivElement | null>(null);
-  useFocusTrap({ containerRef: dialogRef });
+  props.useFocusTrapHook({ containerRef: dialogRef });
 
   useEffect(() => {
     function onKeyDown(e: KeyboardEvent) {

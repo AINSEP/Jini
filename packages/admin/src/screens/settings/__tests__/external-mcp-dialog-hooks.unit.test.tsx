@@ -2,7 +2,7 @@
 import { fireEvent, render, renderHook } from "@testing-library/react";
 import type { ReactNode, RefObject } from "react";
 import { describe, expect, it, vi } from "vitest";
-import { AdminKitProvider } from "../../../react/kit.js";
+import { AdminKitProvider, useFocusTrap } from "../../../react/kit.js";
 import { fakeAdminKit } from "../../../react/testing-kit.js";
 import { useExternalMcpToolsModalEscape } from "../ExternalMcpToolsModal.hooks.js";
 import { useExternalMcpRemoveConfirm } from "../hooks/use-external-mcp-remove-confirm.hooks.js";
@@ -19,7 +19,7 @@ function kitWithTrap() {
 describe("useExternalMcpToolsModalEscape (kit focus-trap seam)", () => {
   it("hands its own dialogRef to the kit's useFocusTrap", () => {
     const { trap, wrapper } = kitWithTrap();
-    const { result } = renderHook(() => useExternalMcpToolsModalEscape({ onClose: vi.fn() }), { wrapper });
+    const { result } = renderHook(() => useExternalMcpToolsModalEscape({ onClose: vi.fn(), useFocusTrapHook: useFocusTrap }), { wrapper });
     expect(trap).toHaveBeenCalled();
     expect(trap.mock.calls[0]![0].containerRef).toBe(result.current.dialogRef);
   });
@@ -31,7 +31,7 @@ describe("useExternalMcpToolsModalEscape (kit focus-trap seam)", () => {
     trigger.focus();
     const onClose = vi.fn();
     function Modal() {
-      const { dialogRef, closeRef } = useExternalMcpToolsModalEscape({ onClose });
+      const { dialogRef, closeRef } = useExternalMcpToolsModalEscape({ onClose, useFocusTrapHook: useFocusTrap });
       return <div ref={dialogRef} aria-modal="true"><button ref={closeRef}>Close</button></div>;
     }
     const { getByRole, unmount } = render(<Modal />, { wrapper });
@@ -54,7 +54,7 @@ describe("useExternalMcpRemoveConfirm (injected copy builder + kit focus-trap se
     const t = (key: string) => `[${key}]`;
     const buildCopy = vi.fn((params: { name: string; isOAuth: boolean }, options: { t?: (key: string) => string }) =>
       ({ title: `${options.t?.("Remove") ?? "?"} ${params.name}`, body: params.isOAuth ? "sealed" : "plain" }));
-    const { result } = renderHook(() => useExternalMcpRemoveConfirm({ name: "Atlas", isOAuth: true, onCancel: vi.fn(), t, buildCopy }), { wrapper });
+    const { result } = renderHook(() => useExternalMcpRemoveConfirm({ name: "Atlas", isOAuth: true, onCancel: vi.fn(), t, buildCopy, useFocusTrapHook: useFocusTrap }), { wrapper });
     expect(buildCopy).toHaveBeenCalledWith({ name: "Atlas", isOAuth: true }, { t });
     expect(result.current.copy).toEqual({ title: "[Remove] Atlas", body: "sealed" });
   });
@@ -62,7 +62,7 @@ describe("useExternalMcpRemoveConfirm (injected copy builder + kit focus-trap se
   it("traps Tab in its dialogRef and cancels on Escape until unmount", () => {
     const { trap, wrapper } = kitWithTrap();
     const onCancel = vi.fn();
-    const { result, unmount } = renderHook(() => useExternalMcpRemoveConfirm({ name: "Atlas", isOAuth: false, onCancel, buildCopy: () => "copy" }), { wrapper });
+    const { result, unmount } = renderHook(() => useExternalMcpRemoveConfirm({ name: "Atlas", isOAuth: false, onCancel, buildCopy: () => "copy", useFocusTrapHook: useFocusTrap }), { wrapper });
     expect(trap.mock.calls[0]![0].containerRef).toBe(result.current.dialogRef);
     fireEvent.keyDown(document, { key: "a" });
     fireEvent.keyDown(document, { key: "Escape" });
@@ -74,7 +74,7 @@ describe("useExternalMcpRemoveConfirm (injected copy builder + kit focus-trap se
 
   it("needs the host's AdminKitProvider: without it the trap cannot be resolved", () => {
     const spy = vi.spyOn(console, "error").mockImplementation(() => undefined);
-    function Probe() { useExternalMcpRemoveConfirm({ name: "x", isOAuth: false, onCancel: () => undefined, buildCopy: () => null }); return null; }
+    function Probe() { useExternalMcpRemoveConfirm({ name: "x", isOAuth: false, onCancel: () => undefined, buildCopy: () => null, useFocusTrapHook: useFocusTrap }); return null; }
     expect(() => render(<Probe />)).toThrow(/AdminKitProvider/);
     spy.mockRestore();
   });

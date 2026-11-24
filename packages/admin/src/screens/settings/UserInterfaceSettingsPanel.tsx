@@ -1,4 +1,4 @@
-import { agentHandle } from "@jini-ai/core/agent-handles";
+import type { agentHandle } from "@jini-ai/core/agent-handles";
 
 import { createUserInterfaceSettingsPanelTranslator } from "./UserInterfaceSettingsPanel.hooks.js";
 
@@ -19,6 +19,8 @@ export interface UserInterfaceSettingsPanelProps<TSlice> {
   slice: TSlice;
   locale: string;
   useUserInterfaceTabHook: UseUserInterfaceSettingsTab<TSlice>;
+  /** The host's agent-handle attribute builder (required); both switches publish through it. */
+  agentHandle: typeof agentHandle;
 }
 
 /**
@@ -32,7 +34,7 @@ export interface UserInterfaceSettingsPanelProps<TSlice> {
  * The switch renders `jini-settings-interface-switch` / `-knob`; the host paints them by adding
  * those selectors to its own switch rules.
  */
-export function UserInterfaceSettingsPanel<TSlice>({ useUserInterfaceTabHook, ...props }: UserInterfaceSettingsPanelProps<TSlice>) {
+export function UserInterfaceSettingsPanel<TSlice>({ useUserInterfaceTabHook, agentHandle: handleAttrs, ...props }: UserInterfaceSettingsPanelProps<TSlice>) {
   const tab = useUserInterfaceTabHook(props.slice);
   const t = createUserInterfaceSettingsPanelTranslator({ locale: props.locale });
   return (
@@ -44,6 +46,7 @@ export function UserInterfaceSettingsPanel<TSlice>({ useUserInterfaceTabHook, ..
         checked={tab.hideChatFabWhileOpen}
         onToggle={tab.toggleHideChatFabWhileOpen}
         handle="settings-interface-hide-chat-fab"
+        agentHandle={handleAttrs}
         agentLabel="Hide the chat button while the chat is open"
       />
       <InterfaceSwitchRow
@@ -53,6 +56,7 @@ export function UserInterfaceSettingsPanel<TSlice>({ useUserInterfaceTabHook, ..
         checked={tab.wrapTabs}
         onToggle={tab.toggleWrapTabs}
         handle="settings-interface-wrap-tabs"
+        agentHandle={handleAttrs}
         agentLabel="Wrap tabs instead of scrolling"
       />
     </>
@@ -67,6 +71,7 @@ function InterfaceSwitchRow(props: {
   onToggle: () => void;
   handle: string;
   agentLabel: string;
+  agentHandle: typeof agentHandle;
 }) {
   return (
     <div className="jini-settings-interface-row">
@@ -82,7 +87,7 @@ function InterfaceSwitchRow(props: {
         className="jini-settings-interface-switch"
         onClick={props.onToggle}
         // `checkbox` for the page driver; ARIA stays `switch` (same split as `AgentPluginRow.tsx`).
-        {...agentHandle({ handle: props.handle }, { role: "checkbox", label: props.agentLabel })}
+        {...props.agentHandle({ handle: props.handle }, { role: "checkbox", label: props.agentLabel })}
       >
         <span className="jini-settings-interface-switch-knob" aria-hidden="true" />
       </button>

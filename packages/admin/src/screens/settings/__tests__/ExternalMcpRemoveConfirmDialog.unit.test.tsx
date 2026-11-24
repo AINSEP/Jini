@@ -2,8 +2,9 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { describe, expect, it, vi } from "vitest";
-import { AdminKitProvider } from "../../../react/kit.js";
+import { AdminKitProvider, useFocusTrap } from "../../../react/kit.js";
 import { fakeAdminKit } from "../../../react/testing-kit.js";
+import { useExternalMcpRemoveConfirm } from "../hooks/use-external-mcp-remove-confirm.hooks.js";
 import { ExternalMcpRemoveConfirmDialog, type ExternalMcpRemoveConfirmFrameProps } from "../ExternalMcpRemoveConfirmDialog.js";
 
 /** A stand-in for the host's confirmation markup: records what it was handed and exposes the two actions. */
@@ -26,7 +27,7 @@ describe("ExternalMcpRemoveConfirmDialog (host dialog + copy injected)", () => {
   it("renders the injected frame with the injected copy, translated button text and nested handles", () => {
     const buildCopy = vi.fn(({ name, isOAuth }: { name: string; isOAuth: boolean }) => ({ title: `Drop ${name}?`, body: isOAuth ? "oauth" : "plain" }));
     render(<ExternalMcpRemoveConfirmDialog name="Atlas" isOAuth cardHandle="mcp-atlas" onConfirm={vi.fn()} onCancel={vi.fn()}
-      t={(key) => `[${key}]`} ConfirmDialog={FakeFrame} buildCopy={buildCopy} />, { wrapper });
+      t={(key) => `[${key}]`} ConfirmDialog={FakeFrame} useExternalMcpRemoveConfirmHook={useExternalMcpRemoveConfirm} useFocusTrapHook={useFocusTrap} buildCopy={buildCopy} />, { wrapper });
     const dialog = screen.getByRole("dialog", { name: "Drop Atlas?" });
     expect(buildCopy).toHaveBeenCalled();
     expect(screen.getByText("oauth")).toBeTruthy();
@@ -43,7 +44,7 @@ describe("ExternalMcpRemoveConfirmDialog (host dialog + copy injected)", () => {
     const onConfirm = vi.fn();
     const onCancel = vi.fn();
     render(<ExternalMcpRemoveConfirmDialog name="Atlas" isOAuth={false} cardHandle="atlas" onConfirm={onConfirm} onCancel={onCancel}
-      t={(key) => key} ConfirmDialog={FakeFrame} buildCopy={() => ({ title: "T", body: "B" })} />, { wrapper });
+      t={(key) => key} ConfirmDialog={FakeFrame} useExternalMcpRemoveConfirmHook={useExternalMcpRemoveConfirm} useFocusTrapHook={useFocusTrap} buildCopy={() => ({ title: "T", body: "B" })} />, { wrapper });
     fireEvent.click(screen.getByRole("button", { name: "Remove" }));
     expect(onConfirm).toHaveBeenCalledTimes(1);
     expect(onCancel).not.toHaveBeenCalled();

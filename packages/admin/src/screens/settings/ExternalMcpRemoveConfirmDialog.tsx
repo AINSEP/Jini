@@ -1,8 +1,9 @@
 import type { ComponentType, RefObject } from "react";
 
 import { type Translate } from "@jini-ai/core/text";
+import type { AdminKitHooks } from "../../react/kit.js";
 
-import { useExternalMcpRemoveConfirm, type ExternalMcpRemoveConfirmCopyBuilder } from "./hooks/use-external-mcp-remove-confirm.hooks.js";
+import type { useExternalMcpRemoveConfirm, ExternalMcpRemoveConfirmCopyBuilder } from "./hooks/use-external-mcp-remove-confirm.hooks.js";
 
 /**
  * @file Confirmation gate in front of `SourceConfigItemCard`'s "Remove" — added after an operator
@@ -70,8 +71,10 @@ export interface ExternalMcpRemoveConfirmDialogProps {
   ConfirmDialog: ComponentType<ExternalMcpRemoveConfirmFrameProps>;
   /** The host's title/body copy builder (required) — the dialog renders exactly what it returns. */
   buildCopy: ExternalMcpRemoveConfirmCopyBuilder<ExternalMcpRemoveConfirmCopy>;
-  /** Dependency injection seam for tests — see `PostsProps.usePostsHook` for the convention. */
-  useExternalMcpRemoveConfirmHook?: typeof useExternalMcpRemoveConfirm;
+  /** The host's confirmation controller hook (required); tests bind a fake. */
+  useExternalMcpRemoveConfirmHook: typeof useExternalMcpRemoveConfirm;
+  /** The kit's focus-trap hook (required), handed to the controller. */
+  useFocusTrapHook: AdminKitHooks['useFocusTrap'];
 }
 
 export function ExternalMcpRemoveConfirmDialog({
@@ -83,9 +86,10 @@ export function ExternalMcpRemoveConfirmDialog({
   t,
   ConfirmDialog,
   buildCopy,
-  useExternalMcpRemoveConfirmHook = useExternalMcpRemoveConfirm,
+  useExternalMcpRemoveConfirmHook,
+  useFocusTrapHook,
 }: ExternalMcpRemoveConfirmDialogProps) {
-  const { copy, dialogRef } = useExternalMcpRemoveConfirmHook({ name, isOAuth, onCancel, t, buildCopy });
+  const { copy, dialogRef } = useExternalMcpRemoveConfirmHook({ name, isOAuth, onCancel, t, buildCopy, useFocusTrapHook });
   const titleId = `${cardHandle}-remove-confirm-title`;
 
   return (

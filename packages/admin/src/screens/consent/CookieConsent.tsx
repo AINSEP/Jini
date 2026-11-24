@@ -1,14 +1,14 @@
-import { agentHandle } from "@jini-ai/core/agent-handles";
+import type { agentHandle } from "@jini-ai/core/agent-handles";
 import type { ConsentFieldProblem, ConsentSettingsView } from "@jini-ai/core/contracts/site/cookie-consent-react";
 
 import type { ComponentType, CSSProperties } from "react";
-import { TabBar, useAdminKit, type AdminThemeColors, type TabBarTab } from "../../react/kit.js";
+import { TabBar, type useAdminKit, type AdminThemeColors, type TabBarTab } from "../../react/kit.js";
 import { navigate } from "../../shell/lib/router.js";
 import { ConsentOverviewTab } from "./ConsentOverviewTab.js";
 import type { ConsentTranslation } from "./consent-i18n.js";
 import { canResetConsentCss, consentStatusKey, resolveConsentTabId, type ConsentErrors, type ConsentTabId } from "./rules.js";
 import type { ConsentEditorLimits, ConsentRevisionsPort } from "./settings.hooks.js";
-import { useConsentPage, useConsentPreview, useConsentPreviewScale, useConsentReadiness, type ConsentPageController, type ConsentPreviewScale } from "./use-consent-page.hooks.js";
+import type { useConsentPage, useConsentPreview, useConsentPreviewScale, useConsentReadiness, ConsentPageController, ConsentPreviewScale } from "./use-consent-page.hooks.js";
 import { type Translate } from '@jini-ai/core/text';
 
 /**
@@ -40,8 +40,19 @@ export interface ConsentScreenUi {
   previewScale: ConsentPreviewScale;
 }
 
+/** The hooks this page calls, all required: the host binds its own implementations (tests bind fakes). */
+export interface CookieConsentHooks {
+  useConsentPage: typeof useConsentPage;
+  useConsentReadiness: typeof useConsentReadiness;
+  useConsentPreview: typeof useConsentPreview;
+  useConsentPreviewScale: typeof useConsentPreviewScale;
+  useAdminKit: typeof useAdminKit;
+}
+
 export interface CookieConsentProps {
-  hooks?: { useConsentPage: typeof useConsentPage; useConsentReadiness: typeof useConsentReadiness };
+  hooks: CookieConsentHooks;
+  /** The host's agent-handle attribute builder (required); every control this page publishes goes through it. */
+  agentHandle: typeof agentHandle;
   /** The `?tab=` query value from `panels.tsx`; unknown or absent opens Overview. */
   tabId?: string | null;
   /** The host's revisions port over its authenticated admin API. */
@@ -67,7 +78,7 @@ function tabsFor(t: Translate): TabBarTab[] {
   }));
 }
 
-function PublishBar({ page, t }: { page: ConsentPageController; t: Translate }) {
+function PublishBar({ page, t, agentHandle: handleAttrs }: { page: ConsentPageController; t: Translate; agentHandle: typeof agentHandle }) {
   return (
     <div className="jini-page-actions jini-consent-publish">
       <span className="jini-consent-save-status" role="status">{t(consentStatusKey({ saveState: page.saveState, hasUnpublished: page.hasUnpublished, everPublished: page.everPublished }))}</span>
@@ -76,7 +87,7 @@ function PublishBar({ page, t }: { page: ConsentPageController; t: Translate }) 
         className="jini-btn-primary"
         disabled={!page.canPublish}
         onClick={() => { void page.publish(); }}
-        {...agentHandle({ handle: "consent-publish" }, { role: "button", label: "Publish the cookie consent draft to the live site" })}
+        {...handleAttrs({ handle: "consent-publish" }, { role: "button", label: "Publish the cookie consent draft to the live site" })}
       >
         {page.publishing ? t("Publishing…") : t("Publish")}
       </button>
@@ -102,7 +113,7 @@ function Notices({ page, t }: { page: ConsentPageController; t: Translate }) {
 /** Puts the site's default banner style back into Custom CSS. The server pre-fills an empty field
  * with that default, so this appears only after the owner has changed it. Like any edit it only
  * autosaves a draft; the live banner changes on Publish. */
-function ResetStyle({ page, t, disabled }: { page: ConsentPageController; t: Translate; disabled: boolean }) {
+function ResetStyle({ page, t, disabled, agentHandle: handleAttrs }: { page: ConsentPageController; t: Translate; disabled: boolean; agentHandle: typeof agentHandle }) {
   const defaultCss = page.editor?.defaults?.customCss;
   if (!defaultCss || !canResetConsentCss({ customCss: page.value?.customCss, defaultCss })) return null;
   return (
@@ -112,7 +123,7 @@ function ResetStyle({ page, t, disabled }: { page: ConsentPageController; t: Tra
         className="jini-btn-secondary"
         disabled={disabled}
         onClick={() => page.onChange({ patch: { customCss: defaultCss } })}
-        {...agentHandle({ handle: "consent-reset-css" }, { role: "button", label: "Put the default cookie banner style back into Custom CSS" })}
+        {...handleAttrs({ handle: "consent-reset-css" }, { role: "button", label: "Put the default cookie banner style back into Custom CSS" })}
       >
         {t("Reset to default")}
       </button>
@@ -148,7 +159,7 @@ function ConsentPreviewPane({ page, preview, fit, translation, ui }: {
   );
 }
 
-function EditorTab({ tab, page, port, translation, delays, errors, ui, hooks = { useConsentPreview, useConsentPreviewScale, useAdminKit } }: { tab: Exclude<ConsentTabId, "overview">; page: ConsentPageController; port: ConsentRevisionsPort; translation: ConsentTranslation; delays: CookieConsentProps["delays"]; errors: ConsentErrors; ui: ConsentScreenUi; hooks?: { useConsentPreview: typeof useConsentPreview; useConsentPreviewScale: typeof useConsentPreviewScale; useAdminKit: typeof useAdminKit }; }) {
+function EditorTab({ tab, page, port, translation, delays, errors, ui, hooks, agentHandle: handleAttrs }: { tab: Exclude<ConsentTabId, "overview">; page: ConsentPageController; port: ConsentRevisionsPort; translation: ConsentTranslation; delays: CookieConsentProps["delays"]; errors: ConsentErrors; ui: ConsentScreenUi; hooks: CookieConsentHooks; agentHandle: typeof agentHandle }) {
   const preview = hooks.useConsentPreview({ port, config: tab === "rules" ? null : page.value, t: translation.t, errors }, consentDelayOptions({ delayMs: delays?.previewMs }));
   const fit = hooks.useConsentPreviewScale({ previewScale: ui.previewScale });
   const lightColors = hooks.useAdminKit().theme.defaultAdminTheme.light;
@@ -175,14 +186,16 @@ function EditorTab({ tab, page, port, translation, delays, errors, ui, hooks = {
     <div className="jini-consent-editor jini-consent-editor-with-preview">
       <div className="jini-card">
         {tab === "banner" ? <ui.BannerFields {...fields} bannerModes={bannerModes} /> : <ui.LookFields {...fields} placements={placements} lightColors={lightColors} />}
-        {tab === "look" && <ResetStyle page={page} t={translation.t} disabled={fields.disabled} />}
+        {tab === "look" && <ResetStyle page={page} t={translation.t} disabled={fields.disabled} agentHandle={handleAttrs} />}
       </div>
       <ConsentPreviewPane page={page} preview={preview} fit={fit} translation={translation} ui={ui} />
     </div>
   );
 }
 
-function ConsentTabContent({ activeTab, page, port, translation, delays, readiness, errors, ui }: {
+function ConsentTabContent({ activeTab, page, port, translation, delays, readiness, errors, ui, hooks, agentHandle: handleAttrs }: {
+  hooks: CookieConsentHooks;
+  agentHandle: typeof agentHandle;
   activeTab: ConsentTabId;
   errors: ConsentErrors;
   ui: ConsentScreenUi;
@@ -199,11 +212,11 @@ function ConsentTabContent({ activeTab, page, port, translation, delays, readine
     {page.value && activeTab === "overview" && (
       <ConsentOverviewTab liveEnabled={page.liveEnabled} hasUnpublished={page.hasUnpublished} readiness={readiness.readiness} readinessError={readiness.error} t={t} />
     )}
-    {page.value && activeTab !== "overview" && <EditorTab tab={activeTab} page={page} port={port} translation={translation} delays={delays} errors={errors} ui={ui} />}
+    {page.value && activeTab !== "overview" && <EditorTab tab={activeTab} page={page} port={port} translation={translation} delays={delays} errors={errors} ui={ui} hooks={hooks} agentHandle={handleAttrs} />}
   </>;
 }
 
-export function CookieConsent({ tabId, port, useTranslate, errors, ui, delays, hooks = { useConsentPage, useConsentReadiness } }: CookieConsentProps) {
+export function CookieConsent({ tabId, port, useTranslate, errors, ui, delays, hooks, agentHandle: handleAttrs }: CookieConsentProps) {
   const translation = useTranslate();
   const { t } = translation;
   const page = hooks.useConsentPage({ port, t, errors }, consentDelayOptions({ delayMs: delays?.autosaveMs }));
@@ -218,11 +231,11 @@ export function CookieConsent({ tabId, port, useTranslate, errors, ui, delays, h
           <h1 className="jini-page-title">{t("Cookie Consent")}</h1>
           <p className="jini-page-description">{t("The banner visitors see, and what waits for their choice.")}</p>
         </div>
-        {page.value && <PublishBar page={page} t={t} />}
+        {page.value && <PublishBar page={page} t={t} agentHandle={handleAttrs} />}
       </div>
       <Notices page={page} t={t} />
       <TabBar ariaLabel={t("Cookie Consent")} tabs={tabsFor(t)} activeId={activeTab} onChange={(next) => navigate({ routePath: `/consent?tab=${next}` }, { replace: true })} containerHandle="consent-tab-bar" />
-      <ConsentTabContent activeTab={activeTab} page={page} port={port} translation={translation} delays={delays} readiness={readiness} errors={errors} ui={ui} />
+      <ConsentTabContent activeTab={activeTab} page={page} port={port} translation={translation} delays={delays} readiness={readiness} errors={errors} ui={ui} hooks={hooks} agentHandle={handleAttrs} />
     </div>
   );
 }

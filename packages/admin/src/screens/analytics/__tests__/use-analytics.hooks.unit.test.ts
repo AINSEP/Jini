@@ -45,7 +45,7 @@ describe("useAnalytics — injected port", () => {
     const networkMock = vi.fn();
     vi.stubGlobal("fetch", networkMock);
     const port = createFakeAnalyticsPort({ hits: [HIT] });
-    const { result } = renderHook(() => useAnalytics({ port, t: fakeT }));
+    const { result } = renderHook(() => useAnalytics({ port, t: fakeT, useFetchQueryHook: useFetchQuery }));
 
     await waitFor(() => expect(result.current.hits).toEqual([HIT]));
     expect(result.current.error).toBeNull();
@@ -57,7 +57,7 @@ describe("useAnalytics — injected port", () => {
 
   it("starts with hits=null, error=null before the port settles", () => {
     const port = { ...createFakeAnalyticsPort(), listRecentAnalyticsHits: () => new Promise<never>(() => {}) };
-    const { result } = renderHook(() => useAnalytics({ port, t: fakeT }));
+    const { result } = renderHook(() => useAnalytics({ port, t: fakeT, useFetchQueryHook: useFetchQuery }));
     expect(result.current.hits).toBeNull();
     expect(result.current.error).toBeNull();
   });
@@ -67,7 +67,7 @@ describe("useAnalytics — injected port", () => {
     vi.stubGlobal("fetch", networkMock);
     const port = createFakeAnalyticsPort();
     port.listRecentAnalyticsHits = () => Promise.reject(new Error("hits table locked"));
-    const { result } = renderHook(() => useAnalytics({ port, t: fakeT }));
+    const { result } = renderHook(() => useAnalytics({ port, t: fakeT, useFetchQueryHook: useFetchQuery }));
 
     await waitFor(() => expect(result.current.error).toBe("hits table locked"));
     expect(result.current.hits).toBeNull();
@@ -76,7 +76,7 @@ describe("useAnalytics — injected port", () => {
 
   it("falls back to the exact string 'failed to load recent hits' when the rejection is not an Error", async () => {
     const port = { ...createFakeAnalyticsPort(), listRecentAnalyticsHits: () => Promise.reject("network exploded") };
-    const { result } = renderHook(() => useAnalytics({ port, t: fakeT }));
+    const { result } = renderHook(() => useAnalytics({ port, t: fakeT, useFetchQueryHook: useFetchQuery }));
     await waitFor(() => expect(result.current.error).toBe("failed to load recent hits"));
   });
 });
@@ -95,7 +95,7 @@ describe("useAnalytics — injected t is genuinely returned, not built internall
     const port = createFakeAnalyticsPort({ hits: [HIT] });
     const distinctiveT = ({ key }: { key: string }, _optional = {}): string => `TRANSLATED[${key}]`;
 
-    const { result } = renderHook(() => useAnalytics({ port, t: distinctiveT }));
+    const { result } = renderHook(() => useAnalytics({ port, t: distinctiveT, useFetchQueryHook: useFetchQuery }));
 
     await waitFor(() => expect(result.current.hits).toEqual([HIT]));
     expect(result.current.t({ key: "Analytics" })).toBe("TRANSLATED[Analytics]");
@@ -108,7 +108,7 @@ describe("analytics query ownership", () => {
     let complete!: (value: { hits: typeof HIT[] }) => void;
     const read = vi.fn(() => new Promise<{ hits: typeof HIT[] }>(resolve => { complete = resolve; }));
     const port = { ...createFakeAnalyticsPort(), listRecentAnalyticsHits: read };
-    const { result } = renderHook(() => ({ first: useAnalytics({ port, t: fakeT }), second: useAnalytics({ port, t: fakeT }) }));
+    const { result } = renderHook(() => ({ first: useAnalytics({ port, t: fakeT, useFetchQueryHook: useFetchQuery }), second: useAnalytics({ port, t: fakeT, useFetchQueryHook: useFetchQuery }) }));
     await waitFor(() => expect(read).toHaveBeenCalledTimes(1));
     await act(async () => { complete({ hits: [HIT] }); });
     await waitFor(() => {
@@ -122,7 +122,7 @@ it.each([new Error("adapter canary"), { rejected: "adapter canary" }])("keeps ad
   const port = createFakeAnalyticsPort();
   vi.spyOn(port, "listRecentAnalyticsHits").mockRejectedValue(cause);
   const { result } = renderHook(() => {
-    useAnalytics({ port, t: fakeT });
+    useAnalytics({ port, t: fakeT, useFetchQueryHook: useFetchQuery });
     return useFetchQuery({ key: ["analytics", "recent-hits"], fetch: async () => { throw new Error("observer must join the active read"); } }, { staleTime: 0 });
   });
   await waitFor(() => expect(result.current.error).toBeTruthy());

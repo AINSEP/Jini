@@ -1,5 +1,5 @@
 import { useCallback as useQueryFetchCallback } from "react";
-import { useFetchQuery } from "../../../react/kit.js";
+import type { AdminQueryKit } from "../../../react/kit.js";
 
 import type { AdminAnalyticsHit } from "../api/analytics-api.types.js";
 import type { AnalyticsPort } from "./analytics-port.hooks.js";
@@ -39,12 +39,12 @@ export interface AnalyticsController {
 /**
  * @complexity Time/space: O(1) — one fetch on mount, no iteration of its own.
  */
-export function useAnalytics({ port, t }: { port: AnalyticsPort; t: (required: { key: string }, optional?: Record<string, never>) => string }, _optional = {}): AnalyticsController {
+export function useAnalytics({ port, t, useFetchQueryHook }: { port: AnalyticsPort; t: (required: { key: string }, optional?: Record<string, never>) => string; useFetchQueryHook: AdminQueryKit['useFetchQuery'] }, _optional = {}): AnalyticsController {
   const queryFetch = useQueryFetchCallback(async () => {
     try { return (await port.listRecentAnalyticsHits()).hits; }
     catch (error) { if (error instanceof Error) throw error; throw new Error("failed to load recent hits", { cause: error }); }
   }, [port]);
-  const query = useFetchQuery({ key: ["analytics", "recent-hits"], fetch: queryFetch }, { staleTime: 0 });
+  const query = useFetchQueryHook({ key: ["analytics", "recent-hits"], fetch: queryFetch }, { staleTime: 0 });
   const hits = query.data ?? null;
   const error = query.error?.message ?? null;
 
