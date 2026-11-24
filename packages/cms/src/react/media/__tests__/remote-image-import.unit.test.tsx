@@ -20,7 +20,7 @@ const portOf = (importFromUrl: (...args: never[]) => unknown): MediaImportPort =
   ({ importFromUrl: importFromUrl as MediaImportPort["importFromUrl"], listKey: LIST_KEY });
 const hookArgs = (importFromUrl: (...args: never[]) => unknown) => ({ t: (key: string) => key, port: portOf(importFromUrl), describeError, useFetchMutation });
 const renderDialog = (importFromUrl: (...args: never[]) => unknown) =>
-  render(<RemoteImageImport {...hookArgs(importFromUrl)} HeaderTip={HeaderTip} kit={kit} />, { wrapper });
+  render(<RemoteImageImport useRemoteImageImportHook={useRemoteImageImport} {...hookArgs(importFromUrl)} HeaderTip={HeaderTip} kit={kit} />, { wrapper });
 
 describe("remote media import", () => {
   it("ignores a direct submit with an invalid URL and preserves the draft", async () => {

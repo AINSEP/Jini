@@ -1,12 +1,12 @@
 import { agentHandle } from "@jini-ai/core/agent-handles";
-import { useRemoteImageImport } from "./use-remote-image-import.hooks.js";
+import type { useRemoteImageImport } from "./use-remote-image-import.hooks.js";
 import type { HeaderTipComponent, ImportDialogKit, RemoteImageImportCollaborators } from "./ports.js";
 
 /** Markup only; downloads, mutation state, dialog state and list invalidation live in the hook.
  *  The "Import from URL" button sits beside "Upload image" and opens the same dialog shape
  *  (owner item #9, 2026-10-13). */
-export function RemoteImageImport(props: RemoteImageImportCollaborators & { HeaderTip: HeaderTipComponent; kit: ImportDialogKit; useRemoteImageImportHook?: typeof useRemoteImageImport }) {
-  const { t, HeaderTip, useRemoteImageImportHook = useRemoteImageImport } = props;
+export function RemoteImageImport(props: RemoteImageImportCollaborators & { HeaderTip: HeaderTipComponent; kit: ImportDialogKit; useRemoteImageImportHook: typeof useRemoteImageImport }) {
+  const { t, HeaderTip, useRemoteImageImportHook } = props;
   const { Button, Dialog, TextField } = props.kit;
   const controller = useRemoteImageImportHook({ t, port: props.port, describeError: props.describeError, useFetchMutation: props.useFetchMutation });
   return (
