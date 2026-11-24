@@ -13,7 +13,7 @@ the host); a type that needs a third-party type (Kysely, Express, React, Playwri
 `AdminSurfaceConnectionsHost`, `PublicDnsResolver`, `RequestRouter`, `CommercePaymentRuntimePort`, …)
 and passes them into the owning package's functions through their existing args objects.
 
-**Provides:** one subpath per seam, e.g. `./contracts/site/capability-providers-comments`,
+**Provides:** one subpath per seam, e.g. `./contracts/site/comments-providers`,
 `./contracts/site/seo-content-analysis`, `./contracts/site/ui-sections`,
 `./contracts/site/admin-surfaces-connections`, `./contracts/site/api-connections-hosted-mcp`,
 `./contracts/site/media-providers-catalog`, `./contracts/site/core-custom-credential-categories`

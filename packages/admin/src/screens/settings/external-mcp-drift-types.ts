@@ -1,4 +1,4 @@
-import type { AdminToolRefusalReason } from "@jini-ai/core/contracts/site/cms-external-mcp";
+import type { AdminToolRefusalReason } from "@jini-ai/core/contracts/hosted-mcp";
 
 /**
  * @file What the RUNNING assistant actually admitted, turned into operator-facing rows — the

@@ -2,7 +2,7 @@
 
 /**
  * MCP's per-tool behaviour hints, exactly as a remote server declares them — mirrors
- * `Jini packages/mcp/src/federation/ports.ts`'s `RemoteToolAnnotations` verbatim. Self-declared by the
+ * `packages/mcp/src/federation/ports.ts`'s `RemoteToolAnnotations` verbatim. Self-declared by the
  * thing being classified, so `mcp-federation/trust.ts` only ever lets these make a tool LESS
  * available, never more; see {@link AdminRemoteToolSurfaceEntry.hintsAbsent} for the gap that leaves.
  */
@@ -14,7 +14,7 @@ export interface AdminRemoteToolAnnotations {
   openWorldHint?: boolean;
 }
 
-/** One of `Jini packages/mcp/src/federation/trust.ts`'s `ToolRefusalReason` members — why the admission
+/** One of `packages/mcp/src/federation/trust.ts`'s `ToolRefusalReason` members — why the admission
  *  gate would not admit a given tool today. */
 export type AdminToolRefusalReason =
   | "not-in-operator-allowlist"
@@ -27,7 +27,7 @@ export type AdminToolRefusalReason =
 
 /**
  * One ADVERTISED remote tool, described as an operator-facing record for the (not-yet-built)
- * write-tool picker — mirrors `Jini packages/mcp/src/federation/trust.ts`'s `RemoteToolSurfaceEntry` verbatim, field
+ * write-tool picker — mirrors `packages/mcp/src/federation/trust.ts`'s `RemoteToolSurfaceEntry` verbatim, field
  * names included, per `probeExternalMcpServer`'s response (C-007).
  *
  * Covers every tool the remote listed, admitted or not, so a future picker can show the operator
@@ -61,8 +61,8 @@ export interface AdminExternalMcpProbeResult {
 
 /**
  * One connection's live admission accounting from the RUNNING agent daemon — a subset of
- * `Jini packages/mcp/src/federation/trust.ts`'s `FederatedAdmissionReport`, FLATTENED per connection by
- * {@link api.getExternalMcpAdmissions} (see {@link RawAdmissionConnection} for why that flattening
+ * `packages/mcp/src/federation/trust.ts`'s `FederatedAdmissionReport`, FLATTENED per connection by
+ * `getExternalMcpAdmissions` (see {@link RawAdmissionConnection} for why that flattening
  * step exists and is not optional).
  *
  * `admitted` intentionally carries only what a drift banner needs (a name and whether it is
@@ -114,9 +114,9 @@ export interface AdminExternalMcpConfigFailure {
   reason: string;
 }
 
-/** `GET .../mcp-servers/admissions`'s response shape (C-008), AFTER {@link api.getExternalMcpAdmissions}
+/** `GET .../mcp-servers/admissions`'s response shape (C-008), AFTER `getExternalMcpAdmissions`
  *  has flattened it — see {@link RawAdmissionConnection}. A down daemon is a 503 — see
- *  {@link api.getExternalMcpAdmissions}'s own doc — never an empty `connections` array, so "the
+ *  `getExternalMcpAdmissions`'s own doc — never an empty `connections` array, so "the
  *  assistant is not running" and "it is running with nothing admitted" stay distinguishable. */
 export interface AdminExternalMcpAdmissionsSnapshot {
   connections: AdminFederatedAdmissionEntry[];

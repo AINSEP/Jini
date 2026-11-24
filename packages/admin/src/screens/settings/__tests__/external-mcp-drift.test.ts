@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import type { AdminExternalMcpAdmissionsSnapshot, AdminFederatedAdmissionEntry } from "@jini-ai/core/contracts/site/cms-external-mcp";
+import type { AdminExternalMcpAdmissionsSnapshot, AdminFederatedAdmissionEntry } from "@jini-ai/core/contracts/hosted-mcp";
 import { describeAdmissionDrift } from "../external-mcp-connection-drift.js";
 import type { ExternalMcpDriftCopy } from "../external-mcp-drift-types.js";
 import { admissionRestartHelps, describeConnectionDrift, describeDriftHeadline, grantWriteFieldValue, parseSavedToolNames } from "../external-mcp-tool-drift.js";

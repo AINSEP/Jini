@@ -1,4 +1,4 @@
-import type { AdminExternalMcpAdmissionsSnapshot, AdminExternalMcpConfigFailure, AdminFederatedAdmissionEntry } from "@jini-ai/core/contracts/site/cms-external-mcp";
+import type { AdminExternalMcpAdmissionsSnapshot, AdminExternalMcpConfigFailure, AdminFederatedAdmissionEntry } from "@jini-ai/core/contracts/hosted-mcp";
 import type { AdmissionDriftConnection, AdmissionDriftKind, ExternalMcpDriftCopy, SavedConnectionIntent } from "./external-mcp-drift-types.js";
 import { describeConnectionDrift, parseSavedToolNames } from "./external-mcp-tool-drift.js";
 
