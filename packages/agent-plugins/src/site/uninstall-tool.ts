@@ -83,6 +83,18 @@ export interface AgentPluginUninstallHost {
   readonly notConfirmedResult: (outcome: AgentPluginUninstallNotConfirmed) => { cancelled: boolean; reason?: 'expired' | 'abandoned'; note: string };
   readonly describeApproval: (required: { preview: AgentPluginUninstallPreview }, optional: { locale?: string }) => HumanConfirmSpec;
   readonly copy: AgentPluginUninstallCopy;
+  /** The host's server log for a not-removed refusal whose error names a host path (a lock file or
+   *  activations.json). The engine never logs or formats that text itself: the model only gets the
+   *  path-free `note`, and how (or whether) the raw error is written is the host's call. */
+  readonly reportRefusal: (refusal: AgentPluginUninstallRefusalReport) => void;
+}
+
+/** One not-removed refusal handed to {@link AgentPluginUninstallHost.reportRefusal}: which plugin,
+ *  which result `reason` the model got, and the raw lifecycle error behind it. */
+export interface AgentPluginUninstallRefusalReport {
+  readonly pluginId: string;
+  readonly reason: 'activations-busy' | 'plugin-busy' | 'activations-unreadable';
+  readonly error: Error;
 }
 
 /** The lifecycle inputs and principal-bound locale resolver this branch consumes. */
@@ -145,15 +157,15 @@ function updateJournalNextStep({ error, copy }: { error: AgentPluginUpdateError;
  * redacted (t91 §7.1/R2): nothing was removed, and there is a concrete next step, so this is the ADR-055 Decision 6
  * not-removed result `plugins_set_enabled`'s `activationsUnreadableResult`/`activationsBusyResult` already return
  * for the sibling family. The error's message names the host path (and, for Busy, the lock file), so it goes to the
- * server log only; `note` is fixed, path-free text.
+ * server log only — through the host's `reportRefusal`, which owns how it is logged; `note` is fixed, path-free text.
  *
  * @throws The re-classified error for every other rejection.
  * @complexity O(1).
  */
-function uninstallRefusedResult({ pluginId, error, copy }: { pluginId: string; error: unknown; copy: AgentPluginUninstallCopy }, _optional: Record<string, never> = {}): unknown {
+function uninstallRefusedResult({ pluginId, error, copy, report }: { pluginId: string; error: unknown; copy: AgentPluginUninstallCopy; report: AgentPluginUninstallHost['reportRefusal'] }, _optional: Record<string, never> = {}): unknown {
   if (error instanceof AgentPluginUpdateError) return updateJournalRefusedResult({ pluginId, error, copy });
   if (error instanceof AgentPluginActivationsBusyError) {
-    console.warn(`[agent-plugins] '${pluginId}': ${copy.uninstallToolName} (family agent-plugin) refused — ${error.message}`);
+    report({ pluginId, reason: "activations-busy", error });
     return {
       uninstalled: false,
       cancelled: false,
@@ -172,8 +184,8 @@ function uninstallRefusedResult({ pluginId, error, copy }: { pluginId: string; e
     // plugin takes. A timeout means the lock was never acquired, so the uninstall body never ran — or,
     // for an inner lock, `uninstall.ts` already put every staged tree back (a failed put-back throws a
     // different error). Same ADR-055 Decision 6 not-removed RESULT as a busy activations record; the
-    // message names the lock path, so it goes to the server log only.
-    console.warn(`[agent-plugins] '${pluginId}': ${copy.uninstallToolName} (family agent-plugin) refused — ${error.message}`);
+    // message names the lock path, so it goes to the server log only (via the host's reporter).
+    report({ pluginId, reason: "plugin-busy", error });
     return {
       uninstalled: false,
       cancelled: false,
@@ -187,7 +199,7 @@ function uninstallRefusedResult({ pluginId, error, copy }: { pluginId: string; e
     };
   }
   if (!(error instanceof AgentPluginActivationsUnreadableError)) throw toModelFacingUninstallError({ error });
-  console.warn(`[agent-plugins] '${pluginId}': ${copy.uninstallToolName} (family agent-plugin) refused — ${error.message}`);
+  report({ pluginId, reason: "activations-unreadable", error });
   return {
     uninstalled: false,
     cancelled: false,
@@ -206,12 +218,12 @@ function uninstallRefusedResult({ pluginId, error, copy }: { pluginId: string; e
  *  @complexity O(1) beyond `previewAgentPluginUninstall`. */
 async function previewOrRefusal(
   request: UninstallAgentPluginRequired,
-  { preview, copy }: { preview: AgentPluginUninstallHost['previewAgentPluginUninstall']; copy: AgentPluginUninstallCopy },
+  { preview, copy, report }: { preview: AgentPluginUninstallHost['previewAgentPluginUninstall']; copy: AgentPluginUninstallCopy; report: AgentPluginUninstallHost['reportRefusal'] },
 ): Promise<{ readonly preview: AgentPluginUninstallPreview } | { readonly refusal: unknown }> {
   try {
     return { preview: await preview(request) };
   } catch (error) {
-    return { refusal: uninstallRefusedResult({ pluginId: request.pluginId, error, copy }) };
+    return { refusal: uninstallRefusedResult({ pluginId: request.pluginId, error, copy, report }) };
   }
 }
 
@@ -230,7 +242,7 @@ async function previewOrRefusal(
  * @complexity O(1) beyond `uninstallAgentPlugin`.
  */
 async function uninstallConfirmedAgentPlugin(
-  { request, preview, copy }: { request: UninstallAgentPluginRequired; preview: AgentPluginUninstallPreview; copy: AgentPluginUninstallCopy },
+  { request, preview, copy, report }: { request: UninstallAgentPluginRequired; preview: AgentPluginUninstallPreview; copy: AgentPluginUninstallCopy; report: AgentPluginUninstallHost['reportRefusal'] },
   { deleteMemory = false, uninstall }: { deleteMemory?: boolean; uninstall: UninstallAgentPlugin },
 ): Promise<unknown> {
   try {
@@ -262,7 +274,7 @@ async function uninstallConfirmedAgentPlugin(
           `Nothing was removed. Call ${copy.uninstallToolName} again with family 'agent-plugin' so the user can review and confirm what is installed now.`,
       };
     }
-    return uninstallRefusedResult({ pluginId: request.pluginId, error, copy });
+    return uninstallRefusedResult({ pluginId: request.pluginId, error, copy, report });
   }
 }
 
@@ -295,7 +307,7 @@ export async function runAgentPluginUninstall(
 
   const request = { layout: routeDeps.agentPluginLayout, workspaceId: routeDeps.workspaceId, pluginId };
   const host = routeDeps.uninstallHost;
-  const previewed = await previewOrRefusal(request, { preview: host.previewAgentPluginUninstall, copy: host.copy });
+  const previewed = await previewOrRefusal(request, { preview: host.previewAgentPluginUninstall, copy: host.copy, report: host.reportRefusal });
   if ("refusal" in previewed) return previewed.refusal;
 
   const locale = await routeDeps.preferences.locale({ workspaceId: routeDeps.workspaceId, principalId: ctx.principal.id });
@@ -305,7 +317,7 @@ export async function runAgentPluginUninstall(
     run: async ({ ctx: approvedCtx, prepared, choice }) => {
       await requireToolPermission({ authorize: adaptLegacyAuthorize({ authorize: routeDeps.authorize }), workspaceId: routeDeps.workspaceId, principalId: approvedCtx.principal.id, permission: "admin.plugins.enable" }, { entityType: "agent-plugin", entityId: pluginId });
       if (approvedCtx.signal.aborted) return { uninstalled: false, ...host.notConfirmedResult({ confirmed: false, reason: "abandoned" }) };
-      return uninstallConfirmedAgentPlugin({ request, preview: prepared, copy: host.copy }, { deleteMemory: choice === "delete-memory", uninstall: routeDeps.uninstallAgentPlugin ?? host.uninstallAgentPlugin });
+      return uninstallConfirmedAgentPlugin({ request, preview: prepared, copy: host.copy, report: host.reportRefusal }, { deleteMemory: choice === "delete-memory", uninstall: routeDeps.uninstallAgentPlugin ?? host.uninstallAgentPlugin });
     },
   }, { flag: "uninstalled", declined: ({ reason }) => ({ uninstalled: false, pluginId, restartRequired: false, ...host.notConfirmedResult({ confirmed: false, reason }) }) })(ctx, optional);
 }

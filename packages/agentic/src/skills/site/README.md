@@ -15,4 +15,7 @@ Site-side bindings of `skills/install` onto the core tool registry.
   name (keep it byte-stable), the process environment, the site-root resolver, the filesystem/archive/YAML
   install adapters, the frontmatter reader, the contained supporting-file reader, the per-root installer
   queues (host-owned state) and the tool permission check `skills_install` runs first.
+  The same `SkillSiteHost` carries the two log reporters, because the engine never writes the console:
+  `reportLifecycleEvent({ event })` (a `SkillLifecycleEvent`: installed / enabled-changed / removed, from
+  `./install-service.ts`) and `reportSkippedFolder({ message })` (a skill folder `./tool-registrations.ts` skipped).
 - Tool metadata for `skills_install` lives in `@jini-ai/core/tool-metadata/skills`.

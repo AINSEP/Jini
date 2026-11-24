@@ -64,7 +64,18 @@ export interface SkillSiteHost {
     required: { authorize: import("@jini-ai/core/contracts/events").AuthorizeFn; workspaceId: string; principalId: string; permission: string },
     optional: { entityType: string },
   ) => Promise<void>;
+  /** The host's log for a completed install, enable/disable or removal. The engine reports the event;
+   *  the host owns whether and how it is written. */
+  readonly reportLifecycleEvent: (required: { event: SkillLifecycleEvent }) => void;
+  /** The host's log for one installed skill folder the tool loader skipped; `message` names the folder. */
+  readonly reportSkippedFolder: (required: { message: string }) => void;
 }
+
+/** One completed site-skill write, as {@link SkillSiteHost.reportLifecycleEvent} receives it. */
+export type SkillLifecycleEvent =
+  | { readonly kind: "installed"; readonly workspaceId: string; readonly toolId: string }
+  | { readonly kind: "enabled-changed"; readonly workspaceId: string; readonly toolId: string; readonly enabled: boolean }
+  | { readonly kind: "removed"; readonly workspaceId: string; readonly toolId: string };
 
 /** One workspace's flat directory of installed skill folders: `<root>/ws/<workspaceId>/<skill-dir>/
  *  SKILL.md`, one subdirectory per skill. Not content-addressed — see this module's header. */

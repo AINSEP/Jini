@@ -280,7 +280,8 @@
   "symbols": {
    "ResolveSkillLayoutOptional": "interface:c6f10ba464",
    "SkillLayout": "interface:9bbb54a950",
-   "SkillSiteHost": "interface:cb3f05871a",
+   "SkillLifecycleEvent": "type:484dd344f1",
+   "SkillSiteHost": "interface:5c257cf453",
    "SkillWorkspaceLayout": "interface:948b294411",
    "resolveSkillLayout": "function:d57fab4826"
   }

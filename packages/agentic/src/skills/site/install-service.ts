@@ -37,16 +37,16 @@ function installer(input: SkillSiteContext, _optional = {}): SkillInstaller {
 export const prepareSkillInstall = (input: JiniSkillInstallInput & Pick<SkillSiteContext, "skillLayout">, optional: { fetchImpl?: typeof fetch } = {}) => prepare({ input, deps: preparationDependencies({ host: input.skillLayout.host }, optional) });
 export async function commitSkillInstall(input: SkillSiteContext & { workspaceId: string; prepared: PreparedSkillInstall }, _optional = {}) {
   const skill = await installer(input).commitSkillInstall(input);
-  console.info("[skills] installed", { workspaceId: input.workspaceId, toolId: skill.toolId });
+  input.skillLayout.host.reportLifecycleEvent({ event: { kind: "installed", workspaceId: input.workspaceId, toolId: skill.toolId } });
   return skill;
 }
 export const installSkill = async (input: SkillInstallInput, optional: { fetchImpl?: typeof fetch } = {}) => commitSkillInstall({ ...input, workspaceId: input.workspaceId, prepared: await prepareSkillInstall(input, optional) });
 export const listManagedSkills = (input: SkillSiteContext & { workspaceId: string }, _optional = {}) => installer(input).listManagedSkills(input);
 export async function setSkillEnabled(input: SkillSiteContext & { workspaceId: string; toolId: string; enabled: boolean }, _optional = {}): Promise<void> {
   await installer(input).setSkillEnabled(input);
-  console.info("[skills] enabled changed", { workspaceId: input.workspaceId, toolId: input.toolId, enabled: input.enabled });
+  input.skillLayout.host.reportLifecycleEvent({ event: { kind: "enabled-changed", workspaceId: input.workspaceId, toolId: input.toolId, enabled: input.enabled } });
 }
 export async function uninstallSkill(input: SkillSiteContext & { workspaceId: string; toolId: string }, _optional = {}): Promise<void> {
   await installer(input).uninstallSkill(input);
-  console.info("[skills] removed", { workspaceId: input.workspaceId, toolId: input.toolId });
+  input.skillLayout.host.reportLifecycleEvent({ event: { kind: "removed", workspaceId: input.workspaceId, toolId: input.toolId } });
 }

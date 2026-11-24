@@ -70,7 +70,7 @@ type ApplyExtensionApprovalPolicy = SkillToolRegistrationHost["withExtensionAppr
  * Bad-folder isolation: skip and warn, never throw — except for one real ambiguity
  * ---------------------------------------------------------------------------
  * A skill folder with no `SKILL.md`, or with frontmatter missing `name`/`description`, is skipped
- * with a `console.warn` naming the folder — never fatal to every OTHER folder in the same workspace,
+ * with a warning naming the folder (the host's `reportSkippedFolder`) — never fatal to every OTHER folder in the same workspace,
  * mirroring `listInstalledPlugins`'s own per-digest failure isolation. The one case this file DOES
  * throw on on a valid-looking installed set is two DIFFERENT skill folders whose frontmatter `name`
  * collides (so both would mint the identical tool id) — not covered by the "skip a bad folder" rule
@@ -88,12 +88,12 @@ type ApplyExtensionApprovalPolicy = SkillToolRegistrationHost["withExtensionAppr
  */
 
 /** This product's loader effects for `@jini-ai/agentic/skills/tools`: its frontmatter reader, the contained
- *  agent-plugins file reader, its install-state file, and console warnings for skipped folders. */
+ *  agent-plugins file reader, its install-state file, and its report for skipped folders. */
 const skillToolPorts = (host: SkillSiteHost): InstalledSkillToolPorts => ({
   readFrontmatterField: host.readFrontmatterField,
   createFileReader: host.createFileReader,
   isEnabled: async ({ directory }) => (await readSkillState({ directory, stateFileName: host.stateFileName, filesystem: host.filesystem })).enabled,
-  report: ({ message }) => console.warn(message),
+  report: host.reportSkippedFolder,
 });
 
 /** Installed skills of one workspace under this site's skill layout; see `loadInstalledSkillToolSources` in `@jini-ai/agentic/skills/tools`. */

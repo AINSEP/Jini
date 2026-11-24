@@ -977,8 +977,9 @@
   "symbols": {
    "AgentPluginUninstallApprovalHandler": "type:4abc607c5e",
    "AgentPluginUninstallCopy": "interface:81ead000b8",
-   "AgentPluginUninstallHost": "interface:33f3daa9c4",
+   "AgentPluginUninstallHost": "interface:3794b9e921",
    "AgentPluginUninstallNotConfirmed": "type:178aaee3e1",
+   "AgentPluginUninstallRefusalReport": "interface:4948ae20c7",
    "AgentPluginUninstallToolDeps": "interface:19fb4f8fe0",
    "UninstallAgentPlugin": "type:58788b5cbd",
    "UninstallAgentPluginRequired": "type:ab937a9836",

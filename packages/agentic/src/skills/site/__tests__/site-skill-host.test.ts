@@ -2,12 +2,14 @@ import assert from "node:assert/strict";
 import { mkdtemp, mkdir, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
-import { test } from "vitest";
+import { test, vi } from "vitest";
 import { ToolInputError } from "@jini-ai/core";
 import { createNodeSkillFilesystem } from "../../install/index.js";
 import { resolveSkillLayout, type SkillSiteHost } from "../layout.js";
 import { loadInstalledSkillToolSources } from "../tool-registrations.js";
 import { buildRegistrations, SKILLS_INSTALL_TOOL_ID } from "../install-tool.js";
+import { commitSkillInstall, setSkillEnabled, uninstallSkill } from "../install-service.js";
+import type { SkillInstaller } from "../../install/index.js";
 
 /**
  * @file The host bindings `resolveSkillLayout` carries: the override variable, the site-root resolver,
@@ -30,6 +32,8 @@ function fakeHost(overrides: Partial<SkillSiteHost> = {}, calls: unknown[] = [])
     createFileReader: () => ({ read: async () => { throw new Error("unused"); } }),
     installers: new Map(),
     requireToolPermission: async (input, optional) => { calls.push({ input, optional }); },
+    reportLifecycleEvent: () => {},
+    reportSkippedFolder: () => {},
     ...overrides,
   };
 }
@@ -87,4 +91,44 @@ test("skills_install runs the host permission check before rejecting malformed i
   await assert.rejects(() => Promise.resolve(registration!.handler(ctx as never)), (error: unknown) => error instanceof ToolInputError
     && error.message === "githubUrl (an https://github.com/... URL) is the only, required argument.");
   assert.deepEqual(calls, [{ input: { authorize, workspaceId: WORKSPACE_ID, principalId: "principal-1", permission: "admin.assistant.use" }, optional: { entityType: "skill" } }]);
+});
+
+test("each completed lifecycle write goes to the host's reporter as a structured event, never the console", async () => {
+  const events: unknown[] = [];
+  const consoleInfo = vi.spyOn(console, "info").mockImplementation(() => {});
+  try {
+    const host = fakeHost({ reportLifecycleEvent: ({ event }) => { events.push(event); } });
+    const skillLayout = resolveSkillLayout({ cwd: "/srv/site", env: {}, host });
+    // A pre-seeded queue for this root: these tests cover the reports, not the installer.
+    host.installers.set(skillLayout.root, {
+      commitSkillInstall: async () => ({ toolId: "skill_notes" }),
+      setSkillEnabled: async () => {},
+      uninstallSkill: async () => {},
+    } as unknown as SkillInstaller);
+    const site = { skillLayout, siteBinding: { dir: "/srv/site" } };
+    await commitSkillInstall({ ...site, workspaceId: WORKSPACE_ID, prepared: {} as never });
+    await setSkillEnabled({ ...site, workspaceId: WORKSPACE_ID, toolId: "skill_notes", enabled: false });
+    await uninstallSkill({ ...site, workspaceId: WORKSPACE_ID, toolId: "skill_notes" });
+    assert.deepEqual(events, [
+      { kind: "installed", workspaceId: WORKSPACE_ID, toolId: "skill_notes" },
+      { kind: "enabled-changed", workspaceId: WORKSPACE_ID, toolId: "skill_notes", enabled: false },
+      { kind: "removed", workspaceId: WORKSPACE_ID, toolId: "skill_notes" },
+    ]);
+    assert.equal(consoleInfo.mock.calls.length, 0);
+  } finally { consoleInfo.mockRestore(); }
+});
+
+test("a skipped skill folder goes to the host's reporter naming the folder, never the console", async () => {
+  const dir = await mkdtemp(path.join(tmpdir(), "jini-site-skills-"));
+  const messages: string[] = [];
+  const consoleWarn = vi.spyOn(console, "warn").mockImplementation(() => {});
+  try {
+    const layout = resolveSkillLayout({ env: { ACME_SKILLS_DIR: dir }, host: fakeHost({ reportSkippedFolder: ({ message }) => { messages.push(message); } }) });
+    const skillDir = path.join(layout.forWorkspace({ workspaceId: WORKSPACE_ID }).root, "broken");
+    await mkdir(skillDir, { recursive: true });
+    await writeFile(path.join(skillDir, "SKILL.md"), "no frontmatter\n");
+    assert.deepEqual(await loadInstalledSkillToolSources({ workspaceId: WORKSPACE_ID, skillLayout: layout, siteBinding: { dir } }), []);
+    assert.deepEqual(messages, ["[skills] 'broken': SKILL.md has no parseable frontmatter with both 'name' and 'description' — skipped"]);
+    assert.equal(consoleWarn.mock.calls.length, 0);
+  } finally { consoleWarn.mockRestore(); await rm(dir, { recursive: true, force: true }); }
 });

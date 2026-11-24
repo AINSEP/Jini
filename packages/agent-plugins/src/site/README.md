@@ -20,3 +20,6 @@ Site-host pieces of Agent Plugins that a host binds at its composition root.
   approval handler, not-confirmed result, dialog description and `AgentPluginUninstallCopy` (product
   name, its uninstall tool id, its external-MCP settings path). Bound at the call site where the host
   composes its plugin host.
+  `uninstallHost.reportRefusal` receives each path-bearing not-removed refusal (`{ pluginId, reason, error }`
+  for activations-busy / plugin-busy / activations-unreadable); the engine never logs, so the host decides how
+  the raw error reaches its server log.

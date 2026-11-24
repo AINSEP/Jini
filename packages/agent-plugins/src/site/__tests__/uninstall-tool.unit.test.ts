@@ -1,8 +1,9 @@
 import assert from "node:assert/strict";
-import { test } from "vitest";
+import { test, vi } from "vitest";
 import type { ToolExecutionContext } from "@jini-ai/core";
 import type { AgentPluginUninstallPreview } from "@jini-ai/core/contracts/site/agent-plugins-lifecycle";
-import { AgentPluginActivationsBusyError, AgentPluginUpdateError } from "../../lifecycle/index.js";
+import { FileLockTimeoutError } from "@jini-ai/core/contracts/runtime";
+import { AgentPluginActivationsBusyError, AgentPluginActivationsUnreadableError, AgentPluginUpdateError } from "../../lifecycle/index.js";
 import { runAgentPluginUninstall, type AgentPluginUninstallHost, type AgentPluginUninstallToolDeps } from "../uninstall-tool.js";
 
 /** The host's copy: the engine names no product or host tool in a note, so every one comes from here. */
@@ -23,6 +24,7 @@ function hostWith(overrides: Partial<AgentPluginUninstallHost> = {}): { host: Ag
     notConfirmedResult: () => ({ cancelled: true, note: "declined" }),
     describeApproval: () => ({ toolId: "acme_uninstall", errorCode: "X", title: "t", details: [], confirmLabel: "ok" }),
     copy,
+    reportRefusal: () => {},
     ...overrides,
   };
   return { host, uninstalled };
@@ -65,4 +67,25 @@ test("a pending update tells the model to restart the host's product", async () 
   const result = await runAgentPluginUninstall({ routeDeps: depsWith(host), surfaces: {} as never, ctx, pluginId: "notes" }) as { reason: string; note: string };
   assert.equal(result.reason, "update-pending");
   assert.match(result.note, /Tell the user to restart Acme \(recovery runs at start\)/);
+});
+
+test("each locked or unreadable refusal goes to the host's reporter with the raw error, never the console", async () => {
+  const cases = [
+    { reason: "activations-busy", error: new AgentPluginActivationsBusyError({ lockPath: "/x.lock", holder: undefined, lost: false }) },
+    { reason: "plugin-busy", error: new FileLockTimeoutError({ lockPath: "/state.lock", holder: undefined, waitedMs: 5 }) },
+    { reason: "activations-unreadable", error: new AgentPluginActivationsUnreadableError({ filePath: "/activations.json", reason: "bad json" }) },
+  ] as const;
+  const consoleWarn = vi.spyOn(console, "warn").mockImplementation(() => {});
+  try {
+    for (const { reason, error } of cases) {
+      const reports: unknown[] = [];
+      const { host } = hostWith({ previewAgentPluginUninstall: async () => { throw error; }, reportRefusal: (refusal) => { reports.push(refusal); } });
+      const result = await runAgentPluginUninstall({ routeDeps: depsWith(host), surfaces: {} as never, ctx, pluginId: "notes" }) as { reason: string; note: string };
+      assert.equal(result.reason, reason);
+      assert.deepEqual(reports, [{ pluginId: "notes", reason, error }]);
+      // The note stays path-free: the path-bearing message reached only the reporter.
+      assert.doesNotMatch(result.note, /\/x\.lock|\/state\.lock|\/activations\.json/);
+    }
+    assert.equal(consoleWarn.mock.calls.length, 0);
+  } finally { consoleWarn.mockRestore(); }
 });
