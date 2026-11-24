@@ -1,3 +1,25 @@
+/**
+ * @file Canonical OAuth provider registry contracts and host policy seams.
+ * Generic flows/store contracts belong to `@jini-ai/oauth`; the host supplies guarded
+ * transport, issuer policy and operator-facing copy.
+ *
+ * Host registries are per-service instances. Operator-defined providers require no
+ * release: endpoint URLs and scopes describe them without putting vendor names in flows.
+ * Built-in descriptors are convenience data, not an allowlist of supported providers.
+ * Explicit endpoints also allow providers without discovery documents.
+ *
+ * Stable provider ids are persisted on connection rows, so renaming one orphans tokens.
+ * Registration validates endpoint safety early to distinguish configuration mistakes
+ * from provider outages; use-time checks still apply. Registering the same id replaces
+ * its descriptor so deployments can override endpoint changes. Missing ids fail loudly
+ * rather than leaving a connection that silently does nothing.
+ *
+ * Operator descriptors derive grants from supplied endpoints rather than an independent
+ * checkbox that could disagree. PKCE is on for self-hosted public clients; there is no
+ * operator switch to weaken it. A provider that rejects it needs an evidenced descriptor
+ * change. Example/test descriptors demonstrate wiring only; real providers require
+ * verification of their actual grants and refresh-token support.
+ */
 import type { OperatorOAuthProviderInput } from '@jini-ai/core/contracts/oauth';
 export type { OperatorOAuthProviderInput } from '@jini-ai/core/contracts/oauth';
 import type { OAuthProviderRegistry } from '@jini-ai/core/contracts/oauth';

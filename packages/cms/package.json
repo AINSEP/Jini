@@ -17,6 +17,8 @@
       "./publish/transfer": "universal",
       "./publish/transfer/blob-staging": "node",
       "./publish/content/baseline-repo": "universal",
+      "./publish/content/sql/baseline-repo": "node",
+      "./publish/transfer/sql/bundle-repo": "node",
       "./publish/content/content-hash": "node",
       "./publish/content/execute-import": "universal",
       "./publish/content/precheck-reasons": "universal",
@@ -36,6 +38,7 @@
       "./core": "universal",
       "./navigation": "universal",
       "./routing": "universal",
+      "./routing/site/reserved-paths": "universal",
       "./media": "node",
       "./settings": "universal",
       "./workspace": "universal",
@@ -188,6 +191,7 @@
       "./media/site/original-bytes": "node",
       "./media/site/public-path": "node",
       "./media/site/upload-content-type": "node",
+      "./media/site/access-evidence": "universal",
       "./admin-http/http/menus": "universal",
       "./admin-http/routes/menus/get-by-id": "universal",
       "./admin-http/routes/menus/list": "universal",
@@ -457,6 +461,16 @@
       "import": "./dist/publish/content/baseline-repo.js",
       "default": "./dist/publish/content/baseline-repo.js"
     },
+    "./publish/content/sql/baseline-repo": {
+      "types": "./dist/publish/content/sql/baseline-repo.d.ts",
+      "import": "./dist/publish/content/sql/baseline-repo.js",
+      "default": "./dist/publish/content/sql/baseline-repo.js"
+    },
+    "./publish/transfer/sql/bundle-repo": {
+      "types": "./dist/publish/transfer/sql/bundle-repo.d.ts",
+      "import": "./dist/publish/transfer/sql/bundle-repo.js",
+      "default": "./dist/publish/transfer/sql/bundle-repo.js"
+    },
     "./publish/content/content-hash": {
       "types": "./dist/publish/content/content-hash.d.ts",
       "import": "./dist/publish/content/content-hash.js",
@@ -571,6 +585,11 @@
       "types": "./dist/routing/index.d.ts",
       "import": "./dist/routing/index.js",
       "default": "./dist/routing/index.js"
+    },
+    "./routing/site/reserved-paths": {
+      "types": "./dist/routing/site/reserved-paths.d.ts",
+      "import": "./dist/routing/site/reserved-paths.js",
+      "default": "./dist/routing/site/reserved-paths.js"
     },
     "./media": {
       "types": "./dist/media/index.d.ts",
@@ -1311,6 +1330,11 @@
       "types": "./dist/media/site/upload-content-type.d.ts",
       "import": "./dist/media/site/upload-content-type.js",
       "default": "./dist/media/site/upload-content-type.js"
+    },
+    "./media/site/access-evidence": {
+      "types": "./dist/media/site/access-evidence.d.ts",
+      "import": "./dist/media/site/access-evidence.js",
+      "default": "./dist/media/site/access-evidence.js"
     },
     "./admin-http/http/menus": {
       "types": "./dist/admin-http/http/menus.d.ts",
