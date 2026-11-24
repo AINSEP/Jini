@@ -188,6 +188,7 @@
       "./screens/email/hooks/use-email-sender.hooks": "browser",
       "./screens/email/hooks/use-email-templates.hooks": "browser",
       "./screens/email/hooks/use-email-template-editor.hooks": "browser",
+      "./screens/email/hooks/use-email-activity.hooks": "browser",
       "./screens/forms/api/forms-api.types": "universal",
       "./screens/forms/index-aligned-translations": "universal",
       "./screens/forms/forms-field-settings-i18n": "universal",
@@ -1155,6 +1156,11 @@
       "types": "./dist/screens/email/hooks/use-email-template-editor.hooks.d.ts",
       "import": "./dist/screens/email/hooks/use-email-template-editor.hooks.js",
       "default": "./dist/screens/email/hooks/use-email-template-editor.hooks.js"
+    },
+    "./screens/email/hooks/use-email-activity.hooks": {
+      "types": "./dist/screens/email/hooks/use-email-activity.hooks.d.ts",
+      "import": "./dist/screens/email/hooks/use-email-activity.hooks.js",
+      "default": "./dist/screens/email/hooks/use-email-activity.hooks.js"
     },
     "./screens/forms/api/forms-api.types": {
       "types": "./dist/screens/forms/api/forms-api.types.d.ts",

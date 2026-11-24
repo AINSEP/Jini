@@ -30,6 +30,12 @@ its data hooks and its HTTP client still live in the host.
   (`open`). In the reference host all are bound by the `useWired*` hooks in
   `apps/admin/src/features/email/email-hooks-host.ts` (`emailApi`, `mailStatusApi`, `ApiError` from
   `@/lib/admin-http/request`, `navigate` from the router, `newRequestId` over `uniqueId`).
-- Still host-owned: the activity and provider data hooks (`use-email-activity.hooks.ts` has an
-  84-line hook body; `use-email-provider.hooks.ts` reads the host's agent-plugin wire type), the
-  template-view hook (shell DevicePreview hooks) and every Email component.
+- `hooks/use-email-activity.hooks.ts` (`useEmailActivity`, `PagedList`, `RemovalStep`) — the
+  Activity tab data hook (recent sends, blocked addresses + the two-step removal in its inner
+  `useRemovalFlow`, feedback setup). Takes on `required` the host's API port (`api`) and its
+  transport error class (`ApiError`). In the reference host it is bound by `useWiredEmailActivity`
+  in `apps/admin/src/features/email/email-hooks-host.ts` (`emailApi`, `ApiError` from
+  `@/lib/admin-http/request`).
+- Still host-owned: the provider data hook (`use-email-provider.hooks.ts` reads the host's
+  agent-plugin wire type), the template-view hook (shell DevicePreview hooks) and every Email
+  component.

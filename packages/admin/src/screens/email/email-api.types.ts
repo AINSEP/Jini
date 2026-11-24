@@ -128,8 +128,8 @@ export interface MailActivityDetail {
 }
 
 export interface MailActivityFilter {
-  outcome?: string;
-  recipient?: string;
+  outcome?: string | undefined;
+  recipient?: string | undefined;
 }
 
 export type MailSuppressionScope = "all" | "bulk";
@@ -218,7 +218,7 @@ export interface EmailApi {
   readUses: () => Promise<{ checkedAt: string; uses: MailUseRow[] }>;
   listActivity: (required: { filter: MailActivityFilter; cursor?: string }) => Promise<MailActivityPage>;
   getActivity: (required: { id: string }) => Promise<MailActivityDetail>;
-  listSuppressions: (required: { search?: string; cursor?: string }) => Promise<MailSuppressionPage>;
+  listSuppressions: (required: { search?: string | undefined; cursor?: string }) => Promise<MailSuppressionPage>;
   /** Without `confirm` this only previews (`plan`); with it, `revision` must be the previewed one. */
   removeSuppression: (
     required: { address: string; scope: MailSuppressionScope; reason: string },
