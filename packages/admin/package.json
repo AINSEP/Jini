@@ -150,6 +150,11 @@
       "./shell/lib/external-entry-refresh": "browser",
       "./shell/lib/fetch-query/adapter-context": "browser",
       "./shell/lib/page-lifecycle": "browser",
+      "./shell/lib/admin-http/config": "universal",
+      "./shell/lib/admin-http/settings-api.types": "universal",
+      "./shell/lib/admin-http/urls": "universal",
+      "./shell/lib/admin-post-list-sort": "universal",
+      "./shell/lib/descriptor-i18n": "universal",
       "./shell/lib/admin-http/request": "browser",
       "./shell/lib/plain-text-blocks": "browser",
       "./shell/lib/playground-render-target-bus": "browser",
@@ -669,6 +674,11 @@
         "./shell/components/line-icon": "browser",
         "./shell/lib/acceptance-cancellation": "browser",
         "./shell/lib/addons-routes": "browser",
+        "./shell/lib/admin-http/config": "universal",
+        "./shell/lib/admin-http/settings-api.types": "universal",
+        "./shell/lib/admin-http/urls": "universal",
+        "./shell/lib/admin-post-list-sort": "universal",
+        "./shell/lib/descriptor-i18n": "universal",
         "./shell/lib/admin-boot-scope": "browser",
         "./shell/lib/admin-draft-identity": "browser",
         "./shell/lib/agent-screenshot-bus": "browser",
@@ -1568,6 +1578,31 @@
       "types": "./dist/shell/lib/page-lifecycle.d.ts",
       "import": "./dist/shell/lib/page-lifecycle.js",
       "default": "./dist/shell/lib/page-lifecycle.js"
+    },
+    "./shell/lib/admin-http/config": {
+      "types": "./dist/shell/lib/admin-http/config.d.ts",
+      "import": "./dist/shell/lib/admin-http/config.js",
+      "default": "./dist/shell/lib/admin-http/config.js"
+    },
+    "./shell/lib/admin-http/settings-api.types": {
+      "types": "./dist/shell/lib/admin-http/settings-api.types.d.ts",
+      "import": "./dist/shell/lib/admin-http/settings-api.types.js",
+      "default": "./dist/shell/lib/admin-http/settings-api.types.js"
+    },
+    "./shell/lib/admin-http/urls": {
+      "types": "./dist/shell/lib/admin-http/urls.d.ts",
+      "import": "./dist/shell/lib/admin-http/urls.js",
+      "default": "./dist/shell/lib/admin-http/urls.js"
+    },
+    "./shell/lib/admin-post-list-sort": {
+      "types": "./dist/shell/lib/admin-post-list-sort.d.ts",
+      "import": "./dist/shell/lib/admin-post-list-sort.js",
+      "default": "./dist/shell/lib/admin-post-list-sort.js"
+    },
+    "./shell/lib/descriptor-i18n": {
+      "types": "./dist/shell/lib/descriptor-i18n.d.ts",
+      "import": "./dist/shell/lib/descriptor-i18n.js",
+      "default": "./dist/shell/lib/descriptor-i18n.js"
     },
     "./shell/lib/admin-http/request": {
       "types": "./dist/shell/lib/admin-http/request.d.ts",
