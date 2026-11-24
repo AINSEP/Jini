@@ -509,6 +509,8 @@
       "./publish/content/run-repo": "universal",
       "./publish/content/seed-hash": "universal",
       "./publish/content/backstop-refusal": "universal",
+      "./publish/content/backstop-preview": "node",
+      "./publish/content/publish-backstop-file": "node",
       "./publish/content/peers": "universal",
       "./publish/content/apply-retire": "universal",
       "./publish/content/composite-blob-source": "node",
@@ -745,6 +747,11 @@
         "./admin-http/routes/redirects/tombstone": "redirects",
         "./admin-http/routes/redirects/update": "redirects",
         "./public-http/routes/site/pages/listing/listing-state": "listing",
+        "./public-http/http/shared/post": "posts",
+        "./public-http/http/content/posts": "posts",
+        "./admin-http/http/posts": "posts",
+        "./public-http/routes/site/pages/render-context/taxonomy": "widgets",
+        "./publish/content/content-references": "widgets",
         "./admin-http/http/forms": "forms",
         "./admin-http/http/forms-write-error": "forms",
         "./admin-http/http/menus": "navigation",
@@ -3400,6 +3407,16 @@
       "types": "./dist/publish/content/backstop-refusal.d.ts",
       "import": "./dist/publish/content/backstop-refusal.js",
       "default": "./dist/publish/content/backstop-refusal.js"
+    },
+    "./publish/content/backstop-preview": {
+      "types": "./dist/publish/content/backstop-preview.d.ts",
+      "import": "./dist/publish/content/backstop-preview.js",
+      "default": "./dist/publish/content/backstop-preview.js"
+    },
+    "./publish/content/publish-backstop-file": {
+      "types": "./dist/publish/content/publish-backstop-file.d.ts",
+      "import": "./dist/publish/content/publish-backstop-file.js",
+      "default": "./dist/publish/content/publish-backstop-file.js"
     },
     "./publish/content/peers": {
       "types": "./dist/publish/content/peers.d.ts",
