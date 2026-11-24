@@ -64,7 +64,9 @@
       "./source-control/site/commit-target": "universal",
       "./source-control/site/provider-kit": "universal",
       "./source-control/site/provider-module": "universal",
-      "./source-control/site/static-site-packager-port": "universal"
+      "./source-control/site/static-site-packager-port": "universal",
+      "./backup/site/saved-keys-port": "universal",
+      "./backup/site/static-download-html": "universal"
     },
     "isolation": {
       "shared": [
@@ -343,6 +345,16 @@
       "types": "./dist/source-control/site/static-site-packager-port.d.ts",
       "import": "./dist/source-control/site/static-site-packager-port.js",
       "default": "./dist/source-control/site/static-site-packager-port.js"
+    },
+    "./backup/site/saved-keys-port": {
+      "types": "./dist/backup/site/saved-keys-port.d.ts",
+      "import": "./dist/backup/site/saved-keys-port.js",
+      "default": "./dist/backup/site/saved-keys-port.js"
+    },
+    "./backup/site/static-download-html": {
+      "types": "./dist/backup/site/static-download-html.d.ts",
+      "import": "./dist/backup/site/static-download-html.js",
+      "default": "./dist/backup/site/static-download-html.js"
     }
   },
   "files": [
