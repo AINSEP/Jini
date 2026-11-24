@@ -1,5 +1,5 @@
 import { useCallback } from "react";
-import { useUsers as useJiniUsers, type UsersController as JiniController } from "./use-users.hooks.js";
+import type { UsersController as JiniController, useUsers as useJiniUsers } from "./use-users.hooks.js";
 import type { UsersPort } from "@jini-ai/core/contracts/site/user-management-react";
 import type { DictionaryTranslator } from '@jini-ai/core/text';
 import { passwordResetNotice } from "../password-reset-notice.js";
@@ -8,7 +8,9 @@ import { passwordResetNotice } from "../password-reset-notice.js";
  * @file The locale-bound users controller: binds the host's locale hook, the users dictionary
  * translator and route navigation onto {@link useJiniUsers}. Moved from the host's
  * `features/users/hooks/users-controller.hooks.ts`; the host keeps only `useWiredUsers` (the live
- * port and its router) and injects every collaborator through {@link LocalizedUsersDependencies}.
+ * port and its router) and injects every collaborator through {@link LocalizedUsersDependencies},
+ * including the users controller hook itself (`useUsers`, normally this package's own) and the
+ * deep-link close callback, so the route it navigates to stays the host's.
  */
 
 export type LocalizedUsersController = Omit<JiniController, "translate"> & {
@@ -23,9 +25,11 @@ export interface LocalizedUsersDependencies {
    *  see the one-shot effect in {@link useLocalizedUsers} for why this needs both the flag AND the user list
    *  AND `me()` to have settled before it can act. */
   openOwnPasswordReset?: boolean | undefined;
-  /** DI seam for `@/lib/router`'s `navigate`, same convention `use-post-editor.hooks.ts`'s `navigate`
-   *  dependency uses — real impl wired only in the host's `useWiredUsers`. */
-  navigate?: ((path: string, options?: { replace?: boolean }) => void) | undefined;
+  /** Called once the deep-linked own-password-reset dialog closes (never for a normal row-menu
+   *  reset). The host owns the route it returns to and its navigation options. */
+  onOwnPasswordResetClosed?: (() => void) | undefined;
+  /** The users controller hook (REQUIRED hook dependency; the host binds this package's `useUsers`). */
+  useUsers: typeof useJiniUsers;
   /** The host's locale hook (REQUIRED; e.g. the admin's `useAdminLocale`). */
   useAdminLocale: () => string;
   /** The host's workspace query scope (e.g. its `WORKSPACE_ID`). */
@@ -36,13 +40,13 @@ export interface LocalizedUsersDependencies {
 }
 
 /** Bind host locale, routes and transport; Jini owns all screen state and account rules. */
-export function useLocalizedUsers({ port, openOwnPasswordReset, navigate, useAdminLocale, queryScope, t }: LocalizedUsersDependencies, _optional: Record<string, never> = {}): LocalizedUsersController {
+export function useLocalizedUsers({ port, openOwnPasswordReset, onOwnPasswordResetClosed, useUsers, useAdminLocale, queryScope, t }: LocalizedUsersDependencies, _optional: Record<string, never> = {}): LocalizedUsersController {
   const locale = useAdminLocale();
   const translate = useCallback((key: string) => t({ locale: locale, key: key }), [locale, t]);
-  const controller = useJiniUsers({ port, translate, queryScope }, {
+  const controller = useUsers({ port, translate, queryScope }, {
     openOwnPasswordReset,
-    // A normal row-menu reset must not navigate; Jini calls this only for the deep-linked dialog.
-    onOwnPasswordResetClosed: () => navigate?.("/users"),
+    // A normal row-menu reset must not call this; Jini calls it only for the deep-linked dialog.
+    onOwnPasswordResetClosed,
     passwordResetNotice: ({ username }) => passwordResetNotice({ locale, username }),
   });
   return { ...controller, locale };
