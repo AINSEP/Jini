@@ -174,7 +174,9 @@
       "./screens/menus/hooks/menus-port.hooks": "universal",
       "./screens/menus/MenuEditor.hooks": "browser",
       "./screens/menus/MenuPageLinkFields.hooks": "browser",
-      "./screens/menus/MenuPageLinkFields": "browser"
+      "./screens/menus/MenuPageLinkFields": "browser",
+      "./shell/components/TemplateSource/ViewTemplateButton": "browser",
+      "./shell/hooks/use-desktop-view-release.hooks": "browser"
     },
     "isolation": {
       "shared": [
@@ -253,7 +255,9 @@
         "./shell/components/InstallTabCard/use-folder-upload.hooks": "browser",
         "./shell/components/Select/Select.hooks": "browser",
         "./shell/lib/tab-event-source": "browser",
-        "./shell/hooks/use-external-entry-refresh.hooks": "browser"
+        "./shell/hooks/use-external-entry-refresh.hooks": "browser",
+        "./shell/components/TemplateSource/ViewTemplateButton": "browser",
+        "./shell/hooks/use-desktop-view-release.hooks": "browser"
       }
     },
     "optionalPeers": {
@@ -1065,6 +1069,16 @@
       "types": "./dist/screens/menus/MenuPageLinkFields.d.ts",
       "import": "./dist/screens/menus/MenuPageLinkFields.js",
       "default": "./dist/screens/menus/MenuPageLinkFields.js"
+    },
+    "./shell/components/TemplateSource/ViewTemplateButton": {
+      "types": "./dist/shell/components/TemplateSource/ViewTemplateButton.d.ts",
+      "import": "./dist/shell/components/TemplateSource/ViewTemplateButton.js",
+      "default": "./dist/shell/components/TemplateSource/ViewTemplateButton.js"
+    },
+    "./shell/hooks/use-desktop-view-release.hooks": {
+      "types": "./dist/shell/hooks/use-desktop-view-release.hooks.d.ts",
+      "import": "./dist/shell/hooks/use-desktop-view-release.hooks.js",
+      "default": "./dist/shell/hooks/use-desktop-view-release.hooks.js"
     }
   },
   "files": [
