@@ -22,7 +22,7 @@ export function BrowserAgentSettingsPanel(props: { locale: string; t: BrowserAge
           aria-checked={enabled}
           aria-labelledby={`${id}-label`}
           aria-describedby={`${id}-hint`}
-          className={enabled ? "jini-toggle-row on" : "jini-toggle-row"}
+          className={enabled ? "jini-toggle-row jini-toggle-row-on" : "jini-toggle-row"}
           onClick={() => setEnabled({ enabled: !enabled })}
         >
           <span className="jini-toggle-row-text">

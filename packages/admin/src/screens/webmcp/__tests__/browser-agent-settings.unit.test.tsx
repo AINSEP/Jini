@@ -109,10 +109,14 @@ describe("BrowserAgentSettingsPanel", () => {
     render(<BrowserAgentSettingsPanel locale="en" t={t} useBrowserAgentSettingsHook={useBound} />);
     const toggle = screen.getByRole("checkbox", { name: "Browser-agent access (WebMCP)" });
     expect(toggle).toBeChecked();
+    // The on state is a namespaced class the host stylesheet targets, never a bare `on`.
+    expect(toggle).toHaveClass("jini-toggle-row", "jini-toggle-row-on");
+    expect(toggle).not.toHaveClass("on");
     expect(toggle).not.toHaveAttribute("data-agent-element");
     expect(screen.getByText(/this browser/)).toBeInTheDocument();
     await userEvent.click(toggle);
     expect(toggle).not.toBeChecked();
+    expect(toggle).not.toHaveClass("jini-toggle-row-on");
     expect(localStorage.getItem(KEY)).toBe("false");
   });
 
