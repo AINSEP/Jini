@@ -166,7 +166,7 @@ function DnsSection(props: { controller: EmailSenderController; locale: string; 
   );
 }
 
-function SenderSection(props: { controller: EmailSenderController; warnings?: readonly string[]; locale: string; hideTitle: boolean }) {
+function SenderSection(props: { controller: EmailSenderController; warnings?: readonly string[] | undefined; locale: string; hideTitle: boolean }) {
   const { controller, locale } = props;
   return (
     <Section id="sender" title={t({ locale, key: "Sender" })} hideTitle={props.hideTitle}>
