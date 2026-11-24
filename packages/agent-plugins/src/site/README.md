@@ -16,3 +16,12 @@ Generic plugin-host pieces extracted from a site host. Everything product-specif
   its model-facing copy, and calls this from its install tool after authorization.
 - `activation-effects.ts` (`./site/activation-effects`): the host injects `resolveAgentPluginActivation`
   (its lifecycle owner's activation resolution, so all writers share one queue) next to `workspaceRoot`.
+- `provider-plugin-link.ts` (`./site/provider-plugin-link`): the host injects `activations` (its lifecycle
+  owner's `reconcileAgentPluginActivation` / `readAgentPluginActivations` / `isAgentPluginActive`) and `catalog`
+  (`list`, `bundled`, `preferBundled`, `read`) into `bindProviderFacePorts`, and a required `warn` sink into
+  `followProviderActivations`; the host keeps its linked-face refusal error (its copy names the host's switch).
+- `host-plugin-guidance.ts` (`./site/host-plugin-guidance`): the host injects `overlaysDir` (its shipped overlays)
+  on every reader's required args, and `isYamlMapping` (its failsafe YAML reader) into
+  `removeChatRefusedToolPermissions` / `deliverHostPluginGuidance`.
+- `service-ports.ts` (`./site/service-ports`): types only; `AgentPluginApiConnectionsPort<TConnection>` is
+  instantiated with the host's declared-connection record.

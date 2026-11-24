@@ -83,11 +83,12 @@ function buildCredentialCategoryField(prefill: CreateCredentialPrefill, categori
  *
  * @param spec.app - The host's card identity for this form (`CredentialCardIdentity.appNames.create`).
  * @param spec.categories - The host's closed category set (its `CUSTOM_CREDENTIAL_CATEGORIES`).
+ * @param spec.baseUrlHint - The host's help text for the Base URL field (its example URL is host copy).
  * @complexity O(1) — a fixed five-field form (`CUSTOM_CREDENTIAL_CATEGORIES.length` is a small,
  *   compile-time-fixed constant, so the category options list is effectively O(1) too).
  */
-export function buildCreateForm(spec: { prefill: CreateCredentialPrefill; providers?: readonly { id: string; vendorId: string; label?: string }[]; app: SurfaceCardApp; categories: readonly string[]; suggestWorksFor: SuggestWorksFor }, _optional = {}): SecretCardForm & { preferredFrameSize: readonly [string, string] } {
-  const { prefill, providers = [], app, categories, suggestWorksFor } = spec;
+export function buildCreateForm(spec: { prefill: CreateCredentialPrefill; providers?: readonly { id: string; vendorId: string; label?: string }[]; app: SurfaceCardApp; categories: readonly string[]; suggestWorksFor: SuggestWorksFor; baseUrlHint: string }, _optional = {}): SecretCardForm & { preferredFrameSize: readonly [string, string] } {
+  const { prefill, providers = [], app, categories, suggestWorksFor, baseUrlHint } = spec;
   const worksForField = buildWorksForField({ prefill, providers, suggestWorksFor });
   return {
     title: "Save an API credential",
@@ -109,7 +110,7 @@ export function buildCreateForm(spec: { prefill: CreateCredentialPrefill; provid
         kind: "string",
         name: "baseUrl",
         label: "Base URL",
-        hint: "The provider's API base URL, e.g. 'https://api.example.test'.",
+        hint: baseUrlHint,
         required: true,
         ...(prefill.baseUrl !== undefined ? { value: prefill.baseUrl } : {}),
       },

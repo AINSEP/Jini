@@ -15,15 +15,22 @@ import type {
   CredentialedRequestResult,
   CredentialedRequestTarget,
 } from "@jini-ai/core/contracts/credentials";
-import { EgressRefusedError } from "@jini-ai/platform/http/guarded";
 import { CredentialedRequestTransportError, CredentialedRequestValidationError } from "../credentialed-http/credentialed-request.js";
 import { CustomCredentialNotFoundError } from "../credentialed-http/sets/store.js";
 
+/** The host's egress-refusal error class (the guarded HTTP client's refusal), injected so this package
+ * recognises and rebuilds the host's own class without importing the platform package. */
+export interface EgressRefusedErrorClass {
+  new (details: { message: string }, options: { callerSafeMessage: string }): Error & { readonly callerSafeMessage: string };
+}
+
 /** Classify by the classes the request adapter actually throws; the thrown object is returned as is.
  * The egress rebuild is the one the host's tool registrations perform before schema decoration.
+ * @param required.error The thrown value to classify.
+ * @param required.EgressRefusedError The host's egress-refusal class, used for the `instanceof` check and the caller-safe rebuild.
  * @complexity O(1) — at most four `instanceof` checks.
  */
-export function classifyCredentialedRequestError({ error }: { error: unknown }, _optional = {}): CredentialedRequestErrorClass {
+export function classifyCredentialedRequestError({ error, EgressRefusedError }: { error: unknown; EgressRefusedError: EgressRefusedErrorClass }, _optional = {}): CredentialedRequestErrorClass {
   if (error instanceof EgressRefusedError) {
     const callerSafeMessage = error.callerSafeMessage;
     return { category: "egress-refused", error, callerSafeMessage, callerSafeError: new EgressRefusedError({ message: callerSafeMessage }, { callerSafeMessage }) };
@@ -46,19 +53,20 @@ export interface CredentialedRequestHostOperations<Deps extends { readonly repo:
  * @param required.deps The SAME dependencies the host's tool handlers build (repo, sealer, guarded
  *   client, clock, audit, auth-scheme loader).
  * @param required.operations The host's existing request functions those dependencies feed.
+ * @param required.EgressRefusedError The host's egress-refusal class, forwarded to `classifyError`.
  * @returns A port whose every call is one call of the existing adapter function.
  * @complexity O(1) to build; each method costs exactly what the forwarded function costs.
- * @example const port = bindCredentialedRequestPort({ deps, operations }); await port.verify({ workspaceId, label });
+ * @example const port = bindCredentialedRequestPort({ deps, operations, EgressRefusedError }); await port.verify({ workspaceId, label });
  */
 export function bindCredentialedRequestPort<Deps extends { readonly repo: unknown; readonly httpClient: unknown }>(
-  required: { deps: Deps; operations: CredentialedRequestHostOperations<Deps> }, _optional = {},
+  required: { deps: Deps; operations: CredentialedRequestHostOperations<Deps>; EgressRefusedError: EgressRefusedErrorClass }, _optional = {},
 ): CredentialedRequestPort {
-  const { deps, operations } = required;
+  const { deps, operations, EgressRefusedError } = required;
   return {
     request: (input, optional = {}) => operations.makeCredentialedRequest(deps, { ...input, headers: optional.headers, body: optional.body }),
     resolveTarget: (input) => operations.resolveRequestTarget({ repo: deps.repo }, input),
     verify: (input) => operations.verifyCustomCredential(deps, input),
     probe: (input) => operations.probeCredentialConnection(input, { httpClient: deps.httpClient }),
-    classifyError: classifyCredentialedRequestError,
+    classifyError: ({ error }) => classifyCredentialedRequestError({ error, EgressRefusedError }),
   };
 }

@@ -44,7 +44,10 @@
       "./static-export/site/public-origin-policy": "universal",
       "./checks/quality-gates": "universal",
       "./checks/complexity-debt": "universal",
-      "./checks/live-verify-checks": "universal"
+      "./checks/live-verify-checks": "universal",
+      "./deploy/site/ports": "universal",
+      "./deploy/site/deploy-config": "node",
+      "./deploy/site/deploy-config-registry": "node"
     },
     "isolation": {
       "shared": [
@@ -223,6 +226,21 @@
       "types": "./dist/checks/live-verify-checks.d.ts",
       "import": "./dist/checks/live-verify-checks.js",
       "default": "./dist/checks/live-verify-checks.js"
+    },
+    "./deploy/site/ports": {
+      "types": "./dist/deploy/site/ports.d.ts",
+      "import": "./dist/deploy/site/ports.js",
+      "default": "./dist/deploy/site/ports.js"
+    },
+    "./deploy/site/deploy-config": {
+      "types": "./dist/deploy/site/deploy-config.d.ts",
+      "import": "./dist/deploy/site/deploy-config.js",
+      "default": "./dist/deploy/site/deploy-config.js"
+    },
+    "./deploy/site/deploy-config-registry": {
+      "types": "./dist/deploy/site/deploy-config-registry.d.ts",
+      "import": "./dist/deploy/site/deploy-config-registry.js",
+      "default": "./dist/deploy/site/deploy-config-registry.js"
     }
   },
   "files": [

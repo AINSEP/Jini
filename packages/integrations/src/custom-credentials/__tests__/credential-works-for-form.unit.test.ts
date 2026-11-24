@@ -4,11 +4,12 @@ import { buildCreateForm, type CreateCredentialPrefill } from "../custom-credent
 
 const app = { appName: "host-custom-credential-create", appVersion: "1" };
 const categories = ["source-control", "hosting", "media", "ai", "ops", "general"];
+const baseUrlHint = "host-supplied base URL hint";
 
 const providers = [{ id: "vercel", vendorId: "vercel" }, { id: "github-pages", vendorId: "github" }, { id: "s3-compatible", vendorId: "s3-compatible" }];
 
 function worksForField(prefill: CreateCredentialPrefill) {
-  const field = buildCreateForm({ prefill, providers, app, categories, suggestWorksFor }).fields.find(field => field.name === "worksFor");
+  const field = buildCreateForm({ prefill, providers, app, categories, suggestWorksFor, baseUrlHint }).fields.find(field => field.name === "worksFor");
   if (field !== undefined && field.kind !== "multi-enum") throw new Error("worksFor must be a multi-enum");
   return field;
 }
@@ -50,4 +51,9 @@ test("a prefilled catalog target keeps the whole catalog and its selection", () 
   const field = worksForField({ label: "Production access", worksFor: ["vercel"] });
   expect(field?.value).toEqual(["vercel"]);
   expect(field?.options.map(option => option.value)).toEqual(["vercel", "github-pages", "github", "s3-compatible"]);
+});
+
+test("the Base URL field's hint is the host-injected text, not package copy", () => {
+  const field = buildCreateForm({ prefill: {}, providers, app, categories, suggestWorksFor, baseUrlHint }).fields.find(field => field.name === "baseUrl");
+  expect(field?.hint).toBe(baseUrlHint);
 });

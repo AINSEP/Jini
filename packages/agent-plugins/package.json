@@ -129,7 +129,8 @@
         "./site/admin-surfaces/public-config": "admin-surfaces",
         "./site/admin-surfaces/handlers": "admin-surfaces",
         "./site/customize-tool": "folder-zip",
-        "./site/activation-effects": "lifecycle"
+        "./site/activation-effects": "lifecycle",
+        "./site/provider-plugin-link": "lifecycle"
       },
       "shared": [
         "core/persistent-state.js",

@@ -22,7 +22,9 @@ import { createLocalFsObjectStoreProvider } from "../local-fs.js";
  * `Definition` the host's plugin loader accepts. The agent-plugins contribution seam
  * (`defineProviderContribution`, `contributeProviders`) and the host's plugin loaders
  * (`loadContributions`, `bundledContributionSources`, `loadPluginContributionsFromSource`) arrive
- * on each function's required args, bound by the host's composition root.
+ * on each function's required args, bound by the host's composition root. `Host` and `Definition`
+ * are inferred from the contribution seam only (`NoInfer` on the loaders), because the host's
+ * loaders are themselves generic and would otherwise widen both to `unknown`.
  */
 
 /** The file a plugin ships at its root to contribute object-store providers: `{ schemaVersion: 1, providers: [{ id, module, label? }] }`,
@@ -86,7 +88,7 @@ export async function loadObjectStoreRegistry<Host, Definition>(
   required: ObjectStoreContributionPorts<Host, Definition> & {
     readonly workspaceId: string;
     readonly uploadsDir: string;
-    readonly loadContributions: (input: { readonly workspaceId: string; readonly definition: Definition }, optional: { readonly orderByPluginId: boolean }) => Promise<LoadedObjectStoreContributions<Host>>;
+    readonly loadContributions: (input: { readonly workspaceId: string; readonly definition: NoInfer<Definition> }, optional: { readonly orderByPluginId: boolean }) => Promise<LoadedObjectStoreContributions<NoInfer<Host>>>;
   },
   _optional: Record<string, never> = {}
 ): Promise<LoadedObjectStoreRegistry<Host>> {
@@ -106,7 +108,7 @@ export async function loadBundledObjectStoreRegistry<Host, Definition>(
     readonly uploadsDir: string;
     readonly sourceRoot: string;
     readonly bundledContributionSources: BundledObjectStoreSources;
-    readonly loadPluginContributionsFromSource: (input: { readonly plugin: ObjectStoreSourcePlugin; readonly definition: Definition }) => Promise<LoadedObjectStoreContributions<Host>>;
+    readonly loadPluginContributionsFromSource: (input: { readonly plugin: ObjectStoreSourcePlugin; readonly definition: NoInfer<Definition> }) => Promise<LoadedObjectStoreContributions<NoInfer<Host>>>;
   },
   _optional: Record<string, never> = {}
 ): Promise<LoadedObjectStoreRegistry<Host>> {
