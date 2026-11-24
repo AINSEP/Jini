@@ -7,5 +7,5 @@ export { createMailFeedbackInboxRepo } from "./feedback-inbox.repo.js";
 export { createMailCaptureRepo, DEFAULT_CAPTURE_LIST, MAX_CAPTURE_LIST, type CapturedMail, type MailCaptureRepo } from "./capture.repo.js";
 export { createMailActivityRepo, mailActivityUse } from "./activity.repo.js";
 export { createMailAttemptObserver, type MailAttemptObserver } from "./attempts.repo.js";
-export { purgeExpiredMail, startMailRetention, MAIL_ACTIVITY_RETENTION_MS, MAIL_CAPTURE_RETENTION_MS, MAIL_RETENTION_INTERVAL_MS } from "./retention.js";
+export { purgeExpiredMail, startMailRetention, type MailRetentionOptions, MAIL_ACTIVITY_RETENTION_MS, MAIL_CAPTURE_RETENTION_MS, MAIL_RETENTION_INTERVAL_MS } from "./retention.js";
 export { createSiteMailFeedbackRoute } from "./site-feedback-route.js";

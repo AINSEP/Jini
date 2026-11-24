@@ -34,6 +34,8 @@ export type ResolveRequestTarget = (required: {
  *   with `configuration-invalid` (non-retryable) for a URL outside the credential's saved hosts.
  * @param optional.pluginState - The read-only settings of a plugin in a workspace; when given, each
  *   adapter receives its own plugin's as `optional.state` (so a product turned off pauses delivery).
+ * @param optional.adapterOptions - Host-supplied extras for one adapter's `optional` argument (for example
+ *   older names a sheet it already delivers to may still use); merged beside `state`, never over it.
  * @complexity One registry load and one credential resolution per attempt, then the adapter's own cost.
  */
 export function createFormDestinationDeliverer(
@@ -43,7 +45,10 @@ export function createFormDestinationDeliverer(
     kit: FormDestinationKit;
     resolveRequestTarget: ResolveRequestTarget;
   },
-  optional: { pluginState?: (required: { workspaceId: string; pluginId: string }) => FormDestinationPluginState } = {},
+  optional: {
+    pluginState?: (required: { workspaceId: string; pluginId: string }) => FormDestinationPluginState;
+    adapterOptions?: (required: { workspaceId: string; pluginId: string }) => Readonly<Record<string, unknown>>;
+  } = {},
 ): (required: { workspaceId: string; job: FormDeliveryJob }) => Promise<FormDeliveryResult | void> {
   return async ({ workspaceId, job }) => {
     const { binding } = job;
@@ -53,8 +58,10 @@ export function createFormDestinationDeliverer(
     const credential = await required.connections({ workspaceId, connectionRef: binding.connectionRef, adapterId: binding.adapterId }, { binding });
     if (!credential) throw new FormDeliveryError({ code: "authorization-required", retryable: false });
     const kit = credentialScopedKit({ kit: required.kit, credential, workspaceId, connectionRef: binding.connectionRef, resolveRequestTarget: required.resolveRequestTarget });
-    const state = optional.pluginState?.({ workspaceId, pluginId: adapter.pluginId });
-    return adapter.module.deliver({ kit, credential, ...job.snapshot, binding, idempotencyKey: job.idempotencyKey }, state ? { state } : {});
+    const scope = { workspaceId, pluginId: adapter.pluginId };
+    const state = optional.pluginState?.(scope);
+    const adapterOptions = { ...optional.adapterOptions?.(scope), ...(state ? { state } : {}) };
+    return adapter.module.deliver({ kit, credential, ...job.snapshot, binding, idempotencyKey: job.idempotencyKey }, adapterOptions);
   };
 }
 

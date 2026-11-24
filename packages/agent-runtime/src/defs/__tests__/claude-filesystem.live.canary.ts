@@ -13,7 +13,7 @@ import { join, relative, isAbsolute } from 'node:path';
 import { randomUUID } from 'node:crypto';
 import test from 'node:test';
 import { assertClaudeFilesystemSupport, claudeFilesystemRuntimePaths } from '../../claude-filesystem-policy.js';
-import { claudeAgentDef } from '../claude.js';
+import { claudeAgentDef } from '../claude/index.js';
 
 const execute = promisify(execFile);
 const enabled = process.env.JINI_LIVE_FILESYSTEM_CANARIES === '1';

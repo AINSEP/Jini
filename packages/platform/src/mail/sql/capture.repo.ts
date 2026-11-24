@@ -23,6 +23,10 @@ export interface CapturedMail {
 export interface MailCaptureRepo extends MailCapturePort {
   /** Newest first. `limit` is clamped to 1..{@link MAX_CAPTURE_LIST}; default {@link DEFAULT_CAPTURE_LIST}. */
   listCaptured(required: { workspaceId: string }, optional?: { limit?: number }): Promise<readonly CapturedMail[]>;
+  /** How many captured test emails this workspace holds and the newest one's time (`null` when none). */
+  summarizeCaptured(required: { workspaceId: string }): Promise<{ count: number; newestAt: string | null }>;
+  /** Deletes every captured test email of this workspace only; send ledger and activity are untouched. */
+  clearCaptured(required: { workspaceId: string }): Promise<{ deleted: number }>;
 }
 
 export const DEFAULT_CAPTURE_LIST = 50;
@@ -37,7 +41,8 @@ const clampLimit = ({ limit }: { limit: number | undefined }, _optional = {}): n
  * Stores sign-in captures whole only for trusted loopback origins, so local/desktop operators
  * can click their links. Public or missing origins retain routing metadata only: subject, body,
  * headers, names and attachments may all contain credentials and must never reach storage.
- * @complexity capture O(payload size); listCaptured O(returned payload size), with a bounded indexed row limit.
+ * @complexity capture O(payload size); listCaptured O(returned payload size), with a bounded indexed row limit;
+ *   summarizeCaptured/clearCaptured O(workspace captures) over the (workspace_id, created_at) index.
  * @example createMailCaptureRepo({ db: kernel }).capture({ message, lane: "transactional", idempotencyKey })
  */
 export function createMailCaptureRepo<DB>(
@@ -61,6 +66,15 @@ export function createMailCaptureRepo<DB>(
         id: row.id, lane: row.lane, idempotencyKey: row.idempotency_key, to: row.to_address, subject: row.subject,
         message: JSON.parse(row.payload_json) as OutboundEmail, createdAt: row.created_at,
       }));
+    },
+    async summarizeCaptured({ workspaceId }) {
+      const [row] = await db.query<{ n: number | string; newest: string | null }>(sql`SELECT COUNT(*) AS n, MAX(created_at) AS newest FROM mail_capture WHERE workspace_id = ${workspaceId}`);
+      return { count: Number(row?.n ?? 0), newestAt: row?.newest ?? null };
+    },
+    async clearCaptured({ workspaceId }) {
+      // RETURNING counts deleted rows the same way on SQLite and Postgres.
+      const rows = await db.query<{ id: string }>(sql`DELETE FROM mail_capture WHERE workspace_id = ${workspaceId} RETURNING id`);
+      return { deleted: rows.length };
     },
   };
 }

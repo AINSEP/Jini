@@ -1,9 +1,9 @@
-import { createAgentModelDiscovery } from '../model-discovery-native.js';
+import { createAgentModelDiscovery } from '../../model-discovery-native.js';
 /** CODEX_SANDBOX_MODE remains an adapter-scoped operator override; plugin policy is supplied
  * explicitly by the host, whose native composition resolves CODEX_DISABLE_PLUGINS. */
-import { DEFAULT_MODEL_OPTION } from './shared.js';
+import { DEFAULT_MODEL_OPTION } from '../shared.js';
 import type { RuntimeModelOption, RuntimeReasoningOption, RuntimeAgentDef, RuntimeBuildOptions, RuntimeContext, NativeCapabilities } from '@jini-ai/core/contracts/agents';
-import type { CodexDefOptions } from './codex/options.js';
+import type { CodexDefOptions } from './options.js';
 
 /**
  * The `visibility` values that mean "reachable by id, but do not render in a picker".

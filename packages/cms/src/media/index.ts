@@ -184,6 +184,18 @@ export {
   type VideoSheetTile, type VideoSheetLayout, type VideoContactSheet,
 } from './video-frames.js';
 
+// Web-safe video conversion: port, import rule and use-case (no codec here), plus its agent tool.
+export {
+  VIDEO_TRANSCODE_THRESHOLD_BYTES, VIDEO_TRANSCODE_MAX_INPUT_BYTES, VIDEO_CONVERSION_MESSAGES, VideoConversionError,
+  shouldTranscodeOnImport, convertMediaVideo,
+  type VideoTranscodeTarget, type VideoTranscodeFailureReason, type VideoTranscodeResult, type MediaTranscoderPort,
+  type DerivedMediaLinkPort, type VideoConversionFailureReason, type ConvertMediaVideoDeps, type ConvertMediaVideoRequired, type ConvertMediaVideoOptional,
+} from './video-transcode.js';
+export {
+  CONVERT_VIDEO_TOOL_ID, convertVideoToolDefinition, buildConvertVideoRegistrations,
+  type VideoConversionToolOptions, type ConvertVideoToolDeps,
+} from './convert-video-tool.js';
+
 export type { MediaReferenceCheckPort } from "./ports.js";
 
 export { sanitizeSvg } from "./sanitize-svg.js";

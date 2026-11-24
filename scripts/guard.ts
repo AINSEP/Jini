@@ -28,7 +28,7 @@
  * `checkModelFallbackFreshness` (R13, added 2026-09-05) is a seventh check, and the only one whose
  * subject is DATA rather than structure: a runtime def's hardcoded `fallbackModels` list is what a
  * model picker renders when no live source answers, and such a list has no other way to fail when it
- * drifts from the vendor's own. It went undetected for months that `defs/claude.ts` listed no Fable
+ * drifts from the vendor's own. It went undetected for months that `defs/claude/index.ts` listed no Fable
  * model at all. Two of its three rules need no credential and no network; the third consults a
  * locally installed CLI when there is one and SKIPS VISIBLY (naming the def and the reason on
  * stdout) when there is not, so it never fails for the absence of a tool and never passes silently.

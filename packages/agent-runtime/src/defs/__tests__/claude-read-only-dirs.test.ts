@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 import { claudeFilesystemSettings, validateReadOnlyExtraDirs } from '../../claude-filesystem-policy.js';
-import { claudeAgentDef } from '../claude.js';
+import { claudeAgentDef } from '../claude/index.js';
 
 // Owner 2026-10-27: the owner-picked folder is natively readable, never natively writable.
 const fixtures: string[] = [];

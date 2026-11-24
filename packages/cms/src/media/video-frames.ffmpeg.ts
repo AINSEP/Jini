@@ -110,6 +110,7 @@ const UNAVAILABLE = 'video preview unavailable on this host (nice, ffmpeg and ff
 const SOURCE_BATCH_SIZE = 8;
 const localInputFlags = ['-threads', '1', '-protocol_whitelist', 'file', '-format_whitelist', 'mov,matroska,webm'];
 
+const PREVIEWABLE_VIDEO_TYPES: ReadonlySet<string> = new Set(['video/mp4', 'video/quicktime', 'video/x-m4v', 'video/webm']);
 type VideoFrameFailure = Extract<VideoFrameResult, { ok: false }>;
 type ContactSheetLayout = ReturnType<typeof planVideoContactSheets>[number];
 const TOTAL_OUTPUT_LIMIT = 'Video preview exceeded its total output limit (8 MiB).';
@@ -118,8 +119,9 @@ const DIAGNOSTIC_OUTPUT_BYTES = 64 * 1024;
 /** Size and container checks that need neither the lock nor a host binary. */
 function rejectVideoInput({ bytes }: { bytes: Uint8Array }): VideoFrameFailure | undefined {
   if (bytes.byteLength > VIDEO_MAX_INPUT_BYTES) return { ok: false, reason: 'too-large', message: `Video preview input exceeds ${VIDEO_MAX_INPUT_BYTES} bytes.` };
-  const type = sniffContentType({ bytes });
-  if (type !== 'video/mp4' && type !== 'video/webm') return { ok: false, reason: 'invalid', message: 'Video preview requires stored MP4 or WebM bytes.' };
+  // QuickTime/M4V (owner 2026-10-31) are the same ISO-BMFF family ffmpeg's `mov` demuxer already
+  // reads under `localInputFlags`' format whitelist; before the sniffer named them they passed as MP4.
+  if (!PREVIEWABLE_VIDEO_TYPES.has(sniffContentType({ bytes }))) return { ok: false, reason: 'invalid', message: 'Video preview requires stored MP4, MOV, M4V or WebM bytes.' };
   return undefined;
 }
 

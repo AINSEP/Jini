@@ -23,7 +23,11 @@ it('re-appends the reset reply after the history when a same-tick update already
     await result.current.retry(failed!.id);
   });
 
-  expect(result.current.messages.map((m) => m.id)).toEqual([user!.id, failed!.id]);
+  expect(result.current.messages).toHaveLength(2);
+  expect(result.current.messages[0]!.id).toBe(user!.id);
+  // The re-appended reply is a fresh message, not the failed one under its old id.
+  expect(result.current.messages[1]!.id).not.toBe(failed!.id);
+  expect(transport.calls[1]?.input.assistantMessageId).toBe(result.current.messages[1]!.id);
   expect(result.current.messages[1]).toMatchObject({ role: 'assistant', content: '' });
   expect(transport.calls).toHaveLength(2);
   expect(transport.calls[1]?.input.history.map((m) => m.content)).toEqual(['first attempt']);

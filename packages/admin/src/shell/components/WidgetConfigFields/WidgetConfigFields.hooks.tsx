@@ -183,6 +183,9 @@ function resolveFilterValue({ draft, clause }: { draft: string | null; clause: {
   return clause !== null ? clause.value : "";
 }
 
+/** Sort values every collection supports; any other sort value is a field name (optionally `-` prefixed). */
+const BUILT_IN_SORTS: ReadonlySet<string> = new Set(["newest", "oldest", "title"]);
+
 /**
  * `RecentEntriesConfigFields`'s config-mutation logic (Collections plan A1) — everything the
  * Collection/Sort/Layout/Columns/Fields/Filter controls read and write, so the component itself
@@ -212,6 +215,9 @@ export function useRecentEntriesConfig(
       else delete next.collection;
       delete next.fields;
       delete next.where;
+      // A per-field sort ("price" / "-price") names a field of the OLD collection, so it would sort
+      // the new one by a field it may not have; the built-in sorts work on every collection.
+      if (typeof next.sort === "string" && !BUILT_IN_SORTS.has(next.sort)) delete next.sort;
     } });
   }
   const { setSort, setLayout, setColumns, toggleField } = createRecentEntriesLayoutActions({ patch });

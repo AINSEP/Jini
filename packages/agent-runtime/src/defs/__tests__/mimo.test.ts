@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { discoveryContext, offlineDiscoveryDeps } from './discovery-fakes.js';
-import { mimoAgentDef } from '../mimo.js';
+import { mimoAgentDef } from '../mimo/index.js';
 import { DEFAULT_MODEL_OPTION } from '../shared.js';
 
 describe('mimoAgentDef.buildArgs', () => {

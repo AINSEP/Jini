@@ -1,7 +1,7 @@
 import { expect, it } from 'vitest';
 import { antigravityAgentDef } from '../defs/antigravity/index.js';
-import { claudeAgentDef } from '../defs/claude.js';
-import { codexAgentDef } from '../defs/codex.js';
+import { claudeAgentDef } from '../defs/claude/index.js';
+import { codexAgentDef } from '../defs/codex/index.js';
 import { resolveNativeToolPolicy, assessNativeToolPolicy } from '../native-tool-policy.js';
 
 it.each(['OpenCode', 'another CLI'])('names only the unsupported OFF switch for %s', name => {

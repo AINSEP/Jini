@@ -13,6 +13,9 @@ export type AgentPluginFetchPort = (required: { readonly url: string }, optional
 export type AgentPluginClockPort = Clock & {
   monotonicMs(): number;
   sleep(required: { readonly ms: number }): Promise<void>;
+  /** The pause between background recovery attempts. A host binds a wait that does not keep its process
+   *  alive (an unref'd timer), so a retry never delays process exit; absent = `sleep`. */
+  sleepInBackground?(required: { readonly ms: number }): Promise<void>;
 };
 export type AgentPluginIdsPort = IdGenerator & { random(): number };
 export interface AgentPluginProcessPort {

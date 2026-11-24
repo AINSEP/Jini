@@ -1,4 +1,4 @@
-import { createAgentModelDiscovery } from '../model-discovery-native.js';
+import { createAgentModelDiscovery } from '../../model-discovery-native.js';
 /**
  * @module defs/crush
  *
@@ -11,7 +11,7 @@ import { createAgentModelDiscovery } from '../model-discovery-native.js';
  * No `externalMcpInjection`: Crush reads MCP servers from its `crush.json` config, with no
  * per-run flag to point it elsewhere.
  */
-import { DEFAULT_MODEL_OPTION } from './shared.js';
+import { DEFAULT_MODEL_OPTION } from '../shared.js';
 import type { RuntimeAgentDef } from '@jini-ai/core/contracts/agents';
 
 export const crushAgentDef = {

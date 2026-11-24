@@ -1,4 +1,4 @@
-import { createAgentModelDiscovery } from '../model-discovery-native.js';
+import { createAgentModelDiscovery } from '../../model-discovery-native.js';
 /**
  * @module defs/droid
  *
@@ -14,7 +14,7 @@ import { createAgentModelDiscovery } from '../model-discovery-native.js';
  * variant was reported to fail with stdio MCP servers. The documented text mode is the stable one.
  * No `externalMcpInjection` for the same reason.
  */
-import { DEFAULT_MODEL_OPTION } from './shared.js';
+import { DEFAULT_MODEL_OPTION } from '../shared.js';
 import type { RuntimeAgentDef } from '@jini-ai/core/contracts/agents';
 
 export const droidAgentDef = {

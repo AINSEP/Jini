@@ -6,8 +6,8 @@
 import { expect, test, vi } from 'vitest';
 
 let release: () => void = () => {};
-const setTimeoutFake = vi.fn((_ms: number) => new Promise<void>((resolve) => { release = resolve; }));
-vi.mock('node:timers/promises', () => ({ setTimeout: (ms: number) => setTimeoutFake(ms) }));
+const setTimeoutFake = vi.fn((..._args: unknown[]) => new Promise<void>((resolve) => { release = resolve; }));
+vi.mock('node:timers/promises', () => ({ setTimeout: (...args: unknown[]) => setTimeoutFake(...args) }));
 
 const { createNodeAgentPluginEffects } = await import('../agent-plugins.js');
 /** Inert platform fakes: only the clock is under test, and the real platform would load the mocked timers module. */
@@ -23,4 +23,11 @@ test('sleep forwards exactly the requested delay and resolves only when the time
   release();
   await expect(sleeping).resolves.toBeUndefined();
   expect(settled).toBe(true);
+});
+
+test('sleepInBackground is an unref\'d timer: a pending background recovery retry never holds the process open', () => {
+  setTimeoutFake.mockClear();
+  void createNodeAgentPluginEffects(platform).clock.sleepInBackground?.({ ms: 5_000 });
+  expect(setTimeoutFake).toHaveBeenCalledTimes(1);
+  expect(setTimeoutFake).toHaveBeenCalledWith(5_000, undefined, { ref: false });
 });

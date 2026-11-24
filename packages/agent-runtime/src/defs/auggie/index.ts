@@ -1,4 +1,4 @@
-import { createAgentModelDiscovery } from '../model-discovery-native.js';
+import { createAgentModelDiscovery } from '../../model-discovery-native.js';
 /**
  * @module defs/auggie
  *
@@ -7,7 +7,7 @@ import { createAgentModelDiscovery } from '../model-discovery-native.js';
  * (<https://github.com/agentclientprotocol/registry>, `auggie/agent.json`). Sign-in is
  * `auggie login` in a terminal.
  */
-import { acpModelFetcher, DEFAULT_MODEL_OPTION } from './shared.js';
+import { acpModelFetcher, DEFAULT_MODEL_OPTION } from '../shared.js';
 import type { RuntimeAgentDef } from '@jini-ai/core/contracts/agents';
 
 export const auggieAgentDef = {

@@ -5,18 +5,18 @@
  */
 import { describe, expect, it } from 'vitest';
 import { normalizeDiscoveredModels } from '../../model-discovery.js';
-import { aiderAgentDef } from '../aider.js';
-import { ampAgentDef } from '../amp.js';
-import { auggieAgentDef } from '../auggie.js';
-import { clineAgentDef } from '../cline.js';
-import { crushAgentDef } from '../crush.js';
-import { deepseekAgentDef } from '../deepseek.js';
-import { droidAgentDef } from '../droid.js';
-import { gooseAgentDef } from '../goose.js';
-import { grokBuildAgentDef } from '../grok-build.js';
-import { hermesAgentDef } from '../hermes.js';
-import { kiloAgentDef } from '../kilo.js';
-import { kimiAgentDef } from '../kimi.js';
+import { aiderAgentDef } from '../aider/index.js';
+import { ampAgentDef } from '../amp/index.js';
+import { auggieAgentDef } from '../auggie/index.js';
+import { clineAgentDef } from '../cline/index.js';
+import { crushAgentDef } from '../crush/index.js';
+import { deepseekAgentDef } from '../deepseek/index.js';
+import { droidAgentDef } from '../droid/index.js';
+import { gooseAgentDef } from '../goose/index.js';
+import { grokBuildAgentDef } from '../grok-build/index.js';
+import { hermesAgentDef } from '../hermes/index.js';
+import { kiloAgentDef } from '../kilo/index.js';
+import { kimiAgentDef } from '../kimi/index.js';
 import { discoveryContext, offlineDiscoveryDeps } from './discovery-fakes.js';
 
 const defs = [aiderAgentDef, ampAgentDef, auggieAgentDef, clineAgentDef, crushAgentDef, deepseekAgentDef, droidAgentDef,

@@ -206,7 +206,7 @@ export function useRunStream({ transport }: { transport: ChatTransport }, { repo
         setState((prev) => ({ ...prev, status: 'error', error: toError(err) }));
       }
     },
-    [makeHandlers, teardownSubscription],
+    [makeHandlers, teardownSubscription, transport],
   );
 
   const cancel = useCallback(() => {

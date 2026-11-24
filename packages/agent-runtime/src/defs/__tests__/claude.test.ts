@@ -5,7 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { resetAnthropicLiveModelCacheForTesting } from '../../anthropic-live-models.js';
 import { agentCapabilities } from '../../capabilities.js';
 import { setClaudeCodeModelIoForTesting, type ClaudeCodeModelIo } from '../../claude-code-models.js';
-import { claudeAgentDef } from '../claude.js';
+import { claudeAgentDef } from '../claude/index.js';
 import { sanitizeCustomModel } from '../../models.js';
 import { discoveryContext, offlineDiscoveryDeps } from './discovery-fakes.js';
 

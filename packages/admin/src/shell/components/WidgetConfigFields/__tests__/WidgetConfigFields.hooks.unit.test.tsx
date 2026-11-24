@@ -194,3 +194,21 @@ describe("useRecentEntriesConfig — field and layout controls", () => {
     expect(list.latest()).toEqual({ layout: "list" });
   });
 });
+
+describe("useRecentEntriesConfig — changing the collection drops a stale sort", () => {
+  it("drops a per-field sort (ascending or descending) because the new collection may not have that field", () => {
+    for (const sort of ["price", "-price"]) {
+      const { view, latest } = renderRecentEntries({ collection: "products", sort, fields: ["price"] });
+      act(() => view.result.current.setCollection({ value: "docs" }));
+      expect(latest()).toEqual({ collection: "docs" });
+    }
+  });
+
+  it("keeps a built-in sort, which every collection supports", () => {
+    for (const sort of ["newest", "oldest", "title"]) {
+      const { view, latest } = renderRecentEntries({ collection: "products", sort });
+      act(() => view.result.current.setCollection({ value: "docs" }));
+      expect(latest()).toEqual({ collection: "docs", sort });
+    }
+  });
+});

@@ -172,6 +172,18 @@ describe('useRunStream', () => {
     expect(result.current.error?.message).toBe('boom-error');
   });
 
+  it('reattach() uses the transport the hook was last rendered with, not the one it first saw', async () => {
+    const first = createFakeChatTransport();
+    const second = createFakeChatTransport();
+    const { result, rerender } = renderHook(({ transport }) => useRunStream({ transport }), { initialProps: { transport: first } });
+    rerender({ transport: second });
+    await act(async () => {
+      await result.current.reattach('run-existing');
+    });
+    expect(first.reattachCalls).toHaveLength(0);
+    expect(second.reattachCalls).toHaveLength(1);
+  });
+
   it('reattach() also wraps a non-Error rejection from transport.reattachRun via toError, and preserves a real Error as-is', async () => {
     const transport = {
       startRun: vi.fn(),

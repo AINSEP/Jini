@@ -2,7 +2,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 import { setAcpModelProbe } from '../../acp-model-probe.js';
 import { type AcpModelProbe } from '@jini-ai/core/contracts/agents';
 import type { RuntimeAgentDef } from '@jini-ai/core/contracts/agents';
-import { kimiAgentDef } from '../kimi.js';
+import { kimiAgentDef } from '../kimi/index.js';
 import { DEFAULT_MODEL_OPTION } from '../shared.js';
 
 afterEach(() => {

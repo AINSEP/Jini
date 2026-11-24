@@ -1,3 +1,4 @@
+import { AgentPluginInstallError } from '../../install-errors.js';
 import { afterEach, describe, expect, test } from 'vitest';
 import * as fs from 'node:fs/promises';
 import os from 'node:os';
@@ -142,6 +143,16 @@ describe('opt-in packing during seeding', () => {
     expect(await fs.readFile(path.join(workspace.root, ACTIVATIONS_FILENAME), 'utf8')).toContain('"enabled": false');
     const repeated = await seedBundledAgentPlugins({ layout, workspaceId: 'ws', sourceRoot }, optional);
     expect(repeated.outcomes).toEqual([{ pluginId: 'seeded-one', status: 'seeded', archiveDigest: packed.sha256, activationRecorded: false }]);
+  });
+
+  test('a failed install reports its install-error code and plain message, not a bare "Error"', async () => {
+    const sourceRoot = await sourceWithPlugin();
+    const layout = createAgentPluginLayout({ root: await tempDir() });
+    const api = createSeedBundledModule({ ...ports, layout });
+    const report = await api.seedBundledAgentPlugins({ layout, workspaceId: 'ws', sourceRoot }, {
+      packing: async () => { throw new AgentPluginInstallError({ code: 'MANIFEST_INVALID', message: 'The plugin manifest is missing its name.' }); },
+    });
+    expect(report.outcomes).toEqual([{ pluginId: 'seeded-one', status: 'failed', reason: 'MANIFEST_INVALID: The plugin manifest is missing its name.' }]);
   });
 
   test('a failed per-source policy uses the existing per-plugin failure report', async () => {

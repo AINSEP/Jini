@@ -481,3 +481,42 @@ test('mapping: a header row of only null cells is a fresh tab, so every header i
   const layout = planColumns({ mapping, headerRow: [null, null], markers: new Map() });
   assert.deepEqual(layout.newHeaders, [{ index: 0, header: '_jini_submission_id' }, { index: 1, header: 'Name' }]);
 });
+
+/** What a host that used other names for the two plugin columns before the rename hands delivery. */
+const LEGACY = Object.freeze({ legacyHeaders: Object.freeze({ submissionId: ['_old_submission_id'], submittedAt: ['_old_submitted_at'] }) });
+const withLegacy = Object.freeze({ ...ON, ...LEGACY });
+
+test('legacy headers: a sheet already receiving rows under the host\'s old column names keeps them, with no duplicate columns', async () => {
+  const sheets = grid([{ sheetId: TAB_ID, title: 'Contact form', rows: { 1: ['_old_submission_id', '_old_submitted_at', 'Name', 'Email'], 2: ['sub-0', '2026-10-19T10:00:00.000Z', 'Bo', 'bo@example.test'] } }]);
+  assert.equal((await deliver(job(), withLegacy)).ok, true);
+  assert.deepEqual(sheets.rowsOf(TAB_ID), [
+    ['_old_submission_id', '_old_submitted_at', 'Name', 'Email'],
+    ['sub-0', '2026-10-19T10:00:00.000Z', 'Bo', 'bo@example.test'],
+    ['sub-1', '2026-10-20T10:00:00.000Z', 'Ada', 'ada@example.test'],
+  ]);
+});
+
+test('legacy headers: the id column under the old name still dedupes a redelivered job', async () => {
+  const sheets = grid([{ sheetId: TAB_ID, title: 'Contact form', rows: { 1: ['_old_submission_id', '_old_submitted_at', 'Name', 'Email'] } }]);
+  assert.equal((await deliver(job(), withLegacy)).ok, true);
+  assert.equal((await deliver(job(), withLegacy)).ok, true);
+  assert.equal(sheets.rowsOf(TAB_ID).length, 2);
+});
+
+test('legacy headers: a brand-new tab gets the new names, never the legacy ones', async () => {
+  const sheets = grid([{ sheetId: TAB_ID, title: 'Contact form' }]);
+  assert.equal((await deliver(job(), withLegacy)).ok, true);
+  assert.deepEqual(sheets.rowsOf(TAB_ID)[0], HEADERS);
+});
+
+test('legacy headers: a sheet carrying both the new and an old name for one column is mapping-invalid and nothing is appended', async () => {
+  grid([{ sheetId: TAB_ID, title: 'Contact form', rows: { 1: ['_jini_submission_id', '_old_submission_id', '_jini_submitted_at', 'Name', 'Email'] } }]);
+  assert.deepEqual(await deliver(job(), withLegacy), { ok: false, error: { code: 'mapping-invalid', retryable: false, outcome: 'not-applied' } });
+  assert.equal(appends().length, 0);
+});
+
+test('without legacy names an old-named sheet is still refused (no guessing)', async () => {
+  grid([{ sheetId: TAB_ID, title: 'Contact form', rows: { 1: ['_old_submission_id', '_old_submitted_at', 'Name', 'Email'] } }]);
+  assert.deepEqual(await deliver(job()), { ok: false, error: { code: 'mapping-invalid', retryable: false, outcome: 'not-applied' } });
+  assert.equal(appends().length, 0);
+});

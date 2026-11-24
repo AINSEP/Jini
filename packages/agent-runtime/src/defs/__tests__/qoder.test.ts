@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { qoderAgentDef } from '../qoder.js';
+import { qoderAgentDef } from '../qoder/index.js';
 import { DEFAULT_MODEL_OPTION } from '../shared.js';
 import { discoveryContext, offlineDiscoveryDeps } from './discovery-fakes.js';
 

@@ -11,6 +11,8 @@ export interface AgentPluginMetadata {
   readonly displayName?: string;
   readonly summary?: string;
   readonly vendorAliases?: readonly string[];
+  /** Prefix the host puts on this plugin's client-setting names (upper-case letters, digits, underscores, ending in `_`). The host's own default applies when absent. */
+  readonly clientNamespace?: string;
   readonly toolKeywords?: Readonly<Record<string, string>>;
   readonly hostSignals?: readonly AgentPluginHostSignal[];
   readonly deploymentAdvice?: string;
@@ -20,6 +22,7 @@ export interface AgentPluginMetadata {
 const object = (value: unknown): value is Readonly<Record<string, unknown>> => typeof value === 'object' && value !== null && !Array.isArray(value);
 const text = (value: unknown): value is string => typeof value === 'string' && value.trim().length > 0 && value.length <= 2048 && !/[\x00-\x1f\x7f]/.test(value);
 const texts = (value: unknown): value is readonly string[] => Array.isArray(value) && value.every(text);
+const namespaceText = (value: unknown): value is string => typeof value === 'string' && /^[A-Z][A-Z0-9_]*_$/.test(value);
 const textMap = (value: unknown): value is Readonly<Record<string, string>> => object(value) && Object.values(value).every(text);
 
 /** Only declared boolean facts and a finite positive safe proxy-hop count can be host hints. */
@@ -46,7 +49,7 @@ export function readAgentPluginMetadata(
   const extension = readAgentPluginPortableExtension(required, optional) ?? {};
   const warnings = [...readAgentPluginCompatibilityWarnings(required, optional)];
   const metadata: Record<string, unknown> = {};
-  for (const [key, check] of Object.entries({ vendorAliases: texts, card: textMap })) {
+  for (const [key, check] of Object.entries({ vendorAliases: texts, card: textMap, clientNamespace: namespaceText })) {
     if (extension[key] === undefined) continue;
     if (check(extension[key])) metadata[key] = extension[key];
     else warnings.push(`Invalid agent-plugin ${key} metadata was ignored.`);

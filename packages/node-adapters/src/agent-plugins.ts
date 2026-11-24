@@ -13,7 +13,7 @@ import type { Clock, IdGenerator } from '@jini-ai/core/primitives';
 export type FilesystemPort = Pick<typeof nativeFilesystem,
   'chmod' | 'mkdir' | 'mkdtemp' | 'open' | 'readdir' | 'readFile' | 'rename' |
   'rm' | 'rmdir' | 'stat' | 'lstat' | 'realpath' | 'unlink'>;
-export type AgentPluginClockPort = Clock & { monotonicMs(): number; sleep(required: { readonly ms: number }): Promise<void> };
+export type AgentPluginClockPort = Clock & { monotonicMs(): number; sleep(required: { readonly ms: number }): Promise<void>; sleepInBackground?(required: { readonly ms: number }): Promise<void> };
 export type AgentPluginIdsPort = IdGenerator & { random(): number };
 export interface AgentPluginProcessPort {
   readonly pid: number;
@@ -54,6 +54,8 @@ export function createNodeAgentPluginEffects(required: AgentPluginPlatformFuncti
       nowMs: () => Date.now(),
       monotonicMs: () => performance.now(),
       sleep: ({ ms }) => setTimeout(ms),
+      // Background recovery retries must not keep the process alive (a referenced timer would hold exit for up to 10 minutes).
+      sleepInBackground: ({ ms }) => setTimeout(ms, undefined, { ref: false }),
     },
     ids: { newId: () => randomUUID(), random: () => randomInt(RANDOM_RESOLUTION) / RANDOM_RESOLUTION },
     process: {

@@ -5,7 +5,7 @@ import { discoveryContext, offlineDiscoveryDeps } from './discovery-fakes.js';
 import { setAcpModelProbe } from '../../acp-model-probe.js';
 import { type AcpModelProbe } from '@jini-ai/core/contracts/agents';
 import type { RuntimeAgentDef } from '@jini-ai/core/contracts/agents';
-import { reasonixAgentDef } from '../reasonix.js';
+import { reasonixAgentDef } from '../reasonix/index.js';
 import { DEFAULT_MODEL_OPTION } from '../shared.js';
 
 afterEach(() => {
@@ -74,7 +74,7 @@ describe('reasonixHome() env/platform resolution (via fresh module re-import)', 
   it('honors an already-set REASONIX_HOME regardless of platform', async () => {
     process.env.REASONIX_HOME = '/custom/reasonix-home';
     vi.resetModules();
-    const mod = await import('../reasonix.js');
+    const mod = await import('../reasonix/index.js');
     expect(mod.reasonixAgentDef.env?.REASONIX_HOME).toBe('/custom/reasonix-home');
   });
 
@@ -82,7 +82,7 @@ describe('reasonixHome() env/platform resolution (via fresh module re-import)', 
     delete process.env.REASONIX_HOME;
     Object.defineProperty(process, 'platform', { value: 'darwin' });
     vi.resetModules();
-    const mod = await import('../reasonix.js');
+    const mod = await import('../reasonix/index.js');
     expect(mod.reasonixAgentDef.env?.REASONIX_HOME).toBe(path.join(os.homedir(), '.reasonix'));
   });
 
@@ -91,7 +91,7 @@ describe('reasonixHome() env/platform resolution (via fresh module re-import)', 
     process.env.APPDATA = 'C:\\Users\\tester\\AppData\\Roaming';
     Object.defineProperty(process, 'platform', { value: 'win32' });
     vi.resetModules();
-    const mod = await import('../reasonix.js');
+    const mod = await import('../reasonix/index.js');
     expect(mod.reasonixAgentDef.env?.REASONIX_HOME).toBe(
       path.join('C:\\Users\\tester\\AppData\\Roaming', 'reasonix'),
     );
@@ -102,7 +102,7 @@ describe('reasonixHome() env/platform resolution (via fresh module re-import)', 
     delete process.env.APPDATA;
     Object.defineProperty(process, 'platform', { value: 'win32' });
     vi.resetModules();
-    const mod = await import('../reasonix.js');
+    const mod = await import('../reasonix/index.js');
     expect(mod.reasonixAgentDef.env?.REASONIX_HOME).toBe(
       path.join(os.homedir(), 'AppData', 'Roaming', 'reasonix'),
     );

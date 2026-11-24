@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { aiderAgentDef } from '../aider.js';
+import { aiderAgentDef } from '../aider/index.js';
 
 describe('aiderAgentDef shape', () => {
   it('declares the expected identity and transport fields', () => {

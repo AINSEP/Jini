@@ -59,8 +59,9 @@ export interface FormDestinationModule {
    *  `FormDeliveryErrorCode`; only that code is recorded, never a message, so a thrown error or an
    *  unknown code becomes a retryable `delivery-failed`. `binding`/`idempotencyKey` are optional in the
    *  type only so receive-only modules compile unchanged; the push path always passes them.
-   *  `optional.state` is the plugin's read-only settings (e.g. a product turned off pauses delivery). */
-  deliver?(required: { readonly kit: FormDestinationKit; readonly credential: FormDestinationCredential; readonly form: FormDestinationForm; readonly submission: { readonly id: string; readonly answers: Readonly<Record<string, unknown>>; readonly submittedAt: string }; readonly binding?: FormDeliveryBinding; readonly idempotencyKey?: string }, optional?: { readonly state?: FormDestinationPluginState }): Promise<void | FormDeliveryResult>;
+   *  `optional.state` is the plugin's read-only settings (e.g. a product turned off pauses delivery);
+   *  other keys are host-supplied extras an adapter may read (`adapterOptions` of `createFormDestinationDeliverer`). */
+  deliver?(required: { readonly kit: FormDestinationKit; readonly credential: FormDestinationCredential; readonly form: FormDestinationForm; readonly submission: { readonly id: string; readonly answers: Readonly<Record<string, unknown>>; readonly submittedAt: string }; readonly binding?: FormDeliveryBinding; readonly idempotencyKey?: string }, optional?: { readonly state?: FormDestinationPluginState } & Readonly<Record<string, unknown>>): Promise<void | FormDeliveryResult>;
 }
 
 /** One entry of a plugin's form-destinations file. */

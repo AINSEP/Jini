@@ -22,6 +22,12 @@ export const MAIL_ACTIVITY_READ_PERMISSION = "mail.activity.read";
 /** Suppression removal (`mail_remove_suppression`, `POST system/mail-suppressions/remove`). */
 export const MAIL_SUPPRESSIONS_MANAGE_PERMISSION = "mail.suppressions.manage";
 
+/**
+ * Clearing every captured test email (`POST system/mail-capture/clear`). Owner decision
+ * (2026-11-23, bt2-todos G7-7/848): owner-only like suppression removal, so no built-in role holds it.
+ */
+export const MAIL_CAPTURE_CLEAR_PERMISSION = "mail.capture.clear";
+
 /** The Email page's existing status permission (status, uses, test send). Spelled once here. */
 export const MAIL_STATUS_PERMISSION = "admin.forms.manage";
 
@@ -39,6 +45,7 @@ export const MAIL_PERMISSION_IDS = {
 export function registerMailPermissionGrants(required: { registry: PermissionGrantRegistry }, _optional: Record<string, never> = {}): void {
   registerPermission({ id: MAIL_ACTIVITY_READ_PERMISSION, owner: "mail", description: "See who this site emailed and each send's outcome and provider feedback." });
   registerPermission({ id: MAIL_SUPPRESSIONS_MANAGE_PERMISSION, owner: "mail", description: "Remove an address from the do-not-send list (owner only; the grant alone is not enough)." });
+  registerPermission({ id: MAIL_CAPTURE_CLEAR_PERMISSION, owner: "mail", description: "Delete every captured test email of this site (owner only)." });
   required.registry.roleGrants.register({
     role: "admin",
     permission: MAIL_ACTIVITY_READ_PERMISSION,

@@ -30,6 +30,24 @@ export interface EventPublisher<Event extends EventEnvelope = EventEnvelope> {
   publish(required: { event: Event }): Promise<void>;
 }
 
+/** One handler's run of one event: the unit a redelivery must not repeat. */
+export interface ProcessedEventKey { readonly eventId: string; readonly handlerId: string }
+/**
+ * Idempotency policy. Outbox delivery is at least once (see `processOutbox`): a lease expiry, a
+ * timed-out handler or a crash between the effect and `markDelivered` republishes the same event.
+ * A subscriber whose effect must not repeat is wrapped with `withProcessedEventGuard`, keyed by the
+ * event's own `id` and a stable `handlerId` chosen by the host, so a redelivery runs each handler at
+ * most once after it has succeeded. Jini ships only the in-memory adapter: a durable store is the
+ * host's job, because the record must live in the host's database (ideally the same transaction
+ * as the handler's own writes) and Jini owns no schema.
+ */
+export interface ProcessedEventStore {
+  /** Atomically record the key if absent; true only for the first claimer, false for every later one. */
+  claim(required: ProcessedEventKey): Promise<boolean>;
+  /** Forget a claim whose handler failed, so the outbox's retry of the same event can run it again. */
+  release(required: ProcessedEventKey): Promise<void>;
+}
+
 export interface ScheduledTask { cancel(): void }
 export interface Scheduler {
   /** Deferred callback, even for delayMs=0. Node adapters should unref their timers. */

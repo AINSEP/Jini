@@ -1,5 +1,5 @@
 import { expect, it } from 'vitest';
-import { claudeAgentDef } from '../claude.js';
+import { claudeAgentDef } from '../claude/index.js';
 import { createClaudeStreamHandler, type ClaudeStreamEvent } from '../../claude-stream.js';
 
 it('the Claude adapter declares session costs, including when a host renames it', () => {
