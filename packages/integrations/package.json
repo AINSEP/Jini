@@ -37,6 +37,12 @@
       "@jini-ai/platform": "opt-in: platform-backed adapters; import @jini-ai/integrations/media-providers — Platform-backed adapters could not load @jini-ai/platform. Install @jini-ai/platform to enable this feature, or check its installed version and native binaries.",
       "@cfworker/json-schema": "opt-in: json schema validation; import @jini-ai/integrations/saved-requests — JSON Schema validation could not load @cfworker/json-schema. Install @cfworker/json-schema to enable this feature, or check its installed version and native binaries.",
       "kysely": "opt-in: sql storage adapters; import @jini-ai/integrations/webhooks/sql — SQL storage adapters could not load kysely. Install kysely to enable this feature, or check its installed version and native binaries."
+    },
+    "isolation": {
+      "entries": {
+        "./custom-credentials/card-token": "credentialed-http",
+        "./custom-credentials/credential-recovery": "credentialed-http"
+      }
     }
   },
   "type": "module",

@@ -933,6 +933,13 @@
   "types": null,
   "symbols": {}
  },
+ "./site/activation-effects": {
+  "types": "./dist/site/activation-effects.d.ts",
+  "symbols": {
+   "ResolveAgentPluginActivation": "type:080060f9aa",
+   "createAgentPluginEnabledReader": "function:b86cf2fe38"
+  }
+ },
  "./site/admin-surfaces/capabilities": {
   "types": "./dist/site/admin-surfaces/capabilities.d.ts",
   "symbols": {
@@ -961,8 +968,12 @@
   }
  },
  "./site/customize-tool": {
-  "types": null,
-  "symbols": {}
+  "types": "./dist/site/customize-tool.d.ts",
+  "symbols": {
+   "CustomizeAgentPluginDeps": "interface:0bfa9a84ef",
+   "CustomizeAgentPluginLifecycle": "interface:1ee6433577",
+   "prepareCustomizedAgentPluginArchive": "function:a9de5713ba"
+  }
  },
  "./site/deploy-split-activation": {
   "types": "./dist/site/deploy-split-activation.d.ts",

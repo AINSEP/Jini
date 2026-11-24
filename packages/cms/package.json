@@ -285,7 +285,10 @@
       "./content-duplication/agent-tools": "universal",
       "./change-sets/agent-tools": "universal",
       "./forms/destinations/rewrite-actions": "node",
-      "./navigation/site/reverters": "universal"
+      "./navigation/site/reverters": "universal",
+      "./media/site/document-archive": "node",
+      "./change-sets/tool-registrations": "universal",
+      "./forms/destinations/deliver": "universal"
     },
     "isolation": {
       "domains": {
@@ -1807,6 +1810,21 @@
       "types": "./dist/navigation/site/reverters.d.ts",
       "import": "./dist/navigation/site/reverters.js",
       "default": "./dist/navigation/site/reverters.js"
+    },
+    "./media/site/document-archive": {
+      "types": "./dist/media/site/document-archive.d.ts",
+      "import": "./dist/media/site/document-archive.js",
+      "default": "./dist/media/site/document-archive.js"
+    },
+    "./change-sets/tool-registrations": {
+      "types": "./dist/change-sets/tool-registrations.d.ts",
+      "import": "./dist/change-sets/tool-registrations.js",
+      "default": "./dist/change-sets/tool-registrations.js"
+    },
+    "./forms/destinations/deliver": {
+      "types": "./dist/forms/destinations/deliver.d.ts",
+      "import": "./dist/forms/destinations/deliver.js",
+      "default": "./dist/forms/destinations/deliver.js"
     }
   },
   "files": [
