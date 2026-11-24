@@ -262,7 +262,8 @@
       "./shell/components/WidgetConfigFields/HtmlAttributeRows.hooks": "browser",
       "./shell/components/MediaPickerDialog/JiniMediaPicker.hooks": "browser",
       "./shell/components/WidgetConfigFields/PlacementContentFields": "browser",
-      "./shell/components/AssistantDock/DockSettingsMenu": "browser"
+      "./shell/components/AssistantDock/DockSettingsMenu": "browser",
+      "./posts/view-tabs": "universal"
     },
     "isolation": {
       "shared": [
@@ -1624,6 +1625,11 @@
       "types": "./dist/shell/components/AssistantDock/DockSettingsMenu.d.ts",
       "import": "./dist/shell/components/AssistantDock/DockSettingsMenu.js",
       "default": "./dist/shell/components/AssistantDock/DockSettingsMenu.js"
+    },
+    "./posts/view-tabs": {
+      "types": "./dist/posts/view-tabs.d.ts",
+      "import": "./dist/posts/view-tabs.js",
+      "default": "./dist/posts/view-tabs.js"
     }
   },
   "files": [
