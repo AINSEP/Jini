@@ -5,7 +5,7 @@ import { queryRows } from "./kernel-statements.js";
 import { type PostSearchDialect, type PostSearchKernel, type PostSearchRow, type SearchProjectionTables, toPostSearchHit } from "./search-index.contract.js";
 
 /**
- * @file The durable FTS5 + BM25 adapter behind `PostSearchPort` — Tovu's posts equivalent of
+ * @file The durable FTS5 + BM25 adapter behind `PostSearchPort` — the host's posts equivalent of
  * `@jini-ai/sqlite-chat`'s `tool_catalog` helpers, and deliberately NOT a reuse of them.
  *
  * Why not reuse. `ensureToolCatalogTables`/`reseedToolCatalog`/`searchToolCatalog` are a genuinely

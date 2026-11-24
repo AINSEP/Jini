@@ -9,6 +9,20 @@ import type { PostSearchDocument, PostSearchHit, PostSearchQuery } from "../sear
  *  on this same kernel (`withTables`), so the host never has to share its generated schema types. */
 export type PostSearchKernel = StorageKernel<Kysely<unknown>, unknown>;
 
+/** The two names a host owns in its database and injects here, because both are persisted by the host's
+ *  migrations or rows and this package must not pick them. */
+export interface PostSearchHostConfig {
+  /** The Postgres text-search configuration its migration created (`CREATE TEXT SEARCH CONFIGURATION`). */
+  searchConfig: string;
+  /**
+   * Where a site records the projection version its `post_search_document` rows were written with: a
+   * reserved row in `setting_values_global` (one per content database, i.e. per site), so the marker
+   * needs no schema change on any dialect. No setting definition exists for this id, so the settings
+   * UI and resolver never surface it; the row only says "rows already match version N".
+   */
+  projectionVersionSettingId: string;
+}
+
 /** Where a dialect keeps post search text. Written in the same transaction as the post. */
 export interface PostSearchProjection {
   upsert(required: { kernel: PostSearchKernel; document: PostSearchDocument }, optional?: Record<string, never>): Promise<void>;

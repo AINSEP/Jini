@@ -1,7 +1,7 @@
 import type { UUID } from "@jini-ai/core/primitives";
 import { toPostSearchDocument, type PostSearchHit, type PostSearchPort, type PostSearchQuery } from "../search.js";
-import type { PostSearchDialect, PostSearchKernel, SearchProjectionTables } from "./search-index.contract.js";
-import { pgPostSearch } from "./search-index.postgres.js";
+import type { PostSearchDialect, PostSearchHostConfig, PostSearchKernel, SearchProjectionTables } from "./search-index.contract.js";
+import { pgPostSearchFor } from "./search-index.postgres.js";
 import { sqlitePostSearch } from "./search-index.sqlite.js";
 
 /**
@@ -29,8 +29,8 @@ type SearchSourceTables = SearchProjectionTables & {
 };
 
 /** The post search for `kernel`'s dialect. */
-export function postSearchFor(kernel: PostSearchKernel, _optional: Record<string, never> = {}): PostSearchDialect {
-  return kernel.dialect === "sqlite" ? sqlitePostSearch : pgPostSearch;
+export function postSearchFor(kernel: PostSearchKernel, config: PostSearchHostConfig, _optional: Record<string, never> = {}): PostSearchDialect {
+  return kernel.dialect === "sqlite" ? sqlitePostSearch : pgPostSearchFor(config);
 }
 
 /**
@@ -40,20 +40,23 @@ export function postSearchFor(kernel: PostSearchKernel, _optional: Record<string
  */
 export class PostSearchIndex implements PostSearchPort {
   protected readonly kernel: PostSearchKernel;
+  private readonly config: PostSearchHostConfig;
   private readonly ready: Promise<unknown> | undefined;
 
   /**
    * @param required.kernel - The content kernel supplied by composition.
+   * @param required.config - The host's text-search configuration and projection-version setting id.
    * @param optional.ready - Settles when the boot backfill is done; every search waits for it.
    */
-  constructor(required: { kernel: PostSearchKernel }, optional: { ready?: Promise<unknown> } = {}) {
+  constructor(required: { kernel: PostSearchKernel; config: PostSearchHostConfig }, optional: { ready?: Promise<unknown> } = {}) {
     this.kernel = required.kernel;
+    this.config = required.config;
     this.ready = optional.ready;
   }
 
   async search(required: PostSearchQuery): Promise<PostSearchHit[]> {
     await this.ready;
-    return postSearchFor(this.kernel).search(this.kernel, required);
+    return postSearchFor(this.kernel, this.config).search(this.kernel, required);
   }
 }
 
@@ -69,8 +72,8 @@ export class SqlitePostSearchIndex extends PostSearchIndex {}
  *
  * @param optional.ready - Settles when the boot backfill is done; every search waits for it.
  */
-export function postSearchIndexFor(kernel: PostSearchKernel, optional: { ready?: Promise<unknown> } = {}): PostSearchPort {
-  return new PostSearchIndex({ kernel }, optional);
+export function postSearchIndexFor(required: { kernel: PostSearchKernel; config: PostSearchHostConfig }, optional: { ready?: Promise<unknown> } = {}): PostSearchPort {
+  return new PostSearchIndex(required, optional);
 }
 
 /** Posts indexed per backfill transaction: one PGlite transaction blocks every other client. */
@@ -96,13 +99,14 @@ export const BACKFILL_BATCH_SIZE = 50;
  * next boot, which is what the anti-join already handles.
  *
  * @param required.kernel - The content kernel supplied by composition.
+ * @param required.config - The host's text-search configuration and projection-version setting id.
  * @param optional.batchSize - Posts per transaction (tests).
  * @returns The number of posts newly indexed.
  * @complexity O(m) in the number of UNINDEXED posts, plus one O(n) anti-join over `posts` per batch.
  * @overallScore 100
  */
-export async function backfillPostSearchIndex({ kernel }: { kernel: PostSearchKernel }, optional: { batchSize?: number } = {}): Promise<number> {
-  const search = postSearchFor(kernel);
+export async function backfillPostSearchIndex({ kernel, config }: { kernel: PostSearchKernel; config: PostSearchHostConfig }, optional: { batchSize?: number } = {}): Promise<number> {
+  const search = postSearchFor(kernel, config);
   const batchSize = optional.batchSize ?? BACKFILL_BATCH_SIZE;
   let indexed = 0;
   for (;;) {
@@ -139,14 +143,6 @@ export async function backfillPostSearchIndex({ kernel }: { kernel: PostSearchKe
 export const POST_SEARCH_PROJECTION_VERSION = 2;
 
 /**
- * Where a site records the projection version its `post_search_document` rows were written with: a
- * reserved row in `setting_values_global` (one per content database, i.e. per site), so the marker
- * needs no schema change on any dialect. No setting definition exists for this id, so the settings
- * UI and resolver never surface it; the row only says "rows already match version N".
- */
-export const POST_SEARCH_PROJECTION_VERSION_SETTING_ID = "tovu.internal.post_search.projection_version";
-
-/**
  * Re-projects EVERY post once when the site's stored projection version is older than
  * {@link POST_SEARCH_PROJECTION_VERSION}, then records the new version; returns how many posts it
  * re-projected (0 when the marker is current, which is every boot after the first).
@@ -163,14 +159,15 @@ export const POST_SEARCH_PROJECTION_VERSION_SETTING_ID = "tovu.internal.post_sea
  * neither be overwritten by a projection of the row it just replaced nor interleave with one.
  *
  * @param required.kernel - The content kernel supplied by composition.
+ * @param required.config - The host's text-search configuration and projection-version setting id.
  * @param optional.batchSize - Posts per transaction (tests).
  * @returns The number of posts re-projected.
  * @complexity O(1) when current; otherwise O(n) in all posts, once per version bump.
  * @overallScore 100
  */
-export async function reindexStalePostSearchIndex({ kernel }: { kernel: PostSearchKernel }, optional: { batchSize?: number } = {}): Promise<number> {
-  if ((await readProjectionVersion(kernel)) >= POST_SEARCH_PROJECTION_VERSION) return 0;
-  const search = postSearchFor(kernel);
+export async function reindexStalePostSearchIndex({ kernel, config }: { kernel: PostSearchKernel; config: PostSearchHostConfig }, optional: { batchSize?: number } = {}): Promise<number> {
+  if ((await readProjectionVersion({ kernel, config })) >= POST_SEARCH_PROJECTION_VERSION) return 0;
+  const search = postSearchFor(kernel, config);
   const batchSize = optional.batchSize ?? BACKFILL_BATCH_SIZE;
   let reindexed = 0;
   let after: string | null = null;
@@ -195,7 +192,7 @@ export async function reindexStalePostSearchIndex({ kernel }: { kernel: PostSear
     if (ids.length < batchSize) break;
     after = ids.at(-1) ?? null;
   }
-  await writeProjectionVersion(kernel);
+  await writeProjectionVersion({ kernel, config });
   return reindexed;
 }
 
@@ -206,12 +203,13 @@ export async function reindexStalePostSearchIndex({ kernel }: { kernel: PostSear
  * projects a missing post twice; the backfill then costs its usual single anti-join.
  *
  * @param required.kernel - The content kernel supplied by composition.
+ * @param required.config - The host's text-search configuration and projection-version setting id.
  * @param optional.batchSize - Posts per transaction (tests).
  * @returns How many posts each step wrote.
  * @overallScore 100
  */
 export async function preparePostSearchIndex(
-  required: { kernel: PostSearchKernel },
+  required: { kernel: PostSearchKernel; config: PostSearchHostConfig },
   optional: { batchSize?: number } = {}
 ): Promise<{ reindexed: number; backfilled: number }> {
   const reindexed = await reindexStalePostSearchIndex(required, optional);
@@ -220,13 +218,13 @@ export async function preparePostSearchIndex(
 }
 
 /** The stored projection version, 1 when the site has never recorded one (every pre-marker site). */
-async function readProjectionVersion(kernel: PostSearchKernel): Promise<number> {
+async function readProjectionVersion({ kernel, config }: { kernel: PostSearchKernel; config: PostSearchHostConfig }): Promise<number> {
   const row = await kernel.run((db) =>
     db
       .withTables<SearchSourceTables>()
       .selectFrom("setting_values_global")
       .select("value_json")
-      .where("setting_id", "=", POST_SEARCH_PROJECTION_VERSION_SETTING_ID)
+      .where("setting_id", "=", config.projectionVersionSettingId)
       .executeTakeFirst()
   );
   // SQLite returns the text; a jsonb column may come back already parsed. Anything unreadable
@@ -243,7 +241,7 @@ async function readProjectionVersion(kernel: PostSearchKernel): Promise<number> 
   return typeof value === "number" && Number.isFinite(value) ? value : 1;
 }
 
-async function writeProjectionVersion(kernel: PostSearchKernel): Promise<void> {
+async function writeProjectionVersion({ kernel, config }: { kernel: PostSearchKernel; config: PostSearchHostConfig }): Promise<void> {
   const columns = {
     value_json: JSON.stringify(POST_SEARCH_PROJECTION_VERSION), state: "set", def_version: 0, seq: 0,
     updated_by: "system:post-search-reindex", updated_at: new Date().toISOString(), origin_plugin_id: null,
@@ -252,7 +250,7 @@ async function writeProjectionVersion(kernel: PostSearchKernel): Promise<void> {
     db
       .withTables<SearchSourceTables>()
       .insertInto("setting_values_global")
-      .values({ setting_id: POST_SEARCH_PROJECTION_VERSION_SETTING_ID, ...columns })
+      .values({ setting_id: config.projectionVersionSettingId, ...columns })
       .onConflict((oc) => oc.column("setting_id").doUpdateSet(columns))
       .execute()
   );
