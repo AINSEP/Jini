@@ -285,6 +285,15 @@
    "verifiedOriginToBaseUrl": "function:2df0589cd2"
   }
  },
+ "./web-evidence/agent-tools": {
+  "types": "./dist/web-evidence/agent-tools.d.ts",
+  "symbols": {
+   "AgentToolDefinition": "type:b4d7d744be",
+   "AgentToolSideEffect": "type:1baebbfbe6",
+   "SITE_EVIDENCE_TOOL_ID": "variable:4af01c4b3f",
+   "siteEvidenceAgentToolCatalog": "variable:7dfbc76e7c"
+  }
+ },
  "./web-evidence/capture-budget": {
   "types": "./dist/web-evidence/capture-budget.d.ts",
   "symbols": {

@@ -20,7 +20,11 @@
       "./contribution": "node",
       "./site/settings": "universal",
       "./site/cms-document-source": "universal",
-      "./site/access": "universal"
+      "./site/access": "universal",
+      "./site/index-state-store": "node"
+    },
+    "optionalPeers": {
+      "kysely": "opt-in: sql search-index store; import @jini-ai/search/site/index-state-store — The SQL search-index store could not load kysely. Install kysely to enable this feature, or check its installed version."
     }
   },
   "type": "module",
@@ -65,6 +69,11 @@
       "types": "./dist/site/access.d.ts",
       "import": "./dist/site/access.js",
       "default": "./dist/site/access.js"
+    },
+    "./site/index-state-store": {
+      "types": "./dist/site/index-state-store.d.ts",
+      "import": "./dist/site/index-state-store.js",
+      "default": "./dist/site/index-state-store.js"
     }
   },
   "files": [
@@ -94,6 +103,15 @@
     "@jini-ai/agent-plugins": "workspace:*",
     "@vitest/coverage-v8": "^3.2.6",
     "vitest": "^3.2.6",
-    "kysely": "^0.29.6"
+    "kysely": "^0.29.6",
+    "@electric-sql/pglite": "0.5.8",
+    "@jini-ai/db": "workspace:*",
+    "@types/better-sqlite3": "^7.6.13",
+    "better-sqlite3": "^13.0.0"
+  },
+  "peerDependenciesMeta": {
+    "kysely": {
+      "optional": true
+    }
   }
 }

@@ -35,7 +35,8 @@
       "./observability/tool-registrations": "universal",
       "./tool-audit/repo.memory": "universal",
       "./tool-audit/repo": "node",
-      "./tool-audit/tool-gaps.repo": "node"
+      "./tool-audit/tool-gaps.repo": "node",
+      "./web-evidence/agent-tools": "universal"
     },
     "runtime": "node",
     "optionalPeers": {
@@ -167,6 +168,11 @@
       "types": "./dist/tool-audit/tool-gaps.repo.d.ts",
       "import": "./dist/tool-audit/tool-gaps.repo.js",
       "default": "./dist/tool-audit/tool-gaps.repo.js"
+    },
+    "./web-evidence/agent-tools": {
+      "types": "./dist/web-evidence/agent-tools.d.ts",
+      "import": "./dist/web-evidence/agent-tools.js",
+      "default": "./dist/web-evidence/agent-tools.js"
     }
   },
   "files": [

@@ -710,6 +710,23 @@
    "parseObjectStoresFile": "function:7dee0f4c77"
   }
  },
+ "./object-store/site/registry": {
+  "types": "./dist/object-store/site/registry.d.ts",
+  "symbols": {
+   "BundledObjectStoreSources": "type:72d113dcdb",
+   "LoadedObjectStoreContribution": "interface:6f73d901b3",
+   "LoadedObjectStoreContributions": "interface:a661eb9491",
+   "LoadedObjectStoreRegistry": "interface:0484d921d4",
+   "OBJECT_STORES_FILENAME": "variable:2d81240340",
+   "ObjectStoreContributionPorts": "interface:952361b04b",
+   "ObjectStoreContributionSpec": "interface:21f3940a2a",
+   "ObjectStoreSourcePlugin": "interface:7d09c79ba3",
+   "SiteObjectStoreProvider": "type:a118a82fec",
+   "loadBundledObjectStoreRegistry": "function:4dfc17ba15",
+   "loadObjectStoreRegistry": "function:400ef5e90f",
+   "readBundledObjectStoreEnvDeclarations": "function:62c80540c8"
+  }
+ },
  "./object-store/site/setting": {
   "types": "./dist/object-store/site/setting.d.ts",
   "symbols": {

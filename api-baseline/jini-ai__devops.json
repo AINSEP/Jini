@@ -45,6 +45,31 @@
    "SiteBackupPushProgress": "interface:17e5c15a76"
   }
  },
+ "./backup/site/archive-media": {
+  "types": "./dist/backup/site/archive-media.d.ts",
+  "symbols": {
+   "ArchiveMediaCopy": "interface:72250ba212",
+   "ArchiveMediaEntry": "interface:d692660547",
+   "ArchiveMediaHost": "interface:7e854366c1",
+   "ArchiveMediaImageTransformer": "interface:88dd17a49a",
+   "ArchiveMediaOperations": "interface:0ffe61d1b9",
+   "ArchiveMediaPathPolicy": "interface:be816a3259",
+   "ArchiveMediaRewriter": "type:8a25f800a9",
+   "ArchiveMediaSharePolicy": "interface:8a9ebab07a",
+   "ArchiveMediaSource": "interface:e41e8501f0",
+   "ArchiveMediaTransformParams": "interface:a96d563774",
+   "bufferArchiveMedia": "function:01d45ac62c"
+  }
+ },
+ "./backup/site/credential-warnings": {
+  "types": "./dist/backup/site/credential-warnings.d.ts",
+  "symbols": {
+   "CredentialRedactor": "type:ef675c664d",
+   "CredentialWarning": "interface:2cdd927433",
+   "addCredentialWarning": "function:d1b5338ed7",
+   "warnCredentialContent": "function:8055565f09"
+  }
+ },
  "./backup/site/saved-keys-port": {
   "types": "./dist/backup/site/saved-keys-port.d.ts",
   "symbols": {
@@ -60,6 +85,13 @@
    "SiteShareExportStep": "type:ee08280859"
   }
  },
+ "./backup/site/share-refusal": {
+  "types": "./dist/backup/site/share-refusal.d.ts",
+  "symbols": {
+   "SiteShareRefusal": "class:1b7589023b",
+   "archiveRefusalName": "function:de88fa9382"
+  }
+ },
  "./backup/site/static-download-html": {
   "types": "./dist/backup/site/static-download-html.d.ts",
   "symbols": {
@@ -70,6 +102,18 @@
    "SourceRange": "interface:ad563323e9",
    "downloadDocumentBase": "function:48d188f2d2",
    "downloadForms": "function:6330245aeb"
+  }
+ },
+ "./backup/site/static-export-selection": {
+  "types": "./dist/backup/site/static-export-selection.d.ts",
+  "symbols": {
+   "StaticExportAllocationPolicy": "interface:6f0c4dcd22",
+   "StaticExportInput": "interface:9f5c36b9df",
+   "StaticExportOptions": "interface:00657bfbe5",
+   "StaticExportSelectionPolicy": "interface:e081b9b525",
+   "StaticExportTheme": "interface:13d657accf",
+   "allocateStaticExportThemes": "function:5edb6ac170",
+   "parseStaticExportInput": "function:f39a4563a0"
   }
  },
  "./backup/upload": {
@@ -411,6 +455,31 @@
    "deploymentsAgentToolCatalog": "variable:9ddd7e91ed"
   }
  },
+ "./deploy/site/deploy-config": {
+  "types": "./dist/deploy/site/deploy-config.d.ts",
+  "symbols": {
+   "HealthCheckSource": "interface:a702b2cbfe",
+   "HostDeployNotesReadPorts": "interface:6022d90132",
+   "appendHostDeployNotes": "function:e0cad63cae",
+   "buildDeploymentDescriptor": "function:e687e481a5",
+   "createDeployConfigKit": "function:5434fa5fdb"
+  }
+ },
+ "./deploy/site/deploy-config-registry": {
+  "types": "./dist/deploy/site/deploy-config-registry.d.ts",
+  "symbols": {
+   "DeployConfigContributionSpec": "interface:2210fbe5db",
+   "DeployConfigGeneratorSource": "interface:9b95dba29e",
+   "DeployConfigPluginSource": "interface:2232ee90e0",
+   "DeployConfigRegistryPorts": "interface:5449f3c345",
+   "DeployWorkflowContributionDefinition": "interface:ea7f2b867c",
+   "LoadDeployWorkflowContributions": "type:d92b4020a9",
+   "createDeployConfigGeneratorSource": "function:7fcff9d64a",
+   "loadDeployWorkflowFiles": "function:df82cfd561",
+   "readBundledDeployConfigDescriptors": "function:a82f9bc477",
+   "readDeployConfigTargetIdsFromSource": "function:a2eca8c4a0"
+  }
+ },
  "./deploy/site/deploy-targets/types": {
   "types": "./dist/deploy/site/deploy-targets/types.d.ts",
   "symbols": {
@@ -461,6 +530,20 @@
    "ExportRunner": "interface:865f74cc58",
    "StartExportRunOptions": "interface:f28372fa4b",
    "createExportRunner": "function:8a5b9725bb"
+  }
+ },
+ "./deploy/site/ports": {
+  "types": "./dist/deploy/site/ports.d.ts",
+  "symbols": {
+   "DeploymentError": "interface:4586ca681b",
+   "DeploymentErrorCode": "type:1c1371b4ae",
+   "DeploymentProviderContext": "interface:d5f26c3982",
+   "DeploymentProviderPort": "interface:416ee4e665",
+   "DeploymentRunStatusUpdate": "interface:b850d7e7b6",
+   "PollDeploymentRunInput": "interface:4231f9870d",
+   "PollDeploymentRunResult": "type:2959ae63ed",
+   "StartDeploymentRunInput": "interface:255b7c4544",
+   "StartDeploymentRunResult": "type:52e7ee410b"
   }
  },
  "./deploy/site/publish-credentials/account-label-heal-scheduler": {

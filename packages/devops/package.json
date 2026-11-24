@@ -68,7 +68,14 @@
       "./source-control/site/provider-module": "universal",
       "./source-control/site/static-site-packager-port": "universal",
       "./backup/site/saved-keys-port": "universal",
-      "./backup/site/static-download-html": "universal"
+      "./backup/site/static-download-html": "universal",
+      "./backup/site/credential-warnings": "universal",
+      "./backup/site/share-refusal": "universal",
+      "./backup/site/archive-media": "universal",
+      "./backup/site/static-export-selection": "universal",
+      "./deploy/site/ports": "universal",
+      "./deploy/site/deploy-config": "node",
+      "./deploy/site/deploy-config-registry": "node"
     },
     "isolation": {
       "shared": [
@@ -367,6 +374,41 @@
       "types": "./dist/backup/site/static-download-html.d.ts",
       "import": "./dist/backup/site/static-download-html.js",
       "default": "./dist/backup/site/static-download-html.js"
+    },
+    "./backup/site/credential-warnings": {
+      "types": "./dist/backup/site/credential-warnings.d.ts",
+      "import": "./dist/backup/site/credential-warnings.js",
+      "default": "./dist/backup/site/credential-warnings.js"
+    },
+    "./backup/site/share-refusal": {
+      "types": "./dist/backup/site/share-refusal.d.ts",
+      "import": "./dist/backup/site/share-refusal.js",
+      "default": "./dist/backup/site/share-refusal.js"
+    },
+    "./backup/site/archive-media": {
+      "types": "./dist/backup/site/archive-media.d.ts",
+      "import": "./dist/backup/site/archive-media.js",
+      "default": "./dist/backup/site/archive-media.js"
+    },
+    "./backup/site/static-export-selection": {
+      "types": "./dist/backup/site/static-export-selection.d.ts",
+      "import": "./dist/backup/site/static-export-selection.js",
+      "default": "./dist/backup/site/static-export-selection.js"
+    },
+    "./deploy/site/ports": {
+      "types": "./dist/deploy/site/ports.d.ts",
+      "import": "./dist/deploy/site/ports.js",
+      "default": "./dist/deploy/site/ports.js"
+    },
+    "./deploy/site/deploy-config": {
+      "types": "./dist/deploy/site/deploy-config.d.ts",
+      "import": "./dist/deploy/site/deploy-config.js",
+      "default": "./dist/deploy/site/deploy-config.js"
+    },
+    "./deploy/site/deploy-config-registry": {
+      "types": "./dist/deploy/site/deploy-config-registry.d.ts",
+      "import": "./dist/deploy/site/deploy-config-registry.js",
+      "default": "./dist/deploy/site/deploy-config-registry.js"
     }
   },
   "files": [

@@ -2235,6 +2235,11 @@
     "value": 1
   },
   {
+    "file": "packages/plugins/src/runtime/lower-tool-access.ts",
+    "rule": "catch-reads-error",
+    "value": 1
+  },
+  {
     "file": "packages/protocol/src/a2ui/json-pointer.ts",
     "rule": "catch-reads-error",
     "value": 1
