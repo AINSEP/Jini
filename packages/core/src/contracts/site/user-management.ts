@@ -163,6 +163,8 @@ export interface UserRepoPort {
   /** All `users` rows in the workspace (Users admin screen listing). Not paginated in v1 — matches `PrincipalRepoPort.list`/`RoleRepoPort.list`/`PolicyRepoPort.list`. */
   list(required: { workspaceId: UUID }): Promise<UserRecord[]>;
   save(record: UserRecord): Promise<void>;
+  /** Set only `lastLoginAt` on an existing row (no-op when gone), so a concurrent password reset is never reverted by a stale snapshot. */
+  recordLogin(required: { workspaceId: UUID; principalId: UUID; lastLoginAt: ISODateTime }): Promise<void>;
 }
 
 export interface SessionRepoPort {
