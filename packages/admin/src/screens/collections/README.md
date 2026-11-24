@@ -36,3 +36,9 @@
   `jini-collections-type-dialog` (shell), `jini-collections-field-row`, and the shell-scoped
   `jini-field`, `jini-field-label`, `jini-form-checkbox-field`, `jini-editor-actions`, `jini-save-error`
   and `jini-btn-secondary`.
+- `Collections.tsx` / `CollectionEntries.tsx` — the content-type list and the per-type entries list
+  (`CollectionsTable.tsx` holds the list's columns). Every host collaborator is a REQUIRED prop
+  (`collections-screen-parts.ts`): the list/entries controller hook, the three dialog hooks, `StatusLabel`,
+  `publishButton` and the kit-bound `contentTypeMenuItems` (`bindCollectionsRules({ kit })`). The screens
+  emit `jini-*` classes (plus the global `status status-*` pill); the host imports its native-dialog
+  stylesheet at the screen mount and styles `jini-muted-cell`.
