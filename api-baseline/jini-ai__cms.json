@@ -504,9 +504,8 @@
  "./admin-http/routes/plugins/files": {
   "types": "./dist/admin-http/routes/plugins/files.d.ts",
   "symbols": {
-   "PluginFilesEnvelope": "interface:9cbd104e4e",
-   "PluginFilesRouteDeps": "interface:b392afa1f2",
-   "pluginFilesRoute": "variable:b30e13a76a"
+   "PluginFilesRouteDeps": "interface:effc728320",
+   "pluginFilesRoute": "variable:d5d8165f95"
   }
  },
  "./admin-http/routes/plugins/list": {
@@ -2996,6 +2995,18 @@
    "bytesMatchSha256": "function:c05184ae03",
    "isValidSha256Hex": "function:ddbaa5b749",
    "sha256Hex": "function:b40abbe6f5"
+  }
+ },
+ "./react/media": {
+  "types": "./dist/react/media/index.d.ts",
+  "symbols": {
+   "DescribeError": "type:25569e3be4",
+   "HeaderTipComponent": "type:44c6ef224d",
+   "ImportDialogKit": "interface:ca55dba547",
+   "MediaImportPort": "interface:70a7bd95f2",
+   "RemoteImageImport": "function:3f75c73825",
+   "RemoteImageImportCollaborators": "interface:9ef2d7db69",
+   "useRemoteImageImport": "function:4d335ce20f"
   }
  },
  "./redirects": {

@@ -523,6 +523,17 @@
    "sourceTreeStamp": "function:5e5cdd8bfa"
   }
  },
+ "./local-dev/dev-proxy-upstream": {
+  "types": "./dist/local-dev/dev-proxy-upstream.d.ts",
+  "symbols": {
+   "ClientResponsePort": "interface:282e22e9aa",
+   "ProxiedRequestPort": "interface:11ca1c05aa",
+   "ProxyEventsPort": "interface:e2fa2105e1",
+   "UpstreamRefusal": "interface:c482e60f45",
+   "UpstreamResponsePort": "interface:9a7c5ea3b4",
+   "installUpstreamCloseHandling": "function:1a6de33808"
+  }
+ },
  "./packaging/electron": {
   "types": "./dist/packaging/electron/entry.d.ts",
   "symbols": {

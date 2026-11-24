@@ -439,6 +439,7 @@
    "AUDIO_MODELS_BY_KIND": "variable:0827f56f3a",
    "AudioKind": "type:d7d9475a63",
    "BuiltVideoRequest": "interface:ef8c5cee58",
+   "CONFIGURABLE_MEDIA_PROVIDER_CATALOG": "variable:413a9b4e90",
    "DEFAULT_MEDIA_PROVIDER_CATALOG": "variable:01013a6c63",
    "DEFAULT_PROVIDER_PRESETS": "variable:0142edd26f",
    "ExtraBodyParamDef": "interface:970cc83a54",

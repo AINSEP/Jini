@@ -823,6 +823,17 @@
    "useEmbedChatDialog": "function:2c006deed2"
   }
  },
+ "./react/features/voice-input/space-hold-rules": {
+  "types": "./dist/react/features/voice-input/space-hold-rules.d.ts",
+  "symbols": {
+   "SpaceHoldKeyDownAction": "type:2245b062bb",
+   "SpaceHoldKeyDownInput": "interface:84a51744c3",
+   "SpaceHoldKeyUpAction": "type:1cd37bd9da",
+   "SpaceHoldPhase": "type:2473e66be9",
+   "resolveSpaceHoldKeyDown": "function:a9adfe9a51",
+   "resolveSpaceHoldKeyUp": "function:3149f06264"
+  }
+ },
  "./react/styles/chat-settings.css": {
   "types": null,
   "symbols": {}
