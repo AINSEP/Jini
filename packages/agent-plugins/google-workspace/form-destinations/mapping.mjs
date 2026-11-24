@@ -13,7 +13,9 @@
  * An untagged field is matched by its label in row 1 (and tagged), else added as a new column at
  * the end. A tab that should have the plugin's columns but lacks them, a header found twice, a field
  * tagged on two columns, or two entries landing on one column is a mapping error the person
- * repairs; nothing is appended into a sheet whose columns cannot be matched. The visitor's IP is
+ * repairs; nothing is appended into a sheet whose columns cannot be matched. A host that named the
+ * two plugin columns differently before they were renamed passes those old names (`legacyHeaders`):
+ * a sheet that already has rows under them keeps using them, and a new tab always gets the new names. The visitor's IP is
  * never a field, and answers that are not fields of the frozen form are never written.
  */
 import { DeliveryRefusal } from './delivery-result.mjs';
@@ -37,14 +39,17 @@ export function cellValue(required, _optional = {}) {
 /**
  * The mapping for one job: the two plugin columns, then one entry per field of the frozen form.
  * @param {{ form: { fields: readonly { name: string, label?: string }[] } }} required
- * @returns {{ header: string, field?: string, source?: 'id' | 'submittedAt' }[]}
+ * @param {{ legacyHeaders?: { submissionId?: readonly string[], submittedAt?: readonly string[] } }} [optional]
+ *   `legacyHeaders`: older header names of the two plugin columns, still recognised on an existing sheet.
+ * @returns {{ header: string, field?: string, source?: 'id' | 'submittedAt', legacy?: readonly string[] }[]}
  * @throws {DeliveryRefusal} `mapping-invalid` when two entries would share a header.
  * @complexity O(fields).
  */
-export function buildMapping(required, _optional = {}) {
+export function buildMapping(required, optional = {}) {
+  const legacy = optional.legacyHeaders ?? {};
   const entries = [
-    { header: SUBMISSION_ID_HEADER, source: 'id' },
-    { header: SUBMITTED_AT_HEADER, source: 'submittedAt' },
+    { header: SUBMISSION_ID_HEADER, source: 'id', legacy: legacy.submissionId ?? [] },
+    { header: SUBMITTED_AT_HEADER, source: 'submittedAt', legacy: legacy.submittedAt ?? [] },
     // Trimmed like the sheet's cells are, so stray spaces never decide a match; a blank label falls back to the id.
     ...required.form.fields.map((field) => ({ field: field.name, header: String(field.label ?? '').trim() || field.name })),
   ];
@@ -92,9 +97,12 @@ function addColumn(plan, header) {
   return index;
 }
 
-/** A plugin column (`_jini_*` header): found once by its fixed header, or new on a fresh tab. @complexity O(width). */
+/**
+ * A plugin column (`_jini_*` header): found once by its fixed header or one of the host's old names for
+ * it (finding it under two names is a conflict), or new on a fresh tab. @complexity O(width).
+ */
 function managedColumn(plan, entry) {
-  const positions = headerPositions(plan, entry.header);
+  const positions = [entry.header, ...(entry.legacy ?? [])].flatMap((header) => headerPositions(plan, header));
   if (positions.length === 1) return positions[0];
   if (positions.length > 1 || !plan.fresh) throw mappingInvalid();
   return addColumn(plan, entry.header);
