@@ -5,12 +5,15 @@ import { describe, expect, it, vi } from "vitest";
 import type { AdminAgentPluginRow } from "@jini-ai/core/contracts/site/cms-agent-plugins";
 
 import type { MailProviderConfigurationReport } from "../email-api.types.js";
-import { credentialBody, isFullyActive, useEmailProvider } from "../hooks/use-email-provider.hooks.js";
+import { useLoad } from "../hooks/email-load.hooks.js";
+import { credentialBody, isFullyActive, useEmailProvider, useProviderChoices } from "../hooks/use-email-provider.hooks.js";
 
 /** @file The provider hook with every host seam injected: the transport error class, the plugins client, the email client. */
 class FakeApiError extends Error { readonly status: number; constructor({ message, status }: { message: string; status: number }) { super(message); this.status = status; } }
 const mail = (over: Partial<AdminAgentPluginRow> = {}): AdminAgentPluginRow => ({ pluginId: "mail-plugin", provides: ["outbound-mail"], enabled: false, version: null, description: null, keywords: [], skills: [], mcpServerIds: [], ...over });
 const report: MailProviderConfigurationReport = { setting: { transactional: null, bulk: null }, providers: [], refusals: [] };
+/** The two data hooks the host binds (required on the args object). */
+const hooks = { useLoadHook: useLoad, useProviderChoicesHook: useProviderChoices };
 function ports() {
   return {
     api: { listProviders: vi.fn(async () => report), saveProviderKey: vi.fn(), activateProvider: vi.fn() },
@@ -21,7 +24,7 @@ function ports() {
 describe("useEmailProvider (injected seams)", () => {
   it("offers only disabled outbound-mail plugins and never enables one on its own", async () => {
     const p = ports();
-    const { result } = renderHook(() => useEmailProvider({ ...p, ApiError: FakeApiError }));
+    const { result } = renderHook(() => useEmailProvider({ ...p, ApiError: FakeApiError, ...hooks }));
     await waitFor(() => expect(result.current.choices?.map((row) => row.pluginId)).toEqual(["mail-plugin"]));
     expect(p.pluginApi.setAgentPluginEnabled).not.toHaveBeenCalled();
   });
@@ -29,14 +32,14 @@ describe("useEmailProvider (injected seams)", () => {
   it("reports the injected ApiError's safe message when the plugin list is refused", async () => {
     const p = ports();
     p.pluginApi.listAgentPlugins.mockRejectedValueOnce(new FakeApiError({ message: "Cannot list plugins", status: 403 }));
-    const { result } = renderHook(() => useEmailProvider({ ...p, ApiError: FakeApiError }));
+    const { result } = renderHook(() => useEmailProvider({ ...p, ApiError: FakeApiError, ...hooks }));
     await waitFor(() => expect(result.current.addError).toBe("Cannot list plugins"));
     expect(result.current.choices).toBeNull();
   });
 
   it("falls back to the missing-provider line when enabling loads no adapter, and keeps drafts", async () => {
     const p = ports();
-    const { result } = renderHook(() => useEmailProvider({ ...p, ApiError: FakeApiError }));
+    const { result } = renderHook(() => useEmailProvider({ ...p, ApiError: FakeApiError, ...hooks }));
     await waitFor(() => expect(result.current.view.kind).toBe("loaded"));
     act(() => result.current.setDraftField("hosted", "token", "keep"));
     await act(async () => { expect(await result.current.addProvider({ pluginId: "mail-plugin" })).toBeUndefined(); });
@@ -51,7 +54,7 @@ describe("pure helpers", () => {
     expect(credentialBody({ draft: undefined })).toEqual({});
   });
   it("isFullyActive needs both lanes", () => {
-    expect(isFullyActive({ lanes: ["transactional"] } as never)).toBe(false);
-    expect(isFullyActive({ lanes: ["transactional", "bulk"] } as never)).toBe(true);
+    expect(isFullyActive({ provider: { lanes: ["transactional"] } as never })).toBe(false);
+    expect(isFullyActive({ provider: { lanes: ["transactional", "bulk"] } as never })).toBe(true);
   });
 });

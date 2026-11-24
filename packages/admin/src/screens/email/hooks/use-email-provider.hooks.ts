@@ -1,9 +1,9 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type Dispatch, type SetStateAction } from "react";
 
 import type { AdminAgentPluginRow } from "@jini-ai/core/contracts/site/cms-agent-plugins";
 
 import type { EmailApi, MailProviderConfiguration, MailProviderConfigurationReport, MailProviderCredentialInput } from "../email-api.types.js";
-import { errorMessage, useLoad, type EmailLoadApiError, type LoadView } from "./email-load.hooks.js";
+import { errorMessage, type EmailLoadApiError, type LoadView, type useLoad } from "./email-load.hooks.js";
 
 /**
  * @file Provider tab state: the installed providers (`GET …/mail-providers`), a key form per
@@ -39,7 +39,8 @@ export interface EmailProviderPluginApi {
   listAgentPlugins: () => Promise<{ agentPlugins: AdminAgentPluginRow[] }>;
   setAgentPluginEnabled: (input: { pluginId: string; enabled: boolean }, optional?: Record<string, never>) => Promise<{ warnings?: string[] }>;
 }
-function useProviderChoices(required: { pluginApi: EmailProviderPluginApi; refresh: () => Promise<MailProviderConfigurationReport>; ApiError: EmailLoadApiError }, _optional = {}) {
+/** The installable-provider list and the enable flow. Exported so the host can bind it as `useProviderChoicesHook`. */
+export function useProviderChoices(required: { pluginApi: EmailProviderPluginApi; refresh: () => Promise<MailProviderConfigurationReport>; ApiError: EmailLoadApiError }, _optional = {}) {
   const { pluginApi, refresh, ApiError } = required;
   const [choices, setChoices] = useState<AdminAgentPluginRow[] | null>(null);
   const [addError, setAddError] = useState<string | null>(null);
@@ -87,7 +88,7 @@ function useProviderChoices(required: { pluginApi: EmailProviderPluginApi; refre
 }
 
 /** Whether a provider already sends both lanes (nothing left to switch). Pure. */
-export function isFullyActive(provider: MailProviderConfiguration): boolean {
+export function isFullyActive({ provider }: { provider: Pick<MailProviderConfiguration, "lanes"> }, _optional = {}): boolean {
   return provider.lanes.includes("transactional") && provider.lanes.includes("bulk");
 }
 
@@ -101,31 +102,32 @@ export function credentialBody({ draft }: { draft: MailProviderCredentialInput |
   return out;
 }
 
-/**
- * @param required.api - the Email API port; a fake in tests.
- * @param required.pluginApi - the Plugins API port (list + enable); a fake in tests.
- * @param required.ApiError - the host's transport error class (a stable class identity).
- * @param optional.onChanged - called after a save or switch so the page's status re-reads.
- */
-export function useEmailProvider(required: { api: Pick<EmailApi, "listProviders" | "saveProviderKey" | "activateProvider">; pluginApi: EmailProviderPluginApi; ApiError: EmailLoadApiError }, optional: { onChanged?: () => void } = {}): EmailProviderController {
-  const { api, ApiError } = required;
-  const { onChanged } = optional;
-  const load = useCallback(() => api.listProviders(), [api]);
-  const { view, reload, setData } = useLoad({ ApiError, load });
-  const refresh = useCallback(async () => { const report = await api.listProviders(); setData(report); return report; }, [api, setData]);
-  const additions = useProviderChoices({ pluginApi: required.pluginApi, refresh, ApiError });
-  const [drafts, setDrafts] = useState<Record<string, MailProviderCredentialInput>>({});
-  const [busyId, setBusyId] = useState<string | null>(null);
-  const [notice, setNotice] = useState<ProviderNotice>(null);
-  const [pendingSwitch, setPendingSwitch] = useState<MailProviderConfiguration | null>(null);
+type ProviderActionApi = Pick<EmailApi, "saveProviderKey" | "activateProvider">;
 
+/** What a key save and a switch share: the client, the error class, the refresh and the busy/notice setters. */
+interface ProviderActionContext {
+  api: ProviderActionApi;
+  ApiError: EmailLoadApiError;
+  reload: () => void;
+  onChanged?: (() => void) | undefined;
+  setBusyId: (id: string | null) => void;
+  setNotice: Dispatch<SetStateAction<ProviderNotice>>;
+}
+
+/** The per-provider key forms. Typing drops the "Enter the key first." hint so it does not linger next to a filled field. */
+function useProviderDrafts({ setNotice }: { setNotice: Dispatch<SetStateAction<ProviderNotice>> }, _optional = {}) {
+  const [drafts, setDrafts] = useState<Record<string, MailProviderCredentialInput>>({});
   const setDraftField = useCallback((providerId: string, key: keyof MailProviderCredentialInput, value: string) => {
     setDrafts((all) => ({ ...all, [providerId]: { ...all[providerId], [key]: value } }));
-    // Typing answers "Enter the key first." — drop that hint so it doesn't linger next to a filled field.
     setNotice((current) => (current?.providerId === providerId && current.text === "Enter the key first." ? null : current));
-  }, []);
+  }, [setNotice]);
+  return { drafts, setDrafts, setDraftField };
+}
 
-  const saveKey = useCallback(async (provider: MailProviderConfiguration) => {
+/** Saves or rotates one provider's key WITHOUT switching to it. */
+function useSaveProviderKey({ ctx, drafts, setDrafts }: { ctx: ProviderActionContext; drafts: Record<string, MailProviderCredentialInput>; setDrafts: Dispatch<SetStateAction<Record<string, MailProviderCredentialInput>>> }, _optional = {}) {
+  const { api, ApiError, reload, onChanged, setBusyId, setNotice } = ctx;
+  return useCallback(async (provider: MailProviderConfiguration) => {
     const body = credentialBody({ draft: drafts[provider.id] });
     if (!provider.credential.saved && !body.token) {
       setNotice({ providerId: provider.id, tone: "error", text: "Enter the key first." });
@@ -144,8 +146,13 @@ export function useEmailProvider(required: { api: Pick<EmailApi, "listProviders"
     } finally {
       setBusyId(null);
     }
-  }, [api, drafts, reload, onChanged, ApiError]);
+  }, [api, drafts, setDrafts, reload, onChanged, ApiError, setBusyId, setNotice]);
+}
 
+/** The confirm-then-switch flow (`POST …/:id/activate`, which moves both lanes). */
+function useProviderSwitch({ ctx }: { ctx: ProviderActionContext }, _optional = {}) {
+  const { api, ApiError, reload, onChanged, setBusyId, setNotice } = ctx;
+  const [pendingSwitch, setPendingSwitch] = useState<MailProviderConfiguration | null>(null);
   const confirmSwitch = useCallback(async () => {
     const provider = pendingSwitch;
     if (!provider) return;
@@ -162,9 +169,33 @@ export function useEmailProvider(required: { api: Pick<EmailApi, "listProviders"
       setBusyId(null);
       setPendingSwitch(null);
     }
-  }, [api, pendingSwitch, reload, onChanged, ApiError]);
+  }, [api, pendingSwitch, reload, onChanged, ApiError, setBusyId, setNotice]);
+  return { pendingSwitch, askSwitch: setPendingSwitch, confirmSwitch };
+}
+
+/**
+ * @param required.api - the Email API port; a fake in tests.
+ * @param required.pluginApi - the Plugins API port (list + enable); a fake in tests.
+ * @param required.ApiError - the host's transport error class (a stable class identity).
+ * @param required.useLoadHook - the host's binding of {@link useLoad} (the provider report loader).
+ * @param required.useProviderChoicesHook - the host's binding of {@link useProviderChoices} (the installable-provider list).
+ * @param optional.onChanged - called after a save or switch so the page's status re-reads.
+ */
+export function useEmailProvider(required: { api: Pick<EmailApi, "listProviders" | "saveProviderKey" | "activateProvider">; pluginApi: EmailProviderPluginApi; ApiError: EmailLoadApiError; useLoadHook: typeof useLoad; useProviderChoicesHook: typeof useProviderChoices }, optional: { onChanged?: () => void } = {}): EmailProviderController {
+  const { api, ApiError, pluginApi, useLoadHook, useProviderChoicesHook } = required;
+  const { onChanged } = optional;
+  const load = useCallback(() => api.listProviders(), [api]);
+  const { view, reload, setData } = useLoadHook({ ApiError, load });
+  const refresh = useCallback(async () => { const report = await api.listProviders(); setData(report); return report; }, [api, setData]);
+  const additions = useProviderChoicesHook({ pluginApi, refresh, ApiError });
+  const [busyId, setBusyId] = useState<string | null>(null);
+  const [notice, setNotice] = useState<ProviderNotice>(null);
+  const ctx = useMemo<ProviderActionContext>(() => ({ api, ApiError, reload, onChanged, setBusyId, setNotice }), [api, ApiError, reload, onChanged]);
+  const { drafts, setDrafts, setDraftField } = useProviderDrafts({ setNotice });
+  const saveKey = useSaveProviderKey({ ctx, drafts, setDrafts });
+  const { pendingSwitch, askSwitch, confirmSwitch } = useProviderSwitch({ ctx });
 
   return useMemo(() => ({
-    ...additions, view, reload, drafts, setDraftField, busyId, notice, saveKey, pendingSwitch, askSwitch: setPendingSwitch, confirmSwitch,
-  }), [additions, view, reload, drafts, setDraftField, busyId, notice, saveKey, pendingSwitch, confirmSwitch]);
+    ...additions, view, reload, drafts, setDraftField, busyId, notice, saveKey, pendingSwitch, askSwitch, confirmSwitch,
+  }), [additions, view, reload, drafts, setDraftField, busyId, notice, saveKey, pendingSwitch, askSwitch, confirmSwitch]);
 }
