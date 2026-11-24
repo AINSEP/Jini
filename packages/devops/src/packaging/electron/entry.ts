@@ -1,3 +1,5 @@
+/** Deprecated re-export: import these from `@jini-ai/core/contracts/site/packaging-electron`; removed at the next major. */
+export type { AsarHeaderNode, AsarMismatch, AsarVerification } from "@jini-ai/core/contracts/site/packaging-electron";
 export * from './ports.js';
 export * from './policies.js';
 export * from './archive.js';

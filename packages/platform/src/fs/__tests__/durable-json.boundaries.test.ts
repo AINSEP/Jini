@@ -56,7 +56,8 @@ test("quarantine that cannot move the file (e.g. EXDEV) leaves it untouched, rep
   const file = store(filePath, { report, clock: { nowMs: () => 7 }, filesystem: { ...nodeFs, renameSync: () => { throw error; } } });
   expect(file.quarantine({ notice: { label: "Profile", consequence: "x" } })).toBe(false);
   expect(nodeFs.readFileSync(filePath, "utf8")).toBe("{torn");
-  expect(messages).toEqual([`fixture: Profile ${filePath} is unreadable and could not be moved aside. Left untouched; nothing was written over it.`]);
+  // The reason is the safe class(code) label only: hosts pin it in their own notices (Tovu desktop).
+  expect(messages).toEqual([`fixture: Profile ${filePath} is unreadable and could not be moved aside (Error(EXDEV)). Left untouched; nothing was written over it.`]);
   expect(diagnostic).toHaveBeenCalledOnce(); expect(diagnostic).toHaveBeenCalledWith({ message: messages[0] }, { error });
   expect(messages.join("\n")).not.toMatch(/boom|SECRETSECRET/);
 });

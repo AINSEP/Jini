@@ -14,7 +14,8 @@ import {
   createProviderRegistry, type ProviderDefinition, type ProviderRegistry, type RegisteredProvider,
 } from '@jini-ai/core/provider-registry';
 import { AUDIO_MODELS_BY_KIND, IMAGE_MODELS, MEDIA_PROVIDERS, VIDEO_MODELS, canonicalMediaProviderId } from '../providers.js';
-import type { AudioKind, MediaModel, MediaProvider, MediaSurface } from '../types.js';
+import type { AudioKind, MediaSurface } from '../types.js';
+import type { MediaModel, MediaProvider } from '@jini-ai/core/contracts/site/media-providers-catalog';
 import { registerBuiltinVendorAdapters } from './builtin-vendors.js';
 import type { MediaModelCatalog, VendorAdapter, VendorAdapterLookup } from './types.js';
 

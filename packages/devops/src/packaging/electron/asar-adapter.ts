@@ -1,4 +1,5 @@
-import type { ArchiveReaderPort, AsarHeaderNode } from './ports.js';
+import type { ArchiveReaderPort } from './ports.js';
+import type { AsarHeaderNode } from "@jini-ai/core/contracts/site/packaging-electron";
 /** Bind @electron/asar in the host rather than depending on the packaging SDK in core. */
 export function createAsarArchiveReader({ asar }: { asar: {
   getRawHeader(archivePath: string): { header: { files?: Record<string, AsarHeaderNode> } };

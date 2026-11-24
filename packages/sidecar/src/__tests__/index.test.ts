@@ -42,7 +42,7 @@ import { prepareIpcPath } from "../json-ipc.js";
 import { closeServer, listenOnPort } from "../net.js";
 import { allocateDynamicPort } from "../port.js";
 import { writeJsonFileAtomicAsync } from '@jini-ai/platform/fs';
-/** The real atomic writer (platform is a test dependency); hosts pass node-adapters' `nodeAtomicWriter`. */
+/** The real atomic writer (platform is a test dependency); hosts pass node-adapters' `createAtomicWriterPort` over platform's functions. */
 const testWriter = { writeJson: writeJsonFileAtomicAsync };
 
 // root (CAP_DAC_OVERRIDE) always bypasses a directory/file's own permission bits, so `chmod(path,

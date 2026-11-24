@@ -23,13 +23,127 @@
       "./admin/react": "browser",
       "./admin/adapters/http": "universal",
       "./admin/adapters/memory": "universal",
-      "./admin/conformance": "universal"
+      "./admin/conformance": "universal",
+      "./mail/status/agent-tools": "universal",
+      "./mail/status/delivery-agent-tools": "universal",
+      "./mail/status/provider-agent-tools": "universal",
+      "./mail/status/permissions": "universal",
+      "./mail/status/domain-deps": "universal",
+      "./admin-http/http/users": "universal",
+      "./admin-http/owner/mfa-deps": "universal",
+      "./admin-http/routes/users/create-role": "universal",
+      "./admin-http/routes/users/update-role": "universal",
+      "./admin-http/routes/users/delete-role": "universal",
+      "./admin-http/routes/users/create-policy": "universal",
+      "./admin-http/routes/users/update-policy": "universal",
+      "./admin-http/routes/users/delete-policy": "universal",
+      "./admin-http/routes/users/write-policy-permission": "universal",
+      "./admin-http/routes/users/list": "universal",
+      "./admin-http/routes/users/create": "universal",
+      "./admin-http/routes/users/update": "universal",
+      "./admin-http/routes/users/disable": "universal",
+      "./admin-http/routes/users/enable": "universal",
+      "./admin-http/routes/users/reset-password": "universal",
+      "./admin-http/routes/users/delete": "universal",
+      "./admin-http/routes/users/assign-role": "universal",
+      "./admin-http/routes/users/attach-policy": "universal",
+      "./admin-http/routes/users/list-roles": "universal",
+      "./admin-http/routes/users/list-policies": "universal",
+      "./admin-http/routes/users/list-policy-permissions": "universal",
+      "./admin-http/routes/users/remove-policy-permission": "universal",
+      "./admin-http/auth": "node",
+      "./identity/boot-session-token": "node",
+      "./identity/builtin-role-grants": "universal",
+      "./identity/permission-grants": "universal",
+      "./identity/role-manage-permission": "universal",
+      "./identity/user-manage-permission": "universal",
+      "./identity/site-key-permission": "universal",
+      "./identity/api-key-types": "universal",
+      "./identity/api-key-secret": "node",
+      "./identity/api-key-service": "node",
+      "./identity/owner-reset-env": "universal",
+      "./identity/repo.memory": "universal",
+      "./identity/user-purge-types": "universal",
+      "./identity/username-change-ports": "universal",
+      "./identity/delete-user-service": "universal",
+      "./react/auth/owner-mfa-api": "browser",
+      "./react/auth/owner-passkey-api": "browser",
+      "./react/auth/owner-recovery-api": "browser",
+      "./react/auth/local-owner-signin": "browser",
+      "./member-login/oidc-login": "node",
+      "./member-login/link-service": "node",
+      "./react/members/members-i18n": "browser",
+      "./members/auth-mail": "universal",
+      "./newsletter/errors": "universal",
+      "./newsletter/types": "universal",
+      "./newsletter/ports": "universal",
+      "./newsletter/campaign": "universal",
+      "./newsletter/hooks": "universal",
+      "./newsletter/lists": "universal",
+      "./newsletter/campaign-write-service": "universal",
+      "./newsletter/launch-gate": "universal",
+      "./newsletter/repo.memory": "universal",
+      "./newsletter/repo": "universal",
+      "./newsletter/repo.rows": "universal",
+      "./newsletter/repo-subscribers": "universal",
+      "./newsletter/repo-sends": "universal",
+      "./newsletter/unsubscribe": "node",
+      "./newsletter/send-pipeline": "node",
+      "./newsletter/data-module-manifest": "universal",
+      "./members/access-resolver": "node",
+      "./members/agent-tools": "universal",
+      "./members/capability-card": "universal",
+      "./members/consent-service": "universal",
+      "./members/member-admin-writes": "universal",
+      "./members/member-challenge": "node",
+      "./members/member-challenge-request": "node",
+      "./members/member-credentials": "node",
+      "./members/member-sign-in": "node",
+      "./members/member-validation": "universal",
+      "./members/password-auth": "node",
+      "./members/ports": "universal",
+      "./members/repo": "universal",
+      "./members/repo.sessions": "universal",
+      "./members/repo.memory": "universal",
+      "./members/subscriber-directory": "universal",
+      "./members/trash-member": "universal",
+      "./members/types": "universal",
+      "./members/write-service": "node"
     },
     "optionalPeers": {
       "argon2": "opt-in: argon2 password hashing; import @jini-ai/user-management/server — Argon2 password hashing could not load argon2. Install argon2 to enable this feature, or check its installed version and native binaries.",
       "@jini-ai/ui-kit": "opt-in: ui kit integrations; import @jini-ai/user-management/react — UI kit integrations could not load @jini-ai/ui-kit. Install @jini-ai/ui-kit to enable this feature, or check its installed version and native binaries.",
       "react": "opt-in: react user-management ui; import @jini-ai/user-management/react — React user-management UI could not load react. Install react to enable this feature, or check its installed version.",
-      "react-dom": "opt-in: react user-management ui; import @jini-ai/user-management/react — React user-management UI could not load react-dom. Install react-dom to enable this feature, or check its installed version."
+      "react-dom": "opt-in: react user-management ui; import @jini-ai/user-management/react — React user-management UI could not load react-dom. Install react-dom to enable this feature, or check its installed version.",
+      "kysely": "opt-in: sql storage adapters; import @jini-ai/user-management/members/repo — SQL storage adapters could not load kysely. Install kysely to enable this feature, or check its installed version and native binaries."
+    },
+    "isolation": {
+      "entries": {
+        "./identity/boot-session-token": "server",
+        "./identity/builtin-role-grants": "server",
+        "./identity/permission-grants": "server",
+        "./identity/role-manage-permission": "server",
+        "./identity/user-manage-permission": "server",
+        "./identity/site-key-permission": "server",
+        "./identity/api-key-types": "server",
+        "./identity/api-key-secret": "server",
+        "./identity/api-key-service": "server",
+        "./identity/owner-reset-env": "server",
+        "./identity/repo.memory": "server",
+        "./identity/user-purge-types": "server",
+        "./identity/username-change-ports": "server",
+        "./identity/delete-user-service": "server",
+        "./member-login/oidc-login": "server",
+        "./member-login/link-service": "members"
+      },
+      "shared": [
+        "src/server/auth-challenge.ts",
+        "src/server/hasher.ts",
+        "src/server/link-policy.ts",
+        "src/server/login-types.ts",
+        "src/server/password-policy.ts",
+        "src/server/session-tokens.ts"
+      ]
     }
   },
   "type": "module",
@@ -89,6 +203,431 @@
       "types": "./dist/admin/conformance/index.d.ts",
       "import": "./dist/admin/conformance/index.js",
       "default": "./dist/admin/conformance/index.js"
+    },
+    "./mail/status/agent-tools": {
+      "types": "./dist/mail/status/agent-tools.d.ts",
+      "import": "./dist/mail/status/agent-tools.js",
+      "default": "./dist/mail/status/agent-tools.js"
+    },
+    "./mail/status/delivery-agent-tools": {
+      "types": "./dist/mail/status/delivery-agent-tools.d.ts",
+      "import": "./dist/mail/status/delivery-agent-tools.js",
+      "default": "./dist/mail/status/delivery-agent-tools.js"
+    },
+    "./mail/status/provider-agent-tools": {
+      "types": "./dist/mail/status/provider-agent-tools.d.ts",
+      "import": "./dist/mail/status/provider-agent-tools.js",
+      "default": "./dist/mail/status/provider-agent-tools.js"
+    },
+    "./mail/status/permissions": {
+      "types": "./dist/mail/status/permissions.d.ts",
+      "import": "./dist/mail/status/permissions.js",
+      "default": "./dist/mail/status/permissions.js"
+    },
+    "./mail/status/domain-deps": {
+      "types": "./dist/mail/status/domain-deps.d.ts",
+      "import": "./dist/mail/status/domain-deps.js",
+      "default": "./dist/mail/status/domain-deps.js"
+    },
+    "./admin-http/http/users": {
+      "types": "./dist/admin-http/http/users.d.ts",
+      "import": "./dist/admin-http/http/users.js",
+      "default": "./dist/admin-http/http/users.js"
+    },
+    "./admin-http/owner/mfa-deps": {
+      "types": "./dist/admin-http/owner/mfa-deps.d.ts",
+      "import": "./dist/admin-http/owner/mfa-deps.js",
+      "default": "./dist/admin-http/owner/mfa-deps.js"
+    },
+    "./admin-http/routes/users/create-role": {
+      "types": "./dist/admin-http/routes/users/create-role.d.ts",
+      "import": "./dist/admin-http/routes/users/create-role.js",
+      "default": "./dist/admin-http/routes/users/create-role.js"
+    },
+    "./admin-http/routes/users/update-role": {
+      "types": "./dist/admin-http/routes/users/update-role.d.ts",
+      "import": "./dist/admin-http/routes/users/update-role.js",
+      "default": "./dist/admin-http/routes/users/update-role.js"
+    },
+    "./admin-http/routes/users/delete-role": {
+      "types": "./dist/admin-http/routes/users/delete-role.d.ts",
+      "import": "./dist/admin-http/routes/users/delete-role.js",
+      "default": "./dist/admin-http/routes/users/delete-role.js"
+    },
+    "./admin-http/routes/users/create-policy": {
+      "types": "./dist/admin-http/routes/users/create-policy.d.ts",
+      "import": "./dist/admin-http/routes/users/create-policy.js",
+      "default": "./dist/admin-http/routes/users/create-policy.js"
+    },
+    "./admin-http/routes/users/update-policy": {
+      "types": "./dist/admin-http/routes/users/update-policy.d.ts",
+      "import": "./dist/admin-http/routes/users/update-policy.js",
+      "default": "./dist/admin-http/routes/users/update-policy.js"
+    },
+    "./admin-http/routes/users/delete-policy": {
+      "types": "./dist/admin-http/routes/users/delete-policy.d.ts",
+      "import": "./dist/admin-http/routes/users/delete-policy.js",
+      "default": "./dist/admin-http/routes/users/delete-policy.js"
+    },
+    "./admin-http/routes/users/write-policy-permission": {
+      "types": "./dist/admin-http/routes/users/write-policy-permission.d.ts",
+      "import": "./dist/admin-http/routes/users/write-policy-permission.js",
+      "default": "./dist/admin-http/routes/users/write-policy-permission.js"
+    },
+    "./admin-http/routes/users/list": {
+      "types": "./dist/admin-http/routes/users/list.d.ts",
+      "import": "./dist/admin-http/routes/users/list.js",
+      "default": "./dist/admin-http/routes/users/list.js"
+    },
+    "./admin-http/routes/users/create": {
+      "types": "./dist/admin-http/routes/users/create.d.ts",
+      "import": "./dist/admin-http/routes/users/create.js",
+      "default": "./dist/admin-http/routes/users/create.js"
+    },
+    "./admin-http/routes/users/update": {
+      "types": "./dist/admin-http/routes/users/update.d.ts",
+      "import": "./dist/admin-http/routes/users/update.js",
+      "default": "./dist/admin-http/routes/users/update.js"
+    },
+    "./admin-http/routes/users/disable": {
+      "types": "./dist/admin-http/routes/users/disable.d.ts",
+      "import": "./dist/admin-http/routes/users/disable.js",
+      "default": "./dist/admin-http/routes/users/disable.js"
+    },
+    "./admin-http/routes/users/enable": {
+      "types": "./dist/admin-http/routes/users/enable.d.ts",
+      "import": "./dist/admin-http/routes/users/enable.js",
+      "default": "./dist/admin-http/routes/users/enable.js"
+    },
+    "./admin-http/routes/users/reset-password": {
+      "types": "./dist/admin-http/routes/users/reset-password.d.ts",
+      "import": "./dist/admin-http/routes/users/reset-password.js",
+      "default": "./dist/admin-http/routes/users/reset-password.js"
+    },
+    "./admin-http/routes/users/delete": {
+      "types": "./dist/admin-http/routes/users/delete.d.ts",
+      "import": "./dist/admin-http/routes/users/delete.js",
+      "default": "./dist/admin-http/routes/users/delete.js"
+    },
+    "./admin-http/routes/users/assign-role": {
+      "types": "./dist/admin-http/routes/users/assign-role.d.ts",
+      "import": "./dist/admin-http/routes/users/assign-role.js",
+      "default": "./dist/admin-http/routes/users/assign-role.js"
+    },
+    "./admin-http/routes/users/attach-policy": {
+      "types": "./dist/admin-http/routes/users/attach-policy.d.ts",
+      "import": "./dist/admin-http/routes/users/attach-policy.js",
+      "default": "./dist/admin-http/routes/users/attach-policy.js"
+    },
+    "./admin-http/routes/users/list-roles": {
+      "types": "./dist/admin-http/routes/users/list-roles.d.ts",
+      "import": "./dist/admin-http/routes/users/list-roles.js",
+      "default": "./dist/admin-http/routes/users/list-roles.js"
+    },
+    "./admin-http/routes/users/list-policies": {
+      "types": "./dist/admin-http/routes/users/list-policies.d.ts",
+      "import": "./dist/admin-http/routes/users/list-policies.js",
+      "default": "./dist/admin-http/routes/users/list-policies.js"
+    },
+    "./admin-http/routes/users/list-policy-permissions": {
+      "types": "./dist/admin-http/routes/users/list-policy-permissions.d.ts",
+      "import": "./dist/admin-http/routes/users/list-policy-permissions.js",
+      "default": "./dist/admin-http/routes/users/list-policy-permissions.js"
+    },
+    "./admin-http/routes/users/remove-policy-permission": {
+      "types": "./dist/admin-http/routes/users/remove-policy-permission.d.ts",
+      "import": "./dist/admin-http/routes/users/remove-policy-permission.js",
+      "default": "./dist/admin-http/routes/users/remove-policy-permission.js"
+    },
+    "./admin-http/auth": {
+      "types": "./dist/admin-http/auth/index.d.ts",
+      "import": "./dist/admin-http/auth/index.js",
+      "default": "./dist/admin-http/auth/index.js"
+    },
+    "./identity/boot-session-token": {
+      "types": "./dist/identity/boot-session-token.d.ts",
+      "import": "./dist/identity/boot-session-token.js",
+      "default": "./dist/identity/boot-session-token.js"
+    },
+    "./identity/builtin-role-grants": {
+      "types": "./dist/identity/builtin-role-grants.d.ts",
+      "import": "./dist/identity/builtin-role-grants.js",
+      "default": "./dist/identity/builtin-role-grants.js"
+    },
+    "./identity/permission-grants": {
+      "types": "./dist/identity/permission-grants.d.ts",
+      "import": "./dist/identity/permission-grants.js",
+      "default": "./dist/identity/permission-grants.js"
+    },
+    "./identity/role-manage-permission": {
+      "types": "./dist/identity/role-manage-permission.d.ts",
+      "import": "./dist/identity/role-manage-permission.js",
+      "default": "./dist/identity/role-manage-permission.js"
+    },
+    "./identity/user-manage-permission": {
+      "types": "./dist/identity/user-manage-permission.d.ts",
+      "import": "./dist/identity/user-manage-permission.js",
+      "default": "./dist/identity/user-manage-permission.js"
+    },
+    "./identity/site-key-permission": {
+      "types": "./dist/identity/site-key-permission.d.ts",
+      "import": "./dist/identity/site-key-permission.js",
+      "default": "./dist/identity/site-key-permission.js"
+    },
+    "./identity/api-key-types": {
+      "types": "./dist/identity/api-key-types.d.ts",
+      "import": "./dist/identity/api-key-types.js",
+      "default": "./dist/identity/api-key-types.js"
+    },
+    "./identity/api-key-secret": {
+      "types": "./dist/identity/api-key-secret.d.ts",
+      "import": "./dist/identity/api-key-secret.js",
+      "default": "./dist/identity/api-key-secret.js"
+    },
+    "./identity/api-key-service": {
+      "types": "./dist/identity/api-key-service.d.ts",
+      "import": "./dist/identity/api-key-service.js",
+      "default": "./dist/identity/api-key-service.js"
+    },
+    "./identity/owner-reset-env": {
+      "types": "./dist/identity/owner-reset-env.d.ts",
+      "import": "./dist/identity/owner-reset-env.js",
+      "default": "./dist/identity/owner-reset-env.js"
+    },
+    "./identity/repo.memory": {
+      "types": "./dist/identity/repo.memory.d.ts",
+      "import": "./dist/identity/repo.memory.js",
+      "default": "./dist/identity/repo.memory.js"
+    },
+    "./identity/user-purge-types": {
+      "types": "./dist/identity/user-purge-types.d.ts",
+      "import": "./dist/identity/user-purge-types.js",
+      "default": "./dist/identity/user-purge-types.js"
+    },
+    "./identity/username-change-ports": {
+      "types": "./dist/identity/username-change-ports.d.ts",
+      "import": "./dist/identity/username-change-ports.js",
+      "default": "./dist/identity/username-change-ports.js"
+    },
+    "./identity/delete-user-service": {
+      "types": "./dist/identity/delete-user-service.d.ts",
+      "import": "./dist/identity/delete-user-service.js",
+      "default": "./dist/identity/delete-user-service.js"
+    },
+    "./react/auth/owner-mfa-api": {
+      "types": "./dist/react/auth/owner-mfa-api.d.ts",
+      "import": "./dist/react/auth/owner-mfa-api.js",
+      "default": "./dist/react/auth/owner-mfa-api.js"
+    },
+    "./react/auth/owner-passkey-api": {
+      "types": "./dist/react/auth/owner-passkey-api.d.ts",
+      "import": "./dist/react/auth/owner-passkey-api.js",
+      "default": "./dist/react/auth/owner-passkey-api.js"
+    },
+    "./react/auth/owner-recovery-api": {
+      "types": "./dist/react/auth/owner-recovery-api.d.ts",
+      "import": "./dist/react/auth/owner-recovery-api.js",
+      "default": "./dist/react/auth/owner-recovery-api.js"
+    },
+    "./react/auth/local-owner-signin": {
+      "types": "./dist/react/auth/local-owner-signin.d.ts",
+      "import": "./dist/react/auth/local-owner-signin.js",
+      "default": "./dist/react/auth/local-owner-signin.js"
+    },
+    "./member-login/oidc-login": {
+      "types": "./dist/member-login/oidc-login.d.ts",
+      "import": "./dist/member-login/oidc-login.js",
+      "default": "./dist/member-login/oidc-login.js"
+    },
+    "./member-login/link-service": {
+      "types": "./dist/member-login/link-service.d.ts",
+      "import": "./dist/member-login/link-service.js",
+      "default": "./dist/member-login/link-service.js"
+    },
+    "./react/members/members-i18n": {
+      "types": "./dist/react/members/members-i18n.d.ts",
+      "import": "./dist/react/members/members-i18n.js",
+      "default": "./dist/react/members/members-i18n.js"
+    },
+    "./members/auth-mail": {
+      "types": "./dist/members/auth-mail.d.ts",
+      "import": "./dist/members/auth-mail.js",
+      "default": "./dist/members/auth-mail.js"
+    },
+    "./newsletter/errors": {
+      "types": "./dist/newsletter/errors.d.ts",
+      "import": "./dist/newsletter/errors.js",
+      "default": "./dist/newsletter/errors.js"
+    },
+    "./newsletter/types": {
+      "types": "./dist/newsletter/types.d.ts",
+      "import": "./dist/newsletter/types.js",
+      "default": "./dist/newsletter/types.js"
+    },
+    "./newsletter/ports": {
+      "types": "./dist/newsletter/ports.d.ts",
+      "import": "./dist/newsletter/ports.js",
+      "default": "./dist/newsletter/ports.js"
+    },
+    "./newsletter/campaign": {
+      "types": "./dist/newsletter/campaign.d.ts",
+      "import": "./dist/newsletter/campaign.js",
+      "default": "./dist/newsletter/campaign.js"
+    },
+    "./newsletter/hooks": {
+      "types": "./dist/newsletter/hooks.d.ts",
+      "import": "./dist/newsletter/hooks.js",
+      "default": "./dist/newsletter/hooks.js"
+    },
+    "./newsletter/lists": {
+      "types": "./dist/newsletter/lists.d.ts",
+      "import": "./dist/newsletter/lists.js",
+      "default": "./dist/newsletter/lists.js"
+    },
+    "./newsletter/campaign-write-service": {
+      "types": "./dist/newsletter/campaign-write-service.d.ts",
+      "import": "./dist/newsletter/campaign-write-service.js",
+      "default": "./dist/newsletter/campaign-write-service.js"
+    },
+    "./newsletter/launch-gate": {
+      "types": "./dist/newsletter/launch-gate.d.ts",
+      "import": "./dist/newsletter/launch-gate.js",
+      "default": "./dist/newsletter/launch-gate.js"
+    },
+    "./newsletter/repo.memory": {
+      "types": "./dist/newsletter/repo.memory.d.ts",
+      "import": "./dist/newsletter/repo.memory.js",
+      "default": "./dist/newsletter/repo.memory.js"
+    },
+    "./newsletter/repo": {
+      "types": "./dist/newsletter/repo.d.ts",
+      "import": "./dist/newsletter/repo.js",
+      "default": "./dist/newsletter/repo.js"
+    },
+    "./newsletter/repo.rows": {
+      "types": "./dist/newsletter/repo.rows.d.ts",
+      "import": "./dist/newsletter/repo.rows.js",
+      "default": "./dist/newsletter/repo.rows.js"
+    },
+    "./newsletter/repo-subscribers": {
+      "types": "./dist/newsletter/repo-subscribers.d.ts",
+      "import": "./dist/newsletter/repo-subscribers.js",
+      "default": "./dist/newsletter/repo-subscribers.js"
+    },
+    "./newsletter/repo-sends": {
+      "types": "./dist/newsletter/repo-sends.d.ts",
+      "import": "./dist/newsletter/repo-sends.js",
+      "default": "./dist/newsletter/repo-sends.js"
+    },
+    "./newsletter/unsubscribe": {
+      "types": "./dist/newsletter/unsubscribe.d.ts",
+      "import": "./dist/newsletter/unsubscribe.js",
+      "default": "./dist/newsletter/unsubscribe.js"
+    },
+    "./newsletter/send-pipeline": {
+      "types": "./dist/newsletter/send-pipeline.d.ts",
+      "import": "./dist/newsletter/send-pipeline.js",
+      "default": "./dist/newsletter/send-pipeline.js"
+    },
+    "./newsletter/data-module-manifest": {
+      "types": "./dist/newsletter/data-module-manifest.d.ts",
+      "import": "./dist/newsletter/data-module-manifest.js",
+      "default": "./dist/newsletter/data-module-manifest.js"
+    },
+    "./members/access-resolver": {
+      "types": "./dist/members/access-resolver.d.ts",
+      "import": "./dist/members/access-resolver.js",
+      "default": "./dist/members/access-resolver.js"
+    },
+    "./members/agent-tools": {
+      "types": "./dist/members/agent-tools.d.ts",
+      "import": "./dist/members/agent-tools.js",
+      "default": "./dist/members/agent-tools.js"
+    },
+    "./members/capability-card": {
+      "types": "./dist/members/capability-card.d.ts",
+      "import": "./dist/members/capability-card.js",
+      "default": "./dist/members/capability-card.js"
+    },
+    "./members/consent-service": {
+      "types": "./dist/members/consent-service.d.ts",
+      "import": "./dist/members/consent-service.js",
+      "default": "./dist/members/consent-service.js"
+    },
+    "./members/member-admin-writes": {
+      "types": "./dist/members/member-admin-writes.d.ts",
+      "import": "./dist/members/member-admin-writes.js",
+      "default": "./dist/members/member-admin-writes.js"
+    },
+    "./members/member-challenge": {
+      "types": "./dist/members/member-challenge.d.ts",
+      "import": "./dist/members/member-challenge.js",
+      "default": "./dist/members/member-challenge.js"
+    },
+    "./members/member-challenge-request": {
+      "types": "./dist/members/member-challenge-request.d.ts",
+      "import": "./dist/members/member-challenge-request.js",
+      "default": "./dist/members/member-challenge-request.js"
+    },
+    "./members/member-credentials": {
+      "types": "./dist/members/member-credentials.d.ts",
+      "import": "./dist/members/member-credentials.js",
+      "default": "./dist/members/member-credentials.js"
+    },
+    "./members/member-sign-in": {
+      "types": "./dist/members/member-sign-in.d.ts",
+      "import": "./dist/members/member-sign-in.js",
+      "default": "./dist/members/member-sign-in.js"
+    },
+    "./members/member-validation": {
+      "types": "./dist/members/member-validation.d.ts",
+      "import": "./dist/members/member-validation.js",
+      "default": "./dist/members/member-validation.js"
+    },
+    "./members/password-auth": {
+      "types": "./dist/members/password-auth.d.ts",
+      "import": "./dist/members/password-auth.js",
+      "default": "./dist/members/password-auth.js"
+    },
+    "./members/ports": {
+      "types": "./dist/members/ports.d.ts",
+      "import": "./dist/members/ports.js",
+      "default": "./dist/members/ports.js"
+    },
+    "./members/repo": {
+      "types": "./dist/members/repo.d.ts",
+      "import": "./dist/members/repo.js",
+      "default": "./dist/members/repo.js"
+    },
+    "./members/repo.sessions": {
+      "types": "./dist/members/repo.sessions.d.ts",
+      "import": "./dist/members/repo.sessions.js",
+      "default": "./dist/members/repo.sessions.js"
+    },
+    "./members/repo.memory": {
+      "types": "./dist/members/repo.memory.d.ts",
+      "import": "./dist/members/repo.memory.js",
+      "default": "./dist/members/repo.memory.js"
+    },
+    "./members/subscriber-directory": {
+      "types": "./dist/members/subscriber-directory.d.ts",
+      "import": "./dist/members/subscriber-directory.js",
+      "default": "./dist/members/subscriber-directory.js"
+    },
+    "./members/trash-member": {
+      "types": "./dist/members/trash-member.d.ts",
+      "import": "./dist/members/trash-member.js",
+      "default": "./dist/members/trash-member.js"
+    },
+    "./members/types": {
+      "types": "./dist/members/types.d.ts",
+      "import": "./dist/members/types.js",
+      "default": "./dist/members/types.js"
+    },
+    "./members/write-service": {
+      "types": "./dist/members/write-service.d.ts",
+      "import": "./dist/members/write-service.js",
+      "default": "./dist/members/write-service.js"
     }
   },
   "files": [
@@ -119,7 +658,8 @@
     "@jini-ai/ui-kit": "^0.7.3-next.2",
     "argon2": "^0.44.0",
     "react": "^18.3.0 || ^19.0.0",
-    "react-dom": "^18.3.0 || ^19.0.0"
+    "react-dom": "^18.3.0 || ^19.0.0",
+    "kysely": "^0.29.6"
   },
   "devDependencies": {
     "@jini-ai/admin": "workspace:*",
@@ -138,7 +678,8 @@
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
     "typescript": "^5.6.0",
-    "vitest": "^3.2.6"
+    "vitest": "^3.2.6",
+    "kysely": "^0.29.6"
   },
   "peerDependenciesMeta": {
     "argon2": {
@@ -151,6 +692,9 @@
       "optional": true
     },
     "react-dom": {
+      "optional": true
+    },
+    "kysely": {
       "optional": true
     }
   }

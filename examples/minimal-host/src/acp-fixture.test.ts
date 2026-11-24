@@ -2,7 +2,8 @@ import { describe, expect, it } from 'vitest';
 import { createAgentExecutor, createInMemoryEventLog, createRunLifecycle } from '@jini-ai/daemon';
 import type { AgentLaunchResolution } from '@jini-ai/core/contracts/agents';
 import { acpFixtureDef } from './acp-fixture.js';
-import { nodeAtomicWriter, nodeFileLock } from '@jini-ai/node-adapters/fs';
+import { createAtomicWriterPort, createFileLockPort } from '@jini-ai/node-adapters/fs';
+import { backupOriginalOnce, withFileLock, writeFileAtomicAsync, writeJsonFileAtomicAsync } from '@jini-ai/platform/fs';
 import { createProcessControlPort, nodeCommandShell, nodeSpawnPort } from '@jini-ai/node-adapters/process';
 import { listProcessSnapshots, stopProcesses, waitForProcessExit } from '@jini-ai/platform/process';
 import type { AgentExecutorRuntimePorts } from '@jini-ai/daemon/ports/runtime';
@@ -20,7 +21,7 @@ describe('minimal host static ACP definition', () => {
     const bound = createAgentRuntimeBindings({ runtime: createNativeAgentRuntime({ env: process.env }) }) satisfies AgentRuntimePort;
     const executor = createAgentExecutor({
       lifecycle, hostEnv: process.env,
-      runtime: { spawn: nodeSpawnPort, processes: createProcessControlPort({ functions: { listProcessSnapshots, stopProcesses, waitForProcessExit } }), fileLock: nodeFileLock, writer: nodeAtomicWriter, commandShell: nodeCommandShell({ env: process.env }) },
+      runtime: { spawn: nodeSpawnPort, processes: createProcessControlPort({ functions: { listProcessSnapshots, stopProcesses, waitForProcessExit } }), fileLock: createFileLockPort({ withFileLock }), writer: createAtomicWriterPort({ writeFileAtomicAsync, writeJsonFileAtomicAsync, backupOriginalOnce }), commandShell: nodeCommandShell({ env: process.env }) },
       agentRuntime: { ...bound, defs: { ...bound.defs, get: () => def, ensureCapabilities: async () => {} },
         launch: { ...bound.launch, resolve: () => launch, applyEnv: ({ env }) => env } },
     }, {

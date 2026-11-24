@@ -4,7 +4,7 @@ import { join } from 'node:path';
 import { expect, test } from 'vitest';
 import { normalizeIpcPath, readJsonFile, removePointerIfCurrent, resolveDaemonRegistryPath, writeJsonFile } from '../index.js';
 import { writeJsonFileAtomicAsync } from '@jini-ai/platform/fs';
-/** The real atomic writer (platform is a test dependency); hosts pass node-adapters' `nodeAtomicWriter`. */
+/** The real atomic writer (platform is a test dependency); hosts pass node-adapters' `createAtomicWriterPort` over platform's functions. */
 const testWriter = { writeJson: writeJsonFileAtomicAsync };
 
 test('object inputs preserve atomic state and guarded pointer removal', async () => {

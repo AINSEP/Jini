@@ -1,4 +1,5 @@
-import type { DurableJsonFile, QuarantineNotice } from "./durable-json.js";
+import type { DurableJsonFile } from "./durable-json.js";
+import type { QuarantineNotice } from "@jini-ai/core/contracts/site/fs-durable-json";
 
 /**
  * Read the persisted state, treating any unreadable or malformed file as "no state yet".

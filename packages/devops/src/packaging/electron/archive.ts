@@ -1,9 +1,8 @@
 // Preserved host rationale below: VERIFIED_PREFIXES and scripts/verify-package.ts are host-owned;
 // archivePath/entryPath/separator and filesystem/archive ports replace the old SDK parameters.
 import path from 'node:path';
-import type { AsarHeaderNode, ArchiveReaderPort, PackagingFilesystemPort } from './ports.js';
-export interface AsarMismatch { relPath: string; reason: string }
-export interface AsarVerification { checkedCount: number; mismatches: AsarMismatch[] }
+import type { ArchiveReaderPort, PackagingFilesystemPort } from './ports.js';
+import type { AsarHeaderNode, AsarMismatch, AsarVerification } from "@jini-ai/core/contracts/site/packaging-electron";
 
 function safeEntry(value: string): void {
   if (!value || value.includes('\\') || value.includes('\0') || value.split('/').some(segment => !segment || segment === '.' || segment === '..')) throw new Error(`Unsafe archive entry: ${value}`);

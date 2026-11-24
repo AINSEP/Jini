@@ -1,3 +1,5 @@
+import { TestChipField } from './chip-field.fixture.js';
+import { testClipboard } from './clipboard.fixture.js';
 import { reactModuleUi } from '../../../core/react/module-ui.js';
 import { Suspense } from 'react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
@@ -17,7 +19,7 @@ const deployProvider: CredentialProvider = { kind: 'publish', id: 'deployer', la
   fields: [{ name: 'apiKey', label: 'Deploy API key', secret: true }, { name: 'team', label: 'Team slug', required: true }, { name: 'signing', label: 'Webhook signing value', secret: true }] };
 
 function mount({ permissions, rootKeyScopeNotice, onTabChange }: { permissions: readonly string[]; rootKeyScopeNotice?: string; onTabChange?: (required: { tab: string }) => void }) {
-  const feature = security({ ui: reactModuleUi }, rootKeyScopeNotice ? { rootKeyScopeNotice } : {});
+  const feature = security({ ui: reactModuleUi, ChipField: TestChipField, clipboard: testClipboard }, rootKeyScopeNotice ? { rootKeyScopeNotice } : {});
   const api = createMemorySecurityApi({ providers: [gitProvider, deployProvider] });
   const admin = createAdmin({ modules: [feature], ports: { securityApi: api, rootKey: createMemoryRootKey({}) } }, { permissions });
   const { Page, tabs } = feature.react.pages.secrets;
@@ -49,7 +51,7 @@ describe('security credential editor', () => {
     fireEvent.change(field('Category'), { target: { value: 'ai' } });
     fireEvent.change(field('Base URL'), { target: { value: 'https://analytics.test' } });
     fireEvent.change(field('Username'), { target: { value: 'robot' } });
-    fireEvent.change(field('Additional hosts'), { target: { value: 'cdn.analytics.test' } });
+    fireEvent.change(field('Additional hosts'), { target: { value: 'https://cdn.analytics.test' } });
     fireEvent.click(within(dialog).getByRole('button', { name: 'Save' }));
     expect(await screen.findByRole('heading', { name: 'Analytics' })).toBeVisible();
     // The memory backend discards credential material, so token delivery is checked on the request itself.
@@ -59,11 +61,10 @@ describe('security credential editor', () => {
       connection: { token: 'value-from-test', username: 'robot' },
       category: 'ai',
       baseUrl: 'https://analytics.test',
-      additionalHosts: ['cdn.analytics.test'],
-      username: 'robot',
+      additionalHosts: ['https://cdn.analytics.test'],
     });
     const [saved] = await api.custom.list({}, {});
-    expect(saved).toMatchObject({ label: 'Analytics', category: 'ai', baseUrl: 'https://analytics.test', username: 'robot', additionalHosts: ['cdn.analytics.test'] });
+    expect(saved).toMatchObject({ label: 'Analytics', category: 'ai', baseUrl: 'https://analytics.test', username: 'robot', additionalHosts: ['https://cdn.analytics.test'] });
     expect(JSON.stringify(saved)).not.toContain('value-from-test');
   });
 
@@ -118,13 +119,13 @@ describe('access tokens tab', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Reload' }));
     await screen.findByRole('heading', { name: 'Second' });
     // Only the non-default saved token offers promotion.
-    expect(screen.getAllByRole('button', { name: 'Make default' })).toHaveLength(1);
-    fireEvent.click(screen.getByRole('button', { name: 'Make default' }));
+    expect(screen.getAllByRole('button', { name: /^Make default/ })).toHaveLength(1);
+    fireEvent.click(screen.getByRole('button', { name: 'Make default — Second' }));
     await waitFor(async () => expect((await api.publish.list({}, {})).find(row => row.id === second.id)?.isDefault).toBe(true));
   });
 
   it('denies the tab itself to a viewer without the read grant', async () => {
-    const feature = security({ ui: reactModuleUi });
+    const feature = security({ ui: reactModuleUi, ChipField: TestChipField, clipboard: testClipboard });
     const admin = createAdmin({ modules: [feature], ports: { securityApi: createMemorySecurityApi({ providers: [gitProvider] }) } }, { permissions: ['security.read'] });
     const AccessTokens = feature.react.pages.secrets.tabs['access-tokens'];
     render(<KitProvider><feature.react.Provider admin={admin}><Suspense fallback="Loading"><AccessTokens params={{}} permissions={[]} /></Suspense></feature.react.Provider></KitProvider>);
@@ -135,7 +136,7 @@ describe('access tokens tab', () => {
 
 
 it('uses the injected editor draft title', () => {
-  render(<CredentialEditor controller={null} saving={false} draft={{
+  render(<CredentialEditor ChipField={TestChipField} controller={null} saving={false} draft={{
     kind: 'custom', providerId: '', label: 'Draft', token: '', values: {}, category: 'general', baseUrl: '', additionalHosts: '', username: '',
   }} useCredentialEditorHook={(props) => ({ ...useCredentialEditor(props), title: 'Injected credential draft' })} />);
   expect(screen.getByRole('dialog', { name: 'Injected credential draft' })).toBeVisible();

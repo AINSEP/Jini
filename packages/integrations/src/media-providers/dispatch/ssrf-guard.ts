@@ -41,7 +41,7 @@ import { isLoopbackApiHost, isBlockedExternalApiHostname, FETCH_TIMEOUT_MS } fro
 import { promises as dnsPromises } from 'node:dns';
 import { isIpLiteralHostname } from '@jini-ai/core';
 import { trimCharsEnd } from '@jini-ai/core/primitives';
-import { defaultMediaOutboundMessages, fetchMediaOutbound, requireMediaHttpClient } from './outbound.js';
+import { defaultMediaOutboundMessages, fetchMediaOutbound, requireMediaGuardedFetch, requireMediaHttpClient } from './outbound.js';
 import type { MediaOutboundOptions } from './outbound.js';
 
 export interface DnsLookupAddress {
@@ -157,7 +157,7 @@ export async function assertAndFetchExternalAsset({ url }: { url: string }, { in
     if (!check.ok) throw new Error(`blocked download url (${check.error})`);
   }
   // Downloading an already-generated asset, not waiting on generation — UPLOAD-class (2min).
-  return fetchMediaOutbound({ url, timeoutMs: FETCH_TIMEOUT_MS.UPLOAD, httpClient: requireMediaHttpClient(outbound) }, {
+  return fetchMediaOutbound({ url, timeoutMs: FETCH_TIMEOUT_MS.UPLOAD, httpClient: requireMediaHttpClient(outbound), guardedFetch: requireMediaGuardedFetch(outbound) }, {
     ...outbound,
     init: { ...init, redirect: 'error' },
   });

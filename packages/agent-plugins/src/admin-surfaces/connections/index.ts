@@ -1,2 +1,3 @@
-export { createAdminSurfaceConnections, type AdminSurfaceConnectionsDeps, type IssuedSignIn } from './connections.js';
-export type { AdminSurfaceConnectionsHost, AdminSurfaceDeclaredConnection, AdminSurfaceConnectionAccount, AdminSurfaceStagedAccount, AdminSurfaceStatusView, AdminSurfaceConnectionRecord, AdminSurfaceAccountAction, AdminSurfaceDisconnected, AdminSurfaceSignInStart, AdminSurfaceSignInStarted, AdminSurfaceCallbackInbox } from './ports.js';
+export { createAdminSurfaceConnections, type AdminSurfaceConnectionsDeps } from './connections.js';
+/** Deprecated re-export: import these from `@jini-ai/core/contracts/site/admin-surfaces-connections`; removed at the next major. */
+export type { IssuedSignIn, AdminSurfaceConnectionsHost, AdminSurfaceDeclaredConnection, AdminSurfaceConnectionAccount, AdminSurfaceStagedAccount, AdminSurfaceStatusView, AdminSurfaceConnectionRecord, AdminSurfaceAccountAction, AdminSurfaceDisconnected, AdminSurfaceSignInStart, AdminSurfaceSignInStarted, AdminSurfaceCallbackInbox } from "@jini-ai/core/contracts/site/admin-surfaces-connections";

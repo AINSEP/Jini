@@ -1,3 +1,5 @@
+import type { AsarHeaderNode } from "@jini-ai/core/contracts/site/packaging-electron";
+
 export interface FileInfo { kind: 'file' | 'directory' | 'other'; mtimeMs: number; diskBytes: number }
 /** lstat semantics for stat; copy may dereference package symlinks as explicitly requested. */
 export interface PackagingFilesystemPort {
@@ -14,7 +16,6 @@ export interface PackagingFilesystemPort {
 }
 export interface PackageResolverPort { resolve(required: { fromDirectory: string; packageName: string }): string | undefined }
 export interface ProcessRunnerPort { run(required: { command: string; args: readonly string[]; cwd: string; shell: boolean }): { stdout: string; exitCode: number } }
-export interface AsarHeaderNode { files?: Record<string, AsarHeaderNode>; link?: string; size?: number; offset?: string }
 export interface ArchiveReaderPort {
   header(required: { archivePath: string }): { files?: Record<string, AsarHeaderNode> };
   read(required: { archivePath: string; entryPath: string }): Uint8Array;

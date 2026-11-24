@@ -2,6 +2,7 @@
 import path from "node:path";
 import type { YamlReaderPort } from "./ports.js";
 import { hasUnsafePathCharacter } from "./unsafe-chars.js";
+import type { SkillUploadFile } from "@jini-ai/core/contracts/site/skills-install";
 
 export type SkillYamlPort = YamlReaderPort;
 export class SkillInputError extends Error {
@@ -12,7 +13,6 @@ export class SkillInputError extends Error {
     super(typeof required === "string" ? required : required.message, optional);
   }
 }
-export interface SkillUploadFile { readonly path: string; readonly contentBase64: string }
 export const MAX_SKILL_BYTES = 8 * 1024 * 1024;
 export const MAX_SKILL_FILES = 256;
 export const MAX_SKILL_FILE_BYTES = 1024 * 1024;
