@@ -67,7 +67,7 @@ import { dirname, isAbsolute, join } from "node:path";
 /** Raised when a caller tries to set a path that cannot be an fs-files root — a shape rejection, not
  *  an internal error, so the admin-http route can echo it straight back to the composer UI. */
 export class CustomFsRootError extends Error {
-  constructor({ message }: { message: string }) {
+  constructor({ message }: { message: string }, _optional = {}) {
     super(message);
     this.name = "CustomFsRootError";
   }
@@ -222,14 +222,14 @@ export function setCustomFsRoot({ workspaceId, path, optional }: { workspaceId: 
 }
 
 /**
- * Test-only reset: overwrites `optional.siteDir`'s persistence file with an empty object, creating it
+ * Test-only reset: overwrites `siteDir`'s persistence file with an empty object, creating it
  * if absent — it is not deleted. `siteDir` is REQUIRED, as it is for every store operation, so this can
  * never be called bare and reach for the real site directory by accident — every caller must name the
  * temp directory it wants cleared.
  */
-export function resetCustomFsRootForTests(optional: Required<CustomFsRootStoreOptional>): void {
+export function resetCustomFsRootForTests({ siteDir }: { siteDir: string }, _optional = {}): void {
   try {
-    writePersistedPaths({ filePath: persistenceFilePath(optional), store: {} });
+    writePersistedPaths({ filePath: persistenceFilePath({ siteDir }), store: {} });
   } catch (err) {
     if ((err as NodeJS.ErrnoException).code !== "ENOENT") throw err;
   }
