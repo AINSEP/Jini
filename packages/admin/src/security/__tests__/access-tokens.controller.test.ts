@@ -59,7 +59,7 @@ describe('access tokens controller: save', () => {
   it('shows a validation error and keeps the draft', async () => { const { c } = await setup(); c.begin({ kind: 'custom' }); expect(await c.save({})).toBe(false); expect(c.getSnapshot()).toMatchObject({ error: 'Enter a name', saving: false }); expect(c.getSnapshot().draft).not.toBeNull(); });
   it('creates a new credential and refetches', async () => {
     const { api, c } = await setup(); const create = vi.spyOn(api.custom, 'create'); c.begin({ kind: 'custom' }); c.setDraft({ patch: { label: 'Api', token: ' t ', baseUrl: 'https://a' } });
-    expect(await c.save({})).toBe(true); expect(create).toHaveBeenCalledWith({ label: 'Api', connection: { token: 't' }, category: 'general', baseUrl: 'https://a', additionalHosts: [], username: null }, { signal: expect.any(AbortSignal) }); expect(c.getSnapshot()).toMatchObject({ draft: null, saving: false, error: null });
+    expect(await c.save({})).toBe(true); expect(create).toHaveBeenCalledWith({ label: 'Api', category: 'general', baseUrl: 'https://a', connection: { token: 't' } }, { signal: expect.any(AbortSignal) }); expect(c.getSnapshot()).toMatchObject({ draft: null, saving: false, error: null });
   });
   it('updates an existing credential by id', async () => { const { api, c } = await setup({ rows: [row({})] }); const update = vi.spyOn(api.sourceControl, 'update'); c.begin({ row: c.getSnapshot().rows[0]! }); c.setDraft({ patch: { label: 'New' } }); expect(await c.save({})).toBe(true); expect(update).toHaveBeenCalledWith({ id: 's1', patch: { label: 'New' } }, { signal: expect.any(AbortSignal) }); });
   it('reports a refused save without leaking the cause and keeps the draft', async () => {

@@ -3,7 +3,7 @@ import type { ComponentType, ReactNode } from 'react';
 import type { ModulePageProps, TabViewProps } from '@jini-ai/core/contracts/admin-module';
 import type { TabBarTab } from '../../../react/kit.js';
 import type { SecurityTranslator } from '../../messages.en.js';
-import { useSecurityTranslation, useSecurityOwnerControls } from './SecurityPorts.hooks.js';
+import type { useSecurityTranslation, useSecurityOwnerControls } from './SecurityPorts.hooks.js';
 /** The shell passes this page its tabs as renderable components. */
 type TabbedPageProps = ModulePageProps<ComponentType<TabViewProps>>;
 /** Host-supplied tab glyphs; the module ships no icon set. */
@@ -29,7 +29,9 @@ function activeTab({ description, requested }: { description: TabbedPageProps['d
 function pageCopy({ t }: { t: SecurityTranslator }, _optional = {}) {
   return { title: t('security'), kicker: t('kicker'), description: t('description'), tabsLabel: t('tabsLabel'), deniedLabel: t('denied'), loadingLabel: t('loading') };
 }
-export function useSecurityPage(props: TabbedPageProps & { tabIcons?: SecurityTabIcons }, { useSecurityTranslationHook = useSecurityTranslation, useSecurityOwnerControlsHook = useSecurityOwnerControls }: { useSecurityTranslationHook?: typeof useSecurityTranslation; useSecurityOwnerControlsHook?: typeof useSecurityOwnerControls } = {}) {
+/** Its chrome hooks are required inputs; the module's view binding supplies them. */
+export interface SecurityPageHooks { readonly useSecurityTranslationHook: typeof useSecurityTranslation; readonly useSecurityOwnerControlsHook: typeof useSecurityOwnerControls }
+export function useSecurityPage(props: TabbedPageProps & { tabIcons?: SecurityTabIcons }, { useSecurityTranslationHook, useSecurityOwnerControlsHook }: SecurityPageHooks) {
   const t = useSecurityTranslationHook({}), ownerControls = useSecurityOwnerControlsHook({});
   const [local, setLocal] = useState('access-tokens');
   const { visible, active, id } = activeTab({ description: props.description, requested: props.requestedTab ?? local });

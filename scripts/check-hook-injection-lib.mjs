@@ -54,12 +54,15 @@ function findComponents(sf) {
   return found;
 }
 
-/** Names of destructured props that default to a hook: `{ useFooHook = useFoo }`. */
+/**
+ * Names of destructured props that carry a hook: `{ useFooHook = useFoo }` or a REQUIRED `{ useFooHook }`
+ * the host must bind (owner rule 11-23: no default hook in Jini). Either way the hook arrives as a prop.
+ */
 function injectedHooks(fn) {
   const pattern = fn.parameters[0]?.name;
   if (!pattern || !ts.isObjectBindingPattern(pattern)) return new Set();
   const names = pattern.elements
-    .filter(el => el.initializer && ts.isIdentifier(el.name) && HOOK_NAME.test(el.name.text))
+    .filter(el => !el.dotDotDotToken && ts.isIdentifier(el.name) && HOOK_NAME.test(el.name.text))
     .map(el => el.name.text);
   return new Set(names);
 }

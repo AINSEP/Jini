@@ -135,3 +135,27 @@ replace authentication prose through `defaultUserManagementMessages` and the `me
 Session `workspaceId` remains required: session and principal repositories address records by
 composite tenant/record keys and session validation must not cross tenant boundaries. It is an
 opaque host scope in meaning, but renaming or making it optional would violate that store contract.
+
+## Wiring
+
+`./admin-http/auth` routes are mounted by the host with per-route deps and its `AuthRequest`
+context. Behavior contract for owner MFA login (`POST /api/admin/v1/auth/mfa/login`, B12): only a
+refused proof classified as `MfaProofRefusedError` answers `400 { error: MFA_PROOF_REFUSED_MESSAGE,
+code: "MFA_REFUSED" }`, with that fixed text. Any other failure, including another
+`IdentityValidationError` from an injected collaborator, is rethrown to the host's redacted login
+envelope (`Cache-Control: no-store` is already set), so proof or token text never reaches the body.
+A host binding `completeOwnerLogin` must throw `MfaProofRefusedError` for a wrong, replayed or
+expired code. Password login (`POST /api/admin/v1/auth/login`) coerces credential fields only after
+readiness and the limiter, so a denied request always gets its exact 429 and `Retry-After`.
+
+Each route's context is a narrowed view of `AuthRequest` naming only the operations it calls
+(`CurrentPrincipalAuth` for `/auth/me` and `/auth/me/password-status`, `LogoutAuth` = session
+revocation + cookie clearing, `SignInAuth` for password and MFA login, `BootSessionAuth` and
+`LocalBootSessionAuth` for the boot routes). A host binding its full `AuthRequest` satisfies all
+of them; the response policy (cookies, cache headers, limiter, `onError`) stays host code.
+
+`RecoveryCodesCard` (`./react`) takes every hook as a required prop: `createDownloadHook`
+(`createOwnerRecoveryKitDownload`), `useRecoveryKitHook` (`useOwnerRecoveryKit` bound by the host
+to `useRecoveryKit`) and `useDesktopOwnerResetHook` (`useDesktopOwnerReset` bound to
+`useOwnerPasswordReset`). The two wrapper hooks likewise take their inner hook as a required
+second argument; neither the card nor the wrappers default to an imported hook.

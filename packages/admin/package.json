@@ -200,7 +200,27 @@
       "./screens/menus/hooks/menus-port.hooks": "universal",
       "./screens/menus/MenuEditor.hooks": "browser",
       "./screens/menus/MenuPageLinkFields.hooks": "browser",
-      "./screens/menus/MenuPageLinkFields": "browser"
+      "./screens/menus/MenuPageLinkFields": "browser",
+      "./roles/Roles.hooks": "browser",
+      "./roles/rules": "universal",
+      "./roles/roles-i18n": "universal",
+      "./roles/i18n/roles-sentence-parts": "universal",
+      "./users/users-i18n": "universal",
+      "./roles/Roles": "browser",
+      "./roles/RolesSection": "browser",
+      "./roles/PolicyRow": "browser",
+      "./roles/hooks/use-roles.hooks": "browser",
+      "./screens/auth/hooks/login-port.hooks": "browser",
+      "./screens/auth/Login.hooks": "browser",
+      "./screens/auth/Login": "browser",
+      "./screens/auth/OwnerRecoverySignIn": "browser",
+      "./screens/auth/OwnerRecoverySignIn.hooks": "browser",
+      "./screens/auth/hooks/use-login.hooks": "browser",
+      "./screens/auth/auth-host-slots": "browser",
+      "./screens/authentication/Authentication": "browser",
+      "./screens/authentication/authentication-host-slots": "browser",
+      "./screens/authentication/model/provider-schemas": "browser",
+      "./shell/lib/boot-token-fragment": "browser"
     },
     "isolation": {
       "shared": [
@@ -305,7 +325,27 @@
         "./shell/lib/tab-event-source": "browser",
         "./shell/hooks/use-external-entry-refresh.hooks": "browser",
         "./shell/hooks/admin-execution-credential-port.hooks": "browser",
-        "./shell/hooks/use-sites-sidebar-nav.hooks": "browser"
+        "./shell/hooks/use-sites-sidebar-nav.hooks": "browser",
+        "./roles/Roles.hooks": "browser",
+        "./roles/Roles": "browser",
+        "./roles/RolesSection": "browser",
+        "./roles/PolicyRow": "browser",
+        "./roles/hooks/use-roles.hooks": "browser",
+        "./screens/auth/hooks/login-port.hooks": "browser",
+        "./screens/auth/Login.hooks": "browser",
+        "./screens/auth/Login": "browser",
+        "./screens/auth/OwnerRecoverySignIn": "browser",
+        "./screens/auth/OwnerRecoverySignIn.hooks": "browser",
+        "./screens/auth/hooks/use-login.hooks": "browser",
+        "./screens/auth/auth-host-slots": "browser",
+        "./screens/authentication/Authentication": "browser",
+        "./screens/authentication/authentication-host-slots": "browser",
+        "./screens/authentication/model/provider-schemas": "browser",
+        "./shell/lib/boot-token-fragment": "browser",
+        "./roles/rules": "browser",
+        "./roles/roles-i18n": "browser",
+        "./roles/i18n/roles-sentence-parts": "browser",
+        "./users/users-i18n": "browser"
       }
     },
     "optionalPeers": {
@@ -1247,6 +1287,106 @@
       "types": "./dist/screens/menus/MenuPageLinkFields.d.ts",
       "import": "./dist/screens/menus/MenuPageLinkFields.js",
       "default": "./dist/screens/menus/MenuPageLinkFields.js"
+    },
+    "./roles/Roles.hooks": {
+      "types": "./dist/roles/Roles.hooks.d.ts",
+      "import": "./dist/roles/Roles.hooks.js",
+      "default": "./dist/roles/Roles.hooks.js"
+    },
+    "./roles/rules": {
+      "types": "./dist/roles/rules.d.ts",
+      "import": "./dist/roles/rules.js",
+      "default": "./dist/roles/rules.js"
+    },
+    "./roles/roles-i18n": {
+      "types": "./dist/roles/roles-i18n.d.ts",
+      "import": "./dist/roles/roles-i18n.js",
+      "default": "./dist/roles/roles-i18n.js"
+    },
+    "./roles/i18n/roles-sentence-parts": {
+      "types": "./dist/roles/i18n/roles-sentence-parts.d.ts",
+      "import": "./dist/roles/i18n/roles-sentence-parts.js",
+      "default": "./dist/roles/i18n/roles-sentence-parts.js"
+    },
+    "./users/users-i18n": {
+      "types": "./dist/users/users-i18n.d.ts",
+      "import": "./dist/users/users-i18n.js",
+      "default": "./dist/users/users-i18n.js"
+    },
+    "./roles/Roles": {
+      "types": "./dist/roles/Roles.d.ts",
+      "import": "./dist/roles/Roles.js",
+      "default": "./dist/roles/Roles.js"
+    },
+    "./roles/RolesSection": {
+      "types": "./dist/roles/RolesSection.d.ts",
+      "import": "./dist/roles/RolesSection.js",
+      "default": "./dist/roles/RolesSection.js"
+    },
+    "./roles/PolicyRow": {
+      "types": "./dist/roles/PolicyRow.d.ts",
+      "import": "./dist/roles/PolicyRow.js",
+      "default": "./dist/roles/PolicyRow.js"
+    },
+    "./roles/hooks/use-roles.hooks": {
+      "types": "./dist/roles/hooks/use-roles.hooks.d.ts",
+      "import": "./dist/roles/hooks/use-roles.hooks.js",
+      "default": "./dist/roles/hooks/use-roles.hooks.js"
+    },
+    "./screens/auth/hooks/login-port.hooks": {
+      "types": "./dist/screens/auth/hooks/login-port.hooks.d.ts",
+      "import": "./dist/screens/auth/hooks/login-port.hooks.js",
+      "default": "./dist/screens/auth/hooks/login-port.hooks.js"
+    },
+    "./screens/auth/Login.hooks": {
+      "types": "./dist/screens/auth/Login.hooks.d.ts",
+      "import": "./dist/screens/auth/Login.hooks.js",
+      "default": "./dist/screens/auth/Login.hooks.js"
+    },
+    "./screens/auth/Login": {
+      "types": "./dist/screens/auth/Login.d.ts",
+      "import": "./dist/screens/auth/Login.js",
+      "default": "./dist/screens/auth/Login.js"
+    },
+    "./screens/auth/OwnerRecoverySignIn": {
+      "types": "./dist/screens/auth/OwnerRecoverySignIn.d.ts",
+      "import": "./dist/screens/auth/OwnerRecoverySignIn.js",
+      "default": "./dist/screens/auth/OwnerRecoverySignIn.js"
+    },
+    "./screens/auth/OwnerRecoverySignIn.hooks": {
+      "types": "./dist/screens/auth/OwnerRecoverySignIn.hooks.d.ts",
+      "import": "./dist/screens/auth/OwnerRecoverySignIn.hooks.js",
+      "default": "./dist/screens/auth/OwnerRecoverySignIn.hooks.js"
+    },
+    "./screens/auth/hooks/use-login.hooks": {
+      "types": "./dist/screens/auth/hooks/use-login.hooks.d.ts",
+      "import": "./dist/screens/auth/hooks/use-login.hooks.js",
+      "default": "./dist/screens/auth/hooks/use-login.hooks.js"
+    },
+    "./screens/auth/auth-host-slots": {
+      "types": "./dist/screens/auth/auth-host-slots.d.ts",
+      "import": "./dist/screens/auth/auth-host-slots.js",
+      "default": "./dist/screens/auth/auth-host-slots.js"
+    },
+    "./screens/authentication/Authentication": {
+      "types": "./dist/screens/authentication/Authentication.d.ts",
+      "import": "./dist/screens/authentication/Authentication.js",
+      "default": "./dist/screens/authentication/Authentication.js"
+    },
+    "./screens/authentication/authentication-host-slots": {
+      "types": "./dist/screens/authentication/authentication-host-slots.d.ts",
+      "import": "./dist/screens/authentication/authentication-host-slots.js",
+      "default": "./dist/screens/authentication/authentication-host-slots.js"
+    },
+    "./screens/authentication/model/provider-schemas": {
+      "types": "./dist/screens/authentication/model/provider-schemas.d.ts",
+      "import": "./dist/screens/authentication/model/provider-schemas.js",
+      "default": "./dist/screens/authentication/model/provider-schemas.js"
+    },
+    "./shell/lib/boot-token-fragment": {
+      "types": "./dist/shell/lib/boot-token-fragment.d.ts",
+      "import": "./dist/shell/lib/boot-token-fragment.js",
+      "default": "./dist/shell/lib/boot-token-fragment.js"
     }
   },
   "files": [
@@ -1304,6 +1444,15 @@
       ],
       "shell/*": [
         "./dist/shell/*.d.ts"
+      ],
+      "screens/*": [
+        "./dist/screens/*.d.ts"
+      ],
+      "roles/*": [
+        "./dist/roles/*.d.ts"
+      ],
+      "users/*": [
+        "./dist/users/*.d.ts"
       ]
     }
   },

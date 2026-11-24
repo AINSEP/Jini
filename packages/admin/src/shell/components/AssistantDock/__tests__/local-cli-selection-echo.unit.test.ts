@@ -5,7 +5,7 @@ import { isSelectionNormalizationEcho } from "../local-cli-selection-echo.js";
 /**
  * The helper's own decision rule, over an injected deterministic resolver: it fills a missing model
  * with `"default-model"` and a missing effort with `"default"`, nothing else. The host keeps the
- * parity cases that run the chat library's real `resolveChatPaneSelection` (Tovu's
+ * parity cases that run the chat library's real `resolveChatPaneSelection` (the host's
  * `local-cli-selection-echo.unit.test.ts`); these pin what the helper does with whatever it returns.
  */
 function fakeResolver() {
