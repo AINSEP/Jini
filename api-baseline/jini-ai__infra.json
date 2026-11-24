@@ -2,9 +2,10 @@
  "./events/domain-outbox": {
   "types": "./dist/events/domain-outbox.d.ts",
   "symbols": {
+   "DomainOutboxRequired": "interface:c1fff7d131",
    "computeDomainOutboxBackoffMs": "function:9ae70295a1",
-   "outboxWorkerArgs": "function:44d6620761",
-   "processDomainOutbox": "function:971f6385a2",
+   "outboxWorkerArgs": "function:c139033ff5",
+   "processDomainOutbox": "function:4707ee2faa",
    "toCmsOutbox": "function:e9a8caa0db",
    "toEnqueueOnlyDomainOutbox": "function:e35690fd1e",
    "toJiniOutbox": "function:4624256f7b"

@@ -318,8 +318,7 @@
  "./byok-meta-tool-result": {
   "types": "./dist/byok-meta-tool-result.d.ts",
   "symbols": {
-   "ByokMetaToolResult": "interface:c97d7d35ca",
-   "ByokToolResultBlock": "type:59a4b67345",
+   "ByokMetaToolResult": "interface:19589a5bac",
    "DelegatedInputResolution": "type:e69e9b10aa",
    "err": "function:8e05fa6451",
    "mapToolExecutionResult": "function:165e6c99a1",
@@ -334,6 +333,13 @@
    "ChatSettingsSnapshotInput": "interface:a0464f0496",
    "createChatSettingsGetRegistration": "function:4f3ec46d47",
    "createChatSettingsSnapshot": "function:586600821d"
+  }
+ },
+ "./core-rpc-schema": {
+  "types": "./dist/core-rpc-schema.d.ts",
+  "symbols": {
+   "createDaemonCoreRequestSchema": "function:aa403e443d",
+   "daemonToolConsentSnapshot": "variable:aa8a8ec17c"
   }
  },
  "./daemon-call-context": {
@@ -356,6 +362,7 @@
  "./http": {
   "types": "./dist/http/index.d.ts",
   "symbols": {
+   "A2uiActionsRouteDeps": "interface:886cc404c4",
    "ACTIVE_CONTEXT_TTL_MS": "variable:16b24fb7ad",
    "ATTACHMENTS_ROUTE_PATH": "variable:bfcb363b5b",
    "ATTACHMENT_LOOKUP_ROUTE_PATH": "variable:2032081f4a",
@@ -540,10 +547,13 @@
    "StorageProvider": "interface:c19abfc2df",
    "StoragePutOptions": "interface:2b22bbc0c0",
    "StoredAttachment": "interface:1316c8390f",
+   "SurfaceCallbackHttpRequest": "interface:73129887e6",
    "SurfaceCallbackInput": "interface:a2bb9ad5d7",
    "SurfaceCallbackReply": "interface:a0b77700dd",
    "SurfaceCallbackRequest": "interface:a3ad9ff9a5",
+   "SurfaceCallbackRouteDeps": "interface:b984c2a54f",
    "SurfaceHttpResult": "type:973cffad9a",
+   "SurfaceReplyRefusal": "class:c1d07fd06a",
    "TOOL_CATALOG_ROUTE_PATH": "variable:f20f212ae0",
    "TOOL_EXECUTIONS_ROUTE_PATH": "variable:b2dfa83a74",
    "TerminalActionResponse": "interface:9c2df2d0ce",
@@ -573,11 +583,13 @@
    "XaiOauthStartResponse": "interface:ee0abcf56f",
    "XaiOkResponse": "interface:b9d3f761a5",
    "XaiSearchResponse": "interface:074bed322c",
+   "a2uiActionsRoutes": "function:22793d9cd6",
    "a2uiNotPendingBody": "function:5e3b51b491",
    "activeContextRoutes": "function:954ef528df",
    "agentListRoute": "variable:78c95d33f7",
    "agentRescanRoute": "variable:2d9345ee8d",
    "agentRoutes": "function:45e0055aad",
+   "answerSurfaceCallback": "function:c013347eae",
    "apiHealthRoute": "variable:fdf73bac6a",
    "apiReadyRoute": "variable:70d0cdd83b",
    "apiVersionInfoRoute": "variable:bec9d67d5f",
@@ -675,7 +687,8 @@
    "pathDirs": "function:ad23bb731a",
    "probeCommandOnPath": "function:296f781dd7",
    "probeMacBundle": "function:bb39050d52",
-   "readA2uiAction": "function:167b29f4cb",
+   "readA2uiAction": "function:c1bdf3b7fb",
+   "readSurfacePrincipalId": "function:be388fcbfe",
    "readyRoute": "variable:b3e0c7e292",
    "remoteRunEventRoutes": "function:55e93271a8",
    "remoteToolBridgeTokenGate": "function:6356614a8c",
@@ -707,8 +720,11 @@
    "stageAttachmentClaim": "function:a9f092d1f3",
    "surfaceCallbackExchangeId": "function:b94c05ef61",
    "surfaceCallbackRefusalBody": "function:5addaa2e6b",
+   "surfaceCallbackRoutes": "function:63988926d2",
    "surfaceNotPendingBody": "function:c2d48138b4",
    "surfaceRedemptionReply": "function:f8d70c4e7c",
+   "surfaceReplyOnError": "function:ec5a9f7ec6",
+   "surfaceReplyResponse": "function:45e1346ac8",
    "terminalCreateRoute": "variable:89555964f3",
    "terminalDeleteRoute": "variable:fb5bcf4d2c",
    "terminalKillRoute": "variable:0a20bc1a0a",
@@ -721,6 +737,7 @@
    "toolCatalogSearchRoute": "variable:bacd32ee9e",
    "toolExecutionCallerRefusal": "function:d722852e2c",
    "toolExecutionRoutes": "function:b26cd2fde0",
+   "unauthenticatedReply": "function:696e1061eb",
    "versionInfoRoute": "variable:20ced04703",
    "writeBoundedAttachmentBody": "function:79319781c1",
    "xaiAuthStatusRoute": "variable:706b1dd6b6",

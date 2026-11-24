@@ -191,6 +191,7 @@
    "DenyRules": "interface:4a946cb3f9",
    "DescriptorCapabilities": "type:f70692ceae",
    "DescriptorReadPolicy": "type:0ea5f61a1a",
+   "DirectoryMoveClaim": "type:bf83b8e8d7",
    "DirectoryRecord": "interface:cdbf865c5d",
    "DirectoryRegistry": "interface:75c35fe69d",
    "DirectoryRelocationGate": "interface:5c0b9fcf86",
@@ -214,6 +215,7 @@
    "GuardedReaderFilesystem": "type:2190f4e393",
    "GuardedReaderLimits": "interface:343255e9fe",
    "JsonFileRead": "type:7b92e585fe",
+   "LeasedDirectoryMovePorts": "interface:e1f2f4a882",
    "PagedGuardedFileReader": "interface:5c040cdae0",
    "QuarantineNotice": "interface:2667f47622",
    "RemovePathBestEffortOptions": "type:55b501c496",
@@ -240,6 +242,7 @@
    "isLockStale": "function:19c581275b",
    "makeDirectoryTreeWritable": "function:91b3afbe03",
    "mayEraseDirectory": "function:27541c5dc8",
+   "moveDirectoryUnderLeases": "function:af112f3400",
    "moveDirectoryVerified": "function:97457d4499",
    "pathContains": "function:57ed523286",
    "readDirectoryIdentity": "function:8bcdb25c6a",
@@ -252,6 +255,7 @@
    "removeDirectoryTree": "function:85341c2094",
    "removePathBestEffort": "function:b1253932d5",
    "resolveDirectoryHome": "function:b103bbca44",
+   "resolveDirectoryTarget": "function:5a9e480a21",
    "resolveElectronAppDataRoot": "function:46cc7ff754",
    "resolveElectronUserDataDir": "function:5c4c83d67e",
    "resolvePathWithin": "function:f4a8015681",
@@ -338,6 +342,14 @@
   "types": "./dist/http/multipart.adapter.d.ts",
   "symbols": {
    "parseFormMultipart": "function:9b2c323880"
+  }
+ },
+ "./image/png-encode": {
+  "types": "./dist/image/png-encode.d.ts",
+  "symbols": {
+   "RenderSolidColorPngOptions": "interface:1910972112",
+   "RgbColor": "interface:25fbea5199",
+   "renderSolidColorPng": "function:ee40476524"
   }
  },
  "./mail": {

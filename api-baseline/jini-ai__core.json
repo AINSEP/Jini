@@ -1334,6 +1334,14 @@
    "ToolResultMediaBlock": "type:f9cd93b194"
   }
  },
+ "./contracts/site/client-directives": {
+  "types": "./dist/contracts/site/client-directives.d.ts",
+  "symbols": {
+   "ClientDirective": "type:1ccc8ab714",
+   "ToolConfirmationDirective": "interface:f634c7b864",
+   "UiSurfaceDirective": "interface:b4efb3bb7a"
+  }
+ },
  "./contracts/site/cms-agent-plugins": {
   "types": "./dist/contracts/site/cms-agent-plugins.d.ts",
   "symbols": {
@@ -1623,6 +1631,15 @@
    "FrontendSessionOwner": "interface:cce57cd050",
    "PrepareToolGuidance": "type:9337bb6e56",
    "ToolAccessChange": "interface:15c759db73"
+  }
+ },
+ "./contracts/site/daemon-core-rpc": {
+  "types": "./dist/contracts/site/daemon-core-rpc.d.ts",
+  "symbols": {
+   "DaemonCliConsentAllow": "interface:02d93e34f1",
+   "DaemonCliConsentTarget": "interface:1daa2d9b8a",
+   "DaemonCoreRequest": "type:04f800e96c",
+   "DaemonToolConsentSnapshot": "interface:7d0b3b31b1"
   }
  },
  "./contracts/site/daemon-http": {
@@ -2085,6 +2102,12 @@
    "rows": "function:26ee0bccea",
    "toBool": "function:7d31541683",
    "toBytes": "function:8f4c6a3a5f"
+  }
+ },
+ "./contracts/tool-result-block": {
+  "types": "./dist/contracts/tool-result-block.d.ts",
+  "symbols": {
+   "ToolResultContentBlock": "type:16f93e6288"
   }
  },
  "./contracts/vault": {

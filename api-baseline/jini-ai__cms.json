@@ -2318,8 +2318,8 @@
   "symbols": {
    "AssetReferenceIndex": "interface:cb213290b4",
    "AssetReferenceScan": "interface:1ceeab23b1",
-   "getMediaAccessEvidenceCache": "function:80049a8d69",
-   "invalidateMediaAccessEvidence": "function:2fb187f681"
+   "MediaAccessEvidence": "interface:5e48f89566",
+   "createMediaAccessEvidence": "function:acaac5d674"
   }
  },
  "./media/site/bootstrap": {

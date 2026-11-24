@@ -461,12 +461,16 @@
  "./core/durable-runs/run-finalizer": {
   "types": "./dist/core/durable-runs/run-finalizer.d.ts",
   "symbols": {
+   "CheckpointWatch": "interface:6e3315766a",
+   "RunCheckpointer": "interface:746629f444",
+   "RunCheckpointerPorts": "interface:02a0930218",
    "RunLogPort": "interface:8f477fdb30",
    "RunTimerPort": "interface:ed7f387b97",
    "RunWatchOutcome": "type:1ba1c494c6",
    "SavedCheckpointProgress": "interface:6246f06b1c",
    "approximateJsonBytes": "function:296a0e8865",
    "checkpointGrew": "function:4abdee5ca4",
+   "createRunCheckpointer": "function:cc141279df",
    "hasUnsavedCheckpointGrowth": "function:c7faf45a58",
    "releaseUnreadBody": "function:9b11ce3607",
    "reportSafely": "function:2183490d4a"

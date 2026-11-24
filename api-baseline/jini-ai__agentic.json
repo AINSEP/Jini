@@ -214,12 +214,18 @@
   "types": "./dist/core/render-surface.d.ts",
   "symbols": {
    "A2uiExchangeSession": "interface:ebc0740eec",
+   "A2uiSurfaceCatalog": "type:75442f1d50",
+   "CreateRenderUiToolRegistrationsArgs": "interface:1755c6a039",
    "DEFAULT_RENDER_REJECTION_GRACE_MS": "variable:9492f1e1b9",
+   "ParseAgentToRendererMessage": "type:5bfd8c3b78",
    "RenderA2uiSurfaceOutcome": "type:c55b1fdaeb",
+   "RenderUiToolCopy": "interface:d4a9314608",
+   "RenderUiToolRegistrationPolicy": "interface:c8ef3bef14",
    "a2uiActionOf": "function:c5ffd4113f",
-   "renderA2uiSurface": "function:7413385af1",
-   "validatedA2uiMessage": "function:93179f46a5",
-   "withA2uiExchange": "function:e11406cbf5"
+   "createRenderUiToolRegistrations": "function:e06925dfe0",
+   "renderA2uiSurface": "function:3bb310f363",
+   "validatedA2uiMessage": "function:8aebf46a8e",
+   "withA2uiExchange": "function:573a892ff8"
   }
  },
  "./skills/install": {

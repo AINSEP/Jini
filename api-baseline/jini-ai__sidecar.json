@@ -29,7 +29,8 @@
    "NamespaceOptionalArgs": "type:d5b595df52",
    "NamespaceResolutionOptions": "type:b80002e16e",
    "ObservedServer": "interface:09da4c6bfc",
-   "ParentWatchdogPorts": "interface:6110713a83",
+   "ParentWatchdogEvent": "type:148045626f",
+   "ParentWatchdogPorts": "interface:b18c5dac7b",
    "PortAllocation": "type:1f561ef571",
    "PortRequest": "type:4e806569ab",
    "ProjectRuntimePathRequest": "type:457705fa50",
@@ -84,6 +85,14 @@
    "startOwnParentWatchdog": "function:a293973fa1",
    "writeDaemonRegistryRecord": "function:318b4fc9a8",
    "writeJsonFile": "function:da1cfcfdc3"
+  }
+ },
+ "./daemon-connection": {
+  "types": "./dist/daemon-connection.d.ts",
+  "symbols": {
+   "DaemonConnectionRecord": "interface:5931ce84ac",
+   "DaemonConnectionRegistry": "interface:5e0847e8ca",
+   "createDaemonConnectionRegistry": "function:db1d810dc7"
   }
  },
  "./daemon-origin": {
