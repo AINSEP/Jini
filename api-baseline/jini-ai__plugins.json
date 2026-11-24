@@ -426,6 +426,13 @@
    "createInstallToolCatalog": "function:fb198fe2fa"
   }
  },
+ "./runtime/lower-tool-access": {
+  "types": "./dist/runtime/lower-tool-access.d.ts",
+  "symbols": {
+   "LowerToolAccessProviderFaces": "interface:c79ae97c93",
+   "lowerPluginToolAccess": "function:f627f2467f"
+  }
+ },
  "./runtime/plugin-export": {
   "types": "./dist/runtime/plugin-export.d.ts",
   "symbols": {

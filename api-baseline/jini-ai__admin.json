@@ -2350,6 +2350,17 @@
    "useEmailOverview": "function:79258a4892"
   }
  },
+ "./screens/email/hooks/use-email-provider.hooks": {
+  "types": "./dist/screens/email/hooks/use-email-provider.hooks.d.ts",
+  "symbols": {
+   "EmailProviderController": "interface:26b5c5c384",
+   "EmailProviderPluginApi": "interface:eec6fe3abb",
+   "ProviderNotice": "type:648a28e40a",
+   "credentialBody": "function:3e855ea733",
+   "isFullyActive": "function:0858fceff5",
+   "useEmailProvider": "function:90f30f7877"
+  }
+ },
  "./screens/email/hooks/use-email-sender.hooks": {
   "types": "./dist/screens/email/hooks/use-email-sender.hooks.d.ts",
   "symbols": {

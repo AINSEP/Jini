@@ -260,6 +260,7 @@
       "./screens/email/hooks/use-email.hooks": "browser",
       "./screens/email/hooks/use-email-overview.hooks": "browser",
       "./screens/email/hooks/use-email-sender.hooks": "browser",
+      "./screens/email/hooks/use-email-provider.hooks": "browser",
       "./screens/email/hooks/use-email-templates.hooks": "browser",
       "./screens/email/hooks/use-email-template-editor.hooks": "browser",
       "./screens/email/hooks/use-email-activity.hooks": "browser",
@@ -1864,6 +1865,11 @@
       "types": "./dist/screens/email/hooks/use-email-sender.hooks.d.ts",
       "import": "./dist/screens/email/hooks/use-email-sender.hooks.js",
       "default": "./dist/screens/email/hooks/use-email-sender.hooks.js"
+    },
+    "./screens/email/hooks/use-email-provider.hooks": {
+      "types": "./dist/screens/email/hooks/use-email-provider.hooks.d.ts",
+      "import": "./dist/screens/email/hooks/use-email-provider.hooks.js",
+      "default": "./dist/screens/email/hooks/use-email-provider.hooks.js"
     },
     "./screens/email/hooks/use-email-templates.hooks": {
       "types": "./dist/screens/email/hooks/use-email-templates.hooks.d.ts",
