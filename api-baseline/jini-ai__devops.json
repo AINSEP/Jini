@@ -45,6 +45,15 @@
    "SiteBackupPushProgress": "interface:17e5c15a76"
   }
  },
+ "./backup/site/credential-warnings": {
+  "types": "./dist/backup/site/credential-warnings.d.ts",
+  "symbols": {
+   "CredentialRedactor": "type:ef675c664d",
+   "CredentialWarning": "interface:2cdd927433",
+   "addCredentialWarning": "function:d1b5338ed7",
+   "warnCredentialContent": "function:8055565f09"
+  }
+ },
  "./backup/site/share-export-failure": {
   "types": "./dist/backup/site/share-export-failure.d.ts",
   "symbols": {

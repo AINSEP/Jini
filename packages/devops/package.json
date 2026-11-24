@@ -36,6 +36,7 @@
       "./source-control/site/credential-form": "universal",
       "./dns/site/mail-requirements": "universal",
       "./deploy/site/types": "universal",
+      "./backup/site/credential-warnings": "universal",
       "./backup/site/share-export-failure": "universal",
       "./backup/upload": "node",
       "./backup/plan-store": "node",
@@ -178,6 +179,11 @@
       "types": "./dist/deploy/site/types.d.ts",
       "import": "./dist/deploy/site/types.js",
       "default": "./dist/deploy/site/types.js"
+    },
+    "./backup/site/credential-warnings": {
+      "types": "./dist/backup/site/credential-warnings.d.ts",
+      "import": "./dist/backup/site/credential-warnings.js",
+      "default": "./dist/backup/site/credential-warnings.js"
     },
     "./backup/site/share-export-failure": {
       "types": "./dist/backup/site/share-export-failure.d.ts",
