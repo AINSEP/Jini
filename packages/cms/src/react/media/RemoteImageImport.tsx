@@ -5,10 +5,10 @@ import type { HeaderTipComponent, ImportDialogKit, RemoteImageImportCollaborator
 /** Markup only; downloads, mutation state, dialog state and list invalidation live in the hook.
  *  The "Import from URL" button sits beside "Upload image" and opens the same dialog shape
  *  (owner item #9, 2026-10-13). */
-export function RemoteImageImport(props: RemoteImageImportCollaborators & { HeaderTip: HeaderTipComponent; kit: ImportDialogKit }) {
-  const { t, HeaderTip } = props;
+export function RemoteImageImport(props: RemoteImageImportCollaborators & { HeaderTip: HeaderTipComponent; kit: ImportDialogKit; useRemoteImageImportHook?: typeof useRemoteImageImport }) {
+  const { t, HeaderTip, useRemoteImageImportHook = useRemoteImageImport } = props;
   const { Button, Dialog, TextField } = props.kit;
-  const controller = useRemoteImageImport({ t, port: props.port, describeError: props.describeError, useFetchMutation: props.useFetchMutation });
+  const controller = useRemoteImageImportHook({ t, port: props.port, describeError: props.describeError, useFetchMutation: props.useFetchMutation });
   return (
     <>
       {/* Icon button (owner, 2026-11-01): tooltip and accessible name are the same text. */}
