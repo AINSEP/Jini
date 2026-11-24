@@ -16,7 +16,8 @@
       "./respawn-policy": "universal",
       "./supervisor": "universal",
       "./supervisor/node": "node",
-      "./daemon-origin": "node"
+      "./daemon-origin": "node",
+      "./daemon-park-recovery": "universal"
     },
     "runtime": "node"
   },
@@ -49,6 +50,11 @@
       "types": "./dist/daemon-origin.d.ts",
       "import": "./dist/daemon-origin.js",
       "default": "./dist/daemon-origin.js"
+    },
+    "./daemon-park-recovery": {
+      "types": "./dist/daemon-park-recovery.d.ts",
+      "import": "./dist/daemon-park-recovery.js",
+      "default": "./dist/daemon-park-recovery.js"
     }
   },
   "files": [

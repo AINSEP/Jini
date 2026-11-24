@@ -140,3 +140,7 @@ resolver, calls `ensure()` before it serves, and layers any delegated-connection
 `startOwnParentWatchdog` (root entry) self-terminates a server whose parent dies without signalling it.
 The host injects the live process ports plus `envNames` (its disable and dev-supervisor-pid variable
 names) and `logTag`; Jini owns no env name.
+
+`@jini-ai/sidecar/daemon-park-recovery` replays a request at most once, and only after an explicit
+503 park refusal. The host injects its wire `headers` (`parked`/`pid` names), `ensureReady` (its
+supervisor's readiness wait), `onParked` (its parking note) and `send`; Jini owns no header name.

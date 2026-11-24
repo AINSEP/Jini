@@ -9,6 +9,7 @@ export * from './attach-loaded-plugin.js';
 export * from './plugin-claims.js';
 export * from './claim-conflicts.js';
 export * from './activation.js';
+export * from './activation-polling.js';
 export * from './declarative-enable.js';
 export * from './declarative-content-types.js';
 export * from './capability-sdk.js';

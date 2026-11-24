@@ -55,3 +55,16 @@ escaping: hosts own the identifier constraints of each lineage.
 callback that allows only the owner workspace, no principal and a copyable kind, and one decrypt per
 row whose every failure is the fixed `OwnerStoreRecoveryError`. It takes a `VaultRepoPort`; the SQL
 lives in `@jini-ai/db/owner-store`. Nothing here writes, migrates or generates a key.
+
+## Legacy vault codecs
+
+`@jini-ai/platform/secrets/legacy-codecs` (Node) pins the historical AAD formats of the pre-vault
+credential tables and normalizes their payloads into vault records, for recovery and boot migration
+only. Feature reads use `buildVaultAad`, never these builders. Unknown tables or AAD versions fail
+closed with `VaultError({ code: "context" })` instead of trying candidate AADs.
+
+## Wiring
+
+- `legacyVaultAad` needs `formerCustomOwnerKey`: the host's own vault owner key, under which the former
+  custom vault sealed. `normalizeLegacyVaultPayload` / `legacyTargetProvider` need the host's
+  `LegacyVaultPolicy` (`legacyPublishCredential`, `tokenField`).
