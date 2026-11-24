@@ -259,7 +259,6 @@
       "./screens/skills/Skills.hooks": "browser",
       "./screens/skills/use-skill-confirmation.hooks": "browser",
       "./screens/skills/skill-drop": "browser",
-      "./screens/skills/skills.css": "browser",
       "./screens/skills/use-skills-tabs.hooks": "browser",
       "./screens/taxonomy/api/taxonomy-api.types": "universal",
       "./screens/taxonomy/html-rules": "universal",
@@ -331,7 +330,6 @@
       "./screens/plugins/AgentPlugins.hooks": "browser",
       "./screens/providers/hooks/use-providers.hooks": "browser",
       "./screens/providers/Providers.hooks": "browser",
-      "./screens/providers/always-allow.css": "browser",
       "./screens/trash/rules": "universal",
       "./screens/trash/hooks/trash-port.hooks": "universal",
       "./sites/transfer/use-export-password.hooks": "browser",
@@ -2127,7 +2125,6 @@
       "import": "./dist/screens/skills/skill-drop.js",
       "default": "./dist/screens/skills/skill-drop.js"
     },
-    "./screens/skills/skills.css": "./src/screens/skills/skills.css",
     "./screens/skills/use-skills-tabs.hooks": {
       "types": "./dist/screens/skills/use-skills-tabs.hooks.d.ts",
       "import": "./dist/screens/skills/use-skills-tabs.hooks.js",
@@ -2468,7 +2465,6 @@
       "import": "./dist/screens/providers/Providers.hooks.js",
       "default": "./dist/screens/providers/Providers.hooks.js"
     },
-    "./screens/providers/always-allow.css": "./src/screens/providers/always-allow.css",
     "./screens/plugins/hooks/use-plugin-row-focus.hooks": {
       "types": "./dist/screens/plugins/hooks/use-plugin-row-focus.hooks.d.ts",
       "import": "./dist/screens/plugins/hooks/use-plugin-row-focus.hooks.js",
