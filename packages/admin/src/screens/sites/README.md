@@ -51,10 +51,15 @@ Architecture: [DR-005 portable package boundaries](../../../../../docs/decisions
   write-error rule (`siteWriteErrorKey`), its shared `describeApiError` fallback, and a
   visibility-aware `startVisibleInterval`. Optional: `confirm` (defaults to the browser's),
   `visibility`, `timers`.
+- `useSitesConfig({ port, listKey, useAsyncActionHook })` — all REQUIRED: `port: SitesConfigPort`
+  (`getSitesConfig`/`setSitesConfig`, the host's local sites settings read and write), `listKey`
+  (the host's site-list cache key, invalidated after every successful write) and
+  `useAsyncActionHook` (the host's saving/error action hook, e.g. the shared panel kit's
+  `useAsyncAction`; this package imports no UI package). Needs the kit's query slot (`useInvalidate`).
 - Kit: the `Icon` slot (`flag-triangle`, `star-filled`) through `<AdminKitProvider>`.
 
 **Provides**: `AllSitesTab`, `SiteCardView`, `SiteTrashTab`, `LocalSiteConfirmDialog`,
-`useSiteConfirm`, `useSitesSnapshot`, `useLocalSites`, `SitesPort`, the list rules and the port types.
+`useSiteConfirm`, `useSitesSnapshot`, `useLocalSites`, `useSitesConfig`, `SitesPort`, `SitesConfigPort`, the list rules and the port types.
 
 **Classes** (host styles them): `jini-sites-grid`, `jini-sites-empty`, `jini-sites-empty-title`,
 `jini-sites-empty-lead`, `jini-sites-empty-action`, `jini-sites-trash-card`,
@@ -71,6 +76,7 @@ bound tabs and `LocalSiteConfirmDialog`; its sites controller hook calls `useSit
 presentation table. The host's sites dependency module binds the rest: its live and fake
 `SitesPort`, the confirmation copy and presentation tables, `SITES_LISTING` for `useSitesSnapshot`
 (also read by its sidebar label, section availability and import/export page), and `localSitesDeps`
-for `useLocalSites`. The listing DTOs are Core's `contracts/site/admin-sites`.
+for `useLocalSites`, and a bound `useSitesConfig` (its API client, list key and `useAsyncAction`)
+that its sites-settings component takes as its `useSettings` default. The listing and settings DTOs are Core's `contracts/site/admin-sites`.
 
 **Must never import**: host app code, host copy, host routes, an API client, or a UI package.

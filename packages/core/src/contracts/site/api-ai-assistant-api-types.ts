@@ -109,7 +109,8 @@ export interface PublicAssistantSettings {
   widget?: "react" | "vanilla";
 }
 
-/** Mirrors the host's visitor-tools management contract `VisitorToolsView`.
+/** The one owner of the visitor-tools management view `VisitorToolsView`: the host's management
+ * service returns it and the admin page reads it.
  * The admin page and the assistant chat's `visitor_tools_list` read the same service, so this shape
  * is the server's, field for field. `policyState: "invalid"` means the saved policy is unreadable and
  * every tool is effectively Off until the site-wide Off repair succeeds. */
@@ -125,12 +126,13 @@ export interface VisitorToolView {
   displayDescription?: string;
   effect: "read" | "write";
   availability: { available: boolean; reason?: string };
-  publication?: { endpoint: string; credentialId: string; returnedFields: string[] };
+  publication?: { endpoint: string; credentialId: string; returnedFields: readonly string[] };
   mode: VisitorToolMode;
   limits: VisitorToolLimits;
 }
 export interface VisitorToolsView {
   revisionSeq: number;
+  /** Unreadable stored policy: every catalog tool is Off; only a site-wide Off reset is accepted. */
   policyState?: "invalid";
   defaults: VisitorToolLimits;
   callsPerTurn: number;

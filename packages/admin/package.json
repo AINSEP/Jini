@@ -137,6 +137,7 @@
       "./screens/sites/sites-port.hooks": "universal",
       "./screens/sites/use-sites-snapshot.hooks": "browser",
       "./screens/sites/use-local-sites.hooks": "browser",
+      "./screens/sites/use-sites-config.hooks": "browser",
       "./screens/workspace/hooks/use-workspace.hooks": "browser",
       "./shell/lib/editor-failure-i18n": "browser",
       "./shell/lib/editor-template-options.rules": "browser",
@@ -290,6 +291,7 @@
         "./screens/sites/sites-port.hooks": "universal",
         "./screens/sites/use-sites-snapshot.hooks": "browser",
         "./screens/sites/use-local-sites.hooks": "browser",
+        "./screens/sites/use-sites-config.hooks": "browser",
         "./screens/workspace/hooks/use-workspace.hooks": "browser",
         "./shell/lib/editor-failure-i18n": "browser",
         "./shell/lib/editor-template-options.rules": "browser",
@@ -944,6 +946,11 @@
       "types": "./dist/screens/sites/use-local-sites.hooks.d.ts",
       "import": "./dist/screens/sites/use-local-sites.hooks.js",
       "default": "./dist/screens/sites/use-local-sites.hooks.js"
+    },
+    "./screens/sites/use-sites-config.hooks": {
+      "types": "./dist/screens/sites/use-sites-config.hooks.d.ts",
+      "import": "./dist/screens/sites/use-sites-config.hooks.js",
+      "default": "./dist/screens/sites/use-sites-config.hooks.js"
     },
     "./screens/sites/LocalSiteConfirmDialog": {
       "types": "./dist/screens/sites/LocalSiteConfirmDialog.d.ts",
