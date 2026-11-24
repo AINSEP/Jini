@@ -93,6 +93,7 @@ export {
   trashMedia,
   purgeMedia,
   isValidMediaSlugFormat,
+  MEDIA_MAX_DESCRIPTION_LENGTH,
   type UploadMediaInput,
   type UploadMediaDeps,
   type UpdateMediaMetadataInput,
