@@ -11,7 +11,7 @@ import { externalMcpListRoute } from "../list.js";
 import { externalMcpOAuthDisconnectRoute } from "../oauth-disconnect.js";
 import { externalMcpPutRoute } from "../put.js";
 import { externalMcpParam, invalidServerMapping, rejectExternalMcpError, secretStoreMapping } from "../shared.js";
-import { externalMcpToolApprovalRevokeRoute, externalMcpToolApprovalsListRoute, type ExternalMcpToolApprovalRow } from "../tool-approvals.js";
+import { externalMcpToolApprovalRevokeRoute, externalMcpToolApprovalsListRoute, type ExternalMcpToolApprovalsLister } from "../tool-approvals.js";
 import { FakeSecretStoreError, FakeValidationError, isSecretStoreUnconfiguredError, isValidationError, refusalOf } from "./helpers.js";
 
 /**
@@ -33,8 +33,8 @@ describe("external-mcp wire DTOs", () => {
       Same<OutputOf<typeof externalMcpToolApprovalsListRoute>, ExternalMcpToolApprovalsEnvelope>,
       Same<OutputOf<typeof externalMcpToolApprovalRevokeRoute>, ExternalMcpToolApprovalRevokeEnvelope>,
       Same<OutputOf<typeof externalMcpOAuthDisconnectRoute>, ExternalMcpOAuthDisconnectEnvelope>,
-      // The store row carries every field the list sends (the DTO is the row minus what is never sent).
-      Same<Pick<ExternalMcpToolApprovalRow, keyof ExternalMcpToolApprovalDto>, ExternalMcpToolApprovalDto>,
+      // The list port answers rows typed by the Core DTO (the route still projects them to its four fields).
+      Same<Awaited<ReturnType<ExternalMcpToolApprovalsLister>>[number], ExternalMcpToolApprovalDto>,
     ] = [true, true, true, true, true, true, true, true];
     expect(parity).toEqual([true, true, true, true, true, true, true, true]);
   });

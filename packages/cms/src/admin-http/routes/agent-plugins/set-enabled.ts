@@ -5,7 +5,7 @@ import type { AdminAgentPluginSetEnabledEnvelope } from "@jini-ai/core/contracts
 import { agentPluginLifecycleFields, type AgentPluginRowCandidate } from "../../http/agent-plugins.js";
 import {
   agentPluginActorId, authorizeAgentPlugins, pluginIdParam, rejectSetEnabledError,
-  type AgentPluginCandidatesLoader, type AgentPluginRoutePrincipal, type AgentPluginSetEnabledCopy, type AgentPluginSetEnabledErrorPredicates,
+  type AgentPluginCandidatesLoader, type AgentPluginRoutePrincipal, type AgentPluginSetEnabledCopy, type AgentPluginSetEnabledDiagnosticSink, type AgentPluginSetEnabledErrorPredicates,
 } from "./shared.js";
 
 /** The host's shared lifecycle owner: verifies the id is installed here, then writes the activation record. */
@@ -22,8 +22,8 @@ export interface AgentPluginSetEnabledRouteDeps {
   notifyPluginLowered: (required: { pluginId: string }) => Promise<void>;
   isError: AgentPluginSetEnabledErrorPredicates;
   copy: AgentPluginSetEnabledCopy;
-  /** Server-side log line for a refusal whose real cause stays out of the response. */
-  warn: (message: string) => void;
+  /** Receives the facts of a refusal whose real cause stays out of the response; the host formats and logs them. */
+  diagnose: AgentPluginSetEnabledDiagnosticSink;
 }
 
 /** The PATCH input: the path id and the validated switch. */
@@ -157,7 +157,7 @@ export const agentPluginSetEnabledRoute = defineJsonRoute<AgentPluginSetEnabledI
 
       return ok({ value: updatedRow({ candidate, enabled: written.enabled }, { warnings: written.warnings }) });
     } catch (error) {
-      return rejectSetEnabledError({ error, pluginId, isError: deps.isError, warn: deps.warn, copy: deps.copy });
+      return rejectSetEnabledError({ error, pluginId, isError: deps.isError, diagnose: deps.diagnose, copy: deps.copy });
     }
   },
 });

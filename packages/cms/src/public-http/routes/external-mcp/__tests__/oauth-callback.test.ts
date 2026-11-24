@@ -14,7 +14,7 @@ class FakeOAuthError extends Error { constructor(readonly code: string) { super(
 class FakeUnknownServerError extends Error {}
 
 function harness(overrides: Partial<ExternalMcpOAuthCallbackRouteDeps> = {}) {
-  const calls = { limiterKeys: [] as string[], complete: [] as unknown[], notified: 0, logs: [] as string[] };
+  const calls = { limiterKeys: [] as string[], complete: [] as unknown[], notified: 0, failures: [] as unknown[] };
   const deps: ExternalMcpOAuthCallbackRouteDeps = {
     messageType: "host:external-mcp-connected",
     callbackLimiter: { check: async ({ key }) => { calls.limiterKeys.push(key); return { allowed: true }; } },
@@ -26,7 +26,7 @@ function harness(overrides: Partial<ExternalMcpOAuthCallbackRouteDeps> = {}) {
     isUnknownServerError: (error) => error instanceof FakeUnknownServerError,
     renderPage: ({ ok, reason, messageType }) => `${ok ? "ok" : `fail:${reason ?? "-"}`}|${messageType}`,
     publicOrigin: ({ facts }) => `${facts.servingProtocol}://site.test`,
-    log: (line) => { calls.logs.push(line); },
+    reportCallbackFailure: ({ error }) => { calls.failures.push(error); },
     ...overrides,
   };
   return { deps, calls };
@@ -105,19 +105,20 @@ describe("externalMcpOAuthCallbackRoute", () => {
     ["a provider denial", new FakeOAuthError("OAUTH_ACCESS_DENIED"), "provider_denied"],
     ["another OAuth code", new FakeOAuthError("OAUTH_TOKEN_EXCHANGE_FAILED"), "exchange_failed"],
     ["an unclassified error", Object.assign(new Error("x"), { code: "OAUTH_ACCESS_DENIED" }), "exchange_failed"],
-  ])("maps %s to %s, logs the message and never notifies", async (_label, error, reason) => {
+  ])("maps %s to %s, reports the caught error itself and never notifies", async (_label, error, reason) => {
     const { deps, calls } = harness({ oauth: { completeAuthorizationCallback: async () => { throw error; } } });
     const res = await call(deps, { query: { state: "st" }, cookie: "mcp=b1" });
     expect(res).toMatchObject({ status: 400, body: `fail:${reason}|${PAGE}` });
     expect(res.body).not.toContain("secret");
-    expect(calls.logs).toEqual([`external-mcp oauth callback failed: ${error.message}`]);
+    expect(calls.failures).toHaveLength(1);
+    expect(calls.failures[0]).toBe(error);
     expect(calls.notified).toBe(0);
   });
 
-  it("logs a non-Error throw as its string form", async () => {
+  it("reports a non-Error throw as thrown (the host formats it)", async () => {
     const { deps, calls } = harness({ oauth: { completeAuthorizationCallback: async () => { throw "plain"; } } });
     expect((await call(deps, { query: { state: "st" }, cookie: "mcp=b1" })).status).toBe(400);
-    expect(calls.logs).toEqual(["external-mcp oauth callback failed: plain"]);
+    expect(calls.failures).toEqual(["plain"]);
   });
 
   it("renders failure when the roster notification itself throws after a durable completion", async () => {

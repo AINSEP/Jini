@@ -1,6 +1,6 @@
 import { defineJsonRoute, ok } from "@jini-ai/core/contracts/server";
 import type {
-  ExternalMcpToolApprovalRevokeEnvelope, ExternalMcpToolApprovalsEnvelope,
+  ExternalMcpToolApprovalDto, ExternalMcpToolApprovalRevokeEnvelope, ExternalMcpToolApprovalsEnvelope,
 } from "@jini-ai/core/contracts/site/cms-external-mcp";
 import { rejectRoute } from "@jini-ai/core/errors/route-refusal";
 
@@ -15,50 +15,66 @@ import { authorizeExternalMcp, externalMcpParam, type ExternalMcpRoutePrincipal 
  * step anywhere on this path. Granting stays on the card: a grant is pinned to a fingerprint of the
  * tool exactly as the running daemon admitted it, which only the card's own call path has.
  *
- * The fingerprint is never sent: it is a hash the page has no use for.
- *
- * A composition with no store (`toolApprovalRepo` unset) can have saved nothing, so its
- * list is empty and every revoke is a 404 — the truthful answer, not an error.
+ * The fingerprint is never sent: it is a hash the page has no use for. The list port may hand back
+ * the store's whole rows, so the route projects each one to the four `ExternalMcpToolApprovalDto`
+ * fields explicitly; any extra store field stays off the wire.
  */
 
-/** One saved grant as the store returns it; only the `ExternalMcpToolApprovalDto` fields are sent (never e.g. the fingerprint). */
-export interface ExternalMcpToolApprovalRow { serverId: string; toolName: string; grantedByPrincipalId: string; grantedAt: string }
+/**
+ * Lists this workspace's saved grants. Its rows may carry more than the DTO (e.g. the fingerprint);
+ * the route sends only the DTO's fields.
+ */
+export type ExternalMcpToolApprovalsLister = (
+  required: { readonly workspaceId: string },
+  optional?: Record<string, never>,
+) => Promise<readonly ExternalMcpToolApprovalDto[]>;
 
-/** The host's workspace-scoped approval store, only the two methods these routes call. */
-export interface ExternalMcpToolApprovalStore {
-  listByWorkspaceId(workspaceId: string): Promise<readonly ExternalMcpToolApprovalRow[]>;
-  delete(input: { workspaceId: string; serverId: string; toolName: string }): Promise<boolean>;
+/** Removes one saved grant; `false` when none was saved for that tool. */
+export type ExternalMcpToolApprovalRevoker = (
+  required: { readonly workspaceId: string; readonly serverId: string; readonly toolName: string },
+  optional?: Record<string, never>,
+) => Promise<boolean>;
+
+/** The list route's deps: its workspace and the host's list port. */
+export interface ExternalMcpToolApprovalsListRouteDeps {
+  workspaceId: string;
+  listApprovals: ExternalMcpToolApprovalsLister;
 }
 
-/** The deps both routes read. The store key is required; its value is `undefined` when none is composed. */
-export interface ExternalMcpToolApprovalsRouteDeps {
+/** The revoke route's deps: its workspace and the host's revoke port. */
+export interface ExternalMcpToolApprovalRevokeRouteDeps {
   workspaceId: string;
-  toolApprovalRepo: ExternalMcpToolApprovalStore | undefined;
+  revokeApproval: ExternalMcpToolApprovalRevoker;
+}
+
+/** The four wire fields of one grant, and nothing else the store row carries. @complexity O(1). */
+function toApprovalDto({ serverId, toolName, grantedByPrincipalId, grantedAt }: ExternalMcpToolApprovalDto, _optional: Record<string, never> = {}): ExternalMcpToolApprovalDto {
+  return { serverId, toolName, grantedByPrincipalId, grantedAt };
 }
 
 /** GET the saved "Always allow" grants, sorted by server then tool. */
-export const externalMcpToolApprovalsListRoute = defineJsonRoute<Record<string, never>, ExternalMcpToolApprovalsEnvelope, ExternalMcpToolApprovalsRouteDeps, ExternalMcpRoutePrincipal>({
+export const externalMcpToolApprovalsListRoute = defineJsonRoute<Record<string, never>, ExternalMcpToolApprovalsEnvelope, ExternalMcpToolApprovalsListRouteDeps, ExternalMcpRoutePrincipal>({
   method: "get",
   path: "/api/admin/v1/workspaces/:workspaceId/mcp-servers/tool-approvals",
   parse: () => ok({ value: {} }),
   handle: async ({ deps, authorize }) => {
     await authorizeExternalMcp({ authorize });
-    const rows = (await deps.toolApprovalRepo?.listByWorkspaceId(deps.workspaceId)) ?? [];
+    const rows = await deps.listApprovals({ workspaceId: deps.workspaceId });
     const approvals = rows
-      .map(({ serverId, toolName, grantedByPrincipalId, grantedAt }) => ({ serverId, toolName, grantedByPrincipalId, grantedAt }))
+      .map((row) => toApprovalDto(row))
       .sort((a, b) => a.serverId.localeCompare(b.serverId) || a.toolName.localeCompare(b.toolName));
     return ok({ value: { approvals } });
   },
 });
 
 /** DELETE one saved grant; 404 when none was saved for that tool. */
-export const externalMcpToolApprovalRevokeRoute = defineJsonRoute<{ serverId: string; toolName: string }, ExternalMcpToolApprovalRevokeEnvelope, ExternalMcpToolApprovalsRouteDeps, ExternalMcpRoutePrincipal>({
+export const externalMcpToolApprovalRevokeRoute = defineJsonRoute<{ serverId: string; toolName: string }, ExternalMcpToolApprovalRevokeEnvelope, ExternalMcpToolApprovalRevokeRouteDeps, ExternalMcpRoutePrincipal>({
   method: "delete",
   path: "/api/admin/v1/workspaces/:workspaceId/mcp-servers/:serverId/tool-approvals/:toolName",
   parse: (raw) => ok({ value: { serverId: externalMcpParam({ params: raw.params, name: "serverId" }), toolName: externalMcpParam({ params: raw.params, name: "toolName" }) } }),
   handle: async ({ input, deps, authorize }) => {
     await authorizeExternalMcp({ authorize });
-    const removed = (await deps.toolApprovalRepo?.delete({ workspaceId: deps.workspaceId, serverId: input.serverId, toolName: input.toolName })) ?? false;
+    const removed = await deps.revokeApproval({ workspaceId: deps.workspaceId, serverId: input.serverId, toolName: input.toolName });
     if (!removed) rejectRoute({ status: 404, error: "no Always allow is saved for that tool", code: "NOT_FOUND" });
     return ok({ value: { removed: true } });
   },

@@ -32,7 +32,7 @@ import { EXTERNAL_MCP_OAUTH_CALLBACK_PATH, externalMcpOAuthCallbackUrl } from ".
  *
  * A completion failure can carry provider request detail, and this page is reachable by anyone who
  * can guess a URL. The full reason — including anything `OAuthError.message` or a provider's own
- * response carries — goes to the server log only. {@link classifyCallbackFailure} below is the one
+ * response carries — goes to the host's `reportCallbackFailure` (its server log) only. {@link classifyCallbackFailure} below is the one
  * place that failure is translated into something safe to send back, and it reads only a closed
  * union (`OAuthError.code`) or an error's class identity (both through the host's injected
  * predicates) — never `.message`, never `OAuthError.providerErrorCode`. The browser gets one of a
@@ -93,7 +93,11 @@ export interface ExternalMcpOAuthCallbackRouteDeps {
   renderPage: OAuthCallbackPageRenderer;
   /** The public origin the connect route built its redirect URI under (host policy). */
   publicOrigin: (required: { readonly request: Request; readonly facts: RequestFacts }) => string;
-  log: (line: string) => void;
+  /**
+   * Receives each failed completion's caught value, as thrown, for the server log only (this file's
+   * header: the full failure is logged, never rendered). The host owns the line, its label and format.
+   */
+  reportCallbackFailure: (required: { readonly error: unknown }) => void;
 }
 
 /** The three query fields this callback reads, narrowed once at the edge. Anything else a provider
@@ -179,7 +183,7 @@ export function externalMcpOAuthCallbackRoute(deps: ExternalMcpOAuthCallbackRout
         await deps.notifyRosterChanged();
         return page({ status: 200, cleared: true });
       } catch (error) {
-        deps.log(`external-mcp oauth callback failed: ${error instanceof Error ? error.message : String(error)}`);
+        deps.reportCallbackFailure({ error });
         return page({ status: 400, reason: classifyCallbackFailure({ error, deps }), cleared: true });
       }
     },

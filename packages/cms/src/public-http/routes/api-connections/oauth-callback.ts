@@ -19,7 +19,7 @@ import { oauthCallbackPageResponse, type OAuthCallbackFailureReason, type OAuthC
  * left in the host's consume-once inbox for that plugin's admin-surface handler.
  *
  * Nothing from the request or the provider reaches the page: failures map onto the shared page's
- * closed reason vocabulary by error CODE, and full detail goes to the server log only.
+ * closed reason vocabulary by error CODE, and only the error's name and code reach the host's diagnostics.
  */
 
 const MAX_STATE_LENGTH = 512;
@@ -79,7 +79,19 @@ export interface ApiConnectionOAuthCallbackRouteDeps<Connection extends { readon
   renderPage: OAuthCallbackPageRenderer;
   /** The public origin the attempt recorded its redirect URI under (host policy: configured URL or the request's). */
   publicOrigin: (required: { readonly request: Request; readonly facts: RequestFacts }) => string;
-  log: (line: string) => void;
+  /** Receives each failed completion's diagnostic facts; the host owns the log line, its label and format. */
+  reportCallbackFailure: (facts: ApiConnectionCallbackFailureFacts) => void;
+}
+
+/**
+ * The diagnostic facts of one failed completion. Both fields come from closed vocabularies; the
+ * error's message and cause never appear here (see {@link callbackFailureFacts}).
+ */
+export interface ApiConnectionCallbackFailureFacts {
+  /** The thrown value's `Error.name`; absent when what was thrown is not an `Error` at all. */
+  readonly errorName?: string;
+  /** That error's string `code`; absent when it carries none (or is not an `Error`). */
+  readonly errorCode?: string;
 }
 
 /** Only string query values, as the provider sent them; Jini picks the OAuth names and declared fields. */
@@ -120,11 +132,11 @@ function depositCallbackFields(
   inbox.deposit({ workspaceId, pluginId, connectionId, attemptId: completion.attemptId, fields: completion.callbackFields });
 }
 
-/** Codes are closed vocabularies; messages and causes may carry provider text and stay out of logs. */
-function safeErrorLabel({ error }: { error: unknown }, _optional = {}): string {
-  if (!(error instanceof Error)) return "unknown";
+/** Codes are closed vocabularies; messages and causes may carry provider text and stay out of logs. @complexity O(1). */
+function callbackFailureFacts({ error }: { error: unknown }, _optional = {}): ApiConnectionCallbackFailureFacts {
+  if (!(error instanceof Error)) return {};
   const code = (error as { code?: unknown }).code;
-  return `${error.name} ${typeof code === "string" ? code : "unknown"}`;
+  return typeof code === "string" ? { errorName: error.name, errorCode: code } : { errorName: error.name };
 }
 
 /**
@@ -178,7 +190,7 @@ async function completeCallback<Connection extends { readonly descriptor: { read
     depositCallbackFields({ inbox: deps.host.callbackInbox, attempt, completion });
     return page({ status: 200, cleared });
   } catch (error) {
-    deps.log(`api-connection oauth callback failed: ${safeErrorLabel({ error })}`);
+    deps.reportCallbackFailure(callbackFailureFacts({ error }));
     return page({ status: 400, reason: classify({ error, isApiConnectionError: deps.isApiConnectionError }), cleared });
   }
 }
