@@ -3,7 +3,7 @@
  * transport, chat-pane agents and the run posters' delivery types. Split out of `kit.tsx` only for
  * size; `./react/kit` re-states them as part of its own public types, nothing else imports this file.
  */
-import type { PointerEvent as ReactPointerEvent } from 'react';
+import type { PointerEvent as ReactPointerEvent, ReactNode } from 'react';
 /** The chat library's translator (its own locale context). Never the UI translator in `hooks.useT`. */
 export type KitChatTranslator = (key: string, vars?: Record<string, string | number>) => string;
 export interface KitSecretRedactionSignal { readonly secretRedacted: true; readonly count: number }
@@ -130,3 +130,85 @@ export interface FabPositionResult {
   style: { right: number; bottom: number }; onPointerDown: (e: ReactPointerEvent<HTMLButtonElement>) => void;
   consumeDragFlag: () => boolean; isDragging: boolean;
 }
+/* composer discovery (the slash/plus menu) */
+export interface ComposerDiscoveryArgument { placeholder: string; required?: boolean }
+export interface ComposerDiscoveryItem {
+  id: string; label: string; description?: string; kind?: string; keywords?: readonly string[]; insertText?: string; command?: string;
+  argument?: ComposerDiscoveryArgument; needsConfirmation?: boolean;
+}
+export interface ComposerDiscoveryGroup { id: string; label: string; items: readonly ComposerDiscoveryItem[] }
+export interface ComposerDiscoverySelection { item: ComposerDiscoveryItem; source: 'plus' | 'slash'; argument?: string | null }
+export interface ComposerDiscoveryOutcome { draft?: string }
+/* ext-event renderer registry */
+export type ExtEventRenderer = (props: ExtEventRenderProps) => ReactNode;
+export type ExtEventSlotKey = (required: { data: unknown }) => string | undefined;
+export interface ExtEventRendererOptions { slotKey?: ExtEventSlotKey; terminalNotice?: (required: { events: readonly unknown[] }) => boolean }
+export interface ExtEventRendererRegistry {
+  register(required: { name: string; renderer: ExtEventRenderer }, options?: ExtEventRendererOptions): () => void;
+  get(required: { name: string }): ExtEventRenderer | undefined;
+  slot(required: { name: string; data: unknown }): string;
+  hasTerminalNotice(required: { name: string; events: readonly unknown[] }): boolean;
+  clear(): void;
+}
+/* conversations: the saved list, the last-open store and the save client */
+export interface AssistantConversation {
+  id: string; title: string | null; titleSource: 'fallback' | 'generated' | 'manual'; messageCount: number; createdAt: number; updatedAt: number;
+}
+export interface LastConversationStorage { getItem(key: string): string | null; setItem(key: string, value: string): void; removeItem(key: string): void }
+export interface LastConversationStore { read(): string | null; write(conversationId: string): void; clear(): void }
+export interface AssistantChatsPort {
+  listConversations(required: Record<string, never>, optional: Record<string, never>): Promise<AssistantConversation[]>;
+  createConversation(required: { firstMessage?: string }, optional: Record<string, never>): Promise<AssistantConversation>;
+  renameConversation(required: { id: string; title: string }, optional: Record<string, never>): Promise<void>;
+  deleteConversation(required: { id: string }, optional: Record<string, never>): Promise<void>;
+  loadMessages(required: { conversationId: string }, optional: Record<string, never>): Promise<ChatMessage[]>;
+  saveMessage(required: { conversationId: string; message: ChatMessage }, optional: Record<string, never>): Promise<void>;
+}
+export interface UseAssistantChats {
+  conversations: AssistantConversation[]; activeId: string | null; paneKey: string; initialMessages: ChatMessage[];
+  select: (required: { id: string }, optional?: Record<string, never>) => void;
+  create: (required: Record<string, never>, optional?: Record<string, never>) => Promise<void>;
+  remove: (required: { id: string }, optional?: Record<string, never>) => Promise<void>;
+  rename: (required: { id: string; title: string }, optional?: Record<string, never>) => Promise<void>;
+  onMessagesChange: (required: { messages: ChatMessage[] }, optional?: Record<string, never>) => void;
+  ensureConversationId: (required: Record<string, never>, optional?: Record<string, never>) => Promise<string | null>;
+  persistUserTurn: (required: { conversationId: string; message: ChatMessage }, optional?: Record<string, never>) => Promise<void>;
+}
+export interface AssistantChatsClientPorts {
+  readonly statusOf: (required: { error: unknown }, optional: Record<string, never>) => number | undefined;
+  readonly sleep: (required: { delayMs: number }, optional: Record<string, never>) => Promise<void>;
+  readonly reportPermanent: (required: { conversationId: string; messageId: string; error: unknown }, optional: Record<string, never>) => void;
+  readonly requestRunPrefixes: readonly string[];
+}
+export type SaveOutcome = 'saved' | 'exhausted' | 'permanent' | 'missing';
+export type AttemptResult = { done: true; outcome: SaveOutcome } | { done: false };
+export interface SaveFailureInput { error: unknown; conversationId: string; message: ChatMessage; attempt: number; isDisposed: () => boolean }
+export interface AssistantChatsClient {
+  giveUpOutcome(required: { error: unknown }, optional?: Record<string, never>): SaveOutcome;
+  handleSaveFailure(required: SaveFailureInput, optional?: Record<string, never>): Promise<AttemptResult>;
+  attemptSave(required: Omit<SaveFailureInput, 'error'> & { port: AssistantChatsPort }, optional?: Record<string, never>): Promise<AttemptResult>;
+  summarizeFlushOutcomes(required: { results: readonly { message: ChatMessage; outcome: SaveOutcome }[]; isConversationStillActive: boolean }, optional?: Record<string, never>)
+    : { idsToRelease: string[]; shouldRefresh: boolean };
+  resolveRememberedConversation(required: { remembered: string | null; conversations: readonly AssistantConversation[]; listFailed: boolean }, optional?: Record<string, never>)
+    : 'restore' | 'forget' | 'keep';
+  useAssistantChats(required: { port: AssistantChatsPort }, optional?: { lastConversation?: LastConversationStore }): UseAssistantChats;
+}
+/* agent inventory snapshot (session-scoped cache of the last agent list) */
+export interface AgentInventoryEntry { readonly id: string; readonly name: string }
+export interface AgentInventorySnapshot<T extends AgentInventoryEntry> { read(args: Record<string, never>): readonly T[] | undefined; write(args: { agents: readonly T[] }): void }
+export interface AgentInventorySnapshotArgs { readonly storage: Pick<Storage, 'getItem' | 'setItem'>; readonly key: string }
+/* assistant client: attachment liveness, durable run following, a2ui poster options */
+export interface ChatAttachmentValidatorOptions { readonly fetchImpl?: typeof fetch; readonly concurrency?: number; readonly timeoutMs?: number }
+export interface ChatAttachmentValidatorInput {
+  readonly fetch: typeof fetch; readonly endpoint: (required: { ref: string }, optional: Record<string, never>) => string;
+  readonly isSupportedRef: (required: { ref: string }, optional: Record<string, never>) => boolean; readonly maxProbedAttachments: number;
+}
+export interface DurableRunBinding { readonly messageId: string; readonly conversationId: string }
+export interface DurableSubscriptionPorts {
+  readonly read: (required: { runId: string; messageId?: string }, optional: { recover?: boolean }) => Promise<ChatMessage | null | 'gone'>;
+  readonly stream: (required: { runId: string; cursor: string; frame: (kind: string, data: string, cursor: string) => void; dropped: (reason?: string) => void }, optional: {}) => () => void;
+  readonly schedule: (required: { work: () => void; delayMs: number }, optional: {}) => () => void;
+}
+export interface CreateA2uiActionPosterOptions { readonly path?: string; readonly timeoutMs?: number; readonly headers?: Readonly<Record<string, string>> }
+export type DeliverTypedAnswer = KitDeliverTypedAnswer;
+export type UserTextRedactionOptions = KitUserTextRedactionOptions;
