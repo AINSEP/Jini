@@ -4181,20 +4181,22 @@
  "./public-http/http/site/render/widgets/social-entries": {
   "types": "./dist/public-http/http/site/render/widgets/social-entries.d.ts",
   "symbols": {
-   "renderWidgetEntrySummary": "function:0f0c3d8337",
+   "renderWidgetEntrySummary": "function:e4525f5080",
    "renderWidgetRecentEntries": "function:2d7a9d27c2",
-   "renderWidgetSocialLinks": "function:489f7b0b0c"
+   "renderWidgetSocialLinks": "function:a9deae2044"
   }
  },
  "./public-http/http/site/render/widgets/widget-render-contract": {
   "types": "./dist/public-http/http/site/render/widgets/widget-render-contract.d.ts",
   "symbols": {
-   "ContactFormPresentation": "interface:202a90a742",
+   "ContactFormPresentation": "interface:a70055f4df",
    "ContactFormWidgetHost": "interface:38f78903cb",
    "WidgetDocRendering": "interface:db21049b19",
-   "WidgetEntriesHost": "interface:491ac87978",
+   "WidgetEntriesClasses": "interface:b4467e52a6",
+   "WidgetEntriesHost": "interface:38deaef4ff",
    "WidgetMediaHost": "interface:f96f787316",
-   "WidgetPostContentHost": "interface:3582ab83ce",
+   "WidgetPostContentClasses": "interface:02818da467",
+   "WidgetPostContentHost": "interface:c73e7874a7",
    "WidgetRenderHost": "interface:945b95e6f4"
   }
  },

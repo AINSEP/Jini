@@ -73,10 +73,11 @@
  "./dev-proxy": {
   "types": "./dist/dev-proxy.d.ts",
   "symbols": {
-   "createDevProxyRequestHandler": "function:29a93de511",
+   "DevProxyFailureWriter": "type:6ddfcf5cc0",
+   "createDevProxyRequestHandler": "function:138d2c838b",
    "createDevProxyUpgradeListener": "function:e583a4d205",
    "resolveDevProxyPath": "function:e5e4e994a0",
-   "stripHopByHopHeaders": "function:b13d4b8886"
+   "stripHopByHopHeaders": "function:0b5e941a7c"
   }
  },
  "./html-response": {

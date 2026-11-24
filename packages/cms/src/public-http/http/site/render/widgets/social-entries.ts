@@ -5,17 +5,17 @@ import { toAllowedHref } from "../../../../../navigation/href.js";
 import { MAX_SLUG_LENGTH, SLUG_FORMAT_PATTERN } from "../../../../../posts/slug.js";
 import type { EntryListItem, EntryListFieldValue, EntryListRenderOptions } from "../../../../../listing/index.js";
 import type { WidgetRenderIR } from "../../../../../widgets/index.js";
-import type { WidgetEntriesHost } from "./widget-render-contract.js";
+import type { WidgetEntriesClasses, WidgetEntriesHost } from "./widget-render-contract.js";
 
-export function renderWidgetSocialLinks({ props }: { props: JsonObject }, _optional = {}): string {
+export function renderWidgetSocialLinks({ props, host }: { props: JsonObject; host: { readonly classes: Pick<WidgetEntriesClasses, "socialList" | "socialLink"> } }, _optional = {}): string {
   const items = arr({ value: props.links })
     .map((link) => {
       const o = obj({ value: link });
       if (!o) return "";
-      return `<li><a class="widget-social-link" href="${escapeHtml({ text: toAllowedHref({ rawHref: o.url }) })}">${escapeHtml({ text: str({ value: o.platform }) })}</a></li>`;
+      return `<li><a class="${host.classes.socialLink}" href="${escapeHtml({ text: toAllowedHref({ rawHref: o.url }) })}">${escapeHtml({ text: str({ value: o.platform }) })}</a></li>`;
     })
     .join("");
-  return `<ul class="widget widget-social-links">${items}</ul>`;
+  return `<ul class="${host.classes.socialList}">${items}</ul>`;
 }
 
 /**
@@ -34,14 +34,17 @@ export function renderWidgetSocialLinks({ props }: { props: JsonObject }, _optio
  * (never a malformed/unsafe href) while the title still renders — same "degrade, don't disappear"
  * convention every other renderer in this file follows.
  */
-export function renderWidgetEntrySummary({ props }: { props: JsonObject }, _optional = {}): string {
+export function renderWidgetEntrySummary({ props, host }: { props: JsonObject; host: { readonly classes: Pick<WidgetEntriesClasses, "entrySummary"> } }, _optional = {}): string {
   const slug = str({ value: props.slug });
   const title = str({ value: props.title });
   const href = slug.length > 0 && slug.length <= MAX_SLUG_LENGTH && SLUG_FORMAT_PATTERN.test(slug) ? `/${escapeHtml({ text: slug })}` : "#";
-  return `<li class="widget-entry-summary"><a href="${href}">${escapeHtml({ text: title })}</a></li>`;
+  return `<li class="${host.classes.entrySummary}"><a href="${href}">${escapeHtml({ text: title })}</a></li>`;
 }
 
-const RECENT_ENTRIES_EMPTY_HTML = '<ul class="widget widget-recent-entries"><li class="widget-empty">No entries yet.</li></ul>';
+/** The `list` layout's empty state, in the host's class names. @complexity O(1). */
+function recentEntriesEmptyHtml({ classes }: { classes: WidgetEntriesClasses }, _optional = {}): string {
+  return `<ul class="${classes.recentList}"><li class="${classes.empty}">No entries yet.</li></ul>`;
+}
 
 /** Converts one `recent-entries` IR child's resolved raw JSON props (built by
  *  `Jini/packages/cms/src/widgets/resolvers/recent-entries.ts`'s `RecentEntryItemProps`, deliberately the same
@@ -96,18 +99,18 @@ export function renderWidgetRecentEntries({ ir, host }: { ir: WidgetRenderIR; ho
     const typeKey = str({ value: ir.props.typeKey }, { fallback: "recent-entries" });
     // `renderEntryList` returns `undefined` exactly when `items` is empty — that IS this widget's
     // empty state, so no separate length check runs ahead of it on this branch.
-    return host.renderEntryList({ items, attribute: host.entryListAttribute, options: { columns, layout: layout.value, typeKey, ...structuredData } }) ?? RECENT_ENTRIES_EMPTY_HTML;
+    return host.renderEntryList({ items, attribute: host.entryListAttribute, options: { columns, layout: layout.value, typeKey, ...structuredData } }) ?? recentEntriesEmptyHtml({ classes: host.classes });
   }
-  if (items.length === 0) return RECENT_ENTRIES_EMPTY_HTML;
+  if (items.length === 0) return recentEntriesEmptyHtml({ classes: host.classes });
 
   const lis = items
     .map((item) => {
       const title = escapeHtml({ text: item.title });
       const inner = item.href === null ? title : `<a href="${escapeHtml({ text: toAllowedHref({ rawHref: item.href }) })}">${title}</a>`;
-      return `<li class="widget-entry-summary">${inner}</li>`;
+      return `<li class="${host.classes.entrySummary}">${inner}</li>`;
     })
     .join("");
   // The legacy markup, plus the FAQPage block when asked for — `list` is the default layout, so an
   // FAQ widget that never set one must not silently lose it.
-  return `<ul class="widget widget-recent-entries">${lis}</ul>${host.renderEntryListStructuredData({ items }, structuredData)}`;
+  return `<ul class="${host.classes.recentList}">${lis}</ul>${host.renderEntryListStructuredData({ items }, structuredData)}`;
 }

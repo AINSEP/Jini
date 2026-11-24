@@ -7,8 +7,6 @@ import { str, arr } from "./value-readers.js";
 import { renderWidgetPlaceholder } from "./widgets/placeholder.js";
 import type { ContactFormWidgetHost } from "./widgets/widget-render-contract.js";
 
-const DEFAULT_CONTACT_FORM_SUCCESS_MESSAGE = "Thanks — your message has been sent.";
-
 /** Everything one render pass threads between the mode helpers below: the resolved props, the
  *  host, this occurrence's id prefix and the field descriptors (read once). */
 interface ContactFormPass {
@@ -73,7 +71,7 @@ function renderHtmlMode({ props, host, slug, idPrefix, fieldDescriptors, rangeRe
     ...(typeof props.html === "string" ? { html: props.html } : {}),
     ...formSchemaOptions({ props }),
     idPrefix,
-    successMessage: str({ value: props.successMessage }) || DEFAULT_CONTACT_FORM_SUCCESS_MESSAGE,
+    successMessage: str({ value: props.successMessage }) || presentation.successMessageFallback,
     className: presentation.formClass,
     ...presentation.fieldClasses,
   }), fields: fieldDescriptors, fieldMaxChars: forms.fieldMaxChars }) + rangeReadout;
@@ -84,16 +82,16 @@ function renderHtmlMode({ props, host, slug, idPrefix, fieldDescriptors, rangeRe
 function renderBuiltinMode({ props, host, slug, idPrefix, fieldDescriptors, rangeReadout }: ContactFormPass, _optional = {}): string {
   const { presentation, forms } = host;
   const escapedSlug = escapeHtml({ text: slug });
-  const fieldOptions = { submitLabel: "Send", idPrefix, ...presentation.fieldClasses };
+  const fieldOptions = { submitLabel: presentation.submitLabel, idPrefix, ...presentation.fieldClasses };
   const fields = forms.stampFormFieldMaxLengths({ html: forms.renderHtmlFormBody({ fields: fieldDescriptors, hooks: { field: presentation.hooks.field } }, fieldOptions), fields: fieldDescriptors, fieldMaxChars: forms.fieldMaxChars });
-  const successMessage = escapeHtml({ text: str({ value: props.successMessage }) || DEFAULT_CONTACT_FORM_SUCCESS_MESSAGE });
+  const successMessage = escapeHtml({ text: str({ value: props.successMessage }) || presentation.successMessageFallback });
   const legacyAttrs = `data-contact-form-slug="${escapedSlug}"`;
-  const successSlot = forms.renderFormSuccessSlot({ slug: escapedSlug, message: successMessage, className: FORM_SUCCESS_CLASS }, { extraClasses: "widget-contact-form-success", extraAttrs: legacyAttrs });
-  const errorSlot = forms.renderFormErrorSlot({ slug: escapedSlug, className: presentation.errorClass }, { extraClasses: "widget-contact-form-error", extraAttrs: legacyAttrs });
+  const successSlot = forms.renderFormSuccessSlot({ slug: escapedSlug, message: successMessage, className: FORM_SUCCESS_CLASS }, { extraClasses: presentation.successExtraClass, extraAttrs: legacyAttrs });
+  const errorSlot = forms.renderFormErrorSlot({ slug: escapedSlug, className: presentation.errorClass }, { extraClasses: presentation.errorExtraClass, extraAttrs: legacyAttrs });
   return (
     presentation.baselineStyle +
     successSlot +
-    `<form class="widget ${presentation.formClass} widget-contact-form" toolname="form_${escapeHtml({ text: slug.replace(/[^A-Za-z0-9_.-]/g, '_').slice(0, 123) })}" tooldescription="${escapedSlug}" method="post"${fieldDescriptors.some(field => field && String(field.type) === "file") ? ' enctype="multipart/form-data"' : ""} action="/forms/${escapedSlug}/submit" data-form-slug="${escapedSlug}" ${legacyAttrs}>` +
+    `<form class="${presentation.widgetClass} ${presentation.formClass} ${presentation.contactFormClass}" toolname="form_${escapeHtml({ text: slug.replace(/[^A-Za-z0-9_.-]/g, '_').slice(0, 123) })}" tooldescription="${escapedSlug}" method="post"${fieldDescriptors.some(field => field && String(field.type) === "file") ? ' enctype="multipart/form-data"' : ""} action="/forms/${escapedSlug}/submit" data-form-slug="${escapedSlug}" ${legacyAttrs}>` +
     errorSlot +
     fields + forms.renderFormSchemaHash(formSchemaOptions({ props })) +
     `<div hidden aria-hidden="true"><input type="text" name="_hp" tabindex="-1" autocomplete="off"></div>` +

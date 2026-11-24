@@ -7,7 +7,7 @@ import type { WidgetRenderIR } from "../../../../../widgets/index.js";
 import { escapeHtml } from "@jini-ai/core/text";
 import { renderWidgetPlaceholder } from "./placeholder.js";
 import { styleForAlign } from "../../../../../html/text-layout.js";
-import type { WidgetPostContentHost } from "./widget-render-contract.js";
+import type { WidgetPostContentClasses, WidgetPostContentHost } from "./widget-render-contract.js";
 
 /**
  * Renders a resolved `data-embed-type="post"` embed (post-template-picker feature, 2026-08-10) —
@@ -162,17 +162,17 @@ function readInlineWidgets({ value }: { value: JsonValue | undefined }, _optiona
  * @complexity O(1) — string concatenation only, no loop or recursion.
  */
 function renderPostDetailHeader(
-  required: { showHeader: boolean; titleHtml: string; dateLabel: string; dateIso: string; bylineHtml: string },
+  required: { showHeader: boolean; titleHtml: string; dateLabel: string; dateIso: string; bylineHtml: string; classes: WidgetPostContentClasses },
   _optional: Record<string, never> = {},
 ): string {
-  const { showHeader, titleHtml, dateLabel, dateIso, bylineHtml } = required;
+  const { showHeader, titleHtml, dateLabel, dateIso, bylineHtml, classes } = required;
   if (!showHeader) return "";
   const time = dateLabel ? `<time datetime="${escapeHtml({ text: dateIso })}">${escapeHtml({ text: dateLabel })}</time>` : "";
   // `bylineHtml` is required (L082b): its one caller always passes `str(props.postAuthorByline)`,
   // which is `""` when there is no byline, so the former optional's `?? ""` default never ran.
   const byline = bylineHtml.replace("<span", time ? '<span data-post-author-separator=""' : "<span");
   const meta = time + byline;
-  return `<div class="post-detail-header">` + titleHtml + (meta ? `<div class="post-meta">${meta}</div>` : "") + `</div>`;
+  return `<div class="${classes.header}">` + titleHtml + (meta ? `<div class="${classes.meta}">${meta}</div>` : "") + `</div>`;
 }
 
 export function renderWidgetPostContent({ props, docRendering, host }: { props: JsonObject; docRendering: WidgetDocRendering; host: WidgetPostContentHost }, _optional = {}): string {
@@ -206,7 +206,7 @@ export function renderWidgetPostContent({ props, docRendering, host }: { props: 
   const mediaAssetMetadata = readMediaAssetMetadata({ value: props.mediaAssetMetadata as JsonValue | undefined });
   const inlineWidgets = readInlineWidgets({ value: props.inlineWidgets as JsonValue | undefined });
   return (
-    renderPostDetailHeader({ showHeader, titleHtml, dateLabel, dateIso, bylineHtml: str({ value: props.postAuthorByline }) }) +
-    `<div class="post-detail-body">${docRendering.renderDocNode({ node: bodyJson }, { inlineResolved: inlineWidgets, mediaTransformVersions, mediaAssetMetadata })}</div>`
+    renderPostDetailHeader({ showHeader, titleHtml, dateLabel, dateIso, bylineHtml: str({ value: props.postAuthorByline }), classes: host.classes }) +
+    `<div class="${host.classes.body}">${docRendering.renderDocNode({ node: bodyJson }, { inlineResolved: inlineWidgets, mediaTransformVersions, mediaAssetMetadata })}</div>`
   );
 }

@@ -23,6 +23,22 @@ export interface WidgetMediaHost {
   readonly report: (event: MediaHtmlEvent) => void;
 }
 
+/** The class names the entries widgets (`social-links`, `recent-entries`, `entry-summary`) emit; the
+ *  host's theme CSS targets them, so the widgets carry no class name of their own. Each value is the
+ *  full `class` attribute text (a list class may carry several tokens). */
+export interface WidgetEntriesClasses {
+  /** `<ul>` of the `social-links` widget. */
+  readonly socialList: string;
+  /** `<a>` of each social link. */
+  readonly socialLink: string;
+  /** `<ul>` of the `list` layout of `recent-entries`. */
+  readonly recentList: string;
+  /** `<li>` of each entry in a list, and of an `entry-summary`. */
+  readonly entrySummary: string;
+  /** `<li>` of the empty state. */
+  readonly empty: string;
+}
+
 /** The `recent-entries` widget's collaborators: the entry-list renderer (`listing` domain), the
  *  collection-list vocabulary (`entries` domain) and the host's own entry-list marker attribute. */
 export interface WidgetEntriesHost {
@@ -32,22 +48,50 @@ export interface WidgetEntriesHost {
   readonly collectionListFaqPage: typeof COLLECTION_LIST_FAQ_PAGE;
   /** The attribute the host's entry-list stylesheet and style-injection check look for. */
   readonly entryListAttribute: string;
+  /** The class names the entries widgets emit (see {@link WidgetEntriesClasses}). */
+  readonly classes: WidgetEntriesClasses;
 }
 
-/** The `post-content` widget's collaborators: the date policy (host-owned, `widgets` domain label). */
+/** The class names the `post-content` widget emits (the host's post theme CSS targets them). */
+export interface WidgetPostContentClasses {
+  /** The header block (title and meta). */
+  readonly header: string;
+  /** The date and byline row inside the header. */
+  readonly meta: string;
+  /** The body block. */
+  readonly body: string;
+}
+
+/** The `post-content` widget's collaborators: the date policy (host-owned, `widgets` domain label)
+ *  and the class names the widget emits. */
 export interface WidgetPostContentHost {
+  /** The class names the widget emits (see {@link WidgetPostContentClasses}). */
+  readonly classes: WidgetPostContentClasses;
   readonly formatDateLabel: typeof formatDateLabel;
   /** The go-live time when the post has one, else its last-saved time. */
   readonly postDisplayDateIso: (required: { publishAt: string | null; updatedAt: string }, optional?: Record<string, never>) => string;
 }
 
-/** The legacy class and attribute names the host's form stylesheet and scripts target. Jini defaults
- *  to its own `jini-*` names elsewhere; this widget emits exactly what it is handed here. */
+/** The legacy class and attribute names, and the fallback copy, the host's form stylesheet and scripts
+ *  target. Jini defaults to its own `jini-*` names elsewhere; this widget emits exactly what it is
+ *  handed here. */
 export interface ContactFormPresentation {
   /** Class on every `<form>` (`FORM_CLASS`). */
   readonly formClass: string;
   /** Class on the error slot (`FORM_ERROR_CLASS`). */
   readonly errorClass: string;
+  /** The built-in shell's generic widget class, placed before `formClass` (e.g. `widget`). */
+  readonly widgetClass: string;
+  /** The built-in shell's own form class, placed after `formClass`. */
+  readonly contactFormClass: string;
+  /** Extra class on the built-in shell's success slot. */
+  readonly successExtraClass: string;
+  /** Extra class on the built-in shell's error slot. */
+  readonly errorExtraClass: string;
+  /** The built-in shell's submit button label. */
+  readonly submitLabel: string;
+  /** The success message shown when the widget has no `successMessage` prop of its own. */
+  readonly successMessageFallback: string;
   /** The baseline `<style>` every form-rendering widget carries. */
   readonly baselineStyle: string;
   /** The inline `<script>` appended after a form that has a range field. */
