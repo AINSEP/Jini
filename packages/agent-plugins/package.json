@@ -109,6 +109,7 @@
       "./site/memory-i18n": "universal",
       "./site/admin-surfaces/public-config": "universal",
       "./site/deploy-split-activation": "universal",
+      "./site/bundled-id-upgrade": "node",
       "./site/retired-plugin-tool-aliases": "universal",
       "./site/admin-surfaces/handlers": "universal",
       "./site/customize-tool": "node",
@@ -339,6 +340,11 @@
       "types": "./dist/site/deploy-split-activation.d.ts",
       "import": "./dist/site/deploy-split-activation.js",
       "default": "./dist/site/deploy-split-activation.js"
+    },
+    "./site/bundled-id-upgrade": {
+      "types": "./dist/site/bundled-id-upgrade.d.ts",
+      "import": "./dist/site/bundled-id-upgrade.js",
+      "default": "./dist/site/bundled-id-upgrade.js"
     },
     "./site/retired-plugin-tool-aliases": {
       "types": "./dist/site/retired-plugin-tool-aliases.d.ts",
