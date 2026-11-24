@@ -1061,13 +1061,6 @@
    "usePlaygroundPorts": "function:e0df555889"
   }
  },
- "./posts/post-editor-route-keys": {
-  "types": "./dist/posts/post-editor-route-keys.d.ts",
-  "symbols": {
-   "PostEditorRouteKeys": "interface:834d4863c1",
-   "createPostEditorRouteKeys": "function:2dda22d82b"
-  }
- },
  "./posts/PostAuthorFields": {
   "types": "./dist/posts/PostAuthorFields.d.ts",
   "symbols": {
@@ -2063,14 +2056,6 @@
    "EntryStatus": "type:f517b21192"
   }
  },
- "./screens/collections/collections-i18n": {
-  "types": "./dist/screens/collections/collections-i18n.d.ts",
-  "symbols": {
-   "createCollectionsDictionary": "function:58a634ab66",
-   "entryLifecycleFailureMessage": "function:e814e090d1",
-   "lifecycleFailureMessage": "function:765ee7c93b"
-  }
- },
  "./screens/collections/hooks/collection-entries-port.hooks": {
   "types": "./dist/screens/collections/hooks/collection-entries-port.hooks.d.ts",
   "symbols": {
@@ -2116,12 +2101,6 @@
    "CommentModerationAction": "type:586b5ae538",
    "CommentStatus": "type:e89b6a6732",
    "CommentsSettings": "interface:822d1ed6ee"
-  }
- },
- "./screens/comments/comments-i18n": {
-  "types": "./dist/screens/comments/comments-i18n.d.ts",
-  "symbols": {
-   "createCommentsDictionary": "function:69d12bbad3"
   }
  },
  "./screens/consent/consent-autosave": {
@@ -2758,12 +2737,6 @@
   "symbols": {
    "useMenuPageLinkFields": "function:32571ce38e",
    "useMenuTargetEditor": "function:203b92d940"
-  }
- },
- "./screens/menus/menus-i18n": {
-  "types": "./dist/screens/menus/menus-i18n.d.ts",
-  "symbols": {
-   "createMenusDictionary": "function:f1c24c190a"
   }
  },
  "./screens/menus/page-link-rules": {
@@ -3563,12 +3536,6 @@
   "types": "./dist/screens/taxonomy/html-rules.d.ts",
   "symbols": {
    "taxonomyHtmlEmbed": "function:03e5b8704b"
-  }
- },
- "./screens/taxonomy/taxonomy-i18n": {
-  "types": "./dist/screens/taxonomy/taxonomy-i18n.d.ts",
-  "symbols": {
-   "createTaxonomyDictionary": "function:9344b611dc"
   }
  },
  "./screens/taxonomy/TaxonomyRowMenu": {
