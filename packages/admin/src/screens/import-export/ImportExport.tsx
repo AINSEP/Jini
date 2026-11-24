@@ -1,5 +1,5 @@
 import type { ComponentType } from "react";
-import { agentHandle } from "@jini-ai/core/agent-handles";
+import type { agentHandle as AgentHandle } from "@jini-ai/core/agent-handles";
 
 import { TabBar } from "../../react/kit.js";
 import { IMPORT_EXPORT_LINKS, type ImportExportLink } from "./import-export-links.js";
@@ -41,6 +41,8 @@ export interface ImportExportProps {
   SiteExportTab: ImportExportSiteExportTab;
   /** The Sites screen's Import Site tab, rendered as is. */
   SiteImportTab: ImportExportSiteImportTab;
+  /** Core's `agentHandle`, injected by the host (never imported here). */
+  agentHandle: typeof AgentHandle;
   /** The Export and Import tabs' agent labels (host copy). */
   handleLabels: ImportExportHandleLabels;
   /** The host admin router's `navigate` (an admin route path, e.g. `/import-export?tab=other`). */
@@ -49,7 +51,7 @@ export interface ImportExportProps {
   tabId?: string | null;
 }
 
-function ImportExportCard({ link, t }: { link: ImportExportLink; t: Translate }) {
+function ImportExportCard({ link, t, agentHandle }: { link: ImportExportLink; t: Translate; agentHandle: typeof AgentHandle }) {
   return (
     <section className="jini-card jini-import-export-card" aria-labelledby={`import-export-${link.id}-title`}>
       <h2 id={`import-export-${link.id}-title`} className="jini-card-title">{t(link.title)}</h2>
@@ -70,14 +72,14 @@ function ImportExportCard({ link, t }: { link: ImportExportLink; t: Translate })
 
 /** The Other tab: the cards for screens elsewhere, then Git backup. Its own component so the Git
  *  backup read runs only while this tab is open. */
-function OtherTab({ t, useGitBackup }: { t: Translate; useGitBackup: UseImportExportGitBackup }) {
+function OtherTab({ t, useGitBackup, agentHandle }: { t: Translate; useGitBackup: UseImportExportGitBackup; agentHandle: typeof AgentHandle }) {
   const gitBackup = useGitBackup({ t });
   return (
     <>
       <div className="jini-import-export-grid">
-        {IMPORT_EXPORT_LINKS.map((link) => <ImportExportCard key={link.id} link={link} t={t} />)}
+        {IMPORT_EXPORT_LINKS.map((link) => <ImportExportCard key={link.id} link={link} t={t} agentHandle={agentHandle} />)}
       </div>
-      <GitBackupCard controller={gitBackup} t={t} />
+      <GitBackupCard controller={gitBackup} t={t} agentHandle={agentHandle} />
     </>
   );
 }
@@ -111,6 +113,7 @@ export function ImportExport({
   SiteExportTab,
   SiteImportTab,
   handleLabels,
+  agentHandle,
   navigate,
   tabId,
 }: ImportExportProps) {
@@ -133,7 +136,7 @@ export function ImportExport({
         containerHandle="import-export-tabs"
       />
       {tab === "other"
-        ? <OtherTab t={t} useGitBackup={useGitBackup} />
+        ? <OtherTab t={t} useGitBackup={useGitBackup} agentHandle={agentHandle} />
         : <TransferTab key={tab} tab={tab} useTransferTranslate={useTransferTranslate} useSitesAvailable={useSitesAvailable} SiteExportTab={SiteExportTab} SiteImportTab={SiteImportTab} />}
     </div>
   );

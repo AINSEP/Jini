@@ -1,4 +1,4 @@
-import { agentHandle } from "@jini-ai/core/agent-handles";
+import type { agentHandle as AgentHandle } from "@jini-ai/core/agent-handles";
 
 import type { GitBackupController } from "./hooks/use-git-backup.hooks.js";
 
@@ -16,9 +16,11 @@ export const SOURCE_CONTROL_HREF = "/admin/source-control";
 export interface GitBackupCardProps {
   controller: GitBackupController;
   t: Translate;
+  /** Core's `agentHandle`, injected by the host (never imported here). */
+  agentHandle: typeof AgentHandle;
 }
 
-export function GitBackupCard({ controller, t }: GitBackupCardProps) {
+export function GitBackupCard({ controller, t, agentHandle }: GitBackupCardProps) {
   return (
     <section
       className="jini-card jini-import-export-card jini-import-export-card-wide"
@@ -32,17 +34,17 @@ export function GitBackupCard({ controller, t }: GitBackupCardProps) {
   );
 }
 
-function GitBackupBody({ controller, t }: GitBackupCardProps) {
+function GitBackupBody({ controller, t, agentHandle }: GitBackupCardProps) {
   if (controller.connectionsError) return <div className="jini-notice jini-notice-error" role="alert">{controller.connectionsError}</div>;
   if (!controller.connections) return <div className="jini-notice">{t("Loading connections…")}</div>;
-  if (controller.connections.length === 0) return <NoConnection t={t} />;
-  if (controller.phase === "planned" || controller.phase === "pushing") return <PlanSummary controller={controller} t={t} />;
-  if (controller.phase === "done") return <BackupDone controller={controller} t={t} />;
-  if (controller.phase === "refused") return <BackupRefused controller={controller} t={t} />;
-  return <GitBackupFormFields controller={controller} connections={controller.connections} t={t} />;
+  if (controller.connections.length === 0) return <NoConnection t={t} agentHandle={agentHandle} />;
+  if (controller.phase === "planned" || controller.phase === "pushing") return <PlanSummary controller={controller} t={t} agentHandle={agentHandle} />;
+  if (controller.phase === "done") return <BackupDone controller={controller} t={t} agentHandle={agentHandle} />;
+  if (controller.phase === "refused") return <BackupRefused controller={controller} t={t} agentHandle={agentHandle} />;
+  return <GitBackupFormFields controller={controller} connections={controller.connections} t={t} agentHandle={agentHandle} />;
 }
 
-function NoConnection({ t }: { t: Translate }) {
+function NoConnection({ t, agentHandle }: { t: Translate; agentHandle: typeof AgentHandle }) {
   return (
     <>
       <p className="jini-import-export-git-backup-note">{t("No Git connection yet.")}</p>
@@ -53,7 +55,7 @@ function NoConnection({ t }: { t: Translate }) {
   );
 }
 
-function GitBackupFormFields({ controller, connections, t }: GitBackupCardProps & { connections: string[] }) {
+function GitBackupFormFields({ controller, connections, t, agentHandle }: GitBackupCardProps & { connections: string[] }) {
   const { form } = controller;
   const planning = controller.phase === "planning";
   return (
@@ -67,9 +69,9 @@ function GitBackupFormFields({ controller, connections, t }: GitBackupCardProps 
             </select>
           </div>
         ) : null}
-        <TextField id="git-backup-owner" label={t("Owner")} value={form.owner} onChange={(value) => controller.setField({ field: "owner", value: value })} />
-        <TextField id="git-backup-repo" label={t("Repository")} value={form.repo} onChange={(value) => controller.setField({ field: "repo", value: value })} />
-        <TextField id="git-backup-branch" label={t("Branch")} placeholder={t("Default branch")} value={form.branch} onChange={(value) => controller.setField({ field: "branch", value: value })} />
+        <TextField agentHandle={agentHandle} id="git-backup-owner" label={t("Owner")} value={form.owner} onChange={(value) => controller.setField({ field: "owner", value: value })} />
+        <TextField agentHandle={agentHandle} id="git-backup-repo" label={t("Repository")} value={form.repo} onChange={(value) => controller.setField({ field: "repo", value: value })} />
+        <TextField agentHandle={agentHandle} id="git-backup-branch" label={t("Branch")} placeholder={t("Default branch")} value={form.branch} onChange={(value) => controller.setField({ field: "branch", value: value })} />
       </div>
       {/* `!`: this branch runs only when there is exactly one connection. */}
       {connections.length === 1 ? <p className="jini-field-hint">{interpolate({ template: t("Uses {connection}."), vars: { connection: connections[0]! } })}</p> : null}
@@ -82,7 +84,7 @@ function GitBackupFormFields({ controller, connections, t }: GitBackupCardProps 
   );
 }
 
-function TextField({ id, label, value, placeholder, onChange }: { id: string; label: string; value: string; placeholder?: string; onChange: (value: string) => void }) {
+function TextField({ id, label, value, placeholder, onChange, agentHandle }: { agentHandle: typeof AgentHandle; id: string; label: string; value: string; placeholder?: string; onChange: (value: string) => void }) {
   return (
     <div className="jini-field">
       <label className="jini-field-label" htmlFor={id}>{label}</label>
@@ -91,7 +93,7 @@ function TextField({ id, label, value, placeholder, onChange }: { id: string; la
   );
 }
 
-function PlanSummary({ controller, t }: GitBackupCardProps) {
+function PlanSummary({ controller, t, agentHandle }: GitBackupCardProps) {
   const plan = controller.plan;
   if (!plan) throw new Error("Git backup summary has no plan");
   const pushing = controller.phase === "pushing";
@@ -116,7 +118,7 @@ function PlanSummary({ controller, t }: GitBackupCardProps) {
   );
 }
 
-function BackupDone({ controller, t }: GitBackupCardProps) {
+function BackupDone({ controller, t, agentHandle }: GitBackupCardProps) {
   const done = controller.done;
   if (!done) throw new Error("Git backup completion has no result");
   return (
@@ -132,7 +134,7 @@ function BackupDone({ controller, t }: GitBackupCardProps) {
   );
 }
 
-function BackupRefused({ controller, t }: GitBackupCardProps) {
+function BackupRefused({ controller, t, agentHandle }: GitBackupCardProps) {
   return (
     <>
       <div className="jini-notice jini-notice-error" role="alert">{controller.message}</div>

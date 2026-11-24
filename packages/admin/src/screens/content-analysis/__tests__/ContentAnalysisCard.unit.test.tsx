@@ -5,6 +5,7 @@ import { describe, expect, it, vi } from "vitest";
 
 import { ContentAnalysisCard } from "../ContentAnalysisCard.js";
 import { createFakeContentAnalysisPort } from "../hooks/content-analysis-dependencies.hooks.js";
+import { useFetchMutation, useFetchQuery } from "../../../react/kit.js";
 import { useContentAnalysis, type ContentAnalysisController, type ContentAnalysisTarget } from "../hooks/use-content-analysis.hooks.js";
 import { CONTENT_ANALYZER_PLUGIN_ID, buildContentAnalysisView, parseContentAnalysisReport } from "../rules.js";
 import { VALID_REPORT_JSON, reportJson } from "./content-analysis-fixtures.js";
@@ -107,7 +108,7 @@ describe("ContentAnalysisCard", () => {
   it("with the real hook, Analyze now swaps the stored analysis for the draft's fresh one", async () => {
     const port = createFakeContentAnalysisPort({ previewFields: { report: reportJson({ score: 61 }) } });
     render(
-      <ContentAnalysisCard {...TARGET} useContentAnalysisHook={(props) => useContentAnalysis(props, { port, locale: "en" })} />
+      <ContentAnalysisCard {...TARGET} useContentAnalysisHook={(props) => useContentAnalysis(props, { port, locale: "en", useFetchQuery, useFetchMutation })} />
     );
     expect(await screen.findByText("From the last save.")).toBeInTheDocument();
     await userEvent.click(screen.getByRole("button", { name: "Analyze now" }));

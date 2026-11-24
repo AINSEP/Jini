@@ -1386,43 +1386,6 @@
    "indexAlignedTranslations": "function:d550dfff6b"
   }
  },
- "./screens/fs-files/hooks/use-native-folder-picker.hooks": {
-  "types": "./dist/screens/fs-files/hooks/use-native-folder-picker.hooks.d.ts",
-  "symbols": {
-   "UseNativeFolderPicker": "interface:92c061ecdd",
-   "UseNativeFolderPickerInput": "interface:4244974c0d",
-   "useNativeFolderPicker": "function:a1ea281e86"
-  }
- },
- "./screens/import-export/hooks/git-backup-port.hooks": {
-  "types": "./dist/screens/import-export/hooks/git-backup-port.hooks.d.ts",
-  "symbols": {
-   "GitBackupPlan": "interface:907d3b2cc4",
-   "GitBackupPlanInput": "interface:ea29a38249",
-   "GitBackupPort": "interface:f65f46cf18",
-   "GitBackupProgress": "interface:4dc67eb7bd",
-   "GitBackupPushResult": "type:a9351c603a",
-   "GitBackupRefusal": "interface:8d87eb4340",
-   "createFakeGitBackupPort": "function:0d98837577"
-  }
- },
- "./screens/import-export/hooks/use-git-backup.hooks": {
-  "types": "./dist/screens/import-export/hooks/use-git-backup.hooks.d.ts",
-  "symbols": {
-   "DescribeApiError": "type:9d13596a5f",
-   "GIT_BACKUP_CONNECTIONS_KEY": "variable:2728872fb1",
-   "GitBackupController": "interface:340f1cb163",
-   "GitBackupPhase": "type:f749b0e5b2",
-   "useGitBackup": "function:5f34238339"
-  }
- },
- "./screens/import-export/import-export-i18n": {
-  "types": "./dist/screens/import-export/import-export-i18n.d.ts",
-  "symbols": {
-   "IMPORT_EXPORT_DICT": "variable:ac815a7279",
-   "t": "variable:44d298bf90"
-  }
- },
  "./screens/import-export/ImportExport": {
   "types": "./dist/screens/import-export/ImportExport.d.ts",
   "symbols": {
@@ -1491,41 +1454,10 @@
    "targetForKind": "function:0821772b01"
   }
  },
- "./screens/skills/api/skills-api.types": {
-  "types": "./dist/screens/skills/api/skills-api.types.d.ts",
-  "symbols": {
-   "InstalledSkill": "interface:d0a1c44471",
-   "SkillInstallPayload": "type:3345bf8123"
-  }
- },
  "./screens/skills/skill-drop": {
   "types": "./dist/screens/skills/skill-drop.d.ts",
   "symbols": {
    "captureSkillDrop": "function:84aefa072e"
-  }
- },
- "./screens/skills/skill-upload": {
-  "types": "./dist/screens/skills/skill-upload.d.ts",
-  "symbols": {
-   "prepareSkillUpload": "function:7efaa9dbef"
-  }
- },
- "./screens/skills/SkillInstallConfirmation.hooks": {
-  "types": "./dist/screens/skills/SkillInstallConfirmation.hooks.d.ts",
-  "symbols": {
-   "createSkillInstallConfirmationTranslator": "function:59bda8622a"
-  }
- },
- "./screens/skills/skills-i18n": {
-  "types": "./dist/screens/skills/skills-i18n.d.ts",
-  "symbols": {
-   "t": "variable:44d298bf90"
-  }
- },
- "./screens/skills/Skills.hooks": {
-  "types": "./dist/screens/skills/Skills.hooks.d.ts",
-  "symbols": {
-   "useSkillsTranslator": "function:31b8c4b4e0"
   }
  },
  "./screens/skills/use-skills-tabs.hooks": {
@@ -1590,31 +1522,6 @@
   "types": "./dist/screens/taxonomy/TaxonomyRowMenu.hooks.d.ts",
   "symbols": {
    "useTaxonomyRowMenu": "function:3cbdb35cfb"
-  }
- },
- "./screens/webmcp/admin-page-tools": {
-  "types": "./dist/screens/webmcp/admin-page-tools.d.ts",
-  "symbols": {
-   "AdminPageModelContext": "interface:0f02c6fd20",
-   "AdminPageToolCollaborators": "interface:c79c9a2eb2",
-   "AdminPageToolRegistration": "interface:6a74b0981d",
-   "RequestAdminPageAction": "type:a18a17a5c6",
-   "registerAdminPageWebMcpTools": "function:451faa0e48"
-  }
- },
- "./screens/webmcp/BrowserAgentSettingsPanel": {
-  "types": "./dist/screens/webmcp/BrowserAgentSettingsPanel.d.ts",
-  "symbols": {
-   "BrowserAgentSettingsPanel": "function:96e4b2e291",
-   "UseBrowserAgentSettingsHook": "type:3ef59ad862"
-  }
- },
- "./screens/webmcp/webmcp-i18n": {
-  "types": "./dist/screens/webmcp/webmcp-i18n.d.ts",
-  "symbols": {
-   "WEBMCP_DICT": "variable:c174a5429d",
-   "WEBMCP_KEYS": "variable:2b289380b2",
-   "t": "variable:44d298bf90"
   }
  },
  "./screens/widgets/api/widgets-api.types": {

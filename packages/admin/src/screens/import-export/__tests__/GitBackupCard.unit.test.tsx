@@ -3,6 +3,7 @@ import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-libra
 import { useEffect, useState, type ReactNode } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { QueryResult } from "@jini-ai/core/fetch";
+import { agentHandle } from "@jini-ai/core/agent-handles";
 import { createDomPageDriver } from "@jini-ai/agentic/dom";
 import { AdminKitProvider } from "../../../react/kit.js";
 import { fakeAdminKit } from "../../../react/testing-kit.js";
@@ -10,7 +11,7 @@ import type { SourceControlCredential } from "../../../source-control/models.js"
 import { GitBackupCard, SOURCE_CONTROL_HREF } from "../GitBackupCard.js";
 import { backupConnectionLabels, gitBackupPlanInput, gitBackupRefusalMessage } from "../git-backup-rules.js";
 import { createFakeGitBackupPort, type GitBackupPlan, type GitBackupPort } from "../hooks/git-backup-port.hooks.js";
-import { useGitBackup as useGitBackupHook, type DescribeApiError } from "../hooks/use-git-backup.hooks.js";
+import { useGitBackup as useGitBackupHook } from "../hooks/use-git-backup.hooks.js";
 
 /**
  * @file The Git backup card driven end to end through `useGitBackup` against a fake port: no
@@ -20,11 +21,11 @@ import { useGitBackup as useGitBackupHook, type DescribeApiError } from "../hook
  */
 
 /** The host's `describeApiError` contract: a thrown failure's own message, else the fallback. */
-const describeApiError: DescribeApiError = ({ e, fallback }) => (e instanceof Error ? e.message || fallback : fallback);
+const describeApiError = ({ e, fallback }: { e: unknown; fallback: string }) => (e instanceof Error ? e.message || fallback : fallback);
 
 /** `useGitBackup` with the describer bound, as the host's wiring binds it. */
 function useGitBackup(required: { port: GitBackupPort; t: (key: string) => string }, optional: { maxPushPolls?: number } = {}) {
-  return useGitBackupHook({ ...required, describeApiError }, optional);
+  return useGitBackupHook({ ...required, host: { describeError: describeApiError } }, optional);
 }
 
 /** A query that really waits on its `fetch`, so loading, data and a failed read all show. */
@@ -53,7 +54,7 @@ function connection(overrides: Partial<SourceControlCredential> = {}): SourceCon
 const PLAN: GitBackupPlan = { planned: true, planId: "plan-1", repository: "me/site-backups", branch: "main", folder: "mysite", folderExists: true, fileCount: 12, totalSize: "3.4 MB", skipped: [{ path: "big.mov" }] };
 
 function Harness({ port, maxPushPolls }: { port: GitBackupPort; maxPushPolls?: number }) {
-  return <GitBackupCard controller={useGitBackup({ port, t }, maxPushPolls === undefined ? {} : { maxPushPolls })} t={t} />;
+  return <GitBackupCard controller={useGitBackup({ port, t }, maxPushPolls === undefined ? {} : { maxPushPolls })} t={t} agentHandle={agentHandle} />;
 }
 
 function fillForm(owner = "me", repo = "site-backups") {

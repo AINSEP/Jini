@@ -1,13 +1,6 @@
 {
   "version": 1,
   "entries": {
-    "BrowserAgentSettingsPanel::useBrowserAgentSettingsHook": {
-      "count": 1,
-      "files": [
-        "packages/admin/src/screens/webmcp/BrowserAgentSettingsPanel.tsx"
-      ],
-      "reason": "Correct as is: the hook is a REQUIRED prop the host supplies (owner rule, no default imported hook; w3-screens, same form as MenuPageLinkFields). This checker only recognises the older defaulted-prop form, so a required injected prop reads as a direct call. Remove once the checker accepts required hook props."
-    },
     "ContentAnalysisCard::useContentAnalysisHook": {
       "count": 1,
       "files": [

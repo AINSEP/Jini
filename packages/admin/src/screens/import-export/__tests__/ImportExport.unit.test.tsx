@@ -1,3 +1,4 @@
+import { agentHandle } from "@jini-ai/core/agent-handles";
 // @vitest-environment jsdom
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import type { ReactNode } from "react";
@@ -37,7 +38,7 @@ function renderPanel(tabId: string | null, overrides: Partial<ImportExportProps>
   return render(
     <ImportExport
       tabId={tabId} useTranslate={identity} useGitBackup={() => noConnection} useTransferTranslate={() => (key) => `sites:${key}`}
-      useSitesAvailable={() => false} SiteExportTab={SiteExportTab} SiteImportTab={SiteImportTab} handleLabels={handleLabels} navigate={navigate} {...overrides}
+      useSitesAvailable={() => false} SiteExportTab={SiteExportTab} SiteImportTab={SiteImportTab} handleLabels={handleLabels} agentHandle={agentHandle} navigate={navigate} {...overrides}
     />,
     { wrapper: Kit },
   );

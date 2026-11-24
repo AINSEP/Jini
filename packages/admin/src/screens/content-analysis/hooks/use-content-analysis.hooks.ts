@@ -1,6 +1,6 @@
 import { useRef, useState } from "react";
 
-import { useFetchMutation, useFetchQuery } from "../../../react/kit.js";
+import type { useFetchMutation as UseFetchMutationHook, useFetchQuery as UseFetchQueryHook } from "../../../react/kit.js";
 import { t as translate } from "../content-analysis-i18n.js";
 import {
   CONTENT_ANALYZER_PLUGIN_ID,
@@ -47,6 +47,9 @@ export interface ContentAnalysisTarget {
 export interface ContentAnalysisDependencies {
   port: ContentAnalysisPort;
   locale: string;
+  /** The host's query/mutation hooks (the kit's, bound to its fetch cache) — injected, never imported here. */
+  useFetchQuery: typeof UseFetchQueryHook;
+  useFetchMutation: typeof UseFetchMutationHook;
 }
 
 export interface ContentAnalysisController {
@@ -62,8 +65,8 @@ export interface ContentAnalysisController {
 
 const STATUS_KEY = ["content-analysis", "preview-status"] as const;
 
-export function useContentAnalysis(props: ContentAnalysisTarget, deps: ContentAnalysisDependencies): ContentAnalysisController {
-  const { port, locale } = deps;
+export function useContentAnalysis(props: ContentAnalysisTarget, deps: ContentAnalysisDependencies, _optional = {}): ContentAnalysisController {
+  const { port, locale, useFetchQuery, useFetchMutation } = deps;
   const { post } = props;
   const t: Translate = (key) => translate({ locale: locale, key: key });
   const statusQuery = useFetchQuery({ key: STATUS_KEY, fetch: () => port.previewStatus({ pluginId: CONTENT_ANALYZER_PLUGIN_ID }) }, { staleTime: 0 });

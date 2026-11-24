@@ -1,7 +1,11 @@
 // @vitest-environment jsdom
 import { act, renderHook } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { useSkillsTabs } from "../use-skills-tabs.hooks.js";
+import { resolveActiveTabId } from "@jini-ai/core/text";
+import { navigate, useRouteLocation } from "../../../shell/lib/router.js";
+import { useSkillsTabs as useSkillsTabsWith } from "../use-skills-tabs.hooks.js";
+
+const useSkillsTabs = () => useSkillsTabsWith({ useRouteLocation, navigate, resolveActiveTabId });
 
 /**
  * The Skills tabs hook is URL-backed: the active tab is read from `?tab=` on the admin route and a tab
