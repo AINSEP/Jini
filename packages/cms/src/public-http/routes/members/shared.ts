@@ -1,4 +1,4 @@
-import type { RouteInputContext } from "@jini-ai/core/contracts/server";
+import { routeReply, type RateLimiter, type RouteInputContext, type RouteReply } from "@jini-ai/core/contracts/server";
 import { RouteRefusalError } from "@jini-ai/core/errors/route-refusal";
 
 /**
@@ -38,4 +38,68 @@ export function refuseMemberAuthError(
   const refusal = refusalFor({ error });
   if (refusal) throw new RouteRefusalError({ status: refusal.status, body: refusal.body });
   throw error;
+}
+
+/** A shared, app-boot-scoped member limiter (the host's; never a per-request one). */
+export type MemberRequestLimiter = Pick<RateLimiter, "check">;
+
+/** Validate a member route's string-only DTO before missing identifiers can reach repository queries:
+ *  every required field a string, every other field an allowed optional string.
+ * @returns The body record, or `null` when its shape is wrong.
+ * @complexity O(k) fields.
+ */
+export function memberStringBody<Field extends string, OptionalField extends string = never>(
+  { body, fields, optionalFields = [] }: { body: unknown; fields: readonly Field[]; optionalFields?: readonly OptionalField[] },
+  _optional: Record<string, never> = {},
+): (Record<Field, string> & Partial<Record<OptionalField, string>>) | null {
+  if (!body || typeof body !== "object" || Array.isArray(body)) return null;
+  const record = body as Record<string, unknown>;
+  if (!fields.every(field => typeof record[field] === "string")) return null;
+  const allowed: readonly string[] = [...fields, ...optionalFields];
+  if (!Object.keys(record).every(field => allowed.includes(field) && typeof record[field] === "string")) return null;
+  return record as Record<Field, string> & Partial<Record<OptionalField, string>>;
+}
+
+/** The client address the host resolved for this request (its trust-proxy answer).
+ * @throws When the host mounted the route without its request facts — a wiring bug, refused rather than
+ *  keyed on an empty string.
+ */
+export function memberClientAddress({ raw }: { raw: RouteInputContext }, _optional: Record<string, never> = {}): string {
+  if (!raw.facts) throw new Error("public member route: the host mounted this route without its request facts");
+  return raw.facts.clientAddress;
+}
+
+/** The 429 every member limit answers, with the wait in `Retry-After` and in its JSON detail. */
+function tooManyMemberRequests({ retryAfterSeconds }: { retryAfterSeconds: number }, _optional: Record<string, never> = {}): RouteReply {
+  return routeReply({
+    status: 429,
+    body: { error: "too many member authentication requests", code: "RATE_LIMIT_EXCEEDED", details: { retryAfterSeconds } },
+    headers: { "Retry-After": String(retryAfterSeconds) },
+  });
+}
+
+/** W-002/W-003 changed by owner 2026-10-26: check the IP limit first. An already rate-limited
+ * IP gets 429 without charging email or identity counters, so it cannot exhaust a victim's budget.
+ * After IP admission, all applicable counters must pass before any service call. Retry-After and
+ * its JSON detail report the longest applicable wait among checked, denied counters.
+ * Shared by password/link/reset requests, against shared, app-boot-scoped limiter instances
+ * (C-015), never per-request ones. The email key is trimmed and lowercased like the service.
+ * @returns The 429 reply, or `undefined` when every counter admits the request.
+ * @complexity O(1) plus the injected limiters.
+ */
+export async function memberRequestLimitReply(
+  { clientAddress, ipLimiter, email, emailLimiter, identity }: {
+    clientAddress: string; ipLimiter: MemberRequestLimiter; email?: string; emailLimiter?: MemberRequestLimiter;
+    identity?: { key: string; limiter: MemberRequestLimiter };
+  },
+  _optional: Record<string, never> = {},
+): Promise<RouteReply | undefined> {
+  const ip = await ipLimiter.check({ key: clientAddress });
+  if (!ip.allowed) return tooManyMemberRequests({ retryAfterSeconds: ip.retryAfterSeconds });
+  const checks = await Promise.all([
+    ...(emailLimiter ? [emailLimiter.check({ key: (email ?? "").trim().toLowerCase() || "<empty>" })] : []),
+    ...(identity ? [identity.limiter.check({ key: identity.key })] : []),
+  ]);
+  const waits = checks.flatMap(result => result.allowed ? [] : [result.retryAfterSeconds]);
+  return waits.length === 0 ? undefined : tooManyMemberRequests({ retryAfterSeconds: Math.max(...waits) });
 }
