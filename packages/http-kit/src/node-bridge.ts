@@ -263,8 +263,9 @@ export async function sendWebResponse({ response, res }: { response: Response; r
   // Set-Cookie cannot be comma-joined (cookie dates contain commas), so each one gets its own line.
   const cookies = response.headers.getSetCookie();
   response.headers.forEach((value, name) => {
+    if (name === 'set-cookie') return;
     if (name === 'vary') appendVary({ out, value });
-    else if (name !== 'set-cookie') out.setHeader(name, value);
+    else out.setHeader(name, value);
   });
   for (const cookie of cookies) out.appendHeader('set-cookie', cookie);
   if (!response.body || headOnly) {
