@@ -41,7 +41,7 @@
       "./agent-handles": "universal",
       "./settings": "universal",
       "./native-approval-memory": "universal",
-      "./settings/operator-locale": "universal",
+      "./operator-locale": "universal",
       "./plugin-directory": "universal",
       "./filesystem": "universal",
       "./optional-peer": "universal",
@@ -424,10 +424,10 @@
       "import": "./dist/optimistic-concurrency.js",
       "default": "./dist/optimistic-concurrency.js"
     },
-    "./settings/operator-locale": {
-      "types": "./dist/settings/operator-locale.d.ts",
-      "import": "./dist/settings/operator-locale.js",
-      "default": "./dist/settings/operator-locale.js"
+    "./operator-locale": {
+      "types": "./dist/operator-locale.d.ts",
+      "import": "./dist/operator-locale.js",
+      "default": "./dist/operator-locale.js"
     },
     "./native-approval-memory": {
       "types": "./dist/native-approval-memory.d.ts",

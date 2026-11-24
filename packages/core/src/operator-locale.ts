@@ -1,6 +1,5 @@
-import { getEffective as settingsGetEffective } from "./settings.js";
-import { LANGUAGE_NAMESPACE } from "./ui-tab-definitions.js";
-import { orFallback } from "../errors/idioms.js";
+import { getEffective as settingsGetEffective, LANGUAGE_NAMESPACE } from "./settings/index.js";
+import { orFallback } from "./errors/idioms.js";
 
 /**
  * @file The calling operator's admin language, for the Agent Plugin confirmation dialogs.
@@ -11,8 +10,8 @@ import { orFallback } from "../errors/idioms.js";
  * the admin's own Language selector writes; this reads it the same way `settings_get_effective` does.
  */
 
-import type { OperatorLocaleDeps } from '../contracts/headless/plugin-host.js';
-import type { GetEffectiveSetting } from '../contracts/headless/operator-locale.js';
+import type { OperatorLocaleDeps } from './contracts/headless/plugin-host.js';
+import type { GetEffectiveSetting } from './contracts/headless/operator-locale.js';
 
 const FALLBACK_LOCALE = "en";
 
