@@ -23,20 +23,6 @@ export interface FederationHostLogger {
   warn(required: { message: string }, optional?: { error?: unknown }): void;
 }
 
-/** The console sink both host roots log through. The federation loop logs fixed words in `message`
- * and hands the original error as `{ error }`; it rides along as a second console argument (without
- * it a failed connection would log no cause at all). `prefix` keeps each process's boot logs
- * byte-identical to what it printed before this runtime existed (e.g. `"[agent-daemon]"`).
- * @complexity O(1) per log call.
- */
-export function createFederationConsoleLogger({ prefix }: { prefix: string }, { sink = console }: { sink?: Pick<Console, "log" | "warn"> } = {}): FederationHostLogger {
-  const args = ({ message, error }: { message: string; error: unknown }): unknown[] => (error === undefined ? [`${prefix} ${message}`] : [`${prefix} ${message}`, error]);
-  return {
-    info: ({ message }, { error } = {}) => sink.log(...args({ message, error })),
-    warn: ({ message }, { error } = {}) => sink.warn(...args({ message, error })),
-  };
-}
-
 type RuntimeReports = AttachFederatedToolsResult["reports"];
 type RuntimeConnectFailures = AttachFederatedToolsResult["connectFailures"];
 
@@ -65,8 +51,8 @@ export interface CreateFederationRuntimeRequired {
   }) => FederationRuntimeReloader;
   /** Refusal-prefix copy for {@link FederationRuntime.refusalPrefix}. */
   readonly messages: FederationRefusalMessages;
-  /** The calling process's own console prefix, e.g. `"[agent-daemon]"`. */
-  readonly log: string;
+  /** The host's log sink for boot/reload lines (a host typically prefixes them per process). */
+  readonly logger: FederationHostLogger;
 }
 
 export interface CreateFederationRuntimeOptions {
@@ -81,8 +67,6 @@ export interface CreateFederationRuntimeOptions {
   readonly onAdmitted?: (result: FederationReloadResult) => void;
   /** Refresh installed guidance on the same operator-triggered path; true invalidates discovery. */
   readonly beforeReload?: () => Promise<boolean>;
-  /** Defaults to {@link createFederationConsoleLogger} with `log` as the prefix. */
-  readonly logger?: FederationHostLogger;
 }
 
 export interface FederationRuntime {
@@ -137,7 +121,7 @@ function buildRuntimeReloadCoordinator({ required, logger }: Bound, { connection
     // Presets can arrive after a failed desktop listener bind. The existing coordinator
     // retries only unadmitted identities and still freezes every successfully admitted tool.
     resolveConnections: async () => [
-      ...required.resolvePresetConnections({ logger }).map(withPresetOrigin),
+      ...required.resolvePresetConnections({ logger }).map(connection => withPresetOrigin({ connection })),
       ...await required.resolveConnections(),
     ],
     logger,
@@ -211,7 +195,7 @@ function createFederationAccounting(bound: Bound, getStartPromise: () => Promise
  * and reload coordinator.
  */
 export function createFederationRuntime(required: CreateFederationRuntimeRequired, options: CreateFederationRuntimeOptions = {}): FederationRuntime {
-  const logger = options.logger ?? createFederationConsoleLogger({ prefix: required.log });
+  const { logger } = required;
   let startPromise: Promise<void> | undefined;
   const accounting = createFederationAccounting({ required, options, logger }, () => startPromise);
 

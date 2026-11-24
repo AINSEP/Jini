@@ -5,7 +5,7 @@ import type { AttachFederatedToolsResult } from "../bootstrap.js";
 import { FEDERATED_CONNECTION_DEFAULTS, type ResolvedFederatedConnection } from "../config.js";
 import type { FederationReloadResult } from "../reload.js";
 import {
-  createFederationConsoleLogger, createFederationRuntime, mergeReloadConnectFailures, selectAwaitingGrantConnectionIds,
+  createFederationRuntime, mergeReloadConnectFailures, selectAwaitingGrantConnectionIds,
   type CreateFederationRuntimeRequired, type FederationHostLogger,
 } from "../runtime.js";
 import type { FederatedAdmissionReport } from "../trust.js";
@@ -39,7 +39,7 @@ function setup(overrides: Partial<CreateFederationRuntimeRequired> = {}) {
       coordinatorArgs.push(args);
       return { reload: async () => reloadResults.shift() ?? { newlyAdmittedConnectionIds: [], reports: [], connectFailures: [] } };
     },
-    messages, log: "[test]",
+    messages, logger: silent,
     ...overrides,
   };
   return { required, reloadResults, coordinatorArgs };
@@ -48,7 +48,7 @@ function setup(overrides: Partial<CreateFederationRuntimeRequired> = {}) {
 describe("createFederationRuntime", () => {
   test("start is single-flight and hands the roster to boot as extraConnections", async () => {
     const { required } = setup();
-    const runtime = createFederationRuntime(required, { logger: silent });
+    const runtime = createFederationRuntime(required);
     expect(runtime.configuredConnectionIds()).toBeUndefined();
     await Promise.all([runtime.start(), runtime.start()]);
     expect(required.boot).toHaveBeenCalledTimes(1);
@@ -57,18 +57,18 @@ describe("createFederationRuntime", () => {
     expect(runtime.started).toBe(true);
   });
 
-  test("a failed roster read still completes boot and logs through the prefixed console", async () => {
+  test("a failed roster read still completes boot and logs through the host logger", async () => {
     const warn = vi.fn();
     const { required } = setup({ resolveConnections: async () => { throw new Error("db down"); } });
-    const runtime = createFederationRuntime(required, { logger: createFederationConsoleLogger({ prefix: "[test]" }, { sink: { log: vi.fn(), warn } }) });
+    const runtime = createFederationRuntime({ ...required, logger: { info: vi.fn(), warn } });
     await expect(runtime.start()).resolves.toBeUndefined();
     expect(runtime.started).toBe(true);
-    expect(warn).toHaveBeenCalledWith("[test] mcp-federation: boot pass failed, continuing without federated tools — db down");
+    expect(warn).toHaveBeenCalledWith({ message: "mcp-federation: boot pass failed, continuing without federated tools — db down" });
   });
 
   test("reload before start reads nothing and returns an empty pass", async () => {
     const { required, coordinatorArgs } = setup();
-    const runtime = createFederationRuntime(required, { logger: silent });
+    const runtime = createFederationRuntime(required);
     expect(await runtime.reload()).toEqual({ newlyAdmittedConnectionIds: [], reports: [], connectFailures: [] });
     expect(coordinatorArgs).toHaveLength(0);
   });
@@ -79,7 +79,7 @@ describe("createFederationRuntime", () => {
       { connectionId: "roster-b", report: report(), isPreset: false },
     ] }));
     const { required, coordinatorArgs } = setup({ boot, resolveConnections: async () => [connection("roster-a"), connection("roster-b", { allowed: ["t"] })] });
-    await createFederationRuntime(required, { logger: silent }).start();
+    await createFederationRuntime(required).start();
     expect(coordinatorArgs[0]!.initiallyAdmitted).toEqual(["roster-a", "roster-b"]);
     expect(coordinatorArgs[0]!.initiallyAwaitingGrants).toEqual(["roster-a"]);
     const resolved = await coordinatorArgs[0]!.resolveConnections();
@@ -90,7 +90,7 @@ describe("createFederationRuntime", () => {
     const onAdmitted = vi.fn();
     const boot = vi.fn(async () => ({ ...empty, reports: [{ connectionId: "roster-a", report: report({ drift: ["ghost"] }), isPreset: false }] }));
     const { required, reloadResults } = setup({ boot });
-    const runtime = createFederationRuntime(required, { logger: silent, onAdmitted });
+    const runtime = createFederationRuntime(required, { onAdmitted });
     await runtime.start();
     expect(runtime.refusalPrefix()).not.toBe("");
     reloadResults.push({ newlyAdmittedConnectionIds: [], reports: [], connectFailures: [] });
@@ -122,15 +122,5 @@ describe("pure accounting helpers", () => {
       { connectionId: "z", report: report({ admitted: 1 }), isPreset: false },
     ];
     expect(selectAwaitingGrantConnectionIds({ connections, reports })).toEqual(["a"]);
-  });
-
-  test("the console logger forwards the original error as a second argument only when present", () => {
-    const sink = { log: vi.fn(), warn: vi.fn() };
-    const logger = createFederationConsoleLogger({ prefix: "[p]" }, { sink });
-    const error = new Error("boom");
-    logger.info({ message: "hi" });
-    logger.warn({ message: "bad" }, { error });
-    expect(sink.log).toHaveBeenCalledWith("[p] hi");
-    expect(sink.warn).toHaveBeenCalledWith("[p] bad", error);
   });
 });
