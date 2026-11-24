@@ -198,6 +198,7 @@
    "armSlowRunWatchdogIfConfigured": "function:0a06ea95b8",
    "armWatchdogIfConfigured": "function:1139559854",
    "assessAgentExecutorCompatibility": "function:0adb4a9423",
+   "bridgePreflightEntry": "function:ed10fa07cc",
    "buildAcpMcpBridgeServers": "function:4e96dba73b",
    "buildAgentBuildArgsOptions": "function:670b2e897a",
    "buildCodexHomeConfigToml": "function:a5d5087fa3",
@@ -758,6 +759,16 @@
    "createRunScopedCredentials": "function:ac7d136e24",
    "ensureAgentDaemonToken": "function:bb78ae9343",
    "listOwnedRuns": "function:ce708585c6"
+  }
+ },
+ "./run-start-decisions": {
+  "types": "./dist/run-start-decisions.d.ts",
+  "symbols": {
+   "ImageDeliveryDef": "type:ed85170d0c",
+   "agentReceivesImageAttachments": "function:abb35887de",
+   "durableAttemptOwnsAnswer": "function:176c617521",
+   "resolveStoredSessionId": "function:ec729158a1",
+   "selectRunHistoryPrompt": "function:8318866a2e"
   }
  },
  "./scheduler": {

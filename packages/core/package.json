@@ -59,6 +59,7 @@
       "./contracts/capabilities": "universal",
       "./net": "universal",
       "./contracts/blob": "universal",
+      "./contracts/run-attempt": "universal",
       "./contracts/runtime": "universal",
       "./contracts/runtime/testing": "universal",
       "./contracts/admin-module": "universal",
@@ -72,12 +73,9 @@
       "./contracts/site/post-author": "universal",
       "./contracts/site/request-facts": "universal",
       "./contracts/site/site-key": "universal",
-      "./contracts/site/installed-skill": "universal",
-      "./contracts/site/skill-install": "universal",
       "./contracts/site/soft-delete": "universal",
       "./contracts/site/strict-base64": "node",
       "./contracts/site/tool-metadata-approval-policy": "universal",
-      "./contracts/site/human-confirm": "universal",
       "./contracts/site/daemon": "universal",
       "./contracts/site/plugins-host": "universal",
       "./contracts/site/db-data-modules": "universal",
@@ -154,7 +152,6 @@
       "./tool-metadata/analytics": "universal",
       "./tool-metadata/change-sets": "universal",
       "./tool-metadata/consent": "universal",
-      "./tool-metadata/skills": "universal",
       "./tool-metadata/content-duplication": "universal",
       "./tool-metadata/content-types": "universal",
       "./tool-metadata/database-transfer": "universal",
@@ -187,6 +184,10 @@
       "./contracts/site/cms-plugins": "universal",
       "./contracts/site/cms-recovery": "universal",
       "./contracts/site/oauth-callback-page": "universal",
+      "./contracts/site/installed-skill": "universal",
+      "./contracts/site/skill-install": "universal",
+      "./contracts/site/human-confirm": "universal",
+      "./tool-metadata/skills": "universal",
       "./contracts/site/hooks-sites-port-hooks": "universal",
       "./contracts/site/contracts-resources": "universal",
       "./contracts/site/agentic-dom": "universal",
@@ -527,6 +528,11 @@
       "import": "./dist/net/index.js",
       "default": "./dist/net/index.js"
     },
+    "./contracts/run-attempt": {
+      "types": "./dist/contracts/run-attempt.d.ts",
+      "import": "./dist/contracts/run-attempt.js",
+      "default": "./dist/contracts/run-attempt.js"
+    },
     "./contracts/blob": {
       "types": "./dist/contracts/blob.d.ts",
       "import": "./dist/contracts/blob.js",
@@ -597,16 +603,6 @@
       "import": "./dist/contracts/site/site-key.js",
       "default": "./dist/contracts/site/site-key.js"
     },
-    "./contracts/site/installed-skill": {
-      "types": "./dist/contracts/site/installed-skill.d.ts",
-      "import": "./dist/contracts/site/installed-skill.js",
-      "default": "./dist/contracts/site/installed-skill.js"
-    },
-    "./contracts/site/skill-install": {
-      "types": "./dist/contracts/site/skill-install.d.ts",
-      "import": "./dist/contracts/site/skill-install.js",
-      "default": "./dist/contracts/site/skill-install.js"
-    },
     "./contracts/site/soft-delete": {
       "types": "./dist/contracts/site/soft-delete.d.ts",
       "import": "./dist/contracts/site/soft-delete.js",
@@ -621,11 +617,6 @@
       "types": "./dist/contracts/site/tool-metadata-approval-policy.d.ts",
       "import": "./dist/contracts/site/tool-metadata-approval-policy.js",
       "default": "./dist/contracts/site/tool-metadata-approval-policy.js"
-    },
-    "./contracts/site/human-confirm": {
-      "types": "./dist/contracts/site/human-confirm.d.ts",
-      "import": "./dist/contracts/site/human-confirm.js",
-      "default": "./dist/contracts/site/human-confirm.js"
     },
     "./contracts/site/daemon": {
       "types": "./dist/contracts/site/daemon.d.ts",
@@ -987,11 +978,6 @@
       "import": "./dist/tool-metadata/consent.js",
       "default": "./dist/tool-metadata/consent.js"
     },
-    "./tool-metadata/skills": {
-      "types": "./dist/tool-metadata/skills.d.ts",
-      "import": "./dist/tool-metadata/skills.js",
-      "default": "./dist/tool-metadata/skills.js"
-    },
     "./tool-metadata/content-duplication": {
       "types": "./dist/tool-metadata/content-duplication.d.ts",
       "import": "./dist/tool-metadata/content-duplication.js",
@@ -1151,6 +1137,26 @@
       "types": "./dist/contracts/site/oauth-callback-page.d.ts",
       "import": "./dist/contracts/site/oauth-callback-page.js",
       "default": "./dist/contracts/site/oauth-callback-page.js"
+    },
+    "./contracts/site/installed-skill": {
+      "types": "./dist/contracts/site/installed-skill.d.ts",
+      "import": "./dist/contracts/site/installed-skill.js",
+      "default": "./dist/contracts/site/installed-skill.js"
+    },
+    "./contracts/site/skill-install": {
+      "types": "./dist/contracts/site/skill-install.d.ts",
+      "import": "./dist/contracts/site/skill-install.js",
+      "default": "./dist/contracts/site/skill-install.js"
+    },
+    "./contracts/site/human-confirm": {
+      "types": "./dist/contracts/site/human-confirm.d.ts",
+      "import": "./dist/contracts/site/human-confirm.js",
+      "default": "./dist/contracts/site/human-confirm.js"
+    },
+    "./tool-metadata/skills": {
+      "types": "./dist/tool-metadata/skills.d.ts",
+      "import": "./dist/tool-metadata/skills.js",
+      "default": "./dist/tool-metadata/skills.js"
     },
     "./contracts/site/hooks-sites-port-hooks": {
       "types": "./dist/contracts/site/hooks-sites-port-hooks.d.ts",

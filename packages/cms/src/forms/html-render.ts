@@ -15,13 +15,30 @@ export function escapeFormHtml({ value }: { value: string }, _optional = {}): st
   return value.replace(/[&<>"']/g, (char) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[char]!);
 }
 
+/** The class names a rendered field wears. Defaults are the engine's own `jini-*` names; a host with a
+ * legacy stylesheet passes its names in here rather than the engine hardcoding them. */
+export interface FormFieldClassOptions {
+  fieldClass?: string;
+  fieldHelpClass?: string;
+  errorClass?: string;
+  fieldCheckboxClass?: string;
+}
 /** Renderer hooks retain the CMS's established styling/error anchors without defining a theme. */
-export interface FormBodyOptions {
+export interface FormBodyOptions extends FormFieldClassOptions {
   submitLabel?: string;
   idPrefix?: string;
-  fieldClass?: string;
-  errorClass?: string;
 }
+const DEFAULT_FIELD_CLASS = "jini-form-field";
+const DEFAULT_FIELD_HELP_CLASS = "jini-form-field-help";
+const DEFAULT_FIELD_ERROR_CLASS = "jini-form-field-error";
+const DEFAULT_FIELD_CHECKBOX_CLASS = "jini-form-field-checkbox";
+/** Only the field-class options, so a wrapper can forward them without leaking its own keys. */
+const fieldClassOptions = (options: FormFieldClassOptions): FormFieldClassOptions => ({
+  ...(options.fieldClass !== undefined ? { fieldClass: options.fieldClass } : {}),
+  ...(options.fieldHelpClass !== undefined ? { fieldHelpClass: options.fieldHelpClass } : {}),
+  ...(options.errorClass !== undefined ? { errorClass: options.errorClass } : {}),
+  ...(options.fieldCheckboxClass !== undefined ? { fieldCheckboxClass: options.fieldCheckboxClass } : {}),
+});
 const attr = (name: string, value: string | number): string => ` ${name}="${escapeFormHtml({ value: String(value) })}"`;
 
 /** Extra attributes cannot override structural or server-backed constraints. Values are escaped at this sink. */
@@ -33,7 +50,7 @@ function extraAttributes(field: FieldDescriptor, claimed: ReadonlySet<string>): 
 }
 type RenderKind = { control: string; htmlType: string; multiple?: boolean; attributes?: Readonly<Record<string, string>> };
 /** What every control shape of one field shares, computed once per field. */
-interface FieldMarkup { field: FieldDescriptor; kind: RenderKind; id: string; label: string; describedBy: string; required: string; base: string; extra: string; help: string; error: string; fieldClass: string; defaultValues: unknown[] }
+interface FieldMarkup { field: FieldDescriptor; kind: RenderKind; id: string; label: string; describedBy: string; required: string; base: string; extra: string; help: string; error: string; fieldClass: string; checkboxClass: string; defaultValues: unknown[] }
 
 const isRenderableField = (field: FieldDescriptor): boolean =>
   Boolean(field) && typeof field.id === "string" && typeof field.label === "string" && Object.hasOwn(FIELD_TYPE_REGISTRY, field.type);
@@ -69,8 +86,8 @@ function fieldIds(field: FieldDescriptor, options: FormBodyOptions): { id: strin
   return { id, helpId, errorId, describedBy };
 }
 function fieldSlots(field: FieldDescriptor, { helpId, errorId, options }: { helpId: string; errorId: string; options: FormBodyOptions }): { help: string; error: string } {
-  const help = field.helpText ? `<div${attr("id", helpId)} class="widget-form-field-help">${escapeFormHtml({ value: field.helpText })}</div>` : "";
-  const error = `<div${attr("class", options.errorClass ?? "widget-form-field-error")}${attr("data-field", field.id)}${attr("id", errorId)} hidden></div>`;
+  const help = field.helpText ? `<div${attr("id", helpId)}${attr("class", options.fieldHelpClass ?? DEFAULT_FIELD_HELP_CLASS)}>${escapeFormHtml({ value: field.helpText })}</div>` : "";
+  const error = `<div${attr("class", options.errorClass ?? DEFAULT_FIELD_ERROR_CLASS)}${attr("data-field", field.id)}${attr("id", errorId)} hidden></div>`;
   return { help, error };
 }
 function fieldMarkup(field: FieldDescriptor, { hooks, options }: { hooks: Pick<FormHtmlHooks, "field">; options: FormBodyOptions }): FieldMarkup {
@@ -83,7 +100,8 @@ function fieldMarkup(field: FieldDescriptor, { hooks, options }: { hooks: Pick<F
     base: attr("name", field.name ?? field.id) + attr(hooks.field, field.id) + attr("toolparamtitle", field.label) + attr("toolparamdescription", field.helpText ?? field.label) + attr("aria-describedby", describedBy),
     extra: controlAttributes(field, kind),
     ...fieldSlots(field, { helpId, errorId, options }),
-    fieldClass: options.fieldClass ?? "widget-form-field",
+    fieldClass: options.fieldClass ?? DEFAULT_FIELD_CLASS,
+    checkboxClass: options.fieldCheckboxClass ?? DEFAULT_FIELD_CHECKBOX_CLASS,
     defaultValues: Array.isArray(field.default) ? field.default : [field.default],
   };
 }
@@ -130,7 +148,7 @@ function renderField(field: FieldDescriptor, hooks: Pick<FormHtmlHooks, "field">
   if (field.type === "hidden") return control;
   // The checkbox modifier lets the baseline put the box before its label on one line (owner report
   // 2026-10-05: stacked and stretched like a text input, its glyph drew centred under the label).
-  const fieldClass = markup.fieldClass + (markup.kind.htmlType === "checkbox" ? " widget-form-field-checkbox" : "");
+  const fieldClass = markup.fieldClass + (markup.kind.htmlType === "checkbox" ? ` ${markup.checkboxClass}` : "");
   return `<div${attr("class", fieldClass)}><label${attr("for", markup.id)}>${markup.label}${requiredMark(field)}</label>${control}${markup.help}${markup.error}</div>`;
 }
 
@@ -147,7 +165,7 @@ export function renderHtmlFormBody(
  * apply); author CSS stays free to override it. Whitespace-separated, de-duplicated, never replaced. */
 export function renderHtmlForm(
   { slug, fields, action, hooks }: { slug: string; fields: readonly FieldDescriptor[]; action: string; hooks: FormHtmlHooks },
-  { html, successMessage = "Thanks — your message has been sent.", className, schemaHash, idPrefix }: { html?: string; successMessage?: string; className?: string; schemaHash?: string; idPrefix?: string } = {},
+  { html, successMessage = "Thanks — your message has been sent.", className, schemaHash, idPrefix, ...fieldClasses }: { html?: string; successMessage?: string; className?: string; schemaHash?: string; idPrefix?: string } & FormFieldClassOptions = {},
 ): string {
   const escapedSlug = escapeFormHtml({ value: slug });
   const slugHook = `data-form-slug="${escapedSlug}"`;
@@ -156,7 +174,7 @@ export function renderHtmlForm(
   return `<div ${hooks.success} ${slugHook} role="status" hidden>${escapeFormHtml({ value: successMessage })}</div>` +
     `<form ${classAttr}${hooks.form}="${escapedSlug}" ${slugHook} toolname="form_${escapeFormHtml({ value: slug.replace(/[^A-Za-z0-9_.-]/g, '_').slice(0, 123) })}" tooldescription="${escapedSlug}" method="post"${fields.some((field) => field.type === "file") ? ' enctype="multipart/form-data"' : ""} action="${escapeFormHtml({ value: action })}">` +
     `<div ${hooks.error} ${slugHook} role="alert" hidden></div>` +
-    (html ?? renderHtmlFormBody({ fields, hooks }, { idPrefix: idPrefix ?? `form-${slug}` })) + renderFormSchemaHash({ schemaHash }) +
+    (html ?? renderHtmlFormBody({ fields, hooks }, { idPrefix: idPrefix ?? `form-${slug}`, ...fieldClassOptions(fieldClasses) })) + renderFormSchemaHash({ schemaHash }) +
     // Hidden container requires neither a theme class nor inline CSS; bots still see the input.
     `<div hidden aria-hidden="true"><input type="text" name="_hp" tabindex="-1" autocomplete="off"></div></form>`;
 }
@@ -183,11 +201,11 @@ export function renderHtmlForm(
  *  type past it and lose the submission to a server rejection. Only a positive integer renders —
  *  the value comes from stored JSON, so anything else is dropped rather than interpolated.
  *  @complexity O(1).
- One contact-form field descriptor -> its `<div class="widget-form-field">` markup — extracted from
+ One contact-form field descriptor -> its `<div class="jini-form-field">` markup — extracted from
  *  {@link renderWidgetContactForm}'s old inline `.map()` callback so the field's own render logic is a
  *  named, independently measured function rather than an anonymous closure.
  *
- *  Carries its own `<div class="widget-form-field-error" data-field="ID" hidden></div>` slot, hidden
+ *  Carries its own `<div class="jini-form-field-error" data-field="ID" hidden></div>` slot, hidden
  *  and empty on every ordinary render — `renderWidgetContactForm` has no request in scope (this is a
  *  pure prop-to-HTML function, no I/O), so it cannot know at render time whether THIS submission
  *  failed validation on THIS field. The slot exists purely as a stable, pre-built anchor
@@ -203,14 +221,14 @@ export function renderHtmlForm(
  * @overallScore 96 — Recommended: embed providers own their frame's validation and accessibility. */
 export function renderFormCollection(
   required: { slug: string; fields: readonly FieldDescriptor[]; hooks: FormHtmlHooks; plan: import('@jini-ai/core/contracts/forms').FormCollectionPlan },
-  optional: { html?: string; className?: string; successMessage?: string; idPrefix?: string; consentOff?: boolean } = {},
+  optional: { html?: string; className?: string; successMessage?: string; idPrefix?: string; consentOff?: boolean } & FormFieldClassOptions = {},
 ): string {
   const { plan, ...form } = required;
   if (plan.kind === 'unavailable') return `<p role="alert" data-form-provider-unavailable>${escapeFormHtml({ value: plan.message })}</p>`;
   if (plan.kind === 'embed') return renderCollectionEmbed({ plan, consentOff: optional.consentOff === true });
   if (!plan.external) return renderHtmlForm({ ...form, action: plan.action }, optional);
   return `<form method="post" action="${escapeFormHtml({ value: plan.action })}" data-form-provider="external"${optional.className ? attr('class', optional.className) : ''}${form.fields.some(field => field.type === 'file') ? ' enctype="multipart/form-data"' : ''}>` +
-    (optional.html ?? renderHtmlFormBody({ fields: form.fields, hooks: form.hooks }, { idPrefix: optional.idPrefix ?? `form-${form.slug}` })) + '</form>';
+    (optional.html ?? renderHtmlFormBody({ fields: form.fields, hooks: form.hooks }, { idPrefix: optional.idPrefix ?? `form-${form.slug}`, ...fieldClassOptions(optional) })) + '</form>';
 }
 
 /** Escaped reserved metadata for built-in forms; external collection remains provider-owned.

@@ -181,6 +181,13 @@ answer the two from different sources), `normalizeMenuHtml` (a Node host binds
 `normalizeMenuHtml` from `@jini-ai/cms/navigation/node`) and `trashMenu` (the host's trash move).
 Malformed bodies are refused in `parse` with the host's code-less `{ error }` body.
 
+Browser telemetry (`src/admin-http/routes/system/browser-telemetry.ts`, `POST /api/admin/v1/telemetry`,
+deployment-level, no permission): the host mounts `browserTelemetryRoute` with
+`readHeaders: ["content-length"]` and injects `tracker` (`capture`/`error`), `limiter` (its own
+per-principal budget, `check({ key })`) and `credentialKind({ context })` (the session layer's kind for
+the authenticated principal; only `"session"` is admitted). Every gate runs in `handle`, in the order
+403 credential → 413 declared length → 429 `Retry-After` → 400/413 validation → bodiless 204.
+
 Newsletter (`src/admin-http/routes/newsletter/*`, types in `src/admin-http/http/newsletter.ts`): the
 newsletter domain has no engine code yet, so every spec takes the host's services as required deps
 (`saveCampaign`, `scheduleCampaign`, `openSendPipeline`, `saveList`, `importSubscriptions`, …), plus
@@ -194,7 +201,9 @@ Content lane (L1). `src/admin-http/http/plugin-hook-error.ts`: `createPluginHook
 `PLUGIN_HOOK_FAILED` 500 envelope to the host's hook-failure class, refusal copy, redaction and log
 sink; a spec calls the bound `rejectPluginHookFailure({ err })` first in its catch. Change sets
 (`routes/change-sets/*`) call cms's own `revertChangeSet` and take the host's DTO mappers and revert
-registry; get and revert authorize `changeset.*` with `{ entityId }`. Email templates
+registry; get and revert authorize `changeset.*` with `{ entityId }`. The item mapper is cms's own
+`./admin-http/http/change-sets` (`toChangeSetItemResponse({ item })`, `revertible` instead of the inverse
+payload); the host injects it as `toChangeSetItem` and its own header view as `toChangeSetHeader`. Email templates
 (`routes/email-templates/*`) take the template operations, their error predicates and the raw-HTML
 edit permission (`editHtmlPermission`) as deps; a host keeps its own body-size binding in front of
 the capped writes when its 413 copy differs from the kit's. Pages (`routes/pages/{list,get-by-id}`),
@@ -207,6 +216,34 @@ to its repo, tracker, clock and write allowlist), its styling-required predicate
 catalogue, the preview-refresh signal and the response DTO; one ladder over the whole request answers a validation
 or styling error as a flat 400 and a missing row as a flat 404, and rethrows the rest to the host's
 operation-only failure copy.
+
+Site previews (`src/admin-http/routes/sites/site-previews.ts`: `sitePreviewRoute`, raw, `bufferedReply`): the host
+injects `sitePreviews.read` (the stored capture bytes for a site name) and `previewContentType`, and mounts it
+with `mountAdminRawRoute` (guarded, `failure` operation `routes/sites/site-previews`). `sitePreviewTargets` and
+`servingAddressOf` are exported for the host's site list and theme preview.
+
+Site backups (`src/admin-http/routes/system/site-backups.ts`: `siteBackupPlanRoute`, `siteBackupPushRoute`, raw
+specs with `bufferedReply`): the host injects `plan`/`push` (its backup service; `push` bound with
+`PUSH_POLL_WAIT_MS`), `isPublishTrusted({ context })` (a publishing credential answers `403 Forbidden` text),
+`mapBackupError` (the service's known errors as `{ status, body }`, `undefined` for the mount's redacted 500), and
+mounts them with its own plain-text workspace refusal; the no-store / nosniff headers come from the specs.
+
+Site shares (`src/admin-http/routes/system/site-shares.ts`: list, create, static options/create, acknowledge,
+revoke, artifact upload/delete; raw specs with `bufferedReply` and `Cache-Control: no-store`): the host injects
+`backend()` (read per request; `undefined` answers 503), `isPublishTrusted({ context })` (a connected computer is
+refused on admin operations and authorized with `publish_content.apply` on artifacts), `readCreateInput` /
+`readStaticInput` (its body parsers and refusals), `isArtifactIdentity`, `invalidArtifact`, `receiveArtifact`,
+`removeArtifact`, `maxArchiveBytes`, and `failureReply({ error, step, method, path, authenticated })` (its refusal
+copy and incident reporting; a `SiteShareUploadRefusal` carries the deferred body read's refusal). It mounts them
+with the step's own workspace refusal and a deferred missing principal; the streamed ZIP download stays host-side.
+
+Shared Keys picker (`src/admin-http/routes/system/credential-copy.ts`: `credentialCopyListRoute`,
+`credentialCopyGrantRoute`, w4-routes K): the host injects `ownerPrincipalId()` (the seeded owner),
+`admitInstance({ principalId, permission })` (its optional instance admission; `true` when it has none),
+`projectKeys()` (`listChoices`/`permissionFor`/`use`, or `undefined`) and `isLocalRequest({ context })` (whether this
+request came from a browser on the host machine). It mounts both with `Cache-Control: no-store` on every answer, a
+session-credential-only 403 ahead of the workspace 404, and its redacted `copy-failed` 500; the specs answer
+owner-only, RBAC (`system.write`, then the selected key's own permission), local-host-only, 400 and the 409.
 
 System mail (`src/admin-http/routes/system/mail-{status,dns,test-send,activity}.ts`, guards in
 `mail-shared.ts`): the host binds every collaborator as a required function-typed dep — the live
@@ -262,7 +299,9 @@ delete authorize `media.*` with `{ entityId }`; get/put providers stay id-free. 
 single-asset DTO lookups (recorded content type, public URL, byte size), its transactional trash flip
 (`removeMedia`), the reference-checked `purgeMedia` + `forgetRemovedMedia`, and the provider
 credential store with its save-error table (`saveErrorMappings`). Delete's 409 carries the
-`referencing` list. `update` imports the node-only media service, so its entry is `node`.
+`referencing` list. `update` imports the node-only media service, so its entry is `node`. `./admin-http/routes/media/byte-size`'s
+`resolveMediaByteSizes({ deps: { workspaceId, assetBlobRepo, blobStore }, media })` is the byte-size
+lookup a host binds into those DTO lookups (one blob-row batch, at most eight `sizeOf` stats in flight).
 
 Assistant (`src/admin-http/routes/assistant/*`): settings, visitor tools and the site/execution
 credentials share `shared.ts`; the execution probes (detect-agents, list-models, test-agent,
@@ -301,6 +340,21 @@ Memory (`src/admin-http/routes/agent-plugins/memory`, GET/PUT): authorizes `admi
 no entity type or id; the host injects the installed check, the plugin's memory store (`openMemory`), the
 store's caps and, for PUT, its system-error predicate (a matching note-write error is rethrown for the host's
 own 500 copy; any other write failure is the 422).
+Admin surfaces (`src/admin-http/routes/agent-plugins/admin-surfaces`, `defineAdminSurfaceRoutes<S, O>()`: GET
+`…/:pluginId/surfaces`, POST `…/:surfaceId/bootstrap` and `…/:surfaceId/actions`): the list asks
+`admin.plugins.read`, the writes `admin.plugins.enable` (no entity type or id), then the surface 404, then (actions)
+the 400 for a missing action name. `@jini-ai/agent-plugins` depends on this package, so the host injects
+`listSurfaces`/`findSurface`, `surfaceFileUrl`, `bootstrapData`, `createBootstrap`, `bootstrapHeaders`, `nowMs`,
+`dispatcherFor` (the package dispatcher over its handlers, with its handler-error sink) and `withSignIns`. The
+writes' CSRF gate is `adminSurfaceWritePreflight({ refusal })`, a header-only check the host mounts ahead of its
+credential and workspace gates; the refusal copy is the host's.
+Install/update upload (`src/admin-http/routes/agent-plugins/install`, POST `install/zip` and
+`:pluginId/update/zip`, raw spec with `bufferedReply`): asks `admin.plugins.enable` with no entity type or id
+before any input check, then the update target, digest, body and `replace`. The zip is read through
+`raw.readBody({ type: "raw", mediaType: "application/zip", limit })` — mount it with NO body parser ahead of it.
+The host injects `maxArchiveBytes`, the plugin-name grammar (`isPluginName`), its installer (`installUpload`),
+its read-model row (`installedRow`), its body-refusal and known-installer-error copy (`bodyRefusal`,
+`installRefusal`; `undefined` rethrows for the mount's redacted 500).
 Media where-used (`src/admin-http/routes/media/where-used`): asks `media.read` on `media` with no entity id; the
 host injects its usage finder (`findWhereUsed`) and answers the denial with its own body (mount `forbidden`).
 Media import-url (`src/admin-http/routes/media/import-url`, POST, 201): asks `media.upload` on `media` with no
@@ -409,6 +463,7 @@ service calls (`resetPassword`, `setPassword`, `prepareReset`, `requireSessionMe
 (`deliverInBackground`), its cookie reader (`readSessionToken`) and `refusalFor`.
 
 - **publish-content peer pull** (`admin-http/routes/publish-content/peer-transport`): `peerPullRoute` (`POST .../peers/:peerId/pull`, 201) asks `publish_content.apply` and runs the injected `pullAndStage({peerId, principalId})` (the host opens the peer credential and stages the export); a host typed error maps through the injected `peerActionRefusal`, anything else is rethrown for the mount's redacted 500. The push relay routes stay host-side.
+- **publish-content export + blob channel** (`admin-http/routes/publish-content/{export,blob-get,blob-put}`, w4-routes): `exportRoute` is a structural raw route (`PublishContentRawRoute`, the shape the host's raw admin mount takes) that streams the bundle envelope; the host injects `workspaceRepo.findById` (the `sourceLabel`), `isPublishingCredential({ context })` (its publishing-grant lookup; a grant is refused with the `publish_trust_export_not_wired` 403 before the read gate) and `packEntities({ principalId })` (its registry walk with the per-type permission gate). A pack failure after the head is sent ends the body unclosed. `blobGetRoute`/`blobPutRoute` are `defineJsonRoute` specs: the host injects `mediaRepo`/`assetBlobRepo` (the document-only check, answered as a `Cache-Control: private, no-store` 404 via `routeReply`) and `blobSource({})` (its blob store with its file-blob fallback) for GET, and `blobStore.putIfAbsent` for PUT. All three ask `publish_content.read`/`.apply` with no entity type; the blob routes refuse a malformed `:sha` in `parse`, so their mounts must defer a missing session.
 
 ## Scripts
 
@@ -443,6 +498,36 @@ object. Purge callers own human confirmation and must authorize each resolved in
 domains remain `adapter-unavailable` after authorization even when their entity policy denies them.
 
 ## Wiring
+
+`./public-http/middleware/{canonical-site-host,theme-content-security-headers,theme-asset-dirs,theme-static-assets}` (w4-routes)
+are the server-neutral decisions behind the host's public Express middleware; the host keeps the `app.use` adapters and
+`express.static`. `canonical-site-host`: `isCanonicalSiteHostCandidate({ method, path, originalUrl })` (sync) and
+`canonicalSiteHostRedirectLocation({ host, originalUrl, origin, toAbsoluteUrl })` (the 308 target or `undefined`); the
+host resolves `origin` with this package's `./seo` lookup, injects its `toAbsoluteUrl`, and passes `Host` only. `theme-content-security-headers`:
+`themeAssetSecurityHeaderSet({ path })`, written in order before the static server runs. `theme-asset-dirs`:
+`resolveThemeDirs({ roots, themeId, themeIdCandidates, resolvePathWithin }, {})` takes the host's theme-id alias table and
+`@jini-ai/platform/fs`'s `resolvePathWithin` (this package does not depend on platform). `theme-static-assets`:
+`trustedPreviewRevision` (takes the host's `isAuthenticatedPreviewRevision`), `isRewritableCssPath`, `previewCss`,
+`inheritedTemplateSource` (reads `{ dir, inheritedTemplateSources }` structurally from the host's discovered themes).
+`./public-http/middleware/render-theme-override` (w5-routes) is the request-local render-theme seam over a `{ locals }` store: `setRequestRenderTheme`, `hasRequestRenderTheme` (the reader the consent middleware uses) and `resolveRenderThemeId` (override, else the stored active theme); the host keeps the `app.use` that stamps it.
+`./public-http/middleware/theme-page-preview` (w4-routes) answers the theme Explore preview routes with a neutral
+`{ status, headers, type, body }` the host writes in order. `staticThemePagePreview` / `staticThemePartialPreview` take
+`{ findTheme({ themeId }), renderStaticPage, renderStaticPartial }`; `templatedThemePagePreview` takes `findTheme`,
+`listPublishedPosts()` (published only), `resolveWidgets`, `resolveMediaTransformVersions`, `resolveMediaAssetMetadata`,
+`resolveHtmlEmbeds`, `resolveSiteTitle`, `resolveSiteTimeZone` and `renderSite`. The host owns the route table, the
+admin-session + `theme.set` gate on the templated route (before the call), and failure reporting, writing
+`templatedPreviewFailureResponse({ errorId })` for a thrown render.
+`./public-http/routes/agent-plugin-surfaces/files` (w4-routes): `createAdminSurfaceFilesRoute<Surface>({ pathPrefix })` is the
+public raw spec (`GET <prefix>/:pluginId/:surfaceId/*`, `requestFacts`, `bufferedReply`) for a plugin admin surface's static
+files. The host mounts it on its public raw mount (with the `requestFacts` port: `raw.facts.clientAddress` is the limiter key)
+and injects `limiter` (`check({ key })`, charged before any lookup), `findSurface({ pluginId, surfaceId })` (its admitted
+surface or `undefined`) and `readSurfaceFile({ surface, path })` (its contained read: `{ ok: true, body, headers }` with the
+isolation headers, or `{ ok: false }`). Every refusal or fault is a plain 404; a limited client gets 429 + `Retry-After`.
+`./public-http/http/site/render/doc/doc-render-contract` (w4-routes, types only): the doc renderer's contract
+(`DocNodeRenderDeps`, `DocNodeHandler`, `DocRenderOptions`, `WidgetDocRendering`). The host injects
+`DocNodeRenderDeps.renderWidget` (its widget renderer, bound once) and builds `WidgetDocRendering` from its own bound
+`renderDocNode`/`renderNodes`, so neither renderer imports the other. Per-asset render metadata is
+`@jini-ai/core/contracts/site/cms-media`'s `MediaAssetRenderMeta`, which the host resolves per render.
 
 `./publish/content`: `normalizePeerBaseUrl({ raw, hasForbiddenRawUrlCharacter })` takes the raw-URL
 character check from the host (Tovu passes `@jini-ai/core/contracts/server/verified-origin`'s), and
@@ -496,6 +581,18 @@ that take no deps, never authorize and always answer 200 `{ ok: true }`. A host 
 of any body parser or session middleware, so they answer while the rest of the app is still booting. Readiness (`/readyz`)
 stays host-owned.
 
+`./public-http/routes/site/pages/redirect-phase` (w4-routes): `tryRedirectPhase({ phase, path, workspaceId, res, routing })` runs
+the redirects `pre_content`/`post_content` resolve phase and writes a matched redirect. The host injects `routing` (its own
+`createRouting` instance's `runPreContentPhase`/`runPostContentPhase`, whose phase registry is host module state) and a `res`
+with `redirect(statusCode, location)`.
+`./public-http/routes/site/pages/render-context/collection-lists` (w4-routes): `resolveCollectionListsForRender({ deps, html, pagePath })`
+resolves a page's `collection` markers to entry-list markup. The host injects `workspaceId`, `contentTypeRepo.findByKey`,
+`entryRepo.listPublishedForDisplay`, the optional `listingBatch` request and `siteTimeZone` port, `entryListAttribute`
+(its entry-list wrapper attribute; its theme styles are scoped to that name, so it stays host-owned), and `collaborators`
+(`CollectionListsCollaborators`: the `listing`, `markers`, `entries` and `dates` function groups, bound once from
+`./listing`, `./widgets/markers`, `./entries/site/public-list` and `./widgets/date-label` so this `public-http` subpath
+loads no other domain's runtime code).
+
 `./admin-http/routes/fs-files/custom-root`: `fsCustomRootGetRoute`/`PutRoute`/`DeleteRoute` for the admin filesystem custom
 root. The host injects `readCustomRoot`, `writeCustomRoot` (a path, or `null` to clear), `isInvalidRootError` (mapped to 400
 `INVALID_PATH`) and the `readPermission`/`managePermission` names; `PUT` authorizes before validating its body. Not yet
@@ -515,6 +612,13 @@ the permission check. Every answer carries `Cache-Control: no-store` (`responseH
 Refusals keep the consent body order `{ code, error }`: `ToolInputError` 400 `CONSENT_VALIDATION_FAILED`, conflict 409
 `CONSENT_REVISION_CONFLICT`, a service permission denial the fixed 403 copy; anything else reaches the host's error port.
 
+`./admin-http/routes/widgets/preview` (w4-routes): `widgetPreviewRoute`, the unsaved widget preview, over
+`WidgetPreviewRouteDeps`. The host injects `renderPreview` (its theme/document adapter: registry validation, resolver
+dispatch, themed document) and `mapWidgetError` (its typed widget error rungs; `undefined` for anything else, which is
+rethrown to the host's redacted 500). Mount it with `deferMissingPrincipal` (the spec answers its own 401
+`authentication required`), `"direct"` authorization (`widgets.read` on `widget`, no entity id) and the `http/widgets`
+operation-only failure copy. Every answer carries `Cache-Control: no-store` (`responseHeaders`).
+
 `./admin-http/routes/site/profile`: the admin site-profile route with its `parseSections`/`parsePageLimit` query parsers. The
 host injects the profile builder plus the builder's own section vocabulary and page cap. The route authorizes nothing itself
 (every section is authorized inside the builder as the authenticated principal); a malformed query is a flat 400
@@ -523,3 +627,14 @@ host injects the profile builder plus the builder's own section vocabulary and p
 `./admin-http/routes/redirects/create` completes the redirects family as specs: POST `/redirects`, 201, body refusals flat
 400 `VALIDATION_ERROR` before authorization, write-chokepoint errors via the shared `REDIRECT_WRITE_ERROR_MAPPINGS`; it reads
 `workspaceId` and `redirectsWriteDeps` only.
+
+`./public-http/http/site/member-auth-script`: `injectMemberAuthScript({ html, workspaceId, marker, names })` adds the member sign-in `<style>` and
+`<script>` (`memberAuthStyle({ names })`/`memberAuthScript({ names })`) before `</body>` when the page has a `data-member-nav`/`data-member-page` hook. The
+host injects `marker`, the one fixed boolean attribute stamped on both elements (its presence is the idempotency check); the engine
+ships no product-branded name. The host also injects `names` (`MemberAuthNames`: every class the style selects and the script emits, the provider button's theme classes and the two fallback custom properties). The script talks to the `/api/members/v1/workspaces/:id` routes under `./public-http/routes/members/*`.
+
+`./public-http/http/site/form-presentation-assets`: `formBaselineStyle({ names })` returns the `<style>` baseline every form-rendering widget carries,
+`formRangeReadoutJs({ names })`/`formRangeReadoutScript({ names })` the range-slider value readout. Wiring: the host injects `names`
+(`FormPresentationNames`: `formClass`, `errorClass`, `fieldClass`, `fieldHelpClass`, `fieldCheckboxClass`, `fieldErrorClass`, `formAttr`, `errorAttr`, `rangeValueClass`, `rangeMarkerAttr`,
+`dangerFallbackProp`, `successFallbackProp`), the class/attribute/custom-property names its themes already select; the engine ships no
+product-branded name and interpolates each verbatim. `FORM_SUCCESS_CLASS` and `FORM_SLUG_ATTR` are the generic names.

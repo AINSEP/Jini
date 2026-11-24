@@ -20,7 +20,7 @@
    "JsonRouteSpec": "interface:7d207ad9fa",
    "OwnedRunListRequired": "interface:5b1e4bbc29",
    "RateLimitProfile": "interface:371075b603",
-   "RawRouteSpec": "interface:e63cd87709",
+   "RawRouteSpec": "interface:abcfd90b41",
    "RouteInternalErrorContext": "interface:a7266168db",
    "RouteInternalErrorSink": "type:4919a01145",
    "RouteRegistration": "interface:dd8f03278d",
@@ -68,6 +68,16 @@
    "sendRawApiError": "function:331a5d2c98",
    "timingSafeTokenMatch": "function:83a5a4c58d",
    "validateLocalDaemonRequest": "function:9de8fc35cb"
+  }
+ },
+ "./dev-proxy": {
+  "types": "./dist/dev-proxy.d.ts",
+  "symbols": {
+   "DevProxyFailureWriter": "type:6ddfcf5cc0",
+   "createDevProxyRequestHandler": "function:138d2c838b",
+   "createDevProxyUpgradeListener": "function:e583a4d205",
+   "resolveDevProxyPath": "function:e5e4e994a0",
+   "stripHopByHopHeaders": "function:0b5e941a7c"
   }
  },
  "./html-response": {
@@ -133,6 +143,13 @@
    "createMemoryCounterStore": "function:99c1f89bab",
    "createRateLimiter": "function:117b280693",
    "resolveClientIp": "function:cf6f709e8a"
+  }
+ },
+ "./request-id": {
+  "types": "./dist/request-id.d.ts",
+  "symbols": {
+   "REQUEST_ID_HEADER": "variable:9b8c0b40fa",
+   "resolveRequestId": "function:b7e330e3ac"
   }
  },
  "./settings": {

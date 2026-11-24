@@ -122,4 +122,17 @@ describe('mountRawRoute', () => {
     const spec = defineRawRoute<object>({ method: 'get', path: '/f', handle: async () => new Response(null) }, { requestFacts: true });
     expect(() => mountRawRoute({ app: express(), spec, deps: {} })).toThrow(/requestFacts/);
   });
+  // Mutation `raw-route-vary-replaces`: writing the route's `Vary` with `setHeader` (replacement) drops the
+  // middleware's and the spec's static values, so a shared cache serves one variant to every Origin/encoding.
+  it('answers the union of middleware, static and route-provided Vary values, each once', async () => {
+    const spec = defineRawRoute<object>({
+      method: 'get', path: '/varied',
+      handle: async () => new Response('x', { headers: { vary: 'Cookie, origin' } }),
+    }, { responseHeaders: { vary: 'Origin' } });
+    const app = express();
+    app.use((_req, res, next) => { res.vary('Accept-Encoding'); next(); });
+    mountRawRoute({ app, spec, deps: {} });
+    const response = await fetch(`${await listen({ app })}/varied`);
+    expect(response.headers.get('vary')).toBe('Accept-Encoding, Origin, Cookie');
+  });
 });

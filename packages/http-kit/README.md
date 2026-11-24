@@ -23,6 +23,7 @@ There is no daemon, agent-runtime or CMS dependency.
 - Origin and bearer guards, including core's canonical origin validation and Node token comparison.
 - Cursor-aware and raw SSE primitives, route registration inventory and `mountPackHttp`.
 - `./rate-limit`, `./middleware`, `./observability` and `./range`.
+- `./dev-proxy` exports `createDevProxyRequestHandler({ devProxyUrl, basePath })`, `createDevProxyUpgradeListener({ devProxyUrl, basePath })` (the host decides whether to attach it; the module reads no environment), `resolveDevProxyPath({ url, basePath })` and `stripHopByHopHeaders(headers)`: a streaming same-origin reverse proxy to a frontend dev server, including the WebSocket HMR upgrade.
 
 - `rate-limit` exports `createRateLimiter({ profile, clock, store })`,
   `createMemoryCounterStore({})`, and `resolveClientIp({ source, policy })`.
@@ -93,6 +94,13 @@ Request context and replies (opt-in per spec; a spec that declares none behaves 
   the body cap and workspace gates, so refusals carry it too.
 - A handler returns core's `routeReply({ status, body?, headers? })` for 429 + `Retry-After`,
   304 + `ETag`, or a bare 204: headers are set, and with no `body` the answer is `res.status(s).send()`.
+- A raw spec's `raw.readBody({ type: 'raw', mediaType, limit })` / `({ type: 'urlencoded', limit })` reads
+  the body only when the handler calls it — after its gates — through Express's own `raw` / `urlencoded`
+  parser (never inflating), answering `{ ok, value }` or a neutral `refusal` (`too-large` with its limit,
+  `media-type`, `unsupported-encoding`, `malformed`, `aborted`, `size-mismatch`, `unreadable`, and
+  `incompatible-read` for a later call whose options differ from the first, since the stream is read
+  once; identical options reuse the first outcome). The host
+  registers NO parser ahead of such a mount; one registered ahead still wins (the read reports its body).
 
 Raw routes: `mountRawRoute({ app, spec, deps, adapter })` with a `defineRawRoute` spec serves HTML,
 streams, uploads, downloads and redirects that set cookies. It takes the same `ports` and opt-ins
@@ -101,6 +109,10 @@ authorize }, { signal })` returns a web `Response`, written back with every head
 `Set-Cookie` separately) and its body (streamed, and cancelled when the client leaves). `raw.body`
 is whatever the host's per-route parser left (`express.raw` gives a `Buffer`). It mounts with
 `app[method](path)`, never `app.use`, so route-table inventories see one route per spec.
+A raw spec that sets `bufferedReply: true` is not streamed: its whole body is read and answered through
+Express's `res.send(Buffer)`, so it gets `Content-Length`, the host app's ETag (Express's default weak one)
+and a bodiless 304 for a fresh GET/HEAD (`If-None-Match` / `If-Modified-Since`), exactly as a hand-written
+`res.send` route did (`raw-route-buffered.test.ts` compares both on the wire). Without it nothing changes.
 
 See [API.md](https://github.com/AINSEP/Jini/blob/main/packages/http-kit/API.md) for required/optional object contracts. Node runtime, ESM only.
 Apache-2.0; see the repository NOTICE.

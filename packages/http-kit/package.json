@@ -17,9 +17,11 @@
       "./middleware": "node",
       "./settings": "node",
       "./observability": "node",
+      "./request-id": "node",
       "./html-response": "node",
       "./range": "universal",
-      "./node-bridge": "node"
+      "./node-bridge": "node",
+      "./dev-proxy": "node"
     },
     "runtime": "node"
   },
@@ -53,6 +55,11 @@
       "import": "./dist/observability.js",
       "default": "./dist/observability.js"
     },
+    "./request-id": {
+      "types": "./dist/request-id.d.ts",
+      "import": "./dist/request-id.js",
+      "default": "./dist/request-id.js"
+    },
     "./html-response": {
       "types": "./dist/html-response.d.ts",
       "import": "./dist/html-response.js",
@@ -67,6 +74,11 @@
       "types": "./dist/node-bridge.d.ts",
       "import": "./dist/node-bridge.js",
       "default": "./dist/node-bridge.js"
+    },
+    "./dev-proxy": {
+      "types": "./dist/dev-proxy.d.ts",
+      "import": "./dist/dev-proxy.js",
+      "default": "./dist/dev-proxy.js"
     }
   },
   "files": [

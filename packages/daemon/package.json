@@ -27,6 +27,7 @@
       "./tool-audit": "universal",
       "./surface-exchanges": "universal",
       "./session-coordination": "universal",
+      "./run-start-decisions": "universal",
       "./run-credentials": "node",
       "./tool-recovery": "node",
       "./chat-settings": "node",
@@ -131,6 +132,11 @@
       "types": "./dist/surface-exchanges.d.ts",
       "import": "./dist/surface-exchanges.js",
       "default": "./dist/surface-exchanges.js"
+    },
+    "./run-start-decisions": {
+      "types": "./dist/run-start-decisions.d.ts",
+      "import": "./dist/run-start-decisions.js",
+      "default": "./dist/run-start-decisions.js"
     },
     "./session-coordination": {
       "types": "./dist/session-coordination.d.ts",

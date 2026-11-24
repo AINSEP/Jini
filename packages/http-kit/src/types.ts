@@ -3,7 +3,7 @@
  * The framework-free vocabulary (`Result`, `Handler`, `InputParser`, …) lives in
  * `@jini-ai/core/contracts/server`.
  */
-import type { Handler, HttpMethod, InputParser, JsonRouteAuthorize, JsonRouteAuthorizeScope, RouteInputContext, RouteRequestFacts, ServerApiError } from '@jini-ai/core/contracts/server';
+import type { Handler, HttpMethod, InputParser, JsonRouteAuthorize, JsonRouteAuthorizeScope, RawRouteInputContext, RouteInputContext, RouteRequestFacts, ServerApiError } from '@jini-ai/core/contracts/server';
 import type { Request, Response } from 'express';
 
 /** Host-owned workspace, authentication/authorization and exception policy.
@@ -68,7 +68,8 @@ export interface JsonRouteSpec<Input, Output, Deps, Context = undefined> extends
  * Declarative description of one non-JSON route (HTML, a stream, an upload, a download, a redirect
  * with cookies): the same gates and host ports as a JSON spec, but `handle` receives the raw input and
  * answers with a web `Response`, which `mountRawRoute` writes back. `raw.body` is whatever the host's
- * per-route parser left on the request (a `Buffer` behind `express.raw`).
+ * per-route parser left on the request (a `Buffer` behind `express.raw`); a route that must not read an
+ * unauthorized body registers no parser and calls `raw.readBody(...)` after its gates instead.
  */
 export interface RawRouteSpec<Deps, Context = undefined> extends RouteRequestOptIns {
   method: HttpMethod;
@@ -77,8 +78,14 @@ export interface RawRouteSpec<Deps, Context = undefined> extends RouteRequestOpt
   /** Body ceiling for every method but GET/HEAD, measured as in `JsonRouteSpec`. */
   maxBodyBytes?: number;
   ports?: JsonRoutePorts<Deps, Context>;
+  /**
+   * Opt-in: read the whole `Response` body and answer through Express's `res.send(Buffer)` instead of
+   * streaming it — `Content-Length`, the host's ETag and a bodiless 304 for a fresh GET/HEAD, as a
+   * hand-written `res.send` route answered. Absent: the body streams chunked, with no ETag and no 304.
+   */
+  bufferedReply?: true;
   handle(
-    requiredArgs: { readonly raw: RouteInputContext; readonly deps: Deps; readonly context: Context | undefined; readonly authorize: JsonRouteAuthorize },
+    requiredArgs: { readonly raw: RawRouteInputContext; readonly deps: Deps; readonly context: Context | undefined; readonly authorize: JsonRouteAuthorize },
     optionalArgs: { readonly signal: AbortSignal },
   ): Promise<globalThis.Response>;
 }
