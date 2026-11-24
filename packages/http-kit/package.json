@@ -17,6 +17,7 @@
       "./middleware": "node",
       "./settings": "node",
       "./observability": "node",
+      "./request-id": "node",
       "./html-response": "node",
       "./range": "universal",
       "./node-bridge": "node"
@@ -52,6 +53,11 @@
       "types": "./dist/observability.d.ts",
       "import": "./dist/observability.js",
       "default": "./dist/observability.js"
+    },
+    "./request-id": {
+      "types": "./dist/request-id.d.ts",
+      "import": "./dist/request-id.js",
+      "default": "./dist/request-id.js"
     },
     "./html-response": {
       "types": "./dist/html-response.d.ts",

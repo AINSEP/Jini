@@ -84,11 +84,10 @@ async function previewOrRefuse({ body, deps, authorize }: { body: unknown; deps:
   }
 }
 
-/**
- * Admin middleware authenticates this route, just like saved-widget routes. This local guard
- * also fails closed for direct invocation (the mount defers a missing session to here); the
- * permission check precedes body validation and rendering.
+/** Admin middleware authenticates this route, just like saved-widget routes. This local guard
+ * also fails closed for direct invocation; permission/workspace checks precede rendering.
  */
+// The mount defers a missing session to `handle` (its own 401) and runs the workspace 404 first.
 const previewSpec = defineJsonRoute<WidgetPreviewRawInput, WidgetPreviewOutput, WidgetPreviewRouteDeps, WidgetPreviewPrincipal>({
   method: "post",
   path: "/api/admin/v1/workspaces/:workspaceId/widgets/preview",

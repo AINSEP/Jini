@@ -77,6 +77,12 @@ export interface RawRouteSpec<Deps, Context = undefined> extends RouteRequestOpt
   /** Body ceiling for every method but GET/HEAD, measured as in `JsonRouteSpec`. */
   maxBodyBytes?: number;
   ports?: JsonRoutePorts<Deps, Context>;
+  /**
+   * Opt-in: read the whole `Response` body and answer through Express's `res.send(Buffer)` instead of
+   * streaming it — `Content-Length`, the host's ETag and a bodiless 304 for a fresh GET/HEAD, as a
+   * hand-written `res.send` route answered. Absent: the body streams chunked, with no ETag and no 304.
+   */
+  bufferedReply?: true;
   handle(
     requiredArgs: { readonly raw: RouteInputContext; readonly deps: Deps; readonly context: Context | undefined; readonly authorize: JsonRouteAuthorize },
     optionalArgs: { readonly signal: AbortSignal },

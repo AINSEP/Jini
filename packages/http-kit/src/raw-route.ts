@@ -11,7 +11,7 @@ import { sendWebResponse } from './node-bridge.js';
 import type { RawRouteSpec } from './types.js';
 
 /** The optional fields of a raw spec, settable in `defineRawRoute`'s second argument. */
-type RawRouteOptionalKey = 'requireSameOrigin' | 'maxBodyBytes' | 'ports' | 'readHeaders' | 'requestFacts' | 'responseHeaders';
+type RawRouteOptionalKey = 'requireSameOrigin' | 'maxBodyBytes' | 'ports' | 'readHeaders' | 'requestFacts' | 'responseHeaders' | 'bufferedReply';
 
 /**
  * Combines required route fields and optional settings into a fresh raw spec, pinning its generic
@@ -69,5 +69,28 @@ async function answerRawRoute<Deps, Context>({ req, res, spec, deps, adapter, si
     await response.body?.cancel();
     return;
   }
-  await sendWebResponse({ response, res }, { headOnly: req.method === 'HEAD' });
+  if (spec.bufferedReply) await sendBufferedReply({ response, res });
+  else await sendWebResponse({ response, res }, { headOnly: req.method === 'HEAD' });
+}
+
+/**
+ * The `bufferedReply` write: the whole body is read, then handed to Express's own `res.send(Buffer)`, so
+ * the answer is exactly what a hand-written `res.status(s).set(h).send(buffer)` route gave — `Content-Length`,
+ * the host app's `etag` setting (Express's default: a weak ETag of the body; none when a header already names
+ * one), a bodiless 304 when the GET/HEAD is fresh (`If-None-Match` / `If-Modified-Since`, 2xx only), and no
+ * body for HEAD. Headers are copied as the streaming writer copies them (each `Set-Cookie` on its own line,
+ * `Vary` merged); a header the `Response` lacks is not invented, except the `application/octet-stream`
+ * `Content-Type` Express gives a buffer with none.
+ * @complexity O(n) in the body size: the body is held in memory, so this is for finished answers, never streams.
+ */
+async function sendBufferedReply({ response, res }: { readonly response: globalThis.Response; readonly res: Response }): Promise<void> {
+  const body = Buffer.from(await response.arrayBuffer());
+  res.statusCode = response.status;
+  const cookies = response.headers.getSetCookie();
+  response.headers.forEach((value, name) => {
+    if (name === 'vary') res.vary(value);
+    else if (name !== 'set-cookie') res.setHeader(name, value);
+  });
+  for (const cookie of cookies) res.append('set-cookie', cookie);
+  res.send(body);
 }
