@@ -507,6 +507,10 @@
       "./trash/site/directory-rollback-log": "universal",
       "./trash/permanent/agent-tools": "universal",
       "./publish/content/run-repo": "universal",
+      "./publish/content/apply-run": "universal",
+      "./publish/content/repo-handler": "node",
+      "./publish/content/planner": "node",
+      "./publish/content/export-bundle": "universal",
       "./publish/content/seed-hash": "universal",
       "./publish/content/backstop-refusal": "universal",
       "./publish/content/backstop-preview": "node",
@@ -625,6 +629,9 @@
       "./admin-http/routes/taxonomy/create-taxonomy": "universal",
       "./admin-http/routes/taxonomy/create-term": "universal",
       "./admin-http/routes/taxonomy/delete-term": "universal",
+      "./admin-http/routes/taxonomy/merge-plan": "universal",
+      "./admin-http/routes/taxonomy/merge-confirm": "universal",
+      "./admin-http/routes/taxonomy/merge-execute": "universal",
       "./admin-http/routes/taxonomy/rename-term": "universal",
       "./admin-http/routes/widgets/agent-tools-place": "universal",
       "./admin-http/routes/widgets/agent-tools-create": "universal",
@@ -904,6 +911,9 @@
         "./admin-http/routes/taxonomy/create-taxonomy": "taxonomy",
         "./admin-http/routes/taxonomy/create-term": "taxonomy",
         "./admin-http/routes/taxonomy/delete-term": "taxonomy",
+        "./admin-http/routes/taxonomy/merge-plan": "taxonomy",
+        "./admin-http/routes/taxonomy/merge-confirm": "taxonomy",
+        "./admin-http/routes/taxonomy/merge-execute": "taxonomy",
         "./admin-http/routes/taxonomy/rename-term": "taxonomy",
         "./admin-http/routes/widgets/agent-tools-place": "widgets",
         "./admin-http/routes/widgets/agent-tools-create": "widgets",
@@ -3393,6 +3403,26 @@
       "import": "./dist/trash/permanent/agent-tools.js",
       "default": "./dist/trash/permanent/agent-tools.js"
     },
+    "./publish/content/apply-run": {
+      "types": "./dist/publish/content/apply-run.d.ts",
+      "import": "./dist/publish/content/apply-run.js",
+      "default": "./dist/publish/content/apply-run.js"
+    },
+    "./publish/content/repo-handler": {
+      "types": "./dist/publish/content/repo-handler.d.ts",
+      "import": "./dist/publish/content/repo-handler.js",
+      "default": "./dist/publish/content/repo-handler.js"
+    },
+    "./publish/content/export-bundle": {
+      "types": "./dist/publish/content/export-bundle.d.ts",
+      "import": "./dist/publish/content/export-bundle.js",
+      "default": "./dist/publish/content/export-bundle.js"
+    },
+    "./publish/content/planner": {
+      "types": "./dist/publish/content/planner.d.ts",
+      "import": "./dist/publish/content/planner.js",
+      "default": "./dist/publish/content/planner.js"
+    },
     "./publish/content/run-repo": {
       "types": "./dist/publish/content/run-repo.d.ts",
       "import": "./dist/publish/content/run-repo.js",
@@ -3987,6 +4017,21 @@
       "types": "./dist/admin-http/routes/taxonomy/delete-term.d.ts",
       "import": "./dist/admin-http/routes/taxonomy/delete-term.js",
       "default": "./dist/admin-http/routes/taxonomy/delete-term.js"
+    },
+    "./admin-http/routes/taxonomy/merge-plan": {
+      "types": "./dist/admin-http/routes/taxonomy/merge-plan.d.ts",
+      "import": "./dist/admin-http/routes/taxonomy/merge-plan.js",
+      "default": "./dist/admin-http/routes/taxonomy/merge-plan.js"
+    },
+    "./admin-http/routes/taxonomy/merge-confirm": {
+      "types": "./dist/admin-http/routes/taxonomy/merge-confirm.d.ts",
+      "import": "./dist/admin-http/routes/taxonomy/merge-confirm.js",
+      "default": "./dist/admin-http/routes/taxonomy/merge-confirm.js"
+    },
+    "./admin-http/routes/taxonomy/merge-execute": {
+      "types": "./dist/admin-http/routes/taxonomy/merge-execute.d.ts",
+      "import": "./dist/admin-http/routes/taxonomy/merge-execute.js",
+      "default": "./dist/admin-http/routes/taxonomy/merge-execute.js"
     },
     "./admin-http/routes/taxonomy/rename-term": {
       "types": "./dist/admin-http/routes/taxonomy/rename-term.d.ts",

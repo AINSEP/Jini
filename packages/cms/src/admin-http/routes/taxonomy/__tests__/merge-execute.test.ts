@@ -41,8 +41,8 @@ describe("taxonomyMergeExecuteRoute", () => {
     const cases: Array<[Error, number, string]> = [
       [new ForbiddenError({ message: "not allowed", reasonCode: "ACTOR_CLASS_MISMATCH" }), 403, "ACTOR_CLASS_MISMATCH"],
       [new PlanStaleError({ message: "stale" }), 409, "PLAN_STALE"],
-      [new TokenExpiredError({ message: "expired" } as never), 409, "TOKEN_EXPIRED"],
-      [new TokenAlreadyRedeemedError({ message: "redeemed" } as never), 409, "TOKEN_ALREADY_REDEEMED"],
+      [new TokenExpiredError({ message: "expired" }), 409, "TOKEN_EXPIRED"],
+      [new TokenAlreadyRedeemedError({ message: "redeemed" }), 409, "TOKEN_ALREADY_REDEEMED"],
     ];
     for (const [error, status, code] of cases) {
       expect(await refusalOf(() => run(executeDeps({ gatewayExecute: async () => { throw error; } })))).toEqual({ status, body: { error: error.message, code } });

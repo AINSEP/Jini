@@ -64,8 +64,8 @@ describe("taxonomyMergePlanRoute", () => {
     const cases: Array<[Error, number, string]> = [
       [new ForbiddenError({ message: "not allowed", reasonCode: "NOT_AUTHORIZED" }), 403, "NOT_AUTHORIZED"],
       [new PlanStaleError({ message: "stale" }), 409, "PLAN_STALE"],
-      [new TokenExpiredError({ message: "expired" } as never), 409, "TOKEN_EXPIRED"],
-      [new TokenAlreadyRedeemedError({ message: "redeemed" } as never), 409, "TOKEN_ALREADY_REDEEMED"],
+      [new TokenExpiredError({ message: "expired" }), 409, "TOKEN_EXPIRED"],
+      [new TokenAlreadyRedeemedError({ message: "redeemed" }), 409, "TOKEN_ALREADY_REDEEMED"],
       [new SameTermMergeError({ message: "same" }), 400, "SAME_TERM_MERGE"],
     ];
     for (const [error, status, code] of cases) {
