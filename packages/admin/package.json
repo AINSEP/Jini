@@ -681,7 +681,12 @@
       "./screens/plugins/hooks/use-agent-plugin-tab.hooks": "browser",
       "./screens/plugins/provider-settings-dialog.css": "browser",
       "./screens/import-export/GitBackupCard": "browser",
-      "./screens/import-export/import-export-links": "universal"
+      "./screens/import-export/import-export-links": "universal",
+      "./screens/email/EmailParts": "browser",
+      "./screens/email/EmailOverviewTab": "browser",
+      "./screens/email/EmailSenderTab": "browser",
+      "./screens/email/EmailActivityTab": "browser",
+      "./screens/email/EmailTemplatesTab": "browser"
     },
     "isolation": {
       "shared": [
@@ -945,7 +950,12 @@
         "./screens/observability/recent-errors-rules": "browser",
         "./screens/observability/tool-gaps-panel": "browser",
         "./screens/email/hooks/use-email-template-view.hooks": "browser",
-        "./screens/media/hooks/use-media-card-metadata.hooks": "media"
+        "./screens/media/hooks/use-media-card-metadata.hooks": "media",
+        "./screens/email/EmailParts": "browser",
+        "./screens/email/EmailOverviewTab": "browser",
+        "./screens/email/EmailSenderTab": "browser",
+        "./screens/email/EmailActivityTab": "browser",
+        "./screens/email/EmailTemplatesTab": "browser"
       }
     },
     "optionalPeers": {
@@ -4230,6 +4240,31 @@
       "types": "./dist/screens/import-export/import-export-links.d.ts",
       "import": "./dist/screens/import-export/import-export-links.js",
       "default": "./dist/screens/import-export/import-export-links.js"
+    },
+    "./screens/email/EmailParts": {
+      "types": "./dist/screens/email/EmailParts.d.ts",
+      "import": "./dist/screens/email/EmailParts.js",
+      "default": "./dist/screens/email/EmailParts.js"
+    },
+    "./screens/email/EmailOverviewTab": {
+      "types": "./dist/screens/email/EmailOverviewTab.d.ts",
+      "import": "./dist/screens/email/EmailOverviewTab.js",
+      "default": "./dist/screens/email/EmailOverviewTab.js"
+    },
+    "./screens/email/EmailSenderTab": {
+      "types": "./dist/screens/email/EmailSenderTab.d.ts",
+      "import": "./dist/screens/email/EmailSenderTab.js",
+      "default": "./dist/screens/email/EmailSenderTab.js"
+    },
+    "./screens/email/EmailActivityTab": {
+      "types": "./dist/screens/email/EmailActivityTab.d.ts",
+      "import": "./dist/screens/email/EmailActivityTab.js",
+      "default": "./dist/screens/email/EmailActivityTab.js"
+    },
+    "./screens/email/EmailTemplatesTab": {
+      "types": "./dist/screens/email/EmailTemplatesTab.d.ts",
+      "import": "./dist/screens/email/EmailTemplatesTab.js",
+      "default": "./dist/screens/email/EmailTemplatesTab.js"
     }
   },
   "files": [
