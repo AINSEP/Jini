@@ -43,8 +43,9 @@ export {
   resolveSystemProxyEnv,
 } from "./proxy-env.js";
 
+/** Deprecated re-export: import these from `@jini-ai/core/contracts/site/platform-process`; removed at the next major. */
+export type { ProcessUsage } from "@jini-ai/core/contracts/site/platform-process";
 export type {
-  ProcessUsage,
   ProcessUsagePorts,
   ProcessUsageOptions,
   ProcessStampContract,

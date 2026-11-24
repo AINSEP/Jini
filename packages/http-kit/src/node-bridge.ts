@@ -234,22 +234,19 @@ async function pipeBody({ body, out }: { body: ReadableStream<Uint8Array>; out: 
 }
 
 /**
- * The `Vary` value that keeps every field already set on the response (by middleware, or a raw spec's static
- * `responseHeaders`) and adds the response's own, each once (case-insensitive, first spelling kept); `*` absorbs
- * everything. Replacing instead would let a shared cache serve one variant across the fields the earlier layers named.
- * @complexity O(n) in the number of listed fields.
+ * Adds a response's `Vary` fields to any a middleware or a route's static headers already set, as Express
+ * `res.vary` does: a replacement would drop e.g. a CORS `Origin` and let a cache serve one origin's answer
+ * to another. Field names are de-duplicated case-insensitively and `*` absorbs everything.
+ * @complexity O(n) in the number of field names.
  */
-function unionVary({ existing, added }: { existing: number | string | string[] | undefined; added: string }): string {
+function appendVary({ out, value }: { out: ServerResponse; value: string }, _optional: Record<string, never> = {}): void {
+  const existing = out.getHeader('vary');
   const fields: string[] = [];
-  const seen = new Set<string>();
-  for (const field of [existing ?? ''].flat().join(',').concat(',', added).split(',')) {
+  for (const field of `${existing === undefined ? '' : String(existing)},${value}`.split(',')) {
     const name = field.trim();
-    if (!name || seen.has(name.toLowerCase())) continue;
-    if (name === '*') return '*';
-    seen.add(name.toLowerCase());
-    fields.push(name);
+    if (name && !fields.some((seen) => seen.toLowerCase() === name.toLowerCase())) fields.push(name);
   }
-  return fields.join(', ');
+  out.setHeader('vary', fields.includes('*') ? '*' : fields.join(', '));
 }
 
 /**
@@ -266,8 +263,9 @@ export async function sendWebResponse({ response, res }: { response: Response; r
   // Set-Cookie cannot be comma-joined (cookie dates contain commas), so each one gets its own line.
   const cookies = response.headers.getSetCookie();
   response.headers.forEach((value, name) => {
-    if (name === 'vary') out.setHeader(name, unionVary({ existing: out.getHeader('vary'), added: value }));
-    else if (name !== 'set-cookie') out.setHeader(name, value);
+    if (name === 'set-cookie') return;
+    if (name === 'vary') appendVary({ out, value });
+    else out.setHeader(name, value);
   });
   for (const cookie of cookies) out.appendHeader('set-cookie', cookie);
   if (!response.body || headOnly) {

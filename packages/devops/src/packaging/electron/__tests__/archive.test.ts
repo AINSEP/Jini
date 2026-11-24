@@ -1,7 +1,8 @@
 import assert from 'node:assert/strict';
 import { describe, test } from 'vitest';
 import { bundledNpmFailures, filesUnderPrefixes, formatMismatchReport, isEmptyVerification, toArchiveEntryPath, verifyAsarAgainstSource } from '../archive.js';
-import type { ArchiveReaderPort, AsarHeaderNode } from '../ports.js';
+import type { ArchiveReaderPort } from '../ports.js';
+import type { AsarHeaderNode } from "@jini-ai/core/contracts/site/packaging-electron";
 import { memoryFs } from './memory-fs.js';
 
 const NUL = String.fromCharCode(0);

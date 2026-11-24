@@ -1,3 +1,4 @@
+import { nodeMediaGuardedFetch } from '../node.js';
 import { describe, expect, it } from 'vitest';
 import { ProviderRegistryError } from '@jini-ai/core/provider-registry';
 import { AUDIO_MODELS_BY_KIND, IMAGE_MODELS, MEDIA_PROVIDERS, VIDEO_MODELS, findMediaModel, findProvider, modelsForSurface } from '../../providers.js';
@@ -149,7 +150,7 @@ describe('plugin contributions', () => {
     expect(registry.providers.contribute({ definition: mediaProviderDefinition({ contribution }), pluginId: 'p' })).toBe(false);
     expect(registry.providers.refusals()[0]?.message).toContain("'gpt-image-2' is already offered");
     expect(registry.findModel({ id: 'gpt-image-2' })?.provider).toBe('openai');
-    const engine = createMediaDispatchEngine({ registry, httpClient: testHttpClient(async () => new Response('x')) }, { catalog: registry, allowStubFallback: true });
+    const engine = createMediaDispatchEngine({ registry, httpClient: testHttpClient(async () => new Response('x')), guardedFetch: nodeMediaGuardedFetch }, { catalog: registry, allowStubFallback: true });
     await expect(engine.generate({ surface: 'video', model: 'gpt-image-2' }, { prompt: 'p' })).rejects.toThrow('is not registered for surface "video"');
   });
 
@@ -184,7 +185,7 @@ describe('engine over the live registry', () => {
     const registry = createMediaProviderRegistry();
     registry.providers.contribute({ definition: mediaProviderDefinition({ contribution: acme() }), pluginId: 'acme-plugin' });
     const httpClient = testHttpClient(async () => new Response('PNGBYTES'));
-    const engine = createMediaDispatchEngine({ registry, httpClient }, { catalog: registry });
+    const engine = createMediaDispatchEngine({ registry, httpClient, guardedFetch: nodeMediaGuardedFetch }, { catalog: registry });
     const result = await engine.generate({ surface: 'image', model: 'acme-1' }, { prompt: 'a cat' });
     expect(result).toMatchObject({ providerId: 'acme-media', usedStubFallback: false, providerNote: 'acme' });
     expect(result.bytes.toString()).toBe('PNGBYTES');
@@ -194,7 +195,7 @@ describe('engine over the live registry', () => {
     const seen: unknown[] = [];
     const adapter: VendorAdapter<never> = { ...fakeAdapter(), buildRequest: ({ ctx }) => { seen.push(ctx.allowPrivateNetwork); return fakeAdapter().buildRequest({ ctx, credentials: {} }); } };
     const registry = createMediaProviderRegistry({}, { contributions: [acme({ adapters: { image: adapter } })] });
-    const engine = createMediaDispatchEngine({ registry, httpClient: testHttpClient(async () => new Response('x')) }, { catalog: registry, allowPrivateNetwork: true });
+    const engine = createMediaDispatchEngine({ registry, httpClient: testHttpClient(async () => new Response('x')), guardedFetch: nodeMediaGuardedFetch }, { catalog: registry, allowPrivateNetwork: true });
     await engine.generate({ surface: 'image', model: 'acme-1' }, { prompt: 'p' });
     expect(seen).toEqual([true]);
   });
@@ -202,7 +203,7 @@ describe('engine over the live registry', () => {
   it('stub fallback reads the provider from the live catalogue', async () => {
     const registry = createMediaProviderRegistry();
     registry.providers.contribute({ definition: mediaProviderDefinition({ contribution: acme({ adapters: {} }) }), pluginId: 'acme-plugin' });
-    const engine = createMediaDispatchEngine({ registry, httpClient: testHttpClient(async () => new Response('')) }, { catalog: registry, allowStubFallback: true });
+    const engine = createMediaDispatchEngine({ registry, httpClient: testHttpClient(async () => new Response('')), guardedFetch: nodeMediaGuardedFetch }, { catalog: registry, allowStubFallback: true });
     const result = await engine.generate({ surface: 'image', model: 'acme-1' }, { prompt: 'a cat' });
     expect(result).toMatchObject({ providerId: 'acme-media', usedStubFallback: true });
   });
@@ -210,7 +211,7 @@ describe('engine over the live registry', () => {
   it('without a catalog option the engine still rejects models outside the static catalogue', async () => {
     const registry = createMediaProviderRegistry();
     registry.providers.contribute({ definition: mediaProviderDefinition({ contribution: acme() }), pluginId: 'acme-plugin' });
-    const engine = createMediaDispatchEngine({ registry, httpClient: testHttpClient(async () => new Response('')) });
+    const engine = createMediaDispatchEngine({ registry, httpClient: testHttpClient(async () => new Response('')), guardedFetch: nodeMediaGuardedFetch });
     await expect(engine.generate({ surface: 'image', model: 'acme-1' })).rejects.toThrow('unknown model: acme-1');
   });
 });

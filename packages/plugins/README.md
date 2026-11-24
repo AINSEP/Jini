@@ -56,6 +56,54 @@ Historical note — 2026-08-18: [DR-005 portable package boundaries](../../docs/
 kept the host format reserved until a real consumer justified its implementation. The 2026-10-07
 p6 extraction implements that format under the approved CMS/Jini modular design Rev 3.
 
+## Wiring
+
+`./runtime/*` holds host-neutral pieces lifted from a host's plugin runtime. They need nothing
+injected: `./runtime/plugin-export`'s `readDefinedPlugin({ moduleValue }, {})` is pure and returns
+the module's `definePlugin()` default export (`DefinedPlugin` from `@jini-ai/core/contracts/plugin-sdk`)
+or `null`. A host binds it as its `PluginSdkBinding.readDefinedPlugin`:
+
+```ts
+import type { PluginSdkBinding } from '@jini-ai/plugins/host';
+import { readDefinedPlugin } from '@jini-ai/plugins/runtime/plugin-export';
+
+const pluginSdkBinding: PluginSdkBinding = {
+  ...hostSdkAbi, // hook ids, semantics, runtimeSdkVersion, buildSdk, definePlugin
+  readDefinedPlugin: ({ moduleValue }) => readDefinedPlugin({ moduleValue }, {}),
+};
+```
+
+`./runtime/*` must never import a host SDK package, node built-ins, or another `@jini-ai/*`
+implementation; types come from `@jini-ai/core` contracts. Boundaries: [DR-005](../../docs/decisions/DR-005-portable-package-boundaries.md).
+
+Model-facing plugin text takes the host's product copy (`PluginHostCopy` from
+`./runtime/plugin-host-copy`: `productName`, `sitePluginFormat`, `localInstallEnv`,
+`pluginListToolName` — the host's plugin list tool). The host binds
+it once, in its own composition module, and passes the results to its tool bindings:
+
+- `./runtime/agent-tools` — `createPluginAgentToolCatalog({ copy })` (plus `PluginFamily`,
+  `PLUGINS_SET_ENABLED_TOOL_ID`, `AgentToolDefinition`).
+- `./runtime/source-tool-catalog` — `createPluginSourceAgentToolCatalog({ copy })`.
+- `./runtime/install-tool-catalog` — `createInstallToolCatalog({ copy, installSourceSchema })`; the
+  host also injects its install-source JSON Schema. `PLUGINS_INSTALL_TOOL_ID` is a plain constant.
+- `./runtime/plugin-tool-messages` — `createPluginToolMessages({ copy })` /
+  `createPluginInstallMessages({ copy })` return the `messages` objects the `./host/tools`
+  registrations take, with the same call shapes as before.
+- `./runtime/capability-card` — `createCapabilityCard({ pluginsAdminHref, pluginListToolName })`; the host says where its
+  Plugins admin screen lives and which tool lists plugins.
+
+`./site/lipay/manifest` and `./site/store/manifest` are the bundled first-party data-module
+declarations (`LIPAY_MANIFEST`, `STORE_MANIFEST`). Nothing is injected; the host lists them in its
+first-party data-module set. Their provenance publisher is `"jini-core"` — persisted in
+`_plugin_identity`, so changing it is a migration (see CHANGELOG).
+
+`./runtime/enable-confirmation-ui` (`describeEnableApproval`, `EnableConfirmationSubject`) and
+`./runtime/uninstall-confirmation-ui` (`describeUninstallApproval`, `PLUGINS_UNINSTALL_TOOL_ID`) are
+pure: they return a `HumanConfirmSpec` (`@jini-ai/core/contracts/site/human-confirm`) and inject
+nothing. The host renders and redeems that spec through its own approval transport; it passes both
+builders as the `descriptions: { enable, uninstall }` field of `PluginManagementToolsRequired`
+(`./host/tools`) when it binds the plugin management tools.
+
 ## Design decisions
 
 - [Attachment vocabulary and failure containment are separate decisions](docs/decisions/DR-001-category-specific-glue-containment.md).

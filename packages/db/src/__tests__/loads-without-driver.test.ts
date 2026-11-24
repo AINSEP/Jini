@@ -179,6 +179,10 @@ SUBPATHS["recovery/operation-lock"] = {
   dirs: ["recovery"],
   probe: `typeof m.createOperationLock === "function"`,
 };
+SUBPATHS["recovery/agent-tools"] = {
+  dirs: ["recovery"],
+  probe: `typeof m.createRecoveryAgentToolCatalog === "function" && m.createRecoveryAgentToolCatalog({ backupWorkflowGuidance: "g", restorePointIdSource: "s" }).length === 7`,
+};
 SUBPATHS["testing/pg-fixture"] = {
   dirs: ["."],
   probe: `typeof m.createPgFixture === "function"`,
@@ -312,9 +316,9 @@ describe("@jini-ai/db in an install with no database driver present", () => {
 
   it("exports exactly the subpaths under test (no root barrel that would load everything)", () => {
     const manifest = JSON.parse(readFileSync(join(fixtureDir, "node_modules/@jini-ai/db/package.json"), "utf8")) as { exports: Record<string, unknown>; typesVersions: { "*": Record<string, string[]> } };
-    expect(Object.keys(manifest.typesVersions["*"]).sort()).toEqual([...Object.keys(SUBPATHS).filter(s => s !== "recovery/operation-lock"), "recovery/*", "package.json"].sort());
+    expect(Object.keys(manifest.typesVersions["*"]).sort()).toEqual([...Object.keys(SUBPATHS).filter(s => !s.startsWith("recovery/")), "recovery/*", "package.json"].sort());
     const exportKeys = Object.keys(manifest.exports);
-    expect(exportKeys.sort()).toEqual([...Object.keys(SUBPATHS).filter(s => s !== "recovery/operation-lock").map((s) => `./${s}`), "./recovery/*", "./package.json"].sort());
+    expect(exportKeys.sort()).toEqual([...Object.keys(SUBPATHS).filter(s => !s.startsWith("recovery/")).map((s) => `./${s}`), "./recovery/*", "./package.json"].sort());
   });
 
   for (const [subpath, { dirs, probe }] of Object.entries(SUBPATHS)) {
@@ -331,7 +335,8 @@ describe("@jini-ai/db in an install with no database driver present", () => {
         expect(dirs.includes(dirname(inDist)), `${subpath} loaded ${inDist}`).toBe(true);
       }
       const packages = result.resolved.filter((url) => url.includes("/node_modules/") && !url.includes("/node_modules/@jini-ai/db/"));
-      if (subpath === "tools" || subpath.startsWith("recovery")) {
+      // The recovery catalog is plain data (type-only core import), so it loads no peer at all.
+      if (subpath === "tools" || (subpath.startsWith("recovery") && subpath !== "recovery/agent-tools")) {
         expect(packages.length).toBeGreaterThan(0);
         for (const url of packages) expect(url, `tools loaded an optional peer other than core`).toMatch(/\/node_modules\/@jini-ai\/core\//);
       } else if (!SUBPATHS[subpath]!.kernel) {

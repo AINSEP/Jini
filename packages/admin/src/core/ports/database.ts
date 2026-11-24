@@ -70,6 +70,26 @@ export interface MigrateForwardResult {
   readonly migrated: true;
 }
 
+/** Database — schema drift. Mirrors the server's drift check `DriftStatus`, plus the `"unknown"`
+ *  the server adds whenever either side of the comparison is unavailable. Kept as the full
+ *  five-value union rather than a boolean precisely so `"unknown"` cannot be silently folded into
+ *  either "fine" or "broken" — see `screens/database/rules.ts`'s `resolveSchemaStateWarning`. */
+export type AdminSchemaDriftStatus = "in-sync" | "ahead" | "behind" | "diverged" | "unknown";
+
+/** One side of the drift comparison. Mirrors the server drift check's `SchemaSnapshot`. */
+export interface AdminSchemaSnapshot {
+  readonly version: number;
+  readonly tag: string;
+}
+
+/** Mirrors the server database adapter's `SchemaStateSummary`. Either snapshot may be `null`
+ *  independently, which is exactly when `status` is `"unknown"`. */
+export interface AdminSchemaState {
+  readonly status: AdminSchemaDriftStatus;
+  readonly siteMeta: AdminSchemaSnapshot | null;
+  readonly runtime: AdminSchemaSnapshot | null;
+}
+
 export interface AdminDatabasePort {
   /**
    * A page of the operations ledger, newest-relevant-first, optionally filtered by `kind` and

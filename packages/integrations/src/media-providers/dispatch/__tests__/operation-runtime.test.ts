@@ -1,4 +1,5 @@
 import { testHttpClient } from './outbound-fixtures.js';
+import { nodeMediaGuardedFetch } from '../node.js';
 import { partitionArgs } from '../../../args.js';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
@@ -99,7 +100,7 @@ describe('startOperation', () => {
     it('returns {done:true} in the same round trip when a fast vendor answers inside the grace window', async () => {
         const store = createInMemoryAsyncOperationStore();
         const fetchImpl = vi.fn(async () => json({ b64: Buffer.from('MP4').toString('base64') }));
-        const outcome = await startOperation(...partitionArgs({ value: { ...{ store, signer, httpClient: testHttpClient(fetchImpl) }, ...{ adapter: fastAdapter(), ctx: CTX, providerId: 'imagerouter', routeKey: 'video', ownerRef: 'run-1', graceMs: 500 } }, requiredKeys: ["store", "signer", "adapter", "ctx", "providerId", "routeKey", "ownerRef"] }));
+        const outcome = await startOperation(...partitionArgs({ value: { ...{ store, signer, httpClient: testHttpClient(fetchImpl), guardedFetch: nodeMediaGuardedFetch }, ...{ adapter: fastAdapter(), ctx: CTX, providerId: 'imagerouter', routeKey: 'video', ownerRef: 'run-1', graceMs: 500 } }, requiredKeys: ["store", "signer", "adapter", "ctx", "providerId", "routeKey", "ownerRef"] }));
         expect(outcome.done).toBe(true);
         expect(outcome.done && outcome.result.bytes.toString()).toBe('MP4');
         expect((await store.get({ id: outcome.operationId }))?.status).toBe('succeeded');
@@ -111,7 +112,7 @@ describe('startOperation', () => {
             rowsAtFetchTime = (await store.listByOwner({ ownerRef: 'run-1' })).length;
             return json({ b64: Buffer.from('X').toString('base64') });
         });
-        await startOperation(...partitionArgs({ value: { ...{ store, signer, httpClient: testHttpClient(fetchImpl) }, ...{ adapter: fastAdapter(), ctx: CTX, providerId: 'imagerouter', routeKey: 'video', ownerRef: 'run-1', graceMs: 500 } }, requiredKeys: ["store", "signer", "adapter", "ctx", "providerId", "routeKey", "ownerRef"] }));
+        await startOperation(...partitionArgs({ value: { ...{ store, signer, httpClient: testHttpClient(fetchImpl), guardedFetch: nodeMediaGuardedFetch }, ...{ adapter: fastAdapter(), ctx: CTX, providerId: 'imagerouter', routeKey: 'video', ownerRef: 'run-1', graceMs: 500 } }, requiredKeys: ["store", "signer", "adapter", "ctx", "providerId", "routeKey", "ownerRef"] }));
         // Crash safety is a consequence of this ordering, not a separate mechanism.
         expect(rowsAtFetchTime).toBe(1);
     });
@@ -121,7 +122,7 @@ describe('startOperation', () => {
             await new Promise((r) => setTimeout(r, 120));
             return json({ b64: Buffer.from('LATE').toString('base64') });
         });
-        const outcome = await startOperation(...partitionArgs({ value: { ...{ store, signer, httpClient: testHttpClient(fetchImpl) }, ...{ adapter: fastAdapter(), ctx: CTX, providerId: 'imagerouter', routeKey: 'video', ownerRef: 'run-1', graceMs: 10 } }, requiredKeys: ["store", "signer", "adapter", "ctx", "providerId", "routeKey", "ownerRef"] }));
+        const outcome = await startOperation(...partitionArgs({ value: { ...{ store, signer, httpClient: testHttpClient(fetchImpl), guardedFetch: nodeMediaGuardedFetch }, ...{ adapter: fastAdapter(), ctx: CTX, providerId: 'imagerouter', routeKey: 'video', ownerRef: 'run-1', graceMs: 10 } }, requiredKeys: ["store", "signer", "adapter", "ctx", "providerId", "routeKey", "ownerRef"] }));
         expect(outcome.done).toBe(false);
         // The grace window is a race, not a fork: the same in-flight submit keeps going and writes
         // its own outcome into the row the caller already holds an id for.
@@ -133,7 +134,7 @@ describe('startOperation', () => {
     it('moves a pending submit to "polling" carrying the vendor handle, never the credential', async () => {
         const store = createInMemoryAsyncOperationStore();
         const fetchImpl = vi.fn(async () => json({ id: 'job-77' }));
-        const outcome = await startOperation(...partitionArgs({ value: { ...{ store, signer, httpClient: testHttpClient(fetchImpl) }, ...{ adapter: fastAdapter(), ctx: CTX, providerId: 'imagerouter', routeKey: 'video', ownerRef: 'run-1', graceMs: 500 } }, requiredKeys: ["store", "signer", "adapter", "ctx", "providerId", "routeKey", "ownerRef"] }));
+        const outcome = await startOperation(...partitionArgs({ value: { ...{ store, signer, httpClient: testHttpClient(fetchImpl), guardedFetch: nodeMediaGuardedFetch }, ...{ adapter: fastAdapter(), ctx: CTX, providerId: 'imagerouter', routeKey: 'video', ownerRef: 'run-1', graceMs: 500 } }, requiredKeys: ["store", "signer", "adapter", "ctx", "providerId", "routeKey", "ownerRef"] }));
         const row = await store.get({ id: outcome.operationId });
         expect(outcome.done).toBe(false);
         expect(row?.status).toBe('polling');
@@ -157,7 +158,7 @@ describe('startOperation', () => {
                 return built;
             },
         };
-        await startOperation(...partitionArgs({ value: { ...{ store, signer, httpClient: testHttpClient(fetchImpl) }, ...{ adapter, ctx: CTX, providerId: 'imagerouter', routeKey: 'video', ownerRef: 'run-1', graceMs: 500 } }, requiredKeys: ["store", "signer", "adapter", "ctx", "providerId", "routeKey", "ownerRef"] }));
+        await startOperation(...partitionArgs({ value: { ...{ store, signer, httpClient: testHttpClient(fetchImpl), guardedFetch: nodeMediaGuardedFetch }, ...{ adapter, ctx: CTX, providerId: 'imagerouter', routeKey: 'video', ownerRef: 'run-1', graceMs: 500 } }, requiredKeys: ["store", "signer", "adapter", "ctx", "providerId", "routeKey", "ownerRef"] }));
         // What the adapter produced carried no auth; the signer added it beneath the adapter.
         expect((unsignedInit?.headers as Record<string, string> | undefined)?.authorization).toBeUndefined();
         expect(seenAuth).toBe('Bearer sk-test-secret');
@@ -170,7 +171,7 @@ describe('startOperation', () => {
         const realStore = createInMemoryAsyncOperationStore();
         const flakyStore = withFlakyUpdate(realStore, 1); // fails once, then the retry succeeds
         const fetchImpl = vi.fn(async () => json({ id: 'job-77' }));
-        const outcome = await startOperation(...partitionArgs({ value: { ...{ store: flakyStore, signer, httpClient: testHttpClient(fetchImpl), persistRetryDelaysMs: [1] }, ...{ adapter: fastAdapter(), ctx: CTX, providerId: 'imagerouter', routeKey: 'video', ownerRef: 'run-1', graceMs: 500 } }, requiredKeys: ["store", "signer", "adapter", "ctx", "providerId", "routeKey", "ownerRef"] }));
+        const outcome = await startOperation(...partitionArgs({ value: { ...{ store: flakyStore, signer, httpClient: testHttpClient(fetchImpl), guardedFetch: nodeMediaGuardedFetch, persistRetryDelaysMs: [1] }, ...{ adapter: fastAdapter(), ctx: CTX, providerId: 'imagerouter', routeKey: 'video', ownerRef: 'run-1', graceMs: 500 } }, requiredKeys: ["store", "signer", "adapter", "ctx", "providerId", "routeKey", "ownerRef"] }));
         const row = await realStore.get({ id: outcome.operationId });
         expect(row?.status).toBe('polling');
         expect(row?.state).toEqual({ jobId: 'job-77' });
@@ -184,14 +185,14 @@ describe('startOperation', () => {
         const realStore = createInMemoryAsyncOperationStore();
         const flakyStore = withFlakyUpdate(realStore, Infinity); // never recovers
         const fetchImpl = vi.fn(async () => json({ id: 'job-77' }));
-        const outcome = await startOperation(...partitionArgs({ value: { ...{ store: flakyStore, signer, httpClient: testHttpClient(fetchImpl), persistRetryDelaysMs: [1, 1] }, ...{ adapter: fastAdapter(), ctx: CTX, providerId: 'imagerouter', routeKey: 'video', ownerRef: 'run-1', graceMs: 500 } }, requiredKeys: ["store", "signer", "adapter", "ctx", "providerId", "routeKey", "ownerRef"] }));
+        const outcome = await startOperation(...partitionArgs({ value: { ...{ store: flakyStore, signer, httpClient: testHttpClient(fetchImpl), guardedFetch: nodeMediaGuardedFetch, persistRetryDelaysMs: [1, 1] }, ...{ adapter: fastAdapter(), ctx: CTX, providerId: 'imagerouter', routeKey: 'video', ownerRef: 'run-1', graceMs: 500 } }, requiredKeys: ["store", "signer", "adapter", "ctx", "providerId", "routeKey", "ownerRef"] }));
         const row = await realStore.get({ id: outcome.operationId });
         expect(row?.status).toBe('submitted');
         expect(row?.status).not.toBe('failed');
         // Prove the row is not actually lost: boot recovery reaches it precisely because it is
         // "submitted", and routes it to "unknown" for a non-idempotent adapter rather than never
         // seeing it again.
-        const recovery = await recoverAfterRestart(...partitionArgs({ value: { ...{ store: realStore, signer, httpClient: testHttpClient(fetchImpl) }, ...{ adapters: () => fastAdapter({ submitIsIdempotent: false }), now: Date.now() } }, requiredKeys: ["store", "signer", "adapters"] }));
+        const recovery = await recoverAfterRestart(...partitionArgs({ value: { ...{ store: realStore, signer, httpClient: testHttpClient(fetchImpl), guardedFetch: nodeMediaGuardedFetch }, ...{ adapters: () => fastAdapter({ submitIsIdempotent: false }), now: Date.now() } }, requiredKeys: ["store", "signer", "adapters"] }));
         expect(recovery.unknownCrashGap).toBe(1);
         expect((await realStore.get({ id: outcome.operationId }))?.status).toBe('unknown');
     });
@@ -217,7 +218,7 @@ describe('pollDueOperations', () => {
         const store = createInMemoryAsyncOperationStore();
         await seedPolling(store);
         const fetchImpl = vi.fn(async () => json({ status: 'completed', b64: Buffer.from('DONE').toString('base64') }));
-        const stats = await pollDueOperations(...partitionArgs({ value: { ...{ store, signer, httpClient: testHttpClient(fetchImpl) }, ...{ adapters: () => fastAdapter(), resolveContext, leaseOwner: 'w1', leaseMs: 1000 } }, requiredKeys: ["store", "signer", "adapters", "resolveContext", "leaseOwner", "leaseMs"] }));
+        const stats = await pollDueOperations(...partitionArgs({ value: { ...{ store, signer, httpClient: testHttpClient(fetchImpl), guardedFetch: nodeMediaGuardedFetch }, ...{ adapters: () => fastAdapter(), resolveContext, leaseOwner: 'w1', leaseMs: 1000 } }, requiredKeys: ["store", "signer", "adapters", "resolveContext", "leaseOwner", "leaseMs"] }));
         const row = await store.get({ id: 'op-1' });
         expect(stats.completed).toBe(1);
         expect(row?.status).toBe('succeeded');
@@ -235,7 +236,7 @@ describe('pollDueOperations', () => {
             seen.push((init.headers as Record<string, string>).authorization ?? '');
             return json({ status: 'pending' });
         });
-        const deps = { store, signer: rotating, httpClient: testHttpClient(fetchImpl) };
+        const deps = { store, signer: rotating, httpClient: testHttpClient(fetchImpl), guardedFetch: nodeMediaGuardedFetch };
         const params = { adapters: () => fastAdapter(), resolveContext, leaseOwner: 'w1', leaseMs: 1000 };
         await pollDueOperations(...partitionArgs({ value: { ...deps, ...params }, requiredKeys: ["store", "signer", "adapters", "resolveContext", "leaseOwner", "leaseMs"] }));
         await store.update({ id: 'op-1', patch: { nextPollAt: 0 } });
@@ -246,7 +247,7 @@ describe('pollDueOperations', () => {
         const store = createInMemoryAsyncOperationStore();
         await seedPolling(store, 'op-1', { maxAttempts: 2 });
         const fetchImpl = vi.fn(async () => json({ status: 'pending' }));
-        const deps = { store, signer, httpClient: testHttpClient(fetchImpl) };
+        const deps = { store, signer, httpClient: testHttpClient(fetchImpl), guardedFetch: nodeMediaGuardedFetch };
         const params = { adapters: () => fastAdapter(), resolveContext, leaseOwner: 'w1', leaseMs: 1000 };
         for (let n = 0; n < 3; n += 1) {
             await store.update({ id: 'op-1', patch: { nextPollAt: 0 } });
@@ -271,7 +272,7 @@ describe('pollDueOperations', () => {
             await store.releaseLease({ id: 'op-1', leaseOwner: 'worker-B' });
             return json({ status: 'pending' });
         });
-        await pollDueOperations(...partitionArgs({ value: { ...{ store, signer, httpClient: testHttpClient(fetchImpl) }, ...{ adapters: () => fastAdapter(), resolveContext, leaseOwner: 'worker-A', leaseMs: 5 } }, requiredKeys: ["store", "signer", "adapters", "resolveContext", "leaseOwner", "leaseMs"] }));
+        await pollDueOperations(...partitionArgs({ value: { ...{ store, signer, httpClient: testHttpClient(fetchImpl), guardedFetch: nodeMediaGuardedFetch }, ...{ adapters: () => fastAdapter(), resolveContext, leaseOwner: 'worker-A', leaseMs: 5 } }, requiredKeys: ["store", "signer", "adapters", "resolveContext", "leaseOwner", "leaseMs"] }));
         // Worker A's own write (attempts: 1, a fresh nextPollAt) must have been dropped as stale —
         // B's newer state must survive untouched.
         const row = await store.get({ id: 'op-1' });
@@ -282,7 +283,7 @@ describe('pollDueOperations', () => {
         const store = createInMemoryAsyncOperationStore();
         await seedPolling(store, 'op-1', { deadlineAt: Date.now() - 1 });
         const fetchImpl = vi.fn(async () => json({ status: 'pending' }));
-        const stats = await pollDueOperations(...partitionArgs({ value: { ...{ store, signer, httpClient: testHttpClient(fetchImpl) }, ...{ adapters: () => fastAdapter(), resolveContext, leaseOwner: 'w1', leaseMs: 1000 } }, requiredKeys: ["store", "signer", "adapters", "resolveContext", "leaseOwner", "leaseMs"] }));
+        const stats = await pollDueOperations(...partitionArgs({ value: { ...{ store, signer, httpClient: testHttpClient(fetchImpl), guardedFetch: nodeMediaGuardedFetch }, ...{ adapters: () => fastAdapter(), resolveContext, leaseOwner: 'w1', leaseMs: 1000 } }, requiredKeys: ["store", "signer", "adapters", "resolveContext", "leaseOwner", "leaseMs"] }));
         const row = await store.get({ id: 'op-1' });
         expect(stats.unknown).toBe(1);
         expect(row?.status).toBe('unknown');
@@ -305,17 +306,17 @@ describe('crash recovery', () => {
                 return json({ id: 'job-77' });
             return json({ status: 'completed', b64: Buffer.from('RECOVERED').toString('base64') });
         });
-        const outcome = await startOperation(...partitionArgs({ value: { ...{ store, signer, httpClient: testHttpClient(fetchImpl) }, ...{ adapter: fastAdapter(), ctx: CTX, providerId: 'imagerouter', routeKey: 'video', ownerRef: 'run-1', graceMs: 500 } }, requiredKeys: ["store", "signer", "adapter", "ctx", "providerId", "routeKey", "ownerRef"] }));
+        const outcome = await startOperation(...partitionArgs({ value: { ...{ store, signer, httpClient: testHttpClient(fetchImpl), guardedFetch: nodeMediaGuardedFetch }, ...{ adapter: fastAdapter(), ctx: CTX, providerId: 'imagerouter', routeKey: 'video', ownerRef: 'run-1', graceMs: 500 } }, requiredKeys: ["store", "signer", "adapter", "ctx", "providerId", "routeKey", "ownerRef"] }));
         expect(outcome.done).toBe(false);
         // Worker A claims the row and is killed mid-poll: the lease is held by a process that no
         // longer exists, and nothing else about the row was ever in that process's memory.
         await store.update({ id: outcome.operationId, patch: { nextPollAt: 0 } });
         const leased = await store.claimDue(...partitionArgs({ value: { now: Date.now(), leaseOwner: 'worker-A-dead', leaseMs: 30000 }, requiredKeys: ["now", "leaseOwner", "leaseMs"] }));
         expect(leased).toHaveLength(1);
-        const recovery = await recoverAfterRestart(...partitionArgs({ value: { ...{ store, signer, httpClient: testHttpClient(fetchImpl) }, ...{ adapters: () => fastAdapter(), now: Date.now() + 60000 } }, requiredKeys: ["store", "signer", "adapters"] }));
+        const recovery = await recoverAfterRestart(...partitionArgs({ value: { ...{ store, signer, httpClient: testHttpClient(fetchImpl), guardedFetch: nodeMediaGuardedFetch }, ...{ adapters: () => fastAdapter(), now: Date.now() + 60000 } }, requiredKeys: ["store", "signer", "adapters"] }));
         expect(recovery.leasesReleased).toBe(1);
         await store.update({ id: outcome.operationId, patch: { nextPollAt: 0 } });
-        const stats = await pollDueOperations(...partitionArgs({ value: { ...{ store, signer, httpClient: testHttpClient(fetchImpl) }, ...{ adapters: () => fastAdapter(), resolveContext, leaseOwner: 'worker-B', leaseMs: 1000 } }, requiredKeys: ["store", "signer", "adapters", "resolveContext", "leaseOwner", "leaseMs"] }));
+        const stats = await pollDueOperations(...partitionArgs({ value: { ...{ store, signer, httpClient: testHttpClient(fetchImpl), guardedFetch: nodeMediaGuardedFetch }, ...{ adapters: () => fastAdapter(), resolveContext, leaseOwner: 'worker-B', leaseMs: 1000 } }, requiredKeys: ["store", "signer", "adapters", "resolveContext", "leaseOwner", "leaseMs"] }));
         const row = await store.get({ id: outcome.operationId });
         expect(stats.completed).toBe(1);
         expect(row?.status).toBe('succeeded');
@@ -378,7 +379,7 @@ describe('pollDueOperations — per-row verdicts and bookkeeping', () => {
         return pollDueOperations(...partitionArgs({ value: {
             store,
             signer,
-            httpClient: testHttpClient(fetchImpl),
+            httpClient: testHttpClient(fetchImpl), guardedFetch: nodeMediaGuardedFetch,
             adapters: over.adapters ?? (() => fastAdapter()),
             resolveContext,
             leaseOwner: 'w1',
@@ -614,12 +615,13 @@ describe('operation runtime — defaults and outbound threading', () => {
         const seen: RenderContext[] = [];
         const outboundMessages = { dispatcherRefused: 'custom dispatcher refusal' };
         await pollDueOperations(...partitionArgs({ value: {
-            store, signer, httpClient: testHttpClient(vi.fn(async () => json({}))), allowPrivateNetwork: false, outboundMessages,
+            store, signer, httpClient: testHttpClient(vi.fn(async () => json({}))), guardedFetch: nodeMediaGuardedFetch, allowPrivateNetwork: false, outboundMessages,
             adapters: () => capturingAdapter(seen), resolveContext: () => CTX, leaseOwner: 'w1', leaseMs: 1000, clock: () => T0,
         }, requiredKeys: ["store", "signer", "adapters", "resolveContext", "leaseOwner", "leaseMs"] }));
         expect(seen[0]?.allowPrivateNetwork).toBe(false);
         expect(seen[0]?.outboundMessages).toBe(outboundMessages);
         expect(seen[0]?.httpClient).toBeDefined();
+        expect(seen[0]?.guardedFetch).toBe(nodeMediaGuardedFetch);
     });
 
     it('refuses network I/O and records the failure without invoking the parser when no client is given', async () => {
@@ -642,7 +644,7 @@ describe('operation runtime — defaults and outbound threading', () => {
             return json({ b64: Buffer.from('OK').toString('base64') });
         });
         const outcome = await startOperation(...partitionArgs({ value: {
-            store, signer, httpClient: testHttpClient(fetchImpl),
+            store, signer, httpClient: testHttpClient(fetchImpl), guardedFetch: nodeMediaGuardedFetch,
             adapter: fastAdapter(), ctx: CTX, providerId: 'imagerouter', routeKey: 'video', ownerRef: 'run-1',
         }, requiredKeys: ["store", "signer", "adapter", "ctx", "providerId", "routeKey", "ownerRef"] }));
         expect(outcome.done).toBe(true);

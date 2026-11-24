@@ -291,8 +291,8 @@
    "MEDIA_PROVIDER_CONTRACT": "variable:f8e3a7c887",
    "MEDIA_PROVIDER_ID_ALIASES": "variable:1740c65745",
    "MediaDispatchEngine": "interface:675c88e891",
-   "MediaDispatchEngineOptions": "interface:68937559ac",
-   "MediaDispatchEngineRequired": "interface:20c4f286b1",
+   "MediaDispatchEngineOptions": "interface:61a28deda6",
+   "MediaDispatchEngineRequired": "interface:8605598c00",
    "MediaExecutionMode": "type:95a9585028",
    "MediaExecutionPolicy": "interface:16b4777db1",
    "MediaFamily": "type:a46455a5a5",
@@ -302,7 +302,7 @@
    "MediaImageReference": "interface:79c7a35813",
    "MediaModel": "interface:9cca162139",
    "MediaModelCatalog": "interface:7722dd809c",
-   "MediaOutboundOptions": "interface:d339865ea7",
+   "MediaOutboundOptions": "interface:1368cbb662",
    "MediaPolicy": "interface:0b04ddb95d",
    "MediaPolicyDenial": "interface:641004a77a",
    "MediaPolicyDenialCode": "type:3a19bc8d2b",
@@ -372,7 +372,7 @@
    "createImageRouterVideoPollingAdapter": "function:6bddc5c4c9",
    "createInMemoryAsyncOperationStore": "function:d33df33792",
    "createInMemoryMediaTaskStore": "function:ef69cf6fa6",
-   "createMediaDispatchEngine": "function:c7fb69d5fa",
+   "createMediaDispatchEngine": "function:3a9f2f64f9",
    "createMediaProviderRegistry": "function:22b614eb00",
    "createRawBytesParser": "function:35d6e57296",
    "createSqliteAsyncOperationStore": "function:fa768e13fd",
@@ -473,7 +473,8 @@
   "types": "./dist/media-providers/dispatch/node.d.ts",
   "symbols": {
    "NodeMediaHttpClientOptions": "interface:30fa47365c",
-   "createNodeMediaHttpClient": "function:3335558ca6"
+   "createNodeMediaHttpClient": "function:3335558ca6",
+   "nodeMediaGuardedFetch": "variable:7cca3360aa"
   }
  },
  "./saved-requests": {
@@ -481,7 +482,7 @@
   "symbols": {
    "SavedRequestCredentialResolverPort": "interface:cdc502c070",
    "SavedRequestDefinition": "interface:abc0567753",
-   "SavedRequestDeps": "interface:a639b7d028",
+   "SavedRequestDeps": "interface:64839a7d99",
    "SavedRequestError": "class:5b3c02638e",
    "SavedRequestErrorCode": "type:7732bedc12",
    "SavedRequestOutputField": "interface:7af571d4b5",
@@ -494,6 +495,71 @@
   "types": "./dist/vendor-credentials/abort-guarded-repo.d.ts",
   "symbols": {
    "abortGuardedCredentialRepo": "function:38c11efb44"
+  }
+ },
+ "./web-screenshot/capture-files": {
+  "types": "./dist/web-screenshot/capture-files.d.ts",
+  "symbols": {
+   "CAPTURES_DIR_NAME": "variable:4172f41930",
+   "captureRootFor": "function:83da56505f",
+   "createCaptureFileWriter": "function:ece31278af"
+  }
+ },
+ "./web-screenshot/desktop-page-capture": {
+  "types": "./dist/web-screenshot/desktop-page-capture.d.ts",
+  "symbols": {
+   "IsNativeRenderError": "type:a4cb29f1d3",
+   "NativeRenderError": "interface:963705b0f9",
+   "NativeUrlCapture": "interface:c061725a5a",
+   "createDesktopPageCapture": "function:99d9b0bb0a",
+   "createPageCaptureForHost": "function:81eb7089d7"
+  }
+ },
+ "./web-screenshot/own-site-opener": {
+  "types": "./dist/web-screenshot/own-site-opener.d.ts",
+  "symbols": {
+   "OpenLoopbackSite": "type:8260c3c468",
+   "RenderableTheme": "interface:2e77954534",
+   "createOwnSiteOpener": "function:cf0318470f"
+  }
+ },
+ "./web-screenshot/screenshot-image": {
+  "types": "./dist/web-screenshot/screenshot-image.d.ts",
+  "symbols": {
+   "createScreenshotTileEncoder": "function:53846677a3"
+  }
+ },
+ "./web-screenshot/web-screenshot": {
+  "types": "./dist/web-screenshot/web-screenshot.d.ts",
+  "symbols": {
+   "CAPTURE_LIMITS": "variable:d40f730d8e",
+   "CaptureFile": "interface:18b0252170",
+   "DEFAULT_WAIT_MS": "variable:df584191d2",
+   "EncodeTiles": "type:d275def49a",
+   "EncodedTile": "interface:f8169e7dd8",
+   "JPEG_QUALITY": "variable:c8c5f116d9",
+   "MAX_FULL_PAGE_HEIGHT_PX": "variable:e8d8dfb016",
+   "MAX_QUEUE_WAIT_MS": "variable:ebffe18bf4",
+   "MAX_URL_LENGTH": "variable:429ac0417c",
+   "MAX_WAIT_MS": "variable:75078c1f12",
+   "OpenOwnSite": "type:4847861c04",
+   "OwnSiteServer": "interface:cc69283098",
+   "PageCaptureError": "class:2bebfee316",
+   "SaveCaptureFiles": "type:573d38d874",
+   "TILE_HEIGHT_PX": "variable:50a38a7328",
+   "UNTRUSTED_NOTICE": "variable:c25a1d6aeb",
+   "VIEWPORT_NAMES": "variable:0a44a2f157",
+   "VIEWPORT_PRESETS": "variable:432808b773",
+   "ViewportName": "type:49177fc363",
+   "ViewportPreset": "type:2bdbc34c9e",
+   "WEB_SCREENSHOT_TOOL_ID": "variable:572cd50f81",
+   "WebScreenshotEvent": "interface:519dec3d79",
+   "WebScreenshotInput": "interface:4d400bf2ef",
+   "WebScreenshotPorts": "interface:58142997c7",
+   "WebScreenshotService": "interface:81c0aac216",
+   "captureRelativePaths": "function:430a3784fb",
+   "createWebScreenshotService": "function:225bb3eed9",
+   "readWebScreenshotInput": "function:5db9154a3f"
   }
  },
  "./webhooks": {
@@ -576,6 +642,28 @@
    "verifySignature": "function:fe9b057aa1"
   }
  },
+ "./webhooks/site/delivery": {
+  "types": "./dist/webhooks/site/delivery.d.ts",
+  "symbols": {
+   "EnqueueDeliveryDeps": "interface:be5f8d818a",
+   "EnqueueDeliveryRequired": "interface:2741c26089",
+   "HttpClientPort": "interface:08e48d7abe",
+   "ProcessDueDeliveriesDeps": "interface:b408836654",
+   "ProcessDueDeliveriesRequired": "interface:16f408864c",
+   "adaptWebhookHttpClient": "function:8e8ef675c0",
+   "enqueueDelivery": "function:50c4c05939",
+   "processDueDeliveries": "function:8004f1e327"
+  }
+ },
+ "./webhooks/site/repo.memory": {
+  "types": "./dist/webhooks/site/repo.memory.d.ts",
+  "symbols": {
+   "InMemoryDeliveryEnvelopeStore": "class:76ba65ccf3",
+   "InMemoryWebhookDeliveryRepo": "class:f7c5f631a4",
+   "InMemoryWebhookSubscriptionRepo": "class:bbd1f4dc11",
+   "InMemoryWebhookSubscriptionRequired": "interface:517533954b"
+  }
+ },
  "./webhooks/site/signing": {
   "types": "./dist/webhooks/site/signing.d.ts",
   "symbols": {
@@ -620,7 +708,6 @@
  "./webhooks/sql": {
   "types": "./dist/webhooks/sql/index.d.ts",
   "symbols": {
-   "AssertVersionedWritePort": "type:d2484ce25d",
    "SqlWebhookDeliveryRepo": "class:d69f918e27",
    "SqlWebhookSubscriptionRepo": "class:e1857202a7",
    "WebhookDeliveriesTable": "interface:056ae2671e",

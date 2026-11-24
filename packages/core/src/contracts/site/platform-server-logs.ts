@@ -4,7 +4,9 @@
  * Generic, not host-specific: nothing here knows about sites, workspaces or the admin. A host's
  * in-memory ring buffer of recent server log lines, its rotating log-file sink and every reader
  * (an admin route, an assistant tool) share these shapes. The buffer, its caps and the console
- * tee stay with the host.
+ * tee stay with the host. The read's filters ({@link ServerLogFilters}) and result
+ * ({@link ServerLogsResult}) live here too: the reader, the admin route that serves it and the admin
+ * client that calls that route all share them.
  *
  * Redaction is applied ON WRITE, never on read: a secret must not sit in memory waiting for a reader
  * to forget the redaction step, so `message` on a stored entry is already redacted.
@@ -33,4 +35,22 @@ export interface ServerLogEntry extends ServerLogMetadata {
   readonly source: ServerLogSource;
   /** Already redacted and length-capped. */
   readonly message: string;
+}
+
+export interface ServerLogFilters {
+  /** Minimum severity: "warn" returns warn and error. */
+  readonly level?: ServerLogLevel | undefined;
+  readonly sinceIso?: string | undefined;
+  /** Case-insensitive substring of the message. */
+  readonly contains?: string | undefined;
+  readonly limit?: number | undefined;
+}
+
+export interface ServerLogsResult {
+  /** Oldest first; the newest `limit` matching lines. */
+  readonly entries: readonly ServerLogEntry[];
+  readonly matched: number;
+  readonly buffered: number;
+  readonly truncated: boolean;
+  readonly capturing: boolean;
 }

@@ -106,8 +106,8 @@ function fieldPresentation({ field }: { field: PluginProviderSettingField }, _op
 type SavedView = Awaited<ReturnType<ProviderSettingsStore["readSettings"]>>;
 
 /**
- * What the card shows of a field's saved value. A secret only ever reports presence, never its value; a public
- * field echoes its value whenever one is stored (an empty string included), but an empty string does not count as saved.
+ * A field's saved state: a secret reports presence only (its value never leaves the store); a public field
+ * counts as saved unless missing or the empty string, and an empty string is still passed back as `value`.
  */
 function savedProjection({ field, saved }: { field: PluginProviderSettingField; saved: SavedView }, _optional: Record<string, never> = {}): Pick<ProviderSettingsCardField, "saved" | "value"> {
   if (field.secret === true) return { saved: saved?.secretNames.includes(field.name) ?? false };

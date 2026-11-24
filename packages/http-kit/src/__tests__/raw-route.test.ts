@@ -20,6 +20,17 @@ describe('mountRawRoute', () => {
     expect(calls).toEqual(['get /page']);
   });
 
+  // rv1123l FIX 2: middleware, the spec's static `responseHeaders` and the handler's `Response` can each
+  // name `Vary`; the wire carries the union (mutation: the bridge restores a plain `setHeader` replacement).
+  it('unions Vary from host middleware, static spec headers and the route Response', async () => {
+    const spec = defineRawRoute<object>({ method: 'get', path: '/v', handle: async () => new Response('x', { headers: { vary: 'Cookie, origin' } }) }, { responseHeaders: { Vary: 'Accept-Encoding' } });
+    const app = express();
+    app.use((_req, res, next) => { res.vary('Origin'); next(); });
+    mountRawRoute({ app, spec, deps: {} });
+    const response = await fetch(`${await listen({ app })}/v`);
+    expect(response.headers.get('vary')).toBe('Origin, Accept-Encoding, Cookie');
+  });
+
   it('runs the ports in mountJsonRoute order and writes status, every header and the body', async () => {
     const seen: string[] = [];
     const ports: JsonRoutePorts<{ n: number }, { id: string }> = {

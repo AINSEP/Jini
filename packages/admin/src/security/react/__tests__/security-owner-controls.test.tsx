@@ -1,3 +1,5 @@
+import { TestChipField } from './chip-field.fixture.js';
+import { testClipboard } from './clipboard.fixture.js';
 import { Suspense, useEffect, type ReactNode } from 'react';
 import { afterEach, describe, expect, it } from 'vitest';
 import { render, screen, fireEvent, cleanup } from '../../../__tests__/fetch-query-support.js';
@@ -17,7 +19,7 @@ function OwnerControls() {
 }
 function mount(permissions: readonly string[], ownerControls?: ReactNode) {
   mounts = 0;
-  const feature = security({ ui: reactModuleUi });
+  const feature = security({ ui: reactModuleUi, ChipField: TestChipField, clipboard: testClipboard });
   const admin = createAdmin({ modules: [feature], ports: { securityApi: createMemorySecurityApi({}), rootKey: createMemoryRootKey({}) } }, { permissions });
   const { Page, tabs } = feature.react.pages.secrets;
   return render(<feature.react.Provider admin={admin} {...(ownerControls === undefined ? {} : { ownerControls })}><Suspense fallback="Loading"><Page tabs={tabs} description={admin.describe().pages[0]!} /></Suspense></feature.react.Provider>);

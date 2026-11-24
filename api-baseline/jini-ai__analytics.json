@@ -98,5 +98,88 @@
    "resolveBrowserAnalyticsMode": "function:9e4f9205a7",
    "withProductAnalyticsGuards": "function:434c5b091a"
   }
+ },
+ "./site/agent-tools": {
+  "types": "./dist/site/agent-tools.d.ts",
+  "symbols": {
+   "analyticsAgentToolCatalog": "variable:5a6f63b088"
+  }
+ },
+ "./site/config.settings": {
+  "types": "./dist/site/config.settings.d.ts",
+  "symbols": {
+   "ANALYTICS_NAMESPACE": "variable:29fa6262ed",
+   "CreateSettingsAnalyticsConfigDeps": "interface:b38e8a749f",
+   "EnsureAnalyticsSettingDefinitionsDeps": "type:14dc9d0901",
+   "EnsureAnalyticsSettingDefinitionsInput": "interface:4b10449417",
+   "createSettingsAnalyticsConfig": "function:b6ba0a7cee",
+   "ensureAnalyticsSettingDefinitions": "function:ad26d0032c"
+  }
+ },
+ "./site/contracts": {
+  "types": "./dist/site/contracts.d.ts",
+  "symbols": {
+   "BrowserAnalyticsSource": "type:f091da8cc8",
+   "VisitorAnalyticsDeps": "interface:27c58dc770"
+  }
+ },
+ "./site/forwarding": {
+  "types": "./dist/site/forwarding.d.ts",
+  "symbols": {
+   "ANALYTICS_PROVIDERS_TTL_MS": "variable:a22a2ca7c2",
+   "AnalyticsForwardingRequired": "interface:345fb35679",
+   "AnalyticsProviderSet": "interface:4218c8f430",
+   "cacheAnalyticsProviders": "function:654025b7b5",
+   "createAnalyticsForwarding": "function:523cf25538",
+   "createPluginAnalyticsHooks": "function:dc75ea5b99"
+  }
+ },
+ "./site/jini-adapters": {
+  "types": "./dist/site/jini-adapters.d.ts",
+  "symbols": {
+   "AnalyticsIngestRouteDeps": "interface:dec181e711",
+   "analyticsPrivacyPolicy": "variable:e0bdd6193c",
+   "createAnalyticsIngestBinding": "function:baf1116608",
+   "createLocalAnalyticsSink": "function:29fc5a0650"
+  }
+ },
+ "./site/ports": {
+  "types": "./dist/site/ports.d.ts",
+  "symbols": {
+   "AggregateDelta": "interface:0f8ca7ca7f",
+   "AnalyticsConfigPort": "interface:dae3103921",
+   "AnalyticsDisabledError": "class:06e5a5db7d",
+   "AnalyticsDomainEvent": "type:0b37846009",
+   "AnalyticsHooks": "interface:bd901c5efd",
+   "AnalyticsPiiRejectedError": "class:5e8ae41b9b",
+   "AnalyticsRepoPort": "interface:4572435f7c",
+   "AnalyticsSinkCapabilities": "interface:22dd522124",
+   "AnalyticsSinkPort": "interface:35c93312ae",
+   "AnalyticsValidationError": "class:59c297fc01",
+   "AnalyticsWorkspaceUnresolvedError": "class:5991c39676",
+   "IngestDeps": "interface:3b058b6e3f",
+   "IngestRequired": "interface:3d97583f1e",
+   "QueryDeps": "interface:d9876d7f62",
+   "QueryRequired": "interface:6a1951f55f",
+   "RollupDeps": "interface:82e6c0e042",
+   "RollupInput": "interface:18706572e4",
+   "RollupRequired": "interface:25ddaa6e39",
+   "RollupResult": "interface:2a16ec3070"
+  }
+ },
+ "./site/salt": {
+  "types": "./dist/site/salt.d.ts",
+  "symbols": {
+   "deriveDailySalt": "function:0fb1c4fcfe"
+  }
+ },
+ "./site/tool-registrations": {
+  "types": "./dist/site/tool-registrations.d.ts",
+  "symbols": {
+   "AnalyticsToolDeps": "interface:d4a0c889b7",
+   "analyticsDerivedRisk": "variable:e65a770c63",
+   "buildAnalyticsRegistrations": "function:f7da8f82e4",
+   "contributeAnalyticsTools": "function:810378b674"
+  }
  }
 }

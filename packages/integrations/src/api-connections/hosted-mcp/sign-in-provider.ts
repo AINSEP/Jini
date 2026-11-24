@@ -1,6 +1,7 @@
 import type { OAuthAppOptions, OAuthClient, OAuthClientAuthMethod, OAuthProviderDescriptor, OAuthProviderRegistry } from "@jini-ai/core/contracts/oauth";
 import type { ExternalMcpServerRecord } from "@jini-ai/core/contracts/hosted-mcp";
-import type { ExternalMcpOAuthDeps as HostedMcpOAuthDeps, HostedMcpSignInPorts } from "./contracts.js";
+import type { HostedMcpSignInPorts } from "./contracts.js";
+import type { ExternalMcpOAuthDeps as HostedMcpOAuthDeps } from "@jini-ai/core/contracts/site/api-connections-hosted-mcp";
 import type { SharedExternalMcpOwner } from "./shared-sign-in.js";
 
 /** {@link ExternalMcpOAuthDeps} as the service holds them: `providers` defaulted once at construction,

@@ -1,8 +1,14 @@
 /** Explicit Node adapter entry. Hosts construct this once and inject it into media services. */
 import type { HttpClientPort } from '@jini-ai/core/primitives';
 import { FETCH_TIMEOUT_MS } from '@jini-ai/core/net';
-import { createHttpClient, createNodeGuardedHttpPorts } from '@jini-ai/platform/http/guarded';
+import { createHttpClient, createNodeGuardedHttpPorts, guardedFetch } from '@jini-ai/platform/http/guarded';
 import type { DnsResolver } from '@jini-ai/core/contracts/runtime';
+import type { MediaGuardedFetch } from './outbound.js';
+
+/** The composer binds the platform's guarded fetch adapter here; hosts inject it beside the client
+ * (`guardedFetch` on the engine options, render contexts and operation-runtime deps).
+ */
+export const nodeMediaGuardedFetch: MediaGuardedFetch = guardedFetch;
 
 export interface NodeMediaHttpClientOptions {
   readonly allowPrivateNetwork?: boolean;

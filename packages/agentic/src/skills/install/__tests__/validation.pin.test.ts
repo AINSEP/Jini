@@ -1,7 +1,8 @@
 // Characterization pins for validateSkillMarkdown and validateSkillFiles: every refusal message,
 // the folder-prefix rules, location/type allow-lists, size limits and content sniffing.
 import { describe, expect, it } from 'vitest';
-import { decodeSkillBase64, SkillInputError, validateSkillFiles, validateSkillMarkdown, type SkillUploadFile } from '../validation.js';
+import { decodeSkillBase64, SkillInputError, validateSkillFiles, validateSkillMarkdown } from '../validation.js';
+import type { SkillUploadFile } from "@jini-ai/core/contracts/site/skills-install";
 import type { YamlReaderPort } from '../ports.js';
 
 /** Fixture reader: a tiny `key: value` splitter, not a YAML parser. Hosts supply a real one. */

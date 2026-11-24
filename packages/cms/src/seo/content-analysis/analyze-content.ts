@@ -24,6 +24,8 @@
  *   `wordCount === 0` before presenting readability at all.
  */
 
+import type { ContentBlock, HeadingLevel } from "@jini-ai/core/contracts/site/seo-content-analysis";
+
 export type CheckId =
   | "title-length"
   | "meta-description-length"
@@ -38,7 +40,6 @@ export interface ContentCheck {
   status: CheckStatus;
   params: Record<string, number | string>;
 }
-export type HeadingLevel = 1 | 2 | 3 | 4 | 5 | 6;
 /** `anchor` = slugified heading text, de-duplicated with `-2`, `-3`, ... */
 export interface TocEntry {
   level: HeadingLevel;
@@ -64,11 +65,6 @@ export interface ContentAnalysisReport {
   /** Always all 7 ids, in `CheckId` declaration order. */
   checks: ContentCheck[];
 }
-
-export type ContentBlock =
-  | { kind: "heading"; level: HeadingLevel; text: string }
-  | { kind: "text"; text: string }
-  | { kind: "image"; alt: string | null };
 
 export interface AnalyzeContentRequired {
   title: string;

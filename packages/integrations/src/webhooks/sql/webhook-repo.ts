@@ -1,3 +1,4 @@
+import type { AssertVersionedWritePort } from "@jini-ai/core/optimistic-concurrency";
 import type { Insertable, Kysely, Selectable } from "kysely";
 import type { StorageKernel } from "@jini-ai/core/contracts/storage";
 
@@ -52,19 +53,11 @@ export interface WebhookTables { webhookSubscriptions: string; webhookDeliveries
 export interface WebhookSqlRequired { kernel: StorageKernel<Kysely<unknown>, unknown>; tables: WebhookTables }
 
 /**
- * Finishes a conditional subscription save: changed rows mean done; none means re-read the live
- * version and throw the host's conflict error. The host binds its optimistic-concurrency
- * implementation (normally `@jini-ai/core/optimistic-concurrency`'s `assertVersionedWrite`).
+ * The subscription adapter's constructor object: the shared SQL deps plus its versioned-write
+ * collaborator. Changed rows mean done; none means re-read the live version and throw the host's
+ * conflict error. The host binds its optimistic-concurrency implementation (normally
+ * `@jini-ai/core/optimistic-concurrency`'s `assertVersionedWrite`).
  */
-export type AssertVersionedWritePort = (required: {
-  changedRows: number | bigint;
-  recordKind: string;
-  recordId: string;
-  expectedVersion: number;
-  readCurrentVersion: () => Promise<number | null>;
-}) => Promise<void>;
-
-/** The subscription adapter's constructor object: the shared SQL deps plus its versioned-write collaborator. */
 export interface WebhookSubscriptionSqlRequired extends WebhookSqlRequired { assertVersionedWrite: AssertVersionedWritePort }
 
 function topicsToJson(topics: readonly WebhookTopic[]): string {

@@ -46,7 +46,7 @@ export interface PluginSourceDeps extends ManifestHostPorts {
   readonly builtInIds: readonly string[];
   readonly installer: PluginInstallerPort;
   readonly policy: PluginSourcePolicyPort;
-  /** The host's cross-process file lock (Node hosts pass `nodeFileLock` of `@jini-ai/node-adapters/fs`). Required: a default would re-import platform. */
+  /** The host's cross-process file lock (Node hosts pass `createFileLockPort({ withFileLock })` of `@jini-ai/node-adapters/fs`). Required: a default would re-import platform. */
   readonly fileLock: FileLockPort;
   /** Host-specific opt-in instructions; omitted hosts receive a neutral refusal. */
   readonly localInstallDisabledMessage?: string;

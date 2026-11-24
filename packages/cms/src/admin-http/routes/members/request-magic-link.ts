@@ -25,14 +25,13 @@ export interface MemberRequestMagicLinkRouteDeps {
 }
 
 /**
- * The request body exactly as received. Its two fields are string-coerced in `handle`, after authorization, because
- * the hand-written route coerced them there: a body whose fields cannot be coerced must still get the denied
- * caller's 403, never a coercion 500 answered before the permission check.
+ * The raw, uncoerced request body. Coercion runs in `handle` only after `authorizeMemberManage`, because the
+ * legacy handler authorized first: a denied caller whose field coercion would throw still gets the 403.
  */
-type MagicLinkInput = Readonly<Record<string, unknown>>;
+interface MagicLinkInput { body: Record<string, unknown> }
 
-/** The two body fields, string-coerced as the hand-written route read them; nothing is refused here. */
-function magicLinkFields(body: MagicLinkInput, _optional: Record<string, never> = {}): { rawEmail: string; redirectPath: string | undefined } {
+/** The two body fields, string-coerced as the hand-written route read them (call only after authorization). */
+function coerceMagicLinkBody({ body }: MagicLinkInput, _optional: Record<string, never> = {}): { rawEmail: string; redirectPath: string | undefined } {
   return { rawEmail: String(body.email ?? ""), redirectPath: body.redirectPath ? String(body.redirectPath) : undefined };
 }
 
@@ -93,12 +92,11 @@ function rejectMagicLinkError({ err, deps }: { err: unknown; deps: MemberRequest
 export const memberRequestMagicLinkRoute = defineJsonRoute<MagicLinkInput, MemberSignInLinkResult | RouteReply, MemberRequestMagicLinkRouteDeps, MemberRoutePrincipal>({
   method: "post",
   path: "/api/admin/v1/workspaces/:workspaceId/members/request-magic-link",
-  parse: (raw) => ok({ value: (raw.body ?? {}) as MagicLinkInput }),
+  parse: (raw) => ok({ value: { body: (raw.body ?? {}) as Record<string, unknown> } }),
   handle: async ({ input, deps, authorize }) => {
     await authorizeMemberManage({ authorize });
+    const { rawEmail, redirectPath } = coerceMagicLinkBody(input);
     try {
-      // Inside the try, as in the hand-written route: a coercion failure takes the unclassified-error path.
-      const { rawEmail, redirectPath } = magicLinkFields(input);
       const limited = await rateLimitReply({ deps, rawEmail });
       if (limited) return ok({ value: limited });
       return ok({ value: await deps.requestSignInLink({ workspaceId: deps.workspaceId, email: rawEmail, redirectPath }) });

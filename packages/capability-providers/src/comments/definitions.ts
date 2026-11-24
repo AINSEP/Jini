@@ -1,13 +1,4 @@
-export interface CommentsSettingField { readonly key: string; readonly label: string; readonly kind: 'public' | 'secret'; readonly required: boolean }
-export interface CommentsProviderDefinition {
-  readonly id: string;
-  readonly label: string;
-  readonly kind: 'stored' | 'embedded';
-  readonly consentCategory: 'functional' | 'marketing';
-  readonly csp: { readonly scriptSrc: readonly string[]; readonly frameSrc: readonly string[]; readonly connectSrc: readonly string[]; readonly styleSrc: readonly string[] };
-  readonly settingsSchema: readonly CommentsSettingField[];
-  readonly implementation: 'metadata-only' | 'adapter';
-}
+import type { CommentsProviderDefinition } from "@jini-ai/core/contracts/site/capability-providers-comments";
 /** Returns an immutable, isolated definition; malformed metadata is refused before registration. */
 export function freezeCommentsDefinition({ definition }: { definition: CommentsProviderDefinition }, _options = {}): CommentsProviderDefinition {
   if (!/^[a-z0-9][a-z0-9._-]*$/.test(definition.id) || !definition.label.trim()) throw new Error('Invalid comments provider identity');

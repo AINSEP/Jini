@@ -56,6 +56,7 @@ export {
   resolveDefinition,
   type ResolvedSetting,
   getEffective,
+  type GetEffectivePort,
 } from "./settings.js";
 
 export { type AuthorizeFn, type SettingsWriteServiceDeps, deriveRequiredPermission, type RegisterDefinitionsRequired, registerDefinitions } from "./write-service.js";
@@ -93,6 +94,7 @@ export {
   type SettingDefinitionSpec,
   type EnsureSettingDefinitionsDeps,
   type EnsureSettingDefinitionsInput,
+  type EnsureSettingDefinitionsPort,
   ensureSettingDefinitions,
 } from "./ensure-definitions.js";
 

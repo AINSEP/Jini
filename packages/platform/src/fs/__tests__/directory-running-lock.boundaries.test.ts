@@ -1,7 +1,8 @@
 import { expect, test } from "vitest";
 import type { BootIdentity } from "@jini-ai/core/contracts/runtime";
 import { createDirectoryRunningLock, type DirectoryRunningRecord } from "../directory-running-lock.js";
-import type { DurableJsonFile, JsonFileRead } from "../durable-json.js";
+import type { DurableJsonFile } from "../durable-json.js";
+import type { JsonFileRead } from "@jini-ai/core/contracts/site/fs-durable-json";
 
 const record: DirectoryRunningRecord = { pid: 10, port: 0, app: "Desktop", started: "2026-10-09T01:00:00.000Z", token: "first", scheme: "http" };
 function fixture({ stored: initial = { state: "missing" }, alive = true, boot }: { stored?: JsonFileRead; alive?: boolean; boot?: BootIdentity } = {}) {

@@ -28,7 +28,12 @@
       "./system": "universal",
       "./mail/email-template": "node",
       "./mail/email-template-operations": "node",
+      "./mail/email-template-agent-tools": "universal",
       "./mail/smtp": "node",
+      "./mail/test-send": "node",
+      "./mail/feedback-setup": "node",
+      "./mail/use-readiness": "node",
+      "./mail/sql": "node",
       "./fs/guarded-reader": "node",
       "./fs/durable-json": "node",
       "./fs": "node",
@@ -70,7 +75,8 @@
       "hast-util-to-mdast": "opt-in: html to markdown conversion; import @jini-ai/platform/web — HTML to Markdown conversion could not load hast-util-to-mdast. Install hast-util-to-mdast to enable this feature, or check its installed version and native binaries.",
       "mdast-util-to-markdown": "opt-in: html to markdown conversion; import @jini-ai/platform/web — HTML to Markdown conversion could not load mdast-util-to-markdown. Install mdast-util-to-markdown to enable this feature, or check its installed version and native binaries.",
       "mdast-util-gfm-table": "opt-in: markdown table conversion; import @jini-ai/platform/web — Markdown table conversion could not load mdast-util-gfm-table. Install mdast-util-gfm-table to enable this feature, or check its installed version and native binaries.",
-      "parse5": "opt-in: html parsing; import @jini-ai/platform/web, @jini-ai/platform/mail/email-template or @jini-ai/platform/mail/email-template-operations — HTML parsing could not load parse5. Install parse5 to enable this feature, or check its installed version and native binaries."
+      "parse5": "opt-in: html parsing; import @jini-ai/platform/web, @jini-ai/platform/mail/email-template or @jini-ai/platform/mail/email-template-operations — HTML parsing could not load parse5. Install parse5 to enable this feature, or check its installed version and native binaries.",
+      "kysely": "opt-in: sql storage adapters; import @jini-ai/platform/mail/sql — SQL storage adapters could not load kysely. Install kysely to enable this feature, or check its installed version and native binaries."
     }
   },
   "type": "module",
@@ -153,10 +159,35 @@
       "import": "./dist/mail/email-template-operations.js",
       "default": "./dist/mail/email-template-operations.js"
     },
+    "./mail/email-template-agent-tools": {
+      "types": "./dist/mail/email-template-agent-tools.d.ts",
+      "import": "./dist/mail/email-template-agent-tools.js",
+      "default": "./dist/mail/email-template-agent-tools.js"
+    },
     "./mail/smtp": {
       "types": "./dist/mail/smtp.d.ts",
       "import": "./dist/mail/smtp.js",
       "default": "./dist/mail/smtp.js"
+    },
+    "./mail/test-send": {
+      "types": "./dist/mail/test-send.d.ts",
+      "import": "./dist/mail/test-send.js",
+      "default": "./dist/mail/test-send.js"
+    },
+    "./mail/feedback-setup": {
+      "types": "./dist/mail/feedback-setup.d.ts",
+      "import": "./dist/mail/feedback-setup.js",
+      "default": "./dist/mail/feedback-setup.js"
+    },
+    "./mail/use-readiness": {
+      "types": "./dist/mail/use-readiness.d.ts",
+      "import": "./dist/mail/use-readiness.js",
+      "default": "./dist/mail/use-readiness.js"
+    },
+    "./mail/sql": {
+      "types": "./dist/mail/sql/index.d.ts",
+      "import": "./dist/mail/sql/index.js",
+      "default": "./dist/mail/sql/index.js"
     },
     "./fs/guarded-reader": {
       "types": "./dist/fs/guarded-reader.d.ts",
@@ -279,14 +310,16 @@
     "mdast-util-to-markdown": "2.1.2",
     "mdast-util-gfm-table": "2.0.0",
     "parse5": "7.3.0",
-    "fast-check": "4.3.0"
+    "fast-check": "4.3.0",
+    "kysely": "^0.29.6"
   },
   "peerDependencies": {
     "hast-util-from-parse5": "8.0.3",
     "hast-util-to-mdast": "10.1.2",
     "mdast-util-to-markdown": "2.1.2",
     "mdast-util-gfm-table": "2.0.0",
-    "parse5": "7.3.0"
+    "parse5": "7.3.0",
+    "kysely": "^0.29.6"
   },
   "peerDependenciesMeta": {
     "hast-util-from-parse5": {
@@ -302,6 +335,9 @@
       "optional": true
     },
     "parse5": {
+      "optional": true
+    },
+    "kysely": {
       "optional": true
     }
   }

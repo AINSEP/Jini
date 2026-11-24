@@ -13,6 +13,8 @@ import { createTestRouteHost } from '@jini-ai/core/contracts/server/testing';
 import { composeJiniKernel, type JiniKernel } from '../compose-jini-kernel.js';
 import { createBuiltInFeatures } from '../builtin-features.js';
 import { defineJiniFeature } from '../feature.js';
+import { egressFeatureOptions } from './fixtures/host-egress-ports.js';
+import { nodeOsPorts } from './fixtures/node-os-ports.js';
 
 /**
  * Integration suite for the one composition path. Nothing is mocked: every test builds a real
@@ -33,7 +35,7 @@ async function compose(config: Omit<Parameters<typeof composeJiniKernel>[0], 'ap
   const app = config.app ?? express();
   installRouteRegistrationGuard({ app });
   const adapter: RouteHostContext = createTestRouteHost();
-  const kernel = await composeJiniKernel({ resolvedPortRef: { current: 4000 }, ...config, app, adapter });
+  const kernel = await composeJiniKernel({ resolvedPortRef: { current: 4000 }, ...config, featureOptions: { ...egressFeatureOptions, ...config.featureOptions }, app, adapter });
   kernels.push(kernel);
   return { app, kernel };
 }
@@ -59,7 +61,7 @@ describe('the Route-vs-Tool Gap, closed structurally', () => {
   it("a disabled feature's TOOLS are absent from the registry, not merely its routes unmounted", async () => {
     const { app, kernel } = await compose({
       security: { mode: 'host' },
-      storage: { kind: 'sqlite', open: openSqlite, dataDir: makeTempDataDir() },
+      osPorts: nodeOsPorts, storage: { kind: 'sqlite', open: openSqlite, dataDir: makeTempDataDir() },
       profile: 'local-daemon-v1',
       featureOptions: { daemonStatus: { requestShutdown: () => undefined } },
       features: { terminal: false },
@@ -78,7 +80,7 @@ describe('the Route-vs-Tool Gap, closed structurally', () => {
   it('and with the same feature enabled, BOTH the tool and the routes appear', async () => {
     const { app, kernel } = await compose({
       security: { mode: 'host' },
-      storage: { kind: 'sqlite', open: openSqlite, dataDir: makeTempDataDir() },
+      osPorts: nodeOsPorts, storage: { kind: 'sqlite', open: openSqlite, dataDir: makeTempDataDir() },
       profile: 'local-daemon-v1',
       featureOptions: { daemonStatus: { requestShutdown: () => undefined } },
     });
@@ -90,7 +92,7 @@ describe('the Route-vs-Tool Gap, closed structurally', () => {
   it('the same holds for daemonDb: disabling it removes all three daemon.db.* tools', async () => {
     const { app, kernel } = await compose({
       security: { mode: 'host' },
-      storage: { kind: 'sqlite', open: openSqlite, dataDir: makeTempDataDir() },
+      osPorts: nodeOsPorts, storage: { kind: 'sqlite', open: openSqlite, dataDir: makeTempDataDir() },
       profile: 'local-daemon-v1',
       featureOptions: { daemonStatus: { requestShutdown: () => undefined } },
       features: { daemonDb: false },
@@ -105,7 +107,7 @@ describe('the Route-vs-Tool Gap, closed structurally', () => {
   it('a tool removed by a capability denial is likewise absent — the coarse switch reaches tools too', async () => {
     const { kernel } = await compose({
       security: { mode: 'host' },
-      storage: { kind: 'sqlite', open: openSqlite, dataDir: makeTempDataDir() },
+      osPorts: nodeOsPorts, storage: { kind: 'sqlite', open: openSqlite, dataDir: makeTempDataDir() },
       profile: 'local-daemon-v1',
       featureOptions: { daemonStatus: { requestShutdown: () => undefined } },
       capabilities: { 'host:exec': false },
@@ -121,7 +123,7 @@ describe('shared kernel resources', () => {
   it("health's readiness probe still works with daemonDb disabled — the sqlite connection belongs to the kernel, not to either feature", async () => {
     const { kernel } = await compose({
       security: { mode: 'host' },
-      storage: { kind: 'sqlite', open: openSqlite, dataDir: makeTempDataDir() },
+      osPorts: nodeOsPorts, storage: { kind: 'sqlite', open: openSqlite, dataDir: makeTempDataDir() },
       profile: 'local-daemon-v1',
       featureOptions: { daemonStatus: { requestShutdown: () => undefined } },
       features: { daemonDb: false, toolCatalog: false },
@@ -143,9 +145,9 @@ describe('shared kernel resources', () => {
         security: { mode: 'host' },
         app,
       adapter: createTestRouteHost(), resolvedPortRef: { current: 4000 },
-      storage: { kind: 'sqlite', open: openSqlite, dataDir },
+      osPorts: nodeOsPorts, storage: { kind: 'sqlite', open: openSqlite, dataDir },
       profile: 'local-daemon-v1',
-      featureOptions: { daemonStatus: { requestShutdown: () => undefined } },
+      featureOptions: { ...egressFeatureOptions, daemonStatus: { requestShutdown: () => undefined } },
     });
 
     const connection = kernel.base.sqlite!.connection;
@@ -158,7 +160,7 @@ describe('shared kernel resources', () => {
   it('memory storage opens no sqlite handle at all', async () => {
     const { kernel } = await compose({
       security: { mode: 'host' },
-      storage: { kind: 'memory' }, profile: 'agent-core-v1' });
+      osPorts: nodeOsPorts, storage: { kind: 'memory' }, profile: 'agent-core-v1' });
     expect(kernel.base.sqlite).toBeNull();
   });
 
@@ -166,7 +168,7 @@ describe('shared kernel resources', () => {
     await expect(
       compose({
       security: { mode: 'host' },
-      storage: { kind: 'memory' },
+      osPorts: nodeOsPorts, storage: { kind: 'memory' },
         profile: 'agent-core-v1',
         capabilities: { 'db:admin': true },
         features: { daemonDb: true },
@@ -186,7 +188,7 @@ describe('JINI_ALLOWED_ORIGINS validation', () => {
     await expect(
       compose({
       security: { mode: 'host' },
-      storage: { kind: 'memory' },
+      osPorts: nodeOsPorts, storage: { kind: 'memory' },
         profile: 'agent-core-v1',
         env: { ...process.env, JINI_ALLOWED_ORIGINS: 'ftp://example.com' },
       }),
@@ -196,7 +198,7 @@ describe('JINI_ALLOWED_ORIGINS validation', () => {
   it('composes normally when JINI_ALLOWED_ORIGINS is unset or entirely valid', async () => {
     const { kernel } = await compose({
       security: { mode: 'host' },
-      storage: { kind: 'memory' },
+      osPorts: nodeOsPorts, storage: { kind: 'memory' },
       profile: 'agent-core-v1',
       env: { ...process.env, JINI_ALLOWED_ORIGINS: 'https://example.com' },
     });
@@ -208,7 +210,7 @@ describe('profiles', () => {
   it('local-daemon-v1 composes exactly the historical daemon surface', async () => {
     const { kernel } = await compose({
       security: { mode: 'host' },
-      storage: { kind: 'sqlite', open: openSqlite, dataDir: makeTempDataDir() }, profile: 'local-daemon-v1', featureOptions: { daemonStatus: { requestShutdown: () => undefined } } });
+      osPorts: nodeOsPorts, storage: { kind: 'sqlite', open: openSqlite, dataDir: makeTempDataDir() }, profile: 'local-daemon-v1', featureOptions: { daemonStatus: { requestShutdown: () => undefined } } });
 
     expect(kernel.activation.active.map((r) => r.id)).toEqual([
       'health',
@@ -231,7 +233,7 @@ describe('profiles', () => {
   it('local-daemon-v1 leaves the never-wired families and remote injection off', async () => {
     const { kernel } = await compose({
       security: { mode: 'host' },
-      storage: { kind: 'sqlite', open: openSqlite, dataDir: makeTempDataDir() }, profile: 'local-daemon-v1', featureOptions: { daemonStatus: { requestShutdown: () => undefined } } });
+      osPorts: nodeOsPorts, storage: { kind: 'sqlite', open: openSqlite, dataDir: makeTempDataDir() }, profile: 'local-daemon-v1', featureOptions: { daemonStatus: { requestShutdown: () => undefined } } });
     const inactive = kernel.activation.inactive.map((r) => r.id);
     expect(inactive).toEqual(expect.arrayContaining(['remoteRunEvents', 'memory', 'routines', 'media', 'frontendSessions']));
   });
@@ -239,7 +241,7 @@ describe('profiles', () => {
   it('agent-core-v1 composes only the run-transport contract', async () => {
     const { app, kernel } = await compose({
       security: { mode: 'host' },
-      storage: { kind: 'memory' }, profile: 'agent-core-v1' });
+      osPorts: nodeOsPorts, storage: { kind: 'memory' }, profile: 'agent-core-v1' });
 
     expect(kernel.activation.active.map((r) => r.id)).toEqual(['health', 'runs', 'agents', 'delegatedToolCalls']);
     expect(paths(app)).toContain('POST /api/runs');
@@ -252,7 +254,7 @@ describe('profiles', () => {
   it('defaults to agent-core-v1 when no profile is named', async () => {
     const { kernel } = await compose({
       security: { mode: 'host' },
-      storage: { kind: 'memory' } });
+      osPorts: nodeOsPorts, storage: { kind: 'memory' } });
     expect(kernel.activation.active.map((r) => r.id)).toEqual(['health', 'runs', 'agents', 'delegatedToolCalls']);
   });
 });
@@ -261,7 +263,7 @@ describe('mounting order', () => {
   it('mounts probe routes before the body parser and api routes, and status routes last', async () => {
     const { app } = await compose({
       security: { mode: 'host' },
-      storage: { kind: 'sqlite', open: openSqlite, dataDir: makeTempDataDir() }, profile: 'local-daemon-v1', featureOptions: { daemonStatus: { requestShutdown: () => undefined } } });
+      osPorts: nodeOsPorts, storage: { kind: 'sqlite', open: openSqlite, dataDir: makeTempDataDir() }, profile: 'local-daemon-v1', featureOptions: { daemonStatus: { requestShutdown: () => undefined } } });
     const mounted = paths(app);
 
     const health = mounted.indexOf('GET /api/health');
@@ -284,9 +286,9 @@ describe('mounting order', () => {
         security: { mode: 'host' },
         app,
       adapter: createTestRouteHost(), resolvedPortRef: { current: 4000 },
-      storage: { kind: 'sqlite', open: openSqlite, dataDir: makeTempDataDir() },
+      osPorts: nodeOsPorts, storage: { kind: 'sqlite', open: openSqlite, dataDir: makeTempDataDir() },
       profile: 'local-daemon-v1',
-      featureOptions: { daemonStatus: { requestShutdown: () => undefined } },
+      featureOptions: { ...egressFeatureOptions, daemonStatus: { requestShutdown: () => undefined } },
       onAfterApiRoutes: (mountedApp, _daemon, base) => {
         // `base` is passed explicitly precisely because the returned kernel does not exist yet.
         order.push(base.sqlite === null ? 'no-sqlite' : 'has-sqlite');
@@ -304,7 +306,7 @@ describe('tools', () => {
     await expect(
       compose({
       security: { mode: 'host' },
-      storage: { kind: 'sqlite', open: openSqlite, dataDir: makeTempDataDir() },
+      osPorts: nodeOsPorts, storage: { kind: 'sqlite', open: openSqlite, dataDir: makeTempDataDir() },
         profile: 'local-daemon-v1',
       featureOptions: { daemonStatus: { requestShutdown: () => undefined } },
         toolRegistrations: [makeTool('terminal.create')],
@@ -315,7 +317,7 @@ describe('tools', () => {
   it('seeds the tool catalog from the COMPLETE registry — feature tools and host tools alike', async () => {
     const { kernel } = await compose({
       security: { mode: 'host' },
-      storage: { kind: 'sqlite', open: openSqlite, dataDir: makeTempDataDir() },
+      osPorts: nodeOsPorts, storage: { kind: 'sqlite', open: openSqlite, dataDir: makeTempDataDir() },
       profile: 'local-daemon-v1',
       featureOptions: { daemonStatus: { requestShutdown: () => undefined } },
       toolRegistrations: [makeTool('product.publish')],
@@ -341,7 +343,7 @@ describe('tools', () => {
 
     const { kernel } = await compose({
       security: { mode: 'host' },
-      storage: { kind: 'memory' },
+      osPorts: nodeOsPorts, storage: { kind: 'memory' },
       profile: 'agent-core-v1',
       packs: [productPack],
     });
@@ -369,7 +371,7 @@ describe('product features use the same gate', () => {
   it('is inert until its capability is granted AND it is named', async () => {
     const { app, kernel } = await compose({
       security: { mode: 'host' },
-      storage: { kind: 'memory' },
+      osPorts: nodeOsPorts, storage: { kind: 'memory' },
       profile: 'agent-core-v1',
       extraFeatures: [productFeature],
     });
@@ -381,7 +383,7 @@ describe('product features use the same gate', () => {
   it('mounts atomically once both are satisfied', async () => {
     const { app, kernel } = await compose({
       security: { mode: 'host' },
-      storage: { kind: 'memory' },
+      osPorts: nodeOsPorts, storage: { kind: 'memory' },
       profile: 'agent-core-v1',
       extraFeatures: [productFeature],
       capabilities: { 'net:egress': true },
@@ -396,7 +398,7 @@ describe('product features use the same gate', () => {
     await expect(
       compose({
       security: { mode: 'host' },
-      storage: { kind: 'memory' },
+      osPorts: nodeOsPorts, storage: { kind: 'memory' },
         profile: 'agent-core-v1',
         extraFeatures: [productFeature],
         features: { 'product.reports': true },
@@ -429,7 +431,7 @@ describe('security: sidecar-strict', () => {
         app,
       adapter: { originPolicy: createLocalSameOriginPolicy({ port: () => resolvedPortRef.current, env, config: { allowedOriginsEnvVar: 'JINI_ALLOWED_ORIGINS', webPortEnvVar: 'JINI_WEB_PORT', bindHostEnvVar: 'JINI_BIND_HOST' } }) },
       resolvedPortRef,
-      storage: { kind: 'memory' },
+      osPorts: nodeOsPorts, storage: { kind: 'memory' },
       profile: 'agent-core-v1',
       env,
       security: {
@@ -529,7 +531,7 @@ describe('teardown', () => {
 
     const { kernel } = await compose({
       security: { mode: 'host' },
-      storage: { kind: 'memory' },
+      osPorts: nodeOsPorts, storage: { kind: 'memory' },
       profile: 'agent-core-v1',
       extraFeatures: [makeDisposable('first'), makeDisposable('second')],
     });
@@ -552,7 +554,7 @@ describe('teardown', () => {
 
     const { kernel } = await compose({
       security: { mode: 'host' },
-      storage: { kind: 'memory' },
+      osPorts: nodeOsPorts, storage: { kind: 'memory' },
       profile: 'agent-core-v1',
       packs: [callerPack],
     });
@@ -594,7 +596,7 @@ describe('teardown', () => {
         security: { mode: 'host' },
         app,
         adapter: createTestRouteHost(), resolvedPortRef: { current: 4000 },
-        storage: { kind: 'memory' },
+        osPorts: nodeOsPorts, storage: { kind: 'memory' },
         profile: 'agent-core-v1',
         packs: [callerPack],
         extraFeatures: [exploding],
@@ -633,9 +635,9 @@ describe('teardown', () => {
         security: { mode: 'host' },
         app,
         adapter: createTestRouteHost(), resolvedPortRef: { current: 4000 },
-        storage: { kind: 'sqlite', open: openSqlite, dataDir },
+        osPorts: nodeOsPorts, storage: { kind: 'sqlite', open: openSqlite, dataDir },
         profile: 'local-daemon-v1',
-      featureOptions: { daemonStatus: { requestShutdown: () => undefined } },
+      featureOptions: { ...egressFeatureOptions, daemonStatus: { requestShutdown: () => undefined } },
         extraFeatures: [exploding],
       }),
     ).rejects.toThrow('route mounting blew up');
@@ -653,7 +655,7 @@ describe('teardown', () => {
       await expect(
         compose({
       security: { mode: 'host' },
-      storage: { kind: 'sqlite', open: openSqlite, dataDir: makeTempDataDir() },
+      osPorts: nodeOsPorts, storage: { kind: 'sqlite', open: openSqlite, dataDir: makeTempDataDir() },
           profile: 'local-daemon-v1',
       featureOptions: { daemonStatus: { requestShutdown: () => undefined } },
           features: { nonexistent: true },
@@ -697,7 +699,7 @@ it('health keeps its kernel-owned handle when daemonDb and toolCatalog are indep
  for(const features of [{daemonDb:false},{toolCatalog:false},{daemonDb:false,toolCatalog:false}]){
   const {kernel}=await compose({
       security: { mode: 'host' },
-      storage:{kind:'sqlite',dataDir:makeTempDataDir(),open:openSqlite},profile:'local-daemon-v1',featureOptions:{daemonStatus:{requestShutdown:()=>undefined}},features});
+      osPorts: nodeOsPorts, storage:{kind:'sqlite',dataDir:makeTempDataDir(),open:openSqlite},profile:'local-daemon-v1',featureOptions:{daemonStatus:{requestShutdown:()=>undefined}},features});
   expect(kernel.activation.active.map(feature=>feature.id)).toContain('health');
   expect(kernel.base.sqlite!.connection.open).toBe(true);
   expect(kernel.base.sqlite!.connection.pragma('quick_check')).toEqual([{quick_check:'ok'}]);
@@ -750,7 +752,7 @@ describe('L039a composition phase pins', () => {
       const pack = definePack({ name: 'pin-caller', deps: [], services: () => ({}) }, {
         tools: () => [makeTool('pin.caller')],
       });
-      await compose({ storage: { kind: 'memory' }, env: { PIN_TOKEN: 'secret' },
+      await compose({ osPorts: nodeOsPorts, storage: { kind: 'memory' }, env: { PIN_TOKEN: 'secret' },
         security: mode === 'sidecar-strict' ? { mode, host: '127.0.0.1', tokenEnvVar: 'PIN_TOKEN', exemptPaths: ['/api/callback'] }
           : mode === 'jini-local' ? { mode, host: '127.0.0.1', apiToken: { tokenEnvVar: 'PIN_TOKEN', disableEnvVar: 'PIN_DISABLE' } } : { mode },
         features: { runs: false, agents: false, delegatedToolCalls: false },
@@ -764,12 +766,12 @@ describe('L039a composition phase pins', () => {
   it.each([true, false])('respects the host body-parser choice (%s)', async (installJsonBodyParser) => {
     const app = express();
     const use = vi.spyOn(app, 'use');
-    await compose({ app, storage: { kind: 'memory' }, security: { mode: 'host' }, installJsonBodyParser,
+    await compose({ app, osPorts: nodeOsPorts, storage: { kind: 'memory' }, security: { mode: 'host' }, installJsonBodyParser,
       features: { runs: false, agents: false, delegatedToolCalls: false, health: false } });
     expect(use.mock.calls.length).toBe(installJsonBodyParser ? 1 : 0);
   });
   it('rejects an unsupported security mode before invalid origin or activation config', async () => {
-    const config = { storage: { kind: 'memory' as const }, features: { typo: true },
+    const config = { osPorts: nodeOsPorts, storage: { kind: 'memory' as const }, features: { typo: true },
       env: { JINI_ALLOWED_ORIGINS: 'ftp://invalid' }, security: { mode: 'unknown' } };
     await expect(compose(config as unknown as Parameters<typeof compose>[0]))
       .rejects.toThrow('an explicit supported security mode is required');

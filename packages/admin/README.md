@@ -128,12 +128,26 @@ both `(required, optional?)`), `useBootScope`, the host's `useFetchQuery`/`useIn
 `UseAdminLocaleHook` and passes that same function to `AdminKitHooks.useAdminLocale` and to every
 mount whose required `useAdminLocaleHook` prop needs it. There is no default hook in this package.
 
+**Settings-dialog tabs.** `SettingsDialogTab<TId>` (`@jini-ai/admin/react/kit`) is the kit's
+structural mirror of the UI library's tab type (`id`, `label`, `navHint`, `title`, `subtitle`,
+`icon`, `panel`). Host screens type their tab arrays with it and mount them through the
+`SettingsDialogShell` slot, which the host binds in its `AdminKit` alongside `I18nProvider` and
+`Icon`. The two declarations are intentional; the host's kit integration test asserts they stay
+mutually assignable. `SettingsDialogShellProps.labels` is `SettingsDialogChromeLabels`, the kit mirror of the UI
+shell's chrome labels, so labelled screens mount the kit facade too.
+
 ## Errors
 
 Route groups throw `AdminApiError` (`status`, `code`, raw `body`). There is deliberately **no**
 shared code-to-message table: the same `code` means genuinely different things in different
 domains, and a shared table could only pick one. `describeApiError` is the base case only; panels
 layer their own per-code copy on top and fall through to it.
+
+`src/shell/hooks/admin-execution-credential-port.hooks.ts` declares the admin execution-credential
+port plus its unset view and in-memory fake; the host binds the live port to its own API.
+`src/shell/hooks/use-sites-sidebar-nav.hooks.ts` takes every host collaborator as a required field
+of its first argument: `port` (the Sites list read), `useSitesSnapshot` (the host's cached query
+hook) and `translateNavLabel` (the host-bound nav-label translator). It has no default for any.
 
 ## Wiring: Secrets (`security`)
 
@@ -244,3 +258,93 @@ root remain framework free. Domain React entries call these shared helpers
 directly, and the existing `react/bind-react` and `react/use-controller` entries
 retain their exports through compatibility re-exports. Domain integration
 packages are optional peers; install the peers used by the selected entries.
+
+## Wiring: shell request-bound helpers (`shell/lib`)
+
+`shell/lib/version-conflict`, `shell/lib/stored-credential-endpoint`, `shell/lib/visitor-tools` and
+`shell/lib/assistant-permanent-deletes` never import a host's session client or error class. The
+pure rules, copy keys and types are plain exports; the parts that touch the host's HTTP boundary are
+factories the host binds once at its composition root:
+
+- `createVersionConflict({ isRequestError })` and `createProbeErrorDescribers({ isRequestError })`
+  take the same `isRequestError` guard the host already passes to `createAdminHttp` (typed
+  `RequestErrorGuard<E>`), so `instanceof HostApiError` stays in the host.
+- `createVisitorToolsPort({ http, workspaceId })` and `createAssistantPermanentDeletesPort({ http, workspaceId })`
+  take the host's bound `authenticatedAdminRequest` (`AdminRequestOps`) and its workspace id; the
+  permanent-delete tool list, dangers copy and namespace stay with the host.
+- `createCredentialSubmitErrorClassifier({ isRequestError })` and
+  `createReadInitialAdminSession({ readInitialSession, isRequestError })` take the same guard; the
+  latter also takes the session-bootstrap reader (`@jini-ai/user-management`'s `readInitialSession`,
+  which `@jini-ai/admin` does not depend on), so the bootstrap policy stays with its owner.
+- `createAssistantSubagentsPort({ http, workspaceId })` takes the bound `authenticatedAdminRequest`.
+- `createOwnerMfaPort({ http })`, `createOwnerPasskeyPorts({ http })` and `createOwnerRecoveryPort({ http })`
+  take the host's bound single-send `requestOnce` (`AdminRequestOnceOps`);
+  `createOwnerRecoveryFailure({ describeError, redactionOptions })` takes the host's request-error
+  describer and its secret-redaction options (product vocabulary stays in the host).
+
+## Wiring: host-owned storage keys (`shell/components/ChatFab`, `shell/lib`)
+
+Browser-storage keys hold operators' existing data, so they stay with the host and arrive as required
+inputs; Jini never names one.
+
+- `useFabPosition({ dockOpen, avoidBottomPx, avoidRightPx?, storageKey })`
+  (`shell/components/ChatFab/ChatFab.hooks`) binds the kit's `chat.useFabPosition` to
+  `localStorage`, `window`, `document` and the shared FAB geometry (`FAB_EDGE_MARGIN`, 56px, 5px
+  drag threshold). Needs `AdminKitProvider` above it; the host component passes its key.
+- `createAssistantAgentsSnapshot({ storageKey, createInventorySnapshot })`
+  (`shell/lib/assistant-agents-snapshot`) returns `{ readAgentsSnapshot, writeAgentsSnapshot }`.
+  The host passes `@jini-ai/chat/browser/agent-inventory`'s `createAgentInventorySnapshot` (this
+  package does not depend on the chat package) and binds the pair once at its composition root.
+- `createBrowserWorkingDirectoryAccess({ recentDirectoryNamesStorageKey })`
+  (`shell/lib/browser-working-directory-access`) returns the native `ChatPaneWorkingDirectoryAccess`
+  (kit type mirror) or `undefined` where the File System Access API is missing.
+
+## Wiring: shell dock components and shared copy (`shell/components`)
+
+- `shell/components/shared-components-i18n` holds the shared components' dictionary, falling back to
+  `ADMIN_COMMON_I18N` (`core/i18n-common`); a host's own branded common entries stay in the host.
+  `shell/components/AdminByokKeyPanel.hooks` binds it per locale.
+- `shell/components/AssistantDock/agent-failure` wraps a `ChatTransport` (kit type mirror) so a run's
+  failure surfaces as an `agent_failure` ext event with redacted details.
+- `MessageOverflowModal`, `SelectedAgentPluginTray` and `SlowRunNoticeCard` take the host's chat
+  translator hook as a required `useTHook` prop; `MessageOverflowModal` also takes its required
+  `useModal` (the host passes `useMessageOverflowModal`). `SelectedAgentPluginTray` renders the kit
+  `Icon`, so it needs `<AdminKitProvider>`. The modal renders `jini-message-overflow-modal{,-close,-body}`
+  classes; the host styles them.
+- `shell/components/AssistantDock/hooks/use-routed-a2ui-surface-card.hooks` reads only `events` and
+  `onAgentAction` from the a2ui card props (`A2uiSurfaceCardProps`, a structural kit mirror).
+
+## Wiring: admin failure reporter (`shell/lib/admin-failure-reporter`)
+
+- `createAdminFailureReporter({ channel, vocabulary, redaction, appVersion, jiniVersion, decodeError, notRunningCodes }, { now?, mintErrorId? })`
+  returns `{ adminFailureChannel, isPageWideFailure, publishAdminFailure, publishLocalAdminFailure }`
+  bound to one host channel. Jini owns the disclosure rules (approved server wording only after
+  sign-in, redacted unlisted routes, small `{error, code}` replies, "post" -> "page" swap, the
+  page-wide classification). The host injects its channel (`@jini-ai/ui/panel-kit`'s
+  `createFailureChannel`), its failure vocabulary and redaction options, its "Copy details" app
+  label, the error decoder (`@jini-ai/protocol`'s `decodeApiError`; this package does not depend on
+  protocol) and the server codes a passive read answers while the assistant is not running.
+  `isClipboardRefusal` is a plain export. The host calls the factory once in its composition module.
+
+## Wiring: shell components (`shell/components`, step components-4)
+
+- `AdminFailureNotice({ channel, ...errorNoticePorts })` — the host passes its failure channel
+  (`subscribe`/`getSnapshot`/`reset`); renders the kit `ErrorNotice` (needs `AdminKitProvider`).
+  Classes `jini-admin-failure-notice`, `jini-admin-failure-notice__dismiss`: the host stylesheet styles them.
+- `MailStatusBanner({ fetchStatus, labels, storage?, useMailStatusBannerHook })` — the banner state
+  hook is a REQUIRED prop (no default); generic over the host's status and storage types. Kit `Icon`.
+  Classes `jini-mail-status-banner{,-text,-link,-dismiss}`.
+- `SitesSidebarNav({ groups, locale, soonLabel?, options?, port, useSitesSnapshot, translateNavLabel,
+  useSitesSidebarNavHook, SidebarNav, useSidebar })` — every host collaborator, the label hook and the
+  admin `Sidebar.Nav`/`useSidebar` pair are required props (keeps this browser entry out of the react domain).
+  Classes `jini-sites-{label,prefix,name,suffix}`.
+- `WidgetConfigFields/WidgetConfigFields.hooks` — `useFetchedOptions` reads through the kit's
+  `useFetchQuery` (needs `AdminKitProvider`); a cross-realm `DOMException` AbortError keeps its name.
+- `AssistantDock/agent-failure-hints` — `localFailureHints({ agentId })`, pure data.
+- `AssistantDock/AgentFailureCard({ ...extEventProps, useTHook, useAgentFailureCardHook, redactionOptions })`
+  — the chat translator hook, the failure hook and the host's secret-redaction copy (the second
+  argument of `formatUserFacingError`) are REQUIRED props; kit `ErrorNotice` (needs `AdminKitProvider`).
+  Class `jini-agent-failure`.
+- `AssistantDock/AgentFailureCard.hooks` — `useAgentFailureSurface`, `FailureSurfaceContext`,
+  `hasAgentFailureNotice`, and `useAgentFailureCard({ events, runStreaming, runSucceeded, useTHook })`
+  (the translator hook is a required arg). Kit type mirror added: `ChatPaneRuntimeAccess`.

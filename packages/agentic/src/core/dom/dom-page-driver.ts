@@ -17,7 +17,8 @@ import type {
   FieldDescriptor,
 } from '@jini-ai/core/agent-handles';
 import { normalizeAgentLabel } from '../guards.js';
-import type { AgentNavigationScreen, PageNavigationInput, PageNavigationResult } from '../page-navigation.js';
+import type { DomPageDriverPage, PageNavigationInput, PageNavigationResult } from '@jini-ai/core/contracts/site/agentic-dom';
+import type { AgentNavigationScreen } from '../page-navigation.js';
 import type { FindElementsFilter, PageDriver } from '../page-driver.js';
 
 /**
@@ -418,15 +419,6 @@ function assertModalControl({ element, handle }: { element: Element; handle: str
   const focused = modals.findLast(modal => modal.contains(document.activeElement));
   const active = focused ?? modals.at(-1);
   if (active && !active.contains(element)) throw new Error(`"${handle}" is behind the active modal`);
-}
-
-/** One page a host allows navigation to: its human label, and how to actually get there. */
-export interface DomPageDriverPage {
-  /** Shown to a caller by `page.find_elements`/`page.navigate`'s refusal message — see
-   *  `PageSummary.label` for why this exists at all. */
-  readonly label: string;
-  readonly navigation?: AgentNavigationScreen;
-  readonly navigate: (required: PageNavigationInput) => void | PageNavigationResult | Promise<void | PageNavigationResult>;
 }
 
 export interface DomPageDriverRequired {

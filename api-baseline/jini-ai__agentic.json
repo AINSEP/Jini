@@ -186,6 +186,15 @@
    "getAgentModelContext": "function:1c28ff0efc"
   }
  },
+ "./dom/admin-page-tools": {
+  "types": "./dist/core/dom/admin-page-tools.d.ts",
+  "symbols": {
+   "AdminPageWebMcpToolsArgs": "interface:b6e96912ed",
+   "DirectPageAction": "type:b8c8a6fc88",
+   "RequestAdminPageAction": "type:a18a17a5c6",
+   "registerAdminPageWebMcpTools": "function:ff6b438c85"
+  }
+ },
  "./render-surface": {
   "types": "./dist/core/render-surface.d.ts",
   "symbols": {
@@ -249,6 +258,57 @@
   "types": "./dist/skills/install/node-filesystem.d.ts",
   "symbols": {
    "createNodeSkillFilesystem": "function:5a238b82b9"
+  }
+ },
+ "./skills/site/install-service": {
+  "types": "./dist/skills/site/install-service.d.ts",
+  "symbols": {
+   "SkillInstallInput": "type:41dfafb2ce",
+   "SkillSiteContext": "interface:ce0e4b23dc",
+   "commitSkillInstall": "function:13f21b21d0",
+   "installSkill": "variable:33e70950ea",
+   "listManagedSkills": "variable:49dbaae80e",
+   "prepareSkillInstall": "variable:a594ad122e",
+   "setSkillEnabled": "function:32c801e2c4",
+   "uninstallSkill": "function:9fdecae706"
+  }
+ },
+ "./skills/site/install-tool": {
+  "types": "./dist/skills/site/install-tool.d.ts",
+  "symbols": {
+   "SKILLS_INSTALL_TOOL_ID": "variable:89a446f5f2",
+   "SkillsInstallToolDeps": "interface:2663a4cd82",
+   "buildRegistrations": "function:79cc61a602",
+   "catalog": "variable:64d608bb17",
+   "contributeSkillsInstallTools": "function:e3ea9ae335",
+   "derivedRisk": "variable:f12a513ea4"
+  }
+ },
+ "./skills/site/layout": {
+  "types": "./dist/skills/site/layout.d.ts",
+  "symbols": {
+   "ResolveSkillLayoutOptional": "interface:c6f10ba464",
+   "SkillLayout": "interface:9bbb54a950",
+   "SkillLifecycleEvent": "type:484dd344f1",
+   "SkillSiteHost": "interface:5c257cf453",
+   "SkillWorkspaceLayout": "interface:948b294411",
+   "resolveSkillLayout": "function:d57fab4826"
+  }
+ },
+ "./skills/site/live-registration": {
+  "types": "./dist/skills/site/live-registration.d.ts",
+  "symbols": {
+   "SkillsRefreshRegistry": "type:d5ceba501b",
+   "createLiveSkillRegistration": "function:49cd8b36ac",
+   "createSkillRefreshMiddleware": "function:cba7eff9ce"
+  }
+ },
+ "./skills/site/tool-registrations": {
+  "types": "./dist/skills/site/tool-registrations.d.ts",
+  "symbols": {
+   "buildSkillToolRegistrations": "function:443fd3c029",
+   "loadInstalledSkillToolSources": "function:6eeea0b886",
+   "registerInstalledSkillTools": "function:3a81323cb0"
   }
  },
  "./skills/tools": {

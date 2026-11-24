@@ -5,7 +5,8 @@ import { describe, expect, it } from "vitest";
 import { createNodeDirectoryWorkspace } from "../directory-workspace.js";
 import { resolveUserDataDirectories } from "../user-data-directories.js";
 import { createDirectoryUserConfig } from "../directory-user-config.js";
-import type { DurableJsonFile, JsonFileRead } from "../durable-json.js";
+import type { DurableJsonFile } from "../durable-json.js";
+import type { JsonFileRead } from "@jini-ai/core/contracts/site/fs-durable-json";
 
 function fixture() {
   const root = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), "user-data-config-")));

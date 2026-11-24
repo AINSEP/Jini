@@ -318,3 +318,7 @@ The former core and CMS `./settings/express` entries have been removed.
 `./tool-metadata/<domain>` ships product-neutral tool metadata maps; a host aggregates them with its
 own maps (for example Tovu keeps `custom-credentials`, whose search vocabulary names providers). A
 test in `src/tool-metadata/__tests__/provider-neutral.test.ts` refuses provider names here.
+`./tool-metadata/deploy-ops` and `./tool-metadata/site-backup` export factories instead of a const map,
+because two of their search queries name host-owned words: the host calls
+`createDeployOpsToolMetadata({ siteKeyEnvName })` and `createSiteBackupToolMetadata({ archiveLabel })` once in
+its aggregator and its registration files import that bound map.

@@ -14,6 +14,97 @@
         "packages/admin/src/screens/taxonomy/TaxonomyRowMenu.tsx"
       ],
       "reason": "Correct as is: the hook is a REQUIRED prop the host supplies (owner rule, no default imported hook; commit 63c660294). This checker only recognises the older defaulted-prop form, so a required injected prop reads as a direct call. Remove once the checker accepts required hook props."
+    },
+    "AgentFailureCard::useAgentFailureCardHook": {
+      "count": 1,
+      "files": [
+        "packages/admin/src/shell/components/AssistantDock/AgentFailureCard.tsx"
+      ],
+      "reason": "Correct as is: the hook is a REQUIRED prop the host supplies (owner rule, no default imported hook; w3-fnd shell component moves). This checker only recognises the older defaulted-prop form, so a required injected prop reads as a direct call. Remove once the checker accepts required hook props."
+    },
+    "AgentFailureCard::useTHook": {
+      "count": 1,
+      "files": [
+        "packages/admin/src/shell/components/AssistantDock/AgentFailureCard.tsx"
+      ],
+      "reason": "Correct as is: the hook is a REQUIRED prop the host supplies (owner rule, no default imported hook; w3-fnd shell component moves). This checker only recognises the older defaulted-prop form, so a required injected prop reads as a direct call. Remove once the checker accepts required hook props."
+    },
+    "MailStatusBanner::useMailStatusBannerHook": {
+      "count": 1,
+      "files": [
+        "packages/admin/src/shell/components/MailStatusBanner/MailStatusBanner.tsx"
+      ],
+      "reason": "Correct as is: the hook is a REQUIRED prop the host supplies (owner rule, no default imported hook; w3-fnd shell component moves). This checker only recognises the older defaulted-prop form, so a required injected prop reads as a direct call. Remove once the checker accepts required hook props."
+    },
+    "MessageOverflowModal::useModal": {
+      "count": 1,
+      "files": [
+        "packages/admin/src/shell/components/AssistantDock/MessageOverflowModal.tsx"
+      ],
+      "reason": "Correct as is: the hook is a REQUIRED prop the host supplies (owner rule, no default imported hook; w3-fnd shell component moves). This checker only recognises the older defaulted-prop form, so a required injected prop reads as a direct call. Remove once the checker accepts required hook props."
+    },
+    "MessageOverflowModal::useTHook": {
+      "count": 1,
+      "files": [
+        "packages/admin/src/shell/components/AssistantDock/MessageOverflowModal.tsx"
+      ],
+      "reason": "Correct as is: the hook is a REQUIRED prop the host supplies (owner rule, no default imported hook; w3-fnd shell component moves). This checker only recognises the older defaulted-prop form, so a required injected prop reads as a direct call. Remove once the checker accepts required hook props."
+    },
+    "SelectedAgentPluginTray::useTHook": {
+      "count": 1,
+      "files": [
+        "packages/admin/src/shell/components/AssistantDock/SelectedAgentPluginTray.tsx"
+      ],
+      "reason": "Correct as is: the hook is a REQUIRED prop the host supplies (owner rule, no default imported hook; w3-fnd shell component moves). This checker only recognises the older defaulted-prop form, so a required injected prop reads as a direct call. Remove once the checker accepts required hook props."
+    },
+    "SitesSidebarNav::useSitesSidebarNavHook": {
+      "count": 1,
+      "files": [
+        "packages/admin/src/shell/components/SitesSidebarNav.tsx"
+      ],
+      "reason": "Correct as is: the hook is a REQUIRED prop the host supplies (owner rule, no default imported hook; w3-fnd shell component moves). This checker only recognises the older defaulted-prop form, so a required injected prop reads as a direct call. Remove once the checker accepts required hook props."
+    },
+    "SlowRunNoticeCard::useTHook": {
+      "count": 1,
+      "files": [
+        "packages/admin/src/shell/components/AssistantDock/SlowRunNoticeCard.tsx"
+      ],
+      "reason": "Correct as is: the hook is a REQUIRED prop the host supplies (owner rule, no default imported hook; w3-fnd shell component moves). This checker only recognises the older defaulted-prop form, so a required injected prop reads as a direct call. Remove once the checker accepts required hook props."
+    },
+    "ContentAnalysisCard::useContentAnalysisHook": {
+      "count": 1,
+      "files": [
+        "packages/admin/src/screens/content-analysis/ContentAnalysisCard.tsx"
+      ],
+      "reason": "Correct as is: the hook is a REQUIRED prop the host supplies (owner rule, no default imported hook; w3-screens, same form as MenuPageLinkFields). This checker only recognises the older defaulted-prop form, so a required injected prop reads as a direct call. Remove once the checker accepts required hook props."
+    },
+    "ImportExport::useTranslate": {
+      "count": 1,
+      "files": [
+        "packages/admin/src/screens/import-export/ImportExport.tsx"
+      ],
+      "reason": "Correct as is: the hook is a REQUIRED prop the host supplies (owner rule, no default imported hook; w3-screens, same form as MenuPageLinkFields). This checker only recognises the older defaulted-prop form, so a required injected prop reads as a direct call. Remove once the checker accepts required hook props."
+    },
+    "OtherTab::useGitBackup": {
+      "count": 1,
+      "files": [
+        "packages/admin/src/screens/import-export/ImportExport.tsx"
+      ],
+      "reason": "Correct as is: the hook is a REQUIRED prop the host supplies (owner rule, no default imported hook; w3-screens, same form as MenuPageLinkFields). This checker only recognises the older defaulted-prop form, so a required injected prop reads as a direct call. Remove once the checker accepts required hook props."
+    },
+    "TransferTab::useSitesAvailable": {
+      "count": 1,
+      "files": [
+        "packages/admin/src/screens/import-export/ImportExport.tsx"
+      ],
+      "reason": "Correct as is: the hook is a REQUIRED prop the host supplies (owner rule, no default imported hook; w3-screens, same form as MenuPageLinkFields). This checker only recognises the older defaulted-prop form, so a required injected prop reads as a direct call. Remove once the checker accepts required hook props."
+    },
+    "TransferTab::useTransferTranslate": {
+      "count": 1,
+      "files": [
+        "packages/admin/src/screens/import-export/ImportExport.tsx"
+      ],
+      "reason": "Correct as is: the hook is a REQUIRED prop the host supplies (owner rule, no default imported hook; w3-screens, same form as MenuPageLinkFields). This checker only recognises the older defaulted-prop form, so a required injected prop reads as a direct call. Remove once the checker accepts required hook props."
     }
   }
 }
