@@ -189,6 +189,7 @@
       "./comments/site/comment-targets": "universal",
       "./admin-http/http/forms": "node",
       "./comments/site/ip-hash-salt": "node",
+      "./settings/site/site-title-preservation": "node",
       "./media/site-transform/image-ops": "node",
       "./media/site/bootstrap": "node",
       "./media/site/chat-preview": "node",
@@ -1341,6 +1342,11 @@
       "types": "./dist/comments/site/ip-hash-salt.d.ts",
       "import": "./dist/comments/site/ip-hash-salt.js",
       "default": "./dist/comments/site/ip-hash-salt.js"
+    },
+    "./settings/site/site-title-preservation": {
+      "types": "./dist/settings/site/site-title-preservation.d.ts",
+      "import": "./dist/settings/site/site-title-preservation.js",
+      "default": "./dist/settings/site/site-title-preservation.js"
     },
     "./media/site-transform/image-ops": {
       "types": "./dist/media/site-transform/image-ops.d.ts",
