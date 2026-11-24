@@ -40,6 +40,7 @@
    "FencedOutboxPort": "interface:7a78a78fce",
    "InMemoryFencedOutbox": "class:76ffc8f876",
    "InMemoryFencedRow": "type:e9db5287c8",
+   "InMemoryProcessedEventStore": "class:efd93b5274",
    "InMemoryTransaction": "class:e708d8a5a1",
    "Intent": "type:8b1d2e62bb",
    "MAX_OUTBOX_ATTEMPTS": "variable:de677384b7",
@@ -52,6 +53,8 @@
    "OutboxRetryPolicyResolver": "type:6dfe580331",
    "OutboxWorkerArgs": "interface:ae284c4e07",
    "OutboxWorkerOptions": "interface:edb9ba13fd",
+   "ProcessedEventKey": "interface:1b8637707c",
+   "ProcessedEventStore": "interface:631fa710ad",
    "ScheduledTask": "interface:624f62fcce",
    "Scheduler": "interface:62b8a8c522",
    "SerialPump": "interface:87a1e2a659",
@@ -63,7 +66,8 @@
    "processFencedOutbox": "function:ee0638996e",
    "processOutbox": "function:24f51c7a2f",
    "startOutboxDrainer": "function:50042df494",
-   "toEnqueueOnlyOutbox": "function:473de47fab"
+   "toEnqueueOnlyOutbox": "function:473de47fab",
+   "withProcessedEventGuard": "function:f0c47572fb"
   }
  }
 }

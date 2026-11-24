@@ -379,6 +379,7 @@
    "InMemoryMailerAdapter": "type:8d1fc5c6e1",
    "MAIL_ACTIVITY_OUTCOMES": "variable:bf1990c431",
    "MAIL_ACTIVITY_USES": "variable:990cf38e3c",
+   "MAIL_CAPTURE_CLEAR_PERMISSION": "variable:1a02ef819e",
    "MAIL_FEEDBACK_MAX_BODY_BYTES": "variable:8436cd39e8",
    "MAIL_PROVIDER_SETTING_KEY": "variable:8ebf074d6f",
    "MAIL_RATE_LIMITED": "variable:a498acb670",
@@ -403,6 +404,11 @@
    "MailAdapterKit": "interface:adf59a8b97",
    "MailAdapterModule": "interface:bf4bfa8bd2",
    "MailAdapterSource": "interface:7f629f57c2",
+   "MailCaptureClearAnswer": "type:0227c55fe0",
+   "MailCaptureClearPlan": "interface:0f656d513c",
+   "MailCaptureClearPreview": "interface:7187ec8417",
+   "MailCaptureClearRequest": "interface:40287a1f7a",
+   "MailCaptureClearResult": "interface:a6c3847201",
    "MailCapturePort": "interface:ea51e8f0ff",
    "MailCredentialFact": "interface:4ace9ae78d",
    "MailCredentialPort": "interface:145c74e96c",
@@ -655,9 +661,10 @@
    "MAIL_RETENTION_INTERVAL_MS": "variable:aaf08400a9",
    "MAX_CAPTURE_LIST": "variable:5a37cb63a0",
    "MailAttemptObserver": "type:0585a2291f",
-   "MailCaptureRepo": "interface:b21fa5897e",
+   "MailCaptureRepo": "interface:65902d12bd",
    "MailRepoDeps": "interface:6d10a5624d",
    "MailRepoOptions": "interface:5f87470ecc",
+   "MailRetentionOptions": "interface:41b7a46909",
    "MailSqlKernel": "interface:5b0363ef21",
    "createMailActivityRepo": "function:54d4d473b4",
    "createMailAttemptObserver": "function:f84186568b",
@@ -668,8 +675,8 @@
    "createMailSuppressionRepo": "function:17e1cb4664",
    "createSiteMailFeedbackRoute": "function:4472cebf9e",
    "mailActivityUse": "function:6df40a0a31",
-   "purgeExpiredMail": "function:8e6a23a530",
-   "startMailRetention": "function:6d9a37787e"
+   "purgeExpiredMail": "function:522a9fdc92",
+   "startMailRetention": "function:15dee63cb0"
   }
  },
  "./mail/test-send": {

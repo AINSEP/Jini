@@ -902,10 +902,16 @@
    "EmailSourceSummary": "interface:c9160a98f5",
    "EmailTemplatePort": "interface:2a48b0c227",
    "InMemoryMailerAdapter": "type:8d1fc5c6e1",
+   "MAIL_CAPTURE_CLEAR_PERMISSION": "variable:1a02ef819e",
    "MailAdapterCreateContext": "interface:5f8645d3ae",
    "MailAdapterCredential": "interface:5ec77c0ac5",
    "MailAdapterKit": "interface:adf59a8b97",
    "MailAdapterModule": "interface:bf4bfa8bd2",
+   "MailCaptureClearAnswer": "type:0227c55fe0",
+   "MailCaptureClearPlan": "interface:0f656d513c",
+   "MailCaptureClearPreview": "interface:7187ec8417",
+   "MailCaptureClearRequest": "interface:40287a1f7a",
+   "MailCaptureClearResult": "interface:a6c3847201",
    "MailCapturePort": "interface:ea51e8f0ff",
    "MailCredentialFact": "interface:4ace9ae78d",
    "MailCredentialPort": "interface:145c74e96c",
@@ -1524,23 +1530,6 @@
    "DuplicateResourceHandlerContributor": "interface:6af81f3002"
   }
  },
- "./contracts/site/capability-providers-comments": {
-  "types": "./dist/contracts/site/capability-providers-comments.d.ts",
-  "symbols": {
-   "CommentModerationPort": "interface:55829e3038",
-   "CommentStatus": "type:d2ceb0a3ce",
-   "CommentSubmissionPort": "interface:9e0824bd7a",
-   "CommentThreadRendererPort": "interface:5c6c47a049",
-   "CommentThreadScript": "interface:587d387c78",
-   "CommentsProviderAdapter": "type:0f967c5976",
-   "CommentsProviderBinding": "interface:5969766411",
-   "CommentsProviderDefinition": "interface:4f3ec9b68f",
-   "CommentsProviderRegistry": "interface:f838c71e70",
-   "CommentsSelection": "interface:b8a20e8b0a",
-   "CommentsSelectionStorePort": "interface:bf8df426f1",
-   "CommentsSettingField": "interface:a97f865de8"
-  }
- },
  "./contracts/site/chat-core": {
   "types": "./dist/contracts/site/chat-core.d.ts",
   "symbols": {
@@ -1596,18 +1585,11 @@
  "./contracts/site/cms-external-mcp": {
   "types": "./dist/contracts/site/cms-external-mcp.d.ts",
   "symbols": {
-   "AdminExternalMcpAdmissionsSnapshot": "interface:c0e82eb30c",
-   "AdminExternalMcpConfigFailure": "interface:e6a5d06a6a",
    "AdminExternalMcpConnectStart": "type:46ed58ea16",
    "AdminExternalMcpOAuthInput": "interface:97acd8f5c1",
    "AdminExternalMcpOAuthView": "interface:3edd0c3ca7",
-   "AdminExternalMcpProbeResult": "interface:93f0adf03d",
    "AdminExternalMcpServer": "interface:dd7c77dc41",
    "AdminExternalMcpServerInput": "interface:2711c03a75",
-   "AdminFederatedAdmissionEntry": "interface:df993160ec",
-   "AdminRemoteToolAnnotations": "interface:e688c83184",
-   "AdminRemoteToolSurfaceEntry": "interface:c7e62e87b0",
-   "AdminToolRefusalReason": "type:026c0a07c8",
    "ExternalMcpAdmissionsEnvelope": "interface:30a90ae29a",
    "ExternalMcpDeleteEnvelope": "interface:367b781192",
    "ExternalMcpListEnvelope": "interface:23f501dc75",
@@ -2485,7 +2467,7 @@
    "SessionRecord": "interface:08ae02fd6a",
    "SessionRepoPort": "interface:0ac9ae46ad",
    "UserRecord": "interface:9d8ad07d74",
-   "UserRepoPort": "interface:4aca30b04d"
+   "UserRepoPort": "interface:629df2aa02"
   }
  },
  "./contracts/site/user-management-react": {
@@ -3386,7 +3368,7 @@
  "./tool-metadata/mail-status": {
   "types": "./dist/tool-metadata/mail-status.d.ts",
   "symbols": {
-   "toolMetadata": "variable:bb7bd7b144"
+   "toolMetadata": "variable:2e6a7785ba"
   }
  },
  "./tool-metadata/media": {

@@ -2863,7 +2863,7 @@
  "./screens/email/email-api.types": {
   "types": "./dist/screens/email/email-api.types.d.ts",
   "symbols": {
-   "EmailApi": "interface:8ab08f65a3",
+   "EmailApi": "interface:832ffeb200",
    "EmailTemplateDetail": "interface:d90e8261a8",
    "EmailTemplateField": "interface:e806dd94fd",
    "EmailTemplatePreview": "interface:50c251fb97",
@@ -2922,10 +2922,14 @@
  "./screens/email/hooks/use-email-activity.hooks": {
   "types": "./dist/screens/email/hooks/use-email-activity.hooks.d.ts",
   "symbols": {
-   "EmailActivityController": "interface:f10745ae80",
+   "CaptureClearFlow": "interface:456b7787b4",
+   "CaptureClearState": "type:80e4d600c2",
+   "EmailActivityController": "interface:ac69f3b518",
    "PagedList": "interface:b8f8c48a0b",
    "RemovalStep": "type:d255c4c0b1",
-   "useEmailActivity": "function:eaa644360e"
+   "STALE_CAPTURE_MESSAGE": "variable:661f7acac8",
+   "useCaptureClearFlow": "function:5014550c24",
+   "useEmailActivity": "function:26ee492c99"
   }
  },
  "./screens/email/hooks/use-email-overview.hooks": {

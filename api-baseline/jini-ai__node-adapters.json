@@ -2,7 +2,7 @@
  "./agent-plugins": {
   "types": "./dist/agent-plugins.d.ts",
   "symbols": {
-   "AgentPluginClockPort": "type:e92529f656",
+   "AgentPluginClockPort": "type:c9853aa023",
    "AgentPluginIdsPort": "type:c61b55ae0e",
    "AgentPluginPlatformFunctions": "interface:3456a3b9e4",
    "AgentPluginProcessPort": "interface:381df1f7f0",

@@ -827,9 +827,10 @@
   "types": "./dist/admin-http/routes/integrations/create.d.ts",
   "symbols": {
    "IntegrationsCreateInput": "interface:4d3c15b445",
+   "IntegrationsCreatePrincipal": "interface:78b78aab58",
    "IntegrationsCreateRouteDeps": "interface:78c88ccbf4",
-   "WebhookSubscriptionCreateFn": "type:e53ebfc13c",
-   "integrationsCreateRoute": "variable:ca7c665207"
+   "WebhookSubscriptionCreateFn": "type:ffe33c1dfc",
+   "integrationsCreateRoute": "variable:29857fe935"
   }
  },
  "./admin-http/routes/integrations/delete": {
@@ -2071,6 +2072,8 @@
    "MailActivityFailureDeps": "interface:b9848a468d",
    "MailActivityGetRouteDeps": "interface:7b9dc1b06c",
    "MailActivityListRouteDeps": "interface:2a7fc98b7d",
+   "MailCaptureClearBinding": "interface:a908f8fe10",
+   "MailCaptureClearRouteDeps": "interface:f89305babd",
    "MailFeedbackRouteDeps": "interface:1407fe39de",
    "MailStatusPermissionDeps": "interface:20260149c2",
    "MailSuppressionRemovalPlan": "interface:585c3a3c1e",
@@ -2079,6 +2082,7 @@
    "MailUsesRouteDeps": "interface:a3f40f4b98",
    "mailActivityGetRoute": "variable:d1b1e6f72b",
    "mailActivityListRoute": "variable:5c46e3e2f2",
+   "mailCaptureClearRoute": "variable:7b1c1822d8",
    "mailFeedbackRoute": "variable:1ee059aeb6",
    "mailSuppressionRemoveRoute": "variable:23f74a3a97",
    "mailSuppressionsListRoute": "variable:3a4252e6a0",
@@ -3338,7 +3342,7 @@
    "FormDestinationDescriptor": "interface:2e05c3d519",
    "FormDestinationForm": "interface:1abb23f57d",
    "FormDestinationKit": "interface:88ce091768",
-   "FormDestinationModule": "interface:eb4b2caf40",
+   "FormDestinationModule": "interface:831771e623",
    "FormDestinationPage": "interface:f222c1aa83",
    "FormDestinationParseResult": "type:b5f55f08ce",
    "FormDestinationPluginState": "interface:dbf3c16a65",
@@ -3493,7 +3497,7 @@
   "types": "./dist/forms/destinations/deliver.d.ts",
   "symbols": {
    "ResolveRequestTarget": "type:dae6a02af5",
-   "createFormDestinationDeliverer": "function:62726d80f3"
+   "createFormDestinationDeliverer": "function:b4114b08ba"
   }
  },
  "./forms/destinations/key-store": {
@@ -3914,6 +3918,11 @@
    "BlobGcJournalRepoPort": "interface:af803e3f08",
    "BlobReferenceProbes": "interface:56051a611e",
    "BlobStorePort": "interface:2629b78977",
+   "CONVERT_VIDEO_TOOL_ID": "variable:48bb3f8744",
+   "ConvertMediaVideoDeps": "interface:4aff3dd148",
+   "ConvertMediaVideoOptional": "interface:fe656e8605",
+   "ConvertMediaVideoRequired": "interface:23afaaedb1",
+   "ConvertVideoToolDeps": "interface:15089e1e8b",
    "DEFAULT_ALLOWED_MIME_TYPES": "variable:bc772b03f4",
    "DEFAULT_GC_GRACE_MS": "variable:299934e46d",
    "DEFAULT_MAX_UPLOAD_BYTES": "variable:c084ead420",
@@ -3921,6 +3930,7 @@
    "DOCUMENT_CONTENT_TYPES": "variable:56688926b7",
    "DOCUMENT_EXTRACTION_LIMITS": "variable:004c1299ff",
    "DOCUMENT_TEXT_PAGE_BYTES": "variable:df646e7541",
+   "DerivedMediaLinkPort": "type:ed1a852fd8",
    "DocumentArchiveReaderPort": "interface:8afc989270",
    "DocumentTextExtraction": "interface:d5464216db",
    "DocumentTextExtractionError": "class:48ed6a3c02",
@@ -3952,6 +3962,7 @@
    "MAX_DOCUMENT_BYTES": "variable:2b4fdf4b22",
    "MAX_TRANSFORM_DIMENSION_PX": "variable:f69b85d1f3",
    "MEDIA_HTML_ATTRIBUTE_ALLOWED_NAMES": "variable:c4f641505b",
+   "MEDIA_MAX_DESCRIPTION_LENGTH": "variable:bbbe5d77e7",
    "MediaConflictError": "class:2b1f365d08",
    "MediaFileReplacementInput": "type:8cf06eb096",
    "MediaFileReplacementRepoPort": "interface:f37631832d",
@@ -3965,7 +3976,7 @@
    "MediaOriginalReply": "interface:0b87241402",
    "MediaOriginalType": "interface:ae857b1989",
    "MediaProvenance": "type:533515c78e",
-   "MediaRecord": "interface:393aa415e1",
+   "MediaRecord": "interface:ef20a6866e",
    "MediaReferenceCheckPort": "interface:0cae301547",
    "MediaReplacementMetadata": "type:d88cd10140",
    "MediaRepoPort": "interface:0b1df85146",
@@ -3977,7 +3988,8 @@
    "MediaStoreCredential": "type:964a814b26",
    "MediaStoreEnvChoice": "type:963d963378",
    "MediaStoreEnvDeclaration": "interface:06f24bd1fc",
-   "MediaToolDeps": "interface:e0e772b745",
+   "MediaToolDeps": "interface:b996cc779a",
+   "MediaTranscoderPort": "interface:52485bac39",
    "MediaValidationError": "class:b419fdb163",
    "PRIVATE_NO_STORE": "variable:b3ee4f106d",
    "ParsedMediaHtmlAttributes": "interface:107666f83d",
@@ -3998,7 +4010,7 @@
    "RunBlobGcDeletePassRequired": "interface:f1658619ee",
    "RunBlobGcUnlinkPassRequired": "interface:6d6af013fa",
    "SVG_CONTENT_SECURITY_POLICY": "variable:119f7762ee",
-   "SniffedContentType": "type:f3a5158e26",
+   "SniffedContentType": "type:a0448c6cc2",
    "TombstoneBlobRequired": "interface:d216bda20c",
    "TransformDefinitionRecord": "interface:43d188d3cb",
    "TransformDefinitionRepoPort": "interface:9fef3952ba",
@@ -4009,12 +4021,13 @@
    "TransformParams": "interface:37f709014d",
    "TransformValidationError": "class:7892ba2f0f",
    "TrashMediaRequired": "interface:cf7bdee005",
-   "UpdateMediaMetadataInput": "interface:4d9c81d060",
+   "UpdateMediaMetadataInput": "interface:560e8ac564",
    "UpdateMediaMetadataRequired": "interface:34e82e1bb8",
    "UploadMediaDeps": "interface:2daf8c9f89",
-   "UploadMediaInput": "interface:f636846ca2",
+   "UploadMediaInput": "interface:f5bc9128a3",
    "UploadMediaOptional": "interface:ed48d53c5c",
    "UploadMediaRequired": "interface:a7dd1f0a6e",
+   "VIDEO_CONVERSION_MESSAGES": "variable:b79309603a",
    "VIDEO_DEFAULT_FRAMES": "variable:f2113493b5",
    "VIDEO_EXTRACTION_TIMEOUT_MS": "variable:efcf3daaeb",
    "VIDEO_MAX_EDGE_PX": "variable:c59dfd714a",
@@ -4024,8 +4037,13 @@
    "VIDEO_MAX_OUTPUT_BYTES": "variable:1a7825f185",
    "VIDEO_MAX_SHEETS": "variable:9ee943da35",
    "VIDEO_MAX_SHEET_BYTES": "variable:d7b423e442",
+   "VIDEO_TRANSCODE_MAX_INPUT_BYTES": "variable:bfa1e19c8f",
+   "VIDEO_TRANSCODE_THRESHOLD_BYTES": "variable:9af8c24ec8",
    "VersionedMediaRepoPort": "interface:8ceff06fd3",
    "VideoContactSheet": "interface:a9ff663c56",
+   "VideoConversionError": "class:fae146f85f",
+   "VideoConversionFailureReason": "type:58cf70260b",
+   "VideoConversionToolOptions": "interface:a23feacc38",
    "VideoFrame": "interface:47943d70b4",
    "VideoFrameExtractor": "interface:e6973e9220",
    "VideoFrameOptions": "interface:0536c11be9",
@@ -4033,9 +4051,15 @@
    "VideoMetadata": "interface:b9ade137ef",
    "VideoSheetLayout": "interface:711dc724a3",
    "VideoSheetTile": "interface:7783c142fb",
+   "VideoTranscodeFailureReason": "type:dcc6552fdd",
+   "VideoTranscodeResult": "type:376e035313",
+   "VideoTranscodeTarget": "type:ff23eb513e",
    "blobStoreFromObjectStore": "function:b0b3b11d10",
-   "buildMediaRegistrations": "function:c175a77472",
+   "buildConvertVideoRegistrations": "function:67ab56322b",
+   "buildMediaRegistrations": "function:a7396c2d98",
    "computeBlobStorageKey": "function:8947237945",
+   "convertMediaVideo": "function:6f8efa5c43",
+   "convertVideoToolDefinition": "variable:cc882812fb",
    "createDocumentTextReader": "function:8c3d998a2a",
    "decideMediaOriginalForAsset": "function:4767af45f8",
    "decideMediaOriginalReply": "function:4c045f93ac",
@@ -4090,6 +4114,7 @@
    "sanitizeOriginalBytes": "function:1fba445586",
    "sanitizeSvg": "function:b4aed85163",
    "selectMediaBlobStore": "function:6c9407161e",
+   "shouldTranscodeOnImport": "function:6c8f6a4be8",
    "sniffContentType": "function:3a74d4583f",
    "tombstoneBlobIfUnreferenced": "function:b4c755c4c4",
    "trashMedia": "function:01a99f79f2",
@@ -4134,6 +4159,7 @@
  "./media/node": {
   "types": "./dist/media/node.d.ts",
   "symbols": {
+   "FfmpegMediaTranscoderDeps": "interface:8aa2e25e64",
    "ImageSourceCorruptError": "class:58892e4308",
    "ImageTransformUnavailableError": "class:45b31887b0",
    "LocalFsBlobStore": "class:cf516f59e6",
@@ -4142,10 +4168,13 @@
    "SharpImageTransformer": "class:b27f71442d",
    "SharpImageTransformerOptional": "interface:38219cba8a",
    "SharpInstance": "interface:3b20baa3fb",
+   "VIDEO_TRANSCODE_TIMEOUT_MS": "variable:2141507a0d",
    "VideoBinaries": "interface:032da7101b",
    "VideoBinaryFinder": "type:666e184fb5",
    "VideoExtractionLock": "interface:7fcf4e81dd",
    "VideoProcessRunner": "type:749bc14b16",
+   "buildVideoTranscodeArgs": "function:24181aa2d6",
+   "createFfmpegMediaTranscoder": "function:d1a3f75406",
    "createFfmpegVideoFrameExtractor": "function:676709bdcd",
    "createVideoExtractionLock": "function:bf09c43c0e",
    "findVideoBinaries": "variable:fb87829ada",
@@ -5495,129 +5524,6 @@
    "CONTENT_HASH_VERSION": "variable:f5f26052c4",
    "canonicalize": "function:95fa59d041",
    "contentHash": "function:95236fcf18"
-  }
- },
- "./publish/content/dialog": {
-  "types": "./dist/publish/content/dialog/index.d.ts",
-  "symbols": {
-   "CriteriaSelection": "interface:9d7558fd6f",
-   "PUBLISH_CONTENT_CAPABILITY": "variable:e490784b39",
-   "PUBLISH_CRITERIA_QUERY_PARAM": "variable:feb0536448",
-   "PublishContentConfirmResult": "interface:f9e929f850",
-   "PublishContentExecuteResult": "interface:699545733a",
-   "PublishContentNotSupportedByLive": "interface:30a1786ed7",
-   "PublishContentOutcomeKind": "type:b5d1809aae",
-   "PublishContentOutcomeRow": "type:657ce2167a",
-   "PublishContentPeerSummary": "interface:850f4194d6",
-   "PublishContentPhase": "type:0582fe939d",
-   "PublishContentPlanResult": "interface:b9af42b4a2",
-   "PublishContentReport": "type:5ec0bb11d2",
-   "PublishCriteria": "interface:a4ac76d99a",
-   "PublishEntityTypeLabeler": "type:09b64caa0f",
-   "PublishOrderGroup": "type:7a570e4e30",
-   "PublishOrderKey": "interface:9445f1105d",
-   "PublishPlanDriftError": "class:b7b3e8a41e",
-   "PublishReportRow": "interface:03cb026e6e",
-   "PublishReportSummary": "interface:d60193e0e1",
-   "PublishRequestResult": "interface:5ff52716c6",
-   "PublishRowDisposition": "type:bb569f4f9f",
-   "PublishScope": "interface:5a50100769",
-   "applyPublishCriteria": "function:6c444c6cf9",
-   "canConfirmPlan": "function:5cc3b57ef4",
-   "canRequestPlan": "function:2a5fe9d85f",
-   "confirmationTokenFor": "function:0c3bf8598e",
-   "countSelectedPublishing": "function:45c2d28024",
-   "decodePublishCriteriaFromQuery": "function:73e376db09",
-   "encodePublishCriteriaToQuery": "function:4ec1d51527",
-   "overwriteReplanIsConsistent": "function:0b0e003137",
-   "parsePublishContentToolInput": "function:e487243ef3",
-   "planOnScreen": "function:977d1b9f8b",
-   "preparePublishConfirmation": "function:bbd4480856",
-   "publishOrderComparator": "function:800e95a94a",
-   "publishRowDisposition": "function:dd3ff77371",
-   "reportOnScreen": "function:5fc973e778",
-   "rowPublishesWithSelection": "function:592ce1d6ee",
-   "selectableRowKeys": "function:74d30c6cad",
-   "sortPublishReportRows": "function:3cbc7296ca",
-   "summarizePublishReport": "function:4b387f1db9",
-   "toPublishReportRows": "function:b71e951be8"
-  }
- },
- "./publish/content/dialog/contract": {
-  "types": "./dist/publish/content/dialog/contract.d.ts",
-  "symbols": {
-   "PublishContentConfirmResult": "interface:f9e929f850",
-   "PublishContentExecuteResult": "interface:699545733a",
-   "PublishContentNotSupportedByLive": "interface:30a1786ed7",
-   "PublishContentOutcomeKind": "type:b5d1809aae",
-   "PublishContentOutcomeRow": "type:657ce2167a",
-   "PublishContentPeerSummary": "interface:850f4194d6",
-   "PublishContentPlanResult": "interface:b9af42b4a2",
-   "PublishContentReport": "type:5ec0bb11d2",
-   "PublishScope": "interface:5a50100769"
-  }
- },
- "./publish/content/dialog/criteria": {
-  "types": "./dist/publish/content/dialog/criteria.d.ts",
-  "symbols": {
-   "CriteriaSelection": "interface:9d7558fd6f",
-   "PUBLISH_CONTENT_CAPABILITY": "variable:e490784b39",
-   "PUBLISH_CRITERIA_QUERY_PARAM": "variable:feb0536448",
-   "PublishCriteria": "interface:a4ac76d99a",
-   "PublishRequestResult": "interface:5ff52716c6",
-   "applyPublishCriteria": "function:6c444c6cf9",
-   "decodePublishCriteriaFromQuery": "function:73e376db09",
-   "encodePublishCriteriaToQuery": "function:4ec1d51527",
-   "parsePublishContentToolInput": "function:e487243ef3"
-  }
- },
- "./publish/content/dialog/phase": {
-  "types": "./dist/publish/content/dialog/phase.d.ts",
-  "symbols": {
-   "PublishContentPhase": "type:0582fe939d",
-   "canConfirmPlan": "function:5cc3b57ef4",
-   "canRequestPlan": "function:2a5fe9d85f",
-   "confirmationTokenFor": "function:0c3bf8598e",
-   "planOnScreen": "function:977d1b9f8b",
-   "reportOnScreen": "function:5fc973e778"
-  }
- },
- "./publish/content/dialog/publish-order": {
-  "types": "./dist/publish/content/dialog/publish-order.d.ts",
-  "symbols": {
-   "PublishOrderGroup": "type:7a570e4e30",
-   "PublishOrderKey": "interface:9445f1105d",
-   "publishOrderComparator": "function:800e95a94a",
-   "sortPublishReportRows": "function:3cbc7296ca"
-  }
- },
- "./publish/content/dialog/replan": {
-  "types": "./dist/publish/content/dialog/replan.d.ts",
-  "symbols": {
-   "PublishPlanDriftError": "class:b7b3e8a41e",
-   "overwriteReplanIsConsistent": "function:0b0e003137",
-   "preparePublishConfirmation": "function:bbd4480856"
-  }
- },
- "./publish/content/dialog/report-reasons": {
-  "types": "./dist/publish/content/dialog/report-reasons.d.ts",
-  "symbols": {
-   "friendlyPublishReason": "function:463b81e7ec"
-  }
- },
- "./publish/content/dialog/report-rows": {
-  "types": "./dist/publish/content/dialog/report-rows.d.ts",
-  "symbols": {
-   "PublishEntityTypeLabeler": "type:09b64caa0f",
-   "PublishReportRow": "interface:03cb026e6e",
-   "PublishReportSummary": "interface:d60193e0e1",
-   "PublishRowDisposition": "type:bb569f4f9f",
-   "countSelectedPublishing": "function:45c2d28024",
-   "publishRowDisposition": "function:dd3ff77371",
-   "rowPublishesWithSelection": "function:592ce1d6ee",
-   "selectableRowKeys": "function:74d30c6cad",
-   "summarizePublishReport": "function:4b387f1db9",
-   "toPublishReportRows": "function:b71e951be8"
   }
  },
  "./publish/content/execute-import": {
@@ -7264,7 +7170,7 @@
   "types": "./dist/trash/site/ports.d.ts",
   "symbols": {
    "RemoveEntity": "type:108b78480b",
-   "TRASH_RETENTION_DAYS": "variable:784141ba32",
+   "TRASH_RETENTION_DAYS": "variable:e2b1e1e486",
    "TransactionRunner": "type:78fd7b4865"
   }
  },

@@ -38,7 +38,7 @@
    "SessionRepoPort": "interface:0ac9ae46ad",
    "SessionTokenPort": "interface:ad050e6777",
    "UserRecord": "interface:9d8ad07d74",
-   "UserRepoPort": "interface:4aca30b04d",
+   "UserRepoPort": "interface:629df2aa02",
    "UsernameChangePort": "interface:e7132fdde4",
    "isKnownPermission": "function:9e72a4695a",
    "listPermissions": "function:1c6a8972da",
@@ -491,7 +491,7 @@
  "./mail/status/delivery-agent-tools": {
   "types": "./dist/mail/status/delivery-agent-tools.d.ts",
   "symbols": {
-   "mailDeliveryAgentToolCatalog": "variable:08dd7a7295"
+   "mailDeliveryAgentToolCatalog": "variable:8f4491ce9b"
   }
  },
  "./mail/status/domain-deps": {
@@ -722,6 +722,8 @@
    "ConsentRevisionOp": "type:a1428a36d3",
    "ConsentStatus": "type:2a3fe19cb1",
    "MagicLinkTokenRecord": "interface:8e521a101d",
+   "MagicLinkTokenRejectedError": "class:c16082ecb0",
+   "MagicLinkTokenRejection": "type:b09ccec5c5",
    "MemberAccessDecision": "interface:8db7ba494f",
    "MemberAuthError": "class:51bf80c66d",
    "MemberConflictError": "class:2b3b7e5d0e",
@@ -1199,7 +1201,7 @@
    "InMemoryRolePolicyRepo": "class:50d0b9125a",
    "InMemoryRoleRepo": "class:ec084bf421",
    "InMemorySessionRepo": "class:e3a6963a43",
-   "InMemoryUserRepo": "class:b683ea7e2e",
+   "InMemoryUserRepo": "class:654eaedd8e",
    "InMemoryWorkspaceRecords": "class:70097d7840",
    "LinkDecision": "type:66a6a25fc3",
    "LoginLinkMember": "interface:64d9298a07",
