@@ -1,7 +1,8 @@
 import { forwardRef, useEffect, useMemo, useRef, useState, type RefObject } from 'react';
 import type { FetchQueryAdapter, QueryResult } from '@jini-ai/core/fetch';
-import { type AdminKit, type DialogProps, type NativeDialogView, type SettlementGeneration, type ButtonProps, type IconButtonProps, type AdminKitComponents, type AdminKitHooks, type AdminKitValues, type AdminThemeKit, type KitTranslator, type AdminKitChat, type KitDeliverTypedAnswer, type PanelPosition, type FailureChannel, type StandingDraftAutosaveSnapshot, type StandingDraftLocalBackup } from './kit.js';
+import { type AdminKit, type DialogProps, type NativeDialogView, type SettlementGeneration, type ButtonProps, type IconButtonProps, type AdminKitComponents, type AdminKitHooks, type AdminKitValues, type AdminThemeKit, type KitTranslator, type AdminKitChat, type KitDeliverTypedAnswer, type PanelPosition, type FailureChannel, type StandingDraftAutosaveSnapshot, type StandingDraftLocalBackup, type SaveState } from './kit.js';
 import type { UserFacingError } from '@jini-ai/core';
+import type { ExtEventRenderer, ExtEventRendererOptions } from './kit-chat-types.js';
 import { fakeMediaProviders } from './testing-kit-media-providers.js';
 
 const fakeComponents: AdminKitComponents = {
@@ -170,7 +171,32 @@ const fakeHooks: AdminKitHooks = {
   useCopyToClipboard: (clipboard) => {
     const [copied, setCopied] = useState(false);
     return { copied, copy: async (text) => { const ok = await clipboard.copyText(text); setCopied(ok); return ok; } };
+  },  useExecutionCredential: () => ({
+    stored: null, apiKeyStoredExternally: false, apiKeyPlaceholder: undefined, storedKeyIsForOtherEndpoint: false, canDiscoverModels: false,
+    saveState: { status: 'idle' }, settingsSaveState: { status: 'idle' }, canSaveKey: false, saveKey: async () => {}, saveSettings: async () => {},
+    legacyKey: null, migrateLegacyKey: async () => {}, dismissLegacyPrompt: () => {},
+  }),
+  // Holds the default until changed; never loads or saves. A test that checks persistence injects its own hook.
+  useSettingsSlice: (options) => {
+    const [value, setValue] = useState<typeof options.defaultValue | null>(options.defaultValue);
+    return { value, loadError: null, saveState: { status: 'idle' }, onChange: setValue, refresh: async () => {} };
   },
+  useStandingDraftAutosave: () => ({
+    recoverableDraft: null, staleBasis: null, dismissRecoverable: () => {}, scheduleAutosave: () => {}, clearStandingDraft: async () => ({ discarded: false }),
+    supersedeBasis: () => {}, preserveFailedSave: () => {},
+  }),
+  useWiredCopyToClipboard: () => {
+    const [copied, setCopied] = useState(false);
+    return { copied, copy: async () => { setCopied(true); return true; } };
+  },
+  useCursorPages: (r) => {
+    const [filters, setFilters] = useState(r.initialFilters);
+    const [page, setPage] = useState<Awaited<ReturnType<typeof r.fetchPage>> | null>(null);
+    useEffect(() => { void r.fetchPage({ filters }).then(setPage); }, [filters]);
+    return { rows: page?.items ?? null, nextCursor: page?.nextCursor ?? null, failure: null, appliedFilters: filters, applyFilters: setFilters, loadingMore: false, loadMore: async () => {} };
+  },
+  useI18n: () => ({ locale: 'en', setLocale: () => {}, t: passthroughTranslator }),
+  useDebouncedHtmlPreview: (r) => ({ document: r.source, loading: false, error: null }),
 };
 
 /** Query hooks that answer immediately with `data`; mutations resolve at once. */
@@ -197,7 +223,7 @@ const fakeTheme: AdminThemeKit = {
 };
 
 // Neutral stand-ins with the hosts' runtime shapes; a test that cares about a value injects its own.
-const fakeValues: AdminKitValues = Object.freeze({
+const fakeValuesDraft: AdminKitValues = {
   SETTINGS_DIALOG_DICTIONARIES: Object.freeze({}),
   DEFAULT_NOTIFICATIONS_PREFERENCES: Object.freeze({ soundEnabled: false, successSoundId: 'fake-success', failureSoundId: 'fake-failure', desktopEnabled: false }),
   UNREACHABLE_RETRY_DELAYS_MS: Object.freeze([1, 2]),
@@ -231,8 +257,40 @@ const fakeValues: AdminKitValues = Object.freeze({
   },
   resolveInitialActiveTabId: (r: { tabs: readonly { id: string }[] }, o: { initialTabId?: string | null | undefined } = {}) =>
     (o.initialTabId != null && r.tabs.some((tab) => tab.id === o.initialTabId) ? o.initialTabId : r.tabs[0]?.id ?? null),
+  readableTextColor: ({ hex }: { hex: string }) => (hex.length > 4 ? 'black' : 'white'),
+  canAcceptRefresh: (state: { timerPending: boolean; hasUnsavedEdits: boolean; mounted: boolean; commitsUnchanged: boolean }) => !state.timerPending && !state.hasUnsavedEdits && state.mounted && state.commitsUnchanged,
+  mergeSaveStates: ({ states }: { states: readonly SaveState[] }): SaveState => states.find((state) => state.status === 'error') ?? states.find((state) => state.status === 'saving')
+    ?? states.find((state) => state.status === 'saved') ?? { status: 'idle' },
+  SAVE_DEBOUNCE_MS: 600,
+  startVisibleInterval: ({ tick, periodMs }: { tick: () => void; periodMs: number }) => { const id = setInterval(tick, periodMs); return () => clearInterval(id); },
   findActiveTab: <T extends { id: string }>(r: { tabs: readonly T[]; activeTabId: string | null }) => r.tabs.find((tab) => tab.id === r.activeTabId),
-});
+  nextConfigForAgentSelect: ({ config, agentId }) => ({ ...config, localCli: { ...config.localCli, agentId } }),
+  nextConfigForAgentModel: ({ config, agentId, model }) => ({ ...config, localCli: { ...config.localCli, modelByAgentId: { ...config.localCli.modelByAgentId, [agentId]: model } } }),
+  nextConfigForAgentReasoning: ({ config, agentId, reasoning }) => ({ ...config, localCli: { ...config.localCli, reasoningByAgentId: { ...config.localCli.reasoningByAgentId, [agentId]: reasoning } } }),
+  resolveSelectedPreset: ({ presets, config }) => presets.find((preset) => preset.id === config.providerId) ?? null,
+  // A port with no key and no network: detection answers from the transport, a connection test never succeeds.
+  createExecutionHttpAdapter: ({ transport }) => ({
+    createPort: () => ({ detectLocalAgents: async () => (await transport.detectExecutionAgents({})).data, testConnection: async () => ({ ok: false, message: 'fake-kit' }) }),
+    resetDetectionCache: () => {},
+  }),
+  requireExecutionResponseData: <T,>({ response, callSite }: { response: { data?: T | null } | null | undefined; callSite: string }): T => {
+    if (response?.data == null) throw new Error(`${callSite}: the response carried no data`);
+    return response.data;
+  },
+  // One attempt, no waiting: the delays are the host's.
+  retryWhileUnreachable: ({ load }) => load(),
+  createBrowserViewerClipboard: () => ({ copyText: async () => false }),
+  folderPathsFromDataTransfer: ({ dataTransfer, port }) => Array.from(dataTransfer.files, (file) => port.getPathForFile(file)).filter((path) => path !== ''),
+  findEditorBlockOpening: () => undefined,
+  isEditorSourceError: ({ error }) => error instanceof Error && (error as { code?: unknown }).code === 'EDITOR_SOURCE_INTEGRITY',
+  resolveAccentColor: ({ value }) => (typeof value === 'string' && value !== '' ? value : 'black'),
+  normalizeAccentColor: ({ value }) => (typeof value === 'string' && value !== '' ? value : null),
+  resolveSelectTriggerLabel: ({ selectedOption, placeholder }) => (selectedOption ? { text: selectedOption.label, className: 'fake-select-value' } : { text: placeholder ?? '', className: 'fake-select-placeholder' }),
+  infoTipBubbleStyle: ({ top, left }) => ({ top, left }),
+  renderMarkdownToSafeHtml: (markdown) => markdown.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;'),
+  sourceDisplayLabel: ({ source, fieldSpecs }) => source.label ?? source.fields[fieldSpecs[0]?.key ?? ''] ?? source.id,
+};
+const fakeValues: AdminKitValues = Object.freeze(fakeValuesDraft);
 
 // Posters that never reach a server: a typed answer finds no pending question, a mid-run message finds no
 // running agent, an A2UI action fails with a reason. A test that checks delivery injects its own factory.
@@ -248,8 +306,46 @@ const fakeChat: AdminKitChat = {
     const agent = agents.find((a) => a.id === requested.agentId && a.available !== false) ?? agents.find((a) => a.available !== false);
     return agent ? { ...requested, agentId: agent.id } : { agentId: '' };
   },
+  conversationTitleForDisplay: ({ title, firstPrompt }) => title ?? firstPrompt ?? null,
+  deriveConversationTitle: ({ prompt }) => prompt.slice(0, 40),
+  mcpUiSurfaceSlotKey: ({ data }) => (typeof data === 'object' && data !== null && 'id' in data ? String((data as { id: unknown }).id) : undefined),
+  midRunUserMessageSlotKey: ({ data }) => (typeof data === 'object' && data !== null && 'messageId' in data ? String((data as { messageId: unknown }).messageId) : undefined),
+  MCP_UI_EXT_EVENT_NAME: 'fake-mcp-ui',
+  MID_RUN_USER_MESSAGE_EXT_EVENT_NAME: 'fake-user-message',
   SECRET_REDACTED_NOTICE: 'fake secret-redacted notice',
-  CREDENTIAL_CARD_GUIDANCE: 'fake credential-card guidance',
+  CREDENTIAL_CARD_GUIDANCE: 'fake credential-card guidance',  // Terminal means the run will not change again.
+  isTerminalRunStatus: ({ status }) => status === 'succeeded' || status === 'failed' || status === 'canceled',
+  // A real in-memory registry: private per call, so one test's renderers never reach another's.
+  createExtEventRendererRegistry: () => {
+    const renderers = new Map<string, { renderer: ExtEventRenderer; options: ExtEventRendererOptions }>();
+    return {
+      register: ({ name, renderer }, options = {}) => { renderers.set(name, { renderer, options }); return () => { renderers.delete(name); }; },
+      get: ({ name }) => renderers.get(name)?.renderer,
+      slot: ({ name, data }) => `${name}:${renderers.get(name)?.options.slotKey?.({ data }) ?? ''}`,
+      hasTerminalNotice: ({ name, events }) => renderers.get(name)?.options.terminalNotice?.({ events }) ?? false,
+      clear: () => renderers.clear(),
+    };
+  },
+  // Remembers in memory only; `storage` is ignored so no test touches the real one.
+  createLastConversationStore: () => {
+    let last: string | null = null;
+    return { read: () => last, write: (conversationId) => { last = conversationId; }, clear: () => { last = null; } };
+  },
+  createAssistantChatsClient: () => ({
+    giveUpOutcome: () => 'permanent',
+    handleSaveFailure: async () => ({ done: true, outcome: 'permanent' }),
+    attemptSave: async () => ({ done: true, outcome: 'saved' }),
+    summarizeFlushOutcomes: () => ({ idsToRelease: [], shouldRefresh: false }),
+    resolveRememberedConversation: ({ remembered, conversations }) => (remembered !== null && conversations.some((c) => c.id === remembered) ? 'restore' : 'forget'),
+    useAssistantChats: () => ({
+      conversations: [], activeId: null, paneKey: 'fake-pane', initialMessages: [], select: () => {}, create: async () => {}, remove: async () => {}, rename: async () => {},
+      onMessagesChange: () => {}, ensureConversationId: async () => null, persistUserTurn: async () => {},
+    }),
+  }),
+  createAgentInventorySnapshot: () => ({ read: () => undefined, write: () => {} }),
+  createConditionalHistoryRead: ({ read }) => async ({ conversationId }) => (await read({ conversationId }, {})).messages ?? [],
+  // Every attachment is treated as still present.
+  createChatAttachmentValidator: () => async (attachments) => attachments,
 };
 
 /** Test-only kit for admin AND for consumer packages whose screens render under it (`@jini-ai/admin/react/testing-kit`).
