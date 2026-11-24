@@ -522,6 +522,11 @@ files. The host mounts it on its public raw mount (with the `requestFacts` port:
 and injects `limiter` (`check({ key })`, charged before any lookup), `findSurface({ pluginId, surfaceId })` (its admitted
 surface or `undefined`) and `readSurfaceFile({ surface, path })` (its contained read: `{ ok: true, body, headers }` with the
 isolation headers, or `{ ok: false }`). Every refusal or fault is a plain 404; a limited client gets 429 + `Retry-After`.
+`./public-http/http/site/render/doc/doc-render-contract` (w4-routes, types only): the doc renderer's contract
+(`DocNodeRenderDeps`, `DocNodeHandler`, `DocRenderOptions`, `WidgetDocRendering`). The host injects
+`DocNodeRenderDeps.renderWidget` (its widget renderer, bound once) and builds `WidgetDocRendering` from its own bound
+`renderDocNode`/`renderNodes`, so neither renderer imports the other. Per-asset render metadata is
+`@jini-ai/core/contracts/site/cms-media`'s `MediaAssetRenderMeta`, which the host resolves per render.
 
 `./publish/content`: `normalizePeerBaseUrl({ raw, hasForbiddenRawUrlCharacter })` takes the raw-URL
 character check from the host (Tovu passes `@jini-ai/core/contracts/server/verified-origin`'s), and
