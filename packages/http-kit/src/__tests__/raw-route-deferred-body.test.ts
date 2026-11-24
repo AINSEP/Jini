@@ -54,7 +54,7 @@ const echo = (read: RouteBodyRead<unknown>) => read.ok
   ? Response.json({ bytes: read.value instanceof Uint8Array ? read.value.byteLength : null, form: read.value instanceof Uint8Array ? null : read.value })
   : Response.json({ refusal: read.refusal }, { status: 422 });
 
-const post = (url: string, body: BodyInit, headers: Record<string, string>) => fetch(`${url}/upload`, { method: 'POST', headers, body });
+const post = (url: string, body: Uint8Array | string, headers: Record<string, string>) => fetch(`${url}/upload`, { method: 'POST', headers, body });
 
 describe('mountRawRoute: deferred body (raw.readBody)', () => {
   it('an unauthenticated oversized upload is refused by the gate; the body is never read', async () => {

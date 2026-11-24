@@ -12,7 +12,7 @@ import type { RouteBodyRead, RouteBodyReader, RouteBodyReadOptions, RouteBodyRef
 const URLENCODED = 'application/x-www-form-urlencoded';
 
 /** body-parser's error `type` -> the neutral refusal; any other failure is `unreadable`. */
-const REFUSAL_BY_PARSER_TYPE: Readonly<Record<string, RouteBodyRefusal['reason']>> = {
+const REFUSAL_BY_PARSER_TYPE: Readonly<Record<string, Exclude<RouteBodyRefusal['reason'], 'too-large'>>> = {
   'encoding.unsupported': 'unsupported-encoding',
   'entity.parse.failed': 'malformed',
   'request.aborted': 'aborted',
