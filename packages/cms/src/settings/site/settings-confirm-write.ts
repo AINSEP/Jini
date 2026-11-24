@@ -67,6 +67,7 @@ export function settingsConfirmWrite({ surfaces, routeDeps, approvalToolHandler,
   copy: SettingsConfirmWriteCopy;
 }, _options = {}): SettingsConfirmWriteFn {
   // `options` carries the transport's emitSurface; without it the card has no way to reach a human.
+  // Declared optional so this still type-checks against a @jini-ai/cms whose confirmWrite takes one argument.
   return async ({ ctx, toolId, namespace, key, scope, previous, expectedRevisionSeq, value, reason }, options) => {
     const request = { ctx, toolId, namespace, key, scope, value };
     const selectionSnapshot = await prepareChatExecutionWrite({ deps: routeDeps, request, validateRuntimeSelection });
