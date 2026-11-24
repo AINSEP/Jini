@@ -179,8 +179,6 @@
       "./screens/content-analysis/hooks/content-analysis-port.hooks": "universal",
       "./screens/content-analysis/hooks/content-analysis-dependencies.hooks": "universal",
       "./screens/import-export/ImportExport": "browser",
-      "./screens/skills/skill-drop": "browser",
-      "./screens/skills/use-skills-tabs.hooks": "browser",
       "./screens/content-analysis/content-analysis-i18n": "universal"
     },
     "isolation": {
@@ -260,8 +258,7 @@
         "./shell/components/InstallTabCard/use-folder-upload.hooks": "browser",
         "./shell/components/Select/Select.hooks": "browser",
         "./shell/lib/tab-event-source": "browser",
-        "./shell/hooks/use-external-entry-refresh.hooks": "browser",
-        "./screens/skills/use-skills-tabs.hooks": "browser"
+        "./shell/hooks/use-external-entry-refresh.hooks": "browser"
       }
     },
     "optionalPeers": {
@@ -1093,16 +1090,6 @@
       "types": "./dist/screens/import-export/ImportExport.d.ts",
       "import": "./dist/screens/import-export/ImportExport.js",
       "default": "./dist/screens/import-export/ImportExport.js"
-    },
-    "./screens/skills/skill-drop": {
-      "types": "./dist/screens/skills/skill-drop.d.ts",
-      "import": "./dist/screens/skills/skill-drop.js",
-      "default": "./dist/screens/skills/skill-drop.js"
-    },
-    "./screens/skills/use-skills-tabs.hooks": {
-      "types": "./dist/screens/skills/use-skills-tabs.hooks.d.ts",
-      "import": "./dist/screens/skills/use-skills-tabs.hooks.js",
-      "default": "./dist/screens/skills/use-skills-tabs.hooks.js"
     },
     "./screens/content-analysis/content-analysis-i18n": {
       "types": "./dist/screens/content-analysis/content-analysis-i18n.d.ts",

@@ -1454,18 +1454,6 @@
    "targetForKind": "function:0821772b01"
   }
  },
- "./screens/skills/skill-drop": {
-  "types": "./dist/screens/skills/skill-drop.d.ts",
-  "symbols": {
-   "captureSkillDrop": "function:84aefa072e"
-  }
- },
- "./screens/skills/use-skills-tabs.hooks": {
-  "types": "./dist/screens/skills/use-skills-tabs.hooks.d.ts",
-  "symbols": {
-   "useSkillsTabs": "function:bade9eeae2"
-  }
- },
  "./screens/taxonomy/api/taxonomy-api.types": {
   "types": "./dist/screens/taxonomy/api/taxonomy-api.types.d.ts",
   "symbols": {
