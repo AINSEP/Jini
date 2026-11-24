@@ -19,6 +19,14 @@ export type { ApiConnectionDisconnectDeps } from './account-actions.js';
 export type { ApiConnectionAccessTokens } from './access-token.js';
 export { assertSharedOAuthCompatibility, createSharedOAuthConsumer } from './shared.js';
 export type { SharedOAuthConnection, SharedOAuthConsumer, SharedOAuthConsumerDeps, SharedOAuthConsumerTarget, SharedOAuthIdentity } from './shared.js';
+export {
+  createSharedApiConnections,
+  type SharedApiConnectionDeps, type SharedApiKeyAttachments, type SharedApiOwnerStorage, type SharedApiSiteBindings, type SharedApiTransaction,
+} from './shared-api.js';
+export {
+  createOAuthFormDeliveryConnectionPort,
+  type OAuthFormDeliveryConnectionPort, type OAuthFormDeliveryCredential, type OAuthFormDeliveryErrorFactory, type OAuthFormDeliveryHost,
+} from './form-delivery-connection.js';
 export type {
   ApiConnectionAccount, ApiConnectionAttempt, ApiConnectionBoundedField, ApiConnectionDescriptor,
   ApiConnectionIntent, ApiConnectionRecord, ApiConnectionRevocationFailure, ApiConnectionStagedSwitch, ApiConnectionStatus,

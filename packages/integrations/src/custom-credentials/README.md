@@ -22,7 +22,8 @@ Small generic helpers for host credential cards and credentialed calls.
 - `cleanCardToken` needs no injection.
 - `buildCreateForm` / `buildCreateOutcome` / `setTokenForm` / `setTokenOutcome` take the host's card `app`
   identity (its `CredentialCardIdentity.appNames.*`); `buildCreateForm` also takes the host's closed
-  `categories` set and `suggestWorksFor` (`suggestCredentialWorksFor` from `@jini-ai/platform/secrets/credential-sets`), and `setTokenForm` its `secretField` marker (the `credential_save` secret-form
+  `categories` set, `suggestWorksFor` (`suggestCredentialWorksFor` from `@jini-ai/platform/secrets/credential-sets`)
+  and `baseUrlHint` (the Base URL field's help text, which carries the host's example URL), and `setTokenForm` its `secretField` marker (the `credential_save` secret-form
   definition). A host binds them where it supplies `credentialed-http/tools`' `credentialCardForms`.
 - `buildProviderSettingsCredentialHandler` takes `cards` (`defineSecretCardTool` from `@jini-ai/ui/mcp-ui/secret-card`
   and `askThenReport` from `@jini-ai/daemon/surface-exchanges`, which this package may not import) and
@@ -31,4 +32,7 @@ Small generic helpers for host credential cards and credentialed calls.
   `credential_save` adapters.
 - `bindCredentialedRequestPort` takes `operations` — the host's existing `makeCredentialedRequest`,
   `resolveRequestTarget`, `verifyCustomCredential` and `probeCredentialConnection` — alongside the `deps`
-  they consume. `classifyCredentialedRequestError` needs no injection.
+  they consume, plus `EgressRefusedError` — the host's guarded-client refusal class (`@jini-ai/platform/http/guarded`),
+  which this package may not import. `classifyCredentialedRequestError` takes the same class on its required
+  args; the port forwards its own. A host binds the class at each call site (Tovu: `tool-registrations.ts`
+  and `deployments/deploy-ops/run-ops.ts`).
