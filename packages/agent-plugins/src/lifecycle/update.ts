@@ -1,7 +1,8 @@
 import path from 'node:path';
 import { createInstallModule, type InstallAgentPluginOptional, type InstallAgentPluginRequired } from './install.js';
 import { createUninstallModule } from './uninstall.js';
-import { createActivationModule, type AgentPluginActivations } from './activation.js';
+import { AgentPluginActivationsBusyError, createActivationModule, type AgentPluginActivations } from './activation.js';
+import { FileLockTimeoutError, FileLockLostError } from "@jini-ai/core/contracts/runtime";
 import { createResolveAgentPluginRefsModule } from './resolve-agent-plugin-refs.js';
 import { createPersistentStateModule } from './persistent-state.js';
 import { createInstalledPackageIndex } from './installed-package-index.js';
@@ -294,23 +295,64 @@ async function reprovisionOld({ scope, workspaceId, journal, oldRoot }: {
   } catch { return false; }
 }
 
+/** How long background recovery waits before each new attempt after a lock wait at boot. */
+const RECOVERY_RETRY_DELAYS_MS = [5_000, 30_000, 120_000, 600_000] as const;
+
+/** A wait on another process's lock (the plugin's own lock or the activations lock). It says nothing
+ * about whether the plugin is healthy, so it must never be treated as an unrecovered update. */
+function isLockWait({ error }: { error: unknown }, _optional = {}): boolean {
+  return error instanceof FileLockTimeoutError || error instanceof FileLockLostError || error instanceof AgentPluginActivationsBusyError;
+}
+
 /** Boot only, before serving runs: recover incomplete switches, file committed audits, then
  * collect retained rollback bytes. One plugin's failure does not stop the others; the first
- * failure is rethrown afterwards. Bundled plugins have no update journal and get no decisions.
+ * failure is rethrown afterwards. A plugin whose lock could not be taken in time is never switched
+ * off for it: boot goes on and recovery retries in the background (named log lines).
+ * Bundled plugins have no update journal and get no decisions.
  * @complexity O(p + f) workspace entries and retained rollback files.
  */
 async function reconcileAgentPluginUpdates({ scope, workspaceId }: { scope: UpdateScope; workspaceId: string }): Promise<void> {
-  const workspaceRoot = scope.ports.layout.forWorkspace({ workspaceId }).root;
   const failures: unknown[] = [];
+  const waiting: string[] = [];
   for (const pluginId of await listPluginStateIds({ scope, workspaceId })) {
     try {
-      await scope.persistent.withPluginLock({ workspaceRoot, pluginId, run: () => reconcilePlugin({ scope, workspaceId, pluginId }) });
+      await reconcileUnderLock({ scope, workspaceId, pluginId });
     } catch (error) {
+      if (isLockWait({ error })) {
+        waiting.push(pluginId);
+        scope.ports.onEvent?.({ event: 'agent-plugin-update-recovery-waiting', pluginId, message: `Plugin '${pluginId}': another process is holding its lock, so finishing an interrupted update is waiting. The plugin keeps its current on/off setting and recovery will retry in the background.` });
+        continue;
+      }
       failures.push(error);
       scope.ports.onEvent?.({ event: 'agent-plugin-update-recovery-failed', message: `Plugin '${pluginId}': an interrupted update could not be recovered (${errorCode({ error })}); it is kept off until a later boot recovers it.` });
     }
   }
+  for (const pluginId of waiting) void retryRecoveryInBackground({ scope, workspaceId, pluginId }).catch(() => undefined);
   if (failures.length) throw failures[0];
+}
+
+async function reconcileUnderLock({ scope, workspaceId, pluginId }: { scope: UpdateScope; workspaceId: string; pluginId: string }): Promise<void> {
+  const workspaceRoot = scope.ports.layout.forWorkspace({ workspaceId }).root;
+  await scope.persistent.withPluginLock({ workspaceRoot, pluginId, run: () => reconcilePlugin({ scope, workspaceId, pluginId }) });
+}
+
+/** Retries a recovery that waited on a lock, a few times with growing pauses. Never disables the
+ * plugin; a failure that is not a lock wait is logged and ends the retries (the journal stays for
+ * the next boot). @complexity O(r) attempts, each one a full recovery of one plugin. */
+async function retryRecoveryInBackground({ scope, workspaceId, pluginId }: { scope: UpdateScope; workspaceId: string; pluginId: string }): Promise<void> {
+  for (const delayMs of RECOVERY_RETRY_DELAYS_MS) {
+    await scope.ports.clock.sleep({ ms: delayMs });
+    try {
+      await reconcileUnderLock({ scope, workspaceId, pluginId });
+      scope.ports.onEvent?.({ event: 'agent-plugin-update-recovery-resumed', pluginId, message: `Plugin '${pluginId}': the lock was released and the interrupted update has now been recovered.` });
+      return;
+    } catch (error) {
+      if (isLockWait({ error })) continue;
+      scope.ports.onEvent?.({ event: 'agent-plugin-update-recovery-failed', pluginId, message: `Plugin '${pluginId}': an interrupted update could not be recovered on retry (${errorCode({ error })}); it is kept off until a later boot recovers it.` });
+      return;
+    }
+  }
+  scope.ports.onEvent?.({ event: 'agent-plugin-update-recovery-gave-up', pluginId, message: `Plugin '${pluginId}': its lock stayed busy through every background retry. It keeps its current on/off setting and recovery will try again at the next boot.` });
 }
 
 /** Workspace entries that can be plugin state roots. Reserved names (staging, packages, memory,
@@ -346,7 +388,7 @@ async function reconcilePlugin({ scope, workspaceId, pluginId }: {
   for (const rollbackRoot of await store.listRollbackRoots({})) await scope.removal.removeFrozenPackageTree(rollbackRoot);
 }
 
-/** Unrecovered = off: an unreadable journal or a failed restore switches the plugin off (best
+/** Unrecovered = off (except a lock wait, see below): an unreadable journal or a failed restore switches the plugin off (best
  * effort; the journal stays, so the next boot retries) and rethrows. A failure only filing a
  * committed audit or collecting rollback bytes never reaches here. Bundled plugins never get a
  * journal from this module and are never touched. */
@@ -356,6 +398,8 @@ async function switchOffUnrecovered({ scope, workspaceId, pluginId, error }: {
   pluginId: string;
   error: unknown;
 }): Promise<never> {
+  // A busy lock proves nothing about the plugin: leave it as it is; the caller retries in the background.
+  if (isLockWait({ error })) throw error;
   const workspaceRoot = scope.ports.layout.forWorkspace({ workspaceId }).root;
   try {
     if (!await scope.activation.isAgentPluginRecordedAsBundled(workspaceRoot, pluginId)) {
