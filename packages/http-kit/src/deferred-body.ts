@@ -75,7 +75,8 @@ function sameOptions({ first, later }: { readonly first: RouteBodyReadOptions; r
 export function deferredBodyReader({ req, res }: { readonly req: Request; readonly res: Response }, _optional: Record<string, never> = {}): RouteBodyReader {
   let first: { readonly options: RouteBodyReadOptions; readonly outcome: Promise<RouteBodyRead<unknown>> } | undefined;
   const read = (options: RouteBodyReadOptions): Promise<RouteBodyRead<unknown>> => {
-    if (first === undefined) first = { options, outcome: readOnce({ req, res, options }) };
+    // Snapshot first: a caller that mutates and re-sends the same object must be compared against what the first read ran under.
+    if (first === undefined) { const snapshot = { ...options }; first = { options: snapshot, outcome: readOnce({ req, res, options: snapshot }) }; }
     else if (!sameOptions({ first: first.options, later: options })) return Promise.resolve({ ok: false, refusal: { reason: 'incompatible-read' } });
     return first.outcome;
   };

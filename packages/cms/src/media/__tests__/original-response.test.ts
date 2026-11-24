@@ -108,6 +108,10 @@ test("asset: inline original is sniffed (HTML declared as png becomes a download
   const docReply = await decideMediaOriginalForAsset({ deps: { blobStore: deps.blobStore, parseRangeHeader }, media: doc, blob: found.blob, rangeHeader: "bytes=0-3" });
   assert.equal(docReply.status, 206);
   assert.deepEqual(docReply.headers.find(([name]) => name === "Content-Disposition"), ["Content-Disposition", `attachment; filename="document"; filename*=UTF-8''Q3%20%27plan%27%20%28v2%29.txt`]);
+  // A title that starts with U+FEFF keeps it (%EF%BB%BF): the default TextDecoder strips a leading BOM.
+  const bom = { ...doc, title: "\uFEFFplan", originalFilename: "plan.txt" };
+  const bomReply = await decideMediaOriginalForAsset({ deps: { blobStore: deps.blobStore, parseRangeHeader }, media: bom, blob: found.blob, rangeHeader: "bytes=0-3" });
+  assert.equal(bomReply.headers.find(([name]) => name === "Content-Disposition")?.[1].includes("filename*=UTF-8''%EF%BB%BFplan"), true);
 });
 
 test("lookup: an unknown media id is `not-found` for the caller to render, without ever reading a blob", async () => {

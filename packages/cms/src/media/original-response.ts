@@ -190,7 +190,7 @@ function documentDisposition({ media }: { media: MediaRecord }, _optional = {}):
   // RFC 5987 encoding keeps titles out of header syntax; storage keys never use names.
   // The UTF-8 round-trip turns a lone UTF-16 surrogate into U+FFFD, which
   // `encodeURIComponent` would otherwise reject with a URIError.
-  const encoded = encodeURIComponent(new TextDecoder().decode(new TextEncoder().encode(filename))).replace(/[!'()*]/g, char => `%${char.charCodeAt(0).toString(16).toUpperCase()}`);
+  const encoded = encodeURIComponent(new TextDecoder('utf-8', { ignoreBOM: true }).decode(new TextEncoder().encode(filename))).replace(/[!'()*]/g, char => `%${char.charCodeAt(0).toString(16).toUpperCase()}`);
   return `attachment; filename="document"; filename*=UTF-8''${encoded}`;
 }
 

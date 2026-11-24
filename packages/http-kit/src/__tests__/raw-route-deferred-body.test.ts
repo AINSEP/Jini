@@ -151,6 +151,25 @@ describe('mountRawRoute: deferred body (raw.readBody)', () => {
     }
   });
 
+  // Mutation `deferred-body-retains-caller-options` (the first read's options kept by reference): a caller that
+  // changes the SAME object after the first read and asks again must be refused, not handed the first result.
+  it('a later read through a mutated first options object is refused as incompatible-read', async () => {
+    const reads: RouteBodyRead<unknown>[] = [];
+    const spec = defineRawRoute<object>({ method: 'post', path: '/mutated', handle: async ({ raw }) => {
+      const options: { type: 'raw'; mediaType: string; limit: number } = { type: 'raw', mediaType: 'application/zip', limit: LIMIT };
+      const issue = raw.readBody as (o: RouteBodyReadOptions) => Promise<RouteBodyRead<unknown>>;
+      reads.push(await issue(options));
+      options.limit = 1;
+      reads.push(await issue(options));
+      return new Response(null, { status: 204 });
+    } });
+    const app = express();
+    mountRawRoute({ app, spec, deps: {} });
+    await fetch(`${await listen({ app })}/mutated`, { method: 'POST', headers: { 'content-type': 'application/zip' }, body: new Uint8Array([9]) });
+    expect(reads[0]).toEqual({ ok: true, value: Buffer.from([9]) });
+    expect(reads[1]).toEqual({ ok: false, refusal: { reason: 'incompatible-read' } });
+  });
+
   it('a first urlencoded read refuses a later raw read of the same request', async () => {
     const spec = defineRawRoute<object>({ method: 'post', path: '/form', handle: async ({ raw }) => {
       const form = await raw.readBody({ type: 'urlencoded', limit: LIMIT });
