@@ -7,7 +7,7 @@
  * importers use the bound values. Product copy (the vocabulary, the app version label, the server
  * codes for "the assistant is not running yet") stays with the host.
  */
-import { describeRequestFailure, formatUserFacingError, type RequestFailureVocabulary, type SecretRedactionOptions, type UserFacingError } from "@jini-ai/core";
+import type { describeRequestFailure, formatUserFacingError, RequestFailureVocabulary, SecretRedactionOptions, UserFacingError } from "@jini-ai/core";
 import { getAdminDraftIdentity } from "./admin-draft-identity.js";
 
 /** The slice of a failure channel (`@jini-ai/ui/panel-kit`'s `createFailureChannel`) the reporter publishes to. */
@@ -33,6 +33,10 @@ export interface CreateAdminFailureReporterInput<Channel extends AdminFailureCha
   readonly decodeError: (required: { body: unknown }) => AdminDecodedError;
   /** Server codes a passive read answers while the assistant's background service is not running. */
   readonly notRunningCodes: ReadonlySet<string>;
+  /** The host's failure formatter (core's `formatUserFacingError`); it bounds and redacts every shown field. */
+  readonly formatUserFacingError: typeof formatUserFacingError;
+  /** The host's request-failure describer (core's `describeRequestFailure`) over `vocabulary`. */
+  readonly describeRequestFailure: typeof describeRequestFailure;
 }
 
 export interface AdminFailureReporter<Channel extends AdminFailureChannelPort> {
@@ -69,11 +73,13 @@ function stringFields<Key extends string>({ value, keys }: { value: Record<strin
  * @complexity O(1), fixed field checks; formatter bounds and redacts all displayed text.
  * @overallScore 98 — trusted server disclosure remains a boundary contract, tested with anonymous canaries.
  */
-function approvedFailure({ value, entry, redaction }: { value: unknown; entry?: "page"; redaction: SecretRedactionOptions }): UserFacingError | undefined {
+function approvedFailure({ value, entry, redaction, format }: {
+  value: unknown; entry?: "page"; redaction: SecretRedactionOptions; format: typeof formatUserFacingError;
+}): UserFacingError | undefined {
   const candidate = record({ value });
   if (typeof candidate.message !== "string" || typeof candidate.action !== "string" || typeof candidate.step !== "string" || typeof candidate.cause !== "string") return undefined;
   const word = ({ text }: { text: string }, _options = {}) => (entry === "page" ? asPage({ text }) : text);
-  return formatUserFacingError({ message: word({ text: candidate.message }), action: word({ text: candidate.action }), step: word({ text: candidate.step }), cause: candidate.cause }, {
+  return format({ message: word({ text: candidate.message }), action: word({ text: candidate.action }), step: word({ text: candidate.step }), cause: candidate.cause }, {
     ...redaction, ...stringFields({ value: candidate, keys: ["errorId", "time", "appVersion", "jiniVersion"] }),
   });
 }
@@ -111,12 +117,13 @@ function serverReply({ body }: { body: unknown }, _options = {}): string | undef
  * the wording an empty route gets, so the shared describer stays the one owner of the fallback.
  * @complexity O(path length) plus one fallback describe call. */
 function failureEvidence(
-  { body, path, method, status, step, errorId, authenticated, vocabulary }: {
+  { body, path, method, status, step, errorId, authenticated, vocabulary, describe }: {
     body: unknown; path: string; method?: string | undefined; status: number; step: string; errorId?: string | undefined; authenticated: boolean; vocabulary: RequestFailureVocabulary;
+    describe: typeof describeRequestFailure;
   },
   _options = {},
 ): { step: string; cause: string } {
-  const unlisted = describeRequestFailure({ ...(method !== undefined ? { method } : {}), route: "", vocabulary }).step === step;
+  const unlisted = describe({ ...(method !== undefined ? { method } : {}), route: "", vocabulary }).step === step;
   const label = unlisted ? `${method?.toUpperCase() ?? "Request"} ${redactedRoute({ path })}` : step;
   const said = unlisted && authenticated ? serverReply({ body }) : undefined;
   return {
@@ -141,7 +148,7 @@ export function createAdminFailureReporter<Channel extends AdminFailureChannelPo
   required: CreateAdminFailureReporterInput<Channel>,
   { now = () => new Date(), mintErrorId = () => crypto.randomUUID() }: { now?: () => Date; mintErrorId?: () => string } = {},
 ): AdminFailureReporter<Channel> {
-  const { channel, vocabulary, redaction, appVersion, jiniVersion, decodeError, notRunningCodes } = required;
+  const { channel, vocabulary, redaction, appVersion, jiniVersion, decodeError, notRunningCodes, formatUserFacingError, describeRequestFailure } = required;
   const versions = () => ({ ...redaction, appVersion, jiniVersion, time: now().toISOString() });
 
   /** Whether a final failed request belongs on the page-wide notice. Client errors stay with their
@@ -191,9 +198,9 @@ export function createAdminFailureReporter<Channel extends AdminFailureChannelPo
     const errorId = failureReference({ details, body, requestId: decoded.requestId });
     // Approved server explanations only for signed-in, non-auth requests.
     const authenticated = getAdminDraftIdentity() !== null && !path.startsWith("/auth/");
-    const approved = authenticated ? approvedFailure({ value: details.failure, redaction, ...(entry ? { entry } : {}) }) : undefined;
+    const approved = authenticated ? approvedFailure({ value: details.failure, redaction, format: formatUserFacingError, ...(entry ? { entry } : {}) }) : undefined;
     const wording = requestWording({ method, path, entry });
-    const { step, cause } = failureEvidence({ body, path: `${basePath}${path}`, method, status, step: wording.step, errorId, authenticated, vocabulary });
+    const { step, cause } = failureEvidence({ body, path: `${basePath}${path}`, method, status, step: wording.step, errorId, authenticated, vocabulary, describe: describeRequestFailure });
     const failure = approved ?? formatUserFacingError({ ...wording, step, cause }, { ...versions(), ...(errorId !== undefined ? { errorId } : {}) });
     channel.publish({ failure, generation });
   }

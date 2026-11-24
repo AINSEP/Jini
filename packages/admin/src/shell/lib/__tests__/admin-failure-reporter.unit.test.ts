@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import type { UserFacingError } from "@jini-ai/core";
-import { formatUserFacingError } from "@jini-ai/core";
+import { describeRequestFailure, formatUserFacingError } from "@jini-ai/core";
 import { createAdminFailureReporter, isClipboardRefusal, type AdminDecodedError } from "../admin-failure-reporter.js";
 import { setAdminDraftIdentity } from "../admin-draft-identity.js";
 
@@ -31,6 +31,8 @@ function build() {
     jiniVersion: "0.7.3",
     decodeError,
     notRunningCodes: new Set(["PARKED"]),
+    formatUserFacingError,
+    describeRequestFailure,
   }, { now: () => new Date("2026-11-23T00:00:00.000Z"), mintErrorId: () => "local-1" });
   return { channel, reporter };
 }

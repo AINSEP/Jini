@@ -1,5 +1,8 @@
 import type { ChatPaneWorkingDirectoryAccess } from "../../react/kit.js";
-import { orFallbackSync } from "@jini-ai/core/errors/idioms";
+import type { orFallbackSync } from "@jini-ai/core/errors/idioms";
+
+/** The host's guarded synchronous call (core's `orFallbackSync`): storage failures fall back, never throw. */
+type OrFallbackSync = typeof orFallbackSync;
 
 /**
  * @file Native folder picker for the assistant composer's working-directory control.
@@ -52,7 +55,10 @@ export function isDirectoryPickerSupported(): boolean {
  * storage denial, or corrupt/foreign JSON under this key — every failure mode degrades to "no
  * recent folders" rather than throwing, since losing this list is cosmetic.
  */
-function readRecentDirectoryNames({ storageKey }: { storageKey: string }, _optional: Record<string, never> = {}): string[] {
+function readRecentDirectoryNames(
+  { storageKey, orFallbackSync }: { storageKey: string; orFallbackSync: OrFallbackSync },
+  _optional: Record<string, never> = {},
+): string[] {
   return orFallbackSync({ work: () => {
     const raw = window.localStorage.getItem(storageKey);
     if (!raw) return [];
@@ -62,10 +68,13 @@ function readRecentDirectoryNames({ storageKey }: { storageKey: string }, _optio
 }
 
 /** Moves `name` to the front of the persisted recent list, deduplicated and capped. */
-function recordRecentDirectoryName({ name, storageKey }: { name: string; storageKey: string }, _optional: Record<string, never> = {}): void {
+function recordRecentDirectoryName(
+  { name, storageKey, orFallbackSync }: { name: string; storageKey: string; orFallbackSync: OrFallbackSync },
+  _optional: Record<string, never> = {},
+): void {
   // Same degrade-silently posture as the read side above.
   orFallbackSync({ work: () => {
-    const next = [name, ...readRecentDirectoryNames({ storageKey }).filter((existing) => existing !== name)].slice(
+    const next = [name, ...readRecentDirectoryNames({ storageKey, orFallbackSync }).filter((existing) => existing !== name)].slice(
       0,
       MAX_RECENT_DIRECTORY_NAMES,
     );
@@ -85,7 +94,7 @@ function recordRecentDirectoryName({ name, storageKey }: { name: string; storage
  * {@link MAX_RECENT_DIRECTORY_NAMES}). Space: O(1).
  */
 export function createBrowserWorkingDirectoryAccess(
-  { recentDirectoryNamesStorageKey: storageKey }: { recentDirectoryNamesStorageKey: string },
+  { recentDirectoryNamesStorageKey: storageKey, orFallbackSync }: { recentDirectoryNamesStorageKey: string; orFallbackSync: OrFallbackSync },
   _optional: Record<string, never> = {},
 ): ChatPaneWorkingDirectoryAccess | undefined {
   if (!isDirectoryPickerSupported()) return undefined;
@@ -106,7 +115,7 @@ export function createBrowserWorkingDirectoryAccess(
       try {
         if (!window.showDirectoryPicker) throw new Error("working directory picker is unavailable");
         const handle = await window.showDirectoryPicker();
-        recordRecentDirectoryName({ name: handle.name, storageKey });
+        recordRecentDirectoryName({ name: handle.name, storageKey, orFallbackSync });
         return handle.name;
       } catch (error) {
         if (error instanceof DOMException && error.name === "AbortError") return null;
@@ -116,7 +125,7 @@ export function createBrowserWorkingDirectoryAccess(
 
     /** Most-recently-picked folder NAMES, most-recent-first — see this module's header. */
     async recentDirectories(): Promise<readonly string[]> {
-      return readRecentDirectoryNames({ storageKey });
+      return readRecentDirectoryNames({ storageKey, orFallbackSync });
     },
 
     /**

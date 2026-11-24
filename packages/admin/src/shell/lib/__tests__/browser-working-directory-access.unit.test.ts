@@ -1,5 +1,6 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { orFallbackSync } from "@jini-ai/core/errors/idioms";
 
 import {
   createBrowserWorkingDirectoryAccess,
@@ -7,7 +8,7 @@ import {
 } from "../browser-working-directory-access.js";
 
 const KEY = "host.recent-directory-names";
-const createAccess = () => createBrowserWorkingDirectoryAccess({ recentDirectoryNamesStorageKey: KEY });
+const createAccess = () => createBrowserWorkingDirectoryAccess({ orFallbackSync, recentDirectoryNamesStorageKey: KEY });
 
 /**
  * @file `browser-working-directory-access.ts` — the native File System Access API implementation
@@ -148,7 +149,7 @@ describe("createBrowserWorkingDirectoryAccess — host-injected storage key", ()
   it("writes and reads the recent list only under the key the host passed", async () => {
     window.localStorage.setItem("other.host.key", JSON.stringify(["from-another-key"]));
     window.localStorage.setItem("host.second-key", JSON.stringify(["older"]));
-    const second = createBrowserWorkingDirectoryAccess({ recentDirectoryNamesStorageKey: "host.second-key" })!;
+    const second = createBrowserWorkingDirectoryAccess({ orFallbackSync, recentDirectoryNamesStorageKey: "host.second-key" })!;
 
     await expect(second.recentDirectories()).resolves.toEqual(["older"]);
     await second.pickWorkingDirectory();
