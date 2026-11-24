@@ -93,6 +93,11 @@ Request context and replies (opt-in per spec; a spec that declares none behaves 
   the body cap and workspace gates, so refusals carry it too.
 - A handler returns core's `routeReply({ status, body?, headers? })` for 429 + `Retry-After`,
   304 + `ETag`, or a bare 204: headers are set, and with no `body` the answer is `res.status(s).send()`.
+- A raw spec's `raw.readBody({ type: 'raw', mediaType, limit })` / `({ type: 'urlencoded', limit })` reads
+  the body only when the handler calls it — after its gates — through Express's own `raw` / `urlencoded`
+  parser (never inflating), answering `{ ok, value }` or a neutral `refusal` (`too-large` with its limit,
+  `media-type`, `unsupported-encoding`, `malformed`, `aborted`, `size-mismatch`, `unreadable`). The host
+  registers NO parser ahead of such a mount; one registered ahead still wins (the read reports its body).
 
 Raw routes: `mountRawRoute({ app, spec, deps, adapter })` with a `defineRawRoute` spec serves HTML,
 streams, uploads, downloads and redirects that set cookies. It takes the same `ports` and opt-ins
