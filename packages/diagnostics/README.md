@@ -95,6 +95,30 @@ and `buildRunEventLogSources` / `buildAgentCliLogSources` are conveniences rathe
 path) and every field of `DiagnosticsContext`. There are no DI tokens and no injected filesystem —
 collection uses `node:fs` directly.
 
+## Wiring
+
+`@jini-ai/diagnostics/console-tee` (architecture: [`extraction-plan.md`](../../ADS-memory/reports/jini-port/extraction-plan.md)).
+
+- **Needs injected:** a `ConsoleTeeBuffer` (for `installConsoleTee`); for `createRedactedOutputSink`, the parent
+  sink (`Pick<Writable, "write">`), the host's `redact` function, and optionally a shared
+  `RetainedOutputTail` record plus `tailKeepChars`, `maxLength`, `maxLineLength` and a `CaptureFailureReporter`.
+- **Provides:** a line-framed child-output writable that redacts before anything is mirrored or retained, and keeps
+  a bounded, interleaved tail of all of one child's streams for a boot-failure message.
+- **Never imports:** a host logger or console formatter, product names or CLI wording, or any other `@jini-ai/*`
+  implementation. Failure copy (what to call the child, how to parse its error line) stays in the host.
+
+```ts
+import { createRedactedOutputSink } from "@jini-ai/diagnostics/console-tee";
+
+const state = { outputTail: "" }; // read by the host's failure message
+for (const stream of ["stdout", "stderr"] as const) {
+  child[stream].pipe(createRedactedOutputSink(
+    { sink: process[stream], redact: ({ text }) => hostRedact({ text }) },
+    { maxLength: 2_000, retain: state, tailKeepChars: 16_384 },
+  ));
+}
+```
+
 ## Runtime
 
 `jini.runtime: "node"` — reads real files via `node:fs`, and `buildMachineInfo` reads `node:os`.
@@ -120,3 +144,12 @@ Bundle collection, inbound request hooks and web evidence share `Clock` from `@j
 `browserDiagnosticsEnabled`'s first arg and `receiveBrowserDiagnostics`'s `deps`, plus its settings repo,
 workspace id and observability port; it serves `siteBrowserDiagnosticsModule` at the bridge's `src` and
 mounts the intake route itself.
+
+## Wiring
+
+**Global error reporting** (`installGlobalErrorReporting` from `./observability`). The host injects
+`target` (its `window`) and `report` — its own sink that maps `{ message, stack }` onto its telemetry
+vocabulary (payload kind, IPC channel, bridge) and swallows bridge failures. Optional
+`maxMessageLength`/`maxStackLength`/`rejectionFallback` override the 1000/8000/"Unhandled rejection"
+defaults. The host's renderer boot module calls it once before the UI mounts and keeps the teardown
+for tests.

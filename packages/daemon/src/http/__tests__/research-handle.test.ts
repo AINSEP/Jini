@@ -12,6 +12,10 @@ import {
   type ResearchProvider,
   type ResearchSource,
 } from '../research.js';
+import { validateBaseUrl } from '@jini-ai/agent-runtime';
+
+/** The real base-URL guard, bound the way the host binds it (tests assert the SSRF refusals it carries). */
+const baseUrlGuard = { validate: (required: { baseUrl: string }) => validateBaseUrl(required) };
 
 /**
  * Pins `createResearchSearchRoute`'s `handle` — provider precedence, default credential resolution,
@@ -27,7 +31,7 @@ function provider(id: string, search: ResearchProvider['search'] = async () => (
 
 function sinkDeps(overrides: Partial<ResearchHttpDeps> = {}) {
   const errors: ResearchInternalErrorContext[] = [];
-  const deps: ResearchHttpDeps = { reportInternalError: reportRouteInternalError, resolveCredentials: async () => ({ apiKey: KEY }), onInternalError: (context) => { errors.push(context); }, ...overrides };
+  const deps: ResearchHttpDeps = { reportInternalError: reportRouteInternalError, baseUrlGuard, resolveCredentials: async () => ({ apiKey: KEY }), onInternalError: (context) => { errors.push(context); }, ...overrides };
   return { deps, errors };
 }
 
@@ -45,20 +49,20 @@ describe('research handle: provider selection', () => {
 
   it('a non-tavily provider without resolveCredentials gets no credentials even when TAVILY_API_KEY is set', async () => {
     const search = vi.fn<ResearchProvider['search']>();
-    const result = await researchSearchRoute.handle({ input: { query: 'q' }, deps: { reportInternalError: reportRouteInternalError, provider: provider('other', search), env: { TAVILY_API_KEY: KEY } } });
+    const result = await researchSearchRoute.handle({ input: { query: 'q' }, deps: { reportInternalError: reportRouteInternalError, baseUrlGuard, provider: provider('other', search), env: { TAVILY_API_KEY: KEY } } });
     expect(result).toEqual({ ok: false, error: { code: 'NOT_CONFIGURED', message: 'other provider not configured' } });
     expect(search).not.toHaveBeenCalled();
   });
 
   it('a deps.provider whose id is "tavily" reads TAVILY_API_KEY from deps.env by default', async () => {
     const search = vi.fn<ResearchProvider['search']>(async () => ({ answer: 'a', sources: [SOURCE] }));
-    await researchSearchRoute.handle({ input: { query: 'q' }, deps: { reportInternalError: reportRouteInternalError, provider: provider('tavily', search), env: { TAVILY_API_KEY: ` ${KEY} ` } } });
+    await researchSearchRoute.handle({ input: { query: 'q' }, deps: { reportInternalError: reportRouteInternalError, baseUrlGuard, provider: provider('tavily', search), env: { TAVILY_API_KEY: ` ${KEY} ` } } });
     expect(search).toHaveBeenCalledWith({ apiKey: KEY, credentials: { apiKey: KEY }, request: { query: 'q' } }, {});
   });
 
   it('passes the selected provider id to resolveCredentials', async () => {
     const resolveCredentials = vi.fn(async () => ({ apiKey: KEY }));
-    await createResearchSearchRoute({ provider: provider('bound') }).handle({ input: { query: 'q' }, deps: { reportInternalError: reportRouteInternalError, resolveCredentials } });
+    await createResearchSearchRoute({ provider: provider('bound') }).handle({ input: { query: 'q' }, deps: { reportInternalError: reportRouteInternalError, baseUrlGuard, resolveCredentials } });
     expect(resolveCredentials).toHaveBeenCalledWith({ providerId: 'bound' });
   });
 });
@@ -114,7 +118,7 @@ describe('research handle: outcomes', () => {
 
 describe('researchRoutes with deps.provider', () => {
   it("lists a route whose parse accepts the provider's own id", async () => {
-    const routes = researchRoutes({ deps: { provider: provider('host'), resolveCredentials: async () => ({ apiKey: KEY }) }, host: fakeDaemonRouteHost() });
+    const routes = researchRoutes({ deps: { baseUrlGuard, provider: provider('host'), resolveCredentials: async () => ({ apiKey: KEY }) }, host: fakeDaemonRouteHost() });
     expect(describeRoutes({ routes }).map((route) => `${route.method} ${route.path}`)).toEqual(['POST /api/research/search']);
     const response = await serveRoutes({ routes })(jsonRequest({ path: '/api/research/search', method: 'POST' }, { body: { query: 'q', providers: ['host'] } }));
     expect([response.status, await response.json()]).toEqual([200, expect.objectContaining({ provider: 'host', summary: 'host answer' })]);

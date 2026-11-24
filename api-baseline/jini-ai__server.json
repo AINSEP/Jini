@@ -6,14 +6,14 @@
    "ActivationReason": "type:a966e698bb",
    "ActiveFeatureRecord": "interface:ea0210fe54",
    "AnyPack": "type:6d1c29b2d4",
-   "BuiltInFeatureOptions": "interface:fbc24d7c4b",
+   "BuiltInFeatureOptions": "interface:f81a75abc2",
    "CAPABILITY_IDS": "variable:277dfa55ab",
    "CORE_CAPABILITIES": "variable:5336f9eda0",
    "CapabilityId": "type:a5b5c776c6",
    "CloseHttpServerOptions": "interface:09ef52feb9",
-   "ComposeJiniKernelConfig": "interface:442442af04",
-   "CreateJiniKernelBaseOptions": "interface:22498e73ea",
-   "CreateLocalNodeDaemonConfig": "interface:d49897aa2f",
+   "ComposeJiniKernelConfig": "interface:afd888ed4f",
+   "CreateJiniKernelBaseOptions": "interface:674804c51a",
+   "CreateLocalNodeDaemonConfig": "interface:6a7a75535c",
    "DEFAULT_DAEMON_BIND_HOST": "variable:b7f875e50c",
    "DeactivationReason": "type:310feaeb2c",
    "FeatureActivationInput": "interface:85e4a27163",
@@ -33,6 +33,7 @@
    "JiniProfile": "interface:a0d2c5678f",
    "JiniProfileId": "type:0117779d77",
    "KernelBoundIds": "type:64b9c5be2c",
+   "KernelOsPorts": "type:2a8275d9e9",
    "KernelSqliteAccess": "interface:7f4752618b",
    "LOCAL_DAEMON_PRINCIPAL": "variable:f608e95920",
    "LocalNodeDaemon": "interface:310ffd0f40",
@@ -70,8 +71,10 @@
   "symbols": {
    "LegacyOwnerCounts": "interface:fa6fa6844e",
    "LegacyOwnerStoreFile": "interface:27fdb598dd",
-   "countLegacyOwnerStore": "function:4af7d1470a",
-   "readLegacyOwnerStore": "function:f39191fda8"
+   "LegacyOwnerStorePorts": "interface:27ae6be52f",
+   "LegacyOwnerStoreRow": "interface:6bc2294cbf",
+   "countLegacyOwnerStore": "function:d384ac8ffd",
+   "readLegacyOwnerStore": "function:1d95f269a7"
   }
  },
  "./shutdown": {

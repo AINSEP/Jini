@@ -47,6 +47,50 @@ export interface AdminAgentPluginDto extends AdminAgentPluginLifecycleDto {
   readonly mcpServerIds: readonly string[];
 }
 
+/**
+ * The row as an admin CLIENT reads it after `JSON.parse`: {@link AdminAgentPluginDto} with every
+ * key the server may leave out made optional and the host-owned value sets narrowable. The wire
+ * drops `undefined` keys, so `maturity`/`origin`/`provides`/... are absent rather than `undefined`
+ * on this side, and a client's arrays are plain (mutable) once parsed.
+ *
+ * Type-only and copy-free: the host's own maturity and connection-status vocabularies (and any
+ * wording that goes with them) are NOT named here. A host that wants its closed unions passes them
+ * as `Maturity` / `ConnectionStatus` / `Origin` (a binding alias in the host), otherwise they stay
+ * plain `string`. `AdminAgentPluginRowKeysFitDto` in `__tests__` fails to compile if a key here
+ * stops existing on the DTO, so the two cannot drift apart silently.
+ */
+export interface AdminAgentPluginRow<
+  Maturity extends string = string,
+  ConnectionStatus extends string = string,
+  Origin extends string = string,
+> {
+  /** Account state is independent of activation; absent for plugins with no sign-in. */
+  connectionStatus?: ConnectionStatus;
+  /** Host maturity; absent means normal. */
+  maturity?: Maturity;
+  /** The provider plugin whose switch this plugin follows; it has no switch of its own. */
+  providerPlugin?: string;
+  provides?: string[];
+  origin?: Origin;
+  hostOk?: boolean;
+  missingRequires?: string[];
+  requiredBy?: string[];
+  archiveDigest?: string;
+  pluginId: string;
+  /** `plugin.json`'s `extensions.jini.displayName`; `null` (or absent, from a server predating the
+   *  field) means title-case `pluginId` instead. */
+  displayName?: string | null;
+  /** `plugin.json`'s `extensions.jini.summary` — the plain-language explainer a row shows in place
+   *  of `description` (which is written for the assistant); `null`/absent means show `description`. */
+  summary?: string | null;
+  version: string | null;
+  description: string | null;
+  keywords: string[];
+  enabled: boolean;
+  skills: Array<{ name: string; summary: string }>;
+  mcpServerIds: string[];
+}
+
 /** `GET …/agent-plugins`: one row per installed Agent Plugin. */
 export interface AdminAgentPluginsListEnvelope {
   readonly agentPlugins: readonly AdminAgentPluginDto[];
@@ -64,5 +108,14 @@ export interface AdminAgentPluginFilesEnvelope {
   readonly files: readonly unknown[];
   readonly truncated: boolean;
   /** The reader's caps, echoed to the viewer. */
+  readonly limits: unknown;
+}
+
+/** `GET`/`PUT …/agent-plugins/:pluginId/memory`: the plugin's learned entries and user notes, as the host's store listed them. */
+export interface AdminAgentPluginMemoryEnvelope {
+  readonly pluginId: string;
+  readonly learned: readonly unknown[];
+  readonly notes: readonly unknown[];
+  /** The store's caps, echoed to the notes editor. */
   readonly limits: unknown;
 }

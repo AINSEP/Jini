@@ -15,7 +15,28 @@ results through the composition tokens.
 | `@jini-ai/search` | universal | The contract (`SearchProvider`, documents, keys, revisions, tombstones), host ports, the `SearchService`/`SearchIndexer` APIs, `createSearchProviderRegistry`, `validateSearchProvider`, and the tokens `SearchProviderRegistryToken`, `SearchServiceToken`, `SearchIndexerToken`, `SearchDocumentSourceToken` (many). |
 | `@jini-ai/search/tools` | universal | Agent tools over a `SearchService`. |
 | `@jini-ai/search/contribution` | node | `defineSearchProviderContribution({ filename, define })` for plugin-contributed providers: search owns the manifest parser, the restricted-content refusal and the manifest-id check; the host passes `define` (`spec => defineProviderContribution(spec, recovery)` from `@jini-ai/agent-plugins/lifecycle`), and offers the loaded result to that package's `contributeProviders`. |
+| `@jini-ai/search/site/index-state-store` | node | `createSqlSearchIndexStore({ kernel, now, tables })` returns `{ indexState, targets }`: SQL `SearchIndexStatePort` and `SearchTargetPort` over four host-created tables (state, watermarks, targets, retired) whose names the host injects. One Kysely body for SQLite, PGlite and Postgres; `kysely` is an optional, type-only peer. |
 | `@jini-ai/search/testkit` | universal | `runSearchProviderConformance`, the in-memory reference provider, and fakes (`createFakeHttpClient`, `createUnavailableHttpClient`, `createInMemorySearchState`, `createStaticAccessPort`, `createPredicateAccessPort`). Test-only. |
+
+## Wiring
+
+**Site settings** (`@jini-ai/search/site/settings`): `ensureSearchProviderSetting` takes the settings
+ledger's registrar as `deps.ensureSettingDefinitions` (`EnsureSettingDefinitionsPort`) and
+`readSearchProviderSetting` takes its reader as `getEffective` (`GetEffectivePort`) on the existing
+required args; the host binds both from `@jini-ai/core/settings`. `writeSearchProviderSetting` takes
+the host settings write as `writeSetting`. See
+[`DR-005`](../../docs/decisions/DR-005-portable-package-boundaries.md).
+
+**CMS document sources and access port** (`@jini-ai/search/site/cms-document-source`,
+`@jini-ai/search/site/access`): `createCmsSearchDocumentSources` and `createCmsSearchAccessPort` borrow
+the host kernel (`StorageKernel<Kysely<DB>, DB>`, generic over the host schema) through a local
+structural slice of the `posts` table (`CmsSearchDatabase`, the columns the queries read; `kysely` is a
+type-only peer). The host rules are required fields on the same args object: `isLiveAt` (the public
+site's publish rule) and `resolveMemberAccess` (the raw `member_access_json` decoder) on both, plus
+`postPublicPath` and `toSearchText` (plain-text title and body of a whole host row) on the sources.
+`cmsSearchVisibility` and `isRowLive` take the same rule on their args. The host binds all four once
+and spreads them into both calls. See
+[`DR-005`](../../docs/decisions/DR-005-portable-package-boundaries.md).
 
 ## Plugin providers
 

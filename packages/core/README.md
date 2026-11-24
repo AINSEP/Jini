@@ -203,6 +203,15 @@ using this unreleased version; see [CHANGELOG.md](./CHANGELOG.md) for BREAKING n
 reaches the spec's `ports.authorize` as its second argument, and an id-free call reaches it with
 the required arguments alone. Hosts mount specs through `@jini-ai/http-kit`'s `mountJsonRoute`.
 
+`entityType` is optional: a permission that names no entity kind (list roles) calls
+`authorize({ permission })`, and the port then receives no `entityType` key. `RouteInputContext`
+carries two optional, opt-in fields the host adapter fills: `headers` (only the names a spec asked
+for, lower-cased) and `facts` (`RouteRequestFacts`: `clientAddress`, `userAgent?`, `host?`, resolved
+by the host; Jini never defaults the client address). A handler that needs its own status, response
+headers or an empty body returns `routeReply({ status, body?, headers? })` (`route-reply.ts`);
+`isRouteReply` tells it from an ordinary value. Core's own web-`Request` `jsonRoute` does not yet
+fill `headers`/`facts` or honour `routeReply`; only the http-kit Express adapter does.
+
 ## Design decisions
 
 - [Confirmation checks have a fixed order and atomic redemption](docs/decisions/DR-001-gated-mutation-check-order.md).
@@ -331,7 +340,7 @@ permissions, copy and which tools pair up stay with the host; `rewriteSchemaDesc
 origin without throwing; the host injects the value (its own env var).
 ## Wiring (tool-access-change)
 
-- `@jini-ai/core/contracts/site/tool-access-change` (type-only): the host supplies its own `NotifyToolAccessChanged` effect and throws `ToolAccessLoweringError` (from `@jini-ai/daemon`) when it cannot confirm affected answers stopped; nothing else to inject.
+- `@jini-ai/core/tool-access-change`: the host supplies its own `NotifyToolAccessChanged` effect and throws `ToolAccessLoweringError` (from `@jini-ai/core/tool-access-change`) when it cannot confirm affected answers stopped; nothing else to inject.
 
 ## Wiring (primitives/lazy-proxy)
 
@@ -346,3 +355,8 @@ factory that opens the real instance on first use.
 ## Wiring (tool-result content block)
 
 `@jini-ai/core/contracts/tool-result-block` declares `ToolResultContentBlock`, the one text/image block shape a tool result carries to a model provider. The daemon's BYOK meta-tool mapping produces it and the agent runtime's provider adapters consume it; both import this declaration rather than keeping a copy. Type-only.
+
+`./tool-metadata/deploy-ops` and `./tool-metadata/site-backup` export factories instead of a const map,
+because two of their search queries name host-owned words: the host calls
+`createDeployOpsToolMetadata({ siteKeyEnvName })` and `createSiteBackupToolMetadata({ archiveLabel })` once in
+its aggregator and its registration files import that bound map.

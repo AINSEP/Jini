@@ -3,6 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi, type MockInstance } from "vitest";
 
 import { Members } from "../Members.js";
+import { useMembers } from "../hooks/use-members.hooks.js";
 
 const ACTIVE_MEMBER = {
   id: "m1",
@@ -42,7 +43,7 @@ describe("an active member's menu", () => {
   it("offers both Resend sign-in link and Disable", async () => {
     const user = userEvent.setup();
     port.members.push(ACTIVE_MEMBER);
-    render(<Members port={port} translate={translate} />);
+    render(<Members useMembersHook={useMembers} port={port} translate={translate} />);
 
     await screen.findByText("alice@example.com");
     const menu = await openMenu(user, "alice@example.com");
@@ -55,7 +56,7 @@ describe("an already-disabled member's menu", () => {
   it("omits Disable entirely rather than showing it as a no-op", async () => {
     const user = userEvent.setup();
     port.members.push(DISABLED_MEMBER);
-    render(<Members port={port} translate={translate} />);
+    render(<Members useMembersHook={useMembers} port={port} translate={translate} />);
 
     await screen.findByText("bob@example.com");
     const menu = await openMenu(user, "bob@example.com");
@@ -69,7 +70,7 @@ describe("Disable — via RowMenu, confirm-gated", () => {
     const user = userEvent.setup();
     const otherMember = { ...DISABLED_MEMBER, status: "active" as const };
     port.members.push(ACTIVE_MEMBER, otherMember);
-    render(<Members port={port} translate={translate} />);
+    render(<Members useMembersHook={useMembers} port={port} translate={translate} />);
 
     await screen.findByText("alice@example.com");
     const menu = await openMenu(user, "alice@example.com");
@@ -93,7 +94,7 @@ describe("Disable — via RowMenu, confirm-gated", () => {
   it("cancelling leaves the member untouched", async () => {
     const user = userEvent.setup();
     port.members.push(ACTIVE_MEMBER);
-    render(<Members port={port} translate={translate} />);
+    render(<Members useMembersHook={useMembers} port={port} translate={translate} />);
 
     await screen.findByText("alice@example.com");
     const menu = await openMenu(user, "alice@example.com");
@@ -112,7 +113,7 @@ describe("Resend sign-in link — via RowMenu, immediate", () => {
   it("fires immediately with no dialog and shows a per-row notice", async () => {
     const user = userEvent.setup();
     port.members.push(ACTIVE_MEMBER, { ...DISABLED_MEMBER, status: "active" });
-    render(<Members port={port} translate={translate} />);
+    render(<Members useMembersHook={useMembers} port={port} translate={translate} />);
 
     await screen.findByText("alice@example.com");
     const menu = await openMenu(user, "alice@example.com");

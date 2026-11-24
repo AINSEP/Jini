@@ -1,7 +1,8 @@
 import path from "node:path";
 import { describe, expect, it, vi } from "vitest";
 import { createDirectoryUserConfig, validateDirectoryUserConfig, type DirectoryUserConfigPolicy } from "../directory-user-config.js";
-import type { DurableJsonFile, JsonFileRead } from "../durable-json.js";
+import type { DurableJsonFile } from "../durable-json.js";
+import type { JsonFileRead } from "@jini-ai/core/contracts/site/fs-durable-json";
 
 /** In-memory ports for the settings owner: JSON files, existing paths and directories. Host-absolute
  * spellings (P) keep the expectations valid on Windows hosts, where expansion resolves to a drive. */

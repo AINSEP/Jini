@@ -33,6 +33,7 @@ export {
   type McpJsonInjectionOptions,
   MCP_BRIDGE_UNAVAILABLE,
   probeMcpBridge,
+  bridgePreflightEntry,
   type McpBridgeProbe,
   type McpBridgeProbeEntry,
   type McpBridgeProbeResult,

@@ -40,7 +40,9 @@ export type {
   AdminSurfaceDeliveryBinding, AdminSurfaceDeliveryBindingDraft, AdminSurfaceDeliveryBindingForms, AdminSurfaceDeliveryBindings,
 } from './delivery-bindings.js';
 export { openAdminSurfaceLink, type AdminSurfaceOpenLinkPort, type AdminSurfaceLinkVerdict } from './external-links.js';
-export { createAdminSurfaceCallbackInbox, type AdminSurfaceCallbackFieldKey } from './callback-field-inbox.js';
+export { createAdminSurfaceCallbackInbox } from './callback-field-inbox.js';
+/** Deprecated re-export: import these from `@jini-ai/core/contracts/site/admin-surfaces-connections`; removed at the next major. */
+export type { AdminSurfaceCallbackFieldKey } from "@jini-ai/core/contracts/site/admin-surfaces-connections";
 
 export { buildAdminSurfaceActionTools, type AdminSurfaceToolSource, type AdminSurfaceToolContext } from './action-tools.js';
 export type { AdminSurfacePluginStatePersistence } from './plugin-state-persistence.js';

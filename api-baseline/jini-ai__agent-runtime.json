@@ -561,6 +561,15 @@
    "resolveCustomInstructions": "function:9e167990dc"
   }
  },
+ "./inventory": {
+  "types": "./dist/inventory/index.d.ts",
+  "symbols": {
+   "AgentRuntimePorts": "interface:7a5f9877ae",
+   "OrFallback": "type:11211ad310",
+   "createAgentInventory": "function:fbb60b2938",
+   "summarizeAgent": "function:9d3fdd054f"
+  }
+ },
  "./model-catalog/cache": {
   "types": "./dist/model-catalog-cache.d.ts",
   "symbols": {

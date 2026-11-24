@@ -8,5 +8,7 @@ export * from "./timeline.js";
 export * from "./restore-points.js";
 export * from "./plan-store.js";
 export * from "./destination-port.js";
+export { SITE_DATABASE_MESSAGES } from "./site-db-messages.js";
+export { SITE_TRANSFER_MESSAGES } from "./site-transfer-messages.js";
 export type { InputReaders } from "./registration.js";
 export type { TransferSurfacePorts, SurfaceExchange, SurfaceMessage } from "./surface-port.js";

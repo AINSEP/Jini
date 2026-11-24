@@ -210,6 +210,15 @@
    "getAgentModelContext": "function:1c28ff0efc"
   }
  },
+ "./dom/admin-page-tools": {
+  "types": "./dist/core/dom/admin-page-tools.d.ts",
+  "symbols": {
+   "AdminPageWebMcpToolsArgs": "interface:b6e96912ed",
+   "DirectPageAction": "type:b8c8a6fc88",
+   "RequestAdminPageAction": "type:a18a17a5c6",
+   "registerAdminPageWebMcpTools": "function:ff6b438c85"
+  }
+ },
  "./render-surface": {
   "types": "./dist/core/render-surface.d.ts",
   "symbols": {
@@ -240,13 +249,14 @@
    "MAX_SKILL_FILE_BYTES": "variable:73fc4db92a",
    "ManagedSkill": "interface:47e72d0478",
    "PreparedSkillInstall": "interface:d8ee45f491",
+   "SKILL_STATE_FILE_NAME": "variable:4c825a0dfd",
    "SkillFetchPort": "type:a098c9c7e7",
    "SkillFilesystemPort": "interface:1e70d1efb3",
    "SkillInputError": "class:6a8f3c3b95",
    "SkillInstallDeps": "interface:532a805d92",
    "SkillInstallInput": "type:348e65a008",
    "SkillInstaller": "interface:066b64cb79",
-   "SkillLayoutPort": "interface:e45d1427cb",
+   "SkillLayoutPort": "interface:09ddc96673",
    "SkillRegistration": "interface:346563dcb5",
    "SkillRegistryPort": "interface:28c12ae8b5",
    "SkillSourceFetchPort": "type:00aec94ff7",
@@ -264,7 +274,7 @@
    "createNodeSkillFilesystem": "function:5a238b82b9",
    "createSkillFetchAdapter": "function:674a5b0db0",
    "createSkillInstaller": "function:1cc3c7cc13",
-   "createSkillLayout": "function:74b0d28442",
+   "createSkillLayout": "function:53de2b3b20",
    "createSkillRefreshMiddleware": "function:d240f44ec0",
    "createSkillRefresher": "function:d4e8a5d39c",
    "createYauzlSkillArchiveReader": "function:38cd26c409",
@@ -272,7 +282,7 @@
    "fetchGitHubSkill": "function:9c4e689ec4",
    "prepareSkillInstall": "function:23f8b59874",
    "readSkillArchive": "function:8789ccc5e1",
-   "readSkillState": "function:ad20ce8ace",
+   "readSkillState": "function:5e0e9d71f8",
    "validateGitHubSkillSource": "function:f0f9f59c4d",
    "validateSkillFiles": "function:797e4ddd76",
    "validateSkillMarkdown": "function:d76b208e3c",
@@ -283,6 +293,57 @@
   "types": "./dist/skills/install/node-filesystem.d.ts",
   "symbols": {
    "createNodeSkillFilesystem": "function:5a238b82b9"
+  }
+ },
+ "./skills/site/install-service": {
+  "types": "./dist/skills/site/install-service.d.ts",
+  "symbols": {
+   "SkillInstallInput": "type:41dfafb2ce",
+   "SkillSiteContext": "interface:ce0e4b23dc",
+   "commitSkillInstall": "function:13f21b21d0",
+   "installSkill": "variable:33e70950ea",
+   "listManagedSkills": "variable:49dbaae80e",
+   "prepareSkillInstall": "variable:a594ad122e",
+   "setSkillEnabled": "function:32c801e2c4",
+   "uninstallSkill": "function:9fdecae706"
+  }
+ },
+ "./skills/site/install-tool": {
+  "types": "./dist/skills/site/install-tool.d.ts",
+  "symbols": {
+   "SKILLS_INSTALL_TOOL_ID": "variable:89a446f5f2",
+   "SkillsInstallToolDeps": "interface:2663a4cd82",
+   "buildRegistrations": "function:79cc61a602",
+   "catalog": "variable:64d608bb17",
+   "contributeSkillsInstallTools": "function:e3ea9ae335",
+   "derivedRisk": "variable:f12a513ea4"
+  }
+ },
+ "./skills/site/layout": {
+  "types": "./dist/skills/site/layout.d.ts",
+  "symbols": {
+   "ResolveSkillLayoutOptional": "interface:c6f10ba464",
+   "SkillLayout": "interface:9bbb54a950",
+   "SkillLifecycleEvent": "type:484dd344f1",
+   "SkillSiteHost": "interface:691b54bcf8",
+   "SkillWorkspaceLayout": "interface:948b294411",
+   "resolveSkillLayout": "function:d57fab4826"
+  }
+ },
+ "./skills/site/live-registration": {
+  "types": "./dist/skills/site/live-registration.d.ts",
+  "symbols": {
+   "SkillsRefreshRegistry": "type:d5ceba501b",
+   "createLiveSkillRegistration": "function:49cd8b36ac",
+   "createSkillRefreshMiddleware": "function:cba7eff9ce"
+  }
+ },
+ "./skills/site/tool-registrations": {
+  "types": "./dist/skills/site/tool-registrations.d.ts",
+  "symbols": {
+   "buildSkillToolRegistrations": "function:443fd3c029",
+   "loadInstalledSkillToolSources": "function:6eeea0b886",
+   "registerInstalledSkillTools": "function:3a81323cb0"
   }
  },
  "./skills/tools": {

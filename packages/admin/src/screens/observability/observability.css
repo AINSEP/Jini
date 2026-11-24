@@ -1,0 +1,146 @@
+/*
+ * Observability screen layout and status styles, moved with the screen from the host admin stylesheet
+ * (classes renamed `observability-*` -> `jini-observability-*`). It reads shared `--jini-*` theme tokens only,
+ * so a host restyles through its theme, not this file.
+ * The host imports it once beside `recent-errors.css`.
+ */
+
+.settings-ui-section--page-flow.jini-observability-section .jini-tabbed-dialog-content {
+  max-width: none;
+}
+
+.jini-observability-page-title {
+  display: flex;
+  align-items: center;
+  gap: var(--jini-space-2);
+}
+
+.jini-observability-queries-scroll {
+  max-width: 100%;
+  min-width: 0;
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+}
+
+@container admin-content (max-width: 620px) {
+  .admin-layout .page:is(.ai-assistant-page, .jini-observability-page) .settings-ui-section .jini-tabbed-dialog--inline .jini-tabbed-dialog-sidebar, .admin-layout.wraps-tabs .page:is(.ai-assistant-page, .jini-observability-page) .settings-ui-section .jini-tabbed-dialog--inline .jini-tabbed-dialog-sidebar {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    overflow-y: hidden;
+    scrollbar-width: thin;
+    padding-right: 0;
+    mask-image: linear-gradient(to right, black 0, black calc(100% - 32px), transparent);
+  }
+  .admin-layout .page:is(.ai-assistant-page, .jini-observability-page) .jini-tabbed-dialog-nav-item {
+    padding-inline: 6px;
+    gap: 5px;
+  }
+  .admin-layout .page:is(.ai-assistant-page, .jini-observability-page) .jini-tabbed-dialog-nav-item strong {
+    white-space: nowrap;
+    font-size: 12px;
+  }
+}
+
+.jini-observability-section .jini-tabbed-dialog-content {
+  max-width: 46rem;
+}
+
+.jini-observability-section .jini-tabbed-dialog {
+  background: transparent;
+  border: none;
+  border-radius: 0;
+  box-shadow: var(--jini-panel-shadow-flat);
+}
+
+.jini-observability-lede {
+  margin: 0 0 14px;
+  max-width: 44rem;
+  font-size: 13px;
+  line-height: 1.55;
+  color: var(--jini-text-muted);
+}
+
+.jini-observability-alert {
+  margin: 0 0 14px;
+  padding: 9px 12px;
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--jini-danger);
+  background: color-mix(in srgb, var(--jini-danger) 6%, transparent);
+  border: 1px solid color-mix(in srgb, var(--jini-danger) 22%, transparent);
+  border-radius: var(--jini-radius-sm);
+}
+
+.jini-observability-status-card {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  margin: 14px 0;
+  padding: 12px 14px;
+  border: 1px solid var(--jini-border);
+  border-radius: var(--jini-radius-md);
+  background: var(--jini-bg-panel);
+}
+
+.jini-observability-status-dot {
+  flex-shrink: 0;
+  margin-top: 5px;
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+}
+
+.jini-observability-status-card--on .jini-observability-status-dot {
+  background: var(--jini-success);
+}
+
+.jini-observability-status-card--off .jini-observability-status-dot {
+  background: var(--jini-text-disabled);
+}
+
+.jini-observability-status-headline {
+  margin: 0 0 2px;
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--jini-text-strong);
+}
+
+.jini-observability-providers-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 10px;
+  max-width: 30rem;
+  margin: 8px auto;
+  padding: 34px 26px;
+  border: 1px dashed var(--jini-border-strong);
+  border-radius: var(--jini-radius-md);
+  background: var(--jini-bg-panel);
+}
+
+.jini-observability-providers-glyph {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 54px;
+  height: 54px;
+  margin-bottom: 2px;
+  color: var(--jini-text-disabled);
+  background: var(--jini-bg-subtle);
+  border-radius: var(--jini-radius-pill);
+}
+
+.jini-observability-providers-empty h3 {
+  margin: 0;
+  font-size: 14.5px;
+  font-weight: 650;
+  color: var(--jini-text-strong);
+}
+
+.jini-observability-providers-empty p {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.55;
+  color: var(--jini-text-muted);
+}

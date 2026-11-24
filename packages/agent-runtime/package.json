@@ -24,7 +24,8 @@
       "./native-tool-policy": "universal",
       "./native-permissions": "universal",
       "./cli-probe-cache": "node",
-      "./custom-instructions": "universal"
+      "./custom-instructions": "universal",
+      "./inventory": "universal"
     },
     "isolation": {
       "forbidden": {
@@ -104,6 +105,11 @@
       "types": "./dist/custom-instructions.d.ts",
       "import": "./dist/custom-instructions.js",
       "default": "./dist/custom-instructions.js"
+    },
+    "./inventory": {
+      "types": "./dist/inventory/index.d.ts",
+      "import": "./dist/inventory/index.js",
+      "default": "./dist/inventory/index.js"
     }
   },
   "typesVersions": {
@@ -134,6 +140,9 @@
       ],
       "custom-instructions": [
         "./dist/custom-instructions.d.ts"
+      ],
+      "inventory": [
+        "./dist/inventory/index.d.ts"
       ]
     }
   },

@@ -28,6 +28,9 @@
  * Architectural role:
  * `features/database` domain logic. Depends only on the injected ports.
  */
+import type { SiteStatusPort } from "@jini-ai/core/contracts/site/recovery-reconcile-interrupted-migration";
+
+export type { SiteServeStatus, SiteStatusPort } from "@jini-ai/core/contracts/site/recovery-reconcile-interrupted-migration";
 
 export interface MigrationRunsRepoPort {
   findNonTerminalForSite(siteId: string): Promise<{ id: string; status: string } | null>;
@@ -44,13 +47,6 @@ export interface MigrationRunsRepoPort {
 
 export interface BootLedgerPort {
   appendInterruptedRow(params: { siteId: string; migrationRunId: string }): Promise<void>;
-}
-
-export type SiteServeStatus = "SERVING" | "PENDING_MIGRATION" | "BLOCKED_PENDING_RECOVERY";
-
-export interface SiteStatusPort {
-  get(siteId: string): Promise<SiteServeStatus>;
-  set(siteId: string, status: SiteServeStatus): Promise<void>;
 }
 
 /**

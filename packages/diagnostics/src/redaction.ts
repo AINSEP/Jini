@@ -1,4 +1,4 @@
-import { SECRET_SHAPE_PATTERNS } from "@jini-ai/core";
+import { SECRET_SHAPE_PATTERNS, type SecretRedactionPattern } from "@jini-ai/core";
 import { pathContains } from "@jini-ai/core/primitives";
 import { posix, win32 } from "node:path";
 
@@ -28,6 +28,17 @@ const REDACTED = "[REDACTED]";
 
 export interface RedactionOptions {
   username?: string | undefined;
+  /**
+   * Host-owned credential shapes (e.g. a product's own API-key format) that Jini's neutral catalog
+   * cannot know. Injected per call, never registered globally; same shape as core's `redactSecrets`.
+   */
+  extraPatterns?: readonly SecretRedactionPattern[] | undefined;
+}
+
+/** `String.replace` needs a global pattern to replace every match; strip-then-append keeps an
+ * already-global pattern valid (a duplicated `g` flag would throw). */
+function replaceAll({ text, pattern }: { text: string; pattern: RegExp }, _options = {}): string {
+  return text.replace(new RegExp(pattern.source, `${pattern.flags.replace("g", "")}g`), REDACTED);
 }
 
 function redactJsonObject(
@@ -65,11 +76,8 @@ export function redactText({ text }: { text: string }, opts: RedactionOptions = 
   out = out.replace(BARE_SECRET_RE, (_match, lead, name, sep) => `${lead}${name}${sep}${REDACTED}`);
   // Bundle redaction shares only the credential catalog; diagnostic IDs and paths must remain
   // readable, so the kernel's general-purpose redaction policy is deliberately not invoked.
-  for (const { pattern } of SECRET_SHAPE_PATTERNS) {
-    // `String.replace` needs a global pattern to replace every match; strip-then-append keeps a
-    // pattern that is already global valid (a duplicated `g` flag would throw).
-    out = out.replace(new RegExp(pattern.source, `${pattern.flags.replace("g", "")}g`), REDACTED);
-  }
+  for (const { pattern } of SECRET_SHAPE_PATTERNS) out = replaceAll({ text: out, pattern });
+  for (const { regex } of opts.extraPatterns ?? []) out = replaceAll({ text: out, pattern: regex });
   const username = opts.username;
   if (username && username.length > 1) {
     const escaped = username.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");

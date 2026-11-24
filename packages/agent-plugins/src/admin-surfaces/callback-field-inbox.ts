@@ -12,12 +12,7 @@
  * implements the same two methods over its own store.
  */
 
-export interface AdminSurfaceCallbackFieldKey {
-  readonly workspaceId: string;
-  readonly pluginId: string;
-  readonly connectionId: string;
-  readonly attemptId: string;
-}
+import type { AdminSurfaceCallbackFieldKey } from "@jini-ai/core/contracts/site/admin-surfaces-connections";
 
 /** How long a deposit waits to be taken: the sign-in attempt lifetime. */
 const INBOX_TTL_MS = 10 * 60 * 1000;

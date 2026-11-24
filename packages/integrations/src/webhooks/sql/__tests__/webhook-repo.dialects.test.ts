@@ -83,6 +83,17 @@ describe.each(["sqlite", "postgres"] as const)("webhook sql adapters [%s]", (dia
     assert.deepEqual((await subscriptions.findMatching({ workspaceId: "ws", topic: "page.created" })).map((row) => row.id), ["all"]);
   });
 
+  test("creator attribution persists, so the agent switch can tell agent-made subscriptions apart after a restart", async () => {
+    const { subscriptions } = await make();
+    await subscriptions.insert({ ...subscription, id: "by-agent", createdByKind: "agent" });
+    await subscriptions.insert({ ...subscription, id: "by-person", createdByKind: "person" });
+    await subscriptions.insert({ ...subscription, id: "legacy" });
+    assert.equal((await subscriptions.findById({ workspaceId: "ws", id: "by-agent" }))?.createdByKind, "agent");
+    assert.equal((await subscriptions.findById({ workspaceId: "ws", id: "by-person" }))?.createdByKind, "person");
+    // A row written before attribution existed reads back unattributed, which the switch treats as person-made.
+    assert.equal((await subscriptions.findById({ workspaceId: "ws", id: "legacy" }))?.createdByKind, undefined);
+  });
+
   test("enqueue is idempotent, stores the envelope on the same row, and a claim takes each due row once", async () => {
     const { deliveries } = await make();
     const envelope: WebhookEventEnvelope = { deliveryId: "d1", eventId: "evt-d1", topic: "post.created", workspaceId: "ws", occurredAt: T0, data: { id: "p1" } };

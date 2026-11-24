@@ -22,6 +22,7 @@
       "./shutdown": "node",
       "./electron/navigation-policy": "desktop",
       "./electron/updates": "desktop",
+      "./electron/preferences": "desktop",
       "./node-toolchain": "node",
       "./electron/usability": "desktop",
       "./speech": "desktop",
@@ -37,7 +38,17 @@
       "./electron/selftest": "desktop",
       "./shell/guest-navigation": "desktop",
       "./shell/site-presence": "universal",
-      "./electron/handoff": "desktop"
+      "./shell/supervised-site-url": "universal",
+      "./shell/copied-site-databases": "node",
+      "./electron/handoff": "desktop",
+      "./electron/preload": "desktop",
+      "./electron/webview": "desktop",
+      "./electron/session-bootstrap": "desktop",
+      "./electron/windows": "desktop",
+      "./shell/find-menu": "desktop",
+      "./shell/node-toolchain": "node",
+      "./shell/speech/mac-on-device-transcriber": "node",
+      "./shell/speech/speech-ipc": "node"
     },
     "isolation": {
       "entries": {
@@ -45,7 +56,11 @@
         "./shell/instance-presence": "electron",
         "./shell/auto-update-controller": "electron",
         "./shell/spellcheck-menu": "electron",
-        "./shell/guest-navigation": "electron"
+        "./shell/guest-navigation": "electron",
+        "./shell/find-menu": "electron",
+        "./shell/node-toolchain": "node-toolchain",
+        "./shell/speech/speech-ipc": "speech",
+        "./shell/speech/mac-on-device-transcriber": "speech"
       }
     }
   },
@@ -103,6 +118,11 @@
       "types": "./dist/electron/updates/index.d.ts",
       "import": "./dist/electron/updates/index.js",
       "default": "./dist/electron/updates/index.js"
+    },
+    "./electron/preferences": {
+      "types": "./dist/electron/preferences/index.d.ts",
+      "import": "./dist/electron/preferences/index.js",
+      "default": "./dist/electron/preferences/index.js"
     },
     "./node-toolchain": {
       "types": "./dist/node-toolchain/index.d.ts",
@@ -170,10 +190,60 @@
       "import": "./dist/shell/site-presence.js",
       "default": "./dist/shell/site-presence.js"
     },
+    "./shell/supervised-site-url": {
+      "types": "./dist/shell/supervised-site-url.d.ts",
+      "import": "./dist/shell/supervised-site-url.js",
+      "default": "./dist/shell/supervised-site-url.js"
+    },
+    "./shell/copied-site-databases": {
+      "types": "./dist/shell/copied-site-databases.d.ts",
+      "import": "./dist/shell/copied-site-databases.js",
+      "default": "./dist/shell/copied-site-databases.js"
+    },
     "./electron/handoff": {
       "types": "./dist/electron/handoff/index.d.ts",
       "import": "./dist/electron/handoff/index.js",
       "default": "./dist/electron/handoff/index.js"
+    },
+    "./electron/preload": {
+      "types": "./dist/electron/preload/index.d.ts",
+      "import": "./dist/electron/preload/index.js",
+      "default": "./dist/electron/preload/index.js"
+    },
+    "./electron/webview": {
+      "types": "./dist/electron/webview/index.d.ts",
+      "import": "./dist/electron/webview/index.js",
+      "default": "./dist/electron/webview/index.js"
+    },
+    "./electron/session-bootstrap": {
+      "types": "./dist/electron/session-bootstrap/index.d.ts",
+      "import": "./dist/electron/session-bootstrap/index.js",
+      "default": "./dist/electron/session-bootstrap/index.js"
+    },
+    "./electron/windows": {
+      "types": "./dist/electron/windows/index.d.ts",
+      "import": "./dist/electron/windows/index.js",
+      "default": "./dist/electron/windows/index.js"
+    },
+    "./shell/find-menu": {
+      "types": "./dist/shell/find-menu.d.ts",
+      "import": "./dist/shell/find-menu.js",
+      "default": "./dist/shell/find-menu.js"
+    },
+    "./shell/node-toolchain": {
+      "types": "./dist/shell/node-toolchain.d.ts",
+      "import": "./dist/shell/node-toolchain.js",
+      "default": "./dist/shell/node-toolchain.js"
+    },
+    "./shell/speech/mac-on-device-transcriber": {
+      "types": "./dist/shell/speech/mac-on-device-transcriber.d.ts",
+      "import": "./dist/shell/speech/mac-on-device-transcriber.js",
+      "default": "./dist/shell/speech/mac-on-device-transcriber.js"
+    },
+    "./shell/speech/speech-ipc": {
+      "types": "./dist/shell/speech/speech-ipc.d.ts",
+      "import": "./dist/shell/speech/speech-ipc.js",
+      "default": "./dist/shell/speech/speech-ipc.js"
     }
   },
   "files": [

@@ -1,7 +1,6 @@
 /** Fakes of the provider-HTTP and xAI OAuth ports for route tests (R7): each records its calls and replays what a test
  * scripted, with no network, socket or disk. They implement the interfaces only; they never import `@jini-ai/agent-runtime`. */
-import type { BaseUrlGuardPort, BaseUrlValidationResult } from '../agent-runtime.js';
-import type { ProviderToolTurnPort, ProviderTurnEventRecord } from '../provider-http.js';
+import type { BaseUrlGuardPort, BaseUrlValidationResult, ProviderToolTurnPort, ProviderTurnEventRecord } from '@jini-ai/core/contracts/agents';
 import type {
   OAuthCallbackListener, OAuthCallbackOutcome, OAuthPendingAuthorizations, OAuthPkceProviderConfig, StoredOAuthToken, XaiOAuthPort,
 } from '../xai-oauth.js';

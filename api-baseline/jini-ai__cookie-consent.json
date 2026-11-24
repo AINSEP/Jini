@@ -178,5 +178,121 @@
    "readConsent": "function:bb8c8747a5",
    "resolveRegion": "function:6f1abffc4b"
   }
+ },
+ "./site/config": {
+  "types": "./dist/site/config.d.ts",
+  "symbols": {
+   "SITE_CONSENT_BANNER_MODES": "variable:9b1c5fe2ff",
+   "SITE_CONSENT_DEFAULTS": "variable:64a7cd7d70",
+   "SITE_CONSENT_DEFAULT_CSS": "variable:ef1b775a37",
+   "SITE_CONSENT_NAMESPACE": "variable:68041705b1",
+   "SITE_CONSENT_PLACEMENTS": "variable:4cf9b79313",
+   "SITE_CONSENT_REGION_MODES": "variable:cac2529e13",
+   "SITE_CONSENT_TEXT_LIMITS": "variable:b0c241583f",
+   "SiteConsentBannerMode": "type:e091e9f1d0",
+   "SiteConsentPlacement": "type:8d3c8ad4e1",
+   "SiteConsentRegionMode": "type:14e19d4e65",
+   "SiteConsentSettings": "type:f79aa373e1",
+   "siteConsentLinkProblem": "function:eaa3e071f0",
+   "withSiteConsentDefaultCss": "function:6a89739806"
+  }
+ },
+ "./site/cookie-consent": {
+  "types": "./dist/site/cookie-consent.d.ts",
+  "symbols": {
+   "SiteConsentSource": "interface:e57899cb50",
+   "SiteCookieConsent": "interface:d55ef7e3e7",
+   "renderSiteConsentPreview": "function:fe9d31eeb8",
+   "siteBannerMode": "function:1d1a773cf3",
+   "toSiteCookieConsent": "function:b38bba7957"
+  }
+ },
+ "./site/ensure-privacy-defaults": {
+  "types": "./dist/site/ensure-privacy-defaults.d.ts",
+  "symbols": {
+   "PrivacyDefaultsDeps": "interface:14e5b4f667",
+   "PrivacyPageCreateInput": "interface:1473e6fd13",
+   "PrivacyPageRow": "interface:41a5448627",
+   "ensureSitePrivacyDefaults": "function:3d8b4fc29b"
+  }
+ },
+ "./site/privacy-page-template": {
+  "types": "./dist/site/privacy-page-template.d.ts",
+  "symbols": {
+   "privacyPageTemplate": "function:f86fd82cb3"
+  }
+ },
+ "./site/readiness": {
+  "types": "./dist/site/readiness.d.ts",
+  "symbols": {
+   "ConsentDeclarationEvidence": "interface:f8e8f84595",
+   "ConsentWarning": "interface:eafd17454e",
+   "consentDeclarationReadiness": "function:bf08d93db2"
+  }
+ },
+ "./site/region-plugins": {
+  "types": "./dist/site/region-plugins.d.ts",
+  "symbols": {
+   "CONSENT_CONTRIBUTIONS_FILENAME": "variable:73dc1dc4ba",
+   "ConsentContributionDefinition": "interface:c4263bfbfc",
+   "LoadConsentContributions": "type:fe54e95942",
+   "ReportConsentPluginFailure": "type:78ba8050f1",
+   "loadSiteConsentBridges": "function:16213bbd1f",
+   "loadSiteConsentScripts": "function:021f674c34",
+   "loadSiteRegionResolvers": "function:d2955a73af",
+   "parseConsentContributions": "function:4ee831b96d",
+   "toRegionResolvers": "function:8050d21a95"
+  }
+ },
+ "./site/revisions": {
+  "types": "./dist/site/revisions.d.ts",
+  "symbols": {
+   "SiteConsentConflict": "class:3b7dd493bc",
+   "SiteConsentRevision": "interface:2723553d42",
+   "SiteConsentState": "interface:0fe7545e5e",
+   "SiteConsentStore": "interface:4e26baeea2"
+  }
+ },
+ "./site/service": {
+  "types": "./dist/site/service.d.ts",
+  "symbols": {
+   "ConsentDeploymentRefusal": "interface:4b5e2626ce",
+   "ConsentServicePorts": "interface:ddee792a00",
+   "SiteConsentService": "type:87415975d4",
+   "createSiteConsentService": "function:09a20bed3c"
+  }
+ },
+ "./site/settings": {
+  "types": "./dist/site/settings.d.ts",
+  "symbols": {
+   "SITE_CONSENT_OFF": "variable:99ea80a3b4",
+   "SiteConsentActivation": "type:ac6b1ea397",
+   "SiteConsentPrivacyRepair": "type:ac7347ef4e",
+   "createSiteConsentConfig": "function:3b1aa824c3",
+   "createSiteConsentReadiness": "function:00798d1f4d",
+   "ensureSiteConsentDefinitions": "function:a5ca395762",
+   "readSiteConsentAuthoringSettings": "function:41ea6bbe92",
+   "resolveSiteConsentActivation": "function:0bbc020df5"
+  }
+ },
+ "./site/tool-registrations": {
+  "types": "./dist/site/tool-registrations.d.ts",
+  "symbols": {
+   "ConsentApprovalDescription": "interface:c09e20a2ad",
+   "ConsentApprovalToolHandler": "type:0e2be938e7",
+   "ConsentToolDeps": "interface:8c6628b561",
+   "ConsentToolHost": "interface:1fb0f5b2da",
+   "buildConsentRegistrations": "function:1c38e90a48",
+   "consentAgentToolCatalog": "variable:bbc7e7b3ef",
+   "consentDerivedRisk": "variable:f35b291da3",
+   "contributeConsentTools": "function:4142be697f"
+  }
+ },
+ "./site/validation": {
+  "types": "./dist/site/validation.d.ts",
+  "symbols": {
+   "consentConfigProblems": "function:0d20fccb05",
+   "parseConsentConfig": "function:8ed869d798"
+  }
  }
 }

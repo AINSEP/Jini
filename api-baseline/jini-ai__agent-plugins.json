@@ -313,6 +313,7 @@
    "storedAgentPluginGrants": "function:d167e4c974",
    "switchOnSavedTokenConnection": "function:215624a267",
    "titleCaseFromPluginId": "function:2657f81520",
+   "tokensForCreate": "function:d56b9956d4",
    "validatedAgentPluginToolGrant": "function:bc7bbed2e9",
    "waitAtAgentPluginSignInCardWithPorts": "function:7581cc44e2"
   }
@@ -618,7 +619,7 @@
    "contributeProviders": "function:a73cb62064",
    "createAgentPluginActivations": "function:a98be8f4c9",
    "createAgentPluginLayout": "function:07b16a4480",
-   "createAgentPluginLifecycle": "function:c8458ea373",
+   "createAgentPluginLifecycle": "function:cbbc64217e",
    "createAutomaticAgentPluginUse": "function:b30cfb12d4",
    "createPluginContributionLoader": "function:91849dd6a0",
    "createSkillFileReader": "function:cfa60bca9f",
@@ -933,10 +934,25 @@
   "types": null,
   "symbols": {}
  },
+ "./site/activation-effects": {
+  "types": "./dist/site/activation-effects.d.ts",
+  "symbols": {
+   "ResolveAgentPluginActivation": "type:080060f9aa",
+   "createAgentPluginEnabledReader": "function:b86cf2fe38"
+  }
+ },
  "./site/admin-surfaces/capabilities": {
   "types": "./dist/site/admin-surfaces/capabilities.d.ts",
   "symbols": {
    "createAdminSurfaceCapabilities": "function:b4f9e3a93b"
+  }
+ },
+ "./site/admin-surfaces/delivery-bindings": {
+  "types": "./dist/site/admin-surfaces/delivery-bindings.d.ts",
+  "symbols": {
+   "FormDeliveryBindingsStore": "interface:e2b55ad9e4",
+   "SurfaceDeliveryBindingsDeps": "interface:ccfedd72d7",
+   "createSurfaceDeliveryBindings": "function:bc9297f339"
   }
  },
  "./site/admin-surfaces/forms": {
@@ -945,10 +961,175 @@
    "createSurfaceForms": "function:3b2ed81311"
   }
  },
+ "./site/admin-surfaces/handlers": {
+  "types": "./dist/site/admin-surfaces/handlers.d.ts",
+  "symbols": {
+   "AgentPluginAdminSurfaceHandlers": "interface:780f56f356",
+   "LoadAdminSurfaceHandlers": "type:9e0bf0aed9",
+   "createAgentPluginAdminSurfaceHandlers": "function:e983921cdf"
+  }
+ },
+ "./site/admin-surfaces/public-config": {
+  "types": "./dist/site/admin-surfaces/public-config.d.ts",
+  "symbols": {
+   "PUBLIC_CONFIG_REFUSED_MESSAGE": "variable:0636d7b9a0",
+   "createAdminSurfacePublicConfig": "function:1e7cee417e"
+  }
+ },
+ "./site/analytics-provider-registry": {
+  "types": "./dist/site/analytics-provider-registry.d.ts",
+  "symbols": {
+   "AnalyticsContributionLoader": "type:756d7c7457",
+   "AnalyticsProviderDescriptor": "interface:e55e1cdbdf",
+   "AnalyticsProviderKind": "interface:65be8e03e0",
+   "AnalyticsProviderPorts": "interface:ce26324cdc",
+   "AnalyticsProviders": "interface:cae62da088",
+   "analyticsProviderContribution": "function:1b7fba5823",
+   "loadAnalyticsProviders": "function:d88d43db47",
+   "parseAnalyticsProvidersFile": "function:868bdb8cf9"
+  }
+ },
+ "./site/auth-schemes": {
+  "types": "./dist/site/auth-schemes.d.ts",
+  "symbols": {
+   "CREDENTIAL_SCHEMES_FILENAME": "variable:84577a2aa1",
+   "CredentialSchemeSourcePorts": "interface:8c4f7abf59",
+   "LoadCredentialSchemeContributions": "type:b739243542",
+   "LoadCredentialSchemeContributionsFromSource": "type:b8f4b2132a",
+   "ParseCredentialSchemesFile": "type:32e67de7f9",
+   "loadBundledCredentialSchemeRegistry": "function:b03242c59a",
+   "loadCredentialSchemeRegistry": "function:28923ecef3",
+   "loadCredentialSchemeRegistryFromSource": "function:ced802cb47"
+  }
+ },
+ "./site/bundled-contribution-sources": {
+  "types": "./dist/site/bundled-contribution-sources.d.ts",
+  "symbols": {
+   "BundledContributionSources": "type:b7321b95bf",
+   "listBundledContributionSources": "function:2bfd82a251"
+  }
+ },
+ "./site/bundled-id-upgrade": {
+  "types": "./dist/site/bundled-id-upgrade.d.ts",
+  "symbols": {
+   "BUNDLED_ID_UPGRADE_BACKUP_DIRNAME": "variable:b2cdb5cecb",
+   "BundledIdUpgradeOutcome": "type:e0524a8ea2",
+   "BundledIdUpgradePort": "interface:c624ea4e17",
+   "BundledPluginRenames": "type:4f05f062fb",
+   "InstalledRevision": "interface:33d4da1711",
+   "MovedRevision": "interface:e4a2640bf9",
+   "restoreUnseededUpgrades": "function:7437d899c2",
+   "upgradeRenamedBundledPlugins": "function:5e9e191c6c"
+  }
+ },
+ "./site/customize-tool": {
+  "types": "./dist/site/customize-tool.d.ts",
+  "symbols": {
+   "CustomizeAgentPluginDeps": "interface:0bfa9a84ef",
+   "CustomizeAgentPluginLifecycle": "interface:1ee6433577",
+   "prepareCustomizedAgentPluginArchive": "function:a9de5713ba"
+  }
+ },
+ "./site/deploy-split-activation": {
+  "types": "./dist/site/deploy-split-activation.d.ts",
+  "symbols": {
+   "DeploySplitActivationPort": "interface:70820e2800",
+   "carryPluginRenameActivation": "function:a490b2ff22"
+  }
+ },
+ "./site/host-plugin-guidance": {
+  "types": "./dist/site/host-plugin-guidance.d.ts",
+  "symbols": {
+   "HOST_PLUGIN_FILE_PREFIX": "variable:59b10c788b",
+   "HostPluginGuidance": "interface:1396d57337",
+   "HostPluginRefOptions": "interface:5f10e9cef9",
+   "MAX_HOST_PLUGIN_FILE_BYTES": "variable:090433b852",
+   "PluginToolGuidance": "interface:6e449d2ea6",
+   "deliverHostPluginGuidance": "function:fda3bb3aab",
+   "isHostPluginFileRequest": "function:0c25a5faae",
+   "readHostPluginFile": "function:23808e618f",
+   "readHostPluginGuidance": "function:6fb0f630d9",
+   "readHostPluginRefOverlays": "function:032f9b16b0",
+   "removeChatRefusedToolPermissions": "function:8049b7bbad",
+   "splitHostPluginRefRequest": "function:1088210b79"
+  }
+ },
+ "./site/host-signals": {
+  "types": "./dist/site/host-signals.d.ts",
+  "symbols": {
+   "BundledHostSignalDeclaration": "interface:af20ed4d1d",
+   "BundledHostSignalSources": "type:4cf1207fb9",
+   "HostSignalPolicyPorts": "interface:81042c60cb",
+   "parseHostSignalDeclaration": "function:88799d638f",
+   "readBundledHostSignalDeclaration": "function:c304f3d750",
+   "resolveBundledHostSignals": "function:52b54112bb"
+  }
+ },
  "./site/memory-i18n": {
   "types": "./dist/site/memory-i18n.d.ts",
   "symbols": {
    "memoryText": "function:e8660ed856"
+  }
+ },
+ "./site/provider-plugin-link": {
+  "types": "./dist/site/provider-plugin-link.d.ts",
+  "symbols": {
+   "PROVIDER_LINK_ACTOR": "variable:645a519cf1",
+   "ProviderFaceActivations": "interface:119f7d3329",
+   "ProviderFaceCatalog": "interface:9c6f9a62df",
+   "ProviderFacePorts": "interface:9587095f97",
+   "bindProviderFacePorts": "function:66deefd6a2",
+   "followProviderActivations": "function:f234aad8a5",
+   "linkedProviderOf": "function:98ebb54d29",
+   "syncProviderFaces": "function:6547f697f1"
+  }
+ },
+ "./site/retired-plugin-tool-aliases": {
+  "types": "./dist/site/retired-plugin-tool-aliases.d.ts",
+  "symbols": {
+   "createRetiredPluginToolAliases": "function:eefb273b65"
+  }
+ },
+ "./site/service-ports": {
+  "types": "./dist/site/service-ports.d.ts",
+  "symbols": {
+   "AgentPluginApiConnectionsPort": "interface:57ed7aa427",
+   "AgentPluginMcpContext": "type:68420996ae",
+   "AgentPluginMcpPort": "type:6eb99e3e32",
+   "AgentPluginMcpServicesPort": "type:fecf58b227",
+   "AgentPluginOAuthPort": "interface:9ed47a904f",
+   "AgentPluginPathsPort": "interface:527e4b9c36",
+   "AgentPluginPreferencesPort": "interface:8d04be9909",
+   "AgentPluginSignInPort": "interface:bb4ffd8579",
+   "PluginCredentialsPort": "interface:4847e3eed6"
+  }
+ },
+ "./site/supersession": {
+  "types": "./dist/site/supersession.d.ts",
+  "symbols": {
+   "PluginSupersession": "interface:788b6a72f7",
+   "SupersededContribution": "interface:fd97b2e5a1",
+   "SupersessionManifestsPort": "interface:5180e68a25",
+   "SupersessionOrFallback": "type:dc97b6e057",
+   "createBundledSourceManifestReader": "function:e28499741e",
+   "parseSupersedes": "function:318161d36b",
+   "readSupersessions": "function:228d22efd1",
+   "supersededDescriptorRefusal": "function:d7b0069281",
+   "supersededPackageRefusal": "function:b56e8522f5"
+  }
+ },
+ "./site/uninstall-tool": {
+  "types": "./dist/site/uninstall-tool.d.ts",
+  "symbols": {
+   "AgentPluginUninstallApprovalHandler": "type:4abc607c5e",
+   "AgentPluginUninstallCopy": "interface:81ead000b8",
+   "AgentPluginUninstallHost": "interface:3794b9e921",
+   "AgentPluginUninstallNotConfirmed": "type:178aaee3e1",
+   "AgentPluginUninstallRefusalReport": "interface:4948ae20c7",
+   "AgentPluginUninstallToolDeps": "interface:19fb4f8fe0",
+   "UninstallAgentPlugin": "type:58788b5cbd",
+   "UninstallAgentPluginRequired": "type:ab937a9836",
+   "runAgentPluginUninstall": "function:13446003c9"
   }
  },
  "./slide-design": {

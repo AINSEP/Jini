@@ -171,7 +171,6 @@
    "TerminalSessionManager": "interface:da588c1186",
    "TerminalToolRegistrations": "interface:4f5630e364",
    "ToolAccessChange": "interface:15c759db73",
-   "ToolAccessLoweringError": "class:ca621f5ff9",
    "ToolAccessRun": "interface:5641ea62e6",
    "ToolAccessStopResult": "interface:b40200676b",
    "ToolAuthorizationRequest": "interface:3597010563",
@@ -199,6 +198,7 @@
    "armSlowRunWatchdogIfConfigured": "function:0a06ea95b8",
    "armWatchdogIfConfigured": "function:1139559854",
    "assessAgentExecutorCompatibility": "function:0adb4a9423",
+   "bridgePreflightEntry": "function:ed10fa07cc",
    "buildAcpMcpBridgeServers": "function:4e96dba73b",
    "buildAgentBuildArgsOptions": "function:670b2e897a",
    "buildCodexHomeConfigToml": "function:a5d5087fa3",
@@ -495,11 +495,12 @@
    "MemoryVerificationsResponse": "interface:6f5c03e4d0",
    "MemoryVerifyLog": "interface:1099323aa6",
    "MessageRelayHttpDeps": "interface:0794753219",
-   "ModelProxyHttpDeps": "interface:ec958cefe2",
+   "ModelProxyHttpDeps": "interface:37ba5c832a",
    "ModelProxyInternalErrorContext": "interface:7de5b3f37e",
    "ObservedAttachmentIdentity": "interface:2b9a0fb03a",
    "PendingAttachmentSummary": "interface:aaf1c980b4",
    "Platform": "type:614d225cb0",
+   "ProxyToolExecutor": "type:4edbea427d",
    "RUN_EVENTS_ROUTE_PATH": "variable:65d11306e7",
    "RUN_MESSAGE_MAX_CHARS": "variable:bf15fee9ae",
    "ReadA2uiActionResult": "type:5731a1e7b2",
@@ -514,7 +515,7 @@
    "RemoteToolBridgeTokenConfig": "interface:aa9d7b7d85",
    "RemoteToolResultRequest": "interface:d2e2bd57ab",
    "RemoteToolUseRequest": "interface:5b1f5423d3",
-   "ResearchHttpDeps": "interface:d7aacfabc9",
+   "ResearchHttpDeps": "interface:bd3c8ceea8",
    "ResearchInternalErrorContext": "interface:c37f43ca2e",
    "ResearchProvider": "interface:54c9c85afd",
    "ResearchProviderCredentials": "interface:9bcebec85a",
@@ -630,7 +631,7 @@
    "createRemoteAttachmentLookup": "function:e05403d159",
    "createResearchSearchRoute": "function:7fe6504c1c",
    "createRunActiveContextStore": "function:2d88b126a0",
-   "createTavilyResearchProvider": "function:6894c6bf46",
+   "createTavilyResearchProvider": "function:b085871607",
    "currentPlatform": "function:e038659bb7",
    "daemonDbInspectRoute": "variable:063c38e033",
    "daemonDbRoutes": "function:652c16e8e7",
@@ -770,18 +771,6 @@
    "ProcessSpawnPort": "type:a895608d4a"
   }
  },
- "./ports/provider-http": {
-  "types": "./dist/ports/provider-http.d.ts",
-  "symbols": {
-   "AnthropicToolTurnResult": "interface:41dcca06cb",
-   "PinnedFetch": "type:464c546835",
-   "PinnedFetchInit": "interface:f50fb07b77",
-   "PinnedFetchResponse": "interface:0f3c968107",
-   "ProviderToolTurnPort": "interface:0986ca39a3",
-   "ProviderToolTurnResult": "interface:794cf99464",
-   "ProviderTurnEventRecord": "interface:aab17ed56e"
-  }
- },
  "./ports/runtime": {
   "types": "./dist/ports/runtime.d.ts",
   "symbols": {
@@ -838,6 +827,16 @@
    "createRunScopedCredentials": "function:ac7d136e24",
    "ensureAgentDaemonToken": "function:bb78ae9343",
    "listOwnedRuns": "function:ce708585c6"
+  }
+ },
+ "./run-start-decisions": {
+  "types": "./dist/run-start-decisions.d.ts",
+  "symbols": {
+   "ImageDeliveryDef": "type:ed85170d0c",
+   "agentReceivesImageAttachments": "function:abb35887de",
+   "durableAttemptOwnsAnswer": "function:176c617521",
+   "resolveStoredSessionId": "function:ec729158a1",
+   "selectRunHistoryPrompt": "function:8318866a2e"
   }
  },
  "./scheduler": {

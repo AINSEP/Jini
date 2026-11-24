@@ -21,7 +21,7 @@ function assertCredentialFree({ spec }: { spec: McpLaunchSpec }): void {
   }
 }
 
-/** The host's file effects: Node hosts pass `{ fileLock: nodeFileLock, writer: nodeAtomicWriter }` from `@jini-ai/node-adapters/fs`. */
+/** The host's file effects: Node hosts pass `{ fileLock, writer }` built by `@jini-ai/node-adapters/fs`' `createFileLockPort` and `createAtomicWriterPort` over platform's functions. */
 export interface OwnedJsonInstallFiles {
   readonly fileLock: FileLockPort;
   readonly writer: Pick<AtomicFileWriterPort, 'writeText' | 'backupOriginalOnce'>;

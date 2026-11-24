@@ -1,4 +1,4 @@
-import { IdentityValidationError, OwnerRequiredError } from '../../core/types.js';
+import { IdentityValidationError, MfaProofRefusedError, OwnerRequiredError } from '../../core/types.js';
 import { createSessionForPrincipal, verifyCredentials } from '../auth-service.js';
 import { defaultUserManagementMessages } from '../messages.js';
 import { inIdentityTransaction } from '../identity-transaction.js';
@@ -7,7 +7,7 @@ import type { MfaFactor, MfaPending, MfaScope, OwnerMfaDeps } from './ports.js';
 type Required<T> = { deps: OwnerMfaDeps; input: T };
 type Options = Record<string, never>;
 type SessionOptions = { ip?: string | undefined; userAgent?: string | undefined; sessionTtlMs?: number | undefined };
-const refused = () => new IdentityValidationError({ message: 'The authenticator code was not accepted or has expired. Enter a fresh code, or sign in again to start a new attempt.' });
+const refused = () => new MfaProofRefusedError();
 const transaction = <T>(deps: OwnerMfaDeps, workspaceId: string, execute: () => Promise<T>) =>
   inIdentityTransaction({ transactions: deps.auth.repos.transactions, workspaceId, execute });
 

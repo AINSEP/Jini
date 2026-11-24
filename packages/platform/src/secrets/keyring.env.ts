@@ -186,7 +186,7 @@ export class FixedRootKeyKeyring implements KeyringPort {
     this.rootKey = Buffer.from(parsed.hex, "hex");
   }
 
-  async activeKey(_required: Record<string, never>): Promise<{ readonly keyId: string }> {
+  async activeKey(_required: Record<string, never> = {}): Promise<{ readonly keyId: string }> {
     return { keyId: this.keyId };
   }
 

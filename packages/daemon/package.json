@@ -28,11 +28,11 @@
       "./tool-audit": "universal",
       "./surface-exchanges": "universal",
       "./session-coordination": "universal",
+      "./run-start-decisions": "universal",
       "./run-credentials": "node",
       "./tool-recovery": "node",
       "./chat-settings": "node",
       "./ports/agent-runtime": "node",
-      "./ports/provider-http": "node",
       "./ports/xai-oauth": "node",
       "./exclusive-run-lease": "universal",
       "./daemon-call-context": "node",
@@ -76,11 +76,6 @@
       "types": "./dist/ports/agent-runtime.d.ts",
       "import": "./dist/ports/agent-runtime.js",
       "default": "./dist/ports/agent-runtime.js"
-    },
-    "./ports/provider-http": {
-      "types": "./dist/ports/provider-http.d.ts",
-      "import": "./dist/ports/provider-http.js",
-      "default": "./dist/ports/provider-http.js"
     },
     "./ports/xai-oauth": {
       "types": "./dist/ports/xai-oauth.d.ts",
@@ -161,6 +156,11 @@
       "types": "./dist/surface-exchanges.d.ts",
       "import": "./dist/surface-exchanges.js",
       "default": "./dist/surface-exchanges.js"
+    },
+    "./run-start-decisions": {
+      "types": "./dist/run-start-decisions.d.ts",
+      "import": "./dist/run-start-decisions.js",
+      "default": "./dist/run-start-decisions.js"
     },
     "./session-coordination": {
       "types": "./dist/session-coordination.d.ts",

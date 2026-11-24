@@ -1,12 +1,12 @@
 import type { GitHubSkillSource } from "./github.js";
-import type { SkillUploadFile } from "./validation.js";
+import type { SkillUploadFile } from "@jini-ai/core/contracts/site/skills-install";
 
 /** The adapter uses failsafe YAML and rejects duplicate keys; the installer never parses YAML itself. */
 export interface YamlReaderPort { read(required: { yaml: string }): unknown }
 
 /** Layout is host-owned. Staging and workspace roots must share a rename-capable filesystem. */
 export interface SkillLayoutPort {
-  resolve(required: { workspaceId: string }): { workspaceRoot: string; stagingRoot: string; stateFileName: string };
+  resolve(required: { workspaceId: string }): { workspaceRoot: string; stagingRoot: string; stateFileName: string; legacyStateFileNames?: readonly string[] | undefined };
 }
 export interface SkillFilesystemPort {
   mkdir(required: { path: string }): Promise<void>;

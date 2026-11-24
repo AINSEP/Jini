@@ -22,26 +22,13 @@
  * permission catalog.
  */
 import type { ISODateTime, UUID } from "@jini-ai/core/primitives";
+import type { TransformFit, TransformParams } from "@jini-ai/core/contracts/site/cms-media";
 import { MIME_BY_TRANSFORM_FORMAT, type TransformFormat } from "../core/transform-format.js";
 export { mimeForTransformFormat, type TransformFormat } from "../core/transform-format.js";
 
-/** Resize behavior, mirrors `sharp`'s `fit` vocabulary (a deliberately small subset). */
-export type TransformFit = "cover" | "contain" | "fill" | "inside" | "outside";
-
-/**
- * Declarative transform parameters (named definitions only, never
- * caller-supplied dimensions). `width`/`height` are optional so a
- * format-only re-encode (no resize) is a valid definition; `fit` only
- * matters when both `width` and `height` are given.
- */
-export interface TransformParams {
-  width?: number | undefined;
-  height?: number | undefined;
-  fit?: TransformFit | undefined;
-  format: TransformFormat;
-  /** Encoder quality, 1–100; omitted preserves the codec default. */
-  quality?: number | undefined;
-}
+// The declarative-parameter wire types are the neutral core media contract; cms imports them
+// instead of redeclaring the fields, so host share/export policy and cms cannot drift.
+export type { TransformFit, TransformParams };
 
 /**
  * `transform_registry` sidecar row. Identity is

@@ -345,3 +345,12 @@ test("toWebhookDeliveryView drops the workspace id and keeps the delivery facts"
   assert.equal(Object.hasOwn(view, "signature"), false);
   assert.deepEqual([view.id, view.subscriptionId, view.signedWithVersion], ["d-1", "sub-1", 3]);
 });
+
+test("a subscription made through the agent tool is recorded as agent-created, so the agent switch can hold it", async () => {
+  const fixture = await makeFixture();
+  const created = (await caller(fixture)("webhooks_create_subscription", { label: "Agent hook", targetUrl: "https://example.test/agent", topics: ["a"] })) as { subscription: { id: string } };
+  const stored = await fixture.repo.findById({ workspaceId: WORKSPACE_ID, id: created.subscription.id });
+  assert.equal(stored?.createdByKind, "agent");
+  // The model-facing view stays free of attribution internals.
+  assert.equal("createdByKind" in created.subscription, false);
+});

@@ -26,7 +26,7 @@
    "MemoryGrowthWarning": "interface:546fe6db39",
    "MemoryKindSummary": "interface:0f7c9ecfd5",
    "ProcessMemoryReading": "interface:4104d0a67e",
-   "RedactionOptions": "interface:484616dcf8",
+   "RedactionOptions": "interface:9e3b671634",
    "aggregateProcessMemory": "function:fceb8a8eb7",
    "buildAgentCliLogSources": "function:4f7e03908a",
    "buildDiagnosticsZip": "function:a8506626f6",
@@ -65,8 +65,10 @@
    "ConsoleTeeLevel": "type:047168479b",
    "InstallConsoleTeeOptional": "interface:0bee70a09a",
    "InstallConsoleTeeRequired": "interface:1f2351122d",
+   "RedactedOutputSinkOptional": "interface:9b26c0d4fe",
+   "RetainedOutputTail": "interface:a0f85963ff",
    "TeeableConsole": "type:33225186b9",
-   "createRedactedOutputSink": "function:64586d9004",
+   "createRedactedOutputSink": "function:b5c16c735b",
    "installConsoleTee": "function:0d88f47933"
   }
  },
@@ -90,13 +92,17 @@
  "./local-text": {
   "types": "./dist/local-text.d.ts",
   "symbols": {
-   "redactLocalText": "function:0bb52b2449"
+   "redactLocalText": "function:cd502aa112"
   }
  },
  "./observability": {
   "types": "./dist/observability/index.d.ts",
   "symbols": {
    "FetchLike": "type:ea2b6f6f32",
+   "GlobalErrorReport": "interface:c1933f7019",
+   "GlobalErrorReportingArgs": "interface:d2ab5bfb59",
+   "GlobalErrorReportingOptions": "interface:f29bd13d63",
+   "GlobalErrorTarget": "type:092c325a80",
    "InstrumentableKernel": "interface:24e6c610ac",
    "ObservabilityConfig": "type:546c83384f",
    "ObservabilityConfigDisabled": "interface:da9f8ffeed",
@@ -127,6 +133,7 @@
    "describeReportedError": "function:4711c49793",
    "describeTelemetryFailure": "function:e74b2d11db",
    "errorType": "function:c43beb4721",
+   "installGlobalErrorReporting": "function:e5a787a998",
    "instrumentStorageKernel": "function:8f016b1a04",
    "observabilityExportAllowed": "function:1b8178e1aa",
    "observabilityProviderContract": "variable:a25abfa017",
@@ -146,9 +153,20 @@
    "createTracker": "function:6d635717a3",
    "createTrackerWarning": "function:eba25d5b9d",
    "observabilityNodeProviderContext": "variable:47b73c8889",
-   "redactedError": "function:0abe546c7c",
+   "redactedError": "function:7f4a8de4b8",
    "reportErrorOnce": "function:830a1c17f4",
    "runWithErrorReportScope": "function:8852decc7e"
+  }
+ },
+ "./observability/tool-registrations": {
+  "types": "./dist/observability/tool-registrations.d.ts",
+  "symbols": {
+   "ObservabilityCatalogArgs": "interface:5730312c9f",
+   "ObservabilityToolDeps": "interface:c7fe609721",
+   "buildObservabilityRegistrations": "function:7b93a886f0",
+   "contributeObservabilityTools": "function:ce7c56ed81",
+   "createObservabilityAgentToolCatalog": "function:d026ca64bc",
+   "observabilityDerivedRisk": "variable:f19ffb193c"
   }
  },
  "./redaction/secrets-only": {
@@ -160,7 +178,64 @@
    "SECRET_PATTERNS": "variable:944cad241e",
    "SecretPattern": "interface:93cf1f033d",
    "SecretRedaction": "interface:20b483383d",
-   "redactSecretShapes": "function:a3202bc475"
+   "SecretScanHit": "interface:8c2fda2048",
+   "redactSecretShapes": "function:a3202bc475",
+   "scanTextForSecrets": "function:a935151454"
+  }
+ },
+ "./server-logs/agent-tools": {
+  "types": "./dist/server-logs/agent-tools.d.ts",
+  "symbols": {
+   "serverLogsAgentToolCatalog": "variable:62ee09f876"
+  }
+ },
+ "./server-logs/read-server-logs": {
+  "types": "./dist/server-logs/read-server-logs.d.ts",
+  "symbols": {
+   "DEFAULT_SERVER_LOG_LIMIT": "variable:dce30b2547",
+   "MAX_CONTAINS_LENGTH": "variable:efcb547942",
+   "MAX_SERVER_LOG_LIMIT": "variable:7bc70984cf",
+   "SERVER_LOG_LEVELS": "variable:b4be584570",
+   "ServerLogFilterError": "class:36d8b0efaa",
+   "ServerLogSourcePort": "interface:9b3f778caf",
+   "parseServerLogFilters": "function:42bd4a4c14",
+   "readServerLogs": "function:81e76cbd03"
+  }
+ },
+ "./server-logs/tool-registrations": {
+  "types": "./dist/server-logs/tool-registrations.d.ts",
+  "symbols": {
+   "ServerLogsContributorArgs": "interface:e2944cb1df",
+   "ServerLogsToolDeps": "interface:7209b26579",
+   "buildServerLogsRegistrations": "function:a8ba30df57",
+   "contributeServerLogsTools": "function:148a761e24",
+   "serverLogsDerivedRisk": "variable:366ce16bb1"
+  }
+ },
+ "./tool-audit/repo": {
+  "types": "./dist/tool-audit/repo.d.ts",
+  "symbols": {
+   "MAX_ROWS_PER_WORKSPACE": "variable:4b74c0a474",
+   "MAX_VISITOR_ROWS_PER_WORKSPACE": "variable:9c4465371b",
+   "SqlToolAttemptAuditSink": "class:ee442ead51",
+   "SqlToolAttemptAuditSinkOptions": "interface:c4ecad1757",
+   "SqlToolAttemptAuditSinkRequired": "interface:fe1a99be11",
+   "ToolAttemptTables": "interface:e870880113",
+   "ToolAuditErrorReporter": "type:565bc1b5e9"
+  }
+ },
+ "./tool-audit/repo.memory": {
+  "types": "./dist/tool-audit/repo.memory.d.ts",
+  "symbols": {
+   "InMemoryToolAttemptAuditSink": "interface:3b51fe1112",
+   "createInMemoryToolAttemptAuditSink": "function:5ac85862de"
+  }
+ },
+ "./tool-audit/tool-gaps.repo": {
+  "types": "./dist/tool-audit/tool-gaps.repo.d.ts",
+  "symbols": {
+   "ToolGapReaderRequired": "interface:4d79f949b0",
+   "createToolGapReader": "function:1a02df7668"
   }
  },
  "./web-evidence": {
@@ -221,6 +296,15 @@
    "verifiedOriginToBaseUrl": "function:2df0589cd2"
   }
  },
+ "./web-evidence/agent-tools": {
+  "types": "./dist/web-evidence/agent-tools.d.ts",
+  "symbols": {
+   "AgentToolDefinition": "type:b4d7d744be",
+   "AgentToolSideEffect": "type:1baebbfbe6",
+   "SITE_EVIDENCE_TOOL_ID": "variable:4af01c4b3f",
+   "siteEvidenceAgentToolCatalog": "variable:7dfbc76e7c"
+  }
+ },
  "./web-evidence/capture-budget": {
   "types": "./dist/web-evidence/capture-budget.d.ts",
   "symbols": {
@@ -235,6 +319,23 @@
   "symbols": {
    "CaptureClock": "interface:7eb2803d88",
    "REAL_CAPTURE_CLOCK": "variable:e1cf471793"
+  }
+ },
+ "./web-evidence/live-url": {
+  "types": "./dist/web-evidence/live-url.d.ts",
+  "symbols": {
+   "FetchLiveUrlDeps": "interface:046a93c6ad",
+   "FetchLiveUrlInput": "interface:48dbe75ba7",
+   "LiveEgressRefusal": "type:bc063b2c35",
+   "LiveHttpClient": "interface:c93a35085e",
+   "LiveOriginPolicy": "interface:5a6304f18d",
+   "LiveOriginSourceDeps": "interface:8306171d94",
+   "LivePageResult": "type:6851e3f62d",
+   "LivePeerRepo": "interface:a8d3f0951b",
+   "LivePeerRow": "interface:bf6d3f9a27",
+   "LivePublishHistory": "interface:0434197e11",
+   "fetchLiveUrl": "function:e3b8d6c954",
+   "listKnownLiveOrigins": "function:f50e18bec9"
   }
  },
  "./web-evidence/page-body": {
@@ -298,6 +399,43 @@
    "publicPageExpression": "function:24f2cce2fc",
    "renderPage": "function:efe05c1047",
    "renderPublicPage": "function:5a601af7b4"
+  }
+ },
+ "./web-evidence/playwright-page-capture": {
+  "types": "./dist/web-evidence/playwright-page-capture.d.ts",
+  "symbols": {
+   "CaptureBrowser": "interface:8ba2f8f3c8",
+   "CaptureBrowserLauncher": "interface:b0de95dbea",
+   "CaptureChromium": "interface:138ae1b108",
+   "CaptureContext": "interface:1ad49e732a",
+   "CaptureContextOptions": "interface:fe2c3753da",
+   "CaptureHttpClient": "interface:8fd171523b",
+   "CaptureLaunchOptions": "interface:44b96c2e42",
+   "CapturePage": "interface:b5c4933f17",
+   "IDLE_CLOSE_MS": "variable:797b461403",
+   "PlaywrightPageCaptureDeps": "interface:769c03bd67",
+   "PlaywrightPageCaptureOptions": "interface:8d91c649f3",
+   "createPlaywrightPageCapture": "function:c5010a2a85"
+  }
+ },
+ "./web-evidence/published-page": {
+  "types": "./dist/web-evidence/published-page.d.ts",
+  "symbols": {
+   "DEFAULT_FETCH_TIMEOUT_MS": "variable:5a709746d4",
+   "FetchPublishedPageDeps": "interface:7e96fa1d92",
+   "FetchPublishedPageOptions": "interface:949f7699f0",
+   "LoopbackSiteServer": "interface:eb8294cd04",
+   "PublishedPageFetchTracker": "type:c64961a940",
+   "PublishedPageMetadata": "interface:17257c71d2",
+   "PublishedPageResult": "type:b8dfc81cd0",
+   "fetchPublishedPage": "function:a9b0aee921",
+   "openLoopbackSiteServer": "function:2fb3ecb891"
+  }
+ },
+ "./web-evidence/site-path-policy": {
+  "types": "./dist/web-evidence/site-path-policy.d.ts",
+  "symbols": {
+   "resolveSitePath": "function:9ba3f230d2"
   }
  },
  "./web-evidence/testing": {

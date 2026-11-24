@@ -1,5 +1,5 @@
 export type { SealedSecret } from "./types.js";
-export { AesGcmSecretSealer } from "./secret-sealer.aesgcm.js";
+export { AesGcmSecretSealer, LegacyUnboundAesGcmSecretSealer, SecretOpenError, SECRET_OPEN_FAILED } from "./secret-sealer.aesgcm.js";
 export { sealWithPassphrase, openWithPassphrase } from "./passphrase-envelope.js";
 export type { PassphraseEnvelopeOptions } from "./passphrase-envelope.js";
 export { EnvOrFileKeyring } from "./keyring.env.js";

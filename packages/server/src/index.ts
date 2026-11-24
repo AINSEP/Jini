@@ -83,6 +83,7 @@ export {
 
 export type {
   CreateJiniKernelBaseOptions,
+  KernelOsPorts,
   JiniKernelBase,
   JiniKernelStorage,
   KernelSqliteAccess,

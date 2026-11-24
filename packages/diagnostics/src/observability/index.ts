@@ -3,6 +3,13 @@ export * from './export-policy.js';
 export * from './ports.js';
 export { redactOperationAttributes, errorType, redactLabel } from './otel.js';
 export * from './errors.js';
+export {
+  installGlobalErrorReporting,
+  type GlobalErrorReport,
+  type GlobalErrorReportingArgs,
+  type GlobalErrorReportingOptions,
+  type GlobalErrorTarget,
+} from './error-events.js';
 export * from './fanout.js';
 export * from './hooks.js';
 export * from './instrumentation.js';

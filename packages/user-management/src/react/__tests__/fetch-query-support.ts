@@ -18,7 +18,7 @@ const uiKit = { components: { SecretInput }, hooks: { useOverlayContainer, useSe
 // query is ui's real fetch-query binding (as a host wires it), so hooks still fetch under FetchQueryProvider instead of the fake's canned data.
 const adminKit = fakeAdminKit({ query: { useFetchQuery, useFetchMutation, useCachedLoader, useInvalidate, useFetchQueryScope } });
 
-// The host's own binding (Tovu's `userManagementKit`): the real ui/admin implementations, so a test rendered through
+// The host's own binding (its `userManagementKit`): the real ui/admin implementations, so a test rendered through
 // this file is an integration test of the page over the real components. Pure page tests use `renderWithUmKit` and the fake.
 // `ConfirmDialog` is admin's (body, confirmLabel, tone); `SecretInput` is ui's i18n-aware wrapper, not ui-kit's.
 export const realUmKit: UserManagementKit = {

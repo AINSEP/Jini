@@ -19,17 +19,30 @@
       "./web-evidence": "universal",
       "./web-evidence/playwright": "node",
       "./web-evidence/page-body": "node",
+      "./web-evidence/site-path-policy": "universal",
+      "./web-evidence/published-page": "node",
+      "./web-evidence/live-url": "node",
       "./web-evidence/testing": "universal",
       "./web-evidence/capture-budget": "universal",
       "./web-evidence/capture-clock": "universal",
+      "./web-evidence/playwright-page-capture": "node",
       "./domain-dns": "node",
       "./local-text": "node",
       "./console-tee": "node",
-      "./browser-diagnostics": "node"
+      "./browser-diagnostics": "node",
+      "./server-logs/read-server-logs": "universal",
+      "./server-logs/agent-tools": "universal",
+      "./server-logs/tool-registrations": "universal",
+      "./observability/tool-registrations": "universal",
+      "./tool-audit/repo.memory": "universal",
+      "./tool-audit/repo": "node",
+      "./tool-audit/tool-gaps.repo": "node",
+      "./web-evidence/agent-tools": "universal"
     },
     "runtime": "node",
     "optionalPeers": {
-      "parse5": "opt-in: page body projection; import @jini-ai/diagnostics/web-evidence/page-body — The page body projection could not load parse5. Install parse5@7.3.0 to enable this feature, or check its installed version."
+      "parse5": "opt-in: page body projection; import @jini-ai/diagnostics/web-evidence/page-body — The page body projection could not load parse5. Install parse5@7.3.0 to enable this feature, or check its installed version.",
+      "kysely": "opt-in: sql storage adapters; import @jini-ai/diagnostics/tool-audit/repo — SQL storage adapters could not load kysely. Install kysely to enable this feature, or check its installed version and native binaries."
     }
   },
   "type": "module",
@@ -72,6 +85,21 @@
       "import": "./dist/web-evidence/page-body.js",
       "default": "./dist/web-evidence/page-body.js"
     },
+    "./web-evidence/site-path-policy": {
+      "types": "./dist/web-evidence/site-path-policy.d.ts",
+      "import": "./dist/web-evidence/site-path-policy.js",
+      "default": "./dist/web-evidence/site-path-policy.js"
+    },
+    "./web-evidence/published-page": {
+      "types": "./dist/web-evidence/published-page.d.ts",
+      "import": "./dist/web-evidence/published-page.js",
+      "default": "./dist/web-evidence/published-page.js"
+    },
+    "./web-evidence/live-url": {
+      "types": "./dist/web-evidence/live-url.d.ts",
+      "import": "./dist/web-evidence/live-url.js",
+      "default": "./dist/web-evidence/live-url.js"
+    },
     "./web-evidence/testing": {
       "types": "./dist/web-evidence/testing/fake-clock.d.ts",
       "import": "./dist/web-evidence/testing/fake-clock.js",
@@ -86,6 +114,11 @@
       "types": "./dist/web-evidence/capture-clock.d.ts",
       "import": "./dist/web-evidence/capture-clock.js",
       "default": "./dist/web-evidence/capture-clock.js"
+    },
+    "./web-evidence/playwright-page-capture": {
+      "types": "./dist/web-evidence/playwright-page-capture.d.ts",
+      "import": "./dist/web-evidence/playwright-page-capture.js",
+      "default": "./dist/web-evidence/playwright-page-capture.js"
     },
     "./domain-dns": {
       "types": "./dist/domain-dns/index.d.ts",
@@ -106,6 +139,46 @@
       "types": "./dist/browser-diagnostics.d.ts",
       "import": "./dist/browser-diagnostics.js",
       "default": "./dist/browser-diagnostics.js"
+    },
+    "./server-logs/read-server-logs": {
+      "types": "./dist/server-logs/read-server-logs.d.ts",
+      "import": "./dist/server-logs/read-server-logs.js",
+      "default": "./dist/server-logs/read-server-logs.js"
+    },
+    "./server-logs/agent-tools": {
+      "types": "./dist/server-logs/agent-tools.d.ts",
+      "import": "./dist/server-logs/agent-tools.js",
+      "default": "./dist/server-logs/agent-tools.js"
+    },
+    "./server-logs/tool-registrations": {
+      "types": "./dist/server-logs/tool-registrations.d.ts",
+      "import": "./dist/server-logs/tool-registrations.js",
+      "default": "./dist/server-logs/tool-registrations.js"
+    },
+    "./observability/tool-registrations": {
+      "types": "./dist/observability/tool-registrations.d.ts",
+      "import": "./dist/observability/tool-registrations.js",
+      "default": "./dist/observability/tool-registrations.js"
+    },
+    "./tool-audit/repo.memory": {
+      "types": "./dist/tool-audit/repo.memory.d.ts",
+      "import": "./dist/tool-audit/repo.memory.js",
+      "default": "./dist/tool-audit/repo.memory.js"
+    },
+    "./tool-audit/repo": {
+      "types": "./dist/tool-audit/repo.d.ts",
+      "import": "./dist/tool-audit/repo.js",
+      "default": "./dist/tool-audit/repo.js"
+    },
+    "./tool-audit/tool-gaps.repo": {
+      "types": "./dist/tool-audit/tool-gaps.repo.d.ts",
+      "import": "./dist/tool-audit/tool-gaps.repo.js",
+      "default": "./dist/tool-audit/tool-gaps.repo.js"
+    },
+    "./web-evidence/agent-tools": {
+      "types": "./dist/web-evidence/agent-tools.d.ts",
+      "import": "./dist/web-evidence/agent-tools.js",
+      "default": "./dist/web-evidence/agent-tools.js"
     }
   },
   "files": [
@@ -135,6 +208,7 @@
     "@jini-ai/core": "workspace:^",
     "@vitest/coverage-v8": "^3.2.6",
     "jszip": "^3.10.1",
+    "kysely": "^0.29.6",
     "parse5": "7.3.0"
   },
   "dependencies": {
@@ -143,10 +217,14 @@
     "jszip": "^3.10.1"
   },
   "peerDependencies": {
+    "kysely": "^0.29.6",
     "parse5": "7.3.0"
   },
   "peerDependenciesMeta": {
     "parse5": {
+      "optional": true
+    },
+    "kysely": {
       "optional": true
     }
   }

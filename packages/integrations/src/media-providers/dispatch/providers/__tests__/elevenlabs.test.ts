@@ -1,4 +1,4 @@
-import { createNodeMediaHttpClient } from '../../node.js';
+import { createNodeMediaHttpClient, nodeMediaGuardedFetch } from '../../node.js';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { renderElevenLabsSfx, renderElevenLabsTTS } from '../elevenlabs.js';
 import type { RenderContext } from '../../types.js';
@@ -9,7 +9,7 @@ afterEach(() => {
 
 function baseCtx(overrides: Partial<RenderContext> = {}): RenderContext {
   return {
-    httpClient: createNodeMediaHttpClient({}),
+    httpClient: createNodeMediaHttpClient({}), guardedFetch: nodeMediaGuardedFetch,
     surface: 'audio',
     model: 'elevenlabs-v3',
     wireModel: 'elevenlabs-v3',

@@ -1,3 +1,7 @@
+import type { CaptureBudgetLimits } from "@jini-ai/core/contracts/site/web-evidence-capture-budget";
+/** Deprecated re-export: import these from `@jini-ai/core/contracts/site/web-evidence-capture-budget`; removed at the next major. */
+export type { CaptureBudgetLimits } from "@jini-ai/core/contracts/site/web-evidence-capture-budget";
+
 /** What the caller asked a capture to do. Every field is optional input from a tool call. */
 export interface CaptureRequest {
   /** Settle time in milliseconds. Replaced by `waitForSeconds` when that is given. */
@@ -5,17 +9,6 @@ export interface CaptureRequest {
   fullPage?: boolean;
   /** The renderer's requested wait, in seconds. */
   waitForSeconds?: number;
-}
-
-/** Host values. There are no defaults on purpose: the cap and the reserve belong to the host. */
-export interface CaptureBudgetLimits {
-  baseMs: number;
-  /** Extra time a full-page scroll needs. */
-  fullPageMs: number;
-  /** The total never exceeds this. */
-  capMs: number;
-  /** Time kept at the end of the capture for the fallback on the current page. */
-  reserveMs: number;
 }
 
 export interface CaptureBudget {

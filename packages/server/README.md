@@ -5,11 +5,18 @@ Host composition requires the external host's SQLite opener for durable storage:
 
 ```ts
 import Database from 'better-sqlite3';
+import { runAnthropicToolTurn, runAzureToolTurn, runGoogleToolTurn, runOllamaToolTurn, runOpenAiToolTurn, validateBaseUrl } from '@jini-ai/agent-runtime';
 import { createLocalNodeDaemon } from '@jini-ai/server';
 const daemon = await createLocalNodeDaemon({
   dataDir, packs: [], open: (file, options) => new Database(file, options),
+  toolTurns: { anthropic: runAnthropicToolTurn, openai: runOpenAiToolTurn, azure: runAzureToolTurn, google: runGoogleToolTurn, ollama: runOllamaToolTurn },
+  baseUrlGuard: { validate: validateBaseUrl },
 });
 ```
+
+The preset ships no provider tool-turn or base-URL-guard implementation: `toolTurns` and
+`baseUrlGuard` are required on `createLocalNodeDaemon`, and a `composeJiniKernel` that activates
+`modelProxy` or `research` must supply `featureOptions.modelProxy` / `featureOptions.research`.
 
 `composeJiniKernel` requires an explicit `security` choice: `{ mode: 'host' }` for host-owned
 security, `jini-local` for local bearer/origin middleware, or `sidecar-strict` for mandatory
@@ -68,20 +75,28 @@ and SQLite opener remain host supplied. This entry requires the `@jini-ai/db` an
 
 ```ts
 import { countLegacyOwnerStore, readLegacyOwnerStore } from '@jini-ai/server/owner-store';
-const { entries } = await countLegacyOwnerStore({ filePath, open });
-if (entries > 0) await readLegacyOwnerStore({ filePath, keyFilePath, open });
+// ports: LegacyOwnerStorePorts — the host binds openKernel, the @jini-ai/db/owner-store reads,
+// createVaultRepo, ownerWorkspaceId and the platform legacy-owner vault/entry readers.
+const { entries } = await countLegacyOwnerStore({ filePath, open, ports });
+if (entries > 0) await readLegacyOwnerStore({ filePath, keyFilePath, open, ports }, { metaParsers });
 ```
 
 **Migration (breaking):** `OwnerStoreBackupError`, `OwnerStoreRecoveryError`, `readLegacyOwnerBackup`, `ownerContext`,
-`OWNER_WORKSPACE_ID` and the `LegacyOwner*` snapshot types moved to `@jini-ai/platform/secrets/legacy-owner`.
+`OWNER_WORKSPACE_ID` and `LegacyOwnerSnapshot` moved to `@jini-ai/platform/secrets/legacy-owner`; the shared
+`LegacyOwnerStoreDestination`/`LegacyOwnerStoreSnapshot` contract lives in `@jini-ai/core/contracts/site/legacy-owner-store`.
 The old entry type is gone: use `VaultArchiveEntry` from `@jini-ai/platform/secrets/credential-sets`.
 
 ## Wiring
 
 `createJiniKernelBase` / `composeJiniKernel` take the agent-executor ports through
-`agentExecutor.runtime` (spawn, processes, fileLock, writer, commandShell). Omitted, the preset binds
-the Node defaults from `@jini-ai/node-adapters` (including `nodeProcessControl`); the kernel itself
-imports no `@jini-ai/platform/process` implementation.
+`agentExecutor.runtime` (spawn, processes, fileLock, writer, commandShell). Omitted, the preset builds it
+from the required `osPorts` (`KernelOsPorts`: spawn, processes, fileLock, writer, a `commandShell`
+builder the kernel calls with the resolved host env, and the `clock` that stamps sqlite event-log
+entries — the host binds them with `@jini-ai/node-adapters`' builders (`nodeSpawnPort`,
+`nodeCommandShell`) over `@jini-ai/platform`'s functions and `createSystemClock()`).
+`createLocalNodeDaemon` takes the same `osPorts` and writes its discovery record with
+`osPorts.writer`; the server imports no `@jini-ai/platform/fs`, `/process`, `/system` or
+`@jini-ai/node-adapters` implementation.
 
 ## Wiring (shutdown)
 

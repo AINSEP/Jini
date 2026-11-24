@@ -1,7 +1,8 @@
 /** renderPage boundaries: explicit hops, refusals, waits and release, through typed browser/router fakes. */
 import { test, expect, vi } from "vitest";
 import { renderPage, OffOriginNavigationError, RenderRequestRefused, COOKIE_DISMISS_SELECTORS, type RenderBrowser, type RenderContext, type RenderLocator, type RenderPage } from "../render-page.js";
-import { MAX_REDIRECT_HOPS, type RequestRouter, type RouteLike, type RoutedRequest } from "../request-guard.js";
+import { MAX_REDIRECT_HOPS, type RequestRouter, type RouteLike } from "../request-guard.js";
+import type { RoutedRequest } from "@jini-ai/core/contracts/site/web-evidence-playwright";
 import { PageWorkTimeout } from "../page-work-budget.js";
 
 type RouteHandler = Parameters<RenderContext["route"]>[1];

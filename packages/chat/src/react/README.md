@@ -96,6 +96,12 @@ extension-event rendering are swappable per-name via `registerToolRenderer`/
 `registerExtEventRenderer`. Fixed: the headless hooks' internal state-reduction logic and the
 presentational components' DOM structure (only their CSS classes are meant to be restyled).
 
+`ConversationChatPane` (`@jini-ai/chat/react/conversation-chat-pane`) composes `ConversationList` +
+`ChatPane` + inline delete confirm + capture-phase folder drop; the host passes
+`useTransport`/`useConversations`/`useDeleteConfirmation` hooks, the `captureFolderDrop` rule
+(`@jini-ai/ui/core`'s `captureFolderPathDrop`) and `labels`; no default copy. See
+`features/conversation-chat-pane/README.md`'s `## Wiring`.
+
 ## DOM structure
 
 Every component in this package renders unstyled semantic markup with `jini-*` BEM class names —

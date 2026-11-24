@@ -17,9 +17,15 @@
       "./core": "universal",
       "./render-surface": "universal",
       "./dom": "browser",
+      "./dom/admin-page-tools": "browser",
       "./skills/install": "node",
       "./skills/install/node": "node",
-      "./skills/tools": "node"
+      "./skills/tools": "node",
+      "./skills/site/live-registration": "node",
+      "./skills/site/install-service": "node",
+      "./skills/site/install-tool": "node",
+      "./skills/site/layout": "node",
+      "./skills/site/tool-registrations": "node"
     },
     "optionalPeers": {
       "@jini-ai/protocol": "opt-in: agent protocol adapters — Agent protocol adapters could not load @jini-ai/protocol. Install @jini-ai/protocol to enable this feature, or check its installed version and native binaries."
@@ -50,6 +56,11 @@
       "import": "./dist/core/dom/index.js",
       "default": "./dist/core/dom/index.js"
     },
+    "./dom/admin-page-tools": {
+      "types": "./dist/core/dom/admin-page-tools.d.ts",
+      "import": "./dist/core/dom/admin-page-tools.js",
+      "default": "./dist/core/dom/admin-page-tools.js"
+    },
     "./skills/install": {
       "types": "./dist/skills/install/index.d.ts",
       "import": "./dist/skills/install/index.js",
@@ -64,6 +75,31 @@
       "types": "./dist/skills/tools/index.d.ts",
       "import": "./dist/skills/tools/index.js",
       "default": "./dist/skills/tools/index.js"
+    },
+    "./skills/site/live-registration": {
+      "types": "./dist/skills/site/live-registration.d.ts",
+      "import": "./dist/skills/site/live-registration.js",
+      "default": "./dist/skills/site/live-registration.js"
+    },
+    "./skills/site/install-service": {
+      "types": "./dist/skills/site/install-service.d.ts",
+      "import": "./dist/skills/site/install-service.js",
+      "default": "./dist/skills/site/install-service.js"
+    },
+    "./skills/site/install-tool": {
+      "types": "./dist/skills/site/install-tool.d.ts",
+      "import": "./dist/skills/site/install-tool.js",
+      "default": "./dist/skills/site/install-tool.js"
+    },
+    "./skills/site/layout": {
+      "types": "./dist/skills/site/layout.d.ts",
+      "import": "./dist/skills/site/layout.js",
+      "default": "./dist/skills/site/layout.js"
+    },
+    "./skills/site/tool-registrations": {
+      "types": "./dist/skills/site/tool-registrations.d.ts",
+      "import": "./dist/skills/site/tool-registrations.js",
+      "default": "./dist/skills/site/tool-registrations.js"
     }
   },
   "files": [

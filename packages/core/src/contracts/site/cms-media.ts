@@ -250,3 +250,56 @@ export interface AdminMediaPurgeEnvelope { purged: true }
  * "reached, manages nothing".
  */
 export type AdminMediaProviderMarkers = Record<string, unknown>;
+
+/** `GET …/media/:mediaId/where-used`: the stored asset id and the host's usage report for it. */
+export interface AdminMediaWhereUsedEnvelope {
+  readonly mediaId: string;
+  readonly whereUsed: unknown;
+}
+
+/** One resolved asset's public-render sizing override — see `SiteRenderContext.mediaAssetMetadata`'s
+ * own doc. `null` on any field means "not set", not "zero"/"empty string". */
+export interface MediaAssetRenderMeta {
+  sha256?: string;
+  width: number | null;
+  height: number | null;
+  cssClass: string | null;
+  /** Same "not set, not empty" contract as `cssClass` — see `MediaRecord.htmlAttributes`'s own doc
+   *  (`@jini-ai/cms/media`) for the full identity/security model. */
+  htmlAttributes: string | null;
+  /**
+   * The asset's sniffed content type (`image/png`, `video/mp4`, …), or `null` when not (yet) known
+   * — added 2026-09-11 for the generic `media` doc node's dispatch ({@link renderDocMedia}'s own
+   * doc). `MediaRecord` (`@jini-ai/cms/media`) has no such field of its own; this is populated from
+   * the host-supplied `MediaContentTypeStorePort` side channel (`@jini-ai/cms/media/site/content-type-store`
+   * — see that port's own file header for why), keyed by the asset's blob sha256, the SAME source
+   * `resolver-service.ts`'s `resolveOneMediaEmbed` already reads for the sibling widget-embed media
+   * path. Populated by `resolveMediaAssetMetadataForRender` (`routes/site/pages.ts`) for the direct
+   * render path this file's own `renderDocNode`/`renderSite` reach, AND (also 2026-09-11, closing
+   * what was briefly a disclosed gap) by `resolver-service.ts`'s `resolvePostContentMediaContext` —
+   * shared by both `"post-content"` IR builders, `resolvePostTypeEmbeds` and
+   * `resolveContentTypeEmbeds` — reconstructed on this side by {@link parseMediaAssetMeta}. That
+   * shared path is NOT limited to "a post rendered because a PAGE embeds it": `routes/site/pages.ts`'s
+   * `renderViaTemplate` reaches it via `resolveContentTypeEmbeds`'s DB branch for a post rendered at
+   * its OWN public URL through a static-tier theme template too (see
+   * `resolve-html-page-embeds.integration.test.ts`'s own doc on this — "the exact path both the
+   * admin template-preview route AND any live post rendered through a static-tier theme's own
+   * template go through"). A missing entry (mediaContentTypeStore not supplied, or a sha256 never
+   * sniffed) degrades to `null` here, read as "not video" the same way every other unresolved ref on
+   * this render path degrades, never a crash or a wrong guess at the asset's kind. Every
+   * PRE-EXISTING reader of `MediaAssetRenderMeta` ({@link tryRenderRefImage}/
+   * {@link resolveMediaAssetOverrides}, the `image` node's own path) never reads this field, so
+   * adding it changes nothing about how `image` nodes render.
+   */
+  contentType: string | null;
+  /**
+   * The asset's CURRENT slug, or `null` when it has none (never uploaded through a path that
+   * derives one, or a genuinely legacy row) — readable-slugs plan S3 (2026-09-23). This is the one
+   * field {@link renderImageTag}/{@link renderVideoTag} read to decide the `/m/...` URL's key
+   * (`mediaUrlKey`, `@jini-ai/cms/media/site/public-path`): a present, valid slug wins, otherwise the
+   * asset's `id` is used, same fallback `mediaUrlKey` itself implements. Rename safety
+   * (`media_slug_history`, S2a/S2b) is what makes emitting a slug here safe — a slug this render
+   * captures can be renamed later without breaking the URL already baked into this HTML.
+   */
+  slug: string | null;
+}

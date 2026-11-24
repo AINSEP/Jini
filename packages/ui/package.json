@@ -38,7 +38,13 @@
       "./fetch-query": "browser",
       "./fetch-query/tanstack": "browser",
       "./tab-strip": "browser",
+      "./find": "browser",
       "./site-card": "browser",
+      "./resource-monitor": "browser",
+      "./zoom": "browser",
+      "./app-version": "browser",
+      "./live-views": "browser",
+      "./import-handoff": "browser",
       "./site-card.css": "browser",
       "./admin-widgets.css": "browser",
       "./theme": "browser",
@@ -48,7 +54,11 @@
       "./charts/react": "browser",
       "./mcp-ui/credential-card": "universal",
       "./react-kit": "browser",
-      "./react/testing": "browser"
+      "./react/testing": "browser",
+      "./number-stepper": "browser",
+      "./app-shell": "browser",
+      "./find-bar": "browser",
+      "./resource-monitor": "browser"
     },
     "isolation": {
       "entries": {
@@ -59,12 +69,15 @@
       "shared": [
         "src/react/kit.tsx",
         "src/features/charts",
+        "src/features/find/find-query-scheduler.ts",
         "src/features/interactive-ui/registry.ts",
         "src/features/interactive-ui/table-data.ts",
+        "src/features/live-views/live-views.ts",
         "src/theme/default.ts",
         "src/theme/stylesheet.ts",
         "src/theme/validation.ts",
         "src/theme/types.ts",
+        "src/theme/color-scheme.ts",
         "src/browser"
       ]
     },
@@ -202,10 +215,40 @@
       "import": "./dist/features/panel-kit/fetch-query/tanstack.js",
       "default": "./dist/features/panel-kit/fetch-query/tanstack.js"
     },
+    "./find": {
+      "types": "./dist/features/find/index.d.ts",
+      "import": "./dist/features/find/index.js",
+      "default": "./dist/features/find/index.js"
+    },
     "./site-card": {
       "types": "./dist/features/site-card/index.d.ts",
       "import": "./dist/features/site-card/index.js",
       "default": "./dist/features/site-card/index.js"
+    },
+    "./resource-monitor": {
+      "types": "./dist/features/resource-monitor/index.d.ts",
+      "import": "./dist/features/resource-monitor/index.js",
+      "default": "./dist/features/resource-monitor/index.js"
+    },
+    "./zoom": {
+      "types": "./dist/features/zoom/use-zoom.d.ts",
+      "import": "./dist/features/zoom/use-zoom.js",
+      "default": "./dist/features/zoom/use-zoom.js"
+    },
+    "./app-version": {
+      "types": "./dist/features/app-version/use-app-version.d.ts",
+      "import": "./dist/features/app-version/use-app-version.js",
+      "default": "./dist/features/app-version/use-app-version.js"
+    },
+    "./live-views": {
+      "types": "./dist/features/live-views/index.d.ts",
+      "import": "./dist/features/live-views/index.js",
+      "default": "./dist/features/live-views/index.js"
+    },
+    "./import-handoff": {
+      "types": "./dist/features/import-handoff/use-import-handoff.d.ts",
+      "import": "./dist/features/import-handoff/use-import-handoff.js",
+      "default": "./dist/features/import-handoff/use-import-handoff.js"
     },
     "./site-card.css": "./dist/features/site-card/site-card.css",
     "./tab-strip": {
@@ -249,6 +292,26 @@
       "types": "./dist/react/testing.d.ts",
       "import": "./dist/react/testing.js",
       "default": "./dist/react/testing.js"
+    },
+    "./number-stepper": {
+      "types": "./dist/features/number-stepper/index.d.ts",
+      "import": "./dist/features/number-stepper/index.js",
+      "default": "./dist/features/number-stepper/index.js"
+    },
+    "./app-shell": {
+      "types": "./dist/features/app-shell/index.d.ts",
+      "import": "./dist/features/app-shell/index.js",
+      "default": "./dist/features/app-shell/index.js"
+    },
+    "./find-bar": {
+      "types": "./dist/features/find-bar/index.d.ts",
+      "import": "./dist/features/find-bar/index.js",
+      "default": "./dist/features/find-bar/index.js"
+    },
+    "./resource-monitor": {
+      "types": "./dist/features/resource-monitor/index.d.ts",
+      "import": "./dist/features/resource-monitor/index.js",
+      "default": "./dist/features/resource-monitor/index.js"
     }
   },
   "files": [

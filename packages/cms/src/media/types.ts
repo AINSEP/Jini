@@ -119,6 +119,20 @@ export interface MediaRecord {
 }
 
 /**
+ * A video/audio asset's captions reference (G7-9): which sibling WebVTT asset, and its language.
+ * Not yet a `MediaRecord` field: adding it there breaks a host's exhaustive `Record<keyof MediaRecord, ...>`
+ * publish map while that file is in flight, so the field lands with the host's column + migration.
+ */
+export interface MediaCaptionsTrack {
+  /** Id of the `.vtt` media asset holding the cues; the host resolves it to its public URL. */
+  assetId: UUID;
+  /** BCP 47 language tag of the cues (`en`, `pt-BR`). */
+  srclang: string;
+  /** Human label for the player's captions menu; `null`/absent lets the browser choose. */
+  label?: string | null | undefined;
+}
+
+/**
  * Blob-GC lifecycle status ( two-phase journaled protocol,
  * implemented in `blob-gc.ts`). `active` — has at least one live reference as
  * of the last check (or has never been checked). `tombstoned` — the

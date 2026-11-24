@@ -6,9 +6,9 @@
  * — its barrel statically pulls in `node:crypto`/`node:fs`/`node:path` (`staging.ts`),
  * `node:dns` (`dispatch/ssrf-guard.ts`), and `undici` (`dispatch/providers/openai.ts`). A host's
  * browser bundle needs the provider list to render a credentials screen, but must not drag the
- * dispatch engine in to get it. `providers.ts` imports only types from `types.ts`, and `types.ts`
- * imports nothing at all, so this pair is genuinely dependency-free and safe to mark
- * `"universal"`.
+ * dispatch engine in to get it. `providers.ts` imports only types from `types.ts` and from
+ * `@jini-ai/core` (which owns `MediaModel`/`MediaProvider`), and `types.ts` imports nothing at all,
+ * so this pair is genuinely dependency-free and safe to mark `"universal"`.
  *
  * The constraint this file encodes: **runtime imports stay inside the pure catalog graph.**
  * UI projections import only core types, erased before evaluation; no UI or React dependency exists.
@@ -17,6 +17,8 @@
  * the import graph stays clean, so that mistake fails a test rather than a downstream bundle.
  */
 export * from './types.js';
+/** Deprecated re-export: import these from `@jini-ai/core/contracts/site/media-providers-catalog`; removed at the next major. */
+export type { MediaModel, MediaProvider } from '@jini-ai/core/contracts/site/media-providers-catalog';
 export * from './providers.js';
 export * from './image-model-ids.js';
 export { DEFAULT_MEDIA_PROVIDER_CATALOG, DEFAULT_PROVIDER_PRESETS } from './ui-defaults.js';

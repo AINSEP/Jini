@@ -23,7 +23,7 @@ describe('agent executor split parity', () => {
       'buildRunArgs', 'writeMcpJsonIfNeeded', 'prepareSystemPromptOverlayFileIfNeeded',
       'prepareCodexHomeIfNeeded', 'prepareClaudeConfigDirIfNeeded', 'guardWindowsCommandLineBudget',
       'spawnAgentChildProcess', 'isStdinDrivenFormat', 'confirmChildSpawned', 'armHandoffWatcher',
-      'runAcpDispatch', 'runPiRpcDispatch', 'createAgentExecutor',
+      'runAcpDispatch', 'runPiRpcDispatch', 'createAgentExecutor', 'bridgePreflightEntry',
     ] as const;
     expect(Object.keys(compatibilityEntry).sort()).toEqual([...publishedNames].sort());
     for (const name of publishedNames) {

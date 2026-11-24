@@ -117,23 +117,27 @@ describe('root key controller: SEC-5 generate guard and typed refusals', () => {
     const c = createRootKeyController({ api, permissions: GRANT }); await c.load({});
     expect(await c.generate({})).toBe(false); expect(spy).not.toHaveBeenCalled();
   });
-  it.each(['KEY_DEPENDENT_DATA', 'KEY_MISMATCH'])('%s → locked, carrying the server detail', async (code) => {
+  // rv1123c FIX 1: the described `detail` is reader text and never travels on; only the code does.
+  it.each(['KEY_DEPENDENT_DATA', 'KEY_MISMATCH'])('%s → locked, carrying only the code', async (code) => {
     const { c, describeError } = refusing(code, 'Saved credentials need a key that is not here.'); await c.load({});
     expect(await c.generate({})).toBe(false);
     expect(describeError).toHaveBeenCalledTimes(1);
-    expect(c.getSnapshot()).toMatchObject({ generateFailure: { kind: 'locked', code, detail: 'Saved credentials need a key that is not here.' }, error: 'Saved credentials need a key that is not here.', saving: false });
+    expect(c.getSnapshot()).toMatchObject({ generateFailure: { kind: 'locked', code }, error: 'Root key could not be created.', saving: false });
+    expect(JSON.stringify(c.getSnapshot())).not.toContain('Saved credentials need a key');
   });
-  it.each(['KEY_INVALID', 'SITE_META_UNREADABLE'])('%s → refused, showing its detail', async (code) => {
+  it.each(['KEY_INVALID', 'SITE_META_UNREADABLE'])('%s → refused, carrying only the code', async (code) => {
     const { c } = refusing(code, 'not a valid key'); await c.load({}); await c.generate({});
-    expect(c.getSnapshot()).toMatchObject({ generateFailure: { kind: 'refused', code, detail: 'not a valid key' }, error: 'not a valid key' });
+    expect(c.getSnapshot()).toMatchObject({ generateFailure: { kind: 'refused', code }, error: 'Root key could not be created.' });
+    expect(JSON.stringify(c.getSnapshot())).not.toContain('not a valid key');
   });
   it('ALREADY_EXISTS → already-exists with the create-only sentence', async () => {
     const { c } = refusing('ALREADY_EXISTS', 'exists'); await c.load({}); await c.generate({});
     expect(c.getSnapshot()).toMatchObject({ generateFailure: { kind: 'already-exists' }, error: 'A root key already exists. This tab only creates a key; it never overwrites one.' });
   });
-  it('an unknown code → generic, showing the described detail', async () => {
+  it('an unknown code → generic with its code, never the described detail', async () => {
     const { c } = refusing('ENV_VAR_ACTIVE', 'Host said no.'); await c.load({}); await c.generate({});
-    expect(c.getSnapshot()).toMatchObject({ generateFailure: { kind: 'generic', detail: 'Host said no.' }, error: 'Host said no.' });
+    expect(c.getSnapshot()).toMatchObject({ generateFailure: { kind: 'generic', code: 'ENV_VAR_ACTIVE' }, error: 'Root key could not be created.' });
+    expect(JSON.stringify(c.getSnapshot())).not.toContain('Host said no.');
   });
   it('without describeError, a refusal is generic with the generic message', async () => {
     const api = createMemoryRootKey({ status: status('missing') }); api.generate = () => Promise.reject(Object.assign(new Error(FIXTURE_KEY), { code: 'KEY_INVALID' }));

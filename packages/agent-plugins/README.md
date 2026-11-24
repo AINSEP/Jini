@@ -337,3 +337,11 @@ layout, uninstall and archive-reader ports, `PluginManifestAuthor`, `AgentPlugin
 in `@jini-ai/core/contracts/site/agent-plugins-lifecycle` and `./agent-plugins-manifest`. This package
 imports them from core and keeps the runtime; `./lifecycle` and `./manifest` still re-export the names
 as deprecated types until the next major. Hosts import them from core.
+
+**Create-form tokens** (`tokensForCreate` from `./connect`). A host's create-site form collects
+`{ [pluginId]: typed value }` from its own fields (offered services come from the host's inventory)
+and calls `tokensForCreate({ values })`; `undefined` means "send the create input unchanged". The
+host's create-form hook owns the inputs, the bridge and the copy; the receiving side validates with
+`parsePluginTokenMap` and the host's limits.
+
+MCP trust admission: hosts bind the lifecycle owner's `classifyAgentPluginMcpServerTrust({ server })` into the planners' positional `classifyTrust` callback (`stdio` always `requires-confirmation`) and read installed skills/`mcp.json` through `readInstalledSkillMarkdown`/`readInstalledMcpServers`/`readInstalledMcpServerIds`; metadata warnings arrive on `onEvent` as `agent-plugin-metadata-warning`.

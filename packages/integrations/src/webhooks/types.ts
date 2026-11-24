@@ -1,5 +1,5 @@
 /** Workspace-scoped subscription/delivery records and serializable wire envelopes. */
-import type { UUID, ISODateTime, JsonObject } from "@jini-ai/core/primitives";
+import type { CreatorKind, UUID, ISODateTime, JsonObject } from "@jini-ai/core/primitives";
 
 /** Topic names share the domain-event catalog ({entity}.{action}); an entity's trailing .*
  * subscribes to all its actions, while all-topic * requires the host's owner authorization. */
@@ -34,6 +34,10 @@ export interface WebhookSubscriptionRecord {
   // Stamp originating actor/plugin attribution at the host's mutation chokepoint.
   createdByPrincipalId: UUID;
   createdByPluginId: string | null;
+  /** Person or agent. Optional because rows stored before attribution existed carry none; read
+   * it through `resolveCreatorKind`, which treats a missing value as `"person"` so the agent
+   * switch never pauses something an owner made. */
+  createdByKind?: CreatorKind | undefined;
   createdAt: ISODateTime;
   updatedAt: ISODateTime;
   /** Optimistic concurrency counter for subscription edits. */

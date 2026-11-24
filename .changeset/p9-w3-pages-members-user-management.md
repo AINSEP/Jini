@@ -1,0 +1,44 @@
+---
+"@jini-ai/user-management": patch
+---
+
+Add leaf subpaths for the w3 pages/members extraction (no barrel; import each leaf directly):
+
+- `@jini-ai/user-management/member-login/link-service`
+- `@jini-ai/user-management/member-login/oidc-login`
+- `@jini-ai/user-management/members/access-resolver`
+- `@jini-ai/user-management/members/agent-tools`
+- `@jini-ai/user-management/members/auth-mail`
+- `@jini-ai/user-management/members/capability-card`
+- `@jini-ai/user-management/members/consent-service`
+- `@jini-ai/user-management/members/member-admin-writes`
+- `@jini-ai/user-management/members/member-challenge`
+- `@jini-ai/user-management/members/member-challenge-request`
+- `@jini-ai/user-management/members/member-credentials`
+- `@jini-ai/user-management/members/member-sign-in`
+- `@jini-ai/user-management/members/member-validation`
+- `@jini-ai/user-management/members/password-auth`
+- `@jini-ai/user-management/members/ports`
+- `@jini-ai/user-management/members/repo`
+- `@jini-ai/user-management/members/repo.memory`
+- `@jini-ai/user-management/members/subscriber-directory`
+- `@jini-ai/user-management/members/trash-member`
+- `@jini-ai/user-management/members/types`
+- `@jini-ai/user-management/members/write-service`
+- `@jini-ai/user-management/newsletter/campaign`
+- `@jini-ai/user-management/newsletter/campaign-write-service`
+- `@jini-ai/user-management/newsletter/data-module-manifest`
+- `@jini-ai/user-management/newsletter/errors`
+- `@jini-ai/user-management/newsletter/hooks`
+- `@jini-ai/user-management/newsletter/launch-gate`
+- `@jini-ai/user-management/newsletter/lists`
+- `@jini-ai/user-management/newsletter/ports`
+- `@jini-ai/user-management/newsletter/repo`
+- `@jini-ai/user-management/newsletter/repo-sends`
+- `@jini-ai/user-management/newsletter/repo-subscribers`
+- `@jini-ai/user-management/newsletter/repo.memory`
+- `@jini-ai/user-management/newsletter/repo.rows`
+- `@jini-ai/user-management/newsletter/send-pipeline`
+- `@jini-ai/user-management/newsletter/types`
+- `@jini-ai/user-management/newsletter/unsubscribe`
+- `@jini-ai/user-management/react/members/members-i18n`

@@ -4,14 +4,33 @@ export interface Target { platform: string; arch: string }
 export interface PrebuildBuilt { platform: string; architectures: string[] }
 export interface StalenessShell { relative: string; marker: string; buildWith: string }
 
-/** Independent live signals; a quiet sample still requires post-package byte verification. */
+/** Host wording for each tree-quiet problem. Each one is called only when its signal fires. */
+export interface TreeQuietFormatters {
+  watcherRunning?: (args: { surface: string }) => string;
+  gitDirty?: (args: { surface: string; paths: readonly string[] }) => string;
+  moving?: (args: { surface: string; paths: readonly string[] }) => string;
+}
+const DEFAULT_TREE_QUIET_FORMATTERS: Required<TreeQuietFormatters> = {
+  watcherRunning: ({ surface }) => `a build watch process is rewriting ${surface}; stop it before packaging.`,
+  gitDirty: ({ surface, paths }) => `${surface} has uncommitted changes: ${paths.join(', ')}.`,
+  moving: ({ surface, paths }) => `${surface} is still being written to: ${paths.join(', ')} changed during this check.`,
+};
+/**
+ * Independent live signals; a quiet sample still requires post-package byte verification.
+ * `movingPaths` must come from two live snapshots taken a short interval apart, never an absolute
+ * mtime age: a fresh checkout stamps every file "now", so an age test would refuse every CI run.
+ * Hosts that need their own copy (incident links, remedies) pass `formatters`; omitted ones keep
+ * the neutral default wording.
+ */
 export function treeQuietProblems(required: {
   surface: string; watcherRunning: boolean; gitDirtyPaths?: readonly string[]; movingPaths?: readonly string[];
-}, _optional: Record<string, never> = {}): string[] {
+}, optional: { formatters?: TreeQuietFormatters } = {}): string[] {
+  const format = { ...DEFAULT_TREE_QUIET_FORMATTERS, ...optional.formatters };
+  const { surface, gitDirtyPaths = [], movingPaths = [] } = required;
   const problems: string[] = [];
-  if (required.watcherRunning) problems.push(`a build watch process is rewriting ${required.surface}; stop it before packaging.`);
-  if (required.gitDirtyPaths?.length) problems.push(`${required.surface} has uncommitted changes: ${required.gitDirtyPaths.join(', ')}.`);
-  if (required.movingPaths?.length) problems.push(`${required.surface} is still being written to: ${required.movingPaths.join(', ')} changed during this check.`);
+  if (required.watcherRunning) problems.push(format.watcherRunning({ surface }));
+  if (gitDirtyPaths.length) problems.push(format.gitDirty({ surface, paths: gitDirtyPaths }));
+  if (movingPaths.length) problems.push(format.moving({ surface, paths: movingPaths }));
   return problems;
 }
 /** Conservative bundle-input policy, shared by source timestamp scanning. */
@@ -20,10 +39,19 @@ export function isBundleInput({ relPath }: { relPath: string }, _optional: Recor
   if (normalized.split('/').some(segment => segment === '__tests__' || segment === '__measurements__')) return false;
   return !/\.(test|spec)\.[cm]?[jt]sx?$/.test(normalized);
 }
-/** Missing timestamps defer to the host's existence checks; there is no stale-build tolerance. */
-export function shellStalenessFailure({ builtAt, sourceAt, shell }: { builtAt: number; sourceAt: number; shell: StalenessShell }, _optional: Record<string, never> = {}): string | null {
+/**
+ * Missing timestamps defer to the host's existence checks; there is no stale-build tolerance.
+ * `consequence` is host copy placed between the age and the remedy: a host that once shipped a
+ * stale bundle while packaging reported success keeps its own incident wording there, so the
+ * reader learns why the refusal is not noise without this package owning that history.
+ */
+export function shellStalenessFailure(
+  { builtAt, sourceAt, shell }: { builtAt: number; sourceAt: number; shell: StalenessShell },
+  { consequence }: { consequence?: string } = {},
+): string | null {
   if (builtAt === 0 || sourceAt === 0 || builtAt >= sourceAt) return null;
-  return `the built shell at ${shell.relative} is STALE — its ${shell.marker} is ${((sourceAt - builtAt) / 86_400_000).toFixed(1)} day(s) older than its own source. Rebuild it with: ${shell.buildWith}`;
+  const why = consequence === undefined ? '' : ` ${consequence}`;
+  return `the built shell at ${shell.relative} is STALE — its ${shell.marker} is ${((sourceAt - builtAt) / 86_400_000).toFixed(1)} day(s) older than its own source.${why} Rebuild it with: ${shell.buildWith}`;
 }
 /** npm's parseable output may contain duplicates and Windows CRLF endings. */
 export function parseNpmLsPaths({ stdout, modulesDir, separator }: { stdout: string; modulesDir: string; separator: string }, _optional: Record<string, never> = {}): string[] {
