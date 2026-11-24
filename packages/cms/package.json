@@ -179,6 +179,7 @@
       "./public-http/middleware/theme-content-security-headers": "node",
       "./public-http/middleware/theme-static-assets": "universal",
       "./public-http/middleware/theme-page-preview": "universal",
+      "./public-http/middleware/theme-preview-refresh": "universal",
       "./public-http/middleware/render-theme-override": "universal",
       "./public-http/http/site/form-validation-i18n": "universal",
       "./public-http/http/site/member-auth-script": "universal",
@@ -1465,6 +1466,11 @@
       "types": "./dist/public-http/middleware/render-theme-override.d.ts",
       "import": "./dist/public-http/middleware/render-theme-override.js",
       "default": "./dist/public-http/middleware/render-theme-override.js"
+    },
+    "./public-http/middleware/theme-preview-refresh": {
+      "types": "./dist/public-http/middleware/theme-preview-refresh.d.ts",
+      "import": "./dist/public-http/middleware/theme-preview-refresh.js",
+      "default": "./dist/public-http/middleware/theme-preview-refresh.js"
     },
     "./public-http/middleware/theme-page-preview": {
       "types": "./dist/public-http/middleware/theme-page-preview.d.ts",

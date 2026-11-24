@@ -22,7 +22,7 @@ export interface DocRenderClasses {
 /** Everything host- or sibling-domain-specific the doc node handlers need, injected so this
  *  entry's closure stays inside its own isolation domain (media URL policy and tag rendering live
  *  in the `media`/`widgets` domains; the URL allowlists are host policy). Bound once by the host's
- *  composition (`content-html.ts` in Tovu). */
+ *  composition (the host's content-html composition). */
 export interface DocNodeHost {
   readonly media: {
     readonly renderImageTag: typeof renderImageTag;

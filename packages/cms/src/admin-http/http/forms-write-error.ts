@@ -10,8 +10,8 @@ import { ForbiddenError as CommandForbiddenError } from "../../core/index.js";
 
 /**
  * @file Wire mapping for the admin `forms` routes: forms/core errors to an HTTP status and body
- * (errors.spec.md §2/§6). Framework-free — it returns the wire answer and a host's adapter (Express,
- * in Tovu) writes it, so this module never sees a `Response`. The DTO projections sit beside it in
+ * (errors.spec.md §2/§6). Framework-free — it returns the wire answer and a host's adapter (Express, for example)
+ * writes it, so this module never sees a `Response`. The DTO projections sit beside it in
  * `./forms`.
  */
 

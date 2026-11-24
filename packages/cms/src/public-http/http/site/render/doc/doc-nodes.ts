@@ -33,7 +33,7 @@ export const EMPTY_MEDIA_TRANSFORM_VERSIONS: ReadonlyMap<string, number> = new M
 export const EMPTY_MEDIA_ASSET_METADATA: ReadonlyMap<string, MediaAssetRenderMeta> = new Map();
 
 /**
- * Render-time recursion bound (worklist #5, TM-TOVU-2026-08-12-A request-cost audit) — same
+ * Render-time recursion bound (worklist #5, request-cost audit TM-2026-08-12-A) — same
  * "defensive bound, not a real document's expected shape" reasoning {@link tableSpanAttrs}'s own
  * doc already states for `colspan`/`rowspan`: `bodyJson` is written by a direct API call, an import,
  * a migration, or a plugin with table access exactly as easily as by the editor, and an unbounded
@@ -114,10 +114,10 @@ function renderDocHeading({ node, content, deps }: DocNodeHandlerRequired, _opti
 
 /**
  * Post-title-in-document feature (2026-08-11) — a dedicated first `doc` node an author can
- * center/style per post (`apps/admin/src/lib/post-title-extension.ts`). Renders empty in every
+ * center/style per post (the host editor's post-title extension). Renders empty in every
  * GENERIC doc walk: `entryContent`, `renderSlot("title")`, and `buildTemplateRenderData`'s
  * `post.content` already each print `post.title`/`ctx.post.title` (kept in sync with this
- * node — see `withTitleNode`/`titleNodeText`, `apps/admin/.../features/posts/rules.ts`) as
+ * node — see `withTitleNode`/`titleNodeText`, the host editor's post rules) as
  * their OWN separate heading; letting this node ALSO emit its text here would duplicate the
  * title on every one of those render paths. `renderWidgetPostContent` is the one caller that
  * needs this node directly (for its alignment) and reads it via its own `extractTitleNode`,
