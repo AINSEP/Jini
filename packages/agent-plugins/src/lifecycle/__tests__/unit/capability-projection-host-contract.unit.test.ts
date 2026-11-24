@@ -105,7 +105,7 @@ describe('readInstalledMcpServers / readInstalledMcpServerIds (object API)', () 
   });
 
   test('under a portable namespace the lifecycle parse equals the standalone parser with no namespace (legacy manifest key)', async () => {
-    const manifest = { $schema: PLUGIN_SCHEMA, name: 'legacy', version: '1.0.0', extensions: { tovu: { id: 'publisher/legacy', mcpServers: { remote: { authMode: 'oauth', defaultTools: 'read' } } } } };
+    const manifest = { $schema: PLUGIN_SCHEMA, name: 'legacy', version: '1.0.0', extensions: { tovu: { id: 'publisher/legacy', mcpServers: { remote: { authMode: 'oauth' } } } } };
     const mcp = { $schema: MCP_SCHEMA, mcpServers: { remote: { type: 'streamable-http', url: 'https://example.test/mcp' }, local: { type: 'stdio', command: './bin/server' } } };
     const root = await packageRoot('mcp-legacy-manifest', { 'plugin.json': JSON.stringify(manifest), 'mcp.json': JSON.stringify(mcp) });
     const before = events.length;
