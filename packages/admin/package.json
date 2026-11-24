@@ -168,6 +168,8 @@
       "./screens/collections/hooks/use-collection-entries.hooks": "browser",
       "./screens/collections/hooks/use-collection-entry-editor.hooks": "browser",
       "./screens/collections/LifecycleConfirmDialog": "browser",
+      "./screens/collections/NewContentTypeDialog": "browser",
+      "./screens/collections/EditFieldsDialog": "browser",
       "./screens/collections/hooks/use-edit-fields-dialog.hooks": "browser",
       "./screens/collections/hooks/use-new-content-type-dialog.hooks": "browser",
       "./screens/collections/hooks/use-lifecycle-confirm-dialog.hooks": "universal",
@@ -224,6 +226,7 @@
       "./screens/collections/collections-host-kit": "universal",
       "./screens/menus/Menus": "browser",
       "./screens/menus/hooks/use-menus.hooks": "browser",
+      "./screens/menus/hooks/use-menu-editor.hooks": "browser",
       "./screens/menus/menus-host-kit": "universal",
       "./screens/menus/MenuEditor.hooks": "browser",
       "./screens/menus/MenuPageLinkFields.hooks": "browser",
@@ -1100,6 +1103,16 @@
       "import": "./dist/screens/collections/LifecycleConfirmDialog.js",
       "default": "./dist/screens/collections/LifecycleConfirmDialog.js"
     },
+    "./screens/collections/NewContentTypeDialog": {
+      "types": "./dist/screens/collections/NewContentTypeDialog.d.ts",
+      "import": "./dist/screens/collections/NewContentTypeDialog.js",
+      "default": "./dist/screens/collections/NewContentTypeDialog.js"
+    },
+    "./screens/collections/EditFieldsDialog": {
+      "types": "./dist/screens/collections/EditFieldsDialog.d.ts",
+      "import": "./dist/screens/collections/EditFieldsDialog.js",
+      "default": "./dist/screens/collections/EditFieldsDialog.js"
+    },
     "./screens/collections/hooks/use-edit-fields-dialog.hooks": {
       "types": "./dist/screens/collections/hooks/use-edit-fields-dialog.hooks.d.ts",
       "import": "./dist/screens/collections/hooks/use-edit-fields-dialog.hooks.js",
@@ -1365,6 +1378,11 @@
       "import": "./dist/screens/menus/hooks/use-menus.hooks.js",
       "default": "./dist/screens/menus/hooks/use-menus.hooks.js"
     },
+    "./screens/menus/hooks/use-menu-editor.hooks": {
+      "types": "./dist/screens/menus/hooks/use-menu-editor.hooks.d.ts",
+      "import": "./dist/screens/menus/hooks/use-menu-editor.hooks.js",
+      "default": "./dist/screens/menus/hooks/use-menu-editor.hooks.js"
+    },
     "./screens/menus/Menus": {
       "types": "./dist/screens/menus/Menus.d.ts",
       "import": "./dist/screens/menus/Menus.js",
@@ -1539,6 +1557,9 @@
       "screens/menus/hooks/use-menus.hooks": [
         "./dist/screens/menus/hooks/use-menus.hooks.d.ts"
       ],
+      "screens/menus/hooks/use-menu-editor.hooks": [
+        "./dist/screens/menus/hooks/use-menu-editor.hooks.d.ts"
+      ],
       "screens/menus/Menus": [
         "./dist/screens/menus/Menus.d.ts"
       ],
@@ -1571,6 +1592,12 @@
       ],
       "screens/collections/LifecycleConfirmDialog": [
         "./dist/screens/collections/LifecycleConfirmDialog.d.ts"
+      ],
+      "screens/collections/NewContentTypeDialog": [
+        "./dist/screens/collections/NewContentTypeDialog.d.ts"
+      ],
+      "screens/collections/EditFieldsDialog": [
+        "./dist/screens/collections/EditFieldsDialog.d.ts"
       ],
       "screens/collections/hooks/use-edit-fields-dialog.hooks": [
         "./dist/screens/collections/hooks/use-edit-fields-dialog.hooks.d.ts"
