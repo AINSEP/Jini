@@ -1662,10 +1662,123 @@
    "stripOscSequences": "function:d0273cacf3"
   }
  },
+ "./shell/components/AssistantDock/assistant-dock-i18n": {
+  "types": "./dist/shell/components/AssistantDock/assistant-dock-i18n.d.ts",
+  "symbols": {
+   "ASSISTANT_DOCK_DICT": "variable:a9b7155f5d",
+   "AssistantDockHostDictionary": "type:1f4d13b9d8",
+   "ChatI18nAdapter": "interface:fc6d90df3b",
+   "SettingsDialogDictionaries": "type:0b092a065b",
+   "createChatI18nAdapter": "function:f3d3d7a383",
+   "t": "variable:a82eecf952"
+  }
+ },
+ "./shell/components/AssistantDock/chat-agent-plugin-preferences": {
+  "types": "./dist/shell/components/AssistantDock/chat-agent-plugin-preferences.d.ts",
+  "symbols": {
+   "CHAT_AGENT_PLUGINS_KEY": "variable:293484c3b4",
+   "CHAT_AGENT_PLUGIN_OPTIONS": "variable:181b2c71da",
+   "ChatAgentPlugins": "type:0b95196b39",
+   "ChatAgentPluginsLedgerPort": "interface:defa41c146",
+   "DEFAULT_CHAT_AGENT_PLUGINS": "variable:376c9da0d9",
+   "loadChatAgentPlugins": "function:dafe2ca3e4",
+   "readChatAgentPlugins": "function:cd4a97a626",
+   "saveChatAgentPlugins": "function:f7ba322d00"
+  }
+ },
+ "./shell/components/AssistantDock/dock-header-rules": {
+  "types": "./dist/shell/components/AssistantDock/dock-header-rules.d.ts",
+  "symbols": {
+   "DockChatDisplay": "interface:90cdeed04d",
+   "DockChatDisplayPreferences": "interface:fe1a1f58a3",
+   "DockReplyLengthOptions": "type:1739db7ab2",
+   "DockRuntimeSwitches": "type:5dfa2816b8",
+   "DockSettingsMenuItem": "interface:8842fd0780",
+   "DockSettingsMenuSection": "interface:a8428c9336",
+   "DockToolCallOptions": "type:dd84eac502",
+   "activateDockMenuItem": "function:fcfaf02598",
+   "dockSettingsMenuSections": "function:c5c52276df",
+   "groupOptionTooltips": "function:e38bde386a",
+   "isChoiceSection": "function:19a9b8b636",
+   "shouldShowHeaderTip": "function:604437e3b7"
+  }
+ },
+ "./shell/components/AssistantDock/DockHeaderTip.hooks": {
+  "types": "./dist/shell/components/AssistantDock/DockHeaderTip.hooks.d.ts",
+  "symbols": {
+   "DockHeaderTipControllerHook": "type:172741fade",
+   "useDockHeaderTip": "function:8b78c5ad33"
+  }
+ },
+ "./shell/components/AssistantDock/DockSettingsMenu": {
+  "types": "./dist/shell/components/AssistantDock/DockSettingsMenu.d.ts",
+  "symbols": {
+   "DockSettingsMenu": "function:66320ae897",
+   "DockSettingsSegmentedProps": "interface:5709ecf483"
+  }
+ },
+ "./shell/components/AssistantDock/FolderDropConfirmation": {
+  "types": "./dist/shell/components/AssistantDock/FolderDropConfirmation.d.ts",
+  "symbols": {
+   "FolderDropConfirmation": "function:eca36b0035",
+   "FolderDropConfirmationProps": "interface:bf20a04b17"
+  }
+ },
+ "./shell/components/AssistantDock/FolderDropError": {
+  "types": "./dist/shell/components/AssistantDock/FolderDropError.d.ts",
+  "symbols": {
+   "FolderDropError": "function:85db1dcbbb",
+   "FolderDropErrorProps": "interface:67ee6f388f"
+  }
+ },
+ "./shell/components/AssistantDock/FolderDropPathHint": {
+  "types": "./dist/shell/components/AssistantDock/FolderDropPathHint.d.ts",
+  "symbols": {
+   "FolderDropPathHint": "function:ba86f10819",
+   "FolderDropPathHintProps": "interface:9eaedba711"
+  }
+ },
+ "./shell/components/AssistantDock/FolderPathButton": {
+  "types": "./dist/shell/components/AssistantDock/FolderPathButton.d.ts",
+  "symbols": {
+   "FolderPathButton": "function:7b26e0e4df",
+   "FolderPathButtonProps": "interface:51ccd806e6"
+  }
+ },
+ "./shell/components/AssistantDock/hooks/chat-package-kind": {
+  "types": "./dist/shell/components/AssistantDock/hooks/chat-package-kind.d.ts",
+  "symbols": {
+   "chatPackageKind": "function:b46a5ee845",
+   "partitionChatPackages": "function:72fe1af8ee"
+  }
+ },
+ "./shell/components/AssistantDock/hooks/conversation-refresh.hooks": {
+  "types": "./dist/shell/components/AssistantDock/hooks/conversation-refresh.hooks.d.ts",
+  "symbols": {
+   "useConversationRefreshSignal": "function:51011352cb"
+  }
+ },
  "./shell/components/AssistantDock/hooks/use-assistant-empty-state.hooks": {
   "types": "./dist/shell/components/AssistantDock/hooks/use-assistant-empty-state.hooks.d.ts",
   "symbols": {
    "useAssistantEmptyState": "function:0707ca9ba6"
+  }
+ },
+ "./shell/components/AssistantDock/hooks/use-assistant-runtime-preferences.hooks": {
+  "types": "./dist/shell/components/AssistantDock/hooks/use-assistant-runtime-preferences.hooks.d.ts",
+  "symbols": {
+   "AssistantRuntimePreferences": "interface:cfe9377891",
+   "AssistantRuntimePreferencesController": "interface:c6284426d4",
+   "AssistantRuntimePreferencesPort": "interface:d5f914983c",
+   "useAssistantRuntimePreferences": "function:39aa1da55b"
+  }
+ },
+ "./shell/components/AssistantDock/hooks/use-chat-agent-plugins.hooks": {
+  "types": "./dist/shell/components/AssistantDock/hooks/use-chat-agent-plugins.hooks.d.ts",
+  "symbols": {
+   "ChatAgentPluginsController": "interface:9e2530b382",
+   "ChatAgentPluginsPort": "interface:1a78de8266",
+   "useChatAgentPlugins": "function:594371cabc"
   }
  },
  "./shell/components/AssistantDock/hooks/use-composer-send-stop-guard.hooks": {
@@ -1673,6 +1786,14 @@
   "symbols": {
    "enabledComposerButton": "function:64a9d64b0b",
    "useComposerSendStopGuard": "function:d938702add"
+  }
+ },
+ "./shell/components/AssistantDock/hooks/use-selected-agent-auth-warning.hooks": {
+  "types": "./dist/shell/components/AssistantDock/hooks/use-selected-agent-auth-warning.hooks.d.ts",
+  "symbols": {
+   "AuthDetectionPort": "interface:881a0bc48e",
+   "RescannableRuntimeAccess": "interface:b628ff88c8",
+   "useSelectedAgentAuthWarning": "function:8616979a60"
   }
  },
  "./shell/components/AssistantDock/hooks/useOverflowDetection.hooks": {
@@ -1700,6 +1821,13 @@
   "symbols": {
    "isSlowRunNoticeVisible": "function:f61f05d372",
    "resolveSlowRunDetail": "function:6bc7144fb9"
+  }
+ },
+ "./shell/components/AssistantDock/SubagentsIndicator": {
+  "types": "./dist/shell/components/AssistantDock/SubagentsIndicator.d.ts",
+  "symbols": {
+   "SubagentsIndicator": "function:ae88811cb2",
+   "UseSubagentsIndicatorSettings": "type:a7e47ab6d9"
   }
  },
  "./shell/components/CodeView/preview-modal-icons": {
@@ -1747,6 +1875,22 @@
    "LINE_ICON": "variable:55e15ff8af"
   }
  },
+ "./shell/components/MediaEditDialog/MediaEditDialog.hooks": {
+  "types": "./dist/shell/components/MediaEditDialog/MediaEditDialog.hooks.d.ts",
+  "symbols": {
+   "MediaEditDialogController": "interface:1976ea737d",
+   "MediaEditDialogValue": "interface:14fda03426",
+   "useMediaEditDialog": "function:5787d66d37"
+  }
+ },
+ "./shell/components/MediaPickerDialog/JiniMediaPicker.hooks": {
+  "types": "./dist/shell/components/MediaPickerDialog/JiniMediaPicker.hooks.d.ts",
+  "symbols": {
+   "JiniMediaPickerArgs": "interface:273b8b5a53",
+   "JiniMediaPickerRow": "interface:e2711a5dbe",
+   "useJiniMediaPicker": "function:a0592eeda8"
+  }
+ },
  "./shell/components/Select/Select.hooks": {
   "types": "./dist/shell/components/Select/Select.hooks.d.ts",
   "symbols": {
@@ -1766,10 +1910,40 @@
    "TemplateSourcePort": "interface:28fe714ede"
   }
  },
+ "./shell/components/TemplateSource/ViewTemplateButton": {
+  "types": "./dist/shell/components/TemplateSource/ViewTemplateButton.d.ts",
+  "symbols": {
+   "ViewTemplateButton": "function:d60a0deb7e",
+   "ViewTemplateButtonProps": "interface:69436b2422"
+  }
+ },
+ "./shell/components/WidgetConfigFields/HtmlAttributeRows.hooks": {
+  "types": "./dist/shell/components/WidgetConfigFields/HtmlAttributeRows.hooks.d.ts",
+  "symbols": {
+   "HtmlAttributeRow": "interface:373a44047e",
+   "HtmlAttributeRowsController": "interface:9de2fac243",
+   "useHtmlAttributeRows": "function:c351fcd366"
+  }
+ },
+ "./shell/components/WidgetConfigFields/PlacementContentFields": {
+  "types": "./dist/shell/components/WidgetConfigFields/PlacementContentFields.d.ts",
+  "symbols": {
+   "PlacementContentEditorProps": "interface:a19de0f173",
+   "PlacementContentFields": "function:1d46d5b65a",
+   "PlacementContentFieldsProps": "interface:011eeab014"
+  }
+ },
  "./shell/hooks/admin-locale-port.hooks": {
   "types": "./dist/shell/hooks/admin-locale-port.hooks.d.ts",
   "symbols": {
    "AdminLocalePort": "interface:00873b477d"
+  }
+ },
+ "./shell/hooks/assistant-chats-port.hooks": {
+  "types": "./dist/shell/hooks/assistant-chats-port.hooks.d.ts",
+  "symbols": {
+   "AssistantChatsPort": "interface:4137e74272",
+   "AssistantConversation": "interface:0f89c59f00"
   }
  },
  "./shell/hooks/use-admin-document-locale.hooks": {
@@ -1802,6 +1976,12 @@
   "types": "./dist/shell/hooks/use-content-refresh-subscription.hooks.d.ts",
   "symbols": {
    "useContentRefreshSubscription": "function:84edf60b08"
+  }
+ },
+ "./shell/hooks/use-desktop-view-release.hooks": {
+  "types": "./dist/shell/hooks/use-desktop-view-release.hooks.d.ts",
+  "symbols": {
+   "useDesktopViewRelease": "function:06ae9eb5ab"
   }
  },
  "./shell/hooks/use-dock-auto-rail.hooks": {
@@ -1917,6 +2097,20 @@
    "resetAgentScreenContext": "function:e60b69f8c6"
   }
  },
+ "./shell/lib/agent-screenshot": {
+  "types": "./dist/shell/lib/agent-screenshot.d.ts",
+  "symbols": {
+   "ADMIN_CAPTURE_SCREENSHOT_CAPABILITY_ID": "variable:f4f5c31f63",
+   "CaptureAdminScreenshotOptions": "interface:6a7dd6672b",
+   "CapturedCanvas": "interface:949f0b128d",
+   "MAX_SCREENSHOT_BYTES": "variable:e4688880a0",
+   "RenderElementToCanvas": "type:b227cfaaa6",
+   "ScreenshotContentBlock": "type:329604a56a",
+   "ScreenshotToolResult": "interface:2b16bebe38",
+   "buildScreenshotFailureResult": "function:01b543a6ad",
+   "captureAdminScreenshotToolResult": "function:ce468ba503"
+  }
+ },
  "./shell/lib/agent-screenshot-bus": {
   "types": "./dist/shell/lib/agent-screenshot-bus.d.ts",
   "symbols": {
@@ -2015,6 +2209,32 @@
   "symbols": {
    "MovedTabsRoutePolicy": "interface:3232cd0a76",
    "resolveImportExportRoute": "function:451dbce98a"
+  }
+ },
+ "./shell/lib/live-tiptap-editor": {
+  "types": "./dist/shell/lib/live-tiptap-editor.d.ts",
+  "symbols": {
+   "LiveEditorCandidate": "interface:fa4a5e81bd",
+   "isLiveEditor": "function:42aeafbcf5"
+  }
+ },
+ "./shell/lib/media-embed-extension.hooks": {
+  "types": "./dist/shell/lib/media-embed-extension.hooks.d.ts",
+  "symbols": {
+   "MediaEmbedAttrs": "interface:ddd99b484f",
+   "MediaEmbedNodeViewController": "interface:52ea78a209",
+   "MediaEmbedNodeViewProps": "interface:3c25bf1b70",
+   "MediaPreviewKind": "type:a65210e924",
+   "mediaPreviewKind": "function:5a69894166",
+   "readMediaEmbedAttrs": "function:f32fef2e60",
+   "useMediaEmbedNodeView": "function:3649e29031"
+  }
+ },
+ "./shell/lib/media-image-extension.hooks": {
+  "types": "./dist/shell/lib/media-image-extension.hooks.d.ts",
+  "symbols": {
+   "createMediaImageReplace": "function:639e2c6e08",
+   "createMediaImageTranslator": "function:01389b39c3"
   }
  },
  "./shell/lib/merge-locale-overlays": {

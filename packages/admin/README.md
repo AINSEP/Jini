@@ -156,6 +156,30 @@ passes; none of these modules imports a host module or ships a default hook.
   host root with `{ routePath, signedIn }`.
 - Admin telemetry: hosts call `useBrowserTelemetryFeed` (`@jini-ai/admin/react`) with their `base`
   path and telemetry instance.
+- `shell/components/AssistantDock/assistant-dock-i18n`: `t({ locale, key, hostDictionary })` and
+  `createChatI18nAdapter({ locale, hostDictionary, settingsDialogKeys, settingsDialogDictionaries })`.
+  The host passes its product-naming copy as `hostDictionary`, plus the chat package's settings-owned
+  keys and the UI package's settings-dialog dictionaries by identity. Lookup order: host entries,
+  then the package dictionaries (split per locale group beside the entry file), then
+  `ADMIN_COMMON_I18N` (or the settings copy), then the key.
+- `dock-header-rules`: `dockSettingsMenuSections({ t, toolCallOptions, replyLengthOptions }, …)`;
+  the host supplies its Tool calls and Reply length choice lists. `useDockHeaderTip({ useTip })`
+  takes the host UI kit's InfoTip controller hook. `DockSettingsMenu` (mount under
+  `AdminKitProvider`) requires `useTaxonomyRowMenuHook` (normally `useTaxonomyRowMenu` from
+  `screens/taxonomy/TaxonomyRowMenu.hooks`) and the host chat library's `ChatSettingsSegmented`
+  (`DockSettingsSegmentedProps`); it renders `jini-dock-settings-menu*` and
+  `jini-assistant-dock-icon-button`, and reuses RowMenu's `row-menu-*` classes.
+- `FolderDropConfirmation`, `FolderDropError`, `FolderDropPathHint`, `FolderPathButton`: kit icons
+  (mount under `AdminKitProvider`) and a required `useTHook` (the host chat library's `useT`); they
+  render `jini-folder-drop-notice*` / `jini-composer-folder-path`, styled by the host.
+- `shell/components/MediaPickerDialog/JiniMediaPicker.hooks`: `useJiniMediaPicker(args)` takes the
+  host's mounted `picker` (or `null`), its media `port`, its `errorRedaction` policy and an
+  `errorIdOf(cause)` reader; it uses the kit's `useCachedLoader`.
+- `shell/components/WidgetConfigFields/HtmlAttributeRows.hooks` takes the host's attribute parser,
+  serializer and allowlist check (`htmlAttributesToRows`, `rowsToHtmlAttributes`,
+  `isDroppedAttributeRow`). `PlacementContentFields` requires the host's media content editor as
+  `ContentEditor`; the host imports that editor's stylesheet at the mount and styles
+  `jini-widget-embed-content-choice > .jini-field-label`.
 
 ## Errors
 
