@@ -94,6 +94,7 @@
       "./contracts/site/daemon-tool-audit": "universal",
       "./contracts/site/devops-deploy": "universal",
       "./contracts/site/events-outbox": "universal",
+      "./contracts/site/export-run": "universal",
       "./contracts/site/http-kit-settings": "universal",
       "./contracts/site/nav": "universal",
       "./contracts/site/platform-mail": "universal",
@@ -656,6 +657,11 @@
       "types": "./dist/contracts/site/events-outbox.d.ts",
       "import": "./dist/contracts/site/events-outbox.js",
       "default": "./dist/contracts/site/events-outbox.js"
+    },
+    "./contracts/site/export-run": {
+      "types": "./dist/contracts/site/export-run.d.ts",
+      "import": "./dist/contracts/site/export-run.js",
+      "default": "./dist/contracts/site/export-run.js"
     },
     "./contracts/site/http-kit-settings": {
       "types": "./dist/contracts/site/http-kit-settings.d.ts",

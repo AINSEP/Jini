@@ -1,4 +1,5 @@
 import type { Tracker } from "@jini-ai/core/contracts/site/diagnostics-observability";
+import type { ExportRunCounts, ExportRunSnapshot, ExportRunStatus } from "@jini-ai/core/contracts/site/export-run";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
@@ -38,39 +39,7 @@ import { firstExportFailure } from "@jini-ai/devops/static-export/failure-summar
  * the main server shares the one runner with the HTTP route, so single-flight holds there.
  */
 
-export type ExportRunStatus = "idle" | "running" | "completed" | "errored";
-
-export interface ExportRunCounts {
-  routesSucceeded: number;
-  routesFailed: number;
-  assetsSucceeded: number;
-  assetsFailed: number;
-}
-
-/**
- * The full-fidelity, JSON-transportable status of the current/most recent export run. Narrower
- * than the engine's full report on purpose: peak-memory bytes are never echoed back; only counts
- * plus full failure detail.
- */
-export interface ExportRunSnapshot {
-  status: ExportRunStatus;
-  startedAtIso: string | null;
-  finishedAtIso: string | null;
-  outputDir: string | null;
-  /** Present only once `status` is `"completed"`. */
-  basePath?: string;
-  /** Present only once `status` is `"completed"`. Failed routes or assets make the copy incomplete. */
-  ok?: boolean;
-  counts?: ExportRunCounts;
-  failedRoutes?: { path: string; kind: string; reason: string }[];
-  failedAssets?: { url: string; reason: string }[];
-  skippedManifestEntries?: { reason: string; detail: string }[];
-  unreferencedThemeFiles?: string[];
-  droppedReferences?: { page: string; url: string; attribute: string; reason: "not-exported" | "needs-server" }[];
-  basePathRewriteWarning?: string;
-  /** Present only when `status` is `"errored"` — always a message, never the raw error object. */
-  error?: string;
-}
+export type { ExportRunCounts, ExportRunSnapshot, ExportRunStatus };
 
 /**
  * A structural mirror of the export engine's report — only the fields
