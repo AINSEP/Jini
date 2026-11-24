@@ -4,6 +4,12 @@ import { describe, expect, it } from "vitest";
 import type { AdminIdentityUser } from "../../models.js";
 import { useResetPasswordFields, type ResetPasswordFieldsInput } from "../hooks/use-reset-password-fields.hooks.js";
 
+/**
+ * @file `useResetPasswordFields` — the confirm-field + reveal-toggle state extracted out of
+ * `Users.tsx`'s `UserResetPasswordDialog`. Harness: a hand-built input object, no `fetch`/`FetchQueryProvider`
+ * needed since this hook does no I/O.
+ */
+
 function fakeUser(principalId: string): AdminIdentityUser {
   return {
     principalId,
@@ -72,8 +78,9 @@ describe("useResetPasswordFields", () => {
     expect(result.current.showNewPassword).toBe(true);
     expect(result.current.showConfirmPassword).toBe(true);
 
+    // Cancel closes the dialog (principalId -> null)...
     rerender({ resetPasswordFor: null, newPassword: "" });
-
+    // ...then it reopens, for a different user.
     rerender({ resetPasswordFor: USER_B, newPassword: "" });
 
     expect(result.current.confirmPassword).toBe("");
@@ -87,7 +94,7 @@ describe("useResetPasswordFields", () => {
     expect(result.current.showNewPassword).toBe(true);
 
     rerender({ resetPasswordFor: null, newPassword: "" });
-
+    // A fresh object with the SAME principalId — e.g. the `users` list query re-ran between opens.
     rerender({ resetPasswordFor: fakeUser("u1"), newPassword: "" });
 
     expect(result.current.showNewPassword).toBe(false);

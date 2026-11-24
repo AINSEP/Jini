@@ -1,3 +1,5 @@
+import { TestChipField } from './chip-field.fixture.js';
+import { testClipboard } from './clipboard.fixture.js';
 import { Suspense, type ReactNode } from 'react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { TabViewProps } from '@jini-ai/core/contracts/admin-module';
@@ -24,7 +26,7 @@ type Options = Parameters<typeof security>[1];
 interface MountOptions { options?: Options; requestedTab?: string; onTabChange?: (r: { tab: string }) => void; t?: SecurityTranslator; tabs?: Record<string, unknown> }
 function mount(permissions: readonly string[], m: MountOptions = {}) {
   bars.length = 0;
-  const feature = security({ ui: reactModuleUi }, m.options ?? {}), api = createMemorySecurityApi({});
+  const feature = security({ ui: reactModuleUi, ChipField: TestChipField, clipboard: testClipboard }, m.options ?? {}), api = createMemorySecurityApi({});
   const providers = vi.spyOn(api, 'providers');
   const admin = createAdmin({ modules: [feature], ports: { securityApi: api, rootKey: createMemoryRootKey({}) } }, { permissions });
   const { Page, tabs } = feature.react.pages.secrets;

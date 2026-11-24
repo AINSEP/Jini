@@ -5,17 +5,16 @@
  * `trash` requires a caller-held display snapshot. Adapters expose only hide/unhide/purge, with no
  * describe method: a read that can throw must never become a dependency of trash listing.
  */
+import type { TrashActor } from "@jini-ai/core/contracts/site/cms-trash";
+
+export type { TrashActor } from "@jini-ai/core/contracts/site/cms-trash";
+
 export type TrashEntityType = string;
 
 /** The two display strings captured from columns at trash time. Never derived by the port. */
 export interface TrashDisplay {
   title: string;
   subtitle?: string | null;
-}
-
-export interface TrashActor {
-  principalId: string;
-  pluginId?: string | null;
 }
 
 /**

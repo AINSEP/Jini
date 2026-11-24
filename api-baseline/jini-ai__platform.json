@@ -894,8 +894,7 @@
  "./secrets/legacy-owner": {
   "types": "./dist/secrets/legacy-owner.d.ts",
   "symbols": {
-   "LegacyOwnerDestination": "interface:9fc8956967",
-   "LegacyOwnerSnapshot": "interface:0fb07ca3e1",
+   "LegacyOwnerSnapshot": "type:0cb5385460",
    "OWNER_WORKSPACE_ID": "variable:466508722c",
    "OwnerStoreBackupError": "class:f58b2abcb9",
    "OwnerStoreRecoveryError": "class:5969635d4a",

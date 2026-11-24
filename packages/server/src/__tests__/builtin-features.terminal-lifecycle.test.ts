@@ -5,6 +5,7 @@ import { createTerminalService } from '@jini-ai/platform';
 import { expect, it, vi } from 'vitest';
 import { composeJiniKernel } from '../compose-jini-kernel.js';
 import { createTestRouteHost } from '@jini-ai/core/contracts/server/testing';
+import { nodeOsPorts } from './fixtures/node-os-ports.js';
 
 const child = { running: false };
 const pty: PtyProcess = {
@@ -22,7 +23,7 @@ it('P9: closing the kernel terminates PTYs owned by the terminal feature', async
   try {
     kernel = await composeJiniKernel({
       app, adapter: createTestRouteHost(), resolvedPortRef: { current: 0 },
-      security: { mode: 'host' }, storage: { kind: 'memory' }, profile: 'agent-core-v1',
+      security: { mode: 'host' }, osPorts: nodeOsPorts, storage: { kind: 'memory' }, profile: 'agent-core-v1',
       capabilities: { 'host:exec': true }, features: { terminal: true },
       featureOptions: { terminal: { terminalService: service } },
     });

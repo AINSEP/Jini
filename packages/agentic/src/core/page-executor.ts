@@ -29,7 +29,7 @@ import {
   normalizeAgentLabel,
 } from './guards.js';
 import { PAGE_CAPABILITIES } from './page-capabilities.js';
-import type { PageNavigationInput, PageNavigationResult } from './page-navigation.js';
+import type { PageNavigationInput, PageNavigationResult } from '@jini-ai/core/contracts/site/agentic-dom';
 import type { PageDriver, PageSummary } from './page-driver.js';
 
 /** Default marker lifetime, long enough to notice and short enough not to linger. */

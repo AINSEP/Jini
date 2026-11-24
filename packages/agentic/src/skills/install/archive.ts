@@ -1,5 +1,6 @@
 import type { ArchiveEntry, ArchiveReaderPort } from "./ports.js";
-import { decodeSkillBase64, MAX_SKILL_BYTES, MAX_SKILL_FILES, MAX_SKILL_FILE_BYTES, SkillInputError, validateSkillPath, type SkillUploadFile } from "./validation.js";
+import { decodeSkillBase64, MAX_SKILL_BYTES, MAX_SKILL_FILES, MAX_SKILL_FILE_BYTES, SkillInputError, validateSkillPath } from "./validation.js";
+import type { SkillUploadFile } from "@jini-ai/core/contracts/site/skills-install";
 
 /** Read bounded archive content only; paths are validated before opening any entry stream. */
 export async function readSkillArchive({ base64, archiveReader }: { base64: string; archiveReader: ArchiveReaderPort }, _optional: Record<string, never> = {}): Promise<SkillUploadFile[]> {

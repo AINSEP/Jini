@@ -291,8 +291,8 @@
    "MEDIA_PROVIDER_CONTRACT": "variable:f8e3a7c887",
    "MEDIA_PROVIDER_ID_ALIASES": "variable:1740c65745",
    "MediaDispatchEngine": "interface:675c88e891",
-   "MediaDispatchEngineOptions": "interface:68937559ac",
-   "MediaDispatchEngineRequired": "interface:20c4f286b1",
+   "MediaDispatchEngineOptions": "interface:61a28deda6",
+   "MediaDispatchEngineRequired": "interface:8605598c00",
    "MediaExecutionMode": "type:95a9585028",
    "MediaExecutionPolicy": "interface:16b4777db1",
    "MediaFamily": "type:a46455a5a5",
@@ -302,7 +302,7 @@
    "MediaImageReference": "interface:79c7a35813",
    "MediaModel": "interface:9cca162139",
    "MediaModelCatalog": "interface:7722dd809c",
-   "MediaOutboundOptions": "interface:d339865ea7",
+   "MediaOutboundOptions": "interface:1368cbb662",
    "MediaPolicy": "interface:0b04ddb95d",
    "MediaPolicyDenial": "interface:641004a77a",
    "MediaPolicyDenialCode": "type:3a19bc8d2b",
@@ -372,7 +372,7 @@
    "createImageRouterVideoPollingAdapter": "function:6bddc5c4c9",
    "createInMemoryAsyncOperationStore": "function:d33df33792",
    "createInMemoryMediaTaskStore": "function:ef69cf6fa6",
-   "createMediaDispatchEngine": "function:c7fb69d5fa",
+   "createMediaDispatchEngine": "function:3a9f2f64f9",
    "createMediaProviderRegistry": "function:22b614eb00",
    "createRawBytesParser": "function:35d6e57296",
    "createSqliteAsyncOperationStore": "function:fa768e13fd",
@@ -473,7 +473,8 @@
   "types": "./dist/media-providers/dispatch/node.d.ts",
   "symbols": {
    "NodeMediaHttpClientOptions": "interface:30fa47365c",
-   "createNodeMediaHttpClient": "function:3335558ca6"
+   "createNodeMediaHttpClient": "function:3335558ca6",
+   "nodeMediaGuardedFetch": "variable:7cca3360aa"
   }
  },
  "./saved-requests": {
@@ -481,7 +482,7 @@
   "symbols": {
    "SavedRequestCredentialResolverPort": "interface:cdc502c070",
    "SavedRequestDefinition": "interface:abc0567753",
-   "SavedRequestDeps": "interface:a639b7d028",
+   "SavedRequestDeps": "interface:64839a7d99",
    "SavedRequestError": "class:5b3c02638e",
    "SavedRequestErrorCode": "type:7732bedc12",
    "SavedRequestOutputField": "interface:7af571d4b5",

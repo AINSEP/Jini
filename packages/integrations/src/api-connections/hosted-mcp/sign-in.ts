@@ -1,7 +1,7 @@
 import { randomBytes } from "node:crypto";
 import { nowIso as readNowIso } from "@jini-ai/core/primitives";
 import type { DeviceAuthorization, OAuthTokenSet } from "@jini-ai/core/contracts/oauth";
-import type { DeviceAuthorizationStore, ExternalMcpOAuthService } from "./contracts.js";
+import type { DeviceAuthorizationStore, ExternalMcpOAuthService } from "@jini-ai/core/contracts/site/api-connections-hosted-mcp";
 import { createSharedExternalMcpOAuth } from "./shared-sign-in.js";
 import { oauthClientOptions, requireOAuthRecord, readStoredEndpoints, readStoredScopes, resolveProviderDescriptor, resolveClient, type SignInDeps, type ExternalMcpOAuthServiceDeps } from "./sign-in-provider.js";
 import { selfConfigureConnection } from "./sign-in-configuration.js";

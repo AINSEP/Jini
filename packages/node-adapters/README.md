@@ -13,8 +13,8 @@ There is no root entry. Import the binding family you need:
 
 | Entry | Exports | Binds |
 | --- | --- | --- |
-| `@jini-ai/node-adapters/fs` | `nodeFileLock`, `nodeAtomicWriter` | core's `FileLockPort` and `AtomicFileWriterPort` |
-| `@jini-ai/node-adapters/process` | `nodeProcessControl`, `createProcessControlPort` (and the `ProcessFunctions` type), `createSpawnPort`, `nodeSpawnPort`, `nodeCommandShell` | core's `ProcessControlPort`, the spawn port, the command planner's inputs |
+| `@jini-ai/node-adapters/fs` | `createFileLockPort`, `createAtomicWriterPort` (and the `AtomicWriterFunctions` type) | core's `FileLockPort` and `AtomicFileWriterPort` |
+| `@jini-ai/node-adapters/process` | `createProcessControlPort` (and the `ProcessFunctions` type), `createSpawnPort`, `nodeSpawnPort`, `nodeCommandShell` | core's `ProcessControlPort`, the spawn port, the command planner's inputs |
 | `@jini-ai/node-adapters/agent-plugins` | `createNodeAgentPluginEffects` (and the `AgentPluginPlatformFunctions` type) | the agent-plugin lifecycle's native effects |
 
 `createProcessControlPort({ functions })` takes the three platform process functions injected (the host
@@ -24,8 +24,9 @@ function they wrap (`{ pids }` vs a positional array, `{ pid }` vs a positional 
 
 ## Rules this package obeys (enforced by `pnpm guard`)
 
-- Imports only `@jini-ai/core`, `@jini-ai/protocol` and `@jini-ai/platform`; it may name a domain's port
-  types (type-only, declared as a peer) but never runs a domain's code.
+- Imports only `@jini-ai/core` (contracts) and Node built-ins; every platform function it binds arrives
+  injected from the host (K5). It may name a domain's port types (type-only, declared as a peer) but
+  never runs a domain's code.
 - Only a host or a host preset imports it; it never imports a host preset.
 - No root barrel; each later binding family (agent plugins, http, agent runtime) adds its own entry,
   source file and test in its own commit.
@@ -36,6 +37,9 @@ function they wrap (`{ pids }` vs a positional array, `{ pid }` vs a positional 
 
 - `@jini-ai/node-adapters/process`: a host building its own agent-executor runtime passes
   `@jini-ai/platform/process`'s three functions to `createProcessControlPort({ functions })`.
-  `nodeProcessControl` stays pre-bound until the server preset's process cutover lands with XC-6c/d,
-  so `@jini-ai/server`'s kernel needs no direct platform import.
+- `@jini-ai/node-adapters/fs`: the host passes `@jini-ai/platform/fs`'s `withFileLock` to
+  `createFileLockPort` and `writeFileAtomicAsync`, `writeJsonFileAtomicAsync`, `backupOriginalOnce` to
+  `createAtomicWriterPort`; each builder returns the injected functions under the port's names.
+- No ready-made constant binds a platform implementation here: `@jini-ai/server`'s presets take the
+  three bound ports as the required `osPorts` (see that package's Wiring).
 - `@jini-ai/node-adapters/agent-plugins`: the host passes `{ withFileLock, writeJsonFileAtomicAsync, readBootIdentity }`.

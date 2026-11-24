@@ -73,13 +73,14 @@ describe('other-credentials controller write guards', () => {
     expect(removed).toEqual(['a']);
   });
 
-  it('surfaces a failed write as a store error and clears the saving flag', async () => {
+  it('surfaces a failed write on its row (SEC-13) and clears the saving flag', async () => {
     const row = mediaRow();
     const api = createMemoryOtherCredentials({ rows: [row] });
     api.remove = () => Promise.reject(new Error('backend detail'));
     const c = security.createOtherCredentialsController({ api, permissions: integrationGrants });
     await expect(c.remove({ row })).resolves.toBe(false);
-    expect(c.getSnapshot().errors).toEqual({ 'media-provider': 'Unable to update credential' });
+    expect(c.getSnapshot().rowErrors).toEqual({ [`media-provider:${row.id}`]: 'Unable to update credential' });
+    expect(c.getSnapshot().errors).toEqual({});
     expect(c.getSnapshot().saving).toBe(false);
   });
 });

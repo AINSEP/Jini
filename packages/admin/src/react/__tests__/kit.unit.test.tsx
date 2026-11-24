@@ -4,7 +4,8 @@ import { describe, expect, it, vi } from 'vitest';
 import { AdminKitProvider, Button, Icon, InfoTip, TabBar, type AdminKitChat, type KitIconName, useAdminKitChatPosters, useAdminKitValues, useAdminThemeKit, useChatT, useDirtyGuard, useFetchQuery, useMediaProviderRules, useT } from '../kit.js';
 import {
   CodeWithLines, CodeWrapToggle, I18nProvider, PreviewModalShell, RemixIcon, SettingsDialogShell, Toast,
-  useAdminKitChatValues, useCodeWrap, useFabPosition, useInfoTip, usePanelPosition, useSelectDropdown, useSerialWrites, useTabBarKeyboard,
+  useAdminKitChatValues, useCodeWrap, useCopyToClipboard, useFabPosition, useInfoTip, usePanelPosition, useSelectDropdown, useSerialWrites, useTabBarKeyboard,
+  useTabbedDialog,
   type AdminKit, type AdminKitHooks, type AdminKitValues, type ChatPaneAgent, type FabPositionInput,
 } from '../kit.js';
 import { fakeAdminKit, fixtureQuery } from '../testing-kit.js';
@@ -237,12 +238,28 @@ describe('admin kit: B5 additions (A-K2-0a remainder + A-K2-0.J)', () => {
     expect(useSelectDropdownImpl).toHaveBeenCalledWith(dropdownArgs, { disabled: true });
   });
 
+  it('the tabbed-dialog and copy facades return the injected controller and pass every argument through', () => {
+    const tabbed = { activeTabId: 'a', setActiveTabId: () => {} };
+    const copier = { copied: false, copy: async () => true };
+    const useTabbedDialogImpl = vi.fn(() => tabbed);
+    const useCopyToClipboardImpl = vi.fn(() => copier);
+    const kit = fakeAdminKit({ hooks: { useTabbedDialog: useTabbedDialogImpl, useCopyToClipboard: useCopyToClipboardImpl } });
+    const tabArgs = { tabs: [{ id: 'a', label: 'A', panel: null }], initialActiveTabId: 'a' };
+    const clipboard = { copyText: async () => true };
+    const read = renderHook(() => ({ tabbed: useTabbedDialog(tabArgs, {}), copier: useCopyToClipboard(clipboard, 25) }), { wrapper: wrap(kit) }).result.current;
+    expect(read.tabbed).toBe(tabbed);
+    expect(read.copier).toBe(copier);
+    expect(useTabbedDialogImpl).toHaveBeenCalledWith(tabArgs, {});
+    expect(useCopyToClipboardImpl).toHaveBeenCalledWith(clipboard, 25);
+  });
+
   it('the values reader hands back the injected UI functions by identity', () => {
     const values: Partial<AdminKitValues> = {
       buildSandboxProxyDataUrl: () => 'data:sentinel', openLightboxDialog: () => {}, closeLightboxDialog: () => {},
       resolveTabBarTabIndex: () => 0, hasPermission: () => true, standingDraftRecoveryMessage: () => 'recover',
       createStandingDraftLocalBackup: () => ({ write: () => {}, read: () => null, clear: () => {} }),
       createFailureChannel: () => ({ publish: () => {}, subscribe: () => () => {}, getSnapshot: () => null, getGeneration: () => 0, reset: () => {} }),
+      resolveInitialActiveTabId: () => 'a', findActiveTab: () => undefined,
     };
     const read = renderHook(() => useAdminKitValues(), { wrapper: wrap(fakeAdminKit({ values })) }).result.current;
     for (const name of Object.keys(values) as (keyof AdminKitValues)[]) expect(read[name]).toBe(values[name]);

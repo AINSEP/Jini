@@ -1,4 +1,4 @@
-import { createNodeMediaHttpClient } from '../node.js';
+import { createNodeMediaHttpClient, nodeMediaGuardedFetch } from '../node.js';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { dispatchVendorRequest, requireApiKey } from '../vendor-adapter.js';
 import type { VendorAdapter, VendorRequest } from '../vendor-adapter.js';
@@ -10,7 +10,7 @@ afterEach(() => {
 
 function baseCtx(overrides: Partial<RenderContext> = {}): RenderContext {
   return {
-    httpClient: createNodeMediaHttpClient({}),
+    httpClient: createNodeMediaHttpClient({}), guardedFetch: nodeMediaGuardedFetch,
     surface: 'image',
     model: 'test-model',
     wireModel: 'test-model',

@@ -37,9 +37,7 @@ import {
   type ToolExecutor,
 } from '@jini-ai/daemon';
 import { openSqliteEventLog } from '@jini-ai/daemon/store/event-log/sqlite';
-import { createSystemClock } from '@jini-ai/platform/system';
-import { nodeAtomicWriter, nodeFileLock } from '@jini-ai/node-adapters/fs';
-import { nodeCommandShell, nodeProcessControl, nodeSpawnPort } from '@jini-ai/node-adapters/process';
+import type { Clock } from '@jini-ai/core/primitives';
 import type { AgentExecutorRuntimePorts } from '@jini-ai/daemon/ports/runtime';
 
 /** Where a composition's durable state lives. */
@@ -91,8 +89,22 @@ export interface KernelAgentRuntimeOptions {
   readonly bindAgentRuntime?: (required: { runtime: NativeAgentRuntime }) => AgentRuntimePort;
 }
 
+/**
+ * The OS-facing ports whose implementations live in another package (spawn, process control, file
+ * lock, atomic writer, command shell, wall clock). The kernel binds none of them itself: a Node host
+ * builds them with `@jini-ai/node-adapters`' builders over `@jini-ai/platform`'s functions and passes them in.
+ */
+export type KernelOsPorts = Pick<AgentExecutorRuntimePorts, 'spawn' | 'processes' | 'fileLock' | 'writer'> & {
+  /** Builds the command-shell inputs from the env the kernel resolved (`agentExecutor.hostEnv`, else the process env); a Node host passes `nodeCommandShell`. */
+  readonly commandShell: (required: { readonly env: Readonly<Record<string, string | undefined>> }) => AgentExecutorRuntimePorts['commandShell'];
+  /** Stamps durable event-log entries under sqlite storage; a Node host passes `createSystemClock()`. */
+  readonly clock: Clock;
+};
+
 export interface CreateJiniKernelBaseOptions {
   readonly storage: JiniKernelStorage;
+  /** Host-bound process control, file lock and atomic writer (see {@link KernelOsPorts}). */
+  readonly osPorts: KernelOsPorts;
   /** Extra `createAgentExecutor` options (e.g. `mcpJsonInjection`). `lifecycle`/`journal`/`classifyFailure` are kernel-owned. */
   readonly agentExecutor?: Omit<NonNullable<Parameters<typeof createAgentExecutor>[1]>, 'journal' | 'classifyFailure'>
     & Partial<Pick<Parameters<typeof createAgentExecutor>[0], 'hostEnv' | 'runtime'>> & KernelAgentRuntimeOptions;
@@ -145,9 +157,10 @@ function bindNativeAgentRuntime({ runtime }: { runtime: NativeAgentRuntime }, _o
   return createAgentRuntimeBindings({ runtime }) satisfies AgentRuntimePort;
 }
 
-/** The Node implementations of the OS-facing ports one agent executor needs, bound once from platform. */
-function nodeAgentExecutorRuntime({ hostEnv }: { hostEnv: NodeJS.ProcessEnv }, _optional: Record<string, never> = {}): AgentExecutorRuntimePorts {
-  return { spawn: nodeSpawnPort, processes: nodeProcessControl, fileLock: nodeFileLock, writer: nodeAtomicWriter, commandShell: nodeCommandShell({ env: hostEnv }) };
+/** The OS-facing ports one agent executor needs, all host-injected; only the command shell is bound here, to the resolved env. */
+function hostAgentExecutorRuntime({ hostEnv, osPorts }: { hostEnv: NodeJS.ProcessEnv; osPorts: KernelOsPorts }, _optional: Record<string, never> = {}): AgentExecutorRuntimePorts {
+  const { spawn, processes, fileLock, writer } = osPorts;
+  return { spawn, processes, fileLock, writer, commandShell: osPorts.commandShell({ env: hostEnv }) };
 }
 
 interface KernelStorageHandles {
@@ -178,7 +191,7 @@ async function openKernelStorage({ options }: { options: CreateJiniKernelBaseOpt
     if (path === null) log = createInMemoryEventLog({});
     else {
       // A non-null path is derived only from sqliteStorage above.
-      log = openSqliteEventLog({ file: path, open: sqliteStorage!.open, clock: createSystemClock() });
+      log = openSqliteEventLog({ file: path, open: sqliteStorage!.open, clock: options.osPorts.clock });
     }
     opened.push(log);
     return log;
@@ -229,8 +242,8 @@ export async function createJiniKernelBase(options: CreateJiniKernelBaseOptions)
   const { eventLog, journalEventLog, lifecycle, disposeTracing, journal, sqlite } = await openKernelStorage({ options });
 
   const agentRuntime = createKernelAgentRuntime({ options });
-  // The preset is a Node host: it binds the Node implementations unless the caller supplies its own.
-  const { runtime = nodeAgentExecutorRuntime({ hostEnv: agentRuntime.hostEnv }), runtimeState: _state, codexDisablePlugins: _codex, piGracefulShutdownMs: _pi, bindAgentRuntime = bindNativeAgentRuntime, ...executorOptions } = options.agentExecutor ?? {};
+  // The preset is a Node host: it binds the host's injected ports unless the caller supplies a whole runtime.
+  const { runtime = hostAgentExecutorRuntime({ hostEnv: agentRuntime.hostEnv, osPorts: options.osPorts }), runtimeState: _state, codexDisablePlugins: _codex, piGracefulShutdownMs: _pi, bindAgentRuntime = bindNativeAgentRuntime, ...executorOptions } = options.agentExecutor ?? {};
   const agentExecutor = createAgentExecutor({ lifecycle, runtime, hostEnv: agentRuntime.hostEnv, agentRuntime: bindAgentRuntime({ runtime: agentRuntime }) }, {
     ...executorOptions,
     journal,

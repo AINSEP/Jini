@@ -4,7 +4,7 @@ import {
   CommerceCheckoutValidationError, CommerceOrderNotFoundError, CommercePriceNotFoundError,
   CommerceProductNotFoundError, readCommerceStatus,
 } from "../../../index.js";
-import type { CommercePaymentProvider } from "../../../index.js";
+import type { CommercePaymentProvider } from "@jini-ai/core/contracts/site/commerce";
 import { buildRegistrations, catalog, contributeCommerceGetStatusTools, derivedRisk } from "../../../tools.js";
 
 const provider: CommercePaymentProvider = { id: "regional", displayName: "Regional Pay", capabilities: {

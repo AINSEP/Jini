@@ -5,14 +5,14 @@ import type { useRootKeyTab } from '../hooks/RootKeyTab.hooks.js';
 import { RootKeyTab } from '../tabs/RootKeyTab.js';
 type RootKeyView = ReturnType<typeof useRootKeyTab>;
 const state = vi.hoisted((): { vm: RootKeyView | null } => ({ vm: null }));
-vi.mock('../hooks/RootKeyTab.hooks.js', () => ({ useRootKeyTab: () => state.vm }));
 const noop = () => {};
 function view(over: Partial<RootKeyView> = {}): RootKeyView {
   return { denied: false, loading: false, saving: false, status: undefined, error: undefined, result: undefined, scopeNotice: 'Scope notice', token: '', confirm: '', confirming: false, preview: undefined, locked: false, canGenerate: false, canConfirm: false,
     productionNote: undefined, badge: undefined, sourceNote: undefined, fingerprintLabel: 'Fingerprint', fingerprintHint: 'Hint',
-    onToken: noop, onConfirmText: noop, generate: noop, unlock: noop, previewFresh: noop, cancelFresh: noop, confirmFresh: async () => {}, ...over };
+    canReveal: false, revealing: false, revealError: null, revealedValue: null, revealLabels: { reveal: 'Reveal', hide: 'Hide', copy: 'Copy' },
+    onToken: noop, onConfirmText: noop, generate: noop, unlock: noop, previewFresh: noop, cancelFresh: noop, confirmFresh: async () => {}, reveal: noop, hide: noop, copy: noop, ...over };
 }
-function show(over: Partial<RootKeyView> = {}) { state.vm = view(over); return render(<KitProvider><RootKeyTab params={{}} permissions={[]} /></KitProvider>); }
+function show(over: Partial<RootKeyView> = {}) { state.vm = view(over); return render(<KitProvider><RootKeyTab params={{}} permissions={[]} useRootKeyTabHook={() => state.vm!} /></KitProvider>); }
 afterEach(cleanup);
 describe('RootKeyTab', () => {
   it('renders only the denial when denied', () => { const { container } = show({ denied: true, canGenerate: true }); expect(container.textContent).toBe('Permission denied'); });

@@ -5,7 +5,12 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { spawn as realSpawn, type ChildProcess, type SpawnOptions } from 'node:child_process';
 import { listProcessSnapshots, stopProcesses, waitForProcessExit } from '@jini-ai/platform/process';
 import { createProcessControlPort, createSpawnPort, nodeCommandShell, type ProcessFunctions } from '../process.js';
-import { nodeAtomicWriter, nodeFileLock } from '../fs.js';
+import { backupOriginalOnce, withFileLock, writeFileAtomicAsync, writeJsonFileAtomicAsync } from '@jini-ai/platform/fs';
+import { createAtomicWriterPort, createFileLockPort } from '../fs.js';
+
+/** The host-side binding a Node host performs: platform's functions handed to the builders. */
+const nodeFileLock = createFileLockPort({ withFileLock });
+const nodeAtomicWriter = createAtomicWriterPort({ writeFileAtomicAsync, writeJsonFileAtomicAsync, backupOriginalOnce });
 
 const stopped = { alreadyStopped: false, forcedPids: [], matchedPids: [3], remainingPids: [], stoppedPids: [3] };
 

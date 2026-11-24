@@ -81,6 +81,48 @@
    "parseSearchRequest": "function:3c3f074eaf"
   }
  },
+ "./site/access": {
+  "types": "./dist/site/access.d.ts",
+  "symbols": {
+   "createCmsSearchAccessPort": "function:35efb039e5",
+   "memberSearchAudiences": "function:3dfed94ba5"
+  }
+ },
+ "./site/cms-document-source": {
+  "types": "./dist/site/cms-document-source.d.ts",
+  "symbols": {
+   "CMS_SEARCH_COLLECTIONS": "variable:5b44a4c0f0",
+   "CMS_SEARCH_EVENTS": "variable:626438d487",
+   "CmsHostPostRow": "type:2d0d616e59",
+   "CmsMemberAccess": "interface:f10fdafaea",
+   "CmsSearchDatabase": "interface:b2e1279086",
+   "CmsSearchDocumentRules": "interface:6d7ff6b54c",
+   "CmsSearchIsLiveAt": "type:27087b0909",
+   "CmsSearchKernel": "type:081b50f1bc",
+   "CmsSearchPostRow": "type:fa55e949ce",
+   "CmsSearchPostsTable": "interface:078c1e2ee6",
+   "CmsSearchResolveMemberAccess": "type:2eb090acbc",
+   "CmsSearchRules": "interface:5e69a76319",
+   "MEMBER_AUDIENCE": "variable:59c83d81a2",
+   "cmsSearchRevision": "function:e9c06fc75e",
+   "cmsSearchVisibility": "function:89dd03c7b7",
+   "createCmsSearchDocumentSources": "function:256b56c346",
+   "isRowLive": "function:f6df1f2864",
+   "toNowIso": "variable:e4cdd4098d"
+  }
+ },
+ "./site/settings": {
+  "types": "./dist/site/settings.d.ts",
+  "symbols": {
+   "SEARCH_PROVIDER_KEY": "variable:6810ab7360",
+   "SEARCH_SETTINGS_NAMESPACE": "variable:38495614dd",
+   "SearchSettingWriter": "type:510deabe7e",
+   "ensureSearchProviderSetting": "function:ff39ec74f4",
+   "isSearchProviderId": "function:ab25ef423d",
+   "readSearchProviderSetting": "function:f580351a30",
+   "writeSearchProviderSetting": "function:b6770f3abe"
+  }
+ },
  "./testkit": {
   "types": "./dist/testkit/index.d.ts",
   "symbols": {

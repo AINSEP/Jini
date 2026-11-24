@@ -2,8 +2,8 @@ import { createAgentRuntimeBindings, createNativeAgentRuntime, type AgentRuntime
 import type { RuntimeAgentDef } from '@jini-ai/core/contracts/agents';
 import type { AgentRuntimePort } from '../../ports/agent-runtime.js';
 import type { ProcessSnapshot, RuntimePlatform, StopProcessesResult } from '@jini-ai/core/contracts/runtime';
-import { nodeAtomicWriter, nodeFileLock } from '@jini-ai/node-adapters/fs';
-import { createSpawnPort, nodeCommandShell, nodeProcessControl, nodeSpawnPort, type SpawnFunction } from '@jini-ai/node-adapters/process';
+import { nodeAtomicWriter, nodeFileLock, nodeProcessControl } from './node-os-ports.js';
+import { createSpawnPort, nodeCommandShell, nodeSpawnPort, type SpawnFunction } from '@jini-ai/node-adapters/process';
 import type { AgentExecutorRuntimePorts } from '../../ports/runtime.js';
 import { fakeRuntimePorts, type EffectLog } from '../../ports/__tests__/fakes/runtime.js';
 
