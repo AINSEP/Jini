@@ -30,8 +30,8 @@ import type { PermissionGrantRegistry } from "./permission-grants.js";
  *   seeded workspace, since `@jini-ai/cms`'s `BUILTIN_ADMIN_PERMISSIONS` includes it.
  * - the built-in-role grant `{ role: "admin", ... }` states the same intent directly against
  *   the role, so a workspace seeded before `admin.integrations.manage` existed (this repo's own
- *   installs may be exactly that, per `pages/permissions.ts`'s own account of `sites/tovu-com/
- *   content.db`) still reaches `admin` even though the migration's `from` row is absent there.
+ *   installs may be exactly that, per the host `pages/permissions.ts`'s own account of its seeded
+ *   site database) still reaches `admin` even though the migration's `from` row is absent there.
  *
  * `owner` needs neither: `authorize()` short-circuits on its `*` wildcard before ever looking for
  * a matching `policy_permissions` row. `editor`/`viewer` get neither grant, deliberately — this

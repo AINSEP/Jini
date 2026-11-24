@@ -36,6 +36,7 @@ test('publishes user management from its canonical folder and preserves runtime 
     './identity/permission-grants': 'universal',
     './identity/role-manage-permission': 'universal',
     './identity/user-manage-permission': 'universal',
+    './identity/site-key-permission': 'universal',
     './identity/api-key-types': 'universal',
     './identity/api-key-secret': 'node',
     './identity/api-key-service': 'node',

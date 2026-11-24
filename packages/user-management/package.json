@@ -30,6 +30,7 @@
       "./identity/permission-grants": "universal",
       "./identity/role-manage-permission": "universal",
       "./identity/user-manage-permission": "universal",
+      "./identity/site-key-permission": "universal",
       "./identity/api-key-types": "universal",
       "./identity/api-key-secret": "node",
       "./identity/api-key-service": "node",
@@ -50,6 +51,7 @@
         "./identity/permission-grants": "server",
         "./identity/role-manage-permission": "server",
         "./identity/user-manage-permission": "server",
+        "./identity/site-key-permission": "server",
         "./identity/api-key-types": "server",
         "./identity/api-key-secret": "server",
         "./identity/api-key-service": "server",
@@ -154,6 +156,11 @@
       "types": "./dist/identity/user-manage-permission.d.ts",
       "import": "./dist/identity/user-manage-permission.js",
       "default": "./dist/identity/user-manage-permission.js"
+    },
+    "./identity/site-key-permission": {
+      "types": "./dist/identity/site-key-permission.d.ts",
+      "import": "./dist/identity/site-key-permission.js",
+      "default": "./dist/identity/site-key-permission.js"
     },
     "./identity/api-key-types": {
       "types": "./dist/identity/api-key-types.d.ts",

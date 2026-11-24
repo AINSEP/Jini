@@ -14,6 +14,8 @@ The why for the extraction and the package layout is in
   takes `RoleRepoPort`, `RolePolicyRepoPort`, `PolicyRepoPort`, `PolicyPermissionRepoPort` (from
   `@jini-ai/user-management`) and an `IdGenerator` (from `@jini-ai/core/primitives`).
 - `register*PermissionGrants({ registry })` takes the `PermissionGrantRegistry` the host created.
+  `registerSiteKeyPermissionGrants({ registry, siteKeyName })` also takes the host's site-key env var
+  name (product identity, K3); the migration's audit reason names it.
 - `createBootSessionTokenStore()` takes nothing; the module-level `mintBootSessionToken` /
   `redeemBootSessionToken` wrap one process-scoped store.
 
