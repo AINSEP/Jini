@@ -1284,13 +1284,13 @@
  "./fs-files/custom-root-store": {
   "types": "./dist/fs-files/custom-root-store.d.ts",
   "symbols": {
-   "CustomFsRootError": "class:a812ad3cb5",
+   "CustomFsRootError": "class:6373c5edf1",
    "CustomFsRootState": "interface:108306da9a",
    "CustomFsRootStoreOptional": "interface:3a7c7b2d38",
    "assertExistingAbsoluteDirectory": "function:11c16ead22",
    "getCustomFsRoot": "function:e668f9c46c",
    "getCustomFsRootStatus": "function:a624ea8f20",
-   "resetCustomFsRootForTests": "function:a6e65ad909",
+   "resetCustomFsRootForTests": "function:829767aea9",
    "setCustomFsRoot": "function:455d36ff78"
   }
  },
