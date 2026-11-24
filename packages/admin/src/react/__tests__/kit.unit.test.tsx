@@ -311,15 +311,15 @@ it('passes the InfoTip placement, icon, trigger label and description id through
 
 describe('admin kit: settings-slice values, visible interval and chat title/slot values (A-K2-0 batch 2)', () => {
   it('hands screens the exact injected functions and constants, not copies', () => {
-    const readableTextColor = vi.fn(() => '#123456');
+    const readableTextColor = vi.fn(() => 'x');
     const mergeSaveStates = vi.fn(() => ({ status: 'saved' as const }));
     const canAcceptRefresh = vi.fn(() => false);
     const startVisibleInterval = vi.fn(() => () => {});
     const values = { ...fakeAdminKit().values, readableTextColor, mergeSaveStates, canAcceptRefresh, startVisibleInterval, SAVE_DEBOUNCE_MS: 5 };
     const wrapper = ({ children }: { children: ReactNode }) => <AdminKitProvider kit={fakeAdminKit({ values })}>{children}</AdminKitProvider>;
     const got = renderHook(() => useAdminKitValues({}, {}), { wrapper }).result.current;
-    expect(got.readableTextColor({ hex: '#fff' })).toBe('#123456');
-    expect(readableTextColor).toHaveBeenCalledWith({ hex: '#fff' });
+    expect(got.readableTextColor({ hex: 'fff' })).toBe('x');
+    expect(readableTextColor).toHaveBeenCalledWith({ hex: 'fff' });
     expect(got.mergeSaveStates({ states: [] })).toEqual({ status: 'saved' });
     expect(got.canAcceptRefresh({ timerPending: false, hasUnsavedEdits: false, mounted: true, commitsUnchanged: true })).toBe(false);
     got.startVisibleInterval({ tick: () => {}, periodMs: 10 });

@@ -231,7 +231,7 @@ const fakeValues: AdminKitValues = Object.freeze({
   },
   resolveInitialActiveTabId: (r: { tabs: readonly { id: string }[] }, o: { initialTabId?: string | null | undefined } = {}) =>
     (o.initialTabId != null && r.tabs.some((tab) => tab.id === o.initialTabId) ? o.initialTabId : r.tabs[0]?.id ?? null),
-  readableTextColor: ({ hex }: { hex: string }) => (hex.toLowerCase() === '#ffffff' ? '#000000' : '#ffffff'),
+  readableTextColor: ({ hex }: { hex: string }) => (hex.length > 4 ? 'black' : 'white'),
   canAcceptRefresh: (state: { timerPending: boolean; hasUnsavedEdits: boolean; mounted: boolean; commitsUnchanged: boolean }) => !state.timerPending && !state.hasUnsavedEdits && state.mounted && state.commitsUnchanged,
   mergeSaveStates: ({ states }: { states: readonly SaveState[] }): SaveState => states.find((state) => state.status === 'error') ?? states.find((state) => state.status === 'saving')
     ?? states.find((state) => state.status === 'saved') ?? { status: 'idle' },
