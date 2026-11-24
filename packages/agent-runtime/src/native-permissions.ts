@@ -1,4 +1,5 @@
 import type { JsonValue } from '@jini-ai/core/primitives';
+import { isNonArrayRecord } from '@jini-ai/core/records';
 
 /** Generic native-capability snapshots. Hosts own grant gates, persistence and migration. */
 export interface NativeAgentPermissions<K extends string> {
@@ -128,6 +129,7 @@ export function patchNativePermissionLayer<K extends string>(required: {
       capabilities: { ...objectValue({ value: previous.capabilities }), ...capabilities } } } };
 }
 
-function objectValue({ value }: { value: JsonValue | undefined }): Record<string, JsonValue> {
-  return value && typeof value === 'object' && !Array.isArray(value) ? value : {};
+function objectValue(required: { value: JsonValue | undefined }): Record<string, JsonValue> {
+  // The guard excludes null, primitives and arrays, so the only JsonValue member left is JsonObject.
+  return isNonArrayRecord(required) ? (required.value as Record<string, JsonValue>) : {};
 }

@@ -132,15 +132,19 @@ export function createLiveModelDiscovery(
  *   12s timeout.
  */
 export async function fetchLiveClaudeModels(
-  { apiKey, baseUrl }: { apiKey: string; baseUrl: string },
+  { apiKey, baseUrl, warn }: {
+    apiKey: string;
+    baseUrl: string;
+    /** Receives the one failure line. Injected so the host owns its log sink and any log-line
+     *  prefix; the engine never writes to the console. */
+    warn: (message: string) => void;
+  },
   { listModels = listProviderModels }: { listModels?: typeof listProviderModels } = {},
 ): Promise<readonly ProviderModelOption[] | null> {
   const result = await listModels({ protocol: "anthropic", baseUrl, apiKey });
   if (!result.ok) {
     const detail = result.detail ? `: ${result.detail}` : "";
-    console.warn(
-      `[assistant] live Claude model discovery failed (${result.kind}${detail}) — falling back to the static model list`,
-    );
+    warn(`live Claude model discovery failed (${result.kind}${detail}) — falling back to the static model list`);
     return null;
   }
   return result.models ?? null;

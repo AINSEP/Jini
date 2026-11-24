@@ -86,15 +86,20 @@ describe("createLiveModelDiscovery", () => {
 describe("fetchLiveClaudeModels", () => {
   it("returns the listed models on success", async () => {
     const listModels = (async () => ({ ok: true, models: [{ id: "m", label: "M" }] })) as unknown as typeof listProviderModels;
-    expect(await fetchLiveClaudeModels({ apiKey: "k", baseUrl: "u" }, { listModels })).toEqual([{ id: "m", label: "M" }]);
+    const warn = vi.fn();
+    expect(await fetchLiveClaudeModels({ apiKey: "k", baseUrl: "u", warn }, { listModels })).toEqual([{ id: "m", label: "M" }]);
+    expect(warn).not.toHaveBeenCalled();
   });
 
-  it("logs one warning and returns null on failure", async () => {
-    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+  it("sends one warning through the injected warn and returns null on failure", async () => {
+    const warn = vi.fn();
+    const consoleWarn = vi.spyOn(console, "warn").mockImplementation(() => {});
     const listModels = (async () => ({ ok: false, kind: "auth", detail: "bad key" })) as unknown as typeof listProviderModels;
-    expect(await fetchLiveClaudeModels({ apiKey: "k", baseUrl: "u" }, { listModels })).toBeNull();
+    expect(await fetchLiveClaudeModels({ apiKey: "k", baseUrl: "u", warn }, { listModels })).toBeNull();
     expect(warn).toHaveBeenCalledTimes(1);
-    expect(String(warn.mock.calls[0]?.[0])).toContain("(auth: bad key)");
+    expect(warn).toHaveBeenCalledWith("live Claude model discovery failed (auth: bad key) — falling back to the static model list");
+    expect(consoleWarn).not.toHaveBeenCalled();
+    consoleWarn.mockRestore();
   });
 });
 

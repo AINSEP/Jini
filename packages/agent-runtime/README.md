@@ -74,7 +74,9 @@ PKCE providers pass `{ verifierBytes: 64 }` to the main OAuth API. Fixed-issuer 
 
 - **Stored-credential live Claude models** (`@jini-ai/agent-runtime/model-catalog/live-discovery`):
   the host creates ONE instance per app lifetime with
-  `createLiveModelDiscovery({ resolveCredential, defaultBaseUrl, clock, discover: fetchLiveClaudeModels })`
+  `createLiveModelDiscovery({ resolveCredential, defaultBaseUrl, clock, discover })`, binding
+  `discover: (required) => fetchLiveClaudeModels({ ...required, warn })` with its own `warn(message)`
+  log sink (the engine never writes to the console; the host adds any log-line prefix)
   — the TTL cache is instance-owned, never module state. The host injects `resolveCredential` (its
   own stored execution-credential read + decrypt for `{ workspaceId, principalId }`, `null` when
   absent), `defaultBaseUrl` (its provider catalog's Anthropic endpoint) and `clock`; its agent-list
@@ -86,8 +88,9 @@ PKCE providers pass `{ verifierBytes: 64 }` to the main OAuth API. Fixed-issuer 
   readers call `read({})`; Rescan calls `read({ force: true })`.
 - **Custom instructions overlay** (`@jini-ai/agent-runtime/custom-instructions`): the host injects
   `settingsRepo`, `getEffective` (from `@jini-ai/core/settings`), `instructionsNamespace` (its
-  settings namespace holding the `custom` key) and optionally `settingsReady`. The daemon builds one
-  `createCustomInstructionsCache(deps, { workspaceId })`, calls `refresh()` before each run and wires
+  settings namespace holding the `custom` key), `warn(message, error)` (its log sink for the
+  fail-open read; the host adds any log-line prefix) and optionally `settingsReady`. The daemon builds one
+  `createCustomInstructionsCache({ ...deps, workspaceId })`, calls `refresh()` before each run and wires
   `readOverlay()` into `PromptAugmenter.systemOverlay()`; BYOK turns call
   `resolveCustomInstructions` + `formatCustomInstructionsOverlay` directly.
 - **Native permission layer saves** (`@jini-ai/agent-runtime/native-permissions`): a host reads its

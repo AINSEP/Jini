@@ -1,5 +1,6 @@
 import { SURFACE_EXCHANGE_ID_PARAM, SURFACE_TYPED_ANSWER_PARAM } from '@jini-ai/core';
 import type { IdGenerator } from '@jini-ai/core/primitives';
+import { isNonArrayRecord } from '@jini-ai/core/records';
 import type { ToolExecutionResult, ToolExecutor } from '../tool-executor-types.js';
 
 /**
@@ -98,17 +99,14 @@ export function parseSurfaceCallbackRequest(
   if (typeof toolName !== 'string' || toolName.length === 0) {
     return { ok: false, reply: { status: 400, body: { error: "'toolName' must be a non-empty string", code: 'VALIDATION_ERROR' } } };
   }
-  const params = isPlainObject(body.params) ? body.params : {};
+  const candidate = { value: body.params };
+  const params = isNonArrayRecord(candidate) ? candidate.value : {};
   const exchangeId = surfaceCallbackExchangeId({ bodyExchangeId: body.exchangeId, params });
   const typedAnswer = isTypedSurfaceAnswer({ params });
   if (!admit({ toolName, answersAnExchange: exchangeId !== undefined || typedAnswer, typedAnswer })) {
     return { ok: false, reply: { status: 403, body: surfaceCallbackRefusalBody({ toolId: toolName, typedAnswer }) } };
   }
   return { ok: true, request: { toolName, params, exchangeId } };
-}
-
-function isPlainObject(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
 /**

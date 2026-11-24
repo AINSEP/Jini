@@ -1,4 +1,5 @@
 import type { JsonValue } from "../primitives/index.js";
+import { isNonArrayRecord } from "../records.js";
 import type { SettingsRepoPort } from "./ports.js";
 import { resolveDefinitionRaw, type getEffective, type ResolvedSetting } from "./settings.js";
 import type { SettingScopeContext } from "./types.js";
@@ -61,7 +62,8 @@ export async function readUserLayerObject(required: {
   });
   if (!definition) throw new Error(required.notReadyMessage);
   const row = await required.settingsRepo.getUserValue({ workspaceId: required.workspaceId, principalId: required.principalId, settingId: definition.settingId });
-  const value = row?.state === "set" ? row.valueJson : null;
-  const raw = value && typeof value === "object" && !Array.isArray(value) ? value : {};
+  const candidate = { value: row?.state === "set" ? row.valueJson : null };
+  // The guard excludes null, primitives and arrays, so the only JsonValue member left is JsonObject.
+  const raw: Record<string, JsonValue> = isNonArrayRecord(candidate) ? (candidate.value as Record<string, JsonValue>) : {};
   return { raw, revisionSeq: row?.seq ?? 0 };
 }
