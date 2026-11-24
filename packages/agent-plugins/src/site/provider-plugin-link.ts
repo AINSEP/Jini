@@ -44,8 +44,8 @@ export interface ProviderFaceActivations<A> {
 export interface ProviderFaceCatalog<P extends { readonly pluginId: string; readonly archiveDigest: string }, B> {
   list(required: { workspaceRoot: string }): Promise<readonly P[]>;
   bundled(required: { workspaceRoot: string }): Promise<B>;
-  preferBundled(installed: readonly P[], bundled: B): readonly P[];
-  read(required: { plugin: P; filename: string }): Promise<string>;
+  preferBundled(installed: readonly NoInfer<P>[], bundled: NoInfer<B>): readonly NoInfer<P>[];
+  read(required: { plugin: NoInfer<P>; filename: string }): Promise<string>;
 }
 
 /**
