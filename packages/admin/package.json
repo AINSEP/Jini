@@ -212,6 +212,7 @@
       "./shell/components/AdminFailureNotice/AdminFailureNotice": "browser",
       "./shell/components/AssistantDock/agent-failure-hints": "browser",
       "./shell/components/MailStatusBanner/MailStatusBanner": "browser",
+      "./shell/components/MailStatusBanner/mail-status-banner.css": "browser",
       "./shell/components/AssistantDock/hooks/selected-agent-plugins.hooks": "browser",
       "./shell/components/ConfirmActionDialog": "browser",
       "./shell/components/DevicePreview/DevicePreviewFrame": "browser",
@@ -226,6 +227,7 @@
       "./shell/components/AssistantDock/hooks/use-routed-a2ui-surface-card.hooks": "browser",
       "./shell/components/CodeView/preview-modal-icons": "browser",
       "./shell/components/InstallTabCard/use-folder-upload.hooks": "browser",
+      "./shell/components/InstallTabCard/install-tab-card.css": "browser",
       "./shell/components/Select/Select.hooks": "browser",
       "./shell/lib/tab-event-source": "browser",
       "./shell/hooks/use-external-entry-refresh.hooks": "browser",
@@ -274,6 +276,7 @@
       "./screens/skills/use-skill-confirmation.hooks": "browser",
       "./screens/skills/skill-drop": "browser",
       "./screens/skills/use-skills-tabs.hooks": "browser",
+      "./screens/skills/skills.css": "browser",
       "./screens/taxonomy/api/taxonomy-api.types": "universal",
       "./screens/taxonomy/html-rules": "universal",
       "./screens/taxonomy/TaxonomyRowMenu.hooks": "browser",
@@ -344,6 +347,7 @@
       "./screens/plugins/AgentPlugins.hooks": "browser",
       "./screens/providers/hooks/use-providers.hooks": "browser",
       "./screens/providers/Providers.hooks": "browser",
+      "./screens/providers/always-allow.css": "browser",
       "./screens/trash/rules": "universal",
       "./screens/trash/hooks/trash-port.hooks": "universal",
       "./sites/transfer/use-export-password.hooks": "browser",
@@ -657,6 +661,7 @@
       "./screens/taxonomy/taxonomy-i18n/create-taxonomy-dictionary": "universal",
       "./screens/voice-input/hooks/push-to-talk-state.hooks": "browser",
       "./screens/voice-input/hooks/space-hold-config": "universal",
+      "./screens/voice-input/hooks/mic-button-view.hooks": "browser",
       "./screens/voice-input/push-to-talk-mic-button.css": "browser",
       "./screens/voice-input/voice-input-config": "universal",
       "./screens/voice-input/voice-unavailability": "universal",
@@ -666,6 +671,7 @@
       "./screens/email/EmailProviderTab.hooks": "browser",
       "./screens/email/hooks/use-email-template-view.hooks": "browser",
       "./screens/media/hooks/use-media-tabs.hooks": "browser",
+      "./screens/media/hooks/use-media-item-link.hooks": "browser",
       "./screens/media/pinned-media-providers": "universal",
       "./screens/plugins/hooks/use-agent-plugin-surfaces.hooks": "browser",
       "./screens/plugins/hooks/use-agent-plugin-tab.hooks": "browser",
@@ -1931,6 +1937,7 @@
       "import": "./dist/shell/components/MailStatusBanner/MailStatusBanner.js",
       "default": "./dist/shell/components/MailStatusBanner/MailStatusBanner.js"
     },
+    "./shell/components/MailStatusBanner/mail-status-banner.css": "./src/shell/components/MailStatusBanner/mail-status-banner.css",
     "./shell/components/AssistantDock/hooks/selected-agent-plugins.hooks": {
       "types": "./dist/shell/components/AssistantDock/hooks/selected-agent-plugins.hooks.d.ts",
       "import": "./dist/shell/components/AssistantDock/hooks/selected-agent-plugins.hooks.js",
@@ -2001,6 +2008,7 @@
       "import": "./dist/shell/components/InstallTabCard/use-folder-upload.hooks.js",
       "default": "./dist/shell/components/InstallTabCard/use-folder-upload.hooks.js"
     },
+    "./shell/components/InstallTabCard/install-tab-card.css": "./src/shell/components/InstallTabCard/install-tab-card.css",
     "./shell/components/Select/Select.hooks": {
       "types": "./dist/shell/components/Select/Select.hooks.d.ts",
       "import": "./dist/shell/components/Select/Select.hooks.js",
@@ -2241,6 +2249,7 @@
       "import": "./dist/screens/skills/use-skills-tabs.hooks.js",
       "default": "./dist/screens/skills/use-skills-tabs.hooks.js"
     },
+    "./screens/skills/skills.css": "./src/screens/skills/skills.css",
     "./screens/taxonomy/api/taxonomy-api.types": {
       "types": "./dist/screens/taxonomy/api/taxonomy-api.types.d.ts",
       "import": "./dist/screens/taxonomy/api/taxonomy-api.types.js",
@@ -2576,6 +2585,7 @@
       "import": "./dist/screens/providers/Providers.hooks.js",
       "default": "./dist/screens/providers/Providers.hooks.js"
     },
+    "./screens/providers/always-allow.css": "./src/screens/providers/always-allow.css",
     "./screens/plugins/hooks/use-plugin-row-focus.hooks": {
       "types": "./dist/screens/plugins/hooks/use-plugin-row-focus.hooks.d.ts",
       "import": "./dist/screens/plugins/hooks/use-plugin-row-focus.hooks.js",
@@ -4124,6 +4134,11 @@
       "import": "./dist/screens/voice-input/hooks/space-hold-config.js",
       "default": "./dist/screens/voice-input/hooks/space-hold-config.js"
     },
+    "./screens/voice-input/hooks/mic-button-view.hooks": {
+      "types": "./dist/screens/voice-input/hooks/mic-button-view.hooks.d.ts",
+      "import": "./dist/screens/voice-input/hooks/mic-button-view.hooks.js",
+      "default": "./dist/screens/voice-input/hooks/mic-button-view.hooks.js"
+    },
     "./screens/voice-input/push-to-talk-mic-button.css": "./src/screens/voice-input/push-to-talk-mic-button.css",
     "./screens/voice-input/voice-input-config": {
       "types": "./dist/screens/voice-input/voice-input-config.d.ts",
@@ -4156,6 +4171,11 @@
       "types": "./dist/screens/media/hooks/use-media-tabs.hooks.d.ts",
       "import": "./dist/screens/media/hooks/use-media-tabs.hooks.js",
       "default": "./dist/screens/media/hooks/use-media-tabs.hooks.js"
+    },
+    "./screens/media/hooks/use-media-item-link.hooks": {
+      "types": "./dist/screens/media/hooks/use-media-item-link.hooks.d.ts",
+      "import": "./dist/screens/media/hooks/use-media-item-link.hooks.js",
+      "default": "./dist/screens/media/hooks/use-media-item-link.hooks.js"
     },
     "./screens/media/pinned-media-providers": {
       "types": "./dist/screens/media/pinned-media-providers.d.ts",
