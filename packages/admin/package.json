@@ -196,7 +196,8 @@
       "./screens/import-export/hooks/use-git-backup.hooks": "browser",
       "./screens/import-export/hooks/use-import-export.hooks": "browser",
       "./publish-content/screen/hooks/publish-availability.store": "browser",
-      "./deployment/deployment-i18n": "browser"
+      "./deployment/deployment-i18n": "browser",
+      "./source-control/source-control-i18n": "universal"
     },
     "isolation": {
       "shared": [
@@ -1197,6 +1198,11 @@
       "types": "./dist/deployment/deployment-i18n.d.ts",
       "import": "./dist/deployment/deployment-i18n.js",
       "default": "./dist/deployment/deployment-i18n.js"
+    },
+    "./source-control/source-control-i18n": {
+      "types": "./dist/source-control/source-control-i18n.d.ts",
+      "import": "./dist/source-control/source-control-i18n.js",
+      "default": "./dist/source-control/source-control-i18n.js"
     }
   },
   "files": [
