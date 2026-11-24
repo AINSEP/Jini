@@ -177,6 +177,13 @@
       "./screens/menus/api/menus-api.types": "universal",
       "./screens/widgets/api/widgets-api.types": "universal",
       "./screens/providers/api/providers-api": "universal",
+      "./security/api/security-api.types": "universal",
+      "./security/api/security-api": "universal",
+      "./security/access-token-rows": "universal",
+      "./source-control/api/source-control-api.types": "universal",
+      "./source-control/api/source-control-api": "universal",
+      "./deployment/api/deployment-api.types": "universal",
+      "./deployment/api/deployment-api": "universal",
       "./screens/menus/page-link-rules": "universal",
       "./screens/menus/html-rules": "universal",
       "./screens/menus/hooks/menus-port.hooks": "universal",
@@ -1146,6 +1153,41 @@
       "types": "./dist/screens/providers/api/providers-api.d.ts",
       "import": "./dist/screens/providers/api/providers-api.js",
       "default": "./dist/screens/providers/api/providers-api.js"
+    },
+    "./security/api/security-api.types": {
+      "types": "./dist/security/api/security-api.types.d.ts",
+      "import": "./dist/security/api/security-api.types.js",
+      "default": "./dist/security/api/security-api.types.js"
+    },
+    "./security/api/security-api": {
+      "types": "./dist/security/api/security-api.d.ts",
+      "import": "./dist/security/api/security-api.js",
+      "default": "./dist/security/api/security-api.js"
+    },
+    "./security/access-token-rows": {
+      "types": "./dist/security/access-token-rows.d.ts",
+      "import": "./dist/security/access-token-rows.js",
+      "default": "./dist/security/access-token-rows.js"
+    },
+    "./source-control/api/source-control-api.types": {
+      "types": "./dist/source-control/api/source-control-api.types.d.ts",
+      "import": "./dist/source-control/api/source-control-api.types.js",
+      "default": "./dist/source-control/api/source-control-api.types.js"
+    },
+    "./source-control/api/source-control-api": {
+      "types": "./dist/source-control/api/source-control-api.d.ts",
+      "import": "./dist/source-control/api/source-control-api.js",
+      "default": "./dist/source-control/api/source-control-api.js"
+    },
+    "./deployment/api/deployment-api.types": {
+      "types": "./dist/deployment/api/deployment-api.types.d.ts",
+      "import": "./dist/deployment/api/deployment-api.types.js",
+      "default": "./dist/deployment/api/deployment-api.types.js"
+    },
+    "./deployment/api/deployment-api": {
+      "types": "./dist/deployment/api/deployment-api.d.ts",
+      "import": "./dist/deployment/api/deployment-api.js",
+      "default": "./dist/deployment/api/deployment-api.js"
     },
     "./screens/menus/page-link-rules": {
       "types": "./dist/screens/menus/page-link-rules.d.ts",
