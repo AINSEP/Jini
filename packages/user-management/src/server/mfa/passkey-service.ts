@@ -123,7 +123,7 @@ export async function completeOwnerPasskeyLogin(required: Required<{ workspaceId
     await deps.credentials.save({ ...verified.credential, counter: verified.counter });
     await deps.mfa.store.clearPending(proof);
     const session = await createSessionForPrincipal({ deps: deps.mfa.auth, input: proof }, options);
-    await deps.mfa.auth.repos.users.save({ ...user, lastLoginAt: session.session.createdAt });
+    await deps.mfa.auth.repos.users.recordLogin({ workspaceId: user.workspaceId, principalId: user.principalId, lastLoginAt: session.session.createdAt });
     return { principal, ...session };
   });
   if (!result) throw refused();

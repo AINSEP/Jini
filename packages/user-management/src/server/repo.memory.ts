@@ -119,6 +119,12 @@ export class InMemoryUserRepo extends InMemoryIdentityRows<UserRecord> implement
   async save(record: UserRecord): Promise<void> {
     upsertRecord({ records: this.rows, record, identity: { workspaceId: record.workspaceId, principalId: record.principalId } });
   }
+
+  async recordLogin(required: { workspaceId: string; principalId: string; lastLoginAt: string }): Promise<void> {
+    const index = this.rows.findIndex(record => matchesRecordFields({ record, fields: { workspaceId: required.workspaceId, principalId: required.principalId } }));
+    // Replace the slot with a fresh object (never mutate a row a caller may hold) touching one field only.
+    if (index >= 0) this.rows[index] = { ...this.rows[index]!, lastLoginAt: required.lastLoginAt };
+  }
 }
 
 export class InMemorySessionRepo extends InMemoryIdentityRows<SessionRecord> implements SessionRepoPort {

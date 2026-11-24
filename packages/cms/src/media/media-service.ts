@@ -283,6 +283,8 @@ export interface UploadMediaInput {
   alt?: string | undefined;
   caption?: string | undefined;
   credit?: string | undefined;
+  /** Optional plain-language description (see `MediaRecord.description`). Omitted stores no key. */
+  description?: string | undefined;
   /** Acting principal, stamped on each media row and on a newly created asset_blobs row. */
   createdByPrincipal: string;
 }
@@ -331,7 +333,25 @@ export interface UploadMediaOptional {
  * See docs/decisions/DR-004-journaled-blob-gc.md.
  */
 /** Upload-time text fields are trimmed; omitted ones start empty. */
-const uploadText = ({ alt, caption, credit }: UploadMediaRequired["input"]) => ({ alt: alt?.trim() ?? "", caption: caption?.trim() ?? "", credit: credit?.trim() ?? "" });
+const uploadText = ({ alt, caption, credit, description }: UploadMediaRequired["input"]) => ({
+  alt: alt?.trim() ?? "", caption: caption?.trim() ?? "", credit: credit?.trim() ?? "",
+  ...(description === undefined ? {} : { description: description.trim() }),
+});
+
+/**
+ * Upper bound on `MediaRecord.description`, in characters after trimming. `caption`/`alt` carry no
+ * bound, but a description is written by agents and scanned by every search, so it gets an explicit
+ * one: a few detailed paragraphs fit, a pasted document does not. Exported so tool schemas can state
+ * the same number.
+ */
+export const MEDIA_MAX_DESCRIPTION_LENGTH = 2000;
+
+/** Rejects an over-long description before any write. `undefined` (omitted) always passes. */
+function assertDescriptionWithinLimit(description: string | undefined): void {
+  if (description !== undefined && description.trim().length > MEDIA_MAX_DESCRIPTION_LENGTH) {
+    throw new MediaValidationError({ message: `description must be ${MEDIA_MAX_DESCRIPTION_LENGTH} characters or fewer (MEDIA_MAX_DESCRIPTION_LENGTH); shorten it and try again` });
+  }
+}
 
 type UploadKind = "media" | "document";
 
@@ -357,6 +377,7 @@ function assertUploadAdmissible({ input, kind }: { input: UploadMediaRequired["i
   if (input.bytes.byteLength === 0) {
     throw new MediaValidationError({ message: "uploaded file is empty" });
   }
+  assertDescriptionWithinLimit(input.description);
   assertWithinUploadCap(input.bytes.byteLength, maxUploadBytes);
   return maxUploadBytes;
 }
@@ -568,6 +589,9 @@ export interface UpdateMediaMetadataInput {
   alt?: string | undefined;
   caption?: string | undefined;
   credit?: string | undefined;
+  /** Same contract as `caption`: omitted leaves it unchanged, a string that trims to empty clears it.
+   *  At most {@link MEDIA_MAX_DESCRIPTION_LENGTH} characters after trimming. */
+  description?: string | undefined;
   /**
    * Quick-and-dirty sizing override fields (see `MediaRecord.width`/`height`/`cssClass` doc).
    * `undefined` (the key omitted, or explicitly `undefined`) leaves the stored value unchanged —
@@ -612,7 +636,7 @@ export interface UpdateMediaMetadataRequired {
 }
 
 /**
- * Updates editorial-only fields (title/alt/caption/credit/slug/width/height/cssClass).
+ * Updates editorial-only fields (title/alt/caption/credit/description/slug/width/height/cssClass).
  * `source.sha256` is write-once — this function's input type has no `sha256` field,
  * so there is no code path here that can touch it (see `resolveWriteOnceSource`
  * doc for the directly-tested invariant this relies on).
@@ -715,6 +739,8 @@ function applyMetadataEdits(
     alt: trimmedEdit(input.alt, existing.alt),
     caption: trimmedEdit(input.caption, existing.caption),
     credit: trimmedEdit(input.credit, existing.credit),
+    // Omitted leaves the key exactly as `...existing` carried it (possibly absent; see the field doc).
+    ...(input.description === undefined ? {} : { description: input.description.trim() }),
     width: editedOr(input.width, existing.width),
     height: editedOr(input.height, existing.height),
     cssClass: resolveCssClassEdit(input.cssClass, existing.cssClass),
@@ -736,6 +762,7 @@ export async function updateMediaMetadata(
 
   if (input.width !== undefined && input.width !== null) assertPositiveIntegerOrThrow(input.width, "width");
   if (input.height !== undefined && input.height !== null) assertPositiveIntegerOrThrow(input.height, "height");
+  assertDescriptionWithinLimit(input.description);
   const slug =
     input.slug !== undefined
       ? await resolveSlugForUpdate(deps.mediaRepo, input.workspaceId, input.id, input.slug)

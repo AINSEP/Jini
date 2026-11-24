@@ -150,7 +150,8 @@ export async function login(required: {
     const { session, rawToken } = await createSessionForPrincipal({ deps, input: { workspaceId: input.workspaceId, principalId: principal.id } }, { ip: input.ip, userAgent: input.userAgent, sessionTtlMs: optional.sessionTtlMs, messages: optional.messages });
     // Reuses the session's own `createdAt` rather than a second `kernelNowIso({ clock: clock })` call — both are
     // meant to be the same instant, and reading one avoids two clock reads ever disagreeing.
-    await deps.repos.users.save({ ...userRow, lastLoginAt: session.createdAt });
+    // Targeted write, not `save({ ...userRow })`: a stale snapshot would revert a concurrent password reset.
+    await deps.repos.users.recordLogin({ workspaceId: userRow.workspaceId, principalId: userRow.principalId, lastLoginAt: session.createdAt });
 
     return { principal, session, rawToken };
   };
