@@ -2221,47 +2221,11 @@
    "resolveImportExportRoute": "function:451dbce98a"
   }
  },
- "./shell/lib/local-owner-signin": {
-  "types": "./dist/shell/lib/local-owner-signin.d.ts",
-  "symbols": {
-   "InitialSessionPorts": "interface:a2f3ac91f0",
-   "LocalOwnerSessionPort": "interface:dcaae59b00",
-   "ReadInitialAdminSession": "type:584f6a635d",
-   "ReadInitialSession": "type:b2a5bcd862",
-   "createReadInitialAdminSession": "function:581cb498af",
-   "isLocalOwnerSignInHost": "function:31c45964ca"
-  }
- },
  "./shell/lib/merge-locale-overlays": {
   "types": "./dist/shell/lib/merge-locale-overlays.d.ts",
   "symbols": {
    "LocaleDictionary": "type:43708ba212",
    "mergeLocaleOverlays": "function:bd917f950d"
-  }
- },
- "./shell/lib/owner-mfa-api": {
-  "types": "./dist/shell/lib/owner-mfa-api.d.ts",
-  "symbols": {
-   "AdminRequestOnceOps": "type:23fa04002b",
-   "createOwnerMfaPort": "function:656d39d32a"
-  }
- },
- "./shell/lib/owner-passkey-api": {
-  "types": "./dist/shell/lib/owner-passkey-api.d.ts",
-  "symbols": {
-   "OwnerPasskeyPorts": "interface:347d78b028",
-   "createOwnerPasskeyPorts": "function:ca870092d8"
-  }
- },
- "./shell/lib/owner-recovery-api": {
-  "types": "./dist/shell/lib/owner-recovery-api.d.ts",
-  "symbols": {
-   "OwnerRecoveryFailureInput": "interface:02d8803842",
-   "OwnerRecoveryPort": "interface:a8661bee27",
-   "OwnerRecoveryRedactionOptions": "type:3ff6390444",
-   "OwnerRecoveryStatus": "interface:f90f5df566",
-   "createOwnerRecoveryFailure": "function:88a88911fc",
-   "createOwnerRecoveryPort": "function:db0c88bc8f"
   }
  },
  "./shell/lib/page-lifecycle": {
