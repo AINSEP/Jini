@@ -174,6 +174,45 @@ describe('runSiteUpdate — abort', () => {
   });
 });
 
+/** Wraps the fake's rollback so it behaves like a real port: a cancelled signal makes it refuse to run. */
+function withCancellationAwareRollback(fake: ReturnType<typeof setup>): void {
+  const rollback = fake.ports.site.rollback;
+  fake.ports.site.rollback = async (input, optional) => {
+    if (optional?.signal?.aborted) throw new Error('rollback cancelled');
+    await rollback(input, optional);
+  };
+}
+
+describe('runSiteUpdate — rollback outlives the caller cancellation', () => {
+  it('a failed apply still rolls back when the caller cancelled during the deploy', async () => {
+    const controller = new AbortController();
+    const fake = setup({ failOn: 'applyUpdate', onCall: (name) => { if (name.startsWith('applyUpdate:')) controller.abort(); } });
+    withCancellationAwareRollback(fake);
+    const result = await runSiteUpdate({ ports: fake.ports, plan, approval }, { signal: controller.signal });
+    expect(result.outcome).toBe('rolled-back');
+    expect(fake.state.liveVersion).toBe('0.7.3-next.2');
+    expect(fake.signals.at(-1)).not.toBe(controller.signal);
+  });
+
+  it('a failed live check still rolls back when the caller cancelled during the check', async () => {
+    const controller = new AbortController();
+    const fake = setup({ verify: { status: 'unhealthy', reason: 'Blank page.' }, onCall: (name) => { if (name.startsWith('verifyUpdate:')) controller.abort(); } });
+    withCancellationAwareRollback(fake);
+    const result = await runSiteUpdate({ ports: fake.ports, plan, approval }, { signal: controller.signal });
+    expect(result.outcome).toBe('rolled-back');
+    expect(result.steps.at(-1)).toEqual({ step: 'rollback', status: 'done', detail: 'Back on 0.7.3-next.2.' });
+  });
+
+  it('bounds the rollback with the host-given rollback signal instead of the run signal', async () => {
+    const run = new AbortController();
+    const rollbackLifetime = new AbortController();
+    const fake = setup({ failOn: 'applyUpdate' });
+    await runSiteUpdate({ ports: fake.ports, plan, approval }, { signal: run.signal, rollbackSignal: rollbackLifetime.signal });
+    expect(fake.calls.at(-1)).toBe('rollback:0.7.3-next.2:backup-1');
+    expect(fake.signals.at(-1)).toBe(rollbackLifetime.signal);
+  });
+});
+
 describe('createFakeSiteUpdate', () => {
   it('checkForUpdate and planUpdate produce a plan from the release feed', async () => {
     const fake = setup();

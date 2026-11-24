@@ -19,7 +19,16 @@ export interface SiteUpdatePorts {
 }
 
 /** Options of {@link runSiteUpdate}. */
-export interface RunSiteUpdateOptions { signal?: AbortSignal | undefined }
+export interface RunSiteUpdateOptions {
+  /** Cancels the update before it writes; never reaches the rollback (see `rollbackSignal`). */
+  signal?: AbortSignal | undefined;
+  /**
+   * The rollback's own lifetime, e.g. a host deadline. Deliberately separate from `signal`: the run is
+   * usually cancelled exactly when something went wrong, and a rollback that honoured that cancellation
+   * would leave the owner's site on a broken half-deployed version. Omitted means no deadline.
+   */
+  rollbackSignal?: AbortSignal | undefined;
+}
 
 /** What happened, in plain words, with the full step log. */
 export interface SiteUpdateRunResult {
@@ -37,6 +46,7 @@ interface RunContext {
   ports: SiteUpdatePorts;
   plan: SiteUpdatePlan;
   signal: AbortSignal | undefined;
+  rollbackSignal: AbortSignal | undefined;
   steps: SiteUpdateStepLog[];
 }
 
@@ -124,14 +134,15 @@ async function readinessStep(ctx: RunContext, backupId: string): Promise<SiteUpd
 interface RollbackCause { what: string; summary: string; errorId?: string }
 
 /**
- * Puts the kept previous version back. Deliberately NOT gated on the abort signal: by now the new
- * version is (maybe half) live and failing, and stopping here would leave the owner's site broken.
+ * Puts the kept previous version back. Deliberately NOT gated on, nor given, the run's abort signal:
+ * by now the new version is (maybe half) live and failing, and stopping here would leave the owner's
+ * site broken. It runs under its own `rollbackSignal` lifetime instead.
  */
 async function rollbackStep(ctx: RunContext, backupId: string, cause: RollbackCause): Promise<SiteUpdateRunResult> {
   const to = ctx.plan.fromVersion;
   const idPart = cause.errorId ? { errorId: cause.errorId } : {};
   try {
-    await ctx.ports.site.rollback({ to, backupId }, { signal: ctx.signal });
+    await ctx.ports.site.rollback({ to, backupId }, { signal: ctx.rollbackSignal });
     log(ctx, 'rollback', 'done', `Back on ${to}.`);
     return finish(ctx, { outcome: 'rolled-back', summary: cause.summary, backupId, ...idPart });
   } catch (error) {
@@ -183,7 +194,7 @@ async function deployStep(ctx: RunContext, backupId: string): Promise<SiteUpdate
  *
  * Order: approval -> backup -> migration readiness gate -> apply -> live check -> (rollback to
  * `plan.fromVersion` on a failed apply or check). The abort signal is checked before the backup and
- * before the deploy, and passed to every port call.
+ * before the deploy, and passed to every port call except the rollback, which gets `rollbackSignal`.
  *
  * @param required.ports - Platform, backup, readiness and error-id ports.
  * @param required.plan - The planned move; `fromVersion` is the version kept to roll back to.
@@ -196,7 +207,9 @@ export async function runSiteUpdate(
   required: { ports: SiteUpdatePorts; plan: SiteUpdatePlan; approval: SiteUpdateApproval | undefined },
   _optional: RunSiteUpdateOptions = {},
 ): Promise<SiteUpdateRunResult> {
-  const ctx: RunContext = { ports: required.ports, plan: required.plan, signal: _optional.signal, steps: [] };
+  const ctx: RunContext = {
+    ports: required.ports, plan: required.plan, signal: _optional.signal, rollbackSignal: _optional.rollbackSignal, steps: [],
+  };
   const refused = checkApproval(ctx, required.approval);
   if (refused) return refused;
   const backup = await backupStep(ctx);
