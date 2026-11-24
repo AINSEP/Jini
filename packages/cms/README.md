@@ -171,6 +171,17 @@ mounts one with `mountJsonRoute({ app, spec, deps })` from `@jini-ai/http-kit`, 
 and its `authorize` port. Redirect by-id routes (get, hits, update, tombstone) authorize with
 `{ entityId }`; list and import stay id-free. Tests inject typed fakes through those same deps.
 
+Trash marker adapters (`./trash/site/adapters/marker-sql`, node): `flipMarker` / `compareAndDelete`
+take the host's storage kernel and a physical table name per call (`spec.kernel`, `spec.table`); the
+host's own adapters own their table names and literals and pass them in. `MarkerStore<DB>` is generic
+over the host schema, and `lazyKernel` returns the very kernel type it was given, so a host keeps its
+schema-typed kernel (no schema-erasing cast is needed at this seam).
+
+TipTap text vocabulary (`./posts/tiptap-text-schema`, universal): pure JSON-Schema data with no
+injected fields. The host imports the constants into its own `bodyJson` doc schema; nothing binds at
+runtime. (The post tool schemas and the block-node schema stay in the host: their model-facing
+descriptions name the host's tools.)
+
 Menus (`src/admin-http/routes/menus/*`; serializers in `src/admin-http/http/menus.ts`, the wire DTO
 declarations in `@jini-ai/core/contracts/site/cms-menus` so an admin client shares them): get-by-id,
 update-tree, assign-location and delete authorize `admin.menus.*` with `{ entityId }`; list and
@@ -334,3 +345,12 @@ domains remain `adapter-unavailable` after authorization even when their entity 
 character check from the host (Tovu passes `@jini-ai/core/contracts/server/verified-origin`'s), and
 `canPublishToLive({ resolveRuntimeMode, env? })` takes the host's runtime-mode resolver. Neither
 module imports another package's runtime implementation.
+`createPublishContentSeedHash({ loadSeedDeps, buildCatalog })` takes the host's catalog builder
+(the host binds its type registry's `buildPublishContentCatalog`); `TDeps` is the host's deps bag.
+`getPublishContentRunStatus<TReport>()` parses the stored report as the host's report type when the
+host names one, else as Core's `PublishContentReportDto`; the run-repo port and in-memory repo are
+host-neutral and the host supplies its own SQL adapter.
+`createCompositePeerBlobSource({ blobStore, fileBlobIndex })` (node: reads and re-hashes files) takes
+the host's media blob store (read half only, `CompositeBlobStoreRead`) and the request-scoped
+`FileBlobIndexPort` from `./publish/transfer`; the returned `PeerBlobSource` is structurally the
+shape the host's peer push driver and blob-GET route already consume.

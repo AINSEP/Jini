@@ -21,7 +21,10 @@
       "./publish/content/execute-import": "universal",
       "./publish/content/precheck-reasons": "universal",
       "./publish/content/publish-readiness": "universal",
+      "./publish/content/run-repo": "universal",
+      "./publish/content/seed-hash": "universal",
       "./publish/content/peer-url": "universal",
+      "./publish/content/composite-blob-source": "node",
       "./themes/template-applicability": "universal",
       "./themes/preview/roster": "node",
       "./themes/preview/refresh": "node",
@@ -51,6 +54,7 @@
       "./media/import": "universal",
       "./core/tools": "universal",
       "./trash": "universal",
+      "./trash/site/adapters/marker-sql": "node",
       "./trash/site/adapters/plugin": "universal",
       "./trash/site/adapters/theme": "universal",
       "./trash/site/ports": "universal",
@@ -80,6 +84,7 @@
       "./html/site/source-edits": "node",
       "./posts/post-before-save": "universal",
       "./posts/slug": "universal",
+      "./posts/tiptap-text-schema": "universal",
       "./navigation/types": "universal",
       "./navigation/dropdown": "universal",
       "./navigation/href": "universal",
@@ -164,6 +169,7 @@
       "./entries/site/contracts": "universal",
       "./taxonomy/site/tool-metadata": "universal",
       "./taxonomy/site/content-targets": "universal",
+      "./taxonomy/site/publish-term-ids": "universal",
       "./public-http/http/site/form-label-inspection": "node",
       "./public-http/http/site/form-validation-i18n": "universal",
       "./public-http/http/site/render/widgets/placeholder": "universal",
@@ -377,7 +383,8 @@
         "src/html/site/slug.ts",
         "src/widgets/markers/gallery.ts",
         "src/widgets/markers/media-reference.ts",
-        "src/navigation/types.ts"
+        "src/navigation/types.ts",
+        "src/publish/transfer/apply-errors.ts"
       ],
       "entries": {
         "./admin-http/http/redirects": "redirects",
@@ -490,10 +497,25 @@
       "import": "./dist/publish/content/publish-readiness.js",
       "default": "./dist/publish/content/publish-readiness.js"
     },
+    "./publish/content/run-repo": {
+      "types": "./dist/publish/content/run-repo.d.ts",
+      "import": "./dist/publish/content/run-repo.js",
+      "default": "./dist/publish/content/run-repo.js"
+    },
+    "./publish/content/seed-hash": {
+      "types": "./dist/publish/content/seed-hash.d.ts",
+      "import": "./dist/publish/content/seed-hash.js",
+      "default": "./dist/publish/content/seed-hash.js"
+    },
     "./publish/content/peer-url": {
       "types": "./dist/publish/content/peer-url.d.ts",
       "import": "./dist/publish/content/peer-url.js",
       "default": "./dist/publish/content/peer-url.js"
+    },
+    "./publish/content/composite-blob-source": {
+      "types": "./dist/publish/content/composite-blob-source.d.ts",
+      "import": "./dist/publish/content/composite-blob-source.js",
+      "default": "./dist/publish/content/composite-blob-source.js"
     },
     "./themes/template-applicability": {
       "types": "./dist/themes/template-applicability.d.ts",
@@ -660,6 +682,11 @@
       "import": "./dist/trash/index.js",
       "default": "./dist/trash/index.js"
     },
+    "./trash/site/adapters/marker-sql": {
+      "types": "./dist/trash/site/adapters/marker-sql.d.ts",
+      "import": "./dist/trash/site/adapters/marker-sql.js",
+      "default": "./dist/trash/site/adapters/marker-sql.js"
+    },
     "./trash/site/adapters/plugin": {
       "types": "./dist/trash/site/adapters/plugin.d.ts",
       "import": "./dist/trash/site/adapters/plugin.js",
@@ -794,6 +821,11 @@
       "types": "./dist/posts/slug.d.ts",
       "import": "./dist/posts/slug.js",
       "default": "./dist/posts/slug.js"
+    },
+    "./posts/tiptap-text-schema": {
+      "types": "./dist/posts/tiptap-text-schema.d.ts",
+      "import": "./dist/posts/tiptap-text-schema.js",
+      "default": "./dist/posts/tiptap-text-schema.js"
     },
     "./html/text-layout": {
       "types": "./dist/html/text-layout.d.ts",
@@ -1204,6 +1236,11 @@
       "types": "./dist/taxonomy/site/content-targets.d.ts",
       "import": "./dist/taxonomy/site/content-targets.js",
       "default": "./dist/taxonomy/site/content-targets.js"
+    },
+    "./taxonomy/site/publish-term-ids": {
+      "types": "./dist/taxonomy/site/publish-term-ids.d.ts",
+      "import": "./dist/taxonomy/site/publish-term-ids.js",
+      "default": "./dist/taxonomy/site/publish-term-ids.js"
     },
     "./public-http/http/site/form-label-inspection": {
       "types": "./dist/public-http/http/site/form-label-inspection.d.ts",

@@ -17,6 +17,7 @@ public subpath and permission boundary.
 | `./agent-jobs` | Bounded CLI jobs with resume, stdin prompts, raw logs and stream-based completion. |
 | `./backup/plan-store` | Node-backed in-memory backup plans with expiry and principal/workspace binding. |
 | `./backup/push-jobs` | In-memory backup push jobs with progress, cancellation and bounded waits. |
+| `./backup/site/credential-warnings` | Archive credential warnings (location + fixed kind label, never the value) over a host-injected secret-shape redactor. |
 | `./checks/published-types` | Published type-surface, registry-drift, linked-package and captured-log checks. |
 | `./checks/coverage` | LCOV, floor, diff, disk-inventory and contamination/baseline policies. |
 | `./checks/node` | Explicit filesystem, process, environment-loader and installer adapters. |
