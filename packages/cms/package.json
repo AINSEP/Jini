@@ -150,6 +150,17 @@
       "./publish/content/live-site-policy": "universal",
       "./publish/content/media-references": "universal",
       "./publish/content/tool-metadata": "universal",
+      "./posts/post-publish-ports": "universal",
+      "./media/publish-ports": "universal",
+      "./redirects/publish-ports": "universal",
+      "./navigation/publish-ports": "universal",
+      "./forms/publish-ports": "universal",
+      "./content-types/publish-ports": "universal",
+      "./taxonomy/publish-ports": "universal",
+      "./entries/publish-ports": "universal",
+      "./widgets/publish-ports": "universal",
+      "./settings/publish-ports": "universal",
+      "./publish/content/publish-ports": "universal",
       "./admin-http/http/redirects": "universal",
       "./admin-http/routes/database/restore-points": "universal",
       "./admin-http/routes/database/schema-state": "universal",
@@ -1262,6 +1273,61 @@
       "types": "./dist/publish/content/tool-metadata.d.ts",
       "import": "./dist/publish/content/tool-metadata.js",
       "default": "./dist/publish/content/tool-metadata.js"
+    },
+    "./posts/post-publish-ports": {
+      "types": "./dist/posts/post-publish-ports.d.ts",
+      "import": "./dist/posts/post-publish-ports.js",
+      "default": "./dist/posts/post-publish-ports.js"
+    },
+    "./media/publish-ports": {
+      "types": "./dist/media/publish-ports.d.ts",
+      "import": "./dist/media/publish-ports.js",
+      "default": "./dist/media/publish-ports.js"
+    },
+    "./redirects/publish-ports": {
+      "types": "./dist/redirects/publish-ports.d.ts",
+      "import": "./dist/redirects/publish-ports.js",
+      "default": "./dist/redirects/publish-ports.js"
+    },
+    "./navigation/publish-ports": {
+      "types": "./dist/navigation/publish-ports.d.ts",
+      "import": "./dist/navigation/publish-ports.js",
+      "default": "./dist/navigation/publish-ports.js"
+    },
+    "./forms/publish-ports": {
+      "types": "./dist/forms/publish-ports.d.ts",
+      "import": "./dist/forms/publish-ports.js",
+      "default": "./dist/forms/publish-ports.js"
+    },
+    "./content-types/publish-ports": {
+      "types": "./dist/content-types/publish-ports.d.ts",
+      "import": "./dist/content-types/publish-ports.js",
+      "default": "./dist/content-types/publish-ports.js"
+    },
+    "./taxonomy/publish-ports": {
+      "types": "./dist/taxonomy/publish-ports.d.ts",
+      "import": "./dist/taxonomy/publish-ports.js",
+      "default": "./dist/taxonomy/publish-ports.js"
+    },
+    "./entries/publish-ports": {
+      "types": "./dist/entries/publish-ports.d.ts",
+      "import": "./dist/entries/publish-ports.js",
+      "default": "./dist/entries/publish-ports.js"
+    },
+    "./widgets/publish-ports": {
+      "types": "./dist/widgets/publish-ports.d.ts",
+      "import": "./dist/widgets/publish-ports.js",
+      "default": "./dist/widgets/publish-ports.js"
+    },
+    "./settings/publish-ports": {
+      "types": "./dist/settings/publish-ports.d.ts",
+      "import": "./dist/settings/publish-ports.js",
+      "default": "./dist/settings/publish-ports.js"
+    },
+    "./publish/content/publish-ports": {
+      "types": "./dist/publish/content/publish-ports.d.ts",
+      "import": "./dist/publish/content/publish-ports.js",
+      "default": "./dist/publish/content/publish-ports.js"
     },
     "./admin-http/http/redirects": {
       "types": "./dist/admin-http/http/redirects.d.ts",

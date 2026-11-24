@@ -20,7 +20,7 @@ import type { CommentsSettings } from "../types.js";
  * wiring exists — NOT as a comment table"). Namespace is `site.comments` (not a bare `comments`)
  * — the ledger's namespace owner fence requires every `ownerKind: "site"` definition to start
  * with `site.` (see `COMMENTS_NAMESPACE`'s own comment below), mirroring `site.seo`. Mirrors
- * `apps/website/src/features/seo/settings.ts`'s exact shape — same idempotent-definitions / getEffective-read /
+ * the host SEO settings module's exact shape — same idempotent-definitions / getEffective-read /
  * validate-then-set-write structure, applied to Comments' 6 scalar fields instead of SEO's 8.
  *
  * Every `CommentsSettings` field is a plain scalar (boolean/number/nullable-number) — none needs
@@ -275,7 +275,7 @@ export async function setCommentsSettings(
   return getCommentsSettings({ settingsRepo: deps.settingsRepo }, { workspaceId: input.workspaceId });
 }
 
-/** Tovu's ISO-clock adapter; the shared clock contract/rationale lives in Jini core/primitives. */
+/** ISO-clock adapter; the shared clock contract/rationale lives in Jini core/primitives. */
 function jiniClock({ clock }: { clock: ClockPort | { nowIso(): string } }, _optional = {}): ClockPort {
   return "nowMs" in clock ? clock : { nowMs: () => Date.parse(clock.nowIso()) };
 }
