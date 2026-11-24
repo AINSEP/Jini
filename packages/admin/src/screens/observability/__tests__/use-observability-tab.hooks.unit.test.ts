@@ -5,13 +5,20 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { findActiveTab, resolveInitialActiveTabId, useTabbedDialog } from "@jini-ai/ui";
 import { AdminKitProvider } from "../../../react/kit.js";
 import { fakeAdminKit } from "../../../react/testing-kit.js";
-import { useObservabilityTab } from "../hooks/use-observability-tab.hooks.js";
+import { navigate } from "../../../shell/lib/router.js";
+import { useObservabilityTab as useObservabilityTabHost, type ObservabilityTabArgs } from "../hooks/use-observability-tab.hooks.js";
 
 // The host binds the UI library's tab rules and tabbed-dialog hook into these kit slots.
 const kit = fakeAdminKit({ hooks: { useTabbedDialog }, values: { findActiveTab, resolveInitialActiveTabId } });
 const wrapper = ({ children }: { children: ReactNode }) => createElement(AdminKitProvider, { kit, children });
 function renderHook<Result, Props>(callback: (props: Props) => Result, options: RenderHookOptions<Props> = {}) {
   return renderHookOriginal(callback, { wrapper, ...options });
+}
+
+// The host injects the hooks and navigation; the tests inject the same UI-library hooks and the shell router.
+const useAdminKitValuesHook = () => ({ findActiveTab, resolveInitialActiveTabId });
+function useObservabilityTab(args: Pick<ObservabilityTabArgs, "tabs" | "tabId">, optional: Record<string, never> = {}) {
+  return useObservabilityTabHost({ ...args, useTabbedDialogHook: useTabbedDialog, useAdminKitValuesHook, navigate }, optional);
 }
 
 let originalUrl: string;

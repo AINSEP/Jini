@@ -7,13 +7,18 @@ import { useCopyToClipboard } from "@jini-ai/ui";
 import { AdminKitProvider } from "../../../react/kit.js";
 import { fakeAdminKit } from "../../../react/testing-kit.js";
 import { createFakeRecentServerErrorsPort } from "../hooks/recent-server-errors-dependencies.hooks.js";
-import { useRecentErrorItem } from "../hooks/use-recent-error-item.hooks.js";
+import { useRecentErrorItem as useRecentErrorItemHost } from "../hooks/use-recent-error-item.hooks.js";
 
 // The host binds the UI library's copy hook (its 1.5s "Copied" reset) into this kit slot.
 const kit = fakeAdminKit({ hooks: { useCopyToClipboard } });
 const wrapper = ({ children }: { children: ReactNode }) => createElement(AdminKitProvider, { kit, children });
 function renderHook<Result, Props>(callback: (props: Props) => Result, options: RenderHookOptions<Props> = {}) {
   return renderHookOriginal(callback, { wrapper, ...options });
+}
+
+// The host injects the copy hook; the tests inject the UI library's.
+function useRecentErrorItem(args: { copyText: string; clipboard: ReturnType<typeof createFakeRecentServerErrorsPort> }) {
+  return useRecentErrorItemHost({ ...args, useCopyToClipboardHook: useCopyToClipboard });
 }
 
 /** @file One Recent errors row's state — disclosure and Copy feedback — against the fake port. */
