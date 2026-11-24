@@ -96,6 +96,50 @@
       "./shell/lib/ascii-slug": "browser",
       "./shell/lib/assistant-dock-bus": "browser",
       "./shell/lib/content-refresh-bus": "browser",
+      "./screens/assistant-settings/use-ai-assistant-locale-sync.hooks": "browser",
+      "./screens/assistant-settings/OwnerGrantStatus": "browser",
+      "./screens/assistant-settings/AssistantToggleRow": "browser",
+      "./screens/assistant-settings/use-assistant-owner-grant.hooks": "browser",
+      "./screens/assistant-settings/use-visitor-tools.hooks": "browser",
+      "./screens/assistant-settings/VisitorToolsPanel": "browser",
+      "./screens/assistant-settings/visitor-credential-form-port": "browser",
+      "./screens/assistant-settings/visitor-credential-form.rules": "browser",
+      "./screens/assistant-settings/visitor-credential-form-actions": "browser",
+      "./screens/assistant-settings/use-visitor-credential-form.hooks": "browser",
+      "./screens/assistant-settings/use-visitor-assistant-panel.hooks": "browser",
+      "./screens/assistant-settings/VisitorAssistantPanel": "browser",
+      "./screens/assistant-settings/AssistantDaemonRestart": "browser",
+      "./screens/assistant-settings/AdminAssistantSwitch": "browser",
+      "./screens/assistant-settings/use-admin-assistant-switch.hooks": "browser",
+      "./screens/assistant-settings/use-ai-assistant.hooks": "browser",
+      "./screens/assistant-settings/AdminSubagents": "browser",
+      "./screens/assistant-settings/admin-subagents.types": "browser",
+      "./screens/assistant-settings/AdminPermanentDeletes": "browser",
+      "./screens/assistant-settings/use-admin-permanent-deletes.hooks": "browser",
+      "./screens/assistant-settings/VisitorAssistantTabs": "browser",
+      "./screens/assistant-settings/use-visitor-assistant-tabs.hooks": "browser",
+      "./screens/webmcp/webmcp-i18n": "universal",
+      "./screens/webmcp/browser-agent-settings.hooks": "browser",
+      "./screens/webmcp/BrowserAgentSettingsPanel": "browser",
+      "./screens/fs-files/folder-drop-port": "browser",
+      "./screens/fs-files/use-native-folder-picker.hooks": "browser",
+      "./screens/fs-files/use-folder-drop.hooks": "browser",
+      "./screens/fs-files/folder-drop.rules": "browser",
+      "./screens/workspace/Workspace": "browser",
+      "./screens/workspace/rules": "browser",
+      "./screens/workspace/hooks/workspace-port.hooks": "universal",
+      "./screens/sites/AllSitesTab": "browser",
+      "./screens/sites/SiteCardView": "browser",
+      "./screens/sites/SiteTrashTab": "browser",
+      "./screens/sites/sites-screen-ports": "universal",
+      "./screens/sites/sites-list-rules": "universal",
+      "./screens/sites/use-site-confirm.hooks": "browser",
+      "./screens/sites/LocalSiteConfirmDialog": "browser",
+      "./screens/sites/sites-port.hooks": "universal",
+      "./screens/sites/use-sites-snapshot.hooks": "browser",
+      "./screens/sites/use-local-sites.hooks": "browser",
+      "./screens/sites/use-sites-config.hooks": "browser",
+      "./screens/workspace/hooks/use-workspace.hooks": "browser",
       "./shell/lib/editor-failure-i18n": "browser",
       "./shell/lib/editor-template-options.rules": "browser",
       "./shell/lib/escape-owned-by-inner-layer": "browser",
@@ -406,6 +450,50 @@
         "./shell/lib/ascii-slug": "browser",
         "./shell/lib/assistant-dock-bus": "browser",
         "./shell/lib/content-refresh-bus": "browser",
+        "./screens/assistant-settings/use-ai-assistant-locale-sync.hooks": "browser",
+        "./screens/assistant-settings/OwnerGrantStatus": "browser",
+        "./screens/assistant-settings/AssistantToggleRow": "browser",
+        "./screens/assistant-settings/use-assistant-owner-grant.hooks": "browser",
+        "./screens/assistant-settings/use-visitor-tools.hooks": "browser",
+        "./screens/assistant-settings/VisitorToolsPanel": "browser",
+        "./screens/assistant-settings/visitor-credential-form-port": "browser",
+        "./screens/assistant-settings/visitor-credential-form.rules": "browser",
+        "./screens/assistant-settings/visitor-credential-form-actions": "browser",
+        "./screens/assistant-settings/use-visitor-credential-form.hooks": "browser",
+        "./screens/assistant-settings/use-visitor-assistant-panel.hooks": "browser",
+        "./screens/assistant-settings/VisitorAssistantPanel": "browser",
+        "./screens/assistant-settings/AssistantDaemonRestart": "browser",
+        "./screens/assistant-settings/AdminAssistantSwitch": "browser",
+        "./screens/assistant-settings/use-admin-assistant-switch.hooks": "browser",
+        "./screens/assistant-settings/use-ai-assistant.hooks": "browser",
+        "./screens/assistant-settings/AdminSubagents": "browser",
+        "./screens/assistant-settings/admin-subagents.types": "browser",
+        "./screens/assistant-settings/AdminPermanentDeletes": "browser",
+        "./screens/assistant-settings/use-admin-permanent-deletes.hooks": "browser",
+        "./screens/assistant-settings/VisitorAssistantTabs": "browser",
+        "./screens/assistant-settings/use-visitor-assistant-tabs.hooks": "browser",
+        "./screens/webmcp/webmcp-i18n": "universal",
+        "./screens/webmcp/browser-agent-settings.hooks": "browser",
+        "./screens/webmcp/BrowserAgentSettingsPanel": "browser",
+        "./screens/fs-files/folder-drop-port": "browser",
+        "./screens/fs-files/use-native-folder-picker.hooks": "browser",
+        "./screens/fs-files/use-folder-drop.hooks": "browser",
+        "./screens/fs-files/folder-drop.rules": "browser",
+        "./screens/workspace/Workspace": "browser",
+        "./screens/workspace/rules": "browser",
+        "./screens/workspace/hooks/workspace-port.hooks": "universal",
+        "./screens/sites/AllSitesTab": "browser",
+        "./screens/sites/SiteCardView": "browser",
+        "./screens/sites/SiteTrashTab": "browser",
+        "./screens/sites/sites-screen-ports": "universal",
+        "./screens/sites/sites-list-rules": "universal",
+        "./screens/sites/use-site-confirm.hooks": "browser",
+        "./screens/sites/LocalSiteConfirmDialog": "browser",
+        "./screens/sites/sites-port.hooks": "universal",
+        "./screens/sites/use-sites-snapshot.hooks": "browser",
+        "./screens/sites/use-local-sites.hooks": "browser",
+        "./screens/sites/use-sites-config.hooks": "browser",
+        "./screens/workspace/hooks/use-workspace.hooks": "browser",
         "./shell/lib/editor-failure-i18n": "browser",
         "./shell/lib/editor-template-options.rules": "browser",
         "./shell/lib/escape-owned-by-inner-layer": "browser",
@@ -955,6 +1043,226 @@
       "types": "./dist/shell/lib/content-refresh-bus.d.ts",
       "import": "./dist/shell/lib/content-refresh-bus.js",
       "default": "./dist/shell/lib/content-refresh-bus.js"
+    },
+    "./screens/assistant-settings/use-ai-assistant-locale-sync.hooks": {
+      "types": "./dist/screens/assistant-settings/use-ai-assistant-locale-sync.hooks.d.ts",
+      "import": "./dist/screens/assistant-settings/use-ai-assistant-locale-sync.hooks.js",
+      "default": "./dist/screens/assistant-settings/use-ai-assistant-locale-sync.hooks.js"
+    },
+    "./screens/assistant-settings/OwnerGrantStatus": {
+      "types": "./dist/screens/assistant-settings/OwnerGrantStatus.d.ts",
+      "import": "./dist/screens/assistant-settings/OwnerGrantStatus.js",
+      "default": "./dist/screens/assistant-settings/OwnerGrantStatus.js"
+    },
+    "./screens/assistant-settings/AssistantToggleRow": {
+      "types": "./dist/screens/assistant-settings/AssistantToggleRow.d.ts",
+      "import": "./dist/screens/assistant-settings/AssistantToggleRow.js",
+      "default": "./dist/screens/assistant-settings/AssistantToggleRow.js"
+    },
+    "./screens/assistant-settings/use-assistant-owner-grant.hooks": {
+      "types": "./dist/screens/assistant-settings/use-assistant-owner-grant.hooks.d.ts",
+      "import": "./dist/screens/assistant-settings/use-assistant-owner-grant.hooks.js",
+      "default": "./dist/screens/assistant-settings/use-assistant-owner-grant.hooks.js"
+    },
+    "./screens/assistant-settings/use-visitor-tools.hooks": {
+      "types": "./dist/screens/assistant-settings/use-visitor-tools.hooks.d.ts",
+      "import": "./dist/screens/assistant-settings/use-visitor-tools.hooks.js",
+      "default": "./dist/screens/assistant-settings/use-visitor-tools.hooks.js"
+    },
+    "./screens/assistant-settings/VisitorToolsPanel": {
+      "types": "./dist/screens/assistant-settings/VisitorToolsPanel.d.ts",
+      "import": "./dist/screens/assistant-settings/VisitorToolsPanel.js",
+      "default": "./dist/screens/assistant-settings/VisitorToolsPanel.js"
+    },
+    "./screens/assistant-settings/visitor-credential-form-port": {
+      "types": "./dist/screens/assistant-settings/visitor-credential-form-port.d.ts",
+      "import": "./dist/screens/assistant-settings/visitor-credential-form-port.js",
+      "default": "./dist/screens/assistant-settings/visitor-credential-form-port.js"
+    },
+    "./screens/assistant-settings/visitor-credential-form.rules": {
+      "types": "./dist/screens/assistant-settings/visitor-credential-form.rules.d.ts",
+      "import": "./dist/screens/assistant-settings/visitor-credential-form.rules.js",
+      "default": "./dist/screens/assistant-settings/visitor-credential-form.rules.js"
+    },
+    "./screens/assistant-settings/visitor-credential-form-actions": {
+      "types": "./dist/screens/assistant-settings/visitor-credential-form-actions.d.ts",
+      "import": "./dist/screens/assistant-settings/visitor-credential-form-actions.js",
+      "default": "./dist/screens/assistant-settings/visitor-credential-form-actions.js"
+    },
+    "./screens/assistant-settings/use-visitor-credential-form.hooks": {
+      "types": "./dist/screens/assistant-settings/use-visitor-credential-form.hooks.d.ts",
+      "import": "./dist/screens/assistant-settings/use-visitor-credential-form.hooks.js",
+      "default": "./dist/screens/assistant-settings/use-visitor-credential-form.hooks.js"
+    },
+    "./screens/assistant-settings/use-visitor-assistant-panel.hooks": {
+      "types": "./dist/screens/assistant-settings/use-visitor-assistant-panel.hooks.d.ts",
+      "import": "./dist/screens/assistant-settings/use-visitor-assistant-panel.hooks.js",
+      "default": "./dist/screens/assistant-settings/use-visitor-assistant-panel.hooks.js"
+    },
+    "./screens/assistant-settings/VisitorAssistantPanel": {
+      "types": "./dist/screens/assistant-settings/VisitorAssistantPanel.d.ts",
+      "import": "./dist/screens/assistant-settings/VisitorAssistantPanel.js",
+      "default": "./dist/screens/assistant-settings/VisitorAssistantPanel.js"
+    },
+    "./screens/assistant-settings/AssistantDaemonRestart": {
+      "types": "./dist/screens/assistant-settings/AssistantDaemonRestart.d.ts",
+      "import": "./dist/screens/assistant-settings/AssistantDaemonRestart.js",
+      "default": "./dist/screens/assistant-settings/AssistantDaemonRestart.js"
+    },
+    "./screens/assistant-settings/AdminAssistantSwitch": {
+      "types": "./dist/screens/assistant-settings/AdminAssistantSwitch.d.ts",
+      "import": "./dist/screens/assistant-settings/AdminAssistantSwitch.js",
+      "default": "./dist/screens/assistant-settings/AdminAssistantSwitch.js"
+    },
+    "./screens/assistant-settings/use-admin-assistant-switch.hooks": {
+      "types": "./dist/screens/assistant-settings/use-admin-assistant-switch.hooks.d.ts",
+      "import": "./dist/screens/assistant-settings/use-admin-assistant-switch.hooks.js",
+      "default": "./dist/screens/assistant-settings/use-admin-assistant-switch.hooks.js"
+    },
+    "./screens/assistant-settings/use-ai-assistant.hooks": {
+      "types": "./dist/screens/assistant-settings/use-ai-assistant.hooks.d.ts",
+      "import": "./dist/screens/assistant-settings/use-ai-assistant.hooks.js",
+      "default": "./dist/screens/assistant-settings/use-ai-assistant.hooks.js"
+    },
+    "./screens/assistant-settings/AdminSubagents": {
+      "types": "./dist/screens/assistant-settings/AdminSubagents.d.ts",
+      "import": "./dist/screens/assistant-settings/AdminSubagents.js",
+      "default": "./dist/screens/assistant-settings/AdminSubagents.js"
+    },
+    "./screens/assistant-settings/admin-subagents.types": {
+      "types": "./dist/screens/assistant-settings/admin-subagents.types.d.ts",
+      "import": "./dist/screens/assistant-settings/admin-subagents.types.js",
+      "default": "./dist/screens/assistant-settings/admin-subagents.types.js"
+    },
+    "./screens/assistant-settings/AdminPermanentDeletes": {
+      "types": "./dist/screens/assistant-settings/AdminPermanentDeletes.d.ts",
+      "import": "./dist/screens/assistant-settings/AdminPermanentDeletes.js",
+      "default": "./dist/screens/assistant-settings/AdminPermanentDeletes.js"
+    },
+    "./screens/assistant-settings/use-admin-permanent-deletes.hooks": {
+      "types": "./dist/screens/assistant-settings/use-admin-permanent-deletes.hooks.d.ts",
+      "import": "./dist/screens/assistant-settings/use-admin-permanent-deletes.hooks.js",
+      "default": "./dist/screens/assistant-settings/use-admin-permanent-deletes.hooks.js"
+    },
+    "./screens/assistant-settings/VisitorAssistantTabs": {
+      "types": "./dist/screens/assistant-settings/VisitorAssistantTabs.d.ts",
+      "import": "./dist/screens/assistant-settings/VisitorAssistantTabs.js",
+      "default": "./dist/screens/assistant-settings/VisitorAssistantTabs.js"
+    },
+    "./screens/assistant-settings/use-visitor-assistant-tabs.hooks": {
+      "types": "./dist/screens/assistant-settings/use-visitor-assistant-tabs.hooks.d.ts",
+      "import": "./dist/screens/assistant-settings/use-visitor-assistant-tabs.hooks.js",
+      "default": "./dist/screens/assistant-settings/use-visitor-assistant-tabs.hooks.js"
+    },
+    "./screens/webmcp/webmcp-i18n": {
+      "types": "./dist/screens/webmcp/webmcp-i18n.d.ts",
+      "import": "./dist/screens/webmcp/webmcp-i18n.js",
+      "default": "./dist/screens/webmcp/webmcp-i18n.js"
+    },
+    "./screens/webmcp/browser-agent-settings.hooks": {
+      "types": "./dist/screens/webmcp/browser-agent-settings.hooks.d.ts",
+      "import": "./dist/screens/webmcp/browser-agent-settings.hooks.js",
+      "default": "./dist/screens/webmcp/browser-agent-settings.hooks.js"
+    },
+    "./screens/webmcp/BrowserAgentSettingsPanel": {
+      "types": "./dist/screens/webmcp/BrowserAgentSettingsPanel.d.ts",
+      "import": "./dist/screens/webmcp/BrowserAgentSettingsPanel.js",
+      "default": "./dist/screens/webmcp/BrowserAgentSettingsPanel.js"
+    },
+    "./screens/fs-files/folder-drop-port": {
+      "types": "./dist/screens/fs-files/folder-drop-port.d.ts",
+      "import": "./dist/screens/fs-files/folder-drop-port.js",
+      "default": "./dist/screens/fs-files/folder-drop-port.js"
+    },
+    "./screens/fs-files/use-native-folder-picker.hooks": {
+      "types": "./dist/screens/fs-files/use-native-folder-picker.hooks.d.ts",
+      "import": "./dist/screens/fs-files/use-native-folder-picker.hooks.js",
+      "default": "./dist/screens/fs-files/use-native-folder-picker.hooks.js"
+    },
+    "./screens/fs-files/use-folder-drop.hooks": {
+      "types": "./dist/screens/fs-files/use-folder-drop.hooks.d.ts",
+      "import": "./dist/screens/fs-files/use-folder-drop.hooks.js",
+      "default": "./dist/screens/fs-files/use-folder-drop.hooks.js"
+    },
+    "./screens/fs-files/folder-drop.rules": {
+      "types": "./dist/screens/fs-files/folder-drop.rules.d.ts",
+      "import": "./dist/screens/fs-files/folder-drop.rules.js",
+      "default": "./dist/screens/fs-files/folder-drop.rules.js"
+    },
+    "./screens/workspace/Workspace": {
+      "types": "./dist/screens/workspace/Workspace.d.ts",
+      "import": "./dist/screens/workspace/Workspace.js",
+      "default": "./dist/screens/workspace/Workspace.js"
+    },
+    "./screens/sites/AllSitesTab": {
+      "types": "./dist/screens/sites/AllSitesTab.d.ts",
+      "import": "./dist/screens/sites/AllSitesTab.js",
+      "default": "./dist/screens/sites/AllSitesTab.js"
+    },
+    "./screens/sites/SiteCardView": {
+      "types": "./dist/screens/sites/SiteCardView.d.ts",
+      "import": "./dist/screens/sites/SiteCardView.js",
+      "default": "./dist/screens/sites/SiteCardView.js"
+    },
+    "./screens/sites/SiteTrashTab": {
+      "types": "./dist/screens/sites/SiteTrashTab.d.ts",
+      "import": "./dist/screens/sites/SiteTrashTab.js",
+      "default": "./dist/screens/sites/SiteTrashTab.js"
+    },
+    "./screens/sites/sites-screen-ports": {
+      "types": "./dist/screens/sites/sites-screen-ports.d.ts",
+      "import": "./dist/screens/sites/sites-screen-ports.js",
+      "default": "./dist/screens/sites/sites-screen-ports.js"
+    },
+    "./screens/sites/sites-list-rules": {
+      "types": "./dist/screens/sites/sites-list-rules.d.ts",
+      "import": "./dist/screens/sites/sites-list-rules.js",
+      "default": "./dist/screens/sites/sites-list-rules.js"
+    },
+    "./screens/sites/use-site-confirm.hooks": {
+      "types": "./dist/screens/sites/use-site-confirm.hooks.d.ts",
+      "import": "./dist/screens/sites/use-site-confirm.hooks.js",
+      "default": "./dist/screens/sites/use-site-confirm.hooks.js"
+    },
+    "./screens/sites/sites-port.hooks": {
+      "types": "./dist/screens/sites/sites-port.hooks.d.ts",
+      "import": "./dist/screens/sites/sites-port.hooks.js",
+      "default": "./dist/screens/sites/sites-port.hooks.js"
+    },
+    "./screens/sites/use-sites-snapshot.hooks": {
+      "types": "./dist/screens/sites/use-sites-snapshot.hooks.d.ts",
+      "import": "./dist/screens/sites/use-sites-snapshot.hooks.js",
+      "default": "./dist/screens/sites/use-sites-snapshot.hooks.js"
+    },
+    "./screens/sites/use-local-sites.hooks": {
+      "types": "./dist/screens/sites/use-local-sites.hooks.d.ts",
+      "import": "./dist/screens/sites/use-local-sites.hooks.js",
+      "default": "./dist/screens/sites/use-local-sites.hooks.js"
+    },
+    "./screens/sites/use-sites-config.hooks": {
+      "types": "./dist/screens/sites/use-sites-config.hooks.d.ts",
+      "import": "./dist/screens/sites/use-sites-config.hooks.js",
+      "default": "./dist/screens/sites/use-sites-config.hooks.js"
+    },
+    "./screens/sites/LocalSiteConfirmDialog": {
+      "types": "./dist/screens/sites/LocalSiteConfirmDialog.d.ts",
+      "import": "./dist/screens/sites/LocalSiteConfirmDialog.js",
+      "default": "./dist/screens/sites/LocalSiteConfirmDialog.js"
+    },
+    "./screens/workspace/rules": {
+      "types": "./dist/screens/workspace/rules.d.ts",
+      "import": "./dist/screens/workspace/rules.js",
+      "default": "./dist/screens/workspace/rules.js"
+    },
+    "./screens/workspace/hooks/workspace-port.hooks": {
+      "types": "./dist/screens/workspace/hooks/workspace-port.hooks.d.ts",
+      "import": "./dist/screens/workspace/hooks/workspace-port.hooks.js",
+      "default": "./dist/screens/workspace/hooks/workspace-port.hooks.js"
+    },
+    "./screens/workspace/hooks/use-workspace.hooks": {
+      "types": "./dist/screens/workspace/hooks/use-workspace.hooks.d.ts",
+      "import": "./dist/screens/workspace/hooks/use-workspace.hooks.js",
+      "default": "./dist/screens/workspace/hooks/use-workspace.hooks.js"
     },
     "./shell/lib/editor-failure-i18n": {
       "types": "./dist/shell/lib/editor-failure-i18n.d.ts",

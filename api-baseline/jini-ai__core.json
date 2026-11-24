@@ -1307,7 +1307,17 @@
       "AdminExecutionCredential": "interface:5743fb0259",
       "AdminExecutionCredentialPatch": "interface:16c1d5e728",
       "SiteAssistantCredential": "interface:5b00787aed",
-      "SiteAssistantCredentialPatch": "interface:33ba95fcc3"
+      "SiteAssistantCredentialPatch": "interface:33ba95fcc3",
+      "AdminExecutionDetectedAgent": "interface:6cea0994d2",
+      "AdminExecutionListModelsResponse": "interface:f1220164d6",
+      "AdminExecutionTestConnectionResponse": "interface:5cc88fb7f9",
+      "PublicAssistantSettings": "interface:1beca93b89",
+      "VisitorToolConfigureInput": "interface:90aff98a42",
+      "VisitorToolLimits": "interface:d6b2d3da30",
+      "VisitorToolMode": "type:519ffe87b1",
+      "VisitorToolView": "interface:d0099b6251",
+      "VisitorToolsPort": "interface:360caca02e",
+      "VisitorToolsView": "interface:b7e98becff"
     }
   },
   "./contracts/site/assistant-host-ports": {
@@ -3183,6 +3193,46 @@
     "types": "./dist/tool-metadata/server-logs.d.ts",
     "symbols": {
       "toolMetadata": "variable:aae9f5a60f"
+    }
+  },
+  "./contracts/site/admin-sites": {
+    "types": "./dist/contracts/site/admin-sites.d.ts",
+    "symbols": {
+      "AdminCreatedSite": "interface:12b6c497a9",
+      "AdminCreatedSiteAgentPluginTokens": "interface:e4e5e0cc4b",
+      "AdminLocalSiteAction": "type:b9cac36d68",
+      "AdminLocalSiteState": "interface:f5b02ac86e",
+      "AdminSiteActivation": "interface:7cf0184dca",
+      "AdminSiteBinding": "interface:348f8696aa",
+      "AdminSiteListEntry": "interface:787cc8dd15",
+      "AdminSitesSnapshot": "interface:f60e0aab47",
+      "AdminTokenSignInPlugin": "interface:2b812e101a",
+      "AdminTrashedSite": "interface:c348c094c2",
+      "SitesUserConfig": "interface:c21b55a557",
+      "SitesUserConfigPatch": "type:44cee3b7e3"
+    }
+  },
+  "./contracts/site/cms-workspace": {
+    "types": "./dist/contracts/site/cms-workspace.d.ts",
+    "symbols": {
+      "AdminWorkspaceResponse": "interface:032424d34b"
+    }
+  },
+  "./contracts/site/web-screenshot": {
+    "types": "./dist/contracts/site/web-screenshot.d.ts",
+    "symbols": {
+      "PageCapture": "interface:d79e74c0b5",
+      "PageCaptureFailure": "type:aa565b454f",
+      "PageCaptureFailureFields": "interface:c9445f99d2",
+      "PageCapturePort": "interface:ad24083aa5",
+      "PageCaptureRequest": "interface:fed00a3581",
+      "PageCaptureViewport": "interface:64568afe47"
+    }
+  },
+  "./tool-metadata/workspace": {
+    "types": "./dist/tool-metadata/workspace.d.ts",
+    "symbols": {
+      "toolMetadata": "variable:cc8e563c69"
     }
   }
 }

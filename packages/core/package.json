@@ -222,7 +222,11 @@
       "./tool-metadata/deployments": "universal",
       "./tool-metadata/domain-dns": "universal",
       "./tool-metadata/site-backup": "universal",
-      "./tool-metadata/source-control": "universal"
+      "./tool-metadata/source-control": "universal",
+      "./contracts/site/cms-workspace": "universal",
+      "./contracts/site/admin-sites": "universal",
+      "./contracts/site/web-screenshot": "universal",
+      "./tool-metadata/workspace": "universal"
     },
     "isolation": {
       "entries": {
@@ -1324,6 +1328,26 @@
       "types": "./dist/tool-metadata/source-control.d.ts",
       "import": "./dist/tool-metadata/source-control.js",
       "default": "./dist/tool-metadata/source-control.js"
+    },
+    "./contracts/site/cms-workspace": {
+      "types": "./dist/contracts/site/cms-workspace.d.ts",
+      "import": "./dist/contracts/site/cms-workspace.js",
+      "default": "./dist/contracts/site/cms-workspace.js"
+    },
+    "./contracts/site/admin-sites": {
+      "types": "./dist/contracts/site/admin-sites.d.ts",
+      "import": "./dist/contracts/site/admin-sites.js",
+      "default": "./dist/contracts/site/admin-sites.js"
+    },
+    "./contracts/site/web-screenshot": {
+      "types": "./dist/contracts/site/web-screenshot.d.ts",
+      "import": "./dist/contracts/site/web-screenshot.js",
+      "default": "./dist/contracts/site/web-screenshot.js"
+    },
+    "./tool-metadata/workspace": {
+      "types": "./dist/tool-metadata/workspace.d.ts",
+      "import": "./dist/tool-metadata/workspace.js",
+      "default": "./dist/tool-metadata/workspace.js"
     }
   },
   "files": [

@@ -5,7 +5,7 @@ import { ToolInputError, ToolPermissionDeniedError, type ToolExecutionContext, t
 
 import type { AuthorizeFn } from "@jini-ai/core/contracts/events";
 import { getWorkspaceAgentToolCatalog } from "../agent-tools.js";
-import { WorkspaceConflictError, WorkspaceValidationError, type WorkspaceRecord } from "../create.js";
+import { WorkspaceConflictError, WorkspaceNotFoundError, WorkspaceValidationError, type WorkspaceRecord } from "../create.js";
 import * as workspaceBarrel from "../index.js";
 import { InMemoryWorkspaceRepo } from "../repo.memory.js";
 import { buildWorkspaceRegistrations, workspaceDerivedRisk, type WorkspaceToolDeps } from "../tool-registrations.js";
@@ -55,25 +55,29 @@ test("the catalog declares get/update with schemas and create/delete as schema-l
     ["workspace_update", "mutates-durable-state", { permission: "workspace.manage" }],
     ["workspace_create", "mutates-durable-state", { permission: "workspace.manage" }],
     ["workspace_delete", "mutates-durable-state", { permission: "workspace.manage" }],
+    ["workspace_list", "none", { permission: "workspace.manage" }],
   ]);
   const byName = new Map(catalog.map((entry) => [entry.name, entry]));
-  assert.deepEqual(byName.get("workspace_get")?.inputSchema, { type: "object", additionalProperties: false, required: [], properties: {} });
+  assert.deepEqual(byName.get("workspace_get")?.inputSchema, { type: "object", additionalProperties: false, properties: { workspaceId: { type: "string", minLength: 1, description: "The current workspace id; v1 cannot address another workspace." } } });
+  assert.deepEqual(byName.get("workspace_list")?.inputSchema, { type: "object", additionalProperties: false, properties: {} });
   assert.deepEqual(Object.keys(byName.get("workspace_update")?.inputSchema?.["properties"] as object), ["expectedVersion", "name", "slug"]);
   assert.equal(byName.get("workspace_create")?.inputSchema, undefined);
   assert.equal(byName.get("workspace_delete")?.inputSchema, undefined);
   assert.notEqual(getWorkspaceAgentToolCatalog(), catalog, "each call returns a fresh array a caller may not mutate shared state through");
 });
 
-test("only the read and the rename are wired; create and delete never become registrations", () => {
+test("only the reads and the rename are wired; create and delete never become registrations", () => {
   const { deps } = fakeDeps();
   const registrations = buildWorkspaceRegistrations(deps);
   assert.deepEqual(registrations.map((r) => [r.descriptor.id, r.descriptor.readOnly]), [
     ["workspace_get", true],
     ["workspace_update", false],
+    ["workspace_list", true],
   ]);
   assert.deepEqual([...workspaceDerivedRisk.entries()], [
     ["workspace_get", "none"],
     ["workspace_update", "mutates-durable-state"],
+    ["workspace_list", "none"],
   ]);
 });
 
@@ -111,7 +115,44 @@ test("workspace_get surfaces a denial as ToolPermissionDeniedError without readi
 test("workspace_get fails loudly when the boot-wired workspace row is missing", async () => {
   const { deps } = fakeDeps({ rows: [OTHER] });
   const get = registrationFor({ deps, toolId: "workspace_get" });
-  await assert.rejects(() => get.handler(executionContext({})), { message: `workspace '${WORKSPACE_ID}' was not found` });
+  await assert.rejects(() => get.handler(executionContext({})), (error: unknown) => {
+    assert.ok(error instanceof WorkspaceNotFoundError, "the missing boot-wired row is the domain's own safe refusal");
+    assert.equal(error.message, `workspace '${WORKSPACE_ID}' was not found`);
+    return true;
+  });
+});
+
+test("workspace_get rethrows any other repository failure unchanged, Error or not", async () => {
+  for (const thrown of [new Error("disk unavailable"), { reason: "not an Error" }]) {
+    const { deps, repo } = fakeDeps();
+    repo.findById = async () => { throw thrown; };
+    await assert.rejects(() => registrationFor({ deps, toolId: "workspace_get" }).handler(executionContext({})), (error: unknown) => error === thrown);
+  }
+});
+
+test("workspace_get accepts the boot-wired id and refuses any other id after the same permission check and read", async () => {
+  const { deps, calls } = fakeDeps();
+  const get = registrationFor({ deps, toolId: "workspace_get" });
+  assert.deepEqual(await get.handler(executionContext({ workspaceId: WORKSPACE_ID })), { workspace: SEED });
+  await assert.rejects(() => get.handler(executionContext({ workspaceId: OTHER.id })), (error: unknown) => {
+    assert.ok(error instanceof ToolInputError);
+    assert.equal(error.message, `workspace '${OTHER.id}' is not addressable — only '${WORKSPACE_ID}' is available in this server`);
+    return true;
+  });
+  await assert.rejects(() => get.handler(executionContext({ workspaceId: 7 })), ToolInputError);
+  assert.equal(calls.length, 2, "a non-string id is refused before authorization");
+});
+
+test("workspace_list lists only the boot-addressable workspace through the same permission-gated read", async () => {
+  const { deps, repo, calls } = fakeDeps();
+  repo.list = async () => { throw new Error("must not disclose inaccessible workspace rows"); };
+  const list = registrationFor({ deps, toolId: "workspace_list" });
+  assert.deepEqual(await list.handler(executionContext({})), { workspaces: [SEED] });
+  assert.deepEqual(await list.handler(executionContext(undefined)), { workspaces: [SEED] });
+  assert.equal(calls.length, 2);
+  await assert.rejects(() => list.handler(executionContext({ id: OTHER.id })), ToolInputError);
+  const denied = fakeDeps({ allowed: false });
+  await assert.rejects(() => registrationFor({ deps: denied.deps, toolId: "workspace_list" }).handler(executionContext({})), ToolPermissionDeniedError);
 });
 
 test("workspace_update renames only the boot-wired workspace and persists the normalized values", async () => {

@@ -17,6 +17,7 @@
       "./core": "universal",
       "./render-surface": "universal",
       "./dom": "browser",
+      "./dom/admin-page-tools": "browser",
       "./skills/install": "node",
       "./skills/install/node": "node",
       "./skills/tools": "node",
@@ -54,6 +55,11 @@
       "types": "./dist/core/dom/index.d.ts",
       "import": "./dist/core/dom/index.js",
       "default": "./dist/core/dom/index.js"
+    },
+    "./dom/admin-page-tools": {
+      "types": "./dist/core/dom/admin-page-tools.d.ts",
+      "import": "./dist/core/dom/admin-page-tools.js",
+      "default": "./dist/core/dom/admin-page-tools.js"
     },
     "./skills/install": {
       "types": "./dist/skills/install/index.d.ts",

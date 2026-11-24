@@ -137,7 +137,9 @@ export type KitIconName =
   | 'plus' | 'puzzle' | 'refresh' | 'settings' | 'storefront' | 'trash-compact' | 'volume'
   // Database, import-export, library, media and skills screens, when they switch to the kit Icon.
   | 'timeline' | 'migrate-forward' | 'tray-export' | 'tray-import' | 'more-horizontal-outline' | 'tray-upload'
-  | 'document-lines' | 'tiles-four' | 'picture-frame' | 'video-frame' | 'cloud-outline' | 'bin-lidded' | 'document-marked';
+  | 'document-lines' | 'tiles-four' | 'picture-frame' | 'video-frame' | 'cloud-outline' | 'bin-lidded' | 'document-marked'
+  // The sites list's card badges.
+  | 'flag-triangle' | 'star-filled';
 type SvgLineCap = 'butt' | 'round' | 'square' | 'inherit';
 type SvgLineJoin = 'miter' | 'round' | 'bevel' | 'inherit';
 type Booleanish = boolean | 'true' | 'false';
