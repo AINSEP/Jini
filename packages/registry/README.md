@@ -143,3 +143,9 @@ Ranking belongs to the injected backend, source/enrichment policy belongs to the
   never leaks a connection. Search/describe reseed only when the revision moved; hosts that answer
   extra describe fallbacks (renamed ids, namespace overviews) read `current()` so both come from the
   same seed. The host keeps the backend connection, its disposal, and its enricher/classifier.
+- **Declared search keywords** (`@jini-ai/registry/tool-catalog-builder`'s
+  `collectDeclaredToolKeywords({ listSources, readDeclaration, isKnownTool })` and
+  `mergeKeywordMaps({ maps })`): the host injects its trusted manifest enumeration (e.g. bundled,
+  never installed, packages), a `readDeclaration({ source })` that reads one manifest's keyword
+  declaration, and `isKnownTool({ id })` over its native tools; a failing list or read contributes
+  nothing. It merges the result with its own keyword map and hands it to `createSearchEnricher`.

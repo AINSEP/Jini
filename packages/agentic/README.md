@@ -117,6 +117,12 @@ attribute names, and the wire shapes of both the GenUI and A2UI protocols.
   host injects `describeRefusal({ page, availableScreens })`, returning its own wording (for
   example, pointing at the host's content-search tool); only the `page.navigate` registration is
   rewrapped, and every other error passes through as the same object.
+- **Multi-turn A2UI tools** (`@jini-ai/agentic/render-surface`'s `withA2uiExchange`,
+  `a2uiActionOf`, `validatedA2uiMessage`): a host tool handler passes its surface exchange store,
+  the executor's `emitSurface`, its own tool id, the principal id and the run's abort `signal`, plus
+  a `run({ surfaceId, emit, receive })` that scripts the turns; outgoing messages are validated and
+  labelled with the tool id, and the exchange closes on abort and on every return. The host keeps
+  its component trees, catalog id and model-facing result copy.
 
 ## Runtime
 

@@ -317,3 +317,15 @@ refusal value, its safe diagnostic copy and logger (`readFailure: "throw"` for H
 `readUserLayerObject({ settingsRepo, namespace, key, workspaceId, principalId, notReadyMessage })`
 reads one principal's raw user-layer object for read-modify-write patches; the host injects the
 not-ready copy.
+
+Read cards (`tool-read-cards.ts`, root export): a host collapsing paired get/list read tools into
+one card passes the source registrations' own published schemas and handlers to
+`unionInputSchema({ getSchema, listSchema, idProperty }, { sharedOnlyKeys })` (the host injects its
+peer-read selector, e.g. `site`) and `dispatchByIdPresence({ idProperty, get, list }, { batchGet })`,
+and renames its source selector to a canonical one with `renameSchemaSelector` (schema) and
+`renameInputSelectors` (input, as a `ToolInputNormalizer` and in the handler). Card ids,
+permissions, copy and which tools pair up stay with the host; `rewriteSchemaDescriptions` and
+`valueAtPath` serve its retired-id rewrite and list lookups.
+
+`httpOriginOf({ value })` (`origin-validation.ts`) parses an operator-configured public URL to its
+origin without throwing; the host injects the value (its own env var).

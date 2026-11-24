@@ -161,7 +161,7 @@ interface OriginTaggedConnection {
  *  carries its OWN origin already, stamped by `external-mcp-store.ts`'s
  *  `toResolvedFederatedConnections`) and skip the row re-check a preset has no row to support. Split
  *  out purely to keep {@link resolveFederationAttachInputs} under the shop complexity ceiling. */
-function withPresetOrigin(connection: ResolvedFederatedConnection): ResolvedFederatedConnection {
+export function withPresetOrigin(connection: ResolvedFederatedConnection): ResolvedFederatedConnection {
   return { ...connection, config: { ...connection.config, origin: { kind: "preset" } } };
 }
 

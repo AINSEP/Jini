@@ -1,4 +1,5 @@
 import type { ChatRunLedger } from '../../core/durable-runs/ledger-contracts.js';
+import type { DurableRunStore } from '../../core/durable-runs/ports.js';
 
 /**
  * A {@link ChatRunLedger} over a database the host opens only on first real use (a test
@@ -17,7 +18,9 @@ export function createLazyChatRunLedger<K>(
   const opened = (): ChatRunLedger => ledgerFor({ kernel: open() });
   return {
     hasActiveRuns: async () => { const kernel = peek(); return kernel !== undefined ? ledgerFor({ kernel }).hasActiveRuns({}, {}) : false; },
-    get durable() { return opened().durable; },
+    // Mirrors the opened ledger's optional store exactly; a getter cannot be an absent property
+    // under exactOptionalPropertyTypes, so `undefined` passes through as the host ledger has it.
+    get durable() { return opened().durable as DurableRunStore; },
     unlessSettled: (required, optional) => opened().unlessSettled(required, optional),
     settle: (settlement, optional) => opened().settle(settlement, optional),
     checkpoint: (progress, optional) => opened().checkpoint(progress, optional),

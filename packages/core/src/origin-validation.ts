@@ -75,9 +75,17 @@ function parseHttpUrl(value: string): URL | undefined {
   return parsed;
 }
 
+/** The protocol://host origin of an absolute HTTP(S) URL, or `undefined` when `value` is
+ * unparseable or another scheme. Never throws, so a host may read an operator-configured origin
+ * (e.g. a public-URL env var) inside a request or tool call and degrade instead of failing.
+ * @complexity O(value.length). */
+export function httpOriginOf({ value }: { value: string }, _optional: Record<string, never> = {}): string | undefined {
+  return parseHttpUrl(value)?.origin;
+}
+
 /** Normalizes one entry to a protocol://host origin; invalid or non-HTTP(S) entries are rejected. */
 function parseAllowedOrigin(entry: string): string | undefined {
-  return parseHttpUrl(entry)?.origin;
+  return httpOriginOf({ value: entry });
 }
 
 /**
