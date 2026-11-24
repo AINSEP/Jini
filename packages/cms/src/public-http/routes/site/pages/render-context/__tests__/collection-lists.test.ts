@@ -31,8 +31,9 @@ const collaborators: CollectionListsCollaborators = {
   dates: { formatDateLabel, resolveSiteTimeZoneSafely },
 };
 
-function deps(found: ContentTypeRecord | null): Pick<CollectionListsRenderDeps, "workspaceId" | "contentTypeRepo" | "entryRepo" | "entryListAttribute" | "collaborators"> {
+function deps(found: ContentTypeRecord | null, warn: CollectionListsRenderDeps["warn"] = () => undefined): Pick<CollectionListsRenderDeps, "workspaceId" | "contentTypeRepo" | "entryRepo" | "entryListAttribute" | "collaborators" | "warn"> {
   return {
+    warn,
     collaborators,
     workspaceId: "w1",
     contentTypeRepo: { findByKey: async () => found },
@@ -49,11 +50,37 @@ describe("resolveCollectionListsForRender", () => {
   });
 
   it("records a miss as undefined when the content type is unknown", async () => {
-    const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
-    const map = await resolveCollectionListsForRender({ deps: deps(null), html: marker, pagePath: "/" });
+    const warn = vi.fn();
+    const map = await resolveCollectionListsForRender({ deps: deps(null, warn), html: marker, pagePath: "/" });
     expect([...map.values()]).toEqual([undefined]);
-    expect(warn).toHaveBeenCalled();
-    warn.mockRestore();
+    expect(warn.mock.calls).toEqual([[{ code: "content-type-not-registered", collection: "books" }]]);
+  });
+
+  it("reports a marker that names no content type, as data and never to the console", async () => {
+    const consoleWarn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    const warn = vi.fn();
+    const none = `<div data-embed-config='{"type":"collection"}'>fallback</div>`;
+    const map = await resolveCollectionListsForRender({ deps: deps(contentType, warn), html: none, pagePath: "/" });
+    expect([...map.values()]).toEqual([undefined]);
+    expect(warn.mock.calls).toEqual([[{ code: "marker-names-no-content-type" }]]);
+    expect(consoleWarn).not.toHaveBeenCalled();
+    consoleWarn.mockRestore();
+  });
+
+  it("reports a rejected config with the parser's reason", async () => {
+    const warn = vi.fn();
+    const bad = `<div data-embed-config='{"type":"collection","id":"books","sort":"nope"}'>fallback</div>`;
+    await resolveCollectionListsForRender({ deps: deps(contentType, warn), html: bad, pagePath: "/" });
+    expect(warn).toHaveBeenCalledTimes(1);
+    expect(warn.mock.calls[0]![0]).toMatchObject({ code: "config-rejected", collection: "books" });
+    expect(typeof warn.mock.calls[0]![0].reason).toBe("string");
+  });
+
+  it("reports the per-page cap once, with the distinct and resolved counts", async () => {
+    const warn = vi.fn();
+    const many = Array.from({ length: 12 }, (_, i) => `<div data-embed-config='{"type":"collection","id":"books","limit":${i + 1}}'>f</div>`).join("");
+    await resolveCollectionListsForRender({ deps: deps(contentType, warn), html: many, pagePath: "/" });
+    expect(warn.mock.calls.filter(([event]) => event.code === "marker-cap-exceeded")).toEqual([[{ code: "marker-cap-exceeded", distinct: 12, resolved: 10 }]]);
   });
 
   it("renders found entries inside the host's injected wrapper attribute", async () => {

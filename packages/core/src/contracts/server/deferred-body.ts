@@ -22,10 +22,13 @@ export type RouteBodyReadOptions =
  * asked for (nothing was read). `too-large`: over `limit` (which it carries). `unsupported-encoding`: a
  * compressed body. `malformed`: the bytes did not parse. `aborted`: the client stopped sending.
  * `size-mismatch`: the body did not match its `Content-Length`. `unreadable`: any other read failure.
+ * `incompatible-read`: the stream was already consumed by an earlier read of this request that asked
+ * for different options (another parser, media type or limit), so this read cannot be answered; only
+ * a call with the first call's exact options reuses its outcome.
  */
 export type RouteBodyRefusal =
   | { readonly reason: 'too-large'; readonly limit: number }
-  | { readonly reason: 'media-type' | 'unsupported-encoding' | 'malformed' | 'aborted' | 'size-mismatch' | 'unreadable' };
+  | { readonly reason: 'media-type' | 'unsupported-encoding' | 'malformed' | 'aborted' | 'size-mismatch' | 'unreadable' | 'incompatible-read' };
 
 /** A flat urlencoded form: each field's value, or its values in order when the key repeats. */
 export type RouteFormFields = Readonly<Record<string, string | readonly string[]>>;
@@ -34,8 +37,9 @@ export type RouteFormFields = Readonly<Record<string, string | readonly string[]
 export type RouteBodyRead<T> = { readonly ok: true; readonly value: T } | { readonly ok: false; readonly refusal: RouteBodyRefusal };
 
 /**
- * Reads the request body once, on demand. Method syntax keeps the overloads; a second call answers what
- * the first read (the stream is consumed once).
+ * Reads the request body once, on demand. Method syntax keeps the overloads; the stream is consumed once,
+ * so a later call with options identical to the first answers what the first read, and a later call with
+ * different options is refused as `incompatible-read`.
  */
 export interface RouteBodyReader {
   (options: Extract<RouteBodyReadOptions, { type: 'raw' }>): Promise<RouteBodyRead<Uint8Array>>;

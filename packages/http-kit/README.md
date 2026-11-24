@@ -96,7 +96,9 @@ Request context and replies (opt-in per spec; a spec that declares none behaves 
 - A raw spec's `raw.readBody({ type: 'raw', mediaType, limit })` / `({ type: 'urlencoded', limit })` reads
   the body only when the handler calls it — after its gates — through Express's own `raw` / `urlencoded`
   parser (never inflating), answering `{ ok, value }` or a neutral `refusal` (`too-large` with its limit,
-  `media-type`, `unsupported-encoding`, `malformed`, `aborted`, `size-mismatch`, `unreadable`). The host
+  `media-type`, `unsupported-encoding`, `malformed`, `aborted`, `size-mismatch`, `unreadable`, and
+  `incompatible-read` for a later call whose options differ from the first, since the stream is read
+  once; identical options reuse the first outcome). The host
   registers NO parser ahead of such a mount; one registered ahead still wins (the read reports its body).
 
 Raw routes: `mountRawRoute({ app, spec, deps, adapter })` with a `defineRawRoute` spec serves HTML,

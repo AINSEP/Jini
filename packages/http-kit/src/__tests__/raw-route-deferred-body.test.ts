@@ -6,7 +6,7 @@ import { gzipSync } from 'node:zlib';
 import express from 'express';
 import type { Request } from 'express';
 import { describe, expect, it } from 'vitest';
-import type { RouteBodyRead } from '@jini-ai/core/contracts/server';
+import type { RouteBodyRead, RouteBodyReadOptions } from '@jini-ai/core/contracts/server';
 import { defineRawRoute, mountRawRoute } from '../raw-route.js';
 import type { JsonRoutePorts } from '../types.js';
 import { listen } from './route-test-host.js';
@@ -110,6 +110,57 @@ describe('mountRawRoute: deferred body (raw.readBody)', () => {
     await fetch(`${await listen({ app })}/twice`, { method: 'POST', headers: { 'content-type': 'application/zip' }, body: new Uint8Array([9]) });
     expect(reads).toHaveLength(2);
     expect(reads[1]).toBe(reads[0]);
+  });
+
+  /** Posts one zip body to a route whose handler issues `first` then `second`, concurrently or one after the other. */
+  async function twoReads({ first, second, concurrent }: { first: RouteBodyReadOptions; second: RouteBodyReadOptions; concurrent: boolean }) {
+    const reads: RouteBodyRead<unknown>[] = [];
+    const spec = defineRawRoute<object>({ method: 'post', path: '/two', handle: async ({ raw }) => {
+      const issue = (options: RouteBodyReadOptions) => (raw.readBody as (o: RouteBodyReadOptions) => Promise<RouteBodyRead<unknown>>)(options);
+      if (concurrent) reads.push(...await Promise.all([issue(first), issue(second)]));
+      else { reads.push(await issue(first)); reads.push(await issue(second)); }
+      return new Response(null, { status: 204 });
+    } });
+    const app = express();
+    mountRawRoute({ app, spec, deps: {} });
+    await fetch(`${await listen({ app })}/two`, { method: 'POST', headers: { 'content-type': 'application/zip' }, body: new Uint8Array([9]) });
+    return reads;
+  }
+  const ZIP = { type: 'raw', mediaType: 'application/zip', limit: LIMIT } as const;
+
+  // Mutation `deferred-body-reuses-incompatible-read` (the first read's promise returned for ANY options)
+  // turns the incompatible cases RED: a later urlencoded read would answer bytes, a tighter limit the
+  // first read's bytes.
+  it.each([true, false])('identical options reuse the first read, the stream read once (concurrent: %s)', async (concurrent) => {
+    const [first, second] = await twoReads({ first: ZIP, second: { ...ZIP }, concurrent });
+    expect(first).toEqual({ ok: true, value: Buffer.from([9]) });
+    expect(second).toBe(first);
+  });
+
+  it.each([true, false])('an incompatible later read is refused as incompatible-read, the first read untouched (concurrent: %s)', async (concurrent) => {
+    const incompatible: RouteBodyReadOptions[] = [
+      { type: 'urlencoded', limit: LIMIT },
+      { ...ZIP, mediaType: 'application/octet-stream' },
+      { ...ZIP, limit: LIMIT * 2 },
+      { ...ZIP, limit: 1 },
+    ];
+    for (const second of incompatible) {
+      const [first, later] = await twoReads({ first: ZIP, second, concurrent });
+      expect(first).toEqual({ ok: true, value: Buffer.from([9]) });
+      expect(later).toEqual({ ok: false, refusal: { reason: 'incompatible-read' } });
+    }
+  });
+
+  it('a first urlencoded read refuses a later raw read of the same request', async () => {
+    const spec = defineRawRoute<object>({ method: 'post', path: '/form', handle: async ({ raw }) => {
+      const form = await raw.readBody({ type: 'urlencoded', limit: LIMIT });
+      const bytes = await raw.readBody({ type: 'raw', mediaType: 'application/x-www-form-urlencoded', limit: LIMIT });
+      return Response.json({ form, bytes });
+    } });
+    const app = express();
+    mountRawRoute({ app, spec, deps: {} });
+    const response = await fetch(`${await listen({ app })}/form`, { method: 'POST', headers: { 'content-type': 'application/x-www-form-urlencoded' }, body: 'a=1' });
+    expect(await response.json()).toEqual({ form: { ok: true, value: { a: '1' } }, bytes: { ok: false, refusal: { reason: 'incompatible-read' } } });
   });
 
   it('reads a flat urlencoded form, refusing a malformed or oversized one', async () => {
