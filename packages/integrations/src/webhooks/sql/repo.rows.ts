@@ -35,6 +35,12 @@ export interface WebhookSubscriptionsTable {
   status: string;
   created_by_principal_id: string;
   created_by_plugin_id: string | null;
+  /**
+   * `agent` | `person`; null on rows written before attribution existed (read as person-made). The
+   * host schema must add this nullable column before it wires the agent switch, or a restart would
+   * forget which subscriptions an agent created.
+   */
+  created_by_kind: string | null;
   created_at: string;
   updated_at: string;
   version: Generated<number>;

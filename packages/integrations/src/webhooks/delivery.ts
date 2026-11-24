@@ -1,4 +1,4 @@
-import { nowIso } from "@jini-ai/core/primitives";
+import { isPausedByAgentSwitch, nowIso } from "@jini-ai/core/primitives";
 // Keep transport, signing and persistence behind injected ports: this module owns the
 // enqueue/retry/filter state machine, so its decisions can be inspected independently of I/O adapters.
 import { IntegrationError } from "../argument-error.js";
@@ -188,7 +188,22 @@ export interface ProcessDueDeliveriesOptional {
   signal?: AbortSignal;
   maxAttempts?: number;
   random?: (() => number) | undefined;
+  /**
+   * The host's agent switch. While it returns false, deliveries for agent-created subscriptions
+   * are held (handed back to `pending`, attempts untouched; nothing is failed or deleted) and go
+   * out once it returns true again. Person-created subscriptions are never held. Omitted: no hold.
+   * Requires a delivery repo with `releaseClaim`; without one the run is refused before claiming.
+   */
+  isAgentEnabled?: () => boolean | Promise<boolean>;
+  /** How long a held delivery waits before it is looked at again; default {@link AGENT_PAUSE_RECHECK_MS}. */
+  agentPauseRecheckMs?: number;
 }
+
+/**
+ * Held rows are pushed this far ahead so they do not take every claim slot from person-created
+ * deliveries on each tick; resuming delivers them within this window.
+ */
+export const AGENT_PAUSE_RECHECK_MS = 60_000;
 
 /**
  * The idle timeout alone lets one receiver that trickles a byte at a time hold the single-flight
@@ -204,6 +219,8 @@ export interface ProcessDueDeliveriesResult {
   delivered: number;
   failed: number;
   dead: number;
+  /** Deliveries held by the agent switch this tick; present only when non-zero. */
+  paused?: number;
 }
 
 // Throwing/rejecting redaction hooks and explicit vetoes fail this attempt before signing/sending;
@@ -216,6 +233,7 @@ export async function processDueDeliveries(
   const { deliveryRepo, subscriptionRepo, envelopeStore, httpClient, signer, clock, headers } = required.deps;
   const { batchSize, hooks, request, claimLeaseMs, signal, maxAttempts, random } = resolveProcessDueDeliveriesOptions(optional);
 
+  assertPauseCanReleaseClaims({ optional, deliveryRepo });
   const result: ProcessDueDeliveriesResult = { processed: 0, delivered: 0, failed: 0, dead: 0 };
   if (signal?.aborted) return result;
   const claimedAt = nowIso({ clock });
@@ -224,10 +242,15 @@ export async function processDueDeliveries(
   const claimed = await deliveryRepo.claimPending({ batchSize, nowIso: claimedAt }, { claimLeaseMs });
   result.processed = claimed.length;
 
+  const hold = await agentHoldFor({ optional, subscriptionRepo, deliveryRepo, claimedAt });
   for (const [index, row] of claimed.entries()) {
     if (signal?.aborted) {
       await releaseClaims(claimed.slice(index), { deliveryRepo, nextAttemptAt: claimedAt });
       break;
+    }
+    if (hold && (await hold(row))) {
+      result.paused = (result.paused ?? 0) + 1;
+      continue;
     }
     const outcome = await attemptOneDelivery(row, {
       subscriptionRepo,
@@ -279,6 +302,43 @@ function resolveProcessDueDeliveriesOptions(
   const claimLeaseMs = optional.claimLeaseMs ?? batchSize * requestTotalDeadlineMs + WEBHOOK_CLAIM_LEASE_MARGIN_MS;
   const request = { timeoutMs: requestTimeoutMs, totalDeadlineMs: requestTotalDeadlineMs, ...(signal ? { signal } : {}) };
   return { batchSize, hooks, request, claimLeaseMs, signal, maxAttempts, random };
+}
+
+/**
+ * Fails fast, before any row is claimed, when the agent switch is wired to a delivery repo that
+ * cannot hand claims back. Claiming charges an attempt and leases the row; a held row that cannot
+ * be released would keep that charge and sit leased every tick the switch stays off, so pausing
+ * would silently burn attempts. Refusing the run makes the mis-wiring visible to the host instead.
+ */
+function assertPauseCanReleaseClaims(required: {
+  optional: ProcessDueDeliveriesOptional;
+  deliveryRepo: WebhookDeliveryRepoPort;
+}): void {
+  if (required.optional.isAgentEnabled && !required.deliveryRepo.releaseClaim) {
+    throw new Error("The agent pause policy needs a delivery repo with releaseClaim; no deliveries were claimed.");
+  }
+}
+
+/**
+ * The per-row hold check for this tick, or null when no switch is wired or the agent is on (the
+ * switch is read once per tick). A held row goes back through `releaseClaim` (guaranteed present by
+ * `assertPauseCanReleaseClaims`) so its attempt is not counted.
+ */
+async function agentHoldFor(required: {
+  optional: ProcessDueDeliveriesOptional;
+  subscriptionRepo: WebhookSubscriptionRepoPort;
+  deliveryRepo: WebhookDeliveryRepoPort;
+  claimedAt: ISODateTime;
+}): Promise<((row: WebhookDeliveryRecord) => Promise<boolean>) | null> {
+  const { optional, subscriptionRepo, deliveryRepo, claimedAt } = required;
+  if (!optional.isAgentEnabled || (await optional.isAgentEnabled())) return null;
+  const nextAttemptAt = addMsToIso(claimedAt, optional.agentPauseRecheckMs ?? AGENT_PAUSE_RECHECK_MS);
+  return async (row) => {
+    const subscription = await subscriptionRepo.findById({ workspaceId: row.workspaceId, id: row.subscriptionId });
+    if (!subscription || !isPausedByAgentSwitch({ creatorKind: subscription.createdByKind, agentEnabled: false })) return false;
+    await releaseClaims([row], { deliveryRepo, nextAttemptAt });
+    return true;
+  };
 }
 
 /**

@@ -116,7 +116,8 @@ export const webhooksCreateSubscriptionHandler = ({ deps }: WebhookHandlerArgs, 
       targetUrl: requireString({ input, key: "targetUrl" }),
       topics: Array.isArray(rawTopics) ? rawTopics.map(String) : [],
     },
-  });
+    // An agent tool call made this one: the host's agent switch pauses its deliveries when off.
+  }, { createdByKind: "agent" });
   return { subscription: toSubscriptionToolView({ subscription, lastDelivery: null }) };
 };
 
