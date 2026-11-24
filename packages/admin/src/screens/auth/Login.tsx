@@ -4,6 +4,7 @@ import type { AdminUser } from "@jini-ai/core/contracts/site/user-management-rea
 import type { Translate } from "@jini-ai/core/text";
 import type { LoginController, LoginHookProps } from "./hooks/use-login.hooks.js";
 import type { AuthErrorNotice, AuthPasskeySignIn, AuthSecretInput } from "./auth-host-slots.js";
+import type { UseAdminLocaleHook } from "../../react/kit.js";
 
 /**
  * @file The Login screen — markup only.
@@ -18,8 +19,8 @@ export interface LoginProps {
    * `@jini-ai/ui`'s `useCustomSelect` use. The host passes its wired hook (`useWiredLogin`).
    */
   useLoginHook: (props: LoginHookProps) => LoginController;
-  /** The host's locale hook. */
-  useAdminLocaleHook: () => string;
+  /** The host's one locale hook (REQUIRED; the same function the admin kit holds). */
+  useAdminLocaleHook: UseAdminLocaleHook;
   /** The product name shown as the sign-in heading (host copy, K3). */
   productName: string;
   /** The host's secret input, error notice and bound passkey button. */
@@ -32,7 +33,7 @@ export interface LoginProps {
 
 export function Login({ onLogin, useLoginHook, useAdminLocaleHook, productName, SecretInput, ErrorNotice, PasskeySignIn, OwnerRecoverySignIn, loadCurrentUser }: LoginProps) {
   const { username, setUsername, password, setPassword, error, failure, busy, submit, mfa } = useLoginHook({ onLogin });
-  const locale = useAdminLocaleHook();
+  const locale = useAdminLocaleHook({}, {});
   const t = createLoginTranslator({ locale });
 
   return (
