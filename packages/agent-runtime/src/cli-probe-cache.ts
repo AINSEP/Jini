@@ -1,14 +1,21 @@
 /** Background inventory caching for detected CLIs; the host injects the probe (its inventory port).
- * Discovery stays behind the existing runtime port; requests only read settled snapshots.
- * The probe tail is module-wide on purpose: concurrent caches never launch overlapping CLI sweeps. */
-let probeTail: Promise<void> = Promise.resolve();
+ * Discovery stays behind the existing runtime port; requests only read settled snapshots. */
+
+/** The shared probe tail: caches given the same queue never launch overlapping CLI sweeps.
+ * Host-owned (one per process is typical) so this module keeps no state of its own. */
+export interface CliProbeQueue { tail: Promise<void> }
+
+/** A fresh, idle probe queue for {@link createCliProbeCache}'s `probeQueue`. */
+export function createCliProbeQueue(_required: Record<string, never> = {}, _optional: Record<string, never> = {}): CliProbeQueue {
+  return { tail: Promise.resolve() };
+}
 
 /** One inventory per host port. Catalog expiry schedules a lazy background refresh.
  * Failed scans keep the snapshot until the optional retry cooldown; explicit Rescan always retries.
  * A rescan during a scan coalesces into one forced follow-up, never a second concurrent sweep.
  * @complexity O(1) bookkeeping; snapshot/probe cost belongs to the injected inventory port. */
 export function createCliProbeCache<T>(
-  { initial, probe }: { initial: () => T; probe: (input: { force: boolean }, options: Record<string, never>) => Promise<T> },
+  { initial, probe, probeQueue }: { initial: () => T; probe: (input: { force: boolean }, options: Record<string, never>) => Promise<T>; probeQueue: CliProbeQueue },
   { expiresAt, retryAfterMs }: {
     expiresAt?: (input: { snapshot: T }, options: Record<string, never>) => number;
     retryAfterMs?: number;
@@ -25,7 +32,7 @@ export function createCliProbeCache<T>(
     started = true;
     // Let the request serialize its cached response before even launching the first CLI.
     const turn = new Promise<void>(resolve => { setImmediate(resolve); });
-    pending = probeTail.then(() => turn).then(async () => {
+    pending = probeQueue.tail.then(() => turn).then(async () => {
       try {
         const result = await probe({ force }, {});
         snapshotExpiresAt = expiresAt?.({ snapshot: result }, {}) ?? Infinity;
@@ -39,7 +46,7 @@ export function createCliProbeCache<T>(
       pending = undefined;
       if (rescanQueued) { rescanQueued = false; refresh({ force: true }); }
     });
-    probeTail = pending;
+    probeQueue.tail = pending;
   }
 
   return {

@@ -9,7 +9,8 @@ import { test } from "vitest";
 
 import type { ToolExecutor } from "../tool-executor-types.js";
 
-import { err, isRecord, mapToolExecutionResult, ok, resolveDelegatedInput } from "../byok-meta-tool-result.js";
+import { isNonArrayRecord as isRecord } from "@jini-ai/core/records";
+import { err, mapToolExecutionResult, ok, resolveDelegatedInput } from "../byok-meta-tool-result.js";
 
 type ExecutionResult = Awaited<ReturnType<ToolExecutor["execute"]>>;
 
@@ -57,7 +58,7 @@ test("ok renders a null output as the JSON text null", () => {
   assert.deepEqual(ok({ output: null }), { content: "null" });
 });
 
-test("isRecord rejects arrays and null but accepts a plain object", () => {
+test("the non-array record guard this dispatch relies on rejects arrays and null but accepts a plain object", () => {
   assert.deepEqual([isRecord({ value: [] }), isRecord({ value: null }), isRecord({ value: "x" }), isRecord({ value: {} })], [false, false, false, true]);
 });
 

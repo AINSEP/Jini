@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { afterEach, test, vi } from "vitest";
-import { createCliProbeCache } from "../cli-probe-cache.js";
+import { createCliProbeCache, createCliProbeQueue } from "../cli-probe-cache.js";
 import { MODEL_CATALOG_TTL_MS, MODEL_NEGATIVE_TTL_MS } from "../model-discovery.js";
 
 afterEach(() => { vi.restoreAllMocks(); });
@@ -15,7 +15,7 @@ test("cold and repeated requests return immediately while one background probe r
   const next = deferred<string[]>();
   const started = deferred<void>();
   let calls = 0;
-  const cache = createCliProbeCache({ initial: () => ["previous"], probe: () => {
+  const cache = createCliProbeCache({ probeQueue: createCliProbeQueue(), initial: () => ["previous"], probe: () => {
     calls++; started.resolve(); return next.promise;
   } });
   assert.deepEqual(await cache.read({}), ["previous"]);
@@ -34,7 +34,7 @@ test("Rescan queues one forced refresh behind an in-flight probe and keeps the p
   const forces: boolean[] = [];
   let active = 0;
   let peak = 0;
-  const cache = createCliProbeCache({ initial: () => ["previous"], probe: async ({ force }) => {
+  const cache = createCliProbeCache({ probeQueue: createCliProbeQueue(), initial: () => ["previous"], probe: async ({ force }) => {
     forces.push(force); peak = Math.max(peak, ++active); started.resolve();
     const result = forces.length === 1 ? await first.promise : ["rescanned"];
     active--; return result;
@@ -52,7 +52,7 @@ test("Rescan queues one forced refresh behind an in-flight probe and keeps the p
 
 test("failed background probes retain the cache and require an explicit Rescan to retry", async () => {
   let calls = 0;
-  const cache = createCliProbeCache({ initial: () => ["previous"], probe: async () => {
+  const cache = createCliProbeCache({ probeQueue: createCliProbeQueue(), initial: () => ["previous"], probe: async () => {
     if (++calls === 1) throw new Error("private stderr");
     return ["recovered"];
   } });
@@ -68,7 +68,7 @@ for (const initialFailure of [true, false]) {
     let now = 0;
     vi.spyOn(Date, "now").mockImplementation(() => now);
     let calls = 0;
-    const cache = createCliProbeCache({
+    const cache = createCliProbeCache({ probeQueue: createCliProbeQueue(),
       initial: () => ["initial"],
       probe: async () => {
         calls++;
@@ -106,7 +106,7 @@ for (const [freshness, ttl] of [["offline-fallback", MODEL_NEGATIVE_TTL_MS], ["f
     vi.spyOn(Date, "now").mockImplementation(() => now);
     let calls = 0;
     const previous = { freshness, expiresAt: new Date(ttl).toISOString(), models: ["previous"] };
-    const cache = createCliProbeCache({
+    const cache = createCliProbeCache({ probeQueue: createCliProbeQueue(),
       initial: () => previous,
       probe: async () => ++calls === 1 ? previous : {
         freshness: "fresh" as const, expiresAt: new Date(now + MODEL_CATALOG_TTL_MS).toISOString(), models: ["recovered"],
@@ -129,3 +129,19 @@ for (const [freshness, ttl] of [["offline-fallback", MODEL_NEGATIVE_TTL_MS], ["f
     assert.equal(cache.isPending({}), false);
   });
 }
+
+test("caches sharing one probe queue never run their probes concurrently", async () => {
+  const probeQueue = createCliProbeQueue();
+  let running = 0, overlap = false;
+  const gate = deferred<void>();
+  const probe = async () => { running += 1; overlap ||= running > 1; await gate.promise; running -= 1; return ["next"]; };
+  const first = createCliProbeCache({ probeQueue, initial: () => ["a"], probe });
+  const second = createCliProbeCache({ probeQueue, initial: () => ["b"], probe });
+  await first.read({}); await second.read({});
+  await new Promise((resolve) => { setImmediate(resolve); });
+  await new Promise((resolve) => { setImmediate(resolve); });
+  gate.resolve();
+  await first.settled({}); await second.settled({});
+  assert.equal(overlap, false);
+  assert.deepEqual([await first.read({}), await second.read({})], [["next"], ["next"]]);
+});

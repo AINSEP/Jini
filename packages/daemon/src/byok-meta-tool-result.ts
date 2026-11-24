@@ -4,9 +4,21 @@
  * `execute_delegated_tool` input normalizer, tool-output rendering (JSON string vs. image content
  * blocks), and the `ToolExecutor` status-to-message map. No I/O and no registry access here.
  */
+import { isNonArrayRecord } from "@jini-ai/core/records";
+// Meta-tool argument bags are model output: a model can emit anything, including `null` or a bare
+// string, and every read below has to survive that — hence the non-array record guard.
 import type { ToolExecutor } from "./tool-executor-types.js";
 
-import type { ProviderToolResultBlock as ByokToolResultBlock } from "@jini-ai/agent-runtime/providers/tool-turn";
+
+/**
+ * One block of a tool result that carries more than text — the MCP content-block shape
+ * (`{type:'image', mimeType, data}`) a registered tool returns, e.g. `media_view_image`.
+ * Structurally identical to `@jini-ai/agent-runtime/providers/tool-turn`'s `ProviderToolResultBlock`;
+ * redeclared because the daemon may only take type edges on core/protocol (L5 injected-edge rule).
+ */
+export type ByokToolResultBlock =
+  | { readonly type: "text"; readonly text: string }
+  | { readonly type: "image"; readonly mimeType: string; readonly data: string };
 
 /** What one meta-tool call resolves to — deliberately the exact `{content, isError?}` shape
  *  `@jini-ai/agent-runtime/providers/tool-turn`'s `ProviderToolExecutor` contract returns, so the route hands this straight
@@ -14,12 +26,6 @@ import type { ProviderToolResultBlock as ByokToolResultBlock } from "@jini-ai/ag
 export interface ByokMetaToolResult {
   readonly content: string | readonly ByokToolResultBlock[];
   readonly isError?: boolean;
-}
-
-/** True for the meta-tool argument bags this dispatch accepts — a model can emit anything, including
- *  `null` or a bare string, and every read below has to survive that. */
-export function isRecord(required: { value: unknown }, _optional: Record<string, never> = {}): required is { value: Record<string, unknown> } {
-  return typeof required.value === "object" && required.value !== null && !Array.isArray(required.value);
 }
 
 /** A model-readable refusal: `content` is the message, flagged `isError` so the provider shows it as a failed call. */
@@ -30,7 +36,7 @@ export function err({ content }: { content: string }, _optional = {}): ByokMetaT
 /** One MCP content block as a provider block, or `null` for anything outside the text/image whitelist. */
 function toResultBlock(required: { readonly block: unknown }): ByokToolResultBlock | null {
   const candidate = { value: required.block };
-  if (!isRecord(candidate)) return null;
+  if (!isNonArrayRecord(candidate)) return null;
   const block = candidate.value;
   if (block.type === "text" && typeof block.text === "string") return { type: "text", text: block.text };
   if (block.type === "image" && typeof block.mimeType === "string" && typeof block.data === "string") {
@@ -51,7 +57,7 @@ function toResultBlock(required: { readonly block: unknown }): ByokToolResultBlo
  */
 function imageContentBlocksOf({ output }: { output: unknown }, _optional = {}): ByokToolResultBlock[] | null {
   const candidate = { value: output };
-  if (!isRecord(candidate) || !Array.isArray(candidate.value.content)) return null;
+  if (!isNonArrayRecord(candidate) || !Array.isArray(candidate.value.content)) return null;
   const blocks: ByokToolResultBlock[] = [];
   for (const raw of candidate.value.content as unknown[]) {
     const block = toResultBlock({ block: raw });
@@ -90,7 +96,7 @@ function resolveDelegatedInputFromString({ trimmed }: { trimmed: string }, _opti
   if (trimmed.length === 0) return { ok: true, input: undefined };
   try {
     const parsed: unknown = JSON.parse(trimmed);
-    if (isRecord({ value: parsed })) return { ok: true, input: parsed };
+    if (isNonArrayRecord({ value: parsed })) return { ok: true, input: parsed };
     return { ok: false, message: "'input' parsed as JSON but is not an object — send a JSON object of the tool's input fields." };
   } catch {
     return { ok: false, message: "'input' must be a JSON object of the tool's input fields, not a plain string." };
@@ -100,7 +106,7 @@ function resolveDelegatedInputFromString({ trimmed }: { trimmed: string }, _opti
 /** See {@link DelegatedInputResolution} for the three accepted shapes and why. */
 export function resolveDelegatedInput({ raw }: { raw: unknown }, _optional = {}): DelegatedInputResolution {
   if (raw === undefined || raw === null) return { ok: true, input: undefined };
-  if (isRecord({ value: raw })) return { ok: true, input: raw };
+  if (isNonArrayRecord({ value: raw })) return { ok: true, input: raw };
   if (typeof raw === "string") return resolveDelegatedInputFromString({ trimmed: raw.trim() });
   return { ok: false, message: `'input' must be a JSON object of the tool's input fields, not ${Array.isArray(raw) ? "an array" : typeof raw}.` };
 }

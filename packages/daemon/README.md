@@ -173,6 +173,12 @@ See [API.md](https://github.com/AINSEP/Jini/blob/main/packages/daemon/API.md) fo
   forgets it at run end, and serves `store.read()` from its own token-guarded `GET /api/active`
   mount. The host injects its page-context type as the store's type argument (anything with a
   `path` and optional `entry { kind, id, title }`) and the `now` clock seam when testing.
+- **Lost frontend bindings** (`@jini-ai/daemon/http`'s `createLostFrontendBindings`): the host
+  creates one per frontend control with `createLostFrontendBindings({ messages })`, calls
+  `noteBindError(context)` from `createFrontendControl`'s `onBindError`, and registers each
+  frontend tool as `wrap({ registration })`. The host injects `messages` — its own wording for
+  `lostBinding` (the tab outlived a daemon restart), `unboundDetail` and `detachedDetail` (the
+  detail of the recoverable `FrontendDisconnectedError`); `maxRuns` (default 256) is optional.
 - **Per-call daemon context** (`@jini-ai/daemon/daemon-call-context`): the host's tool-RPC route
   parses the daemon's opaque wire `context` with `parseDaemonCallContext({ value })` and runs the
   call inside `runWithDaemonCallContext({ context, fn })`; host tool readers call

@@ -228,6 +228,8 @@ export {
   parseCapabilityQuery,
 } from './frontend-sessions.js';
 export { createFrontendControl } from './frontend-control.js';
+export type { LostFrontendBindingMessages, LostFrontendBindings } from './lost-frontend-binding.js';
+export { createLostFrontendBindings, FrontendDisconnectedError } from './lost-frontend-binding.js';
 export type {
   CreateFrontendControlOptions,
   FrontendBindErrorContext,
