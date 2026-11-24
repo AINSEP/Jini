@@ -21,7 +21,7 @@
  */
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { liveViewOrder, releaseCandidates, releaseExcessViews, RELEASE_PROBE_TIMEOUT_MS, type ParkedView, type LiveGuest } from './live-views.js';
-import { useSiteViewPreference, type LiveViewBounds, type LiveViewPreferenceBridge } from './use-site-view-preference.js';
+import type { useSiteViewPreference as UseSiteViewPreference, LiveViewBounds, LiveViewPreferenceBridge } from './use-site-view-preference.js';
 
 interface LiveViewsState {
   /** Live tabs, most recently focused first. */
@@ -64,13 +64,15 @@ export interface LiveViews {
 /**
  * Owns which open tabs keep their guest. `focusedId` is the tab on screen, `null` outside the tabs
  * screen (every tab hidden, the last one focused still the most recent).
+ * @param required.useSiteViewPreference the host's binding of the limit-preference hook (`useSiteViewPreference` from this package).
  * @param required.getBridge the host's bridge lookup for the limit preference (stable function).
  * @param required.bounds the limit's range and default (module-level constant).
  * @param required.probe the host's release probe script, run in each hidden guest.
  */
-export function useLiveViews({ openIds, focusedId, getBridge, bounds, probe }: {
+export function useLiveViews({ openIds, focusedId, useSiteViewPreference, getBridge, bounds, probe }: {
   openIds: readonly string[];
   focusedId: string | null;
+  useSiteViewPreference: typeof UseSiteViewPreference;
   getBridge: () => LiveViewPreferenceBridge | undefined;
   bounds: LiveViewBounds;
   probe: string;

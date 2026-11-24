@@ -20,43 +20,7 @@ export function useFindInputBinding(
     | "awaitingReport" | "target" | "dispatch"> &
     Pick<ReturnType<typeof useFindFocusReclaim>, "clearReclaimTimer" | "cancelReclaimFrame"> &
     { clock: FindFocusClock; bridge: FindBridge | undefined },
-) {
-  const { attachBlurReclaim } = useFindBlurReclaim({ restoringFocus, clearReclaimTimer, reclaimTimer, clock, inputElement, lastFindAt, composing });
-
-  // Detaches the previous node's blur listener before attaching the next one, so a remount (or the
-  // bar closing) never leaves a stale listener on a detached node.
-  const detachBlurReclaim = useRef<(() => void) | null>(null);
-  const inputRef = useCallback(
-    (node: HTMLInputElement | null) => {
-      detachBlurReclaim.current?.();
-      detachBlurReclaim.current = null;
-      inputElement.current = node;
-      if (node) detachBlurReclaim.current = attachBlurReclaim(node);
-    },
-    [attachBlurReclaim],
-  );
-
-  useEffect(() => () => {
-    queryScheduler.cancel();
-    clearReclaimTimer();
-    cancelReclaimFrame();
-  }, [queryScheduler, clearReclaimTimer, cancelReclaimFrame]);
-
-  const close = () => {
-    queryScheduler.cancel();
-    clearReclaimTimer();
-    cancelReclaimFrame();
-    awaitingReport.current = false;
-    stopFind({ target, bridge });
-    dispatch({ type: 'close' });
-  };
-  return { inputRef, close };
-}
-
-function useFindBlurReclaim(
-  { restoringFocus, clearReclaimTimer, reclaimTimer, clock, inputElement, lastFindAt, composing }:
-    Pick<Parameters<typeof useFindInputBinding>[0], "restoringFocus" | "clearReclaimTimer" | "reclaimTimer" | "clock" | "inputElement" | "lastFindAt"
-    | "composing">
+  _optional = {},
 ) {
   // Reclaims focus the moment Chromium takes it, BEFORE the result round trip — on a big page that
   // trip can take long enough for a fast typist's next letters to reach the guest. A native `blur`
@@ -100,5 +64,33 @@ function useFindBlurReclaim(
     },
     [clearReclaimTimer, clock],
   );
-  return { attachBlurReclaim };
+
+  // Detaches the previous node's blur listener before attaching the next one, so a remount (or the
+  // bar closing) never leaves a stale listener on a detached node.
+  const detachBlurReclaim = useRef<(() => void) | null>(null);
+  const inputRef = useCallback(
+    (node: HTMLInputElement | null) => {
+      detachBlurReclaim.current?.();
+      detachBlurReclaim.current = null;
+      inputElement.current = node;
+      if (node) detachBlurReclaim.current = attachBlurReclaim(node);
+    },
+    [attachBlurReclaim],
+  );
+
+  useEffect(() => () => {
+    queryScheduler.cancel();
+    clearReclaimTimer();
+    cancelReclaimFrame();
+  }, [queryScheduler, clearReclaimTimer, cancelReclaimFrame]);
+
+  const close = () => {
+    queryScheduler.cancel();
+    clearReclaimTimer();
+    cancelReclaimFrame();
+    awaitingReport.current = false;
+    stopFind({ target, bridge });
+    dispatch({ type: 'close' });
+  };
+  return { inputRef, close };
 }
