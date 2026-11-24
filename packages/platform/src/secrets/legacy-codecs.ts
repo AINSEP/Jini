@@ -476,7 +476,7 @@ function decodeExternalMcpServers({ record, legacy }: LegacyAadInput, _options: 
   throw new VaultError({ code: "context" });
 }
 
-const legacyAadDecoders = new Map<string, (input: LegacyAadInput, options?: VaultOptions) => string | undefined>(Object.entries({
+const legacyAadDecoders: ReadonlyMap<string, (input: LegacyAadInput, options?: VaultOptions) => string | undefined> = new Map(Object.entries({
   site_assistant_credentials: decodeSiteAssistantCredentials,
   admin_execution_credentials: decodeAdminExecutionCredentials,
   media_provider_credentials: decodeMediaProviderCredentials,
