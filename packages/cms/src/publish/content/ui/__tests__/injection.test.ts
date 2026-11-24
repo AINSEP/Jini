@@ -77,3 +77,13 @@ test("criteria aliases, query limits and the capability id are injected", () => 
   assert.throws(() => parsePublishContentToolInput({ input: { types: "a" }, capabilityId: "host.cap" }), /^Error: host\.cap: 'types' must be an array of strings$/);
   assert.throws(() => parsePublishContentToolInput({ input: { overwrite: 1 }, capabilityId: "host.cap" }), /host\.cap: 'overwrite' must be a boolean/);
 });
+
+test("only rows a run writes carry a checkbox: skipped and unchanged rows are never selectable", () => {
+  const rows = toPublishReportRowCores({ report: report(
+    row({ entityType: "gear", entityId: "c", outcome: "created" }),
+    row({ entityType: "gear", entityId: "k", outcome: "conflict", reason: "x", canOverwrite: true }),
+    row({ entityType: "gear", entityId: "b", outcome: "blocked", reason: "x" }),
+    row({ entityType: "gear", entityId: "u", outcome: "unchanged" }),
+  ) });
+  assert.deepEqual(rows.map((r) => [r.key, r.selectable, r.overwritable]), [["gear:c", true, false], ["gear:k", false, true], ["gear:b", false, false], ["gear:u", false, false]]);
+});
