@@ -97,3 +97,21 @@ public-data release approval, consent, live revision checks, quotas and visitor 
 
 The subpath requires the package's existing platform peer plus optional
 `@cfworker/json-schema` ^4.1.1. Other subpaths retain their existing imports and behavior.
+
+## Wiring
+
+Ports injected through `SavedRequestDeps` (all required): `executeCredentialedRequest`, `credentials`,
+`schemeRegistry`, `audit`, `clock`, `dns`, `transport`, `userAgent`, `forbiddenOrigins`, and
+`createHttpClient` (`(required: GuardedHttpRequired) => HttpClientPort`). Provides `executeSavedRequest`.
+
+```ts
+import { createHttpClient } from "@jini-ai/platform/http/guarded";
+const deps: SavedRequestDeps = {
+  executeCredentialedRequest, credentials, schemeRegistry, audit,
+  clock, dns, transport, userAgent: "my-host/1", forbiddenOrigins: siteOrigins,
+  createHttpClient, // the host binds the guarded client; this folder never imports it
+};
+await executeSavedRequest({ deps, workspaceId, definition, input });
+```
+
+Must never import `@jini-ai/platform` (or any package implementation). Why: `ADS-memory/reports/jini-port/extraction-plan.md`.

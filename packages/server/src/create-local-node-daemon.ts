@@ -40,11 +40,11 @@ import type { DetectedAgent, OAuthCallbackListener } from '@jini-ai/agent-runtim
 import type { Bindings, Principal, ToolRegistration } from '@jini-ai/core';
 import type { AnyPack, MissingTokenIds } from '@jini-ai/core/composition';
 import type { ResolveRunInput, RunLifecycle } from '@jini-ai/daemon';
+import type { BaseUrlGuardPort, ProviderToolTurnPort } from '@jini-ai/core/contracts/agents';
 import { installRouteRegistrationGuard, mountPackHttp } from '@jini-ai/http-kit';
 import { createLocalSameOriginPolicy, type RouteHostContext } from '@jini-ai/core/contracts/server';
 import type { DaemonRouteHost, DelegatedToolExecuteRequest,  RunStartHandler,  WorkspaceRootResolver } from '@jini-ai/daemon/http';
 import { removeDaemonRegistryRecordIfCurrent, resolveDaemonRegistryPath, writeDaemonRegistryRecord } from '@jini-ai/sidecar';
-import { nodeAtomicWriter } from '@jini-ai/node-adapters/fs';
 
 import { composeJiniKernel, type JiniKernelSecurity, type KernelBoundIds } from './compose-jini-kernel.js';
 import type { BuiltInFeatureOptions } from './builtin-features.js';
@@ -130,6 +130,10 @@ export interface CreateLocalNodeDaemonConfig<
   /** The external host supplies its driver; Jini never autoloads SQLite. */
   open: SqliteSyncOpener;
   packs: Packs;
+  /** Provider tool-turn implementations behind `/api/proxy`; the host binds them (this preset ships none). */
+  toolTurns: ProviderToolTurnPort;
+  /** Base-URL guard the research provider validates against; the host binds it (this preset ships none). */
+  baseUrlGuard: BaseUrlGuardPort;
   /**
    * Extends the kernel's own pre-bound `EventLog`/`RunLifecycle` bindings with whatever a pack's
    * own deps require. A callback rather than a pre-built `Bindings` instance because
@@ -157,6 +161,11 @@ export interface CreateLocalNodeDaemonConfig<
   env?: NodeJS.ProcessEnv;
   /** Bind the preset and custom run handlers to the same owned runtime and explicit policies. */
   agentExecutor?: Parameters<typeof composeJiniKernel>[0]['agentExecutor'];
+  /**
+   * Process control, file lock and atomic writer; the host binds them (this preset imports no platform
+   * implementation). The writer also writes the discovery registry record.
+   */
+  osPorts: Parameters<typeof composeJiniKernel>[0]['osPorts'];
   /** Optional detector override for a host with custom PATH/env policy or a deterministic test fixture. */
   agentDetector?: () => Promise<readonly DetectedAgent[]>;
   /**
@@ -305,6 +314,8 @@ function localFeatureOptions(
       ? {}
       : { delegatedToolCalls: { resolvePrincipal: config.resolveDelegatedPrincipal } }),
     xai: { listenerRef: xaiListenerRef },
+    modelProxy: { toolTurns: config.toolTurns },
+    research: { baseUrlGuard: config.baseUrlGuard },
     daemonStatus: {
       getVersion: () => packageVersion,
       host,
@@ -360,6 +371,7 @@ function composeLocalDaemonKernel(config: LocalPresetConfig, context: {
   return composeJiniKernel({
     app, adapter, resolvedPortRef,
     storage: { kind: 'sqlite', dataDir: config.dataDir, open: config.open },
+    osPorts: config.osPorts,
     ...localKernelOptions({ config }),
     security: localSecurity({ config, host }),
     env,
@@ -395,10 +407,11 @@ function listenLocalNodeDaemon(app: Express, { requestedPort, host }: { requeste
     });
 }
 
-function startLocalDaemonListener({ kernel, host, registryPath, resolvedPortRef, stop, activeFeatures, onListening }: {
+function startLocalDaemonListener({ kernel, host, registryPath, writer, resolvedPortRef, stop, activeFeatures, onListening }: {
   kernel: Awaited<ReturnType<typeof composeJiniKernel>>;
   host: string;
   registryPath: string | null;
+  writer: Parameters<typeof composeJiniKernel>[0]['osPorts']['writer'];
   resolvedPortRef: { current: number };
   stop: () => Promise<void>;
   activeFeatures: readonly string[];
@@ -434,7 +447,7 @@ function startLocalDaemonListener({ kernel, host, registryPath, resolvedPortRef,
         void (async () => {
           if (registryPath !== null) {
             try {
-              await writeDaemonRegistryRecord({ registryPath, writer: nodeAtomicWriter, record: {
+              await writeDaemonRegistryRecord({ registryPath, writer, record: {
                 url: reportedUrl,
                 host: resolveReportHost({ bindHost: host }),
                 port: boundPort,
@@ -564,7 +577,7 @@ export async function createLocalNodeDaemon(
   const activeFeatures = kernel.activation.active.map((record) => record.id);
 
   return await startLocalDaemonListener({
-    kernel, host, registryPath, resolvedPortRef, stop, activeFeatures,
+    kernel, host, registryPath, writer: config.osPorts.writer, resolvedPortRef, stop, activeFeatures,
     onListening: (listeningServer) => { server = listeningServer; },
   }, () => listenLocalNodeDaemon(app, { requestedPort, host }));
 }

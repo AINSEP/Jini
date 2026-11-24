@@ -1,5 +1,6 @@
 /** Commit-pinned public GitHub import with one request/body deadline, byte caps and refused redirects. */
-import { MAX_SKILL_BYTES, MAX_SKILL_FILES, MAX_SKILL_FILE_BYTES, decodeSkillBase64, SkillInputError, type SkillUploadFile } from "./validation.js";
+import { MAX_SKILL_BYTES, MAX_SKILL_FILES, MAX_SKILL_FILE_BYTES, decodeSkillBase64, SkillInputError } from "./validation.js";
+import type { SkillUploadFile } from "@jini-ai/core/contracts/site/skills-install";
 import type { SkillFetchPort } from "./ports.js";
 import { githubRepoBase, createGitHubJsonReader, type GitHubJson } from "./adapters/github-rest.js";
 

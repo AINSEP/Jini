@@ -1632,6 +1632,14 @@
     {
       "id": "b81ff738f308",
       "reason": "ex2-holds (24e1f7b9a) retired the deprecated sqlite facade and its fixture, so the sqlite parity assertion this explained is gone; the replacement PARITY comment on the same line names the infra fixture that took over."
+    },
+    {
+      "id": "5bf99f38313c",
+      "reason": "XC-6a (w3-fnd): the ready-made nodeFileLock constant is deleted; node-adapters now exports a builder over injected platform functions and the host binds the Node implementation, so the 'node implementation of the lock port' doc has no declaration left to attach to (the builder carries its own doc)."
+    },
+    {
+      "id": "584f1285aa68",
+      "reason": "XC-6a (w3-fnd): the ready-made nodeAtomicWriter constant is deleted; node-adapters now exports a builder over injected platform functions and the host binds the Node implementation, so the 'node implementation of the atomic-writer port' doc has no declaration left to attach to (the builder carries its own doc)."
     }
   ]
 }

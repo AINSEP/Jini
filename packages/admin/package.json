@@ -84,6 +84,7 @@
       "./shell/components/AssistantDock/hooks/use-composer-send-stop-guard.hooks": "browser",
       "./shell/components/AssistantDock/hooks/useOverflowDetection.hooks": "browser",
       "./shell/components/DevicePreview/DevicePreview.hooks": "browser",
+      "./shell/components/ChatFab/ChatFab.hooks": "browser",
       "./shell/components/InstallTabCard/use-zip-drop.hooks": "browser",
       "./shell/components/TemplateSource/template-source-port.hooks": "browser",
       "./shell/components/line-icon": "browser",
@@ -113,6 +114,15 @@
       "./shell/lib/translation-entry": "browser",
       "./shell/lib/unchanged-save-warning": "browser",
       "./shell/lib/unique-id": "browser",
+      "./shell/lib/assistant-permanent-deletes": "browser",
+      "./shell/lib/stored-credential-endpoint": "browser",
+      "./shell/lib/version-conflict": "browser",
+      "./shell/lib/assistant-subagents": "browser",
+      "./shell/lib/credential-submit-error": "browser",
+      "./shell/lib/visitor-tools": "browser",
+      "./shell/lib/assistant-agents-snapshot": "browser",
+      "./shell/lib/admin-failure-reporter": "browser",
+      "./shell/lib/browser-working-directory-access": "browser",
       "./shell/lib/viewer-time-zone": "browser",
       "./shell/lib/widget-embed-placement-content": "browser",
       "./shell/lib/admin-frontend-session": "browser",
@@ -139,11 +149,27 @@
       "./shell/components/AssistantDock/local-cli-selection-echo": "browser",
       "./shell/components/AssistantDock/MessageOverflowModal.hooks": "browser",
       "./shell/components/AssistantDock/SlowRunNoticeCard.hooks": "browser",
+      "./shell/components/AdminByokKeyPanel.hooks": "browser",
+      "./shell/components/shared-components-i18n": "browser",
+      "./shell/components/AssistantDock/MessageOverflowModal": "browser",
+      "./shell/components/AssistantDock/SelectedAgentPluginTray": "browser",
+      "./shell/components/AssistantDock/AgentFailureCard.hooks": "browser",
+      "./shell/components/AssistantDock/AgentFailureCard": "browser",
+      "./shell/components/AssistantDock/SlowRunNoticeCard": "browser",
+      "./shell/components/AssistantDock/agent-failure": "browser",
+      "./shell/components/AdminFailureNotice/AdminFailureNotice": "browser",
+      "./shell/components/AssistantDock/agent-failure-hints": "browser",
+      "./shell/components/MailStatusBanner/MailStatusBanner": "browser",
+      "./shell/components/SitesSidebarNav": "browser",
+      "./shell/components/WidgetConfigFields/WidgetConfigFields.hooks": "browser",
+      "./shell/components/AssistantDock/hooks/use-routed-a2ui-surface-card.hooks": "browser",
       "./shell/components/CodeView/preview-modal-icons": "browser",
       "./shell/components/InstallTabCard/use-folder-upload.hooks": "browser",
       "./shell/components/Select/Select.hooks": "browser",
       "./shell/lib/tab-event-source": "browser",
       "./shell/hooks/use-external-entry-refresh.hooks": "browser",
+      "./shell/hooks/admin-execution-credential-port.hooks": "browser",
+      "./shell/hooks/use-sites-sidebar-nav.hooks": "browser",
       "./posts/PostAuthorFields": "browser",
       "./posts/PostPublishingFields": "browser",
       "./screens/collections/api/collections-api.types": "universal",
@@ -196,6 +222,7 @@
         "./shell/components/AssistantDock/hooks/use-composer-send-stop-guard.hooks": "browser",
         "./shell/components/AssistantDock/hooks/useOverflowDetection.hooks": "browser",
         "./shell/components/DevicePreview/DevicePreview.hooks": "browser",
+        "./shell/components/ChatFab/ChatFab.hooks": "browser",
         "./shell/components/InstallTabCard/use-zip-drop.hooks": "browser",
         "./shell/components/TemplateSource/template-source-port.hooks": "browser",
         "./shell/components/line-icon": "browser",
@@ -224,6 +251,15 @@
         "./shell/lib/translation-entry": "browser",
         "./shell/lib/unchanged-save-warning": "browser",
         "./shell/lib/unique-id": "browser",
+        "./shell/lib/assistant-permanent-deletes": "browser",
+        "./shell/lib/stored-credential-endpoint": "browser",
+        "./shell/lib/version-conflict": "browser",
+        "./shell/lib/assistant-subagents": "browser",
+        "./shell/lib/credential-submit-error": "browser",
+        "./shell/lib/visitor-tools": "browser",
+        "./shell/lib/assistant-agents-snapshot": "browser",
+        "./shell/lib/admin-failure-reporter": "browser",
+        "./shell/lib/browser-working-directory-access": "browser",
         "./shell/lib/viewer-time-zone": "browser",
         "./shell/lib/widget-embed-placement-content": "browser",
         "./shell/lib/admin-frontend-session": "browser",
@@ -249,11 +285,27 @@
         "./shell/components/AssistantDock/local-cli-selection-echo": "browser",
         "./shell/components/AssistantDock/MessageOverflowModal.hooks": "browser",
         "./shell/components/AssistantDock/SlowRunNoticeCard.hooks": "browser",
+        "./shell/components/AdminByokKeyPanel.hooks": "browser",
+        "./shell/components/shared-components-i18n": "browser",
+        "./shell/components/AssistantDock/MessageOverflowModal": "browser",
+        "./shell/components/AssistantDock/SelectedAgentPluginTray": "browser",
+        "./shell/components/AssistantDock/AgentFailureCard.hooks": "browser",
+        "./shell/components/AssistantDock/AgentFailureCard": "browser",
+        "./shell/components/AssistantDock/SlowRunNoticeCard": "browser",
+        "./shell/components/AssistantDock/agent-failure": "browser",
+        "./shell/components/AdminFailureNotice/AdminFailureNotice": "browser",
+        "./shell/components/AssistantDock/agent-failure-hints": "browser",
+        "./shell/components/MailStatusBanner/MailStatusBanner": "browser",
+        "./shell/components/SitesSidebarNav": "browser",
+        "./shell/components/WidgetConfigFields/WidgetConfigFields.hooks": "browser",
+        "./shell/components/AssistantDock/hooks/use-routed-a2ui-surface-card.hooks": "browser",
         "./shell/components/CodeView/preview-modal-icons": "browser",
         "./shell/components/InstallTabCard/use-folder-upload.hooks": "browser",
         "./shell/components/Select/Select.hooks": "browser",
         "./shell/lib/tab-event-source": "browser",
-        "./shell/hooks/use-external-entry-refresh.hooks": "browser"
+        "./shell/hooks/use-external-entry-refresh.hooks": "browser",
+        "./shell/hooks/admin-execution-credential-port.hooks": "browser",
+        "./shell/hooks/use-sites-sidebar-nav.hooks": "browser"
       }
     },
     "optionalPeers": {
@@ -611,6 +663,11 @@
       "import": "./dist/shell/components/DevicePreview/DevicePreview.hooks.js",
       "default": "./dist/shell/components/DevicePreview/DevicePreview.hooks.js"
     },
+    "./shell/components/ChatFab/ChatFab.hooks": {
+      "types": "./dist/shell/components/ChatFab/ChatFab.hooks.d.ts",
+      "import": "./dist/shell/components/ChatFab/ChatFab.hooks.js",
+      "default": "./dist/shell/components/ChatFab/ChatFab.hooks.js"
+    },
     "./shell/components/InstallTabCard/use-zip-drop.hooks": {
       "types": "./dist/shell/components/InstallTabCard/use-zip-drop.hooks.d.ts",
       "import": "./dist/shell/components/InstallTabCard/use-zip-drop.hooks.js",
@@ -756,6 +813,51 @@
       "import": "./dist/shell/lib/unique-id.js",
       "default": "./dist/shell/lib/unique-id.js"
     },
+    "./shell/lib/assistant-permanent-deletes": {
+      "types": "./dist/shell/lib/assistant-permanent-deletes.d.ts",
+      "import": "./dist/shell/lib/assistant-permanent-deletes.js",
+      "default": "./dist/shell/lib/assistant-permanent-deletes.js"
+    },
+    "./shell/lib/stored-credential-endpoint": {
+      "types": "./dist/shell/lib/stored-credential-endpoint.d.ts",
+      "import": "./dist/shell/lib/stored-credential-endpoint.js",
+      "default": "./dist/shell/lib/stored-credential-endpoint.js"
+    },
+    "./shell/lib/version-conflict": {
+      "types": "./dist/shell/lib/version-conflict.d.ts",
+      "import": "./dist/shell/lib/version-conflict.js",
+      "default": "./dist/shell/lib/version-conflict.js"
+    },
+    "./shell/lib/assistant-subagents": {
+      "types": "./dist/shell/lib/assistant-subagents.d.ts",
+      "import": "./dist/shell/lib/assistant-subagents.js",
+      "default": "./dist/shell/lib/assistant-subagents.js"
+    },
+    "./shell/lib/credential-submit-error": {
+      "types": "./dist/shell/lib/credential-submit-error.d.ts",
+      "import": "./dist/shell/lib/credential-submit-error.js",
+      "default": "./dist/shell/lib/credential-submit-error.js"
+    },
+    "./shell/lib/visitor-tools": {
+      "types": "./dist/shell/lib/visitor-tools.d.ts",
+      "import": "./dist/shell/lib/visitor-tools.js",
+      "default": "./dist/shell/lib/visitor-tools.js"
+    },
+    "./shell/lib/assistant-agents-snapshot": {
+      "types": "./dist/shell/lib/assistant-agents-snapshot.d.ts",
+      "import": "./dist/shell/lib/assistant-agents-snapshot.js",
+      "default": "./dist/shell/lib/assistant-agents-snapshot.js"
+    },
+    "./shell/lib/admin-failure-reporter": {
+      "types": "./dist/shell/lib/admin-failure-reporter.d.ts",
+      "import": "./dist/shell/lib/admin-failure-reporter.js",
+      "default": "./dist/shell/lib/admin-failure-reporter.js"
+    },
+    "./shell/lib/browser-working-directory-access": {
+      "types": "./dist/shell/lib/browser-working-directory-access.d.ts",
+      "import": "./dist/shell/lib/browser-working-directory-access.js",
+      "default": "./dist/shell/lib/browser-working-directory-access.js"
+    },
     "./shell/lib/viewer-time-zone": {
       "types": "./dist/shell/lib/viewer-time-zone.d.ts",
       "import": "./dist/shell/lib/viewer-time-zone.js",
@@ -886,6 +988,76 @@
       "import": "./dist/shell/components/AssistantDock/SlowRunNoticeCard.hooks.js",
       "default": "./dist/shell/components/AssistantDock/SlowRunNoticeCard.hooks.js"
     },
+    "./shell/components/AdminByokKeyPanel.hooks": {
+      "types": "./dist/shell/components/AdminByokKeyPanel.hooks.d.ts",
+      "import": "./dist/shell/components/AdminByokKeyPanel.hooks.js",
+      "default": "./dist/shell/components/AdminByokKeyPanel.hooks.js"
+    },
+    "./shell/components/shared-components-i18n": {
+      "types": "./dist/shell/components/shared-components-i18n.d.ts",
+      "import": "./dist/shell/components/shared-components-i18n.js",
+      "default": "./dist/shell/components/shared-components-i18n.js"
+    },
+    "./shell/components/AssistantDock/MessageOverflowModal": {
+      "types": "./dist/shell/components/AssistantDock/MessageOverflowModal.d.ts",
+      "import": "./dist/shell/components/AssistantDock/MessageOverflowModal.js",
+      "default": "./dist/shell/components/AssistantDock/MessageOverflowModal.js"
+    },
+    "./shell/components/AssistantDock/SelectedAgentPluginTray": {
+      "types": "./dist/shell/components/AssistantDock/SelectedAgentPluginTray.d.ts",
+      "import": "./dist/shell/components/AssistantDock/SelectedAgentPluginTray.js",
+      "default": "./dist/shell/components/AssistantDock/SelectedAgentPluginTray.js"
+    },
+    "./shell/components/AssistantDock/AgentFailureCard.hooks": {
+      "types": "./dist/shell/components/AssistantDock/AgentFailureCard.hooks.d.ts",
+      "import": "./dist/shell/components/AssistantDock/AgentFailureCard.hooks.js",
+      "default": "./dist/shell/components/AssistantDock/AgentFailureCard.hooks.js"
+    },
+    "./shell/components/AssistantDock/AgentFailureCard": {
+      "types": "./dist/shell/components/AssistantDock/AgentFailureCard.d.ts",
+      "import": "./dist/shell/components/AssistantDock/AgentFailureCard.js",
+      "default": "./dist/shell/components/AssistantDock/AgentFailureCard.js"
+    },
+    "./shell/components/AssistantDock/SlowRunNoticeCard": {
+      "types": "./dist/shell/components/AssistantDock/SlowRunNoticeCard.d.ts",
+      "import": "./dist/shell/components/AssistantDock/SlowRunNoticeCard.js",
+      "default": "./dist/shell/components/AssistantDock/SlowRunNoticeCard.js"
+    },
+    "./shell/components/AssistantDock/agent-failure": {
+      "types": "./dist/shell/components/AssistantDock/agent-failure.d.ts",
+      "import": "./dist/shell/components/AssistantDock/agent-failure.js",
+      "default": "./dist/shell/components/AssistantDock/agent-failure.js"
+    },
+    "./shell/components/AdminFailureNotice/AdminFailureNotice": {
+      "types": "./dist/shell/components/AdminFailureNotice/AdminFailureNotice.d.ts",
+      "import": "./dist/shell/components/AdminFailureNotice/AdminFailureNotice.js",
+      "default": "./dist/shell/components/AdminFailureNotice/AdminFailureNotice.js"
+    },
+    "./shell/components/AssistantDock/agent-failure-hints": {
+      "types": "./dist/shell/components/AssistantDock/agent-failure-hints.d.ts",
+      "import": "./dist/shell/components/AssistantDock/agent-failure-hints.js",
+      "default": "./dist/shell/components/AssistantDock/agent-failure-hints.js"
+    },
+    "./shell/components/MailStatusBanner/MailStatusBanner": {
+      "types": "./dist/shell/components/MailStatusBanner/MailStatusBanner.d.ts",
+      "import": "./dist/shell/components/MailStatusBanner/MailStatusBanner.js",
+      "default": "./dist/shell/components/MailStatusBanner/MailStatusBanner.js"
+    },
+    "./shell/components/SitesSidebarNav": {
+      "types": "./dist/shell/components/SitesSidebarNav.d.ts",
+      "import": "./dist/shell/components/SitesSidebarNav.js",
+      "default": "./dist/shell/components/SitesSidebarNav.js"
+    },
+    "./shell/components/WidgetConfigFields/WidgetConfigFields.hooks": {
+      "types": "./dist/shell/components/WidgetConfigFields/WidgetConfigFields.hooks.d.ts",
+      "import": "./dist/shell/components/WidgetConfigFields/WidgetConfigFields.hooks.js",
+      "default": "./dist/shell/components/WidgetConfigFields/WidgetConfigFields.hooks.js"
+    },
+    "./shell/components/AssistantDock/hooks/use-routed-a2ui-surface-card.hooks": {
+      "types": "./dist/shell/components/AssistantDock/hooks/use-routed-a2ui-surface-card.hooks.d.ts",
+      "import": "./dist/shell/components/AssistantDock/hooks/use-routed-a2ui-surface-card.hooks.js",
+      "default": "./dist/shell/components/AssistantDock/hooks/use-routed-a2ui-surface-card.hooks.js"
+    },
     "./shell/components/CodeView/preview-modal-icons": {
       "types": "./dist/shell/components/CodeView/preview-modal-icons.d.ts",
       "import": "./dist/shell/components/CodeView/preview-modal-icons.js",
@@ -910,6 +1082,16 @@
       "types": "./dist/shell/hooks/use-external-entry-refresh.hooks.d.ts",
       "import": "./dist/shell/hooks/use-external-entry-refresh.hooks.js",
       "default": "./dist/shell/hooks/use-external-entry-refresh.hooks.js"
+    },
+    "./shell/hooks/admin-execution-credential-port.hooks": {
+      "types": "./dist/shell/hooks/admin-execution-credential-port.hooks.d.ts",
+      "import": "./dist/shell/hooks/admin-execution-credential-port.hooks.js",
+      "default": "./dist/shell/hooks/admin-execution-credential-port.hooks.js"
+    },
+    "./shell/hooks/use-sites-sidebar-nav.hooks": {
+      "types": "./dist/shell/hooks/use-sites-sidebar-nav.hooks.d.ts",
+      "import": "./dist/shell/hooks/use-sites-sidebar-nav.hooks.js",
+      "default": "./dist/shell/hooks/use-sites-sidebar-nav.hooks.js"
     },
     "./posts/PostAuthorFields": {
       "types": "./dist/posts/PostAuthorFields.d.ts",

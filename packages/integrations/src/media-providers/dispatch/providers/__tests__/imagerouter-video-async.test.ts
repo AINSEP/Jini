@@ -1,4 +1,5 @@
 import { testHttpClient } from '../../__tests__/outbound-fixtures.js';
+import { nodeMediaGuardedFetch } from '../../node.js';
 import { partitionArgs } from '../../../../args.js';
 import { describe, expect, it, vi } from 'vitest';
 
@@ -36,7 +37,7 @@ describe('createImageRouterVideoPollingAdapter', () => {
     it('completes inline when the vendor returns bytes on the submit itself (today behaviour, preserved)', async () => {
         const store = createInMemoryAsyncOperationStore();
         const fetchImpl = vi.fn(async () => json({ data: [{ b64_json: Buffer.from('MP4BYTES').toString('base64') }] }));
-        const outcome = await startOperation(...partitionArgs({ value: { ...{ store, signer, httpClient: testHttpClient(fetchImpl) }, ...{
+        const outcome = await startOperation(...partitionArgs({ value: { ...{ store, signer, httpClient: testHttpClient(fetchImpl), guardedFetch: nodeMediaGuardedFetch }, ...{
         adapter: createImageRouterVideoPollingAdapter(...partitionArgs({ value: {}, requiredKeys: [] })), ctx: CTX, providerId: 'imagerouter',
         routeKey: 'video', ownerRef: 'run-1', graceMs: 1000,
     } }, requiredKeys: ["store", "signer", "adapter", "ctx", "providerId", "routeKey", "ownerRef"] }));
@@ -52,11 +53,11 @@ describe('createImageRouterVideoPollingAdapter', () => {
                 return json({ id: 'vid_1', status: 'queued' });
             return json({ id: 'vid_1', status: 'completed', data: [{ b64_json: Buffer.from('LATER').toString('base64') }] });
         });
-        const outcome = await startOperation(...partitionArgs({ value: { ...{ store, signer, httpClient: testHttpClient(fetchImpl) }, ...{ adapter, ctx: CTX, providerId: 'imagerouter', routeKey: 'video', ownerRef: 'run-1', graceMs: 1000 } }, requiredKeys: ["store", "signer", "adapter", "ctx", "providerId", "routeKey", "ownerRef"] }));
+        const outcome = await startOperation(...partitionArgs({ value: { ...{ store, signer, httpClient: testHttpClient(fetchImpl), guardedFetch: nodeMediaGuardedFetch }, ...{ adapter, ctx: CTX, providerId: 'imagerouter', routeKey: 'video', ownerRef: 'run-1', graceMs: 1000 } }, requiredKeys: ["store", "signer", "adapter", "ctx", "providerId", "routeKey", "ownerRef"] }));
         expect(outcome.done).toBe(false);
         expect((await store.get({ id: outcome.operationId }))?.state).toEqual({ jobId: 'vid_1' });
         await store.update({ id: outcome.operationId, patch: { nextPollAt: 0 } });
-        const stats = await pollDueOperations(...partitionArgs({ value: { ...{ store, signer, httpClient: testHttpClient(fetchImpl) }, ...{ adapters: () => adapter, resolveContext: () => CTX, leaseOwner: 'w1', leaseMs: 1000 } }, requiredKeys: ["store", "signer", "adapters", "resolveContext", "leaseOwner", "leaseMs"] }));
+        const stats = await pollDueOperations(...partitionArgs({ value: { ...{ store, signer, httpClient: testHttpClient(fetchImpl), guardedFetch: nodeMediaGuardedFetch }, ...{ adapters: () => adapter, resolveContext: () => CTX, leaseOwner: 'w1', leaseMs: 1000 } }, requiredKeys: ["store", "signer", "adapters", "resolveContext", "leaseOwner", "leaseMs"] }));
         const row = await store.get({ id: outcome.operationId });
         expect(stats.completed).toBe(1);
         expect(Buffer.from(row!.result!.bytesBase64, 'base64').toString()).toBe('LATER');
@@ -71,9 +72,9 @@ describe('createImageRouterVideoPollingAdapter', () => {
                 return json({ id: 'vid_9', status: 'queued' });
             return json({ id: 'vid_9', status: 'in_progress' });
         });
-        const outcome = await startOperation(...partitionArgs({ value: { ...{ store, signer, httpClient: testHttpClient(fetchImpl) }, ...{ adapter, ctx: CTX, providerId: 'imagerouter', routeKey: 'video', ownerRef: 'run-1', graceMs: 1000 } }, requiredKeys: ["store", "signer", "adapter", "ctx", "providerId", "routeKey", "ownerRef"] }));
+        const outcome = await startOperation(...partitionArgs({ value: { ...{ store, signer, httpClient: testHttpClient(fetchImpl), guardedFetch: nodeMediaGuardedFetch }, ...{ adapter, ctx: CTX, providerId: 'imagerouter', routeKey: 'video', ownerRef: 'run-1', graceMs: 1000 } }, requiredKeys: ["store", "signer", "adapter", "ctx", "providerId", "routeKey", "ownerRef"] }));
         await store.update({ id: outcome.operationId, patch: { nextPollAt: 0 } });
-        await pollDueOperations(...partitionArgs({ value: { ...{ store, signer, httpClient: testHttpClient(fetchImpl) }, ...{ adapters: () => adapter, resolveContext: () => CTX, leaseOwner: 'w1', leaseMs: 1000 } }, requiredKeys: ["store", "signer", "adapters", "resolveContext", "leaseOwner", "leaseMs"] }));
+        await pollDueOperations(...partitionArgs({ value: { ...{ store, signer, httpClient: testHttpClient(fetchImpl), guardedFetch: nodeMediaGuardedFetch }, ...{ adapters: () => adapter, resolveContext: () => CTX, leaseOwner: 'w1', leaseMs: 1000 } }, requiredKeys: ["store", "signer", "adapters", "resolveContext", "leaseOwner", "leaseMs"] }));
         expect(urls[1]).toBe('https://api.imagerouter.io/v1/openai/videos/vid_9');
         expect(JSON.stringify(await store.get({ id: outcome.operationId }))).not.toContain('sk-ir');
     });

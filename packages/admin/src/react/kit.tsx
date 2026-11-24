@@ -148,7 +148,11 @@ export interface IconProps {
   readonly viewBox?: string | undefined; readonly strokeLinecap?: SvgLineCap | undefined; readonly strokeLinejoin?: SvgLineJoin | undefined;
   readonly focusable?: Booleanish | 'auto' | undefined; readonly 'aria-hidden'?: Booleanish | undefined; readonly 'aria-label'?: string | undefined;
 }
-export interface ErrorNoticeProps { readonly failure: UserFacingError; readonly t?: Translate; readonly className?: string; readonly role?: 'alert' | 'status' }
+export interface ErrorNoticeProps {
+  readonly failure: UserFacingError; readonly t?: Translate; readonly className?: string; readonly role?: 'alert' | 'status';
+  /** The UI library's injectable clipboard write port, for "Copy details" where browser copying is unavailable. */
+  readonly clipboard?: { writeText(requiredArgs: { text: string }): Promise<void> };
+}
 /**
  * A RemixIcon webfont glyph (`ri-<name>`). Unlike `Icon`, the host's own RemixIcon takes any string
  * (it renders whatever `ri-` class it is given), so there is no narrower host name set to pin here.
@@ -176,6 +180,14 @@ export interface SettingsDialogShellProps {
   readonly onActiveTabIdChange?: (tabId: string) => void; readonly onClose?: () => void; readonly presentation?: 'modal' | 'inline';
   readonly welcome?: boolean; readonly defaultSidebarCollapsed?: boolean; readonly fullscreenEnabled?: boolean; readonly defaultFullscreen?: boolean;
   readonly chromeExtra?: ReactNode; readonly dialogAriaLabelledBy?: string; readonly className?: string;
+  /** Chrome labels the shell renders itself; mirrors the UI owner's `TabbedDialogChromeLabels` (all optional). */
+  readonly labels?: SettingsDialogChromeLabels;
+}
+/** Kit mirror of the UI shell's chrome labels (kicker, welcome copy, close/fullscreen/sidebar labels). */
+export interface SettingsDialogChromeLabels {
+  readonly kicker?: string; readonly welcomeKicker?: string; readonly welcomeTitle?: string; readonly welcomeSubtitle?: string;
+  readonly closeLabel?: string; readonly fullscreenLabel?: string; readonly exitFullscreenLabel?: string;
+  readonly collapseSidebarLabel?: string; readonly expandSidebarLabel?: string; readonly sidebarAriaLabel?: string;
 }
 export interface CodeWithLinesProps { readonly text: string; readonly wrap?: boolean }
 export interface CodeWrapToggleProps { readonly wrap: boolean; readonly onToggle: () => void; readonly t: Translate; readonly agentHandleId: string; readonly className?: string }
@@ -381,8 +393,8 @@ export interface AdminKitValues {
 }
 
 /* ---------- chat (the host's chat library: its translator and the run posters; shapes restated) ---------- */
-export type { AgentEvent, ChatAttachment, ChatMessage, ChatPaneAgent, ChatPaneAgentOption, ChatPaneAgentSelection, ChatPaneComposerHandle, ChatRole, ChatRunStatus, ChatTransport, ExtEventCall, ExtEventRenderProps, FabPositionInput, FabPositionResult, FeedbackChange, I18nAdapter, KitA2uiActionDeliveryOutcome, KitA2uiActionPosterInput, KitChatAttachment, KitChatTranslator, KitDeliverMidRunMessage, KitDeliverTypedAnswer, KitMidRunMessageDelivery, KitPosterRequestOptions, KitRedactUserText, KitSecretRedactionSignal, KitTypedAnswerDelivery, KitUserTextRedactionOptions, ReattachRunOptions, RunHandlers, SecretRedactionSignal, StartRunInput, ToolResultMediaBlock } from './kit-chat-types.js';
-import type { AgentEvent, ChatAttachment, ChatMessage, ChatPaneAgent, ChatPaneAgentOption, ChatPaneAgentSelection, ChatPaneComposerHandle, ChatRole, ChatRunStatus, ChatTransport, ExtEventCall, ExtEventRenderProps, FabPositionInput, FabPositionResult, FeedbackChange, I18nAdapter, KitA2uiActionDeliveryOutcome, KitA2uiActionPosterInput, KitChatAttachment, KitChatTranslator, KitDeliverMidRunMessage, KitDeliverTypedAnswer, KitMidRunMessageDelivery, KitPosterRequestOptions, KitRedactUserText, KitSecretRedactionSignal, KitTypedAnswerDelivery, KitUserTextRedactionOptions, ReattachRunOptions, RunHandlers, SecretRedactionSignal, StartRunInput, ToolResultMediaBlock } from './kit-chat-types.js';
+export type { A2uiSurfaceCardProps, AgentEvent, ChatAttachment, ChatMessage, ChatPaneAgent, ChatPaneAgentOption, ChatPaneAgentSelection, ChatPaneRuntimeAccess, ChatPaneComposerHandle, ChatPaneWorkingDirectoryAccess, ChatRole, ChatRunStatus, ChatTransport, ExtEventCall, ExtEventRenderProps, FabPositionInput, FabPositionResult, FeedbackChange, I18nAdapter, KitA2uiActionDeliveryOutcome, KitA2uiActionPosterInput, KitChatAttachment, KitChatTranslator, KitDeliverMidRunMessage, KitDeliverTypedAnswer, KitMidRunMessageDelivery, KitPosterRequestOptions, KitRedactUserText, KitSecretRedactionSignal, KitTypedAnswerDelivery, KitUserTextRedactionOptions, ReattachRunOptions, RunHandlers, SecretRedactionSignal, StartRunInput, ToolResultMediaBlock } from './kit-chat-types.js';
+import type { AgentEvent, ChatAttachment, ChatMessage, ChatPaneAgent, ChatPaneAgentOption, ChatPaneAgentSelection, ChatPaneRuntimeAccess, ChatPaneComposerHandle, ChatRole, ChatRunStatus, ChatTransport, ExtEventCall, ExtEventRenderProps, FabPositionInput, FabPositionResult, FeedbackChange, I18nAdapter, KitA2uiActionDeliveryOutcome, KitA2uiActionPosterInput, KitChatAttachment, KitChatTranslator, KitDeliverMidRunMessage, KitDeliverTypedAnswer, KitMidRunMessageDelivery, KitPosterRequestOptions, KitRedactUserText, KitSecretRedactionSignal, KitTypedAnswerDelivery, KitUserTextRedactionOptions, ReattachRunOptions, RunHandlers, SecretRedactionSignal, StartRunInput, ToolResultMediaBlock } from './kit-chat-types.js';
 
 export interface AdminKitChat {
   /** The chat translator hook. Screens receive it as an injected hook prop (`useChatT`), never a direct import. */

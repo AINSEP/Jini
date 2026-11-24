@@ -23,7 +23,8 @@ import type {
   AgentElementRole,
   FieldDescriptor,
 } from '@jini-ai/core/agent-handles';
-import type { AgentNavigationScreen, PageNavigationInput, PageNavigationResult } from './page-navigation.js';
+import type { PageNavigationInput, PageNavigationResult } from '@jini-ai/core/contracts/site/agentic-dom';
+import type { AgentNavigationScreen } from './page-navigation.js';
 
 /** Filter for {@link PageDriver.findElements}. Both fields are optional; absent means "no filter". */
 export interface FindElementsFilter {

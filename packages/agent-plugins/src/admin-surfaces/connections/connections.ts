@@ -1,5 +1,5 @@
 import { ADMIN_SURFACE_ACTION_INTENTS, type AdminSurfaceAuthorizationStart, type AdminSurfaceConnections, type AdminSurfaceConnectionStatus, type AdminSurfaceSignInAttempt } from '../surface-capabilities.js';
-import type { AdminSurfaceConnectionsHost, AdminSurfaceDeclaredConnection, AdminSurfaceStagedAccount, AdminSurfaceStatusView } from './ports.js';
+import type { AdminSurfaceConnectionsHost, AdminSurfaceDeclaredConnection, AdminSurfaceStagedAccount, AdminSurfaceStatusView, IssuedSignIn } from '@jini-ai/core/contracts/site/admin-surfaces-connections';
 import { createConsoleLogger, type Logger } from '@jini-ai/core/primitives';
 import { describeErrorForLog } from '@jini-ai/core';
 
@@ -18,11 +18,6 @@ import { describeErrorForLog } from '@jini-ai/core';
  * provider confirmed. A sign-in's `attemptId` is the service's own random id; the OAuth `state`
  * never reaches the plugin.
  */
-
-export interface IssuedSignIn extends AdminSurfaceAuthorizationStart {
-  readonly pluginId: string;
-  readonly connectionId: string;
-}
 
 export interface AdminSurfaceConnectionsDeps<Connection extends AdminSurfaceDeclaredConnection> {
   readonly host: AdminSurfaceConnectionsHost<Connection>;

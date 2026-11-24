@@ -3,6 +3,7 @@ import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest
 import { INTERNAL_FAILURE_MARKER, startRouteHarness, type RouteHarness } from './harness.js';
 import { FOREIGN_ORIGIN, probe } from './probes.js';
 import { openStream } from './stream-reader.js';
+import { runAnthropicToolTurn, runAzureToolTurn, runGoogleToolTurn, runOllamaToolTurn, runOpenAiToolTurn } from '@jini-ai/agent-runtime';
 
 /**
  * The life of each event stream the daemon serves, recorded from today's code on a real socket:
@@ -462,6 +463,7 @@ describe('model proxy streams (POST /api/proxy/<provider>/stream)', () => {
   const proxyIncidents: Array<{ correlationId: string; provider: string; error: unknown }> = [];
   beforeAll(async () => {
     harness = await startRouteHarness({}, { familyDeps: { 'model-proxy': {
+      toolTurns: { anthropic: runAnthropicToolTurn, openai: runOpenAiToolTurn, azure: runAzureToolTurn, google: runGoogleToolTurn, ollama: runOllamaToolTurn },
       onInternalError: (incident: { correlationId: string; provider: string; error: unknown }) => { proxyIncidents.push(incident); },
       dnsLookup: undefined,
       fetchImpl: async () => { transportCalls += 1; throw new Error(INTERNAL_FAILURE_MARKER); },

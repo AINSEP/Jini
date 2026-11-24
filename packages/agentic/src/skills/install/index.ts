@@ -1,3 +1,5 @@
+/** Deprecated re-export: import these from `@jini-ai/core/contracts/site/skills-install`; removed at the next major. */
+export type { SkillInstallInput, SkillUploadFile } from "@jini-ai/core/contracts/site/skills-install";
 export * from "./validation.js";
 export * from "./ports.js";
 export * from "./archive.js";

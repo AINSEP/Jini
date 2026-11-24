@@ -12,12 +12,25 @@
 export type AdminSiteKeyRuntimeMode = "production" | "local";
 
 /**
- * Mirrors the host's server-side `SiteKeyState` — the 5-state set `GET .../system/site-key`'s
- * `state` field now carries. Hand-declared rather than imported: the server union is not
- * reachable from an admin client. Written as a literal union here because a contract module
- * carries no runtime values; the host keeps the runtime list this type used to be derived from
- * (and the parity test that reads the server source's own union text and checks it against that
- * list), so the two can never silently drift apart. Keep all three edited together.
+ * `GET .../system/site-key`'s `state` field — the one union both the host's server route (its
+ * `siteKeyState`) and the admin client type that field with. Written as a literal union here
+ * because a contract module carries no runtime values; the host keeps the runtime list (and a
+ * parity test that pins it to this union), so the two can never silently drift apart. Keep both
+ * edited together.
+ *
+ * - `"active"` — a valid key resolves, and either nothing is stamped in the site's metadata file yet
+ *   or the stamped site-key fingerprint matches the resolved key's own fingerprint.
+ * - `"missing"` — no source resolves to usable material, and this site's store holds no data
+ *   that only a site key could decrypt or verify.
+ * - `"missing-with-data"` — no source resolves, but this site's store (any storage kind, or its
+ *   sealed storage secret) DOES hold such data — a materially more urgent banner than plain
+ *   `"missing"`: something the operator saved is stuck behind a key that no longer resolves.
+ * - `"mismatch"` — a valid key resolves, but its fingerprint differs from the site metadata's own
+ *   stamped fingerprint — the physical key file was substituted for a different one after the
+ *   stamp was written (the ensure-site-key "mismatch" outcome, surfaced here independently for the
+ *   read path).
+ * - `"invalid"` — a source was found (env var set, or a key file present) but its content fails hex
+ *   validation.
  */
 export type AdminSiteKeyState = "active" | "missing" | "missing-with-data" | "mismatch" | "invalid";
 

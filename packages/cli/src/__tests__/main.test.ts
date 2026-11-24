@@ -9,7 +9,7 @@ import { main, type MainDeps } from '../main.js';
 import { mkdir as mkdirForWriter, writeFile as writeFileForWriter } from 'node:fs/promises';
 import { dirname as dirnameForWriter } from 'node:path';
 /** A plain JSON writer for seeding registry records: these tests read discovery, not write durability
- * (sidecar's own tests cover the atomic writer); hosts pass node-adapters' `nodeAtomicWriter`. */
+ * (sidecar's own tests cover the atomic writer); hosts pass node-adapters' `createAtomicWriterPort` over platform's functions. */
 const testWriter = { writeJson: async ({ filePath, data }: { filePath: string; data: unknown }) => {
   await mkdirForWriter(dirnameForWriter(filePath), { recursive: true });
   await writeFileForWriter(filePath, `${JSON.stringify(data, null, 2)}\n`);

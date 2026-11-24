@@ -1,3 +1,20 @@
+/**
+ * @file Comments provider contracts. Types only; this module owns the declarations that
+ * `@jini-ai/capability-providers/comments` (`definitions.ts`, `ports.ts`, `registry.ts`) used to
+ * declare. That package imports them from here and keeps its runtime values.
+ */
+
+export interface CommentsSettingField { readonly key: string; readonly label: string; readonly kind: 'public' | 'secret'; readonly required: boolean }
+export interface CommentsProviderDefinition {
+  readonly id: string;
+  readonly label: string;
+  readonly kind: 'stored' | 'embedded';
+  readonly consentCategory: 'functional' | 'marketing';
+  readonly csp: { readonly scriptSrc: readonly string[]; readonly frameSrc: readonly string[]; readonly connectSrc: readonly string[]; readonly styleSrc: readonly string[] };
+  readonly settingsSchema: readonly CommentsSettingField[];
+  readonly implementation: 'metadata-only' | 'adapter';
+}
+
 /** Provider-neutral comments boundaries. Private moderation data never enters thread rendering. */
 export type CommentStatus = 'pending' | 'approved' | 'spam' | 'trash';
 /** Optional executable assets are declared separately; ordinary thread HTML remains visible. */
@@ -31,4 +48,19 @@ export interface CommentsSelection { providerId: string | null; revision: number
 export interface CommentsSelectionStorePort {
   read(required: { siteId: string }, optional?: Record<string, never>): Promise<CommentsSelection>;
   compareAndSet(required: { siteId: string; expectedRevision: number; providerId: string | null; actorPrincipalId: string }, optional?: Record<string, never>): Promise<boolean>;
+}
+
+export interface CommentsProviderBinding {
+  definition: CommentsProviderDefinition;
+  /** Resolves only this site's adapter; undefined explicitly means not ready. No executable metadata loading. */
+  resolve(required: { siteId: string }, optional?: Record<string, never>): Promise<CommentsProviderAdapter | undefined>;
+}
+export interface CommentsProviderRegistry {
+  register(required: CommentsProviderBinding, optional?: Record<string, never>): void;
+  get(required: { providerId: string }, optional?: Record<string, never>): CommentsProviderDefinition | undefined;
+  has(required: { providerId: string }, optional?: Record<string, never>): boolean;
+  list(required: Record<string, never>, optional?: Record<string, never>): readonly CommentsProviderDefinition[];
+  resolve(required: { siteId: string; providerId: string }, optional?: Record<string, never>): Promise<CommentsProviderAdapter | undefined>;
+  active(required: { siteId: string }, optional?: Record<string, never>): Promise<{ providerId: string | null; revision: number; adapter: CommentsProviderAdapter | undefined }>;
+  select(required: { siteId: string; providerId: string | null; expectedRevision: number; actorPrincipalId: string }, optional?: Record<string, never>): Promise<void>;
 }

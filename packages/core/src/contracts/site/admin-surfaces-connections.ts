@@ -1,5 +1,18 @@
-import type { AdminSurfaceAuthorizationStart, AdminSurfaceConnectionState, AdminSurfaceRevocationOutcome, AdminSurfaceSignInAttempt } from '../surface-capabilities.js';
-import type { AdminSurfaceCallbackFieldKey } from '../callback-field-inbox.js';
+/**
+ * @file Agent Plugin admin-surface connections contracts. Types only; this module owns the
+ * declarations that `@jini-ai/agent-plugins/admin-surfaces/connections` (`ports.ts`,
+ * `connections.ts`) and `@jini-ai/agent-plugins/admin-surfaces` (`callback-field-inbox.ts`) used to
+ * declare. That package imports them from here and keeps its runtime values.
+ */
+import type { AdminSurfaceAuthorizationStart, AdminSurfaceConnectionState, AdminSurfaceRevocationOutcome, AdminSurfaceSignInAttempt } from './agent-plugins-admin-surfaces.js';
+
+/** One callback-field deposit's key: the same workspace, plugin, connection and attempt id must take it. */
+export interface AdminSurfaceCallbackFieldKey {
+  readonly workspaceId: string;
+  readonly pluginId: string;
+  readonly connectionId: string;
+  readonly attemptId: string;
+}
 
 /** The loaded connection stays opaque beyond the fields this domain actually reads. */
 export interface AdminSurfaceDeclaredConnection { readonly pluginId: string; readonly descriptor: { readonly connectionId: string }; readonly scopeSets: readonly string[] }
@@ -34,4 +47,11 @@ export interface AdminSurfaceConnectionsHost<Connection extends AdminSurfaceDecl
   readonly sharedOAuth?: { hasBinding(connection: Connection): Promise<boolean>; getStatus(connection: Connection): Promise<Omit<AdminSurfaceStatusView, 'pendingSwitch'> | null>; stopUsing(connection: Connection): Promise<void> };
   notAvailable(): Error;
   pinnedTokenOptions?(required: { signal?: AbortSignal | undefined; connectionRef: string }): { expectedAccountId?: string };
+}
+
+/** A sign-in authorization URL the connections port issued, reported to the host's `onSignInIssued`
+ *  so the admin route lets the host page (not the sandboxed frame) open exactly these URLs. */
+export interface IssuedSignIn extends AdminSurfaceAuthorizationStart {
+  readonly pluginId: string;
+  readonly connectionId: string;
 }
