@@ -1,7 +1,11 @@
 import { describe, expect, it, vi } from "vitest";
 import type { ContentTypeRecord } from "@jini-ai/core/contracts/content-types";
 import type { EntryRecord } from "../../../../../../entries/index.js";
-import { resolveCollectionListsForRender, type CollectionListsRenderDeps } from "../collection-lists.js";
+import * as listing from "../../../../../../listing/index.js";
+import { markersOfType, COLLECTION_MARKER_TYPE } from "../../../../../../widgets/markers/index.js";
+import { parseCollectionListConfig, humanizeFieldName, entryPublicHref } from "../../../../../../entries/site/public-list.js";
+import { formatDateLabel, resolveSiteTimeZoneSafely } from "../../../../../../widgets/date-label.js";
+import { resolveCollectionListsForRender, type CollectionListsCollaborators, type CollectionListsRenderDeps } from "../collection-lists.js";
 
 /** @file Collection-marker resolution: the host's injected wrapper attribute reaches the markup, misses keep their fallback. */
 
@@ -14,8 +18,22 @@ const row = {
   fieldsJson: { ext: { site: { author: "Herbert" } } },
 } as unknown as EntryRecord;
 
-function deps(found: ContentTypeRecord | null): Pick<CollectionListsRenderDeps, "workspaceId" | "contentTypeRepo" | "entryRepo" | "entryListAttribute"> {
+/** The real domain functions, bound the way a host binds them from the public subpaths. */
+const collaborators: CollectionListsCollaborators = {
+  listing: {
+    collectionMarkerKey: listing.collectionMarkerKey, splitCollectionMarkerInner: listing.splitCollectionMarkerInner,
+    renderEntryList: listing.renderEntryList, listingBatchPath: listing.listingBatchPath,
+    listingKeyOfAttributes: listing.listingKeyOfAttributes, readListingBatch: listing.readListingBatch,
+    renderListingMore: listing.renderListingMore,
+  },
+  markers: { markersOfType, COLLECTION_MARKER_TYPE },
+  entries: { parseCollectionListConfig, humanizeFieldName, entryPublicHref },
+  dates: { formatDateLabel, resolveSiteTimeZoneSafely },
+};
+
+function deps(found: ContentTypeRecord | null): Pick<CollectionListsRenderDeps, "workspaceId" | "contentTypeRepo" | "entryRepo" | "entryListAttribute" | "collaborators"> {
   return {
+    collaborators,
     workspaceId: "w1",
     contentTypeRepo: { findByKey: async () => found },
     entryRepo: { listPublishedForDisplay: async () => [row] },

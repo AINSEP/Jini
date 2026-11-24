@@ -3,14 +3,50 @@
   // `resolveCollectionListsForRender`) needs the same per-marker identity key and inner-content
   // splitter `injectCollectionEmbeds` uses, so both sides agree on how a `collection` marker is
   // addressed and how its authored `<template>` is found.
-import { collectionMarkerKey, splitCollectionMarkerInner } from "../../../../../listing/index.js";
-import { renderEntryList, type EntryListItem, type EntryListFieldValue } from "../../../../../listing/index.js";
-import { markersOfType, COLLECTION_MARKER_TYPE, type EmbedMarker } from "../../../../../widgets/markers/index.js";
-import { listingBatchPath, listingKeyOfAttributes, readListingBatch, renderListingMore, type ListingBatchRequest } from "../../../../../listing/index.js";
+// This `public-http` entry reaches the `listing`, `widgets` and `entries` domains only through the
+// type-only imports below: their functions arrive as the injected {@link CollectionListsCollaborators}
+// (built once by the host from the public `@jini-ai/cms/<domain>` subpaths), so the subpath stays
+// isolated from those domains' runtime code.
+import type { collectionMarkerKey, splitCollectionMarkerInner } from "../../../../../listing/index.js";
+import type { renderEntryList, EntryListItem, EntryListFieldValue } from "../../../../../listing/index.js";
+import type { markersOfType, COLLECTION_MARKER_TYPE, EmbedMarker } from "../../../../../widgets/markers/index.js";
+import type { listingBatchPath, listingKeyOfAttributes, readListingBatch, renderListingMore, ListingBatchRequest } from "../../../../../listing/index.js";
 import type { ContentTypeFieldDef, ContentTypeRecord } from "@jini-ai/core/contracts/content-types";
 import type { EntryRecord } from "../../../../../entries/index.js";
-import { parseCollectionListConfig, humanizeFieldName, entryPublicHref, type EntryDisplayListPort, type ParseCollectionListConfigResult } from "../../../../../entries/site/public-list.js";
-import { formatDateLabel, resolveSiteTimeZoneSafely, type SiteTimeZonePort } from "../../../../../widgets/date-label.js";
+import type { parseCollectionListConfig, humanizeFieldName, entryPublicHref, EntryDisplayListPort, ParseCollectionListConfigResult } from "../../../../../entries/site/public-list.js";
+import type { formatDateLabel, resolveSiteTimeZoneSafely, SiteTimeZonePort } from "../../../../../widgets/date-label.js";
+
+/**
+ * The other CMS domains' functions collection-marker resolution calls, grouped by owning domain and
+ * injected rather than imported (subpath isolation: a `public-http` entry must not load `listing`,
+ * `widgets` or `entries` runtime code). The host binds each group once from the matching public
+ * subpath — `@jini-ai/cms/listing`, `@jini-ai/cms/widgets/markers`, `@jini-ai/cms/entries/site/public-list`
+ * and `@jini-ai/cms/widgets/date-label` — and passes the same object on every request.
+ */
+export interface CollectionListsCollaborators {
+  readonly listing: {
+    readonly collectionMarkerKey: typeof collectionMarkerKey;
+    readonly splitCollectionMarkerInner: typeof splitCollectionMarkerInner;
+    readonly renderEntryList: typeof renderEntryList;
+    readonly listingBatchPath: typeof listingBatchPath;
+    readonly listingKeyOfAttributes: typeof listingKeyOfAttributes;
+    readonly readListingBatch: typeof readListingBatch;
+    readonly renderListingMore: typeof renderListingMore;
+  };
+  readonly markers: {
+    readonly markersOfType: typeof markersOfType;
+    readonly COLLECTION_MARKER_TYPE: typeof COLLECTION_MARKER_TYPE;
+  };
+  readonly entries: {
+    readonly parseCollectionListConfig: typeof parseCollectionListConfig;
+    readonly humanizeFieldName: typeof humanizeFieldName;
+    readonly entryPublicHref: typeof entryPublicHref;
+  };
+  readonly dates: {
+    readonly formatDateLabel: typeof formatDateLabel;
+    readonly resolveSiteTimeZoneSafely: typeof resolveSiteTimeZoneSafely;
+  };
+}
 
 /**
  * The narrow render slice collection-marker resolution reads. The host binds its own repos;
@@ -24,6 +60,7 @@ export interface CollectionListsRenderDeps {
   readonly listingBatch?: ListingBatchRequest;
   readonly siteTimeZone?: SiteTimeZonePort;
   readonly entryListAttribute: string;
+  readonly collaborators: CollectionListsCollaborators;
 }
 
 /**
@@ -63,7 +100,9 @@ function collectionEntryFieldValue({ row, field }: { row: EntryRecord; field: st
  * @complexity O(f) over `fields`' length — one `collectionEntryFieldValue` lookup per displayed
  * field, f being the content type's own declared/authored field count, never user-collection-sized.
  */
-function toCollectionEntryListItem({ row, fields, timeZone }: { row: EntryRecord; fields: readonly ContentTypeFieldDef[]; timeZone: string }, _optional = {}): EntryListItem {
+function toCollectionEntryListItem({ row, fields, timeZone, collaborators }: { row: EntryRecord; fields: readonly ContentTypeFieldDef[]; timeZone: string; collaborators: CollectionListsCollaborators }, _optional = {}): EntryListItem {
+  const { entryPublicHref, humanizeFieldName } = collaborators.entries;
+  const { formatDateLabel } = collaborators.dates;
   const dateIso = row.publishedAt ?? row.updatedAt;
   return {
     title: row.title,
@@ -102,7 +141,7 @@ type ParsedCollectionListConfig = Extract<ParseCollectionListConfigResult, { ok:
 /** A collection marker's validated content-type key and parsed list config, or `undefined` (with
  *  its `[collection]` warning) for every config-level miss. @complexity One `findByKey` read. */
 async function resolveCollectionMarkerConfig(
-  deps: Pick<CollectionListsRenderDeps, "workspaceId" | "contentTypeRepo">,
+  deps: Pick<CollectionListsRenderDeps, "workspaceId" | "contentTypeRepo" | "collaborators">,
   marker: EmbedMarker
 ): Promise<{ typeKey: string; parsed: ParsedCollectionListConfig } | undefined> {
   const typeKey = collectionMarkerTypeKey(marker.config);
@@ -117,7 +156,7 @@ async function resolveCollectionMarkerConfig(
     return undefined;
   }
 
-  const parsed = parseCollectionListConfig({ config: marker.config, contentType });
+  const parsed = deps.collaborators.entries.parseCollectionListConfig({ config: marker.config, contentType });
   if (!parsed.ok) {
     console.warn(`[collection] rejected marker config for typeKey "${typeKey}": ${parsed.reason}; leaving its authored fallback content`);
     return undefined;
@@ -128,13 +167,13 @@ async function resolveCollectionMarkerConfig(
 /** The published entries one collection marker lists: its whole bounded query for a plain marker,
  *  or — for a see-more marker — its batch (from `after` when this request asks for its key) plus
  *  whether a next batch exists. @complexity One bounded `listPublishedForDisplay` read. */
-async function readCollectionBatch({ deps, query, listingKey }: { deps: Pick<CollectionListsRenderDeps, "workspaceId" | "entryRepo" | "listingBatch">; query: ParsedCollectionListConfig["query"]; listingKey: number | undefined }, _optional = {}) {
+async function readCollectionBatch({ deps, query, listingKey }: { deps: Pick<CollectionListsRenderDeps, "workspaceId" | "entryRepo" | "listingBatch" | "collaborators">; query: ParsedCollectionListConfig["query"]; listingKey: number | undefined }, _optional = {}) {
   // A see-more marker reads its batch (from `after` when this request asks for its key) plus one row
   // to learn whether a next batch exists; entries carry no member access, so every row is visible.
   if (listingKey === undefined) {
     return { items: await deps.entryRepo.listPublishedForDisplay({ workspaceId: deps.workspaceId, query }), hasMore: false, next: 0 };
   }
-  return readListingBatch({
+  return deps.collaborators.listing.readListingBatch({
     source: ({ offset, limit }) => deps.entryRepo.listPublishedForDisplay({ workspaceId: deps.workspaceId, query: { ...query, offset, limit } }),
     after: deps.listingBatch?.key === listingKey ? deps.listingBatch.after : 0,
     size: query.limit,
@@ -154,15 +193,16 @@ async function readCollectionBatch({ deps, query, listingKey }: { deps: Pick<Col
  * one bounded `entryRepo.listPublishedForDisplay` query (capped at the marker's own clamped `limit`,
  * `parseCollectionListConfig`'s own resource bound) — never an unbounded scan.
  */
-async function resolveOneCollectionMarker({ deps, marker, pagePath }: { deps: Pick<CollectionListsRenderDeps, "workspaceId" | "contentTypeRepo" | "entryRepo" | "listingBatch" | "siteTimeZone" | "entryListAttribute">; marker: EmbedMarker; pagePath: string }, _optional = {}): Promise<string | undefined> {
+async function resolveOneCollectionMarker({ deps, marker, pagePath }: { deps: Pick<CollectionListsRenderDeps, "workspaceId" | "contentTypeRepo" | "entryRepo" | "listingBatch" | "siteTimeZone" | "entryListAttribute" | "collaborators">; marker: EmbedMarker; pagePath: string }, _optional = {}): Promise<string | undefined> {
+  const { listingKeyOfAttributes, splitCollectionMarkerInner, renderEntryList, renderListingMore, listingBatchPath } = deps.collaborators.listing;
   const config = await resolveCollectionMarkerConfig(deps, marker);
   if (config === undefined) return undefined;
   const { typeKey, parsed } = config;
 
   const listingKey = listingKeyOfAttributes({ attrs: marker.attrs });
   const batch = await readCollectionBatch({ deps, query: parsed.query, listingKey });
-  const timeZone = await resolveSiteTimeZoneSafely({ workspaceId: deps.workspaceId }, deps.siteTimeZone ? { siteTimeZone: deps.siteTimeZone } : {});
-  const items = batch.items.map((row) => toCollectionEntryListItem({ row, fields: parsed.display.fields, timeZone }));
+  const timeZone = await deps.collaborators.dates.resolveSiteTimeZoneSafely({ workspaceId: deps.workspaceId }, deps.siteTimeZone ? { siteTimeZone: deps.siteTimeZone } : {});
+  const items = batch.items.map((row) => toCollectionEntryListItem({ row, fields: parsed.display.fields, timeZone, collaborators: deps.collaborators }));
   const { template } = splitCollectionMarkerInner({ inner: marker.inner });
   const { columns, layout, structuredData } = parsed.display;
   const list = renderEntryList({ items, attribute: deps.entryListAttribute, options: { ...(template === undefined ? {} : { template }), columns, layout, typeKey, ...(structuredData === undefined ? {} : { structuredData }), ...(listingKey === undefined ? {} : { listingKey }) } });
@@ -194,7 +234,9 @@ async function resolveOneCollectionMarker({ deps, marker, pagePath }: { deps: Pi
  * up to `MAX_DISTINCT_COLLECTION_MARKERS_PER_PAGE` independent `resolveOneCollectionMarker` calls run
  * concurrently via `Promise.all` — never one query per marker OCCURRENCE, only per distinct config.
  */
-export async function resolveCollectionListsForRender({ deps, html, pagePath }: { deps: Pick<CollectionListsRenderDeps, "workspaceId" | "contentTypeRepo" | "entryRepo" | "listingBatch" | "entryListAttribute"> & Partial<Pick<CollectionListsRenderDeps, "siteTimeZone">>; html: string; pagePath: string }, _optional = {}): Promise<ReadonlyMap<string, string | undefined>> {
+export async function resolveCollectionListsForRender({ deps, html, pagePath }: { deps: Pick<CollectionListsRenderDeps, "workspaceId" | "contentTypeRepo" | "entryRepo" | "listingBatch" | "entryListAttribute" | "collaborators"> & Partial<Pick<CollectionListsRenderDeps, "siteTimeZone">>; html: string; pagePath: string }, _optional = {}): Promise<ReadonlyMap<string, string | undefined>> {
+  const { markersOfType, COLLECTION_MARKER_TYPE } = deps.collaborators.markers;
+  const { collectionMarkerKey } = deps.collaborators.listing;
   const markers = markersOfType({ html: html, type: COLLECTION_MARKER_TYPE });
   if (markers.length === 0) return new Map();
 
