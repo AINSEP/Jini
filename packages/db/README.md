@@ -233,6 +233,19 @@ fields. The host injects:
 
 Product names, schema names, marker tables and table-exclusion policy stay host inputs.
 
+### Recovery agent-tool catalog (`@jini-ai/db/recovery/agent-tools`)
+
+`createRecoveryAgentToolCatalog({ backupWorkflowGuidance, restorePointIdSource })` returns the seven
+recovery tool definitions. Ids, permissions, side effects, the actor-class rule on
+`backup_execute_restore` and every input schema are fixed by the engine. The host injects:
+
+- `backupWorkflowGuidance`: the sentences inside `backup_get_capabilities` that name its own
+  repository-backup tools and its portable export path / admin screen;
+- `restorePointIdSource`: the read tool(s) that return a restore point id, named in the
+  `restorePointId` field description of `backup_plan_restore` and `backup_execute_restore`.
+
+Bind it once at the host's recovery registration site and reuse that one array everywhere.
+
 ## Design decisions
 
 - [Operational history is a bounded read surface](docs/decisions/DR-001-bounded-operational-timeline.md).
