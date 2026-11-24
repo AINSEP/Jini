@@ -179,6 +179,7 @@ export async function importPostEntity(required: {
     // structurally and not only by this expression.
     createdByPrincipalId: existing ? existing.createdByPrincipalId : record.createdByPrincipalId,
     createdAt: existing ? existing.createdAt : record.createdAt,
+    createdByKind: existing ? existing.createdByKind : record.createdByKind,
     ...(ext !== undefined ? { ext } : {}),
   };
 

@@ -196,3 +196,12 @@ test("canonicalize preserves array order while sorting object keys inside array 
   assert.notEqual(contentHash({ entityType: "post", state }), contentHash({ entityType: "post", state: { ...state, termIds: ["b", "a"] } }));
   assert.notEqual(contentHash({ entityType: "post", state }), contentHash({ entityType: "post", state: { ...state, bodyJson: { type: "doc", content: [...paragraphs].reverse() } } }));
 });
+
+// H4 (2026-11-24) — `createdByKind` is the same provenance class: an agent-made and a person-made
+// copy of identical content must not read as a content edit.
+test("same content with a different createdByKind (agent vs person) hashes equal", () => {
+  assert.equal(
+    contentHash({ entityType: "post", state: fixtureState({ createdByKind: "agent" }) }),
+    contentHash({ entityType: "post", state: fixtureState({ createdByKind: "person" }) }),
+  );
+});

@@ -42,6 +42,8 @@ export const CONTENT_HASH_VERSION = 1;
  *   real (last-saved) state. Named explicitly, even though {@link PostRecord} carries no such field
  *   itself (autosave lives in a separate `readAutosave`/`writeAutosave` seam) — a future entity
  *   `canonicalize` is asked to hash may realistically pass this key straight out of a raw row shape.
+ * - `createdByKind` (2026-11-24, H4): the same per-instance provenance class as `createdByPrincipalId`
+ *   (who made the row, agent or person) — never content, so it must not register as an edit.
  * - `createdByPrincipalId` / `createdAt` (Task 15, 2026-09-18, plan §4 task 15): per-instance
  *   authorship PROVENANCE, not content — the same class of fact `id`/`workspaceId` already are.
  *   Excluding them is what lets the importer copy the source's own values onto a `created` row
@@ -59,6 +61,7 @@ const EXCLUDED_KEYS: ReadonlySet<string> = new Set([
   "updatedAt",
   "autosaveJson",
   "createdByPrincipalId",
+  "createdByKind",
   "createdAt",
 ]);
 

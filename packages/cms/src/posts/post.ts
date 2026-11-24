@@ -1,4 +1,4 @@
-import type { UUID, JsonObject } from "@jini-ai/core/primitives";
+import type { UUID, JsonObject, CreatorKind } from "@jini-ai/core/primitives";
 import type { PostStatus, PublicPostKind } from "../core/index.js";
 import type { PostKind } from "@jini-ai/core/contracts/site/post-kind";
 
@@ -141,6 +141,16 @@ export interface PostRecord {
    * ATTRIBUTION field, not an authorization one; nothing may key a permission check off it.
    */
   createdByPrincipalId?: string | null | undefined;
+  /**
+   * Who created this row (2026-11-24, `posts.created_by_kind`, H4): `"agent"` when it was written
+   * through an agent's tools, `"person"` for an owner/admin write. Recorded AT WRITE TIME by
+   * `createPost`, because the agent-pause hold must pause only agent-made posts and cannot
+   * reconstruct that later from `createdByPrincipalId` (an agent acts under the real human's id).
+   * Absent reads as `"person"` (`resolveCreatorKind`), so an owner-made row is never paused by
+   * mistake. Write-once, like {@link createdByPrincipalId}: `updatePost` carries it over unchanged
+   * and the repo's `updatableColumns()` leaves the column out. Attribution only, never authorization.
+   */
+  createdByKind?: CreatorKind | undefined;
   /**
    * Authorship attribution (2026-09-18, `posts.created_at`) — the ISO timestamp `createPost` first
    * wrote this row at, or `null`/absent when that is genuinely unknown (every pre-migration row).
