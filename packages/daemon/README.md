@@ -154,3 +154,7 @@ and `createOwnedRunListHandler`) lives in `@jini-ai/http-kit/middleware`. Instal
 execution gate; compose it around the bare executor, beneath recovery decorators, since an
 outer wrapper cannot intercept references those decorators already hold.
 See [API.md](https://github.com/AINSEP/Jini/blob/main/packages/daemon/API.md) for route, credential, audit, surface and session contracts.
+
+## Wiring (tool-access-lowering)
+
+- `stopRunsForToolAccessChange` takes the host's `revoke`/`cancel`/`waitForCleanup`/`notice` ports; a host that cannot confirm the affected answers stopped throws `ToolAccessLoweringError` (exported from the package root) so its routes map it to `TOOL_ACCESS_STOP_FAILED`.

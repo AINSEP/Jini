@@ -39,6 +39,15 @@ function tick(): Promise<void> {
   return new Promise((resolve) => setImmediate(resolve));
 }
 
+/** A logger port recording each line's message, and separately what went in its error bag. */
+function recordingLogger(logged: string[] = [], errors: unknown[] = []) {
+  const write = ({ message }: { message: string }, optional?: { error?: unknown }) => {
+    logged.push(message);
+    if (optional !== undefined && "error" in optional) errors.push(optional.error);
+  };
+  return { info: write, warn: write, error: write };
+}
+
 test("SIGTERM: the store close waits for boot work registered after the handlers, then exits 0", async () => {
   const proc = new FakeProcess();
   const order: string[] = [];
@@ -48,7 +57,7 @@ test("SIGTERM: the store close waits for boot work registered after the handlers
   // read when the close starts, not at registration.
   const bootWork: Promise<unknown>[] = [legacyWork.promise];
   closeStoreOnShutdown(
-    { store: postgresStore(async () => void order.push("close")), onShutdown: () => order.push("daemon") },
+    { store: postgresStore(async () => void order.push("close")), onShutdown: () => order.push("daemon"), logger: recordingLogger() },
     { proc, bootWork: () => bootWork }
   );
   bootWork.push(byokWork.promise);
@@ -72,8 +81,8 @@ test("a boot pass that never settles is abandoned after half the bound; the stor
   const logs: string[] = [];
   let closes = 0;
   closeStoreOnShutdown(
-    { store: postgresStore(async () => void (closes += 1)), onShutdown: () => {} },
-    { proc, timeoutMs: 200, log: (m) => logs.push(m), bootWork: () => [new Promise<void>(() => {})] }
+    { store: postgresStore(async () => void (closes += 1)), onShutdown: () => {}, logger: recordingLogger(logs) },
+    { proc, timeoutMs: 200, bootWork: () => [new Promise<void>(() => {})] }
   );
   const exited = proc.exited();
 
@@ -88,7 +97,7 @@ test("a boot pass that never settles is abandoned after half the bound; the stor
 test("without a bootWork port the store closes at once", async () => {
   const proc = new FakeProcess();
   let closes = 0;
-  closeStoreOnShutdown({ store: postgresStore(async () => void (closes += 1)), onShutdown: () => {} }, { proc });
+  closeStoreOnShutdown({ store: postgresStore(async () => void (closes += 1)), onShutdown: () => {}, logger: recordingLogger() }, { proc });
   const exited = proc.exited();
 
   proc.emit("SIGTERM");

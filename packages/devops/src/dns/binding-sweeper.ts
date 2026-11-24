@@ -15,6 +15,8 @@
  * that finds the previous one running does nothing — a slow nameserver never stacks sweeps), a failed
  * sweep is logged and retried next interval, never thrown, and `stop` waits a short grace.
  */
+import type { Logger } from "@jini-ai/core/primitives";
+
 /** Idle wait between sweeps. The shortest backoff step is 30 s, so a minute keeps a check at most
  * one interval late while an idle site costs one indexed `SELECT` per minute. */
 export const DOMAIN_BINDING_SWEEP_INTERVAL_MS = 60_000;
@@ -27,8 +29,6 @@ export const DOMAIN_BINDING_SWEEP_STOP_GRACE_MS = 1_000;
 
 export const DOMAIN_BINDING_SWEEP_FAILED_LINE = '[domain-dns] due-bindings sweep failed; retrying after the interval';
 export const DOMAIN_BINDING_SWEEP_STOP_LATE_LINE = '[domain-dns] a due-bindings sweep was still running at shutdown; it was abandoned';
-
-const MAX_LOGGED_MESSAGE_CHARS = 200;
 
 /** A cancellable timer. The host's implementation should never keep the process alive. */
 export interface DomainBindingSweepTimer {
@@ -51,13 +51,6 @@ export interface DomainBindingSweeper {
 export interface DomainBindingSweeperOptional {
   intervalMs?: number;
   limit?: number;
-  log?: (line: string) => void;
-}
-
-/** One log line: the error's name and capped message, never the object (no stack or extra fields). */
-function describeSweepError({ error }: { error: unknown }, _optional = {}): string {
-  if (!(error instanceof Error)) return `${DOMAIN_BINDING_SWEEP_FAILED_LINE}: a non-Error value was thrown`;
-  return `${DOMAIN_BINDING_SWEEP_FAILED_LINE}: ${error.name}: ${error.message.slice(0, MAX_LOGGED_MESSAGE_CHARS)}`;
 }
 
 const IDLE: DomainBindingSweeper = { tick: async () => {}, stop: async () => {} };
@@ -67,25 +60,27 @@ const IDLE: DomainBindingSweeper = { tick: async () => {}, stop: async () => {} 
  *
  * @param required.sweep the host's pre-bound due-bindings sweep; absent → an idle handle, no timer.
  * @param required.scheduler the host's (unref'd) timer port.
+ * @param required.logger the host's log channel. A failed sweep goes in its error bag, never as line
+ *   text: the error's own message can quote a nameserver answer, so the logger describes it.
  * @param optional.intervalMs idle wait between sweeps; default {@link DOMAIN_BINDING_SWEEP_INTERVAL_MS}.
  * @throws RangeError when `intervalMs` is not a positive finite number.
- * @example const sweeper = startDomainBindingSweeper({ sweep: verifyDue, scheduler }); await sweeper.stop();
+ * @example const sweeper = startDomainBindingSweeper({ sweep: verifyDue, scheduler, logger }); await sweeper.stop();
  * @complexity O(1) per tick, beyond the sweep's own O(limit · records · nameservers) DNS reads.
  */
 export function startDomainBindingSweeper(
-  required: { sweep: ((required: { limit: number }) => Promise<string[]>) | undefined; scheduler: DomainBindingSweepScheduler },
+  required: { sweep: ((required: { limit: number }) => Promise<string[]>) | undefined; scheduler: DomainBindingSweepScheduler; logger: Logger },
   optional: DomainBindingSweeperOptional = {},
 ): DomainBindingSweeper {
-  const { sweep, scheduler } = required;
+  const { sweep, scheduler, logger } = required;
   if (sweep === undefined) return IDLE;
-  const { intervalMs = DOMAIN_BINDING_SWEEP_INTERVAL_MS, limit = DOMAIN_BINDING_SWEEP_LIMIT, log = (line: string) => console.error(line) } = optional;
+  const { intervalMs = DOMAIN_BINDING_SWEEP_INTERVAL_MS, limit = DOMAIN_BINDING_SWEEP_LIMIT } = optional;
   if (!(Number.isFinite(intervalMs) && intervalMs > 0)) throw new RangeError('domain binding sweep intervalMs must be a positive finite number');
   let running: Promise<void> | undefined;
   let stopped = false;
 
   const tick = (): Promise<void> => {
     if (stopped) return Promise.resolve();
-    running ??= sweep({ limit }).then(() => undefined, (error: unknown) => log(describeSweepError({ error }))).finally(() => { running = undefined; });
+    running ??= sweep({ limit }).then(() => undefined, (error: unknown) => logger.error({ message: DOMAIN_BINDING_SWEEP_FAILED_LINE }, { error })).finally(() => { running = undefined; });
     return running;
   };
 
@@ -99,7 +94,7 @@ export function startDomainBindingSweeper(
     const late = new Promise<'late'>((resolve) => { grace = scheduler.after({ ms: DOMAIN_BINDING_SWEEP_STOP_GRACE_MS, run: () => resolve('late') }); });
     const outcome = await Promise.race([running, late]);
     grace.cancel();
-    if (outcome === 'late') log(DOMAIN_BINDING_SWEEP_STOP_LATE_LINE);
+    if (outcome === 'late') logger.error({ message: DOMAIN_BINDING_SWEEP_STOP_LATE_LINE });
   };
 
   return { tick, stop };

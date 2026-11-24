@@ -23,6 +23,7 @@ test("a plugin newly enabled in the durable repo is attached, and its id is adde
   const repo = new InMemoryPluginActivationRepo({ initialRows: [record("word-count", true)] });
   const enabledCalls: string[] = [];
   const deps: PluginActivationPollDeps = {
+    logger: silentLogger,
     workspaceId: WORKSPACE,
     pluginActivationRepo: repo,
     onPluginEnabled: async (pluginId) => {
@@ -42,6 +43,7 @@ test("an already-attached plugin is NOT re-attached on a later pass — no redun
   const repo = new InMemoryPluginActivationRepo({ initialRows: [record("word-count", true)] });
   let enabledCallCount = 0;
   const deps: PluginActivationPollDeps = {
+    logger: silentLogger,
     workspaceId: WORKSPACE,
     pluginActivationRepo: repo,
     onPluginEnabled: async () => {
@@ -60,6 +62,7 @@ test("a plugin disabled elsewhere (no longer in the durable enabled set) is deta
   const repo = new InMemoryPluginActivationRepo({ initialRows: [record("word-count", false)] });
   const disabledCalls: string[] = [];
   const deps: PluginActivationPollDeps = {
+    logger: silentLogger,
     workspaceId: WORKSPACE,
     pluginActivationRepo: repo,
     onPluginEnabled: async () => assert.fail("must not attach a plugin the durable repo marks disabled"),
@@ -78,6 +81,7 @@ test("a plugin disabled elsewhere (no longer in the durable enabled set) is deta
 test("a workspace this daemon does not serve is ignored, even if enabled there", async () => {
   const repo = new InMemoryPluginActivationRepo({ initialRows: [{ ...record("word-count", true), workspaceId: "some-other-workspace" }] });
   const deps: PluginActivationPollDeps = {
+    logger: silentLogger,
     workspaceId: WORKSPACE,
     pluginActivationRepo: repo,
     onPluginEnabled: async () => assert.fail("must not attach a plugin enabled for a different workspace"),
@@ -90,6 +94,7 @@ test("one plugin's attach failure is logged and skipped, never blocking reconcil
   const repo = new InMemoryPluginActivationRepo({ initialRows: [record("broken-plugin", true), record("word-count", true)] });
   const enabledCalls: string[] = [];
   const deps: PluginActivationPollDeps = {
+    logger: silentLogger,
     workspaceId: WORKSPACE,
     pluginActivationRepo: repo,
     onPluginEnabled: async (pluginId) => {
@@ -107,22 +112,30 @@ test("one plugin's attach failure is logged and skipped, never blocking reconcil
   assert.ok(attachedIds.has("word-count"));
 });
 
-/** Collects `console.warn` lines for one test and restores it afterwards. */
-function captureWarnings(t: { after: (fn: () => void) => void }): string[] {
-  const lines: string[] = [];
-  const original = console.warn;
-  console.warn = (...args: unknown[]) => { lines.push(args.map(String).join(" ")); };
-  t.after(() => { console.warn = original; });
-  return lines;
+/** A logger port for these tests: each line is the message joined to the error-bag value's own text
+ * (formatting the host's logger would do), so the assertions see what reached the bag. */
+function recordingLogger() {
+  const warnings: string[] = [];
+  const infos: string[] = [];
+  const line = ({ message }: { message: string }, optional?: { error?: unknown }) =>
+    optional !== undefined && "error" in optional ? `${message}: ${optional.error instanceof Error ? optional.error.message : String(optional.error)}` : message;
+  const logger = {
+    info: (required: { message: string }, optional?: { error?: unknown }) => void infos.push(line(required, optional)),
+    warn: (required: { message: string }, optional?: { error?: unknown }) => void warnings.push(line(required, optional)),
+    error: (required: { message: string }, optional?: { error?: unknown }) => void warnings.push(line(required, optional)),
+  };
+  return { warnings, infos, logger };
 }
+const silentLogger = recordingLogger().logger;
 
 // 2026-11-13: a plugin that kept failing (charts-recharts, INTEGRITY_FAILED) logged the same line on
 // every 5 s poll: 5,895 identical lines in one day. One line per distinct failure, then back off.
-test("a plugin that keeps failing the same way is logged once, and retried with backoff, not every pass", async ({ onTestFinished }) => {
-  const warnings = captureWarnings({ after: onTestFinished });
+test("a plugin that keeps failing the same way is logged once, and retried with backoff, not every pass", async () => {
+  const { warnings, logger } = recordingLogger();
   const repo = new InMemoryPluginActivationRepo({ initialRows: [record("broken-plugin", true)] });
   let attempts = 0;
   const deps: PluginActivationPollDeps = {
+    logger,
     workspaceId: WORKSPACE,
     pluginActivationRepo: repo,
     onPluginEnabled: async () => { attempts += 1; throw new Error("plugin 'broken-plugin' failed to load (INTEGRITY_FAILED)"); },
@@ -138,15 +151,12 @@ test("a plugin that keeps failing the same way is logged once, and retried with 
   assert.ok(attempts >= 2 && attempts <= 6, `backoff: expected a few retries in 20 passes, got ${attempts}`);
 });
 
-test("a NEW failure for the same plugin is logged again, and a recovery is logged once", async ({ onTestFinished }) => {
-  const warnings = captureWarnings({ after: onTestFinished });
-  const logs: string[] = [];
-  const originalLog = console.log;
-  console.log = (...args: unknown[]) => { logs.push(args.map(String).join(" ")); };
-  onTestFinished(() => { console.log = originalLog; });
+test("a NEW failure for the same plugin is logged again, and a recovery is logged once", async () => {
+  const { warnings, infos: logs, logger } = recordingLogger();
   const repo = new InMemoryPluginActivationRepo({ initialRows: [record("flaky", true)] });
   let error: string | undefined = "first problem";
   const deps: PluginActivationPollDeps = {
+    logger,
     workspaceId: WORKSPACE,
     pluginActivationRepo: repo,
     onPluginEnabled: async () => { if (error) throw new Error(error); },

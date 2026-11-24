@@ -1,3 +1,4 @@
+import type { Logger } from "@jini-ai/core/primitives";
 import { awaitBootWorkWithinBound } from "./await-boot-work.js";
 
 /**
@@ -30,16 +31,17 @@ const DEFAULT_CLOSE_TIMEOUT_MS = 4_000;
 
 /**
  * Runs `close` and resolves when it settles or after `timeoutMs` (default 4 s), whichever is first.
- * Never rejects: a failed or hung close is logged (`label` names what was closing), so a caller can
- * always exit afterwards. Shared with the CLI serve command's shutdown.
+ * Never rejects: a failed or hung close is logged on `logger` (`label` names what was closing; a
+ * failure goes in its error bag, never as line text), so a caller can always exit afterwards.
+ * Shared with the CLI serve command's shutdown.
  */
 export function closeWithinBound(
-  { close, label }: { close: () => Promise<void>; label: string },
-  { timeoutMs = DEFAULT_CLOSE_TIMEOUT_MS, log = (message: string) => console.error(message) }: { timeoutMs?: number; log?: (message: string) => void } = {}
+  { close, label, logger }: { close: () => Promise<void>; label: string; logger: Logger },
+  { timeoutMs = DEFAULT_CLOSE_TIMEOUT_MS }: { timeoutMs?: number } = {}
 ): Promise<void> {
   return new Promise<void>((resolve) => {
     const timer = setTimeout(() => {
-      log(`[shutdown] ${label} did not close within ${timeoutMs} ms; exiting anyway`);
+      logger.error({ message: `[shutdown] ${label} did not close within ${timeoutMs} ms; exiting anyway` });
       resolve();
     }, timeoutMs);
     timer.unref();
@@ -50,7 +52,7 @@ export function closeWithinBound(
       },
       (error: unknown) => {
         clearTimeout(timer);
-        log(`[shutdown] closing ${label} failed: ${error instanceof Error ? error.message : String(error)}`);
+        logger.error({ message: `[shutdown] closing ${label} failed` }, { error });
         resolve();
       }
     );
@@ -82,24 +84,22 @@ export function closeWithinBound(
  *   `registerProcessSignalHandlers: false`).
  */
 export function closeStoreOnShutdown(
-  required: { store: ShutdownStore | undefined; onShutdown: () => unknown },
+  required: { store: ShutdownStore | undefined; onShutdown: () => unknown; logger: Logger },
   optional: {
     /** Publish the same daemon-first stop for a private idle operation; signals still exit zero. */
     registerStop?: (required: { stop: (input: { exitCode: number }) => void }, optional?: Record<string, never>) => void;
     proc?: ShutdownProcess;
     timeoutMs?: number;
-    log?: (message: string) => void;
     bootWork?: () => readonly Promise<unknown>[];
     stopServing?: () => Promise<void>;
     stopOnEnd?: { once(event: "end", listener: () => void): unknown; resume(): unknown };
   } = {}
 ): boolean {
-  const { store, onShutdown } = required;
+  const { store, onShutdown, logger } = required;
   // Memory-only boots have no owned store; leave process shutdown with their existing owner.
   if (!store) return false;
   const proc = optional.proc ?? process;
   const timeoutMs = optional.timeoutMs ?? DEFAULT_CLOSE_TIMEOUT_MS;
-  const log = optional.log ?? ((message: string) => console.error(message));
   const bootWork = optional.bootWork ?? (() => []);
   const stopServing = optional.stopServing ?? (async () => {});
 
@@ -107,10 +107,10 @@ export function closeStoreOnShutdown(
   let daemonStopped: unknown;
   const closeBounded = (): Promise<void> => {
     closing ??= closeWithinBound(
-      { label: `the ${store.storage.kind} store`, close: async () => {
-        await closeStoreAfterDaemon({ store, stopServing, bootWork, timeoutMs, log, daemonStopped: () => daemonStopped });
+      { label: `the ${store.storage.kind} store`, logger, close: async () => {
+        await closeStoreAfterDaemon({ store, stopServing, bootWork, timeoutMs, logger, daemonStopped: () => daemonStopped });
       } },
-      { timeoutMs, log }
+      { timeoutMs }
     );
     return closing;
   };
@@ -186,12 +186,12 @@ export async function stopServingWithinGrace(
   clearTimeout(cut);
 }
 
-async function closeStoreAfterDaemon({ store, stopServing, bootWork, timeoutMs, log, daemonStopped }: {
+async function closeStoreAfterDaemon({ store, stopServing, bootWork, timeoutMs, logger, daemonStopped }: {
   store: NonNullable<Parameters<typeof closeStoreOnShutdown>[0]["store"]>; stopServing: () => Promise<void>; bootWork: () => readonly Promise<unknown>[];
-  timeoutMs: number; log: (message: string) => void; daemonStopped: () => unknown;
+  timeoutMs: number; logger: Logger; daemonStopped: () => unknown;
 }): Promise<void> {
         await stopServing();
-        await awaitBootWorkWithinBound({ work: bootWork() }, { timeoutMs: timeoutMs / 2, log });
+        await awaitBootWorkWithinBound({ work: bootWork(), logger }, { timeoutMs: timeoutMs / 2 });
         // The daemon shares content.db and chat.db, and SQLite removes the WAL/SHM only on the LAST
         // connection's close: two processes closing at once can both leave them. So the daemon goes
         // first, but only for a quarter of the bound, so an unresponsive daemon cannot keep ours open.

@@ -38,12 +38,21 @@ function deferred(): { promise: Promise<void>; resolve: () => void } {
 
 const tick = (): Promise<void> => new Promise((resolve) => setImmediate(resolve));
 
+/** A logger port recording each line's message, and separately what went in its error bag. */
+function recordingLogger(logged: string[] = [], errors: unknown[] = []) {
+  const write = ({ message }: { message: string }, optional?: { error?: unknown }) => {
+    logged.push(message);
+    if (optional !== undefined && "error" in optional) errors.push(optional.error);
+  };
+  return { info: write, warn: write, error: write };
+}
+
 test("SIGTERM: stopServing settles before boot work is awaited and the store closes", async () => {
   const proc = new FakeProcess();
   const order: string[] = [];
   const serving = deferred();
   closeStoreOnShutdown(
-    { store: { storage: { kind: "postgres" }, close: async () => void order.push("close") }, onShutdown: () => {} },
+    { store: { storage: { kind: "postgres" }, close: async () => void order.push("close") }, onShutdown: () => {}, logger: recordingLogger() },
     { proc, stopServing: async () => { order.push("stop-serving"); await serving.promise; order.push("serving-stopped"); } }
   );
   const exited = proc.exited();
@@ -107,6 +116,7 @@ test("an upgraded socket cannot hold database disposal past the listener grace",
   closeStoreOnShutdown({
     store: { storage: { kind: "sqlite" }, close: async () => { calls.push("store"); } },
     onShutdown: () => {},
+    logger: recordingLogger(),
   }, { proc, stopServing: () => stopServingWithinGrace({ server, workers: [] }, { graceMs: 500 }) });
   const exited = proc.exited();
   proc.emit("SIGTERM");

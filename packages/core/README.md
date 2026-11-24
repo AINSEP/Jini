@@ -312,7 +312,7 @@ test in `src/tool-metadata/__tests__/provider-neutral.test.ts` refuses provider 
 
 ## Wiring (tool-access-change)
 
-- `@jini-ai/core/contracts/site/tool-access-change`: the host supplies its own `NotifyToolAccessChanged` effect and throws `ToolAccessLoweringError` when it cannot confirm affected answers stopped; nothing else to inject.
+- `@jini-ai/core/contracts/site/tool-access-change` (type-only): the host supplies its own `NotifyToolAccessChanged` effect and throws `ToolAccessLoweringError` (from `@jini-ai/daemon`) when it cannot confirm affected answers stopped; nothing else to inject.
 
 ## Wiring (primitives/lazy-proxy)
 

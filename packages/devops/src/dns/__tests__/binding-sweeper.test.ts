@@ -10,6 +10,18 @@ import {
   type DomainBindingSweepScheduler,
 } from '../binding-sweeper.js';
 
+/** A logger port that records each line and, separately, what went in its error bag. */
+function recordingLogger() {
+  const lines: string[] = [];
+  const errors: unknown[] = [];
+  const write = ({ message }: { message: string }, optional?: { error?: unknown }) => {
+    lines.push(message);
+    if (optional !== undefined && 'error' in optional) errors.push(optional.error);
+  };
+  return { lines, errors, logger: { info: write, warn: write, error: write } };
+}
+const silentLogger = recordingLogger().logger;
+
 /**
  * @file The due-bindings DNS loop on a fake scheduler: off without a pre-bound sweep, one sweep per
  * interval with the batch limit, never two at once, failures logged (not thrown) and retried, and a
@@ -39,7 +51,7 @@ const flush = () => new Promise<void>((resolve) => setImmediate(resolve));
 describe('startDomainBindingSweeper', () => {
   it('no pre-bound sweep: an idle handle and no timer (off by injection)', async () => {
     const clock = fakeScheduler();
-    const sweeper = startDomainBindingSweeper({ sweep: undefined, scheduler: clock.scheduler });
+    const sweeper = startDomainBindingSweeper({ sweep: undefined, scheduler: clock.scheduler, logger: silentLogger });
     expect(clock.intervals.length).toBe(0);
     await sweeper.tick();
     await sweeper.stop();
@@ -50,8 +62,7 @@ describe('startDomainBindingSweeper', () => {
     const limits: number[] = [];
     const gate = deferred();
     const sweeper = startDomainBindingSweeper(
-      { sweep: async ({ limit }) => { limits.push(limit); await gate.promise; return []; }, scheduler: clock.scheduler },
-      { log: () => expect.fail('nothing to log') },
+      { sweep: async ({ limit }) => { limits.push(limit); await gate.promise; return []; }, scheduler: clock.scheduler, logger: { info: () => expect.fail('nothing to log'), warn: () => expect.fail('nothing to log'), error: () => expect.fail('nothing to log') } },
     );
     expect(clock.intervals.map((timer) => timer.ms)).toEqual([DOMAIN_BINDING_SWEEP_INTERVAL_MS]);
     expect(limits, 'no sweep before the first interval').toEqual([]);
@@ -67,32 +78,33 @@ describe('startDomainBindingSweeper', () => {
     expect(clock.intervals[0]!.cancelled).toBe(true);
   });
 
-  it('a failed sweep is logged by name and capped message, never thrown, and the loop keeps going', async () => {
+  it('a failed sweep is logged with the failure in the error bag (never in the line), never thrown, and the loop keeps going', async () => {
     const clock = fakeScheduler();
-    const lines: string[] = [];
+    const { lines, errors, logger } = recordingLogger();
     let calls = 0;
-    const failures: unknown[] = [new TypeError(`resolver broke ${'x'.repeat(300)}`), 'eio'];
+    const broke = new TypeError(`resolver broke ${'x'.repeat(300)}`);
+    const failures: unknown[] = [broke, 'eio'];
     const sweeper = startDomainBindingSweeper(
-      { sweep: async () => { calls += 1; throw failures.shift(); }, scheduler: clock.scheduler },
-      { intervalMs: 5, limit: 3, log: (line) => lines.push(line) },
+      { sweep: async () => { calls += 1; throw failures.shift(); }, scheduler: clock.scheduler, logger },
+      { intervalMs: 5, limit: 3 },
     );
     expect(clock.intervals[0]!.ms).toBe(5);
     await sweeper.tick();
     await sweeper.tick();
     expect(calls).toBe(2);
-    expect(lines[0]).toBe(`${DOMAIN_BINDING_SWEEP_FAILED_LINE}: TypeError: resolver broke ${'x'.repeat(185)}`);
-    expect(lines[1]).toBe(`${DOMAIN_BINDING_SWEEP_FAILED_LINE}: a non-Error value was thrown`);
+    expect(lines).toEqual([DOMAIN_BINDING_SWEEP_FAILED_LINE, DOMAIN_BINDING_SWEEP_FAILED_LINE]);
+    expect(errors[0]).toBe(broke);
+    expect(errors[1]).toBe('eio');
     await sweeper.stop();
   });
 
   it('stop waits a bounded grace for a running sweep, logs when it gives up, and is idempotent', async () => {
     const clock = fakeScheduler();
-    const lines: string[] = [];
+    const { lines, logger } = recordingLogger();
     const gate = deferred();
     let stopped = 0;
     const sweeper = startDomainBindingSweeper(
-      { sweep: async () => { await gate.promise; stopped += 1; return ['example.com']; }, scheduler: clock.scheduler },
-      { log: (line) => lines.push(line) },
+      { sweep: async () => { await gate.promise; stopped += 1; return ['example.com']; }, scheduler: clock.scheduler, logger },
     );
     void sweeper.tick();
     const stopping = sweeper.stop();
@@ -109,8 +121,7 @@ describe('startDomainBindingSweeper', () => {
     const quick = deferred();
     const clean = fakeScheduler();
     const second = startDomainBindingSweeper(
-      { sweep: async () => { await quick.promise; return []; }, scheduler: clean.scheduler },
-      { log: (line) => lines.push(line) },
+      { sweep: async () => { await quick.promise; return []; }, scheduler: clean.scheduler, logger },
     );
     void second.tick();
     const done = second.stop();
@@ -123,16 +134,18 @@ describe('startDomainBindingSweeper', () => {
 
   it('rejects a non-positive or non-finite interval', () => {
     for (const intervalMs of [0, -1, Number.NaN, Number.POSITIVE_INFINITY]) {
-      expect(() => startDomainBindingSweeper({ sweep: async () => [], scheduler: fakeScheduler().scheduler }, { intervalMs })).toThrow(RangeError);
+      expect(() => startDomainBindingSweeper({ sweep: async () => [], scheduler: fakeScheduler().scheduler, logger: silentLogger }, { intervalMs })).toThrow(RangeError);
     }
   });
 
-  it('the default log is console.error', async () => {
+  it('logs only on the injected logger, never straight to the console', async () => {
     const errors = vi.spyOn(console, 'error').mockImplementation(() => {});
     try {
-      const sweeper = startDomainBindingSweeper({ sweep: async () => { throw new Error('boom'); }, scheduler: fakeScheduler().scheduler });
+      const { lines, logger } = recordingLogger();
+      const sweeper = startDomainBindingSweeper({ sweep: async () => { throw new Error('boom'); }, scheduler: fakeScheduler().scheduler, logger });
       await sweeper.tick();
-      expect(errors.mock.calls[0]![0]).toBe(`${DOMAIN_BINDING_SWEEP_FAILED_LINE}: Error: boom`);
+      expect(lines).toEqual([DOMAIN_BINDING_SWEEP_FAILED_LINE]);
+      expect(errors).not.toHaveBeenCalled();
       await sweeper.stop();
     } finally {
       errors.mockRestore();

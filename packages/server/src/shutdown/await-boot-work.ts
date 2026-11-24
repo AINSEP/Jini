@@ -10,6 +10,8 @@
  * close waits for them instead; the bound keeps a hung pass from hanging shutdown.
  */
 
+import type { Logger } from "@jini-ai/core/primitives";
+
 /** How long a close waits for boot work. Half of `closeWithinBound`'s 4 s, so the close itself
  *  still gets the other half when both run under that one bound (the CLI serve command's shutdown). */
 const DEFAULT_BOOT_WORK_TIMEOUT_MS = 2_000;
@@ -17,19 +19,19 @@ const DEFAULT_BOOT_WORK_TIMEOUT_MS = 2_000;
 /**
  * Resolves once every promise in `work` has settled, or after `timeoutMs` (default 2 s), whichever
  * comes first. Never rejects: each pass logs its own failure, and a rejected pass must not stop the
- * close that follows. A pass still running at the bound is logged and abandoned.
+ * close that follows. A pass still running at the bound is logged on `required.logger` and abandoned.
  *
  * @complexity O(n) in the number of passes.
  */
 export function awaitBootWorkWithinBound(
-  required: { work: readonly Promise<unknown>[] },
-  optional: { timeoutMs?: number; log?: (message: string) => void } = {}
+  required: { work: readonly Promise<unknown>[]; logger: Logger },
+  optional: { timeoutMs?: number } = {}
 ): Promise<void> {
   const timeoutMs = optional.timeoutMs ?? DEFAULT_BOOT_WORK_TIMEOUT_MS;
-  const log = optional.log ?? ((message: string) => console.error(message));
+  const { logger } = required;
   return new Promise<void>((resolve) => {
     const timer = setTimeout(() => {
-      log(`[shutdown] boot work did not settle within ${timeoutMs} ms; closing the store anyway`);
+      logger.error({ message: `[shutdown] boot work did not settle within ${timeoutMs} ms; closing the store anyway` });
       resolve();
     }, timeoutMs);
     timer.unref();

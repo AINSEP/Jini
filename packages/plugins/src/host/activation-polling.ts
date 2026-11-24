@@ -1,6 +1,7 @@
 /** @file Server-owned durable plugin-activation reconciliation (moved from the host composition
  * root). The host passes its activation repo, workspace and attach/detach callbacks. */
 import type { PluginActivationRepoPort } from "@jini-ai/core/contracts/site/plugins-host";
+import type { Logger } from "@jini-ai/core/primitives";
 
 /** Server-owned hook activation polling. The registry is process-local, while durable row
  * revisions can be changed by another server/client. Polling reuses those revisions instead
@@ -21,6 +22,8 @@ export interface PluginActivationPollDeps {
   readonly pluginActivationRepo: Pick<PluginActivationRepoPort, "listAll">;
   readonly onPluginEnabled: (pluginId: string) => Promise<void>;
   readonly onPluginDisabled: (pluginId: string) => void;
+  /** The host's log channel; an attach or poll failure goes in its error bag, never as line text. */
+  readonly logger: Logger;
 }
 
 /** A plugin whose last attach failed: what was logged, and how many passes to wait before retrying.
@@ -90,18 +93,20 @@ async function attachActivatedPlugin(
   try {
     await deps.onPluginEnabled(pluginId);
     attachedIds.add(pluginId);
-    if (failures.delete(pluginId)) console.log(`[plugin-runtime] plugin '${pluginId}' is attached again after earlier failures`);
+    if (failures.delete(pluginId)) deps.logger.info({ message: `[plugin-runtime] plugin '${pluginId}' is attached again after earlier failures` });
   } catch (error) {
-    recordAttachFailure({ failures, pluginId, version, message: error instanceof Error ? error.message : String(error) });
+    recordAttachFailure({ failures, pluginId, version, logger: deps.logger, error });
   }
 }
 
 /** Logs a failure only when it differs from the last one logged for this plugin, then backs off. */
-function recordAttachFailure(required: { failures: Map<string, PluginAttachFailure>; pluginId: string; version: string; message: string }): void {
-  const { failures, pluginId, version, message } = required;
+function recordAttachFailure(required: { failures: Map<string, PluginAttachFailure>; pluginId: string; version: string; logger: Logger; error: unknown }): void {
+  const { failures, pluginId, version, logger, error } = required;
+  // The text only identifies a repeat of the same failure; it is compared, never logged.
+  const message = error instanceof Error ? error.message : String(error);
   const previous = failures.get(pluginId);
   if (previous?.message !== message) {
-    console.warn(`[plugin-runtime] plugin activation poll failed to attach '${pluginId}': ${message}`);
+    logger.warn({ message: `[plugin-runtime] plugin activation poll failed to attach '${pluginId}'` }, { error });
   }
   const count = previous?.message === message && previous.version === version ? previous.failures + 1 : 1;
   failures.set(pluginId, { message, version, failures: count, skipPasses: Math.min(2 ** count - 1, MAX_SKIP_PASSES) });
@@ -142,7 +147,7 @@ export function startPluginActivationPolling(
     void seeded
       .then(() => stopped ? undefined : reconcilePluginActivationsOnce({ deps: pollingDeps, attachedIds, failures }))
       .catch((error: unknown) => {
-            console.warn(`[plugin-runtime] plugin activation poll failed: ${error instanceof Error ? error.message : String(error)}`);
+            deps.logger.warn({ message: "[plugin-runtime] plugin activation poll failed" }, { error });
       });
   }, intervalMs);
   (timer as unknown as { unref?: () => void }).unref?.();

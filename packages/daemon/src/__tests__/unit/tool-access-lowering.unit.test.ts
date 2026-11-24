@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { stopRunsForToolAccessChange } from '../../tool-access-lowering.js';
+import { stopRunsForToolAccessChange, ToolAccessLoweringError } from '../../tool-access-lowering.js';
 
 describe('tool access lowering', () => {
   it('revokes every affected run before cancelling any, awaits cleanup, and leaves unrelated answers alone', async () => {
@@ -80,4 +80,13 @@ it('never delays Stop for a status emitter that remains pending', async () => {
   await Promise.resolve(); await Promise.resolve();
   expect(steps).toEqual(['cancel', 'cleaned']);
   release(); await work;
+});
+
+describe("ToolAccessLoweringError", () => {
+  it("carries the stable code and never claims the answers were stopped", () => {
+    const err = new ToolAccessLoweringError();
+    expect(err).toBeInstanceOf(Error);
+    expect(err.code).toBe("TOOL_ACCESS_STOP_FAILED");
+    expect(err.message).toBe("Tool access changed, but affected answers could not be confirmed stopped.");
+  });
 });
