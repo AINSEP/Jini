@@ -105,7 +105,7 @@ function TabBarButton({
       onClick={tab.disabled ? undefined : () => onChange(tab.id)}
       {...tabHandleProps({ tab: tab })}
     >
-      {tab.dot ? <span className="tab-bar-dot" aria-hidden="true" /> : null}
+      {tab.dot ? <span className="jini-tab-bar-dot" aria-hidden="true" /> : null}
       {tab.icon ? (
         <span className="tab-bar-icon" aria-hidden="true">
           {tab.icon}
@@ -113,7 +113,7 @@ function TabBarButton({
       ) : null}
       {tab.label}
       {tabDotAccessibleSuffix(tab)}
-      {tab.tag ? <span className="tab-bar-tag">{tab.tag}</span> : null}
+      {tab.tag ? <span className="jini-tab-bar-tag">{tab.tag}</span> : null}
       {tab.count !== undefined ? <span className="tab-bar-count">{tab.count}</span> : null}
     </button>
   );

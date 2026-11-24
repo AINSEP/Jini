@@ -262,13 +262,13 @@
 .tab-bar-count { margin-left: 0.4rem; font-size: var(--jini-font-size-2xs); color: var(--jini-text-disabled); font-variant-numeric: tabular-nums; }
 .tab-bar-item[aria-selected="true"] .tab-bar-count { color: var(--jini-accent); opacity: 0.75; }
 
-.tab-bar-tag {
+.jini-tab-bar-tag {
   margin-left: 0.4rem; font-size: 9px; font-weight: 700; letter-spacing: 0.05em; text-transform: uppercase;
   color: var(--jini-text-disabled); border: 1px solid var(--jini-border); padding: 1px 5px; border-radius: 5px;
 }
-.tab-bar-item[aria-selected="true"] .tab-bar-tag { color: var(--jini-accent); opacity: 0.75; }
+.tab-bar-item[aria-selected="true"] .jini-tab-bar-tag { color: var(--jini-accent); opacity: 0.75; }
 
-.tab-bar-dot { width: 0.4rem; height: 0.4rem; border-radius: 50%; background: var(--jini-success); margin-right: 0.4rem; flex-shrink: 0; }
+.jini-tab-bar-dot { width: 0.4rem; height: 0.4rem; border-radius: 50%; background: var(--jini-success); margin-right: 0.4rem; flex-shrink: 0; }
 
 .tab-bar-icon { display: inline-flex; align-items: center; margin-right: 0.4rem; flex-shrink: 0; width: 1em; height: 1em; color: currentColor; }
 

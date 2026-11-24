@@ -39,7 +39,7 @@ describe("TabBar characterization", () => {
 
     const button = screen.getByRole("tab", { name: "Provider, Connected Soon 0" });
     expect(Array.from(button.childNodes, (node) => node.textContent)).toEqual(["", "", "Provider", ", Connected", "Soon", "0"]);
-    expect(button.querySelector(".tab-bar-dot")).toHaveAttribute("aria-hidden", "true");
+    expect(button.querySelector(".jini-tab-bar-dot")).toHaveAttribute("aria-hidden", "true");
     expect(screen.getByTestId("provider-icon").parentElement).toHaveAttribute("aria-hidden", "true");
     expect(button.querySelector(".tab-bar-count")).toHaveTextContent("0");
   });
