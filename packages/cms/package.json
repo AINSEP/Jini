@@ -305,6 +305,7 @@
       "./admin-http/routes/presentation/rescan-themes": "universal",
       "./admin-http/routes/presentation/patch": "universal",
       "./admin-http/routes/themes/duplicate": "universal",
+      "./admin-http/routes/themes/held-back": "universal",
       "./admin-http/routes/email-templates/list": "universal",
       "./admin-http/routes/email-templates/create": "universal",
       "./admin-http/routes/email-templates/preview": "universal",
@@ -2367,6 +2368,11 @@
       "types": "./dist/admin-http/routes/themes/duplicate.d.ts",
       "import": "./dist/admin-http/routes/themes/duplicate.js",
       "default": "./dist/admin-http/routes/themes/duplicate.js"
+    },
+    "./admin-http/routes/themes/held-back": {
+      "types": "./dist/admin-http/routes/themes/held-back.d.ts",
+      "import": "./dist/admin-http/routes/themes/held-back.js",
+      "default": "./dist/admin-http/routes/themes/held-back.js"
     },
     "./admin-http/routes/email-templates/list": {
       "types": "./dist/admin-http/routes/email-templates/list.d.ts",
