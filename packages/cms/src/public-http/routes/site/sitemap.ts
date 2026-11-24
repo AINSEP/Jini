@@ -1,5 +1,5 @@
-import { serializeSitemapXml } from "../../../seo/index.js";
-import type { SitemapEntry } from "../../../seo/index.js";
+import { serializeSitemapXml } from "../../../seo/sitemap-documents.js";
+import type { SitemapEntry } from "../../../seo/types.js";
 import { servingOriginOf, textDocument, type PublicSeoRawRoute } from "./seo-route-shared.js";
 
 /** What the host injects. The cache policy is the host's: the answer depends on the request authority. */

@@ -1,4 +1,5 @@
-import { computeIndexableEntries, renderLlmsTxt, type SeoSitemapDeps } from "../../../seo/index.js";
+import { computeIndexableEntries, type SeoSitemapDeps } from "../../../seo/sitemap.js";
+import { renderLlmsTxt } from "../../../seo/sitemap-documents.js";
 import { textDocument, withServingOrigin, type PublicSeoRawRoute } from "./seo-route-shared.js";
 
 /** What the host injects. */

@@ -2,8 +2,8 @@ import type { RouteInputContext } from "@jini-ai/core/contracts/server";
 import { describe, expect, it, vi } from "vitest";
 
 const seen: Array<string | undefined> = [];
-vi.mock("../../../../seo/index.js", async (importOriginal) => ({
-  ...(await importOriginal<typeof import("../../../../seo/index.js")>()),
+vi.mock("../../../../seo/sitemap.js", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("../../../../seo/sitemap.js")>()),
   computeIndexableEntries: async ({ deps }: { deps: { renderBaseUrl?: string } }) => { seen.push(deps.renderBaseUrl); return []; },
 }));
 

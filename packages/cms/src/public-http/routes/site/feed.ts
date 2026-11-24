@@ -1,4 +1,5 @@
-import { buildFeed, FEED_PATH, renderRssXml, type SeoSitemapDeps } from "../../../seo/index.js";
+import { buildFeed, FEED_PATH, renderRssXml } from "../../../seo/feed.js";
+import type { SeoSitemapDeps } from "../../../seo/sitemap.js";
 import { textDocument, withServingOrigin, type PublicSeoRawRoute } from "./seo-route-shared.js";
 
 /** What the host injects. The channel title is the host's site title (its own settings and fallbacks). */

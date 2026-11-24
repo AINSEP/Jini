@@ -1,4 +1,4 @@
-import { buildRobots } from "../../../seo/index.js";
+import { buildRobots } from "../../../seo/sitemap.js";
 import { textDocument, withServingOrigin, type PublicSeoRawRoute } from "./seo-route-shared.js";
 
 /** The SEO dependencies `buildRobots` reads (settings, origin registry, runtime mode, stored origin). */
