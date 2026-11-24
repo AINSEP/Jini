@@ -192,6 +192,7 @@
       "./screens/plugins/hooks/plugin-install-port.hooks": "universal",
       "./screens/plugins/hooks/plugins-port.hooks": "universal",
       "./screens/plugins/PluginProviderSettingField.hooks": "browser",
+      "./sites/transfer/use-export-password.hooks": "browser",
       "./shell/lib/live-tiptap-editor": "universal",
       "./shell/lib/media-image-extension.hooks": "universal",
       "./shell/components/TemplateSource/ViewTemplateButton": "browser",
@@ -1221,6 +1222,11 @@
       "types": "./dist/screens/plugins/PluginProviderSettingField.hooks.d.ts",
       "import": "./dist/screens/plugins/PluginProviderSettingField.hooks.js",
       "default": "./dist/screens/plugins/PluginProviderSettingField.hooks.js"
+    },
+    "./sites/transfer/use-export-password.hooks": {
+      "types": "./dist/sites/transfer/use-export-password.hooks.d.ts",
+      "import": "./dist/sites/transfer/use-export-password.hooks.js",
+      "default": "./dist/sites/transfer/use-export-password.hooks.js"
     },
     "./shell/lib/live-tiptap-editor": {
       "types": "./dist/shell/lib/live-tiptap-editor.d.ts",
