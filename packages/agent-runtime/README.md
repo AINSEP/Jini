@@ -64,6 +64,14 @@ PKCE providers pass `{ verifierBytes: 64 }` to the main OAuth API. Fixed-issuer 
 
 ## Wiring
 
+- **Provider tool turns / BYOK** (`@jini-ai/agent-runtime/providers/tool-turn`): the host calls
+  `runProviderToolTurn({ protocol, adapters: providerTurnAdapters, apiKey, model, system, messages, tools, executeTool, onEvent }, { baseUrl, maxTokens, maxToolTurns, signal, getToolSnapshot, onSchemaFallback, onUnexposedToolCall })`
+  directly — no host wrapper. The host injects `executeTool` (its own tool surface/executor),
+  `onEvent` (its transport), any product policy values (e.g. its meta-tool `maxToolTurns`, a
+  visitor `maxTokens` cap, a stored-credential `baseUrl`) and may replace any entry of `adapters`
+  (tests inject a fake adapter here instead of mocking the module). A stored free-form provider
+  string is narrowed with `resolveProviderProtocol({ provider })` (null when no adapter matches).
+
 - **Stored-credential live Claude models** (`@jini-ai/agent-runtime/model-catalog/live-discovery`):
   the host creates ONE instance per app lifetime with
   `createLiveModelDiscovery({ resolveCredential, defaultBaseUrl, clock, discover: fetchLiveClaudeModels })`
