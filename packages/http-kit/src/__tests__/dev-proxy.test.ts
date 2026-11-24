@@ -1,11 +1,9 @@
 import assert from "node:assert/strict";
 import { once } from "node:events";
 import crypto from "node:crypto";
-import { createServer as createHttpServer } from "node:http";
+import { createServer as createHttpServer, type ServerResponse } from "node:http";
 import { createServer as createHttpsServer } from "node:https";
 import { test as vitestTest } from "vitest";
-
-import express from "express";
 
 import { createDevProxyRequestHandler, createDevProxyUpgradeListener, resolveDevProxyPath, stripHopByHopHeaders } from "../dev-proxy.js";
 import { DEV_PROXY_TLS } from "./dev-proxy-tls-fixture.js";
@@ -36,10 +34,17 @@ function test(name: string, optionsOrBody: { timeout?: number } | TestBody, mayb
 }
 
 /** Starts a bare Express app mounting the dev proxy at `/admin`, listening on an ephemeral port. */
+/** The host's failure reply, bound by the test: a 502 text body naming the target. */
+function writeTestFailure({ res, error, target }: { res: ServerResponse; error: Error; target: URL }): void {
+  res.statusCode = 502;
+  res.setHeader("content-type", "text/plain; charset=utf-8");
+  res.end(`Admin dev proxy: ${target.href} is unreachable (${error.message}).`);
+}
+
 function startProxyApp(t: TestContext, devProxyUrl: string): Promise<string> {
-  const app = express();
-  app.all(["/admin", "/admin/*"], createDevProxyRequestHandler({ devProxyUrl, basePath: "/admin" }));
-  const server = app.listen(0);
+  // A bare Node server: the proxy speaks `IncomingMessage`/`ServerResponse`, no Express involved.
+  const server = createHttpServer(createDevProxyRequestHandler({ devProxyUrl, basePath: "/admin", writeFailure: writeTestFailure }));
+  server.listen(0);
   t.after(() => new Promise<void>((resolve) => server.close(() => resolve())));
   return new Promise((resolve) => {
     server.on("listening", () => {
@@ -92,7 +97,7 @@ test("createDevProxyRequestHandler: forwards /admin/* to the configured Vite ori
 });
 
 test("stripHopByHopHeaders: drops connection/transfer-encoding/upgrade but keeps every other header untouched", () => {
-  const filtered = stripHopByHopHeaders({
+  const filtered = stripHopByHopHeaders({ headers: {
     connection: "keep-alive",
     "transfer-encoding": "chunked",
     upgrade: "websocket",
@@ -100,7 +105,7 @@ test("stripHopByHopHeaders: drops connection/transfer-encoding/upgrade but keeps
     "proxy-authenticate": "Basic",
     "content-type": "text/javascript",
     "x-fake-vite": "1",
-  });
+  } });
   assert.deepEqual(filtered, {
     "content-type": "text/javascript",
     "x-fake-vite": "1",
@@ -153,6 +158,8 @@ test("createDevProxyRequestHandler: an unreachable Vite origin gets a 502, not a
 
   const res = await fetch(`${baseUrl}/admin/`);
   assert.equal(res.status, 502);
+  // The copy is the host's: the proxy only hands the writer the response, the error and the target.
+  assert.match(await res.text(), /^Admin dev proxy: http:\/\/127\.0\.0\.1:1\/ is unreachable \(/);
 });
 
 for (const protocol of ["http", "https"] as const) {

@@ -27,10 +27,10 @@ const { createDevProxyRequestHandler, createDevProxyUpgradeListener } = await im
 
 describe("dev-proxy against an upstream response with no status line", () => {
   test("request handler: drains the response and destroys the upstream request with an error, never writing a head", () => {
-    const handler = createDevProxyRequestHandler({ devProxyUrl: "http://127.0.0.1:1", basePath: "/admin" });
+    const handler = createDevProxyRequestHandler({ devProxyUrl: "http://127.0.0.1:1", basePath: "/admin", writeFailure: vi.fn() });
     const req = { method: "GET", headers: {}, url: "/admin/", pipe: vi.fn() };
     const res = { writeHead: vi.fn() };
-    handler(req as never, res as never, vi.fn());
+    handler(req as never, res as never);
     const call = requestCalls.at(-1);
     assert.ok(call?.onResponse);
     const proxyRes = { statusCode: undefined, headers: {}, resume: vi.fn(), pipe: vi.fn() };

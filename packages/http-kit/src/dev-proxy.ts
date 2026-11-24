@@ -1,9 +1,7 @@
-import type { IncomingMessage, RequestOptions } from "node:http";
+import type { IncomingMessage, RequestOptions, ServerResponse } from "node:http";
 import { Agent as HttpAgent, request as httpRequest } from "node:http";
 import { Agent as HttpsAgent, request as httpsRequest } from "node:https";
 import type { Socket } from "node:net";
-import type { Request, RequestHandler, Response } from "express";
-
 
 /**
  * @file Proxies `<basePath>/*` to a frontend dev server (the host passes its URL as `devProxyUrl`;
@@ -81,7 +79,7 @@ const HOP_BY_HOP_RESPONSE_HEADERS: ReadonlySet<string> = new Set(["connection", 
  *
  * @complexity O(n) in the number of response headers.
  */
-export function stripHopByHopHeaders(headers: IncomingMessage["headers"]): IncomingMessage["headers"] {
+export function stripHopByHopHeaders({ headers }: { headers: IncomingMessage["headers"] }, _optional = {}): IncomingMessage["headers"] {
   const filtered: IncomingMessage["headers"] = {};
   for (const [name, value] of Object.entries(headers)) {
     if (HOP_BY_HOP_RESPONSE_HEADERS.has(name)) continue;
@@ -130,19 +128,34 @@ function buildProxyRequestOptions(
 }
 
 /**
- * Builds the Express handler that proxies ordinary (non-WebSocket) `/admin/*` requests to Vite.
+ * The host's reply when the upstream cannot be reached before any response head went out. The host
+ * owns the status, content type and copy; this module only reports what failed. `Res` is the host's
+ * own response type (an Express `Response` stays an Express `Response` inside the writer).
+ * @returns Void; the writer must end `res`.
+ */
+export type DevProxyFailureWriter<Res extends ServerResponse = ServerResponse> = (args: { res: Res; error: Error; target: URL }) => void;
+
+/**
+ * Builds the Node request listener that proxies ordinary (non-WebSocket) `/admin/*` requests to Vite.
+ * It speaks `IncomingMessage`/`ServerResponse` only, so any host (an Express `app.all`, a bare
+ * `http.createServer`) can mount it.
  *
  * Streams both directions rather than buffering: `req` is piped straight into the upstream request,
  * and the upstream response is piped straight into `res`, so this scales to Vite's large module
  * bundles and source maps without holding them in memory.
  *
+ * @param required.writeFailure - REQUIRED: the host's reply for an unreachable upstream (called only
+ *   while `res.headersSent` is false; after the head went out the response is destroyed instead).
  * @complexity O(1) setup per request; the actual byte volume is bounded by whatever Vite serves.
  */
-export function createDevProxyRequestHandler({ devProxyUrl, basePath }: { devProxyUrl: string; basePath: string }, _optional = {}): RequestHandler {
+export function createDevProxyRequestHandler<Res extends ServerResponse = ServerResponse>(
+  { devProxyUrl, basePath, writeFailure }: { devProxyUrl: string; basePath: string; writeFailure: DevProxyFailureWriter<Res> },
+  _optional = {},
+): (req: IncomingMessage, res: Res) => void {
   const upstream = resolveDevProxyUpstream({ devProxyUrl, basePath });
 
-  return (req: Request, res: Response) => {
-    const proxyReq = upstream.requestFn(buildProxyRequestOptions(upstream, req), (proxyRes) => {
+  return (req, res) => {
+    const proxyReq = upstream.requestFn(buildProxyRequestOptions(upstream, { method: req.method, headers: req.headers, url: req.url ?? "" }), (proxyRes) => {
       // A client-side `IncomingMessage` handed to a `request()` response callback always carries the
       // parsed status line, so `statusCode` is set here (it is only optional on the server-side type).
       if (proxyRes.statusCode === undefined) {
@@ -150,7 +163,7 @@ export function createDevProxyRequestHandler({ devProxyUrl, basePath }: { devPro
         proxyReq.destroy(new Error("admin dev proxy response has no status code"));
         return;
       }
-      res.writeHead(proxyRes.statusCode, stripHopByHopHeaders(proxyRes.headers));
+      res.writeHead(proxyRes.statusCode, stripHopByHopHeaders({ headers: proxyRes.headers }));
       proxyRes.pipe(res);
     });
     proxyReq.on("error", (error) => {
@@ -158,10 +171,7 @@ export function createDevProxyRequestHandler({ devProxyUrl, basePath }: { devPro
         res.destroy();
         return;
       }
-      res
-        .status(502)
-        .type("text/plain")
-        .send(`Admin dev proxy: ${upstream.target.href} is unreachable (${error.message}).`);
+      writeFailure({ res, error, target: upstream.target });
     });
     req.pipe(proxyReq);
   };
