@@ -1452,6 +1452,44 @@
    "AdminTrashMenuEnvelope": "interface:7f1face6df"
   }
  },
+ "./contracts/site/cms-plugins": {
+  "types": "./dist/contracts/site/cms-plugins.d.ts",
+  "symbols": {
+   "AdminPluginDto": "interface:3f2bf1486f",
+   "AdminPluginErrorDto": "interface:50a394b28e",
+   "AdminPluginListEnvelope": "interface:332a6e1f21",
+   "AdminPluginQuarantineDto": "interface:8fa09f5a21",
+   "AdminPluginSetEnabledEnvelope": "interface:6bb83bae13",
+   "AdminPluginSource": "type:709c8919a8",
+   "AdminPluginStatus": "type:cb08104fcc",
+   "AdminPluginTier": "type:bb21d9b00b"
+  }
+ },
+ "./contracts/site/cms-publish-content": {
+  "types": "./dist/contracts/site/cms-publish-content.d.ts",
+  "symbols": {
+   "PublishContentOutcomeKindDto": "type:8b54e9fab5",
+   "PublishContentOutcomeRowDto": "interface:37e38c8737",
+   "PublishContentPeerListDto": "interface:dbffcac335",
+   "PublishContentPeerResponseDto": "interface:91cc0f1cbe",
+   "PublishContentPeerView": "interface:f1cd158903",
+   "PublishContentReferenceHolderDto": "interface:04ba48ff3e",
+   "PublishContentReportDto": "interface:d0622a2aa7",
+   "PublishContentRetireTargetDto": "interface:985b69c222",
+   "PublishDestinationView": "interface:bc1e2b9f1c"
+  }
+ },
+ "./contracts/site/cms-recovery": {
+  "types": "./dist/contracts/site/cms-recovery.d.ts",
+  "symbols": {
+   "AdminDegradedBannerActionKind": "type:455590514a",
+   "AdminDegradedBannerDto": "interface:1c9d51c809",
+   "AdminDegradedBannerKind": "type:1a50c8a27d",
+   "AdminRecoveryCapabilities": "interface:b6292e6464",
+   "AdminRecoveryCostClass": "type:f2a0b02742",
+   "AdminRecoveryStatusEnvelope": "interface:d1fb384877"
+  }
+ },
  "./contracts/site/cms-seo": {
   "types": "./dist/contracts/site/cms-seo.d.ts",
   "symbols": {

@@ -1,10 +1,8 @@
 import { defineJsonRoute, ok } from "@jini-ai/core/contracts/server";
+import type { AdminPluginDto, AdminPluginListEnvelope } from "@jini-ai/core/contracts/site/cms-plugins";
 import type { PluginActivationRecord, PluginActivationRepoPort, PluginConflict } from "@jini-ai/core/contracts/site/plugins-host";
 
-import { authorizePlugins, type AdminPluginDto, type PluginRouteRecord, type PluginsRoutePrincipal } from "./shared.js";
-
-/** The `PLUGINS_LIST` envelope: every discovered plugin plus the local install sources this server takes. */
-export interface AdminPluginListEnvelope { plugins: AdminPluginDto[]; installSources: string[] }
+import { authorizePlugins, type PluginRouteRecord, type PluginsRoutePrincipal } from "./shared.js";
 
 /**
  * The deps this route reads; activation is only ever looked up, never written. The functions are

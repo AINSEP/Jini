@@ -17,9 +17,6 @@ export interface PluginsRoutePrincipal { id: string }
 /** The discovery-record fields the specs read; the host's full record passes through untouched. */
 export interface PluginRouteRecord { readonly id: string; readonly source: string }
 
-/** One serialized admin plugin row, as the injected `toAdminPluginResponse` builds it. */
-export type AdminPluginDto = object;
-
 /** An injected error class a route maps (`instanceof` is checked against it). */
 export type PluginErrorClass<E extends Error = Error> = abstract new (...args: never[]) => E;
 
@@ -60,7 +57,7 @@ export function pluginActorId({ context }: { context: PluginsRoutePrincipal | un
 }
 
 /** The `:pluginId` path segment; Express always fills it, the `?? ""` mirrors the host's own guard. @complexity O(1). */
-export function pluginIdParam(params: Record<string, string | undefined>, _optional: Record<string, never> = {}): string {
+export function pluginIdParam({ params }: { params: Record<string, string | undefined> }, _optional: Record<string, never> = {}): string {
   return String(params.pluginId ?? "");
 }
 

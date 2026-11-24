@@ -1,3 +1,4 @@
+import type { AdminPluginDto } from "@jini-ai/core/contracts/site/cms-plugins";
 import { RouteRefusalError } from "@jini-ai/core/errors/route-refusal";
 import type { PluginActivationRecord } from "@jini-ai/core/contracts/site/plugins-host";
 
@@ -62,4 +63,15 @@ export async function refusalOf(fn: () => unknown): Promise<{ status: number; bo
 }
 
 /** The raw input a host adapter hands `parse`. */
+/**
+ * A complete wire row (`AdminPluginDto`) for the injected serializer fakes: the fields the route
+ * forwards vary, the rest are fixed, so an assertion on the answered row checks the full shape.
+ */
+export function pluginDto(
+  { id, enabled, conflicts = [] }: { id: string; enabled: boolean; conflicts?: AdminPluginDto["conflicts"] },
+  { name = "host-serialized" }: { name?: string } = {},
+): AdminPluginDto {
+  return { id, name, version: "1.0.0", source: "site", tier: "tier-3", status: "valid", enabled, quarantine: null, errors: [], conflicts };
+}
+
 export const raw = (params: Record<string, string>, body: unknown = {}) => ({ body, query: {}, params });

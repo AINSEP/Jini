@@ -44,7 +44,7 @@ function uninstallRungs(errors: PluginUninstallErrors, _optional: Record<string,
 export const pluginUninstallRoute = defineJsonRoute<{ pluginId: string }, { pluginId: string; trashed: unknown }, PluginUninstallRouteDeps, PluginsRoutePrincipal>({
   method: "delete",
   path: "/api/admin/v1/workspaces/:workspaceId/plugins/:pluginId",
-  parse: (raw) => ok({ value: { pluginId: pluginIdParam(raw.params) } }),
+  parse: (raw) => ok({ value: { pluginId: pluginIdParam({ params: raw.params }) } }),
   handle: async ({ input, deps, context, authorize }) => {
     const principalId = pluginActorId({ context });
     await authorizePlugins({ authorize, permission: "admin.plugins.enable" });

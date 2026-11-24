@@ -1,11 +1,12 @@
 import type { AuthorizeFn, CommandMutation, ExecuteCommandDeps } from "@jini-ai/core/contracts/events";
 import { defineJsonRoute, ok } from "@jini-ai/core/contracts/server";
+import type { AdminPluginDto, AdminPluginSetEnabledEnvelope } from "@jini-ai/core/contracts/site/cms-plugins";
 import type { Tracker } from "@jini-ai/core/contracts/site/diagnostics-observability";
 import type { PluginActivationRecord, PluginActivationRepoPort } from "@jini-ai/core/contracts/site/plugins-host";
 import { rejectRoute, RouteRefusalError } from "@jini-ai/core/errors/route-refusal";
 
 import { executeCommand, ForbiddenError } from "../../../core/index.js";
-import { pluginActorId, pluginIdParam, type AdminPluginDto, type PluginErrorClass, type PluginRouteRecord, type PluginsRoutePrincipal } from "./shared.js";
+import { pluginActorId, pluginIdParam, type PluginErrorClass, type PluginRouteRecord, type PluginsRoutePrincipal } from "./shared.js";
 
 /** One activation change, as the plugin engine's `setPluginEnabled` takes it. */
 export interface PluginSetEnabledInput { workspaceId: string; pluginId: string; enabled: boolean }
@@ -39,8 +40,8 @@ export interface PluginSetEnabledRouteDeps extends Pick<ExecuteCommandDeps, "clo
   /** The engine's `setPluginEnabled`, pre-bound to the clock, activation repo and hook attach/detach. */
   setPluginEnabled(required: { discovery: readonly PluginRouteRecord[]; input: PluginSetEnabledInput }): Promise<{ activation: PluginActivationRecord }>;
   /** Rollback's compensating side effects (the same ones `setPluginEnabled` runs). */
-  onPluginEnabled(pluginId: string): Promise<void>;
-  onPluginDisabled(pluginId: string): void;
+  onPluginEnabled(required: { pluginId: string }, optional?: Record<string, never>): Promise<void>;
+  onPluginDisabled(required: { pluginId: string }, optional?: Record<string, never>): void;
   /** Records the owner's enable of a site plugin as its approved capability set (a no-op when the host has no source). */
   recordApproval(required: { record: PluginRouteRecord }): Promise<void>;
   /** Stops the serving runtime's affected answers after a committed OFF. */
@@ -52,14 +53,11 @@ export interface PluginSetEnabledRouteDeps extends Pick<ExecuteCommandDeps, "clo
   setEnabledErrors: PluginSetEnabledErrors;
 }
 
-/** The `PLUGIN_SET_ENABLED` envelope. */
-export interface PluginSetEnabledEnvelope { plugin: AdminPluginDto; changeSetId: string }
-
 /** One ladder rung; `code`/`details` read the error when the wire body carries its fields. */
 interface SetEnabledRung { is: PluginErrorClass; status: number; code: string | ((err: never) => string); details?: (err: never) => object }
 
 /** The ladder, top to bottom, exactly as the hand-written route ordered it. @complexity O(1). */
-function setEnabledRungs(errors: PluginSetEnabledErrors, _optional: Record<string, never> = {}): readonly SetEnabledRung[] {
+function setEnabledRungs({ errors }: { errors: PluginSetEnabledErrors }, _optional: Record<string, never> = {}): readonly SetEnabledRung[] {
   return [
     { is: errors.toolAccessLowering, status: 503, code: (err: { code: string }) => err.code },
     { is: errors.install, status: 409, code: (err: { code: string }) => err.code },
@@ -80,7 +78,7 @@ function setEnabledRungs(errors: PluginSetEnabledErrors, _optional: Record<strin
  * @complexity O(n) in the rung count (eight).
  */
 function rejectSetEnabledError({ err, errors }: { err: unknown; errors: PluginSetEnabledErrors }, _optional: Record<string, never> = {}): never {
-  const rung = setEnabledRungs(errors).find((candidate) => err instanceof candidate.is);
+  const rung = setEnabledRungs({ errors }).find((candidate) => err instanceof candidate.is);
   if (!rung) throw err;
   const code = typeof rung.code === "string" ? rung.code : rung.code(err as never);
   const body = { error: (err as Error).message, code, ...(rung.details ? { details: rung.details(err as never) } : {}) };
@@ -98,19 +96,23 @@ function rejectSetEnabledError({ err, errors }: { err: unknown; errors: PluginSe
  * @complexity O(1).
  */
 async function rollbackPluginActivation(
-  deps: Pick<PluginSetEnabledRouteDeps, "pluginActivationRepo" | "onPluginEnabled" | "onPluginDisabled">,
-  params: { workspaceId: string; pluginId: string; priorActivation: PluginActivationRecord | null },
+  { deps, workspaceId, pluginId, priorActivation }: {
+    deps: Pick<PluginSetEnabledRouteDeps, "pluginActivationRepo" | "onPluginEnabled" | "onPluginDisabled">;
+    workspaceId: string;
+    pluginId: string;
+    priorActivation: PluginActivationRecord | null;
+  },
+  _optional: Record<string, never> = {},
 ): Promise<void> {
-  const { workspaceId, pluginId, priorActivation } = params;
   if (priorActivation) {
     await deps.pluginActivationRepo.save(priorActivation);
   } else {
     await deps.pluginActivationRepo.deleteActivation({ workspaceId, pluginId });
   }
   if (priorActivation?.enabled) {
-    await deps.onPluginEnabled(pluginId);
+    await deps.onPluginEnabled({ pluginId });
   } else {
-    deps.onPluginDisabled(pluginId);
+    deps.onPluginDisabled({ pluginId });
   }
 }
 
@@ -142,7 +144,7 @@ function createPluginActivationMutation(
       if (enabled && site) await deps.recordApproval({ record: site });
       return deps.setPluginEnabled({ discovery, input: { workspaceId: deps.workspaceId, pluginId, enabled } });
     },
-    rollback: () => rollbackPluginActivation(deps, { workspaceId: deps.workspaceId, pluginId, priorActivation }),
+    rollback: () => rollbackPluginActivation({ deps, workspaceId: deps.workspaceId, pluginId, priorActivation }),
   } };
 }
 
@@ -150,7 +152,7 @@ function createPluginActivationMutation(
 async function setPluginEnabledCommand(
   { deps, principalId, pluginId, enabled }: { deps: PluginSetEnabledRouteDeps; principalId: string; pluginId: string; enabled: boolean },
   _optional: Record<string, never> = {},
-): Promise<PluginSetEnabledEnvelope> {
+): Promise<AdminPluginSetEnabledEnvelope> {
   const discovery = await deps.discoverPlugins();
   const activation = createPluginActivationMutation({ deps, pluginId, enabled, discovery });
   const { result, changeSetId } = await executeCommand({
@@ -187,7 +189,7 @@ async function setPluginEnabledCommand(
  * re-runs the matching side effect. Authorization is the gateway's own (its 403 carries `details`),
  * so the mount's authorize port is never asked.
  */
-export const pluginSetEnabledRoute = defineJsonRoute<{ pluginId: string; enabled: boolean }, PluginSetEnabledEnvelope, PluginSetEnabledRouteDeps, PluginsRoutePrincipal>({
+export const pluginSetEnabledRoute = defineJsonRoute<{ pluginId: string; enabled: boolean }, AdminPluginSetEnabledEnvelope, PluginSetEnabledRouteDeps, PluginsRoutePrincipal>({
   method: "patch",
   path: "/api/admin/v1/workspaces/:workspaceId/plugins/:pluginId",
   parse: (raw) => {
@@ -196,7 +198,7 @@ export const pluginSetEnabledRoute = defineJsonRoute<{ pluginId: string; enabled
     // agent-plugins set-enabled route.
     const enabled = (raw.body as { enabled?: unknown } | undefined | null)?.enabled;
     if (typeof enabled !== "boolean") rejectRoute({ status: 400, error: "'enabled' must be a boolean", code: "VALIDATION_ERROR" });
-    return ok({ value: { pluginId: pluginIdParam(raw.params), enabled } });
+    return ok({ value: { pluginId: pluginIdParam({ params: raw.params }), enabled } });
   },
   handle: async ({ input, deps, context }) => {
     try {
