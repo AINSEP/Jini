@@ -54,7 +54,7 @@ export function surfaceIdOf({ message }: { message: unknown }, _options: Record<
 
 /** The surfaceId `A2uiSurfaceCard` is CURRENTLY showing — the last one any event in the stream
  * named, matching that component's own "overwrite on every event that has one" tracking. */
-export function latestSurfaceIdIn(events: readonly unknown[]): string | undefined {
+export function latestSurfaceIdIn({ events }: { events: readonly unknown[] }, _optional: Record<string, never> = {}): string | undefined {
   let latest: string | undefined;
   for (const event of events) {
     const id = surfaceIdOf({ message: event });
@@ -75,7 +75,7 @@ function isErrorMessage(message: unknown): message is { error: { surfaceId?: unk
  * pre-existing gap as `lib/router.ts`'s `useRouteLocation` third argument (`getServerRouteSnapshot`)
  * — given the identical direct-invocation treatment here.
  */
-export function getServerRenderTargetSnapshot(): null {
+export function getServerRenderTargetSnapshot(_required: Record<string, never> = {}, _optional: Record<string, never> = {}): null {
   return null;
 }
 
@@ -94,7 +94,7 @@ export function getServerRenderTargetSnapshot(): null {
  * const { target, dismissed, setDismissed, hasError, handleAgentAction } =
  *   useRoutedA2uiSurfaceCard(props);
  */
-export function useRoutedA2uiSurfaceCard(props: A2uiSurfaceCardProps) {
+export function useRoutedA2uiSurfaceCard(props: A2uiSurfaceCardProps, _optional: Record<string, never> = {}) {
   // `useSyncExternalStore`, not `useState` + an effect: Playground's own mount/unmount can flip the
   // target between renders of an ALREADY-MOUNTED card (e.g. navigating away from
   // `/admin/playground` mid-conversation), and a local copy would keep portaling into a container
@@ -119,7 +119,7 @@ export function useRoutedA2uiSurfaceCard(props: A2uiSurfaceCardProps) {
   // error and retries with a fixed `components` array, and that retry opens a BRAND NEW surface
   // (`render-ui-tool.ts` mints a new exchange, hence a new `surfaceId`, per call) — all landing in
   // the SAME `events` array, since they're all part of one turn's ext-event stream.
-  const currentSurfaceId = latestSurfaceIdIn(props.events);
+  const currentSurfaceId = latestSurfaceIdIn({ events: props.events }, {});
   // Tracked per-surfaceId, not as a single sticky "has this card ever seen an error" flag — a
   // sticky flag got this wrong in practice, live: the first failure locked the card to
   // inline-in-chat for the rest of the turn, so a LATER, genuinely successful retry never reached
