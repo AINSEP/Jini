@@ -8,7 +8,7 @@ import {
   DEFAULT_MODEL_OPTION,
 } from '../shared.js';
 import { claudeAgentDef } from '../claude.js';
-import { codebuddyAgentDef } from '../codebuddy.js';
+import { codebuddyAgentDef } from '../codebuddy/index.js';
 
 describe('shared re-exports', () => {
   it('re-exports the injected ports and helpers unchanged', () => {

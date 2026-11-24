@@ -6,7 +6,7 @@
 import { describe, expect, it } from 'vitest';
 import { normalizeDiscoveredModels } from '../../model-discovery.js';
 import { aiderAgentDef } from '../aider.js';
-import { ampAgentDef } from '../amp.js';
+import { ampAgentDef } from '../amp/index.js';
 import { auggieAgentDef } from '../auggie.js';
 import { clineAgentDef } from '../cline.js';
 import { crushAgentDef } from '../crush.js';
@@ -14,7 +14,7 @@ import { deepseekAgentDef } from '../deepseek.js';
 import { droidAgentDef } from '../droid.js';
 import { gooseAgentDef } from '../goose.js';
 import { grokBuildAgentDef } from '../grok-build.js';
-import { hermesAgentDef } from '../hermes.js';
+import { hermesAgentDef } from '../hermes/index.js';
 import { kiloAgentDef } from '../kilo.js';
 import { kimiAgentDef } from '../kimi.js';
 import { discoveryContext, offlineDiscoveryDeps } from './discovery-fakes.js';

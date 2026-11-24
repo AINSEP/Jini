@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it } from 'vitest';
 import { agentCapabilities } from '../../capabilities.js';
-import { codebuddyAgentDef } from '../codebuddy.js';
+import { codebuddyAgentDef } from '../codebuddy/index.js';
 import { discoveryContext, offlineDiscoveryDeps } from './discovery-fakes.js';
 
 afterEach(() => {

@@ -3,13 +3,13 @@
  * Declarative per-CLI RuntimeAgentDef catalog with AMR/Vela parsing and Antigravity's model lock.
  */
 export * from './aider.js';
-export * from './amp.js';
-export * from './amr.js';
+export * from './amp/index.js';
+export * from './amr/index.js';
 export * from './antigravity/index.js';
 export * from './auggie.js';
 export * from './claude.js';
 export * from './cline.js';
-export * from './codebuddy.js';
+export * from './codebuddy/index.js';
 export * from './codex.js';
 export * from './crush.js';
 export * from './cursor-agent.js';
@@ -18,7 +18,7 @@ export * from './deepseek.js';
 export * from './devin.js';
 export * from './goose.js';
 export * from './grok-build.js';
-export * from './hermes.js';
+export * from './hermes/index.js';
 export * from './kilo.js';
 export * from './kimi.js';
 export * from './kiro.js';
