@@ -1,5 +1,3 @@
-import { describeErrorForLog } from "@jini-ai/core/model-facing-tool-errors";
-
 import { createSourceControlProviderKit as createKit } from "../kit.js";
 import type { SourceControlKitHttpClient, SourceControlProviderKit } from "./provider-module.js";
 
@@ -10,8 +8,9 @@ import type { SourceControlKitHttpClient, SourceControlProviderKit } from "./pro
 
 /** What the host supplies so the kit can describe and trace its own transport. */
 export interface SourceControlKitHost {
-  /** The caller-safe refusal text and log detail when `error` is the host's egress-policy refusal, else `undefined`. */
-  describeEgressRefusal(required: { error: unknown }): { readonly refusal: string; readonly logDetail: string } | undefined;
+  /** Describes a transport failure: the caller-safe `refusal` text when `error` is the host's egress-policy refusal
+   *  (else `undefined`), and the redacted `logDetail` the host wants logged. The kit passes the raw error, never formats it. */
+  describeTransportError(required: { error: unknown }): { readonly refusal: string | undefined; readonly logDetail: string };
   /** Wraps the raw `fetch` so each `kit.fetch` is recorded as one outbound span (host/status only). Absent: untraced. */
   observeFetch?(required: { fetch: typeof fetch }): typeof fetch;
 }
@@ -23,7 +22,7 @@ const NO_HTTP_CLIENT: SourceControlKitHttpClient = {
 };
 
 /**
- * @param required.host - The host's egress-refusal describer and optional fetch tracer.
+ * @param required.host - The host's transport-failure describer and optional fetch tracer.
  *   The guarded `httpClient` is traced where it is built, not here.
  * @param optional.httpClient - The guarded client for credentialed custom-credential calls, handed
  *   to the module as-is (it already speaks the module's positional ABI).
@@ -40,7 +39,7 @@ export function createSourceControlProviderKit(
   const httpClient = optional.httpClient ?? NO_HTTP_CLIENT;
   const kit = createKit({ httpClient: { send: ({ request }) => httpClient.send(request) },
     fetch: ({ url }, options = {}) => (host.observeFetch ? host.observeFetch({ fetch: send as typeof fetch }) : send)(url, options.init ?? {}),
-    describeTransportError: ({ error }) => host.describeEgressRefusal({ error }) ?? { refusal: undefined, logDetail: describeErrorForLog({ err: error }) },
+    describeTransportError: ({ error }) => host.describeTransportError({ error }),
   }, { fetchRedirectPolicy: "caller" });
   return {
     repositoryPaths: kit.repositoryPaths,

@@ -1,4 +1,3 @@
-import { describeErrorForLog } from "@jini-ai/core/model-facing-tool-errors";
 import { useCallback as useQueryFetchCallback } from "react";
 import { useFetchQuery, useFetchMutation, useCachedLoader, useInvalidate } from "../../react/kit.js";
 import { useCallback, useEffect, useMemo, useState } from "react";
@@ -82,7 +81,7 @@ export interface RecoveryHost {
   /** Re-runs `onRefresh` whenever an assistant run touches `resource` (a React hook). */
   useContentRefreshSubscription: (required: { resource: string; onRefresh: () => void }) => void;
   /** Where an unexpected failure is logged. */
-  reportError: (required: { message: string; detail: unknown }) => void;
+  reportError: (required: { message: string; error: unknown }) => void;
 }
 
 export interface RecoveryDependencies {
@@ -172,7 +171,7 @@ export function useRecovery(deps: RecoveryDependencies, _optional: Record<string
         }
       }, () => undefined) // a failed re-verification falls back to the plain list, no alarm
       .catch((error: unknown) => {
-        host.reportError({ message: "[recovery] Could not apply the recovery link", detail: describeErrorForLog({ err: error }) });
+        host.reportError({ message: "[recovery] Could not apply the recovery link", error });
         setError(t({ locale, key: "Failed to open recovery link" }));
       });
   }, [points, port, host, locale]);
