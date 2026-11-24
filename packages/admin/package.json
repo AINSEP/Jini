@@ -196,6 +196,9 @@
       "./screens/import-export/hooks/use-git-backup.hooks": "browser",
       "./screens/import-export/hooks/use-import-export.hooks": "browser",
       "./publish-content/screen/hooks/publish-availability.store": "browser",
+      "./publish-content/screen/publish-scope": "universal",
+      "./publish-content/screen/hooks/publish-request.store": "browser",
+      "./publish-content/screen/hooks/use-publish-section-button.hooks": "browser",
       "./deployment/deployment-i18n": "browser",
       "./source-control/source-control-i18n": "universal"
     },
@@ -1193,6 +1196,21 @@
       "types": "./dist/publish-content/screen/hooks/publish-availability.store.d.ts",
       "import": "./dist/publish-content/screen/hooks/publish-availability.store.js",
       "default": "./dist/publish-content/screen/hooks/publish-availability.store.js"
+    },
+    "./publish-content/screen/publish-scope": {
+      "types": "./dist/publish-content/screen/publish-scope.d.ts",
+      "import": "./dist/publish-content/screen/publish-scope.js",
+      "default": "./dist/publish-content/screen/publish-scope.js"
+    },
+    "./publish-content/screen/hooks/publish-request.store": {
+      "types": "./dist/publish-content/screen/hooks/publish-request.store.d.ts",
+      "import": "./dist/publish-content/screen/hooks/publish-request.store.js",
+      "default": "./dist/publish-content/screen/hooks/publish-request.store.js"
+    },
+    "./publish-content/screen/hooks/use-publish-section-button.hooks": {
+      "types": "./dist/publish-content/screen/hooks/use-publish-section-button.hooks.d.ts",
+      "import": "./dist/publish-content/screen/hooks/use-publish-section-button.hooks.js",
+      "default": "./dist/publish-content/screen/hooks/use-publish-section-button.hooks.js"
     },
     "./deployment/deployment-i18n": {
       "types": "./dist/deployment/deployment-i18n.d.ts",
