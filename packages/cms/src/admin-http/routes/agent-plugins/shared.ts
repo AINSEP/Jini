@@ -22,7 +22,7 @@ const AGENT_PLUGIN_ENTITY_TYPE = "agent-plugin";
  * contract requires a string, so it sends the placeholder `""`. That placeholder is NOT inert: a
  * policy row may carry an empty resource type, which `""` would match where an absent type cannot.
  * The host's binding for these id-free mounts must therefore drop `entityType` before its
- * authorizer sees it (Tovu: `idFreeAgentPluginPortDeps` in `agent-plugins-routes.ts`). Naming
+ * authorizer sees it (the host's id-free port binding). Naming
  * `"agent-plugin"` here instead would newly admit a grant scoped to that type.
  * A mount without an authorizer is a wiring bug, not a caller error, so it fails closed.
  * @complexity O(1) plus the injected authorizer.
@@ -86,7 +86,7 @@ export interface AgentPluginSetEnabledRefusalDiagnostic {
   readonly causeMessage: string;
 }
 
-/** The host's sink for {@link AgentPluginSetEnabledRefusalDiagnostic}s (Tovu formats and logs them). */
+/** The host's sink for {@link AgentPluginSetEnabledRefusalDiagnostic}s (the host formats and logs them). */
 export type AgentPluginSetEnabledDiagnosticSink = (required: AgentPluginSetEnabledRefusalDiagnostic) => void;
 
 type SetEnabledRefusal = (required: { error: AgentPluginCodedError & { readonly providerPluginId?: string }; copy: AgentPluginSetEnabledCopy }) => { status: number; body: Record<string, unknown> };

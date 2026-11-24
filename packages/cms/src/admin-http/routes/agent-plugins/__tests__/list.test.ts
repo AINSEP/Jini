@@ -23,7 +23,7 @@ describe("agentPluginsListRoute", () => {
   });
 
   // `""` is a placeholder, not a guarantee: an empty resource-type policy row could match it, so the
-  // host's id-free binding drops the key (Tovu `idFreeAgentPluginPortDeps`). No `entityId` is sent.
+  // host's id-free binding drops the key (an id-free port binding). No `entityId` is sent.
   it("authorizes admin.plugins.read id-free with the empty entity-type placeholder and no entity id", async () => {
     const { authorize, calls } = recordingAuthorize();
     await agentPluginsListRoute.handle({ input: {}, deps: deps(), context: PRINCIPAL, authorize }, { signal });
