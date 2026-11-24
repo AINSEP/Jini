@@ -100,6 +100,10 @@ describe('useConversation', () => {
     });
     expect(transport.calls).toHaveLength(2);
     expect(transport.calls[1]?.input.history.map((m) => m.content)).toEqual(['first attempt']);
+    expect(result.current.messages).toHaveLength(2);
+    // A retry is a new reply: it must not inherit the failed one's id (hosts key persisted turns by it).
+    expect(result.current.messages[1]!.id).not.toBe(failedId);
+    expect(transport.calls[1]?.input.assistantMessageId).toBe(result.current.messages[1]!.id);
     expect(result.current.messages[1]!.content).toBe('');
     expect(result.current.messages[1]!.runStatus).toBe('running');
 
@@ -254,7 +258,7 @@ describe('useConversation', () => {
     expect(result.current.messages[1]!.runId).toBe('run-1');
   });
 
-  it('an event arriving before retry() resolves its runId falls back to the message\'s prior runId from the failed attempt', async () => {
+  it('an event arriving before retry() resolves its runId does not carry the failed attempt\'s run id', async () => {
     const transport = createFakeChatTransport();
     const { result } = renderHook(() => useConversation({ transport }));
 
@@ -279,11 +283,10 @@ describe('useConversation', () => {
     act(() => {
       retryDone = result.current.retry(failedId);
     });
-    // `run.runId` is still null (the new startRun hasn't resolved yet), but
-    // the retried message already carries `run-1` from the failed attempt —
-    // that prior id is kept as a fallback rather than dropped.
+    // `run.runId` is still null (the new startRun hasn't resolved yet). The retried reply is a new
+    // message, so it must not point at the failed attempt's run (`run-1`) in the meantime.
     act(() => capturedHandlers?.onEvent({ kind: 'text', text: 'still going' }));
-    expect(result.current.messages[1]!.runId).toBe('run-1');
+    expect(result.current.messages[1]!.runId).toBeUndefined();
 
     resolveRetry({ runId: 'run-2' });
     await act(async () => {

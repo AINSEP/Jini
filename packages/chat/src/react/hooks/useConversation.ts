@@ -312,7 +312,10 @@ export function useConversation(options: UseConversationOptions): UseConversatio
       const priorUser = messagesRef.current[idx - 1];
       if (!priorUser || priorUser.role !== 'user') return;
       const history = redactUserHistory({ history: messagesRef.current.slice(0, idx) }, options);
-      const resetAssistant: ChatMessage = { ...messagesRef.current[idx]!, content: '', events: [], runStatus: 'queued' };
+      // A retry is a new reply with its own id, so the failed attempt's id, run id and timestamps
+      // never leak into it (hosts key persisted turns by message id).
+      const failedAgentId = messagesRef.current[idx]!.agentId;
+      const resetAssistant = pendingAssistantMessage({ id: createMessageId() }, { agentId: failedAgentId });
       activeAssistantIdRef.current = resetAssistant.id;
       // Functional for the same reason as `sendMessage`'s: keep a just-queued terminal update.
       setMessagesState((prev) => {
@@ -336,7 +339,7 @@ export function useConversation(options: UseConversationOptions): UseConversatio
         ...(priorUser.attachments !== undefined ? { attachments: priorUser.attachments } : {}),
       });
     },
-    [agentId, conversationId, run, options.redactUserText, options.onSecretRedacted],
+    [agentId, conversationId, createMessageId, run, options.redactUserText, options.onSecretRedacted],
   );
 
   const cancel = useCallback(() => run.cancel(), [run]);
