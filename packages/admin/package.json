@@ -189,7 +189,11 @@
       "./shell/components/AssistantDock/hooks/conversation-refresh.hooks": "browser",
       "./shell/lib/agent-screenshot": "browser",
       "./shell/components/MediaEditDialog/MediaEditDialog.hooks": "browser",
-      "./shell/lib/media-embed-extension.hooks": "browser"
+      "./shell/lib/media-embed-extension.hooks": "browser",
+      "./shell/components/AssistantDock/FolderDropConfirmation": "browser",
+      "./shell/components/AssistantDock/FolderDropError": "browser",
+      "./shell/components/AssistantDock/FolderDropPathHint": "browser",
+      "./shell/components/AssistantDock/FolderPathButton": "browser"
     },
     "isolation": {
       "shared": [
@@ -283,7 +287,11 @@
         "./shell/components/AssistantDock/hooks/conversation-refresh.hooks": "browser",
         "./shell/lib/agent-screenshot": "browser",
         "./shell/components/MediaEditDialog/MediaEditDialog.hooks": "browser",
-        "./shell/lib/media-embed-extension.hooks": "browser"
+        "./shell/lib/media-embed-extension.hooks": "browser",
+        "./shell/components/AssistantDock/FolderDropConfirmation": "browser",
+        "./shell/components/AssistantDock/FolderDropError": "browser",
+        "./shell/components/AssistantDock/FolderDropPathHint": "browser",
+        "./shell/components/AssistantDock/FolderPathButton": "browser"
       }
     },
     "optionalPeers": {
@@ -1170,6 +1178,26 @@
       "types": "./dist/shell/lib/media-embed-extension.hooks.d.ts",
       "import": "./dist/shell/lib/media-embed-extension.hooks.js",
       "default": "./dist/shell/lib/media-embed-extension.hooks.js"
+    },
+    "./shell/components/AssistantDock/FolderDropConfirmation": {
+      "types": "./dist/shell/components/AssistantDock/FolderDropConfirmation.d.ts",
+      "import": "./dist/shell/components/AssistantDock/FolderDropConfirmation.js",
+      "default": "./dist/shell/components/AssistantDock/FolderDropConfirmation.js"
+    },
+    "./shell/components/AssistantDock/FolderDropError": {
+      "types": "./dist/shell/components/AssistantDock/FolderDropError.d.ts",
+      "import": "./dist/shell/components/AssistantDock/FolderDropError.js",
+      "default": "./dist/shell/components/AssistantDock/FolderDropError.js"
+    },
+    "./shell/components/AssistantDock/FolderDropPathHint": {
+      "types": "./dist/shell/components/AssistantDock/FolderDropPathHint.d.ts",
+      "import": "./dist/shell/components/AssistantDock/FolderDropPathHint.js",
+      "default": "./dist/shell/components/AssistantDock/FolderDropPathHint.js"
+    },
+    "./shell/components/AssistantDock/FolderPathButton": {
+      "types": "./dist/shell/components/AssistantDock/FolderPathButton.d.ts",
+      "import": "./dist/shell/components/AssistantDock/FolderPathButton.js",
+      "default": "./dist/shell/components/AssistantDock/FolderPathButton.js"
     }
   },
   "files": [
