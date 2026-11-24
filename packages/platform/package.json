@@ -37,6 +37,7 @@
       "./fs/file-lock": "node",
       "./secrets/credential-token": "universal",
       "./secrets/legacy-owner": "node",
+      "./secrets/legacy-codecs": "node",
       "./web": "node",
       "./command": "node",
       "./process": "node",
@@ -197,6 +198,11 @@
       "types": "./dist/secrets/legacy-owner.d.ts",
       "import": "./dist/secrets/legacy-owner.js",
       "default": "./dist/secrets/legacy-owner.js"
+    },
+    "./secrets/legacy-codecs": {
+      "types": "./dist/secrets/legacy-codecs.d.ts",
+      "import": "./dist/secrets/legacy-codecs.js",
+      "default": "./dist/secrets/legacy-codecs.js"
     },
     "./web": {
       "types": "./dist/web/index.d.ts",

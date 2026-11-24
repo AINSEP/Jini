@@ -29,3 +29,9 @@ Hosts migrating a positional sink/hook ABI can convert it at their boundary: pac
 `{ hit }` / `{ hits }`, `list({}, { limit })`, and hooks receive `{ hit }`. Pass hooks as the second
 `ingestHit` argument. The memory sink copies initial hits and returned arrays, defaults recent
 reads to 50 rows and caps them at 500; it never promises restart durability.
+
+## Wiring
+
+`@jini-ai/analytics/product` `projectDeclaredProductEvent({ event, installationId, catalog })` needs the host's
+event catalog (built once with `freezeProductEventCatalog({ catalog })`) and its installation id; event-specific
+rewrites (for example route-to-screen projection) stay in the host before it calls the projector.

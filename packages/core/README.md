@@ -329,3 +329,11 @@ permissions, copy and which tools pair up stay with the host; `rewriteSchemaDesc
 
 `httpOriginOf({ value })` (`origin-validation.ts`) parses an operator-configured public URL to its
 origin without throwing; the host injects the value (its own env var).
+## Wiring (tool-access-change)
+
+- `@jini-ai/core/contracts/site/tool-access-change` (type-only): the host supplies its own `NotifyToolAccessChanged` effect and throws `ToolAccessLoweringError` (from `@jini-ai/daemon`) when it cannot confirm affected answers stopped; nothing else to inject.
+
+## Wiring (primitives/lazy-proxy)
+
+`createLazyProxy({ factory })` (`@jini-ai/core/primitives`) needs nothing injected; the host passes the
+factory that opens the real instance on first use.

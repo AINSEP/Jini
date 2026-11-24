@@ -213,3 +213,6 @@ See [API.md](https://github.com/AINSEP/Jini/blob/main/packages/daemon/API.md) fo
   validates with `readA2uiAction({ rawBody })`, delivers with `deliverA2uiAction({ store, ... })`
   on the `a2ui` channel and answers a miss with the 409 body. The host injects its
   `SurfaceExchangeStore` and owns the route path and principal header.
+## Wiring (tool-access-lowering)
+
+- `stopRunsForToolAccessChange` takes the host's `revoke`/`cancel`/`waitForCleanup`/`notice` ports; a host that cannot confirm the affected answers stopped throws `ToolAccessLoweringError` (exported from the package root) so its routes map it to `TOOL_ACCESS_STOP_FAILED`.

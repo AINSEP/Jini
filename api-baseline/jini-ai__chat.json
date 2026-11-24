@@ -458,6 +458,20 @@
    "translateAgUiEventToAgentEvent": "function:f12838d4e8"
   }
  },
+ "./core/durable-runs/run-finalizer": {
+  "types": "./dist/core/durable-runs/run-finalizer.d.ts",
+  "symbols": {
+   "RunLogPort": "interface:8f477fdb30",
+   "RunTimerPort": "interface:ed7f387b97",
+   "RunWatchOutcome": "type:1ba1c494c6",
+   "SavedCheckpointProgress": "interface:6246f06b1c",
+   "approximateJsonBytes": "function:296a0e8865",
+   "checkpointGrew": "function:4abdee5ca4",
+   "hasUnsavedCheckpointGrowth": "function:c7faf45a58",
+   "releaseUnreadBody": "function:9b11ce3607",
+   "reportSafely": "function:2183490d4a"
+  }
+ },
  "./core/run-events": {
   "types": "./dist/core/run-events/entry.d.ts",
   "symbols": {

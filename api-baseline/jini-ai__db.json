@@ -470,6 +470,7 @@
    "TransferPlanSource": "interface:b53ad48365",
    "TransferSource": "interface:5e9c5340a1",
    "TransferTable": "interface:391744ea78",
+   "captureSqliteBackupBytes": "function:1a74d2cfd0",
    "constraintSql": "function:cd0e6fa9e1",
    "countSourceRows": "function:ca210d5463",
    "createPsqlPostgresTarget": "function:4e28b23305",

@@ -25,3 +25,7 @@ per-recipient indexed keys. SMTP remains a separate injected-transport entry at
 `@jini-ai/platform/mail/smtp`.
 
 Behavior tests live in `src/mail/__tests__/`.
+
+## Legacy vault codecs (w4-runtime, 2026-11-24)
+
+Original host source at the original host `3a93322474`: `apps/website/src/server/runtime/composition/vault-legacy-codecs.ts` → `src/secrets/legacy-codecs.ts` (`@jini-ai/platform/secrets/legacy-codecs`). The host's former custom-vault owner key is injected as `formerCustomOwnerKey`; why-comments kept verbatim.

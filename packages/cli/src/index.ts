@@ -9,6 +9,7 @@
  * NOTE below for `main.ts`, this package's own bootable entrypoint, which does.
  */
 export * from './flags.js';
+export * from './request-fields.js';
 export * from './daemon-url.js';
 export * from './errors.js';
 export * from './http.js';

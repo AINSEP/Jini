@@ -312,3 +312,6 @@ mounted widget's own conversation owner — the bridge never opens a parallel tr
 React widgets pass `agentControl: createEmbedSendAgentControl({ root, enabled, invocationId,
 requestEventName, readyMessageType }, { capabilityId?, unmountedMessage? })` to `ChatPane`, which
 relays each request through the existing `chat.send_message` capability.
+`./core/durable-runs/run-finalizer` holds a host run finalizer's pure slices (checkpoint growth and
+size rules, `reportSafely`, `releaseUnreadBody`, and the `RunTimerPort`/`RunLogPort` types). The host
+injects its timer and log through those ports and keeps the ledger, daemon client and watch state.

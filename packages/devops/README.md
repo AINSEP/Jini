@@ -93,3 +93,16 @@ Default dispatchers remain shared; each override binding retains its own lazy
 pool. HTTPS-only probes, manual redirects and existing deadlines are preserved.
 The Node adapter attaches the validating Agent as a native fetch runtime extension,
 preserving its identity across differing Node and undici dispatcher type versions.
+
+## Wiring (local-dev boot listener)
+
+`reserveBootListener` (`@jini-ai/devops/local-dev`): the host passes its server, port and already-resolved
+bind host (its own env/flag precedence), and sets `autoStartPort` only for its production start.
+`resolveBindHost` (same entry) takes the already-picked raw `--host`/env value and the fallback; the host
+injects `source` (its flag/env label for the message) and `invalidHost` (its validation-error factory).
+
+## Wiring (dns due-bindings sweeper)
+
+`startDomainBindingSweeper` (`@jini-ai/devops/dns`): the host injects its pre-bound due-bindings sweep
+(absent → idle handle) and a REQUIRED unref'd timer `scheduler` (`{ every, after }`; the webhook worker's
+`nodeWebhookDeliveryScheduler` fits structurally). Start it only in the process that serves the site.

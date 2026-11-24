@@ -37,6 +37,7 @@
       "./browser/session-store": "browser",
       "./browser/agent-inventory": "browser",
       "./server/durable-runs": "node",
+      "./core/durable-runs/run-finalizer": "universal",
       "./store/runtime": "node",
       "./vanilla": "browser",
       "./browser/lazy-loader": "browser",
@@ -190,6 +191,11 @@
       "types": "./dist/server/durable-runs/entry.d.ts",
       "import": "./dist/server/durable-runs/entry.js",
       "default": "./dist/server/durable-runs/entry.js"
+    },
+    "./core/durable-runs/run-finalizer": {
+      "types": "./dist/core/durable-runs/run-finalizer.d.ts",
+      "import": "./dist/core/durable-runs/run-finalizer.js",
+      "default": "./dist/core/durable-runs/run-finalizer.js"
     },
     "./store/runtime": {
       "types": "./dist/store/runtime/entry.d.ts",
@@ -363,6 +369,9 @@
       ],
       "server/durable-runs": [
         "./dist/server/durable-runs/entry.d.ts"
+      ],
+      "core/durable-runs/run-finalizer": [
+        "./dist/core/durable-runs/run-finalizer.d.ts"
       ],
       "store/runtime": [
         "./dist/store/runtime/entry.d.ts"

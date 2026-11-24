@@ -1,5 +1,10 @@
 import type { ToolAccessChange } from "@jini-ai/core/contracts/site/daemon";
 export type { ToolAccessChange } from "@jini-ai/core/contracts/site/daemon";
+/** A durable OFF decision stands even when cleanup fails; never report an unconfirmed stop. */
+export class ToolAccessLoweringError extends Error {
+  readonly code = 'TOOL_ACCESS_STOP_FAILED';
+  constructor() { super("Tool access changed, but affected answers could not be confirmed stopped."); }
+}
 export interface ToolAccessRun {
   readonly runId: string;
   readonly agentId: string;
