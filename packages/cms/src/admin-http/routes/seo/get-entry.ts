@@ -1,7 +1,7 @@
 import { defineJsonRoute, ok } from "@jini-ai/core/contracts/server";
+import type { AdminSeoEntryMetaEnvelope } from "@jini-ai/core/contracts/site/cms-seo";
 
 import { getEntryMeta, type GetEntryMetaDeps } from "../../../seo/seo.js";
-import type { SeoMeta } from "../../../seo/types.js";
 import { withContentImageSource, withCoverReadDeps } from "../../../seo/cover-image.js";
 import { authorizeSeo, rejectSeoError, SEO_ENTRY_NOT_FOUND, seoEntryIdParam, type SeoRoutePrincipal } from "./shared.js";
 
@@ -13,9 +13,6 @@ export interface SeoGetEntryRouteDeps {
   seoDeps: GetEntryMetaDeps;
 }
 
-/** The answered envelope: the entry's effective meta (with its version) under `data`. */
-export interface SeoEntryMetaEnvelope { data: SeoMeta }
-
 const SEO_GET_ENTRY_ERRORS = [SEO_ENTRY_NOT_FOUND] as const;
 
 /**
@@ -23,7 +20,7 @@ const SEO_GET_ENTRY_ERRORS = [SEO_ENTRY_NOT_FOUND] as const;
  * that `seo-entry`. The cover image is resolved first so the preview shows the share image the live
  * render emits; a body image stays marked as content, not as a stored override.
  */
-export const seoGetEntryRoute = defineJsonRoute<{ entryId: string }, SeoEntryMetaEnvelope, SeoGetEntryRouteDeps, SeoRoutePrincipal>({
+export const seoGetEntryRoute = defineJsonRoute<{ entryId: string }, AdminSeoEntryMetaEnvelope, SeoGetEntryRouteDeps, SeoRoutePrincipal>({
   method: "get",
   path: "/api/admin/v1/workspaces/:workspaceId/seo/entries/:entryId",
   parse: (raw) => ok({ value: { entryId: seoEntryIdParam({ params: raw.params }) } }),

@@ -1,11 +1,11 @@
 import { defineJsonRoute, ok } from "@jini-ai/core/contracts/server";
+import type { AdminSeoEntryMetaEnvelope } from "@jini-ai/core/contracts/site/cms-seo";
 import { parseExpectedVersion } from "@jini-ai/core/optimistic-concurrency";
 
 import { getEntryMeta, type GetEntryMetaDeps } from "../../../seo/seo.js";
 import { setEntrySeoOverrides, type SetEntrySeoOverridesDeps } from "../../../seo/write-service.js";
 import type { SeoExtFieldsPatch } from "../../../seo/types.js";
 import { withContentImageSource, withCoverReadDeps } from "../../../seo/cover-image.js";
-import type { SeoEntryMetaEnvelope } from "./get-entry.js";
 import {
   authorizeSeo, rejectSeoError, SEO_CONCURRENT_WRITE, SEO_ENTRY_NOT_FOUND, SEO_FIELD_VALIDATION, SEO_INVALID_CANONICAL, SEO_NOT_LIVE,
   SEO_TOOL_INPUT, seoActorId, seoEntryIdParam, type SeoRoutePrincipal,
@@ -39,7 +39,7 @@ const SEO_PUT_ENTRY_ERRORS = [SEO_NOT_LIVE, SEO_TOOL_INPUT, SEO_FIELD_VALIDATION
  * lacking the permission never reaches it (fail-closed). `expectedVersion` is read after
  * authorization, as the host did, so a malformed one is a 400 only for an authorized caller.
  */
-export const seoPutEntryRoute = defineJsonRoute<SeoPutEntryInput, SeoEntryMetaEnvelope, SeoPutEntryRouteDeps, SeoRoutePrincipal>({
+export const seoPutEntryRoute = defineJsonRoute<SeoPutEntryInput, AdminSeoEntryMetaEnvelope, SeoPutEntryRouteDeps, SeoRoutePrincipal>({
   method: "put",
   path: "/api/admin/v1/workspaces/:workspaceId/seo/entries/:entryId",
   parse: (raw) => {
