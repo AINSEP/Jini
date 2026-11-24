@@ -63,9 +63,11 @@
  "./backup/site/static-download-html": {
   "types": "./dist/backup/site/static-download-html.d.ts",
   "symbols": {
-   "DownloadHtmlSourceEdits": "interface:1085ea8803",
+   "DownloadHtmlSourceEdits": "interface:b23bf3819a",
    "Edit": "type:c020bb9e69",
-   "Element": "type:fb77b18513",
+   "Element": "interface:3bcd1d5934",
+   "HtmlAncestor": "interface:7b2d0cb774",
+   "SourceRange": "interface:ad563323e9",
    "downloadDocumentBase": "function:48d188f2d2",
    "downloadForms": "function:6330245aeb"
   }
@@ -940,7 +942,7 @@
  "./source-control/site/provider-kit": {
   "types": "./dist/source-control/site/provider-kit.d.ts",
   "symbols": {
-   "SourceControlKitHost": "interface:2e538dacb3",
+   "SourceControlKitHost": "interface:230655f114",
    "createSourceControlProviderKit": "function:e3bd0ad9c2"
   }
  },

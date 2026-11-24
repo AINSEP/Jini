@@ -468,6 +468,15 @@
    "createAutoUpdateController": "function:59042fc22a"
   }
  },
+ "./shell/copied-site-databases": {
+  "types": "./dist/shell/copied-site-databases.d.ts",
+  "symbols": {
+   "CopiedDatabaseFilesystem": "interface:742424af61",
+   "CopiedDatabaseRequired": "interface:fb441d493f",
+   "CopiedDatabaseSource": "interface:2ad381607c",
+   "commitWithCopiedDatabases": "function:4211a4e6ff"
+  }
+ },
  "./shell/find-in-page-verify": {
   "types": "./dist/shell/find-in-page-verify.d.ts",
   "symbols": {
