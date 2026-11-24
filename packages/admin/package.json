@@ -39,6 +39,8 @@
       "./security/adapters/http": "universal",
       "./security/adapters/memory": "universal",
       "./security/conformance": "universal",
+      "./security/host/SiteKeyTab.hooks": "browser",
+      "./security/host/hooks/security-permissions-port.hooks": "universal",
       "./playground": "universal",
       "./playground/react": "browser",
       "./playground/adapters/http": "universal",
@@ -144,6 +146,13 @@
       "./shell/components/Select/Select.hooks": "browser",
       "./shell/lib/tab-event-source": "browser",
       "./shell/hooks/use-external-entry-refresh.hooks": "browser",
+      "./posts/post-editor-route-key": "universal",
+      "./posts/Posts.hooks": "universal",
+      "./pages/ThemePageDetailsModal.hooks": "browser",
+      "./pages/hooks/theme-canvas-port.hooks": "universal",
+      "./pages/hooks/theme-pages-port.hooks": "universal",
+      "./pages/hooks/theme-canvas-dependencies.hooks": "browser",
+      "./pages/hooks/theme-canvas-wrapper": "browser",
       "./posts/PostAuthorFields": "browser",
       "./posts/PostPublishingFields": "browser",
       "./screens/collections/api/collections-api.types": "universal",
@@ -162,6 +171,8 @@
       "./screens/taxonomy/hooks/new-term-form-port.hooks": "universal",
       "./screens/taxonomy/hooks/taxonomy-port.hooks": "universal",
       "./screens/taxonomy/hooks/term-picker-port.hooks": "universal",
+      "./screens/redirects/api/redirects-api.types": "universal",
+      "./screens/trash/api/trash-api.types": "universal",
       "./screens/comments/api/comments-api.types": "universal",
       "./screens/forms/api/forms-api.types": "universal",
       "./screens/forms/index-aligned-translations": "universal",
@@ -169,12 +180,21 @@
       "./screens/forms/forms-leave-guard-i18n": "universal",
       "./screens/menus/api/menus-api.types": "universal",
       "./screens/widgets/api/widgets-api.types": "universal",
+      "./screens/providers/api/providers-api": "universal",
       "./screens/menus/page-link-rules": "universal",
       "./screens/menus/html-rules": "universal",
       "./screens/menus/hooks/menus-port.hooks": "universal",
       "./screens/menus/MenuEditor.hooks": "browser",
       "./screens/menus/MenuPageLinkFields.hooks": "browser",
-      "./screens/menus/MenuPageLinkFields": "browser"
+      "./screens/menus/MenuPageLinkFields": "browser",
+      "./screens/plugins/api/plugins-api.types": "universal",
+      "./screens/plugins/api/plugins-api": "universal",
+      "./screens/plugins/selected-skills": "universal",
+      "./screens/plugins/hooks/use-plugin-row-focus.hooks": "browser",
+      "./screens/plugins/hooks/agent-plugin-memory-port.hooks": "universal",
+      "./screens/plugins/hooks/plugin-install-port.hooks": "universal",
+      "./screens/plugins/hooks/plugins-port.hooks": "universal",
+      "./screens/plugins/PluginProviderSettingField.hooks": "browser"
     },
     "isolation": {
       "shared": [
@@ -385,6 +405,16 @@
       "types": "./dist/security/conformance/security-api.conformance.d.ts",
       "import": "./dist/security/conformance/security-api.conformance.js",
       "default": "./dist/security/conformance/security-api.conformance.js"
+    },
+    "./security/host/SiteKeyTab.hooks": {
+      "types": "./dist/security/host/SiteKeyTab.hooks.d.ts",
+      "import": "./dist/security/host/SiteKeyTab.hooks.js",
+      "default": "./dist/security/host/SiteKeyTab.hooks.js"
+    },
+    "./security/host/hooks/security-permissions-port.hooks": {
+      "types": "./dist/security/host/hooks/security-permissions-port.hooks.d.ts",
+      "import": "./dist/security/host/hooks/security-permissions-port.hooks.js",
+      "default": "./dist/security/host/hooks/security-permissions-port.hooks.js"
     },
     "./playground": {
       "types": "./dist/playground/index.d.ts",
@@ -911,6 +941,41 @@
       "import": "./dist/shell/hooks/use-external-entry-refresh.hooks.js",
       "default": "./dist/shell/hooks/use-external-entry-refresh.hooks.js"
     },
+    "./posts/post-editor-route-key": {
+      "types": "./dist/posts/post-editor-route-key.d.ts",
+      "import": "./dist/posts/post-editor-route-key.js",
+      "default": "./dist/posts/post-editor-route-key.js"
+    },
+    "./posts/Posts.hooks": {
+      "types": "./dist/posts/Posts.hooks.d.ts",
+      "import": "./dist/posts/Posts.hooks.js",
+      "default": "./dist/posts/Posts.hooks.js"
+    },
+    "./pages/ThemePageDetailsModal.hooks": {
+      "types": "./dist/pages/ThemePageDetailsModal.hooks.d.ts",
+      "import": "./dist/pages/ThemePageDetailsModal.hooks.js",
+      "default": "./dist/pages/ThemePageDetailsModal.hooks.js"
+    },
+    "./pages/hooks/theme-canvas-port.hooks": {
+      "types": "./dist/pages/hooks/theme-canvas-port.hooks.d.ts",
+      "import": "./dist/pages/hooks/theme-canvas-port.hooks.js",
+      "default": "./dist/pages/hooks/theme-canvas-port.hooks.js"
+    },
+    "./pages/hooks/theme-pages-port.hooks": {
+      "types": "./dist/pages/hooks/theme-pages-port.hooks.d.ts",
+      "import": "./dist/pages/hooks/theme-pages-port.hooks.js",
+      "default": "./dist/pages/hooks/theme-pages-port.hooks.js"
+    },
+    "./pages/hooks/theme-canvas-dependencies.hooks": {
+      "types": "./dist/pages/hooks/theme-canvas-dependencies.hooks.d.ts",
+      "import": "./dist/pages/hooks/theme-canvas-dependencies.hooks.js",
+      "default": "./dist/pages/hooks/theme-canvas-dependencies.hooks.js"
+    },
+    "./pages/hooks/theme-canvas-wrapper": {
+      "types": "./dist/pages/hooks/theme-canvas-wrapper.d.ts",
+      "import": "./dist/pages/hooks/theme-canvas-wrapper.js",
+      "default": "./dist/pages/hooks/theme-canvas-wrapper.js"
+    },
     "./posts/PostAuthorFields": {
       "types": "./dist/posts/PostAuthorFields.d.ts",
       "import": "./dist/posts/PostAuthorFields.js",
@@ -1001,6 +1066,16 @@
       "import": "./dist/screens/taxonomy/hooks/term-picker-port.hooks.js",
       "default": "./dist/screens/taxonomy/hooks/term-picker-port.hooks.js"
     },
+    "./screens/redirects/api/redirects-api.types": {
+      "types": "./dist/screens/redirects/api/redirects-api.types.d.ts",
+      "import": "./dist/screens/redirects/api/redirects-api.types.js",
+      "default": "./dist/screens/redirects/api/redirects-api.types.js"
+    },
+    "./screens/trash/api/trash-api.types": {
+      "types": "./dist/screens/trash/api/trash-api.types.d.ts",
+      "import": "./dist/screens/trash/api/trash-api.types.js",
+      "default": "./dist/screens/trash/api/trash-api.types.js"
+    },
     "./screens/comments/api/comments-api.types": {
       "types": "./dist/screens/comments/api/comments-api.types.d.ts",
       "import": "./dist/screens/comments/api/comments-api.types.js",
@@ -1036,6 +1111,11 @@
       "import": "./dist/screens/widgets/api/widgets-api.types.js",
       "default": "./dist/screens/widgets/api/widgets-api.types.js"
     },
+    "./screens/providers/api/providers-api": {
+      "types": "./dist/screens/providers/api/providers-api.d.ts",
+      "import": "./dist/screens/providers/api/providers-api.js",
+      "default": "./dist/screens/providers/api/providers-api.js"
+    },
     "./screens/menus/page-link-rules": {
       "types": "./dist/screens/menus/page-link-rules.d.ts",
       "import": "./dist/screens/menus/page-link-rules.js",
@@ -1065,6 +1145,46 @@
       "types": "./dist/screens/menus/MenuPageLinkFields.d.ts",
       "import": "./dist/screens/menus/MenuPageLinkFields.js",
       "default": "./dist/screens/menus/MenuPageLinkFields.js"
+    },
+    "./screens/plugins/api/plugins-api.types": {
+      "types": "./dist/screens/plugins/api/plugins-api.types.d.ts",
+      "import": "./dist/screens/plugins/api/plugins-api.types.js",
+      "default": "./dist/screens/plugins/api/plugins-api.types.js"
+    },
+    "./screens/plugins/api/plugins-api": {
+      "types": "./dist/screens/plugins/api/plugins-api.d.ts",
+      "import": "./dist/screens/plugins/api/plugins-api.js",
+      "default": "./dist/screens/plugins/api/plugins-api.js"
+    },
+    "./screens/plugins/selected-skills": {
+      "types": "./dist/screens/plugins/selected-skills.d.ts",
+      "import": "./dist/screens/plugins/selected-skills.js",
+      "default": "./dist/screens/plugins/selected-skills.js"
+    },
+    "./screens/plugins/hooks/use-plugin-row-focus.hooks": {
+      "types": "./dist/screens/plugins/hooks/use-plugin-row-focus.hooks.d.ts",
+      "import": "./dist/screens/plugins/hooks/use-plugin-row-focus.hooks.js",
+      "default": "./dist/screens/plugins/hooks/use-plugin-row-focus.hooks.js"
+    },
+    "./screens/plugins/hooks/agent-plugin-memory-port.hooks": {
+      "types": "./dist/screens/plugins/hooks/agent-plugin-memory-port.hooks.d.ts",
+      "import": "./dist/screens/plugins/hooks/agent-plugin-memory-port.hooks.js",
+      "default": "./dist/screens/plugins/hooks/agent-plugin-memory-port.hooks.js"
+    },
+    "./screens/plugins/hooks/plugin-install-port.hooks": {
+      "types": "./dist/screens/plugins/hooks/plugin-install-port.hooks.d.ts",
+      "import": "./dist/screens/plugins/hooks/plugin-install-port.hooks.js",
+      "default": "./dist/screens/plugins/hooks/plugin-install-port.hooks.js"
+    },
+    "./screens/plugins/hooks/plugins-port.hooks": {
+      "types": "./dist/screens/plugins/hooks/plugins-port.hooks.d.ts",
+      "import": "./dist/screens/plugins/hooks/plugins-port.hooks.js",
+      "default": "./dist/screens/plugins/hooks/plugins-port.hooks.js"
+    },
+    "./screens/plugins/PluginProviderSettingField.hooks": {
+      "types": "./dist/screens/plugins/PluginProviderSettingField.hooks.d.ts",
+      "import": "./dist/screens/plugins/PluginProviderSettingField.hooks.js",
+      "default": "./dist/screens/plugins/PluginProviderSettingField.hooks.js"
     }
   },
   "files": [
