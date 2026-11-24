@@ -9,7 +9,8 @@ import {
  * @file What the Deployment panel's publish-credential routes share: the `system.publish` check
  * (entity type `site-publish`, no `entityId` even on by-id verbs, as the hand-written routes asked
  * it), the store-error ladder, and the collaborator types the host injects — the store, the
- * after-save verification, the compatibility re-check and the account-label heal trigger.
+ * after-save verification and the compatibility re-check. The collection `GET` (with its
+ * account-label heal trigger) is not a spec here: the host keeps that route hand-written.
  */
 
 export const PUBLISH_CREDENTIALS_BASE_PATH = "/api/admin/v1/workspaces/:workspaceId/system/publish/credentials";

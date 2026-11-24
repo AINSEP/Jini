@@ -97,7 +97,7 @@ describe("source-control credential routes", () => {
     await expect(sourceControlDeleteRoute.handle({ input: { id: "c1", body: {} }, deps, authorize: recording().authorize })).rejects.toThrow("SECRET repo detail");
   });
 
-  it("shapes providers: optional fields only when declared, switched-off hosts named, refusals logged", async () => {
+  it("shapes providers: optional fields only when declared, switched-off hosts named; refusals neither sent nor logged here (the host loader reports them)", async () => {
     const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
     const deps = { workspaceId: "ws-1", storeErrors, loadSourceControlProviders: async ({ workspaceId }: { workspaceId: string }) => ({
       refusals: [`refused ${workspaceId}`],
@@ -108,7 +108,7 @@ describe("source-control credential routes", () => {
       providers: [{ id: "a", label: "A", credential: { fields: [] }, i18n: { fr: {} } }, { id: "b", label: "B" }],
       switchedOff: [{ id: "off", pluginId: "plugin-off" }],
     } });
-    expect(warn).toHaveBeenCalledWith("[source-control-providers] refused ws-1");
+    expect(warn).not.toHaveBeenCalled();
     warn.mockRestore();
   });
 

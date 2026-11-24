@@ -410,17 +410,12 @@
    "CustomCredentialDeleteRouteDeps": "interface:d797f52e44",
    "CustomCredentialInvalidate": "type:31cfa8aec6",
    "CustomCredentialKeyUsage": "interface:0e7ba7f0be",
-   "CustomCredentialListCopy": "interface:ad3b73684b",
-   "CustomCredentialListRouteDeps": "interface:5f295d3b93",
-   "CustomCredentialProjectKeys": "interface:2e5a37a4a4",
+   "CustomCredentialProjectKeys": "interface:529c1afe93",
    "CustomCredentialStoreErrorClasses": "interface:fa1debfd7c",
-   "CustomCredentialUpdateRouteDeps": "interface:4bce9a762a",
    "CustomCredentialView": "interface:acc622517f",
    "PrepareCustomCredentialInvalidation": "type:7ff1021977",
    "customCredentialCreateRoute": "variable:c0abe35603",
-   "customCredentialDeleteRoute": "variable:93c2f3bd85",
-   "customCredentialListRoute": "variable:cdc98d6e20",
-   "customCredentialUpdateRoute": "variable:2c4f5d6d81"
+   "customCredentialDeleteRoute": "variable:93c2f3bd85"
   }
  },
  "./admin-http/routes/system/deployment-overview": {
@@ -533,13 +528,6 @@
    "publishCredentialDeleteRoute": "variable:6e1546f6ff"
   }
  },
- "./admin-http/routes/system/publish-credentials/list": {
-  "types": "./dist/admin-http/routes/system/publish-credentials/list.d.ts",
-  "symbols": {
-   "PublishCredentialListRouteDeps": "interface:94328bb1b5",
-   "publishCredentialListRoute": "variable:a0a32f5394"
-  }
- },
  "./admin-http/routes/system/publish-credentials/shared": {
   "types": "./dist/admin-http/routes/system/publish-credentials/shared.d.ts",
   "symbols": {
@@ -622,7 +610,7 @@
    "SourceControlDeleteRouteDeps": "interface:00f0c24366",
    "SourceControlListRouteDeps": "interface:f7e434de7e",
    "SourceControlProviderDescriptor": "interface:d68c59d490",
-   "SourceControlProviderRegistry": "interface:9cd579fbac",
+   "SourceControlProviderRegistry": "interface:7c75480c8a",
    "SourceControlProvidersLoader": "type:55c7ebe1fc",
    "SourceControlProvidersRouteDeps": "interface:bf0d180385",
    "SourceControlUpdateRouteDeps": "interface:82a282ccde",
