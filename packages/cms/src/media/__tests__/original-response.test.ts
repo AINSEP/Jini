@@ -108,3 +108,13 @@ test("asset: inline original is sniffed (HTML declared as png becomes a download
   assert.equal(docReply.status, 206);
   assert.deepEqual(docReply.headers.find(([name]) => name === "Content-Disposition"), ["Content-Disposition", `attachment; filename="document"; filename*=UTF-8''Q3%20%27plan%27%20%28v2%29.txt`]);
 });
+
+test("lookup: an unknown media id is `not-found` for the caller to render, without ever reading a blob", async () => {
+  let reads = 0;
+  const outcome = await lookupMediaOriginalBlob({ deps: {
+    mediaRepo: { findBySlug: async () => null, findById: async () => null } as unknown as InMemoryMediaRepo,
+    assetBlobRepo: { findByHash: async () => { reads++; return null; } } as unknown as InMemoryAssetBlobRepo,
+  }, params: { workspaceId: "ws", mediaId: "unknown" } });
+  assert.deepEqual(outcome, { outcome: "not-found" });
+  assert.equal(reads, 0);
+});
