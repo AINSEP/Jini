@@ -3232,12 +3232,12 @@
   "types": "./dist/screens/library/hooks/use-library.hooks.d.ts",
   "symbols": {
    "LibraryController": "interface:16166eb246",
-   "LibraryDependencies": "interface:7dd7f70f77",
+   "LibraryDependencies": "interface:c5132f5c81",
    "LibraryPermissions": "interface:49c319f5bc",
    "LibraryPreviewState": "interface:0f4c1afe35",
    "LibraryUploadRow": "interface:b92a16b569",
    "LibraryUploadStatus": "type:1d4c9e9837",
-   "useLibrary": "function:590420a40f"
+   "useLibrary": "function:1d8013c01b"
   }
  },
  "./screens/library/Library.hooks": {
@@ -3269,7 +3269,7 @@
    "documentUploaderLabel": "function:93485e2d7b",
    "formatLibraryBytes": "function:c9bf026397",
    "libraryExtension": "function:7ce5a20a7f",
-   "libraryFileProblem": "function:27b072c5b3",
+   "libraryFileProblem": "function:46cb5cbad5",
    "sortDocuments": "function:5bcbdfe0ff",
    "validDocumentStem": "function:63a8f3298c"
   }
