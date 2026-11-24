@@ -696,7 +696,10 @@
       "./screens/email/EmailTemplatesTab": "browser",
       "./screens/trash/trash-i18n/create-trash-dictionary": "universal",
       "./screens/providers/AlwaysAllowPanel": "browser",
-      "./screens/providers/hooks/use-always-allow.hooks": "browser"
+      "./screens/providers/hooks/use-always-allow.hooks": "browser",
+      "./screens/library/library-i18n/create-library-dictionary": "universal",
+      "./screens/library/library-i18n/library-i18n-data": "universal",
+      "./screens/voice-input/hooks/mic-capture": "browser"
     },
     "isolation": {
       "shared": [
@@ -4321,6 +4324,21 @@
       "types": "./dist/screens/providers/hooks/use-always-allow.hooks.d.ts",
       "import": "./dist/screens/providers/hooks/use-always-allow.hooks.js",
       "default": "./dist/screens/providers/hooks/use-always-allow.hooks.js"
+    },
+    "./screens/library/library-i18n/create-library-dictionary": {
+      "types": "./dist/screens/library/library-i18n/create-library-dictionary.d.ts",
+      "import": "./dist/screens/library/library-i18n/create-library-dictionary.js",
+      "default": "./dist/screens/library/library-i18n/create-library-dictionary.js"
+    },
+    "./screens/library/library-i18n/library-i18n-data": {
+      "types": "./dist/screens/library/library-i18n/library-i18n-data.d.ts",
+      "import": "./dist/screens/library/library-i18n/library-i18n-data.js",
+      "default": "./dist/screens/library/library-i18n/library-i18n-data.js"
+    },
+    "./screens/voice-input/hooks/mic-capture": {
+      "types": "./dist/screens/voice-input/hooks/mic-capture.d.ts",
+      "import": "./dist/screens/voice-input/hooks/mic-capture.js",
+      "default": "./dist/screens/voice-input/hooks/mic-capture.js"
     }
   },
   "files": [
