@@ -13,7 +13,6 @@ before-save hook seam (`post-before-save.ts`). Each is its own `@jini-ai/cms/pos
 - `posts/expected-version`: `versionConflictEnvelope({ err, outwardErrorMessage })` — the host words the 409 `error` copy.
 - `posts/go-live-sweep`: `startPostGoLiveSweep({ deps, workspaceId, onError })` — the host's required reporter receives a failed pass's error.
 - `posts/post-tool-views`: every view takes `{ deps: PostToolViewDeps, post }` (or `{ post }`); the host binds `PostToolViewDeps.entryPublicPath` to its configured routing instance, `runtimeMode` to its live-site signal, and supplies the `publishedWhere: { live, local }` copy (product wording stays in the host).
-- `posts/post-import`: `importPostEntity({ deps, input })` — the host passes `ImportPostEntityDeps` (clock, repo, outbox, optional `beforeSaveHook`); used by the host's publish/replication path.
 - `posts/post-slugs`: the host passes `reservedSegments` (its reserved first path segments) to `assertValidExplicitSlug`, `resolveCreateSlug` and `availablePostSlug`, and its `postPublicPath` to `captureSlugChange`; `releaseTrashedSlug({ repo, holder })` is pure over the repo.
 
 What the host injects:
