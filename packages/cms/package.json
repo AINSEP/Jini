@@ -14,6 +14,7 @@
     "runtime": "universal",
     "entries": {
       "./themes/token-aliases": "universal",
+      "./themes/theme-slots": "universal",
       "./publish/transfer": "universal",
       "./publish/transfer/blob-staging": "node",
       "./publish/content/baseline-repo": "universal",
@@ -182,6 +183,7 @@
       "./public-http/middleware/canonical-site-host": "node",
       "./public-http/middleware/theme-asset-dirs": "node",
       "./public-http/middleware/theme-content-security-headers": "node",
+      "./public-http/middleware/public-page-security-headers": "universal",
       "./public-http/middleware/theme-static-assets": "universal",
       "./public-http/middleware/theme-page-preview": "universal",
       "./public-http/middleware/theme-preview-refresh": "universal",
@@ -485,6 +487,17 @@
       "./settings/site/publish-content": "universal",
       "./settings/site/settings-confirm-write": "universal",
       "./publish/content/type-registry": "universal",
+      "./public-http/http/content/posts": "universal",
+      "./public-http/http/shared/post": "universal",
+      "./public-http/http/site/render-context": "universal",
+      "./public-http/http/site/render/components/layout": "universal",
+      "./public-http/routes/site/pages/render-context/taxonomy": "universal",
+      "./public-http/routes/site/product-checkout": "universal",
+      "./admin-http/http/posts": "universal",
+      "./publish/content/content-references": "universal",
+      "./publish/content/idempotency": "node",
+      "./publish/content/plan-rows": "universal",
+      "./publish/content/report-labels": "universal",
       "./publish/trust/grant": "universal",
       "./publish/trust/keys": "node",
       "./publish/trust/provisioning": "universal",
@@ -1668,6 +1681,61 @@
       "import": "./dist/public-http/http/site/render/value-readers.js",
       "default": "./dist/public-http/http/site/render/value-readers.js"
     },
+    "./public-http/http/content/posts": {
+      "types": "./dist/public-http/http/content/posts.d.ts",
+      "import": "./dist/public-http/http/content/posts.js",
+      "default": "./dist/public-http/http/content/posts.js"
+    },
+    "./public-http/http/shared/post": {
+      "types": "./dist/public-http/http/shared/post.d.ts",
+      "import": "./dist/public-http/http/shared/post.js",
+      "default": "./dist/public-http/http/shared/post.js"
+    },
+    "./public-http/http/site/render-context": {
+      "types": "./dist/public-http/http/site/render-context.d.ts",
+      "import": "./dist/public-http/http/site/render-context.js",
+      "default": "./dist/public-http/http/site/render-context.js"
+    },
+    "./public-http/http/site/render/components/layout": {
+      "types": "./dist/public-http/http/site/render/components/layout.d.ts",
+      "import": "./dist/public-http/http/site/render/components/layout.js",
+      "default": "./dist/public-http/http/site/render/components/layout.js"
+    },
+    "./public-http/routes/site/pages/render-context/taxonomy": {
+      "types": "./dist/public-http/routes/site/pages/render-context/taxonomy.d.ts",
+      "import": "./dist/public-http/routes/site/pages/render-context/taxonomy.js",
+      "default": "./dist/public-http/routes/site/pages/render-context/taxonomy.js"
+    },
+    "./public-http/routes/site/product-checkout": {
+      "types": "./dist/public-http/routes/site/product-checkout.d.ts",
+      "import": "./dist/public-http/routes/site/product-checkout.js",
+      "default": "./dist/public-http/routes/site/product-checkout.js"
+    },
+    "./admin-http/http/posts": {
+      "types": "./dist/admin-http/http/posts.d.ts",
+      "import": "./dist/admin-http/http/posts.js",
+      "default": "./dist/admin-http/http/posts.js"
+    },
+    "./publish/content/content-references": {
+      "types": "./dist/publish/content/content-references.d.ts",
+      "import": "./dist/publish/content/content-references.js",
+      "default": "./dist/publish/content/content-references.js"
+    },
+    "./publish/content/idempotency": {
+      "types": "./dist/publish/content/idempotency.d.ts",
+      "import": "./dist/publish/content/idempotency.js",
+      "default": "./dist/publish/content/idempotency.js"
+    },
+    "./publish/content/plan-rows": {
+      "types": "./dist/publish/content/plan-rows.d.ts",
+      "import": "./dist/publish/content/plan-rows.js",
+      "default": "./dist/publish/content/plan-rows.js"
+    },
+    "./publish/content/report-labels": {
+      "types": "./dist/publish/content/report-labels.d.ts",
+      "import": "./dist/publish/content/report-labels.js",
+      "default": "./dist/publish/content/report-labels.js"
+    },
     "./public-http/http/site/render/doc/doc-render-contract": {
       "types": "./dist/public-http/http/site/render/doc/doc-render-contract.d.ts",
       "import": "./dist/public-http/http/site/render/doc/doc-render-contract.js",
@@ -1742,6 +1810,16 @@
       "types": "./dist/public-http/middleware/theme-asset-dirs.d.ts",
       "import": "./dist/public-http/middleware/theme-asset-dirs.js",
       "default": "./dist/public-http/middleware/theme-asset-dirs.js"
+    },
+    "./themes/theme-slots": {
+      "types": "./dist/themes/theme-slots.d.ts",
+      "import": "./dist/themes/theme-slots.js",
+      "default": "./dist/themes/theme-slots.js"
+    },
+    "./public-http/middleware/public-page-security-headers": {
+      "types": "./dist/public-http/middleware/public-page-security-headers.d.ts",
+      "import": "./dist/public-http/middleware/public-page-security-headers.js",
+      "default": "./dist/public-http/middleware/public-page-security-headers.js"
     },
     "./public-http/middleware/theme-content-security-headers": {
       "types": "./dist/public-http/middleware/theme-content-security-headers.d.ts",

@@ -69,6 +69,7 @@
       "./source-control/site/provider-module": "universal",
       "./source-control/site/static-site-packager-port": "universal",
       "./backup/site/saved-keys-port": "universal",
+      "./backup/site/saved-keys": "universal",
       "./backup/site/static-download-html": "universal",
       "./backup/site/credential-warnings": "universal",
       "./backup/site/share-refusal": "universal",
@@ -375,6 +376,11 @@
       "types": "./dist/backup/site/saved-keys-port.d.ts",
       "import": "./dist/backup/site/saved-keys-port.js",
       "default": "./dist/backup/site/saved-keys-port.js"
+    },
+    "./backup/site/saved-keys": {
+      "types": "./dist/backup/site/saved-keys.d.ts",
+      "import": "./dist/backup/site/saved-keys.js",
+      "default": "./dist/backup/site/saved-keys.js"
     },
     "./backup/site/static-download-html": {
       "types": "./dist/backup/site/static-download-html.d.ts",
