@@ -803,6 +803,31 @@
    "normalizeCredentialToken": "function:1eb9527a79"
   }
  },
+ "./secrets/legacy-codecs": {
+  "types": "./dist/secrets/legacy-codecs.d.ts",
+  "symbols": {
+   "DATABASE_DESTINATION_AAD_VERSION": "variable:a70e7f0151",
+   "EXTERNAL_MCP_AAD_VERSION": "variable:c2f2055e84",
+   "ExternalMcpAadIdentity": "interface:05f057e244",
+   "LegacyVaultPolicy": "interface:6119c60204",
+   "PUBLISH_CONTENT_PEER_AAD_VERSION": "variable:ebbff0ac41",
+   "VaultLegacyContext": "interface:b0faef0b22",
+   "buildCustomCredentialAad": "function:ee3ada7c8f",
+   "buildDatabaseDestinationAad": "function:f232b890dd",
+   "buildExecutionCredentialAad": "function:a6fec1ffd2",
+   "buildExternalMcpEnvAad": "function:2bde0c17d8",
+   "buildExternalMcpOAuthAad": "function:ad21ab9378",
+   "buildMediaProviderCredentialAad": "function:275281c86e",
+   "buildPublishContentPeerAad": "function:6e1fc4db07",
+   "buildPublishCredentialAad": "function:d266ec882b",
+   "buildSiteAssistantCredentialAad": "function:7fcebf7ee6",
+   "buildSourceControlCredentialAad": "function:9053fdfecb",
+   "buildVendorCredentialAad": "function:ebb8e4cdcd",
+   "legacyTargetProvider": "function:4d7366fefa",
+   "legacyVaultAad": "function:20e89f2a74",
+   "normalizeLegacyVaultPayload": "function:b64c315ea9"
+  }
+ },
  "./secrets/legacy-owner": {
   "types": "./dist/secrets/legacy-owner.d.ts",
   "symbols": {

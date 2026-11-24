@@ -1964,6 +1964,13 @@
    "decodeStrictBase64": "function:003d1a8bf3"
   }
  },
+ "./contracts/site/tool-access-change": {
+  "types": "./dist/contracts/site/tool-access-change.d.ts",
+  "symbols": {
+   "NotifyToolAccessChanged": "type:5eacbbd7df",
+   "ToolAccessLoweringError": "class:ca621f5ff9"
+  }
+ },
  "./contracts/site/tool-metadata-approval-policy": {
   "types": "./dist/contracts/site/tool-metadata-approval-policy.d.ts",
   "symbols": {
@@ -2461,6 +2468,7 @@
    "UUID": "type:b5f9103acc",
    "appendSerialTask": "function:e6bc8fddb8",
    "createConsoleLogger": "function:ac234f21fa",
+   "createLazyProxy": "function:47a9d0596b",
    "decodeSseFrames": "function:f00b412a99",
    "decodeSseStream": "function:96658af6fa",
    "describeLogMeta": "function:dc4328b13c",

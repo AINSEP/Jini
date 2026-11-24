@@ -64,5 +64,17 @@
    "resolveDefaultTimeoutMs": "function:0db5bf682a",
    "runInWorkerSandbox": "function:cf842980ba"
   }
+ },
+ "./node-worker/per-call-runner": {
+  "types": "./dist/node-worker/per-call-runner.d.ts",
+  "symbols": {
+   "CreatePerCallWorkerRunnerOptional": "interface:1bbce319a2",
+   "CreatePerCallWorkerRunnerRequired": "interface:26f18a0b8f",
+   "PER_CALL_WORKER_ENV_KEYS": "variable:6d6e2834b0",
+   "PerCallWorkerTimeoutPolicy": "interface:bc62e2490b",
+   "createPerCallWorkerRunner": "function:005025c435",
+   "perCallWorkerEnv": "function:d7586e9328",
+   "resolvePerCallWorkerTimeoutMs": "function:12d122bd8e"
+  }
  }
 }

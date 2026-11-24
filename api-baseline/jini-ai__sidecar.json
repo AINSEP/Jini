@@ -29,6 +29,7 @@
    "NamespaceOptionalArgs": "type:d5b595df52",
    "NamespaceResolutionOptions": "type:b80002e16e",
    "ObservedServer": "interface:09da4c6bfc",
+   "ParentWatchdogPorts": "interface:6110713a83",
    "PortAllocation": "type:1f561ef571",
    "PortRequest": "type:4e806569ab",
    "ProjectRuntimePathRequest": "type:457705fa50",
@@ -80,8 +81,27 @@
    "resolveRuntimeRoot": "function:e95991d497",
    "resolveSidecarBase": "function:3f8e13305e",
    "resolveSourceRuntimeRoot": "function:0eeb6cc28b",
+   "startOwnParentWatchdog": "function:a293973fa1",
    "writeDaemonRegistryRecord": "function:318b4fc9a8",
    "writeJsonFile": "function:da1cfcfdc3"
+  }
+ },
+ "./daemon-origin": {
+  "types": "./dist/daemon-origin.d.ts",
+  "symbols": {
+   "AgentDaemonOriginResolver": "interface:39b0ada9ec",
+   "DaemonOriginEnv": "type:d4b35e7158",
+   "allocateFreePort": "function:e4ee7db7c1",
+   "createAgentDaemonOriginResolver": "function:4c0afc18e1"
+  }
+ },
+ "./daemon-park-recovery": {
+  "types": "./dist/daemon-park-recovery.d.ts",
+  "symbols": {
+   "DaemonParkHeaders": "interface:8a8bc225bc",
+   "DaemonParkRecoveryOptional": "interface:3fdf1286db",
+   "DaemonParkRecoveryRequired": "interface:7fd19494e7",
+   "fetchWithDaemonParkRecovery": "function:ade16c61db"
   }
  },
  "./respawn-policy": {

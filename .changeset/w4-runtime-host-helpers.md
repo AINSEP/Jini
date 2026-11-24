@@ -10,6 +10,8 @@
 "@jini-ai/devops": minor
 "@jini-ai/chat": minor
 "@jini-ai/cli": minor
+"@jini-ai/db": minor
+"@jini-ai/diagnostics": minor
 ---
 
 Host runtime helpers extracted from a site host (all product values injected):
@@ -19,4 +21,4 @@ Host runtime helpers extracted from a site host (all product values injected):
 `node-worker/per-call-runner`; `sidecar` parent watchdog, `daemon-origin` and `daemon-park-recovery`;
 `server` `shutdown`, `shutdown/boot-work` and `shutdown/idle-park`; `devops` `local-dev` boot listener and
 bind-host resolver; `chat` `core/durable-runs/run-finalizer`; `cli` strict stdin request fields and
-`parsePortValue`.
+`parsePortValue`; `devops` `dns` domain-binding sweeper; `diagnostics` `browser-diagnostics`; `db` `transfer` `captureSqliteBackupBytes`.
