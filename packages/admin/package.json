@@ -687,7 +687,9 @@
       "./screens/email/EmailSenderTab": "browser",
       "./screens/email/EmailActivityTab": "browser",
       "./screens/email/EmailTemplatesTab": "browser",
-      "./screens/trash/trash-i18n/create-trash-dictionary": "universal"
+      "./screens/trash/trash-i18n/create-trash-dictionary": "universal",
+      "./screens/providers/AlwaysAllowPanel": "browser",
+      "./screens/providers/hooks/use-always-allow.hooks": "browser"
     },
     "isolation": {
       "shared": [
@@ -951,12 +953,7 @@
         "./screens/observability/recent-errors-rules": "browser",
         "./screens/observability/tool-gaps-panel": "browser",
         "./screens/email/hooks/use-email-template-view.hooks": "browser",
-        "./screens/media/hooks/use-media-card-metadata.hooks": "media",
-        "./screens/email/EmailParts": "browser",
-        "./screens/email/EmailOverviewTab": "browser",
-        "./screens/email/EmailSenderTab": "browser",
-        "./screens/email/EmailActivityTab": "browser",
-        "./screens/email/EmailTemplatesTab": "browser"
+        "./screens/media/hooks/use-media-card-metadata.hooks": "media"
       }
     },
     "optionalPeers": {
@@ -4271,6 +4268,16 @@
       "types": "./dist/screens/trash/trash-i18n/create-trash-dictionary.d.ts",
       "import": "./dist/screens/trash/trash-i18n/create-trash-dictionary.js",
       "default": "./dist/screens/trash/trash-i18n/create-trash-dictionary.js"
+    },
+    "./screens/providers/AlwaysAllowPanel": {
+      "types": "./dist/screens/providers/AlwaysAllowPanel.d.ts",
+      "import": "./dist/screens/providers/AlwaysAllowPanel.js",
+      "default": "./dist/screens/providers/AlwaysAllowPanel.js"
+    },
+    "./screens/providers/hooks/use-always-allow.hooks": {
+      "types": "./dist/screens/providers/hooks/use-always-allow.hooks.d.ts",
+      "import": "./dist/screens/providers/hooks/use-always-allow.hooks.js",
+      "default": "./dist/screens/providers/hooks/use-always-allow.hooks.js"
     }
   },
   "files": [
