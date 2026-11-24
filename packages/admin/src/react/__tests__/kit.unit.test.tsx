@@ -1,11 +1,11 @@
-import { render, renderHook, screen } from '@testing-library/react';
+import { act, render, renderHook, screen, waitFor } from '@testing-library/react';
 import { createRef, type ReactNode } from 'react';
 import { describe, expect, it, vi } from 'vitest';
 import { AdminKitProvider, Button, Icon, InfoTip, TabBar, type AdminKitChat, type KitIconName, useAdminKitChatPosters, useAdminKitValues, useAdminThemeKit, useChatT, useDirtyGuard, useFetchQuery, useMediaProviderRules, useT } from '../kit.js';
 import {
   CodeWithLines, CodeWrapToggle, I18nProvider, PreviewModalShell, RemixIcon, SettingsDialogShell, Toast,
   useAdminKitChatValues, useCodeWrap, useCopyToClipboard, useFabPosition, useInfoTip, usePanelPosition, useSelectDropdown, useSerialWrites, useTabBarKeyboard,
-  useTabbedDialog,
+  useTabbedDialog, useCursorPages, useDebouncedHtmlPreview, useExecutionCredential, useI18n, useSettingsSlice, useStandingDraftAutosave, useWiredCopyToClipboard,
   type AdminKit, type AdminKitHooks, type AdminKitValues, type ChatPaneAgent, type FabPositionInput,
 } from '../kit.js';
 import { fakeAdminKit, fixtureQuery } from '../testing-kit.js';
@@ -338,5 +338,68 @@ describe('admin kit: settings-slice values, visible interval and chat title/slot
     expect(got.mcpUiSurfaceSlotKey({ data: { id: 'a' } })).toBe('a');
     expect(got.midRunUserMessageSlotKey({ data: {} })).toBeUndefined();
     expect([got.MCP_UI_EXT_EVENT_NAME, got.MID_RUN_USER_MESSAGE_EXT_EVENT_NAME]).toEqual(['mcp-x', 'mid-x']);
+  });
+});
+
+describe('admin kit: execution, settings-slice and editor hooks and values (A-K2-0 batch 3)', () => {
+  const wrap = (kit: AdminKit) => ({ children }: { children: ReactNode }) => <AdminKitProvider kit={kit}>{children}</AdminKitProvider>;
+
+  it('each new hook facade forwards its arguments to the injected hook and returns its result unchanged', () => {
+    const useSettingsSliceSpy = vi.fn(() => ({ value: 7, loadError: null, saveState: { status: 'idle' as const }, onChange: () => {}, refresh: async () => {} }));
+    const useWiredCopySpy = vi.fn(() => ({ copied: true, copy: async () => true }));
+    const useI18nSpy = vi.fn(() => ({ locale: 'fr', setLocale: () => {}, t: (key: string) => key }));
+    const kit = fakeAdminKit({ hooks: { useSettingsSlice: useSettingsSliceSpy as unknown as AdminKitHooks['useSettingsSlice'], useWiredCopyToClipboard: useWiredCopySpy, useI18n: useI18nSpy } });
+    const options = { load: async () => 1, save: async () => [], defaultValue: 1, refreshPort: { publish: () => {}, subscribe: () => () => {} } };
+    expect(renderHook(() => useSettingsSlice(options), { wrapper: wrap(kit) }).result.current.value).toBe(7);
+    expect(useSettingsSliceSpy).toHaveBeenCalledWith(options);
+    expect(renderHook(() => useWiredCopyToClipboard(250), { wrapper: wrap(kit) }).result.current.copied).toBe(true);
+    expect(useWiredCopySpy).toHaveBeenCalledWith(250);
+    expect(renderHook(() => useI18n(), { wrapper: wrap(kit) }).result.current.locale).toBe('fr');
+  });
+
+  it('the fake kit hooks behave like a quiet host: slice holds its default, preview echoes the source, i18n is English', () => {
+    const wrapper = wrap(fakeAdminKit());
+    const slice = renderHook(() => useSettingsSlice({ load: async () => 'a', save: async () => [], defaultValue: 'a', refreshPort: { publish: () => {}, subscribe: () => () => {} } }), { wrapper });
+    expect(slice.result.current.value).toBe('a');
+    expect(renderHook(() => useDebouncedHtmlPreview({ source: '<p>x</p>', render: async () => '' }), { wrapper }).result.current).toEqual({ document: '<p>x</p>', loading: false, error: null });
+    expect(renderHook(() => useI18n(), { wrapper }).result.current.locale).toBe('en');
+    const draft = renderHook(() => useStandingDraftAutosave({ port: {} as never, backup: {} as never, entryId: null, enabled: false }), { wrapper }).result.current;
+    expect(draft.recoverableDraft).toBeNull();
+    expect(renderHook(() => useExecutionCredential({ byok: {} as never, onByokChange: () => {}, port: {} as never, effects: {} as never }), { wrapper }).result.current.canSaveKey).toBe(false);
+  });
+
+  it('the fake cursor pages load the first page for the initial filters and refetch when the filters change', async () => {
+    const fetchPage = vi.fn(async ({ filters }: { filters: string }) => ({ items: [filters], nextCursor: null }));
+    const view = renderHook(() => useCursorPages({ key: ({ filters }) => ['k', filters], fetchPage, initialFilters: 'a' }), { wrapper: wrap(fakeAdminKit()) });
+    await waitFor(() => expect(view.result.current.rows).toEqual(['a']));
+    act(() => view.result.current.applyFilters('b'));
+    await waitFor(() => expect(view.result.current.rows).toEqual(['b']));
+    expect(fetchPage).toHaveBeenCalledTimes(2);
+  });
+
+  it('the fake values behave like the host ones for config writers, preset lookup, response guard, accent and markdown', () => {
+    const v = fakeAdminKit().values;
+    const config = { mode: 'local-cli' as const, byok: { protocol: 'openai' as const, providerId: 'p1', apiKey: '', baseUrl: '', model: '' }, localCli: { agentId: null } };
+    expect(v.nextConfigForAgentSelect({ config, agentId: 'a' }).localCli.agentId).toBe('a');
+    expect(v.nextConfigForAgentModel({ config, agentId: 'a', model: 'm' }).localCli.modelByAgentId).toEqual({ a: 'm' });
+    expect(v.nextConfigForAgentReasoning({ config, agentId: 'a', reasoning: 'high' }).localCli.reasoningByAgentId).toEqual({ a: 'high' });
+    expect(v.resolveSelectedPreset({ presets: [], config: config.byok })).toBeNull();
+    expect(v.requireExecutionResponseData({ response: { data: 5 }, callSite: 'x' })).toBe(5);
+    expect(() => v.requireExecutionResponseData({ response: null, callSite: 'loadThing' })).toThrow(/loadThing/);
+    expect(v.normalizeAccentColor({ value: 3 })).toBeNull();
+    expect(v.resolveAccentColor({ value: 3 })).toBe('black');
+    expect(v.renderMarkdownToSafeHtml('<b>&')).toBe('&lt;b&gt;&amp;');
+    expect(v.sourceDisplayLabel({ source: { id: 'i', fields: { url: 'u' } }, fieldSpecs: [{ key: 'url', label: 'U', kind: 'url' }] })).toBe('u');
+    expect(v.isEditorSourceError({ error: new Error('x') })).toBe(false);
+    expect(v.resolveSelectTriggerLabel({ selectedOption: null, placeholder: 'pick' }).text).toBe('pick');
+  });
+
+  it('the fake retry makes one attempt and the fake folder-drop maps files through the host port', async () => {
+    const v = fakeAdminKit().values;
+    const load = vi.fn(async () => 'ok');
+    await expect(v.retryWhileUnreachable({ load, signal: new AbortController().signal, isUnreachable: () => true })).resolves.toBe('ok');
+    expect(load).toHaveBeenCalledOnce();
+    const file = new File(['x'], 'a.txt');
+    expect(v.folderPathsFromDataTransfer({ dataTransfer: { files: [file] } as unknown as DataTransfer, port: { getPathForFile: () => '/p' } })).toEqual(['/p']);
   });
 });

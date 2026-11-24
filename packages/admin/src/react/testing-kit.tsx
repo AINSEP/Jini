@@ -170,7 +170,32 @@ const fakeHooks: AdminKitHooks = {
   useCopyToClipboard: (clipboard) => {
     const [copied, setCopied] = useState(false);
     return { copied, copy: async (text) => { const ok = await clipboard.copyText(text); setCopied(ok); return ok; } };
+  },  useExecutionCredential: () => ({
+    stored: null, apiKeyStoredExternally: false, apiKeyPlaceholder: undefined, storedKeyIsForOtherEndpoint: false, canDiscoverModels: false,
+    saveState: { status: 'idle' }, settingsSaveState: { status: 'idle' }, canSaveKey: false, saveKey: async () => {}, saveSettings: async () => {},
+    legacyKey: null, migrateLegacyKey: async () => {}, dismissLegacyPrompt: () => {},
+  }),
+  // Holds the default until changed; never loads or saves. A test that checks persistence injects its own hook.
+  useSettingsSlice: (options) => {
+    const [value, setValue] = useState<typeof options.defaultValue | null>(options.defaultValue);
+    return { value, loadError: null, saveState: { status: 'idle' }, onChange: setValue, refresh: async () => {} };
   },
+  useStandingDraftAutosave: () => ({
+    recoverableDraft: null, staleBasis: null, dismissRecoverable: () => {}, scheduleAutosave: () => {}, clearStandingDraft: async () => ({ discarded: false }),
+    supersedeBasis: () => {}, preserveFailedSave: () => {},
+  }),
+  useWiredCopyToClipboard: () => {
+    const [copied, setCopied] = useState(false);
+    return { copied, copy: async () => { setCopied(true); return true; } };
+  },
+  useCursorPages: (r) => {
+    const [filters, setFilters] = useState(r.initialFilters);
+    const [page, setPage] = useState<Awaited<ReturnType<typeof r.fetchPage>> | null>(null);
+    useEffect(() => { void r.fetchPage({ filters }).then(setPage); }, [filters]);
+    return { rows: page?.items ?? null, nextCursor: page?.nextCursor ?? null, failure: null, appliedFilters: filters, applyFilters: setFilters, loadingMore: false, loadMore: async () => {} };
+  },
+  useI18n: () => ({ locale: 'en', setLocale: () => {}, t: passthroughTranslator }),
+  useDebouncedHtmlPreview: (r) => ({ document: r.source, loading: false, error: null }),
 };
 
 /** Query hooks that answer immediately with `data`; mutations resolve at once. */
@@ -197,7 +222,7 @@ const fakeTheme: AdminThemeKit = {
 };
 
 // Neutral stand-ins with the hosts' runtime shapes; a test that cares about a value injects its own.
-const fakeValues: AdminKitValues = Object.freeze({
+const fakeValuesDraft: AdminKitValues = {
   SETTINGS_DIALOG_DICTIONARIES: Object.freeze({}),
   DEFAULT_NOTIFICATIONS_PREFERENCES: Object.freeze({ soundEnabled: false, successSoundId: 'fake-success', failureSoundId: 'fake-failure', desktopEnabled: false }),
   UNREACHABLE_RETRY_DELAYS_MS: Object.freeze([1, 2]),
@@ -238,7 +263,33 @@ const fakeValues: AdminKitValues = Object.freeze({
   SAVE_DEBOUNCE_MS: 600,
   startVisibleInterval: ({ tick, periodMs }: { tick: () => void; periodMs: number }) => { const id = setInterval(tick, periodMs); return () => clearInterval(id); },
   findActiveTab: <T extends { id: string }>(r: { tabs: readonly T[]; activeTabId: string | null }) => r.tabs.find((tab) => tab.id === r.activeTabId),
-});
+  nextConfigForAgentSelect: ({ config, agentId }) => ({ ...config, localCli: { ...config.localCli, agentId } }),
+  nextConfigForAgentModel: ({ config, agentId, model }) => ({ ...config, localCli: { ...config.localCli, modelByAgentId: { ...config.localCli.modelByAgentId, [agentId]: model } } }),
+  nextConfigForAgentReasoning: ({ config, agentId, reasoning }) => ({ ...config, localCli: { ...config.localCli, reasoningByAgentId: { ...config.localCli.reasoningByAgentId, [agentId]: reasoning } } }),
+  resolveSelectedPreset: ({ presets, config }) => presets.find((preset) => preset.id === config.providerId) ?? null,
+  // A port with no key and no network: detection answers from the transport, a connection test never succeeds.
+  createExecutionHttpAdapter: ({ transport }) => ({
+    createPort: () => ({ detectLocalAgents: async () => (await transport.detectExecutionAgents({})).data, testConnection: async () => ({ ok: false, message: 'fake-kit' }) }),
+    resetDetectionCache: () => {},
+  }),
+  requireExecutionResponseData: <T,>({ response, callSite }: { response: { data?: T | null } | null | undefined; callSite: string }): T => {
+    if (response?.data == null) throw new Error(`${callSite}: the response carried no data`);
+    return response.data;
+  },
+  // One attempt, no waiting: the delays are the host's.
+  retryWhileUnreachable: ({ load }) => load(),
+  createBrowserViewerClipboard: () => ({ copyText: async () => false }),
+  folderPathsFromDataTransfer: ({ dataTransfer, port }) => Array.from(dataTransfer.files, (file) => port.getPathForFile(file)).filter((path) => path !== ''),
+  findEditorBlockOpening: () => undefined,
+  isEditorSourceError: ({ error }) => error instanceof Error && (error as { code?: unknown }).code === 'EDITOR_SOURCE_INTEGRITY',
+  resolveAccentColor: ({ value }) => (typeof value === 'string' && value !== '' ? value : 'black'),
+  normalizeAccentColor: ({ value }) => (typeof value === 'string' && value !== '' ? value : null),
+  resolveSelectTriggerLabel: ({ selectedOption, placeholder }) => (selectedOption ? { text: selectedOption.label, className: 'fake-select-value' } : { text: placeholder ?? '', className: 'fake-select-placeholder' }),
+  infoTipBubbleStyle: ({ top, left }) => ({ top, left }),
+  renderMarkdownToSafeHtml: (markdown) => markdown.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;'),
+  sourceDisplayLabel: ({ source, fieldSpecs }) => source.label ?? source.fields[fieldSpecs[0]?.key ?? ''] ?? source.id,
+};
+const fakeValues: AdminKitValues = Object.freeze(fakeValuesDraft);
 
 // Posters that never reach a server: a typed answer finds no pending question, a mid-run message finds no
 // running agent, an A2UI action fails with a reason. A test that checks delivery injects its own factory.
