@@ -514,6 +514,8 @@ export type { AgentInventoryEntry, AgentInventorySnapshot, AgentInventorySnapsho
   ComposerDiscoverySelection, CreateA2uiActionPosterOptions, DeliverTypedAnswer, DurableRunBinding, DurableSubscriptionPorts, ExtEventRenderer, ExtEventRendererOptions,
   ExtEventRendererRegistry, ExtEventSlotKey, LastConversationStorage, LastConversationStore, SaveFailureInput, SaveOutcome, UseAssistantChats, UserTextRedactionOptions } from './kit-chat-types.js';
 import type { AgentEvent, ChatAttachment, ChatMessage, ChatPaneAgent, ChatPaneAgentOption, ChatPaneAgentSelection, ChatPaneRuntimeAccess, ChatPaneComposerHandle, ChatRole, ChatRunStatus, ChatTransport, ExtEventCall, ExtEventRenderProps, FabPositionInput, FabPositionResult, FeedbackChange, I18nAdapter, KitA2uiActionDeliveryOutcome, KitA2uiActionPosterInput, KitChatAttachment, KitChatTranslator, KitDeliverMidRunMessage, KitDeliverTypedAnswer, KitMidRunMessageDelivery, KitPosterRequestOptions, KitRedactUserText, KitSecretRedactionSignal, KitTypedAnswerDelivery, KitUserTextRedactionOptions, ReattachRunOptions, RunHandlers, SecretRedactionSignal, StartRunInput, ToolResultMediaBlock } from './kit-chat-types.js';
+import type { AgentInventoryEntry, AgentInventorySnapshot, AgentInventorySnapshotArgs, AssistantChatsClient, AssistantChatsClientPorts, ChatAttachmentValidatorInput,
+  ChatAttachmentValidatorOptions, ExtEventRendererRegistry, LastConversationStorage, LastConversationStore } from './kit-chat-types.js';
 
 export interface AdminKitChat {
   /** The chat translator hook. Screens receive it as an injected hook prop (`useChatT`), never a direct import. */
@@ -541,6 +543,23 @@ export interface AdminKitChat {
   /** The chat library's own copy shown after a typed secret was redacted, and the credential-card guidance line. */
   readonly SECRET_REDACTED_NOTICE: string;
   readonly CREDENTIAL_CARD_GUIDANCE: string;
+  /** True for a run status that will not change again (succeeded, failed or canceled). */
+  isTerminalRunStatus(required: { status: ChatRunStatus | undefined }, optional?: Record<string, never>): boolean;
+  /** A private registry of ext-event renderers (the host builds one per dock instead of using the library's shared one). */
+  createExtEventRendererRegistry(required?: Record<string, never>, optional?: Record<string, never>): ExtEventRendererRegistry;
+  /** Remembers which conversation was last open under `scope`; `storage: null` disables persistence. */
+  createLastConversationStore(required: { scope: string }, optional?: { storage?: LastConversationStorage | null }): LastConversationStore;
+  /** The saved-conversation hook and its save/retry helpers, over the host's ports. */
+  createAssistantChatsClient(required: { ports: AssistantChatsClientPorts }, optional?: Record<string, never>): AssistantChatsClient;
+  /** Session-scoped cache of the last agent list, under the host's storage key. */
+  createAgentInventorySnapshot<T extends AgentInventoryEntry>(required: AgentInventorySnapshotArgs, optional?: Record<string, never>): AgentInventorySnapshot<T>;
+  /** Reads a conversation's messages, reusing the last answer when the host reports it unchanged. */
+  createConditionalHistoryRead(required: {
+    read: (required: { conversationId: string }, optional: { version?: string | undefined }) => Promise<{ messages?: ChatMessage[]; version?: string | undefined; unchanged?: boolean }>;
+  }, optional?: Record<string, never>): (required: { conversationId: string }, optional?: Record<string, never>) => Promise<ChatMessage[]>;
+  /** Drops attachments whose files no longer exist on the host. */
+  createChatAttachmentValidator(required: ChatAttachmentValidatorInput, optional?: Omit<ChatAttachmentValidatorOptions, 'fetchImpl'>)
+    : (attachments: readonly ChatAttachment[]) => Promise<readonly ChatAttachment[]>;
 }
 
 export interface AdminKit {
@@ -653,7 +672,9 @@ export const useFabPosition: AdminKitChat['useFabPosition'] = (r, o) => useAdmin
 /** The chat library's plain values (selection resolver and notice copy), read once per render: the injected object, never copied. */
 export function useAdminKitChatValues(_required: Record<string, never> = {}, _optional: Record<string, never> = {})
   : Pick<AdminKitChat, 'resolveChatPaneSelection' | 'SECRET_REDACTED_NOTICE' | 'CREDENTIAL_CARD_GUIDANCE' | 'conversationTitleForDisplay' | 'deriveConversationTitle'
-    | 'mcpUiSurfaceSlotKey' | 'midRunUserMessageSlotKey' | 'MCP_UI_EXT_EVENT_NAME' | 'MID_RUN_USER_MESSAGE_EXT_EVENT_NAME'> {
+    | 'mcpUiSurfaceSlotKey' | 'midRunUserMessageSlotKey' | 'MCP_UI_EXT_EVENT_NAME' | 'MID_RUN_USER_MESSAGE_EXT_EVENT_NAME'
+    | 'isTerminalRunStatus' | 'createExtEventRendererRegistry' | 'createLastConversationStore' | 'createAssistantChatsClient' | 'createAgentInventorySnapshot'
+    | 'createConditionalHistoryRead' | 'createChatAttachmentValidator'> {
   return useAdminKit().chat;
 }
 

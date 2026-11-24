@@ -403,3 +403,51 @@ describe('admin kit: execution, settings-slice and editor hooks and values (A-K2
     expect(v.folderPathsFromDataTransfer({ dataTransfer: { files: [file] } as unknown as DataTransfer, port: { getPathForFile: () => '/p' } })).toEqual(['/p']);
   });
 });
+
+describe('admin kit: chat factories (A-K2-0 batch 3)', () => {
+  const chat = () => fakeAdminKit().chat;
+
+  it('chat values facade returns the injected factories by identity', () => {
+    const createLastConversationStore = vi.fn(() => ({ read: () => 'c1', write: () => {}, clear: () => {} }));
+    const kit = fakeAdminKit({ chat: { createLastConversationStore } });
+    const wrapper = ({ children }: { children: ReactNode }) => <AdminKitProvider kit={kit}>{children}</AdminKitProvider>;
+    const got = renderHook(() => useAdminKitChatValues({}, {}), { wrapper }).result.current;
+    expect(got.createLastConversationStore({ scope: 's' }, { storage: null }).read()).toBe('c1');
+    expect(createLastConversationStore).toHaveBeenCalledWith({ scope: 's' }, { storage: null });
+  });
+
+  it('the fake run-status and last-conversation helpers behave like the library ones', () => {
+    expect(['queued', 'running', 'succeeded', 'failed', 'canceled', undefined].map((status) => chat().isTerminalRunStatus({ status: status as never })))
+      .toEqual([false, false, true, true, true, false]);
+    const store = chat().createLastConversationStore({ scope: 's' });
+    store.write('c9');
+    expect(store.read()).toBe('c9');
+    store.clear();
+    expect(store.read()).toBeNull();
+  });
+
+  it('the fake renderer registry registers, slots, reports terminal notices and unregisters', () => {
+    const registry = chat().createExtEventRendererRegistry();
+    const renderer = () => null;
+    const off = registry.register({ name: 'x', renderer }, { slotKey: ({ data }) => String(data), terminalNotice: ({ events }) => events.length > 0 });
+    expect(registry.get({ name: 'x' })).toBe(renderer);
+    expect(registry.slot({ name: 'x', data: 7 })).toBe('x:7');
+    expect(registry.hasTerminalNotice({ name: 'x', events: [1] })).toBe(true);
+    off();
+    expect(registry.get({ name: 'x' })).toBeUndefined();
+    registry.register({ name: 'y', renderer });
+    registry.clear();
+    expect(registry.get({ name: 'y' })).toBeUndefined();
+  });
+
+  it('the fake history read unwraps messages and the fake validator keeps every attachment', async () => {
+    const read = vi.fn(async () => ({ messages: [{ id: 'm', role: 'user' as const, content: 'hi' }] }));
+    await expect(chat().createConditionalHistoryRead({ read })({ conversationId: 'c' })).resolves.toHaveLength(1);
+    expect(read).toHaveBeenCalledWith({ conversationId: 'c' }, {});
+    const attachments = [{ path: '/a', name: 'a', kind: 'file' as const }];
+    await expect(chat().createChatAttachmentValidator({ fetch, endpoint: () => '', isSupportedRef: () => true, maxProbedAttachments: 1 })(attachments)).resolves.toBe(attachments);
+    const client = chat().createAssistantChatsClient({ ports: { statusOf: () => 500, sleep: async () => {}, reportPermanent: () => {}, requestRunPrefixes: [] } });
+    expect(client.resolveRememberedConversation({ remembered: 'a', conversations: [], listFailed: false })).toBe('forget');
+    expect(chat().createAgentInventorySnapshot({ storage: sessionStorage, key: 'k' }).read({})).toBeUndefined();
+  });
+});

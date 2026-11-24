@@ -2,6 +2,7 @@ import { forwardRef, useEffect, useMemo, useRef, useState, type RefObject } from
 import type { FetchQueryAdapter, QueryResult } from '@jini-ai/core/fetch';
 import { type AdminKit, type DialogProps, type NativeDialogView, type SettlementGeneration, type ButtonProps, type IconButtonProps, type AdminKitComponents, type AdminKitHooks, type AdminKitValues, type AdminThemeKit, type KitTranslator, type AdminKitChat, type KitDeliverTypedAnswer, type PanelPosition, type FailureChannel, type StandingDraftAutosaveSnapshot, type StandingDraftLocalBackup, type SaveState } from './kit.js';
 import type { UserFacingError } from '@jini-ai/core';
+import type { ExtEventRenderer, ExtEventRendererOptions } from './kit-chat-types.js';
 import { fakeMediaProviders } from './testing-kit-media-providers.js';
 
 const fakeComponents: AdminKitComponents = {
@@ -312,7 +313,39 @@ const fakeChat: AdminKitChat = {
   MCP_UI_EXT_EVENT_NAME: 'fake-mcp-ui',
   MID_RUN_USER_MESSAGE_EXT_EVENT_NAME: 'fake-user-message',
   SECRET_REDACTED_NOTICE: 'fake secret-redacted notice',
-  CREDENTIAL_CARD_GUIDANCE: 'fake credential-card guidance',
+  CREDENTIAL_CARD_GUIDANCE: 'fake credential-card guidance',  // Terminal means the run will not change again.
+  isTerminalRunStatus: ({ status }) => status === 'succeeded' || status === 'failed' || status === 'canceled',
+  // A real in-memory registry: private per call, so one test's renderers never reach another's.
+  createExtEventRendererRegistry: () => {
+    const renderers = new Map<string, { renderer: ExtEventRenderer; options: ExtEventRendererOptions }>();
+    return {
+      register: ({ name, renderer }, options = {}) => { renderers.set(name, { renderer, options }); return () => { renderers.delete(name); }; },
+      get: ({ name }) => renderers.get(name)?.renderer,
+      slot: ({ name, data }) => `${name}:${renderers.get(name)?.options.slotKey?.({ data }) ?? ''}`,
+      hasTerminalNotice: ({ name, events }) => renderers.get(name)?.options.terminalNotice?.({ events }) ?? false,
+      clear: () => renderers.clear(),
+    };
+  },
+  // Remembers in memory only; `storage` is ignored so no test touches the real one.
+  createLastConversationStore: () => {
+    let last: string | null = null;
+    return { read: () => last, write: (conversationId) => { last = conversationId; }, clear: () => { last = null; } };
+  },
+  createAssistantChatsClient: () => ({
+    giveUpOutcome: () => 'permanent',
+    handleSaveFailure: async () => ({ done: true, outcome: 'permanent' }),
+    attemptSave: async () => ({ done: true, outcome: 'saved' }),
+    summarizeFlushOutcomes: () => ({ idsToRelease: [], shouldRefresh: false }),
+    resolveRememberedConversation: ({ remembered, conversations }) => (remembered !== null && conversations.some((c) => c.id === remembered) ? 'restore' : 'forget'),
+    useAssistantChats: () => ({
+      conversations: [], activeId: null, paneKey: 'fake-pane', initialMessages: [], select: () => {}, create: async () => {}, remove: async () => {}, rename: async () => {},
+      onMessagesChange: () => {}, ensureConversationId: async () => null, persistUserTurn: async () => {},
+    }),
+  }),
+  createAgentInventorySnapshot: () => ({ read: () => undefined, write: () => {} }),
+  createConditionalHistoryRead: ({ read }) => async ({ conversationId }) => (await read({ conversationId }, {})).messages ?? [],
+  // Every attachment is treated as still present.
+  createChatAttachmentValidator: () => async (attachments) => attachments,
 };
 
 /** Test-only kit for admin AND for consumer packages whose screens render under it (`@jini-ai/admin/react/testing-kit`).
