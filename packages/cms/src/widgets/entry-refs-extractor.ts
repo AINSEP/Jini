@@ -319,19 +319,16 @@ function warnRejectedMarkers(rejected: readonly EmbedMarkerRejection[], sourceEn
  * row, since an indexable-or-not decision is exactly what this function's contract already commits
  * to for every other ref kind it extracts).
  *
- * **Disclosed gap: a `slug`-only `{"type":"widget","slug":"..."}` marker — no `id` at
- * all — produces no `entry_refs` row either, for the same "no id" branch above, even though
- * `resolver-service.ts`'s `resolveWidgetTypeEmbeds` now resolves it to a real widget at render time.**
- * This function is deliberately pure (see this file's own header — no repo/resolver dependency), and
- * turning a `slug` into the `UUID` `EntryRefRow.targetId` requires exactly the I/O this function's
- * contract forbids itself, so the two cannot be reconciled without either widening this function's
- * signature (a real architectural change, not attempted here) or normalizing a marker's `slug` to a
- * real `id` at WRITE time instead (the host page store's write, not this pass's scope). Until
- * one of those lands, a page embedding a widget ONLY by slug is invisible to safe-delete's where-used
- * check — the exact "reference exists in the markup, index can't see it" hazard this function's own
- * `warnRejectedMarkers` was built to be loud about for a REJECTED marker, but a valid slug-only one
- * does not reach `rejected` (it parses fine), so no warning fires here today. Flagged prominently
- * rather than silently shipped; see this feature's handoff for the same disclosure.
+ * **A `slug`-only `{"type":"widget","slug":"..."}` marker — no `id` at all — produces no row here
+ * either, for the same "no id" branch above; that is closed at WRITE time, not here.** Turning a
+ * `slug` into the `UUID` `EntryRefRow.targetId` needs a repo lookup this pure function's contract
+ * forbids, so a host's page/content write runs `normalizeWidgetSlugMarkers`
+ * (`widget-slug-normalization.ts`) BEFORE persisting and before calling this: every slug-only widget
+ * marker whose slug names a real widget is stored with that widget's `id` added, and this function
+ * then indexes it like any other id-carrying marker, so where-used and safe-delete see it. A slug
+ * with no matching widget is left as authored (render degrades it to a placeholder) and still has no
+ * row — there is no target to protect. A write path that skips the normaliser reopens the gap for
+ * the pages it writes; HTML stored before the normaliser existed is indexed on its next save.
  *
  * `fieldPath` counts every marker, not only indexable ones, so adding a target-kind mapping
  * cannot change an existing occurrence's locator. Nothing parses this human-readable locator;

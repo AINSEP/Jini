@@ -11,6 +11,7 @@ export * from "./page-embed-types.js";
 export * from "./date-label.js";
 export * from "./authorize-helper.js";
 export * from "./where-used.js";
+export * from "./widget-slug-normalization.js";
 export * from "./read-service.js";
 export * from "./write-service.js";
 export * from "./embed-service.js";

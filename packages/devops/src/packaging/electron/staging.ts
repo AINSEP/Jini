@@ -26,8 +26,17 @@ export function stageDir(required: { source: string; destination: string; fs: Pa
 interface DependencyOptions {
   dependencies?: (required: { packageDir: string; fs: PackagingFilesystemPort }) => readonly string[];
 }
+/** Staging options: dependency policy plus where the caller already staged each supplied root. */
+interface StageOptions extends DependencyOptions {
+  /**
+   * Root (as passed, or its real path) → the staged directory the caller copied it to. A root with an
+   * entry can keep a conflicting dependency nested under that directory; a root without one has no
+   * known position, so a conflict on its edges still fails closed.
+   */
+  rootDestinations?: ReadonlyMap<string, string>;
+}
 type PlannedPackage = { directory: string; version: string | undefined };
-/** Roots carry no destination: the caller staged them, so their edges can only land at the top level. */
+/** A root carries a destination only when the caller says where it staged it; otherwise its edges can only land at the top level. */
 type QueuedPackage = { directory: string; destination?: string };
 function stagedPath(outDir: string, name: string): string { return path.join(outDir, 'node_modules', name); }
 function resolveDependency(required: { from: string; name: string; fs: PackagingFilesystemPort; resolver: PackageResolverPort }): string {
@@ -89,7 +98,7 @@ function conflictError(required: { name: string; planned: PlannedPackage; from: 
  * Choose where `planned` ships so Node resolves it from the dependent, or nothing when an existing
  * copy already serves it. A version that conflicts with the hoisted copy stays nested under its
  * dependent, preferring npm's own position, instead of failing or silently picking first-wins.
- * Supplied roots have no known position, so a conflict on their edges still throws.
+ * A supplied root without a caller-declared destination has no known position, so a conflict on its edges still throws.
  */
 function placeDependency(plan: ClosurePlan, required: { from: QueuedPackage; name: string; planned: PlannedPackage }): string | undefined {
   const { from, name, planned } = required;
@@ -137,19 +146,32 @@ function planDependency(plan: ClosurePlan, required: { from: QueuedPackage; name
   plan.staged.set(destination, planned);
   plan.queue.push({ directory, destination });
 }
+/** One queue entry per real root directory, carrying the caller-declared staged destination when known. O(roots). */
+function rootQueue(
+  { roots, fs }: { roots: readonly string[]; fs: PackagingFilesystemPort },
+  { rootDestinations }: { rootDestinations?: ReadonlyMap<string, string> | undefined } = {},
+): QueuedPackage[] {
+  const byDirectory = new Map<string, QueuedPackage>();
+  for (const root of roots) {
+    const directory = fs.realpath({ path: root });
+    const destination = rootDestinations?.get(root) ?? rootDestinations?.get(directory) ?? byDirectory.get(directory)?.destination;
+    byDirectory.set(directory, destination === undefined ? { directory } : { directory, destination });
+  }
+  return [...byDirectory.values()];
+}
 /** Plan selected runtime edges before copying; unresolved/irreconcilable versions throw atomically.
  * Supplied roots are already owned by the caller and are never copied through a back edge.
  * A version that conflicts with the hoisted copy is staged nested under its dependent, so every
  * staged package still resolves its declared dependencies from where it sits.
  * @complexity O(packages × nesting depth + edges × ancestor depth) filesystem reads, O(packages + edges × ancestor depth) plan memory.
- * @example stageTransitiveDependencies({ roots, outDir, excluded, fs, resolver });
+ * @example stageTransitiveDependencies({ roots, outDir, excluded, fs, resolver }, { rootDestinations: new Map([[root, stagedRoot]]) });
  */
 export function stageTransitiveDependencies(required: {
   roots: readonly string[]; outDir: string; excluded: ReadonlySet<string>; fs: PackagingFilesystemPort; resolver: PackageResolverPort;
-}, optional: DependencyOptions = {}): number {
-  const { roots, fs } = required;
-  const rootDirectories = new Set(roots.map(root => fs.realpath({ path: root })));
-  const plan: ClosurePlan = { ...required, staged: new Map(), bindings: new Map(), roots: rootDirectories, queue: [...rootDirectories].map(directory => ({ directory })) };
+}, optional: StageOptions = {}): number {
+  const { fs } = required;
+  const queue = rootQueue({ roots: required.roots, fs }, { rootDestinations: optional.rootDestinations });
+  const plan: ClosurePlan = { ...required, staged: new Map(), bindings: new Map(), roots: new Set(queue.map(entry => entry.directory)), queue };
   for (let index = 0; index < plan.queue.length; index++) {
     const from = plan.queue[index]!;
     for (const name of (optional.dependencies ?? declaredDependencies)({ packageDir: from.directory, fs })) planDependency(plan, { from, name });
