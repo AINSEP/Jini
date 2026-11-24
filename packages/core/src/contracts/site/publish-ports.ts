@@ -32,7 +32,7 @@
 export type PublishPortsSlices = { readonly [entityType: string]: object };
 
 /** The keyed bag: one slice per `entityType` named in `Slices`. */
-export type PublishPorts<Slices extends PublishPortsSlices> = { readonly [K in keyof Slices]: Slices[K] };
+export type PublishPorts<Slices extends PublishPortsSlices> = { readonly [K in keyof Slices]?: Slices[K] };
 
 /** The `entityType` keys a bag names. */
 export type PublishPortsEntityType<Bag extends PublishPortsSlices> = Extract<keyof Bag, string>;

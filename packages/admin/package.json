@@ -267,6 +267,20 @@
       "./posts/PostSettingsDialog": "browser",
       "./posts/editor/toolbar/ToolbarCharacterCount": "browser",
       "./posts/post-url-dialog.css": "browser",
+      "./posts/posts-i18n/create-posts-dictionary": "universal",
+      "./posts/posts-i18n/posts-list-i18n": "universal",
+      "./posts/posts-i18n/posts-list-sort-i18n": "universal",
+      "./posts/posts-i18n/posts-trash-dialog-i18n": "universal",
+      "./posts/posts-i18n/posts-editor-header-i18n": "universal",
+      "./posts/posts-i18n/posts-save-feedback-i18n": "universal",
+      "./posts/posts-i18n/posts-errors-i18n": "universal",
+      "./posts/posts-i18n/posts-settings-dialog-i18n": "universal",
+      "./posts/posts-i18n/posts-toolbar-marks-i18n": "universal",
+      "./posts/posts-i18n/posts-toolbar-blocks-i18n": "universal",
+      "./posts/posts-i18n/posts-toolbar-style-i18n": "universal",
+      "./posts/posts-i18n/posts-url-dialog-i18n": "universal",
+      "./posts/posts-i18n/posts-slug-collision-i18n": "universal",
+      "./posts/posts-i18n/posts-template-preview-i18n": "universal",
       "./screens/media/hooks/use-media-card-metadata.hooks": "browser",
       "./screens/media/grid-size": "universal",
       "./screens/media/hooks/use-media-grid-size.hooks": "browser",
@@ -1647,6 +1661,76 @@
       "default": "./dist/posts/editor/toolbar/ToolbarCharacterCount.js"
     },
     "./posts/post-url-dialog.css": "./src/posts/post-url-dialog.css",
+    "./posts/posts-i18n/create-posts-dictionary": {
+      "types": "./dist/posts/posts-i18n/create-posts-dictionary.d.ts",
+      "import": "./dist/posts/posts-i18n/create-posts-dictionary.js",
+      "default": "./dist/posts/posts-i18n/create-posts-dictionary.js"
+    },
+    "./posts/posts-i18n/posts-list-i18n": {
+      "types": "./dist/posts/posts-i18n/posts-list-i18n.d.ts",
+      "import": "./dist/posts/posts-i18n/posts-list-i18n.js",
+      "default": "./dist/posts/posts-i18n/posts-list-i18n.js"
+    },
+    "./posts/posts-i18n/posts-list-sort-i18n": {
+      "types": "./dist/posts/posts-i18n/posts-list-sort-i18n.d.ts",
+      "import": "./dist/posts/posts-i18n/posts-list-sort-i18n.js",
+      "default": "./dist/posts/posts-i18n/posts-list-sort-i18n.js"
+    },
+    "./posts/posts-i18n/posts-trash-dialog-i18n": {
+      "types": "./dist/posts/posts-i18n/posts-trash-dialog-i18n.d.ts",
+      "import": "./dist/posts/posts-i18n/posts-trash-dialog-i18n.js",
+      "default": "./dist/posts/posts-i18n/posts-trash-dialog-i18n.js"
+    },
+    "./posts/posts-i18n/posts-editor-header-i18n": {
+      "types": "./dist/posts/posts-i18n/posts-editor-header-i18n.d.ts",
+      "import": "./dist/posts/posts-i18n/posts-editor-header-i18n.js",
+      "default": "./dist/posts/posts-i18n/posts-editor-header-i18n.js"
+    },
+    "./posts/posts-i18n/posts-save-feedback-i18n": {
+      "types": "./dist/posts/posts-i18n/posts-save-feedback-i18n.d.ts",
+      "import": "./dist/posts/posts-i18n/posts-save-feedback-i18n.js",
+      "default": "./dist/posts/posts-i18n/posts-save-feedback-i18n.js"
+    },
+    "./posts/posts-i18n/posts-errors-i18n": {
+      "types": "./dist/posts/posts-i18n/posts-errors-i18n.d.ts",
+      "import": "./dist/posts/posts-i18n/posts-errors-i18n.js",
+      "default": "./dist/posts/posts-i18n/posts-errors-i18n.js"
+    },
+    "./posts/posts-i18n/posts-settings-dialog-i18n": {
+      "types": "./dist/posts/posts-i18n/posts-settings-dialog-i18n.d.ts",
+      "import": "./dist/posts/posts-i18n/posts-settings-dialog-i18n.js",
+      "default": "./dist/posts/posts-i18n/posts-settings-dialog-i18n.js"
+    },
+    "./posts/posts-i18n/posts-toolbar-marks-i18n": {
+      "types": "./dist/posts/posts-i18n/posts-toolbar-marks-i18n.d.ts",
+      "import": "./dist/posts/posts-i18n/posts-toolbar-marks-i18n.js",
+      "default": "./dist/posts/posts-i18n/posts-toolbar-marks-i18n.js"
+    },
+    "./posts/posts-i18n/posts-toolbar-blocks-i18n": {
+      "types": "./dist/posts/posts-i18n/posts-toolbar-blocks-i18n.d.ts",
+      "import": "./dist/posts/posts-i18n/posts-toolbar-blocks-i18n.js",
+      "default": "./dist/posts/posts-i18n/posts-toolbar-blocks-i18n.js"
+    },
+    "./posts/posts-i18n/posts-toolbar-style-i18n": {
+      "types": "./dist/posts/posts-i18n/posts-toolbar-style-i18n.d.ts",
+      "import": "./dist/posts/posts-i18n/posts-toolbar-style-i18n.js",
+      "default": "./dist/posts/posts-i18n/posts-toolbar-style-i18n.js"
+    },
+    "./posts/posts-i18n/posts-url-dialog-i18n": {
+      "types": "./dist/posts/posts-i18n/posts-url-dialog-i18n.d.ts",
+      "import": "./dist/posts/posts-i18n/posts-url-dialog-i18n.js",
+      "default": "./dist/posts/posts-i18n/posts-url-dialog-i18n.js"
+    },
+    "./posts/posts-i18n/posts-slug-collision-i18n": {
+      "types": "./dist/posts/posts-i18n/posts-slug-collision-i18n.d.ts",
+      "import": "./dist/posts/posts-i18n/posts-slug-collision-i18n.js",
+      "default": "./dist/posts/posts-i18n/posts-slug-collision-i18n.js"
+    },
+    "./posts/posts-i18n/posts-template-preview-i18n": {
+      "types": "./dist/posts/posts-i18n/posts-template-preview-i18n.d.ts",
+      "import": "./dist/posts/posts-i18n/posts-template-preview-i18n.js",
+      "default": "./dist/posts/posts-i18n/posts-template-preview-i18n.js"
+    },
     "./screens/media/hooks/use-media-card-metadata.hooks": {
       "types": "./dist/screens/media/hooks/use-media-card-metadata.hooks.d.ts",
       "import": "./dist/screens/media/hooks/use-media-card-metadata.hooks.js",

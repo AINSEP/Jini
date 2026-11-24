@@ -28,7 +28,9 @@
       "./webhooks/site/signing.keyring": "node",
       "./webhooks/site/subscriptions": "node",
       "./vendor-credentials/abort-guarded-repo": "node",
-      "./webhooks/sql": "node"
+      "./webhooks/sql": "node",
+      "./secrets": "node",
+      "./vendor-credentials/project-scope": "node"
     },
     "optionalPeers": {
       "better-sqlite3": "opt-in: sqlite storage; import @jini-ai/integrations/media-providers — SQLite storage could not load better-sqlite3. Install better-sqlite3 to enable this feature, or check its installed version and native binaries.",
@@ -119,6 +121,16 @@
       "types": "./dist/webhooks/sql/index.d.ts",
       "import": "./dist/webhooks/sql/index.js",
       "default": "./dist/webhooks/sql/index.js"
+    },
+    "./secrets": {
+      "types": "./dist/secrets/index.d.ts",
+      "import": "./dist/secrets/index.js",
+      "default": "./dist/secrets/index.js"
+    },
+    "./vendor-credentials/project-scope": {
+      "types": "./dist/vendor-credentials/project-scope.d.ts",
+      "import": "./dist/vendor-credentials/project-scope.js",
+      "default": "./dist/vendor-credentials/project-scope.js"
     }
   },
   "typesVersions": {
@@ -167,6 +179,12 @@
       ],
       "webhooks/sql": [
         "./dist/webhooks/sql/index.d.ts"
+      ],
+      "secrets": [
+        "./dist/secrets/index.d.ts"
+      ],
+      "vendor-credentials/project-scope": [
+        "./dist/vendor-credentials/project-scope.d.ts"
       ]
     }
   },

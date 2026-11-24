@@ -3,7 +3,7 @@ import { test } from "vitest";
 
 import { createKeyringBackedSigner } from "../signing.keyring.js";
 import { createFixedSecretSigner, verifySignature } from "../signing.js";
-import type { KeyringPort } from "../ports.js";
+import type { KeyringPort } from "../../secrets/ports.js";
 import type { WebhookSubscriptionRecord } from "../types.js";
 
 const vocabulary = { timestampField: "t", signatureField: "v1" };
