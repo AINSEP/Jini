@@ -100,3 +100,9 @@ preserving its identity across differing Node and undici dispatcher type version
 bind host (its own env/flag precedence), and sets `autoStartPort` only for its production start.
 `resolveBindHost` (same entry) takes the already-picked raw `--host`/env value and the fallback; the host
 injects `source` (its flag/env label for the message) and `invalidHost` (its validation-error factory).
+
+## Wiring (dns due-bindings sweeper)
+
+`startDomainBindingSweeper` (`@jini-ai/devops/dns`): the host injects its pre-bound due-bindings sweep
+(absent → idle handle) and a REQUIRED unref'd timer `scheduler` (`{ every, after }`; the webhook worker's
+`nodeWebhookDeliveryScheduler` fits structurally). Start it only in the process that serves the site.
