@@ -1,4 +1,5 @@
 // @vitest-environment jsdom
+import { useFetchQuery } from "../../../../react/kit.js";
 import { renderHook } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { describe, expect, it, vi } from "vitest";
@@ -34,27 +35,27 @@ describe("useSecurityPermissions", () => {
     [["*"], true],
   ] as const)("evaluates the host's permission against %j after settlement", (effectivePermissions, expected) => {
     const { port, wrapper } = setup({ effectivePermissions: [...effectivePermissions] });
-    const { result } = renderHook(() => useSecurityPermissions({ port, permission: SITE_KEY }), { wrapper });
+    const { result } = renderHook(() => useSecurityPermissions({ port, permission: SITE_KEY, useFetchQuery }), { wrapper });
     expect(result.current.canManageSiteKey).toBe(expected);
   });
 
   it("denies while the permissions read has not settled", () => {
     const { port, wrapper } = setup(undefined);
-    const { result } = renderHook(() => useSecurityPermissions({ port, permission: SITE_KEY }), { wrapper });
+    const { result } = renderHook(() => useSecurityPermissions({ port, permission: SITE_KEY, useFetchQuery }), { wrapper });
     expect(result.current.canManageSiteKey).toBe(false);
   });
 
   it("checks the permission the caller passes, not a built-in one", () => {
     const { port, wrapper } = setup({ effectivePermissions: ["host.other.manage"] });
-    const { result: other } = renderHook(() => useSecurityPermissions({ port, permission: "host.other.manage" }), { wrapper });
-    const { result: siteKey } = renderHook(() => useSecurityPermissions({ port, permission: SITE_KEY }), { wrapper });
+    const { result: other } = renderHook(() => useSecurityPermissions({ port, permission: "host.other.manage", useFetchQuery }), { wrapper });
+    const { result: siteKey } = renderHook(() => useSecurityPermissions({ port, permission: SITE_KEY, useFetchQuery }), { wrapper });
     expect(other.current.canManageSiteKey).toBe(true);
     expect(siteKey.current.canManageSiteKey).toBe(false);
   });
 
   it("reads the port's `me` under the namespaced security permissions key", async () => {
     const { port, queries, wrapper } = setup({ effectivePermissions: [] });
-    renderHook(() => useSecurityPermissions({ port, permission: SITE_KEY }), { wrapper });
+    renderHook(() => useSecurityPermissions({ port, permission: SITE_KEY, useFetchQuery }), { wrapper });
     expect(queries[0]!.key).toEqual(["security", "permissions"]);
     await queries[0]!.fetch();
     expect(port.me).toHaveBeenCalledTimes(1);
