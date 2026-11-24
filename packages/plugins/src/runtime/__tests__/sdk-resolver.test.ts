@@ -38,7 +38,7 @@ describe('registerPluginSdkResolver', () => {
     const { status, out, err } = run(`
       import { registerPluginSdkResolver } from ${JSON.stringify(resolverUrl)};
       import { sep } from 'node:path';
-      registerPluginSdkResolver({ sdkModulePath: ${JSON.stringify(path.join(root, 'host-sdk.mjs'))} });
+      registerPluginSdkResolver({ sdkModulePath: ${JSON.stringify(path.join(root, 'host-sdk.mjs'))}, sdkSpecifiers: ["@jini-ai/plugin-sdk", "@tovu/sdk"] });
       const plugin = await import(${JSON.stringify(pathToFileURL(path.join(root, 'plugin.mjs')).href)});
       let deep = 'no-error';
       try { await plugin.deepImport('@jini-ai/plugin-sdk/private'); } catch (error) { deep = error.code; }
@@ -53,8 +53,8 @@ describe('registerPluginSdkResolver', () => {
     const { status, out } = run(`
       import { registerPluginSdkResolver, PluginSdkResolverAlreadyRegisteredError } from ${JSON.stringify(resolverUrl)};
       const sdkModulePath = ${JSON.stringify(path.join(root, 'host-sdk.mjs'))};
-      registerPluginSdkResolver({ sdkModulePath });
-      try { registerPluginSdkResolver({ sdkModulePath }); console.log('no-throw'); }
+      registerPluginSdkResolver({ sdkModulePath, sdkSpecifiers: ["@jini-ai/plugin-sdk", "@tovu/sdk"] });
+      try { registerPluginSdkResolver({ sdkModulePath, sdkSpecifiers: ["@jini-ai/plugin-sdk", "@tovu/sdk"] }); console.log('no-throw'); }
       catch (error) { console.log(error instanceof PluginSdkResolverAlreadyRegisteredError ? error.name : 'other:' + error.message); }
     `);
     expect(status).toBe(0);

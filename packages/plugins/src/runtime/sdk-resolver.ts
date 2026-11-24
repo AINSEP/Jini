@@ -28,7 +28,6 @@
 
 import { register } from "node:module";
 import { pathToFileURL } from "node:url";
-import { PLUGIN_SDK_SPECIFIERS } from "../host/plugin-format.js";
 
 /**
  * The hook module's own source, registered via a `data:` URL rather than a separate file on disk.
@@ -52,7 +51,10 @@ export async function resolve(specifier, context, nextResolve) {
 }
 `;
 
-let registered = false;
+/** Process-wide registration marker. Keyed on `globalThis` (not module state) so the
+ * exactly-once-per-process guarantee also holds if two copies of this module are loaded. */
+const REGISTERED = Symbol.for("@jini-ai/plugins/runtime/sdk-resolver:registered");
+const processSlots = globalThis as unknown as Record<symbol, true | undefined>;
 
 /** Thrown by a second `registerPluginSdkResolver()` call in the same process — distinguishes the
  * intentional double-registration guard from any other failure, so a test can assert specifically
@@ -71,18 +73,23 @@ export class PluginSdkResolverAlreadyRegisteredError extends Error {
  *
  * @param required.sdkModulePath Absolute path (or `file://` URL) to the runtime's own bundled SDK
  * build, resolved by the host.
+ * @param required.sdkSpecifiers Every exact bare specifier redirected to that build (canonical plus
+ * any legacy aliases the host still honours).
  * @throws If called more than once in the same process.
  */
-export function registerPluginSdkResolver(required: { sdkModulePath: string }, _optional: Record<string, never> = {}): void {
+export function registerPluginSdkResolver(
+  required: { sdkModulePath: string; sdkSpecifiers: readonly string[] },
+  _optional: Record<string, never> = {},
+): void {
   // Exactly once per process — a second call is a boot-sequencing bug, never a silent no-op or a
   // silent double-hook.
-  if (registered) {
+  if (processSlots[REGISTERED]) {
     throw new PluginSdkResolverAlreadyRegisteredError();
   }
 
   const sdkUrl = pathToFileURL(required.sdkModulePath).href;
   const hookModuleUrl = `data:text/javascript,${encodeURIComponent(HOOK_MODULE_SOURCE)}`;
 
-  register(hookModuleUrl, { data: { sdkUrl, sdkSpecifiers: PLUGIN_SDK_SPECIFIERS } }); // legacy alias
-  registered = true;
+  register(hookModuleUrl, { data: { sdkUrl, sdkSpecifiers: [...required.sdkSpecifiers] } });
+  processSlots[REGISTERED] = true;
 }
