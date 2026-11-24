@@ -8,7 +8,8 @@
 import assert from 'node:assert/strict';
 import { test } from 'vitest';
 
-import { findBarReducer, formatFindMatchCount, initialFindBarState, shouldCloseOnGuestChange, type FindBarState, type FindMatchResult } from '../find-bar-state.js';
+import { findBarReducer, formatFindMatchCount, initialFindBarState, shouldCloseOnGuestChange, type FindBarState } from '../find-bar-state.js';
+import type { FindInPageResult } from '@jini-ai/core/contracts/find-in-page';
 import { resolveFindTarget, runFind, stopFind, subscribeToFindResults, type FindableGuest, type FindBridge, type AnchorSelection } from '../find-target.js';
 import { restoreFindInputFocus, shouldKeepReclaimingFindFocus, shouldReclaimFindFocus, FIND_FOCUS_RECLAIM_MS } from '../find-input-focus.js';
 
@@ -251,15 +252,15 @@ test('formatFindMatchCount: blank until a result exists, the injected no-results
 /** A guest whose `found-in-page` listeners a test can fire, and a bridge whose relayed window
  *  results a test can fire — the two sources a search can be reported on. */
 function twoSourceFakes() {
-  const guestListeners = new Set<(event: { result: FindMatchResult }) => void>();
-  const windowListeners = new Set<(result: FindMatchResult) => void>();
+  const guestListeners = new Set<(event: { result: FindInPageResult }) => void>();
+  const windowListeners = new Set<(result: FindInPageResult) => void>();
   const guest: FindableGuest = {
     findInPage: () => 1,
     stopFindInPage: () => {},
     // Cast because a real `<webview>`'s listener methods are an OVERLOAD SET over every webview
     // event; this fake only ever receives `'found-in-page'`, whose payload is the one shape below.
-    addEventListener: ((_event: string, listener: (event: { result: FindMatchResult }) => void) => void guestListeners.add(listener)) as FindableGuest['addEventListener'],
-    removeEventListener: ((_event: string, listener: (event: { result: FindMatchResult }) => void) => void guestListeners.delete(listener)) as FindableGuest['removeEventListener'],
+    addEventListener: ((_event: string, listener: (event: { result: FindInPageResult }) => void) => void guestListeners.add(listener)) as FindableGuest['addEventListener'],
+    removeEventListener: ((_event: string, listener: (event: { result: FindInPageResult }) => void) => void guestListeners.delete(listener)) as FindableGuest['removeEventListener'],
   };
   const bridge: FindBridge = {
     onFindToggle: () => () => {},
@@ -275,14 +276,14 @@ function twoSourceFakes() {
     bridge,
     guestCount: () => guestListeners.size,
     windowCount: () => windowListeners.size,
-    emitGuest: (result: FindMatchResult) => guestListeners.forEach((l) => l({ result })),
-    emitWindow: (result: FindMatchResult) => windowListeners.forEach((l) => l(result)),
+    emitGuest: (result: FindInPageResult) => guestListeners.forEach((l) => l({ result })),
+    emitWindow: (result: FindInPageResult) => windowListeners.forEach((l) => l(result)),
   };
 }
 
 test('subscribeToFindResults: a GUEST target reports on both sources, and a result on the GUEST\'s own event also restores focus — a guest find moves keyboard focus into the guest', () => {
   const fakes = twoSourceFakes();
-  const results: FindMatchResult[] = [];
+  const results: FindInPageResult[] = [];
   let reportedCount = 0;
   const unsubscribe = subscribeToFindResults({ target: { kind: 'guest', element: fakes.guest }, bridge: fakes.bridge, handlers: {
     onResult: ({ result }) => results.push(result),
@@ -312,7 +313,7 @@ test('subscribeToFindResults: a GUEST target reports on both sources, and a resu
 
 test('subscribeToFindResults: a TOP target listens to the window alone', () => {
   const fakes = twoSourceFakes();
-  const results: FindMatchResult[] = [];
+  const results: FindInPageResult[] = [];
   let reportedCount = 0;
   const unsubscribe = subscribeToFindResults({ target: { kind: 'top' }, bridge: fakes.bridge, handlers: {
     onResult: ({ result }) => results.push(result),

@@ -52,6 +52,22 @@ export interface ConversationChatPaneHooks {
   useDeleteConfirmation: () => ConversationChatPaneDeleteConfirmation;
 }
 
+/**
+ * The capture-phase folder-drop rule, injected by the host (`@jini-ai/ui/core`'s
+ * `captureFolderPathDrop` fits): a drop carrying a FOLDER is swallowed and its path written into
+ * `composer` as text; any other drop, or any drop without a `port`, passes through untouched.
+ */
+export type ConversationChatPaneFolderDrop = (input: {
+  event: { readonly dataTransfer: DataTransfer; preventDefault(): void; stopPropagation(): void };
+  port: { getPathForFile(file: File): string } | undefined;
+  composer: { readonly current: { insertText(text: string): void } | null };
+}) => unknown;
+
+/** The pane hook's input: the three host hooks plus the injected folder-drop rule. */
+export interface ConversationChatPaneInput extends ConversationChatPaneHooks {
+  captureFolderDrop: ConversationChatPaneFolderDrop;
+}
+
 /** Every visible string the pane renders. The pane ships no default copy. */
 export interface ConversationChatPaneLabels {
   /** The `<aside>`'s accessible name. */
@@ -93,7 +109,7 @@ export interface ConversationChatPaneState extends ConversationListView {
   setWorkingDirectory: Dispatch<SetStateAction<string | null>>;
   /** Handed to `ChatPane`, which populates it once mounted. */
   composerHandle: RefObject<ChatPaneComposerHandle | null>;
-  /** The `<aside>`'s capture-phase `onDropCapture` (`@jini-ai/ui/core` `captureFolderPathDrop`). */
+  /** The `<aside>`'s capture-phase `onDropCapture` (the injected `captureFolderDrop`). */
   onDropCapture: (event: DragEvent<HTMLElement>) => void;
 }
 
@@ -103,8 +119,10 @@ export interface ConversationChatPaneComponents {
   ChatPane?: ComponentType<ChatPaneProps>;
 }
 
-export interface ConversationChatPaneProps extends ConversationChatPaneHooks {
+export interface ConversationChatPaneProps extends ConversationChatPaneInput {
   onClose: () => void;
+  /** The pane's state hook; pass `useConversationChatPane` from this entry. Required: no default hook. */
+  useConversationChatPaneHook: (input: ConversationChatPaneInput) => ConversationChatPaneState;
   labels: ConversationChatPaneLabels;
   variant?: ChatPaneProps['variant'];
   /** Added beside `jini-conversation-chat-pane` on the `<aside>`, for a host's own skin. */

@@ -7,7 +7,6 @@ export {
   type FindBarAction,
   type FindBarState,
   type FindMatchCountLabels,
-  type FindMatchResult,
 } from './find-bar-state.js';
 export { liveFindClock, type FindFocusClock } from './find-focus-clock.js';
 export { FIND_FOCUS_RECLAIM_MS, restoreFindInputFocus, shouldKeepReclaimingFindFocus, shouldReclaimFindFocus } from './find-input-focus.js';

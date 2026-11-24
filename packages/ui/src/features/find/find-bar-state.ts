@@ -1,14 +1,11 @@
-/** One reported search result: which match is active and how many there are. Structurally the same
- *  shape a host's main-process relay and an embedded guest's own `found-in-page` event both carry. */
-export interface FindMatchResult {
-  readonly activeMatchOrdinal: number;
-  readonly matches: number;
-}
+// A reported search result is core's `FindInPageResult` wire shape: the same shape a host's
+// main-process relay and an embedded guest's own `found-in-page` event both carry.
+import type { FindInPageResult } from '@jini-ai/core/contracts/find-in-page';
 
 export interface FindBarState {
   readonly open: boolean;
   readonly query: string;
-  readonly result: FindMatchResult | null;
+  readonly result: FindInPageResult | null;
   /** Bumped on every `toggle`, including a repeat Cmd+F while already open — see
    *  `useFindBarEffects`'s focus effect, which keys on this rather than on `open` so a second Cmd+F
    *  still refocuses. */
@@ -20,7 +17,7 @@ export const initialFindBarState: FindBarState = { open: false, query: '', resul
 export type FindBarAction =
   | { type: 'toggle' }
   | { type: 'set-query'; query: string }
-  | { type: 'result'; result: FindMatchResult }
+  | { type: 'result'; result: FindInPageResult }
   | { type: 'close' };
 
 /**
@@ -67,7 +64,7 @@ export interface FindMatchCountLabels {
 /** The bar's own counter text: the host's `matchOf` phrasing, or its `noResults` text once a query has
  *  actually returned zero matches — never shown for an empty query, which has no `result` yet
  *  (see `findBarReducer`'s `set-query`). @complexity O(1). */
-export function formatFindMatchCount({ result, labels }: { result: FindMatchResult | null; labels: FindMatchCountLabels }, _options: Record<string, never> = {}): string {
+export function formatFindMatchCount({ result, labels }: { result: FindInPageResult | null; labels: FindMatchCountLabels }, _options: Record<string, never> = {}): string {
   if (result === null) return '';
   if (result.matches === 0) return labels.noResults;
   return labels.matchOf({ ordinal: result.activeMatchOrdinal, total: result.matches });

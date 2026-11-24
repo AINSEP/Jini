@@ -1,4 +1,5 @@
 /** Shared fakes for the conversation-chat-pane tests: the three host hooks and a labels set. */
+import { captureFolderPathDrop } from '@jini-ai/ui/core';
 import type {
   ConversationChatPaneConversations,
   ConversationChatPaneDeleteConfirmation,
@@ -39,7 +40,8 @@ export function fakeHooks({ connected = true, pendingTitle = null, getPathForFil
     confirmDelete: async () => false,
     resolvePending: ({ confirmed }) => void calls.push(`resolve:${confirmed}`),
   };
-  const hooks = { useTransport: () => transport, useConversations: () => conversations, useDeleteConfirmation: () => deleteConfirmation };
+  // The real folder-drop rule a host injects, so the drop tests exercise the composed behaviour.
+  const hooks = { useTransport: () => transport, useConversations: () => conversations, useDeleteConfirmation: () => deleteConfirmation, captureFolderDrop: captureFolderPathDrop };
   return { hooks, calls, transport, conversations, deleteConfirmation, runtimeAccess };
 }
 

@@ -40,7 +40,7 @@
  * session (the right value for stepping to the next/previous match). See {@link runFind}.
  */
 import { orFallbackSync } from '@jini-ai/core/errors/idioms';
-import type { FindMatchResult } from './find-bar-state.js';
+import type { FindInPageResult } from '@jini-ai/core/contracts/find-in-page';
 
 /** The slice of the DOM `Selection` API this file drives — see {@link runFind}. A fake of it is
  *  what tests pass. */
@@ -59,7 +59,7 @@ export function liveAnchorSelection(): AnchorSelection | null {
 
 /** What a guest's `found-in-page` event carries. */
 export interface FindableGuestFoundEvent {
-  readonly result: FindMatchResult;
+  readonly result: FindInPageResult;
 }
 
 /** The slice of Electron's `<webview>` this file drives, declared structurally so this package needs
@@ -79,7 +79,7 @@ export interface FindBridge {
   findInPage: (query: { text: string; forward: boolean; findNext: boolean }) => unknown;
   stopFindInPage: () => unknown;
   /** Every result the window's own `webContents` reports. Returns an unsubscribe. */
-  onFindResult: (required: { listener: (result: FindMatchResult) => void }, options?: {}) => () => void;
+  onFindResult: (required: { listener: (result: FindInPageResult) => void }, options?: {}) => () => void;
 }
 
 /** Which surface a search should run against right now. */
@@ -190,7 +190,7 @@ export function subscribeToFindResults(
   { target, bridge, handlers }: {
     target: FindTarget;
     bridge: FindBridge | undefined;
-    handlers: { onResult: (input: { result: FindMatchResult }) => void; onReported: () => void };
+    handlers: { onResult: (input: { result: FindInPageResult }) => void; onReported: () => void };
   },
   _options: Record<string, never> = {},
 ): () => void {

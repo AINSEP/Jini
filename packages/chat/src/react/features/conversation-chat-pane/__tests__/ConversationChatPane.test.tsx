@@ -2,6 +2,7 @@ import { act, fireEvent, render, screen } from '@testing-library/react';
 import { createElement, Fragment, isValidElement, type ReactElement } from 'react';
 import { expect, it } from 'vitest';
 import { ConversationChatPane } from '../components/ConversationChatPane.js';
+import { useConversationChatPane } from '../hooks/useConversationChatPane.hooks.js';
 import { selectionRunContext } from '../rules.js';
 import type { ConversationChatPaneComponents } from '../types.js';
 import { fakeHooks, LABELS, pathOf, type PaneFakes } from './fixtures.js';
@@ -15,7 +16,7 @@ function renderPane(fakes: PaneFakes = {}) {
     ChatPane: (props: Record<string, unknown>) => { rendered.chat = props; return createElement('textarea', { placeholder: props.placeholder as string }); },
   } as unknown as ConversationChatPaneComponents;
   const view = render(
-    <ConversationChatPane onClose={() => fake.calls.push('close')} labels={LABELS} variant="workspace" components={components} {...fake.hooks} />,
+    <ConversationChatPane onClose={() => fake.calls.push('close')} labels={LABELS} variant="workspace" components={components} useConversationChatPaneHook={useConversationChatPane} {...fake.hooks} />,
   );
   return { ...view, fake, rendered, calls: fake.calls };
 }

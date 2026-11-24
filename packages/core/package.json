@@ -44,6 +44,7 @@
       "./contracts/cards": "universal",
       "./contracts/credentials": "universal",
       "./contracts/mail": "universal",
+      "./contracts/find-in-page": "universal",
       "./contracts/vault": "universal",
       "./contracts/oauth": "universal",
       "./contracts/content-types": "universal",
@@ -401,6 +402,11 @@
       "types": "./dist/contracts/credentials.d.ts",
       "import": "./dist/contracts/credentials.js",
       "default": "./dist/contracts/credentials.js"
+    },
+    "./contracts/find-in-page": {
+      "types": "./dist/contracts/find-in-page.d.ts",
+      "import": "./dist/contracts/find-in-page.js",
+      "default": "./dist/contracts/find-in-page.js"
     },
     "./contracts/mail": {
       "types": "./dist/contracts/mail.d.ts",
