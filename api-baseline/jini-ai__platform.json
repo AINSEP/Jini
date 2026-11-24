@@ -788,7 +788,7 @@
  "./secrets": {
   "types": "./dist/secrets/index.d.ts",
   "symbols": {
-   "AesGcmSecretSealer": "class:6fb67c1031",
+   "AesGcmSecretSealer": "class:7bff6fb985",
    "CREDENTIAL_MESSAGES": "variable:29e32e3172",
    "CREDENTIAL_TOKEN_LIMIT": "variable:807c0c141d",
    "CredentialConnection": "type:ff34644037",
@@ -798,8 +798,8 @@
    "EnvOrFileKeyring": "class:c0448c379a",
    "EnvOrFileKeyringOptions": "interface:5946fa5e28",
    "EnvOrFileKeyringRequired": "interface:37a8d1b818",
-   "FixedRootKeyKeyring": "class:0e104d6480",
-   "FixedSiteKeyKeyring": "class:0e104d6480",
+   "FixedRootKeyKeyring": "class:d5ecdee095",
+   "FixedSiteKeyKeyring": "class:d5ecdee095",
    "GeneratedFileRootKey": "interface:2625d0ec99",
    "GeneratedFileSiteKey": "interface:2625d0ec99",
    "InspectRootKeyMaterialOptions": "interface:7225f71476",
@@ -813,7 +813,9 @@
    "RootKeyRejection": "type:5e91057245",
    "RootKeyReveal": "interface:55ee0d99e1",
    "RootKeyStatus": "interface:9c034db281",
+   "SECRET_OPEN_FAILED": "variable:64b437f3f5",
    "SealedSecret": "interface:65de776c39",
+   "SecretOpenError": "class:9faf05eeeb",
    "SiteKeyEnvironmentPort": "interface:e19b4dcb7d",
    "SiteKeyFileAlreadyExistsError": "class:ce4a268f34",
    "SiteKeyRejection": "type:5e91057245",
@@ -924,7 +926,7 @@
  "./secrets/testing": {
   "types": "./dist/secrets/testing.d.ts",
   "symbols": {
-   "FixedRootKeyKeyring": "class:0e104d6480",
+   "FixedRootKeyKeyring": "class:d5ecdee095",
    "InMemoryKeyring": "class:9b922f29e3",
    "SecretSealerContractRule": "type:ef4bd6b06d",
    "SecretSealerContractSubject": "interface:37b6169644",

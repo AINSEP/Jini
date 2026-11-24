@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "vitest";
-import { AesGcmSecretSealer } from "../secret-sealer.aesgcm.js";
+import { AesGcmSecretSealer, SECRET_OPEN_FAILED, SecretOpenError } from "../secret-sealer.aesgcm.js";
+import { FixedRootKeyKeyring } from "../keyring.env.js";
 import { InMemoryKeyring } from "../keyring.memory.js";
 import { createCipheriv, randomBytes } from "node:crypto";
 import type { KeyringPort, RootKeyHandle } from "@jini-ai/core/contracts/vault";
@@ -77,7 +78,7 @@ test("a value sealed with aad A throws when opened with NO aad", async () => {
     const keyring = new InMemoryKeyring({ hkdfSalt: "fixture-salt" });
     const sealer = new AesGcmSecretSealer({ keyring: keyring });
     const sealed = await sealer.seal({ plaintext: "scoped-token", key: await keyring.activeKey({}), aad: "ws-1:github-pages:cred-42" });
-    await assert.rejects(() => sealer.open({ sealed }), { name: "Error", message: "Unsupported state or unable to authenticate data" });
+    await assert.rejects(() => sealer.open({ sealed }), { name: "SecretOpenError", code: SECRET_OPEN_FAILED, message: "Unsupported state or unable to authenticate data" });
 });
 test("a value sealed with NO aad throws when opened WITH an aad (asymmetry fails both directions)", async () => {
     const keyring = new InMemoryKeyring({ hkdfSalt: "fixture-salt" });
@@ -126,16 +127,58 @@ test("ciphertext shorter than a complete authentication tag is rejected", async 
     await assert.rejects(() => sealer.open({ sealed: { ...sealed, ciphertext: Buffer.alloc(15).toString("base64") } }), /ciphertext too short to contain an auth tag/);
 });
 // This helper creates real historical ciphertext; it does not bypass any public sealer operation.
-async function legacySeal(keyring: KeyringPort, plaintext: string, key: RootKeyHandle) {
+async function legacySeal(keyring: KeyringPort, plaintext: string, key: RootKeyHandle, { iv = randomBytes(12) }: { iv?: Buffer } = {}) {
     const aesKey = await keyring.derive({ workspaceId: "secret-sealer", purpose: "secret-sealer.v1", info: key.keyId });
-    const iv = randomBytes(12);
     const cipher = createCipheriv("aes-256-gcm", aesKey, iv);
     return { keyId: key.keyId, alg: "aes-256-gcm", nonce: iv.toString("base64"),
         ciphertext: Buffer.concat([cipher.update(plaintext, "utf8"), cipher.final(), cipher.getAuthTag()]).toString("base64") };
 }
-test("seal refuses omitted AAD at the runtime boundary", async () => {
+test("omitted seal AAD is zero AAD bytes: the same envelope as aad \"\" and as the historical unbound format", async () => {
+    const keyring = new FixedRootKeyKeyring({ hex: "000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f", hkdfSalt: "fixture-salt" }, {});
+    const iv = Buffer.from("202122232425262728292a2b", "hex");
+    const sealer = new AesGcmSecretSealer({ keyring }, { randomBytesFn: () => iv });
+    const key = await keyring.activeKey();
+    const omitted = await sealer.seal({ plaintext: "unbound-value", key });
+    assert.deepEqual(omitted, await sealer.seal({ plaintext: "unbound-value", key, aad: "" }));
+    assert.deepEqual(omitted, await legacySeal(keyring, "unbound-value", key, { iv }));
+    assert.equal(await sealer.open({ sealed: omitted }), "unbound-value");
+    await assert.rejects(() => sealer.open({ sealed: omitted }, { aad: "ws-1:row" }), SecretOpenError);
+});
+test("seal still refuses an AAD that is present but not a string", async () => {
     const keyring = new InMemoryKeyring({ hkdfSalt: "fixture-salt" });
     const sealer = new AesGcmSecretSealer({ keyring: keyring });
-    // @ts-expect-error Callers must supply AAD even when JavaScript skips type checking.
-    await assert.rejects(() => sealer.seal({ plaintext: "secret", key: { keyId: "v1" } }), /aad must be a string/);
+    for (const aad of [null, 42, { row: "1" }]) {
+        // @ts-expect-error JavaScript callers can pass a non-string; only an omitted AAD defaults.
+        await assert.rejects(() => sealer.seal({ plaintext: "secret", key: { keyId: "v1" }, aad }), /aad must be a string/);
+    }
+});
+test("every failure to open the sealed value itself carries SECRET_OPEN_FAILED (wrong key, tampered, damaged, unknown alg); its message is kept", async () => {
+    // Two real, different root keys built at runtime: the runtime's own wording (OpenSSL in Node,
+    // BoringSSL in Electron) never decides how a wrong key is classified, the code does.
+    const sealedBy = new AesGcmSecretSealer({ keyring: new FixedRootKeyKeyring({ hex: randomBytes(32).toString("hex"), hkdfSalt: "fixture-salt" }, {}) });
+    const openedBy = new AesGcmSecretSealer({ keyring: new FixedRootKeyKeyring({ hex: randomBytes(32).toString("hex"), hkdfSalt: "fixture-salt" }, {}) });
+    const sealed = await sealedBy.seal({ plaintext: "fixture-value", key: { keyId: "v1" }, aad: "fixture-aad" });
+    const wrongKey = await openedBy.open({ sealed }, { aad: "fixture-aad" }).catch((caught: unknown) => caught);
+    assert.ok(wrongKey instanceof SecretOpenError);
+    assert.equal(wrongKey.code, SECRET_OPEN_FAILED);
+    assert.ok(wrongKey.cause instanceof Error, "the runtime's own error is kept as the cause");
+    assert.equal(wrongKey.message, (wrongKey.cause as Error).message);
+    const tampered = Buffer.from(sealed.ciphertext, "base64").map((byte, index) => index === 0 ? byte ^ 1 : byte);
+    for (const damaged of [{ ...sealed, ciphertext: Buffer.from("short").toString("base64") }, { ...sealed, alg: "aes-128-cbc" },
+        { ...sealed, ciphertext: Buffer.from(tampered).toString("base64") }, { ...sealed, nonce: "" }]) {
+        await assert.rejects(sealedBy.open({ sealed: damaged }, { aad: "fixture-aad" }), (caught: unknown) => caught instanceof SecretOpenError && caught.code === SECRET_OPEN_FAILED);
+    }
+});
+test("a keyring that can't derive (no key, an unusable key) is NOT an open failure: its error passes through as itself", async () => {
+    const failure = new Error("no root key: none of the configured sources resolved");
+    const keyring = new InMemoryKeyring({ hkdfSalt: "fixture-salt" });
+    const sealed = await new AesGcmSecretSealer({ keyring }).seal({ plaintext: "fixture-value", key: await keyring.activeKey(), aad: "fixture-aad" });
+    const broken = Object.assign(Object.create(keyring) as InMemoryKeyring, { derive: async () => { throw failure; } });
+    await assert.rejects(new AesGcmSecretSealer({ keyring: broken }).open({ sealed }, { aad: "fixture-aad" }), (caught) => caught === failure);
+});
+test("SecretOpenError keeps a non-Error cause's text as its message", () => {
+    const error = new SecretOpenError({ cause: "opaque failure" });
+    assert.equal(error.message, "opaque failure");
+    assert.equal(error.name, "SecretOpenError");
+    assert.equal(error.cause, "opaque failure");
 });
