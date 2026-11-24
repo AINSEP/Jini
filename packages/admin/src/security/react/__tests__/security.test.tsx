@@ -1,4 +1,5 @@
 import { TestChipField } from './chip-field.fixture.js';
+import { testClipboard } from './clipboard.fixture.js';
 import { reactModuleUi } from '../../../core/react/module-ui.js';
 import { Suspense, StrictMode } from 'react';
 import { afterEach, describe, it, expect, vi } from 'vitest';
@@ -19,14 +20,14 @@ const provider: CredentialProvider = { kind: 'source-control', id: 'git', label:
 const row: CredentialSummary = { kind: 'source-control', id: '1', providerId: 'git', label: 'Personal', configured: true, isDefault: true, createdAt: 'today', updatedAt: 'today' };
 afterEach(cleanup);
 function mount(permissions: readonly string[], options: { root?: boolean; locked?: boolean; rows?: readonly CredentialSummary[]; kit?: ReturnType<typeof createKit> } = {}) {
-  const feature = security({ ui: reactModuleUi, ChipField: TestChipField }), api = createMemorySecurityApi({ providers: [provider], rows: options.rows ?? [] });
+  const feature = security({ ui: reactModuleUi, ChipField: TestChipField, clipboard: testClipboard }), api = createMemorySecurityApi({ providers: [provider], rows: options.rows ?? [] });
   const root = createMemoryRootKey(options.locked ? { status: { active: false, source: 'none', state: 'missing-with-data', keyFilePath: '/key', runtimeMode: 'local' } } : {}); const admin = createAdmin({ modules: [feature], ports: { securityApi: api, ...(options.root ? { rootKey: root } : {}) } }, { permissions });
   const { Page, tabs } = feature.react.pages.secrets;
   render(<StrictMode><KitProvider {...(options.kit ? { kit: options.kit } : {})}><feature.react.Provider admin={admin}><Suspense fallback="Loading"><Page tabs={tabs} description={admin.describe().pages[0]!} /></Suspense></feature.react.Provider></KitProvider></StrictMode>);
   return { admin, api, root };
 }
 describe('security React slice', () => {
-  it('renders denied without grants and never loads credentials', async () => { const feature = security({ ui: reactModuleUi, ChipField: TestChipField }); const api = createMemorySecurityApi({}); const spy = vi.spyOn(api, 'providers'); const admin = createAdmin({ modules: [feature], ports: { securityApi: api } }); const { Page, tabs } = feature.react.pages.secrets; render(<feature.react.Provider admin={admin}><Suspense fallback="Loading"><Page tabs={tabs} description={admin.describe().pages[0]!} /></Suspense></feature.react.Provider>); expect(await screen.findByText('Permission denied')).toBeVisible(); expect(spy).not.toHaveBeenCalled(); expect(screen.queryByRole('textbox')).toBeNull(); });
+  it('renders denied without grants and never loads credentials', async () => { const feature = security({ ui: reactModuleUi, ChipField: TestChipField, clipboard: testClipboard }); const api = createMemorySecurityApi({}); const spy = vi.spyOn(api, 'providers'); const admin = createAdmin({ modules: [feature], ports: { securityApi: api } }); const { Page, tabs } = feature.react.pages.secrets; render(<feature.react.Provider admin={admin}><Suspense fallback="Loading"><Page tabs={tabs} description={admin.describe().pages[0]!} /></Suspense></feature.react.Provider>); expect(await screen.findByText('Permission denied')).toBeVisible(); expect(spy).not.toHaveBeenCalled(); expect(screen.queryByRole('textbox')).toBeNull(); });
   it('renders saved rows read-only without write grants, and omits optional root-key tab', async () => { mount(['security.read'], { rows: [row] }); expect(await screen.findByRole('heading', { name: 'Personal' })).toBeVisible(); expect(screen.queryByRole('button', { name: 'Edit Personal' })).toBeNull(); expect(screen.queryByRole('button', { name: 'Remove Personal' })).toBeNull(); expect(screen.queryByRole('button', { name: 'Add custom provider' })).toBeNull(); expect(screen.queryByRole('tab', { name: 'Root key' })).toBeNull(); });
   it('lazily switches root-key tab with grants and never offers reveal', async () => { mount(['security.read', 'admin.security.tokens.manage'], { root: true }); fireEvent.click(await screen.findByRole('tab', { name: 'Root key' })); expect(await screen.findByRole('button', { name: 'Create root key' })).toBeVisible(); expect(screen.queryByRole('button', { name: /reveal/i })).toBeNull(); fireEvent.click(screen.getByRole('button', { name: 'Create root key' })); await waitFor(() => expect(screen.queryByRole('button', { name: 'Create root key' })).toBeNull()); expect(screen.getByText('Root key ready')).toBeVisible(); });
   it('clears newly saved secret drafts and supports multiple named tokens', async () => { mount(['security.read', 'source-control.credentials.write']); fireEvent.click(await screen.findByRole('button', { name: 'Add Git host token' })); fireEvent.change(await screen.findByLabelText('Name'), { target: { value: 'Work token' } }); fireEvent.change(screen.getByLabelText('Access token'), { target: { value: 'NEVER_RENDER_AFTER_SAVE' } }); fireEvent.click(screen.getByRole('button', { name: 'Save' })); expect(await screen.findByRole('heading', { name: 'Work token' })).toBeVisible(); await waitFor(() => expect(screen.queryByLabelText('Access token')).toBeNull()); expect(document.body.textContent).not.toContain('NEVER_RENDER_AFTER_SAVE'); fireEvent.click(screen.getByRole('button', { name: 'Add another Git host token' })); expect(await screen.findByLabelText('Access token')).toHaveValue(''); });
@@ -41,7 +42,7 @@ describe('security React slice', () => {
 
 
 it('renders an injected denied security page even with read grants', () => {
-  const feature = security({ ui: reactModuleUi, ChipField: TestChipField });
+  const feature = security({ ui: reactModuleUi, ChipField: TestChipField, clipboard: testClipboard });
   const admin = createAdmin({ modules: [feature], ports: { securityApi: createMemorySecurityApi({}) } }, { permissions: ['security.read'] });
   render(<SecurityPage tabs={feature.react.pages.secrets.tabs} description={admin.describe().pages[0]!}
     useSecurityPageHook={(props) => ({ ...useSecurityPage(props, { useSecurityTranslationHook: useSecurityTranslation, useSecurityOwnerControlsHook: useSecurityOwnerControls }), denied: true })} />);

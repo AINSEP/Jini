@@ -1,4 +1,5 @@
 import { TestChipField } from './chip-field.fixture.js';
+import { testClipboard } from './clipboard.fixture.js';
 import { reactModuleUi } from '../../../core/react/module-ui.js';
 import { Suspense } from 'react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
@@ -18,7 +19,7 @@ const deployProvider: CredentialProvider = { kind: 'publish', id: 'deployer', la
   fields: [{ name: 'apiKey', label: 'Deploy API key', secret: true }, { name: 'team', label: 'Team slug', required: true }, { name: 'signing', label: 'Webhook signing value', secret: true }] };
 
 function mount({ permissions, rootKeyScopeNotice, onTabChange }: { permissions: readonly string[]; rootKeyScopeNotice?: string; onTabChange?: (required: { tab: string }) => void }) {
-  const feature = security({ ui: reactModuleUi, ChipField: TestChipField }, rootKeyScopeNotice ? { rootKeyScopeNotice } : {});
+  const feature = security({ ui: reactModuleUi, ChipField: TestChipField, clipboard: testClipboard }, rootKeyScopeNotice ? { rootKeyScopeNotice } : {});
   const api = createMemorySecurityApi({ providers: [gitProvider, deployProvider] });
   const admin = createAdmin({ modules: [feature], ports: { securityApi: api, rootKey: createMemoryRootKey({}) } }, { permissions });
   const { Page, tabs } = feature.react.pages.secrets;
@@ -124,7 +125,7 @@ describe('access tokens tab', () => {
   });
 
   it('denies the tab itself to a viewer without the read grant', async () => {
-    const feature = security({ ui: reactModuleUi, ChipField: TestChipField });
+    const feature = security({ ui: reactModuleUi, ChipField: TestChipField, clipboard: testClipboard });
     const admin = createAdmin({ modules: [feature], ports: { securityApi: createMemorySecurityApi({ providers: [gitProvider] }) } }, { permissions: ['security.read'] });
     const AccessTokens = feature.react.pages.secrets.tabs['access-tokens'];
     render(<KitProvider><feature.react.Provider admin={admin}><Suspense fallback="Loading"><AccessTokens params={{}} permissions={[]} /></Suspense></feature.react.Provider></KitProvider>);

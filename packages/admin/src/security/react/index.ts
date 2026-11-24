@@ -39,8 +39,6 @@ export interface SecurityModuleOptions {
   readonly describeError?: DescribeRootKeyError;
   /** Approved, translated copy for a refusal code; `undefined` (or no describer) shows fixed copy. */
   readonly describeRefusal?: DescribeRootKeyRefusal;
-  /** The clipboard Copy writes to; defaults to the browser clipboard. A denied write is silent. */
-  readonly clipboard?: RevealClipboard;
   /** SEC-13: deep links to the screen that owns each other store (product routes stay in the host). */
   readonly otherStores?: OtherStoreLinks;
   /** SEC-14 (OD-3 d): the host's content-refresh subscription; both credential controllers reload on it. */
@@ -49,11 +47,9 @@ export interface SecurityModuleOptions {
   readonly onCredentialsChanged?: SecurityCredentialsHost['onCredentialsChanged'];
   /** SEC-14: actionable, translated copy for a failed credential write. Submitted secrets are cut out of it. */
   readonly describeCredentialError?: DescribeCredentialError;
-  /** SEC-14: the host's draft token check (Tovu binds `credentialDraftError` to its validator and locale copy). */
+  /** SEC-14: the host's draft token check (the host binds `credentialDraftError` to its validator and locale copy). */
   readonly credentialDraftError?: CredentialDraftError;
 }
-/** Resolved at copy time, so a missing or denied browser clipboard fails silently inside the copy. */
-const browserClipboard: RevealClipboard = { writeText: (text) => globalThis.navigator.clipboard.writeText(text) };
 /** The host injects the renderer helpers; this module states the contract and imports no implementation. */
 type ModuleUi<Page, Tab> = AdminModuleUi<Page, Tab, ComponentType<{ admin: AdminInstance; children: ReactNode }>>;
 function rootKeyParams({ rootKeyScopeNotice, rootKeyTab = {} }: Pick<SecurityModuleOptions, 'rootKeyScopeNotice' | 'rootKeyTab'>, _optional: Record<string, never> = {}) {
@@ -75,11 +71,15 @@ function withAccessTokensParams<M extends ReturnType<typeof withRootKeyParams>>(
 /** One security module per admin scope. Tabs load on demand; host icons reach the page through its
  * lazy wrapper, and the host translator through a context so a locale change never remounts a tab.
  * `ChipField` (required, SEC-10/11) is the host's multiple-choice chip field for "Works for"; the module names no kit slot for it.
- * @example security({ ui: reactModuleUi, ChipField: HostChipField }, { rootKeyTab: { generate: 'hidden' }, tabIcons })
+ * @example security({ ui: reactModuleUi, ChipField: HostChipField, clipboard: hostClipboard }, { rootKeyTab: { generate: 'hidden' }, tabIcons })
  */
 export function security<Page, Tab>(
-  { ui, ChipField }: { ui: ModuleUi<Page, Tab>; ChipField: SecurityChipField },
-  { t = englishSecurity, rootKeyScopeNotice, rootKeyTab, tabIcons, describeError, describeRefusal, clipboard = browserClipboard, accessTokensTab, ...credentials }: SecurityModuleOptions = {},
+  { ui, ChipField, clipboard }: {
+    ui: ModuleUi<Page, Tab>; ChipField: SecurityChipField;
+    /** REQUIRED: the clipboard Copy writes to (the host binds its browser clipboard); Jini reads no ambient one. A denied write is silent. */
+    clipboard: RevealClipboard;
+  },
+  { t = englishSecurity, rootKeyScopeNotice, rootKeyTab, tabIcons, describeError, describeRefusal, accessTokensTab, ...credentials }: SecurityModuleOptions = {},
 ) {
   // Scope membership uses object identity, so bind and return this same per-admin module.
   const module = withAccessTokensParams({ module: withRootKeyParams({ params: rootKeyParams({ ...(rootKeyScopeNotice ? { rootKeyScopeNotice } : {}), ...(rootKeyTab ? { rootKeyTab } : {}) }) }), params: { ...accessTokensTab } });

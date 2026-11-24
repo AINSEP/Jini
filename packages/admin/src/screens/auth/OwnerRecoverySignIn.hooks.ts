@@ -3,7 +3,7 @@ import type { DescribeOwnerRecoveryFailure, OwnerRecoverRequest, UseRecoveryCode
 import { type Translate } from '@jini-ai/core/text';
 /** Reset the owner password with a one-use recovery code. The host injects the base recovery-code
  *  controller hook and its recovery failure describer. */
-export function useOwnerRecoverySignIn({ recover, t, useRecoveryCodeSignIn, ownerRecoveryFailure }: { recover: OwnerRecoverRequest; t: Translate; useRecoveryCodeSignIn: UseRecoveryCodeSignInHook; ownerRecoveryFailure: DescribeOwnerRecoveryFailure }, _options = {}) {
+export function useOwnerRecoverySignIn({ recover, t, useRecoveryCodeSignIn, ownerRecoveryFailure }: { recover: OwnerRecoverRequest; t: Translate; useRecoveryCodeSignIn: UseRecoveryCodeSignInHook; ownerRecoveryFailure: DescribeOwnerRecoveryFailure }, _optional: Record<string, never> = {}) {
   const controller = useRecoveryCodeSignIn({
     recover, t,
     describeFailure: ({ error }) => ownerRecoveryFailure({ error, message: 'The owner account could not be recovered.', action: 'Follow the server explanation. Ask the host operator for help if recovery is unavailable.', step: 'owner-recovery-redeem', t, secrets: [controller.code.trim(), controller.password] }),

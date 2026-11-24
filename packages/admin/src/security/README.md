@@ -23,7 +23,6 @@ What the host injects, and where:
   - `describeError?({ error })`: reads a failure's `code`. Any `detail` is ignored (reader text that
     may echo the key).
   - `describeRefusal?({ code })`: approved, translated copy for a refusal code; otherwise fixed copy.
-  - `clipboard?`: what Copy writes to; defaults to the browser clipboard; a denied write is silent.
   - `tabIcons?`, `rootKeyScopeNotice?`, and `ownerControls` on the Provider.
   - `otherStores?` (SEC-13): `{ [store]: { href, label } }` deep links to the screen that owns each other
     store; product routes stay in the host.
@@ -45,10 +44,12 @@ What the host injects, and where:
   `tokenHint` only. The dialog's parts carry `data-jini-part="security.shared-keys.{source,list,results}"` for host CSS.
 - **Access tokens tab** (`security({ ui }, { accessTokensTab: { pluginsHref } })`): the host's plugins page, linked
   from the empty-hosting hint. Its copy comes from the translator (`messages.en.ts` keys).
+- **Clipboard** (required): `security({ ui, ChipField, clipboard })`. `clipboard` (`{ writeText }`) is what the root-key
+  Copy writes to; the host binds its browser clipboard (Jini reads no ambient `navigator.clipboard`). A denied write is silent.
 - **Chip field slot** (SEC-10/11, required): `security({ ui, ChipField })`. `ChipField` is the host's multiple-choice chip
   component, typed by the Security-owned `SecurityChipFieldProps` (`{ multiple: true, label, options, value, onChange }`); no kit
   name exists for it. The module passes it through `loadAccessTokensTab({ ChipField })` to the credential editor, which renders
-  "Works for" for publish and custom credentials (a saved id whose plugin is off stays as its own chip). Tovu binds its own chip
+  "Works for" for publish and custom credentials (a saved id whose plugin is off stays as its own chip). The host binds its own chip
   field at cutover.
 - **Custom credentials client** (SEC-11): `createHttpCustomCredentials({ transport, workspacePath })` serves the host's own
   method names (`listCustomCredentials`, `createCustomCredential`, `updateCustomCredential`, `deleteCustomCredential`), bodies

@@ -3,7 +3,7 @@ import type { AdminPublishConnectionInput } from '@jini-ai/core/contracts/site/a
 import type { CredentialProvider } from '../models.js';
 import { credentialStore } from '../rules.js';
 /** Use a disposable backend: this contract creates, updates and removes credentials. */
-export async function runSecurityApiConformance({ createApi, provider }: { createApi: (required: Record<string, never>, optional?: Record<string, never>) => SecurityApiPort | Promise<SecurityApiPort>; provider: CredentialProvider }, _optional = {}) {
+export async function runSecurityApiConformance({ createApi, provider }: { createApi: (required: Record<string, never>, optional?: Record<string, never>) => SecurityApiPort | Promise<SecurityApiPort>; provider: CredentialProvider }, _optional: Record<string, never> = {}) {
   const api = await createApi({}), target = credentialStore({ api, kind: provider.kind }); let passed = 0;
   function check(value: boolean, message: string) { if (!value) throw new Error(`Security contract: ${message}`);
     passed++; }
@@ -23,7 +23,7 @@ export async function runSecurityApiConformance({ createApi, provider }: { creat
   return { passed };
 }
 /** Shared publish client contract (W1–W5). Use a disposable backend: it creates, updates, verifies and removes. */
-export async function runPublishCredentialsConformance({ createClient, connection }: { createClient: (required: Record<string, never>, optional?: Record<string, never>) => PublishCredentialsPort | Promise<PublishCredentialsPort>; connection: AdminPublishConnectionInput }, _optional = {}) {
+export async function runPublishCredentialsConformance({ createClient, connection }: { createClient: (required: Record<string, never>, optional?: Record<string, never>) => PublishCredentialsPort | Promise<PublishCredentialsPort>; connection: AdminPublishConnectionInput }, _optional: Record<string, never> = {}) {
   const client = await createClient({}); let passed = 0; const label = `Publish contract ${globalThis.crypto.randomUUID()}`;
   function check(value: boolean, message: string) { if (!value) throw new Error(`Publish credential contract: ${message}`);
     passed++; }

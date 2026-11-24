@@ -22,7 +22,7 @@ function mount({ api, host }: { api: SecurityApiPort; host: SecurityCredentialsH
     <AccessTokensTab ChipField={TestChipField} params={{}} permissions={WRITE} useAccessTokensTabHook={useAccessTokensTab} useCredentialEditorHook={useCredentialEditor} useSharedKeysDialogHook={useSharedKeysDialog} />
   </SecurityCredentialsHostContext.Provider></SecurityPortsContext.Provider></AdminKitProvider>);
 }
-/** A host refresh resource: the publication fires the subscription, as Tovu's content-refresh bus does. */
+/** A host refresh resource: the publication fires the subscription, as the host's content-refresh bus does. */
 function hostBus() {
   const listeners = new Set<() => void>();
   const refreshSignal: SecurityRefreshSignal = { subscribe({ onRefresh }) { listeners.add(onRefresh); return () => { listeners.delete(onRefresh); }; } };

@@ -61,8 +61,10 @@ export interface OtherCredentialSummary {
   readonly store: OtherStoreId; readonly id: string; readonly label: string; readonly category: CredentialCategory;
   readonly configured: boolean; readonly supportsReplace: boolean; readonly envNames?: readonly string[];
   readonly updatedAt?: string | null;
-  /** A server-approved masked hint (opt-in on the HTTP adapter): at most the last four characters, never the value. */
-  readonly tokenHint?: { readonly last4: string; readonly length?: number };
+  /** A server-approved masked hint (opt-in on the HTTP adapter): at most the last four characters, never the value.
+   * Core's `CredentialTokenHint`, narrowed: a hint without a tail is not projected, and a bare legacy tail
+   * (`apiKeyTail`/`masked`) carries no `length`, so `length` is present only when the server sent one. */
+  readonly tokenHint?: Readonly<Partial<Pick<CredentialTokenHint, 'length'>> & { last4: NonNullable<CredentialTokenHint['last4']> }>;
 }
 /** A host deep link to the screen that owns one other store (Create and the full field set live there). */
 export interface OtherStoreLink { readonly href: string; readonly label: string }

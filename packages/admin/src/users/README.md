@@ -15,8 +15,8 @@ not import `@jini-ai/admin` (package layer rule). Why the engine/host split is d
 
 **Needs injected:** nothing. `t({ locale, key })` is a pure lookup; the host binds it to its locale
 hook and passes the bound translator into the users controller (`useLocalizedUsers` in
-`@jini-ai/user-management/react` takes it as `t`). Tovu's binding:
-`apps/admin/src/features/users/hooks/use-wired-users.hooks.ts`.
+`@jini-ai/user-management/react` takes it as `t`). The host's binding is its
+wired-users hook.
 
 **Provides:** `t` from `@jini-ai/admin/users/users-i18n`. A key this dictionary misses falls back to
 `ADMIN_COMMON_I18N`, then to the English source string. Product copy never enters this dictionary;

@@ -1,4 +1,5 @@
 import { reactModuleUi } from '../../../core/react/module-ui.js';
+import { testClipboard } from './clipboard.fixture.js';
 import { Suspense } from 'react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, fireEvent, render, screen, waitFor, within } from '../../../__tests__/fetch-query-support.js';
@@ -18,7 +19,7 @@ const saved = (over: Partial<CredentialSummary>): CredentialSummary => ({ kind: 
 const WRITE = ['security.read', 'system.publish', 'source-control.credentials.write', 'custom-credentials.write'];
 
 async function mount({ rows = [], permissions = WRITE }: { rows?: CredentialSummary[]; permissions?: readonly string[] }) {
-  const feature = security({ ui: reactModuleUi, ChipField: TestChipField });
+  const feature = security({ ui: reactModuleUi, ChipField: TestChipField, clipboard: testClipboard });
   const api = createMemorySecurityApi({ providers: [deploy, git], rows });
   const admin = createAdmin({ modules: [feature], ports: { securityApi: api } }, { permissions });
   const AccessTokens = feature.react.pages.secrets.tabs['access-tokens'];

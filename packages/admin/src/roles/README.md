@@ -27,8 +27,8 @@ locale hook, REQUIRED). `Roles` takes `useRolesHook` (REQUIRED; the host compose
 deps), `goToTab` (the host's `?tab=` navigation) and `usersHref` (the host's users route). The
 list/mutation reads go through the kit facades `useFetchQuery`/`useFetchMutation` (`../react/kit.js`),
 so the host mounts its `AdminKitProvider` and a `FetchQueryProvider`. `resolveRolesTabs({ t })` takes a
-bound `Translate`. Tovu's binding: `features/roles/index.tsx`, `hooks/use-wired-roles.hooks.ts`,
-`roles-host-binding.ts`. CSS: `jini-page`/`jini-card`/`jini-notice` family plus
+bound `Translate`. The host's binding (its roles feature entry, wired-roles hook and roles host
+binding module) supplies these. CSS: `jini-page`/`jini-card`/`jini-notice` family plus
 `jini-roles-{list-table,table-scroll,muted-cell,integrations-form,form-measure,permission-list,permission-form-fields}`,
 which the host styles.
 

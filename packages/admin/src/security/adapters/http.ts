@@ -3,7 +3,7 @@ import type { AdminPublishCredentialsSnapshot, AdminPublishCredentialSummary, Ad
 import type { CredentialTokenHint } from '@jini-ai/core/contracts/site/secrets-credential-token';
 import type { AdminCredentialCopyResult, AdminCredentialCopySource } from '@jini-ai/core/contracts/site/api-security-api-types';
 import type { AdminCustomConnectionInput, AdminCustomCredentialCategoryId, AdminCustomCredentialsSnapshot, AdminCustomCredentialSummary } from '@jini-ai/core/contracts/site/api-security-api-types';
-import type { CredentialKind, CredentialSummary, CredentialProvider, CredentialField, RequestOptions, CredentialCategory, RootKeyStatus, RootKeyResult, RootKeyPreview, RootKeyReveal } from '../models.js';
+import type { CredentialKind, CredentialSummary, CredentialProvider, CredentialField, RequestOptions, CredentialCategory, RootKeyStatus, RootKeyResult, RootKeyPreview, RootKeyReveal, OtherCredentialSummary } from '../models.js';
 type RawRow = Omit<CredentialSummary, 'kind' | 'providerId' | 'lastVerification'> & { providerId?: string };
 /** Explicit projection: a verify result never carries more than its declared fields. */
 function verificationOf({ verification: v }: { verification: AdminPublishCredentialVerification }, _optional = {}): AdminPublishCredentialVerification {
@@ -163,7 +163,7 @@ function rebuildMedia({ current, id, token }: { current: MediaMap; id: string; t
 }
 /** A server-approved hint. At most four characters leave, whatever the server sends: a longer tail
  * (or a pre-masked `••••tail`) is cut to its last four, and the hint's `length` is kept only as a number. */
-function maskedHint({ hint, tail }: { hint?: CredentialTokenHint | null | undefined; tail?: string | null | undefined }, _optional = {}) {
+function maskedHint({ hint, tail }: { hint?: CredentialTokenHint | null | undefined; tail?: string | null | undefined }, _optional = {}): Pick<OtherCredentialSummary, 'tokenHint'> {
   if (hint?.last4) return { tokenHint: { last4: hint.last4.slice(-4), ...(typeof hint.length === 'number' ? { length: hint.length } : {}) } };
   const bare = tail?.replace(/^•+/, '');
   return bare ? { tokenHint: { last4: bare.slice(-4) } } : {};

@@ -12,7 +12,7 @@ class FixtureInputError extends Error {}
 const assertToken = ({ value }: { value: string }) => { if (value.trim() === '') throw new FixtureInputError('blank'); if (value.includes('!')) throw new FixtureInputError('ascii'); };
 const describeInputError = ({ error }: { error: unknown }) => (error instanceof FixtureInputError ? `copy:${error.message}` : undefined);
 
-describe('credentialDraftError reproduces Tovu credentialDraftError (SEC-14)', () => {
+describe('credentialDraftError reproduces the host credentialDraftError (SEC-14)', () => {
   it('an empty optional draft is not checked at all', () => {
     const check = vi.fn(assertToken);
     expect(credentialDraftError({ value: '', assertToken: check, describeInputError })).toBeNull(); expect(check).not.toHaveBeenCalled();

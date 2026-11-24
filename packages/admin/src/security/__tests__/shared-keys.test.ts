@@ -24,7 +24,7 @@ const leakyResults = { results: [{ kind: 'custom', id: 'k1', status: 'granted', 
 afterEach(() => { vi.restoreAllMocks(); });
 
 describe('Shared Keys wire (W9/W10, SEC-12)', () => {
-  it('lists and grants with the exact host bodies and Tovu names', async () => {
+  it('lists and grants with the exact host bodies and host names', async () => {
     const { transport, calls } = fakeTransport(call => call.method === 'GET' ? leakySources : leakyResults);
     const client = createHttpCredentialCopy({ transport, workspacePath: `${WS}/` });
     const { sources } = await client.listCredentialCopySources({});

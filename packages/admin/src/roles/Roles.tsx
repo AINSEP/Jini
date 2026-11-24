@@ -63,11 +63,11 @@ export interface RolesProps {
    *  `null` when the param is absent). Guarded by `resolveRolesTabId`, so a stale link or a typo
    *  opens the Roles list rather than a blank panel. */
   tabId?: string | null;
-  /** The screen's controller hook — REQUIRED: the host binds it (Tovu: `useWiredRoles`, which
-   *  composes `useRoles` with its live port, error port and locale hook); tests pass a fake. The
+  /** The screen's controller hook — REQUIRED: the host binds it (a wrapper that
+   *  composes `useRoles` with the host's live port, error port and locale hook); tests pass a fake. The
    *  same seam convention `@jini-ai/ui`'s `CustomSelect` uses for `useCustomSelect`. */
   useRolesHook: () => RolesHookController;
-  /** The host's `?tab=` navigation, bound to the tab strip's `onChange` (Tovu: `goToRolesTab`). */
+  /** The host's `?tab=` navigation, bound to the tab strip's `onChange`. */
   goToTab: (required: { tabId: string }) => void;
   /** The host's route to the users screen, linked from the page description. */
   usersHref: string;

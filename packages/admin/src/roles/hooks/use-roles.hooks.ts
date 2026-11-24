@@ -31,7 +31,7 @@ import { useRolesMutations } from "./use-roles-mutations.hooks.js";
  * hook, not its own `useAdminLocale()`/dictionary import): this hook already called
  * `useAdminLocale()` for its own error-string translations, so exposing that SAME already-resolved
  * `locale` as a bound `t` (plus the raw value, still needed for `rules.ts`'s `roleMenuItems`/
- * `policyMenuItems` and `apps/admin/src/features/roles/roles-i18n.ts`'s several part-builder helpers, all of which take `locale`
+ * `policyMenuItems` and the host's roles-i18n part-builder helpers, all of which take `locale`
  * directly) on the return value adds no new fetch — `Roles.tsx` used to call `useAdminLocale()` a
  * second time and rebuild its own `translateRoles(locale, key)` closure, entirely redundant with
  * the resolution this hook was already doing internally.
@@ -148,7 +148,7 @@ export interface RolesController {
   /** Bound translator — `key` already resolved against the caller's locale, so `Roles.tsx` never
    *  imports `useAdminLocale`/`roles-i18n` itself. See this file's header. */
   t: (required: { key: string }, optional?: Record<string, never>) => string;
-  /** Raw resolved locale — `rules.ts`'s row-menu builders and `apps/admin/src/features/roles/roles-i18n.ts`'s part-builder
+  /** Raw resolved locale — `rules.ts`'s row-menu builders and the host's roles-i18n part-builder
    *  helpers take `locale` directly rather than a bound translator. See this file's header. */
   locale: string;
 }

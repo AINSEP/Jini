@@ -15,7 +15,7 @@ import type { RolesApiErrorPort } from "../rules.js";
  * @file Characterization of the Roles screen after its move into Jini: every host collaborator
  * (the `RolesPort`, the admin HTTP error port, the locale hook, the `?tab=` navigation and the
  * users route) arrives injected, and nothing here reaches a host module. The host's own binding
- * suites (Tovu `features/roles/__tests__`) keep driving the same code through its real HTTP client.
+ * suites (in the host's roles feature) keep driving the same code through its real HTTP client.
  */
 
 const kit = fakeAdminKit({ query: { useFetchQuery, useFetchMutation, useCachedLoader, useInvalidate, useFetchQueryScope } });

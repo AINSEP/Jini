@@ -98,18 +98,18 @@ export interface AdminPublishCredentialsSnapshot {
 
 /**
  * The Access Tokens page's own category-filter ids, minus `"all"` — mirrors
- * `apps/admin/src/features/security/rules.ts`'s `AccessTokenRowCategoryId` exactly, and
- * `src/features/custom-credentials/types.ts`'s server-side `CustomCredentialCategoryId` (server
- * code never imports from the admin app, so this is the client-side twin, not a re-export).
+ * the admin Security rules' `AccessTokenRowCategoryId` exactly, and the host server's
+ * `CustomCredentialCategoryId` (server code never imports from the admin app, so this is the
+ * client-side twin, not a re-export).
  */
 export type AdminCustomCredentialCategoryId = "source-control" | "hosting" | "media" | "ai" | "ops" | "general";
 
 /**
- * One saved custom-provider credential's non-secret summary (`apps/website/src/server/inbound/admin-http/routes/system/
- * custom-credentials.ts`) — never carries the token or username. Unlike
+ * One saved custom-provider credential's non-secret summary (the host server's custom-credentials
+ * system route) — never carries the token or username. Unlike
  * {@link AdminSourceControlCredentialSummary}, `baseUrl`/`category` ARE part of this summary: both
  * are stored in the clear server-side specifically so the Access Tokens list can group/filter a
- * custom row without decrypting it (see `src/platform/db/schema.sqlite.ts`'s `customCredentialSets` doc).
+ * custom row without decrypting it (see the host schema's `customCredentialSets` doc).
  */
 export interface AdminCustomCredentialSummary {
   readonly scope?: "project" | "site";
