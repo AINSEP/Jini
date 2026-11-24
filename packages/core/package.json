@@ -89,7 +89,6 @@
       "./contracts/site/cms-media": "universal",
       "./contracts/site/cookie-consent-react": "universal",
       "./contracts/site/cookie-consent": "universal",
-      "./contracts/site/core-runtime-mode": "universal",
       "./contracts/site/daemon-tool-audit": "universal",
       "./contracts/site/devops-deploy": "universal",
       "./contracts/site/events-outbox": "universal",
@@ -167,7 +166,8 @@
       "./tool-metadata/pages": "universal",
       "./contracts/site/integrations-credentialed-http": "universal",
       "./contracts/site/widgets-html": "universal",
-      "./contracts/site/integrations-api-connections": "universal"
+      "./contracts/site/integrations-api-connections": "universal",
+      "./contracts/site/cms-menus": "universal"
     },
     "isolation": {
       "entries": {
@@ -620,11 +620,6 @@
       "import": "./dist/contracts/site/cookie-consent.js",
       "default": "./dist/contracts/site/cookie-consent.js"
     },
-    "./contracts/site/core-runtime-mode": {
-      "types": "./dist/contracts/site/core-runtime-mode.d.ts",
-      "import": "./dist/contracts/site/core-runtime-mode.js",
-      "default": "./dist/contracts/site/core-runtime-mode.js"
-    },
     "./contracts/site/daemon-tool-audit": {
       "types": "./dist/contracts/site/daemon-tool-audit.d.ts",
       "import": "./dist/contracts/site/daemon-tool-audit.js",
@@ -994,6 +989,11 @@
       "types": "./dist/contracts/site/integrations-api-connections.d.ts",
       "import": "./dist/contracts/site/integrations-api-connections.js",
       "default": "./dist/contracts/site/integrations-api-connections.js"
+    },
+    "./contracts/site/cms-menus": {
+      "types": "./dist/contracts/site/cms-menus.d.ts",
+      "import": "./dist/contracts/site/cms-menus.js",
+      "default": "./dist/contracts/site/cms-menus.js"
     }
   },
   "files": [
