@@ -304,6 +304,7 @@
       "./admin-http/routes/themes/explore-file-rename": "universal",
       "./admin-http/routes/system/mail-status": "universal",
       "./admin-http/routes/system/site-backups": "universal",
+      "./admin-http/routes/system/site-shares": "universal",
       "./admin-http/routes/system/credential-copy": "universal",
       "./admin-http/routes/system/browser-telemetry": "universal",
       "./admin-http/routes/system/source-control-credentials": "universal",
@@ -2077,6 +2078,11 @@
       "types": "./dist/admin-http/routes/system/site-backups.d.ts",
       "import": "./dist/admin-http/routes/system/site-backups.js",
       "default": "./dist/admin-http/routes/system/site-backups.js"
+    },
+    "./admin-http/routes/system/site-shares": {
+      "types": "./dist/admin-http/routes/system/site-shares.d.ts",
+      "import": "./dist/admin-http/routes/system/site-shares.js",
+      "default": "./dist/admin-http/routes/system/site-shares.js"
     },
     "./admin-http/routes/system/credential-copy": {
       "types": "./dist/admin-http/routes/system/credential-copy.d.ts",
