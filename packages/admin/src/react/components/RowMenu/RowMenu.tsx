@@ -21,7 +21,7 @@ import { useRowMenu } from './RowMenu.hooks.js';
  * DOM sibling of the app root, not a descendant of the clipping element. The measurement and
  * repositioning itself lives in `RowMenu.hooks.tsx` — see that file's doc comment.
  *
- * Unstyled: `.row-menu-trigger`, `.row-menu-popup`, `.row-menu-popup-above`, and `.row-menu-item`
+ * Unstyled: `.row-menu-trigger`, `.row-menu-popup`, `.jini-row-menu-popup-above`, and `.row-menu-item`
  * are emitted for the host stylesheet to define. Only the positioning that has to be measured at
  * runtime is set inline.
  *
@@ -103,7 +103,7 @@ function rowMenuAgentProps(handle: string | undefined, options: { role: AgentEle
 type RowMenuPosition = ReturnType<typeof useRowMenu>['position'];
 
 function rowMenuPopupClassName(position: RowMenuPosition): string {
-  return `row-menu-popup${position?.placement === 'above' ? ' row-menu-popup-above' : ''}`;
+  return `row-menu-popup${position?.placement === 'above' ? ' jini-row-menu-popup-above' : ''}`;
 }
 
 function rowMenuPopupStyle(position: RowMenuPosition): CSSProperties {

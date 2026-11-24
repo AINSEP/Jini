@@ -286,7 +286,7 @@ describe('RowMenu positioning', () => {
     const menu = screen.getByRole('menu');
     expect(menu.style.position).toBe('fixed');
     expect(menu.style.visibility).toBe('visible');
-    expect(menu.className).not.toContain('row-menu-popup-above');
+    expect(menu.className).not.toContain('jini-row-menu-popup-above');
   });
 
   it('flips above when the trigger sits at the bottom of the viewport', () => {
@@ -311,7 +311,7 @@ describe('RowMenu positioning', () => {
 
     fireEvent.click(trigger());
     const menu = screen.getByRole('menu');
-    expect(menu.className).toContain('row-menu-popup-above');
+    expect(menu.className).toContain('jini-row-menu-popup-above');
     expect(menu.style.transform).toBe('translateY(-100%)');
     vi.restoreAllMocks();
   });
@@ -364,7 +364,7 @@ describe('RowMenu hook injection', () => {
     const menu = screen.getByRole('menu');
     expect(menu.style.top).toBe('42px');
     expect(menu.style.left).toBe('7px');
-    expect(menu.className).toContain('row-menu-popup-above');
+    expect(menu.className).toContain('jini-row-menu-popup-above');
 
     // Trigger click and item click are routed through the fake's handlers, not real state.
     fireEvent.click(screen.getByRole('button', { name: 'Actions for "My Post"' }));

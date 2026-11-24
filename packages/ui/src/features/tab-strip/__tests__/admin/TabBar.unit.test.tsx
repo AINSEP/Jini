@@ -99,7 +99,7 @@ describe("TabBar — dot signifier", () => {
     render(<TabBar tabs={tabs} activeId="a" onChange={vi.fn()} ariaLabel="Providers" />);
 
     const tab = screen.getByRole("tab", { name: "GitHub Pages, Connected" });
-    expect(tab.querySelector(".tab-bar-dot")).toBeInTheDocument();
+    expect(tab.querySelector(".jini-tab-bar-dot")).toBeInTheDocument();
   });
 
   it("renders the visual dot but no accessible suffix when dot is set without a dotLabel", () => {
@@ -107,14 +107,14 @@ describe("TabBar — dot signifier", () => {
     render(<TabBar tabs={tabs} activeId="a" onChange={vi.fn()} ariaLabel="Providers" />);
 
     const tab = screen.getByRole("tab", { name: "GitHub Pages" });
-    expect(tab.querySelector(".tab-bar-dot")).toBeInTheDocument();
+    expect(tab.querySelector(".jini-tab-bar-dot")).toBeInTheDocument();
     expect(tab.querySelector(".visually-hidden")).not.toBeInTheDocument();
   });
 
   it("renders neither the dot nor the suffix when dot is not set", () => {
     render(<TabBar tabs={BASE_TABS} activeId="a" onChange={vi.fn()} ariaLabel="My tabs" />);
 
-    expect(screen.getByRole("tab", { name: "Tab A" }).querySelector(".tab-bar-dot")).not.toBeInTheDocument();
+    expect(screen.getByRole("tab", { name: "Tab A" }).querySelector(".jini-tab-bar-dot")).not.toBeInTheDocument();
   });
 });
 

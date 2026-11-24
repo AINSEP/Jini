@@ -8,6 +8,7 @@ import {
   toolCatalogSearchRoute,
   type ToolCatalogEntry,
   type ToolCatalogHttpDeps,
+  type UnscopedToolCatalogHttpDeps,
   type ToolCatalogQuery,
   type ToolCatalogSearchHit,
 } from '../tool-catalog.js';
@@ -31,8 +32,8 @@ function makeCatalog(overrides: Partial<ToolCatalogQuery> = {}): ToolCatalogQuer
   };
 }
 
-function makeDeps(overrides: Partial<ToolCatalogQuery> = {}): ToolCatalogHttpDeps {
-  return { catalog: makeCatalog(overrides) };
+function makeDeps(overrides: Partial<ToolCatalogQuery> = {}): UnscopedToolCatalogHttpDeps {
+  return { catalog: makeCatalog(overrides), unscoped: true };
 }
 
 /** The two routes on an in-memory server (exact matching: the Express spellings are the host bridge's job). */
@@ -84,14 +85,14 @@ describe('toolCatalogSearchRoute', () => {
 
   it('handle returns the catalog search hits, unmodified', async () => {
     const deps = makeDeps();
-    const result = await toolCatalogSearchRoute.handle({ input: { query: 'navigate', limit: 10 }, deps });
+    const result = await toolCatalogSearchRoute.handle({ input: { query: 'navigate', limit: 10 }, deps, context: deps.catalog });
     expect(result).toEqual({ ok: true, value: { hits: HITS } });
   });
 
   it('handle passes query and limit through to the injected search function', async () => {
     let seen: [string, number | undefined] | undefined;
     const deps = makeDeps({ search: ({ query: q }, { limit: l } = {}) => { seen = [q, l]; return []; } });
-    await toolCatalogSearchRoute.handle({ input: { query: 'fill form', limit: 3 }, deps });
+    await toolCatalogSearchRoute.handle({ input: { query: 'fill form', limit: 3 }, deps, context: deps.catalog });
     expect(seen).toEqual(['fill form', 3]);
   });
 });
@@ -108,7 +109,7 @@ describe('toolCatalogDescribeRoute', () => {
 
   it('handle returns the full entry, including inputSchema, for a known id', async () => {
     const deps = makeDeps();
-    const result = await toolCatalogDescribeRoute.handle({ input: { id: 'page.navigate' }, deps });
+    const result = await toolCatalogDescribeRoute.handle({ input: { id: 'page.navigate' }, deps, context: deps.catalog });
     expect(result).toEqual({ ok: true, value: ENTRY });
   });
 
@@ -118,7 +119,7 @@ describe('toolCatalogDescribeRoute', () => {
   // be able to tell "your request was malformed" apart from "that tool does not exist".
   it('handle reports an unknown id as NOT_FOUND, not a validation failure', async () => {
     const deps = makeDeps();
-    const result = await toolCatalogDescribeRoute.handle({ input: { id: 'no.such.tool' }, deps });
+    const result = await toolCatalogDescribeRoute.handle({ input: { id: 'no.such.tool' }, deps, context: deps.catalog });
     expect(result).toEqual({
       ok: false,
       error: { code: 'NOT_FOUND', message: 'no catalog entry for tool id "no.such.tool"' },

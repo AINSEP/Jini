@@ -166,6 +166,8 @@ export type {
   ToolCatalogEntry,
   ToolCatalogDescribeOptions,
   ToolCatalogHttpDeps,
+  ScopedToolCatalogHttpDeps,
+  UnscopedToolCatalogHttpDeps,
   ToolCatalogQuery,
   ToolCatalogSearchHit,
 } from './tool-catalog.js';

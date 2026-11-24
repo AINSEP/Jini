@@ -47,9 +47,30 @@ test('an error frame fails the run with the host sentence and keeps the daemon t
     { failureMessage: 'The assistant could not finish. Send your request again.' });
   expect(outcome).toEqual({ status: 'failed' });
   expect(events).toEqual([
-    { type: 'CUSTOM', name: 'example.status', value: { kind: 'status', label: 'boom: ECONNRESET at /srv/daemon' } },
+    { type: 'CUSTOM', name: 'example.status', value: { kind: 'status', label: 'The assistant could not finish. Send your request again.' } },
     { type: 'RUN_ERROR', message: 'The assistant could not finish. Send your request again.' },
   ]);
+});
+
+test('a failed run writes the complete AG-UI sequence with no daemon text anywhere on the wire, keeping the error code (C131)', async () => {
+  const bytes = new TextEncoder().encode([
+    `event: agent\ndata: ${JSON.stringify({ payload: { type: 'text_delta', delta: 'partial' } })}`,
+    `event: error\ndata: ${JSON.stringify({ payload: { message: 'spawn failed: ENOENT /home/daemon/.bin/agent', error: { code: 'AGENT_SPAWN_FAILED' } } })}`,
+  ].join('\n\n') + '\n\n');
+  const reader = new ReadableStream<Uint8Array>({ start(c) { c.enqueue(bytes); c.close(); } }).getReader();
+  const events: AgUiEvent[] = [];
+  const outcome = await drainRunFramesToAgUi({ reader, threadId: 't', runId: 'r',
+    state: createAgUiTranslationState(translation), notices, write: event => { events.push(event); } },
+    { failureMessage: 'The assistant could not finish. Send your request again.' });
+  expect(outcome).toEqual({ status: 'failed' });
+  expect(events).toEqual([
+    { type: 'TEXT_MESSAGE_START', messageId: 'msg_1', role: 'assistant' },
+    { type: 'TEXT_MESSAGE_CONTENT', messageId: 'msg_1', delta: 'partial' },
+    { type: 'CUSTOM', name: 'example.status', value: { kind: 'status', label: 'The assistant could not finish. Send your request again.', code: 'AGENT_SPAWN_FAILED' } },
+    { type: 'TEXT_MESSAGE_END', messageId: 'msg_1' },
+    { type: 'RUN_ERROR', message: 'The assistant could not finish. Send your request again.' },
+  ]);
+  expect(JSON.stringify(events), 'No daemon path or error text reaches the wire').not.toMatch(/ENOENT|\/home\/daemon/);
 });
 
 test('a daemon-failed end frame fails the run with the host sentence, not the daemon exit text (C131)', async () => {

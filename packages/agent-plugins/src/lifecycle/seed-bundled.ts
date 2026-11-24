@@ -82,7 +82,7 @@ import { createPersistentStateModule } from "./persistent-state.js";
 import type { Dirent } from "node:fs";
 import path from "node:path";
 import { describeErrorForLog } from "@jini-ai/core";
-import { AgentPluginInstallError } from "./install-errors.js";
+import { AgentPluginInstallError, type AgentPluginInstallErrorCode } from "./install-errors.js";
 import { createActivationModule } from "./activation.js";
 import { createBundledDigestsModule } from "./bundled-digests.js";
 import { createBundledSourceArchiveModule } from "./bundled-source-archive.js";
@@ -303,12 +303,32 @@ async function seedOne({ ports, args }: {
   }
 }
 
-/** The reason a bundled plugin failed to seed, for the boot log. An install error carries its own code
- *  and a plain message written for this purpose (never raw filesystem or credential text), so both are
- *  logged; the core describer has no vocabulary for this class and would print a bare "Error".
- *  Everything else keeps the core describer's class-only line. @complexity O(1). */
+/** Safe, fixed boot-log copy per install error code. `AgentPluginInstallError.message` is written for
+ *  the installing caller and can embed a local path (`PUBLISH_FAILED` names the publish target), so the
+ *  log carries this copy instead; `Record` makes a newly added code a compile error until it has copy. */
+const SAFE_INSTALL_FAILURE_COPY: Record<AgentPluginInstallErrorCode, string> = {
+  PLUGIN_ID_CONFLICT: "The plugin id is already installed from different contents.",
+  ARCHIVE_TOO_LARGE: "The plugin archive is too large.",
+  DIGEST_MISMATCH: "The plugin archive does not match its expected digest.",
+  TOO_MANY_ENTRIES: "The plugin archive has too many entries.",
+  UNSAFE_ENTRY_PATH: "The plugin archive has an unsafe entry path.",
+  SYMLINK_ENTRY_REJECTED: "The plugin archive contains a symbolic link.",
+  UNSUPPORTED_ENTRY_KIND: "The plugin archive contains an unsupported entry.",
+  DUPLICATE_ENTRY: "The plugin archive has a duplicate entry.",
+  FILE_TOO_LARGE: "The plugin archive has a file that is too large.",
+  DECOMPRESSION_BOMB: "The plugin archive expands beyond its safe limit.",
+  TOTAL_SIZE_EXCEEDED: "The plugin archive expands beyond its total size limit.",
+  MANIFEST_MISSING: "The plugin manifest is missing.",
+  MANIFEST_INVALID: "The plugin manifest is invalid.",
+  PUBLISH_FAILED: "The plugin package could not be published.",
+};
+
+/** The reason a bundled plugin failed to seed, for the boot log. An install error logs its code with
+ *  fixed safe copy for that code (never its message, which can carry a local path); the core describer
+ *  has no vocabulary for this class and would print a bare "Error". Everything else keeps the core
+ *  describer's class-only line. @complexity O(1). */
 function describeSeedFailure({ err }: { err: unknown }, _optional = {}): string {
-  if (err instanceof AgentPluginInstallError) return `${err.code}: ${err.message}`;
+  if (err instanceof AgentPluginInstallError) return `${err.code}: ${SAFE_INSTALL_FAILURE_COPY[err.code] ?? "The plugin could not be installed."}`;
   return describeErrorForLog({ err });
 }
 

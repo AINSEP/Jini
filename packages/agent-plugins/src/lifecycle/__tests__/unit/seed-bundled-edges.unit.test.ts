@@ -152,7 +152,19 @@ describe('opt-in packing during seeding', () => {
     const report = await api.seedBundledAgentPlugins({ layout, workspaceId: 'ws', sourceRoot }, {
       packing: async () => { throw new AgentPluginInstallError({ code: 'MANIFEST_INVALID', message: 'The plugin manifest is missing its name.' }); },
     });
-    expect(report.outcomes).toEqual([{ pluginId: 'seeded-one', status: 'failed', reason: 'MANIFEST_INVALID: The plugin manifest is missing its name.' }]);
+    expect(report.outcomes).toEqual([{ pluginId: 'seeded-one', status: 'failed', reason: 'MANIFEST_INVALID: The plugin manifest is invalid.' }]);
+  });
+
+  test('a failed install keeps its code but never logs a local path from the error message (C025)', async () => {
+    const sourceRoot = await sourceWithPlugin();
+    const layout = createAgentPluginLayout({ root: await tempDir() });
+    const api = createSeedBundledModule({ ...ports, layout });
+    const report = await api.seedBundledAgentPlugins({ layout, workspaceId: 'ws', sourceRoot }, {
+      packing: async () => { throw new AgentPluginInstallError({ code: 'PUBLISH_FAILED', message: "failed to publish the extracted package to '/srv/jini/workspaces/ws/plugins/seeded-one'" }); },
+    });
+    const reason = (report.outcomes[0] as { reason: string }).reason;
+    expect(reason, 'The code survives with safe copy').toBe('PUBLISH_FAILED: The plugin package could not be published.');
+    expect(reason, 'The path stays out of the boot-log reason').not.toContain('/srv/jini');
   });
 
   test('a failed per-source policy uses the existing per-plugin failure report', async () => {

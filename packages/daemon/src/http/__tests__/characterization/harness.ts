@@ -100,8 +100,12 @@ export function throwingDeps(known: Readonly<Record<string, unknown>> = {}): nev
 
 type Mount = (required: { app: Express; adapter: RouteHostContext; deps: (known?: Readonly<Record<string, unknown>>) => never; mountList: (routes: readonly ServerRoute[], optional?: { rawBody?: boolean }) => void }) => void;
 
-function withoutCatalogFor(deps: never): never {
-  return new Proxy(deps as object, { get: (target, property, receiver) => (property === 'catalogFor' ? undefined : Reflect.get(target, property, receiver)) }) as never;
+function asUnscopedCatalogHost(deps: never): never {
+  const declared: Record<PropertyKey, unknown> = { catalogFor: undefined, unscoped: true };
+  return new Proxy(deps as object, {
+    get: (target, property, receiver) => (property in declared ? declared[property] : Reflect.get(target, property, receiver)),
+    has: (target, property) => (property === 'catalogFor' ? false : property === 'unscoped' || Reflect.has(target, property)),
+  }) as never;
 }
 
 /** Token env for the two bearer gates; never the real process env. */
@@ -128,9 +132,9 @@ const MOUNT_ORDER: readonly (readonly [family: string, mount: Mount] | 'json-par
   ['active-context', ({ adapter, deps, mountList }) => mountList(activeContextRoutes({ deps: deps(), host: routeHost(adapter) }))],
   ['terminals', ({ adapter, deps, mountList }) => mountList(terminalRoutes({ deps: deps(), host: routeHost(adapter) }))],
   ['db-ops', ({ adapter, deps, mountList }) => mountList(daemonDbRoutes({ deps: deps(), host: routeHost(adapter) }))],
-  // `catalogFor` is an optional dependency (a single-principal host omits it). `throwingDeps` makes every
-  // unnamed member a failing one, so it is named as absent here: this family records the unscoped path.
-  ['tool-catalog', ({ adapter, deps, mountList }) => mountList(toolCatalogRoutes({ deps: withoutCatalogFor(deps()), host: routeHost(adapter) }))],
+  // A single-principal host declares `unscoped: true` and omits `catalogFor`. `throwingDeps` makes every
+  // unnamed member a failing one, so both are named here: this family records the declared-unscoped path.
+  ['tool-catalog', ({ adapter, deps, mountList }) => mountList(toolCatalogRoutes({ deps: asUnscopedCatalogHost(deps()), host: routeHost(adapter) }))],
   ['delegated-tools', ({ adapter, deps, mountList }) => mountList(delegatedToolRoutes({ deps: deps(), host: routeHost(adapter) }))],
   ['connectors', ({ adapter, deps, mountList }) => mountList(connectorsRoutes({ deps: deps(), host: routeHost(adapter) }))],
   ['research', ({ adapter, deps, mountList }) => mountList(researchRoutes({ deps: deps(), host: routeHost(adapter) }))],

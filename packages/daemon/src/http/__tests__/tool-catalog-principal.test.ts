@@ -3,7 +3,7 @@ import { createToolRegistry, type Principal } from '@jini-ai/core';
 import { createInMemoryServer } from '@jini-ai/core/contracts/server/testing';
 import { constrainPrincipalToReadOnlyTools, filterReadOnlyToolCatalog } from '../../core/read-only-tools.js';
 import { fakeDaemonRouteHost } from './fakes/route-host.js';
-import { toolCatalogRoutes, type ToolCatalogHttpDeps, type ToolCatalogQuery, type ToolCatalogSearchHit } from '../tool-catalog.js';
+import { toolCatalogDescribeRoute, toolCatalogRoutes, toolCatalogSearchRoute, type ToolCatalogHttpDeps, type ToolCatalogQuery, type ToolCatalogSearchHit } from '../tool-catalog.js';
 
 const FULL: Principal = { id: 'principal-full', roles: ['operator'] };
 const READ_ONLY = constrainPrincipalToReadOnlyTools({ principal: { id: 'principal-reader', roles: ['viewer'] } });
@@ -20,7 +20,6 @@ function setup() {
   };
   const principals = new Map<string, Principal>([['full', FULL], ['reader', READ_ONLY]]);
   const deps: ToolCatalogHttpDeps = {
-    catalog,
     catalogFor: ({ request }) => {
       const principal = principals.get(request.headers.get('x-principal') ?? '');
       if (!principal) throw new Error('unknown principal');
@@ -61,4 +60,35 @@ it('fails closed when the principal cannot be resolved instead of serving the un
   const [status, body] = await call('stranger', '/api/tools/search?q=probe');
   expect(status).toBe(500);
   expect(JSON.stringify(body)).not.toContain('"set"');
+});
+
+it('fails closed when the host supplies no scoped view and did not declare itself unscoped', async () => {
+  const catalog: ToolCatalogQuery = { search: () => HITS, describe: ({ id }) => HITS.find(hit => hit.id === id) ?? null };
+  const { server, fetch } = createInMemoryServer();
+  // A JS host (or a cast) that passes only the unscoped catalog: no `catalogFor`, no `unscoped: true`.
+  for (const route of toolCatalogRoutes({ deps: { catalog } as never, host: fakeDaemonRouteHost() })) server.route(route);
+  for (const path of ['/api/tools/search?q=probe', '/api/tools/set']) {
+    const response = await fetch(new Request(`http://local${path}`));
+    const body = JSON.stringify(await response.json());
+    expect([path, response.status, body.includes('"set"')]).toEqual([path, 500, false]);
+  }
+});
+
+it('serves the unscoped catalog only to a host that declared itself unscoped', async () => {
+  const catalog: ToolCatalogQuery = { search: () => HITS, describe: ({ id }) => HITS.find(hit => hit.id === id) ?? null };
+  const { server, fetch } = createInMemoryServer();
+  for (const route of toolCatalogRoutes({ deps: { catalog, unscoped: true }, host: fakeDaemonRouteHost() })) server.route(route);
+  const response = await fetch(new Request('http://local/api/tools/search?q=probe'));
+  expect([response.status, ids(await response.json())]).toEqual([200, ['pick', 'set']]);
+});
+
+it('fails closed when a handler is reached without the scoped context, even if deps carry an unscoped catalog', async () => {
+  const catalog: ToolCatalogQuery = { search: () => HITS, describe: ({ id }) => HITS.find(hit => hit.id === id) ?? null };
+  const deps: ToolCatalogHttpDeps = { catalog, unscoped: true };
+  const search = await toolCatalogSearchRoute.handle({ input: { query: 'probe', limit: 10 }, deps });
+  const describe = await toolCatalogDescribeRoute.handle({ input: { id: 'set' }, deps });
+  for (const result of [search, describe]) {
+    expect(result.ok).toBe(false);
+    expect(JSON.stringify(result)).not.toContain('"set"');
+  }
 });
