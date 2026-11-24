@@ -9,6 +9,7 @@ export interface SkillState<Source extends object = GitHubSkillSource> { readonl
  * shipped under another name keeps that name only as a READ fallback (`legacyStateFileNames`); every
  * write uses this one, so a later write makes this file authoritative without touching the old one.
  */
+/** Persisted install-state file name inside each skill folder; keep it stable across releases. */
 export const SKILL_STATE_FILE_NAME = ".skill-install.json";
 
 const MAX_STATE_BYTES = 8192;
