@@ -250,3 +250,9 @@ export interface AdminMediaPurgeEnvelope { purged: true }
  * "reached, manages nothing".
  */
 export type AdminMediaProviderMarkers = Record<string, unknown>;
+
+/** `GET …/media/:mediaId/where-used`: the stored asset id and the host's usage report for it. */
+export interface AdminMediaWhereUsedEnvelope {
+  readonly mediaId: string;
+  readonly whereUsed: unknown;
+}

@@ -1061,9 +1061,9 @@
    "Handler": "type:b35e87c20f",
    "HttpMethod": "type:8629d30c08",
    "InputParser": "type:978c095fdc",
-   "JsonRouteAuthorize": "type:1a908198ec",
+   "JsonRouteAuthorize": "type:50763f58a8",
    "JsonRouteAuthorizeScope": "interface:992127fbec",
-   "JsonRoutePorts": "interface:97063fef37",
+   "JsonRoutePorts": "interface:29894518f7",
    "JsonRouteSpec": "interface:05f4c73774",
    "OriginContext": "interface:d4702c659e",
    "RateLimitResult": "type:820531e754",
@@ -1072,8 +1072,10 @@
    "Result": "type:35542e17c5",
    "RouteHostContext": "interface:c26ac79c5e",
    "RouteHostInternalErrorContext": "interface:96ac301673",
-   "RouteInputContext": "interface:3099af8fcf",
+   "RouteInputContext": "interface:c6b8e27c78",
    "RouteMatch": "type:2d41b49165",
+   "RouteReply": "interface:c05c291056",
+   "RouteRequestFacts": "interface:9d2a3d9c32",
    "RouteTable": "interface:5351d2527c",
    "RouteTableOptions": "interface:d2e60237c4",
    "SameOriginPolicyPort": "interface:7ab05d8a4f",
@@ -1100,6 +1102,7 @@
    "err": "variable:6de429f2fe",
    "guardSameOrigin": "function:b55bf8bcb5",
    "isDeclaredOrigin": "function:b77c95555a",
+   "isRouteReply": "function:6a722adea7",
    "isSameOriginBrowserWrite": "function:415db11483",
    "jsonResponse": "function:5d3407a71d",
    "jsonRoute": "function:16d919bc33",
@@ -1110,6 +1113,7 @@
    "readBodyBytes": "function:da5d12c25f",
    "readJsonBody": "function:f1492d1da6",
    "readQuery": "function:d9125aefb2",
+   "routeReply": "function:7504e46f5b",
    "sameOriginRefusal": "function:68983bff8b",
    "statusForError": "function:8e02de6bc4",
    "validationError": "function:0eb88316c3",
@@ -1331,6 +1335,7 @@
    "AdminAgentPluginDto": "interface:f210bba760",
    "AdminAgentPluginFilesEnvelope": "interface:65573deb72",
    "AdminAgentPluginLifecycleDto": "interface:2097a79e16",
+   "AdminAgentPluginMemoryEnvelope": "interface:23370ca661",
    "AdminAgentPluginSetEnabledEnvelope": "interface:61be4329da",
    "AdminAgentPluginsListEnvelope": "interface:22e8b4ea12"
   }
@@ -1507,6 +1512,33 @@
    "AdminSeoSitemapRegenerateEnvelope": "interface:d30fbdbda6",
    "AdminSeoTwitterCardDto": "interface:4b5d7eb197",
    "AdminSeoTwitterCardKind": "type:5c4547276d"
+  }
+ },
+ "./contracts/site/cms-settings": {
+  "types": "./dist/contracts/site/cms-settings.d.ts",
+  "symbols": {
+   "AdminSettingClearedDto": "interface:9a179107fb",
+   "AdminSettingDefinitionAppliedDto": "interface:e1dfa77bfa",
+   "AdminSettingScopeDto": "type:f80238d080",
+   "AdminSettingValueDto": "interface:be2c0bb11d",
+   "AdminSettingsListDto": "interface:8d9738a692",
+   "AdminSettingsRegisterDefinitionsDto": "interface:3ecf9d11c4",
+   "AdminSettingsResetDto": "interface:244bff9a31"
+  }
+ },
+ "./contracts/site/cms-sites": {
+  "types": "./dist/contracts/site/cms-sites.d.ts",
+  "symbols": {
+   "SiteCreateResponse": "interface:bcf485244c",
+   "SiteTokenSignInPluginsResponse": "interface:5b7746614c",
+   "SitesHomeSetResponse": "interface:6fb1535af9"
+  }
+ },
+ "./contracts/site/cms-system-deploy": {
+  "types": "./dist/contracts/site/cms-system-deploy.d.ts",
+  "symbols": {
+   "DeploymentEnvVarStatus": "interface:34c5536892",
+   "DeploymentOverviewSnapshot": "interface:38b2ac4e8a"
   }
  },
  "./contracts/site/cms-settings": {
