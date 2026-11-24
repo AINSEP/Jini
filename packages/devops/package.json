@@ -40,6 +40,8 @@
       "./dns/site/mail-dns-status": "universal",
       "./dns/site/mail-dns-tools": "universal",
       "./dns/site/tool-deps": "universal",
+      "./dns/site/tools": "universal",
+      "./dns/site/dns-tools": "universal",
       "./deploy/site/types": "universal",
       "./deploy/site/publish-credentials/types": "universal",
       "./deploy/site/publish-credentials/account-label-heal-scheduler": "universal",
@@ -220,6 +222,16 @@
       "types": "./dist/dns/site/tool-deps.d.ts",
       "import": "./dist/dns/site/tool-deps.js",
       "default": "./dist/dns/site/tool-deps.js"
+    },
+    "./dns/site/tools": {
+      "types": "./dist/dns/site/tools.d.ts",
+      "import": "./dist/dns/site/tools.js",
+      "default": "./dist/dns/site/tools.js"
+    },
+    "./dns/site/dns-tools": {
+      "types": "./dist/dns/site/dns-tools.d.ts",
+      "import": "./dist/dns/site/dns-tools.js",
+      "default": "./dist/dns/site/dns-tools.js"
     },
     "./deploy/site/types": {
       "types": "./dist/deploy/site/types.d.ts",

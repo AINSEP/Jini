@@ -71,6 +71,7 @@
       "./contracts/site/site-key": "universal",
       "./contracts/site/soft-delete": "universal",
       "./contracts/site/strict-base64": "node",
+      "./net/public-dns-vocabulary": "universal",
       "./contracts/site/tool-metadata-approval-policy": "universal",
       "./contracts/site/daemon": "universal",
       "./contracts/site/plugins-host": "universal",
@@ -540,6 +541,11 @@
       "types": "./dist/contracts/site/strict-base64.d.ts",
       "import": "./dist/contracts/site/strict-base64.js",
       "default": "./dist/contracts/site/strict-base64.js"
+    },
+    "./net/public-dns-vocabulary": {
+      "types": "./dist/net/public-dns-vocabulary.d.ts",
+      "import": "./dist/net/public-dns-vocabulary.js",
+      "default": "./dist/net/public-dns-vocabulary.js"
     },
     "./contracts/site/tool-metadata-approval-policy": {
       "types": "./dist/contracts/site/tool-metadata-approval-policy.d.ts",

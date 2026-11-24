@@ -1,13 +1,11 @@
 import { isIP } from "node:net";
 import { domainToASCII } from "node:url";
+import { DNS_TYPES, DomainDnsInputError, type DnsRecordType } from "@jini-ai/core/net/public-dns-vocabulary";
 
-/** Validation error independent of any tool framework. */
-export class DomainDnsInputError extends Error {
- constructor({ message }: { message: string }) { super(message); this.name = "DomainDnsInputError"; }
-}
-/** Public DNS only. The composition root supplies a resolver that cannot inspect internal DNS. */
-export const DNS_TYPES = ["A", "AAAA", "CNAME", "MX", "TXT", "NS"] as const;
-export type DnsRecordType = typeof DNS_TYPES[number];
+// The error class and record-type vocabulary live in core so the DNS agent tools share one
+// `DomainDnsInputError` class identity; this entry keeps exporting them unchanged.
+export { DNS_TYPES, DomainDnsInputError };
+export type { DnsRecordType };
 export interface DnsQuery {
   type: DnsRecordType;
   status: "ok" | "not-found" | "no-data";

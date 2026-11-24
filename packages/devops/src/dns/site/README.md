@@ -33,3 +33,14 @@ The host injects everything; this folder carries no SQL driver, network client o
 - The host mounts `readMailDnsStatus` / `verifyMailDnsStatus` behind its own admin routes with the
   same permissions as the tools (`deployments.read` / `deployments.publish`), and runs
   `verifyDueDomainBindings` on its own scheduler.
+- `DomainDnsToolDeps` (`tools`): `workspaceId`, the legacy `authorize` port, and `createChecks`,
+  which returns the three bounded public DNS/TLS read operations for one invocation with the given
+  operation `authorize` bound in. The host builds it from the DNS diagnostics'
+  `createDomainDnsChecks` plus its public resolver, TLS probe and saved publishing hostnames, so
+  this package never imports diagnostics. `contributeDomainDnsAndChangeTools({ createDeps,
+  createDnsDeps })` (`dns-tools`) registers the read diagnostics, the DNS change tools and the mail
+  DNS tools as one `domain-dns` contributor. `DomainDnsToolDeps.publicNames` carries the host's
+  hostname validators (`readPublicDomain` / `readPublicDnsName`, for example the DNS diagnostics'
+  own); the change tools receive the same pair, and `toolInputPublicNames` turns their
+  `DomainDnsInputError` (one class, from `@jini-ai/core/net/public-dns-vocabulary`) into
+  `ToolInputError`.
