@@ -149,6 +149,7 @@
       "./shell/lib/tab-event-source": "browser",
       "./shell/hooks/use-external-entry-refresh.hooks": "browser",
       "./posts/Posts.hooks": "universal",
+      "./posts/post-editor-route-keys": "universal",
       "./pages/ThemePageDetailsModal.hooks": "browser",
       "./pages/hooks/theme-canvas-port.hooks": "universal",
       "./pages/hooks/theme-pages-port.hooks": "universal",
@@ -1053,6 +1054,11 @@
       "types": "./dist/posts/Posts.hooks.d.ts",
       "import": "./dist/posts/Posts.hooks.js",
       "default": "./dist/posts/Posts.hooks.js"
+    },
+    "./posts/post-editor-route-keys": {
+      "types": "./dist/posts/post-editor-route-keys.d.ts",
+      "import": "./dist/posts/post-editor-route-keys.js",
+      "default": "./dist/posts/post-editor-route-keys.js"
     },
     "./pages/ThemePageDetailsModal.hooks": {
       "types": "./dist/pages/ThemePageDetailsModal.hooks.d.ts",
