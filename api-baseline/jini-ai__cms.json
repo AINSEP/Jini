@@ -22,6 +22,15 @@
    "requireToolPermission": "function:4a1a650143"
   }
  },
+ "./admin-http/http/agent-plugins": {
+  "types": "./dist/admin-http/http/agent-plugins.d.ts",
+  "symbols": {
+   "AgentPluginLifecycleCandidate": "interface:e6e444f9c7",
+   "AgentPluginLifecycleFields": "interface:83aaf68141",
+   "AgentPluginRowCandidate": "interface:4bc0477c35",
+   "agentPluginLifecycleFields": "function:91e364c60b"
+  }
+ },
  "./admin-http/http/entity-not-live": {
   "types": "./dist/admin-http/http/entity-not-live.d.ts",
   "symbols": {
@@ -83,6 +92,41 @@
   "types": "./dist/admin-http/limits.d.ts",
   "symbols": {
    "CONTENT_ENTRY_MAX_BODY_BYTES": "variable:49ef7bebb2"
+  }
+ },
+ "./admin-http/routes/agent-plugins/connection-sign-in": {
+  "types": "./dist/admin-http/routes/agent-plugins/connection-sign-in.d.ts",
+  "symbols": {
+   "ApiConnectionSignInHandoff": "interface:27694e6027",
+   "ApiConnectionSignInRouteDeps": "interface:18cba62288",
+   "apiConnectionSignInRoute": "function:ec3013c3dc"
+  }
+ },
+ "./admin-http/routes/agent-plugins/files": {
+  "types": "./dist/admin-http/routes/agent-plugins/files.d.ts",
+  "symbols": {
+   "AgentPluginFilesLayout": "interface:ddd354f3dc",
+   "AgentPluginFilesRouteDeps": "interface:e61a370576",
+   "AgentPluginPackageFilesReader": "type:020ad7ff46",
+   "AgentPluginPackageRecord": "interface:1e62bed7c7",
+   "agentPluginFilesRoute": "variable:01439072d5"
+  }
+ },
+ "./admin-http/routes/agent-plugins/list": {
+  "types": "./dist/admin-http/routes/agent-plugins/list.d.ts",
+  "symbols": {
+   "AgentPluginConnectionStatusesLoader": "type:a191833071",
+   "AgentPluginsListRouteDeps": "interface:177a50c249",
+   "agentPluginsListRoute": "variable:6125114629"
+  }
+ },
+ "./admin-http/routes/agent-plugins/set-enabled": {
+  "types": "./dist/admin-http/routes/agent-plugins/set-enabled.d.ts",
+  "symbols": {
+   "AgentPluginSetEnabledInput": "interface:e8d49102cd",
+   "AgentPluginSetEnabledRouteDeps": "interface:8420d3e29e",
+   "SetAgentPluginEnabledFn": "type:51279f393c",
+   "agentPluginSetEnabledRoute": "variable:9f1c17c6a0"
   }
  },
  "./admin-http/routes/assistant/delete-execution-credential": {
@@ -276,6 +320,59 @@
    "DatabaseTimelineRouteDeps": "interface:f260fbf960",
    "DatabaseTimelineRow": "interface:7b2ffbe33b",
    "adminDatabaseTimelineRoute": "variable:5119d6e733"
+  }
+ },
+ "./admin-http/routes/external-mcp/admissions": {
+  "types": "./dist/admin-http/routes/external-mcp/admissions.d.ts",
+  "symbols": {
+   "ExternalMcpAdmissionsResult": "type:4c7849fb30",
+   "ExternalMcpAdmissionsRouteDeps": "interface:729fea7472",
+   "externalMcpAdmissionsRoute": "variable:d534659bbc"
+  }
+ },
+ "./admin-http/routes/external-mcp/delete": {
+  "types": "./dist/admin-http/routes/external-mcp/delete.d.ts",
+  "symbols": {
+   "ExternalMcpDeleteRouteDeps": "interface:572998f348",
+   "ExternalMcpDeleteServerFn": "type:d009965b57",
+   "externalMcpDeleteRoute": "variable:1f76b95d03"
+  }
+ },
+ "./admin-http/routes/external-mcp/list": {
+  "types": "./dist/admin-http/routes/external-mcp/list.d.ts",
+  "symbols": {
+   "ExternalMcpListRouteDeps": "interface:c75f6ac2c8",
+   "ExternalMcpListServersFn": "type:547200d0ac",
+   "externalMcpListRoute": "variable:8b97d0192e"
+  }
+ },
+ "./admin-http/routes/external-mcp/oauth-disconnect": {
+  "types": "./dist/admin-http/routes/external-mcp/oauth-disconnect.d.ts",
+  "symbols": {
+   "ExternalMcpOAuthDisconnectRouteDeps": "interface:2e1eb0f60d",
+   "ExternalMcpProviderOAuthError": "interface:985ac2938b",
+   "ExternalMcpReauthRequiredError": "interface:25f4999d21",
+   "externalMcpOAuthDisconnectRoute": "variable:e5868a6da3"
+  }
+ },
+ "./admin-http/routes/external-mcp/put": {
+  "types": "./dist/admin-http/routes/external-mcp/put.d.ts",
+  "symbols": {
+   "ExternalMcpPutRouteDeps": "interface:33dfed4713",
+   "ExternalMcpRosterChangedFn": "type:971ea6b6db",
+   "ExternalMcpSaveServerFn": "type:53fe8799dd",
+   "externalMcpPutRoute": "variable:f27eae30ab"
+  }
+ },
+ "./admin-http/routes/external-mcp/tool-approvals": {
+  "types": "./dist/admin-http/routes/external-mcp/tool-approvals.d.ts",
+  "symbols": {
+   "ExternalMcpToolApprovalRevokeRouteDeps": "interface:f5813a7f61",
+   "ExternalMcpToolApprovalRevoker": "type:efc6756d82",
+   "ExternalMcpToolApprovalsListRouteDeps": "interface:a3c9a4ae21",
+   "ExternalMcpToolApprovalsLister": "type:6a0875e5b8",
+   "externalMcpToolApprovalRevokeRoute": "variable:f1f6c3bf41",
+   "externalMcpToolApprovalsListRoute": "variable:e14be8baba"
   }
  },
  "./admin-http/routes/media/delete": {
@@ -2582,6 +2679,33 @@
   "symbols": {
    "WIDGET_PLACEHOLDER_IR": "variable:1c470b1586",
    "renderWidgetPlaceholder": "function:427d5df34b"
+  }
+ },
+ "./public-http/routes/api-connections/oauth-callback": {
+  "types": "./dist/public-http/routes/api-connections/oauth-callback.d.ts",
+  "symbols": {
+   "ApiConnectionCallbackAttempt": "interface:5753b6229b",
+   "ApiConnectionCallbackCompletion": "interface:a6d20efe84",
+   "ApiConnectionCallbackFailureFacts": "interface:9959d30747",
+   "ApiConnectionCallbackHost": "interface:e2558f8c68",
+   "ApiConnectionOAuthCallbackRouteDeps": "interface:d8a3913dba",
+   "OAuthCallbackLimiter": "interface:2435f306cb",
+   "apiConnectionOAuthCallbackRoute": "function:6e4e3be214"
+  }
+ },
+ "./public-http/routes/external-mcp/oauth-callback": {
+  "types": "./dist/public-http/routes/external-mcp/oauth-callback.d.ts",
+  "symbols": {
+   "ExternalMcpOAuthCallbackRouteDeps": "interface:5d2af0f667",
+   "ExternalMcpOAuthCallbackService": "interface:5a43e47269",
+   "externalMcpOAuthCallbackRoute": "function:9da010d76c"
+  }
+ },
+ "./public-http/routes/external-mcp/oauth-callback-url": {
+  "types": "./dist/public-http/routes/external-mcp/oauth-callback-url.d.ts",
+  "symbols": {
+   "EXTERNAL_MCP_OAUTH_CALLBACK_PATH": "variable:b11ca9b7bc",
+   "externalMcpOAuthCallbackUrl": "function:f2e429078b"
   }
  },
  "./public-http/routes/site/pages/listing/listing-state": {

@@ -19,10 +19,11 @@ const AGENT_PLUGIN_ENTITY_TYPE = "agent-plugin";
  * (`entityType: "agent-plugin"` plus `entityId`), as the hand-written set-enabled route did.
  *
  * An id-free route (list, files) named NO entity type in its hand-written form, but the port's
- * contract requires a string. The empty string is the value an RBAC grant can never be scoped to,
- * so a resource-typed grant is refused exactly as it was when the type was absent
- * (`matchesRow`: `row.resourceType != null && row.resourceType !== context.entityType`); naming
- * `"agent-plugin"` here would newly admit a grant scoped to that type.
+ * contract requires a string, so it sends the placeholder `""`. That placeholder is NOT inert: a
+ * policy row may carry an empty resource type, which `""` would match where an absent type cannot.
+ * The host's binding for these id-free mounts must therefore drop `entityType` before its
+ * authorizer sees it (Tovu: `idFreeAgentPluginPortDeps` in `agent-plugins-routes.ts`). Naming
+ * `"agent-plugin"` here instead would newly admit a grant scoped to that type.
  * A mount without an authorizer is a wiring bug, not a caller error, so it fails closed.
  * @complexity O(1) plus the injected authorizer.
  */
@@ -71,12 +72,32 @@ export interface AgentPluginSetEnabledErrorPredicates {
  */
 export interface AgentPluginSetEnabledCopy { readonly activationsUnreadable: string; readonly activationsBusy: string }
 
-/** One `catch` rung: the predicate it asks, the refusal it answers, and whether the cause is logged server-side. */
-interface SetEnabledErrorRung {
-  readonly kind: keyof AgentPluginSetEnabledErrorPredicates;
-  readonly refusal: (required: { error: AgentPluginCodedError & { readonly providerPluginId?: string }; copy: AgentPluginSetEnabledCopy }) => { status: number; body: Record<string, unknown> };
-  readonly warn?: true;
+/** The two set-enabled refusals whose real cause (it may name host paths) stays server-side. */
+export type AgentPluginSetEnabledHostFault = "activationsUnreadable" | "activationsBusy";
+
+/**
+ * The structured facts set-enabled reports for a host-fault refusal. The host owns the log label
+ * and message format; this package only says what happened.
+ */
+export interface AgentPluginSetEnabledRefusalDiagnostic {
+  readonly pluginId: string;
+  readonly refusal: AgentPluginSetEnabledHostFault;
+  /** The caught error's own message, for the server log only (never the response body). */
+  readonly causeMessage: string;
 }
+
+/** The host's sink for {@link AgentPluginSetEnabledRefusalDiagnostic}s (Tovu formats and logs them). */
+export type AgentPluginSetEnabledDiagnosticSink = (required: AgentPluginSetEnabledRefusalDiagnostic) => void;
+
+type SetEnabledRefusal = (required: { error: AgentPluginCodedError & { readonly providerPluginId?: string }; copy: AgentPluginSetEnabledCopy }) => { status: number; body: Record<string, unknown> };
+
+/**
+ * One `catch` rung: the predicate it asks, the refusal it answers, and — for the two host-fault
+ * rungs only — that its cause is reported to the host's diagnostic sink.
+ */
+type SetEnabledErrorRung =
+  | { readonly kind: AgentPluginSetEnabledHostFault; readonly refusal: SetEnabledRefusal; readonly diagnose: true }
+  | { readonly kind: Exclude<keyof AgentPluginSetEnabledErrorPredicates, AgentPluginSetEnabledHostFault>; readonly refusal: SetEnabledRefusal; readonly diagnose?: undefined };
 
 const ownCodeConflict: SetEnabledErrorRung["refusal"] = ({ error }) => ({ status: 409, body: { code: error.code, error: error.message } });
 
@@ -110,14 +131,14 @@ const SET_ENABLED_ERROR_RUNGS: readonly SetEnabledErrorRung[] = [
   { kind: "linked", refusal: ({ error }) => ({ status: 409, body: { code: error.code, error: error.message, providerPluginId: error.providerPluginId } }) },
   { kind: "notInstalled", refusal: ({ error }) => ({ status: 404, body: { error: error.message, code: "AGENT_PLUGIN_NOT_FOUND" } }) },
   {
-    kind: "activationsUnreadable", warn: true,
+    kind: "activationsUnreadable", diagnose: true,
     refusal: ({ copy }) => ({ status: 409, body: {
       error: copy.activationsUnreadable,
       code: "AGENT_PLUGIN_ACTIVATIONS_UNREADABLE",
     } }),
   },
   {
-    kind: "activationsBusy", warn: true,
+    kind: "activationsBusy", diagnose: true,
     refusal: ({ copy }) => ({ status: 409, body: {
       error: copy.activationsBusy,
       code: "AGENT_PLUGIN_ACTIVATIONS_BUSY",
@@ -126,20 +147,20 @@ const SET_ENABLED_ERROR_RUNGS: readonly SetEnabledErrorRung[] = [
 ];
 
 /**
- * Refuses with the first matching rung (logging the two host-fault rungs' real cause through the
- * injected `warn`); anything unmapped — including a refusal thrown earlier in the handler — is
- * rethrown unchanged, so the host's error port answers it.
+ * Refuses with the first matching rung (reporting the two host-fault rungs' real cause to the
+ * injected `diagnose` sink); anything unmapped — including a refusal thrown earlier in the
+ * handler — is rethrown unchanged, so the host's error port answers it.
  * @complexity O(n) in the rung count, a fixed list of eight.
  */
 export function rejectSetEnabledError(
-  { error, pluginId, isError, warn, copy }: {
-    error: unknown; pluginId: string; isError: AgentPluginSetEnabledErrorPredicates; warn: (message: string) => void; copy: AgentPluginSetEnabledCopy;
+  { error, pluginId, isError, diagnose, copy }: {
+    error: unknown; pluginId: string; isError: AgentPluginSetEnabledErrorPredicates; diagnose: AgentPluginSetEnabledDiagnosticSink; copy: AgentPluginSetEnabledCopy;
   },
   _optional: Record<string, never> = {},
 ): never {
   const rung = SET_ENABLED_ERROR_RUNGS.find((candidate) => isError[candidate.kind](error));
   if (!rung) throw error;
   const coded = error as AgentPluginCodedError & { readonly providerPluginId?: string };
-  if (rung.warn) warn(`[agent-plugins] '${pluginId}': enable/disable refused — ${coded.message}`);
+  if (rung.diagnose) diagnose({ pluginId, refusal: rung.kind, causeMessage: coded.message });
   throw new RouteRefusalError(rung.refusal({ error: coded, copy }));
 }

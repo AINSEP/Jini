@@ -44,7 +44,11 @@ function credentialKindRefusal({ forbidden }: Pick<ApiConnectionSignInRouteDeps,
   return new Response(JSON.stringify(body), { status: 403, headers: [...FIXED_HEADERS, ["content-type", "application/json; charset=utf-8"]] });
 }
 
-/** A 302 with the plain-text body the host framework wrote for one. @complexity O(1). */
+/**
+ * A 302 with the plain-text body a framework writes for a non-HTML `Accept`. A host whose framework
+ * negotiates the redirect body by `Accept` (an HTML one for a browser) replays this 302 through its
+ * own redirect writer, from `location` and `set-cookie`. @complexity O(1).
+ */
 function redirectTo({ location, cookie }: { location: string; cookie: string }, _optional: Record<string, never> = {}): Response {
   return new Response(`Found. Redirecting to ${location}`, {
     status: 302,
