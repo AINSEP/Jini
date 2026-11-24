@@ -263,7 +263,9 @@
       "./shell/components/MediaPickerDialog/JiniMediaPicker.hooks": "browser",
       "./shell/components/WidgetConfigFields/PlacementContentFields": "browser",
       "./shell/components/AssistantDock/DockSettingsMenu": "browser",
-      "./posts/view-tabs": "universal"
+      "./posts/view-tabs": "universal",
+      "./pages/hooks/use-theme-pages.hooks": "browser",
+      "./pages/hooks/theme-pages-fake-port": "universal"
     },
     "isolation": {
       "shared": [
@@ -1630,6 +1632,16 @@
       "types": "./dist/posts/view-tabs.d.ts",
       "import": "./dist/posts/view-tabs.js",
       "default": "./dist/posts/view-tabs.js"
+    },
+    "./pages/hooks/use-theme-pages.hooks": {
+      "types": "./dist/pages/hooks/use-theme-pages.hooks.d.ts",
+      "import": "./dist/pages/hooks/use-theme-pages.hooks.js",
+      "default": "./dist/pages/hooks/use-theme-pages.hooks.js"
+    },
+    "./pages/hooks/theme-pages-fake-port": {
+      "types": "./dist/pages/hooks/theme-pages-fake-port.d.ts",
+      "import": "./dist/pages/hooks/theme-pages-fake-port.js",
+      "default": "./dist/pages/hooks/theme-pages-fake-port.js"
     }
   },
   "files": [
