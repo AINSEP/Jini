@@ -176,6 +176,7 @@
       "./screens/forms/index-aligned-translations": "universal",
       "./screens/forms/forms-field-settings-i18n": "universal",
       "./screens/forms/forms-leave-guard-i18n": "universal",
+      "./security/security-i18n": "universal",
       "./screens/collections/collections-i18n": "universal",
       "./screens/taxonomy/taxonomy-i18n": "universal",
       "./screens/comments/comments-i18n": "universal",
@@ -197,6 +198,9 @@
       "./security/api/security-api.types": "universal",
       "./security/api/security-api": "universal",
       "./security/access-token-rows": "universal",
+      "./security/access-token-categories": "universal",
+      "./security/access-token-providers": "universal",
+      "./security/custom-credential-forms": "universal",
       "./source-control/api/source-control-api.types": "universal",
       "./source-control/api/source-control-api": "universal",
       "./source-control/host/hooks/source-control-credentials-port.hooks": "universal",
@@ -1176,6 +1180,11 @@
       "import": "./dist/screens/forms/forms-leave-guard-i18n.js",
       "default": "./dist/screens/forms/forms-leave-guard-i18n.js"
     },
+    "./security/security-i18n": {
+      "types": "./dist/security/security-i18n.d.ts",
+      "import": "./dist/security/security-i18n.js",
+      "default": "./dist/security/security-i18n.js"
+    },
     "./screens/collections/collections-i18n": {
       "types": "./dist/screens/collections/collections-i18n.d.ts",
       "import": "./dist/screens/collections/collections-i18n.js",
@@ -1280,6 +1289,21 @@
       "types": "./dist/security/access-token-rows.d.ts",
       "import": "./dist/security/access-token-rows.js",
       "default": "./dist/security/access-token-rows.js"
+    },
+    "./security/access-token-categories": {
+      "types": "./dist/security/access-token-categories.d.ts",
+      "import": "./dist/security/access-token-categories.js",
+      "default": "./dist/security/access-token-categories.js"
+    },
+    "./security/access-token-providers": {
+      "types": "./dist/security/access-token-providers.d.ts",
+      "import": "./dist/security/access-token-providers.js",
+      "default": "./dist/security/access-token-providers.js"
+    },
+    "./security/custom-credential-forms": {
+      "types": "./dist/security/custom-credential-forms.d.ts",
+      "import": "./dist/security/custom-credential-forms.js",
+      "default": "./dist/security/custom-credential-forms.js"
     },
     "./source-control/api/source-control-api.types": {
       "types": "./dist/source-control/api/source-control-api.types.d.ts",
