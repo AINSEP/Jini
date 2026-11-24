@@ -181,7 +181,15 @@
       "./shell/components/AssistantDock/hooks/use-chat-agent-plugins.hooks": "browser",
       "./shell/components/AssistantDock/hooks/use-assistant-runtime-preferences.hooks": "browser",
       "./shell/components/AssistantDock/hooks/use-selected-agent-auth-warning.hooks": "browser",
-      "./shell/components/AssistantDock/SubagentsIndicator": "browser"
+      "./shell/components/AssistantDock/SubagentsIndicator": "browser",
+      "./shell/components/AssistantDock/hooks/chat-package-kind": "universal",
+      "./shell/lib/live-tiptap-editor": "universal",
+      "./shell/lib/media-image-extension.hooks": "universal",
+      "./shell/hooks/assistant-chats-port.hooks": "browser",
+      "./shell/components/AssistantDock/hooks/conversation-refresh.hooks": "browser",
+      "./shell/lib/agent-screenshot": "browser",
+      "./shell/components/MediaEditDialog/MediaEditDialog.hooks": "browser",
+      "./shell/lib/media-embed-extension.hooks": "browser"
     },
     "isolation": {
       "shared": [
@@ -267,7 +275,15 @@
         "./shell/components/AssistantDock/hooks/use-chat-agent-plugins.hooks": "browser",
         "./shell/components/AssistantDock/hooks/use-assistant-runtime-preferences.hooks": "browser",
         "./shell/components/AssistantDock/hooks/use-selected-agent-auth-warning.hooks": "browser",
-        "./shell/components/AssistantDock/SubagentsIndicator": "browser"
+        "./shell/components/AssistantDock/SubagentsIndicator": "browser",
+        "./shell/components/AssistantDock/hooks/chat-package-kind": "universal",
+        "./shell/lib/live-tiptap-editor": "universal",
+        "./shell/lib/media-image-extension.hooks": "universal",
+        "./shell/hooks/assistant-chats-port.hooks": "browser",
+        "./shell/components/AssistantDock/hooks/conversation-refresh.hooks": "browser",
+        "./shell/lib/agent-screenshot": "browser",
+        "./shell/components/MediaEditDialog/MediaEditDialog.hooks": "browser",
+        "./shell/lib/media-embed-extension.hooks": "browser"
       }
     },
     "optionalPeers": {
@@ -1114,6 +1130,46 @@
       "types": "./dist/shell/components/AssistantDock/SubagentsIndicator.d.ts",
       "import": "./dist/shell/components/AssistantDock/SubagentsIndicator.js",
       "default": "./dist/shell/components/AssistantDock/SubagentsIndicator.js"
+    },
+    "./shell/components/AssistantDock/hooks/chat-package-kind": {
+      "types": "./dist/shell/components/AssistantDock/hooks/chat-package-kind.d.ts",
+      "import": "./dist/shell/components/AssistantDock/hooks/chat-package-kind.js",
+      "default": "./dist/shell/components/AssistantDock/hooks/chat-package-kind.js"
+    },
+    "./shell/lib/live-tiptap-editor": {
+      "types": "./dist/shell/lib/live-tiptap-editor.d.ts",
+      "import": "./dist/shell/lib/live-tiptap-editor.js",
+      "default": "./dist/shell/lib/live-tiptap-editor.js"
+    },
+    "./shell/lib/media-image-extension.hooks": {
+      "types": "./dist/shell/lib/media-image-extension.hooks.d.ts",
+      "import": "./dist/shell/lib/media-image-extension.hooks.js",
+      "default": "./dist/shell/lib/media-image-extension.hooks.js"
+    },
+    "./shell/hooks/assistant-chats-port.hooks": {
+      "types": "./dist/shell/hooks/assistant-chats-port.hooks.d.ts",
+      "import": "./dist/shell/hooks/assistant-chats-port.hooks.js",
+      "default": "./dist/shell/hooks/assistant-chats-port.hooks.js"
+    },
+    "./shell/components/AssistantDock/hooks/conversation-refresh.hooks": {
+      "types": "./dist/shell/components/AssistantDock/hooks/conversation-refresh.hooks.d.ts",
+      "import": "./dist/shell/components/AssistantDock/hooks/conversation-refresh.hooks.js",
+      "default": "./dist/shell/components/AssistantDock/hooks/conversation-refresh.hooks.js"
+    },
+    "./shell/lib/agent-screenshot": {
+      "types": "./dist/shell/lib/agent-screenshot.d.ts",
+      "import": "./dist/shell/lib/agent-screenshot.js",
+      "default": "./dist/shell/lib/agent-screenshot.js"
+    },
+    "./shell/components/MediaEditDialog/MediaEditDialog.hooks": {
+      "types": "./dist/shell/components/MediaEditDialog/MediaEditDialog.hooks.d.ts",
+      "import": "./dist/shell/components/MediaEditDialog/MediaEditDialog.hooks.js",
+      "default": "./dist/shell/components/MediaEditDialog/MediaEditDialog.hooks.js"
+    },
+    "./shell/lib/media-embed-extension.hooks": {
+      "types": "./dist/shell/lib/media-embed-extension.hooks.d.ts",
+      "import": "./dist/shell/lib/media-embed-extension.hooks.js",
+      "default": "./dist/shell/lib/media-embed-extension.hooks.js"
     }
   },
   "files": [
