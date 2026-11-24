@@ -1267,9 +1267,10 @@
  "./content-duplication/derive-available-name": {
   "types": "./dist/content-duplication/derive-available-name.d.ts",
   "symbols": {
+   "CopyNamingPolicy": "interface:88c8f11e42",
    "MAX_SUFFIX_ATTEMPTS": "variable:cc456de3aa",
-   "deriveAvailableName": "function:397344f607",
-   "deriveDuplicateName": "function:a4a9d1b70b"
+   "deriveAvailableName": "function:5a5d34d568",
+   "deriveDuplicateName": "function:5daed4bb68"
   }
  },
  "./content-types": {
@@ -1803,6 +1804,16 @@
   "symbols": {
    "ResolveRequestTarget": "type:dae6a02af5",
    "createFormDestinationDeliverer": "function:62726d80f3"
+  }
+ },
+ "./forms/destinations/key-store": {
+  "types": "./dist/forms/destinations/key-store.d.ts",
+  "symbols": {
+   "ReceiverKeyRecord": "interface:05a0a84fd3",
+   "ReceiverKeyVault": "interface:1f79e24630",
+   "listReceiverKeys": "function:73c7d88846",
+   "receiverKeyLabel": "function:4ca83d934c",
+   "resolveReceiverKey": "function:20e9dd0595"
   }
  },
  "./forms/destinations/pull": {
@@ -2411,7 +2422,7 @@
    "MediaProviderContributionSpecOptional": "interface:fa4a11b3be",
    "MediaProviderRegistryContributionPorts": "interface:2046b04156",
    "MediaProviderRegistrySlice": "interface:a7a69dc087",
-   "loadMediaProviderRegistry": "function:9752c77313",
+   "loadMediaProviderRegistry": "function:c54fe37fe4",
    "parseMediaProvidersFile": "function:eb6dec7563"
   }
  },
@@ -2495,6 +2506,12 @@
    "MediaUrlKeySource": "interface:6109bd74ff",
    "mediaPublicPath": "function:7f707e1466",
    "mediaUrlKey": "function:38bb7a7b96"
+  }
+ },
+ "./media/site/public-urls": {
+  "types": "./dist/media/site/public-urls.d.ts",
+  "symbols": {
+   "resolveMediaPublicUrls": "function:1e4eb8234d"
   }
  },
  "./media/site/upload-content-type": {
@@ -3003,6 +3020,24 @@
    "publishContentAgentToolCatalog": "variable:88fa91e2ce"
   }
  },
+ "./publish/content/apply-retire": {
+  "types": "./dist/publish/content/apply-retire.d.ts",
+  "symbols": {
+   "ApplyRetireCollaborators": "interface:a02fbeee36",
+   "ApplyRetireContext": "interface:36eb476bba",
+   "ApplyRetireHandler": "interface:a3da1a6ed3",
+   "ApplyRetireRow": "interface:980fbaee25",
+   "ApplyRetireStep": "interface:a3a935c959",
+   "ApplyRetireTarget": "interface:ef1908b943",
+   "applyRetiringRow": "function:4286e10aea"
+  }
+ },
+ "./publish/content/backstop-refusal": {
+  "types": "./dist/publish/content/backstop-refusal.d.ts",
+  "symbols": {
+   "BackstopRefusal": "class:0c0ac2bded"
+  }
+ },
  "./publish/content/baseline-repo": {
   "types": "./dist/publish/content/baseline-repo.d.ts",
   "symbols": {
@@ -3063,6 +3098,16 @@
    "normalizePeerBaseUrl": "function:cf806e7770",
    "peerHostname": "function:fe80f539a9",
    "peerUrl": "function:d63b2c6554"
+  }
+ },
+ "./publish/content/peers": {
+  "types": "./dist/publish/content/peers.d.ts",
+  "symbols": {
+   "PublishContentPeerCredentialMissingError": "class:52db04cea4",
+   "PublishContentPeerDuplicateLabelError": "class:139b9ef56e",
+   "PublishContentPeerNotFoundError": "class:44897a05a4",
+   "PublishContentPeerSecretStoreUnconfiguredError": "class:961f137dea",
+   "PublishContentPeerValidationError": "class:b66d1cb3f1"
   }
  },
  "./publish/content/precheck-reasons": {
@@ -3611,6 +3656,16 @@
    "translateSettingsDialog": "function:287258fbdf",
    "validateDefinitionInput": "function:60d1d6a70a",
    "validateValueAgainstSchema": "function:3a9138d461"
+  }
+ },
+ "./settings/site/site-title-preservation": {
+  "types": "./dist/settings/site/site-title-preservation.d.ts",
+  "symbols": {
+   "SiteTitlePreexistingWorkspaceRow": "interface:6de7d79385",
+   "SiteTitlePreservationSqlRequired": "interface:faf6412151",
+   "SiteTitlePreservationStorePort": "interface:cebc19a1bc",
+   "SiteTitlePreservationTables": "interface:3ad8711c81",
+   "SqlSiteTitlePreservationStore": "class:f72057b030"
   }
  },
  "./taxonomy": {

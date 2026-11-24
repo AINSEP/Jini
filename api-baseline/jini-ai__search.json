@@ -81,6 +81,15 @@
    "parseSearchRequest": "function:3c3f074eaf"
   }
  },
+ "./site/index-state-store": {
+  "types": "./dist/site/index-state-store.d.ts",
+  "symbols": {
+   "SearchIndexDatabase": "interface:e91bdd1f05",
+   "SearchIndexTables": "interface:984c737415",
+   "SqlSearchIndexStore": "interface:87c136b5b8",
+   "createSqlSearchIndexStore": "function:99dc40d51d"
+  }
+ },
  "./testkit": {
   "types": "./dist/testkit/index.d.ts",
   "symbols": {

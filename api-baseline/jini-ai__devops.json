@@ -45,6 +45,22 @@
    "SiteBackupPushProgress": "interface:17e5c15a76"
   }
  },
+ "./backup/site/archive-media": {
+  "types": "./dist/backup/site/archive-media.d.ts",
+  "symbols": {
+   "ArchiveMediaCopy": "interface:72250ba212",
+   "ArchiveMediaEntry": "interface:d692660547",
+   "ArchiveMediaHost": "interface:7e854366c1",
+   "ArchiveMediaImageTransformer": "interface:88dd17a49a",
+   "ArchiveMediaOperations": "interface:0ffe61d1b9",
+   "ArchiveMediaPathPolicy": "interface:be816a3259",
+   "ArchiveMediaRewriter": "type:8a25f800a9",
+   "ArchiveMediaSharePolicy": "interface:8a9ebab07a",
+   "ArchiveMediaSource": "interface:e41e8501f0",
+   "ArchiveMediaTransformParams": "interface:a96d563774",
+   "bufferArchiveMedia": "function:01d45ac62c"
+  }
+ },
  "./backup/site/credential-warnings": {
   "types": "./dist/backup/site/credential-warnings.d.ts",
   "symbols": {
@@ -59,6 +75,25 @@
   "symbols": {
    "SiteShareExportFailure": "class:481430087c",
    "SiteShareExportStep": "type:ee08280859"
+  }
+ },
+ "./backup/site/share-refusal": {
+  "types": "./dist/backup/site/share-refusal.d.ts",
+  "symbols": {
+   "SiteShareRefusal": "class:1b7589023b",
+   "archiveRefusalName": "function:de88fa9382"
+  }
+ },
+ "./backup/site/static-export-selection": {
+  "types": "./dist/backup/site/static-export-selection.d.ts",
+  "symbols": {
+   "StaticExportAllocationPolicy": "interface:6f0c4dcd22",
+   "StaticExportInput": "interface:9f5c36b9df",
+   "StaticExportOptions": "interface:00657bfbe5",
+   "StaticExportSelectionPolicy": "interface:e081b9b525",
+   "StaticExportTheme": "interface:13d657accf",
+   "allocateStaticExportThemes": "function:5edb6ac170",
+   "parseStaticExportInput": "function:f39a4563a0"
   }
  },
  "./backup/upload": {

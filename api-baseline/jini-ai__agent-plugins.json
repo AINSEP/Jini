@@ -618,7 +618,7 @@
    "contributeProviders": "function:a73cb62064",
    "createAgentPluginActivations": "function:a98be8f4c9",
    "createAgentPluginLayout": "function:07b16a4480",
-   "createAgentPluginLifecycle": "function:c8458ea373",
+   "createAgentPluginLifecycle": "function:798d8c5eac",
    "createAutomaticAgentPluginUse": "function:b30cfb12d4",
    "createPluginContributionLoader": "function:91849dd6a0",
    "createSkillFileReader": "function:cfa60bca9f",
@@ -976,7 +976,7 @@
    "AnalyticsProviderPorts": "interface:ce26324cdc",
    "AnalyticsProviders": "interface:cae62da088",
    "analyticsProviderContribution": "function:1b7fba5823",
-   "loadAnalyticsProviders": "function:9313cfc0de",
+   "loadAnalyticsProviders": "function:d88d43db47",
    "parseAnalyticsProvidersFile": "function:868bdb8cf9"
   }
  },
@@ -989,7 +989,7 @@
    "LoadCredentialSchemeContributionsFromSource": "type:b8f4b2132a",
    "ParseCredentialSchemesFile": "type:32e67de7f9",
    "loadBundledCredentialSchemeRegistry": "function:b03242c59a",
-   "loadCredentialSchemeRegistry": "function:29e74e2e5b",
+   "loadCredentialSchemeRegistry": "function:28923ecef3",
    "loadCredentialSchemeRegistryFromSource": "function:ced802cb47"
   }
  },
@@ -998,6 +998,19 @@
   "symbols": {
    "BundledContributionSources": "type:b7321b95bf",
    "listBundledContributionSources": "function:2bfd82a251"
+  }
+ },
+ "./site/bundled-id-upgrade": {
+  "types": "./dist/site/bundled-id-upgrade.d.ts",
+  "symbols": {
+   "BUNDLED_ID_UPGRADE_BACKUP_DIRNAME": "variable:b2cdb5cecb",
+   "BundledIdUpgradeOutcome": "type:e0524a8ea2",
+   "BundledIdUpgradePort": "interface:c624ea4e17",
+   "BundledPluginRenames": "type:4f05f062fb",
+   "InstalledRevision": "interface:33d4da1711",
+   "MovedRevision": "interface:e4a2640bf9",
+   "restoreUnseededUpgrades": "function:7437d899c2",
+   "upgradeRenamedBundledPlugins": "function:5e9e191c6c"
   }
  },
  "./site/customize-tool": {
@@ -1012,7 +1025,7 @@
   "types": "./dist/site/deploy-split-activation.d.ts",
   "symbols": {
    "DeploySplitActivationPort": "interface:70820e2800",
-   "carryCloudflareActivation": "function:23fab05dfe"
+   "carryPluginRenameActivation": "function:a490b2ff22"
   }
  },
  "./site/host-plugin-guidance": {

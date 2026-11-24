@@ -410,6 +410,13 @@
    "pluginSourceToolIds": "variable:f341d76ab6"
   }
  },
+ "./runtime/sdk-resolver": {
+  "types": "./dist/runtime/sdk-resolver.d.ts",
+  "symbols": {
+   "PluginSdkResolverAlreadyRegisteredError": "class:06876bcd61",
+   "registerPluginSdkResolver": "function:5387c74872"
+  }
+ },
  "./runtime/service-ports": {
   "types": "./dist/runtime/service-ports.d.ts",
   "symbols": {
