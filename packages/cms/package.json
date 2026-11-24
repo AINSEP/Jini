@@ -148,7 +148,6 @@
       "./admin-http/routes/redirects/tombstone": "universal",
       "./admin-http/routes/redirects/update": "universal",
       "./admin-http/routes/sites/local-sites": "universal",
-      "./admin-http/routes/sites/site-previews": "node",
       "./admin-http/routes/system/assistant-daemon": "universal",
       "./admin-http/routes/system/module-status": "universal",
       "./admin-http/http/entity-not-live": "universal",
@@ -1296,11 +1295,6 @@
       "types": "./dist/admin-http/routes/sites/local-sites.d.ts",
       "import": "./dist/admin-http/routes/sites/local-sites.js",
       "default": "./dist/admin-http/routes/sites/local-sites.js"
-    },
-    "./admin-http/routes/sites/site-previews": {
-      "types": "./dist/admin-http/routes/sites/site-previews.d.ts",
-      "import": "./dist/admin-http/routes/sites/site-previews.js",
-      "default": "./dist/admin-http/routes/sites/site-previews.js"
     },
     "./admin-http/routes/system/assistant-daemon": {
       "types": "./dist/admin-http/routes/system/assistant-daemon.d.ts",
