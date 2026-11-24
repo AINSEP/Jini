@@ -106,7 +106,10 @@
       "./admin-surfaces/node": "node",
       "./site/admin-surfaces/capabilities": "universal",
       "./site/admin-surfaces/forms": "universal",
-      "./site/memory-i18n": "universal"
+      "./site/memory-i18n": "universal",
+      "./site/admin-surfaces/public-config": "universal",
+      "./site/deploy-split-activation": "universal",
+      "./site/retired-plugin-tool-aliases": "universal"
     },
     "isolation": {
       "entries": {
@@ -116,7 +119,8 @@
         "./connect/executable": "lifecycle",
         "./connect/plugin-host": "lifecycle",
         "./site/admin-surfaces/capabilities": "admin-surfaces",
-        "./site/admin-surfaces/forms": "admin-surfaces"
+        "./site/admin-surfaces/forms": "admin-surfaces",
+        "./site/admin-surfaces/public-config": "admin-surfaces"
       },
       "shared": [
         "core/persistent-state.js",
@@ -307,6 +311,21 @@
       "types": "./dist/site/memory-i18n.d.ts",
       "import": "./dist/site/memory-i18n.js",
       "default": "./dist/site/memory-i18n.js"
+    },
+    "./site/admin-surfaces/public-config": {
+      "types": "./dist/site/admin-surfaces/public-config.d.ts",
+      "import": "./dist/site/admin-surfaces/public-config.js",
+      "default": "./dist/site/admin-surfaces/public-config.js"
+    },
+    "./site/deploy-split-activation": {
+      "types": "./dist/site/deploy-split-activation.d.ts",
+      "import": "./dist/site/deploy-split-activation.js",
+      "default": "./dist/site/deploy-split-activation.js"
+    },
+    "./site/retired-plugin-tool-aliases": {
+      "types": "./dist/site/retired-plugin-tool-aliases.d.ts",
+      "import": "./dist/site/retired-plugin-tool-aliases.js",
+      "default": "./dist/site/retired-plugin-tool-aliases.js"
     }
   },
   "files": [

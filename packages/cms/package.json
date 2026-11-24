@@ -279,7 +279,13 @@
       "./admin-http/routes/plugins/set-enabled": "universal",
       "./admin-http/routes/publish-content/transport-shared": "universal",
       "./admin-http/routes/publish-content/peers": "universal",
-      "./admin-http/routes/publish-content/destination": "universal"
+      "./admin-http/routes/publish-content/destination": "universal",
+      "./fs-files/native-folder-picker": "node",
+      "./content-duplication/derive-available-name": "universal",
+      "./content-duplication/agent-tools": "universal",
+      "./change-sets/agent-tools": "universal",
+      "./forms/destinations/rewrite-actions": "node",
+      "./navigation/site/reverters": "universal"
     },
     "isolation": {
       "domains": {
@@ -1771,6 +1777,36 @@
       "types": "./dist/admin-http/routes/publish-content/destination.d.ts",
       "import": "./dist/admin-http/routes/publish-content/destination.js",
       "default": "./dist/admin-http/routes/publish-content/destination.js"
+    },
+    "./fs-files/native-folder-picker": {
+      "types": "./dist/fs-files/native-folder-picker.d.ts",
+      "import": "./dist/fs-files/native-folder-picker.js",
+      "default": "./dist/fs-files/native-folder-picker.js"
+    },
+    "./content-duplication/derive-available-name": {
+      "types": "./dist/content-duplication/derive-available-name.d.ts",
+      "import": "./dist/content-duplication/derive-available-name.js",
+      "default": "./dist/content-duplication/derive-available-name.js"
+    },
+    "./content-duplication/agent-tools": {
+      "types": "./dist/content-duplication/agent-tools.d.ts",
+      "import": "./dist/content-duplication/agent-tools.js",
+      "default": "./dist/content-duplication/agent-tools.js"
+    },
+    "./change-sets/agent-tools": {
+      "types": "./dist/change-sets/agent-tools.d.ts",
+      "import": "./dist/change-sets/agent-tools.js",
+      "default": "./dist/change-sets/agent-tools.js"
+    },
+    "./forms/destinations/rewrite-actions": {
+      "types": "./dist/forms/destinations/rewrite-actions.d.ts",
+      "import": "./dist/forms/destinations/rewrite-actions.js",
+      "default": "./dist/forms/destinations/rewrite-actions.js"
+    },
+    "./navigation/site/reverters": {
+      "types": "./dist/navigation/site/reverters.d.ts",
+      "import": "./dist/navigation/site/reverters.js",
+      "default": "./dist/navigation/site/reverters.js"
     }
   },
   "files": [

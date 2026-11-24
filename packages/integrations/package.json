@@ -28,7 +28,9 @@
       "./webhooks/site/signing.keyring": "node",
       "./webhooks/site/subscriptions": "node",
       "./vendor-credentials/abort-guarded-repo": "node",
-      "./webhooks/sql": "node"
+      "./webhooks/sql": "node",
+      "./custom-credentials/card-token": "node",
+      "./custom-credentials/credential-recovery": "node"
     },
     "optionalPeers": {
       "better-sqlite3": "opt-in: sqlite storage; import @jini-ai/integrations/media-providers — SQLite storage could not load better-sqlite3. Install better-sqlite3 to enable this feature, or check its installed version and native binaries.",
@@ -119,6 +121,16 @@
       "types": "./dist/webhooks/sql/index.d.ts",
       "import": "./dist/webhooks/sql/index.js",
       "default": "./dist/webhooks/sql/index.js"
+    },
+    "./custom-credentials/card-token": {
+      "types": "./dist/custom-credentials/card-token.d.ts",
+      "import": "./dist/custom-credentials/card-token.js",
+      "default": "./dist/custom-credentials/card-token.js"
+    },
+    "./custom-credentials/credential-recovery": {
+      "types": "./dist/custom-credentials/credential-recovery.d.ts",
+      "import": "./dist/custom-credentials/credential-recovery.js",
+      "default": "./dist/custom-credentials/credential-recovery.js"
     }
   },
   "typesVersions": {
@@ -167,6 +179,12 @@
       ],
       "webhooks/sql": [
         "./dist/webhooks/sql/index.d.ts"
+      ],
+      "custom-credentials/card-token": [
+        "./dist/custom-credentials/card-token.d.ts"
+      ],
+      "custom-credentials/credential-recovery": [
+        "./dist/custom-credentials/credential-recovery.d.ts"
       ]
     }
   },
