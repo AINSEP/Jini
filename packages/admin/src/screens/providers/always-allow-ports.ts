@@ -2,7 +2,7 @@ import type { AdminExternalMcpServer, ExternalMcpToolApprovalDto } from "@jini-a
 
 /**
  * @file What `useAlwaysAllow` needs from the outside world, as an interface rather than a direct
- * `lib/api` import — same split the integrations ports make.
+ * `lib/api` import — same split `integration-deliveries-port.hooks.ts` makes.
  */
 export interface AlwaysAllowPort {
   listExternalMcpToolApprovals(): Promise<{ approvals: ExternalMcpToolApprovalDto[] }>;
