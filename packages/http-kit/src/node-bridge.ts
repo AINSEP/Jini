@@ -234,6 +234,22 @@ async function pipeBody({ body, out }: { body: ReadableStream<Uint8Array>; out: 
 }
 
 /**
+ * Adds a response's `Vary` fields to any a middleware or a route's static headers already set, as Express
+ * `res.vary` does: a replacement would drop e.g. a CORS `Origin` and let a cache serve one origin's answer
+ * to another. Field names are de-duplicated case-insensitively and `*` absorbs everything.
+ * @complexity O(n) in the number of field names.
+ */
+function appendVary({ out, value }: { out: ServerResponse; value: string }, _optional: Record<string, never> = {}): void {
+  const existing = out.getHeader('vary');
+  const fields: string[] = [];
+  for (const field of `${existing === undefined ? '' : String(existing)},${value}`.split(',')) {
+    const name = field.trim();
+    if (name && !fields.some((seen) => seen.toLowerCase() === name.toLowerCase())) fields.push(name);
+  }
+  out.setHeader('vary', fields.includes('*') ? '*' : fields.join(', '));
+}
+
+/**
  * Writes a web `Response` to a Node `ServerResponse`: status, headers (each `Set-Cookie` on its own line), then the
  * body with backpressure, headers flushed before the first chunk so a stream reaches the client before its first event.
  * For a host that builds its own `Response` and answers through Node (Express) instead of registering a route, so it
@@ -247,7 +263,9 @@ export async function sendWebResponse({ response, res }: { response: Response; r
   // Set-Cookie cannot be comma-joined (cookie dates contain commas), so each one gets its own line.
   const cookies = response.headers.getSetCookie();
   response.headers.forEach((value, name) => {
-    if (name !== 'set-cookie') out.setHeader(name, value);
+    if (name === 'set-cookie') return;
+    if (name === 'vary') appendVary({ out, value });
+    else out.setHeader(name, value);
   });
   for (const cookie of cookies) out.appendHeader('set-cookie', cookie);
   if (!response.body || headOnly) {

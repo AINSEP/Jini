@@ -87,6 +87,33 @@ Members are deferred as a complete backend extraction, not partially implemented
 
 See [stage-B checklist and source map](./stage-b-report.md) and [validation evidence](./validation.md). Build with `tsc -p tsconfig.json`; test with `vitest run` from this directory.
 
+## Wiring
+
+Admin route specs (`src/admin-http/routes/users/*`, DTOs in `src/admin-http/http/users.ts`) are
+server-neutral `defineJsonRoute` specs, each with its own small `<Name>RouteDeps`. A host mounts one
+with `mountJsonRoute({ app, spec, deps })` from `@jini-ai/http-kit`, passing its `authorize` port.
+Principal routes: list, create, update, disable, enable, reset-password, delete, assign-role,
+attach-policy. Role/policy routes: create/update/delete role, create/update/delete policy, write a
+policy permission. The identity services they call live in the node `./server` entry, so each spec
+takes the one it calls as a required deps field (typed with `typeof`) and the host binds it from
+`@jini-ai/user-management/server`; the specs import only `src/core` errors and types. Host-owned rules
+are injected too: the identity deps assembler (`identityServices`/`identityServiceDeps`, a thunk built
+per request), the Trash index and trash move, the account-protection guard (`assertUserAccountAction`
+plus the seeded `ownerPrincipalId`, run by disable, enable and reset-password), host error classes as
+predicates (`isUserInTrashError`, `isSelfDeleteError`, …), and the ungrantable-permission list and
+its refusal copy. Authorization happens inside the identity services (`role.manage`, `user.manage`),
+so the specs never call the `authorize` port except `list`, which receives the host's raw
+`decidePermission` (two permissions, "either one", no entity type). The three role/policy reads
+(`list-roles`, `list-policies`, `list-policy-permissions`) ask the `authorize` port for `role.manage`
+themselves, with no `entityType` and no entity scope (the port receives neither key), and read only
+the `Pick`ed repo methods they call. `remove-policy-permission` takes the identity transaction port,
+the policy-permission row read and two host owner guards (`principalHoldsOwnerWildcard`,
+`assertActiveOwnerFloor`) as deps, and answers its 204 as a bodiless `routeReply`.
+
+`./admin-http/owner/mfa-deps`: `composeOwnerMfaDeps({ deps, authServiceDeps, totp, sealedSecrets })`
+builds `OwnerMfaDeps` from a host's late-bound identity, MFA storage and sealing ports; the host
+injects `createOtplibTotp`/`createSealedMfaSecrets` from `./server`.
+
 ## Design decisions
 
 - [Identity, authorization and sessions fail closed](docs/decisions/DR-001-identity-and-session-boundary.md).
