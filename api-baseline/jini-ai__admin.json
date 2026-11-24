@@ -1343,7 +1343,7 @@
  "./screens/auth/Login.hooks": {
   "types": "./dist/screens/auth/Login.hooks.d.ts",
   "symbols": {
-   "createLoginTranslator": "function:79398d647d"
+   "createLoginTranslator": "function:8e92b2f283"
   }
  },
  "./screens/auth/OwnerRecoverySignIn": {
@@ -1356,7 +1356,7 @@
  "./screens/auth/OwnerRecoverySignIn.hooks": {
   "types": "./dist/screens/auth/OwnerRecoverySignIn.hooks.d.ts",
   "symbols": {
-   "useOwnerRecoverySignIn": "function:8366fc01ce"
+   "useOwnerRecoverySignIn": "function:3813e2744f"
   }
  },
  "./screens/authentication/Authentication": {
@@ -1610,6 +1610,7 @@
    "CATEGORIES": "variable:35b72aa8c3",
    "CredentialCategory": "type:e24d8f4285",
    "CredentialDraft": "interface:b5089b0889",
+   "CredentialDraftError": "type:86f7fb82f8",
    "CredentialField": "interface:eb259e31c1",
    "CredentialGroupSortInput": "interface:624f6bdcf9",
    "CredentialInput": "interface:05c133db15",
@@ -1619,13 +1620,15 @@
    "CredentialStorePort": "interface:facf104c1b",
    "CredentialStoreSnapshot": "interface:167cfe91fe",
    "CredentialSummary": "interface:677055e427",
+   "CredentialTokenAssert": "type:6c046e2e8b",
    "DescribeCredentialError": "type:ddde2264c5",
    "DescribeRootKeyError": "type:0ce4948eeb",
    "DescribeRootKeyRefusal": "type:c0ebaf76b3",
+   "DescribeTokenInputError": "type:ba57db5493",
    "MediaWriteOrder": "type:66a98e52b7",
    "OTHER_STORES": "variable:25480210ca",
    "OTHER_STORE_INFO": "variable:2868e9b5e6",
-   "OtherCredentialSummary": "interface:af9910e895",
+   "OtherCredentialSummary": "interface:4614b0626e",
    "OtherCredentialsPort": "interface:13a5b5dc27",
    "OtherStoreId": "type:00236e4221",
    "OtherStoreLink": "interface:e8f836902e",
@@ -1658,12 +1661,13 @@
    "blankCredentialDraft": "function:9c6aae1e9b",
    "buildCredentialPatch": "function:387b0e2ce9",
    "classifyRootKeyGenerateFailure": "function:6ce104e5a4",
-   "createAccessTokensController": "function:c4be311b3a",
-   "createOtherCredentialsController": "function:b14a735aa3",
+   "createAccessTokensController": "function:59f69e771d",
+   "createOtherCredentialsController": "function:59b81f5412",
    "createRootKeyController": "function:19b0ea8132",
    "createSharedKeysController": "function:b1cb58147f",
    "credentialCategory": "function:17bc412cf1",
    "credentialCountText": "function:5d57958ac7",
+   "credentialDraftError": "function:26553aa8cd",
    "credentialFailureText": "function:24f343dc5f",
    "credentialLabel": "function:269b46af2c",
    "credentialStore": "function:f1f16c983f",
@@ -1731,8 +1735,8 @@
  "./security/conformance": {
   "types": "./dist/security/conformance/security-api.conformance.d.ts",
   "symbols": {
-   "runPublishCredentialsConformance": "function:4286ca4c98",
-   "runSecurityApiConformance": "function:61c7428162"
+   "runPublishCredentialsConformance": "function:41eecafd97",
+   "runSecurityApiConformance": "function:c2f56c874d"
   }
  },
  "./security/react": {
@@ -1742,15 +1746,15 @@
    "SecurityChipField": "type:49af727d5f",
    "SecurityChipFieldOption": "interface:7ad63e3f54",
    "SecurityChipFieldProps": "interface:6c4eab578d",
-   "SecurityCredentialsHost": "interface:8a8b2949f6",
-   "SecurityModuleOptions": "interface:669aaf516d",
+   "SecurityCredentialsHost": "interface:c2ddcca590",
+   "SecurityModuleOptions": "interface:54e161245a",
    "SecurityRootKeyTabOptions": "interface:20f25ecf87",
    "SecurityTabIcons": "type:76808971db",
    "SecurityTranslator": "type:36a7df8662",
-   "security": "function:e3426c8bfc",
+   "security": "function:e867ea73fc",
    "useSecurityCredentialsHost": "function:cc3303e371",
    "useSecurityOwnerControls": "function:ac3d8453f3",
-   "useSecurityPorts": "function:a0ed09c781",
+   "useSecurityPorts": "function:94739678ec",
    "useSecurityTranslation": "function:7d8accfc14"
   }
  },

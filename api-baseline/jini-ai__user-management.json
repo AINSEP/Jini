@@ -196,7 +196,7 @@
    "MintedApiKey": "interface:e95d47a07f",
    "ScryptApiKeySecretHasher": "class:82a450bf5a",
    "createApiKeySecret": "function:b3b8597eab",
-   "decoyKeyHash": "function:eb43ed5784"
+   "decoyKeyHash": "function:76757945fe"
   }
  },
  "./identity/api-key-service": {
@@ -224,10 +224,7 @@
   "types": "./dist/identity/boot-session-token.d.ts",
   "symbols": {
    "BootSessionTokenStore": "interface:85619a3a8b",
-   "createBootSessionTokenStore": "function:f0bb94fe3f",
-   "isBootSessionTokenArmed": "function:43f703c271",
-   "mintBootSessionToken": "function:12297034ce",
-   "redeemBootSessionToken": "function:f0a2ec3b70"
+   "createBootSessionTokenStore": "function:f0bb94fe3f"
   }
  },
  "./identity/builtin-role-grants": {
@@ -286,6 +283,13 @@
   "symbols": {
    "ROLE_MANAGE_PERMISSION": "variable:22db1ce7a1",
    "registerRoleManagePermissionGrants": "function:234f216e42"
+  }
+ },
+ "./identity/site-key-permission": {
+  "types": "./dist/identity/site-key-permission.d.ts",
+  "symbols": {
+   "SITE_KEY_MANAGE_PERMISSION": "variable:eb47db2141",
+   "registerSiteKeyPermissionGrants": "function:e491cc4a7f"
   }
  },
  "./identity/user-manage-permission": {
