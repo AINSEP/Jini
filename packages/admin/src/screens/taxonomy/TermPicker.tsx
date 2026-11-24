@@ -70,8 +70,8 @@ type TermRows = AdminTaxonomyWithTerms["terms"];
  *
  * Mount it only for content that exists (a saved post/page/entry has an id to tag).
  *
- * Classes are `jini-term-picker*` plus the host's shared `card`/`field-*`/`btn-*`/`save-*` design
- * classes; the host styles them.
+ * Classes are `jini-term-picker*` plus the `jini-*` twins of the shared design classes
+ * (`jini-card`/`jini-field-*`/`jini-btn-*`/`jini-save-*`); the host styles them.
  * @example <TermPicker contentType="post" contentId={id} useTermPickerHook={useWiredTermPicker} useTermListRevealHook={useTermListReveal} />
  */
 export function TermPicker(props: TermPickerProps): JSX.Element | null {
@@ -84,9 +84,9 @@ export function TermPicker(props: TermPickerProps): JSX.Element | null {
   const handles = buildTermPickerHandles({ taxonomies });
 
   return (
-    <section className="card jini-term-picker">
-      <h3 className="card-title">{t("Categories & Tags")}</h3>
-      <p className="card-lead">
+    <section className="jini-card jini-term-picker">
+      <h3 className="jini-card-title">{t("Categories & Tags")}</h3>
+      <p className="jini-card-lead">
         {loading ? t("Loading categories & tags…") : t("Tick the categories and tags that apply, then save.")}
       </p>
       {/* One row per taxonomy: its name on the left, its terms on the right. The `<fieldset>` is
@@ -191,9 +191,9 @@ function TermPickerGroup({ taxonomy, terms, groupIndex, picker, handles, useTerm
   const rowHandles = handles.row(groupIndex);
   return (
     <fieldset className="jini-term-picker-group">
-      <legend className="field-label">{taxonomy.name}</legend>
+      <legend className="jini-field-label">{taxonomy.name}</legend>
       <div className="jini-term-picker-body">
-        {terms.length === 0 && !showInput ? <p className="field-hint">{picker.t("No terms yet.")}</p> : null}
+        {terms.length === 0 && !showInput ? <p className="jini-field-hint">{picker.t("No terms yet.")}</p> : null}
         {terms.length > 0 ? (
           <TermChecklist
             taxonomy={taxonomy}
@@ -206,7 +206,7 @@ function TermPickerGroup({ taxonomy, terms, groupIndex, picker, handles, useTerm
         {picker.showAddTrigger(id) ? <TermPickerAddTrigger taxonomy={taxonomy} picker={picker} handles={rowHandles} /> : null}
         {showInput ? <TermPickerAddInput taxonomy={taxonomy} picker={picker} handles={rowHandles} SuggestInput={SuggestInput} /> : null}
         {createError ? (
-          <span className="save-error" role="alert">
+          <span className="jini-save-error" role="alert">
             {createError}
           </span>
         ) : null}
@@ -220,7 +220,7 @@ function TermPickerAddTrigger({ taxonomy, picker, handles }: TermPickerRowProps)
   return (
     <button
       type="button"
-      className="btn-ghost jini-term-picker-add-trigger"
+      className="jini-btn-ghost jini-term-picker-add-trigger"
       onClick={() => picker.setAddOpen(taxonomy.id, true)}
       {...agentHandle({ handle: handles.addTrigger }, {
         role: "button",
@@ -260,7 +260,7 @@ function TermPickerAddInput({ taxonomy, picker, handles, SuggestInput }: TermPic
       />
       <button
         type="button"
-        className="btn-secondary"
+        className="jini-btn-secondary"
         onClick={() => void picker.addTerm(id)}
         disabled={termCreationDisabled({ loading, picker, id })}
         {...agentHandle({ handle: handles.addButton }, {
@@ -283,10 +283,10 @@ function TermPickerActions({ picker }: { picker: TermPickerController }): JSX.El
     // deliberately no outer margin, and this row follows the taxonomy rows with nothing else
     // separating them. Scoped here rather than added to `.editor-actions` itself, which is
     // shared with screens where a blanket top margin would be wrong.
-    <span className="editor-actions jini-term-picker-actions">
+    <span className="jini-editor-actions jini-term-picker-actions">
       <button
         type="button"
-        className="btn-primary"
+        className="jini-btn-primary"
         onClick={save}
         disabled={saving || !dirty}
         {...agentHandle({ handle: "term-picker-save" }, {
@@ -296,8 +296,8 @@ function TermPickerActions({ picker }: { picker: TermPickerController }): JSX.El
       >
         {saving ? t("Saving…") : t("Save categories & tags")}
       </button>
-      {message ? <span className="save-ok">{message}</span> : null}
-      {error ? <span className="save-error">{error}</span> : null}
+      {message ? <span className="jini-save-ok">{message}</span> : null}
+      {error ? <span className="jini-save-error">{error}</span> : null}
     </span>
   );
 }
@@ -338,7 +338,7 @@ function TermChecklist(props: {
       ) : null}
       <div id={listId} className="jini-term-picker-terms">
         {reveal.shown.map((term) => (
-          <label key={term.id} className="form-checkbox-field">
+          <label key={term.id} className="jini-form-checkbox-field">
             <input
               type="checkbox"
               checked={selected.has(term.id)}
@@ -356,7 +356,7 @@ function TermChecklist(props: {
       {reveal.canToggle ? (
         <button
           type="button"
-          className="link-button jini-term-picker-more"
+          className="jini-link-button jini-term-picker-more"
           aria-expanded={reveal.expanded}
           aria-controls={listId}
           onClick={reveal.toggleExpanded}

@@ -34,7 +34,7 @@ interface MergeIdleStepProps {
  *  `UserRow` -> `UserManagePanel` already used. */
 function MergeIdleStep({ otherTerms, intoTermId, setIntoTermId, busy, startPlan, t }: MergeIdleStepProps): JSX.Element {
   return (
-    <span className="editor-actions">
+    <span className="jini-editor-actions">
       <select
         aria-label={t("Merge into")}
         value={intoTermId}
@@ -56,7 +56,7 @@ function MergeIdleStep({ otherTerms, intoTermId, setIntoTermId, busy, startPlan,
           screen's primary action. Only Execute (genuinely irreversible) escalates. */}
       <button
         type="button"
-        className="btn-secondary"
+        className="jini-btn-secondary"
         onClick={startPlan}
         disabled={!intoTermId || busy}
         {...agentHandle({ handle: "term-merge-plan" }, {
@@ -91,7 +91,7 @@ function MergePlannedStep({ termName, overlappingContentCount, busy, doConfirm, 
       </p>
       <button
         type="button"
-        className="btn-secondary"
+        className="jini-btn-secondary"
         onClick={doConfirm}
         disabled={busy}
         {...agentHandle({ handle: "term-merge-confirm" }, {
@@ -119,7 +119,7 @@ function MergeConfirmedStep({ busy, doExecute, t }: MergeConfirmedStepProps): JS
       {/* Genuinely irreversible, per the copy right above — `.btn-danger`, unlike Plan/Confirm. */}
       <button
         type="button"
-        className="btn-danger"
+        className="jini-btn-danger"
         onClick={doExecute}
         disabled={busy}
         {...agentHandle({ handle: "term-merge-execute" }, {
@@ -144,9 +144,9 @@ function MergeTermSection(props: MergeTermSectionProps): JSX.Element | null {
   if (otherTerms.length === 0) return null;
 
   return (
-    <div className="notice jini-taxonomy-merge-section">
+    <div className="jini-notice jini-taxonomy-merge-section">
       <h3>{t("Merge into another term")}</h3>
-      {error ? <span className="save-error">{error}</span> : null}
+      {error ? <span className="jini-save-error">{error}</span> : null}
 
       {step === "idle" ? (
         <MergeIdleStep otherTerms={otherTerms} intoTermId={intoTermId} setIntoTermId={setIntoTermId} busy={busy} startPlan={startPlan} t={t} />
@@ -182,26 +182,26 @@ export function TermDetailPanel({ taxonomy, term, onRenamed, onMerged, t, parts 
   const { StatusLabel } = parts;
 
   return (
-    <div className="settings-detail-panel jini-taxonomy-term-detail">
+    <div className="jini-settings-detail-panel jini-taxonomy-term-detail">
       <h2>{term.name}</h2>
-      <p className="muted-cell">{taxonomy.taxonomy.name}</p>
-      <div className="settings-layer-grid">
-        <div className="settings-layer-cell">
-          <span className="settings-layer-label">{t("Status")}</span>
-          <span className={`status status-${term.status}`}><StatusLabel value={term.status} /></span>
+      <p className="jini-muted-cell">{taxonomy.taxonomy.name}</p>
+      <div className="jini-settings-layer-grid">
+        <div className="jini-settings-layer-cell">
+          <span className="jini-settings-layer-label">{t("Status")}</span>
+          <span className={`jini-status jini-status-${term.status}`}><StatusLabel value={term.status} /></span>
         </div>
-        <div className="settings-layer-cell">
-          <span className="settings-layer-label">{t("Parent")}</span>
+        <div className="jini-settings-layer-cell">
+          <span className="jini-settings-layer-label">{t("Parent")}</span>
           <span>
             {term.parentId ? taxonomy.terms.find((candidate) => candidate.id === term.parentId)?.name ?? term.parentId : "—"}
           </span>
         </div>
-        <div className="settings-layer-cell">
-          <span className="settings-layer-label">{t("Version")}</span>
+        <div className="jini-settings-layer-cell">
+          <span className="jini-settings-layer-label">{t("Version")}</span>
           <span>{term.version}</span>
         </div>
       </div>
-      <form onSubmit={rename} className="collections-field-row">
+      <form onSubmit={rename} className="jini-collections-field-row">
         <label htmlFor="term-rename-input">{t("Rename")}</label>
         <input
           id="term-rename-input"
@@ -209,17 +209,17 @@ export function TermDetailPanel({ taxonomy, term, onRenamed, onMerged, t, parts 
           onChange={(e) => setNewName(e.target.value)}
           {...agentHandle({ handle: "term-detail-rename" }, { role: "field", label: "This term's new name" })}
         />
-        <span className="editor-actions">
+        <span className="jini-editor-actions">
           <button
             type="submit"
-            className="btn-secondary"
+            className="jini-btn-secondary"
             disabled={saving}
             {...agentHandle({ handle: "term-detail-rename-save" }, { role: "button", label: "Save this term's new name" })}
           >
             {saving ? t("Saving…") : t("Save")}
           </button>
-          {message ? <span className="save-ok">{message}</span> : null}
-          {error ? <span className="save-error">{error}</span> : null}
+          {message ? <span className="jini-save-ok">{message}</span> : null}
+          {error ? <span className="jini-save-error">{error}</span> : null}
         </span>
       </form>
       <MergeTermSection taxonomy={taxonomy} term={term} onMerged={onMerged} t={t} useMergeTermSectionHook={parts.useMergeTermSectionHook} />

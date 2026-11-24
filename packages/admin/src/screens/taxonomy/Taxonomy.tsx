@@ -94,9 +94,9 @@ function NewTaxonomyForm(props: NewTaxonomyFormProps): JSX.Element {
   const { name, setName, hierarchical, setHierarchical, error, saving, submit } = props.useNewTaxonomyFormHook({ onCreated });
 
   return (
-    <form className="notice jini-taxonomy-new-term-form" onSubmit={submit}>
+    <form className="jini-notice jini-taxonomy-new-term-form" onSubmit={submit}>
       <label htmlFor="new-taxonomy-name">{t("New taxonomy")}</label>
-      <span className="editor-actions">
+      <span className="jini-editor-actions">
         <input
           id="new-taxonomy-name"
           value={name}
@@ -128,7 +128,7 @@ function NewTaxonomyForm(props: NewTaxonomyFormProps): JSX.Element {
         </button>
       </span>
       {error ? (
-        <span className="save-error" role="alert">
+        <span className="jini-save-error" role="alert">
           {error}
         </span>
       ) : null}
@@ -149,25 +149,25 @@ interface TaxonomyPageHeaderProps {
 function TaxonomyPageHeader({ formOpen, setFormOpen, publishButton, t }: TaxonomyPageHeaderProps): JSX.Element {
   return (
     <div
-      className="page-header"
+      className="jini-page-header"
       {...agentHandle({ handle: "taxonomy-header" }, {
         role: "region",
         label: "Categories & Tags header — page title and the New taxonomy button",
       })}
     >
-      <div className="page-header-text">
-        <p className="page-kicker">{t("Content")}</p>
-        <h1 className="page-title">{t("Categories & Tags")}</h1>
-        <p className="page-description">
+      <div className="jini-page-header-text">
+        <p className="jini-page-kicker">{t("Content")}</p>
+        <h1 className="jini-page-title">{t("Categories & Tags")}</h1>
+        <p className="jini-page-description">
           {t("Organize content with taxonomies and terms — categories, tags, and any custom hierarchy you define.")}
         </p>
       </div>
       {/* Same `formOpen` toggle idiom as `Integrations.tsx`'s "Add webhook" button — see
           `useTaxonomy`'s own comment for why this replaced the old always-open form. */}
-      <div className="page-actions">
+      <div className="jini-page-actions">
         {publishButton}
         <button
-          className={formOpen ? "btn-secondary" : undefined}
+          className={formOpen ? "jini-btn-secondary" : undefined}
           onClick={() => setFormOpen((v) => !v)}
           {...agentHandle({ handle: "taxonomy-new-toggle" }, {
             role: "button",
@@ -264,11 +264,11 @@ function TaxonomyNotices({ copyFeedback, error, empty, t }: TaxonomyNoticesProps
   return (
     <>
       {copyFeedback ? <p role="status">{copyFeedback}</p> : null}
-      {error ? <div className="notice error">{error}</div> : null}
+      {error ? <div className="jini-notice jini-notice-error">{error}</div> : null}
 
       {empty ? (
-        <div className="card">
-          <div className="empty-state" role="status">{t("No taxonomies yet")}</div>
+        <div className="jini-card">
+          <div className="jini-empty-state" role="status">{t("No taxonomies yet")}</div>
         </div>
       ) : null}
     </>
@@ -295,12 +295,12 @@ export function Taxonomy(props: TaxonomyProps): JSX.Element {
     deleteTaxonomyBlocked: controller.deleteTaxonomyBlocked,
   };
 
-  if (error && !taxonomies) return <div className="notice error">{error}</div>;
-  if (!taxonomies) return <div className="notice">{t("Loading taxonomies…")}</div>;
+  if (error && !taxonomies) return <div className="jini-notice jini-notice-error">{error}</div>;
+  if (!taxonomies) return <div className="jini-notice">{t("Loading taxonomies…")}</div>;
   const list = namespaceList({ taxonomies, selectedTermId, setSelectedTermId, load, deleteState, menuPortalContainer, t, parts });
 
   return (
-    <div className="page" ref={setMenuPortalContainer}>
+    <div className="jini-page" ref={setMenuPortalContainer}>
       <TaxonomyPageHeader formOpen={formOpen} setFormOpen={setFormOpen} publishButton={publishButton} t={t} />
       <TaxonomyNotices copyFeedback={copyFeedback} error={error} empty={taxonomies.length === 0} t={t} />
 
@@ -323,7 +323,7 @@ export function Taxonomy(props: TaxonomyProps): JSX.Element {
           content instead of a permanently-split master/detail pane. See this file's own header
           comment for the fuller diagnosis. */}
       {selected ? (
-        <div className="settings-body">
+        <div className="jini-settings-body">
           {list}
           <TermDetailPanel
             taxonomy={selected.taxonomy}

@@ -38,7 +38,7 @@ function NewTermForm(props: NewTermFormProps): JSX.Element {
     return (
       <button
         type="button"
-        className="btn-ghost jini-taxonomy-add-term-trigger"
+        className="jini-btn-ghost jini-taxonomy-add-term-trigger"
         onClick={() => form.setOpen(true)}
         {...agentHandle({ handle: `${base}-open` }, {
           role: "button",
@@ -62,11 +62,11 @@ function NewTermFormFields({ taxonomy, base, t, form }: {
 }): JSX.Element {
   const { setOpen, name, setName, parentId, setParentId, error, saving, submit } = form;
   return (
-    <form className="notice jini-taxonomy-new-term-form" onSubmit={submit}>
+    <form className="jini-notice jini-taxonomy-new-term-form" onSubmit={submit}>
       <label htmlFor={`new-term-name-${taxonomy.taxonomy.id}`}>
         {t("New term in {name}").replace("{name}", () => taxonomy.taxonomy.name)}
       </label>
-      <span className="editor-actions">
+      <span className="jini-editor-actions">
         <input
           id={`new-term-name-${taxonomy.taxonomy.id}`}
           value={name}
@@ -97,7 +97,7 @@ function NewTermFormFields({ taxonomy, base, t, form }: {
             ("Create taxonomy" above owns that). */}
         <button
           type="submit"
-          className="btn-secondary"
+          className="jini-btn-secondary"
           disabled={saving}
           {...agentHandle({ handle: `${base}-submit` }, { role: "button", label: "Add this term to the taxonomy" })}
         >
@@ -105,7 +105,7 @@ function NewTermFormFields({ taxonomy, base, t, form }: {
         </button>
         <button
           type="button"
-          className="btn-ghost"
+          className="jini-btn-ghost"
           onClick={() => setOpen(false)}
           disabled={saving}
           {...agentHandle({ handle: `${base}-cancel` }, { role: "button", label: "Close this form without adding a term" })}
@@ -114,7 +114,7 @@ function NewTermFormFields({ taxonomy, base, t, form }: {
         </button>
       </span>
       {error ? (
-        <span className="save-error" role="alert">
+        <span className="jini-save-error" role="alert">
           {error}
         </span>
       ) : null}
@@ -180,7 +180,7 @@ export function namespaceList({ taxonomies, ...context }: TaxonomyListContext & 
   let termHandleIndex = 0;
 
   return (
-    <div className="settings-namespace-list">
+    <div className="jini-settings-namespace-list">
       {taxonomies.map((group, groupIndex) => {
         // Consumed in rendered (group, then term) order, matching how `termHandles` was
         // built above via the identical `flatMap` order.
@@ -212,29 +212,29 @@ function TaxonomyGroup({ group, menuHandle, newTermFormBase, termHandles, contex
   const { deleteState, t } = context;
   const byId = new Map(group.terms.map((term) => [term.id, term]));
   return (
-    <section className="settings-namespace-group jini-taxonomy-namespace-group">
+    <section className="jini-settings-namespace-group jini-taxonomy-namespace-group">
       <TaxonomyGroupHeader group={group} menuHandle={menuHandle} context={context} />
       {deleteState.deleteTaxonomyBlocked?.taxonomyId === group.taxonomy.id ? (
-        <p className="notice error" role="alert">
+        <p className="jini-notice jini-notice-error" role="alert">
           {t("Can't delete")} &quot;{group.taxonomy.name}&quot;: {deleteState.deleteTaxonomyBlocked.state.message}
         </p>
       ) : null}
       {group.terms.length === 0 ? (
-        <p className="muted-cell">{t("No terms yet.")}</p>
+        <p className="jini-muted-cell">{t("No terms yet.")}</p>
       ) : (
         /* `<ul>` carries native list semantics on its own — no explicit `role="list"` needed
            (it was redundant even before the row fix below). Left off entirely now rather than
            kept: an explicit `list` role formally expects `listitem`-family children, and each
            row below is now `role="button"` (see that comment), so an explicit `role="list"`
            here would assert a parent/child relationship that no longer holds. */
-        <ul className="settings-row-list jini-taxonomy-term-list">
+        <ul className="jini-settings-row-list jini-taxonomy-term-list">
           {group.terms.map((term, index) => (
             <TaxonomyTermRow key={term.id} group={group} term={term} byId={byId} termHandle={handleAt({ list: termHandles, index })} context={context} />
           ))}
         </ul>
       )}
       {deleteState.deleteTermBlocked && byId.has(deleteState.deleteTermBlocked.termId) ? (
-        <p className="notice error" role="alert">
+        <p className="jini-notice jini-notice-error" role="alert">
           {t("Can't delete")} &quot;{byId.get(deleteState.deleteTermBlocked.termId)?.name}&quot;:{" "}
           {deleteState.deleteTermBlocked.state.message}
         </p>
@@ -254,8 +254,8 @@ function TaxonomyGroupHeader({ group, menuHandle, context }: {
   return (
     <div className="jini-taxonomy-namespace-group-header">
       <h2>{group.taxonomy.name}</h2>
-      <div className="page-actions">
-      <button type="button" className="btn-secondary" onClick={() => deleteState.copyHtmlEmbed({ taxonomy: group.taxonomy })}>{t("Copy HTML embed")}</button>
+      <div className="jini-page-actions">
+      <button type="button" className="jini-btn-secondary" onClick={() => deleteState.copyHtmlEmbed({ taxonomy: group.taxonomy })}>{t("Copy HTML embed")}</button>
       <TaxonomyRowMenu useTaxonomyRowMenuHook={context.parts.useTaxonomyRowMenuHook}
         portalContainer={menuPortalContainer}
         triggerLabel={t('Actions for taxonomy "{name}"').replace("{name}", () => group.taxonomy.name)}
@@ -326,7 +326,7 @@ function TaxonomyTermRow({ group, term, byId, termHandle, context }: {
       // keyboard model this row does not (and, given every row is independently
       // tabbable today, should not) implement.
       role="button"
-      className={`settings-row${isSelected ? " is-selected" : ""}`}
+      className={`jini-settings-row${isSelected ? " is-selected" : ""}`}
       style={depth > 0 ? { marginLeft: `${depth * 1.1}rem` } : undefined}
       // Explicit now in EVERY case, not only the `parentName` branch: making this
       // row a real `role="button"` (above) means its name-from-content computation
@@ -351,7 +351,7 @@ function TaxonomyTermRow({ group, term, byId, termHandle, context }: {
           `.click()` call on it bubbles a real click event up to the `<li>`'s own
           `onClick`, exactly as a user's click would. */}
       <span
-        className="settings-row-key"
+        className="jini-settings-row-key"
         {...agentHandle({ handle: termHandle }, {
           role: "button",
           label: "Select this term to view and edit its details",
@@ -359,7 +359,7 @@ function TaxonomyTermRow({ group, term, byId, termHandle, context }: {
       >
         {term.name}
       </span>
-      <span className={`status status-${term.status}`}><StatusLabel value={term.status} /></span>
+      <span className={`jini-status jini-status-${term.status}`}><StatusLabel value={term.status} /></span>
       {/* Stops the click before it reaches the `<li>`'s own `onClick` above — without
           this, opening the row menu (or picking an item in it) would ALSO select the
           row and pop the detail panel open behind the menu, since this trigger sits

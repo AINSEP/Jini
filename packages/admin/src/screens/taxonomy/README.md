@@ -34,7 +34,8 @@ The host injects everything this folder needs; nothing here reaches a host modul
 - `TermPicker.tsx` — the editors' Categories & Tags box. Both hooks are REQUIRED props: the host
   passes `useTermPickerHook` (its `useTermPicker` bound to its live port, locale and kit) and
   `useTermListRevealHook` (`useTermListReveal` or a double). Copy comes through the controller's `t`.
-  It emits `jini-term-picker*` classes plus the host's shared `card`, `field-*`, `btn-*`, `save-*`,
-  `editor-actions`, `form-checkbox-field` and `link-button` design classes; the host styles them.
+  It emits `jini-term-picker*` classes plus `jini-*` twins of the shared design classes (`jini-card`,
+  `jini-field-*`, `jini-btn-*`, `jini-save-*`, `jini-editor-actions`, `jini-form-checkbox-field`,
+  `jini-link-button`); every screen file here emits only `jini-*` classes and the host styles them.
 - `TaxonomyRowMenu.tsx` emits only `jini-taxonomy-row-menu-*` classes; the host styles the
   `-danger`/`-warning` tones through its own selectors.

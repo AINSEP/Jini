@@ -53,12 +53,12 @@ describe("TermPicker", () => {
 
   it("emits the jini-term-picker frame, one group per taxonomy and the actions row", () => {
     const { container } = renderPicker(controller());
-    expect(container.querySelector("section")?.className).toBe("card jini-term-picker");
+    expect(container.querySelector("section")?.className).toBe("jini-card jini-term-picker");
     expect(container.querySelector(".jini-term-picker-groups")?.children).toHaveLength(2);
     expect(container.querySelectorAll("fieldset.jini-term-picker-group > div.jini-term-picker-body")).toHaveLength(2);
     expect(container.querySelector(".jini-term-picker-terms")?.textContent).toContain("Fiction");
-    expect(container.querySelector(".editor-actions.jini-term-picker-actions .save-ok")?.textContent).toBe("Saved.");
-    expect(screen.getByText("No terms yet.").className).toBe("field-hint");
+    expect(container.querySelector(".jini-editor-actions.jini-term-picker-actions .jini-save-ok")?.textContent).toBe("Saved.");
+    expect(screen.getByText("No terms yet.").className).toBe("jini-field-hint");
     expect(screen.getByRole("alert").textContent).toBe("Name taken.");
   });
 
@@ -67,7 +67,7 @@ describe("TermPicker", () => {
     const { container } = renderPicker(ctrl);
     fireEvent.click(screen.getByRole("button", { name: "+ Add term" }));
     expect(ctrl.setAddOpen).toHaveBeenCalledWith("tax2", true);
-    expect(container.querySelector(".btn-ghost.jini-term-picker-add-trigger")).not.toBeNull();
+    expect(container.querySelector(".jini-btn-ghost.jini-term-picker-add-trigger")).not.toBeNull();
     expect(container.querySelector(".jini-term-picker-add input")?.getAttribute("aria-label")).toBe("Term name");
     fireEvent.click(screen.getByRole("button", { name: "Add term" }));
     expect(ctrl.addTerm).toHaveBeenCalledWith("tax1");
@@ -85,7 +85,7 @@ describe("TermPicker", () => {
     expect(useReveal).toHaveBeenCalledWith({ terms: GENRE.terms, selected: new Set(["t2"]), loading: false });
     expect(container.querySelector("input.jini-term-picker-search")).not.toBeNull();
     expect(screen.queryByText("Poetry")).toBeNull();
-    fireEvent.click(container.querySelector("button.link-button.jini-term-picker-more") as HTMLElement);
+    fireEvent.click(container.querySelector("button.jini-link-button.jini-term-picker-more") as HTMLElement);
     expect(toggleExpanded).toHaveBeenCalled();
   });
 });
