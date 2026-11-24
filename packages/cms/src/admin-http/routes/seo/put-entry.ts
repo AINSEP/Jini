@@ -62,7 +62,7 @@ export const seoPutEntryRoute = defineJsonRoute<SeoPutEntryInput, AdminSeoEntryM
       const meta = await getEntryMeta({ deps: read.deps, input: { workspaceId: deps.workspaceId, entryId: input.entryId } }, {});
       return ok({ value: { data: withContentImageSource({ meta, rawPost: read.rawPost }) } });
     } catch (err) {
-      return rejectSeoError({ err, mappings: SEO_PUT_ENTRY_ERRORS }, { versionConflictAfter: SEO_TOOL_INPUT, outwardErrorMessage: deps.outwardErrorMessage });
+      return rejectSeoError({ err, mappings: SEO_PUT_ENTRY_ERRORS, outwardErrorMessage: deps.outwardErrorMessage }, { versionConflictAfter: SEO_TOOL_INPUT });
     }
   },
 });

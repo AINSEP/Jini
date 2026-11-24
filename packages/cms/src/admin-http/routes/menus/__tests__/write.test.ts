@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { EntityNotLiveError } from "../../../../core/entity-liveness.js";
 import { MenuVersionConflictError } from "../../../../navigation/menu-service.js";
+import { trashMenu } from "../../../../navigation/site/trash-menu.js";
 import { menuAssignLocationRoute } from "../assign-location.js";
 import { menuCreateRoute } from "../create.js";
 import { menuDeleteRoute } from "../delete.js";
@@ -116,6 +117,11 @@ describe("menuAssignLocationRoute", () => {
 });
 
 describe("menuDeleteRoute", () => {
+  /** The host mount's `trashMenu` port: its repo, remove operation and clock closed over the real `trashMenu`. */
+  const trashDeps = (deps: ReturnType<typeof makeMenuDeps>, remove: Parameters<typeof trashMenu>[1]["remove"]) => ({
+    workspaceId: deps.workspaceId, outwardErrorMessage: deps.outwardErrorMessage,
+    trashMenu: (input: Parameters<typeof trashMenu>[0]) => trashMenu(input, { menuRepo: deps.menuRepo, remove, clock: deps.clock }),
+  });
   const removed = (outcome: { ok: true; version: number | null } | { ok: false; reason: "not-found" | "version-changed" }) => {
     const calls: unknown[] = [];
     return { calls, remove: async (input: unknown) => { calls.push(input); return outcome; } };
@@ -127,7 +133,7 @@ describe("menuDeleteRoute", () => {
     const { deps, menu } = await created();
     const { remove, calls: removals } = removed({ ok: true, version: 2 });
     const { authorize, calls } = recordingAuthorize();
-    const result = await menuDeleteRoute.handle({ input: { menuId: menu.id }, deps: { ...deps, removeMenu: remove }, context: PRINCIPAL, authorize }, { signal });
+    const result = await menuDeleteRoute.handle({ input: { menuId: menu.id }, deps: trashDeps(deps, remove), context: PRINCIPAL, authorize }, { signal });
     expect(calls).toEqual([{ permission: "admin.menus.delete", entityType: "menu", entityId: menu.id }]);
     expect(result).toEqual({ ok: true, value: { trashed: true, id: menu.id, version: 2 } });
     expect(removals).toMatchObject([{ id: menu.id, expectedVersion: 1, actor: { principalId: PRINCIPAL.id }, at: "2026-07-10T00:00:00.000Z" }]);
@@ -135,9 +141,9 @@ describe("menuDeleteRoute", () => {
 
   it("maps a missing menu to 404 and a concurrent change to a code-less 409", async () => {
     const { deps, menu } = await created();
-    expect(await refusalOf(() => menuDeleteRoute.handle({ input: { menuId: "nope" }, deps: { ...deps, removeMenu: removed({ ok: true, version: 1 }).remove }, context: PRINCIPAL, authorize: allow() }, { signal })))
+    expect(await refusalOf(() => menuDeleteRoute.handle({ input: { menuId: "nope" }, deps: trashDeps(deps, removed({ ok: true, version: 1 }).remove), context: PRINCIPAL, authorize: allow() }, { signal })))
       .toEqual({ status: 404, body: { error: "menu 'nope' was not found" } });
-    const conflict = await refusalOf(() => menuDeleteRoute.handle({ input: { menuId: menu.id }, deps: { ...deps, removeMenu: removed({ ok: false, reason: "version-changed" }).remove }, context: PRINCIPAL, authorize: allow() }, { signal }));
+    const conflict = await refusalOf(() => menuDeleteRoute.handle({ input: { menuId: menu.id }, deps: trashDeps(deps, removed({ ok: false, reason: "version-changed" }).remove), context: PRINCIPAL, authorize: allow() }, { signal }));
     expect(conflict.status).toBe(409);
     expect(Object.keys(conflict.body as object)).toEqual(["error"]);
   });

@@ -25,6 +25,9 @@ function seoDeps({ error }: { error?: unknown } = {}) {
   return { lookups, deps: { postRepo, settings: {}, media: {} } as never };
 }
 
+/** A host formatter whose output is distinct from the error text, so a route that skipped it would show. */
+const hostWording = ({ error }: { error: Error }) => `host: ${error.message}`;
+
 describe("seo entry read specs", () => {
   for (const [route, path] of [
     [seoGetEntryRoute, "/api/admin/v1/workspaces/:workspaceId/seo/entries/:entryId"],
@@ -41,8 +44,8 @@ describe("seo entry read specs", () => {
     it(`${path}: authorizes admin.seo.manage on that seo-entry, then answers a missing entry 404 SEO_ENTRY_NOT_FOUND`, async () => {
       const { authorize, calls } = recordingAuthorize();
       const read = seoDeps();
-      expect(await refusalOf(() => route.handle({ input: { entryId: "e1" }, deps: { workspaceId: WORKSPACE_ID, seoReady: ready, seoDeps: read.deps }, context: PRINCIPAL, authorize }))).toEqual({
-        status: 404, body: { error: "entry 'e1' was not found", code: "SEO_ENTRY_NOT_FOUND" },
+      expect(await refusalOf(() => route.handle({ input: { entryId: "e1" }, deps: { workspaceId: WORKSPACE_ID, seoReady: ready, outwardErrorMessage: hostWording, seoDeps: read.deps }, context: PRINCIPAL, authorize }))).toEqual({
+        status: 404, body: { error: "host: entry 'e1' was not found", code: "SEO_ENTRY_NOT_FOUND" },
       });
       expect(calls).toEqual([{ permission: "admin.seo.manage", entityType: "seo-entry", entityId: "e1" }]);
       expect(read.lookups.length).toBeGreaterThan(0);
@@ -50,11 +53,11 @@ describe("seo entry read specs", () => {
 
     it(`${path}: reads nothing when authorization refuses, rethrows an unmapped failure, fails closed unwired`, async () => {
       const denied = seoDeps();
-      await expect(route.handle({ input: { entryId: "e1" }, deps: { workspaceId: WORKSPACE_ID, seoReady: ready, seoDeps: denied.deps }, context: PRINCIPAL, authorize: recordingAuthorize(["admin.seo.manage"]).authorize })).rejects.toThrow("denied");
+      await expect(route.handle({ input: { entryId: "e1" }, deps: { workspaceId: WORKSPACE_ID, seoReady: ready, outwardErrorMessage: hostWording, seoDeps: denied.deps }, context: PRINCIPAL, authorize: recordingAuthorize(["admin.seo.manage"]).authorize })).rejects.toThrow("denied");
       expect(denied.lookups).toEqual([]);
       const broken = seoDeps({ error: new Error("private storage details") });
-      await expect(route.handle({ input: { entryId: "e1" }, deps: { workspaceId: WORKSPACE_ID, seoReady: ready, seoDeps: broken.deps }, context: PRINCIPAL, authorize: recordingAuthorize().authorize })).rejects.toThrow("private storage details");
-      await expect(route.handle({ input: { entryId: "e1" }, deps: { workspaceId: WORKSPACE_ID, seoReady: ready, seoDeps: broken.deps }, context: PRINCIPAL })).rejects.toThrow(/no authorizer/);
+      await expect(route.handle({ input: { entryId: "e1" }, deps: { workspaceId: WORKSPACE_ID, seoReady: ready, outwardErrorMessage: hostWording, seoDeps: broken.deps }, context: PRINCIPAL, authorize: recordingAuthorize().authorize })).rejects.toThrow("private storage details");
+      await expect(route.handle({ input: { entryId: "e1" }, deps: { workspaceId: WORKSPACE_ID, seoReady: ready, outwardErrorMessage: hostWording, seoDeps: broken.deps }, context: PRINCIPAL })).rejects.toThrow(/no authorizer/);
     });
   }
 });

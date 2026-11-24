@@ -1067,7 +1067,7 @@
   "types": "./dist/admin-http/routes/menus/delete.d.ts",
   "symbols": {
    "MenuDeleteInput": "interface:bc36ab8a1d",
-   "MenuDeleteRouteDeps": "interface:f2ba239fb0",
+   "MenuDeleteRouteDeps": "interface:449fdacb75",
    "menuDeleteRoute": "variable:51e3b15a26"
   }
  },
@@ -1720,14 +1720,14 @@
  "./admin-http/routes/seo/get-entry": {
   "types": "./dist/admin-http/routes/seo/get-entry.d.ts",
   "symbols": {
-   "SeoGetEntryRouteDeps": "interface:cdd72275af",
+   "SeoGetEntryRouteDeps": "interface:2fee661b63",
    "seoGetEntryRoute": "variable:3edef17f64"
   }
  },
  "./admin-http/routes/seo/get-entry-analyze": {
   "types": "./dist/admin-http/routes/seo/get-entry-analyze.d.ts",
   "symbols": {
-   "SeoGetEntryAnalyzeRouteDeps": "interface:7196d3de21",
+   "SeoGetEntryAnalyzeRouteDeps": "interface:0c6a0b5801",
    "seoGetEntryAnalyzeRoute": "variable:bfff4abaf1"
   }
  },
@@ -1757,7 +1757,7 @@
  "./admin-http/routes/seo/put-settings": {
   "types": "./dist/admin-http/routes/seo/put-settings.d.ts",
   "symbols": {
-   "SeoPutSettingsRouteDeps": "interface:a24974fdb5",
+   "SeoPutSettingsRouteDeps": "interface:e8c308ce28",
    "SeoSettingsWriteFn": "type:a491ff8803",
    "seoPutSettingsRoute": "variable:a6e37a579c"
   }
@@ -5758,7 +5758,6 @@
    "PublishContentNotSupportedByLive": "interface:30a1786ed7",
    "PublishContentOutcomeKind": "type:b5d1809aae",
    "PublishContentOutcomeRow": "type:657ce2167a",
-   "PublishContentPeerSummary": "interface:850f4194d6",
    "PublishContentPhase": "type:0582fe939d",
    "PublishContentPlanResult": "interface:b9af42b4a2",
    "PublishContentReport": "type:5ec0bb11d2",

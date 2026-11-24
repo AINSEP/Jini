@@ -1,7 +1,7 @@
 import { defineJsonRoute, ok } from "@jini-ai/core/contracts/server";
 
 import { MenuConflictError, MenuNotFoundError } from "../../../navigation/menu-service.js";
-import { trashMenu, type TrashMenuDeps } from "../../../navigation/site/trash-menu.js";
+import type { TrashMenuInput } from "../../../navigation/site/trash-menu.js";
 import type { AdminTrashMenuEnvelope } from "@jini-ai/core/contracts/site/cms-menus";
 import { toAdminTrashMenuResponse } from "../../http/menus.js";
 import { authorizeMenus, mapMenuError, menuActorId, menuIdParam, rejectMenuError, type MenuErrorMapping, type MenuRoutePrincipal } from "./shared.js";
@@ -17,9 +17,9 @@ export interface MenuDeleteRouteDeps {
   /** Words a classified error for the caller (see {@link OutwardErrorMessage}). */
   outwardErrorMessage: OutwardErrorMessage;
   workspaceId: string;
-  menuRepo: TrashMenuDeps["menuRepo"];
-  removeMenu: TrashMenuDeps["remove"];
-  clock: TrashMenuDeps["clock"];
+  /** The host's bound trash step: its repo, remove operation and clock closed over `navigation/site/trash-menu`'s `trashMenu`.
+   *  Throws the menu errors (`MenuNotFoundError`, `MenuConflictError`) the route maps to 404/409. */
+  trashMenu: (required: TrashMenuInput) => Promise<{ id: string; version: number | null }>;
 }
 
 /** The menu to move to the Trash. */
@@ -40,10 +40,7 @@ export const menuDeleteRoute = defineJsonRoute<MenuDeleteInput, AdminTrashMenuEn
     const principalId = menuActorId({ context });
     await authorizeMenus({ authorize, permission: "admin.menus.delete" }, { entityId: input.menuId });
     try {
-      const trashed = await trashMenu(
-        { workspaceId: deps.workspaceId, menuId: input.menuId, actor: { principalId } },
-        { menuRepo: deps.menuRepo, remove: deps.removeMenu, clock: deps.clock },
-      );
+      const trashed = await deps.trashMenu({ workspaceId: deps.workspaceId, menuId: input.menuId, actor: { principalId } });
       return ok({ value: toAdminTrashMenuResponse(trashed) });
     } catch (err) {
       return rejectMenuError({ err, outwardErrorMessage: deps.outwardErrorMessage, mappings: MENU_DELETE_ERROR_MAPPINGS });

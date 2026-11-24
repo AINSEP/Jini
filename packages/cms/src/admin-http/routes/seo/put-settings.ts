@@ -1,6 +1,7 @@
 import { defineJsonRoute, ok } from "@jini-ai/core/contracts/server";
 import type { AdminSeoSettingsEnvelope } from "@jini-ai/core/contracts/site/cms-seo";
 
+import type { OutwardErrorMessage } from "../../http/outward-error-message.js";
 import type { SeoSettings } from "../../../seo/types.js";
 import { authorizeSeo, rejectSeoError, SEO_SETTINGS_VALIDATION, seoActorId, type SeoRoutePrincipal } from "./shared.js";
 
@@ -16,6 +17,8 @@ export interface SeoPutSettingsRouteDeps {
   workspaceId: string;
   seoReady: PromiseLike<unknown>;
   writeSeoSettings: SeoSettingsWriteFn;
+  /** Words a classified refusal for the caller (see {@link OutwardErrorMessage}). */
+  outwardErrorMessage: OutwardErrorMessage;
 }
 
 const SEO_PUT_SETTINGS_ERRORS = [SEO_SETTINGS_VALIDATION] as const;
@@ -31,7 +34,7 @@ export const seoPutSettingsRoute = defineJsonRoute<{ patch: unknown }, AdminSeoS
     try {
       return ok({ value: { data: await deps.writeSeoSettings({ workspaceId: deps.workspaceId, patch: input.patch, callerPrincipalId }) } });
     } catch (err) {
-      return rejectSeoError({ err, mappings: SEO_PUT_SETTINGS_ERRORS });
+      return rejectSeoError({ err, mappings: SEO_PUT_SETTINGS_ERRORS, outwardErrorMessage: deps.outwardErrorMessage });
     }
   },
 });

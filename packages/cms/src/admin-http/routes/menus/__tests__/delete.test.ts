@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { InMemoryMenuRepo } from "../../../../navigation/index.js";
+import { trashMenu } from "../../../../navigation/site/trash-menu.js";
 import { menuDeleteRoute } from "../delete.js";
 import { fakeMenu, makeMenuDeps, PRINCIPAL, raw, recordingAuthorize, refusalOf, signal, WORKSPACE_ID } from "./helpers.js";
 
@@ -9,10 +10,11 @@ type RemoveOutcome = { ok: true; version: number | null } | { ok: false; reason:
 function deleteDeps(outcome: RemoveOutcome = { ok: true, version: 4 }) {
   const removals: unknown[] = [];
   const { workspaceId, outwardErrorMessage, clock } = makeMenuDeps();
+  const menuRepo = new InMemoryMenuRepo({}, { initialRows: [fakeMenu()] });
+  // The host's mount binds its repo, remove operation and clock into one `trashMenu` closure.
   const deps = {
-    workspaceId, outwardErrorMessage, clock,
-    menuRepo: new InMemoryMenuRepo({}, { initialRows: [fakeMenu()] }),
-    removeMenu: async (input: unknown) => { removals.push(input); return outcome; },
+    workspaceId, outwardErrorMessage,
+    trashMenu: (input: Parameters<typeof trashMenu>[0]) => trashMenu(input, { menuRepo, remove: async (removal) => { removals.push(removal); return outcome; }, clock }),
   };
   return { deps, removals };
 }

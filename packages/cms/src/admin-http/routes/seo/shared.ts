@@ -45,20 +45,19 @@ export const SEO_CONCURRENT_WRITE: SeoErrorMapping = { matches: ({ err }, _o = {
 export const SEO_SETTINGS_VALIDATION: SeoErrorMapping = { matches: ({ err }, _o = {}) => err instanceof SeoSettingsValidationError, status: 400, code: "SEO_SETTINGS_VALIDATION_ERROR" };
 
 /**
- * Refuses with the first matching rung's status and its message — the host's `outwardErrorMessage`
- * copy when the route supplies one (so stored error text never leaves through engine code), else the
- * error's own message. A lost compare-and-set (`RecordVersionConflictError`) answers core's 409
+ * Refuses with the first matching rung's status and its message — always the host's required
+ * `outwardErrorMessage` copy, so stored error text never leaves through engine code. A lost compare-and-set (`RecordVersionConflictError`) answers core's 409
  * version-conflict body when the route lists it in `versionConflict`; anything unmapped is rethrown unchanged for the host's 500.
  * @complexity O(n) in the mapping table length, a small fixed list per route.
  */
 export function rejectSeoError(
-  { err, mappings }: { err: unknown; mappings: readonly SeoErrorMapping[] },
-  optional: { versionConflictAfter?: SeoErrorMapping; outwardErrorMessage?: OutwardErrorMessage } = {},
+  { err, mappings, outwardErrorMessage }: { err: unknown; mappings: readonly SeoErrorMapping[]; outwardErrorMessage: OutwardErrorMessage },
+  optional: { versionConflictAfter?: SeoErrorMapping } = {},
 ): never {
   for (const mapping of mappings) {
     if (mapping.matches({ err })) {
       const code = mapping.code === "own" ? String((err as { code?: string }).code) : mapping.code;
-      rejectRoute({ status: mapping.status, error: optional.outwardErrorMessage ? optional.outwardErrorMessage({ error: err as Error }) : (err as Error).message, code });
+      rejectRoute({ status: mapping.status, error: outwardErrorMessage({ error: err as Error }), code });
     }
     // The hand-written ladder checked the version conflict right after this rung; its body carries
     // the versions as `details`, which `rejectRoute`'s permission-shaped details cannot hold.

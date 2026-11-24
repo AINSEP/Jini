@@ -3323,7 +3323,7 @@
   "symbols": {
    "MenusApiErrorLike": "interface:f735ded7c7",
    "MenusFailureReporter": "interface:d1c14c7f9a",
-   "MenusHostKit": "interface:e6595c830e"
+   "MenusHostKit": "interface:5d03b0b57c"
   }
  },
  "./screens/menus/menus-i18n/create-menus-dictionary": {
@@ -4153,7 +4153,7 @@
    "TaxonomyApiErrorLike": "interface:813e6ea924",
    "TaxonomyErrorKit": "interface:5ab393ea03",
    "TaxonomyFailureReporter": "interface:8bcd825725",
-   "TaxonomyHostKit": "interface:65253f85d6",
+   "TaxonomyHostKit": "interface:78aa8b0cd3",
    "TaxonomyLocalFailure": "interface:6b9527dffa"
   }
  },

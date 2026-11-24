@@ -1,6 +1,7 @@
 import { defineJsonRoute, ok } from "@jini-ai/core/contracts/server";
 import type { AdminSeoEntryMetaEnvelope } from "@jini-ai/core/contracts/site/cms-seo";
 
+import type { OutwardErrorMessage } from "../../http/outward-error-message.js";
 import { getEntryMeta, type GetEntryMetaDeps } from "../../../seo/seo.js";
 import { withContentImageSource, withCoverReadDeps } from "../../../seo/cover-image.js";
 import { authorizeSeo, rejectSeoError, SEO_ENTRY_NOT_FOUND, seoEntryIdParam, type SeoRoutePrincipal } from "./shared.js";
@@ -11,6 +12,8 @@ export interface SeoGetEntryRouteDeps {
   /** Resolves once the host has seeded the SEO setting definitions; every SEO route waits on it. */
   seoReady: PromiseLike<unknown>;
   seoDeps: GetEntryMetaDeps;
+  /** Words a classified refusal for the caller (see {@link OutwardErrorMessage}). */
+  outwardErrorMessage: OutwardErrorMessage;
 }
 
 const SEO_GET_ENTRY_ERRORS = [SEO_ENTRY_NOT_FOUND] as const;
@@ -31,7 +34,7 @@ export const seoGetEntryRoute = defineJsonRoute<{ entryId: string }, AdminSeoEnt
       const meta = await getEntryMeta({ deps: read.deps, input: { workspaceId: deps.workspaceId, entryId: input.entryId } }, {});
       return ok({ value: { data: withContentImageSource({ meta, rawPost: read.rawPost }) } });
     } catch (err) {
-      return rejectSeoError({ err, mappings: SEO_GET_ENTRY_ERRORS });
+      return rejectSeoError({ err, mappings: SEO_GET_ENTRY_ERRORS, outwardErrorMessage: deps.outwardErrorMessage });
     }
   },
 });

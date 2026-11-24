@@ -1,6 +1,7 @@
 import { defineJsonRoute, ok } from "@jini-ai/core/contracts/server";
 import type { AdminSeoEntryAnalysisEnvelope } from "@jini-ai/core/contracts/site/cms-seo";
 
+import type { OutwardErrorMessage } from "../../http/outward-error-message.js";
 import { analyzeEntry, type GetEntryMetaDeps } from "../../../seo/seo.js";
 import { withCoverReadDeps } from "../../../seo/cover-image.js";
 import { authorizeSeo, rejectSeoError, SEO_ENTRY_NOT_FOUND, seoEntryIdParam, type SeoRoutePrincipal } from "./shared.js";
@@ -10,6 +11,8 @@ export interface SeoGetEntryAnalyzeRouteDeps {
   workspaceId: string;
   seoReady: PromiseLike<unknown>;
   seoDeps: GetEntryMetaDeps;
+  /** Words a classified refusal for the caller (see {@link OutwardErrorMessage}). */
+  outwardErrorMessage: OutwardErrorMessage;
 }
 
 const SEO_ANALYZE_ERRORS = [SEO_ENTRY_NOT_FOUND] as const;
@@ -26,7 +29,7 @@ export const seoGetEntryAnalyzeRoute = defineJsonRoute<{ entryId: string }, Admi
       const analysis = await analyzeEntry({ deps: read.deps, input: { workspaceId: deps.workspaceId, entryId: input.entryId } }, {});
       return ok({ value: { data: analysis } });
     } catch (err) {
-      return rejectSeoError({ err, mappings: SEO_ANALYZE_ERRORS });
+      return rejectSeoError({ err, mappings: SEO_ANALYZE_ERRORS, outwardErrorMessage: deps.outwardErrorMessage });
     }
   },
 });
