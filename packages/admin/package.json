@@ -212,6 +212,15 @@
       "./shell/components/AdminFailureNotice/AdminFailureNotice": "browser",
       "./shell/components/AssistantDock/agent-failure-hints": "browser",
       "./shell/components/MailStatusBanner/MailStatusBanner": "browser",
+      "./shell/components/AssistantDock/hooks/selected-agent-plugins.hooks": "browser",
+      "./shell/components/ConfirmActionDialog": "browser",
+      "./shell/components/DevicePreview/DevicePreviewFrame": "browser",
+      "./shell/components/DevicePreview/DevicePreviewToggle": "browser",
+      "./shell/components/InstallTabCard/InstallTabCard": "browser",
+      "./shell/components/MediaPickerDialog/media-picker-port.hooks": "browser",
+      "./shell/components/PlainTextBlocks": "browser",
+      "./shell/components/WidgetConfigFields/widget-config-fields-port.hooks": "browser",
+      "./shell/components/WidgetPickerDialog/widget-picker-port.hooks": "browser",
       "./shell/components/SitesSidebarNav": "browser",
       "./shell/components/WidgetConfigFields/WidgetConfigFields.hooks": "browser",
       "./shell/components/AssistantDock/hooks/use-routed-a2ui-surface-card.hooks": "browser",
@@ -790,6 +799,15 @@
         "./shell/components/AdminFailureNotice/AdminFailureNotice": "browser",
         "./shell/components/AssistantDock/agent-failure-hints": "browser",
         "./shell/components/MailStatusBanner/MailStatusBanner": "browser",
+        "./shell/components/AssistantDock/hooks/selected-agent-plugins.hooks": "browser",
+        "./shell/components/ConfirmActionDialog": "browser",
+        "./shell/components/DevicePreview/DevicePreviewFrame": "browser",
+        "./shell/components/DevicePreview/DevicePreviewToggle": "browser",
+        "./shell/components/InstallTabCard/InstallTabCard": "browser",
+        "./shell/components/MediaPickerDialog/media-picker-port.hooks": "browser",
+        "./shell/components/PlainTextBlocks": "browser",
+        "./shell/components/WidgetConfigFields/widget-config-fields-port.hooks": "browser",
+        "./shell/components/WidgetPickerDialog/widget-picker-port.hooks": "browser",
         "./shell/components/SitesSidebarNav": "browser",
         "./shell/components/WidgetConfigFields/WidgetConfigFields.hooks": "browser",
         "./shell/components/AssistantDock/hooks/use-routed-a2ui-surface-card.hooks": "browser",
@@ -1888,6 +1906,51 @@
       "types": "./dist/shell/components/MailStatusBanner/MailStatusBanner.d.ts",
       "import": "./dist/shell/components/MailStatusBanner/MailStatusBanner.js",
       "default": "./dist/shell/components/MailStatusBanner/MailStatusBanner.js"
+    },
+    "./shell/components/AssistantDock/hooks/selected-agent-plugins.hooks": {
+      "types": "./dist/shell/components/AssistantDock/hooks/selected-agent-plugins.hooks.d.ts",
+      "import": "./dist/shell/components/AssistantDock/hooks/selected-agent-plugins.hooks.js",
+      "default": "./dist/shell/components/AssistantDock/hooks/selected-agent-plugins.hooks.js"
+    },
+    "./shell/components/ConfirmActionDialog": {
+      "types": "./dist/shell/components/ConfirmActionDialog.d.ts",
+      "import": "./dist/shell/components/ConfirmActionDialog.js",
+      "default": "./dist/shell/components/ConfirmActionDialog.js"
+    },
+    "./shell/components/DevicePreview/DevicePreviewFrame": {
+      "types": "./dist/shell/components/DevicePreview/DevicePreviewFrame.d.ts",
+      "import": "./dist/shell/components/DevicePreview/DevicePreviewFrame.js",
+      "default": "./dist/shell/components/DevicePreview/DevicePreviewFrame.js"
+    },
+    "./shell/components/DevicePreview/DevicePreviewToggle": {
+      "types": "./dist/shell/components/DevicePreview/DevicePreviewToggle.d.ts",
+      "import": "./dist/shell/components/DevicePreview/DevicePreviewToggle.js",
+      "default": "./dist/shell/components/DevicePreview/DevicePreviewToggle.js"
+    },
+    "./shell/components/InstallTabCard/InstallTabCard": {
+      "types": "./dist/shell/components/InstallTabCard/InstallTabCard.d.ts",
+      "import": "./dist/shell/components/InstallTabCard/InstallTabCard.js",
+      "default": "./dist/shell/components/InstallTabCard/InstallTabCard.js"
+    },
+    "./shell/components/MediaPickerDialog/media-picker-port.hooks": {
+      "types": "./dist/shell/components/MediaPickerDialog/media-picker-port.hooks.d.ts",
+      "import": "./dist/shell/components/MediaPickerDialog/media-picker-port.hooks.js",
+      "default": "./dist/shell/components/MediaPickerDialog/media-picker-port.hooks.js"
+    },
+    "./shell/components/PlainTextBlocks": {
+      "types": "./dist/shell/components/PlainTextBlocks.d.ts",
+      "import": "./dist/shell/components/PlainTextBlocks.js",
+      "default": "./dist/shell/components/PlainTextBlocks.js"
+    },
+    "./shell/components/WidgetConfigFields/widget-config-fields-port.hooks": {
+      "types": "./dist/shell/components/WidgetConfigFields/widget-config-fields-port.hooks.d.ts",
+      "import": "./dist/shell/components/WidgetConfigFields/widget-config-fields-port.hooks.js",
+      "default": "./dist/shell/components/WidgetConfigFields/widget-config-fields-port.hooks.js"
+    },
+    "./shell/components/WidgetPickerDialog/widget-picker-port.hooks": {
+      "types": "./dist/shell/components/WidgetPickerDialog/widget-picker-port.hooks.d.ts",
+      "import": "./dist/shell/components/WidgetPickerDialog/widget-picker-port.hooks.js",
+      "default": "./dist/shell/components/WidgetPickerDialog/widget-picker-port.hooks.js"
     },
     "./shell/components/SitesSidebarNav": {
       "types": "./dist/shell/components/SitesSidebarNav.d.ts",
