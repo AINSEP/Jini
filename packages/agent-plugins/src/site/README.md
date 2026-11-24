@@ -10,6 +10,8 @@ Generic plugin-host pieces extracted from a site host. Everything product-specif
 - `deploy-split-activation.ts` (`./site/deploy-split-activation`, `carryPluginRenameActivation`): the host injects `activations`
   (its lifecycle owner's activation calls) plus the predecessor plugin id (`fromPluginId`), its successor plugin id
   (`toPluginId`) and the write `actor`, and runs it before bundled seeding.
+- `bundled-id-upgrade.ts` (`./site/bundled-id-upgrade`): `upgradeRenamedBundledPlugins` / `restoreUnseededUpgrades`; the host injects
+  the rename map (`renamed`), the held-reason wording (`ledgerMismatchReason`) and the lifecycle `port`, and runs it around bundled seeding.
 - `admin-surfaces/` (`./site/admin-surfaces/*`): see that folder's README.
 - `customize-tool.ts` (`./site/customize-tool`): the host injects `lifecycle` (its lifecycle owner's
   `listInstalledPlugins`, `readBundledAgentPluginDigests`, `preferBundledAgentPluginDigests`,
