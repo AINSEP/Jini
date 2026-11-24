@@ -1632,6 +1632,10 @@
     {
       "id": "b81ff738f308",
       "reason": "ex2-holds (24e1f7b9a) retired the deprecated sqlite facade and its fixture, so the sqlite parity assertion this explained is gone; the replacement PARITY comment on the same line names the infra fixture that took over."
+    },
+    {
+      "id": "f0ea9462ab11",
+      "reason": "w5-admin (coordinator decision 7): the injectedHooks doc was generalised, not dropped; the defaulted `{ useFooHook = useFoo }` form it named is still quoted in the rewritten injectedHooks doc, which now also covers REQUIRED hook props, plain hook parameters and `const { useFoo } = props` (scripts/check-hook-injection-lib.mjs)."
     }
   ]
 }
