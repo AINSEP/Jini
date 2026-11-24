@@ -24,6 +24,9 @@
       "./publish/content/run-repo": "universal",
       "./publish/content/seed-hash": "universal",
       "./publish/content/peer-url": "universal",
+      "./publish/content/backstop-refusal": "universal",
+      "./publish/content/peers": "universal",
+      "./publish/content/apply-retire": "universal",
       "./publish/content/composite-blob-source": "node",
       "./themes/template-applicability": "universal",
       "./themes/preview/roster": "node",
@@ -511,6 +514,21 @@
       "types": "./dist/publish/content/peer-url.d.ts",
       "import": "./dist/publish/content/peer-url.js",
       "default": "./dist/publish/content/peer-url.js"
+    },
+    "./publish/content/backstop-refusal": {
+      "types": "./dist/publish/content/backstop-refusal.d.ts",
+      "import": "./dist/publish/content/backstop-refusal.js",
+      "default": "./dist/publish/content/backstop-refusal.js"
+    },
+    "./publish/content/peers": {
+      "types": "./dist/publish/content/peers.d.ts",
+      "import": "./dist/publish/content/peers.js",
+      "default": "./dist/publish/content/peers.js"
+    },
+    "./publish/content/apply-retire": {
+      "types": "./dist/publish/content/apply-retire.d.ts",
+      "import": "./dist/publish/content/apply-retire.js",
+      "default": "./dist/publish/content/apply-retire.js"
     },
     "./publish/content/composite-blob-source": {
       "types": "./dist/publish/content/composite-blob-source.d.ts",
