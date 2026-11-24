@@ -277,6 +277,7 @@
         "./primitives": "core",
         "./fetch": "fetch",
         "./settings": "settings",
+        "./operator-locale": "settings",
         "./provider-registry": "providers",
         "./object-store": "providers"
       },
@@ -285,7 +286,8 @@
           "src/fetch"
         ],
         "settings": [
-          "src/settings"
+          "src/settings",
+          "src/operator-locale.ts"
         ],
         "providers": [
           "src/provider-registry.ts",
@@ -297,7 +299,8 @@
         "src/model-facing-tool-errors.ts",
         "src/tool-permissions.ts",
         "src/records.ts",
-        "src/tool-input-repairs.ts"
+        "src/tool-input-repairs.ts",
+        "src/errors/idioms.ts"
       ],
       "forbidden": {
         "universal": [
