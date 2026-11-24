@@ -22,6 +22,18 @@ describe('describeToolCallDetail', () => {
     expect(detail.noteKey).toBeNull();
   });
 
+  it('shows a refused-arguments protocol error in plain words, without the argument contract', () => {
+    const raw = 'invalid arguments for theme_read_file: change `path`: Expected string. Accepted arguments: {"path":{"type":"string"}}';
+    const detail = describeToolCallDetail({ input: { path: 3 }, result: { content: raw, isError: true } });
+    expect(detail.outputText).toBe('This step did not run because the assistant sent details the tool could not use. It usually corrects itself and tries again.');
+    expect(describeCollapsedToolCall({ input: { path: 3 }, result: { content: raw, isError: true } })).not.toContain('Accepted arguments');
+  });
+
+  it('does not reword a successful result that merely starts with the same words', () => {
+    const detail = describeToolCallDetail({ input: {}, result: { content: 'invalid arguments for the note you wrote', isError: false } });
+    expect(detail.outputText).toBe('invalid arguments for the note you wrote');
+  });
+
   it('keeps an error result visible as the output', () => {
     const detail = describeToolCallDetail({ input: { url: 'https://x.test' }, result: { content: 'fetch failed: 404', isError: true } });
     expect(detail.outputText).toBe('fetch failed: 404');
