@@ -272,3 +272,7 @@ reference or host stylesheet is required for the settings presentation.
 `AgentEvent` and `ToolResultMediaBlock` are declared in `@jini-ai/core/contracts/site/chat-core`;
 `./core` imports them and keeps a deprecated type re-export until the next major. Hosts import them
 from core.
+
+`./core/durable-runs/run-finalizer` holds a host run finalizer's pure slices (checkpoint growth and
+size rules, `reportSafely`, `releaseUnreadBody`, and the `RunTimerPort`/`RunLogPort` types). The host
+injects its timer and log through those ports and keeps the ledger, daemon client and watch state.

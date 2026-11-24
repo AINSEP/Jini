@@ -82,3 +82,9 @@ The old entry type is gone: use `VaultArchiveEntry` from `@jini-ai/platform/secr
 `agentExecutor.runtime` (spawn, processes, fileLock, writer, commandShell). Omitted, the preset binds
 the Node defaults from `@jini-ai/node-adapters` (including `nodeProcessControl`); the kernel itself
 imports no `@jini-ai/platform/process` implementation.
+
+## Wiring (shutdown)
+
+`@jini-ai/server/shutdown` (`closeStoreOnShutdown`, `closeWithinBound`, `stopServingWithinGrace`) and
+`@jini-ai/server/shutdown/boot-work` (`awaitBootWorkWithinBound`): the host injects its store (any
+`{ storage: { kind }, close() }`), its daemon stop (`onShutdown`), and optionally `bootWork`/`stopServing`/`stopOnEnd`.

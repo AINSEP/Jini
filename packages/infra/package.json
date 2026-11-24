@@ -20,12 +20,28 @@
       "types": "./dist/events/outbox/index.d.ts",
       "import": "./dist/events/outbox/index.js",
       "default": "./dist/events/outbox/index.js"
+    },
+    "./events/memory-bus": {
+      "types": "./dist/events/memory-bus.d.ts",
+      "import": "./dist/events/memory-bus.js",
+      "default": "./dist/events/memory-bus.js"
+    },
+    "./events/domain-outbox": {
+      "types": "./dist/events/domain-outbox.d.ts",
+      "import": "./dist/events/domain-outbox.js",
+      "default": "./dist/events/domain-outbox.js"
     }
   },
   "typesVersions": {
     "*": {
       "events/outbox": [
         "./dist/events/outbox/index.d.ts"
+      ],
+      "events/memory-bus": [
+        "./dist/events/memory-bus.d.ts"
+      ],
+      "events/domain-outbox": [
+        "./dist/events/domain-outbox.d.ts"
       ]
     }
   },

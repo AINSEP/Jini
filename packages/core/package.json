@@ -74,6 +74,7 @@
       "./contracts/site/tool-metadata-approval-policy": "universal",
       "./contracts/site/daemon": "universal",
       "./contracts/site/plugins-host": "universal",
+      "./contracts/site/tool-access-change": "universal",
       "./contracts/site/db-data-modules": "universal",
       "./contracts/site/assistant-tool-contributions": "universal",
       "./contracts/site/secrets-credential-token": "universal",
@@ -556,6 +557,11 @@
       "types": "./dist/contracts/site/plugins-host.d.ts",
       "import": "./dist/contracts/site/plugins-host.js",
       "default": "./dist/contracts/site/plugins-host.js"
+    },
+    "./contracts/site/tool-access-change": {
+      "types": "./dist/contracts/site/tool-access-change.d.ts",
+      "import": "./dist/contracts/site/tool-access-change.js",
+      "default": "./dist/contracts/site/tool-access-change.js"
     },
     "./contracts/site/db-data-modules": {
       "types": "./dist/contracts/site/db-data-modules.d.ts",

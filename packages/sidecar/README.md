@@ -130,3 +130,13 @@ process, clock, scheduler and reporting ports and starts no work on import.
 
 The package TypeScript configuration includes production source and `src/**/__tests__`.
 `npx tsc -p tsconfig.json --noEmit`, run from this package directory, checks both without running tests.
+
+## Wiring
+
+`@jini-ai/sidecar/daemon-origin` resolves the agent daemon's origin (`JINI_AGENT_DAEMON_URL`, then
+`JINI_AGENT_DAEMON_PORT`, else a self-allocated free loopback port). The host owns the one production
+resolver, calls `ensure()` before it serves, and layers any delegated-connection URL override on top.
+
+`startOwnParentWatchdog` (root entry) self-terminates a server whose parent dies without signalling it.
+The host injects the live process ports plus `envNames` (its disable and dev-supervisor-pid variable
+names) and `logTag`; Jini owns no env name.

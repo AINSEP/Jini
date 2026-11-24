@@ -19,6 +19,7 @@
       "./host/worker": "node",
       "./host/sql": "node",
       "./host/tools": "node",
+      "./host/hook-refusals": "universal",
       "./runtime/install-consent": "universal",
       "./runtime/plugin-tool-ids": "universal"
     },
@@ -71,6 +72,11 @@
       "types": "./dist/runtime/install-consent.d.ts",
       "import": "./dist/runtime/install-consent.js",
       "default": "./dist/runtime/install-consent.js"
+    },
+    "./host/hook-refusals": {
+      "types": "./dist/host/hook-refusals.d.ts",
+      "import": "./dist/host/hook-refusals.js",
+      "default": "./dist/host/hook-refusals.js"
     },
     "./runtime/plugin-tool-ids": {
       "types": "./dist/runtime/plugin-tool-ids.d.ts",

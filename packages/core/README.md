@@ -309,3 +309,12 @@ The former core and CMS `./settings/express` entries have been removed.
 `./tool-metadata/<domain>` ships product-neutral tool metadata maps; a host aggregates them with its
 own maps (for example Tovu keeps `custom-credentials`, whose search vocabulary names providers). A
 test in `src/tool-metadata/__tests__/provider-neutral.test.ts` refuses provider names here.
+
+## Wiring (tool-access-change)
+
+- `@jini-ai/core/contracts/site/tool-access-change`: the host supplies its own `NotifyToolAccessChanged` effect and throws `ToolAccessLoweringError` when it cannot confirm affected answers stopped; nothing else to inject.
+
+## Wiring (primitives/lazy-proxy)
+
+`createLazyProxy({ factory })` (`@jini-ai/core/primitives`) needs nothing injected; the host passes the
+factory that opens the real instance on first use.

@@ -102,3 +102,36 @@ export async function listenServer({ server, port }: { server: ServerListenerPor
   // The final attempt's error, whatever it is, propagates unchanged.
   return bindAndReport({ server, port: port + attempts - 1 }, { host });
 }
+
+/**
+ * Boot-listener policy over {@link listenServer}: the host's one boot listener (HTTP or dev-TLS
+ * HTTPS — the same `server` either way) bound to the operator's resolved bind host.
+ *
+ * `bindHost === undefined` omits `host` entirely, so Node keeps its own all-interfaces default
+ * (`::`, or `0.0.0.0` without IPv6). Only the production start (`autoStartPort`) opts into
+ * direct-bind retries; every other entry point gets one attempt, so a held port fails loudly instead
+ * of two dev processes racing for it.
+ */
+
+/** Ports an auto-start boot tries, starting at the requested one, before giving up. */
+export const AUTO_START_PORT_ATTEMPTS = 20;
+
+/**
+ * Listens `server` on `port` (and `bindHost`, when set); resolves the port actually bound.
+ *
+ * @param required.bindHost - the host's resolved bind host (`undefined` = all interfaces).
+ * @param optional.autoStartPort - true only for the production start: on EADDRINUSE try the next
+ *   port, up to `AUTO_START_PORT_ATTEMPTS` ports in all.
+ * @throws whatever `listenServer` rejects with (EADDRINUSE once the range is exhausted).
+ * @complexity O(attempts) listen calls.
+ */
+export async function reserveBootListener(
+  required: { server: ServerListenerPort; port: number; bindHost: string | undefined },
+  optional: { autoStartPort?: boolean } = {},
+): Promise<number> {
+  const { server, port, bindHost } = required;
+  return listenServer(
+    { server, port },
+    { ...(bindHost === undefined ? {} : { host: bindHost }), attempts: optional.autoStartPort ? AUTO_START_PORT_ATTEMPTS : 1 },
+  );
+}

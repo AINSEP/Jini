@@ -93,3 +93,8 @@ Default dispatchers remain shared; each override binding retains its own lazy
 pool. HTTPS-only probes, manual redirects and existing deadlines are preserved.
 The Node adapter attaches the validating Agent as a native fetch runtime extension,
 preserving its identity across differing Node and undici dispatcher type versions.
+
+## Wiring (local-dev boot listener)
+
+`reserveBootListener` (`@jini-ai/devops/local-dev`): the host passes its server, port and already-resolved
+bind host (its own env/flag precedence), and sets `autoStartPort` only for its production start.
