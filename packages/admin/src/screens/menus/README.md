@@ -24,6 +24,15 @@
   kit (`useCachedLoader`, `useFetchQuery`, `useFetchMutation`, `useDirtyGuard`), so the host mounts
   `AdminKitProvider`. Sub-hooks: `use-menu-editor-state.hooks.ts` (state + setters),
   `use-menu-editor-writes.hooks.ts` (Copy HTML embed, Save), `menu-tree.ts` (pure tree ops).
+- `menus-host-kit.ts` also carries the editor's own hooks as required fields — `useMenuEditorState`,
+  `useMenuFieldActions`, `useMenuItemActions` (`hooks/use-menu-editor-state.hooks.ts`) and
+  `useMenuCopyEmbed`, `useMenuSave` (`hooks/use-menu-editor-writes.hooks.ts`); `useMenuEditor` calls them
+  through `deps.kit`, and the host passes this package's implementations.
+- `MenuEditor.tsx` — the tree editor (split into `MenuEditorHeader.tsx`, `MenuItemRow.tsx`,
+  `MenuItemFields.tsx`, `MenuModeTabs.tsx`). REQUIRED props: `useMenuEditorHook` (the host's wired
+  `useMenuEditor`), `tabStrip` (`useTabBarKeyboard` + `resolveTabBarTabIndex`; `@jini-ai/ui/tab-strip`
+  is not an admin edge), `rowHooks` (`useMenuItemRemove`, `useMenuTargetEditor`,
+  `useMenuPageLinkFields`) and `menusHref` (the list route). Emits only `jini-*` classes.
 - `Menus.tsx` — the list screen. REQUIRED props: `useMenusHook` (the host's wired `useMenus`),
   `publishAction` (the host's section publish control), `newMenuHref` and `menuHref({ slug })` (the
   host's routes). Emits only `jini-*` classes (`jini-page*`, `jini-notice`, `jini-card`,

@@ -113,8 +113,9 @@ function MenuItemTree({ editor, rowHooks }: { editor: MenuEditorController; rowH
   );
 }
 
-export function MenuEditor({ menuId, useMenuEditorHook, tabStrip, rowHooks, menusHref }: MenuEditorProps) {
-  const editor = useMenuEditorHook({ menuId });
+export function MenuEditor(props: MenuEditorProps, _optional: Record<string, never> = {}) {
+  const { menuId, tabStrip, rowHooks, menusHref } = props;
+  const editor = props.useMenuEditorHook({ menuId });
   const { isNew, menu, title, setTitle, slug, setSlug, mode, changeMode, html, setHtml, error, loading, t } = editor;
 
   if (error && !isNew && !menu) return <div className="jini-notice jini-notice-error">{error}</div>;
