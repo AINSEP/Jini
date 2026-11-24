@@ -96,6 +96,7 @@
  */
 import { redactSecrets } from '@jini-ai/core';
 import { createTavilyResearchProvider } from './research-tavily.adapter.js';
+import type { BaseUrlGuardPort } from '@jini-ai/core/contracts/agents';
 import { createApiError } from '@jini-ai/protocol';
 import type { DaemonRouteHost } from './route-host.js';
 import { gatedJsonRoute, withHostReporter, type DaemonRoute } from './route-table.js';
@@ -149,6 +150,8 @@ export interface ResearchProvider {
 
 export interface ResearchHttpDeps {
   readonly provider?: ResearchProvider;
+  /** The host-bound base-URL SSRF guard the built-in Tavily transport runs before every call out (the host binds `validateBaseUrl`). */
+  readonly baseUrlGuard: BaseUrlGuardPort;
   readonly fetch?: typeof globalThis.fetch;
   readonly env?: Readonly<Record<string, string | undefined>>;
   /** Resolves per-provider credentials. Defaults to `TAVILY_API_KEY` for the built-in Tavily transport. */
@@ -227,7 +230,7 @@ function synthesizeFallbackSummary(sources: readonly ResearchSource[]): string {
 
 /** The route-bound provider, else the host's `deps.provider`, else the built-in Tavily transport over `deps.fetch`. */
 function selectProvider(bound: ResearchProvider | undefined, deps: ResearchHttpDeps): ResearchProvider {
-  return bound ?? deps.provider ?? createTavilyResearchProvider({}, deps.fetch ? { fetch: deps.fetch } : {});
+  return bound ?? deps.provider ?? createTavilyResearchProvider({ baseUrlGuard: deps.baseUrlGuard }, deps.fetch ? { fetch: deps.fetch } : {});
 }
 
 /** The host's resolver, else `TAVILY_API_KEY` for a `'tavily'` provider and no credentials for any other. */

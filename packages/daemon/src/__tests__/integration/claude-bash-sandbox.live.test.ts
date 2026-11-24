@@ -7,8 +7,8 @@ import { delimiter, join, resolve, sep } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { expect, it } from 'vitest';
 import type { RunProtocolEvent } from '@jini-ai/protocol';
-import { nodeAtomicWriter, nodeFileLock } from '@jini-ai/node-adapters/fs';
-import { createSpawnPort, nodeCommandShell, nodeProcessControl, type SpawnFunction } from '@jini-ai/node-adapters/process';
+import { nodeAtomicWriter, nodeFileLock, nodeProcessControl } from '../../agent-executor/__tests__/node-os-ports.js';
+import { createSpawnPort, nodeCommandShell, type SpawnFunction } from '@jini-ai/node-adapters/process';
 
 const COMMAND = 'pwd && echo REPRO_OK';
 

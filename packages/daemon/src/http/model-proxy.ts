@@ -81,45 +81,7 @@
  * over routing for the five providers that already have a dedicated, more
  * specifically-typed path.
  */
-import {
-  runAnthropicToolTurn,
-  runAzureToolTurn,
-  runGoogleToolTurn,
-  runOllamaToolTurn,
-  runOpenAiToolTurn,
-  type AnthropicMessageParam,
-  type AnthropicToolCall,
-  type AnthropicToolDef,
-  type AnthropicToolExecutor,
-  type AnthropicToolResult,
-  type AnthropicTurnEvent,
-  type AzureFunctionToolDef,
-  type AzureMessageParam,
-  type AzureToolCall,
-  type AzureToolExecutor,
-  type AzureToolResult,
-  type AzureTurnEvent,
-  type GoogleContent,
-  type GoogleToolCall,
-  type GoogleToolDef,
-  type GoogleToolExecutor,
-  type GoogleToolResult,
-  type GoogleTurnEvent,
-  type OllamaFunctionToolDef,
-  type OllamaMessageParam,
-  type OllamaToolCall,
-  type OllamaToolExecutor,
-  type OllamaToolResult,
-  type OllamaTurnEvent,
-  type OpenAiFunctionToolDef,
-  type OpenAiMessageParam,
-  type OpenAiToolCall,
-  type OpenAiToolExecutor,
-  type OpenAiToolResult,
-  type OpenAiTurnEvent,
-  type PinnedFetch,
-} from '@jini-ai/agent-runtime';
-import { type DnsLookupFn } from '@jini-ai/core/contracts/agents';
+import type { DnsLookupFn, PinnedFetch, ProviderToolTurnPort, ProviderTurnEventRecord } from '@jini-ai/core/contracts/agents';
 import { createApiError, type ApiError } from '@jini-ai/protocol';
 import {
   createSseStream,
@@ -148,8 +110,11 @@ import {
   type OptionalFieldCheck,
 } from './model-proxy-fields.js';
 
-/** The union of every recognized provider's `run{Provider}ToolTurn` event type — what the `/api/proxy/:provider/stream` catch-all's registry (and, transitively, every fixed-path route) can emit. */
-type AnyProxyTurnEvent = AnthropicTurnEvent | OpenAiTurnEvent | AzureTurnEvent | GoogleTurnEvent | OllamaTurnEvent;
+/** The union of every recognized provider's `run{Provider}ToolTurn` event type — what the `/api/proxy/:provider/stream` catch-all's registry (and, transitively, every fixed-path route) can emit — now typed at the injected port boundary (`ProviderTurnEventRecord`): the proxy only reads the discriminant; the vendor wire shape stays with the host-bound runner. */
+type AnyProxyTurnEvent = ProviderTurnEventRecord;
+
+/** Host-owned tool execution for one provider route: takes that provider's tool call, returns its tool result (vendor wire shapes stay with the host). */
+export type ProxyToolExecutor = (call: unknown) => Promise<unknown>;
 
 /** Diagnostic detail for an internal-error response this route deliberately does not disclose to the client (SEC-005, matching `runs.ts#RunInternalErrorContext`). Only reached if a turn-runner's promise itself rejects — every turn-runner already converts every provider/network failure into an `'error'`+`'end'` event pair internally, so this is a genuinely unexpected-exception path (e.g. a caller-supplied `executeTool` throwing). */
 export interface ModelProxyInternalErrorContext {
@@ -164,16 +129,18 @@ export interface ModelProxyInternalErrorContext {
 const PROXY_STREAM_STOPPED_MESSAGE = 'The assistant response stopped. Review any completed actions before starting another turn. Copy the request ID and report this problem.';
 
 export interface ModelProxyHttpDeps {
+  /** Required: the provider tool-turn runners the host binds (the `run<Provider>ToolTurn` functions of the runtime package — see `ports/provider-http.ts`). */
+  readonly toolTurns: ProviderToolTurnPort;
   /** Host-owned tool execution for the Anthropic proxy route. Omit to stream `tool_use` events without running a server-side tool loop (see module doc). */
-  readonly anthropicExecuteTool?: AnthropicToolExecutor;
+  readonly anthropicExecuteTool?: ProxyToolExecutor;
   /** Host-owned tool execution for the OpenAI proxy route. Same default-unset behavior as `anthropicExecuteTool`. */
-  readonly openaiExecuteTool?: OpenAiToolExecutor;
+  readonly openaiExecuteTool?: ProxyToolExecutor;
   /** Host-owned tool execution for the Azure OpenAI proxy route. Same default-unset behavior as `anthropicExecuteTool`. */
-  readonly azureExecuteTool?: AzureToolExecutor;
+  readonly azureExecuteTool?: ProxyToolExecutor;
   /** Host-owned tool execution for the Google (Gemini) proxy route. Same default-unset behavior as `anthropicExecuteTool`. */
-  readonly googleExecuteTool?: GoogleToolExecutor;
+  readonly googleExecuteTool?: ProxyToolExecutor;
   /** Host-owned tool execution for the Ollama proxy route. Same default-unset behavior as `anthropicExecuteTool`. */
-  readonly ollamaExecuteTool?: OllamaToolExecutor;
+  readonly ollamaExecuteTool?: ProxyToolExecutor;
   /** Host-owned sink for the real exception behind an internal-error SSE event (SEC-005). Without one, the default line carries the error class only (`reportRouteInternalError`). */
   readonly onInternalError?: (context: ModelProxyInternalErrorContext) => void;
   /**
@@ -362,7 +329,7 @@ const GOOGLE_OPTIONAL_CHECKS: readonly OptionalFieldCheck[] = [
   ['maxOutputTokens', isNumber, 'maxOutputTokens must be a number when provided'],
 ];
 
-/** `parsed.messages` carries Gemini's own `contents: [{role, parts}]` shape at the call site below (cast, same convention as `parsed.messages as unknown as readonly AnthropicMessageParam[]`) — the HTTP JSON body schema stays uniform across all five providers; only each turn-runner's own field name differs. */
+/** `parsed.messages` carries Gemini's own `contents: [{role, parts}]` shape at the call site below (cast, same convention as `parsed.messages`) — the HTTP JSON body schema stays uniform across all five providers; only each turn-runner's own field name differs. */
 function parseGoogleProxyRequest(body: unknown): Result<ParsedGoogleProxyRequest> {
   const common = parseCommon(body);
   if (!common.ok) return common;
@@ -488,9 +455,9 @@ function transportOptions(deps: ModelProxyHttpDeps): { fetchImpl?: PinnedFetch; 
   };
 }
 
-/** `tools` cast to the turn-runner's own tool-definition type, forwarded only when present (the parser never inspects tool contents — see `parseCommon`). */
-function toolsOption<ToolDef>(tools: unknown[] | undefined): { tools?: readonly ToolDef[] } {
-  return tools !== undefined ? { tools: tools as unknown as readonly ToolDef[] } : {};
+/** `tools` cast to the turn-runner's own tool-definition type, forwarded only when present (the parser never inspects tool contents — see `parseCommon`); the cast itself now happens at the host-bound port. */
+function toolsOption(tools: unknown[] | undefined): { tools?: readonly unknown[] } {
+  return tools !== undefined ? { tools } : {};
 }
 
 /**
@@ -504,67 +471,67 @@ function buildProxyProviderRegistry(deps: ModelProxyHttpDeps): Record<string, Pr
   return {
     anthropic: defineProvider({
       parse: parseAnthropicProxyRequest,
-      run: (parsed, onEvent: (event: AnthropicTurnEvent) => void) =>
-        runAnthropicToolTurn(
-          { apiKey: parsed.apiKey, model: parsed.model, maxTokens: parsed.maxTokens, messages: parsed.messages as unknown as readonly AnthropicMessageParam[], onEvent },
+      run: (parsed, onEvent: (event: ProviderTurnEventRecord) => void) =>
+        deps.toolTurns.anthropic(
+          { apiKey: parsed.apiKey, model: parsed.model, maxTokens: parsed.maxTokens, messages: parsed.messages, onEvent },
           {
             ...pickDefined({ source: parsed, keys: ['baseUrl', 'apiVersion', 'system', 'temperature', 'maxToolTurns', 'extraHeaders'] }),
-            ...toolsOption<AnthropicToolDef>(parsed.tools),
+            ...toolsOption(parsed.tools),
             ...transportOptions(deps),
-            ...(deps.anthropicExecuteTool ? { executeTool: (call: AnthropicToolCall): Promise<AnthropicToolResult> => deps.anthropicExecuteTool!(call) } : {}),
+            ...(deps.anthropicExecuteTool ? { executeTool: (call: unknown): Promise<unknown> => deps.anthropicExecuteTool!(call) } : {}),
           },
         ),
     }),
     openai: defineProvider({
       parse: parseToolsProxyRequest,
-      run: (parsed, onEvent: (event: OpenAiTurnEvent) => void) =>
-        runOpenAiToolTurn(
-          { apiKey: parsed.apiKey, model: parsed.model, messages: parsed.messages as unknown as readonly OpenAiMessageParam[], onEvent },
+      run: (parsed, onEvent: (event: ProviderTurnEventRecord) => void) =>
+        deps.toolTurns.openai(
+          { apiKey: parsed.apiKey, model: parsed.model, messages: parsed.messages, onEvent },
           {
             ...pickDefined({ source: parsed, keys: ['baseUrl', 'temperature', 'maxTokens', 'maxToolTurns', 'extraHeaders'] }),
-            ...toolsOption<OpenAiFunctionToolDef>(parsed.tools),
+            ...toolsOption(parsed.tools),
             ...transportOptions(deps),
-            ...(deps.openaiExecuteTool ? { executeTool: (call: OpenAiToolCall): Promise<OpenAiToolResult> => deps.openaiExecuteTool!(call) } : {}),
+            ...(deps.openaiExecuteTool ? { executeTool: (call: unknown): Promise<unknown> => deps.openaiExecuteTool!(call) } : {}),
           },
         ),
     }),
     azure: defineProvider({
       parse: parseAzureProxyRequest,
-      run: (parsed, onEvent: (event: AzureTurnEvent) => void) =>
-        runAzureToolTurn(
-          { apiKey: parsed.apiKey, baseUrl: parsed.baseUrl, model: parsed.model, messages: parsed.messages as unknown as readonly AzureMessageParam[], onEvent },
+      run: (parsed, onEvent: (event: ProviderTurnEventRecord) => void) =>
+        deps.toolTurns.azure(
+          { apiKey: parsed.apiKey, baseUrl: parsed.baseUrl, model: parsed.model, messages: parsed.messages, onEvent },
           {
             apiVersion: parsed.apiVersion,
             ...pickDefined({ source: parsed, keys: ['temperature', 'maxTokens', 'maxToolTurns', 'extraHeaders'] }),
-            ...toolsOption<AzureFunctionToolDef>(parsed.tools),
+            ...toolsOption(parsed.tools),
             ...transportOptions(deps),
-            ...(deps.azureExecuteTool ? { executeTool: (call: AzureToolCall): Promise<AzureToolResult> => deps.azureExecuteTool!(call) } : {}),
+            ...(deps.azureExecuteTool ? { executeTool: (call: unknown): Promise<unknown> => deps.azureExecuteTool!(call) } : {}),
           },
         ),
     }),
     google: defineProvider({
       parse: parseGoogleProxyRequest,
-      run: (parsed, onEvent: (event: GoogleTurnEvent) => void) =>
-        runGoogleToolTurn(
-          { apiKey: parsed.apiKey, model: parsed.model, contents: parsed.messages as unknown as readonly GoogleContent[], onEvent },
+      run: (parsed, onEvent: (event: ProviderTurnEventRecord) => void) =>
+        deps.toolTurns.google(
+          { apiKey: parsed.apiKey, model: parsed.model, contents: parsed.messages, onEvent },
           {
             ...pickDefined({ source: parsed, keys: ['baseUrl', 'system', 'temperature', 'maxOutputTokens', 'maxToolTurns', 'extraHeaders'] }),
-            ...toolsOption<GoogleToolDef>(parsed.tools),
+            ...toolsOption(parsed.tools),
             ...transportOptions(deps),
-            ...(deps.googleExecuteTool ? { executeTool: (call: GoogleToolCall): Promise<GoogleToolResult> => deps.googleExecuteTool!(call) } : {}),
+            ...(deps.googleExecuteTool ? { executeTool: (call: unknown): Promise<unknown> => deps.googleExecuteTool!(call) } : {}),
           },
         ),
     }),
     ollama: defineProvider({
       parse: parseToolsProxyRequest,
-      run: (parsed, onEvent: (event: OllamaTurnEvent) => void) =>
-        runOllamaToolTurn(
-          { apiKey: parsed.apiKey, model: parsed.model, messages: parsed.messages as unknown as readonly OllamaMessageParam[], onEvent },
+      run: (parsed, onEvent: (event: ProviderTurnEventRecord) => void) =>
+        deps.toolTurns.ollama(
+          { apiKey: parsed.apiKey, model: parsed.model, messages: parsed.messages, onEvent },
           {
             ...pickDefined({ source: parsed, keys: ['baseUrl', 'temperature', 'maxTokens', 'maxToolTurns', 'extraHeaders'] }),
-            ...toolsOption<OllamaFunctionToolDef>(parsed.tools),
+            ...toolsOption(parsed.tools),
             ...transportOptions(deps),
-            ...(deps.ollamaExecuteTool ? { executeTool: (call: OllamaToolCall): Promise<OllamaToolResult> => deps.ollamaExecuteTool!(call) } : {}),
+            ...(deps.ollamaExecuteTool ? { executeTool: (call: unknown): Promise<unknown> => deps.ollamaExecuteTool!(call) } : {}),
           },
         ),
     }),

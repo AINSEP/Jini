@@ -48,6 +48,10 @@ export interface AdminPolicy {
   isFrozen: boolean;
 }
 
+/** One permission row written onto a policy (OQ-10). Mirrors `identity`'s `PolicyPermissionRecord`
+ *  — the shape `GET policies/:policyId/permissions` returns. `id` is what
+ *  {@link RolesPort.removePolicyPermission} deletes by; nothing else in the admin exposed it, which
+ *  is why a policy's permission set used to be append-only from this UI. */
 export interface AdminPolicyPermission {
   id: string;
   workspaceId: string;

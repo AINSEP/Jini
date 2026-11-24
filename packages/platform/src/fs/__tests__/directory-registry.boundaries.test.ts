@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { createDirectoryRegistry, type DirectoryRecord } from "../directory-registry.js";
-import type { DurableJsonFile, JsonFileRead } from "../durable-json.js";
+import type { DurableJsonFile } from "../durable-json.js";
+import type { JsonFileRead } from "@jini-ai/core/contracts/site/fs-durable-json";
 
 type Fake = { file: DurableJsonFile; writes: unknown[]; locks: number; set(read: JsonFileRead): void; beforeCritical?: () => void };
 function fakeFile(initial: JsonFileRead): Fake {

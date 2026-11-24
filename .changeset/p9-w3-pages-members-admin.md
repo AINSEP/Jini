@@ -1,0 +1,54 @@
+---
+"@jini-ai/admin": patch
+---
+
+Add leaf subpaths for the w3 pages/members extraction (no barrel; import each leaf directly):
+
+- `@jini-ai/admin/pages/api/pages-api.types`
+- `@jini-ai/admin/pages/hooks/pages-port.hooks`
+- `@jini-ai/admin/pages/hooks/pages-tab-url.hooks`
+- `@jini-ai/admin/pages/hooks/use-editor-html-jump.hooks`
+- `@jini-ai/admin/pages/hooks/use-interactive-flush.hooks`
+- `@jini-ai/admin/pages/hooks/use-pages.hooks`
+- `@jini-ai/admin/pages/lib/embed-placeholder`
+- `@jini-ai/admin/pages/lib/page-preview-youtube`
+- `@jini-ai/admin/pages/lib/prettify-html`
+- `@jini-ai/admin/pages/page-editor-i18n`
+- `@jini-ai/admin/pages/page-editor-rules`
+- `@jini-ai/admin/pages/Pages`
+- `@jini-ai/admin/pages/pages-i18n`
+- `@jini-ai/admin/pages/pages-list-rules`
+- `@jini-ai/admin/pages/Pages.hooks`
+- `@jini-ai/admin/screens/dashboard/Dashboard`
+- `@jini-ai/admin/screens/dashboard/dashboard-i18n`
+- `@jini-ai/admin/screens/dashboard/dashboard-view.types`
+- `@jini-ai/admin/screens/dashboard/dashboard.css`
+- `@jini-ai/admin/screens/dashboard/hooks/dashboard-port.hooks`
+- `@jini-ai/admin/screens/dashboard/hooks/fake-dashboard-port`
+- `@jini-ai/admin/screens/dashboard/hooks/use-dashboard.hooks`
+- `@jini-ai/admin/screens/dashboard/rules`
+- `@jini-ai/admin/screens/observability/api/observability-api`
+- `@jini-ai/admin/screens/observability/api/observability-api.types`
+- `@jini-ai/admin/screens/observability/hooks/observability-status-dependencies.hooks`
+- `@jini-ai/admin/screens/observability/hooks/observability-status-port.hooks`
+- `@jini-ai/admin/screens/observability/hooks/recent-server-errors-dependencies.hooks`
+- `@jini-ai/admin/screens/observability/hooks/recent-server-errors-port.hooks`
+- `@jini-ai/admin/screens/observability/hooks/use-observability-status.hooks`
+- `@jini-ai/admin/screens/observability/hooks/use-observability-tab.hooks`
+- `@jini-ai/admin/screens/observability/hooks/use-queries-tab.hooks`
+- `@jini-ai/admin/screens/observability/hooks/use-recent-error-item.hooks`
+- `@jini-ai/admin/screens/observability/hooks/use-recent-server-errors.hooks`
+- `@jini-ai/admin/screens/observability/Observability`
+- `@jini-ai/admin/screens/observability/observability-i18n`
+- `@jini-ai/admin/screens/observability/observability-visuals`
+- `@jini-ai/admin/screens/observability/observability.css`
+- `@jini-ai/admin/screens/observability/queries-panel`
+- `@jini-ai/admin/screens/observability/recent-errors-panel`
+- `@jini-ai/admin/screens/observability/recent-errors-rules`
+- `@jini-ai/admin/screens/observability/recent-errors.css`
+- `@jini-ai/admin/screens/observability/tool-gaps-panel`
+- `@jini-ai/admin/shell/components/AdminFailureNotice/admin-failure-notice.css`
+- `@jini-ai/admin/shell/components/AdminFailureNotice/AdminFailureNotice`
+- `@jini-ai/admin/shell/components/ServerRestartingBanner/hooks/use-server-connection-status.hooks`
+- `@jini-ai/admin/shell/components/ServerRestartingBanner/server-restarting-banner.css`
+- `@jini-ai/admin/shell/components/ServerRestartingBanner/ServerRestartingBanner`

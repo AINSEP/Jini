@@ -1,0 +1,15 @@
+.jini-server-restarting-banner {
+  position: fixed;
+  top: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 10000;
+  margin-top: 8px;
+  padding: 6px 14px;
+  border-radius: 999px;
+  font-size: 13px;
+  background: var(--jini-admin-warning-bg);
+  color: var(--jini-admin-warning);
+  box-shadow: var(--jini-panel-shadow-banner);
+  max-width: calc(100vw - 32px);
+}

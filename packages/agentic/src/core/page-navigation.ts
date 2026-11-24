@@ -1,3 +1,5 @@
+import type { PageNavigationInput, PageNavigationResult } from '@jini-ai/core/contracts/site/agentic-dom';
+
 /** Published navigation metadata. Hosts own routes and entity lookup; this module only projects
  * validated destinations. Entity navigation never executes a follow-up control. */
 export interface AgentEntityTarget {
@@ -13,10 +15,6 @@ export interface AgentNavigationScreen {
   readonly allowedQueryParams: Readonly<Record<string, readonly string[] | null>>;
   readonly entityTargets: readonly AgentEntityTarget[];
 }
-export interface PageNavigationInput {
-  readonly entity?: { readonly type: string; readonly id: string };
-  readonly query?: Readonly<Record<string, string>>;
-}
 export interface ResolvedPageEntity {
   readonly params: Readonly<Record<string, string>>;
   readonly query?: Readonly<Record<string, string>>;
@@ -24,10 +22,6 @@ export interface ResolvedPageEntity {
   readonly control?: { readonly query: string; readonly role: 'button'; readonly intent: string };
 }
 export type PageEntityLookup = (required: { page: string; type: string; id: string }, optional?: Record<string, never>) => Promise<ResolvedPageEntity | null>;
-export interface PageNavigationResult {
-  readonly path: string;
-  readonly nextAction?: ResolvedPageEntity['control'];
-}
 
 /** Reject unknown keys/values instead of letting route state choose an arbitrary destination.
  * @complexity O(q) in the small host-declared query, with O(q) output. */

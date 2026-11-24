@@ -414,6 +414,8 @@
    "RestorePointSavePort": "interface:3af42195ac",
    "RestorePointSummary": "interface:6e1febe5d9",
    "RestorePointUnavailableError": "class:c86dfb27d4",
+   "SITE_DATABASE_MESSAGES": "variable:f769355f3d",
+   "SITE_TRANSFER_MESSAGES": "variable:861e284720",
    "SavedDatabaseDestination": "interface:5df08097ca",
    "SnapshotFilePort": "interface:66eb639635",
    "SurfaceExchange": "type:50ba4a0b27",

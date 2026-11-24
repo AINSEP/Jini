@@ -37,7 +37,7 @@ vi.mock('node:fs/promises', async (importOriginal) => {
 import { removeDaemonRegistryRecordIfCurrent } from '../daemon-registry.js';
 import { writeJsonFile } from '../json-file.js';
 import { writeJsonFileAtomicAsync } from '@jini-ai/platform/fs';
-/** The real atomic writer (platform is a test dependency); hosts pass node-adapters' `nodeAtomicWriter`. */
+/** The real atomic writer (platform is a test dependency); hosts pass node-adapters' `createAtomicWriterPort` over platform's functions. */
 const testWriter = { writeJson: writeJsonFileAtomicAsync };
 
 const roots: string[] = [];

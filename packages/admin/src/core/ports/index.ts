@@ -18,6 +18,9 @@ export type {
   AdminLedgerRow,
   AdminRestorePoint,
   AdminRestorePointSummary,
+  AdminSchemaDriftStatus,
+  AdminSchemaSnapshot,
+  AdminSchemaState,
   MigrateForwardResult,
   RestorePointCostClass,
 } from './database.js';
@@ -148,3 +151,5 @@ export type {
 } from './entities.js';
 
 export type { AdminShellContext, AdminShellNavigationPort, AdminShellSession, AdminShellSessionPort } from './shell.js';
+
+export type { AdminExportRunSnapshot, AdminExportRunStatus } from './import-export.js';

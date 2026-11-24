@@ -1,8 +1,8 @@
 /** Compile-time proof that the shared agent-runtime binding matches the daemon's port, with no cast. A mismatch in
  * any member (argument object, optional bag, return type, null-ness) is a `tsc` error in this file. */
 import { createAgentRuntimeBindings, createNativeAgentRuntime } from '@jini-ai/agent-runtime';
-import type { AgentRuntimePort, BaseUrlGuardPort } from '@jini-ai/daemon/ports/agent-runtime';
-import type { ProviderToolTurnPort } from '@jini-ai/daemon/ports/provider-http';
+import type { AgentRuntimePort } from '@jini-ai/daemon/ports/agent-runtime';
+import type { BaseUrlGuardPort, ProviderToolTurnPort } from '@jini-ai/core/contracts/agents';
 import type { XaiOAuthPort } from '@jini-ai/daemon/ports/xai-oauth';
 import {
   beginOAuthPkce, clearStoredOAuthToken, completeOAuthPkce, getStoredOAuthToken, PendingAuthCache, resolveOAuthBearer, runAnthropicToolTurn,

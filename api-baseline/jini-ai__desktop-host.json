@@ -218,6 +218,43 @@
    "isShellPageUrl": "function:f14179b5e1"
   }
  },
+ "./electron/preferences": {
+  "types": "./dist/electron/preferences/index.d.ts",
+  "symbols": {
+   "ApplicationMenuPort": "interface:8954966766",
+   "CheckableMenu": "interface:bc3d6676de",
+   "PREFERENCES_UNREADABLE": "variable:c040a1deb6",
+   "PersistedCheckboxItem": "interface:d9a3619c89",
+   "PersistedRadioItem": "interface:1a0c2ff24d",
+   "PreferenceFilePort": "interface:2e1056a20f",
+   "PreferenceFileRead": "type:e613a39c48",
+   "PreferenceIpcMain": "interface:72cfd045df",
+   "PreferenceProblem": "type:9b9c6bd26a",
+   "RadioMenuPort": "interface:4648d8d96e",
+   "WholeNumberBounds": "interface:a2eedcb431",
+   "choiceOf": "function:8b7543f3a1",
+   "clampWholeNumber": "function:f8efcc6d43",
+   "persistedCheckbox": "function:6f6eb50203",
+   "persistedRadioGroup": "function:f537523c2f",
+   "positiveWholeNumber": "function:5f22239949",
+   "readPreferenceSettings": "function:45eb6b66aa",
+   "readPreferenceValue": "function:7f569aed60",
+   "refreshCheckboxesByLabel": "function:4d655231b7",
+   "refreshRadioGroup": "function:46455bce23",
+   "registerPreferenceIpc": "function:8ab2833dd8",
+   "wholeNumberSteps": "function:6583ef32e5",
+   "writePreferenceValue": "function:597aca1281"
+  }
+ },
+ "./electron/preload": {
+  "types": "./dist/electron/preload/index.d.ts",
+  "symbols": {
+   "PreloadIpcHandler": "type:61fdee4484",
+   "PreloadIpcListenerPort": "interface:c93ed9fa9a",
+   "PreloadSubscribe": "type:e142f432c7",
+   "createPreloadSubscriber": "function:a6f73da9b3"
+  }
+ },
  "./electron/selftest": {
   "types": "./dist/electron/selftest/index.d.ts",
   "symbols": {
@@ -228,6 +265,25 @@
    "createSelftestTracker": "function:46d7de4d69"
   }
  },
+ "./electron/session-bootstrap": {
+  "types": "./dist/electron/session-bootstrap/index.d.ts",
+  "symbols": {
+   "CookieJarSession": "interface:67a9dc5035",
+   "HeaderArmingSession": "interface:1a0f90f2b4",
+   "SessionBodyRequest": "interface:2a7a3bd701",
+   "SessionNet": "interface:0d00c896ff",
+   "SessionOutcome": "interface:f90c45efa3",
+   "SessionRequest": "interface:dbd6679cae",
+   "SessionRequestOptions": "interface:32066c850a",
+   "SessionResponse": "interface:010ecaef57",
+   "armExactUrlHeader": "function:308f295bbc",
+   "exchangeSessionJson": "function:0c621bfdf2",
+   "exchangeSessionRequest": "function:86aceeeb12",
+   "hasSessionCookie": "function:7e15fc3f0e",
+   "persistentPartitionName": "function:4c34b0836d",
+   "probeSession": "function:c6f0fce8b9"
+  }
+ },
  "./electron/updates": {
   "types": "./dist/electron/updates/index.d.ts",
   "symbols": {
@@ -236,6 +292,12 @@
    "AutoUpdateControllerEffects": "interface:0d8ca5e23c",
    "AutoUpdateControllerOptions": "interface:580db7d4b7",
    "CheckInput": "interface:62c5f8bc57",
+   "CheckableUpdater": "interface:4b392be330",
+   "DesktopNativeUpdater": "interface:915122fbcb",
+   "DesktopUpdater": "interface:155bcea040",
+   "DesktopUpdaterPorts": "interface:99d3986535",
+   "DesktopUpdaterReporter": "interface:8792464cff",
+   "DesktopUpdaterState": "interface:21fb4ef690",
    "ElectronUpdater": "interface:310509434c",
    "FIRST_CHECK_DELAY_MS": "variable:03c045950b",
    "FileInstancePresenceInput": "interface:ae95d140d4",
@@ -244,29 +306,50 @@
    "InstancePresencePort": "interface:fef1c18029",
    "InstanceRecord": "interface:85c7e59c57",
    "LegacyUpdaterLike": "interface:f2517a1c2f",
+   "NativeDialogPort": "interface:b5ce5af537",
+   "NativeMessageBoxOptions": "interface:be22898d34",
+   "OthersOpenCopy": "interface:56b065a33b",
    "PRESENCE_STALE_MS": "variable:8428ca73aa",
    "PresenceFilesystemPort": "interface:2cf14e2158",
    "RestartClickAction": "type:443a384087",
    "UPDATER_TICK_MS": "variable:304fdc1d8c",
    "UPDATE_CHECK_INTERVAL_MS": "variable:0de973e781",
+   "UpdateCheckCopy": "interface:85b38b4635",
+   "UpdateCheckNowDeps": "interface:fa17ad7470",
+   "UpdateCheckOutcome": "type:133045d456",
    "UpdateMessages": "interface:e65806e149",
+   "UpdateNotice": "interface:2d733ba312",
+   "UpdateNoticeArgs": "interface:2c106e8b7b",
+   "UpdateReadyPromptCopy": "interface:997ed2fb69",
    "UpdateTimer": "interface:8028c07f95",
    "UpdateTimersPort": "interface:dfdebcf021",
    "UpdateTiming": "interface:0df629465a",
    "UpdaterEnvironment": "interface:53e6bb0e4b",
    "UpdaterLike": "type:d1ad813e28",
+   "WindowListPort": "interface:2875b232e4",
    "createAutoUpdateController": "function:3a675f7d9b",
+   "createDesktopUpdater": "function:3f1faa14e1",
+   "createDesktopUpdaterState": "function:22bab72560",
    "createElectronUpdaterAdapter": "function:335bdbfc57",
    "createFileInstancePresence": "function:f8c9f0f5d5",
    "createNodeUpdateTimers": "function:06c0e27b9f",
+   "createUpdateCheckNow": "function:8ab74264d9",
    "decideFinalQuit": "function:7cf43044bf",
    "decideRestartClick": "function:f6f3f12b93",
    "defaultUpdateMessages": "variable:921a739e34",
    "defaultUpdateTiming": "variable:24c604214f",
    "electUpdaterOwner": "function:f2de1f791e",
+   "explainOthersOpen": "function:43f2ce5be6",
+   "isNetworkUpdateError": "function:656356a75d",
    "isPidAlive": "function:fa64356ae2",
+   "othersOpenOptions": "function:03bea8a4c0",
    "presenceDirPath": "function:e3689312b6",
+   "promptUpdateReady": "function:eda13c51a5",
+   "registerUpdateCheckIpc": "function:83ff137409",
    "shouldCheckNow": "function:dc55b7edc3",
+   "showNativeNotice": "function:a8a241904e",
+   "showOnFocusedWindow": "function:8876f3e76c",
+   "updateReadyPromptOptions": "function:f2184fa548",
    "updaterSkipReason": "function:a5042fa008"
   }
  },
@@ -322,20 +405,48 @@
    "zoomMenuItems": "function:5730865423"
   }
  },
+ "./electron/webview": {
+  "types": "./dist/electron/webview/index.d.ts",
+  "symbols": {
+   "WebviewDidFailLoadDetail": "interface:05500cd1c6",
+   "WebviewDidNavigateDetail": "interface:58564d64d3",
+   "WebviewDidNavigateInPageDetail": "interface:cd2c796da6",
+   "WebviewFoundInPageDetail": "interface:636b43fafe",
+   "WebviewFoundInPageResult": "interface:69749c53ed",
+   "WebviewTagMethods": "interface:ec094d298f"
+  }
+ },
+ "./electron/windows": {
+  "types": "./dist/electron/windows/index.d.ts",
+  "symbols": {
+   "AppWindow": "interface:b6233b3da3",
+   "AppWindowOptions": "interface:0000ea2978",
+   "AppWindowPorts": "interface:57d9a494e4",
+   "DockIconPort": "interface:699364065f",
+   "appWindowOptions": "function:302d4aa70c",
+   "applyDockIcon": "function:2c6ed3bcbe",
+   "createAppWindow": "function:50bd9e4ee3"
+  }
+ },
  "./node-toolchain": {
   "types": "./dist/node-toolchain/index.d.ts",
   "symbols": {
    "BuildNodeToolchainEnvInput": "interface:776bf1d69f",
    "BuildNodeToolchainShimsInput": "interface:df142fdb24",
    "NodeToolchainPaths": "interface:2967d9bfa8",
+   "NodeToolchainSetupEvent": "type:8d12eb8a72",
+   "PrepareNodeToolchainEnvBestEffortInput": "interface:adee43b70a",
+   "SiteDiscoveryLanes": "interface:de77187588",
    "ToolchainFilesystemPort": "interface:320d9fe77a",
    "WriteNodeToolchainInput": "interface:7b7e5eb0d8",
    "assertCmdQuotable": "function:deeb9a2a03",
    "buildNodeToolchainEnv": "function:c19d39a648",
    "buildNodeToolchainShims": "function:3e13b6fe2e",
+   "createSiteDiscoveryLanes": "function:62ab7dc178",
    "isReadOnlyVolumeRoot": "function:3801c2d43b",
    "isTransientAppPath": "function:0a530ce86c",
    "launcherNamesDurableInstall": "function:fac1dd48ab",
+   "prepareNodeToolchainEnvBestEffort": "function:1606c90ddc",
    "writeNodeToolchain": "function:8aa0f0410e"
   }
  },
@@ -367,6 +478,16 @@
    "previousOrdinal": "function:c9618d2559"
   }
  },
+ "./shell/find-menu": {
+  "types": "./dist/shell/find-menu.d.ts",
+  "symbols": {
+   "NativeFindCommandWindow": "interface:7e95d8f78d",
+   "NativeFindMenu": "interface:e2956cce6c",
+   "NativeFindMenuItem": "interface:5fbad4a93e",
+   "nativeFindMenu": "function:8cd6afb4cc",
+   "sendNativeFindToggle": "function:b2bc9ff239"
+  }
+ },
  "./shell/guest-navigation": {
   "types": "./dist/shell/guest-navigation.d.ts",
   "symbols": {
@@ -388,6 +509,18 @@
    "jsBackslideOffenders": "function:4951f7ae97"
   }
  },
+ "./shell/node-toolchain": {
+  "types": "./dist/shell/node-toolchain.d.ts",
+  "symbols": {
+   "BoundNodeToolchain": "interface:60f38f1599",
+   "BuildNodeToolchainEnvInput": "interface:a4d550945d",
+   "BuildNodeToolchainShimsInput": "interface:27a8c3bbdc",
+   "NodeToolchainNames": "interface:286dc2020b",
+   "NodeToolchainPaths": "interface:2967d9bfa8",
+   "WriteNodeToolchainInput": "interface:01bfdfd162",
+   "bindNodeToolchain": "function:3248d3f120"
+  }
+ },
  "./shell/pty-helpers": {
   "types": "./dist/shell/pty-helpers.d.ts",
   "symbols": {
@@ -402,6 +535,24 @@
    "PresenceSender": "interface:1ac85e080c",
    "SitePresence": "interface:173360a700",
    "createSitePresence": "function:29fbbce6f0"
+  }
+ },
+ "./shell/speech/mac-on-device-transcriber": {
+  "types": "./dist/shell/speech/mac-on-device-transcriber.d.ts",
+  "symbols": {
+   "NativeMacTranscriberConfig": "interface:b2fb7e83f0",
+   "createNativeMacTranscriptionPort": "function:43a1c9cf1a",
+   "speechHelperSourcePath": "function:2b0afb0c9a"
+  }
+ },
+ "./shell/speech/speech-ipc": {
+  "types": "./dist/shell/speech/speech-ipc.d.ts",
+  "symbols": {
+   "MAX_TRANSCRIBE_SAMPLES": "variable:e1d901fda1",
+   "NativeSpeechHost": "interface:351b07fa4c",
+   "NativeSpeechIpcMain": "interface:646e122871",
+   "buildDefaultTranscriptionPort": "function:4ce9d95e23",
+   "registerNativeSpeechIpc": "function:4cb2b33200"
   }
  },
  "./shell/spellcheck-menu": {

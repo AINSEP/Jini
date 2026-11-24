@@ -1,5 +1,6 @@
 import type { HttpClientPort } from "@jini-ai/core/primitives";
-import { createRequestRouter, fetchOwnSiteResource, type FetchedResource, type AbortReason } from "./request-guard.js";
+import { createRequestRouter, fetchOwnSiteResource, type FetchedResource } from "./request-guard.js";
+import type { AbortReason } from "@jini-ai/core/contracts/site/web-evidence-playwright";
 import { renderPage, type RenderBrowser, type RenderSession } from "./render-page.js";
 import { openPlaywrightRenderBrowser, PUBLIC_RENDER_LAUNCH_OPTIONS, type PlaywrightAdapterOptions } from "./playwright-runtime.js";
 import type { RenderBrowserPool, RenderBrowserLease } from "./lazy-browser.js";

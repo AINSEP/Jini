@@ -9,6 +9,8 @@
  * deferred, and this package's not-yet-locked status.
  */
 export * from './types.js';
+/** Deprecated re-export: import these from `@jini-ai/core/contracts/site/media-providers-catalog`; removed at the next major. */
+export type { MediaModel, MediaProvider } from '@jini-ai/core/contracts/site/media-providers-catalog';
 export * from './providers.js';
 export * from './capability-registry.js';
 export * from './seed.js';

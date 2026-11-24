@@ -4,7 +4,9 @@ import { createMemorySecurityApi } from '../adapters/memory.js';
 import type { CredentialProvider, CredentialSummary, OtherCredentialSummary, RootKeyState, RootKeyStatus } from '../models.js';
 it('preserves custom username tri-state and additional-host replacement without a secret retype', () => {
   const draft = { ...blankCredentialDraft({ kind: 'custom' }), id: 'one', label: 'Custom', baseUrl: 'https://api.example', additionalHosts: 'https://extra.example\nhttps://two.example', username: '' };
-  expect(buildCredentialPatch({ draft, providers: [] })).toEqual({ label: 'Custom', category: 'general', baseUrl: 'https://api.example', additionalHosts: ['https://extra.example', 'https://two.example'], username: null });
+  // SEC-11: an edit sends only the changed fields: a blank username clears with null, a new host list replaces the old one.
+  const saved = { label: 'Custom', category: 'general' as const, baseUrl: 'https://api.example', additionalHosts: ['https://old.example'], username: 'me' };
+  expect(buildCredentialPatch({ draft, providers: [] }, { saved })).toEqual({ additionalHosts: ['https://extra.example', 'https://two.example'], username: null });
   expect(validateCredentialDraft({ draft, rows: [], providers: [] })).toBeNull();
   expect(validateCredentialDraft({ draft: { ...draft, baseUrl: 'file:///tmp/a' }, rows: [], providers: [] })).toBe('Enter an HTTP or HTTPS URL');
 });
@@ -50,8 +52,8 @@ describe('buildCredentialPatch boundaries', () => {
   const providers: CredentialProvider[] = [{ kind: 'publish', id: 'cloud', label: 'Cloud', vendorLabel: 'Cloud', category: 'hosting', tokenField: 'apiToken', fields: [{ name: 'apiToken', label: 'Token' }, { name: 'account', label: 'Account' }, { name: 'region', label: 'Region' }] }];
   it('falls back to the token field name when the provider is missing', () => { expect(buildCredentialPatch({ draft: { ...blankCredentialDraft({ kind: 'source-control', providerId: 'git' }), label: ' Git ', token: ' tok ', values: { account: 'drop' } }, providers })).toEqual({ label: 'Git', connection: { providerId: 'git', token: 'tok' } }); });
   it('sends only non-blank extras and never re-sends the token field from values', () => { expect(buildCredentialPatch({ draft: { ...blankCredentialDraft({ kind: 'publish', providerId: 'cloud' }), label: 'W', token: 'tok', values: { apiToken: 'stale', account: ' a ', region: ' ' } }, providers })).toEqual({ label: 'W', connection: { providerId: 'cloud', apiToken: 'tok', account: 'a' } }); });
-  it('sends a custom token with a trimmed username', () => { expect(buildCredentialPatch({ draft: { ...blankCredentialDraft({ kind: 'custom' }), label: 'C', token: 'tok', baseUrl: ' https://a ', additionalHosts: ' x ,\n\ny,', username: ' me ' }, providers: [] })).toEqual({ label: 'C', connection: { token: 'tok', username: 'me' }, category: 'general', baseUrl: 'https://a', additionalHosts: ['x', 'y'], username: 'me' }); });
-  it('sends a custom token without a username when it is blank', () => { expect(buildCredentialPatch({ draft: { ...blankCredentialDraft({ kind: 'custom' }), label: 'C', token: 'tok', username: ' ' }, providers: [] })).toEqual({ label: 'C', connection: { token: 'tok' }, category: 'general', baseUrl: '', additionalHosts: [], username: null }); });
+  it('sends a custom token with a trimmed username', () => { expect(buildCredentialPatch({ draft: { ...blankCredentialDraft({ kind: 'custom' }), label: 'C', token: 'tok', baseUrl: ' https://a ', additionalHosts: ' x ,\n\ny,', username: ' me ' }, providers: [] })).toEqual({ label: 'C', connection: { token: 'tok', username: 'me' }, category: 'general', baseUrl: 'https://a', additionalHosts: ['x', 'y'] }); });
+  it('sends a custom token without a username when it is blank', () => { expect(buildCredentialPatch({ draft: { ...blankCredentialDraft({ kind: 'custom' }), label: 'C', token: 'tok', username: ' ' }, providers: [] })).toEqual({ label: 'C', connection: { token: 'tok' }, category: 'general', baseUrl: '' }); });
 });
 describe('kind default category', () => {
   it('defaults each kind to its category in a blank draft', () => { expect((['publish', 'source-control', 'custom'] as const).map(kind => blankCredentialDraft({ kind }).category)).toEqual(['hosting', 'source-control', 'general']); });

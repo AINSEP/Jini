@@ -78,6 +78,11 @@ export interface ExtEventRenderProps {
   runId: string | undefined; call?: ExtEventCall; answered?: boolean; onAnswered?: () => void; onAnswerText?: (answerText: string) => void;
   answerText?: string; answerRecorded?: boolean;
 }
+/** The a2ui card props a host-side wrapper reads: the ext-event props plus the agent-action relay
+ *  (a structural subset of the chat library's card props; the card's clock and registry stay host-side). */
+export interface A2uiSurfaceCardProps extends ExtEventRenderProps {
+  onAgentAction?: (runId: string | undefined, message: unknown) => void | Promise<KitA2uiActionDeliveryOutcome>;
+}
 export interface ChatPaneAgentOption {
   id: string; label: string; identityKind?: 'concrete' | 'alias' | 'routing-mode'; resolvedId?: string; reasoning?: readonly ChatPaneAgentOption[];
 }
@@ -98,10 +103,22 @@ export interface ChatPaneAgent {
   supportsNativeToolAccess?: boolean; fullCliAccessOnly?: boolean; fullCliAccessNote?: string;
 }
 export interface ChatPaneAgentSelection { agentId: string; model?: string; reasoning?: string }
+/** The chat pane's agent inventory, rescan and daemon-health access (the host's runtime wiring). */
+export interface ChatPaneRuntimeAccess {
+  listAgents: () => Promise<readonly ChatPaneAgent[]>; getAgentsRefreshAt?: () => number | undefined;
+  rescanAgents: () => Promise<readonly ChatPaneAgent[]>; daemonOnline: () => Promise<boolean>;
+}
 /** Imperative access to the composer draft, published by the chat pane once mounted. */
 export interface ChatPaneComposerHandle {
   insertText: (text: string) => void;
   addFolders: (input: { folders: readonly string[] }, options?: {}) => void;
+}
+/** The composer's native working-directory access; a falsy value keeps the chat pane's text-input fallback. */
+export interface ChatPaneWorkingDirectoryAccess {
+  normalizeWorkingDirectory?: (directory: string) => Promise<string | null>;
+  pickWorkingDirectory: (currentDirectory?: string) => Promise<string | null>;
+  recentDirectories: () => Promise<readonly string[]>;
+  directoryExists: (directory: string) => Promise<boolean>;
 }
 export interface FabPositionInput {
   readonly dockOpen: boolean; readonly avoidBottomPx: number; readonly avoidRightPx?: number; readonly storageKey: string;

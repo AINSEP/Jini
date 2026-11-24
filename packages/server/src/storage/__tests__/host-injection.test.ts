@@ -5,13 +5,14 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { expect, it, vi } from 'vitest';
 import { createJiniKernelBase } from '../../kernel-base.js';
+import { nodeOsPorts } from '../../__tests__/fixtures/node-os-ports.js';
 
 it('opens exactly three host handles and closes them once on shutdown', async () => {
   const dir = mkdtempSync(join(tmpdir(), 'c2-host-'));
   const handles: Database.Database[] = [];
   const open = vi.fn((file: string) => { const db = new Database(file); handles.push(db); return db; });
   try {
-    const base = await createJiniKernelBase({ storage: { kind: 'sqlite', dataDir: dir, open } } as any);
+    const base = await createJiniKernelBase({ osPorts: nodeOsPorts, storage: { kind: 'sqlite', dataDir: dir, open } } as any);
     try {
       expect(open.mock.calls.map(([file]) => file)).toEqual([join(dir,'events.db'), join(dir,'journal.db'), join(dir,'events.db')]);
       const closes = handles.map(db => vi.spyOn(db, 'close'));
@@ -32,7 +33,7 @@ it('third acquisition failure closes both previously acquired event logs', async
   });
   let base: Awaited<ReturnType<typeof createJiniKernelBase>> | undefined;
   try {
-    const boot = createJiniKernelBase({ storage: { kind:'sqlite',dataDir:dir,open } } as any).then(value => {base=value;return value;});
+    const boot = createJiniKernelBase({ osPorts: nodeOsPorts, storage: { kind:'sqlite',dataDir:dir,open } } as any).then(value => {base=value;return value;});
     await expect(boot).rejects.toThrow(failure);
     expect(handles.map(db => db.open)).toEqual([false,false]);
   } finally { await base?.close(); handles.forEach(db=>{if(db.open)db.close();}); rmSync(dir,{recursive:true,force:true}); }
@@ -40,7 +41,7 @@ it('third acquisition failure closes both previously acquired event logs', async
 
 it('memory boot does not invoke even an available host opener', async () => {
   const open=vi.fn(()=>{throw new Error('must not acquire');});
-  const base=await createJiniKernelBase({storage:{kind:'memory',open}} as any);
+  const base=await createJiniKernelBase({osPorts: nodeOsPorts, storage:{kind:'memory',open}} as any);
   expect(base.sqlite).toBeNull();expect(open).not.toHaveBeenCalled();await base.close();
 });
 
@@ -49,7 +50,7 @@ it('failed feature-connection pragma closes all three already acquired handles',
  const failure=new Error('feature pragma denied');
  const open=(file:string)=>{const db=new Database(file);handles.push(db);if(handles.length===3)vi.spyOn(db,'pragma').mockImplementation(()=>{throw failure;});return db;};
  try{
-  await expect(createJiniKernelBase({storage:{kind:'sqlite',dataDir:dir,open}})).rejects.toThrow(failure);
+  await expect(createJiniKernelBase({osPorts: nodeOsPorts, storage:{kind:'sqlite',dataDir:dir,open}})).rejects.toThrow(failure);
   expect(handles.map(db=>db.open)).toEqual([false,false,false]);
  }finally{handles.forEach(db=>{if(db.open)db.close();});rmSync(dir,{recursive:true,force:true});}
 });
@@ -63,9 +64,9 @@ it.each(['boot','shutdown'] as const)('attempts every owned close when an event-
  try {
   if(phase==='boot'){
    const injected=(file:string)=>{const db=open(file);const close=db.close.bind(db);closers.push(vi.spyOn(db,'close').mockImplementation(()=>{close();if(handles.length===2&&db===handles[0])throw closeFailure;return db;}));return db;};
-   await expect(createJiniKernelBase({storage:{kind:'sqlite',dataDir:dir,open:injected}})).rejects.toBe(bootFailure);
+   await expect(createJiniKernelBase({osPorts: nodeOsPorts, storage:{kind:'sqlite',dataDir:dir,open:injected}})).rejects.toBe(bootFailure);
   }else{
-   base=await createJiniKernelBase({storage:{kind:'sqlite',dataDir:dir,open}});
+   base=await createJiniKernelBase({osPorts: nodeOsPorts, storage:{kind:'sqlite',dataDir:dir,open}});
    for(const db of handles){const close=db.close.bind(db);closers.push(vi.spyOn(db,'close').mockImplementation(()=>{close();if(db===handles[0])throw closeFailure;return db;}));}
    await expect(base.close()).rejects.toBe(closeFailure);
    await expect(base.close()).rejects.toBe(closeFailure);

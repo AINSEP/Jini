@@ -119,7 +119,7 @@ export interface PluginRuntimeHostBinding {
   readonly archiveReader: ArchiveReaderPort;
   readonly verifyDigest: VerifyDigestPort;
   readonly createInvocationCoreDeps: RunTier2CallRequired["createInvocationCoreDeps"];
-  /** Serializes plugin source edits with seal snapshots; Node hosts pass `nodeFileLock` of `@jini-ai/node-adapters/fs`. */
+  /** Serializes plugin source edits with seal snapshots; Node hosts pass `createFileLockPort({ withFileLock })` of `@jini-ai/node-adapters/fs`. */
   readonly fileLock: FileLockPort;
 }
 

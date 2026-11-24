@@ -26,17 +26,18 @@
  * assume `deleteWorkspace` succeeds just because the call is well-formed and authorized.
  */
 
-/** The workspace (tenant/site) itself. */
-export interface AdminWorkspace {
-  readonly id: string;
-  readonly name: string;
-  readonly slug: string;
-  readonly createdAt: string;
-}
+import type { AdminWorkspaceResponse } from '@jini-ai/core/contracts/site/cms-workspace';
+
+/**
+ * The workspace (tenant/site) itself. The wire shape has one owner, the core contract; this name
+ * is kept only as an alias of it so the published `AdminWorkspace` symbol does not break.
+ * @deprecated Use `AdminWorkspaceResponse` from `@jini-ai/core/contracts/site/cms-workspace`.
+ */
+export type AdminWorkspace = AdminWorkspaceResponse;
 
 export interface AdminWorkspacePort {
-  getWorkspace(requiredArgs: Record<string, never>): Promise<AdminWorkspace>;
-  updateWorkspace(requiredArgs: Record<string, never>, optionalArgs?: { name?: string; slug?: string }): Promise<AdminWorkspace>;
+  getWorkspace(requiredArgs: Record<string, never>): Promise<AdminWorkspaceResponse>;
+  updateWorkspace(requiredArgs: Record<string, never>, optionalArgs?: { name?: string; slug?: string }): Promise<AdminWorkspaceResponse>;
   /** May unconditionally reject — see the file header. */
   deleteWorkspace(requiredArgs: Record<string, never>): Promise<void>;
 }

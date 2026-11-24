@@ -4,7 +4,7 @@
  * The binding owns the runtime state, the host env and the per-vendor definition policies (Codex plugins, Pi shutdown
  * grace): the daemon passes none of them. */
 import type {
-  AgentLaunchResolution, DefaultModelResolution, DnsLookupAddress, ModelCatalogSnapshot, ModelDiscoveryContext, ModelIdentityKind,
+  AgentLaunchResolution, DefaultModelResolution, ModelCatalogSnapshot, ModelDiscoveryContext, ModelIdentityKind,
   NativeToolPolicyInput, PreparedAgentLogFile, PreparedPromptFile, RunPlan, RunPlanHost, RuntimeAgentDef, RuntimeBuildOptions,
   RuntimeCapabilityMap, RuntimeEnv, RuntimePromptBudgetError,
 } from '@jini-ai/core/contracts/agents';
@@ -75,22 +75,4 @@ export interface AgentRuntimePort {
   };
 }
 
-export interface BaseUrlValidationResult {
-  parsed?: URL;
-  error?: string;
-  forbidden?: boolean;
-  /**
-   * The validated address to pin the outbound connection to, present exactly when
-   * {@link validateBaseUrlResolved} performed a DNS lookup and passed it (i.e. never set by
-   * {@link validateBaseUrl} alone, and never set for the loopback-literal / IP-literal hosts that
-   * skip resolution — see that function's doc for why those two cases need no pinning). Feed this
-   * straight into {@link pinnedFetch} so the connection dials the exact address the guard approved
-   * instead of re-resolving DNS when it dials.
-   */
-  pinnedAddress?: DnsLookupAddress;
-}
-
-/** The base-URL SSRF guard a provider route needs before it calls out (bound by the host; R7 wires it into the route deps). */
-export interface BaseUrlGuardPort {
-  validate(required: { baseUrl: string }): BaseUrlValidationResult;
-}
+export type { BaseUrlGuardPort, BaseUrlValidationResult } from '@jini-ai/core/contracts/agents';
