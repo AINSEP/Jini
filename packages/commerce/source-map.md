@@ -86,3 +86,5 @@ Exact test paths are in `RERUN-TESTS.txt` under
 the original host's records (`ADS-memory/.local-artifacts/cleanup-program/phase-12-commerce/`).
 Static source inventory: the four requested production source groups decrease from 3,842 to 271
 lines (3,571 fewer), including retained adapters and manifests, excluding tests and external wiring.
+
+w4-runtime (2026-11-24): `apps/website/src/server/runtime/composition/{commerce-origin,commerce-settings}.ts` at the original host `3a93322474` → `src/catalog/{checkout-origin,commerce-settings}.ts`; their tests and the drain restart test moved to `src/catalog/__tests__/unit/`.
