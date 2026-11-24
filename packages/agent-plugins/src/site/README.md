@@ -19,7 +19,7 @@ Generic plugin-host pieces extracted from a site host. Everything product-specif
   (its lifecycle owner's activation resolution, so all writers share one queue) next to `workspaceRoot`.
 - `provider-plugin-link.ts` (`./site/provider-plugin-link`): the host injects `activations` (its lifecycle
   owner's `reconcileAgentPluginActivation` / `readAgentPluginActivations` / `isAgentPluginActive`) and `catalog`
-  (`list`, `bundled`, `preferBundled`, `read`) into `bindProviderFacePorts`, and a required `warn` sink into
+  (`list`, `bundled`, `preferBundled`, `read`) into `bindProviderFacePorts`, and a required `reportFollowFailure` port into
   `followProviderActivations`; the host keeps its linked-face refusal error (its copy names the host's switch).
 - `host-plugin-guidance.ts` (`./site/host-plugin-guidance`): the host injects `overlaysDir` (its shipped overlays)
   on every reader's required args, and `isYamlMapping` (its failsafe YAML reader) into

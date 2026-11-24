@@ -1059,7 +1059,7 @@
    "ProviderFaceCatalog": "interface:9c6f9a62df",
    "ProviderFacePorts": "interface:9587095f97",
    "bindProviderFacePorts": "function:66deefd6a2",
-   "followProviderActivations": "function:98d55dd349",
+   "followProviderActivations": "function:f234aad8a5",
    "linkedProviderOf": "function:98ebb54d29",
    "syncProviderFaces": "function:6547f697f1"
   }

@@ -47,7 +47,7 @@ test("sync switches only faces that differ from their provider, and only the nam
 
 test("every provider activation write in this workspace moves its face; other workspaces and plugins do not", async () => {
   const { faces, ports } = fakeFaces({ metrics: false }, { metrics: "metrics-provider" });
-  const repo = followProviderActivations({ repo: new MemoryActivationRepo(), workspaceId: WS, ports, warn: ignoreWarn });
+  const repo = followProviderActivations({ repo: new MemoryActivationRepo(), workspaceId: WS, ports, reportFollowFailure: ignoreWarn });
   await repo.save(row("metrics-provider", true, "22222222-2222-4222-8222-222222222222"));
   await repo.save(row("unrelated", true));
   assert.equal(faces.get("metrics"), false);
@@ -66,7 +66,7 @@ test("a face that cannot follow is reported to the warn sink, never fails the pr
   const warnings: { pluginId: string; error: unknown }[] = [];
   const failure = new Error("disk full");
   const failing: ProviderFacePorts = { ...fakeFaces({}, { metrics: "metrics-provider" }).ports, reconcileFace: async () => { throw failure; } };
-  const repo = followProviderActivations({ repo: new MemoryActivationRepo(), workspaceId: WS, ports: failing, warn: entry => warnings.push(entry) });
+  const repo = followProviderActivations({ repo: new MemoryActivationRepo(), workspaceId: WS, ports: failing, reportFollowFailure: entry => warnings.push(entry) });
   await repo.save(row("metrics-provider", true));
   assert.equal((await repo.getActivation({ workspaceId: WS, pluginId: "metrics-provider" }))?.enabled, true);
   // The sink gets structured data (the host formats its own line); the raw failure is passed as-is.
@@ -77,7 +77,7 @@ test("a face that cannot follow is reported to the warn sink, never fails the pr
   const { faces, ports } = fakeFaces({ metrics: false }, { metrics: "metrics-provider" });
   const inner = new MemoryActivationRepo();
   inner.save = async () => { throw new Error("db locked"); };
-  await assert.rejects(followProviderActivations({ repo: inner, workspaceId: WS, ports, warn: ignoreWarn }).save(row("metrics-provider", true)), /db locked/);
+  await assert.rejects(followProviderActivations({ repo: inner, workspaceId: WS, ports, reportFollowFailure: ignoreWarn }).save(row("metrics-provider", true)), /db locked/);
   assert.equal(faces.get("metrics"), false);
 });
 
