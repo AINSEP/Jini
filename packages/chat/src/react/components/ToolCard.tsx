@@ -329,10 +329,10 @@ function FileEditCard({ input, result, runStreaming, runSucceeded, ctx, useTHook
 
 function FileReadCard({ input, result, runStreaming, runSucceeded, ctx, useTHook = useT }: CardProps & { ctx: FileToolCtx } & { useTHook?: typeof useT }) {
   const t = useTHook();
-  const obj = (input ?? {}) as { file_path?: string; filePath?: string; path?: string; offset?: unknown };
+  const obj = (input ?? {}) as { file_path?: string; filePath?: string; path?: string; offset?: unknown; limit?: unknown };
   const file = obj.file_path ?? obj.filePath ?? obj.path ?? '(unnamed)';
   // See OpenInTabButton's baseName comment: `.split('/').pop()` is never undefined.
-  const baseName = targetAtOffset({ target: file.split('/').pop()!, offset: obj.offset });
+  const baseName = targetAtOffset({ target: file.split('/').pop()!, offset: obj.offset, limit: obj.limit });
   const call = { input, result, runStreaming, runSucceeded };
   return (
     <FamilyCard call={call} className="jini-op-file" shimmer title={t('Read')} meta={<span className="jini-op-meta">{baseName}</span>} after={<FileErrorDetail result={result} />}>

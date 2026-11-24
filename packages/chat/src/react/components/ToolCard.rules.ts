@@ -90,12 +90,20 @@ export function toolRowTarget({ input, resultContent }: { input: unknown; result
   const args = (input ?? {}) as Record<string, unknown>;
   const named = firstReadable(args, SUMMARY_KEYS) ?? resultName(resultContent);
   const target = named ?? batchTarget(args) ?? firstReadable(args, KIND_KEYS) ?? Object.values(args).find(readable);
-  return targetAtOffset({ target, offset: args.offset });
+  return targetAtOffset({ target, offset: args.offset, limit: args.limit });
 }
 
 
-/** Preserve absent/invalid offsets; explicit zero still distinguishes a first-page read. */
-export function targetAtOffset({ target, offset }: { target: string | undefined; offset: unknown }, _options = {}): string | undefined {
-  if (!target || typeof offset !== 'number') return target;
-  return Number.isSafeInteger(offset) && offset >= 0 ? `${target} (offset ${offset})` : target;
+/** A valid window bound is a safe non-negative integer; anything else is ignored rather than shown. */
+function windowBound({ label, value }: { label: string; value: unknown }): string | undefined {
+  return typeof value === 'number' && Number.isSafeInteger(value) && value >= 0 ? `${label} ${value}` : undefined;
+}
+
+/** Preserve absent/invalid offsets and limits; explicit zero still distinguishes a first-page read.
+ * The read window (offset and/or limit) is appended so two reads of one file stay distinguishable.
+ */
+export function targetAtOffset({ target, offset, limit }: { target: string | undefined; offset: unknown; limit?: unknown }, _options = {}): string | undefined {
+  if (!target) return target;
+  const window = [windowBound({ label: 'offset', value: offset }), windowBound({ label: 'limit', value: limit })].filter(Boolean);
+  return window.length > 0 ? `${target} (${window.join(', ')})` : target;
 }
