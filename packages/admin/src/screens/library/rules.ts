@@ -19,8 +19,11 @@ export const LIBRARY_KEYS = {
 export const LIBRARY_EXTENSIONS = ["md", "txt", "pdf", "docx", "csv", "json", "doc", "xls", "rtf", "xlsx", "pptx", "pages", "key"] as const;
 export type LibraryExtension = (typeof LIBRARY_EXTENSIONS)[number];
 
-/** Mirrors `@jini-ai/cms/media`'s `MAX_DOCUMENT_BYTES` (10 MiB). */
-export const LIBRARY_MAX_BYTES = 10 * 1024 * 1024;
+/**
+ * Mirrors `@jini-ai/cms/media`'s `MAX_DOCUMENT_BYTES` (50 MiB). Only the default: a host that sets its
+ * own upload limit passes it to `useLibrary` as `maxUploadBytes` and `libraryFileProblem` as `maxBytes`.
+ */
+export const LIBRARY_MAX_BYTES = 50 * 1024 * 1024;
 
 /** The native picker's `accept` list. */
 export const LIBRARY_ACCEPT = LIBRARY_EXTENSIONS.map((ext) => `.${ext}`).join(",");
@@ -34,10 +37,10 @@ export function libraryExtension({ filename }: { filename: string }, _optional =
 export type LibraryFileProblem = "type" | "size" | "empty" | "package";
 
 /** Why a picked file cannot be uploaded, or `null` when it may be sent. */
-export function libraryFileProblem(file: { name: string; size: number }): LibraryFileProblem | null {
+export function libraryFileProblem(file: { name: string; size: number }, { maxBytes = LIBRARY_MAX_BYTES }: { maxBytes?: number } = {}): LibraryFileProblem | null {
   if (!(LIBRARY_EXTENSIONS as readonly string[]).includes(libraryExtension({ filename: file.name }))) return "type";
   if (file.size === 0) return ["pages", "key"].includes(libraryExtension({ filename: file.name })) ? "package" : "empty";
-  if (file.size > LIBRARY_MAX_BYTES) return "size";
+  if (file.size > maxBytes) return "size";
   return null;
 }
 

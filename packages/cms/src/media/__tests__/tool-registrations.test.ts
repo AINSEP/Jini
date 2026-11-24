@@ -139,7 +139,7 @@ test("media_upload_asset still rejects a file over 10 MiB when the host supplies
   const bigBytes = Buffer.alloc(ELEVEN_MIB, 0xab);
   await assert.rejects(
     () => upload.handler(executionContext({ dataBase64: bigBytes.toString("base64"), filename: "big.png", contentType: "image/png" })),
-    /exceeds/
+    /That file is 11 MB; the limit is 10 MB\./
   );
 });
 

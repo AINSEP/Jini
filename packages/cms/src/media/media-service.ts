@@ -1,4 +1,5 @@
 import { trimChars, trimCharsEnd } from "@jini-ai/core/primitives";
+import { describeUploadOverLimit } from "@jini-ai/core/text";
 import { validateDocumentIngress, documentContentType, MAX_DOCUMENT_BYTES, type DocumentArchiveReaderPort } from "./document-ingress.js";
 import { safeMediaProvenance } from './provenance.js';
 import { sanitizeSvg } from "./sanitize-svg.js";
@@ -87,23 +88,6 @@ export {
 
 /** Default byte-size cap (this pass's stand-in for the real ingress policy's streaming cap). */
 export const DEFAULT_MAX_UPLOAD_BYTES = 10 * 1024 * 1024; // 10 MiB
-
-/**
- * Renders a byte count as a human-readable MB figure for the size-cap rejection below (2026-09-21).
- * Every real caller passes a MiB-scale `maxUploadBytes` (10 MiB default, or a host override such as
- * a host's 50 MiB), so one decimal place is enough precision without ever showing a raw byte count —
- * the whole point of this fix (see `uploadMedia`'s size-cap check, and `agent-tools.ts`'s file header
- * for why the catalog description can no longer state a specific number either). `toFixed(1)`'s
- * trailing `.0` is trimmed so a clean multiple of 1 MB (the common case) reads as `10 MB`, not `10.0
- * MB`.
- *
- * @complexity O(1).
- */
-function formatMaxUploadBytesAsMb(bytes: number): string {
-  const mb = bytes / (1024 * 1024);
-  const rounded = mb.toFixed(1);
-  return `${rounded.endsWith(".0") ? rounded.slice(0, -2) : rounded} MB`;
-}
 
 /**
  * Advisory MIME allowlist. SVG is sanitized by sanitizeSvg before hashing and storage;
@@ -366,7 +350,8 @@ function resolveUploadKind(input: UploadMediaRequired["input"]): UploadKind {
 
 function assertWithinUploadCap(byteLength: number, maxUploadBytes: number): void {
   if (byteLength > maxUploadBytes) {
-    throw new MediaValidationError({ message: `uploaded file exceeds the ${formatMaxUploadBytesAsMb(maxUploadBytes)} size cap` });
+    // Plain words, naming both sizes (2026-11-24): the same sentence the Library screen and chat composer use.
+    throw new MediaValidationError({ message: describeUploadOverLimit({ fileBytes: byteLength, limitBytes: maxUploadBytes }) });
   }
 }
 
