@@ -91,6 +91,7 @@
       "./posts/post-read": "universal",
       "./posts/post-write-effects": "universal",
       "./posts/featured-image": "universal",
+      "./posts/post-slugs": "universal",
       "./navigation/types": "universal",
       "./navigation/dropdown": "universal",
       "./navigation/href": "universal",
@@ -365,6 +366,7 @@
         "src/html/site/slug.ts",
         "src/widgets/markers/gallery.ts",
         "src/widgets/markers/media-reference.ts",
+        "src/publish/content/media-references.ts",
         "src/navigation/types.ts",
         "src/admin-http/http/entity-not-live.ts"
       ],
@@ -853,6 +855,11 @@
       "types": "./dist/posts/featured-image.d.ts",
       "import": "./dist/posts/featured-image.js",
       "default": "./dist/posts/featured-image.js"
+    },
+    "./posts/post-slugs": {
+      "types": "./dist/posts/post-slugs.d.ts",
+      "import": "./dist/posts/post-slugs.js",
+      "default": "./dist/posts/post-slugs.js"
     },
     "./html/text-layout": {
       "types": "./dist/html/text-layout.d.ts",
