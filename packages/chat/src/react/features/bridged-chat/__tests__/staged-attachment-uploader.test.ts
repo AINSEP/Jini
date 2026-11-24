@@ -1,3 +1,5 @@
+// @vitest-environment node
+// The uploader reads `File#arrayBuffer`, which jsdom's `File` does not implement; Node's does.
 import assert from 'node:assert/strict';
 import { test } from '../../conversations/__tests__/node-test-context.js';
 import { createStagedAttachmentUploader } from '../create-staged-attachment-uploader.js';

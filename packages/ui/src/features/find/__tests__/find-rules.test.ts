@@ -101,8 +101,8 @@ test('resolveFindTarget is top with no active tab, and none with no bridge eithe
 test('shouldCloseOnGuestChange: true only when the bar is open AND the visible surface actually changed', () => {
   assert.equal(shouldCloseOnGuestChange({ previousGuestId: 'a', activeGuestId: 'a', open: true }), false, 'same tab, no-op');
   assert.equal(shouldCloseOnGuestChange({ previousGuestId: 'a', activeGuestId: 'b', open: true }), true, 'switched tabs while open');
-  assert.equal(shouldCloseOnGuestChange({ previousGuestId: null, activeGuestId: 'a', open: true }), true, 'Projects screen -> a tab, while open');
-  assert.equal(shouldCloseOnGuestChange({ previousGuestId: 'a', activeGuestId: null, open: true }), true, 'a tab -> Projects screen, while open');
+  assert.equal(shouldCloseOnGuestChange({ previousGuestId: null, activeGuestId: 'a', open: true }), true, 'top-level page -> a tab, while open');
+  assert.equal(shouldCloseOnGuestChange({ previousGuestId: 'a', activeGuestId: null, open: true }), true, 'a tab -> top-level page, while open');
   assert.equal(shouldCloseOnGuestChange({ previousGuestId: 'a', activeGuestId: 'b', open: false }), false, 'switched while already closed: nothing to close');
 });
 

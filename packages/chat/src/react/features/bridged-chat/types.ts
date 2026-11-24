@@ -21,7 +21,7 @@ export interface ChatBridgePort extends AttachmentStagingPort {
   rescanAgents: ChatPaneRuntimeAccess['rescanAgents'];
   daemonOnline: ChatPaneRuntimeAccess['daemonOnline'];
   normalizeWorkingDirectory: (required: { directory: string }) => Promise<string | null>;
-  pickWorkingDirectory: (required: Record<string, never>, options?: { currentDirectory?: string }) => Promise<string | null>;
+  pickWorkingDirectory: (required: Record<string, never>, options?: { currentDirectory?: string | undefined }) => Promise<string | null>;
   recentWorkingDirectories: ChatPaneWorkingDirectoryAccess['recentDirectories'];
   workingDirectoryExists: (required: { directory: string }) => Promise<boolean>;
   /** Resolves a dropped/picked `File` to its absolute path without a round trip. */

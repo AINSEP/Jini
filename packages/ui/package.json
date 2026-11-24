@@ -40,6 +40,10 @@
       "./tab-strip": "browser",
       "./find": "browser",
       "./site-card": "browser",
+      "./zoom": "browser",
+      "./app-version": "browser",
+      "./live-views": "browser",
+      "./import-handoff": "browser",
       "./site-card.css": "browser",
       "./admin-widgets.css": "browser",
       "./theme": "browser",
@@ -60,8 +64,10 @@
       "shared": [
         "src/react/kit.tsx",
         "src/features/charts",
+        "src/features/find/find-query-scheduler.ts",
         "src/features/interactive-ui/registry.ts",
         "src/features/interactive-ui/table-data.ts",
+        "src/features/live-views/live-views.ts",
         "src/theme/default.ts",
         "src/theme/stylesheet.ts",
         "src/theme/validation.ts",
@@ -212,6 +218,26 @@
       "types": "./dist/features/site-card/index.d.ts",
       "import": "./dist/features/site-card/index.js",
       "default": "./dist/features/site-card/index.js"
+    },
+    "./zoom": {
+      "types": "./dist/features/zoom/use-zoom.d.ts",
+      "import": "./dist/features/zoom/use-zoom.js",
+      "default": "./dist/features/zoom/use-zoom.js"
+    },
+    "./app-version": {
+      "types": "./dist/features/app-version/use-app-version.d.ts",
+      "import": "./dist/features/app-version/use-app-version.js",
+      "default": "./dist/features/app-version/use-app-version.js"
+    },
+    "./live-views": {
+      "types": "./dist/features/live-views/index.d.ts",
+      "import": "./dist/features/live-views/index.js",
+      "default": "./dist/features/live-views/index.js"
+    },
+    "./import-handoff": {
+      "types": "./dist/features/import-handoff/use-import-handoff.d.ts",
+      "import": "./dist/features/import-handoff/use-import-handoff.js",
+      "default": "./dist/features/import-handoff/use-import-handoff.js"
     },
     "./site-card.css": "./dist/features/site-card/site-card.css",
     "./tab-strip": {
