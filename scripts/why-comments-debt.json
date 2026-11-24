@@ -1664,6 +1664,10 @@
     {
       "id": "2323b4a579a7",
       "reason": "w3-users-sec rv1123c FIX 1: same rationale now lives on rootKeyRefusalText (rules.ts:189): shown text is host copy per code or fixed copy, so a raw message cannot reach the page."
+    },
+    {
+      "id": "f0ea9462ab11",
+      "reason": "combine-17: w3-fnd and w3-settings both rewrote this doc in check-hook-injection-lib.mjs for the 11-23 required-hook-prop rule; the surviving comment above namesOfHookProps states the same rule (defaulted or REQUIRED hook props), so the old 'default to a hook' wording is superseded, not lost."
     }
   ]
 }

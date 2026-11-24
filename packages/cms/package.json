@@ -607,6 +607,7 @@
         "./admin-http/routes/pages/update": "core",
         "./admin-http/routes/pages/delete": "core",
         "./admin-http/routes/presentation/get": "presentation",
+        "./admin-http/routes/presentation/patch": "presentation",
         "./admin-http/routes/themes/list": "presentation",
         "./admin-http/routes/pages/get-by-id": "widgets",
         "./admin-http/routes/seo/get-entry": "seo",
