@@ -109,11 +109,17 @@ interface ParseTranscriptArgs extends Pick<BrowserSessionStoreArgs, 'maxBytes' |
 function parseTranscript(args: ParseTranscriptArgs): PersistedEmbedState {
   const { raw, maxBytes, maxMessages, validateMessage, capReads } = args;
   if (capReads && utf8Bytes(raw) > maxBytes) throw new Error('Transcript exceeds byte limit');
+  const state = parseEnvelopeShape(raw);
+  if (capReads && state.messages.length > maxMessages) throw new Error('Transcript exceeds message limit');
+  if (!state.messages.every(value => validateMessage({ value }))) throw new Error('Invalid transcript');
+  return { open: state.open, messages: state.messages as ChatMessage[] };
+}
+
+/** JSON-parses the envelope and checks only its `{ open: boolean, messages: unknown[] }` shape; throws on any defect. */
+function parseEnvelopeShape(raw: string): { open: boolean; messages: unknown[] } {
   const value: unknown = JSON.parse(raw);
   if (typeof value !== 'object' || value === null || Array.isArray(value)) throw new Error('Invalid envelope');
   const state = value as Record<string, unknown>;
   if (typeof state.open !== 'boolean' || !Array.isArray(state.messages)) throw new Error('Invalid transcript');
-  if (capReads && state.messages.length > maxMessages) throw new Error('Transcript exceeds message limit');
-  if (!state.messages.every(value => validateMessage({ value }))) throw new Error('Invalid transcript');
-  return { open: state.open, messages: state.messages as ChatMessage[] };
+  return { open: state.open, messages: state.messages };
 }
