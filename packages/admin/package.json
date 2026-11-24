@@ -217,7 +217,6 @@
       "./shell/lib/tab-event-source": "browser",
       "./shell/hooks/use-external-entry-refresh.hooks": "browser",
       "./posts/Posts.hooks": "universal",
-      "./posts/post-editor-route-keys": "universal",
       "./pages/ThemePageDetailsModal.hooks": "browser",
       "./pages/hooks/theme-canvas-port.hooks": "universal",
       "./pages/hooks/theme-pages-port.hooks": "universal",
@@ -241,10 +240,6 @@
       "./screens/plugins/plugins-memory-i18n": "universal",
       "./screens/plugins/plugins-i18n": "universal",
       "./security/security-i18n": "universal",
-      "./screens/collections/collections-i18n": "universal",
-      "./screens/taxonomy/taxonomy-i18n": "universal",
-      "./screens/comments/comments-i18n": "universal",
-      "./screens/menus/menus-i18n": "universal",
       "./screens/integrations/integrations-i18n": "universal",
       "./screens/providers/providers-i18n": "universal",
       "./screens/settings/settings-capabilities-i18n": "universal",
@@ -1772,11 +1767,6 @@
       "import": "./dist/posts/Posts.hooks.js",
       "default": "./dist/posts/Posts.hooks.js"
     },
-    "./posts/post-editor-route-keys": {
-      "types": "./dist/posts/post-editor-route-keys.d.ts",
-      "import": "./dist/posts/post-editor-route-keys.js",
-      "default": "./dist/posts/post-editor-route-keys.js"
-    },
     "./pages/ThemePageDetailsModal.hooks": {
       "types": "./dist/pages/ThemePageDetailsModal.hooks.d.ts",
       "import": "./dist/pages/ThemePageDetailsModal.hooks.js",
@@ -1891,26 +1881,6 @@
       "types": "./dist/security/security-i18n.d.ts",
       "import": "./dist/security/security-i18n.js",
       "default": "./dist/security/security-i18n.js"
-    },
-    "./screens/collections/collections-i18n": {
-      "types": "./dist/screens/collections/collections-i18n.d.ts",
-      "import": "./dist/screens/collections/collections-i18n.js",
-      "default": "./dist/screens/collections/collections-i18n.js"
-    },
-    "./screens/taxonomy/taxonomy-i18n": {
-      "types": "./dist/screens/taxonomy/taxonomy-i18n.d.ts",
-      "import": "./dist/screens/taxonomy/taxonomy-i18n.js",
-      "default": "./dist/screens/taxonomy/taxonomy-i18n.js"
-    },
-    "./screens/comments/comments-i18n": {
-      "types": "./dist/screens/comments/comments-i18n.d.ts",
-      "import": "./dist/screens/comments/comments-i18n.js",
-      "default": "./dist/screens/comments/comments-i18n.js"
-    },
-    "./screens/menus/menus-i18n": {
-      "types": "./dist/screens/menus/menus-i18n.d.ts",
-      "import": "./dist/screens/menus/menus-i18n.js",
-      "default": "./dist/screens/menus/menus-i18n.js"
     },
     "./screens/integrations/integrations-i18n": {
       "types": "./dist/screens/integrations/integrations-i18n.d.ts",
