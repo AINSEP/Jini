@@ -66,6 +66,11 @@
       "types": "./dist/shutdown/await-boot-work.d.ts",
       "import": "./dist/shutdown/await-boot-work.js",
       "default": "./dist/shutdown/await-boot-work.js"
+    },
+    "./shutdown/idle-park": {
+      "types": "./dist/shutdown/idle-park.d.ts",
+      "import": "./dist/shutdown/idle-park.js",
+      "default": "./dist/shutdown/idle-park.js"
     }
   },
   "files": [

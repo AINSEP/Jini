@@ -98,3 +98,5 @@ preserving its identity across differing Node and undici dispatcher type version
 
 `reserveBootListener` (`@jini-ai/devops/local-dev`): the host passes its server, port and already-resolved
 bind host (its own env/flag precedence), and sets `autoStartPort` only for its production start.
+`resolveBindHost` (same entry) takes the already-picked raw `--host`/env value and the fallback; the host
+injects `source` (its flag/env label for the message) and `invalidHost` (its validation-error factory).

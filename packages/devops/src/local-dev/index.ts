@@ -3,6 +3,7 @@ export { selectNodeRuntime } from './node-runtime.js';
 export { sourceTreeStamp } from './source-tree-stamp.js';
 export { createDevServerRetirement } from './server-retirement.js';
 export { isPortFree, pickFreePort, LOOPBACK_HOSTS } from './free-port.js';
+export { resolveBindHost, isLoopbackHost, DEFAULT_LOCAL_BIND_HOST } from './bind-host.js';
 
 export interface EnvLoaderPort { load(args: { path: string }): void }
 export interface EnvironmentFilesystemPort { exists(args: { path: string }): boolean }
