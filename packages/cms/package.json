@@ -222,8 +222,6 @@
       "./admin-http/routes/posts/get-by-id": "universal",
       "./admin-http/routes/media/where-used": "universal",
       "./admin-http/routes/media/import-url": "universal",
-      "./content-types/site/tool-metadata": "universal",
-      "./entries/site/tool-metadata": "universal",
       "./admin-http/http/widgets": "universal",
       "./admin-http/routes/widgets/list": "universal",
       "./admin-http/routes/widgets/get-by-id": "universal",
@@ -1500,16 +1498,6 @@
       "types": "./dist/admin-http/routes/media/import-url.d.ts",
       "import": "./dist/admin-http/routes/media/import-url.js",
       "default": "./dist/admin-http/routes/media/import-url.js"
-    },
-    "./content-types/site/tool-metadata": {
-      "types": "./dist/content-types/site/tool-metadata.d.ts",
-      "import": "./dist/content-types/site/tool-metadata.js",
-      "default": "./dist/content-types/site/tool-metadata.js"
-    },
-    "./entries/site/tool-metadata": {
-      "types": "./dist/entries/site/tool-metadata.d.ts",
-      "import": "./dist/entries/site/tool-metadata.js",
-      "default": "./dist/entries/site/tool-metadata.js"
     },
     "./admin-http/http/widgets": {
       "types": "./dist/admin-http/http/widgets.d.ts",
