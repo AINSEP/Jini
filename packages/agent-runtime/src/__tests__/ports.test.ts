@@ -9,7 +9,7 @@ import { noopPromptAugmenter } from '../prompt-augmenter.js';
 import { noopArtifactTaxonomy, type ArtifactTaxonomy } from '../artifact-taxonomy.js';
 import { noopTelemetrySink, type TelemetrySink, type RunLifecycleEvent } from '../telemetry-sink.js';
 import { detectAgents } from '../detection.js';
-import { devinAgentDef } from '../defs/devin.js';
+import { devinAgentDef } from '../defs/devin/index.js';
 
 /**
  * Port-satisfaction tests: prove a stub implementation of each of the four

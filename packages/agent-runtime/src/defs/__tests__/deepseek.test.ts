@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { deepseekAgentDef } from '../deepseek.js';
+import { deepseekAgentDef } from '../deepseek/index.js';
 
 describe('deepseekAgentDef shape', () => {
   it('declares the expected identity and transport fields', () => {

@@ -3,7 +3,7 @@ import { setAcpModelProbe } from '../../acp-model-probe.js';
 import { type AcpModelProbe } from '@jini-ai/core/contracts/agents';
 import type { RuntimeAgentDef } from '@jini-ai/core/contracts/agents';
 import { getAgentDef } from '../../registry.js';
-import { gooseAgentDef } from '../goose.js';
+import { gooseAgentDef } from '../goose/index.js';
 import { DEFAULT_MODEL_OPTION } from '../shared.js';
 
 afterEach(() => {

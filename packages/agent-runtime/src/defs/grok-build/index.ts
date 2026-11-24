@@ -1,6 +1,6 @@
-import { createAgentModelDiscovery } from '../model-discovery-native.js';
+import { createAgentModelDiscovery } from '../../model-discovery-native.js';
 
-import { DEFAULT_MODEL_OPTION } from './shared.js';
+import { DEFAULT_MODEL_OPTION } from '../shared.js';
 import type { RuntimeModelOption, RuntimeAgentDef } from '@jini-ai/core/contracts/agents';
 
 /** Agent id, binary name and the routing-mode default model id. */

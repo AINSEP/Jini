@@ -1,4 +1,4 @@
-import { createAgentModelDiscovery } from '../model-discovery-native.js';
+import { createAgentModelDiscovery } from '../../model-discovery-native.js';
 /**
  * @module defs/goose
  *
@@ -10,7 +10,7 @@ import { createAgentModelDiscovery } from '../model-discovery-native.js';
  * machine that has only that one, detection will list goose as installed and the first run will
  * fail on the unknown `acp` command.
  */
-import { acpModelFetcher, DEFAULT_MODEL_OPTION } from './shared.js';
+import { acpModelFetcher, DEFAULT_MODEL_OPTION } from '../shared.js';
 import type { RuntimeAgentDef } from '@jini-ai/core/contracts/agents';
 
 export const gooseAgentDef = {

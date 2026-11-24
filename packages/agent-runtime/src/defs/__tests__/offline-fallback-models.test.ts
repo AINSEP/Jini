@@ -10,13 +10,13 @@ import { ampAgentDef } from '../amp/index.js';
 import { auggieAgentDef } from '../auggie/index.js';
 import { clineAgentDef } from '../cline/index.js';
 import { crushAgentDef } from '../crush/index.js';
-import { deepseekAgentDef } from '../deepseek.js';
-import { droidAgentDef } from '../droid.js';
-import { gooseAgentDef } from '../goose.js';
-import { grokBuildAgentDef } from '../grok-build.js';
+import { deepseekAgentDef } from '../deepseek/index.js';
+import { droidAgentDef } from '../droid/index.js';
+import { gooseAgentDef } from '../goose/index.js';
+import { grokBuildAgentDef } from '../grok-build/index.js';
 import { hermesAgentDef } from '../hermes/index.js';
-import { kiloAgentDef } from '../kilo.js';
-import { kimiAgentDef } from '../kimi.js';
+import { kiloAgentDef } from '../kilo/index.js';
+import { kimiAgentDef } from '../kimi/index.js';
 import { discoveryContext, offlineDiscoveryDeps } from './discovery-fakes.js';
 
 const defs = [aiderAgentDef, ampAgentDef, auggieAgentDef, clineAgentDef, crushAgentDef, deepseekAgentDef, droidAgentDef,
