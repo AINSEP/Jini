@@ -217,6 +217,11 @@ catalogue, the preview-refresh signal and the response DTO; one ladder over the 
 or styling error as a flat 400 and a missing row as a flat 404, and rethrows the rest to the host's
 operation-only failure copy.
 
+Site previews (`src/admin-http/routes/sites/site-previews.ts`: `sitePreviewRoute`, raw, `bufferedReply`): the host
+injects `sitePreviews.read` (the stored capture bytes for a site name) and `previewContentType`, and mounts it
+with `mountAdminRawRoute` (guarded, `failure` operation `routes/sites/site-previews`). `sitePreviewTargets` and
+`servingAddressOf` are exported for the host's site list and theme preview.
+
 Site backups (`src/admin-http/routes/system/site-backups.ts`: `siteBackupPlanRoute`, `siteBackupPushRoute`, raw
 specs with `bufferedReply`): the host injects `plan`/`push` (its backup service; `push` bound with
 `PUSH_POLL_WAIT_MS`), `isPublishTrusted({ context })` (a publishing credential answers `403 Forbidden` text),
@@ -318,6 +323,13 @@ Memory (`src/admin-http/routes/agent-plugins/memory`, GET/PUT): authorizes `admi
 no entity type or id; the host injects the installed check, the plugin's memory store (`openMemory`), the
 store's caps and, for PUT, its system-error predicate (a matching note-write error is rethrown for the host's
 own 500 copy; any other write failure is the 422).
+Install/update upload (`src/admin-http/routes/agent-plugins/install`, POST `install/zip` and
+`:pluginId/update/zip`, raw spec with `bufferedReply`): asks `admin.plugins.enable` with no entity type or id
+before any input check, then the update target, digest, body and `replace`. The zip is read through
+`raw.readBody({ type: "raw", mediaType: "application/zip", limit })` — mount it with NO body parser ahead of it.
+The host injects `maxArchiveBytes`, the plugin-name grammar (`isPluginName`), its installer (`installUpload`),
+its read-model row (`installedRow`), its body-refusal and known-installer-error copy (`bodyRefusal`,
+`installRefusal`; `undefined` rethrows for the mount's redacted 500).
 Media where-used (`src/admin-http/routes/media/where-used`): asks `media.read` on `media` with no entity id; the
 host injects its usage finder (`findWhereUsed`) and answers the denial with its own body (mount `forbidden`).
 Media import-url (`src/admin-http/routes/media/import-url`, POST, 201): asks `media.upload` on `media` with no

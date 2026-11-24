@@ -304,6 +304,7 @@
       "./admin-http/routes/themes/explore-file-rename": "universal",
       "./admin-http/routes/system/mail-status": "universal",
       "./admin-http/routes/system/site-backups": "universal",
+      "./admin-http/routes/system/credential-copy": "universal",
       "./admin-http/routes/system/browser-telemetry": "universal",
       "./admin-http/routes/system/source-control-credentials": "universal",
       "./admin-http/routes/system/mail-dns": "universal",
@@ -407,7 +408,8 @@
       "./admin-http/routes/publish-content/peer-transport": "universal",
       "./admin-http/routes/publish-content/export": "node",
       "./admin-http/routes/publish-content/blob-get": "node",
-      "./admin-http/routes/publish-content/blob-put": "node"
+      "./admin-http/routes/publish-content/blob-put": "node",
+      "./admin-http/routes/sites/site-previews": "node"
     },
     "isolation": {
       "domains": {
@@ -2076,6 +2078,11 @@
       "import": "./dist/admin-http/routes/system/site-backups.js",
       "default": "./dist/admin-http/routes/system/site-backups.js"
     },
+    "./admin-http/routes/system/credential-copy": {
+      "types": "./dist/admin-http/routes/system/credential-copy.d.ts",
+      "import": "./dist/admin-http/routes/system/credential-copy.js",
+      "default": "./dist/admin-http/routes/system/credential-copy.js"
+    },
     "./admin-http/routes/system/browser-telemetry": {
       "types": "./dist/admin-http/routes/system/browser-telemetry.d.ts",
       "import": "./dist/admin-http/routes/system/browser-telemetry.js",
@@ -2595,6 +2602,11 @@
       "types": "./dist/admin-http/routes/publish-content/blob-put.d.ts",
       "import": "./dist/admin-http/routes/publish-content/blob-put.js",
       "default": "./dist/admin-http/routes/publish-content/blob-put.js"
+    },
+    "./admin-http/routes/sites/site-previews": {
+      "types": "./dist/admin-http/routes/sites/site-previews.d.ts",
+      "import": "./dist/admin-http/routes/sites/site-previews.js",
+      "default": "./dist/admin-http/routes/sites/site-previews.js"
     }
   },
   "files": [
