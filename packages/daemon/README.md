@@ -129,6 +129,8 @@ factories with `{ kernel }` plus optional `{ clock }` (`Clock.nowMs()` from core
 transactions, and use the unchanged `assistant_agent_sessions` mapping. PGlite supports embedded
 and owner-socket kernels. Extra host tables are accepted. No schema/bootstrap/pragma/close occurs
 at construction. SQL failures retain a cause under `AgentSessionStoreError({ code: 'unavailable' })`.
+`./store/agent-sessions/kernel` exports `createAgentSessionStoreForKernel({ kernel, clock })`, which
+selects one of those three adapters by `kernel.transport` (no I/O at construction).
 
 The SQLite entry also preserves rich legacy `agent_sessions` functions and exports
 `LEGACY_AGENT_SESSIONS_DDL`. These records include hashes/model/cwd/message cursors and belong to
@@ -157,6 +159,11 @@ See [API.md](https://github.com/AINSEP/Jini/blob/main/packages/daemon/API.md) fo
 
 ## Wiring
 
+- **Agent session store by kernel** (`@jini-ai/daemon/store/agent-sessions/kernel`'s
+  `createAgentSessionStoreForKernel`): a host that opens its chat database on more than one
+  dialect passes its already-migrated chat `kernel` (any of `better-sqlite3`, `pglite`,
+  `pglite-socket`, `node-postgres`) and its `clock`; the selector picks the matching adapter. The
+  host keeps the kernel's lifetime and the `assistant_agent_sessions` migration.
 - **Tool families** (`@jini-ai/daemon/http`'s `createPrefixToolFamilyPort`): a host whose tools
   form a `<familyId>.<name>` namespace passes `delegatedToolRoutes` deps
   `families: createPrefixToolFamilyPort({ registry, familyId, selectorKeys })`. The host injects

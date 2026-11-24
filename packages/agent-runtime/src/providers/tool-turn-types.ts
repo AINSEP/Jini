@@ -80,6 +80,8 @@ export interface ProviderToolResult {
   readonly content: string | readonly ProviderToolResultBlock[];
   readonly isError?: boolean;
 }
+/** Host-owned tool execution (e.g. bridged to a daemon `ToolExecutor` over the host's own tool
+ *  surface); always supplied, the same convention every protocol adapter uses for its executor. */
 export type ProviderToolExecutor = (call: ProviderToolCall) => Promise<ProviderToolResult>;
 /** Raw provider call metadata: an unpublished wire name has no canonical tool ID or decoder. */
 export interface ProviderUnexposedToolCall {
@@ -123,8 +125,14 @@ export interface ProviderToolTurnOptions {
   readonly getToolSnapshot?: () => readonly ProviderToolDescriptor[];
   /** Value-free diagnostic only; execution must still validate through the host executor. */
   readonly onSchemaFallback?: (event: ProviderSchemaFallback) => void;
+  /** Required for `azure` (no sane global default — every Azure OpenAI resource has its own
+   *  endpoint); optional for the other three protocols, which fall back to each adapter's own
+   *  public default endpoint. */
   readonly baseUrl?: string;
   readonly maxTokens?: number;
+  /** Overrides the provider's tool-turn limit. A meta-tool surface spends several calls (e.g.
+   *  search/describe/execute) per action, so the provider default can truncate multi-step tasks;
+   *  the host injects its own policy value. Omit to keep the provider default. */
   readonly maxToolTurns?: number;
   readonly signal?: AbortSignal;
 }

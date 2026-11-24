@@ -282,6 +282,16 @@ principal to `createChatHistoryStore`'s scope (`scopeId` = `workspaceId`, `owner
 and its own run-id policy and ledger, and hands routes only the resulting `ChatStoreFactory`. Guest
 conversations get `chatExpiryFor({ principal })` as their expiry; admin conversations never expire.
 
+### Chat maintenance and lazy run ledger (`@jini-ai/chat/store/runtime`)
+
+`createChatMaintenanceForKernel({ kernel })` picks the SQLite/PGlite/Postgres expiry maintenance by
+the borrowed chat kernel's transport; the host injects only its migrated chat `kernel` and hands
+the result to `sweepExpiredChats`/`startChatExpirySweep` at composition time (never to a scoped
+store). `createLazyChatRunLedger({ peek, open, ledgerFor })` serves a `ChatRunLedger` over a
+database opened on first use: the host injects `open` (opens and memoizes its kernel), `peek`
+(the kernel if already open) and `ledgerFor({ kernel })` (its own ledger, with any wrappers).
+`hasActiveRuns` and `reconcileInterrupted` never open an unopened database.
+
 ### Visitor transcript store (`@jini-ai/chat/browser/session-store`)
 
 `createBrowserSessionStore({ storage, transcriptKey, maxMessages, maxBytes, validateMessage,

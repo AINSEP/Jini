@@ -309,3 +309,11 @@ The former core and CMS `./settings/express` entries have been removed.
 `./tool-metadata/<domain>` ships product-neutral tool metadata maps; a host aggregates them with its
 own maps (for example Tovu keeps `custom-credentials`, whose search vocabulary names providers). A
 test in `src/tool-metadata/__tests__/provider-neutral.test.ts` refuses provider names here.
+
+`./settings` guarded reads: `readEffectiveFailClosed({ settingsRepo, getEffective, settingsReady,
+namespace, key, scopeContext, project, denied, deniedWarning, warn }, { readFailure })` resolves one
+setting fresh and denies on any failure; the host injects its namespace/key, the projection, the
+refusal value, its safe diagnostic copy and logger (`readFailure: "throw"` for HTTP readers).
+`readUserLayerObject({ settingsRepo, namespace, key, workspaceId, principalId, notReadyMessage })`
+reads one principal's raw user-layer object for read-modify-write patches; the host injects the
+not-ready copy.

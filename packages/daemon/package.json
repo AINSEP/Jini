@@ -21,6 +21,7 @@
       "./store/agent-sessions/sqlite": "node",
       "./store/agent-sessions/pglite": "node",
       "./store/agent-sessions/postgres": "node",
+      "./store/agent-sessions/kernel": "node",
       "./http": "node",
       "./read-only-tools": "node",
       "./scheduler": "universal",
@@ -109,6 +110,11 @@
       "types": "./dist/store/agent-sessions/postgres.d.ts",
       "import": "./dist/store/agent-sessions/postgres.js",
       "default": "./dist/store/agent-sessions/postgres.js"
+    },
+    "./store/agent-sessions/kernel": {
+      "types": "./dist/store/agent-sessions/kernel.d.ts",
+      "import": "./dist/store/agent-sessions/kernel.js",
+      "default": "./dist/store/agent-sessions/kernel.js"
     },
     "./http": {
       "types": "./dist/http/index.d.ts",

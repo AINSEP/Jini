@@ -82,3 +82,9 @@ PKCE providers pass `{ verifierBytes: 64 }` to the main OAuth API. Fixed-issuer 
   `createCustomInstructionsCache(deps, { workspaceId })`, calls `refresh()` before each run and wires
   `readOverlay()` into `PromptAugmenter.systemOverlay()`; BYOK turns call
   `resolveCustomInstructions` + `formatCustomInstructionsOverlay` directly.
+- **Native permission layer saves** (`@jini-ai/agent-runtime/native-permissions`): a host reads its
+  stored permission layer raw (for example with `readUserLayerObject` from `@jini-ai/core/settings`)
+  and calls `patchNativePermissionLayer({ raw, defaults, agentId?, capabilities?, enabled?,
+  masterSaveFields? })`, injecting `defaults` (its product permission defaults) and
+  `masterSaveFields` (fields stamped on a master-level save, e.g. a migration marker), then writes
+  the result back through its settings `set`.
