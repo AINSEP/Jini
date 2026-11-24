@@ -106,7 +106,7 @@ test("loadAnalyticsProviders registers forwarders, collects hooks in order, and 
     "other": { [ANALYTICS_FORWARDERS_FILENAME]: manifest([{ id: "plausible", module: "plausible.mjs" }]) },
   }, { "plausible.mjs": plausible, "broken.mjs": {}, "hook.mjs": internal, "nohook.mjs": {} });
 
-  const providers = await loadAnalyticsProviders({ workspaceId: "ws-1" }, { loadContributions: load, analytics });
+  const providers = await loadAnalyticsProviders({ workspaceId: "ws-1", loadContributions: load, analytics });
 
   assert.equal(providers.forwarders.get({ id: "plausible" })?.provider, plausible);
   assert.equal(providers.forwarders.get({ id: "plausible" })?.pluginId, "acme-analytics");
@@ -125,7 +125,7 @@ test("loadAnalyticsProviders registers forwarders, collects hooks in order, and 
 
 test("loadAnalyticsProviders with no contributing plugins is empty", async () => {
   const { load } = fakeLoader({}, {});
-  const providers = await loadAnalyticsProviders({ workspaceId: "ws-1" }, { loadContributions: load, analytics });
+  const providers = await loadAnalyticsProviders({ workspaceId: "ws-1", loadContributions: load, analytics });
   assert.deepEqual(providers.forwarders.list(), []);
   assert.deepEqual(providers.hooks, []);
   assert.deepEqual(providers.refusals, []);
@@ -139,7 +139,7 @@ test("an unreadable manifest or a throwing module is one plugin's refusal; healt
     b_throws: { [ANALYTICS_FORWARDERS_FILENAME]: manifest([{ id: "thrower", module: "throws.mjs" }]) },
     c_good: { [ANALYTICS_FORWARDERS_FILENAME]: manifest([{ id: "plausible", module: "p.mjs" }]), [ANALYTICS_HOOKS_FILENAME]: manifest([{ id: "h", module: "h.mjs" }]) },
   }, { "p.mjs": fwd, "h.mjs": hook });
-  const result = await loadAnalyticsProviders({ workspaceId: "ws-1" }, { loadContributions: load, analytics });
+  const result = await loadAnalyticsProviders({ workspaceId: "ws-1", loadContributions: load, analytics });
   assert.deepEqual(result.forwarders.list().map((entry) => entry.id), ["plausible"]);
   assert.equal(result.hooks.length, 1);
   assert.deepEqual(result.refusals, [

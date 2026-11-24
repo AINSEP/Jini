@@ -63,8 +63,8 @@ export interface LoadedMediaProviderRegistry<Registry> {
  * @complexity O(p) installed plugins, one small read plus one import per declared vendor.
  */
 export async function loadMediaProviderRegistry<Registry extends MediaProviderRegistrySlice<C>, C extends MediaProviderContributionShape, Definition>(
-  ctx: { readonly workspaceId: string },
   required: MediaProviderRegistryContributionPorts<C> & {
+    readonly workspaceId: string;
     /** The product-named manifest file a plugin ships at its root (host-owned, K3). */
     readonly filename: string;
     readonly contract: string;
@@ -72,11 +72,12 @@ export async function loadMediaProviderRegistry<Registry extends MediaProviderRe
     readonly defineProviderContribution: (spec: MediaProviderContributionSpec<C>, optional: MediaProviderContributionSpecOptional) => Definition;
     readonly loadContributions: (input: { readonly workspaceId: string; readonly definition: Definition }, optional: { readonly orderByPluginId: boolean }) => Promise<LoadedMediaProviderItems<C>>;
   },
+  _optional: Record<string, never> = {},
 ): Promise<LoadedMediaProviderRegistry<Registry>> {
   const registry = required.createRegistry();
   let loaded: LoadedMediaProviderItems<C>;
   try {
-    loaded = await required.loadContributions({ ...ctx, definition: mediaProviderContribution<C, Definition>(required) }, { orderByPluginId: true });
+    loaded = await required.loadContributions({ workspaceId: required.workspaceId, definition: mediaProviderContribution<C, Definition>(required) }, { orderByPluginId: true });
   } catch (error) {
     return { registry, refusals: [`plugin media providers were not loaded: ${(error as Error).message}`] };
   }

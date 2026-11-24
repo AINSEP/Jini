@@ -104,10 +104,10 @@ function schemeContribution(parseCredentialSchemesFile: ParseCredentialSchemesFi
  * @complexity O(p) installed plugins, one small file read per contributing plugin.
  */
 export async function loadCredentialSchemeRegistry(
-  ctx: { readonly workspaceId: string },
-  required: { readonly loadContributions: LoadCredentialSchemeContributions; readonly parseCredentialSchemesFile: ParseCredentialSchemesFile },
+  required: { readonly workspaceId: string; readonly loadContributions: LoadCredentialSchemeContributions; readonly parseCredentialSchemesFile: ParseCredentialSchemesFile },
+  _optional: Record<string, never> = {},
 ): Promise<CredentialSchemeRegistry> {
-  const load = await required.loadContributions({ ...ctx, definition: schemeContribution(required.parseCredentialSchemesFile) }, { requireActive: false });
+  const load = await required.loadContributions({ workspaceId: required.workspaceId, definition: schemeContribution(required.parseCredentialSchemesFile) }, { requireActive: false });
   return dropDuplicateIds(load.items, load.refusals);
 }
 

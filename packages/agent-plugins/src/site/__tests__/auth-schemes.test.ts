@@ -80,8 +80,7 @@ test("loadBundledCredentialSchemeRegistry unions bundled sources and drops every
 
 test("loadCredentialSchemeRegistry asks the installed loader to skip the activation gate and reports invalid files", async () => {
   const calls: unknown[] = [];
-  const registry = await loadCredentialSchemeRegistry({ workspaceId: "ws" }, {
-    parseCredentialSchemesFile,
+  const registry = await loadCredentialSchemeRegistry({ workspaceId: "ws", parseCredentialSchemesFile,
     loadContributions: async (input, options) => {
       calls.push({ workspaceId: input.workspaceId, filename: input.definition.filename, options });
       const parsed = input.definition.parse({ raw: JSON.stringify({ schemaVersion: 2 }) });

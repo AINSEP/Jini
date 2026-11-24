@@ -33,12 +33,12 @@
  * `Blog` row becomes `Blog 2024 2`, because `2024` is read from the data as part of the name, never
  * guessed at from the number's own magnitude.
  *
- * This module supplies the suffix/collision policy, limit and wording to `@jini-ai/core/naming`;
+ * This module supplies the attempt limit and wires the host's suffix policy and wording into `@jini-ai/core/naming`;
  * the collision loop and generic trailing-number rationale live there.
  *
  * Suffix formatting and counter evidence:
  *
- * {@link deriveAvailableName}'s default `withSuffix`: a plain space then the number, matching the
+ * The host-injected `withSuffix` the owner's ruling calls for: a plain space then the number, matching the
  *  owner's own examples (`"Landing sample — xai 2"`) — never a hyphen or a parenthesis.
  *
  * Matches a name ending in a space then one or more digits, capturing the part before it — e.g.
@@ -59,16 +59,22 @@ import {
  */
 export const MAX_SUFFIX_ATTEMPTS = 1000;
 
+/** The host-owned copy-naming policy: suffix style and exhaustion wording are REQUIRED, never defaulted here. */
+export interface CopyNamingPolicy {
+  /** Builds every candidate after the first; the host owns the suffix style (e.g. its space/number rule). */
+  readonly withSuffix: (required: { base: string; suffix: number }) => string;
+  /** Wording of the error thrown when every attempt is taken and no `onExhausted` raises its own. */
+  readonly exhaustionMessage: (required: { base: string; maxAttempts: number }) => string;
+}
+
 /** Bind the host's naming callbacks to Jini's naming policy. O(1), no I/O. */
-function namingPolicy(options: {
+function namingPolicy(options: CopyNamingPolicy & {
   isTaken: (required: { candidate: string }, optional?: Record<string, never>) => Promise<boolean>;
-  withSuffix?: (base: string, suffix: number) => string;
 }): NamingPolicy {
   return {
     isTaken: ({ candidate }) => options.isTaken({ candidate }),
-    withSuffix: ({ base, suffix }) => options.withSuffix ? options.withSuffix(base, suffix) : `${base} ${suffix}`,
-    exhaustionMessage: ({ base, maxAttempts }) =>
-      `no free name could be derived from '${base}' after ${maxAttempts} attempts — give the copy an explicit name`,
+    withSuffix: options.withSuffix,
+    exhaustionMessage: options.exhaustionMessage,
   };
 }
 
@@ -81,10 +87,10 @@ function namingPolicy(options: {
  * between "taken" and "otherwise unusable" — fold in any other skip rule (a reserved word, a format
  * check) by also returning `true` for it, mirroring how `duplicate-slug.ts` folds in its reserved-slug
  * and pattern checks.
- * @param options.withSuffix - Builds every candidate after the first. Defaults to a plain
- * space-separated number (`"${base} ${suffix}"`), matching the owner's own examples above. Pass a
- * different one (`duplicate-slug.ts` passes a hyphenated, length-capped version) to reuse this same
- * loop for a differently-shaped candidate space.
+ * @param options.withSuffix - REQUIRED host policy: builds every candidate after the first (the owner's
+ * examples above use a plain space-separated number). A host with a differently-shaped candidate space
+ * (`duplicate-slug.ts` uses a hyphenated, length-capped one) injects its own.
+ * @param options.exhaustionMessage - REQUIRED host wording of the generic exhaustion error.
  * @param options.onExhausted - Called instead of throwing the generic exhaustion error once every
  * attempt is taken, so a caller can raise its own domain-specific message (e.g. "give the copy an
  * explicit slug" rather than "...an explicit name"). Must throw; if it returns, the generic error is
@@ -95,9 +101,8 @@ function namingPolicy(options: {
  * @complexity O(k) `isTaken` calls, where k is the number of colliding candidates, bounded at
  * {@link MAX_SUFFIX_ATTEMPTS}.
  */
-export function deriveAvailableName(required: { base: string }, options: {
+export function deriveAvailableName(required: { base: string }, options: CopyNamingPolicy & {
   isTaken: (required: { candidate: string }, optional?: Record<string, never>) => Promise<boolean>;
-  withSuffix?: (base: string, suffix: number) => string;
   onExhausted?: () => never;
 }): Promise<string> {
   const onExhausted = options.onExhausted;
@@ -119,12 +124,14 @@ export function deriveAvailableName(required: { base: string }, options: {
  * @param options.isTaken - Whether a candidate name already exists in this resource — see this file's
  * header for why every current caller answers this with a single `list()` scan rather than a
  * `findByTitle` port method.
+ * @param options.withSuffix - REQUIRED host suffix policy, see {@link deriveAvailableName}.
+ * @param options.exhaustionMessage - REQUIRED host exhaustion wording, see {@link deriveAvailableName}.
  * @returns A name `isTaken` reports free.
  * @throws {Error} If {@link MAX_SUFFIX_ATTEMPTS} candidates are all taken.
  * @complexity One extra `isTaken` call (the trailing-number check, only when the source name matches
  * {@link TRAILING_NUMBER_PATTERN}) plus {@link deriveAvailableName}'s own O(k).
  */
-export function deriveDuplicateName(required: { sourceName: string }, options: {
+export function deriveDuplicateName(required: { sourceName: string }, options: CopyNamingPolicy & {
   isTaken: (required: { candidate: string }, optional?: Record<string, never>) => Promise<boolean>;
 }): Promise<string> {
   return findDuplicateName({ ...required, ...namingPolicy(options) }, { maxAttempts: MAX_SUFFIX_ATTEMPTS });

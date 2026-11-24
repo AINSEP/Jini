@@ -135,13 +135,13 @@ export interface AnalyticsProviders<F, H> {
  * @complexity O(p) installed plugins: two small reads plus one import per declared provider.
  */
 export async function loadAnalyticsProviders<F, H>(
-  ctx: { readonly workspaceId: string },
-  required: { readonly loadContributions: AnalyticsContributionLoader; readonly analytics: AnalyticsProviderPorts<F, H> },
+  required: { readonly workspaceId: string; readonly loadContributions: AnalyticsContributionLoader; readonly analytics: AnalyticsProviderPorts<F, H> },
+  _optional: Record<string, never> = {},
 ): Promise<AnalyticsProviders<F, H>> {
-  const { analytics } = required;
+  const { workspaceId, analytics } = required;
   const [forwarderLoad, hookLoad] = await Promise.all([
-    required.loadContributions({ ...ctx, definition: analyticsProviderContribution({ kind: analytics.forwarders, noun: "forwarders" }) }, { orderByPluginId: true }),
-    required.loadContributions({ ...ctx, definition: analyticsProviderContribution({ kind: analytics.hooks, noun: "hooks" }) }, { orderByPluginId: true }),
+    required.loadContributions({ workspaceId, definition: analyticsProviderContribution({ kind: analytics.forwarders, noun: "forwarders" }) }, { orderByPluginId: true }),
+    required.loadContributions({ workspaceId, definition: analyticsProviderContribution({ kind: analytics.hooks, noun: "hooks" }) }, { orderByPluginId: true }),
   ]);
   const forwarders = analytics.createForwarderRegistry();
   const contributed = contributeProviders({ registry: forwarders, loaded: forwarderLoad });
