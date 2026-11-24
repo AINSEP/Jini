@@ -1891,7 +1891,7 @@
    "AdminHttp": "interface:60416f5d4c",
    "CreateAdminHttpArgs": "interface:e5ca6abe99",
    "CreateAdminHttpPorts": "interface:ce2bc1a308",
-   "buildFetchInit": "function:50e6cf5246",
+   "buildFetchInit": "function:1b088f2b75",
    "createAdminHttp": "function:3feca4d9a2"
   }
  },

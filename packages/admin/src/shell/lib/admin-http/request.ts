@@ -6,8 +6,8 @@
  * is the route-group `AdminTransport`: neutral copy, `AdminApiError`, no retry. This factory is what
  * a host's own screens call through: it owns no error class (every error comes from the host's
  * `createError` port), no copy (`messages` port), and no failure vocabulary (`reportFailure` port).
- * The fetch-rejection classification, body parsing and envelope rule are the transport's own stages,
- * imported here, so each rule has one body.
+ * The fetch-rejection classification, header merge, body parsing and envelope rule are the
+ * transport's own stages, imported here, so each rule has one body.
  *
  * Every instance keeps its own upstream-refused marks; two factories never share state.
  */
@@ -16,6 +16,7 @@ import {
   API_UNREACHABLE_CODE,
   REQUEST_TIMEOUT_CODE,
   lacksAppEnvelope,
+  mergeHeaders,
   parseJsonBody,
   throwTranslatedFetchFailure,
 } from "../../../core/transport/http.js";
@@ -103,7 +104,7 @@ export function createAdminHttp<E extends AdminHttpError, B extends string, F ex
     rideOutRestart(ctx, required, optional);
   const request: AdminHttp<E, B, F>["request"] = (required, optional = {}) => sendReported(ctx, required, optional);
   return {
-    fetchOrThrowUnreachable: (required) => fetchBounded(ctx, required),
+    fetchOrThrowUnreachable: (required, _optional: Empty = {}) => fetchBounded(ctx, required),
     requestOnce,
     requestRidingOutRestart,
     request,
@@ -146,18 +147,16 @@ async function fetchBounded<E extends AdminHttpError, B extends string, F extend
  * `fetch`'s init with the session defaults under the caller's: same-origin cookies and a JSON
  * `Content-Type`. `init.headers` merges onto the default rather than replacing it, so one custom
  * header (an `If-Match`) never drops the type; a caller's own `Content-Type`, in any letter case,
- * wins outright, since two values would be sent joined with a comma.
+ * wins outright, since two values would be sent joined with a comma. The merge is the transport's
+ * `mergeHeaders`, so every `HeadersInit` form (Headers, tuples, record) is read the same way.
  *
  * @complexity O(h) in the caller's header count.
  */
-export function buildFetchInit(init: RequestInit = {}): RequestInit {
-  const callerHeaders = init.headers ?? {};
-  const callerSetsType = new Headers(callerHeaders).has("content-type");
-  return {
-    credentials: "same-origin",
-    ...init,
-    headers: callerSetsType ? callerHeaders : { "Content-Type": "application/json", ...callerHeaders },
-  };
+export function buildFetchInit(
+  { init = {} }: { readonly init?: RequestInit | undefined },
+  _optional: Empty = {},
+): RequestInit {
+  return { credentials: "same-origin", ...init, headers: mergeHeaders({ sources: [init.headers] }) };
 }
 
 /** One send, no restart retry. A non-2xx throws the host's error; `onOk` runs just before resolve. */
@@ -168,7 +167,7 @@ async function sendOnce<T, E extends AdminHttpError, B extends string, F extends
 ): Promise<T> {
   const { ports } = ctx;
   const url = `${ports.resolveBasePath({ basePath: options.basePath })}${path}`;
-  const res = await fetchBounded(ctx, { url, init: buildFetchInit(init) });
+  const res = await fetchBounded(ctx, { url, init: buildFetchInit({ init }) });
   const { body, wasUnparseable } = await parseJsonBody({ response: res }, { requireJson: res.ok && options.requireJson });
   if (!res.ok) throw failedResponseError(ctx, { res, body, wasUnparseable, method: init?.method ?? "GET", path }, options);
   onOk?.({ response: res });
