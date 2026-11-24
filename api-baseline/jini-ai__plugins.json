@@ -473,7 +473,8 @@
   "types": "./dist/runtime/sdk-resolver.d.ts",
   "symbols": {
    "PluginSdkResolverAlreadyRegisteredError": "class:06876bcd61",
-   "registerPluginSdkResolver": "function:b9e0456369"
+   "registerPluginSdkResolver": "function:b9e0456369",
+   "sdkModuleUrl": "function:43f3c355a7"
   }
  },
  "./runtime/service-ports": {

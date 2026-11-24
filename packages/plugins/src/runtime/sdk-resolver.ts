@@ -67,6 +67,18 @@ export class PluginSdkResolverAlreadyRegisteredError extends Error {
 }
 
 /**
+ * The `file://` URL the hook redirects to. A string that already is a valid `file:` URL is
+ * normalized as a URL; any other string is an absolute filesystem path. Passing a URL string to
+ * `pathToFileURL` would treat it as a path and percent-encode it into a wrong location.
+ *
+ * @throws {TypeError} If the string starts with `file:` but is not a valid URL.
+ * @complexity O(n) in the path length.
+ */
+export function sdkModuleUrl(required: { sdkModulePath: string }, _optional: Record<string, never> = {}): string {
+  return required.sdkModulePath.startsWith("file:") ? new URL(required.sdkModulePath).href : pathToFileURL(required.sdkModulePath).href;
+}
+
+/**
  * Registers the `module.register()` customization hook exactly once for this process. Calling
  * this a second time is a wiring bug, not a silently-tolerated no-op: it throws clearly, so a
  * boot-sequencing bug fails loudly rather than silently double-hooking.
@@ -87,7 +99,7 @@ export function registerPluginSdkResolver(
     throw new PluginSdkResolverAlreadyRegisteredError();
   }
 
-  const sdkUrl = pathToFileURL(required.sdkModulePath).href;
+  const sdkUrl = sdkModuleUrl({ sdkModulePath: required.sdkModulePath });
   const hookModuleUrl = `data:text/javascript,${encodeURIComponent(HOOK_MODULE_SOURCE)}`;
 
   register(hookModuleUrl, { data: { sdkUrl, sdkSpecifiers: [...required.sdkSpecifiers] } });
