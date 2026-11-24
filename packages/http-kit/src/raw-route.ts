@@ -7,6 +7,7 @@
 import type { Express, Request, Response } from 'express';
 import type { RouteHostContext } from '@jini-ai/core/contracts/server';
 import { allowRouteBody, allowRouteOrigin, applyResponseHeaders, assertRequestFactsPort, routeAuthorize, routeRequestInput, sendRouteException } from './adapter.js';
+import { deferredBodyReader } from './deferred-body.js';
 import { sendWebResponse } from './node-bridge.js';
 import type { RawRouteSpec } from './types.js';
 
@@ -24,7 +25,8 @@ export function defineRawRoute<Deps, Context = undefined>(requiredArgs: Omit<Raw
 
 /**
  * Mounts one raw spec. Gates run in `mountJsonRoute`'s order — static response headers, body cap,
- * workspace, same-origin, authenticate — then `handle`; a thrown error takes the same `onError` /
+ * workspace, same-origin, authenticate — then `handle`, whose `raw.readBody` reads the request body only
+ * when called (so a route that defers its body never reads an unauthorized one); a thrown error takes the same `onError` /
  * SEC-005 path. The returned `Response` is written with its status, every header (each `Set-Cookie`
  * on its own line) and its body: none ends the answer, a stream is piped and cancelled when the
  * client leaves, and `handle`'s `signal` aborts on that same disconnect.
@@ -57,7 +59,8 @@ async function answerRawRoute<Deps, Context>({ req, res, spec, deps, adapter, si
   readonly deps: Deps; readonly adapter: RouteHostContext | undefined; readonly signal: AbortSignal;
 }): Promise<void> {
   applyResponseHeaders({ res, headers: spec.responseHeaders });
-  const raw = routeRequestInput({ req, spec, deps });
+  // `readBody` reads nothing until `handle` calls it, after every gate below (`deferred-body.ts`).
+  const raw = { ...routeRequestInput({ req, spec, deps }), readBody: deferredBodyReader({ req, res }) };
   if (!allowRouteBody({ req, res, spec })) return;
   if (spec.ports?.workspace) await spec.ports.workspace({ raw, deps });
   if (!allowRouteOrigin({ req, res, spec, adapter })) return;
