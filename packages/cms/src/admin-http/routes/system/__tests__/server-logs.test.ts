@@ -14,7 +14,7 @@ function deps(overrides: Partial<AdminServerLogsRouteDeps> = {}): AdminServerLog
   return {
     parseServerLogFilters: ({ raw }) => raw as ServerLogFilters,
     readServerLogs: (filters) => { reads.push(filters); return LOGS; },
-    isServerLogFilterError: (error): error is Error => error instanceof FilterError,
+    serverLogFilterReply: ({ error }) => (error instanceof FilterError ? error.message : undefined),
     ...overrides,
   };
 }
@@ -49,6 +49,15 @@ describe('serverLogsRoute', () => {
     expect(await result).toEqual({ ok: true, value: LOGS });
     expect(reads).toEqual([{ level: 'warn' }]);
     expect(asked).toEqual([{ permission: 'system.read', entityType: 'server-logs' }]);
+  });
+
+  it('replies with the mapper\'s text, not the thrown error\'s own message', async () => {
+    const { result } = call(deps({
+      parseServerLogFilters: () => { throw new FilterError('internal detail'); },
+      serverLogFilterReply: () => 'host reply copy',
+    }), { limit: 'x' });
+    const error = await refusal(result);
+    expect((error as RouteRefusalError).response).toEqual({ status: 400, body: { error: 'host reply copy', code: 'VALIDATION_ERROR' } });
   });
 
   it('answers a filter error with 400 VALIDATION_ERROR and its message', async () => {

@@ -406,6 +406,19 @@ describe("useDashboard — injected host seams", () => {
     expect(describeError).toHaveBeenCalledWith({ e: expect.any(Error), fallback: "failed to load posts" });
   });
 
+  it("carries the host's display text on every stat and the theme, never the rejection's or a wrapper's message", async () => {
+    const port: DashboardPort = {
+      ...createFakeDashboardPort(),
+      listPosts: () => Promise.reject(new Error("raw posts words")),
+      getPresentation: () => Promise.reject(new Error("raw theme words")),
+    };
+    const describeError = ({ e }: { e: unknown; fallback: string }) => `shown(${(e as Error).message})`;
+    const { result } = renderHook(() => useDashboard({ ...HOST, describeError, port, locale: "en", t: (key) => key }));
+
+    await waitFor(() => expect(result.current.posts.error).toBe("shown(raw posts words)"));
+    await waitFor(() => expect(result.current.themeError).toBe("shown(raw theme words)"));
+  });
+
   it("persists the dismissal under the injected storage key", async () => {
     const port = createFakeDashboardPort({ usesDefaultPassword: true });
     const { result } = renderHook(() => useDashboard({ ...HOST, passwordBannerDismissedKey: "other.key", port, locale: "en", t: (key) => key }));

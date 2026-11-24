@@ -7,7 +7,7 @@ import type { ServerLogFilters, ServerLogsResult } from '@jini-ai/core/contracts
  * lines (gap A-04). Query: `level`, `sinceIso`, `contains`, `limit`, the same filters and the same
  * `readServerLogs` call as the `system_read_server_logs` chat tool. Same workspace-404 -> authorize
  * -> 403 shape as `observability-status.ts`.
- * Now: the filter parser, the log reader and the filter-error classifier are the host's server-log
+ * Now: the filter parser, the log reader and the filter-error reply mapper are the host's server-log
  * feature, injected: this route owns only the order (authorize before validating, so an
  * unauthorized caller never learns which filter was wrong) and the 400 envelope.
  */
@@ -18,8 +18,8 @@ export interface AdminServerLogsRouteDeps {
   parseServerLogFilters: (required: { raw: Record<string, unknown> }) => ServerLogFilters;
   /** Reads the buffered log lines matching validated filters. */
   readServerLogs: (filters: ServerLogFilters) => ServerLogsResult;
-  /** Whether a thrown value is the host's filter-validation error (answered 400 with its message). */
-  isServerLogFilterError: (error: unknown) => error is Error;
+  /** The 400 reply text when a thrown value is the host's filter-validation error, else `undefined` (rethrown). */
+  serverLogFilterReply: (required: { error: unknown }, optional?: Record<string, never>) => string | undefined;
 }
 
 /** The fields of the authenticated principal this route's host ports read. */
@@ -47,7 +47,8 @@ export const serverLogsRoute = defineJsonRoute<ServerLogsInput, ServerLogsResult
     try {
       return ok({ value: deps.readServerLogs(deps.parseServerLogFilters({ raw: input.query })) });
     } catch (error) {
-      if (deps.isServerLogFilterError(error)) rejectRoute({ status: 400, error: error.message, code: 'VALIDATION_ERROR' });
+      const reply = deps.serverLogFilterReply({ error });
+      if (reply !== undefined) rejectRoute({ status: 400, error: reply, code: 'VALIDATION_ERROR' });
       throw error;
     }
   },

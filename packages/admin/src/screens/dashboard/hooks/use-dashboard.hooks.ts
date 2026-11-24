@@ -145,15 +145,33 @@ export interface DashboardDependencies {
 
 type DescribeError = DashboardDependencies["describeError"];
 
-/** Runs one stat read and, on rejection, rethrows it as this hook's own message: the rejection's
- *  own text when it has one, else `key` translated against `locale` (`describeApiError`).
+/** A stat read's failure carrying the host-produced display text on its own field. `message` is
+ *  deliberately generic: the card text is never derived from `Error.message`. */
+class DashboardReadFailure extends Error {
+  readonly displayText: string;
+  constructor({ displayText }: { displayText: string }, _optional: Record<string, never> = {}) {
+    super("dashboard stat read failed");
+    this.displayText = displayText;
+  }
+}
+
+/** The card text of a settled query error: the carried display text, else the translated `fallback`.
+ *  @complexity O(1). */
+function failureDisplayText({ error, fallback }: { error: Error | null; fallback: string }, _optional: Record<string, never> = {}): string | null {
+  if (error === null) return null;
+  return error instanceof DashboardReadFailure ? error.displayText : fallback;
+}
+
+/** Runs one stat read and, on rejection, rethrows it as a {@link DashboardReadFailure} carrying this
+ *  hook's own display text: the rejection's own text when it has one, else `key` translated against
+ *  `locale` (`describeApiError`).
  *  @complexity Time/space: O(1) beyond the read itself.
  * Now: the rejection's own text is used only when the host's `describeError` (its
  * `describeApiError`) vouches for it.
  */
 async function readOrDescribe<T>({ read, locale, key, describeError }: { read: () => Promise<T>; locale: string; key: string; describeError: DescribeError }): Promise<T> {
   try { return await read(); }
-  catch (error) { throw new Error(describeError({ e: error, fallback: translate({ locale, key }) })); }
+  catch (error) { throw new DashboardReadFailure({ displayText: describeError({ e: error, fallback: translate({ locale, key }) }) }); }
 }
 
 /** The five stat reads, each owning its own query and error slot (see this file's header).
@@ -197,8 +215,8 @@ function useActiveThemeRefresh(): void {
 
 /** One stat card's state: `count({ data })` once the read settles, `null` while pending or failed.
  *  @complexity Time/space: whatever `count` costs. */
-function statState<T>({ query, count }: { query: QueryResult<T>; count: (required: { data: T }, optional?: Record<string, never>) => number }): StatState {
-  return { value: query.data === undefined ? null : count({ data: query.data }), error: query.error?.message ?? null };
+function statState<T>({ query, count, fallback }: { query: QueryResult<T>; fallback: string; count: (required: { data: T }, optional?: Record<string, never>) => number }): StatState {
+  return { value: query.data === undefined ? null : count({ data: query.data }), error: failureDisplayText({ error: query.error, fallback }) };
 }
 
 /** How many `rows` carry `status`, or `null` while the rows are still pending.
@@ -219,18 +237,18 @@ type DashboardStats = Pick<DashboardController,
 
 /** Every stat field the controller carries, derived from the five settled-or-pending reads.
  *  @complexity Time: O(n log n) in the combined post/page row count (the `recent` merge). */
-function deriveStats(queries: ReturnType<typeof useStatQueries>): DashboardStats {
+function deriveStats({ queries, locale }: { queries: ReturnType<typeof useStatQueries>; locale: string }): DashboardStats {
   const { postsQuery, pagesQuery, mediaQuery, commentsQuery, themeQuery } = queries;
   return {
-    posts: statState({ query: postsQuery, count: ({ data: rows }, _optional = {}) => rows.length }),
+    posts: statState({ query: postsQuery, fallback: translate({ locale, key: "failed to load posts" }), count: ({ data: rows }, _optional = {}) => rows.length }),
     published: countWithStatus({ rows: postsQuery.data, status: "published" }),
-    pages: statState({ query: pagesQuery, count: ({ data: rows }, _optional = {}) => rows.length }),
+    pages: statState({ query: pagesQuery, fallback: translate({ locale, key: "failed to load pages" }), count: ({ data: rows }, _optional = {}) => rows.length }),
     drafts: countWithStatus({ rows: pagesQuery.data, status: "draft" }),
-    media: statState({ query: mediaQuery, count: ({ data }, _optional = {}) => data.media.filter(item => item.status === "active").length }),
-    comments: statState({ query: commentsQuery, count: ({ data }, _optional = {}) => data.items.length }),
+    media: statState({ query: mediaQuery, fallback: translate({ locale, key: "failed to load media" }), count: ({ data }, _optional = {}) => data.media.filter(item => item.status === "active").length }),
+    comments: statState({ query: commentsQuery, fallback: translate({ locale, key: "failed to load comments" }), count: ({ data }, _optional = {}) => data.items.length }),
     themeId: themeQuery.data?.settings.activeThemeId ?? null,
     themeName: themeQuery.data ? activeThemeName(themeQuery.data) : null,
-    themeError: themeQuery.error?.message ?? null,
+    themeError: failureDisplayText({ error: themeQuery.error, fallback: translate({ locale, key: "failed to load the active theme" }) }),
     recent: recentActivity({ posts: postsQuery.data, pages: pagesQuery.data }),
   };
 }
@@ -280,7 +298,7 @@ function useSiteKeyBanner({ port, t }: { port: DashboardPort; t: Translate }): P
  * Now: the dependencies also carry `describeError`/`passwordBannerDismissedKey`.
  */
 export function useDashboard({ port, locale, t, describeError, passwordBannerDismissedKey }: DashboardDependencies): DashboardController {
-  const stats = deriveStats(useStatQueries({ port, locale, describeError }));
+  const stats = deriveStats({ queries: useStatQueries({ port, locale, describeError }), locale });
   return { ...stats, t, ...useDefaultPasswordBanner({ port, storageKey: passwordBannerDismissedKey }), ...useSiteKeyBanner({ port, t }) };
 }
 
