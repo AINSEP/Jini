@@ -185,6 +185,10 @@
       "./screens/integrations/integrations-i18n": "universal",
       "./screens/providers/providers-i18n": "universal",
       "./screens/settings/settings-capabilities-i18n": "universal",
+      "./screens/settings/external-mcp-drift-types": "universal",
+      "./screens/settings/external-mcp-tool-drift": "universal",
+      "./screens/settings/external-mcp-connection-drift": "universal",
+      "./screens/settings/external-mcp-tool-picker-rules": "universal",
       "./core/bind-dictionary-names": "universal",
       "./screens/menus/api/menus-api.types": "universal",
       "./screens/widgets/api/widgets-api.types": "universal",
@@ -1229,6 +1233,26 @@
       "types": "./dist/screens/settings/settings-capabilities-i18n.d.ts",
       "import": "./dist/screens/settings/settings-capabilities-i18n.js",
       "default": "./dist/screens/settings/settings-capabilities-i18n.js"
+    },
+    "./screens/settings/external-mcp-drift-types": {
+      "types": "./dist/screens/settings/external-mcp-drift-types.d.ts",
+      "import": "./dist/screens/settings/external-mcp-drift-types.js",
+      "default": "./dist/screens/settings/external-mcp-drift-types.js"
+    },
+    "./screens/settings/external-mcp-tool-drift": {
+      "types": "./dist/screens/settings/external-mcp-tool-drift.d.ts",
+      "import": "./dist/screens/settings/external-mcp-tool-drift.js",
+      "default": "./dist/screens/settings/external-mcp-tool-drift.js"
+    },
+    "./screens/settings/external-mcp-connection-drift": {
+      "types": "./dist/screens/settings/external-mcp-connection-drift.d.ts",
+      "import": "./dist/screens/settings/external-mcp-connection-drift.js",
+      "default": "./dist/screens/settings/external-mcp-connection-drift.js"
+    },
+    "./screens/settings/external-mcp-tool-picker-rules": {
+      "types": "./dist/screens/settings/external-mcp-tool-picker-rules.d.ts",
+      "import": "./dist/screens/settings/external-mcp-tool-picker-rules.js",
+      "default": "./dist/screens/settings/external-mcp-tool-picker-rules.js"
     },
     "./core/bind-dictionary-names": {
       "types": "./dist/core/bind-dictionary-names.d.ts",
