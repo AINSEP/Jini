@@ -192,6 +192,7 @@ export interface ProcessDueDeliveriesOptional {
    * The host's agent switch. While it returns false, deliveries for agent-created subscriptions
    * are held (handed back to `pending`, attempts untouched; nothing is failed or deleted) and go
    * out once it returns true again. Person-created subscriptions are never held. Omitted: no hold.
+   * Requires a delivery repo with `releaseClaim`; without one the run is refused before claiming.
    */
   isAgentEnabled?: () => boolean | Promise<boolean>;
   /** How long a held delivery waits before it is looked at again; default {@link AGENT_PAUSE_RECHECK_MS}. */
@@ -232,6 +233,7 @@ export async function processDueDeliveries(
   const { deliveryRepo, subscriptionRepo, envelopeStore, httpClient, signer, clock, headers } = required.deps;
   const { batchSize, hooks, request, claimLeaseMs, signal, maxAttempts, random } = resolveProcessDueDeliveriesOptions(optional);
 
+  assertPauseCanReleaseClaims({ optional, deliveryRepo });
   const result: ProcessDueDeliveriesResult = { processed: 0, delivered: 0, failed: 0, dead: 0 };
   if (signal?.aborted) return result;
   const claimedAt = nowIso({ clock });
@@ -303,9 +305,24 @@ function resolveProcessDueDeliveriesOptions(
 }
 
 /**
+ * Fails fast, before any row is claimed, when the agent switch is wired to a delivery repo that
+ * cannot hand claims back. Claiming charges an attempt and leases the row; a held row that cannot
+ * be released would keep that charge and sit leased every tick the switch stays off, so pausing
+ * would silently burn attempts. Refusing the run makes the mis-wiring visible to the host instead.
+ */
+function assertPauseCanReleaseClaims(required: {
+  optional: ProcessDueDeliveriesOptional;
+  deliveryRepo: WebhookDeliveryRepoPort;
+}): void {
+  if (required.optional.isAgentEnabled && !required.deliveryRepo.releaseClaim) {
+    throw new Error("The agent pause policy needs a delivery repo with releaseClaim; no deliveries were claimed.");
+  }
+}
+
+/**
  * The per-row hold check for this tick, or null when no switch is wired or the agent is on (the
- * switch is read once per tick). A held row goes back through `releaseClaim` so its attempt is
- * not counted; a repo without `releaseClaim` leaves it to the claim lease, still never failed.
+ * switch is read once per tick). A held row goes back through `releaseClaim` (guaranteed present by
+ * `assertPauseCanReleaseClaims`) so its attempt is not counted.
  */
 async function agentHoldFor(required: {
   optional: ProcessDueDeliveriesOptional;

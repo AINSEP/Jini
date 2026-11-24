@@ -1,5 +1,6 @@
 import type { Insertable, Kysely, Selectable } from "kysely";
 import type { StorageKernel } from "@jini-ai/core/contracts/storage";
+import { CREATOR_KINDS, type CreatorKind } from "@jini-ai/core/primitives";
 
 import type { WebhookDeliveriesTable, WebhookSubscriptionsTable } from "./repo.rows.js";
 
@@ -75,7 +76,13 @@ function topicsFromJson({ json }: { json: string }, _optional: Record<string, ne
   return JSON.parse(json) as WebhookTopic[];
 }
 
+/** A stored creator kind, or undefined for a legacy/unknown value so the record stays unattributed (person). */
+function creatorKindFromColumn(value: string | null): CreatorKind | undefined {
+  return (CREATOR_KINDS as readonly string[]).includes(value ?? "") ? (value as CreatorKind) : undefined;
+}
+
 function toSubscriptionRecord(row: Selectable<WebhookSubscriptionsTable>): WebhookSubscriptionRecord {
+  const createdByKind = creatorKindFromColumn(row.created_by_kind);
   return {
     id: row.id,
     workspaceId: row.workspace_id,
@@ -88,6 +95,8 @@ function toSubscriptionRecord(row: Selectable<WebhookSubscriptionsTable>): Webho
     status: row.status as WebhookSubscriptionStatus,
     createdByPrincipalId: row.created_by_principal_id,
     createdByPluginId: row.created_by_plugin_id,
+    // Omitted rather than undefined when absent, so unattributed records compare equal to the input.
+    ...(createdByKind ? { createdByKind } : {}),
     createdAt: row.created_at,
     updatedAt: row.updated_at,
     disabledAt: row.disabled_at,
@@ -108,6 +117,7 @@ function toSubscriptionRow(record: WebhookSubscriptionRecord): Insertable<Webhoo
     status: record.status,
     created_by_principal_id: record.createdByPrincipalId,
     created_by_plugin_id: record.createdByPluginId,
+    created_by_kind: record.createdByKind ?? null,
     created_at: record.createdAt,
     updated_at: record.updatedAt,
     disabled_at: record.disabledAt,

@@ -138,3 +138,37 @@ test("without an agent switch wired, agent-created subscriptions deliver as befo
   await processDueDeliveries({ deps: { deliveryRepo: rig.deliveryRepo, subscriptionRepo: rig.subscriptionRepo, envelopeStore: rig.envelopeStore, httpClient: rig.httpClient, signer, headers, clock: rig.clock } });
   assert.deepEqual(urls(rig), ["https://example.com/agent"]);
 });
+
+test("a pause policy over a repo that cannot release claims is refused before any row is claimed or charged", async () => {
+  const rig = makeRig();
+  const agentSub = await seed(rig, "agent", "agent");
+  await publish(rig, "event-1");
+  // Without releaseClaim a held row would stay leased with an attempt charged, so wiring the switch
+  // to such an adapter is a configuration error that must surface instead of silently costing attempts.
+  const deliveryRepo = Object.assign(Object.create(Object.getPrototypeOf(rig.deliveryRepo) as object), rig.deliveryRepo) as typeof rig.deliveryRepo;
+  Object.defineProperty(deliveryRepo, "releaseClaim", { value: undefined });
+  const signer = createFixedSecretSigner({ secrets: new Map([[agentSub.id, Buffer.from("k")]]), vocabulary });
+
+  await assert.rejects(processDueDeliveries({
+    deps: { deliveryRepo, subscriptionRepo: rig.subscriptionRepo, envelopeStore: rig.envelopeStore, httpClient: rig.httpClient, signer, headers, clock: rig.clock },
+  }, { isAgentEnabled: () => false }), /releaseClaim/);
+
+  const [row] = await rig.deliveryRepo.listBySubscription({ workspaceId: "workspace-1", subscriptionId: agentSub.id, limit: 10 });
+  assert.equal(row?.status, "pending");
+  assert.equal(row?.attempts, 0);
+  assert.deepEqual(urls(rig), []);
+});
+
+test("a held agent delivery keeps its attempt count unchanged across several paused ticks", async () => {
+  const rig = makeRig();
+  const agentSub = await seed(rig, "agent", "agent");
+  await publish(rig, "event-1");
+  for (let index = 0; index < 3; index += 1) {
+    await tick(rig, [agentSub]);
+    rig.advanceMs(120_000);
+  }
+  const [held] = await rig.deliveryRepo.listBySubscription({ workspaceId: "workspace-1", subscriptionId: agentSub.id, limit: 10 });
+  assert.equal(held?.status, "pending");
+  assert.equal(held?.attempts, 0);
+  assert.deepEqual(urls(rig), []);
+});
