@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { AdminTrashItemDto } from "@jini-ai/core/contracts/site/cms-trash";
 
-import { actorLabel, coverageLine, describePurgeReport, describeRestoreReport, entityTypeLabel, itemSubtitle } from "./rules";
+import { actorLabel, coverageLine, describePurgeReport, describeRestoreReport, entityTypeLabel, itemSubtitle } from "./rules.js";
 
 /** Marks every key it translated, so the tests prove the injected translator is the only source of copy. */
 const translate = (key: string): string => `«${key}»`;

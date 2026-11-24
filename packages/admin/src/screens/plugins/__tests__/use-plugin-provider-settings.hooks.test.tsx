@@ -2,8 +2,8 @@
 import { act, renderHook, waitFor } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 
-import { usePluginProviderSettings } from "../hooks/use-plugin-provider-settings.hooks";
-import type { PluginsPort } from "../hooks/plugins-port.hooks";
+import { usePluginProviderSettings } from "../hooks/use-plugin-provider-settings.hooks.js";
+import type { PluginsPort } from "../hooks/plugins-port.hooks.js";
 
 /** The host's describer, faked so the tests can tell it was the one consulted. */
 const describeApiError = ({ e, fallback }: { e: unknown; fallback: string }): string => `described(${String(e)}|${fallback})`;

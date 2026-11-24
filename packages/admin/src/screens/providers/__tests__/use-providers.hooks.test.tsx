@@ -2,7 +2,7 @@
 import { renderHook } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 
-import { useProviders } from "../hooks/use-providers.hooks";
+import { useProviders } from "../hooks/use-providers.hooks.js";
 
 describe("useProviders", () => {
   it("composes only the injected External MCP controller, once per render", () => {
