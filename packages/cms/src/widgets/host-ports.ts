@@ -3,6 +3,7 @@ import type { OutboxPort } from "@jini-ai/core/contracts/events";
 import type { createEntry, updateEntry, importEntry, toEntryOutbox } from "../entries/index.js";
 import type { registerContentType, toContentTypeOutbox, IndexProvisionerPort } from "../content-types/index.js";
 import type { findMediaByIdOrSlug, getLatestTransformDefinition } from "../media/index.js";
+import type { resolveMediaCaptionsTrack } from "../media/site/public-path.js";
 import type { PostStatus, PublicPostKind } from "../core/post-vocabulary.js";
 import type { EntryRefRow } from "./ports.js";
 
@@ -88,6 +89,9 @@ export interface WidgetHostPorts {
     findMediaByIdOrSlug: typeof findMediaByIdOrSlug;
     getLatestTransformDefinition: typeof getLatestTransformDefinition;
     publicTransformName: string;
+    /** G7-9: resolves a video/audio asset's `captions` reference to its public WebVTT track. Optional
+     *  so a host that never binds it keeps rendering players exactly as before (no `<track>`). */
+    resolveMediaCaptionsTrack?: typeof resolveMediaCaptionsTrack;
   };
   entryRefs: {
     extract(required: {

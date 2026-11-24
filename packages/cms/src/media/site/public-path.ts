@@ -1,5 +1,10 @@
 import { mediaFileExtension } from "../import/index.js";
 import { isValidMediaSlugFormat } from "../slug.js";
+import type { MediaRepoPort } from "../ports.js";
+import type { MediaCaptionsTrack } from "../types.js";
+
+// The only caption format the public `<track>` guard accepts (its URL must end in `.vtt`).
+const WEBVTT_CONTENT_TYPE = "text/vtt";
 
 /**
  * @file The one place that decides whether a `/m/...` URL is keyed by a media asset's id or its
@@ -62,4 +67,42 @@ export function mediaPublicPath({ key, variant, sha256 }: { key: string; variant
   const suffix = sha256 ? `?v=${encodeURIComponent(sha256.slice(0, 12))}` : "";
   if (variant.kind === "original") return `/m/${encodedKey}/original.${mediaFileExtension({ contentType: variant.contentType })}${suffix}`;
   return `/m/${encodedKey}/${encodeURIComponent(variant.name)}.v${variant.version}/image.${variant.ext}${suffix}`;
+}
+
+/** The two lookups {@link resolveMediaCaptionsTrack} needs — structural so any repo/store (SQLite,
+ *  Postgres, in-memory) binds without this module importing a host adapter. */
+export interface MediaCaptionsTrackDeps {
+  readonly mediaRepo: Pick<MediaRepoPort, "findById">;
+  readonly mediaContentTypeStore: { getMany(required: { workspaceId: string; sha256s: readonly string[] }): Promise<ReadonlyMap<string, string>> };
+}
+
+/** A captions reference resolved to the public track a player renders (G7-9). */
+export interface ResolvedMediaCaptionsTrack {
+  readonly src: string;
+  readonly srclang: string;
+  readonly label: string | null;
+}
+
+/**
+ * Resolves a video/audio asset's stored {@link MediaCaptionsTrack} (a sibling asset id) to that
+ * asset's public `/m/{key}/original.vtt` URL, its language and label. Fails closed to `null` when
+ * there is no reference, the asset is gone or not active, or its recorded bytes are not WebVTT —
+ * the player then renders exactly as an uncaptioned one. The public renderer still re-validates the
+ * URL (`widgets/caption-track.ts`); this stage only decides which asset, never trusts it blindly.
+ *
+ * @complexity O(1) lookups (one record read, one content-type read).
+ */
+export async function resolveMediaCaptionsTrack(
+  { deps, input }: { deps: MediaCaptionsTrackDeps; input: { workspaceId: string; captions: MediaCaptionsTrack | null | undefined } },
+  _optional: Record<string, never> = {},
+): Promise<ResolvedMediaCaptionsTrack | null> {
+  const { workspaceId, captions } = input;
+  if (!captions) return null;
+  const record = await deps.mediaRepo.findById({ workspaceId, id: captions.assetId });
+  if (!record || record.status !== "active") return null;
+  const sha256 = record.source.sha256;
+  const types = await deps.mediaContentTypeStore.getMany({ workspaceId, sha256s: [sha256] });
+  if (types.get(sha256) !== WEBVTT_CONTENT_TYPE) return null;
+  const src = mediaPublicPath({ key: mediaUrlKey(record), sha256, variant: { kind: "original", contentType: WEBVTT_CONTENT_TYPE } });
+  return { src, srclang: captions.srclang, label: captions.label ?? null };
 }

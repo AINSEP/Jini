@@ -3,6 +3,7 @@ import { isPlausibleMediaRefId } from "./markers/media-reference.js";
 import type { WidgetHostPorts, MediaContentTypeStorePort } from "./host-ports.js";
 import type { MediaRepoPort, TransformDefinitionRepoPort } from "../media/index.js";
 import type { PageHtmlEmbedRef } from "./html/html-embeds.js";
+import type { JsonObject } from "@jini-ai/core/primitives";
 import type { WidgetRenderIR, WidgetResolveContext } from "./types.js";
 import type { ResolveHtmlPageEmbedsDeps } from "./resolver-contracts.js";
 
@@ -155,7 +156,19 @@ function isPlayerContentType(contentType: string | undefined): contentType is st
   return contentType?.startsWith("video/") === true || contentType?.startsWith("audio/") === true;
 }
 
-function playerMediaIr({ canonicalAssetId, record, contentType }: { canonicalAssetId: string; record: ResolvedMediaRecord; contentType: string }): WidgetRenderIR {
+/** The player's resolved WebVTT track (G7-9) through the host-injected lookup, or `null` with no
+ *  `captions` reference, no bound lookup, no content-type store, or an asset that is not a live `.vtt`. */
+async function lookupCaptionsTrack(
+  { record, context, host }: { record: ResolvedMediaRecord; context: WidgetResolveContext; host: Pick<WidgetHostPorts, "media"> },
+  { mediaRepo, mediaContentTypeStore }: { mediaRepo: MediaRepoPort; mediaContentTypeStore?: MediaContentTypeStorePort | undefined },
+): Promise<JsonObject | null> {
+  const resolve = host.media.resolveMediaCaptionsTrack;
+  if (!record.captions || !resolve || !mediaContentTypeStore) return null;
+  const track = await resolve({ deps: { mediaRepo, mediaContentTypeStore }, input: { workspaceId: context.workspaceId, captions: record.captions } });
+  return track ? { src: track.src, srclang: track.srclang, label: track.label } : null;
+}
+
+function playerMediaIr({ canonicalAssetId, record, contentType, captionsTrack }: { canonicalAssetId: string; record: ResolvedMediaRecord; contentType: string; captionsTrack: JsonObject | null }): WidgetRenderIR {
   return {
     componentId: "media-image",
     props: {
@@ -168,6 +181,8 @@ function playerMediaIr({ canonicalAssetId, record, contentType }: { canonicalAss
       height: record.height,
       cssClass: record.cssClass,
       htmlAttributes: record.htmlAttributes,
+      // Only a resolved track adds the prop, so an uncaptioned player's IR stays byte-identical.
+      ...(captionsTrack ? { captionsTrack } : {}),
     },
   };
 }
@@ -211,7 +226,8 @@ async function resolveOneMediaEmbed(
     // `/m/{assetId}/original` (the byte-passthrough route — see that route's own doc for why
     // video can't go through the image-transform pipeline below), so `transformName`/`version`
     // would be unused props for this IR.
-    return { assetId: refAssetId, ir: playerMediaIr({ canonicalAssetId, record, contentType }) };
+    const captionsTrack = await lookupCaptionsTrack({ record, context, host }, { mediaRepo, mediaContentTypeStore });
+    return { assetId: refAssetId, ir: playerMediaIr({ canonicalAssetId, record, contentType, captionsTrack }) };
   }
 
   const ir = await buildMediaImageIr(canonicalAssetId, transformName, transformRepo, record, context, host);
