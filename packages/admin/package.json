@@ -891,6 +891,7 @@
         "./screens/observability/recent-errors-panel": "browser",
         "./screens/observability/recent-errors-rules": "browser",
         "./screens/observability/tool-gaps-panel": "browser",
+        "./screens/email/hooks/use-email-template-view.hooks": "browser",
         "./screens/media/hooks/use-media-card-metadata.hooks": "media"
       }
     },

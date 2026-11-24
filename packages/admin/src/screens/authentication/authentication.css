@@ -163,11 +163,11 @@
 
 /* --- from styles/settings.css --- */
 :where(:root:not([data-admin-theme]), :root[data-admin-theme="classic"]) .jini-settings-ui-section[data-theme="light"] {
-  --jini-bg-panel: var(--surface);
-  --jini-bg-elevated: var(--surface);
+  --jini-bg-panel: var(--jini-admin-surface);
+  --jini-bg-elevated: var(--jini-admin-surface);
   /* This panel stays light in a dark admin, where the inherited `--selected-text` is the dark
      theme's lighter orange (3:1 on white). `--primary` holds 4.5:1 on white in both themes. */
-  --selected-text: var(--primary);
+  --selected-text: var(--jini-admin-primary);
 }
 
 :where(:root[data-admin-accent="light"]:not([data-admin-theme]), :root[data-admin-accent="light"][data-admin-theme="classic"]) .jini-settings-ui-section[data-theme="light"] {
