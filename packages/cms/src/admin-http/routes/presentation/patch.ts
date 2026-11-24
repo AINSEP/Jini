@@ -1,7 +1,8 @@
 import { defineJsonRoute, ok } from "@jini-ai/core/contracts/server";
 import { rejectRoute } from "@jini-ai/core/errors/route-refusal";
 
-import { PresentationSettingsNotFoundError, PresentationSettingsValidationError, type PresentationSettingsRecord } from "../../../presentation/index.js";
+import { PresentationSettingsNotFoundError, PresentationSettingsValidationError } from "../../../presentation/presentation.js";
+import type { PresentationSettingsRecord } from "../../../presentation/presentation.js";
 import { authorizeThemeSet, type PresentationRoutePrincipal, type PresentationThemeView } from "./shared.js";
 
 /**

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { PresentationSettingsNotFoundError, PresentationSettingsValidationError } from "../../../../presentation/index.js";
+import { PresentationSettingsNotFoundError, PresentationSettingsValidationError } from "../../../../presentation/presentation.js";
 import { presentationPatchRoute, type PresentationPatchRouteDeps } from "../patch.js";
 import { fakeTheme, PRINCIPAL, recordingAuthorize, refusalOf, signal, WORKSPACE_ID } from "./helpers.js";
 
