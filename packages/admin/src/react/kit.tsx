@@ -262,7 +262,16 @@ export interface SelectDropdownController {
   selectOption: (option: WidgetSelectOption) => void; handleTriggerKeyDown: (event: ReactKeyboardEvent<HTMLButtonElement>) => void;
   handlePanelKeyDown: (event: ReactKeyboardEvent<HTMLDivElement>) => void; optionId: (index: number) => string;
 }
+/**
+ * The host's bound admin locale hook: zero inputs, the current locale out. The host builds it once
+ * from `useAdminLocale` (`@jini-ai/admin/shell/hooks/use-admin-locale.hooks`) and passes the same
+ * function here and to every mount that declares a required `useAdminLocaleHook` prop.
+ */
+export type UseAdminLocaleHook = (required: Record<string, never>, optional?: Record<string, never>) => string;
+
 export interface AdminKitHooks {
+  /** The operator's admin locale; see {@link UseAdminLocaleHook}. */
+  useAdminLocale: UseAdminLocaleHook;
   useAgentHandle(required: AgentControlProps, optional?: Record<string, never>): string | undefined;
   useFocusTrap(required: { containerRef: RefObject<HTMLElement | null> }, optional?: { active?: boolean | undefined }): void;
   useDirtyGuard<T>(required: { current: T; original: T | null }, optional?: { translate?: Translate | undefined; host?: DirtyGuardHostPort | undefined }): DirtyGuard;

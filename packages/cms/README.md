@@ -171,6 +171,131 @@ mounts one with `mountJsonRoute({ app, spec, deps })` from `@jini-ai/http-kit`, 
 and its `authorize` port. Redirect by-id routes (get, hits, update, tombstone) authorize with
 `{ entityId }`; list and import stay id-free. Tests inject typed fakes through those same deps.
 
+Menus (`src/admin-http/routes/menus/*`; serializers in `src/admin-http/http/menus.ts`, the wire DTO
+declarations in `@jini-ai/core/contracts/site/cms-menus` so an admin client shares them): get-by-id,
+update-tree, assign-location and delete authorize `admin.menus.*` with `{ entityId }`; list and
+create stay id-free. The host injects what is its policy, not the engine's: `rawHtmlPermission`
+(the extra permission a write carrying HTML needs; update-tree asks it as a SEPARATE `authorize`
+call from `admin.menus.update`, and without `entityId` when the parsed id is empty, so a host may
+answer the two from different sources), `normalizeMenuHtml` (a Node host binds
+`normalizeMenuHtml` from `@jini-ai/cms/navigation/node`) and `trashMenu` (the host's trash move).
+Malformed bodies are refused in `parse` with the host's code-less `{ error }` body.
+
+System mail (`src/admin-http/routes/system/mail-{status,dns,test-send,activity}.ts`, guards in
+`mail-shared.ts`): the host binds every collaborator as a required function-typed dep — the live
+mailer predicate and cached status, the DNS operations, the recipient rules and plan-then-run send,
+the platform activity/suppression operations with a `classifyMailActivityError` mapper — plus the
+permission names. The test send's local duplicate/rate guard answers 429 with the same `{ sent, result }` body.
+Mail providers (`src/admin-http/routes/system/mail-providers.ts`: list, credential plan, activate) map the host's
+classified failures through `mailProviderRefusal`, which the host's hand-written credential save shares, so both
+answer from one status table.
+
+Sites (`src/admin-http/routes/sites/sites-home.ts`: `sitesConfigReadRoute`, `sitesHomeSetRoute` and the
+folder rules; `src/admin-http/routes/system/sites.ts`: `siteTokenSignInPluginsRoute`, `siteCreateRoute`,
+`siteActivateRoute`): the host injects the deployment gate, its sites workspace, a `SitesDirectoryProbe`
+(filesystem inspection) and the site-admin collaborators. Gates answer before authorization; folder and
+name refusals after it; feature refusals map by code to status.
+
+Saved credentials (`src/admin-http/routes/system/{source-control-credentials,custom-credentials}.ts`,
+`publish-credentials/*`, shared ladder in `credential-routes-shared.ts`): the host injects the credential
+store as functions and its error classes as `storeErrors`; the spec owns the status/code ladder
+(`ToolInputError` → 409 `KEY_IN_USE` first, unmapped rethrown for the host 500). It also injects the
+project-key attach, `prepareInvalidation`, the after-save probe, the account-label heal trigger and, for
+custom keys, `credentialKindOf(principal)`, `ownerPrincipalId()` and the Shared Keys copy. The publish list
+and custom list/update specs are tested but not yet mounted by Tovu (see its INFO.md).
+
+System deploy (`src/admin-http/routes/system/{deployment-overview,export-site}.ts`,
+`publish-site/{status,preview,targets}.ts`): every process-state read is an injected function —
+`buildSnapshot` and `defaultOwnerPassword` for the overview, `getRunSnapshot`/`startRun` (the host's single
+process-local export slot) for export, `getRunSnapshot`/`previewPublish`/`listTargets` for publish. The export
+trigger answers 202, refuses a second trigger with 409 `{ error, run }` and validates its body in `handle`
+(after auth and the running check) to keep the original order. Overview/export mount `direct`, publish `guarded`.
+
+Settings (`src/admin-http/routes/settings/{get-raw,get-effective,list-definitions,set,clear,reset,register-definitions}.ts`,
+`shared.ts`, `protected-namespaces.ts`): each body runs through `runSettingsRoute` in the order readiness
+(`settingsReady`), principal, protected-namespace write fence, body; each route's domain-error ladder is a
+`SettingsErrorRung` table and unmapped errors are rethrown to the host 500. The host injects a
+`settingsService` factory, `writeServiceDeps`, `resolveReadTarget` + `crossPrincipalReadPermission` and a
+`writeFence` (protected/code-owned namespaces with their copy); `touchesProtectedNamespaces` resolves names,
+renames, aliases and resets.
+Assistant owner grants (`src/admin-http/routes/system/assistant-owner-grant.ts` `createOwnerGrantRoutes({ path, policy })`
+→ `{ get, put }` specs, policies in `assistant-{permanent-deletes,subagents}.ts`) run through the same
+`runSettingsRoute`; the host injects the owner id, clock, setting writer, readiness and the per-grant policy
+(read projection, validation, acknowledgment rule, tool list).
+
+SEO (`src/admin-http/routes/seo/*`): get-entry, get-entry-analyze and put-entry authorize
+`admin.seo.manage` on `seo-entry` with `{ entityId }`; get/put-settings (`seo-settings`) and
+sitemap regenerate (`seo-sitemap`) stay id-free. Every spec first awaits the injected `seoReady`.
+The host injects its settings ledger (`readSeoSettings`, `writeSeoSettings`), the sitemap service,
+`invalidateSitemapCache` and `entryAuthorize` (the authorizer `setEntrySeoOverrides` re-checks with).
+The entry specs import `seo/cover-image`, so their entries are `node`.
+
+Media (`src/admin-http/routes/media/*`, DTO in `src/admin-http/http/media.ts`): update, trash and
+delete authorize `media.*` with `{ entityId }`; get/put providers stay id-free. The host injects the
+single-asset DTO lookups (recorded content type, public URL, byte size), its transactional trash flip
+(`removeMedia`), the reference-checked `purgeMedia` + `forgetRemovedMedia`, and the provider
+credential store with its save-error table (`saveErrorMappings`). Delete's 409 carries the
+`referencing` list. `update` imports the node-only media service, so its entry is `node`.
+
+Assistant (`src/admin-http/routes/assistant/*`): settings, visitor tools and the site/execution
+credentials share `shared.ts`; the execution probes (detect-agents, list-models, test-agent,
+test-connection) share `execution-shared.ts`. The host injects its permission name
+(`managePermission`/`manageAssistantPermission`), the settings ledger, the sealed credential stores,
+the visitor-tools service, each route's ordered error table (`errorMappings`, host classes and copy)
+and every probe that touches the agent runtime, a subprocess or the network (`detectAgents`,
+`testAgent`, `listModels`, `testConnection`, `resolveProbeCredential`). Body checks run in `handle`
+after authorization, keeping the routes' 403-before-400 order. No spec echoes a credential.
+
+Public OAuth callbacks (`src/public-http/routes/{api-connections,external-mcp}/oauth-callback.ts`) are
+HTML, not JSON, so they are core `ServerRoute` factories (`apiConnectionOAuthCallbackRoute(deps)`,
+`externalMcpOAuthCallbackRoute(deps)`), not `defineJsonRoute` specs. They read the host's request facts
+(`readRequestFacts`: client address for the limiter key, serving protocol, parsed query) from `locals`,
+so mount them through an adapter that puts the facts there. The host injects the page renderer with
+its copy (`renderPage`, typed `OAuthCallbackPageRenderer` from `@jini-ai/core/contracts/site/oauth-callback-page`,
+which also owns the closed `OAuthCallbackFailureReason` vocabulary), the `postMessage` type, the
+binding-cookie reader/clearer, the error-class predicates (`isApiConnectionError`, `isOAuthError`,
+`isUnknownServerError`), its API-connection runtime / external-MCP OAuth service, the roster fan-out,
+its public-origin policy and its logger. The external-MCP callback path and URL builder
+(`externalMcpOAuthCallbackUrl({ origin, serverId })`) live in `oauth-callback-url.ts`, shared with the
+host's connect route.
+
+External MCP admin (`src/admin-http/routes/external-mcp/*`): list, put, delete, admissions, tool-approvals and
+OAuth disconnect authorize `admin.integrations.manage` on `integration` with no `entityId` (the hand-written
+guard's rule). The host injects its server store, roster fan-out, built-in ownership rules and its error
+classes as predicates; the PUT body parser (`put-body.ts`) runs after authorization, as before.
+
+Agent plugins admin (`src/admin-http/routes/agent-plugins/{list,files,set-enabled}`, DTO helper in
+`src/admin-http/http/agent-plugins.ts`): set-enabled authorizes with `{ entityId }` on `agent-plugin`; the id-free
+checks pass `entityType: ""`. The host injects its plugin catalog, activation service, MCP provisioning,
+package-file reader, error-class predicates and its activation-conflict copy. The hosted sign-in hop
+(`connection-sign-in.ts`, a 302 + binding cookie) is a `ServerRoute` factory: the host injects its path, its
+session-credential readers, the handoff store, the cookie rule and its failure page.
+
+Recovery and database ceremonies (`src/admin-http/routes/recovery/{status,restore}`,
+`src/admin-http/routes/database/migrate-forward`): status takes the cost-class probe, site status,
+the operation-lock peek and `resolveDegradedBanner` as deps. The restore and migrate-forward
+plan/confirm/execute specs own the body checks, the AUD-001 order (execute pre-authorizes through
+the injected instance-scoped check before reading the body or taking the lock) and the
+error → status tables; the host injects each gateway/orchestrator step, the database package's
+refusal classes, and `missingPrincipalMessage` (its own missing-session diagnosis). Bodies are
+validated in `handle`, after the principal, because the hand-written routes did so.
+
+Publish-content (`src/admin-http/routes/publish-content/{peers,destination}`, guards in
+`transport-shared`, report DTOs in `src/admin-http/http/publish-content.ts`): the host injects the
+peer store, connected-peer lookup, deploy-config candidate, publishable types, connect/disconnect
+handshake and its typed error classes; the specs own the status/code tables and the
+credential-free views. Routes that read the request's credential kind or publish-trust grant
+(import, backstop, bundle-create, export, capabilities, peer-transport) and the byte/stream
+routes stay host-side until the host ports carry that context.
+
+Plugins (`src/admin-http/routes/plugins/*`): cms does not depend on `@jini-ai/plugins`; the host
+injects discovery, the activation lookup, `toAdminPluginResponse`, the uninstall move, the preview
+filter, the hook-failure envelope and the error classes each ladder maps.
+`set-enabled` runs the cms `executeCommand` gateway with a host-injected raw `authorizeCommand` (the
+gateway names the `plugin-activation` entity itself and its `ForbiddenError` maps to 403 `FORBIDDEN`
+with `details`); the host binds the plugin engine's `setPluginEnabled`, tool-access lowering, approval
+recording, tracker and serializer, and the eight `setEnabledErrors` classes.
+
 ## Scripts
 
 ```bash

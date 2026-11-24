@@ -103,6 +103,31 @@ They own no state: the host's editor hook passes the values, their setters and `
 props. Labels carry the `jini-field-label` class (inside `jini-post-publishing__field`); the host
 stylesheet styles that class, so no bare host class names leak into the package.
 
+**Two HTTP clients, one set of stages.** Both live in this package and share the fetch-failure
+classification, JSON body parse and app-envelope rule in `core/transport/http.ts`:
+
+- `createHttpTransport` (`@jini-ai/admin/core`) is the route-group `AdminTransport`. Use it when a
+  host assembles route groups with `createAdminClient`: neutral copy, `AdminApiError`, no retry.
+- `createAdminHttp` (`@jini-ai/admin/shell/lib/admin-http/request`) is the host session client.
+  Use it for the host's own screens when requests must ride out a server restart (one retry),
+  report session invalidation (`401` + `UNAUTHENTICATED` only), and publish a final failure notice.
+  The host calls it **once** and exports the bound operations from its own request module. Every
+  port is required: `fetch`, `timeoutSignal`, `isPageUnloading`, `resolveBasePath`,
+  `isUpstreamRefused`, `decodeApiError`, `createError` (the host's error class; Core's
+  `AdminApiError` fits `AdminHttpError`), `isRequestError`, `messages`, `reconnect`, `shouldRetry`,
+  `sessionInvalidated`, `getFailureGeneration`, `reportFailure`. The factory defines no error class,
+  no copy and no failure vocabulary. Per-call options are `AdminHttpOptions` from
+  `@jini-ai/core/admin-runtime`.
+
+Converging the two into one transport is a follow-up (P12 ledger), not part of this cut.
+
+**Admin locale.** `useAdminLocale(required)` (`@jini-ai/admin/shell/hooks/use-admin-locale.hooks`)
+takes every collaborator from the host: the `AdminLocalePort` (load + namespace-filtered refresh,
+both `(required, optional?)`), `useBootScope`, the host's `useFetchQuery`/`useInvalidate`, the
+`queryPrefix` and the `fallbackLocale`. The host binds it **once** into a zero-input
+`UseAdminLocaleHook` and passes that same function to `AdminKitHooks.useAdminLocale` and to every
+mount whose required `useAdminLocaleHook` prop needs it. There is no default hook in this package.
+
 ## Errors
 
 Route groups throw `AdminApiError` (`status`, `code`, raw `body`). There is deliberately **no**
