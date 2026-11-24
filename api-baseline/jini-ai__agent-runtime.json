@@ -543,7 +543,8 @@
  "./inventory": {
   "types": "./dist/inventory/index.d.ts",
   "symbols": {
-   "AgentRuntimePorts": "interface:5671398c0c",
+   "AgentRuntimePorts": "interface:7a5f9877ae",
+   "OrFallback": "type:11211ad310",
    "createAgentInventory": "function:fbb60b2938",
    "summarizeAgent": "function:9d3fdd054f"
   }

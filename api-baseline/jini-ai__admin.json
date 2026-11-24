@@ -31,6 +31,8 @@
    "AdminEntityRowViolation": "interface:a602eca6f3",
    "AdminEntityScalarField": "type:8ed3aee40f",
    "AdminErasedEntityPort": "interface:ec2b30747b",
+   "AdminExportRunSnapshot": "interface:daf592873b",
+   "AdminExportRunStatus": "type:e3f289fd46",
    "AdminExtensionEnabledResult": "interface:13ffe76aa7",
    "AdminExtensionsPort": "interface:f2915cb368",
    "AdminFetch": "type:08812d8ade",
@@ -90,6 +92,9 @@
    "AdminRoute": "interface:e7a68c5086",
    "AdminRouteGroupFactory": "type:ad9637ab95",
    "AdminRoutePattern": "interface:35cc3a4ed0",
+   "AdminSchemaDriftStatus": "type:96054dbdbd",
+   "AdminSchemaSnapshot": "interface:ab9b270569",
+   "AdminSchemaState": "interface:dd406faa56",
    "AdminSeoAnalysis": "interface:65db9a8b3a",
    "AdminSeoEntryChoice": "interface:0a08885354",
    "AdminSeoIssue": "interface:6f9dae68bb",
@@ -380,6 +385,8 @@
    "AdminEntityRowViolation": "interface:a602eca6f3",
    "AdminEntityScalarField": "type:8ed3aee40f",
    "AdminErasedEntityPort": "interface:ec2b30747b",
+   "AdminExportRunSnapshot": "interface:daf592873b",
+   "AdminExportRunStatus": "type:e3f289fd46",
    "AdminExtensionEnabledResult": "interface:13ffe76aa7",
    "AdminExtensionsPort": "interface:f2915cb368",
    "AdminFetch": "type:08812d8ade",
@@ -439,6 +446,9 @@
    "AdminRoute": "interface:e7a68c5086",
    "AdminRouteGroupFactory": "type:ad9637ab95",
    "AdminRoutePattern": "interface:35cc3a4ed0",
+   "AdminSchemaDriftStatus": "type:96054dbdbd",
+   "AdminSchemaSnapshot": "interface:ab9b270569",
+   "AdminSchemaState": "interface:dd406faa56",
    "AdminSeoAnalysis": "interface:65db9a8b3a",
    "AdminSeoEntryChoice": "interface:0a08885354",
    "AdminSeoIssue": "interface:6f9dae68bb",
@@ -542,6 +552,35 @@
    "bindReact": "function:3eecca7227",
    "reactModuleUi": "variable:cf64adfac0",
    "useController": "function:52b9de3f2d"
+  }
+ },
+ "./deployment/deployment-i18n": {
+  "types": "./dist/deployment/deployment-i18n.d.ts",
+  "symbols": {
+   "DeploymentHostDictionary": "type:55fd960d75",
+   "createDeploymentTranslator": "function:b0367019b3",
+   "deploymentOverviewLoadErrorMessage": "function:6c9944cbed",
+   "dockerfileLineCountLabel": "function:cb0f880339",
+   "dockerfileLoadErrorMessage": "function:31c3730909",
+   "dockerfileSaveErrorMessage": "function:b50c5042f1",
+   "exportLoadErrorMessage": "function:49f8fa7764",
+   "exportPollErrorMessage": "function:8da0cc64d5",
+   "exportTriggerErrorMessage": "function:c97a4a6fd5",
+   "publishCredentialSaveErrorMessage": "function:3d107ee50f",
+   "publishCredentialSelectErrorMessage": "function:46cf333c2a",
+   "publishCredentialVerifyErrorMessage": "function:ef777d36a8",
+   "publishCredentialsLoadErrorMessage": "function:3e7d920f84",
+   "publishLoadErrorMessage": "function:239a3236bf",
+   "publishPollErrorMessage": "function:dc67776b24",
+   "publishPreviewErrorMessage": "function:92689cbddb",
+   "publishTriggerErrorMessage": "function:ff0e8d7af6"
+  }
+ },
+ "./deployment/Deployment.hooks": {
+  "types": "./dist/deployment/Deployment.hooks.d.ts",
+  "symbols": {
+   "NavigateToRoute": "type:313e1519ad",
+   "navigateDeploymentTab": "function:ac5e1c5f8a"
   }
  },
  "./forms": {
@@ -784,6 +823,43 @@
   "symbols": {
    "PostPublishAtField": "function:416681cd31",
    "PostPublishAtFieldProps": "interface:3452e73d7a"
+  }
+ },
+ "./publish-content/screen/hooks/publish-availability.store": {
+  "types": "./dist/publish-content/screen/hooks/publish-availability.store.d.ts",
+  "symbols": {
+   "PublishToLiveAvailabilityStore": "interface:0d9fd79a04",
+   "createPublishToLiveAvailabilityStore": "function:8a460dc988",
+   "readPublishToLiveAvailability": "function:7bffe3f096"
+  }
+ },
+ "./publish-content/screen/hooks/publish-request.store": {
+  "types": "./dist/publish-content/screen/hooks/publish-request.store.d.ts",
+  "symbols": {
+   "OpenPublishRequest": "interface:cde49a443f",
+   "PublishRequestStore": "interface:eeb24549ab",
+   "PublishRequestStoreHost": "interface:0897cb206d",
+   "createPublishRequestStore": "function:735456f5ae"
+  }
+ },
+ "./publish-content/screen/hooks/use-publish-section-button.hooks": {
+  "types": "./dist/publish-content/screen/hooks/use-publish-section-button.hooks.d.ts",
+  "symbols": {
+   "PublishSectionButtonController": "interface:0cd57d2221",
+   "PublishSectionButtonHost": "interface:4a4c06fe51",
+   "PublishSectionButtonSection": "interface:7e6de37f4a",
+   "usePublishSectionButton": "function:3ad2fd2558"
+  }
+ },
+ "./publish-content/screen/publish-scope": {
+  "types": "./dist/publish-content/screen/publish-scope.d.ts",
+  "symbols": {
+   "PublishScopeRuleArgs": "interface:0cdb6026dd",
+   "PublishScopeSection": "interface:858217c6d7",
+   "PublishScopeSlice": "interface:4fbfbfe0d1",
+   "PublishSectionForEntityTypes": "type:98d1237de2",
+   "publishScopeDescriptionKey": "function:6adb48ee8e",
+   "publishScopeTitleKey": "function:b0b344436d"
   }
  },
  "./react": {
@@ -1152,6 +1228,69 @@
    "fixtureQuery": "function:725c0d932a"
   }
  },
+ "./recovery/hooks/recovery-port.hooks": {
+  "types": "./dist/recovery/hooks/recovery-port.hooks.d.ts",
+  "symbols": {
+   "RecoveryPort": "interface:9faf403cbe"
+  }
+ },
+ "./recovery/hooks/restore-flow-port.hooks": {
+  "types": "./dist/recovery/hooks/restore-flow-port.hooks.d.ts",
+  "symbols": {
+   "RestoreFlowPort": "interface:ac6d546381"
+  }
+ },
+ "./recovery/hooks/use-recovery-navigation.hooks": {
+  "types": "./dist/recovery/hooks/use-recovery-navigation.hooks.d.ts",
+  "symbols": {
+   "RecoveryNavigationPort": "interface:8b32314367",
+   "useRecoveryNavigation": "function:ee18011590"
+  }
+ },
+ "./recovery/hooks/use-recovery.hooks": {
+  "types": "./dist/recovery/hooks/use-recovery.hooks.d.ts",
+  "symbols": {
+   "RecoveryController": "interface:bbb8d22575",
+   "RecoveryDependencies": "interface:df8b712306",
+   "RecoveryHost": "interface:3d0ff13409",
+   "useRecovery": "function:1a075e75ad"
+  }
+ },
+ "./recovery/hooks/use-restore-flow.hooks": {
+  "types": "./dist/recovery/hooks/use-restore-flow.hooks.d.ts",
+  "symbols": {
+   "CeremonyStep": "type:fbdc115b90",
+   "RestoreFlowArgs": "interface:9189747bcf",
+   "RestoreFlowController": "interface:01c1c92770",
+   "RestoreFlowHost": "interface:15d5a088fa",
+   "useRestoreFlow": "function:c024053a8f"
+  }
+ },
+ "./recovery/recovery-i18n": {
+  "types": "./dist/recovery/recovery-i18n.d.ts",
+  "symbols": {
+   "DiscardCountLineClassNames": "interface:feef5e0f17",
+   "baselineUnavailableMessage": "function:d46936cabb",
+   "discardCountLine": "function:3d091eff96",
+   "restoreDoneMessage": "function:de797c6ef1",
+   "restorePlanReadyMessage": "function:99f4f8f05a",
+   "sinceDiscardMessage": "function:3ef45837b0",
+   "t": "variable:44d298bf90"
+  }
+ },
+ "./recovery/rules": {
+  "types": "./dist/recovery/rules.d.ts",
+  "symbols": {
+   "DeepLinkEnvelopeParseResult": "type:e9c2a34149",
+   "RECOVERY_RESOURCE": "variable:ad3ae4d9cd",
+   "categoryLabel": "function:ed221e27ab",
+   "costClassLabel": "function:1d7c8a451d",
+   "isAssertiveRecoveryBanner": "function:213c3d42bd",
+   "parseDeepLinkEnvelope": "function:36edcdda06",
+   "recoveryBannerTone": "function:3e93fc2dd6",
+   "restoreButtonAccessibleName": "function:b94de91845"
+  }
+ },
  "./redirects": {
   "types": "./dist/redirects/index.d.ts",
   "symbols": {
@@ -1288,6 +1427,74 @@
    "CommentsSettings": "interface:822d1ed6ee"
   }
  },
+ "./screens/database/database-i18n": {
+  "types": "./dist/screens/database/database-i18n.d.ts",
+  "symbols": {
+   "planReadyMessage": "function:1a2b8d69aa",
+   "t": "variable:44d298bf90"
+  }
+ },
+ "./screens/database/hooks/migrate-forward-section-port.hooks": {
+  "types": "./dist/screens/database/hooks/migrate-forward-section-port.hooks.d.ts",
+  "symbols": {
+   "MigrateForwardSectionPort": "interface:7ffc0a4ee1"
+  }
+ },
+ "./screens/database/hooks/schema-state-section-port.hooks": {
+  "types": "./dist/screens/database/hooks/schema-state-section-port.hooks.d.ts",
+  "symbols": {
+   "SchemaStateSectionPort": "interface:a4844b6d9b"
+  }
+ },
+ "./screens/database/hooks/timeline-section-port.hooks": {
+  "types": "./dist/screens/database/hooks/timeline-section-port.hooks.d.ts",
+  "symbols": {
+   "TimelineSectionPort": "interface:ffc53ee5a9"
+  }
+ },
+ "./screens/database/hooks/use-migrate-forward-section.hooks": {
+  "types": "./dist/screens/database/hooks/use-migrate-forward-section.hooks.d.ts",
+  "symbols": {
+   "CeremonyStep": "type:fbdc115b90",
+   "MigrateForwardSectionController": "interface:3cff06d961",
+   "MigrateForwardSectionDependencies": "interface:9f52261932",
+   "MigrateForwardSectionHost": "interface:a97dffdb97",
+   "useMigrateForwardSection": "function:c217396625"
+  }
+ },
+ "./screens/database/hooks/use-schema-state-section.hooks": {
+  "types": "./dist/screens/database/hooks/use-schema-state-section.hooks.d.ts",
+  "symbols": {
+   "SchemaStateSectionController": "interface:ce197f4b78",
+   "SchemaStateSectionDependencies": "interface:0e14a927e4",
+   "SchemaStateSectionHost": "interface:23086eabbb",
+   "useSchemaStateSection": "function:0fea5283c1"
+  }
+ },
+ "./screens/database/hooks/use-timeline-section.hooks": {
+  "types": "./dist/screens/database/hooks/use-timeline-section.hooks.d.ts",
+  "symbols": {
+   "RecoveryDeepLinkNavigate": "type:96650786d3",
+   "TimelineCursorPages": "interface:2eb7209ce0",
+   "TimelineCursorPagesRequired": "interface:2e10279af5",
+   "TimelineFilters": "interface:a8166056c8",
+   "TimelineSectionController": "interface:6af0c5daa0",
+   "TimelineSectionDependencies": "interface:9648cc9089",
+   "TimelineSectionHost": "interface:356e08aac5",
+   "navigateToRecoveryWithDeepLink": "function:2784bcd14c",
+   "useTimelineSection": "function:778df0bf65"
+  }
+ },
+ "./screens/database/rules": {
+  "types": "./dist/screens/database/rules.d.ts",
+  "symbols": {
+   "KEYS": "variable:7a7bcb73a9",
+   "SchemaStateWarning": "interface:3dd5944f7c",
+   "SchemaStateWarningTone": "type:2a728d5ff4",
+   "resolveSchemaStateWarning": "function:67d2beb823",
+   "viewInRecoveryAccessibleName": "function:8ec606fbbf"
+  }
+ },
  "./screens/forms/api/forms-api.types": {
   "types": "./dist/screens/forms/api/forms-api.types.d.ts",
   "symbols": {
@@ -1317,6 +1524,59 @@
   "types": "./dist/screens/forms/index-aligned-translations.d.ts",
   "symbols": {
    "indexAlignedTranslations": "function:d550dfff6b"
+  }
+ },
+ "./screens/import-export/git-backup-rules": {
+  "types": "./dist/screens/import-export/git-backup-rules.d.ts",
+  "symbols": {
+   "EMPTY_GIT_BACKUP_FORM": "variable:1b35507992",
+   "GitBackupForm": "interface:13724faa3c",
+   "backupConnectionLabels": "function:8c6442b183",
+   "gitBackupFormReady": "function:c68149bb20",
+   "gitBackupPlanInput": "function:0dc2cd99ff",
+   "gitBackupRefusalMessage": "function:b88c04ab85",
+   "isGitBackupInProgress": "function:ab054e96b5",
+   "isGitBackupPlan": "function:3e1c59e4ee",
+   "isGitBackupPushed": "function:4ff54b2574"
+  }
+ },
+ "./screens/import-export/hooks/git-backup-port.hooks": {
+  "types": "./dist/screens/import-export/hooks/git-backup-port.hooks.d.ts",
+  "symbols": {
+   "GitBackupPlan": "interface:907d3b2cc4",
+   "GitBackupPlanInput": "interface:ea29a38249",
+   "GitBackupPort": "interface:8972a6beef",
+   "GitBackupProgress": "interface:4dc67eb7bd",
+   "GitBackupPushResult": "type:a9351c603a",
+   "GitBackupRefusal": "interface:8d87eb4340",
+   "createFakeGitBackupPort": "function:0d98837577"
+  }
+ },
+ "./screens/import-export/hooks/use-git-backup.hooks": {
+  "types": "./dist/screens/import-export/hooks/use-git-backup.hooks.d.ts",
+  "symbols": {
+   "GIT_BACKUP_CONNECTIONS_KEY": "variable:2728872fb1",
+   "GitBackupController": "interface:340f1cb163",
+   "GitBackupHost": "interface:246aa7eb7d",
+   "GitBackupPhase": "type:f749b0e5b2",
+   "useGitBackup": "function:0df12a7c3c"
+  }
+ },
+ "./screens/import-export/hooks/use-import-export.hooks": {
+  "types": "./dist/screens/import-export/hooks/use-import-export.hooks.d.ts",
+  "symbols": {
+   "ImportExportTranslateHost": "interface:968169769e",
+   "SitesSectionAvailabilityHost": "interface:14c5f8f0dc",
+   "SitesSectionSnapshot": "interface:b6fdcd8b83",
+   "useImportExportTranslate": "function:1aa3752e23",
+   "useSitesSectionAvailable": "function:b0ea891483"
+  }
+ },
+ "./screens/import-export/import-export-i18n": {
+  "types": "./dist/screens/import-export/import-export-i18n.d.ts",
+  "symbols": {
+   "IMPORT_EXPORT_DICT": "variable:ac815a7279",
+   "t": "variable:44d298bf90"
   }
  },
  "./screens/menus/api/menus-api.types": {
@@ -2182,12 +2442,28 @@
    "runSourceControlApiConformance": "function:4085a73ade"
   }
  },
+ "./source-control/host/SourceControl.hooks": {
+  "types": "./dist/source-control/host/SourceControl.hooks.d.ts",
+  "symbols": {
+   "NavigateToRoute": "type:313e1519ad",
+   "navigateSourceControlTab": "function:c31c52997d"
+  }
+ },
  "./source-control/react": {
   "types": "./dist/source-control/react/index.d.ts",
   "symbols": {
    "SourceControlControllerContext": "variable:3de95c885e",
    "sourceControl": "function:c6c5b10301",
    "useSourceControlPorts": "function:ec50a270ef"
+  }
+ },
+ "./source-control/source-control-i18n": {
+  "types": "./dist/source-control/source-control-i18n.d.ts",
+  "symbols": {
+   "SourceControlHostDictionary": "type:b344810146",
+   "createSourceControlTranslator": "function:7b05d2f7e4",
+   "sourceControlCredentialSaveErrorMessage": "function:a68a9bde47",
+   "sourceControlCredentialsLoadErrorMessage": "function:dcbb52da86"
   }
  },
  "./themes/default/admin.css": {

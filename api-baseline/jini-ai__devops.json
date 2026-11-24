@@ -45,11 +45,29 @@
    "SiteBackupPushProgress": "interface:17e5c15a76"
   }
  },
+ "./backup/site/saved-keys-port": {
+  "types": "./dist/backup/site/saved-keys-port.d.ts",
+  "symbols": {
+   "ENCRYPTED_KEYS_DESCRIPTOR": "variable:1d47de8385",
+   "SAVED_KEYS_PATH": "variable:e4c5519f34",
+   "SiteSavedKeysPort": "interface:93429690ff"
+  }
+ },
  "./backup/site/share-export-failure": {
   "types": "./dist/backup/site/share-export-failure.d.ts",
   "symbols": {
    "SiteShareExportFailure": "class:481430087c",
    "SiteShareExportStep": "type:ee08280859"
+  }
+ },
+ "./backup/site/static-download-html": {
+  "types": "./dist/backup/site/static-download-html.d.ts",
+  "symbols": {
+   "DownloadHtmlSourceEdits": "interface:1085ea8803",
+   "Edit": "type:c020bb9e69",
+   "Element": "type:fb77b18513",
+   "downloadDocumentBase": "function:48d188f2d2",
+   "downloadForms": "function:6330245aeb"
   }
  },
  "./backup/upload": {
@@ -382,6 +400,66 @@
    "PublishRunResultProps": "interface:fa67bd1211"
   }
  },
+ "./deploy/site/agent-tools": {
+  "types": "./dist/deploy/site/agent-tools.d.ts",
+  "symbols": {
+   "AgentToolActorClassRule": "type:ef6ae62ddc",
+   "AgentToolDefinition": "type:b4d7d744be",
+   "AgentToolSideEffect": "type:11eb2b47d7",
+   "deploymentsAgentToolCatalog": "variable:9ddd7e91ed"
+  }
+ },
+ "./deploy/site/deploy-targets/types": {
+  "types": "./dist/deploy/site/deploy-targets/types.d.ts",
+  "symbols": {
+   "DeployCredentialCheck": "type:d569ad5fd7",
+   "DeployCredentialCheckContext": "type:ecd07541ac",
+   "DeployFetchTimeouts": "interface:0bd6dd21cd",
+   "DeployHostingSetup": "interface:90f6309d28",
+   "DeployTargetCreateContext": "type:4a6532bbb7",
+   "DeployTargetCredentialSpec": "interface:ee70a55b7f",
+   "DeployTargetDescriptor": "interface:d9c453427c",
+   "DeployTargetEnvFallback": "interface:76c18a6494",
+   "DeployTargetFieldSpec": "interface:4f80f4f847",
+   "DeployTargetInspection": "type:58bd8f07bb",
+   "DeployTargetModule": "type:8c2fad882f",
+   "DeployTargetProjectNameCopy": "interface:732c85b80c",
+   "DeployTargetRegistry": "type:bdb7f7e665",
+   "HostDeployPublishInput": "type:aaadd4dea0",
+   "HostDeployTarget": "interface:c58c133611",
+   "InstalledDeployTarget": "interface:050287c1a7",
+   "InstalledDeployTargetInventory": "interface:4bf984fc51",
+   "LoadInstalledDeployTargets": "type:421c5cac03",
+   "LoadedDeployTarget": "type:fd2cf15798",
+   "ResponseHeaderSet": "type:f7e60b66e3",
+   "SigV4Client": "interface:7b807ccce4",
+   "SigV4ClientOptions": "interface:cded8fe7ac"
+  }
+ },
+ "./deploy/site/dockerfile": {
+  "types": "./dist/deploy/site/dockerfile.d.ts",
+  "symbols": {
+   "DockerfileSourceSnapshot": "interface:3f8a5611ae",
+   "DockerfileWriteResult": "type:fe46faae73",
+   "readDockerfileSource": "function:63af9893e3",
+   "writeDockerfileSource": "function:c688acb2cb",
+   "writeDockerfileSourceWithIfMatch": "function:0e2c54cd53"
+  }
+ },
+ "./deploy/site/export-run": {
+  "types": "./dist/deploy/site/export-run.d.ts",
+  "symbols": {
+   "ExportEngine": "type:6fca04723b",
+   "ExportRunCounts": "interface:9466f113a8",
+   "ExportRunDiagnostics": "type:e16939cf74",
+   "ExportRunReportLike": "interface:97aac8e2a9",
+   "ExportRunSnapshot": "interface:d7718c7d15",
+   "ExportRunStatus": "type:40a5c173f5",
+   "ExportRunner": "interface:865f74cc58",
+   "StartExportRunOptions": "interface:f28372fa4b",
+   "createExportRunner": "function:26ede1445e"
+  }
+ },
  "./deploy/site/publish-credentials/account-label-heal-scheduler": {
   "types": "./dist/deploy/site/publish-credentials/account-label-heal-scheduler.d.ts",
   "symbols": {
@@ -391,6 +469,13 @@
    "idsNeedingAccountLabelHeal": "function:1dee8bf473"
   }
  },
+ "./deploy/site/publish-credentials/execution-mode": {
+  "types": "./dist/deploy/site/publish-credentials/execution-mode.d.ts",
+  "symbols": {
+   "PublishExecutionMode": "type:eeefd91d38",
+   "executionModeFromEnv": "function:ea2fde4f18"
+  }
+ },
  "./deploy/site/publish-credentials/types": {
   "types": "./dist/deploy/site/publish-credentials/types.d.ts",
   "symbols": {
@@ -398,6 +483,22 @@
    "PublishCredentialScope": "type:84f657504c",
    "PublishCredentialSummary": "interface:758efbc0b1",
    "PublishProviderId": "type:19a51e291b"
+  }
+ },
+ "./deploy/site/static-publish/domain-publish-rows": {
+  "types": "./dist/deploy/site/static-publish/domain-publish-rows.d.ts",
+  "symbols": {
+   "domainPublishRows": "function:9a4fbd15c2"
+  }
+ },
+ "./deploy/site/static-publish/types": {
+  "types": "./dist/deploy/site/static-publish/types.d.ts",
+  "symbols": {
+   "PublishCredentialSource": "interface:d95a991021",
+   "ResolvedPublishCredentialSuccess": "type:c8a98e2144",
+   "StaticPublishConfig": "interface:9d86e0a6b1",
+   "StaticPublishOutcome": "type:cb820bef93",
+   "StaticPublishTargetId": "type:da0f649d10"
   }
  },
  "./deploy/site/types": {
@@ -512,6 +613,69 @@
    "encodeNsQuery": "function:b2759e5242"
   }
  },
+ "./dns/site/binding.repo": {
+  "types": "./dist/dns/site/binding.repo.d.ts",
+  "symbols": {
+   "DomainBinding": "interface:93610f4b02",
+   "DomainBindingKernel": "interface:f7134cdc11",
+   "DomainBindingSqlTag": "interface:779e1f589e",
+   "DomainBindingStatus": "type:926b456352",
+   "DomainBindingStore": "interface:498f549e63",
+   "createDomainBindingStore": "function:802716cc48"
+  }
+ },
+ "./dns/site/dns-changes": {
+  "types": "./dist/dns/site/dns-changes.d.ts",
+  "symbols": {
+   "DnsChangePorts": "interface:c2c6f98690",
+   "DnsChangeRequest": "interface:3af4d05a79",
+   "DomainDnsBlocker": "interface:ec818ae6c5",
+   "DomainDnsInspection": "interface:6176bad9ce",
+   "DomainDnsPlan": "interface:6e55960cc8",
+   "DomainDnsVerifyResult": "interface:ae87623919",
+   "VERIFY_WRITE_ATTEMPTS": "variable:58494adb52",
+   "domainDnsInstructions": "function:1b81696329",
+   "inspectDomainDns": "function:f46f3b7e12",
+   "planDomainDns": "function:196c40d234",
+   "verifyDomainDns": "function:cfba4efc45",
+   "verifyDueDomainBindings": "function:9385510fd8"
+  }
+ },
+ "./dns/site/dns-tools": {
+  "types": "./dist/dns/site/dns-tools.d.ts",
+  "symbols": {
+   "buildDnsChangeRegistrations": "function:9f86ee7bb3",
+   "contributeDomainDnsAndChangeTools": "function:f9a3d13cae",
+   "dnsChangeAgentToolCatalog": "variable:9878a2ca86",
+   "dnsChangeDerivedRisk": "variable:f97088a5f9",
+   "readDnsChangeInput": "function:928b43d9e6"
+  }
+ },
+ "./dns/site/mail-dns-status": {
+  "types": "./dist/dns/site/mail-dns-status.d.ts",
+  "symbols": {
+   "MailDnsCheck": "interface:82196d4882",
+   "MailDnsNameserverView": "interface:aa7c75f7ee",
+   "MailDnsRecordStatus": "type:cbb2c1ddf5",
+   "MailDnsRecordView": "interface:e10d6327e9",
+   "MailDnsState": "type:7647a36af9",
+   "MailDnsStatus": "interface:29fdccf9e1",
+   "MailDnsStatusPorts": "type:b87d86191b",
+   "MailDnsTracking": "interface:3a39f036f0",
+   "mailDnsRecordStatus": "function:f7e738e69e",
+   "readMailDnsStatus": "function:054412cd6b",
+   "verifyMailDnsStatus": "function:4858b1581c"
+  }
+ },
+ "./dns/site/mail-dns-tools": {
+  "types": "./dist/dns/site/mail-dns-tools.d.ts",
+  "symbols": {
+   "buildMailDnsRegistrations": "function:182431c082",
+   "mailDnsAgentToolCatalog": "variable:84867e29e3",
+   "mailDnsDerivedRisk": "variable:ac1a8eaa15",
+   "mailDnsPorts": "function:87979c8472"
+  }
+ },
  "./dns/site/mail-requirements": {
   "types": "./dist/dns/site/mail-requirements.d.ts",
   "symbols": {
@@ -520,6 +684,24 @@
    "DnsRequirementInclude": "type:b43b8de708",
    "MailRequirementsPort": "type:695b9b461f",
    "withMailRequirements": "function:d1b7e19d64"
+  }
+ },
+ "./dns/site/tool-deps": {
+  "types": "./dist/dns/site/tool-deps.d.ts",
+  "symbols": {
+   "DnsChangeToolDeps": "interface:5d2e6fd2d5"
+  }
+ },
+ "./dns/site/tools": {
+  "types": "./dist/dns/site/tools.d.ts",
+  "symbols": {
+   "DomainDnsChecksPort": "interface:dc5a55eaca",
+   "DomainDnsToolDeps": "interface:f79497993f",
+   "PublicNameValidators": "interface:18ea272cba",
+   "buildDomainDnsRegistrations": "function:0e833c8045",
+   "domainDnsAgentToolCatalog": "variable:6e1b23641c",
+   "domainDnsDerivedRisk": "variable:a230b88922",
+   "toolInputPublicNames": "function:b44b4fb661"
   }
  },
  "./local-dev": {
@@ -636,13 +818,14 @@
    "MovePromptEnvironment": "interface:a406185542",
    "MovePromptMessages": "interface:27a8bf01e4",
    "MovePromptOutcome": "type:5d6aea0a5c",
+   "OrFallbackSync": "type:8d931724af",
    "ReadTextFile": "type:3f925eee21",
    "applicationsTargetPath": "function:c925bb19a7",
    "bundlePathFromExecPath": "function:297ea66fa0",
    "compareVersions": "function:da113e2ece",
    "decideMoveConflict": "function:0030c31efb",
    "movePromptSkipReason": "function:5055461493",
-   "readBundleVersion": "function:77d0b56a54",
+   "readBundleVersion": "function:b3f8d8c07c",
    "readDeclinedVersion": "function:29e4e2d9be",
    "recordDeclinedVersion": "function:e3c24561df",
    "runMoveToApplicationsPrompt": "function:8a047d7d45"
@@ -739,12 +922,69 @@
    "executeCommitSchema": "variable:796197dff5"
   }
  },
+ "./source-control/site/commit-target": {
+  "types": "./dist/source-control/site/commit-target.d.ts",
+  "symbols": {
+   "validateCommitTarget": "function:256895ef89"
+  }
+ },
  "./source-control/site/credential-form": {
   "types": "./dist/source-control/site/credential-form.d.ts",
   "symbols": {
    "SourceControlCredentialField": "interface:21ffdd7a68",
    "SourceControlCredentialForm": "interface:7884791326",
    "parseSourceControlCredentialForm": "function:ca5756ecb3"
+  }
+ },
+ "./source-control/site/provider-kit": {
+  "types": "./dist/source-control/site/provider-kit.d.ts",
+  "symbols": {
+   "SourceControlKitHost": "interface:2e538dacb3",
+   "createSourceControlProviderKit": "function:e3bd0ad9c2"
+  }
+ },
+ "./source-control/site/provider-module": {
+  "types": "./dist/source-control/site/provider-module.d.ts",
+  "symbols": {
+   "BackupTreeEntry": "type:20769faa73",
+   "CommitBackupTreeInput": "interface:0738d731d0",
+   "CommitFile": "interface:03eb3853fc",
+   "CommitFilesResult": "type:0eea05fdc3",
+   "CommitSiteInput": "interface:348a5a60f8",
+   "CredentialedRepositoryTarget": "interface:fa29d6b46f",
+   "DescribedTransportError": "interface:6def5b16a5",
+   "FileWritePlan": "interface:88083a0f99",
+   "FileWritePlanResult": "type:d81b922ed9",
+   "FileWriteState": "interface:6b50b171e4",
+   "InlineBackupText": "interface:317e9df181",
+   "InspectBackupRepositoryFailureCode": "type:a67487bda8",
+   "InspectBackupRepositoryResult": "type:692c9d875c",
+   "ProviderCallFailure": "type:d9c0a115eb",
+   "RepositoryTarget": "interface:c0621ec30d",
+   "RepositoryTargetValidator": "type:8416ee5ef5",
+   "SourceControlCommitResult": "type:945bacc4d1",
+   "SourceControlHostFacts": "interface:1fe0e4b711",
+   "SourceControlKitHttpClient": "interface:f7ceb2011b",
+   "SourceControlProvider": "type:2c6433f810",
+   "SourceControlProviderKit": "interface:c8764f8a1d",
+   "SourceControlProviderModule": "interface:15d18c10d4",
+   "SourceControlProviderOperations": "interface:9664bb08fa",
+   "UploadedBackupBlob": "interface:4903f64670",
+   "WriteFile": "interface:11670123cd"
+  }
+ },
+ "./source-control/site/saved-key-bindings": {
+  "types": "./dist/source-control/site/saved-key-bindings.d.ts",
+  "symbols": {
+   "sourceControlSavedApiKeyLabels": "variable:012e0321f2"
+  }
+ },
+ "./source-control/site/static-site-packager-port": {
+  "types": "./dist/source-control/site/static-site-packager-port.d.ts",
+  "symbols": {
+   "StaticSiteIdentity": "interface:b93dfac9c9",
+   "StaticSitePackage": "type:98da619f67",
+   "StaticSitePackagerPort": "interface:807e9016b6"
   }
  },
  "./static-export": {

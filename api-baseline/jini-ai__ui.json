@@ -2431,6 +2431,15 @@
    "useInvalidate": "variable:1d4817e1dd"
   }
  },
+ "./find-bar": {
+  "types": "./dist/features/find-bar/index.d.ts",
+  "symbols": {
+   "FindBar": "function:3899bd6825",
+   "FindBarLabels": "interface:e5fb95f664",
+   "FindBarModel": "interface:c515dd967a",
+   "FindBarProps": "interface:ed3d935b27"
+  }
+ },
  "./html-editor": {
   "types": "./dist/features/html-editor/index.d.ts",
   "symbols": {
@@ -3081,6 +3090,19 @@
    "wrapFragmentAsDocument": "function:b18c8bc59a"
   }
  },
+ "./resource-monitor": {
+  "types": "./dist/features/resource-monitor/index.d.ts",
+  "symbols": {
+   "ResourceProcessRow": "interface:5f4fbba983",
+   "ResourceReading": "interface:3d197bf6df",
+   "ResourceTable": "function:089a038eee",
+   "ResourceTableClassNames": "interface:8e1045ad70",
+   "ResourceTableFormat": "interface:d33d2e358f",
+   "ResourceTableGroup": "interface:3fffc73bc2",
+   "ResourceTableLabels": "interface:0ad8d5d681",
+   "ResourceTableProps": "interface:fc01f99c16"
+  }
+ },
  "./settings-dialog.css": {
   "types": null,
   "symbols": {}
@@ -3104,13 +3126,13 @@
    "SiteListSort": "type:747d94080e",
    "SiteListToolbar": "function:4ca42d5a6b",
    "SiteListToolbarCopy": "interface:1176bf2546",
-   "UseSiteListPrefsOptions": "interface:82c0dda53f",
+   "UseSiteListPrefsOptions": "interface:7e18e02c53",
    "cardOpenProps": "function:9f381955f3",
    "closeMenuThen": "function:9aaecafa55",
    "duplicateDisplayNames": "function:eb249bdaf3",
    "isCardOpenKey": "function:4365623bd3",
    "parseSiteListPrefs": "function:ff022d3a39",
-   "useSiteListPrefs": "function:6ca6ea5c7f",
+   "useSiteListPrefs": "function:0f947cd27f",
    "useSiteListView": "function:c30cb0856b"
   }
  },

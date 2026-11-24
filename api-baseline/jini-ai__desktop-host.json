@@ -478,6 +478,16 @@
    "previousOrdinal": "function:c9618d2559"
   }
  },
+ "./shell/find-menu": {
+  "types": "./dist/shell/find-menu.d.ts",
+  "symbols": {
+   "NativeFindCommandWindow": "interface:7e95d8f78d",
+   "NativeFindMenu": "interface:e2956cce6c",
+   "NativeFindMenuItem": "interface:5fbad4a93e",
+   "nativeFindMenu": "function:8cd6afb4cc",
+   "sendNativeFindToggle": "function:b2bc9ff239"
+  }
+ },
  "./shell/guest-navigation": {
   "types": "./dist/shell/guest-navigation.d.ts",
   "symbols": {
@@ -499,6 +509,18 @@
    "jsBackslideOffenders": "function:4951f7ae97"
   }
  },
+ "./shell/node-toolchain": {
+  "types": "./dist/shell/node-toolchain.d.ts",
+  "symbols": {
+   "BoundNodeToolchain": "interface:60f38f1599",
+   "BuildNodeToolchainEnvInput": "interface:a4d550945d",
+   "BuildNodeToolchainShimsInput": "interface:27a8c3bbdc",
+   "NodeToolchainNames": "interface:286dc2020b",
+   "NodeToolchainPaths": "interface:2967d9bfa8",
+   "WriteNodeToolchainInput": "interface:01bfdfd162",
+   "bindNodeToolchain": "function:3248d3f120"
+  }
+ },
  "./shell/pty-helpers": {
   "types": "./dist/shell/pty-helpers.d.ts",
   "symbols": {
@@ -513,6 +535,24 @@
    "PresenceSender": "interface:1ac85e080c",
    "SitePresence": "interface:173360a700",
    "createSitePresence": "function:29fbbce6f0"
+  }
+ },
+ "./shell/speech/mac-on-device-transcriber": {
+  "types": "./dist/shell/speech/mac-on-device-transcriber.d.ts",
+  "symbols": {
+   "NativeMacTranscriberConfig": "interface:b2fb7e83f0",
+   "createNativeMacTranscriptionPort": "function:43a1c9cf1a",
+   "speechHelperSourcePath": "function:2b0afb0c9a"
+  }
+ },
+ "./shell/speech/speech-ipc": {
+  "types": "./dist/shell/speech/speech-ipc.d.ts",
+  "symbols": {
+   "MAX_TRANSCRIBE_SAMPLES": "variable:e1d901fda1",
+   "NativeSpeechHost": "interface:351b07fa4c",
+   "NativeSpeechIpcMain": "interface:646e122871",
+   "buildDefaultTranscriptionPort": "function:4ce9d95e23",
+   "registerNativeSpeechIpc": "function:4cb2b33200"
   }
  },
  "./shell/spellcheck-menu": {
