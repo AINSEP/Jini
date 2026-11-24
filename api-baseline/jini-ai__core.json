@@ -738,6 +738,13 @@
  "./contracts/hosted-mcp": {
   "types": "./dist/contracts/hosted-mcp.d.ts",
   "symbols": {
+   "AdminExternalMcpAdmissionsSnapshot": "interface:c0e82eb30c",
+   "AdminExternalMcpConfigFailure": "interface:e6a5d06a6a",
+   "AdminExternalMcpProbeResult": "interface:93f0adf03d",
+   "AdminFederatedAdmissionEntry": "interface:df993160ec",
+   "AdminRemoteToolAnnotations": "interface:e688c83184",
+   "AdminRemoteToolSurfaceEntry": "interface:c7e62e87b0",
+   "AdminToolRefusalReason": "type:026c0a07c8",
    "ExternalMcpAccessSnapshot": "interface:f68d762ad0",
    "ExternalMcpAccessUpdate": "interface:c30cb2f03f",
    "ExternalMcpApprovedAccess": "interface:27bdc64884",
@@ -1619,6 +1626,8 @@
  "./contracts/site/daemon-http": {
   "types": "./dist/contracts/site/daemon-http.d.ts",
   "symbols": {
+   "AttachmentClaim": "interface:4c5da87492",
+   "AttachmentStore": "interface:5ee885f858",
    "FrontendHookInput": "interface:2c6900d3c4",
    "PendingAttachmentSummary": "interface:aaf1c980b4",
    "StoredAttachment": "interface:1316c8390f"
@@ -2399,6 +2408,7 @@
   "symbols": {
    "RecordVersionConflictError": "class:6bb098decb",
    "RecordVersionRequiredError": "class:d98ea97c3b",
+   "SaveConflict": "interface:94c6f7f685",
    "VERSION_CONFLICT_CODE": "variable:24fa5ccc04",
    "VERSION_REQUIRED_CODE": "variable:dcd545a058",
    "VERSION_REQUIRED_MESSAGE": "variable:a9c30fdea0",
@@ -2685,6 +2695,13 @@
    "trimCharsStart": "function:f1a8952ee2"
   }
  },
+ "./tool-access-change": {
+  "types": "./dist/tool-access-change.d.ts",
+  "symbols": {
+   "NotifyToolAccessChanged": "type:5eacbbd7df",
+   "ToolAccessLoweringError": "class:ca621f5ff9"
+  }
+ },
  "./tool-call-text": {
   "types": "./dist/tool-call-text.d.ts",
   "symbols": {
@@ -2780,6 +2797,12 @@
    "toolMetadata": "variable:f3fb2aed32"
   }
  },
+ "./tool-metadata/image-transform": {
+  "types": "./dist/tool-metadata/image-transform.d.ts",
+  "symbols": {
+   "toolMetadata": "variable:663ca70bf0"
+  }
+ },
  "./tool-metadata/mail-status": {
   "types": "./dist/tool-metadata/mail-status.d.ts",
   "symbols": {
@@ -2814,6 +2837,12 @@
   "types": "./dist/tool-metadata/pages.d.ts",
   "symbols": {
    "toolMetadata": "variable:6636a3b125"
+  }
+ },
+ "./tool-metadata/post": {
+  "types": "./dist/tool-metadata/post.d.ts",
+  "symbols": {
+   "toolMetadata": "variable:3c29710a1a"
   }
  }
 }
