@@ -24,7 +24,8 @@
       "./web-evidence/capture-clock": "universal",
       "./domain-dns": "node",
       "./local-text": "node",
-      "./console-tee": "node"
+      "./console-tee": "node",
+      "./browser-diagnostics": "node"
     },
     "runtime": "node",
     "optionalPeers": {
@@ -100,6 +101,11 @@
       "types": "./dist/console-tee.d.ts",
       "import": "./dist/console-tee.js",
       "default": "./dist/console-tee.js"
+    },
+    "./browser-diagnostics": {
+      "types": "./dist/browser-diagnostics.d.ts",
+      "import": "./dist/browser-diagnostics.js",
+      "default": "./dist/browser-diagnostics.js"
     }
   },
   "files": [

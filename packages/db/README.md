@@ -306,3 +306,8 @@ lives in `@jini-ai/server/owner-store`.
 with the same names from `'@jini-ai/server/owner-store'`, and add `@jini-ai/server` (same version as
 `@jini-ai/db`) to the host's dependencies. `OWNER_STORE_LEDGER`, `ownerStoreMigrations`, `ownerStoreDdl`
 and `ownerStoreMigration` stay here.
+
+## Wiring (transfer: SQLite online backup)
+
+`captureSqliteBackupBytes` (`@jini-ai/db/transfer`): the host passes its open, structural SQLite handle
+(`backupTo`) and its own `tempDirPrefix` for the short-lived backup directory.

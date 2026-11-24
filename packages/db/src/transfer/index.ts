@@ -7,3 +7,4 @@ export * from "./table-catalog.js";
 export * from "./plan.js";
 export * from "./copy-order.js";
 export * from "./copy-engine.js";
+export * from "./sqlite-backup.js";
