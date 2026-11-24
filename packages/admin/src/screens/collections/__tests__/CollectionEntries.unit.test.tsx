@@ -58,6 +58,20 @@ describe("injected hook seam (useCollectionEntriesHook)", () => {
 
   // readable-slugs S6b (2026-09-23): the list row links by slug, not the raw id — same rule
   // Posts/Pages/Widgets/Menus rows already follow.
+  it("wraps the entry status cell in the host stylesheet's jini-status classes", () => {
+    const controller: CollectionEntriesController = {
+      contentType: { workspaceId: "w1", key: "recipe", label: "Recipe", status: "active", version: 1, fields: [] },
+      entries: [{
+        id: "e1", workspaceId: "w1", type: "recipe", slug: "my-recipe", status: "draft", title: "My Recipe", bodyJson: null,
+        fieldsJson: null, publishedAt: null, createdAt: "2026-08-01T00:00:00.000Z", updatedAt: "2026-08-01T00:00:00.000Z", version: 1,
+      }],
+      error: null,
+      t: ({ key }, _optional = {}) => key,
+    };
+    render(<CollectionEntries contentTypeKey="recipe" useCollectionEntriesHook={() => controller} />);
+    expect(screen.getByText("Draft").closest("span")?.className).toBe("jini-status jini-status-draft");
+  });
+
   it("links an entry row by its slug, not its id", () => {
     const controller: CollectionEntriesController = {
       contentType: { workspaceId: "w1", key: "recipe", label: "Recipe", status: "active", version: 1, fields: [] },

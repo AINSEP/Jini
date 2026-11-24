@@ -42,7 +42,7 @@ export function renderCollectionsTable(props: CollectionsTableProps) {
         {
           key: "status",
           header: t({ key: "Status" }),
-          cell: (ct) => <span className={`status status-${ct.status}`}><StatusLabel value={ct.status} /></span>,
+          cell: (ct) => <span className={`jini-status jini-status-${ct.status}`}><StatusLabel value={ct.status} /></span>,
         },
         {
           key: "entries",

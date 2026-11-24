@@ -103,7 +103,7 @@ function renderCollectionEntriesTable(
         {
           key: "status",
           header: t({ key: "Status" }),
-          cell: (entry) => <span className={`status status-${entry.status}`}><StatusLabel value={entry.status} /></span>,
+          cell: (entry) => <span className={`jini-status jini-status-${entry.status}`}><StatusLabel value={entry.status} /></span>,
         },
         { key: "updated", header: t({ key: "Updated" }), cell: (entry) => formatTimestamp({ iso: entry.updatedAt }, { viewerTimeZone: VIEWER_TIME_ZONE }) },
       ]}

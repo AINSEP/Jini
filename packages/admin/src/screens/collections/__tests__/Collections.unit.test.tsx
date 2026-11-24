@@ -211,6 +211,14 @@ describe("empty and populated list", () => {
     expect(screen.getByText("No Collections yet.")).toBeInTheDocument();
   });
 
+  it("wraps the status cell in the host stylesheet's jini-status classes", () => {
+    renderCollections({ types: [TYPE, DEPRECATED_TYPE] });
+    const active = screen.getByText("Active").closest("span");
+    expect(active?.className).toBe("jini-status jini-status-active");
+    const deprecated = screen.getByText("Deprecated").closest("span");
+    expect(deprecated?.className).toBe("jini-status jini-status-deprecated");
+  });
+
   it("renders label, key, field count, queryable count, status, and the manage-entries link", () => {
     renderCollections({ types: [TYPE] });
     expect(screen.getByText("Recipe")).toBeInTheDocument();
