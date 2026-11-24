@@ -47,6 +47,12 @@ describe('classifyAgentPluginMcpServerTrust (object API)', () => {
     expect(api.classifyAgentPluginMcpServerTrust({ server: { type: 'streamable-http' } })).toBe('auto-admit');
     expect(api.classifyAgentPluginMcpServerTrust({ server: { type: 'sse' } })).toBe('auto-admit');
   });
+
+  test('the positional classifier hosts inject into federation planners is the same rule', () => {
+    expect(api.mcpServerTrustClassifier({ type: 'stdio' })).toBe('requires-confirmation');
+    expect(api.mcpServerTrustClassifier({ type: 'streamable-http' })).toBe('auto-admit');
+    expect(api.mcpServerTrustClassifier({ type: 'sse' })).toBe('auto-admit');
+  });
 });
 
 describe('readInstalledSkillMarkdown (object API)', () => {
