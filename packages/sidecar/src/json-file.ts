@@ -12,7 +12,7 @@ import { randomUUID } from "node:crypto";
 import { readFile, rm } from "node:fs/promises";
 import type { AtomicFileWriterPort } from "@jini-ai/core/contracts/runtime";
 
-/** The host's atomic JSON writer (Node hosts pass `nodeAtomicWriter` of `@jini-ai/node-adapters/fs`). */
+/** The host's atomic JSON writer (Node hosts pass `createAtomicWriterPort` of `@jini-ai/node-adapters/fs` over platform's functions). */
 export type JsonFileWriter = Pick<AtomicFileWriterPort, "writeJson">;
 
 /**

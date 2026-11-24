@@ -21,7 +21,8 @@
       "./model-discovery": "node",
       "./model-selection": "universal",
       "./native-tool-policy": "universal",
-      "./native-permissions": "universal"
+      "./native-permissions": "universal",
+      "./inventory": "universal"
     },
     "isolation": {
       "forbidden": {
@@ -86,6 +87,11 @@
       "types": "./dist/model-discovery.d.ts",
       "import": "./dist/model-discovery.js",
       "default": "./dist/model-discovery.js"
+    },
+    "./inventory": {
+      "types": "./dist/inventory/index.d.ts",
+      "import": "./dist/inventory/index.js",
+      "default": "./dist/inventory/index.js"
     }
   },
   "typesVersions": {
@@ -110,6 +116,9 @@
       ],
       "model-discovery": [
         "./dist/model-discovery.d.ts"
+      ],
+      "inventory": [
+        "./dist/inventory/index.d.ts"
       ]
     }
   },

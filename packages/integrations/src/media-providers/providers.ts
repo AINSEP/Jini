@@ -6,7 +6,8 @@
  * concept, so per the AGENTS.md boundary rule (no product-identity strings)
  * it ports as data. See `archived provenance ledger` for exactly what was dropped.
  */
-import type { AudioKind, MediaModel, MediaProvider, MediaSurface } from './types.js';
+import type { AudioKind, MediaSurface } from './types.js';
+import type { MediaModel, MediaProvider } from '@jini-ai/core/contracts/site/media-providers-catalog';
 
 /** One adapter-owned endpoint catalog; protocols and UI presets project this data. */
 /** The OpenAI-compatible custom image endpoint's provider id. */

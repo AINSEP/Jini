@@ -23,11 +23,11 @@ import { partitionArgs } from '../../args.js';
  *
  * No scheduler. `pollDueOperations` is a single leased tick a host drives from whatever timer or
  * queue it already runs — this package performs no I/O of its own beyond the vendor calls it is
- * handed a guarded `httpClient` for, a standing invariant across `@jini-ai/integrations/media-providers`.
+ * handed a guarded `httpClient` and `guardedFetch` for, a standing invariant across `@jini-ai/integrations/media-providers`.
  */
 import { FETCH_TIMEOUT_MS } from '@jini-ai/core/net';
 
-import { fetchMediaOutbound, requireMediaHttpClient } from './outbound.js';
+import { fetchMediaOutbound, requireMediaGuardedFetch, requireMediaHttpClient } from './outbound.js';
 import type { MediaOutboundOptions } from './outbound.js';
 
 import type {
@@ -96,16 +96,17 @@ async function performSigned(
   timeoutMs: number,
 ): Promise<Response> {
   const signed = await deps.signer({ request: request });
-  return fetchMediaOutbound({ url: signed.url, timeoutMs, httpClient: requireMediaHttpClient(deps) }, { ...deps, init: signed.init });
+  return fetchMediaOutbound({ url: signed.url, timeoutMs, httpClient: requireMediaHttpClient(deps), guardedFetch: requireMediaGuardedFetch(deps) }, { ...deps, init: signed.init });
 }
 
 /** Thread only the outbound capability into parsers; stores and signers remain runtime-private.
  *  Both callers parse a response that `performSigned` just fetched through the client, so the client
- *  is always present here; `requireMediaHttpClient` states that invariant instead of branching on it. */
+ *  and guarded fetch are always present here; the `requireMedia*` helpers state that invariant instead of branching on it. */
 function withRuntimeOutbound({ ctx, deps }: { ctx: RenderContext; deps: OperationRuntimeDeps }): RenderContext {
   return {
     ...ctx,
     httpClient: requireMediaHttpClient(deps),
+    guardedFetch: requireMediaGuardedFetch(deps),
     ...(deps.allowPrivateNetwork === undefined ? {} : { allowPrivateNetwork: deps.allowPrivateNetwork }),
     ...(deps.outboundMessages === undefined ? {} : { outboundMessages: deps.outboundMessages }),
   };

@@ -1,9 +1,17 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createRecordingOriginPolicy } from '@jini-ai/core/contracts/server/testing';
-import { modelProxyRoutes, type ModelProxyHttpDeps } from '../model-proxy.js';
+import { modelProxyRoutes, type ModelProxyHttpDeps as BoundModelProxyHttpDeps } from '../model-proxy.js';
+import { fakeProviderToolTurnPort } from '../../ports/__tests__/provider-http-ports.fake.js';
+import { runAnthropicToolTurn, runAzureToolTurn, runGoogleToolTurn, runOllamaToolTurn, runOpenAiToolTurn } from '@jini-ai/agent-runtime';
 import { describeRoutes } from '../route-table.js';
 import { fakeDaemonRouteHost } from './fakes/route-host.js';
 import { serveRoutes } from './fakes/serve-routes.js';
+
+/** The real provider tool-turn runners, bound the way the host binds them (the transport is still faked through `fetchImpl`). */
+const toolTurns = { anthropic: runAnthropicToolTurn, openai: runOpenAiToolTurn, azure: runAzureToolTurn, google: runGoogleToolTurn, ollama: runOllamaToolTurn };
+/** What each test supplies: everything but the host-bound runners, which {@link proxyRoutes} adds. */
+type ModelProxyHttpDeps = Omit<BoundModelProxyHttpDeps, 'toolTurns'>;
+const proxyRoutes = ({ deps, host }: { readonly deps: ModelProxyHttpDeps; readonly host: Parameters<typeof modelProxyRoutes>[0]['host'] }) => modelProxyRoutes({ deps: { toolTurns, ...deps }, host });
 
 // `@jini-ai/agent-runtime`'s provider adapters (anthropic-messages.ts, openai-chat.ts — azure-chat.ts
 // delegates to the latter — google-messages.ts, ollama-chat.ts) all call `pinnedFetch` from
@@ -115,7 +123,7 @@ function bodyText(body: unknown): string {
 function mountWith({ deps, host }: { readonly deps: ModelProxyHttpDeps; readonly host: ReturnType<typeof proxyHost> }) {
   lastHost = host;
   const handlers: Record<string, RouteCall> = {};
-  for (const route of modelProxyRoutes({ deps, host })) {
+  for (const route of proxyRoutes({ deps, host })) {
     handlers[`${route.method} ${route.path}`] = async (req, res) => {
       const request = new Request(`http://local${route.path.replace(':provider', req.params?.provider ?? '')}`, { method: route.method, headers: { 'content-type': 'application/json' }, body: bodyText(req.body) });
       await recordAnswer({ response: await route.handler({ request, params: req.params ?? {}, locals: {} }), res });
@@ -280,7 +288,7 @@ afterEach(() => {
 
 describe('modelProxyRoutes — route list', () => {
   it('lists all five fixed provider streaming routes plus the generic :provider catch-all, each behind the same-origin gate', () => {
-    expect(describeRoutes({ routes: modelProxyRoutes({ deps: {}, host: proxyHost() }) })).toEqual([
+    expect(describeRoutes({ routes: proxyRoutes({ deps: {}, host: proxyHost() }) })).toEqual([
       ...['anthropic', 'openai', 'azure', 'google', 'ollama'].map((provider) => ({ method: 'POST', path: `/api/proxy/${provider}/stream`, gates: ['same-origin'] })),
       { method: 'POST', path: '/api/proxy/:provider/stream', gates: ['same-origin'] },
     ]);
@@ -288,7 +296,7 @@ describe('modelProxyRoutes — route list', () => {
 
   // The old "registered last" rule is gone: the route table matches a literal segment before `:provider`.
   it('a fixed path is answered by its own typed handler, an unknown provider by the catch-all', async () => {
-    const fetch = serveRoutes({ routes: modelProxyRoutes({ deps: {}, host: proxyHost() }) });
+    const fetch = serveRoutes({ routes: proxyRoutes({ deps: {}, host: proxyHost() }) });
     const send = (provider: string) => fetch(new Request(`http://local/api/proxy/${provider}/stream`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: '{}' }));
     expect(await (await send('anthropic')).json()).toMatchObject({ error: { message: 'apiKey must be a non-empty string' } });
     expect(await (await send('nope')).json()).toEqual({ error: { code: 'BAD_REQUEST', message: 'unknown provider: nope' } });
@@ -1280,7 +1288,7 @@ describe('model-proxy pins — the provider is not awaited before the stream is 
   it('answers 200 with an open event stream while the provider call has not finished, and a client that leaves closes it', async () => {
     injectedFetch.mockImplementation(() => new Promise(() => undefined));
     const controller = new AbortController();
-    const route = modelProxyRoutes({ deps: { fetchImpl: injectedFetch, dnsLookup: injectedDnsLookup }, host: proxyHost() }).find((candidate) => candidate.path === '/api/proxy/anthropic/stream')!;
+    const route = proxyRoutes({ deps: { fetchImpl: injectedFetch, dnsLookup: injectedDnsLookup }, host: proxyHost() }).find((candidate) => candidate.path === '/api/proxy/anthropic/stream')!;
     const request = new Request('http://local/api/proxy/anthropic/stream', { method: 'POST', headers: { 'content-type': 'application/json' }, body: bodyText(validAnthropicBody), signal: controller.signal });
     const response = await route.handler({ request, params: {}, locals: {} });
     expect([response.status, response.headers.get('content-type')]).toEqual([200, 'text/event-stream; charset=utf-8']);
@@ -1293,7 +1301,7 @@ describe('model-proxy pins — the provider is not awaited before the stream is 
 describe('model-proxy pins — a body that is neither an object nor an array', () => {
   // The host's JSON parser used to refuse these before the route ran; the route now reads the body itself and refuses them the same way (400) with core's message.
   it.each(['null', '"hi"', '42'])('%s is refused as invalid JSON before any validation and before fetch', async (raw) => {
-    const routes = modelProxyRoutes({ deps: { fetchImpl: injectedFetch, dnsLookup: injectedDnsLookup }, host: proxyHost() });
+    const routes = proxyRoutes({ deps: { fetchImpl: injectedFetch, dnsLookup: injectedDnsLookup }, host: proxyHost() });
     const fixed = routes.find((route) => route.path === '/api/proxy/openai/stream')!;
     const response = await fixed.handler({ request: new Request('http://local/api/proxy/openai/stream', { method: 'POST', headers: { 'content-type': 'application/json' }, body: raw }), params: {}, locals: {} });
     expect([response.status, await response.json()]).toEqual([400, { error: { code: 'BAD_REQUEST', message: 'The request body is not valid JSON. Send a JSON object or array.' } }]);
@@ -1559,5 +1567,17 @@ describe('model-proxy pins — azure required fields', () => {
     if (shape === 'fixed') await callFixed('azure', body);
     else await callCatchAll('azure', body);
     expect(injectedFetch.mock.calls[0]![0].url).toBe('http://127.0.0.1:8443/openai/deployments/my-deployment/chat/completions?api-version=2025-01-01-preview');
+  });
+});
+
+// XC-4: every route calls the host-bound runner from `deps.toolTurns`, never a package-imported one.
+describe('modelProxyRoutes — host-bound tool-turn runners', () => {
+  it('dispatches each fixed route to the injected runner and relays its events', async () => {
+    const port = fakeProviderToolTurnPort({ events: [{ type: 'text_delta', delta: 'from-port' }, { type: 'end', reason: 'stop' }] });
+    const fetch = serveRoutes({ routes: modelProxyRoutes({ deps: { toolTurns: port }, host: proxyHost() }) });
+    const response = await fetch(new Request('http://local/api/proxy/openai/stream', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ apiKey: 'k', model: 'm', messages: [{ role: 'user', content: 'hi' }] }) }));
+    expect(await response.text()).toContain('from-port');
+    expect(port.calls.map((call) => call.member)).toEqual(['openai']);
+    expect(port.calls[0]!.required).toMatchObject({ apiKey: 'k', model: 'm', messages: [{ role: 'user', content: 'hi' }] });
   });
 });

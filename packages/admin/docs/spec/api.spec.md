@@ -293,8 +293,8 @@ Source: [port declarations](../../src/core/ports/workspace.ts). Referenced DTOs 
 
 ```ts
 export interface AdminWorkspacePort {
-  getWorkspace(requiredArgs: Record<string, never>): Promise<AdminWorkspace>;
-  updateWorkspace(requiredArgs: Record<string, never>, optionalArgs?: { name?: string; slug?: string }): Promise<AdminWorkspace>;
+  getWorkspace(requiredArgs: Record<string, never>): Promise<AdminWorkspaceResponse>;
+  updateWorkspace(requiredArgs: Record<string, never>, optionalArgs?: { name?: string; slug?: string }): Promise<AdminWorkspaceResponse>;
   deleteWorkspace(requiredArgs: Record<string, never>): Promise<void>;
 }
 ```
@@ -573,7 +573,7 @@ These source links define the exact fields of the public data and callback types
 | [core/ports/comments.ts](../../src/core/ports/comments.ts) | `AdminComment`, `AdminCommentsPort`, `AdminCommentsQueuePage`, `CommentModerationAction`, `CommentStatus`, `CommentsSettings` |
 | [core/ports/plugins.ts](../../src/core/ports/plugins.ts) | `AdminExtensionEnabledResult`, `AdminExtensionsPort`, `AdminPlugin` |
 | [core/ports/analytics.ts](../../src/core/ports/analytics.ts) | `AdminAnalyticsHit`, `AdminAnalyticsPort` |
-| [core/ports/workspace.ts](../../src/core/ports/workspace.ts) | `AdminWorkspace`, `AdminWorkspacePort` |
+| [core/ports/workspace.ts](../../src/core/ports/workspace.ts) | `AdminWorkspace` (deprecated alias of core `AdminWorkspaceResponse`), `AdminWorkspacePort` |
 | [core/ports/identity.ts](../../src/core/ports/identity.ts) | `AdminIdentityPort`, `AdminIdentityUser`, `AdminPolicy`, `AdminRole` |
 | [core/ports/seo.ts](../../src/core/ports/seo.ts) | `AdminSeoAnalysis`, `AdminSeoIssue`, `AdminSeoMeta`, `AdminSeoOpenGraph`, `AdminSeoOverrides`, `AdminSeoPort`, `AdminSeoRobotsDirective`, `AdminSeoRobotsRule`, `AdminSeoSettings`, `AdminSeoTwitterCard`, `SeoIssueSeverity`, `SeoOpenGraphType`, `SeoTwitterCardKind` |
 | [core/ports/redirects.ts](../../src/core/ports/redirects.ts) | `AdminRedirect`, `AdminRedirectCreateInput`, `AdminRedirectHitStats`, `AdminRedirectImportFailure`, `AdminRedirectImportResult`, `AdminRedirectListFilter`, `AdminRedirectUpdatePatch`, `AdminRedirectsPort`, `RedirectMatchType`, `RedirectSource`, `RedirectStatus`, `RedirectStatusCode` |

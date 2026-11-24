@@ -54,7 +54,11 @@
       "./charts/react": "browser",
       "./mcp-ui/credential-card": "universal",
       "./react-kit": "browser",
-      "./react/testing": "browser"
+      "./react/testing": "browser",
+      "./number-stepper": "browser",
+      "./app-shell": "browser",
+      "./find-bar": "browser",
+      "./resource-monitor": "browser"
     },
     "isolation": {
       "entries": {
@@ -73,6 +77,7 @@
         "src/theme/stylesheet.ts",
         "src/theme/validation.ts",
         "src/theme/types.ts",
+        "src/theme/color-scheme.ts",
         "src/browser"
       ]
     },
@@ -287,6 +292,26 @@
       "types": "./dist/react/testing.d.ts",
       "import": "./dist/react/testing.js",
       "default": "./dist/react/testing.js"
+    },
+    "./number-stepper": {
+      "types": "./dist/features/number-stepper/index.d.ts",
+      "import": "./dist/features/number-stepper/index.js",
+      "default": "./dist/features/number-stepper/index.js"
+    },
+    "./app-shell": {
+      "types": "./dist/features/app-shell/index.d.ts",
+      "import": "./dist/features/app-shell/index.js",
+      "default": "./dist/features/app-shell/index.js"
+    },
+    "./find-bar": {
+      "types": "./dist/features/find-bar/index.d.ts",
+      "import": "./dist/features/find-bar/index.js",
+      "default": "./dist/features/find-bar/index.js"
+    },
+    "./resource-monitor": {
+      "types": "./dist/features/resource-monitor/index.d.ts",
+      "import": "./dist/features/resource-monitor/index.js",
+      "default": "./dist/features/resource-monitor/index.js"
     }
   },
   "files": [

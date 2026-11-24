@@ -15,8 +15,21 @@
     "isolation": {
       "entries": {
         "./client.min.js": "client",
-        "./extensions.min.js": "client"
-      }
+        "./extensions.min.js": "client",
+        "./site/cookie-consent": "render",
+        "./site/validation": "render",
+      "./site/service": "render",
+      "./site/tool-registrations": "render"
+      },
+      "shared": [
+        "src/site/config.ts",
+        "src/site/validation.ts",
+        "src/site/cookie-consent.ts",
+        "src/render/css.ts",
+        "src/server/region.ts",
+        "src/site/revisions.ts",
+        "src/site/readiness.ts"
+      ]
     },
     "entries": {
       ".": "universal",
@@ -29,7 +42,18 @@
       "./banner.css": "browser",
       "./server": "universal",
       "./node": "node",
-      "./extensions.min.js": "browser"
+      "./extensions.min.js": "browser",
+      "./site/config": "universal",
+      "./site/cookie-consent": "universal",
+      "./site/validation": "universal",
+      "./site/revisions": "universal",
+      "./site/privacy-page-template": "universal",
+      "./site/settings": "universal",
+      "./site/readiness": "node",
+      "./site/service": "node",
+      "./site/region-plugins": "universal",
+      "./site/ensure-privacy-defaults": "universal",
+      "./site/tool-registrations": "node"
     },
     "optionalPeers": {
       "react": "opt-in: react consent settings; import @jini-ai/cookie-consent/react — React consent settings could not load react. Install react to enable this feature, or check its installed version."
@@ -85,7 +109,62 @@
       "import": "./dist/node/index.js",
       "default": "./dist/node/index.js"
     },
-    "./extensions.min.js": "./dist/extensions.min.js"
+    "./extensions.min.js": "./dist/extensions.min.js",
+    "./site/config": {
+      "types": "./dist/site/config.d.ts",
+      "import": "./dist/site/config.js",
+      "default": "./dist/site/config.js"
+    },
+    "./site/cookie-consent": {
+      "types": "./dist/site/cookie-consent.d.ts",
+      "import": "./dist/site/cookie-consent.js",
+      "default": "./dist/site/cookie-consent.js"
+    },
+    "./site/validation": {
+      "types": "./dist/site/validation.d.ts",
+      "import": "./dist/site/validation.js",
+      "default": "./dist/site/validation.js"
+    },
+    "./site/revisions": {
+      "types": "./dist/site/revisions.d.ts",
+      "import": "./dist/site/revisions.js",
+      "default": "./dist/site/revisions.js"
+    },
+    "./site/privacy-page-template": {
+      "types": "./dist/site/privacy-page-template.d.ts",
+      "import": "./dist/site/privacy-page-template.js",
+      "default": "./dist/site/privacy-page-template.js"
+    },
+    "./site/settings": {
+      "types": "./dist/site/settings.d.ts",
+      "import": "./dist/site/settings.js",
+      "default": "./dist/site/settings.js"
+    },
+    "./site/readiness": {
+      "types": "./dist/site/readiness.d.ts",
+      "import": "./dist/site/readiness.js",
+      "default": "./dist/site/readiness.js"
+    },
+    "./site/service": {
+      "types": "./dist/site/service.d.ts",
+      "import": "./dist/site/service.js",
+      "default": "./dist/site/service.js"
+    },
+    "./site/region-plugins": {
+      "types": "./dist/site/region-plugins.d.ts",
+      "import": "./dist/site/region-plugins.js",
+      "default": "./dist/site/region-plugins.js"
+    },
+    "./site/ensure-privacy-defaults": {
+      "types": "./dist/site/ensure-privacy-defaults.d.ts",
+      "import": "./dist/site/ensure-privacy-defaults.js",
+      "default": "./dist/site/ensure-privacy-defaults.js"
+    },
+    "./site/tool-registrations": {
+      "types": "./dist/site/tool-registrations.d.ts",
+      "import": "./dist/site/tool-registrations.js",
+      "default": "./dist/site/tool-registrations.js"
+    }
   },
   "files": [
     "dist",
@@ -105,7 +184,8 @@
     "test:coverage": "vitest run --coverage"
   },
   "dependencies": {
-    "@jini-ai/core": "workspace:^"
+    "@jini-ai/core": "workspace:^",
+    "parse5": "^7.3.0"
   },
   "devDependencies": {
     "@testing-library/jest-dom": "^6.6.3",

@@ -1,8 +1,10 @@
 import type { CredentialedRequestAuditPort, makeCredentialedRequest } from "../credentialed-http/credentialed-request.js";
 import type { CredentialSchemeRegistryPort, ResolvedCredential } from "../credentialed-http/ports.js";
+import type { HttpClientPort } from "@jini-ai/core/primitives";
 import type {
   DnsResolver,
   GuardedClock,
+  GuardedHttpRequired,
   PinnedHttpTransport,
 } from "@jini-ai/core/contracts/runtime";
 
@@ -49,6 +51,8 @@ export interface SavedRequestDeps {
   readonly dns: DnsResolver;
   readonly transport: PinnedHttpTransport;
   readonly userAgent: string;
+  /** Composition binds the guarded HTTP client factory (the platform's `createHttpClient`); the interpreter passes the single-hop policy plus the ports above and never imports a client implementation. */
+  readonly createHttpClient: (required: GuardedHttpRequired) => HttpClientPort;
   /** Trusted composition supplies the site's public, admin, API and control origins. */
   readonly forbiddenOrigins: readonly string[];
 }

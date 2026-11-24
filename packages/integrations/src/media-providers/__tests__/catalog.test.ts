@@ -82,7 +82,7 @@ describe('@jini-ai/integrations/media-providers/catalog', () => {
     // UI option contracts live once in core. Its import is erased; the browser catalog
     // still cannot reach Node, dispatch, network or database implementations.
     const { bareSpecifiers } = walkGraph(CATALOG_ENTRY);
-    expect(bareSpecifiers).toEqual(['@jini-ai/core']);
+    expect([...new Set(bareSpecifiers)].sort()).toEqual(['@jini-ai/core', '@jini-ai/core/contracts/site/media-providers-catalog']);
     const defaults = readFileSync(resolve(MEDIA_ROOT, 'ui-defaults.ts'), 'utf8');
     expect(defaults).toMatch(/import type \{[^}]+\} from '@jini-ai\/core'/);
   });

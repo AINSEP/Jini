@@ -9,8 +9,9 @@
  * owns sending. See the capability owners for raw-stream uploads, bodyless cleanup, attachment
  * rejection mapping and host-owned claim/cleanup lifecycle rather than duplicating those rules here.
  */
-export type { JsonRouteSpec, JsonRoutePorts } from './types.js';
+export type { JsonRouteSpec, JsonRoutePorts, RawRouteSpec, RouteRequestOptIns } from './types.js';
 export { defineJsonRoute, mountJsonRoute } from './adapter.js';
+export { defineRawRoute, mountRawRoute } from './raw-route.js';
 export type { RouteInternalErrorContext, RouteInternalErrorSink } from './internal-error.js';
 export { reportRouteInternalError } from './internal-error.js';
 export type { InstallRouteRegistrationGuardOptions, RouteRegistration } from './route-registration-guard.js';

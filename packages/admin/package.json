@@ -84,6 +84,7 @@
       "./shell/components/AssistantDock/hooks/use-composer-send-stop-guard.hooks": "browser",
       "./shell/components/AssistantDock/hooks/useOverflowDetection.hooks": "browser",
       "./shell/components/DevicePreview/DevicePreview.hooks": "browser",
+      "./shell/components/ChatFab/ChatFab.hooks": "browser",
       "./shell/components/InstallTabCard/use-zip-drop.hooks": "browser",
       "./shell/components/TemplateSource/template-source-port.hooks": "browser",
       "./shell/components/line-icon": "browser",
@@ -95,6 +96,50 @@
       "./shell/lib/ascii-slug": "browser",
       "./shell/lib/assistant-dock-bus": "browser",
       "./shell/lib/content-refresh-bus": "browser",
+      "./screens/assistant-settings/use-ai-assistant-locale-sync.hooks": "browser",
+      "./screens/assistant-settings/OwnerGrantStatus": "browser",
+      "./screens/assistant-settings/AssistantToggleRow": "browser",
+      "./screens/assistant-settings/use-assistant-owner-grant.hooks": "browser",
+      "./screens/assistant-settings/use-visitor-tools.hooks": "browser",
+      "./screens/assistant-settings/VisitorToolsPanel": "browser",
+      "./screens/assistant-settings/visitor-credential-form-port": "browser",
+      "./screens/assistant-settings/visitor-credential-form.rules": "browser",
+      "./screens/assistant-settings/visitor-credential-form-actions": "browser",
+      "./screens/assistant-settings/use-visitor-credential-form.hooks": "browser",
+      "./screens/assistant-settings/use-visitor-assistant-panel.hooks": "browser",
+      "./screens/assistant-settings/VisitorAssistantPanel": "browser",
+      "./screens/assistant-settings/AssistantDaemonRestart": "browser",
+      "./screens/assistant-settings/AdminAssistantSwitch": "browser",
+      "./screens/assistant-settings/use-admin-assistant-switch.hooks": "browser",
+      "./screens/assistant-settings/use-ai-assistant.hooks": "browser",
+      "./screens/assistant-settings/AdminSubagents": "browser",
+      "./screens/assistant-settings/admin-subagents.types": "browser",
+      "./screens/assistant-settings/AdminPermanentDeletes": "browser",
+      "./screens/assistant-settings/use-admin-permanent-deletes.hooks": "browser",
+      "./screens/assistant-settings/VisitorAssistantTabs": "browser",
+      "./screens/assistant-settings/use-visitor-assistant-tabs.hooks": "browser",
+      "./screens/webmcp/webmcp-i18n": "universal",
+      "./screens/webmcp/browser-agent-settings.hooks": "browser",
+      "./screens/webmcp/BrowserAgentSettingsPanel": "browser",
+      "./screens/fs-files/folder-drop-port": "browser",
+      "./screens/fs-files/use-native-folder-picker.hooks": "browser",
+      "./screens/fs-files/use-folder-drop.hooks": "browser",
+      "./screens/fs-files/folder-drop.rules": "browser",
+      "./screens/workspace/Workspace": "browser",
+      "./screens/workspace/rules": "browser",
+      "./screens/workspace/hooks/workspace-port.hooks": "universal",
+      "./screens/sites/AllSitesTab": "browser",
+      "./screens/sites/SiteCardView": "browser",
+      "./screens/sites/SiteTrashTab": "browser",
+      "./screens/sites/sites-screen-ports": "universal",
+      "./screens/sites/sites-list-rules": "universal",
+      "./screens/sites/use-site-confirm.hooks": "browser",
+      "./screens/sites/LocalSiteConfirmDialog": "browser",
+      "./screens/sites/sites-port.hooks": "universal",
+      "./screens/sites/use-sites-snapshot.hooks": "browser",
+      "./screens/sites/use-local-sites.hooks": "browser",
+      "./screens/sites/use-sites-config.hooks": "browser",
+      "./screens/workspace/hooks/use-workspace.hooks": "browser",
       "./shell/lib/editor-failure-i18n": "browser",
       "./shell/lib/editor-template-options.rules": "browser",
       "./shell/lib/escape-owned-by-inner-layer": "browser",
@@ -113,6 +158,15 @@
       "./shell/lib/translation-entry": "browser",
       "./shell/lib/unchanged-save-warning": "browser",
       "./shell/lib/unique-id": "browser",
+      "./shell/lib/assistant-permanent-deletes": "browser",
+      "./shell/lib/stored-credential-endpoint": "browser",
+      "./shell/lib/version-conflict": "browser",
+      "./shell/lib/assistant-subagents": "browser",
+      "./shell/lib/credential-submit-error": "browser",
+      "./shell/lib/visitor-tools": "browser",
+      "./shell/lib/assistant-agents-snapshot": "browser",
+      "./shell/lib/admin-failure-reporter": "browser",
+      "./shell/lib/browser-working-directory-access": "browser",
       "./shell/lib/viewer-time-zone": "browser",
       "./shell/lib/widget-embed-placement-content": "browser",
       "./shell/lib/admin-frontend-session": "browser",
@@ -139,11 +193,27 @@
       "./shell/components/AssistantDock/local-cli-selection-echo": "browser",
       "./shell/components/AssistantDock/MessageOverflowModal.hooks": "browser",
       "./shell/components/AssistantDock/SlowRunNoticeCard.hooks": "browser",
+      "./shell/components/AdminByokKeyPanel.hooks": "browser",
+      "./shell/components/shared-components-i18n": "browser",
+      "./shell/components/AssistantDock/MessageOverflowModal": "browser",
+      "./shell/components/AssistantDock/SelectedAgentPluginTray": "browser",
+      "./shell/components/AssistantDock/AgentFailureCard.hooks": "browser",
+      "./shell/components/AssistantDock/AgentFailureCard": "browser",
+      "./shell/components/AssistantDock/SlowRunNoticeCard": "browser",
+      "./shell/components/AssistantDock/agent-failure": "browser",
+      "./shell/components/AdminFailureNotice/AdminFailureNotice": "browser",
+      "./shell/components/AssistantDock/agent-failure-hints": "browser",
+      "./shell/components/MailStatusBanner/MailStatusBanner": "browser",
+      "./shell/components/SitesSidebarNav": "browser",
+      "./shell/components/WidgetConfigFields/WidgetConfigFields.hooks": "browser",
+      "./shell/components/AssistantDock/hooks/use-routed-a2ui-surface-card.hooks": "browser",
       "./shell/components/CodeView/preview-modal-icons": "browser",
       "./shell/components/InstallTabCard/use-folder-upload.hooks": "browser",
       "./shell/components/Select/Select.hooks": "browser",
       "./shell/lib/tab-event-source": "browser",
       "./shell/hooks/use-external-entry-refresh.hooks": "browser",
+      "./shell/hooks/admin-execution-credential-port.hooks": "browser",
+      "./shell/hooks/use-sites-sidebar-nav.hooks": "browser",
       "./posts/PostAuthorFields": "browser",
       "./posts/PostPublishingFields": "browser",
       "./screens/collections/api/collections-api.types": "universal",
@@ -153,6 +223,23 @@
       "./screens/collections/hooks/collections-port.hooks": "universal",
       "./screens/collections/hooks/edit-fields-dialog-port.hooks": "universal",
       "./screens/collections/hooks/new-content-type-dialog-port.hooks": "universal",
+      "./screens/plugins/add-plugin-tab-soon": "universal",
+      "./screens/plugins/composer-capabilities": "universal",
+      "./screens/plugins/agent-plugins-visuals": "browser",
+      "./screens/plugins/hooks/agent-plugin-surfaces-port.hooks": "universal",
+      "./screens/plugins/hooks/use-linked-lock-tip.hooks": "browser",
+      "./screens/plugins/plugins-memory-i18n": "universal",
+      "./screens/skills/skill-failure": "universal",
+      "./screens/skills/skill-upload": "universal",
+      "./screens/skills/SkillInstallConfirmation": "browser",
+      "./screens/skills/SkillRemoveConfirmDialog": "browser",
+      "./screens/skills/SkillRow": "browser",
+      "./screens/skills/Skills": "browser",
+      "./screens/skills/skills-i18n": "universal",
+      "./screens/skills/skills-screen.types": "universal",
+      "./screens/skills/skills-visuals": "browser",
+      "./screens/skills/Skills.hooks": "browser",
+      "./screens/skills/use-skill-confirmation.hooks": "browser",
       "./screens/taxonomy/api/taxonomy-api.types": "universal",
       "./screens/taxonomy/html-rules": "universal",
       "./screens/taxonomy/TaxonomyRowMenu.hooks": "browser",
@@ -163,6 +250,18 @@
       "./screens/taxonomy/hooks/taxonomy-port.hooks": "universal",
       "./screens/taxonomy/hooks/term-picker-port.hooks": "universal",
       "./screens/comments/api/comments-api.types": "universal",
+      "./screens/email/email-i18n": "universal",
+      "./screens/email/api/mail-status-api.types": "universal",
+      "./screens/email/Email.hooks": "universal",
+      "./screens/email/EmailTemplateEditor.hooks": "universal",
+      "./screens/email/hooks/email-load.hooks": "browser",
+      "./screens/email/email-api.types": "universal",
+      "./screens/email/hooks/use-email.hooks": "browser",
+      "./screens/email/hooks/use-email-overview.hooks": "browser",
+      "./screens/email/hooks/use-email-sender.hooks": "browser",
+      "./screens/email/hooks/use-email-templates.hooks": "browser",
+      "./screens/email/hooks/use-email-template-editor.hooks": "browser",
+      "./screens/email/hooks/use-email-activity.hooks": "browser",
       "./screens/forms/api/forms-api.types": "universal",
       "./screens/forms/index-aligned-translations": "universal",
       "./screens/forms/forms-field-settings-i18n": "universal",
@@ -174,7 +273,145 @@
       "./screens/menus/hooks/menus-port.hooks": "universal",
       "./screens/menus/MenuEditor.hooks": "browser",
       "./screens/menus/MenuPageLinkFields.hooks": "browser",
-      "./screens/menus/MenuPageLinkFields": "browser"
+      "./screens/menus/MenuPageLinkFields": "browser",
+      "./roles/Roles.hooks": "browser",
+      "./roles/rules": "universal",
+      "./roles/roles-i18n": "universal",
+      "./roles/i18n/roles-sentence-parts": "universal",
+      "./users/users-i18n": "universal",
+      "./roles/Roles": "browser",
+      "./roles/RolesSection": "browser",
+      "./roles/PolicyRow": "browser",
+      "./roles/hooks/use-roles.hooks": "browser",
+      "./screens/auth/hooks/login-port.hooks": "browser",
+      "./screens/auth/Login.hooks": "browser",
+      "./screens/auth/Login": "browser",
+      "./screens/auth/OwnerRecoverySignIn": "browser",
+      "./screens/auth/OwnerRecoverySignIn.hooks": "browser",
+      "./screens/auth/hooks/use-login.hooks": "browser",
+      "./screens/auth/auth-host-slots": "browser",
+      "./screens/authentication/Authentication": "browser",
+      "./screens/authentication/authentication-host-slots": "browser",
+      "./screens/authentication/model/provider-schemas": "browser",
+      "./shell/lib/boot-token-fragment": "browser",
+      "./screens/seo": "browser",
+      "./screens/seo/seo-i18n": "universal",
+      "./screens/redirects": "browser",
+      "./screens/redirects/redirects-i18n": "browser",
+      "./screens/analytics": "browser",
+      "./screens/analytics/analytics-i18n": "universal",
+      "./screens/analytics/api/analytics-api.types": "universal",
+      "./screens/analytics/hooks/analytics-port.hooks": "universal",
+      "./screens/analytics/hooks/analytics-dependencies.hooks": "universal",
+      "./screens/analytics/hooks/use-analytics.hooks": "browser",
+      "./screens/consent/CookieConsent": "browser",
+      "./screens/consent/ConsentOverviewTab": "browser",
+      "./screens/consent/use-consent-page.hooks": "browser",
+      "./screens/consent/consent-autosave": "universal",
+      "./screens/consent/consent-dictionary": "universal",
+      "./screens/consent/consent-i18n": "universal",
+      "./screens/consent/rules": "universal",
+      "./screens/consent/settings.hooks": "universal",
+      "./screens/consent/consent-settings.css": "browser",
+      "./screens/settings/settings-i18n": "universal",
+      "./screens/settings/settings-interface-i18n": "universal",
+      "./screens/settings/settings-memory-i18n": "universal",
+      "./screens/settings/UserInterfaceSettingsPanel.hooks": "universal",
+      "./screens/settings/UserInterfaceSettingsPanel": "browser",
+      "./screens/settings/hooks/use-settings-locale-sync.hooks": "browser",
+      "./screens/settings/ExternalMcpSharedChoice": "browser",
+      "./screens/settings/ExternalMcpSharedChoice.hooks": "browser",
+      "./screens/settings/hooks/use-settings-active-tab-scroll.hooks": "browser",
+      "./screens/settings/ExternalMcpToolsModal.hooks": "browser",
+      "./screens/settings/hooks/use-external-mcp-remove-confirm.hooks": "browser",
+      "./screens/settings/user-interface-settings.css": "browser",
+      "./screens/settings/external-mcp-i18n": "universal",
+      "./screens/settings/hooks/use-external-mcp-oauth-connect.hooks": "browser",
+      "./screens/settings/settings-execution-i18n": "universal",
+      "./screens/settings/SettingsUi.hooks": "browser",
+      "./screens/settings/ExternalMcpRemoveConfirmDialog": "browser",
+      "./screens/content-analysis/ContentAnalysisCard": "browser",
+      "./screens/content-analysis/rules": "universal",
+      "./screens/content-analysis/hooks/use-content-analysis.hooks": "browser",
+      "./screens/content-analysis/hooks/content-analysis-port.hooks": "universal",
+      "./screens/content-analysis/hooks/content-analysis-dependencies.hooks": "universal",
+      "./screens/import-export/ImportExport": "browser",
+      "./screens/content-analysis/content-analysis-i18n": "universal",
+      "./deployment/Deployment.hooks": "browser",
+      "./source-control/host/SourceControl.hooks": "browser",
+      "./recovery/hooks/recovery-port.hooks": "universal",
+      "./recovery/hooks/restore-flow-port.hooks": "universal",
+      "./recovery/hooks/use-recovery-navigation.hooks": "browser",
+      "./recovery/rules": "browser",
+      "./recovery/recovery-i18n": "browser",
+      "./recovery/hooks/use-recovery.hooks": "browser",
+      "./recovery/hooks/use-restore-flow.hooks": "browser",
+      "./screens/database/rules": "browser",
+      "./screens/database/database-i18n": "browser",
+      "./screens/database/hooks/migrate-forward-section-port.hooks": "universal",
+      "./screens/database/hooks/schema-state-section-port.hooks": "universal",
+      "./screens/database/hooks/timeline-section-port.hooks": "universal",
+      "./screens/database/hooks/use-migrate-forward-section.hooks": "browser",
+      "./screens/database/hooks/use-schema-state-section.hooks": "browser",
+      "./screens/database/hooks/use-timeline-section.hooks": "browser",
+      "./screens/import-export/import-export-i18n": "universal",
+      "./screens/import-export/git-backup-rules": "universal",
+      "./screens/import-export/hooks/git-backup-port.hooks": "universal",
+      "./screens/import-export/hooks/use-git-backup.hooks": "browser",
+      "./screens/import-export/hooks/use-import-export.hooks": "browser",
+      "./publish-content/screen/hooks/publish-availability.store": "browser",
+      "./publish-content/screen/publish-scope": "universal",
+      "./publish-content/screen/hooks/publish-request.store": "browser",
+      "./publish-content/screen/hooks/use-publish-section-button.hooks": "browser",
+      "./deployment/deployment-i18n": "browser",
+      "./source-control/source-control-i18n": "universal",
+      "./pages/api/pages-api.types": "universal",
+      "./pages/hooks/pages-tab-url.hooks": "browser",
+      "./pages/Pages.hooks": "browser",
+      "./pages/lib/page-preview-youtube": "universal",
+      "./pages/lib/prettify-html": "universal",
+      "./pages/lib/embed-placeholder": "browser",
+      "./pages/pages-i18n": "universal",
+      "./shell/components/ServerRestartingBanner/ServerRestartingBanner": "browser",
+      "./shell/components/AdminFailureNotice/admin-failure-notice.css": "browser",
+      "./shell/components/ServerRestartingBanner/server-restarting-banner.css": "browser",
+      "./shell/components/ServerRestartingBanner/hooks/use-server-connection-status.hooks": "browser",
+      "./screens/observability/Observability": "browser",
+      "./screens/observability/api/observability-api": "universal",
+      "./screens/observability/api/observability-api.types": "universal",
+      "./screens/observability/hooks/observability-status-dependencies.hooks": "universal",
+      "./screens/observability/hooks/recent-server-errors-dependencies.hooks": "universal",
+      "./screens/observability/hooks/observability-status-port.hooks": "universal",
+      "./screens/observability/hooks/recent-server-errors-port.hooks": "universal",
+      "./screens/observability/hooks/use-observability-status.hooks": "browser",
+      "./screens/observability/hooks/use-recent-server-errors.hooks": "browser",
+      "./screens/observability/hooks/use-queries-tab.hooks": "browser",
+      "./screens/observability/hooks/use-observability-tab.hooks": "browser",
+      "./screens/observability/hooks/use-recent-error-item.hooks": "browser",
+      "./screens/observability/observability-i18n": "universal",
+      "./screens/observability/queries-panel": "browser",
+      "./screens/observability/tool-gaps-panel": "browser",
+      "./screens/observability/recent-errors-panel": "browser",
+      "./screens/observability/recent-errors-rules": "universal",
+      "./screens/observability/observability-visuals": "browser",
+      "./screens/observability/recent-errors.css": "browser",
+      "./screens/observability/observability.css": "browser",
+      "./screens/dashboard/Dashboard": "browser",
+      "./screens/dashboard/rules": "universal",
+      "./screens/dashboard/dashboard-i18n": "universal",
+      "./screens/dashboard/hooks/use-dashboard.hooks": "browser",
+      "./screens/dashboard/hooks/dashboard-port.hooks": "universal",
+      "./screens/dashboard/hooks/fake-dashboard-port": "universal",
+      "./screens/dashboard/dashboard-view.types": "universal",
+      "./screens/dashboard/dashboard.css": "browser",
+      "./pages/Pages": "browser",
+      "./pages/hooks/use-pages.hooks": "browser",
+      "./pages/hooks/pages-port.hooks": "universal",
+      "./pages/hooks/use-interactive-flush.hooks": "browser",
+      "./pages/hooks/use-editor-html-jump.hooks": "browser",
+      "./pages/pages-list-rules": "universal",
+      "./pages/page-editor-rules": "universal",
+      "./pages/page-editor-i18n": "universal"
     },
     "isolation": {
       "shared": [
@@ -182,7 +419,12 @@
         "src/react/components/ConfirmDialog",
         "src/react/components/RowMenu",
         "src/react/types.ts",
-        "src/react/kit.tsx"
+        "src/react/kit.tsx",
+        "src/shell/lib/merge-locale-overlays.ts",
+        "src/shell/lib/viewer-time-zone.ts",
+        "src/shell/lib/router.ts",
+        "src/browser/shell-navigation.ts",
+        "src/browser/navigation.ts"
       ],
       "forbidden": {
         "universal": [
@@ -196,6 +438,7 @@
         "./shell/components/AssistantDock/hooks/use-composer-send-stop-guard.hooks": "browser",
         "./shell/components/AssistantDock/hooks/useOverflowDetection.hooks": "browser",
         "./shell/components/DevicePreview/DevicePreview.hooks": "browser",
+        "./shell/components/ChatFab/ChatFab.hooks": "browser",
         "./shell/components/InstallTabCard/use-zip-drop.hooks": "browser",
         "./shell/components/TemplateSource/template-source-port.hooks": "browser",
         "./shell/components/line-icon": "browser",
@@ -207,6 +450,50 @@
         "./shell/lib/ascii-slug": "browser",
         "./shell/lib/assistant-dock-bus": "browser",
         "./shell/lib/content-refresh-bus": "browser",
+        "./screens/assistant-settings/use-ai-assistant-locale-sync.hooks": "browser",
+        "./screens/assistant-settings/OwnerGrantStatus": "browser",
+        "./screens/assistant-settings/AssistantToggleRow": "browser",
+        "./screens/assistant-settings/use-assistant-owner-grant.hooks": "browser",
+        "./screens/assistant-settings/use-visitor-tools.hooks": "browser",
+        "./screens/assistant-settings/VisitorToolsPanel": "browser",
+        "./screens/assistant-settings/visitor-credential-form-port": "browser",
+        "./screens/assistant-settings/visitor-credential-form.rules": "browser",
+        "./screens/assistant-settings/visitor-credential-form-actions": "browser",
+        "./screens/assistant-settings/use-visitor-credential-form.hooks": "browser",
+        "./screens/assistant-settings/use-visitor-assistant-panel.hooks": "browser",
+        "./screens/assistant-settings/VisitorAssistantPanel": "browser",
+        "./screens/assistant-settings/AssistantDaemonRestart": "browser",
+        "./screens/assistant-settings/AdminAssistantSwitch": "browser",
+        "./screens/assistant-settings/use-admin-assistant-switch.hooks": "browser",
+        "./screens/assistant-settings/use-ai-assistant.hooks": "browser",
+        "./screens/assistant-settings/AdminSubagents": "browser",
+        "./screens/assistant-settings/admin-subagents.types": "browser",
+        "./screens/assistant-settings/AdminPermanentDeletes": "browser",
+        "./screens/assistant-settings/use-admin-permanent-deletes.hooks": "browser",
+        "./screens/assistant-settings/VisitorAssistantTabs": "browser",
+        "./screens/assistant-settings/use-visitor-assistant-tabs.hooks": "browser",
+        "./screens/webmcp/webmcp-i18n": "universal",
+        "./screens/webmcp/browser-agent-settings.hooks": "browser",
+        "./screens/webmcp/BrowserAgentSettingsPanel": "browser",
+        "./screens/fs-files/folder-drop-port": "browser",
+        "./screens/fs-files/use-native-folder-picker.hooks": "browser",
+        "./screens/fs-files/use-folder-drop.hooks": "browser",
+        "./screens/fs-files/folder-drop.rules": "browser",
+        "./screens/workspace/Workspace": "browser",
+        "./screens/workspace/rules": "browser",
+        "./screens/workspace/hooks/workspace-port.hooks": "universal",
+        "./screens/sites/AllSitesTab": "browser",
+        "./screens/sites/SiteCardView": "browser",
+        "./screens/sites/SiteTrashTab": "browser",
+        "./screens/sites/sites-screen-ports": "universal",
+        "./screens/sites/sites-list-rules": "universal",
+        "./screens/sites/use-site-confirm.hooks": "browser",
+        "./screens/sites/LocalSiteConfirmDialog": "browser",
+        "./screens/sites/sites-port.hooks": "universal",
+        "./screens/sites/use-sites-snapshot.hooks": "browser",
+        "./screens/sites/use-local-sites.hooks": "browser",
+        "./screens/sites/use-sites-config.hooks": "browser",
+        "./screens/workspace/hooks/use-workspace.hooks": "browser",
         "./shell/lib/editor-failure-i18n": "browser",
         "./shell/lib/editor-template-options.rules": "browser",
         "./shell/lib/escape-owned-by-inner-layer": "browser",
@@ -224,6 +511,15 @@
         "./shell/lib/translation-entry": "browser",
         "./shell/lib/unchanged-save-warning": "browser",
         "./shell/lib/unique-id": "browser",
+        "./shell/lib/assistant-permanent-deletes": "browser",
+        "./shell/lib/stored-credential-endpoint": "browser",
+        "./shell/lib/version-conflict": "browser",
+        "./shell/lib/assistant-subagents": "browser",
+        "./shell/lib/credential-submit-error": "browser",
+        "./shell/lib/visitor-tools": "browser",
+        "./shell/lib/assistant-agents-snapshot": "browser",
+        "./shell/lib/admin-failure-reporter": "browser",
+        "./shell/lib/browser-working-directory-access": "browser",
         "./shell/lib/viewer-time-zone": "browser",
         "./shell/lib/widget-embed-placement-content": "browser",
         "./shell/lib/admin-frontend-session": "browser",
@@ -249,11 +545,87 @@
         "./shell/components/AssistantDock/local-cli-selection-echo": "browser",
         "./shell/components/AssistantDock/MessageOverflowModal.hooks": "browser",
         "./shell/components/AssistantDock/SlowRunNoticeCard.hooks": "browser",
+        "./shell/components/AdminByokKeyPanel.hooks": "browser",
+        "./shell/components/shared-components-i18n": "browser",
+        "./shell/components/AssistantDock/MessageOverflowModal": "browser",
+        "./shell/components/AssistantDock/SelectedAgentPluginTray": "browser",
+        "./shell/components/AssistantDock/AgentFailureCard.hooks": "browser",
+        "./shell/components/AssistantDock/AgentFailureCard": "browser",
+        "./shell/components/AssistantDock/SlowRunNoticeCard": "browser",
+        "./shell/components/AssistantDock/agent-failure": "browser",
+        "./shell/components/AdminFailureNotice/AdminFailureNotice": "browser",
+        "./shell/components/AssistantDock/agent-failure-hints": "browser",
+        "./shell/components/MailStatusBanner/MailStatusBanner": "browser",
+        "./shell/components/SitesSidebarNav": "browser",
+        "./shell/components/WidgetConfigFields/WidgetConfigFields.hooks": "browser",
+        "./shell/components/AssistantDock/hooks/use-routed-a2ui-surface-card.hooks": "browser",
         "./shell/components/CodeView/preview-modal-icons": "browser",
         "./shell/components/InstallTabCard/use-folder-upload.hooks": "browser",
         "./shell/components/Select/Select.hooks": "browser",
         "./shell/lib/tab-event-source": "browser",
-        "./shell/hooks/use-external-entry-refresh.hooks": "browser"
+        "./shell/hooks/use-external-entry-refresh.hooks": "browser",
+        "./shell/hooks/admin-execution-credential-port.hooks": "browser",
+        "./shell/hooks/use-sites-sidebar-nav.hooks": "browser",
+        "./roles/Roles.hooks": "browser",
+        "./roles/Roles": "browser",
+        "./roles/RolesSection": "browser",
+        "./roles/PolicyRow": "browser",
+        "./roles/hooks/use-roles.hooks": "browser",
+        "./screens/auth/hooks/login-port.hooks": "browser",
+        "./screens/auth/Login.hooks": "browser",
+        "./screens/auth/Login": "browser",
+        "./screens/auth/OwnerRecoverySignIn": "browser",
+        "./screens/auth/OwnerRecoverySignIn.hooks": "browser",
+        "./screens/auth/hooks/use-login.hooks": "browser",
+        "./screens/auth/auth-host-slots": "browser",
+        "./screens/authentication/Authentication": "browser",
+        "./screens/authentication/authentication-host-slots": "browser",
+        "./screens/authentication/model/provider-schemas": "browser",
+        "./shell/lib/boot-token-fragment": "browser",
+        "./roles/rules": "browser",
+        "./roles/roles-i18n": "browser",
+        "./roles/i18n/roles-sentence-parts": "browser",
+        "./users/users-i18n": "browser",
+        "./pages/Pages": "browser",
+        "./pages/Pages.hooks": "browser",
+        "./pages/api/pages-api.types": "browser",
+        "./pages/hooks/pages-port.hooks": "browser",
+        "./pages/hooks/pages-tab-url.hooks": "browser",
+        "./pages/hooks/use-pages.hooks": "browser",
+        "./pages/hooks/use-interactive-flush.hooks": "browser",
+        "./pages/hooks/use-editor-html-jump.hooks": "browser",
+        "./pages/lib/embed-placeholder": "browser",
+        "./pages/lib/page-preview-youtube": "browser",
+        "./pages/lib/prettify-html": "browser",
+        "./pages/pages-i18n": "browser",
+        "./pages/pages-list-rules": "browser",
+        "./pages/page-editor-rules": "browser",
+        "./pages/page-editor-i18n": "browser",
+        "./screens/dashboard/Dashboard": "browser",
+        "./screens/dashboard/dashboard-i18n": "browser",
+        "./screens/dashboard/dashboard-view.types": "browser",
+        "./screens/dashboard/hooks/dashboard-port.hooks": "browser",
+        "./screens/dashboard/hooks/fake-dashboard-port": "browser",
+        "./screens/dashboard/hooks/use-dashboard.hooks": "browser",
+        "./screens/dashboard/rules": "browser",
+        "./screens/observability/Observability": "browser",
+        "./screens/observability/api/observability-api": "browser",
+        "./screens/observability/api/observability-api.types": "browser",
+        "./screens/observability/hooks/observability-status-dependencies.hooks": "browser",
+        "./screens/observability/hooks/observability-status-port.hooks": "browser",
+        "./screens/observability/hooks/recent-server-errors-dependencies.hooks": "browser",
+        "./screens/observability/hooks/recent-server-errors-port.hooks": "browser",
+        "./screens/observability/hooks/use-observability-status.hooks": "browser",
+        "./screens/observability/hooks/use-queries-tab.hooks": "browser",
+        "./screens/observability/hooks/use-observability-tab.hooks": "browser",
+        "./screens/observability/hooks/use-recent-error-item.hooks": "browser",
+        "./screens/observability/hooks/use-recent-server-errors.hooks": "browser",
+        "./screens/observability/observability-i18n": "browser",
+        "./screens/observability/observability-visuals": "browser",
+        "./screens/observability/queries-panel": "browser",
+        "./screens/observability/recent-errors-panel": "browser",
+        "./screens/observability/recent-errors-rules": "browser",
+        "./screens/observability/tool-gaps-panel": "browser"
       }
     },
     "optionalPeers": {
@@ -263,7 +635,8 @@
   },
   "type": "module",
   "sideEffects": [
-    "./src/themes/**/*.css"
+    "./src/themes/**/*.css",
+    "./src/screens/**/*.css"
   ],
   "main": "./dist/core/index.js",
   "types": "./dist/core/index.d.ts",
@@ -611,6 +984,11 @@
       "import": "./dist/shell/components/DevicePreview/DevicePreview.hooks.js",
       "default": "./dist/shell/components/DevicePreview/DevicePreview.hooks.js"
     },
+    "./shell/components/ChatFab/ChatFab.hooks": {
+      "types": "./dist/shell/components/ChatFab/ChatFab.hooks.d.ts",
+      "import": "./dist/shell/components/ChatFab/ChatFab.hooks.js",
+      "default": "./dist/shell/components/ChatFab/ChatFab.hooks.js"
+    },
     "./shell/components/InstallTabCard/use-zip-drop.hooks": {
       "types": "./dist/shell/components/InstallTabCard/use-zip-drop.hooks.d.ts",
       "import": "./dist/shell/components/InstallTabCard/use-zip-drop.hooks.js",
@@ -665,6 +1043,226 @@
       "types": "./dist/shell/lib/content-refresh-bus.d.ts",
       "import": "./dist/shell/lib/content-refresh-bus.js",
       "default": "./dist/shell/lib/content-refresh-bus.js"
+    },
+    "./screens/assistant-settings/use-ai-assistant-locale-sync.hooks": {
+      "types": "./dist/screens/assistant-settings/use-ai-assistant-locale-sync.hooks.d.ts",
+      "import": "./dist/screens/assistant-settings/use-ai-assistant-locale-sync.hooks.js",
+      "default": "./dist/screens/assistant-settings/use-ai-assistant-locale-sync.hooks.js"
+    },
+    "./screens/assistant-settings/OwnerGrantStatus": {
+      "types": "./dist/screens/assistant-settings/OwnerGrantStatus.d.ts",
+      "import": "./dist/screens/assistant-settings/OwnerGrantStatus.js",
+      "default": "./dist/screens/assistant-settings/OwnerGrantStatus.js"
+    },
+    "./screens/assistant-settings/AssistantToggleRow": {
+      "types": "./dist/screens/assistant-settings/AssistantToggleRow.d.ts",
+      "import": "./dist/screens/assistant-settings/AssistantToggleRow.js",
+      "default": "./dist/screens/assistant-settings/AssistantToggleRow.js"
+    },
+    "./screens/assistant-settings/use-assistant-owner-grant.hooks": {
+      "types": "./dist/screens/assistant-settings/use-assistant-owner-grant.hooks.d.ts",
+      "import": "./dist/screens/assistant-settings/use-assistant-owner-grant.hooks.js",
+      "default": "./dist/screens/assistant-settings/use-assistant-owner-grant.hooks.js"
+    },
+    "./screens/assistant-settings/use-visitor-tools.hooks": {
+      "types": "./dist/screens/assistant-settings/use-visitor-tools.hooks.d.ts",
+      "import": "./dist/screens/assistant-settings/use-visitor-tools.hooks.js",
+      "default": "./dist/screens/assistant-settings/use-visitor-tools.hooks.js"
+    },
+    "./screens/assistant-settings/VisitorToolsPanel": {
+      "types": "./dist/screens/assistant-settings/VisitorToolsPanel.d.ts",
+      "import": "./dist/screens/assistant-settings/VisitorToolsPanel.js",
+      "default": "./dist/screens/assistant-settings/VisitorToolsPanel.js"
+    },
+    "./screens/assistant-settings/visitor-credential-form-port": {
+      "types": "./dist/screens/assistant-settings/visitor-credential-form-port.d.ts",
+      "import": "./dist/screens/assistant-settings/visitor-credential-form-port.js",
+      "default": "./dist/screens/assistant-settings/visitor-credential-form-port.js"
+    },
+    "./screens/assistant-settings/visitor-credential-form.rules": {
+      "types": "./dist/screens/assistant-settings/visitor-credential-form.rules.d.ts",
+      "import": "./dist/screens/assistant-settings/visitor-credential-form.rules.js",
+      "default": "./dist/screens/assistant-settings/visitor-credential-form.rules.js"
+    },
+    "./screens/assistant-settings/visitor-credential-form-actions": {
+      "types": "./dist/screens/assistant-settings/visitor-credential-form-actions.d.ts",
+      "import": "./dist/screens/assistant-settings/visitor-credential-form-actions.js",
+      "default": "./dist/screens/assistant-settings/visitor-credential-form-actions.js"
+    },
+    "./screens/assistant-settings/use-visitor-credential-form.hooks": {
+      "types": "./dist/screens/assistant-settings/use-visitor-credential-form.hooks.d.ts",
+      "import": "./dist/screens/assistant-settings/use-visitor-credential-form.hooks.js",
+      "default": "./dist/screens/assistant-settings/use-visitor-credential-form.hooks.js"
+    },
+    "./screens/assistant-settings/use-visitor-assistant-panel.hooks": {
+      "types": "./dist/screens/assistant-settings/use-visitor-assistant-panel.hooks.d.ts",
+      "import": "./dist/screens/assistant-settings/use-visitor-assistant-panel.hooks.js",
+      "default": "./dist/screens/assistant-settings/use-visitor-assistant-panel.hooks.js"
+    },
+    "./screens/assistant-settings/VisitorAssistantPanel": {
+      "types": "./dist/screens/assistant-settings/VisitorAssistantPanel.d.ts",
+      "import": "./dist/screens/assistant-settings/VisitorAssistantPanel.js",
+      "default": "./dist/screens/assistant-settings/VisitorAssistantPanel.js"
+    },
+    "./screens/assistant-settings/AssistantDaemonRestart": {
+      "types": "./dist/screens/assistant-settings/AssistantDaemonRestart.d.ts",
+      "import": "./dist/screens/assistant-settings/AssistantDaemonRestart.js",
+      "default": "./dist/screens/assistant-settings/AssistantDaemonRestart.js"
+    },
+    "./screens/assistant-settings/AdminAssistantSwitch": {
+      "types": "./dist/screens/assistant-settings/AdminAssistantSwitch.d.ts",
+      "import": "./dist/screens/assistant-settings/AdminAssistantSwitch.js",
+      "default": "./dist/screens/assistant-settings/AdminAssistantSwitch.js"
+    },
+    "./screens/assistant-settings/use-admin-assistant-switch.hooks": {
+      "types": "./dist/screens/assistant-settings/use-admin-assistant-switch.hooks.d.ts",
+      "import": "./dist/screens/assistant-settings/use-admin-assistant-switch.hooks.js",
+      "default": "./dist/screens/assistant-settings/use-admin-assistant-switch.hooks.js"
+    },
+    "./screens/assistant-settings/use-ai-assistant.hooks": {
+      "types": "./dist/screens/assistant-settings/use-ai-assistant.hooks.d.ts",
+      "import": "./dist/screens/assistant-settings/use-ai-assistant.hooks.js",
+      "default": "./dist/screens/assistant-settings/use-ai-assistant.hooks.js"
+    },
+    "./screens/assistant-settings/AdminSubagents": {
+      "types": "./dist/screens/assistant-settings/AdminSubagents.d.ts",
+      "import": "./dist/screens/assistant-settings/AdminSubagents.js",
+      "default": "./dist/screens/assistant-settings/AdminSubagents.js"
+    },
+    "./screens/assistant-settings/admin-subagents.types": {
+      "types": "./dist/screens/assistant-settings/admin-subagents.types.d.ts",
+      "import": "./dist/screens/assistant-settings/admin-subagents.types.js",
+      "default": "./dist/screens/assistant-settings/admin-subagents.types.js"
+    },
+    "./screens/assistant-settings/AdminPermanentDeletes": {
+      "types": "./dist/screens/assistant-settings/AdminPermanentDeletes.d.ts",
+      "import": "./dist/screens/assistant-settings/AdminPermanentDeletes.js",
+      "default": "./dist/screens/assistant-settings/AdminPermanentDeletes.js"
+    },
+    "./screens/assistant-settings/use-admin-permanent-deletes.hooks": {
+      "types": "./dist/screens/assistant-settings/use-admin-permanent-deletes.hooks.d.ts",
+      "import": "./dist/screens/assistant-settings/use-admin-permanent-deletes.hooks.js",
+      "default": "./dist/screens/assistant-settings/use-admin-permanent-deletes.hooks.js"
+    },
+    "./screens/assistant-settings/VisitorAssistantTabs": {
+      "types": "./dist/screens/assistant-settings/VisitorAssistantTabs.d.ts",
+      "import": "./dist/screens/assistant-settings/VisitorAssistantTabs.js",
+      "default": "./dist/screens/assistant-settings/VisitorAssistantTabs.js"
+    },
+    "./screens/assistant-settings/use-visitor-assistant-tabs.hooks": {
+      "types": "./dist/screens/assistant-settings/use-visitor-assistant-tabs.hooks.d.ts",
+      "import": "./dist/screens/assistant-settings/use-visitor-assistant-tabs.hooks.js",
+      "default": "./dist/screens/assistant-settings/use-visitor-assistant-tabs.hooks.js"
+    },
+    "./screens/webmcp/webmcp-i18n": {
+      "types": "./dist/screens/webmcp/webmcp-i18n.d.ts",
+      "import": "./dist/screens/webmcp/webmcp-i18n.js",
+      "default": "./dist/screens/webmcp/webmcp-i18n.js"
+    },
+    "./screens/webmcp/browser-agent-settings.hooks": {
+      "types": "./dist/screens/webmcp/browser-agent-settings.hooks.d.ts",
+      "import": "./dist/screens/webmcp/browser-agent-settings.hooks.js",
+      "default": "./dist/screens/webmcp/browser-agent-settings.hooks.js"
+    },
+    "./screens/webmcp/BrowserAgentSettingsPanel": {
+      "types": "./dist/screens/webmcp/BrowserAgentSettingsPanel.d.ts",
+      "import": "./dist/screens/webmcp/BrowserAgentSettingsPanel.js",
+      "default": "./dist/screens/webmcp/BrowserAgentSettingsPanel.js"
+    },
+    "./screens/fs-files/folder-drop-port": {
+      "types": "./dist/screens/fs-files/folder-drop-port.d.ts",
+      "import": "./dist/screens/fs-files/folder-drop-port.js",
+      "default": "./dist/screens/fs-files/folder-drop-port.js"
+    },
+    "./screens/fs-files/use-native-folder-picker.hooks": {
+      "types": "./dist/screens/fs-files/use-native-folder-picker.hooks.d.ts",
+      "import": "./dist/screens/fs-files/use-native-folder-picker.hooks.js",
+      "default": "./dist/screens/fs-files/use-native-folder-picker.hooks.js"
+    },
+    "./screens/fs-files/use-folder-drop.hooks": {
+      "types": "./dist/screens/fs-files/use-folder-drop.hooks.d.ts",
+      "import": "./dist/screens/fs-files/use-folder-drop.hooks.js",
+      "default": "./dist/screens/fs-files/use-folder-drop.hooks.js"
+    },
+    "./screens/fs-files/folder-drop.rules": {
+      "types": "./dist/screens/fs-files/folder-drop.rules.d.ts",
+      "import": "./dist/screens/fs-files/folder-drop.rules.js",
+      "default": "./dist/screens/fs-files/folder-drop.rules.js"
+    },
+    "./screens/workspace/Workspace": {
+      "types": "./dist/screens/workspace/Workspace.d.ts",
+      "import": "./dist/screens/workspace/Workspace.js",
+      "default": "./dist/screens/workspace/Workspace.js"
+    },
+    "./screens/sites/AllSitesTab": {
+      "types": "./dist/screens/sites/AllSitesTab.d.ts",
+      "import": "./dist/screens/sites/AllSitesTab.js",
+      "default": "./dist/screens/sites/AllSitesTab.js"
+    },
+    "./screens/sites/SiteCardView": {
+      "types": "./dist/screens/sites/SiteCardView.d.ts",
+      "import": "./dist/screens/sites/SiteCardView.js",
+      "default": "./dist/screens/sites/SiteCardView.js"
+    },
+    "./screens/sites/SiteTrashTab": {
+      "types": "./dist/screens/sites/SiteTrashTab.d.ts",
+      "import": "./dist/screens/sites/SiteTrashTab.js",
+      "default": "./dist/screens/sites/SiteTrashTab.js"
+    },
+    "./screens/sites/sites-screen-ports": {
+      "types": "./dist/screens/sites/sites-screen-ports.d.ts",
+      "import": "./dist/screens/sites/sites-screen-ports.js",
+      "default": "./dist/screens/sites/sites-screen-ports.js"
+    },
+    "./screens/sites/sites-list-rules": {
+      "types": "./dist/screens/sites/sites-list-rules.d.ts",
+      "import": "./dist/screens/sites/sites-list-rules.js",
+      "default": "./dist/screens/sites/sites-list-rules.js"
+    },
+    "./screens/sites/use-site-confirm.hooks": {
+      "types": "./dist/screens/sites/use-site-confirm.hooks.d.ts",
+      "import": "./dist/screens/sites/use-site-confirm.hooks.js",
+      "default": "./dist/screens/sites/use-site-confirm.hooks.js"
+    },
+    "./screens/sites/sites-port.hooks": {
+      "types": "./dist/screens/sites/sites-port.hooks.d.ts",
+      "import": "./dist/screens/sites/sites-port.hooks.js",
+      "default": "./dist/screens/sites/sites-port.hooks.js"
+    },
+    "./screens/sites/use-sites-snapshot.hooks": {
+      "types": "./dist/screens/sites/use-sites-snapshot.hooks.d.ts",
+      "import": "./dist/screens/sites/use-sites-snapshot.hooks.js",
+      "default": "./dist/screens/sites/use-sites-snapshot.hooks.js"
+    },
+    "./screens/sites/use-local-sites.hooks": {
+      "types": "./dist/screens/sites/use-local-sites.hooks.d.ts",
+      "import": "./dist/screens/sites/use-local-sites.hooks.js",
+      "default": "./dist/screens/sites/use-local-sites.hooks.js"
+    },
+    "./screens/sites/use-sites-config.hooks": {
+      "types": "./dist/screens/sites/use-sites-config.hooks.d.ts",
+      "import": "./dist/screens/sites/use-sites-config.hooks.js",
+      "default": "./dist/screens/sites/use-sites-config.hooks.js"
+    },
+    "./screens/sites/LocalSiteConfirmDialog": {
+      "types": "./dist/screens/sites/LocalSiteConfirmDialog.d.ts",
+      "import": "./dist/screens/sites/LocalSiteConfirmDialog.js",
+      "default": "./dist/screens/sites/LocalSiteConfirmDialog.js"
+    },
+    "./screens/workspace/rules": {
+      "types": "./dist/screens/workspace/rules.d.ts",
+      "import": "./dist/screens/workspace/rules.js",
+      "default": "./dist/screens/workspace/rules.js"
+    },
+    "./screens/workspace/hooks/workspace-port.hooks": {
+      "types": "./dist/screens/workspace/hooks/workspace-port.hooks.d.ts",
+      "import": "./dist/screens/workspace/hooks/workspace-port.hooks.js",
+      "default": "./dist/screens/workspace/hooks/workspace-port.hooks.js"
+    },
+    "./screens/workspace/hooks/use-workspace.hooks": {
+      "types": "./dist/screens/workspace/hooks/use-workspace.hooks.d.ts",
+      "import": "./dist/screens/workspace/hooks/use-workspace.hooks.js",
+      "default": "./dist/screens/workspace/hooks/use-workspace.hooks.js"
     },
     "./shell/lib/editor-failure-i18n": {
       "types": "./dist/shell/lib/editor-failure-i18n.d.ts",
@@ -755,6 +1353,51 @@
       "types": "./dist/shell/lib/unique-id.d.ts",
       "import": "./dist/shell/lib/unique-id.js",
       "default": "./dist/shell/lib/unique-id.js"
+    },
+    "./shell/lib/assistant-permanent-deletes": {
+      "types": "./dist/shell/lib/assistant-permanent-deletes.d.ts",
+      "import": "./dist/shell/lib/assistant-permanent-deletes.js",
+      "default": "./dist/shell/lib/assistant-permanent-deletes.js"
+    },
+    "./shell/lib/stored-credential-endpoint": {
+      "types": "./dist/shell/lib/stored-credential-endpoint.d.ts",
+      "import": "./dist/shell/lib/stored-credential-endpoint.js",
+      "default": "./dist/shell/lib/stored-credential-endpoint.js"
+    },
+    "./shell/lib/version-conflict": {
+      "types": "./dist/shell/lib/version-conflict.d.ts",
+      "import": "./dist/shell/lib/version-conflict.js",
+      "default": "./dist/shell/lib/version-conflict.js"
+    },
+    "./shell/lib/assistant-subagents": {
+      "types": "./dist/shell/lib/assistant-subagents.d.ts",
+      "import": "./dist/shell/lib/assistant-subagents.js",
+      "default": "./dist/shell/lib/assistant-subagents.js"
+    },
+    "./shell/lib/credential-submit-error": {
+      "types": "./dist/shell/lib/credential-submit-error.d.ts",
+      "import": "./dist/shell/lib/credential-submit-error.js",
+      "default": "./dist/shell/lib/credential-submit-error.js"
+    },
+    "./shell/lib/visitor-tools": {
+      "types": "./dist/shell/lib/visitor-tools.d.ts",
+      "import": "./dist/shell/lib/visitor-tools.js",
+      "default": "./dist/shell/lib/visitor-tools.js"
+    },
+    "./shell/lib/assistant-agents-snapshot": {
+      "types": "./dist/shell/lib/assistant-agents-snapshot.d.ts",
+      "import": "./dist/shell/lib/assistant-agents-snapshot.js",
+      "default": "./dist/shell/lib/assistant-agents-snapshot.js"
+    },
+    "./shell/lib/admin-failure-reporter": {
+      "types": "./dist/shell/lib/admin-failure-reporter.d.ts",
+      "import": "./dist/shell/lib/admin-failure-reporter.js",
+      "default": "./dist/shell/lib/admin-failure-reporter.js"
+    },
+    "./shell/lib/browser-working-directory-access": {
+      "types": "./dist/shell/lib/browser-working-directory-access.d.ts",
+      "import": "./dist/shell/lib/browser-working-directory-access.js",
+      "default": "./dist/shell/lib/browser-working-directory-access.js"
     },
     "./shell/lib/viewer-time-zone": {
       "types": "./dist/shell/lib/viewer-time-zone.d.ts",
@@ -886,6 +1529,76 @@
       "import": "./dist/shell/components/AssistantDock/SlowRunNoticeCard.hooks.js",
       "default": "./dist/shell/components/AssistantDock/SlowRunNoticeCard.hooks.js"
     },
+    "./shell/components/AdminByokKeyPanel.hooks": {
+      "types": "./dist/shell/components/AdminByokKeyPanel.hooks.d.ts",
+      "import": "./dist/shell/components/AdminByokKeyPanel.hooks.js",
+      "default": "./dist/shell/components/AdminByokKeyPanel.hooks.js"
+    },
+    "./shell/components/shared-components-i18n": {
+      "types": "./dist/shell/components/shared-components-i18n.d.ts",
+      "import": "./dist/shell/components/shared-components-i18n.js",
+      "default": "./dist/shell/components/shared-components-i18n.js"
+    },
+    "./shell/components/AssistantDock/MessageOverflowModal": {
+      "types": "./dist/shell/components/AssistantDock/MessageOverflowModal.d.ts",
+      "import": "./dist/shell/components/AssistantDock/MessageOverflowModal.js",
+      "default": "./dist/shell/components/AssistantDock/MessageOverflowModal.js"
+    },
+    "./shell/components/AssistantDock/SelectedAgentPluginTray": {
+      "types": "./dist/shell/components/AssistantDock/SelectedAgentPluginTray.d.ts",
+      "import": "./dist/shell/components/AssistantDock/SelectedAgentPluginTray.js",
+      "default": "./dist/shell/components/AssistantDock/SelectedAgentPluginTray.js"
+    },
+    "./shell/components/AssistantDock/AgentFailureCard.hooks": {
+      "types": "./dist/shell/components/AssistantDock/AgentFailureCard.hooks.d.ts",
+      "import": "./dist/shell/components/AssistantDock/AgentFailureCard.hooks.js",
+      "default": "./dist/shell/components/AssistantDock/AgentFailureCard.hooks.js"
+    },
+    "./shell/components/AssistantDock/AgentFailureCard": {
+      "types": "./dist/shell/components/AssistantDock/AgentFailureCard.d.ts",
+      "import": "./dist/shell/components/AssistantDock/AgentFailureCard.js",
+      "default": "./dist/shell/components/AssistantDock/AgentFailureCard.js"
+    },
+    "./shell/components/AssistantDock/SlowRunNoticeCard": {
+      "types": "./dist/shell/components/AssistantDock/SlowRunNoticeCard.d.ts",
+      "import": "./dist/shell/components/AssistantDock/SlowRunNoticeCard.js",
+      "default": "./dist/shell/components/AssistantDock/SlowRunNoticeCard.js"
+    },
+    "./shell/components/AssistantDock/agent-failure": {
+      "types": "./dist/shell/components/AssistantDock/agent-failure.d.ts",
+      "import": "./dist/shell/components/AssistantDock/agent-failure.js",
+      "default": "./dist/shell/components/AssistantDock/agent-failure.js"
+    },
+    "./shell/components/AdminFailureNotice/AdminFailureNotice": {
+      "types": "./dist/shell/components/AdminFailureNotice/AdminFailureNotice.d.ts",
+      "import": "./dist/shell/components/AdminFailureNotice/AdminFailureNotice.js",
+      "default": "./dist/shell/components/AdminFailureNotice/AdminFailureNotice.js"
+    },
+    "./shell/components/AssistantDock/agent-failure-hints": {
+      "types": "./dist/shell/components/AssistantDock/agent-failure-hints.d.ts",
+      "import": "./dist/shell/components/AssistantDock/agent-failure-hints.js",
+      "default": "./dist/shell/components/AssistantDock/agent-failure-hints.js"
+    },
+    "./shell/components/MailStatusBanner/MailStatusBanner": {
+      "types": "./dist/shell/components/MailStatusBanner/MailStatusBanner.d.ts",
+      "import": "./dist/shell/components/MailStatusBanner/MailStatusBanner.js",
+      "default": "./dist/shell/components/MailStatusBanner/MailStatusBanner.js"
+    },
+    "./shell/components/SitesSidebarNav": {
+      "types": "./dist/shell/components/SitesSidebarNav.d.ts",
+      "import": "./dist/shell/components/SitesSidebarNav.js",
+      "default": "./dist/shell/components/SitesSidebarNav.js"
+    },
+    "./shell/components/WidgetConfigFields/WidgetConfigFields.hooks": {
+      "types": "./dist/shell/components/WidgetConfigFields/WidgetConfigFields.hooks.d.ts",
+      "import": "./dist/shell/components/WidgetConfigFields/WidgetConfigFields.hooks.js",
+      "default": "./dist/shell/components/WidgetConfigFields/WidgetConfigFields.hooks.js"
+    },
+    "./shell/components/AssistantDock/hooks/use-routed-a2ui-surface-card.hooks": {
+      "types": "./dist/shell/components/AssistantDock/hooks/use-routed-a2ui-surface-card.hooks.d.ts",
+      "import": "./dist/shell/components/AssistantDock/hooks/use-routed-a2ui-surface-card.hooks.js",
+      "default": "./dist/shell/components/AssistantDock/hooks/use-routed-a2ui-surface-card.hooks.js"
+    },
     "./shell/components/CodeView/preview-modal-icons": {
       "types": "./dist/shell/components/CodeView/preview-modal-icons.d.ts",
       "import": "./dist/shell/components/CodeView/preview-modal-icons.js",
@@ -910,6 +1623,16 @@
       "types": "./dist/shell/hooks/use-external-entry-refresh.hooks.d.ts",
       "import": "./dist/shell/hooks/use-external-entry-refresh.hooks.js",
       "default": "./dist/shell/hooks/use-external-entry-refresh.hooks.js"
+    },
+    "./shell/hooks/admin-execution-credential-port.hooks": {
+      "types": "./dist/shell/hooks/admin-execution-credential-port.hooks.d.ts",
+      "import": "./dist/shell/hooks/admin-execution-credential-port.hooks.js",
+      "default": "./dist/shell/hooks/admin-execution-credential-port.hooks.js"
+    },
+    "./shell/hooks/use-sites-sidebar-nav.hooks": {
+      "types": "./dist/shell/hooks/use-sites-sidebar-nav.hooks.d.ts",
+      "import": "./dist/shell/hooks/use-sites-sidebar-nav.hooks.js",
+      "default": "./dist/shell/hooks/use-sites-sidebar-nav.hooks.js"
     },
     "./posts/PostAuthorFields": {
       "types": "./dist/posts/PostAuthorFields.d.ts",
@@ -955,6 +1678,91 @@
       "types": "./dist/screens/collections/hooks/new-content-type-dialog-port.hooks.d.ts",
       "import": "./dist/screens/collections/hooks/new-content-type-dialog-port.hooks.js",
       "default": "./dist/screens/collections/hooks/new-content-type-dialog-port.hooks.js"
+    },
+    "./screens/plugins/add-plugin-tab-soon": {
+      "types": "./dist/screens/plugins/add-plugin-tab-soon.d.ts",
+      "import": "./dist/screens/plugins/add-plugin-tab-soon.js",
+      "default": "./dist/screens/plugins/add-plugin-tab-soon.js"
+    },
+    "./screens/plugins/composer-capabilities": {
+      "types": "./dist/screens/plugins/composer-capabilities.d.ts",
+      "import": "./dist/screens/plugins/composer-capabilities.js",
+      "default": "./dist/screens/plugins/composer-capabilities.js"
+    },
+    "./screens/plugins/agent-plugins-visuals": {
+      "types": "./dist/screens/plugins/agent-plugins-visuals.d.ts",
+      "import": "./dist/screens/plugins/agent-plugins-visuals.js",
+      "default": "./dist/screens/plugins/agent-plugins-visuals.js"
+    },
+    "./screens/plugins/hooks/agent-plugin-surfaces-port.hooks": {
+      "types": "./dist/screens/plugins/hooks/agent-plugin-surfaces-port.hooks.d.ts",
+      "import": "./dist/screens/plugins/hooks/agent-plugin-surfaces-port.hooks.js",
+      "default": "./dist/screens/plugins/hooks/agent-plugin-surfaces-port.hooks.js"
+    },
+    "./screens/plugins/hooks/use-linked-lock-tip.hooks": {
+      "types": "./dist/screens/plugins/hooks/use-linked-lock-tip.hooks.d.ts",
+      "import": "./dist/screens/plugins/hooks/use-linked-lock-tip.hooks.js",
+      "default": "./dist/screens/plugins/hooks/use-linked-lock-tip.hooks.js"
+    },
+    "./screens/plugins/plugins-memory-i18n": {
+      "types": "./dist/screens/plugins/plugins-memory-i18n.d.ts",
+      "import": "./dist/screens/plugins/plugins-memory-i18n.js",
+      "default": "./dist/screens/plugins/plugins-memory-i18n.js"
+    },
+    "./screens/skills/skill-failure": {
+      "types": "./dist/screens/skills/skill-failure.d.ts",
+      "import": "./dist/screens/skills/skill-failure.js",
+      "default": "./dist/screens/skills/skill-failure.js"
+    },
+    "./screens/skills/skill-upload": {
+      "types": "./dist/screens/skills/skill-upload.d.ts",
+      "import": "./dist/screens/skills/skill-upload.js",
+      "default": "./dist/screens/skills/skill-upload.js"
+    },
+    "./screens/skills/SkillInstallConfirmation": {
+      "types": "./dist/screens/skills/SkillInstallConfirmation.d.ts",
+      "import": "./dist/screens/skills/SkillInstallConfirmation.js",
+      "default": "./dist/screens/skills/SkillInstallConfirmation.js"
+    },
+    "./screens/skills/SkillRemoveConfirmDialog": {
+      "types": "./dist/screens/skills/SkillRemoveConfirmDialog.d.ts",
+      "import": "./dist/screens/skills/SkillRemoveConfirmDialog.js",
+      "default": "./dist/screens/skills/SkillRemoveConfirmDialog.js"
+    },
+    "./screens/skills/SkillRow": {
+      "types": "./dist/screens/skills/SkillRow.d.ts",
+      "import": "./dist/screens/skills/SkillRow.js",
+      "default": "./dist/screens/skills/SkillRow.js"
+    },
+    "./screens/skills/Skills": {
+      "types": "./dist/screens/skills/Skills.d.ts",
+      "import": "./dist/screens/skills/Skills.js",
+      "default": "./dist/screens/skills/Skills.js"
+    },
+    "./screens/skills/skills-i18n": {
+      "types": "./dist/screens/skills/skills-i18n.d.ts",
+      "import": "./dist/screens/skills/skills-i18n.js",
+      "default": "./dist/screens/skills/skills-i18n.js"
+    },
+    "./screens/skills/skills-screen.types": {
+      "types": "./dist/screens/skills/skills-screen.types.d.ts",
+      "import": "./dist/screens/skills/skills-screen.types.js",
+      "default": "./dist/screens/skills/skills-screen.types.js"
+    },
+    "./screens/skills/skills-visuals": {
+      "types": "./dist/screens/skills/skills-visuals.d.ts",
+      "import": "./dist/screens/skills/skills-visuals.js",
+      "default": "./dist/screens/skills/skills-visuals.js"
+    },
+    "./screens/skills/Skills.hooks": {
+      "types": "./dist/screens/skills/Skills.hooks.d.ts",
+      "import": "./dist/screens/skills/Skills.hooks.js",
+      "default": "./dist/screens/skills/Skills.hooks.js"
+    },
+    "./screens/skills/use-skill-confirmation.hooks": {
+      "types": "./dist/screens/skills/use-skill-confirmation.hooks.d.ts",
+      "import": "./dist/screens/skills/use-skill-confirmation.hooks.js",
+      "default": "./dist/screens/skills/use-skill-confirmation.hooks.js"
     },
     "./screens/taxonomy/api/taxonomy-api.types": {
       "types": "./dist/screens/taxonomy/api/taxonomy-api.types.d.ts",
@@ -1005,6 +1813,66 @@
       "types": "./dist/screens/comments/api/comments-api.types.d.ts",
       "import": "./dist/screens/comments/api/comments-api.types.js",
       "default": "./dist/screens/comments/api/comments-api.types.js"
+    },
+    "./screens/email/email-i18n": {
+      "types": "./dist/screens/email/email-i18n.d.ts",
+      "import": "./dist/screens/email/email-i18n.js",
+      "default": "./dist/screens/email/email-i18n.js"
+    },
+    "./screens/email/api/mail-status-api.types": {
+      "types": "./dist/screens/email/api/mail-status-api.types.d.ts",
+      "import": "./dist/screens/email/api/mail-status-api.types.js",
+      "default": "./dist/screens/email/api/mail-status-api.types.js"
+    },
+    "./screens/email/Email.hooks": {
+      "types": "./dist/screens/email/Email.hooks.d.ts",
+      "import": "./dist/screens/email/Email.hooks.js",
+      "default": "./dist/screens/email/Email.hooks.js"
+    },
+    "./screens/email/EmailTemplateEditor.hooks": {
+      "types": "./dist/screens/email/EmailTemplateEditor.hooks.d.ts",
+      "import": "./dist/screens/email/EmailTemplateEditor.hooks.js",
+      "default": "./dist/screens/email/EmailTemplateEditor.hooks.js"
+    },
+    "./screens/email/hooks/email-load.hooks": {
+      "types": "./dist/screens/email/hooks/email-load.hooks.d.ts",
+      "import": "./dist/screens/email/hooks/email-load.hooks.js",
+      "default": "./dist/screens/email/hooks/email-load.hooks.js"
+    },
+    "./screens/email/email-api.types": {
+      "types": "./dist/screens/email/email-api.types.d.ts",
+      "import": "./dist/screens/email/email-api.types.js",
+      "default": "./dist/screens/email/email-api.types.js"
+    },
+    "./screens/email/hooks/use-email.hooks": {
+      "types": "./dist/screens/email/hooks/use-email.hooks.d.ts",
+      "import": "./dist/screens/email/hooks/use-email.hooks.js",
+      "default": "./dist/screens/email/hooks/use-email.hooks.js"
+    },
+    "./screens/email/hooks/use-email-overview.hooks": {
+      "types": "./dist/screens/email/hooks/use-email-overview.hooks.d.ts",
+      "import": "./dist/screens/email/hooks/use-email-overview.hooks.js",
+      "default": "./dist/screens/email/hooks/use-email-overview.hooks.js"
+    },
+    "./screens/email/hooks/use-email-sender.hooks": {
+      "types": "./dist/screens/email/hooks/use-email-sender.hooks.d.ts",
+      "import": "./dist/screens/email/hooks/use-email-sender.hooks.js",
+      "default": "./dist/screens/email/hooks/use-email-sender.hooks.js"
+    },
+    "./screens/email/hooks/use-email-templates.hooks": {
+      "types": "./dist/screens/email/hooks/use-email-templates.hooks.d.ts",
+      "import": "./dist/screens/email/hooks/use-email-templates.hooks.js",
+      "default": "./dist/screens/email/hooks/use-email-templates.hooks.js"
+    },
+    "./screens/email/hooks/use-email-template-editor.hooks": {
+      "types": "./dist/screens/email/hooks/use-email-template-editor.hooks.d.ts",
+      "import": "./dist/screens/email/hooks/use-email-template-editor.hooks.js",
+      "default": "./dist/screens/email/hooks/use-email-template-editor.hooks.js"
+    },
+    "./screens/email/hooks/use-email-activity.hooks": {
+      "types": "./dist/screens/email/hooks/use-email-activity.hooks.d.ts",
+      "import": "./dist/screens/email/hooks/use-email-activity.hooks.js",
+      "default": "./dist/screens/email/hooks/use-email-activity.hooks.js"
     },
     "./screens/forms/api/forms-api.types": {
       "types": "./dist/screens/forms/api/forms-api.types.d.ts",
@@ -1065,6 +1933,668 @@
       "types": "./dist/screens/menus/MenuPageLinkFields.d.ts",
       "import": "./dist/screens/menus/MenuPageLinkFields.js",
       "default": "./dist/screens/menus/MenuPageLinkFields.js"
+    },
+    "./roles/Roles.hooks": {
+      "types": "./dist/roles/Roles.hooks.d.ts",
+      "import": "./dist/roles/Roles.hooks.js",
+      "default": "./dist/roles/Roles.hooks.js"
+    },
+    "./roles/rules": {
+      "types": "./dist/roles/rules.d.ts",
+      "import": "./dist/roles/rules.js",
+      "default": "./dist/roles/rules.js"
+    },
+    "./roles/roles-i18n": {
+      "types": "./dist/roles/roles-i18n.d.ts",
+      "import": "./dist/roles/roles-i18n.js",
+      "default": "./dist/roles/roles-i18n.js"
+    },
+    "./roles/i18n/roles-sentence-parts": {
+      "types": "./dist/roles/i18n/roles-sentence-parts.d.ts",
+      "import": "./dist/roles/i18n/roles-sentence-parts.js",
+      "default": "./dist/roles/i18n/roles-sentence-parts.js"
+    },
+    "./users/users-i18n": {
+      "types": "./dist/users/users-i18n.d.ts",
+      "import": "./dist/users/users-i18n.js",
+      "default": "./dist/users/users-i18n.js"
+    },
+    "./roles/Roles": {
+      "types": "./dist/roles/Roles.d.ts",
+      "import": "./dist/roles/Roles.js",
+      "default": "./dist/roles/Roles.js"
+    },
+    "./roles/RolesSection": {
+      "types": "./dist/roles/RolesSection.d.ts",
+      "import": "./dist/roles/RolesSection.js",
+      "default": "./dist/roles/RolesSection.js"
+    },
+    "./roles/PolicyRow": {
+      "types": "./dist/roles/PolicyRow.d.ts",
+      "import": "./dist/roles/PolicyRow.js",
+      "default": "./dist/roles/PolicyRow.js"
+    },
+    "./roles/hooks/use-roles.hooks": {
+      "types": "./dist/roles/hooks/use-roles.hooks.d.ts",
+      "import": "./dist/roles/hooks/use-roles.hooks.js",
+      "default": "./dist/roles/hooks/use-roles.hooks.js"
+    },
+    "./screens/auth/hooks/login-port.hooks": {
+      "types": "./dist/screens/auth/hooks/login-port.hooks.d.ts",
+      "import": "./dist/screens/auth/hooks/login-port.hooks.js",
+      "default": "./dist/screens/auth/hooks/login-port.hooks.js"
+    },
+    "./screens/auth/Login.hooks": {
+      "types": "./dist/screens/auth/Login.hooks.d.ts",
+      "import": "./dist/screens/auth/Login.hooks.js",
+      "default": "./dist/screens/auth/Login.hooks.js"
+    },
+    "./screens/auth/Login": {
+      "types": "./dist/screens/auth/Login.d.ts",
+      "import": "./dist/screens/auth/Login.js",
+      "default": "./dist/screens/auth/Login.js"
+    },
+    "./screens/auth/OwnerRecoverySignIn": {
+      "types": "./dist/screens/auth/OwnerRecoverySignIn.d.ts",
+      "import": "./dist/screens/auth/OwnerRecoverySignIn.js",
+      "default": "./dist/screens/auth/OwnerRecoverySignIn.js"
+    },
+    "./screens/auth/OwnerRecoverySignIn.hooks": {
+      "types": "./dist/screens/auth/OwnerRecoverySignIn.hooks.d.ts",
+      "import": "./dist/screens/auth/OwnerRecoverySignIn.hooks.js",
+      "default": "./dist/screens/auth/OwnerRecoverySignIn.hooks.js"
+    },
+    "./screens/auth/hooks/use-login.hooks": {
+      "types": "./dist/screens/auth/hooks/use-login.hooks.d.ts",
+      "import": "./dist/screens/auth/hooks/use-login.hooks.js",
+      "default": "./dist/screens/auth/hooks/use-login.hooks.js"
+    },
+    "./screens/auth/auth-host-slots": {
+      "types": "./dist/screens/auth/auth-host-slots.d.ts",
+      "import": "./dist/screens/auth/auth-host-slots.js",
+      "default": "./dist/screens/auth/auth-host-slots.js"
+    },
+    "./screens/authentication/Authentication": {
+      "types": "./dist/screens/authentication/Authentication.d.ts",
+      "import": "./dist/screens/authentication/Authentication.js",
+      "default": "./dist/screens/authentication/Authentication.js"
+    },
+    "./screens/authentication/authentication-host-slots": {
+      "types": "./dist/screens/authentication/authentication-host-slots.d.ts",
+      "import": "./dist/screens/authentication/authentication-host-slots.js",
+      "default": "./dist/screens/authentication/authentication-host-slots.js"
+    },
+    "./screens/authentication/model/provider-schemas": {
+      "types": "./dist/screens/authentication/model/provider-schemas.d.ts",
+      "import": "./dist/screens/authentication/model/provider-schemas.js",
+      "default": "./dist/screens/authentication/model/provider-schemas.js"
+    },
+    "./shell/lib/boot-token-fragment": {
+      "types": "./dist/shell/lib/boot-token-fragment.d.ts",
+      "import": "./dist/shell/lib/boot-token-fragment.js",
+      "default": "./dist/shell/lib/boot-token-fragment.js"
+    },
+    "./screens/seo": {
+      "types": "./dist/screens/seo/index.d.ts",
+      "import": "./dist/screens/seo/index.js",
+      "default": "./dist/screens/seo/index.js"
+    },
+    "./screens/seo/seo-i18n": {
+      "types": "./dist/screens/seo/seo-i18n.d.ts",
+      "import": "./dist/screens/seo/seo-i18n.js",
+      "default": "./dist/screens/seo/seo-i18n.js"
+    },
+    "./screens/redirects": {
+      "types": "./dist/screens/redirects/index.d.ts",
+      "import": "./dist/screens/redirects/index.js",
+      "default": "./dist/screens/redirects/index.js"
+    },
+    "./screens/redirects/redirects-i18n": {
+      "types": "./dist/screens/redirects/redirects-i18n.d.ts",
+      "import": "./dist/screens/redirects/redirects-i18n.js",
+      "default": "./dist/screens/redirects/redirects-i18n.js"
+    },
+    "./screens/analytics": {
+      "types": "./dist/screens/analytics/Analytics.d.ts",
+      "import": "./dist/screens/analytics/Analytics.js",
+      "default": "./dist/screens/analytics/Analytics.js"
+    },
+    "./screens/analytics/analytics-i18n": {
+      "types": "./dist/screens/analytics/analytics-i18n.d.ts",
+      "import": "./dist/screens/analytics/analytics-i18n.js",
+      "default": "./dist/screens/analytics/analytics-i18n.js"
+    },
+    "./screens/analytics/api/analytics-api.types": {
+      "types": "./dist/screens/analytics/api/analytics-api.types.d.ts",
+      "import": "./dist/screens/analytics/api/analytics-api.types.js",
+      "default": "./dist/screens/analytics/api/analytics-api.types.js"
+    },
+    "./screens/analytics/hooks/analytics-port.hooks": {
+      "types": "./dist/screens/analytics/hooks/analytics-port.hooks.d.ts",
+      "import": "./dist/screens/analytics/hooks/analytics-port.hooks.js",
+      "default": "./dist/screens/analytics/hooks/analytics-port.hooks.js"
+    },
+    "./screens/analytics/hooks/analytics-dependencies.hooks": {
+      "types": "./dist/screens/analytics/hooks/analytics-dependencies.hooks.d.ts",
+      "import": "./dist/screens/analytics/hooks/analytics-dependencies.hooks.js",
+      "default": "./dist/screens/analytics/hooks/analytics-dependencies.hooks.js"
+    },
+    "./screens/analytics/hooks/use-analytics.hooks": {
+      "types": "./dist/screens/analytics/hooks/use-analytics.hooks.d.ts",
+      "import": "./dist/screens/analytics/hooks/use-analytics.hooks.js",
+      "default": "./dist/screens/analytics/hooks/use-analytics.hooks.js"
+    },
+    "./screens/consent/CookieConsent": {
+      "types": "./dist/screens/consent/CookieConsent.d.ts",
+      "import": "./dist/screens/consent/CookieConsent.js",
+      "default": "./dist/screens/consent/CookieConsent.js"
+    },
+    "./screens/consent/ConsentOverviewTab": {
+      "types": "./dist/screens/consent/ConsentOverviewTab.d.ts",
+      "import": "./dist/screens/consent/ConsentOverviewTab.js",
+      "default": "./dist/screens/consent/ConsentOverviewTab.js"
+    },
+    "./screens/consent/use-consent-page.hooks": {
+      "types": "./dist/screens/consent/use-consent-page.hooks.d.ts",
+      "import": "./dist/screens/consent/use-consent-page.hooks.js",
+      "default": "./dist/screens/consent/use-consent-page.hooks.js"
+    },
+    "./screens/consent/consent-autosave": {
+      "types": "./dist/screens/consent/consent-autosave.d.ts",
+      "import": "./dist/screens/consent/consent-autosave.js",
+      "default": "./dist/screens/consent/consent-autosave.js"
+    },
+    "./screens/consent/consent-dictionary": {
+      "types": "./dist/screens/consent/consent-dictionary.d.ts",
+      "import": "./dist/screens/consent/consent-dictionary.js",
+      "default": "./dist/screens/consent/consent-dictionary.js"
+    },
+    "./screens/consent/consent-i18n": {
+      "types": "./dist/screens/consent/consent-i18n.d.ts",
+      "import": "./dist/screens/consent/consent-i18n.js",
+      "default": "./dist/screens/consent/consent-i18n.js"
+    },
+    "./screens/consent/rules": {
+      "types": "./dist/screens/consent/rules.d.ts",
+      "import": "./dist/screens/consent/rules.js",
+      "default": "./dist/screens/consent/rules.js"
+    },
+    "./screens/consent/settings.hooks": {
+      "types": "./dist/screens/consent/settings.hooks.d.ts",
+      "import": "./dist/screens/consent/settings.hooks.js",
+      "default": "./dist/screens/consent/settings.hooks.js"
+    },
+    "./screens/consent/consent-settings.css": "./src/screens/consent/consent-settings.css",
+    "./screens/settings/external-mcp-i18n": {
+      "types": "./dist/screens/settings/external-mcp-i18n.d.ts",
+      "import": "./dist/screens/settings/external-mcp-i18n.js",
+      "default": "./dist/screens/settings/external-mcp-i18n.js"
+    },
+    "./screens/settings/hooks/use-external-mcp-oauth-connect.hooks": {
+      "types": "./dist/screens/settings/hooks/use-external-mcp-oauth-connect.hooks.d.ts",
+      "import": "./dist/screens/settings/hooks/use-external-mcp-oauth-connect.hooks.js",
+      "default": "./dist/screens/settings/hooks/use-external-mcp-oauth-connect.hooks.js"
+    },
+    "./screens/settings/settings-i18n": {
+      "types": "./dist/screens/settings/settings-i18n.d.ts",
+      "import": "./dist/screens/settings/settings-i18n.js",
+      "default": "./dist/screens/settings/settings-i18n.js"
+    },
+    "./screens/settings/settings-interface-i18n": {
+      "types": "./dist/screens/settings/settings-interface-i18n.d.ts",
+      "import": "./dist/screens/settings/settings-interface-i18n.js",
+      "default": "./dist/screens/settings/settings-interface-i18n.js"
+    },
+    "./screens/settings/settings-memory-i18n": {
+      "types": "./dist/screens/settings/settings-memory-i18n.d.ts",
+      "import": "./dist/screens/settings/settings-memory-i18n.js",
+      "default": "./dist/screens/settings/settings-memory-i18n.js"
+    },
+    "./screens/settings/UserInterfaceSettingsPanel": {
+      "types": "./dist/screens/settings/UserInterfaceSettingsPanel.d.ts",
+      "import": "./dist/screens/settings/UserInterfaceSettingsPanel.js",
+      "default": "./dist/screens/settings/UserInterfaceSettingsPanel.js"
+    },
+    "./screens/settings/UserInterfaceSettingsPanel.hooks": {
+      "types": "./dist/screens/settings/UserInterfaceSettingsPanel.hooks.d.ts",
+      "import": "./dist/screens/settings/UserInterfaceSettingsPanel.hooks.js",
+      "default": "./dist/screens/settings/UserInterfaceSettingsPanel.hooks.js"
+    },
+    "./screens/settings/hooks/use-settings-locale-sync.hooks": {
+      "types": "./dist/screens/settings/hooks/use-settings-locale-sync.hooks.d.ts",
+      "import": "./dist/screens/settings/hooks/use-settings-locale-sync.hooks.js",
+      "default": "./dist/screens/settings/hooks/use-settings-locale-sync.hooks.js"
+    },
+    "./screens/settings/ExternalMcpSharedChoice": {
+      "types": "./dist/screens/settings/ExternalMcpSharedChoice.d.ts",
+      "import": "./dist/screens/settings/ExternalMcpSharedChoice.js",
+      "default": "./dist/screens/settings/ExternalMcpSharedChoice.js"
+    },
+    "./screens/settings/ExternalMcpSharedChoice.hooks": {
+      "types": "./dist/screens/settings/ExternalMcpSharedChoice.hooks.d.ts",
+      "import": "./dist/screens/settings/ExternalMcpSharedChoice.hooks.js",
+      "default": "./dist/screens/settings/ExternalMcpSharedChoice.hooks.js"
+    },
+    "./screens/settings/hooks/use-settings-active-tab-scroll.hooks": {
+      "types": "./dist/screens/settings/hooks/use-settings-active-tab-scroll.hooks.d.ts",
+      "import": "./dist/screens/settings/hooks/use-settings-active-tab-scroll.hooks.js",
+      "default": "./dist/screens/settings/hooks/use-settings-active-tab-scroll.hooks.js"
+    },
+    "./screens/settings/ExternalMcpToolsModal.hooks": {
+      "types": "./dist/screens/settings/ExternalMcpToolsModal.hooks.d.ts",
+      "import": "./dist/screens/settings/ExternalMcpToolsModal.hooks.js",
+      "default": "./dist/screens/settings/ExternalMcpToolsModal.hooks.js"
+    },
+    "./screens/settings/hooks/use-external-mcp-remove-confirm.hooks": {
+      "types": "./dist/screens/settings/hooks/use-external-mcp-remove-confirm.hooks.d.ts",
+      "import": "./dist/screens/settings/hooks/use-external-mcp-remove-confirm.hooks.js",
+      "default": "./dist/screens/settings/hooks/use-external-mcp-remove-confirm.hooks.js"
+    },
+    "./screens/settings/user-interface-settings.css": "./src/screens/settings/user-interface-settings.css",
+    "./screens/settings/settings-execution-i18n": {
+      "types": "./dist/screens/settings/settings-execution-i18n.d.ts",
+      "import": "./dist/screens/settings/settings-execution-i18n.js",
+      "default": "./dist/screens/settings/settings-execution-i18n.js"
+    },
+    "./screens/settings/SettingsUi.hooks": {
+      "types": "./dist/screens/settings/SettingsUi.hooks.d.ts",
+      "import": "./dist/screens/settings/SettingsUi.hooks.js",
+      "default": "./dist/screens/settings/SettingsUi.hooks.js"
+    },
+    "./screens/settings/ExternalMcpRemoveConfirmDialog": {
+      "types": "./dist/screens/settings/ExternalMcpRemoveConfirmDialog.d.ts",
+      "import": "./dist/screens/settings/ExternalMcpRemoveConfirmDialog.js",
+      "default": "./dist/screens/settings/ExternalMcpRemoveConfirmDialog.js"
+    },
+    "./screens/content-analysis/ContentAnalysisCard": {
+      "types": "./dist/screens/content-analysis/ContentAnalysisCard.d.ts",
+      "import": "./dist/screens/content-analysis/ContentAnalysisCard.js",
+      "default": "./dist/screens/content-analysis/ContentAnalysisCard.js"
+    },
+    "./screens/content-analysis/rules": {
+      "types": "./dist/screens/content-analysis/rules.d.ts",
+      "import": "./dist/screens/content-analysis/rules.js",
+      "default": "./dist/screens/content-analysis/rules.js"
+    },
+    "./screens/content-analysis/hooks/use-content-analysis.hooks": {
+      "types": "./dist/screens/content-analysis/hooks/use-content-analysis.hooks.d.ts",
+      "import": "./dist/screens/content-analysis/hooks/use-content-analysis.hooks.js",
+      "default": "./dist/screens/content-analysis/hooks/use-content-analysis.hooks.js"
+    },
+    "./screens/content-analysis/hooks/content-analysis-port.hooks": {
+      "types": "./dist/screens/content-analysis/hooks/content-analysis-port.hooks.d.ts",
+      "import": "./dist/screens/content-analysis/hooks/content-analysis-port.hooks.js",
+      "default": "./dist/screens/content-analysis/hooks/content-analysis-port.hooks.js"
+    },
+    "./screens/content-analysis/hooks/content-analysis-dependencies.hooks": {
+      "types": "./dist/screens/content-analysis/hooks/content-analysis-dependencies.hooks.d.ts",
+      "import": "./dist/screens/content-analysis/hooks/content-analysis-dependencies.hooks.js",
+      "default": "./dist/screens/content-analysis/hooks/content-analysis-dependencies.hooks.js"
+    },
+    "./screens/import-export/ImportExport": {
+      "types": "./dist/screens/import-export/ImportExport.d.ts",
+      "import": "./dist/screens/import-export/ImportExport.js",
+      "default": "./dist/screens/import-export/ImportExport.js"
+    },
+    "./screens/content-analysis/content-analysis-i18n": {
+      "types": "./dist/screens/content-analysis/content-analysis-i18n.d.ts",
+      "import": "./dist/screens/content-analysis/content-analysis-i18n.js",
+      "default": "./dist/screens/content-analysis/content-analysis-i18n.js"
+    },
+    "./deployment/Deployment.hooks": {
+      "types": "./dist/deployment/Deployment.hooks.d.ts",
+      "import": "./dist/deployment/Deployment.hooks.js",
+      "default": "./dist/deployment/Deployment.hooks.js"
+    },
+    "./source-control/host/SourceControl.hooks": {
+      "types": "./dist/source-control/host/SourceControl.hooks.d.ts",
+      "import": "./dist/source-control/host/SourceControl.hooks.js",
+      "default": "./dist/source-control/host/SourceControl.hooks.js"
+    },
+    "./recovery/hooks/recovery-port.hooks": {
+      "types": "./dist/recovery/hooks/recovery-port.hooks.d.ts",
+      "import": "./dist/recovery/hooks/recovery-port.hooks.js",
+      "default": "./dist/recovery/hooks/recovery-port.hooks.js"
+    },
+    "./recovery/hooks/restore-flow-port.hooks": {
+      "types": "./dist/recovery/hooks/restore-flow-port.hooks.d.ts",
+      "import": "./dist/recovery/hooks/restore-flow-port.hooks.js",
+      "default": "./dist/recovery/hooks/restore-flow-port.hooks.js"
+    },
+    "./recovery/hooks/use-recovery-navigation.hooks": {
+      "types": "./dist/recovery/hooks/use-recovery-navigation.hooks.d.ts",
+      "import": "./dist/recovery/hooks/use-recovery-navigation.hooks.js",
+      "default": "./dist/recovery/hooks/use-recovery-navigation.hooks.js"
+    },
+    "./recovery/rules": {
+      "types": "./dist/recovery/rules.d.ts",
+      "import": "./dist/recovery/rules.js",
+      "default": "./dist/recovery/rules.js"
+    },
+    "./recovery/recovery-i18n": {
+      "types": "./dist/recovery/recovery-i18n.d.ts",
+      "import": "./dist/recovery/recovery-i18n.js",
+      "default": "./dist/recovery/recovery-i18n.js"
+    },
+    "./recovery/hooks/use-recovery.hooks": {
+      "types": "./dist/recovery/hooks/use-recovery.hooks.d.ts",
+      "import": "./dist/recovery/hooks/use-recovery.hooks.js",
+      "default": "./dist/recovery/hooks/use-recovery.hooks.js"
+    },
+    "./recovery/hooks/use-restore-flow.hooks": {
+      "types": "./dist/recovery/hooks/use-restore-flow.hooks.d.ts",
+      "import": "./dist/recovery/hooks/use-restore-flow.hooks.js",
+      "default": "./dist/recovery/hooks/use-restore-flow.hooks.js"
+    },
+    "./screens/database/rules": {
+      "types": "./dist/screens/database/rules.d.ts",
+      "import": "./dist/screens/database/rules.js",
+      "default": "./dist/screens/database/rules.js"
+    },
+    "./screens/database/database-i18n": {
+      "types": "./dist/screens/database/database-i18n.d.ts",
+      "import": "./dist/screens/database/database-i18n.js",
+      "default": "./dist/screens/database/database-i18n.js"
+    },
+    "./screens/database/hooks/migrate-forward-section-port.hooks": {
+      "types": "./dist/screens/database/hooks/migrate-forward-section-port.hooks.d.ts",
+      "import": "./dist/screens/database/hooks/migrate-forward-section-port.hooks.js",
+      "default": "./dist/screens/database/hooks/migrate-forward-section-port.hooks.js"
+    },
+    "./screens/database/hooks/schema-state-section-port.hooks": {
+      "types": "./dist/screens/database/hooks/schema-state-section-port.hooks.d.ts",
+      "import": "./dist/screens/database/hooks/schema-state-section-port.hooks.js",
+      "default": "./dist/screens/database/hooks/schema-state-section-port.hooks.js"
+    },
+    "./screens/database/hooks/timeline-section-port.hooks": {
+      "types": "./dist/screens/database/hooks/timeline-section-port.hooks.d.ts",
+      "import": "./dist/screens/database/hooks/timeline-section-port.hooks.js",
+      "default": "./dist/screens/database/hooks/timeline-section-port.hooks.js"
+    },
+    "./screens/database/hooks/use-migrate-forward-section.hooks": {
+      "types": "./dist/screens/database/hooks/use-migrate-forward-section.hooks.d.ts",
+      "import": "./dist/screens/database/hooks/use-migrate-forward-section.hooks.js",
+      "default": "./dist/screens/database/hooks/use-migrate-forward-section.hooks.js"
+    },
+    "./screens/database/hooks/use-schema-state-section.hooks": {
+      "types": "./dist/screens/database/hooks/use-schema-state-section.hooks.d.ts",
+      "import": "./dist/screens/database/hooks/use-schema-state-section.hooks.js",
+      "default": "./dist/screens/database/hooks/use-schema-state-section.hooks.js"
+    },
+    "./screens/database/hooks/use-timeline-section.hooks": {
+      "types": "./dist/screens/database/hooks/use-timeline-section.hooks.d.ts",
+      "import": "./dist/screens/database/hooks/use-timeline-section.hooks.js",
+      "default": "./dist/screens/database/hooks/use-timeline-section.hooks.js"
+    },
+    "./screens/import-export/import-export-i18n": {
+      "types": "./dist/screens/import-export/import-export-i18n.d.ts",
+      "import": "./dist/screens/import-export/import-export-i18n.js",
+      "default": "./dist/screens/import-export/import-export-i18n.js"
+    },
+    "./screens/import-export/git-backup-rules": {
+      "types": "./dist/screens/import-export/git-backup-rules.d.ts",
+      "import": "./dist/screens/import-export/git-backup-rules.js",
+      "default": "./dist/screens/import-export/git-backup-rules.js"
+    },
+    "./screens/import-export/hooks/git-backup-port.hooks": {
+      "types": "./dist/screens/import-export/hooks/git-backup-port.hooks.d.ts",
+      "import": "./dist/screens/import-export/hooks/git-backup-port.hooks.js",
+      "default": "./dist/screens/import-export/hooks/git-backup-port.hooks.js"
+    },
+    "./screens/import-export/hooks/use-git-backup.hooks": {
+      "types": "./dist/screens/import-export/hooks/use-git-backup.hooks.d.ts",
+      "import": "./dist/screens/import-export/hooks/use-git-backup.hooks.js",
+      "default": "./dist/screens/import-export/hooks/use-git-backup.hooks.js"
+    },
+    "./screens/import-export/hooks/use-import-export.hooks": {
+      "types": "./dist/screens/import-export/hooks/use-import-export.hooks.d.ts",
+      "import": "./dist/screens/import-export/hooks/use-import-export.hooks.js",
+      "default": "./dist/screens/import-export/hooks/use-import-export.hooks.js"
+    },
+    "./publish-content/screen/hooks/publish-availability.store": {
+      "types": "./dist/publish-content/screen/hooks/publish-availability.store.d.ts",
+      "import": "./dist/publish-content/screen/hooks/publish-availability.store.js",
+      "default": "./dist/publish-content/screen/hooks/publish-availability.store.js"
+    },
+    "./publish-content/screen/publish-scope": {
+      "types": "./dist/publish-content/screen/publish-scope.d.ts",
+      "import": "./dist/publish-content/screen/publish-scope.js",
+      "default": "./dist/publish-content/screen/publish-scope.js"
+    },
+    "./publish-content/screen/hooks/publish-request.store": {
+      "types": "./dist/publish-content/screen/hooks/publish-request.store.d.ts",
+      "import": "./dist/publish-content/screen/hooks/publish-request.store.js",
+      "default": "./dist/publish-content/screen/hooks/publish-request.store.js"
+    },
+    "./publish-content/screen/hooks/use-publish-section-button.hooks": {
+      "types": "./dist/publish-content/screen/hooks/use-publish-section-button.hooks.d.ts",
+      "import": "./dist/publish-content/screen/hooks/use-publish-section-button.hooks.js",
+      "default": "./dist/publish-content/screen/hooks/use-publish-section-button.hooks.js"
+    },
+    "./deployment/deployment-i18n": {
+      "types": "./dist/deployment/deployment-i18n.d.ts",
+      "import": "./dist/deployment/deployment-i18n.js",
+      "default": "./dist/deployment/deployment-i18n.js"
+    },
+    "./source-control/source-control-i18n": {
+      "types": "./dist/source-control/source-control-i18n.d.ts",
+      "import": "./dist/source-control/source-control-i18n.js",
+      "default": "./dist/source-control/source-control-i18n.js"
+    },
+    "./pages/api/pages-api.types": {
+      "types": "./dist/pages/api/pages-api.types.d.ts",
+      "import": "./dist/pages/api/pages-api.types.js",
+      "default": "./dist/pages/api/pages-api.types.js"
+    },
+    "./pages/hooks/pages-tab-url.hooks": {
+      "types": "./dist/pages/hooks/pages-tab-url.hooks.d.ts",
+      "import": "./dist/pages/hooks/pages-tab-url.hooks.js",
+      "default": "./dist/pages/hooks/pages-tab-url.hooks.js"
+    },
+    "./pages/Pages.hooks": {
+      "types": "./dist/pages/Pages.hooks.d.ts",
+      "import": "./dist/pages/Pages.hooks.js",
+      "default": "./dist/pages/Pages.hooks.js"
+    },
+    "./pages/lib/page-preview-youtube": {
+      "types": "./dist/pages/lib/page-preview-youtube.d.ts",
+      "import": "./dist/pages/lib/page-preview-youtube.js",
+      "default": "./dist/pages/lib/page-preview-youtube.js"
+    },
+    "./pages/lib/prettify-html": {
+      "types": "./dist/pages/lib/prettify-html.d.ts",
+      "import": "./dist/pages/lib/prettify-html.js",
+      "default": "./dist/pages/lib/prettify-html.js"
+    },
+    "./pages/lib/embed-placeholder": {
+      "types": "./dist/pages/lib/embed-placeholder.d.ts",
+      "import": "./dist/pages/lib/embed-placeholder.js",
+      "default": "./dist/pages/lib/embed-placeholder.js"
+    },
+    "./pages/pages-i18n": {
+      "types": "./dist/pages/pages-i18n.d.ts",
+      "import": "./dist/pages/pages-i18n.js",
+      "default": "./dist/pages/pages-i18n.js"
+    },
+    "./shell/components/ServerRestartingBanner/ServerRestartingBanner": {
+      "types": "./dist/shell/components/ServerRestartingBanner/ServerRestartingBanner.d.ts",
+      "import": "./dist/shell/components/ServerRestartingBanner/ServerRestartingBanner.js",
+      "default": "./dist/shell/components/ServerRestartingBanner/ServerRestartingBanner.js"
+    },
+    "./shell/components/AdminFailureNotice/admin-failure-notice.css": "./src/shell/components/AdminFailureNotice/admin-failure-notice.css",
+    "./shell/components/ServerRestartingBanner/server-restarting-banner.css": "./src/shell/components/ServerRestartingBanner/server-restarting-banner.css",
+    "./shell/components/ServerRestartingBanner/hooks/use-server-connection-status.hooks": {
+      "types": "./dist/shell/components/ServerRestartingBanner/hooks/use-server-connection-status.hooks.d.ts",
+      "import": "./dist/shell/components/ServerRestartingBanner/hooks/use-server-connection-status.hooks.js",
+      "default": "./dist/shell/components/ServerRestartingBanner/hooks/use-server-connection-status.hooks.js"
+    },
+    "./screens/observability/Observability": {
+      "types": "./dist/screens/observability/Observability.d.ts",
+      "import": "./dist/screens/observability/Observability.js",
+      "default": "./dist/screens/observability/Observability.js"
+    },
+    "./screens/observability/api/observability-api": {
+      "types": "./dist/screens/observability/api/observability-api.d.ts",
+      "import": "./dist/screens/observability/api/observability-api.js",
+      "default": "./dist/screens/observability/api/observability-api.js"
+    },
+    "./screens/observability/api/observability-api.types": {
+      "types": "./dist/screens/observability/api/observability-api.types.d.ts",
+      "import": "./dist/screens/observability/api/observability-api.types.js",
+      "default": "./dist/screens/observability/api/observability-api.types.js"
+    },
+    "./screens/observability/hooks/observability-status-dependencies.hooks": {
+      "types": "./dist/screens/observability/hooks/observability-status-dependencies.hooks.d.ts",
+      "import": "./dist/screens/observability/hooks/observability-status-dependencies.hooks.js",
+      "default": "./dist/screens/observability/hooks/observability-status-dependencies.hooks.js"
+    },
+    "./screens/observability/hooks/recent-server-errors-dependencies.hooks": {
+      "types": "./dist/screens/observability/hooks/recent-server-errors-dependencies.hooks.d.ts",
+      "import": "./dist/screens/observability/hooks/recent-server-errors-dependencies.hooks.js",
+      "default": "./dist/screens/observability/hooks/recent-server-errors-dependencies.hooks.js"
+    },
+    "./screens/observability/hooks/observability-status-port.hooks": {
+      "types": "./dist/screens/observability/hooks/observability-status-port.hooks.d.ts",
+      "import": "./dist/screens/observability/hooks/observability-status-port.hooks.js",
+      "default": "./dist/screens/observability/hooks/observability-status-port.hooks.js"
+    },
+    "./screens/observability/hooks/recent-server-errors-port.hooks": {
+      "types": "./dist/screens/observability/hooks/recent-server-errors-port.hooks.d.ts",
+      "import": "./dist/screens/observability/hooks/recent-server-errors-port.hooks.js",
+      "default": "./dist/screens/observability/hooks/recent-server-errors-port.hooks.js"
+    },
+    "./screens/observability/hooks/use-observability-status.hooks": {
+      "types": "./dist/screens/observability/hooks/use-observability-status.hooks.d.ts",
+      "import": "./dist/screens/observability/hooks/use-observability-status.hooks.js",
+      "default": "./dist/screens/observability/hooks/use-observability-status.hooks.js"
+    },
+    "./screens/observability/hooks/use-recent-server-errors.hooks": {
+      "types": "./dist/screens/observability/hooks/use-recent-server-errors.hooks.d.ts",
+      "import": "./dist/screens/observability/hooks/use-recent-server-errors.hooks.js",
+      "default": "./dist/screens/observability/hooks/use-recent-server-errors.hooks.js"
+    },
+    "./screens/observability/hooks/use-queries-tab.hooks": {
+      "types": "./dist/screens/observability/hooks/use-queries-tab.hooks.d.ts",
+      "import": "./dist/screens/observability/hooks/use-queries-tab.hooks.js",
+      "default": "./dist/screens/observability/hooks/use-queries-tab.hooks.js"
+    },
+    "./screens/observability/hooks/use-observability-tab.hooks": {
+      "types": "./dist/screens/observability/hooks/use-observability-tab.hooks.d.ts",
+      "import": "./dist/screens/observability/hooks/use-observability-tab.hooks.js",
+      "default": "./dist/screens/observability/hooks/use-observability-tab.hooks.js"
+    },
+    "./screens/observability/hooks/use-recent-error-item.hooks": {
+      "types": "./dist/screens/observability/hooks/use-recent-error-item.hooks.d.ts",
+      "import": "./dist/screens/observability/hooks/use-recent-error-item.hooks.js",
+      "default": "./dist/screens/observability/hooks/use-recent-error-item.hooks.js"
+    },
+    "./screens/observability/observability-i18n": {
+      "types": "./dist/screens/observability/observability-i18n.d.ts",
+      "import": "./dist/screens/observability/observability-i18n.js",
+      "default": "./dist/screens/observability/observability-i18n.js"
+    },
+    "./screens/observability/queries-panel": {
+      "types": "./dist/screens/observability/queries-panel.d.ts",
+      "import": "./dist/screens/observability/queries-panel.js",
+      "default": "./dist/screens/observability/queries-panel.js"
+    },
+    "./screens/observability/tool-gaps-panel": {
+      "types": "./dist/screens/observability/tool-gaps-panel.d.ts",
+      "import": "./dist/screens/observability/tool-gaps-panel.js",
+      "default": "./dist/screens/observability/tool-gaps-panel.js"
+    },
+    "./screens/observability/recent-errors-panel": {
+      "types": "./dist/screens/observability/recent-errors-panel.d.ts",
+      "import": "./dist/screens/observability/recent-errors-panel.js",
+      "default": "./dist/screens/observability/recent-errors-panel.js"
+    },
+    "./screens/observability/recent-errors-rules": {
+      "types": "./dist/screens/observability/recent-errors-rules.d.ts",
+      "import": "./dist/screens/observability/recent-errors-rules.js",
+      "default": "./dist/screens/observability/recent-errors-rules.js"
+    },
+    "./screens/observability/observability-visuals": {
+      "types": "./dist/screens/observability/observability-visuals.d.ts",
+      "import": "./dist/screens/observability/observability-visuals.js",
+      "default": "./dist/screens/observability/observability-visuals.js"
+    },
+    "./screens/observability/recent-errors.css": "./src/screens/observability/recent-errors.css",
+    "./screens/observability/observability.css": "./src/screens/observability/observability.css",
+    "./screens/dashboard/Dashboard": {
+      "types": "./dist/screens/dashboard/Dashboard.d.ts",
+      "import": "./dist/screens/dashboard/Dashboard.js",
+      "default": "./dist/screens/dashboard/Dashboard.js"
+    },
+    "./screens/dashboard/rules": {
+      "types": "./dist/screens/dashboard/rules.d.ts",
+      "import": "./dist/screens/dashboard/rules.js",
+      "default": "./dist/screens/dashboard/rules.js"
+    },
+    "./screens/dashboard/dashboard-i18n": {
+      "types": "./dist/screens/dashboard/dashboard-i18n.d.ts",
+      "import": "./dist/screens/dashboard/dashboard-i18n.js",
+      "default": "./dist/screens/dashboard/dashboard-i18n.js"
+    },
+    "./screens/dashboard/hooks/use-dashboard.hooks": {
+      "types": "./dist/screens/dashboard/hooks/use-dashboard.hooks.d.ts",
+      "import": "./dist/screens/dashboard/hooks/use-dashboard.hooks.js",
+      "default": "./dist/screens/dashboard/hooks/use-dashboard.hooks.js"
+    },
+    "./screens/dashboard/hooks/dashboard-port.hooks": {
+      "types": "./dist/screens/dashboard/hooks/dashboard-port.hooks.d.ts",
+      "import": "./dist/screens/dashboard/hooks/dashboard-port.hooks.js",
+      "default": "./dist/screens/dashboard/hooks/dashboard-port.hooks.js"
+    },
+    "./screens/dashboard/hooks/fake-dashboard-port": {
+      "types": "./dist/screens/dashboard/hooks/fake-dashboard-port.d.ts",
+      "import": "./dist/screens/dashboard/hooks/fake-dashboard-port.js",
+      "default": "./dist/screens/dashboard/hooks/fake-dashboard-port.js"
+    },
+    "./screens/dashboard/dashboard-view.types": {
+      "types": "./dist/screens/dashboard/dashboard-view.types.d.ts",
+      "import": "./dist/screens/dashboard/dashboard-view.types.js",
+      "default": "./dist/screens/dashboard/dashboard-view.types.js"
+    },
+    "./screens/dashboard/dashboard.css": "./src/screens/dashboard/dashboard.css",
+    "./pages/Pages": {
+      "types": "./dist/pages/Pages.d.ts",
+      "import": "./dist/pages/Pages.js",
+      "default": "./dist/pages/Pages.js"
+    },
+    "./pages/hooks/use-pages.hooks": {
+      "types": "./dist/pages/hooks/use-pages.hooks.d.ts",
+      "import": "./dist/pages/hooks/use-pages.hooks.js",
+      "default": "./dist/pages/hooks/use-pages.hooks.js"
+    },
+    "./pages/hooks/use-interactive-flush.hooks": {
+      "types": "./dist/pages/hooks/use-interactive-flush.hooks.d.ts",
+      "import": "./dist/pages/hooks/use-interactive-flush.hooks.js",
+      "default": "./dist/pages/hooks/use-interactive-flush.hooks.js"
+    },
+    "./pages/hooks/use-editor-html-jump.hooks": {
+      "types": "./dist/pages/hooks/use-editor-html-jump.hooks.d.ts",
+      "import": "./dist/pages/hooks/use-editor-html-jump.hooks.js",
+      "default": "./dist/pages/hooks/use-editor-html-jump.hooks.js"
+    },
+    "./pages/hooks/pages-port.hooks": {
+      "types": "./dist/pages/hooks/pages-port.hooks.d.ts",
+      "import": "./dist/pages/hooks/pages-port.hooks.js",
+      "default": "./dist/pages/hooks/pages-port.hooks.js"
+    },
+    "./pages/pages-list-rules": {
+      "types": "./dist/pages/pages-list-rules.d.ts",
+      "import": "./dist/pages/pages-list-rules.js",
+      "default": "./dist/pages/pages-list-rules.js"
+    },
+    "./pages/page-editor-rules": {
+      "types": "./dist/pages/page-editor-rules.d.ts",
+      "import": "./dist/pages/page-editor-rules.js",
+      "default": "./dist/pages/page-editor-rules.js"
+    },
+    "./pages/page-editor-i18n": {
+      "types": "./dist/pages/page-editor-i18n.d.ts",
+      "import": "./dist/pages/page-editor-i18n.js",
+      "default": "./dist/pages/page-editor-i18n.js"
     }
   },
   "files": [
@@ -1078,7 +2608,9 @@
     "!dist/**/*.test.js.map",
     "!dist/**/*.test.d.ts.map",
     "!dist/**/__tests__/**",
-    "!dist/**/*.map"
+    "!dist/**/*.map",
+    "src/screens/**/*.css",
+    "src/**/*.css"
   ],
   "publishConfig": {
     "access": "public",
@@ -1122,6 +2654,228 @@
       ],
       "shell/*": [
         "./dist/shell/*.d.ts"
+      ],
+      "screens/*": [
+        "./dist/screens/*.d.ts"
+      ],
+      "roles/*": [
+        "./dist/roles/*.d.ts"
+      ],
+      "users/*": [
+        "./dist/users/*.d.ts"
+      ],
+      "screens/seo": [
+        "./dist/screens/seo/index.d.ts"
+      ],
+      "screens/seo/seo-i18n": [
+        "./dist/screens/seo/seo-i18n.d.ts"
+      ],
+      "screens/redirects": [
+        "./dist/screens/redirects/index.d.ts"
+      ],
+      "screens/redirects/redirects-i18n": [
+        "./dist/screens/redirects/redirects-i18n.d.ts"
+      ],
+      "screens/analytics": [
+        "./dist/screens/analytics/Analytics.d.ts"
+      ],
+      "screens/analytics/analytics-i18n": [
+        "./dist/screens/analytics/analytics-i18n.d.ts"
+      ],
+      "screens/analytics/api/analytics-api.types": [
+        "./dist/screens/analytics/api/analytics-api.types.d.ts"
+      ],
+      "screens/analytics/hooks/analytics-port.hooks": [
+        "./dist/screens/analytics/hooks/analytics-port.hooks.d.ts"
+      ],
+      "screens/analytics/hooks/analytics-dependencies.hooks": [
+        "./dist/screens/analytics/hooks/analytics-dependencies.hooks.d.ts"
+      ],
+      "screens/analytics/hooks/use-analytics.hooks": [
+        "./dist/screens/analytics/hooks/use-analytics.hooks.d.ts"
+      ],
+      "screens/consent/CookieConsent": [
+        "./dist/screens/consent/CookieConsent.d.ts"
+      ],
+      "screens/consent/ConsentOverviewTab": [
+        "./dist/screens/consent/ConsentOverviewTab.d.ts"
+      ],
+      "screens/consent/use-consent-page.hooks": [
+        "./dist/screens/consent/use-consent-page.hooks.d.ts"
+      ],
+      "screens/consent/consent-autosave": [
+        "./dist/screens/consent/consent-autosave.d.ts"
+      ],
+      "screens/consent/consent-dictionary": [
+        "./dist/screens/consent/consent-dictionary.d.ts"
+      ],
+      "screens/consent/consent-i18n": [
+        "./dist/screens/consent/consent-i18n.d.ts"
+      ],
+      "screens/consent/rules": [
+        "./dist/screens/consent/rules.d.ts"
+      ],
+      "screens/consent/settings.hooks": [
+        "./dist/screens/consent/settings.hooks.d.ts"
+      ],
+      "screens/settings/settings-i18n": [
+        "./dist/screens/settings/settings-i18n.d.ts"
+      ],
+      "screens/settings/settings-interface-i18n": [
+        "./dist/screens/settings/settings-interface-i18n.d.ts"
+      ],
+      "screens/settings/settings-memory-i18n": [
+        "./dist/screens/settings/settings-memory-i18n.d.ts"
+      ],
+      "screens/settings/UserInterfaceSettingsPanel.hooks": [
+        "./dist/screens/settings/UserInterfaceSettingsPanel.hooks.d.ts"
+      ],
+      "screens/settings/hooks/use-settings-locale-sync.hooks": [
+        "./dist/screens/settings/hooks/use-settings-locale-sync.hooks.d.ts"
+      ],
+      "screens/settings/ExternalMcpSharedChoice": [
+        "./dist/screens/settings/ExternalMcpSharedChoice.d.ts"
+      ],
+      "screens/settings/ExternalMcpSharedChoice.hooks": [
+        "./dist/screens/settings/ExternalMcpSharedChoice.hooks.d.ts"
+      ],
+      "screens/settings/hooks/use-settings-active-tab-scroll.hooks": [
+        "./dist/screens/settings/hooks/use-settings-active-tab-scroll.hooks.d.ts"
+      ],
+      "screens/settings/ExternalMcpToolsModal.hooks": [
+        "./dist/screens/settings/ExternalMcpToolsModal.hooks.d.ts"
+      ],
+      "screens/settings/hooks/use-external-mcp-remove-confirm.hooks": [
+        "./dist/screens/settings/hooks/use-external-mcp-remove-confirm.hooks.d.ts"
+      ],
+      "pages/api/pages-api.types": [
+        "./dist/pages/api/pages-api.types.d.ts"
+      ],
+      "pages/hooks/pages-tab-url.hooks": [
+        "./dist/pages/hooks/pages-tab-url.hooks.d.ts"
+      ],
+      "pages/Pages.hooks": [
+        "./dist/pages/Pages.hooks.d.ts"
+      ],
+      "pages/lib/page-preview-youtube": [
+        "./dist/pages/lib/page-preview-youtube.d.ts"
+      ],
+      "pages/lib/prettify-html": [
+        "./dist/pages/lib/prettify-html.d.ts"
+      ],
+      "pages/lib/embed-placeholder": [
+        "./dist/pages/lib/embed-placeholder.d.ts"
+      ],
+      "pages/pages-i18n": [
+        "./dist/pages/pages-i18n.d.ts"
+      ],
+      "shell/components/AdminFailureNotice/AdminFailureNotice": [
+        "./dist/shell/components/AdminFailureNotice/AdminFailureNotice.d.ts"
+      ],
+      "shell/components/ServerRestartingBanner/ServerRestartingBanner": [
+        "./dist/shell/components/ServerRestartingBanner/ServerRestartingBanner.d.ts"
+      ],
+      "shell/components/ServerRestartingBanner/hooks/use-server-connection-status.hooks": [
+        "./dist/shell/components/ServerRestartingBanner/hooks/use-server-connection-status.hooks.d.ts"
+      ],
+      "screens/observability/Observability": [
+        "./dist/screens/observability/Observability.d.ts"
+      ],
+      "screens/observability/api/observability-api": [
+        "./dist/screens/observability/api/observability-api.d.ts"
+      ],
+      "screens/observability/api/observability-api.types": [
+        "./dist/screens/observability/api/observability-api.types.d.ts"
+      ],
+      "screens/observability/hooks/observability-status-dependencies.hooks": [
+        "./dist/screens/observability/hooks/observability-status-dependencies.hooks.d.ts"
+      ],
+      "screens/observability/hooks/recent-server-errors-dependencies.hooks": [
+        "./dist/screens/observability/hooks/recent-server-errors-dependencies.hooks.d.ts"
+      ],
+      "screens/observability/hooks/observability-status-port.hooks": [
+        "./dist/screens/observability/hooks/observability-status-port.hooks.d.ts"
+      ],
+      "screens/observability/hooks/recent-server-errors-port.hooks": [
+        "./dist/screens/observability/hooks/recent-server-errors-port.hooks.d.ts"
+      ],
+      "screens/observability/hooks/use-observability-status.hooks": [
+        "./dist/screens/observability/hooks/use-observability-status.hooks.d.ts"
+      ],
+      "screens/observability/hooks/use-recent-server-errors.hooks": [
+        "./dist/screens/observability/hooks/use-recent-server-errors.hooks.d.ts"
+      ],
+      "screens/observability/hooks/use-queries-tab.hooks": [
+        "./dist/screens/observability/hooks/use-queries-tab.hooks.d.ts"
+      ],
+      "screens/observability/hooks/use-observability-tab.hooks": [
+        "./dist/screens/observability/hooks/use-observability-tab.hooks.d.ts"
+      ],
+      "screens/observability/hooks/use-recent-error-item.hooks": [
+        "./dist/screens/observability/hooks/use-recent-error-item.hooks.d.ts"
+      ],
+      "screens/observability/observability-i18n": [
+        "./dist/screens/observability/observability-i18n.d.ts"
+      ],
+      "screens/observability/queries-panel": [
+        "./dist/screens/observability/queries-panel.d.ts"
+      ],
+      "screens/observability/tool-gaps-panel": [
+        "./dist/screens/observability/tool-gaps-panel.d.ts"
+      ],
+      "screens/observability/recent-errors-panel": [
+        "./dist/screens/observability/recent-errors-panel.d.ts"
+      ],
+      "screens/observability/recent-errors-rules": [
+        "./dist/screens/observability/recent-errors-rules.d.ts"
+      ],
+      "screens/observability/observability-visuals": [
+        "./dist/screens/observability/observability-visuals.d.ts"
+      ],
+      "screens/dashboard/Dashboard": [
+        "./dist/screens/dashboard/Dashboard.d.ts"
+      ],
+      "screens/dashboard/rules": [
+        "./dist/screens/dashboard/rules.d.ts"
+      ],
+      "screens/dashboard/dashboard-i18n": [
+        "./dist/screens/dashboard/dashboard-i18n.d.ts"
+      ],
+      "screens/dashboard/hooks/use-dashboard.hooks": [
+        "./dist/screens/dashboard/hooks/use-dashboard.hooks.d.ts"
+      ],
+      "screens/dashboard/hooks/dashboard-port.hooks": [
+        "./dist/screens/dashboard/hooks/dashboard-port.hooks.d.ts"
+      ],
+      "screens/dashboard/hooks/fake-dashboard-port": [
+        "./dist/screens/dashboard/hooks/fake-dashboard-port.d.ts"
+      ],
+      "screens/dashboard/dashboard-view.types": [
+        "./dist/screens/dashboard/dashboard-view.types.d.ts"
+      ],
+      "pages/Pages": [
+        "./dist/pages/Pages.d.ts"
+      ],
+      "pages/hooks/use-pages.hooks": [
+        "./dist/pages/hooks/use-pages.hooks.d.ts"
+      ],
+      "pages/hooks/use-interactive-flush.hooks": [
+        "./dist/pages/hooks/use-interactive-flush.hooks.d.ts"
+      ],
+      "pages/hooks/use-editor-html-jump.hooks": [
+        "./dist/pages/hooks/use-editor-html-jump.hooks.d.ts"
+      ],
+      "pages/hooks/pages-port.hooks": [
+        "./dist/pages/hooks/pages-port.hooks.d.ts"
+      ],
+      "pages/pages-list-rules": [
+        "./dist/pages/pages-list-rules.d.ts"
+      ],
+      "pages/page-editor-rules": [
+        "./dist/pages/page-editor-rules.d.ts"
+      ],
+      "pages/page-editor-i18n": [
+        "./dist/pages/page-editor-i18n.d.ts"
       ]
     }
   },

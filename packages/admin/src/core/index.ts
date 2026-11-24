@@ -78,6 +78,9 @@ export type {
   AdminRecoveryStatus,
   AdminRestorePoint,
   AdminRestorePointSummary,
+  AdminSchemaDriftStatus,
+  AdminSchemaSnapshot,
+  AdminSchemaState,
   AdminRole,
   AdminSettingsPort,
   AdminWorkspace,
@@ -188,3 +191,5 @@ export type { AdminShellContext, AdminShellNavigationPort, AdminShellSession, Ad
 
 export { loadNamespaceValues, saveChangedEntries, readString, readBoolean, readNumber } from './ledger-slice.js';
 export type { LedgerEntry, LedgerCandidate } from './ledger-slice.js';
+
+export type { AdminExportRunSnapshot, AdminExportRunStatus } from './ports/index.js';

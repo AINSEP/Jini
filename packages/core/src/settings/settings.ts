@@ -314,6 +314,15 @@ export interface ResolvedSetting {
 }
 
 /**
+ * {@link getEffective} as an injected collaborator. A feature that reads an effective setting takes
+ * the reader on its existing required args instead of importing it, so the host binds the ledger's
+ * implementation at composition and a test can hand in a spy.
+ */
+export interface GetEffectivePort {
+  getEffective: typeof getEffective;
+}
+
+/**
  * — total for a live key: never throws, never returns
  * undefined. Precedence `user ?? workspace ?? global ?? default`. A
  * `cleared` row is treated as absent at that layer (behavior.spec §1.2).

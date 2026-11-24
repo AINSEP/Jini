@@ -3,7 +3,7 @@ import { act, render, renderHook, screen, waitFor, within } from './fetch-query-
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, expect, test, vi } from 'vitest';
 import { FetchQueryProvider } from '@jini-ai/ui/panel-kit';
-import { Login, Users, Members, useUsers, describeIdentityError } from '../index.js';
+import { Login, Users, Members, useMembers, useUsers, describeIdentityError } from '../index.js';
 import { createFakeLoginPort, createFakeUsersPort, createFakeMembersPort } from '../testing.js';
 import type { AdminIdentityUser } from '../models.js';
 
@@ -57,7 +57,7 @@ test('member text and confirmation cancel labels use injected translation', asyn
     createdAt: '2026-01-01T00:00:00Z', updatedAt: '2026-01-01T00:00:00Z', version: 1,
   }] });
   const translated = (key: string) => `translated:${key}`;
-  render(<FetchQueryProvider><Members port={port} translate={translated} /></FetchQueryProvider>);
+  render(<FetchQueryProvider><Members useMembersHook={useMembers} port={port} translate={translated} /></FetchQueryProvider>);
   await screen.findByRole('heading', { name: 'translated:Members' });
   expect(screen.getByRole('button', { name: 'translated:Actions for member "member@example.com"' }).getAttribute('data-agent-element')).toBe('members-row-member-menu');
   await user.click(screen.getByRole('button', { name: 'translated:Actions for member "member@example.com"' }));

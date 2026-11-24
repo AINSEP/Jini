@@ -47,13 +47,16 @@ import type { AgentToolDefinition } from "@jini-ai/core";
    * `exactOptionalPropertyTypes`, the same reason `navigation`'s and `identity`'s catalogs leave
    * these two fields alone.
    *
- * No arguments — `workspace_get` takes none; it always reports the caller's own boot-wired workspace. */
-const NO_INPUT_SCHEMA = {
+ * `workspace_get` takes at most the caller's own boot-wired workspace id; it always reports that
+ * workspace, and any other id is refused (v1 has exactly one addressable workspace). */
+const WORKSPACE_GET_SCHEMA = {
   type: "object",
   additionalProperties: false,
-  required: [],
-  properties: {},
+  properties: { workspaceId: { type: "string", minLength: 1, description: "The current workspace id; v1 cannot address another workspace." } },
 } as const;
+
+/** `workspace_list` takes no arguments: it lists only the boot-addressable workspace, never other rows. */
+const NO_INPUT_SCHEMA = { type: "object", additionalProperties: false, properties: {} } as const;
 
 /** `workspace_update`'s input — mirrors `update.ts`'s `UpdateWorkspaceInput` minus `id` (the tool
  * always targets the caller's own boot-wired workspace, exactly like an admin route's
@@ -76,19 +79,21 @@ const UPDATE_WORKSPACE_SCHEMA = {
 } as const;
 
 /**
- * The Workspace domain's fixed agent-tool catalog.
+ * The Workspace domain's fixed agent-tool catalog, including the list of boot-addressable
+ * workspaces (one in v1).
  *
  * @complexity O(1) — a fixed, statically-defined list.
  * @overallScore 100
+ * @example getWorkspaceAgentToolCatalog({}, {})
  */
-export function getWorkspaceAgentToolCatalog(): AgentToolDefinition[] {
+export function getWorkspaceAgentToolCatalog(_required: Record<string, never> = {}, _optional: Record<string, never> = {}): AgentToolDefinition[] {
   return [
     {
       name: "workspace_get",
       description: "Reports the caller's own workspace: id, name, slug, and creation time. v1 always has exactly one addressable workspace.",
       sideEffects: "none",
       authorization: { permission: "workspace.manage" },
-      inputSchema: NO_INPUT_SCHEMA,
+      inputSchema: WORKSPACE_GET_SCHEMA,
     },
     {
       name: "workspace_update",
@@ -117,6 +122,13 @@ export function getWorkspaceAgentToolCatalog(): AgentToolDefinition[] {
       description: "Deletes a workspace row. NEVER agent-callable — see file header.",
       sideEffects: "mutates-durable-state",
       authorization: { permission: "workspace.manage" },
+    },
+    {
+      name: "workspace_list",
+      description: "Lists the workspace addressable by this server. Returns {workspaces:[workspace]}; v1 exposes exactly the current workspace, even if other database rows exist. Requires workspace.manage. Call to discover its id before reading or renaming it; does not switch workspaces. Missing boot-bound workspace or denied permission is refused.",
+      sideEffects: "none",
+      authorization: { permission: "workspace.manage" },
+      inputSchema: NO_INPUT_SCHEMA,
     },
   ];
 }

@@ -3,4 +3,5 @@ export type * from './definition.js';
 export type * from './model-catalog.js';
 export type * from './native-tool-policy.js';
 export type * from './launch.js';
+export type * from './provider-ports.js';
 export { RuntimeSelectionError } from './model-catalog.js';

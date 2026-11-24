@@ -8,16 +8,18 @@ import { dirname, extname, join, resolve } from 'node:path';
 import { parseRendererToAgentMessage, type RendererToAgentMessage } from '@jini-ai/protocol/a2ui';
 import Database from 'better-sqlite3';
 import { createAgentExecutor } from '@jini-ai/daemon';
-import { nodeAtomicWriter, nodeFileLock } from '@jini-ai/node-adapters/fs';
+import { createAtomicWriterPort, createFileLockPort } from '@jini-ai/node-adapters/fs';
+import { backupOriginalOnce, withFileLock, writeFileAtomicAsync, writeJsonFileAtomicAsync } from '@jini-ai/platform/fs';
 import { createProcessControlPort, nodeCommandShell, nodeSpawnPort } from '@jini-ai/node-adapters/process';
 import { listProcessSnapshots, stopProcesses, waitForProcessExit } from '@jini-ai/platform/process';
+import { createSystemClock } from '@jini-ai/platform/system';
 import type { AgentExecutorRuntimePorts } from '@jini-ai/daemon/ports/runtime';
-import { createAgentRuntimeBindings, createNativeAgentRuntime } from '@jini-ai/agent-runtime';
+import { createAgentRuntimeBindings, createNativeAgentRuntime, runAnthropicToolTurn, runAzureToolTurn, runGoogleToolTurn, runOllamaToolTurn, runOpenAiToolTurn, validateBaseUrl } from '@jini-ai/agent-runtime';
 import type { AgentRuntimePort } from '@jini-ai/daemon/ports/agent-runtime';
 import type { ToolRegistration } from '@jini-ai/core';
 import { attachmentCleanupRoutes, attachmentUploadRoutes, createDiskAttachmentStore, createFrontendControl, mediaRoutes, memoryRoutes } from '@jini-ai/daemon/http';
 import { createBuiltinVendorAdapterRegistry, createMediaDispatchEngine, createSqliteMediaTaskStore } from '@jini-ai/integrations/media-providers';
-import { createNodeMediaHttpClient } from '@jini-ai/integrations/media-providers/node';
+import { createNodeMediaHttpClient, nodeMediaGuardedFetch } from '@jini-ai/integrations/media-providers/node';
 import { createExtractionLog, createNoteStore, createVerifyLog } from '@jini-ai/memory';
 import { createLocalNodeDaemon, installGracefulShutdown, mountRoutes, nodeSessionTimer } from '@jini-ai/server';
 import { CHAT_CAPABILITIES } from '@jini-ai/chat/core';
@@ -39,6 +41,9 @@ import { resolveJiniMcpBridge, type JiniMcpBridgeInjection } from './mcp-bridge.
 
 /** Platform's process functions behind core's port; node-adapters takes them injected (it imports no other package's implementation). */
 const nodeProcessControl = createProcessControlPort({ functions: { listProcessSnapshots, stopProcesses, waitForProcessExit } });
+/** Platform's lock and atomic-writer functions under core's port names (node-adapters takes them injected too). */
+const nodeFileLock = createFileLockPort({ withFileLock });
+const nodeAtomicWriter = createAtomicWriterPort({ writeFileAtomicAsync, writeJsonFileAtomicAsync, backupOriginalOnce });
 
 /** The Node implementations of the OS-facing ports the agent executor needs, bound from the env this host owns. */
 function executorRuntimeFor({ hostEnv }: { hostEnv: NodeJS.ProcessEnv }, _optional: Record<string, never> = {}): AgentExecutorRuntimePorts {
@@ -409,6 +414,11 @@ async function main(): Promise<void> {
   try {
     daemon = await createLocalNodeDaemon({
       agentExecutor: runtimeExecutorOptions,
+      // Provider tool turns and the base-URL guard are host-bound: the server preset ships no implementation.
+      toolTurns: { anthropic: runAnthropicToolTurn, openai: runOpenAiToolTurn, azure: runAzureToolTurn, google: runGoogleToolTurn, ollama: runOllamaToolTurn },
+      baseUrlGuard: { validate: validateBaseUrl },
+      // Process control, file lock and atomic writer are host-bound too: the preset imports no platform implementation.
+      osPorts: { spawn: nodeSpawnPort, processes: nodeProcessControl, fileLock: nodeFileLock, writer: nodeAtomicWriter, commandShell: nodeCommandShell, clock: createSystemClock() },
       dataDir,
       // The host supplies the SQLite driver; Jini never autoloads it.
       open: (file, options) => new Database(file, options),
@@ -481,6 +491,7 @@ async function main(): Promise<void> {
               engine: createMediaDispatchEngine({
                 registry: createBuiltinVendorAdapterRegistry(),
                 httpClient: createNodeMediaHttpClient({}),
+                guardedFetch: nodeMediaGuardedFetch,
               }, { credentials: {} }),
               // The daemon's route port takes object args; the integrations store is positional.
               taskStore: {
