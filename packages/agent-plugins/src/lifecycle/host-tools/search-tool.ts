@@ -109,7 +109,7 @@ function searchAgentPluginLocalDescription(names: HostSearchToolNames = {}): str
     "Nonblank queries return ranked matches. " +
     "Results are byte-bounded: id, pluginId, enabled, maturity when declared, and a short description. " +
     (names.setEnabled ? `${names.setEnabled} changes enabled status. ` : "") +
-    "An installed, off result is only a catalog entry. Offer its enable card, then read its guidance before connecting or requesting credentials; never guess its sign-in method. " +
+    "An installed, off result is only a catalog entry. Offer its enable card (never for a coming-soon result, which cannot be turned on), then read its guidance before connecting or requesting credentials; never guess its sign-in method. " +
     "Local packages only — never a marketplace or the web. Once you have the right id, " +
     (names.loadGuidance ? `call ${names.loadGuidance} for that plugin's full guidance. ` : "load that plugin's full guidance. ") +
     "Page with the returned nextOffset as offset, keeping query and limit unchanged.";
@@ -336,6 +336,7 @@ async function buildSearchCandidate(
   const skills = await resolveSkillsForSearchTolerant(plugin, ports);
   const mcpServerIds = await ports.lifecycle.readInstalledMcpServerIds({ packageRoot: plugin.packageRoot });
   const identity = await readInstalledAgentPluginIdentity({ plugin });
+  const maturity = identity.maturity ?? ports.hostMaturity?.({ pluginId: plugin.pluginId });
 
   return {
     pluginId: plugin.pluginId,
@@ -344,7 +345,7 @@ async function buildSearchCandidate(
     ...(plugin.version !== undefined ? { version: plugin.version } : {}),
     ...(plugin.description !== undefined ? { description: plugin.description } : {}),
     id: identity.id,
-    ...(identity.maturity ? { maturity: identity.maturity } : {}),
+    ...(maturity ? { maturity } : {}),
     ...(identity.providerPlugin ? { providerPlugin: identity.providerPlugin } : {}),
     provides: identity.provides,
     ...(plugin.requires !== undefined ? { requires: plugin.requires } : {}),

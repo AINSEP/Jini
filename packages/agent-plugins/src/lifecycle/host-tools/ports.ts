@@ -8,6 +8,7 @@
 import type { ToolMetadataById, ToolRegistration } from '@jini-ai/core';
 import type { Logger } from '@jini-ai/core/primitives';
 import type { createAgentPluginLifecycle } from '../index.js';
+import type { PluginMaturity } from './identity.js';
 import type { PluginMemory } from '../../../core/persistent-state.js';
 import type { AgentPluginWorkspaceLayout } from "@jini-ai/core/contracts/site/agent-plugins-lifecycle";
 
@@ -76,6 +77,10 @@ export interface AgentPluginHostToolPorts {
   /** Host tool vocabulary and reviewed action policy, passed to `buildDomainRegistrations`. */
   readonly metadata?: ToolMetadataById;
   readonly messages?: HostToolMessages;
+  /** A maturity the host assigns a plugin whose manifest declares none (for example a host's own
+   *  "soon" list). The manifest's own value wins. A `soon` plugin is listed as coming soon and is
+   *  never offered for enable. */
+  readonly hostMaturity?: (required: { readonly pluginId: string }) => PluginMaturity | undefined;
 }
 
 /** The approval families these tools register under. */
