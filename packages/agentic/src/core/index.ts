@@ -31,6 +31,14 @@ export {
 } from './page-executor.js';
 
 export { PAGE_CAPABILITIES } from './page-capabilities.js';
+export {
+  PAGE_NAVIGATE_TOOL_ID,
+  rewrapPageNavigateError,
+  withPageNavigateErrorRewrap,
+  type DescribePageNavigateRefusal,
+  type PageNavigateRefusal,
+  type PageNavigateRegistration,
+} from './page-navigate-error.js';
 
 export {
   findFieldFillRefusal,

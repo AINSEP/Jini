@@ -108,6 +108,16 @@ non-DOM host (a native app, a canvas-based renderer) can implement `PageDriver` 
 likewise caller-supplied. Fixed: `PAGE_CAPABILITIES`' verb list and schemas, the `data-agent-*`
 attribute names, and the wire shapes of both the GenUI and A2UI protocols.
 
+## Wiring
+
+- **`page.navigate` refusal wording** (`@jini-ai/agentic/core`'s `withPageNavigateErrorRewrap`):
+  a host whose own vocabulary collides with the executor's "is not a published page" refusal
+  wraps its frontend tool registrations as
+  `withPageNavigateErrorRewrap({ registrations, describeRefusal })` before registering them. The
+  host injects `describeRefusal({ page, availableScreens })`, returning its own wording (for
+  example, pointing at the host's content-search tool); only the `page.navigate` registration is
+  rewrapped, and every other error passes through as the same object.
+
 ## Runtime
 
 `jini.runtime: "universal"` for `.`; `./dom` is `"browser"` (needs a real or jsdom

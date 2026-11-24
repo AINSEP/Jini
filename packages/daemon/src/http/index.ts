@@ -76,6 +76,8 @@ export type { RouteRegistration } from './route-manifest.js';
 export type { DaemonRouteHost } from './route-host.js';
 export type { AgentListResponse, AgentModelSummary, AgentsHttpDeps, AgentSummary } from './agents.js';
 export { agentListRoute, agentRescanRoute, agentRoutes } from './agents.js';
+export { createLiveModelDiscovery, fetchLiveClaudeModels, unionModels } from './live-model-cache.js';
+export type { LiveModelCredential, LiveModelDiscovery, LiveModelKey } from './live-model-cache.js';
 export type {
   MemoryChangeEmitter,
   MemoryConfigResponse,

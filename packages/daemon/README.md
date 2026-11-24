@@ -157,6 +157,13 @@ See [API.md](https://github.com/AINSEP/Jini/blob/main/packages/daemon/API.md) fo
 
 ## Wiring
 
+- **Live Claude model discovery** (`@jini-ai/daemon/http`'s `createLiveModelDiscovery`,
+  `fetchLiveClaudeModels`, `unionModels`): the host creates ONE instance per app lifetime
+  (`createLiveModelDiscovery({ resolveCredential, defaultBaseUrl, clock, discover: fetchLiveClaudeModels })`)
+  — the TTL cache is instance-owned, never module state. The host injects `resolveCredential`
+  (its own stored execution-credential read + decrypt for `{ workspaceId, principalId }`, `null`
+  when absent), `defaultBaseUrl` (its provider catalog's Anthropic endpoint) and `clock`; its
+  `GET /api/agents` handler merges the result with `unionModels({ fallback, live })`.
 - **Tool families** (`@jini-ai/daemon/http`'s `createPrefixToolFamilyPort`): a host whose tools
   form a `<familyId>.<name>` namespace passes `delegatedToolRoutes` deps
   `families: createPrefixToolFamilyPort({ registry, familyId, selectorKeys })`. The host injects
