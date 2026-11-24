@@ -184,6 +184,7 @@ function retryCheckpoint<Watch extends CheckpointWatch, Saved>(
  */
 async function checkpoint<Watch extends CheckpointWatch, Saved>({ ports, watch }: Scope<Watch, Saved>, _optional = {}): Promise<void> {
   if (watch.terminal || watch.checkpointPending) return;
+  // Preserve injected host/test overrides while the shared pure policy owns the default cadence.
   const interval = ports.checkpointIntervalMs ?? checkpointIntervalMs({ bytes: watch.checkpointedBytes });
   const wait = Math.max(watch.checkpointedAt + interval, watch.checkpointRetryAt ?? Number.NEGATIVE_INFINITY) - ports.now();
   // An armed timer will consume the latest frames; avoid rescanning them on every delta.

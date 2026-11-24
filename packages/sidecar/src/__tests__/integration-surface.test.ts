@@ -20,9 +20,10 @@ test("the barrel and subpaths expose the same lifecycle factories", () => {
 // REGRESSION: fails if the isolated supervisor/node export is removed.
 test("every published entry declares its runtime and lifecycle export targets", () => {
   const manifest = JSON.parse(readFileSync(new URL("../../package.json", import.meta.url), "utf8"));
-  expect(manifest.jini.entries).toEqual({ ".": "node", "./respawn-policy": "universal", "./supervisor": "universal", "./supervisor/node": "node", "./daemon-origin": "node", "./daemon-park-recovery": "universal" });
+  expect(manifest.jini.entries).toEqual({ ".": "node", "./respawn-policy": "universal", "./supervisor": "universal", "./supervisor/node": "node", "./daemon-origin": "node", "./daemon-park-recovery": "universal", "./daemon-connection": "universal" });
   expect(Object.keys(manifest.exports).sort()).toEqual(Object.keys(manifest.jini.entries).sort());
   expect(manifest.exports["./supervisor"]).toEqual({ types: "./dist/supervision/supervisor.d.ts", import: "./dist/supervision/supervisor.js", default: "./dist/supervision/supervisor.js" });
   expect(manifest.exports["./daemon-origin"]).toEqual({ types: "./dist/daemon-origin.d.ts", import: "./dist/daemon-origin.js", default: "./dist/daemon-origin.js" });
   expect(manifest.exports["./daemon-park-recovery"]).toEqual({ types: "./dist/daemon-park-recovery.d.ts", import: "./dist/daemon-park-recovery.js", default: "./dist/daemon-park-recovery.js" });
+  expect(manifest.exports["./daemon-connection"]).toEqual({ types: "./dist/daemon-connection.d.ts", import: "./dist/daemon-connection.js", default: "./dist/daemon-connection.js" });
 });
