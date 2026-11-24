@@ -28,8 +28,13 @@ export interface MemberReadPort {
   list(required: { workspaceId: string }, optional?: { limit?: number; cursor?: string | null }): Promise<ListPage<AdminMemberSource>>;
 }
 
-/** What a members-library failure means on the wire: the three the admin routes ever mapped. */
-export type MemberErrorKind = "not-found" | "validation" | "conflict";
+/**
+ * What a members-library failure means on the wire: the kinds the admin routes ever mapped. The last two
+ * are request-magic-link's: the site cannot send sign-in mail (`sign-in-unavailable`, answered with the
+ * library's own message) or the mailer has no sender identity (`sender-not-configured`, answered with the
+ * host's copy, since the mailer's message names internal setup).
+ */
+export type MemberErrorKind = "not-found" | "validation" | "conflict" | "sign-in-unavailable" | "sender-not-configured";
 
 /**
  * Names the kind of a members-library failure, or `undefined` for anything else (an unexpected

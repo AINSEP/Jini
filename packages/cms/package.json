@@ -228,6 +228,7 @@
       "./admin-http/routes/members/get-by-id": "universal",
       "./admin-http/routes/members/delete": "universal",
       "./admin-http/routes/members/disable": "universal",
+      "./admin-http/routes/members/request-magic-link": "universal",
       "./admin-http/http/members": "universal",
       "./admin-http/routes/trash/list": "universal",
       "./admin-http/routes/trash/items": "universal",
@@ -1657,6 +1658,11 @@
       "types": "./dist/admin-http/routes/members/disable.d.ts",
       "import": "./dist/admin-http/routes/members/disable.js",
       "default": "./dist/admin-http/routes/members/disable.js"
+    },
+    "./admin-http/routes/members/request-magic-link": {
+      "types": "./dist/admin-http/routes/members/request-magic-link.d.ts",
+      "import": "./dist/admin-http/routes/members/request-magic-link.js",
+      "default": "./dist/admin-http/routes/members/request-magic-link.js"
     },
     "./admin-http/http/members": {
       "types": "./dist/admin-http/http/members.d.ts",
