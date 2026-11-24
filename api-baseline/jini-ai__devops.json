@@ -382,6 +382,45 @@
    "PublishRunResultProps": "interface:fa67bd1211"
   }
  },
+ "./deploy/site/deploy-config": {
+  "types": "./dist/deploy/site/deploy-config.d.ts",
+  "symbols": {
+   "HealthCheckSource": "interface:a702b2cbfe",
+   "HostDeployNotesReadPorts": "interface:6022d90132",
+   "appendHostDeployNotes": "function:e0cad63cae",
+   "buildDeploymentDescriptor": "function:e687e481a5",
+   "createDeployConfigKit": "function:5434fa5fdb"
+  }
+ },
+ "./deploy/site/deploy-config-registry": {
+  "types": "./dist/deploy/site/deploy-config-registry.d.ts",
+  "symbols": {
+   "DeployConfigContributionSpec": "interface:2210fbe5db",
+   "DeployConfigGeneratorSource": "interface:9b95dba29e",
+   "DeployConfigPluginSource": "interface:2232ee90e0",
+   "DeployConfigRegistryPorts": "interface:5449f3c345",
+   "DeployWorkflowContributionDefinition": "interface:ea7f2b867c",
+   "LoadDeployWorkflowContributions": "type:d92b4020a9",
+   "createDeployConfigGeneratorSource": "function:7fcff9d64a",
+   "loadDeployWorkflowFiles": "function:df82cfd561",
+   "readBundledDeployConfigDescriptors": "function:a82f9bc477",
+   "readDeployConfigTargetIdsFromSource": "function:a2eca8c4a0"
+  }
+ },
+ "./deploy/site/ports": {
+  "types": "./dist/deploy/site/ports.d.ts",
+  "symbols": {
+   "DeploymentError": "interface:4586ca681b",
+   "DeploymentErrorCode": "type:1c1371b4ae",
+   "DeploymentProviderContext": "interface:d5f26c3982",
+   "DeploymentProviderPort": "interface:416ee4e665",
+   "DeploymentRunStatusUpdate": "interface:b850d7e7b6",
+   "PollDeploymentRunInput": "interface:4231f9870d",
+   "PollDeploymentRunResult": "type:2959ae63ed",
+   "StartDeploymentRunInput": "interface:255b7c4544",
+   "StartDeploymentRunResult": "type:52e7ee410b"
+  }
+ },
  "./deploy/site/types": {
   "types": "./dist/deploy/site/types.d.ts",
   "symbols": {

@@ -1136,6 +1136,16 @@
    "getChangeSetsAgentToolCatalog": "function:02b9fcc204"
   }
  },
+ "./change-sets/tool-registrations": {
+  "types": "./dist/change-sets/tool-registrations.d.ts",
+  "symbols": {
+   "ChangeSetToolDeps": "interface:961cf97695",
+   "buildChangeSetsRegistrations": "function:cdf197beee",
+   "changeSetsDerivedRisk": "function:6d00bec8b9",
+   "contributeChangeSetsTools": "function:d1b5f498a0",
+   "toChangeSetView": "function:98f2f691a2"
+  }
+ },
  "./comments": {
   "types": "./dist/comments/index.d.ts",
   "symbols": {
@@ -1548,6 +1558,17 @@
    "entriesDerivedRisk": "variable:2e4bbde8c0"
   }
  },
+ "./entries/site/unreadable-owner-entries-repair": {
+  "types": "./dist/entries/site/unreadable-owner-entries-repair.d.ts",
+  "symbols": {
+   "OwnerEntryRemoval": "interface:4f319f2d28",
+   "OwnerEntryRemovalVia": "type:35935f8acb",
+   "OwnerEntryRow": "interface:d7bab9b255",
+   "RemovedOwnerEntry": "interface:b642242586",
+   "isMismatchedOwnerEnvelope": "function:6827a4e5a6",
+   "removeMismatchedOwnerEntries": "function:c8038e862b"
+  }
+ },
  "./entries/sql": {
   "types": "./dist/entries/sql/index.d.ts",
   "symbols": {
@@ -1777,6 +1798,13 @@
    "withFormPullLease": "function:9341f1a90b"
   }
  },
+ "./forms/destinations/deliver": {
+  "types": "./dist/forms/destinations/deliver.d.ts",
+  "symbols": {
+   "ResolveRequestTarget": "type:dae6a02af5",
+   "createFormDestinationDeliverer": "function:62726d80f3"
+  }
+ },
  "./forms/destinations/pull": {
   "types": "./dist/forms/destinations/pull.d.ts",
   "symbols": {
@@ -1935,6 +1963,15 @@
    "formsMailOutboxReady": "variable:214eb2d5e4"
   }
  },
+ "./forms/site/submission-ip-expiry-sweep": {
+  "types": "./dist/forms/site/submission-ip-expiry-sweep.d.ts",
+  "symbols": {
+   "SUBMISSION_IP_SWEEP_INTERVAL_MS": "variable:608aa99843",
+   "SubmissionIpSweep": "type:a200e1e267",
+   "assertSubmissionIpSweepInterval": "function:39fffca718",
+   "startSubmissionIpExpirySweep": "function:2352d44728"
+  }
+ },
  "./forms/sql": {
   "types": "./dist/forms/sql/index.d.ts",
   "symbols": {
@@ -1994,6 +2031,19 @@
    "chosenFolderPath": "function:099a26a37f",
    "createNativeFolderPicker": "function:ac10abe7e4",
    "folderChooserCommand": "function:e8143fb3a9"
+  }
+ },
+ "./fs-files/write-files": {
+  "types": "./dist/fs-files/write-files.d.ts",
+  "symbols": {
+   "FS_WRITE_LIMITS": "variable:537226edb0",
+   "FsWriteInputError": "class:9ba50ad450",
+   "PreparedFileWrite": "interface:6a6996ac3e",
+   "ResolveFsFilePath": "type:63e12f677f",
+   "inspectWriteTarget": "function:511963eb95",
+   "prepareFileWrites": "function:7b1ef8ad63",
+   "requirePickedFolder": "function:e84c02e223",
+   "writePreparedFiles": "function:566425ccfc"
   }
  },
  "./html/document-marks": {
@@ -2349,6 +2399,22 @@
    "createUnpdfDocumentTextExtractor": "function:44ff8840d5"
   }
  },
+ "./media/site-generation/media-provider-registry": {
+  "types": "./dist/media/site-generation/media-provider-registry.d.ts",
+  "symbols": {
+   "LoadedMediaProviderItem": "interface:74ae00c5b4",
+   "LoadedMediaProviderItems": "interface:2d7ad99c38",
+   "LoadedMediaProviderRegistry": "interface:df05b91437",
+   "MediaProviderContributionDescriptor": "interface:5a20f8cf30",
+   "MediaProviderContributionShape": "interface:53c441d236",
+   "MediaProviderContributionSpec": "interface:7126543b75",
+   "MediaProviderContributionSpecOptional": "interface:fa4a11b3be",
+   "MediaProviderRegistryContributionPorts": "interface:2046b04156",
+   "MediaProviderRegistrySlice": "interface:a7a69dc087",
+   "loadMediaProviderRegistry": "function:9752c77313",
+   "parseMediaProvidersFile": "function:eb6dec7563"
+  }
+ },
  "./media/site-transform/image-ops": {
   "types": "./dist/media/site-transform/image-ops.d.ts",
   "symbols": {
@@ -2394,6 +2460,16 @@
   "symbols": {
    "InMemoryMediaContentTypeStore": "class:8d9c095ecf",
    "MediaContentTypeStorePort": "interface:db4ff0e29c"
+  }
+ },
+ "./media/site/document-archive": {
+  "types": "./dist/media/site/document-archive.d.ts",
+  "symbols": {
+   "DocumentZipArchiveReaderFactory": "type:d463237b3f",
+   "DocumentZipEntry": "interface:04348192b4",
+   "DocumentZipFile": "interface:882a951fa5",
+   "DocumentZipSdk": "interface:47602502b2",
+   "createDocumentArchiveReader": "function:d7d7920d39"
   }
  },
  "./media/site/hydrate-blob-store-from-seed": {
