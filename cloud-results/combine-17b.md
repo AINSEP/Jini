@@ -1,4 +1,4 @@
-DONE 7f4a9b9f8d b565aaa7 | FILES LEFT 1,659 / 1,548 excl. themes (combine-17 lost tree: 1,655 / 1,544; merge-16: 2,187 / 2,076)
+DONE 3995db6fe0 b565aaa7 | FILES LEFT 1,659 / 1,548 excl. themes (combine-17 lost tree: 1,655 / 1,544; merge-16: 2,187 / 2,076)
 
 # combine-17b (2026-11-24): rebuild and push Tovu `integ/merge-17-2026-11-23`
 
@@ -25,7 +25,8 @@ Unattended cloud run with an Opus high coordinator. I read `AI-Dev-Shop/agents/p
 Tovu `integ/merge-17-2026-11-23` (new branch). Every push went through the pre-push hook.
 - `80832de2d4`: 7 lanes (rtfnd, users-sec, addons, sites, screens, fnd + fixes). The hook ran the desktop gates: **6/6 PASS**.
 - `bd34481ad2`: + deploy, pages-members and settings (final join) and the why-comments pass. The hook ran the desktop gates: **6/6 PASS**.
-- `7f4a9b9f8d`: drops the stale boundaries rank. The hook skipped the desktop gates because no desktop path changed. Later test fixes, if any, are listed under Gates.
+- `7f4a9b9f8d`: drops the stale boundaries rank. The hook skipped the desktop gates because no desktop path changed.
+- `50d6a8fd0f`: this report. Then the test-import repoint merge and this report's update (the branch tip). The hook skipped the desktop gates.
 
 Jini `integ/merge-17-2026-11-23`: `b565aaa7` (desktop regression fix), then this report's copy.
 
@@ -99,7 +100,7 @@ FIX ap = applied, st = stale (already done), INTEG = done while integrating with
 - **FILES LEFT:** `plans/P9-data/tools/scan.mjs` + `plan.mjs` from `origin/plan/whats-left-1122`. scan: 7,568 files; plan: moving 1,659 (ready 321, blocked 1,338), keep 321, theme areas (`adm-themes`, `theme`) 111. So **1,659 / 1,548 excl. themes**.
 
 ## Late fix
-(If the test-import repoint worker landed in time, its SHA is listed here; otherwise those 7 files stay NEW-RED, as listed above.)
+`b785e5fd67` (merged): the 7 test-import NEW-REDs were repointed to the moved Jini owners, with no assertion changed. 6 files now pass in full: mail-activity 7/7, download-forms-privacy 4/4, hosted-forms-static 3/3, static-copy-policy 9/9, error-mapping 12/12 and put-settings 6/6. `send-pipeline` is 84/85. The 1 failure left is `dispatchRow` happy path: Jini `user-management/newsletter/send-pipeline.ts` now sends an explicit `html: undefined` key, and the test's deepStrictEqual expects that key to be absent. This is combine-17 bug #4 and is left for an owner call: either Jini omits the key, or the expectation changes.
 
 ## New bugs / follow-ups
 1. **why-comments, 61 left.**
