@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { act, renderHook, waitFor } from "@testing-library/react";
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it, vi, type Mock } from "vitest";
 
 import type { MailCaptureClearAnswer } from "../email-api.types.js";
 import { STALE_CAPTURE_MESSAGE, useCaptureClearFlow } from "../hooks/use-email-activity.hooks.js";
@@ -9,11 +9,14 @@ import { STALE_CAPTURE_MESSAGE, useCaptureClearFlow } from "../hooks/use-email-a
 class FakeApiError extends Error { readonly status: number; constructor({ message, status }: { message: string; status: number }) { super(message); this.status = status; } }
 const PREVIEW: MailCaptureClearAnswer = { cleared: false, confirmationRequired: true, plan: { count: 3, newestAt: "2026-11-24T10:00:00Z" }, revision: "3:2026-11-24T10:00:00Z" };
 
-function setup(over: { permissions?: readonly string[]; clearCaptured?: ReturnType<typeof vi.fn> | undefined } = {}) {
-  const clearCaptured = "clearCaptured" in over ? over.clearCaptured : vi.fn(async (_options?: { confirm?: { revision: string } }) => PREVIEW);
+type ClearMock = Mock<(options?: { confirm?: { revision: string } }) => Promise<MailCaptureClearAnswer>>;
+const previewing = (): ClearMock => vi.fn(async (_options?: { confirm?: { revision: string } }) => PREVIEW);
+
+function setup(over: { permissions?: readonly string[]; clearCaptured?: ClearMock | undefined } = {}) {
+  const clearCaptured = "clearCaptured" in over ? over.clearCaptured : previewing();
   const api = clearCaptured ? { clearCaptured } : {};
   const view = renderHook(() => useCaptureClearFlow({ api, permissions: over.permissions ?? ["mail.capture.clear"], ApiError: FakeApiError }));
-  return { clearCaptured, ...view };
+  return { ...view, clearCaptured: clearCaptured as ClearMock };
 }
 
 describe("useCaptureClearFlow", () => {
@@ -36,7 +39,7 @@ describe("useCaptureClearFlow", () => {
 
   it("shows a checking state, then the previewed count, and cancel sends no confirmed request", async () => {
     let release: (answer: MailCaptureClearAnswer) => void = () => {};
-    const clearCaptured = vi.fn((_options?: { confirm?: { revision: string } }) => new Promise<MailCaptureClearAnswer>((resolve) => { release = resolve; }));
+    const clearCaptured: ClearMock = vi.fn((_options?: { confirm?: { revision: string } }) => new Promise<MailCaptureClearAnswer>((resolve) => { release = resolve; }));
     const { result } = setup({ clearCaptured });
     act(() => { void result.current.start(); });
     expect(result.current.state).toEqual({ kind: "checking" });
