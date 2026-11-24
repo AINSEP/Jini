@@ -1,3 +1,4 @@
+import { orFallbackSync } from "@jini-ai/core/errors/idioms";
 import { describe, expect, it } from "vitest";
 import type { PositionalMailer } from "@jini-ai/core/contracts/mail";
 import { requestLoginEmailProof, type MemberLoginLinkDeps } from "../link-service.js";
@@ -24,6 +25,7 @@ function harness() {
     renderEmailForSend: ({ values }) => ({ subject: "Your sign-in link", html: `<p>${values.link}</p>`, text: `${values.link} ${values.code}` }),
   };
   const deps: MemberLoginLinkDeps = {
+    orFallbackSync,
     clock: { nowMs: () => Date.parse("2026-01-01T00:00:00.000Z") } as unknown as MemberLoginLinkDeps["clock"],
     ids: { newId: () => `id-${++next}` } as MemberLoginLinkDeps["ids"],
     members: new InMemoryMemberRepo(), tiers: new InMemoryMemberTierRepo(), subscriptions: new InMemoryMemberSubscriptionRepo(),

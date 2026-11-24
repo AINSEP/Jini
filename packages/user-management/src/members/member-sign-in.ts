@@ -1,5 +1,4 @@
 import { nowIso as clockNowIso } from "@jini-ai/core/primitives";
-import { orFallbackSync } from "@jini-ai/core/errors/idioms";
 import type { MemberSignInInput, MemberSignInResult, MembersWriteServiceDeps } from "./ports.js";
 import { MemberAuthError, MemberConflictError, MemberValidationError, type MagicLinkTokenRecord, type MemberRecord } from "./types.js";
 import { issueMemberSession } from "./member-credentials.js";
@@ -148,5 +147,5 @@ export function notifyMemberCreated(
   _optional: Record<string, never> = {},
 ): void {
   /* Optional product analytics cannot alter a committed member. */
-  orFallbackSync({ work: () => { deps.onMemberCreated?.({ workspaceId: member.workspaceId, memberId: member.id, creationSource, initialState }); }, fallback: undefined, step: "members.on-member-created" });
+  deps.orFallbackSync({ work: () => { deps.onMemberCreated?.({ workspaceId: member.workspaceId, memberId: member.id, creationSource, initialState }); }, fallback: undefined, step: "members.on-member-created" });
 }

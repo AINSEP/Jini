@@ -231,6 +231,9 @@ export interface MemberAccessResolver {
  * principal in the same revision ledger.
  */
 export interface MembersWriteServiceDeps {
+  /** The host's "run `work`, or report the failure under `step` and return `fallback`" (structurally
+   * Core's `orFallbackSync`), used so a throwing creation observer never alters a committed member. */
+  orFallbackSync: (required: { work: () => void; fallback: undefined; step: string }, optional?: Record<string, never>) => void;
   /** Post-commit creation notification. Transactional callers defer it until their outer commit. */
   onMemberCreated?: (required: { workspaceId: string; memberId: string;
     creationSource: "operator" | "verified_signup" | "oidc_signup"; initialState: "pending" | "active" }, optional?: Record<string, never>) => void;
@@ -302,6 +305,7 @@ export type MembersWriteServiceSourceDeps = {
   memberSessionRepo: MembersWriteServiceDeps["sessions"];
   magicLinkRepo: MembersWriteServiceDeps["magicLinks"];
   mailer: MembersWriteServiceDeps["mailer"];
+  orFallbackSync: MembersWriteServiceDeps["orFallbackSync"];
   mailStatus?: MembersWriteServiceDeps["mailStatus"];
   originRegistry?: MembersWriteServiceDeps["origin"];
   principalRepo: MembersWriteServiceDeps["principals"];
@@ -324,6 +328,7 @@ export function buildMembersWriteServiceDeps(
     sessions: deps.memberSessionRepo,
     magicLinks: deps.magicLinkRepo,
     mailer: deps.mailer,
+    orFallbackSync: deps.orFallbackSync,
     mailStatus: deps.mailStatus,
     origin: deps.originRegistry,
     principals: deps.principalRepo,

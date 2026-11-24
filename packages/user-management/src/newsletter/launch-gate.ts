@@ -22,7 +22,6 @@
  * unmet ones are collected — this never short-circuits/returns on the first failure found.
  */
 import type { UUID } from "@jini-ai/core/primitives";
-import { orFallback } from "@jini-ai/core/errors/idioms";
 import type { PositionalMailer as MailerPort } from "@jini-ai/core/contracts/mail";
 import type { MembersConsentCapability } from "./ports.js";
 import type { OriginRegistryPort } from "@jini-ai/core/contracts/server/verified-origin";
@@ -39,6 +38,11 @@ export interface LaunchGateResult {
   unmetPreconditions: readonly LaunchGatePrecondition[];
 }
 
+/** The host-supplied "run `work`, or report the failure under `step` and return `fallback`"
+ * (structurally Core's `orFallback`); injected so the gate keeps no implementation dependency on it.
+ * An origin lookup that fails is reported by the host and counts as unverified (fail-closed). */
+export type LaunchGateFallback = (required: { work: () => Promise<boolean>; fallback: false; step: string }) => Promise<boolean>;
+
 /** Reads Newsletter's four precondition sources. Single-evaluator typed dependency, no ADR-006 port. */
 export interface LaunchGateDeps {
   /** Resolves `newsletter.launch_gate.sending_enabled` (workspace setting; defaults `false` — §3). */
@@ -47,6 +51,8 @@ export interface LaunchGateDeps {
   consentCapability: MembersConsentCapability | null;
   originRegistry: OriginRegistryPort;
   mailer: MailerPort;
+  /** Failure-reporting fallback for the origin check; see {@link LaunchGateFallback}. */
+  orFallback: LaunchGateFallback;
 }
 
 /**
@@ -72,7 +78,7 @@ export async function evaluateLaunchGate(required: {
   if (!isTestSend && deps.consentCapability == null) unmet.push("consent_capability_unbound");
 
   // (c) origin verified — NEVER skipped, even for test sends (EC-10: precondition (c) never waived).
-  const originVerified = await orFallback({ work: async () => { await deps.originRegistry.canonicalOrigin({ workspaceId }); return true; }, fallback: false, step: "newsletter.launch-gate.origin-verified" });
+  const originVerified = await deps.orFallback({ work: async () => { await deps.originRegistry.canonicalOrigin({ workspaceId }); return true; }, fallback: false, step: "newsletter.launch-gate.origin-verified" });
   if (!originVerified) unmet.push("origin_not_verified");
 
   // (d) mailer adapter is production-capable — NEVER skipped.

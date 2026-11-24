@@ -1,3 +1,4 @@
+import { orFallbackSync } from "@jini-ai/core/errors/idioms";
 import { describe, expect, it } from "vitest";
 import { OriginNotVerifiedError } from "@jini-ai/core/contracts/server/verified-origin";
 import type { MailerSendOptions, OutboundEmail, PositionalMailer } from "@jini-ai/core/contracts/mail";
@@ -33,6 +34,7 @@ function harness(overrides: { delivering?: boolean; transport?: MembersMailTrans
     },
   };
   const deps: MembersWriteServiceDeps = {
+    orFallbackSync,
     clock: { nowMs: () => Date.parse("2026-01-01T00:00:00.000Z") } as unknown as MembersWriteServiceDeps["clock"],
     ids: { newId: () => `id-${++next}` } as MembersWriteServiceDeps["ids"],
     members: new InMemoryMemberRepo(),

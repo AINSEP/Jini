@@ -5,6 +5,7 @@
 import assert from "node:assert/strict";
 import { test } from "vitest";
 
+import { orFallback } from "@jini-ai/core/errors/idioms";
 import { evaluateLaunchGate, type LaunchGateDeps } from "../launch-gate.js";
 import type { MailerCapabilities } from "@jini-ai/core/contracts/mail";
 
@@ -33,6 +34,7 @@ function makeDeps(overrides: Partial<{
       isAllowedRedirectTarget: async () => true,
       isAllowedEgressTarget: async () => true,
     },
+    orFallback,
     mailer: {
       capabilities: (): MailerCapabilities => ({
         driver: mailerDriver,
@@ -146,4 +148,13 @@ test("evaluateLaunchGate: isTestSend=true with a console mailer -> still blocked
   });
   assert.equal(result.met, false);
   assert.deepEqual(result.unmetPreconditions, ["mailer_adapter_not_production"]);
+});
+
+test("evaluateLaunchGate: the origin check runs through the injected fallback; a reported failure stays fail-closed", async () => {
+  const steps: string[] = [];
+  const deps = makeDeps({ originThrows: true });
+  deps.orFallback = async ({ work, fallback, step }) => { steps.push(step); try { return await work(); } catch { return fallback; } };
+  const result = await evaluateLaunchGate({ deps, workspaceId: WS, isTestSend: true });
+  assert.deepEqual(steps, ["newsletter.launch-gate.origin-verified"]);
+  assert.deepEqual(result, { met: false, unmetPreconditions: ["origin_not_verified"] });
 });
