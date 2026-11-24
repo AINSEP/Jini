@@ -677,6 +677,39 @@
    "TransactionalRepoPort": "interface:5f66eb000a"
   }
  },
+ "./contracts/execution": {
+  "types": "./dist/contracts/execution.d.ts",
+  "symbols": {
+   "AgentAuthStatus": "type:5cc30dc677",
+   "AgentCliEnvFieldSpec": "interface:20966b58cf",
+   "AgentDiagnostic": "interface:447da45e77",
+   "AgentDiagnosticReason": "type:80b5eab248",
+   "AgentDiagnosticSeverity": "type:62ac2cb132",
+   "AgentExecutableRepair": "interface:b30b1b1eab",
+   "AgentExecutableSource": "type:a6de96f685",
+   "AgentFixIntent": "type:41f8472d88",
+   "AgentModelOption": "interface:77164990d0",
+   "AgentModelSource": "type:62f66a6463",
+   "AgentScanState": "type:e8b7a328f9",
+   "AgentSupportsCustomModel": "type:6954ffd380",
+   "AgentTestState": "type:4ebc29133f",
+   "ApiKeyWarning": "interface:5ee015757f",
+   "ApiProtocol": "type:f5276b8e61",
+   "ByokConfig": "interface:b873dd7aa6",
+   "ByokProviderCredentials": "interface:cab4b524b1",
+   "ByokRequiredField": "type:43f134abbc",
+   "ConnectionTestState": "type:826fcb0d75",
+   "ExecutionCardAgent": "interface:9e85e03fca",
+   "ExecutionConfig": "interface:4206ef03ad",
+   "ExecutionMode": "type:a3d59d4317",
+   "ExecutionPort": "interface:7b4a306cc0",
+   "LocalCliConfig": "interface:3af4bf2cce",
+   "ModelDiscoveryState": "type:4354d8966e",
+   "ProviderPreset": "interface:e0925bc7ce",
+   "ProviderPresetKind": "type:82202f8da8",
+   "ReasoningModelGroup": "interface:d0ed8993c5"
+  }
+ },
  "./contracts/forms": {
   "types": "./dist/contracts/forms.d.ts",
   "symbols": {
@@ -1335,13 +1368,51 @@
  "./contracts/site/cms-admin-media": {
   "types": "./dist/contracts/site/cms-admin-media.d.ts",
   "symbols": {
-   "AdminMedia": "interface:719cba6571"
+   "AdminMedia": "type:7afe4a503e"
+  }
+ },
+ "./contracts/site/cms-agent-plugins": {
+  "types": "./dist/contracts/site/cms-agent-plugins.d.ts",
+  "symbols": {
+   "AdminAgentPluginDto": "interface:f210bba760",
+   "AdminAgentPluginFilesEnvelope": "interface:65573deb72",
+   "AdminAgentPluginLifecycleDto": "interface:2097a79e16",
+   "AdminAgentPluginSetEnabledEnvelope": "interface:61be4329da",
+   "AdminAgentPluginsListEnvelope": "interface:22e8b4ea12"
+  }
+ },
+ "./contracts/site/cms-assistant": {
+  "types": "./dist/contracts/site/cms-assistant.d.ts",
+  "symbols": {
+   "AssistantAgentModelDto": "interface:0c56702d72",
+   "AssistantDetectAgentsResponseDto": "interface:cdc3dc36d7",
+   "AssistantDetectedAgentRowDto": "type:f40b121a9a",
+   "AssistantExecutionTabAgentDto": "interface:622e77e805",
+   "AssistantIdLabelDto": "interface:9c69c1aff1",
+   "AssistantListModelsResponseDto": "interface:629c980d63",
+   "AssistantProbeVerdictDto": "interface:4693d29bc2",
+   "AssistantSettingsEnvelopeDto": "interface:5b501a337a"
   }
  },
  "./contracts/site/cms-core": {
   "types": "./dist/contracts/site/cms-core.d.ts",
   "symbols": {
    "PublicPostKind": "type:5021e95e78"
+  }
+ },
+ "./contracts/site/cms-external-mcp": {
+  "types": "./dist/contracts/site/cms-external-mcp.d.ts",
+  "symbols": {
+   "ExternalMcpAdmissionsEnvelope": "interface:30a90ae29a",
+   "ExternalMcpDeleteEnvelope": "interface:367b781192",
+   "ExternalMcpListEnvelope": "interface:23f501dc75",
+   "ExternalMcpOAuthDisconnectEnvelope": "interface:3228594623",
+   "ExternalMcpOwnedServerDto": "type:47907ba64d",
+   "ExternalMcpPutEnvelope": "interface:fa39bf2e04",
+   "ExternalMcpServerSummaryDto": "interface:2829b7cf2c",
+   "ExternalMcpToolApprovalDto": "interface:d5d6d04831",
+   "ExternalMcpToolApprovalRevokeEnvelope": "interface:1e9da26d88",
+   "ExternalMcpToolApprovalsEnvelope": "interface:26efef9f63"
   }
  },
  "./contracts/site/cms-forms": {
@@ -1365,6 +1436,17 @@
    "FormReceiverPort": "interface:d7c2ce6e73",
    "FormSubmissionsInspection": "interface:cff10dc902",
    "NotifyConfig": "interface:433497a69d"
+  }
+ },
+ "./contracts/site/cms-mail": {
+  "types": "./dist/contracts/site/cms-mail.d.ts",
+  "symbols": {
+   "AdminMailProviderRefusalDto": "interface:b517260fd3",
+   "AdminMailStatusBlockDto": "type:b0e82c1312",
+   "AdminMailStatusDto": "type:f9764f0536",
+   "AdminMailSuppressionRemovalPreviewDto": "interface:b04bd241b5",
+   "AdminMailTestSendDto": "interface:fb6ae2eb93",
+   "AdminMailTestSendOutcomeDto": "interface:79214b500c"
   }
  },
  "./contracts/site/cms-media": {
@@ -1393,6 +1475,128 @@
    "TransformFit": "type:c06b6c0368",
    "TransformFormat": "type:e12c2fb303",
    "TransformParams": "interface:37f709014d"
+  }
+ },
+ "./contracts/site/cms-menus": {
+  "types": "./dist/contracts/site/cms-menus.d.ts",
+  "symbols": {
+   "AdminAssignLocationEnvelope": "interface:4b47471dda",
+   "AdminMenuAttrsDto": "interface:075fbb64b9",
+   "AdminMenuAuthoringDto": "interface:2df671e88f",
+   "AdminMenuBindingDto": "interface:2ce323da88",
+   "AdminMenuDto": "interface:4ac07c82de",
+   "AdminMenuEntryTargetDto": "interface:1776d48538",
+   "AdminMenuEnvelope": "interface:61f7c52c7c",
+   "AdminMenuItemDto": "interface:86ff130ace",
+   "AdminMenuListEnvelope": "interface:ca53c37617",
+   "AdminMenuMode": "type:d63952b621",
+   "AdminMenuRouteTargetDto": "interface:8f44f6b4c2",
+   "AdminMenuStatus": "type:e32996a7ee",
+   "AdminMenuTargetDto": "type:e190812bd9",
+   "AdminMenuTermTargetDto": "interface:92e299b2c5",
+   "AdminMenuUrlTargetDto": "interface:6895186605",
+   "AdminTrashMenuEnvelope": "interface:7f1face6df"
+  }
+ },
+ "./contracts/site/cms-plugins": {
+  "types": "./dist/contracts/site/cms-plugins.d.ts",
+  "symbols": {
+   "AdminPluginDto": "interface:3f2bf1486f",
+   "AdminPluginErrorDto": "interface:50a394b28e",
+   "AdminPluginListEnvelope": "interface:332a6e1f21",
+   "AdminPluginQuarantineDto": "interface:8fa09f5a21",
+   "AdminPluginSetEnabledEnvelope": "interface:6bb83bae13",
+   "AdminPluginSource": "type:709c8919a8",
+   "AdminPluginStatus": "type:cb08104fcc",
+   "AdminPluginTier": "type:bb21d9b00b"
+  }
+ },
+ "./contracts/site/cms-publish-content": {
+  "types": "./dist/contracts/site/cms-publish-content.d.ts",
+  "symbols": {
+   "PublishContentOutcomeKindDto": "type:8b54e9fab5",
+   "PublishContentOutcomeRowDto": "interface:37e38c8737",
+   "PublishContentPeerListDto": "interface:dbffcac335",
+   "PublishContentPeerResponseDto": "interface:91cc0f1cbe",
+   "PublishContentPeerView": "interface:f1cd158903",
+   "PublishContentReferenceHolderDto": "interface:04ba48ff3e",
+   "PublishContentReportDto": "interface:d0622a2aa7",
+   "PublishContentRetireTargetDto": "interface:985b69c222",
+   "PublishDestinationView": "interface:bc1e2b9f1c"
+  }
+ },
+ "./contracts/site/cms-recovery": {
+  "types": "./dist/contracts/site/cms-recovery.d.ts",
+  "symbols": {
+   "AdminDegradedBannerActionKind": "type:455590514a",
+   "AdminDegradedBannerDto": "interface:1c9d51c809",
+   "AdminDegradedBannerKind": "type:1a50c8a27d",
+   "AdminRecoveryCapabilities": "interface:b6292e6464",
+   "AdminRecoveryCostClass": "type:f2a0b02742",
+   "AdminRecoveryStatusEnvelope": "interface:d1fb384877"
+  }
+ },
+ "./contracts/site/cms-seo": {
+  "types": "./dist/contracts/site/cms-seo.d.ts",
+  "symbols": {
+   "AdminSeoAnalysisDto": "interface:70aabf790a",
+   "AdminSeoEntryAnalysisEnvelope": "interface:4dd1ff356c",
+   "AdminSeoEntryMetaEnvelope": "interface:f5b198e35c",
+   "AdminSeoIssueDto": "interface:b0c5c1d0e9",
+   "AdminSeoIssueSeverity": "type:83f274630f",
+   "AdminSeoMetaDto": "interface:679718130f",
+   "AdminSeoOpenGraphDto": "interface:491cc6cb92",
+   "AdminSeoOpenGraphType": "type:e920385396",
+   "AdminSeoRobotsRuleDto": "interface:fa73fc6ee3",
+   "AdminSeoSettingsDto": "interface:f7be571c3e",
+   "AdminSeoSettingsEnvelope": "interface:3ef7297579",
+   "AdminSeoSitemapRegenerateEnvelope": "interface:d30fbdbda6",
+   "AdminSeoTwitterCardDto": "interface:4b5d7eb197",
+   "AdminSeoTwitterCardKind": "type:5c4547276d"
+  }
+ },
+ "./contracts/site/cms-settings": {
+  "types": "./dist/contracts/site/cms-settings.d.ts",
+  "symbols": {
+   "AdminSettingClearedDto": "interface:9a179107fb",
+   "AdminSettingDefinitionAppliedDto": "interface:e1dfa77bfa",
+   "AdminSettingScopeDto": "type:f80238d080",
+   "AdminSettingValueDto": "interface:be2c0bb11d",
+   "AdminSettingsListDto": "interface:8d9738a692",
+   "AdminSettingsRegisterDefinitionsDto": "interface:3ecf9d11c4",
+   "AdminSettingsResetDto": "interface:244bff9a31"
+  }
+ },
+ "./contracts/site/cms-sites": {
+  "types": "./dist/contracts/site/cms-sites.d.ts",
+  "symbols": {
+   "SiteCreateResponse": "interface:bcf485244c",
+   "SiteTokenSignInPluginsResponse": "interface:5b7746614c",
+   "SitesHomeSetResponse": "interface:6fb1535af9"
+  }
+ },
+ "./contracts/site/cms-system-deploy": {
+  "types": "./dist/contracts/site/cms-system-deploy.d.ts",
+  "symbols": {
+   "DeploymentEnvVarStatus": "interface:34c5536892",
+   "DeploymentOverviewSnapshot": "interface:38b2ac4e8a"
+  }
+ },
+ "./contracts/site/comments-providers": {
+  "types": "./dist/contracts/site/comments-providers.d.ts",
+  "symbols": {
+   "CommentModerationPort": "interface:349638f359",
+   "CommentStatus": "type:d2ceb0a3ce",
+   "CommentSubmissionPort": "interface:9e0824bd7a",
+   "CommentThreadRendererPort": "interface:5c6c47a049",
+   "CommentThreadScript": "interface:587d387c78",
+   "CommentsProviderAdapter": "type:0f967c5976",
+   "CommentsProviderBinding": "interface:5969766411",
+   "CommentsProviderDefinition": "interface:4f3ec9b68f",
+   "CommentsProviderRegistry": "interface:f838c71e70",
+   "CommentsSelection": "interface:b8a20e8b0a",
+   "CommentsSelectionStorePort": "interface:bf8df426f1",
+   "CommentsSettingField": "interface:a97f865de8"
   }
  },
  "./contracts/site/cookie-consent": {
@@ -1642,6 +1846,16 @@
    "AdminNavItem": "interface:27c563540a"
   }
  },
+ "./contracts/site/oauth-callback-page": {
+  "types": "./dist/contracts/site/oauth-callback-page.d.ts",
+  "symbols": {
+   "OAUTH_CALLBACK_FAILURE_REASONS": "variable:0c27baa657",
+   "OAuthCallbackFailureReason": "type:cb32510fc3",
+   "OAuthCallbackPageArgs": "interface:0913c957ec",
+   "OAuthCallbackPageRenderer": "type:f5dc08df6d",
+   "oauthCallbackPageResponse": "function:b5ccf3e3d6"
+  }
+ },
  "./contracts/site/platform-mail": {
   "types": "./dist/contracts/site/platform-mail.d.ts",
   "symbols": {
@@ -1723,6 +1937,15 @@
    "UIResourceContent": "interface:9dc602e0f1",
    "UIResourceMimeType": "type:51b68853d0",
    "UIResourceUri": "type:c61b37b286"
+  }
+ },
+ "./contracts/site/publish-ports": {
+  "types": "./dist/contracts/site/publish-ports.d.ts",
+  "symbols": {
+   "PublishPorts": "type:db99031ae2",
+   "PublishPortsEntityType": "type:133c9897bb",
+   "PublishPortsSlice": "type:fc28261cc8",
+   "PublishPortsSlices": "type:ba23e944d0"
   }
  },
  "./contracts/site/recovery-operation-lock": {
@@ -2522,6 +2745,7 @@
    "FormatByteSizeOptions": "interface:016d972e70",
    "LocaleDictionary": "type:f3e45492e9",
    "MAX_CANDIDATE_LENGTH": "variable:a544945da1",
+   "MergedLocaleDictionary": "type:a9462dbf32",
    "SanitizeTextOptions": "interface:001fc141ce",
    "StreamEventSink": "type:fa73d4e13e",
    "StreamTextEvent": "type:ae0ed011a4",
@@ -2541,6 +2765,7 @@
    "interpolate": "function:cbed639c5c",
    "isAbortError": "function:f0712c11c5",
    "localeEntry": "function:4c64e8490c",
+   "mergeLocaleOverlays": "function:288d4c4a85",
    "parseDescriptorI18n": "function:3021007027",
    "pickPlural": "function:a302d2f417",
    "possibleTagStart": "function:7201b60551",
@@ -2552,6 +2777,13 @@
    "trimChars": "function:baca3b2e99",
    "trimCharsEnd": "function:6d464f88f0",
    "trimCharsStart": "function:f1a8952ee2"
+  }
+ },
+ "./tool-access-change": {
+  "types": "./dist/tool-access-change.d.ts",
+  "symbols": {
+   "NotifyToolAccessChanged": "type:5eacbbd7df",
+   "ToolAccessLoweringError": "class:ca621f5ff9"
   }
  },
  "./tool-call-text": {
@@ -2649,6 +2881,12 @@
    "toolMetadata": "variable:f3fb2aed32"
   }
  },
+ "./tool-metadata/image-transform": {
+  "types": "./dist/tool-metadata/image-transform.d.ts",
+  "symbols": {
+   "toolMetadata": "variable:663ca70bf0"
+  }
+ },
  "./tool-metadata/mail-status": {
   "types": "./dist/tool-metadata/mail-status.d.ts",
   "symbols": {
@@ -2683,183 +2921,6 @@
   "types": "./dist/tool-metadata/pages.d.ts",
   "symbols": {
    "toolMetadata": "variable:6636a3b125"
-  }
- },
- "./contracts/site/cms-agent-plugins": {
-  "types": "./dist/contracts/site/cms-agent-plugins.d.ts",
-  "symbols": {
-   "AdminAgentPluginDto": "interface:f210bba760",
-   "AdminAgentPluginFilesEnvelope": "interface:65573deb72",
-   "AdminAgentPluginLifecycleDto": "interface:2097a79e16",
-   "AdminAgentPluginSetEnabledEnvelope": "interface:61be4329da",
-   "AdminAgentPluginsListEnvelope": "interface:22e8b4ea12"
-  }
- },
- "./contracts/site/cms-assistant": {
-  "types": "./dist/contracts/site/cms-assistant.d.ts",
-  "symbols": {
-   "AssistantAgentModelDto": "interface:0c56702d72",
-   "AssistantDetectAgentsResponseDto": "interface:cdc3dc36d7",
-   "AssistantDetectedAgentRowDto": "type:f40b121a9a",
-   "AssistantExecutionTabAgentDto": "interface:622e77e805",
-   "AssistantIdLabelDto": "interface:9c69c1aff1",
-   "AssistantListModelsResponseDto": "interface:629c980d63",
-   "AssistantProbeVerdictDto": "interface:4693d29bc2",
-   "AssistantSettingsEnvelopeDto": "interface:5b501a337a"
-  }
- },
- "./contracts/site/cms-external-mcp": {
-  "types": "./dist/contracts/site/cms-external-mcp.d.ts",
-  "symbols": {
-   "ExternalMcpAdmissionsEnvelope": "interface:30a90ae29a",
-   "ExternalMcpDeleteEnvelope": "interface:367b781192",
-   "ExternalMcpListEnvelope": "interface:23f501dc75",
-   "ExternalMcpOAuthDisconnectEnvelope": "interface:3228594623",
-   "ExternalMcpOwnedServerDto": "type:47907ba64d",
-   "ExternalMcpPutEnvelope": "interface:fa39bf2e04",
-   "ExternalMcpServerSummaryDto": "interface:2829b7cf2c",
-   "ExternalMcpToolApprovalDto": "interface:d5d6d04831",
-   "ExternalMcpToolApprovalRevokeEnvelope": "interface:1e9da26d88",
-   "ExternalMcpToolApprovalsEnvelope": "interface:26efef9f63"
-  }
- },
- "./contracts/site/cms-mail": {
-  "types": "./dist/contracts/site/cms-mail.d.ts",
-  "symbols": {
-   "AdminMailProviderRefusalDto": "interface:b517260fd3",
-   "AdminMailStatusBlockDto": "type:b0e82c1312",
-   "AdminMailStatusDto": "type:f9764f0536",
-   "AdminMailSuppressionRemovalPreviewDto": "interface:b04bd241b5",
-   "AdminMailTestSendDto": "interface:fb6ae2eb93",
-   "AdminMailTestSendOutcomeDto": "interface:79214b500c"
-  }
- },
- "./contracts/site/cms-menus": {
-  "types": "./dist/contracts/site/cms-menus.d.ts",
-  "symbols": {
-   "AdminAssignLocationEnvelope": "interface:4b47471dda",
-   "AdminMenuAttrsDto": "interface:075fbb64b9",
-   "AdminMenuAuthoringDto": "interface:2df671e88f",
-   "AdminMenuBindingDto": "interface:2ce323da88",
-   "AdminMenuDto": "interface:4ac07c82de",
-   "AdminMenuEntryTargetDto": "interface:1776d48538",
-   "AdminMenuEnvelope": "interface:61f7c52c7c",
-   "AdminMenuItemDto": "interface:86ff130ace",
-   "AdminMenuListEnvelope": "interface:ca53c37617",
-   "AdminMenuMode": "type:d63952b621",
-   "AdminMenuRouteTargetDto": "interface:8f44f6b4c2",
-   "AdminMenuStatus": "type:e32996a7ee",
-   "AdminMenuTargetDto": "type:e190812bd9",
-   "AdminMenuTermTargetDto": "interface:92e299b2c5",
-   "AdminMenuUrlTargetDto": "interface:6895186605",
-   "AdminTrashMenuEnvelope": "interface:7f1face6df"
-  }
- },
- "./contracts/site/cms-plugins": {
-  "types": "./dist/contracts/site/cms-plugins.d.ts",
-  "symbols": {
-   "AdminPluginDto": "interface:3f2bf1486f",
-   "AdminPluginErrorDto": "interface:50a394b28e",
-   "AdminPluginListEnvelope": "interface:332a6e1f21",
-   "AdminPluginQuarantineDto": "interface:8fa09f5a21",
-   "AdminPluginSetEnabledEnvelope": "interface:6bb83bae13",
-   "AdminPluginSource": "type:709c8919a8",
-   "AdminPluginStatus": "type:cb08104fcc",
-   "AdminPluginTier": "type:bb21d9b00b"
-  }
- },
- "./contracts/site/cms-publish-content": {
-  "types": "./dist/contracts/site/cms-publish-content.d.ts",
-  "symbols": {
-   "PublishContentOutcomeKindDto": "type:8b54e9fab5",
-   "PublishContentOutcomeRowDto": "interface:37e38c8737",
-   "PublishContentPeerListDto": "interface:dbffcac335",
-   "PublishContentPeerResponseDto": "interface:91cc0f1cbe",
-   "PublishContentPeerView": "interface:f1cd158903",
-   "PublishContentReferenceHolderDto": "interface:04ba48ff3e",
-   "PublishContentReportDto": "interface:d0622a2aa7",
-   "PublishContentRetireTargetDto": "interface:985b69c222",
-   "PublishDestinationView": "interface:bc1e2b9f1c"
-  }
- },
- "./contracts/site/cms-recovery": {
-  "types": "./dist/contracts/site/cms-recovery.d.ts",
-  "symbols": {
-   "AdminDegradedBannerActionKind": "type:455590514a",
-   "AdminDegradedBannerDto": "interface:1c9d51c809",
-   "AdminDegradedBannerKind": "type:1a50c8a27d",
-   "AdminRecoveryCapabilities": "interface:b6292e6464",
-   "AdminRecoveryCostClass": "type:f2a0b02742",
-   "AdminRecoveryStatusEnvelope": "interface:d1fb384877"
-  }
- },
- "./contracts/site/cms-seo": {
-  "types": "./dist/contracts/site/cms-seo.d.ts",
-  "symbols": {
-   "AdminSeoAnalysisDto": "interface:70aabf790a",
-   "AdminSeoEntryAnalysisEnvelope": "interface:4dd1ff356c",
-   "AdminSeoEntryMetaEnvelope": "interface:f5b198e35c",
-   "AdminSeoIssueDto": "interface:b0c5c1d0e9",
-   "AdminSeoIssueSeverity": "type:83f274630f",
-   "AdminSeoMetaDto": "interface:679718130f",
-   "AdminSeoOpenGraphDto": "interface:491cc6cb92",
-   "AdminSeoOpenGraphType": "type:e920385396",
-   "AdminSeoRobotsRuleDto": "interface:fa73fc6ee3",
-   "AdminSeoSettingsDto": "interface:f7be571c3e",
-   "AdminSeoSettingsEnvelope": "interface:3ef7297579",
-   "AdminSeoSitemapRegenerateEnvelope": "interface:d30fbdbda6",
-   "AdminSeoTwitterCardDto": "interface:4b5d7eb197",
-   "AdminSeoTwitterCardKind": "type:5c4547276d"
-  }
- },
- "./contracts/site/cms-settings": {
-  "types": "./dist/contracts/site/cms-settings.d.ts",
-  "symbols": {
-   "AdminSettingClearedDto": "interface:9a179107fb",
-   "AdminSettingDefinitionAppliedDto": "interface:e1dfa77bfa",
-   "AdminSettingScopeDto": "type:f80238d080",
-   "AdminSettingValueDto": "interface:be2c0bb11d",
-   "AdminSettingsListDto": "interface:8d9738a692",
-   "AdminSettingsRegisterDefinitionsDto": "interface:3ecf9d11c4",
-   "AdminSettingsResetDto": "interface:244bff9a31"
-  }
- },
- "./contracts/site/cms-sites": {
-  "types": "./dist/contracts/site/cms-sites.d.ts",
-  "symbols": {
-   "SiteCreateResponse": "interface:bcf485244c",
-   "SiteTokenSignInPluginsResponse": "interface:5b7746614c",
-   "SitesHomeSetResponse": "interface:6fb1535af9"
-  }
- },
- "./contracts/site/cms-system-deploy": {
-  "types": "./dist/contracts/site/cms-system-deploy.d.ts",
-  "symbols": {
-   "DeploymentEnvVarStatus": "interface:34c5536892",
-   "DeploymentOverviewSnapshot": "interface:38b2ac4e8a"
-  }
- },
- "./contracts/site/oauth-callback-page": {
-  "types": "./dist/contracts/site/oauth-callback-page.d.ts",
-  "symbols": {
-   "OAUTH_CALLBACK_FAILURE_REASONS": "variable:0c27baa657",
-   "OAuthCallbackFailureReason": "type:cb32510fc3",
-   "OAuthCallbackPageArgs": "interface:0913c957ec",
-   "OAuthCallbackPageRenderer": "type:f5dc08df6d",
-   "oauthCallbackPageResponse": "function:b5ccf3e3d6"
-  }
- },
- "./tool-access-change": {
-  "types": "./dist/tool-access-change.d.ts",
-  "symbols": {
-   "NotifyToolAccessChanged": "type:5eacbbd7df",
-   "ToolAccessLoweringError": "class:ca621f5ff9"
-  }
- },
- "./tool-metadata/image-transform": {
-  "types": "./dist/tool-metadata/image-transform.d.ts",
-  "symbols": {
-   "toolMetadata": "variable:663ca70bf0"
   }
  },
  "./tool-metadata/post": {

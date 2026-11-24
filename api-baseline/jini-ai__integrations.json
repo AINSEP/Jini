@@ -490,10 +490,29 @@
    "parseSavedRequestDefinition": "function:261e0c152f"
   }
  },
+ "./secrets": {
+  "types": "./dist/secrets/index.d.ts",
+  "symbols": {
+   "KeyringPort": "interface:58c784efa7",
+   "RootKeyHandle": "interface:15ff237d9b",
+   "SealedSecret": "interface:65de776c39",
+   "SecretSealerPort": "interface:c780d79e6b"
+  }
+ },
  "./vendor-credentials/abort-guarded-repo": {
   "types": "./dist/vendor-credentials/abort-guarded-repo.d.ts",
   "symbols": {
    "abortGuardedCredentialRepo": "function:38c11efb44"
+  }
+ },
+ "./vendor-credentials/project-scope": {
+  "types": "./dist/vendor-credentials/project-scope.d.ts",
+  "symbols": {
+   "CredentialProjectHalf": "interface:724cd7c019",
+   "CredentialScope": "type:6831ffe922",
+   "ScopedCredentialDeps": "interface:c82b39ed04",
+   "credentialCreateTarget": "function:9dde8d8ccb",
+   "credentialScopes": "function:ace3c9eec4"
   }
  },
  "./webhooks": {
@@ -512,7 +531,6 @@
    "IntegrationId": "type:8d5b52072e",
    "IntegrationSecretRecord": "interface:654def9697",
    "IntegrationSecretRepoPort": "interface:45feb5aa19",
-   "KeyringPort": "interface:3d122232b2",
    "MAX_DELIVERY_ATTEMPTS": "variable:7d1400f188",
    "PauseSubscriptionInput": "interface:72fa1d37cf",
    "PauseSubscriptionOptional": "interface:dc336d9187",
@@ -521,9 +539,6 @@
    "ProcessDueDeliveriesOptional": "interface:45b229bae1",
    "ProcessDueDeliveriesRequired": "interface:16f408864c",
    "ProcessDueDeliveriesResult": "interface:43317adbdf",
-   "RootKeyHandle": "interface:15ff237d9b",
-   "SealedSecret": "interface:65de776c39",
-   "SecretSealerPort": "interface:c780d79e6b",
    "SecretVersion": "type:f17537158e",
    "SignPayloadInput": "interface:a8b04f5a5e",
    "SignatureVocabulary": "interface:b43082f2dd",
