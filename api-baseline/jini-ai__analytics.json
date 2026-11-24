@@ -105,6 +105,17 @@
    "analyticsAgentToolCatalog": "variable:5a6f63b088"
   }
  },
+ "./site/config.settings": {
+  "types": "./dist/site/config.settings.d.ts",
+  "symbols": {
+   "ANALYTICS_NAMESPACE": "variable:29fa6262ed",
+   "CreateSettingsAnalyticsConfigDeps": "interface:b38e8a749f",
+   "EnsureAnalyticsSettingDefinitionsDeps": "type:14dc9d0901",
+   "EnsureAnalyticsSettingDefinitionsInput": "interface:4b10449417",
+   "createSettingsAnalyticsConfig": "function:b6ba0a7cee",
+   "ensureAnalyticsSettingDefinitions": "function:ad26d0032c"
+  }
+ },
  "./site/contracts": {
   "types": "./dist/site/contracts.d.ts",
   "symbols": {
@@ -160,6 +171,15 @@
   "types": "./dist/site/salt.d.ts",
   "symbols": {
    "deriveDailySalt": "function:0fb1c4fcfe"
+  }
+ },
+ "./site/tool-registrations": {
+  "types": "./dist/site/tool-registrations.d.ts",
+  "symbols": {
+   "AnalyticsToolDeps": "interface:d4a0c889b7",
+   "analyticsDerivedRisk": "variable:e65a770c63",
+   "buildAnalyticsRegistrations": "function:f7da8f82e4",
+   "contributeAnalyticsTools": "function:810378b674"
   }
  }
 }

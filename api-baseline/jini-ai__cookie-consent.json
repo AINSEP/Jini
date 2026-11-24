@@ -207,6 +207,15 @@
    "toSiteCookieConsent": "function:b38bba7957"
   }
  },
+ "./site/ensure-privacy-defaults": {
+  "types": "./dist/site/ensure-privacy-defaults.d.ts",
+  "symbols": {
+   "PrivacyDefaultsDeps": "interface:14e5b4f667",
+   "PrivacyPageCreateInput": "interface:1473e6fd13",
+   "PrivacyPageRow": "interface:41a5448627",
+   "ensureSitePrivacyDefaults": "function:3d8b4fc29b"
+  }
+ },
  "./site/privacy-page-template": {
   "types": "./dist/site/privacy-page-template.d.ts",
   "symbols": {
@@ -221,13 +230,36 @@
    "consentDeclarationReadiness": "function:bf08d93db2"
   }
  },
+ "./site/region-plugins": {
+  "types": "./dist/site/region-plugins.d.ts",
+  "symbols": {
+   "CONSENT_CONTRIBUTIONS_FILENAME": "variable:73dc1dc4ba",
+   "ConsentContributionDefinition": "interface:c4263bfbfc",
+   "LoadConsentContributions": "type:fe54e95942",
+   "ReportConsentPluginFailure": "type:78ba8050f1",
+   "loadSiteConsentBridges": "function:16213bbd1f",
+   "loadSiteConsentScripts": "function:021f674c34",
+   "loadSiteRegionResolvers": "function:d2955a73af",
+   "parseConsentContributions": "function:4ee831b96d",
+   "toRegionResolvers": "function:8050d21a95"
+  }
+ },
  "./site/revisions": {
   "types": "./dist/site/revisions.d.ts",
   "symbols": {
    "SiteConsentConflict": "class:3b7dd493bc",
    "SiteConsentRevision": "interface:2723553d42",
    "SiteConsentState": "interface:0fe7545e5e",
-   "SiteConsentStore": "interface:84bae27c99"
+   "SiteConsentStore": "interface:4e26baeea2"
+  }
+ },
+ "./site/service": {
+  "types": "./dist/site/service.d.ts",
+  "symbols": {
+   "ConsentDeploymentRefusal": "interface:4b5e2626ce",
+   "ConsentServicePorts": "interface:ddee792a00",
+   "SiteConsentService": "type:87415975d4",
+   "createSiteConsentService": "function:09a20bed3c"
   }
  },
  "./site/settings": {
@@ -241,6 +273,19 @@
    "ensureSiteConsentDefinitions": "function:a5ca395762",
    "readSiteConsentAuthoringSettings": "function:41ea6bbe92",
    "resolveSiteConsentActivation": "function:0bbc020df5"
+  }
+ },
+ "./site/tool-registrations": {
+  "types": "./dist/site/tool-registrations.d.ts",
+  "symbols": {
+   "ConsentApprovalDescription": "interface:c09e20a2ad",
+   "ConsentApprovalToolHandler": "type:0e2be938e7",
+   "ConsentToolDeps": "interface:8c6628b561",
+   "ConsentToolHost": "interface:1fb0f5b2da",
+   "buildConsentRegistrations": "function:1c38e90a48",
+   "consentAgentToolCatalog": "variable:bbc7e7b3ef",
+   "consentDerivedRisk": "variable:f35b291da3",
+   "contributeConsentTools": "function:4142be697f"
   }
  },
  "./site/validation": {

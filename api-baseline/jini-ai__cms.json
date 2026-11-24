@@ -2270,6 +2270,25 @@
    "registerRedirectsPhaseHandlers": "function:1580ce64c2"
   }
  },
+ "./redirects/site/publish-content": {
+  "types": "./dist/redirects/site/publish-content.d.ts",
+  "symbols": {
+   "CreateRedirectRepoPublishHandler": "type:1997ab77ce",
+   "RedirectPublishDeps": "interface:ea0d81e0d8",
+   "RedirectPublishRow": "type:b2a4314c0f",
+   "RedirectRepoPublishConfig": "interface:287db5f8a9",
+   "contributeRedirectPublish": "function:e984deec6d",
+   "redirectNaturalKey": "function:4675278239"
+  }
+ },
+ "./redirects/site/tool-registrations": {
+  "types": "./dist/redirects/site/tool-registrations.d.ts",
+  "symbols": {
+   "RedirectsToolHostPolicy": "interface:82c36a9dea",
+   "buildRedirectsRegistrations": "function:727f666f0f",
+   "contributeRedirectsTools": "function:204cf6c7ee"
+  }
+ },
  "./redirects/spa": {
   "types": "./dist/redirects/spa/index.d.ts",
   "symbols": {
@@ -2488,6 +2507,32 @@
    "createSeoPageHeadHook": "function:8f46e300eb"
   }
  },
+ "./seo/site/settings": {
+  "types": "./dist/seo/site/settings.d.ts",
+  "symbols": {
+   "EnsureSeoSettingDefinitionsDeps": "interface:70da9ea764",
+   "EnsureSeoSettingDefinitionsInput": "interface:e68af4d515",
+   "GetSeoSettingsDeps": "interface:9b4aefd55b",
+   "SeoPrincipalLookupBinderPort": "interface:197f14c415",
+   "SeoSettingsLedgerBindings": "interface:b2b484681f",
+   "SeoSettingsPatch": "type:8f807ad91a",
+   "SeoSettingsWriteDeps": "interface:554fb7e2e7",
+   "SetSeoSettingsInput": "interface:09b26f07f0",
+   "ensureSeoSettingDefinitions": "function:fb095d6b31",
+   "getSeoSettings": "function:8256159a38",
+   "isDefaultRobotsNoindexExplicitlySet": "function:b951d7567c",
+   "setSeoSettings": "function:d87e2280a8"
+  }
+ },
+ "./seo/site/tool-registrations": {
+  "types": "./dist/seo/site/tool-registrations.d.ts",
+  "symbols": {
+   "SeoToolDeps": "interface:c8b53facae",
+   "SeoToolHostPolicy": "interface:2ef4868d96",
+   "buildSeoRegistrations": "function:c072cb19f3",
+   "contributeSeoTools": "function:9ccd4e1a46"
+  }
+ },
  "./settings": {
   "types": "./dist/settings/index.d.ts",
   "symbols": {
@@ -2519,8 +2564,10 @@
    "EffectiveSettingRow": "type:83ee7b8673",
    "EnsureSettingDefinitionsDeps": "interface:5fe6dc9442",
    "EnsureSettingDefinitionsInput": "type:e30870e7ff",
+   "EnsureSettingDefinitionsPort": "interface:755a0b343a",
    "EnsureSettingsUiTabDefinitionsInput": "interface:b010de9ee4",
    "ForbiddenError": "class:f9bbce103e",
+   "GetEffectivePort": "interface:506756876b",
    "INSTRUCTIONS_NAMESPACE": "variable:4c9ddbb55d",
    "InMemorySettingsRepo": "class:02cfe9d873",
    "LANGUAGE_NAMESPACE": "variable:4c659ae6be",
@@ -2626,30 +2673,62 @@
    "SITE_LIST_KEY": "variable:90dbed8f34",
    "USE_CLAUDE_IN_CHROME_KEY": "variable:d91aca077b",
    "WRAP_TABS_KEY": "variable:e211764609",
-   "ensureAdminInterfaceSettingDefinitions": "function:357c1d1450"
+   "ensureAdminInterfaceSettingDefinitions": "function:a5194fd495"
   }
  },
  "./settings/site/chart-provider": {
   "types": "./dist/settings/site/chart-provider.d.ts",
   "symbols": {
-   "ensureChartProviderSetting": "function:c0b130d434"
+   "ensureChartProviderSetting": "function:3db9a424b0"
+  }
+ },
+ "./settings/site/chat-execution-write": {
+  "types": "./dist/settings/site/chat-execution-write.d.ts",
+  "symbols": {
+   "CHAT_EXECUTION_KEYS": "variable:f588f90c72",
+   "isChatExecutionSetting": "function:aab024c9d6",
+   "prepareChatExecutionWrite": "function:956f65909f"
   }
  },
  "./settings/site/form-delivery": {
   "types": "./dist/settings/site/form-delivery.d.ts",
   "symbols": {
    "enforceFormDeliveryBindingsWrite": "function:02c7d61e1b",
-   "ensureFormDeliverySettings": "function:1479162517",
+   "ensureFormDeliverySettings": "function:267e9d06b1",
    "parseFormDeliveryBindings": "function:715627f673",
-   "readFormDeliveryBindings": "function:96acd53a40",
-   "readFormsAutoPull": "function:d00ce48432"
+   "readFormDeliveryBindings": "function:ff3691e05e",
+   "readFormsAutoPull": "function:bf02fef068"
+  }
+ },
+ "./settings/site/form-delivery-write": {
+  "types": "./dist/settings/site/form-delivery-write.d.ts",
+  "symbols": {
+   "FormDeliveryBindingsConflictError": "class:e4035ff9ad",
+   "guardedBindingsRepo": "function:34033bd009",
+   "writeFormDeliveryBindings": "function:d7e3bf8270"
   }
  },
  "./settings/site/form-destination": {
   "types": "./dist/settings/site/form-destination.d.ts",
   "symbols": {
-   "ensureFormDestinationSetting": "function:25d6066ff9",
-   "readFormDestinationSetting": "function:cf4dc9f437"
+   "ensureFormDestinationSetting": "function:2715f37602",
+   "readFormDestinationSetting": "function:38d9bf234a"
+  }
+ },
+ "./settings/site/mail-provider": {
+  "types": "./dist/settings/site/mail-provider.d.ts",
+  "symbols": {
+   "MAIL_PROVIDER_KEY": "variable:6ce9c9e8de",
+   "MAIL_PROVIDER_NAMESPACE": "variable:869f0aba74",
+   "MAIL_TEST_MODE_KEY": "variable:985ba593f7",
+   "MailProviderSetting": "type:03ede83b96",
+   "ensureMailProviderSettings": "function:0940bc3908",
+   "parseMailProviderSetting": "function:1a8c02e782",
+   "parseMailTestMode": "function:e7b0cd5501",
+   "readMailProviderSelection": "function:959a9dea4e",
+   "readMailProviderSetting": "function:e0d0ea366c",
+   "readMailTestMode": "function:8186e37640",
+   "writeMailProviderSetting": "function:1797e322c5"
   }
  },
  "./settings/site/mail-sender": {
@@ -2658,14 +2737,37 @@
    "MAIL_SENDER_EMAIL_KEY": "variable:1286ed294e",
    "MAIL_SENDER_NAMESPACE": "variable:c6e93010fb",
    "MAIL_SENDER_NAME_KEY": "variable:20aa32f94f",
-   "ensureMailSenderSettings": "function:82cd9a901a",
-   "readMailSenderSetting": "function:3167766414"
+   "ensureMailSenderSettings": "function:102a34f90e",
+   "readMailSenderSetting": "function:0488bbea0a"
+  }
+ },
+ "./settings/site/publish-content": {
+  "types": "./dist/settings/site/publish-content.d.ts",
+  "symbols": {
+   "SiteSettingPublishDeps": "interface:8915d48d04",
+   "SiteSettingPublishHost": "interface:63232a59b1",
+   "SiteSettingPublishPorts": "interface:3529100d54",
+   "SiteSettingRepoPublishConfig": "interface:f080e9b2ff",
+   "SiteSettingRow": "interface:8511a49c1a",
+   "contributeSiteSettingPublish": "function:8f103b45f9",
+   "pointsAtThisComputer": "function:0528473104"
+  }
+ },
+ "./settings/site/settings-confirm-write": {
+  "types": "./dist/settings/site/settings-confirm-write.d.ts",
+  "symbols": {
+   "SettingsConfirmApprovalHandlerPort": "type:cff36c2810",
+   "SettingsConfirmCard": "interface:6179081d02",
+   "SettingsConfirmPrepared": "interface:039b008efb",
+   "SettingsConfirmWriteCopy": "interface:ca2c25b3cf",
+   "SettingsConfirmWriteFn": "type:1107848792",
+   "settingsConfirmWrite": "function:e7229bf0f9"
   }
  },
  "./settings/site/site-timezone": {
   "types": "./dist/settings/site/site-timezone.d.ts",
   "symbols": {
-   "ResolveSiteTimeZoneDeps": "interface:c6b2379b4f",
+   "ResolveSiteTimeZoneDeps": "interface:31881e96f0",
    "SITE_TIMEZONE_KEY": "variable:bf6c5f9944",
    "SITE_TIMEZONE_NAMESPACE": "variable:e9eb835f34",
    "SITE_TIME_ZONE_FALLBACK_MESSAGE": "variable:e41469da8c",
@@ -2673,8 +2775,61 @@
    "SiteTimeZoneFallbackEvent": "interface:57c0f52fe9",
    "SiteTimeZoneFallbackReporter": "type:457d46794a",
    "createSiteTimeZonePort": "function:3192b8f7e0",
-   "ensureSiteTimeZoneSettingDefinition": "function:022adbd2aa",
+   "ensureSiteTimeZoneSettingDefinition": "function:a64875d8f7",
    "resolveSiteTimeZone": "function:0125f4b887"
+  }
+ },
+ "./settings/site/site-title": {
+  "types": "./dist/settings/site/site-title.d.ts",
+  "symbols": {
+   "EnsureSiteTitleSettingDefinitionInput": "interface:51e8e80c76",
+   "InMemorySiteTitlePreservationStore": "class:0bd72c43be",
+   "PreserveLegacySiteTitlesDeps": "interface:45989e0173",
+   "PreserveLegacySiteTitlesInput": "interface:3494527c32",
+   "PreserveLegacySiteTitlesResult": "interface:89b338054f",
+   "ResolveSiteTitleDeps": "interface:45ee5dab5a",
+   "SITE_TITLE_KEY": "variable:8c33d1eddb",
+   "SITE_TITLE_MAX_LENGTH": "variable:de6cde5a34",
+   "SITE_TITLE_NAMESPACE": "variable:9c8831be92",
+   "SITE_TITLE_PIN_FAILED_MESSAGE": "variable:82b4fb0cee",
+   "SITE_TITLE_PIN_UNREGISTERED_MESSAGE": "variable:08133140f2",
+   "SITE_TITLE_RENDER_FALLBACK_MESSAGE": "variable:40209d5817",
+   "SiteDisplayNameSource": "interface:4c1ff52607",
+   "SiteTitleFailureEvent": "interface:5d6cb093fa",
+   "SiteTitleFailureReporter": "type:6e9ba10b2b",
+   "SiteTitlePreservationStorePort": "interface:cebc19a1bc",
+   "SiteTitlePreservationSummaryReporter": "type:214273c250",
+   "ensureSiteTitleSettingDefinition": "function:79c0a25d2a",
+   "normalizeSiteTitle": "function:696f3cc4cb",
+   "preserveLegacySiteTitles": "function:cf5147db26",
+   "resolveSiteTitle": "function:63c611c45e"
+  }
+ },
+ "./settings/site/site-title-write": {
+  "types": "./dist/settings/site/site-title-write.d.ts",
+  "symbols": {
+   "COMMENTS_PROVIDER_DEDICATED_WRITER": "variable:b302606f84",
+   "COMMENTS_PROVIDER_SETTING": "variable:0f302cb105",
+   "COMMENTS_PROVIDER_WRITE_REASON": "variable:92af839a43",
+   "DedicatedSettingsWriter": "type:ec3dcec902",
+   "SiteSettingsSetFn": "type:9be7fa5c51",
+   "SiteSettingsSetOptions": "type:54b376e231",
+   "SiteSettingsWritePolicies": "type:32e9d78a52",
+   "clear": "function:610cb0d8b8",
+   "dedicatedSettingsWriters": "function:bebf61ed95",
+   "enforceSiteTitleWriteBounds": "function:b471a7d5d7",
+   "refuseDedicatedSettingClear": "function:15d3892889",
+   "refuseDedicatedSettingReset": "function:ce76a98ed6",
+   "resetNamespace": "function:1d3e7e414a",
+   "set": "function:93a0cc4ad6"
+  }
+ },
+ "./settings/site/tool-deps": {
+  "types": "./dist/settings/site/tool-deps.d.ts",
+  "symbols": {
+   "ChatAgentInventoryPort": "interface:375d73c42a",
+   "SettingsToolDeps": "type:24a971fdd0",
+   "ValidateRuntimeSelectionPort": "type:ae6164e6a1"
   }
  },
  "./settings/site/ui-locales-tool": {
@@ -2684,7 +2839,59 @@
    "UiLocalesToolDeps": "interface:a0c2956c6f",
    "buildUiLocalesRegistrations": "function:c1a866ff26",
    "uiLocalesAgentToolCatalog": "variable:d235f4838d",
-   "uiLocalesDerivedRisk": "variable:01644e99a3"
+   "uiLocalesDerivedRisk": "variable:6702509bde"
+  }
+ },
+ "./settings/site/visitor-tools-configure": {
+  "types": "./dist/settings/site/visitor-tools-configure.d.ts",
+  "symbols": {
+   "parseVisitorToolsConfigure": "function:71a70452d1",
+   "visitorToolsNeedsApproval": "function:1d96bb0e06"
+  }
+ },
+ "./settings/site/visitor-tools-contract": {
+  "types": "./dist/settings/site/visitor-tools-contract.d.ts",
+  "symbols": {
+   "PreparedVisitorToolsChange": "interface:833e9b6edc",
+   "VisitorToolChoice": "interface:46fb0ece8d",
+   "VisitorToolDescriptor": "interface:e3b6a4b885",
+   "VisitorToolLimits": "interface:514ca13c8a",
+   "VisitorToolMode": "type:519ffe87b1",
+   "VisitorToolPolicy": "interface:d3ad7cede4",
+   "VisitorToolsConfigureInput": "interface:3738b89cd2",
+   "VisitorToolsHostContract": "interface:8d2eae24e9",
+   "VisitorToolsManagementPort": "interface:15920aa1f9",
+   "VisitorToolsView": "interface:b41f46ba2c"
+  }
+ },
+ "./settings/site/visitor-tools-registrations": {
+  "types": "./dist/settings/site/visitor-tools-registrations.d.ts",
+  "symbols": {
+   "VisitorToolsApprovalHandlerPort": "type:83e42de4df",
+   "VisitorToolsConfigureCard": "interface:be98d4a188",
+   "VisitorToolsToolDeps": "interface:74e4642f03",
+   "VisitorToolsToolHostPolicy": "interface:fe625059ac",
+   "buildVisitorToolsRegistrations": "function:6b1947c3e4",
+   "contributeVisitorTools": "function:fabd8d7925",
+   "visitorToolsDerivedRisk": "variable:4618934ba5"
+  }
+ },
+ "./settings/site/visitor-tools-service": {
+  "types": "./dist/settings/site/visitor-tools-service.d.ts",
+  "symbols": {
+   "VisitorToolsServiceDeps": "interface:0d16483f8a",
+   "createVisitorToolsManagement": "function:800649114d"
+  }
+ },
+ "./settings/site/visitor-tools-write": {
+  "types": "./dist/settings/site/visitor-tools-write.d.ts",
+  "symbols": {
+   "VisitorToolsRevisionConflictError": "class:cf24f64d0c",
+   "VisitorToolsStoreRequired": "interface:05a612c0c9",
+   "guardVisitorToolsRevision": "function:9f5a406bcb",
+   "readVisitorToolsRevision": "function:f718161861",
+   "readVisitorToolsSnapshot": "function:526582c550",
+   "writeVisitorTools": "function:c3df0696c5"
   }
  },
  "./taxonomy": {
