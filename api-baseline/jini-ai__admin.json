@@ -109,8 +109,8 @@
    "AdminShellSession": "interface:a004033128",
    "AdminShellSessionPort": "interface:5ec6ebcfe2",
    "AdminTransport": "interface:a015111488",
-   "AdminWorkspace": "interface:2e51c81bbf",
-   "AdminWorkspacePort": "interface:328b179310",
+   "AdminWorkspace": "type:a04bdd73f2",
+   "AdminWorkspacePort": "interface:25718145bb",
    "CategoryCount": "type:8538f6553e",
    "CommentModerationAction": "type:586b5ae538",
    "CommentStatus": "type:e89b6a6732",
@@ -458,8 +458,8 @@
    "AdminShellSession": "interface:a004033128",
    "AdminShellSessionPort": "interface:5ec6ebcfe2",
    "AdminTransport": "interface:a015111488",
-   "AdminWorkspace": "interface:2e51c81bbf",
-   "AdminWorkspacePort": "interface:328b179310",
+   "AdminWorkspace": "type:a04bdd73f2",
+   "AdminWorkspacePort": "interface:25718145bb",
    "CategoryCount": "type:8538f6553e",
    "CommentModerationAction": "type:586b5ae538",
    "CommentStatus": "type:e89b6a6732",
@@ -1707,6 +1707,16 @@
    "SiteConfirmController": "type:034fc1cbba",
    "SiteConfirmPresentation": "interface:19075c8382",
    "useSiteConfirm": "function:610004bd91"
+  }
+ },
+ "./screens/sites/use-sites-config.hooks": {
+  "types": "./dist/screens/sites/use-sites-config.hooks.d.ts",
+  "symbols": {
+   "SitesConfigAsyncAction": "interface:e04423bf32",
+   "SitesConfigController": "type:1745a3477a",
+   "SitesConfigDeps": "interface:47c395a02e",
+   "SitesConfigPort": "interface:c1ee5c08be",
+   "useSitesConfig": "function:99fae00fa2"
   }
  },
  "./screens/sites/use-sites-snapshot.hooks": {
