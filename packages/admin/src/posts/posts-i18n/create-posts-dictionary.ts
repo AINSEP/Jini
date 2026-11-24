@@ -18,8 +18,7 @@
  * original assigned it last, so it keeps winning over any slice on a collision.
  */
 import { createDictionaryTranslator } from "@jini-ai/core/text";
-import { EDITOR_FAILURE_DICT } from "../../shell/lib/editor-failure-i18n.js";
-import { mergeLocaleOverlays, type LocaleDictionary } from "../../shell/lib/merge-locale-overlays.js";
+import { mergeLocaleOverlays, type LocaleDictionary } from "@jini-ai/core/text";
 import { POSTS_LIST_I18N } from "./posts-list-i18n.js";
 import { POSTS_LIST_SORT_I18N } from "./posts-list-sort-i18n.js";
 import { POSTS_TRASH_DIALOG_I18N } from "./posts-trash-dialog-i18n.js";
@@ -42,7 +41,12 @@ import { POSTS_TEMPLATE_PREVIEW_I18N } from "./posts-template-preview-i18n.js";
  * key, same as `trash-i18n.ts`.
  */
 export function createPostsDictionary(
-  { commonDictionary, productEntries = {} }: { commonDictionary: LocaleDictionary; productEntries?: LocaleDictionary },
+  { commonDictionary, editorFailureDictionary, productEntries = {} }: {
+    commonDictionary: LocaleDictionary;
+    /** The host's shared editor-failure copy (`EDITOR_FAILURE_DICT`), injected: posts may not reach the admin shell layer. */
+    editorFailureDictionary: LocaleDictionary;
+    productEntries?: LocaleDictionary;
+  },
   _optional: Record<string, never> = {},
 ) {
   const dictionary = mergeLocaleOverlays(
@@ -52,7 +56,7 @@ export function createPostsDictionary(
         POSTS_LIST_SORT_I18N, POSTS_TRASH_DIALOG_I18N, POSTS_EDITOR_HEADER_I18N, POSTS_SAVE_FEEDBACK_I18N,
         POSTS_ERRORS_I18N, POSTS_SETTINGS_DIALOG_I18N, POSTS_TOOLBAR_MARKS_I18N, POSTS_TOOLBAR_BLOCKS_I18N,
         POSTS_TOOLBAR_STYLE_I18N, POSTS_URL_DIALOG_I18N, POSTS_SLUG_COLLISION_I18N, POSTS_TEMPLATE_PREVIEW_I18N,
-        EDITOR_FAILURE_DICT, productEntries,
+        editorFailureDictionary, productEntries,
       ],
     },
   );

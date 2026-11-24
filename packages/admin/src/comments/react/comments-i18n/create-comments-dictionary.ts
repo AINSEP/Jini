@@ -15,7 +15,7 @@
  * this package and are composed last so they win on a collision.
  */
 import { createDictionaryTranslator } from "@jini-ai/core/text";
-import { mergeLocaleOverlays, type LocaleDictionary } from "../../../shell/lib/merge-locale-overlays.js";
+import { mergeLocaleOverlays, type LocaleDictionary } from "@jini-ai/core/text";
 import { COMMENTS_ROW_MENU_I18N } from "./comments-row-menu-i18n.js";
 import { COMMENTS_QUEUE_I18N } from "./comments-queue-i18n.js";
 import { COMMENTS_SETTINGS_I18N } from "./comments-settings-i18n.js";

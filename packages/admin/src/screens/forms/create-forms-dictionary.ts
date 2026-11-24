@@ -14,7 +14,7 @@
  * this package and are composed last so they win on a collision.
  */
 import { createDictionaryTranslator } from "@jini-ai/core/text";
-import { mergeLocaleOverlays, type LocaleDictionary } from "../../shell/lib/merge-locale-overlays.js";
+import { mergeLocaleOverlays, type LocaleDictionary } from "@jini-ai/core/text";
 import { FORMS_EDITOR_CHROME_I18N } from "./forms-editor-chrome-i18n.js";
 import { FORMS_LIST_I18N } from "./forms-list-i18n.js";
 import { FORMS_FIELD_EDITOR_I18N } from "./forms-field-editor-i18n.js";

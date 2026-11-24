@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { EDITOR_FAILURE_DICT } from "../../../shell/lib/editor-failure-i18n.js";
 import { createPostsDictionary } from "../create-posts-dictionary.js";
 
 // Hard-coded from the host's single-file `posts-i18n.ts` as it was BEFORE it was split (evaluated: the main
@@ -54,15 +55,15 @@ describe("createPostsDictionary", () => {
     Object.fromEntries(Object.entries(dictionary).map(([locale, entries]) => [locale, Object.keys(entries).length]));
 
   it("composes every slice: same key count per locale as the single-file dictionary", () => {
-    expect(keysPerLocale(createPostsDictionary({ commonDictionary }).dictionary)).toEqual(EXPECTED_KEYS_PER_LOCALE);
+    expect(keysPerLocale(createPostsDictionary({ commonDictionary, editorFailureDictionary: EDITOR_FAILURE_DICT }).dictionary)).toEqual(EXPECTED_KEYS_PER_LOCALE);
   });
 
   it.each(SENTINELS)("carries the %s slice (es: %s)", (_slice, key, es) => {
-    expect(createPostsDictionary({ commonDictionary }).dictionary.es?.[key]).toBe(es);
+    expect(createPostsDictionary({ commonDictionary, editorFailureDictionary: EDITOR_FAILURE_DICT }).dictionary.es?.[key]).toBe(es);
   });
 
   it("translates a feature key, falls back to the common dictionary, then to the key itself", () => {
-    const { t } = createPostsDictionary({ commonDictionary });
+    const { t } = createPostsDictionary({ commonDictionary, editorFailureDictionary: EDITOR_FAILURE_DICT });
     expect(t({ locale: "es", key: "Content" })).toBe("Contenido");
     expect(t({ locale: "es", key: "Zzz shared word" })).toBe("Palabra compartida");
     expect(t({ locale: "es", key: "Zzz unknown" })).toBe("Zzz unknown");
@@ -70,6 +71,7 @@ describe("createPostsDictionary", () => {
 
   it("composes the host's product entries last, so they win and extend", () => {
     const { dictionary } = createPostsDictionary({
+      editorFailureDictionary: EDITOR_FAILURE_DICT,
       commonDictionary,
       productEntries: { es: { "Content": "Texto del producto", "Zzz product": "Producto" } },
     });

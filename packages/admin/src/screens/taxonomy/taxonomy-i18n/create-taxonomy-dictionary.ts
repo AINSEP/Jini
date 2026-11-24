@@ -15,7 +15,7 @@
  * this package and are composed last so they win on a collision.
  */
 import { createDictionaryTranslator } from "@jini-ai/core/text";
-import { mergeLocaleOverlays, type LocaleDictionary } from "../../../shell/lib/merge-locale-overlays.js";
+import { mergeLocaleOverlays, type LocaleDictionary } from "@jini-ai/core/text";
 import { TAXONOMY_SCREEN_I18N } from "./taxonomy-screen-i18n.js";
 import { TAXONOMY_MERGE_I18N } from "./taxonomy-merge-i18n.js";
 import { TAXONOMY_DETAIL_I18N } from "./taxonomy-detail-i18n.js";

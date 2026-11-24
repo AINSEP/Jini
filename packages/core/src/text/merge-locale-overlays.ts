@@ -8,8 +8,10 @@
  * instead of an untestable module-level branch in each dictionary file.
  */
 
-/** A locale → (English source string → translated string) table. */
-export type LocaleDictionary = Record<string, Record<string, string>>;
+import type { LocaleDictionary } from './dictionary-translator.js';
+
+/** The merged result: a fresh, caller-owned locale → (English source string → translated string) table. */
+export type MergedLocaleDictionary = Record<string, Record<string, string>>;
 
 /**
  * Returns a new dictionary with one entry per locale of `base` (overlay-only locales are ignored,
@@ -21,7 +23,7 @@ export type LocaleDictionary = Record<string, Record<string, string>>;
 export function mergeLocaleOverlays(
   { base }: { base: LocaleDictionary },
   { overlays = [] }: { overlays?: readonly LocaleDictionary[] } = {},
-): LocaleDictionary {
+): MergedLocaleDictionary {
   return Object.fromEntries(
     Object.entries(base).map(([locale, entries]) => [
       locale,

@@ -21,7 +21,7 @@
  * this package and are composed last so they win on a collision.
  */
 import { createDictionaryTranslator } from "@jini-ai/core/text";
-import { mergeLocaleOverlays, type LocaleDictionary } from "../../../shell/lib/merge-locale-overlays.js";
+import { mergeLocaleOverlays, type LocaleDictionary } from "@jini-ai/core/text";
 import { MEDIA_LIBRARY_I18N } from "./media-library-i18n.js";
 import { MEDIA_TOOLBAR_BASE_I18N } from "./media-toolbar-i18n.js";
 import { MEDIA_EDIT_PANEL_I18N } from "./media-edit-panel-i18n.js";

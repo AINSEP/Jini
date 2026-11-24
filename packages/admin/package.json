@@ -116,7 +116,6 @@
       "./shell/lib/escape-owned-by-inner-layer": "browser",
       "./shell/lib/external-entry-refresh": "browser",
       "./shell/lib/fetch-query/adapter-context": "browser",
-      "./shell/lib/merge-locale-overlays": "universal",
       "./shell/lib/page-lifecycle": "browser",
       "./shell/lib/admin-http/request": "browser",
       "./shell/lib/plain-text-blocks": "browser",
@@ -349,7 +348,6 @@
         "./shell/lib/escape-owned-by-inner-layer": "browser",
         "./shell/lib/external-entry-refresh": "browser",
         "./shell/lib/fetch-query/adapter-context": "browser",
-        "./shell/lib/merge-locale-overlays": "universal",
         "./shell/lib/page-lifecycle": "browser",
         "./shell/lib/plain-text-blocks": "browser",
         "./shell/lib/playground-render-target-bus": "browser",
@@ -909,11 +907,6 @@
       "types": "./dist/shell/lib/fetch-query/adapter-context.d.ts",
       "import": "./dist/shell/lib/fetch-query/adapter-context.js",
       "default": "./dist/shell/lib/fetch-query/adapter-context.js"
-    },
-    "./shell/lib/merge-locale-overlays": {
-      "types": "./dist/shell/lib/merge-locale-overlays.d.ts",
-      "import": "./dist/shell/lib/merge-locale-overlays.js",
-      "default": "./dist/shell/lib/merge-locale-overlays.js"
     },
     "./shell/lib/page-lifecycle": {
       "types": "./dist/shell/lib/page-lifecycle.d.ts",

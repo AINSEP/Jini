@@ -12,7 +12,7 @@
  * this package and are composed last so they win on a collision.
  */
 import { createDictionaryTranslator } from "@jini-ai/core/text";
-import { mergeLocaleOverlays, type LocaleDictionary } from "../../../shell/lib/merge-locale-overlays.js";
+import { mergeLocaleOverlays, type LocaleDictionary } from "@jini-ai/core/text";
 import { MENUS_LIST_I18N } from "./menus-list-i18n.js";
 import { MENUS_EDITOR_I18N } from "./menus-editor-i18n.js";
 import { MENUS_ITEM_FIELDS_I18N } from "./menus-item-fields-i18n.js";

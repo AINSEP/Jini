@@ -4,7 +4,7 @@
  * baked into the copy.
  */
 export interface PostSchemaToolNames {
-  /** The read tool for one media asset (`content_read.media_asset` in Tovu). */
+  /** The read tool for one media asset (e.g. the host's `content_read.media_asset`). */
   readonly mediaRead: string;
   readonly mediaUpload: string;
   readonly mediaGenerate: string;
