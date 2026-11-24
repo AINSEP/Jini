@@ -3633,7 +3633,7 @@
    "TermSync": "interface:0f243c0baf",
    "TermSyncDeps": "interface:fc4b6a4960",
    "TermSyncPorts": "type:fcaef5f65c",
-   "prepareTermSync": "function:1dc874115b",
+   "prepareTermSync": "function:fdc1ab5344",
    "readTermIds": "function:e72ac0a7b0",
    "withTermIds": "function:84c83e231c"
   }
@@ -3873,9 +3873,9 @@
    "MarkerFlipSpec": "interface:2a62b4046b",
    "MarkerPredicate": "interface:2028e57de4",
    "MarkerStore": "type:0cb40a15d9",
-   "compareAndDelete": "function:e69b0e24ed",
-   "flipMarker": "function:51e2aabbba",
-   "lazyKernel": "function:6ef2614f2e"
+   "compareAndDelete": "function:fab592af90",
+   "flipMarker": "function:37cd20a13b",
+   "lazyKernel": "function:41a1441eca"
   }
  },
  "./trash/site/adapters/plugin": {

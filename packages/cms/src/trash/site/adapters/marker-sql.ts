@@ -33,7 +33,7 @@ export type MarkerStore<DB = unknown> = StorageKernel<Kysely<DB>, unknown>;
  * composition root may hand in a lazy handle whose database should not open until needed.
  * @complexity O(1).
  */
-export function lazyKernel<K extends StorageKernel<unknown, unknown>>(store: K): () => K {
+export function lazyKernel<K extends StorageKernel<unknown, unknown>>({ store }: { store: K }, _optional = {}): () => K {
   return () => store;
 }
 
@@ -81,7 +81,7 @@ async function readVersion<DB>({ db, table, workspaceId, entityId }: { db: Kysel
  *
  * @complexity O(1) — at most two indexed statements.
  */
-export async function flipMarker<DB>(spec: MarkerFlipSpec<DB>): Promise<TrashMarkerResult> {
+export async function flipMarker<DB>(spec: MarkerFlipSpec<DB>, _optional = {}): Promise<TrashMarkerResult> {
   return spec.kernel.transaction(async () => {
     const updated = await spec.kernel.run((db) => {
       let query = loose(db)
@@ -131,7 +131,7 @@ export interface CompareAndDeleteSpec<DB = unknown> {
  *
  * @complexity O(1) plus the cascade.
  */
-export async function compareAndDelete<DB>(spec: CompareAndDeleteSpec<DB>): Promise<TrashPurgeOutcome> {
+export async function compareAndDelete<DB>(spec: CompareAndDeleteSpec<DB>, _optional = {}): Promise<TrashPurgeOutcome> {
   return spec.kernel.transaction(async () => {
     const deleted = await spec.kernel.run((db) => {
       let query = loose(db).deleteFrom(spec.table).where("workspace_id", "=", spec.workspaceId).where("id", "=", spec.entityId);

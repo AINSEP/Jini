@@ -84,7 +84,7 @@ export async function prepareTermSync(input: {
   principalId: string;
   contentType: string;
   wanted: unknown;
-}): Promise<TermSync> {
+}, _optional = {}): Promise<TermSync> {
   const { ports, deps, entityType, entityId, principalId, contentType } = input;
   const wanted = Array.isArray(input.wanted) ? (input.wanted as string[]) : [];
   const noop: TermSync = { apply: async () => {}, revert: async () => {} };
