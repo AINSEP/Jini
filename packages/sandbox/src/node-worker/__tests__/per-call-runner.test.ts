@@ -1,12 +1,12 @@
 import { describe, expect, it } from "vitest";
 
-import type { WorkerFactory, WorkerScheduler, WorkerSubscription } from "../node-worker.js";
+import type { WorkerFactory, WorkerScheduler, WorkerSubscription } from "../../node-worker.js";
 import {
   createPerCallWorkerRunner,
   perCallWorkerEnv,
   resolvePerCallWorkerTimeoutMs,
   type CreatePerCallWorkerRunnerRequired,
-} from "../per-call-worker-runner.js";
+} from "../per-call-runner.js";
 
 /**
  * Moved from the host's `run-in-worker.unit.test.ts` (node:test -> vitest, every assertion kept;
@@ -29,6 +29,7 @@ const ENV_KEY = "JINI_TEST_WORKER_TIMEOUT_MS";
 
 function required(overrides: Partial<CreatePerCallWorkerRunnerRequired<FakeRequest, unknown>> = {}): CreatePerCallWorkerRunnerRequired<FakeRequest, unknown> {
   return {
+    env: {},
     entryDirectory: "/host/guest",
     workerEntryName: "worker",
     moduleExtension: ".ts",
@@ -74,7 +75,7 @@ function fakePorts(reply: { message?: unknown; error?: Error } = {}) {
 describe("createPerCallWorkerRunner", () => {
   it("spawns the injected worker entry with the request as payload, default heap limits and the env timeout", async () => {
     const ports = fakePorts({ message: { ok: true, kind: "probe", hooks: [] } });
-    const runCall = createPerCallWorkerRunner(required(), { workerFactory: ports.workerFactory, scheduler: ports.scheduler, env: { [ENV_KEY]: "1234" } });
+    const runCall = createPerCallWorkerRunner(required({ env: { [ENV_KEY]: "1234" } }), { workerFactory: ports.workerFactory, scheduler: ports.scheduler });
     expect(await runCall(request)).toEqual({ ok: true, kind: "probe", hooks: [] });
     expect(ports.spawned.length).toBe(1);
     expect(ports.spawned[0]!.workerEntry).toBe("/host/guest/worker.ts");

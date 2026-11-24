@@ -208,11 +208,11 @@ real mistakes in earlier drafts before they shipped.
 
 `./node-worker` provides bounded per-call workers with explicit entry paths, payload/result codecs, clocks and resource budgets. See [API.md](https://github.com/AINSEP/Jini/blob/main/packages/sandbox/API.md) for composition and migration. `./core` remains universal and imports no adapter; `./e2b` and `./node-worker` use Node.
 
-`./per-call-worker-runner` builds a fresh-worker-per-request runner on top of `./node-worker`
+`./node-worker/per-call-runner` builds a fresh-worker-per-request runner on top of `./node-worker`
 (env allowlist, strict timeout read, `.ts`/`.js` entry choice).
 
 ## Wiring
 
-For `./per-call-worker-runner` the host injects its worker entry (`entryDirectory`, `workerEntryName`,
+For `./node-worker/per-call-runner` the host injects its worker entry (`entryDirectory`, `workerEntryName`,
 its own `moduleExtension`), its `typescriptBootstrapPath`, its `timeoutEnvKey` and budgets, and the
-`errorLabel`/`decodeResult` codec; Jini owns no entry path or env name.
+`errorLabel`/`decodeResult` codec, and the `env` it reads; Jini owns no entry path or env name.

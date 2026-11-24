@@ -15,7 +15,7 @@
       "./core": "universal",
       "./e2b": "node",
       "./node-worker": "node",
-      "./per-call-worker-runner": "node"
+      "./node-worker/per-call-runner": "node"
     },
     "runtime": "node",
     "neutralEntries": [
@@ -58,14 +58,14 @@
         "default": "./dist/cjs/node-worker.js"
       }
     },
-    "./per-call-worker-runner": {
+    "./node-worker/per-call-runner": {
       "import": {
-        "types": "./dist/per-call-worker-runner.d.ts",
-        "default": "./dist/per-call-worker-runner.js"
+        "types": "./dist/node-worker/per-call-runner.d.ts",
+        "default": "./dist/node-worker/per-call-runner.js"
       },
       "require": {
-        "types": "./dist/cjs/per-call-worker-runner.d.ts",
-        "default": "./dist/cjs/per-call-worker-runner.js"
+        "types": "./dist/cjs/node-worker/per-call-runner.d.ts",
+        "default": "./dist/cjs/node-worker/per-call-runner.js"
       }
     }
   },
@@ -80,8 +80,8 @@
       "node-worker": [
         "./dist/node-worker.d.ts"
       ],
-      "per-call-worker-runner": [
-        "./dist/per-call-worker-runner.d.ts"
+      "node-worker/per-call-runner": [
+        "./dist/node-worker/per-call-runner.d.ts"
       ]
     }
   },

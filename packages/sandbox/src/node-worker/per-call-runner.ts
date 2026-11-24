@@ -1,5 +1,5 @@
 /**
- * @file `createPerCallWorkerRunner()` — runs each request in a FRESH Node worker over `./node-worker`,
+ * @file `createPerCallWorkerRunner()` — runs each request in a FRESH Node worker over `../node-worker.ts`,
  * with a wall-clock timeout and V8 heap limits, and decodes the reply with a caller-owned codec. The
  * host owns its worker entry file, its TypeScript bootstrap module, its timeout variable name and its
  * budgets; this module owns the env allowlist, the strict timeout read and the `.ts`/`.js` entry choice.
@@ -22,7 +22,7 @@ import {
   runInWorkerSandbox,
   type WorkerFactory,
   type WorkerScheduler,
-} from "./node-worker.js";
+} from "../node-worker.js";
 
 /** The only environment variables a per-call worker receives. Guest code runs in that worker, so
  * the server's environment (API keys, database URLs, site keys) must never be copied in: these
@@ -70,6 +70,9 @@ export function resolvePerCallWorkerTimeoutMs(
 }
 
 export interface CreatePerCallWorkerRunnerRequired<TRequest, TResult> extends PerCallWorkerTimeoutPolicy {
+  /** Read for the timeout; only its {@link perCallWorkerEnv} subset reaches the worker. The host
+   * passes its process environment (Jini never reads `process.env` itself). */
+  readonly env: NodeJS.ProcessEnv;
   /** Directory holding the host's worker entry (`<workerEntryName><moduleExtension>`). */
   readonly entryDirectory: string;
   readonly workerEntryName: string;
@@ -87,9 +90,6 @@ export interface CreatePerCallWorkerRunnerOptional {
   /** Per-call wall-clock budget. Omitted ⇒ {@link resolvePerCallWorkerTimeoutMs} at call time. */
   readonly timeoutMs?: number;
   readonly resourceLimits?: ResourceLimits;
-  /** Read for the timeout; only its {@link perCallWorkerEnv} subset reaches the worker. Omitted ⇒
-   * `process.env`. */
-  readonly env?: NodeJS.ProcessEnv;
   /** Test seams over the worker/timer ports. */
   readonly workerFactory?: WorkerFactory;
   readonly scheduler?: WorkerScheduler;
@@ -107,7 +107,7 @@ export function createPerCallWorkerRunner<TRequest, TResult>(
   optional: CreatePerCallWorkerRunnerOptional = {},
 ): (request: TRequest) => Promise<TResult> {
   return (request) => {
-    const env = optional.env ?? process.env;
+    const env = required.env;
     const workerFactory =
       optional.workerFactory ??
       createNodeWorkerFactory({ env: perCallWorkerEnv({ env }) }, {
