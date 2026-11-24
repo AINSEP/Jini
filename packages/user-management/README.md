@@ -8,6 +8,7 @@ All current entries are included in the unchanged 0.1.0 package version:
 | `@jini-ai/user-management` | Universal | Records, errors, repository/runtime ports, permission catalog |
 | `@jini-ai/user-management/session-bootstrap` | Universal | Initial identity read with one admitted bootstrap, probe-then-redeem decision, plain-HTTP loopback URL guard |
 | `@jini-ai/user-management/server` | Node | Auth, sessions, grants, administration, hashing, memory repos, seeding, migrations, tool metadata/parser and registration composition |
+| `@jini-ai/user-management/server/sql` | Node | Kysely SQL stores for the owner recovery-code, passkey and MFA ports and the role/principal assignment repos; the host injects the kernel, `IdentityTransactionPort` and table names (`kysely` is an optional peer, used type-only) |
 | `@jini-ai/user-management/react` | Browser | Login, Users, Members, hooks, browser DTOs and typed host ports |
 | `@jini-ai/user-management/react/testing` | Browser | Generalized fake login/users/roles/members ports |
 | `@jini-ai/user-management/react/kit` | Browser | The UI contract the screens render through: four components and five hooks, provided once by the host via `UserManagementKitProvider` |
