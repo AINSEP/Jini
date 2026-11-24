@@ -17,8 +17,9 @@ export interface ExternalMcpProbeBaseDeps {
   readonly connect?: ExternalMcpProbeSessionFactory;
 }
 
-/** What a reauthorization error built by the host exposes to the 409 body. */
-export interface ExternalMcpProbeReauthError { readonly message: string; readonly code: string; readonly settingsLink: string }
+/** What a reauthorization error built by the host exposes to the 409 body. Its stored message never crosses into the
+ *  body: the outward text comes from {@link ExternalMcpProbeHost.reauthResponseText}. */
+export interface ExternalMcpProbeReauthError { readonly code: string; readonly settingsLink: string }
 
 /** @agent-note Host-wired, bound once in the host's external MCP host-copy module. */
 export interface ExternalMcpProbeHost<Deps extends ExternalMcpProbeBaseDeps> {
@@ -31,6 +32,8 @@ export interface ExternalMcpProbeHost<Deps extends ExternalMcpProbeBaseDeps> {
   readonly connectHttpSession: (required: { exchange: McpHttpExchange; spec: McpHttpLaunchSpec; requestTimeoutMs: number }) => Promise<McpSessionPort>;
   /** The host's reauthorization error for a row parked `needs_reauth`: its own copy, code and settings link. */
   readonly reauthRequired: (required: { serverId: string; label: string | null }) => ExternalMcpProbeReauthError;
+  /** The host's response copy for a row parked `needs_reauth` (the outward 409 text). */
+  readonly reauthResponseText: (required: { serverId: string; label: string | null }) => string;
   /** The host's settings-screen deep link for one saved server. */
   readonly settingsDeepLink: (required: { serverId: string }) => string;
   /** The host's legacy error code for a reauthorization the store detected during this call. */
@@ -69,14 +72,15 @@ export function createExternalMcpProbe<Deps extends ExternalMcpProbeBaseDeps>({ 
     return host.connectHttpSession({ exchange: createFetchMcpHttpExchange({ fetch }), spec, requestTimeoutMs });
   }
 
-  /** 409 for both reauthorization paths: a row parked `needs_reauth` (the error class's own copy and link), or a live
+  /** 409 for both reauthorization paths: a row parked `needs_reauth` (the host's response copy, code and link), or a live
    *  refresh that failed with an invalid grant during this call (the store's reason, typed by Jini, plus the deep link). */
   function reauthResponse(
     { failure, serverId }: { failure: Extract<ExternalMcpProbeFailure, { kind: "reauth_required" }>; serverId: string }, _optional = {},
   ): ProbeFailureResponse {
     if (failure.stage === "stored") {
-      const error = host.reauthRequired({ serverId, label: failure.label });
-      return { ok: false, status: 409, body: { error: error.message, code: error.code, details: { retryable: false, settingsLink: error.settingsLink } } };
+      const reauth = host.reauthRequired({ serverId, label: failure.label });
+      const text = host.reauthResponseText({ serverId, label: failure.label });
+      return { ok: false, status: 409, body: { error: text, code: reauth.code, details: { retryable: false, settingsLink: reauth.settingsLink } } };
     }
     return { ok: false, status: 409, body: { error: failure.reason, code: host.reauthCode, details: { retryable: false, settingsLink: host.settingsDeepLink({ serverId }) } } };
   }

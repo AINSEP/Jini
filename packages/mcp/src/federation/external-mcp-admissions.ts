@@ -11,22 +11,17 @@ function unavailable(): Awaited<ReturnType<ExternalMcpOperations["admissions"]>>
   return { ok: false, body: { error: "the server's external MCP admissions are unavailable — try again shortly", code: "AGENT_DAEMON_UNAVAILABLE" } };
 }
 
-/** The host's log formatter: the cause's class and code only, never its message. */
-export type DescribeErrorForLog = (required: { err: unknown }) => string;
+/** The host's report of a failed read. Its log line and redacting formatter are the host's: the cause's class and code
+ * only, never its message, so an opaque transport failure cannot expose credentials to the log. */
+export type ReportReadFailure = (required: { error: unknown }) => void;
 
-/** Fixed metadata only: an opaque transport failure must not expose credentials to the client or the log. */
-function reportAdmissionsFailure({ error, describeErrorForLog }: { error: unknown; describeErrorForLog: DescribeErrorForLog }, _optional = {}): void {
-  console.error("external-mcp server admissions read failed", describeErrorForLog({ err: error }));
-}
-
-/** Binds the host's log formatter once and returns the admissions reader every caller uses.
- * @param required.describeErrorForLog - The host's redacting log formatter for a failed read.
- * @returns `readServerAdmissions`, bound to that formatter.
- * @example export const readServerAdmissions = createServerAdmissionsReader({ describeErrorForLog });
+/** Binds the host's failure reporter once and returns the admissions reader every caller uses.
+ * @param required.reportReadFailure - The host's redacting report for a failed read.
+ * @returns `readServerAdmissions`, bound to that reporter.
+ * @example export const readServerAdmissions = createServerAdmissionsReader({ reportReadFailure });
  * @complexity O(1).
  */
-export function createServerAdmissionsReader({ describeErrorForLog }: { describeErrorForLog: DescribeErrorForLog }, _optional = {}) {
-  const report = ({ error }: { error: unknown }): void => reportAdmissionsFailure({ error, describeErrorForLog });
+export function createServerAdmissionsReader({ reportReadFailure }: { reportReadFailure: ReportReadFailure }, _optional = {}) {
   /** Read the server's single federation after its bounded admission wait; never wake a daemon.
    * @param required - The existing surface's wait and live-report ports; absent ports fail closed.
    * @returns Current reports, preserving optional config failures, or the legacy distinguishable failure.
@@ -37,7 +32,7 @@ export function createServerAdmissionsReader({ describeErrorForLog }: { describe
     { awaitFederation, readAdmissions }: ServerAdmissionsReader,
     _options: Record<string, never> = {},
   ): ReturnType<ExternalMcpOperations["admissions"]> {
-    const result = await readFederationAdmissions({ ports: { awaitFederation, readAdmissions, report }, timeoutMs: 5_000 });
+    const result = await readFederationAdmissions({ ports: { awaitFederation, readAdmissions, report: reportReadFailure }, timeoutMs: 5_000 });
     if (!result.ok) return unavailable();
     return result.configFailures === undefined
       ? { ok: true, connections: result.connections }

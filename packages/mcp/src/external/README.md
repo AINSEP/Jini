@@ -15,8 +15,8 @@ The host injects, and binds once in its own external MCP host-copy module:
   `contributeExternalMcpOperationsTools`, whose refusal messages name the same screen and tool.
 - `operations.createProbeLimiter({ clock })` — the probe budget's limiter, built from the host's own
   outbound-call rate-limit profile.
-- `createServerAdmissionsReader({ describeErrorForLog })` (`@jini-ai/mcp/federation/external-mcp-admissions`) — the host's redacting log formatter for a
-  failed admissions read; the host exports the bound `readServerAdmissions` its callers import.
+- `createServerAdmissionsReader({ reportReadFailure })` (`@jini-ai/mcp/federation/external-mcp-admissions`) — the host's redacting report (its log line
+  and formatter) for a failed admissions read; the host exports the bound `readServerAdmissions` its callers import.
 
 The deps the operations handlers read are structural (`ExternalMcpOperationsDeps`: workspace id,
 authorize, clock); the host's full tool deps bag satisfies them.

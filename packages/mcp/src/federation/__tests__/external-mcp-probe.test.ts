@@ -19,7 +19,9 @@ function setup({ row = record(), configs = [config], failures = [] as unknown[],
   const host: ExternalMcpProbeHost<Deps> = {
     readEnabledConfigs: async ({ deps, workspaceId }) => { log.push(`read:${deps.marker}:${workspaceId}`); return { configs: configs as never, failures: failures as never }; },
     connectHttpSession: async ({ spec, requestTimeoutMs }) => { log.push(`http:${spec.url}:${typeof requestTimeoutMs}`); return session(log) as never; },
-    reauthRequired: ({ serverId, label }) => ({ message: `Reconnect ${label} at Acme`, code: "ACME_REAUTH", settingsLink: `acme://settings/${serverId}` }),
+    // The host's error object may carry its own stored message; the probe must answer with the host's response copy instead.
+    reauthRequired: ({ serverId }) => { const error = { message: "stored error text", code: "ACME_REAUTH", settingsLink: `acme://settings/${serverId}` }; return error; },
+    reauthResponseText: ({ label }) => `Reconnect ${label} at Acme`,
     settingsDeepLink: ({ serverId }) => `acme://link/${serverId}`,
     reauthCode: "ACME_REAUTH_LIVE",
     connectFailureText: ({ id }) => `acme-copy:${id}`,

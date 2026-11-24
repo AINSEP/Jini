@@ -18,3 +18,15 @@ test("a failed pass can retry; a throwing logger cannot reject timer work", asyn
   const stop = startMailRetention({ db }, { every: run => { tick = run; return () => {}; }, onError: () => { reports++; throw new Error("logger"); } });
   await new Promise<void>(yes => setImmediate(yes)); tick(); await stop(); assert.equal(attempts, 2); assert.equal(reports, 2);
 });
+
+test("a failed pass reports only through the host's onError; without one it stays silent", async () => {
+  const db = { transaction: async () => { throw new Error("disk"); } } as unknown as MailSqlKernel<unknown>;
+  const warned: unknown[][] = []; const original = console.warn; console.warn = (...args: unknown[]) => { warned.push(args); };
+  try {
+    let reports = 0;
+    await startMailRetention({ db }, { every: () => () => {}, onError: () => { reports++; } })();
+    assert.equal(reports, 1);
+    await startMailRetention({ db }, { every: () => () => {} })();
+    assert.deepEqual(warned, []);
+  } finally { console.warn = original; }
+});

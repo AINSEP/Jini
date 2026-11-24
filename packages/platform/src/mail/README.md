@@ -16,6 +16,8 @@ activity projection and attempt observer, feedback inbox, retention, and the sit
   custom-credentials vault reader), its opaque `credentials`, and `labelPrefix` (the product label
   of its persisted vault labels, `<prefix> — <Provider> Webhook Secret`). The host's composition root
   binds them where it builds the mail feedback route; the HTTP mount (raw body parser) is the host's.
+- `sql/retention.ts`: `startMailRetention(required, { onError })` — the host passes `onError` (its own log line for a
+  failed purge pass); without it a failed pass is silent. The host binds it where its store's owner opens.
 - `purpose-gate-probe.ts` and `positional-purpose-gate.ts`: the host passes the runtime `mode` and
   its `durableOutboxReady` predicate at composition, the same values its live mailer gate receives.
 - `mail-status.ts` (`MailProviderControl`): implemented by the host's provider selection; consumed

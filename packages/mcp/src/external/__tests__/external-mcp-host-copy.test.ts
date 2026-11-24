@@ -62,15 +62,18 @@ test("the probe budget comes from the host's limiter, built once per deps with t
   assert.equal(f.limiterClocks.length, 2);
 });
 
-test("a failed admissions read is logged through the host's formatter only", async () => {
+test("a failed admissions read is reported through the host's reporter only, never the console", async () => {
   const logged: unknown[][] = [];
+  const reported: unknown[] = [];
   const original = console.error;
   console.error = (...args: unknown[]) => { logged.push(args); };
   try {
-    const readServerAdmissions = createServerAdmissionsReader({ describeErrorForLog: ({ err }) => `formatted:${(err as Error).name}` });
-    const result = await readServerAdmissions({ awaitFederation: async () => ({ settled: true }), readAdmissions: async () => { throw new Error("secret-detail"); } });
+    const failure = new Error("secret-detail");
+    const readServerAdmissions = createServerAdmissionsReader({ reportReadFailure: ({ error }) => { reported.push(error); } });
+    const result = await readServerAdmissions({ awaitFederation: async () => ({ settled: true }), readAdmissions: async () => { throw failure; } });
     assert.equal(result.ok, false);
-    assert.deepEqual(logged, [["external-mcp server admissions read failed", "formatted:Error"]]);
+    assert.deepEqual(reported, [failure]);
+    assert.deepEqual(logged, []);
     assert.deepEqual(await readServerAdmissions({ awaitFederation: async () => ({ settled: true }), readAdmissions: async () => ({ connections: [], configFailures: [] }) }), { ok: true, connections: [], configFailures: [] });
     assert.deepEqual(await readServerAdmissions({ awaitFederation: async () => ({ settled: true }), readAdmissions: async () => ({ connections: [] }) }), { ok: true, connections: [] });
   } finally {

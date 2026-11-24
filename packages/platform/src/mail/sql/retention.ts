@@ -28,7 +28,8 @@ export async function purgeExpiredMail<DB>({ db }: MailRepoDeps<DB>, { now = Dat
 }
 
 /** Reuse the store's owner/close lifecycle. There is no existing mail purge or general sweep runner.
- * Boot and minute passes never overlap; disposal stops ticks and drains the active transaction. */
+ * Boot and minute passes never overlap; disposal stops ticks and drains the active transaction.
+ * A failed pass is reported only through the host's `onError` (its log line is the host's); without one it stays silent. */
 export function startMailRetention<DB>(required: MailRepoDeps<DB>, options: { now?: () => number; intervalMs?: number; onError?: () => void; every?: (run: () => void, ms: number) => () => void } = {}): () => Promise<void> {
   const intervalMs = options.intervalMs ?? MAIL_RETENTION_INTERVAL_MS;
   if (!Number.isSafeInteger(intervalMs) || intervalMs <= 0) throw new RangeError("mail retention interval must be positive");
@@ -36,7 +37,7 @@ export function startMailRetention<DB>(required: MailRepoDeps<DB>, options: { no
   let stopped = false;
   const pass = () => {
     if (stopped || active) return;
-    active = purgeExpiredMail(required, options).catch(() => { try { if (options.onError) options.onError(); else console.warn("[mail-retention] purge failed"); } catch { /* Logging cannot reject timer work. */ } }).finally(() => { active = undefined; });
+    active = purgeExpiredMail(required, options).catch(() => { try { options.onError?.(); } catch { /* Logging cannot reject timer work. */ } }).finally(() => { active = undefined; });
   };
   const every = options.every ?? ((run, ms) => { const timer = setInterval(run, ms); timer.unref(); return () => clearInterval(timer); });
   pass();
