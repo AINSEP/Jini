@@ -30,7 +30,7 @@
  * Pure path computation. No I/O — `tool-registrations.ts` reads the directory tree this resolves.
  */
 import path from "node:path";
-import { createSkillLayout, type ArchiveReaderPort, type SkillFilesystemPort, type YamlReaderPort } from "../install/index.js";
+import { createSkillLayout, SKILL_STATE_FILE_NAME, type ArchiveReaderPort, type SkillFilesystemPort, type YamlReaderPort } from "../install/index.js";
 import type { InstalledSkillToolPorts } from "../tools/index.js";
 
 /**
@@ -41,8 +41,10 @@ import type { InstalledSkillToolPorts } from "../tools/index.js";
 export interface SkillSiteHost {
   /** Environment variable that overrides the skills root; must hold an absolute path. */
   readonly overrideEnvVar: string;
-  /** Persisted install-state file name inside each skill folder; keep it stable across releases. */
-  readonly stateFileName: string;
+  /** Install-state file names this host shipped under before the engine owned the name
+   *  (`SKILL_STATE_FILE_NAME`). They are READ after the engine's own file, never written; `[]` for a host
+   *  with no history. */
+  readonly legacyStateFileNames: readonly string[];
   /** The host process environment, read when a caller passes no `env`. */
   readonly processEnv: () => NodeJS.ProcessEnv;
   /** The host's site root when no booted `siteDir` is supplied. */
@@ -127,7 +129,7 @@ export function resolveSkillLayout(optional: ResolveSkillLayoutOptional): SkillL
 
   const root = path.resolve(override ?? path.join(optional.siteDir ?? host.resolveSiteRoot({ cwd, env }), "skills"));
 
-  const layout = createSkillLayout({ root, stagingRoot: path.join(root, ".staging"), workspaceDirectory: "ws", stateFileName: host.stateFileName });
+  const layout = createSkillLayout({ root, stagingRoot: path.join(root, ".staging"), workspaceDirectory: "ws", stateFileName: SKILL_STATE_FILE_NAME, legacyStateFileNames: host.legacyStateFileNames });
   return { root, host, forWorkspace({ workspaceId }, _optional = {}) {
     try { return { root: layout.resolve({ workspaceId }).workspaceRoot }; }
     catch {

@@ -72,7 +72,9 @@ function layoutFor<Source extends object>({ env, workspaceId }: {
 }) {
   const layout = env.deps.layout.resolve({ workspaceId });
   if (!path.isAbsolute(layout.workspaceRoot) || !path.isAbsolute(layout.stagingRoot)) throw new SkillInputError({ message: "Skill roots must be absolute." });
-  if (!layout.stateFileName || hasSeparatorOrNul({ value: layout.stateFileName }) || [".", ".."].includes(layout.stateFileName) || ["SKILL.md", "README.md", "LICENSE", "references", "scripts", "assets"].includes(layout.stateFileName)) throw new SkillInputError({ message: "Invalid skill state file name." });
+  for (const name of [layout.stateFileName, ...layout.legacyStateFileNames ?? []]) {
+    if (!name || hasSeparatorOrNul({ value: name }) || [".", ".."].includes(name) || ["SKILL.md", "README.md", "LICENSE", "references", "scripts", "assets"].includes(name)) throw new SkillInputError({ message: "Invalid skill state file name." });
+  }
   return layout;
 }
 
@@ -96,7 +98,7 @@ async function listManagedSkills<Source extends object>(env: InstallerEnv<Source
   return Promise.all(sources.map(async skill => {
     const directory = containedDirectory(layout.workspaceRoot, skill.directory);
     return { toolId: skill.id, name: skill.skillName, description: skill.description,
-      ...await readSkillState<Source>({ directory, stateFileName: layout.stateFileName, filesystem: deps.filesystem, validateSource: deps.validateSource }) };
+      ...await readSkillState<Source>({ directory, stateFileName: layout.stateFileName, legacyStateFileNames: layout.legacyStateFileNames, filesystem: deps.filesystem, validateSource: deps.validateSource }) };
   }));
 }
 
@@ -156,7 +158,7 @@ async function writeSkillEnabledState<Source extends object>(env: InstallerEnv<S
   const { deps } = env;
   const directory = await managedDirectory(env, input);
   const layout = layoutFor({ env, workspaceId: input.workspaceId });
-  const state = await readSkillState<Source>({ directory, stateFileName: layout.stateFileName, filesystem: deps.filesystem, validateSource: deps.validateSource });
+  const state = await readSkillState<Source>({ directory, stateFileName: layout.stateFileName, legacyStateFileNames: layout.legacyStateFileNames, filesystem: deps.filesystem, validateSource: deps.validateSource });
   const id = deps.ids.next({});
   if (!id || hasSeparatorOrNul({ value: id })) throw new SkillInputError({ message: "Invalid skill temporary id." });
   const temporary = path.join(directory, `.skill-state-${id}.tmp`);

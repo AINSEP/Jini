@@ -31,17 +31,19 @@ const MAX_ID_SEGMENT_LENGTH = 64;
  * contract used by the installer. No site, environment or cwd defaults are allowed: separate
  * workspace roots and staging roots keep installation writes inside the host's selected paths.
  */
-export function createSkillLayout(required: { root: string; stagingRoot: string; workspaceDirectory: string; stateFileName: string }, _optional: Record<string, never> = {}): SkillLayoutPort {
-  const { root, stagingRoot, workspaceDirectory, stateFileName } = required;
+export function createSkillLayout(required: { root: string; stagingRoot: string; workspaceDirectory: string; stateFileName: string; legacyStateFileNames?: readonly string[] | undefined }, _optional: Record<string, never> = {}): SkillLayoutPort {
+  const { root, stagingRoot, workspaceDirectory, stateFileName, legacyStateFileNames } = required;
   if (!path.isAbsolute(root) || !path.isAbsolute(stagingRoot)) throw new Error('Skill roots must be absolute paths.');
   if (!/^[a-z0-9]+(?:[-.][a-z0-9]+)*$/.test(workspaceDirectory)) throw new Error('Invalid workspace directory segment.');
-  if (!stateFileName || hasSeparatorOrNul({ value: stateFileName }) || ['.', '..', 'SKILL.md', 'README.md', 'LICENSE', 'references', 'scripts', 'assets'].includes(stateFileName)) throw new Error('Invalid skill state file name.');
+  for (const name of [stateFileName, ...legacyStateFileNames ?? []]) {
+    if (!name || hasSeparatorOrNul({ value: name }) || ['.', '..', 'SKILL.md', 'README.md', 'LICENSE', 'references', 'scripts', 'assets'].includes(name)) throw new Error('Invalid skill state file name.');
+  }
   return Object.freeze({ resolve({ workspaceId }: { workspaceId: string }) {
     // Normalize BEFORE validating, not after — see `agent-plugins/layout.ts`'s own comment at the
     // identical line: the pattern is deliberately lowercase-only, and the normalized value is the
     // one that actually becomes the path segment, so it is the only value worth asserting about.
     const normalized = workspaceId.toLowerCase();
     if (normalized.length > MAX_ID_SEGMENT_LENGTH || !SAFE_ID_SEGMENT_PATTERN.test(normalized)) throw new Error(`resolve: '${workspaceId}' is not a valid workspace id`);
-    return { workspaceRoot: path.join(root, workspaceDirectory, normalized), stagingRoot: path.resolve(stagingRoot), stateFileName };
+    return { workspaceRoot: path.join(root, workspaceDirectory, normalized), stagingRoot: path.resolve(stagingRoot), stateFileName, ...legacyStateFileNames ? { legacyStateFileNames } : {} };
   } });
 }

@@ -2,7 +2,7 @@ import { toolMetadata } from '@jini-ai/core/tool-metadata/skills';
 import { buildSkillToolRegistrations as buildRegistrations, loadInstalledSkillToolSources as loadSources, type InstalledSkillToolPorts, type InstalledSkillToolSource, type SkillToolRegistrationHost } from "../tools/index.js";
 import type { ToolRegistration } from "@jini-ai/core";
 
-import { readSkillState } from "../install/index.js";
+import { readSkillState, SKILL_STATE_FILE_NAME } from "../install/index.js";
 import { createLiveSkillRegistration, type SkillsRefreshRegistry } from "./live-registration.js";
 import type { SkillLayout, SkillSiteHost } from "./layout.js";
 
@@ -92,7 +92,7 @@ type ApplyExtensionApprovalPolicy = SkillToolRegistrationHost["withExtensionAppr
 const skillToolPorts = (host: SkillSiteHost): InstalledSkillToolPorts => ({
   readFrontmatterField: host.readFrontmatterField,
   createFileReader: host.createFileReader,
-  isEnabled: async ({ directory }) => (await readSkillState({ directory, stateFileName: host.stateFileName, filesystem: host.filesystem })).enabled,
+  isEnabled: async ({ directory }) => (await readSkillState({ directory, stateFileName: SKILL_STATE_FILE_NAME, legacyStateFileNames: host.legacyStateFileNames, filesystem: host.filesystem })).enabled,
   report: host.reportSkippedFolder,
 });
 

@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { test, vi } from "vitest";
 import { ToolInputError } from "@jini-ai/core";
-import { createNodeSkillFilesystem } from "../../install/index.js";
+import { createNodeSkillFilesystem, SKILL_STATE_FILE_NAME } from "../../install/index.js";
 import { resolveSkillLayout, type SkillSiteHost } from "../layout.js";
 import { loadInstalledSkillToolSources } from "../tool-registrations.js";
 import { buildRegistrations, SKILLS_INSTALL_TOOL_ID } from "../install-tool.js";
@@ -22,7 +22,7 @@ const MD = "---\nname: incident-response\ndescription: Respond to outages.\n---\
 function fakeHost(overrides: Partial<SkillSiteHost> = {}, calls: unknown[] = []): SkillSiteHost {
   return {
     overrideEnvVar: "ACME_SKILLS_DIR",
-    stateFileName: ".acme-install.json",
+    legacyStateFileNames: [".acme-install.json"],
     processEnv: () => ({}),
     resolveSiteRoot: ({ cwd, env }) => path.join(cwd, "sites", env.ACME_SITE ?? "default"),
     filesystem: createNodeSkillFilesystem({}),
@@ -66,7 +66,7 @@ test("forWorkspace rejects an id that could escape the path segment, quoting the
   assert.throws(() => layout.forWorkspace({ workspaceId: "../escape" }), { message: "forWorkspace: '../escape' is not a valid workspace id" });
 });
 
-test("the loader reads enabled state from the host's state file name", async () => {
+test("the loader reads enabled state from the engine's state file name and the host's legacy names, new name first", async () => {
   const dir = await mkdtemp(path.join(tmpdir(), "jini-site-skills-"));
   try {
     const layout = resolveSkillLayout({ env: { ACME_SKILLS_DIR: dir }, host: fakeHost() });
@@ -78,6 +78,9 @@ test("the loader reads enabled state from the host's state file name", async () 
     await writeFile(path.join(skillDir, ".acme-install.json"), JSON.stringify({ enabled: false, source: "uploaded" }));
     assert.deepEqual(await loadInstalledSkillToolSources(ctx), []);
     assert.deepEqual((await loadInstalledSkillToolSources({ ...ctx, includeDisabled: true })).map(source => source.skillName), ["incident-response"]);
+    // The engine's own file wins over the host's legacy one once both exist.
+    await writeFile(path.join(skillDir, SKILL_STATE_FILE_NAME), JSON.stringify({ enabled: true, source: "uploaded" }));
+    assert.deepEqual((await loadInstalledSkillToolSources(ctx)).map(source => source.skillName), ["incident-response"]);
   } finally { await rm(dir, { recursive: true, force: true }); }
 });
 
