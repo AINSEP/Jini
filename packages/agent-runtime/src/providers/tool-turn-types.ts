@@ -68,6 +68,9 @@ export interface ProviderToolCall {
   readonly name: string;
   readonly input: unknown;
 }
+/** One block of a tool result that carries more than text — the MCP content-block shape
+ *  (`{type:'image', mimeType, data}`) a registered tool returns. Each protocol adapter maps it onto
+ *  that provider's own image part; nothing in this shape is provider-specific. */
 export type ProviderToolResultBlock = {
   readonly type: "text";
   readonly text: string;
@@ -77,6 +80,7 @@ export type ProviderToolResultBlock = {
   readonly data: string;
 };
 export interface ProviderToolResult {
+  /** A string for an ordinary result; blocks only when the result carries an image. */
   readonly content: string | readonly ProviderToolResultBlock[];
   readonly isError?: boolean;
 }
@@ -99,6 +103,7 @@ export interface ProviderToolTurnInput {
   readonly protocol: ProviderProtocol;
   readonly adapters: ProviderTurnAdapters;
   readonly apiKey: string;
+  /** `anthropic`/`openai`/`google`: a model id. `azure`: the deployment name, not a raw model id — see `AzureTurnOptions.model`'s own doc. */
   readonly model: string;
   readonly system: string;
   readonly messages: readonly ProviderChatMessage[];

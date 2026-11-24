@@ -120,6 +120,9 @@ function createToolProjection(input: InternalTurnInput, _options = {}) {
   const published = new Map<string, PublishedTool>();
   const reported = new Set<string>();
   function getTools({ strict = false }: ProviderToolSnapshotOptions = {}, { reportFallback = true } = {}): ProjectedTool[] {
+    // Descriptors only, never handlers — the same public shape `ToolRegistry.list()` returns
+    // (`@jini-ai/core`'s own "handlers never publicly retrievable" invariant, see that package's
+    // `tool-registry.ts` module doc). Mapped into each protocol's own tool-def shape below.
     const descriptors = input.getToolSnapshot?.() ?? input.tools;
     pinWireNames(descriptors, names);
     return descriptors.map(descriptor => {
