@@ -63,6 +63,15 @@ export interface EnsureSettingDefinitionsDeps {
   principals: SettingsPrincipalLookupPort;
 }
 
+/**
+ * {@link ensureSettingDefinitions} as an injected collaborator. A feature that registers its
+ * definitions takes the registrar on its existing deps instead of importing it, so the host binds
+ * the ledger's implementation at composition and a test can hand in a spy.
+ */
+export interface EnsureSettingDefinitionsPort {
+  ensureSettingDefinitions: typeof ensureSettingDefinitions;
+}
+
 interface SettingDefinitionsInput {
   namespace: string;
   definitions: readonly SettingDefinitionSpec[];

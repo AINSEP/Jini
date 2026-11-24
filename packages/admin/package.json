@@ -220,7 +220,43 @@
       "./screens/authentication/Authentication": "browser",
       "./screens/authentication/authentication-host-slots": "browser",
       "./screens/authentication/model/provider-schemas": "browser",
-      "./shell/lib/boot-token-fragment": "browser"
+      "./shell/lib/boot-token-fragment": "browser",
+      "./screens/seo": "browser",
+      "./screens/seo/seo-i18n": "universal",
+      "./screens/redirects": "browser",
+      "./screens/redirects/redirects-i18n": "browser",
+      "./screens/analytics": "browser",
+      "./screens/analytics/analytics-i18n": "universal",
+      "./screens/analytics/api/analytics-api.types": "universal",
+      "./screens/analytics/hooks/analytics-port.hooks": "universal",
+      "./screens/analytics/hooks/analytics-dependencies.hooks": "universal",
+      "./screens/analytics/hooks/use-analytics.hooks": "browser",
+      "./screens/consent/CookieConsent": "browser",
+      "./screens/consent/ConsentOverviewTab": "browser",
+      "./screens/consent/use-consent-page.hooks": "browser",
+      "./screens/consent/consent-autosave": "universal",
+      "./screens/consent/consent-dictionary": "universal",
+      "./screens/consent/consent-i18n": "universal",
+      "./screens/consent/rules": "universal",
+      "./screens/consent/settings.hooks": "universal",
+      "./screens/consent/consent-settings.css": "browser",
+      "./screens/settings/settings-i18n": "universal",
+      "./screens/settings/settings-interface-i18n": "universal",
+      "./screens/settings/settings-memory-i18n": "universal",
+      "./screens/settings/UserInterfaceSettingsPanel.hooks": "universal",
+      "./screens/settings/UserInterfaceSettingsPanel": "browser",
+      "./screens/settings/hooks/use-settings-locale-sync.hooks": "browser",
+      "./screens/settings/ExternalMcpSharedChoice": "browser",
+      "./screens/settings/ExternalMcpSharedChoice.hooks": "browser",
+      "./screens/settings/hooks/use-settings-active-tab-scroll.hooks": "browser",
+      "./screens/settings/ExternalMcpToolsModal.hooks": "browser",
+      "./screens/settings/hooks/use-external-mcp-remove-confirm.hooks": "browser",
+      "./screens/settings/user-interface-settings.css": "browser",
+      "./screens/settings/external-mcp-i18n": "universal",
+      "./screens/settings/hooks/use-external-mcp-oauth-connect.hooks": "browser",
+      "./screens/settings/settings-execution-i18n": "universal",
+      "./screens/settings/SettingsUi.hooks": "browser",
+      "./screens/settings/ExternalMcpRemoveConfirmDialog": "browser"
     },
     "isolation": {
       "shared": [
@@ -228,7 +264,12 @@
         "src/react/components/ConfirmDialog",
         "src/react/components/RowMenu",
         "src/react/types.ts",
-        "src/react/kit.tsx"
+        "src/react/kit.tsx",
+        "src/shell/lib/merge-locale-overlays.ts",
+        "src/shell/lib/viewer-time-zone.ts",
+        "src/shell/lib/router.ts",
+        "src/browser/shell-navigation.ts",
+        "src/browser/navigation.ts"
       ],
       "forbidden": {
         "universal": [
@@ -355,7 +396,8 @@
   },
   "type": "module",
   "sideEffects": [
-    "./src/themes/**/*.css"
+    "./src/themes/**/*.css",
+    "./src/screens/**/*.css"
   ],
   "main": "./dist/core/index.js",
   "types": "./dist/core/index.d.ts",
@@ -1387,6 +1429,178 @@
       "types": "./dist/shell/lib/boot-token-fragment.d.ts",
       "import": "./dist/shell/lib/boot-token-fragment.js",
       "default": "./dist/shell/lib/boot-token-fragment.js"
+    },
+    "./screens/seo": {
+      "types": "./dist/screens/seo/index.d.ts",
+      "import": "./dist/screens/seo/index.js",
+      "default": "./dist/screens/seo/index.js"
+    },
+    "./screens/seo/seo-i18n": {
+      "types": "./dist/screens/seo/seo-i18n.d.ts",
+      "import": "./dist/screens/seo/seo-i18n.js",
+      "default": "./dist/screens/seo/seo-i18n.js"
+    },
+    "./screens/redirects": {
+      "types": "./dist/screens/redirects/index.d.ts",
+      "import": "./dist/screens/redirects/index.js",
+      "default": "./dist/screens/redirects/index.js"
+    },
+    "./screens/redirects/redirects-i18n": {
+      "types": "./dist/screens/redirects/redirects-i18n.d.ts",
+      "import": "./dist/screens/redirects/redirects-i18n.js",
+      "default": "./dist/screens/redirects/redirects-i18n.js"
+    },
+    "./screens/analytics": {
+      "types": "./dist/screens/analytics/Analytics.d.ts",
+      "import": "./dist/screens/analytics/Analytics.js",
+      "default": "./dist/screens/analytics/Analytics.js"
+    },
+    "./screens/analytics/analytics-i18n": {
+      "types": "./dist/screens/analytics/analytics-i18n.d.ts",
+      "import": "./dist/screens/analytics/analytics-i18n.js",
+      "default": "./dist/screens/analytics/analytics-i18n.js"
+    },
+    "./screens/analytics/api/analytics-api.types": {
+      "types": "./dist/screens/analytics/api/analytics-api.types.d.ts",
+      "import": "./dist/screens/analytics/api/analytics-api.types.js",
+      "default": "./dist/screens/analytics/api/analytics-api.types.js"
+    },
+    "./screens/analytics/hooks/analytics-port.hooks": {
+      "types": "./dist/screens/analytics/hooks/analytics-port.hooks.d.ts",
+      "import": "./dist/screens/analytics/hooks/analytics-port.hooks.js",
+      "default": "./dist/screens/analytics/hooks/analytics-port.hooks.js"
+    },
+    "./screens/analytics/hooks/analytics-dependencies.hooks": {
+      "types": "./dist/screens/analytics/hooks/analytics-dependencies.hooks.d.ts",
+      "import": "./dist/screens/analytics/hooks/analytics-dependencies.hooks.js",
+      "default": "./dist/screens/analytics/hooks/analytics-dependencies.hooks.js"
+    },
+    "./screens/analytics/hooks/use-analytics.hooks": {
+      "types": "./dist/screens/analytics/hooks/use-analytics.hooks.d.ts",
+      "import": "./dist/screens/analytics/hooks/use-analytics.hooks.js",
+      "default": "./dist/screens/analytics/hooks/use-analytics.hooks.js"
+    },
+    "./screens/consent/CookieConsent": {
+      "types": "./dist/screens/consent/CookieConsent.d.ts",
+      "import": "./dist/screens/consent/CookieConsent.js",
+      "default": "./dist/screens/consent/CookieConsent.js"
+    },
+    "./screens/consent/ConsentOverviewTab": {
+      "types": "./dist/screens/consent/ConsentOverviewTab.d.ts",
+      "import": "./dist/screens/consent/ConsentOverviewTab.js",
+      "default": "./dist/screens/consent/ConsentOverviewTab.js"
+    },
+    "./screens/consent/use-consent-page.hooks": {
+      "types": "./dist/screens/consent/use-consent-page.hooks.d.ts",
+      "import": "./dist/screens/consent/use-consent-page.hooks.js",
+      "default": "./dist/screens/consent/use-consent-page.hooks.js"
+    },
+    "./screens/consent/consent-autosave": {
+      "types": "./dist/screens/consent/consent-autosave.d.ts",
+      "import": "./dist/screens/consent/consent-autosave.js",
+      "default": "./dist/screens/consent/consent-autosave.js"
+    },
+    "./screens/consent/consent-dictionary": {
+      "types": "./dist/screens/consent/consent-dictionary.d.ts",
+      "import": "./dist/screens/consent/consent-dictionary.js",
+      "default": "./dist/screens/consent/consent-dictionary.js"
+    },
+    "./screens/consent/consent-i18n": {
+      "types": "./dist/screens/consent/consent-i18n.d.ts",
+      "import": "./dist/screens/consent/consent-i18n.js",
+      "default": "./dist/screens/consent/consent-i18n.js"
+    },
+    "./screens/consent/rules": {
+      "types": "./dist/screens/consent/rules.d.ts",
+      "import": "./dist/screens/consent/rules.js",
+      "default": "./dist/screens/consent/rules.js"
+    },
+    "./screens/consent/settings.hooks": {
+      "types": "./dist/screens/consent/settings.hooks.d.ts",
+      "import": "./dist/screens/consent/settings.hooks.js",
+      "default": "./dist/screens/consent/settings.hooks.js"
+    },
+    "./screens/consent/consent-settings.css": "./src/screens/consent/consent-settings.css",
+    "./screens/settings/external-mcp-i18n": {
+      "types": "./dist/screens/settings/external-mcp-i18n.d.ts",
+      "import": "./dist/screens/settings/external-mcp-i18n.js",
+      "default": "./dist/screens/settings/external-mcp-i18n.js"
+    },
+    "./screens/settings/hooks/use-external-mcp-oauth-connect.hooks": {
+      "types": "./dist/screens/settings/hooks/use-external-mcp-oauth-connect.hooks.d.ts",
+      "import": "./dist/screens/settings/hooks/use-external-mcp-oauth-connect.hooks.js",
+      "default": "./dist/screens/settings/hooks/use-external-mcp-oauth-connect.hooks.js"
+    },
+    "./screens/settings/settings-i18n": {
+      "types": "./dist/screens/settings/settings-i18n.d.ts",
+      "import": "./dist/screens/settings/settings-i18n.js",
+      "default": "./dist/screens/settings/settings-i18n.js"
+    },
+    "./screens/settings/settings-interface-i18n": {
+      "types": "./dist/screens/settings/settings-interface-i18n.d.ts",
+      "import": "./dist/screens/settings/settings-interface-i18n.js",
+      "default": "./dist/screens/settings/settings-interface-i18n.js"
+    },
+    "./screens/settings/settings-memory-i18n": {
+      "types": "./dist/screens/settings/settings-memory-i18n.d.ts",
+      "import": "./dist/screens/settings/settings-memory-i18n.js",
+      "default": "./dist/screens/settings/settings-memory-i18n.js"
+    },
+    "./screens/settings/UserInterfaceSettingsPanel": {
+      "types": "./dist/screens/settings/UserInterfaceSettingsPanel.d.ts",
+      "import": "./dist/screens/settings/UserInterfaceSettingsPanel.js",
+      "default": "./dist/screens/settings/UserInterfaceSettingsPanel.js"
+    },
+    "./screens/settings/UserInterfaceSettingsPanel.hooks": {
+      "types": "./dist/screens/settings/UserInterfaceSettingsPanel.hooks.d.ts",
+      "import": "./dist/screens/settings/UserInterfaceSettingsPanel.hooks.js",
+      "default": "./dist/screens/settings/UserInterfaceSettingsPanel.hooks.js"
+    },
+    "./screens/settings/hooks/use-settings-locale-sync.hooks": {
+      "types": "./dist/screens/settings/hooks/use-settings-locale-sync.hooks.d.ts",
+      "import": "./dist/screens/settings/hooks/use-settings-locale-sync.hooks.js",
+      "default": "./dist/screens/settings/hooks/use-settings-locale-sync.hooks.js"
+    },
+    "./screens/settings/ExternalMcpSharedChoice": {
+      "types": "./dist/screens/settings/ExternalMcpSharedChoice.d.ts",
+      "import": "./dist/screens/settings/ExternalMcpSharedChoice.js",
+      "default": "./dist/screens/settings/ExternalMcpSharedChoice.js"
+    },
+    "./screens/settings/ExternalMcpSharedChoice.hooks": {
+      "types": "./dist/screens/settings/ExternalMcpSharedChoice.hooks.d.ts",
+      "import": "./dist/screens/settings/ExternalMcpSharedChoice.hooks.js",
+      "default": "./dist/screens/settings/ExternalMcpSharedChoice.hooks.js"
+    },
+    "./screens/settings/hooks/use-settings-active-tab-scroll.hooks": {
+      "types": "./dist/screens/settings/hooks/use-settings-active-tab-scroll.hooks.d.ts",
+      "import": "./dist/screens/settings/hooks/use-settings-active-tab-scroll.hooks.js",
+      "default": "./dist/screens/settings/hooks/use-settings-active-tab-scroll.hooks.js"
+    },
+    "./screens/settings/ExternalMcpToolsModal.hooks": {
+      "types": "./dist/screens/settings/ExternalMcpToolsModal.hooks.d.ts",
+      "import": "./dist/screens/settings/ExternalMcpToolsModal.hooks.js",
+      "default": "./dist/screens/settings/ExternalMcpToolsModal.hooks.js"
+    },
+    "./screens/settings/hooks/use-external-mcp-remove-confirm.hooks": {
+      "types": "./dist/screens/settings/hooks/use-external-mcp-remove-confirm.hooks.d.ts",
+      "import": "./dist/screens/settings/hooks/use-external-mcp-remove-confirm.hooks.js",
+      "default": "./dist/screens/settings/hooks/use-external-mcp-remove-confirm.hooks.js"
+    },
+    "./screens/settings/user-interface-settings.css": "./src/screens/settings/user-interface-settings.css",
+    "./screens/settings/settings-execution-i18n": {
+      "types": "./dist/screens/settings/settings-execution-i18n.d.ts",
+      "import": "./dist/screens/settings/settings-execution-i18n.js",
+      "default": "./dist/screens/settings/settings-execution-i18n.js"
+    },
+    "./screens/settings/SettingsUi.hooks": {
+      "types": "./dist/screens/settings/SettingsUi.hooks.d.ts",
+      "import": "./dist/screens/settings/SettingsUi.hooks.js",
+      "default": "./dist/screens/settings/SettingsUi.hooks.js"
+    },
+    "./screens/settings/ExternalMcpRemoveConfirmDialog": {
+      "types": "./dist/screens/settings/ExternalMcpRemoveConfirmDialog.d.ts",
+      "import": "./dist/screens/settings/ExternalMcpRemoveConfirmDialog.js",
+      "default": "./dist/screens/settings/ExternalMcpRemoveConfirmDialog.js"
     }
   },
   "files": [
@@ -1400,7 +1614,8 @@
     "!dist/**/*.test.js.map",
     "!dist/**/*.test.d.ts.map",
     "!dist/**/__tests__/**",
-    "!dist/**/*.map"
+    "!dist/**/*.map",
+    "src/screens/**/*.css"
   ],
   "publishConfig": {
     "access": "public",
@@ -1453,6 +1668,90 @@
       ],
       "users/*": [
         "./dist/users/*.d.ts"
+      ],
+      "screens/seo": [
+        "./dist/screens/seo/index.d.ts"
+      ],
+      "screens/seo/seo-i18n": [
+        "./dist/screens/seo/seo-i18n.d.ts"
+      ],
+      "screens/redirects": [
+        "./dist/screens/redirects/index.d.ts"
+      ],
+      "screens/redirects/redirects-i18n": [
+        "./dist/screens/redirects/redirects-i18n.d.ts"
+      ],
+      "screens/analytics": [
+        "./dist/screens/analytics/Analytics.d.ts"
+      ],
+      "screens/analytics/analytics-i18n": [
+        "./dist/screens/analytics/analytics-i18n.d.ts"
+      ],
+      "screens/analytics/api/analytics-api.types": [
+        "./dist/screens/analytics/api/analytics-api.types.d.ts"
+      ],
+      "screens/analytics/hooks/analytics-port.hooks": [
+        "./dist/screens/analytics/hooks/analytics-port.hooks.d.ts"
+      ],
+      "screens/analytics/hooks/analytics-dependencies.hooks": [
+        "./dist/screens/analytics/hooks/analytics-dependencies.hooks.d.ts"
+      ],
+      "screens/analytics/hooks/use-analytics.hooks": [
+        "./dist/screens/analytics/hooks/use-analytics.hooks.d.ts"
+      ],
+      "screens/consent/CookieConsent": [
+        "./dist/screens/consent/CookieConsent.d.ts"
+      ],
+      "screens/consent/ConsentOverviewTab": [
+        "./dist/screens/consent/ConsentOverviewTab.d.ts"
+      ],
+      "screens/consent/use-consent-page.hooks": [
+        "./dist/screens/consent/use-consent-page.hooks.d.ts"
+      ],
+      "screens/consent/consent-autosave": [
+        "./dist/screens/consent/consent-autosave.d.ts"
+      ],
+      "screens/consent/consent-dictionary": [
+        "./dist/screens/consent/consent-dictionary.d.ts"
+      ],
+      "screens/consent/consent-i18n": [
+        "./dist/screens/consent/consent-i18n.d.ts"
+      ],
+      "screens/consent/rules": [
+        "./dist/screens/consent/rules.d.ts"
+      ],
+      "screens/consent/settings.hooks": [
+        "./dist/screens/consent/settings.hooks.d.ts"
+      ],
+      "screens/settings/settings-i18n": [
+        "./dist/screens/settings/settings-i18n.d.ts"
+      ],
+      "screens/settings/settings-interface-i18n": [
+        "./dist/screens/settings/settings-interface-i18n.d.ts"
+      ],
+      "screens/settings/settings-memory-i18n": [
+        "./dist/screens/settings/settings-memory-i18n.d.ts"
+      ],
+      "screens/settings/UserInterfaceSettingsPanel.hooks": [
+        "./dist/screens/settings/UserInterfaceSettingsPanel.hooks.d.ts"
+      ],
+      "screens/settings/hooks/use-settings-locale-sync.hooks": [
+        "./dist/screens/settings/hooks/use-settings-locale-sync.hooks.d.ts"
+      ],
+      "screens/settings/ExternalMcpSharedChoice": [
+        "./dist/screens/settings/ExternalMcpSharedChoice.d.ts"
+      ],
+      "screens/settings/ExternalMcpSharedChoice.hooks": [
+        "./dist/screens/settings/ExternalMcpSharedChoice.hooks.d.ts"
+      ],
+      "screens/settings/hooks/use-settings-active-tab-scroll.hooks": [
+        "./dist/screens/settings/hooks/use-settings-active-tab-scroll.hooks.d.ts"
+      ],
+      "screens/settings/ExternalMcpToolsModal.hooks": [
+        "./dist/screens/settings/ExternalMcpToolsModal.hooks.d.ts"
+      ],
+      "screens/settings/hooks/use-external-mcp-remove-confirm.hooks": [
+        "./dist/screens/settings/hooks/use-external-mcp-remove-confirm.hooks.d.ts"
       ]
     }
   },

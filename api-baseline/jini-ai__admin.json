@@ -2777,5 +2777,284 @@
     "symbols": {
       "t": "variable:44d298bf90"
     }
+  },
+  "./screens/analytics": {
+    "types": "./dist/screens/analytics/Analytics.d.ts",
+    "symbols": {
+      "Analytics": "function:987dfef07e",
+      "AnalyticsProps": "interface:e08512cfff"
+    }
+  },
+  "./screens/analytics/analytics-i18n": {
+    "types": "./dist/screens/analytics/analytics-i18n.d.ts",
+    "symbols": {
+      "t": "variable:44d298bf90"
+    }
+  },
+  "./screens/analytics/api/analytics-api.types": {
+    "types": "./dist/screens/analytics/api/analytics-api.types.d.ts",
+    "symbols": {
+      "AdminAnalyticsHit": "interface:519c0c225b"
+    }
+  },
+  "./screens/analytics/hooks/analytics-dependencies.hooks": {
+    "types": "./dist/screens/analytics/hooks/analytics-dependencies.hooks.d.ts",
+    "symbols": {
+      "FakeAnalyticsPortOptions": "interface:1827f09d2b",
+      "createFakeAnalyticsPort": "function:51eff677d6"
+    }
+  },
+  "./screens/analytics/hooks/analytics-port.hooks": {
+    "types": "./dist/screens/analytics/hooks/analytics-port.hooks.d.ts",
+    "symbols": {
+      "AnalyticsPort": "interface:fec9f1e95d"
+    }
+  },
+  "./screens/analytics/hooks/use-analytics.hooks": {
+    "types": "./dist/screens/analytics/hooks/use-analytics.hooks.d.ts",
+    "symbols": {
+      "AnalyticsController": "interface:a5791c1927",
+      "useAnalytics": "function:e62d0b3464"
+    }
+  },
+  "./screens/consent/consent-autosave": {
+    "types": "./dist/screens/consent/consent-autosave.d.ts",
+    "symbols": {
+      "ConsentAutosave": "interface:52bcfbf64f",
+      "ConsentAutosaveEvents": "interface:3f6d8b2635",
+      "ConsentTimers": "interface:05584bd0e1",
+      "createConsentAutosave": "function:507c221523"
+    }
+  },
+  "./screens/consent/consent-dictionary": {
+    "types": "./dist/screens/consent/consent-dictionary.d.ts",
+    "symbols": {
+      "CONSENT_DICT": "variable:e933cb2e1e",
+      "translate": "variable:a83a2be163"
+    }
+  },
+  "./screens/consent/consent-i18n": {
+    "types": "./dist/screens/consent/consent-i18n.d.ts",
+    "symbols": {
+      "ConsentTranslation": "interface:570d9cf087",
+      "consentTranslation": "function:74bfdf2793"
+    }
+  },
+  "./screens/consent/consent-settings.css": {
+    "types": null,
+    "symbols": {}
+  },
+  "./screens/consent/ConsentOverviewTab": {
+    "types": "./dist/screens/consent/ConsentOverviewTab.d.ts",
+    "symbols": {
+      "ConsentOverviewTab": "function:3ca0ef1a69",
+      "ConsentOverviewTabProps": "interface:dca7424997"
+    }
+  },
+  "./screens/consent/CookieConsent": {
+    "types": "./dist/screens/consent/CookieConsent.d.ts",
+    "symbols": {
+      "ConsentScreenFieldsProps": "interface:07b420d3f9",
+      "ConsentScreenUi": "interface:79a19760e8",
+      "CookieConsent": "function:a8fcd8a5d2",
+      "CookieConsentProps": "interface:0effef2baf"
+    }
+  },
+  "./screens/consent/rules": {
+    "types": "./dist/screens/consent/rules.d.ts",
+    "symbols": {
+      "CONSENT_TAB_IDS": "variable:99e18c0be0",
+      "ConsentErrors": "interface:985d4d6a6b",
+      "ConsentSaveState": "type:7082ac6ee8",
+      "ConsentTabId": "type:976393bfdd",
+      "canPublishConsent": "function:02e31b6d0e",
+      "canResetConsentCss": "function:d1cda81d81",
+      "consentProblemTab": "function:1e5e688bd5",
+      "consentStatusKey": "function:3cc03665b5",
+      "pausedByCategory": "function:7aaa7beea8",
+      "resolveConsentTabId": "function:53d06a5048"
+    }
+  },
+  "./screens/consent/settings.hooks": {
+    "types": "./dist/screens/consent/settings.hooks.d.ts",
+    "symbols": {
+      "ConsentDetectedItem": "interface:1308e3c81a",
+      "ConsentDraftSaved": "interface:e94a92625b",
+      "ConsentEditorLimits": "interface:7f69712228",
+      "ConsentPreview": "interface:21196241eb",
+      "ConsentReadiness": "interface:ea2102a3a3",
+      "ConsentRequest": "type:bfffddef85",
+      "ConsentRevision": "interface:76354aabc5",
+      "ConsentRevisionsPort": "interface:f771d991d4",
+      "ConsentSettingsSnapshot": "interface:e480373b37",
+      "createConsentRevisionsPort": "function:0a92dfd54b"
+    }
+  },
+  "./screens/consent/use-consent-page.hooks": {
+    "types": "./dist/screens/consent/use-consent-page.hooks.d.ts",
+    "symbols": {
+      "ConsentPageController": "interface:30203b2a2e",
+      "ConsentPreviewScale": "type:3cb95c4539",
+      "ConsentPreviewState": "interface:2fdef351a4",
+      "useConsentPage": "function:6dfc41df9b",
+      "useConsentPreview": "function:797b91fe47",
+      "useConsentPreviewScale": "function:ac8b3d5e22",
+      "useConsentReadiness": "function:347e155189"
+    }
+  },
+  "./screens/redirects": {
+    "types": "./dist/screens/redirects/index.d.ts",
+    "symbols": {
+      "Redirects": "function:8d40b54ced",
+      "RedirectsModulePanelHook": "type:077a1eb4e2"
+    }
+  },
+  "./screens/redirects/redirects-i18n": {
+    "types": "./dist/screens/redirects/redirects-i18n.d.ts",
+    "symbols": {
+      "actionsForRedirectLabel": "function:1e42672a92",
+      "createdLabel": "function:196391d462",
+      "deleteRedirectBody": "function:22806850fc",
+      "failedItemLabel": "function:42c758093f",
+      "importResultSummary": "function:d8dfd512c1",
+      "importRulesLabel": "function:f2fbb6d6d5",
+      "t": "variable:44d298bf90"
+    }
+  },
+  "./screens/seo": {
+    "types": "./dist/screens/seo/index.d.ts",
+    "symbols": {
+      "Seo": "function:7bd2a7c79f",
+      "SeoModulePanelHook": "type:3fcf15b19a"
+    }
+  },
+  "./screens/seo/seo-i18n": {
+    "types": "./dist/screens/seo/seo-i18n.d.ts",
+    "symbols": {
+      "t": "variable:44d298bf90"
+    }
+  },
+  "./screens/settings/external-mcp-i18n": {
+    "types": "./dist/screens/settings/external-mcp-i18n.d.ts",
+    "symbols": {
+      "t": "variable:44d298bf90"
+    }
+  },
+  "./screens/settings/ExternalMcpRemoveConfirmDialog": {
+    "types": "./dist/screens/settings/ExternalMcpRemoveConfirmDialog.d.ts",
+    "symbols": {
+      "ExternalMcpRemoveConfirmCopy": "interface:b41abeef7a",
+      "ExternalMcpRemoveConfirmDialog": "function:9a9e2767db",
+      "ExternalMcpRemoveConfirmDialogProps": "interface:67cefe33df",
+      "ExternalMcpRemoveConfirmFrameProps": "interface:9f836ccb1c"
+    }
+  },
+  "./screens/settings/ExternalMcpSharedChoice": {
+    "types": "./dist/screens/settings/ExternalMcpSharedChoice.d.ts",
+    "symbols": {
+      "ExternalMcpSharedChoice": "function:9d793255b2"
+    }
+  },
+  "./screens/settings/ExternalMcpSharedChoice.hooks": {
+    "types": "./dist/screens/settings/ExternalMcpSharedChoice.hooks.d.ts",
+    "symbols": {
+      "ExternalMcpSharedChoiceController": "interface:1e7a59e3b6",
+      "ExternalMcpSharedChoicePort": "interface:2c0d3e5395",
+      "SharedView": "interface:519d40483e",
+      "UseExternalMcpSharedChoice": "type:7603cdaf3e",
+      "useExternalMcpSharedChoice": "function:ad0feea7b5"
+    }
+  },
+  "./screens/settings/ExternalMcpToolsModal.hooks": {
+    "types": "./dist/screens/settings/ExternalMcpToolsModal.hooks.d.ts",
+    "symbols": {
+      "ExternalMcpToolsModalController": "interface:57b44fcc3d",
+      "useExternalMcpToolsModalEscape": "function:4b2a3fed13"
+    }
+  },
+  "./screens/settings/hooks/use-external-mcp-oauth-connect.hooks": {
+    "types": "./dist/screens/settings/hooks/use-external-mcp-oauth-connect.hooks.d.ts",
+    "symbols": {
+      "ExternalMcpOAuthConnectPort": "interface:3d5eb24686",
+      "ExternalMcpOAuthConnectState": "type:d3e80ba23d",
+      "ExternalMcpOAuthConnectWindow": "interface:c1beb2ce4f",
+      "useExternalMcpOAuthConnect": "function:da93ba33d5"
+    }
+  },
+  "./screens/settings/hooks/use-external-mcp-remove-confirm.hooks": {
+    "types": "./dist/screens/settings/hooks/use-external-mcp-remove-confirm.hooks.d.ts",
+    "symbols": {
+      "ExternalMcpRemoveConfirmController": "interface:97b7399135",
+      "ExternalMcpRemoveConfirmCopyBuilder": "type:1419e4d068",
+      "useExternalMcpRemoveConfirm": "function:c8d1654767"
+    }
+  },
+  "./screens/settings/hooks/use-settings-active-tab-scroll.hooks": {
+    "types": "./dist/screens/settings/hooks/use-settings-active-tab-scroll.hooks.d.ts",
+    "symbols": {
+      "useSettingsActiveTabScroll": "function:e8dddbc327"
+    }
+  },
+  "./screens/settings/hooks/use-settings-locale-sync.hooks": {
+    "types": "./dist/screens/settings/hooks/use-settings-locale-sync.hooks.d.ts",
+    "symbols": {
+      "SettingsLocaleSyncDependencies": "interface:85744fc5c6",
+      "SettingsLocaleSyncHookProps": "interface:cc572048e0",
+      "useSettingsLocaleSync": "function:ba06c59fc0"
+    }
+  },
+  "./screens/settings/settings-execution-i18n": {
+    "types": "./dist/screens/settings/settings-execution-i18n.d.ts",
+    "symbols": {
+      "aiAgentPanelDictionaries": "function:57e1d5d759",
+      "t": "variable:44d298bf90"
+    }
+  },
+  "./screens/settings/settings-i18n": {
+    "types": "./dist/screens/settings/settings-i18n.d.ts",
+    "symbols": {
+      "t": "variable:44d298bf90"
+    }
+  },
+  "./screens/settings/settings-interface-i18n": {
+    "types": "./dist/screens/settings/settings-interface-i18n.d.ts",
+    "symbols": {
+      "t": "variable:44d298bf90"
+    }
+  },
+  "./screens/settings/settings-memory-i18n": {
+    "types": "./dist/screens/settings/settings-memory-i18n.d.ts",
+    "symbols": {
+      "memoryPanelDictionaries": "function:f8fa130a51",
+      "t": "variable:44d298bf90"
+    }
+  },
+  "./screens/settings/SettingsUi.hooks": {
+    "types": "./dist/screens/settings/SettingsUi.hooks.d.ts",
+    "symbols": {
+      "SettingsLocaleTranslate": "type:8c977860bd",
+      "SettingsUiTranslatorSources": "interface:be9c4b8138",
+      "createSettingsTabChange": "function:792ff9cf14",
+      "createSettingsUiTranslators": "function:3cfe9f938c"
+    }
+  },
+  "./screens/settings/user-interface-settings.css": {
+    "types": null,
+    "symbols": {}
+  },
+  "./screens/settings/UserInterfaceSettingsPanel": {
+    "types": "./dist/screens/settings/UserInterfaceSettingsPanel.d.ts",
+    "symbols": {
+      "UseUserInterfaceSettingsTab": "type:c2cd1e0997",
+      "UserInterfaceSettingsPanel": "function:1d73010620",
+      "UserInterfaceSettingsPanelProps": "interface:564ff2054d",
+      "UserInterfaceSettingsPanelTab": "interface:c45f235150"
+    }
+  },
+  "./screens/settings/UserInterfaceSettingsPanel.hooks": {
+    "types": "./dist/screens/settings/UserInterfaceSettingsPanel.hooks.d.ts",
+    "symbols": {
+      "createUserInterfaceSettingsPanelTranslator": "function:581b2dfb25"
+    }
   }
 }

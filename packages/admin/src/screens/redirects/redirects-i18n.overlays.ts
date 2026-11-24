@@ -1,0 +1,51 @@
+/** Per-locale overlays folded into the redirects dictionary (match-type labels, the wildcard-capacity notice). Split from `redirects-i18n.tsx` (file-size limit). */
+
+export const MATCH_TYPE_TRANSLATIONS: Record<string, Record<string, string>> = {
+  ar: { exact: "مطابق تمامًا", prefix: "بادئة", wildcard: "حرف بدل" },
+  bn: { exact: "হুবহু", prefix: "উপসর্গ", wildcard: "ওয়াইল্ডকার্ড" },
+  de: { exact: "genau", prefix: "Präfix", wildcard: "Platzhalter" },
+  es: { exact: "exacta", prefix: "prefijo", wildcard: "comodín" },
+  fa: { exact: "دقیق", prefix: "پیشوند", wildcard: "عام" },
+  fr: { exact: "exacte", prefix: "préfixe", wildcard: "caractère générique" },
+  hi: { exact: "सटीक", prefix: "उपसर्ग", wildcard: "वाइल्डकार्ड" },
+  hu: { exact: "pontos", prefix: "előtag", wildcard: "helyettesítő karakter" },
+  id: { exact: "tepat", prefix: "awalan", wildcard: "karakter pengganti" },
+  it: { exact: "esatta", prefix: "prefisso", wildcard: "carattere jolly" },
+  ja: { exact: "完全一致", prefix: "前方一致", wildcard: "ワイルドカード" },
+  ko: { exact: "정확히 일치", prefix: "접두사", wildcard: "와일드카드" },
+  pl: { exact: "dokładne", prefix: "prefiks", wildcard: "symbol wieloznaczny" },
+  "pt-BR": { exact: "exata", prefix: "prefixo", wildcard: "curinga" },
+  ru: { exact: "точное", prefix: "префикс", wildcard: "подстановочный знак" },
+  th: { exact: "ตรงกันทุกประการ", prefix: "คำนำหน้า", wildcard: "ไวลด์การ์ด" },
+  tr: { exact: "tam", prefix: "önek", wildcard: "joker karakter" },
+  uk: { exact: "точний", prefix: "префікс", wildcard: "символ узагальнення" },
+  ur: { exact: "عین مطابق", prefix: "سابقہ", wildcard: "وائلڈ کارڈ" },
+  "zh-CN": { exact: "精确", prefix: "前缀", wildcard: "通配符" },
+  "zh-TW": { exact: "精確", prefix: "前綴", wildcard: "萬用字元" },
+};
+
+// Jini merge-10 (jx-redirects2 R2): the admin notice shown once a site reaches @jini-ai/cms's
+// DYNAMIC_SET_LIMIT active wildcard redirects.
+export const WILDCARD_CAP_NOTICE_TRANSLATIONS: Record<string, Record<string, string>> = {
+  es: { "Only the first 500 active wildcard redirects are used. Turn off or merge some.": "Solo se usan las primeras 500 redirecciones comodín activas. Desactiva o combina algunas." },
+  id: { "Only the first 500 active wildcard redirects are used. Turn off or merge some.": "Hanya 500 pengalihan karakter pengganti aktif pertama yang digunakan. Nonaktifkan atau gabungkan beberapa." },
+  de: { "Only the first 500 active wildcard redirects are used. Turn off or merge some.": "Nur die ersten 500 aktiven Platzhalter-Weiterleitungen werden verwendet. Deaktivieren oder kombinieren Sie einige." },
+  "zh-CN": { "Only the first 500 active wildcard redirects are used. Turn off or merge some.": "仅使用前 500 条启用的通配符重定向。请停用或合并部分重定向。" },
+  "zh-TW": { "Only the first 500 active wildcard redirects are used. Turn off or merge some.": "僅使用前 500 條啟用的萬用字元重新導向。請停用或合併部分重新導向。" },
+  "pt-BR": { "Only the first 500 active wildcard redirects are used. Turn off or merge some.": "Apenas os primeiros 500 redirecionamentos curinga ativos são usados. Desative ou combine alguns." },
+  ru: { "Only the first 500 active wildcard redirects are used. Turn off or merge some.": "Используются только первые 500 активных перенаправлений с подстановочным знаком. Отключите или объедините некоторые." },
+  fa: { "Only the first 500 active wildcard redirects are used. Turn off or merge some.": "فقط 500 تغییر مسیر عام فعال اول استفاده می‌شوند. برخی را غیرفعال یا ادغام کنید." },
+  ar: { "Only the first 500 active wildcard redirects are used. Turn off or merge some.": "تُستخدم أول 500 عملية إعادة توجيه نشطة بحرف بدل فقط. عطّل بعضها أو ادمجها." },
+  ja: { "Only the first 500 active wildcard redirects are used. Turn off or merge some.": "使用されるのは有効なワイルドカードリダイレクトの最初の 500 件のみです。一部を無効にするか統合してください。" },
+  ko: { "Only the first 500 active wildcard redirects are used. Turn off or merge some.": "활성 와일드카드 리디렉션은 처음 500개만 사용됩니다. 일부를 끄거나 병합하세요." },
+  pl: { "Only the first 500 active wildcard redirects are used. Turn off or merge some.": "Używanych jest tylko pierwszych 500 aktywnych przekierowań z symbolem wieloznacznym. Wyłącz lub scal niektóre." },
+  hu: { "Only the first 500 active wildcard redirects are used. Turn off or merge some.": "Csak az első 500 aktív helyettesítő karakteres átirányítás érvényes. Kapcsoljon ki vagy vonjon össze néhányat." },
+  fr: { "Only the first 500 active wildcard redirects are used. Turn off or merge some.": "Seules les 500 premières redirections génériques actives sont utilisées. Désactivez-en ou fusionnez-en certaines." },
+  uk: { "Only the first 500 active wildcard redirects are used. Turn off or merge some.": "Використовуються лише перші 500 активних переспрямувань із символом узагальнення. Вимкніть або об'єднайте деякі." },
+  tr: { "Only the first 500 active wildcard redirects are used. Turn off or merge some.": "Yalnızca ilk 500 etkin joker karakterli yönlendirme kullanılır. Bazılarını kapatın veya birleştirin." },
+  th: { "Only the first 500 active wildcard redirects are used. Turn off or merge some.": "ใช้เฉพาะการเปลี่ยนเส้นทางแบบไวลด์การ์ดที่เปิดใช้งาน 500 รายการแรกเท่านั้น ปิดหรือรวมบางรายการ" },
+  it: { "Only the first 500 active wildcard redirects are used. Turn off or merge some.": "Vengono usati solo i primi 500 reindirizzamenti con carattere jolly attivi. Disattivane o uniscine alcuni." },
+  hi: { "Only the first 500 active wildcard redirects are used. Turn off or merge some.": "केवल पहले 500 सक्रिय वाइल्डकार्ड रीडायरेक्ट उपयोग किए जाते हैं। कुछ को बंद करें या मर्ज करें।" },
+  ur: { "Only the first 500 active wildcard redirects are used. Turn off or merge some.": "صرف پہلے 500 فعال وائلڈ کارڈ ری ڈائریکٹس استعمال ہوتے ہیں۔ کچھ کو بند کریں یا ضم کریں۔" },
+  bn: { "Only the first 500 active wildcard redirects are used. Turn off or merge some.": "শুধু প্রথম 500টি সক্রিয় ওয়াইল্ডকার্ড রিডাইরেক্ট ব্যবহার করা হয়। কিছু বন্ধ করুন বা একত্র করুন।" },
+};

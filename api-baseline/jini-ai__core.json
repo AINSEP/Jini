@@ -2655,7 +2655,9 @@
       "tombstoneDefinition": "function:68e1a9a259",
       "translateSettingsDialog": "function:287258fbdf",
       "validateDefinitionInput": "function:60d1d6a70a",
-      "validateValueAgainstSchema": "function:3a9138d461"
+      "validateValueAgainstSchema": "function:3a9138d461",
+      "EnsureSettingDefinitionsPort": "interface:755a0b343a",
+      "GetEffectivePort": "interface:506756876b"
     }
   },
   "./text": {
