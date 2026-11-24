@@ -17,7 +17,8 @@
       "./supervisor": "universal",
       "./supervisor/node": "node",
       "./daemon-origin": "node",
-      "./daemon-park-recovery": "universal"
+      "./daemon-park-recovery": "universal",
+      "./daemon-connection": "universal"
     },
     "runtime": "node"
   },
@@ -55,6 +56,11 @@
       "types": "./dist/daemon-park-recovery.d.ts",
       "import": "./dist/daemon-park-recovery.js",
       "default": "./dist/daemon-park-recovery.js"
+    },
+    "./daemon-connection": {
+      "types": "./dist/daemon-connection.d.ts",
+      "import": "./dist/daemon-connection.js",
+      "default": "./dist/daemon-connection.js"
     }
   },
   "files": [

@@ -4,7 +4,8 @@
  * (`{id, component, ...props}`, children referenced by id, exactly one `root`) learned from its own
  * component search/describe tools. The host owns the tool id, permission and model-facing notes.
  */
-import type { SurfaceEmitter, SurfaceExchange, SurfaceExchangeStore, SurfaceMessage } from '@jini-ai/core';
+import { buildDomainRegistrations, indexCatalogById } from '@jini-ai/core';
+import type { AgentToolDefinition, DerivedRiskByToolId, SurfaceEmitter, SurfaceExchange, SurfaceExchangeStore, SurfaceMessage, ToolExecutionContext, ToolHandler, ToolMetadataById, ToolRegistration } from '@jini-ai/core';
 import type { createLabCatalog, parseAgentToRendererMessage, ActionMessagePayload, AgentToRendererMessage } from '@jini-ai/protocol/a2ui';
 
 /**
@@ -98,6 +99,84 @@ export async function renderA2uiSurface(
   } finally {
     exchange.close({});
   }
+}
+
+/** The model-facing notes a host words for the one-shot render tool's non-schema outcomes. */
+export interface RenderUiToolCopy {
+  /** Returned when the execution has no live surface channel to draw on. */
+  readonly noSurfaceChannelNote: string;
+  /** Returned after a successful draw: tells the model what the human now sees and where. */
+  readonly renderedNote: string;
+  /** Returned when the renderer refused the surface: tells the model not to claim it rendered. */
+  readonly rejectedNote: string;
+}
+
+/** The host's registration policy for the one-shot render tool (what `buildDomainRegistrations` needs). */
+export interface RenderUiToolRegistrationPolicy {
+  readonly domain: string;
+  /** Names the host catalog module in drift errors. */
+  readonly catalogModule: string;
+  readonly metadata: ToolMetadataById;
+  readonly derivedRisk: DerivedRiskByToolId;
+}
+
+/** Runs one render for an execution: the handler's body, split out so registration stays a binding. */
+async function runRenderUiTool(
+  { ctx, emitSurface, args, rejectionGraceMs }: {
+    ctx: ToolExecutionContext; emitSurface: SurfaceEmitter | undefined; rejectionGraceMs: number | undefined;
+    args: Pick<CreateRenderUiToolRegistrationsArgs, 'exchanges' | 'tool' | 'copy' | 'parseAgentMessage' | 'catalog' | 'displayOnlyProperty'>;
+  },
+  _optional = {},
+): Promise<unknown> {
+  const { exchanges, tool, copy, parseAgentMessage, catalog, displayOnlyProperty } = args;
+  if (!emitSurface) {
+    return { rendered: false, reason: 'no-surface-channel', note: copy.noSurfaceChannelNote };
+  }
+  const components = (ctx.input as { components?: unknown[] }).components ?? [];
+  const outcome = await renderA2uiSurface(
+    { exchanges, emitSurface, toolId: tool.name, principalId: ctx.principal.id, components, parseAgentMessage, catalog, displayOnlyProperty },
+    rejectionGraceMs == null ? {} : { rejectionGraceMs },
+  );
+  if (outcome.rendered) return { rendered: true, note: copy.renderedNote };
+  if (outcome.reason === 'schema-rejected') return { rendered: false, reason: 'schema-rejected', detail: outcome.detail };
+  return { rendered: false, reason: 'rejected-by-renderer', detail: outcome.detail, note: copy.rejectedNote };
+}
+
+/** Arguments for {@link createRenderUiToolRegistrations}; every collaborator is host-supplied. */
+export interface CreateRenderUiToolRegistrationsArgs {
+  /** The host-owned catalog entry (name, description, permission, input schema `{components: [...]}`). */
+  readonly tool: AgentToolDefinition;
+  readonly exchanges: SurfaceExchangeStore;
+  readonly parseAgentMessage: ParseAgentToRendererMessage;
+  readonly catalog: A2uiSurfaceCatalog;
+  readonly displayOnlyProperty: string;
+  readonly copy: RenderUiToolCopy;
+  readonly registration: RenderUiToolRegistrationPolicy;
+}
+
+/**
+ * Registers the generic "draw whatever the model sends" tool: a one-shot, write-nothing A2UI render
+ * whose success is "no renderer refusal within the grace period" (see {@link renderA2uiSurface}). The
+ * host owns the tool definition, the model-facing notes and the registration policy; this owns the
+ * behaviour — no-channel answer, `components` extraction, and outcome-to-result mapping.
+ * @param _optional.rejectionGraceMs - Test seam shrinking the refusal grace period; production omits it.
+ * @complexity O(components) per call.
+ */
+export function createRenderUiToolRegistrations(
+  args: CreateRenderUiToolRegistrationsArgs,
+  { rejectionGraceMs }: { rejectionGraceMs?: number } = {},
+): ToolRegistration[] {
+  const handlers: Record<string, ToolHandler> = {
+    [args.tool.name]: (ctx, { emitSurface } = {}) => runRenderUiTool({ ctx, emitSurface, args, rejectionGraceMs }),
+  };
+  return buildDomainRegistrations({
+    metadata: args.registration.metadata,
+    domain: args.registration.domain,
+    catalogModule: args.registration.catalogModule,
+    catalog: indexCatalogById({ catalog: [args.tool] }),
+    handlers,
+    derivedRisk: args.registration.derivedRisk,
+  });
 }
 
 /**

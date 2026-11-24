@@ -146,3 +146,9 @@ names) and a `report` port; Jini owns no env name and no log wording. `report` r
 `@jini-ai/sidecar/daemon-park-recovery` replays a request at most once, and only after an explicit
 503 park refusal. The host injects its wire `headers` (`parked`/`pid` names), `ensureReady` (its
 supervisor's readiness wait), `onParked` (its parking note) and `send`; Jini owns no header name.
+
+`@jini-ai/sidecar/daemon-connection` holds the current and previous delegated daemon endpoint, each
+as one `{ url, token }` record so a probe of an old run keeps the credential that belongs to its
+endpoint. `createDaemonConnectionRegistry<Connection>()` returns an instance (no module state); the
+host builds the one production instance in its composition, owns the inherited-IPC registration that
+calls `set`, and layers any fallback credential lookup on top of `current()`.

@@ -1,7 +1,7 @@
 import { describe, expect, test } from 'vitest';
 import type { SurfaceEmission, SurfaceExchangeStore } from '@jini-ai/core';
 import { A2UI_DISPLAY_ONLY_PROPERTY, createLabCatalog, parseAgentToRendererMessage } from '@jini-ai/protocol/a2ui';
-import { renderA2uiSurface } from '../render-surface.js';
+import { createRenderUiToolRegistrations, renderA2uiSurface } from '../render-surface.js';
 
 // The host supplies the protocol collaborators; the helpers never import them.
 const protocol = { parseAgentMessage: parseAgentToRendererMessage };
@@ -109,5 +109,31 @@ describe('withA2uiExchange', () => {
     await withA2uiExchange({ exchanges: second.exchanges, emitSurface: async () => undefined, toolId: 't', principalId: 'p', signal: controller.signal, ...protocol,
       run: async () => { controller.abort(); return second.closed(); } }).then((closedDuringRun) => expect(closedDuringRun).toBe(1));
     expect(second.closed()).toBe(2);
+  });
+});
+
+describe('createRenderUiToolRegistrations', () => {
+  const tool = {
+    name: 'draw', description: 'draws', sideEffects: 'none' as const, authorization: { permission: 'p' },
+    inputSchema: { type: 'object', additionalProperties: false, required: ['components'], properties: { components: { type: 'array' } } },
+  };
+  const copy = { noSurfaceChannelNote: 'no channel', renderedNote: 'drawn', rejectedNote: 'refused' };
+  function handlerFor(answer?: unknown) {
+    const { exchanges } = exchangesWith(answer);
+    const [registration] = createRenderUiToolRegistrations(
+      { tool, exchanges, copy, ...renderProtocol, registration: { domain: 'draw', catalogModule: 'host/draw.ts', metadata: {}, derivedRisk: new Map([['draw', 'none']]) } },
+      { rejectionGraceMs: 5 },
+    );
+    return (input: unknown, emitSurface?: () => Promise<void>) =>
+      registration!.handler({ principal: { id: 'p' }, input } as never, emitSurface ? { emitSurface } : {});
+  }
+
+  test('answers with the host copy for each outcome and never draws without a channel', async () => {
+    await expect(handlerFor()({ components: tree })).resolves.toEqual({ rendered: false, reason: 'no-surface-channel', note: 'no channel' });
+    await expect(handlerFor()({ components: tree }, async () => undefined)).resolves.toEqual({ rendered: true, note: 'drawn' });
+    await expect(handlerFor()({}, async () => undefined)).resolves.toMatchObject({ rendered: false, reason: 'schema-rejected' });
+    const refused = { status: 'received', params: { message: { error: { message: 'bad prop' } } } };
+    await expect(handlerFor(refused)({ components: tree }, async () => undefined))
+      .resolves.toEqual({ rendered: false, reason: 'rejected-by-renderer', detail: 'bad prop', note: 'refused' });
   });
 });

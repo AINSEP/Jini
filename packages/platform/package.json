@@ -35,6 +35,7 @@
       "./object-store": "node",
       "./net": "node",
       "./fs/file-lock": "node",
+      "./image/png-encode": "node",
       "./secrets/credential-token": "universal",
       "./secrets/legacy-owner": "node",
       "./secrets/legacy-codecs": "node",
@@ -188,6 +189,11 @@
       "types": "./dist/fs/file-lock.d.ts",
       "import": "./dist/fs/file-lock.js",
       "default": "./dist/fs/file-lock.js"
+    },
+    "./image/png-encode": {
+      "types": "./dist/image/png-encode.d.ts",
+      "import": "./dist/image/png-encode.js",
+      "default": "./dist/image/png-encode.js"
     },
     "./secrets/credential-token": {
       "types": "./dist/secrets/credential-token.d.ts",

@@ -299,3 +299,7 @@ have been removed.
   target path (lexical, existing symlink, dangling symlink); `moveDirectoryUnderLeases({ from, to, ports })`
   runs the creation-lock, source/target claim, relocate, release-both sequence. The host supplies the idleness
   check, claims/release, destination preparation, the verified relocation and the refusal copy as `ports`.
+
+- `@jini-ai/platform/image/png-encode` (node): `renderSolidColorPng({ width, height, color })` returns a real,
+  decodable 8-bit truecolor PNG `Buffer` of one solid color (dependency-free, `node:zlib` only). Hosts use it for
+  deterministic typed-image fixtures; it validates dimensions and channels and throws with the exact field named.
