@@ -2,8 +2,6 @@ import type { KeyboardEvent } from "react";
 import { Icon, type TabBarTab } from "../../react/kit.js";
 import type { LibraryController } from "./hooks/use-library.hooks.js";
 
-import { navigate } from "@jini-ai/admin/shell/lib/router";
-
 import { resolveActiveTabId } from '@jini-ai/core/text';
 /**
  * @file The Library screen's two `?tab=` tabs (Upload, Documents) on the shared
@@ -39,7 +37,11 @@ export function resolveLibraryTabs({ t }: { t: (key: string) => string }, { docu
   ];
 }
 
-export function goToLibraryTab({ tabId }: { tabId: string }, _optional = {}) {
+/** `navigate` is the host router's replace-navigation, injected so this screen stays router-agnostic. */
+export function goToLibraryTab(
+  { tabId, navigate }: { tabId: string; navigate: (required: { routePath: string }, optional: { replace: boolean }) => void },
+  _optional = {}
+) {
   navigate({ routePath: `/library?tab=${tabId}` }, { replace: true });
 }
 

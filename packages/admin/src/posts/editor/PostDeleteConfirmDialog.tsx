@@ -1,5 +1,5 @@
 import type { AdminPost } from "../api/posts-api.types.js";
-import { ConfirmDialog } from "@jini-ai/admin/react";
+import { ConfirmDialog } from "../../react/components/ConfirmDialog/ConfirmDialog.js";
 import { agentHandle } from "@jini-ai/core/agent-handles";
 import { type Translate } from "@jini-ai/core/text";
 

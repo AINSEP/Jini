@@ -12,6 +12,7 @@ before-save hook seam (`post-before-save.ts`). Each is its own `@jini-ai/cms/pos
 - `posts/featured-image`: the host binds `FeaturedImageDeps.findMediaByIdOrSlug` (required) to the media owner's lookup, plus `mediaRepo` and the optional `mediaContentTypeStore`.
 - `posts/expected-version`: `versionConflictEnvelope({ err, outwardErrorMessage })` — the host words the 409 `error` copy.
 - `posts/go-live-sweep`: `startPostGoLiveSweep({ deps, workspaceId, onError })` — the host's required reporter receives a failed pass's error.
+- `posts/post-slugs`: the host passes `reservedSegments` (its reserved first path segments) to `assertValidExplicitSlug`, `resolveCreateSlug` and `availablePostSlug`, and its `postPublicPath` to `captureSlugChange`; `releaseTrashedSlug({ repo, holder })` is pure over the repo.
 
 What the host injects:
 

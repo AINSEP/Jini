@@ -1,7 +1,6 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import type { AdminTaxonomy, AdminTaxonomyWithTerms, AdminTerm } from "../api/taxonomy-api.types.js";
 import { useFetchMutation, useFetchQuery, useInvalidate } from "../../../react/kit.js";
-import { contentRefreshApplies, subscribeToContentRefresh } from "../../../shell/lib/content-refresh-bus.js";
 import {
   describeDeleteBlocked,
   describeTrashError,
@@ -170,7 +169,7 @@ interface TaxonomyDeleteContext {
 }
 
 /** Out-of-band writes invalidate the list — see the comment inside. */
-function useTaxonomyContentRefresh(): void {
+function useTaxonomyContentRefresh({ useContentRefreshSubscription }: Pick<TaxonomyHostKit, "useContentRefreshSubscription">): void {
   // Out-of-band writes — today an assistant run that called `taxonomy_create_taxonomy`, later an
   // SSE frame from another tab. Invalidating rather than calling `list.refetch()` keeps this on the
   // one cache identity `KEYS.list` names, so a second mounted reader of the same key (the term
@@ -181,11 +180,8 @@ function useTaxonomyContentRefresh(): void {
   // `isFetching: true`, never `loading`, so `taxonomies` never returns to `null` and the table does
   // not blank on every agent write.
   const invalidate = useInvalidate();
-  useEffect(() => {
-    return subscribeToContentRefresh({ listener: (scope) => {
-      if (contentRefreshApplies({ scope, resource: TAXONOMY_RESOURCE })) invalidate({ key: KEYS.list });
-    } });
-  }, [invalidate]);
+  const invalidateList = useCallback(() => invalidate({ key: KEYS.list }), [invalidate]);
+  useContentRefreshSubscription({ resource: TAXONOMY_RESOURCE, onRefresh: invalidateList });
 }
 
 /** The "Delete term" triangle of {@link TaxonomyController}; `error` feeds `visibleTaxonomyError`. */
@@ -308,7 +304,7 @@ export function useTaxonomy(
   const list = useFetchQuery({ key: KEYS.list, fetch: () => port.listTaxonomies() });
   const taxonomies = list.data?.items ?? null;
   const { copyHtmlEmbed, copyFeedback } = useTaxonomyHtmlEmbed({ taxonomies, t, failures: kit.failures });
-  useTaxonomyContentRefresh();
+  useTaxonomyContentRefresh({ useContentRefreshSubscription: kit.useContentRefreshSubscription });
 
   const [selectedTermId, setSelectedTermId] = useState<string | null>(null);
   const [formOpen, setFormOpen] = useState(false);

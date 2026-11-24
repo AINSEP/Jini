@@ -1,7 +1,14 @@
 /** Site adapter for anonymous form uploads. Media owns blobs, assets, deduplication and renditions. */
-import { sniffContentType, uploadMedia, trashMedia, type UploadMediaDeps } from "../../media/index.js";
-import { purgeMedia } from "../../media/site/purge-media.js";
-import { type MediaContentTypeStorePort } from "../../media/site/content-type-store.js";
+import type { sniffContentType as SniffContentType, uploadMedia as UploadMedia, trashMedia as TrashMedia, UploadMediaDeps } from "../../media/index.js";
+import type { purgeMedia as PurgeMedia } from "../../media/site/purge-media.js";
+import type { MediaContentTypeStorePort } from "../../media/site/content-type-store.js";
+/** The media domain's operations, bound by the host so the forms domain never reaches media at runtime. */
+export interface FormFileMediaOps {
+  sniffContentType: typeof SniffContentType;
+  uploadMedia: typeof UploadMedia;
+  trashMedia: typeof TrashMedia;
+  purgeMedia: typeof PurgeMedia;
+}
 /** Structural until the updated Jini forms declarations are built; no new runtime package imports. */
 export interface FormFileStorage {
   detectContentType(required: { bytes: Uint8Array }, optional?: Record<string, never>): string;
@@ -12,14 +19,16 @@ export interface FormFileStorage {
  * @returns A byte sniffer and media writer; the forms owner checks filename/MIME/size before store.
  * @complexity Fixed-prefix sniff, O(bytes) media hashing/storage, at most 20 files per submission. */
 export function createFormFileStorage(
-  { media, contentTypes, resolveCreatedByPrincipal }: {
-    media: UploadMediaDeps & Parameters<typeof purgeMedia>[0]["deps"];
+  { media, mediaOps, contentTypes, resolveCreatedByPrincipal }: {
+    media: UploadMediaDeps & Parameters<typeof PurgeMedia>[0]["deps"];
+    mediaOps: FormFileMediaOps;
     contentTypes: MediaContentTypeStorePort;
     /** Anonymous uploads are attributed to the host's real system principal, never visitor input. */
     resolveCreatedByPrincipal: (required: { workspaceId: string }, optional?: Record<string, never>) => Promise<string>;
   },
   _optional = {},
 ): FormFileStorage {
+  const { sniffContentType, uploadMedia, trashMedia, purgeMedia } = mediaOps;
   return {
     detectContentType: ({ bytes }) => Buffer.from(bytes.subarray(0, 5)).toString("latin1") === "%PDF-" ? "application/pdf" : sniffContentType({ bytes }),
     async store({ workspaceId, submissionId, fieldId, file }) {

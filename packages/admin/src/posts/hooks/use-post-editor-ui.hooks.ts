@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 
-import { unchangedSaveHandlers } from "../../shell/lib/unchanged-save-warning.js";
+import type { unchangedSaveHandlers as UnchangedSaveHandlers } from "../../shell/lib/unchanged-save-warning.js";
 
 /**
  * @file The post/page editor's UI-interaction layer — every onClick/onChange handler `PostEditor.tsx`
@@ -34,6 +34,8 @@ export interface PostEditorUiDependencies {
   /** Whether the editor thinks anything changed since the last load/save. */
   dirty: boolean;
   setConfirmingUnchangedSave: (open: boolean) => void;
+  /** The host's shared Save / "Nothing changed. Save anyway?" handler factory (also used by the Pages editor). */
+  unchangedSaveHandlers: typeof UnchangedSaveHandlers;
 }
 
 export interface PostEditorUiController {
@@ -65,7 +67,7 @@ export interface PostEditorUiController {
  * @complexity Time/space: O(1) — six closures, no branching, no iteration.
  */
 export function usePostEditorUi(deps: PostEditorUiDependencies): PostEditorUiController {
-  const { save, setConfirmingDelete, setShowTemplateModal, dirty, setConfirmingUnchangedSave } = deps;
+  const { save, setConfirmingDelete, setShowTemplateModal, dirty, setConfirmingUnchangedSave, unchangedSaveHandlers } = deps;
   return {
     // The publish and save actions keep the same unawaited-Promise shape `PostEditor.tsx`'s
     // inline arrows already had (`save`'s own errors are caught and surfaced via `setError` inside

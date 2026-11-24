@@ -13,6 +13,11 @@ The Library screen's neutral pieces: document rules (`rules`), the `?tab=` tab h
 - `locale` and `t` — the admin locale and the host's Library dictionary lookup.
 - `describeApiError` — the host's error-copy policy for a thrown request failure.
 - `readFileAsBase64` — the host's browser `File` reader (base64, no data: URL prefix).
+- `useContentRefreshSubscription` — the host's content-refresh subscription hook; the documents
+  list is invalidated when an out-of-band write touches the `media` resource.
+
+`goToLibraryTab({ tabId, navigate })` takes the host router's replace-navigation as a required
+`navigate` field, so the tab strip never imports a router.
 
 The host owns the wired variant (`useWiredLibrary`) that binds these, and passes it to the screen
 component as its `useLibraryHook` prop.

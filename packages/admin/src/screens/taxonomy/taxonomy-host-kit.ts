@@ -44,4 +44,6 @@ export interface TaxonomyHostKit extends TaxonomyErrorKit {
   /** The host's taxonomy dictionary translator; the hooks pass the admin locale per call. */
   translate: (required: { locale: string; key: string }) => string;
   failures: TaxonomyFailureReporter;
+  /** The host's content-refresh subscription: calls `onRefresh` when an out-of-band write touches `resource`. */
+  useContentRefreshSubscription: (required: { resource: string; onRefresh: () => void }) => void;
 }

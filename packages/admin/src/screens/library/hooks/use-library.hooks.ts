@@ -2,7 +2,6 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { hasPermission } from "@jini-ai/core/admin-runtime";
 import { useFetchMutation, useFetchQuery, useInvalidate } from "../../../react/kit.js";
 import type { AdminMedia } from "@jini-ai/core/contracts/site/cms-admin-media";
-import { useContentRefreshSubscription } from "@jini-ai/admin/shell/hooks/use-content-refresh-subscription.hooks";
 import {
   LIBRARY_KEYS,
   documentPreviewKind,
@@ -98,6 +97,8 @@ export interface LibraryDependencies {
   readFileAsBase64: (required: { file: File }) => Promise<string>;
   /** Host Markdown renderer: safe HTML with raw HTML off, shown only inside a scriptless sandboxed frame. */
   renderMarkdownToSafeHtml: (markdown: string) => string;
+  /** Host content-refresh subscription: calls `onRefresh` when an out-of-band write touches `resource`. */
+  useContentRefreshSubscription: (required: { resource: string; onRefresh: () => void }) => void;
 }
 
 const NO_USERS: ReadonlyMap<string, string> = new Map();
@@ -214,7 +215,7 @@ function useLibraryPreview({ port, t, describeApiError, renderMarkdownToSafeHtml
 }
 
 /** The document list, the caller's permissions and the principal-id → username map, kept fresh by content refreshes. */
-function useLibraryData({ port }: { port: LibraryDependencies["port"] }) {
+function useLibraryData({ port, useContentRefreshSubscription }: Pick<LibraryDependencies, "port" | "useContentRefreshSubscription">) {
   const list = useFetchQuery({ key: LIBRARY_KEYS.documents, fetch: () => port.listDocuments() });
   const me = useFetchQuery({ key: LIBRARY_KEYS.permissions, fetch: () => port.me() });
   const users = useFetchQuery({
@@ -314,8 +315,8 @@ function useLibraryRowActions({ port, t, describeApiError, preview, closePreview
   return { rename, trash, trashingId, rowError, notice, dismissNotice: () => setNotice(null) };
 }
 
-export function useLibrary({ port, locale, t, describeApiError, readFileAsBase64, renderMarkdownToSafeHtml }: LibraryDependencies): LibraryController {
-  const { list, permissions, userNames } = useLibraryData({ port });
+export function useLibrary({ port, locale, t, describeApiError, readFileAsBase64, renderMarkdownToSafeHtml, useContentRefreshSubscription }: LibraryDependencies): LibraryController {
+  const { list, permissions, userNames } = useLibraryData({ port, useContentRefreshSubscription });
   const { uploads, addFiles, clearUploads, uploadedCount } = useLibraryUploads({ port: port, t: t, describeApiError, readFileAsBase64 });
   const { preview, openPreview, closePreview } = useLibraryPreview({ port: port, t: t, describeApiError, renderMarkdownToSafeHtml });
   const rowActions = useLibraryRowActions({ port, t, describeApiError, preview, closePreview });

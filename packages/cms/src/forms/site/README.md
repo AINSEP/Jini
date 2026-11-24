@@ -17,6 +17,8 @@ Small site-side forms modules a host composes into its public submit path and ad
   and injects it into its forms route deps. This package only pins the profile constant.
 - The host's consent layer builds a `FormAnalyticsProvenance` and passes it into the submit path; this
   package only defines the shape (the proof type is `@jini-ai/core/contracts/site/cookie-consent`).
-- `createFormFileStorage({ media, contentTypes, resolveCreatedByPrincipal })`: the host injects its media
-  deps (repos, blob store, clock, id generator), its content-type store, and the resolver that names the
-  system principal anonymous uploads are attributed to.
+- `createFormFileStorage({ media, mediaOps, contentTypes, resolveCreatedByPrincipal })`: the host injects its media
+  deps (repos, blob store, clock, id generator), the media domain's operations (`mediaOps`:
+  `sniffContentType`, `uploadMedia`, `trashMedia`, `purgeMedia` from `@jini-ai/cms/media` and
+  `@jini-ai/cms/media/site/purge-media`, so the forms domain never imports media at runtime), its
+  content-type store, and the resolver that names the system principal anonymous uploads are attributed to.

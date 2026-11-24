@@ -16,3 +16,13 @@
 - `rules.ts` — pure collections rules. Every rule that reads host knowledge takes `kit`;
   `bindCollectionsRules({ kit })` returns those rules with the kit bound, which the host builds once
   at its composition root so its call sites keep their kit-free shape.
+- `hooks/use-collection-entry-editor.hooks.ts` — `useCollectionEntryEditor({ props, port, navigate,
+  locale, t, kit, entryLifecycleFailureMessage, versionConflictMessage, slugRedirectPath,
+  useBodyEditor }, _optional = {})`. This package carries no rich-text editor: the host injects
+  `useBodyEditor({ ariaLabel })` returning its own editor (anything with `getJSON()` and
+  `commands.setContent()`; the controller is generic over that editor type), plus its entry
+  lifecycle-failure copy, its untranslated version-conflict copy key and the shell's slug-redirect rule.
+- `LifecycleConfirmDialog.tsx` — the Deprecate/Tombstone confirm. The host passes
+  `useLifecycleConfirmDialogHook` (its binding of `useLifecycleConfirmDialog` to locale + kit) as a
+  required prop, imports its native-dialog stylesheet at the screen mount, and styles the
+  `jini-collections-dialog` shell (buttons use the shared `jini-btn-*` / `jini-editor-actions` rules).

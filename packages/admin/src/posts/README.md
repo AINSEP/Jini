@@ -27,7 +27,8 @@ host's rich-text editor stay in the host for now. See
 - Every visible label goes through the injected `t: Translate` (type from `@jini-ai/core/text`).
 - `PostDeleteConfirmDialog` takes `kindLabel`, `post` (`id`, `title`), `open`, `pending`,
   `onConfirm`, `onCancel` and `t`; it renders the package's own `ConfirmDialog`.
-- `usePostEditorUi` takes the host editor's `save`, the dialog setters and `dirty`;
+- `usePostEditorUi` takes the host editor's `save`, the dialog setters, `dirty` and the host's
+  `unchangedSaveHandlers` factory (the Save / "Nothing changed" flow shared with the Pages editor);
   `useToolbarOverflow` and `usePostSettingsDialog` take nothing. The host binds them at its editor
   call site and passes the results down as props. `useToolbarOverflow` measures the toggle through
   its `data-toolbar-more` attribute, so it must be paired with `ToolbarOverflowMenu`.

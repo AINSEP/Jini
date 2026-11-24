@@ -17,8 +17,9 @@ The host injects everything this folder needs; nothing here reaches a host modul
 - `taxonomy-host-kit.ts` — the `TaxonomyHostKit` every taxonomy hook takes: `translate` (the host's
   taxonomy dictionary translator), `isApiError` + `describeApiError` (the host request's error class
   and base-case copy — `rules.ts`'s `describeDeleteBlocked`/`describeTrashError`/`visibleTaxonomyError`
-  take them as a required `errors` field) and `failures` (the host's admin failure channel, read by
-  `use-taxonomy-html-embed.hooks.ts`).
+  take them as a required `errors` field), `failures` (the host's admin failure channel, read by
+  `use-taxonomy-html-embed.hooks.ts`) and `useContentRefreshSubscription` (the host's content-refresh
+  subscription hook; `use-taxonomy` invalidates the list on an out-of-band write to `taxonomy`).
 - `hooks/taxonomy-dependencies.hooks.ts` — `createTaxonomyPort({ api, trash })`, where `trash` is the
   host's generic single-item Trash client; `createFakeTaxonomyPort({ blockedError }, options)` takes
   the host's real request-error factory so blocked-delete seeds narrow like production errors.

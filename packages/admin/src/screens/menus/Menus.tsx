@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
-import { ConfirmDialog, DataTable } from "../../react/index.js";
+import { ConfirmDialog } from "../../react/components/ConfirmDialog/ConfirmDialog.js";
+import { DataTable } from "../../react/components/DataTable.js";
 import type { MenusController } from "./hooks/use-menus.hooks.js";
 
 /**

@@ -4,6 +4,7 @@ import { ToolbarOverflowMenu } from "../editor/toolbar/ToolbarOverflowMenu.js";
 import { useState } from "react";
 import { afterEach, expect, it, vi } from "vitest";
 import { primaryControlsThatFit, usePostEditorUi, usePostPreviewIframeEscape, usePostSettingsDialog, useToolbarOverflow } from "../hooks/use-post-editor-ui.hooks.js";
+import { unchangedSaveHandlers } from "../../shell/lib/unchanged-save-warning.js";
 
 afterEach(() => { vi.restoreAllMocks(); document.querySelectorAll("iframe").forEach((node) => node.remove()); });
 
@@ -16,7 +17,7 @@ it("saves with the requested status and opens and closes each dialog independent
     const [deleting, setConfirmingDelete] = useState(false);
     const [template, setShowTemplateModal] = useState(false);
     const [, setConfirmingUnchangedSave] = useState(false);
-    return { deleting, template, ...usePostEditorUi({ save, setConfirmingDelete, setShowTemplateModal, dirty: true, setConfirmingUnchangedSave }) };
+    return { deleting, template, ...usePostEditorUi({ save, setConfirmingDelete, setShowTemplateModal, dirty: true, setConfirmingUnchangedSave, unchangedSaveHandlers }) };
   });
   await act(async () => { await result.current.onPublish(); });
   await act(async () => { await result.current.onSave(); });
@@ -38,7 +39,7 @@ it("with nothing changed, Save opens the warning; Save anyway saves once; Cancel
     const [, setConfirmingDelete] = useState(false);
     const [, setShowTemplateModal] = useState(false);
     const [warning, setConfirmingUnchangedSave] = useState(false);
-    return { warning, ...usePostEditorUi({ save, setConfirmingDelete, setShowTemplateModal, dirty: false, setConfirmingUnchangedSave }) };
+    return { warning, ...usePostEditorUi({ save, setConfirmingDelete, setShowTemplateModal, dirty: false, setConfirmingUnchangedSave, unchangedSaveHandlers }) };
   });
   act(() => { void result.current.onSave(); });
   expect(result.current.warning).toBe(true);

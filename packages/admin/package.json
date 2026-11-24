@@ -164,10 +164,12 @@
       "./screens/collections/hooks/collection-entries-dependencies.hooks": "universal",
       "./screens/collections/hooks/collection-entry-editor-dependencies.hooks": "universal",
       "./screens/collections/hooks/collections-dependencies.hooks": "universal",
-      "./screens/collections/hooks/use-collections.hooks": "universal",
-      "./screens/collections/hooks/use-collection-entries.hooks": "universal",
-      "./screens/collections/hooks/use-edit-fields-dialog.hooks": "universal",
-      "./screens/collections/hooks/use-new-content-type-dialog.hooks": "universal",
+      "./screens/collections/hooks/use-collections.hooks": "browser",
+      "./screens/collections/hooks/use-collection-entries.hooks": "browser",
+      "./screens/collections/hooks/use-collection-entry-editor.hooks": "browser",
+      "./screens/collections/LifecycleConfirmDialog": "browser",
+      "./screens/collections/hooks/use-edit-fields-dialog.hooks": "browser",
+      "./screens/collections/hooks/use-new-content-type-dialog.hooks": "browser",
       "./screens/collections/hooks/use-lifecycle-confirm-dialog.hooks": "universal",
       "./screens/collections/hooks/edit-fields-dialog-dependencies.hooks": "universal",
       "./screens/collections/hooks/new-content-type-dialog-dependencies.hooks": "universal",
@@ -1088,6 +1090,16 @@
       "import": "./dist/screens/collections/hooks/use-collection-entries.hooks.js",
       "default": "./dist/screens/collections/hooks/use-collection-entries.hooks.js"
     },
+    "./screens/collections/hooks/use-collection-entry-editor.hooks": {
+      "types": "./dist/screens/collections/hooks/use-collection-entry-editor.hooks.d.ts",
+      "import": "./dist/screens/collections/hooks/use-collection-entry-editor.hooks.js",
+      "default": "./dist/screens/collections/hooks/use-collection-entry-editor.hooks.js"
+    },
+    "./screens/collections/LifecycleConfirmDialog": {
+      "types": "./dist/screens/collections/LifecycleConfirmDialog.d.ts",
+      "import": "./dist/screens/collections/LifecycleConfirmDialog.js",
+      "default": "./dist/screens/collections/LifecycleConfirmDialog.js"
+    },
     "./screens/collections/hooks/use-edit-fields-dialog.hooks": {
       "types": "./dist/screens/collections/hooks/use-edit-fields-dialog.hooks.d.ts",
       "import": "./dist/screens/collections/hooks/use-edit-fields-dialog.hooks.js",
@@ -1553,6 +1565,12 @@
       ],
       "screens/collections/hooks/use-collection-entries.hooks": [
         "./dist/screens/collections/hooks/use-collection-entries.hooks.d.ts"
+      ],
+      "screens/collections/hooks/use-collection-entry-editor.hooks": [
+        "./dist/screens/collections/hooks/use-collection-entry-editor.hooks.d.ts"
+      ],
+      "screens/collections/LifecycleConfirmDialog": [
+        "./dist/screens/collections/LifecycleConfirmDialog.d.ts"
       ],
       "screens/collections/hooks/use-edit-fields-dialog.hooks": [
         "./dist/screens/collections/hooks/use-edit-fields-dialog.hooks.d.ts"
