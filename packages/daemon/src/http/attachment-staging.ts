@@ -1,6 +1,7 @@
 import { chmod, copyFile, mkdtemp, realpath, rm } from 'node:fs/promises';
 import { basename, resolve } from 'node:path';
-import type { StoredAttachment, AttachmentClaim } from './attachment-types.js';
+import type { StoredAttachment } from './attachment-types.js';
+import type { AttachmentClaim } from '@jini-ai/core/contracts/site/daemon-http';
 
 // Only objects returned by this store's claim() carry aliases. Weak keys keep this staging bridge
 // private without extending the wire/persisted formats or retaining completed claims indefinitely.

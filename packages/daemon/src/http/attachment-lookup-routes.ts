@@ -18,7 +18,7 @@
 import { createApiError } from '@jini-ai/protocol';
 import { jsonResponse, readJsonBody, statusForError } from '@jini-ai/core/contracts/server';
 import { AttachmentRejectedError } from './attachment-types.js';
-import { type AttachmentStore } from './attachment-store-types.js';
+import type { AttachmentStore } from '@jini-ai/core/contracts/site/daemon-http';
 import type { DaemonRouteHost } from './route-host.js';
 import { gated, type DaemonRoute } from './route-table.js';
 

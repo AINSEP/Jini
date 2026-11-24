@@ -12,7 +12,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { requireStrictBearerToken } from '@jini-ai/http-kit';
 import { AttachmentRejectedError } from '../attachment-types.js';
 import { createDiskAttachmentStore } from '../disk-attachment-store.js';
-import { type AttachmentStore } from '../attachment-store-types.js';
+import type { AttachmentStore } from '@jini-ai/core/contracts/site/daemon-http';
 import { createNodeDispatcher } from '@jini-ai/http-kit/node-bridge';
 import { attachmentLookupRoutes } from '../attachment-lookup-routes.js';
 import { fakeDaemonRouteHost } from './fakes/route-host.js';

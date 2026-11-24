@@ -106,7 +106,7 @@ import { createApiError, createApiErrorResponse, type ApiError } from '@jini-ai/
 import { jsonResponse, readJsonBody, readQuery, statusForError } from '@jini-ai/core/contracts/server';
 import type { DaemonRouteHost } from './route-host.js';
 import { AttachmentRejectedError, type AttachmentRejectionReason, type StoredAttachment } from './attachment-types.js';
-import type { AttachmentStore } from './attachment-store-types.js';
+import type { AttachmentStore } from '@jini-ai/core/contracts/site/daemon-http';
 import { detectAttachmentKind } from './attachment-signatures.js';
 import { writeBoundedAttachmentBody } from './attachment-body.js';
 

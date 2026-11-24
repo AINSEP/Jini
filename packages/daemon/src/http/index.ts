@@ -324,9 +324,9 @@ export {
   mediaTaskListRoute,
   mediaRoutes,
 } from './media.js';
-export type { AttachmentClaim, AttachmentRejectionReason, StoredAttachment } from './attachment-types.js';
+export type { AttachmentRejectionReason, StoredAttachment } from './attachment-types.js';
 export type { AttachmentsHttpDeps, AttachmentsInternalErrorContext, AttachmentUploadResponse } from './attachments.js';
-export type { AttachmentStore, CreateDiskAttachmentStoreOptions } from './attachment-store-types.js';
+export type { CreateDiskAttachmentStoreOptions } from './attachment-store-types.js';
 export type { ObservedAttachmentIdentity, PendingAttachmentSummary, RecordedAttachmentIdentity } from './attachment-records.js';
 export { ATTACHMENTS_ROUTE_PATH, handleAttachmentCleanup, handleAttachmentUpload, sanitizeAttachmentName } from './attachments.js';
 export { AttachmentRejectedError } from './attachment-types.js';

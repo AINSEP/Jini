@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import { createDiskAttachmentStore } from '../../disk-attachment-store.js';
-import { type AttachmentStore } from '../../attachment-store-types.js';
+import type { AttachmentStore } from '@jini-ai/core/contracts/site/daemon-http';
 import { HARNESS_BEARER_TOKEN, startRouteHarness, type RouteHarness } from './harness.js';
 import { probe } from './probes.js';
 

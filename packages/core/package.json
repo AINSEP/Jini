@@ -179,7 +179,10 @@
       "./contracts/site/cms-agent-plugins": "universal",
       "./contracts/site/cms-plugins": "universal",
       "./contracts/site/cms-recovery": "universal",
-      "./contracts/site/oauth-callback-page": "universal"
+      "./contracts/site/oauth-callback-page": "universal",
+      "./tool-metadata/post": "universal",
+      "./tool-metadata/image-transform": "universal",
+      "./tool-access-change": "universal"
     },
     "isolation": {
       "entries": {
@@ -1066,6 +1069,21 @@
       "types": "./dist/contracts/site/oauth-callback-page.d.ts",
       "import": "./dist/contracts/site/oauth-callback-page.js",
       "default": "./dist/contracts/site/oauth-callback-page.js"
+    },
+    "./tool-metadata/post": {
+      "types": "./dist/tool-metadata/post.d.ts",
+      "import": "./dist/tool-metadata/post.js",
+      "default": "./dist/tool-metadata/post.js"
+    },
+    "./tool-metadata/image-transform": {
+      "types": "./dist/tool-metadata/image-transform.d.ts",
+      "import": "./dist/tool-metadata/image-transform.js",
+      "default": "./dist/tool-metadata/image-transform.js"
+    },
+    "./tool-access-change": {
+      "types": "./dist/tool-access-change.d.ts",
+      "import": "./dist/tool-access-change.js",
+      "default": "./dist/tool-access-change.js"
     }
   },
   "files": [
