@@ -18,6 +18,8 @@ import type { Translate } from '@jini-ai/core/text';
 import type { MediaProviderCatalogPolicy, MediaProviderOption } from '@jini-ai/core';
 import type { UserFacingError } from '@jini-ai/core';
 import type { AdminMediaProvidersKit } from './kit-media-providers.js';
+import type { ByokConfig, ExecutionConfig } from '@jini-ai/core/contracts/execution';
+import type { KitSaveState } from './kit-ui-types.js';
 
 /* ---------- shared shapes (local; structurally equal to the host kit's) ---------- */
 /** Opaque host metadata; implementations spread it onto the documented focus target. */
@@ -381,7 +383,7 @@ export interface VisibilitySource {
 }
 /* ---------- restated shapes (A-K2-0c) ---------- */
 /** A settings slice's save status (the UI library's panel-kit shape). */
-export type SaveState = { status: 'idle' } | { status: 'saving' } | { status: 'saved' } | { status: 'error'; message: string };
+export type SaveState = KitSaveState;
 /** The settings dialog's theme choice. */
 export type SettingsThemeChoice = 'system' | 'light' | 'dark';
 /** The host's notifications preferences (same shape as {@link KitNotificationsPreferences}). */
@@ -427,8 +429,41 @@ export interface AdminKitValues {
   readonly startVisibleInterval: (required: { tick: () => void; periodMs: number }, optional?: { doc?: VisibilitySource }) => () => void;
 }
 
+/** The host's execution contract lives in core; admin re-exports it by name so screens import one kit. */
+export type { ApiProtocol, ByokConfig, ByokProviderCredentials, ExecutionCardAgent, ExecutionConfig, ExecutionMode, ExecutionPort, LocalCliConfig, ProviderPreset } from '@jini-ai/core/contracts/execution';
+export type { DetectedAgent } from '@jini-ai/core/contracts/site/agent-runtime';
+export type { FetchQueryEnvironmentPort, QueryKey } from '@jini-ai/core/fetch';
+export type { AddSourceInput, AddSourceResult, CreateExecutionPortOptions, CursorPage, CursorPages, ExecutionCredentialController, ExecutionCredentialEffects,
+  ExecutionCredentialPatch, ExecutionCredentialPort, ExecutionCredentialSaveState, ExecutionCredentialView, ExecutionProbeFlags, ExecutionProbeTransport, FolderPathDropPort,
+  HtmlPreviewPort, HtmlPreviewState, MemoryConfigFlagKey, MemoryEntrySummary, MemoryExtractionPhase, MemoryExtractionProvider, MemoryExtractionRecord,
+  MemoryExtractionSkipReason, MemoryType, PrivacyConsentState, SecretInputProps, SettingsRefreshScope, SettingsSlice, SettingsSliceOptions, SettingsSliceRefreshPort,
+  SourceConfigDependencies, SourceConfigItem, SourceConfigPort, SourceConnectionStatus, SourceFieldKind, SourceFieldOption, SourceFieldSpec, SourceFieldValues,
+  SourceTestResult, SourceUpdateInput, TelemetryPreferences, UseExecutionCredentialInput } from './kit-ui-types.js';
+/** The standing-draft autosave's port, controller and options (the UI library's panel-kit shapes). */
+export interface StandingDraftAutosavePort {
+  getBackupPrincipalId?: (required: Record<string, never>, optional?: Record<string, never>) => string | null;
+  putAutosave(required: { id: string; draft: StandingDraftAutosaveInput }, options?: { keepalive?: boolean }): Promise<{ applied: boolean }>;
+  getAutosave(required: { id: string }, optional?: Record<string, never>): Promise<{ autosave: StandingDraftAutosaveSnapshot | null }>;
+  discardAutosave(required: { id: string }, optional?: Record<string, never>): Promise<{ ok: boolean }>;
+}
+export interface StandingDraftStaleBasis { baseVersion: number; draft: StandingDraftAutosaveInput }
+export interface StandingDraftAutosaveController {
+  recoverableDraft: StandingDraftAutosaveSnapshot | null; staleBasis: StandingDraftStaleBasis | null; dismissRecoverable: () => void;
+  scheduleAutosave: (draft: StandingDraftAutosaveInput) => void;
+  clearStandingDraft: (required?: Record<string, never>, optional?: { keepOnFailure?: boolean }) => Promise<{ discarded: boolean }>;
+  supersedeBasis: (baseVersion: number) => void;
+  preserveFailedSave: (required: { error: unknown; draft: StandingDraftAutosaveInput }, optional?: Record<string, never>) => void;
+}
+export interface StandingDraftAutosaveOptions {
+  port: StandingDraftAutosavePort; backup: StandingDraftLocalBackup; entryId: string | null; enabled: boolean; serverUpdatedAt?: string | undefined;
+}
+
 /* ---------- chat (the host's chat library: its translator and the run posters; shapes restated) ---------- */
 export type { A2uiSurfaceCardProps, AgentEvent, ChatAttachment, ChatMessage, ChatPaneAgent, ChatPaneAgentOption, ChatPaneAgentSelection, ChatPaneRuntimeAccess, ChatPaneComposerHandle, ChatPaneWorkingDirectoryAccess, ChatRole, ChatRunStatus, ChatTransport, ExtEventCall, ExtEventRenderProps, FabPositionInput, FabPositionResult, FeedbackChange, I18nAdapter, KitA2uiActionDeliveryOutcome, KitA2uiActionPosterInput, KitChatAttachment, KitChatTranslator, KitDeliverMidRunMessage, KitDeliverTypedAnswer, KitMidRunMessageDelivery, KitPosterRequestOptions, KitRedactUserText, KitSecretRedactionSignal, KitTypedAnswerDelivery, KitUserTextRedactionOptions, ReattachRunOptions, RunHandlers, SecretRedactionSignal, StartRunInput, ToolResultMediaBlock } from './kit-chat-types.js';
+export type { AgentInventoryEntry, AgentInventorySnapshot, AgentInventorySnapshotArgs, AssistantChatsClient, AssistantChatsClientPorts, AssistantChatsPort, AssistantConversation,
+  AttemptResult, ChatAttachmentValidatorInput, ChatAttachmentValidatorOptions, ComposerDiscoveryArgument, ComposerDiscoveryGroup, ComposerDiscoveryItem, ComposerDiscoveryOutcome,
+  ComposerDiscoverySelection, CreateA2uiActionPosterOptions, DeliverTypedAnswer, DurableRunBinding, DurableSubscriptionPorts, ExtEventRenderer, ExtEventRendererOptions,
+  ExtEventRendererRegistry, ExtEventSlotKey, LastConversationStorage, LastConversationStore, SaveFailureInput, SaveOutcome, UseAssistantChats, UserTextRedactionOptions } from './kit-chat-types.js';
 import type { AgentEvent, ChatAttachment, ChatMessage, ChatPaneAgent, ChatPaneAgentOption, ChatPaneAgentSelection, ChatPaneRuntimeAccess, ChatPaneComposerHandle, ChatRole, ChatRunStatus, ChatTransport, ExtEventCall, ExtEventRenderProps, FabPositionInput, FabPositionResult, FeedbackChange, I18nAdapter, KitA2uiActionDeliveryOutcome, KitA2uiActionPosterInput, KitChatAttachment, KitChatTranslator, KitDeliverMidRunMessage, KitDeliverTypedAnswer, KitMidRunMessageDelivery, KitPosterRequestOptions, KitRedactUserText, KitSecretRedactionSignal, KitTypedAnswerDelivery, KitUserTextRedactionOptions, ReattachRunOptions, RunHandlers, SecretRedactionSignal, StartRunInput, ToolResultMediaBlock } from './kit-chat-types.js';
 
 export interface AdminKitChat {
