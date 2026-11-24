@@ -62,6 +62,21 @@ describe("useCaptureClearFlow", () => {
     expect(clearCaptured).toHaveBeenCalledTimes(2);
   });
 
+  it("refreshes the send list once after a confirmed clear, and not after cancel or a failure", async () => {
+    const onCleared = vi.fn();
+    const clearCaptured = previewing();
+    const { result } = renderHook(() => useCaptureClearFlow({ api: { clearCaptured }, permissions: ["*"], ApiError: FakeApiError }, { onCleared }));
+    await act(() => result.current.start());
+    act(() => result.current.cancel());
+    await act(() => result.current.start());
+    clearCaptured.mockRejectedValueOnce(new FakeApiError({ message: "Try again in a minute.", status: 503 }));
+    await act(() => result.current.confirm());
+    expect(onCleared).not.toHaveBeenCalled();
+    clearCaptured.mockResolvedValueOnce({ cleared: true, deleted: 3 });
+    await act(() => result.current.confirm());
+    expect(onCleared).toHaveBeenCalledTimes(1);
+  });
+
   it("says there is nothing to clear when the preview counts none, and never sends a confirmed request", async () => {
     const { result, clearCaptured } = setup({ clearCaptured: vi.fn(async () => ({ ...PREVIEW, plan: { count: 0, newestAt: null }, revision: "0:" })) });
     await act(() => result.current.start());

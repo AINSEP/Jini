@@ -184,9 +184,11 @@ function captureFailure({ error, ApiError }: { error: unknown; ApiError: EmailLo
  * outdated revision is never resent. Nothing is deleted unless `confirm` runs on a `confirm` state.
  * @param required.api - only `clearCaptured`; absent when the host has no capture store.
  * @param required.permissions - the session's effective permissions (`undefined` while unknown).
+ * @param optional.onCleared - runs once after a confirmed clear, e.g. to refresh the send list.
  */
-export function useCaptureClearFlow(required: { api: Pick<EmailApi, "clearCaptured">; permissions: readonly string[] | undefined; ApiError: EmailLoadApiError }): CaptureClearFlow {
+export function useCaptureClearFlow(required: { api: Pick<EmailApi, "clearCaptured">; permissions: readonly string[] | undefined; ApiError: EmailLoadApiError }, optional: { onCleared?: () => void } = {}): CaptureClearFlow {
   const { api, permissions, ApiError } = required;
+  const { onCleared } = optional;
   const clear = api.clearCaptured;
   const canClear = clear !== undefined && permissions !== undefined && (permissions.includes("*") || permissions.includes(CAPTURE_CLEAR_PERMISSION));
   const [state, setState] = useState<CaptureClearState>({ kind: "idle" });
@@ -208,11 +210,12 @@ export function useCaptureClearFlow(required: { api: Pick<EmailApi, "clearCaptur
     try {
       const answer = await clear({ confirm: { revision } });
       setState({ kind: "cleared", deleted: answer.deleted ?? plan.count });
+      onCleared?.();
     } catch (error) {
       const message = captureFailure({ error, ApiError });
       setState(error instanceof ApiError && error.status === 400 ? { kind: "error", message } : { ...state, pending: false, error: message });
     }
-  }, [canClear, clear, state, ApiError]);
+  }, [canClear, clear, state, ApiError, onCleared]);
   const cancel = useCallback(() => setState({ kind: "idle" }), []);
   return { canClear, state, start, confirm, cancel };
 }
@@ -261,7 +264,7 @@ export function useEmailActivity(
   const { removal, startRemoval, setRemovalReason, continueRemoval, cancelRemoval, removedNotice } = useRemovalFlow({ api, reloadSuppressions: suppressions.reload, ApiError });
 
   const { view: feedback } = useLoad({ ApiError, load: useCallback(() => api.readFeedback(), [api]) });
-  const capture = useCaptureClearFlow({ api, permissions: optional.permissions, ApiError });
+  const capture = useCaptureClearFlow({ api, permissions: optional.permissions, ApiError }, { onCleared: activity.reload });
 
   return useMemo(() => ({
     filter, setFilter, activity, openId, detail, toggleDetail, search, setSearch, suppressions,
