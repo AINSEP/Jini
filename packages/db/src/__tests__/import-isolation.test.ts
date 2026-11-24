@@ -8,6 +8,8 @@ import { describe, expect, it } from "vitest";
 const sourceRoot = fileURLToPath(new URL("../", import.meta.url));
 const drivers = ["better-sqlite3", "pg", "@electric-sql/pglite"];
 
+const JOURNAL_SQL_FILES = new Set(["recovery/journal-kernel.ts", "recovery/journal-schema.ts", "recovery/journal-repo.sql.ts"]);
+
 function violations(file: string, source: string): string[] {
   const problems: string[] = [];
   const tree = ts.createSourceFile(file, source, ts.ScriptTarget.Latest, true);
@@ -16,7 +18,10 @@ function violations(file: string, source: string): string[] {
     // The vault is a typed SQL repo over kernel.run, with JSON patches and binary promotion
     // ordering. Keep its Kysely query body here rather than adding vault policy to the kernel.
     // This exact-file allowance grants no driver access and does not cover other vault modules.
-    if (is("kysely") && !/^(kernel|migrate|data-modules|settings|gated-mutations|verified-origin|events)\//.test(file) && file !== "secrets-vault/repo.sql.ts") problems.push(`kysely outside kernel/migrate: ${specifier}`);
+    // The sidecar journal's typed tables, DDL and repos run Kysely queries on the journal kernel the
+    // host opens; the rest of recovery/ (and its `./recovery` barrel, which imports none of these
+    // three) stays Kysely-free, so the same exact-file allowance applies to them only.
+    if (is("kysely") && !/^(kernel|migrate|data-modules|settings|gated-mutations|verified-origin|events)\//.test(file) && file !== "secrets-vault/repo.sql.ts" && !JOURNAL_SQL_FILES.has(file)) problems.push(`kysely outside kernel/migrate: ${specifier}`);
     if (drivers.some(is) && !typeOnly) problems.push(`runtime driver: ${specifier}`);
     if (is("@electric-sql/pglite") && typeOnly && !/^(pglite|kernel\/pglite)\//.test(file)) {
       problems.push(`PGlite types outside pglite: ${specifier}`);
@@ -96,6 +101,8 @@ describe("database import isolation", () => {
     ["transfer/bad.ts", 'import { sql } from "kysely";'],
     ["tools/bad.ts", 'import type { Kysely } from "kysely";'],
     ["secrets-vault/bad.ts", 'import { sql } from "kysely";'],
+    ["recovery/bad.ts", 'import { sql } from "kysely";'],
+    ["recovery/journal-repo.ts", 'import type { Updateable } from "kysely";'],
   ])("transfer/tools/vault siblings cannot load Kysely: %s", (file, source) => {
     expect(violations(file, source)).toContain("kysely outside kernel/migrate: kysely");
   });
@@ -104,6 +111,8 @@ describe("database import isolation", () => {
     expect(violations("secrets-vault/repo.sql.ts", 'import { sql, type Kysely } from "kysely";')).toEqual([]);
     expect(violations("secrets-vault/repo.sql.ts", 'import Database from "better-sqlite3";')).toEqual(["runtime driver: better-sqlite3"]);
     expect(violations("settings/repo.sql.ts", 'import type { Kysely } from "kysely";')).toEqual([]);
+    expect(violations("recovery/journal-schema.ts", 'import { sql } from "kysely";')).toEqual([]);
+    expect(violations("recovery/journal-repo.sql.ts", 'import Database from "better-sqlite3";')).toEqual(["runtime driver: better-sqlite3"]);
     expect(violations("settings/repo.sql.ts", 'import Database from "better-sqlite3";')).toEqual(["runtime driver: better-sqlite3"]);
     expect(violations("kernel/pglite/ok.ts", 'import { type PGlite } from "@electric-sql/pglite"; export type { PGlite } from "@electric-sql/pglite"; import { sql } from "kysely";')).toEqual([]);
     expect(violations("core/ok.ts", '// import pg from "pg";\nconst text = `import("kysely")`;')).toEqual([]);

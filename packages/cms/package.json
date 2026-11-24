@@ -19,6 +19,7 @@
       "./publish/content/baseline-repo": "universal",
       "./publish/content/sql/baseline-repo": "node",
       "./publish/transfer/sql/bundle-repo": "node",
+      "./publish/transfer/sql/backstop-audit-repo": "node",
       "./publish/content/content-hash": "node",
       "./publish/content/execute-import": "universal",
       "./publish/content/precheck-reasons": "universal",
@@ -470,6 +471,11 @@
       "types": "./dist/publish/transfer/sql/bundle-repo.d.ts",
       "import": "./dist/publish/transfer/sql/bundle-repo.js",
       "default": "./dist/publish/transfer/sql/bundle-repo.js"
+    },
+    "./publish/transfer/sql/backstop-audit-repo": {
+      "types": "./dist/publish/transfer/sql/backstop-audit-repo.d.ts",
+      "import": "./dist/publish/transfer/sql/backstop-audit-repo.js",
+      "default": "./dist/publish/transfer/sql/backstop-audit-repo.js"
     },
     "./publish/content/content-hash": {
       "types": "./dist/publish/content/content-hash.d.ts",

@@ -1,5 +1,5 @@
 import type { StorageKernel } from "@jini-ai/core/contracts/storage";
-import { decodeKeysetCursor, encodeKeysetCursor } from "../../core/keyset-cursor.js";
+import { decodeKeysetCursor, encodeKeysetCursor } from "@jini-ai/core/keyset-cursor";
 import type { CommentRepoPort } from "../ports.js";
 import { type CommentTables, type ModerationLogTables, toLogEntry, toLogRow, toRecord, toRow } from "./repo.rows.js";
 import type { CommentRecord, CommentStatus, CommentThreadNode, ModerationAction, ModerationLogEntry, ModerationQueuePage } from "../types.js";
@@ -69,7 +69,7 @@ export class SqlCommentRepo implements CommentRepoPort {
   }
 
   /** Keyset page over `(created_at, id)`, fetching `limit + 1` rows to learn whether more follow.
-   *  The cursor carries the last row's `(createdAt, id)` itself (`platform/db/keyset-cursor.ts`), so
+   *  The cursor carries the last row's `(createdAt, id)` itself (`@jini-ai/core/keyset-cursor`), so
    *  a page resumes after that row even when it has since been moderated out of the queue or purged.
    *  @throws {ToolInputError} `invalid cursor` when the cursor is malformed: it used to read as
    *  "no cursor" and silently restart at page 1. */
