@@ -127,7 +127,6 @@
    "PublishContentReportSource": "interface:0d1f036c4e",
    "PublishContentReportSourceRow": "interface:421b0e9a35",
    "readBackstopApplyReport": "function:e5cb934a66",
-   "toPublishContentReportDto": "function:396d27699a"
    "toPublishContentReportDto": "function:ad024b76e6"
   }
  },
@@ -403,7 +402,7 @@
    "consentPublishRoute": "variable:c68dd5e364",
    "consentReadinessRoute": "variable:9a6f34af05",
    "consentSettingsGetRoute": "variable:bc0d5222ae",
-   "consentSettingsPutRoute": "variable:c258e54b91"
+   "consentSettingsPutRoute": "variable:c258e54b91",
    "VisitorToolsConfigureRouteDeps": "interface:d0e09009dd",
    "VisitorToolsConfigureRoutePort": "interface:905edd4b56",
    "VisitorToolsListRouteDeps": "interface:583406c610",
@@ -635,7 +634,7 @@
    "authorizeIntegrations": "function:590519f922",
    "rejectWebhookError": "function:e4de519990",
    "subscriptionIdParam": "function:24ba9c7cc8",
-   "webhookMessageMapping": "function:199b7cc4db"
+   "webhookMessageMapping": "function:199b7cc4db",
    "ExternalMcpToolApprovalRevokeRouteDeps": "interface:f5813a7f61",
    "ExternalMcpToolApprovalRevoker": "type:efc6756d82",
    "ExternalMcpToolApprovalsListRouteDeps": "interface:a3c9a4ae21",

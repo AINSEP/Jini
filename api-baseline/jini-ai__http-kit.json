@@ -16,8 +16,6 @@
    "DaemonAuthRequired": "interface:07290521ae",
    "ErrorResponseFactory": "type:7bca76d8d1",
    "InstallRouteRegistrationGuardOptions": "interface:8f1f6ec850",
-   "JsonRoutePorts": "interface:74b7582754",
-   "JsonRouteSpec": "interface:7d207ad9fa",
    "JsonRoutePorts": "interface:282e190c38",
    "JsonRouteSpec": "interface:05f4c73774",
    "OwnedRunListRequired": "interface:5b1e4bbc29",

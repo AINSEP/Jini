@@ -391,7 +391,7 @@
       "./admin-http/routes/publish-content/capabilities": "universal",
       "./admin-http/routes/publish-content/import": "universal",
       "./admin-http/routes/publish-content/backstop": "universal",
-      "./admin-http/routes/publish-content/peer-transport": "universal"
+      "./admin-http/routes/publish-content/peer-transport": "universal",
       "./admin-http/routes/publish-content/transport-shared": "universal",
       "./admin-http/routes/publish-content/peers": "universal",
       "./admin-http/routes/publish-content/destination": "universal"
@@ -586,7 +586,7 @@
         "./admin-http/routes/publish-content/capabilities": "publish",
         "./admin-http/routes/publish-content/import": "publish",
         "./admin-http/routes/publish-content/backstop": "publish",
-        "./admin-http/routes/publish-content/peer-transport": "publish"
+        "./admin-http/routes/publish-content/peer-transport": "publish",
         "./admin-http/routes/publish-content/transport-shared": "publish",
         "./admin-http/routes/publish-content/peers": "publish",
         "./admin-http/routes/publish-content/destination": "publish"

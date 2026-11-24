@@ -1542,33 +1542,6 @@
    "DeploymentOverviewSnapshot": "interface:38b2ac4e8a"
   }
  },
- "./contracts/site/cms-settings": {
-  "types": "./dist/contracts/site/cms-settings.d.ts",
-  "symbols": {
-   "AdminSettingClearedDto": "interface:9a179107fb",
-   "AdminSettingDefinitionAppliedDto": "interface:e1dfa77bfa",
-   "AdminSettingScopeDto": "type:f80238d080",
-   "AdminSettingValueDto": "interface:be2c0bb11d",
-   "AdminSettingsListDto": "interface:8d9738a692",
-   "AdminSettingsRegisterDefinitionsDto": "interface:3ecf9d11c4",
-   "AdminSettingsResetDto": "interface:244bff9a31"
-  }
- },
- "./contracts/site/cms-sites": {
-  "types": "./dist/contracts/site/cms-sites.d.ts",
-  "symbols": {
-   "SiteCreateResponse": "interface:bcf485244c",
-   "SiteTokenSignInPluginsResponse": "interface:5b7746614c",
-   "SitesHomeSetResponse": "interface:6fb1535af9"
-  }
- },
- "./contracts/site/cms-system-deploy": {
-  "types": "./dist/contracts/site/cms-system-deploy.d.ts",
-  "symbols": {
-   "DeploymentEnvVarStatus": "interface:34c5536892",
-   "DeploymentOverviewSnapshot": "interface:38b2ac4e8a"
-  }
- },
  "./contracts/site/cookie-consent": {
   "types": "./dist/contracts/site/cookie-consent.d.ts",
   "symbols": {
