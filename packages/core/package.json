@@ -69,6 +69,7 @@
       "./contracts/site/daemon-surface-exchanges": "universal",
       "./contracts/site/gated-results": "universal",
       "./contracts/site/post-author": "universal",
+      "./contracts/site/publish-ports": "universal",
       "./contracts/site/request-facts": "universal",
       "./contracts/site/site-key": "universal",
       "./contracts/site/soft-delete": "universal",
@@ -539,6 +540,11 @@
       "types": "./dist/contracts/site/post-author.d.ts",
       "import": "./dist/contracts/site/post-author.js",
       "default": "./dist/contracts/site/post-author.js"
+    },
+    "./contracts/site/publish-ports": {
+      "types": "./dist/contracts/site/publish-ports.d.ts",
+      "import": "./dist/contracts/site/publish-ports.js",
+      "default": "./dist/contracts/site/publish-ports.js"
     },
     "./contracts/site/request-facts": {
       "types": "./dist/contracts/site/request-facts.d.ts",
