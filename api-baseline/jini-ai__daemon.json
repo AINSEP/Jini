@@ -198,6 +198,7 @@
    "armSlowRunWatchdogIfConfigured": "function:0a06ea95b8",
    "armWatchdogIfConfigured": "function:1139559854",
    "assessAgentExecutorCompatibility": "function:0adb4a9423",
+   "bridgePreflightEntry": "function:ed10fa07cc",
    "buildAcpMcpBridgeServers": "function:4e96dba73b",
    "buildAgentBuildArgsOptions": "function:670b2e897a",
    "buildCodexHomeConfigToml": "function:a5d5087fa3",

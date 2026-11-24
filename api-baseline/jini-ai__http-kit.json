@@ -16,11 +16,11 @@
    "DaemonAuthRequired": "interface:07290521ae",
    "ErrorResponseFactory": "type:7bca76d8d1",
    "InstallRouteRegistrationGuardOptions": "interface:8f1f6ec850",
-   "JsonRoutePorts": "interface:282e190c38",
-   "JsonRouteSpec": "interface:05f4c73774",
+   "JsonRoutePorts": "interface:74b7582754",
+   "JsonRouteSpec": "interface:7d207ad9fa",
    "OwnedRunListRequired": "interface:5b1e4bbc29",
    "RateLimitProfile": "interface:371075b603",
-   "RawRouteSpec": "interface:e63cd87709",
+   "RawRouteSpec": "interface:abcfd90b41",
    "RouteInternalErrorContext": "interface:a7266168db",
    "RouteInternalErrorSink": "type:4919a01145",
    "RouteRegistration": "interface:dd8f03278d",
@@ -133,6 +133,13 @@
    "createMemoryCounterStore": "function:99c1f89bab",
    "createRateLimiter": "function:117b280693",
    "resolveClientIp": "function:cf6f709e8a"
+  }
+ },
+ "./request-id": {
+  "types": "./dist/request-id.d.ts",
+  "symbols": {
+   "REQUEST_ID_HEADER": "variable:9b8c0b40fa",
+   "resolveRequestId": "function:b7e330e3ac"
   }
  },
  "./settings": {
