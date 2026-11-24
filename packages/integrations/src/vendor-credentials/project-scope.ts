@@ -36,7 +36,7 @@ type WithProject = { readonly repo: { readonly project?: CredentialProjectHalf<u
  * The host's composition root attaches that owner half (its `credentialProject` dep), if any.
  * @complexity O(1).
  */
-export function credentialScopes<D extends WithProject>(deps: D, workspaceId: string): ScopedCredentialDeps<D>[] {
+export function credentialScopes<D extends WithProject>({ deps, workspaceId }: { deps: D; workspaceId: string }, _optional = {}): ScopedCredentialDeps<D>[] {
   const site: ScopedCredentialDeps<D> = { deps, workspaceId, scope: "site" };
   const project = deps.repo.project;
   if (!project) return [site];
@@ -48,11 +48,11 @@ export function credentialScopes<D extends WithProject>(deps: D, workspaceId: st
  * without an owner store. An explicit local save remains local even with an owner store configured.
  * @throws The store's own validation error (`invalid`) when `scope` is neither omitted, `"site"` nor `"project"`.
  */
-export function credentialCreateTarget<D extends WithProject>(deps: D, input: { workspaceId: string; scope?: unknown }, invalid: (message: string) => Error): ScopedCredentialDeps<D> {
+export function credentialCreateTarget<D extends WithProject>({ deps, input, invalid }: { deps: D; input: { workspaceId: string; scope?: unknown }; invalid: (message: string) => Error }, _optional = {}): ScopedCredentialDeps<D> {
   if (input.scope !== undefined && input.scope !== "site" && input.scope !== "project") throw invalid('scope must be "site" or "project"');
   const owner = deps.repo.project;
   if (!owner || input.scope === "site") return { deps, workspaceId: input.workspaceId, scope: "site" };
-  const project = credentialScopes(deps, input.workspaceId)[1];
+  const project = credentialScopes({ deps, workspaceId: input.workspaceId })[1];
   if (project === undefined) throw new Error("Project credential store has no project scope");
   // Human save adapters use the separate owner mutation port; runtime reads retain the site view.
   if (!owner.createRepo) return project;

@@ -2717,6 +2717,10 @@
    "withCoverPresentation": "function:1ef6c0360c"
   }
  },
+ "./posts/post-tool-schemas": {
+  "types": null,
+  "symbols": {}
+ },
  "./posts/slug": {
   "types": "./dist/posts/slug.d.ts",
   "symbols": {
@@ -2726,6 +2730,14 @@
    "derivePostSlugBase": "function:e83a424102",
    "isAutomaticPostSlug": "function:eb1fc25126"
   }
+ },
+ "./posts/tiptap-block-schema": {
+  "types": null,
+  "symbols": {}
+ },
+ "./posts/tiptap-text-schema": {
+  "types": null,
+  "symbols": {}
  },
  "./presentation": {
   "types": "./dist/presentation/index.d.ts",

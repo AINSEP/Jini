@@ -497,8 +497,14 @@
   }
  },
  "./vendor-credentials/project-scope": {
-  "types": null,
-  "symbols": {}
+  "types": "./dist/vendor-credentials/project-scope.d.ts",
+  "symbols": {
+   "CredentialProjectHalf": "interface:724cd7c019",
+   "CredentialScope": "type:6831ffe922",
+   "ScopedCredentialDeps": "interface:c82b39ed04",
+   "credentialCreateTarget": "function:78df0c6acb",
+   "credentialScopes": "function:08399a70cb"
+  }
  },
  "./webhooks": {
   "types": "./dist/webhooks/index.d.ts",

@@ -82,7 +82,10 @@
       "./html/site/slug": "universal",
       "./html/site/source-edits": "node",
       "./posts/post-before-save": "universal",
+      "./posts/post-tool-schemas": "universal",
       "./posts/slug": "universal",
+      "./posts/tiptap-block-schema": "universal",
+      "./posts/tiptap-text-schema": "universal",
       "./navigation/types": "universal",
       "./navigation/dropdown": "universal",
       "./navigation/href": "universal",
@@ -795,10 +798,25 @@
       "import": "./dist/posts/post-before-save.js",
       "default": "./dist/posts/post-before-save.js"
     },
+    "./posts/post-tool-schemas": {
+      "types": "./dist/posts/post-tool-schemas.d.ts",
+      "import": "./dist/posts/post-tool-schemas.js",
+      "default": "./dist/posts/post-tool-schemas.js"
+    },
     "./posts/slug": {
       "types": "./dist/posts/slug.d.ts",
       "import": "./dist/posts/slug.js",
       "default": "./dist/posts/slug.js"
+    },
+    "./posts/tiptap-block-schema": {
+      "types": "./dist/posts/tiptap-block-schema.d.ts",
+      "import": "./dist/posts/tiptap-block-schema.js",
+      "default": "./dist/posts/tiptap-block-schema.js"
+    },
+    "./posts/tiptap-text-schema": {
+      "types": "./dist/posts/tiptap-text-schema.d.ts",
+      "import": "./dist/posts/tiptap-text-schema.js",
+      "default": "./dist/posts/tiptap-text-schema.js"
     },
     "./html/text-layout": {
       "types": "./dist/html/text-layout.d.ts",
