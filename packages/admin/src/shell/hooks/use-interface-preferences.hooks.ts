@@ -56,7 +56,7 @@ export function useInterfacePreferences<T extends InterfacePreferences>(required
 }
 
 /** `.admin-layout`'s class list: each preference's CSS rules apply only under its class. */
-export function resolveAdminLayoutClassName(preferences: InterfacePreferences): string {
+export function resolveAdminLayoutClassName<T extends InterfacePreferences>(preferences: T): string {
   return [
     "admin-layout",
     preferences.hideChatFabWhileOpen ? "hides-fab-while-open" : null,
