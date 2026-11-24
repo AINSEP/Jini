@@ -1,6 +1,6 @@
 /** The only host management writer for visitor-tool policy, shared by page and chat. */
 import type { JsonValue } from "@jini-ai/core/primitives";
-import { resolveDefinitionRaw, type SetValueRequired, type SettingsRepoPort } from "@jini-ai/core/settings";
+import { type SetValueRequired, type SettingsRepoPort } from "@jini-ai/core/settings";
 import { set, type SiteSettingsWritePolicies } from "./site-title-write.js";
 import type { VisitorToolPolicy } from "@jini-ai/core/contracts/site/site-assistant-visitor-tools-management";
 import type { VisitorToolsHostContract } from "./visitor-tools-contract.js";
@@ -15,7 +15,7 @@ export interface VisitorToolsStoreRequired { repo: SettingsRepoPort; workspaceId
  * @throws Error when boot has not registered the policy. @complexity O(1) ledger reads.
  */
 async function readStoredVisitorTools({ repo, workspaceId, visitorTools }: VisitorToolsStoreRequired, _options = {}) {
-  const definition = await resolveDefinitionRaw({ repo }, { ...visitorTools.setting, workspaceId });
+  const definition = await visitorTools.resolveDefinitionRaw({ repo }, { ...visitorTools.setting, workspaceId });
   if (!definition) throw new Error("Visitor-tools policy definition is unavailable.");
   const row = await repo.getWorkspaceValue({ workspaceId, settingId: definition.settingId });
   return { value: row?.state === "set" ? row.valueJson : definition.defaultValue, revisionSeq: row?.seq ?? 0 };

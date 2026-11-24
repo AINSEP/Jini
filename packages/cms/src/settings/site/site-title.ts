@@ -1,5 +1,4 @@
-import { nowIso as clockNowIso } from "@jini-ai/core/primitives";
-import type { JsonValue, UUID } from "@jini-ai/core/primitives";
+import type { JsonValue, nowIso, UUID } from "@jini-ai/core/primitives";
 // The ledger's functions arrive through the deps (`EnsureSettingDefinitionsPort`, `GetEffectivePort`,
 // `PreserveLegacySiteTitlesDeps.set`/`resolveDefinitionRaw`), never through a module import, so the
 // host binds the implementation at composition and a test can hand in a spy.
@@ -158,6 +157,8 @@ export interface PreserveLegacySiteTitlesDeps extends EnsureSettingDefinitionsDe
   set: typeof set;
   /** The settings ledger's definition lookup (`@jini-ai/core/settings` `resolveDefinitionRaw`), bound by the host. */
   resolveDefinitionRaw: typeof resolveDefinitionRaw;
+  /** The clock formatter (`@jini-ai/core/primitives` `nowIso`), bound by the host; stamps the preserved marker. */
+  nowIso: typeof nowIso;
   /** Told about each workspace whose pin failed (it stays pending for the next boot). */
   reportSiteTitleFailure: SiteTitleFailureReporter;
   /** Told the pinned/skipped/failed counts once per run that had pending workspaces. */
@@ -243,7 +244,7 @@ async function pinOneWorkspace(
         },
       });
     }
-    await deps.preservationStore.markPreserved({ workspaceId, preservedAt: clockNowIso({ clock: deps.clock }) });
+    await deps.preservationStore.markPreserved({ workspaceId, preservedAt: deps.nowIso({ clock: deps.clock }) });
     return existing ? "skipped" : "pinned";
   } catch (err) {
     return reportPinFailure(deps, { workspaceId, message: SITE_TITLE_PIN_FAILED_MESSAGE, errorClass: errorClassOf({ err }) });

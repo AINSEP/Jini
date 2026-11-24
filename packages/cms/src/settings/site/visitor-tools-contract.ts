@@ -5,6 +5,7 @@
  * parser, its validation error, the stored setting coordinates, permission and limits, binds them once and
  * passes the bundle through each moved function's existing deps/args.
  */
+import type { resolveDefinitionRaw } from "@jini-ai/core/settings";
 import type { VisitorToolChoice, VisitorToolLimits, VisitorToolPolicy } from "@jini-ai/core/contracts/site/site-assistant-visitor-tools-management";
 
 /** The host's visitor-tools policy contract, bound once by the host and passed as `visitorTools`. */
@@ -13,6 +14,8 @@ export interface VisitorToolsHostContract {
   readonly setting: { readonly namespace: string; readonly key: string };
   /** The dedicated management permission every read and write requires. */
   readonly permission: string;
+  /** The settings ledger's definition lookup (`@jini-ai/core/settings` `resolveDefinitionRaw`), bound by the host. */
+  readonly resolveDefinitionRaw: typeof resolveDefinitionRaw;
   readonly defaultLimits: VisitorToolLimits;
   readonly callsPerTurn: number;
   /** The host's validation error: thrown for invalid input, recognised with `instanceof`. */

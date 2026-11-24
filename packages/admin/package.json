@@ -1117,9 +1117,9 @@
       "default": "./dist/screens/redirects/redirects-i18n.js"
     },
     "./screens/analytics": {
-      "types": "./dist/screens/analytics/index.d.ts",
-      "import": "./dist/screens/analytics/index.js",
-      "default": "./dist/screens/analytics/index.js"
+      "types": "./dist/screens/analytics/Analytics.d.ts",
+      "import": "./dist/screens/analytics/Analytics.js",
+      "default": "./dist/screens/analytics/Analytics.js"
     },
     "./screens/analytics/analytics-i18n": {
       "types": "./dist/screens/analytics/analytics-i18n.d.ts",
@@ -1339,7 +1339,7 @@
         "./dist/screens/redirects/redirects-i18n.d.ts"
       ],
       "screens/analytics": [
-        "./dist/screens/analytics/index.d.ts"
+        "./dist/screens/analytics/Analytics.d.ts"
       ],
       "screens/analytics/analytics-i18n": [
         "./dist/screens/analytics/analytics-i18n.d.ts"

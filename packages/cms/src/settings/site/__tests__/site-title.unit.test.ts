@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "vitest";
 
 import { ensureSettingDefinitions, getEffective, InMemorySettingsRepo, resolveDefinitionRaw, set } from "@jini-ai/core/settings";
+import { nowIso } from "@jini-ai/core/primitives";
 
 import {
   ensureSiteTitleSettingDefinition,
@@ -46,6 +47,7 @@ function ledger(pending: string[] = []) {
     ensureSettingDefinitions: ((...args) => (calls.push("ensure"), ensureSettingDefinitions(...args))) as typeof ensureSettingDefinitions,
     set: ((...args) => (calls.push("set"), set(...args))) as typeof set,
     resolveDefinitionRaw: ((...args) => (calls.push("resolveDefinitionRaw"), resolveDefinitionRaw(...args))) as typeof resolveDefinitionRaw,
+    nowIso,
     getEffective: ((...args) => (calls.push("getEffective"), getEffective(...args))) as typeof getEffective,
   };
 }

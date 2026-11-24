@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { resolveDefinitionRaw } from "@jini-ai/core/settings";
 import { test } from "vitest";
 
 import { parseVisitorToolsConfigure, visitorToolsNeedsApproval } from "../visitor-tools-configure.js";
@@ -17,6 +18,7 @@ function fakeContract(overrides: Partial<VisitorToolsHostContract> = {}): Visito
   return {
     setting: { namespace: "test.visitor", key: "policy" },
     permission: "test.visitor.manage",
+    resolveDefinitionRaw,
     defaultLimits: { perIpPerHour: 5, perSitePerDay: 50 },
     callsPerTurn: 3,
     ValidationError: HostValidationError,

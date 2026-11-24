@@ -1229,7 +1229,7 @@
   }
  },
  "./screens/analytics": {
-  "types": "./dist/screens/analytics/index.d.ts",
+  "types": "./dist/screens/analytics/Analytics.d.ts",
   "symbols": {
    "Analytics": "function:987dfef07e",
    "AnalyticsProps": "interface:e08512cfff"
