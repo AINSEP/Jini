@@ -68,9 +68,7 @@
       "./source-control/site/provider-module": "universal",
       "./source-control/site/static-site-packager-port": "universal",
       "./backup/site/saved-keys-port": "universal",
-      "./backup/site/static-download-html": "universal",
-      "./backup/site/share-policy": "universal",
-      "./backup/site/share-refusal": "universal"
+      "./backup/site/static-download-html": "universal"
     },
     "isolation": {
       "shared": [
@@ -369,16 +367,6 @@
       "types": "./dist/backup/site/static-download-html.d.ts",
       "import": "./dist/backup/site/static-download-html.js",
       "default": "./dist/backup/site/static-download-html.js"
-    },
-    "./backup/site/share-policy": {
-      "types": "./dist/backup/site/share-policy.d.ts",
-      "import": "./dist/backup/site/share-policy.js",
-      "default": "./dist/backup/site/share-policy.js"
-    },
-    "./backup/site/share-refusal": {
-      "types": "./dist/backup/site/share-refusal.d.ts",
-      "import": "./dist/backup/site/share-refusal.js",
-      "default": "./dist/backup/site/share-refusal.js"
     }
   },
   "files": [
