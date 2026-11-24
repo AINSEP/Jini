@@ -20,10 +20,19 @@ export function isBundleInput({ relPath }: { relPath: string }, _optional: Recor
   if (normalized.split('/').some(segment => segment === '__tests__' || segment === '__measurements__')) return false;
   return !/\.(test|spec)\.[cm]?[jt]sx?$/.test(normalized);
 }
-/** Missing timestamps defer to the host's existence checks; there is no stale-build tolerance. */
-export function shellStalenessFailure({ builtAt, sourceAt, shell }: { builtAt: number; sourceAt: number; shell: StalenessShell }, _optional: Record<string, never> = {}): string | null {
+/**
+ * Missing timestamps defer to the host's existence checks; there is no stale-build tolerance.
+ * `consequence` is host copy placed between the age and the remedy: a host that once shipped a
+ * stale bundle while packaging reported success keeps its own incident wording there, so the
+ * reader learns why the refusal is not noise without this package owning that history.
+ */
+export function shellStalenessFailure(
+  { builtAt, sourceAt, shell }: { builtAt: number; sourceAt: number; shell: StalenessShell },
+  { consequence }: { consequence?: string } = {},
+): string | null {
   if (builtAt === 0 || sourceAt === 0 || builtAt >= sourceAt) return null;
-  return `the built shell at ${shell.relative} is STALE — its ${shell.marker} is ${((sourceAt - builtAt) / 86_400_000).toFixed(1)} day(s) older than its own source. Rebuild it with: ${shell.buildWith}`;
+  const why = consequence === undefined ? '' : ` ${consequence}`;
+  return `the built shell at ${shell.relative} is STALE — its ${shell.marker} is ${((sourceAt - builtAt) / 86_400_000).toFixed(1)} day(s) older than its own source.${why} Rebuild it with: ${shell.buildWith}`;
 }
 /** npm's parseable output may contain duplicates and Windows CRLF endings. */
 export function parseNpmLsPaths({ stdout, modulesDir, separator }: { stdout: string; modulesDir: string; separator: string }, _optional: Record<string, never> = {}): string[] {
