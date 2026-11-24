@@ -226,6 +226,7 @@
    "createInMemoryEventLog": "function:63fb79fe78",
    "createInMemoryRoutineStore": "function:c2ec9b5908",
    "createInactivityWatchdog": "function:0d7910d1e8",
+   "createPageApprovalContext": "function:e52fe0550e",
    "createRemoteToolEventRecorder": "function:9246cea535",
    "createRemoteToolExecutor": "function:ccdf432139",
    "createRoutingToolExecutor": "function:dcd9f3fb8f",
@@ -260,6 +261,7 @@
    "nextHourlyRunAt": "function:261b639ccc",
    "nextRunAtForSchedule": "function:c0a588f039",
    "nextWallTimeMatching": "function:12653606e7",
+   "pageApprovalOptions": "function:e7682bc872",
    "parseToolExecutionLine": "function:fb38c1ce4c",
    "partsInTimezone": "function:3ab00af627",
    "prepareClaudeConfigDirIfNeeded": "function:42cd264f1e",
@@ -312,6 +314,18 @@
    "writeMcpJsonIfNeeded": "function:68fef20ca6"
   }
  },
+ "./byok-meta-tool-result": {
+  "types": "./dist/byok-meta-tool-result.d.ts",
+  "symbols": {
+   "ByokMetaToolResult": "interface:c97d7d35ca",
+   "ByokToolResultBlock": "type:59a4b67345",
+   "DelegatedInputResolution": "type:e69e9b10aa",
+   "err": "function:8e05fa6451",
+   "mapToolExecutionResult": "function:165e6c99a1",
+   "ok": "function:3f196b23e7",
+   "resolveDelegatedInput": "function:bb6f9a5124"
+  }
+ },
  "./chat-settings": {
   "types": "./dist/chat-settings.d.ts",
   "symbols": {
@@ -319,6 +333,15 @@
    "ChatSettingsSnapshotInput": "interface:a0464f0496",
    "createChatSettingsGetRegistration": "function:4f3ec46d47",
    "createChatSettingsSnapshot": "function:586600821d"
+  }
+ },
+ "./daemon-call-context": {
+  "types": "./dist/daemon-call-context.d.ts",
+  "symbols": {
+   "DaemonCallContext": "interface:8171298846",
+   "parseDaemonCallContext": "function:312f30a9ce",
+   "readDaemonCallContext": "function:271d525e36",
+   "runWithDaemonCallContext": "function:ed142da32c"
   }
  },
  "./exclusive-run-lease": {
@@ -407,6 +430,7 @@
    "FamilySelector": "interface:270ebe03ac",
    "FrontendBindErrorContext": "interface:7e68066924",
    "FrontendControl": "interface:24f6711d8c",
+   "FrontendDisconnectedError": "class:2d8542596b",
    "FrontendHookInput": "interface:2c6900d3c4",
    "FrontendRequestRoutesRequired": "interface:f014e46c79",
    "FrontendSessionAttachedEvent": "interface:bde1c23aa8",
@@ -426,6 +450,8 @@
    "JINI_ROUTE_MANIFEST": "variable:8452ae66fd",
    "LaunchHostToolResult": "type:967c822fad",
    "LivenessResponse": "interface:629f6a0af1",
+   "LostFrontendBindingMessages": "interface:7cd875d394",
+   "LostFrontendBindings": "interface:f1b5e62f5c",
    "MESSAGE_RELAY_CLAIM_PATH": "variable:57f8db1496",
    "MediaGenerateResponse": "interface:cccd7eae9a",
    "MediaHttpDeps": "interface:1dfe19aa72",
@@ -464,6 +490,7 @@
    "Platform": "type:614d225cb0",
    "RUN_EVENTS_ROUTE_PATH": "variable:65d11306e7",
    "RUN_MESSAGE_MAX_CHARS": "variable:bf15fee9ae",
+   "ReadA2uiActionResult": "type:5731a1e7b2",
    "ReadinessResponse": "interface:fb921408ca",
    "RealPlatform": "type:b54b91a516",
    "RealtimeProvider": "interface:64048d4fd3",
@@ -491,6 +518,9 @@
    "RoutineRunNowResponse": "interface:b3e8324485",
    "RoutineRunsResponse": "interface:5ce29c14cd",
    "RoutineScheduler": "type:b71d550a03",
+   "RunActiveContextAnswer": "type:1f74dbfdf6",
+   "RunActiveContextStore": "interface:319c7133cc",
+   "RunActiveScreen": "interface:ffb1a64699",
    "RunCancelResponse": "interface:914b675a66",
    "RunCancellationService": "interface:e95626fdce",
    "RunCreateRequest": "interface:dce93d18fc",
@@ -510,6 +540,8 @@
    "StoragePutOptions": "interface:2b22bbc0c0",
    "StoredAttachment": "interface:1316c8390f",
    "SurfaceCallbackInput": "interface:a2bb9ad5d7",
+   "SurfaceCallbackReply": "interface:a0b77700dd",
+   "SurfaceCallbackRequest": "interface:a3ad9ff9a5",
    "SurfaceHttpResult": "type:973cffad9a",
    "TOOL_CATALOG_ROUTE_PATH": "variable:f20f212ae0",
    "TOOL_EXECUTIONS_ROUTE_PATH": "variable:b2dfa83a74",
@@ -540,6 +572,7 @@
    "XaiOauthStartResponse": "interface:ee0abcf56f",
    "XaiOkResponse": "interface:b9d3f761a5",
    "XaiSearchResponse": "interface:074bed322c",
+   "a2uiNotPendingBody": "function:5e3b51b491",
    "activeContextRoutes": "function:954ef528df",
    "agentListRoute": "variable:78c95d33f7",
    "agentRescanRoute": "variable:2d9345ee8d",
@@ -574,8 +607,11 @@
    "createDiskAttachmentStore": "function:2f8f1f0d1f",
    "createFrontendControl": "function:a37f8098eb",
    "createFrontendGuestScope": "function:3831ddb4ba",
+   "createLostFrontendBindings": "function:d3f8f6a2e2",
+   "createPrefixToolFamilyPort": "function:0c39584893",
    "createRemoteAttachmentLookup": "function:e05403d159",
    "createResearchSearchRoute": "function:7fe6504c1c",
+   "createRunActiveContextStore": "function:2d88b126a0",
    "createTavilyResearchProvider": "function:6894c6bf46",
    "currentPlatform": "function:e038659bb7",
    "daemonDbInspectRoute": "variable:063c38e033",
@@ -588,10 +624,12 @@
    "defaultProbeEnv": "function:e9efa0c3cf",
    "delegatedToolExecuteRoute": "variable:91f05d1bec",
    "delegatedToolRoutes": "function:5421b21ba7",
+   "deliverA2uiAction": "function:f0a9c07307",
    "deliverSurfaceCallback": "function:e6258e7e9a",
    "denyAllDaemonDbPolicy": "variable:a19cf3ae4d",
    "denyAllWorkspaceRoots": "variable:6c698b5253",
    "detectAttachmentKind": "function:7e16635e65",
+   "executeSurfaceRedemption": "function:2426509957",
    "frontendRequestRoutes": "function:d3e3f097d6",
    "frontendSessionResponseRoute": "variable:b1da45f6c8",
    "frontendSessionRoutes": "function:cc428adef6",
@@ -603,6 +641,7 @@
    "hostEditorsRoute": "variable:706c6f1e3d",
    "hostToolsRoutes": "function:181e27a296",
    "isSurfaceCallbackPermitted": "function:d24f4eac48",
+   "isTypedSurfaceAnswer": "function:b704ff9f62",
    "isUnchangedAttachment": "function:8f6d451968",
    "launchHostTool": "function:7c1a024e38",
    "listAvailableEditors": "function:23b0fea62d",
@@ -631,9 +670,11 @@
    "messageRelayRoutes": "function:e1343045b5",
    "modelProxyRoutes": "function:3c268823e4",
    "parseCapabilityQuery": "function:f8b1f997bf",
+   "parseSurfaceCallbackRequest": "function:d0b83591b7",
    "pathDirs": "function:ad23bb731a",
    "probeCommandOnPath": "function:296f781dd7",
    "probeMacBundle": "function:bb39050d52",
+   "readA2uiAction": "function:167b29f4cb",
    "readyRoute": "variable:b3e0c7e292",
    "remoteRunEventRoutes": "function:55e93271a8",
    "remoteToolBridgeTokenGate": "function:6356614a8c",
@@ -663,6 +704,10 @@
    "sanitizeAttachmentName": "function:45ad9ab7b9",
    "setActiveRoute": "variable:c38a7e508c",
    "stageAttachmentClaim": "function:a9f092d1f3",
+   "surfaceCallbackExchangeId": "function:b94c05ef61",
+   "surfaceCallbackRefusalBody": "function:5addaa2e6b",
+   "surfaceNotPendingBody": "function:c2d48138b4",
+   "surfaceRedemptionReply": "function:f8d70c4e7c",
    "terminalCreateRoute": "variable:89555964f3",
    "terminalDeleteRoute": "variable:fb5bcf4d2c",
    "terminalKillRoute": "variable:0a20bc1a0a",
@@ -761,6 +806,7 @@
    "RunScopedCaller": "interface:7c5aadd1d8",
    "RunScopedCallerResolver": "interface:37a8839538",
    "RunScopedCredentials": "interface:3bdd0e479d",
+   "adoptAndEnsureDaemonSecret": "function:b9b16213e7",
    "authorizeDaemonRequest": "function:b0f6fb0cef",
    "authorizeRunOwnership": "function:8b590b1430",
    "createNodeCredentialCrypto": "function:22ed7cbb2b",
@@ -810,6 +856,12 @@
    "AgentSessionStore": "interface:8addc81c41",
    "AgentSessionStoreError": "class:65f31fba78",
    "createInMemoryAgentSessionStore": "function:ba247585a7"
+  }
+ },
+ "./store/agent-sessions/kernel": {
+  "types": "./dist/store/agent-sessions/kernel.d.ts",
+  "symbols": {
+   "createAgentSessionStoreForKernel": "function:83ba64119d"
   }
  },
  "./store/agent-sessions/pglite": {

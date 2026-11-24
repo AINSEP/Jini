@@ -199,6 +199,17 @@
    "createAgentInventorySnapshot": "function:fb73f15a98"
   }
  },
+ "./browser/embed-send-bridge": {
+  "types": "./dist/embed-widget/browser/embed-send-bridge.d.ts",
+  "symbols": {
+   "CreateEmbedSendAgentControlArgs": "interface:410f764467",
+   "EmbedSendAgentControlOptions": "interface:0323a4d767",
+   "EmbedSendBridgeOptions": "interface:27ac582f64",
+   "InstallEmbedSendBridgeArgs": "interface:05d3a7029f",
+   "createEmbedSendAgentControl": "function:736942aa19",
+   "installEmbedSendBridge": "function:edf99197b2"
+  }
+ },
  "./browser/frontend-session-bridge": {
   "types": "./dist/embed-widget/browser/frontend-session-bridge.d.ts",
   "symbols": {
@@ -224,7 +235,8 @@
   "types": "./dist/embed-widget/browser/session-store.d.ts",
   "symbols": {
    "BrowserSessionStore": "interface:ea1ceb2d69",
-   "BrowserSessionStoreArgs": "interface:511ec98b97",
+   "BrowserSessionStoreArgs": "interface:dd0d8b2240",
+   "BrowserSessionStoreOperation": "type:54592540a2",
    "PersistedEmbedState": "interface:3c277884cc",
    "SessionStoragePort": "interface:2baa92d1e2",
    "createBrowserSessionStore": "function:44fb047b6d"
@@ -961,14 +973,19 @@
  "./store/runtime": {
   "types": "./dist/store/runtime/entry.d.ts",
   "symbols": {
+   "AdminChatPrincipal": "interface:49028f0942",
    "AssistantHistoryToolPorts": "interface:0218634aca",
    "CHAT_EXPIRY_SWEEP_INTERVAL_MS": "variable:e3e8d8aff7",
    "ChatDatabase": "type:18295727c2",
    "ChatKernel": "type:67461c919d",
+   "ChatPrincipal": "type:e5d6d25cd7",
    "ChatRunLedger": "interface:70e3ad8d41",
    "ChatRunRecoveryOptions": "interface:2cb62e7d1c",
+   "ChatStoreFactory": "type:886870cc44",
    "CheckpointOptions": "interface:7d35c2c9e0",
    "CheckpointState": "interface:6b154d16cf",
+   "GUEST_CHAT_TTL_MS": "variable:29c2fda260",
+   "GuestChatPrincipal": "interface:6fefca6c54",
    "HISTORY_MESSAGE_CHAR_CAP": "variable:7c52dee107",
    "HISTORY_TOTAL_CHAR_CAP": "variable:55cb2ada30",
    "InterruptedChatTurn": "interface:d853e15096",
@@ -982,10 +999,14 @@
    "assistantHistoryToolCatalog": "variable:f4818c2859",
    "attemptCanExecute": "function:b2944cb0c5",
    "buildAssistantHistoryRegistrations": "function:89a20f41b5",
+   "chatExpiryFor": "function:8e5fea24e1",
    "createChatHistoryStore": "function:c9abb30793",
+   "createChatMaintenanceForKernel": "function:898b02ad9f",
    "createChatRunLedger": "function:7887dc175a",
    "createDurableRunStore": "function:f7a1561721",
+   "createLazyChatRunLedger": "function:42a105375b",
    "createRunGuardedChatStore": "function:c349263054",
+   "hashSessionKey": "function:ccf4643b35",
    "runLockKey": "function:e008ecbd90",
    "savedRunEvents": "function:15f90fab6d",
    "startChatExpirySweep": "function:6df7e2d65c",

@@ -41,7 +41,9 @@
   "symbols": {
    "CatalogBuilderArgs": "interface:061acd17b0",
    "CatalogStoreFactory": "interface:2ae56adc95",
+   "DeclaredKeywordSource": "interface:6bda9f0361",
    "LiveToolCatalogQuery": "interface:bf91b345f6",
+   "RefreshingToolCatalogQuery": "interface:ae4e053b84",
    "SearchEnricher": "interface:f6134e54fb",
    "SourceClassifier": "interface:4d6b79a615",
    "ToolCatalogEntry": "interface:7f69d0c37f",
@@ -49,11 +51,15 @@
    "ToolCatalogQuery": "interface:add9a462f6",
    "ToolDescriptor": "interface:bc781f1906",
    "ToolDescriptorSource": "interface:3942a2450e",
+   "appendToolKeywords": "function:d7f6b460f7",
    "buildToolCatalogQuery": "function:eb201328ee",
+   "collectDeclaredToolKeywords": "function:7dacc629fc",
    "createLiveToolCatalogQuery": "function:2c6908c299",
    "createPrefixSourceClassifier": "function:537b81aa87",
+   "createRefreshingToolCatalogQuery": "function:b10c96ac77",
    "createSearchEnricher": "function:e82b5d68d0",
-   "listToolCatalogEntries": "function:1d57d8f79a"
+   "listToolCatalogEntries": "function:1d57d8f79a",
+   "mergeKeywordMaps": "function:c01734e387"
   }
  },
  "./tool-catalog-builder/sqlite": {

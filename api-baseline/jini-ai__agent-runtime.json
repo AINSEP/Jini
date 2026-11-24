@@ -456,6 +456,7 @@
    "parseSseRecord": "function:9432f949f1",
    "parseVelaModelJson": "function:143468964f",
    "parseVelaModels": "function:6044a945b1",
+   "patchNativePermissionLayer": "function:11cfc55058",
    "piAgentDef": "variable:437258e027",
    "piDefOptionsFromEnv": "function:f8c606cd01",
    "pinnedFetch": "function:c38725af98",
@@ -501,6 +502,7 @@
    "resolveOnPath": "function:50947f2c96",
    "resolveOpenAiToolCalls": "function:5d0aceaf9e",
    "resolveOpenCodeLogDir": "function:766d79879e",
+   "resolveProviderProtocol": "function:e756645bc0",
    "runAnthropicToolTurn": "function:8cbbc4b5b0",
    "runAzureToolTurn": "function:70eb99f6b7",
    "runGoogleToolTurn": "function:3f721519a0",
@@ -540,6 +542,26 @@
    "xaiOAuthRedirectUri": "function:cb1b7857d2"
   }
  },
+ "./cli-probe-cache": {
+  "types": "./dist/cli-probe-cache.d.ts",
+  "symbols": {
+   "CliProbeQueue": "interface:af8f5beb4b",
+   "createCliProbeCache": "function:30a63932ab",
+   "createCliProbeQueue": "function:0cb390232e"
+  }
+ },
+ "./custom-instructions": {
+  "types": "./dist/custom-instructions.d.ts",
+  "symbols": {
+   "CustomInstructionsCache": "interface:52510a32d2",
+   "ResolveCustomInstructionsArgs": "type:bf530d0a60",
+   "ResolveCustomInstructionsDeps": "interface:12034caeca",
+   "ResolveCustomInstructionsInput": "interface:0832bfb44c",
+   "createCustomInstructionsCache": "function:7e98c2deef",
+   "formatCustomInstructionsOverlay": "function:9f1a214cb0",
+   "resolveCustomInstructions": "function:9e167990dc"
+  }
+ },
  "./model-catalog/cache": {
   "types": "./dist/model-catalog-cache.d.ts",
   "symbols": {
@@ -551,6 +573,18 @@
    "ModelDiscovery": "type:723009b1f7",
    "ModelMerger": "type:19a78c6307",
    "unionModels": "function:8e39a21634"
+  }
+ },
+ "./model-catalog/live-discovery": {
+  "types": "./dist/model-catalog-live-discovery.d.ts",
+  "symbols": {
+   "LiveModelCredential": "interface:d99368b5e9",
+   "LiveModelDiscovery": "interface:a9c8b0b72c",
+   "LiveModelKey": "interface:89d7a8bc85",
+   "LiveModelSummary": "interface:8e91882470",
+   "createLiveModelDiscovery": "function:7f0ba8eb5a",
+   "fetchLiveClaudeModels": "function:045f481c1b",
+   "unionModels": "function:3be575de7d"
   }
  },
  "./model-discovery": {
@@ -592,6 +626,7 @@
    "NativeAgentPermissions": "interface:8b7feebd73",
    "NativePermissionSet": "interface:d5653d5490",
    "fillNativePermissions": "function:a7d621d1d1",
+   "patchNativePermissionLayer": "function:11cfc55058",
    "projectNativePermissions": "function:dd31b67603",
    "validateNativePermissionSnapshot": "function:d824d2ae8a"
   }
@@ -659,6 +694,7 @@
    "findNumericEnumPaths": "function:110e2d42fc",
    "googleParametersOf": "function:5cc30c886f",
    "providerTurnAdapters": "variable:54acfad23c",
+   "resolveProviderProtocol": "function:e756645bc0",
    "runProviderToolTurn": "function:ed9b76ecbd",
    "sanitizeGoogleSchema": "function:4423d33a07"
   }
