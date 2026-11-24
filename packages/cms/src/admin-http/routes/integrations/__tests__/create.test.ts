@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import { integrationsCreateRoute, type WebhookSubscriptionCreateFn } from "../create.js";
 import { fakeSubscription, fakeSubscriptionDto, FakeNotFoundError, FakeValidationError, isValidationError, raw, recordingAuthorize, refusalOf, signal, WORKSPACE_ID } from "./helpers.js";
 
+const PRINCIPAL = { id: "operator-7" };
 const BODY = { label: "Orders", targetUrl: "https://hooks.example.com/orders", topics: ["post.published"] };
 
 function makeDeps(createSubscription: WebhookSubscriptionCreateFn) {
@@ -41,23 +42,32 @@ describe("integrationsCreateRoute", () => {
     const created = fakeSubscription({ id: "new-1", label: "Orders" });
     const { authorize, calls } = recordingAuthorize();
     const result = await integrationsCreateRoute.handle({
-      input: BODY, deps: makeDeps(async (input) => { asked.push(input); return { subscription: created }; }), authorize,
+      input: BODY, deps: makeDeps(async (input) => { asked.push(input); return { subscription: created }; }), context: PRINCIPAL, authorize,
     }, { signal });
     expect(calls).toEqual([{ permission: "admin.integrations.manage", entityType: "webhook_subscription" }]);
-    expect(asked).toEqual([{ workspaceId: WORKSPACE_ID, ...BODY }]);
+    // The signed-in operator, not a fixed placeholder, is who the host records as owner and creator.
+    expect(asked).toEqual([{ workspaceId: WORKSPACE_ID, actorPrincipalId: "operator-7", ...BODY }]);
     expect(result).toEqual({ ok: true, value: { subscription: fakeSubscriptionDto({ id: "new-1" }) } });
+  });
+
+  it("refuses to create when no one is signed in, rather than stamping a made-up owner", async () => {
+    const { authorize } = recordingAuthorize();
+    let created = 0;
+    const createSubscription: WebhookSubscriptionCreateFn = async () => { created += 1; return { subscription: fakeSubscription() }; };
+    await expect(integrationsCreateRoute.handle({ input: BODY, deps: makeDeps(createSubscription), authorize })).rejects.toThrow(/no authenticated principal/);
+    expect(created).toBe(0);
   });
 
   it("never lets attribution or secret-adjacent record fields reach the wire", async () => {
     const { authorize } = recordingAuthorize();
-    const result = await integrationsCreateRoute.handle({ input: BODY, deps: makeDeps(async () => ({ subscription: fakeSubscription() })), authorize });
+    const result = await integrationsCreateRoute.handle({ input: BODY, deps: makeDeps(async () => ({ subscription: fakeSubscription() })), context: PRINCIPAL, authorize });
     expect(JSON.stringify(result)).not.toMatch(/owner-secret|creator-secret|ownerPrincipalId|createdByPrincipalId|workspaceId/);
   });
 
   it("maps the host's validation failure to a code-less 400 carrying its own message", async () => {
     const { authorize } = recordingAuthorize();
     const createSubscription: WebhookSubscriptionCreateFn = async () => { throw new FakeValidationError("label is required"); };
-    expect(await refusalOf(() => integrationsCreateRoute.handle({ input: BODY, deps: makeDeps(createSubscription), authorize }))).toEqual({
+    expect(await refusalOf(() => integrationsCreateRoute.handle({ input: BODY, deps: makeDeps(createSubscription), context: PRINCIPAL, authorize }))).toEqual({
       status: 400, body: { error: "label is required" },
     });
   });
@@ -67,7 +77,7 @@ describe("integrationsCreateRoute", () => {
     const conflict = new RecordVersionConflictError({ recordKind: "webhook", recordId: "x", expectedVersion: 1, currentVersion: 2 });
     for (const failure of [new FakeNotFoundError("gone"), conflict, new Error("injected insert failure")]) {
       const createSubscription: WebhookSubscriptionCreateFn = async () => { throw failure; };
-      await expect(integrationsCreateRoute.handle({ input: BODY, deps: makeDeps(createSubscription), authorize })).rejects.toBe(failure);
+      await expect(integrationsCreateRoute.handle({ input: BODY, deps: makeDeps(createSubscription), context: PRINCIPAL, authorize })).rejects.toBe(failure);
     }
   });
 
