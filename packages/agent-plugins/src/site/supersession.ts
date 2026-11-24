@@ -1,5 +1,5 @@
 import { readAgentPluginPortableExtension } from "../lifecycle/manifest.js";
-import { orFallback } from "@jini-ai/core/errors/idioms";
+import type { orFallback } from "@jini-ai/core/errors/idioms";
 /**
  * @file Trusted-replacement supersession, declared by the replacing plugin and read generically.
  *
@@ -77,34 +77,38 @@ export function parseSupersedes(required: { readonly manifestText: string | unde
   return { packages, contributions: contributions as readonly SupersededContribution[] };
 }
 
-async function readOrUndefined({ read }: { read: () => Promise<string> }, _optional: Record<string, never> = {}): Promise<string | undefined> {
-  return orFallback({ work: read, fallback: undefined, step: "read plugin supersession manifest" });
+/** The host-bound fallback runner (Core's `orFallback`), injected so this policy reports a failed read
+ *  through the host's own notifier rather than a module-level import. */
+export type SupersessionOrFallback = typeof orFallback;
+
+async function readOrUndefined({ read, orFallback }: { read: () => Promise<string>; orFallback: SupersessionOrFallback }, _optional: Record<string, never> = {}): Promise<string | undefined> {
+  return orFallback<string | undefined>({ work: read, fallback: undefined, step: "read plugin supersession manifest" });
 }
 
-async function declaredBy(required: { readonly plugin: TrustedPluginPackage; readonly manifests: SupersessionManifestsPort }) {
-  const { plugin, manifests } = required;
-  const installed = parseSupersedes({ manifestText: await readOrUndefined({ read: () => manifests.readInstalled({ plugin }) }) });
+async function declaredBy(required: { readonly plugin: TrustedPluginPackage; readonly manifests: SupersessionManifestsPort; readonly orFallback: SupersessionOrFallback }) {
+  const { plugin, manifests, orFallback } = required;
+  const installed = parseSupersedes({ manifestText: await readOrUndefined({ read: () => manifests.readInstalled({ plugin }), orFallback }) });
   if (installed !== undefined) return installed;
   // A trusted package can predate its own declaration: the trust gate accepts the digest the
   // bundled-digest ledger last recorded, and a boot whose seed of the new version failed keeps the
   // previous one. The build's own source manifest for the same id is then the declaration.
-  return parseSupersedes({ manifestText: await readOrUndefined({ read: () => manifests.readBundledSource({ pluginId: plugin.pluginId }) }) });
+  return parseSupersedes({ manifestText: await readOrUndefined({ read: () => manifests.readBundledSource({ pluginId: plugin.pluginId }), orFallback }) });
 }
 
 /** Every trusted verdict's declaration, in verdict order. Refusal verdicts never supersede.
  *  @complexity O(v) manifest reads, at most two per trusted verdict. */
-export async function readSupersessions(required: { readonly verdicts: readonly TrustedPluginVerdict[]; readonly manifests: SupersessionManifestsPort }): Promise<readonly PluginSupersession[]> {
+export async function readSupersessions(required: { readonly verdicts: readonly TrustedPluginVerdict[]; readonly manifests: SupersessionManifestsPort; readonly orFallback: SupersessionOrFallback }, _optional: Record<string, never> = {}): Promise<readonly PluginSupersession[]> {
   const supersessions: PluginSupersession[] = [];
   for (const verdict of required.verdicts) {
     if (!("trusted" in verdict)) continue;
-    const declared = await declaredBy({ plugin: verdict.trusted, manifests: required.manifests });
+    const declared = await declaredBy({ plugin: verdict.trusted, manifests: required.manifests, orFallback: required.orFallback });
     if (declared !== undefined) supersessions.push({ successorId: verdict.trusted.pluginId, ...declared });
   }
   return supersessions;
 }
 
 /** The refusal for a whole superseded package, or `undefined`. */
-export function supersededPackageRefusal(required: { readonly supersessions: readonly PluginSupersession[]; readonly pluginId: string }): string | undefined {
+export function supersededPackageRefusal(required: { readonly supersessions: readonly PluginSupersession[]; readonly pluginId: string }, _optional: Record<string, never> = {}): string | undefined {
   const successor = required.supersessions.find(entry => entry.packages.includes(required.pluginId));
   return successor === undefined ? undefined : `contributions from '${required.pluginId}' were superseded by trusted '${successor.successorId}'`;
 }
@@ -114,7 +118,7 @@ function descriptorIdOf({ descriptor }: { descriptor: unknown }, _optional: Reco
 }
 
 /** The refusal for one superseded descriptor from a named package, or `undefined`. */
-export function supersededDescriptorRefusal(required: { readonly supersessions: readonly PluginSupersession[]; readonly pluginId: string; readonly descriptor: unknown }): string | undefined {
+export function supersededDescriptorRefusal(required: { readonly supersessions: readonly PluginSupersession[]; readonly pluginId: string; readonly descriptor: unknown }, _optional: Record<string, never> = {}): string | undefined {
   const id = descriptorIdOf({ descriptor: required.descriptor });
   for (const successor of required.supersessions) {
     const hit = successor.contributions.find(entry => entry.descriptorId === id && entry.fromPlugins.includes(required.pluginId));

@@ -10,6 +10,7 @@ import {
   createBundledSourceManifestReader, parseSupersedes, readSupersessions,
   supersededDescriptorRefusal, supersededPackageRefusal, type PluginSupersession,
 } from "../supersession.js";
+import { orFallback } from "@jini-ai/core/errors/idioms";
 
 /**
  * @file `supersession.ts`: the replacing plugin's own `extensions.jini.supersedes` declaration, read
@@ -47,6 +48,7 @@ test("readSupersessions prefers the installed manifest, falls back to the bundle
   const supersessions = await readSupersessions({
     verdicts: [{ refusal: "nope" }, ...["fresh", "stale", "absent"].map(pluginId => ({ trusted: { pluginId, packageRoot: `/r/${pluginId}` } }))],
     manifests: { readInstalled: ({ plugin }) => read(installed, plugin.pluginId), readBundledSource: ({ pluginId }) => read(source, pluginId) },
+    orFallback,
   });
   assert.deepEqual(supersessions, [
     { successorId: "fresh", packages: ["old-fresh"], contributions: [] },
@@ -93,7 +95,7 @@ test("the shipped cloudflare manifest declares exactly the supersession core use
   // cloudflare ships from @jini-ai/agent-plugins/cloudflare (D-W3): the reader takes the folder holding it.
   const reader = createBundledSourceManifestReader({ bundledSourceRoot: path.dirname(agentPluginSourceDir({ pluginId: "cloudflare" })) });
   const supersessions = await readSupersessions({ verdicts: [{ trusted: { pluginId: "cloudflare", packageRoot: "/unused" } }],
-    manifests: { readInstalled: () => Promise.reject(new Error("an old install predates the declaration")), readBundledSource: reader } });
+    manifests: { readInstalled: () => Promise.reject(new Error("an old install predates the declaration")), readBundledSource: reader }, orFallback });
   assert.equal(supersededPackageRefusal({ supersessions, pluginId: "cloudflare-pages" }), "contributions from 'cloudflare-pages' were superseded by trusted 'cloudflare'");
   for (const pluginId of ["deploy", "cloudflare-pages"]) {
     assert.equal(supersededDescriptorRefusal({ supersessions, pluginId, descriptor: { id: "cloudflare-pages" } }),
@@ -102,4 +104,15 @@ test("the shipped cloudflare manifest declares exactly the supersession core use
   assert.equal(supersededPackageRefusal({ supersessions, pluginId: "deploy" }), undefined);
   assert.equal(supersededDescriptorRefusal({ supersessions, pluginId: "deploy", descriptor: { id: "netlify" } }), undefined);
   assert.equal(supersededDescriptorRefusal({ supersessions, pluginId: "cloudflare", descriptor: { id: "cloudflare-pages" } }), undefined);
+});
+
+test("readSupersessions routes every manifest read through the injected fallback runner", async () => {
+  const steps: string[] = [];
+  const supersessions = await readSupersessions({
+    verdicts: [{ trusted: { pluginId: "p", packageRoot: "/r/p" } }],
+    manifests: { readInstalled: () => Promise.reject(new Error("gone")), readBundledSource: () => Promise.reject(new Error("gone")) },
+    orFallback: async <Value>({ fallback, step }: { work: () => Value | PromiseLike<Value>; fallback: Value; step: string }) => { steps.push(step); return fallback; },
+  });
+  assert.deepEqual(supersessions, []);
+  assert.deepEqual(steps, ["read plugin supersession manifest", "read plugin supersession manifest"]);
 });

@@ -41,7 +41,7 @@ export interface MailFeedbackRoute {
 }
 
 /** Flattens Node headers to the parser's `Record<string, string>`; lower-cased keys, arrays joined. */
-export function flattenHeaders({ headers }: { headers: MailFeedbackRequest["headers"] }): Record<string, string> {
+export function flattenHeaders({ headers }: { headers: MailFeedbackRequest["headers"] }, _optional: Record<string, never> = {}): Record<string, string> {
   const flat: Record<string, string> = {};
   for (const [name, value] of Object.entries(headers)) {
     if (value === undefined) continue;
