@@ -460,7 +460,7 @@
     "value": 6
   },
   {
-    "file": "packages/agent-runtime/src/defs/pi.ts",
+    "file": "packages/agent-runtime/src/defs/pi/index.ts",
     "rule": "catch-reads-error",
     "value": 1
   },

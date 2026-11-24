@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { grokBuildAgentDef, parseGrokBuildModels } from '../grok-build.js';
+import { grokBuildAgentDef, parseGrokBuildModels } from '../grok-build/index.js';
 import { DEFAULT_MODEL_OPTION } from '../shared.js';
 
 describe('parseGrokBuildModels', () => {

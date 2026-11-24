@@ -1,11 +1,11 @@
-import { createAgentModelDiscovery } from '../model-discovery-native.js';
+import { createAgentModelDiscovery } from '../../model-discovery-native.js';
 /** Reasonix's declarative definition stays product-neutral (R5, checkEngineBoundaries).
  * Per-run system overlays use REASONIX_ACP_SYSTEM_APPEND via the shared systemPromptDelivery
  * dispatch and computeChildEnv. Static def.env is computed once and cannot carry host/per-run
  * overlay wording. */
 import os from 'node:os';
 import path from 'node:path';
-import { acpModelFetcher, DEFAULT_MODEL_OPTION } from './shared.js';
+import { acpModelFetcher, DEFAULT_MODEL_OPTION } from '../shared.js';
 import type { RuntimeAgentDef } from '@jini-ai/core/contracts/agents';
 
 /** Resolve Reasonix's home directory, respecting REASONIX_HOME if already set. */

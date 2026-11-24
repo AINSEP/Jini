@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { getAgentDef } from '../../registry.js';
-import { droidAgentDef } from '../droid.js';
+import { droidAgentDef } from '../droid/index.js';
 import { DEFAULT_MODEL_OPTION } from '../shared.js';
 
 const BASE = ['exec', '--output-format', 'text'];

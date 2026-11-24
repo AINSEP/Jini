@@ -100,6 +100,10 @@ export function throwingDeps(known: Readonly<Record<string, unknown>> = {}): nev
 
 type Mount = (required: { app: Express; adapter: RouteHostContext; deps: (known?: Readonly<Record<string, unknown>>) => never; mountList: (routes: readonly ServerRoute[], optional?: { rawBody?: boolean }) => void }) => void;
 
+function withoutCatalogFor(deps: never): never {
+  return new Proxy(deps as object, { get: (target, property, receiver) => (property === 'catalogFor' ? undefined : Reflect.get(target, property, receiver)) }) as never;
+}
+
 /** Token env for the two bearer gates; never the real process env. */
 const gateEnv = { JINI_TOOL_EXEC_TOKEN: HARNESS_BEARER_TOKEN, JINI_REMOTE_TOOL_BRIDGE_TOKEN: HARNESS_BEARER_TOKEN };
 
@@ -124,7 +128,9 @@ const MOUNT_ORDER: readonly (readonly [family: string, mount: Mount] | 'json-par
   ['active-context', ({ adapter, deps, mountList }) => mountList(activeContextRoutes({ deps: deps(), host: routeHost(adapter) }))],
   ['terminals', ({ adapter, deps, mountList }) => mountList(terminalRoutes({ deps: deps(), host: routeHost(adapter) }))],
   ['db-ops', ({ adapter, deps, mountList }) => mountList(daemonDbRoutes({ deps: deps(), host: routeHost(adapter) }))],
-  ['tool-catalog', ({ adapter, deps, mountList }) => mountList(toolCatalogRoutes({ deps: deps(), host: routeHost(adapter) }))],
+  // `catalogFor` is an optional dependency (a single-principal host omits it). `throwingDeps` makes every
+  // unnamed member a failing one, so it is named as absent here: this family records the unscoped path.
+  ['tool-catalog', ({ adapter, deps, mountList }) => mountList(toolCatalogRoutes({ deps: withoutCatalogFor(deps()), host: routeHost(adapter) }))],
   ['delegated-tools', ({ adapter, deps, mountList }) => mountList(delegatedToolRoutes({ deps: deps(), host: routeHost(adapter) }))],
   ['connectors', ({ adapter, deps, mountList }) => mountList(connectorsRoutes({ deps: deps(), host: routeHost(adapter) }))],
   ['research', ({ adapter, deps, mountList }) => mountList(researchRoutes({ deps: deps(), host: routeHost(adapter) }))],

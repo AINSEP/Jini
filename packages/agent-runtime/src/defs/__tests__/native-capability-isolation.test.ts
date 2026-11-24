@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { NativeCapabilities } from '@jini-ai/core/contracts/agents';
-import { claudeAgentDef } from '../claude.js';
-import { codexAgentDef } from '../codex.js';
+import { claudeAgentDef } from '../claude/index.js';
+import { codexAgentDef } from '../codex/index.js';
 
 const allOn: NativeCapabilities = {
   shell: true, fileWrite: true, userMcp: true, subagents: true,

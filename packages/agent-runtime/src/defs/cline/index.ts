@@ -1,4 +1,4 @@
-import { createAgentModelDiscovery } from '../model-discovery-native.js';
+import { createAgentModelDiscovery } from '../../model-discovery-native.js';
 /**
  * @module defs/cline
  *
@@ -9,7 +9,7 @@ import { createAgentModelDiscovery } from '../model-discovery-native.js';
  * sign-in failed with "Authentication required: Call authenticate before starting a session",
  * which `auth.ts`'s generic classifier already reads as a missing sign-in (fix: `cline auth`).
  */
-import { acpModelFetcher, DEFAULT_MODEL_OPTION } from './shared.js';
+import { acpModelFetcher, DEFAULT_MODEL_OPTION } from '../shared.js';
 import type { RuntimeAgentDef } from '@jini-ai/core/contracts/agents';
 
 export const clineAgentDef = {

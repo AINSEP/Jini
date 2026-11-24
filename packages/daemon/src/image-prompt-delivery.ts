@@ -7,7 +7,7 @@
  * through here). A def declares `imageDelivery: 'prompt-path'` when its CLI
  * has no dedicated image-attachment mechanism but CAN read a local file once
  * its path is named in the prompt text — confirmed for Claude Code by a live
- * probe (see `defs/claude.ts`'s module doc): piping a prompt naming
+ * probe (see `defs/claude/index.ts`'s module doc): piping a prompt naming
  * `/tmp/probe-image.png` into a real `claude -p` produced an accurate
  * description of the image, but only once that path's directory was on the
  * CLI's allowed-directory list.
@@ -68,7 +68,7 @@ export function augmentPromptWithImageAttachments({ prompt, imagePaths }: { read
 /**
  * Directories a 'prompt-path' def's CLI must be allowed to read from so it
  * can actually open the files the augmented prompt just told it about — the
- * second half of the live-probe finding in `defs/claude.ts`'s module doc
+ * second half of the live-probe finding in `defs/claude/index.ts`'s module doc
  * (the CLI refused the same path until its directory was allow-listed).
  * Deduplicated, and order-stable (`Set` preserves insertion order) so a
  * snapshot/equality test against the merged list is deterministic.

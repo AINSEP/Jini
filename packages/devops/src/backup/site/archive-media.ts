@@ -66,7 +66,7 @@ interface CopyContext<TLedger, TBlobStore, TParams extends ArchiveMediaTransform
   imageTransformer: ArchiveMediaImageTransformer<TParams>;
 }
 
-const EXTENSIONS: Record<string, string> = { "video/mp4": "mp4", "video/webm": "webm", "audio/wav": "wav", "audio/mpeg": "mp3", "audio/flac": "flac", "audio/mp4": "m4a" };
+const EXTENSIONS: Record<string, string> = { "video/mp4": "mp4", "video/webm": "webm", "video/quicktime": "mov", "video/x-m4v": "m4v", "audio/wav": "wav", "audio/mpeg": "mp3", "audio/flac": "flac", "audio/mp4": "m4a" };
 
 /** Picks exactly one public copy per item, in id order, without writing to the source site.
  * @throws SiteShareRefusal naming missing, corrupt or unbounded media; raster failures never fall back to raw bytes.

@@ -41,7 +41,7 @@ function mcpJsonPathForRun(cwd: string, runId: string): string {
  * handed via `RuntimeContext.mcpJsonPath`, so the def's own `--strict-mcp-config --mcp-config <path>`
  * argv has a real file to point at by spawn time, instead of auto-discovering `cwd/.mcp.json` (which
  * needs an interactive trust prompt a headless spawn can never answer — confirmed live 2026-07-30,
- * see `@jini-ai/agent-runtime`'s `defs/claude.ts`).
+ * see `@jini-ai/agent-runtime`'s `defs/claude/index.ts`).
  *
  * Reads `cwd/.mcp.json` and writes `delivery.mcpJsonPath`: the project's file is a merge source only,
  * never a write target. See {@link mcpJsonPathForRun} for why one file per run is load-bearing rather

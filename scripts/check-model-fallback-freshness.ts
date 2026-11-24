@@ -4,7 +4,7 @@
  * Some runtime defs ship a hand-written `fallbackModels` array that IS the list a picker renders
  * whenever nothing live answers. `claude` is the clearest case: the CLI has no list-models
  * subcommand, so on an ordinary install (no `~/.config/mms/model-routes.json`, no
- * `ANTHROPIC_API_KEY`) the array in `defs/claude.ts` is the entire model picker.
+ * `ANTHROPIC_API_KEY`) the array in `defs/claude/index.ts` is the entire model picker.
  *
  * A hand-written list of vendor model ids is stale the day a model ships, and — before this check —
  * *nothing failed when it went stale*. That is the whole bug class: the list drifted from reality
@@ -114,15 +114,15 @@ interface GuardedDef {
 const GUARDED_DEFS: readonly GuardedDef[] = [
   {
     agentId: 'claude',
-    file: 'packages/agent-runtime/src/defs/claude.ts',
-    modulePath: join(REPO_ROOT, 'packages/agent-runtime/src/defs/claude.ts'),
+    file: 'packages/agent-runtime/src/defs/claude/index.ts',
+    modulePath: join(REPO_ROOT, 'packages/agent-runtime/src/defs/claude/index.ts'),
     exportName: 'claudeAgentDef',
     liveSource: 'claude-code-picker-cache',
   },
   {
     agentId: 'codex',
-    file: 'packages/agent-runtime/src/defs/codex.ts',
-    modulePath: join(REPO_ROOT, 'packages/agent-runtime/src/defs/codex.ts'),
+    file: 'packages/agent-runtime/src/defs/codex/index.ts',
+    modulePath: join(REPO_ROOT, 'packages/agent-runtime/src/defs/codex/index.ts'),
     exportName: 'codexAgentDef',
     liveSource: 'codex-catalog',
   },
@@ -135,22 +135,22 @@ const GUARDED_DEFS: readonly GuardedDef[] = [
   },
   {
     agentId: 'pi',
-    file: 'packages/agent-runtime/src/defs/pi.ts',
-    modulePath: join(REPO_ROOT, 'packages/agent-runtime/src/defs/pi.ts'),
+    file: 'packages/agent-runtime/src/defs/pi/index.ts',
+    modulePath: join(REPO_ROOT, 'packages/agent-runtime/src/defs/pi/index.ts'),
     exportName: 'piAgentDef',
     liveSource: 'none',
   },
   {
     agentId: 'aider',
-    file: 'packages/agent-runtime/src/defs/aider.ts',
-    modulePath: join(REPO_ROOT, 'packages/agent-runtime/src/defs/aider.ts'),
+    file: 'packages/agent-runtime/src/defs/aider/index.ts',
+    modulePath: join(REPO_ROOT, 'packages/agent-runtime/src/defs/aider/index.ts'),
     exportName: 'aiderAgentDef',
     liveSource: 'none',
   },
   {
     agentId: 'opencode',
-    file: 'packages/agent-runtime/src/defs/opencode.ts',
-    modulePath: join(REPO_ROOT, 'packages/agent-runtime/src/defs/opencode.ts'),
+    file: 'packages/agent-runtime/src/defs/opencode/index.ts',
+    modulePath: join(REPO_ROOT, 'packages/agent-runtime/src/defs/opencode/index.ts'),
     exportName: 'opencodeAgentDef',
     liveSource: 'none',
   },

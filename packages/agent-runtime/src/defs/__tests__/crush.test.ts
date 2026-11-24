@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { getAgentDef } from '../../registry.js';
-import { crushAgentDef } from '../crush.js';
+import { crushAgentDef } from '../crush/index.js';
 import { DEFAULT_MODEL_OPTION } from '../shared.js';
 
 describe('crushAgentDef.buildArgs', () => {

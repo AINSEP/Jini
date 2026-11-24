@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { ampAgentDef } from '../amp.js';
+import { ampAgentDef } from '../amp/index.js';
 
 describe('ampAgentDef shape', () => {
   it('declares the expected identity and transport fields', () => {

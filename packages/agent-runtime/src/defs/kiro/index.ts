@@ -1,13 +1,13 @@
-import { createAgentModelDiscovery } from '../model-discovery-native.js';
-import { acpModelFetcher, DEFAULT_MODEL_OPTION } from './shared.js';
+import { createAgentModelDiscovery } from '../../model-discovery-native.js';
+import { acpModelFetcher, DEFAULT_MODEL_OPTION } from '../shared.js';
 import type { RuntimeAgentDef } from '@jini-ai/core/contracts/agents';
 
-export const kiloAgentDef = {
+export const kiroAgentDef = {
   // UNVERIFIED live integration locally; source/category and limits are documented in model-discovery-adapters.ts.
-  ...createAgentModelDiscovery('kilo', { fallbackModels: (): readonly import('@jini-ai/core/contracts/agents').RuntimeModelOption[] => kiloAgentDef.fallbackModels }),
-    id: 'kilo',
-    name: 'Kilo',
-    bin: 'kilo',
+  ...createAgentModelDiscovery('kiro', { fallbackModels: (): readonly import('@jini-ai/core/contracts/agents').RuntimeModelOption[] => kiroAgentDef.fallbackModels }),
+    id: 'kiro',
+    name: 'Kiro CLI',
+    bin: 'kiro-cli',
     versionArgs: ['--version'],
     fetchModels: acpModelFetcher({ args: ['acp'] }),
     fallbackModels: [DEFAULT_MODEL_OPTION],

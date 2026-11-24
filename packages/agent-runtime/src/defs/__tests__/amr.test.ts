@@ -17,7 +17,7 @@ import {
   normalizeVelaModelId,
   parseVelaModelJson,
   parseVelaModels,
-} from '../amr.js';
+} from '../amr/index.js';
 import type { RuntimeAgentDef } from '@jini-ai/core/contracts/agents';
 import { cliOutputDiscoveryDeps, discoveryContext, offlineDiscoveryDeps } from './discovery-fakes.js';
 

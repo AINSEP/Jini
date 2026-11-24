@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { claudeAgentDef } from '../claude.js';
-import { codexAgentDef } from '../codex.js';
+import { claudeAgentDef } from '../claude/index.js';
+import { codexAgentDef } from '../codex/index.js';
 
 describe('per-run native capability overrides', () => {
   it('retains an explicit shell/file deny even when the other capabilities are granted', () => {

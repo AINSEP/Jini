@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { createHash } from "node:crypto";
 import { test } from "vitest";
 
 import {
@@ -141,6 +142,25 @@ test("uploadMedia dedups identical bytes into one blob but two media rows", asyn
     sha256: first.media.source.sha256,
   });
   assert.ok(blob);
+});
+
+/** A tiny `.mov`/`.m4v` byte fixture: a self-consistent ftyp box naming `brand`, then a stub `mdat`. */
+function isoBmffVideoBytes(brand: string): Buffer {
+  const ftyp = Buffer.concat([Buffer.from([0, 0, 0, 20]), Buffer.from(`ftyp${brand}`), Buffer.alloc(4), Buffer.from(brand)]);
+  return Buffer.concat([ftyp, Buffer.from([0, 0, 0, 8]), Buffer.from("mdat")]);
+}
+
+/** .MOV gap (owner 2026-10-31): QuickTime and M4V uploads are accepted as-is, never converted here. */
+test("uploadMedia accepts .mov and .m4v originals as-is and records their sniffed video type", async () => {
+  const { deps } = makeDeps();
+  for (const [filename, contentType, brand] of [["clip.mov", "video/quicktime", "qt  "], ["clip.m4v", "video/x-m4v", "M4V "]] as const) {
+    const bytes = isoBmffVideoBytes(brand);
+    const { media } = await uploadMedia({ deps, input: { workspaceId: WORKSPACE_ID, bytes, filename, contentType, createdByPrincipal: "user-1" } });
+    assert.equal(media.source.contentType, contentType);
+    assert.equal(media.originalFilename, filename);
+    const blob = await deps.blobRepo.findByHash({ workspaceId: WORKSPACE_ID, sha256: media.source.sha256 });
+    assert.ok(Buffer.from(await deps.blobStore.get({ storageKey: blob!.storageKey })).equals(bytes), "stored bytes are the original, unconverted");
+  }
 });
 
 test("uploadMedia rejects a disallowed content type", async () => {
