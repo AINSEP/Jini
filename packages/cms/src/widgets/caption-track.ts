@@ -27,19 +27,38 @@ const UNSAFE_URL_CHARS = /[\s\\\u0000-\u001f\u007f]/;
 // BCP 47-shaped: a 2-3 letter primary language subtag plus optional short subtags (`en`, `pt-BR`).
 const SRCLANG_PATTERN = /^[A-Za-z]{2,3}(?:-[A-Za-z0-9]{1,8})*$/;
 
+// A browser resolves the URL against the page before fetching: `%2e`/`%2E` are dot segments and `..`
+// collapses, so the raw text can look like it stays under `/m/` while the request lands elsewhere.
+// Validating the normalised result (not the raw segments) is what closes that gap. The base is an
+// unroutable placeholder: any `src` that resolves to a different origin was not a root-relative path.
+const PLACEHOLDER_ORIGIN = "https://placeholder.invalid";
+// An encoded slash, backslash or percent sign is never needed in a media key and is exactly what a
+// server that decodes once more (or a proxy that decodes differently) turns into traversal.
+const ENCODED_DELIMITER = /%(?:2f|5c|25)/i;
+
 /**
- * True only for a same-origin `/m/...` URL whose path (before any `?`/`#`) ends in `.vtt` and has no
- * empty or dot-dot/dot segments.
+ * True only for a same-origin `/m/...` URL whose browser-normalised path (before any `?`/`#`) stays
+ * under `/m/`, ends in `.vtt`, and has no empty, dot or dot-dot segments, however they are encoded.
  *
  * @complexity O(n) in the URL length.
  */
 export function isSafeCaptionTrackSrc({ src }: { src: string }, _optional: Record<string, never> = {}): boolean {
   if (!src.startsWith(MEDIA_ROUTE_PREFIX) || UNSAFE_URL_CHARS.test(src)) return false;
-  const path = src.split(/[?#]/, 1)[0]!;
-  const segments = path.slice(MEDIA_ROUTE_PREFIX.length).split("/");
+  const rawPath = src.split(/[?#]/, 1)[0]!;
+  if (ENCODED_DELIMITER.test(rawPath)) return false;
+  let resolved: URL;
+  try {
+    resolved = new URL(src, PLACEHOLDER_ORIGIN);
+  } catch {
+    return false;
+  }
+  if (resolved.origin !== PLACEHOLDER_ORIGIN || !resolved.pathname.startsWith(MEDIA_ROUTE_PREFIX)) return false;
+  const segments = resolved.pathname.slice(MEDIA_ROUTE_PREFIX.length).split("/");
   // An empty segment (`/m//host/...`) or a `.`/`..` segment could re-target the path off the media route.
   if (segments.some((segment) => segment === "" || segment === "." || segment === "..")) return false;
-  return path.toLowerCase().endsWith(".vtt");
+  // Normalisation that collapsed anything (an encoded `..` between two real segments) changed the path.
+  if (segments.length !== rawPath.slice(MEDIA_ROUTE_PREFIX.length).split("/").length) return false;
+  return resolved.pathname.toLowerCase().endsWith(".vtt");
 }
 
 /**

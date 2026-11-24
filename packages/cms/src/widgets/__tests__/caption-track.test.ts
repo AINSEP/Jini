@@ -37,6 +37,26 @@ test("only same-origin /m/ WebVTT URLs are accepted as a caption source", () => 
   }
 });
 
+test("encoded and normalised traversal that a browser resolves out of /m/ is refused", () => {
+  // The raw segments of each of these look harmless, but a browser percent-decodes dot segments
+  // (`%2e` is `.`) and collapses `..`, so the request would land outside the `/m/` media route.
+  for (const src of [
+    "/m/%2e%2e/admin/x.vtt", "/m/%2E%2E/admin/x.vtt", "/m/%2e./admin/x.vtt", "/m/%2E./admin/x.vtt", "/m/.%2e/admin/x.vtt", "/m/.%2E/admin/x.vtt",
+    "/m/%2e/%2e%2e/admin/x.vtt", "/m/a/%2e%2e/%2e%2e/admin/x.vtt", "/m/..%2fadmin/x.vtt", "/m/a%2f..%2f..%2fadmin/x.vtt",
+    "/m/a%5c..%5cadmin/x.vtt", "/m/%252e%252e/admin/x.vtt", "/m/%252e%252e%252fadmin/x.vtt", "/m/a/%2e%2e%2f%2e%2e/x.vtt",
+    "/m/%2e%2e", "/m/clip/%2e%2e/%2e%2e/x.vtt?v=1",
+  ]) {
+    assert.equal(isSafeCaptionTrackSrc({ src }), false, src);
+    assert.equal(renderCaptionTrack({ track: { src, srclang: "en" } }), "", src);
+  }
+});
+
+test("a percent-encoded but non-traversing name stays accepted", () => {
+  for (const src of ["/m/clip%20one/original.vtt", "/m/clip/caf%C3%A9.vtt?v=1", "/m/clip/a..b/original.vtt"]) {
+    assert.equal(isSafeCaptionTrackSrc({ src }), true, src);
+  }
+});
+
 test("a malformed srclang refuses the track rather than emitting it", () => {
   for (const srclang of ["", "e", "en us", 'en" onerror="x', "english-language-tag-way-too-long-x"]) {
     assert.equal(renderCaptionTrack({ track: { src: track.src, srclang } }), "", srclang);
