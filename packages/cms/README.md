@@ -466,6 +466,13 @@ host resolves `origin` with this package's `./seo` lookup, injects its `toAbsolu
 `@jini-ai/platform/fs`'s `resolvePathWithin` (this package does not depend on platform). `theme-static-assets`:
 `trustedPreviewRevision` (takes the host's `isAuthenticatedPreviewRevision`), `isRewritableCssPath`, `previewCss`,
 `inheritedTemplateSource` (reads `{ dir, inheritedTemplateSources }` structurally from the host's discovered themes).
+`./public-http/middleware/theme-page-preview` (w4-routes) answers the theme Explore preview routes with a neutral
+`{ status, headers, type, body }` the host writes in order. `staticThemePagePreview` / `staticThemePartialPreview` take
+`{ findTheme({ themeId }), renderStaticPage, renderStaticPartial }`; `templatedThemePagePreview` takes `findTheme`,
+`listPublishedPosts()` (published only), `resolveWidgets`, `resolveMediaTransformVersions`, `resolveMediaAssetMetadata`,
+`resolveHtmlEmbeds`, `resolveSiteTitle`, `resolveSiteTimeZone` and `renderSite`. The host owns the route table, the
+admin-session + `theme.set` gate on the templated route (before the call), and failure reporting, writing
+`templatedPreviewFailureResponse({ errorId })` for a thrown render.
 
 `./publish/content`: `normalizePeerBaseUrl({ raw, hasForbiddenRawUrlCharacter })` takes the raw-URL
 character check from the host (Tovu passes `@jini-ai/core/contracts/server/verified-origin`'s), and
