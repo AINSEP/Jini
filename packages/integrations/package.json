@@ -37,7 +37,8 @@
       "./custom-credentials/custom-credential-create-ui": "node",
       "./custom-credentials/provider-settings-card": "node",
       "./custom-credentials/credential-ports": "node",
-      "./custom-credentials/agent-tools": "node"
+      "./custom-credentials/agent-tools": "node",
+      "./custom-credentials/credentialed-request": "node"
     },
     "optionalPeers": {
       "better-sqlite3": "opt-in: sqlite storage; import @jini-ai/integrations/media-providers — SQLite storage could not load better-sqlite3. Install better-sqlite3 to enable this feature, or check its installed version and native binaries.",
@@ -53,7 +54,8 @@
         "./custom-credentials/custom-credential-create-ui": "credentialed-http",
         "./custom-credentials/provider-settings-card": "credentialed-http",
         "./custom-credentials/credential-ports": "credentialed-http",
-        "./custom-credentials/agent-tools": "credentialed-http"
+        "./custom-credentials/agent-tools": "credentialed-http",
+        "./custom-credentials/credentialed-request": "credentialed-http"
       }
     }
   },
@@ -184,6 +186,11 @@
       "types": "./dist/custom-credentials/agent-tools.d.ts",
       "import": "./dist/custom-credentials/agent-tools.js",
       "default": "./dist/custom-credentials/agent-tools.js"
+    },
+    "./custom-credentials/credentialed-request": {
+      "types": "./dist/custom-credentials/credentialed-request.d.ts",
+      "import": "./dist/custom-credentials/credentialed-request.js",
+      "default": "./dist/custom-credentials/credentialed-request.js"
     }
   },
   "typesVersions": {
@@ -259,6 +266,9 @@
       ],
       "custom-credentials/agent-tools": [
         "./dist/custom-credentials/agent-tools.d.ts"
+      ],
+      "custom-credentials/credentialed-request": [
+        "./dist/custom-credentials/credentialed-request.d.ts"
       ]
     }
   },

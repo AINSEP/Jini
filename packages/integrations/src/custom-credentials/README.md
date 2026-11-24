@@ -15,6 +15,9 @@ Small generic helpers for host credential cards and credentialed calls.
   write-files tool input-schema shapes the credential handlers validate against.
 - `credential-ports` — `classifyCredentialedRequestError` and `bindCredentialedRequestPort`, the core
   `CredentialedRequestPort` bound over a host's existing request functions.
+- `credentialed-request` — `bindCustomCredentialRequestOperations`: the `(deps, input)` request, DELETE-target,
+  verify and probe operations over `credentialed-http`, with not-found identity, egress-refusal identity and the
+  saved-hosts remedy applied at the boundary.
 
 ## Wiring
 
@@ -41,3 +44,8 @@ Small generic helpers for host credential cards and credentialed calls.
 - `buildCustomCredentialsAgentToolCatalog` takes the host's tool `ids`, `permissions` (read/write), every
   description sentence (`copy`) and its enforced `writeFilesLimits.maxFiles`. The host binds it where it
   declares its credential tool catalog (the same catalog it passes as `vocabulary.catalog`).
+- `bindCustomCredentialRequestOperations` takes `host`: `describe` (non-decrypting) and `resolve` (decrypting) store
+  reads by label, `send` (one call on the host's guarded client, e.g. a positional `send(request, options)`),
+  `EgressRefusedError` (its guarded-client refusal class), `defaultAudit` (the sink used when `deps.audit` is absent;
+  host log prefixes stay host-side) and `savedHostRemedy` (the wording appended to a saved-hosts refusal). A host binds
+  it once and passes the result as `bindCredentialedRequestPort`'s `operations`.

@@ -1012,7 +1012,7 @@
   "types": "./dist/site/deploy-split-activation.d.ts",
   "symbols": {
    "DeploySplitActivationPort": "interface:70820e2800",
-   "carryCloudflareActivation": "function:9f3e486b54"
+   "carryCloudflareActivation": "function:23fab05dfe"
   }
  },
  "./site/host-plugin-guidance": {
@@ -1059,7 +1059,7 @@
    "ProviderFaceCatalog": "interface:9c6f9a62df",
    "ProviderFacePorts": "interface:9587095f97",
    "bindProviderFacePorts": "function:66deefd6a2",
-   "followProviderActivations": "function:789871c301",
+   "followProviderActivations": "function:98d55dd349",
    "linkedProviderOf": "function:98ebb54d29",
    "syncProviderFaces": "function:6547f697f1"
   }

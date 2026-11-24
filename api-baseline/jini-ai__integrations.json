@@ -299,6 +299,16 @@
    "withCustomCredentialSetup": "function:116cd2f341"
   }
  },
+ "./custom-credentials/credentialed-request": {
+  "types": "./dist/custom-credentials/credentialed-request.d.ts",
+  "symbols": {
+   "CustomCredentialRequestHost": "interface:bdc1828072",
+   "CustomCredentialRequestHostDeps": "interface:51ec7188da",
+   "CustomCredentialRequestInput": "type:efdfc53cff",
+   "CustomCredentialRequestOperations": "interface:9e4014ea4b",
+   "bindCustomCredentialRequestOperations": "function:6289b1d6a0"
+  }
+ },
  "./custom-credentials/custom-credential-create-ui": {
   "types": "./dist/custom-credentials/custom-credential-create-ui.d.ts",
   "symbols": {
