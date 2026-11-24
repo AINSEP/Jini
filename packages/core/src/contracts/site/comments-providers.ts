@@ -1,6 +1,6 @@
+/** Provider-neutral comments boundaries. Private moderation data never enters thread rendering. */
 /** Provider-neutral comments provider contracts (type-only). Registry/definition/selection-store/renderer boundaries
  * live in core so the cms comments owner can be typed against them while hosts inject the runtime registry factory. */
-/** Private moderation data never enters thread rendering. */
 export type CommentStatus = 'pending' | 'approved' | 'spam' | 'trash';
 /** Optional executable assets are declared separately; ordinary thread HTML remains visible. */
 export interface CommentThreadScript { readonly src: string }

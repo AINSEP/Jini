@@ -28,7 +28,11 @@ function assertThresholds(thresholds: TierThresholds): void {
   for (const value of Object.values(thresholds)) if (!Number.isFinite(value) || value < 0 || value > 100) throw new RangeError('tier thresholds must be percentages from 0 to 100');
 }
 
-/** The branch total both tiers agree on, or why no trustworthy total exists. */
+/** The branch total both tiers agree on, or why no trustworthy total exists.
+ *  brf is a static property of the source file (branch count from its AST), not of which tier's
+ *  test run happened to load it — so it should agree between both records whenever both exist.
+ *  Prefer the unit record (the primary/required tier) when both are present.
+ *  A disagreement between tiers means one artifact is stale. */
 function sharedBranchTotal(unitRec: FileCoverage | undefined, integrationRec: FileCoverage | undefined): number | { failure: string } {
   const brf = unitRec?.brf ?? integrationRec?.brf;
   if (brf === undefined) return { failure: 'no coverage record on either tier' };

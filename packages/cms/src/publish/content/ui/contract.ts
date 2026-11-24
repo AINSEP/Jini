@@ -41,7 +41,7 @@ export interface PublishContentNotSupportedByLive {
 
 /**
  * `POST .../publish-content/peers/:peerId/push/plan` — the shared gated-mutation envelope
- * (`GatedPlanResult` in `apps/admin/src/lib/api.ts`) with this ceremony's own `details`, spread at
+ * (`GatedPlanResult` in the host admin's API client) with this ceremony's own `details`, spread at
  * the top level so one client render path serves both this route and the local `/import/plan`.
  *
  * `bundleId` is load-bearing, not informational: the peer's `/import/execute` requires the same
@@ -56,7 +56,7 @@ export interface PublishContentPlanResult {
   /**
    * publish-overwrite-live-plan §4/S7 — whether the peer this plan targets can honour a forced
    * overwrite at all (`peer-transport.ts`'s `PushBundleResult.liveCanOverwrite`, echoed here by
-   * `push/plan`). `false` for a peer on an older Tovu build, or one whose bundle carried no
+   * `push/plan`). `false` for a peer on an older host build, or one whose bundle carried no
    * entities to probe against. The admin dialog and the chat tool read this before ever offering an
    * "Overwrite on live" tick.
    */

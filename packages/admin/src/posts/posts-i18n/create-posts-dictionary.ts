@@ -13,6 +13,9 @@
  * `productEntries` — per-locale entries whose key or value names the product (K3), which never ship in
  * this package and are composed last so they win on a collision.
  *
+ * The editor-header, save-feedback and errors slices hold the screen requirements that previously
+ * bypassed this dictionary or were absent in every locale.
+ *
  * Composition order: the slices share no key (the former single file's main table and its later
  * overlays were disjoint), so their order is immaterial; `EDITOR_FAILURE_DICT` follows them because the
  * original assigned it last, so it keeps winning over any slice on a collision.
