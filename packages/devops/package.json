@@ -28,6 +28,7 @@
       "./checks/memory-soak": "universal",
       "./checks/env-access": "universal",
       "./local-dev": "node",
+      "./local-dev/dev-proxy-upstream": "node",
       "./deploy/node": "node",
       "./static-export/failure-summary": "universal",
       "./dns": "node",
@@ -138,6 +139,11 @@
       "types": "./dist/local-dev/index.d.ts",
       "import": "./dist/local-dev/index.js",
       "default": "./dist/local-dev/index.js"
+    },
+    "./local-dev/dev-proxy-upstream": {
+      "types": "./dist/local-dev/dev-proxy-upstream.d.ts",
+      "import": "./dist/local-dev/dev-proxy-upstream.js",
+      "default": "./dist/local-dev/dev-proxy-upstream.js"
     },
     "./deploy/node": {
       "types": "./dist/deploy/node.d.ts",
