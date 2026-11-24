@@ -1,5 +1,5 @@
 import { token } from '@jini-ai/core';
-import type { CommentThreadRendererPort, CommentModerationPort, CommentSubmissionPort, CommentsSelectionStorePort, CommentsProviderRegistry } from "@jini-ai/core/contracts/site/capability-providers-comments";
+import type { CommentThreadRendererPort, CommentModerationPort, CommentSubmissionPort, CommentsSelectionStorePort, CommentsProviderRegistry } from '@jini-ai/core/contracts/site/comments-providers';
 export const CommentsProviderRegistryToken = token<CommentsProviderRegistry>({ id: 'jini.capabilityProviders.comments.registry' });
 export const CommentThreadRendererToken = token<CommentThreadRendererPort>({ id: 'jini.capabilityProviders.comments.renderer' });
 export const CommentModerationToken = token<CommentModerationPort>({ id: 'jini.capabilityProviders.comments.moderation' });

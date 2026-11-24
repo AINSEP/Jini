@@ -6,7 +6,7 @@ import { PRINCIPAL, raw, recordingAuthorize, refusalOf, signal, WORKSPACE_ID } f
 function deleteDeps(overrides: Partial<MediaDeleteRouteDeps> = {}): MediaDeleteRouteDeps & { calls: string[] } {
   const calls: string[] = [];
   return {
-    calls, workspaceId: WORKSPACE_ID,
+    calls, workspaceId: WORKSPACE_ID, outwardErrorMessage: ({ error }) => error.message,
     purgeMedia: async ({ workspaceId, id }) => { calls.push(`purge ${workspaceId}/${id}`); return { purged: true }; },
     forgetRemovedMedia: async ({ workspaceId, id }) => { calls.push(`forget ${workspaceId}/${id}`); },
     ...overrides,
@@ -37,6 +37,16 @@ describe("mediaDeleteRoute", () => {
     expect(await call(failWith(new MediaStillReferencedError({ message: "still used", referencing: ["e1:body"] }))))
       .toEqual({ status: 409, body: { error: "still used", referencing: ["e1:body"] } });
     expect(await call(failWith(new MediaNotFoundError({ message: "media 'a1' was not found" })))).toEqual({ status: 404, body: { error: "media 'a1' was not found" } });
+  });
+
+  it("words the 409 and 404 refusals through the host's outwardErrorMessage, never the raw error text", async () => {
+    const { authorize } = recordingAuthorize();
+    const outwardErrorMessage: MediaDeleteRouteDeps["outwardErrorMessage"] = ({ error }) => `outward:${error.constructor.name}`;
+    const failWith = (error: Error) => deleteDeps({ outwardErrorMessage, purgeMedia: async () => { throw error; } });
+    const call = (deps: MediaDeleteRouteDeps) => refusalOf(() => mediaDeleteRoute.handle({ input: { mediaId: "a1" }, deps, context: PRINCIPAL, authorize }));
+    expect(await call(failWith(new MediaStillReferencedError({ message: "stored text", referencing: ["e1:body"] }))))
+      .toEqual({ status: 409, body: { error: "outward:MediaStillReferencedError", referencing: ["e1:body"] } });
+    expect(await call(failWith(new MediaNotFoundError({ message: "stored text" })))).toEqual({ status: 404, body: { error: "outward:MediaNotFoundError" } });
   });
 
   it("purges nothing when authorization refuses and rethrows unmapped errors", async () => {

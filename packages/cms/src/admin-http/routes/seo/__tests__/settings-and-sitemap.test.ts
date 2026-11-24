@@ -12,6 +12,9 @@ import { gate, PRINCIPAL, raw, recordingAuthorize, refusalOf, WORKSPACE_ID } fro
 const SETTINGS = { titleTemplate: "{title} | Site" } as unknown as SeoSettings;
 const ready = Promise.resolve();
 
+/** A host formatter whose output is distinct from the error text, so a route that skipped it would show. */
+const hostWording = ({ error }: { error: Error }) => `host: ${error.message}`;
+
 describe("seoGetSettingsRoute", () => {
   it("keeps the method, path, success status and no body cap", () => {
     expect(seoGetSettingsRoute.method).toBe("get");
@@ -64,7 +67,7 @@ describe("seoPutSettingsRoute", () => {
     const { authorize, calls } = recordingAuthorize();
     const writes: unknown[] = [];
     const writeSeoSettings = async (input: unknown) => { writes.push(input); return SETTINGS; };
-    const result = await seoPutSettingsRoute.handle({ input: { patch: { noindex: true } }, deps: { workspaceId: WORKSPACE_ID, seoReady: ready, writeSeoSettings }, context: PRINCIPAL, authorize });
+    const result = await seoPutSettingsRoute.handle({ input: { patch: { noindex: true } }, deps: { workspaceId: WORKSPACE_ID, seoReady: ready, outwardErrorMessage: hostWording, writeSeoSettings }, context: PRINCIPAL, authorize });
     expect(calls).toEqual([{ permission: "admin.seo.manage", entityType: "seo-settings" }]);
     expect(writes).toEqual([{ workspaceId: WORKSPACE_ID, patch: { noindex: true }, callerPrincipalId: PRINCIPAL.id }]);
     expect(result).toEqual({ ok: true, value: { data: SETTINGS } });
@@ -73,16 +76,16 @@ describe("seoPutSettingsRoute", () => {
   it("maps a refused patch to 400 SEO_SETTINGS_VALIDATION_ERROR and rethrows anything else", async () => {
     const { authorize } = recordingAuthorize();
     const refuse = async () => { throw new SeoSettingsValidationError("titleTemplate is too long"); };
-    expect(await refusalOf(() => seoPutSettingsRoute.handle({ input: { patch: {} }, deps: { workspaceId: WORKSPACE_ID, seoReady: ready, writeSeoSettings: refuse }, context: PRINCIPAL, authorize }))).toEqual({
-      status: 400, body: { error: "titleTemplate is too long", code: "SEO_SETTINGS_VALIDATION_ERROR" },
+    expect(await refusalOf(() => seoPutSettingsRoute.handle({ input: { patch: {} }, deps: { workspaceId: WORKSPACE_ID, seoReady: ready, outwardErrorMessage: hostWording, writeSeoSettings: refuse }, context: PRINCIPAL, authorize }))).toEqual({
+      status: 400, body: { error: "host: titleTemplate is too long", code: "SEO_SETTINGS_VALIDATION_ERROR" },
     });
     const boom = async () => { throw new Error("ledger offline"); };
-    await expect(seoPutSettingsRoute.handle({ input: { patch: {} }, deps: { workspaceId: WORKSPACE_ID, seoReady: ready, writeSeoSettings: boom }, context: PRINCIPAL, authorize })).rejects.toThrow("ledger offline");
+    await expect(seoPutSettingsRoute.handle({ input: { patch: {} }, deps: { workspaceId: WORKSPACE_ID, seoReady: ready, outwardErrorMessage: hostWording, writeSeoSettings: boom }, context: PRINCIPAL, authorize })).rejects.toThrow("ledger offline");
   });
 
   it("writes nothing when authorization refuses, and fails closed without a principal", async () => {
     let writes = 0;
-    const deps = { workspaceId: WORKSPACE_ID, seoReady: ready, writeSeoSettings: async () => { writes += 1; return SETTINGS; } };
+    const deps = { workspaceId: WORKSPACE_ID, seoReady: ready, outwardErrorMessage: hostWording, writeSeoSettings: async () => { writes += 1; return SETTINGS; } };
     await expect(seoPutSettingsRoute.handle({ input: { patch: {} }, deps, context: PRINCIPAL, authorize: recordingAuthorize(["admin.seo.manage"]).authorize })).rejects.toThrow("denied");
     await expect(seoPutSettingsRoute.handle({ input: { patch: {} }, deps, context: undefined, authorize: recordingAuthorize().authorize })).rejects.toThrow(/no authenticated principal/);
     expect(writes).toBe(0);

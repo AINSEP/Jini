@@ -169,6 +169,18 @@ export interface VersionConflictBody {
   };
 }
 
+/** A rejected save whose basis version had already been superseded. */
+export interface SaveConflict {
+  /** The version the editor believed it was editing. `null` only if the server omitted it. */
+  expectedVersion: number | null;
+  /** The version actually stored now — what the other operator's save produced. `null` only if the
+   *  server omitted it. */
+  currentVersion: number | null;
+  /** The `statusOverride` (called `nextStatus` by the page editor) the rejected save was attempting, carried so an explicit retry re-runs the
+   *  SAME intent. Without it a rejected Publish would silently retry as an ordinary draft save. */
+  attemptedStatus: "draft" | "published" | undefined;
+}
+
 /**
  * The 409 body. `details` carries the versions as fields so the admin "Copy details" text and any
  * client can show "yours N, theirs M" without parsing prose. Same `{ error, code, details }` shape

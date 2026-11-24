@@ -7,7 +7,7 @@ import {
   type ExecutionCredentialPort,
   type ExecutionCredentialView,
 } from '../../../react/hooks/use-execution-credential.hooks.js';
-import type { ByokConfig } from '../../../types.js';
+import type { ByokConfig } from '@jini-ai/core/contracts/execution';
 import type { SettingsSliceRefreshPort } from '../../../../panel-kit/hooks/settings-slice.helpers.js';
 
 afterEach(cleanup);

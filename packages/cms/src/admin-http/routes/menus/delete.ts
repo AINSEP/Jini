@@ -1,34 +1,38 @@
 import { defineJsonRoute, ok } from "@jini-ai/core/contracts/server";
 
+import { MenuConflictError, MenuNotFoundError } from "../../../navigation/menu-service.js";
+import type { TrashMenuInput } from "../../../navigation/site/trash-menu.js";
 import type { AdminTrashMenuEnvelope } from "@jini-ai/core/contracts/site/cms-menus";
 import { toAdminTrashMenuResponse } from "../../http/menus.js";
-import { authorizeMenus, MENU_CONFLICT, MENU_NOT_FOUND, menuActorId, menuIdParam, rejectMenuError, type MenuRoutePrincipal } from "./shared.js";
+import { authorizeMenus, mapMenuError, menuActorId, menuIdParam, rejectMenuError, type MenuErrorMapping, type MenuRoutePrincipal } from "./shared.js";
+import type { OutwardErrorMessage } from "../../http/outward-error-message.js";
 
-/**
- * Moves one menu to the Trash. Injected because the trash pipeline is the host's: it owns the
- * generic Trash store, the display row and the purge-time unassignment. It throws
- * `MenuNotFoundError` for a missing menu and `MenuConflictError` when the row changed mid-move.
- */
-export type MenuTrashFn = (required: {
-  workspaceId: string;
-  menuId: string;
-  actor: { principalId: string };
-}) => Promise<{ id: string; version: number | null }>;
+const MENU_DELETE_ERROR_MAPPINGS: readonly MenuErrorMapping[] = [
+  mapMenuError({ errorClass: MenuNotFoundError, status: 404 }),
+  mapMenuError({ errorClass: MenuConflictError, status: 409 }),
+];
 
 /** The deps this route reads. */
 export interface MenuDeleteRouteDeps {
+  /** Words a classified error for the caller (see {@link OutwardErrorMessage}). */
+  outwardErrorMessage: OutwardErrorMessage;
   workspaceId: string;
-  trashMenu: MenuTrashFn;
+  /** The host's bound trash step: its repo, remove operation and clock closed over `navigation/site/trash-menu`'s `trashMenu`.
+   *  Throws the menu errors (`MenuNotFoundError`, `MenuConflictError`) the route maps to 404/409. */
+  trashMenu: (required: TrashMenuInput) => Promise<{ id: string; version: number | null }>;
 }
 
-const MENU_DELETE_ERRORS = [MENU_NOT_FOUND, MENU_CONFLICT] as const;
+/** The menu to move to the Trash. */
+export interface MenuDeleteInput { menuId: string }
 
 /**
- * DELETE a menu — moves it to the Trash (ADR-029 §6). Gated by `admin.menus.delete` for that menu.
- * Purging happens only through the generic Trash surface, so there is no force/purge ladder here;
- * a second call against an already-trashed menu is the ordinary 404.
+ * DELETE a menu — moves it to the Trash (ADR-029 §6 / trash pipeline). No more force/purge ladder:
+ * purging (permanent deletion) happens only through the generic Trash surface, which already
+ * unassigns a bound menu's locations at purge time (T1's registry `purgeFirst`). A second call
+ * against an already-trashed menu 404s like any other not-found — there is no separate
+ * `admin.menus.delete.force` permission or `?force=true` behavior left to gate.
  */
-export const menuDeleteRoute = defineJsonRoute<{ menuId: string }, AdminTrashMenuEnvelope, MenuDeleteRouteDeps, MenuRoutePrincipal>({
+export const menuDeleteRoute = defineJsonRoute<MenuDeleteInput, AdminTrashMenuEnvelope, MenuDeleteRouteDeps, MenuRoutePrincipal>({
   method: "delete",
   path: "/api/admin/v1/workspaces/:workspaceId/menus/:menuId",
   parse: (raw) => ok({ value: { menuId: menuIdParam({ params: raw.params }) } }),
@@ -39,7 +43,7 @@ export const menuDeleteRoute = defineJsonRoute<{ menuId: string }, AdminTrashMen
       const trashed = await deps.trashMenu({ workspaceId: deps.workspaceId, menuId: input.menuId, actor: { principalId } });
       return ok({ value: toAdminTrashMenuResponse(trashed) });
     } catch (err) {
-      return rejectMenuError({ err, mappings: MENU_DELETE_ERRORS });
+      return rejectMenuError({ err, outwardErrorMessage: deps.outwardErrorMessage, mappings: MENU_DELETE_ERROR_MAPPINGS });
     }
   },
 });

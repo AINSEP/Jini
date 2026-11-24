@@ -1,16 +1,19 @@
+import type { OutboxPort } from "@jini-ai/core/contracts/events";
 import { RouteRefusalError } from "@jini-ai/core/errors/route-refusal";
 
 import type { NavMenuEntry } from "../../../../navigation/index.js";
 import { InMemoryMenuRepo, InMemoryNavLocationBindingRepo } from "../../../../navigation/index.js";
 import { InMemoryOutbox } from "../../../../redirects/__tests__/support/events.fixture.js";
 
-/** @file Shared fakes for the menus route-spec tests: a fixed menu row, a recording authorizer and the refusal reader. */
+/** @file Shared fakes for the menus route-spec tests: a fixed menu row, a recording authorizer, the refusal reader and two write-deps factories. */
 
 export const WORKSPACE_ID = "ws-1";
 export const PRINCIPAL = { id: "principal-1" };
 export const signal = new AbortController().signal;
 /** The host's raw-HTML permission is injected, so the tests use a value no real host ships. */
 export const RAW_HTML_PERMISSION = "test.raw_html";
+/** Words a classified error for the caller as the Tovu host does: its own message, unchanged. */
+export const outwardErrorMessage = ({ error }: { error: Error }): string => error.message;
 
 /** One stored menu, so serialized DTOs can be pinned field by field. */
 export function fakeMenu(overrides: Partial<NavMenuEntry> = {}): NavMenuEntry {
@@ -73,8 +76,33 @@ export async function makeWriteDeps(rows: NavMenuEntry[] = [fakeMenu()]) {
     clock: { nowMs: () => Date.parse("2026-10-08T01:00:00.000Z") + 1000 * tick++ },
     idGen: { newId: () => `id-${++tick}` },
     outbox: new InMemoryOutbox(),
+    outwardErrorMessage,
     rawHtmlPermission: RAW_HTML_PERMISSION,
     // Identity normalizer: the specs only pass it through; markup balancing is the host's Node adapter.
     normalizeMenuHtml: ({ html }: { html: string }) => html,
+  };
+}
+
+/** The write collaborators the menu service needs, over empty in-memory repos and a recording outbox. */
+export function makeMenuDeps() {
+  let idTick = 0;
+  const enqueued: unknown[] = [];
+  const outbox: OutboxPort = {
+    enqueue: async (event) => { enqueued.push(event); },
+    claimPending: async () => [],
+    markDelivered: async () => {},
+    markFailed: async () => {},
+  };
+  return {
+    workspaceId: WORKSPACE_ID,
+    outwardErrorMessage,
+    rawHtmlPermission: "pages.edit_html",
+    menuRepo: new InMemoryMenuRepo({}),
+    navLocationBindingRepo: new InMemoryNavLocationBindingRepo({}),
+    clock: { nowMs: () => Date.parse("2026-07-10T00:00:00.000Z"), nowIso: () => "2026-07-10T00:00:00.000Z" },
+    idGen: { newId: () => `id-${++idTick}` },
+    outbox,
+    enqueued,
+    normalizeMenuHtml: ({ html }: { html: string }) => `<!--n-->${html}`,
   };
 }

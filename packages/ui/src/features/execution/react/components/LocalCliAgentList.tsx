@@ -5,14 +5,14 @@ import type {
   AgentCliEnvFieldSpec,
   AgentScanState,
   AgentTestState,
-  DetectedAgent,
+  ExecutionCardAgent,
   LocalCliConfig,
-} from '../../types.js';
+} from '@jini-ai/core/contracts/execution';
 import { useLocalCliAgentCards } from './LocalCliAgentList.hooks.js';
 import { useLocalCliAgentList, type UseLocalCliAgentListResult } from '../hooks/useLocalCliAgentList.js';
 
 export interface LocalCliAgentListProps {
-  agents: readonly DetectedAgent[];
+  agents: readonly ExecutionCardAgent[];
   config: LocalCliConfig;
   scan: AgentScanState;
   onSelect: (agentId: string) => void;
@@ -21,9 +21,9 @@ export interface LocalCliAgentListProps {
   onEnvChange: (agentId: string, envKey: string, value: string) => void;
   cliEnvFields: readonly AgentCliEnvFieldSpec[];
   onRescan?: (() => void) | undefined;
-  onTest?: ((agent: DetectedAgent) => void) | undefined;
+  onTest?: ((agent: ExecutionCardAgent) => void) | undefined;
   agentTest: AgentTestState;
-  renderAgentIcon?: ((agent: DetectedAgent) => ReactNode) | undefined;
+  renderAgentIcon?: ((agent: ExecutionCardAgent) => ReactNode) | undefined;
   /**
    * Where detection ran, in the host's own words — "on this machine" for a
    * desktop app, "on the server" for a deployed one.
@@ -117,10 +117,10 @@ export function LocalCliAgentList({
 
 /** Scan-state precedence and the not-installed disclosure belong to one grid. */
 function LocalCliAgentGrid({ agents, scan, list, renderCard, agentHandle, useTHook = useT }: {
-  agents: readonly DetectedAgent[];
+  agents: readonly ExecutionCardAgent[];
   scan: AgentScanState;
   list: UseLocalCliAgentListResult;
-  renderCard: (agent: DetectedAgent) => ReactNode;
+  renderCard: (agent: ExecutionCardAgent) => ReactNode;
   agentHandle?: string | undefined;
   useTHook?: typeof useT;
 }) {

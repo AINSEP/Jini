@@ -10,3 +10,9 @@ test("image-ops keeps native image codecs behind the port", () => {
   const source = readFileSync(new URL("../image-ops.ts", import.meta.url), "utf8");
   assert.doesNotMatch(source, /(?:from\s*|import\(\s*|require\(\s*)["']sharp["']/);
 });
+
+// media_view_image moved from the host with this assertion; it, too, decodes through the injected codec.
+test("media/site/view-image-tool keeps native image codecs behind the port", () => {
+  const source = readFileSync(new URL("../../site/view-image-tool.ts", import.meta.url), "utf8");
+  assert.doesNotMatch(source, /(?:from\s*|import\(\s*|require\(\s*)["']sharp["']/);
+});

@@ -165,11 +165,11 @@ admin panel would otherwise re-derive — `execution`, `integrations`, `connecto
 
 This has already gone wrong once: the reference implementation's admin API client defines
 `AdminExecutionDetectedAgent` with the comment *"Mirrors `@jini-ai/ui`'s `ExecutionTab`
-`DetectedAgent` shape"* — a hand-maintained copy of `features/execution/types.ts`'s
-`DetectedAgent` that has **already drifted** (it added `authStatus`/`authMessage`; this side has
+`DetectedAgent` shape"* — a hand-maintained copy of `@jini-ai/core/contracts/execution`'s
+`ExecutionCardAgent` (renamed from `DetectedAgent`) that has **already drifted** (it added `authStatus`/`authMessage`; this side has
 `description` and reasoning-effort presets). It also re-derived `detectExecutionAgents` /
 `testExecutionConnection` / `listExecutionModels` / `testExecutionAgent`, which is exactly the
-`ExecutionPort` already defined in `features/execution/ports.ts`.
+`ExecutionPort` already defined in `@jini-ai/core/contracts/execution`.
 
 Reuse the port. Do not create a third definition.
 

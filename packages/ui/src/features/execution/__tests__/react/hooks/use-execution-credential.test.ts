@@ -1,7 +1,7 @@
 import { act, cleanup, renderHook } from '@testing-library/react';
 import { afterEach, describe, expect, it } from 'vitest';
 import { useExecutionCredential, type ExecutionCredentialEffects, type ExecutionCredentialPatch, type ExecutionCredentialPort, type ExecutionCredentialView } from '../../../react/hooks/use-execution-credential.hooks.js';
-import type { ByokConfig } from '../../../types.js';
+import type { ByokConfig } from '@jini-ai/core/contracts/execution';
 
 afterEach(cleanup);
 

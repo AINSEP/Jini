@@ -1,4 +1,5 @@
-import type { CommentsProviderDefinition } from "@jini-ai/core/contracts/site/capability-providers-comments";
+import type { CommentsProviderDefinition } from '@jini-ai/core/contracts/site/comments-providers';
+
 /** Returns an immutable, isolated definition; malformed metadata is refused before registration. */
 export function freezeCommentsDefinition({ definition }: { definition: CommentsProviderDefinition }, _options = {}): CommentsProviderDefinition {
   if (!/^[a-z0-9][a-z0-9._-]*$/.test(definition.id) || !definition.label.trim()) throw new Error('Invalid comments provider identity');

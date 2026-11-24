@@ -9,6 +9,7 @@ import { PRINCIPAL, recordingAuthorize, refusalOf, signal, WORKSPACE_ID } from "
 function deps(log: string[] = [], fail?: unknown) {
   return {
     workspaceId: WORKSPACE_ID,
+    outwardErrorMessage: ({ error }: { error: Error }) => error.message,
     readText: async (input: { workspaceId: string; id: string; offset: number }) => {
       log.push(JSON.stringify(input));
       if (fail !== undefined) throw fail;

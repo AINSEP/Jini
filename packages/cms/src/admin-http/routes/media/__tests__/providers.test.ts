@@ -35,7 +35,7 @@ describe("mediaGetProvidersRoute", () => {
 });
 
 describe("mediaPutProvidersRoute", () => {
-  const putDeps = (save: MediaPutProvidersRouteDeps["saveProviders"]): MediaPutProvidersRouteDeps => ({ workspaceId: WORKSPACE_ID, saveProviders: save, saveErrorMappings: REFUSALS });
+  const putDeps = (save: MediaPutProvidersRouteDeps["saveProviders"]): MediaPutProvidersRouteDeps => ({ workspaceId: WORKSPACE_ID, saveProviders: save, saveErrorMappings: REFUSALS, outwardErrorMessage: ({ error }) => error.message });
 
   it("keeps the method, path, status and no body cap; a missing body is the empty set", () => {
     expect([mediaPutProvidersRoute.method, mediaPutProvidersRoute.path, mediaPutProvidersRoute.successStatus, mediaPutProvidersRoute.maxBodyBytes])

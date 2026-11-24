@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { createFakeExecutionPort } from '../dependencies.js';
-import type { ByokConfig, DetectedAgent } from '../types.js';
+import type { ByokConfig, ExecutionCardAgent } from '@jini-ai/core/contracts/execution';
 
 /**
  * @file Contract for the shipped in-memory `ExecutionPort` double: hosts and demos rely on it
@@ -9,7 +9,7 @@ import type { ByokConfig, DetectedAgent } from '../types.js';
  */
 
 const complete: ByokConfig = { protocol: 'openai', providerId: null, apiKey: 'typed', baseUrl: 'https://example.test', model: 'model-a' };
-const agents: readonly DetectedAgent[] = [
+const agents: readonly ExecutionCardAgent[] = [
   { id: 'ready', label: 'Ready CLI', installed: true },
   { id: 'absent', label: 'Absent CLI', installed: false },
 ];

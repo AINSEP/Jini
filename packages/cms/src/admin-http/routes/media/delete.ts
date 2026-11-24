@@ -2,6 +2,7 @@ import { defineJsonRoute, ok } from "@jini-ai/core/contracts/server";
 import { RouteRefusalError } from "@jini-ai/core/errors/route-refusal";
 import type { AdminMediaPurgeEnvelope } from "@jini-ai/core/contracts/site/cms-media";
 
+import type { OutwardErrorMessage } from "../../http/outward-error-message.js";
 import { MediaStillReferencedError } from "../../../media/types.js";
 import { authorizeMedia, MEDIA_NOT_FOUND, mediaIdParam, rejectMediaError, type MediaRoutePrincipal } from "./shared.js";
 
@@ -15,21 +16,24 @@ export type MediaPurgeFn = (required: { workspaceId: string; id: string }) => Pr
 /** Drops a purged asset's Trash index row (the host's generic Trash store). */
 export type MediaForgetRemovedFn = (required: { workspaceId: string; id: string }) => Promise<unknown>;
 
-/** The deps this route reads. */
+/** The deps this route reads. The host binds its reference-checking purge (repos, blob store, clock) into `purgeMedia`. */
 export interface MediaDeleteRouteDeps {
   workspaceId: string;
+  /** Words a classified purge refusal for the caller (see {@link OutwardErrorMessage}). */
+  outwardErrorMessage: OutwardErrorMessage;
   purgeMedia: MediaPurgeFn;
   forgetRemovedMedia: MediaForgetRemovedFn;
 }
 
 /** 409 with the referencing list while content still uses the asset, 404 for an unknown asset,
- *  otherwise rethrown for the host's private 500. Checked before the `MediaConflictError` superclass.
+ *  otherwise rethrown unchanged so the host's error port answers it as a private 500. Checked
+ *  before the `MediaConflictError` superclass. The refusal copy is the host's `outwardErrorMessage`.
  *  @complexity O(1). */
-function rejectPurgeError({ err }: { err: unknown }, _optional: Record<string, never> = {}): never {
+function rejectPurgeError({ err, outwardErrorMessage }: { err: unknown; outwardErrorMessage: OutwardErrorMessage }, _optional: Record<string, never> = {}): never {
   // The referencing list is part of the 409 body the admin client reads, beyond the flat
   // `{ error, code, details }` shape `rejectRoute` writes, so the refusal is raised directly.
-  if (err instanceof MediaStillReferencedError) throw new RouteRefusalError({ status: 409, body: { error: err.message, referencing: err.referencing } });
-  return rejectMediaError({ err, mappings: [MEDIA_NOT_FOUND] });
+  if (err instanceof MediaStillReferencedError) throw new RouteRefusalError({ status: 409, body: { error: outwardErrorMessage({ error: err }), referencing: err.referencing } });
+  return rejectMediaError({ err, mappings: [MEDIA_NOT_FOUND], outwardErrorMessage });
 }
 
 /**
@@ -53,7 +57,7 @@ export const mediaDeleteRoute = defineJsonRoute<{ mediaId: string }, AdminMediaP
       await deps.forgetRemovedMedia({ workspaceId: deps.workspaceId, id: input.mediaId });
       return ok({ value: { purged } });
     } catch (err) {
-      return rejectPurgeError({ err });
+      return rejectPurgeError({ err, outwardErrorMessage: deps.outwardErrorMessage });
     }
   },
 });

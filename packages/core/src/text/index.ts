@@ -9,6 +9,8 @@ export { createTaggedTextSuppressor, emitWithTextSuppressor, possibleTagStart, M
 export type { TaggedTextMatchers, TaggedTextSuppressor, ArtifactTextSuppressor, ArtifactTextSuppressorStats, StreamTextEvent, StreamEventSink } from './tagged-text-suppression.js';
 export { createDictionaryTranslator } from './dictionary-translator.js';
 export type { Translate, DictionaryTranslator, LocaleDictionary } from './dictionary-translator.js';
+export { mergeLocaleOverlays } from './merge-locale-overlays.js';
+export type { MergedLocaleDictionary } from './merge-locale-overlays.js';
 export { interpolate, splitOnPlaceholders, pickPlural, localeEntry } from './template-i18n.js';
 export { formatTimestamp, formatRelativeMinutesAgo } from './format-timestamp.js';
 export { resolveActiveTabId } from './resolve-active-tab-id.js';

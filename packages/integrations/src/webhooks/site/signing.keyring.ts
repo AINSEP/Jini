@@ -1,5 +1,5 @@
 import { createKeyringBackedSigner as createWebhookSigner, type WebhookSigner } from "../index.js";
-import type { KeyringPort } from "../index.js";
+import type { KeyringPort } from "../../secrets/ports.js";
 import { SIGNATURE_VOCABULARY } from "./signing.js";
 
 // Per-attempt keyring derivation rationale: ../signing.keyring.ts (ADR-036 §5).

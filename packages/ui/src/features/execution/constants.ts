@@ -1,4 +1,4 @@
-import type { AgentCliEnvFieldSpec, ApiProtocol, ProviderPreset } from './types.js';
+import type { AgentCliEnvFieldSpec, ApiProtocol, ProviderPreset } from '@jini-ai/core/contracts/execution';
 import { claudeEnvFields } from './claude/env-fields.js';
 import { codexEnvFields } from './codex/env-fields.js';
 
@@ -74,7 +74,7 @@ export const DEFAULT_PROVIDER_PRESETS: readonly ProviderPreset[] = [];
  * These describe the CLI's own vendor ("Anthropic official CLI"), not the
  * product embedding it, which is why they are generic enough to ship here —
  * the same reasoning that puts `PROTOCOL_OPTIONS` in this file. A host with a
- * different or larger agent catalog supplies `DetectedAgent.description`
+ * different or larger agent catalog supplies `ExecutionCardAgent.description`
  * directly and never consults this map; it is a fallback, not a gate, so an
  * unknown agent id renders without a tagline rather than being hidden.
  */

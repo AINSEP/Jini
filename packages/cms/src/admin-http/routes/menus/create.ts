@@ -1,18 +1,23 @@
 import { defineJsonRoute, ok } from "@jini-ai/core/contracts/server";
 import { rejectRoute } from "@jini-ai/core/errors/route-refusal";
 
-import { createMenu, type CreateMenuDeps, type MenuHtmlAuthoring, type MenuHtmlNormalizer, type NavItemNode } from "../../../navigation/index.js";
+import { createMenu, MenuConflictError, MenuValidationError, type CreateMenuDeps, type MenuHtmlAuthoring, type MenuHtmlNormalizer, type NavItemNode } from "../../../navigation/index.js";
 import type { AdminMenuEnvelope } from "@jini-ai/core/contracts/site/cms-menus";
 import { parseMenuHtmlAuthoring, toAdminMenuResponse } from "../../http/menus.js";
-import { authorizeMenuHtml, authorizeMenus, MENU_CONFLICT, MENU_VALIDATION, rejectMenuError, type MenuRoutePrincipal } from "./shared.js";
+import type { OutwardErrorMessage } from "../../http/outward-error-message.js";
+import { authorizeMenuHtml, authorizeMenus, mapMenuError, rejectMenuError, type MenuErrorMapping, type MenuRoutePrincipal } from "./shared.js";
 
 /** The deps this route reads: the create service's collaborators plus the host's raw-HTML policy. */
 export interface MenuCreateRouteDeps extends Pick<CreateMenuDeps, "clock" | "idGen" | "outbox"> {
+  /** Words a classified error for the caller (see {@link OutwardErrorMessage}). */
+  outwardErrorMessage: OutwardErrorMessage;
   workspaceId: string;
   menuRepo: CreateMenuDeps["repo"];
   /** The permission a write carrying HTML also needs; the host owns this policy. */
   rawHtmlPermission: string;
-  /** Balances submitted HTML; the host binds its runtime's parser (Node: `@jini-ai/cms/navigation/node`). */
+  /** Balances submitted HTML; the host binds its runtime's parser (Node: `@jini-ai/cms/navigation/node`).
+   *  Required here (optional on the service) so a host cannot silently store submitted menu HTML
+   *  unbalanced. */
   normalizeMenuHtml: MenuHtmlNormalizer;
 }
 
@@ -20,14 +25,23 @@ export interface MenuCreateRouteDeps extends Pick<CreateMenuDeps, "clock" | "idG
 export interface MenuCreateInput { title: string; slug: string; items: NavItemNode[] | undefined; authoring: MenuHtmlAuthoring }
 
 /** Unmapped failures go to the host; `create` never mapped a trashed menu or a missing one. */
-const MENU_CREATE_ERRORS = [MENU_VALIDATION, MENU_CONFLICT] as const;
+const MENU_CREATE_ERROR_MAPPINGS: readonly MenuErrorMapping[] = [
+  mapMenuError({ errorClass: MenuValidationError, status: 400 }),
+  mapMenuError({ errorClass: MenuConflictError, status: 409 }),
+];
 
 /**
  * POST a new menu (ADR-029 `createMenu`). Gated by `admin.menus.create`, plus the raw-HTML
  * permission when the body carries HTML.
  *
- * `items` is optional (an empty menu); when supplied, `createMenu` validates the whole tree. This
- * spec only refuses a non-array `items` — in `parse`, before any authorization, as the host did.
+ * `items` is optional (defaults to an empty menu); when supplied, `createMenu` validates the whole
+ * tree end to end (`validateAndCloneTree`: id uniqueness, depth/count bounds, target-kind
+ * allowlist, `url` scheme denylist). This spec only refuses a non-array `items` — in `parse`,
+ * before any authorization, as the host did.
+ *
+ * `admin.menus.create` (ADR-PIPE-012 D-1/D-2/D-9) replaced the old flat navigation permission. It is
+ * checked directly via `authorize()`: menu mutations are a direct feature call, not routed through
+ * the SPEC-001 command gateway (see `update-tree.ts`'s doc for why).
  */
 export const menuCreateRoute = defineJsonRoute<MenuCreateInput, AdminMenuEnvelope, MenuCreateRouteDeps, MenuRoutePrincipal>({
   method: "post",
@@ -47,7 +61,7 @@ export const menuCreateRoute = defineJsonRoute<MenuCreateInput, AdminMenuEnvelop
       });
       return ok({ value: toAdminMenuResponse({ menu }) });
     } catch (err) {
-      return rejectMenuError({ err, mappings: MENU_CREATE_ERRORS });
+      return rejectMenuError({ err, outwardErrorMessage: deps.outwardErrorMessage, mappings: MENU_CREATE_ERROR_MAPPINGS });
     }
   },
 }, { successStatus: 201 });

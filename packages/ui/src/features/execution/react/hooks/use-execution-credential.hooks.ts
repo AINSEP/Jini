@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import type { ByokConfig } from "../../types.js";
+import type { ByokConfig } from "@jini-ai/core/contracts/execution";
 import { useSerialWrites } from "../../../panel-kit/hooks/use-serial-writes.hooks.js";
 import { useSettlementGeneration } from "../../../panel-kit/hooks/use-settlement-generation.hooks.js";
 import type { SettingsSliceRefreshPort } from "../../../panel-kit/hooks/settings-slice.helpers.js";

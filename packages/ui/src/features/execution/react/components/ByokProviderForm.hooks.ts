@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useByokFieldValidation } from '../hooks/use-byok-field-validation.hooks.js';
-import type { ByokConfig, ProviderPreset } from '../../types.js';
+import type { ByokConfig, ProviderPreset } from '@jini-ai/core/contracts/execution';
 
 /** Keep credential disclosure and provider-specific form state local to the selected provider. */
 export function useByokProviderForm({ config, onConfigChange, preset, apiKeyStoredExternally, deferMissingFeedback }: {

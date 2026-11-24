@@ -5,7 +5,7 @@ import {
   reasoningModelGroups,
   splitReasoningModelId,
 } from '../rules.js';
-import type { AgentModelOption } from '../types.js';
+import type { AgentModelOption } from '@jini-ai/core/contracts/execution';
 
 /**
  * @file The per-base-model reasoning-effort derivation for runtimes that encode effort INSIDE the

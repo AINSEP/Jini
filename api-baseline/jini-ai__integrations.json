@@ -581,6 +581,15 @@
    "parseSavedRequestDefinition": "function:261e0c152f"
   }
  },
+ "./secrets": {
+  "types": "./dist/secrets/index.d.ts",
+  "symbols": {
+   "KeyringPort": "interface:58c784efa7",
+   "RootKeyHandle": "interface:15ff237d9b",
+   "SealedSecret": "interface:65de776c39",
+   "SecretSealerPort": "interface:c780d79e6b"
+  }
+ },
  "./vendor-credentials/abort-guarded-repo": {
   "types": "./dist/vendor-credentials/abort-guarded-repo.d.ts",
   "symbols": {
@@ -679,7 +688,6 @@
    "IntegrationId": "type:8d5b52072e",
    "IntegrationSecretRecord": "interface:654def9697",
    "IntegrationSecretRepoPort": "interface:45feb5aa19",
-   "KeyringPort": "interface:3d122232b2",
    "MAX_DELIVERY_ATTEMPTS": "variable:7d1400f188",
    "PauseSubscriptionInput": "interface:72fa1d37cf",
    "PauseSubscriptionOptional": "interface:dc336d9187",
@@ -688,9 +696,6 @@
    "ProcessDueDeliveriesOptional": "interface:da8ad6b611",
    "ProcessDueDeliveriesRequired": "interface:16f408864c",
    "ProcessDueDeliveriesResult": "interface:ce73c6d7b9",
-   "RootKeyHandle": "interface:15ff237d9b",
-   "SealedSecret": "interface:65de776c39",
-   "SecretSealerPort": "interface:c780d79e6b",
    "SecretVersion": "type:f17537158e",
    "SignPayloadInput": "interface:a8b04f5a5e",
    "SignatureVocabulary": "interface:b43082f2dd",

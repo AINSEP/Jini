@@ -45,7 +45,8 @@ import { detectAttachmentKind, hasAvifSignature, hasGifSignature, hasJpegSignatu
 import { isUnchangedAttachment, reserveAttachmentRecords, verifyClaimedAttachments, type AttachmentRecord } from '../attachment-records.js';
 import { stageAttachmentClaim } from '../attachment-staging.js';
 import { writeBoundedAttachmentBody } from '../attachment-body.js';
-import { type AttachmentStore, type CreateDiskAttachmentStoreOptions } from '../attachment-store-types.js';
+import type { AttachmentStore } from '@jini-ai/core/contracts/site/daemon-http';
+import type { CreateDiskAttachmentStoreOptions } from '../attachment-store-types.js';
 
 // ---------------------------------------------------------------------------
 // The mirrored wire type must stay assignable to `@jini-ai/chat/core`'s `ChatAttachment`

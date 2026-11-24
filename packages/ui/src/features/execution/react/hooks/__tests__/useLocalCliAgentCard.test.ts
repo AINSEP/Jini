@@ -1,10 +1,10 @@
 import { act, renderHook } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { CUSTOM_MODEL_SENTINEL } from '../../../constants.js';
-import type { AgentCliEnvFieldSpec, AgentTestState, DetectedAgent } from '../../../types.js';
+import type { AgentCliEnvFieldSpec, AgentTestState, ExecutionCardAgent } from '@jini-ai/core/contracts/execution';
 import { useLocalCliAgentCard, type UseLocalCliAgentCardInput } from '../useLocalCliAgentCard.js';
 
-const agent: DetectedAgent = { id: 'local', label: 'Local CLI', installed: true };
+const agent: ExecutionCardAgent = { id: 'local', label: 'Local CLI', installed: true };
 const binaryField: AgentCliEnvFieldSpec = {
   agentId: agent.id, envKey: 'LOCAL_BIN', label: 'Binary', kind: 'binPath',
 };

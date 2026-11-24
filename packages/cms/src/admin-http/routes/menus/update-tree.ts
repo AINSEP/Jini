@@ -1,21 +1,27 @@
 import { defineJsonRoute, ok } from "@jini-ai/core/contracts/server";
 import { rejectRoute } from "@jini-ai/core/errors/route-refusal";
 
-import { updateMenuTree, type MenuHtmlAuthoring, type MenuHtmlNormalizer, type NavItemNode, type UpdateMenuTreeDeps } from "../../../navigation/index.js";
+import {
+  MenuConflictError, MenuNotFoundError, MenuValidationError, MenuVersionConflictError, updateMenuTree, type MenuHtmlAuthoring, type MenuHtmlNormalizer, type NavItemNode, type UpdateMenuTreeDeps,
+} from "../../../navigation/index.js";
 import type { AdminMenuEnvelope } from "@jini-ai/core/contracts/site/cms-menus";
 import { parseMenuHtmlAuthoring, toAdminMenuResponse } from "../../http/menus.js";
+import type { OutwardErrorMessage } from "../../http/outward-error-message.js";
 import {
-  authorizeMenuHtml, authorizeMenus, MENU_CONFLICT, MENU_NOT_FOUND, MENU_NOT_LIVE, MENU_VALIDATION, MENU_VERSION_CONFLICT,
-  menuIdParam, rejectMenuError, type MenuRoutePrincipal,
+  authorizeMenuHtml, authorizeMenus, mapMenuError, MENU_NOT_LIVE_MAPPING, menuIdParam, rejectMenuError, type MenuErrorMapping,
+  type MenuRoutePrincipal,
 } from "./shared.js";
 
 /** The deps this route reads: the update service's collaborators plus the host's raw-HTML policy. */
 export interface MenuUpdateTreeRouteDeps extends Pick<UpdateMenuTreeDeps, "clock" | "idGen" | "outbox"> {
+  /** Words a classified error for the caller (see {@link OutwardErrorMessage}). */
+  outwardErrorMessage: OutwardErrorMessage;
   workspaceId: string;
   menuRepo: UpdateMenuTreeDeps["repo"];
   /** The permission a write carrying HTML also needs; the host owns this policy. */
   rawHtmlPermission: string;
-  /** Balances submitted HTML; the host binds its runtime's parser (Node: `@jini-ai/cms/navigation/node`). */
+  /** Balances submitted HTML; the host binds its runtime's parser (Node: `@jini-ai/cms/navigation/node`).
+   *  Required for the same reason as on `create.ts`'s deps. */
   normalizeMenuHtml: MenuHtmlNormalizer;
 }
 
@@ -29,8 +35,27 @@ export interface MenuUpdateTreeInput {
   authoring: MenuHtmlAuthoring;
 }
 
-/** The host's ladder, in order: liveness first, the compare-and-set loss before the conflict it extends. */
-const MENU_UPDATE_ERRORS = [MENU_NOT_LIVE, MENU_VALIDATION, MENU_VERSION_CONFLICT, MENU_CONFLICT, MENU_NOT_FOUND] as const;
+/** Maps `updateMenuTree`'s thrown error types onto the admin error envelope.
+ *
+ * The three typed cases, and a trashed menu (409 via `entityNotLiveResponse`), carry their own
+ * message through to the caller (worded by the host's `outwardErrorMessage`). Anything else is a
+ * genuine server fault and is flattened to an opaque "internal error" — but logged first (by the
+ * host's error port, which receives it rethrown), matching `sendConnectorError`. Without that log
+ * the flattening is total: an unmapped throw (the `TypeError` a missing menu-item `target` used to
+ * raise before `@jini-ai/cms`'s `e467f5c4` guarded it) reached an operator as "something broke"
+ * with no message, no stack, and no way to tell a client-shaped bug from a real outage. The
+ * response body is deliberately unchanged — only the server-side diagnostic is added.
+ *
+ * Order: liveness first, then the compare-and-set loss before the `MenuConflictError` it extends —
+ * a lost compare-and-set carries the same `VERSION_CONFLICT` code posts and entries send, which is
+ * how the admin tells it from a slug 409. */
+const MENU_UPDATE_TREE_ERROR_MAPPINGS: readonly MenuErrorMapping[] = [
+  MENU_NOT_LIVE_MAPPING,
+  mapMenuError({ errorClass: MenuValidationError, status: 400 }),
+  mapMenuError({ errorClass: MenuVersionConflictError, status: 409, code: "VERSION_CONFLICT" }),
+  mapMenuError({ errorClass: MenuConflictError, status: 409 }),
+  mapMenuError({ errorClass: MenuNotFoundError, status: 404 }),
+];
 
 /**
  * The PUT body read off the untyped body. `items` may be omitted only by an HTML-mode write
@@ -56,9 +81,11 @@ function parseMenuTreeBody({ body, menuId }: { body: Record<string, unknown>; me
  * `expectedVersion`). Gated by `admin.menus.update` for that menu, plus the raw-HTML permission
  * (scoped to the same menu) when the body carries HTML.
  *
- * A direct feature call, not a command-gateway write: the gateway records change sets only for
- * entity types with a registered reverter, and menu trees have none, so routing through it would
- * record history nothing could revert.
+ * A direct feature call (`authorize()` checked directly), not an ADR-018 command-gateway write
+ * (`executeCommand`): the gateway records change sets only for entity types with a registered
+ * reverter (today only `post/update` is in the revert registry), and menu trees have none, so
+ * routing through it would record history nothing could revert. `admin.menus.update`
+ * (ADR-PIPE-012 D-1/D-2/D-9) replaced the old flat navigation permission.
  */
 export const menuUpdateTreeRoute = defineJsonRoute<MenuUpdateTreeInput, AdminMenuEnvelope, MenuUpdateTreeRouteDeps, MenuRoutePrincipal>({
   method: "put",
@@ -81,7 +108,7 @@ export const menuUpdateTreeRoute = defineJsonRoute<MenuUpdateTreeInput, AdminMen
       });
       return ok({ value: toAdminMenuResponse({ menu }) });
     } catch (err) {
-      return rejectMenuError({ err, mappings: MENU_UPDATE_ERRORS });
+      return rejectMenuError({ err, outwardErrorMessage: deps.outwardErrorMessage, mappings: MENU_UPDATE_TREE_ERROR_MAPPINGS });
     }
   },
 });

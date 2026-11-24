@@ -3,6 +3,7 @@ import type { AdminMediaEnvelope } from "@jini-ai/core/contracts/site/cms-media"
 import { decodeStrictBase64 } from "@jini-ai/core/contracts/site/strict-base64";
 import { rejectRoute } from "@jini-ai/core/errors/route-refusal";
 
+import type { OutwardErrorMessage } from "../../http/outward-error-message.js";
 import { documentContentType, MAX_DOCUMENT_BYTES } from "../../../media/document-ingress.js";
 import { parseOptionalStringField } from "../../../media/metadata-fields.js";
 import { resolveUploadContentType } from "../../../media/site/upload-content-type.js";
@@ -32,6 +33,8 @@ export interface MediaUploadRouteDeps {
   /** The host's product event for a stored upload. */
   onUploaded: (required: { actorId: string; kind: MediaKind; contentType: string; byteLength: number }) => void;
   describeStored: MediaStoredDescriber;
+  /** Words a classified validation refusal for the caller (see {@link OutwardErrorMessage}). */
+  outwardErrorMessage: OutwardErrorMessage;
 }
 
 const REQUIRED_FIELDS = "filename, contentType, and dataBase64 are required";
@@ -69,18 +72,22 @@ function parseUploadRequestFields({ rawBody }: { rawBody: unknown }, _optional: 
   };
 }
 
+/** The parsed body, or the thrown validation failure held until `handle` (the first thing it does), where the host's
+ *  `outwardErrorMessage` is in reach: `parse` has no deps. */
+type ParsedUpload = { readonly fields: UploadRequestFields } | { readonly parseError: unknown };
+
 /** Both parse failures — a thrown `MediaValidationError` (bad kind or metadata) and a missing field —
  *  are the flat 400, before the session is read; anything else is rethrown for the host's 500.
  *  @complexity O(1). */
-function parseUploadOrRefuse({ rawBody }: { rawBody: unknown }, _optional: Record<string, never> = {}): UploadRequestFields {
+function parseUploadOrRefuse({ rawBody }: { rawBody: unknown }, _optional: Record<string, never> = {}): ParsedUpload {
   let fields: UploadRequestFields | null;
   try {
     fields = parseUploadRequestFields({ rawBody });
-  } catch (err) {
-    return rejectMediaError({ err, mappings: [MEDIA_VALIDATION] });
+  } catch (parseError) {
+    return { parseError };
   }
   if (!fields) rejectRoute({ status: 400, error: REQUIRED_FIELDS });
-  return fields;
+  return { fields };
 }
 
 /**
@@ -140,17 +147,18 @@ const UPLOAD_ERRORS: readonly MediaErrorMapping[] = [
  * with no entity id. The body is checked in `parse`, before the session, so its 400s win; the host
  * mount defers a missing principal to `authorize` for that reason.
  */
-export const mediaUploadRoute = defineJsonRoute<UploadRequestFields, AdminMediaEnvelope, MediaUploadRouteDeps, MediaRoutePrincipal>({
+export const mediaUploadRoute = defineJsonRoute<ParsedUpload, AdminMediaEnvelope, MediaUploadRouteDeps, MediaRoutePrincipal>({
   method: "post",
   path: "/api/admin/v1/workspaces/:workspaceId/media",
   parse: (raw) => ok({ value: parseUploadOrRefuse({ rawBody: raw.body }) }),
   handle: async ({ input, deps, context, authorize }) => {
+    if ("parseError" in input) return rejectMediaError({ err: input.parseError, mappings: [MEDIA_VALIDATION], outwardErrorMessage: deps.outwardErrorMessage });
     await authorizeMedia({ authorize, permission: "media.upload" });
     const actorId = mediaActorId({ context });
     try {
-      return ok({ value: await persistUpload({ deps, fields: input, actorId }) });
+      return ok({ value: await persistUpload({ deps, fields: input.fields, actorId }) });
     } catch (err) {
-      return rejectMediaError({ err, mappings: UPLOAD_ERRORS });
+      return rejectMediaError({ err, mappings: UPLOAD_ERRORS, outwardErrorMessage: deps.outwardErrorMessage });
     }
   },
 }, { successStatus: 201 });

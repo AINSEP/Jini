@@ -2,7 +2,7 @@ import { render, screen } from '../../../../../__tests__/ui-kit-render-support.j
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it } from 'vitest';
 import { createFakeExecutionPort } from '../../../dependencies.js';
-import type { ExecutionConfig, ProviderPreset } from '../../../types.js';
+import type { ExecutionConfig, ProviderPreset } from '@jini-ai/core/contracts/execution';
 import { ExecutionTab } from '../../../react/components/ExecutionTab.js';
 
 const SYNTHETIC_API_KEY = `sk-test-${'0'.repeat(32)}`;

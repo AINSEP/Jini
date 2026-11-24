@@ -1,10 +1,10 @@
 import { fireEvent, render, screen } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 import { LocalCliAgentList, type LocalCliAgentListProps } from '../LocalCliAgentList.js';
-import type { AgentScanState, DetectedAgent } from '../../../types.js';
+import type { AgentScanState, ExecutionCardAgent } from '@jini-ai/core/contracts/execution';
 
-const installed: DetectedAgent = { id: 'one', label: 'One CLI', installed: true };
-const missing: DetectedAgent = { id: 'two', label: 'Two CLI', installed: false };
+const installed: ExecutionCardAgent = { id: 'one', label: 'One CLI', installed: true };
+const missing: ExecutionCardAgent = { id: 'two', label: 'Two CLI', installed: false };
 function listProps(required: Partial<LocalCliAgentListProps>, _options = {}): LocalCliAgentListProps {
   return { agents: [], config: { agentId: null }, scan: { status: 'idle' }, onSelect: vi.fn(),
     onModelChange: vi.fn(), onReasoningChange: vi.fn(), onEnvChange: vi.fn(), cliEnvFields: [],
@@ -20,7 +20,7 @@ describe('LocalCliAgentList characterization', () => {
     { scan: { status: 'scanning' }, agents: [installed], empty: false, loading: true, error: false, cards: false },
     { scan: { status: 'error', message: 'Probe failed' }, agents: [installed], empty: false, loading: false, error: true, cards: true },
     { scan: { status: 'ok', count: 1 }, agents: [installed], empty: false, loading: false, error: false, cards: true },
-  ] satisfies { scan: AgentScanState; agents: DetectedAgent[]; empty: boolean; loading: boolean; error: boolean; cards: boolean }[])(
+  ] satisfies { scan: AgentScanState; agents: ExecutionCardAgent[]; empty: boolean; loading: boolean; error: boolean; cards: boolean }[])(
     'preserves scan precedence for $scan.status with $agents.length agents', ({ scan, agents, empty, loading, error, cards }) => {
       const props = listProps({ scan, agents, onRescan: vi.fn() });
       render(<LocalCliAgentList {...props} />);

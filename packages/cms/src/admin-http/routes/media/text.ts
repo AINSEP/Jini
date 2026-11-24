@@ -1,5 +1,6 @@
 import { defineJsonRoute, ok, type JsonRouteSpec } from "@jini-ai/core/contracts/server";
 
+import type { OutwardErrorMessage } from "../../http/outward-error-message.js";
 import { DocumentTextExtractionError } from "../../../media/document-text.js";
 import { MediaValidationError } from "../../../media/types.js";
 import { authorizeMedia, MEDIA_NOT_FOUND, MEDIA_VALIDATION, mediaIdParam, rejectMediaError, type MediaErrorMapping, type MediaRoutePrincipal } from "./shared.js";
@@ -11,6 +12,8 @@ export type MediaTextReader = (required: { workspaceId: string; id: string; offs
 export interface MediaTextRouteDeps {
   workspaceId: string;
   readText: MediaTextReader;
+  /** Words a classified refusal for the caller (see {@link OutwardErrorMessage}). */
+  outwardErrorMessage: OutwardErrorMessage;
 }
 
 /** A refused extraction keeps its own code; a missing document is the flat 404, a refused read the flat 400. */
@@ -44,7 +47,7 @@ const textSpec = defineJsonRoute<{ mediaId: string; rawOffset: unknown }, unknow
       const offset = parseTextOffset({ rawOffset: input.rawOffset });
       return ok({ value: await deps.readText({ workspaceId: deps.workspaceId, id: input.mediaId, offset }) });
     } catch (err) {
-      return rejectMediaError({ err, mappings: TEXT_READ_ERRORS });
+      return rejectMediaError({ err, mappings: TEXT_READ_ERRORS, outwardErrorMessage: deps.outwardErrorMessage });
     }
   },
 });

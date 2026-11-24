@@ -145,7 +145,6 @@
       "./shell/lib/escape-owned-by-inner-layer": "browser",
       "./shell/lib/external-entry-refresh": "browser",
       "./shell/lib/fetch-query/adapter-context": "browser",
-      "./shell/lib/merge-locale-overlays": "browser",
       "./shell/lib/page-lifecycle": "browser",
       "./shell/lib/admin-http/request": "browser",
       "./shell/lib/plain-text-blocks": "browser",
@@ -413,7 +412,144 @@
       "./pages/hooks/use-editor-html-jump.hooks": "browser",
       "./pages/pages-list-rules": "universal",
       "./pages/page-editor-rules": "universal",
-      "./pages/page-editor-i18n": "universal"
+      "./pages/page-editor-i18n": "universal",
+      "./screens/library/hooks/use-library.hooks": "browser",
+      "./screens/library/Library.hooks": "browser",
+      "./screens/library/rules": "universal",
+      "./screens/library/hooks/library-port.hooks": "universal",
+      "./screens/media/hooks/media-port.hooks": "universal",
+      "./comments/react/comments-i18n/comments-row-menu-i18n": "universal",
+      "./comments/react/comments-i18n/comments-queue-i18n": "universal",
+      "./comments/react/comments-i18n/comments-settings-i18n": "universal",
+      "./comments/react/comments-i18n/comments-hooks-i18n": "universal",
+      "./comments/react/comments-i18n/create-comments-dictionary": "universal",
+      "./widgets/react/widgets-i18n/widgets-regions-i18n": "universal",
+      "./widgets/react/widgets-i18n/widgets-library-i18n": "universal",
+      "./widgets/react/widgets-i18n/widgets-editors-i18n": "universal",
+      "./widgets/react/widgets-i18n/widgets-hooks-i18n": "universal",
+      "./widgets/react/widgets-i18n/widgets-preview-i18n": "universal",
+      "./widgets/react/widgets-i18n/create-widgets-dictionary": "universal",
+      "./posts/api/posts-api.types": "universal",
+      "./posts/api/posts-api": "universal",
+      "./posts/post-editor-route-key": "universal",
+      "./posts/editor/PostDeleteConfirmDialog": "browser",
+      "./posts/editor/template/PostEditorTemplateModalGate": "browser",
+      "./posts/hooks/posts-list-port.hooks": "universal",
+      "./posts/hooks/use-post-editor-ui.hooks": "browser",
+      "./screens/collections/api/collections-api": "universal",
+      "./screens/collections/hooks/collection-entries-dependencies.hooks": "universal",
+      "./screens/collections/hooks/collection-entry-editor-dependencies.hooks": "universal",
+      "./screens/collections/hooks/collections-dependencies.hooks": "universal",
+      "./screens/collections/hooks/use-collections.hooks": "browser",
+      "./screens/collections/hooks/use-collection-entries.hooks": "browser",
+      "./screens/collections/hooks/use-collection-entry-editor.hooks": "browser",
+      "./screens/collections/Collections": "browser",
+      "./screens/collections/CollectionEntries": "browser",
+      "./screens/collections/LifecycleConfirmDialog": "browser",
+      "./screens/collections/NewContentTypeDialog": "browser",
+      "./screens/collections/EditFieldsDialog": "browser",
+      "./screens/collections/hooks/use-edit-fields-dialog.hooks": "browser",
+      "./screens/collections/hooks/use-new-content-type-dialog.hooks": "browser",
+      "./screens/collections/hooks/use-lifecycle-confirm-dialog.hooks": "universal",
+      "./screens/collections/hooks/edit-fields-dialog-dependencies.hooks": "universal",
+      "./screens/collections/hooks/new-content-type-dialog-dependencies.hooks": "universal",
+      "./screens/taxonomy/TermPicker": "browser",
+      "./screens/taxonomy/Taxonomy": "browser",
+      "./screens/taxonomy/api/taxonomy-api": "universal",
+      "./screens/taxonomy/hooks/merge-term-section-dependencies.hooks": "universal",
+      "./screens/taxonomy/hooks/new-taxonomy-form-dependencies.hooks": "universal",
+      "./screens/taxonomy/hooks/new-term-form-dependencies.hooks": "universal",
+      "./screens/taxonomy/hooks/term-picker-dependencies.hooks": "universal",
+      "./screens/taxonomy/rules": "universal",
+      "./screens/taxonomy/taxonomy-host-kit": "universal",
+      "./screens/comments": "browser",
+      "./screens/forms": "browser",
+      "./screens/widgets": "browser",
+      "./screens/taxonomy/hooks/taxonomy-dependencies.hooks": "universal",
+      "./screens/taxonomy/hooks/use-term-list-reveal.hooks": "browser",
+      "./screens/taxonomy/hooks/use-taxonomy-html-embed.hooks": "browser",
+      "./screens/taxonomy/hooks/use-new-taxonomy-form.hooks": "browser",
+      "./screens/taxonomy/hooks/use-new-term-form.hooks": "browser",
+      "./screens/taxonomy/hooks/use-term-detail-panel.hooks": "browser",
+      "./screens/taxonomy/hooks/use-merge-term-section.hooks": "browser",
+      "./screens/taxonomy/hooks/use-taxonomy.hooks": "browser",
+      "./screens/taxonomy/hooks/use-term-picker.hooks": "browser",
+      "./screens/comments/api/comments-api": "universal",
+      "./screens/forms/api/forms-api": "universal",
+      "./screens/forms/forms-editor-chrome-i18n": "universal",
+      "./screens/forms/forms-list-i18n": "universal",
+      "./screens/forms/forms-field-editor-i18n": "universal",
+      "./screens/forms/forms-submissions-i18n": "universal",
+      "./screens/forms/forms-editor-i18n": "universal",
+      "./screens/forms/forms-attributes-explainer-i18n": "universal",
+      "./screens/forms/create-forms-dictionary": "universal",
+      "./screens/menus/api/menus-api": "universal",
+      "./screens/widgets/api/widgets-api": "universal",
+      "./screens/menus/hooks/menus-dependencies.hooks": "universal",
+      "./screens/collections/rules": "universal",
+      "./screens/collections/collections-host-kit": "universal",
+      "./screens/menus/Menus": "browser",
+      "./screens/menus/hooks/use-menus.hooks": "browser",
+      "./screens/menus/hooks/use-menu-editor.hooks": "browser",
+      "./screens/menus/hooks/use-menu-editor-state.hooks": "browser",
+      "./screens/menus/hooks/use-menu-editor-writes.hooks": "browser",
+      "./screens/menus/MenuEditor": "browser",
+      "./screens/menus/menus-host-kit": "universal",
+      "./screens/media/hooks/use-edit-media-modal.hooks": "browser",
+      "./posts/editor/notices/PostAutosaveRecoveryBanner": "browser",
+      "./posts/editor/notices/PostAutosaveStaleBanner": "browser",
+      "./posts/editor/notices/PostVersionConflictBanner": "browser",
+      "./posts/editor/toolbar/ToolbarOverflowMenu": "browser",
+      "./posts/editor/template/PostEditorTemplatePicker": "browser",
+      "./posts/PostUrlDialog": "browser",
+      "./posts/PostSettingsDialog": "browser",
+      "./posts/editor/toolbar/ToolbarCharacterCount": "browser",
+      "./posts/post-url-dialog.css": "browser",
+      "./posts/posts-i18n/create-posts-dictionary": "universal",
+      "./posts/posts-i18n/posts-list-i18n": "universal",
+      "./posts/posts-i18n/posts-list-sort-i18n": "universal",
+      "./posts/posts-i18n/posts-trash-dialog-i18n": "universal",
+      "./posts/posts-i18n/posts-editor-header-i18n": "universal",
+      "./posts/posts-i18n/posts-save-feedback-i18n": "universal",
+      "./posts/posts-i18n/posts-errors-i18n": "universal",
+      "./posts/posts-i18n/posts-settings-dialog-i18n": "universal",
+      "./posts/posts-i18n/posts-toolbar-marks-i18n": "universal",
+      "./posts/posts-i18n/posts-toolbar-blocks-i18n": "universal",
+      "./posts/posts-i18n/posts-toolbar-style-i18n": "universal",
+      "./posts/posts-i18n/posts-url-dialog-i18n": "universal",
+      "./posts/posts-i18n/posts-slug-collision-i18n": "universal",
+      "./posts/posts-i18n/posts-template-preview-i18n": "universal",
+      "./screens/media/hooks/use-media-card-metadata.hooks": "browser",
+      "./screens/media/grid-size": "universal",
+      "./screens/media/hooks/use-media-grid-size.hooks": "browser",
+      "./screens/media/hooks/use-media-card-details.hooks": "browser",
+      "./screens/menus/menus-i18n/create-menus-dictionary": "universal",
+      "./screens/menus/menus-i18n/menus-editor-i18n": "universal",
+      "./screens/menus/menus-i18n/menus-item-advanced-i18n": "universal",
+      "./screens/menus/menus-i18n/menus-item-fields-i18n": "universal",
+      "./screens/menus/menus-i18n/menus-list-i18n": "universal",
+      "./screens/menus/menus-i18n/menus-page-link-i18n": "universal",
+      "./screens/collections/collections-i18n/collections-audit-embed-i18n": "universal",
+      "./screens/collections/collections-i18n/collections-dialogs-i18n": "universal",
+      "./screens/collections/collections-i18n/collections-entries-i18n": "universal",
+      "./screens/collections/collections-i18n/collections-hooks-i18n": "universal",
+      "./screens/collections/collections-i18n/collections-lifecycle-i18n": "universal",
+      "./screens/collections/collections-i18n/collections-list-i18n": "universal",
+      "./screens/collections/collections-i18n/create-collections-dictionary": "universal",
+      "./screens/media/media-i18n/create-media-dictionary": "universal",
+      "./screens/media/media-i18n/media-addons-i18n": "universal",
+      "./screens/media/media-i18n/media-dialogs-i18n": "universal",
+      "./screens/media/media-i18n/media-edit-panel-i18n": "universal",
+      "./screens/media/media-i18n/media-hooks-i18n": "universal",
+      "./screens/media/media-i18n/media-html-attributes-i18n": "universal",
+      "./screens/media/media-i18n/media-library-i18n": "universal",
+      "./screens/media/media-i18n/media-toolbar-i18n": "universal",
+      "./screens/taxonomy/taxonomy-i18n/taxonomy-screen-i18n": "universal",
+      "./screens/taxonomy/taxonomy-i18n/taxonomy-merge-i18n": "universal",
+      "./screens/taxonomy/taxonomy-i18n/taxonomy-detail-i18n": "universal",
+      "./screens/taxonomy/taxonomy-i18n/taxonomy-hooks-i18n": "universal",
+      "./screens/taxonomy/taxonomy-i18n/taxonomy-term-picker-i18n": "universal",
+      "./screens/taxonomy/taxonomy-i18n/create-taxonomy-dictionary": "universal"
     },
     "isolation": {
       "shared": [
@@ -501,7 +637,6 @@
         "./shell/lib/escape-owned-by-inner-layer": "browser",
         "./shell/lib/external-entry-refresh": "browser",
         "./shell/lib/fetch-query/adapter-context": "browser",
-        "./shell/lib/merge-locale-overlays": "browser",
         "./shell/lib/page-lifecycle": "browser",
         "./shell/lib/plain-text-blocks": "browser",
         "./shell/lib/playground-render-target-bus": "browser",
@@ -627,7 +762,8 @@
         "./screens/observability/queries-panel": "browser",
         "./screens/observability/recent-errors-panel": "browser",
         "./screens/observability/recent-errors-rules": "browser",
-        "./screens/observability/tool-gaps-panel": "browser"
+        "./screens/observability/tool-gaps-panel": "browser",
+        "./screens/media/hooks/use-media-card-metadata.hooks": "media"
       }
     },
     "optionalPeers": {
@@ -638,7 +774,8 @@
   "type": "module",
   "sideEffects": [
     "./src/themes/**/*.css",
-    "./src/screens/**/*.css"
+    "./src/screens/**/*.css",
+    "./src/posts/*.css"
   ],
   "main": "./dist/core/index.js",
   "types": "./dist/core/index.d.ts",
@@ -1290,11 +1427,6 @@
       "types": "./dist/shell/lib/fetch-query/adapter-context.d.ts",
       "import": "./dist/shell/lib/fetch-query/adapter-context.js",
       "default": "./dist/shell/lib/fetch-query/adapter-context.js"
-    },
-    "./shell/lib/merge-locale-overlays": {
-      "types": "./dist/shell/lib/merge-locale-overlays.d.ts",
-      "import": "./dist/shell/lib/merge-locale-overlays.js",
-      "default": "./dist/shell/lib/merge-locale-overlays.js"
     },
     "./shell/lib/page-lifecycle": {
       "types": "./dist/shell/lib/page-lifecycle.d.ts",
@@ -2607,6 +2739,687 @@
       "types": "./dist/pages/page-editor-i18n.d.ts",
       "import": "./dist/pages/page-editor-i18n.js",
       "default": "./dist/pages/page-editor-i18n.js"
+    },
+    "./screens/library/hooks/use-library.hooks": {
+      "types": "./dist/screens/library/hooks/use-library.hooks.d.ts",
+      "import": "./dist/screens/library/hooks/use-library.hooks.js",
+      "default": "./dist/screens/library/hooks/use-library.hooks.js"
+    },
+    "./screens/library/Library.hooks": {
+      "types": "./dist/screens/library/Library.hooks.d.ts",
+      "import": "./dist/screens/library/Library.hooks.js",
+      "default": "./dist/screens/library/Library.hooks.js"
+    },
+    "./screens/library/rules": {
+      "types": "./dist/screens/library/rules.d.ts",
+      "import": "./dist/screens/library/rules.js",
+      "default": "./dist/screens/library/rules.js"
+    },
+    "./screens/library/hooks/library-port.hooks": {
+      "types": "./dist/screens/library/hooks/library-port.hooks.d.ts",
+      "import": "./dist/screens/library/hooks/library-port.hooks.js",
+      "default": "./dist/screens/library/hooks/library-port.hooks.js"
+    },
+    "./screens/media/hooks/media-port.hooks": {
+      "types": "./dist/screens/media/hooks/media-port.hooks.d.ts",
+      "import": "./dist/screens/media/hooks/media-port.hooks.js",
+      "default": "./dist/screens/media/hooks/media-port.hooks.js"
+    },
+    "./comments/react/comments-i18n/comments-row-menu-i18n": {
+      "types": "./dist/comments/react/comments-i18n/comments-row-menu-i18n.d.ts",
+      "import": "./dist/comments/react/comments-i18n/comments-row-menu-i18n.js",
+      "default": "./dist/comments/react/comments-i18n/comments-row-menu-i18n.js"
+    },
+    "./comments/react/comments-i18n/comments-queue-i18n": {
+      "types": "./dist/comments/react/comments-i18n/comments-queue-i18n.d.ts",
+      "import": "./dist/comments/react/comments-i18n/comments-queue-i18n.js",
+      "default": "./dist/comments/react/comments-i18n/comments-queue-i18n.js"
+    },
+    "./comments/react/comments-i18n/comments-settings-i18n": {
+      "types": "./dist/comments/react/comments-i18n/comments-settings-i18n.d.ts",
+      "import": "./dist/comments/react/comments-i18n/comments-settings-i18n.js",
+      "default": "./dist/comments/react/comments-i18n/comments-settings-i18n.js"
+    },
+    "./comments/react/comments-i18n/comments-hooks-i18n": {
+      "types": "./dist/comments/react/comments-i18n/comments-hooks-i18n.d.ts",
+      "import": "./dist/comments/react/comments-i18n/comments-hooks-i18n.js",
+      "default": "./dist/comments/react/comments-i18n/comments-hooks-i18n.js"
+    },
+    "./comments/react/comments-i18n/create-comments-dictionary": {
+      "types": "./dist/comments/react/comments-i18n/create-comments-dictionary.d.ts",
+      "import": "./dist/comments/react/comments-i18n/create-comments-dictionary.js",
+      "default": "./dist/comments/react/comments-i18n/create-comments-dictionary.js"
+    },
+    "./widgets/react/widgets-i18n/widgets-regions-i18n": {
+      "types": "./dist/widgets/react/widgets-i18n/widgets-regions-i18n.d.ts",
+      "import": "./dist/widgets/react/widgets-i18n/widgets-regions-i18n.js",
+      "default": "./dist/widgets/react/widgets-i18n/widgets-regions-i18n.js"
+    },
+    "./widgets/react/widgets-i18n/widgets-library-i18n": {
+      "types": "./dist/widgets/react/widgets-i18n/widgets-library-i18n.d.ts",
+      "import": "./dist/widgets/react/widgets-i18n/widgets-library-i18n.js",
+      "default": "./dist/widgets/react/widgets-i18n/widgets-library-i18n.js"
+    },
+    "./widgets/react/widgets-i18n/widgets-editors-i18n": {
+      "types": "./dist/widgets/react/widgets-i18n/widgets-editors-i18n.d.ts",
+      "import": "./dist/widgets/react/widgets-i18n/widgets-editors-i18n.js",
+      "default": "./dist/widgets/react/widgets-i18n/widgets-editors-i18n.js"
+    },
+    "./widgets/react/widgets-i18n/widgets-hooks-i18n": {
+      "types": "./dist/widgets/react/widgets-i18n/widgets-hooks-i18n.d.ts",
+      "import": "./dist/widgets/react/widgets-i18n/widgets-hooks-i18n.js",
+      "default": "./dist/widgets/react/widgets-i18n/widgets-hooks-i18n.js"
+    },
+    "./widgets/react/widgets-i18n/widgets-preview-i18n": {
+      "types": "./dist/widgets/react/widgets-i18n/widgets-preview-i18n.d.ts",
+      "import": "./dist/widgets/react/widgets-i18n/widgets-preview-i18n.js",
+      "default": "./dist/widgets/react/widgets-i18n/widgets-preview-i18n.js"
+    },
+    "./widgets/react/widgets-i18n/create-widgets-dictionary": {
+      "types": "./dist/widgets/react/widgets-i18n/create-widgets-dictionary.d.ts",
+      "import": "./dist/widgets/react/widgets-i18n/create-widgets-dictionary.js",
+      "default": "./dist/widgets/react/widgets-i18n/create-widgets-dictionary.js"
+    },
+    "./posts/post-editor-route-key": {
+      "types": "./dist/posts/post-editor-route-key.d.ts",
+      "import": "./dist/posts/post-editor-route-key.js",
+      "default": "./dist/posts/post-editor-route-key.js"
+    },
+    "./posts/api/posts-api": {
+      "types": "./dist/posts/api/posts-api.d.ts",
+      "import": "./dist/posts/api/posts-api.js",
+      "default": "./dist/posts/api/posts-api.js"
+    },
+    "./posts/api/posts-api.types": {
+      "types": "./dist/posts/api/posts-api.types.d.ts",
+      "import": "./dist/posts/api/posts-api.types.js",
+      "default": "./dist/posts/api/posts-api.types.js"
+    },
+    "./posts/editor/PostDeleteConfirmDialog": {
+      "types": "./dist/posts/editor/PostDeleteConfirmDialog.d.ts",
+      "import": "./dist/posts/editor/PostDeleteConfirmDialog.js",
+      "default": "./dist/posts/editor/PostDeleteConfirmDialog.js"
+    },
+    "./posts/editor/template/PostEditorTemplateModalGate": {
+      "types": "./dist/posts/editor/template/PostEditorTemplateModalGate.d.ts",
+      "import": "./dist/posts/editor/template/PostEditorTemplateModalGate.js",
+      "default": "./dist/posts/editor/template/PostEditorTemplateModalGate.js"
+    },
+    "./posts/hooks/posts-list-port.hooks": {
+      "types": "./dist/posts/hooks/posts-list-port.hooks.d.ts",
+      "import": "./dist/posts/hooks/posts-list-port.hooks.js",
+      "default": "./dist/posts/hooks/posts-list-port.hooks.js"
+    },
+    "./posts/hooks/use-post-editor-ui.hooks": {
+      "types": "./dist/posts/hooks/use-post-editor-ui.hooks.d.ts",
+      "import": "./dist/posts/hooks/use-post-editor-ui.hooks.js",
+      "default": "./dist/posts/hooks/use-post-editor-ui.hooks.js"
+    },
+    "./screens/collections/api/collections-api": {
+      "types": "./dist/screens/collections/api/collections-api.d.ts",
+      "import": "./dist/screens/collections/api/collections-api.js",
+      "default": "./dist/screens/collections/api/collections-api.js"
+    },
+    "./screens/collections/hooks/collection-entries-dependencies.hooks": {
+      "types": "./dist/screens/collections/hooks/collection-entries-dependencies.hooks.d.ts",
+      "import": "./dist/screens/collections/hooks/collection-entries-dependencies.hooks.js",
+      "default": "./dist/screens/collections/hooks/collection-entries-dependencies.hooks.js"
+    },
+    "./screens/collections/hooks/collection-entry-editor-dependencies.hooks": {
+      "types": "./dist/screens/collections/hooks/collection-entry-editor-dependencies.hooks.d.ts",
+      "import": "./dist/screens/collections/hooks/collection-entry-editor-dependencies.hooks.js",
+      "default": "./dist/screens/collections/hooks/collection-entry-editor-dependencies.hooks.js"
+    },
+    "./screens/collections/hooks/collections-dependencies.hooks": {
+      "types": "./dist/screens/collections/hooks/collections-dependencies.hooks.d.ts",
+      "import": "./dist/screens/collections/hooks/collections-dependencies.hooks.js",
+      "default": "./dist/screens/collections/hooks/collections-dependencies.hooks.js"
+    },
+    "./screens/collections/hooks/use-collections.hooks": {
+      "types": "./dist/screens/collections/hooks/use-collections.hooks.d.ts",
+      "import": "./dist/screens/collections/hooks/use-collections.hooks.js",
+      "default": "./dist/screens/collections/hooks/use-collections.hooks.js"
+    },
+    "./screens/collections/hooks/use-collection-entries.hooks": {
+      "types": "./dist/screens/collections/hooks/use-collection-entries.hooks.d.ts",
+      "import": "./dist/screens/collections/hooks/use-collection-entries.hooks.js",
+      "default": "./dist/screens/collections/hooks/use-collection-entries.hooks.js"
+    },
+    "./screens/collections/hooks/use-collection-entry-editor.hooks": {
+      "types": "./dist/screens/collections/hooks/use-collection-entry-editor.hooks.d.ts",
+      "import": "./dist/screens/collections/hooks/use-collection-entry-editor.hooks.js",
+      "default": "./dist/screens/collections/hooks/use-collection-entry-editor.hooks.js"
+    },
+    "./screens/collections/Collections": {
+      "types": "./dist/screens/collections/Collections.d.ts",
+      "import": "./dist/screens/collections/Collections.js",
+      "default": "./dist/screens/collections/Collections.js"
+    },
+    "./screens/collections/CollectionEntries": {
+      "types": "./dist/screens/collections/CollectionEntries.d.ts",
+      "import": "./dist/screens/collections/CollectionEntries.js",
+      "default": "./dist/screens/collections/CollectionEntries.js"
+    },
+    "./screens/collections/LifecycleConfirmDialog": {
+      "types": "./dist/screens/collections/LifecycleConfirmDialog.d.ts",
+      "import": "./dist/screens/collections/LifecycleConfirmDialog.js",
+      "default": "./dist/screens/collections/LifecycleConfirmDialog.js"
+    },
+    "./screens/collections/NewContentTypeDialog": {
+      "types": "./dist/screens/collections/NewContentTypeDialog.d.ts",
+      "import": "./dist/screens/collections/NewContentTypeDialog.js",
+      "default": "./dist/screens/collections/NewContentTypeDialog.js"
+    },
+    "./screens/collections/EditFieldsDialog": {
+      "types": "./dist/screens/collections/EditFieldsDialog.d.ts",
+      "import": "./dist/screens/collections/EditFieldsDialog.js",
+      "default": "./dist/screens/collections/EditFieldsDialog.js"
+    },
+    "./screens/collections/hooks/use-edit-fields-dialog.hooks": {
+      "types": "./dist/screens/collections/hooks/use-edit-fields-dialog.hooks.d.ts",
+      "import": "./dist/screens/collections/hooks/use-edit-fields-dialog.hooks.js",
+      "default": "./dist/screens/collections/hooks/use-edit-fields-dialog.hooks.js"
+    },
+    "./screens/collections/hooks/use-new-content-type-dialog.hooks": {
+      "types": "./dist/screens/collections/hooks/use-new-content-type-dialog.hooks.d.ts",
+      "import": "./dist/screens/collections/hooks/use-new-content-type-dialog.hooks.js",
+      "default": "./dist/screens/collections/hooks/use-new-content-type-dialog.hooks.js"
+    },
+    "./screens/collections/hooks/use-lifecycle-confirm-dialog.hooks": {
+      "types": "./dist/screens/collections/hooks/use-lifecycle-confirm-dialog.hooks.d.ts",
+      "import": "./dist/screens/collections/hooks/use-lifecycle-confirm-dialog.hooks.js",
+      "default": "./dist/screens/collections/hooks/use-lifecycle-confirm-dialog.hooks.js"
+    },
+    "./screens/collections/hooks/edit-fields-dialog-dependencies.hooks": {
+      "types": "./dist/screens/collections/hooks/edit-fields-dialog-dependencies.hooks.d.ts",
+      "import": "./dist/screens/collections/hooks/edit-fields-dialog-dependencies.hooks.js",
+      "default": "./dist/screens/collections/hooks/edit-fields-dialog-dependencies.hooks.js"
+    },
+    "./screens/collections/hooks/new-content-type-dialog-dependencies.hooks": {
+      "types": "./dist/screens/collections/hooks/new-content-type-dialog-dependencies.hooks.d.ts",
+      "import": "./dist/screens/collections/hooks/new-content-type-dialog-dependencies.hooks.js",
+      "default": "./dist/screens/collections/hooks/new-content-type-dialog-dependencies.hooks.js"
+    },
+    "./screens/taxonomy/TermPicker": {
+      "types": "./dist/screens/taxonomy/TermPicker.d.ts",
+      "import": "./dist/screens/taxonomy/TermPicker.js",
+      "default": "./dist/screens/taxonomy/TermPicker.js"
+    },
+    "./screens/taxonomy/Taxonomy": {
+      "types": "./dist/screens/taxonomy/Taxonomy.d.ts",
+      "import": "./dist/screens/taxonomy/Taxonomy.js",
+      "default": "./dist/screens/taxonomy/Taxonomy.js"
+    },
+    "./screens/taxonomy/api/taxonomy-api": {
+      "types": "./dist/screens/taxonomy/api/taxonomy-api.d.ts",
+      "import": "./dist/screens/taxonomy/api/taxonomy-api.js",
+      "default": "./dist/screens/taxonomy/api/taxonomy-api.js"
+    },
+    "./screens/taxonomy/hooks/merge-term-section-dependencies.hooks": {
+      "types": "./dist/screens/taxonomy/hooks/merge-term-section-dependencies.hooks.d.ts",
+      "import": "./dist/screens/taxonomy/hooks/merge-term-section-dependencies.hooks.js",
+      "default": "./dist/screens/taxonomy/hooks/merge-term-section-dependencies.hooks.js"
+    },
+    "./screens/taxonomy/hooks/new-taxonomy-form-dependencies.hooks": {
+      "types": "./dist/screens/taxonomy/hooks/new-taxonomy-form-dependencies.hooks.d.ts",
+      "import": "./dist/screens/taxonomy/hooks/new-taxonomy-form-dependencies.hooks.js",
+      "default": "./dist/screens/taxonomy/hooks/new-taxonomy-form-dependencies.hooks.js"
+    },
+    "./screens/taxonomy/hooks/new-term-form-dependencies.hooks": {
+      "types": "./dist/screens/taxonomy/hooks/new-term-form-dependencies.hooks.d.ts",
+      "import": "./dist/screens/taxonomy/hooks/new-term-form-dependencies.hooks.js",
+      "default": "./dist/screens/taxonomy/hooks/new-term-form-dependencies.hooks.js"
+    },
+    "./screens/taxonomy/hooks/term-picker-dependencies.hooks": {
+      "types": "./dist/screens/taxonomy/hooks/term-picker-dependencies.hooks.d.ts",
+      "import": "./dist/screens/taxonomy/hooks/term-picker-dependencies.hooks.js",
+      "default": "./dist/screens/taxonomy/hooks/term-picker-dependencies.hooks.js"
+    },
+    "./screens/taxonomy/rules": {
+      "types": "./dist/screens/taxonomy/rules.d.ts",
+      "import": "./dist/screens/taxonomy/rules.js",
+      "default": "./dist/screens/taxonomy/rules.js"
+    },
+    "./screens/taxonomy/taxonomy-host-kit": {
+      "types": "./dist/screens/taxonomy/taxonomy-host-kit.d.ts",
+      "import": "./dist/screens/taxonomy/taxonomy-host-kit.js",
+      "default": "./dist/screens/taxonomy/taxonomy-host-kit.js"
+    },
+    "./screens/comments": {
+      "types": "./dist/screens/comments/index.d.ts",
+      "import": "./dist/screens/comments/index.js",
+      "default": "./dist/screens/comments/index.js"
+    },
+    "./screens/forms": {
+      "types": "./dist/screens/forms/index.d.ts",
+      "import": "./dist/screens/forms/index.js",
+      "default": "./dist/screens/forms/index.js"
+    },
+    "./screens/widgets": {
+      "types": "./dist/screens/widgets/index.d.ts",
+      "import": "./dist/screens/widgets/index.js",
+      "default": "./dist/screens/widgets/index.js"
+    },
+    "./screens/taxonomy/hooks/taxonomy-dependencies.hooks": {
+      "types": "./dist/screens/taxonomy/hooks/taxonomy-dependencies.hooks.d.ts",
+      "import": "./dist/screens/taxonomy/hooks/taxonomy-dependencies.hooks.js",
+      "default": "./dist/screens/taxonomy/hooks/taxonomy-dependencies.hooks.js"
+    },
+    "./screens/taxonomy/hooks/use-term-list-reveal.hooks": {
+      "types": "./dist/screens/taxonomy/hooks/use-term-list-reveal.hooks.d.ts",
+      "import": "./dist/screens/taxonomy/hooks/use-term-list-reveal.hooks.js",
+      "default": "./dist/screens/taxonomy/hooks/use-term-list-reveal.hooks.js"
+    },
+    "./screens/taxonomy/hooks/use-taxonomy-html-embed.hooks": {
+      "types": "./dist/screens/taxonomy/hooks/use-taxonomy-html-embed.hooks.d.ts",
+      "import": "./dist/screens/taxonomy/hooks/use-taxonomy-html-embed.hooks.js",
+      "default": "./dist/screens/taxonomy/hooks/use-taxonomy-html-embed.hooks.js"
+    },
+    "./screens/taxonomy/hooks/use-new-taxonomy-form.hooks": {
+      "types": "./dist/screens/taxonomy/hooks/use-new-taxonomy-form.hooks.d.ts",
+      "import": "./dist/screens/taxonomy/hooks/use-new-taxonomy-form.hooks.js",
+      "default": "./dist/screens/taxonomy/hooks/use-new-taxonomy-form.hooks.js"
+    },
+    "./screens/taxonomy/hooks/use-new-term-form.hooks": {
+      "types": "./dist/screens/taxonomy/hooks/use-new-term-form.hooks.d.ts",
+      "import": "./dist/screens/taxonomy/hooks/use-new-term-form.hooks.js",
+      "default": "./dist/screens/taxonomy/hooks/use-new-term-form.hooks.js"
+    },
+    "./screens/taxonomy/hooks/use-term-detail-panel.hooks": {
+      "types": "./dist/screens/taxonomy/hooks/use-term-detail-panel.hooks.d.ts",
+      "import": "./dist/screens/taxonomy/hooks/use-term-detail-panel.hooks.js",
+      "default": "./dist/screens/taxonomy/hooks/use-term-detail-panel.hooks.js"
+    },
+    "./screens/taxonomy/hooks/use-merge-term-section.hooks": {
+      "types": "./dist/screens/taxonomy/hooks/use-merge-term-section.hooks.d.ts",
+      "import": "./dist/screens/taxonomy/hooks/use-merge-term-section.hooks.js",
+      "default": "./dist/screens/taxonomy/hooks/use-merge-term-section.hooks.js"
+    },
+    "./screens/taxonomy/hooks/use-taxonomy.hooks": {
+      "types": "./dist/screens/taxonomy/hooks/use-taxonomy.hooks.d.ts",
+      "import": "./dist/screens/taxonomy/hooks/use-taxonomy.hooks.js",
+      "default": "./dist/screens/taxonomy/hooks/use-taxonomy.hooks.js"
+    },
+    "./screens/taxonomy/hooks/use-term-picker.hooks": {
+      "types": "./dist/screens/taxonomy/hooks/use-term-picker.hooks.d.ts",
+      "import": "./dist/screens/taxonomy/hooks/use-term-picker.hooks.js",
+      "default": "./dist/screens/taxonomy/hooks/use-term-picker.hooks.js"
+    },
+    "./screens/comments/api/comments-api": {
+      "types": "./dist/screens/comments/api/comments-api.d.ts",
+      "import": "./dist/screens/comments/api/comments-api.js",
+      "default": "./dist/screens/comments/api/comments-api.js"
+    },
+    "./screens/forms/api/forms-api": {
+      "types": "./dist/screens/forms/api/forms-api.d.ts",
+      "import": "./dist/screens/forms/api/forms-api.js",
+      "default": "./dist/screens/forms/api/forms-api.js"
+    },
+    "./screens/forms/forms-editor-chrome-i18n": {
+      "types": "./dist/screens/forms/forms-editor-chrome-i18n.d.ts",
+      "import": "./dist/screens/forms/forms-editor-chrome-i18n.js",
+      "default": "./dist/screens/forms/forms-editor-chrome-i18n.js"
+    },
+    "./screens/forms/forms-list-i18n": {
+      "types": "./dist/screens/forms/forms-list-i18n.d.ts",
+      "import": "./dist/screens/forms/forms-list-i18n.js",
+      "default": "./dist/screens/forms/forms-list-i18n.js"
+    },
+    "./screens/forms/forms-field-editor-i18n": {
+      "types": "./dist/screens/forms/forms-field-editor-i18n.d.ts",
+      "import": "./dist/screens/forms/forms-field-editor-i18n.js",
+      "default": "./dist/screens/forms/forms-field-editor-i18n.js"
+    },
+    "./screens/forms/forms-submissions-i18n": {
+      "types": "./dist/screens/forms/forms-submissions-i18n.d.ts",
+      "import": "./dist/screens/forms/forms-submissions-i18n.js",
+      "default": "./dist/screens/forms/forms-submissions-i18n.js"
+    },
+    "./screens/forms/forms-editor-i18n": {
+      "types": "./dist/screens/forms/forms-editor-i18n.d.ts",
+      "import": "./dist/screens/forms/forms-editor-i18n.js",
+      "default": "./dist/screens/forms/forms-editor-i18n.js"
+    },
+    "./screens/forms/forms-attributes-explainer-i18n": {
+      "types": "./dist/screens/forms/forms-attributes-explainer-i18n.d.ts",
+      "import": "./dist/screens/forms/forms-attributes-explainer-i18n.js",
+      "default": "./dist/screens/forms/forms-attributes-explainer-i18n.js"
+    },
+    "./screens/forms/create-forms-dictionary": {
+      "types": "./dist/screens/forms/create-forms-dictionary.d.ts",
+      "import": "./dist/screens/forms/create-forms-dictionary.js",
+      "default": "./dist/screens/forms/create-forms-dictionary.js"
+    },
+    "./screens/menus/api/menus-api": {
+      "types": "./dist/screens/menus/api/menus-api.d.ts",
+      "import": "./dist/screens/menus/api/menus-api.js",
+      "default": "./dist/screens/menus/api/menus-api.js"
+    },
+    "./screens/widgets/api/widgets-api": {
+      "types": "./dist/screens/widgets/api/widgets-api.d.ts",
+      "import": "./dist/screens/widgets/api/widgets-api.js",
+      "default": "./dist/screens/widgets/api/widgets-api.js"
+    },
+    "./screens/menus/menus-host-kit": {
+      "types": "./dist/screens/menus/menus-host-kit.d.ts",
+      "import": "./dist/screens/menus/menus-host-kit.js",
+      "default": "./dist/screens/menus/menus-host-kit.js"
+    },
+    "./screens/menus/hooks/use-menus.hooks": {
+      "types": "./dist/screens/menus/hooks/use-menus.hooks.d.ts",
+      "import": "./dist/screens/menus/hooks/use-menus.hooks.js",
+      "default": "./dist/screens/menus/hooks/use-menus.hooks.js"
+    },
+    "./screens/menus/hooks/use-menu-editor.hooks": {
+      "types": "./dist/screens/menus/hooks/use-menu-editor.hooks.d.ts",
+      "import": "./dist/screens/menus/hooks/use-menu-editor.hooks.js",
+      "default": "./dist/screens/menus/hooks/use-menu-editor.hooks.js"
+    },
+    "./screens/menus/hooks/use-menu-editor-state.hooks": {
+      "types": "./dist/screens/menus/hooks/use-menu-editor-state.hooks.d.ts",
+      "import": "./dist/screens/menus/hooks/use-menu-editor-state.hooks.js",
+      "default": "./dist/screens/menus/hooks/use-menu-editor-state.hooks.js"
+    },
+    "./screens/menus/hooks/use-menu-editor-writes.hooks": {
+      "types": "./dist/screens/menus/hooks/use-menu-editor-writes.hooks.d.ts",
+      "import": "./dist/screens/menus/hooks/use-menu-editor-writes.hooks.js",
+      "default": "./dist/screens/menus/hooks/use-menu-editor-writes.hooks.js"
+    },
+    "./screens/menus/MenuEditor": {
+      "types": "./dist/screens/menus/MenuEditor.d.ts",
+      "import": "./dist/screens/menus/MenuEditor.js",
+      "default": "./dist/screens/menus/MenuEditor.js"
+    },
+    "./screens/menus/Menus": {
+      "types": "./dist/screens/menus/Menus.d.ts",
+      "import": "./dist/screens/menus/Menus.js",
+      "default": "./dist/screens/menus/Menus.js"
+    },
+    "./screens/collections/collections-host-kit": {
+      "types": "./dist/screens/collections/collections-host-kit.d.ts",
+      "import": "./dist/screens/collections/collections-host-kit.js",
+      "default": "./dist/screens/collections/collections-host-kit.js"
+    },
+    "./screens/collections/rules": {
+      "types": "./dist/screens/collections/rules.d.ts",
+      "import": "./dist/screens/collections/rules.js",
+      "default": "./dist/screens/collections/rules.js"
+    },
+    "./screens/menus/hooks/menus-dependencies.hooks": {
+      "types": "./dist/screens/menus/hooks/menus-dependencies.hooks.d.ts",
+      "import": "./dist/screens/menus/hooks/menus-dependencies.hooks.js",
+      "default": "./dist/screens/menus/hooks/menus-dependencies.hooks.js"
+    },
+    "./screens/media/hooks/use-edit-media-modal.hooks": {
+      "types": "./dist/screens/media/hooks/use-edit-media-modal.hooks.d.ts",
+      "import": "./dist/screens/media/hooks/use-edit-media-modal.hooks.js",
+      "default": "./dist/screens/media/hooks/use-edit-media-modal.hooks.js"
+    },
+    "./posts/editor/notices/PostAutosaveRecoveryBanner": {
+      "types": "./dist/posts/editor/notices/PostAutosaveRecoveryBanner.d.ts",
+      "import": "./dist/posts/editor/notices/PostAutosaveRecoveryBanner.js",
+      "default": "./dist/posts/editor/notices/PostAutosaveRecoveryBanner.js"
+    },
+    "./posts/editor/notices/PostAutosaveStaleBanner": {
+      "types": "./dist/posts/editor/notices/PostAutosaveStaleBanner.d.ts",
+      "import": "./dist/posts/editor/notices/PostAutosaveStaleBanner.js",
+      "default": "./dist/posts/editor/notices/PostAutosaveStaleBanner.js"
+    },
+    "./posts/editor/notices/PostVersionConflictBanner": {
+      "types": "./dist/posts/editor/notices/PostVersionConflictBanner.d.ts",
+      "import": "./dist/posts/editor/notices/PostVersionConflictBanner.js",
+      "default": "./dist/posts/editor/notices/PostVersionConflictBanner.js"
+    },
+    "./posts/editor/toolbar/ToolbarOverflowMenu": {
+      "types": "./dist/posts/editor/toolbar/ToolbarOverflowMenu.d.ts",
+      "import": "./dist/posts/editor/toolbar/ToolbarOverflowMenu.js",
+      "default": "./dist/posts/editor/toolbar/ToolbarOverflowMenu.js"
+    },
+    "./posts/editor/template/PostEditorTemplatePicker": {
+      "types": "./dist/posts/editor/template/PostEditorTemplatePicker.d.ts",
+      "import": "./dist/posts/editor/template/PostEditorTemplatePicker.js",
+      "default": "./dist/posts/editor/template/PostEditorTemplatePicker.js"
+    },
+    "./posts/PostUrlDialog": {
+      "types": "./dist/posts/PostUrlDialog.d.ts",
+      "import": "./dist/posts/PostUrlDialog.js",
+      "default": "./dist/posts/PostUrlDialog.js"
+    },
+    "./posts/PostSettingsDialog": {
+      "types": "./dist/posts/PostSettingsDialog.d.ts",
+      "import": "./dist/posts/PostSettingsDialog.js",
+      "default": "./dist/posts/PostSettingsDialog.js"
+    },
+    "./posts/editor/toolbar/ToolbarCharacterCount": {
+      "types": "./dist/posts/editor/toolbar/ToolbarCharacterCount.d.ts",
+      "import": "./dist/posts/editor/toolbar/ToolbarCharacterCount.js",
+      "default": "./dist/posts/editor/toolbar/ToolbarCharacterCount.js"
+    },
+    "./posts/post-url-dialog.css": "./src/posts/post-url-dialog.css",
+    "./posts/posts-i18n/create-posts-dictionary": {
+      "types": "./dist/posts/posts-i18n/create-posts-dictionary.d.ts",
+      "import": "./dist/posts/posts-i18n/create-posts-dictionary.js",
+      "default": "./dist/posts/posts-i18n/create-posts-dictionary.js"
+    },
+    "./posts/posts-i18n/posts-list-i18n": {
+      "types": "./dist/posts/posts-i18n/posts-list-i18n.d.ts",
+      "import": "./dist/posts/posts-i18n/posts-list-i18n.js",
+      "default": "./dist/posts/posts-i18n/posts-list-i18n.js"
+    },
+    "./posts/posts-i18n/posts-list-sort-i18n": {
+      "types": "./dist/posts/posts-i18n/posts-list-sort-i18n.d.ts",
+      "import": "./dist/posts/posts-i18n/posts-list-sort-i18n.js",
+      "default": "./dist/posts/posts-i18n/posts-list-sort-i18n.js"
+    },
+    "./posts/posts-i18n/posts-trash-dialog-i18n": {
+      "types": "./dist/posts/posts-i18n/posts-trash-dialog-i18n.d.ts",
+      "import": "./dist/posts/posts-i18n/posts-trash-dialog-i18n.js",
+      "default": "./dist/posts/posts-i18n/posts-trash-dialog-i18n.js"
+    },
+    "./posts/posts-i18n/posts-editor-header-i18n": {
+      "types": "./dist/posts/posts-i18n/posts-editor-header-i18n.d.ts",
+      "import": "./dist/posts/posts-i18n/posts-editor-header-i18n.js",
+      "default": "./dist/posts/posts-i18n/posts-editor-header-i18n.js"
+    },
+    "./posts/posts-i18n/posts-save-feedback-i18n": {
+      "types": "./dist/posts/posts-i18n/posts-save-feedback-i18n.d.ts",
+      "import": "./dist/posts/posts-i18n/posts-save-feedback-i18n.js",
+      "default": "./dist/posts/posts-i18n/posts-save-feedback-i18n.js"
+    },
+    "./posts/posts-i18n/posts-errors-i18n": {
+      "types": "./dist/posts/posts-i18n/posts-errors-i18n.d.ts",
+      "import": "./dist/posts/posts-i18n/posts-errors-i18n.js",
+      "default": "./dist/posts/posts-i18n/posts-errors-i18n.js"
+    },
+    "./posts/posts-i18n/posts-settings-dialog-i18n": {
+      "types": "./dist/posts/posts-i18n/posts-settings-dialog-i18n.d.ts",
+      "import": "./dist/posts/posts-i18n/posts-settings-dialog-i18n.js",
+      "default": "./dist/posts/posts-i18n/posts-settings-dialog-i18n.js"
+    },
+    "./posts/posts-i18n/posts-toolbar-marks-i18n": {
+      "types": "./dist/posts/posts-i18n/posts-toolbar-marks-i18n.d.ts",
+      "import": "./dist/posts/posts-i18n/posts-toolbar-marks-i18n.js",
+      "default": "./dist/posts/posts-i18n/posts-toolbar-marks-i18n.js"
+    },
+    "./posts/posts-i18n/posts-toolbar-blocks-i18n": {
+      "types": "./dist/posts/posts-i18n/posts-toolbar-blocks-i18n.d.ts",
+      "import": "./dist/posts/posts-i18n/posts-toolbar-blocks-i18n.js",
+      "default": "./dist/posts/posts-i18n/posts-toolbar-blocks-i18n.js"
+    },
+    "./posts/posts-i18n/posts-toolbar-style-i18n": {
+      "types": "./dist/posts/posts-i18n/posts-toolbar-style-i18n.d.ts",
+      "import": "./dist/posts/posts-i18n/posts-toolbar-style-i18n.js",
+      "default": "./dist/posts/posts-i18n/posts-toolbar-style-i18n.js"
+    },
+    "./posts/posts-i18n/posts-url-dialog-i18n": {
+      "types": "./dist/posts/posts-i18n/posts-url-dialog-i18n.d.ts",
+      "import": "./dist/posts/posts-i18n/posts-url-dialog-i18n.js",
+      "default": "./dist/posts/posts-i18n/posts-url-dialog-i18n.js"
+    },
+    "./posts/posts-i18n/posts-slug-collision-i18n": {
+      "types": "./dist/posts/posts-i18n/posts-slug-collision-i18n.d.ts",
+      "import": "./dist/posts/posts-i18n/posts-slug-collision-i18n.js",
+      "default": "./dist/posts/posts-i18n/posts-slug-collision-i18n.js"
+    },
+    "./posts/posts-i18n/posts-template-preview-i18n": {
+      "types": "./dist/posts/posts-i18n/posts-template-preview-i18n.d.ts",
+      "import": "./dist/posts/posts-i18n/posts-template-preview-i18n.js",
+      "default": "./dist/posts/posts-i18n/posts-template-preview-i18n.js"
+    },
+    "./screens/media/hooks/use-media-card-metadata.hooks": {
+      "types": "./dist/screens/media/hooks/use-media-card-metadata.hooks.d.ts",
+      "import": "./dist/screens/media/hooks/use-media-card-metadata.hooks.js",
+      "default": "./dist/screens/media/hooks/use-media-card-metadata.hooks.js"
+    },
+    "./screens/media/grid-size": {
+      "types": "./dist/screens/media/grid-size.d.ts",
+      "import": "./dist/screens/media/grid-size.js",
+      "default": "./dist/screens/media/grid-size.js"
+    },
+    "./screens/media/hooks/use-media-grid-size.hooks": {
+      "types": "./dist/screens/media/hooks/use-media-grid-size.hooks.d.ts",
+      "import": "./dist/screens/media/hooks/use-media-grid-size.hooks.js",
+      "default": "./dist/screens/media/hooks/use-media-grid-size.hooks.js"
+    },
+    "./screens/media/hooks/use-media-card-details.hooks": {
+      "types": "./dist/screens/media/hooks/use-media-card-details.hooks.d.ts",
+      "import": "./dist/screens/media/hooks/use-media-card-details.hooks.js",
+      "default": "./dist/screens/media/hooks/use-media-card-details.hooks.js"
+    },
+    "./screens/menus/menus-i18n/create-menus-dictionary": {
+      "types": "./dist/screens/menus/menus-i18n/create-menus-dictionary.d.ts",
+      "import": "./dist/screens/menus/menus-i18n/create-menus-dictionary.js",
+      "default": "./dist/screens/menus/menus-i18n/create-menus-dictionary.js"
+    },
+    "./screens/menus/menus-i18n/menus-editor-i18n": {
+      "types": "./dist/screens/menus/menus-i18n/menus-editor-i18n.d.ts",
+      "import": "./dist/screens/menus/menus-i18n/menus-editor-i18n.js",
+      "default": "./dist/screens/menus/menus-i18n/menus-editor-i18n.js"
+    },
+    "./screens/menus/menus-i18n/menus-item-advanced-i18n": {
+      "types": "./dist/screens/menus/menus-i18n/menus-item-advanced-i18n.d.ts",
+      "import": "./dist/screens/menus/menus-i18n/menus-item-advanced-i18n.js",
+      "default": "./dist/screens/menus/menus-i18n/menus-item-advanced-i18n.js"
+    },
+    "./screens/menus/menus-i18n/menus-item-fields-i18n": {
+      "types": "./dist/screens/menus/menus-i18n/menus-item-fields-i18n.d.ts",
+      "import": "./dist/screens/menus/menus-i18n/menus-item-fields-i18n.js",
+      "default": "./dist/screens/menus/menus-i18n/menus-item-fields-i18n.js"
+    },
+    "./screens/menus/menus-i18n/menus-list-i18n": {
+      "types": "./dist/screens/menus/menus-i18n/menus-list-i18n.d.ts",
+      "import": "./dist/screens/menus/menus-i18n/menus-list-i18n.js",
+      "default": "./dist/screens/menus/menus-i18n/menus-list-i18n.js"
+    },
+    "./screens/menus/menus-i18n/menus-page-link-i18n": {
+      "types": "./dist/screens/menus/menus-i18n/menus-page-link-i18n.d.ts",
+      "import": "./dist/screens/menus/menus-i18n/menus-page-link-i18n.js",
+      "default": "./dist/screens/menus/menus-i18n/menus-page-link-i18n.js"
+    },
+    "./screens/collections/collections-i18n/collections-audit-embed-i18n": {
+      "types": "./dist/screens/collections/collections-i18n/collections-audit-embed-i18n.d.ts",
+      "import": "./dist/screens/collections/collections-i18n/collections-audit-embed-i18n.js",
+      "default": "./dist/screens/collections/collections-i18n/collections-audit-embed-i18n.js"
+    },
+    "./screens/collections/collections-i18n/collections-dialogs-i18n": {
+      "types": "./dist/screens/collections/collections-i18n/collections-dialogs-i18n.d.ts",
+      "import": "./dist/screens/collections/collections-i18n/collections-dialogs-i18n.js",
+      "default": "./dist/screens/collections/collections-i18n/collections-dialogs-i18n.js"
+    },
+    "./screens/collections/collections-i18n/collections-entries-i18n": {
+      "types": "./dist/screens/collections/collections-i18n/collections-entries-i18n.d.ts",
+      "import": "./dist/screens/collections/collections-i18n/collections-entries-i18n.js",
+      "default": "./dist/screens/collections/collections-i18n/collections-entries-i18n.js"
+    },
+    "./screens/collections/collections-i18n/collections-hooks-i18n": {
+      "types": "./dist/screens/collections/collections-i18n/collections-hooks-i18n.d.ts",
+      "import": "./dist/screens/collections/collections-i18n/collections-hooks-i18n.js",
+      "default": "./dist/screens/collections/collections-i18n/collections-hooks-i18n.js"
+    },
+    "./screens/collections/collections-i18n/collections-lifecycle-i18n": {
+      "types": "./dist/screens/collections/collections-i18n/collections-lifecycle-i18n.d.ts",
+      "import": "./dist/screens/collections/collections-i18n/collections-lifecycle-i18n.js",
+      "default": "./dist/screens/collections/collections-i18n/collections-lifecycle-i18n.js"
+    },
+    "./screens/collections/collections-i18n/collections-list-i18n": {
+      "types": "./dist/screens/collections/collections-i18n/collections-list-i18n.d.ts",
+      "import": "./dist/screens/collections/collections-i18n/collections-list-i18n.js",
+      "default": "./dist/screens/collections/collections-i18n/collections-list-i18n.js"
+    },
+    "./screens/collections/collections-i18n/create-collections-dictionary": {
+      "types": "./dist/screens/collections/collections-i18n/create-collections-dictionary.d.ts",
+      "import": "./dist/screens/collections/collections-i18n/create-collections-dictionary.js",
+      "default": "./dist/screens/collections/collections-i18n/create-collections-dictionary.js"
+    },
+    "./screens/media/media-i18n/create-media-dictionary": {
+      "types": "./dist/screens/media/media-i18n/create-media-dictionary.d.ts",
+      "import": "./dist/screens/media/media-i18n/create-media-dictionary.js",
+      "default": "./dist/screens/media/media-i18n/create-media-dictionary.js"
+    },
+    "./screens/media/media-i18n/media-addons-i18n": {
+      "types": "./dist/screens/media/media-i18n/media-addons-i18n.d.ts",
+      "import": "./dist/screens/media/media-i18n/media-addons-i18n.js",
+      "default": "./dist/screens/media/media-i18n/media-addons-i18n.js"
+    },
+    "./screens/media/media-i18n/media-dialogs-i18n": {
+      "types": "./dist/screens/media/media-i18n/media-dialogs-i18n.d.ts",
+      "import": "./dist/screens/media/media-i18n/media-dialogs-i18n.js",
+      "default": "./dist/screens/media/media-i18n/media-dialogs-i18n.js"
+    },
+    "./screens/media/media-i18n/media-edit-panel-i18n": {
+      "types": "./dist/screens/media/media-i18n/media-edit-panel-i18n.d.ts",
+      "import": "./dist/screens/media/media-i18n/media-edit-panel-i18n.js",
+      "default": "./dist/screens/media/media-i18n/media-edit-panel-i18n.js"
+    },
+    "./screens/media/media-i18n/media-hooks-i18n": {
+      "types": "./dist/screens/media/media-i18n/media-hooks-i18n.d.ts",
+      "import": "./dist/screens/media/media-i18n/media-hooks-i18n.js",
+      "default": "./dist/screens/media/media-i18n/media-hooks-i18n.js"
+    },
+    "./screens/media/media-i18n/media-html-attributes-i18n": {
+      "types": "./dist/screens/media/media-i18n/media-html-attributes-i18n.d.ts",
+      "import": "./dist/screens/media/media-i18n/media-html-attributes-i18n.js",
+      "default": "./dist/screens/media/media-i18n/media-html-attributes-i18n.js"
+    },
+    "./screens/media/media-i18n/media-library-i18n": {
+      "types": "./dist/screens/media/media-i18n/media-library-i18n.d.ts",
+      "import": "./dist/screens/media/media-i18n/media-library-i18n.js",
+      "default": "./dist/screens/media/media-i18n/media-library-i18n.js"
+    },
+    "./screens/media/media-i18n/media-toolbar-i18n": {
+      "types": "./dist/screens/media/media-i18n/media-toolbar-i18n.d.ts",
+      "import": "./dist/screens/media/media-i18n/media-toolbar-i18n.js",
+      "default": "./dist/screens/media/media-i18n/media-toolbar-i18n.js"
+    },
+    "./screens/taxonomy/taxonomy-i18n/taxonomy-screen-i18n": {
+      "types": "./dist/screens/taxonomy/taxonomy-i18n/taxonomy-screen-i18n.d.ts",
+      "import": "./dist/screens/taxonomy/taxonomy-i18n/taxonomy-screen-i18n.js",
+      "default": "./dist/screens/taxonomy/taxonomy-i18n/taxonomy-screen-i18n.js"
+    },
+    "./screens/taxonomy/taxonomy-i18n/taxonomy-merge-i18n": {
+      "types": "./dist/screens/taxonomy/taxonomy-i18n/taxonomy-merge-i18n.d.ts",
+      "import": "./dist/screens/taxonomy/taxonomy-i18n/taxonomy-merge-i18n.js",
+      "default": "./dist/screens/taxonomy/taxonomy-i18n/taxonomy-merge-i18n.js"
+    },
+    "./screens/taxonomy/taxonomy-i18n/taxonomy-detail-i18n": {
+      "types": "./dist/screens/taxonomy/taxonomy-i18n/taxonomy-detail-i18n.d.ts",
+      "import": "./dist/screens/taxonomy/taxonomy-i18n/taxonomy-detail-i18n.js",
+      "default": "./dist/screens/taxonomy/taxonomy-i18n/taxonomy-detail-i18n.js"
+    },
+    "./screens/taxonomy/taxonomy-i18n/taxonomy-hooks-i18n": {
+      "types": "./dist/screens/taxonomy/taxonomy-i18n/taxonomy-hooks-i18n.d.ts",
+      "import": "./dist/screens/taxonomy/taxonomy-i18n/taxonomy-hooks-i18n.js",
+      "default": "./dist/screens/taxonomy/taxonomy-i18n/taxonomy-hooks-i18n.js"
+    },
+    "./screens/taxonomy/taxonomy-i18n/taxonomy-term-picker-i18n": {
+      "types": "./dist/screens/taxonomy/taxonomy-i18n/taxonomy-term-picker-i18n.d.ts",
+      "import": "./dist/screens/taxonomy/taxonomy-i18n/taxonomy-term-picker-i18n.js",
+      "default": "./dist/screens/taxonomy/taxonomy-i18n/taxonomy-term-picker-i18n.js"
+    },
+    "./screens/taxonomy/taxonomy-i18n/create-taxonomy-dictionary": {
+      "types": "./dist/screens/taxonomy/taxonomy-i18n/create-taxonomy-dictionary.d.ts",
+      "import": "./dist/screens/taxonomy/taxonomy-i18n/create-taxonomy-dictionary.js",
+      "default": "./dist/screens/taxonomy/taxonomy-i18n/create-taxonomy-dictionary.js"
     }
   },
   "files": [
@@ -2622,7 +3435,8 @@
     "!dist/**/__tests__/**",
     "!dist/**/*.map",
     "src/screens/**/*.css",
-    "src/**/*.css"
+    "src/**/*.css",
+    "src/posts/*.css"
   ],
   "publishConfig": {
     "access": "public",
@@ -2888,6 +3702,207 @@
       ],
       "pages/page-editor-i18n": [
         "./dist/pages/page-editor-i18n.d.ts"
+      ],
+      "screens/comments/api/comments-api": [
+        "./dist/screens/comments/api/comments-api.d.ts"
+      ],
+      "screens/forms/api/forms-api": [
+        "./dist/screens/forms/api/forms-api.d.ts"
+      ],
+      "screens/widgets/api/widgets-api": [
+        "./dist/screens/widgets/api/widgets-api.d.ts"
+      ],
+      "screens/library/hooks/use-library.hooks": [
+        "./dist/screens/library/hooks/use-library.hooks.d.ts"
+      ],
+      "screens/library/Library.hooks": [
+        "./dist/screens/library/Library.hooks.d.ts"
+      ],
+      "screens/taxonomy/rules": [
+        "./dist/screens/taxonomy/rules.d.ts"
+      ],
+      "screens/menus/menus-host-kit": [
+        "./dist/screens/menus/menus-host-kit.d.ts"
+      ],
+      "screens/menus/hooks/use-menus.hooks": [
+        "./dist/screens/menus/hooks/use-menus.hooks.d.ts"
+      ],
+      "screens/menus/hooks/use-menu-editor.hooks": [
+        "./dist/screens/menus/hooks/use-menu-editor.hooks.d.ts"
+      ],
+      "screens/menus/Menus": [
+        "./dist/screens/menus/Menus.d.ts"
+      ],
+      "screens/collections/collections-host-kit": [
+        "./dist/screens/collections/collections-host-kit.d.ts"
+      ],
+      "screens/collections/rules": [
+        "./dist/screens/collections/rules.d.ts"
+      ],
+      "screens/menus/hooks/menus-dependencies.hooks": [
+        "./dist/screens/menus/hooks/menus-dependencies.hooks.d.ts"
+      ],
+      "screens/collections/hooks/collection-entries-dependencies.hooks": [
+        "./dist/screens/collections/hooks/collection-entries-dependencies.hooks.d.ts"
+      ],
+      "screens/collections/hooks/collection-entry-editor-dependencies.hooks": [
+        "./dist/screens/collections/hooks/collection-entry-editor-dependencies.hooks.d.ts"
+      ],
+      "screens/collections/hooks/collections-dependencies.hooks": [
+        "./dist/screens/collections/hooks/collections-dependencies.hooks.d.ts"
+      ],
+      "screens/collections/hooks/use-collections.hooks": [
+        "./dist/screens/collections/hooks/use-collections.hooks.d.ts"
+      ],
+      "screens/collections/hooks/use-collection-entries.hooks": [
+        "./dist/screens/collections/hooks/use-collection-entries.hooks.d.ts"
+      ],
+      "screens/collections/hooks/use-collection-entry-editor.hooks": [
+        "./dist/screens/collections/hooks/use-collection-entry-editor.hooks.d.ts"
+      ],
+      "screens/collections/Collections": [
+        "./dist/screens/collections/Collections.d.ts"
+      ],
+      "screens/collections/CollectionEntries": [
+        "./dist/screens/collections/CollectionEntries.d.ts"
+      ],
+      "screens/collections/LifecycleConfirmDialog": [
+        "./dist/screens/collections/LifecycleConfirmDialog.d.ts"
+      ],
+      "screens/collections/NewContentTypeDialog": [
+        "./dist/screens/collections/NewContentTypeDialog.d.ts"
+      ],
+      "screens/collections/EditFieldsDialog": [
+        "./dist/screens/collections/EditFieldsDialog.d.ts"
+      ],
+      "screens/collections/hooks/use-edit-fields-dialog.hooks": [
+        "./dist/screens/collections/hooks/use-edit-fields-dialog.hooks.d.ts"
+      ],
+      "screens/collections/hooks/use-new-content-type-dialog.hooks": [
+        "./dist/screens/collections/hooks/use-new-content-type-dialog.hooks.d.ts"
+      ],
+      "screens/collections/hooks/use-lifecycle-confirm-dialog.hooks": [
+        "./dist/screens/collections/hooks/use-lifecycle-confirm-dialog.hooks.d.ts"
+      ],
+      "screens/collections/hooks/edit-fields-dialog-dependencies.hooks": [
+        "./dist/screens/collections/hooks/edit-fields-dialog-dependencies.hooks.d.ts"
+      ],
+      "screens/collections/hooks/new-content-type-dialog-dependencies.hooks": [
+        "./dist/screens/collections/hooks/new-content-type-dialog-dependencies.hooks.d.ts"
+      ],
+      "screens/taxonomy/taxonomy-host-kit": [
+        "./dist/screens/taxonomy/taxonomy-host-kit.d.ts"
+      ],
+      "screens/taxonomy/TermPicker": [
+        "./dist/screens/taxonomy/TermPicker.d.ts"
+      ],
+      "screens/taxonomy/Taxonomy": [
+        "./dist/screens/taxonomy/Taxonomy.d.ts"
+      ],
+      "screens/comments": [
+        "./dist/screens/comments/index.d.ts"
+      ],
+      "screens/forms": [
+        "./dist/screens/forms/index.d.ts"
+      ],
+      "screens/widgets": [
+        "./dist/screens/widgets/index.d.ts"
+      ],
+      "screens/taxonomy/hooks/taxonomy-dependencies.hooks": [
+        "./dist/screens/taxonomy/hooks/taxonomy-dependencies.hooks.d.ts"
+      ],
+      "screens/taxonomy/hooks/use-term-list-reveal.hooks": [
+        "./dist/screens/taxonomy/hooks/use-term-list-reveal.hooks.d.ts"
+      ],
+      "screens/taxonomy/hooks/use-taxonomy-html-embed.hooks": [
+        "./dist/screens/taxonomy/hooks/use-taxonomy-html-embed.hooks.d.ts"
+      ],
+      "screens/taxonomy/hooks/use-new-taxonomy-form.hooks": [
+        "./dist/screens/taxonomy/hooks/use-new-taxonomy-form.hooks.d.ts"
+      ],
+      "screens/taxonomy/hooks/use-new-term-form.hooks": [
+        "./dist/screens/taxonomy/hooks/use-new-term-form.hooks.d.ts"
+      ],
+      "screens/taxonomy/hooks/use-term-detail-panel.hooks": [
+        "./dist/screens/taxonomy/hooks/use-term-detail-panel.hooks.d.ts"
+      ],
+      "screens/taxonomy/hooks/use-merge-term-section.hooks": [
+        "./dist/screens/taxonomy/hooks/use-merge-term-section.hooks.d.ts"
+      ],
+      "screens/taxonomy/hooks/use-taxonomy.hooks": [
+        "./dist/screens/taxonomy/hooks/use-taxonomy.hooks.d.ts"
+      ],
+      "screens/taxonomy/hooks/use-term-picker.hooks": [
+        "./dist/screens/taxonomy/hooks/use-term-picker.hooks.d.ts"
+      ],
+      "screens/library/rules": [
+        "./dist/screens/library/rules.d.ts"
+      ],
+      "screens/library/hooks/library-port.hooks": [
+        "./dist/screens/library/hooks/library-port.hooks.d.ts"
+      ],
+      "screens/media/hooks/media-port.hooks": [
+        "./dist/screens/media/hooks/media-port.hooks.d.ts"
+      ],
+      "screens/media/hooks/use-edit-media-modal.hooks": [
+        "./dist/screens/media/hooks/use-edit-media-modal.hooks.d.ts"
+      ],
+      "posts/api/posts-api.types": [
+        "./dist/posts/api/posts-api.types.d.ts"
+      ],
+      "posts/post-editor-route-key": [
+        "./dist/posts/post-editor-route-key.d.ts"
+      ],
+      "posts/api/posts-api": [
+        "./dist/posts/api/posts-api.d.ts"
+      ],
+      "posts/editor/template/PostEditorTemplateModalGate": [
+        "./dist/posts/editor/template/PostEditorTemplateModalGate.d.ts"
+      ],
+      "posts/editor/PostDeleteConfirmDialog": [
+        "./dist/posts/editor/PostDeleteConfirmDialog.d.ts"
+      ],
+      "posts/hooks/posts-list-port.hooks": [
+        "./dist/posts/hooks/posts-list-port.hooks.d.ts"
+      ],
+      "posts/hooks/use-post-editor-ui.hooks": [
+        "./dist/posts/hooks/use-post-editor-ui.hooks.d.ts"
+      ],
+      "posts/editor/notices/PostAutosaveRecoveryBanner": [
+        "./dist/posts/editor/notices/PostAutosaveRecoveryBanner.d.ts"
+      ],
+      "posts/editor/notices/PostAutosaveStaleBanner": [
+        "./dist/posts/editor/notices/PostAutosaveStaleBanner.d.ts"
+      ],
+      "posts/editor/notices/PostVersionConflictBanner": [
+        "./dist/posts/editor/notices/PostVersionConflictBanner.d.ts"
+      ],
+      "posts/editor/toolbar/ToolbarOverflowMenu": [
+        "./dist/posts/editor/toolbar/ToolbarOverflowMenu.d.ts"
+      ],
+      "posts/editor/template/PostEditorTemplatePicker": [
+        "./dist/posts/editor/template/PostEditorTemplatePicker.d.ts"
+      ],
+      "posts/PostUrlDialog": [
+        "./dist/posts/PostUrlDialog.d.ts"
+      ],
+      "posts/PostSettingsDialog": [
+        "./dist/posts/PostSettingsDialog.d.ts"
+      ],
+      "posts/editor/toolbar/ToolbarCharacterCount": [
+        "./dist/posts/editor/toolbar/ToolbarCharacterCount.d.ts"
+      ],
+      "screens/media/hooks/use-media-card-metadata.hooks": [
+        "./dist/screens/media/hooks/use-media-card-metadata.hooks.d.ts"
+      ],
+      "screens/media/grid-size": [
+        "./dist/screens/media/grid-size.d.ts"
+      ],
+      "screens/media/hooks/use-media-grid-size.hooks": [
+        "./dist/screens/media/hooks/use-media-grid-size.hooks.d.ts"
+      ],
+      "screens/media/hooks/use-media-card-details.hooks": [
+        "./dist/screens/media/hooks/use-media-card-details.hooks.d.ts"
       ]
     }
   },

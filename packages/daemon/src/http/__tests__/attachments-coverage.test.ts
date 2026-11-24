@@ -25,7 +25,7 @@ import { testOriginConfig } from './fixtures/local-origin.js';
 import { ATTACHMENTS_ROUTE_PATH, type AttachmentsHttpDeps, type AttachmentsInternalErrorContext } from '../attachments.js';
 import { createDiskAttachmentStore } from '../disk-attachment-store.js';
 import { ftypBoxEnd, hasAvifSignature } from '../attachment-signatures.js';
-import { type AttachmentStore } from '../attachment-store-types.js';
+import type { AttachmentStore } from '@jini-ai/core/contracts/site/daemon-http';
 
 const cleanups: Array<() => Promise<void>> = [];
 

@@ -114,6 +114,9 @@ Express's `res.send(Buffer)`, so it gets `Content-Length`, the host app's ETag (
 and a bodiless 304 for a fresh GET/HEAD (`If-None-Match` / `If-Modified-Since`), exactly as a hand-written
 `res.send` route did (`raw-route-buffered.test.ts` compares both on the wire). Without it nothing changes.
 
+A spec whose `successStatus` is a no-content status (204, 205, 304) answers with
+`res.status(status).end()` and no body; every other success status is written through `res.json`.
+
 See [API.md](https://github.com/AINSEP/Jini/blob/main/packages/http-kit/API.md) for required/optional object contracts. Node runtime, ESM only.
 Apache-2.0; see the repository NOTICE.
 

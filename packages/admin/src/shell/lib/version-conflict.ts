@@ -1,4 +1,5 @@
 import type { AdminHttpError } from "@jini-ai/core/admin-runtime";
+import { VERSION_CONFLICT_CODE } from "@jini-ai/core/optimistic-concurrency";
 
 import type { CreateAdminHttpPorts } from "./admin-http/request.js";
 
@@ -15,9 +16,6 @@ import type { CreateAdminHttpPorts } from "./admin-http/request.js";
 
 /** The host's "is this caught value one of my request errors?" guard (its `createAdminHttp` port). */
 export type RequestErrorGuard<E extends AdminHttpError> = CreateAdminHttpPorts<E, string, string>["isRequestError"];
-
-/** The server's machine-readable code for a superseded basis version. */
-export const VERSION_CONFLICT_CODE = "VERSION_CONFLICT";
 
 /**
  * The English key (and copy) an editor without its own conflict banner shows for a lost

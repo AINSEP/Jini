@@ -2,7 +2,7 @@ import { render, screen } from '../../../../../__tests__/ui-kit-render-support.j
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
 import { ByokProviderForm } from '../../../react/components/ByokProviderForm.js';
-import type { ByokConfig, ProviderPreset } from '../../../types.js';
+import type { ByokConfig, ProviderPreset } from '@jini-ai/core/contracts/execution';
 
 /**
  * @file The `formFooter` slot — host content at the FOOT of the card, the sibling of the existing

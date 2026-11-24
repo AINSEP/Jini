@@ -197,7 +197,6 @@
       "./contracts/site/legacy-owner-store": "universal",
       "./contracts/site/composition-provider-config-source": "universal",
       "./contracts/site/cms-trash": "universal",
-      "./contracts/site/capability-providers-comments": "universal",
       "./contracts/site/seo-content-analysis": "universal",
       "./contracts/site/ui-sections": "universal",
       "./contracts/site/admin-surfaces-connections": "universal",
@@ -230,7 +229,16 @@
       "./contracts/site/cms-workspace": "universal",
       "./contracts/site/admin-sites": "universal",
       "./contracts/site/web-screenshot": "universal",
-      "./tool-metadata/workspace": "universal"
+      "./tool-metadata/workspace": "universal",
+      "./contracts/execution": "universal",
+      "./contracts/site/comments-providers": "universal",
+      "./contracts/site/publish-ports": "universal",
+      "./contracts/site/cms-admin-media": "universal",
+      "./contracts/site/post-kind": "universal",
+      "./scheduled-publish": "universal",
+      "./tool-metadata/post": "universal",
+      "./tool-metadata/image-transform": "universal",
+      "./contracts/site/capability-providers-comments": "universal"
     },
     "isolation": {
       "entries": {
@@ -1203,11 +1211,6 @@
       "import": "./dist/contracts/site/composition-provider-config-source.js",
       "default": "./dist/contracts/site/composition-provider-config-source.js"
     },
-    "./contracts/site/capability-providers-comments": {
-      "types": "./dist/contracts/site/capability-providers-comments.d.ts",
-      "import": "./dist/contracts/site/capability-providers-comments.js",
-      "default": "./dist/contracts/site/capability-providers-comments.js"
-    },
     "./contracts/site/seo-content-analysis": {
       "types": "./dist/contracts/site/seo-content-analysis.d.ts",
       "import": "./dist/contracts/site/seo-content-analysis.js",
@@ -1372,6 +1375,51 @@
       "types": "./dist/tool-metadata/workspace.d.ts",
       "import": "./dist/tool-metadata/workspace.js",
       "default": "./dist/tool-metadata/workspace.js"
+    },
+    "./contracts/execution": {
+      "types": "./dist/contracts/execution.d.ts",
+      "import": "./dist/contracts/execution.js",
+      "default": "./dist/contracts/execution.js"
+    },
+    "./contracts/site/comments-providers": {
+      "types": "./dist/contracts/site/comments-providers.d.ts",
+      "import": "./dist/contracts/site/comments-providers.js",
+      "default": "./dist/contracts/site/comments-providers.js"
+    },
+    "./contracts/site/publish-ports": {
+      "types": "./dist/contracts/site/publish-ports.d.ts",
+      "import": "./dist/contracts/site/publish-ports.js",
+      "default": "./dist/contracts/site/publish-ports.js"
+    },
+    "./contracts/site/cms-admin-media": {
+      "types": "./dist/contracts/site/cms-admin-media.d.ts",
+      "import": "./dist/contracts/site/cms-admin-media.js",
+      "default": "./dist/contracts/site/cms-admin-media.js"
+    },
+    "./contracts/site/post-kind": {
+      "types": "./dist/contracts/site/post-kind.d.ts",
+      "import": "./dist/contracts/site/post-kind.js",
+      "default": "./dist/contracts/site/post-kind.js"
+    },
+    "./scheduled-publish": {
+      "types": "./dist/scheduled-publish.d.ts",
+      "import": "./dist/scheduled-publish.js",
+      "default": "./dist/scheduled-publish.js"
+    },
+    "./tool-metadata/post": {
+      "types": "./dist/tool-metadata/post.d.ts",
+      "import": "./dist/tool-metadata/post.js",
+      "default": "./dist/tool-metadata/post.js"
+    },
+    "./tool-metadata/image-transform": {
+      "types": "./dist/tool-metadata/image-transform.d.ts",
+      "import": "./dist/tool-metadata/image-transform.js",
+      "default": "./dist/tool-metadata/image-transform.js"
+    },
+    "./contracts/site/capability-providers-comments": {
+      "types": "./dist/contracts/site/capability-providers-comments.d.ts",
+      "import": "./dist/contracts/site/capability-providers-comments.js",
+      "default": "./dist/contracts/site/capability-providers-comments.js"
     }
   },
   "files": [

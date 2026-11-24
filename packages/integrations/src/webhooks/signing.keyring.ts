@@ -1,6 +1,6 @@
 /** Derive signing material through a local structural platform/secrets port; raw root keys stay in the adapter. */
 import { signPayload, type SignatureVocabulary, type WebhookSigner } from "./signing.js";
-import type { KeyringPort } from "./ports.js";
+import type { KeyringPort } from "../secrets/ports.js";
 
 // Re-derive each subscription's secret for every delivery attempt; never cache or persist signing
 // material here. The keyring owns root-key derivation, while delivery depends on WebhookSigner

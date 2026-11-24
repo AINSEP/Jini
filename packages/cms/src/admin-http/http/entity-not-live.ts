@@ -1,4 +1,5 @@
 import { EntityNotLiveError } from "../../core/index.js";
+import type { OutwardErrorMessage } from "./outward-error-message.js";
 
 /**
  * @file S4 (web-high fix plan, 2026-09-24) — the HTTP half of the generic entity-liveness guard.
@@ -12,10 +13,15 @@ import { EntityNotLiveError } from "../../core/index.js";
 
 /**
  * If `err` is an `EntityNotLiveError`, returns the 409 response envelope for it. Returns `null` for
- * any other error, so a route's own error mapper can call this first and keep going.
+ * any other error, so a route's own error mapper can call this first and keep going. The status and
+ * `code` are the guard's classification; the outward `error` copy comes from the host's
+ * `outwardErrorMessage` port, so the stored error text never leaves through engine code.
  * @complexity O(1).
  */
-export function entityNotLiveResponse({ err }: { err: unknown }, _optional = {}): { status: 409; body: { error: string; code: string } } | null {
+export function entityNotLiveResponse(
+  { err, outwardErrorMessage }: { err: unknown; outwardErrorMessage: OutwardErrorMessage },
+  _optional = {},
+): { status: 409; body: { error: string; code: string } } | null {
   if (!(err instanceof EntityNotLiveError)) return null;
-  return { status: 409, body: { error: err.message, code: err.code } };
+  return { status: 409, body: { error: outwardErrorMessage({ error: err }), code: err.code } };
 }
