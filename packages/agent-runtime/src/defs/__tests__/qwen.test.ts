@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { discoveryContext, offlineDiscoveryDeps } from './discovery-fakes.js';
-import { qwenAgentDef } from '../qwen.js';
+import { qwenAgentDef } from '../qwen/index.js';
 import { DEFAULT_MODEL_OPTION } from '../shared.js';
 
 describe('qwenAgentDef.buildArgs', () => {

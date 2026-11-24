@@ -17,21 +17,21 @@
     },
     {
       "rule": "HW9-env-access",
-      "file": "packages/agent-runtime/src/defs/reasonix.ts",
+      "file": "packages/agent-runtime/src/defs/reasonix/index.ts",
       "line": 13,
       "reason": "Only a declared process entry may touch process.env or import.meta.env; take the value or an environment map from the host.",
       "fingerprint": "0229a335ed697ed0026820ccd934f3e56277a01fba0f53ff435c8bd69324eab6"
     },
     {
       "rule": "HW9-env-access",
-      "file": "packages/agent-runtime/src/defs/reasonix.ts",
+      "file": "packages/agent-runtime/src/defs/reasonix/index.ts",
       "line": 13,
       "reason": "Only a declared process entry may touch process.env or import.meta.env; take the value or an environment map from the host.",
       "fingerprint": "0229a335ed697ed0026820ccd934f3e56277a01fba0f53ff435c8bd69324eab6"
     },
     {
       "rule": "HW9-env-access",
-      "file": "packages/agent-runtime/src/defs/reasonix.ts",
+      "file": "packages/agent-runtime/src/defs/reasonix/index.ts",
       "line": 15,
       "reason": "Only a declared process entry may touch process.env or import.meta.env; take the value or an environment map from the host.",
       "fingerprint": "a7f2893dd29073c21bf76c6d9d2cd367a875752f617512c3b0a4dbb22c9d61d9"

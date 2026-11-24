@@ -1,6 +1,6 @@
 import { createAgentModelDiscovery } from '../model-discovery-native.js';
 import { parseLineSeparatedModels } from './shared.js';
-import { opencodeAgentDef } from './opencode.js';
+import { opencodeAgentDef } from './opencode/index.js';
 import type { RuntimeAgentDef } from '@jini-ai/core/contracts/agents';
 
 /** Pilot of OpenCode's native ACP mode; listed in BASE_AGENT_DEFS only after the cloud parity check passes. */

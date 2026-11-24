@@ -84,7 +84,7 @@ export type RuntimeBuildOptions = {
   // (still non-interactive-safe — just conservative instead of permissive). Not every def reads
   // this: Codex already has its own distinct sandbox model (`workspace-write` by default,
   // escalating to full access only via explicit env/platform conditions) and is unaffected either
-  // way; see `defs/codex.ts`'s `codexNeedsDangerFullAccessSandbox`.
+  // way; see `defs/codex/index.ts`'s `codexNeedsDangerFullAccessSandbox`.
   permissionMode?: 'bypass' | 'restricted';
   // Text appended to the spawned CLI's own default system prompt (never replacing it), computed
   // by the caller's `PromptAugmenter.systemOverlay()` (see `prompt-augmenter.ts`) if one is
@@ -450,7 +450,7 @@ export type RuntimeAgentDef = Partial<AgentModelDiscoveryPort> & {
    *   'prompt-path'  — the CLI has no dedicated image mechanism, but CAN
    *                    read a local file once its path is named in the
    *                    prompt text (confirmed for Claude Code by a live
-   *                    `claude -p` probe — see `defs/claude.ts`'s module
+   *                    `claude -p` probe — see `defs/claude/index.ts`'s module
    *                    doc). The caller (`@jini-ai/daemon`'s
    *                    `image-prompt-delivery.ts`) appends an
    *                    attachment-naming section to the prompt and widens
@@ -561,11 +561,11 @@ export type RuntimeAgentDef = Partial<AgentModelDiscoveryPort> & {
   //                   which is strictly safer than silently discarding the CLI's own defaults).
   //                   `flag` names the argv flag. `capabilityKey`, when present, names the
   //                   `capabilityFlags`/`agentCapabilities` key gating it (an older CLI build
-  //                   rejects an unknown flag with exit 1 — see `defs/claude.ts`'s own doc on this
+  //                   rejects an unknown flag with exit 1 — see `defs/claude/index.ts`'s own doc on this
   //                   exact hazard); omit it only for a flag already confirmed unconditionally
   //                   present (e.g. `pi`'s pre-existing, already-in-use `--append-system-prompt`).
   //   'env-var'     — the CLI reads a dedicated env var as its own system-prompt-append hook
-  //                   (`reasonix`'s `REASONIX_ACP_SYSTEM_APPEND` — see `defs/reasonix.ts`'s own
+  //                   (`reasonix`'s `REASONIX_ACP_SYSTEM_APPEND` — see `defs/reasonix/index.ts`'s own
   //                   doc for why this shape, distinct from `append-flag`, exists at all: the
   //                   original OD source read this env var directly and there is no argv
   //                   equivalent). `varName` is set verbatim to the overlay text — never merged
@@ -578,7 +578,7 @@ export type RuntimeAgentDef = Partial<AgentModelDiscoveryPort> & {
   //   'config-instructions-file' — the CLI reads a config document's `instructions` array (file
   //                   paths or remote URLs — never inline text; confirmed live an inline string is
   //                   silently ignored) and appends each file's content to its own defaults, never
-  //                   replacing them (`opencode` — see `defs/opencode.ts`'s own doc for the full
+  //                   replacing them (`opencode` — see `defs/opencode/index.ts`'s own doc for the full
   //                   live-verification transcript: honored, append-not-replace, and coexists with
   //                   the `mcp` key the same document may already carry, all confirmed against a
   //                   real installed CLI, not inferred from docs). `varName` names the env var

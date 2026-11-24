@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it } from 'vitest';
 import { agentCapabilities } from '../../capabilities.js';
-import { opencodeAgentDef } from '../opencode.js';
+import { opencodeAgentDef } from '../opencode/index.js';
 import { DEFAULT_MODEL_OPTION, parseLineSeparatedModels } from '../shared.js';
 import { cliOutputDiscoveryDeps, discoveryContext, offlineDiscoveryDeps } from './discovery-fakes.js';
 

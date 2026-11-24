@@ -6,7 +6,7 @@ import { defaultRuntimeState, type AgentRuntimeState } from './runtime-state.js'
  * `codex debug models`.
  *
  * **Why this exists.** `claude` has no list-models subcommand, so without an `ANTHROPIC_API_KEY` the
- * picker used to render `defs/claude.ts`'s hand-written `CLAUDE_FALLBACK_MODELS` and nothing else. A
+ * picker used to render `defs/claude/index.ts`'s hand-written `CLAUDE_FALLBACK_MODELS` and nothing else. A
  * subscription-only install therefore never saw a new model (e.g. `claude-opus-5-5`) until someone
  * edited that array and republished.
  *

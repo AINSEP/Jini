@@ -24,7 +24,7 @@ vi.mock('../shared.js', async (importOriginal) => {
   };
 });
 
-import { piAgentDef } from '../pi.js';
+import { piAgentDef } from '../pi/index.js';
 import { DEFAULT_MODEL_OPTION } from '../shared.js';
 import { discoveryContext, offlineDiscoveryDeps } from './discovery-fakes.js';
 

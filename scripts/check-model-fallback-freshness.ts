@@ -4,7 +4,7 @@
  * Some runtime defs ship a hand-written `fallbackModels` array that IS the list a picker renders
  * whenever nothing live answers. `claude` is the clearest case: the CLI has no list-models
  * subcommand, so on an ordinary install (no `~/.config/mms/model-routes.json`, no
- * `ANTHROPIC_API_KEY`) the array in `defs/claude.ts` is the entire model picker.
+ * `ANTHROPIC_API_KEY`) the array in `defs/claude/index.ts` is the entire model picker.
  *
  * A hand-written list of vendor model ids is stale the day a model ships, and — before this check —
  * *nothing failed when it went stale*. That is the whole bug class: the list drifted from reality
@@ -135,8 +135,8 @@ const GUARDED_DEFS: readonly GuardedDef[] = [
   },
   {
     agentId: 'pi',
-    file: 'packages/agent-runtime/src/defs/pi.ts',
-    modulePath: join(REPO_ROOT, 'packages/agent-runtime/src/defs/pi.ts'),
+    file: 'packages/agent-runtime/src/defs/pi/index.ts',
+    modulePath: join(REPO_ROOT, 'packages/agent-runtime/src/defs/pi/index.ts'),
     exportName: 'piAgentDef',
     liveSource: 'none',
   },
@@ -149,8 +149,8 @@ const GUARDED_DEFS: readonly GuardedDef[] = [
   },
   {
     agentId: 'opencode',
-    file: 'packages/agent-runtime/src/defs/opencode.ts',
-    modulePath: join(REPO_ROOT, 'packages/agent-runtime/src/defs/opencode.ts'),
+    file: 'packages/agent-runtime/src/defs/opencode/index.ts',
+    modulePath: join(REPO_ROOT, 'packages/agent-runtime/src/defs/opencode/index.ts'),
     exportName: 'opencodeAgentDef',
     liveSource: 'none',
   },

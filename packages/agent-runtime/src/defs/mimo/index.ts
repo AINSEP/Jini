@@ -1,5 +1,5 @@
-import { createAgentModelDiscovery } from '../model-discovery-native.js';
-import { DEFAULT_MODEL_OPTION } from './shared.js';
+import { createAgentModelDiscovery } from '../../model-discovery-native.js';
+import { DEFAULT_MODEL_OPTION } from '../shared.js';
 import type { RuntimeAgentDef } from '@jini-ai/core/contracts/agents';
 
 export const mimoAgentDef = {

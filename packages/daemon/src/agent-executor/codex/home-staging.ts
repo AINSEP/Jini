@@ -100,7 +100,7 @@ function resolveCodexHomeSeams(options: McpJsonInjectionOptions): CodexHomeSeams
  * The staged `config.toml`. With personal MCP off the real home config must parse before its line
  * rewrite is trusted, and the staged home must declare only the bridge and trust no project (so
  * Codex's trust gate keeps project `.codex/config.toml` layers out unless another layer trusts
- * them). Plugin, app and skill-installed servers are turned off on the CLI layer (`defs/codex.ts`).
+ * them). Plugin, app and skill-installed servers are turned off on the CLI layer (`defs/codex/index.ts`).
  * Layers outside the home (system, MDM, cloud bundle) are the machine owner's policy, which Off
  * doesn't override (design note 2026-10-27, option N). The spawn-time refusal in
  * {@link prepareCodexHomeIfNeeded} stays the backstop for every blocked case.
@@ -130,7 +130,7 @@ function buildStagedCodexConfig({ existingRaw, entry, inheritUserConfig, inherit
  *     still authenticated. Best-effort is safe here, not merely convenient: a real headless spawn
  *     against a `CODEX_HOME` with no `auth.json` at all was confirmed (against installed Codex CLI
  *     0.151.0) to fail fast with a structured `401 Unauthorized` stream event, never an interactive
- *     login prompt or a hang — see `defs/codex.ts`'s module doc for the full transcript summary.
+ *     login prompt or a hang — see `defs/codex/index.ts`'s module doc for the full transcript summary.
  *
  * Never changes the real config. Authentication is linked so a CLI token refresh survives cleanup;
  * copying rotating credentials lost refreshes and could log the operator out. Deleting scratch
