@@ -1311,8 +1311,6 @@
    "MailDnsRecordStatus": "type:cbb2c1ddf5",
    "MailDnsRecordView": "interface:b7c6994815",
    "MailDnsStatus": "interface:2a04a486f3",
-   "MailFeedbackProviderSetup": "interface:bc7b390f01",
-   "MailFeedbackSetupReport": "interface:db86f40509",
    "MailLane": "type:59165ee4e1",
    "MailProviderConfiguration": "interface:6f122516bf",
    "MailProviderConfigurationReport": "interface:eda5bfd926",

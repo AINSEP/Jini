@@ -509,7 +509,7 @@
    "createVaultMailWebhookSecrets": "function:64545c6f3c",
    "credentialSecrets": "function:1536446f87",
    "defaultMailProviderSetup": "function:6d5eb04acb",
-   "flattenHeaders": "function:9922f785ef",
+   "flattenHeaders": "function:6a0583f583",
    "fromPositionalMailer": "function:8cecd92d39",
    "getMailActivity": "function:34e6d3c95e",
    "hasOneClickUnsubscribe": "function:860cc4b95a",
@@ -609,10 +609,7 @@
  "./mail/feedback-setup": {
   "types": "./dist/mail/feedback-setup.d.ts",
   "symbols": {
-   "MailFeedbackProviderSetup": "interface:5f9a97fbec",
    "MailFeedbackSetupDeps": "interface:6de8d83e5e",
-   "MailFeedbackSetupReport": "interface:db86f40509",
-   "MailWebhookSecretSlot": "interface:372e09687c",
    "readMailFeedbackSetup": "function:4b3edd5b7b"
   }
  },
@@ -685,8 +682,7 @@
   "symbols": {
    "MailUseId": "type:dd487f591b",
    "MailUseLaunchGateDeps": "interface:687d051ea4",
-   "MailUseLaunchGatePrecondition": "type:5b15828533",
-   "MailUseReadinessDeps": "interface:9d913cf2f1",
+   "MailUseReadinessDeps": "interface:690f25acd8",
    "MailUseReadinessHostDeps": "type:b6f4aad887",
    "MailUseReadinessReport": "interface:565aa3ff20",
    "MailUseRow": "interface:8b14090c17",

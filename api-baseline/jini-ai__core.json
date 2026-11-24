@@ -1816,7 +1816,11 @@
    "MailActivityRepo": "interface:1c0d40223e",
    "MailActivityUse": "type:7e7703f3dc",
    "MailFeedbackInboxPort": "interface:0948cbb9f6",
+   "MailFeedbackProviderSetup": "interface:5f9a97fbec",
    "MailFeedbackRecord": "interface:ba22adc9f4",
+   "MailFeedbackSetupReport": "interface:db86f40509",
+   "MailLaunchGatePrecondition": "type:cedd472e4a",
+   "MailLaunchGateResult": "interface:dbebd0a0d9",
    "MailPermissionIds": "interface:0091ea86df",
    "MailSenderIdentityPort": "interface:b94a1c2235",
    "MailSuppressionAdminRepo": "interface:f4e678ee81",
@@ -1824,7 +1828,8 @@
    "MailSuppressionEntry": "interface:0de81f5fd8",
    "MailSuppressionListFilter": "interface:f2e8a0bba7",
    "MailSuppressionReason": "type:8518d7b45c",
-   "MailSuppressionRemoval": "interface:090f879f5e"
+   "MailSuppressionRemoval": "interface:090f879f5e",
+   "MailWebhookSecretSlot": "interface:372e09687c"
   }
  },
  "./contracts/site/platform-server-logs": {

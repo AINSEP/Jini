@@ -965,11 +965,12 @@
    "PluginSupersession": "interface:788b6a72f7",
    "SupersededContribution": "interface:fd97b2e5a1",
    "SupersessionManifestsPort": "interface:5180e68a25",
+   "SupersessionOrFallback": "type:dc97b6e057",
    "createBundledSourceManifestReader": "function:e28499741e",
    "parseSupersedes": "function:318161d36b",
-   "readSupersessions": "function:51feee4022",
-   "supersededDescriptorRefusal": "function:44a53b4fdb",
-   "supersededPackageRefusal": "function:a2ed4b8302"
+   "readSupersessions": "function:228d22efd1",
+   "supersededDescriptorRefusal": "function:d7b0069281",
+   "supersededPackageRefusal": "function:b56e8522f5"
   }
  },
  "./site/uninstall-tool": {

@@ -170,7 +170,7 @@
   "types": "./dist/mail/status/domain-deps.d.ts",
   "symbols": {
    "MailHostActivityDeps": "type:d50ec902a6",
-   "mailDomainDepsFrom": "function:03b42504cd"
+   "mailDomainDepsFrom": "function:fd41863f6b"
   }
  },
  "./mail/status/permissions": {
