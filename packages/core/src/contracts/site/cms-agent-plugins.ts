@@ -1,0 +1,68 @@
+/**
+ * @file The admin `agent-plugins` wire DTOs (ADR-029): the JSON bodies the Agent Plugins admin
+ * routes (list, files, set-enabled) answer with and an admin client reads. Declared here, once, so
+ * the server serializers (`@jini-ai/cms/admin-http/http/agent-plugins` and the route specs under
+ * `@jini-ai/cms/admin-http/routes/agent-plugins/*`) and any client mirror read the same shapes
+ * without the client depending on CMS. Serialization stays in CMS; only the declarations sit in Core.
+ *
+ * Core cannot import CMS, so the lifecycle projection is restated structurally here. CMS's
+ * `admin-http/http/__tests__/agent-plugins.test.ts` pins it against `agentPluginLifecycleFields`'s
+ * return type in both directions; keep the two sides identical.
+ *
+ * Host-owned value sets (a maturity, an origin, a connection status, a skill summary, a package
+ * file entry, the reader's caps) are opaque here: the host's read model decides them, and the
+ * route only re-shapes what that read model returned.
+ */
+
+/** The lifecycle fields every Agent Plugin row carries (list, set-enabled, the host's install/update). */
+export interface AdminAgentPluginLifecycleDto {
+  /** Host maturity; the key is absent for a plugin with none. */
+  readonly maturity?: string;
+  /** The provider plugin whose switch this plugin follows; the key is absent for an unlinked plugin. */
+  readonly providerPlugin?: string;
+  readonly origin: string | undefined;
+  readonly hostOk: boolean | undefined;
+  readonly missingRequires: readonly string[];
+  readonly requiredBy: readonly string[];
+  readonly archiveDigest: string | undefined;
+}
+
+/**
+ * One installed Agent Plugin row. `displayName`/`summary`/`version`/`description` are nullable,
+ * not optional: the wire always sends the key, `null` when the package's own manifest has none.
+ */
+export interface AdminAgentPluginDto extends AdminAgentPluginLifecycleDto {
+  readonly pluginId: string;
+  readonly id: string | undefined;
+  readonly provides: readonly string[] | undefined;
+  readonly displayName: string | null;
+  readonly summary: string | null;
+  readonly version: string | null;
+  readonly description: string | null;
+  readonly keywords: readonly string[];
+  readonly enabled: boolean;
+  /** The host's account state for this plugin; present only on list rows the host reported. */
+  readonly connectionStatus?: unknown;
+  readonly skills: readonly unknown[];
+  readonly mcpServerIds: readonly string[];
+}
+
+/** `GET …/agent-plugins`: one row per installed Agent Plugin. */
+export interface AdminAgentPluginsListEnvelope {
+  readonly agentPlugins: readonly AdminAgentPluginDto[];
+}
+
+/** `PATCH …/agent-plugins/:pluginId`: the updated row plus the lifecycle owner's warnings. */
+export interface AdminAgentPluginSetEnabledEnvelope {
+  readonly warnings: readonly string[];
+  readonly agentPlugin: AdminAgentPluginDto;
+}
+
+/** `GET …/agent-plugins/:pluginId/files`: one plugin's package files, as the host's reader listed them. */
+export interface AdminAgentPluginFilesEnvelope {
+  readonly pluginId: string;
+  readonly files: readonly unknown[];
+  readonly truncated: boolean;
+  /** The reader's caps, echoed to the viewer. */
+  readonly limits: unknown;
+}
