@@ -116,16 +116,13 @@ export interface MediaRecord {
    * or a direct DB edit.
    */
   htmlAttributes: string | null;
-  /**
-   * Optional WebVTT captions for a video/audio asset (G7-9): a reference to a sibling `.vtt` media
-   * asset, rendered as `<track kind="captions">` on the public player when present. Distinct from
-   * {@link caption}, which is editorial caption TEXT. Absent/`null` means no captions; optional so
-   * every existing construction site and persisted row stays valid without a migration.
-   */
-  captionsTrack?: MediaCaptionsTrack | null | undefined;
 }
 
-/** A video/audio asset's captions reference: which sibling WebVTT asset, and its language. */
+/**
+ * A video/audio asset's captions reference (G7-9): which sibling WebVTT asset, and its language.
+ * Not yet a `MediaRecord` field: adding it there breaks Tovu's exhaustive `Record<keyof MediaRecord, ...>`
+ * publish map while that file is in flight, so the field lands with the host's column + migration.
+ */
 export interface MediaCaptionsTrack {
   /** Id of the `.vtt` media asset holding the cues; the host resolves it to its public URL. */
   assetId: UUID;

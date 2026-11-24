@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "vitest";
 import { isSafeCaptionTrackSrc, renderCaptionTrack } from "../caption-track.js";
 import { renderVideoTag } from "../media-tags.js";
-import type { MediaCaptionsTrack, MediaRecord } from "../../media/types.js";
+import type { MediaCaptionsTrack } from "../../media/types.js";
 
 const player = { src: "/m/clip/original.mp4", fallbackText: "Playback unavailable", alt: "", width: null, height: null, cssClass: null, htmlAttributes: null };
 const track = { src: "/m/clip-captions/original.vtt?v=abc123", srclang: "en", label: "English" };
@@ -63,10 +63,8 @@ test("without a captions track the player output is byte-identical to the no-cap
   assert.equal(renderVideoTag(player, { captionsTrack: { src: "javascript:alert(1)", srclang: "en" } }), baseline);
 });
 
-test("a media record may carry an optional captions track reference by sibling asset id", () => {
+test("a captions track reference names a sibling asset id and a language", () => {
   const ref: MediaCaptionsTrack = { assetId: "00000000-0000-4000-8000-000000000001", srclang: "en", label: null };
-  const withTrack: Pick<MediaRecord, "captionsTrack"> = { captionsTrack: ref };
-  const without: Pick<MediaRecord, "captionsTrack"> = {};
-  assert.equal(withTrack.captionsTrack?.srclang, "en");
-  assert.equal(without.captionsTrack, undefined);
+  assert.equal(ref.srclang, "en");
+  assert.equal(ref.label, null);
 });
