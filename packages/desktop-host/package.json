@@ -37,6 +37,7 @@
       "./electron/selftest": "desktop",
       "./shell/guest-navigation": "desktop",
       "./shell/site-presence": "universal",
+      "./shell/supervised-site-url": "universal",
       "./electron/handoff": "desktop"
     },
     "isolation": {
@@ -169,6 +170,11 @@
       "types": "./dist/shell/site-presence.d.ts",
       "import": "./dist/shell/site-presence.js",
       "default": "./dist/shell/site-presence.js"
+    },
+    "./shell/supervised-site-url": {
+      "types": "./dist/shell/supervised-site-url.d.ts",
+      "import": "./dist/shell/supervised-site-url.js",
+      "default": "./dist/shell/supervised-site-url.js"
     },
     "./electron/handoff": {
       "types": "./dist/electron/handoff/index.d.ts",
