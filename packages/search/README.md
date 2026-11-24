@@ -15,6 +15,7 @@ results through the composition tokens.
 | `@jini-ai/search` | universal | The contract (`SearchProvider`, documents, keys, revisions, tombstones), host ports, the `SearchService`/`SearchIndexer` APIs, `createSearchProviderRegistry`, `validateSearchProvider`, and the tokens `SearchProviderRegistryToken`, `SearchServiceToken`, `SearchIndexerToken`, `SearchDocumentSourceToken` (many). |
 | `@jini-ai/search/tools` | universal | Agent tools over a `SearchService`. |
 | `@jini-ai/search/contribution` | node | `defineSearchProviderContribution({ filename, define })` for plugin-contributed providers: search owns the manifest parser, the restricted-content refusal and the manifest-id check; the host passes `define` (`spec => defineProviderContribution(spec, recovery)` from `@jini-ai/agent-plugins/lifecycle`), and offers the loaded result to that package's `contributeProviders`. |
+| `@jini-ai/search/site/index-state-store` | node | `createSqlSearchIndexStore({ kernel, now, tables })` returns `{ indexState, targets }`: SQL `SearchIndexStatePort` and `SearchTargetPort` over four host-created tables (state, watermarks, targets, retired) whose names the host injects. One Kysely body for SQLite, PGlite and Postgres; `kysely` is an optional, type-only peer. |
 | `@jini-ai/search/testkit` | universal | `runSearchProviderConformance`, the in-memory reference provider, and fakes (`createFakeHttpClient`, `createUnavailableHttpClient`, `createInMemorySearchState`, `createStaticAccessPort`, `createPredicateAccessPort`). Test-only. |
 
 ## Plugin providers
