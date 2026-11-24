@@ -496,6 +496,10 @@
    "abortGuardedCredentialRepo": "function:38c11efb44"
   }
  },
+ "./vendor-credentials/project-scope": {
+  "types": null,
+  "symbols": {}
+ },
  "./webhooks": {
   "types": "./dist/webhooks/index.d.ts",
   "symbols": {

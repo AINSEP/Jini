@@ -340,3 +340,8 @@ domains remain `adapter-unavailable` after authorization even when their entity 
 character check from the host (Tovu passes `@jini-ai/core/contracts/server/verified-origin`'s), and
 `canPublishToLive({ resolveRuntimeMode, env? })` takes the host's runtime-mode resolver. Neither
 module imports another package's runtime implementation.
+`createPublishContentSeedHash({ loadSeedDeps, buildCatalog })` takes the host's catalog builder
+(the host binds its type registry's `buildPublishContentCatalog`); `TDeps` is the host's deps bag.
+`getPublishContentRunStatus<TReport>()` parses the stored report as the host's report type when the
+host names one, else as Core's `PublishContentReportDto`; the run-repo port and in-memory repo are
+host-neutral and the host supplies its own SQL adapter.

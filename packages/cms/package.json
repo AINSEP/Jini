@@ -21,6 +21,8 @@
       "./publish/content/execute-import": "universal",
       "./publish/content/precheck-reasons": "universal",
       "./publish/content/publish-readiness": "universal",
+      "./publish/content/run-repo": "universal",
+      "./publish/content/seed-hash": "universal",
       "./publish/content/peer-url": "universal",
       "./themes/template-applicability": "universal",
       "./themes/preview/roster": "node",
@@ -477,6 +479,16 @@
       "types": "./dist/publish/content/publish-readiness.d.ts",
       "import": "./dist/publish/content/publish-readiness.js",
       "default": "./dist/publish/content/publish-readiness.js"
+    },
+    "./publish/content/run-repo": {
+      "types": "./dist/publish/content/run-repo.d.ts",
+      "import": "./dist/publish/content/run-repo.js",
+      "default": "./dist/publish/content/run-repo.js"
+    },
+    "./publish/content/seed-hash": {
+      "types": "./dist/publish/content/seed-hash.d.ts",
+      "import": "./dist/publish/content/seed-hash.js",
+      "default": "./dist/publish/content/seed-hash.js"
     },
     "./publish/content/peer-url": {
       "types": "./dist/publish/content/peer-url.d.ts",

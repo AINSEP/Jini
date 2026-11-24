@@ -28,6 +28,7 @@
       "./webhooks/site/signing.keyring": "node",
       "./webhooks/site/subscriptions": "node",
       "./vendor-credentials/abort-guarded-repo": "node",
+      "./vendor-credentials/project-scope": "node",
       "./webhooks/sql": "node"
     },
     "optionalPeers": {
@@ -115,6 +116,11 @@
       "import": "./dist/vendor-credentials/abort-guarded-repo.js",
       "default": "./dist/vendor-credentials/abort-guarded-repo.js"
     },
+    "./vendor-credentials/project-scope": {
+      "types": "./dist/vendor-credentials/project-scope.d.ts",
+      "import": "./dist/vendor-credentials/project-scope.js",
+      "default": "./dist/vendor-credentials/project-scope.js"
+    },
     "./webhooks/sql": {
       "types": "./dist/webhooks/sql/index.d.ts",
       "import": "./dist/webhooks/sql/index.js",
@@ -164,6 +170,9 @@
       ],
       "vendor-credentials/abort-guarded-repo": [
         "./dist/vendor-credentials/abort-guarded-repo.d.ts"
+      ],
+      "vendor-credentials/project-scope": [
+        "./dist/vendor-credentials/project-scope.d.ts"
       ],
       "webhooks/sql": [
         "./dist/webhooks/sql/index.d.ts"

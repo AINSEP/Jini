@@ -2945,6 +2945,28 @@
    "siteLabelFor": "function:cfa3bbe22e"
   }
  },
+ "./publish/content/run-repo": {
+  "types": "./dist/publish/content/run-repo.d.ts",
+  "symbols": {
+   "InMemoryPublishContentRunRepo": "class:0b34228086",
+   "PublishContentRunItemPhase": "type:6184bfc4f0",
+   "PublishContentRunItemState": "interface:0c46524156",
+   "PublishContentRunRecord": "interface:75b373004e",
+   "PublishContentRunRepoPort": "interface:873aa8fc92",
+   "PublishContentRunStatus": "interface:c4cac38be6",
+   "getPublishContentRunStatus": "function:d880b96598"
+  }
+ },
+ "./publish/content/seed-hash": {
+  "types": "./dist/publish/content/seed-hash.d.ts",
+  "symbols": {
+   "CreatePublishContentSeedHashInput": "interface:4c0d4799bc",
+   "NO_PUBLISH_CONTENT_SEED_HASH": "variable:a7dad93225",
+   "PublishContentSeedCatalog": "interface:1207ea42f2",
+   "PublishContentSeedHashFn": "type:0aa8d1f432",
+   "createPublishContentSeedHash": "function:27f9d55bd2"
+  }
+ },
  "./publish/content/tool-metadata": {
   "types": "./dist/publish/content/tool-metadata.d.ts",
   "symbols": {
