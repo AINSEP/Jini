@@ -83,7 +83,7 @@ export function displayToolDescription({ description }: { description: string },
   return description.replace(EXTERNAL_TOOL_WRAPPER_PREFIX, "");
 }
 
-/** `probe.ts`'s (`apps/website`) code for "this row is `transport: 'stdio'`" — D-7 keeps the v1
+/** The host server probe's code for "this row is `transport: 'stdio'`" — D-7 keeps the v1
  *  probe from ever spawning a local-command child process, so a `stdio` row is refused before any
  *  connection attempt. */
 const PROBE_UNSUPPORTED_TRANSPORT_CODE = "PROBE_UNSUPPORTED_TRANSPORT";
@@ -91,7 +91,7 @@ const PROBE_UNSUPPORTED_TRANSPORT_CODE = "PROBE_UNSUPPORTED_TRANSPORT";
 /**
  * The probe route's own message for that refusal is "probe is not available for local-command
  * servers yet — type tool names directly instead" (owner screenshot,
- * `08-integrations-tools-dialog-tovu-desktop.png`) — correct about WHAT is unsupported, wrong about
+ * the integrations tools dialog screenshot on the desktop host) — correct about WHAT is unsupported, wrong about
  * WHERE the workaround lives: this dialog has no text field of its own, "directly" reads as "here",
  * and the two fields that actually accept typed names (`Allowed tools`, `Allowed to make changes`,
  * `rules.ts`) are one level up, on the server's own card. Every OTHER probe failure keeps the
