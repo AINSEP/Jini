@@ -84,6 +84,6 @@ describe("formsAuthoringRoute", () => {
 
   it("fails closed without an authorizer or principal", async () => {
     await expect(formsAuthoringRoute.handle({ input: { formId: "f", body: {}, idempotencyKey: undefined }, deps: deps(), context: undefined, authorize: recordingAuthorize().authorize })).rejects.toThrow(/no authenticated principal/);
-    await expect(formsAuthoringRoute.handle({ input: { formId: "f", body: {}, idempotencyKey: undefined }, deps: deps(), context: PRINCIPAL, authorize: undefined })).rejects.toThrow(/no authorizer/);
+    await expect(formsAuthoringRoute.handle({ input: { formId: "f", body: {}, idempotencyKey: undefined }, deps: deps(), context: PRINCIPAL })).rejects.toThrow(/no authorizer/);
   });
 });

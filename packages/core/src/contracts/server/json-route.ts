@@ -37,6 +37,10 @@ export interface RouteRequestFacts {
   /** The protocol the host says the request was served over (Express `req.protocol` under its trust-proxy
    *  policy) — with `host`, what a route needs to rebuild its own public origin (publish-trust identity). */
   readonly protocol?: string;
+  /** The origin (`scheme://authority`) the host says this request was served from, under its own proxy-trust
+   *  policy, for a route that formats absolute URLs in its answer (sitemap, feed). Absent when the request
+   *  carries no authority that can form an origin (a malformed `Host`): the route then keeps its stored origin. */
+  readonly servingOrigin?: string;
 }
 
 /** Parses a `RouteInputContext` into a typed `Input`, or fails with an error. */

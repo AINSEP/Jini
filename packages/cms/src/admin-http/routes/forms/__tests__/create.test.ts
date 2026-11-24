@@ -65,6 +65,6 @@ describe("formsCreateRoute", () => {
   });
 
   it("fails closed without an authenticated principal", async () => {
-    await expect(formsCreateRoute.handle({ input: { form: { name: "", slug: "", fields: [], notify: undefined }, idempotencyKey: undefined }, deps: deps(), context: undefined, authorize: undefined })).rejects.toThrow(/no authenticated principal/);
+    await expect(formsCreateRoute.handle({ input: { form: { name: "", slug: "", fields: [], notify: undefined }, idempotencyKey: undefined }, deps: deps(), context: undefined })).rejects.toThrow(/no authenticated principal/);
   });
 });

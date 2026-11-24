@@ -278,6 +278,11 @@
       "./public-http/routes/members/shared": "universal",
       "./public-http/routes/members/sign-out": "universal",
       "./public-http/routes/agent-plugin-surfaces/files": "universal",
+      "./public-http/routes/site/seo-route-shared": "universal",
+      "./public-http/routes/site/sitemap": "universal",
+      "./public-http/routes/site/robots": "universal",
+      "./public-http/routes/site/feed": "universal",
+      "./public-http/routes/site/llms": "universal",
       "./public-http/routes/members/forgot-password": "universal",
       "./public-http/routes/members/login-providers": "universal",
       "./public-http/routes/members/me": "universal",
@@ -517,6 +522,9 @@
       "./publish/content/publish-backstop-file": "node",
       "./publish/content/peers": "universal",
       "./publish/content/apply-retire": "universal",
+      "./publish/content/apply-failure": "universal",
+      "./publish/content/apply-row": "node",
+      "./publish/content/backstop-service": "universal",
       "./publish/content/composite-blob-source": "node",
       "./trash/site/adapters/marker-sql": "node",
       "./posts/tiptap-text-schema": "universal",
@@ -605,6 +613,9 @@
       "./admin-http/routes/forms/get-submission": "universal",
       "./admin-http/routes/forms/resolve-definition": "universal",
       "./admin-http/routes/forms/write-error": "universal",
+      "./admin-http/routes/forms/authoring": "universal",
+      "./admin-http/routes/forms/create": "universal",
+      "./admin-http/routes/forms/delete-submission": "universal",
       "./admin-http/routes/menus/shared": "universal",
       "./admin-http/routes/comments/shared": "universal",
       "./admin-http/routes/comments/moderation-queue": "universal",
@@ -887,6 +898,9 @@
         "./admin-http/routes/forms/get-submission": "forms",
         "./admin-http/routes/forms/resolve-definition": "forms",
         "./admin-http/routes/forms/write-error": "forms",
+        "./admin-http/routes/forms/authoring": "forms",
+        "./admin-http/routes/forms/create": "forms",
+        "./admin-http/routes/forms/delete-submission": "forms",
         "./admin-http/routes/menus/shared": "navigation",
         "./admin-http/routes/comments/shared": "comments",
         "./admin-http/routes/comments/moderation-queue": "comments",
@@ -2313,6 +2327,31 @@
       "import": "./dist/public-http/routes/members/sign-out.js",
       "default": "./dist/public-http/routes/members/sign-out.js"
     },
+    "./public-http/routes/site/seo-route-shared": {
+      "types": "./dist/public-http/routes/site/seo-route-shared.d.ts",
+      "import": "./dist/public-http/routes/site/seo-route-shared.js",
+      "default": "./dist/public-http/routes/site/seo-route-shared.js"
+    },
+    "./public-http/routes/site/sitemap": {
+      "types": "./dist/public-http/routes/site/sitemap.d.ts",
+      "import": "./dist/public-http/routes/site/sitemap.js",
+      "default": "./dist/public-http/routes/site/sitemap.js"
+    },
+    "./public-http/routes/site/robots": {
+      "types": "./dist/public-http/routes/site/robots.d.ts",
+      "import": "./dist/public-http/routes/site/robots.js",
+      "default": "./dist/public-http/routes/site/robots.js"
+    },
+    "./public-http/routes/site/feed": {
+      "types": "./dist/public-http/routes/site/feed.d.ts",
+      "import": "./dist/public-http/routes/site/feed.js",
+      "default": "./dist/public-http/routes/site/feed.js"
+    },
+    "./public-http/routes/site/llms": {
+      "types": "./dist/public-http/routes/site/llms.d.ts",
+      "import": "./dist/public-http/routes/site/llms.js",
+      "default": "./dist/public-http/routes/site/llms.js"
+    },
     "./public-http/routes/agent-plugin-surfaces/files": {
       "types": "./dist/public-http/routes/agent-plugin-surfaces/files.d.ts",
       "import": "./dist/public-http/routes/agent-plugin-surfaces/files.js",
@@ -3453,6 +3492,21 @@
       "import": "./dist/publish/content/peers.js",
       "default": "./dist/publish/content/peers.js"
     },
+    "./publish/content/apply-failure": {
+      "types": "./dist/publish/content/apply-failure.d.ts",
+      "import": "./dist/publish/content/apply-failure.js",
+      "default": "./dist/publish/content/apply-failure.js"
+    },
+    "./publish/content/apply-row": {
+      "types": "./dist/publish/content/apply-row.d.ts",
+      "import": "./dist/publish/content/apply-row.js",
+      "default": "./dist/publish/content/apply-row.js"
+    },
+    "./publish/content/backstop-service": {
+      "types": "./dist/publish/content/backstop-service.d.ts",
+      "import": "./dist/publish/content/backstop-service.js",
+      "default": "./dist/publish/content/backstop-service.js"
+    },
     "./publish/content/apply-retire": {
       "types": "./dist/publish/content/apply-retire.d.ts",
       "import": "./dist/publish/content/apply-retire.js",
@@ -3897,6 +3951,21 @@
       "types": "./dist/admin-http/routes/forms/write-error.d.ts",
       "import": "./dist/admin-http/routes/forms/write-error.js",
       "default": "./dist/admin-http/routes/forms/write-error.js"
+    },
+    "./admin-http/routes/forms/authoring": {
+      "types": "./dist/admin-http/routes/forms/authoring.d.ts",
+      "import": "./dist/admin-http/routes/forms/authoring.js",
+      "default": "./dist/admin-http/routes/forms/authoring.js"
+    },
+    "./admin-http/routes/forms/create": {
+      "types": "./dist/admin-http/routes/forms/create.d.ts",
+      "import": "./dist/admin-http/routes/forms/create.js",
+      "default": "./dist/admin-http/routes/forms/create.js"
+    },
+    "./admin-http/routes/forms/delete-submission": {
+      "types": "./dist/admin-http/routes/forms/delete-submission.d.ts",
+      "import": "./dist/admin-http/routes/forms/delete-submission.js",
+      "default": "./dist/admin-http/routes/forms/delete-submission.js"
     },
     "./admin-http/routes/menus/shared": {
       "types": "./dist/admin-http/routes/menus/shared.d.ts",

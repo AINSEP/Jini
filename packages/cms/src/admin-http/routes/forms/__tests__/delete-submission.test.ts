@@ -1,4 +1,3 @@
-import { isRouteReply } from "@jini-ai/core/contracts/server";
 import { describe, expect, it } from "vitest";
 import { formsDeleteSubmissionRoute, type FormsDeleteSubmissionRouteDeps } from "../delete-submission.js";
 import { denyingAuthorize, PRINCIPAL, raw, recordingAuthorize, refusalOf, seededRepos, WORKSPACE_ID } from "./helpers.js";
@@ -10,7 +9,7 @@ async function deps(overrides: Partial<FormsDeleteSubmissionRouteDeps> = {}): Pr
     workspaceId: WORKSPACE_ID,
     ...(await seededRepos()),
     clock: { nowMs: () => 0 },
-    removeFormSubmission: async (input) => { removed.push(input); return { ok: true } as never; },
+    removeFormSubmission: async (input) => { removed.push(input); return { ok: true, version: null }; },
     ...overrides,
   };
 }
@@ -19,10 +18,10 @@ const handle = (d: FormsDeleteSubmissionRouteDeps, input = { formId: "contact", 
   formsDeleteSubmissionRoute.handle({ input, deps: d, context: PRINCIPAL, authorize });
 
 describe("formsDeleteSubmissionRoute", () => {
-  it("pins the method, path, default success status and no body cap", () => {
+  it("pins the method, path, bare 204 success status and no body cap", () => {
     expect(formsDeleteSubmissionRoute.method).toBe("delete");
     expect(formsDeleteSubmissionRoute.path).toBe("/api/admin/v1/workspaces/:workspaceId/forms/:formId/submissions/:submissionId");
-    expect(formsDeleteSubmissionRoute.successStatus).toBeUndefined();
+    expect(formsDeleteSubmissionRoute.successStatus).toBe(204);
     expect(formsDeleteSubmissionRoute.maxBodyBytes).toBeUndefined();
   });
 
@@ -34,7 +33,7 @@ describe("formsDeleteSubmissionRoute", () => {
   it("authorizes admin.forms.submissions.delete on the submission, even for an empty id", async () => {
     const { authorize, calls } = recordingAuthorize();
     await handle(await deps(), undefined, authorize);
-    await handle(await deps(), { formId: "contact", submissionId: "" }, authorize).catch(() => undefined);
+    await refusalOf(async () => handle(await deps(), { formId: "contact", submissionId: "" }, authorize));
     expect(calls).toEqual([
       { permission: "admin.forms.submissions.delete", entityType: "form_submission", entityId: "sub-1" },
       { permission: "admin.forms.submissions.delete", entityType: "form_submission", entityId: "" },
@@ -47,13 +46,12 @@ describe("formsDeleteSubmissionRoute", () => {
     expect(d.removed).toEqual([]);
   });
 
-  it("moves the submission to the trash by slug or id and answers a bare 204", async () => {
+  it("moves the submission to the trash by slug or id and answers an empty success (the spec's 204)", async () => {
     for (const formId of ["contact", "form-1"]) {
       const d = await deps();
       const result = await handle(d, { formId, submissionId: "sub-1" });
       expect(d.removed).toEqual([{ workspaceId: WORKSPACE_ID, id: "sub-1", display: { title: "Contact", subtitle: "2026-01-02T00:00:00.000Z" }, at: "1970-01-01T00:00:00.000Z", expectedVersion: null, actor: { principalId: "principal-1", pluginId: null } }]);
-      expect(result.ok && isRouteReply(result.value) && result.value).toMatchObject({ status: 204 });
-      expect(result.ok && (result.value as { body?: unknown }).body).toBeUndefined();
+      expect(result).toEqual({ ok: true, value: undefined });
     }
   });
 
