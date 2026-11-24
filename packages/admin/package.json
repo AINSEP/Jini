@@ -152,6 +152,7 @@
       "./screens/collections/hooks/edit-fields-dialog-port.hooks": "universal",
       "./screens/collections/hooks/new-content-type-dialog-port.hooks": "universal",
       "./screens/plugins/add-plugin-tab-soon": "universal",
+      "./screens/plugins/composer-capabilities": "universal",
       "./screens/plugins/agent-plugins-visuals": "browser",
       "./screens/plugins/hooks/agent-plugin-surfaces-port.hooks": "universal",
       "./screens/plugins/hooks/use-linked-lock-tip.hooks": "browser",
@@ -976,6 +977,11 @@
       "types": "./dist/screens/plugins/add-plugin-tab-soon.d.ts",
       "import": "./dist/screens/plugins/add-plugin-tab-soon.js",
       "default": "./dist/screens/plugins/add-plugin-tab-soon.js"
+    },
+    "./screens/plugins/composer-capabilities": {
+      "types": "./dist/screens/plugins/composer-capabilities.d.ts",
+      "import": "./dist/screens/plugins/composer-capabilities.js",
+      "default": "./dist/screens/plugins/composer-capabilities.js"
     },
     "./screens/plugins/agent-plugins-visuals": {
       "types": "./dist/screens/plugins/agent-plugins-visuals.d.ts",
