@@ -939,6 +939,14 @@
    "createAdminSurfaceCapabilities": "function:b4f9e3a93b"
   }
  },
+ "./site/admin-surfaces/delivery-bindings": {
+  "types": "./dist/site/admin-surfaces/delivery-bindings.d.ts",
+  "symbols": {
+   "FormDeliveryBindingsStore": "interface:e2b55ad9e4",
+   "SurfaceDeliveryBindingsDeps": "interface:ccfedd72d7",
+   "createSurfaceDeliveryBindings": "function:bc9297f339"
+  }
+ },
  "./site/admin-surfaces/forms": {
   "types": "./dist/site/admin-surfaces/forms.d.ts",
   "symbols": {
@@ -949,6 +957,32 @@
   "types": "./dist/site/memory-i18n.d.ts",
   "symbols": {
    "memoryText": "function:e8660ed856"
+  }
+ },
+ "./site/supersession": {
+  "types": "./dist/site/supersession.d.ts",
+  "symbols": {
+   "PluginSupersession": "interface:788b6a72f7",
+   "SupersededContribution": "interface:fd97b2e5a1",
+   "SupersessionManifestsPort": "interface:5180e68a25",
+   "createBundledSourceManifestReader": "function:e28499741e",
+   "parseSupersedes": "function:318161d36b",
+   "readSupersessions": "function:51feee4022",
+   "supersededDescriptorRefusal": "function:44a53b4fdb",
+   "supersededPackageRefusal": "function:a2ed4b8302"
+  }
+ },
+ "./site/uninstall-tool": {
+  "types": "./dist/site/uninstall-tool.d.ts",
+  "symbols": {
+   "AgentPluginUninstallApprovalHandler": "type:4abc607c5e",
+   "AgentPluginUninstallCopy": "interface:81ead000b8",
+   "AgentPluginUninstallHost": "interface:33f3daa9c4",
+   "AgentPluginUninstallNotConfirmed": "type:178aaee3e1",
+   "AgentPluginUninstallToolDeps": "interface:19fb4f8fe0",
+   "UninstallAgentPlugin": "type:58788b5cbd",
+   "UninstallAgentPluginRequired": "type:ab937a9836",
+   "runAgentPluginUninstall": "function:13446003c9"
   }
  },
  "./slide-design": {

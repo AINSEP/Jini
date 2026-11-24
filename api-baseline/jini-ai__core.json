@@ -1579,6 +1579,19 @@
    "SettingsErrorMapping": "interface:828bcf14f3"
   }
  },
+ "./contracts/site/human-confirm": {
+  "types": "./dist/contracts/site/human-confirm.d.ts",
+  "symbols": {
+   "HumanConfirmAlternative": "interface:399507e6ef",
+   "HumanConfirmSpec": "interface:f0edff62bb"
+  }
+ },
+ "./contracts/site/installed-skill": {
+  "types": "./dist/contracts/site/installed-skill.d.ts",
+  "symbols": {
+   "InstalledSkill": "interface:d0a1c44471"
+  }
+ },
  "./contracts/site/integrations-api-connections": {
   "types": "./dist/contracts/site/integrations-api-connections.d.ts",
   "symbols": {
@@ -1776,6 +1789,12 @@
    "AdminSiteKeyState": "type:4e0c0bc1f5",
    "AdminSiteKeyStatus": "interface:7c27f0a100",
    "AdminStartedFreshSiteKey": "interface:f9f2351943"
+  }
+ },
+ "./contracts/site/skill-install": {
+  "types": "./dist/contracts/site/skill-install.d.ts",
+  "symbols": {
+   "SkillInstallPayload": "type:3345bf8123"
   }
  },
  "./contracts/site/soft-delete": {
@@ -2223,6 +2242,7 @@
  "./optimistic-concurrency": {
   "types": "./dist/optimistic-concurrency.d.ts",
   "symbols": {
+   "AssertVersionedWritePort": "type:d2484ce25d",
    "RecordVersionConflictError": "class:6bb098decb",
    "RecordVersionRequiredError": "class:d98ea97c3b",
    "VERSION_CONFLICT_CODE": "variable:24fa5ccc04",
@@ -2640,6 +2660,12 @@
   "types": "./dist/tool-metadata/pages.d.ts",
   "symbols": {
    "toolMetadata": "variable:6636a3b125"
+  }
+ },
+ "./tool-metadata/skills": {
+  "types": "./dist/tool-metadata/skills.d.ts",
+  "symbols": {
+   "toolMetadata": "variable:85952eec89"
   }
  }
 }

@@ -154,6 +154,41 @@
    "usersKitNeeds": "variable:8f44899bcc"
   }
  },
+ "./mail/status/agent-tools": {
+  "types": "./dist/mail/status/agent-tools.d.ts",
+  "symbols": {
+   "mailStatusAgentToolCatalog": "variable:8148608749"
+  }
+ },
+ "./mail/status/delivery-agent-tools": {
+  "types": "./dist/mail/status/delivery-agent-tools.d.ts",
+  "symbols": {
+   "mailDeliveryAgentToolCatalog": "variable:08dd7a7295"
+  }
+ },
+ "./mail/status/domain-deps": {
+  "types": "./dist/mail/status/domain-deps.d.ts",
+  "symbols": {
+   "MailHostActivityDeps": "type:d50ec902a6",
+   "mailDomainDepsFrom": "function:03b42504cd"
+  }
+ },
+ "./mail/status/permissions": {
+  "types": "./dist/mail/status/permissions.d.ts",
+  "symbols": {
+   "MAIL_ACTIVITY_READ_PERMISSION": "variable:ff8fb41de5",
+   "MAIL_PERMISSION_IDS": "variable:32e1ce4090",
+   "MAIL_STATUS_PERMISSION": "variable:c07b23505f",
+   "MAIL_SUPPRESSIONS_MANAGE_PERMISSION": "variable:79d3c102ae",
+   "registerMailPermissionGrants": "function:348361cdfa"
+  }
+ },
+ "./mail/status/provider-agent-tools": {
+  "types": "./dist/mail/status/provider-agent-tools.d.ts",
+  "symbols": {
+   "mailProviderAgentToolCatalog": "variable:50aeea5d8e"
+  }
+ },
  "./react": {
   "types": "./dist/react/index.d.ts",
   "symbols": {

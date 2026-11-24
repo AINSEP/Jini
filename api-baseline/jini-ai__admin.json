@@ -1047,7 +1047,7 @@
    "SelectProps": "interface:dd7a04ddef",
    "SerialWrites": "interface:002606a524",
    "SettingsDialogShell": "variable:ba0c9954e3",
-   "SettingsDialogShellProps": "interface:0c2295e4e4",
+   "SettingsDialogShellProps": "interface:54cbde3df4",
    "SettingsDialogTab": "interface:830ed225d4",
    "SettlementGeneration": "interface:c1ddd0846c",
    "Spinner": "variable:c02100ec7c",
@@ -1288,6 +1288,132 @@
    "CommentsSettings": "interface:822d1ed6ee"
   }
  },
+ "./screens/email/api/mail-status-api.types": {
+  "types": "./dist/screens/email/api/mail-status-api.types.d.ts",
+  "symbols": {
+   "AdminMailStatus": "interface:bf6d74881b",
+   "ProviderDomainVerification": "type:210f92025a"
+  }
+ },
+ "./screens/email/email-api.types": {
+  "types": "./dist/screens/email/email-api.types.d.ts",
+  "symbols": {
+   "EmailApi": "interface:8ab08f65a3",
+   "EmailTemplateDetail": "interface:d90e8261a8",
+   "EmailTemplateField": "interface:e806dd94fd",
+   "EmailTemplatePreview": "interface:50c251fb97",
+   "EmailTemplateSummary": "interface:d601608958",
+   "MailActivityDetail": "interface:611f56732b",
+   "MailActivityFilter": "interface:c5f293e53d",
+   "MailActivityItem": "interface:c5d7d4a583",
+   "MailActivityPage": "interface:343bda8ba3",
+   "MailDnsRecordStatus": "type:cbb2c1ddf5",
+   "MailDnsRecordView": "interface:b7c6994815",
+   "MailDnsStatus": "interface:2a04a486f3",
+   "MailFeedbackProviderSetup": "interface:bc7b390f01",
+   "MailFeedbackSetupReport": "interface:db86f40509",
+   "MailLane": "type:59165ee4e1",
+   "MailProviderConfiguration": "interface:6f122516bf",
+   "MailProviderConfigurationReport": "interface:eda5bfd926",
+   "MailProviderCredentialInput": "interface:485eee3b64",
+   "MailProviderField": "interface:2ac8923b1a",
+   "MailSuppressionEntry": "interface:2a0f63a517",
+   "MailSuppressionPage": "interface:5e52520c6e",
+   "MailSuppressionRemovalPlan": "interface:c8698dfc4e",
+   "MailSuppressionScope": "type:a98851b7a3",
+   "MailTestSendResult": "type:fa2dac3766",
+   "MailUseRow": "interface:88f4bed1f5",
+   "MailUseState": "type:2fa8f46423"
+  }
+ },
+ "./screens/email/email-i18n": {
+  "types": "./dist/screens/email/email-i18n.d.ts",
+  "symbols": {
+   "EMAIL_DICT": "variable:708e703df5",
+   "t": "variable:44d298bf90"
+  }
+ },
+ "./screens/email/Email.hooks": {
+  "types": "./dist/screens/email/Email.hooks.d.ts",
+  "symbols": {
+   "createEmailTabLabel": "function:43813b11d9"
+  }
+ },
+ "./screens/email/EmailTemplateEditor.hooks": {
+  "types": "./dist/screens/email/EmailTemplateEditor.hooks.d.ts",
+  "symbols": {
+   "EmailPageEditorTranslate": "type:f407173991",
+   "createEmailPageTranslator": "function:fd2b2a6b1f"
+  }
+ },
+ "./screens/email/hooks/email-load.hooks": {
+  "types": "./dist/screens/email/hooks/email-load.hooks.d.ts",
+  "symbols": {
+   "EmailLoadApiError": "type:a30b3d42f6",
+   "LoadView": "type:237e3da865",
+   "errorMessage": "function:98de542f64",
+   "isForbidden": "function:db5827e80b",
+   "useLoad": "function:b40490f74b"
+  }
+ },
+ "./screens/email/hooks/use-email-activity.hooks": {
+  "types": "./dist/screens/email/hooks/use-email-activity.hooks.d.ts",
+  "symbols": {
+   "EmailActivityController": "interface:f10745ae80",
+   "PagedList": "interface:b8f8c48a0b",
+   "RemovalStep": "type:d255c4c0b1",
+   "useEmailActivity": "function:eaa644360e"
+  }
+ },
+ "./screens/email/hooks/use-email-overview.hooks": {
+  "types": "./dist/screens/email/hooks/use-email-overview.hooks.d.ts",
+  "symbols": {
+   "EmailOverviewApiError": "type:fda795843d",
+   "EmailOverviewController": "interface:f5cb5d3842",
+   "TestSendState": "type:a926542444",
+   "useEmailOverview": "function:79258a4892"
+  }
+ },
+ "./screens/email/hooks/use-email-sender.hooks": {
+  "types": "./dist/screens/email/hooks/use-email-sender.hooks.d.ts",
+  "symbols": {
+   "EmailSenderController": "interface:a1c485075a",
+   "SaveState": "type:b46519e9e0",
+   "SenderValues": "interface:c437cdacad",
+   "isValidSenderEmail": "function:eb2c9dd176",
+   "readSenderRows": "function:878c74c53f",
+   "useEmailSender": "function:b7d4edfb5f"
+  }
+ },
+ "./screens/email/hooks/use-email-template-editor.hooks": {
+  "types": "./dist/screens/email/hooks/use-email-template-editor.hooks.d.ts",
+  "symbols": {
+   "EmailTemplateEditorController": "interface:2b319754e0",
+   "PreviewMode": "type:0dec78f3f2",
+   "saveFailureText": "function:a1721fc04f",
+   "templateFieldNames": "function:68965d2859",
+   "useEmailTemplateEditor": "function:23693ba025"
+  }
+ },
+ "./screens/email/hooks/use-email-templates.hooks": {
+  "types": "./dist/screens/email/hooks/use-email-templates.hooks.d.ts",
+  "symbols": {
+   "EmailTemplatesController": "interface:9a656d225a",
+   "templateEditorPath": "function:d0f7a62dec",
+   "useEmailTemplates": "function:3a51e6ac3a"
+  }
+ },
+ "./screens/email/hooks/use-email.hooks": {
+  "types": "./dist/screens/email/hooks/use-email.hooks.d.ts",
+  "symbols": {
+   "EmailController": "interface:7099a3e2cb",
+   "EmailPort": "interface:d1ad0c8b63",
+   "EmailStatusView": "type:833215eda8",
+   "EmailSummary": "type:a13a943ef6",
+   "emailSummary": "function:bb7ea57f67",
+   "useEmail": "function:5c2ca60601"
+  }
+ },
  "./screens/forms/api/forms-api.types": {
   "types": "./dist/screens/forms/api/forms-api.types.d.ts",
   "symbols": {
@@ -1375,6 +1501,153 @@
    "pageLinkState": "function:b58386e732",
    "pageTargetForChoice": "function:affd4191c4",
    "targetForKind": "function:0821772b01"
+  }
+ },
+ "./screens/plugins/add-plugin-tab-soon": {
+  "types": "./dist/screens/plugins/add-plugin-tab-soon.d.ts",
+  "symbols": {
+   "ADD_PLUGIN_TAB_SOON": "variable:4480204eaa",
+   "MARKETPLACE_TAB_SOON": "variable:614f42aa48",
+   "addPluginTabSoonTag": "function:4fb728e732",
+   "marketplaceTabSoonTag": "function:93f30e17c9"
+  }
+ },
+ "./screens/plugins/agent-plugins-visuals": {
+  "types": "./dist/screens/plugins/agent-plugins-visuals.d.ts",
+  "symbols": {
+   "AGENT_PLUGIN_GLYPHS": "variable:bff9b77913",
+   "AgentPluginGlyphKind": "type:a77c61a294",
+   "ChevronIcon": "function:00f4063bfa",
+   "DocumentIcon": "function:7d0de9b8b1",
+   "EyeIcon": "function:f82b0b0ba5",
+   "IconProps": "interface:ec098236f3",
+   "InstalledIcon": "function:7baf497532",
+   "LockIcon": "function:2d2fff3434",
+   "MarketplaceIcon": "function:a7ba4aeb7f",
+   "PackageIcon": "function:cff9aea1dc",
+   "PaletteIcon": "function:53af91352e",
+   "PlugIcon": "function:6bc83e493c",
+   "RocketIcon": "function:0325c9f564",
+   "ShieldCheckIcon": "function:d19062244c",
+   "TrashIcon": "function:437b9b375a",
+   "UploadIcon": "function:5599563429"
+  }
+ },
+ "./screens/plugins/composer-capabilities": {
+  "types": "./dist/screens/plugins/composer-capabilities.d.ts",
+  "symbols": {
+   "ComposerCapability": "interface:167c754c96",
+   "ComposerCapabilityPreview": "interface:2d3f9c6f06",
+   "ComposerCapabilityProjection": "interface:251f21e995",
+   "ComposerCapabilitySource": "interface:f71ee95d28",
+   "ComposerDiscoveryArgument": "interface:639057585d",
+   "ComposerDiscoveryGroup": "interface:d0a3dd7ae6",
+   "ComposerDiscoveryItem": "interface:3e65f3b1b1",
+   "ComposerHostBinding": "type:f9aa27fea8",
+   "emptyComposerCapabilityProjection": "function:bf0ef65d3c",
+   "projectComposerCapabilities": "function:0dfffa4757",
+   "rankComposerDiscoveryGroups": "function:86b3fe2265"
+  }
+ },
+ "./screens/plugins/hooks/agent-plugin-surfaces-port.hooks": {
+  "types": "./dist/screens/plugins/hooks/agent-plugin-surfaces-port.hooks.d.ts",
+  "symbols": {
+   "AgentPluginSurfaceActionAnswer": "type:3078871c13",
+   "AgentPluginSurfaceSummary": "interface:d00785e421",
+   "AgentPluginSurfacesPort": "interface:c23eb59172",
+   "HostSignInLink": "interface:b7c7c98d25"
+  }
+ },
+ "./screens/plugins/hooks/use-linked-lock-tip.hooks": {
+  "types": "./dist/screens/plugins/hooks/use-linked-lock-tip.hooks.d.ts",
+  "symbols": {
+   "linkedLockTip": "function:3ae26cef0a"
+  }
+ },
+ "./screens/plugins/plugins-memory-i18n": {
+  "types": "./dist/screens/plugins/plugins-memory-i18n.d.ts",
+  "symbols": {
+   "PLUGIN_MEMORY_DICT": "variable:12adaf912c",
+   "t": "variable:44d298bf90"
+  }
+ },
+ "./screens/skills/skill-failure": {
+  "types": "./dist/screens/skills/skill-failure.d.ts",
+  "symbols": {
+   "SkillFailureApiError": "type:2b4d64c590",
+   "skillFailure": "function:ae3039ee65"
+  }
+ },
+ "./screens/skills/skill-upload": {
+  "types": "./dist/screens/skills/skill-upload.d.ts",
+  "symbols": {
+   "prepareSkillUpload": "function:7efaa9dbef"
+  }
+ },
+ "./screens/skills/SkillInstallConfirmation": {
+  "types": "./dist/screens/skills/SkillInstallConfirmation.d.ts",
+  "symbols": {
+   "SkillInstallConfirmation": "function:2f89fec96e"
+  }
+ },
+ "./screens/skills/SkillRemoveConfirmDialog": {
+  "types": "./dist/screens/skills/SkillRemoveConfirmDialog.d.ts",
+  "symbols": {
+   "SkillRemoveConfirmDialog": "function:a441fff851"
+  }
+ },
+ "./screens/skills/SkillRow": {
+  "types": "./dist/screens/skills/SkillRow.d.ts",
+  "symbols": {
+   "SkillRow": "function:f09cca4c0c"
+  }
+ },
+ "./screens/skills/Skills": {
+  "types": "./dist/screens/skills/Skills.d.ts",
+  "symbols": {
+   "Skills": "function:6b4d767de3"
+  }
+ },
+ "./screens/skills/skills-i18n": {
+  "types": "./dist/screens/skills/skills-i18n.d.ts",
+  "symbols": {
+   "t": "variable:44d298bf90"
+  }
+ },
+ "./screens/skills/skills-screen.types": {
+  "types": "./dist/screens/skills/skills-screen.types.d.ts",
+  "symbols": {
+   "SkillConfirmationView": "interface:8c7fe35317",
+   "SkillDialogClassNames": "interface:dc6165f808",
+   "SkillFailureHost": "type:7f1d51562b",
+   "SkillInstallConfirmationHooks": "interface:9372f151b0",
+   "SkillInstallView": "interface:dd777b3d0d",
+   "SkillRowClassNames": "interface:3401fb914e",
+   "SkillRowView": "interface:1fda0f9230",
+   "SkillsInstallFieldRowProps": "interface:3dbb3d4715",
+   "SkillsScreenClassNames": "interface:e503bc2af0",
+   "SkillsScreenComponents": "interface:04cc809e15",
+   "SkillsScreenController": "interface:55c0b3778a",
+   "SkillsScreenHooks": "interface:509322306d"
+  }
+ },
+ "./screens/skills/skills-visuals": {
+  "types": "./dist/screens/skills/skills-visuals.d.ts",
+  "symbols": {
+   "SkillChevronIcon": "function:1b82074763"
+  }
+ },
+ "./screens/skills/Skills.hooks": {
+  "types": "./dist/screens/skills/Skills.hooks.d.ts",
+  "symbols": {
+   "useSkillsTranslator": "function:31b8c4b4e0"
+  }
+ },
+ "./screens/skills/use-skill-confirmation.hooks": {
+  "types": "./dist/screens/skills/use-skill-confirmation.hooks.d.ts",
+  "symbols": {
+   "useSkillConfirmation": "function:8017272c7b",
+   "useSkillInstallConfirmation": "function:a469cdbcfd"
   }
  },
  "./screens/taxonomy/api/taxonomy-api.types": {
