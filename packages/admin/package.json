@@ -153,6 +153,7 @@
       "./posts/PostPublishingFields": "browser",
       "./posts/api/posts-api.types": "universal",
       "./posts/api/posts-api": "universal",
+      "./posts/post-editor-route-key": "universal",
       "./posts/editor/PostDeleteConfirmDialog": "browser",
       "./posts/editor/template/PostEditorTemplateModalGate": "browser",
       "./posts/hooks/posts-list-port.hooks": "universal",
@@ -169,6 +170,8 @@
       "./screens/collections/hooks/use-collections.hooks": "browser",
       "./screens/collections/hooks/use-collection-entries.hooks": "browser",
       "./screens/collections/hooks/use-collection-entry-editor.hooks": "browser",
+      "./screens/collections/Collections": "browser",
+      "./screens/collections/CollectionEntries": "browser",
       "./screens/collections/LifecycleConfirmDialog": "browser",
       "./screens/collections/NewContentTypeDialog": "browser",
       "./screens/collections/EditFieldsDialog": "browser",
@@ -229,6 +232,9 @@
       "./screens/menus/Menus": "browser",
       "./screens/menus/hooks/use-menus.hooks": "browser",
       "./screens/menus/hooks/use-menu-editor.hooks": "browser",
+      "./screens/menus/hooks/use-menu-editor-state.hooks": "browser",
+      "./screens/menus/hooks/use-menu-editor-writes.hooks": "browser",
+      "./screens/menus/MenuEditor": "browser",
       "./screens/menus/menus-host-kit": "universal",
       "./screens/menus/MenuEditor.hooks": "browser",
       "./screens/menus/MenuPageLinkFields.hooks": "browser",
@@ -1020,6 +1026,11 @@
       "import": "./dist/posts/PostPublishingFields.js",
       "default": "./dist/posts/PostPublishingFields.js"
     },
+    "./posts/post-editor-route-key": {
+      "types": "./dist/posts/post-editor-route-key.d.ts",
+      "import": "./dist/posts/post-editor-route-key.js",
+      "default": "./dist/posts/post-editor-route-key.js"
+    },
     "./posts/api/posts-api": {
       "types": "./dist/posts/api/posts-api.d.ts",
       "import": "./dist/posts/api/posts-api.js",
@@ -1109,6 +1120,16 @@
       "types": "./dist/screens/collections/hooks/use-collection-entry-editor.hooks.d.ts",
       "import": "./dist/screens/collections/hooks/use-collection-entry-editor.hooks.js",
       "default": "./dist/screens/collections/hooks/use-collection-entry-editor.hooks.js"
+    },
+    "./screens/collections/Collections": {
+      "types": "./dist/screens/collections/Collections.d.ts",
+      "import": "./dist/screens/collections/Collections.js",
+      "default": "./dist/screens/collections/Collections.js"
+    },
+    "./screens/collections/CollectionEntries": {
+      "types": "./dist/screens/collections/CollectionEntries.d.ts",
+      "import": "./dist/screens/collections/CollectionEntries.js",
+      "default": "./dist/screens/collections/CollectionEntries.js"
     },
     "./screens/collections/LifecycleConfirmDialog": {
       "types": "./dist/screens/collections/LifecycleConfirmDialog.d.ts",
@@ -1395,6 +1416,21 @@
       "import": "./dist/screens/menus/hooks/use-menu-editor.hooks.js",
       "default": "./dist/screens/menus/hooks/use-menu-editor.hooks.js"
     },
+    "./screens/menus/hooks/use-menu-editor-state.hooks": {
+      "types": "./dist/screens/menus/hooks/use-menu-editor-state.hooks.d.ts",
+      "import": "./dist/screens/menus/hooks/use-menu-editor-state.hooks.js",
+      "default": "./dist/screens/menus/hooks/use-menu-editor-state.hooks.js"
+    },
+    "./screens/menus/hooks/use-menu-editor-writes.hooks": {
+      "types": "./dist/screens/menus/hooks/use-menu-editor-writes.hooks.d.ts",
+      "import": "./dist/screens/menus/hooks/use-menu-editor-writes.hooks.js",
+      "default": "./dist/screens/menus/hooks/use-menu-editor-writes.hooks.js"
+    },
+    "./screens/menus/MenuEditor": {
+      "types": "./dist/screens/menus/MenuEditor.d.ts",
+      "import": "./dist/screens/menus/MenuEditor.js",
+      "default": "./dist/screens/menus/MenuEditor.js"
+    },
     "./screens/menus/Menus": {
       "types": "./dist/screens/menus/Menus.d.ts",
       "import": "./dist/screens/menus/Menus.js",
@@ -1602,6 +1638,12 @@
       "screens/collections/hooks/use-collection-entry-editor.hooks": [
         "./dist/screens/collections/hooks/use-collection-entry-editor.hooks.d.ts"
       ],
+      "screens/collections/Collections": [
+        "./dist/screens/collections/Collections.d.ts"
+      ],
+      "screens/collections/CollectionEntries": [
+        "./dist/screens/collections/CollectionEntries.d.ts"
+      ],
       "screens/collections/LifecycleConfirmDialog": [
         "./dist/screens/collections/LifecycleConfirmDialog.d.ts"
       ],
@@ -1694,6 +1736,9 @@
       ],
       "posts/api/posts-api.types": [
         "./dist/posts/api/posts-api.types.d.ts"
+      ],
+      "posts/post-editor-route-key": [
+        "./dist/posts/post-editor-route-key.d.ts"
       ],
       "posts/api/posts-api": [
         "./dist/posts/api/posts-api.d.ts"

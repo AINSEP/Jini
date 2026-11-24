@@ -92,6 +92,11 @@
       "./posts/featured-image": "universal",
       "./posts/post-slugs": "universal",
       "./posts/post-tool-views": "universal",
+      "./forms/capability-card": "universal",
+      "./widgets/capability-card": "universal",
+      "./posts/capability-card": "universal",
+      "./posts/post-tool-schemas": "universal",
+      "./posts/tiptap-block-schema": "universal",
       "./navigation/types": "universal",
       "./navigation/dropdown": "universal",
       "./navigation/href": "universal",
@@ -974,6 +979,31 @@
       "types": "./dist/posts/post-tool-views.d.ts",
       "import": "./dist/posts/post-tool-views.js",
       "default": "./dist/posts/post-tool-views.js"
+    },
+    "./forms/capability-card": {
+      "types": "./dist/forms/capability-card.d.ts",
+      "import": "./dist/forms/capability-card.js",
+      "default": "./dist/forms/capability-card.js"
+    },
+    "./widgets/capability-card": {
+      "types": "./dist/widgets/capability-card.d.ts",
+      "import": "./dist/widgets/capability-card.js",
+      "default": "./dist/widgets/capability-card.js"
+    },
+    "./posts/capability-card": {
+      "types": "./dist/posts/capability-card.d.ts",
+      "import": "./dist/posts/capability-card.js",
+      "default": "./dist/posts/capability-card.js"
+    },
+    "./posts/post-tool-schemas": {
+      "types": "./dist/posts/post-tool-schemas.d.ts",
+      "import": "./dist/posts/post-tool-schemas.js",
+      "default": "./dist/posts/post-tool-schemas.js"
+    },
+    "./posts/tiptap-block-schema": {
+      "types": "./dist/posts/tiptap-block-schema.d.ts",
+      "import": "./dist/posts/tiptap-block-schema.js",
+      "default": "./dist/posts/tiptap-block-schema.js"
     },
     "./html/text-layout": {
       "types": "./dist/html/text-layout.d.ts",

@@ -6,8 +6,8 @@ import type { MenusHostKit } from "../menus-host-kit.js";
 import { hasPageLinks, type MenuPageChoice } from "../page-link-rules.js";
 import type { MenuItemIdSource } from "./menu-tree.js";
 import type { MenusPort } from "./menus-port.hooks.js";
-import { hydrateMenuForm, useMenuEditorState, useMenuFieldActions, useMenuItemActions, type MenuEditorState, type MenuFormState } from "./use-menu-editor-state.hooks.js";
-import { useMenuCopyEmbed, useMenuSave, type MenuEditorClipboard } from "./use-menu-editor-writes.hooks.js";
+import { hydrateMenuForm, type MenuEditorState, type MenuFormState } from "./use-menu-editor-state.hooks.js";
+import type { MenuEditorClipboard } from "./use-menu-editor-writes.hooks.js";
 
 /**
  * @file Everything the per-menu tree editor does, so `MenuEditor.tsx` is only markup.
@@ -28,6 +28,10 @@ import { useMenuCopyEmbed, useMenuSave, type MenuEditorClipboard } from "./use-m
  * host's admin client and router directly, sharing the `MenusPort` `use-menus.hooks.ts` also
  * injects. `deps.kit` carries the host's version-conflict test, slug rule, slug-redirect rule and
  * failure channel (`menus-host-kit.ts`).
+ *
+ * The state/action hooks and the write hooks (`useMenuEditorState`, `useMenuFieldActions`,
+ * `useMenuItemActions`, `useMenuCopyEmbed`, `useMenuSave`) are not imported here: they are required
+ * fields of `deps.kit`, which the host fills with the implementations in the two sibling files.
  *
  * `deps.t` (standing i18n rule, 2026-08-11 — see `use-menus.hooks.ts`'s identical note): injected
  * so `MenuEditor.tsx` (and `ItemRow`, which it threads `t` into as a prop) source their UI copy
@@ -203,6 +207,7 @@ export function useMenuEditor(
   { menuId, dependencies: { port, navigate, t, kit, clipboard, itemIdSource = DEFAULT_ITEM_ID_SOURCE() } }: { menuId: string | null; dependencies: MenuEditorDependencies },
   _optional = {},
 ): MenuEditorController {
+  const { useMenuEditorState, useMenuFieldActions, useMenuItemActions, useMenuCopyEmbed, useMenuSave } = kit;
   const isNew = menuId === null;
   const loader = useMenuLoader({ menuId, port, t });
   const state = useMenuEditorState({ isNew });

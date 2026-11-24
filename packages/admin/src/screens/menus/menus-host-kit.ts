@@ -3,8 +3,12 @@
  * translator: its admin request error class (as a predicate), its version-conflict test and copy key,
  * its slug rule, the admin shell's slug-redirect rule and its failure channel. Nothing in this folder
  * imports a host module; the host binds one {@link MenusHostKit} at its composition root and passes it
- * to every hook.
+ * to every hook. The menu editor's own state/action hooks and write hooks ride on the same kit
+ * (`useMenuEditorState` … `useMenuSave`), so `useMenuEditor` calls no sibling custom hook directly;
+ * the host passes this package's implementations.
  */
+import type { useMenuEditorState, useMenuFieldActions, useMenuItemActions } from "./hooks/use-menu-editor-state.hooks.js";
+import type { useMenuCopyEmbed, useMenuSave } from "./hooks/use-menu-editor-writes.hooks.js";
 
 /** The fields the menus trash classifier reads off a failed admin request. */
 export interface MenusApiErrorLike extends Error {
@@ -40,4 +44,14 @@ export interface MenusHostKit {
   slugRedirectPath: (required: { base: string; requestedId: string; item: { id: string; slug: string } }) => string | null;
   /** The host's admin failure channel — see {@link MenusFailureReporter}. */
   failures: MenusFailureReporter;
+  /** The editor's state cells (`use-menu-editor-state.hooks.ts`' `useMenuEditorState`). */
+  useMenuEditorState: typeof useMenuEditorState;
+  /** The title/slug/mode setters over that state (`useMenuFieldActions`). */
+  useMenuFieldActions: typeof useMenuFieldActions;
+  /** The tree edit actions over that state (`useMenuItemActions`). */
+  useMenuItemActions: typeof useMenuItemActions;
+  /** Copy HTML embed (`use-menu-editor-writes.hooks.ts`' `useMenuCopyEmbed`). */
+  useMenuCopyEmbed: typeof useMenuCopyEmbed;
+  /** Save (`useMenuSave`). */
+  useMenuSave: typeof useMenuSave;
 }

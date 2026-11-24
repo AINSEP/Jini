@@ -4,6 +4,8 @@ import { describe, expect, it, vi } from "vitest";
 import type { AdminMenu } from "../api/menus-api.types.js";
 import { createFakeMenusPort } from "../hooks/menus-dependencies.hooks.js";
 import { useMenuEditor } from "../hooks/use-menu-editor.hooks.js";
+import { useMenuEditorState, useMenuFieldActions, useMenuItemActions } from "../hooks/use-menu-editor-state.hooks.js";
+import { useMenuCopyEmbed, useMenuSave } from "../hooks/use-menu-editor-writes.hooks.js";
 import type { MenusApiErrorLike, MenusHostKit } from "../menus-host-kit.js";
 
 /**
@@ -27,6 +29,7 @@ function stubKit(overrides: Partial<MenusHostKit> = {}): MenusHostKit {
     toSlug: ({ text }) => `slug:${text}`,
     slugRedirectPath: () => null,
     failures: { getGeneration: () => 7, isClipboardRefusal: () => false, publishLocal: vi.fn() },
+    useMenuEditorState, useMenuFieldActions, useMenuItemActions, useMenuCopyEmbed, useMenuSave,
     ...overrides,
   };
 }
