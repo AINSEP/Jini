@@ -2717,17 +2717,6 @@
    "withCoverPresentation": "function:1ef6c0360c"
   }
  },
- "./posts/post-tool-schemas": {
-  "types": "./dist/posts/post-tool-schemas.d.ts",
-  "symbols": {
-   "FEATURED_IMAGE_SCHEMA": "variable:c0c001b84d",
-   "POST_ID_SCHEMA": "variable:7cc11e5283",
-   "POST_KIND_SCHEMA": "variable:0d004c0283",
-   "POST_LIST_FIELDS": "variable:475390ba68",
-   "PUBLISH_AT_SCHEMA": "variable:22b33692db",
-   "TIPTAP_TEXT_BODY_EXAMPLE": "variable:a3b1b484f9"
-  }
- },
  "./posts/slug": {
   "types": "./dist/posts/slug.d.ts",
   "symbols": {
@@ -2736,13 +2725,6 @@
    "SLUG_FORMAT_PATTERN": "variable:e746a3940e",
    "derivePostSlugBase": "function:e83a424102",
    "isAutomaticPostSlug": "function:eb1fc25126"
-  }
- },
- "./posts/tiptap-block-schema": {
-  "types": "./dist/posts/tiptap-block-schema.d.ts",
-  "symbols": {
-   "BLOCK_NODE_REF": "variable:cb5918a55e",
-   "TIPTAP_BLOCK_NODE_SCHEMA": "variable:aa9ba679a3"
   }
  },
  "./posts/tiptap-text-schema": {
@@ -2898,6 +2880,15 @@
    "InMemoryPublishContentBaselineRepo": "class:6bf255744a",
    "PublishContentBaselineRecord": "interface:94f0982f20",
    "PublishContentBaselineRepoPort": "interface:713be7dea1"
+  }
+ },
+ "./publish/content/composite-blob-source": {
+  "types": "./dist/publish/content/composite-blob-source.d.ts",
+  "symbols": {
+   "CompositeBlobStoreRead": "interface:c2bc3a742c",
+   "FileBlobUnavailableError": "class:b076c20d1b",
+   "PeerBlobSource": "interface:40fcbe66de",
+   "createCompositePeerBlobSource": "function:c4f957dfa9"
   }
  },
  "./publish/content/content-hash": {
@@ -3633,6 +3624,18 @@
    "contentEditPermission": "function:bd1635d6f4",
    "createContentTargetPorts": "function:522bc83bb4",
    "createLiveCollectionTermPolicy": "function:8144850ffd"
+  }
+ },
+ "./taxonomy/site/publish-term-ids": {
+  "types": "./dist/taxonomy/site/publish-term-ids.d.ts",
+  "symbols": {
+   "TERM_SYNC_PERMISSION": "variable:d1c8d146d8",
+   "TermSync": "interface:0f243c0baf",
+   "TermSyncDeps": "interface:fc4b6a4960",
+   "TermSyncPorts": "type:fcaef5f65c",
+   "prepareTermSync": "function:1dc874115b",
+   "readTermIds": "function:e72ac0a7b0",
+   "withTermIds": "function:84c83e231c"
   }
  },
  "./taxonomy/site/tool-metadata": {

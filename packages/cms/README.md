@@ -177,10 +177,10 @@ host's own adapters own their table names and literals and pass them in. `Marker
 over the host schema, and `lazyKernel` returns the very kernel type it was given, so a host keeps its
 schema-typed kernel (no schema-erasing cast is needed at this seam).
 
-Post tool schemas (`./posts/post-tool-schemas`, `./posts/tiptap-block-schema`,
-`./posts/tiptap-text-schema`, universal): pure JSON-Schema data with no injected fields. The host
-imports the constants directly into its own post tool catalog and `bodyJson` doc schema; nothing
-binds at runtime.
+TipTap text vocabulary (`./posts/tiptap-text-schema`, universal): pure JSON-Schema data with no
+injected fields. The host imports the constants into its own `bodyJson` doc schema; nothing binds at
+runtime. (The post tool schemas and the block-node schema stay in the host: their model-facing
+descriptions name the host's tools.)
 
 Menus (`src/admin-http/routes/menus/*`; serializers in `src/admin-http/http/menus.ts`, the wire DTO
 declarations in `@jini-ai/core/contracts/site/cms-menus` so an admin client shares them): get-by-id,
@@ -350,3 +350,7 @@ module imports another package's runtime implementation.
 `getPublishContentRunStatus<TReport>()` parses the stored report as the host's report type when the
 host names one, else as Core's `PublishContentReportDto`; the run-repo port and in-memory repo are
 host-neutral and the host supplies its own SQL adapter.
+`createCompositePeerBlobSource({ blobStore, fileBlobIndex })` (node: reads and re-hashes files) takes
+the host's media blob store (read half only, `CompositeBlobStoreRead`) and the request-scoped
+`FileBlobIndexPort` from `./publish/transfer`; the returned `PeerBlobSource` is structurally the
+shape the host's peer push driver and blob-GET route already consume.

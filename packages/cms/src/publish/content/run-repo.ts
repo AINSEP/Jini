@@ -4,9 +4,9 @@
  *
  * Write-side seam over `publish_content_runs` (migration `0066`, `platform/db/schema.sqlite.ts`) — one row
  * per export/import run, the audit trail an operator sees and the report they acted on when choosing
- * to force a conflict (that table's own doc comment). No prior task built this port — `grep -rln
- * "publishContentRuns|PublishContentRun" apps/website/src --include=*.ts` found only doc-comment
- * mentions in `bundle-staging.ts`/`planner.ts` before this file existed.
+ * to force a conflict (that table's own doc comment). No prior task built this port — a search of
+ * the host source for `publishContentRuns|PublishContentRun` found only doc-comment mentions in
+ * `bundle-staging.ts`/`planner.ts` before this file existed.
  *
  * `apply-loop.ts` is the writer. It inserts an `applying` snapshot before the first content write,
  * upserts per-item progress after every transition, then persists `abandoned`, `failed`, or
