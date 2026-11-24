@@ -1736,6 +1736,14 @@
     {
       "id": "46e0367f7cbc",
       "reason": "PublishEntityTypeLabeler was deleted in 80f26707b collapse of publish/content/dialog into ui (single owner); its doc moved to entityTypeLabelFor (ui/report-rows.ts:261-264) and publishEntityTypeLabel (ui/sections.ts:46-47), which read the host section table directly."
+    },
+    {
+      "id": "2aee17e6aa98",
+      "reason": "Not deleted: wcj 14da82aa0 restored the merge-19 original sentence verbatim (merge-19 debt) and kept the merge-20 'limits' point as its own sentence in the same doc block (ToolCard.rules.ts:102)."
+    },
+    {
+      "id": "fe8c6cbf4a7d",
+      "reason": "Not deleted: wcj 14da82aa0 restored the merge-19 original wording ('known single-use rejections') and the merge-20 'typed' point is kept as the next line naming the type (member-challenge.ts:36-37)."
     }
   ]
 }

@@ -2508,7 +2508,7 @@
    "HeldBackPlan": "interface:3fe32aa83f",
    "HeldBackRestoreInput": "interface:5ca8f9fbbe",
    "HeldBackRestoreRouteDeps": "interface:191a0e9ae4",
-   "HeldBackServiceFailure": "interface:538ac77672",
+   "HeldBackServiceFailure": "interface:fb0cc06e4f",
    "heldBackApprovalRoute": "function:612518944a",
    "heldBackCheckRoute": "function:0ae5de3682",
    "heldBackListRoute": "variable:0d864fd322",
@@ -4391,10 +4391,13 @@
  "./media/site/public-path": {
   "types": "./dist/media/site/public-path.d.ts",
   "symbols": {
+   "MediaCaptionsTrackDeps": "interface:a6680d04b5",
    "MediaPublicPathVariant": "type:41602346f0",
    "MediaUrlKeySource": "interface:6109bd74ff",
+   "ResolvedMediaCaptionsTrack": "interface:f63e5510ca",
    "mediaPublicPath": "function:7f707e1466",
-   "mediaUrlKey": "function:38bb7a7b96"
+   "mediaUrlKey": "function:38bb7a7b96",
+   "resolveMediaCaptionsTrack": "function:19c4eaed4a"
   }
  },
  "./media/site/public-urls": {
@@ -6094,7 +6097,7 @@
    "toRevision": "function:eb494968b6",
    "toRevisionRow": "function:c8c9374903",
    "toRow": "function:30a0d768fa",
-   "updatableColumns": "function:928903eb93"
+   "updatableColumns": "function:3f910b4ecc"
   }
  },
  "./routing": {
@@ -7335,7 +7338,7 @@
    "WidgetEmbedPlacementNotFoundError": "class:7934442334",
    "WidgetEmbedReorderCountMismatchError": "class:0d239688b5",
    "WidgetForbiddenError": "class:62389baa10",
-   "WidgetHostPorts": "interface:a2269d18bb",
+   "WidgetHostPorts": "interface:9c518a77b2",
    "WidgetInstanceEntry": "interface:efc1c58ec1",
    "WidgetInstanceNotFoundError": "class:177209ea03",
    "WidgetInstanceStatus": "type:c73fbe2ac4",
@@ -7578,7 +7581,7 @@
   "types": "./dist/widgets/media-tags.d.ts",
   "symbols": {
    "renderImageTag": "function:93c229eb7a",
-   "renderVideoTag": "function:cbb7878655"
+   "renderVideoTag": "function:e8910aaee7"
   }
  },
  "./widgets/page-embed-types": {
