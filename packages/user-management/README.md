@@ -34,7 +34,8 @@ provider inside the host's query provider; the fetch hooks in the kit own the ca
 see [roles administration wiring and cleanup](./src/admin/PORT.md).
 Member timestamps use `formatTimestamp({ iso })` from `@jini-ai/core/text`.
 Supply `port`, `translate` and a session/workspace `queryScope`.
-Login requires `productName`. Members optionally accepts a host-filtered refresh port.
+Login requires `productName`. Members requires a host-bound `useMembersHook` (bind the exported `useMembers`
+or your own controller hook; the screen has no default) and optionally accepts a host-filtered refresh port.
 Screen ports use object IDs and separate optional fields. The fake roles port
 retains a policy's name when an update omits it or supplies `undefined`.
 Remount screens when switching sessions/workspaces. The host supplies styles and dictionaries; see

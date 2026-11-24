@@ -14,10 +14,10 @@ export interface OutboundEmail {
   subject: string;
   
   /** At least one of html/text must be supplied; the transport does not render missing content. */
-  html?: string;
+  html?: string | undefined;
   
   /** A plain-text alternative improves accessibility and deliverability. */
-  text?: string;
+  text?: string | undefined;
   
   /** Allows caller-owned List-Unsubscribe and RFC 8058 one-click headers without provider coupling. */
   headers?: Readonly<Record<string, string>>;

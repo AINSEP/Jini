@@ -1835,7 +1835,9 @@
       "ServerLogEntry": "interface:203b972ed6",
       "ServerLogLevel": "type:4af234dd46",
       "ServerLogMetadata": "interface:c39525fcdd",
-      "ServerLogSource": "type:f8dce32cd4"
+      "ServerLogSource": "type:f8dce32cd4",
+      "ServerLogFilters": "interface:b6e2bd5a85",
+      "ServerLogsResult": "interface:7269cbe8f3"
     }
   },
   "./contracts/site/platform-site-dir": {
@@ -3132,6 +3134,24 @@
     "types": "./dist/tool-metadata/source-control.d.ts",
     "symbols": {
       "toolMetadata": "variable:7dd3d42eff"
+    }
+  },
+  "./tool-metadata/members": {
+    "types": "./dist/tool-metadata/members.d.ts",
+    "symbols": {
+      "toolMetadata": "variable:57e522181a"
+    }
+  },
+  "./tool-metadata/newsletter": {
+    "types": "./dist/tool-metadata/newsletter.d.ts",
+    "symbols": {
+      "toolMetadata": "variable:844c4d6289"
+    }
+  },
+  "./tool-metadata/server-logs": {
+    "types": "./dist/tool-metadata/server-logs.d.ts",
+    "symbols": {
+      "toolMetadata": "variable:aae9f5a60f"
     }
   }
 }

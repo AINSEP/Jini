@@ -1117,7 +1117,12 @@
       "useSerialWrites": "function:4d907d5fa8",
       "useSettlementGeneration": "variable:0f33290eb3",
       "useT": "function:f1bed169bd",
-      "useTabBarKeyboard": "variable:7e4087b3b6"
+      "useTabBarKeyboard": "variable:7e4087b3b6",
+      "CopyToClipboardController": "interface:a7dbbb3bd8",
+      "KitClipboardPort": "interface:f19b2fd3f2",
+      "TabbedDialogView": "interface:fb197ab276",
+      "useCopyToClipboard": "variable:842b92f838",
+      "useTabbedDialog": "variable:7cf9a692af"
     }
   },
   "./react/overlays": {
@@ -3408,6 +3413,396 @@
       "createSourceControlTranslator": "function:7b05d2f7e4",
       "sourceControlCredentialSaveErrorMessage": "function:a68a9bde47",
       "sourceControlCredentialsLoadErrorMessage": "function:dcbb52da86"
+    }
+  },
+  "./pages/api/pages-api.types": {
+    "types": "./dist/pages/api/pages-api.types.d.ts",
+    "symbols": {
+      "AdminPagePluginEmbed": "interface:36d0728b66"
+    }
+  },
+  "./pages/hooks/pages-port.hooks": {
+    "types": "./dist/pages/hooks/pages-port.hooks.d.ts",
+    "symbols": {
+      "PageListPatch": "type:78e75a01ea",
+      "PageListRow": "interface:5b3ea45b7c",
+      "PagesEventsPort": "interface:8382dd9ad3",
+      "PagesPort": "interface:a8bb87e1cf"
+    }
+  },
+  "./pages/hooks/pages-tab-url.hooks": {
+    "types": "./dist/pages/hooks/pages-tab-url.hooks.d.ts",
+    "symbols": {
+      "PagesTabId": "type:33875a4c62",
+      "resolvePagesTabFromUrl": "function:38ef264914",
+      "writePagesTabToUrl": "function:ea3735c459"
+    }
+  },
+  "./pages/hooks/use-editor-html-jump.hooks": {
+    "types": "./dist/pages/hooks/use-editor-html-jump.hooks.d.ts",
+    "symbols": {
+      "FindEditorBlockOpening": "type:d110b6406a",
+      "RequestEditHtml": "type:976d3b76b4",
+      "measureTextareaCaretTop": "function:fbaf30fe98",
+      "useEditorHtmlJump": "function:aa830027b2"
+    }
+  },
+  "./pages/hooks/use-interactive-flush.hooks": {
+    "types": "./dist/pages/hooks/use-interactive-flush.hooks.d.ts",
+    "symbols": {
+      "INTERACTIVE_FLUSH_TIMEOUT_MS": "variable:81f9bb8559",
+      "InteractiveFlushCollaborators": "interface:05a7b54071",
+      "useInteractiveEditorFlush": "function:ba38ab4a50"
+    }
+  },
+  "./pages/hooks/use-pages.hooks": {
+    "types": "./dist/pages/hooks/use-pages.hooks.d.ts",
+    "symbols": {
+      "PagesController": "interface:068a02bcb9",
+      "PagesDependencies": "interface:0c5be3e14c",
+      "usePageRowMenuHandleMap": "function:2ea4f4ff36",
+      "usePages": "function:865ac1a0a4"
+    }
+  },
+  "./pages/lib/embed-placeholder": {
+    "types": "./dist/pages/lib/embed-placeholder.d.ts",
+    "symbols": {
+      "CanvasEmbedPlaceholderDescriptor": "interface:6ee8243c92",
+      "EmbedMarkerReaders": "interface:66d18ac664",
+      "EmbedMarkerTarget": "type:f88d0cb8b3",
+      "createEmbedPlaceholderDescriber": "function:b3e620be00",
+      "isProtectedEmbedElement": "function:0c29ad04fa"
+    }
+  },
+  "./pages/lib/page-preview-youtube": {
+    "types": "./dist/pages/lib/page-preview-youtube.d.ts",
+    "symbols": {
+      "pagePreviewYoutubeIds": "function:9c8fb294a4"
+    }
+  },
+  "./pages/lib/prettify-html": {
+    "types": "./dist/pages/lib/prettify-html.d.ts",
+    "symbols": {
+      "prettifyHtml": "function:7130fef094"
+    }
+  },
+  "./pages/page-editor-i18n": {
+    "types": "./dist/pages/page-editor-i18n.d.ts",
+    "symbols": {
+      "PAGE_EDITOR_DICT": "variable:eb9ef6a6e1",
+      "PageEditorTranslator": "type:3d38273c28",
+      "SCRIPT_BLOCK_DICT": "variable:57a85bfce8",
+      "createPageEditorTranslator": "function:e7ab6a4765"
+    }
+  },
+  "./pages/page-editor-rules": {
+    "types": "./dist/pages/page-editor-rules.d.ts",
+    "symbols": {
+      "PAGE_EXTERNAL_CHANGE_MESSAGE": "variable:50f4a9a676",
+      "PAGE_PREVIEW_IFRAME_SANDBOX": "variable:e09b09f22f",
+      "PageAutosaveStaleBasis": "interface:fddeee8936",
+      "PageEditorRecord": "interface:401e6b3ad1",
+      "PageEditorView": "type:f316048fdd",
+      "PageSavePlan": "interface:ce2a382eaa",
+      "PageVersionConflictBasis": "interface:11e8d602b0",
+      "SavablePage": "interface:e5fca49108",
+      "THEME_DEFAULT_SENTINEL": "variable:0b5f9b53dc",
+      "VersionedSavablePage": "interface:4c0e61e3f1",
+      "buildPageAutosaveDraft": "function:d01a82d755",
+      "buildPageSavePlan": "function:5ab1ee30ad",
+      "pageAcceptsHtmlBody": "function:dc3df6fa5e",
+      "pageAutosaveStaleBasisMessage": "function:3dfecb0134",
+      "pageDirtyGuardBaseline": "function:a3f30eca31",
+      "pageEditableHtml": "function:9e77c76dbf",
+      "pagePartialSaveMessage": "function:71f6e2d3d9",
+      "pagePreviewFormTarget": "function:c96b94e7d5",
+      "pageRefreshMayHaveUnsavedEdits": "function:f2084280f9",
+      "pageSaveSuccessMessage": "function:486c32e9cd",
+      "pageUnchangedSaveMessage": "function:408e42966b",
+      "pageVersionConflictMessage": "function:934b0eefb7",
+      "pickerValueToChoice": "function:4a4007d056"
+    }
+  },
+  "./pages/Pages": {
+    "types": "./dist/pages/Pages.d.ts",
+    "symbols": {
+      "Pages": "function:317d3d0445",
+      "PagesListPaths": "interface:0f3f83a38a",
+      "PagesListSorting": "interface:4a102fbf8d",
+      "PagesProps": "interface:80c88fa716",
+      "PagesThemeTabController": "interface:806244ed05",
+      "pagesListNotice": "function:e659f48a51"
+    }
+  },
+  "./pages/pages-i18n": {
+    "types": "./dist/pages/pages-i18n.d.ts",
+    "symbols": {
+      "PAGES_DICT": "variable:7feef6db6d",
+      "t": "variable:44d298bf90"
+    }
+  },
+  "./pages/pages-list-rules": {
+    "types": "./dist/pages/pages-list-rules.d.ts",
+    "symbols": {
+      "PageRowMenuHandlers": "interface:1f0c82ba47",
+      "buildPageRowMenuHandleMap": "function:97d537f345",
+      "pageRowMenuItems": "function:f859edeec9"
+    }
+  },
+  "./pages/Pages.hooks": {
+    "types": "./dist/pages/Pages.hooks.d.ts",
+    "symbols": {
+      "createPagesTabSelect": "function:bcbe4e2b0f"
+    }
+  },
+  "./screens/dashboard/Dashboard": {
+    "types": "./dist/screens/dashboard/Dashboard.d.ts",
+    "symbols": {
+      "Dashboard": "function:f9e3ec2dfc",
+      "DashboardLinks": "interface:f02eb84592",
+      "DashboardProps": "interface:766b4680ef",
+      "PersistedDisclosure": "interface:98bbc366a1"
+    }
+  },
+  "./screens/dashboard/dashboard-i18n": {
+    "types": "./dist/screens/dashboard/dashboard-i18n.d.ts",
+    "symbols": {
+      "DASHBOARD_DICT": "variable:51671fa773",
+      "createDashboardTranslator": "function:8d285970dd",
+      "t": "variable:7041b7f41f"
+    }
+  },
+  "./screens/dashboard/dashboard-view.types": {
+    "types": "./dist/screens/dashboard/dashboard-view.types.d.ts",
+    "symbols": {
+      "DashboardActivityRow": "interface:2ff4fcf72f",
+      "DashboardSiteKeyState": "type:37eec811d0"
+    }
+  },
+  "./screens/dashboard/dashboard.css": {
+    "types": null,
+    "symbols": {}
+  },
+  "./screens/dashboard/hooks/dashboard-port.hooks": {
+    "types": "./dist/screens/dashboard/hooks/dashboard-port.hooks.d.ts",
+    "symbols": {
+      "DashboardPort": "interface:d1ef2a39f8"
+    }
+  },
+  "./screens/dashboard/hooks/fake-dashboard-port": {
+    "types": "./dist/screens/dashboard/hooks/fake-dashboard-port.d.ts",
+    "symbols": {
+      "FakeDashboardPortOptions": "interface:f0a106f91e",
+      "createFakeDashboardPort": "function:514f6bcfc3"
+    }
+  },
+  "./screens/dashboard/hooks/use-dashboard.hooks": {
+    "types": "./dist/screens/dashboard/hooks/use-dashboard.hooks.d.ts",
+    "symbols": {
+      "DashboardController": "interface:eb816d43b9",
+      "DashboardDependencies": "interface:a40ed93766",
+      "StatState": "interface:6f1766e171",
+      "useDashboard": "function:b6ee95bb11"
+    }
+  },
+  "./screens/dashboard/rules": {
+    "types": "./dist/screens/dashboard/rules.d.ts",
+    "symbols": {
+      "ACTIVE_THEME_RESOURCE": "variable:d08c49c78b",
+      "activeThemeName": "function:8cd8fb1de3",
+      "activityRowHref": "function:22ff453570",
+      "commentsStatMeta": "function:92aa0f5643",
+      "mergeRecent": "function:7b6ce9fa1f",
+      "pagesStatMeta": "function:fc25c5b4c4",
+      "postsStatMeta": "function:fb70f75410",
+      "shouldShowDefaultPasswordBanner": "function:9396a58cc7",
+      "shouldShowSiteKeyBanner": "function:04f3ba31e2",
+      "siteKeyBannerCopy": "function:e17ea4bf85"
+    }
+  },
+  "./screens/observability/api/observability-api": {
+    "types": "./dist/screens/observability/api/observability-api.d.ts",
+    "symbols": {
+      "ObservabilityAdminRequest": "type:b732caee0f",
+      "ObservabilityApi": "type:c2a66d2bcb",
+      "ObservabilityApiDependencies": "interface:7cfab4de17",
+      "createObservabilityApi": "function:6ecd03c51a"
+    }
+  },
+  "./screens/observability/api/observability-api.types": {
+    "types": "./dist/screens/observability/api/observability-api.types.d.ts",
+    "symbols": {
+      "AdminObservabilityStatus": "interface:16d4be881f",
+      "AdminTelemetryDeliveryStatus": "interface:22c84135d0",
+      "AdminTelemetryTestResult": "interface:241a08f9c0"
+    }
+  },
+  "./screens/observability/hooks/observability-status-dependencies.hooks": {
+    "types": "./dist/screens/observability/hooks/observability-status-dependencies.hooks.d.ts",
+    "symbols": {
+      "FakeObservabilityStatusPortOptions": "interface:72492bb69c",
+      "createFakeObservabilityStatusPort": "function:6e588fa42d",
+      "createObservabilityStatusPort": "function:05e389cecd"
+    }
+  },
+  "./screens/observability/hooks/observability-status-port.hooks": {
+    "types": "./dist/screens/observability/hooks/observability-status-port.hooks.d.ts",
+    "symbols": {
+      "ObservabilityStatusPort": "interface:5179712fcd"
+    }
+  },
+  "./screens/observability/hooks/recent-server-errors-dependencies.hooks": {
+    "types": "./dist/screens/observability/hooks/recent-server-errors-dependencies.hooks.d.ts",
+    "symbols": {
+      "FakeRecentServerErrorsPortOptions": "interface:881a54a459",
+      "createFakeRecentServerErrorsPort": "function:6acef18f71",
+      "createRecentServerErrorsPort": "function:dfd43d90dc"
+    }
+  },
+  "./screens/observability/hooks/recent-server-errors-port.hooks": {
+    "types": "./dist/screens/observability/hooks/recent-server-errors-port.hooks.d.ts",
+    "symbols": {
+      "RecentServerErrorsPort": "interface:7bc53eca38"
+    }
+  },
+  "./screens/observability/hooks/use-observability-status.hooks": {
+    "types": "./dist/screens/observability/hooks/use-observability-status.hooks.d.ts",
+    "symbols": {
+      "ObservabilityErrorDescriber": "type:6656650859",
+      "ObservabilityStatusController": "interface:b31b7c3640",
+      "ObservabilityStatusDependencies": "interface:daaac1b5b5",
+      "useObservabilityStatus": "function:7d62dc9266"
+    }
+  },
+  "./screens/observability/hooks/use-observability-tab.hooks": {
+    "types": "./dist/screens/observability/hooks/use-observability-tab.hooks.d.ts",
+    "symbols": {
+      "useObservabilityTab": "function:501d802ab4"
+    }
+  },
+  "./screens/observability/hooks/use-queries-tab.hooks": {
+    "types": "./dist/screens/observability/hooks/use-queries-tab.hooks.d.ts",
+    "symbols": {
+      "QueriesIdentityPort": "interface:52a2d0c3f3",
+      "QueriesTabController": "interface:f5f0565b83",
+      "useQueriesTab": "function:480c3c5a4a"
+    }
+  },
+  "./screens/observability/hooks/use-recent-error-item.hooks": {
+    "types": "./dist/screens/observability/hooks/use-recent-error-item.hooks.d.ts",
+    "symbols": {
+      "useRecentErrorItem": "function:41423e9a09"
+    }
+  },
+  "./screens/observability/hooks/use-recent-server-errors.hooks": {
+    "types": "./dist/screens/observability/hooks/use-recent-server-errors.hooks.d.ts",
+    "symbols": {
+      "RECENT_ERRORS_LIMIT": "variable:3bfaffdead",
+      "RecentServerErrorRow": "interface:4079e32a6d",
+      "RecentServerErrorsController": "interface:5472329bdf",
+      "RecentServerErrorsDependencies": "interface:cb68178bba",
+      "useRecentServerErrors": "function:cbb7efbce0"
+    }
+  },
+  "./screens/observability/Observability": {
+    "types": "./dist/screens/observability/Observability.d.ts",
+    "symbols": {
+      "Observability": "function:f335da2da0",
+      "ObservabilityKitValuesHook": "type:55fd4769b5",
+      "ObservabilityLayoutClassNames": "interface:08b83c65ce",
+      "ObservabilityProps": "interface:7bc056acb0",
+      "ObservabilityTabHook": "type:2ad19c0272",
+      "ObservabilityThemeBoundaryHook": "type:280cd74ad7"
+    }
+  },
+  "./screens/observability/observability-i18n": {
+    "types": "./dist/screens/observability/observability-i18n.d.ts",
+    "symbols": {
+      "t": "variable:44d298bf90"
+    }
+  },
+  "./screens/observability/observability-visuals": {
+    "types": "./dist/screens/observability/observability-visuals.d.ts",
+    "symbols": {
+      "AlertIcon": "function:a095447f42",
+      "CheckIcon": "function:8371c5ea74",
+      "ChevronIcon": "function:00f4063bfa",
+      "CopyIcon": "function:05dac51ce7",
+      "GaugeIcon": "function:06f99d5516",
+      "IconProps": "interface:ec098236f3",
+      "PulseIcon": "function:f58a0b2624",
+      "QueriesIcon": "function:0f66db21e9"
+    }
+  },
+  "./screens/observability/observability.css": {
+    "types": null,
+    "symbols": {}
+  },
+  "./screens/observability/queries-panel": {
+    "types": "./dist/screens/observability/queries-panel.d.ts",
+    "symbols": {
+      "QueriesPanel": "function:88afe9260c",
+      "QueryCachePanel": "type:55166a1ad3"
+    }
+  },
+  "./screens/observability/recent-errors-panel": {
+    "types": "./dist/screens/observability/recent-errors-panel.d.ts",
+    "symbols": {
+      "RecentErrorItemController": "interface:926c44f125",
+      "RecentErrorItemDependencies": "interface:d65228622f",
+      "RecentErrorItemHook": "type:8ef3875748",
+      "RecentErrorsPanel": "function:7cd1c1d418",
+      "RecentServerErrorsHook": "type:70dec2f4c2"
+    }
+  },
+  "./screens/observability/recent-errors-rules": {
+    "types": "./dist/screens/observability/recent-errors-rules.d.ts",
+    "symbols": {
+      "ErrorMessageSegment": "interface:5f50e1b008",
+      "ErrorSummary": "interface:f7db76f992",
+      "RecentErrorGroup": "interface:08cd4197ff",
+      "SUMMARY_MAX_LENGTH": "variable:a87ded9705",
+      "formatErrorCopyText": "function:a420e8f280",
+      "groupErrorEntries": "function:54369ebfab",
+      "normalizeErrorMessage": "function:3f97d3a860",
+      "segmentErrorPaths": "function:8179ff5d6c",
+      "shortenSourcePath": "function:2781b6ec6d",
+      "summarizeErrorMessage": "function:930f731a5e"
+    }
+  },
+  "./screens/observability/recent-errors.css": {
+    "types": null,
+    "symbols": {}
+  },
+  "./screens/observability/tool-gaps-panel": {
+    "types": "./dist/screens/observability/tool-gaps-panel.d.ts",
+    "symbols": {
+      "ToolGapsPanel": "function:5190b372a8",
+      "ToolGapsRead": "type:97b8f8da4d"
+    }
+  },
+  "./shell/components/AdminFailureNotice/admin-failure-notice.css": {
+    "types": null,
+    "symbols": {}
+  },
+  "./shell/components/ServerRestartingBanner/hooks/use-server-connection-status.hooks": {
+    "types": "./dist/shell/components/ServerRestartingBanner/hooks/use-server-connection-status.hooks.d.ts",
+    "symbols": {
+      "ServerConnectionBannerText": "type:32c8a4a29b",
+      "ServerConnectionStatus": "type:0691a23287",
+      "ServerConnectionStatusPort": "interface:44b706f749",
+      "useServerConnectionBanner": "function:9a1674b039"
+    }
+  },
+  "./shell/components/ServerRestartingBanner/server-restarting-banner.css": {
+    "types": null,
+    "symbols": {}
+  },
+  "./shell/components/ServerRestartingBanner/ServerRestartingBanner": {
+    "types": "./dist/shell/components/ServerRestartingBanner/ServerRestartingBanner.d.ts",
+    "symbols": {
+      "ServerRestartingBanner": "function:cffe8044c4",
+      "ServerRestartingBannerProps": "interface:624ac13e3a"
     }
   }
 }

@@ -2,6 +2,10 @@ import { existsSync, readFileSync } from 'node:fs';
 import { expect, test } from 'vitest';
 
 const manifest = JSON.parse(readFileSync(new URL('../../package.json', import.meta.url), 'utf8'));
+// Member and newsletter entries that reach node:crypto or the Argon2/session-token server barrel.
+const nodeEntries = new Set(['./server', './member-login/oidc-login', './member-login/link-service', './members/access-resolver', './members/member-challenge',
+  './members/member-challenge-request', './members/member-credentials', './members/member-sign-in', './members/password-auth', './newsletter/unsubscribe',
+  './newsletter/send-pipeline', './members/write-service', './admin-http/auth', './identity/boot-session-token', './identity/api-key-secret', './identity/api-key-service']);
 
 test('every published entry has matching runtime metadata and a source module', () => {
   expect(Object.keys(manifest.exports).sort()).toEqual(Object.keys(manifest.jini.entries).sort());
@@ -13,7 +17,7 @@ test('every published entry has matching runtime metadata and a source module', 
     // A React entry that renders JSX (kit.tsx) has a .tsx source; every other entry is plain .ts.
     const source = existsSync(new URL(`../../${stem}.tsx`, import.meta.url)) ? `${stem}.tsx` : `${stem}.ts`;
     expect(readFileSync(new URL(`../../${source}`, import.meta.url), 'utf8').length, entry).toBeGreaterThan(0);
-    expect(manifest.jini.entries[entry]).toBe((entry.startsWith('./react') || entry === './admin/react') ? 'browser' : (entry === './server' || entry === './admin-http/auth' || entry === './identity/boot-session-token' || entry === './identity/api-key-secret' || entry === './identity/api-key-service') ? 'node' : 'universal');
+    expect(manifest.jini.entries[entry]).toBe((entry.startsWith('./react') || entry === './admin/react') ? 'browser' : nodeEntries.has(entry) ? 'node' : 'universal');
   }
 });
 

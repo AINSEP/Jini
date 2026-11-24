@@ -799,5 +799,479 @@
       "OwnerRecoveryStatus": "interface:f90f5df566",
       "createOwnerRecoveryClient": "function:428fef6b79"
     }
+  },
+  "./member-login/link-service": {
+    "types": "./dist/member-login/link-service.d.ts",
+    "symbols": {
+      "MemberLoginFailureReporter": "type:61f1e7ff85",
+      "MemberLoginLinkDeps": "interface:73535304f7",
+      "MemberLoginLinkInput": "interface:bbd7a1f113",
+      "MemberLoginLinkResult": "type:84fd7c27fc",
+      "requestLoginEmailProof": "function:8e8c2be4cf",
+      "resolveFederatedIdentity": "function:e0e11856f1"
+    }
+  },
+  "./member-login/oidc-login": {
+    "types": "./dist/member-login/oidc-login.d.ts",
+    "symbols": {
+      "CompletedOidcLogin": "interface:280b8d9040",
+      "CreateSealerStateCodec": "type:1790d580a9",
+      "FormatAad": "type:cda6e8c6d1",
+      "LoginContext": "interface:a060d3eb98",
+      "OidcLoginDeps": "interface:54b94b7c49",
+      "ValidateOidcIdToken": "type:aa1afe2525",
+      "beginOidcLogin": "function:7109446a18",
+      "completeOidcLogin": "function:4dfff526fa",
+      "memberLoginCallbackUrl": "function:07630adf06",
+      "openLoginEmailContinuation": "function:60bbf67fd7",
+      "sealLoginEmailContinuation": "function:8cdefe33ad"
+    }
+  },
+  "./members/access-resolver": {
+    "types": "./dist/members/access-resolver.d.ts",
+    "symbols": {
+      "DefaultMemberAccessResolver": "class:841c2a1349",
+      "MemberAccessResolverDeps": "interface:d61c91d65f",
+      "createMemberAccessResolver": "function:ac00d90b21",
+      "resolveMemberSession": "function:c2c7841243",
+      "resolvePostMemberAccess": "function:81cb2af549"
+    }
+  },
+  "./members/agent-tools": {
+    "types": "./dist/members/agent-tools.d.ts",
+    "symbols": {
+      "AgentToolActorClassRule": "type:ef6ae62ddc",
+      "AgentToolDefinition": "type:b4d7d744be",
+      "AgentToolSideEffect": "type:ecb5925043",
+      "membersAgentToolCatalog": "variable:b400415f53"
+    }
+  },
+  "./members/auth-mail": {
+    "types": "./dist/members/auth-mail.d.ts",
+    "symbols": {
+      "RenderEmailForSend": "type:30d0e385d9",
+      "renderMemberAuthMail": "function:1c45cf5f2d"
+    }
+  },
+  "./members/capability-card": {
+    "types": "./dist/members/capability-card.d.ts",
+    "symbols": {
+      "capabilityCard": "variable:f9ef070db6"
+    }
+  },
+  "./members/consent-service": {
+    "types": "./dist/members/consent-service.d.ts",
+    "symbols": {
+      "ConsentServiceDeps": "interface:beaca446c6",
+      "checkConsent": "function:9906e9b2a1",
+      "confirmConsent": "function:0dd19ccd3d",
+      "requestConsent": "function:69578a26be",
+      "revokeConsent": "function:c5f4e83f7e"
+    }
+  },
+  "./members/member-admin-writes": {
+    "types": "./dist/members/member-admin-writes.d.ts",
+    "symbols": {
+      "compSubscription": "function:9ed382aa58",
+      "disableMember": "function:c5fda6d7e9",
+      "setSubscriptionStatus": "function:dbab9e0121",
+      "updateProfile": "function:eb27cf43ae"
+    }
+  },
+  "./members/member-challenge": {
+    "types": "./dist/members/member-challenge.d.ts",
+    "symbols": {
+      "INVALID_SIGN_IN_CREDENTIAL": "variable:f51aed8bcb",
+      "consumeMemberChallenge": "function:723f0c3ff7",
+      "memberChallengeStore": "function:a2682abe1f",
+      "saveMemberChallenge": "function:1eae522453"
+    }
+  },
+  "./members/member-challenge-request": {
+    "types": "./dist/members/member-challenge-request.d.ts",
+    "symbols": {
+      "MemberChallengeRequest": "type:f5303642a2",
+      "prepareMemberChallenge": "function:5e34016672",
+      "requestMemberChallenge": "function:40764a9aa9",
+      "requestPasswordReset": "function:bc9a373d17",
+      "requestSignInLink": "function:d1f73bdc49"
+    }
+  },
+  "./members/member-credentials": {
+    "types": "./dist/members/member-credentials.d.ts",
+    "symbols": {
+      "dummyPasswordHash": "function:ab77cb221b",
+      "hashToken": "function:7595f41a90",
+      "isoPlusMs": "function:bc49ec5db2",
+      "issueMemberSession": "function:037a2aa74f",
+      "memberPasswordHasher": "function:c8dc0b9b1e",
+      "memberSessionTokens": "variable:9c739febe5"
+    }
+  },
+  "./members/member-sign-in": {
+    "types": "./dist/members/member-sign-in.d.ts",
+    "symbols": {
+      "completeSignIn": "function:850f034cd2",
+      "createMember": "function:0da0d537ff",
+      "notifyMemberCreated": "function:ed380011c5"
+    }
+  },
+  "./members/member-validation": {
+    "types": "./dist/members/member-validation.d.ts",
+    "symbols": {
+      "assertValidEmail": "function:545d13653e"
+    }
+  },
+  "./members/password-auth": {
+    "types": "./dist/members/password-auth.d.ts",
+    "symbols": {
+      "resetPassword": "function:cd146e115a",
+      "setMemberPassword": "function:2ec4d53f8a",
+      "signInWithPassword": "function:17f8adae7a"
+    }
+  },
+  "./members/ports": {
+    "types": "./dist/members/ports.d.ts",
+    "symbols": {
+      "MagicLinkTokenRepoPort": "interface:c6003996b6",
+      "MemberAccessResolver": "interface:45ea784160",
+      "MemberConsentRepoPort": "interface:5f3e556d72",
+      "MemberExternalIdentityRepoPort": "interface:1942014956",
+      "MemberRepoPort": "interface:8125252186",
+      "MemberSessionRepoPort": "interface:fdfbec8437",
+      "MemberSignInInput": "type:24b11ce543",
+      "MemberSignInResult": "interface:96e90860e9",
+      "MemberSubscriptionRepoPort": "interface:b7f91917a4",
+      "MemberTierRepoPort": "interface:e492becd42",
+      "MembersMailTransport": "interface:fa2b614330",
+      "MembersWriteService": "interface:c81fa21112",
+      "MembersWriteServiceDeps": "interface:82e9e35589",
+      "MembersWriteServiceSourceDeps": "type:b1e52761c4",
+      "buildMembersWriteServiceDeps": "function:efcd56692e"
+    }
+  },
+  "./members/repo": {
+    "types": "./dist/members/repo.d.ts",
+    "symbols": {
+      "KeepStoredRevocationPort": "type:748b94864a",
+      "MemberSessionSqlRequired": "interface:e2d1de57f9",
+      "MemberSqlRequired": "interface:16bdb4cd5d",
+      "MemberTables": "interface:0edf1fa301",
+      "SqlMagicLinkTokenRepo": "class:2bb59d02ac",
+      "SqlMemberConsentRepo": "class:60e6813828",
+      "SqlMemberExternalIdentityRepo": "class:f45c8f24db",
+      "SqlMemberRepo": "class:fbb3d003c5",
+      "SqlMemberSessionRepo": "class:04d6cefafe",
+      "SqlMemberSubscriptionRepo": "class:2e3f959c3c",
+      "SqlMemberTierRepo": "class:2e5f0001c5"
+    }
+  },
+  "./members/repo.memory": {
+    "types": "./dist/members/repo.memory.d.ts",
+    "symbols": {
+      "InMemoryMagicLinkTokenRepo": "class:5450846f32",
+      "InMemoryMemberConsentRepo": "class:d7c8a8e0cf",
+      "InMemoryMemberExternalIdentityRepo": "class:81ba0c6a21",
+      "InMemoryMemberRepo": "class:dd328017ac",
+      "InMemoryMemberSessionRepo": "class:5c4bd14029",
+      "InMemoryMemberSubscriptionRepo": "class:15aa4a97ee",
+      "InMemoryMemberTierRepo": "class:e6cd0c10b0",
+      "createInMemoryCredentialLifecycle": "function:619a87e441"
+    }
+  },
+  "./members/subscriber-directory": {
+    "types": "./dist/members/subscriber-directory.d.ts",
+    "symbols": {
+      "MembersSubscriberDirectory": "class:b9f21e4c4d",
+      "MembersSubscriberDirectoryDeps": "interface:bd8e44abba"
+    }
+  },
+  "./members/trash-member": {
+    "types": "./dist/members/trash-member.d.ts",
+    "symbols": {
+      "trashMember": "function:1b56f7c927"
+    }
+  },
+  "./members/types": {
+    "types": "./dist/members/types.d.ts",
+    "symbols": {
+      "ConsentEvidence": "interface:28dc736c12",
+      "ConsentPurpose": "type:39a643782a",
+      "ConsentRevisionOp": "type:a1428a36d3",
+      "ConsentStatus": "type:2a3fe19cb1",
+      "MagicLinkTokenRecord": "interface:8e521a101d",
+      "MemberAccessDecision": "interface:8db7ba494f",
+      "MemberAuthError": "class:51bf80c66d",
+      "MemberConflictError": "class:2b3b7e5d0e",
+      "MemberConsentRecord": "interface:dea0463712",
+      "MemberConsentRevisionRecord": "interface:b8f5b62b7d",
+      "MemberContentAccess": "interface:1ce6a52d8e",
+      "MemberContentVisibility": "type:1dc6e145e8",
+      "MemberContext": "interface:9738f626c5",
+      "MemberExternalIdentityRecord": "interface:e0162bca04",
+      "MemberNotFoundError": "class:dcec25ef45",
+      "MemberPrincipalKind": "type:292a175cdf",
+      "MemberReauthenticationRequiredError": "class:8ded12c042",
+      "MemberRecord": "interface:39a7c79592",
+      "MemberSessionRecord": "interface:ab7ea001db",
+      "MemberSignInUnavailableError": "class:a584adcf31",
+      "MemberStatus": "type:4fed40be6c",
+      "MemberSubscriptionRecord": "interface:d283c06548",
+      "MemberSubscriptionSource": "type:ddf73a64f0",
+      "MemberSubscriptionStatus": "type:c27aaa8852",
+      "MemberTierRecord": "interface:d07bee8552",
+      "MemberTierStatus": "type:f38d03b628",
+      "MemberTierType": "type:d1fdd31e01",
+      "MemberValidationError": "class:88c24155b1"
+    }
+  },
+  "./members/write-service": {
+    "types": "./dist/members/write-service.d.ts",
+    "symbols": {
+      "membersWriteService": "variable:e701697ab9"
+    }
+  },
+  "./newsletter/campaign": {
+    "types": "./dist/newsletter/campaign.d.ts",
+    "symbols": {
+      "CampaignActorTier": "type:861359a3c0",
+      "TransitionResult": "type:398414e7fa",
+      "transitionCampaignStatus": "function:c3a153502b"
+    }
+  },
+  "./newsletter/campaign-write-service": {
+    "types": "./dist/newsletter/campaign-write-service.d.ts",
+    "symbols": {
+      "CampaignWriteServiceDeps": "interface:19c7be437f",
+      "PREHEADER_MAX": "variable:44920b5869",
+      "SUBJECT_MAX": "variable:d789ab2690",
+      "SUBJECT_MIN": "variable:d7e301eab2",
+      "cancelCampaign": "function:b4b1b50060",
+      "isValidScheduleTimestamp": "function:beeb9515ef",
+      "saveCampaign": "function:ac7cd796d0",
+      "scheduleCampaign": "function:460952e337"
+    }
+  },
+  "./newsletter/data-module-manifest": {
+    "types": "./dist/newsletter/data-module-manifest.d.ts",
+    "symbols": {
+      "DeclareNewsletterDataModule": "type:6565b36fdb",
+      "NEWSLETTER_PLUGIN_ID": "variable:825cb6cb4b",
+      "NEWSLETTER_TABLE_NAMES": "variable:bac5a68d5d",
+      "createNewsletterDataModule": "function:14ee6b24b2",
+      "installNewsletterDataModule": "function:11e974ffd5",
+      "p": "variable:1ec5af4d8a"
+    }
+  },
+  "./newsletter/errors": {
+    "types": "./dist/newsletter/errors.d.ts",
+    "symbols": {
+      "NewsletterCampaignNotEditableError": "class:4e1f5ac849",
+      "NewsletterCampaignNotFoundError": "class:743c78a05e",
+      "NewsletterConfirmTokenInvalidError": "class:0b9b10a558",
+      "NewsletterConflictError": "class:4f07f10c1c",
+      "NewsletterDefaultListProtectedError": "class:f267651b04",
+      "NewsletterForbiddenError": "class:81214b7511",
+      "NewsletterLaunchGateBlockedError": "class:018d9d64ae",
+      "NewsletterListNotFoundError": "class:17e7b89845",
+      "NewsletterSubscriberNotFoundError": "class:114ad641f9",
+      "NewsletterSubscriptionNotFoundError": "class:9d63b0c64a",
+      "NewsletterUnsubscribeTokenInvalidError": "class:21d160c98e",
+      "NewsletterValidationError": "class:99b333e7c1"
+    }
+  },
+  "./newsletter/hooks": {
+    "types": "./dist/newsletter/hooks.d.ts",
+    "symbols": {
+      "BeforeSendHook": "type:51d3042f5a",
+      "BeforeSendHookContext": "interface:4760f6b8b1",
+      "HookChainResult": "type:3d3204fca6",
+      "HookRegistry": "interface:aff67f8783",
+      "RecipientFilterContext": "interface:0d453b311b",
+      "RecipientFilterHook": "type:d653fdc3b9",
+      "createHookRegistry": "function:c453c0f6a7"
+    }
+  },
+  "./newsletter/launch-gate": {
+    "types": "./dist/newsletter/launch-gate.d.ts",
+    "symbols": {
+      "LaunchGateDeps": "interface:6d0495f6df",
+      "LaunchGatePrecondition": "type:a309ef31b8",
+      "LaunchGateResult": "interface:d0fc601fc8",
+      "evaluateLaunchGate": "function:e492023fad"
+    }
+  },
+  "./newsletter/lists": {
+    "types": "./dist/newsletter/lists.d.ts",
+    "symbols": {
+      "ListsDeps": "interface:d15100b18b",
+      "archiveList": "function:d896d4cd67",
+      "ensureDefaultList": "function:1108d160e5",
+      "saveList": "function:200bf34557"
+    }
+  },
+  "./newsletter/ports": {
+    "types": "./dist/newsletter/ports.d.ts",
+    "symbols": {
+      "CampaignOutcomeCounter": "type:64c8a0ecbc",
+      "MailerPort": "interface:7ada489e87",
+      "MembersConsentCapability": "interface:edd175f3d5",
+      "NewsletterAudienceSnapshotRepoPort": "interface:bdf28b820d",
+      "NewsletterCampaignRepoPort": "interface:2e68ba4e01",
+      "NewsletterConfirmationTokenRepoPort": "interface:48b110d082",
+      "NewsletterListRepoPort": "interface:f2f6b5dd04",
+      "NewsletterSendRepoPort": "interface:bc580540d0",
+      "NewsletterSubscriptionRepoPort": "interface:8255acbee8",
+      "SendBatchJob": "interface:775bb3a309",
+      "SubscriberContact": "interface:28774ca5cd",
+      "SubscriberDirectoryPort": "interface:dfa7a3200a"
+    }
+  },
+  "./newsletter/repo": {
+    "types": "./dist/newsletter/repo.d.ts",
+    "symbols": {
+      "SqlNewsletterCampaignRepo": "class:2dfbdf5945",
+      "SqlNewsletterCampaignRepoRequired": "interface:e753309bbc"
+    }
+  },
+  "./newsletter/repo-sends": {
+    "types": "./dist/newsletter/repo-sends.d.ts",
+    "symbols": {
+      "SqlNewsletterAudienceSnapshotRepo": "class:34b6cbaa18",
+      "SqlNewsletterSendRepo": "class:fa6adc5b2c"
+    }
+  },
+  "./newsletter/repo-subscribers": {
+    "types": "./dist/newsletter/repo-subscribers.d.ts",
+    "symbols": {
+      "DEFAULT_LIST_LIMIT": "variable:772179b49e",
+      "SqlNewsletterConfirmationTokenRepo": "class:a4ef9ea94d",
+      "SqlNewsletterListRepo": "class:1f7106ee59",
+      "SqlNewsletterSubscriptionRepo": "class:fc0df23588"
+    }
+  },
+  "./newsletter/repo.memory": {
+    "types": "./dist/newsletter/repo.memory.d.ts",
+    "symbols": {
+      "InMemoryNewsletterAudienceSnapshotRepo": "class:ee1b5647a9",
+      "InMemoryNewsletterCampaignRepo": "class:ff14a169df",
+      "InMemoryNewsletterConfirmationTokenRepo": "class:1d27a63a8c",
+      "InMemoryNewsletterListRepo": "class:4914d42883",
+      "InMemoryNewsletterSendRepo": "class:4a03001437",
+      "InMemoryNewsletterSubscriptionRepo": "class:1bc2a6533c"
+    }
+  },
+  "./newsletter/repo.rows": {
+    "types": "./dist/newsletter/repo.rows.d.ts",
+    "symbols": {
+      "AudienceSnapshotTableRow": "type:5b2b8b0be5",
+      "AudienceSnapshotTableViews": "type:8f86d5fd46",
+      "CampaignBodyReporter": "type:5546d0c3f2",
+      "CampaignJoinTableViews": "type:e5fb1d8f53",
+      "CampaignRevisionTableRow": "type:f624be76cb",
+      "CampaignRevisionTableViews": "type:84c6110282",
+      "CampaignRevisionsTable": "interface:ff97dad769",
+      "CampaignTableRow": "type:b6393785b7",
+      "CampaignTableViews": "type:881f28934a",
+      "CampaignsTable": "interface:cb50522c86",
+      "ConfirmationTokenTableRow": "type:936652fd3e",
+      "ConfirmationTokenTableViews": "type:2e8b84e110",
+      "ListTableRow": "type:9232393637",
+      "ListTableViews": "type:ebb6456d86",
+      "NewsletterSqlRequired": "interface:b23dfccb82",
+      "NewsletterSqlTables": "interface:c44553a652",
+      "SendTableRow": "type:494eafb3e9",
+      "SendTableViews": "type:cac8e8226f",
+      "SubscriptionTableRow": "type:8b31d00d94",
+      "SubscriptionTableViews": "type:93be37edc3",
+      "toAudienceSnapshotRecord": "function:aaa4070f7d",
+      "toAudienceSnapshotRow": "function:2ebef17b50",
+      "toCampaignRecord": "function:c25b063637",
+      "toCampaignRevision": "function:9d605b3bbb",
+      "toCampaignRow": "function:ea0bae940c",
+      "toConfirmationTokenRecord": "function:0d6884c342",
+      "toConfirmationTokenRow": "function:8187891e1a",
+      "toListRecord": "function:3bb0abf334",
+      "toListRow": "function:d6bd9b61e2",
+      "toSendRecord": "function:9e56286857",
+      "toSendRow": "function:2d79a9eb89",
+      "toSubscriptionRecord": "function:0ec909e05c",
+      "toSubscriptionRow": "function:8c0587f863",
+      "updatableCampaignColumns": "function:9cb73fb250",
+      "updatableListColumns": "function:efd8239007",
+      "updatableSendColumns": "function:617bf925bb",
+      "updatableSubscriptionColumns": "function:3c556f788c"
+    }
+  },
+  "./newsletter/send-pipeline": {
+    "types": "./dist/newsletter/send-pipeline.d.ts",
+    "symbols": {
+      "NEWSLETTER_INLINE_DEFER_BUDGET_MS": "variable:a2c6fcf341",
+      "NEWSLETTER_INLINE_DEFER_MAX_MS": "variable:fdb254012f",
+      "NEWSLETTER_SEND_ROW_LEASE_MS": "variable:77c93d129b",
+      "SEND_BATCH_CLAIMED_EVENT": "variable:be2fe45a47",
+      "SendPipelineDeps": "interface:404db63829",
+      "authorizeSend": "function:6721007be3",
+      "claimBatch": "function:6141853ada",
+      "completeIfDrained": "function:b9c35c0f81",
+      "dispatchRow": "function:6c184ab651",
+      "freezeAudience": "function:14ba9cac54",
+      "handleSendBatchClaimed": "function:7f6c243d1f",
+      "pauseCampaign": "function:9c3cbbe66c",
+      "recordResult": "function:c13fb1d674",
+      "resumeCampaign": "function:83fccb1e80",
+      "sendTestCampaign": "function:5d4241966d"
+    }
+  },
+  "./newsletter/types": {
+    "types": "./dist/newsletter/types.d.ts",
+    "symbols": {
+      "AudienceSnapshotRow": "interface:a052d771d3",
+      "BeforeSendHookContext": "interface:4760f6b8b1",
+      "CampaignCounters": "interface:401901ccb3",
+      "CampaignFields": "interface:13818a82a1",
+      "CampaignRecord": "interface:cafcbc6c74",
+      "CampaignRevision": "interface:d5548beef5",
+      "CampaignScheduledEvent": "type:f52218df0e",
+      "CampaignScheduledPayload": "interface:8d178a6714",
+      "CampaignStatus": "type:34d8b708db",
+      "ConfirmationTokenRecord": "interface:d72d3905f0",
+      "NEWSLETTER_CAMPAIGN_TYPE": "variable:62a7824107",
+      "NEWSLETTER_PERMISSIONS": "variable:95e6151b97",
+      "NewsletterCampaignType": "type:a740372d4b",
+      "NewsletterDataModule": "type:16b26aed1e",
+      "NewsletterEventName": "type:35812f66fd",
+      "NewsletterHookName": "type:21dc55eef1",
+      "NewsletterListRow": "interface:beb2995c52",
+      "NewsletterPermission": "type:4bc7ac5f8b",
+      "RecipientFilterContext": "interface:0d453b311b",
+      "SendResultEvent": "type:e89b03cf81",
+      "SendResultPayload": "interface:395c655aab",
+      "SendRow": "interface:6e89d9e62e",
+      "SendStartedEvent": "type:76b1bf8894",
+      "SendStartedPayload": "interface:6dc5676f6f",
+      "SendStatus": "type:429229c03d",
+      "SubscriptionRow": "interface:0adfd9aa3b",
+      "SubscriptionStatus": "type:8378745621",
+      "UnsubscribeTokenClaims": "interface:96cfd0186b",
+      "UnsubscribedEvent": "type:38dd4c145c",
+      "UnsubscribedPayload": "interface:fa1334851b"
+    }
+  },
+  "./newsletter/unsubscribe": {
+    "types": "./dist/newsletter/unsubscribe.d.ts",
+    "symbols": {
+      "UnsubscribeDeps": "interface:e1ecee6612",
+      "UnsubscribeTokenClaims": "interface:ff21bb5e1e",
+      "buildUnsubscribeLink": "function:c0046b1571",
+      "processUnsubscribe": "function:827b1f274a"
+    }
+  },
+  "./react/members/members-i18n": {
+    "types": "./dist/react/members/members-i18n.d.ts",
+    "symbols": {
+      "MEMBERS_DICT": "variable:4df75f2500",
+      "createMembersTranslator": "function:0f171f6550"
+    }
   }
 }

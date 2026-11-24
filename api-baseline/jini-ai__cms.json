@@ -5893,5 +5893,47 @@
       "DirectoryRollbackLogSink": "type:d35e600655",
       "createDirectoryRollbackReporter": "function:493d4f0dfc"
     }
+  },
+  "./admin-http/routes/system/observability-status": {
+    "types": "./dist/admin-http/routes/system/observability-status.d.ts",
+    "symbols": {
+      "AdminObservabilityStatusRouteDeps": "interface:1eb9d15f82",
+      "AdminObservabilityTestErrorRouteDeps": "type:3895aa00ea",
+      "ObservabilityPrincipal": "interface:1d88a81f93",
+      "ObservabilityStatusBody": "interface:beb450b413",
+      "observabilityStatusRoute": "variable:9293a2e3b1",
+      "observabilityTestErrorRoute": "variable:fdb10e4b68"
+    }
+  },
+  "./admin-http/routes/system/server-logs": {
+    "types": "./dist/admin-http/routes/system/server-logs.d.ts",
+    "symbols": {
+      "AdminServerLogsRouteDeps": "interface:19cdbe325b",
+      "ServerLogsInput": "interface:9cf0da8b54",
+      "ServerLogsPrincipal": "interface:a8de94b88d",
+      "serverLogsRoute": "variable:d6d308b14a"
+    }
+  },
+  "./admin-http/routes/system/tool-gaps": {
+    "types": "./dist/admin-http/routes/system/tool-gaps.d.ts",
+    "symbols": {
+      "AdminToolGapsRouteDeps": "type:aac1cf9edf",
+      "ToolGapsPrincipal": "interface:353ed561a5",
+      "toolGapsRoute": "variable:29b55ddd86"
+    }
+  },
+  "./pages/authoring-html": {
+    "types": "./dist/pages/authoring-html.d.ts",
+    "symbols": {
+      "requirePageAuthoringHtml": "function:015763bc70"
+    }
+  },
+  "./pages/hidden-until-script": {
+    "types": "./dist/pages/hidden-until-script.d.ts",
+    "symbols": {
+      "MAX_REVEAL_FINDINGS": "variable:d8a03f04e9",
+      "describeScriptRevealedContent": "function:ed71f4b1c9",
+      "findScriptRevealedContent": "function:3aa10db42e"
+    }
   }
 }

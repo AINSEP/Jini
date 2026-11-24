@@ -142,6 +142,17 @@
    "runWithErrorReportScope": "function:8852decc7e"
   }
  },
+ "./observability/tool-registrations": {
+  "types": "./dist/observability/tool-registrations.d.ts",
+  "symbols": {
+   "ObservabilityCatalogArgs": "interface:5730312c9f",
+   "ObservabilityToolDeps": "interface:c7fe609721",
+   "buildObservabilityRegistrations": "function:7b93a886f0",
+   "contributeObservabilityTools": "function:ce7c56ed81",
+   "createObservabilityAgentToolCatalog": "function:d026ca64bc",
+   "observabilityDerivedRisk": "variable:f19ffb193c"
+  }
+ },
  "./redaction/secrets-only": {
   "types": "./dist/redaction/secrets-only.d.ts",
   "symbols": {
@@ -154,6 +165,61 @@
    "SecretScanHit": "interface:8c2fda2048",
    "redactSecretShapes": "function:a3202bc475",
    "scanTextForSecrets": "function:a935151454"
+  }
+ },
+ "./server-logs/agent-tools": {
+  "types": "./dist/server-logs/agent-tools.d.ts",
+  "symbols": {
+   "serverLogsAgentToolCatalog": "variable:62ee09f876"
+  }
+ },
+ "./server-logs/read-server-logs": {
+  "types": "./dist/server-logs/read-server-logs.d.ts",
+  "symbols": {
+   "DEFAULT_SERVER_LOG_LIMIT": "variable:dce30b2547",
+   "MAX_CONTAINS_LENGTH": "variable:efcb547942",
+   "MAX_SERVER_LOG_LIMIT": "variable:7bc70984cf",
+   "SERVER_LOG_LEVELS": "variable:b4be584570",
+   "ServerLogFilterError": "class:36d8b0efaa",
+   "ServerLogSourcePort": "interface:9b3f778caf",
+   "parseServerLogFilters": "function:42bd4a4c14",
+   "readServerLogs": "function:81e76cbd03"
+  }
+ },
+ "./server-logs/tool-registrations": {
+  "types": "./dist/server-logs/tool-registrations.d.ts",
+  "symbols": {
+   "ServerLogsContributorArgs": "interface:e2944cb1df",
+   "ServerLogsToolDeps": "interface:7209b26579",
+   "buildServerLogsRegistrations": "function:a8ba30df57",
+   "contributeServerLogsTools": "function:148a761e24",
+   "serverLogsDerivedRisk": "variable:366ce16bb1"
+  }
+ },
+ "./tool-audit/repo": {
+  "types": "./dist/tool-audit/repo.d.ts",
+  "symbols": {
+   "MAX_ROWS_PER_WORKSPACE": "variable:4b74c0a474",
+   "MAX_VISITOR_ROWS_PER_WORKSPACE": "variable:9c4465371b",
+   "SqlToolAttemptAuditSink": "class:ee442ead51",
+   "SqlToolAttemptAuditSinkOptions": "interface:c4ecad1757",
+   "SqlToolAttemptAuditSinkRequired": "interface:fe1a99be11",
+   "ToolAttemptTables": "interface:e870880113",
+   "ToolAuditErrorReporter": "type:565bc1b5e9"
+  }
+ },
+ "./tool-audit/repo.memory": {
+  "types": "./dist/tool-audit/repo.memory.d.ts",
+  "symbols": {
+   "InMemoryToolAttemptAuditSink": "interface:3b51fe1112",
+   "createInMemoryToolAttemptAuditSink": "function:5ac85862de"
+  }
+ },
+ "./tool-audit/tool-gaps.repo": {
+  "types": "./dist/tool-audit/tool-gaps.repo.d.ts",
+  "symbols": {
+   "ToolGapReaderRequired": "interface:4d79f949b0",
+   "createToolGapReader": "function:1a02df7668"
   }
  },
  "./web-evidence": {

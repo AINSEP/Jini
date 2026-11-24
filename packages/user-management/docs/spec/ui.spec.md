@@ -20,7 +20,7 @@ Import components/hooks/types from `@jini-ai/user-management/react`; import fake
 |---|---|---|
 | `Login` / `LoginProps` | `port: LoginPort; translate: Translate; productName: string; onLogin: (user: AdminUser) => void` | `initialUsername?: string; useLoginHook?: typeof useLogin` |
 | `Users` / `UsersProps` | `port: UsersPort; translate: Translate; queryScope: string` | `useUsersHook?: typeof useUsers; openOwnPasswordReset?: boolean; onOwnPasswordResetClosed?: () => void` |
-| `Members` / `MembersProps` | `port: MembersPort; translate: Translate` | `refresh?: IdentityRefreshPort; useMembersHook?: typeof useMembers` |
+| `Members` / `MembersProps` | `port: MembersPort; translate: Translate; useMembersHook: (required: MembersDependencies, optional?: MembersOptions) => MembersController` | `refresh?: IdentityRefreshPort; queryScope?: string; description?: string; emptyDescription?: string; renderServerLabel?: (required: { value: string }) => ReactNode` |
 | `UserManagePanel` / `UserManagePanelProps` | `principalId: string; manage: UserManageController; t: (key: string) => string` | None |
 
 All are one-props-object React functions returning JSX. UserManagePanel renders table rows/fragments and must be mounted in a compatible table body. Optional hook replacements are injection slots for a full matching controller; there is no general `children`, render-prop slot, or theme prop.

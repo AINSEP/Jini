@@ -176,6 +176,8 @@
       "./tool-metadata/analytics": "universal",
       "./tool-metadata/change-sets": "universal",
       "./tool-metadata/consent": "universal",
+      "./tool-metadata/members": "universal",
+      "./tool-metadata/newsletter": "universal",
       "./tool-metadata/content-duplication": "universal",
       "./tool-metadata/content-types": "universal",
       "./tool-metadata/database-transfer": "universal",
@@ -192,6 +194,7 @@
       "./tool-metadata/navigation": "universal",
       "./tool-metadata/observability": "universal",
       "./tool-metadata/pages": "universal",
+      "./tool-metadata/server-logs": "universal",
       "./contracts/site/integrations-credentialed-http": "universal",
       "./contracts/site/widgets-html": "universal",
       "./contracts/site/integrations-api-connections": "universal",
@@ -1083,6 +1086,16 @@
       "import": "./dist/tool-metadata/consent.js",
       "default": "./dist/tool-metadata/consent.js"
     },
+    "./tool-metadata/members": {
+      "types": "./dist/tool-metadata/members.d.ts",
+      "import": "./dist/tool-metadata/members.js",
+      "default": "./dist/tool-metadata/members.js"
+    },
+    "./tool-metadata/newsletter": {
+      "types": "./dist/tool-metadata/newsletter.d.ts",
+      "import": "./dist/tool-metadata/newsletter.js",
+      "default": "./dist/tool-metadata/newsletter.js"
+    },
     "./tool-metadata/content-duplication": {
       "types": "./dist/tool-metadata/content-duplication.d.ts",
       "import": "./dist/tool-metadata/content-duplication.js",
@@ -1162,6 +1175,11 @@
       "types": "./dist/tool-metadata/pages.d.ts",
       "import": "./dist/tool-metadata/pages.js",
       "default": "./dist/tool-metadata/pages.js"
+    },
+    "./tool-metadata/server-logs": {
+      "types": "./dist/tool-metadata/server-logs.d.ts",
+      "import": "./dist/tool-metadata/server-logs.js",
+      "default": "./dist/tool-metadata/server-logs.js"
     },
     "./contracts/site/integrations-credentialed-http": {
       "types": "./dist/contracts/site/integrations-credentialed-http.d.ts",
