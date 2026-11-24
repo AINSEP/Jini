@@ -1,6 +1,7 @@
 /** AES-256-GCM with a fresh 12-byte IV and ciphertext || 16-byte tag, both base64 encoded.
  * Uses purpose "secret-sealer.v1" and scope "secret-sealer" for HKDF domain separation.
- * Seal requires context AAD at the port; open accepts absent AAD solely for historical unbound records.
+ * Seal requires context AAD on the default entry point; open accepts absent AAD solely for historical
+ * unbound records. Writing a NEW unbound record is opt-in through {@link LegacyUnboundAesGcmSecretSealer}.
  */
 /**
  * @file `SecretSealerPort`'s real adapter (ADR-058).
@@ -19,11 +20,12 @@
  * `aad`: because the key is shared, the key alone does not separate one row's ciphertext from
  * another's. A caller-supplied `aad` closes that gap per CALL: it is bound into the GCM tag via
  * `setAAD` (RFC 5116 §5.1), so opening with a different or absent `aad` fails exactly like a
- * tampered ciphertext. `seal` with `aad` omitted authenticates zero AAD bytes, which yields the
- * same tag as the original implementation that never called `setAAD`, so rows sealed before AAD
- * existed keep opening byte-for-byte. The ports (`SecretSealerPort`) still type `aad` as required:
- * the omission default exists for hosts' historical unbound format and direct primitive use, and a
- * host that wants "every credential store binds a row" enforces it at its call sites.
+ * tampered ciphertext. `AesGcmSecretSealer.seal` REFUSES an omitted `aad` (strict by default, like
+ * the `SecretSealerPort` type): a forgotten binding must fail loudly, never write a row that any other
+ * row's context could open. Reads stay compatible: `open` with `aad` omitted verifies zero AAD bytes,
+ * the same tag as the original implementation that never called `setAAD`, so rows sealed before AAD
+ * existed keep opening byte-for-byte. A host that still has to WRITE that historical unbound format
+ * opts in by constructing {@link LegacyUnboundAesGcmSecretSealer} by name at its composition root.
  *
  * Rule-of-two: deliberately no plaintext-passthrough test double for this port. A fake that skips
  * encryption would defeat the one thing worth testing (a value round-trips through REAL AES-GCM);
@@ -80,15 +82,15 @@ export class AesGcmSecretSealer implements SecretSealerPort {
   }
 
   /** Encrypts under the requested generation with a fresh IV; AAD must be reconstructed on open.
-   * @param input.aad - Bound into the GCM tag, never stored. Omitted means zero AAD bytes: the
-   *   historical unbound format (see the file header). Present but not a string is refused.
+   * @param input.aad - Required context bound into the GCM tag, never stored. An omitted or
+   *   non-string `aad` is refused before any key derivation (no unbound write on this entry point).
    * @returns `{keyId, ciphertext, nonce, alg}`; `ciphertext` is base64(ciphertext || 16-byte tag).
    * @throws Whatever `KeyringPort.derive()` throws (e.g. a missing root key), never swallowed into a
-   *   plaintext fallback; `TypeError` for a non-string `aad` or a non-12-byte injected IV.
+   *   plaintext fallback; `TypeError` for a missing/non-string `aad` or a non-12-byte injected IV.
    * @complexity O(plaintext bytes).
    */
-  async seal(input: { plaintext: string; key: RootKeyHandle; aad?: string }): Promise<SealedSecret> {
-    const aad = input.aad === undefined ? "" : input.aad; // only an omitted AAD defaults; null is a caller bug
+  async seal(input: { plaintext: string; key: RootKeyHandle; aad: string }): Promise<SealedSecret> {
+    const { aad } = input;
     if (typeof aad !== "string") throw new TypeError("AesGcmSecretSealer: aad must be a string");
     const aesKey = await this.deriveAesKey(input.key);
     const iv = Buffer.from(this.randomBytesFn({ byteLength: IV_LENGTH_BYTES }));
@@ -132,6 +134,23 @@ export class AesGcmSecretSealer implements SecretSealerPort {
 
   private async deriveAesKey(key: RootKeyHandle): Promise<Uint8Array> {
     return this.keyring.derive({ workspaceId: SEALER_KEY_SCOPE, purpose: SEALER_PURPOSE, info: key.keyId });
+  }
+}
+
+/**
+ * COMPATIBILITY binding: an {@link AesGcmSecretSealer} whose `seal` also accepts an omitted `aad`
+ * and writes the historical UNBOUND format (zero AAD bytes; byte-identical to `aad: ""` and to the
+ * pre-AAD implementation). Such a record is not tied to any row: it opens wherever no context is
+ * supplied. Only a host that must keep producing that format constructs this class, by name, at its
+ * composition root; every other caller uses the strict {@link AesGcmSecretSealer}. Opening is unchanged.
+ */
+export class LegacyUnboundAesGcmSecretSealer extends AesGcmSecretSealer {
+  /** Seals like {@link AesGcmSecretSealer.seal}; an omitted `aad` (only `undefined`) becomes zero AAD bytes.
+   * @throws `TypeError` for a present non-string `aad` (e.g. `null`); otherwise as the strict `seal`.
+   * @complexity O(plaintext bytes).
+   */
+  override async seal(input: { plaintext: string; key: RootKeyHandle; aad?: string }): Promise<SealedSecret> {
+    return super.seal({ ...input, aad: input.aad === undefined ? "" : input.aad });
   }
 }
 

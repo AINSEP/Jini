@@ -788,7 +788,7 @@
  "./secrets": {
   "types": "./dist/secrets/index.d.ts",
   "symbols": {
-   "AesGcmSecretSealer": "class:7bff6fb985",
+   "AesGcmSecretSealer": "class:6fb67c1031",
    "CREDENTIAL_MESSAGES": "variable:29e32e3172",
    "CREDENTIAL_TOKEN_LIMIT": "variable:807c0c141d",
    "CredentialConnection": "type:ff34644037",
@@ -804,6 +804,7 @@
    "GeneratedFileSiteKey": "interface:2625d0ec99",
    "InspectRootKeyMaterialOptions": "interface:7225f71476",
    "InspectSiteKeyMaterialOptions": "interface:7225f71476",
+   "LegacyUnboundAesGcmSecretSealer": "class:14c6b24cc3",
    "ParsedRootKeyHex": "type:6bafdfd846",
    "ParsedSiteKeyHex": "type:6bafdfd846",
    "PassphraseEnvelopeOptions": "interface:bd4f14fc1d",

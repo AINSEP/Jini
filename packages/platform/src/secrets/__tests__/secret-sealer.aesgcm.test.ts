@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "vitest";
-import { AesGcmSecretSealer, SECRET_OPEN_FAILED, SecretOpenError } from "../secret-sealer.aesgcm.js";
+import { AesGcmSecretSealer, LegacyUnboundAesGcmSecretSealer, SECRET_OPEN_FAILED, SecretOpenError } from "../secret-sealer.aesgcm.js";
 import { FixedRootKeyKeyring } from "../keyring.env.js";
 import { InMemoryKeyring } from "../keyring.memory.js";
 import { createCipheriv, randomBytes } from "node:crypto";
@@ -148,23 +148,38 @@ async function legacySeal(keyring: KeyringPort, plaintext: string, key: RootKeyH
     return { keyId: key.keyId, alg: "aes-256-gcm", nonce: iv.toString("base64"),
         ciphertext: Buffer.concat([cipher.update(plaintext, "utf8"), cipher.final(), cipher.getAuthTag()]).toString("base64") };
 }
-test("omitted seal AAD is zero AAD bytes: the same envelope as aad \"\" and as the historical unbound format", async () => {
+test("legacy compatibility binding: omitted seal AAD is zero AAD bytes, the same envelope as strict aad \"\" and as the historical unbound format", async () => {
     const keyring = new FixedRootKeyKeyring({ hex: "000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f", hkdfSalt: "fixture-salt" }, {});
     const iv = Buffer.from("202122232425262728292a2b", "hex");
-    const sealer = new AesGcmSecretSealer({ keyring }, { randomBytesFn: () => iv });
+    const sealer = new LegacyUnboundAesGcmSecretSealer({ keyring }, { randomBytesFn: () => iv });
+    const strict = new AesGcmSecretSealer({ keyring }, { randomBytesFn: () => iv });
     const key = await keyring.activeKey();
     const omitted = await sealer.seal({ plaintext: "unbound-value", key });
-    assert.deepEqual(omitted, await sealer.seal({ plaintext: "unbound-value", key, aad: "" }));
+    assert.deepEqual(omitted, await strict.seal({ plaintext: "unbound-value", key, aad: "" }));
+    assert.deepEqual(await sealer.seal({ plaintext: "unbound-value", key, aad: "ws-1:row" }), await strict.seal({ plaintext: "unbound-value", key, aad: "ws-1:row" }));
+    assert.equal(await strict.open({ sealed: omitted }), "unbound-value", "historical unbound records still open on the strict entry point");
     assert.deepEqual(omitted, await legacySeal(keyring, "unbound-value", key, { iv }));
     assert.equal(await sealer.open({ sealed: omitted }), "unbound-value");
     await assert.rejects(() => sealer.open({ sealed: omitted }, { aad: "ws-1:row" }), SecretOpenError);
 });
-test("seal still refuses an AAD that is present but not a string", async () => {
+test("strict default: the existing entry point refuses an omitted AAD and derives no key (no unbound write)", async () => {
     const keyring = new InMemoryKeyring({ hkdfSalt: "fixture-salt" });
-    const sealer = new AesGcmSecretSealer({ keyring: keyring });
-    for (const aad of [null, 42, { row: "1" }]) {
-        // @ts-expect-error JavaScript callers can pass a non-string; only an omitted AAD defaults.
-        await assert.rejects(() => sealer.seal({ plaintext: "secret", key: { keyId: "v1" }, aad }), /aad must be a string/);
+    let deriveCalls = 0;
+    const counting = Object.assign(Object.create(keyring) as InMemoryKeyring, { derive: async (input: { workspaceId: string; purpose: string; info: string }) => { deriveCalls += 1; return keyring.derive(input); } });
+    const sealer = new AesGcmSecretSealer({ keyring: counting });
+    const key = await keyring.activeKey({});
+    // @ts-expect-error The strict entry point types aad as required; JavaScript callers can still omit it.
+    await assert.rejects(() => sealer.seal({ plaintext: "secret", key }), { name: "TypeError", message: /aad must be a string/ });
+    await assert.rejects(() => sealer.seal({ plaintext: "secret", key, aad: undefined as unknown as string }), /aad must be a string/);
+    assert.equal(deriveCalls, 0, "refusal happens before any key derivation");
+});
+test("seal still refuses an AAD that is present but not a string (strict and legacy compatibility binding)", async () => {
+    const keyring = new InMemoryKeyring({ hkdfSalt: "fixture-salt" });
+    for (const sealer of [new AesGcmSecretSealer({ keyring: keyring }), new LegacyUnboundAesGcmSecretSealer({ keyring: keyring })]) {
+        for (const aad of [null, 42, { row: "1" }]) {
+            // @ts-expect-error JavaScript callers can pass a non-string; only the legacy binding defaults an omitted AAD.
+            await assert.rejects(() => sealer.seal({ plaintext: "secret", key: { keyId: "v1" }, aad }), /aad must be a string/);
+        }
     }
 });
 test("every failure to open the sealed value itself carries SECRET_OPEN_FAILED (wrong key, tampered, damaged, unknown alg); its message is kept", async () => {

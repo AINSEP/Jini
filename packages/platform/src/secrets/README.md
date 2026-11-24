@@ -29,6 +29,8 @@ and the authentication tag is 16 bytes. The AES derivation uses info
 
 `seal` requires an AAD string at both type and runtime boundaries. `open` accepts absent AAD
 for historical unbound records. Reconstruct the same AAD from trusted record context when opening.
+A host that must still WRITE the historical unbound format opts in explicitly with
+`LegacyUnboundAesGcmSecretSealer` (omitted `aad` seals zero AAD bytes); nothing else accepts it.
 
 `EnvOrFileKeyring` requires an injected `env.read({ name })` port and explicit boolean
 `allowFileFallback` / `allowFileAutoGenerate` permissions in its first object. Missing or
