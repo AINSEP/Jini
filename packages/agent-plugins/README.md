@@ -337,3 +337,5 @@ layout, uninstall and archive-reader ports, `PluginManifestAuthor`, `AgentPlugin
 in `@jini-ai/core/contracts/site/agent-plugins-lifecycle` and `./agent-plugins-manifest`. This package
 imports them from core and keeps the runtime; `./lifecycle` and `./manifest` still re-export the names
 as deprecated types until the next major. Hosts import them from core.
+
+MCP trust admission: hosts inject the lifecycle owner's `mcpServerTrustClassifier` (positional `classifyTrust`; `stdio` always `requires-confirmation`) and read installed skills/`mcp.json` through `readInstalledSkillMarkdown`/`readInstalledMcpServers`/`readInstalledMcpServerIds`; metadata warnings arrive on `onEvent` as `agent-plugin-metadata-warning`.
