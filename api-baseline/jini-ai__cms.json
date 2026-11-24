@@ -9,15 +9,12 @@
    "EntityLiveness": "type:9ef93a24c3",
    "EntityNotLiveError": "class:96aef90dd0",
    "ForbiddenError": "class:afffa8dd07",
-   "KeysetPosition": "type:8d2d265f72",
    "PostStatus": "type:5adf203907",
    "PublicPostKind": "type:5021e95e78",
    "RequireToolPermissionOptional": "interface:9debdb6bb9",
    "RequireToolPermissionRequired": "interface:9f8bee49fa",
    "adaptLegacyAuthorize": "function:daa83f3d53",
    "assertEntityLive": "function:346e83c95e",
-   "decodeKeysetCursor": "function:78b68cdc5c",
-   "encodeKeysetCursor": "function:89bd4a78dd",
    "executeCommand": "function:4080f8e519",
    "requireToolPermission": "function:4a1a650143"
   }
@@ -1341,15 +1338,12 @@
    "EntityLiveness": "type:9ef93a24c3",
    "EntityNotLiveError": "class:96aef90dd0",
    "ForbiddenError": "class:afffa8dd07",
-   "KeysetPosition": "type:8d2d265f72",
    "PostStatus": "type:5adf203907",
    "PublicPostKind": "type:5021e95e78",
    "RequireToolPermissionOptional": "interface:9debdb6bb9",
    "RequireToolPermissionRequired": "interface:9f8bee49fa",
    "adaptLegacyAuthorize": "function:daa83f3d53",
    "assertEntityLive": "function:346e83c95e",
-   "decodeKeysetCursor": "function:78b68cdc5c",
-   "encodeKeysetCursor": "function:89bd4a78dd",
    "executeCommand": "function:4080f8e519",
    "requireToolPermission": "function:4a1a650143"
   }
@@ -1368,7 +1362,6 @@
    "EntityReverter": "interface:74e231bfd5",
    "ForbiddenError": "class:afffa8dd07",
    "InMemoryChangeSetRepo": "class:95dba47558",
-   "KeysetPosition": "type:8d2d265f72",
    "PostStatus": "type:5adf203907",
    "PublicPostKind": "type:5021e95e78",
    "RequireToolPermissionOptional": "interface:9debdb6bb9",
@@ -1384,8 +1377,6 @@
    "adaptLegacyAuthorize": "function:daa83f3d53",
    "assertEntityLive": "function:346e83c95e",
    "createRevertRegistry": "function:088e4fa080",
-   "decodeKeysetCursor": "function:78b68cdc5c",
-   "encodeKeysetCursor": "function:89bd4a78dd",
    "executeCommand": "function:4080f8e519",
    "requireToolPermission": "function:4a1a650143",
    "revertChangeSet": "function:6f069c4ca2"
@@ -2322,6 +2313,15 @@
    "renderOutputs": "function:8ac8f72d40"
   }
  },
+ "./media/site/access-evidence": {
+  "types": "./dist/media/site/access-evidence.d.ts",
+  "symbols": {
+   "AssetReferenceIndex": "interface:cb213290b4",
+   "AssetReferenceScan": "interface:1ceeab23b1",
+   "getMediaAccessEvidenceCache": "function:80049a8d69",
+   "invalidateMediaAccessEvidence": "function:2fb187f681"
+  }
+ },
  "./media/site/bootstrap": {
   "types": "./dist/media/site/bootstrap.d.ts",
   "symbols": {
@@ -2945,6 +2945,15 @@
    "siteLabelFor": "function:cfa3bbe22e"
   }
  },
+ "./publish/content/sql/baseline-repo": {
+  "types": "./dist/publish/content/sql/baseline-repo.d.ts",
+  "symbols": {
+   "PublishContentBaselineSqlRequired": "interface:bdb32d49c2",
+   "PublishContentBaselineTables": "interface:2f210d0f63",
+   "PublishContentBaselinesTable": "interface:54d32e0417",
+   "SqlPublishContentBaselineRepo": "class:7ffdad7274"
+  }
+ },
  "./publish/content/tool-metadata": {
   "types": "./dist/publish/content/tool-metadata.d.ts",
   "symbols": {
@@ -2996,6 +3005,24 @@
    "bytesMatchSha256": "function:c05184ae03",
    "isValidSha256Hex": "function:ddbaa5b749",
    "sha256Hex": "function:b40abbe6f5"
+  }
+ },
+ "./publish/transfer/sql/backstop-audit-repo": {
+  "types": "./dist/publish/transfer/sql/backstop-audit-repo.d.ts",
+  "symbols": {
+   "BackstopAuditSqlKernel": "interface:a86fc664de",
+   "BackstopAuditSqlRequired": "interface:52a0cd5ba7",
+   "BackstopAuditTables": "interface:73292e7c68",
+   "createBackstopAuditSqlPort": "function:3f2ff85035"
+  }
+ },
+ "./publish/transfer/sql/bundle-repo": {
+  "types": "./dist/publish/transfer/sql/bundle-repo.d.ts",
+  "symbols": {
+   "PublishContentBundleSqlRequired": "interface:ca0d2b51bb",
+   "PublishContentBundleTables": "interface:43fa940518",
+   "PublishContentBundlesTable": "interface:b52bc5c5c9",
+   "SqlPublishContentBundleRepo": "class:99c1d7865e"
   }
  },
  "./redirects": {
@@ -3183,6 +3210,17 @@
    "UrlForRequired": "interface:21995ee65f",
    "UrlTarget": "interface:6f1486ecef",
    "createRouting": "function:640aaa5d80"
+  }
+ },
+ "./routing/site/reserved-paths": {
+  "types": "./dist/routing/site/reserved-paths.d.ts",
+  "symbols": {
+   "RESERVED_SEGMENTS": "variable:437185ee3f",
+   "ReservedSurface": "type:dd79e91f4c",
+   "SitePathCheck": "type:927922bcc9",
+   "SiteRelativeTargetCheck": "type:428f13ab21",
+   "checkSitePathname": "function:c6cabb3b70",
+   "checkSiteRelativeTarget": "function:b86dd843cf"
   }
  },
  "./seo": {

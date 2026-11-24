@@ -2318,6 +2318,14 @@
    "redeemToken": "function:8caee5de31"
   }
  },
+ "./keyset-cursor": {
+  "types": "./dist/keyset-cursor.d.ts",
+  "symbols": {
+   "KeysetPosition": "type:8d2d265f72",
+   "decodeKeysetCursor": "function:78b68cdc5c",
+   "encodeKeysetCursor": "function:89bd4a78dd"
+  }
+ },
  "./list-page": {
   "types": "./dist/list-page.d.ts",
   "symbols": {

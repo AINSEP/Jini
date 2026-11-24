@@ -764,6 +764,7 @@
    "InMemoryVaultRepo": "class:ff386cd9e2",
    "MatchableCredential": "interface:262c2772ce",
    "SecretsVaultService": "class:360eb0058d",
+   "StorageFailureSource": "interface:6ccc561da8",
    "VaultArchiveEntry": "interface:c05b98d4b8",
    "VaultCopyInput": "interface:734381db36",
    "VaultPutInput": "interface:111d6be46a",
@@ -773,11 +774,13 @@
    "VaultServiceDeps": "interface:035a05df8a",
    "buildVaultAad": "function:d2b34c1ebe",
    "captureVaultArchive": "function:5b93308990",
+   "createStoreKeyring": "function:5d7a8e4be4",
    "createVaultMetaParsers": "function:f668f42d10",
    "isCopyableKind": "variable:4c27a29c4b",
    "matchingCredentialProviderIds": "function:c506d73cbe",
    "normalizeCredentialWorksFor": "function:010d5d8695",
    "prepareVaultArchiveRestore": "function:17ea7d196c",
+   "protectStorage": "function:a2c081be03",
    "selectCredentialForProvider": "function:b0af4ba9e6",
    "suggestCredentialWorksFor": "function:76e9cda5ed"
   }
