@@ -120,7 +120,7 @@ export interface MediaRecord {
 
 /**
  * A video/audio asset's captions reference (G7-9): which sibling WebVTT asset, and its language.
- * Not yet a `MediaRecord` field: adding it there breaks Tovu's exhaustive `Record<keyof MediaRecord, ...>`
+ * Not yet a `MediaRecord` field: adding it there breaks a host's exhaustive `Record<keyof MediaRecord, ...>`
  * publish map while that file is in flight, so the field lands with the host's column + migration.
  */
 export interface MediaCaptionsTrack {
