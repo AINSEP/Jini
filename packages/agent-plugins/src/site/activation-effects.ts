@@ -4,8 +4,7 @@
  */
 import { stat } from "node:fs/promises";
 import path from "node:path";
-import { createVersionedPluginActivationReader } from "../lifecycle/activation-reader.js";
-import { ACTIVATIONS_FILENAME } from "../lifecycle/activation.js";
+import { ACTIVATIONS_FILENAME, createVersionedPluginActivationReader } from "@jini-ai/agent-plugins/lifecycle";
 
 /** The lifecycle owner's fail-closed activation resolution, bound by the host. */
 export type ResolveAgentPluginActivation = (required: { workspaceRoot: string; pluginId: string }) => Promise<{ readonly verdict: string }>;

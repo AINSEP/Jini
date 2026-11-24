@@ -124,7 +124,9 @@
         "./site/admin-surfaces/capabilities": "admin-surfaces",
         "./site/admin-surfaces/forms": "admin-surfaces",
         "./site/admin-surfaces/public-config": "admin-surfaces",
-        "./site/admin-surfaces/handlers": "admin-surfaces"
+        "./site/admin-surfaces/handlers": "admin-surfaces",
+        "./site/customize-tool": "folder-zip",
+        "./site/activation-effects": "lifecycle"
       },
       "shared": [
         "core/persistent-state.js",

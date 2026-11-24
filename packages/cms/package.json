@@ -288,7 +288,10 @@
       "./navigation/site/reverters": "universal",
       "./media/site/document-archive": "node",
       "./change-sets/tool-registrations": "universal",
-      "./forms/destinations/deliver": "universal"
+      "./forms/destinations/deliver": "universal",
+      "./media/site-generation/media-provider-registry": "node",
+      "./entries/site/unreadable-owner-entries-repair": "universal",
+      "./forms/site/submission-ip-expiry-sweep": "node"
     },
     "isolation": {
       "domains": {
@@ -1825,6 +1828,21 @@
       "types": "./dist/forms/destinations/deliver.d.ts",
       "import": "./dist/forms/destinations/deliver.js",
       "default": "./dist/forms/destinations/deliver.js"
+    },
+    "./media/site-generation/media-provider-registry": {
+      "types": "./dist/media/site-generation/media-provider-registry.d.ts",
+      "import": "./dist/media/site-generation/media-provider-registry.js",
+      "default": "./dist/media/site-generation/media-provider-registry.js"
+    },
+    "./entries/site/unreadable-owner-entries-repair": {
+      "types": "./dist/entries/site/unreadable-owner-entries-repair.d.ts",
+      "import": "./dist/entries/site/unreadable-owner-entries-repair.js",
+      "default": "./dist/entries/site/unreadable-owner-entries-repair.js"
+    },
+    "./forms/site/submission-ip-expiry-sweep": {
+      "types": "./dist/forms/site/submission-ip-expiry-sweep.d.ts",
+      "import": "./dist/forms/site/submission-ip-expiry-sweep.js",
+      "default": "./dist/forms/site/submission-ip-expiry-sweep.js"
     }
   },
   "files": [

