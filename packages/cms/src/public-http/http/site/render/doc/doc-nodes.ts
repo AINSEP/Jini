@@ -228,7 +228,7 @@ function renderDocMention({ node, deps }: DocNodeHandlerRequired, _optional = {}
   // `hardBreak` bugs this file's own header warns about.
   //
   // `id` is re-validated against the SAME `SLUG_FORMAT_PATTERN`/`MAX_SLUG_LENGTH` the post
-  // feature itself enforces at write time (`#src/features/post/index`) before it is trusted
+  // feature itself enforces at write time (the host post feature) before it is trusted
   // into an `href` — defense-in-depth against `bodyJson` written some OTHER way (a direct API
   // call, pasted content), the same reasoning `safeCssColor`/`safeCssFontFamily`/
   // `safeCssLength` already state for their own allowlists above. Anything that fails

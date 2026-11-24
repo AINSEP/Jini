@@ -23,6 +23,7 @@ There is no daemon, agent-runtime or CMS dependency.
 - Origin and bearer guards, including core's canonical origin validation and Node token comparison.
 - Cursor-aware and raw SSE primitives, route registration inventory and `mountPackHttp`.
 - `./rate-limit`, `./middleware`, `./observability` and `./range`.
+- `./dev-proxy` exports `createDevProxyRequestHandler({ devProxyUrl, basePath })`, `createDevProxyUpgradeListener({ devProxyUrl, basePath })` (the host decides whether to attach it; the module reads no environment), `resolveDevProxyPath({ url, basePath })` and `stripHopByHopHeaders(headers)`: a streaming same-origin reverse proxy to a frontend dev server, including the WebSocket HMR upgrade.
 
 - `rate-limit` exports `createRateLimiter({ profile, clock, store })`,
   `createMemoryCounterStore({})`, and `resolveClientIp({ source, policy })`.

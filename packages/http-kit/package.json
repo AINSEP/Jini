@@ -20,7 +20,8 @@
       "./request-id": "node",
       "./html-response": "node",
       "./range": "universal",
-      "./node-bridge": "node"
+      "./node-bridge": "node",
+      "./dev-proxy": "node"
     },
     "runtime": "node"
   },
@@ -73,6 +74,11 @@
       "types": "./dist/node-bridge.d.ts",
       "import": "./dist/node-bridge.js",
       "default": "./dist/node-bridge.js"
+    },
+    "./dev-proxy": {
+      "types": "./dist/dev-proxy.d.ts",
+      "import": "./dist/dev-proxy.js",
+      "default": "./dist/dev-proxy.js"
     }
   },
   "files": [
