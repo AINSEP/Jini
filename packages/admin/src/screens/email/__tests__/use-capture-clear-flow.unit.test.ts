@@ -2,8 +2,8 @@
 import { act, renderHook, waitFor } from "@testing-library/react";
 import { describe, expect, it, vi, type Mock } from "vitest";
 
-import type { MailCaptureClearAnswer } from "../email-api.types.js";
-import { STALE_CAPTURE_MESSAGE, useCaptureClearFlow } from "../hooks/use-email-activity.hooks.js";
+import type { MailCaptureClearAnswer } from "@jini-ai/core/contracts/mail";
+import { STALE_CAPTURE_MESSAGE, useCaptureClearFlow, useEmailActivity } from "../hooks/use-email-activity.hooks.js";
 
 /** @file The clear-all-test-emails flow: preview first, a reviewed revision to confirm, plain-words failures, owner-only visibility. */
 class FakeApiError extends Error { readonly status: number; constructor({ message, status }: { message: string; status: number }) { super(message); this.status = status; } }
@@ -112,5 +112,21 @@ describe("useCaptureClearFlow", () => {
     clearCaptured.mockRejectedValueOnce(new FakeApiError({ message: "Try again in a minute.", status: 503 }));
     await act(() => result.current.confirm());
     expect(result.current.state).toMatchObject({ kind: "confirm", pending: false, error: "Try again in a minute.", plan: { count: 3 } });
+  });
+});
+
+describe("useEmailActivity takes its load and capture-clear hooks from the host", () => {
+  it("uses the injected useLoadHook and useCaptureClearFlowHook, not its own module's", () => {
+    const flow = { canClear: true, state: { kind: "idle" as const }, start: vi.fn(), confirm: vi.fn(), cancel: vi.fn() };
+    const useCaptureClearFlowHook = vi.fn(() => flow);
+    const useLoadHook = vi.fn(() => ({ view: { kind: "loading" as const }, reload: vi.fn(), setData: vi.fn() }));
+    const pending = () => new Promise<never>(() => {});
+    const api = { listActivity: vi.fn(pending), getActivity: vi.fn(pending), listSuppressions: vi.fn(pending), removeSuppression: vi.fn(pending), readFeedback: vi.fn(pending), clearCaptured: vi.fn(pending) };
+    const { result } = renderHook(() => useEmailActivity({ api, ApiError: FakeApiError, useLoadHook, useCaptureClearFlowHook }, { debounceMs: 0, permissions: ["*"] }));
+    expect(result.current.capture).toBe(flow);
+    expect(useCaptureClearFlowHook).toHaveBeenCalledWith(expect.objectContaining({ api, permissions: ["*"], ApiError: FakeApiError }), expect.objectContaining({ onCleared: expect.any(Function) }));
+    expect(useLoadHook).toHaveBeenCalledWith(expect.objectContaining({ ApiError: FakeApiError }));
+    expect(api.readFeedback).not.toHaveBeenCalled();
+    expect(api.clearCaptured).not.toHaveBeenCalled();
   });
 });

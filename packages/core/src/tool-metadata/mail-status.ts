@@ -87,6 +87,15 @@ export const toolMetadata = {
     },
     approval: { class: 'escalation', confirmation: 'plan' },
   },
+  "mail_clear_captured": {
+    title: 'Delete all captured test emails',
+    summary: 'This permanently deletes every test email this site kept instead of sending.',
+    search: {
+      keywords: "email clear delete captured test emails mail capture outbox test mode remove all",
+      queries: ["Delete all the captured test emails.", "Clear the test emails my site kept."],
+    },
+    approval: { class: 'delete', confirmation: 'plan' },
+  },
   "mail_get_feedback_setup": {
     search: {
       keywords: "email feedback webhook bounces complaints delivery events signing secret setup provider reports",

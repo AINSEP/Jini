@@ -1,4 +1,7 @@
 import { registerPermission } from "../../core/permissions.js";
+// Clearing captured test emails: owner decision (2026-11-23, bt2-todos G7-7/848), owner-only like
+// suppression removal, so no built-in role holds it. The id lives in core's neutral mail contract.
+import { MAIL_CAPTURE_CLEAR_PERMISSION } from "@jini-ai/core/contracts/mail";
 
 /** The host's grant registry, as far as this registrar uses it: one built-in-role grant per call. */
 type PermissionGrantRegistry = { readonly roleGrants: { register(grant: { readonly role: string; readonly permission: string; readonly reason: string }): void } };
@@ -21,12 +24,6 @@ export const MAIL_ACTIVITY_READ_PERMISSION = "mail.activity.read";
 
 /** Suppression removal (`mail_remove_suppression`, `POST system/mail-suppressions/remove`). */
 export const MAIL_SUPPRESSIONS_MANAGE_PERMISSION = "mail.suppressions.manage";
-
-/**
- * Clearing every captured test email (`POST system/mail-capture/clear`). Owner decision
- * (2026-11-23, bt2-todos G7-7/848): owner-only like suppression removal, so no built-in role holds it.
- */
-export const MAIL_CAPTURE_CLEAR_PERMISSION = "mail.capture.clear";
 
 /** The Email page's existing status permission (status, uses, test send). Spelled once here. */
 export const MAIL_STATUS_PERMISSION = "admin.forms.manage";

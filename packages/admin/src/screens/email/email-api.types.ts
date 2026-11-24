@@ -1,5 +1,6 @@
 import type { ProviderDomainVerification } from "./api/mail-status-api.types.js";
 import type { MailFeedbackSetupReport } from "@jini-ai/core/contracts/site/platform-mail";
+import type { MailCaptureClearAnswer } from "@jini-ai/core/contracts/mail";
 
 /**
  * @file The wire shapes of the host admin's Email page client (the round-2 mail routes,
@@ -157,21 +158,6 @@ export interface MailSuppressionRemovalPlan {
   suppressedAt: string;
   revision: string;
   warnings: string[];
-}
-
-/** What a clear-all of captured test emails would delete: how many, and the newest one's time (`null` when none). */
-export interface MailCaptureClearPlan {
-  count: number;
-  newestAt: string | null;
-}
-
-/** The preview (`confirmationRequired`, `plan`, `revision`) or the confirmed clear (`cleared`, `deleted`) of captured test emails. */
-export interface MailCaptureClearAnswer {
-  cleared: boolean;
-  confirmationRequired?: true;
-  plan?: MailCaptureClearPlan;
-  revision?: string;
-  deleted?: number;
 }
 
 // --- templates (`@jini-ai/platform/mail/email-template-operations`) ------------------------

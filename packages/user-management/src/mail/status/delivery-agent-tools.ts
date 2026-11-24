@@ -48,6 +48,12 @@ export const mailDeliveryAgentToolCatalog = [{
     reason: { type: "string", minLength: 3, maxLength: 500, description: "Why this address may be mailed again; recorded." },
   } },
 }, {
+  name: "mail_clear_captured",
+  description: "Deletes every captured test email of this site (the emails the site kept instead of sending while sending was off or in test mode; they are also deleted automatically after 7 days). Shows the person a confirmation card with how many will be deleted every time (approval cannot be remembered). If new test emails arrive before the person confirms, nothing is deleted and they must be asked again. Sent-email records, delivery history and the do-not-send list are not touched. Returns {cleared: true, deleted}, or {cleared: false, empty: true} when there is nothing to clear. Requires mail.capture.clear (owner only).",
+  sideEffects: "mutates-durable-state" as const,
+  authorization: { permission: "mail.capture.clear" },
+  inputSchema: { type: "object", additionalProperties: false, properties: {} },
+}, {
   name: "mail_get_feedback_setup",
   description: "Shows whether each active mail provider reports deliveries, bounces and complaints back to this site, and what is still needed: {available, providers: [{providerId, label, lanes, supported, webhookPath, webhookUrl (paste into the provider; null until the site's address is verified), signingSecret {current, previous: {label, configured, updatedAt}} (presence only, never the secret; save one with credential_save under that label), lastVerifiedEvent {kind, receivedAt} | null, state (unsupported|secret_missing|no_events_yet|receiving)}]}. no_events_yet means set up but nothing received so far, which is not the same as working. Read-only. Requires admin.forms.manage.",
   sideEffects: "none" as const,
