@@ -4,7 +4,7 @@ import { useCallback, useRef, useState } from "react";
 
 import type { ContentTypeFieldKind } from "../../../screens/collections/api/collections-api.types.js";
 
-import { isAbortError } from '@jini-ai/core/text';
+import type { isAbortError as coreIsAbortError } from '@jini-ai/core/text';
 /**
  * @file `WidgetConfigFields.tsx`'s data-fetching state, split out per the `@jini-ai/admin`
  * `<Name>.tsx`/`<Name>.hooks.tsx` extraction pattern (`ConfirmDialog.tsx`/`ConfirmDialog.hooks.tsx`
@@ -332,10 +332,14 @@ function useRecentEntriesState(
  * @returns `items` (`null` while the fetch is in flight, otherwise the loaded list) and `error` (a
  *   describable failure message, or `null`).
  * @example
- * const { items: menus, error } = useFetchedOptions({ key: ["menus", "options"], fetchList: () => api.listMenus().then((r) => r.menus) }, { errorFallback: "failed to load menus" });
+ * const { items: menus, error } = useFetchedOptions({ key: ["menus", "options"], fetchList: () => api.listMenus().then((r) => r.menus), isAbortError }, { errorFallback: "failed to load menus" });
  */
 export function useFetchedOptions<T>(
-  { fetchList, key }: { fetchList: () => Promise<T[]>; key: QueryKey },
+  { fetchList, key, isAbortError }: {
+    fetchList: () => Promise<T[]>; key: QueryKey;
+    /** The host's abort-error test (core's `isAbortError`), injected so this hook imports no implementation. */
+    isAbortError: typeof coreIsAbortError;
+  },
   { errorFallback = "failed to load options" }: { errorFallback?: string } = {},
 ) {
   // A field's transport is bound once, matching the old mount-only effect. Its cache identity
@@ -352,7 +356,7 @@ export function useFetchedOptions<T>(
       if (!(error instanceof Error) && isAbortError({ error })) throw Object.assign(new Error(errorFallback), { name: "AbortError" });
       throw error instanceof Error ? error : new Error(errorFallback);
     }
-  }, [initialFetch, errorFallback]);
+  }, [initialFetch, errorFallback, isAbortError]);
   const query = useFetchQuery({ key, fetch });
   return { items: query.data ?? null, error: query.error && !isAbortError({ error: query.error }) ? query.error.message : null };
 }

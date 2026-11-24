@@ -1,4 +1,5 @@
 import { expect, it } from "vitest";
+import { isAbortError } from "@jini-ai/core/text";
 import type { AgentEvent, ChatMessage, ChatTransport, RunHandlers } from "../../../../react/kit.js";
 import fixture from "./fixtures/gemini-position-9.js";
 import { AGENT_FAILURE_EVENT, GENERIC_AGENT_FAILURE, withAgentFailureSurface } from "../agent-failure.js";
@@ -16,7 +17,7 @@ function harness() {
   const completed: AgentEvent[][] = [];
   const sink: RunHandlers = { onEvent: event => seen.push(event), onError: error => errors.push(error.message),
     onDone: events => completed.push(events), onToolInputDelta() {}, onCheckpoint: message => checkpoints.push(message) };
-  return { transport: withAgentFailureSurface({ transport }, {}), seen, checkpoints, errors, completed, sink,
+  return { transport: withAgentFailureSurface({ isAbortError, transport }, {}), seen, checkpoints, errors, completed, sink,
     emit: () => { if (!handlers) throw new Error("not connected"); return handlers; } };
 }
 
@@ -66,7 +67,7 @@ it("retains a structured error when the completion only carries a generic status
 
 it("redacts refused starts before the handlers render them, and keeps the turn by resolving with no run", async () => {
   const h = harness();
-  const transport = withAgentFailureSurface({ transport: { ...h.transport,
+  const transport = withAgentFailureSurface({ isAbortError, transport: { ...h.transport,
     async startRun() { throw new Error("Error: rejected Bearer opaque-secret"); } } }, {});
   await expect(transport.startRun({ history: [], signal: new AbortController().signal }, h.sink)).resolves.toEqual({ runId: "" });
   expect(h.errors).toEqual(["Error: rejected Bearer [REDACTED]"]);
@@ -76,7 +77,7 @@ it("redacts refused starts before the handlers render them, and keeps the turn b
 
 it.each([new Error("Error: password=secret"), "Error: password=secret"])("redacts rejected reattachments for the caller and event sink: %s", async failure => {
   const h = harness();
-  const transport = withAgentFailureSurface({ transport: { ...h.transport, async reattachRun() { throw failure; } } });
+  const transport = withAgentFailureSurface({ isAbortError, transport: { ...h.transport, async reattachRun() { throw failure; } } });
   await expect(transport.reattachRun("run", h.sink)).rejects.toThrow("Error: password=[REDACTED]");
   expect(h.errors).toEqual(["Error: password=[REDACTED]"]);
   expect(h.seen).toEqual([{ kind: "ext", name: AGENT_FAILURE_EVENT, data: {
@@ -86,7 +87,7 @@ it.each([new Error("Error: password=secret"), "Error: password=secret"])("redact
 
 it("redacts a rejected non-Error start", async () => {
   const h = harness();
-  const transport = withAgentFailureSurface({ transport: { ...h.transport, async startRun() { throw "Error: token=secret"; } } });
+  const transport = withAgentFailureSurface({ isAbortError, transport: { ...h.transport, async startRun() { throw "Error: token=secret"; } } });
   await expect(transport.startRun({ history: [], signal: new AbortController().signal }, h.sink)).resolves.toEqual({ runId: "" });
   expect(h.errors).toEqual(["Error: token=[REDACTED]"]);
 });
@@ -98,7 +99,7 @@ it.each([
   { name: "a detached start", failure: new Error("Error: token=secret"), input: { signal: stopped(), cancelSignal: new AbortController().signal } },
 ])("a start the operator stopped still rejects, redacted: $name", async ({ failure, input }) => {
   const h = harness();
-  const transport = withAgentFailureSurface({ transport: { ...h.transport, async startRun() { throw failure; } } });
+  const transport = withAgentFailureSurface({ isAbortError, transport: { ...h.transport, async startRun() { throw failure; } } });
   await expect(transport.startRun({ history: [], ...input }, h.sink)).rejects.toThrow(failure instanceof DOMException ? failure.message : "Error: token=[REDACTED]");
   expect(h.errors).toHaveLength(1);
 });

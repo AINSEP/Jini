@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 import type { KitChatTranslator } from "../../../react/kit.js";
-import { agentHandle } from "@jini-ai/core/agent-handles";
+import type { agentHandle } from "@jini-ai/core/agent-handles";
 
 import type { useMessageOverflowModal } from "./MessageOverflowModal.hooks.js";
 
@@ -40,9 +40,10 @@ export interface MessageOverflowModalProps {
    *  a test can pass a fake here to exercise this component's rendering without a real `<dialog>`
    *  lifecycle. Required, never defaulted: every hook reaches this package's components injected. */
   useModal: typeof useMessageOverflowModal;
-  /** Publishes the close button as agent-addressable via `agentHandle()` (`@jini-ai/agentic`).
+  /** Publishes the close button as agent-addressable: the handle plus the host's `agentHandle()`
+   *  tagger (`@jini-ai/core/agent-handles`), injected so this component imports no implementation.
    *  Omit to leave it untagged — every existing render then stays byte-identical. */
-  agentHandle?: string;
+  agentHandle?: { handle: string; agentHandle: typeof agentHandle };
   /** The host's chat translator hook (the kit chat `useT`). */
   useTHook: () => KitChatTranslator;
 }
@@ -53,7 +54,7 @@ export function MessageOverflowModal({
   onClose,
   children,
   useModal,
-  agentHandle: handle,
+  agentHandle: tagging,
   useTHook,
 }: MessageOverflowModalProps) {
   const t = useTHook();
@@ -72,7 +73,7 @@ export function MessageOverflowModal({
         className="jini-message-overflow-modal-close"
         onClick={onClose}
         aria-label={t("Close")}
-        {...(handle ? agentHandle({ handle }, { role: "button", label: t("Close") }) : {})}
+        {...(tagging ? tagging.agentHandle({ handle: tagging.handle }, { role: "button", label: t("Close") }) : {})}
       >
         ×
       </button>

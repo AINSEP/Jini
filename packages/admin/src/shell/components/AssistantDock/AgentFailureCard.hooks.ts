@@ -1,7 +1,7 @@
 import { createContext, useContext, useMemo, useRef, useState } from "react";
 import type { ChatMessage, ChatPaneAgentSelection, ChatPaneRuntimeAccess, ChatTransport, KitChatTranslator } from "../../../react/kit.js";
 import { GENERIC_AGENT_FAILURE, extractAgentFailure, matchAgentFailureHint, projectAgentFailureMessage, redactAgentFailure,
-  suggestedFailureAgent, withAgentFailureSurface, type AgentFailure, type FailureAgent } from "./agent-failure.js";
+  suggestedFailureAgent, withAgentFailureSurface, type AgentFailure, type FailureAgent, type IsAbortError } from "./agent-failure.js";
 import { localFailureHints } from "./agent-failure-hints.js";
 
 export interface FailureSurfaceActions {
@@ -11,8 +11,8 @@ export interface FailureSurfaceActions {
 export const FailureSurfaceContext = createContext<FailureSurfaceActions>({ agents: [], switchAgent: () => undefined });
 
 /** Capture the same live inventory the picker loads, never trust its persisted placeholder. */
-export function useAgentFailureSurface({ transport, runtimeAccess, initialMessages, onSelectionChange, onExecutionModeChange }: {
-  transport: ChatTransport; runtimeAccess: ChatPaneRuntimeAccess; initialMessages: ChatMessage[] | undefined;
+export function useAgentFailureSurface({ transport, runtimeAccess, initialMessages, onSelectionChange, onExecutionModeChange, isAbortError }: {
+  transport: ChatTransport; isAbortError: IsAbortError; runtimeAccess: ChatPaneRuntimeAccess; initialMessages: ChatMessage[] | undefined;
   onSelectionChange: (selection: ChatPaneAgentSelection) => void; onExecutionModeChange: (mode: "local" | "api") => void;
 }, _optional = {}) {
   const [agents, setAgents] = useState<readonly FailureAgent[]>([]);
@@ -30,7 +30,7 @@ export function useAgentFailureSurface({ transport, runtimeAccess, initialMessag
       rescanAgents: () => capture({ load: () => runtimeAccess.rescanAgents() }),
     };
   }, [runtimeAccess]);
-  const projectedTransport = useMemo(() => withAgentFailureSurface({ transport }, {}), [transport]);
+  const projectedTransport = useMemo(() => withAgentFailureSurface({ transport, isAbortError }, {}), [transport, isAbortError]);
   const messages = useMemo(() => initialMessages?.map(message => projectAgentFailureMessage({ message }, {})), [initialMessages]);
   const actions = useMemo<FailureSurfaceActions>(() => ({ agents, switchAgent({ agentId }, _options = {}) {
     if (!agents.some(agent => agent.id === agentId && agent.available === true)) return;

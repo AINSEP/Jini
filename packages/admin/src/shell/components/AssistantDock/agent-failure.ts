@@ -3,7 +3,10 @@ import type { AgentEvent, ChatMessage, ChatTransport, RunHandlers, StartRunInput
 
 import { redactCredentialShapes, redactSecretAssignments, stripControlCharacters, stripCsiSequences, stripOscSequences } from "./agent-failure-scanners.js";
 
-import { isAbortError } from '@jini-ai/core/text';
+import type { isAbortError } from '@jini-ai/core/text';
+
+/** The host's abort-error test (core's `isAbortError`), injected so this module imports no implementation. */
+export type IsAbortError = typeof isAbortError;
 export interface AgentFailureHint {
   readonly category: "auth" | "unsupported-client";
   /** Case-insensitive literal alternatives, scoped to this agent's own output. */
@@ -134,7 +137,7 @@ function failureEvent(failure: AgentFailure): AgentEvent {
 }
 
 /** A start the operator stopped stays a rejection: Jini's run stream already dropped that turn on purpose. */
-function stoppedStart({ error, input }: { error: unknown; input: StartRunInput }, _optional = {}): boolean {
+function stoppedStart({ error, input, isAbortError }: { error: unknown; input: StartRunInput; isAbortError: IsAbortError }, _optional = {}): boolean {
   return isAbortError({ error }) || input.cancelSignal?.aborted === true || input.signal?.aborted === true;
 }
 
@@ -146,7 +149,7 @@ function redactedError({ error }: { error: unknown }, _options: Record<string, n
 }
 
 /** Wrap the existing transport; preserve optional checkpoint support and every lifecycle effect. */
-export function withAgentFailureSurface({ transport }: { transport: ChatTransport }, _optional = {}): ChatTransport {
+export function withAgentFailureSurface({ transport, isAbortError }: { transport: ChatTransport; isAbortError: IsAbortError }, _optional = {}): ChatTransport {
   function wrap({ handlers }: { handlers: RunHandlers }, { agentId }: { agentId?: string | undefined } = {}): RunHandlers {
     let events: AgentEvent[] = [];
     let failed = false;
@@ -188,7 +191,7 @@ export function withAgentFailureSurface({ transport }: { transport: ChatTranspor
       catch (error) {
         const safe = redactedError({ error });
         sink.onError(safe);
-        if (stoppedStart({ error, input }, {})) throw safe;
+        if (stoppedStart({ error, input, isAbortError }, {})) throw safe;
         // A refused start (e.g. `POST /api/runs` → 500) resolves instead of rejecting: Jini removes a
         // rejected turn from the transcript, which silently dropped the operator's message. Resolved,
         // the turn stays with its failed reply carrying the error `sink.onError` just reported.
