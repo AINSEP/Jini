@@ -229,6 +229,7 @@
       "./shell/components/AssistantDock/hooks/use-chat-agent-plugins.hooks": "browser",
       "./shell/components/AssistantDock/hooks/use-assistant-runtime-preferences.hooks": "browser",
       "./shell/components/AssistantDock/hooks/use-chat-display-preferences.hooks": "browser",
+      "./shell/components/AssistantDock/hooks/open-mcp-ui-link": "universal",
       "./shell/components/AssistantDock/hooks/use-selected-agent-auth-warning.hooks": "browser",
       "./shell/components/AssistantDock/SubagentsIndicator": "browser",
       "./shell/components/MediaEditDialog/MediaEditDialog.hooks": "browser",
@@ -338,6 +339,7 @@
         "./shell/components/AssistantDock/hooks/use-chat-agent-plugins.hooks": "browser",
         "./shell/components/AssistantDock/hooks/use-assistant-runtime-preferences.hooks": "browser",
         "./shell/components/AssistantDock/hooks/use-chat-display-preferences.hooks": "browser",
+        "./shell/components/AssistantDock/hooks/open-mcp-ui-link": "universal",
         "./shell/components/AssistantDock/hooks/use-selected-agent-auth-warning.hooks": "browser",
         "./shell/components/AssistantDock/SubagentsIndicator": "browser",
         "./shell/components/MediaEditDialog/MediaEditDialog.hooks": "browser",
@@ -1438,6 +1440,11 @@
       "types": "./dist/shell/components/AssistantDock/hooks/use-chat-display-preferences.hooks.d.ts",
       "import": "./dist/shell/components/AssistantDock/hooks/use-chat-display-preferences.hooks.js",
       "default": "./dist/shell/components/AssistantDock/hooks/use-chat-display-preferences.hooks.js"
+    },
+    "./shell/components/AssistantDock/hooks/open-mcp-ui-link": {
+      "types": "./dist/shell/components/AssistantDock/hooks/open-mcp-ui-link.d.ts",
+      "import": "./dist/shell/components/AssistantDock/hooks/open-mcp-ui-link.js",
+      "default": "./dist/shell/components/AssistantDock/hooks/open-mcp-ui-link.js"
     },
     "./shell/components/AssistantDock/hooks/use-selected-agent-auth-warning.hooks": {
       "types": "./dist/shell/components/AssistantDock/hooks/use-selected-agent-auth-warning.hooks.d.ts",
