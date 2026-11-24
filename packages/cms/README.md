@@ -246,6 +246,56 @@ and every probe that touches the agent runtime, a subprocess or the network (`de
 `testAgent`, `listModels`, `testConnection`, `resolveProbeCredential`). Body checks run in `handle`
 after authorization, keeping the routes' 403-before-400 order. No spec echoes a credential.
 
+Public OAuth callbacks (`src/public-http/routes/{api-connections,external-mcp}/oauth-callback.ts`) are
+HTML, not JSON, so they are core `ServerRoute` factories (`apiConnectionOAuthCallbackRoute(deps)`,
+`externalMcpOAuthCallbackRoute(deps)`), not `defineJsonRoute` specs. They read the host's request facts
+(`readRequestFacts`: client address for the limiter key, serving protocol, parsed query) from `locals`,
+so mount them through an adapter that puts the facts there. The host injects the page renderer with
+its copy (`renderPage`, typed `OAuthCallbackPageRenderer` from `@jini-ai/core/contracts/site/oauth-callback-page`,
+which also owns the closed `OAuthCallbackFailureReason` vocabulary), the `postMessage` type, the
+binding-cookie reader/clearer, the error-class predicates (`isApiConnectionError`, `isOAuthError`,
+`isUnknownServerError`), its API-connection runtime / external-MCP OAuth service, the roster fan-out,
+its public-origin policy and its logger. The external-MCP callback path and URL builder
+(`externalMcpOAuthCallbackUrl({ origin, serverId })`) live in `oauth-callback-url.ts`, shared with the
+host's connect route.
+
+External MCP admin (`src/admin-http/routes/external-mcp/*`): list, put, delete, admissions, tool-approvals and
+OAuth disconnect authorize `admin.integrations.manage` on `integration` with no `entityId` (the hand-written
+guard's rule). The host injects its server store, roster fan-out, built-in ownership rules and its error
+classes as predicates; the PUT body parser (`put-body.ts`) runs after authorization, as before.
+
+Agent plugins admin (`src/admin-http/routes/agent-plugins/{list,files,set-enabled}`, DTO helper in
+`src/admin-http/http/agent-plugins.ts`): set-enabled authorizes with `{ entityId }` on `agent-plugin`; the id-free
+checks pass `entityType: ""`. The host injects its plugin catalog, activation service, MCP provisioning,
+package-file reader, error-class predicates and its activation-conflict copy. The hosted sign-in hop
+(`connection-sign-in.ts`, a 302 + binding cookie) is a `ServerRoute` factory: the host injects its path, its
+session-credential readers, the handoff store, the cookie rule and its failure page.
+
+Recovery and database ceremonies (`src/admin-http/routes/recovery/{status,restore}`,
+`src/admin-http/routes/database/migrate-forward`): status takes the cost-class probe, site status,
+the operation-lock peek and `resolveDegradedBanner` as deps. The restore and migrate-forward
+plan/confirm/execute specs own the body checks, the AUD-001 order (execute pre-authorizes through
+the injected instance-scoped check before reading the body or taking the lock) and the
+error → status tables; the host injects each gateway/orchestrator step, the database package's
+refusal classes, and `missingPrincipalMessage` (its own missing-session diagnosis). Bodies are
+validated in `handle`, after the principal, because the hand-written routes did so.
+
+Publish-content (`src/admin-http/routes/publish-content/{peers,destination}`, guards in
+`transport-shared`, report DTOs in `src/admin-http/http/publish-content.ts`): the host injects the
+peer store, connected-peer lookup, deploy-config candidate, publishable types, connect/disconnect
+handshake and its typed error classes; the specs own the status/code tables and the
+credential-free views. Routes that read the request's credential kind or publish-trust grant
+(import, backstop, bundle-create, export, capabilities, peer-transport) and the byte/stream
+routes stay host-side until the host ports carry that context.
+
+Plugins (`src/admin-http/routes/plugins/*`): cms does not depend on `@jini-ai/plugins`; the host
+injects discovery, the activation lookup, `toAdminPluginResponse`, the uninstall move, the preview
+filter, the hook-failure envelope and the error classes each ladder maps.
+`set-enabled` runs the cms `executeCommand` gateway with a host-injected raw `authorizeCommand` (the
+gateway names the `plugin-activation` entity itself and its `ForbiddenError` maps to 403 `FORBIDDEN`
+with `details`); the host binds the plugin engine's `setPluginEnabled`, tool-access lowering, approval
+recording, tracker and serializer, and the eight `setEnabledErrors` classes.
+
 ## Scripts
 
 ```bash
