@@ -116,7 +116,7 @@
       "./shell/lib/escape-owned-by-inner-layer": "browser",
       "./shell/lib/external-entry-refresh": "browser",
       "./shell/lib/fetch-query/adapter-context": "browser",
-      "./shell/lib/merge-locale-overlays": "browser",
+      "./shell/lib/merge-locale-overlays": "universal",
       "./shell/lib/page-lifecycle": "browser",
       "./shell/lib/admin-http/request": "browser",
       "./shell/lib/plain-text-blocks": "browser",
@@ -271,6 +271,27 @@
       "./screens/media/grid-size": "universal",
       "./screens/media/hooks/use-media-grid-size.hooks": "browser",
       "./screens/media/hooks/use-media-card-details.hooks": "browser",
+      "./screens/menus/menus-i18n/create-menus-dictionary": "universal",
+      "./screens/menus/menus-i18n/menus-editor-i18n": "universal",
+      "./screens/menus/menus-i18n/menus-item-advanced-i18n": "universal",
+      "./screens/menus/menus-i18n/menus-item-fields-i18n": "universal",
+      "./screens/menus/menus-i18n/menus-list-i18n": "universal",
+      "./screens/menus/menus-i18n/menus-page-link-i18n": "universal",
+      "./screens/collections/collections-i18n/collections-audit-embed-i18n": "universal",
+      "./screens/collections/collections-i18n/collections-dialogs-i18n": "universal",
+      "./screens/collections/collections-i18n/collections-entries-i18n": "universal",
+      "./screens/collections/collections-i18n/collections-hooks-i18n": "universal",
+      "./screens/collections/collections-i18n/collections-lifecycle-i18n": "universal",
+      "./screens/collections/collections-i18n/collections-list-i18n": "universal",
+      "./screens/collections/collections-i18n/create-collections-dictionary": "universal",
+      "./screens/media/media-i18n/create-media-dictionary": "universal",
+      "./screens/media/media-i18n/media-addons-i18n": "universal",
+      "./screens/media/media-i18n/media-dialogs-i18n": "universal",
+      "./screens/media/media-i18n/media-edit-panel-i18n": "universal",
+      "./screens/media/media-i18n/media-hooks-i18n": "universal",
+      "./screens/media/media-i18n/media-html-attributes-i18n": "universal",
+      "./screens/media/media-i18n/media-library-i18n": "universal",
+      "./screens/media/media-i18n/media-toolbar-i18n": "universal",
       "./screens/taxonomy/taxonomy-i18n/taxonomy-screen-i18n": "universal",
       "./screens/taxonomy/taxonomy-i18n/taxonomy-merge-i18n": "universal",
       "./screens/taxonomy/taxonomy-i18n/taxonomy-detail-i18n": "universal",
@@ -314,7 +335,7 @@
         "./shell/lib/escape-owned-by-inner-layer": "browser",
         "./shell/lib/external-entry-refresh": "browser",
         "./shell/lib/fetch-query/adapter-context": "browser",
-        "./shell/lib/merge-locale-overlays": "browser",
+        "./shell/lib/merge-locale-overlays": "universal",
         "./shell/lib/page-lifecycle": "browser",
         "./shell/lib/plain-text-blocks": "browser",
         "./shell/lib/playground-render-target-bus": "browser",
@@ -1645,6 +1666,111 @@
       "types": "./dist/screens/media/hooks/use-media-card-details.hooks.d.ts",
       "import": "./dist/screens/media/hooks/use-media-card-details.hooks.js",
       "default": "./dist/screens/media/hooks/use-media-card-details.hooks.js"
+    },
+    "./screens/menus/menus-i18n/create-menus-dictionary": {
+      "types": "./dist/screens/menus/menus-i18n/create-menus-dictionary.d.ts",
+      "import": "./dist/screens/menus/menus-i18n/create-menus-dictionary.js",
+      "default": "./dist/screens/menus/menus-i18n/create-menus-dictionary.js"
+    },
+    "./screens/menus/menus-i18n/menus-editor-i18n": {
+      "types": "./dist/screens/menus/menus-i18n/menus-editor-i18n.d.ts",
+      "import": "./dist/screens/menus/menus-i18n/menus-editor-i18n.js",
+      "default": "./dist/screens/menus/menus-i18n/menus-editor-i18n.js"
+    },
+    "./screens/menus/menus-i18n/menus-item-advanced-i18n": {
+      "types": "./dist/screens/menus/menus-i18n/menus-item-advanced-i18n.d.ts",
+      "import": "./dist/screens/menus/menus-i18n/menus-item-advanced-i18n.js",
+      "default": "./dist/screens/menus/menus-i18n/menus-item-advanced-i18n.js"
+    },
+    "./screens/menus/menus-i18n/menus-item-fields-i18n": {
+      "types": "./dist/screens/menus/menus-i18n/menus-item-fields-i18n.d.ts",
+      "import": "./dist/screens/menus/menus-i18n/menus-item-fields-i18n.js",
+      "default": "./dist/screens/menus/menus-i18n/menus-item-fields-i18n.js"
+    },
+    "./screens/menus/menus-i18n/menus-list-i18n": {
+      "types": "./dist/screens/menus/menus-i18n/menus-list-i18n.d.ts",
+      "import": "./dist/screens/menus/menus-i18n/menus-list-i18n.js",
+      "default": "./dist/screens/menus/menus-i18n/menus-list-i18n.js"
+    },
+    "./screens/menus/menus-i18n/menus-page-link-i18n": {
+      "types": "./dist/screens/menus/menus-i18n/menus-page-link-i18n.d.ts",
+      "import": "./dist/screens/menus/menus-i18n/menus-page-link-i18n.js",
+      "default": "./dist/screens/menus/menus-i18n/menus-page-link-i18n.js"
+    },
+    "./screens/collections/collections-i18n/collections-audit-embed-i18n": {
+      "types": "./dist/screens/collections/collections-i18n/collections-audit-embed-i18n.d.ts",
+      "import": "./dist/screens/collections/collections-i18n/collections-audit-embed-i18n.js",
+      "default": "./dist/screens/collections/collections-i18n/collections-audit-embed-i18n.js"
+    },
+    "./screens/collections/collections-i18n/collections-dialogs-i18n": {
+      "types": "./dist/screens/collections/collections-i18n/collections-dialogs-i18n.d.ts",
+      "import": "./dist/screens/collections/collections-i18n/collections-dialogs-i18n.js",
+      "default": "./dist/screens/collections/collections-i18n/collections-dialogs-i18n.js"
+    },
+    "./screens/collections/collections-i18n/collections-entries-i18n": {
+      "types": "./dist/screens/collections/collections-i18n/collections-entries-i18n.d.ts",
+      "import": "./dist/screens/collections/collections-i18n/collections-entries-i18n.js",
+      "default": "./dist/screens/collections/collections-i18n/collections-entries-i18n.js"
+    },
+    "./screens/collections/collections-i18n/collections-hooks-i18n": {
+      "types": "./dist/screens/collections/collections-i18n/collections-hooks-i18n.d.ts",
+      "import": "./dist/screens/collections/collections-i18n/collections-hooks-i18n.js",
+      "default": "./dist/screens/collections/collections-i18n/collections-hooks-i18n.js"
+    },
+    "./screens/collections/collections-i18n/collections-lifecycle-i18n": {
+      "types": "./dist/screens/collections/collections-i18n/collections-lifecycle-i18n.d.ts",
+      "import": "./dist/screens/collections/collections-i18n/collections-lifecycle-i18n.js",
+      "default": "./dist/screens/collections/collections-i18n/collections-lifecycle-i18n.js"
+    },
+    "./screens/collections/collections-i18n/collections-list-i18n": {
+      "types": "./dist/screens/collections/collections-i18n/collections-list-i18n.d.ts",
+      "import": "./dist/screens/collections/collections-i18n/collections-list-i18n.js",
+      "default": "./dist/screens/collections/collections-i18n/collections-list-i18n.js"
+    },
+    "./screens/collections/collections-i18n/create-collections-dictionary": {
+      "types": "./dist/screens/collections/collections-i18n/create-collections-dictionary.d.ts",
+      "import": "./dist/screens/collections/collections-i18n/create-collections-dictionary.js",
+      "default": "./dist/screens/collections/collections-i18n/create-collections-dictionary.js"
+    },
+    "./screens/media/media-i18n/create-media-dictionary": {
+      "types": "./dist/screens/media/media-i18n/create-media-dictionary.d.ts",
+      "import": "./dist/screens/media/media-i18n/create-media-dictionary.js",
+      "default": "./dist/screens/media/media-i18n/create-media-dictionary.js"
+    },
+    "./screens/media/media-i18n/media-addons-i18n": {
+      "types": "./dist/screens/media/media-i18n/media-addons-i18n.d.ts",
+      "import": "./dist/screens/media/media-i18n/media-addons-i18n.js",
+      "default": "./dist/screens/media/media-i18n/media-addons-i18n.js"
+    },
+    "./screens/media/media-i18n/media-dialogs-i18n": {
+      "types": "./dist/screens/media/media-i18n/media-dialogs-i18n.d.ts",
+      "import": "./dist/screens/media/media-i18n/media-dialogs-i18n.js",
+      "default": "./dist/screens/media/media-i18n/media-dialogs-i18n.js"
+    },
+    "./screens/media/media-i18n/media-edit-panel-i18n": {
+      "types": "./dist/screens/media/media-i18n/media-edit-panel-i18n.d.ts",
+      "import": "./dist/screens/media/media-i18n/media-edit-panel-i18n.js",
+      "default": "./dist/screens/media/media-i18n/media-edit-panel-i18n.js"
+    },
+    "./screens/media/media-i18n/media-hooks-i18n": {
+      "types": "./dist/screens/media/media-i18n/media-hooks-i18n.d.ts",
+      "import": "./dist/screens/media/media-i18n/media-hooks-i18n.js",
+      "default": "./dist/screens/media/media-i18n/media-hooks-i18n.js"
+    },
+    "./screens/media/media-i18n/media-html-attributes-i18n": {
+      "types": "./dist/screens/media/media-i18n/media-html-attributes-i18n.d.ts",
+      "import": "./dist/screens/media/media-i18n/media-html-attributes-i18n.js",
+      "default": "./dist/screens/media/media-i18n/media-html-attributes-i18n.js"
+    },
+    "./screens/media/media-i18n/media-library-i18n": {
+      "types": "./dist/screens/media/media-i18n/media-library-i18n.d.ts",
+      "import": "./dist/screens/media/media-i18n/media-library-i18n.js",
+      "default": "./dist/screens/media/media-i18n/media-library-i18n.js"
+    },
+    "./screens/media/media-i18n/media-toolbar-i18n": {
+      "types": "./dist/screens/media/media-i18n/media-toolbar-i18n.d.ts",
+      "import": "./dist/screens/media/media-i18n/media-toolbar-i18n.js",
+      "default": "./dist/screens/media/media-i18n/media-toolbar-i18n.js"
     },
     "./screens/taxonomy/taxonomy-i18n/taxonomy-screen-i18n": {
       "types": "./dist/screens/taxonomy/taxonomy-i18n/taxonomy-screen-i18n.d.ts",
