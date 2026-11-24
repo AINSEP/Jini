@@ -20,8 +20,8 @@ it("refuses a blank namespace without calling the host request", async () => {
 });
 
 it("reads a normal namespace under the injected workspace", async () => {
-  const authenticatedAdminRequest = vi.fn(async () => ({ data: [] }));
+  const authenticatedAdminRequest = vi.fn(async () => ({ data: [] })) as unknown as Parameters<typeof createSettingsApi>[0]["authenticatedAdminRequest"];
   const api = createSettingsApi({ authenticatedAdminRequest, workspaceId: "w" });
   await api.getSettingsEffective({ namespace: "core.language" });
-  expect(authenticatedAdminRequest).toHaveBeenCalledWith({ method: "GET", path: "/workspaces/w/settings/effective?namespace=core.language" });
+  expect(authenticatedAdminRequest as unknown as ReturnType<typeof vi.fn>).toHaveBeenCalledWith({ method: "GET", path: "/workspaces/w/settings/effective?namespace=core.language" });
 });
