@@ -28,8 +28,8 @@ import type { ContentBlock, HeadingLevel } from "@jini-ai/core/contracts/site/se
  * than the stack. Anything below it is ignored. */
 const MAX_DEPTH = 100;
 
-const TEXT_BLOCK_TYPES = new Set(["paragraph", "codeBlock"]);
-const IMAGE_TYPES = new Set(["image", "mediaImage"]);
+const TEXT_BLOCK_TYPES: ReadonlySet<string> = new Set(["paragraph", "codeBlock"]);
+const IMAGE_TYPES: ReadonlySet<string> = new Set(["image", "mediaImage"]);
 
 interface NodeView {
   type: unknown;
