@@ -7,7 +7,6 @@ import type { GalleryImageRenderer } from "../../../../../widgets/html/gallery-r
 import type { WidgetDocRendering } from "../doc/doc-render-contract.js";
 import type { WidgetRenderIR } from "../../../../../widgets/index.js";
 import type { WidgetMediaHost } from "./widget-render-contract.js";
-import { readCaptionTrackInput } from "../../../../../widgets/caption-track.js";
 
 /**
  * Renders a resolved `data-embed-type="media"` Page embed (SPEC-047, generalized 2026-08-07;
@@ -81,8 +80,8 @@ function renderPlaybackTag(
 ): string | null {
   const { mediaPublicPath, renderVideoTag } = host.media;
   const contentType = props.contentType;
-  // G7-9: the resolver stage puts the resolved WebVTT track on the IR; `renderVideoTag` re-validates it.
-  const captions = { captionsTrack: readCaptionTrackInput({ value: props.captionsTrack }) };
+  // G7-9: the resolver stage puts the resolved WebVTT track on the IR; `renderVideoTag` shape-reads and re-validates it.
+  const captions = { captionsTrack: props.captionsTrack };
   if (typeof contentType === "string" && contentType.startsWith("audio/")) {
     return renderVideoTag({ kind: "audio", src: mediaPublicPath({ key: urlKey, ...sha256, variant: { kind: "original", contentType } }), fallbackText: MEDIA_PLAYBACK_COPY.audio, alt, width: null, height: null, cssClass, htmlAttributes, markerAttributes, controls }, captions);
   }

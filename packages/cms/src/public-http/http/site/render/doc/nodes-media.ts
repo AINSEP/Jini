@@ -6,7 +6,6 @@ import { escapeHtml } from "@jini-ai/core/text";
 import type { JsonObject } from "@jini-ai/core/primitives";
 import type { MediaAssetRenderMeta } from "@jini-ai/core/contracts/site/cms-media";
 import { MEDIA_PLAYBACK_COPY } from "../media-playback-copy.js";
-import { readCaptionTrackInput } from "../../../../../widgets/caption-track.js";
 
 /**
  * D7 (original), extended under ADR-027 §4 and this task's quick-and-dirty sizing fix: a
@@ -150,8 +149,8 @@ function renderDocMediaPlayer(
     cssClass: mediaNodeStyleOverride({ nodeValue: nodeStyle.cssClass, assetValue: meta.cssClass }),
     htmlAttributes: mediaNodeStyleOverride({ nodeValue: nodeStyle.htmlAttributes, assetValue: meta.htmlAttributes }),
   };
-  // G7-9: the asset's resolved WebVTT track, if any; `renderVideoTag` re-validates it (same-origin `.vtt`).
-  const captions = { captionsTrack: readCaptionTrackInput({ value: meta.captionsTrack }) };
+  // G7-9: the asset's resolved WebVTT track, if any; `renderVideoTag` shape-reads and re-validates it (same-origin `.vtt`).
+  const captions = { captionsTrack: meta.captionsTrack };
   /**
    * points `src` at `/m/{assetId}/original` (`routes/site/media-rendition.ts`'s
    * `registerMediaOriginalVideoRoute`) instead of the versioned transform URL: video has no
