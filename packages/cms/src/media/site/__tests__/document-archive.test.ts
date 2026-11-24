@@ -51,6 +51,12 @@ const driveReader: DocumentZipArchiveReaderFactory = ({ yauzl }) => ({
   },
 });
 
+async function drain<T>(source: AsyncIterable<T>): Promise<T[]> {
+  const out: T[] = [];
+  for await (const value of source) out.push(value);
+  return out;
+}
+
 async function collect(entries: Raw[], archive = new Uint8Array([1, 2, 3])) {
   const { sdk, log } = fakeSdk(entries);
   const reader = createDocumentArchiveReader({ yauzl: sdk, createArchiveReader: driveReader });
@@ -67,7 +73,7 @@ describe('createDocumentArchiveReader', () => {
       { kind: 'directory', entryPath: 'word/', declaredSize: 0, compressedSize: 0 },
       { kind: 'file', entryPath: '_rels/.rels', declaredSize: 10, compressedSize: 3 },
     ]);
-    expect(await Array.fromAsync(out[0]!.openReadStream!({}))).toEqual([new TextEncoder().encode('word/document.xml')]);
+    expect(await drain(out[0]!.openReadStream!({}))).toEqual([new TextEncoder().encode('word/document.xml')]);
   });
 
   it('opens the archive with strict file names on top of the caller\'s options and closes the zip afterwards', async () => {

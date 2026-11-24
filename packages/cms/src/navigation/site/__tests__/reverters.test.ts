@@ -31,6 +31,9 @@ const item = (patch: Partial<ChangeSetItemRecord> = {}): ChangeSetItemRecord => 
   id: 'item-1', changeSetId: 'change-1', entityType: 'menu', entityId: MENU_ID, operation: 'update', position: 0, ...patch,
 } as ChangeSetItemRecord);
 
+/** The repoint inverse a menu change set carries: the prior item tree. */
+const inverse = (items: readonly NavItemNode[]) => ({ items }) as unknown as ChangeSetItemRecord['inversePayload'];
+
 describe('menu update reverter', () => {
   it('reports the live menu version, or null once the menu is gone', async () => {
     const { deps } = harness([menuRow([], { version: 7 })]);
@@ -43,7 +46,7 @@ describe('menu update reverter', () => {
   it('restores the captured item tree through updateMenuTree: version bump, other fields kept, event enqueued', async () => {
     const prior = [label('a', 'Company', '/company'), { ...label('b', 'Contact', '/contact'), children: [label('c', 'Phone', '/phone')] }];
     const { deps, menuRepo, events } = harness([menuRow([label('x', 'Changed', '/changed')], { title: 'Header', version: 4 })]);
-    await createMenuReverters(deps).update.applyInverse({ workspaceId: WORKSPACE_ID, item: item({ inversePayload: { items: prior } }) });
+    await createMenuReverters(deps).update.applyInverse({ workspaceId: WORKSPACE_ID, item: item({ inversePayload: inverse(prior) }) });
 
     const restored = await menuRepo.findById({ workspaceId: WORKSPACE_ID, id: MENU_ID });
     expect(restored?.doc.items.map((node) => [node.id, node.label])).toEqual([['a', 'Company'], ['b', 'Contact']]);
@@ -76,7 +79,7 @@ describe('menu update reverter', () => {
       if (++reads === 1 && row) await menuRepo.save({ ...row, version: row.version + 1 }, { expectedVersion: row.version });
       return row;
     };
-    await expect(createMenuReverters(deps).update.applyInverse({ workspaceId: WORKSPACE_ID, item: item({ inversePayload: { items: [label('a', 'Old', '/old')] } }) })).rejects.toThrow();
+    await expect(createMenuReverters(deps).update.applyInverse({ workspaceId: WORKSPACE_ID, item: item({ inversePayload: inverse([label('a', 'Old', '/old')]) }) })).rejects.toThrow();
     expect((await realFind({ workspaceId: WORKSPACE_ID, id: MENU_ID }))?.doc.items.map((node) => node.label), 'the refused revert must not overwrite the newer save').toEqual(['Live']);
   });
 });
@@ -105,7 +108,7 @@ describe('registerMenuReverters', () => {
   it('the registered reverter is bound to the injected adapters (end to end through the registry)', async () => {
     const { deps, menuRepo } = harness([menuRow([label('x', 'Changed', '/changed')])]);
     const registry = registerMenuReverters({ registry: createRevertRegistry({}), deps });
-    await registry.resolve('menu', 'update')!.applyInverse({ workspaceId: WORKSPACE_ID, item: item({ inversePayload: { items: [label('a', 'Back', '/back')] } }) });
+    await registry.resolve('menu', 'update')!.applyInverse({ workspaceId: WORKSPACE_ID, item: item({ inversePayload: inverse([label('a', 'Back', '/back')]) }) });
     expect((await menuRepo.findById({ workspaceId: WORKSPACE_ID, id: MENU_ID }))?.doc.items.map((node) => node.label)).toEqual(['Back']);
   });
 });
