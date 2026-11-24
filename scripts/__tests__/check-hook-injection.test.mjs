@@ -18,6 +18,32 @@ test('a hook received as a REQUIRED prop (no default, the host binds it) is not 
   assert.deepEqual(scanSource('Bar.tsx', src), []);
 });
 
+test('a hook received as a REQUIRED destructured prop is not flagged', () => {
+  const src = `export function Bar({ useFoo, label }: { useFoo: () => number; label: string }) { const foo = useFoo(); return <i>{label}{foo}</i>; }`;
+  assert.deepEqual(scanSource('Bar.tsx', src), []);
+});
+
+test('a required hook prop is accepted in renamed, nested, arrow, memo and plain-parameter forms', () => {
+  const src = [
+    `const A = ({ useFoo: useLocalFoo }) => { useLocalFoo(); return null; };`,
+    `const B = memo(({ hooks: { useFoo } }) => { useFoo(); return null; });`,
+    `function C(props) { const { useFoo } = props; useFoo(); return null; }`,
+    `function D(props) { props.useFoo(); return null; }`,
+    `function E({ ...rest }, useFoo) { useFoo(); return null; }`,
+  ].join('\n');
+  assert.deepEqual(scanSource('P.tsx', src), []);
+});
+
+test('an imported custom hook is still flagged when a different hook is injected as a required prop', () => {
+  const src = `import { useBar } from './bar';\nexport function Bar({ useFoo }) {\n  useFoo();\n  useBar();\n  return null;\n}`;
+  assert.deepEqual(scanSource('Bar.tsx', src), [{ file: 'Bar.tsx', line: 4, component: 'Bar', hook: 'useBar' }]);
+});
+
+test('destructuring a hook out of something that is not a prop does not inject it', () => {
+  const src = `import { kit } from './kit';\nfunction Bar(props) { const { useFoo } = kit; useFoo(); return null; }`;
+  assert.deepEqual(keys(scanSource('Bar.tsx', src)), ['Bar::useFoo']);
+});
+
 test('a direct imported custom hook call is flagged with file line, component and hook', () => {
   const src = `import { useFoo } from './foo';\nexport function Bar() {\n  const foo = useFoo();\n  return <i>{foo}</i>;\n}`;
   assert.deepEqual(scanSource('Bar.tsx', src), [{ file: 'Bar.tsx', line: 3, component: 'Bar', hook: 'useFoo' }]);

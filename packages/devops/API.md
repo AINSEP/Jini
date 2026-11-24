@@ -18,6 +18,7 @@ All subpaths declare the Node runtime. The root entry is a domain marker.
 | `./checks/coverage` | LCOV/root/source inventories, classifiers, thresholds, baseline/diff/source-reader ports | Parsing, floors, tier/diff, integrity, baseline and disk/runner inventory helpers |
 | `./checks/node` | Executable/runner for installation; Node adapter factories take `{}` when no inputs are needed | `createNodeFilesystem`, `createNodeProcessRunner`, `createNodeEnvLoader`, `createNpmInstaller` |
 | `./local-dev` | Complete environment-file path/filesystem/loader; listener command factory/runner | `loadRepoRootEnvFile`, `parseLsofListeners`, `listenersOn` |
+| `./local-dev/dev-proxy-upstream` | Proxy event emitter (`on('proxyRes' \| 'error')`) and the host's refusal `{ status, headers, body }` | `installUpstreamCloseHandling` |
 
 ## Fetch composition
 

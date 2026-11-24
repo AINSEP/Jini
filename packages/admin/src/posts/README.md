@@ -122,3 +122,7 @@ import { PostPublishAtField } from "@jini-ai/admin/posts/PostPublishingFields";
 - `@tiptap/*`
 - Host feature modules (`rules`, hooks, API DTOs)
 - Any custom hook (a hook has to arrive as a required prop)
+
+### Moved from the host admin app (w5-admin)
+
+- `Posts.hooks` — `createPostsTranslator` takes the host's dictionary lookup as required `translate({ locale, key })`.

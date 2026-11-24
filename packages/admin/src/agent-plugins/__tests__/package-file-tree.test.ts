@@ -51,3 +51,30 @@ describe('ancestorFolderPaths', () => {
   it('lists every containing folder from the root down', () => { expect(ancestorFolderPaths({ filePath: 'skills/deploy/SKILL.md' })).toEqual(['skills', 'skills/deploy']); });
   it('returns no folders for a root file', () => { expect(ancestorFolderPaths({ filePath: 'plugin.json' })).toEqual([]); });
 });
+
+describe('buildPackageFileTree ordering', () => {
+  it('sorts case-insensitively and numerically, like VS Code', () => { expect(buildPackageFileTree({ paths: ['b.md', 'A.md', 'file10.md', 'file2.md'] }).map(n => n.name)).toEqual(['A.md', 'b.md', 'file2.md', 'file10.md']); });
+});
+
+describe('visiblePackageFileRows', () => {
+  const deployTree = buildPackageFileTree({ paths: ['mcp.json', 'plugin.json', 'deploy-configs/railway.mjs', 'skills/deploy/SKILL.md', 'skills/deploy/references/cloudflare-pages.md', 'targets/vercel.mjs'] });
+  it('shows only root entries while every folder is collapsed', () => {
+    const rows = visiblePackageFileRows({ nodes: deployTree, isExpanded: () => false });
+    expect(rows.map(row => row.node.path)).toEqual(['mcp.json', 'plugin.json', 'deploy-configs', 'skills', 'targets']);
+    expect(rows.every(row => row.depth === 0 && row.parentPath === null && row.setSize === 5)).toBe(true);
+    expect(rows.map(row => row.posInSet)).toEqual([1, 2, 3, 4, 5]);
+  });
+  it('walks into expanded folders with depth, parent and position within the folder', () => {
+    const open = new Set(['skills', 'skills/deploy']);
+    const rows = visiblePackageFileRows({ nodes: deployTree, isExpanded: ({ path }) => open.has(path) });
+    expect(rows.slice(3, 7).map(({ node, depth, parentPath, setSize, posInSet }) => [node.path, depth, parentPath, setSize, posInSet])).toEqual([['skills', 0, null, 5, 4], ['skills/deploy', 1, 'skills', 1, 1], ['skills/deploy/SKILL.md', 2, 'skills/deploy', 2, 1], ['skills/deploy/references', 2, 'skills/deploy', 2, 2]]);
+  });
+  it("hides a collapsed folder's descendants even when a nested folder is open", () => {
+    const rows = visiblePackageFileRows({ nodes: deployTree, isExpanded: ({ path }) => path === 'skills/deploy' });
+    expect(rows.some(row => row.node.path.startsWith('skills/'))).toBe(false);
+  });
+});
+
+describe('packageFileIconKind families', () => {
+  it.each([['mcp.json', 'json'], ['SKILL.md', 'markdown'], ['example-host.mjs', 'javascript'], ['index.ts', 'typescript'], ['example-host-deploy.template.yml', 'config'], ['logo.PNG', 'image'], ['run.sh', 'shell'], ['LICENSE', 'file']] as const)('%s -> %s', (name, kind) => { expect(packageFileIconKind({ fileName: name })).toBe(kind); });
+});

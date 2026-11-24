@@ -6,7 +6,8 @@
  * checkout without swiftc can report unavailable instead of failing installation.
  */
 import path from "node:path";
-import type { TranscriptionAvailability, TranscriptionPort, TranscriptionResult } from "../transcription-port.js";
+import type { TranscriptionAvailability, TranscriptionResult } from "@jini-ai/core/contracts/speech-transcription";
+import type { TranscriptionPort } from "../transcription-port.js";
 export interface MacTranscriberMessages {
   compilerMissing: string;
   compilerFailed(args: { stderr: string }): string;

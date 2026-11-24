@@ -8,7 +8,7 @@ import { createAdmin } from '../../../core/module/index.js';
 import { agentPlugins } from '../index.js';
 import { createMemoryAgentPluginsApi } from '../../adapters/memory.js';
 import { AgentPluginFileTree } from '../components/AgentPluginFileTree.js';
-import { useAgentPluginInspector } from '../hooks/AgentPluginInspector.hooks.js';
+import { useAgentPluginFileTree, useAgentPluginInspector } from '../hooks/AgentPluginInspector.hooks.js';
 import { useAgentPluginPanel } from '../hooks/AgentPluginPanel.hooks.js';
 import { AgentPluginsPageContext, useAgentPluginsPage, useAgentPluginsPageScope } from '../hooks/AgentPluginsPage.hooks.js';
 import type { AgentPluginsPageScope } from '../hooks/AgentPluginsPage.hooks.js';
@@ -94,6 +94,13 @@ describe('useAgentPluginFileTree', () => {
     expect(document.activeElement).toBe(item('guide.md'));
     fireEvent.keyDown(tree, { key: 'Enter' });
     expect(onOpen).toHaveBeenCalledWith({ path: 'docs/guide.md' });
+  });
+
+  it('orders rows with the host locale handed to the hook, and by the package default otherwise', () => {
+    const swedish = [file('ä.md'), file('z.md')];
+    const names = (locale?: string) => renderHook(() => useAgentPluginFileTree({ files: swedish, selectedPath: null, onOpen: () => {} }, locale === undefined ? {} : { locale })).result.current.rows.map(row => row.name);
+    expect(names()).toEqual(['ä.md', 'z.md']);
+    expect(names('sv')).toEqual(['z.md', 'ä.md']);
   });
 
   it('starts keyboard navigation from the selected file', () => {

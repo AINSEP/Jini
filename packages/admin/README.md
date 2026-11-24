@@ -136,6 +136,59 @@ structural mirror of the UI library's tab type (`id`, `label`, `navHint`, `title
 mutually assignable. `SettingsDialogShellProps.labels` is `SettingsDialogChromeLabels`, the kit mirror of the UI
 shell's chrome labels, so labelled screens mount the kit facade too.
 
+**Admin shell pieces (w4-admin-shell).** Every collaborator below is a required field the host
+passes; none of these modules imports a host module or ships a default hook.
+
+- `shell/components/AssistantDock/hooks/chat-package-kind`: `partitionChatPackages` /
+  `chatPackageKind` take `legacyManifestNames` (the host's legacy plugin-manifest file names). They
+  are routing hints only, matched exactly at the archive root or one folder deep.
+- `shell/components/AssistantDock/hooks/conversation-refresh.hooks`: `useConversationRefreshSignal`
+  takes the host's `AssistantChatsPort` (`shell/hooks/assistant-chats-port.hooks`) as `port`.
+- `shell/components/AssistantDock/chat-agent-plugin-preferences` and the preference hooks
+  (`use-chat-agent-plugins.hooks`, `use-assistant-runtime-preferences.hooks`) take the host's
+  ledger port plus its settings `namespace`; the runtime hook also takes `defaults`.
+- `use-selected-agent-auth-warning.hooks` takes the host's detection-port factory (`createPort`)
+  and its warning rule (`selectWarning`). `SubagentsIndicator` requires the host's subagents
+  settings hook as the `useSettings` prop.
+- `shell/lib/agent-screenshot`: the host supplies `renderElementToCanvas` (its rasterizer adapter);
+  the package has no rasterizer dependency.
+- `shell/components/MediaEditDialog/MediaEditDialog.hooks` and `shell/lib/media-embed-extension.hooks`:
+  the host's wiring hooks pass `translate` (its media dictionary), `describeHtmlAttributeError` with
+  `htmlAttributePolicy` (the embed policy), and `mediaOriginalUrl` from its media API.
+  `shell/lib/media-image-extension.hooks`: `createMediaImageTranslator({ locale, translate })`.
+  TipTap extension definitions (`Node.create` / `.extend`) stay in the host.
+- `shell/lib/live-tiptap-editor`: `isLiveEditor` reads a structural editor (`{ schema }`), so the
+  host keeps its own TipTap `Editor` type through the narrowing.
+- `shell/components/TemplateSource/ViewTemplateButton` renders `jini-view-template-btn`, which the
+  host stylesheet styles. `shell/hooks/use-desktop-view-release.hooks` is called once from the
+  host root with `{ routePath, signedIn }`.
+- Admin telemetry: hosts call `useBrowserTelemetryFeed` (`@jini-ai/admin/react`) with their `base`
+  path and telemetry instance.
+- `shell/components/AssistantDock/assistant-dock-i18n`: `t({ locale, key, hostDictionary })` and
+  `createChatI18nAdapter({ locale, hostDictionary, settingsDialogKeys, settingsDialogDictionaries })`.
+  The host passes its product-naming copy as `hostDictionary`, plus the chat package's settings-owned
+  keys and the UI package's settings-dialog dictionaries by identity. Lookup order: host entries,
+  then the package dictionaries (split per locale group beside the entry file), then
+  `ADMIN_COMMON_I18N` (or the settings copy), then the key.
+- `dock-header-rules`: `dockSettingsMenuSections({ t, toolCallOptions, replyLengthOptions }, …)`;
+  the host supplies its Tool calls and Reply length choice lists. `useDockHeaderTip({ useTip })`
+  takes the host UI kit's InfoTip controller hook. `DockSettingsMenu` (mount under
+  `AdminKitProvider`) requires `useTaxonomyRowMenuHook` (normally `useTaxonomyRowMenu` from
+  `screens/taxonomy/TaxonomyRowMenu.hooks`) and the host chat library's `ChatSettingsSegmented`
+  (`DockSettingsSegmentedProps`); it renders `jini-dock-settings-menu*` and
+  `jini-assistant-dock-icon-button`, and renders `jini-row-menu-*` classes (host-styled).
+- `FolderDropConfirmation`, `FolderDropError`, `FolderDropPathHint`, `FolderPathButton`: kit icons
+  (mount under `AdminKitProvider`) and a required `useTHook` (the host chat library's `useT`); they
+  render `jini-folder-drop-notice*` / `jini-composer-folder-path`, styled by the host.
+- `shell/components/MediaPickerDialog/JiniMediaPicker.hooks`: `useJiniMediaPicker(args)` takes the
+  host's mounted `picker` (or `null`), its media `port`, its `errorRedaction` policy and an
+  `errorIdOf(cause)` reader; it uses the kit's `useCachedLoader`.
+- `shell/components/WidgetConfigFields/HtmlAttributeRows.hooks` takes the host's attribute parser,
+  serializer and allowlist check (`htmlAttributesToRows`, `rowsToHtmlAttributes`,
+  `isDroppedAttributeRow`). `PlacementContentFields` requires the host's media content editor as
+  `ContentEditor`; the host imports that editor's stylesheet at the mount and styles
+  `jini-widget-embed-content-choice > .jini-field-label`.
+
 ## Errors
 
 Route groups throw `AdminApiError` (`status`, `code`, raw `body`). There is deliberately **no**

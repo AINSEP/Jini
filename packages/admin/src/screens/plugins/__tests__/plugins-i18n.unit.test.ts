@@ -2,9 +2,9 @@ import { describe, expect, it } from "vitest";
 import { ADMIN_COMMON_I18N } from "../../../core/i18n-common.js";
 import { createPluginsDictionary, PLUGINS_DICT_TEMPLATE } from "../plugins-i18n.js";
 
-const SLOT = "{product}";
+const SLOT = "{productName}";
 const NAMED = "Zorbex";
-const translate = createPluginsDictionary({ commonDictionary: ADMIN_COMMON_I18N, productName: NAMED });
+const { t: translate } = createPluginsDictionary({ commonDictionary: ADMIN_COMMON_I18N, productName: NAMED });
 const t = translate;
 
 describe("createPluginsDictionary: plugin copy and common fallback", () => {
@@ -48,7 +48,7 @@ describe("createPluginsDictionary: the host's product name", () => {
   });
 
   it("a different name changes the sentence and the key it is looked up by", () => {
-    const other = createPluginsDictionary({ commonDictionary: ADMIN_COMMON_I18N, productName: "Quux" });
+    const { t: other } = createPluginsDictionary({ commonDictionary: ADMIN_COMMON_I18N, productName: "Quux" });
     expect(translate({ locale: "es", key: `Not for this ${NAMED} version` })).toBe(`No es para esta versión de ${NAMED}`);
     expect(other({ locale: "es", key: "Not for this Quux version" })).toBe("No es para esta versión de Quux");
     // The first host's key is only a source string for the second, so it falls through untranslated.
@@ -60,7 +60,7 @@ describe("createPluginsDictionary: the host's product name", () => {
   });
 
   it("does not treat a name containing replacement patterns as one", () => {
-    const odd = createPluginsDictionary({ commonDictionary: {}, productName: "A$&B$1" });
+    const { t: odd } = createPluginsDictionary({ commonDictionary: {}, productName: "A$&B$1" });
     expect(odd({ locale: "es", key: "Not for this A$&B$1 version" })).toBe("No es para esta versión de A$&B$1");
   });
 });

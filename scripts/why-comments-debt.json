@@ -1667,7 +1667,7 @@
     },
     {
       "id": "f0ea9462ab11",
-      "reason": "combine-17: w3-fnd and w3-settings both rewrote this doc in check-hook-injection-lib.mjs for the 11-23 required-hook-prop rule; the surviving comment above namesOfHookProps states the same rule (defaulted or REQUIRED hook props), so the old 'default to a hook' wording is superseded, not lost."
+      "reason": "w5-admin (coordinator decision 7): the injectedHooks doc was generalised, not dropped; the defaulted `{ useFooHook = useFoo }` form it named is still quoted in the rewritten injectedHooks doc, which now also covers REQUIRED hook props, plain hook parameters and `const { useFoo } = props` (scripts/check-hook-injection-lib.mjs)."
     }
   ]
 }

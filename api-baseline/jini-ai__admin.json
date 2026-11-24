@@ -239,11 +239,27 @@
    "runAgentPluginsApiConformance": "function:265c0a31f2"
   }
  },
+ "./agent-plugins/models": {
+  "types": "./dist/agent-plugins/models.d.ts",
+  "symbols": {
+   "AgentPluginActivationInput": "interface:ce93499f6b",
+   "AgentPluginDisableRequest": "interface:87a96e7a36",
+   "AgentPluginFiles": "interface:cf78aa233a",
+   "AgentPluginFilesState": "interface:e4d14a5a98",
+   "AgentPluginListRow": "interface:c2f6a74a0a",
+   "AgentPluginPackageFile": "interface:120cd6c79b",
+   "AgentPluginRequestOptions": "interface:d0e78c4e01",
+   "AgentPluginSummary": "interface:62b29c189c",
+   "AgentPluginTab": "type:582e8b1329",
+   "AgentPluginsState": "interface:2be375ceea"
+  }
+ },
  "./agent-plugins/react": {
   "types": "./dist/agent-plugins/react/index.d.ts",
   "symbols": {
    "AgentPluginsControllerContext": "variable:84cc45b138",
    "agentPlugins": "function:46de1e917b",
+   "useAgentPluginFileTree": "function:46117e943e",
    "useAgentPluginsPorts": "function:94e92f9d4e"
   }
  },
@@ -347,36 +363,6 @@
    "useWiredCommentQueue": "function:8edf0eb6f2",
    "useWiredCommentSettings": "function:d00233981d",
    "useWiredComments": "function:04ff191dd7"
-  }
- },
- "./comments/react/comments-i18n/comments-hooks-i18n": {
-  "types": "./dist/comments/react/comments-i18n/comments-hooks-i18n.d.ts",
-  "symbols": {
-   "COMMENTS_HOOKS_I18N": "variable:c93610afd6"
-  }
- },
- "./comments/react/comments-i18n/comments-queue-i18n": {
-  "types": "./dist/comments/react/comments-i18n/comments-queue-i18n.d.ts",
-  "symbols": {
-   "COMMENTS_QUEUE_I18N": "variable:8cc034bddb"
-  }
- },
- "./comments/react/comments-i18n/comments-row-menu-i18n": {
-  "types": "./dist/comments/react/comments-i18n/comments-row-menu-i18n.d.ts",
-  "symbols": {
-   "COMMENTS_ROW_MENU_I18N": "variable:7cb79ede7a"
-  }
- },
- "./comments/react/comments-i18n/comments-settings-i18n": {
-  "types": "./dist/comments/react/comments-i18n/comments-settings-i18n.d.ts",
-  "symbols": {
-   "COMMENTS_SETTINGS_I18N": "variable:402d5705af"
-  }
- },
- "./comments/react/comments-i18n/create-comments-dictionary": {
-  "types": "./dist/comments/react/comments-i18n/create-comments-dictionary.d.ts",
-  "symbols": {
-   "createCommentsDictionary": "function:f0b5028641"
   }
  },
  "./contracts/*": {
@@ -560,6 +546,12 @@
    "stripTrailingSlash": "function:21e8a87467"
   }
  },
+ "./core/bind-dictionary-names": {
+  "types": "./dist/core/bind-dictionary-names.d.ts",
+  "symbols": {
+   "bindDictionaryNames": "function:1790f2bcba"
+  }
+ },
  "./core/i18n-common": {
   "types": "./dist/core/i18n-common.d.ts",
   "symbols": {
@@ -582,6 +574,31 @@
    "bindReact": "function:3eecca7227",
    "reactModuleUi": "variable:cf64adfac0",
    "useController": "function:52b9de3f2d"
+  }
+ },
+ "./deployment/api/deployment-api": {
+  "types": "./dist/deployment/api/deployment-api.d.ts",
+  "symbols": {
+   "DeploymentApiDeps": "interface:1b6b234a02",
+   "createDeploymentApi": "function:37431af08f"
+  }
+ },
+ "./deployment/api/deployment-api.types": {
+  "types": "./dist/deployment/api/deployment-api.types.d.ts",
+  "symbols": {
+   "AdminDeploymentEnvVarStatus": "interface:30bb34332c",
+   "AdminDeploymentOverview": "interface:f384e1ac84",
+   "AdminDescriptorI18n": "type:307c43954b",
+   "AdminDockerfileSource": "interface:d285573d32",
+   "AdminPublishRunSnapshot": "interface:b2c01ca45e",
+   "AdminPublishRunStatus": "type:18a25bc3ba",
+   "AdminPublishTargetCredentialSpec": "interface:f43efdf39b",
+   "AdminPublishTargetDescriptor": "interface:deae014bc5",
+   "AdminPublishTargetField": "interface:0947d84a03",
+   "AdminStaticPublishConfig": "interface:7fdb237315",
+   "AdminStaticPublishOutcome": "type:0074e0be0b",
+   "AdminStaticPublishPreview": "interface:5e722aadfa",
+   "AdminStaticPublishTargetId": "type:54fd7a0925"
   }
  },
  "./deployment/deployment-i18n": {
@@ -611,6 +628,25 @@
   "symbols": {
    "NavigateToRoute": "type:313e1519ad",
    "navigateDeploymentTab": "function:ac5e1c5f8a"
+  }
+ },
+ "./deployment/host/hooks/deployment-overview-port.hooks": {
+  "types": "./dist/deployment/host/hooks/deployment-overview-port.hooks.d.ts",
+  "symbols": {
+   "DeploymentOverviewPort": "interface:5ae5c9f116"
+  }
+ },
+ "./deployment/host/hooks/dockerfile-source-port.hooks": {
+  "types": "./dist/deployment/host/hooks/dockerfile-source-port.hooks.d.ts",
+  "symbols": {
+   "DockerfileSourcePort": "interface:b0c6397774"
+  }
+ },
+ "./deployment/host/hooks/publish-credentials-port.hooks": {
+  "types": "./dist/deployment/host/hooks/publish-credentials-port.hooks.d.ts",
+  "symbols": {
+   "PublishCredentialSaveResult": "type:d1c0c1699c",
+   "PublishCredentialsPort": "interface:d1fb7f540d"
   }
  },
  "./forms": {
@@ -829,6 +865,34 @@
    "writePagesTabToUrl": "function:ea3735c459"
   }
  },
+ "./pages/hooks/theme-canvas-port.hooks": {
+  "types": "./dist/pages/hooks/theme-canvas-port.hooks.d.ts",
+  "symbols": {
+   "ThemeCanvasPort": "interface:9cc3caf244",
+   "ThemeTokens": "type:cd43347469"
+  }
+ },
+ "./pages/hooks/theme-canvas-wrapper": {
+  "types": "./dist/pages/hooks/theme-canvas-wrapper.d.ts",
+  "symbols": {
+   "deriveContentWrapperChain": "function:d784f9753b"
+  }
+ },
+ "./pages/hooks/theme-pages-fake-port": {
+  "types": "./dist/pages/hooks/theme-pages-fake-port.d.ts",
+  "symbols": {
+   "FakeThemePagesPortOptions": "interface:9b44b2dda2",
+   "createFakeThemePagesPort": "function:5524b27864"
+  }
+ },
+ "./pages/hooks/theme-pages-port.hooks": {
+  "types": "./dist/pages/hooks/theme-pages-port.hooks.d.ts",
+  "symbols": {
+   "ThemePageSlugCollision": "interface:00aa7d8ed9",
+   "ThemePagesFileEntry": "interface:6a023167f8",
+   "ThemePagesPort": "interface:c3f08b781d"
+  }
+ },
  "./pages/hooks/use-editor-html-jump.hooks": {
   "types": "./dist/pages/hooks/use-editor-html-jump.hooks.d.ts",
   "symbols": {
@@ -853,6 +917,14 @@
    "PagesDependencies": "interface:0c5be3e14c",
    "usePageRowMenuHandleMap": "function:2ea4f4ff36",
    "usePages": "function:865ac1a0a4"
+  }
+ },
+ "./pages/hooks/use-theme-pages.hooks": {
+  "types": "./dist/pages/hooks/use-theme-pages.hooks.d.ts",
+  "symbols": {
+   "ThemePageRow": "interface:68ee5965bc",
+   "ThemePagesController": "interface:3db1369a0b",
+   "useThemePages": "function:48f43db168"
   }
  },
  "./pages/lib/embed-placeholder": {
@@ -946,6 +1018,13 @@
    "createPagesTabSelect": "function:bcbe4e2b0f"
   }
  },
+ "./pages/ThemePageDetailsModal.hooks": {
+  "types": "./dist/pages/ThemePageDetailsModal.hooks.d.ts",
+  "symbols": {
+   "ThemePageDetailsModalController": "interface:00eeef5ad5",
+   "useThemePageDetailsModal": "function:b489bb64c4"
+  }
+ },
  "./playground": {
   "types": "./dist/playground/index.d.ts",
   "symbols": {
@@ -982,110 +1061,6 @@
    "usePlaygroundPorts": "function:e0df555889"
   }
  },
- "./posts/api/posts-api": {
-  "types": "./dist/posts/api/posts-api.d.ts",
-  "symbols": {
-   "PostAutosaveDraft": "type:ba7ae5e2c8",
-   "PostsApi": "type:38ad94f106",
-   "PostsApiDeps": "interface:6501d0545e",
-   "PostsRequestFn": "type:fc69c7fd47",
-   "createPostsApi": "function:ba932d6bb3"
-  }
- },
- "./posts/api/posts-api.types": {
-  "types": "./dist/posts/api/posts-api.types.d.ts",
-  "symbols": {
-   "AdminPost": "interface:479c44b075",
-   "AdminPostCreateInput": "type:13b3ae365b"
-  }
- },
- "./posts/editor/notices/PostAutosaveRecoveryBanner": {
-  "types": "./dist/posts/editor/notices/PostAutosaveRecoveryBanner.d.ts",
-  "symbols": {
-   "PostAutosaveRecoveryBanner": "function:ee56d6aee3"
-  }
- },
- "./posts/editor/notices/PostAutosaveStaleBanner": {
-  "types": "./dist/posts/editor/notices/PostAutosaveStaleBanner.d.ts",
-  "symbols": {
-   "PostAutosaveStaleBanner": "function:571237915b"
-  }
- },
- "./posts/editor/notices/PostVersionConflictBanner": {
-  "types": "./dist/posts/editor/notices/PostVersionConflictBanner.d.ts",
-  "symbols": {
-   "PostVersionConflictBanner": "function:707494eb10"
-  }
- },
- "./posts/editor/PostDeleteConfirmDialog": {
-  "types": "./dist/posts/editor/PostDeleteConfirmDialog.d.ts",
-  "symbols": {
-   "PostDeleteConfirmDialog": "function:dfe991ba34"
-  }
- },
- "./posts/editor/template/PostEditorTemplateModalGate": {
-  "types": "./dist/posts/editor/template/PostEditorTemplateModalGate.d.ts",
-  "symbols": {
-   "PostEditorTemplateModalGate": "function:3867ff8b4e",
-   "PostEditorTemplateModalGateProps": "interface:2627958339",
-   "PostEditorTemplateSourceModalProps": "interface:c27c8370ce"
-  }
- },
- "./posts/editor/template/PostEditorTemplatePicker": {
-  "types": "./dist/posts/editor/template/PostEditorTemplatePicker.d.ts",
-  "symbols": {
-   "PostEditorTemplatePicker": "function:202fc03e8e",
-   "PostEditorViewTemplateButtonProps": "interface:759588ea0e"
-  }
- },
- "./posts/editor/toolbar/ToolbarCharacterCount": {
-  "types": "./dist/posts/editor/toolbar/ToolbarCharacterCount.d.ts",
-  "symbols": {
-   "ToolbarCharacterCount": "function:0938bb591a",
-   "ToolbarCharacterCountProps": "interface:58bd8b3e07"
-  }
- },
- "./posts/editor/toolbar/ToolbarOverflowMenu": {
-  "types": "./dist/posts/editor/toolbar/ToolbarOverflowMenu.d.ts",
-  "symbols": {
-   "ToolbarOverflowMenu": "function:c55e693c15",
-   "ToolbarOverflowState": "interface:6480d21a29"
-  }
- },
- "./posts/hooks/posts-list-port.hooks": {
-  "types": "./dist/posts/hooks/posts-list-port.hooks.d.ts",
-  "symbols": {
-   "PostsListPort": "interface:ddc09aa1bc"
-  }
- },
- "./posts/hooks/use-post-editor-ui.hooks": {
-  "types": "./dist/posts/hooks/use-post-editor-ui.hooks.d.ts",
-  "symbols": {
-   "PostEditorUiController": "interface:6d6e3d5ef6",
-   "PostEditorUiDependencies": "interface:31f759c8d4",
-   "PostSettingsDialogController": "interface:4478dbc17f",
-   "PostSettingsTab": "type:672cf3a45e",
-   "TOOLBAR_PRIMARY_RANKS": "variable:68510d3b68",
-   "ToolbarOverflowController": "interface:e701441df5",
-   "ToolbarSlotProps": "interface:f66a576cd5",
-   "primaryControlsThatFit": "function:e07b05b28e",
-   "usePostEditorUi": "function:95188589b3",
-   "usePostPreviewIframeEscape": "function:292cc41817",
-   "usePostSettingsDialog": "function:ce2c41948e",
-   "useToolbarOverflow": "function:0985bb8e96"
-  }
- },
- "./posts/post-editor-route-key": {
-  "types": "./dist/posts/post-editor-route-key.d.ts",
-  "symbols": {
-   "PostEditorRouteKeyStore": "interface:140f637fe3",
-   "createPostEditorRouteKeyStore": "function:739c486466"
-  }
- },
- "./posts/post-url-dialog.css": {
-  "types": null,
-  "symbols": {}
- },
  "./posts/PostAuthorFields": {
   "types": "./dist/posts/PostAuthorFields.d.ts",
   "symbols": {
@@ -1099,102 +1074,18 @@
    "PostPublishAtFieldProps": "interface:3452e73d7a"
   }
  },
- "./posts/posts-i18n/create-posts-dictionary": {
-  "types": "./dist/posts/posts-i18n/create-posts-dictionary.d.ts",
+ "./posts/Posts.hooks": {
+  "types": "./dist/posts/Posts.hooks.d.ts",
   "symbols": {
-   "createPostsDictionary": "function:89d3ca74a4"
+   "createPostsTranslator": "function:7fcca15997"
   }
  },
- "./posts/posts-i18n/posts-editor-header-i18n": {
-  "types": "./dist/posts/posts-i18n/posts-editor-header-i18n.d.ts",
+ "./posts/view-tabs": {
+  "types": "./dist/posts/view-tabs.d.ts",
   "symbols": {
-   "POSTS_EDITOR_HEADER_I18N": "variable:2d74dfe4ff"
-  }
- },
- "./posts/posts-i18n/posts-errors-i18n": {
-  "types": "./dist/posts/posts-i18n/posts-errors-i18n.d.ts",
-  "symbols": {
-   "POSTS_ERRORS_I18N": "variable:0d15d28d47"
-  }
- },
- "./posts/posts-i18n/posts-list-i18n": {
-  "types": "./dist/posts/posts-i18n/posts-list-i18n.d.ts",
-  "symbols": {
-   "POSTS_LIST_I18N": "variable:dbb03e0450"
-  }
- },
- "./posts/posts-i18n/posts-list-sort-i18n": {
-  "types": "./dist/posts/posts-i18n/posts-list-sort-i18n.d.ts",
-  "symbols": {
-   "POSTS_LIST_SORT_I18N": "variable:0bde3863e8"
-  }
- },
- "./posts/posts-i18n/posts-save-feedback-i18n": {
-  "types": "./dist/posts/posts-i18n/posts-save-feedback-i18n.d.ts",
-  "symbols": {
-   "POSTS_SAVE_FEEDBACK_I18N": "variable:56bd7bb5f9"
-  }
- },
- "./posts/posts-i18n/posts-settings-dialog-i18n": {
-  "types": "./dist/posts/posts-i18n/posts-settings-dialog-i18n.d.ts",
-  "symbols": {
-   "POSTS_SETTINGS_DIALOG_I18N": "variable:c750b015d9"
-  }
- },
- "./posts/posts-i18n/posts-slug-collision-i18n": {
-  "types": "./dist/posts/posts-i18n/posts-slug-collision-i18n.d.ts",
-  "symbols": {
-   "POSTS_SLUG_COLLISION_I18N": "variable:6a25dab7a8"
-  }
- },
- "./posts/posts-i18n/posts-template-preview-i18n": {
-  "types": "./dist/posts/posts-i18n/posts-template-preview-i18n.d.ts",
-  "symbols": {
-   "POSTS_TEMPLATE_PREVIEW_I18N": "variable:d7900ce8e8"
-  }
- },
- "./posts/posts-i18n/posts-toolbar-blocks-i18n": {
-  "types": "./dist/posts/posts-i18n/posts-toolbar-blocks-i18n.d.ts",
-  "symbols": {
-   "POSTS_TOOLBAR_BLOCKS_I18N": "variable:f0d9682683"
-  }
- },
- "./posts/posts-i18n/posts-toolbar-marks-i18n": {
-  "types": "./dist/posts/posts-i18n/posts-toolbar-marks-i18n.d.ts",
-  "symbols": {
-   "POSTS_TOOLBAR_MARKS_I18N": "variable:b093048d1a"
-  }
- },
- "./posts/posts-i18n/posts-toolbar-style-i18n": {
-  "types": "./dist/posts/posts-i18n/posts-toolbar-style-i18n.d.ts",
-  "symbols": {
-   "POSTS_TOOLBAR_STYLE_I18N": "variable:3733103454"
-  }
- },
- "./posts/posts-i18n/posts-trash-dialog-i18n": {
-  "types": "./dist/posts/posts-i18n/posts-trash-dialog-i18n.d.ts",
-  "symbols": {
-   "POSTS_TRASH_DIALOG_I18N": "variable:07591017da"
-  }
- },
- "./posts/posts-i18n/posts-url-dialog-i18n": {
-  "types": "./dist/posts/posts-i18n/posts-url-dialog-i18n.d.ts",
-  "symbols": {
-   "POSTS_URL_DIALOG_I18N": "variable:4b88958d3c"
-  }
- },
- "./posts/PostSettingsDialog": {
-  "types": "./dist/posts/PostSettingsDialog.d.ts",
-  "symbols": {
-   "PostSettingsDialog": "function:8dc44e2745",
-   "PostSettingsDialogProps": "interface:fc8078235d"
-  }
- },
- "./posts/PostUrlDialog": {
-  "types": "./dist/posts/PostUrlDialog.d.ts",
-  "symbols": {
-   "PostUrlDialog": "function:61f67d7afa",
-   "PostUrlDialogView": "interface:4fc7454068"
+   "PostEditorView": "type:4ddbd36f20",
+   "VIEWS": "variable:0512611f8a",
+   "VIEW_TABS": "variable:d3effc1f24"
   }
  },
  "./publish-content/screen/hooks/publish-availability.store": {
@@ -2152,14 +2043,6 @@
    "AuthenticationProviderSchema": "interface:90578ab2be"
   }
  },
- "./screens/collections/api/collections-api": {
-  "types": "./dist/screens/collections/api/collections-api.d.ts",
-  "symbols": {
-   "CollectionsApi": "type:dc138c8fc9",
-   "CollectionsRequestFn": "type:2c3af788ee",
-   "createCollectionsApi": "function:304102b0a8"
-  }
- },
  "./screens/collections/api/collections-api.types": {
   "types": "./dist/screens/collections/api/collections-api.types.d.ts",
   "symbols": {
@@ -2173,98 +2056,10 @@
    "EntryStatus": "type:f517b21192"
   }
  },
- "./screens/collections/CollectionEntries": {
-  "types": "./dist/screens/collections/CollectionEntries.d.ts",
-  "symbols": {
-   "CollectionEntries": "function:283e042298",
-   "CollectionEntriesProps": "interface:f55185dd2d"
-  }
- },
- "./screens/collections/Collections": {
-  "types": "./dist/screens/collections/Collections.d.ts",
-  "symbols": {
-   "Collections": "function:421a2f16df",
-   "CollectionsProps": "interface:afcb6c7912"
-  }
- },
- "./screens/collections/collections-host-kit": {
-  "types": "./dist/screens/collections/collections-host-kit.d.ts",
-  "symbols": {
-   "CollectionsApiErrorLike": "interface:9ac6018a0a",
-   "CollectionsHostKit": "interface:8fc8a95e7f"
-  }
- },
- "./screens/collections/collections-i18n/collections-audit-embed-i18n": {
-  "types": "./dist/screens/collections/collections-i18n/collections-audit-embed-i18n.d.ts",
-  "symbols": {
-   "COLLECTIONS_AUDIT_I18N": "variable:ea415ef774",
-   "COLLECTIONS_EMBED_I18N": "variable:214e6754b4"
-  }
- },
- "./screens/collections/collections-i18n/collections-dialogs-i18n": {
-  "types": "./dist/screens/collections/collections-i18n/collections-dialogs-i18n.d.ts",
-  "symbols": {
-   "COLLECTIONS_DIALOGS_I18N": "variable:f852a62d86"
-  }
- },
- "./screens/collections/collections-i18n/collections-entries-i18n": {
-  "types": "./dist/screens/collections/collections-i18n/collections-entries-i18n.d.ts",
-  "symbols": {
-   "COLLECTIONS_ENTRIES_I18N": "variable:fc51b21358"
-  }
- },
- "./screens/collections/collections-i18n/collections-hooks-i18n": {
-  "types": "./dist/screens/collections/collections-i18n/collections-hooks-i18n.d.ts",
-  "symbols": {
-   "COLLECTIONS_HOOKS_I18N": "variable:494df43954"
-  }
- },
- "./screens/collections/collections-i18n/collections-lifecycle-i18n": {
-  "types": "./dist/screens/collections/collections-i18n/collections-lifecycle-i18n.d.ts",
-  "symbols": {
-   "entryLifecycleFailureMessage": "function:e814e090d1",
-   "lifecycleFailureMessage": "function:765ee7c93b"
-  }
- },
- "./screens/collections/collections-i18n/collections-list-i18n": {
-  "types": "./dist/screens/collections/collections-i18n/collections-list-i18n.d.ts",
-  "symbols": {
-   "COLLECTIONS_LIST_I18N": "variable:9c11d6ae88"
-  }
- },
- "./screens/collections/collections-i18n/create-collections-dictionary": {
-  "types": "./dist/screens/collections/collections-i18n/create-collections-dictionary.d.ts",
-  "symbols": {
-   "createCollectionsDictionary": "function:125d9ace2b"
-  }
- },
- "./screens/collections/EditFieldsDialog": {
-  "types": "./dist/screens/collections/EditFieldsDialog.d.ts",
-  "symbols": {
-   "EditFieldsDialog": "function:f785799345",
-   "EditFieldsDialogProps": "interface:a10f1088ef"
-  }
- },
- "./screens/collections/hooks/collection-entries-dependencies.hooks": {
-  "types": "./dist/screens/collections/hooks/collection-entries-dependencies.hooks.d.ts",
-  "symbols": {
-   "FakeCollectionEntriesPortOptions": "interface:07936fb820",
-   "createCollectionEntriesPort": "function:635fcd79a0",
-   "createFakeCollectionEntriesPort": "function:c4e6383020"
-  }
- },
  "./screens/collections/hooks/collection-entries-port.hooks": {
   "types": "./dist/screens/collections/hooks/collection-entries-port.hooks.d.ts",
   "symbols": {
    "CollectionEntriesPort": "interface:5297e96040"
-  }
- },
- "./screens/collections/hooks/collection-entry-editor-dependencies.hooks": {
-  "types": "./dist/screens/collections/hooks/collection-entry-editor-dependencies.hooks.d.ts",
-  "symbols": {
-   "FakeCollectionEntryEditorPortOptions": "interface:9bc23fe411",
-   "createCollectionEntryEditorPort": "function:c670d559c0",
-   "createFakeCollectionEntryEditorPort": "function:1828d18893"
   }
  },
  "./screens/collections/hooks/collection-entry-editor-port.hooks": {
@@ -2273,26 +2068,10 @@
    "CollectionEntryEditorPort": "interface:dd65920435"
   }
  },
- "./screens/collections/hooks/collections-dependencies.hooks": {
-  "types": "./dist/screens/collections/hooks/collections-dependencies.hooks.d.ts",
-  "symbols": {
-   "FakeCollectionsPortOptions": "interface:99de3c66ce",
-   "createCollectionsPort": "function:ac49d75951",
-   "createFakeCollectionsPort": "function:ba4ef6c2a0"
-  }
- },
  "./screens/collections/hooks/collections-port.hooks": {
   "types": "./dist/screens/collections/hooks/collections-port.hooks.d.ts",
   "symbols": {
    "CollectionsPort": "interface:1186accdc2"
-  }
- },
- "./screens/collections/hooks/edit-fields-dialog-dependencies.hooks": {
-  "types": "./dist/screens/collections/hooks/edit-fields-dialog-dependencies.hooks.d.ts",
-  "symbols": {
-   "FakeEditFieldsDialogPortOptions": "interface:b5996eeae2",
-   "createEditFieldsDialogPort": "function:ae462cf65a",
-   "createFakeEditFieldsDialogPort": "function:3066e7067a"
   }
  },
  "./screens/collections/hooks/edit-fields-dialog-port.hooks": {
@@ -2301,51 +2080,10 @@
    "EditFieldsDialogPort": "interface:6fd4870c64"
   }
  },
- "./screens/collections/hooks/new-content-type-dialog-dependencies.hooks": {
-  "types": "./dist/screens/collections/hooks/new-content-type-dialog-dependencies.hooks.d.ts",
-  "symbols": {
-   "FakeNewContentTypeDialogPortOptions": "interface:09f77b6701",
-   "createFakeNewContentTypeDialogPort": "function:261cd454cc",
-   "createNewContentTypeDialogPort": "function:6f6aff83e3"
-  }
- },
  "./screens/collections/hooks/new-content-type-dialog-port.hooks": {
   "types": "./dist/screens/collections/hooks/new-content-type-dialog-port.hooks.d.ts",
   "symbols": {
    "NewContentTypeDialogPort": "interface:efd1af227d"
-  }
- },
- "./screens/collections/hooks/use-collection-entries.hooks": {
-  "types": "./dist/screens/collections/hooks/use-collection-entries.hooks.d.ts",
-  "symbols": {
-   "CollectionEntriesController": "interface:ef9a5e5f5d",
-   "CollectionEntriesDependencies": "interface:bc56431921",
-   "useCollectionEntries": "function:816add37c0"
-  }
- },
- "./screens/collections/hooks/use-collection-entry-editor.hooks": {
-  "types": "./dist/screens/collections/hooks/use-collection-entry-editor.hooks.d.ts",
-  "symbols": {
-   "CollectionEntryBodyEditor": "interface:1e9395fbcb",
-   "CollectionEntryEditorController": "interface:72adf04751",
-   "CollectionEntryEditorDependencies": "interface:157c010711",
-   "CollectionEntryEditorProps": "interface:797ab693b9",
-   "useCollectionEntryEditor": "function:d4c0cd0230"
-  }
- },
- "./screens/collections/hooks/use-collections.hooks": {
-  "types": "./dist/screens/collections/hooks/use-collections.hooks.d.ts",
-  "symbols": {
-   "CollectionsController": "interface:d2d045e20d",
-   "CollectionsDependencies": "interface:cb07da5c13",
-   "useCollections": "function:c2cd1c990c"
-  }
- },
- "./screens/collections/hooks/use-edit-fields-dialog.hooks": {
-  "types": "./dist/screens/collections/hooks/use-edit-fields-dialog.hooks.d.ts",
-  "symbols": {
-   "EditFieldsDialogController": "interface:3a5ec310a0",
-   "useEditFieldsDialog": "function:a2aa0f592c"
   }
  },
  "./screens/collections/hooks/use-json-field-control.hooks": {
@@ -2353,85 +2091,6 @@
   "symbols": {
    "JsonFieldControlState": "interface:db96cd06f0",
    "useJsonFieldControl": "function:4ee78c579b"
-  }
- },
- "./screens/collections/hooks/use-lifecycle-confirm-dialog.hooks": {
-  "types": "./dist/screens/collections/hooks/use-lifecycle-confirm-dialog.hooks.d.ts",
-  "symbols": {
-   "LifecycleConfirmDialogController": "interface:321b0ac6f5",
-   "LifecycleConfirmDialogDependencies": "interface:d4c686430b",
-   "useLifecycleConfirmDialog": "function:97ae1d8402"
-  }
- },
- "./screens/collections/hooks/use-new-content-type-dialog.hooks": {
-  "types": "./dist/screens/collections/hooks/use-new-content-type-dialog.hooks.d.ts",
-  "symbols": {
-   "NewContentTypeDialogController": "interface:0896ce3165",
-   "NewContentTypeDialogDependencies": "interface:2cb217b030",
-   "useNewContentTypeDialog": "function:14e17572fa"
-  }
- },
- "./screens/collections/LifecycleConfirmDialog": {
-  "types": "./dist/screens/collections/LifecycleConfirmDialog.d.ts",
-  "symbols": {
-   "LifecycleConfirmDialog": "function:7ec10eff7d",
-   "LifecycleConfirmDialogProps": "interface:cf2f6dc1c9"
-  }
- },
- "./screens/collections/NewContentTypeDialog": {
-  "types": "./dist/screens/collections/NewContentTypeDialog.d.ts",
-  "symbols": {
-   "NewContentTypeDialog": "function:37fac37799",
-   "NewContentTypeDialogProps": "interface:8647a14b0f"
-  }
- },
- "./screens/collections/rules": {
-  "types": "./dist/screens/collections/rules.d.ts",
-  "symbols": {
-   "ADMIN_SYSTEM_CONTENT_TYPES": "variable:241bafba6f",
-   "BoundCollectionsRules": "interface:e580de2055",
-   "ContentTypeRowMenuHandlers": "interface:f3e3af1594",
-   "DraftField": "interface:cdcee94785",
-   "KEYS": "variable:366475a2d5",
-   "LIFECYCLE_COPY": "variable:7e8c8e0d42",
-   "LifecycleConfirmOp": "type:63ed7f017d",
-   "STALE_VERSION_MESSAGE": "variable:2505e21449",
-   "addDraftField": "function:ddefd76c18",
-   "autoFocusCancelForLifecycleOp": "function:684d175013",
-   "bindCollectionsRules": "function:78d796b93b",
-   "collectionEmbedSnippet": "function:84c04d3588",
-   "contentTypeMenuItems": "function:aa08b4c5ed",
-   "createDraftRowIdCounter": "function:cd2f09d35d",
-   "describeEditFieldsError": "function:505d77f294",
-   "draftFieldsFromContentType": "function:c6706823c2",
-   "emptyField": "function:4aac5e99a5",
-   "firstDraftFieldError": "function:9a96f10048",
-   "isUserCollection": "function:147451b615",
-   "lifecycleCopy": "function:2ab77ef18f",
-   "removeDraftField": "function:431a835f6f",
-   "stripDraftFieldRowIds": "function:5e79f735a1",
-   "updateDraftField": "function:d1a6b99440",
-   "validateEditFieldsDraft": "function:77c45c7636",
-   "validateFieldName": "function:10eaf1e739",
-   "validateKey": "function:2216dce69b",
-   "validateNewContentTypeDraft": "function:d23cf7f7cb",
-   "visibleEntryEditorError": "function:56a25517e6"
-  }
- },
- "./screens/comments": {
-  "types": "./dist/screens/comments/index.d.ts",
-  "symbols": {
-   "Comments": "function:0ccfcff873",
-   "CommentsModulePanelHook": "type:743a55489b",
-   "CommentsPanelProps": "interface:1854929908"
-  }
- },
- "./screens/comments/api/comments-api": {
-  "types": "./dist/screens/comments/api/comments-api.d.ts",
-  "symbols": {
-   "CommentsRequestFn": "type:04fd2600d5",
-   "CreateCommentsApiArgs": "interface:1f81b2c92b",
-   "createCommentsApi": "function:e71cde9a5e"
   }
  },
  "./screens/comments/api/comments-api.types": {
@@ -2866,23 +2525,6 @@
    "useEmail": "function:5c2ca60601"
   }
  },
- "./screens/forms": {
-  "types": "./dist/screens/forms/index.d.ts",
-  "symbols": {
-   "FormEditor": "function:b6612ab386",
-   "FormsList": "function:203d4405f4",
-   "FormsModulePanelHook": "type:cb10eb8eda",
-   "FormsPanelProps": "interface:eff25b2070"
-  }
- },
- "./screens/forms/api/forms-api": {
-  "types": "./dist/screens/forms/api/forms-api.d.ts",
-  "symbols": {
-   "CreateFormsApiArgs": "interface:b342b86814",
-   "FormsRequestFn": "type:297a9d47d9",
-   "createFormsApi": "function:662eaad938"
-  }
- },
  "./screens/forms/api/forms-api.types": {
   "types": "./dist/screens/forms/api/forms-api.types.d.ts",
   "symbols": {
@@ -2890,36 +2532,6 @@
    "AdminFormField": "interface:98e0431454",
    "AdminFormNotify": "interface:855299e4e8",
    "AdminFormSubmission": "interface:e7c083de72"
-  }
- },
- "./screens/forms/create-forms-dictionary": {
-  "types": "./dist/screens/forms/create-forms-dictionary.d.ts",
-  "symbols": {
-   "createFormsDictionary": "function:f606e09cd4"
-  }
- },
- "./screens/forms/forms-attributes-explainer-i18n": {
-  "types": "./dist/screens/forms/forms-attributes-explainer-i18n.d.ts",
-  "symbols": {
-   "FORMS_ATTRIBUTES_EXPLAINER_I18N": "variable:b9249a2fca"
-  }
- },
- "./screens/forms/forms-editor-chrome-i18n": {
-  "types": "./dist/screens/forms/forms-editor-chrome-i18n.d.ts",
-  "symbols": {
-   "FORMS_EDITOR_CHROME_I18N": "variable:a40c2fa983"
-  }
- },
- "./screens/forms/forms-editor-i18n": {
-  "types": "./dist/screens/forms/forms-editor-i18n.d.ts",
-  "symbols": {
-   "FORMS_EDITOR_I18N": "variable:9e846019e2"
-  }
- },
- "./screens/forms/forms-field-editor-i18n": {
-  "types": "./dist/screens/forms/forms-field-editor-i18n.d.ts",
-  "symbols": {
-   "FORMS_FIELD_EDITOR_I18N": "variable:0d35974f6f"
   }
  },
  "./screens/forms/forms-field-settings-i18n": {
@@ -2936,18 +2548,6 @@
    "FORMS_LEAVE_GUARD_I18N": "variable:040640f01b",
    "FORMS_LEAVE_GUARD_KEYS": "variable:4e7cfea865",
    "FORMS_LEAVE_GUARD_TRANSLATIONS": "variable:b16081fb05"
-  }
- },
- "./screens/forms/forms-list-i18n": {
-  "types": "./dist/screens/forms/forms-list-i18n.d.ts",
-  "symbols": {
-   "FORMS_LIST_I18N": "variable:ed0bb02467"
-  }
- },
- "./screens/forms/forms-submissions-i18n": {
-  "types": "./dist/screens/forms/forms-submissions-i18n.d.ts",
-  "symbols": {
-   "FORMS_SUBMISSIONS_I18N": "variable:e90fc36408"
   }
  },
  "./screens/forms/index-aligned-translations": {
@@ -3056,164 +2656,43 @@
    "UseImportExportGitBackup": "type:d9fb93880c"
   }
  },
- "./screens/library/hooks/library-port.hooks": {
-  "types": "./dist/screens/library/hooks/library-port.hooks.d.ts",
+ "./screens/integrations/agent-plugin-ports": {
+  "types": "./dist/screens/integrations/agent-plugin-ports.d.ts",
   "symbols": {
-   "LibraryPort": "interface:5d177c4c09"
+   "AgentPluginInstallPort": "interface:2613c27b46",
+   "AgentPluginInstallResult": "interface:4be9c1081c",
+   "AgentPluginsPort": "interface:324b935061"
   }
  },
- "./screens/library/hooks/use-library.hooks": {
-  "types": "./dist/screens/library/hooks/use-library.hooks.d.ts",
+ "./screens/integrations/api/integrations-api": {
+  "types": "./dist/screens/integrations/api/integrations-api.d.ts",
   "symbols": {
-   "LibraryController": "interface:16166eb246",
-   "LibraryDependencies": "interface:7dd7f70f77",
-   "LibraryPermissions": "interface:49c319f5bc",
-   "LibraryPreviewState": "interface:0f4c1afe35",
-   "LibraryUploadRow": "interface:b92a16b569",
-   "LibraryUploadStatus": "type:1d4c9e9837",
-   "useLibrary": "function:590420a40f"
+   "IntegrationsApiDeps": "interface:66a0189d81",
+   "IntegrationsRequestFn": "type:8507018dbe",
+   "createIntegrationsApi": "function:6a78bb85a6"
   }
  },
- "./screens/library/Library.hooks": {
-  "types": "./dist/screens/library/Library.hooks.d.ts",
+ "./screens/integrations/integrations-i18n": {
+  "types": "./dist/screens/integrations/integrations-i18n.d.ts",
   "symbols": {
-   "LIBRARY_TAB_IDS": "variable:d341bd7cd2",
-   "LibraryTabId": "type:47da6ab6e3",
-   "createPreviewKeyDown": "function:beb1dec8ef",
-   "createRenameKeyDown": "function:e649f4e38c",
-   "goToLibraryTab": "function:ae55cd845e",
-   "resolveLibraryTabId": "function:4f40adea6b",
-   "resolveLibraryTabs": "function:f18117cc64"
+   "actionsForWebhookLabel": "function:785b25e1c8",
+   "createIntegrationsDictionary": "function:039fff27a5",
+   "deleteWebhookBody": "function:675f664599"
   }
  },
- "./screens/library/rules": {
-  "types": "./dist/screens/library/rules.d.ts",
+ "./screens/integrations/integrations-ports": {
+  "types": "./dist/screens/integrations/integrations-ports.d.ts",
   "symbols": {
-   "LIBRARY_ACCEPT": "variable:f590a7252e",
-   "LIBRARY_EXTENSIONS": "variable:eee4cd02c6",
-   "LIBRARY_KEYS": "variable:8764ae00c7",
-   "LIBRARY_MAX_BYTES": "variable:4fe2292513",
-   "LibraryExtension": "type:d0848f774f",
-   "LibraryFileProblem": "type:c82ec35330",
-   "LibraryPreviewKind": "type:713f18efe4",
-   "documentExtensionSuffix": "function:645120758c",
-   "documentName": "function:8f1cf3f309",
-   "documentPreviewKind": "function:e08df50a7b",
-   "documentTypeLabel": "function:94ecf67c1e",
-   "documentUploaderLabel": "function:93485e2d7b",
-   "formatLibraryBytes": "function:c9bf026397",
-   "libraryExtension": "function:7ce5a20a7f",
-   "libraryFileProblem": "function:27b072c5b3",
-   "sortDocuments": "function:5bcbdfe0ff",
-   "validDocumentStem": "function:63a8f3298c"
+   "IntegrationDeliveriesPort": "interface:eaf85c8b8e",
+   "IntegrationsPort": "interface:0b054628ad"
   }
  },
- "./screens/media/grid-size": {
-  "types": "./dist/screens/media/grid-size.d.ts",
+ "./screens/integrations/IntegrationsRedirect": {
+  "types": "./dist/screens/integrations/IntegrationsRedirect.d.ts",
   "symbols": {
-   "MEDIA_GRID_SIZES": "variable:5b651ba40e",
-   "MediaGridSize": "type:8ecc4880cb",
-   "parseMediaGridSize": "function:6a470cc558"
-  }
- },
- "./screens/media/hooks/media-port.hooks": {
-  "types": "./dist/screens/media/hooks/media-port.hooks.d.ts",
-  "symbols": {
-   "MediaPort": "interface:e17bfea4ec"
-  }
- },
- "./screens/media/hooks/use-edit-media-modal.hooks": {
-  "types": "./dist/screens/media/hooks/use-edit-media-modal.hooks.d.ts",
-  "symbols": {
-   "EditMediaDialogHelper": "type:86300f8b41",
-   "EditMediaModalArgs": "interface:3f38650a80",
-   "EditMediaModalController": "interface:32287e08c0",
-   "EditMediaModalOptional": "type:d5b053166c",
-   "useEditMediaModal": "function:6484b0a8ad"
-  }
- },
- "./screens/media/hooks/use-media-card-details.hooks": {
-  "types": "./dist/screens/media/hooks/use-media-card-details.hooks.d.ts",
-  "symbols": {
-   "useMediaCardDetails": "function:bd091d1eb0"
-  }
- },
- "./screens/media/hooks/use-media-card-metadata.hooks": {
-  "types": "./dist/screens/media/hooks/use-media-card-metadata.hooks.d.ts",
-  "symbols": {
-   "MediaCardMetadataSource": "interface:dbea75d561",
-   "MediaMetadataFormatters": "interface:888daeb5f1",
-   "useMediaCardMetadata": "function:908e0588b8"
-  }
- },
- "./screens/media/hooks/use-media-grid-size.hooks": {
-  "types": "./dist/screens/media/hooks/use-media-grid-size.hooks.d.ts",
-  "symbols": {
-   "UseMediaGridSizeArgs": "interface:e464828c48",
-   "useMediaGridSize": "function:abef7c3d83"
-  }
- },
- "./screens/media/media-i18n/create-media-dictionary": {
-  "types": "./dist/screens/media/media-i18n/create-media-dictionary.d.ts",
-  "symbols": {
-   "createMediaDictionary": "function:1bd5313d16"
-  }
- },
- "./screens/media/media-i18n/media-addons-i18n": {
-  "types": "./dist/screens/media/media-i18n/media-addons-i18n.d.ts",
-  "symbols": {
-   "MEDIA_AUDIT_STRINGS": "variable:da78227647",
-   "MEDIA_DIALOG_STRINGS": "variable:641fa2711d",
-   "MEDIA_IMPORT_STRINGS": "variable:a44a004a79",
-   "MEDIA_LINK_STRINGS": "variable:a22e32284e",
-   "MEDIA_PROVENANCE_STRINGS": "variable:9636c20786",
-   "MEDIA_SHAPE_STRINGS": "variable:aee0a4675e",
-   "MEDIA_TOOLBAR_STRINGS": "variable:3dad6a4972",
-   "MEDIA_TRASH_STRINGS": "variable:d3a367199d"
-  }
- },
- "./screens/media/media-i18n/media-dialogs-i18n": {
-  "types": "./dist/screens/media/media-i18n/media-dialogs-i18n.d.ts",
-  "symbols": {
-   "MEDIA_DIALOGS_BASE_I18N": "variable:aac5f24f92"
-  }
- },
- "./screens/media/media-i18n/media-edit-panel-i18n": {
-  "types": "./dist/screens/media/media-i18n/media-edit-panel-i18n.d.ts",
-  "symbols": {
-   "MEDIA_EDIT_PANEL_I18N": "variable:1dd4286e5f"
-  }
- },
- "./screens/media/media-i18n/media-hooks-i18n": {
-  "types": "./dist/screens/media/media-i18n/media-hooks-i18n.d.ts",
-  "symbols": {
-   "MEDIA_HOOKS_I18N": "variable:662e6cc942"
-  }
- },
- "./screens/media/media-i18n/media-html-attributes-i18n": {
-  "types": "./dist/screens/media/media-i18n/media-html-attributes-i18n.d.ts",
-  "symbols": {
-   "MEDIA_HTML_ATTRIBUTES_I18N": "variable:d91d7d424f"
-  }
- },
- "./screens/media/media-i18n/media-library-i18n": {
-  "types": "./dist/screens/media/media-i18n/media-library-i18n.d.ts",
-  "symbols": {
-   "MEDIA_LIBRARY_I18N": "variable:76f8c82a5e"
-  }
- },
- "./screens/media/media-i18n/media-toolbar-i18n": {
-  "types": "./dist/screens/media/media-i18n/media-toolbar-i18n.d.ts",
-  "symbols": {
-   "MEDIA_TOOLBAR_BASE_I18N": "variable:cb100ff1ce"
-  }
- },
- "./screens/menus/api/menus-api": {
-  "types": "./dist/screens/menus/api/menus-api.d.ts",
-  "symbols": {
-   "MenusApi": "type:b40fa948cf",
-   "MenusRequestFn": "type:26f4775a3d",
-   "createMenusApi": "function:cb99c6205c"
+   "IntegrationsRedirect": "function:9a38524e01",
+   "IntegrationsRedirectProps": "interface:200e693aea",
+   "UseIntegrationsRedirect": "type:476655a825"
   }
  },
  "./screens/menus/api/menus-api.types": {
@@ -3227,54 +2706,10 @@
    "AdminMenuTarget": "interface:34523e5442"
   }
  },
- "./screens/menus/hooks/menus-dependencies.hooks": {
-  "types": "./dist/screens/menus/hooks/menus-dependencies.hooks.d.ts",
-  "symbols": {
-   "FakeMenusPortOptions": "interface:f21521f277",
-   "MenusTrashClient": "interface:9e9b93a84e",
-   "createFakeMenusPort": "function:a90cecbc7c",
-   "createMenusPort": "function:eebe6ecf3e"
-  }
- },
  "./screens/menus/hooks/menus-port.hooks": {
   "types": "./dist/screens/menus/hooks/menus-port.hooks.d.ts",
   "symbols": {
    "MenusPort": "interface:6aa12d28d6"
-  }
- },
- "./screens/menus/hooks/use-menu-editor-state.hooks": {
-  "types": "./dist/screens/menus/hooks/use-menu-editor-state.hooks.d.ts",
-  "symbols": {
-   "MenuEditorState": "type:24e7edea30",
-   "MenuFormState": "interface:a4291bdcb7",
-   "hydrateMenuForm": "function:3368f605e2",
-   "useMenuEditorState": "function:e3af31788d",
-   "useMenuFieldActions": "function:78efa577bf",
-   "useMenuItemActions": "function:5b99ffca4a"
-  }
- },
- "./screens/menus/hooks/use-menu-editor-writes.hooks": {
-  "types": "./dist/screens/menus/hooks/use-menu-editor-writes.hooks.d.ts",
-  "symbols": {
-   "MenuEditorClipboard": "interface:bc5d9fd3f4",
-   "useMenuCopyEmbed": "function:30efa5ed3a",
-   "useMenuSave": "function:cf75195240"
-  }
- },
- "./screens/menus/hooks/use-menu-editor.hooks": {
-  "types": "./dist/screens/menus/hooks/use-menu-editor.hooks.d.ts",
-  "symbols": {
-   "MenuEditorController": "interface:8cd6346663",
-   "MenuEditorDependencies": "interface:8684f0be3f",
-   "useMenuEditor": "function:ef7bcb4308"
-  }
- },
- "./screens/menus/hooks/use-menus.hooks": {
-  "types": "./dist/screens/menus/hooks/use-menus.hooks.d.ts",
-  "symbols": {
-   "MenusController": "interface:a054879b14",
-   "MenusDependencies": "interface:5fc3cbb48d",
-   "useMenus": "function:ab99c46793"
   }
  },
  "./screens/menus/html-rules": {
@@ -3283,13 +2718,6 @@
    "menuAuthoringForSave": "function:1d12799be9",
    "menuHtmlEmbed": "function:9ec9d350f5",
    "menuHtmlStarter": "function:f4cda5cfe9"
-  }
- },
- "./screens/menus/MenuEditor": {
-  "types": "./dist/screens/menus/MenuEditor.d.ts",
-  "symbols": {
-   "MenuEditor": "function:0a13bcc68d",
-   "MenuEditorProps": "interface:00ebfa6b31"
   }
  },
  "./screens/menus/MenuEditor.hooks": {
@@ -3309,57 +2737,6 @@
   "symbols": {
    "useMenuPageLinkFields": "function:32571ce38e",
    "useMenuTargetEditor": "function:203b92d940"
-  }
- },
- "./screens/menus/Menus": {
-  "types": "./dist/screens/menus/Menus.d.ts",
-  "symbols": {
-   "Menus": "function:14eb4b4a0d",
-   "MenusProps": "interface:9ca9692427"
-  }
- },
- "./screens/menus/menus-host-kit": {
-  "types": "./dist/screens/menus/menus-host-kit.d.ts",
-  "symbols": {
-   "MenusApiErrorLike": "interface:f735ded7c7",
-   "MenusFailureReporter": "interface:d1c14c7f9a",
-   "MenusHostKit": "interface:5d03b0b57c"
-  }
- },
- "./screens/menus/menus-i18n/create-menus-dictionary": {
-  "types": "./dist/screens/menus/menus-i18n/create-menus-dictionary.d.ts",
-  "symbols": {
-   "createMenusDictionary": "function:516f157ee3"
-  }
- },
- "./screens/menus/menus-i18n/menus-editor-i18n": {
-  "types": "./dist/screens/menus/menus-i18n/menus-editor-i18n.d.ts",
-  "symbols": {
-   "MENUS_EDITOR_I18N": "variable:112090885c"
-  }
- },
- "./screens/menus/menus-i18n/menus-item-advanced-i18n": {
-  "types": "./dist/screens/menus/menus-i18n/menus-item-advanced-i18n.d.ts",
-  "symbols": {
-   "MENUS_ITEM_ADVANCED_I18N": "variable:15e5dd4e8c"
-  }
- },
- "./screens/menus/menus-i18n/menus-item-fields-i18n": {
-  "types": "./dist/screens/menus/menus-i18n/menus-item-fields-i18n.d.ts",
-  "symbols": {
-   "MENUS_ITEM_FIELDS_I18N": "variable:8ecd782eb8"
-  }
- },
- "./screens/menus/menus-i18n/menus-list-i18n": {
-  "types": "./dist/screens/menus/menus-i18n/menus-list-i18n.d.ts",
-  "symbols": {
-   "MENUS_LIST_I18N": "variable:c4ed9193a1"
-  }
- },
- "./screens/menus/menus-i18n/menus-page-link-i18n": {
-  "types": "./dist/screens/menus/menus-i18n/menus-page-link-i18n.d.ts",
-  "symbols": {
-   "MENUS_PAGE_LINK_I18N": "variable:d383c52958"
   }
  },
  "./screens/menus/page-link-rules": {
@@ -3570,6 +2947,28 @@
    "UploadIcon": "function:5599563429"
   }
  },
+ "./screens/plugins/AgentPlugins.hooks": {
+  "types": "./dist/screens/plugins/AgentPlugins.hooks.d.ts",
+  "symbols": {
+   "AgentPluginConfirmationInputs": "interface:5be7db50c2",
+   "useAgentPluginConfirmation": "function:0f94806cd8"
+  }
+ },
+ "./screens/plugins/api/plugins-api": {
+  "types": "./dist/screens/plugins/api/plugins-api.d.ts",
+  "symbols": {
+   "PluginsApiDeps": "interface:012b25d31c",
+   "PluginsRequestFn": "type:790ca7001c",
+   "createPluginsApi": "function:970de13a40"
+  }
+ },
+ "./screens/plugins/api/plugins-api.types": {
+  "types": "./dist/screens/plugins/api/plugins-api.types.d.ts",
+  "symbols": {
+   "AdminPluginProviderSettingField": "interface:db2042649d",
+   "AdminPluginProviderSettings": "interface:863be635e0"
+  }
+ },
  "./screens/plugins/composer-capabilities": {
   "types": "./dist/screens/plugins/composer-capabilities.d.ts",
   "symbols": {
@@ -3586,6 +2985,13 @@
    "rankComposerDiscoveryGroups": "function:86b3fe2265"
   }
  },
+ "./screens/plugins/hooks/agent-plugin-memory-port.hooks": {
+  "types": "./dist/screens/plugins/hooks/agent-plugin-memory-port.hooks.d.ts",
+  "symbols": {
+   "AgentPluginMemoryPort": "interface:577af4a85c",
+   "PluginMemoryListing": "interface:50304b1568"
+  }
+ },
  "./screens/plugins/hooks/agent-plugin-surfaces-port.hooks": {
   "types": "./dist/screens/plugins/hooks/agent-plugin-surfaces-port.hooks.d.ts",
   "symbols": {
@@ -3595,17 +3001,51 @@
    "HostSignInLink": "interface:b7c7c98d25"
   }
  },
+ "./screens/plugins/hooks/plugin-install-port.hooks": {
+  "types": "./dist/screens/plugins/hooks/plugin-install-port.hooks.d.ts",
+  "symbols": {
+   "PluginInstallPort": "interface:88de3e9c8d",
+   "PluginInstallPreview": "interface:6c83bc366f",
+   "PluginInstallSource": "interface:2d51327859"
+  }
+ },
+ "./screens/plugins/hooks/plugins-port.hooks": {
+  "types": "./dist/screens/plugins/hooks/plugins-port.hooks.d.ts",
+  "symbols": {
+   "PluginsPort": "interface:26cbb32acc"
+  }
+ },
  "./screens/plugins/hooks/use-linked-lock-tip.hooks": {
   "types": "./dist/screens/plugins/hooks/use-linked-lock-tip.hooks.d.ts",
   "symbols": {
    "linkedLockTip": "function:3ae26cef0a"
   }
  },
+ "./screens/plugins/hooks/use-plugin-provider-settings.hooks": {
+  "types": "./dist/screens/plugins/hooks/use-plugin-provider-settings.hooks.d.ts",
+  "symbols": {
+   "PluginProviderSettingsController": "interface:4132bb0bb6",
+   "usePluginProviderSettings": "function:95844bd4ce"
+  }
+ },
+ "./screens/plugins/hooks/use-plugin-row-focus.hooks": {
+  "types": "./dist/screens/plugins/hooks/use-plugin-row-focus.hooks.d.ts",
+  "symbols": {
+   "usePluginRowFocus": "function:07c5ed9356"
+  }
+ },
+ "./screens/plugins/PluginProviderSettingField.hooks": {
+  "types": "./dist/screens/plugins/PluginProviderSettingField.hooks.d.ts",
+  "symbols": {
+   "CUSTOM": "variable:d8887f0d3a",
+   "usePluginProviderChoice": "function:d26fdf540d"
+  }
+ },
  "./screens/plugins/plugins-i18n": {
   "types": "./dist/screens/plugins/plugins-i18n.d.ts",
   "symbols": {
    "PLUGINS_DICT_TEMPLATE": "variable:d63d084c30",
-   "createPluginsDictionary": "function:a841914120"
+   "createPluginsDictionary": "function:c6714802a7"
   }
  },
  "./screens/plugins/plugins-memory-i18n": {
@@ -3613,6 +3053,52 @@
   "symbols": {
    "PLUGIN_MEMORY_DICT": "variable:12adaf912c",
    "t": "variable:44d298bf90"
+  }
+ },
+ "./screens/plugins/selected-skills": {
+  "types": "./dist/screens/plugins/selected-skills.d.ts",
+  "symbols": {
+   "SelectedComposerSkill": "interface:96e2554ded",
+   "draftAfterSkillSelection": "function:d02931e767",
+   "promptWithSelectedSkills": "function:dfb9209808",
+   "selectedSkillsFromContext": "function:18cd57bdc9"
+  }
+ },
+ "./screens/providers/always-allow-ports": {
+  "types": "./dist/screens/providers/always-allow-ports.d.ts",
+  "symbols": {
+   "AlwaysAllowPort": "interface:4fa6e30b32"
+  }
+ },
+ "./screens/providers/always-allow-rules": {
+  "types": "./dist/screens/providers/always-allow-rules.d.ts",
+  "symbols": {
+   "ALWAYS_ALLOW_KEYS": "variable:c65a500d3d",
+   "AlwaysAllowGroup": "interface:a882add0ae",
+   "formatGrantedAt": "function:3470e45f13",
+   "groupAlwaysAllow": "function:0571646168"
+  }
+ },
+ "./screens/providers/api/providers-api": {
+  "types": "./dist/screens/providers/api/providers-api.d.ts",
+  "symbols": {
+   "ProjectKeyUseResult": "interface:d116858e1e",
+   "ProvidersApiDeps": "interface:43cc37c400",
+   "ProvidersRequestFn": "type:0f2982caaa",
+   "createProvidersApi": "function:757f944346"
+  }
+ },
+ "./screens/providers/hooks/use-providers.hooks": {
+  "types": "./dist/screens/providers/hooks/use-providers.hooks.d.ts",
+  "symbols": {
+   "ProvidersController": "interface:6118137500",
+   "useProviders": "function:89b3183eaf"
+  }
+ },
+ "./screens/providers/providers-i18n": {
+  "types": "./dist/screens/providers/providers-i18n.d.ts",
+  "symbols": {
+   "createProvidersDictionary": "function:96cbd48c7b"
   }
  },
  "./screens/redirects": {
@@ -3647,10 +3133,57 @@
    "t": "variable:44d298bf90"
   }
  },
+ "./screens/settings/external-mcp-connection-drift": {
+  "types": "./dist/screens/settings/external-mcp-connection-drift.d.ts",
+  "symbols": {
+   "describeAdmissionDrift": "function:5ff88493d1"
+  }
+ },
+ "./screens/settings/external-mcp-drift-types": {
+  "types": "./dist/screens/settings/external-mcp-drift-types.d.ts",
+  "symbols": {
+   "AdmissionDriftConnection": "interface:f6b5c7640a",
+   "AdmissionDriftEntry": "interface:834940d403",
+   "AdmissionDriftKind": "type:14ce3c2110",
+   "ExternalMcpDriftCopy": "interface:583d4f9d8c",
+   "ExternalMcpRefusalCopy": "type:592ee6b836",
+   "SavedConnectionIntent": "interface:5df6e0acfb"
+  }
+ },
  "./screens/settings/external-mcp-i18n": {
   "types": "./dist/screens/settings/external-mcp-i18n.d.ts",
   "symbols": {
    "t": "variable:44d298bf90"
+  }
+ },
+ "./screens/settings/external-mcp-tool-drift": {
+  "types": "./dist/screens/settings/external-mcp-tool-drift.d.ts",
+  "symbols": {
+   "admissionRestartHelps": "function:55ea23f137",
+   "describeConnectionDrift": "function:98e55865b2",
+   "describeDriftHeadline": "function:49f359188f",
+   "grantWriteFieldValue": "function:1c767eacd5",
+   "parseSavedToolNames": "function:02142a14b4"
+  }
+ },
+ "./screens/settings/external-mcp-tool-picker-rules": {
+  "types": "./dist/screens/settings/external-mcp-tool-picker-rules.d.ts",
+  "symbols": {
+   "ExternalMcpProbeErrors": "interface:f40221ea28",
+   "ToolPickerRow": "interface:92d02033c8",
+   "ToolPickerRowKind": "type:51900d410f",
+   "countEnabledToolRows": "function:653523dfc2",
+   "describeProbeUnreachable": "function:62531aec8c",
+   "displayToolDescription": "function:aeb84bd3b3",
+   "isRecommendedByDefault": "function:f0817f30e1",
+   "isToolPickerDirty": "function:fb40d01e34",
+   "isToolRowLocked": "function:3a68035ddf",
+   "refreshToolRowDeclarations": "function:2da465003c",
+   "seedToolPickerRows": "function:9d87b32f9f",
+   "setToolRowEnabled": "function:0c49e6a4a5",
+   "setToolRowMayWrite": "function:210a48d4c1",
+   "toolPickerFieldValues": "function:152e38e770",
+   "toolPickerFooterLocks": "function:6de16ea36b"
   }
  },
  "./screens/settings/ExternalMcpRemoveConfirmDialog": {
@@ -3714,6 +3247,12 @@
    "SettingsLocaleSyncDependencies": "interface:85744fc5c6",
    "SettingsLocaleSyncHookProps": "interface:cc572048e0",
    "useSettingsLocaleSync": "function:ba06c59fc0"
+  }
+ },
+ "./screens/settings/settings-capabilities-i18n": {
+  "types": "./dist/screens/settings/settings-capabilities-i18n.d.ts",
+  "symbols": {
+   "createSettingsCapabilitiesDictionary": "function:53d6e048c0"
   }
  },
  "./screens/settings/settings-execution-i18n": {
@@ -3954,14 +3493,6 @@
    "useSkillInstallConfirmation": "function:a469cdbcfd"
   }
  },
- "./screens/taxonomy/api/taxonomy-api": {
-  "types": "./dist/screens/taxonomy/api/taxonomy-api.d.ts",
-  "symbols": {
-   "TaxonomyApi": "type:3301656947",
-   "TaxonomyRequestFn": "type:8463ff8cc4",
-   "createTaxonomyApi": "function:763b4e8f25"
-  }
- },
  "./screens/taxonomy/api/taxonomy-api.types": {
   "types": "./dist/screens/taxonomy/api/taxonomy-api.types.d.ts",
   "symbols": {
@@ -3971,26 +3502,10 @@
    "MergeTermPlanDetails": "interface:50d7e125b4"
   }
  },
- "./screens/taxonomy/hooks/merge-term-section-dependencies.hooks": {
-  "types": "./dist/screens/taxonomy/hooks/merge-term-section-dependencies.hooks.d.ts",
-  "symbols": {
-   "FakeMergeTermSectionPortOptions": "interface:62a7875b29",
-   "createFakeMergeTermSectionPort": "function:5c1537697e",
-   "createMergeTermSectionPort": "function:41acc2f2fa"
-  }
- },
  "./screens/taxonomy/hooks/merge-term-section-port.hooks": {
   "types": "./dist/screens/taxonomy/hooks/merge-term-section-port.hooks.d.ts",
   "symbols": {
    "MergeTermSectionPort": "interface:e2b4803452"
-  }
- },
- "./screens/taxonomy/hooks/new-taxonomy-form-dependencies.hooks": {
-  "types": "./dist/screens/taxonomy/hooks/new-taxonomy-form-dependencies.hooks.d.ts",
-  "symbols": {
-   "FakeNewTaxonomyFormPortOptions": "interface:4579699b3f",
-   "createFakeNewTaxonomyFormPort": "function:d9275911f2",
-   "createNewTaxonomyFormPort": "function:59cff1b4ca"
   }
  },
  "./screens/taxonomy/hooks/new-taxonomy-form-port.hooks": {
@@ -3999,28 +3514,10 @@
    "NewTaxonomyFormPort": "interface:1a7544953d"
   }
  },
- "./screens/taxonomy/hooks/new-term-form-dependencies.hooks": {
-  "types": "./dist/screens/taxonomy/hooks/new-term-form-dependencies.hooks.d.ts",
-  "symbols": {
-   "AdminTermCreateCall": "interface:c660ac9bf5",
-   "FakeNewTermFormPortOptions": "interface:d9a0fdbd66",
-   "createFakeNewTermFormPort": "function:c4f97efdc0",
-   "createNewTermFormPort": "function:b34cc9d687"
-  }
- },
  "./screens/taxonomy/hooks/new-term-form-port.hooks": {
   "types": "./dist/screens/taxonomy/hooks/new-term-form-port.hooks.d.ts",
   "symbols": {
    "NewTermFormPort": "interface:9357d79f94"
-  }
- },
- "./screens/taxonomy/hooks/taxonomy-dependencies.hooks": {
-  "types": "./dist/screens/taxonomy/hooks/taxonomy-dependencies.hooks.d.ts",
-  "symbols": {
-   "FakeTaxonomyPortOptions": "interface:8949a433e2",
-   "TaxonomyTrashClient": "interface:ce258fc8a6",
-   "createFakeTaxonomyPort": "function:66ccf4767a",
-   "createTaxonomyPort": "function:1a9d6f8345"
   }
  },
  "./screens/taxonomy/hooks/taxonomy-port.hooks": {
@@ -4029,170 +3526,16 @@
    "TaxonomyPort": "interface:9e5afc9e57"
   }
  },
- "./screens/taxonomy/hooks/term-picker-dependencies.hooks": {
-  "types": "./dist/screens/taxonomy/hooks/term-picker-dependencies.hooks.d.ts",
-  "symbols": {
-   "FakeTermPickerPortOptions": "interface:4617678422",
-   "createFakeTermPickerPort": "function:2e0bac75b2",
-   "createTermPickerPort": "function:04a827c63a"
-  }
- },
  "./screens/taxonomy/hooks/term-picker-port.hooks": {
   "types": "./dist/screens/taxonomy/hooks/term-picker-port.hooks.d.ts",
   "symbols": {
    "TermPickerPort": "interface:10ffa999f8"
   }
  },
- "./screens/taxonomy/hooks/use-merge-term-section.hooks": {
-  "types": "./dist/screens/taxonomy/hooks/use-merge-term-section.hooks.d.ts",
-  "symbols": {
-   "MergeStep": "type:04cfdbb28c",
-   "MergeTermSectionController": "interface:ee3727b180",
-   "MergeTermSectionOptions": "interface:37024f9919",
-   "UseMergeTermSectionArgs": "interface:e46d4ccfb6",
-   "useMergeTermSection": "function:31a0d71a48"
-  }
- },
- "./screens/taxonomy/hooks/use-new-taxonomy-form.hooks": {
-  "types": "./dist/screens/taxonomy/hooks/use-new-taxonomy-form.hooks.d.ts",
-  "symbols": {
-   "NewTaxonomyFormController": "interface:d0c5e0e673",
-   "NewTaxonomyFormOptions": "interface:f568ceb6f8",
-   "UseNewTaxonomyFormArgs": "interface:972bb3e5c8",
-   "useNewTaxonomyForm": "function:5750621797"
-  }
- },
- "./screens/taxonomy/hooks/use-new-term-form.hooks": {
-  "types": "./dist/screens/taxonomy/hooks/use-new-term-form.hooks.d.ts",
-  "symbols": {
-   "NewTermFormController": "interface:b65061d339",
-   "NewTermFormOptions": "interface:5cb79c8d07",
-   "UseNewTermFormArgs": "interface:7b17a0a45c",
-   "useNewTermForm": "function:3589d556b0"
-  }
- },
- "./screens/taxonomy/hooks/use-taxonomy-html-embed.hooks": {
-  "types": "./dist/screens/taxonomy/hooks/use-taxonomy-html-embed.hooks.d.ts",
-  "symbols": {
-   "useTaxonomyHtmlEmbed": "function:baeb800965"
-  }
- },
- "./screens/taxonomy/hooks/use-taxonomy.hooks": {
-  "types": "./dist/screens/taxonomy/hooks/use-taxonomy.hooks.d.ts",
-  "symbols": {
-   "TaxonomyController": "interface:aabd70a658",
-   "UseTaxonomyArgs": "interface:73cb561031",
-   "useTaxonomy": "function:67c453554c"
-  }
- },
- "./screens/taxonomy/hooks/use-term-detail-panel.hooks": {
-  "types": "./dist/screens/taxonomy/hooks/use-term-detail-panel.hooks.d.ts",
-  "symbols": {
-   "TermDetailPanelController": "interface:492c3429e9",
-   "TermDetailPanelOptions": "interface:a278e63593",
-   "UseTermDetailPanelArgs": "interface:4f674757fd",
-   "useTermDetailPanel": "function:ab0eaf23e6"
-  }
- },
- "./screens/taxonomy/hooks/use-term-list-reveal.hooks": {
-  "types": "./dist/screens/taxonomy/hooks/use-term-list-reveal.hooks.d.ts",
-  "symbols": {
-   "TermListReveal": "interface:ee75c82d62",
-   "useTermListReveal": "function:bab232a3c6"
-  }
- },
- "./screens/taxonomy/hooks/use-term-picker.hooks": {
-  "types": "./dist/screens/taxonomy/hooks/use-term-picker.hooks.d.ts",
-  "symbols": {
-   "TermPickerController": "interface:997b2025e2",
-   "TermPickerDependencies": "interface:eae0efb405",
-   "TermPickerTarget": "interface:b3dd42b016",
-   "UseTermPickerArgs": "interface:bf2205e92e",
-   "useTermPicker": "function:a1d93d58b3"
-  }
- },
  "./screens/taxonomy/html-rules": {
   "types": "./dist/screens/taxonomy/html-rules.d.ts",
   "symbols": {
    "taxonomyHtmlEmbed": "function:03e5b8704b"
-  }
- },
- "./screens/taxonomy/rules": {
-  "types": "./dist/screens/taxonomy/rules.d.ts",
-  "symbols": {
-   "DeleteBlockedState": "interface:0974205084",
-   "KEYS": "variable:127b1f612b",
-   "TAXONOMY_MANAGE_PERMISSION": "variable:55921b5e12",
-   "TAXONOMY_RESOURCE": "variable:2393e4dd6d",
-   "TERM_PICKER_COLLAPSED_COUNT": "variable:5b8d0560d2",
-   "TERM_PICKER_MAX_SHOWN": "variable:f6fe207e9f",
-   "TermListView": "interface:c3906d9591",
-   "describeDeleteBlocked": "function:95f3756766",
-   "describeTrashError": "function:45dfd365f1",
-   "findSelectedTerm": "function:93469dd448",
-   "findTermByName": "function:5de34deff0",
-   "otherMergeTargets": "function:a3c2d27ef2",
-   "splitTermNames": "function:83ab78bf9c",
-   "termDepth": "function:7a8ceba56f",
-   "termListView": "function:cf245be2e4",
-   "termPickerSubject": "function:18601a569d",
-   "visibleTaxonomyError": "function:9f49bf3c9e"
-  }
- },
- "./screens/taxonomy/Taxonomy": {
-  "types": "./dist/screens/taxonomy/Taxonomy.d.ts",
-  "symbols": {
-   "NewTaxonomyFormProps": "interface:e5a58c159e",
-   "Taxonomy": "function:4b2f2d7acd",
-   "TaxonomyProps": "interface:a4d3856d76"
-  }
- },
- "./screens/taxonomy/taxonomy-host-kit": {
-  "types": "./dist/screens/taxonomy/taxonomy-host-kit.d.ts",
-  "symbols": {
-   "TaxonomyApiErrorLike": "interface:813e6ea924",
-   "TaxonomyErrorKit": "interface:5ab393ea03",
-   "TaxonomyFailureReporter": "interface:8bcd825725",
-   "TaxonomyHostKit": "interface:78aa8b0cd3",
-   "TaxonomyLocalFailure": "interface:6b9527dffa"
-  }
- },
- "./screens/taxonomy/taxonomy-i18n/create-taxonomy-dictionary": {
-  "types": "./dist/screens/taxonomy/taxonomy-i18n/create-taxonomy-dictionary.d.ts",
-  "symbols": {
-   "createTaxonomyDictionary": "function:6ee3c3cc87"
-  }
- },
- "./screens/taxonomy/taxonomy-i18n/taxonomy-detail-i18n": {
-  "types": "./dist/screens/taxonomy/taxonomy-i18n/taxonomy-detail-i18n.d.ts",
-  "symbols": {
-   "TAXONOMY_DETAIL_I18N": "variable:a44e0b244d"
-  }
- },
- "./screens/taxonomy/taxonomy-i18n/taxonomy-hooks-i18n": {
-  "types": "./dist/screens/taxonomy/taxonomy-i18n/taxonomy-hooks-i18n.d.ts",
-  "symbols": {
-   "TAXONOMY_HOOKS_I18N": "variable:6060500a99"
-  }
- },
- "./screens/taxonomy/taxonomy-i18n/taxonomy-merge-i18n": {
-  "types": "./dist/screens/taxonomy/taxonomy-i18n/taxonomy-merge-i18n.d.ts",
-  "symbols": {
-   "TAXONOMY_MERGE_I18N": "variable:d45fae32ca"
-  }
- },
- "./screens/taxonomy/taxonomy-i18n/taxonomy-screen-i18n": {
-  "types": "./dist/screens/taxonomy/taxonomy-i18n/taxonomy-screen-i18n.d.ts",
-  "symbols": {
-   "TAXONOMY_SCREEN_I18N": "variable:01c303ceef"
-  }
- },
- "./screens/taxonomy/taxonomy-i18n/taxonomy-term-picker-i18n": {
-  "types": "./dist/screens/taxonomy/taxonomy-i18n/taxonomy-term-picker-i18n.d.ts",
-  "symbols": {
-   "TAXONOMY_TERM_PICKER_ADD_I18N": "variable:cc1691b919",
-   "TAXONOMY_TERM_PICKER_I18N": "variable:db0dc52eec",
-   "TAXONOMY_TERM_PICKER_REVEAL_I18N": "variable:14133dad5e"
   }
  },
  "./screens/taxonomy/TaxonomyRowMenu": {
@@ -4208,13 +3551,21 @@
    "useTaxonomyRowMenu": "function:3cbdb35cfb"
   }
  },
- "./screens/taxonomy/TermPicker": {
-  "types": "./dist/screens/taxonomy/TermPicker.d.ts",
+ "./screens/trash/rules": {
+  "types": "./dist/screens/trash/rules.d.ts",
   "symbols": {
-   "TermPicker": "function:b2fb97a4b3",
-   "TermPickerProps": "interface:4e02d07f58",
-   "TermPickerSuggestInputProps": "interface:eb8d5ad638",
-   "UseTermPickerHook": "type:bf1eae5944"
+   "ActorLabel": "interface:85651e04f5",
+   "KEYS": "variable:46e83bb0b8",
+   "TRASH_RESOURCE": "variable:d5ba211ee3",
+   "actorLabel": "function:266a6c7686",
+   "allVisibleSelected": "function:9ad944f266",
+   "coverageLine": "function:1d29430b89",
+   "describePurgeReport": "function:7376905796",
+   "describeRestoreReport": "function:8612e00362",
+   "entityTypeLabel": "function:61f7b7038e",
+   "itemSubtitle": "function:21a0e022d4",
+   "selectionAfterSelectAll": "function:87acb78f41",
+   "toggleSelection": "function:d91d706af1"
   }
  },
  "./screens/webmcp/browser-agent-settings.hooks": {
@@ -4238,26 +3589,6 @@
   "symbols": {
    "WEBMCP_DICT": "variable:c174a5429d",
    "WEBMCP_KEYS": "variable:2b289380b2"
-  }
- },
- "./screens/widgets": {
-  "types": "./dist/screens/widgets/index.d.ts",
-  "symbols": {
-   "WidgetInstanceEditor": "function:06f81307c0",
-   "WidgetRegionEditor": "function:a8b4705d03",
-   "WidgetRegions": "function:5089e65f1a",
-   "WidgetsLibrary": "function:6977f1bcef",
-   "WidgetsModulePanelHook": "type:04cc5f6551",
-   "WidgetsPanelPageId": "type:1511817c65",
-   "WidgetsPanelProps": "interface:f5849bb505"
-  }
- },
- "./screens/widgets/api/widgets-api": {
-  "types": "./dist/screens/widgets/api/widgets-api.d.ts",
-  "symbols": {
-   "CreateWidgetsApiArgs": "interface:ce48703874",
-   "WidgetsRequestFn": "type:92ec8cd8dd",
-   "createWidgetsApi": "function:a3ebede215"
   }
  },
  "./screens/widgets/api/widgets-api.types": {
@@ -4406,6 +3737,51 @@
    "writePermission": "function:eed8d35ca5"
   }
  },
+ "./security/access-token-categories": {
+  "types": "./dist/security/access-token-categories.d.ts",
+  "symbols": {
+   "AccessTokenCategoryId": "type:7b0116cba8",
+   "AccessTokenCategoryInfo": "interface:7fd881fca8",
+   "AccessTokenGroupSortInput": "interface:2ccd513beb",
+   "accessTokenCategoryLabel": "function:62ca6fb134",
+   "accessTokenCategoryMatches": "function:9be9c18dbd",
+   "sortAccessTokenGroups": "function:e13d92d657"
+  }
+ },
+ "./security/access-token-providers": {
+  "types": "./dist/security/access-token-providers.d.ts",
+  "symbols": {
+   "AccessTokenFormFields": "interface:041ac23340",
+   "AccessTokenProviderCopy": "interface:af6bdad288",
+   "AccessTokenProviderInfo": "interface:4f76f22f24",
+   "AccessTokenSourceControlHostInfo": "interface:b58a3c5ea9",
+   "accessTokenProviderInfo": "function:0cb59b98c2",
+   "accessTokenProviders": "function:fdc2455a8a",
+   "accessTokenProvidersWithSavedRows": "function:7860f5e970",
+   "accessTokenRowProviderInfo": "function:7d16361118",
+   "extraFieldsAroundToken": "function:bdfa72078c",
+   "providerGroupSubtitleKeys": "function:cdd3e56a04"
+  }
+ },
+ "./security/access-token-rows": {
+  "types": "./dist/security/access-token-rows.d.ts",
+  "symbols": {
+   "AccessTokenKind": "type:343f6b39fd",
+   "AccessTokenProviderMatchInfo": "interface:245a7ebe64",
+   "AccessTokenProviderRef": "interface:c56a375415",
+   "AccessTokenRow": "interface:7752f34f91",
+   "AccessTokenRowCategoryId": "type:4b578803fc",
+   "LegacySentinelLabels": "interface:ecf3c92da2",
+   "RawCredentialSummary": "interface:ebe9845696",
+   "RawCustomCredentialSummary": "interface:e597f08a6f",
+   "accessTokenNameTaken": "function:e650129372",
+   "accessTokenProviderMatchesQuery": "function:9234d46fe5",
+   "accessTokenRowMatchesQuery": "function:1b3cee423a",
+   "accessTokenRowsForProvider": "function:5168c49a13",
+   "buildAccessTokenRows": "function:a238fa1fae",
+   "buildCustomCredentialRows": "function:93b7045347"
+  }
+ },
  "./security/adapters/http": {
   "types": "./dist/security/adapters/http.d.ts",
   "symbols": {
@@ -4429,11 +3805,79 @@
    "createMemorySecurityApi": "function:02d03b4c92"
   }
  },
+ "./security/api/security-api": {
+  "types": "./dist/security/api/security-api.d.ts",
+  "symbols": {
+   "SecurityApiDeps": "interface:a0e2b9f738",
+   "createSecurityApi": "function:a2b62a80fc"
+  }
+ },
+ "./security/api/security-api.types": {
+  "types": "./dist/security/api/security-api.types.d.ts",
+  "symbols": {
+   "AdminCredentialCopyResult": "interface:25d2a825be",
+   "AdminCredentialCopySource": "interface:7effc58602",
+   "AdminCustomConnectionInput": "interface:560478c5f1",
+   "AdminCustomCredentialCategoryId": "type:1ef026606c",
+   "AdminCustomCredentialSummary": "interface:9c232a01b2",
+   "AdminCustomCredentialsSnapshot": "interface:48960061dc",
+   "AdminPublishConnectionInput": "type:92c115f674",
+   "AdminPublishCredentialProviderId": "type:985ea71a52",
+   "AdminPublishCredentialSummary": "interface:a2054c3635",
+   "AdminPublishCredentialVerification": "interface:38bf7d5da3",
+   "AdminPublishCredentialsSnapshot": "interface:9c68f5ec3d",
+   "AdminPublishExecutionMode": "type:d11839e0e7"
+  }
+ },
  "./security/conformance": {
   "types": "./dist/security/conformance/security-api.conformance.d.ts",
   "symbols": {
    "runPublishCredentialsConformance": "function:41eecafd97",
    "runSecurityApiConformance": "function:c2f56c874d"
+  }
+ },
+ "./security/custom-credential-forms": {
+  "types": "./dist/security/custom-credential-forms.d.ts",
+  "symbols": {
+   "CustomCredentialFormFields": "interface:ce849168a7",
+   "accessTokenWorksForChanged": "function:38e94c7ddc",
+   "buildAdditionalHostsInput": "function:a7cfaf5738",
+   "buildCustomCredentialUpdatePatch": "function:9cca1c419c",
+   "buildCustomProviderConnectionInput": "function:d146fea645",
+   "customCredentialNameTaken": "function:8eb6701cc4",
+   "customCredentialReadyToSave": "function:6f7e2cdd34",
+   "customCredentialReplaceReadyToSave": "function:4ee5ae85b7",
+   "invalidAdditionalHostsEntries": "function:1ff282e5ca",
+   "isValidHttpUrl": "function:2a6541da35",
+   "parseAdditionalHostsInput": "function:476e6d3a00"
+  }
+ },
+ "./security/host/hooks/access-tokens-port.hooks": {
+  "types": "./dist/security/host/hooks/access-tokens-port.hooks.d.ts",
+  "symbols": {
+   "AccessTokensPort": "interface:8f47a6ef7b"
+  }
+ },
+ "./security/host/hooks/security-permissions-port.hooks": {
+  "types": "./dist/security/host/hooks/security-permissions-port.hooks.d.ts",
+  "symbols": {
+   "SecurityPermissionsPort": "interface:35945b4cd1"
+  }
+ },
+ "./security/host/hooks/use-security-permissions.hooks": {
+  "types": "./dist/security/host/hooks/use-security-permissions.hooks.d.ts",
+  "symbols": {
+   "SecurityPermissionsController": "interface:7756646c53",
+   "useSecurityPermissions": "function:30a4ec4701"
+  }
+ },
+ "./security/host/SiteKeyTab.hooks": {
+  "types": "./dist/security/host/SiteKeyTab.hooks.d.ts",
+  "symbols": {
+   "RevealedKeyClipboard": "interface:48359a4b78",
+   "RevealedKeyCopyState": "interface:a8133afb68",
+   "RevealedKeyScheduler": "interface:68963ff13c",
+   "useRevealedKeyCopy": "function:6389ee090e"
   }
  },
  "./security/react": {
@@ -4453,6 +3897,24 @@
    "useSecurityOwnerControls": "function:ac3d8453f3",
    "useSecurityPorts": "function:94739678ec",
    "useSecurityTranslation": "function:7d8accfc14"
+  }
+ },
+ "./security/security-i18n": {
+  "types": "./dist/security/security-i18n.d.ts",
+  "symbols": {
+   "SecurityDictionary": "interface:7d0367e649",
+   "accessTokenDuplicateNameMessage": "function:a6cb9bfda9",
+   "accessTokenMakeDefaultErrorMessage": "function:e803e95ac8",
+   "accessTokenRemoveErrorMessage": "function:e5340674d9",
+   "accessTokenSaveErrorMessage": "function:e86609cde3",
+   "accessTokensLoadErrorMessage": "function:b8a1741b59",
+   "copyKeysResultText": "function:8900b2e471",
+   "createSecurityDictionary": "function:3056d4d72b",
+   "removeDialogLastRowNote": "function:99dfe42ab9",
+   "sharedKeyReplaceWarning": "function:784b0b5625",
+   "siteKeyGenerateErrorMessage": "function:ee192a2519",
+   "siteKeyLoadErrorMessage": "function:4742f41010",
+   "siteKeyRevealErrorMessage": "function:0cb97020a6"
   }
  },
  "./seo": {
@@ -4632,10 +4094,140 @@
    "useAgentFailureSurface": "function:97ac964dd2"
   }
  },
+ "./shell/components/AssistantDock/assistant-dock-i18n": {
+  "types": "./dist/shell/components/AssistantDock/assistant-dock-i18n.d.ts",
+  "symbols": {
+   "ASSISTANT_DOCK_DICT": "variable:a9b7155f5d",
+   "AssistantDockHostDictionary": "type:1f4d13b9d8",
+   "ChatI18nAdapter": "interface:fc6d90df3b",
+   "SettingsDialogDictionaries": "type:0b092a065b",
+   "createChatI18nAdapter": "function:f3d3d7a383",
+   "t": "variable:a82eecf952"
+  }
+ },
+ "./shell/components/AssistantDock/chat-agent-plugin-preferences": {
+  "types": "./dist/shell/components/AssistantDock/chat-agent-plugin-preferences.d.ts",
+  "symbols": {
+   "CHAT_AGENT_PLUGINS_KEY": "variable:293484c3b4",
+   "CHAT_AGENT_PLUGIN_OPTIONS": "variable:181b2c71da",
+   "ChatAgentPlugins": "type:0b95196b39",
+   "ChatAgentPluginsLedgerPort": "interface:defa41c146",
+   "DEFAULT_CHAT_AGENT_PLUGINS": "variable:376c9da0d9",
+   "loadChatAgentPlugins": "function:dafe2ca3e4",
+   "readChatAgentPlugins": "function:cd4a97a626",
+   "saveChatAgentPlugins": "function:f7ba322d00"
+  }
+ },
+ "./shell/components/AssistantDock/dock-header-rules": {
+  "types": "./dist/shell/components/AssistantDock/dock-header-rules.d.ts",
+  "symbols": {
+   "DockChatDisplay": "interface:90cdeed04d",
+   "DockChatDisplayPreferences": "interface:fe1a1f58a3",
+   "DockReplyLengthOptions": "type:1739db7ab2",
+   "DockRuntimeSwitches": "type:5dfa2816b8",
+   "DockSettingsMenuItem": "interface:8842fd0780",
+   "DockSettingsMenuSection": "interface:a8428c9336",
+   "DockToolCallOptions": "type:dd84eac502",
+   "activateDockMenuItem": "function:fcfaf02598",
+   "dockSettingsMenuSections": "function:c5c52276df",
+   "groupOptionTooltips": "function:e38bde386a",
+   "isChoiceSection": "function:19a9b8b636",
+   "shouldShowHeaderTip": "function:604437e3b7"
+  }
+ },
+ "./shell/components/AssistantDock/DockHeaderTip.hooks": {
+  "types": "./dist/shell/components/AssistantDock/DockHeaderTip.hooks.d.ts",
+  "symbols": {
+   "DockHeaderTipControllerHook": "type:172741fade",
+   "useDockHeaderTip": "function:8b78c5ad33"
+  }
+ },
+ "./shell/components/AssistantDock/DockSettingsMenu": {
+  "types": "./dist/shell/components/AssistantDock/DockSettingsMenu.d.ts",
+  "symbols": {
+   "DockSettingsMenu": "function:66320ae897",
+   "DockSettingsSegmentedProps": "interface:5709ecf483"
+  }
+ },
+ "./shell/components/AssistantDock/FolderDropConfirmation": {
+  "types": "./dist/shell/components/AssistantDock/FolderDropConfirmation.d.ts",
+  "symbols": {
+   "FolderDropConfirmation": "function:eca36b0035",
+   "FolderDropConfirmationProps": "interface:bf20a04b17"
+  }
+ },
+ "./shell/components/AssistantDock/FolderDropError": {
+  "types": "./dist/shell/components/AssistantDock/FolderDropError.d.ts",
+  "symbols": {
+   "FolderDropError": "function:85db1dcbbb",
+   "FolderDropErrorProps": "interface:67ee6f388f"
+  }
+ },
+ "./shell/components/AssistantDock/FolderDropPathHint": {
+  "types": "./dist/shell/components/AssistantDock/FolderDropPathHint.d.ts",
+  "symbols": {
+   "FolderDropPathHint": "function:ba86f10819",
+   "FolderDropPathHintProps": "interface:9eaedba711"
+  }
+ },
+ "./shell/components/AssistantDock/FolderPathButton": {
+  "types": "./dist/shell/components/AssistantDock/FolderPathButton.d.ts",
+  "symbols": {
+   "FolderPathButton": "function:7b26e0e4df",
+   "FolderPathButtonProps": "interface:51ccd806e6"
+  }
+ },
+ "./shell/components/AssistantDock/hooks/chat-package-kind": {
+  "types": "./dist/shell/components/AssistantDock/hooks/chat-package-kind.d.ts",
+  "symbols": {
+   "chatPackageKind": "function:b46a5ee845",
+   "partitionChatPackages": "function:72fe1af8ee"
+  }
+ },
+ "./shell/components/AssistantDock/hooks/conversation-refresh.hooks": {
+  "types": "./dist/shell/components/AssistantDock/hooks/conversation-refresh.hooks.d.ts",
+  "symbols": {
+   "useConversationRefreshSignal": "function:51011352cb"
+  }
+ },
+ "./shell/components/AssistantDock/hooks/open-mcp-ui-link": {
+  "types": "./dist/shell/components/AssistantDock/hooks/open-mcp-ui-link.d.ts",
+  "symbols": {
+   "openMcpUiLink": "function:d547ec0253"
+  }
+ },
  "./shell/components/AssistantDock/hooks/use-assistant-empty-state.hooks": {
   "types": "./dist/shell/components/AssistantDock/hooks/use-assistant-empty-state.hooks.d.ts",
   "symbols": {
    "useAssistantEmptyState": "function:0707ca9ba6"
+  }
+ },
+ "./shell/components/AssistantDock/hooks/use-assistant-runtime-preferences.hooks": {
+  "types": "./dist/shell/components/AssistantDock/hooks/use-assistant-runtime-preferences.hooks.d.ts",
+  "symbols": {
+   "AssistantRuntimePreferences": "interface:cfe9377891",
+   "AssistantRuntimePreferencesController": "interface:c6284426d4",
+   "AssistantRuntimePreferencesPort": "interface:d5f914983c",
+   "useAssistantRuntimePreferences": "function:08e8d5426b"
+  }
+ },
+ "./shell/components/AssistantDock/hooks/use-chat-agent-plugins.hooks": {
+  "types": "./dist/shell/components/AssistantDock/hooks/use-chat-agent-plugins.hooks.d.ts",
+  "symbols": {
+   "ChatAgentPluginsController": "interface:9e2530b382",
+   "ChatAgentPluginsPort": "interface:1a78de8266",
+   "useChatAgentPlugins": "function:8283dbfa0e"
+  }
+ },
+ "./shell/components/AssistantDock/hooks/use-chat-display-preferences.hooks": {
+  "types": "./dist/shell/components/AssistantDock/hooks/use-chat-display-preferences.hooks.d.ts",
+  "symbols": {
+   "ChatDisplayPreferences": "interface:76a146e9f4",
+   "ChatDisplayPreferencesController": "interface:a95bbce645",
+   "ChatDisplayPreferencesPort": "interface:6067b94c1e",
+   "ChatToolCallDisplay": "type:b24d84a26c",
+   "sameChatDisplay": "function:f1fb58e083",
+   "useChatDisplayPreferences": "function:825d328113"
   }
  },
  "./shell/components/AssistantDock/hooks/use-composer-send-stop-guard.hooks": {
@@ -4652,6 +4244,14 @@
    "latestSurfaceIdIn": "function:1cd32e26e5",
    "surfaceIdOf": "function:ff130e271e",
    "useRoutedA2uiSurfaceCard": "function:7fb002d389"
+  }
+ },
+ "./shell/components/AssistantDock/hooks/use-selected-agent-auth-warning.hooks": {
+  "types": "./dist/shell/components/AssistantDock/hooks/use-selected-agent-auth-warning.hooks.d.ts",
+  "symbols": {
+   "AuthDetectionPort": "interface:881a0bc48e",
+   "RescannableRuntimeAccess": "interface:b628ff88c8",
+   "useSelectedAgentAuthWarning": "function:8616979a60"
   }
  },
  "./shell/components/AssistantDock/hooks/useOverflowDetection.hooks": {
@@ -4700,6 +4300,13 @@
   "symbols": {
    "isSlowRunNoticeVisible": "function:4ba58cef32",
    "resolveSlowRunDetail": "function:6bc7144fb9"
+  }
+ },
+ "./shell/components/AssistantDock/SubagentsIndicator": {
+  "types": "./dist/shell/components/AssistantDock/SubagentsIndicator.d.ts",
+  "symbols": {
+   "SubagentsIndicator": "function:ae88811cb2",
+   "UseSubagentsIndicatorSettings": "type:a7e47ab6d9"
   }
  },
  "./shell/components/ChatFab/ChatFab.hooks": {
@@ -4763,6 +4370,22 @@
    "UseMailStatusBannerHook": "type:9692d48f54"
   }
  },
+ "./shell/components/MediaEditDialog/MediaEditDialog.hooks": {
+  "types": "./dist/shell/components/MediaEditDialog/MediaEditDialog.hooks.d.ts",
+  "symbols": {
+   "MediaEditDialogController": "interface:1976ea737d",
+   "MediaEditDialogValue": "interface:14fda03426",
+   "useMediaEditDialog": "function:5787d66d37"
+  }
+ },
+ "./shell/components/MediaPickerDialog/JiniMediaPicker.hooks": {
+  "types": "./dist/shell/components/MediaPickerDialog/JiniMediaPicker.hooks.d.ts",
+  "symbols": {
+   "JiniMediaPickerArgs": "interface:988a38e8f4",
+   "JiniMediaPickerRow": "interface:e2711a5dbe",
+   "useJiniMediaPicker": "function:a0592eeda8"
+  }
+ },
  "./shell/components/Select/Select.hooks": {
   "types": "./dist/shell/components/Select/Select.hooks.d.ts",
   "symbols": {
@@ -4818,6 +4441,29 @@
    "TemplateSourcePort": "interface:28fe714ede"
   }
  },
+ "./shell/components/TemplateSource/ViewTemplateButton": {
+  "types": "./dist/shell/components/TemplateSource/ViewTemplateButton.d.ts",
+  "symbols": {
+   "ViewTemplateButton": "function:d60a0deb7e",
+   "ViewTemplateButtonProps": "interface:69436b2422"
+  }
+ },
+ "./shell/components/WidgetConfigFields/HtmlAttributeRows.hooks": {
+  "types": "./dist/shell/components/WidgetConfigFields/HtmlAttributeRows.hooks.d.ts",
+  "symbols": {
+   "HtmlAttributeRow": "interface:373a44047e",
+   "HtmlAttributeRowsController": "interface:9de2fac243",
+   "useHtmlAttributeRows": "function:c351fcd366"
+  }
+ },
+ "./shell/components/WidgetConfigFields/PlacementContentFields": {
+  "types": "./dist/shell/components/WidgetConfigFields/PlacementContentFields.d.ts",
+  "symbols": {
+   "PlacementContentEditorProps": "interface:a19de0f173",
+   "PlacementContentFields": "function:1d46d5b65a",
+   "PlacementContentFieldsProps": "interface:011eeab014"
+  }
+ },
  "./shell/components/WidgetConfigFields/WidgetConfigFields.hooks": {
   "types": "./dist/shell/components/WidgetConfigFields/WidgetConfigFields.hooks.d.ts",
   "symbols": {
@@ -4844,6 +4490,13 @@
    "AdminLocalePort": "interface:00873b477d"
   }
  },
+ "./shell/hooks/assistant-chats-port.hooks": {
+  "types": "./dist/shell/hooks/assistant-chats-port.hooks.d.ts",
+  "symbols": {
+   "AssistantChatsPort": "interface:4137e74272",
+   "AssistantConversation": "interface:0f89c59f00"
+  }
+ },
  "./shell/hooks/use-admin-document-locale.hooks": {
   "types": "./dist/shell/hooks/use-admin-document-locale.hooks.d.ts",
   "symbols": {
@@ -4864,6 +4517,18 @@
    "useAgentScreenRoute": "function:dd148a233f"
   }
  },
+ "./shell/hooks/use-assistant-chats.hooks": {
+  "types": "./dist/shell/hooks/use-assistant-chats.hooks.d.ts",
+  "symbols": {
+   "AssistantChatsClient": "interface:bbd585b584",
+   "ChatLibraryChats": "interface:243accca99",
+   "ChatLibraryPort": "interface:abe08d80a4",
+   "LastConversationStore": "interface:976a66f9ac",
+   "UseAssistantChats": "interface:d0caed917d",
+   "sharedPort": "function:a7a4c9bcb9",
+   "useAssistantChats": "function:f3a4db20a4"
+  }
+ },
  "./shell/hooks/use-cms-sidebar-label-tooltips.hooks": {
   "types": "./dist/shell/hooks/use-cms-sidebar-label-tooltips.hooks.d.ts",
   "symbols": {
@@ -4874,6 +4539,12 @@
   "types": "./dist/shell/hooks/use-content-refresh-subscription.hooks.d.ts",
   "symbols": {
    "useContentRefreshSubscription": "function:84edf60b08"
+  }
+ },
+ "./shell/hooks/use-desktop-view-release.hooks": {
+  "types": "./dist/shell/hooks/use-desktop-view-release.hooks.d.ts",
+  "symbols": {
+   "useDesktopViewRelease": "function:06ae9eb5ab"
   }
  },
  "./shell/hooks/use-dock-auto-rail.hooks": {
@@ -5009,6 +4680,20 @@
    "publishAgentScreenRoute": "function:d7660614d6",
    "readAgentScreenContext": "function:32dc618737",
    "resetAgentScreenContext": "function:e60b69f8c6"
+  }
+ },
+ "./shell/lib/agent-screenshot": {
+  "types": "./dist/shell/lib/agent-screenshot.d.ts",
+  "symbols": {
+   "ADMIN_CAPTURE_SCREENSHOT_CAPABILITY_ID": "variable:f4f5c31f63",
+   "CaptureAdminScreenshotOptions": "interface:6a7dd6672b",
+   "CapturedCanvas": "interface:949f0b128d",
+   "MAX_SCREENSHOT_BYTES": "variable:e4688880a0",
+   "RenderElementToCanvas": "type:b227cfaaa6",
+   "ScreenshotContentBlock": "type:329604a56a",
+   "ScreenshotToolResult": "interface:2b16bebe38",
+   "buildScreenshotFailureResult": "function:01b543a6ad",
+   "captureAdminScreenshotToolResult": "function:ce468ba503"
   }
  },
  "./shell/lib/agent-screenshot-bus": {
@@ -5159,6 +4844,39 @@
    "resolveImportExportRoute": "function:451dbce98a"
   }
  },
+ "./shell/lib/live-tiptap-editor": {
+  "types": "./dist/shell/lib/live-tiptap-editor.d.ts",
+  "symbols": {
+   "LiveEditorCandidate": "interface:fa4a5e81bd",
+   "isLiveEditor": "function:c79f0f7108"
+  }
+ },
+ "./shell/lib/media-embed-extension.hooks": {
+  "types": "./dist/shell/lib/media-embed-extension.hooks.d.ts",
+  "symbols": {
+   "MediaEmbedAttrs": "interface:ddd99b484f",
+   "MediaEmbedNodeViewController": "interface:52ea78a209",
+   "MediaEmbedNodeViewProps": "interface:3c25bf1b70",
+   "MediaPreviewKind": "type:a65210e924",
+   "mediaPreviewKind": "function:5a69894166",
+   "readMediaEmbedAttrs": "function:f32fef2e60",
+   "useMediaEmbedNodeView": "function:3649e29031"
+  }
+ },
+ "./shell/lib/media-image-extension.hooks": {
+  "types": "./dist/shell/lib/media-image-extension.hooks.d.ts",
+  "symbols": {
+   "createMediaImageReplace": "function:639e2c6e08",
+   "createMediaImageTranslator": "function:01389b39c3"
+  }
+ },
+ "./shell/lib/merge-locale-overlays": {
+  "types": "./dist/shell/lib/merge-locale-overlays.d.ts",
+  "symbols": {
+   "LocaleDictionary": "type:43708ba212",
+   "mergeLocaleOverlays": "function:bd917f950d"
+  }
+ },
  "./shell/lib/page-lifecycle": {
   "types": "./dist/shell/lib/page-lifecycle.d.ts",
   "symbols": {
@@ -5295,6 +5013,7 @@
   "symbols": {
    "RequestErrorGuard": "type:f62e5167c8",
    "SaveConflict": "interface:94c6f7f685",
+   "VERSION_CONFLICT_CODE": "variable:24fa5ccc04",
    "VERSION_CONFLICT_MESSAGE": "variable:004278168d",
    "VersionConflict": "interface:a582ce7d51",
    "createVersionConflict": "function:bca7d1c04e"
@@ -5328,6 +5047,14 @@
    "initialPlacementDraft": "function:337f91093c",
    "placementContentAttr": "function:27c855eecf",
    "supportsPlacementContent": "function:1462dd1d50"
+  }
+ },
+ "./sites/transfer/use-export-password.hooks": {
+  "types": "./dist/sites/transfer/use-export-password.hooks.d.ts",
+  "symbols": {
+   "ExportPasswordLabels": "interface:bfc5d95495",
+   "ExportPasswordPort": "interface:7e48c0a867",
+   "useExportPassword": "function:fc91136b80"
   }
  },
  "./source-control": {
@@ -5367,10 +5094,35 @@
    "createMemorySourceControlApi": "function:13f29c6a7b"
   }
  },
+ "./source-control/api/source-control-api": {
+  "types": "./dist/source-control/api/source-control-api.d.ts",
+  "symbols": {
+   "SourceControlApiDeps": "interface:dc116e1c0f",
+   "createSourceControlApi": "function:76a6b45d54"
+  }
+ },
+ "./source-control/api/source-control-api.types": {
+  "types": "./dist/source-control/api/source-control-api.types.d.ts",
+  "symbols": {
+   "AdminSourceControlConnectionInput": "type:97b11c69e5",
+   "AdminSourceControlCredentialForm": "interface:baa034d495",
+   "AdminSourceControlCredentialSummary": "interface:3368de8e66",
+   "AdminSourceControlCredentialsSnapshot": "interface:2502668a6a",
+   "AdminSourceControlProviderDescriptor": "interface:81e0f59e87",
+   "AdminSourceControlProviderId": "type:b035cd15f5",
+   "AdminSourceControlProvidersSnapshot": "interface:fcdefdf8a1"
+  }
+ },
  "./source-control/conformance": {
   "types": "./dist/source-control/conformance/source-control-api.conformance.d.ts",
   "symbols": {
    "runSourceControlApiConformance": "function:4085a73ade"
+  }
+ },
+ "./source-control/host/hooks/source-control-credentials-port.hooks": {
+  "types": "./dist/source-control/host/hooks/source-control-credentials-port.hooks.d.ts",
+  "symbols": {
+   "SourceControlCredentialsPort": "interface:583fdceabc"
   }
  },
  "./source-control/host/SourceControl.hooks": {
@@ -5501,42 +5253,6 @@
    "useWidgetsOptions": "function:c4075eb9d5",
    "useWidgetsPorts": "function:262f4fd604",
    "widgets": "function:2f5403fc99"
-  }
- },
- "./widgets/react/widgets-i18n/create-widgets-dictionary": {
-  "types": "./dist/widgets/react/widgets-i18n/create-widgets-dictionary.d.ts",
-  "symbols": {
-   "createWidgetsDictionary": "function:12b6a4eb34"
-  }
- },
- "./widgets/react/widgets-i18n/widgets-editors-i18n": {
-  "types": "./dist/widgets/react/widgets-i18n/widgets-editors-i18n.d.ts",
-  "symbols": {
-   "WIDGETS_EDITORS_I18N": "variable:5d630cdc4c"
-  }
- },
- "./widgets/react/widgets-i18n/widgets-hooks-i18n": {
-  "types": "./dist/widgets/react/widgets-i18n/widgets-hooks-i18n.d.ts",
-  "symbols": {
-   "WIDGETS_HOOKS_I18N": "variable:860b7fcbea"
-  }
- },
- "./widgets/react/widgets-i18n/widgets-library-i18n": {
-  "types": "./dist/widgets/react/widgets-i18n/widgets-library-i18n.d.ts",
-  "symbols": {
-   "WIDGETS_LIBRARY_I18N": "variable:8ac7bf2e8a"
-  }
- },
- "./widgets/react/widgets-i18n/widgets-preview-i18n": {
-  "types": "./dist/widgets/react/widgets-i18n/widgets-preview-i18n.d.ts",
-  "symbols": {
-   "WIDGETS_PREVIEW_I18N": "variable:3ac2a20363"
-  }
- },
- "./widgets/react/widgets-i18n/widgets-regions-i18n": {
-  "types": "./dist/widgets/react/widgets-i18n/widgets-regions-i18n.d.ts",
-  "symbols": {
-   "WIDGETS_REGIONS_I18N": "variable:a8c9cc929a"
   }
  }
 }

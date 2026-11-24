@@ -91,3 +91,9 @@ or product copy. A host whose common words name its product composes its own ent
 
 Why: [DR-005 portable package boundaries](../../../../docs/decisions/DR-005-portable-package-boundaries.md),
 [DR-003 single-owner UI effects](../../../../docs/decisions/DR-003-single-owner-ui-effects.md).
+
+## Wiring
+
+- `theme-canvas-port.hooks` / `theme-pages-port.hooks` — port interfaces only; the host implements `ThemeCanvasPort` and `ThemePagesPort` (the pages port is bound to the host's themes API).
+- `theme-canvas-wrapper` — pure DOM derivation; nothing to inject.
+- `ThemePageDetailsModal.hooks` — reads `openLightboxDialog`/`closeLightboxDialog` from `useAdminKitValues()`, so the host mounts `AdminKitProvider` with those two values.

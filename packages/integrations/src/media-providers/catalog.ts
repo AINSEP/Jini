@@ -19,6 +19,7 @@
 export * from './types.js';
 /** Deprecated re-export: import these from `@jini-ai/core/contracts/site/media-providers-catalog`; removed at the next major. */
 export type { MediaModel, MediaProvider } from '@jini-ai/core/contracts/site/media-providers-catalog';
+export { CONFIGURABLE_MEDIA_PROVIDER_CATALOG } from './configurable-catalog.js';
 export * from './providers.js';
 export * from './image-model-ids.js';
 export { DEFAULT_MEDIA_PROVIDER_CATALOG, DEFAULT_PROVIDER_PRESETS } from './ui-defaults.js';

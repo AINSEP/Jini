@@ -76,6 +76,7 @@
       "./contracts/site/request-facts": "universal",
       "./contracts/site/site-key": "universal",
       "./contracts/site/soft-delete": "universal",
+      "./contracts/speech-transcription": "universal",
       "./contracts/site/strict-base64": "node",
       "./contracts/site/tool-metadata-approval-policy": "universal",
       "./contracts/site/daemon": "universal",
@@ -186,6 +187,8 @@
       "./contracts/site/cms-external-mcp": "universal",
       "./contracts/site/cms-agent-plugins": "universal",
       "./contracts/site/cms-plugins": "universal",
+      "./contracts/site/cms-trash": "universal",
+      "./contracts/site/cms-integrations": "universal",
       "./contracts/site/cms-recovery": "universal",
       "./contracts/site/oauth-callback-page": "universal",
       "./contracts/site/installed-skill": "universal",
@@ -619,6 +622,11 @@
       "types": "./dist/contracts/site/gated-results.d.ts",
       "import": "./dist/contracts/site/gated-results.js",
       "default": "./dist/contracts/site/gated-results.js"
+    },
+    "./contracts/speech-transcription": {
+      "types": "./dist/contracts/speech-transcription.d.ts",
+      "import": "./dist/contracts/speech-transcription.js",
+      "default": "./dist/contracts/speech-transcription.js"
     },
     "./contracts/site/post-author": {
       "types": "./dist/contracts/site/post-author.d.ts",
@@ -1159,6 +1167,16 @@
       "types": "./dist/contracts/site/cms-plugins.d.ts",
       "import": "./dist/contracts/site/cms-plugins.js",
       "default": "./dist/contracts/site/cms-plugins.js"
+    },
+    "./contracts/site/cms-trash": {
+      "types": "./dist/contracts/site/cms-trash.d.ts",
+      "import": "./dist/contracts/site/cms-trash.js",
+      "default": "./dist/contracts/site/cms-trash.js"
+    },
+    "./contracts/site/cms-integrations": {
+      "types": "./dist/contracts/site/cms-integrations.d.ts",
+      "import": "./dist/contracts/site/cms-integrations.js",
+      "default": "./dist/contracts/site/cms-integrations.js"
     },
     "./contracts/site/cms-recovery": {
       "types": "./dist/contracts/site/cms-recovery.d.ts",

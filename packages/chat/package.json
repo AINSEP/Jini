@@ -47,7 +47,8 @@
       "./vanilla/style.css": "browser",
       "./browser/frontend-session-bridge": "browser",
       "./browser/embed-send-bridge": "browser",
-      "./react/styles/chat-settings.css": "browser"
+      "./react/styles/chat-settings.css": "browser",
+      "./react/features/voice-input/space-hold-rules": "browser"
     },
     "neutralEntries": [
       "src/store/contracts"
@@ -241,7 +242,12 @@
       "import": "./dist/embed-widget/browser/embed-send-bridge.js",
       "default": "./dist/embed-widget/browser/embed-send-bridge.js"
     },
-    "./react/styles/chat-settings.css": "./dist/react/styles/chat-settings.css"
+    "./react/styles/chat-settings.css": "./dist/react/styles/chat-settings.css",
+    "./react/features/voice-input/space-hold-rules": {
+      "types": "./dist/react/features/voice-input/space-hold-rules.d.ts",
+      "import": "./dist/react/features/voice-input/space-hold-rules.js",
+      "default": "./dist/react/features/voice-input/space-hold-rules.js"
+    }
   },
   "files": [
     "dist",

@@ -2,6 +2,10 @@ import { defineConfig } from 'vitest/config';
 
 export default defineConfig({
   test: {
+    // The browser surface (`src/react`) is the one place a DOM exists; every other layer stays node.
+    environment: 'node',
+    environmentMatchGlobs: [['src/react/**', 'jsdom']],
+    setupFiles: ['./test-setup.ts'],
     // Deliberately NO `environment: 'jsdom'`, matching `@jini-ai/admin`'s core layer. Neither
     // the core nor Node-bound domain adapters may touch the DOM: core is universal, adapters are Node-bound.
     // A test that reaches for `window` should fail loudly rather than be quietly accommodated.

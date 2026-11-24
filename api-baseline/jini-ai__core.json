@@ -1596,6 +1596,18 @@
  "./contracts/site/cms-external-mcp": {
   "types": "./dist/contracts/site/cms-external-mcp.d.ts",
   "symbols": {
+   "AdminExternalMcpAdmissionsSnapshot": "interface:c0e82eb30c",
+   "AdminExternalMcpConfigFailure": "interface:e6a5d06a6a",
+   "AdminExternalMcpConnectStart": "type:46ed58ea16",
+   "AdminExternalMcpOAuthInput": "interface:97acd8f5c1",
+   "AdminExternalMcpOAuthView": "interface:3edd0c3ca7",
+   "AdminExternalMcpProbeResult": "interface:93f0adf03d",
+   "AdminExternalMcpServer": "interface:dd7c77dc41",
+   "AdminExternalMcpServerInput": "interface:2711c03a75",
+   "AdminFederatedAdmissionEntry": "interface:df993160ec",
+   "AdminRemoteToolAnnotations": "interface:e688c83184",
+   "AdminRemoteToolSurfaceEntry": "interface:c7e62e87b0",
+   "AdminToolRefusalReason": "type:026c0a07c8",
    "ExternalMcpAdmissionsEnvelope": "interface:30a90ae29a",
    "ExternalMcpDeleteEnvelope": "interface:367b781192",
    "ExternalMcpListEnvelope": "interface:23f501dc75",
@@ -1629,6 +1641,14 @@
    "FormReceiverPort": "interface:d7c2ce6e73",
    "FormSubmissionsInspection": "interface:cff10dc902",
    "NotifyConfig": "interface:433497a69d"
+  }
+ },
+ "./contracts/site/cms-integrations": {
+  "types": "./dist/contracts/site/cms-integrations.d.ts",
+  "symbols": {
+   "AdminWebhookDeliveryResponse": "interface:1f4314d8db",
+   "AdminWebhookDeliverySummary": "interface:b654df9045",
+   "AdminWebhookSubscriptionResponse": "interface:efc6611cb8"
   }
  },
  "./contracts/site/cms-mail": {
@@ -1698,6 +1718,8 @@
   "symbols": {
    "AdminPluginDto": "interface:3f2bf1486f",
    "AdminPluginErrorDto": "interface:50a394b28e",
+   "AdminPluginFileLimitsDto": "interface:ae7680748b",
+   "AdminPluginFilesEnvelope": "interface:e8e8cddc6c",
    "AdminPluginListEnvelope": "interface:332a6e1f21",
    "AdminPluginQuarantineDto": "interface:8fa09f5a21",
    "AdminPluginSetEnabledEnvelope": "interface:6bb83bae13",
@@ -1780,6 +1802,12 @@
  "./contracts/site/cms-trash": {
   "types": "./dist/contracts/site/cms-trash.d.ts",
   "symbols": {
+   "AdminTrashItemDto": "interface:500c1095d0",
+   "AdminTrashPageDto": "interface:49fb02e77c",
+   "AdminTrashPurgeOutcome": "type:e08b1503c2",
+   "AdminTrashPurgeReportDto": "interface:4fe3fd1e60",
+   "AdminTrashRestoreOutcome": "type:72a534371c",
+   "AdminTrashRestoreReportDto": "interface:33721fb08a",
    "TrashActor": "interface:92b4352cd5"
   }
  },
@@ -2525,6 +2553,15 @@
    "PluginExportConsentCategory": "type:c618db7bd3",
    "PluginExportTemplate": "interface:7814b62913",
    "PluginExportsPort": "interface:e596909e85"
+  }
+ },
+ "./contracts/speech-transcription": {
+  "types": "./dist/contracts/speech-transcription.d.ts",
+  "symbols": {
+   "SpeechBridge": "interface:ba1ec3b27a",
+   "SpeechTranscribeRequest": "interface:5b4bb5cffc",
+   "TranscriptionAvailability": "interface:e904e0895e",
+   "TranscriptionResult": "interface:7235673d5c"
   }
  },
  "./contracts/storage": {
