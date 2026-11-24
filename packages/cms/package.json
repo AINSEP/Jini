@@ -22,6 +22,7 @@
       "./publish/content/precheck-reasons": "universal",
       "./publish/content/publish-readiness": "universal",
       "./publish/content/report-contract": "universal",
+      "./publish/content/type-registry": "universal",
       "./publish/content/dialog": "universal",
       "./publish/content/dialog/contract": "universal",
       "./publish/content/dialog/criteria": "universal",
@@ -357,6 +358,11 @@
       "types": "./dist/publish/content/publish-readiness.d.ts",
       "import": "./dist/publish/content/publish-readiness.js",
       "default": "./dist/publish/content/publish-readiness.js"
+    },
+    "./publish/content/type-registry": {
+      "types": "./dist/publish/content/type-registry.d.ts",
+      "import": "./dist/publish/content/type-registry.js",
+      "default": "./dist/publish/content/type-registry.js"
     },
     "./publish/content/report-contract": {
       "types": "./dist/publish/content/report-contract.d.ts",
