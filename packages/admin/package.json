@@ -42,7 +42,6 @@
       "./security/host/SiteKeyTab.hooks": "browser",
       "./security/host/hooks/security-permissions-port.hooks": "universal",
       "./security/host/hooks/access-tokens-port.hooks": "universal",
-      "./security/host/hooks/access-tokens-port.hooks": "universal",
       "./security/host/hooks/use-security-permissions.hooks": "browser",
       "./playground": "universal",
       "./playground/react": "browser",
@@ -198,7 +197,6 @@
       "./security/access-token-rows": "universal",
       "./source-control/api/source-control-api.types": "universal",
       "./source-control/api/source-control-api": "universal",
-      "./source-control/host/hooks/source-control-credentials-port.hooks": "universal",
       "./source-control/host/hooks/source-control-credentials-port.hooks": "universal",
       "./deployment/api/deployment-api.types": "universal",
       "./deployment/api/deployment-api": "universal",
@@ -499,11 +497,6 @@
       "types": "./dist/security/host/hooks/security-permissions-port.hooks.d.ts",
       "import": "./dist/security/host/hooks/security-permissions-port.hooks.js",
       "default": "./dist/security/host/hooks/security-permissions-port.hooks.js"
-    },
-    "./security/host/hooks/access-tokens-port.hooks": {
-      "types": "./dist/security/host/hooks/access-tokens-port.hooks.d.ts",
-      "import": "./dist/security/host/hooks/access-tokens-port.hooks.js",
-      "default": "./dist/security/host/hooks/access-tokens-port.hooks.js"
     },
     "./security/host/hooks/access-tokens-port.hooks": {
       "types": "./dist/security/host/hooks/access-tokens-port.hooks.d.ts",
@@ -1284,11 +1277,6 @@
       "types": "./dist/source-control/api/source-control-api.d.ts",
       "import": "./dist/source-control/api/source-control-api.js",
       "default": "./dist/source-control/api/source-control-api.js"
-    },
-    "./source-control/host/hooks/source-control-credentials-port.hooks": {
-      "types": "./dist/source-control/host/hooks/source-control-credentials-port.hooks.d.ts",
-      "import": "./dist/source-control/host/hooks/source-control-credentials-port.hooks.js",
-      "default": "./dist/source-control/host/hooks/source-control-credentials-port.hooks.js"
     },
     "./source-control/host/hooks/source-control-credentials-port.hooks": {
       "types": "./dist/source-control/host/hooks/source-control-credentials-port.hooks.d.ts",
