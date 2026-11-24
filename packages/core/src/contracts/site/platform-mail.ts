@@ -153,3 +153,50 @@ export interface MailSenderIdentityPort {
    */
   resolve(required: { workspaceId: string; fallback: EmailAddress }, optional?: Record<string, never>): Promise<EmailAddress>;
 }
+
+// --- feedback-webhook setup wire (`GET .../system/mail-feedback`) -------------------------------
+// One type-only owner: the server builds it (`@jini-ai/platform/mail/feedback-setup`) and the admin
+// Email screen reads it (`@jini-ai/admin/screens/email`).
+
+export interface MailWebhookSecretSlot {
+  label: string;
+  configured: boolean;
+  updatedAt: string | null;
+}
+
+export interface MailFeedbackProviderSetup {
+  providerId: string;
+  label: string;
+  lanes: readonly ("transactional" | "bulk")[];
+  supported: boolean;
+  /** `/hooks/mail/<providerId>` (`server/inbound/public-http/routes/mail-feedback.ts`). */
+  webhookPath: string;
+  /** Absolute, from the site's verified origin; null while the origin is unverified. */
+  webhookUrl: string | null;
+  signingSecret: { current: MailWebhookSecretSlot; previous: MailWebhookSecretSlot } | null;
+  lastVerifiedEvent: { kind: "delivered" | "bounced" | "complained"; receivedAt: string } | null;
+  state: "unsupported" | "secret_missing" | "no_events_yet" | "receiving";
+}
+
+export interface MailFeedbackSetupReport {
+  /** False when this root cannot describe its providers; `providers` is then empty. */
+  available: boolean;
+  providers: MailFeedbackProviderSetup[];
+}
+
+// --- Newsletter launch gate wire ------------------------------------------------------------------
+// One vocabulary for the gate's evaluator (`@jini-ai/user-management/newsletter`) and the mail
+// readiness report that reads it back (`@jini-ai/platform/mail/use-readiness`).
+
+/** The Newsletter launch gate's precondition codes, in its fixed (a)->(d) check order. */
+export type MailLaunchGatePrecondition =
+  | "sending_enabled_false"
+  | "consent_capability_unbound"
+  | "origin_not_verified"
+  | "mailer_adapter_not_production";
+
+export interface MailLaunchGateResult {
+  met: boolean;
+  /** Fixed (a)->(d) order; the `NEWSLETTER_LAUNCH_GATE_BLOCKED` refusal's `unmetPreconditions`. */
+  unmetPreconditions: readonly MailLaunchGatePrecondition[];
+}

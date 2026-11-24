@@ -108,174 +108,6 @@
       "usersSafetyToken": "variable:4eb1aa182e"
     }
   },
-  "./admin-http/http/users": {
-    "types": "./dist/admin-http/http/users.d.ts",
-    "symbols": {
-      "AdminPolicyResponse": "interface:2afb2082dc",
-      "AdminRoleResponse": "interface:3550f336f8",
-      "AdminUserResponse": "interface:aa66fe1d57",
-      "toAdminPolicyResponse": "function:96db68529a",
-      "toAdminRoleResponse": "function:6d3d9fecba",
-      "toAdminUserResponse": "function:f463cef2c0"
-    }
-  },
-  "./admin-http/owner/mfa-deps": {
-    "types": "./dist/admin-http/owner/mfa-deps.d.ts",
-    "symbols": {
-      "ComposeOwnerMfaDepsArgs": "interface:34b3f53d7b",
-      "OwnerAuthServiceDepsFn": "type:a72e0e8798",
-      "OwnerMfaSource": "interface:18c4467321",
-      "composeOwnerMfaDeps": "function:5e6c397362"
-    }
-  },
-  "./admin-http/routes/users/assign-role": {
-    "types": "./dist/admin-http/routes/users/assign-role.d.ts",
-    "symbols": {
-      "UserAssignRoleRouteDeps": "interface:d976f2231a",
-      "userAssignRoleRoute": "variable:fcbed5d0b8"
-    }
-  },
-  "./admin-http/routes/users/attach-policy": {
-    "types": "./dist/admin-http/routes/users/attach-policy.d.ts",
-    "symbols": {
-      "UserAttachPolicyRouteDeps": "interface:f3701d0929",
-      "userAttachPolicyRoute": "variable:f5d72f5e63"
-    }
-  },
-  "./admin-http/routes/users/create": {
-    "types": "./dist/admin-http/routes/users/create.d.ts",
-    "symbols": {
-      "UserCreateInput": "interface:cda222bbc5",
-      "UserCreateRouteDeps": "interface:94ccab47f5",
-      "userCreateRoute": "variable:b40188b6d2"
-    }
-  },
-  "./admin-http/routes/users/create-policy": {
-    "types": "./dist/admin-http/routes/users/create-policy.d.ts",
-    "symbols": {
-      "PolicyCreateRouteDeps": "interface:67581392e7",
-      "policyCreateRoute": "variable:1b6abc520f"
-    }
-  },
-  "./admin-http/routes/users/create-role": {
-    "types": "./dist/admin-http/routes/users/create-role.d.ts",
-    "symbols": {
-      "RoleCreateRouteDeps": "interface:3b2aeed91b",
-      "roleCreateRoute": "variable:d166d815cf"
-    }
-  },
-  "./admin-http/routes/users/delete": {
-    "types": "./dist/admin-http/routes/users/delete.d.ts",
-    "symbols": {
-      "UserDeleteRouteDeps": "interface:61d2cd2a1b",
-      "UserTrashFn": "type:bcdbad1a3f",
-      "userDeleteRoute": "variable:5c34a9b350"
-    }
-  },
-  "./admin-http/routes/users/delete-policy": {
-    "types": "./dist/admin-http/routes/users/delete-policy.d.ts",
-    "symbols": {
-      "PolicyDeleteRouteDeps": "interface:1c73f976ab",
-      "policyDeleteRoute": "variable:6ce6bec70a"
-    }
-  },
-  "./admin-http/routes/users/delete-role": {
-    "types": "./dist/admin-http/routes/users/delete-role.d.ts",
-    "symbols": {
-      "RoleDeleteRouteDeps": "interface:91ff694b2c",
-      "roleDeleteRoute": "variable:0d10759b43"
-    }
-  },
-  "./admin-http/routes/users/disable": {
-    "types": "./dist/admin-http/routes/users/disable.d.ts",
-    "symbols": {
-      "UserDisableRouteDeps": "interface:d35c1248bc",
-      "userDisableRoute": "variable:e038b4b9ce"
-    }
-  },
-  "./admin-http/routes/users/enable": {
-    "types": "./dist/admin-http/routes/users/enable.d.ts",
-    "symbols": {
-      "UserEnableRouteDeps": "interface:d4d0c87aa1",
-      "userEnableRoute": "variable:8cccd92b7e"
-    }
-  },
-  "./admin-http/routes/users/list": {
-    "types": "./dist/admin-http/routes/users/list.d.ts",
-    "symbols": {
-      "AdminUserListEntry": "type:99cfb8c45e",
-      "UserAccountProtection": "interface:3098e481a2",
-      "UserAccountProtectionFn": "type:b61b055671",
-      "UserListRouteDeps": "interface:37e57bfa9d",
-      "userListRoute": "variable:9bc404cdfc"
-    }
-  },
-  "./admin-http/routes/users/list-policies": {
-    "types": "./dist/admin-http/routes/users/list-policies.d.ts",
-    "symbols": {
-      "PolicyListRouteDeps": "interface:3452806471",
-      "policyListRoute": "variable:0e7e0d296d"
-    }
-  },
-  "./admin-http/routes/users/list-policy-permissions": {
-    "types": "./dist/admin-http/routes/users/list-policy-permissions.d.ts",
-    "symbols": {
-      "PolicyPermissionListRouteDeps": "interface:442dcc5f2a",
-      "policyPermissionListRoute": "variable:f5f2c011e7"
-    }
-  },
-  "./admin-http/routes/users/list-roles": {
-    "types": "./dist/admin-http/routes/users/list-roles.d.ts",
-    "symbols": {
-      "RoleListRouteDeps": "interface:d564fa6ef3",
-      "roleListRoute": "variable:3efd38c35d"
-    }
-  },
-  "./admin-http/routes/users/remove-policy-permission": {
-    "types": "./dist/admin-http/routes/users/remove-policy-permission.d.ts",
-    "symbols": {
-      "AssertActiveOwnerFloorFn": "type:0436af66a0",
-      "PolicyPermissionRemoveRouteDeps": "interface:38e93426de",
-      "PrincipalHoldsOwnerWildcardFn": "type:a88e3847be",
-      "policyPermissionRemoveRoute": "variable:ba1fe023ea"
-    }
-  },
-  "./admin-http/routes/users/reset-password": {
-    "types": "./dist/admin-http/routes/users/reset-password.d.ts",
-    "symbols": {
-      "UserResetPasswordRouteDeps": "interface:f965a9f5d7",
-      "userResetPasswordRoute": "variable:acc7fd8f22"
-    }
-  },
-  "./admin-http/routes/users/update": {
-    "types": "./dist/admin-http/routes/users/update.d.ts",
-    "symbols": {
-      "UserUpdateInput": "interface:2bd217986b",
-      "UserUpdateRouteDeps": "interface:511d753717",
-      "userUpdateRoute": "variable:b857a8bcd5"
-    }
-  },
-  "./admin-http/routes/users/update-policy": {
-    "types": "./dist/admin-http/routes/users/update-policy.d.ts",
-    "symbols": {
-      "PolicyUpdateRouteDeps": "interface:89915ed5c0",
-      "policyUpdateRoute": "variable:d47b37ba3d"
-    }
-  },
-  "./admin-http/routes/users/update-role": {
-    "types": "./dist/admin-http/routes/users/update-role.d.ts",
-    "symbols": {
-      "RoleUpdateRouteDeps": "interface:c33d1f704c",
-      "roleUpdateRoute": "variable:c6a31141f4"
-    }
-  },
-  "./admin-http/routes/users/write-policy-permission": {
-    "types": "./dist/admin-http/routes/users/write-policy-permission.d.ts",
-    "symbols": {
-      "PolicyPermissionWriteRouteDeps": "interface:a446bc4aab",
-      "policyPermissionWriteRoute": "variable:92da8790da"
-    }
-  },
   "./admin/adapters/http": {
     "types": "./dist/admin/adapters/http.d.ts",
     "symbols": {
@@ -322,6 +154,41 @@
       "rolesKitNeeds": "variable:8a238ec161",
       "users": "function:d3e7077624",
       "usersKitNeeds": "variable:8f44899bcc"
+    }
+  },
+  "./mail/status/agent-tools": {
+    "types": "./dist/mail/status/agent-tools.d.ts",
+    "symbols": {
+      "mailStatusAgentToolCatalog": "variable:8148608749"
+    }
+  },
+  "./mail/status/delivery-agent-tools": {
+    "types": "./dist/mail/status/delivery-agent-tools.d.ts",
+    "symbols": {
+      "mailDeliveryAgentToolCatalog": "variable:08dd7a7295"
+    }
+  },
+  "./mail/status/domain-deps": {
+    "types": "./dist/mail/status/domain-deps.d.ts",
+    "symbols": {
+      "MailHostActivityDeps": "type:d50ec902a6",
+      "mailDomainDepsFrom": "function:fd41863f6b"
+    }
+  },
+  "./mail/status/permissions": {
+    "types": "./dist/mail/status/permissions.d.ts",
+    "symbols": {
+      "MAIL_ACTIVITY_READ_PERMISSION": "variable:ff8fb41de5",
+      "MAIL_PERMISSION_IDS": "variable:32e1ce4090",
+      "MAIL_STATUS_PERMISSION": "variable:c07b23505f",
+      "MAIL_SUPPRESSIONS_MANAGE_PERMISSION": "variable:79d3c102ae",
+      "registerMailPermissionGrants": "function:348361cdfa"
+    }
+  },
+  "./mail/status/provider-agent-tools": {
+    "types": "./dist/mail/status/provider-agent-tools.d.ts",
+    "symbols": {
+      "mailProviderAgentToolCatalog": "variable:50aeea5d8e"
     }
   },
   "./react": {
@@ -609,6 +476,174 @@
       "assertLoopbackHttpUrl": "function:396af6ba6f",
       "ensureSession": "function:e703daf358",
       "readInitialSession": "function:cbde1a9d86"
+    }
+  },
+  "./admin-http/http/users": {
+    "types": "./dist/admin-http/http/users.d.ts",
+    "symbols": {
+      "AdminPolicyResponse": "interface:2afb2082dc",
+      "AdminRoleResponse": "interface:3550f336f8",
+      "AdminUserResponse": "interface:aa66fe1d57",
+      "toAdminPolicyResponse": "function:96db68529a",
+      "toAdminRoleResponse": "function:6d3d9fecba",
+      "toAdminUserResponse": "function:f463cef2c0"
+    }
+  },
+  "./admin-http/owner/mfa-deps": {
+    "types": "./dist/admin-http/owner/mfa-deps.d.ts",
+    "symbols": {
+      "ComposeOwnerMfaDepsArgs": "interface:34b3f53d7b",
+      "OwnerAuthServiceDepsFn": "type:a72e0e8798",
+      "OwnerMfaSource": "interface:18c4467321",
+      "composeOwnerMfaDeps": "function:5e6c397362"
+    }
+  },
+  "./admin-http/routes/users/assign-role": {
+    "types": "./dist/admin-http/routes/users/assign-role.d.ts",
+    "symbols": {
+      "UserAssignRoleRouteDeps": "interface:d976f2231a",
+      "userAssignRoleRoute": "variable:fcbed5d0b8"
+    }
+  },
+  "./admin-http/routes/users/attach-policy": {
+    "types": "./dist/admin-http/routes/users/attach-policy.d.ts",
+    "symbols": {
+      "UserAttachPolicyRouteDeps": "interface:f3701d0929",
+      "userAttachPolicyRoute": "variable:f5d72f5e63"
+    }
+  },
+  "./admin-http/routes/users/create": {
+    "types": "./dist/admin-http/routes/users/create.d.ts",
+    "symbols": {
+      "UserCreateInput": "interface:cda222bbc5",
+      "UserCreateRouteDeps": "interface:94ccab47f5",
+      "userCreateRoute": "variable:b40188b6d2"
+    }
+  },
+  "./admin-http/routes/users/create-policy": {
+    "types": "./dist/admin-http/routes/users/create-policy.d.ts",
+    "symbols": {
+      "PolicyCreateRouteDeps": "interface:67581392e7",
+      "policyCreateRoute": "variable:1b6abc520f"
+    }
+  },
+  "./admin-http/routes/users/create-role": {
+    "types": "./dist/admin-http/routes/users/create-role.d.ts",
+    "symbols": {
+      "RoleCreateRouteDeps": "interface:3b2aeed91b",
+      "roleCreateRoute": "variable:d166d815cf"
+    }
+  },
+  "./admin-http/routes/users/delete": {
+    "types": "./dist/admin-http/routes/users/delete.d.ts",
+    "symbols": {
+      "UserDeleteRouteDeps": "interface:61d2cd2a1b",
+      "UserTrashFn": "type:bcdbad1a3f",
+      "userDeleteRoute": "variable:5c34a9b350"
+    }
+  },
+  "./admin-http/routes/users/delete-policy": {
+    "types": "./dist/admin-http/routes/users/delete-policy.d.ts",
+    "symbols": {
+      "PolicyDeleteRouteDeps": "interface:1c73f976ab",
+      "policyDeleteRoute": "variable:6ce6bec70a"
+    }
+  },
+  "./admin-http/routes/users/delete-role": {
+    "types": "./dist/admin-http/routes/users/delete-role.d.ts",
+    "symbols": {
+      "RoleDeleteRouteDeps": "interface:91ff694b2c",
+      "roleDeleteRoute": "variable:0d10759b43"
+    }
+  },
+  "./admin-http/routes/users/disable": {
+    "types": "./dist/admin-http/routes/users/disable.d.ts",
+    "symbols": {
+      "UserDisableRouteDeps": "interface:d35c1248bc",
+      "userDisableRoute": "variable:e038b4b9ce"
+    }
+  },
+  "./admin-http/routes/users/enable": {
+    "types": "./dist/admin-http/routes/users/enable.d.ts",
+    "symbols": {
+      "UserEnableRouteDeps": "interface:d4d0c87aa1",
+      "userEnableRoute": "variable:8cccd92b7e"
+    }
+  },
+  "./admin-http/routes/users/list": {
+    "types": "./dist/admin-http/routes/users/list.d.ts",
+    "symbols": {
+      "AdminUserListEntry": "type:99cfb8c45e",
+      "UserAccountProtection": "interface:3098e481a2",
+      "UserAccountProtectionFn": "type:b61b055671",
+      "UserListRouteDeps": "interface:37e57bfa9d",
+      "userListRoute": "variable:9bc404cdfc"
+    }
+  },
+  "./admin-http/routes/users/list-policies": {
+    "types": "./dist/admin-http/routes/users/list-policies.d.ts",
+    "symbols": {
+      "PolicyListRouteDeps": "interface:3452806471",
+      "policyListRoute": "variable:0e7e0d296d"
+    }
+  },
+  "./admin-http/routes/users/list-policy-permissions": {
+    "types": "./dist/admin-http/routes/users/list-policy-permissions.d.ts",
+    "symbols": {
+      "PolicyPermissionListRouteDeps": "interface:442dcc5f2a",
+      "policyPermissionListRoute": "variable:f5f2c011e7"
+    }
+  },
+  "./admin-http/routes/users/list-roles": {
+    "types": "./dist/admin-http/routes/users/list-roles.d.ts",
+    "symbols": {
+      "RoleListRouteDeps": "interface:d564fa6ef3",
+      "roleListRoute": "variable:3efd38c35d"
+    }
+  },
+  "./admin-http/routes/users/remove-policy-permission": {
+    "types": "./dist/admin-http/routes/users/remove-policy-permission.d.ts",
+    "symbols": {
+      "AssertActiveOwnerFloorFn": "type:0436af66a0",
+      "PolicyPermissionRemoveRouteDeps": "interface:38e93426de",
+      "PrincipalHoldsOwnerWildcardFn": "type:a88e3847be",
+      "policyPermissionRemoveRoute": "variable:ba1fe023ea"
+    }
+  },
+  "./admin-http/routes/users/reset-password": {
+    "types": "./dist/admin-http/routes/users/reset-password.d.ts",
+    "symbols": {
+      "UserResetPasswordRouteDeps": "interface:f965a9f5d7",
+      "userResetPasswordRoute": "variable:acc7fd8f22"
+    }
+  },
+  "./admin-http/routes/users/update": {
+    "types": "./dist/admin-http/routes/users/update.d.ts",
+    "symbols": {
+      "UserUpdateInput": "interface:2bd217986b",
+      "UserUpdateRouteDeps": "interface:511d753717",
+      "userUpdateRoute": "variable:b857a8bcd5"
+    }
+  },
+  "./admin-http/routes/users/update-policy": {
+    "types": "./dist/admin-http/routes/users/update-policy.d.ts",
+    "symbols": {
+      "PolicyUpdateRouteDeps": "interface:89915ed5c0",
+      "policyUpdateRoute": "variable:d47b37ba3d"
+    }
+  },
+  "./admin-http/routes/users/update-role": {
+    "types": "./dist/admin-http/routes/users/update-role.d.ts",
+    "symbols": {
+      "RoleUpdateRouteDeps": "interface:c33d1f704c",
+      "roleUpdateRoute": "variable:c6a31141f4"
+    }
+  },
+  "./admin-http/routes/users/write-policy-permission": {
+    "types": "./dist/admin-http/routes/users/write-policy-permission.d.ts",
+    "symbols": {
+      "PolicyPermissionWriteRouteDeps": "interface:a446bc4aab",
+      "policyPermissionWriteRoute": "variable:92da8790da"
     }
   },
   "./admin-http/auth": {

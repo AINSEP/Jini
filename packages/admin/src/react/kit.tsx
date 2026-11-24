@@ -181,7 +181,7 @@ export interface SettingsDialogShellProps {
   readonly welcome?: boolean; readonly defaultSidebarCollapsed?: boolean; readonly fullscreenEnabled?: boolean; readonly defaultFullscreen?: boolean;
   readonly chromeExtra?: ReactNode; readonly dialogAriaLabelledBy?: string; readonly className?: string;
   /** Chrome labels the shell renders itself; mirrors the UI owner's `TabbedDialogChromeLabels` (all optional). */
-  readonly labels?: SettingsDialogChromeLabels;
+  readonly labels?: SettingsDialogChromeLabels | undefined;
 }
 /** Kit mirror of the UI shell's chrome labels (kicker, welcome copy, close/fullscreen/sidebar labels). */
 export interface SettingsDialogChromeLabels {

@@ -2095,6 +2095,11 @@
     "value": 1
   },
   {
+    "file": "packages/platform/src/mail/feedback-setup.ts",
+    "rule": "catch-reads-error",
+    "value": 1
+  },
+  {
     "file": "packages/platform/src/mail/resolve-mailer.ts",
     "rule": "catch-reads-error",
     "value": 7
@@ -2701,6 +2706,41 @@
   },
   {
     "file": "packages/cms/src/media/site/content-type-resolution.ts",
+    "rule": "catch-reads-error",
+    "value": 1
+  },
+  {
+    "file": "packages/admin/src/screens/email/email-tabs-i18n.ts",
+    "rule": "no-generic-failure-text",
+    "value": 1
+  },
+  {
+    "file": "packages/admin/src/screens/email/hooks/email-load.hooks.ts",
+    "rule": "no-generic-failure-text",
+    "value": 1
+  },
+  {
+    "file": "packages/agentic/src/skills/site/layout.ts",
+    "rule": "catch-reads-error",
+    "value": 1
+  },
+  {
+    "file": "packages/agentic/src/skills/site/layout.ts",
+    "rule": "failure-text-from-catalog",
+    "value": 1
+  },
+  {
+    "file": "packages/platform/src/mail/sql/retention.ts",
+    "rule": "catch-reads-error",
+    "value": 2
+  },
+  {
+    "file": "packages/platform/src/mail/test-send.ts",
+    "rule": "catch-reads-error",
+    "value": 1
+  },
+  {
+    "file": "packages/platform/src/mail/use-readiness.ts",
     "rule": "catch-reads-error",
     "value": 1
   }

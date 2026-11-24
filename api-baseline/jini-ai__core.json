@@ -1070,9 +1070,9 @@
       "Handler": "type:b35e87c20f",
       "HttpMethod": "type:8629d30c08",
       "InputParser": "type:978c095fdc",
-      "JsonRouteAuthorize": "type:50763f58a8",
+      "JsonRouteAuthorize": "type:1a908198ec",
       "JsonRouteAuthorizeScope": "interface:992127fbec",
-      "JsonRoutePorts": "interface:29894518f7",
+      "JsonRoutePorts": "interface:97063fef37",
       "JsonRouteSpec": "interface:05f4c73774",
       "OriginContext": "interface:d4702c659e",
       "RateLimitResult": "type:820531e754",
@@ -1081,10 +1081,8 @@
       "Result": "type:35542e17c5",
       "RouteHostContext": "interface:c26ac79c5e",
       "RouteHostInternalErrorContext": "interface:96ac301673",
-      "RouteInputContext": "interface:c6b8e27c78",
+      "RouteInputContext": "interface:3099af8fcf",
       "RouteMatch": "type:2d41b49165",
-      "RouteReply": "interface:c05c291056",
-      "RouteRequestFacts": "interface:9d2a3d9c32",
       "RouteTable": "interface:5351d2527c",
       "RouteTableOptions": "interface:d2e60237c4",
       "SameOriginPolicyPort": "interface:7ab05d8a4f",
@@ -1111,7 +1109,6 @@
       "err": "variable:6de429f2fe",
       "guardSameOrigin": "function:b55bf8bcb5",
       "isDeclaredOrigin": "function:b77c95555a",
-      "isRouteReply": "function:6a722adea7",
       "isSameOriginBrowserWrite": "function:415db11483",
       "jsonResponse": "function:5d3407a71d",
       "jsonRoute": "function:16d919bc33",
@@ -1122,13 +1119,16 @@
       "readBodyBytes": "function:da5d12c25f",
       "readJsonBody": "function:f1492d1da6",
       "readQuery": "function:d9125aefb2",
-      "routeReply": "function:7504e46f5b",
       "sameOriginRefusal": "function:68983bff8b",
       "statusForError": "function:8e02de6bc4",
       "validationError": "function:0eb88316c3",
       "withDeclaredHosts": "function:5c5f2958e5",
       "withRouteMiddleware": "function:0dfab2b00b",
-      "withServerMiddleware": "function:a2d6ffd1ce"
+      "withServerMiddleware": "function:a2d6ffd1ce",
+      "RouteReply": "interface:c05c291056",
+      "RouteRequestFacts": "interface:9d2a3d9c32",
+      "isRouteReply": "function:6a722adea7",
+      "routeReply": "function:7504e46f5b"
     }
   },
   "./contracts/server/conformance": {
@@ -1344,9 +1344,9 @@
       "AdminAgentPluginDto": "interface:f210bba760",
       "AdminAgentPluginFilesEnvelope": "interface:65573deb72",
       "AdminAgentPluginLifecycleDto": "interface:2097a79e16",
-      "AdminAgentPluginMemoryEnvelope": "interface:23370ca661",
       "AdminAgentPluginSetEnabledEnvelope": "interface:61be4329da",
-      "AdminAgentPluginsListEnvelope": "interface:22e8b4ea12"
+      "AdminAgentPluginsListEnvelope": "interface:22e8b4ea12",
+      "AdminAgentPluginMemoryEnvelope": "interface:23370ca661"
     }
   },
   "./contracts/site/cms-assistant": {
@@ -1427,7 +1427,6 @@
       "AdminMediaProviderMarkers": "type:fb1530d948",
       "AdminMediaPurgeEnvelope": "interface:f341c9883e",
       "AdminMediaStatus": "type:fc7dfac77d",
-      "AdminMediaWhereUsedEnvelope": "interface:02792a4cd6",
       "EncodedImage": "interface:3a422c016a",
       "ImageCodecLimits": "interface:8163e55ba2",
       "ImageCodecPort": "interface:ce7e3b6343",
@@ -1443,7 +1442,8 @@
       "MediaStatus": "type:fb08580bb1",
       "TransformFit": "type:c06b6c0368",
       "TransformFormat": "type:e12c2fb303",
-      "TransformParams": "interface:37f709014d"
+      "TransformParams": "interface:37f709014d",
+      "AdminMediaWhereUsedEnvelope": "interface:02792a4cd6"
     }
   },
   "./contracts/site/cms-menus": {
@@ -1758,6 +1758,19 @@
       "SettingsErrorMapping": "interface:828bcf14f3"
     }
   },
+  "./contracts/site/human-confirm": {
+    "types": "./dist/contracts/site/human-confirm.d.ts",
+    "symbols": {
+      "HumanConfirmAlternative": "interface:399507e6ef",
+      "HumanConfirmSpec": "interface:f0edff62bb"
+    }
+  },
+  "./contracts/site/installed-skill": {
+    "types": "./dist/contracts/site/installed-skill.d.ts",
+    "symbols": {
+      "InstalledSkill": "interface:d0a1c44471"
+    }
+  },
   "./contracts/site/integrations-api-connections": {
     "types": "./dist/contracts/site/integrations-api-connections.d.ts",
     "symbols": {
@@ -1818,7 +1831,11 @@
       "MailActivityRepo": "interface:1c0d40223e",
       "MailActivityUse": "type:7e7703f3dc",
       "MailFeedbackInboxPort": "interface:0948cbb9f6",
+      "MailFeedbackProviderSetup": "interface:5f9a97fbec",
       "MailFeedbackRecord": "interface:ba22adc9f4",
+      "MailFeedbackSetupReport": "interface:db86f40509",
+      "MailLaunchGatePrecondition": "type:cedd472e4a",
+      "MailLaunchGateResult": "interface:dbebd0a0d9",
       "MailPermissionIds": "interface:0091ea86df",
       "MailSenderIdentityPort": "interface:b94a1c2235",
       "MailSuppressionAdminRepo": "interface:f4e678ee81",
@@ -1826,7 +1843,8 @@
       "MailSuppressionEntry": "interface:0de81f5fd8",
       "MailSuppressionListFilter": "interface:f2e8a0bba7",
       "MailSuppressionReason": "type:8518d7b45c",
-      "MailSuppressionRemoval": "interface:090f879f5e"
+      "MailSuppressionRemoval": "interface:090f879f5e",
+      "MailWebhookSecretSlot": "interface:372e09687c"
     }
   },
   "./contracts/site/platform-server-logs": {
@@ -1967,6 +1985,12 @@
       "AdminSiteKeyState": "type:4e0c0bc1f5",
       "AdminSiteKeyStatus": "interface:7c27f0a100",
       "AdminStartedFreshSiteKey": "interface:f9f2351943"
+    }
+  },
+  "./contracts/site/skill-install": {
+    "types": "./dist/contracts/site/skill-install.d.ts",
+    "symbols": {
+      "SkillInstallPayload": "type:3345bf8123"
     }
   },
   "./contracts/site/soft-delete": {
@@ -2414,6 +2438,7 @@
   "./optimistic-concurrency": {
     "types": "./dist/optimistic-concurrency.d.ts",
     "symbols": {
+      "AssertVersionedWritePort": "type:d2484ce25d",
       "RecordVersionConflictError": "class:6bb098decb",
       "RecordVersionRequiredError": "class:d98ea97c3b",
       "VERSION_CONFLICT_CODE": "variable:24fa5ccc04",
@@ -2833,6 +2858,12 @@
     "types": "./dist/tool-metadata/pages.d.ts",
     "symbols": {
       "toolMetadata": "variable:6636a3b125"
+    }
+  },
+  "./tool-metadata/skills": {
+    "types": "./dist/tool-metadata/skills.d.ts",
+    "symbols": {
+      "toolMetadata": "variable:85952eec89"
     }
   },
   "./contracts/headless/chart-providers": {

@@ -122,12 +122,48 @@
    "serve": "function:2fc519efdc"
   }
  },
+ "./external/agent-tools": {
+  "types": "./dist/external/agent-tools.d.ts",
+  "symbols": {
+   "AgentToolDefinition": "type:b4d7d744be",
+   "AgentToolSideEffect": "type:1f07f9c0c0",
+   "EXTERNAL_MCP_MANAGE_PERMISSION": "variable:19d40a9bf8",
+   "createExternalMcpAgentToolCatalog": "function:61cc107a76"
+  }
+ },
  "./external/built-in-connections": {
   "types": "./dist/external/built-in-connections.d.ts",
   "symbols": {
    "describeExternalMcpOwnership": "function:5674cf9751",
    "isBuiltInExternalMcpServer": "function:d19a355312",
    "readBuiltInExternalMcpServerIds": "function:a09648e6db"
+  }
+ },
+ "./external/external-mcp-host-copy": {
+  "types": "./dist/external/external-mcp-host-copy.d.ts",
+  "symbols": {
+   "ExternalMcpHostCopy": "interface:e912ba67dd"
+  }
+ },
+ "./external/operations-tools": {
+  "types": "./dist/external/operations-tools.d.ts",
+  "symbols": {
+   "ExternalMcpOperations": "interface:e9a3b9f946",
+   "ExternalMcpOperationsDeps": "interface:5d713a7b6b",
+   "buildExternalMcpOperationsRegistrations": "function:3102ab4c29",
+   "contributeExternalMcpOperationsTools": "function:d23464eb95",
+   "createExternalMcpOperationsToolCatalog": "function:decd4da223",
+   "externalMcpOperationsDerivedRisk": "variable:d8a6cd8187"
+  }
+ },
+ "./external/save-form": {
+  "types": "./dist/external/save-form.d.ts",
+  "symbols": {
+   "EXTERNAL_MCP_SAVE_TOOL_ID": "variable:ad61d6797e",
+   "ExternalMcpSaveInput": "interface:5854570386",
+   "buildExternalMcpSaveForm": "function:6b92d92ba8",
+   "buildExternalMcpSaveFormFields": "function:757aa9ec58",
+   "mergeExternalMcpSavePrefill": "function:7f09cf39fa"
   }
  },
  "./federation": {
@@ -301,6 +337,23 @@
    "createFederatedCallConfirmer": "function:5010337d13",
    "createFederatedConnectionRevocationGate": "function:03c7f14300",
    "rosterRefusalFor": "function:0fd4f0690e"
+  }
+ },
+ "./federation/external-mcp-admissions": {
+  "types": "./dist/federation/external-mcp-admissions.d.ts",
+  "symbols": {
+   "ReportReadFailure": "type:d190a59eab",
+   "ServerAdmissionsReader": "type:7894bd3a3a",
+   "createServerAdmissionsReader": "function:355514d021"
+  }
+ },
+ "./federation/external-mcp-probe": {
+  "types": "./dist/federation/external-mcp-probe.d.ts",
+  "symbols": {
+   "ExternalMcpProbeBaseDeps": "interface:f6960fb818",
+   "ExternalMcpProbeHost": "interface:6408c7536b",
+   "ExternalMcpProbeReauthError": "interface:e1087415f8",
+   "createExternalMcpProbe": "function:b4f1ddc304"
   }
  },
  "./federation/hosted": {

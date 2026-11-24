@@ -32,6 +32,11 @@ test('publishes user management from its canonical folder and preserves runtime 
     './admin/adapters/http': 'universal',
     './admin/adapters/memory': 'universal',
     './admin/conformance': 'universal',
+    './mail/status/agent-tools': 'universal',
+    './mail/status/delivery-agent-tools': 'universal',
+    './mail/status/domain-deps': 'universal',
+    './mail/status/permissions': 'universal',
+    './mail/status/provider-agent-tools': 'universal',
     // K1 route specs (RT-K1-adm-users) and the owner MFA composer: server-neutral admin-http entries.
     './admin-http/http/users': 'universal',
     './admin-http/owner/mfa-deps': 'universal',

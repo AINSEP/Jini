@@ -577,6 +577,28 @@
    "verifySignature": "function:fe9b057aa1"
   }
  },
+ "./webhooks/site/delivery": {
+  "types": "./dist/webhooks/site/delivery.d.ts",
+  "symbols": {
+   "EnqueueDeliveryDeps": "interface:be5f8d818a",
+   "EnqueueDeliveryRequired": "interface:2741c26089",
+   "HttpClientPort": "interface:08e48d7abe",
+   "ProcessDueDeliveriesDeps": "interface:b408836654",
+   "ProcessDueDeliveriesRequired": "interface:16f408864c",
+   "adaptWebhookHttpClient": "function:8e8ef675c0",
+   "enqueueDelivery": "function:50c4c05939",
+   "processDueDeliveries": "function:8004f1e327"
+  }
+ },
+ "./webhooks/site/repo.memory": {
+  "types": "./dist/webhooks/site/repo.memory.d.ts",
+  "symbols": {
+   "InMemoryDeliveryEnvelopeStore": "class:76ba65ccf3",
+   "InMemoryWebhookDeliveryRepo": "class:f7c5f631a4",
+   "InMemoryWebhookSubscriptionRepo": "class:bbd1f4dc11",
+   "InMemoryWebhookSubscriptionRequired": "interface:517533954b"
+  }
+ },
  "./webhooks/site/signing": {
   "types": "./dist/webhooks/site/signing.d.ts",
   "symbols": {
@@ -621,7 +643,6 @@
  "./webhooks/sql": {
   "types": "./dist/webhooks/sql/index.d.ts",
   "symbols": {
-   "AssertVersionedWritePort": "type:d2484ce25d",
    "SqlWebhookDeliveryRepo": "class:d69f918e27",
    "SqlWebhookSubscriptionRepo": "class:e1857202a7",
    "WebhookDeliveriesTable": "interface:056ae2671e",

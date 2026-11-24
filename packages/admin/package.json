@@ -179,6 +179,23 @@
       "./screens/collections/hooks/collections-port.hooks": "universal",
       "./screens/collections/hooks/edit-fields-dialog-port.hooks": "universal",
       "./screens/collections/hooks/new-content-type-dialog-port.hooks": "universal",
+      "./screens/plugins/add-plugin-tab-soon": "universal",
+      "./screens/plugins/composer-capabilities": "universal",
+      "./screens/plugins/agent-plugins-visuals": "browser",
+      "./screens/plugins/hooks/agent-plugin-surfaces-port.hooks": "universal",
+      "./screens/plugins/hooks/use-linked-lock-tip.hooks": "browser",
+      "./screens/plugins/plugins-memory-i18n": "universal",
+      "./screens/skills/skill-failure": "universal",
+      "./screens/skills/skill-upload": "universal",
+      "./screens/skills/SkillInstallConfirmation": "browser",
+      "./screens/skills/SkillRemoveConfirmDialog": "browser",
+      "./screens/skills/SkillRow": "browser",
+      "./screens/skills/Skills": "browser",
+      "./screens/skills/skills-i18n": "universal",
+      "./screens/skills/skills-screen.types": "universal",
+      "./screens/skills/skills-visuals": "browser",
+      "./screens/skills/Skills.hooks": "browser",
+      "./screens/skills/use-skill-confirmation.hooks": "browser",
       "./screens/taxonomy/api/taxonomy-api.types": "universal",
       "./screens/taxonomy/html-rules": "universal",
       "./screens/taxonomy/TaxonomyRowMenu.hooks": "browser",
@@ -189,6 +206,18 @@
       "./screens/taxonomy/hooks/taxonomy-port.hooks": "universal",
       "./screens/taxonomy/hooks/term-picker-port.hooks": "universal",
       "./screens/comments/api/comments-api.types": "universal",
+      "./screens/email/email-i18n": "universal",
+      "./screens/email/api/mail-status-api.types": "universal",
+      "./screens/email/Email.hooks": "universal",
+      "./screens/email/EmailTemplateEditor.hooks": "universal",
+      "./screens/email/hooks/email-load.hooks": "browser",
+      "./screens/email/email-api.types": "universal",
+      "./screens/email/hooks/use-email.hooks": "browser",
+      "./screens/email/hooks/use-email-overview.hooks": "browser",
+      "./screens/email/hooks/use-email-sender.hooks": "browser",
+      "./screens/email/hooks/use-email-templates.hooks": "browser",
+      "./screens/email/hooks/use-email-template-editor.hooks": "browser",
+      "./screens/email/hooks/use-email-activity.hooks": "browser",
       "./screens/forms/api/forms-api.types": "universal",
       "./screens/forms/index-aligned-translations": "universal",
       "./screens/forms/forms-field-settings-i18n": "universal",
@@ -1342,6 +1371,91 @@
       "import": "./dist/screens/collections/hooks/new-content-type-dialog-port.hooks.js",
       "default": "./dist/screens/collections/hooks/new-content-type-dialog-port.hooks.js"
     },
+    "./screens/plugins/add-plugin-tab-soon": {
+      "types": "./dist/screens/plugins/add-plugin-tab-soon.d.ts",
+      "import": "./dist/screens/plugins/add-plugin-tab-soon.js",
+      "default": "./dist/screens/plugins/add-plugin-tab-soon.js"
+    },
+    "./screens/plugins/composer-capabilities": {
+      "types": "./dist/screens/plugins/composer-capabilities.d.ts",
+      "import": "./dist/screens/plugins/composer-capabilities.js",
+      "default": "./dist/screens/plugins/composer-capabilities.js"
+    },
+    "./screens/plugins/agent-plugins-visuals": {
+      "types": "./dist/screens/plugins/agent-plugins-visuals.d.ts",
+      "import": "./dist/screens/plugins/agent-plugins-visuals.js",
+      "default": "./dist/screens/plugins/agent-plugins-visuals.js"
+    },
+    "./screens/plugins/hooks/agent-plugin-surfaces-port.hooks": {
+      "types": "./dist/screens/plugins/hooks/agent-plugin-surfaces-port.hooks.d.ts",
+      "import": "./dist/screens/plugins/hooks/agent-plugin-surfaces-port.hooks.js",
+      "default": "./dist/screens/plugins/hooks/agent-plugin-surfaces-port.hooks.js"
+    },
+    "./screens/plugins/hooks/use-linked-lock-tip.hooks": {
+      "types": "./dist/screens/plugins/hooks/use-linked-lock-tip.hooks.d.ts",
+      "import": "./dist/screens/plugins/hooks/use-linked-lock-tip.hooks.js",
+      "default": "./dist/screens/plugins/hooks/use-linked-lock-tip.hooks.js"
+    },
+    "./screens/plugins/plugins-memory-i18n": {
+      "types": "./dist/screens/plugins/plugins-memory-i18n.d.ts",
+      "import": "./dist/screens/plugins/plugins-memory-i18n.js",
+      "default": "./dist/screens/plugins/plugins-memory-i18n.js"
+    },
+    "./screens/skills/skill-failure": {
+      "types": "./dist/screens/skills/skill-failure.d.ts",
+      "import": "./dist/screens/skills/skill-failure.js",
+      "default": "./dist/screens/skills/skill-failure.js"
+    },
+    "./screens/skills/skill-upload": {
+      "types": "./dist/screens/skills/skill-upload.d.ts",
+      "import": "./dist/screens/skills/skill-upload.js",
+      "default": "./dist/screens/skills/skill-upload.js"
+    },
+    "./screens/skills/SkillInstallConfirmation": {
+      "types": "./dist/screens/skills/SkillInstallConfirmation.d.ts",
+      "import": "./dist/screens/skills/SkillInstallConfirmation.js",
+      "default": "./dist/screens/skills/SkillInstallConfirmation.js"
+    },
+    "./screens/skills/SkillRemoveConfirmDialog": {
+      "types": "./dist/screens/skills/SkillRemoveConfirmDialog.d.ts",
+      "import": "./dist/screens/skills/SkillRemoveConfirmDialog.js",
+      "default": "./dist/screens/skills/SkillRemoveConfirmDialog.js"
+    },
+    "./screens/skills/SkillRow": {
+      "types": "./dist/screens/skills/SkillRow.d.ts",
+      "import": "./dist/screens/skills/SkillRow.js",
+      "default": "./dist/screens/skills/SkillRow.js"
+    },
+    "./screens/skills/Skills": {
+      "types": "./dist/screens/skills/Skills.d.ts",
+      "import": "./dist/screens/skills/Skills.js",
+      "default": "./dist/screens/skills/Skills.js"
+    },
+    "./screens/skills/skills-i18n": {
+      "types": "./dist/screens/skills/skills-i18n.d.ts",
+      "import": "./dist/screens/skills/skills-i18n.js",
+      "default": "./dist/screens/skills/skills-i18n.js"
+    },
+    "./screens/skills/skills-screen.types": {
+      "types": "./dist/screens/skills/skills-screen.types.d.ts",
+      "import": "./dist/screens/skills/skills-screen.types.js",
+      "default": "./dist/screens/skills/skills-screen.types.js"
+    },
+    "./screens/skills/skills-visuals": {
+      "types": "./dist/screens/skills/skills-visuals.d.ts",
+      "import": "./dist/screens/skills/skills-visuals.js",
+      "default": "./dist/screens/skills/skills-visuals.js"
+    },
+    "./screens/skills/Skills.hooks": {
+      "types": "./dist/screens/skills/Skills.hooks.d.ts",
+      "import": "./dist/screens/skills/Skills.hooks.js",
+      "default": "./dist/screens/skills/Skills.hooks.js"
+    },
+    "./screens/skills/use-skill-confirmation.hooks": {
+      "types": "./dist/screens/skills/use-skill-confirmation.hooks.d.ts",
+      "import": "./dist/screens/skills/use-skill-confirmation.hooks.js",
+      "default": "./dist/screens/skills/use-skill-confirmation.hooks.js"
+    },
     "./screens/taxonomy/api/taxonomy-api.types": {
       "types": "./dist/screens/taxonomy/api/taxonomy-api.types.d.ts",
       "import": "./dist/screens/taxonomy/api/taxonomy-api.types.js",
@@ -1391,6 +1505,66 @@
       "types": "./dist/screens/comments/api/comments-api.types.d.ts",
       "import": "./dist/screens/comments/api/comments-api.types.js",
       "default": "./dist/screens/comments/api/comments-api.types.js"
+    },
+    "./screens/email/email-i18n": {
+      "types": "./dist/screens/email/email-i18n.d.ts",
+      "import": "./dist/screens/email/email-i18n.js",
+      "default": "./dist/screens/email/email-i18n.js"
+    },
+    "./screens/email/api/mail-status-api.types": {
+      "types": "./dist/screens/email/api/mail-status-api.types.d.ts",
+      "import": "./dist/screens/email/api/mail-status-api.types.js",
+      "default": "./dist/screens/email/api/mail-status-api.types.js"
+    },
+    "./screens/email/Email.hooks": {
+      "types": "./dist/screens/email/Email.hooks.d.ts",
+      "import": "./dist/screens/email/Email.hooks.js",
+      "default": "./dist/screens/email/Email.hooks.js"
+    },
+    "./screens/email/EmailTemplateEditor.hooks": {
+      "types": "./dist/screens/email/EmailTemplateEditor.hooks.d.ts",
+      "import": "./dist/screens/email/EmailTemplateEditor.hooks.js",
+      "default": "./dist/screens/email/EmailTemplateEditor.hooks.js"
+    },
+    "./screens/email/hooks/email-load.hooks": {
+      "types": "./dist/screens/email/hooks/email-load.hooks.d.ts",
+      "import": "./dist/screens/email/hooks/email-load.hooks.js",
+      "default": "./dist/screens/email/hooks/email-load.hooks.js"
+    },
+    "./screens/email/email-api.types": {
+      "types": "./dist/screens/email/email-api.types.d.ts",
+      "import": "./dist/screens/email/email-api.types.js",
+      "default": "./dist/screens/email/email-api.types.js"
+    },
+    "./screens/email/hooks/use-email.hooks": {
+      "types": "./dist/screens/email/hooks/use-email.hooks.d.ts",
+      "import": "./dist/screens/email/hooks/use-email.hooks.js",
+      "default": "./dist/screens/email/hooks/use-email.hooks.js"
+    },
+    "./screens/email/hooks/use-email-overview.hooks": {
+      "types": "./dist/screens/email/hooks/use-email-overview.hooks.d.ts",
+      "import": "./dist/screens/email/hooks/use-email-overview.hooks.js",
+      "default": "./dist/screens/email/hooks/use-email-overview.hooks.js"
+    },
+    "./screens/email/hooks/use-email-sender.hooks": {
+      "types": "./dist/screens/email/hooks/use-email-sender.hooks.d.ts",
+      "import": "./dist/screens/email/hooks/use-email-sender.hooks.js",
+      "default": "./dist/screens/email/hooks/use-email-sender.hooks.js"
+    },
+    "./screens/email/hooks/use-email-templates.hooks": {
+      "types": "./dist/screens/email/hooks/use-email-templates.hooks.d.ts",
+      "import": "./dist/screens/email/hooks/use-email-templates.hooks.js",
+      "default": "./dist/screens/email/hooks/use-email-templates.hooks.js"
+    },
+    "./screens/email/hooks/use-email-template-editor.hooks": {
+      "types": "./dist/screens/email/hooks/use-email-template-editor.hooks.d.ts",
+      "import": "./dist/screens/email/hooks/use-email-template-editor.hooks.js",
+      "default": "./dist/screens/email/hooks/use-email-template-editor.hooks.js"
+    },
+    "./screens/email/hooks/use-email-activity.hooks": {
+      "types": "./dist/screens/email/hooks/use-email-activity.hooks.d.ts",
+      "import": "./dist/screens/email/hooks/use-email-activity.hooks.js",
+      "default": "./dist/screens/email/hooks/use-email-activity.hooks.js"
     },
     "./screens/forms/api/forms-api.types": {
       "types": "./dist/screens/forms/api/forms-api.types.d.ts",

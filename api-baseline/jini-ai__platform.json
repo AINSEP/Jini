@@ -367,6 +367,7 @@
    "InMemoryMailerAdapter": "type:8d1fc5c6e1",
    "MAIL_ACTIVITY_OUTCOMES": "variable:bf1990c431",
    "MAIL_ACTIVITY_USES": "variable:990cf38e3c",
+   "MAIL_FEEDBACK_MAX_BODY_BYTES": "variable:8436cd39e8",
    "MAIL_PROVIDER_SETTING_KEY": "variable:8ebf074d6f",
    "MAIL_RATE_LIMITED": "variable:a498acb670",
    "MAIL_STATUS_TTL_MS": "variable:98850ab8ea",
@@ -389,6 +390,7 @@
    "MailAdapterCredential": "interface:5ec77c0ac5",
    "MailAdapterKit": "interface:adf59a8b97",
    "MailAdapterModule": "interface:bf4bfa8bd2",
+   "MailAdapterSource": "interface:7f629f57c2",
    "MailCapturePort": "interface:ea51e8f0ff",
    "MailCredentialFact": "interface:4ace9ae78d",
    "MailCredentialPort": "interface:145c74e96c",
@@ -403,7 +405,10 @@
    "MailFeedbackIngestOptions": "interface:6fd07e67e1",
    "MailFeedbackParser": "interface:6f5923052c",
    "MailFeedbackRecord": "interface:ba22adc9f4",
+   "MailFeedbackRequest": "interface:6415ebd617",
    "MailFeedbackResponse": "interface:647cf780b9",
+   "MailFeedbackRoute": "interface:87e4d3f367",
+   "MailFeedbackRouteDeps": "interface:b1edf860fd",
    "MailLaneLimiter": "interface:5f8cb91ec2",
    "MailLaneState": "type:3d9580a0f6",
    "MailLaneStatus": "interface:fcf457c27a",
@@ -418,6 +423,7 @@
    "MailProviderCheck": "type:a2eb5e6380",
    "MailProviderConfiguration": "interface:2224d8cb6d",
    "MailProviderConfigurationReport": "interface:df623dd593",
+   "MailProviderControl": "interface:d79856a36c",
    "MailProviderCredentialFacts": "interface:7c137d4926",
    "MailProviderError": "interface:14a7c4482a",
    "MailProviderField": "interface:ff4b940452",
@@ -426,6 +432,7 @@
    "MailProviderSetting": "interface:a863cb3933",
    "MailProviderSettingPort": "interface:0fcda79811",
    "MailProviderSetup": "interface:5cf61acd2a",
+   "MailPurposeGateProbe": "type:1947e5ebae",
    "MailRateLimit": "interface:8814749815",
    "MailResendPolicy": "type:84d87efc5f",
    "MailSendDedupRepoPort": "interface:18c80692d1",
@@ -450,6 +457,7 @@
    "MailTestApproval": "interface:ddc78556d1",
    "MailTestMode": "type:b38d3c53ce",
    "MailTestModeSetting": "type:2aee15a424",
+   "MailWebhookSecretResolver": "type:af638b9648",
    "MailerBatchRequired": "type:7dcdfa9cd8",
    "MailerCapabilities": "interface:c4786731c1",
    "MailerDelivery": "type:69b9071e11",
@@ -478,24 +486,30 @@
    "SmtpTransport": "interface:814ab41b5a",
    "TtlCache": "interface:4d8ade057d",
    "WrapMailerWithPurposeGateOptions": "interface:a6f58cfbbb",
+   "WrapPositionalMailerWithPurposeGateOptions": "interface:b26cb5d75f",
    "computeMailStatus": "function:d21bef3699",
    "createConsoleMailProvider": "function:f20fc6901a",
    "createEmailSenderRegistry": "function:fddea11703",
    "createMailAdapterContext": "function:d6b7ecb0c1",
    "createMailDeliveryPolicy": "function:c80c92cfa7",
    "createMailFeedbackIngest": "function:3a749e66cc",
+   "createMailFeedbackRoute": "function:018fa1e528",
    "createMailLaneLimiter": "function:c6147dfdc8",
    "createMailPolicyWrapper": "function:61d7be2bee",
    "createMailProviderRegistry": "function:16f1876cd1",
+   "createMailPurposeGateProbe": "function:687bb49041",
    "createMailSenderIdentityResolver": "function:2f000be04f",
+   "createPluginMailFeedbackSources": "function:b2e2369642",
    "createPolicyMailer": "function:6eaa304d2a",
    "createProviderMailer": "function:23c2875e88",
    "createResolvedMailer": "function:0efe3a22cb",
    "createSenderDomainVerification": "function:8977bacc4f",
    "createSmtpMailProvider": "function:79fc416bdb",
    "createTtlCache": "function:c559e18287",
+   "createVaultMailWebhookSecrets": "function:64545c6f3c",
    "credentialSecrets": "function:1536446f87",
    "defaultMailProviderSetup": "function:6d5eb04acb",
+   "flattenHeaders": "function:6a0583f583",
    "fromPositionalMailer": "function:8cecd92d39",
    "getMailActivity": "function:34e6d3c95e",
    "hasOneClickUnsubscribe": "function:860cc4b95a",
@@ -509,6 +523,7 @@
    "listMailActivity": "function:aa549138b8",
    "listMailSuppressions": "function:89c73e22b6",
    "mailPayloadHash": "function:9eba13499b",
+   "mailWebhookSecretLabels": "function:1f10934bb1",
    "maskRecipient": "function:90e94cdbda",
    "nextMailCursor": "function:22ce2800e8",
    "parseMailProviderSetup": "function:97dc027122",
@@ -531,7 +546,8 @@
    "toPositionalMailer": "function:240cc93812",
    "validateEmailSourceTemplate": "function:e6bab8dd7d",
    "validateMailProvider": "function:209c8101db",
-   "wrapMailerWithPurposeGate": "function:8d34fd418d"
+   "wrapMailerWithPurposeGate": "function:8d34fd418d",
+   "wrapPositionalMailerWithPurposeGate": "function:b899104545"
   }
  },
  "./mail/email-template": {
@@ -559,6 +575,13 @@
    "undeclaredFieldsIn": "function:f518578870"
   }
  },
+ "./mail/email-template-agent-tools": {
+  "types": "./dist/mail/email-template-agent-tools.d.ts",
+  "symbols": {
+   "EmailTemplatesHostCopy": "interface:d55582b0a0",
+   "createEmailTemplatesAgentToolCatalog": "function:0f5586f362"
+  }
+ },
  "./mail/email-template-operations": {
   "types": "./dist/mail/email-template-operations.d.ts",
   "symbols": {
@@ -583,6 +606,13 @@
    "requireText": "function:454ca09cb3"
   }
  },
+ "./mail/feedback-setup": {
+  "types": "./dist/mail/feedback-setup.d.ts",
+  "symbols": {
+   "MailFeedbackSetupDeps": "interface:6de8d83e5e",
+   "readMailFeedbackSetup": "function:4b3edd5b7b"
+  }
+ },
  "./mail/senders": {
   "types": "./dist/mail/senders.d.ts",
   "symbols": {
@@ -601,6 +631,64 @@
    "NodemailerPort": "interface:b7fda1c619",
    "SmtpMailerAdapter": "class:ce0d19b301",
    "createNodemailerSmtpTransport": "function:1e2bc662c6"
+  }
+ },
+ "./mail/sql": {
+  "types": "./dist/mail/sql/index.d.ts",
+  "symbols": {
+   "CapturedMail": "interface:91182171aa",
+   "DEFAULT_CAPTURE_LIST": "variable:18140d5a14",
+   "MAIL_ACTIVITY_RETENTION_MS": "variable:07cb699e1f",
+   "MAIL_CAPTURE_RETENTION_MS": "variable:52351965b7",
+   "MAIL_RETENTION_INTERVAL_MS": "variable:aaf08400a9",
+   "MAX_CAPTURE_LIST": "variable:5a37cb63a0",
+   "MailAttemptObserver": "type:0585a2291f",
+   "MailCaptureRepo": "interface:b21fa5897e",
+   "MailRepoDeps": "interface:6d10a5624d",
+   "MailRepoOptions": "interface:5f87470ecc",
+   "MailSqlKernel": "interface:5b0363ef21",
+   "createMailActivityRepo": "function:54d4d473b4",
+   "createMailAttemptObserver": "function:f84186568b",
+   "createMailCaptureRepo": "function:604de6efce",
+   "createMailFeedbackInboxRepo": "function:162871e907",
+   "createMailSendLedgerRepo": "function:a59e0f1d51",
+   "createMailSuppressionAdminRepo": "function:934cb266cb",
+   "createMailSuppressionRepo": "function:17e1cb4664",
+   "createSiteMailFeedbackRoute": "function:4472cebf9e",
+   "mailActivityUse": "function:6df40a0a31",
+   "purgeExpiredMail": "function:8e6a23a530",
+   "startMailRetention": "function:6d9a37787e"
+  }
+ },
+ "./mail/test-send": {
+  "types": "./dist/mail/test-send.d.ts",
+  "symbols": {
+   "MailTestSendDeps": "interface:4acf20c573",
+   "MailTestSendLimiter": "interface:74e3d4ca3d",
+   "MailTestSendPlan": "interface:89e03576f5",
+   "MailTestSendRefusal": "type:a8e635ca02",
+   "MailTestSendResult": "type:cb3d29523f",
+   "TEST_SEND_BURST": "variable:001019dffc",
+   "TEST_SEND_DUPLICATE_MS": "variable:3d3621a999",
+   "TEST_SEND_REFILL_MS": "variable:8543262494",
+   "createMailTestSendLimiter": "function:07487e13d2",
+   "planMailTestSend": "function:70fe016d42",
+   "readTestRecipient": "function:575201c5b1",
+   "runMailTestSend": "function:aff17fd763"
+  }
+ },
+ "./mail/use-readiness": {
+  "types": "./dist/mail/use-readiness.d.ts",
+  "symbols": {
+   "MailUseId": "type:dd487f591b",
+   "MailUseLaunchGateDeps": "interface:687d051ea4",
+   "MailUseReadinessDeps": "interface:690f25acd8",
+   "MailUseReadinessHostDeps": "type:b6f4aad887",
+   "MailUseReadinessReport": "interface:565aa3ff20",
+   "MailUseRow": "interface:8b14090c17",
+   "MailUseState": "type:2fa8f46423",
+   "mailUseReadinessDepsFrom": "function:e44f682878",
+   "readMailUseReadiness": "function:2b97fa7566"
   }
  },
  "./net": {
