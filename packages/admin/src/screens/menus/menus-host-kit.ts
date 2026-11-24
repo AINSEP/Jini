@@ -7,6 +7,7 @@
  * (`useMenuEditorState` … `useMenuSave`), so `useMenuEditor` calls no sibling custom hook directly;
  * the host passes this package's implementations.
  */
+import type { useCachedLoader, useDirtyGuard, useFetchQuery } from "../../react/kit.js";
 import type { useMenuEditorState, useMenuFieldActions, useMenuItemActions } from "./hooks/use-menu-editor-state.hooks.js";
 import type { useMenuCopyEmbed, useMenuSave } from "./hooks/use-menu-editor-writes.hooks.js";
 
@@ -54,4 +55,10 @@ export interface MenusHostKit {
   useMenuCopyEmbed: typeof useMenuCopyEmbed;
   /** Save (`useMenuSave`). */
   useMenuSave: typeof useMenuSave;
+  /** The cached per-menu loader (`react/kit`'s `useCachedLoader`); the host binds its kit-facade implementation. */
+  useCachedLoader: typeof useCachedLoader;
+  /** The unsaved-changes guard (`useDirtyGuard`). */
+  useDirtyGuard: typeof useDirtyGuard;
+  /** The page-catalogue query (`useFetchQuery`). */
+  useFetchQuery: typeof useFetchQuery;
 }

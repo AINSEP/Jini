@@ -6,6 +6,7 @@
  * every hook.
  */
 
+import type { useFetchMutation, useFetchQuery, useInvalidate } from "../../react/kit.js";
 import type { useTaxonomyHtmlEmbed } from "./hooks/use-taxonomy-html-embed.hooks.js";
 
 /** The fields the taxonomy rules read off a failed admin request. */
@@ -51,4 +52,10 @@ export interface TaxonomyHostKit extends TaxonomyErrorKit {
   /** The HTML-embed copy hook; the host injects `useTaxonomyHtmlEmbed` (or a test double) so
    *  `use-taxonomy` never calls a custom hook it imported directly. */
   useTaxonomyHtmlEmbed: typeof useTaxonomyHtmlEmbed;
+  /** The two Trash mutations (`react/kit`'s `useFetchMutation`); the host binds its kit-facade implementation. */
+  useFetchMutation: typeof useFetchMutation;
+  /** The taxonomy list read (`useFetchQuery`). */
+  useFetchQuery: typeof useFetchQuery;
+  /** The list-cache invalidator the content-refresh subscription calls (`useInvalidate`). */
+  useInvalidate: typeof useInvalidate;
 }

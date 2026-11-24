@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 import { act, renderHook, waitFor } from "../../../__tests__/fetch-query-support.js";
 import { describe, expect, it, vi } from "vitest";
+import { useCachedLoader, useDirtyGuard, useFetchQuery } from "../../../react/kit.js";
 import type { AdminMenu } from "../api/menus-api.types.js";
 import { createFakeMenusPort } from "../hooks/menus-dependencies.hooks.js";
 import { useMenuEditor } from "../hooks/use-menu-editor.hooks.js";
@@ -30,11 +31,25 @@ function stubKit(overrides: Partial<MenusHostKit> = {}): MenusHostKit {
     slugRedirectPath: () => null,
     failures: { getGeneration: () => 7, isClipboardRefusal: () => false, publishLocal: vi.fn() },
     useMenuEditorState, useMenuFieldActions, useMenuItemActions, useMenuCopyEmbed, useMenuSave,
+    useCachedLoader, useDirtyGuard, useFetchQuery,
     ...overrides,
   };
 }
 
 describe("useMenuEditor — host kit collaborators", () => {
+  it("reaches the loader, dirty guard and page query only through the kit's injected hooks", async () => {
+    const port = createFakeMenusPort({ menus: [MENU] });
+    const spyLoader = vi.fn(useCachedLoader) as unknown as MenusHostKit["useCachedLoader"];
+    const spyGuard = vi.fn(useDirtyGuard) as unknown as MenusHostKit["useDirtyGuard"];
+    const spyQuery = vi.fn(useFetchQuery) as unknown as MenusHostKit["useFetchQuery"];
+    const kit = stubKit({ useCachedLoader: spyLoader, useDirtyGuard: spyGuard, useFetchQuery: spyQuery });
+    const { result } = renderHook(() => useMenuEditor({ menuId: "m1", dependencies: { port, navigate: vi.fn(), t: (k) => k, kit } }));
+    await waitFor(() => expect(result.current.loading).toBe(false));
+    expect(spyLoader).toHaveBeenCalled();
+    expect(spyGuard).toHaveBeenCalled();
+    expect(spyQuery).toHaveBeenCalled();
+  });
+
   it("loads the menu and follows the kit's slug-redirect rule with replace", async () => {
     const navigate = vi.fn();
     const slugRedirectPath = vi.fn(() => "/menus/main");

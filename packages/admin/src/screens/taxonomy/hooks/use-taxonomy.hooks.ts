@@ -1,6 +1,5 @@
 import { useCallback, useMemo, useState } from "react";
 import type { AdminTaxonomy, AdminTaxonomyWithTerms, AdminTerm } from "../api/taxonomy-api.types.js";
-import { useFetchMutation, useFetchQuery, useInvalidate } from "../../../react/kit.js";
 import {
   describeDeleteBlocked,
   describeTrashError,
@@ -168,7 +167,7 @@ interface TaxonomyDeleteContext {
 }
 
 /** Out-of-band writes invalidate the list — see the comment inside. */
-function useTaxonomyContentRefresh({ useContentRefreshSubscription }: Pick<TaxonomyHostKit, "useContentRefreshSubscription">): void {
+function useTaxonomyContentRefresh({ useContentRefreshSubscription, useInvalidate }: Pick<TaxonomyHostKit, "useContentRefreshSubscription" | "useInvalidate">): void {
   // Out-of-band writes — today an assistant run that called `taxonomy_create_taxonomy`, later an
   // SSE frame from another tab. Invalidating rather than calling `list.refetch()` keeps this on the
   // one cache identity `KEYS.list` names, so a second mounted reader of the same key (the term
@@ -191,7 +190,7 @@ function useTermDelete({ port, refetch, kit, selectedTermId, setSelectedTermId }
   const [deleteTermBlocked, setDeleteTermBlocked] = useState<{ termId: string; state: DeleteBlockedState } | null>(
     null
   );
-  const deleteTermMutation = useFetchMutation({
+  const deleteTermMutation = kit.useFetchMutation({
     run: ({ input: termId }: { input: string }) => port.trashTerm({ id: termId }),
   }, {
     invalidates: [KEYS.list],
@@ -246,7 +245,7 @@ function useTaxonomyDelete({ port, refetch, kit, selected, setSelectedTermId }: 
     taxonomyId: string;
     state: DeleteBlockedState;
   } | null>(null);
-  const deleteTaxonomyMutation = useFetchMutation({
+  const deleteTaxonomyMutation = kit.useFetchMutation({
     run: ({ input: taxonomyId }: { input: string }) => port.trashTaxonomy({ id: taxonomyId }),
   }, {
     invalidates: [KEYS.list],
@@ -300,10 +299,10 @@ export function useTaxonomy(
   { port, locale, t, kit }: UseTaxonomyArgs,
   _optional: Record<string, never> = {}
 ): TaxonomyController {
-  const list = useFetchQuery({ key: KEYS.list, fetch: () => port.listTaxonomies() });
+  const list = kit.useFetchQuery({ key: KEYS.list, fetch: () => port.listTaxonomies() });
   const taxonomies = list.data?.items ?? null;
   const { copyHtmlEmbed, copyFeedback } = kit.useTaxonomyHtmlEmbed({ taxonomies, t, failures: kit.failures });
-  useTaxonomyContentRefresh({ useContentRefreshSubscription: kit.useContentRefreshSubscription });
+  useTaxonomyContentRefresh({ useContentRefreshSubscription: kit.useContentRefreshSubscription, useInvalidate: kit.useInvalidate });
 
   const [selectedTermId, setSelectedTermId] = useState<string | null>(null);
   const [formOpen, setFormOpen] = useState(false);

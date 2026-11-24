@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, type MutableRefObject } from "react";
 import { type Translate } from "@jini-ai/core/text";
-import { useCachedLoader, useDirtyGuard, useFetchQuery } from "../../../react/kit.js";
 import type { AdminMenu, AdminMenuItem, AdminMenuMode } from "../api/menus-api.types.js";
 import type { MenusHostKit } from "../menus-host-kit.js";
 import { hasPageLinks, type MenuPageChoice } from "../page-link-rules.js";
@@ -97,7 +96,7 @@ export interface MenuEditorController {
 }
 
 /** The cached per-menu loader; a non-Error rejection becomes the translated load-failure copy. */
-function useMenuLoader({ menuId, port, t }: { menuId: string | null; port: MenusPort; t: Translate }, _optional = {}) {
+function useMenuLoader({ menuId, port, t, useCachedLoader }: { menuId: string | null; port: MenusPort; t: Translate; useCachedLoader: MenusHostKit["useCachedLoader"] }, _optional = {}) {
   const fetchMenu = useCallback(async () => {
     if (menuId === null) throw new Error("menu editor has no menu id to load");
     try { return await port.getMenu({ id: menuId }); }
@@ -108,7 +107,7 @@ function useMenuLoader({ menuId, port, t }: { menuId: string | null; port: Menus
 }
 
 /** The page catalogue, fetched only while the tree holds a page link. */
-function useMenuPageChoices({ port, items }: { port: MenusPort; items: AdminMenuItem[] }, _optional = {}): MenuPageChoice[] | undefined {
+function useMenuPageChoices({ port, items, useFetchQuery }: { port: MenusPort; items: AdminMenuItem[]; useFetchQuery: MenusHostKit["useFetchQuery"] }, _optional = {}): MenuPageChoice[] | undefined {
   const needsPages = hasPageLinks({ items });
   const pageQueryFetch = useCallback(async () => {
     if (!port.listPages) throw new Error("menu editor page lookup is unavailable");
@@ -207,12 +206,12 @@ export function useMenuEditor(
   { menuId, dependencies: { port, navigate, t, kit, clipboard, itemIdSource = DEFAULT_ITEM_ID_SOURCE() } }: { menuId: string | null; dependencies: MenuEditorDependencies },
   _optional = {},
 ): MenuEditorController {
-  const { useMenuEditorState, useMenuFieldActions, useMenuItemActions, useMenuCopyEmbed, useMenuSave } = kit;
+  const { useMenuEditorState, useMenuFieldActions, useMenuItemActions, useMenuCopyEmbed, useMenuSave, useCachedLoader, useDirtyGuard, useFetchQuery } = kit;
   const isNew = menuId === null;
-  const loader = useMenuLoader({ menuId, port, t });
+  const loader = useMenuLoader({ menuId, port, t, useCachedLoader });
   const state = useMenuEditorState({ isNew });
   const { menu, title, slug, items, mode, html, original } = state;
-  const pageChoices = useMenuPageChoices({ port, items });
+  const pageChoices = useMenuPageChoices({ port, items, useFetchQuery });
   useMenuLoadEffect({ menuId, isNew, state, loader, navigate, kit });
   const { confirmLeave } = useDirtyGuard<MenuFormState>({ current: { title, slug, items, mode, html }, original }, { host: window, translate: (key) => key });
   const activeMenuIdRef = useActiveMenuIdRef({ menuId });
