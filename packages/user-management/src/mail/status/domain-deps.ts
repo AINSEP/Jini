@@ -23,7 +23,7 @@ export type MailHostActivityDeps = Omit<MailActivityDeps, "permissions"> & Omit<
  * @returns The deps object the operations take.
  * @complexity O(1).
  */
-export function mailDomainDepsFrom({ deps }: { deps: MailHostActivityDeps }, _optional = {}): MailActivityDeps & MailSuppressionDeps {
+export function mailDomainDepsFrom({ deps }: { deps: MailHostActivityDeps }, _optional: Record<string, never> = {}): MailActivityDeps & MailSuppressionDeps {
   return {
     workspaceId: deps.workspaceId,
     authorize: deps.authorize,

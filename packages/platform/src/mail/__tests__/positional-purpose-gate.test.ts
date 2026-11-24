@@ -198,9 +198,9 @@ test("U-001-ORD1: mode is resolved once and cached, not re-read from process.env
   const { mailer, sends } = fakeInnerMailer();
   const gated = wrapMailerWithPurposeGate({ inner: mailer, mode: "local", durableOutboxReady: () => false });
 
-  const originalEnv = process.env.TOVU_RUNTIME_MODE;
+  const originalEnv = process.env.RUNTIME_MODE;
   try {
-    process.env.TOVU_RUNTIME_MODE = "production";
+    process.env.RUNTIME_MODE = "production";
     // The decorator was constructed with mode "local" already resolved/injected — a later
     // mutation of process.env must not change its behavior mid-process.
     await gated.send(FAKE_EMAIL, {
@@ -211,8 +211,8 @@ test("U-001-ORD1: mode is resolved once and cached, not re-read from process.env
     } as MailerSendOptions);
     assert.equal(sends.length, 1, "decorator must not re-resolve mode from a live env read");
   } finally {
-    if (originalEnv === undefined) delete process.env.TOVU_RUNTIME_MODE;
-    else process.env.TOVU_RUNTIME_MODE = originalEnv;
+    if (originalEnv === undefined) delete process.env.RUNTIME_MODE;
+    else process.env.RUNTIME_MODE = originalEnv;
   }
 });
 
