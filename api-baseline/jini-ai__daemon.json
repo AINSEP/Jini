@@ -338,8 +338,12 @@
  "./core-rpc-schema": {
   "types": "./dist/core-rpc-schema.d.ts",
   "symbols": {
-   "createDaemonCoreRequestSchema": "function:aa403e443d",
-   "daemonToolConsentSnapshot": "variable:aa8a8ec17c"
+   "DaemonCoreParseError": "interface:e0b9e0f508",
+   "DaemonCoreParseIssue": "interface:d7774d4553",
+   "DaemonCoreParseResult": "type:67d9226fcc",
+   "DaemonCoreParser": "interface:a8482d52b2",
+   "createDaemonCoreRequestSchema": "function:eba8a730e0",
+   "daemonToolConsentSnapshot": "variable:0224a5c0e3"
   }
  },
  "./daemon-call-context": {

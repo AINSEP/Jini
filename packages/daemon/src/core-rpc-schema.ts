@@ -30,8 +30,23 @@ const aiTraceEvent = z.discriminatedUnion("kind", [
     totals: z.object({ turns: z.number(), toolCalls: z.number(), toolErrors: z.number(), inputTokens: nullableNumber, outputTokens: nullableNumber, costUsd: nullableNumber }) }),
 ]);
 
+/** One validation failure; structurally satisfied by a schema library's issue so none leaks into the public type. */
+export interface DaemonCoreParseIssue { readonly path: readonly (string | number)[]; readonly message: string }
+
+/** Failure half of a parse verdict. */
+export interface DaemonCoreParseError { readonly message: string; readonly issues: readonly DaemonCoreParseIssue[] }
+
+/** Verdict of {@link DaemonCoreParser.safeParse}: the parsed value, or why the input was rejected. */
+export type DaemonCoreParseResult<T> = { readonly success: true; readonly data: T } | { readonly success: false; readonly error: DaemonCoreParseError };
+
+/** Library-neutral parser: `parse` throws on rejection, `safeParse` returns the verdict. */
+export interface DaemonCoreParser<T> {
+  parse(input: unknown): T;
+  safeParse(input: unknown): DaemonCoreParseResult<T>;
+}
+
 /** Explicit non-secret authority only; the daemon never receives the raw permissions blob. */
-export const daemonToolConsentSnapshot: z.ZodType<DaemonToolConsentSnapshot, z.ZodTypeDef, unknown> = z.object({
+export const daemonToolConsentSnapshot: DaemonCoreParser<DaemonToolConsentSnapshot> = z.object({
   permissions: z.object({ enabled: z.boolean(), capabilities: z.record(z.boolean()) }).strict(),
   revisionSeq: z.number().int().nonnegative(), allowed: z.boolean(), reason: z.string().max(1024).optional(),
 }).strict();
@@ -41,7 +56,7 @@ export const daemonToolConsentSnapshot: z.ZodType<DaemonToolConsentSnapshot, z.Z
 export function createDaemonCoreRequestSchema<Namespace extends string>(
   { cliConsentKeys, settingsNamespaces }: { cliConsentKeys: readonly string[]; settingsNamespaces: readonly [Namespace, ...Namespace[]] },
   _optional: Record<string, never> = {},
-): z.ZodType<DaemonCoreRequest<Namespace>, z.ZodTypeDef, unknown> {
+): DaemonCoreParser<DaemonCoreRequest<Namespace>> {
   // Two members cannot be proven by zod's inference, so they are the only widening here: a key typed
   // by a generic parameter is inferred optional, and the trace event's inferred shape differs from
   // the hand-written `AiTraceEvent` under `exactOptionalPropertyTypes`. Everything else is checked
