@@ -176,6 +176,7 @@
       "./screens/forms/index-aligned-translations": "universal",
       "./screens/forms/forms-field-settings-i18n": "universal",
       "./screens/forms/forms-leave-guard-i18n": "universal",
+      "./screens/taxonomy/taxonomy-i18n": "universal",
       "./screens/comments/comments-i18n": "universal",
       "./screens/menus/menus-i18n": "universal",
       "./screens/integrations/integrations-i18n": "universal",
@@ -200,9 +201,6 @@
       "./source-control/host/hooks/source-control-credentials-port.hooks": "universal",
       "./deployment/api/deployment-api.types": "universal",
       "./deployment/api/deployment-api": "universal",
-      "./deployment/host/hooks/deployment-overview-port.hooks": "universal",
-      "./deployment/host/hooks/dockerfile-source-port.hooks": "universal",
-      "./deployment/host/hooks/publish-credentials-port.hooks": "universal",
       "./deployment/host/hooks/deployment-overview-port.hooks": "universal",
       "./deployment/host/hooks/dockerfile-source-port.hooks": "universal",
       "./deployment/host/hooks/publish-credentials-port.hooks": "universal",
@@ -236,6 +234,7 @@
       "./shell/lib/media-embed-extension.hooks": "browser",
       "./shell/components/AssistantDock/hooks/chat-package-kind": "universal",
       "./shell/hooks/assistant-chats-port.hooks": "browser",
+      "./shell/hooks/use-assistant-chats.hooks": "browser",
       "./shell/components/AssistantDock/hooks/conversation-refresh.hooks": "browser",
       "./shell/components/AssistantDock/assistant-dock-i18n": "universal",
       "./shell/components/AssistantDock/FolderDropConfirmation": "browser",
@@ -344,6 +343,7 @@
         "./shell/lib/media-embed-extension.hooks": "browser",
         "./shell/components/AssistantDock/hooks/chat-package-kind": "universal",
         "./shell/hooks/assistant-chats-port.hooks": "browser",
+        "./shell/hooks/use-assistant-chats.hooks": "browser",
         "./shell/components/AssistantDock/hooks/conversation-refresh.hooks": "browser",
         "./shell/components/AssistantDock/assistant-dock-i18n": "universal",
         "./shell/components/AssistantDock/FolderDropConfirmation": "browser",
@@ -1173,6 +1173,11 @@
       "import": "./dist/screens/forms/forms-leave-guard-i18n.js",
       "default": "./dist/screens/forms/forms-leave-guard-i18n.js"
     },
+    "./screens/taxonomy/taxonomy-i18n": {
+      "types": "./dist/screens/taxonomy/taxonomy-i18n.d.ts",
+      "import": "./dist/screens/taxonomy/taxonomy-i18n.js",
+      "default": "./dist/screens/taxonomy/taxonomy-i18n.js"
+    },
     "./screens/comments/comments-i18n": {
       "types": "./dist/screens/comments/comments-i18n.d.ts",
       "import": "./dist/screens/comments/comments-i18n.js",
@@ -1292,21 +1297,6 @@
       "types": "./dist/deployment/api/deployment-api.d.ts",
       "import": "./dist/deployment/api/deployment-api.js",
       "default": "./dist/deployment/api/deployment-api.js"
-    },
-    "./deployment/host/hooks/deployment-overview-port.hooks": {
-      "types": "./dist/deployment/host/hooks/deployment-overview-port.hooks.d.ts",
-      "import": "./dist/deployment/host/hooks/deployment-overview-port.hooks.js",
-      "default": "./dist/deployment/host/hooks/deployment-overview-port.hooks.js"
-    },
-    "./deployment/host/hooks/dockerfile-source-port.hooks": {
-      "types": "./dist/deployment/host/hooks/dockerfile-source-port.hooks.d.ts",
-      "import": "./dist/deployment/host/hooks/dockerfile-source-port.hooks.js",
-      "default": "./dist/deployment/host/hooks/dockerfile-source-port.hooks.js"
-    },
-    "./deployment/host/hooks/publish-credentials-port.hooks": {
-      "types": "./dist/deployment/host/hooks/publish-credentials-port.hooks.d.ts",
-      "import": "./dist/deployment/host/hooks/publish-credentials-port.hooks.js",
-      "default": "./dist/deployment/host/hooks/publish-credentials-port.hooks.js"
     },
     "./deployment/host/hooks/deployment-overview-port.hooks": {
       "types": "./dist/deployment/host/hooks/deployment-overview-port.hooks.d.ts",
@@ -1472,6 +1462,11 @@
       "types": "./dist/shell/hooks/assistant-chats-port.hooks.d.ts",
       "import": "./dist/shell/hooks/assistant-chats-port.hooks.js",
       "default": "./dist/shell/hooks/assistant-chats-port.hooks.js"
+    },
+    "./shell/hooks/use-assistant-chats.hooks": {
+      "types": "./dist/shell/hooks/use-assistant-chats.hooks.d.ts",
+      "import": "./dist/shell/hooks/use-assistant-chats.hooks.js",
+      "default": "./dist/shell/hooks/use-assistant-chats.hooks.js"
     },
     "./shell/components/AssistantDock/hooks/conversation-refresh.hooks": {
       "types": "./dist/shell/components/AssistantDock/hooks/conversation-refresh.hooks.d.ts",
