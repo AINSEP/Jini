@@ -168,6 +168,7 @@
       "./contracts/site/widgets-html": "universal",
       "./contracts/site/integrations-api-connections": "universal",
       "./contracts/site/cms-menus": "universal",
+      "./contracts/site/cms-publish-content": "universal",
       "./contracts/site/cms-mail": "universal",
       "./contracts/site/cms-system-deploy": "universal",
       "./contracts/site/cms-settings": "universal",
@@ -176,6 +177,8 @@
       "./contracts/site/cms-assistant": "universal",
       "./contracts/site/cms-external-mcp": "universal",
       "./contracts/site/cms-agent-plugins": "universal",
+      "./contracts/site/cms-plugins": "universal",
+      "./contracts/site/cms-recovery": "universal",
       "./contracts/site/oauth-callback-page": "universal"
     },
     "isolation": {
@@ -1004,6 +1007,11 @@
       "import": "./dist/contracts/site/cms-menus.js",
       "default": "./dist/contracts/site/cms-menus.js"
     },
+    "./contracts/site/cms-publish-content": {
+      "types": "./dist/contracts/site/cms-publish-content.d.ts",
+      "import": "./dist/contracts/site/cms-publish-content.js",
+      "default": "./dist/contracts/site/cms-publish-content.js"
+    },
     "./contracts/site/cms-mail": {
       "types": "./dist/contracts/site/cms-mail.d.ts",
       "import": "./dist/contracts/site/cms-mail.js",
@@ -1043,6 +1051,16 @@
       "types": "./dist/contracts/site/cms-agent-plugins.d.ts",
       "import": "./dist/contracts/site/cms-agent-plugins.js",
       "default": "./dist/contracts/site/cms-agent-plugins.js"
+    },
+    "./contracts/site/cms-plugins": {
+      "types": "./dist/contracts/site/cms-plugins.d.ts",
+      "import": "./dist/contracts/site/cms-plugins.js",
+      "default": "./dist/contracts/site/cms-plugins.js"
+    },
+    "./contracts/site/cms-recovery": {
+      "types": "./dist/contracts/site/cms-recovery.d.ts",
+      "import": "./dist/contracts/site/cms-recovery.js",
+      "default": "./dist/contracts/site/cms-recovery.js"
     },
     "./contracts/site/oauth-callback-page": {
       "types": "./dist/contracts/site/oauth-callback-page.d.ts",

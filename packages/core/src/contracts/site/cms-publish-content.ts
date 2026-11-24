@@ -1,5 +1,9 @@
 /**
- * Client-safe publish-content report wire contract.
+ * @file The admin `publish-content` wire DTOs: the JSON bodies the publish-content admin routes
+ * (peers, destination, and the import/export report) answer with and an admin client reads. Declared
+ * here, once, so the server serializers (`@jini-ai/cms/admin-http/http/publish-content`, the
+ * `@jini-ai/cms/admin-http/routes/publish-content/*` specs) and any client mirror read the same
+ * shapes without the client depending on CMS.
  *
  * This module is deliberately neutral: it imports no planner, repository, Node builtin, or UI
  * code. Server HTTP boundaries and the admin client share these DTOs without either depending on
@@ -7,12 +11,12 @@
  */
 
 export type PublishContentOutcomeKindDto =
-  | "created"
-  | "unchanged"
-  | "applied"
-  | "conflict"
-  | "blocked"
-  | "forced";
+  | 'created'
+  | 'unchanged'
+  | 'applied'
+  | 'conflict'
+  | 'blocked'
+  | 'forced';
 
 /** Wire twin of `planner.ts`'s `RetireTarget` — this module imports no planner code (this file's
  *  header), so the shape is repeated here rather than shared by import. */
@@ -92,4 +96,40 @@ export interface PublishContentReportDto {
   readonly refusalReason: string | null;
   readonly applyOrder: readonly string[];
   readonly rows: readonly PublishContentOutcomeRowDto[];
+}
+
+/** A publishing destination as it may leave the server. `masked` and `hasCredential` are the ONLY
+ *  credential-shaped fields: no sealed material can ride on a value of this type, which is how the
+ *  frozen peers contract keeps secrets out of every response body by construction. */
+export interface PublishContentPeerView {
+  readonly id: string;
+  readonly label: string;
+  readonly baseUrl: string;
+  readonly remoteWorkspaceId: string;
+  readonly masked: string | null;
+  readonly hasCredential: boolean;
+}
+
+/** What the zero-setup destination routes (`GET`, `POST /connect`, `POST /disconnect`) answer. */
+export interface PublishDestinationView {
+  /** `true` once this computer's grant has been written for a site. */
+  readonly connected: boolean;
+  /** The connected site, as the publish list already models it. `null` when there is none. */
+  readonly site: PublishContentPeerView | null;
+  /** Read out of the repo's deploy config — what to offer when nothing is connected yet. */
+  readonly candidateUrl: string | null;
+  /** One sentence describing where things stand. */
+  readonly message: string;
+  /** One sentence naming what the owner does next, or `null` when nothing is pending. */
+  readonly nextStep: string | null;
+}
+
+/** `GET .../publish-content/peers`. */
+export interface PublishContentPeerListDto {
+  readonly peers: readonly PublishContentPeerView[];
+}
+
+/** `POST .../peers` and `PATCH .../peers/:peerId`. */
+export interface PublishContentPeerResponseDto {
+  readonly peer: PublishContentPeerView;
 }

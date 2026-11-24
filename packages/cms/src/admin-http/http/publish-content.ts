@@ -1,12 +1,12 @@
-import { orFallback } from "@jini-ai/core/errors/idioms";
-
-import type { BackstopAuditPort } from "../../publish/transfer/index.js";
 import type {
   PublishContentOutcomeKindDto,
   PublishContentReferenceHolderDto,
   PublishContentReportDto,
   PublishContentRetireTargetDto,
-} from "../../publish/content/report-contract.js";
+} from "@jini-ai/core/contracts/site/cms-publish-content";
+import { orFallback } from "@jini-ai/core/errors/idioms";
+
+import type { BackstopAuditPort } from "../../publish/transfer/index.js";
 
 /**
  * @file Response DTO helpers for the admin `publish-content` HTTP surface: the one whitelist
@@ -41,7 +41,9 @@ export interface PublishContentReportSource {
 
 /** Maps the planner's domain result to the one client-safe wire DTO at the HTTP boundary.
  *  @complexity O(rows + holders). */
-export function toPublishContentReportDto(report: PublishContentReportSource): PublishContentReportDto {
+export function toPublishContentReportDto(
+  { report }: { report: PublishContentReportSource }, _optional: Record<string, never> = {},
+): PublishContentReportDto {
   return {
     refused: report.refused,
     refusalReason: report.refusalReason,
@@ -104,6 +106,6 @@ export async function readBackstopApplyReport(required: {
     if (!audit || !(await audit.ready())) return {};
     const log = await audit.get({ workspaceId, id: runId });
     if (log?.direction !== "destination" || !log.details.report) return {};
-    return { report: toPublishContentReportDto(log.details.report as PublishContentReportSource) };
+    return { report: toPublishContentReportDto({ report: log.details.report as PublishContentReportSource }) };
   }, fallback: {}, step: "Read advisory publish apply report" });
 }
