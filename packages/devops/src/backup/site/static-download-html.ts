@@ -1,9 +1,16 @@
 /** @file Download-only HTML transforms for the backup/share static copy: backend forms are disabled and document bases rebased. */
 import type { DroppedReference } from "../../static-export/contracts.js";
-import type { DefaultTreeAdapterMap } from "parse5";
-import { escapeHtml } from "@jini-ai/core/text";
 
-export type Element = DefaultTreeAdapterMap["element"];
+/** Byte range of a node, tag or attribute within the original HTML source. */
+export interface SourceRange { startOffset: number; endOffset: number }
+/** An ancestor of an element; the document root has a node name but no tag. */
+export interface HtmlAncestor { nodeName: string; tagName?: string; parentNode?: HtmlAncestor | null }
+/** Structural view of a parsed element: only the tag, ancestry and source offsets this file reads. */
+export interface Element {
+  tagName: string;
+  parentNode?: HtmlAncestor | null;
+  sourceCodeLocation?: (SourceRange & { startTag?: SourceRange; attrs?: Record<string, SourceRange> }) | null;
+}
 export type Edit = { startOffset: number; endOffset: number; text: string };
 /** Host-owned source-located HTML editor (parse5 with source locations). Injected so the
  * backup package keeps no runtime edge to the HTML owner; edits apply against original offsets,
@@ -12,6 +19,8 @@ export interface DownloadHtmlSourceEdits {
   elements(required: { html: string }, optional?: Record<string, never>): Element[];
   attribute(required: { node: Element; name: string }, optional?: Record<string, never>): string | undefined;
   editedHtml(required: { html: string; edits: Edit[] }, optional?: Record<string, never>): string;
+  /** Attribute/text escaping owned by the host, so the backup package imports no text utilities. */
+  escapeHtml(required: { text: string }, optional?: Record<string, never>): string;
 }
 type WithEdits = { sourceEdits: DownloadHtmlSourceEdits };
 
@@ -31,7 +40,7 @@ function emailAlternative({ nodes, sourceEdits }: { nodes: Element[] } & WithEdi
   const href = sourceEdits.attribute({ node: link, name: "href" });
   if (href === undefined) throw new Error("Static export email link has no address");
   const address = href.slice(7).split("?")[0]!; // split always returns a first piece
-  return ` Email us at <a href="${escapeHtml({ text: href })}">${escapeHtml({ text: address })}</a> instead.`;
+  return ` Email us at <a href="${sourceEdits.escapeHtml({ text: href })}">${sourceEdits.escapeHtml({ text: address })}</a> instead.`;
 }
 
 /** Disable one backend-dependent form and disclose the missing server immediately after it. */
@@ -58,10 +67,10 @@ function formEdits({ node, alternative }: { node: Element; alternative: string }
 function submitOwner({ node, ids, disabled, sourceEdits }: { node: Element; ids: Set<string>; disabled: Set<Element> } & WithEdits, _options = {}): boolean {
   const form = sourceEdits.attribute({ node, name: 'form' });
   if (form !== undefined) return ids.has(form);
-  let parent = node.parentNode;
+  let parent: HtmlAncestor | null | undefined = node.parentNode;
   while (parent) {
-    if ('tagName' in parent && parent.tagName === 'form') return disabled.has(parent);
-    parent = 'parentNode' in parent ? parent.parentNode : null;
+    if (parent.tagName === 'form') return disabled.has(parent as Element);
+    parent = parent.parentNode;
   }
   return false;
 }
@@ -135,7 +144,7 @@ function refreshEdit({ node, rewrite, sourceEdits }: { node: Element; rewrite: (
   const location = node.sourceCodeLocation?.attrs?.content;
   const content = refreshContent({ content: sourceEdits.attribute({ node, name: "content" }) ?? "", rewrite });
   if (!location || content === undefined) return undefined;
-  return { ...location, text: `content="${escapeHtml({ text: content })}"` };
+  return { ...location, text: `content="${sourceEdits.escapeHtml({ text: content })}"` };
 }
 
 /** Split the refresh value at its delimiters without overlapping whitespace runs or HTML matching. */

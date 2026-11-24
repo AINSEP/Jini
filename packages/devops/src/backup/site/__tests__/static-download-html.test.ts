@@ -1,13 +1,16 @@
 import assert from "node:assert/strict";
 import { parse, type DefaultTreeAdapterMap } from "parse5";
+import { escapeHtml } from "@jini-ai/core/text";
 import { test } from "vitest";
 import { downloadDocumentBase, downloadForms, type DownloadHtmlSourceEdits, type Edit, type Element } from "../static-download-html.js";
+
+type ParsedElement = DefaultTreeAdapterMap["element"];
 
 // A parse5 source-located editor shaped like the host binding: tests exercise the same contract.
 const sourceEdits: DownloadHtmlSourceEdits = {
   elements({ html }) {
     const pending: DefaultTreeAdapterMap["node"][] = [parse(html, { sourceCodeLocationInfo: true })];
-    const found: Element[] = [];
+    const found: ParsedElement[] = [];
     while (pending.length) {
       const node = pending.pop()!;
       if ("childNodes" in node) pending.push(...node.childNodes);
@@ -16,7 +19,8 @@ const sourceEdits: DownloadHtmlSourceEdits = {
     }
     return found;
   },
-  attribute: ({ node, name }) => node.attrs.find(attr => attr.name === name)?.value,
+  attribute: ({ node, name }) => (node as ParsedElement).attrs.find(attr => attr.name === name)?.value,
+  escapeHtml: ({ text }) => escapeHtml({ text }),
   editedHtml({ html, edits }) {
     const parts: string[] = [];
     let end = html.length;
@@ -53,8 +57,20 @@ test("both transforms read and write HTML only through the injected host editor"
     elements: required => { calls.push("elements"); return sourceEdits.elements(required); },
     attribute: required => sourceEdits.attribute(required),
     editedHtml: () => { calls.push("editedHtml"); return "host-edited"; },
+    escapeHtml: required => sourceEdits.escapeHtml(required),
   };
   assert.equal(downloadForms({ html: "<form method=post></form>", page: "/", sourceEdits: spy }).html, "host-edited");
   assert.equal(downloadDocumentBase({ html: "<base href=/>", rewrite: url => url, sourceEdits: spy }), "host-edited");
   assert.deepEqual(calls, ["elements", "editedHtml", "elements", "editedHtml"]);
+});
+
+test("download transforms escape every interpolated value through the host-bound escaper", () => {
+  const escaped: string[] = [];
+  const spy: DownloadHtmlSourceEdits = { ...sourceEdits, escapeHtml: ({ text }) => { escaped.push(text); return `<${text}>`; } };
+  const form = '<a href="mailto:a&b@x.test">m</a><form method="post"></form>';
+  assert.match(downloadForms({ html: form, page: "/", sourceEdits: spy }).html, /Email us at <a href="<mailto:a&b@x\.test>"><a&b@x\.test><\/a> instead/);
+  assert.deepEqual(escaped, ["mailto:a&b@x.test", "a&b@x.test"]);
+  escaped.length = 0;
+  downloadDocumentBase({ html: '<meta http-equiv="refresh" content="0; url=/old">', rewrite: url => url, sourceEdits: spy });
+  assert.deepEqual(escaped, ["0; url=/old"]);
 });
