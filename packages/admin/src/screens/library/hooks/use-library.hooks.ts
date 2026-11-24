@@ -1,9 +1,11 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { hasPermission } from "@jini-ai/core/admin-runtime";
+import { describeUploadOverLimit } from "@jini-ai/core/text";
 import { useFetchMutation, useFetchQuery, useInvalidate } from "../../../react/kit.js";
 import type { AdminMedia } from "@jini-ai/core/contracts/site/cms-admin-media";
 import {
   LIBRARY_KEYS,
+  LIBRARY_MAX_BYTES,
   documentPreviewKind,
   libraryFileProblem,
   sortDocuments,
@@ -14,7 +16,7 @@ import type { LibraryPort } from "./library-port.hooks.js";
 
 /**
  * @file State and API calls for the Library screen (`Library.tsx` is markup only). Uploads run one
- * file at a time — the server caps each body at 10 MiB and the admin request seam is a single JSON
+ * file at a time — the server caps each body at the host limit and the admin request seam is a single JSON
  * POST per file — so each queued row moves Waiting → Uploading → Uploaded / failed on its own.
  *
  * Permissions are read from `/auth/me` and only hide or disable controls; the server re-checks
@@ -95,6 +97,8 @@ export interface LibraryDependencies {
   describeApiError: (required: { e: unknown; fallback: string }) => string;
   /** Host file reader: a browser `File` as base64 (no data: URL prefix). */
   readFileAsBase64: (required: { file: File }) => Promise<string>;
+  /** The largest file this host accepts, in bytes; defaults to {@link LIBRARY_MAX_BYTES}. */
+  maxUploadBytes?: number;
   /** Host Markdown renderer: safe HTML with raw HTML off, shown only inside a scriptless sandboxed frame. */
   renderMarkdownToSafeHtml: (markdown: string) => string;
   /** Host content-refresh subscription: calls `onRefresh` when an out-of-band write touches `resource`. */
@@ -103,12 +107,13 @@ export interface LibraryDependencies {
 
 const NO_USERS: ReadonlyMap<string, string> = new Map();
 
-function fileProblemMessage({ problem, t }: { problem: ReturnType<typeof libraryFileProblem>; t: (key: string) => string }, _optional = {}): string | null {
+function fileProblemMessage({ problem, t, file, maxBytes }: { problem: ReturnType<typeof libraryFileProblem>; t: (key: string) => string; file: { size: number }; maxBytes: number }, _optional = {}): string | null {
   switch (problem) {
     case "type":
       return t("This file type isn't supported.");
     case "size":
-      return t("Larger than 10 MiB.");
+      // Names both sizes in plain words; the sentence carries numbers, so it is not a dictionary key.
+      return describeUploadOverLimit({ fileBytes: file.size, limitBytes: maxBytes });
     case "package":
       return t("Folder package: in Pages/Keynote, save as a single file, then upload again.");
     case "empty":
@@ -118,7 +123,7 @@ function fileProblemMessage({ problem, t }: { problem: ReturnType<typeof library
   }
 }
 
-function useLibraryUploads({ port, t, describeApiError, readFileAsBase64 }: { port: LibraryPort; t: (key: string) => string; describeApiError: LibraryDependencies["describeApiError"]; readFileAsBase64: LibraryDependencies["readFileAsBase64"] }, _optional = {}) {
+function useLibraryUploads({ port, t, describeApiError, readFileAsBase64, maxBytes }: { port: LibraryPort; t: (key: string) => string; maxBytes: number; describeApiError: LibraryDependencies["describeApiError"]; readFileAsBase64: LibraryDependencies["readFileAsBase64"] }, _optional = {}) {
   const invalidate = useInvalidate();
   const [uploads, setUploads] = useState<LibraryUploadRow[]>([]);
   const queue = useRef<{ key: string; file: File }[]>([]);
@@ -154,13 +159,13 @@ function useLibraryUploads({ port, t, describeApiError, readFileAsBase64 }: { po
     const rows: LibraryUploadRow[] = files.map((file) => {
       uploadKeySeq.current += 1;
       const key = `upload-${uploadKeySeq.current}`;
-      const error = fileProblemMessage({ problem: libraryFileProblem(file), t: t });
+      const error = fileProblemMessage({ problem: libraryFileProblem(file, { maxBytes }), t: t, file, maxBytes });
       if (!error) queue.current.push({ key, file });
       return { key, name: file.name, size: file.size, status: error ? "failed" : "waiting", error };
     });
     setUploads((current) => [...rows, ...current]);
     void drain();
-  }, [drain, t]);
+  }, [drain, t, maxBytes]);
 
   const clearUploads = useCallback(() => {
     setUploads((rows) => rows.filter((row) => row.status === "waiting" || row.status === "uploading"));
@@ -315,9 +320,9 @@ function useLibraryRowActions({ port, t, describeApiError, preview, closePreview
   return { rename, trash, trashingId, rowError, notice, dismissNotice: () => setNotice(null) };
 }
 
-export function useLibrary({ port, locale, t, describeApiError, readFileAsBase64, renderMarkdownToSafeHtml, useContentRefreshSubscription }: LibraryDependencies): LibraryController {
+export function useLibrary({ port, locale, t, describeApiError, readFileAsBase64, maxUploadBytes = LIBRARY_MAX_BYTES, renderMarkdownToSafeHtml, useContentRefreshSubscription }: LibraryDependencies): LibraryController {
   const { list, permissions, userNames } = useLibraryData({ port, useContentRefreshSubscription });
-  const { uploads, addFiles, clearUploads, uploadedCount } = useLibraryUploads({ port: port, t: t, describeApiError, readFileAsBase64 });
+  const { uploads, addFiles, clearUploads, uploadedCount } = useLibraryUploads({ port: port, t: t, describeApiError, readFileAsBase64, maxBytes: maxUploadBytes });
   const { preview, openPreview, closePreview } = useLibraryPreview({ port: port, t: t, describeApiError, renderMarkdownToSafeHtml });
   const rowActions = useLibraryRowActions({ port, t, describeApiError, preview, closePreview });
 

@@ -181,7 +181,7 @@ describe('createDaemonAttachmentUploader', () => {
     const oversized = new File(['x'], 'huge.bin');
     Object.defineProperty(oversized, 'size', { value: 20 * 1024 * 1024 + 1 });
     await expect(upload([oversized], signalOptions('batch-per-file')))
-      .rejects.toThrow('Each attachment must be 20 MB or smaller.');
+      .rejects.toThrow('That file is 20.1 MB; the limit is 20 MB.');
 
     await expect(upload(
       Array.from({ length: 11 }, (_, index) => new File(['x'], `${index}.txt`)),
@@ -214,7 +214,7 @@ describe('createDaemonAttachmentUploader', () => {
     const big = new File(['x'], 'big.bin');
     Object.defineProperty(big, 'size', { value: 101 });
     await expect(upload([big], signalOptions('batch-custom-1')))
-      .rejects.toThrow('Each attachment must be 100 bytes or smaller.');
+      .rejects.toThrow('That file is 101 bytes; the limit is 100 bytes.');
     await expect(upload(
       [new File(['a'], 'a.txt'), new File(['b'], 'b.txt')],
       signalOptions('batch-custom-2'),

@@ -229,7 +229,8 @@ test("uploadMedia's size-cap rejection states the limit in MB, not raw bytes", a
         { maxUploadBytes: 5 * 1024 * 1024 }
       ),
     (error: unknown) => {
-      assert.match((error as Error).message, /5 MB/, "the message must state the configured cap in MB");
+      assert.match((error as Error).message, /the limit is 5 MB\./, "the message must state the configured cap in MB");
+      assert.match((error as Error).message, /^That file is \d+(\.\d)? MB; /, "the message must also say how big the file was");
       assert.doesNotMatch((error as Error).message, /5242880/, "the message must not also state the raw byte count");
       return true;
     }
@@ -985,7 +986,7 @@ test("uploadMedia re-checks the size cap after SVG sanitizing changes the bytes"
   const { deps } = makeDeps();
   // The serializer escapes each raw ">" in text as "&gt;", so clean bytes can outgrow the upload.
   const svg = bytesFrom(`<svg xmlns="http://www.w3.org/2000/svg"><text>${">".repeat(50)}</text></svg>`);
-  await assert.rejects(uploadMedia({ deps, input: { workspaceId: WORKSPACE_ID, filename: "a.svg", contentType: "image/svg+xml", bytes: svg, createdByPrincipal: "owner" } }, { maxUploadBytes: svg.byteLength }), /size cap/);
+  await assert.rejects(uploadMedia({ deps, input: { workspaceId: WORKSPACE_ID, filename: "a.svg", contentType: "image/svg+xml", bytes: svg, createdByPrincipal: "owner" } }, { maxUploadBytes: svg.byteLength }), /the limit is/);
 });
 
 test("updateMediaMetadata validates document titles and applies dimension, class and blank-title edits", async () => {
@@ -1013,7 +1014,7 @@ test("uploadMedia's size-cap message keeps one decimal for a cap that is not a w
       { maxUploadBytes: 1.5 * 1024 * 1024 }),
     (error: unknown) => {
       assert.ok(error instanceof MediaValidationError);
-      assert.equal(error.message, "uploaded file exceeds the 1.5 MB size cap");
+      assert.equal(error.message, "That file is 2 MB; the limit is 1.5 MB.");
       return true;
     },
   );

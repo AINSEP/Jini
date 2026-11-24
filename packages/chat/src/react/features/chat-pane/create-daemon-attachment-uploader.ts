@@ -28,6 +28,7 @@
  * daemon then claims, draining the request stream before the upload route can read a byte. A fixed
  * octet-stream type is immune to every body parser.
  */
+import { describeUploadOverLimit } from "@jini-ai/core/text";
 import type { ChatAttachment } from '@jini-ai/chat';
 import type { ChatPaneAttachmentUploadOptions, ChatPaneProps } from './types.js';
 
@@ -120,8 +121,9 @@ function assertWithinQuota({ files, current, incomingBytes, quota }: {
   incomingBytes: number;
   quota: UploadQuota;
 }): void {
-  if (files.some((file) => file.size > quota.maxAttachmentBytes)) {
-    throw new Error(`Each attachment must be ${formatByteLimit(quota.maxAttachmentBytes)} or smaller.`);
+  const tooBig = files.find((file) => file.size > quota.maxAttachmentBytes);
+  if (tooBig) {
+    throw new Error(describeUploadOverLimit({ fileBytes: tooBig.size, limitBytes: quota.maxAttachmentBytes }));
   }
   if (current.count + files.length > quota.maxAttachmentCount) {
     throw new Error(`You can attach at most ${quota.maxAttachmentCount} files to one message.`);

@@ -54,9 +54,19 @@ describe("libraryFileProblem", () => {
     expect(libraryFileProblem({ name: "notes.md", size: 0 })).toBe("empty");
   });
 
-  it("refuses a file one byte over the 10 MiB cap but accepts one exactly at it", () => {
+  it("defaults to the 50 MiB the server accepts for a document, not the old 10 MiB", () => {
+    expect(LIBRARY_MAX_BYTES).toBe(50 * 1024 * 1024);
+  });
+
+  it("refuses a file one byte over the cap but accepts one exactly at it", () => {
     expect(libraryFileProblem({ name: "big.pdf", size: LIBRARY_MAX_BYTES + 1 })).toBe("size");
     expect(libraryFileProblem({ name: "big.pdf", size: LIBRARY_MAX_BYTES })).toBeNull();
+  });
+
+  it("uses the host's limit when one is given", () => {
+    const maxBytes = 5 * 1024 * 1024;
+    expect(libraryFileProblem({ name: "big.pdf", size: maxBytes + 1 }, { maxBytes })).toBe("size");
+    expect(libraryFileProblem({ name: "big.pdf", size: maxBytes }, { maxBytes })).toBeNull();
   });
 });
 

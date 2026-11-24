@@ -19,3 +19,4 @@ export { isAbortError } from './is-abort-error.js';
 export { extensionForMimeType } from './mime.js';
 export { formatByteSize } from './format-byte-size.js';
 export type { FormatByteSizeOptions } from './format-byte-size.js';
+export { describeUploadOverLimit } from './upload-limit-message.js';
