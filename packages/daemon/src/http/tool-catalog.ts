@@ -3,7 +3,7 @@
  *
  * `GET /api/tools/search` / `GET /api/tools/:id` — the discovery half of
  * `ai-control-plane.md` §29 / `PROP-tool-catalog-discovery-2026-07-26.md` §6.1's staged verbs
- * (`search_tools`/`describe_tool`), v0 scope: principal scoping only through the host's optional `catalogFor`, no versioning, no schema
+ * (`search_tools`/`describe_tool`), v0 scope: principal scoping through the host's `catalogFor` (or an explicitly unscoped host), no versioning, no schema
  * narrowing. `@jini-ai/mcp`'s `search_tools`/`describe_tool` tool defs proxy these two routes,
  * exactly mirroring how `run-tools.ts`'s tools proxy `runs.ts`.
  *
@@ -20,10 +20,10 @@
  */
 import type { AgentToolSideEffect } from '@jini-ai/core';
 import { createApiError } from '@jini-ai/protocol';
-import { defineJsonRoute, err, jsonRoute, ok, type JsonRoutePorts, type JsonRouteSpec } from '@jini-ai/core/contracts/server';
+import { defineJsonRoute, err, ok, type JsonRoutePorts } from '@jini-ai/core/contracts/server';
 import { parseCatalogDescribeInput, parseCatalogSearchInput } from './catalog-route-input.js';
 import type { DaemonRouteHost } from './route-host.js';
-import { gated, type DaemonRoute } from './route-table.js';
+import { gatedJsonRoute, type DaemonRoute } from './route-table.js';
 
 export interface ToolCatalogSearchHit {
   readonly readOnly?: boolean;
@@ -64,23 +64,44 @@ export interface ToolCatalogQuery {
   readonly describe: ({ id }: { readonly id: string }, optional?: ToolCatalogDescribeOptions) => ToolCatalogEntry | null;
 }
 
-export interface ToolCatalogHttpDeps {
-  /** The unscoped catalog. Used as-is only when `catalogFor` is absent (a single-principal host). */
-  readonly catalog: ToolCatalogQuery;
-  /**
-   * Host-owned: the catalog view the requesting principal may discover (typically
-   * `filterReadOnlyToolCatalog({ principal, registry, catalog })`). Called once per request and the
-   * result is never kept, so one principal's view cannot be served to another. A throw fails the
-   * request closed (generic internal error); it never falls back to the unscoped `catalog`.
-   */
-  readonly catalogFor?: (required: { readonly request: Request }) => ToolCatalogQuery | Promise<ToolCatalogQuery>;
+/**
+ * A principal-scoped host: the catalog view the requesting principal may discover (typically
+ * `filterReadOnlyToolCatalog({ principal, registry, catalog })`). Called once per request and the
+ * result is never kept, so one principal's view cannot be served to another. A throw fails the
+ * request closed (generic internal error); it never falls back to an unscoped catalog.
+ */
+export interface ScopedToolCatalogHttpDeps {
+  readonly catalogFor: (required: { readonly request: Request }) => ToolCatalogQuery | Promise<ToolCatalogQuery>;
 }
 
-/** Resolves the per-request catalog view before parsing, so both routes share one scoping rule. */
+/**
+ * A single-principal host that has said so: every caller discovers the whole `catalog`. `unscoped`
+ * must be the literal `true`; a host that passes only a catalog is refused, never served it.
+ */
+export interface UnscopedToolCatalogHttpDeps {
+  readonly catalog: ToolCatalogQuery;
+  readonly unscoped: true;
+}
+
+export type ToolCatalogHttpDeps = ScopedToolCatalogHttpDeps | UnscopedToolCatalogHttpDeps;
+
+/**
+ * The view this request may discover, resolved once during authentication. Fails closed: a host
+ * that neither scopes the catalog nor declared itself unscoped gets an error, not the catalog.
+ */
+function resolveCatalogView({ request, deps }: { readonly request: Request; readonly deps: ToolCatalogHttpDeps }): ToolCatalogQuery | Promise<ToolCatalogQuery> {
+  if ('catalogFor' in deps && typeof deps.catalogFor === 'function') return deps.catalogFor({ request });
+  if ('unscoped' in deps && deps.unscoped === true) return deps.catalog;
+  throw new Error('tool catalog: the host supplied no per-principal catalogFor and did not declare itself unscoped');
+}
+
+/** Both routes resolve the view the same way, before parsing. */
 const scopedCatalogPorts: JsonRoutePorts<ToolCatalogHttpDeps, ToolCatalogQuery> = {
-  authenticate: ({ request, deps }) => (deps.catalogFor ? deps.catalogFor({ request }) : deps.catalog),
+  authenticate: ({ request, deps }) => resolveCatalogView({ request, deps }),
 };
 
+/** A handler reached without the resolved view (called directly, or mounted without the port) refuses. */
+const missingCatalogView = () => err({ error: createApiError({ code: 'UNAUTHORIZED', message: 'tool discovery needs an authenticated catalog view' }) });
 
 /** `GET /api/tools/search?q=...&limit=...` — ranked candidates only, never schemas (`PROP` §6.1). */
 export const toolCatalogSearchRoute = defineJsonRoute<
@@ -92,7 +113,7 @@ export const toolCatalogSearchRoute = defineJsonRoute<
   method: 'get',
   path: '/api/tools/search',
   parse: (input) => parseCatalogSearchInput({ input }),
-  handle: ({ input, deps, context }) => ok({ value: { hits: (context ?? deps.catalog).search({ query: input.query }, { limit: input.limit }) } }),
+  handle: ({ input, context }) => (context ? ok({ value: { hits: context.search({ query: input.query }, { limit: input.limit }) } }) : missingCatalogView()),
 }, { requireSameOrigin: true, ports: scopedCatalogPorts });
 
 
@@ -113,8 +134,9 @@ export const toolCatalogDescribeRoute = defineJsonRoute<{ id: string }, ToolCata
   method: 'get',
   path: '/api/tools/:id',
   parse: (input) => parseCatalogDescribeInput({ input }),
-  handle: ({ input, deps, context }) => {
-    const entry = (context ?? deps.catalog).describe({ id: input.id });
+  handle: ({ input, context }) => {
+    if (!context) return missingCatalogView();
+    const entry = context.describe({ id: input.id });
     if (!entry) return err({ error: createApiError({ code: 'NOT_FOUND', message: `no catalog entry for tool id "${input.id}"` }) });
     return ok({ value: entry });
   },
@@ -125,21 +147,5 @@ export const toolCatalogDescribeRoute = defineJsonRoute<{ id: string }, ToolCata
  * mounts the list; the routes never see the host's app.
  */
 export function toolCatalogRoutes({ deps, host }: { readonly deps: ToolCatalogHttpDeps; readonly host: DaemonRouteHost }, _optional: Record<string, never> = {}): DaemonRoute[] {
-  return [gatedScopedRoute({ spec: toolCatalogSearchRoute, deps, host }), gatedScopedRoute({ spec: toolCatalogDescribeRoute, deps, host })];
-}
-
-/**
- * `gatedJsonRoute` for a spec that carries a per-request context. `gatedJsonRoute` is typed for
- * context-free specs only, and the scoped catalog view travels as the route context, so the same
- * two steps (host error reporting, then the same-origin gate) are applied here. Both catalog specs
- * declare `requireSameOrigin`, and GET routes have no body to bound.
- */
-function gatedScopedRoute<Input, Output>(
-  { spec, deps, host }: { readonly spec: JsonRouteSpec<Input, Output, ToolCatalogHttpDeps, ToolCatalogQuery>; readonly deps: ToolCatalogHttpDeps; readonly host: DaemonRouteHost },
-  _optional: Record<string, never> = {},
-): DaemonRoute {
-  return gated({
-    route: jsonRoute({ spec, deps, reportInternalError: host.reportInternalError }, { host: host.context }),
-    gates: spec.requireSameOrigin ? [{ name: 'same-origin' }] : [],
-  });
+  return [gatedJsonRoute({ spec: toolCatalogSearchRoute, deps, host }), gatedJsonRoute({ spec: toolCatalogDescribeRoute, deps, host })];
 }

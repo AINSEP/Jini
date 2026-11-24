@@ -464,7 +464,10 @@ export function createBuiltInFeatures(options: BuiltInFeatureOptions = {}): read
           services: () => ({ context }),
         }, {
           http: ({ app, services }) =>
+            // The local daemon serves one principal, so it declares its catalog unscoped; the routes
+            // refuse a host that neither scopes the catalog nor says this.
             mountRoutes({ app, routes: toolCatalogRoutes({ deps: {
+                unscoped: true,
                 catalog: {
                   search: ({ query }, optionalArgs) => searchToolCatalog({ db: sqlite.connection, query }, optionalArgs),
                   describe: ({ id }: { id: string }) => getToolCatalogEntry({ db: sqlite.connection, id }),
