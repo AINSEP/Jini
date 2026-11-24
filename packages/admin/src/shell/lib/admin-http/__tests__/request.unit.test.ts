@@ -219,15 +219,16 @@ describe("createAdminHttp — legacy request shapes", () => {
   it("a timed-out fetch becomes REQUEST_TIMEOUT with the host's copy", async () => {
     const r = recorder([new DOMException("signal timed out", "TimeoutError")]);
     r.reachable.value = false;
-    await expect(createAdminHttp({ ports: r.ports, timeoutMs: 9 }).fetchOrThrowUnreachable({ url: "/t", init: {} }))
+    await expect(createAdminHttp({ ports: r.ports, timeoutMs: 9 }).fetchOrThrowUnreachable({ url: "/t", init: {} }, {}))
       .rejects.toMatchObject({ code: "REQUEST_TIMEOUT", message: "timed out after 9", body: { cause: "signal timed out" } });
   });
 
   it("buildFetchInit merges headers onto the JSON default and lets a caller's own type win", () => {
-    expect(buildFetchInit({ init: { headers: { "If-Match": "x" } } })).toEqual({ credentials: "same-origin", headers: { "Content-Type": "application/json", "If-Match": "x" } });
-    expect(buildFetchInit({ init: { headers: { "content-type": "text/plain" } } }).headers).toEqual({ "content-type": "text/plain" });
+    expect(buildFetchInit({})).toEqual({ credentials: "same-origin", headers: { "Content-Type": "application/json" } });
     expect(buildFetchInit({ init: { headers: { "CONTENT-TYPE": "text/plain" } } }).headers).toEqual({ "CONTENT-TYPE": "text/plain" });
     expect(buildFetchInit({}).headers).toEqual({ "Content-Type": "application/json" });
+    expect(buildFetchInit({ init: { headers: { "If-Match": "x" } } })).toEqual({ credentials: "same-origin", headers: { "Content-Type": "application/json", "If-Match": "x" } });
+    expect(buildFetchInit({ init: { headers: { "content-type": "text/plain" } } }).headers).toEqual({ "content-type": "text/plain" });
   });
 
   // One merge stage with the route-group transport: every HeadersInit form keeps its headers.
@@ -247,5 +248,26 @@ describe("createAdminHttp — legacy request shapes", () => {
     const r = recorder([jsonResponse({ ok: true })]);
     await createAdminHttp({ ports: r.ports, timeoutMs: 5 }).request({ path: "/h" }, { init: { headers: new Headers({ "If-Match": "v2" }) } });
     expect(r.fetch.mock.calls[0]![0].init.headers).toEqual({ "Content-Type": "application/json", "if-match": "v2" });
+  });
+
+  });
+
+  // An object spread copies no entries out of a Headers instance and turns a tuple array into
+  // numeric keys, so both forms used to arrive with their caller headers silently dropped.
+  it.each([
+    ["Headers", () => new Headers({ "If-Match": "x" })],
+    ["tuples", (): HeadersInit => [["If-Match", "x"]]],
+  ])("buildFetchInit keeps a %s caller header beside the JSON default", (_form, callerHeaders) => {
+    const sent = new Headers(buildFetchInit({ init: { headers: callerHeaders() } }).headers);
+    expect(Array.from(sent.entries())).toEqual([["content-type", "application/json"], ["if-match", "x"]]);
+  });
+
+  it.each([
+    ["Headers", () => new Headers({ "content-type": "text/plain", "X-Trace": "t" })],
+    ["tuples", (): HeadersInit => [["content-type", "text/plain"], ["X-Trace", "t"]]],
+    ["record", (): HeadersInit => ({ "content-type": "text/plain", "X-Trace": "t" })],
+  ])("buildFetchInit sends a lower-case %s caller content-type as the ONE type", (_form, callerHeaders) => {
+    const sent = new Headers(buildFetchInit({ init: { headers: callerHeaders() } }).headers);
+    expect(Array.from(sent.entries())).toEqual([["content-type", "text/plain"], ["x-trace", "t"]]);
   });
 });

@@ -11,7 +11,6 @@
 import { describeErrorForLog } from '@jini-ai/core';
 import { AdminApiError } from '@jini-ai/core/admin-runtime';
 import type { AdminClient, AdminRouteGroupFactory, AdminTransport } from './types.js';
-import { mergeRequestHeaders } from './merge-headers.js';
 
 /**
  * The subset of `fetch` this transport actually uses.
@@ -150,6 +149,36 @@ function unreachableTransportError({ cause }: { readonly cause: TypeError }, _op
   });
 }
 
+/**
+ * Headers normalizes names and accepts every HeadersInit form; object spreads lose
+ * Headers instances and treat tuple arrays as numeric keys instead of header entries.
+ * Later sources win: the JSON default, then the transport's own, then the call's.
+ * A later name replaces an earlier one in any letter case, since two `Content-Type` keys
+ * would be sent joined with a comma. Shared by `createHttpTransport` and `buildFetchInit`
+ * (`shell/lib/admin-http/request.ts`), so the merge rule has one body.
+ *
+ * The result is a plain record keeping each winning name as its caller spelled it (a Headers
+ * source has already lower-cased its own), so a host asserting on `{ "Content-Type": … }` still
+ * sees that spelling.
+ *
+ * @complexity O(h) in the total header count across sources.
+ */
+export function mergeHeaders(
+  { sources }: { readonly sources: readonly (HeadersInit | undefined)[] },
+  _optional: Record<string, never> = {},
+): Record<string, string> {
+  const merged = new Map<string, readonly [string, string]>([['content-type', ['Content-Type', 'application/json']]]);
+  for (const source of sources) {
+    if (source === undefined) continue;
+    // Headers still parses each source, so validation and same-source joining are unchanged;
+    // only the spelling is restored. A Headers instance has no own keys, so it keeps Headers' names.
+    const spelled = new Map((Array.isArray(source) ? source.map(([name]) => name) : Object.keys(source))
+      .map((name) => [String(name).toLowerCase(), String(name)]));
+    new Headers(source).forEach((value, name) => merged.set(name, [spelled.get(name) ?? name, value]));
+  }
+  return Object.fromEntries(merged.values());
+}
+
 /** The error a non-2xx response throws, given its parsed (or unparseable) body. */
 function responseError(
   { res, body, wasUnparseable }: { readonly res: Response; readonly body: Record<string, unknown>; readonly wasUnparseable: boolean },
@@ -189,7 +218,7 @@ export function createHttpTransport(
         // Assign last so a per-call header overrides both the JSON default and the transport's
         // own. The reference implementation's original spread `...init` last, which meant a call passing `headers` lost
         // the `Content-Type` default rather than merging with it.
-        headers: new Headers(mergeRequestHeaders({ sources: [baseHeaders, init.headers] })),
+        headers: mergeHeaders({ sources: [baseHeaders, init.headers] }),
       }).catch((cause: unknown) => throwTranslatedFetchFailure({
         cause,
         timeoutError: () => requestTimeoutError({ timeoutMs }),

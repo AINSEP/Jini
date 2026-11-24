@@ -1327,11 +1327,11 @@
  "./screens/menus/api/menus-api.types": {
   "types": "./dist/screens/menus/api/menus-api.types.d.ts",
   "symbols": {
-   "AdminMenu": "interface:33d7fb4950",
-   "AdminMenuAuthoring": "interface:3774607dab",
-   "AdminMenuItem": "interface:be57fe442f",
-   "AdminMenuItemAttrs": "interface:a3855db9e1",
-   "AdminMenuMode": "type:8d82460ec1",
+   "AdminMenu": "type:e596f59e3d",
+   "AdminMenuAuthoring": "type:efb3173430",
+   "AdminMenuItem": "type:a8cb5a91cc",
+   "AdminMenuItemAttrs": "type:63b57e6a90",
+   "AdminMenuMode": "type:95500bd742",
    "AdminMenuTarget": "interface:34523e5442"
   }
  },
@@ -2053,7 +2053,7 @@
    "AdminHttp": "interface:60416f5d4c",
    "CreateAdminHttpArgs": "interface:e5ca6abe99",
    "CreateAdminHttpPorts": "interface:ce2bc1a308",
-   "buildFetchInit": "function:46a4fa5557",
+   "buildFetchInit": "function:1b088f2b75",
    "createAdminHttp": "function:3feca4d9a2"
   }
  },

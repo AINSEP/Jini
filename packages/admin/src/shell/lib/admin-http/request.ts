@@ -6,8 +6,8 @@
  * is the route-group `AdminTransport`: neutral copy, `AdminApiError`, no retry. This factory is what
  * a host's own screens call through: it owns no error class (every error comes from the host's
  * `createError` port), no copy (`messages` port), and no failure vocabulary (`reportFailure` port).
- * The fetch-rejection classification, body parsing and envelope rule are the transport's own stages,
- * imported here, so each rule has one body.
+ * The fetch-rejection classification, header merge, body parsing and envelope rule are the
+ * transport's own stages, imported here, so each rule has one body.
  *
  * Every instance keeps its own upstream-refused marks; two factories never share state.
  */
@@ -16,10 +16,10 @@ import {
   API_UNREACHABLE_CODE,
   REQUEST_TIMEOUT_CODE,
   lacksAppEnvelope,
+  mergeHeaders,
   parseJsonBody,
   throwTranslatedFetchFailure,
 } from "../../../core/transport/http.js";
-import { mergeRequestHeaders } from "../../../core/transport/merge-headers.js";
 
 type Empty = Record<string, never>;
 
@@ -104,7 +104,7 @@ export function createAdminHttp<E extends AdminHttpError, B extends string, F ex
     rideOutRestart(ctx, required, optional);
   const request: AdminHttp<E, B, F>["request"] = (required, optional = {}) => sendReported(ctx, required, optional);
   return {
-    fetchOrThrowUnreachable: (required, _optional = {}) => fetchBounded(ctx, required),
+    fetchOrThrowUnreachable: (required, _optional: Empty = {}) => fetchBounded(ctx, required),
     requestOnce,
     requestRidingOutRestart,
     request,
@@ -148,15 +148,15 @@ async function fetchBounded<E extends AdminHttpError, B extends string, F extend
  * `Content-Type`. `init.headers` merges onto the default rather than replacing it, so one custom
  * header (an `If-Match`) never drops the type; a caller's own `Content-Type`, in any letter case,
  * wins outright, since two values would be sent joined with a comma. The merge is the transport's
- * own stage (`mergeRequestHeaders`), so both clients apply one rule to every HeadersInit form.
+ * `mergeHeaders`, so every `HeadersInit` form (Headers, tuples, record) is read the same way.
  *
  * @complexity O(h) in the caller's header count.
  */
 export function buildFetchInit(
-  { init = {} }: { init?: RequestInit | undefined },
+  { init = {} }: { readonly init?: RequestInit | undefined },
   _optional: Empty = {},
 ): RequestInit {
-  return { credentials: "same-origin", ...init, headers: mergeRequestHeaders({ sources: [init.headers] }) };
+  return { credentials: "same-origin", ...init, headers: mergeHeaders({ sources: [init.headers] }) };
 }
 
 /** One send, no restart retry. A non-2xx throws the host's error; `onOk` runs just before resolve. */

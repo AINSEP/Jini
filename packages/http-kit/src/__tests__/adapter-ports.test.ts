@@ -57,6 +57,29 @@ describe('JSON route host ports', () => {
     expect(f.res.status).toHaveBeenCalledWith(200);
   });
 
+  it('lets authenticate defer a missing principal, so a parse refusal still answers before authorize fails closed', async () => {
+    const seen: unknown[] = [];
+    const route = defineJsonRoute<{ name: string }, object, object, { id: string }>({
+      method: 'post', path: '/settings',
+      parse: (raw) => { const name = (raw.body as { name?: unknown }).name; if (typeof name !== 'string') throw new HostRejection(400, { error: 'name is required' }); return ok({ value: { name } }); },
+      handle: async ({ authorize }) => { await authorize!({ permission: 'settings.write', entityType: 'setting' }); return ok({ value: {} }); },
+    }, { ports: {
+      authenticate: () => undefined,
+      authorize: ({ context }) => { seen.push(context); if (!context) throw new HostRejection(500, { error: 'no principal' }); },
+      onError: ({ res, error }) => { const rejection = error as HostRejection; res.status(rejection.status).json(rejection.body); },
+    } });
+    const f = fixture();
+    mountJsonRoute({ app: f.app, spec: route, deps: {} });
+    await f.run();
+    expect(f.res.status).toHaveBeenCalledWith(400);
+    expect(f.res.json).toHaveBeenCalledWith({ error: 'name is required' });
+    expect(seen).toEqual([]);
+    (f.raw as { body: unknown }).body = { name: 'x' };
+    await f.run();
+    expect(seen).toEqual([undefined]);
+    expect(f.res.status).toHaveBeenLastCalledWith(500);
+  });
+
   for (const phase of ['workspace', 'authenticate', 'authorize', 'handle'] as const) {
     it(`lets the host map ${phase} failures without running later work`, async () => {
       const seen: string[] = [];

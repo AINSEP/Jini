@@ -1452,6 +1452,13 @@
  "./contracts/site/cms-media": {
   "types": "./dist/contracts/site/cms-media.d.ts",
   "symbols": {
+   "AdminMediaDto": "interface:528dd7f2cb",
+   "AdminMediaEnvelope": "interface:fd5dd0c345",
+   "AdminMediaKind": "type:e5f5c298f7",
+   "AdminMediaListEnvelope": "interface:f4673d2b6e",
+   "AdminMediaProviderMarkers": "type:fb1530d948",
+   "AdminMediaPurgeEnvelope": "interface:f341c9883e",
+   "AdminMediaStatus": "type:fc7dfac77d",
    "EncodedImage": "interface:3a422c016a",
    "ImageCodecLimits": "interface:8163e55ba2",
    "ImageCodecPort": "interface:ce7e3b6343",
@@ -2891,6 +2898,170 @@
   "types": "./dist/tool-metadata/pages.d.ts",
   "symbols": {
    "toolMetadata": "variable:6636a3b125"
+  }
+ },
+ "./contracts/site/cms-agent-plugins": {
+  "types": "./dist/contracts/site/cms-agent-plugins.d.ts",
+  "symbols": {
+   "AdminAgentPluginDto": "interface:f210bba760",
+   "AdminAgentPluginFilesEnvelope": "interface:65573deb72",
+   "AdminAgentPluginLifecycleDto": "interface:2097a79e16",
+   "AdminAgentPluginSetEnabledEnvelope": "interface:61be4329da",
+   "AdminAgentPluginsListEnvelope": "interface:22e8b4ea12"
+  }
+ },
+ "./contracts/site/cms-assistant": {
+  "types": "./dist/contracts/site/cms-assistant.d.ts",
+  "symbols": {
+   "AssistantAgentModelDto": "interface:0c56702d72",
+   "AssistantDetectAgentsResponseDto": "interface:cdc3dc36d7",
+   "AssistantDetectedAgentRowDto": "type:f40b121a9a",
+   "AssistantExecutionTabAgentDto": "interface:622e77e805",
+   "AssistantIdLabelDto": "interface:9c69c1aff1",
+   "AssistantListModelsResponseDto": "interface:629c980d63",
+   "AssistantProbeVerdictDto": "interface:4693d29bc2",
+   "AssistantSettingsEnvelopeDto": "interface:5b501a337a"
+  }
+ },
+ "./contracts/site/cms-external-mcp": {
+  "types": "./dist/contracts/site/cms-external-mcp.d.ts",
+  "symbols": {
+   "ExternalMcpAdmissionsEnvelope": "interface:30a90ae29a",
+   "ExternalMcpDeleteEnvelope": "interface:367b781192",
+   "ExternalMcpListEnvelope": "interface:23f501dc75",
+   "ExternalMcpOAuthDisconnectEnvelope": "interface:3228594623",
+   "ExternalMcpOwnedServerDto": "type:47907ba64d",
+   "ExternalMcpPutEnvelope": "interface:fa39bf2e04",
+   "ExternalMcpServerSummaryDto": "interface:2829b7cf2c",
+   "ExternalMcpToolApprovalDto": "interface:d5d6d04831",
+   "ExternalMcpToolApprovalRevokeEnvelope": "interface:1e9da26d88",
+   "ExternalMcpToolApprovalsEnvelope": "interface:26efef9f63"
+  }
+ },
+ "./contracts/site/cms-mail": {
+  "types": "./dist/contracts/site/cms-mail.d.ts",
+  "symbols": {
+   "AdminMailProviderRefusalDto": "interface:b517260fd3",
+   "AdminMailStatusBlockDto": "type:b0e82c1312",
+   "AdminMailStatusDto": "type:f9764f0536",
+   "AdminMailSuppressionRemovalPreviewDto": "interface:b04bd241b5",
+   "AdminMailTestSendDto": "interface:fb6ae2eb93",
+   "AdminMailTestSendOutcomeDto": "interface:79214b500c"
+  }
+ },
+ "./contracts/site/cms-menus": {
+  "types": "./dist/contracts/site/cms-menus.d.ts",
+  "symbols": {
+   "AdminAssignLocationEnvelope": "interface:4b47471dda",
+   "AdminMenuAttrsDto": "interface:075fbb64b9",
+   "AdminMenuAuthoringDto": "interface:2df671e88f",
+   "AdminMenuBindingDto": "interface:2ce323da88",
+   "AdminMenuDto": "interface:4ac07c82de",
+   "AdminMenuEntryTargetDto": "interface:1776d48538",
+   "AdminMenuEnvelope": "interface:61f7c52c7c",
+   "AdminMenuItemDto": "interface:86ff130ace",
+   "AdminMenuListEnvelope": "interface:ca53c37617",
+   "AdminMenuMode": "type:d63952b621",
+   "AdminMenuRouteTargetDto": "interface:8f44f6b4c2",
+   "AdminMenuStatus": "type:e32996a7ee",
+   "AdminMenuTargetDto": "type:e190812bd9",
+   "AdminMenuTermTargetDto": "interface:92e299b2c5",
+   "AdminMenuUrlTargetDto": "interface:6895186605",
+   "AdminTrashMenuEnvelope": "interface:7f1face6df"
+  }
+ },
+ "./contracts/site/cms-plugins": {
+  "types": "./dist/contracts/site/cms-plugins.d.ts",
+  "symbols": {
+   "AdminPluginDto": "interface:3f2bf1486f",
+   "AdminPluginErrorDto": "interface:50a394b28e",
+   "AdminPluginListEnvelope": "interface:332a6e1f21",
+   "AdminPluginQuarantineDto": "interface:8fa09f5a21",
+   "AdminPluginSetEnabledEnvelope": "interface:6bb83bae13",
+   "AdminPluginSource": "type:709c8919a8",
+   "AdminPluginStatus": "type:cb08104fcc",
+   "AdminPluginTier": "type:bb21d9b00b"
+  }
+ },
+ "./contracts/site/cms-publish-content": {
+  "types": "./dist/contracts/site/cms-publish-content.d.ts",
+  "symbols": {
+   "PublishContentOutcomeKindDto": "type:8b54e9fab5",
+   "PublishContentOutcomeRowDto": "interface:37e38c8737",
+   "PublishContentPeerListDto": "interface:dbffcac335",
+   "PublishContentPeerResponseDto": "interface:91cc0f1cbe",
+   "PublishContentPeerView": "interface:f1cd158903",
+   "PublishContentReferenceHolderDto": "interface:04ba48ff3e",
+   "PublishContentReportDto": "interface:d0622a2aa7",
+   "PublishContentRetireTargetDto": "interface:985b69c222",
+   "PublishDestinationView": "interface:bc1e2b9f1c"
+  }
+ },
+ "./contracts/site/cms-recovery": {
+  "types": "./dist/contracts/site/cms-recovery.d.ts",
+  "symbols": {
+   "AdminDegradedBannerActionKind": "type:455590514a",
+   "AdminDegradedBannerDto": "interface:1c9d51c809",
+   "AdminDegradedBannerKind": "type:1a50c8a27d",
+   "AdminRecoveryCapabilities": "interface:b6292e6464",
+   "AdminRecoveryCostClass": "type:f2a0b02742",
+   "AdminRecoveryStatusEnvelope": "interface:d1fb384877"
+  }
+ },
+ "./contracts/site/cms-seo": {
+  "types": "./dist/contracts/site/cms-seo.d.ts",
+  "symbols": {
+   "AdminSeoAnalysisDto": "interface:70aabf790a",
+   "AdminSeoEntryAnalysisEnvelope": "interface:4dd1ff356c",
+   "AdminSeoEntryMetaEnvelope": "interface:f5b198e35c",
+   "AdminSeoIssueDto": "interface:b0c5c1d0e9",
+   "AdminSeoIssueSeverity": "type:83f274630f",
+   "AdminSeoMetaDto": "interface:679718130f",
+   "AdminSeoOpenGraphDto": "interface:491cc6cb92",
+   "AdminSeoOpenGraphType": "type:e920385396",
+   "AdminSeoRobotsRuleDto": "interface:fa73fc6ee3",
+   "AdminSeoSettingsDto": "interface:f7be571c3e",
+   "AdminSeoSettingsEnvelope": "interface:3ef7297579",
+   "AdminSeoSitemapRegenerateEnvelope": "interface:d30fbdbda6",
+   "AdminSeoTwitterCardDto": "interface:4b5d7eb197",
+   "AdminSeoTwitterCardKind": "type:5c4547276d"
+  }
+ },
+ "./contracts/site/cms-settings": {
+  "types": "./dist/contracts/site/cms-settings.d.ts",
+  "symbols": {
+   "AdminSettingClearedDto": "interface:9a179107fb",
+   "AdminSettingDefinitionAppliedDto": "interface:e1dfa77bfa",
+   "AdminSettingScopeDto": "type:f80238d080",
+   "AdminSettingValueDto": "interface:be2c0bb11d",
+   "AdminSettingsListDto": "interface:8d9738a692",
+   "AdminSettingsRegisterDefinitionsDto": "interface:3ecf9d11c4",
+   "AdminSettingsResetDto": "interface:244bff9a31"
+  }
+ },
+ "./contracts/site/cms-sites": {
+  "types": "./dist/contracts/site/cms-sites.d.ts",
+  "symbols": {
+   "SiteCreateResponse": "interface:bcf485244c",
+   "SiteTokenSignInPluginsResponse": "interface:5b7746614c",
+   "SitesHomeSetResponse": "interface:6fb1535af9"
+  }
+ },
+ "./contracts/site/cms-system-deploy": {
+  "types": "./dist/contracts/site/cms-system-deploy.d.ts",
+  "symbols": {
+   "DeploymentEnvVarStatus": "interface:34c5536892",
+   "DeploymentOverviewSnapshot": "interface:38b2ac4e8a"
+  }
+ },
+ "./contracts/site/oauth-callback-page": {
+  "types": "./dist/contracts/site/oauth-callback-page.d.ts",
+  "symbols": {
+   "OAUTH_CALLBACK_FAILURE_REASONS": "variable:0c27baa657",
+   "OAuthCallbackFailureReason": "type:cb32510fc3",
+   "OAuthCallbackPageArgs": "interface:0913c957ec",
+   "OAuthCallbackPageRenderer": "type:f5dc08df6d",
+   "oauthCallbackPageResponse": "function:b5ccf3e3d6"
   }
  }
 }
