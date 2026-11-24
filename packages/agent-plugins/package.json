@@ -112,7 +112,10 @@
       "./site/retired-plugin-tool-aliases": "universal",
       "./site/admin-surfaces/handlers": "universal",
       "./site/customize-tool": "node",
-      "./site/activation-effects": "node"
+      "./site/activation-effects": "node",
+      "./site/service-ports": "universal",
+      "./site/provider-plugin-link": "node",
+      "./site/host-plugin-guidance": "node"
     },
     "isolation": {
       "entries": {
@@ -347,6 +350,21 @@
       "types": "./dist/site/activation-effects.d.ts",
       "import": "./dist/site/activation-effects.js",
       "default": "./dist/site/activation-effects.js"
+    },
+    "./site/service-ports": {
+      "types": "./dist/site/service-ports.d.ts",
+      "import": "./dist/site/service-ports.js",
+      "default": "./dist/site/service-ports.js"
+    },
+    "./site/provider-plugin-link": {
+      "types": "./dist/site/provider-plugin-link.d.ts",
+      "import": "./dist/site/provider-plugin-link.js",
+      "default": "./dist/site/provider-plugin-link.js"
+    },
+    "./site/host-plugin-guidance": {
+      "types": "./dist/site/host-plugin-guidance.d.ts",
+      "import": "./dist/site/host-plugin-guidance.js",
+      "default": "./dist/site/host-plugin-guidance.js"
     }
   },
   "files": [

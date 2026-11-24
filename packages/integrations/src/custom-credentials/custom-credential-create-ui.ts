@@ -1,4 +1,3 @@
-import { suggestCredentialWorksFor } from "@jini-ai/platform/secrets/credential-sets";
 import type { SecretCardForm, SurfaceCardApp, SurfaceOutcomeSpec } from "@jini-ai/core/contracts/cards";
 
 /**
@@ -40,6 +39,9 @@ import type { SecretCardForm, SurfaceCardApp, SurfaceOutcomeSpec } from "@jini-a
 /** Non-secret pre-fill hints the model-issued call may carry — see `credential-save-tool.ts`'s
  *  API creation schema for the exact three fields this accepts. All three are optional; an
  *  absent field renders its form control blank rather than pre-filled. */
+/** The host's works-for suggester (`suggestCredentialWorksFor` from `@jini-ai/platform/secrets/credential-sets`). */
+export type SuggestWorksFor = (required: { label: string; providers: readonly { id: string; vendorId: string }[] }) => string[];
+
 export interface CreateCredentialPrefill {
   readonly label?: string;
   readonly baseUrl?: string;
@@ -55,7 +57,7 @@ function buildCredentialCategoryField(prefill: CreateCredentialPrefill, categori
         options: categories.map((id) => ({ value: id })),
         // Defaults to "general" (the closed set's catch-all) when the model supplied no prefill hint —
         // mirrors the admin Access Tokens page's own "Add custom provider" form
-        // (`apps/admin/src/features/security/hooks/use-access-tokens.hooks.ts`'s `emptyCustomAddForm`),
+        // (the host admin's `emptyCustomAddForm`),
         // which has always defaulted this field the same way. Without this, `renderSelect` (required +
         // no `value`) renders a genuinely blank, blocking required select — a human with no obvious
         // category for e.g. a hosting provider's deploy token had nothing sensible to pick. Still freely changeable before
@@ -84,9 +86,9 @@ function buildCredentialCategoryField(prefill: CreateCredentialPrefill, categori
  * @complexity O(1) — a fixed five-field form (`CUSTOM_CREDENTIAL_CATEGORIES.length` is a small,
  *   compile-time-fixed constant, so the category options list is effectively O(1) too).
  */
-export function buildCreateForm(spec: { prefill: CreateCredentialPrefill; providers?: readonly { id: string; vendorId: string; label?: string }[]; app: SurfaceCardApp; categories: readonly string[] }, _optional = {}): SecretCardForm & { preferredFrameSize: readonly [string, string] } {
-  const { prefill, providers = [], app, categories } = spec;
-  const worksForField = buildWorksForField({ prefill, providers });
+export function buildCreateForm(spec: { prefill: CreateCredentialPrefill; providers?: readonly { id: string; vendorId: string; label?: string }[]; app: SurfaceCardApp; categories: readonly string[]; suggestWorksFor: SuggestWorksFor }, _optional = {}): SecretCardForm & { preferredFrameSize: readonly [string, string] } {
+  const { prefill, providers = [], app, categories, suggestWorksFor } = spec;
+  const worksForField = buildWorksForField({ prefill, providers, suggestWorksFor });
   return {
     title: "Save an API credential",
     description:
@@ -146,8 +148,8 @@ const CATALOG_CATEGORIES: ReadonlySet<string> = new Set(["hosting", "source-cont
  *
  * @complexity O(p + w) in the provider and target counts.
  */
-function buildWorksForField({ prefill, providers }: { prefill: CreateCredentialPrefill; providers: readonly { id: string; vendorId: string }[] }): SecretCardForm["fields"][number] | undefined {
-  const worksFor = prefill.worksFor ?? suggestCredentialWorksFor({ label: prefill.label ?? "", providers });
+function buildWorksForField({ prefill, providers, suggestWorksFor }: { prefill: CreateCredentialPrefill; providers: readonly { id: string; vendorId: string }[]; suggestWorksFor: SuggestWorksFor }): SecretCardForm["fields"][number] | undefined {
+  const worksFor = prefill.worksFor ?? suggestWorksFor({ label: prefill.label ?? "", providers });
   const catalog = providers.flatMap(provider => [provider.id, provider.vendorId]);
   const catalogRelevant = CATALOG_CATEGORIES.has(prefill.category ?? "") || worksFor.some(id => catalog.includes(id));
   const options = [...new Set([...(catalogRelevant ? catalog : []), ...worksFor])];

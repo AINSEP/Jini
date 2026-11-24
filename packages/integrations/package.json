@@ -33,7 +33,8 @@
       "./custom-credentials/credential-recovery": "node",
       "./custom-credentials/custom-credential-set-token-ui": "node",
       "./custom-credentials/custom-credential-create-ui": "node",
-      "./custom-credentials/provider-settings-card": "node"
+      "./custom-credentials/provider-settings-card": "node",
+      "./custom-credentials/credential-ports": "node"
     },
     "optionalPeers": {
       "better-sqlite3": "opt-in: sqlite storage; import @jini-ai/integrations/media-providers — SQLite storage could not load better-sqlite3. Install better-sqlite3 to enable this feature, or check its installed version and native binaries.",
@@ -47,7 +48,8 @@
         "./custom-credentials/credential-recovery": "credentialed-http",
         "./custom-credentials/custom-credential-set-token-ui": "credentialed-http",
         "./custom-credentials/custom-credential-create-ui": "credentialed-http",
-        "./custom-credentials/provider-settings-card": "credentialed-http"
+        "./custom-credentials/provider-settings-card": "credentialed-http",
+        "./custom-credentials/credential-ports": "credentialed-http"
       }
     }
   },
@@ -158,6 +160,11 @@
       "types": "./dist/custom-credentials/provider-settings-card.d.ts",
       "import": "./dist/custom-credentials/provider-settings-card.js",
       "default": "./dist/custom-credentials/provider-settings-card.js"
+    },
+    "./custom-credentials/credential-ports": {
+      "types": "./dist/custom-credentials/credential-ports.d.ts",
+      "import": "./dist/custom-credentials/credential-ports.js",
+      "default": "./dist/custom-credentials/credential-ports.js"
     }
   },
   "typesVersions": {
@@ -221,6 +228,9 @@
       ],
       "custom-credentials/provider-settings-card": [
         "./dist/custom-credentials/provider-settings-card.d.ts"
+      ],
+      "custom-credentials/credential-ports": [
+        "./dist/custom-credentials/credential-ports.d.ts"
       ]
     }
   },

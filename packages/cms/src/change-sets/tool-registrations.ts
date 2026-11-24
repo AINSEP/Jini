@@ -72,20 +72,20 @@ export interface ChangeSetToolDeps {
   outbox: OutboxPort;
 }
 
-const CATALOG_BY_ID = indexCatalogById({ catalog: getChangeSetsAgentToolCatalog() });
-
 /**
  * This wiring layer's OWN risk classification, authored from what each handler below actually
  * calls. See `DerivedRiskByToolId` in the kit for why it is independent of the catalog's own
- * `sideEffects` declaration.
+ * `sideEffects` declaration. Built per call so no module-level map is shared between hosts.
  */
-export const changeSetsDerivedRisk: DerivedRiskByToolId = new Map<string, AgentToolSideEffect>([
-  // -> changeSets.listByWorkspace(): a read against the change_sets table, no write.
-  ["change_sets_list", "none"],
-  // -> revertChangeSet(): applies one or more inverse writes through the registered reverters
-  //    (e.g. postRepo.save()), plus a change-set status update. Durable.
-  ["change_sets_revert", "mutates-durable-state"],
-]);
+export function changeSetsDerivedRisk(_required: Record<string, never> = {}, _optional: Record<string, never> = {}): DerivedRiskByToolId {
+  return new Map<string, AgentToolSideEffect>([
+    // -> changeSets.listByWorkspace(): a read against the change_sets table, no write.
+    ["change_sets_list", "none"],
+    // -> revertChangeSet(): applies one or more inverse writes through the registered reverters
+    //    (e.g. postRepo.save()), plus a change-set status update. Durable.
+    ["change_sets_revert", "mutates-durable-state"],
+  ]);
+}
 
 /**
  * Model-facing change-set view, shared with `admin-http/http/change-sets.ts#toChangeSetHeaderResponse`,
@@ -183,9 +183,9 @@ export function buildChangeSetsRegistrations(routeDeps: ChangeSetToolDeps): Tool
   return buildDomainRegistrations({ metadata: toolMetadata,
     domain: "change-sets",
     catalogModule: "@jini-ai/cms/change-sets/agent-tools",
-    catalog: CATALOG_BY_ID,
+    catalog: indexCatalogById({ catalog: getChangeSetsAgentToolCatalog() }),
     handlers,
-    derivedRisk: changeSetsDerivedRisk,
+    derivedRisk: changeSetsDerivedRisk(),
   });
 }
 
@@ -196,5 +196,5 @@ export function buildChangeSetsRegistrations(routeDeps: ChangeSetToolDeps): Tool
  * domain's ENTIRE contribution on re-registration by that key.
  */
 export function contributeChangeSetsTools(): ToolContributor<ChangeSetToolDeps, unknown> {
-  return { domain: "change-sets", build: buildChangeSetsRegistrations, risk: changeSetsDerivedRisk };
+  return { domain: "change-sets", build: buildChangeSetsRegistrations, risk: changeSetsDerivedRisk() };
 }

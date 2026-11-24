@@ -1,4 +1,5 @@
 import { expect, it as test } from "vitest";
+import { suggestCredentialWorksFor as suggestWorksFor } from "@jini-ai/platform/secrets/credential-sets";
 import { buildCreateForm, type CreateCredentialPrefill } from "../custom-credential-create-ui.js";
 
 const app = { appName: "host-custom-credential-create", appVersion: "1" };
@@ -7,7 +8,7 @@ const categories = ["source-control", "hosting", "media", "ai", "ops", "general"
 const providers = [{ id: "vercel", vendorId: "vercel" }, { id: "github-pages", vendorId: "github" }, { id: "s3-compatible", vendorId: "s3-compatible" }];
 
 function worksForField(prefill: CreateCredentialPrefill) {
-  const field = buildCreateForm({ prefill, providers, app, categories }).fields.find(field => field.name === "worksFor");
+  const field = buildCreateForm({ prefill, providers, app, categories, suggestWorksFor }).fields.find(field => field.name === "worksFor");
   if (field !== undefined && field.kind !== "multi-enum") throw new Error("worksFor must be a multi-enum");
   return field;
 }
