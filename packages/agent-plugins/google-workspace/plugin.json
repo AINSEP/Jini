@@ -8,6 +8,7 @@
   "extensions": {
     "jini": {
       "maturity": "soon",
+      "clientNamespace": "JINI_",
       "vendorAliases": ["google-sheets", "docs.google.com", "sheets.googleapis.com", "drive.googleapis.com", "gmail"],
       "displayName": "Google Workspace",
       "summary": "Sign in with Google once, then work with the spreadsheets you choose or create here.",

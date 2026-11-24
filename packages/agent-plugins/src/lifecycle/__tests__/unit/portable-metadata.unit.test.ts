@@ -11,6 +11,15 @@ describe('portable manifest metadata', () => {
     expect(parseAgentPluginManifest({ value: plugin(metadata) })).toMatchObject({ ok: true, manifest: metadata });
     expect(readAgentPluginMetadata({ value: plugin(metadata) })).toEqual({ metadata, warnings: [] });
   });
+  test('reads an optional clientNamespace the host may use for this plugin settings, and ignores a malformed one with a warning', () => {
+    expect(readAgentPluginMetadata({ value: plugin({ clientNamespace: 'JINI_' }) })).toEqual({ metadata: { clientNamespace: 'JINI_' }, warnings: [] });
+    expect(parseAgentPluginManifest({ value: plugin({ clientNamespace: 'JINI_' }) })).toMatchObject({ ok: true, manifest: { clientNamespace: 'JINI_' } });
+    for (const bad of ['jini', 'JINI', 'has space_', 7]) {
+      const result = readAgentPluginMetadata({ value: plugin({ clientNamespace: bad }) });
+      expect(result.metadata).toEqual({});
+      expect(result.warnings).toContain('Invalid agent-plugin clientNamespace metadata was ignored.');
+    }
+  });
   test('new namespace wins as a whole and legacy metadata warns without user action', () => {
     const value = { ...plugin({ summary: 'new' }), extensions: { jini: { summary: 'new' }, tovu: { summary: 'old', displayName: 'Old' } } };
     expect(readAgentPluginMetadata({ value }).metadata).toEqual({ summary: 'new' });
