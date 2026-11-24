@@ -1,9 +1,5 @@
 import { isIP } from "node:net";
-import { resolveWorkspaceOrigin, toAbsoluteUrl } from "../../seo/absolute-url.js";
-import type {
-  OriginRegistryPort,
-  VerifiedOrigin,
-} from "@jini-ai/core/contracts/server/verified-origin";
+import type { VerifiedOrigin } from "@jini-ai/core/contracts/server/verified-origin";
 
 /**
  * @file The decisions behind the public site's canonical-host redirect: which requests are eligible,
@@ -11,16 +7,12 @@ import type {
  * host's middleware reads the request facts, calls these, and answers `308` or passes the request on.
  */
 
-/** The configured origin lookup this redirect reads (SEO's stored-origin lookup). */
-export interface CanonicalSiteHostOriginDeps {
-  readonly originRegistry: OriginRegistryPort;
-  readonly workspaceId: string;
-  readonly runtimeMode: string;
-}
+/** The host's absolute-URL join for a verified origin (`@jini-ai/cms/seo`'s `toAbsoluteUrl`). */
+export type ToAbsoluteUrl = (required: { origin: VerifiedOrigin; path: string }, optional: {}) => string;
 
 /** Select only the configured origin's www counterpart; local hosts and dev seeds are not aliases.
  * Returns no destination for any other Host. No I/O; O(h) time/space for host text of length h. */
-function aliasDestination({ host, origin }: { host: string | undefined; origin: VerifiedOrigin | undefined }, _options = {}): string | undefined {
+function aliasDestination({ host, origin, toAbsoluteUrl }: { host: string | undefined; origin: VerifiedOrigin | undefined; toAbsoluteUrl: ToAbsoluteUrl }, _options = {}): string | undefined {
   if (!origin || origin.source === "dev-capability") return undefined;
   const canonical = new URL(toAbsoluteUrl({ origin, path: "/" }, {}));
   const bareHostname = canonical.hostname.replace(/^www\./, "");
@@ -43,18 +35,17 @@ export function isCanonicalSiteHostCandidate(
 }
 
 /** Keep public pages on the same origin as their canonical links and consent saves.
- * Uses SEO's stored-origin lookup; missing configuration answers `undefined` (leave the request alone)
- * and registry errors reject for the host to forward. O(1) lookups per eligible request.
+ * The host resolves `origin` with SEO's stored-origin lookup (missing configuration is `undefined`,
+ * which leaves the request alone; registry errors stay the host's to forward). No I/O; O(h + u) for
+ * host text h and URL u.
  * @returns The absolute `308` destination, or `undefined` when this Host is not the alias.
  */
 export function canonicalSiteHostRedirectLocation(
-  { host, originalUrl, ...originDeps }: CanonicalSiteHostOriginDeps & { host: string | undefined; originalUrl: string },
+  { host, originalUrl, origin, toAbsoluteUrl }: { host: string | undefined; originalUrl: string; origin: VerifiedOrigin | undefined; toAbsoluteUrl: ToAbsoluteUrl },
   _optional: Record<string, never> = {},
-): Promise<string | undefined> {
-  return resolveWorkspaceOrigin(originDeps, {}).then(origin => {
-    // Only Host participates: forwarded hosts must never widen the accepted alias.
-    const destination = aliasDestination({ host, origin });
-    // Concatenate onto the trusted origin so even a //-prefixed path cannot replace its host.
-    return destination ? `${destination}${originalUrl}` : undefined;
-  });
+): string | undefined {
+  // Only Host participates: forwarded hosts must never widen the accepted alias.
+  const destination = aliasDestination({ host, origin, toAbsoluteUrl });
+  // Concatenate onto the trusted origin so even a //-prefixed path cannot replace its host.
+  return destination ? `${destination}${originalUrl}` : undefined;
 }

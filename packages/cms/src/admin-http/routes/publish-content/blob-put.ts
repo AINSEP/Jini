@@ -2,7 +2,6 @@ import { defineJsonRoute, ok } from "@jini-ai/core/contracts/server";
 import { decodeStrictBase64 } from "@jini-ai/core/contracts/site/strict-base64";
 import { rejectRoute } from "@jini-ai/core/errors/route-refusal";
 
-import { MAX_DOCUMENT_BYTES, type BlobStorePort } from "../../../media/index.js";
 import { bytesMatchSha256 } from "../../../publish/transfer/blob-staging.js";
 import { authorizePublishContentPermission, blobShaParam } from "./blob-shared.js";
 import type { PublishRoutePrincipal } from "./transport-shared.js";
@@ -32,7 +31,10 @@ import type { PublishRoutePrincipal } from "./transport-shared.js";
 /** The deps this route reads: the workspace it serves and the one blob-store write it makes. */
 export interface BlobPutRouteDeps {
   workspaceId: string;
-  blobStore: Pick<BlobStorePort, "putIfAbsent">;
+  /** The host's content-addressed blob store (create-only; it does not verify the sha itself). */
+  blobStore: { putIfAbsent(required: { workspaceId: string; sha256: string; bytes: Uint8Array }): Promise<{ written: boolean }> };
+  /** The upload ceiling in bytes (the media library's `MAX_DOCUMENT_BYTES`). */
+  maxUploadBytes: number;
 }
 
 /** The 200 body: the stored sha and whether this call wrote it (`false` = already present). */
@@ -60,8 +62,8 @@ export const blobPutRoute = defineJsonRoute<{ claimedSha256: string; rawBody: un
     await authorizePublishContentPermission({ authorize, permission: "publish_content.apply" });
     const bytes = decodeBlobBytes({ rawBody });
     if (!bytes) rejectRoute({ status: 400, error: "dataBase64 is required and must be valid base64" });
-    if (bytes.length > MAX_DOCUMENT_BYTES) {
-      rejectRoute({ status: 413, error: `blob exceeds the ${MAX_DOCUMENT_BYTES}-byte upload limit`, code: "PAYLOAD_TOO_LARGE" });
+    if (bytes.length > deps.maxUploadBytes) {
+      rejectRoute({ status: 413, error: `blob exceeds the ${deps.maxUploadBytes}-byte upload limit`, code: "PAYLOAD_TOO_LARGE" });
     }
     // The security property this route exists to hold — see this file's own header.
     // `putIfAbsent` trusts `claimedSha256` unconditionally; this check MUST run before it.

@@ -17,7 +17,7 @@ function refusalOf(run: () => unknown): unknown {
   try { run(); } catch (error) { const e = (error as { response?: { status: number; body: unknown } }).response; return { status: e?.status, body: e?.body }; }
   throw new Error("expected a refusal");
 }
-async function refusalOfAsync(run: () => Promise<unknown>): Promise<unknown> {
+async function refusalOfAsync(run: () => unknown): Promise<unknown> {
   try { await run(); } catch (error) { const e = (error as { response?: { status: number; body: unknown } }).response; return { status: e?.status, body: e?.body }; }
   throw new Error("expected a refusal");
 }
@@ -26,14 +26,15 @@ function recordingAuthorize(denied = false) {
   const authorize = async (args: { permission: string; entityType?: string }, ...scope: unknown[]) => { calls.push(scope.length ? [args, ...scope] : args); if (denied) throw new Error("denied"); };
   return { calls, authorize };
 }
-const raw = (params: Record<string, string | undefined>, body?: unknown) => ({ params, query: {}, body });
+const raw = (params: Record<string, string | undefined>, body?: unknown) => ({ params, query: {}, body }) as never;
 
 function getDeps({ documentOnly = false, stored = BYTES as Uint8Array | null } = {}) {
   const reads = { exists: 0, get: 0, media: 0 };
   const deps: BlobGetRouteDeps = {
     workspaceId: WS,
-    mediaRepo: { list: async () => { reads.media += 1; return documentOnly ? [{ source: { sha256: SHA }, kind: "document" }] : []; } } as never,
-    assetBlobRepo: { findByHash: async () => (documentOnly ? { sha256: SHA, documentOwned: true } : null) } as never,
+    isDocumentOnlyBlob: async ({ sha256 }) => { reads.media += 1; expect(sha256).toBe(SHA); return documentOnly; },
+    storageKeyFor: ({ sha256 }) => `blobs/${WS}/${sha256}`,
+    maxTransferBytes: MAX_DOCUMENT_BYTES,
     blobSource: () => ({
       exists: async ({ storageKey }) => { reads.exists += 1; expect(storageKey).toContain(SHA); return stored !== null; },
       get: async () => { reads.get += 1; return stored ?? new Uint8Array(); },
@@ -85,7 +86,7 @@ describe("blobGetRoute", () => {
 
 function putDeps() {
   const writes: unknown[] = [];
-  const deps: BlobPutRouteDeps = { workspaceId: WS, blobStore: { putIfAbsent: async (input) => { writes.push(input); return { written: writes.length === 1 } as never; } } };
+  const deps: BlobPutRouteDeps = { workspaceId: WS, maxUploadBytes: MAX_DOCUMENT_BYTES, blobStore: { putIfAbsent: async (input) => { writes.push(input); return { written: writes.length === 1 } as never; } } };
   return { deps, writes };
 }
 const putInput = (body: unknown, sha = SHA) => ({ claimedSha256: sha, rawBody: body });

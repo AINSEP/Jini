@@ -413,6 +413,7 @@ service calls (`resetPassword`, `setPassword`, `prepareReset`, `requireSessionMe
 (`deliverInBackground`), its cookie reader (`readSessionToken`) and `refusalFor`.
 
 - **publish-content peer pull** (`admin-http/routes/publish-content/peer-transport`): `peerPullRoute` (`POST .../peers/:peerId/pull`, 201) asks `publish_content.apply` and runs the injected `pullAndStage({peerId, principalId})` (the host opens the peer credential and stages the export); a host typed error maps through the injected `peerActionRefusal`, anything else is rethrown for the mount's redacted 500. The push relay routes stay host-side.
+- **publish-content export + blob channel** (`admin-http/routes/publish-content/{export,blob-get,blob-put}`, w4-routes): `exportRoute` is a structural raw route (`PublishContentRawRoute`, the shape the host's raw admin mount takes) that streams the bundle envelope; the host injects `workspaceRepo.findById` (the `sourceLabel`), `isPublishingCredential({ context })` (its publishing-grant lookup; a grant is refused with the `publish_trust_export_not_wired` 403 before the read gate) and `packEntities({ principalId })` (its registry walk with the per-type permission gate). A pack failure after the head is sent ends the body unclosed. `blobGetRoute`/`blobPutRoute` are `defineJsonRoute` specs: the host injects `mediaRepo`/`assetBlobRepo` (the document-only check, answered as a `Cache-Control: private, no-store` 404 via `routeReply`) and `blobSource({})` (its blob store with its file-blob fallback) for GET, and `blobStore.putIfAbsent` for PUT. All three ask `publish_content.read`/`.apply` with no entity type; the blob routes refuse a malformed `:sha` in `parse`, so their mounts must defer a missing session.
 
 ## Scripts
 
@@ -447,6 +448,17 @@ object. Purge callers own human confirmation and must authorize each resolved in
 domains remain `adapter-unavailable` after authorization even when their entity policy denies them.
 
 ## Wiring
+
+`./public-http/middleware/{canonical-site-host,theme-content-security-headers,theme-asset-dirs,theme-static-assets}` (w4-routes)
+are the server-neutral decisions behind the host's public Express middleware; the host keeps the `app.use` adapters and
+`express.static`. `canonical-site-host`: `isCanonicalSiteHostCandidate({ method, path, originalUrl })` (sync) and
+`canonicalSiteHostRedirectLocation({ host, originalUrl, origin, toAbsoluteUrl })` (the 308 target or `undefined`); the
+host resolves `origin` with this package's `./seo` lookup, injects its `toAbsoluteUrl`, and passes `Host` only. `theme-content-security-headers`:
+`themeAssetSecurityHeaderSet({ path })`, written in order before the static server runs. `theme-asset-dirs`:
+`resolveThemeDirs({ roots, themeId, themeIdCandidates, resolvePathWithin }, {})` takes the host's theme-id alias table and
+`@jini-ai/platform/fs`'s `resolvePathWithin` (this package does not depend on platform). `theme-static-assets`:
+`trustedPreviewRevision` (takes the host's `isAuthenticatedPreviewRevision`), `isRewritableCssPath`, `previewCss`,
+`inheritedTemplateSource` (reads `{ dir, inheritedTemplateSources }` structurally from the host's discovered themes).
 
 `./publish/content`: `normalizePeerBaseUrl({ raw, hasForbiddenRawUrlCharacter })` takes the raw-URL
 character check from the host (Tovu passes `@jini-ai/core/contracts/server/verified-origin`'s), and

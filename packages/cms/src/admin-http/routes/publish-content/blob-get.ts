@@ -1,7 +1,6 @@
 import { defineJsonRoute, ok, routeReply, type RouteReply } from "@jini-ai/core/contracts/server";
 import { rejectRoute } from "@jini-ai/core/errors/route-refusal";
 
-import { computeBlobStorageKey, isDocumentOnlyBlob, MAX_DOCUMENT_BYTES, type AssetBlobRepoPort, type MediaRepoPort } from "../../../media/index.js";
 import { authorizePublishContentPermission, blobShaParam } from "./blob-shared.js";
 import type { PublishRoutePrincipal } from "./transport-shared.js";
 
@@ -40,9 +39,9 @@ import type { PublishRoutePrincipal } from "./transport-shared.js";
  *    directory opens with.
  * 2. A real permission check against the AUTHENTICATED principal (above). Knowing a sha — even
  *    having uploaded those very bytes under `publish_content.apply` — grants nothing;
- *    `apps/website/src/server/__tests__/routes/publish-content-blob-get.test.ts` pins that case directly.
- * 3. The storage key is DERIVED, never accepted: `computeBlobStorageKey({workspaceId, sha256})`
- *    with this composition's own `workspaceId`. A caller supplies 64 hex characters and nothing
+ *    the host's blob-get wire test pins that case directly.
+ * 3. The storage key is DERIVED, never accepted: the injected `storageKeyFor` (the media library's
+ *    `computeBlobStorageKey({workspaceId, sha256})`) with this composition's own `workspaceId`. A caller supplies 64 hex characters and nothing
  *    else, so there is no path/traversal surface and no way to address another workspace's bytes.
  *
  * ## Why the response is base64 JSON rather than octet-stream, and why it buffers
@@ -53,7 +52,7 @@ import type { PublishRoutePrincipal } from "./transport-shared.js";
  * agree. Buffering is not a choice this route can avoid either: `BlobStorePort.get()` returns
  * `Promise<Uint8Array>` — the port exposes no streaming read, and every existing consumer
  * (`routes/media/original.ts`, `public-http/.../media-rendition.ts`) buffers the same way. Memory is
- * therefore bounded by {@link MAX_DOCUMENT_BYTES} per request, enforced below, which also keeps
+ * therefore bounded by the injected `maxTransferBytes` (the media library's `MAX_DOCUMENT_BYTES`) per request, enforced below, which also keeps
  * the base64 body (≈4/3 of 50 MiB as of 2026-09-21, ≈66.7 MiB) under the peer policy's 96 MiB
  * `maxResponseBytes` cap (`PUBLISH_CONTENT_PEER_MAX_RESPONSE_BYTES`, raised from 64 MiB alongside it).
  *
@@ -74,8 +73,12 @@ export interface BlobGetSource {
 /** The deps this route reads. */
 export interface BlobGetRouteDeps {
   workspaceId: string;
-  mediaRepo: MediaRepoPort;
-  assetBlobRepo: AssetBlobRepoPort;
+  /** The media library's document-only check for this workspace (`isDocumentOnlyBlob` over the host's media + asset-blob repos). */
+  isDocumentOnlyBlob: (required: { sha256: string }) => Promise<boolean>;
+  /** The media library's derived storage key for this workspace (`computeBlobStorageKey`). */
+  storageKeyFor: (required: { sha256: string }) => string;
+  /** The transfer ceiling in bytes (the media library's `MAX_DOCUMENT_BYTES`). */
+  maxTransferBytes: number;
   /** The host's composite blob source, built per request (it reads the host's current stores). */
   blobSource: (required: Record<string, never>) => BlobGetSource;
 }
@@ -92,21 +95,21 @@ export const blobGetRoute = defineJsonRoute<{ sha256: string }, BlobGetBody | Ro
     await authorizePublishContentPermission({ authorize, permission: "publish_content.read" });
     // A peer's publish grant is not a Library read grant. A known document-only hash must
     // not bypass typed export's exclusion, even after purge; live media owners still travel.
-    if (await isDocumentOnlyBlob({ deps: { mediaRepo: deps.mediaRepo, blobRepo: deps.assetBlobRepo }, input: { workspaceId: deps.workspaceId, sha256 } })) {
-      return ok({ value: routeReply({ status: 404, body: { error: "blob was not found", code: "BLOB_NOT_FOUND" } }) });
+    if (await deps.isDocumentOnlyBlob({ sha256 })) {
+      return ok({ value: routeReply({ status: 404, body: { error: "blob was not found", code: "BLOB_NOT_FOUND" }, headers: { "Cache-Control": "private, no-store" } }) });
     }
-    const storageKey = computeBlobStorageKey({ workspaceId: deps.workspaceId, sha256 });
+    const storageKey = deps.storageKeyFor({ sha256 });
     // S18 (S-F3) — checks the blob store first, falling back to the host's file-blob index (a
     // file-tree type's `pack()` fill) for a blob that was never copied into the blob store. See
     // the host's `composite-blob-source.ts` header for why bytes are re-hashed on the fallback path.
     const blobSource = deps.blobSource({});
     if (!(await blobSource.exists({ sha256, storageKey }))) rejectRoute({ status: 404, error: "blob was not found", code: "BLOB_NOT_FOUND" });
     const bytes = await blobSource.get({ sha256, storageKey });
-    if (bytes.byteLength > MAX_DOCUMENT_BYTES) {
+    if (bytes.byteLength > deps.maxTransferBytes) {
       // Unreachable for anything this instance accepted (both `blob-put.ts` and the media upload
       // route enforce the same ceiling), so this is a bound on a store written by some other
       // means — never a silent 47 MB+ base64 response.
-      rejectRoute({ status: 413, error: `blob exceeds the ${MAX_DOCUMENT_BYTES}-byte transfer limit`, code: "PAYLOAD_TOO_LARGE" });
+      rejectRoute({ status: 413, error: `blob exceeds the ${deps.maxTransferBytes}-byte transfer limit`, code: "PAYLOAD_TOO_LARGE" });
     }
     return ok({ value: { sha256, dataBase64: Buffer.from(bytes).toString("base64") } });
   },

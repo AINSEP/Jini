@@ -21,8 +21,8 @@ import type { PublishRoutePrincipal } from "./transport-shared.js";
  * called fresh at request time (never cached — see `type-registry.ts`'s own "fresh-read" rule). A
  * table added tomorrow with no contributor registered for it is therefore invisible to this route
  * BY CONSTRUCTION, not because someone remembered to add it to a deny-list. This is exactly the
- * property `apps/website/src/server/__tests__/routes/publish-content-export.test.ts`'s "empty registry -> empty bundle, despite real DB content"
- * test pins directly, and `apps/website/src/server/__tests__/integration/publish-content-export-no-leak.integration.test.ts` pins end-to-end against a
+ * property the host's export wire test "empty registry -> empty bundle, despite real DB content"
+ * pins directly, and the host's export no-leak integration test pins end-to-end against a
  * real SQLite db seeded with a canary row in every named sensitive table.
  *
  * ## Two DIFFERENT permission checks, not one

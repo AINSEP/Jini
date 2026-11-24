@@ -60,7 +60,7 @@ export function inheritedTemplateSource(
 ): string | undefined {
   if (method !== "GET" && method !== "HEAD") return undefined;
   let relativePath: string;
-  try { relativePath = decodeURIComponent(url.split("?")[0]).replace(/^\/+/, ""); }
+  try { relativePath = decodeURIComponent(url.split("?")[0] ?? "").replace(/^\/+/, ""); }
   catch { return undefined; }
   const sources = themes.find(theme => theme.dir === themeDir)?.inheritedTemplateSources ?? {};
   return Object.hasOwn(sources, relativePath) ? sources[relativePath] : undefined;
