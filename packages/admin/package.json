@@ -227,6 +227,7 @@
       "./screens/plugins/hooks/use-plugin-provider-settings.hooks": "browser",
       "./screens/plugins/AgentPlugins.hooks": "browser",
       "./screens/providers/hooks/use-providers.hooks": "browser",
+      "./screens/trash/rules": "universal",
       "./sites/transfer/use-export-password.hooks": "browser",
       "./shell/lib/live-tiptap-editor": "universal",
       "./shell/lib/media-image-extension.hooks": "universal",
@@ -1408,6 +1409,11 @@
       "types": "./dist/screens/plugins/AgentPlugins.hooks.d.ts",
       "import": "./dist/screens/plugins/AgentPlugins.hooks.js",
       "default": "./dist/screens/plugins/AgentPlugins.hooks.js"
+    },
+    "./screens/trash/rules": {
+      "types": "./dist/screens/trash/rules.d.ts",
+      "import": "./dist/screens/trash/rules.js",
+      "default": "./dist/screens/trash/rules.js"
     },
     "./screens/providers/hooks/use-providers.hooks": {
       "types": "./dist/screens/providers/hooks/use-providers.hooks.d.ts",
