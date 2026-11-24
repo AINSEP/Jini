@@ -10,7 +10,6 @@ import {
   visibleTaxonomyError,
   type DeleteBlockedState,
 } from "../rules.js";
-import { useTaxonomyHtmlEmbed } from "./use-taxonomy-html-embed.hooks.js";
 import type { TaxonomyPort } from "./taxonomy-port.hooks.js";
 import type { TaxonomyHostKit } from "../taxonomy-host-kit.js";
 
@@ -303,7 +302,7 @@ export function useTaxonomy(
 ): TaxonomyController {
   const list = useFetchQuery({ key: KEYS.list, fetch: () => port.listTaxonomies() });
   const taxonomies = list.data?.items ?? null;
-  const { copyHtmlEmbed, copyFeedback } = useTaxonomyHtmlEmbed({ taxonomies, t, failures: kit.failures });
+  const { copyHtmlEmbed, copyFeedback } = kit.useTaxonomyHtmlEmbed({ taxonomies, t, failures: kit.failures });
   useTaxonomyContentRefresh({ useContentRefreshSubscription: kit.useContentRefreshSubscription });
 
   const [selectedTermId, setSelectedTermId] = useState<string | null>(null);

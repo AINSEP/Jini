@@ -6,6 +6,8 @@
  * every hook.
  */
 
+import type { useTaxonomyHtmlEmbed } from "./hooks/use-taxonomy-html-embed.hooks.js";
+
 /** The fields the taxonomy rules read off a failed admin request. */
 export interface TaxonomyApiErrorLike extends Error {
   readonly status: number;
@@ -46,4 +48,7 @@ export interface TaxonomyHostKit extends TaxonomyErrorKit {
   failures: TaxonomyFailureReporter;
   /** The host's content-refresh subscription: calls `onRefresh` when an out-of-band write touches `resource`. */
   useContentRefreshSubscription: (required: { resource: string; onRefresh: () => void }) => void;
+  /** The HTML-embed copy hook; the host injects `useTaxonomyHtmlEmbed` (or a test double) so
+   *  `use-taxonomy` never calls a custom hook it imported directly. */
+  useTaxonomyHtmlEmbed: typeof useTaxonomyHtmlEmbed;
 }
