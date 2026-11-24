@@ -36,7 +36,8 @@
       "./ports/xai-oauth": "node",
       "./exclusive-run-lease": "universal",
       "./daemon-call-context": "node",
-      "./byok-meta-tool-result": "universal"
+      "./byok-meta-tool-result": "universal",
+      "./core-rpc-schema": "universal"
     },
     "isolation": {
       "shared": [
@@ -141,6 +142,11 @@
       "import": "./dist/daemon-call-context.js",
       "default": "./dist/daemon-call-context.js"
     },
+    "./core-rpc-schema": {
+      "types": "./dist/core-rpc-schema.d.ts",
+      "import": "./dist/core-rpc-schema.js",
+      "default": "./dist/core-rpc-schema.js"
+    },
     "./byok-meta-tool-result": {
       "types": "./dist/byok-meta-tool-result.d.ts",
       "import": "./dist/byok-meta-tool-result.js",
@@ -228,7 +234,8 @@
     "@jini-ai/agent-runtime": "workspace:^",
     "@jini-ai/db": "workspace:^",
     "@jini-ai/platform": "workspace:^",
-    "kysely": "^0.29.6"
+    "kysely": "^0.29.6",
+    "zod": "^4.6.6"
   },
   "peerDependencies": {
     "better-sqlite3": "^13.0.0",

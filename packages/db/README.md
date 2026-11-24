@@ -311,3 +311,7 @@ and `ownerStoreMigration` stay here.
 
 `captureSqliteBackupBytes` (`@jini-ai/db/transfer`): the host passes its open, structural SQLite handle
 (`backupTo`) and its own `tempDirPrefix` for the short-lived backup directory.
+
+- `@jini-ai/db/pglite`: `copyPgliteSourceTo({ sourceDataDir, targetDataDir, ports })` owns the served-versus-stopped
+  copy and owner-lock lifecycle of a PGlite data dir. The host supplies `runningOwner`, `copyServed`,
+  `acquireOwnerLock` (mapping a refused lock to its own error), `openStopped` and `copyStopped`.

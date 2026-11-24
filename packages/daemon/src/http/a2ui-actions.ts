@@ -1,10 +1,14 @@
-import { parseRendererToAgentMessage, type RendererToAgentMessage } from '@jini-ai/protocol/a2ui';
+import { defineJsonRoute, ok } from '@jini-ai/core/contracts/server';
+import type { parseRendererToAgentMessage, RendererToAgentMessage } from '@jini-ai/protocol/a2ui';
 import type { DeliverResult, SurfaceDeliveryRejectionReason, SurfaceExchangeStore } from '../surface-exchanges.js';
+import type { DaemonRouteHost } from './route-host.js';
+import { gatedJsonRoute, type DaemonRoute } from './route-table.js';
+import { readSurfacePrincipalId, SurfaceReplyRefusal, surfaceReplyOnError, unauthenticatedReply } from './surface-callback-request.js';
 
 /**
- * @file The Express-free decision half of an A2UI (a2ui-project/a2ui v1.0) action endpoint — where a
- * rendered surface's `action`/`functionResponse`/`error` message re-enters the server. A host keeps
- * the HTTP shell (principal header, status codes) and calls these.
+ * @file The A2UI (a2ui-project/a2ui v1.0) action endpoint — where a rendered surface's
+ * `action`/`functionResponse`/`error` message re-enters the server: the decision helpers below, and
+ * {@link a2uiActionsRoutes}, the JSON route a host mounts on whatever server it runs.
  *
  * ## Why delivery never calls `toolExecutor.execute`
  *
@@ -59,10 +63,14 @@ export type ReadA2uiActionResult =
  * Validates an A2UI post's body: a non-empty `exchangeId`, a schema-valid renderer message, and a
  * declared `surfaceId` (when the message has one) equal to `exchangeId`. Shared by every hop that
  * accepts the post (a daemon route, a host's local-first proxy), so all refuse the same malformed posts.
+ * The parser is the host's to supply, so the daemon takes no value edge on the protocol package.
  *
  * @complexity O(size of the message) for the schema parse.
  */
-export function readA2uiAction({ rawBody }: { rawBody: unknown }, _options = {}): ReadA2uiActionResult {
+export function readA2uiAction(
+  { rawBody, parseRendererMessage }: { rawBody: unknown; parseRendererMessage: typeof parseRendererToAgentMessage },
+  _options = {},
+): ReadA2uiActionResult {
   const body = (rawBody ?? {}) as { exchangeId?: unknown; message?: unknown };
   const exchangeId = body.exchangeId;
   if (typeof exchangeId !== 'string' || exchangeId.length === 0) {
@@ -72,7 +80,7 @@ export function readA2uiAction({ rawBody }: { rawBody: unknown }, _options = {})
   // Real spec-conformance enforcement, not a rubber stamp — mirrors `daemon.ts`'s own `/a2ui-action`
   // relay in Jini's reference app: a malformed envelope is refused at the network boundary, before
   // it can ever reach a handler waiting on `exchange.receive()`.
-  const parsed = parseRendererToAgentMessage({ raw: body.message });
+  const parsed = parseRendererMessage({ raw: body.message });
   if (!parsed.ok) return { ok: false, error: { error: parsed.reason, code: 'VALIDATION_ERROR' } };
 
   const declaredSurfaceId = extractDeclaredSurfaceId(parsed.message);
@@ -109,4 +117,62 @@ export function deliverA2uiAction(
  */
 export function a2uiNotPendingBody({ reason }: { reason: SurfaceDeliveryRejectionReason }, _optional: Record<string, never> = {}) {
   return { error: 'that surface is no longer waiting for an answer', code: 'SURFACE_NOT_PENDING', reason } as const;
+}
+
+/** What {@link a2uiActionsRoutes} needs from the host. */
+export interface A2uiActionsRouteDeps {
+  /**
+   * The SAME store the A2UI-opening tools' handlers park on. A different instance would leave every
+   * A2UI exchange unreachable, answering 409 until the agent's call times out.
+   */
+  readonly surfaceExchanges: SurfaceExchangeStore;
+  /** Name of the request header carrying the already-authenticated principal id. */
+  readonly principalHeader: string;
+  /** The protocol's renderer-to-agent parser (`parseRendererToAgentMessage`). */
+  readonly parseRendererMessage: typeof parseRendererToAgentMessage;
+}
+
+/** The authenticated caller of one A2UI post. */
+interface A2uiActionsContext { readonly principalId: string }
+
+/**
+ * `POST {path}` — validates the post, delivers it into the open exchange, and answers 202
+ * `{ delivered: true }`. Deliberately not the tool's eventual result: the agent's own call returns
+ * that, to the model, where it belongs. Refusals keep the endpoint's flat bodies: 401 (no
+ * principal, checked before the body is read as an answer), 400 (malformed post), 409 (nothing
+ * waiting, or the exchange is another caller's or another channel's).
+ *
+ * @complexity O(1) plus the schema parse; the delivery itself is a `Map` lookup.
+ */
+export function a2uiActionsRoutes(
+  { deps, host, path }: { readonly deps: A2uiActionsRouteDeps; readonly host: DaemonRouteHost; readonly path: string },
+  _optional: Record<string, never> = {},
+): DaemonRoute[] {
+  const spec = defineJsonRoute<unknown, { delivered: true }, A2uiActionsRouteDeps, A2uiActionsContext>(
+    {
+      method: 'post',
+      path,
+      parse: ({ body }) => ok({ value: body }),
+      handle: ({ input, deps: routeDeps, context }) => {
+        if (!context) throw new SurfaceReplyRefusal({ reply: unauthenticatedReply({ principalHeader: routeDeps.principalHeader }) });
+        const action = readA2uiAction({ rawBody: input, parseRendererMessage: routeDeps.parseRendererMessage });
+        if (!action.ok) throw new SurfaceReplyRefusal({ reply: { status: 400, body: action.error } });
+        const delivered = deliverA2uiAction({ store: routeDeps.surfaceExchanges, exchangeId: action.exchangeId, principalId: context.principalId, message: action.message });
+        if (!delivered.ok) throw new SurfaceReplyRefusal({ reply: { status: 409, body: a2uiNotPendingBody({ reason: delivered.reason }) } });
+        return ok({ value: { delivered: true } });
+      },
+    },
+    {
+      successStatus: 202,
+      ports: {
+        authenticate: ({ request, deps: routeDeps }) => {
+          const principalId = readSurfacePrincipalId({ headers: request.headers, principalHeader: routeDeps.principalHeader });
+          if (!principalId) throw new SurfaceReplyRefusal({ reply: unauthenticatedReply({ principalHeader: routeDeps.principalHeader }) });
+          return { principalId };
+        },
+        onError: surfaceReplyOnError,
+      },
+    },
+  );
+  return [gatedJsonRoute({ spec, deps, host })];
 }

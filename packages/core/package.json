@@ -57,6 +57,7 @@
       "./contracts/capabilities": "universal",
       "./net": "universal",
       "./contracts/blob": "universal",
+      "./contracts/tool-result-block": "universal",
       "./contracts/runtime": "universal",
       "./contracts/runtime/testing": "universal",
       "./contracts/admin-module": "universal",
@@ -74,6 +75,8 @@
       "./contracts/site/strict-base64": "node",
       "./contracts/site/tool-metadata-approval-policy": "universal",
       "./contracts/site/daemon": "universal",
+      "./contracts/site/daemon-core-rpc": "universal",
+      "./contracts/site/client-directives": "universal",
       "./contracts/site/plugins-host": "universal",
       "./contracts/site/tool-access-change": "universal",
       "./contracts/site/db-data-modules": "universal",
@@ -474,6 +477,11 @@
       "import": "./dist/contracts/blob.js",
       "default": "./dist/contracts/blob.js"
     },
+    "./contracts/tool-result-block": {
+      "types": "./dist/contracts/tool-result-block.d.ts",
+      "import": "./dist/contracts/tool-result-block.js",
+      "default": "./dist/contracts/tool-result-block.js"
+    },
     "./contracts/runtime": {
       "types": "./dist/contracts/runtime.d.ts",
       "import": "./dist/contracts/runtime.js",
@@ -508,6 +516,16 @@
       "types": "./dist/contracts/plugin-sdk.d.ts",
       "import": "./dist/contracts/plugin-sdk.js",
       "default": "./dist/contracts/plugin-sdk.js"
+    },
+    "./contracts/site/daemon-core-rpc": {
+      "types": "./dist/contracts/site/daemon-core-rpc.d.ts",
+      "import": "./dist/contracts/site/daemon-core-rpc.js",
+      "default": "./dist/contracts/site/daemon-core-rpc.js"
+    },
+    "./contracts/site/client-directives": {
+      "types": "./dist/contracts/site/client-directives.d.ts",
+      "import": "./dist/contracts/site/client-directives.js",
+      "default": "./dist/contracts/site/client-directives.js"
     },
     "./contracts/site/core-runtime-mode": {
       "types": "./dist/contracts/site/core-runtime-mode.d.ts",

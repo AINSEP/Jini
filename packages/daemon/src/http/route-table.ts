@@ -49,8 +49,8 @@ export function describeRoutes({ routes }: { readonly routes: readonly ServerRou
  * @param required.deps - What the route's `handle` is given.
  * @param required.host - The host the route list was built for.
  */
-export function gatedJsonRoute<Input, Output, Deps>(
-  { spec, deps, host }: { readonly spec: JsonRouteSpec<Input, Output, Deps>; readonly deps: Deps; readonly host: DaemonRouteHost },
+export function gatedJsonRoute<Input, Output, Deps, Context = undefined>(
+  { spec, deps, host }: { readonly spec: JsonRouteSpec<Input, Output, Deps, Context>; readonly deps: Deps; readonly host: DaemonRouteHost },
   _optional: Record<string, never> = {},
 ): DaemonRoute {
   // The host's limit bounds the spec's, never replaces it: overwriting dropped a route's tighter

@@ -133,3 +133,7 @@ await pump.stop({});
 
 The host injects its per-event retry table as `processDomainOutbox(..., { retryPolicyForEvent })` on
 every drain (inline and background), and gives a non-delivering process `toEnqueueOnlyDomainOutbox`.
+`processDomainOutbox` and `outboxWorkerArgs` take the host's `scheduler` and `logger` as required
+fields beside `outbox`, `bus` and `clock`; this package builds neither a timer nor a console sink.
+A host can pass `createNodeOutboxScheduler({})` (from `@jini-ai/infra/events/outbox`) and a logger
+whose `error` writes its own lines.

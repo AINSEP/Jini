@@ -1,7 +1,6 @@
 import type { Updateable } from "kysely";
 import fs from "node:fs/promises";
 import path from "node:path";
-import { formatErrorForLog, type SecretRedactionOptions } from "@jini-ai/core";
 import { decodeKeysetCursor, encodeKeysetCursor } from "@jini-ai/core/keyset-cursor";
 
 import { pruneDatabaseCopies } from "../sqlite/backup-policy.js";
@@ -263,14 +262,14 @@ export class SqliteMigrationRunsRepo implements MigrationRunsRepoPort {
   }
 }
 
-/** What {@link SqliteRestorePointsRepo} is constructed with. `errorRedaction` is the host's extra
- *  secret patterns for the prune-failure warning (e.g. its own API-key shape); left out, only the
- *  built-in redaction applies. */
+/** What {@link SqliteRestorePointsRepo} is constructed with. `onPruneWarning` is the host's port for a
+ *  failed cleanup of older restore-point copies: the host formats and redacts the error and decides where
+ *  the warning goes, so this package never writes to a console or knows a host's secret shapes. */
 export type RestorePointsRepoDeps = {
   db: JournalKernel;
   siteId: string;
   protectedRestorePointIds?: () => Promise<ReadonlySet<string>>;
-  errorRedaction?: SecretRedactionOptions;
+  onPruneWarning: ({ error }: { error: unknown }) => void;
 };
 
 /** `restore_points` adapter — implements `./restore-point-create.ts`'s
@@ -320,7 +319,7 @@ export class SqliteRestorePointsRepo implements CreateRestorePointRepoPort {
       await this.pruneCopies({ justWritten: row.artifactRef });
     } catch (error) {
       // The copy and its row are saved; cleanup must not turn the operation that needed them into an error.
-      console.warn("[restore-points] Could not prune older restore points.", formatErrorForLog({ error }, this.deps.errorRedaction));
+      this.deps.onPruneWarning({ error });
     }
   }
 

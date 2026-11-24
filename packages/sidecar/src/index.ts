@@ -67,4 +67,4 @@ export {
 // Preserve published entries with one implementation in supervision; Node adapters stay isolated.
 export * from "./supervision/respawn-policy.js";
 export * from "./supervision/supervisor.js";
-export { startOwnParentWatchdog, type ParentWatchdogPorts } from "./supervision/parent-watchdog.js";
+export { startOwnParentWatchdog, type ParentWatchdogEvent, type ParentWatchdogPorts } from "./supervision/parent-watchdog.js";

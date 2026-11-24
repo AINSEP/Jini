@@ -2,6 +2,8 @@ import assert from 'node:assert/strict';
 import { afterEach, test, vi } from "vitest";
 
 afterEach(() => { vi.restoreAllMocks(); });
+const scheduler = { schedule: () => ({ cancel: () => {} }) };
+const logger = { error: () => {} };
 import type { DomainEvent } from '@jini-ai/core/contracts/events';
 import { InMemoryEventBus, InMemoryOutbox } from "../memory-bus.js";
 import { processDomainOutbox, toEnqueueOnlyDomainOutbox } from "../domain-outbox.js";
@@ -21,14 +23,14 @@ test('the serving owner receives the complete event after an enqueue-only daemon
     actorId: 'operator-7', metadata: { correlationId: 'run-9' }, payload: { entryId: 'post-23', title: 'Updated title', version: 4 },
   });
   const clock = { nowMs: () => Date.parse('2026-10-01T01:00:00.000Z') };
-  assert.equal(await processDomainOutbox({ outbox: view, bus, clock }), 0);
+  assert.equal(await processDomainOutbox({ outbox: view, bus, clock, scheduler, logger }), 0);
   assert.deepEqual(delivered, []);
-  assert.equal(await processDomainOutbox({ outbox: inner, bus, clock }), 1);
+  assert.equal(await processDomainOutbox({ outbox: inner, bus, clock, scheduler, logger }), 1);
   assert.deepEqual(delivered, [{
     id: 'event-42', name: 'entry.updated', occurredAt: '2026-10-01T00:00:00.000Z', workspaceId: 'workspace-a',
     actorId: 'operator-7', metadata: { correlationId: 'run-9' }, payload: { entryId: 'post-23', title: 'Updated title', version: 4 },
   }]);
-  assert.equal(await processDomainOutbox({ outbox: inner, bus, clock }), 0);
+  assert.equal(await processDomainOutbox({ outbox: inner, bus, clock, scheduler, logger }), 0);
 });
 
 test('a backing enqueue error reaches the daemon and a retry uses the same full event', async () => {

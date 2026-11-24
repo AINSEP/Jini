@@ -4,27 +4,18 @@
  * `execute_delegated_tool` input normalizer, tool-output rendering (JSON string vs. image content
  * blocks), and the `ToolExecutor` status-to-message map. No I/O and no registry access here.
  */
+import type { ToolResultContentBlock } from "@jini-ai/core/contracts/tool-result-block";
 import { isNonArrayRecord } from "@jini-ai/core/records";
 // Meta-tool argument bags are model output: a model can emit anything, including `null` or a bare
 // string, and every read below has to survive that — hence the non-array record guard.
 import type { ToolExecutor } from "./tool-executor-types.js";
 
 
-/**
- * One block of a tool result that carries more than text — the MCP content-block shape
- * (`{type:'image', mimeType, data}`) a registered tool returns, e.g. `media_view_image`.
- * Structurally identical to `@jini-ai/agent-runtime/providers/tool-turn`'s `ProviderToolResultBlock`;
- * redeclared because the daemon may only take type edges on core/protocol (L5 injected-edge rule).
- */
-export type ByokToolResultBlock =
-  | { readonly type: "text"; readonly text: string }
-  | { readonly type: "image"; readonly mimeType: string; readonly data: string };
-
 /** What one meta-tool call resolves to — deliberately the exact `{content, isError?}` shape
  *  `@jini-ai/agent-runtime/providers/tool-turn`'s `ProviderToolExecutor` contract returns, so the route hands this straight
  *  back to the provider adapter with no second mapping layer of its own. */
 export interface ByokMetaToolResult {
-  readonly content: string | readonly ByokToolResultBlock[];
+  readonly content: string | readonly ToolResultContentBlock[];
   readonly isError?: boolean;
 }
 
@@ -34,7 +25,7 @@ export function err({ content }: { content: string }, _optional = {}): ByokMetaT
 }
 
 /** One MCP content block as a provider block, or `null` for anything outside the text/image whitelist. */
-function toResultBlock(required: { readonly block: unknown }): ByokToolResultBlock | null {
+function toResultBlock(required: { readonly block: unknown }): ToolResultContentBlock | null {
   const candidate = { value: required.block };
   if (!isNonArrayRecord(candidate)) return null;
   const block = candidate.value;
@@ -55,10 +46,10 @@ function toResultBlock(required: { readonly block: unknown }): ByokToolResultBlo
  *
  * @complexity O(blocks).
  */
-function imageContentBlocksOf({ output }: { output: unknown }, _optional = {}): ByokToolResultBlock[] | null {
+function imageContentBlocksOf({ output }: { output: unknown }, _optional = {}): ToolResultContentBlock[] | null {
   const candidate = { value: output };
   if (!isNonArrayRecord(candidate) || !Array.isArray(candidate.value.content)) return null;
-  const blocks: ByokToolResultBlock[] = [];
+  const blocks: ToolResultContentBlock[] = [];
   for (const raw of candidate.value.content as unknown[]) {
     const block = toResultBlock({ block: raw });
     if (!block) return null;

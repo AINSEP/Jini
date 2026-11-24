@@ -3,9 +3,20 @@ import { afterEach, test, vi } from "vitest";
 
 import type { DomainEvent } from "@jini-ai/core/contracts/events";
 import { InMemoryEventBus, InMemoryOutbox } from "../memory-bus.js";
-import { computeDomainOutboxBackoffMs, processDomainOutbox } from "../domain-outbox.js";
+import { computeDomainOutboxBackoffMs, outboxWorkerArgs, processDomainOutbox } from "../domain-outbox.js";
+import { DEFAULT_OUTBOX_DELIVERY_TIMEOUT_MS } from "../outbox/index.js";
 
 afterEach(() => { vi.restoreAllMocks(); });
+
+/** Records every timer request; nothing ever fires, so a drain that settles proves it cancelled its own timer. */
+function recordingScheduler() {
+  const calls: { delayMs: number; cancelled: boolean }[] = [];
+  return { calls, scheduler: { schedule: ({ delayMs }: { delayMs: number; callback: () => void }) => {
+    const call = { delayMs, cancelled: false };
+    calls.push(call);
+    return { cancel: () => { call.cancelled = true; } };
+  } } };
+}
 
 function makeEvent(id: string, name = "entry.updated"): DomainEvent {
   return { id, name, occurredAt: "2026-01-01T00:00:00.000Z", workspaceId: "ws-domain-outbox", payload: {} };
@@ -25,8 +36,9 @@ test("processDomainOutbox forwards batchSize and the host retry policy, recordin
   await outbox.enqueue(makeEvent("b"));
   const clock = { nowMs: () => Date.parse("2026-01-01T00:00:00.000Z") };
   const seen: string[] = [];
+  const { scheduler } = recordingScheduler();
 
-  const claimed = await processDomainOutbox({ outbox, bus, clock }, {
+  const claimed = await processDomainOutbox({ outbox, bus, clock, scheduler, logger: { error: () => {} } }, {
     batchSize: 1,
     random: () => 0,
     retryPolicyForEvent: ({ event }) => { seen.push(event.name); return { maxAttempts: 1, backoffMs: () => 0 }; },
@@ -36,4 +48,31 @@ test("processDomainOutbox forwards batchSize and the host retry policy, recordin
   assert.deepEqual(seen, ["entry.updated"]);
   const rows = await outbox.claimPending({ batchSize: 10, nowIso: "2099-01-01T00:00:00.000Z" });
   assert.deepEqual(rows.map((row) => row.id), ["b"], "the policy's one-attempt cap made row a terminal; row b was never claimed");
+});
+
+test("processDomainOutbox uses only the host-supplied scheduler and logger, never its own timer or console", async () => {
+  const outbox = new InMemoryOutbox();
+  const bus = new InMemoryEventBus();
+  await bus.subscribe({ eventName: "entry.updated", handler: async () => { throw new Error("handler down"); } });
+  await outbox.enqueue(makeEvent("a"));
+  const clock = { nowMs: () => Date.parse("2026-01-01T00:00:00.000Z") };
+  const { scheduler, calls } = recordingScheduler();
+  const logged: { message: string }[] = [];
+  const consoleError = vi.spyOn(console, "error").mockImplementation(() => {});
+  const setTimeoutSpy = vi.spyOn(globalThis, "setTimeout");
+
+  await processDomainOutbox({ outbox, bus, clock, scheduler, logger: { error: (entry) => { logged.push(entry); } } }, { random: () => 0 });
+
+  assert.deepEqual(calls.map((call) => [call.delayMs, call.cancelled]), [[DEFAULT_OUTBOX_DELIVERY_TIMEOUT_MS, true]]);
+  assert.equal(logged.length, 1, "the failed delivery is reported through the injected logger");
+  assert.equal(consoleError.mock.calls.length, 0, "nothing reaches the console unless the host's logger puts it there");
+  assert.equal(setTimeoutSpy.mock.calls.length, 0, "no timer other than the host scheduler's");
+});
+
+test("outboxWorkerArgs hands the host's scheduler and logger to the worker unchanged", () => {
+  const { scheduler } = recordingScheduler();
+  const logger = { error: () => {} };
+  const args = outboxWorkerArgs({ outbox: new InMemoryOutbox(), bus: new InMemoryEventBus(), clock: { nowMs: () => 0 }, scheduler, logger });
+  assert.equal(args.scheduler, scheduler);
+  assert.equal(args.logger, logger);
 });

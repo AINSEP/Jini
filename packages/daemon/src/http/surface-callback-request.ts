@@ -1,4 +1,5 @@
 import { SURFACE_EXCHANGE_ID_PARAM, SURFACE_TYPED_ANSWER_PARAM } from '@jini-ai/core';
+import { jsonResponse } from '@jini-ai/core/contracts/server';
 import type { IdGenerator } from '@jini-ai/core/primitives';
 import { isNonArrayRecord } from '@jini-ai/core/records';
 import type { ToolExecutionResult, ToolExecutor } from '../tool-executor-types.js';
@@ -73,6 +74,52 @@ export interface SurfaceCallbackRequest {
 export interface SurfaceCallbackReply {
   readonly status: number;
   readonly body: unknown;
+}
+
+/**
+ * Thrown from a surface route's authenticate/handle step to answer with exactly one
+ * {@link SurfaceCallbackReply}. Surface endpoints keep their own flat `{ error, code }` bodies
+ * (their callers already match on those bytes), so a refusal is carried out of the JSON route by
+ * this error and written back verbatim by {@link surfaceReplyOnError} rather than being re-shaped
+ * into the generic `{ error: { code, message } }` envelope.
+ */
+export class SurfaceReplyRefusal extends Error {
+  readonly reply: SurfaceCallbackReply;
+
+  constructor({ reply }: { readonly reply: SurfaceCallbackReply }, _optional: Record<string, never> = {}) {
+    super(`surface reply refusal (${reply.status})`);
+    this.name = 'SurfaceReplyRefusal';
+    this.reply = reply;
+  }
+}
+
+/** The 401 every surface endpoint answers when the caller named no principal. */
+export function unauthenticatedReply({ principalHeader }: { readonly principalHeader: string }, _optional: Record<string, never> = {}): SurfaceCallbackReply {
+  return { status: 401, body: { error: `${principalHeader} is required`, code: 'UNAUTHENTICATED' } };
+}
+
+/** The principal id the caller's header names, or `undefined` when it is absent or empty. */
+export function readSurfacePrincipalId(
+  { headers, principalHeader }: { readonly headers: { get(name: string): string | null }; readonly principalHeader: string },
+  _optional: Record<string, never> = {},
+): string | undefined {
+  const value = headers.get(principalHeader);
+  return typeof value === 'string' && value.length > 0 ? value : undefined;
+}
+
+/** A {@link SurfaceCallbackReply} as the web `Response` a route returns. */
+export function surfaceReplyResponse({ reply }: { readonly reply: SurfaceCallbackReply }, _optional: Record<string, never> = {}): Response {
+  return jsonResponse({ status: reply.status, body: reply.body });
+}
+
+/**
+ * The `ports.onError` of a surface JSON route: a {@link SurfaceReplyRefusal} is answered as the
+ * reply it carries; anything else is rethrown so the host's dispatcher answers and redacts it like
+ * any other route that throws.
+ */
+export function surfaceReplyOnError({ error }: { readonly error: unknown }, _optional: Record<string, never> = {}): Response {
+  if (error instanceof SurfaceReplyRefusal) return surfaceReplyResponse({ reply: error.reply });
+  throw error;
 }
 
 /**

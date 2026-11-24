@@ -5,7 +5,16 @@
  * component search/describe tools. The host owns the tool id, permission and model-facing notes.
  */
 import type { SurfaceEmitter, SurfaceExchange, SurfaceExchangeStore, SurfaceMessage } from '@jini-ai/core';
-import { A2UI_DISPLAY_ONLY_PROPERTY, createLabCatalog, parseAgentToRendererMessage, type ActionMessagePayload, type AgentToRendererMessage } from '@jini-ai/protocol/a2ui';
+import type { createLabCatalog, parseAgentToRendererMessage, ActionMessagePayload, AgentToRendererMessage } from '@jini-ai/protocol/a2ui';
+
+/**
+ * The protocol's agent-to-renderer parser, supplied by the host. The surface helpers take it (and
+ * the catalog) as arguments so this package keeps a type-only edge on the protocol package.
+ */
+export type ParseAgentToRendererMessage = typeof parseAgentToRendererMessage;
+
+/** The slice of a catalog (`createLabCatalog`'s result) a surface is created against. */
+export type A2uiSurfaceCatalog = Pick<ReturnType<typeof createLabCatalog>, 'catalogId'>;
 
 /**
  * How long to wait, after sending a surface's components, for the renderer to report it rejected them
@@ -50,17 +59,22 @@ function rejectionMessageOf({ ack }: { ack: SurfaceMessage | null }, _optional =
  * @complexity O(components) validation; one exchange and one timer per call.
  */
 export async function renderA2uiSurface(
-  { exchanges, emitSurface, toolId, principalId, components }: {
+  { exchanges, emitSurface, toolId, principalId, components, parseAgentMessage, catalog, displayOnlyProperty }: {
     exchanges: SurfaceExchangeStore; emitSurface: SurfaceEmitter; toolId: string; principalId: string; components: unknown[];
+    /** The protocol's agent-to-renderer parser; every outgoing message is validated against it. */
+    parseAgentMessage: ParseAgentToRendererMessage;
+    /** The catalog the surface is created against (the host's `createLabCatalog({})`). */
+    catalog: A2uiSurfaceCatalog;
+    /** The protocol's display-only surface property name (`A2UI_DISPLAY_ONLY_PROPERTY`). */
+    displayOnlyProperty: string;
   },
   { rejectionGraceMs = DEFAULT_RENDER_REJECTION_GRACE_MS }: { rejectionGraceMs?: number } = {},
 ): Promise<RenderA2uiSurfaceOutcome> {
-  const catalog = createLabCatalog({});
   const exchange = exchanges.open({ binding: { toolId, principalId, channel: 'a2ui' }, emit: emitSurface });
   const surfaceId = exchange.id;
 
   const emitA2ui = async (message: AgentToRendererMessage): Promise<{ ok: true } | { ok: false; reason: string }> => {
-    const validated = parseAgentToRendererMessage({ raw: message });
+    const validated = parseAgentMessage({ raw: message });
     if (!validated.ok) return { ok: false, reason: validated.message };
     await emitSurface({ channel: 'a2ui', payload: { message: validated.message } });
     return { ok: true };
@@ -72,7 +86,7 @@ export async function renderA2uiSurface(
     // renderers ignore it.
     const created = await emitA2ui({
       version: 'v1.0',
-      createSurface: { surfaceId, catalogId: catalog.catalogId, surfaceProperties: { [A2UI_DISPLAY_ONLY_PROPERTY]: true }, dataModel: {} },
+      createSurface: { surfaceId, catalogId: catalog.catalogId, surfaceProperties: { [displayOnlyProperty]: true }, dataModel: {} },
     });
     if (!created.ok) return { rendered: false, reason: 'schema-rejected', detail: created.reason };
 
@@ -110,12 +124,13 @@ export function a2uiActionOf({ params }: { params: Record<string, unknown> }, _o
  * a message it then has to reject.
  *
  * @param required.label - Names the sender (typically its tool id) in the thrown message.
+ * @param required.parseAgentMessage - The protocol's agent-to-renderer parser, supplied by the host.
  * @returns The parsed message, exactly what the renderer will receive.
  * @throws Error `<label>: refusing to emit a message that fails its own schema: <reason>`.
  * @complexity O(message size) for the schema parse.
  */
-export function validatedA2uiMessage({ message, label }: { message: unknown; label: string }, _optional = {}): AgentToRendererMessage {
-  const validated = parseAgentToRendererMessage({ raw: message });
+export function validatedA2uiMessage({ message, label, parseAgentMessage }: { message: unknown; label: string; parseAgentMessage: ParseAgentToRendererMessage }, _optional = {}): AgentToRendererMessage {
+  const validated = parseAgentMessage({ raw: message });
   if (!validated.ok) {
     throw new Error(`${label}: refusing to emit a message that fails its own schema: ${validated.message}`);
   }
@@ -144,15 +159,17 @@ export interface A2uiExchangeSession {
  * @complexity O(1) plus `run`'s own turns.
  */
 export async function withA2uiExchange<T>(
-  { exchanges, emitSurface, toolId, principalId, signal, run }: {
+  { exchanges, emitSurface, toolId, principalId, signal, run, parseAgentMessage }: {
     exchanges: SurfaceExchangeStore; emitSurface: SurfaceEmitter; toolId: string; principalId: string; signal: AbortSignal;
     run: (session: A2uiExchangeSession) => Promise<T>;
+    /** The protocol's agent-to-renderer parser; every emitted message is validated against it. */
+    parseAgentMessage: ParseAgentToRendererMessage;
   },
   _optional = {},
 ): Promise<T> {
   const exchange = exchanges.open({ binding: { toolId, principalId, channel: 'a2ui' }, emit: emitSurface });
   const emit = async (message: AgentToRendererMessage): Promise<void> => {
-    await emitSurface({ channel: 'a2ui', payload: { message: validatedA2uiMessage({ message, label: toolId }) } });
+    await emitSurface({ channel: 'a2ui', payload: { message: validatedA2uiMessage({ message, label: toolId, parseAgentMessage }) } });
   };
   const closeOnAbort = () => exchange.close({});
   signal.addEventListener('abort', closeOnAbort, { once: true });

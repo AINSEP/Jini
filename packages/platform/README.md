@@ -291,3 +291,11 @@ AES-GCM AAD. Renaming that persisted field requires a host adapter migration as 
 Analytics is available from the standalone `@jini-ai/analytics` package; soft-delete and purge
 services are available from `@jini-ai/cms/trash`. Their platform subpaths and root namespaces
 have been removed.
+
+## Wiring
+
+
+- `@jini-ai/platform/fs`: `resolveDirectoryTarget({ dirArg })` resolves a directory argument to the one real
+  target path (lexical, existing symlink, dangling symlink); `moveDirectoryUnderLeases({ from, to, ports })`
+  runs the creation-lock, source/target claim, relocate, release-both sequence. The host supplies the idleness
+  check, claims/release, destination preparation, the verified relocation and the refusal copy as `ports`.

@@ -337,3 +337,12 @@ origin without throwing; the host injects the value (its own env var).
 
 `createLazyProxy({ factory })` (`@jini-ai/core/primitives`) needs nothing injected; the host passes the
 factory that opens the real instance on first use.
+
+### Wiring: daemon RPC and client-directive wire types
+
+- `@jini-ai/core/contracts/site/daemon-core-rpc` (type-only): the request union and consent shapes of the daemon's retained-state RPC; the host parses with `@jini-ai/daemon/core-rpc-schema`, injecting its consent keys and settings namespaces.
+- `@jini-ai/core/contracts/site/client-directives` (type-only): `ClientDirective` (`tool_confirmation` | `ui_surface`), the human-only client channel union a host streams beside the transcript; the host's capability policy decides which tools may raise which directive.
+
+## Wiring (tool-result content block)
+
+`@jini-ai/core/contracts/tool-result-block` declares `ToolResultContentBlock`, the one text/image block shape a tool result carries to a model provider. The daemon's BYOK meta-tool mapping produces it and the agent runtime's provider adapters consume it; both import this declaration rather than keeping a copy. Type-only.

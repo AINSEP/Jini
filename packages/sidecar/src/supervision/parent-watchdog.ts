@@ -90,19 +90,32 @@
  * {@link startOwnParentWatchdog}'s callers wire the live `process`/`console`/`setInterval` at the
  * composition edge (the host's entry module).
  */
+export type ParentWatchdogEvent =
+  /** The escape hatch is set; no probe or poll is armed. `disableEnvName` is the variable that was set. */
+  | { readonly kind: "disabled"; readonly disableEnvName: string }
+  /** The recorded parent was already gone when the boot probe ran; the process exits. */
+  | { readonly kind: "parent-gone-at-boot"; readonly parentPid: number }
+  /** The supervisor-pid variable is not a positive integer; only that check is disabled. */
+  | { readonly kind: "invalid-supervisor-pid"; readonly envName: string; readonly raw: string }
+  /** The dev supervisor is confirmed gone (`ESRCH`); the process exits. */
+  | { readonly kind: "supervisor-gone"; readonly supervisorPid: number }
+  /** The live parent pid differs from the one recorded at boot; the process exits. */
+  | { readonly kind: "parent-reparented"; readonly parentPid: number; readonly currentPid: number };
+
 export interface ParentWatchdogPorts {
   readonly env: Readonly<Record<string, string | undefined>>;
   /** The host's env variable names: `disable` (set to `"1"` to opt out) and `devSupervisorPid`. */
   readonly envNames: { readonly disable: string; readonly devSupervisorPid: string };
-  /** Prefix for every log/error line, e.g. `"[index]"` — the host names its own entry. */
-  readonly logTag: string;
   /** Read on every poll: the live parent pid (Node updates `process.ppid` after a reparent). */
   readonly ppid: () => number;
   /** `process.kill(pid, 0)` — throws an `ErrnoException` when the pid cannot be signalled. */
   readonly signalZero: (pid: number) => void;
   readonly exit: (code: number) => void;
-  readonly log: (line: string) => void;
-  readonly error: (line: string) => void;
+  /**
+   * Receives every watchdog event. The host owns the wording, the line prefix and whether an event
+   * goes to its info or error stream; events that end the process are reported before `exit` runs.
+   */
+  readonly report: (event: ParentWatchdogEvent) => void;
   readonly setInterval: (callback: () => void, ms: number) => unknown;
 }
 
@@ -126,7 +139,7 @@ function parentGoneAtBoot({ ports, bootPpid }: { ports: ParentWatchdogPorts; boo
     ports.signalZero(bootPpid);
   } catch (error) {
     if (errnoCode({ error }) === "ESRCH") {
-      ports.error(`${ports.logTag} parent process ${bootPpid} was already gone before this process finished booting — self-terminating`);
+      ports.report({ kind: "parent-gone-at-boot", parentPid: bootPpid });
       ports.exit(1);
       return true;
     }
@@ -140,7 +153,7 @@ function resolveDevSupervisorPid(ports: ParentWatchdogPorts): number | undefined
   if (rawSupervisorPid === undefined) return undefined;
   const parsed = Number(rawSupervisorPid);
   if (Number.isInteger(parsed) && parsed > 0) return parsed;
-  ports.error(`${ports.logTag} ${ports.envNames.devSupervisorPid}="${rawSupervisorPid}" is not a valid pid — that check is disabled`);
+  ports.report({ kind: "invalid-supervisor-pid", envName: ports.envNames.devSupervisorPid, raw: rawSupervisorPid });
   return undefined;
 }
 
@@ -157,7 +170,7 @@ function checkDevSupervisor({ ports, devSupervisorPid }: { ports: ParentWatchdog
           // supervisor that is actually still alive. Mirrors the daemon watchdog's own logic.
       return;
     }
-    ports.error(`${ports.logTag} dev supervisor process ${devSupervisorPid} is gone — self-terminating`);
+    ports.report({ kind: "supervisor-gone", supervisorPid: devSupervisorPid });
     ports.exit(1);
   }
 }
@@ -166,7 +179,7 @@ function checkDevSupervisor({ ports, devSupervisorPid }: { ports: ParentWatchdog
 function pollParents({ ports, bootPpid, devSupervisorPid }: { ports: ParentWatchdogPorts; bootPpid: number; devSupervisorPid: number | undefined }): void {
   const currentPpid = ports.ppid();
   if (currentPpid !== bootPpid) {
-    ports.error(`${ports.logTag} parent process ${bootPpid} is gone (reparented to ${currentPpid}) — self-terminating`);
+    ports.report({ kind: "parent-reparented", parentPid: bootPpid, currentPid: currentPpid });
     ports.exit(1);
     return;
   }
@@ -179,7 +192,7 @@ function pollParents({ ports, bootPpid, devSupervisorPid }: { ports: ParentWatch
  */
 export function startOwnParentWatchdog(ports: ParentWatchdogPorts, _options: Record<string, never> = {}): void {
   if (ports.env[ports.envNames.disable] === "1") {
-    ports.log(`${ports.logTag} ${ports.envNames.disable}=1 — parent watchdog disabled`);
+    ports.report({ kind: "disabled", disableEnvName: ports.envNames.disable });
     return;
   }
 

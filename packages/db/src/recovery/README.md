@@ -21,8 +21,8 @@ of the sidecar database journal that are not tied to a driver.
 - `journal-repo.sql.ts` (`@jini-ai/db/recovery/journal-repo.sql`): `SqliteDatabaseLedgerRepo`,
   `SqliteMigrationRunsRepo`, `SqliteRestorePointsRepo` over the gated journal kernel. The host's
   composition root constructs them with `{ db, siteId }` per site; `SqliteRestorePointsRepo` also
-  takes `protectedRestorePointIds` (the host's in-flight publish runs) and `errorRedaction` (the
-  host's extra secret patterns for the prune-failure warning). Restore-point copies are pruned with
+  takes `protectedRestorePointIds` (the host's in-flight publish runs) and the required
+  `onPruneWarning` port (the host formats, redacts and emits the prune-failure warning; the save still succeeds). Restore-point copies are pruned with
   `pruneDatabaseCopies` from `../sqlite/backup-policy.ts`.
 - Hosts import each subpath directly (the `./recovery/*` export); `index.ts` is the older entry and
   does not list these four modules.

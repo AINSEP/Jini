@@ -196,6 +196,12 @@ See [API.md](https://github.com/AINSEP/Jini/blob/main/packages/daemon/API.md) fo
   call inside `runWithDaemonCallContext({ context, fn })`; host tool readers call
   `readDaemonCallContext()` (`undefined` means not a daemon call, e.g. a BYOK turn). Nothing is
   injected; the host owns the route path and wire field name.
+- **Retained-state RPC parser** (`@jini-ai/daemon/core-rpc-schema`'s
+  `createDaemonCoreRequestSchema({ cliConsentKeys, settingsNamespaces })`, `daemonToolConsentSnapshot`;
+  wire types in `@jini-ai/core/contracts/site/daemon-core-rpc`): the host injects, as required
+  fields, the complete set of consent keys a run may allow and the settings namespaces
+  `getEffective` may read, then parses its authenticated RPC body with the returned schema. The host
+  owns the route, its bootstrap snapshot and its run-store bindings.
 - **BYOK meta-tool results** (`@jini-ai/daemon/byok-meta-tool-result`): a host BYOK tool surface
   maps `ToolExecutor.execute` outcomes with `mapToolExecutionResult({ result, toolId })`, normalizes
   `execute_delegated_tool` input with `resolveDelegatedInput({ raw })`, and returns `ok`/`err`

@@ -752,7 +752,7 @@ Every listed name is exported from the root; source links define fields and lite
 | [providers/oauth-tokens.ts](../../src/providers/oauth-tokens.ts) | `OAuthTokenFile`, `StoredOAuthToken` |
 | [providers/oauth-credentials.ts](../../src/providers/oauth-credentials.ts) | `ResolvedOAuthCredential` |
 | [providers/tool-turn.ts](../../src/providers/tool-turn.ts) | `providerTurnAdapters` |
-| [providers/tool-turn-types.ts](../../src/providers/tool-turn-types.ts) | `ProviderChatMessage`, `ProviderProtocol`, `ProviderToolCall`, `ProviderToolDescriptor`, `ProviderToolExecutor`, `ProviderToolResult`, `ProviderToolResultBlock`, `ProviderToolTurnInput`, `ProviderToolTurnOptions`, `ProviderToolTurnResult`, `ProviderTurnAdapters`, `ProviderTurnEvent` |
+| [providers/tool-turn-types.ts](../../src/providers/tool-turn-types.ts) | `ProviderChatMessage`, `ProviderProtocol`, `ProviderToolCall`, `ProviderToolDescriptor`, `ProviderToolExecutor`, `ProviderToolResult`, `ProviderToolTurnInput`, `ProviderToolTurnOptions`, `ProviderToolTurnResult`, `ProviderTurnAdapters`, `ProviderTurnEvent` |
 | [agent-protocol/acp/session-params.ts](../../src/agent-protocol/acp/session-params.ts) | `AcpMcpServerInput` |
 | [agent-protocol/acp/models.ts](../../src/agent-protocol/acp/models.ts) | `ModelOption` |
 | [agent-protocol/acp/session.ts](../../src/agent-protocol/acp/session.ts) | `AcpPermissionDecision`, `AcpPermissionHandler`, `AcpPermissionOption`, `AcpPermissionRequest`, `AcpSessionController`, `AttachAcpSessionOptions` |

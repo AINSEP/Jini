@@ -1,12 +1,11 @@
-import { createConsoleLogger, type Clock } from "@jini-ai/core/primitives";
+import type { Clock, Logger } from "@jini-ai/core/primitives";
 import type { DomainEvent, EventBusPort, OutboxPort } from "@jini-ai/core/contracts/events";
 import type {
-  OutboxPort as JiniOutboxPort, OutboxRecord as JiniOutboxRecord, OutboxRetryPolicyResolver, OutboxWorkerArgs, OutboxWorkerOptions,
+  OutboxPort as JiniOutboxPort, OutboxRecord as JiniOutboxRecord, OutboxRetryPolicyResolver, OutboxWorkerArgs, OutboxWorkerOptions, Scheduler,
 } from "./outbox/ports.js";
 import { computeOutboxBackoffMs, DEFAULT_OUTBOX_CLAIM_LEASE_MS } from "./outbox/policy.js";
 import { processOutbox } from "./outbox/worker.js";
 import { toEnqueueOnlyOutbox } from "./outbox/enqueue-only.js";
-import { createNodeOutboxScheduler } from "./outbox/node-scheduler.js";
 
 /**
  * @file Domain-event (`@jini-ai/core/contracts/events`) port translation only. The generic outbox
@@ -50,21 +49,27 @@ export function toCmsOutbox(required: { outbox: JiniOutboxPort<DomainEvent> }, _
   };
 }
 
+/** The ports a domain outbox drain needs from its host: storage, bus, clock, timer scheduling and the error sink. */
+export interface DomainOutboxRequired {
+  outbox: OutboxPort; bus: EventBusPort; clock: Clock; scheduler: Scheduler; logger: Pick<Logger, "error">;
+}
+
 /**
- * Bind the domain bus, storage and clock to the existing outbox worker. Node scheduling and console
- * logging use their owning adapters; `random` defaults to Math.random.
- * @example const worker = outboxWorkerArgs({ outbox, bus, clock }, { random: () => 0 });
+ * Bind the domain bus, storage, clock, scheduler and logger to the existing outbox worker. The host
+ * constructs the scheduler and the logger (this package owns no timer and no console sink);
+ * `random` defaults to Math.random.
+ * @example const worker = outboxWorkerArgs({ outbox, bus, clock, scheduler, logger }, { random: () => 0 });
  */
 export function outboxWorkerArgs(
-  required: { outbox: OutboxPort; bus: EventBusPort; clock: Clock }, optional: { random?: () => number } = {},
+  required: DomainOutboxRequired, optional: { random?: () => number } = {},
 ): OutboxWorkerArgs<DomainEvent> {
   return {
     outbox: toJiniOutbox({ outbox: required.outbox }),
     bus: { publish: ({ event }) => required.bus.publish(event) },
     clock: required.clock,
-    scheduler: createNodeOutboxScheduler({}),
+    scheduler: required.scheduler,
     random: optional.random ?? Math.random,
-    logger: createConsoleLogger({ prefix: "" }),
+    logger: required.logger,
   };
 }
 
@@ -123,11 +128,11 @@ export function computeDomainOutboxBackoffMs({ attempts }: { attempts: number },
  * retry table (events it returns a policy for use their own cap and backoff).
  *
  * @throws RangeError before claiming if the batch/timeout bounds are invalid or outlast the lease.
- * @example await processDomainOutbox({ outbox, bus, clock }, { batchSize: 1 });
+ * @example await processDomainOutbox({ outbox, bus, clock, scheduler, logger }, { batchSize: 1 });
  * @complexity O(batchSize) publish attempts, each O(subscribed handlers for the event's name).
  */
 export async function processDomainOutbox(
-  required: { outbox: OutboxPort; bus: EventBusPort; clock: Clock },
+  required: DomainOutboxRequired,
   optional: { batchSize?: number; random?: () => number; deliveryTimeoutMs?: number; retryPolicyForEvent?: OutboxRetryPolicyResolver } = {},
 ): Promise<number> {
   const options: OutboxWorkerOptions = { retryPolicyForEvent: optional.retryPolicyForEvent };

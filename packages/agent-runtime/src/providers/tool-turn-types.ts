@@ -1,3 +1,4 @@
+import type { ToolResultContentBlock } from '@jini-ai/core/contracts/tool-result-block';
 import type { runAnthropicToolTurn, AnthropicToolDef } from './anthropic-messages.js';
 import type { runOpenAiToolTurn } from './openai-chat.js';
 import type { OpenAiFunctionToolDef } from './openai-chat-types.js';
@@ -68,20 +69,9 @@ export interface ProviderToolCall {
   readonly name: string;
   readonly input: unknown;
 }
-/** One block of a tool result that carries more than text — the MCP content-block shape
- *  (`{type:'image', mimeType, data}`) a registered tool returns. Each protocol adapter maps it onto
- *  that provider's own image part; nothing in this shape is provider-specific. */
-export type ProviderToolResultBlock = {
-  readonly type: "text";
-  readonly text: string;
-} | {
-  readonly type: "image";
-  readonly mimeType: string;
-  readonly data: string;
-};
 export interface ProviderToolResult {
   /** A string for an ordinary result; blocks only when the result carries an image. */
-  readonly content: string | readonly ProviderToolResultBlock[];
+  readonly content: string | readonly ToolResultContentBlock[];
   readonly isError?: boolean;
 }
 /** Host-owned tool execution (e.g. bridged to a daemon `ToolExecutor` over the host's own tool

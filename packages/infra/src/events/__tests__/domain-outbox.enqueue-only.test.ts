@@ -12,6 +12,8 @@ import { processDomainOutbox, toEnqueueOnlyDomainOutbox } from "../domain-outbox
  */
 
 const clock = { nowMs: () => Date.now() };
+const scheduler = { schedule: () => ({ cancel: () => {} }) };
+const logger = { error: () => {} };
 
 function makeEvent(id: string): DomainEvent {
   return { id, name: "entry.updated", occurredAt: "2026-01-01T00:00:00.000Z", workspaceId: "ws-enqueue-only", payload: {} };
@@ -37,10 +39,10 @@ test("a drain through the view claims and publishes nothing, leaving the row pen
   } });
   await view.enqueue(makeEvent("owned-elsewhere-1"));
 
-  assert.equal(await processDomainOutbox({ outbox: view, bus, clock }), 0);
+  assert.equal(await processDomainOutbox({ outbox: view, bus, clock, scheduler, logger }), 0);
   assert.deepEqual(received, []);
 
-  assert.equal(await processDomainOutbox({ outbox: inner, bus, clock }), 1, "the owning process must still find the row pending");
+  assert.equal(await processDomainOutbox({ outbox: inner, bus, clock, scheduler, logger }), 1, "the owning process must still find the row pending");
   assert.deepEqual(received, ["owned-elsewhere-1"]);
 });
 

@@ -4,3 +4,4 @@ export { startPgliteOwner, runningPgliteOwner, acquireOwnerLock, defaultPgliteSo
   pgliteLowMemoryStartParams, type PgliteOwner } from "./owner.js";
 export { PgliteSocketServer, errorResponseFrame, type PgliteSocketServerOptions } from "./socket-server.js";
 export type { PgliteClass } from "./types.js";
+export { copyPgliteSourceTo, type PgliteSourceCopyPorts } from "./copy-source.js";
