@@ -72,7 +72,7 @@ export function resolveDevProxyPath({ url, basePath }: { url: string; basePath: 
  * Vite's own Node HTTP/1.1 server sets `Connection: keep-alive` on its responses by default — so
  * every proxied `/admin/*` response carried this header before the filter below was added.
  */
-const HOP_BY_HOP_RESPONSE_HEADERS = new Set(["connection", "keep-alive", "proxy-connection", "transfer-encoding", "upgrade", "proxy-authenticate", "proxy-authorization", "trailer"]);
+const HOP_BY_HOP_RESPONSE_HEADERS: ReadonlySet<string> = new Set(["connection", "keep-alive", "proxy-connection", "transfer-encoding", "upgrade", "proxy-authenticate", "proxy-authorization", "trailer"]);
 
 /**
  * Drops hop-by-hop headers (see {@link HOP_BY_HOP_RESPONSE_HEADERS}) from an upstream response

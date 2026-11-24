@@ -69,13 +69,35 @@ function normalizeMediaDimensions({ props, host }: { props: JsonObject; host: Wi
   };
 }
 
+/** The audio / video branch of {@link renderWidgetMediaImage}: `null` when the asset is not playable
+ *  media (so the caller falls through to the image transform path). Split out so that function stays
+ *  inside the complexity ceiling; no behavior change. */
+function renderPlaybackTag(
+  { props, host, urlKey, sha256, alt, width, height, cssClass, htmlAttributes, markerAttributes, controls }: {
+    props: JsonObject; host: WidgetMediaHost; urlKey: string; sha256: { sha256?: string }; alt: string;
+  } & ReturnType<typeof normalizeMediaDimensions>,
+  _optional = {},
+): string | null {
+  const { mediaPublicPath, renderVideoTag } = host.media;
+  const contentType = props.contentType;
+  if (typeof contentType === "string" && contentType.startsWith("audio/")) {
+    return renderVideoTag({ kind: "audio", src: mediaPublicPath({ key: urlKey, ...sha256, variant: { kind: "original", contentType } }), fallbackText: MEDIA_PLAYBACK_COPY.audio, alt, width: null, height: null, cssClass, htmlAttributes, markerAttributes, controls });
+  }
+  if (typeof contentType === "string" && contentType.startsWith("video/")) {
+    return renderVideoTag({ src: mediaPublicPath({ key: urlKey, ...sha256, variant: { kind: "original", contentType } }), fallbackText: MEDIA_PLAYBACK_COPY.video, alt, width, height, cssClass, htmlAttributes, markerAttributes, controls });
+  }
+
+  return null;
+}
+
 export function renderWidgetMediaImage({ props, host }: { props: JsonObject; host: WidgetMediaHost }, _optional = {}): string {
-  const { mediaPublicPath, mediaUrlKey, plausibleMediaRefId, renderVideoTag, renderImageTag } = host.media;
+  const { mediaPublicPath, mediaUrlKey, plausibleMediaRefId, renderImageTag } = host.media;
   const assetId = plausibleMediaRefId({ value: props.assetId });
   if (!assetId) {
     return renderWidgetPlaceholder();
   }
-  const { width, height, cssClass, htmlAttributes, markerAttributes, controls } = normalizeMediaDimensions({ props, host });
+  const normalized = normalizeMediaDimensions({ props, host });
+  const { width, height, cssClass, htmlAttributes, markerAttributes } = normalized;
   const alt = str({ value: props.alt });
   // Readable-slugs S3: `resolver-service.ts`'s `resolveOneMediaEmbed` (both its video and image IR
   // branches) stashes the resolved record's `slug` onto the IR alongside `assetId` — same
@@ -90,12 +112,8 @@ export function renderWidgetMediaImage({ props, host }: { props: JsonObject; hos
    * transform/version to template in, since it bypasses the image-transform pipeline entirely (see
    * that route's own doc for why).
    */
-  if (typeof props.contentType === "string" && props.contentType.startsWith("audio/")) {
-    return renderVideoTag({ kind: "audio", src: mediaPublicPath({ key: urlKey, ...sha256, variant: { kind: "original", contentType: props.contentType } }), fallbackText: MEDIA_PLAYBACK_COPY.audio, alt, width: null, height: null, cssClass, htmlAttributes, markerAttributes, controls });
-  }
-  if (typeof props.contentType === "string" && props.contentType.startsWith("video/")) {
-    return renderVideoTag({ src: mediaPublicPath({ key: urlKey, ...sha256, variant: { kind: "original", contentType: props.contentType } }), fallbackText: MEDIA_PLAYBACK_COPY.video, alt, width, height, cssClass, htmlAttributes, markerAttributes, controls });
-  }
+  const playback = renderPlaybackTag({ props, host, urlKey, sha256, alt, ...normalized });
+  if (playback !== null) return playback;
 
   const transformName = plausibleMediaRefId({ value: props.transformName });
   const version = props.version;
