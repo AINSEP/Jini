@@ -7,11 +7,12 @@
  * the `Response` (streamed answers included) with its own adapter.
  */
 import type { SurfaceExchangeStore } from '@jini-ai/core';
-import { readJsonBody, statusForError, jsonResponse, type SseSchedulerPort } from '@jini-ai/core/contracts/server';
+import type { SseSchedulerPort } from '@jini-ai/core/contracts/server';
 import type { IdGenerator } from '@jini-ai/core/primitives';
 import type { ToolExecutor } from '../tool-executor-types.js';
 import type { DaemonRouteHost } from './route-host.js';
-import { gated, type DaemonRoute } from './route-table.js';
+import { principalFirstJsonPost } from './principal-first-route.js';
+import type { DaemonRoute } from './route-table.js';
 import { deliverSurfaceCallback } from './surface-callback.js';
 import {
   executeSurfaceRedemption, isTypedSurfaceAnswer, parseSurfaceCallbackRequest, readSurfacePrincipalId, surfaceNotPendingBody,
@@ -121,23 +122,13 @@ export async function answerSurfaceCallback(
 }
 
 /**
- * The callback endpoint as one `POST {path}` route: reads the JSON body (a host parser's result is
- * used as-is when one ran first) and answers with {@link answerSurfaceCallback}.
+ * The callback endpoint as one `POST {path}` route: refuses a request with no principal before it
+ * reads the body, then reads the JSON body and answers with {@link answerSurfaceCallback}. A host
+ * with its own body parser mounts {@link answerSurfaceCallback} directly instead.
  */
 export function surfaceCallbackRoutes(
   { deps, host, path }: { readonly deps: SurfaceCallbackRouteDeps; readonly host: DaemonRouteHost; readonly path: string },
   _optional: Record<string, never> = {},
 ): DaemonRoute[] {
-  return [gated({
-    route: {
-      method: 'POST',
-      path,
-      handler: async ({ request }) => {
-        const body = await readJsonBody({ request }, { maxBytes: host.jsonBodyMaxBytes });
-        if (!body.ok) return jsonResponse({ status: statusForError({ error: body.error }), body: { error: body.error } });
-        return answerSurfaceCallback({ request: { headers: request.headers, body: body.value, signal: request.signal }, deps });
-      },
-    },
-    gates: [],
-  })];
+  return [principalFirstJsonPost({ path, host, principalHeader: deps.principalHeader, answer: (request) => answerSurfaceCallback({ request, deps }) })];
 }

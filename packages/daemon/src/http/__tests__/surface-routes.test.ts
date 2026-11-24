@@ -3,8 +3,8 @@ import { createInMemoryServer } from '@jini-ai/core/contracts/server/testing';
 import { parseRendererToAgentMessage } from '@jini-ai/protocol/a2ui';
 import { createSurfaceExchangeStore } from '../../surface-exchanges.js';
 import { createTimeoutScheduler } from '../../scheduler.js';
-import { a2uiActionsRoutes } from '../a2ui-actions.js';
-import { surfaceCallbackRoutes, type SurfaceCallbackRouteDeps } from '../surface-callback-route.js';
+import { a2uiActionsRoutes, answerA2uiAction } from '../a2ui-actions.js';
+import { answerSurfaceCallback, surfaceCallbackRoutes, type SurfaceCallbackRouteDeps } from '../surface-callback-route.js';
 import { fakeDaemonRouteHost } from './fakes/route-host.js';
 
 /**
@@ -18,6 +18,19 @@ const send = (fetch: (request: Request) => Promise<Response>, path: string, body
   method: 'POST', headers: { 'content-type': 'application/json', ...(principal === undefined ? {} : { [HEADER]: principal }) }, body: JSON.stringify(body),
 }));
 const answered = async (response: Response) => ({ status: response.status, body: await response.json() });
+/**
+ * A principal-less post whose body would fail the read (malformed JSON, over the 16-byte cap the
+ * route host is given below): only a route that checks the principal FIRST answers 401 and leaves
+ * the body stream untouched. A route that reads first answers 400/413 and consumes the stream.
+ */
+const unreadableAnonymousPost = (path: string, raw: string) => new Request(`http://local${path}`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: raw });
+const UNREADABLE_BODIES = ['{not json', JSON.stringify({ exchangeId: 'e'.repeat(64), toolName: 'allowed' })];
+/** A host-parsed body that records whether the handler looked at it before refusing. */
+const watchedBody = () => {
+  const touched: string[] = [];
+  const request = { headers: new Headers(), signal: new AbortController().signal, get body(): unknown { touched.push('body'); return { exchangeId: 'e', toolName: 'allowed' }; } };
+  return { request, touched };
+};
 
 describe('A2UI actions route', () => {
   const setup = (store = makeStore()) => {
@@ -25,6 +38,37 @@ describe('A2UI actions route', () => {
     for (const route of a2uiActionsRoutes({ path: '/a2ui', host: fakeDaemonRouteHost({}), deps: { surfaceExchanges: store, principalHeader: HEADER, parseRendererMessage: parseRendererToAgentMessage } })) server.route(route);
     return { fetch, store };
   };
+  const UNAUTHENTICATED = { status: 401, body: { error: `${HEADER} is required`, code: 'UNAUTHENTICATED' } };
+
+  it('answers 401 before it reads the body: a malformed or oversize anonymous post is never parsed', async () => {
+    const { server, fetch } = createInMemoryServer();
+    for (const route of a2uiActionsRoutes({ path: '/a2ui', host: fakeDaemonRouteHost({}, { jsonBodyMaxBytes: 16 }), deps: { surfaceExchanges: makeStore(), principalHeader: HEADER, parseRendererMessage: parseRendererToAgentMessage } })) server.route(route);
+    for (const raw of UNREADABLE_BODIES) {
+      const request = unreadableAnonymousPost('/a2ui', raw);
+      expect(await answered(await fetch(request))).toEqual(UNAUTHENTICATED);
+      expect(request.bodyUsed).toBe(false);
+    }
+  });
+
+  it('answerA2uiAction refuses a host-parsed post with no principal before touching its body', async () => {
+    const { request, touched } = watchedBody();
+    const deps = { surfaceExchanges: makeStore(), principalHeader: HEADER, parseRendererMessage: parseRendererToAgentMessage };
+    expect(await answered(await answerA2uiAction({ request, deps }))).toEqual(UNAUTHENTICATED);
+    expect(touched).toEqual([]);
+  });
+
+  it('answerA2uiAction answers a host-parsed post exactly as the route does', async () => {
+    const store = makeStore();
+    const exchange = store.open({ binding: { toolId: 't', principalId: 'alice', channel: 'a2ui' }, emit: async () => undefined });
+    const answer = exchange.receive({});
+    const deps = { surfaceExchanges: store, principalHeader: HEADER, parseRendererMessage: parseRendererToAgentMessage };
+    const as = (principal: string, body: unknown) => ({ headers: new Headers({ [HEADER]: principal }), body, signal: new AbortController().signal });
+    expect(await answered(await answerA2uiAction({ request: as('alice', {}), deps }))).toEqual({ status: 400, body: { error: "'exchangeId' must be a non-empty string", code: 'VALIDATION_ERROR' } });
+    const post = { exchangeId: exchange.id, message: action(exchange.id) };
+    expect(await answered(await answerA2uiAction({ request: as('mallory', post), deps }))).toEqual({ status: 409, body: { error: 'that surface is no longer waiting for an answer', code: 'SURFACE_NOT_PENDING', reason: 'binding-mismatch' } });
+    expect(await answered(await answerA2uiAction({ request: as('alice', post), deps }))).toEqual({ status: 202, body: { delivered: true } });
+    expect((await answer).status).toBe('received');
+  });
 
   it('answers 401 before it judges the body', async () => {
     const { fetch } = setup();
@@ -65,8 +109,28 @@ describe('surface callback route', () => {
     };
     const { server, fetch } = createInMemoryServer();
     for (const route of surfaceCallbackRoutes({ path: '/cb', host: fakeDaemonRouteHost({}), deps })) server.route(route);
-    return { fetch, store, executed };
+    return { fetch, store, executed, deps };
   };
+
+  it('answers 401 before it reads the body: a malformed or oversize anonymous post is never parsed', async () => {
+    const { deps, executed } = setup();
+    const { server, fetch } = createInMemoryServer();
+    for (const route of surfaceCallbackRoutes({ path: '/cb', host: fakeDaemonRouteHost({}, { jsonBodyMaxBytes: 16 }), deps })) server.route(route);
+    for (const raw of UNREADABLE_BODIES) {
+      const request = unreadableAnonymousPost('/cb', raw);
+      expect(await answered(await fetch(request))).toEqual({ status: 401, body: { error: `${HEADER} is required`, code: 'UNAUTHENTICATED' } });
+      expect(request.bodyUsed).toBe(false);
+    }
+    expect(executed).toEqual([]);
+  });
+
+  it('answerSurfaceCallback refuses a host-parsed callback with no principal before touching its body', async () => {
+    const { deps, executed } = setup();
+    const { request, touched } = watchedBody();
+    expect(await answered(await answerSurfaceCallback({ request, deps }))).toMatchObject({ status: 401 });
+    expect(touched).toEqual([]);
+    expect(executed).toEqual([]);
+  });
 
   it('answers 401 before the body is judged and executes nothing', async () => {
     const { fetch, executed } = setup();

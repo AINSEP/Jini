@@ -391,5 +391,5 @@ export {
   executeSurfaceRedemption, isTypedSurfaceAnswer, parseSurfaceCallbackRequest, surfaceCallbackExchangeId, surfaceCallbackRefusalBody,
   surfaceNotPendingBody, surfaceRedemptionReply, SURFACE_TYPED_ANSWER_REFUSAL, SurfaceReplyRefusal, readSurfacePrincipalId, surfaceReplyOnError, surfaceReplyResponse, unauthenticatedReply, type SurfaceCallbackReply, type SurfaceCallbackRequest,
 } from './surface-callback-request.js';
-export { a2uiActionsRoutes, a2uiNotPendingBody, deliverA2uiAction, readA2uiAction, type A2uiActionsRouteDeps, type ReadA2uiActionResult } from './a2ui-actions.js';
+export { a2uiActionsRoutes, a2uiNotPendingBody, answerA2uiAction, deliverA2uiAction, readA2uiAction, type A2uiActionsRouteDeps, type ReadA2uiActionResult } from './a2ui-actions.js';
 export { answerSurfaceCallback, surfaceCallbackRoutes, type SurfaceCallbackHttpRequest, type SurfaceCallbackRouteDeps } from './surface-callback-route.js';

@@ -1,9 +1,9 @@
-import { defineJsonRoute, ok } from '@jini-ai/core/contracts/server';
 import type { parseRendererToAgentMessage, RendererToAgentMessage } from '@jini-ai/protocol/a2ui';
 import type { DeliverResult, SurfaceDeliveryRejectionReason, SurfaceExchangeStore } from '../surface-exchanges.js';
 import type { DaemonRouteHost } from './route-host.js';
-import { gatedJsonRoute, type DaemonRoute } from './route-table.js';
-import { readSurfacePrincipalId, SurfaceReplyRefusal, surfaceReplyOnError, unauthenticatedReply } from './surface-callback-request.js';
+import { principalFirstJsonPost, type HostParsedRequest } from './principal-first-route.js';
+import type { DaemonRoute } from './route-table.js';
+import { readSurfacePrincipalId, surfaceReplyResponse, unauthenticatedReply } from './surface-callback-request.js';
 
 /**
  * @file The A2UI (a2ui-project/a2ui v1.0) action endpoint — where a rendered surface's
@@ -132,47 +132,43 @@ export interface A2uiActionsRouteDeps {
   readonly parseRendererMessage: typeof parseRendererToAgentMessage;
 }
 
-/** The authenticated caller of one A2UI post. */
-interface A2uiActionsContext { readonly principalId: string }
-
 /**
- * `POST {path}` — validates the post, delivers it into the open exchange, and answers 202
- * `{ delivered: true }`. Deliberately not the tool's eventual result: the agent's own call returns
- * that, to the model, where it belongs. Refusals keep the endpoint's flat bodies: 401 (no
- * principal, checked before the body is read as an answer), 400 (malformed post), 409 (nothing
- * waiting, or the exchange is another caller's or another channel's).
+ * Answers one A2UI post whose body the host has already parsed: 401 with no principal (checked
+ * before the body is touched), 400 for a malformed post, 409 when nothing is waiting or the exchange
+ * is another caller's or another channel's, else 202 `{ delivered: true }`. Deliberately not the
+ * tool's eventual result: the agent's own call returns that, to the model, where it belongs. Refusals
+ * keep the endpoint's flat bodies. An exception from the host's parser propagates to the host.
  *
  * @complexity O(1) plus the schema parse; the delivery itself is a `Map` lookup.
+ */
+export function answerA2uiAction(
+  { request, deps }: { readonly request: Pick<HostParsedRequest, 'headers' | 'body'>; readonly deps: A2uiActionsRouteDeps },
+  _optional: Record<string, never> = {},
+): Response {
+  const principalId = readSurfacePrincipalId({ headers: request.headers, principalHeader: deps.principalHeader });
+  if (!principalId) return surfaceReplyResponse({ reply: unauthenticatedReply({ principalHeader: deps.principalHeader }) });
+  const action = readA2uiAction({ rawBody: request.body, parseRendererMessage: deps.parseRendererMessage });
+  if (!action.ok) return surfaceReplyResponse({ reply: { status: 400, body: action.error } });
+  const delivered = deliverA2uiAction({ store: deps.surfaceExchanges, exchangeId: action.exchangeId, principalId, message: action.message });
+  if (!delivered.ok) return surfaceReplyResponse({ reply: { status: 409, body: a2uiNotPendingBody({ reason: delivered.reason }) } });
+  return surfaceReplyResponse({ reply: { status: 202, body: { delivered: true } } });
+}
+
+/**
+ * `POST {path}` — refuses a request with no principal before it reads the body, then reads the JSON
+ * body and answers with {@link answerA2uiAction}. A host with its own body parser mounts
+ * {@link answerA2uiAction} directly instead.
  */
 export function a2uiActionsRoutes(
   { deps, host, path }: { readonly deps: A2uiActionsRouteDeps; readonly host: DaemonRouteHost; readonly path: string },
   _optional: Record<string, never> = {},
 ): DaemonRoute[] {
-  const spec = defineJsonRoute<unknown, { delivered: true }, A2uiActionsRouteDeps, A2uiActionsContext>(
-    {
-      method: 'post',
-      path,
-      parse: ({ body }) => ok({ value: body }),
-      handle: ({ input, deps: routeDeps, context }) => {
-        if (!context) throw new SurfaceReplyRefusal({ reply: unauthenticatedReply({ principalHeader: routeDeps.principalHeader }) });
-        const action = readA2uiAction({ rawBody: input, parseRendererMessage: routeDeps.parseRendererMessage });
-        if (!action.ok) throw new SurfaceReplyRefusal({ reply: { status: 400, body: action.error } });
-        const delivered = deliverA2uiAction({ store: routeDeps.surfaceExchanges, exchangeId: action.exchangeId, principalId: context.principalId, message: action.message });
-        if (!delivered.ok) throw new SurfaceReplyRefusal({ reply: { status: 409, body: a2uiNotPendingBody({ reason: delivered.reason }) } });
-        return ok({ value: { delivered: true } });
-      },
+  return [principalFirstJsonPost({
+    path, host, principalHeader: deps.principalHeader,
+    answer: (request) => {
+      const response = answerA2uiAction({ request, deps });
+      // Kept from the JSON-route mount this replaced: a caller already gone gets 499 and no body.
+      return request.signal.aborted ? new Response(null, { status: 499 }) : response;
     },
-    {
-      successStatus: 202,
-      ports: {
-        authenticate: ({ request, deps: routeDeps }) => {
-          const principalId = readSurfacePrincipalId({ headers: request.headers, principalHeader: routeDeps.principalHeader });
-          if (!principalId) throw new SurfaceReplyRefusal({ reply: unauthenticatedReply({ principalHeader: routeDeps.principalHeader }) });
-          return { principalId };
-        },
-        onError: surfaceReplyOnError,
-      },
-    },
-  );
-  return [gatedJsonRoute({ spec, deps, host })];
+  })];
 }
