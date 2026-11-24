@@ -41,6 +41,7 @@
       "./security/conformance": "universal",
       "./security/host/SiteKeyTab.hooks": "browser",
       "./security/host/hooks/security-permissions-port.hooks": "universal",
+      "./security/host/hooks/access-tokens-port.hooks": "universal",
       "./security/host/hooks/use-security-permissions.hooks": "browser",
       "./playground": "universal",
       "./playground/react": "browser",
@@ -196,8 +197,12 @@
       "./security/access-token-rows": "universal",
       "./source-control/api/source-control-api.types": "universal",
       "./source-control/api/source-control-api": "universal",
+      "./source-control/host/hooks/source-control-credentials-port.hooks": "universal",
       "./deployment/api/deployment-api.types": "universal",
       "./deployment/api/deployment-api": "universal",
+      "./deployment/host/hooks/deployment-overview-port.hooks": "universal",
+      "./deployment/host/hooks/dockerfile-source-port.hooks": "universal",
+      "./deployment/host/hooks/publish-credentials-port.hooks": "universal",
       "./screens/menus/page-link-rules": "universal",
       "./screens/menus/html-rules": "universal",
       "./screens/menus/hooks/menus-port.hooks": "universal",
@@ -221,6 +226,7 @@
       "./shell/components/AssistantDock/chat-agent-plugin-preferences": "universal",
       "./shell/components/AssistantDock/hooks/use-chat-agent-plugins.hooks": "browser",
       "./shell/components/AssistantDock/hooks/use-assistant-runtime-preferences.hooks": "browser",
+      "./shell/components/AssistantDock/hooks/use-chat-display-preferences.hooks": "browser",
       "./shell/components/AssistantDock/hooks/use-selected-agent-auth-warning.hooks": "browser",
       "./shell/components/AssistantDock/SubagentsIndicator": "browser",
       "./shell/components/MediaEditDialog/MediaEditDialog.hooks": "browser",
@@ -328,6 +334,7 @@
         "./shell/components/AssistantDock/chat-agent-plugin-preferences": "universal",
         "./shell/components/AssistantDock/hooks/use-chat-agent-plugins.hooks": "browser",
         "./shell/components/AssistantDock/hooks/use-assistant-runtime-preferences.hooks": "browser",
+        "./shell/components/AssistantDock/hooks/use-chat-display-preferences.hooks": "browser",
         "./shell/components/AssistantDock/hooks/use-selected-agent-auth-warning.hooks": "browser",
         "./shell/components/AssistantDock/SubagentsIndicator": "browser",
         "./shell/components/MediaEditDialog/MediaEditDialog.hooks": "browser",
@@ -487,6 +494,11 @@
       "types": "./dist/security/host/hooks/security-permissions-port.hooks.d.ts",
       "import": "./dist/security/host/hooks/security-permissions-port.hooks.js",
       "default": "./dist/security/host/hooks/security-permissions-port.hooks.js"
+    },
+    "./security/host/hooks/access-tokens-port.hooks": {
+      "types": "./dist/security/host/hooks/access-tokens-port.hooks.d.ts",
+      "import": "./dist/security/host/hooks/access-tokens-port.hooks.js",
+      "default": "./dist/security/host/hooks/access-tokens-port.hooks.js"
     },
     "./security/host/hooks/use-security-permissions.hooks": {
       "types": "./dist/security/host/hooks/use-security-permissions.hooks.d.ts",
@@ -1263,6 +1275,11 @@
       "import": "./dist/source-control/api/source-control-api.js",
       "default": "./dist/source-control/api/source-control-api.js"
     },
+    "./source-control/host/hooks/source-control-credentials-port.hooks": {
+      "types": "./dist/source-control/host/hooks/source-control-credentials-port.hooks.d.ts",
+      "import": "./dist/source-control/host/hooks/source-control-credentials-port.hooks.js",
+      "default": "./dist/source-control/host/hooks/source-control-credentials-port.hooks.js"
+    },
     "./deployment/api/deployment-api.types": {
       "types": "./dist/deployment/api/deployment-api.types.d.ts",
       "import": "./dist/deployment/api/deployment-api.types.js",
@@ -1272,6 +1289,21 @@
       "types": "./dist/deployment/api/deployment-api.d.ts",
       "import": "./dist/deployment/api/deployment-api.js",
       "default": "./dist/deployment/api/deployment-api.js"
+    },
+    "./deployment/host/hooks/deployment-overview-port.hooks": {
+      "types": "./dist/deployment/host/hooks/deployment-overview-port.hooks.d.ts",
+      "import": "./dist/deployment/host/hooks/deployment-overview-port.hooks.js",
+      "default": "./dist/deployment/host/hooks/deployment-overview-port.hooks.js"
+    },
+    "./deployment/host/hooks/dockerfile-source-port.hooks": {
+      "types": "./dist/deployment/host/hooks/dockerfile-source-port.hooks.d.ts",
+      "import": "./dist/deployment/host/hooks/dockerfile-source-port.hooks.js",
+      "default": "./dist/deployment/host/hooks/dockerfile-source-port.hooks.js"
+    },
+    "./deployment/host/hooks/publish-credentials-port.hooks": {
+      "types": "./dist/deployment/host/hooks/publish-credentials-port.hooks.d.ts",
+      "import": "./dist/deployment/host/hooks/publish-credentials-port.hooks.js",
+      "default": "./dist/deployment/host/hooks/publish-credentials-port.hooks.js"
     },
     "./screens/menus/page-link-rules": {
       "types": "./dist/screens/menus/page-link-rules.d.ts",
@@ -1387,6 +1419,11 @@
       "types": "./dist/shell/components/AssistantDock/hooks/use-assistant-runtime-preferences.hooks.d.ts",
       "import": "./dist/shell/components/AssistantDock/hooks/use-assistant-runtime-preferences.hooks.js",
       "default": "./dist/shell/components/AssistantDock/hooks/use-assistant-runtime-preferences.hooks.js"
+    },
+    "./shell/components/AssistantDock/hooks/use-chat-display-preferences.hooks": {
+      "types": "./dist/shell/components/AssistantDock/hooks/use-chat-display-preferences.hooks.d.ts",
+      "import": "./dist/shell/components/AssistantDock/hooks/use-chat-display-preferences.hooks.js",
+      "default": "./dist/shell/components/AssistantDock/hooks/use-chat-display-preferences.hooks.js"
     },
     "./shell/components/AssistantDock/hooks/use-selected-agent-auth-warning.hooks": {
       "types": "./dist/shell/components/AssistantDock/hooks/use-selected-agent-auth-warning.hooks.d.ts",
