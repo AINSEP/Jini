@@ -15,7 +15,7 @@
  * - `../core/ports` — UUID/ISODateTime/JsonObject/DomainEvent (ADR-007/009 spine).
  * - `../features/plugins` — the ADR-023 declared-schema shape core executes.
  */
-import type { ISODateTime, JsonObject, UUID } from "@jini-ai/core/primitives";
+import type { CreatorKind, ISODateTime, JsonObject, UUID } from "@jini-ai/core/primitives";
 import type { DomainEvent } from "@jini-ai/core/contracts/events";
 import type { DataModuleDecl } from "@jini-ai/core/contracts/site/db-data-modules";
 
@@ -117,6 +117,10 @@ export interface CampaignRecord {
   /** Optimistic-concurrency version (EC-06: a stale `expectedVersion` write is rejected). */
   version: number;
   createdByPrincipal: UUID;
+  /** `"agent"` when created through an agent's tools, `"person"` otherwise (H4, 2026-11-24; the
+   *  `created_by_kind` column). Recorded once at creation and never changed; absent reads as
+   *  `"person"`, so an owner-made campaign is never paused by the agent switch by mistake. */
+  createdByKind?: CreatorKind;
   createdAt: ISODateTime;
   updatedAt: ISODateTime;
 }

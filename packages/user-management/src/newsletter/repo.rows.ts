@@ -1,5 +1,6 @@
 import type { Generated, Insertable, Kysely, Selectable } from "kysely";
 
+import { resolveCreatorKind } from "@jini-ai/core/primitives";
 import { toBool, type StorageKernel } from "@jini-ai/core/contracts/storage";
 import type {
   AudienceSnapshotRow,
@@ -63,6 +64,7 @@ export interface CampaignsTable {
   counters_json: string;
   version: number;
   created_by_principal: string;
+  created_by_kind: Generated<string>;
   created_at: string;
   updated_at: string;
 }
@@ -196,6 +198,7 @@ export function toCampaignRecord(
     counters: JSON.parse(row.counters_json) as CampaignCounters,
     version: row.version,
     createdByPrincipal: row.created_by_principal,
+    createdByKind: resolveCreatorKind({ value: row.created_by_kind }),
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };
@@ -219,6 +222,7 @@ export function toCampaignRow(c: CampaignRecord, _optional: Record<string, never
     counters_json: JSON.stringify(c.counters),
     version: c.version,
     created_by_principal: c.createdByPrincipal,
+    created_by_kind: c.createdByKind ?? "person",
     created_at: c.createdAt,
     updated_at: c.updatedAt,
   };
@@ -229,7 +233,9 @@ export function toCampaignRow(c: CampaignRecord, _optional: Record<string, never
  * insert-only here (`incrementCounter` owns them afterwards, see `ports.ts`).
  */
 export function updatableCampaignColumns(row: Insertable<CampaignsTable>, _optional: Record<string, never> = {}) {
-  const { id: _id, counters_json: _counters, ...updatable } = row;
+  // `created_by_kind` is write-once (H4): the agent-pause hold relies on it, so a re-save must never
+  // flip an agent's campaign into a person's.
+  const { id: _id, counters_json: _counters, created_by_kind: _kind, ...updatable } = row;
   return updatable;
 }
 
