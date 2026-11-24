@@ -169,7 +169,6 @@
       "./screens/taxonomy/hooks/new-term-form-port.hooks": "universal",
       "./screens/taxonomy/hooks/taxonomy-port.hooks": "universal",
       "./screens/taxonomy/hooks/term-picker-port.hooks": "universal",
-      "./screens/trash/api/trash-api.types": "universal",
       "./screens/comments/api/comments-api.types": "universal",
       "./screens/forms/api/forms-api.types": "universal",
       "./screens/forms/index-aligned-translations": "universal",
@@ -1107,11 +1106,6 @@
       "types": "./dist/screens/taxonomy/hooks/term-picker-port.hooks.d.ts",
       "import": "./dist/screens/taxonomy/hooks/term-picker-port.hooks.js",
       "default": "./dist/screens/taxonomy/hooks/term-picker-port.hooks.js"
-    },
-    "./screens/trash/api/trash-api.types": {
-      "types": "./dist/screens/trash/api/trash-api.types.d.ts",
-      "import": "./dist/screens/trash/api/trash-api.types.js",
-      "default": "./dist/screens/trash/api/trash-api.types.js"
     },
     "./screens/comments/api/comments-api.types": {
       "types": "./dist/screens/comments/api/comments-api.types.d.ts",

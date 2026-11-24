@@ -1,18 +1,17 @@
 import { defineJsonRoute, ok } from "@jini-ai/core/contracts/server";
+import type { PluginPackageFile } from "@jini-ai/core/contracts/site/host-node";
+import type { AdminPluginFileLimitsDto, AdminPluginFilesEnvelope } from "@jini-ai/core/contracts/site/cms-plugins";
 
 import { authorizePlugins, pluginIdParam, rejectPluginError, requireDiscovered, type PluginErrorClass, type PluginRouteRecord, type PluginsRoutePrincipal } from "./shared.js";
-
-/** The `PLUGIN_FILES` envelope. */
-export interface PluginFilesEnvelope { pluginId: string; source: string; files: readonly unknown[]; truncated: boolean; limits: unknown }
 
 /** The deps this route reads (methods, so a host may bind ones typed against its full record). */
 export interface PluginFilesRouteDeps {
   workspaceId: string;
   discoverPlugins(): Promise<readonly PluginRouteRecord[]>;
   /** Pre-bound package-files listing: maps the record to its directory, bounded, never following a symlink. */
-  readPluginPackageFiles(record: PluginRouteRecord): Promise<{ files: readonly unknown[]; truncated: boolean }>;
+  readPluginPackageFiles(record: PluginRouteRecord): Promise<{ files: readonly PluginPackageFile[]; truncated: boolean }>;
   /** The listing's bounds, echoed to the viewer (the plugin engine's constant). */
-  packageFileLimits: unknown;
+  packageFileLimits: AdminPluginFileLimitsDto;
   /** Thrown by the listing when the record's id or version is not a safe path segment. */
   unsafePathError: PluginErrorClass;
 }
@@ -23,7 +22,7 @@ export interface PluginFilesRouteDeps {
  * looked up, so a caller without it learns nothing about which plugin ids exist. The id must name a
  * record in a fresh discovery pass, so no request text is ever joined into a path directly.
  */
-export const pluginFilesRoute = defineJsonRoute<{ pluginId: string }, PluginFilesEnvelope, PluginFilesRouteDeps, PluginsRoutePrincipal>({
+export const pluginFilesRoute = defineJsonRoute<{ pluginId: string }, AdminPluginFilesEnvelope, PluginFilesRouteDeps, PluginsRoutePrincipal>({
   method: "get",
   path: "/api/admin/v1/workspaces/:workspaceId/plugins/:pluginId/files",
   parse: (raw) => ok({ value: { pluginId: pluginIdParam({ params: raw.params }) } }),

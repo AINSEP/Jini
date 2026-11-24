@@ -1,4 +1,5 @@
-import type { AdminPlugin, AdminPluginFiles, AdminPluginProviderSettings } from "../api/plugins-api.types.js";
+import type { AdminPluginProviderSettings } from "../api/plugins-api.types.js";
+import type { AdminPluginDto, AdminPluginFilesEnvelope } from "@jini-ai/core/contracts/site/cms-plugins";
 
 /**
  * @file What the host's plugins screen hook (`use-plugins.hooks.ts`) needs from the outside world,
@@ -11,9 +12,9 @@ import type { AdminPlugin, AdminPluginFiles, AdminPluginProviderSettings } from 
  */
 export interface PluginsPort {
   useProjectKey?(required: { keyId: string; use: boolean }, optional?: Record<string, never>): Promise<{ keyId: string; usedByThisSite: boolean; usedBy: string[]; appliesAt: "now" | "restart" | "failed"; message?: string }>;
-  listPlugins(): Promise<{ plugins: AdminPlugin[]; installSources?: string[] }>;
+  listPlugins(): Promise<{ plugins: AdminPluginDto[]; installSources?: string[] }>;
   /** The route's own response is a partial patch echo (`id`/`version`/`enabled`/`updatedAt`) plus a
-   *  `changeSetId`, not a full `AdminPlugin` — the host's plugins hook never reads it, always
+   *  `changeSetId`, not a full `AdminPluginDto` — the host's plugins hook never reads it, always
    *  re-fetching the authoritative list via `reload()` afterward. Kept exactly as narrow as the
    *  real route and the one caller need. */
   setPluginEnabled(
@@ -24,7 +25,7 @@ export interface PluginsPort {
   uninstallPlugin(required: { id: string }, optional?: Record<string, never>): Promise<{ pluginId: string; trashed: true }>;
   /** `PLUGIN_FILES` (`GET /workspaces/:id/plugins/:pluginId/files`) — the read-only package-files
    *  listing behind `PluginPackageFilesModal`. */
-  getPluginFiles(required: { id: string }, optional?: Record<string, never>): Promise<AdminPluginFiles>;
+  getPluginFiles(required: { id: string }, optional?: Record<string, never>): Promise<AdminPluginFilesEnvelope>;
   /** `PLUGIN_PROVIDER_SETTINGS` read — the provider plugin's settings card (secrets never returned). */
   getProviderSettings(required: { id: string }, optional?: Record<string, never>): Promise<AdminPluginProviderSettings>;
   /** `PLUGIN_PROVIDER_SETTINGS` save; a blank secret keeps the saved one. */

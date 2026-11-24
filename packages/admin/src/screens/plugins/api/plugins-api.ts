@@ -1,4 +1,8 @@
-import type { AdminPlugin, AdminPluginFiles, AdminPluginProviderSettings } from "./plugins-api.types.js";
+import type { AdminPluginDto, AdminPluginFilesEnvelope } from "@jini-ai/core/contracts/site/cms-plugins";
+import type { AdminPluginProviderSettings } from "./plugins-api.types.js";
+
+/** A list row as a server that predates `conflicts` sends it; the client boundary fills the field in. */
+type PluginRowOnTheWire = Omit<AdminPluginDto, "conflicts"> & { conflicts?: AdminPluginDto["conflicts"] };
 
 /** The host's authenticated admin request — it owns the base URL, authentication, retries, error
  *  decoding and failure publishing, so this client only names paths, methods and bodies. */
@@ -18,7 +22,10 @@ export function createPluginsApi({ request, workspaceId }: PluginsApiDeps, _opti
   return {
     // SPEC-005 REQ-12..17 (1.1.0 UI amendment) — consumes REQ-10's PLUGINS_LIST/PLUGIN_SET_ENABLED
     // HTTP contract as a black box (ui.spec.md §3.1/§4.2).
-    listPlugins: () => request<{ plugins: AdminPlugin[] }>({ path: `/workspaces/${workspaceId}/plugins` }),
+    listPlugins: async (): Promise<{ plugins: AdminPluginDto[] }> => {
+      const { plugins } = await request<{ plugins: PluginRowOnTheWire[] }>({ path: `/workspaces/${workspaceId}/plugins` });
+      return { plugins: plugins.map((plugin) => ({ ...plugin, conflicts: plugin.conflicts ?? [] })) };
+    },
     /** PLUGIN_PROVIDER_SETTINGS (2026-10-26) — a provider plugin's declared settings card. */
     getPluginProviderSettings: ({ pluginId }: { pluginId: string }, _optional: Record<string, never> = {}) =>
       request<AdminPluginProviderSettings>({ path: `/workspaces/${workspaceId}/plugins/${encodeURIComponent(pluginId)}/provider-settings` }),
@@ -42,6 +49,6 @@ export function createPluginsApi({ request, workspaceId }: PluginsApiDeps, _opti
      *  server-capped listing of one plugin's own files behind the Plugins screen's package-files
      *  viewer. Refuses `PLUGIN_NOT_FOUND` (404) and `PLUGIN_ID_INVALID` (400). */
     getPluginFiles: ({ pluginId }: { pluginId: string }, _optional: Record<string, never> = {}) =>
-      request<AdminPluginFiles>({ path: `/workspaces/${workspaceId}/plugins/${encodeURIComponent(pluginId)}/files` }),
+      request<AdminPluginFilesEnvelope>({ path: `/workspaces/${workspaceId}/plugins/${encodeURIComponent(pluginId)}/files` }),
   };
 }

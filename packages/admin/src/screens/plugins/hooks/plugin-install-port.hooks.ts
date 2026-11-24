@@ -1,4 +1,4 @@
-import type { AdminPluginConflict } from "../api/plugins-api.types.js";
+import type { PluginConflict } from "@jini-ai/core/contracts/site/plugins-host";
 
 /** Site-plugin install transport; agent plugins have a separate lifecycle and store. Mirrors
  *  the host install service's `PluginInstallPreview` (`@jini-ai/core/contracts/site/host-node`). */
@@ -10,7 +10,7 @@ export interface PluginInstallPreview {
   /** Content-type keys the manifest declares; created when the plugin is turned on. */
   contentTypes: readonly string[];
   /** Names it would clash with if turned on in the CURRENT workspace (install is site-wide). */
-  conflicts: readonly AdminPluginConflict[];
+  conflicts: readonly PluginConflict[];
 }
 export interface PluginInstallSource { source: { kind: "folder"; path: string } | { kind: "zip"; file: File }; replace?: boolean }
 export interface PluginInstallPort {
