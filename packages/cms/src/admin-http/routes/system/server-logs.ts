@@ -47,11 +47,7 @@ export const serverLogsRoute = defineJsonRoute<ServerLogsInput, ServerLogsResult
     try {
       return ok({ value: deps.readServerLogs(deps.parseServerLogFilters({ raw: input.query })) });
     } catch (error) {
-      if (deps.isServerLogFilterError(error)) {
-        // The caller answer, not a log: the host's filter error names the first unusable field.
-        const message = error.message;
-        rejectRoute({ status: 400, error: message, code: 'VALIDATION_ERROR' });
-      }
+      if (deps.isServerLogFilterError(error)) rejectRoute({ status: 400, error: error.message, code: 'VALIDATION_ERROR' });
       throw error;
     }
   },

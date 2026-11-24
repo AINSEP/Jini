@@ -304,6 +304,22 @@
    "buildMembersWriteServiceDeps": "function:efcd56692e"
   }
  },
+ "./members/repo": {
+  "types": "./dist/members/repo.d.ts",
+  "symbols": {
+   "KeepStoredRevocationPort": "type:748b94864a",
+   "MemberSessionSqlRequired": "interface:e2d1de57f9",
+   "MemberSqlRequired": "interface:16bdb4cd5d",
+   "MemberTables": "interface:0edf1fa301",
+   "SqlMagicLinkTokenRepo": "class:2bb59d02ac",
+   "SqlMemberConsentRepo": "class:60e6813828",
+   "SqlMemberExternalIdentityRepo": "class:f45c8f24db",
+   "SqlMemberRepo": "class:fbb3d003c5",
+   "SqlMemberSessionRepo": "class:04d6cefafe",
+   "SqlMemberSubscriptionRepo": "class:2e3f959c3c",
+   "SqlMemberTierRepo": "class:2e5f0001c5"
+  }
+ },
  "./members/repo.memory": {
   "types": "./dist/members/repo.memory.d.ts",
   "symbols": {
@@ -468,7 +484,7 @@
  "./newsletter/repo": {
   "types": "./dist/newsletter/repo.d.ts",
   "symbols": {
-   "SqlNewsletterCampaignRepo": "class:d4ceefc0a3",
+   "SqlNewsletterCampaignRepo": "class:2dfbdf5945",
    "SqlNewsletterCampaignRepoRequired": "interface:e753309bbc"
   }
  },

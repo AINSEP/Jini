@@ -5,8 +5,10 @@
 Add leaf subpaths for the w3 pages/members extraction (no barrel; import each leaf directly):
 
 - `@jini-ai/user-management/member-login/link-service`
+- `@jini-ai/user-management/member-login/oidc-login`
 - `@jini-ai/user-management/members/access-resolver`
 - `@jini-ai/user-management/members/agent-tools`
+- `@jini-ai/user-management/members/auth-mail`
 - `@jini-ai/user-management/members/capability-card`
 - `@jini-ai/user-management/members/consent-service`
 - `@jini-ai/user-management/members/member-admin-writes`
@@ -17,6 +19,7 @@ Add leaf subpaths for the w3 pages/members extraction (no barrel; import each le
 - `@jini-ai/user-management/members/member-validation`
 - `@jini-ai/user-management/members/password-auth`
 - `@jini-ai/user-management/members/ports`
+- `@jini-ai/user-management/members/repo`
 - `@jini-ai/user-management/members/repo.memory`
 - `@jini-ai/user-management/members/subscriber-directory`
 - `@jini-ai/user-management/members/trash-member`

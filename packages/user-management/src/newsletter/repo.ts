@@ -65,7 +65,7 @@ export class SqlNewsletterCampaignRepo implements NewsletterCampaignRepoPort {
   /** One covering-index existence lookup; never loads campaign bodies or applies list paging.
    * @complexity O(log campaigns) lookup, O(1) returned payload/space; storage failures propagate.
    */
-  async hasSending({ workspaceId }: { workspaceId: string }, _options = {}): Promise<boolean> {
+  async hasSending({ workspaceId }: { workspaceId: string }, _options: Record<string, never> = {}): Promise<boolean> {
     const row = await this.kernel.run(db => db.withTables<CampaignTableViews>().selectFrom(this.tables.campaigns).select('workspace_id')
       .where('workspace_id', '=', workspaceId).where('status', '=', 'sending').limit(1).executeTakeFirst());
     return row !== undefined;
@@ -144,7 +144,7 @@ export class SqlNewsletterCampaignRepo implements NewsletterCampaignRepoPort {
   }
 
   /** The kernel's transaction: nested calls join, other requests wait their turn. Takes the campaign write lock first. */
-  async transaction<T>({ fn }: { fn: () => Promise<T> }, _options = {}): Promise<T> {
+  async transaction<T>({ fn }: { fn: () => Promise<T> }, _options: Record<string, never> = {}): Promise<T> {
     return this.kernel.transaction(async () => {
       await this.kernel.lockKey("newsletter:campaigns");
       return fn();
