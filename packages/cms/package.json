@@ -166,6 +166,7 @@
       "./taxonomy/site/content-targets": "universal",
       "./public-http/http/site/form-label-inspection": "node",
       "./public-http/http/site/form-validation-i18n": "universal",
+      "./public-http/http/site/member-auth-script": "universal",
       "./public-http/http/site/render/widgets/placeholder": "universal",
       "./navigation/site/menu-html-permission": "universal",
       "./navigation/site/menu-trash-follow-ups": "universal",
@@ -332,6 +333,7 @@
       "./admin-http/http/media": "universal",
       "./admin-http/routes/media/shared": "universal",
       "./admin-http/routes/media/delete": "universal",
+      "./admin-http/routes/media/byte-size": "universal",
       "./admin-http/routes/media/trash": "universal",
       "./admin-http/routes/media/get-providers": "universal",
       "./admin-http/routes/media/put-providers": "universal",
@@ -364,6 +366,7 @@
       "./admin-http/routes/agent-plugins/set-enabled": "universal",
       "./admin-http/routes/agent-plugins/memory": "universal",
       "./admin-http/http/agent-plugins": "universal",
+      "./admin-http/http/change-sets": "universal",
       "./admin-http/routes/external-mcp/list": "universal",
       "./admin-http/routes/external-mcp/admissions": "universal",
       "./admin-http/routes/external-mcp/delete": "universal",
@@ -389,7 +392,10 @@
       "./admin-http/routes/publish-content/capabilities": "universal",
       "./admin-http/routes/publish-content/import": "universal",
       "./admin-http/routes/publish-content/backstop": "universal",
-      "./admin-http/routes/publish-content/peer-transport": "universal"
+      "./admin-http/routes/publish-content/peer-transport": "universal",
+      "./admin-http/routes/publish-content/export": "node",
+      "./admin-http/routes/publish-content/blob-get": "node",
+      "./admin-http/routes/publish-content/blob-put": "node"
     },
     "isolation": {
       "domains": {
@@ -542,6 +548,7 @@
         "./admin-http/http/media": "media",
         "./admin-http/routes/media/shared": "media",
         "./admin-http/routes/media/delete": "media",
+        "./admin-http/routes/media/byte-size": "media",
         "./admin-http/routes/media/trash": "media",
         "./admin-http/routes/media/get-providers": "media",
         "./admin-http/routes/media/put-providers": "media",
@@ -581,7 +588,10 @@
         "./admin-http/routes/publish-content/capabilities": "publish",
         "./admin-http/routes/publish-content/import": "publish",
         "./admin-http/routes/publish-content/backstop": "publish",
-        "./admin-http/routes/publish-content/peer-transport": "publish"
+        "./admin-http/routes/publish-content/peer-transport": "publish",
+        "./admin-http/routes/publish-content/export": "publish",
+        "./admin-http/routes/publish-content/blob-get": "publish",
+        "./admin-http/routes/publish-content/blob-put": "publish"
       }
     },
     "optionalPeers": {
@@ -1362,6 +1372,11 @@
       "types": "./dist/public-http/http/site/form-validation-i18n.d.ts",
       "import": "./dist/public-http/http/site/form-validation-i18n.js",
       "default": "./dist/public-http/http/site/form-validation-i18n.js"
+    },
+    "./public-http/http/site/member-auth-script": {
+      "types": "./dist/public-http/http/site/member-auth-script.d.ts",
+      "import": "./dist/public-http/http/site/member-auth-script.js",
+      "default": "./dist/public-http/http/site/member-auth-script.js"
     },
     "./public-http/http/site/render/widgets/placeholder": {
       "types": "./dist/public-http/http/site/render/widgets/placeholder.d.ts",
@@ -2348,6 +2363,16 @@
       "import": "./dist/admin-http/routes/agent-plugins/memory.js",
       "default": "./dist/admin-http/routes/agent-plugins/memory.js"
     },
+    "./admin-http/routes/media/byte-size": {
+      "types": "./dist/admin-http/routes/media/byte-size.d.ts",
+      "import": "./dist/admin-http/routes/media/byte-size.js",
+      "default": "./dist/admin-http/routes/media/byte-size.js"
+    },
+    "./admin-http/http/change-sets": {
+      "types": "./dist/admin-http/http/change-sets.d.ts",
+      "import": "./dist/admin-http/http/change-sets.js",
+      "default": "./dist/admin-http/http/change-sets.js"
+    },
     "./admin-http/http/agent-plugins": {
       "types": "./dist/admin-http/http/agent-plugins.d.ts",
       "import": "./dist/admin-http/http/agent-plugins.js",
@@ -2482,6 +2507,21 @@
       "types": "./dist/admin-http/routes/publish-content/peer-transport.d.ts",
       "import": "./dist/admin-http/routes/publish-content/peer-transport.js",
       "default": "./dist/admin-http/routes/publish-content/peer-transport.js"
+    },
+    "./admin-http/routes/publish-content/export": {
+      "types": "./dist/admin-http/routes/publish-content/export.d.ts",
+      "import": "./dist/admin-http/routes/publish-content/export.js",
+      "default": "./dist/admin-http/routes/publish-content/export.js"
+    },
+    "./admin-http/routes/publish-content/blob-get": {
+      "types": "./dist/admin-http/routes/publish-content/blob-get.d.ts",
+      "import": "./dist/admin-http/routes/publish-content/blob-get.js",
+      "default": "./dist/admin-http/routes/publish-content/blob-get.js"
+    },
+    "./admin-http/routes/publish-content/blob-put": {
+      "types": "./dist/admin-http/routes/publish-content/blob-put.d.ts",
+      "import": "./dist/admin-http/routes/publish-content/blob-put.js",
+      "default": "./dist/admin-http/routes/publish-content/blob-put.js"
     }
   },
   "files": [

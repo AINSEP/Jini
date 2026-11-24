@@ -194,7 +194,9 @@ Content lane (L1). `src/admin-http/http/plugin-hook-error.ts`: `createPluginHook
 `PLUGIN_HOOK_FAILED` 500 envelope to the host's hook-failure class, refusal copy, redaction and log
 sink; a spec calls the bound `rejectPluginHookFailure({ err })` first in its catch. Change sets
 (`routes/change-sets/*`) call cms's own `revertChangeSet` and take the host's DTO mappers and revert
-registry; get and revert authorize `changeset.*` with `{ entityId }`. Email templates
+registry; get and revert authorize `changeset.*` with `{ entityId }`. The item mapper is cms's own
+`./admin-http/http/change-sets` (`toChangeSetItemResponse({ item })`, `revertible` instead of the inverse
+payload); the host injects it as `toChangeSetItem` and its own header view as `toChangeSetHeader`. Email templates
 (`routes/email-templates/*`) take the template operations, their error predicates and the raw-HTML
 edit permission (`editHtmlPermission`) as deps; a host keeps its own body-size binding in front of
 the capped writes when its 413 copy differs from the kit's. Pages (`routes/pages/{list,get-by-id}`),
@@ -262,7 +264,9 @@ delete authorize `media.*` with `{ entityId }`; get/put providers stay id-free. 
 single-asset DTO lookups (recorded content type, public URL, byte size), its transactional trash flip
 (`removeMedia`), the reference-checked `purgeMedia` + `forgetRemovedMedia`, and the provider
 credential store with its save-error table (`saveErrorMappings`). Delete's 409 carries the
-`referencing` list. `update` imports the node-only media service, so its entry is `node`.
+`referencing` list. `update` imports the node-only media service, so its entry is `node`. `./admin-http/routes/media/byte-size`'s
+`resolveMediaByteSizes({ deps: { workspaceId, assetBlobRepo, blobStore }, media })` is the byte-size
+lookup a host binds into those DTO lookups (one blob-row batch, at most eight `sizeOf` stats in flight).
 
 Assistant (`src/admin-http/routes/assistant/*`): settings, visitor tools and the site/execution
 credentials share `shared.ts`; the execution probes (detect-agents, list-models, test-agent,
@@ -523,3 +527,8 @@ host injects the profile builder plus the builder's own section vocabulary and p
 `./admin-http/routes/redirects/create` completes the redirects family as specs: POST `/redirects`, 201, body refusals flat
 400 `VALIDATION_ERROR` before authorization, write-chokepoint errors via the shared `REDIRECT_WRITE_ERROR_MAPPINGS`; it reads
 `workspaceId` and `redirectsWriteDeps` only.
+
+`./public-http/http/site/member-auth-script`: `injectMemberAuthScript({ html, workspaceId, marker })` adds the member sign-in `<style>` and
+`<script>` (`MEMBER_AUTH_STYLE`/`MEMBER_AUTH_SCRIPT`) before `</body>` when the page has a `data-member-nav`/`data-member-page` hook. The
+host injects `marker`, the one fixed boolean attribute stamped on both elements (its presence is the idempotency check); the engine
+ships no product-branded name. The script talks to the `/api/members/v1/workspaces/:id` routes under `./public-http/routes/members/*`.
