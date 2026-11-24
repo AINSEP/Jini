@@ -194,7 +194,8 @@
       "./shell/components/AssistantDock/FolderDropError": "browser",
       "./shell/components/AssistantDock/FolderDropPathHint": "browser",
       "./shell/components/AssistantDock/FolderPathButton": "browser",
-      "./shell/components/MediaPickerDialog/JiniMediaPicker.hooks": "browser"
+      "./shell/components/MediaPickerDialog/JiniMediaPicker.hooks": "browser",
+      "./shell/components/AssistantDock/assistant-dock-i18n": "universal"
     },
     "isolation": {
       "shared": [
@@ -293,7 +294,8 @@
         "./shell/components/AssistantDock/FolderDropError": "browser",
         "./shell/components/AssistantDock/FolderDropPathHint": "browser",
         "./shell/components/AssistantDock/FolderPathButton": "browser",
-        "./shell/components/MediaPickerDialog/JiniMediaPicker.hooks": "browser"
+        "./shell/components/MediaPickerDialog/JiniMediaPicker.hooks": "browser",
+        "./shell/components/AssistantDock/assistant-dock-i18n": "universal"
       }
     },
     "optionalPeers": {
@@ -1205,6 +1207,11 @@
       "types": "./dist/shell/components/MediaPickerDialog/JiniMediaPicker.hooks.d.ts",
       "import": "./dist/shell/components/MediaPickerDialog/JiniMediaPicker.hooks.js",
       "default": "./dist/shell/components/MediaPickerDialog/JiniMediaPicker.hooks.js"
+    },
+    "./shell/components/AssistantDock/assistant-dock-i18n": {
+      "types": "./dist/shell/components/AssistantDock/assistant-dock-i18n.d.ts",
+      "import": "./dist/shell/components/AssistantDock/assistant-dock-i18n.js",
+      "default": "./dist/shell/components/AssistantDock/assistant-dock-i18n.js"
     }
   },
   "files": [
