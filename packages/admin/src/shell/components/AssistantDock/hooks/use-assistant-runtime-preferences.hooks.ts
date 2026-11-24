@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { useFetchQuery, useInvalidate } from "../../../../react/kit.js";
+import type { FetchQueryAdapter } from "@jini-ai/core/fetch";
 
 /** Structural slice of the host's assistant runtime preferences (the gear's switches and Reply length). */
 export interface AssistantRuntimePreferences {
@@ -37,10 +37,15 @@ export interface AssistantRuntimePreferencesController {
  * `defaults` until the stored values arrive; a failed read keeps them.
  * @param input.namespace - The host's chat-display settings namespace; it scopes the query key.
  * @param input.defaults - The host's default runtime preferences.
+ * @param input.useFetchQuery - The host kit's query hook (required; Jini ships no default).
+ * @param input.useInvalidate - The host kit's cache-invalidation hook (required).
  * @complexity O(1) per change.
  */
 export function useAssistantRuntimePreferences(
-  { port, namespace, defaults }: { port: AssistantRuntimePreferencesPort; namespace: string; defaults: Readonly<AssistantRuntimePreferences> },
+  { port, namespace, defaults, useFetchQuery, useInvalidate }: {
+    port: AssistantRuntimePreferencesPort; namespace: string; defaults: Readonly<AssistantRuntimePreferences>;
+    useFetchQuery: FetchQueryAdapter["useFetchQuery"]; useInvalidate: FetchQueryAdapter["useInvalidate"];
+  },
   _options: Record<string, never> = {},
 ): AssistantRuntimePreferencesController {
   // Stable per namespace, as the module-level key was, so the effects keyed on it do not re-run each render.

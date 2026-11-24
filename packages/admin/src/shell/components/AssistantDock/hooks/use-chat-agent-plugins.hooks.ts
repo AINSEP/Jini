@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { useFetchQuery, useInvalidate } from "../../../../react/kit.js";
+import type { FetchQueryAdapter } from "@jini-ai/core/fetch";
 
 import { DEFAULT_CHAT_AGENT_PLUGINS, type ChatAgentPlugins } from "../chat-agent-plugin-preferences.js";
 
@@ -24,10 +24,16 @@ export interface ChatAgentPluginsController {
  * copy is dropped once the stored value agrees, so a change made elsewhere shows up again.
  * {@link DEFAULT_CHAT_AGENT_PLUGINS} until the stored value arrives; a failed read keeps it.
  * @param input.namespace - The host's chat-display settings namespace; it scopes the query key.
+ * @param input.useFetchQuery - The host kit's query hook (required; Jini ships no default).
+ * @param input.useInvalidate - The host kit's cache-invalidation hook (required).
  * @complexity O(1) per change.
  */
 export function useChatAgentPlugins(
-  { port, namespace }: { port: ChatAgentPluginsPort; namespace: string }, _options: Record<string, never> = {},
+  { port, namespace, useFetchQuery, useInvalidate }: {
+    port: ChatAgentPluginsPort; namespace: string;
+    useFetchQuery: FetchQueryAdapter["useFetchQuery"]; useInvalidate: FetchQueryAdapter["useInvalidate"];
+  },
+  _options: Record<string, never> = {},
 ): ChatAgentPluginsController {
   // Stable per namespace, as the module-level key was, so the effects keyed on it do not re-run each render.
   const queryKey = useMemo(() => ["settings", namespace, "agent-plugins"], [namespace]);

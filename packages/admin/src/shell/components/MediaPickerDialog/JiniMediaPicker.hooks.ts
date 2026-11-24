@@ -1,7 +1,7 @@
+import type { FetchQueryAdapter } from '@jini-ai/core/fetch';
 import { formatUserFacingError, type SecretRedactionOptions, type UserFacingError } from '@jini-ai/core';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { MediaPickerPort } from '../../../contracts/media-picker.js';
-import { useCachedLoader } from '../../../react/kit.js';
 
 /** Structural slice of the host's media row: only what the picker matches on. */
 export interface JiniMediaPickerRow { readonly id: string; readonly status: string }
@@ -22,13 +22,15 @@ export interface JiniMediaPickerArgs<TMedia extends JiniMediaPickerRow> {
   errorRedaction: SecretRedactionOptions;
   /** Reads the host's incident id from a failed request, when its transport carries one. */
   errorIdOf: (cause: unknown) => string | undefined;
+  /** The host kit's cached-loader hook; required, Jini ships no default. */
+  useCachedLoader: FetchQueryAdapter['useCachedLoader'];
 }
 
 /** The shared dialog is the compatibility boundary for editor, SEO and widget callers.
  * The service selects an asset; the host resolves its CMS fields (notably readable slug)
  * through the same authenticated route, without leaking those fields into the generic port. */
 export function useJiniMediaPicker<TMedia extends JiniMediaPickerRow>(args: JiniMediaPickerArgs<TMedia>, _optional: Record<string, never> = {}) {
-  const { picker, port } = args;
+  const { picker, port, useCachedLoader } = args;
   const key = useMemo(() => ["media"] as const, []);
   const fetchMedia = useCallback(() => port.listMedia(), [port]);
   const media = useCachedLoader({ key, fetch: fetchMedia }, { staleTime: 0 });

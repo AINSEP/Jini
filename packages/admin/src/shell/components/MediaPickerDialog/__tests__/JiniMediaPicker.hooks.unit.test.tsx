@@ -2,8 +2,7 @@
 import { act, renderHook, waitFor } from '@testing-library/react';
 import { useMemo, type ReactNode } from 'react';
 import { describe, expect, it, vi } from 'vitest';
-import { AdminKitProvider, type AdminKit } from '../../../../react/kit.js';
-import { fakeAdminKit } from '../../../../react/testing-kit.js';
+import type { FetchQueryAdapter } from '@jini-ai/core/fetch';
 import type { MediaPickerPort } from '../../../../contracts/media-picker.js';
 import { useJiniMediaPicker, type JiniMediaPickerArgs, type JiniMediaPickerRow } from '../JiniMediaPicker.hooks.js';
 
@@ -11,8 +10,8 @@ import { useJiniMediaPicker, type JiniMediaPickerArgs, type JiniMediaPickerRow }
 function useStableLoader<T>({ fetch }: { key: readonly (string | number)[]; fetch?: (() => Promise<T>) | undefined }) {
   return useMemo(() => ({ peek: () => undefined, load: () => fetch!(), replace: () => {} }), [fetch]);
 }
-const kit = fakeAdminKit({ query: { useCachedLoader: useStableLoader as AdminKit['query']['useCachedLoader'] } });
-const wrapper = ({ children }: { children: ReactNode }) => <AdminKitProvider kit={kit}>{children}</AdminKitProvider>;
+const useCachedLoader = useStableLoader as FetchQueryAdapter['useCachedLoader'];
+const wrapper = ({ children }: { children: ReactNode }) => <>{children}</>;
 
 type Row = JiniMediaPickerRow & { slug: string };
 const row = (id: string, status = 'active'): Row => ({ id, status, slug: `${id}-slug` });
@@ -25,7 +24,7 @@ function deferredPicker() {
 
 function args(overrides: Partial<JiniMediaPickerArgs<Row>> = {}): JiniMediaPickerArgs<Row> {
   return { onSelect: vi.fn(), onCancel: vi.fn(), picker: null, port: { listMedia: async () => ({ media: [] }) },
-    errorRedaction: {}, errorIdOf: () => undefined, ...overrides };
+    errorRedaction: {}, errorIdOf: () => undefined, useCachedLoader, ...overrides };
 }
 
 describe('useJiniMediaPicker', () => {

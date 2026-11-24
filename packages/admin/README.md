@@ -168,7 +168,7 @@ passes; none of these modules imports a host module or ships a default hook.
   `AdminKitProvider`) requires `useTaxonomyRowMenuHook` (normally `useTaxonomyRowMenu` from
   `screens/taxonomy/TaxonomyRowMenu.hooks`) and the host chat library's `ChatSettingsSegmented`
   (`DockSettingsSegmentedProps`); it renders `jini-dock-settings-menu*` and
-  `jini-assistant-dock-icon-button`, and reuses RowMenu's `row-menu-*` classes.
+  `jini-assistant-dock-icon-button`, and renders `jini-row-menu-*` classes (host-styled).
 - `FolderDropConfirmation`, `FolderDropError`, `FolderDropPathHint`, `FolderPathButton`: kit icons
   (mount under `AdminKitProvider`) and a required `useTHook` (the host chat library's `useT`); they
   render `jini-folder-drop-notice*` / `jini-composer-folder-path`, styled by the host.

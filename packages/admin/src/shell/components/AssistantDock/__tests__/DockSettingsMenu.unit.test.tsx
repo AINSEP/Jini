@@ -76,20 +76,20 @@ describe("popup", () => {
 
   it("keeps an unmeasured popup hidden off-screen", () => {
     renderMenu({ open: true, position: null });
-    expect(popup().className).toBe("row-menu-popup jini-dock-settings-menu");
+    expect(popup().className).toBe("jini-row-menu-popup jini-dock-settings-menu");
     expect(popup().style.cssText).toBe("position: fixed; top: -9999px; left: -9999px; visibility: hidden;");
   });
 
   it("places a measured popup below the gear", () => {
     renderMenu({ open: true, position: { top: 10, left: 20, placement: "below" } });
-    expect(popup().className).toBe("row-menu-popup jini-dock-settings-menu");
+    expect(popup().className).toBe("jini-row-menu-popup jini-dock-settings-menu");
     // Capped to the room below the gear (top + 8px margin) so a short viewport scrolls the menu.
     expect(popup().style.cssText).toBe("position: fixed; top: 10px; left: 20px; visibility: visible; max-height: calc(100dvh - 18px);");
   });
 
   it("lifts a popup that opens above the gear", () => {
     renderMenu({ open: true, position: { top: 10, left: 20, placement: "above" } });
-    expect(popup().className).toBe("row-menu-popup jini-dock-settings-menu row-menu-popup-above");
+    expect(popup().className).toBe("jini-row-menu-popup jini-dock-settings-menu jini-row-menu-popup-above");
     expect(popup().style.transform).toBe("translateY(-100%)");
   });
 

@@ -14,12 +14,18 @@ export interface LiveEditorCandidate {
 }
 
 /**
- * True when `editor` exists and has not been destroyed. TipTap 3's `destroy()` nulls the command
+ * True when `args.editor` exists and has not been destroyed. TipTap 3's `destroy()` nulls the command
  * manager and the public `schema` together, so `schema` is the public signal. `isDestroyed` cannot be
  * used: it also reads `true` for an editor that is not attached to a view yet, which is every editor
  * before `EditorContent` mounts it.
+ * The guard narrows the ARGUMENT OBJECT (`args.editor` becomes non-null), not a caller's variable —
+ * keep the object in a local (`const target = { editor }`) and read `target.editor` after the check.
+ * @param args.editor - The editor instance to check; `null`/`undefined` count as not live.
  * @complexity O(1).
  */
-export function isLiveEditor<E extends LiveEditorCandidate>(editor: E | null | undefined): editor is E {
-  return editor != null && (editor.schema as unknown) !== null;
+export function isLiveEditor<E extends LiveEditorCandidate>(
+  args: { editor: E | null | undefined },
+  _optional: Record<string, never> = {},
+): args is { editor: E } {
+  return args.editor != null && (args.editor.schema as unknown) !== null;
 }

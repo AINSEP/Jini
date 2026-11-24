@@ -17,7 +17,7 @@ export interface DockSettingsSegmentedProps {
 
 /**
  * The dock header's gear (owner, 2026-10-11): a small menu under it, right-aligned. Built from the
- * admin's row menu — the same `.row-menu-popup`/`.row-menu-item` styling and the same open/close,
+ * admin's row menu — the host-styled `.jini-row-menu-popup`/`.jini-row-menu-item` classes and the same open/close,
  * positioning and roving-focus hook `TaxonomyRowMenu` uses (published `RowMenu` hard-codes its ⋮
  * trigger and has no disabled rows). The hook already anchors the popup's right edge to the
  * trigger's, which keeps it inside the narrow dock.
@@ -63,7 +63,7 @@ export function DockSettingsMenu({ label, sections, notice, useTaxonomyRowMenuHo
         ref={menu.menuRef}
         role="menu"
         aria-label={label}
-        className={`row-menu-popup jini-dock-settings-menu${menu.position?.placement === "above" ? " row-menu-popup-above" : ""}`}
+        className={`jini-row-menu-popup jini-dock-settings-menu${menu.position?.placement === "above" ? " jini-row-menu-popup-above" : ""}`}
         style={popupStyle(menu.position)}
         onKeyDown={menu.onMenuKeyDown}
       >
@@ -140,7 +140,7 @@ function MenuRow({ item, itemIndex, helpId, menu }: { item: DockSettingsMenuItem
       role={item.role ?? "menuitem"}
       aria-checked={checkable ? Boolean(item.checked) : undefined}
       tabIndex={-1}
-      className="row-menu-item"
+      className="jini-row-menu-item"
       aria-describedby={item.tooltip ? descriptionId : undefined}
       aria-disabled={item.disabled ? true : undefined}
       onClick={() => activateDockMenuItem({ item, selectItem: menu.selectItem })}
