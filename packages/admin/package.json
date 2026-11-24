@@ -199,7 +199,8 @@
       "./shell/components/AssistantDock/DockHeaderTip.hooks": "browser",
       "./shell/components/WidgetConfigFields/HtmlAttributeRows.hooks": "browser",
       "./shell/components/MediaPickerDialog/JiniMediaPicker.hooks": "browser",
-      "./shell/components/WidgetConfigFields/PlacementContentFields": "browser"
+      "./shell/components/WidgetConfigFields/PlacementContentFields": "browser",
+      "./shell/components/AssistantDock/DockSettingsMenu": "browser"
     },
     "isolation": {
       "shared": [
@@ -305,7 +306,8 @@
         "./shell/components/AssistantDock/DockHeaderTip.hooks": "browser",
         "./shell/components/WidgetConfigFields/HtmlAttributeRows.hooks": "browser",
         "./shell/components/MediaPickerDialog/JiniMediaPicker.hooks": "browser",
-        "./shell/components/WidgetConfigFields/PlacementContentFields": "browser"
+        "./shell/components/WidgetConfigFields/PlacementContentFields": "browser",
+        "./shell/components/AssistantDock/DockSettingsMenu": "browser"
       }
     },
     "optionalPeers": {
@@ -1242,6 +1244,11 @@
       "types": "./dist/shell/components/WidgetConfigFields/PlacementContentFields.d.ts",
       "import": "./dist/shell/components/WidgetConfigFields/PlacementContentFields.js",
       "default": "./dist/shell/components/WidgetConfigFields/PlacementContentFields.js"
+    },
+    "./shell/components/AssistantDock/DockSettingsMenu": {
+      "types": "./dist/shell/components/AssistantDock/DockSettingsMenu.d.ts",
+      "import": "./dist/shell/components/AssistantDock/DockSettingsMenu.js",
+      "default": "./dist/shell/components/AssistantDock/DockSettingsMenu.js"
     }
   },
   "files": [
