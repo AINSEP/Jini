@@ -18,6 +18,7 @@
       "./gated-mutations": "universal",
       "./approval-batch-chain": "universal",
       "./model-facing-tool-errors": "universal",
+      "./tool-access-change": "universal",
       "./tool-call-text": "universal",
       "./tool-input-repairs": "universal",
       "./contribution-registry": "universal",
@@ -303,6 +304,11 @@
       "types": "./dist/model-facing-tool-errors.d.ts",
       "import": "./dist/model-facing-tool-errors.js",
       "default": "./dist/model-facing-tool-errors.js"
+    },
+    "./tool-access-change": {
+      "types": "./dist/tool-access-change.d.ts",
+      "import": "./dist/tool-access-change.js",
+      "default": "./dist/tool-access-change.js"
     },
     "./tool-call-text": {
       "types": "./dist/tool-call-text.d.ts",
