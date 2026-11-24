@@ -41,6 +41,7 @@
       "./security/conformance": "universal",
       "./security/host/SiteKeyTab.hooks": "browser",
       "./security/host/hooks/security-permissions-port.hooks": "universal",
+      "./security/host/hooks/use-security-permissions.hooks": "browser",
       "./playground": "universal",
       "./playground/react": "browser",
       "./playground/adapters/http": "universal",
@@ -174,6 +175,7 @@
       "./screens/forms/index-aligned-translations": "universal",
       "./screens/forms/forms-field-settings-i18n": "universal",
       "./screens/forms/forms-leave-guard-i18n": "universal",
+      "./screens/providers/providers-i18n": "universal",
       "./screens/settings/settings-capabilities-i18n": "universal",
       "./core/bind-dictionary-names": "universal",
       "./screens/menus/api/menus-api.types": "universal",
@@ -181,6 +183,9 @@
       "./screens/providers/api/providers-api": "universal",
       "./agent-plugins/models": "universal",
       "./screens/integrations/api/integrations-api": "universal",
+      "./screens/integrations/IntegrationsRedirect": "universal",
+      "./screens/providers/always-allow-rules": "universal",
+      "./screens/providers/always-allow-ports": "universal",
       "./screens/integrations/integrations-ports": "universal",
       "./screens/integrations/agent-plugin-ports": "universal",
       "./security/api/security-api.types": "universal",
@@ -479,6 +484,11 @@
       "types": "./dist/security/host/hooks/security-permissions-port.hooks.d.ts",
       "import": "./dist/security/host/hooks/security-permissions-port.hooks.js",
       "default": "./dist/security/host/hooks/security-permissions-port.hooks.js"
+    },
+    "./security/host/hooks/use-security-permissions.hooks": {
+      "types": "./dist/security/host/hooks/use-security-permissions.hooks.d.ts",
+      "import": "./dist/security/host/hooks/use-security-permissions.hooks.js",
+      "default": "./dist/security/host/hooks/use-security-permissions.hooks.js"
     },
     "./playground": {
       "types": "./dist/playground/index.d.ts",
@@ -1145,6 +1155,11 @@
       "import": "./dist/screens/forms/forms-leave-guard-i18n.js",
       "default": "./dist/screens/forms/forms-leave-guard-i18n.js"
     },
+    "./screens/providers/providers-i18n": {
+      "types": "./dist/screens/providers/providers-i18n.d.ts",
+      "import": "./dist/screens/providers/providers-i18n.js",
+      "default": "./dist/screens/providers/providers-i18n.js"
+    },
     "./screens/settings/settings-capabilities-i18n": {
       "types": "./dist/screens/settings/settings-capabilities-i18n.d.ts",
       "import": "./dist/screens/settings/settings-capabilities-i18n.js",
@@ -1179,6 +1194,21 @@
       "types": "./dist/screens/integrations/api/integrations-api.d.ts",
       "import": "./dist/screens/integrations/api/integrations-api.js",
       "default": "./dist/screens/integrations/api/integrations-api.js"
+    },
+    "./screens/integrations/IntegrationsRedirect": {
+      "types": "./dist/screens/integrations/IntegrationsRedirect.d.ts",
+      "import": "./dist/screens/integrations/IntegrationsRedirect.js",
+      "default": "./dist/screens/integrations/IntegrationsRedirect.js"
+    },
+    "./screens/providers/always-allow-rules": {
+      "types": "./dist/screens/providers/always-allow-rules.d.ts",
+      "import": "./dist/screens/providers/always-allow-rules.js",
+      "default": "./dist/screens/providers/always-allow-rules.js"
+    },
+    "./screens/providers/always-allow-ports": {
+      "types": "./dist/screens/providers/always-allow-ports.d.ts",
+      "import": "./dist/screens/providers/always-allow-ports.js",
+      "default": "./dist/screens/providers/always-allow-ports.js"
     },
     "./screens/integrations/integrations-ports": {
       "types": "./dist/screens/integrations/integrations-ports.d.ts",
