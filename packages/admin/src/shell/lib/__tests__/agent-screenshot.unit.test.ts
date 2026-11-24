@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { ADMIN_CAPTURE_SCREENSHOT_CAPABILITY_ID, MAX_SCREENSHOT_BYTES, captureAdminScreenshotToolResult } from "../agent-screenshot";
+import { ADMIN_CAPTURE_SCREENSHOT_CAPABILITY_ID, MAX_SCREENSHOT_BYTES, captureAdminScreenshotToolResult } from "../agent-screenshot.js";
 
 /**
  * @file `agent-screenshot.ts`'s orchestration logic — the part the host app hook's `useAgentPageBridge`

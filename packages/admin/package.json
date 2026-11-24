@@ -175,27 +175,30 @@
       "./screens/menus/MenuEditor.hooks": "browser",
       "./screens/menus/MenuPageLinkFields.hooks": "browser",
       "./screens/menus/MenuPageLinkFields": "browser",
+      "./shell/lib/live-tiptap-editor": "universal",
+      "./shell/lib/media-image-extension.hooks": "universal",
       "./shell/components/TemplateSource/ViewTemplateButton": "browser",
       "./shell/hooks/use-desktop-view-release.hooks": "browser",
+      "./shell/lib/agent-screenshot": "browser",
       "./shell/components/AssistantDock/chat-agent-plugin-preferences": "universal",
       "./shell/components/AssistantDock/hooks/use-chat-agent-plugins.hooks": "browser",
       "./shell/components/AssistantDock/hooks/use-assistant-runtime-preferences.hooks": "browser",
       "./shell/components/AssistantDock/hooks/use-selected-agent-auth-warning.hooks": "browser",
       "./shell/components/AssistantDock/SubagentsIndicator": "browser",
-      "./shell/components/AssistantDock/hooks/chat-package-kind": "universal",
-      "./shell/lib/live-tiptap-editor": "universal",
-      "./shell/lib/media-image-extension.hooks": "universal",
-      "./shell/hooks/assistant-chats-port.hooks": "browser",
-      "./shell/components/AssistantDock/hooks/conversation-refresh.hooks": "browser",
-      "./shell/lib/agent-screenshot": "browser",
       "./shell/components/MediaEditDialog/MediaEditDialog.hooks": "browser",
       "./shell/lib/media-embed-extension.hooks": "browser",
+      "./shell/components/AssistantDock/hooks/chat-package-kind": "universal",
+      "./shell/hooks/assistant-chats-port.hooks": "browser",
+      "./shell/components/AssistantDock/hooks/conversation-refresh.hooks": "browser",
+      "./shell/components/AssistantDock/assistant-dock-i18n": "universal",
       "./shell/components/AssistantDock/FolderDropConfirmation": "browser",
       "./shell/components/AssistantDock/FolderDropError": "browser",
       "./shell/components/AssistantDock/FolderDropPathHint": "browser",
       "./shell/components/AssistantDock/FolderPathButton": "browser",
-      "./shell/components/MediaPickerDialog/JiniMediaPicker.hooks": "browser",
-      "./shell/components/AssistantDock/assistant-dock-i18n": "universal"
+      "./shell/components/AssistantDock/dock-header-rules": "browser",
+      "./shell/components/AssistantDock/DockHeaderTip.hooks": "browser",
+      "./shell/components/WidgetConfigFields/HtmlAttributeRows.hooks": "browser",
+      "./shell/components/MediaPickerDialog/JiniMediaPicker.hooks": "browser"
     },
     "isolation": {
       "shared": [
@@ -203,7 +206,9 @@
         "src/react/components/ConfirmDialog",
         "src/react/components/RowMenu",
         "src/react/types.ts",
-        "src/react/kit.tsx"
+        "src/react/kit.tsx",
+        "src/shell/components/AssistantDock/chat-agent-plugin-preferences.ts",
+        "src/media/html-attributes.ts"
       ],
       "forbidden": {
         "universal": [
@@ -275,27 +280,30 @@
         "./shell/components/Select/Select.hooks": "browser",
         "./shell/lib/tab-event-source": "browser",
         "./shell/hooks/use-external-entry-refresh.hooks": "browser",
+        "./shell/lib/live-tiptap-editor": "universal",
+        "./shell/lib/media-image-extension.hooks": "universal",
         "./shell/components/TemplateSource/ViewTemplateButton": "browser",
         "./shell/hooks/use-desktop-view-release.hooks": "browser",
+        "./shell/lib/agent-screenshot": "browser",
         "./shell/components/AssistantDock/chat-agent-plugin-preferences": "universal",
         "./shell/components/AssistantDock/hooks/use-chat-agent-plugins.hooks": "browser",
         "./shell/components/AssistantDock/hooks/use-assistant-runtime-preferences.hooks": "browser",
         "./shell/components/AssistantDock/hooks/use-selected-agent-auth-warning.hooks": "browser",
         "./shell/components/AssistantDock/SubagentsIndicator": "browser",
-        "./shell/components/AssistantDock/hooks/chat-package-kind": "universal",
-        "./shell/lib/live-tiptap-editor": "universal",
-        "./shell/lib/media-image-extension.hooks": "universal",
-        "./shell/hooks/assistant-chats-port.hooks": "browser",
-        "./shell/components/AssistantDock/hooks/conversation-refresh.hooks": "browser",
-        "./shell/lib/agent-screenshot": "browser",
         "./shell/components/MediaEditDialog/MediaEditDialog.hooks": "browser",
         "./shell/lib/media-embed-extension.hooks": "browser",
+        "./shell/components/AssistantDock/hooks/chat-package-kind": "universal",
+        "./shell/hooks/assistant-chats-port.hooks": "browser",
+        "./shell/components/AssistantDock/hooks/conversation-refresh.hooks": "browser",
+        "./shell/components/AssistantDock/assistant-dock-i18n": "universal",
         "./shell/components/AssistantDock/FolderDropConfirmation": "browser",
         "./shell/components/AssistantDock/FolderDropError": "browser",
         "./shell/components/AssistantDock/FolderDropPathHint": "browser",
         "./shell/components/AssistantDock/FolderPathButton": "browser",
-        "./shell/components/MediaPickerDialog/JiniMediaPicker.hooks": "browser",
-        "./shell/components/AssistantDock/assistant-dock-i18n": "universal"
+        "./shell/components/AssistantDock/dock-header-rules": "browser",
+        "./shell/components/AssistantDock/DockHeaderTip.hooks": "browser",
+        "./shell/components/WidgetConfigFields/HtmlAttributeRows.hooks": "browser",
+        "./shell/components/MediaPickerDialog/JiniMediaPicker.hooks": "browser"
       }
     },
     "optionalPeers": {
@@ -1108,6 +1116,16 @@
       "import": "./dist/screens/menus/MenuPageLinkFields.js",
       "default": "./dist/screens/menus/MenuPageLinkFields.js"
     },
+    "./shell/lib/live-tiptap-editor": {
+      "types": "./dist/shell/lib/live-tiptap-editor.d.ts",
+      "import": "./dist/shell/lib/live-tiptap-editor.js",
+      "default": "./dist/shell/lib/live-tiptap-editor.js"
+    },
+    "./shell/lib/media-image-extension.hooks": {
+      "types": "./dist/shell/lib/media-image-extension.hooks.d.ts",
+      "import": "./dist/shell/lib/media-image-extension.hooks.js",
+      "default": "./dist/shell/lib/media-image-extension.hooks.js"
+    },
     "./shell/components/TemplateSource/ViewTemplateButton": {
       "types": "./dist/shell/components/TemplateSource/ViewTemplateButton.d.ts",
       "import": "./dist/shell/components/TemplateSource/ViewTemplateButton.js",
@@ -1117,6 +1135,11 @@
       "types": "./dist/shell/hooks/use-desktop-view-release.hooks.d.ts",
       "import": "./dist/shell/hooks/use-desktop-view-release.hooks.js",
       "default": "./dist/shell/hooks/use-desktop-view-release.hooks.js"
+    },
+    "./shell/lib/agent-screenshot": {
+      "types": "./dist/shell/lib/agent-screenshot.d.ts",
+      "import": "./dist/shell/lib/agent-screenshot.js",
+      "default": "./dist/shell/lib/agent-screenshot.js"
     },
     "./shell/components/AssistantDock/chat-agent-plugin-preferences": {
       "types": "./dist/shell/components/AssistantDock/chat-agent-plugin-preferences.d.ts",
@@ -1143,20 +1166,20 @@
       "import": "./dist/shell/components/AssistantDock/SubagentsIndicator.js",
       "default": "./dist/shell/components/AssistantDock/SubagentsIndicator.js"
     },
+    "./shell/components/MediaEditDialog/MediaEditDialog.hooks": {
+      "types": "./dist/shell/components/MediaEditDialog/MediaEditDialog.hooks.d.ts",
+      "import": "./dist/shell/components/MediaEditDialog/MediaEditDialog.hooks.js",
+      "default": "./dist/shell/components/MediaEditDialog/MediaEditDialog.hooks.js"
+    },
+    "./shell/lib/media-embed-extension.hooks": {
+      "types": "./dist/shell/lib/media-embed-extension.hooks.d.ts",
+      "import": "./dist/shell/lib/media-embed-extension.hooks.js",
+      "default": "./dist/shell/lib/media-embed-extension.hooks.js"
+    },
     "./shell/components/AssistantDock/hooks/chat-package-kind": {
       "types": "./dist/shell/components/AssistantDock/hooks/chat-package-kind.d.ts",
       "import": "./dist/shell/components/AssistantDock/hooks/chat-package-kind.js",
       "default": "./dist/shell/components/AssistantDock/hooks/chat-package-kind.js"
-    },
-    "./shell/lib/live-tiptap-editor": {
-      "types": "./dist/shell/lib/live-tiptap-editor.d.ts",
-      "import": "./dist/shell/lib/live-tiptap-editor.js",
-      "default": "./dist/shell/lib/live-tiptap-editor.js"
-    },
-    "./shell/lib/media-image-extension.hooks": {
-      "types": "./dist/shell/lib/media-image-extension.hooks.d.ts",
-      "import": "./dist/shell/lib/media-image-extension.hooks.js",
-      "default": "./dist/shell/lib/media-image-extension.hooks.js"
     },
     "./shell/hooks/assistant-chats-port.hooks": {
       "types": "./dist/shell/hooks/assistant-chats-port.hooks.d.ts",
@@ -1168,20 +1191,10 @@
       "import": "./dist/shell/components/AssistantDock/hooks/conversation-refresh.hooks.js",
       "default": "./dist/shell/components/AssistantDock/hooks/conversation-refresh.hooks.js"
     },
-    "./shell/lib/agent-screenshot": {
-      "types": "./dist/shell/lib/agent-screenshot.d.ts",
-      "import": "./dist/shell/lib/agent-screenshot.js",
-      "default": "./dist/shell/lib/agent-screenshot.js"
-    },
-    "./shell/components/MediaEditDialog/MediaEditDialog.hooks": {
-      "types": "./dist/shell/components/MediaEditDialog/MediaEditDialog.hooks.d.ts",
-      "import": "./dist/shell/components/MediaEditDialog/MediaEditDialog.hooks.js",
-      "default": "./dist/shell/components/MediaEditDialog/MediaEditDialog.hooks.js"
-    },
-    "./shell/lib/media-embed-extension.hooks": {
-      "types": "./dist/shell/lib/media-embed-extension.hooks.d.ts",
-      "import": "./dist/shell/lib/media-embed-extension.hooks.js",
-      "default": "./dist/shell/lib/media-embed-extension.hooks.js"
+    "./shell/components/AssistantDock/assistant-dock-i18n": {
+      "types": "./dist/shell/components/AssistantDock/assistant-dock-i18n.d.ts",
+      "import": "./dist/shell/components/AssistantDock/assistant-dock-i18n.js",
+      "default": "./dist/shell/components/AssistantDock/assistant-dock-i18n.js"
     },
     "./shell/components/AssistantDock/FolderDropConfirmation": {
       "types": "./dist/shell/components/AssistantDock/FolderDropConfirmation.d.ts",
@@ -1203,15 +1216,25 @@
       "import": "./dist/shell/components/AssistantDock/FolderPathButton.js",
       "default": "./dist/shell/components/AssistantDock/FolderPathButton.js"
     },
+    "./shell/components/AssistantDock/dock-header-rules": {
+      "types": "./dist/shell/components/AssistantDock/dock-header-rules.d.ts",
+      "import": "./dist/shell/components/AssistantDock/dock-header-rules.js",
+      "default": "./dist/shell/components/AssistantDock/dock-header-rules.js"
+    },
+    "./shell/components/AssistantDock/DockHeaderTip.hooks": {
+      "types": "./dist/shell/components/AssistantDock/DockHeaderTip.hooks.d.ts",
+      "import": "./dist/shell/components/AssistantDock/DockHeaderTip.hooks.js",
+      "default": "./dist/shell/components/AssistantDock/DockHeaderTip.hooks.js"
+    },
+    "./shell/components/WidgetConfigFields/HtmlAttributeRows.hooks": {
+      "types": "./dist/shell/components/WidgetConfigFields/HtmlAttributeRows.hooks.d.ts",
+      "import": "./dist/shell/components/WidgetConfigFields/HtmlAttributeRows.hooks.js",
+      "default": "./dist/shell/components/WidgetConfigFields/HtmlAttributeRows.hooks.js"
+    },
     "./shell/components/MediaPickerDialog/JiniMediaPicker.hooks": {
       "types": "./dist/shell/components/MediaPickerDialog/JiniMediaPicker.hooks.d.ts",
       "import": "./dist/shell/components/MediaPickerDialog/JiniMediaPicker.hooks.js",
       "default": "./dist/shell/components/MediaPickerDialog/JiniMediaPicker.hooks.js"
-    },
-    "./shell/components/AssistantDock/assistant-dock-i18n": {
-      "types": "./dist/shell/components/AssistantDock/assistant-dock-i18n.d.ts",
-      "import": "./dist/shell/components/AssistantDock/assistant-dock-i18n.js",
-      "default": "./dist/shell/components/AssistantDock/assistant-dock-i18n.js"
     }
   },
   "files": [
