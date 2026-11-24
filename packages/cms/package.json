@@ -83,6 +83,7 @@
       "./posts/slug": "universal",
       "./posts/post-tool-errors": "universal",
       "./posts/search": "universal",
+      "./posts/sql": "node",
       "./posts/post-write-fields": "universal",
       "./posts/go-live-sweep": "universal",
       "./posts/expected-version": "universal",
@@ -948,6 +949,11 @@
       "types": "./dist/posts/search.d.ts",
       "import": "./dist/posts/search.js",
       "default": "./dist/posts/search.js"
+    },
+    "./posts/sql": {
+      "types": "./dist/posts/sql/index.d.ts",
+      "import": "./dist/posts/sql/index.js",
+      "default": "./dist/posts/sql/index.js"
     },
     "./posts/post-write-fields": {
       "types": "./dist/posts/post-write-fields.d.ts",
