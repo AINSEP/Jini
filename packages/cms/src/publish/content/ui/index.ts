@@ -13,7 +13,6 @@ export type {
   PublishContentExecuteResult,
   PublishContentOutcomeKind,
   PublishContentOutcomeRow,
-  PublishContentPeerSummary,
   PublishContentNotSupportedByLive,
   PublishContentPlanResult,
   PublishContentReport,
