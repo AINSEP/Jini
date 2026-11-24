@@ -1,7 +1,9 @@
+/** AES-256-GCM with a fresh 12-byte IV and ciphertext || 16-byte tag, both base64 encoded.
+ * Uses purpose "secret-sealer.v1" and scope "secret-sealer" for HKDF domain separation.
+ * Seal requires context AAD at the port; open accepts absent AAD solely for historical unbound records.
+ */
 /**
- * @file `SecretSealerPort`'s real adapter (ADR-058): AES-256-GCM with a fresh 12-byte IV and
- * ciphertext || 16-byte tag, both base64 encoded. Uses purpose "secret-sealer.v1" and scope
- * "secret-sealer" for HKDF domain separation.
+ * @file `SecretSealerPort`'s real adapter (ADR-058).
  *
  * Bare `node:crypto`, no extra dependency. The AES key is never held or generated here: it is
  * re-derived on every `seal`/`open` from the injected `KeyringPort` (by-handle discipline: raw
@@ -115,6 +117,7 @@ export class AesGcmSecretSealer implements SecretSealerPort {
       throw new SecretOpenError({ cause: new Error(`AesGcmSecretSealer cannot open alg '${input.sealed.alg}' (expected '${ALG}')`) });
     }
     // Use the stored generation, not the active one, so rotation does not strand older ciphertext.
+    // Derivation/authentication failures propagate; there is no plaintext or partial-output fallback.
     // Derivation failures propagate as themselves; only the opening itself is SECRET_OPEN_FAILED.
     const aesKey = await this.deriveAesKey({ keyId: input.sealed.keyId });
     try {
