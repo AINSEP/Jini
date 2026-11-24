@@ -1,5 +1,6 @@
 import { type FormEvent } from "react";
-import { DataTable, RowMenu } from "../react/index.js";
+import { DataTable } from "../react/components/DataTable.js";
+import { RowMenu } from "../react/components/RowMenu/RowMenu.js";
 import { agentHandle, buildAgentListHandles } from "@jini-ai/core/agent-handles";
 import type { AdminRole } from "@jini-ai/core/contracts/site/user-management-react";
 import { roleMenuItems } from "./rules.js";

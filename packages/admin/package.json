@@ -287,7 +287,11 @@
         "./screens/authentication/Authentication": "browser",
         "./screens/authentication/authentication-host-slots": "browser",
         "./screens/authentication/model/provider-schemas": "browser",
-        "./shell/lib/boot-token-fragment": "browser"
+        "./shell/lib/boot-token-fragment": "browser",
+        "./roles/rules": "browser",
+        "./roles/roles-i18n": "browser",
+        "./roles/i18n/roles-sentence-parts": "browser",
+        "./users/users-i18n": "browser"
       }
     },
     "optionalPeers": {

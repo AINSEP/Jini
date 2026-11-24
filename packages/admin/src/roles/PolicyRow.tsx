@@ -1,4 +1,4 @@
-import { RowMenu } from "../react/index.js";
+import { RowMenu } from "../react/components/RowMenu/RowMenu.js";
 import { agentHandle } from "@jini-ai/core/agent-handles";
 import type { AdminPolicy, AdminPolicyPermission } from "@jini-ai/core/contracts/site/user-management-react";
 import { policyMenuItems } from "./rules.js";

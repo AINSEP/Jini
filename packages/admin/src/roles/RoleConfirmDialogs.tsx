@@ -1,4 +1,4 @@
-import { ConfirmDialog } from "../react/index.js";
+import { ConfirmDialog } from "../react/components/ConfirmDialog/ConfirmDialog.js";
 
 import type { AdminPolicy, AdminRole } from "@jini-ai/core/contracts/site/user-management-react";
 import { type PendingPermissionRemove } from "./hooks/use-roles.hooks.js";

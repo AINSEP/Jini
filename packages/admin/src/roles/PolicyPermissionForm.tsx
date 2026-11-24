@@ -1,5 +1,5 @@
 import { agentHandle, buildAgentListHandles } from "@jini-ai/core/agent-handles";
-import { type PolicyPermissionController } from "./PolicyRow.js";
+import type { PolicyPermissionController } from "./PolicyRow.js";
 
 
 interface PolicyPermissionFormProps {
