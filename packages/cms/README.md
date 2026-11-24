@@ -181,6 +181,13 @@ answer the two from different sources), `normalizeMenuHtml` (a Node host binds
 `normalizeMenuHtml` from `@jini-ai/cms/navigation/node`) and `trashMenu` (the host's trash move).
 Malformed bodies are refused in `parse` with the host's code-less `{ error }` body.
 
+Browser telemetry (`src/admin-http/routes/system/browser-telemetry.ts`, `POST /api/admin/v1/telemetry`,
+deployment-level, no permission): the host mounts `browserTelemetryRoute` with
+`readHeaders: ["content-length"]` and injects `tracker` (`capture`/`error`), `limiter` (its own
+per-principal budget, `check({ key })`) and `credentialKind({ context })` (the session layer's kind for
+the authenticated principal; only `"session"` is admitted). Every gate runs in `handle`, in the order
+403 credential → 413 declared length → 429 `Retry-After` → 400/413 validation → bodiless 204.
+
 Newsletter (`src/admin-http/routes/newsletter/*`, types in `src/admin-http/http/newsletter.ts`): the
 newsletter domain has no engine code yet, so every spec takes the host's services as required deps
 (`saveCampaign`, `scheduleCampaign`, `openSendPipeline`, `saveList`, `importSubscriptions`, …), plus
@@ -539,6 +546,13 @@ uses) and `isConsentConflict` (its revision-conflict class). Each route authoriz
 the permission check. Every answer carries `Cache-Control: no-store` (`responseHeaders`, set before the workspace 404).
 Refusals keep the consent body order `{ code, error }`: `ToolInputError` 400 `CONSENT_VALIDATION_FAILED`, conflict 409
 `CONSENT_REVISION_CONFLICT`, a service permission denial the fixed 403 copy; anything else reaches the host's error port.
+
+`./admin-http/routes/widgets/preview` (w4-routes): `widgetPreviewRoute`, the unsaved widget preview, over
+`WidgetPreviewRouteDeps`. The host injects `renderPreview` (its theme/document adapter: registry validation, resolver
+dispatch, themed document) and `mapWidgetError` (its typed widget error rungs; `undefined` for anything else, which is
+rethrown to the host's redacted 500). Mount it with `deferMissingPrincipal` (the spec answers its own 401
+`authentication required`), `"direct"` authorization (`widgets.read` on `widget`, no entity id) and the `http/widgets`
+operation-only failure copy. Every answer carries `Cache-Control: no-store` (`responseHeaders`).
 
 `./admin-http/routes/site/profile`: the admin site-profile route with its `parseSections`/`parsePageLimit` query parsers. The
 host injects the profile builder plus the builder's own section vocabulary and page cap. The route authorizes nothing itself

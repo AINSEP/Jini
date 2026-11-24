@@ -171,6 +171,7 @@
       "./public-http/middleware/theme-asset-dirs": "node",
       "./public-http/middleware/theme-content-security-headers": "node",
       "./public-http/middleware/theme-static-assets": "universal",
+      "./public-http/middleware/theme-page-preview": "universal",
       "./public-http/http/site/form-validation-i18n": "universal",
       "./public-http/http/site/member-auth-script": "universal",
       "./public-http/http/site/render/widgets/placeholder": "universal",
@@ -253,6 +254,7 @@
       "./public-http/routes/publish-trust/handshake": "universal",
       "./public-http/routes/members/shared": "universal",
       "./public-http/routes/members/sign-out": "universal",
+      "./public-http/routes/agent-plugin-surfaces/files": "universal",
       "./public-http/routes/members/forgot-password": "universal",
       "./public-http/routes/members/login-providers": "universal",
       "./public-http/routes/members/me": "universal",
@@ -300,6 +302,7 @@
       "./admin-http/routes/themes/explore-file-copy": "universal",
       "./admin-http/routes/themes/explore-file-rename": "universal",
       "./admin-http/routes/system/mail-status": "universal",
+      "./admin-http/routes/system/browser-telemetry": "universal",
       "./admin-http/routes/system/source-control-credentials": "universal",
       "./admin-http/routes/system/mail-dns": "universal",
       "./admin-http/routes/sites/sites-home": "universal",
@@ -1401,6 +1404,11 @@
       "import": "./dist/public-http/middleware/theme-static-assets.js",
       "default": "./dist/public-http/middleware/theme-static-assets.js"
     },
+    "./public-http/middleware/theme-page-preview": {
+      "types": "./dist/public-http/middleware/theme-page-preview.d.ts",
+      "import": "./dist/public-http/middleware/theme-page-preview.js",
+      "default": "./dist/public-http/middleware/theme-page-preview.js"
+    },
     "./public-http/http/site/form-label-inspection": {
       "types": "./dist/public-http/http/site/form-label-inspection.d.ts",
       "import": "./dist/public-http/http/site/form-label-inspection.js",
@@ -1816,6 +1824,11 @@
       "import": "./dist/public-http/routes/members/sign-out.js",
       "default": "./dist/public-http/routes/members/sign-out.js"
     },
+    "./public-http/routes/agent-plugin-surfaces/files": {
+      "types": "./dist/public-http/routes/agent-plugin-surfaces/files.d.ts",
+      "import": "./dist/public-http/routes/agent-plugin-surfaces/files.js",
+      "default": "./dist/public-http/routes/agent-plugin-surfaces/files.js"
+    },
     "./public-http/routes/members/forgot-password": {
       "types": "./dist/public-http/routes/members/forgot-password.d.ts",
       "import": "./dist/public-http/routes/members/forgot-password.js",
@@ -2050,6 +2063,11 @@
       "types": "./dist/admin-http/routes/system/mail-status.d.ts",
       "import": "./dist/admin-http/routes/system/mail-status.js",
       "default": "./dist/admin-http/routes/system/mail-status.js"
+    },
+    "./admin-http/routes/system/browser-telemetry": {
+      "types": "./dist/admin-http/routes/system/browser-telemetry.d.ts",
+      "import": "./dist/admin-http/routes/system/browser-telemetry.js",
+      "default": "./dist/admin-http/routes/system/browser-telemetry.js"
     },
     "./admin-http/routes/system/source-control-credentials": {
       "types": "./dist/admin-http/routes/system/source-control-credentials.d.ts",
