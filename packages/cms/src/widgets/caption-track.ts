@@ -62,6 +62,20 @@ export function isSafeCaptionTrackSrc({ src }: { src: string }, _optional: Recor
 }
 
 /**
+ * Reads a resolved track off untrusted render input (a widget IR prop, an asset render meta that may
+ * have round-tripped through JSON): `null` unless `src` and `srclang` are strings. The values are then
+ * still validated by {@link renderCaptionTrack}; this only refuses the wrong shape.
+ *
+ * @complexity O(1).
+ */
+export function readCaptionTrackInput({ value }: { value: unknown }, _optional: Record<string, never> = {}): CaptionTrackInput | null {
+  if (typeof value !== "object" || value === null || Array.isArray(value)) return null;
+  const { src, srclang, label } = value as Record<string, unknown>;
+  if (typeof src !== "string" || typeof srclang !== "string") return null;
+  return { src, srclang, label: typeof label === "string" ? label : null };
+}
+
+/**
  * Renders `<track kind="captions" ... default>` for a safe track, or `""` when the track is absent or
  * refused — so a caller can always splice the result in and an uncaptioned player stays byte-identical.
  *

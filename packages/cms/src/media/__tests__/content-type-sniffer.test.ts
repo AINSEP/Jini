@@ -222,3 +222,14 @@ test("sniffContentType: a classic QuickTime file with no leading ftyp atom is NO
   const legacy = new Uint8Array(16); legacy.set([0, 0, 0, 8], 0); legacy.set(textBytes("widemdat"), 4);
   assert.equal(sniffContentType({ bytes: legacy }), "application/octet-stream");
 });
+
+test("G7-9: a WebVTT file (optionally BOM-prefixed) sniffs as text/vtt; a lookalike does not", () => {
+  const enc = (text: string) => new TextEncoder().encode(text);
+  assert.equal(sniffContentType({ bytes: enc("WEBVTT\n\n00:00.000 --> 00:01.000\nHi\n") }), "text/vtt");
+  assert.equal(sniffContentType({ bytes: enc("WEBVTT - Title\r\n") }), "text/vtt");
+  assert.equal(sniffContentType({ bytes: enc("WEBVTT") }), "text/vtt");
+  assert.equal(sniffContentType({ bytes: new Uint8Array([0xef, 0xbb, 0xbf, ...enc("WEBVTT\n")]) }), "text/vtt");
+  assert.equal(sniffContentType({ bytes: enc("WEBVTTX\n") }), "application/octet-stream");
+  assert.equal(sniffContentType({ bytes: enc("1\n00:00:00,000 --> 00:00:01,000\nSRT\n") }), "application/octet-stream");
+  assert.equal(sniffContentType({ bytes: enc("WEBVTT\n<script>alert(1)</script>") }), "text/vtt");
+});

@@ -124,13 +124,16 @@ export interface MediaRecord {
    * or a direct DB edit.
    */
   htmlAttributes: string | null;
+  /**
+   * G7-9: optional WebVTT captions for a video/audio asset — a reference to a sibling `.vtt` media
+   * row plus its language, never the cue text itself. Optional so a host adapter with no column for it
+   * keeps compiling; `null` means "no captions". The public renderer resolves it to that asset's
+   * `/m/.../original.vtt` URL and still refuses anything that is not a same-origin `.vtt` path.
+   */
+  captions?: MediaCaptionsTrack | null | undefined;
 }
 
-/**
- * A video/audio asset's captions reference (G7-9): which sibling WebVTT asset, and its language.
- * Not yet a `MediaRecord` field: adding it there breaks a host's exhaustive `Record<keyof MediaRecord, ...>`
- * publish map while that file is in flight, so the field lands with the host's column + migration.
- */
+/** A video/audio asset's captions reference (G7-9): which sibling WebVTT asset, and its language. */
 export interface MediaCaptionsTrack {
   /** Id of the `.vtt` media asset holding the cues; the host resolves it to its public URL. */
   assetId: UUID;

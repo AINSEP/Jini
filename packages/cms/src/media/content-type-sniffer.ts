@@ -46,6 +46,7 @@ export type SniffedContentType =
   | "audio/mpeg"
   | "audio/flac"
   | "audio/mp4"
+  | "text/vtt"
   | "text/html"
   | "image/svg+xml"
   | "application/octet-stream";
@@ -182,6 +183,15 @@ function leadingText(bytes: Uint8Array): string {
   return withoutBom.replace(/^\s+/, "").toLowerCase();
 }
 
+/** WebVTT §4.1: an optional UTF-8 BOM, the exact `WEBVTT` signature, then a space, tab, line break
+ *  or end of file. Anything else (`WEBVTTX`, an SRT file) is not WebVTT. @complexity O(1). */
+function isWebVtt(bytes: Uint8Array): boolean {
+  const start = bytesEqualAt(bytes, 0, UTF8_BOM) ? UTF8_BOM.length : 0;
+  if (!asciiEqualAt(bytes, start, "WEBVTT")) return false;
+  const next = bytes[start + "WEBVTT".length];
+  return next === undefined || next === 0x20 || next === 0x09 || next === 0x0a || next === 0x0d;
+}
+
 const HTML_PREFIXES = ["<!doctype html", "<html", "<head", "<script", "<body", "<iframe", "<title", "<frameset"];
 
 /** Matches a leading HTML tag prefix directly, or an XHTML document whose `<?xml ...?>` prolog is
@@ -232,6 +242,10 @@ const BINARY_SIGNATURES: ReadonlyArray<readonly [(bytes: Uint8Array) => boolean,
   [(bytes) => asciiEqualAt(bytes, 0, "fLaC"), "audio/flac"],
   [(bytes) => asciiEqualAt(bytes, 0, "ID3"), "audio/mpeg"],
   [isUntaggedMpegAudio, "audio/mpeg"],
+  // G7-9 captions. Textual, but positively identified by its mandatory signature, and checked ahead
+  // of the HTML/SVG sniff: a cue payload containing markup is still only ever served as `text/vtt`
+  // (with `nosniff`), which no browser renders as a document.
+  [isWebVtt, "text/vtt"],
 ];
 
 /**
