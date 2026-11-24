@@ -2489,6 +2489,32 @@
    "themePathInput": "function:6016858161"
   }
  },
+ "./admin-http/routes/themes/held-back": {
+  "types": "./dist/admin-http/routes/themes/held-back.d.ts",
+  "symbols": {
+   "HELD_BACK_ERROR_STATUS": "variable:5bf22834b5",
+   "HELD_BACK_READ_PERMISSION": "variable:5587dba0d2",
+   "HELD_BACK_RESTORE_PERMISSION": "variable:49034eb602",
+   "HeldBackApprovalInput": "interface:174de921e8",
+   "HeldBackApprovalRouteDeps": "interface:8336043e3a",
+   "HeldBackCheckInput": "interface:78d1831506",
+   "HeldBackCheckResult": "interface:3886446bd5",
+   "HeldBackCheckRouteDeps": "interface:68270a0934",
+   "HeldBackErrorCode": "type:cc3a6a4665",
+   "HeldBackFailureDeps": "interface:b03a67d60d",
+   "HeldBackGatewayFailure": "interface:6e3587baf3",
+   "HeldBackListRouteDeps": "interface:51865bd6f0",
+   "HeldBackListing": "interface:52baf7431a",
+   "HeldBackPlan": "interface:3fe32aa83f",
+   "HeldBackRestoreInput": "interface:5ca8f9fbbe",
+   "HeldBackRestoreRouteDeps": "interface:191a0e9ae4",
+   "HeldBackServiceFailure": "interface:538ac77672",
+   "heldBackApprovalRoute": "function:612518944a",
+   "heldBackCheckRoute": "function:0ae5de3682",
+   "heldBackListRoute": "variable:0d864fd322",
+   "heldBackRestoreRoute": "function:3d89137bb9"
+  }
+ },
  "./admin-http/routes/themes/list": {
   "types": "./dist/admin-http/routes/themes/list.d.ts",
   "symbols": {
