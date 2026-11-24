@@ -17,6 +17,7 @@
  * the import graph stays clean, so that mistake fails a test rather than a downstream bundle.
  */
 export * from './types.js';
+export { CONFIGURABLE_MEDIA_PROVIDER_CATALOG } from './configurable-catalog.js';
 export * from './providers.js';
 export * from './image-model-ids.js';
 export { DEFAULT_MEDIA_PROVIDER_CATALOG, DEFAULT_PROVIDER_PRESETS } from './ui-defaults.js';
