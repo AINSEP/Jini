@@ -31,3 +31,11 @@ Generic plugin-host pieces extracted from a site host. Everything product-specif
   `selectCoreHostSignalDeclaration` (which own the security fallback) on `resolveBundledHostSignals`.
 - `service-ports.ts` (`./site/service-ports`): types only; `AgentPluginApiConnectionsPort<TConnection>` is
   instantiated with the host's declared-connection record.
+- `bundled-contribution-sources.ts` (`./site/bundled-contribution-sources`): the host injects `retired` (its retired
+  bundled plugin ids) into `listBundledContributionSources` and binds the result as the `sources` port
+  (`BundledContributionSources`) its bundled readers take.
+- `auth-schemes.ts` (`./site/auth-schemes`): the host injects `parseCredentialSchemesFile`
+  (`@jini-ai/integrations/credentialed-http`; this package may not import integrations) everywhere, plus
+  `loadContributions` (its lifecycle owner's trust-gated loader) into `loadCredentialSchemeRegistry`, `loadFromSource`
+  (its lifecycle owner's source loader) into `loadCredentialSchemeRegistryFromSource`, and both `loadFromSource` and
+  `sources` (its bound bundled-source policy) into `loadBundledCredentialSchemeRegistry`.

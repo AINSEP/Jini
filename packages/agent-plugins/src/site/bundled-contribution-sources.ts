@@ -16,11 +16,11 @@ export type BundledContributionSources = (required: { readonly sourceRoot: strin
  * manifest and category file; stale retired packages and non-packages never contribute. Only pass
  * product-owned source roots, never operator-writable installed directories. Synchronous so CLI
  * help and async category loaders use the same selection policy. @complexity O(p) directories.
- * @param required - `retired`: the host's retired bundled plugin ids, which never contribute.
+ * @param required - `retired`: the host's retired bundled plugin ids (any id-keyed set or map), which never contribute.
  * @example listBundledContributionSources({ sourceRoot, filename: "plugin-data.json", retired: new Set(["old-id"]) });
  */
 export function listBundledContributionSources(
-  required: { readonly sourceRoot: string; readonly filename: string; readonly retired: ReadonlySet<string> }, _optional: Record<string, never> = {},
+  required: { readonly sourceRoot: string; readonly filename: string; readonly retired: Pick<ReadonlySet<string>, "has"> }, _optional: Record<string, never> = {},
 ): readonly TrustedPluginPackage[] {
   return readdirSync(required.sourceRoot, { withFileTypes: true })
     .filter(entry => entry.isDirectory() && !required.retired.has(entry.name))
