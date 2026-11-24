@@ -93,7 +93,7 @@ export const blobGetRoute = defineJsonRoute<{ sha256: string }, BlobGetBody | Ro
     // A peer's publish grant is not a Library read grant. A known document-only hash must
     // not bypass typed export's exclusion, even after purge; live media owners still travel.
     if (await isDocumentOnlyBlob({ deps: { mediaRepo: deps.mediaRepo, blobRepo: deps.assetBlobRepo }, input: { workspaceId: deps.workspaceId, sha256 } })) {
-      return ok({ value: routeReply({ status: 404, body: { error: "blob was not found", code: "BLOB_NOT_FOUND" }, headers: { "Cache-Control": "private, no-store" } }) });
+      return ok({ value: routeReply({ status: 404, body: { error: "blob was not found", code: "BLOB_NOT_FOUND" } }) });
     }
     const storageKey = computeBlobStorageKey({ workspaceId: deps.workspaceId, sha256 });
     // S18 (S-F3) — checks the blob store first, falling back to the host's file-blob index (a
