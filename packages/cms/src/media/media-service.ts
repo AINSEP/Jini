@@ -150,6 +150,9 @@ export const DEFAULT_ALLOWED_MIME_TYPES: ReadonlySet<string> = new Set([
   "audio/mpeg",
   "audio/flac",
   "audio/mp4",
+  // G7-9: WebVTT captions, a sibling asset a video's `MediaRecord.captions` points at. Served inline
+  // as `text/vtt` on the same original-byte path as audio/video.
+  "text/vtt",
 ]);
 
 /**

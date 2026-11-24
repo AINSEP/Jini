@@ -1662,7 +1662,7 @@
    "ImageGeometry": "interface:29aba57b4b",
    "ImageMetadata": "interface:319c09f36c",
    "ImageTileInput": "interface:bc78079811",
-   "MediaAssetRenderMeta": "interface:12c8281469",
+   "MediaAssetRenderMeta": "interface:79161c71d6",
    "MediaKind": "type:6b7a9bbce2",
    "MediaProvenance": "type:533515c78e",
    "MediaRecord": "interface:393aa415e1",

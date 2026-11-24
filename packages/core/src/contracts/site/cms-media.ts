@@ -302,4 +302,10 @@ export interface MediaAssetRenderMeta {
    * captures can be renamed later without breaking the URL already baked into this HTML.
    */
   slug: string | null;
+  /**
+   * G7-9: the asset's resolved WebVTT captions track (`src` is the sibling `.vtt` asset's public
+   * `/m/.../original.vtt` path), or `null`/absent for none. The renderer never trusts it: a non-`.vtt`
+   * or off-origin `src` renders the uncaptioned player (`@jini-ai/cms` `caption-track.ts`).
+   */
+  captionsTrack?: { readonly src: string; readonly srclang: string; readonly label?: string | null } | null;
 }

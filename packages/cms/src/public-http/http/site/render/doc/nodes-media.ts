@@ -6,6 +6,7 @@ import { escapeHtml } from "@jini-ai/core/text";
 import type { JsonObject } from "@jini-ai/core/primitives";
 import type { MediaAssetRenderMeta } from "@jini-ai/core/contracts/site/cms-media";
 import { MEDIA_PLAYBACK_COPY } from "../media-playback-copy.js";
+import { readCaptionTrackInput } from "../../../../../widgets/caption-track.js";
 
 /**
  * D7 (original), extended under ADR-027 §4 and this task's quick-and-dirty sizing fix: a
@@ -149,14 +150,16 @@ function renderDocMediaPlayer(
     cssClass: mediaNodeStyleOverride({ nodeValue: nodeStyle.cssClass, assetValue: meta.cssClass }),
     htmlAttributes: mediaNodeStyleOverride({ nodeValue: nodeStyle.htmlAttributes, assetValue: meta.htmlAttributes }),
   };
+  // G7-9: the asset's resolved WebVTT track, if any; `renderVideoTag` re-validates it (same-origin `.vtt`).
+  const captions = { captionsTrack: readCaptionTrackInput({ value: meta.captionsTrack }) };
   /**
    * points `src` at `/m/{assetId}/original` (`routes/site/media-rendition.ts`'s
    * `registerMediaOriginalVideoRoute`) instead of the versioned transform URL: video has no
    * transform/version to template in, since it bypasses the image-transform pipeline entirely (see
    * that route's own doc for why).
    */
-  if (meta.contentType?.startsWith("video/")) return media.renderVideoTag({ src: media.mediaPublicPath({ key: urlKey, sha256, variant: { kind: "original", contentType: meta.contentType } }), fallbackText: MEDIA_PLAYBACK_COPY.video, ...style, width: meta.width, height: meta.height });
-  if (meta.contentType?.startsWith("audio/")) return media.renderVideoTag({ kind: "audio", src: media.mediaPublicPath({ key: urlKey, sha256, variant: { kind: "original", contentType: meta.contentType } }), fallbackText: MEDIA_PLAYBACK_COPY.audio, ...style, width: null, height: null });
+  if (meta.contentType?.startsWith("video/")) return media.renderVideoTag({ src: media.mediaPublicPath({ key: urlKey, sha256, variant: { kind: "original", contentType: meta.contentType } }), fallbackText: MEDIA_PLAYBACK_COPY.video, ...style, width: meta.width, height: meta.height }, captions);
+  if (meta.contentType?.startsWith("audio/")) return media.renderVideoTag({ kind: "audio", src: media.mediaPublicPath({ key: urlKey, sha256, variant: { kind: "original", contentType: meta.contentType } }), fallbackText: MEDIA_PLAYBACK_COPY.audio, ...style, width: null, height: null }, captions);
   return null;
 }
 

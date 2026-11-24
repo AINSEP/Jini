@@ -1104,3 +1104,15 @@ test('a failed cleanup journal preserves media and rendition identities for retr
   assert.equal((await deps.renditionRepo.listByAsset({ workspaceId: WORKSPACE_ID, assetId: media.id })).length, 1);
   assert.equal((await deps.blobRepo.findByHash({ workspaceId: WORKSPACE_ID, sha256: media.source.sha256 }))!.status, 'active');
 });
+
+/** G7-9: a WebVTT captions file is accepted as its own media asset (the sibling a video's captions
+ *  reference points at), stored on the original-byte path like audio. */
+test("uploadMedia accepts text/vtt captions", async () => {
+  const { deps } = makeDeps();
+  const { media } = await uploadMedia({
+    deps,
+    input: { workspaceId: WORKSPACE_ID, bytes: bytesFrom("WEBVTT\n\n00:00.000 --> 00:01.000\nHi\n"), filename: "clip-en.vtt", contentType: "text/vtt", createdByPrincipal: "user-1" },
+  });
+  assert.equal(media.title, "clip-en");
+  assert.equal(media.status, "active");
+});
