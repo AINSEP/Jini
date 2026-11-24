@@ -379,6 +379,19 @@ export interface VisibilitySource {
   addEventListener(type: 'visibilitychange', listener: () => void): void;
   removeEventListener(type: 'visibilitychange', listener: () => void): void;
 }
+/* ---------- restated shapes (A-K2-0c) ---------- */
+/** A settings slice's save status (the UI library's panel-kit shape). */
+export type SaveState = { status: 'idle' } | { status: 'saving' } | { status: 'saved' } | { status: 'error'; message: string };
+/** The settings dialog's theme choice. */
+export type SettingsThemeChoice = 'system' | 'light' | 'dark';
+/** The host's notifications preferences (same shape as {@link KitNotificationsPreferences}). */
+export type NotificationsPreferences = KitNotificationsPreferences;
+/** The editor's target for a protected block (same shape as {@link HtmlEditorTarget}). */
+export type EditorHtmlTarget = HtmlEditorTarget;
+/** The editor's "open the HTML source for this block" callback. */
+export type RequestEditHtml = (target: EditorHtmlTarget, options: object) => void | Promise<void>;
+/** How a conversation title was produced; decides whether it is shown as saved or re-derived. */
+export type KitConversationTitleSource = 'fallback' | 'generated' | 'manual';
 export interface AdminKitValues {
   readonly SETTINGS_DIALOG_DICTIONARIES: KitDictionaries;
   readonly DEFAULT_NOTIFICATIONS_PREFERENCES: KitNotificationsPreferences;
@@ -403,6 +416,15 @@ export interface AdminKitValues {
   /** The requested tab when it is present, else the first tab, else null. */
   readonly resolveInitialActiveTabId: <T extends SettingsDialogTab>(required: { tabs: readonly T[] }, optional?: { initialTabId?: string | null | undefined }) => string | null;
   readonly findActiveTab: <T extends SettingsDialogTab>(required: { tabs: readonly T[]; activeTabId: string | null }, optional?: Record<string, never>) => T | undefined;
+  /** Black or white, whichever reads on the given hex background. */
+  readonly readableTextColor: (required: { hex: string }, optional?: Record<string, never>) => string;
+  /** Whether an external refresh may replace a settings slice's value right now. */
+  readonly canAcceptRefresh: (required: { timerPending: boolean; hasUnsavedEdits: boolean; mounted: boolean; commitsUnchanged: boolean }, optional?: Record<string, never>) => boolean;
+  readonly mergeSaveStates: (required: { states: readonly SaveState[] }, optional?: Record<string, never>) => SaveState;
+  /** Debounce (ms) for text fields in a settings slice. */
+  readonly SAVE_DEBOUNCE_MS: number;
+  /** Runs `tick` every `periodMs` while the document is visible; returns the stop function. */
+  readonly startVisibleInterval: (required: { tick: () => void; periodMs: number }, optional?: { doc?: VisibilitySource }) => () => void;
 }
 
 /* ---------- chat (the host's chat library: its translator and the run posters; shapes restated) ---------- */
@@ -422,6 +444,16 @@ export interface AdminKitChat {
   useFabPosition(required: FabPositionInput, optional?: Record<string, never>): FabPositionResult;
   /** Normalizes a requested agent/model/effort against the inventory, as the chat pane does. */
   resolveChatPaneSelection(required: { agents: readonly ChatPaneAgent[]; requested: ChatPaneAgentSelection }, optional?: Record<string, never>): ChatPaneAgentSelection;
+  /** The title to display for a conversation, or null when it has none yet. */
+  conversationTitleForDisplay(required: { title: string | null; titleSource: KitConversationTitleSource; firstPrompt?: string | undefined }, optional?: Record<string, never>): string | null;
+  /** The heuristic title derived from a first prompt. */
+  deriveConversationTitle(required: { prompt: string }, optional?: Record<string, never>): string;
+  /** One transcript slot per MCP-UI surface / mid-run user message; `undefined` when the event carries no id. */
+  mcpUiSurfaceSlotKey(required: { data: unknown }, optional?: Record<string, never>): string | undefined;
+  midRunUserMessageSlotKey(required: { data: unknown }, optional?: Record<string, never>): string | undefined;
+  /** The ext-event names those slots render under. */
+  readonly MCP_UI_EXT_EVENT_NAME: string;
+  readonly MID_RUN_USER_MESSAGE_EXT_EVENT_NAME: string;
   /** The chat library's own copy shown after a typed secret was redacted, and the credential-card guidance line. */
   readonly SECRET_REDACTED_NOTICE: string;
   readonly CREDENTIAL_CARD_GUIDANCE: string;
@@ -529,7 +561,8 @@ export function useAdminKitChatPosters(_required: Record<string, never> = {}, _o
 export const useFabPosition: AdminKitChat['useFabPosition'] = (r, o) => useAdminKit().chat.useFabPosition(r, o);
 /** The chat library's plain values (selection resolver and notice copy), read once per render: the injected object, never copied. */
 export function useAdminKitChatValues(_required: Record<string, never> = {}, _optional: Record<string, never> = {})
-  : Pick<AdminKitChat, 'resolveChatPaneSelection' | 'SECRET_REDACTED_NOTICE' | 'CREDENTIAL_CARD_GUIDANCE'> {
+  : Pick<AdminKitChat, 'resolveChatPaneSelection' | 'SECRET_REDACTED_NOTICE' | 'CREDENTIAL_CARD_GUIDANCE' | 'conversationTitleForDisplay' | 'deriveConversationTitle'
+    | 'mcpUiSurfaceSlotKey' | 'midRunUserMessageSlotKey' | 'MCP_UI_EXT_EVENT_NAME' | 'MID_RUN_USER_MESSAGE_EXT_EVENT_NAME'> {
   return useAdminKit().chat;
 }
 

@@ -231,6 +231,11 @@ const fakeValues: AdminKitValues = Object.freeze({
   },
   resolveInitialActiveTabId: (r: { tabs: readonly { id: string }[] }, o: { initialTabId?: string | null | undefined } = {}) =>
     (o.initialTabId != null && r.tabs.some((tab) => tab.id === o.initialTabId) ? o.initialTabId : r.tabs[0]?.id ?? null),
+  readableTextColor: ({ hex }) => (hex.toLowerCase() === '#ffffff' ? '#000000' : '#ffffff'),
+  canAcceptRefresh: (state) => !state.timerPending && !state.hasUnsavedEdits && state.mounted && state.commitsUnchanged,
+  mergeSaveStates: ({ states }) => states.find((state) => state.status === 'error') ?? states.find((state) => state.status === 'saving') ?? states.find((state) => state.status === 'saved') ?? { status: 'idle' },
+  SAVE_DEBOUNCE_MS: 600,
+  startVisibleInterval: ({ tick, periodMs }) => { const id = setInterval(tick, periodMs); return () => clearInterval(id); },
   findActiveTab: <T extends { id: string }>(r: { tabs: readonly T[]; activeTabId: string | null }) => r.tabs.find((tab) => tab.id === r.activeTabId),
 });
 
@@ -248,6 +253,12 @@ const fakeChat: AdminKitChat = {
     const agent = agents.find((a) => a.id === requested.agentId && a.available !== false) ?? agents.find((a) => a.available !== false);
     return agent ? { ...requested, agentId: agent.id } : { agentId: '' };
   },
+  conversationTitleForDisplay: ({ title, firstPrompt }) => title ?? firstPrompt ?? null,
+  deriveConversationTitle: ({ prompt }) => prompt.slice(0, 40),
+  mcpUiSurfaceSlotKey: ({ data }) => (typeof data === 'object' && data !== null && 'id' in data ? String((data as { id: unknown }).id) : undefined),
+  midRunUserMessageSlotKey: ({ data }) => (typeof data === 'object' && data !== null && 'messageId' in data ? String((data as { messageId: unknown }).messageId) : undefined),
+  MCP_UI_EXT_EVENT_NAME: 'fake-mcp-ui',
+  MID_RUN_USER_MESSAGE_EXT_EVENT_NAME: 'fake-user-message',
   SECRET_REDACTED_NOTICE: 'fake secret-redacted notice',
   CREDENTIAL_CARD_GUIDANCE: 'fake credential-card guidance',
 };

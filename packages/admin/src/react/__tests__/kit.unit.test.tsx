@@ -308,3 +308,35 @@ it('passes the InfoTip placement, icon, trigger label and description id through
   expect(seen).toHaveLength(1);
   expect(seen[0]).toMatchObject({ label: 'Runs locally', placement: 'bottom', icon, triggerLabel: 'About runs', descriptionId: 'run-desc' });
 });
+
+describe('admin kit: settings-slice values, visible interval and chat title/slot values (A-K2-0 batch 2)', () => {
+  it('hands screens the exact injected functions and constants, not copies', () => {
+    const readableTextColor = vi.fn(() => '#123456');
+    const mergeSaveStates = vi.fn(() => ({ status: 'saved' as const }));
+    const canAcceptRefresh = vi.fn(() => false);
+    const startVisibleInterval = vi.fn(() => () => {});
+    const values = { ...fakeAdminKit().values, readableTextColor, mergeSaveStates, canAcceptRefresh, startVisibleInterval, SAVE_DEBOUNCE_MS: 5 };
+    const wrapper = ({ children }: { children: ReactNode }) => <AdminKitProvider kit={fakeAdminKit({ values })}>{children}</AdminKitProvider>;
+    const got = renderHook(() => useAdminKitValues({}, {}), { wrapper }).result.current;
+    expect(got.readableTextColor({ hex: '#fff' })).toBe('#123456');
+    expect(readableTextColor).toHaveBeenCalledWith({ hex: '#fff' });
+    expect(got.mergeSaveStates({ states: [] })).toEqual({ status: 'saved' });
+    expect(got.canAcceptRefresh({ timerPending: false, hasUnsavedEdits: false, mounted: true, commitsUnchanged: true })).toBe(false);
+    got.startVisibleInterval({ tick: () => {}, periodMs: 10 });
+    expect(startVisibleInterval).toHaveBeenCalledOnce();
+    expect(got.SAVE_DEBOUNCE_MS).toBe(5);
+  });
+
+  it('chat values facade returns the injected title, slot-key functions and ext-event names', () => {
+    const deriveConversationTitle = vi.fn(() => 'derived');
+    const chat = { ...fakeAdminKit().chat, deriveConversationTitle, MCP_UI_EXT_EVENT_NAME: 'mcp-x', MID_RUN_USER_MESSAGE_EXT_EVENT_NAME: 'mid-x' };
+    const wrapper = ({ children }: { children: ReactNode }) => <AdminKitProvider kit={fakeAdminKit({ chat })}>{children}</AdminKitProvider>;
+    const got = renderHook(() => useAdminKitChatValues({}, {}), { wrapper }).result.current;
+    expect(got.deriveConversationTitle({ prompt: 'p' })).toBe('derived');
+    expect(deriveConversationTitle).toHaveBeenCalledWith({ prompt: 'p' });
+    expect(got.conversationTitleForDisplay({ title: null, titleSource: 'fallback', firstPrompt: 'first' })).toBe('first');
+    expect(got.mcpUiSurfaceSlotKey({ data: { id: 'a' } })).toBe('a');
+    expect(got.midRunUserMessageSlotKey({ data: {} })).toBeUndefined();
+    expect([got.MCP_UI_EXT_EVENT_NAME, got.MID_RUN_USER_MESSAGE_EXT_EVENT_NAME]).toEqual(['mcp-x', 'mid-x']);
+  });
+});
