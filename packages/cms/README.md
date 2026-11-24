@@ -512,6 +512,15 @@ that take no deps, never authorize and always answer 200 `{ ok: true }`. A host 
 of any body parser or session middleware, so they answer while the rest of the app is still booting. Readiness (`/readyz`)
 stays host-owned.
 
+`./public-http/routes/site/pages/redirect-phase` (w4-routes): `tryRedirectPhase({ phase, path, workspaceId, res, routing })` runs
+the redirects `pre_content`/`post_content` resolve phase and writes a matched redirect. The host injects `routing` (its own
+`createRouting` instance's `runPreContentPhase`/`runPostContentPhase`, whose phase registry is host module state) and a `res`
+with `redirect(statusCode, location)`.
+`./public-http/routes/site/pages/render-context/collection-lists` (w4-routes): `resolveCollectionListsForRender({ deps, html, pagePath })`
+resolves a page's `collection` markers to entry-list markup. The host injects `workspaceId`, `contentTypeRepo.findByKey`,
+`entryRepo.listPublishedForDisplay`, the optional `listingBatch` request and `siteTimeZone` port, and `entryListAttribute`
+(its entry-list wrapper attribute; its theme styles are scoped to that name, so it stays host-owned).
+
 `./admin-http/routes/fs-files/custom-root`: `fsCustomRootGetRoute`/`PutRoute`/`DeleteRoute` for the admin filesystem custom
 root. The host injects `readCustomRoot`, `writeCustomRoot` (a path, or `null` to clear), `isInvalidRootError` (mapped to 400
 `INVALID_PATH`) and the `readPermission`/`managePermission` names; `PUT` authorizes before validating its body. Not yet
