@@ -103,9 +103,19 @@ describe("chat attachment read route", () => {
   it("serves SVG inline under the injected SVG policy", async () => {
     const { deps } = makeDeps({ bytes: SVG });
     const response = await call({ deps });
+    expect(response.status).toBe(200);
     expect(response.headers.get("content-type")).toBe("image/svg+xml");
     expect(response.headers.get("content-security-policy")).toBe(SVG_CSP);
+    expect(response.headers.get("x-content-type-options")).toBe("nosniff");
     expect(response.headers.get("content-disposition")).toBeNull();
+  });
+
+  it("forces an SVG to download only when the host lists it as disallowed inline", async () => {
+    const { deps } = makeDeps({ bytes: SVG, disallowedInlineContentTypes: new Set(["text/html", "application/xhtml+xml", "image/svg+xml"]) });
+    const response = await call({ deps });
+    expect(response.headers.get("content-type")).toBe("application/octet-stream");
+    expect(response.headers.get("content-disposition")).toBe("attachment");
+    expect(response.headers.get("content-security-policy")).toBe("default-src 'none'; sandbox");
   });
 
   it("uses the host's disallowed-inline set, not a built-in one", async () => {

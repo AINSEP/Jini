@@ -35,12 +35,18 @@ import type { ServerRoute } from "@jini-ai/core/contracts/server";
  *    not be trusted for it anyway: `detectAttachmentKind` classifies a real AVIF as `'file'` today,
  *    so the stored `kind` is known to be wrong for at least one real format while the sniffer used
  *    here handles it.
- *  - a sniffed `text/html`/`application/xhtml+xml`/`image/svg+xml` is forced to
- *    `application/octet-stream` + `Content-Disposition: attachment`. A chat composer accepts any
- *    file, so an uploaded `.html` or `.svg` is an ordinary occurrence, and either is a same-origin
- *    stored-XSS vector if a browser ever renders it inline.
+ *  - a sniffed type in the host's injected `disallowedInlineContentTypes` (the media-original set:
+ *    `text/html` and `application/xhtml+xml`) is forced to `application/octet-stream` +
+ *    `Content-Disposition: attachment`. A chat composer accepts any file, so an uploaded `.html` is
+ *    an ordinary occurrence and a same-origin stored-XSS vector if a browser renders it inline.
+ *  - a sniffed `image/svg+xml` is NOT forced to download unless the host lists it there: it is served
+ *    inline as `image/svg+xml` under the host's injected `svgContentSecurityPolicy` instead of the
+ *    default one. Script cannot run in it because that policy is `default-src 'none'` with no
+ *    `script-src` and carries `sandbox`, which also applies when the SVG is opened as a top-level
+ *    document — the same policy the media-original route applies to an uploaded SVG.
  *  - `X-Content-Type-Options: nosniff` is always set, without which the defusal above is moot.
- *  - a restrictive `Content-Security-Policy` and `Cross-Origin-Resource-Policy` ride along, and
+ *  - every other type gets `Content-Security-Policy: default-src 'none'; sandbox`; a
+ *    `Cross-Origin-Resource-Policy: same-origin` rides along, and
  *    `Cache-Control: private, no-store` keeps one principal's attachment out of any shared cache.
  *  - `Range` is honored, so a `<video>` attachment can seek instead of buffering the whole file.
  *
