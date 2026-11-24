@@ -180,6 +180,7 @@
       "./contracts/site/cms-agent-plugins": "universal",
       "./contracts/site/cms-plugins": "universal",
       "./contracts/site/cms-trash": "universal",
+      "./contracts/site/cms-integrations": "universal",
       "./contracts/site/cms-recovery": "universal",
       "./contracts/site/oauth-callback-page": "universal"
     },
@@ -1068,6 +1069,11 @@
       "types": "./dist/contracts/site/cms-trash.d.ts",
       "import": "./dist/contracts/site/cms-trash.js",
       "default": "./dist/contracts/site/cms-trash.js"
+    },
+    "./contracts/site/cms-integrations": {
+      "types": "./dist/contracts/site/cms-integrations.d.ts",
+      "import": "./dist/contracts/site/cms-integrations.js",
+      "default": "./dist/contracts/site/cms-integrations.js"
     },
     "./contracts/site/cms-recovery": {
       "types": "./dist/contracts/site/cms-recovery.d.ts",

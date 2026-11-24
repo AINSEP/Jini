@@ -174,9 +174,15 @@
       "./screens/forms/index-aligned-translations": "universal",
       "./screens/forms/forms-field-settings-i18n": "universal",
       "./screens/forms/forms-leave-guard-i18n": "universal",
+      "./screens/settings/settings-capabilities-i18n": "universal",
+      "./core/bind-dictionary-names": "universal",
       "./screens/menus/api/menus-api.types": "universal",
       "./screens/widgets/api/widgets-api.types": "universal",
       "./screens/providers/api/providers-api": "universal",
+      "./agent-plugins/models": "universal",
+      "./screens/integrations/api/integrations-api": "universal",
+      "./screens/integrations/integrations-ports": "universal",
+      "./screens/integrations/agent-plugin-ports": "universal",
       "./security/api/security-api.types": "universal",
       "./security/api/security-api": "universal",
       "./security/access-token-rows": "universal",
@@ -1139,6 +1145,16 @@
       "import": "./dist/screens/forms/forms-leave-guard-i18n.js",
       "default": "./dist/screens/forms/forms-leave-guard-i18n.js"
     },
+    "./screens/settings/settings-capabilities-i18n": {
+      "types": "./dist/screens/settings/settings-capabilities-i18n.d.ts",
+      "import": "./dist/screens/settings/settings-capabilities-i18n.js",
+      "default": "./dist/screens/settings/settings-capabilities-i18n.js"
+    },
+    "./core/bind-dictionary-names": {
+      "types": "./dist/core/bind-dictionary-names.d.ts",
+      "import": "./dist/core/bind-dictionary-names.js",
+      "default": "./dist/core/bind-dictionary-names.js"
+    },
     "./screens/menus/api/menus-api.types": {
       "types": "./dist/screens/menus/api/menus-api.types.d.ts",
       "import": "./dist/screens/menus/api/menus-api.types.js",
@@ -1153,6 +1169,26 @@
       "types": "./dist/screens/providers/api/providers-api.d.ts",
       "import": "./dist/screens/providers/api/providers-api.js",
       "default": "./dist/screens/providers/api/providers-api.js"
+    },
+    "./agent-plugins/models": {
+      "types": "./dist/agent-plugins/models.d.ts",
+      "import": "./dist/agent-plugins/models.js",
+      "default": "./dist/agent-plugins/models.js"
+    },
+    "./screens/integrations/api/integrations-api": {
+      "types": "./dist/screens/integrations/api/integrations-api.d.ts",
+      "import": "./dist/screens/integrations/api/integrations-api.js",
+      "default": "./dist/screens/integrations/api/integrations-api.js"
+    },
+    "./screens/integrations/integrations-ports": {
+      "types": "./dist/screens/integrations/integrations-ports.d.ts",
+      "import": "./dist/screens/integrations/integrations-ports.js",
+      "default": "./dist/screens/integrations/integrations-ports.js"
+    },
+    "./screens/integrations/agent-plugin-ports": {
+      "types": "./dist/screens/integrations/agent-plugin-ports.d.ts",
+      "import": "./dist/screens/integrations/agent-plugin-ports.js",
+      "default": "./dist/screens/integrations/agent-plugin-ports.js"
     },
     "./security/api/security-api.types": {
       "types": "./dist/security/api/security-api.types.d.ts",
