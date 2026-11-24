@@ -63,8 +63,7 @@
  "./admin-http/http/workspace": {
   "types": "./dist/admin-http/http/workspace.d.ts",
   "symbols": {
-   "AdminWorkspaceResponse": "interface:032424d34b",
-   "toAdminWorkspaceResponse": "function:8c89178f08"
+   "toAdminWorkspaceResponse": "function:bbc80ea986"
   }
  },
  "./admin-http/limits": {
@@ -87,6 +86,15 @@
    "deleteSiteCredentialRoute": "variable:d98760b78b"
   }
  },
+ "./admin-http/routes/assistant/detect-agents": {
+  "types": "./dist/admin-http/routes/assistant/detect-agents.d.ts",
+  "symbols": {
+   "DetectAgentsResponse": "interface:3d6cbc8d4c",
+   "DetectAgentsRouteDeps": "interface:0f53780161",
+   "detectAgentsRoute": "variable:b3b257e5af",
+   "toExecutionTabAgent": "function:57693890b0"
+  }
+ },
  "./admin-http/routes/assistant/execution-request-fields": {
   "types": "./dist/admin-http/routes/assistant/execution-request-fields.d.ts",
   "symbols": {
@@ -94,6 +102,16 @@
    "SupportedExecutionProtocol": "type:7252b84293",
    "readOptionalString": "function:5be207b4f4",
    "validateSupportedProtocol": "function:8a9f6350a4"
+  }
+ },
+ "./admin-http/routes/assistant/get-chat-attachment": {
+  "types": "./dist/admin-http/routes/assistant/get-chat-attachment.d.ts",
+  "symbols": {
+   "CHAT_ATTACHMENT_READ_PATH": "variable:9fb9ad1683",
+   "ChatAttachmentRange": "type:06b3b57820",
+   "ChatAttachmentReadResult": "type:bb89267750",
+   "ChatAttachmentReadRouteDeps": "interface:444c84d217",
+   "createChatAttachmentReadRoute": "function:5deb2ca681"
   }
  },
  "./admin-http/routes/assistant/get-execution-credential": {
@@ -115,6 +133,14 @@
   "symbols": {
    "GetSiteCredentialRouteDeps": "interface:8cf1331ff8",
    "getSiteCredentialRoute": "variable:7427fa100a"
+  }
+ },
+ "./admin-http/routes/assistant/list-models": {
+  "types": "./dist/admin-http/routes/assistant/list-models.d.ts",
+  "symbols": {
+   "ListModelsRouteDeps": "interface:b6713d1360",
+   "ProviderModelsResult": "interface:0c6521a115",
+   "listModelsRoute": "variable:84838b924c"
   }
  },
  "./admin-http/routes/assistant/put-execution-credential": {
@@ -160,12 +186,49 @@
    "rejectNonStringFields": "function:524a4a9b44"
   }
  },
+ "./admin-http/routes/assistant/stored-credential-probe": {
+  "types": "./dist/admin-http/routes/assistant/stored-credential-probe.d.ts",
+  "symbols": {
+   "ProbeCredentialRejection": "interface:3a4fe742bf",
+   "ProbeCredentialResolution": "type:b6334f1352",
+   "ProbeCredentialResolvers": "interface:f2d466561a",
+   "ProbeRequestBody": "interface:4c2f9a51ad",
+   "ResolveProbeCredentialInput": "interface:84d36f2602",
+   "StoredProbeCredential": "interface:8da7558267",
+   "probeCredentialInput": "function:0579e4fc08",
+   "resolveProbeCredential": "function:4d91db6eee"
+  }
+ },
  "./admin-http/routes/assistant/test-agent": {
   "types": "./dist/admin-http/routes/assistant/test-agent.d.ts",
   "symbols": {
    "TestAgentInput": "interface:b7e34a1cc5",
    "TestAgentRouteDeps": "interface:c4ac51187e",
-   "testAgentRoute": "variable:c508f46f62"
+   "parseTestAgentBody": "function:b0687dce8c",
+   "testAgentRoute": "variable:b0ef1c1ea9"
+  }
+ },
+ "./admin-http/routes/assistant/test-connection": {
+  "types": "./dist/admin-http/routes/assistant/test-connection.d.ts",
+  "symbols": {
+   "ProviderConnectionResult": "interface:8336585df9",
+   "TestConnectionRouteDeps": "interface:33f1ba6e21",
+   "testConnectionRoute": "variable:315f70907a"
+  }
+ },
+ "./admin-http/routes/assistant/visitor-tools": {
+  "types": "./dist/admin-http/routes/assistant/visitor-tools.d.ts",
+  "symbols": {
+   "ADMIN_VISITOR_TOOLS_PATH": "variable:2f2f4afbd9",
+   "ConfigureVisitorToolsRouteDeps": "type:88918a9ba8",
+   "ListVisitorToolsRouteDeps": "type:0f6cc658df",
+   "VisitorToolsErrorKind": "type:f6d2921134",
+   "VisitorToolsManagementSlice": "interface:e386ad5865",
+   "VisitorToolsReadModel": "type:b8ede2f5a0",
+   "VisitorToolsResponse": "interface:0cab219409",
+   "VisitorToolsRouteDepsBase": "interface:7db2cdf079",
+   "configureVisitorToolsRoute": "variable:19904b0243",
+   "listVisitorToolsRoute": "variable:fea4f3e27b"
   }
  },
  "./admin-http/routes/database/restore-points": {
@@ -331,7 +394,7 @@
    "WorkspaceCreateRouteDeps": "interface:314559ad16",
    "parseWorkspaceCreateBody": "function:b8c43459fb",
    "workspaceCreateFailure": "function:bb2bfd4315",
-   "workspaceCreateRoute": "variable:39898400e8"
+   "workspaceCreateRoute": "variable:fc24bcb80b"
   }
  },
  "./admin-http/routes/workspace/delete": {
@@ -372,7 +435,7 @@
    "WorkspaceUpdateInput": "interface:263d57ca31",
    "parseWorkspaceUpdateBody": "function:c0eed70c45",
    "workspaceUpdateFailure": "function:427afdaf34",
-   "workspaceUpdateRoute": "variable:0537585ed8"
+   "workspaceUpdateRoute": "variable:673bcf6de6"
   }
  },
  "./admin-http/sea-runtime": {
@@ -1208,6 +1271,27 @@
    "FormValidationCopy": "type:43e91abf32",
    "formDocumentLocale": "function:7dc9d92b52",
    "formValidationMessages": "function:3726fd705e"
+  }
+ },
+ "./fs-files/custom-root-permission": {
+  "types": "./dist/fs-files/custom-root-permission.d.ts",
+  "symbols": {
+   "FS_FILES_CUSTOM_ROOT_MANAGE_PERMISSION": "variable:9500c3bb82",
+   "FsFilesPermissionGrantRegistry": "interface:4e88cb7e89",
+   "registerFsFilesCustomRootPermissionGrants": "function:13327feeb2"
+  }
+ },
+ "./fs-files/custom-root-store": {
+  "types": "./dist/fs-files/custom-root-store.d.ts",
+  "symbols": {
+   "CustomFsRootError": "class:a812ad3cb5",
+   "CustomFsRootState": "interface:108306da9a",
+   "CustomFsRootStoreOptional": "interface:3a7c7b2d38",
+   "assertExistingAbsoluteDirectory": "function:11c16ead22",
+   "getCustomFsRoot": "function:e668f9c46c",
+   "getCustomFsRootStatus": "function:a624ea8f20",
+   "resetCustomFsRootForTests": "function:a6e65ad909",
+   "setCustomFsRoot": "function:455d36ff78"
   }
  },
  "./html/document-marks": {
@@ -3185,6 +3269,21 @@
    "readLiveSnapshot": "function:beebd0e5c0"
   }
  },
+ "./webmcp/settings": {
+  "types": "./dist/webmcp/settings.d.ts",
+  "symbols": {
+   "PUBLISHED_WEBMCP_KEY": "variable:0b1a6105af",
+   "PUBLISHED_WEBMCP_NAMESPACE": "variable:338f26a655",
+   "ensureSettingsUiTabDefinitions": "function:b61cff6e46",
+   "isPublishedWebMcpEnabled": "function:f61e029dd3"
+  }
+ },
+ "./webmcp/webmcp-i18n": {
+  "types": "./dist/webmcp/webmcp-i18n.d.ts",
+  "symbols": {
+   "PUBLISHED_WEBMCP_CONFIRMATION": "variable:ec5efa1468"
+  }
+ },
  "./widgets": {
   "types": "./dist/widgets/index.d.ts",
   "symbols": {
@@ -3578,10 +3677,24 @@
    "buildWorkspaceRegistrations": "function:3a284cb530",
    "createWorkspace": "function:65c7d250ac",
    "deleteWorkspace": "function:d13a4b6a1b",
-   "getWorkspaceAgentToolCatalog": "function:d20cdc60d8",
+   "getWorkspaceAgentToolCatalog": "function:8b5986f3dc",
    "updateWorkspace": "function:c774d88fa2",
    "validateWorkspaceNameAndSlug": "function:cb18cd6a5d",
    "workspaceDerivedRisk": "variable:34fe28b376"
+  }
+ },
+ "./workspace/site/repo.sqlite": {
+  "types": "./dist/workspace/site/repo.sqlite.d.ts",
+  "symbols": {
+   "SqliteWorkspaceRepo": "class:9e4c69ae6a",
+   "WORKSPACE_TABLES": "variable:74f62018d5",
+   "WorkspaceKernelFor": "type:0399b1ce76"
+  }
+ },
+ "./workspace/site/tool-registrations": {
+  "types": "./dist/workspace/site/tool-registrations.d.ts",
+  "symbols": {
+   "contributeWorkspaceTools": "function:256304d288"
   }
  },
  "./workspace/sql": {

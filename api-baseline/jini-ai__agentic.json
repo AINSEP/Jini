@@ -186,6 +186,15 @@
    "getAgentModelContext": "function:1c28ff0efc"
   }
  },
+ "./dom/admin-page-tools": {
+  "types": "./dist/core/dom/admin-page-tools.d.ts",
+  "symbols": {
+   "AdminPageWebMcpToolsArgs": "interface:b6e96912ed",
+   "DirectPageAction": "type:b8c8a6fc88",
+   "RequestAdminPageAction": "type:a18a17a5c6",
+   "registerAdminPageWebMcpTools": "function:ff6b438c85"
+  }
+ },
  "./render-surface": {
   "types": "./dist/core/render-surface.d.ts",
   "symbols": {

@@ -1007,7 +1007,7 @@
    "KitDeliverMidRunMessage": "type:da2065c567",
    "KitDeliverTypedAnswer": "type:3075ef6244",
    "KitDictionaries": "type:5ddbfccdb6",
-   "KitIconName": "type:ae5259c67f",
+   "KitIconName": "type:fae412505c",
    "KitMidRunMessageDelivery": "type:1fa9845243",
    "KitNotificationsPreferences": "interface:112d04da99",
    "KitPosterRequestOptions": "interface:0ae1a89094",
@@ -1228,6 +1228,213 @@
    "useRedirectsPorts": "function:7814d9eb73"
   }
  },
+ "./screens/assistant-settings/admin-subagents.types": {
+  "types": "./dist/screens/assistant-settings/admin-subagents.types.d.ts",
+  "symbols": {
+   "AdminSubagentsController": "interface:0c608b76c4",
+   "AdminSubagentsCopy": "interface:9a807a1cee",
+   "AdminSubagentsSettings": "interface:bebc82af07",
+   "UseAdminSubagentsHook": "type:5dd807f428"
+  }
+ },
+ "./screens/assistant-settings/AdminAssistantSwitch": {
+  "types": "./dist/screens/assistant-settings/AdminAssistantSwitch.d.ts",
+  "symbols": {
+   "AdminAssistantSwitch": "function:b81d4301aa",
+   "AdminAssistantSwitchProps": "interface:b0a27ff0b0"
+  }
+ },
+ "./screens/assistant-settings/AdminPermanentDeletes": {
+  "types": "./dist/screens/assistant-settings/AdminPermanentDeletes.d.ts",
+  "symbols": {
+   "AdminPermanentDeletes": "function:25d0ba7b1a",
+   "AdminPermanentDeletesCopy": "interface:bbd639bcd4",
+   "AdminPermanentDeletesProps": "interface:7bf06c0ab6"
+  }
+ },
+ "./screens/assistant-settings/AdminSubagents": {
+  "types": "./dist/screens/assistant-settings/AdminSubagents.d.ts",
+  "symbols": {
+   "AdminSubagents": "function:3255bb9b6a",
+   "AdminSubagentsProps": "interface:f4e8f95ef4"
+  }
+ },
+ "./screens/assistant-settings/AssistantDaemonRestart": {
+  "types": "./dist/screens/assistant-settings/AssistantDaemonRestart.d.ts",
+  "symbols": {
+   "AssistantDaemonRestart": "function:21d94f10d5",
+   "AssistantDaemonRestartProps": "interface:7db4546bc5",
+   "assistantDaemonStatusMessage": "function:f9d338e08c",
+   "assistantRestartResultMessage": "function:a954039ef8"
+  }
+ },
+ "./screens/assistant-settings/AssistantToggleRow": {
+  "types": "./dist/screens/assistant-settings/AssistantToggleRow.d.ts",
+  "symbols": {
+   "AssistantToggleRow": "function:1e8bf77f30",
+   "AssistantToggleRowProps": "interface:5280d58b76"
+  }
+ },
+ "./screens/assistant-settings/OwnerGrantStatus": {
+  "types": "./dist/screens/assistant-settings/OwnerGrantStatus.d.ts",
+  "symbols": {
+   "OwnerGrantStatus": "function:a92f03f71c",
+   "OwnerGrantStatusProps": "interface:6926c229b4"
+  }
+ },
+ "./screens/assistant-settings/use-admin-assistant-switch.hooks": {
+  "types": "./dist/screens/assistant-settings/use-admin-assistant-switch.hooks.d.ts",
+  "symbols": {
+   "AdminAssistantSwitchController": "interface:360653109c",
+   "useAdminAssistantSwitch": "function:d1e651e3c9"
+  }
+ },
+ "./screens/assistant-settings/use-admin-permanent-deletes.hooks": {
+  "types": "./dist/screens/assistant-settings/use-admin-permanent-deletes.hooks.d.ts",
+  "symbols": {
+   "PermanentDeleteTool": "interface:240214510b",
+   "PermanentDeletesController": "type:551ff37a08",
+   "PermanentDeletesPolicy": "interface:da97ee6c37",
+   "PermanentDeletesSettings": "interface:2004017ad4",
+   "UseAdminPermanentDeletesHook": "type:99ed14df9f",
+   "useAdminPermanentDeletes": "function:d8fbf6e1a3"
+  }
+ },
+ "./screens/assistant-settings/use-ai-assistant-locale-sync.hooks": {
+  "types": "./dist/screens/assistant-settings/use-ai-assistant-locale-sync.hooks.d.ts",
+  "symbols": {
+   "AiAssistantLocaleSyncDependencies": "interface:43e507b672",
+   "AiAssistantLocaleSyncHookProps": "interface:fdab4e008f",
+   "useAiAssistantLocaleSync": "function:33b86807f8"
+  }
+ },
+ "./screens/assistant-settings/use-ai-assistant.hooks": {
+  "types": "./dist/screens/assistant-settings/use-ai-assistant.hooks.d.ts",
+  "symbols": {
+   "AiAssistantController": "interface:59e3ad9ba5",
+   "AiAssistantDependencies": "interface:a1b7134e59",
+   "AiAssistantPort": "interface:48dae9db2b",
+   "useAiAssistant": "function:384d14c147"
+  }
+ },
+ "./screens/assistant-settings/use-assistant-owner-grant.hooks": {
+  "types": "./dist/screens/assistant-settings/use-assistant-owner-grant.hooks.d.ts",
+  "symbols": {
+   "OwnerGrantDependencies": "interface:b5ab9ccfdf",
+   "OwnerGrantRefresh": "interface:8ac318e2d7",
+   "SiteGrantPort": "interface:ddfbbd5377",
+   "useAssistantOwnerGrant": "function:9757180e6f",
+   "useAssistantOwnerGrantSettings": "function:6ba98ff728"
+  }
+ },
+ "./screens/assistant-settings/use-visitor-assistant-panel.hooks": {
+  "types": "./dist/screens/assistant-settings/use-visitor-assistant-panel.hooks.d.ts",
+  "symbols": {
+   "SetVisitorWidget": "type:a175f7ccbf",
+   "VISITOR_STATUS_COPY": "variable:89a330291f",
+   "VisitorAssistantPanelController": "interface:5b79f6e9ff",
+   "VisitorAssistantStatus": "type:ec7fc98461",
+   "useVisitorAssistantPanel": "function:0e6d455329",
+   "visitorAssistantStatus": "function:354e6f716a"
+  }
+ },
+ "./screens/assistant-settings/use-visitor-assistant-tabs.hooks": {
+  "types": "./dist/screens/assistant-settings/use-visitor-assistant-tabs.hooks.d.ts",
+  "symbols": {
+   "useVisitorAssistantTabs": "function:d283177295"
+  }
+ },
+ "./screens/assistant-settings/use-visitor-credential-form.hooks": {
+  "types": "./dist/screens/assistant-settings/use-visitor-credential-form.hooks.d.ts",
+  "symbols": {
+   "useVisitorCredentialForm": "function:547e4153f3"
+  }
+ },
+ "./screens/assistant-settings/use-visitor-tools.hooks": {
+  "types": "./dist/screens/assistant-settings/use-visitor-tools.hooks.d.ts",
+  "symbols": {
+   "LimitsDraft": "type:1de9c01f1f",
+   "VisitorToolChange": "type:e01a54b8d1",
+   "VisitorToolsController": "type:74a54e5689",
+   "VisitorToolsDependencies": "interface:ac0c345f7b",
+   "VisitorToolsNotice": "type:8eba8f198f",
+   "groupVisitorTools": "function:476f3d6c95",
+   "limitsToDraft": "function:c99eebce4d",
+   "modeDisabled": "function:05f66c1391",
+   "parseLimitsDraft": "function:b3e4e0ca3a",
+   "useVisitorToolLimitsDraft": "function:4905d73503",
+   "useVisitorTools": "function:dd43480415"
+  }
+ },
+ "./screens/assistant-settings/visitor-credential-form-actions": {
+  "types": "./dist/screens/assistant-settings/visitor-credential-form-actions.d.ts",
+  "symbols": {
+   "VisitorCredentialSaveWriters": "interface:4e81706d9c",
+   "VisitorCredentialSettingsSaveWriters": "interface:ca30ac5ded",
+   "runVisitorKeyTest": "function:903ea4648a",
+   "runVisitorTestConnection": "function:899ff358f8",
+   "saveVisitorKey": "function:1375c704aa",
+   "saveVisitorSettings": "function:c2145ea498"
+  }
+ },
+ "./screens/assistant-settings/visitor-credential-form-port": {
+  "types": "./dist/screens/assistant-settings/visitor-credential-form-port.d.ts",
+  "symbols": {
+   "ApiProtocol": "type:98d62ea1c3",
+   "ByokConfig": "interface:b873dd7aa6",
+   "ByokProviderCredentials": "interface:cab4b524b1",
+   "ConnectionTestState": "type:c1588bb836",
+   "ExecutionPort": "interface:b399a2cd04",
+   "ModelDiscoveryState": "type:696d43af92",
+   "ProviderPreset": "type:f0dc25f5b0",
+   "SaveState": "type:a1597af7df",
+   "VisitorCredentialFormController": "interface:06d0e5a51c",
+   "VisitorCredentialFormDependencies": "interface:9359e8b08a",
+   "VisitorCredentialFormPort": "interface:9e80b184f2",
+   "VisitorCredentialFormRules": "interface:867f5a7df5",
+   "VisitorPresetRules": "interface:57a030e8cd",
+   "VisitorProviderGroup": "interface:4d9b7d5ee4"
+  }
+ },
+ "./screens/assistant-settings/visitor-credential-form.rules": {
+  "types": "./dist/screens/assistant-settings/visitor-credential-form.rules.d.ts",
+  "symbols": {
+   "configuredPresetIds": "function:cd53f41279",
+   "connectionTestStateFromResult": "function:32ab69c0ed",
+   "defaultVisitorCredentialConfig": "function:9dc3775a00",
+   "hasSavedVisitorCredential": "function:8b36dff609",
+   "hasStoredCredential": "function:62f33023ae",
+   "hydrateVisitorCredentialConfig": "function:296673ce4d",
+   "isPresetSuppliedEndpoint": "function:e1a4c31219",
+   "seedDiscoveredModel": "function:c4b5f68664",
+   "visitorProviderGroups": "function:2315aa7231",
+   "withDiscoveredModel": "function:4aee1d2c6b"
+  }
+ },
+ "./screens/assistant-settings/VisitorAssistantPanel": {
+  "types": "./dist/screens/assistant-settings/VisitorAssistantPanel.d.ts",
+  "symbols": {
+   "VisitorAssistantPanel": "function:e208526404",
+   "VisitorAssistantPanelProps": "interface:8ededbec66",
+   "createVisitorMoreInfo": "function:9f8336e4c2"
+  }
+ },
+ "./screens/assistant-settings/VisitorAssistantTabs": {
+  "types": "./dist/screens/assistant-settings/VisitorAssistantTabs.d.ts",
+  "symbols": {
+   "VisitorAssistantTabs": "function:b4cb3379bf",
+   "VisitorAssistantTabsProps": "interface:81cbb29ddf"
+  }
+ },
+ "./screens/assistant-settings/VisitorToolsPanel": {
+  "types": "./dist/screens/assistant-settings/VisitorToolsPanel.d.ts",
+  "symbols": {
+   "VisitorToolSegmentedProps": "interface:c971a2ef06",
+   "VisitorToolsPanel": "function:e577571092",
+   "VisitorToolsPanelProps": "interface:2303bcf08c",
+   "visitorToolDefaultLimitsText": "function:cba538eebb"
+  }
+ },
  "./screens/collections/api/collections-api.types": {
   "types": "./dist/screens/collections/api/collections-api.types.d.ts",
   "symbols": {
@@ -1319,6 +1526,43 @@
    "indexAlignedTranslations": "function:d550dfff6b"
   }
  },
+ "./screens/fs-files/folder-drop-port": {
+  "types": "./dist/screens/fs-files/folder-drop-port.d.ts",
+  "symbols": {
+   "FolderDropPort": "interface:69702660c3",
+   "getFolderDropPort": "function:7e72c1a1de"
+  }
+ },
+ "./screens/fs-files/folder-drop.rules": {
+  "types": "./dist/screens/fs-files/folder-drop.rules.d.ts",
+  "symbols": {
+   "CustomRootFailure": "type:ecc8e08510",
+   "FolderDropErrorReason": "type:37ba3aa5f3",
+   "FolderDropNotice": "type:c5573a339e",
+   "confirmationNotice": "function:70d206429d",
+   "dropHasFolder": "function:63d70c5fd1",
+   "reasonForCustomRootFailure": "function:df7413989e"
+  }
+ },
+ "./screens/fs-files/use-folder-drop.hooks": {
+  "types": "./dist/screens/fs-files/use-folder-drop.hooks.d.ts",
+  "symbols": {
+   "FolderDropComposerHandle": "interface:fcb90cbf0a",
+   "UseFolderDrop": "interface:a2100c3f4c",
+   "UseFolderDropDeps": "interface:fb5233aa64",
+   "UseFolderDropInput": "interface:859db99623",
+   "useFolderDrop": "function:f40c9bedfc"
+  }
+ },
+ "./screens/fs-files/use-native-folder-picker.hooks": {
+  "types": "./dist/screens/fs-files/use-native-folder-picker.hooks.d.ts",
+  "symbols": {
+   "UseNativeFolderPicker": "interface:92c061ecdd",
+   "UseNativeFolderPickerDeps": "interface:0788aa9327",
+   "UseNativeFolderPickerInput": "interface:1098785142",
+   "useNativeFolderPicker": "function:69a6e4ceda"
+  }
+ },
  "./screens/menus/api/menus-api.types": {
   "types": "./dist/screens/menus/api/menus-api.types.d.ts",
   "symbols": {
@@ -1375,6 +1619,101 @@
    "pageLinkState": "function:b58386e732",
    "pageTargetForChoice": "function:affd4191c4",
    "targetForKind": "function:0821772b01"
+  }
+ },
+ "./screens/sites/AllSitesTab": {
+  "types": "./dist/screens/sites/AllSitesTab.d.ts",
+  "symbols": {
+   "AllSitesTab": "function:a0405fcd5c",
+   "AllSitesTabProps": "interface:62a22dccc9",
+   "CreatedTokens": "interface:e83409c804",
+   "SitesEmptyStateCopy": "interface:a317b057de"
+  }
+ },
+ "./screens/sites/LocalSiteConfirmDialog": {
+  "types": "./dist/screens/sites/LocalSiteConfirmDialog.d.ts",
+  "symbols": {
+   "LocalSiteConfirmDialog": "function:e181181a8e"
+  }
+ },
+ "./screens/sites/SiteCardView": {
+  "types": "./dist/screens/sites/SiteCardView.d.ts",
+  "symbols": {
+   "SiteCardBindings": "interface:de6e9a8d3c",
+   "SiteCardView": "function:ce0214a7fe",
+   "SiteCardViewProps": "interface:cc149e2dc4"
+  }
+ },
+ "./screens/sites/sites-list-rules": {
+  "types": "./dist/screens/sites/sites-list-rules.d.ts",
+  "symbols": {
+   "SitesListRuleSite": "interface:dc580d0ea4",
+   "resolveSiteListItems": "function:2e5106f7c2",
+   "resolveSiteSubtitle": "function:7b4e82e453",
+   "resolveSitesEmpty": "function:e8807e3b42",
+   "resolveSitesRowHandles": "function:0f13f93526",
+   "resolveTrashCardActions": "function:b86f932493",
+   "resolveTrashDeleteDisabled": "function:7c06972ad7"
+  }
+ },
+ "./screens/sites/sites-port.hooks": {
+  "types": "./dist/screens/sites/sites-port.hooks.d.ts",
+  "symbols": {
+   "SitesPort": "interface:312c18b972"
+  }
+ },
+ "./screens/sites/sites-screen-ports": {
+  "types": "./dist/screens/sites/sites-screen-ports.d.ts",
+  "symbols": {
+   "AllSitesPolicy": "interface:562bf03f4c",
+   "SiteTrashPolicy": "interface:bd914ba297",
+   "SitesCardControls": "interface:e6182811db",
+   "SitesCardKit": "interface:d4fc754fa4",
+   "SitesCardLifecycle": "interface:97aa666ab3",
+   "SitesCardTone": "type:99778023a0",
+   "SitesLifecycleController": "interface:d454149b40",
+   "SitesListEntry": "interface:77d99643c5",
+   "SitesListPrefsState": "interface:8cb7a38e31",
+   "SitesListToolbarCopy": "interface:7446ed6ccc",
+   "SitesListView": "interface:95a395bd90",
+   "SitesScreenSite": "interface:70294214ff",
+   "SitesScreenSnapshot": "interface:3b72c4491f",
+   "SitesScreenTrashedSite": "interface:fbcd96b68e",
+   "SitesStatusPill": "interface:8f860e7f46",
+   "UseSitesCardPreviewHook": "type:e52978f654",
+   "UseSitesListViewHook": "type:b81941186f"
+  }
+ },
+ "./screens/sites/SiteTrashTab": {
+  "types": "./dist/screens/sites/SiteTrashTab.d.ts",
+  "symbols": {
+   "SiteTrashTab": "function:44900a2f09",
+   "SiteTrashTabProps": "interface:0d19838f85"
+  }
+ },
+ "./screens/sites/use-local-sites.hooks": {
+  "types": "./dist/screens/sites/use-local-sites.hooks.d.ts",
+  "symbols": {
+   "ConfirmableLocalSiteAction": "type:5a8ceae397",
+   "LocalSitesController": "type:b977db85ab",
+   "LocalSitesDeps": "interface:363183b41c",
+   "LocalSitesIntervalTimers": "interface:674222fc31",
+   "useLocalSites": "function:24cc94562d"
+  }
+ },
+ "./screens/sites/use-site-confirm.hooks": {
+  "types": "./dist/screens/sites/use-site-confirm.hooks.d.ts",
+  "symbols": {
+   "SiteConfirmController": "type:034fc1cbba",
+   "SiteConfirmPresentation": "interface:19075c8382",
+   "useSiteConfirm": "function:610004bd91"
+  }
+ },
+ "./screens/sites/use-sites-snapshot.hooks": {
+  "types": "./dist/screens/sites/use-sites-snapshot.hooks.d.ts",
+  "symbols": {
+   "SitesListingScope": "interface:dab776c770",
+   "useSitesSnapshot": "function:f5175f2a1b"
   }
  },
  "./screens/taxonomy/api/taxonomy-api.types": {
@@ -1435,6 +1774,29 @@
    "useTaxonomyRowMenu": "function:3cbdb35cfb"
   }
  },
+ "./screens/webmcp/browser-agent-settings.hooks": {
+  "types": "./dist/screens/webmcp/browser-agent-settings.hooks.d.ts",
+  "symbols": {
+   "BrowserAgentSettingsPort": "interface:9cba3eb2fd",
+   "BrowserAgentSettingsState": "interface:47e735deaf",
+   "createBrowserAgentSettingsPort": "function:cc3d153e88",
+   "useBrowserAgentSettings": "function:4e54bec8bf"
+  }
+ },
+ "./screens/webmcp/BrowserAgentSettingsPanel": {
+  "types": "./dist/screens/webmcp/BrowserAgentSettingsPanel.d.ts",
+  "symbols": {
+   "BrowserAgentSettingsPanel": "function:2a62c5075b",
+   "BrowserAgentSettingsTranslate": "type:99f329b14e"
+  }
+ },
+ "./screens/webmcp/webmcp-i18n": {
+  "types": "./dist/screens/webmcp/webmcp-i18n.d.ts",
+  "symbols": {
+   "WEBMCP_DICT": "variable:c174a5429d",
+   "WEBMCP_KEYS": "variable:2b289380b2"
+  }
+ },
  "./screens/widgets/api/widgets-api.types": {
   "types": "./dist/screens/widgets/api/widgets-api.types.d.ts",
   "symbols": {
@@ -1445,6 +1807,35 @@
    "AdminWidgetType": "type:26da45bd9c",
    "AdminWidgetWhereUsed": "interface:a7cbfb81a9",
    "AdminWidgetWhereUsedReference": "interface:0ff5fd17a3"
+  }
+ },
+ "./screens/workspace/hooks/use-workspace.hooks": {
+  "types": "./dist/screens/workspace/hooks/use-workspace.hooks.d.ts",
+  "symbols": {
+   "WorkspaceDependencies": "interface:1e9bf81b28",
+   "WorkspaceErrorDescriber": "type:cae0cdaec3",
+   "WorkspaceTranslate": "type:09782adfa8",
+   "useWorkspace": "function:d14589272d"
+  }
+ },
+ "./screens/workspace/hooks/workspace-port.hooks": {
+  "types": "./dist/screens/workspace/hooks/workspace-port.hooks.d.ts",
+  "symbols": {
+   "WorkspacePort": "interface:b6e3b2c86f"
+  }
+ },
+ "./screens/workspace/rules": {
+  "types": "./dist/screens/workspace/rules.d.ts",
+  "symbols": {
+   "isWorkspaceDirty": "function:a839f33e96"
+  }
+ },
+ "./screens/workspace/Workspace": {
+  "types": "./dist/screens/workspace/Workspace.d.ts",
+  "symbols": {
+   "Workspace": "function:b4de09eac4",
+   "WorkspaceController": "interface:cf688b2634",
+   "WorkspaceProps": "interface:c9fbcc2af1"
   }
  },
  "./security": {

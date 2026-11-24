@@ -496,6 +496,71 @@
    "abortGuardedCredentialRepo": "function:38c11efb44"
   }
  },
+ "./web-screenshot/capture-files": {
+  "types": "./dist/web-screenshot/capture-files.d.ts",
+  "symbols": {
+   "CAPTURES_DIR_NAME": "variable:4172f41930",
+   "captureRootFor": "function:83da56505f",
+   "createCaptureFileWriter": "function:ece31278af"
+  }
+ },
+ "./web-screenshot/desktop-page-capture": {
+  "types": "./dist/web-screenshot/desktop-page-capture.d.ts",
+  "symbols": {
+   "IsNativeRenderError": "type:a4cb29f1d3",
+   "NativeRenderError": "interface:963705b0f9",
+   "NativeUrlCapture": "interface:c061725a5a",
+   "createDesktopPageCapture": "function:99d9b0bb0a",
+   "createPageCaptureForHost": "function:81eb7089d7"
+  }
+ },
+ "./web-screenshot/own-site-opener": {
+  "types": "./dist/web-screenshot/own-site-opener.d.ts",
+  "symbols": {
+   "OpenLoopbackSite": "type:8260c3c468",
+   "RenderableTheme": "interface:2e77954534",
+   "createOwnSiteOpener": "function:cf0318470f"
+  }
+ },
+ "./web-screenshot/screenshot-image": {
+  "types": "./dist/web-screenshot/screenshot-image.d.ts",
+  "symbols": {
+   "createScreenshotTileEncoder": "function:53846677a3"
+  }
+ },
+ "./web-screenshot/web-screenshot": {
+  "types": "./dist/web-screenshot/web-screenshot.d.ts",
+  "symbols": {
+   "CAPTURE_LIMITS": "variable:d40f730d8e",
+   "CaptureFile": "interface:18b0252170",
+   "DEFAULT_WAIT_MS": "variable:df584191d2",
+   "EncodeTiles": "type:d275def49a",
+   "EncodedTile": "interface:f8169e7dd8",
+   "JPEG_QUALITY": "variable:c8c5f116d9",
+   "MAX_FULL_PAGE_HEIGHT_PX": "variable:e8d8dfb016",
+   "MAX_QUEUE_WAIT_MS": "variable:ebffe18bf4",
+   "MAX_URL_LENGTH": "variable:429ac0417c",
+   "MAX_WAIT_MS": "variable:75078c1f12",
+   "OpenOwnSite": "type:4847861c04",
+   "OwnSiteServer": "interface:cc69283098",
+   "PageCaptureError": "class:2bebfee316",
+   "SaveCaptureFiles": "type:573d38d874",
+   "TILE_HEIGHT_PX": "variable:50a38a7328",
+   "UNTRUSTED_NOTICE": "variable:c25a1d6aeb",
+   "VIEWPORT_NAMES": "variable:0a44a2f157",
+   "VIEWPORT_PRESETS": "variable:432808b773",
+   "ViewportName": "type:49177fc363",
+   "ViewportPreset": "type:2bdbc34c9e",
+   "WEB_SCREENSHOT_TOOL_ID": "variable:572cd50f81",
+   "WebScreenshotEvent": "interface:519dec3d79",
+   "WebScreenshotInput": "interface:4d400bf2ef",
+   "WebScreenshotPorts": "interface:58142997c7",
+   "WebScreenshotService": "interface:81c0aac216",
+   "captureRelativePaths": "function:430a3784fb",
+   "createWebScreenshotService": "function:225bb3eed9",
+   "readWebScreenshotInput": "function:5db9154a3f"
+  }
+ },
  "./webhooks": {
   "types": "./dist/webhooks/index.d.ts",
   "symbols": {

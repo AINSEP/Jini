@@ -3038,6 +3038,7 @@
    "isCardOpenKey": "function:4365623bd3",
    "parseSiteListPrefs": "function:ff022d3a39",
    "resolveSiteCardPreview": "function:149b6f5d7d",
+   "useReturnToSiteListOnCreate": "function:317e12e15b",
    "useSiteCardPreview": "function:b190952c7c",
    "useSiteListPrefs": "function:e10863c362",
    "useSiteListView": "function:c30cb0856b"
