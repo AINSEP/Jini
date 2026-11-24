@@ -29,11 +29,8 @@ import type { TrashActor, TrashDisplay, TrashMarkerResult } from "../index.js";
  *
  * Stamped into `trashed_items.purge_after` at trash time rather than computed at read time, so
  * lowering this constant later can never retroactively purge something a user was already promised.
- *
- * 30 days (owner decision P10 G7-4, was 60): the same promise the admin Trash screen states. Only
- * items trashed after this change get the shorter stamp; rows already trashed keep their 60-day one.
  */
-export const TRASH_RETENTION_DAYS = 30;
+export const TRASH_RETENTION_DAYS = 60;
 
 /**
  * The function a domain's delete path receives through its own dependency object.

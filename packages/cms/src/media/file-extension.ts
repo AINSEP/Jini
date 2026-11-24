@@ -4,6 +4,8 @@ const EXTENSION_BY_CONTENT_TYPE: Readonly<Record<string, string>> = {
   "image/avif": "avif", "image/svg+xml": "svg", "video/mp4": "mp4", "video/webm": "webm",
   "audio/wav": "wav", "audio/mpeg": "mp3", "audio/flac": "flac", "audio/mp4": "m4a", "audio/ogg": "ogg",
   "application/pdf": "pdf", "application/octet-stream": "bin",
+  // WebVTT caption tracks: the public original URL must end in `.vtt` for the caption-track guard.
+  "text/vtt": "vtt",
 };
 
 /** Portable extension for a server-validated media type; unknown types stay opaque.
