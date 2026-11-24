@@ -246,6 +246,31 @@ and every probe that touches the agent runtime, a subprocess or the network (`de
 `testAgent`, `listModels`, `testConnection`, `resolveProbeCredential`). Body checks run in `handle`
 after authorization, keeping the routes' 403-before-400 order. No spec echoes a credential.
 
+Public OAuth callbacks (`src/public-http/routes/{api-connections,external-mcp}/oauth-callback.ts`) are
+HTML, not JSON, so they are core `ServerRoute` factories (`apiConnectionOAuthCallbackRoute(deps)`,
+`externalMcpOAuthCallbackRoute(deps)`), not `defineJsonRoute` specs. They read the host's request facts
+(`readRequestFacts`: client address for the limiter key, serving protocol, parsed query) from `locals`,
+so mount them through an adapter that puts the facts there. The host injects the page renderer with
+its copy (`renderPage`, typed `OAuthCallbackPageRenderer` from `@jini-ai/core/contracts/site/oauth-callback-page`,
+which also owns the closed `OAuthCallbackFailureReason` vocabulary), the `postMessage` type, the
+binding-cookie reader/clearer, the error-class predicates (`isApiConnectionError`, `isOAuthError`,
+`isUnknownServerError`), its API-connection runtime / external-MCP OAuth service, the roster fan-out,
+its public-origin policy and its logger. The external-MCP callback path and URL builder
+(`externalMcpOAuthCallbackUrl({ origin, serverId })`) live in `oauth-callback-url.ts`, shared with the
+host's connect route.
+
+External MCP admin (`src/admin-http/routes/external-mcp/*`): list, put, delete, admissions, tool-approvals and
+OAuth disconnect authorize `admin.integrations.manage` on `integration` with no `entityId` (the hand-written
+guard's rule). The host injects its server store, roster fan-out, built-in ownership rules and its error
+classes as predicates; the PUT body parser (`put-body.ts`) runs after authorization, as before.
+
+Agent plugins admin (`src/admin-http/routes/agent-plugins/{list,files,set-enabled}`, DTO helper in
+`src/admin-http/http/agent-plugins.ts`): set-enabled authorizes with `{ entityId }` on `agent-plugin`; the id-free
+checks pass `entityType: ""`. The host injects its plugin catalog, activation service, MCP provisioning,
+package-file reader, error-class predicates and its activation-conflict copy. The hosted sign-in hop
+(`connection-sign-in.ts`, a 302 + binding cookie) is a `ServerRoute` factory: the host injects its path, its
+session-credential readers, the handoff store, the cookie rule and its failure page.
+
 ## Scripts
 
 ```bash

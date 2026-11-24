@@ -173,7 +173,10 @@
       "./contracts/site/cms-settings": "universal",
       "./contracts/site/cms-sites": "universal",
       "./contracts/site/cms-seo": "universal",
-      "./contracts/site/cms-assistant": "universal"
+      "./contracts/site/cms-assistant": "universal",
+      "./contracts/site/cms-external-mcp": "universal",
+      "./contracts/site/cms-agent-plugins": "universal",
+      "./contracts/site/oauth-callback-page": "universal"
     },
     "isolation": {
       "entries": {
@@ -1030,6 +1033,21 @@
       "types": "./dist/contracts/site/cms-assistant.d.ts",
       "import": "./dist/contracts/site/cms-assistant.js",
       "default": "./dist/contracts/site/cms-assistant.js"
+    },
+    "./contracts/site/cms-external-mcp": {
+      "types": "./dist/contracts/site/cms-external-mcp.d.ts",
+      "import": "./dist/contracts/site/cms-external-mcp.js",
+      "default": "./dist/contracts/site/cms-external-mcp.js"
+    },
+    "./contracts/site/cms-agent-plugins": {
+      "types": "./dist/contracts/site/cms-agent-plugins.d.ts",
+      "import": "./dist/contracts/site/cms-agent-plugins.js",
+      "default": "./dist/contracts/site/cms-agent-plugins.js"
+    },
+    "./contracts/site/oauth-callback-page": {
+      "types": "./dist/contracts/site/oauth-callback-page.d.ts",
+      "import": "./dist/contracts/site/oauth-callback-page.js",
+      "default": "./dist/contracts/site/oauth-callback-page.js"
     }
   },
   "files": [
