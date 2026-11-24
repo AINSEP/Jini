@@ -1,6 +1,6 @@
 /**
  * AST scan for the hook-injection rule (owner HARD rule 2026-11-16): a React component must receive every
- * custom hook as a prop defaulted to the real hook, `function X({ useFooHook = useFoo }) { useFooHook(); }`.
+ * custom hook as a prop (defaulted to the real hook, or required and supplied by the host), `function X({ useFooHook = useFoo }) { useFooHook(); }`.
  * React built-ins are exempt. Uses the TypeScript compiler API, never regex, to find component bodies.
  */
 import { readdirSync, readFileSync } from 'node:fs';
@@ -54,14 +54,50 @@ function findComponents(sf) {
   return found;
 }
 
-/** Names of destructured props that default to a hook: `{ useFooHook = useFoo }`. */
+const isHookBinding = el => ts.isIdentifier(el.name) && HOOK_NAME.test(el.name.text);
+
+/** Hook-named bindings of a destructuring pattern, nested patterns included; defaulted or required alike. */
+function patternHooks(pattern) {
+  const names = [];
+  for (const el of pattern.elements) {
+    if (ts.isOmittedExpression(el)) continue;
+    if (isHookBinding(el)) names.push(el.name.text);
+    else if (ts.isObjectBindingPattern(el.name) || ts.isArrayBindingPattern(el.name)) names.push(...patternHooks(el.name));
+  }
+  return names;
+}
+
+/** Plain parameter identifiers, the targets of `const { useFoo } = props` inside the body. */
+function parameterNames(fn) {
+  return new Set(fn.parameters.map(p => p.name).filter(ts.isIdentifier).map(id => id.text));
+}
+
+function bodyDestructuredHooks(fn) {
+  const params = parameterNames(fn);
+  const names = [];
+  const visit = node => {
+    if (node !== fn && (ts.isFunctionLike(node) || ts.isClassLike(node))) return;
+    const from = ts.isVariableDeclaration(node) && node.initializer ? stripWrappers(node.initializer) : undefined;
+    if (from && ts.isObjectBindingPattern(node.name) && ts.isIdentifier(from) && params.has(from.text)) names.push(...patternHooks(node.name));
+    ts.forEachChild(node, visit);
+  };
+  if (fn.body) ts.forEachChild(fn.body, visit);
+  return names;
+}
+
+/**
+ * Hooks the host supplies instead of the component importing them: a hook-named destructured prop or
+ * parameter (defaulted `{ useFooHook = useFoo }` or REQUIRED `{ useFoo }`), a hook-named plain parameter, or
+ * `const { useFoo } = props`. `props.useFoo()` is a property access and is never flagged to begin with.
+ */
 function injectedHooks(fn) {
-  const pattern = fn.parameters[0]?.name;
-  if (!pattern || !ts.isObjectBindingPattern(pattern)) return new Set();
-  const names = pattern.elements
-    .filter(el => el.initializer && ts.isIdentifier(el.name) && HOOK_NAME.test(el.name.text))
-    .map(el => el.name.text);
-  return new Set(names);
+  const names = [];
+  for (const param of fn.parameters) {
+    if (ts.isIdentifier(param.name)) {
+      if (HOOK_NAME.test(param.name.text)) names.push(param.name.text);
+    } else names.push(...patternHooks(param.name));
+  }
+  return new Set([...names, ...bodyDestructuredHooks(fn)]);
 }
 
 function isFlaggedHookCall(node, injected) {
