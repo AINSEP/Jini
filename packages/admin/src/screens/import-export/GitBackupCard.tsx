@@ -29,7 +29,7 @@ export function GitBackupCard({ controller, t, agentHandle }: GitBackupCardProps
     >
       <h2 id="import-export-git-backup-title" className="jini-card-title">{t("Git backup")}</h2>
       <p className="jini-card-lead">{t("Commit this site to a private Git repository.")}</p>
-      <GitBackupBody controller={controller} t={t} />
+      <GitBackupBody controller={controller} t={t} agentHandle={agentHandle} />
     </section>
   );
 }
