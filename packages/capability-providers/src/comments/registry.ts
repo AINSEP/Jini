@@ -1,5 +1,5 @@
+import type { CommentsProviderBinding, CommentsProviderRegistry, CommentsSelectionStorePort } from '@jini-ai/core/contracts/site/comments-providers';
 import { freezeCommentsDefinition } from './definitions.js';
-import type { CommentsProviderBinding, CommentsProviderRegistry, CommentsSelectionStorePort } from "@jini-ai/core/contracts/site/capability-providers-comments";
 
 /** Definition registry plus site-scoped executable resolution; core bindings still own DI.
  * Selection commits only after readiness, with storage CAS refusing stale confirmations.

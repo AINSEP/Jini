@@ -1,14 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import type { ExecutionPort } from '../../ports.js';
+import type { AgentScanState, AgentTestState, ByokConfig, ConnectionTestState, ExecutionCardAgent, ExecutionPort, ModelDiscoveryState } from '@jini-ai/core/contracts/execution';
 import { sortDetectedAgents } from '../../rules.js';
-import type {
-  AgentScanState,
-  AgentTestState,
-  ByokConfig,
-  ConnectionTestState,
-  DetectedAgent,
-  ModelDiscoveryState,
-} from '../../types.js';
 
 export interface UseExecutionTabOptions {
   port: ExecutionPort;
@@ -30,7 +22,7 @@ export interface UseExecutionTabOptions {
 }
 
 export interface UseExecutionTabResult {
-  agents: readonly DetectedAgent[];
+  agents: readonly ExecutionCardAgent[];
   scan: AgentScanState;
   connectionTest: ConnectionTestState;
   /** Result of the most recent `loadModels` call. `{status:'idle'}` until one
@@ -81,12 +73,12 @@ function useAgentDetection({ port, autoDetect, alive, detectionTimer }: {
   alive: AliveRef;
   detectionTimer: { current: ReturnType<typeof setTimeout> | undefined };
 }) {
-  const [agents, setAgents] = useState<readonly DetectedAgent[]>([]);
+  const [agents, setAgents] = useState<readonly ExecutionCardAgent[]>([]);
   const [scan, setScan] = useState<AgentScanState>({ status: 'idle' });
   const detectionTicket = useRef(0);
 
-  const runDetection: (detect: () => Promise<readonly DetectedAgent[]>) => void = useCallback(
-    (detect: () => Promise<readonly DetectedAgent[]>) => {
+  const runDetection: (detect: () => Promise<readonly ExecutionCardAgent[]>) => void = useCallback(
+    (detect: () => Promise<readonly ExecutionCardAgent[]>) => {
       clearTimeout(detectionTimer.current);
       detectionTicket.current += 1;
       const ticket = detectionTicket.current;

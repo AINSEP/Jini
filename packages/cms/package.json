@@ -519,7 +519,107 @@
       "./forms/destinations/deliver": "universal",
       "./media/site-generation/media-provider-registry": "node",
       "./entries/site/unreadable-owner-entries-repair": "universal",
-      "./forms/site/submission-ip-expiry-sweep": "node"
+      "./forms/site/submission-ip-expiry-sweep": "node",
+      "./media/site/list-pending-chat-attachments": "universal",
+      "./publish/content/ui": "universal",
+      "./posts/post-tool-errors": "universal",
+      "./posts/search": "universal",
+      "./posts/sql": "node",
+      "./posts/post-import": "universal",
+      "./posts/post-write-fields": "universal",
+      "./posts/go-live-sweep": "universal",
+      "./posts/expected-version": "universal",
+      "./posts/post": "universal",
+      "./posts/post-read": "universal",
+      "./posts/post-write-effects": "universal",
+      "./posts/featured-image": "universal",
+      "./posts/post-slugs": "universal",
+      "./posts/post-tool-views": "universal",
+      "./forms/capability-card": "universal",
+      "./widgets/capability-card": "universal",
+      "./posts/capability-card": "universal",
+      "./posts/post-tool-schemas": "universal",
+      "./posts/tiptap-block-schema": "universal",
+      "./posts/post-publish-ports": "universal",
+      "./media/publish-ports": "universal",
+      "./redirects/publish-ports": "universal",
+      "./navigation/publish-ports": "universal",
+      "./forms/publish-ports": "universal",
+      "./content-types/publish-ports": "universal",
+      "./taxonomy/publish-ports": "universal",
+      "./entries/publish-ports": "universal",
+      "./widgets/publish-ports": "universal",
+      "./settings/publish-ports": "universal",
+      "./publish/content/publish-ports": "universal",
+      "./forms/site/rate-limit-profile": "universal",
+      "./forms/site/analytics-provenance": "universal",
+      "./forms/site/form-file-storage": "node",
+      "./comments/site/types": "universal",
+      "./comments/site/settings": "universal",
+      "./comments/site/builtin-provider": "universal",
+      "./comments/site/provider-selection": "universal",
+      "./comments/site/data-module-install": "node",
+      "./media/site/import-media-entity": "node",
+      "./media/site/where-used": "node",
+      "./media/site/purge-media": "node",
+      "./media/site/analytics": "universal",
+      "./media/site/contracts": "universal",
+      "./media/site/view-image-tool": "node",
+      "./media/site/duplicate-asset": "node",
+      "./media/site-import/agent-tools": "universal",
+      "./media/site-generation/agent-tools": "universal",
+      "./media/site/provider-credential-contracts": "universal",
+      "./admin-http/routes/posts/list": "universal",
+      "./admin-http/routes/posts/get-by-id": "universal",
+      "./admin-http/http/widgets": "universal",
+      "./admin-http/routes/widgets/list": "universal",
+      "./admin-http/routes/widgets/get-by-id": "universal",
+      "./admin-http/routes/widgets/create": "universal",
+      "./admin-http/routes/widgets/update": "universal",
+      "./admin-http/routes/widgets/trash": "universal",
+      "./admin-http/routes/widgets/regions-list": "universal",
+      "./admin-http/routes/widgets/region-get": "universal",
+      "./admin-http/routes/widgets/region-bind": "universal",
+      "./admin-http/routes/forms/list": "universal",
+      "./admin-http/routes/forms/providers": "universal",
+      "./admin-http/routes/forms/get-by-id": "universal",
+      "./admin-http/routes/forms/update": "universal",
+      "./admin-http/routes/forms/list-submissions": "universal",
+      "./admin-http/routes/forms/get-submission": "universal",
+      "./admin-http/routes/forms/resolve-definition": "universal",
+      "./admin-http/routes/forms/write-error": "universal",
+      "./admin-http/routes/menus/shared": "universal",
+      "./admin-http/routes/comments/shared": "universal",
+      "./admin-http/routes/comments/moderation-queue": "universal",
+      "./admin-http/routes/comments/moderate": "universal",
+      "./admin-http/routes/comments/get-settings": "universal",
+      "./admin-http/routes/comments/put-settings": "universal",
+      "./admin-http/routes/content-types/list": "universal",
+      "./admin-http/routes/content-types/register": "universal",
+      "./admin-http/routes/content-types/update-fields": "universal",
+      "./admin-http/routes/content-types/lifecycle": "universal",
+      "./admin-http/routes/entries/list": "universal",
+      "./admin-http/routes/entries/create": "universal",
+      "./admin-http/routes/entries/update": "universal",
+      "./admin-http/routes/entries/lifecycle": "universal",
+      "./admin-http/routes/taxonomy/list": "universal",
+      "./admin-http/routes/taxonomy/delete-taxonomy": "universal",
+      "./admin-http/routes/widgets/embed-insert": "universal",
+      "./admin-http/routes/widgets/embed-remove": "universal",
+      "./admin-http/routes/widgets/embed-reorder": "universal",
+      "./admin-http/routes/widgets/region-mutate-placements": "universal",
+      "./admin-http/routes/taxonomy/assign-terms": "universal",
+      "./admin-http/routes/taxonomy/create-taxonomy": "universal",
+      "./admin-http/routes/taxonomy/create-term": "universal",
+      "./admin-http/routes/taxonomy/delete-term": "universal",
+      "./admin-http/routes/taxonomy/rename-term": "universal",
+      "./admin-http/routes/widgets/agent-tools-place": "universal",
+      "./admin-http/routes/widgets/agent-tools-create": "universal",
+      "./admin-http/routes/widgets/agent-tools-remove": "universal",
+      "./admin-http/routes/widgets/agent-tools-diagnose": "universal",
+      "./navigation/site/import-menu": "universal",
+      "./navigation/site/repoint-menu-refs": "universal",
+      "./admin-http/routes/forms/pull-submissions": "universal"
     },
     "isolation": {
       "domains": {
@@ -612,7 +712,10 @@
         "src/widgets/date-label.ts",
         "src/admin-http/http/entity-not-live.ts",
         "src/publish/content/precheck-reasons.ts",
-        "src/publish/transfer/apply-errors.ts"
+        "src/publish/transfer/apply-errors.ts",
+        "src/seo/html-plain-text.ts",
+        "src/entries/go-live.ts",
+        "src/publish/content/media-references.ts"
       ],
       "entries": {
         "./admin-http/http/redirects": "redirects",
@@ -734,7 +837,54 @@
         "./admin-http/routes/workspace/get": "workspace",
         "./admin-http/routes/workspace/list": "workspace",
         "./admin-http/routes/workspace/update": "workspace",
-        "./admin-http/routes/seo/deps": "seo"
+        "./admin-http/routes/seo/deps": "seo",
+        "./admin-http/http/widgets": "widgets",
+        "./admin-http/routes/widgets/list": "widgets",
+        "./admin-http/routes/widgets/get-by-id": "widgets",
+        "./admin-http/routes/widgets/create": "widgets",
+        "./admin-http/routes/widgets/update": "widgets",
+        "./admin-http/routes/widgets/trash": "widgets",
+        "./admin-http/routes/widgets/regions-list": "widgets",
+        "./admin-http/routes/widgets/region-get": "widgets",
+        "./admin-http/routes/widgets/region-bind": "widgets",
+        "./admin-http/routes/forms/list": "forms",
+        "./admin-http/routes/forms/providers": "forms",
+        "./admin-http/routes/forms/get-by-id": "forms",
+        "./admin-http/routes/forms/update": "forms",
+        "./admin-http/routes/forms/list-submissions": "forms",
+        "./admin-http/routes/forms/get-submission": "forms",
+        "./admin-http/routes/forms/resolve-definition": "forms",
+        "./admin-http/routes/forms/write-error": "forms",
+        "./admin-http/routes/menus/shared": "navigation",
+        "./admin-http/routes/comments/shared": "comments",
+        "./admin-http/routes/comments/moderation-queue": "comments",
+        "./admin-http/routes/comments/moderate": "comments",
+        "./admin-http/routes/comments/get-settings": "comments",
+        "./admin-http/routes/comments/put-settings": "comments",
+        "./admin-http/routes/content-types/list": "content-types",
+        "./admin-http/routes/content-types/register": "content-types",
+        "./admin-http/routes/content-types/update-fields": "content-types",
+        "./admin-http/routes/content-types/lifecycle": "content-types",
+        "./admin-http/routes/entries/list": "entries",
+        "./admin-http/routes/entries/create": "entries",
+        "./admin-http/routes/entries/update": "entries",
+        "./admin-http/routes/entries/lifecycle": "entries",
+        "./admin-http/routes/taxonomy/list": "taxonomy",
+        "./admin-http/routes/taxonomy/delete-taxonomy": "taxonomy",
+        "./admin-http/routes/widgets/embed-insert": "widgets",
+        "./admin-http/routes/widgets/embed-remove": "widgets",
+        "./admin-http/routes/widgets/embed-reorder": "widgets",
+        "./admin-http/routes/widgets/region-mutate-placements": "widgets",
+        "./admin-http/routes/taxonomy/assign-terms": "taxonomy",
+        "./admin-http/routes/taxonomy/create-taxonomy": "taxonomy",
+        "./admin-http/routes/taxonomy/create-term": "taxonomy",
+        "./admin-http/routes/taxonomy/delete-term": "taxonomy",
+        "./admin-http/routes/taxonomy/rename-term": "taxonomy",
+        "./admin-http/routes/widgets/agent-tools-place": "widgets",
+        "./admin-http/routes/widgets/agent-tools-create": "widgets",
+        "./admin-http/routes/widgets/agent-tools-remove": "widgets",
+        "./admin-http/routes/widgets/agent-tools-diagnose": "widgets",
+        "./admin-http/routes/forms/pull-submissions": "forms"
       }
     },
     "optionalPeers": {
@@ -3285,6 +3435,506 @@
       "types": "./dist/forms/site/submission-ip-expiry-sweep.d.ts",
       "import": "./dist/forms/site/submission-ip-expiry-sweep.js",
       "default": "./dist/forms/site/submission-ip-expiry-sweep.js"
+    },
+    "./media/site/list-pending-chat-attachments": {
+      "types": "./dist/media/site/list-pending-chat-attachments.d.ts",
+      "import": "./dist/media/site/list-pending-chat-attachments.js",
+      "default": "./dist/media/site/list-pending-chat-attachments.js"
+    },
+    "./publish/content/ui": {
+      "types": "./dist/publish/content/ui/index.d.ts",
+      "import": "./dist/publish/content/ui/index.js",
+      "default": "./dist/publish/content/ui/index.js"
+    },
+    "./posts/post-tool-errors": {
+      "types": "./dist/posts/post-tool-errors.d.ts",
+      "import": "./dist/posts/post-tool-errors.js",
+      "default": "./dist/posts/post-tool-errors.js"
+    },
+    "./posts/search": {
+      "types": "./dist/posts/search.d.ts",
+      "import": "./dist/posts/search.js",
+      "default": "./dist/posts/search.js"
+    },
+    "./posts/sql": {
+      "types": "./dist/posts/sql/index.d.ts",
+      "import": "./dist/posts/sql/index.js",
+      "default": "./dist/posts/sql/index.js"
+    },
+    "./posts/post-import": {
+      "types": "./dist/posts/post-import.d.ts",
+      "import": "./dist/posts/post-import.js",
+      "default": "./dist/posts/post-import.js"
+    },
+    "./posts/post-write-fields": {
+      "types": "./dist/posts/post-write-fields.d.ts",
+      "import": "./dist/posts/post-write-fields.js",
+      "default": "./dist/posts/post-write-fields.js"
+    },
+    "./posts/go-live-sweep": {
+      "types": "./dist/posts/go-live-sweep.d.ts",
+      "import": "./dist/posts/go-live-sweep.js",
+      "default": "./dist/posts/go-live-sweep.js"
+    },
+    "./posts/expected-version": {
+      "types": "./dist/posts/expected-version.d.ts",
+      "import": "./dist/posts/expected-version.js",
+      "default": "./dist/posts/expected-version.js"
+    },
+    "./posts/post": {
+      "types": "./dist/posts/post.d.ts",
+      "import": "./dist/posts/post.js",
+      "default": "./dist/posts/post.js"
+    },
+    "./posts/post-read": {
+      "types": "./dist/posts/post-read.d.ts",
+      "import": "./dist/posts/post-read.js",
+      "default": "./dist/posts/post-read.js"
+    },
+    "./posts/post-write-effects": {
+      "types": "./dist/posts/post-write-effects.d.ts",
+      "import": "./dist/posts/post-write-effects.js",
+      "default": "./dist/posts/post-write-effects.js"
+    },
+    "./posts/featured-image": {
+      "types": "./dist/posts/featured-image.d.ts",
+      "import": "./dist/posts/featured-image.js",
+      "default": "./dist/posts/featured-image.js"
+    },
+    "./posts/post-slugs": {
+      "types": "./dist/posts/post-slugs.d.ts",
+      "import": "./dist/posts/post-slugs.js",
+      "default": "./dist/posts/post-slugs.js"
+    },
+    "./posts/post-tool-views": {
+      "types": "./dist/posts/post-tool-views.d.ts",
+      "import": "./dist/posts/post-tool-views.js",
+      "default": "./dist/posts/post-tool-views.js"
+    },
+    "./forms/capability-card": {
+      "types": "./dist/forms/capability-card.d.ts",
+      "import": "./dist/forms/capability-card.js",
+      "default": "./dist/forms/capability-card.js"
+    },
+    "./widgets/capability-card": {
+      "types": "./dist/widgets/capability-card.d.ts",
+      "import": "./dist/widgets/capability-card.js",
+      "default": "./dist/widgets/capability-card.js"
+    },
+    "./posts/capability-card": {
+      "types": "./dist/posts/capability-card.d.ts",
+      "import": "./dist/posts/capability-card.js",
+      "default": "./dist/posts/capability-card.js"
+    },
+    "./posts/post-tool-schemas": {
+      "types": "./dist/posts/post-tool-schemas.d.ts",
+      "import": "./dist/posts/post-tool-schemas.js",
+      "default": "./dist/posts/post-tool-schemas.js"
+    },
+    "./posts/tiptap-block-schema": {
+      "types": "./dist/posts/tiptap-block-schema.d.ts",
+      "import": "./dist/posts/tiptap-block-schema.js",
+      "default": "./dist/posts/tiptap-block-schema.js"
+    },
+    "./posts/post-publish-ports": {
+      "types": "./dist/posts/post-publish-ports.d.ts",
+      "import": "./dist/posts/post-publish-ports.js",
+      "default": "./dist/posts/post-publish-ports.js"
+    },
+    "./media/publish-ports": {
+      "types": "./dist/media/publish-ports.d.ts",
+      "import": "./dist/media/publish-ports.js",
+      "default": "./dist/media/publish-ports.js"
+    },
+    "./redirects/publish-ports": {
+      "types": "./dist/redirects/publish-ports.d.ts",
+      "import": "./dist/redirects/publish-ports.js",
+      "default": "./dist/redirects/publish-ports.js"
+    },
+    "./navigation/publish-ports": {
+      "types": "./dist/navigation/publish-ports.d.ts",
+      "import": "./dist/navigation/publish-ports.js",
+      "default": "./dist/navigation/publish-ports.js"
+    },
+    "./forms/publish-ports": {
+      "types": "./dist/forms/publish-ports.d.ts",
+      "import": "./dist/forms/publish-ports.js",
+      "default": "./dist/forms/publish-ports.js"
+    },
+    "./content-types/publish-ports": {
+      "types": "./dist/content-types/publish-ports.d.ts",
+      "import": "./dist/content-types/publish-ports.js",
+      "default": "./dist/content-types/publish-ports.js"
+    },
+    "./taxonomy/publish-ports": {
+      "types": "./dist/taxonomy/publish-ports.d.ts",
+      "import": "./dist/taxonomy/publish-ports.js",
+      "default": "./dist/taxonomy/publish-ports.js"
+    },
+    "./entries/publish-ports": {
+      "types": "./dist/entries/publish-ports.d.ts",
+      "import": "./dist/entries/publish-ports.js",
+      "default": "./dist/entries/publish-ports.js"
+    },
+    "./widgets/publish-ports": {
+      "types": "./dist/widgets/publish-ports.d.ts",
+      "import": "./dist/widgets/publish-ports.js",
+      "default": "./dist/widgets/publish-ports.js"
+    },
+    "./settings/publish-ports": {
+      "types": "./dist/settings/publish-ports.d.ts",
+      "import": "./dist/settings/publish-ports.js",
+      "default": "./dist/settings/publish-ports.js"
+    },
+    "./publish/content/publish-ports": {
+      "types": "./dist/publish/content/publish-ports.d.ts",
+      "import": "./dist/publish/content/publish-ports.js",
+      "default": "./dist/publish/content/publish-ports.js"
+    },
+    "./forms/site/rate-limit-profile": {
+      "types": "./dist/forms/site/rate-limit-profile.d.ts",
+      "import": "./dist/forms/site/rate-limit-profile.js",
+      "default": "./dist/forms/site/rate-limit-profile.js"
+    },
+    "./forms/site/analytics-provenance": {
+      "types": "./dist/forms/site/analytics-provenance.d.ts",
+      "import": "./dist/forms/site/analytics-provenance.js",
+      "default": "./dist/forms/site/analytics-provenance.js"
+    },
+    "./forms/site/form-file-storage": {
+      "types": "./dist/forms/site/form-file-storage.d.ts",
+      "import": "./dist/forms/site/form-file-storage.js",
+      "default": "./dist/forms/site/form-file-storage.js"
+    },
+    "./comments/site/types": {
+      "types": "./dist/comments/site/types.d.ts",
+      "import": "./dist/comments/site/types.js",
+      "default": "./dist/comments/site/types.js"
+    },
+    "./comments/site/settings": {
+      "types": "./dist/comments/site/settings.d.ts",
+      "import": "./dist/comments/site/settings.js",
+      "default": "./dist/comments/site/settings.js"
+    },
+    "./comments/site/builtin-provider": {
+      "types": "./dist/comments/site/builtin-provider.d.ts",
+      "import": "./dist/comments/site/builtin-provider.js",
+      "default": "./dist/comments/site/builtin-provider.js"
+    },
+    "./comments/site/provider-selection": {
+      "types": "./dist/comments/site/provider-selection.d.ts",
+      "import": "./dist/comments/site/provider-selection.js",
+      "default": "./dist/comments/site/provider-selection.js"
+    },
+    "./comments/site/data-module-install": {
+      "types": "./dist/comments/site/data-module-install.d.ts",
+      "import": "./dist/comments/site/data-module-install.js",
+      "default": "./dist/comments/site/data-module-install.js"
+    },
+    "./media/site/import-media-entity": {
+      "types": "./dist/media/site/import-media-entity.d.ts",
+      "import": "./dist/media/site/import-media-entity.js",
+      "default": "./dist/media/site/import-media-entity.js"
+    },
+    "./media/site/where-used": {
+      "types": "./dist/media/site/where-used.d.ts",
+      "import": "./dist/media/site/where-used.js",
+      "default": "./dist/media/site/where-used.js"
+    },
+    "./media/site/purge-media": {
+      "types": "./dist/media/site/purge-media.d.ts",
+      "import": "./dist/media/site/purge-media.js",
+      "default": "./dist/media/site/purge-media.js"
+    },
+    "./media/site/analytics": {
+      "types": "./dist/media/site/analytics.d.ts",
+      "import": "./dist/media/site/analytics.js",
+      "default": "./dist/media/site/analytics.js"
+    },
+    "./media/site/contracts": {
+      "types": "./dist/media/site/contracts.d.ts",
+      "import": "./dist/media/site/contracts.js",
+      "default": "./dist/media/site/contracts.js"
+    },
+    "./media/site/view-image-tool": {
+      "types": "./dist/media/site/view-image-tool.d.ts",
+      "import": "./dist/media/site/view-image-tool.js",
+      "default": "./dist/media/site/view-image-tool.js"
+    },
+    "./media/site/duplicate-asset": {
+      "types": "./dist/media/site/duplicate-asset.d.ts",
+      "import": "./dist/media/site/duplicate-asset.js",
+      "default": "./dist/media/site/duplicate-asset.js"
+    },
+    "./media/site-import/agent-tools": {
+      "types": "./dist/media/site-import/agent-tools.d.ts",
+      "import": "./dist/media/site-import/agent-tools.js",
+      "default": "./dist/media/site-import/agent-tools.js"
+    },
+    "./media/site-generation/agent-tools": {
+      "types": "./dist/media/site-generation/agent-tools.d.ts",
+      "import": "./dist/media/site-generation/agent-tools.js",
+      "default": "./dist/media/site-generation/agent-tools.js"
+    },
+    "./media/site/provider-credential-contracts": {
+      "types": "./dist/media/site/provider-credential-contracts.d.ts",
+      "import": "./dist/media/site/provider-credential-contracts.js",
+      "default": "./dist/media/site/provider-credential-contracts.js"
+    },
+    "./admin-http/routes/posts/list": {
+      "types": "./dist/admin-http/routes/posts/list.d.ts",
+      "import": "./dist/admin-http/routes/posts/list.js",
+      "default": "./dist/admin-http/routes/posts/list.js"
+    },
+    "./admin-http/routes/posts/get-by-id": {
+      "types": "./dist/admin-http/routes/posts/get-by-id.d.ts",
+      "import": "./dist/admin-http/routes/posts/get-by-id.js",
+      "default": "./dist/admin-http/routes/posts/get-by-id.js"
+    },
+    "./admin-http/http/widgets": {
+      "types": "./dist/admin-http/http/widgets.d.ts",
+      "import": "./dist/admin-http/http/widgets.js",
+      "default": "./dist/admin-http/http/widgets.js"
+    },
+    "./admin-http/routes/widgets/list": {
+      "types": "./dist/admin-http/routes/widgets/list.d.ts",
+      "import": "./dist/admin-http/routes/widgets/list.js",
+      "default": "./dist/admin-http/routes/widgets/list.js"
+    },
+    "./admin-http/routes/widgets/get-by-id": {
+      "types": "./dist/admin-http/routes/widgets/get-by-id.d.ts",
+      "import": "./dist/admin-http/routes/widgets/get-by-id.js",
+      "default": "./dist/admin-http/routes/widgets/get-by-id.js"
+    },
+    "./admin-http/routes/widgets/create": {
+      "types": "./dist/admin-http/routes/widgets/create.d.ts",
+      "import": "./dist/admin-http/routes/widgets/create.js",
+      "default": "./dist/admin-http/routes/widgets/create.js"
+    },
+    "./admin-http/routes/widgets/update": {
+      "types": "./dist/admin-http/routes/widgets/update.d.ts",
+      "import": "./dist/admin-http/routes/widgets/update.js",
+      "default": "./dist/admin-http/routes/widgets/update.js"
+    },
+    "./admin-http/routes/widgets/trash": {
+      "types": "./dist/admin-http/routes/widgets/trash.d.ts",
+      "import": "./dist/admin-http/routes/widgets/trash.js",
+      "default": "./dist/admin-http/routes/widgets/trash.js"
+    },
+    "./admin-http/routes/widgets/regions-list": {
+      "types": "./dist/admin-http/routes/widgets/regions-list.d.ts",
+      "import": "./dist/admin-http/routes/widgets/regions-list.js",
+      "default": "./dist/admin-http/routes/widgets/regions-list.js"
+    },
+    "./admin-http/routes/widgets/region-get": {
+      "types": "./dist/admin-http/routes/widgets/region-get.d.ts",
+      "import": "./dist/admin-http/routes/widgets/region-get.js",
+      "default": "./dist/admin-http/routes/widgets/region-get.js"
+    },
+    "./admin-http/routes/widgets/region-bind": {
+      "types": "./dist/admin-http/routes/widgets/region-bind.d.ts",
+      "import": "./dist/admin-http/routes/widgets/region-bind.js",
+      "default": "./dist/admin-http/routes/widgets/region-bind.js"
+    },
+    "./admin-http/routes/forms/list": {
+      "types": "./dist/admin-http/routes/forms/list.d.ts",
+      "import": "./dist/admin-http/routes/forms/list.js",
+      "default": "./dist/admin-http/routes/forms/list.js"
+    },
+    "./admin-http/routes/forms/providers": {
+      "types": "./dist/admin-http/routes/forms/providers.d.ts",
+      "import": "./dist/admin-http/routes/forms/providers.js",
+      "default": "./dist/admin-http/routes/forms/providers.js"
+    },
+    "./admin-http/routes/forms/get-by-id": {
+      "types": "./dist/admin-http/routes/forms/get-by-id.d.ts",
+      "import": "./dist/admin-http/routes/forms/get-by-id.js",
+      "default": "./dist/admin-http/routes/forms/get-by-id.js"
+    },
+    "./admin-http/routes/forms/update": {
+      "types": "./dist/admin-http/routes/forms/update.d.ts",
+      "import": "./dist/admin-http/routes/forms/update.js",
+      "default": "./dist/admin-http/routes/forms/update.js"
+    },
+    "./admin-http/routes/forms/list-submissions": {
+      "types": "./dist/admin-http/routes/forms/list-submissions.d.ts",
+      "import": "./dist/admin-http/routes/forms/list-submissions.js",
+      "default": "./dist/admin-http/routes/forms/list-submissions.js"
+    },
+    "./admin-http/routes/forms/get-submission": {
+      "types": "./dist/admin-http/routes/forms/get-submission.d.ts",
+      "import": "./dist/admin-http/routes/forms/get-submission.js",
+      "default": "./dist/admin-http/routes/forms/get-submission.js"
+    },
+    "./admin-http/routes/forms/resolve-definition": {
+      "types": "./dist/admin-http/routes/forms/resolve-definition.d.ts",
+      "import": "./dist/admin-http/routes/forms/resolve-definition.js",
+      "default": "./dist/admin-http/routes/forms/resolve-definition.js"
+    },
+    "./admin-http/routes/forms/write-error": {
+      "types": "./dist/admin-http/routes/forms/write-error.d.ts",
+      "import": "./dist/admin-http/routes/forms/write-error.js",
+      "default": "./dist/admin-http/routes/forms/write-error.js"
+    },
+    "./admin-http/routes/menus/shared": {
+      "types": "./dist/admin-http/routes/menus/shared.d.ts",
+      "import": "./dist/admin-http/routes/menus/shared.js",
+      "default": "./dist/admin-http/routes/menus/shared.js"
+    },
+    "./admin-http/routes/comments/shared": {
+      "types": "./dist/admin-http/routes/comments/shared.d.ts",
+      "import": "./dist/admin-http/routes/comments/shared.js",
+      "default": "./dist/admin-http/routes/comments/shared.js"
+    },
+    "./admin-http/routes/comments/moderation-queue": {
+      "types": "./dist/admin-http/routes/comments/moderation-queue.d.ts",
+      "import": "./dist/admin-http/routes/comments/moderation-queue.js",
+      "default": "./dist/admin-http/routes/comments/moderation-queue.js"
+    },
+    "./admin-http/routes/comments/moderate": {
+      "types": "./dist/admin-http/routes/comments/moderate.d.ts",
+      "import": "./dist/admin-http/routes/comments/moderate.js",
+      "default": "./dist/admin-http/routes/comments/moderate.js"
+    },
+    "./admin-http/routes/comments/get-settings": {
+      "types": "./dist/admin-http/routes/comments/get-settings.d.ts",
+      "import": "./dist/admin-http/routes/comments/get-settings.js",
+      "default": "./dist/admin-http/routes/comments/get-settings.js"
+    },
+    "./admin-http/routes/comments/put-settings": {
+      "types": "./dist/admin-http/routes/comments/put-settings.d.ts",
+      "import": "./dist/admin-http/routes/comments/put-settings.js",
+      "default": "./dist/admin-http/routes/comments/put-settings.js"
+    },
+    "./admin-http/routes/content-types/list": {
+      "types": "./dist/admin-http/routes/content-types/list.d.ts",
+      "import": "./dist/admin-http/routes/content-types/list.js",
+      "default": "./dist/admin-http/routes/content-types/list.js"
+    },
+    "./admin-http/routes/content-types/register": {
+      "types": "./dist/admin-http/routes/content-types/register.d.ts",
+      "import": "./dist/admin-http/routes/content-types/register.js",
+      "default": "./dist/admin-http/routes/content-types/register.js"
+    },
+    "./admin-http/routes/content-types/update-fields": {
+      "types": "./dist/admin-http/routes/content-types/update-fields.d.ts",
+      "import": "./dist/admin-http/routes/content-types/update-fields.js",
+      "default": "./dist/admin-http/routes/content-types/update-fields.js"
+    },
+    "./admin-http/routes/content-types/lifecycle": {
+      "types": "./dist/admin-http/routes/content-types/lifecycle.d.ts",
+      "import": "./dist/admin-http/routes/content-types/lifecycle.js",
+      "default": "./dist/admin-http/routes/content-types/lifecycle.js"
+    },
+    "./admin-http/routes/entries/list": {
+      "types": "./dist/admin-http/routes/entries/list.d.ts",
+      "import": "./dist/admin-http/routes/entries/list.js",
+      "default": "./dist/admin-http/routes/entries/list.js"
+    },
+    "./admin-http/routes/entries/create": {
+      "types": "./dist/admin-http/routes/entries/create.d.ts",
+      "import": "./dist/admin-http/routes/entries/create.js",
+      "default": "./dist/admin-http/routes/entries/create.js"
+    },
+    "./admin-http/routes/entries/update": {
+      "types": "./dist/admin-http/routes/entries/update.d.ts",
+      "import": "./dist/admin-http/routes/entries/update.js",
+      "default": "./dist/admin-http/routes/entries/update.js"
+    },
+    "./admin-http/routes/entries/lifecycle": {
+      "types": "./dist/admin-http/routes/entries/lifecycle.d.ts",
+      "import": "./dist/admin-http/routes/entries/lifecycle.js",
+      "default": "./dist/admin-http/routes/entries/lifecycle.js"
+    },
+    "./admin-http/routes/taxonomy/list": {
+      "types": "./dist/admin-http/routes/taxonomy/list.d.ts",
+      "import": "./dist/admin-http/routes/taxonomy/list.js",
+      "default": "./dist/admin-http/routes/taxonomy/list.js"
+    },
+    "./admin-http/routes/taxonomy/delete-taxonomy": {
+      "types": "./dist/admin-http/routes/taxonomy/delete-taxonomy.d.ts",
+      "import": "./dist/admin-http/routes/taxonomy/delete-taxonomy.js",
+      "default": "./dist/admin-http/routes/taxonomy/delete-taxonomy.js"
+    },
+    "./admin-http/routes/widgets/embed-insert": {
+      "types": "./dist/admin-http/routes/widgets/embed-insert.d.ts",
+      "import": "./dist/admin-http/routes/widgets/embed-insert.js",
+      "default": "./dist/admin-http/routes/widgets/embed-insert.js"
+    },
+    "./admin-http/routes/widgets/embed-remove": {
+      "types": "./dist/admin-http/routes/widgets/embed-remove.d.ts",
+      "import": "./dist/admin-http/routes/widgets/embed-remove.js",
+      "default": "./dist/admin-http/routes/widgets/embed-remove.js"
+    },
+    "./admin-http/routes/widgets/embed-reorder": {
+      "types": "./dist/admin-http/routes/widgets/embed-reorder.d.ts",
+      "import": "./dist/admin-http/routes/widgets/embed-reorder.js",
+      "default": "./dist/admin-http/routes/widgets/embed-reorder.js"
+    },
+    "./admin-http/routes/widgets/region-mutate-placements": {
+      "types": "./dist/admin-http/routes/widgets/region-mutate-placements.d.ts",
+      "import": "./dist/admin-http/routes/widgets/region-mutate-placements.js",
+      "default": "./dist/admin-http/routes/widgets/region-mutate-placements.js"
+    },
+    "./admin-http/routes/taxonomy/assign-terms": {
+      "types": "./dist/admin-http/routes/taxonomy/assign-terms.d.ts",
+      "import": "./dist/admin-http/routes/taxonomy/assign-terms.js",
+      "default": "./dist/admin-http/routes/taxonomy/assign-terms.js"
+    },
+    "./admin-http/routes/taxonomy/create-taxonomy": {
+      "types": "./dist/admin-http/routes/taxonomy/create-taxonomy.d.ts",
+      "import": "./dist/admin-http/routes/taxonomy/create-taxonomy.js",
+      "default": "./dist/admin-http/routes/taxonomy/create-taxonomy.js"
+    },
+    "./admin-http/routes/taxonomy/create-term": {
+      "types": "./dist/admin-http/routes/taxonomy/create-term.d.ts",
+      "import": "./dist/admin-http/routes/taxonomy/create-term.js",
+      "default": "./dist/admin-http/routes/taxonomy/create-term.js"
+    },
+    "./admin-http/routes/taxonomy/delete-term": {
+      "types": "./dist/admin-http/routes/taxonomy/delete-term.d.ts",
+      "import": "./dist/admin-http/routes/taxonomy/delete-term.js",
+      "default": "./dist/admin-http/routes/taxonomy/delete-term.js"
+    },
+    "./admin-http/routes/taxonomy/rename-term": {
+      "types": "./dist/admin-http/routes/taxonomy/rename-term.d.ts",
+      "import": "./dist/admin-http/routes/taxonomy/rename-term.js",
+      "default": "./dist/admin-http/routes/taxonomy/rename-term.js"
+    },
+    "./admin-http/routes/widgets/agent-tools-place": {
+      "types": "./dist/admin-http/routes/widgets/agent-tools-place.d.ts",
+      "import": "./dist/admin-http/routes/widgets/agent-tools-place.js",
+      "default": "./dist/admin-http/routes/widgets/agent-tools-place.js"
+    },
+    "./admin-http/routes/widgets/agent-tools-create": {
+      "types": "./dist/admin-http/routes/widgets/agent-tools-create.d.ts",
+      "import": "./dist/admin-http/routes/widgets/agent-tools-create.js",
+      "default": "./dist/admin-http/routes/widgets/agent-tools-create.js"
+    },
+    "./admin-http/routes/widgets/agent-tools-remove": {
+      "types": "./dist/admin-http/routes/widgets/agent-tools-remove.d.ts",
+      "import": "./dist/admin-http/routes/widgets/agent-tools-remove.js",
+      "default": "./dist/admin-http/routes/widgets/agent-tools-remove.js"
+    },
+    "./admin-http/routes/widgets/agent-tools-diagnose": {
+      "types": "./dist/admin-http/routes/widgets/agent-tools-diagnose.d.ts",
+      "import": "./dist/admin-http/routes/widgets/agent-tools-diagnose.js",
+      "default": "./dist/admin-http/routes/widgets/agent-tools-diagnose.js"
+    },
+    "./navigation/site/import-menu": {
+      "types": "./dist/navigation/site/import-menu.d.ts",
+      "import": "./dist/navigation/site/import-menu.js",
+      "default": "./dist/navigation/site/import-menu.js"
+    },
+    "./navigation/site/repoint-menu-refs": {
+      "types": "./dist/navigation/site/repoint-menu-refs.d.ts",
+      "import": "./dist/navigation/site/repoint-menu-refs.js",
+      "default": "./dist/navigation/site/repoint-menu-refs.js"
+    },
+    "./admin-http/routes/forms/pull-submissions": {
+      "types": "./dist/admin-http/routes/forms/pull-submissions.d.ts",
+      "import": "./dist/admin-http/routes/forms/pull-submissions.js",
+      "default": "./dist/admin-http/routes/forms/pull-submissions.js"
     }
   },
   "files": [

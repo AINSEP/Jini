@@ -1,7 +1,6 @@
 import { act, cleanup, renderHook } from '@testing-library/react';
 import { afterEach, describe, expect, it } from 'vitest';
-import type { ExecutionPort } from '../../../ports.js';
-import type { ByokConfig, DetectedAgent } from '../../../types.js';
+import type { ByokConfig, ExecutionCardAgent, ExecutionPort } from '@jini-ai/core/contracts/execution';
 import { useExecutionTab } from '../../../react/hooks/useExecutionTab.js';
 
 afterEach(cleanup);
@@ -17,8 +16,8 @@ interface Deferred<T> { resolve: (value: T) => void; reject: (error: unknown) =>
 
 /** A port fake whose every call parks a deferred the test settles in whatever order it chooses. */
 function createDeferredPort() {
-  const detect: Deferred<readonly DetectedAgent[]>[] = [];
-  const rescan: Deferred<readonly DetectedAgent[]>[] = [];
+  const detect: Deferred<readonly ExecutionCardAgent[]>[] = [];
+  const rescan: Deferred<readonly ExecutionCardAgent[]>[] = [];
   const connection: Deferred<{ ok: boolean; message?: string }>[] = [];
   const agent: Deferred<{ ok: boolean; message?: string }>[] = [];
   const models: Deferred<readonly string[]>[] = [];
@@ -34,8 +33,8 @@ function createDeferredPort() {
 }
 
 const byok: ByokConfig = { protocol: 'openai', providerId: null, apiKey: 'typed', baseUrl: 'https://example.test', model: 'model-a' };
-const agentA: DetectedAgent = { id: 'agent-a', label: 'Agent A', installed: true };
-const agentB: DetectedAgent = { id: 'agent-b', label: 'Agent B', installed: false };
+const agentA: ExecutionCardAgent = { id: 'agent-a', label: 'Agent A', installed: true };
+const agentB: ExecutionCardAgent = { id: 'agent-b', label: 'Agent B', installed: false };
 
 describe('useExecutionTab rescan', () => {
   it('runs the port rescan and replaces agents, dropping the superseded mount-time detection result', async () => {

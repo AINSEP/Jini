@@ -1,5 +1,5 @@
 import type { CommandMutation, ExecuteCommandDeps } from "@jini-ai/core/contracts/events";
-import { ok } from "@jini-ai/core/contracts/server";
+import { ok, type JsonRouteAuthorize } from "@jini-ai/core/contracts/server";
 import { RouteRefusalError } from "@jini-ai/core/errors/route-refusal";
 
 import { DuplicateCommandError, ForbiddenError, executeCommand } from "../../../core/commands/command.js";
@@ -211,4 +211,18 @@ export async function findPageOrNotFound({ deps, pageId }: { deps: PageLookupDep
   const existing = await deps.findEntry({ workspaceId: deps.workspaceId, id: pageId });
   if (existing?.kind !== "page") throw deps.pageNotFound({ message: `page '${pageId}' was not found` });
   return existing;
+}
+
+/** The principal fields the posts read routes use: only the id. */
+export interface PostRoutePrincipal { id: string }
+
+/**
+ * Ask the host's authorizer for `content.read` on posts, naming no entity: the list has none, and the by-id
+ * route's param may be a slug rather than the stored id, so it is not an entity id a grant could match.
+ *
+ * @complexity O(1) plus the injected authorizer.
+ */
+export async function authorizePostRead({ authorize }: { authorize: JsonRouteAuthorize | undefined }, _optional: Record<string, never> = {}): Promise<void> {
+  if (!authorize) throw new Error("posts admin route has no authorizer");
+  await authorize({ permission: "content.read", entityType: "post" });
 }

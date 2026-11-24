@@ -1,7 +1,21 @@
 import { describe, expect, it } from "vitest";
-import { MenuConflictError, MenuNotFoundError } from "../../../../navigation/index.js";
-import { menuDeleteRoute, type MenuTrashFn } from "../delete.js";
-import { PRINCIPAL, raw, recordingAuthorize, refusalOf, signal, WORKSPACE_ID } from "./helpers.js";
+import { InMemoryMenuRepo } from "../../../../navigation/index.js";
+import { menuDeleteRoute } from "../delete.js";
+import { fakeMenu, makeMenuDeps, PRINCIPAL, raw, recordingAuthorize, refusalOf, signal, WORKSPACE_ID } from "./helpers.js";
+
+type RemoveOutcome = { ok: true; version: number | null } | { ok: false; reason: "not-found" | "version-changed" };
+
+/** Delete deps over one stored menu `m1`, with a recording `removeMenu` that answers `outcome`. */
+function deleteDeps(outcome: RemoveOutcome = { ok: true, version: 4 }) {
+  const removals: unknown[] = [];
+  const { workspaceId, outwardErrorMessage, clock } = makeMenuDeps();
+  const deps = {
+    workspaceId, outwardErrorMessage, clock,
+    menuRepo: new InMemoryMenuRepo({}, { initialRows: [fakeMenu()] }),
+    removeMenu: async (input: unknown) => { removals.push(input); return outcome; },
+  };
+  return { deps, removals };
+}
 
 describe("menuDeleteRoute", () => {
   it("keeps the method and path and reads :menuId, falling back to an empty id", () => {
@@ -12,31 +26,31 @@ describe("menuDeleteRoute", () => {
   });
 
   it("authorizes admin.menus.delete for the menu, trashes it as the principal and answers the trash envelope", async () => {
-    const asked: unknown[] = [];
-    const trashMenu: MenuTrashFn = async (input) => { asked.push(input); return { id: "m1", version: 4 }; };
+    const { deps, removals } = deleteDeps();
     const { authorize, calls } = recordingAuthorize();
-    const result = await menuDeleteRoute.handle({ input: { menuId: "m1" }, deps: { workspaceId: WORKSPACE_ID, trashMenu }, context: PRINCIPAL, authorize }, { signal });
+    const result = await menuDeleteRoute.handle({ input: { menuId: "m1" }, deps, context: PRINCIPAL, authorize }, { signal });
     expect(calls).toEqual([{ permission: "admin.menus.delete", entityType: "menu", entityId: "m1" }]);
-    expect(asked).toEqual([{ workspaceId: WORKSPACE_ID, menuId: "m1", actor: { principalId: PRINCIPAL.id } }]);
+    expect(removals).toMatchObject([{ id: "m1", expectedVersion: 1, actor: { principalId: PRINCIPAL.id } }]);
     expect(result).toEqual({ ok: true, value: { trashed: true, id: "m1", version: 4 } });
   });
 
-  for (const [error, status] of [[new MenuNotFoundError({ message: "menu 'm1' was not found" }), 404], [new MenuConflictError({ message: "menu 'm1' changed while it was being deleted" }), 409]] as const) {
-    it(`maps ${error.name} to a code-less ${status}`, async () => {
-      const { authorize } = recordingAuthorize();
-      const trashMenu: MenuTrashFn = async () => { throw error; };
-      expect(await refusalOf(() => menuDeleteRoute.handle({ input: { menuId: "m1" }, deps: { workspaceId: WORKSPACE_ID, trashMenu }, context: PRINCIPAL, authorize }))).toEqual({
-        status, body: { error: error.message },
-      });
+  it("maps a missing menu to a code-less 404 and a concurrent change to a code-less 409", async () => {
+    const { deps } = deleteDeps({ ok: false, reason: "version-changed" });
+    const { authorize } = recordingAuthorize();
+    expect(await refusalOf(() => menuDeleteRoute.handle({ input: { menuId: "nope" }, deps, context: PRINCIPAL, authorize }))).toEqual({
+      status: 404, body: { error: "menu 'nope' was not found" },
     });
-  }
+    const conflict = await refusalOf(() => menuDeleteRoute.handle({ input: { menuId: "m1" }, deps, context: PRINCIPAL, authorize }));
+    expect(conflict.status).toBe(409);
+    expect(Object.keys(conflict.body as object)).toEqual(["error"]);
+  });
 
   it("does not trash when authorization refuses, and fails closed without a principal", async () => {
-    let trashed = 0;
-    const trashMenu: MenuTrashFn = async () => { trashed += 1; return { id: "m1", version: 1 }; };
+    const { deps, removals } = deleteDeps();
     const { authorize } = recordingAuthorize(["admin.menus.delete"]);
-    await expect(menuDeleteRoute.handle({ input: { menuId: "m1" }, deps: { workspaceId: WORKSPACE_ID, trashMenu }, context: PRINCIPAL, authorize })).rejects.toThrow("denied");
-    await expect(menuDeleteRoute.handle({ input: { menuId: "m1" }, deps: { workspaceId: WORKSPACE_ID, trashMenu }, authorize: recordingAuthorize().authorize })).rejects.toThrow(/no authenticated principal/);
-    expect(trashed).toBe(0);
+    await expect(menuDeleteRoute.handle({ input: { menuId: "m1" }, deps, context: PRINCIPAL, authorize })).rejects.toThrow("denied");
+    await expect(menuDeleteRoute.handle({ input: { menuId: "m1" }, deps, authorize: recordingAuthorize().authorize })).rejects.toThrow(/no authenticated principal/);
+    expect(removals).toEqual([]);
+    expect(deps.workspaceId).toBe(WORKSPACE_ID);
   });
 });

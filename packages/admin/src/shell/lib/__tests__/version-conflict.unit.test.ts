@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
-import { createVersionConflict, VERSION_CONFLICT_CODE } from "../version-conflict.js";
+import { VERSION_CONFLICT_CODE } from "@jini-ai/core/optimistic-concurrency";
+import { createVersionConflict } from "../version-conflict.js";
 import { FakeRequestError as ApiError, isFakeRequestError } from "./request-error.fakes.js";
 
 const { isVersionConflict, readVersionConflict } = createVersionConflict({ isRequestError: isFakeRequestError });

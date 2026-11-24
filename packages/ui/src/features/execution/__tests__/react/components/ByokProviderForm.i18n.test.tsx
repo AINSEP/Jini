@@ -3,7 +3,7 @@ import { render, screen } from '../../../../../__tests__/ui-kit-render-support.j
 import { describe, expect, it, vi } from 'vitest';
 import { ByokProviderForm } from '../../../react/components/ByokProviderForm.js';
 import { I18nProvider, SETTINGS_DIALOG_DICTIONARIES } from '../../../../i18n/index.js';
-import type { ByokConfig, ConnectionTestState, ModelDiscoveryState, ProviderPreset } from '../../../types.js';
+import type { ByokConfig, ConnectionTestState, ModelDiscoveryState, ProviderPreset } from '@jini-ai/core/contracts/execution';
 
 /**
  * @file The key-format warnings (`apiKeyFormatWarning` in `rules.ts`) are correctly routed through

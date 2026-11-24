@@ -74,33 +74,6 @@ export * from './features/connectors/rules.js';
 export * from './features/connectors/types.js';
 
 // --- execution ---
-export type {
-  AgentAuthStatus,
-  AgentCliEnvFieldSpec,
-  AgentDiagnostic,
-  AgentDiagnosticReason,
-  AgentDiagnosticSeverity,
-  AgentExecutableRepair,
-  AgentExecutableSource,
-  AgentFixIntent,
-  AgentModelOption,
-  AgentModelSource,
-  AgentScanState,
-  AgentSupportsCustomModel,
-  AgentTestState,
-  ApiProtocol,
-  ByokConfig,
-  ByokProviderCredentials,
-  ByokRequiredField,
-  ConnectionTestState,
-  DetectedAgent,
-  ExecutionConfig,
-  ExecutionMode,
-  LocalCliConfig,
-  ModelDiscoveryState,
-  ProviderPreset,
-  ProviderPresetKind,
-} from './features/execution/types.js';
 export {
   CUSTOM_MODEL_SENTINEL,
   CUSTOM_PRESET_ID,
@@ -145,7 +118,6 @@ export {
   sortDetectedAgents,
 } from './features/execution/rules.js';
 export type { AgentMetaLabels } from './features/execution/rules.js';
-export type { ExecutionPort } from './features/execution/ports.js';
 export { createFakeExecutionPort } from './features/execution/dependencies.js';
 export type { FakeExecutionPortOptions } from './features/execution/dependencies.js';
 

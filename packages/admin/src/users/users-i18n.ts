@@ -1,7 +1,6 @@
 import { ADMIN_COMMON_I18N } from "../core/i18n-common.js";
 import { translationEntry } from "../shell/lib/translation-entry.js";
-import { mergeLocaleOverlays } from "../shell/lib/merge-locale-overlays.js";
-import { createDictionaryTranslator } from '@jini-ai/core/text';
+import { mergeLocaleOverlays, createDictionaryTranslator } from '@jini-ai/core/text';
 import { USERS_TRANSLATIONS_A } from "./i18n/users-translations-a.js";
 import { USERS_TRANSLATIONS_B } from "./i18n/users-translations-b.js";
 import { USERS_TRANSLATIONS_C } from "./i18n/users-translations-c.js";

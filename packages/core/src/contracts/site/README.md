@@ -22,7 +22,7 @@ and passes them into the owning package's functions through their existing args 
 **Host wiring example:**
 
 ```ts
-import type { CommentsSelectionStorePort } from "@jini-ai/core/contracts/site/capability-providers-comments";
+import type { CommentsSelectionStorePort } from "@jini-ai/core/contracts/site/comments-providers";
 import { createCommentsProviderRegistry } from "@jini-ai/capability-providers/comments";
 
 // The host implements the port over its own settings table…

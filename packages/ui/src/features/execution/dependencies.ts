@@ -1,9 +1,8 @@
 import { fakeLatencyDelay } from '../../utils/fake-latency.js';
-import type { ExecutionPort } from './ports.js';
-import type { AgentExecutableSource, ByokConfig, DetectedAgent } from './types.js';
+import type { AgentExecutableSource, ByokConfig, ExecutionCardAgent, ExecutionPort } from '@jini-ai/core/contracts/execution';
 
 export interface FakeExecutionPortOptions {
-  agents?: readonly DetectedAgent[];
+  agents?: readonly ExecutionCardAgent[];
   models?: readonly string[];
   /** When set, `detectLocalAgents`/`rescanLocalAgents` REJECT with this message
    *  instead of resolving `agents` — exercises the "detection itself failed"
@@ -33,7 +32,7 @@ export interface FakeExecutionPortOptions {
   latencyMs?: number;
 }
 
-const DEFAULT_FAKE_AGENTS: readonly DetectedAgent[] = [
+const DEFAULT_FAKE_AGENTS: readonly ExecutionCardAgent[] = [
   {
     id: 'agent-a',
     label: 'Example Agent CLI',

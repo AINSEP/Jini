@@ -2,8 +2,7 @@ import { fireEvent, render, screen, waitFor } from '../../../../../__tests__/ui-
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
 import { createFakeExecutionPort } from '../../../dependencies.js';
-import type { ExecutionPort } from '../../../ports.js';
-import type { ExecutionConfig, ProviderPreset } from '../../../types.js';
+import type { ExecutionConfig, ExecutionPort, ProviderPreset } from '@jini-ai/core/contracts/execution';
 import { ExecutionTab } from '../../../react/components/ExecutionTab.js';
 
 /**

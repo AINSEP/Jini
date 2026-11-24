@@ -12,6 +12,7 @@ const FIELDS = { kind: "media", filename: "a.png", contentType: "image/png", dat
 function deps(log: string[] = [], options: { fail?: unknown; stored?: MediaRecord } = {}) {
   return {
     workspaceId: WORKSPACE_ID,
+    outwardErrorMessage: ({ error }: { error: Error }) => error.message,
     storeUpload: async (input: MediaUploadInput) => {
       log.push(`store:${input.kind}:${input.filename}:${input.contentType}:${input.bytes.byteLength}:${input.alt}:${input.caption}:${input.credit}:${input.createdByPrincipal}`);
       if (options.fail !== undefined) throw options.fail;
@@ -31,7 +32,7 @@ function parse(body: unknown) {
 }
 
 function run(fields: unknown, d = deps(), authorize = recordingAuthorize().authorize) {
-  return mediaUploadRoute.handle({ input: fields as never, deps: d, context: PRINCIPAL, authorize }, { signal });
+  return mediaUploadRoute.handle({ input: { fields } as never, deps: d, context: PRINCIPAL, authorize }, { signal });
 }
 
 describe("mediaUploadRoute", () => {
@@ -42,8 +43,8 @@ describe("mediaUploadRoute", () => {
   });
 
   it("parses the fields, with media as the default kind and null metadata as absent", () => {
-    expect(parse(BODY)).toEqual({ ok: true, value: FIELDS });
-    expect(parse({ ...BODY, kind: "document", contentType: undefined, alt: null, caption: "c", credit: "d" })).toEqual({ ok: true, value: { ...FIELDS, kind: "document", contentType: "", alt: "", caption: "c", credit: "d" } });
+    expect(parse(BODY)).toEqual({ ok: true, value: { fields: FIELDS } });
+    expect(parse({ ...BODY, kind: "document", contentType: undefined, alt: null, caption: "c", credit: "d" })).toEqual({ ok: true, value: { fields: { ...FIELDS, kind: "document", contentType: "", alt: "", caption: "c", credit: "d" } } });
   });
 
   it.each([
@@ -54,7 +55,7 @@ describe("mediaUploadRoute", () => {
     [{ ...BODY, kind: "video" }, "invalid media kind"],
     [{ ...BODY, alt: 5 }, "media.alt must be a string or null, got number"],
   ])("refuses body %j in parse with the flat 400", async (body, error) => {
-    expect(await refusalOf(() => parse(body))).toEqual({ status: 400, body: { error } });
+    expect(await refusalOf(async () => { const parsed = parse(body); if (!parsed.ok) throw new Error("unexpected parse failure"); return mediaUploadRoute.handle({ input: parsed.value, deps: deps(), context: PRINCIPAL, authorize: recordingAuthorize().authorize }, { signal }); })).toEqual({ status: 400, body: { error } });
   });
 
   it("asks media.upload on the media type (no entity id) before decoding; a denial stores nothing", async () => {
@@ -97,7 +98,7 @@ describe("mediaUploadRoute", () => {
   });
 
   it("fails closed on a mount without an authorizer or principal (wiring bugs)", async () => {
-    await expect(mediaUploadRoute.handle({ input: FIELDS as never, deps: deps(), context: PRINCIPAL })).rejects.toThrow(/no authorizer/);
-    await expect(mediaUploadRoute.handle({ input: FIELDS as never, deps: deps(), authorize: recordingAuthorize().authorize })).rejects.toThrow(/no authenticated principal/);
+    await expect(mediaUploadRoute.handle({ input: { fields: FIELDS } as never, deps: deps(), context: PRINCIPAL })).rejects.toThrow(/no authorizer/);
+    await expect(mediaUploadRoute.handle({ input: { fields: FIELDS } as never, deps: deps(), authorize: recordingAuthorize().authorize })).rejects.toThrow(/no authenticated principal/);
   });
 });

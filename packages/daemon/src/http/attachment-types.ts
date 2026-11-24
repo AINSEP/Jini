@@ -26,13 +26,6 @@ export interface StoredAttachment {
   order?: number;
 }
 
-/** What `claim()` hands back: trusted paths plus the one directory an agent may be granted. */
-export interface AttachmentClaim {
-  attachments: StoredAttachment[];
-  /** Absent only for an empty claim — there is no directory to grant when nothing was claimed. */
-  batchDirectory?: string;
-}
-
 /** Why an attachment operation was refused. Maps to an HTTP status in `statusForRejection`. */
 export type AttachmentRejectionReason =
   /** The batch id is missing or not of the accepted shape. */

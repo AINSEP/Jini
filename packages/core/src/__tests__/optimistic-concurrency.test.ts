@@ -1,10 +1,11 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, expectTypeOf, it } from 'vitest';
 import {
   assertVersionedWrite,
   fromSettingsRevisionConflict,
   parseExpectedVersion,
   RecordVersionConflictError,
   RecordVersionRequiredError,
+  type SaveConflict,
   requireEditorVersion,
   requireExpectedVersion,
   VERSION_CONFLICT_CODE,
@@ -137,5 +138,18 @@ describe('requireEditorVersion', () => {
   it('answers 428 with the full envelope', () => {
     const error = new RecordVersionRequiredError({ field: 'version' });
     expect(versionRequiredBody({ error })).toEqual({ error: error.message, code: VERSION_REQUIRED_CODE, details: { field: 'version' } });
+  });
+});
+
+describe('SaveConflict', () => {
+  it('pins the three-field shape an editor reads back from a lost compare-and-set', () => {
+    expectTypeOf<SaveConflict>().toEqualTypeOf<{
+      expectedVersion: number | null;
+      currentVersion: number | null;
+      attemptedStatus: 'draft' | 'published' | undefined;
+    }>();
+    expectTypeOf<SaveConflict['attemptedStatus']>().toEqualTypeOf<'draft' | 'published' | undefined>();
+    const saved: SaveConflict = { expectedVersion: 3, currentVersion: null, attemptedStatus: 'published' };
+    expect(Object.keys(saved).sort()).toEqual(['attemptedStatus', 'currentVersion', 'expectedVersion']);
   });
 });

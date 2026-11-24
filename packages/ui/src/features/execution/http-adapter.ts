@@ -1,9 +1,8 @@
-import type { ByokConfig, DetectedAgent } from './types.js';
-import type { ExecutionPort } from './ports.js';
+import type { ByokConfig, ExecutionCardAgent, ExecutionPort } from '@jini-ai/core/contracts/execution';
 
 /** Decoded HTTP operations; hosts retain auth, URLs and transport validation. */
 export interface ExecutionProbeTransport {
-  detectExecutionAgents(required: Record<string, never>, optional?: { force?: boolean }): Promise<{ data: readonly DetectedAgent[] }>;
+  detectExecutionAgents(required: Record<string, never>, optional?: { force?: boolean }): Promise<{ data: readonly ExecutionCardAgent[] }>;
   testExecutionConnection(required: Pick<ByokConfig, "protocol" | "baseUrl" | "apiKey" | "model"> & ExecutionProbeFlags, optional?: Record<string, never>): Promise<{ ok: boolean; message?: string }>;
   testExecutionAgent(required: { agentId: string; model?: string }, optional?: Record<string, never>): ReturnType<NonNullable<ExecutionPort["testAgent"]>>;
   listExecutionModels(required: Pick<ByokConfig, "protocol" | "baseUrl" | "apiKey"> & ExecutionProbeFlags, optional?: Record<string, never>): Promise<{ ok: boolean; models: readonly string[]; message?: string }>;

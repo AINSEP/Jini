@@ -4,34 +4,12 @@ import type { ISODateTime, UUID } from "@jini-ai/core/primitives";
 import type {
   IntegrationId,
   IntegrationSecretRecord,
-  SealedSecret,
   WebhookDeliveryRecord,
   WebhookDeliveryStatus,
   WebhookEventEnvelope,
   WebhookSubscriptionRecord,
   WebhookTopic,
 } from "./types.js";
-
-export interface RootKeyHandle {
-  readonly keyId: string;
-}
-
-export interface KeyringPort {
-  activeKey(): Promise<RootKeyHandle>;
-
-  deriveSigningSecret(input: {
-    workspaceId: UUID;
-    subscriptionId: IntegrationId;
-    version: number;
-  }): Promise<Uint8Array>;
-
-  derive(input: { workspaceId: UUID; purpose: string; info: string }): Promise<Uint8Array>;
-}
-
-export interface SecretSealerPort {
-  seal(input: { plaintext: string; key: RootKeyHandle; aad: string }): Promise<SealedSecret>;
-  open(input: { sealed: SealedSecret }, optional?: { aad?: string }): Promise<string>;
-}
 
 export interface WebhookSubscriptionRepoPort {
   insert(record: WebhookSubscriptionRecord): Promise<void>;

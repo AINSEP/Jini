@@ -1,10 +1,11 @@
 import type { JsonRouteAuthorize, JsonRouteAuthorizeScope } from "@jini-ai/core/contracts/server";
-import { rejectRoute } from "@jini-ai/core/errors/route-refusal";
+import { RouteRefusalError, rejectRoute } from "@jini-ai/core/errors/route-refusal";
 import type { AdminMediaDto } from "@jini-ai/core/contracts/site/cms-media";
 
 import { EntityNotLiveError } from "../../../core/entity-liveness.js";
 import { MediaConflictError, MediaNotFoundError, MediaValidationError, type MediaRecord } from "../../../media/types.js";
 import { toAdminMediaResponse } from "../../http/media.js";
+import type { OutwardErrorMessage } from "../../http/outward-error-message.js";
 
 /**
  * @file Shared guards, error mapping and the single-asset response for the `media` admin route specs.
@@ -13,6 +14,10 @@ import { toAdminMediaResponse } from "../../http/media.js";
  * identical 403 block and their own `instanceof` ladder. The workspace check and the 403 are the
  * host's ports now; each route keeps its exact ladder as a small mapping table here, so the bodies
  * the admin client reads stay byte-identical.
+ *
+ * Every media route answered an unknown asset with the same `404 media '<id>' was not found` body
+ * and asked the host's authorizer for a `media.*` permission on entity type `media`. Owning both
+ * once keeps those routes' status codes and bodies from drifting apart.
  */
 
 /** The principal fields these routes read: only the id, as the actor of a trash move. */
@@ -39,14 +44,19 @@ export const MEDIA_VALIDATION: MediaErrorMapping = { matches: ({ err }, _o = {})
 export const MEDIA_CONFLICT: MediaErrorMapping = { matches: ({ err }, _o = {}) => err instanceof MediaConflictError, status: 409 };
 
 /**
- * Refuses with the first matching rung's status, code and copy; anything unmapped is rethrown
- * unchanged so the host's error port answers it as an unexpected (redacted) failure.
+ * Refuses with the first matching rung's status and code; anything unmapped is rethrown unchanged
+ * so the host's error port answers it as an unexpected (redacted) failure. The `error` copy is a
+ * rung's fixed copy, else the host's `outwardErrorMessage` for the classified error — a stored
+ * `error.message` never reaches a response body from here.
  * @complexity O(n) in the mapping table length, a small fixed list per route.
  */
-export function rejectMediaError({ err, mappings }: { err: unknown; mappings: readonly MediaErrorMapping[] }, _optional: Record<string, never> = {}): never {
+export function rejectMediaError(
+  { err, mappings, outwardErrorMessage }: { err: unknown; mappings: readonly MediaErrorMapping[]; outwardErrorMessage: OutwardErrorMessage },
+  _optional: Record<string, never> = {},
+): never {
   const mapping = mappings.find((candidate) => candidate.matches({ err }));
   if (!mapping) throw err;
-  const error = mapping.error ?? (err instanceof Error ? err.message : String(err));
+  const error = mapping.error ?? (err instanceof Error ? outwardErrorMessage({ error: err }) : String(err));
   const code = mapping.code === "own" ? (err as { code?: string }).code : mapping.code;
   return rejectRoute(code === undefined ? { status: mapping.status, error } : { status: mapping.status, error, code });
 }
@@ -64,6 +74,43 @@ export async function authorizeMedia(
   if (!authorize) throw new Error("media admin route has no authorizer");
   const required = { permission, entityType: "media" };
   await (optional.entityId === undefined ? authorize(required) : authorize(required, { entityId: optional.entityId }));
+}
+
+/** The 403 body the host's authorize port writes for a denied permission; `details` names the permission and reason. */
+export interface MediaForbiddenRefusal { error?: string; code?: string; details?: { permission: string; reason: string } }
+
+/**
+ * Ask for one media permission, answering a denied one with the route's own 403 body. A few
+ * hand-written routes wrote their own body for a denied permission instead of the authorizer's
+ * principal/permission sentence; `forbidden` rebuilds that body from the port's refusal so the
+ * moved route answers byte-for-byte as before. Any other failure — a refusal with another status
+ * or an unexpected error — is rethrown unchanged for the host's error port.
+ *
+ * @complexity O(1) plus the injected authorizer.
+ */
+export async function authorizeMediaOrForbid(
+  { authorize, permission, forbidden }: { authorize: JsonRouteAuthorize | undefined; permission: string; forbidden: (refusal: MediaForbiddenRefusal) => object },
+  optional: JsonRouteAuthorizeScope = {},
+): Promise<void> {
+  try {
+    await authorizeMedia({ authorize, permission }, optional);
+  } catch (err) {
+    if (!(err instanceof RouteRefusalError) || err.response.status !== 403) throw err;
+    throw new RouteRefusalError({ status: 403, body: forbidden(err.response.body as MediaForbiddenRefusal) });
+  }
+}
+
+/** The authenticated principal; the host's authenticate port always sets it before `handle` runs.
+ *  @complexity O(1). */
+export function principalOf({ context }: { context: MediaRoutePrincipal | undefined }, _optional: Record<string, never> = {}): MediaRoutePrincipal {
+  if (!context) throw new Error("media admin route has no authenticated principal");
+  return context;
+}
+
+/** Refuses with the media routes' `404 media '<id>' was not found` body.
+ *  @complexity O(1). */
+export function rejectMediaNotFound({ mediaId }: { mediaId: string }, _optional: Record<string, never> = {}): never {
+  return rejectRoute({ status: 404, error: `media '${mediaId}' was not found` });
 }
 
 /** The authenticated principal's id, recorded as the actor of a trash move. @complexity O(1). */

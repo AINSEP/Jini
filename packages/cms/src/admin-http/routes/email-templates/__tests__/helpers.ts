@@ -19,6 +19,7 @@ export const errorDeps: EmailTemplateErrorDeps = {
   isTemplateNotFound: ({ err }) => err instanceof FakeNotFound,
   isTemplateInput: ({ err }) => err instanceof FakeInput,
   isTemplateVersionConflict: ({ err }) => err instanceof FakeVersionConflict,
+  outwardErrorMessage: ({ error }) => error.message,
 };
 
 /** One recorded authorization: the permission, the entity type (always empty here) and no entity id. */

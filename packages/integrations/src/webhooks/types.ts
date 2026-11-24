@@ -1,6 +1,8 @@
 /** Workspace-scoped subscription/delivery records and serializable wire envelopes. */
 import type { CreatorKind, UUID, ISODateTime, JsonObject } from "@jini-ai/core/primitives";
 
+import type { SealedSecret } from "../secrets/types.js";
+
 /** Topic names share the domain-event catalog ({entity}.{action}); an entity's trailing .*
  * subscribes to all its actions, while all-topic * requires the host's owner authorization. */
 export type WebhookTopic = string;
@@ -110,16 +112,6 @@ export interface IntegrationSecretRecord {
   createdByPrincipalId: UUID;
   createdAt: ISODateTime;
   updatedAt: ISODateTime;
-}
-
-/** keyId identifies the wrapping-key generation so export adapters can rewrap or strip a secret
- * explicitly instead of silently transporting it with ordinary content. Ciphertext/nonce are
- * base64 AEAD data; alg identifies the authenticated cipher. */
-export interface SealedSecret {
-  keyId: string;
-  ciphertext: string;
-  nonce: string;
-  alg: string;
 }
 
 /** Async filters operate only on serializable envelope data before signing. They can redact,

@@ -37,7 +37,7 @@ save remains for adapters with separate storage. The envelope port keys by globa
 delivery ID, retaining the original contract. List-based duplicate checks load all historical
 rows for a subscription; a future optimized adapter/service API can replace that cost.
 
-Local `RootKeyHandle`, `KeyringPort`, `SecretSealerPort` and `SealedSecret` structurally map to
+`RootKeyHandle`, `KeyringPort`, `SecretSealerPort` and `SealedSecret` live in `../secrets` (`@jini-ai/integrations/secrets`) and structurally map to
 `@jini-ai/platform/secrets` from the concurrent secrets extraction. In particular, seal requires
 AAD in argument one; open takes `{ sealed }` plus optional `{ aad }`. The signer uses only
 `Pick<KeyringPort, "deriveSigningSecret">`. There is no platform import and no sealing adapter

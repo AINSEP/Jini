@@ -1,4 +1,4 @@
-import type { AgentCliEnvFieldSpec } from '../types.js';
+import type { AgentCliEnvFieldSpec } from '@jini-ai/core/contracts/execution';
 
 export const claudeEnvFields: readonly AgentCliEnvFieldSpec[] = [
   {

@@ -6,15 +6,15 @@ import { agentMetaLabel, agentModelSummary } from '../../rules.js';
 import type {
   AgentCliEnvFieldSpec,
   AgentTestState,
-  DetectedAgent,
+  ExecutionCardAgent,
   LocalCliConfig,
-} from '../../types.js';
+} from '@jini-ai/core/contracts/execution';
 import { useLocalCliAgentCard } from '../hooks/useLocalCliAgentCard.js';
 import { AgentDiagnosticRow } from './AgentDiagnosticRow.js';
 import { LocalCliAgentSettings } from './LocalCliAgentSettings.js';
 
 export interface LocalCliAgentCardProps {
-  agent: DetectedAgent;
+  agent: ExecutionCardAgent;
   config: LocalCliConfig;
   selected: boolean;
   onSelect: (agentId: string) => void;
@@ -26,8 +26,8 @@ export interface LocalCliAgentCardProps {
   cliEnvFields: readonly AgentCliEnvFieldSpec[];
   /** Rendered in the card's icon slot. A host passes its own vendor marks;
    *  without one the card falls back to a monogram rather than a gap. */
-  renderIcon?: ((agent: DetectedAgent) => ReactNode) | undefined;
-  onTest?: ((agent: DetectedAgent) => void) | undefined;
+  renderIcon?: ((agent: ExecutionCardAgent) => ReactNode) | undefined;
+  onTest?: ((agent: ExecutionCardAgent) => void) | undefined;
   agentTest: AgentTestState;
   /** Wired straight into `AgentDiagnosticRow`'s `{kind:'rescan'}` fix action —
    *  the same rescan the list's own header button triggers. Omitted hides
@@ -46,8 +46,8 @@ export type LocalCliAgentCardHooks = typeof defaultLocalCliAgentCardHooks;
 
 /** The header's Test action; only a selected card with a test handler shows it. */
 function LocalCliAgentTestButton({ agent, onTest, testing, agentHandle, t }: {
-  agent: DetectedAgent;
-  onTest: (agent: DetectedAgent) => void;
+  agent: ExecutionCardAgent;
+  onTest: (agent: ExecutionCardAgent) => void;
   testing: boolean;
   agentHandle: string | undefined;
   t: ReturnType<typeof useT>;

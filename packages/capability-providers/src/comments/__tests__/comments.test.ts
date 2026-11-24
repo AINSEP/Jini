@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { bindings } from '@jini-ai/core';
+import type { CommentsProviderDefinition, CommentsProviderAdapter, CommentsSelection, CommentsSelectionStorePort } from '@jini-ai/core/contracts/site/comments-providers';
 import { createCommentsProviderRegistry, freezeCommentsDefinition, CommentsProviderRegistryToken, CommentThreadRendererToken,
-  CommentModerationToken, CommentSubmissionToken, CommentsSelectionStoreToken, type CommentsProviderDefinition,
-  type CommentsProviderAdapter, type CommentsSelection, type CommentsSelectionStorePort } from '../index.js';
+  CommentModerationToken, CommentSubmissionToken, CommentsSelectionStoreToken } from '../index.js';
 
 const definition: CommentsProviderDefinition = { id: 'local', label: 'Local', kind: 'stored', consentCategory: 'functional',
   implementation: 'adapter', csp: { scriptSrc: [], styleSrc: [], frameSrc: [], connectSrc: [] },

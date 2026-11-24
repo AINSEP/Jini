@@ -36,11 +36,11 @@ import type {
   AgentCliEnvFieldSpec,
   AgentDiagnostic,
   ByokConfig,
-  DetectedAgent,
+  ExecutionCardAgent,
   ExecutionConfig,
   LocalCliConfig,
   ProviderPreset,
-} from '../../../features/execution/types.js';
+} from '@jini-ai/core/contracts/execution';
 
 function byok(overrides: Partial<ByokConfig> = {}): ByokConfig {
   return {
@@ -381,7 +381,7 @@ describe('sortDetectedAgents', () => {
  * re-selecting an agent being a no-op — had no direct test naming them.
  */
 
-function agent(overrides: Partial<DetectedAgent> = {}): DetectedAgent {
+function agent(overrides: Partial<ExecutionCardAgent> = {}): ExecutionCardAgent {
   return { id: 'claude', label: 'Claude Code', installed: true, ...overrides };
 }
 

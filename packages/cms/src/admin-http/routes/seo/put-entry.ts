@@ -2,6 +2,7 @@ import { defineJsonRoute, ok } from "@jini-ai/core/contracts/server";
 import type { AdminSeoEntryMetaEnvelope } from "@jini-ai/core/contracts/site/cms-seo";
 import { parseExpectedVersion } from "@jini-ai/core/optimistic-concurrency";
 
+import type { OutwardErrorMessage } from "../../http/outward-error-message.js";
 import { getEntryMeta, type GetEntryMetaDeps } from "../../../seo/seo.js";
 import { setEntrySeoOverrides, type SetEntrySeoOverridesDeps } from "../../../seo/write-service.js";
 import type { SeoExtFieldsPatch } from "../../../seo/types.js";
@@ -15,6 +16,8 @@ import {
 export interface SeoPutEntryRouteDeps extends Pick<SetEntrySeoOverridesDeps, "clock" | "invalidateSitemapCache"> {
   workspaceId: string;
   seoReady: PromiseLike<unknown>;
+  /** Words a classified refusal (trashed entry, invalid field, unknown entry, lost write) for the caller (see {@link OutwardErrorMessage}). */
+  outwardErrorMessage: OutwardErrorMessage;
   /** The read deps (and, through `postRepo`/`media`, the chokepoint's write ports). */
   seoDeps: GetEntryMetaDeps & Pick<SetEntrySeoOverridesDeps, "postRepo" | "media">;
   /**
@@ -59,7 +62,7 @@ export const seoPutEntryRoute = defineJsonRoute<SeoPutEntryInput, AdminSeoEntryM
       const meta = await getEntryMeta({ deps: read.deps, input: { workspaceId: deps.workspaceId, entryId: input.entryId } }, {});
       return ok({ value: { data: withContentImageSource({ meta, rawPost: read.rawPost }) } });
     } catch (err) {
-      return rejectSeoError({ err, mappings: SEO_PUT_ENTRY_ERRORS }, { versionConflictAfter: SEO_TOOL_INPUT });
+      return rejectSeoError({ err, mappings: SEO_PUT_ENTRY_ERRORS }, { versionConflictAfter: SEO_TOOL_INPUT, outwardErrorMessage: deps.outwardErrorMessage });
     }
   },
 });

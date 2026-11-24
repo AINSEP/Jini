@@ -6,6 +6,7 @@ import { ToolAccessLoweringError } from '../tool-access-change.js';
 test('ToolAccessLoweringError is an Error with the stable stop-failed code and a cause-free message', () => {
   const error = new ToolAccessLoweringError();
   assert.ok(error instanceof Error);
+  assert.ok(error instanceof ToolAccessLoweringError);
   assert.equal(error.code, 'TOOL_ACCESS_STOP_FAILED');
   assert.equal(error.message, 'Tool access changed, but affected answers could not be confirmed stopped.');
 });

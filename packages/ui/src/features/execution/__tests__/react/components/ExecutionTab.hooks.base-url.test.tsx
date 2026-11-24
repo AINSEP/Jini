@@ -1,7 +1,7 @@
 import { act, renderHook } from '../../../../../__tests__/ui-kit-render-support.js';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createFakeExecutionPort } from '../../../dependencies.js';
-import type { ExecutionConfig } from '../../../types.js';
+import type { ExecutionConfig } from '@jini-ai/core/contracts/execution';
 import { useExecutionTabView } from '../../../react/components/ExecutionTab.hooks.js';
 
 const KEY = `sk-test-${'0'.repeat(32)}`;

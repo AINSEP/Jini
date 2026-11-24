@@ -1,6 +1,7 @@
 import { defineJsonRoute, ok } from "@jini-ai/core/contracts/server";
 import type { AdminMediaProviderMarkers } from "@jini-ai/core/contracts/site/cms-media";
 
+import type { OutwardErrorMessage } from "../../http/outward-error-message.js";
 import { authorizeMedia, rejectMediaError, type MediaErrorMapping, type MediaRoutePrincipal } from "./shared.js";
 
 /** Replaces the workspace's whole credential set and answers the same markers-only map GET returns. Injected: the secret store is the host's. */
@@ -10,6 +11,8 @@ export type MediaProvidersSaveFn = (required: { workspaceId: string; providers: 
 export interface MediaPutProvidersRouteDeps {
   workspaceId: string;
   saveProviders: MediaProvidersSaveFn;
+  /** Words a classified host store error for the caller (see {@link OutwardErrorMessage}); a mapping with its own fixed `error` copy keeps it. */
+  outwardErrorMessage: OutwardErrorMessage;
   /** The host's refusals for its own store errors, in order (validation 400, unconfigured store 503 with the
    *  host's operator copy). The error classes and that copy are the host's, so the table is too. */
   saveErrorMappings: readonly MediaErrorMapping[];
@@ -43,7 +46,7 @@ export const mediaPutProvidersRoute = defineJsonRoute<{ providers: Record<string
     try {
       return ok({ value: await deps.saveProviders({ workspaceId: deps.workspaceId, providers: input.providers }) });
     } catch (err) {
-      return rejectMediaError({ err, mappings: deps.saveErrorMappings });
+      return rejectMediaError({ err, mappings: deps.saveErrorMappings, outwardErrorMessage: deps.outwardErrorMessage });
     }
   },
 });

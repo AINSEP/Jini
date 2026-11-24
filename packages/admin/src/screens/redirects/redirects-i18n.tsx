@@ -1,10 +1,9 @@
 import { ADMIN_COMMON_I18N } from "../../core/i18n-common.js";
-import { mergeLocaleOverlays } from "../../shell/lib/merge-locale-overlays.js";
 import type { ReactNode } from "react";
 
 import { InfoTip } from "../../react/kit.js";
 
-import { createDictionaryTranslator, interpolate, localeEntry } from '@jini-ai/core/text';
+import { mergeLocaleOverlays, createDictionaryTranslator, interpolate, localeEntry } from '@jini-ai/core/text';
 import { REDIRECTS_LOCALES_A } from "./redirects-i18n.locales-a.js";
 import { REDIRECTS_LOCALES_B } from "./redirects-i18n.locales-b.js";
 import { MATCH_TYPE_TRANSLATIONS, WILDCARD_CAP_NOTICE_TRANSLATIONS } from "./redirects-i18n.overlays.js";

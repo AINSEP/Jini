@@ -4,8 +4,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { AGENT_ELEMENT_ATTRIBUTE } from '@jini-ai/core/agent-handles';
 import { I18nProvider } from '../../../../i18n/index.js';
 import { createFakeExecutionPort } from '../../../dependencies.js';
-import type { ExecutionPort } from '../../../ports.js';
-import type { ExecutionConfig, ProviderPreset } from '../../../types.js';
+import type { ExecutionConfig, ExecutionPort, ProviderPreset } from '@jini-ai/core/contracts/execution';
 import { ExecutionTab } from '../../../react/components/ExecutionTab.js';
 
 /** Synthetic throughout — never a real credential shape anyone issues. */

@@ -1,6 +1,7 @@
 import { defineJsonRoute, ok } from "@jini-ai/core/contracts/server";
 import type { AdminMediaEnvelope } from "@jini-ai/core/contracts/site/cms-media";
 
+import type { OutwardErrorMessage } from "../../http/outward-error-message.js";
 import { updateMediaMetadata, type UpdateMediaMetadataRequired } from "../../../media/media-service.js";
 import { parseOptionalSlugField, parseOptionalStringField, parseOptionalTitleField } from "../../../media/metadata-fields.js";
 import {
@@ -11,6 +12,8 @@ import {
 /** The deps this route reads. */
 export interface MediaUpdateRouteDeps extends Pick<UpdateMediaMetadataRequired["deps"], "clock" | "mediaRepo">, MediaAssetLookups {
   workspaceId: string;
+  /** Words a classified refusal (trashed, unknown, invalid, slug collision) for the caller (see {@link OutwardErrorMessage}). */
+  outwardErrorMessage: OutwardErrorMessage;
 }
 
 /**
@@ -86,7 +89,7 @@ export const mediaUpdateRoute = defineJsonRoute<{ mediaId: string; body: unknown
       });
       return ok({ value: { media: await describeMediaAsset({ deps, media }) } });
     } catch (err) {
-      return rejectMediaError({ err, mappings: MEDIA_UPDATE_ERRORS });
+      return rejectMediaError({ err, mappings: MEDIA_UPDATE_ERRORS, outwardErrorMessage: deps.outwardErrorMessage });
     }
   },
 });

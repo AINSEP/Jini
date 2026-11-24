@@ -1,34 +1,33 @@
 import { defineJsonRoute, ok } from "@jini-ai/core/contracts/server";
-import type { AdminMediaWhereUsedEnvelope } from "@jini-ai/core/contracts/site/cms-media";
 import { rejectRoute } from "@jini-ai/core/errors/route-refusal";
 
-import type { MediaRepoPort } from "../../../media/ports.js";
-import { mediaIdParam, type MediaRoutePrincipal } from "./shared.js";
+import type { MediaRecord } from "../../../media/types.js";
+import { authorizeMediaOrForbid, type MediaRoutePrincipal } from "./shared.js";
 
-/** The host's usage finder (entries, posts, references), asked for the stored id and slug. */
-export type MediaWhereUsedFinder = (required: { workspaceId: string; mediaId: string; slug: string }) => Promise<unknown>;
-
-/** The deps this route reads: the workspace, the asset lookup and the host's usage finder. */
+/** The deps this route reads. The host binds its usage scan (reference index plus current post bodies) into `findWhereUsed`. */
 export interface MediaWhereUsedRouteDeps {
   workspaceId: string;
-  mediaRepo: Pick<MediaRepoPort, "findById">;
-  findWhereUsed: MediaWhereUsedFinder;
+  mediaRepo: { findById: (required: { workspaceId: string; id: string }) => Promise<MediaRecord | null> };
+  findWhereUsed: (required: { workspaceId: string; mediaId: string; slug: string }) => Promise<object>;
 }
 
 /**
- * Read-only usage disclosure, sharing the media.read gate and existing workspace isolation.
- * The check names the `media` type but no entity id, as the hand-written route asked it; its denial
- * body (`media.read is required`, no `details`) is the host mount's `forbidden` reply.
+ * GET where an asset is used — a read-only usage disclosure, sharing the `media.read` gate and the
+ * existing workspace isolation. Usage is queried by the stored record's id AND slug, so a reference
+ * written by slug is found too.
+ *
+ * Authorization comes before the asset lookup, so a caller without `media.read` learns nothing
+ * about which ids exist. A denied `media.read` answers this route's own short body
+ * (`media.read is required`), as it always has, rather than the authorizer's longer sentence.
  */
-export const mediaWhereUsedRoute = defineJsonRoute<{ mediaId: string }, AdminMediaWhereUsedEnvelope, MediaWhereUsedRouteDeps, MediaRoutePrincipal>({
+export const mediaWhereUsedRoute = defineJsonRoute<{ mediaId: string }, { mediaId: string; whereUsed: object }, MediaWhereUsedRouteDeps, MediaRoutePrincipal>({
   method: "get",
   path: "/api/admin/v1/workspaces/:workspaceId/media/:mediaId/where-used",
-  parse: (raw) => ok({ value: { mediaId: mediaIdParam({ params: raw.params }) } }),
+  parse: (raw) => ok({ value: { mediaId: String(raw.params.mediaId ?? "") } }),
   handle: async ({ input, deps, authorize }) => {
-    if (!authorize) throw new Error("media admin route has no authorizer");
-    await authorize({ permission: "media.read", entityType: "media" });
+    await authorizeMediaOrForbid({ authorize, permission: "media.read", forbidden: () => ({ error: "media.read is required", code: "FORBIDDEN" }) });
     const media = await deps.mediaRepo.findById({ workspaceId: deps.workspaceId, id: input.mediaId });
-    if (!media) rejectRoute({ status: 404, error: "media was not found" });
+    if (!media) return rejectRoute({ status: 404, error: "media was not found" });
     const whereUsed = await deps.findWhereUsed({ workspaceId: deps.workspaceId, mediaId: media.id, slug: media.slug });
     return ok({ value: { mediaId: media.id, whereUsed } });
   },

@@ -6,7 +6,7 @@ import { fakeMedia, fakeMediaDto, LOOKUPS, mediaRepoWith, PRINCIPAL, raw, record
 
 const LATER = "2026-10-09T00:00:00.000Z";
 function updateDeps(overrides: Partial<MediaUpdateRouteDeps> = {}): MediaUpdateRouteDeps {
-  return { workspaceId: WORKSPACE_ID, mediaRepo: mediaRepoWith(), clock: { nowMs: () => Date.parse(LATER) }, ...LOOKUPS, ...overrides };
+  return { workspaceId: WORKSPACE_ID, mediaRepo: mediaRepoWith(), clock: { nowMs: () => Date.parse(LATER) }, ...LOOKUPS, outwardErrorMessage: ({ error }) => error.message, ...overrides };
 }
 const run = (body: unknown, deps = updateDeps(), authorize = recordingAuthorize().authorize) =>
   mediaUpdateRoute.handle({ input: { mediaId: "a1", body }, deps, context: PRINCIPAL, authorize }, { signal });

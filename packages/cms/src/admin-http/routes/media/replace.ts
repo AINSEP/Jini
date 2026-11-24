@@ -3,6 +3,7 @@ import type { AdminMediaEnvelope } from "@jini-ai/core/contracts/site/cms-media"
 import { decodeStrictBase64 } from "@jini-ai/core/contracts/site/strict-base64";
 import { rejectRoute } from "@jini-ai/core/errors/route-refusal";
 
+import type { OutwardErrorMessage } from "../../http/outward-error-message.js";
 import { DEFAULT_ALLOWED_MIME_TYPES } from "../../../media/media-service.js";
 import type { MediaRepoPort } from "../../../media/ports.js";
 import { resolveUploadContentType } from "../../../media/site/upload-content-type.js";
@@ -27,6 +28,8 @@ export interface MediaReplaceRouteDeps {
   /** The host's file switch; `null` when the asset's version moved meanwhile. */
   replaceFile: (required: MediaReplacement) => Promise<MediaRecord | null>;
   describeStored: MediaStoredDescriber;
+  /** Words a classified validation refusal for the caller (see {@link OutwardErrorMessage}). */
+  outwardErrorMessage: OutwardErrorMessage;
 }
 
 /** The declared content type and base64 payload, refused unless the filename, type and payload are
@@ -97,7 +100,7 @@ export const mediaReplaceRoute = defineJsonRoute<{ mediaId: string; body: unknow
     try {
       return ok({ value: await replaceFromBody({ deps, media, body: input.body, principalId }) });
     } catch (err) {
-      return rejectMediaError({ err, mappings: [MEDIA_VALIDATION] });
+      return rejectMediaError({ err, mappings: [MEDIA_VALIDATION], outwardErrorMessage: deps.outwardErrorMessage });
     }
   },
 });

@@ -2,7 +2,7 @@ import { fireEvent, render, screen } from '../../../../../__tests__/ui-kit-rende
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
 import { ByokProviderForm } from '../../../react/components/ByokProviderForm.js';
-import type { ByokConfig, ProviderPreset } from '../../../types.js';
+import type { ByokConfig, ProviderPreset } from '@jini-ai/core/contracts/execution';
 
 /**
  * @file Field wiring the other ByokProviderForm suites leave implicit: every input's `onChange`

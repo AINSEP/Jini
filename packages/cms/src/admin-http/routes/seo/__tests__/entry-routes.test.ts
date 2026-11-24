@@ -62,7 +62,7 @@ describe("seo entry read specs", () => {
 describe("seoPutEntryRoute", () => {
   const putDeps = (error?: unknown) => {
     const read = seoDeps({ error });
-    return { read, deps: { workspaceId: WORKSPACE_ID, seoReady: ready, seoDeps: read.deps, entryAuthorize: async () => ({ allowed: true }), invalidateSitemapCache: () => {}, clock: { nowMs: () => 0 } } as never };
+    return { read, deps: { workspaceId: WORKSPACE_ID, seoReady: ready, seoDeps: read.deps, outwardErrorMessage: ({ error }: { error: Error }) => error.message, entryAuthorize: async () => ({ allowed: true }), invalidateSitemapCache: () => {}, clock: { nowMs: () => 0 } } as never };
   };
 
   it("keeps the PUT path, no body cap, and splits expectedVersion off the patch", () => {

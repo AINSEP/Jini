@@ -1,6 +1,6 @@
 import { useT } from '../../../i18n/index.js';
 import { agentDiagnosticTooltip } from '../../rules.js';
-import type { AgentDiagnostic, AgentFixIntent } from '../../types.js';
+import type { AgentDiagnostic, AgentFixIntent } from '@jini-ai/core/contracts/execution';
 import { Icon } from '../../../../react/components/Icon.js';
 import { unhandledCase } from '../../../../utils/unhandled-case.js';
 import type { IconName } from '../../../../react/components/Icon.js';

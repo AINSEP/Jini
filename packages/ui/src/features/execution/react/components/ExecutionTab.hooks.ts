@@ -1,7 +1,6 @@
 import { useEffect, useState } from 'react';
 import { groupPresets, isProviderConfigured, isValidApiBaseUrl, nextConfigForModeChange, nextConfigForPresetSelect, resolveSelectedPreset } from '../../rules.js';
-import type { ExecutionConfig, ExecutionMode, ProviderPreset } from '../../types.js';
-import type { ExecutionPort } from '../../ports.js';
+import type { ExecutionConfig, ExecutionMode, ExecutionPort, ProviderPreset } from '@jini-ai/core/contracts/execution';
 import { useExecutionTab } from '../hooks/useExecutionTab.js';
 
 /** How long a typed Base URL must stay unchanged before discovery may send the key to it. */

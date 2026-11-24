@@ -2,9 +2,11 @@ import { describe, expect, it } from "vitest";
 import type { AdminMenuAttrsDto, AdminMenuDto, AdminMenuTargetDto } from "@jini-ai/core/contracts/site/cms-menus";
 
 import type { MenuStatus, NavItemAttrs, NavMenuMode, NavTarget } from "../../../navigation/index.js";
-import { parseMenuHtmlAuthoring, toAdminMenuBindingDto, toAdminMenuDto, toAdminMenuResponse } from "../menus.js";
-import { menuIdParam } from "../../routes/menus/shared.js";
-import { fakeMenu, fakeMenuDto } from "../../routes/menus/__tests__/helpers.js";
+import {
+  parseMenuHtmlAuthoring, toAdminAssignLocationResponse, toAdminMenuBindingDto, toAdminMenuDto, toAdminMenuResponse, toAdminTrashMenuResponse,
+} from "../menus.js";
+import { authorizeMenuHtml, menuIdParam } from "../../routes/menus/shared.js";
+import { fakeMenu, fakeMenuDto, RAW_HTML_PERMISSION } from "../../routes/menus/__tests__/helpers.js";
 
 /**
  * @file rv1123e K1-jini #2: the menus wire DTOs are declared once in neutral Core (the admin client
@@ -32,5 +34,49 @@ describe("menus wire DTOs", () => {
       Same<NonNullable<AdminMenuDto["mode"]>, NavMenuMode>, Same<AdminMenuDto["status"], MenuStatus>,
     ] = [true, true, true, true];
     expect(parity).toEqual([true, true, true, true]);
+  });
+
+  it("serializes the tree and omits mode/html when the doc carries neither", () => {
+    const menu = {
+      id: "menu-1", workspaceId: "ws-1", slug: "main", title: "Main", status: "published", locations: ["primary"],
+      updatedAt: "2026-01-01T00:00:00.000Z", version: 2,
+      doc: { items: [{ id: "i-1", label: "Home", target: { kind: "url", href: "/" }, children: [{ id: "i-2", target: { kind: "url", href: "/a" } }] }] },
+    } as never;
+    const dto = toAdminMenuDto({ menu }) as unknown as Record<string, unknown>;
+    expect("mode" in dto || "html" in dto).toBe(false);
+    expect(dto).toMatchObject({ id: "menu-1", locations: ["primary"], items: [{ id: "i-1", children: [{ id: "i-2", children: undefined }] }] });
+  });
+
+  it("shapes the assign and trash envelopes", () => {
+    const menu = fakeMenu();
+    const binding = { workspaceId: "ws-1", locationKey: "primary", menuId: "m1", boundAt: "t", extra: 1 } as never;
+    expect(toAdminAssignLocationResponse({ menu, binding, displacedMenu: null })).toMatchObject({
+      binding: { workspaceId: "ws-1", locationKey: "primary", menuId: "m1", boundAt: "t" }, displacedMenu: null,
+    });
+    expect(toAdminTrashMenuResponse({ id: "m1", version: null })).toEqual({ trashed: true, id: "m1", version: null });
+  });
+
+  it("parseMenuHtmlAuthoring keeps only the fields that were sent", () => {
+    expect(parseMenuHtmlAuthoring({ body: {} })).toEqual({});
+    expect(parseMenuHtmlAuthoring({ body: { mode: "html", html: "<b>y</b>", other: 1 } })).toEqual({ mode: "html", html: "<b>y</b>" });
+  });
+});
+
+describe("authorizeMenuHtml", () => {
+  it("asks for the injected raw-HTML permission only on an HTML write, naming the menu only when given", async () => {
+    const calls: unknown[] = [];
+    const authorize = async (required: { permission: string; entityType: string }, optional: { entityId?: string } = {}) => { calls.push({ ...required, ...optional }); };
+    await authorizeMenuHtml({ authorize, permission: RAW_HTML_PERMISSION, authoring: { mode: "items" } });
+    expect(calls).toEqual([]);
+    await authorizeMenuHtml({ authorize, permission: RAW_HTML_PERMISSION, authoring: { html: "<a>x</a>" } }, { entityId: "menu-1" });
+    await authorizeMenuHtml({ authorize, permission: RAW_HTML_PERMISSION, authoring: { mode: "html" } });
+    expect(calls).toEqual([
+      { permission: RAW_HTML_PERMISSION, entityType: "menu", entityId: "menu-1" },
+      { permission: RAW_HTML_PERMISSION, entityType: "menu" },
+    ]);
+  });
+
+  it("treats a missing authorizer on an HTML write as a wiring bug", async () => {
+    await expect(authorizeMenuHtml({ authorize: undefined, permission: RAW_HTML_PERMISSION, authoring: { mode: "html" } })).rejects.toThrow("menus admin route has no authorizer");
   });
 });

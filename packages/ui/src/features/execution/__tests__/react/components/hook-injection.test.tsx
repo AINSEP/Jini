@@ -7,7 +7,7 @@ import { AgentDiagnosticRow } from '../../../react/components/AgentDiagnosticRow
 import { ByokProviderForm, defaultByokProviderFormHooks } from '../../../react/components/ByokProviderForm.js';
 import { LocalCliAgentCard, defaultLocalCliAgentCardHooks } from '../../../react/components/LocalCliAgentCard.js';
 import { LocalCliAgentList } from '../../../react/components/LocalCliAgentList.js';
-import type { AgentCliEnvFieldSpec, AgentDiagnostic, DetectedAgent } from '../../../types.js';
+import type { AgentCliEnvFieldSpec, AgentDiagnostic, ExecutionCardAgent } from '@jini-ai/core/contracts/execution';
 
 /** A translator that is visibly not the key, so the assertion proves the injected hook ran. */
 const useQuotingT: typeof useT = () => (key) => `«${key}»`;
@@ -59,7 +59,7 @@ describe('AgentDiagnosticRow translation hook', () => {
   });
 });
 
-const agent: DetectedAgent = { id: 'claude', label: 'Claude Code', installed: true };
+const agent: ExecutionCardAgent = { id: 'claude', label: 'Claude Code', installed: true };
 const cardProps = {
   agent,
   config: { agentId: 'claude' },

@@ -1,5 +1,5 @@
 import { agentHandleProps, buildAgentListHandles } from '@jini-ai/core/agent-handles';
-import type { ProviderPreset } from '../../types.js';
+import type { ProviderPreset } from '@jini-ai/core/contracts/execution';
 
 export interface ProviderChipGroupProps {
   label: string;

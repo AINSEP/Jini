@@ -1,3 +1,4 @@
+import type { OutwardErrorMessage } from "../../http/outward-error-message.js";
 import type { JsonRouteAuthorize } from "@jini-ai/core/contracts/server";
 import { rejectRoute } from "@jini-ai/core/errors/route-refusal";
 
@@ -32,6 +33,8 @@ export interface EmailTemplateErrorDeps {
   isTemplateNotFound: (required: { err: unknown }) => boolean;
   isTemplateInput: (required: { err: unknown }) => boolean;
   isTemplateVersionConflict: (required: { err: unknown }) => boolean;
+  /** Words the 409 refusal for a trashed or tombstoned template; the stored error text never reaches the body from here. */
+  outwardErrorMessage: OutwardErrorMessage;
 }
 
 /**
@@ -53,7 +56,7 @@ export async function authorizeEmailTemplates({ authorize, permission }: { autho
  * @complexity O(1).
  */
 export function rejectEmailTemplateError({ err, deps }: { err: unknown; deps: EmailTemplateErrorDeps }, _optional: Record<string, never> = {}): never {
-  const live = entityNotLiveResponse({ err });
+  const live = entityNotLiveResponse({ err, outwardErrorMessage: deps.outwardErrorMessage });
   if (live) rejectRoute({ status: live.status, error: live.body.error, code: live.body.code });
   const error = err instanceof Error ? err.message : String(err);
   if (deps.isTemplateNotFound({ err })) rejectRoute({ status: 404, error, code: "ENTRY_NOT_FOUND" });

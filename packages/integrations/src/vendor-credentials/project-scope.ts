@@ -1,4 +1,4 @@
-import type { KeyringPort, SecretSealerPort } from "../webhooks/ports.js";
+import type { KeyringPort, SecretSealerPort } from "../secrets/ports.js";
 
 /**
  * @file Shared scope policy for custom, publish and source-control credentials. Site-owned keys

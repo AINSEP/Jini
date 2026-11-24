@@ -14,6 +14,7 @@ function deps(log: string[] = [], options: { row?: MediaRecord | null; capable?:
   const capable = options.capable ?? true;
   return {
     workspaceId: WORKSPACE_ID,
+    outwardErrorMessage: ({ error }: { error: Error }) => error.message,
     maxUploadBytes: options.maxUploadBytes ?? 50 * 1024 * 1024,
     mediaRepo: {
       findById: async ({ workspaceId, id }: { workspaceId: string; id: string }) => { log.push(`find:${workspaceId}:${id}`); return row; },

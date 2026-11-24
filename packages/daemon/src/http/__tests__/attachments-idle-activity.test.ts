@@ -1,6 +1,6 @@
 import { expect, it, vi } from 'vitest';
 import { attachmentCleanupRoutes, attachmentUploadRoutes } from '../attachment-routes.js';
-import type { AttachmentStore } from '../attachment-store-types.js';
+import type { AttachmentStore } from '@jini-ai/core/contracts/site/daemon-http';
 import { fakeDaemonRouteHost } from './fakes/route-host.js';
 
 /** The host's busy lease must outlive the handler's own tidy-up, not just the answer: it is released only when the whole call is done. */

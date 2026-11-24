@@ -211,7 +211,14 @@ function sendRouteResult<Output>({ res, result, spec, signal }: {
     sendRouteReply({ res, reply: result.value });
     return;
   }
-  sendJson({ res, status: spec.successStatus ?? 200, body: result.value });
+  const status = spec.successStatus ?? 200;
+  // A no-content status forbids a body: end the response instead of serializing `result.value`
+  // through `res.json`, matching hand-mounted handlers that answered `res.status(204).end()`.
+  if (NO_CONTENT_STATUSES.has(status)) {
+    res.status(status).end();
+    return;
+  }
+  sendJson({ res, status, body: result.value });
 }
 
 /**
@@ -226,6 +233,9 @@ function sendRouteReply({ res, reply }: { readonly res: Response; readonly reply
   }
   sendJson({ res, status: reply.status, body: reply.body });
 }
+
+/** Success statuses that must carry no response body (RFC 9110 §15.3.5, §15.3.6, §15.4.5). */
+const NO_CONTENT_STATUSES: ReadonlySet<number> = new Set([204, 205, 304]);
 
 function sendReturnedFailure({ res, onReturnedError, error, phase }: {
   readonly res: Response;

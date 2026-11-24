@@ -1,7 +1,7 @@
 import { renderHook } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 import { CUSTOM_MODEL_SENTINEL } from '../../../constants.js';
-import type { DetectedAgent, LocalCliConfig } from '../../../types.js';
+import type { ExecutionCardAgent, LocalCliConfig } from '@jini-ai/core/contracts/execution';
 import { useReasoningControl } from '../../../react/hooks/useReasoningControl.js';
 
 const AGY_MODELS = [
@@ -23,7 +23,7 @@ const REASONING_IN_MODEL_ID = {
   ],
 };
 
-function agyAgent(overrides: Partial<DetectedAgent> = {}): DetectedAgent {
+function agyAgent(overrides: Partial<ExecutionCardAgent> = {}): ExecutionCardAgent {
   return {
     id: 'antigravity',
     label: 'Antigravity',
@@ -63,7 +63,7 @@ const CODEX_MODELS = [
   { id: 'gpt-unlisted', label: 'GPT Unlisted' },
 ];
 
-function codexAgent(overrides: Partial<DetectedAgent> = {}): DetectedAgent {
+function codexAgent(overrides: Partial<ExecutionCardAgent> = {}): ExecutionCardAgent {
   return {
     id: 'codex',
     label: 'Codex',
@@ -81,7 +81,7 @@ function codexAgent(overrides: Partial<DetectedAgent> = {}): DetectedAgent {
   };
 }
 
-function claudeAgent(overrides: Partial<DetectedAgent> = {}): DetectedAgent {
+function claudeAgent(overrides: Partial<ExecutionCardAgent> = {}): ExecutionCardAgent {
   return {
     id: 'claude',
     label: 'Claude Code',
