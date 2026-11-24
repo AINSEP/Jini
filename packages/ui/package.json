@@ -38,6 +38,7 @@
       "./fetch-query": "browser",
       "./fetch-query/tanstack": "browser",
       "./tab-strip": "browser",
+      "./find": "browser",
       "./site-card": "browser",
       "./site-card.css": "browser",
       "./admin-widgets.css": "browser",
@@ -201,6 +202,11 @@
       "types": "./dist/features/panel-kit/fetch-query/tanstack.d.ts",
       "import": "./dist/features/panel-kit/fetch-query/tanstack.js",
       "default": "./dist/features/panel-kit/fetch-query/tanstack.js"
+    },
+    "./find": {
+      "types": "./dist/features/find/index.d.ts",
+      "import": "./dist/features/find/index.js",
+      "default": "./dist/features/find/index.js"
     },
     "./site-card": {
       "types": "./dist/features/site-card/index.d.ts",
