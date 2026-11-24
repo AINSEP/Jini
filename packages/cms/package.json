@@ -156,6 +156,7 @@
       "./admin-http/sea-runtime": "node",
       "./public-http/http/site/render/media-playback-copy": "universal",
       "./public-http/http/site/render/value-readers": "universal",
+      "./public-http/http/site/render/doc/doc-render-contract": "universal",
       "./public-http/routes/site/pages/listing/listing-state": "universal",
       "./public-http/routes/site/pages/redirect-phase": "universal",
       "./public-http/routes/site/pages/render-context/collection-lists": "universal",
@@ -378,6 +379,7 @@
       "./admin-http/routes/agent-plugins/files": "universal",
       "./admin-http/routes/agent-plugins/set-enabled": "universal",
       "./admin-http/routes/agent-plugins/memory": "universal",
+      "./admin-http/routes/agent-plugins/admin-surfaces": "universal",
       "./admin-http/routes/agent-plugins/install": "universal",
       "./admin-http/http/agent-plugins": "universal",
       "./admin-http/http/change-sets": "universal",
@@ -1338,6 +1340,11 @@
       "types": "./dist/public-http/http/site/render/value-readers.d.ts",
       "import": "./dist/public-http/http/site/render/value-readers.js",
       "default": "./dist/public-http/http/site/render/value-readers.js"
+    },
+    "./public-http/http/site/render/doc/doc-render-contract": {
+      "types": "./dist/public-http/http/site/render/doc/doc-render-contract.d.ts",
+      "import": "./dist/public-http/http/site/render/doc/doc-render-contract.js",
+      "default": "./dist/public-http/http/site/render/doc/doc-render-contract.js"
     },
     "./public-http/routes/site/pages/listing/listing-state": {
       "types": "./dist/public-http/routes/site/pages/listing/listing-state.d.ts",
@@ -2443,6 +2450,11 @@
       "types": "./dist/admin-http/routes/agent-plugins/memory.d.ts",
       "import": "./dist/admin-http/routes/agent-plugins/memory.js",
       "default": "./dist/admin-http/routes/agent-plugins/memory.js"
+    },
+    "./admin-http/routes/agent-plugins/admin-surfaces": {
+      "types": "./dist/admin-http/routes/agent-plugins/admin-surfaces.d.ts",
+      "import": "./dist/admin-http/routes/agent-plugins/admin-surfaces.js",
+      "default": "./dist/admin-http/routes/agent-plugins/admin-surfaces.js"
     },
     "./admin-http/routes/agent-plugins/install": {
       "types": "./dist/admin-http/routes/agent-plugins/install.d.ts",

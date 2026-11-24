@@ -191,7 +191,9 @@ async function readArchive({ raw, deps }: Pick<SiteShareHandleArgs, "raw" | "dep
   // inflate a 300 MiB cap and duplicate the full buffer before we could validate it.
   const read = await raw.readBody({ type: "raw", mediaType: "application/zip", limit: deps.maxArchiveBytes });
   if (read.ok) return read.value;
-  if (read.refusal.reason === "media-type") return undefined;
+  // Not an application/zip body: the parser leaves the request body as it was, so bytes an earlier
+  // host parser already read still count, exactly as the parser registered on the route left them.
+  if (read.refusal.reason === "media-type") return raw.body instanceof Uint8Array ? raw.body : undefined;
   throw new SiteShareUploadRefusal(read.refusal);
 }
 

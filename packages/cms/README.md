@@ -228,6 +228,15 @@ specs with `bufferedReply`): the host injects `plan`/`push` (its backup service;
 `mapBackupError` (the service's known errors as `{ status, body }`, `undefined` for the mount's redacted 500), and
 mounts them with its own plain-text workspace refusal; the no-store / nosniff headers come from the specs.
 
+Site shares (`src/admin-http/routes/system/site-shares.ts`: list, create, static options/create, acknowledge,
+revoke, artifact upload/delete; raw specs with `bufferedReply` and `Cache-Control: no-store`): the host injects
+`backend()` (read per request; `undefined` answers 503), `isPublishTrusted({ context })` (a connected computer is
+refused on admin operations and authorized with `publish_content.apply` on artifacts), `readCreateInput` /
+`readStaticInput` (its body parsers and refusals), `isArtifactIdentity`, `invalidArtifact`, `receiveArtifact`,
+`removeArtifact`, `maxArchiveBytes`, and `failureReply({ error, step, method, path, authenticated })` (its refusal
+copy and incident reporting; a `SiteShareUploadRefusal` carries the deferred body read's refusal). It mounts them
+with the step's own workspace refusal and a deferred missing principal; the streamed ZIP download stays host-side.
+
 Shared Keys picker (`src/admin-http/routes/system/credential-copy.ts`: `credentialCopyListRoute`,
 `credentialCopyGrantRoute`, w4-routes K): the host injects `ownerPrincipalId()` (the seeded owner),
 `admitInstance({ principalId, permission })` (its optional instance admission; `true` when it has none),
@@ -331,6 +340,14 @@ Memory (`src/admin-http/routes/agent-plugins/memory`, GET/PUT): authorizes `admi
 no entity type or id; the host injects the installed check, the plugin's memory store (`openMemory`), the
 store's caps and, for PUT, its system-error predicate (a matching note-write error is rethrown for the host's
 own 500 copy; any other write failure is the 422).
+Admin surfaces (`src/admin-http/routes/agent-plugins/admin-surfaces`, `defineAdminSurfaceRoutes<S, O>()`: GET
+`…/:pluginId/surfaces`, POST `…/:surfaceId/bootstrap` and `…/:surfaceId/actions`): the list asks
+`admin.plugins.read`, the writes `admin.plugins.enable` (no entity type or id), then the surface 404, then (actions)
+the 400 for a missing action name. `@jini-ai/agent-plugins` depends on this package, so the host injects
+`listSurfaces`/`findSurface`, `surfaceFileUrl`, `bootstrapData`, `createBootstrap`, `bootstrapHeaders`, `nowMs`,
+`dispatcherFor` (the package dispatcher over its handlers, with its handler-error sink) and `withSignIns`. The
+writes' CSRF gate is `adminSurfaceWritePreflight({ refusal })`, a header-only check the host mounts ahead of its
+credential and workspace gates; the refusal copy is the host's.
 Install/update upload (`src/admin-http/routes/agent-plugins/install`, POST `install/zip` and
 `:pluginId/update/zip`, raw spec with `bufferedReply`): asks `admin.plugins.enable` with no entity type or id
 before any input check, then the update target, digest, body and `replace`. The zip is read through
