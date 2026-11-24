@@ -1,0 +1,91 @@
+/*
+ * Styles for `PushToTalkMicButton.tsx`. Kept file-local (imported only by that component) rather
+ * than added to `styles/assistant.css`, so nothing here can reach a route that never renders the
+ * button.
+ *
+ * The recording state is deliberately loud (red fill, a visibly pulsing dot, plus a screen-reader
+ * announcement via the button's own `role="status"` child) — an ambiguous mic indicator is a
+ * privacy problem, not a polish problem.
+ */
+
+.jini-push-to-talk {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: 999px;
+  background: transparent;
+  color: currentColor;
+  cursor: pointer;
+  touch-action: none; /* a drag off the button must reach onPointerLeave, not scroll the page */
+}
+
+.jini-push-to-talk:hover {
+  background: var(--jini-control-hover-neutral-bg);
+}
+
+.jini-push-to-talk--recording {
+  background: var(--jini-control-recording-bg);
+  color: var(--jini-control-recording-ink);
+}
+
+.jini-push-to-talk--recording:hover {
+  background: var(--jini-control-recording-bg-hover);
+}
+
+/* Outside the desktop shell (or with on-device recognition unavailable) the button still renders,
+   so the capability is discoverable and its `title`/`aria-label` can say why it is off — see
+   `mic-button-view.hooks.ts`. Muted rather than hidden, and never hover-highlighted: it must read
+   as "not available here", not as "click me". */
+.jini-push-to-talk--unavailable,
+.jini-push-to-talk--unavailable:hover {
+  opacity: 0.35;
+  background: transparent;
+  cursor: default;
+}
+
+.jini-push-to-talk__dot {
+  position: absolute;
+  top: -2px;
+  right: -2px;
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  background: var(--jini-control-recording-ink);
+  animation: jini-push-to-talk-pulse 1s ease-in-out infinite;
+}
+
+@keyframes jini-push-to-talk-pulse {
+  0%,
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.4;
+    transform: scale(1.3);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .jini-push-to-talk__dot {
+    animation: none;
+  }
+}
+
+/* Visually hidden but still announced by assistive tech — the same pattern used for `role="status"`
+   live regions throughout this codebase (see `SlowRunNoticeCard.tsx`'s own `role="status"` div,
+   which stays visible; this one stays audible-only since the button's own visual state already
+   carries the same information for sighted users). */
+.jini-push-to-talk__sr-status {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}

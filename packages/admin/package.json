@@ -272,6 +272,8 @@
       "./screens/skills/skills-visuals": "browser",
       "./screens/skills/Skills.hooks": "browser",
       "./screens/skills/use-skill-confirmation.hooks": "browser",
+      "./screens/skills/skill-drop": "browser",
+      "./screens/skills/use-skills-tabs.hooks": "browser",
       "./screens/taxonomy/api/taxonomy-api.types": "universal",
       "./screens/taxonomy/html-rules": "universal",
       "./screens/taxonomy/TaxonomyRowMenu.hooks": "browser",
@@ -309,6 +311,7 @@
       "./screens/providers/always-allow-ports": "universal",
       "./screens/integrations/integrations-ports": "universal",
       "./screens/integrations/agent-plugin-ports": "universal",
+      "./screens/integrations/hooks/use-integrations-redirect.hooks": "browser",
       "./security/api/security-api.types": "universal",
       "./security/api/security-api": "universal",
       "./security/access-token-rows": "universal",
@@ -340,7 +343,9 @@
       "./screens/plugins/hooks/use-plugin-provider-settings.hooks": "browser",
       "./screens/plugins/AgentPlugins.hooks": "browser",
       "./screens/providers/hooks/use-providers.hooks": "browser",
+      "./screens/providers/Providers.hooks": "browser",
       "./screens/trash/rules": "universal",
+      "./screens/trash/hooks/trash-port.hooks": "universal",
       "./sites/transfer/use-export-password.hooks": "browser",
       "./shell/lib/live-tiptap-editor": "universal",
       "./shell/lib/media-image-extension.hooks": "universal",
@@ -430,6 +435,7 @@
       "./screens/settings/settings-execution-i18n": "universal",
       "./screens/settings/SettingsUi.hooks": "browser",
       "./screens/settings/ExternalMcpRemoveConfirmDialog": "browser",
+      "./screens/settings/external-mcp-drift-copy": "universal",
       "./screens/content-analysis/ContentAnalysisCard": "browser",
       "./screens/content-analysis/rules": "universal",
       "./screens/content-analysis/hooks/use-content-analysis.hooks": "browser",
@@ -648,7 +654,12 @@
       "./screens/taxonomy/taxonomy-i18n/taxonomy-detail-i18n": "universal",
       "./screens/taxonomy/taxonomy-i18n/taxonomy-hooks-i18n": "universal",
       "./screens/taxonomy/taxonomy-i18n/taxonomy-term-picker-i18n": "universal",
-      "./screens/taxonomy/taxonomy-i18n/create-taxonomy-dictionary": "universal"
+      "./screens/taxonomy/taxonomy-i18n/create-taxonomy-dictionary": "universal",
+      "./screens/voice-input/hooks/push-to-talk-state.hooks": "browser",
+      "./screens/voice-input/hooks/space-hold-config": "universal",
+      "./screens/voice-input/push-to-talk-mic-button.css": "browser",
+      "./screens/voice-input/voice-input-config": "universal",
+      "./screens/voice-input/voice-unavailability": "universal"
     },
     "isolation": {
       "shared": [
@@ -2207,6 +2218,16 @@
       "import": "./dist/screens/skills/use-skill-confirmation.hooks.js",
       "default": "./dist/screens/skills/use-skill-confirmation.hooks.js"
     },
+    "./screens/skills/skill-drop": {
+      "types": "./dist/screens/skills/skill-drop.d.ts",
+      "import": "./dist/screens/skills/skill-drop.js",
+      "default": "./dist/screens/skills/skill-drop.js"
+    },
+    "./screens/skills/use-skills-tabs.hooks": {
+      "types": "./dist/screens/skills/use-skills-tabs.hooks.d.ts",
+      "import": "./dist/screens/skills/use-skills-tabs.hooks.js",
+      "default": "./dist/screens/skills/use-skills-tabs.hooks.js"
+    },
     "./screens/taxonomy/api/taxonomy-api.types": {
       "types": "./dist/screens/taxonomy/api/taxonomy-api.types.d.ts",
       "import": "./dist/screens/taxonomy/api/taxonomy-api.types.js",
@@ -2392,6 +2413,11 @@
       "import": "./dist/screens/integrations/agent-plugin-ports.js",
       "default": "./dist/screens/integrations/agent-plugin-ports.js"
     },
+    "./screens/integrations/hooks/use-integrations-redirect.hooks": {
+      "types": "./dist/screens/integrations/hooks/use-integrations-redirect.hooks.d.ts",
+      "import": "./dist/screens/integrations/hooks/use-integrations-redirect.hooks.js",
+      "default": "./dist/screens/integrations/hooks/use-integrations-redirect.hooks.js"
+    },
     "./security/api/security-api.types": {
       "types": "./dist/security/api/security-api.types.d.ts",
       "import": "./dist/security/api/security-api.types.js",
@@ -2522,10 +2548,20 @@
       "import": "./dist/screens/trash/rules.js",
       "default": "./dist/screens/trash/rules.js"
     },
+    "./screens/trash/hooks/trash-port.hooks": {
+      "types": "./dist/screens/trash/hooks/trash-port.hooks.d.ts",
+      "import": "./dist/screens/trash/hooks/trash-port.hooks.js",
+      "default": "./dist/screens/trash/hooks/trash-port.hooks.js"
+    },
     "./screens/providers/hooks/use-providers.hooks": {
       "types": "./dist/screens/providers/hooks/use-providers.hooks.d.ts",
       "import": "./dist/screens/providers/hooks/use-providers.hooks.js",
       "default": "./dist/screens/providers/hooks/use-providers.hooks.js"
+    },
+    "./screens/providers/Providers.hooks": {
+      "types": "./dist/screens/providers/Providers.hooks.d.ts",
+      "import": "./dist/screens/providers/Providers.hooks.js",
+      "default": "./dist/screens/providers/Providers.hooks.js"
     },
     "./screens/plugins/hooks/use-plugin-row-focus.hooks": {
       "types": "./dist/screens/plugins/hooks/use-plugin-row-focus.hooks.d.ts",
@@ -2988,6 +3024,11 @@
       "types": "./dist/screens/settings/ExternalMcpRemoveConfirmDialog.d.ts",
       "import": "./dist/screens/settings/ExternalMcpRemoveConfirmDialog.js",
       "default": "./dist/screens/settings/ExternalMcpRemoveConfirmDialog.js"
+    },
+    "./screens/settings/external-mcp-drift-copy": {
+      "types": "./dist/screens/settings/external-mcp-drift-copy.d.ts",
+      "import": "./dist/screens/settings/external-mcp-drift-copy.js",
+      "default": "./dist/screens/settings/external-mcp-drift-copy.js"
     },
     "./screens/content-analysis/ContentAnalysisCard": {
       "types": "./dist/screens/content-analysis/ContentAnalysisCard.d.ts",
@@ -4059,6 +4100,27 @@
       "types": "./dist/screens/taxonomy/taxonomy-i18n/create-taxonomy-dictionary.d.ts",
       "import": "./dist/screens/taxonomy/taxonomy-i18n/create-taxonomy-dictionary.js",
       "default": "./dist/screens/taxonomy/taxonomy-i18n/create-taxonomy-dictionary.js"
+    },
+    "./screens/voice-input/hooks/push-to-talk-state.hooks": {
+      "types": "./dist/screens/voice-input/hooks/push-to-talk-state.hooks.d.ts",
+      "import": "./dist/screens/voice-input/hooks/push-to-talk-state.hooks.js",
+      "default": "./dist/screens/voice-input/hooks/push-to-talk-state.hooks.js"
+    },
+    "./screens/voice-input/hooks/space-hold-config": {
+      "types": "./dist/screens/voice-input/hooks/space-hold-config.d.ts",
+      "import": "./dist/screens/voice-input/hooks/space-hold-config.js",
+      "default": "./dist/screens/voice-input/hooks/space-hold-config.js"
+    },
+    "./screens/voice-input/push-to-talk-mic-button.css": "./src/screens/voice-input/push-to-talk-mic-button.css",
+    "./screens/voice-input/voice-input-config": {
+      "types": "./dist/screens/voice-input/voice-input-config.d.ts",
+      "import": "./dist/screens/voice-input/voice-input-config.js",
+      "default": "./dist/screens/voice-input/voice-input-config.js"
+    },
+    "./screens/voice-input/voice-unavailability": {
+      "types": "./dist/screens/voice-input/voice-unavailability.d.ts",
+      "import": "./dist/screens/voice-input/voice-unavailability.js",
+      "default": "./dist/screens/voice-input/voice-unavailability.js"
     }
   },
   "files": [
