@@ -20,7 +20,9 @@
       "./host/sql": "node",
       "./host/tools": "node",
       "./runtime/install-consent": "universal",
-      "./runtime/plugin-tool-ids": "universal"
+      "./runtime/lower-tool-access": "universal",
+      "./runtime/plugin-tool-ids": "universal",
+      "./runtime/service-ports": "universal"
     },
     "isolation": {
       "forbidden": {
@@ -72,10 +74,20 @@
       "import": "./dist/runtime/install-consent.js",
       "default": "./dist/runtime/install-consent.js"
     },
+    "./runtime/lower-tool-access": {
+      "types": "./dist/runtime/lower-tool-access.d.ts",
+      "import": "./dist/runtime/lower-tool-access.js",
+      "default": "./dist/runtime/lower-tool-access.js"
+    },
     "./runtime/plugin-tool-ids": {
       "types": "./dist/runtime/plugin-tool-ids.d.ts",
       "import": "./dist/runtime/plugin-tool-ids.js",
       "default": "./dist/runtime/plugin-tool-ids.js"
+    },
+    "./runtime/service-ports": {
+      "types": "./dist/runtime/service-ports.d.ts",
+      "import": "./dist/runtime/service-ports.js",
+      "default": "./dist/runtime/service-ports.js"
     }
   },
   "files": [
