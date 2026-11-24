@@ -33,7 +33,7 @@ import no `ui` or `admin` component: they render through `<UserManagementKitProv
 at its root with its own implementations (`const kit = {...} satisfies UserManagementKit`). Mount the
 provider inside the host's query provider; the fetch hooks in the kit own the cache. The roles/policies module uses `@jini-ai/ui-kit` and its React facades;
 see [roles administration wiring and cleanup](./src/admin/PORT.md).
-Member timestamps use `formatTimestamp({ iso })` from `@jini-ai/core/text`.
+Member timestamps use `formatTimestamp({ iso }, { viewerTimeZone })` from `@jini-ai/core/text`; omit `viewerTimeZone` to show the stored UTC time.
 Supply `port`, `translate` and a session/workspace `queryScope`.
 Login requires `productName`. Members requires a host-bound `useMembersHook` (bind the exported `useMembers`
 or your own controller hook; the screen has no default) and optionally accepts a host-filtered refresh port.
