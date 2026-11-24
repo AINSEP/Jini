@@ -945,10 +945,30 @@
    "createSurfaceForms": "function:3b2ed81311"
   }
  },
+ "./site/admin-surfaces/public-config": {
+  "types": "./dist/site/admin-surfaces/public-config.d.ts",
+  "symbols": {
+   "PUBLIC_CONFIG_REFUSED_MESSAGE": "variable:0636d7b9a0",
+   "createAdminSurfacePublicConfig": "function:1e7cee417e"
+  }
+ },
+ "./site/deploy-split-activation": {
+  "types": "./dist/site/deploy-split-activation.d.ts",
+  "symbols": {
+   "DeploySplitActivationPort": "interface:70820e2800",
+   "carryCloudflareActivation": "function:9f3e486b54"
+  }
+ },
  "./site/memory-i18n": {
   "types": "./dist/site/memory-i18n.d.ts",
   "symbols": {
    "memoryText": "function:e8660ed856"
+  }
+ },
+ "./site/retired-plugin-tool-aliases": {
+  "types": "./dist/site/retired-plugin-tool-aliases.d.ts",
+  "symbols": {
+   "createRetiredPluginToolAliases": "function:eefb273b65"
   }
  },
  "./slide-design": {

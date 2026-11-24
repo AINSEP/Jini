@@ -1126,6 +1126,16 @@
    "seaApi": "function:db09db41ea"
   }
  },
+ "./change-sets/agent-tools": {
+  "types": "./dist/change-sets/agent-tools.d.ts",
+  "symbols": {
+   "CHANGE_SETS_DEFAULT_LIST_LIMIT": "variable:a7581718df",
+   "CHANGE_SETS_MAX_LIST_LIMIT": "variable:8d5513a347",
+   "CHANGE_SET_READ_PERMISSION": "variable:b86ca38d0a",
+   "CHANGE_SET_REVERT_PERMISSION": "variable:00d013328c",
+   "getChangeSetsAgentToolCatalog": "function:02b9fcc204"
+  }
+ },
  "./comments": {
   "types": "./dist/comments/index.d.ts",
   "symbols": {
@@ -1234,6 +1244,22 @@
    "toLogRow": "function:8896576c5f",
    "toRecord": "function:a8f09c3aa8",
    "toRow": "function:bf4685f774"
+  }
+ },
+ "./content-duplication/agent-tools": {
+  "types": "./dist/content-duplication/agent-tools.d.ts",
+  "symbols": {
+   "AgentToolDefinition": "type:192671f78a",
+   "AgentToolSideEffect": "type:1baebbfbe6",
+   "contentDuplicationAgentToolCatalog": "variable:18cabe7dd9"
+  }
+ },
+ "./content-duplication/derive-available-name": {
+  "types": "./dist/content-duplication/derive-available-name.d.ts",
+  "symbols": {
+   "MAX_SUFFIX_ATTEMPTS": "variable:cc456de3aa",
+   "deriveAvailableName": "function:397344f607",
+   "deriveDuplicateName": "function:a4a9d1b70b"
   }
  },
  "./content-types": {
@@ -1762,6 +1788,14 @@
    "pullFromFormDestination": "function:99ad4a87c5"
   }
  },
+ "./forms/destinations/rewrite-actions": {
+  "types": "./dist/forms/destinations/rewrite-actions.d.ts",
+  "symbols": {
+   "FormActionFile": "interface:fa638344de",
+   "assertSubmitUrl": "function:8573ae88f0",
+   "rewriteFormActions": "function:c0306593b5"
+  }
+ },
  "./forms/destinations/select": {
   "types": "./dist/forms/destinations/select.d.ts",
   "symbols": {
@@ -1949,6 +1983,17 @@
    "FormValidationCopy": "type:43e91abf32",
    "formDocumentLocale": "function:7dc9d92b52",
    "formValidationMessages": "function:3726fd705e"
+  }
+ },
+ "./fs-files/native-folder-picker": {
+  "types": "./dist/fs-files/native-folder-picker.d.ts",
+  "symbols": {
+   "ChooserFailure": "interface:7ad475fa00",
+   "FolderChooserCommand": "interface:b82ce1fb06",
+   "NativeFolderPicker": "interface:c796a05e02",
+   "chosenFolderPath": "function:099a26a37f",
+   "createNativeFolderPicker": "function:b02ec7a0db",
+   "folderChooserCommand": "function:e8143fb3a9"
   }
  },
  "./html/document-marks": {
@@ -2652,6 +2697,14 @@
    "MenuTrashFollowUpHooks": "interface:a9bd9bce0b",
    "MenuTrashLookup": "interface:1416508999",
    "buildMenuTrashFollowUpHooks": "function:4c8128254a"
+  }
+ },
+ "./navigation/site/reverters": {
+  "types": "./dist/navigation/site/reverters.d.ts",
+  "symbols": {
+   "MenuReverterDeps": "interface:a6a72bd899",
+   "createMenuReverters": "function:ab42f121e3",
+   "registerMenuReverters": "function:45f4dbb1ad"
   }
  },
  "./navigation/site/trash-aware-memory-menu-repo": {

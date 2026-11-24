@@ -246,6 +246,21 @@
    "createCredentialToolRegistrations": "function:66922d093f"
   }
  },
+ "./custom-credentials/card-token": {
+  "types": "./dist/custom-credentials/card-token.d.ts",
+  "symbols": {
+   "TOKEN_PASTE_AGAIN_MESSAGE": "variable:c9fa914e3f",
+   "cleanCardToken": "function:dcbb909498"
+  }
+ },
+ "./custom-credentials/credential-recovery": {
+  "types": "./dist/custom-credentials/credential-recovery.d.ts",
+  "symbols": {
+   "CredentialSetupFailure": "interface:d64d76548d",
+   "IssueCredentialSetup": "type:f527109660",
+   "withCustomCredentialSetup": "function:116cd2f341"
+  }
+ },
  "./media-providers": {
   "types": "./dist/media-providers/index.d.ts",
   "symbols": {

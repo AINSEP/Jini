@@ -9,5 +9,5 @@ through `execFile` with a fixed absolute binary and fixed argv. Node-only entry
 
 The host injects nothing required. Optional test seams on `createNativeFolderPicker({}, optional)`:
 `platform`, `env`, `exists`, `execFile`. The admission rule ("own machine only") belongs to the
-host route that calls `pick()`; this module only knows how to show the dialog. In Tovu it is bound
-in `apps/website/src/server/runtime/composition/http-app/mount-admin-system.ts`.
+host route that calls `pick()`; this module only knows how to show the dialog. A host creates it once
+where it mounts its admin system routes and hands it to its folder-picker route.
