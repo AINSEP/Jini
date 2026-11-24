@@ -26,7 +26,8 @@ export interface AdminWebhookSubscriptionResponse {
   createdAt: string;
   updatedAt: string;
   disabledAt: string | null;
-  version: number;
+  /** Row version the server always sends; optional so client-built placeholder rows type-check. */
+  version?: number;
   /** Most recent delivery attempt for this subscription, or `null` if none has fired yet. */
   lastDelivery: AdminWebhookDeliverySummary | null;
 }
