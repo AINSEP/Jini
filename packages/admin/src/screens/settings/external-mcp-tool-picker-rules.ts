@@ -1,4 +1,4 @@
-import type { AdminRemoteToolSurfaceEntry } from "@jini-ai/core/contracts/site/cms-external-mcp";
+import type { AdminRemoteToolSurfaceEntry } from "@jini-ai/core/contracts/hosted-mcp";
 
 import { parseSavedToolNames } from "./external-mcp-tool-drift.js";
 

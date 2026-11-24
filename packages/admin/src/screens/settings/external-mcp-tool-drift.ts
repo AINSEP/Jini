@@ -1,4 +1,4 @@
-import type { AdminFederatedAdmissionEntry, AdminToolRefusalReason } from "@jini-ai/core/contracts/site/cms-external-mcp";
+import type { AdminFederatedAdmissionEntry, AdminToolRefusalReason } from "@jini-ai/core/contracts/hosted-mcp";
 import type { AdmissionDriftConnection, AdmissionDriftEntry, AdmissionDriftKind, ExternalMcpDriftCopy, SavedConnectionIntent } from "./external-mcp-drift-types.js";
 
 /** The one refusal that is routine rather than newsworthy — see this file's header. */

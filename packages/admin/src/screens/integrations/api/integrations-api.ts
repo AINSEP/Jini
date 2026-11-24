@@ -1,4 +1,5 @@
-import type { AdminExternalMcpAdmissionsSnapshot, AdminExternalMcpConfigFailure, AdminExternalMcpConnectStart, AdminExternalMcpProbeResult, AdminExternalMcpServer, AdminExternalMcpServerInput, AdminFederatedAdmissionEntry, AdminToolRefusalReason, ExternalMcpToolApprovalDto } from "@jini-ai/core/contracts/site/cms-external-mcp";
+import type { AdminExternalMcpConnectStart, AdminExternalMcpServer, AdminExternalMcpServerInput, ExternalMcpToolApprovalDto } from "@jini-ai/core/contracts/site/cms-external-mcp";
+import type { AdminExternalMcpAdmissionsSnapshot, AdminExternalMcpConfigFailure, AdminExternalMcpProbeResult, AdminFederatedAdmissionEntry, AdminToolRefusalReason } from "@jini-ai/core/contracts/hosted-mcp";
 import type { AdminWebhookDeliveryResponse, AdminWebhookSubscriptionResponse } from "@jini-ai/core/contracts/site/cms-integrations";
 import type { AgentPluginFiles, AgentPluginListRow } from "../../../agent-plugins/models.js";
 
