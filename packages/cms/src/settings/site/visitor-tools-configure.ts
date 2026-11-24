@@ -1,5 +1,6 @@
 /** Closed admin input parsing and publication decisions shared by both admin transports. */
-import type { VisitorToolChoice, VisitorToolDescriptor, VisitorToolsConfigureInput, VisitorToolsHostContract } from "./visitor-tools-contract.js";
+import type { VisitorToolChoice, VisitorToolDescriptor, VisitorToolsConfigureInput } from "@jini-ai/core/contracts/site/site-assistant-visitor-tools-management";
+import type { VisitorToolsHostContract } from "./visitor-tools-contract.js";
 
 const MODE_RANK = { off: 0, ask: 1, auto: 2 } as const;
 

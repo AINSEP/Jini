@@ -1,7 +1,8 @@
 /** Admin assistant adapter; no public executor or generic settings path enters these handlers. */
 import { buildDomainRegistrations, indexCatalogById, ToolInputError, type AccessApprovalResource, type AgentToolDefinition, type AgentToolSideEffect, type DerivedRiskByToolId, type ToolContributor, type ToolExecutionContext, type ToolHandler, type ToolMetadataById, type ToolRegistration } from "@jini-ai/core";
 import type { AssistantSurfaceDeps } from "@jini-ai/core/contracts/site/daemon-surface-exchanges";
-import type { PreparedVisitorToolsChange, VisitorToolsHostContract, VisitorToolsManagementPort } from "./visitor-tools-contract.js";
+import type { PreparedVisitorToolsChange, VisitorToolsManagementPort } from "@jini-ai/core/contracts/site/site-assistant-visitor-tools-management";
+import type { VisitorToolsHostContract } from "./visitor-tools-contract.js";
 import { VisitorToolsRevisionConflictError } from "./visitor-tools-write.js";
 
 export interface VisitorToolsToolDeps { readonly workspaceId: string; readonly visitorToolsManagement?: VisitorToolsManagementPort }

@@ -99,7 +99,7 @@ await prepareChatExecutionWrite({ deps, request, validateRuntimeSelection });
 
 **Visitor-tools management** (`visitor-tools-{contract,write,configure,service,registrations}.ts`):
 the host owns the visitor-tools policy contract and binds it once as a `VisitorToolsHostContract`
-(`visitor-tools-contract.ts` holds only its structural types): the stored setting coordinates, the
+(`visitor-tools-contract.ts` holds only that bundle's type; the shared policy and catalog types come from `@jini-ai/core/contracts/site/site-assistant-visitor-tools-management`): the stored setting coordinates, the
 management permission, default limits and calls per turn, its validation error class, its
 closed-object guard, `parsePolicy` and `resolveChoice`. It reaches the code as the required
 `visitorTools` field on `createVisitorToolsManagement`'s `deps`, on `readVisitorToolsSnapshot` /

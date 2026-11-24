@@ -2,7 +2,8 @@ import assert from "node:assert/strict";
 import { test } from "vitest";
 
 import { parseVisitorToolsConfigure, visitorToolsNeedsApproval } from "../visitor-tools-configure.js";
-import type { VisitorToolChoice, VisitorToolDescriptor, VisitorToolsHostContract } from "../visitor-tools-contract.js";
+import type { VisitorToolChoice, VisitorToolDescriptor } from "@jini-ai/core/contracts/site/site-assistant-visitor-tools-management";
+import type { VisitorToolsHostContract } from "../visitor-tools-contract.js";
 
 /**
  * @file The visitor-tools management code reads every host policy value through the injected

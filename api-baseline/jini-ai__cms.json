@@ -2852,16 +2852,7 @@
  "./settings/site/visitor-tools-contract": {
   "types": "./dist/settings/site/visitor-tools-contract.d.ts",
   "symbols": {
-   "PreparedVisitorToolsChange": "interface:833e9b6edc",
-   "VisitorToolChoice": "interface:46fb0ece8d",
-   "VisitorToolDescriptor": "interface:e3b6a4b885",
-   "VisitorToolLimits": "interface:514ca13c8a",
-   "VisitorToolMode": "type:519ffe87b1",
-   "VisitorToolPolicy": "interface:d3ad7cede4",
-   "VisitorToolsConfigureInput": "interface:3738b89cd2",
-   "VisitorToolsHostContract": "interface:8d2eae24e9",
-   "VisitorToolsManagementPort": "interface:15920aa1f9",
-   "VisitorToolsView": "interface:b41f46ba2c"
+   "VisitorToolsHostContract": "interface:8d2eae24e9"
   }
  },
  "./settings/site/visitor-tools-registrations": {

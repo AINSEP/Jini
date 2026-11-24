@@ -1,7 +1,8 @@
 /** The host's site-policy management owner. Page and assistant use the same permission, merge and CAS. */
 import { ForbiddenError, type SetValueRequired } from "@jini-ai/core/settings";
 import type { SiteSettingsWritePolicies } from "./site-title-write.js";
-import type { PreparedVisitorToolsChange, VisitorToolDescriptor, VisitorToolPolicy, VisitorToolsHostContract, VisitorToolsManagementPort, VisitorToolsView } from "./visitor-tools-contract.js";
+import type { PreparedVisitorToolsChange, VisitorToolDescriptor, VisitorToolPolicy, VisitorToolsManagementPort, VisitorToolsView } from "@jini-ai/core/contracts/site/site-assistant-visitor-tools-management";
+import type { VisitorToolsHostContract } from "./visitor-tools-contract.js";
 import { parseVisitorToolsConfigure, visitorToolsNeedsApproval } from "./visitor-tools-configure.js";
 import { readVisitorToolsSnapshot, VisitorToolsRevisionConflictError, writeVisitorTools } from "./visitor-tools-write.js";
 

@@ -2,7 +2,8 @@
 import type { JsonValue } from "@jini-ai/core/primitives";
 import { resolveDefinitionRaw, type SetValueRequired, type SettingsRepoPort } from "@jini-ai/core/settings";
 import { set, type SiteSettingsWritePolicies } from "./site-title-write.js";
-import type { VisitorToolPolicy, VisitorToolsHostContract } from "./visitor-tools-contract.js";
+import type { VisitorToolPolicy } from "@jini-ai/core/contracts/site/site-assistant-visitor-tools-management";
+import type { VisitorToolsHostContract } from "./visitor-tools-contract.js";
 
 /** A stale page/chat snapshot; refetch rather than replaying a publication approval. */
 export class VisitorToolsRevisionConflictError extends Error {}

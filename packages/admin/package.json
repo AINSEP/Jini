@@ -183,11 +183,6 @@
       "./screens/analytics/hooks/analytics-port.hooks": "universal",
       "./screens/analytics/hooks/analytics-dependencies.hooks": "universal",
       "./screens/analytics/hooks/use-analytics.hooks": "browser",
-      "./screens/content-analysis/ContentAnalysisCard": "browser",
-      "./screens/content-analysis/hooks/use-content-analysis.hooks": "browser",
-      "./screens/content-analysis/hooks/content-analysis-port.hooks": "universal",
-      "./screens/content-analysis/hooks/content-analysis-dependencies.hooks": "universal",
-      "./screens/content-analysis/rules": "universal",
       "./screens/consent/CookieConsent": "browser",
       "./screens/consent/ConsentOverviewTab": "browser",
       "./screens/consent/use-consent-page.hooks": "browser",
@@ -1151,31 +1146,6 @@
       "import": "./dist/screens/analytics/hooks/use-analytics.hooks.js",
       "default": "./dist/screens/analytics/hooks/use-analytics.hooks.js"
     },
-    "./screens/content-analysis/ContentAnalysisCard": {
-      "types": "./dist/screens/content-analysis/ContentAnalysisCard.d.ts",
-      "import": "./dist/screens/content-analysis/ContentAnalysisCard.js",
-      "default": "./dist/screens/content-analysis/ContentAnalysisCard.js"
-    },
-    "./screens/content-analysis/hooks/use-content-analysis.hooks": {
-      "types": "./dist/screens/content-analysis/hooks/use-content-analysis.hooks.d.ts",
-      "import": "./dist/screens/content-analysis/hooks/use-content-analysis.hooks.js",
-      "default": "./dist/screens/content-analysis/hooks/use-content-analysis.hooks.js"
-    },
-    "./screens/content-analysis/hooks/content-analysis-port.hooks": {
-      "types": "./dist/screens/content-analysis/hooks/content-analysis-port.hooks.d.ts",
-      "import": "./dist/screens/content-analysis/hooks/content-analysis-port.hooks.js",
-      "default": "./dist/screens/content-analysis/hooks/content-analysis-port.hooks.js"
-    },
-    "./screens/content-analysis/hooks/content-analysis-dependencies.hooks": {
-      "types": "./dist/screens/content-analysis/hooks/content-analysis-dependencies.hooks.d.ts",
-      "import": "./dist/screens/content-analysis/hooks/content-analysis-dependencies.hooks.js",
-      "default": "./dist/screens/content-analysis/hooks/content-analysis-dependencies.hooks.js"
-    },
-    "./screens/content-analysis/rules": {
-      "types": "./dist/screens/content-analysis/rules.d.ts",
-      "import": "./dist/screens/content-analysis/rules.js",
-      "default": "./dist/screens/content-analysis/rules.js"
-    },
     "./screens/consent/CookieConsent": {
       "types": "./dist/screens/consent/CookieConsent.d.ts",
       "import": "./dist/screens/consent/CookieConsent.js",
@@ -1385,21 +1355,6 @@
       ],
       "screens/analytics/hooks/use-analytics.hooks": [
         "./dist/screens/analytics/hooks/use-analytics.hooks.d.ts"
-      ],
-      "screens/content-analysis/ContentAnalysisCard": [
-        "./dist/screens/content-analysis/ContentAnalysisCard.d.ts"
-      ],
-      "screens/content-analysis/hooks/use-content-analysis.hooks": [
-        "./dist/screens/content-analysis/hooks/use-content-analysis.hooks.d.ts"
-      ],
-      "screens/content-analysis/hooks/content-analysis-port.hooks": [
-        "./dist/screens/content-analysis/hooks/content-analysis-port.hooks.d.ts"
-      ],
-      "screens/content-analysis/hooks/content-analysis-dependencies.hooks": [
-        "./dist/screens/content-analysis/hooks/content-analysis-dependencies.hooks.d.ts"
-      ],
-      "screens/content-analysis/rules": [
-        "./dist/screens/content-analysis/rules.d.ts"
       ],
       "screens/consent/CookieConsent": [
         "./dist/screens/consent/CookieConsent.d.ts"
