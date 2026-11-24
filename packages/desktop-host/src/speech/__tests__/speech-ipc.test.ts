@@ -9,7 +9,7 @@ const messages = {
   tooManySamples: ({ maxSamples }: { maxSamples: number }) => `sample:speech:transcribe: at most ${maxSamples} samples per recording.`,
   missingSenderGuard: "isTrustedSender is required",
 };
-type OldArgs = { ipcMain: Parameters<typeof register>[0]["ipcMain"]; port: { isAvailable(): Promise<import("../transcription-port.js").TranscriptionAvailability>; transcribe(wavBuffer: Buffer): Promise<import("../transcription-port.js").TranscriptionResult> }; isTrustedSender: (url: string) => boolean; maxSamples?: number };
+type OldArgs = { ipcMain: Parameters<typeof register>[0]["ipcMain"]; port: { isAvailable(): Promise<import("@jini-ai/core/contracts/speech-transcription").TranscriptionAvailability>; transcribe(wavBuffer: Buffer): Promise<import("@jini-ai/core/contracts/speech-transcription").TranscriptionResult> }; isTrustedSender: (url: string) => boolean; maxSamples?: number };
 const registerSpeechIpc = ({ maxSamples, port, isTrustedSender, ...args }: OldArgs) => register({ ...args, isTrustedSender: typeof isTrustedSender === "function" ? ({ senderUrl }) => isTrustedSender(senderUrl) : isTrustedSender, channelNamespace, messages, port: { isAvailable: () => port.isAvailable(), transcribe: ({ wavBuffer }) => port.transcribe(wavBuffer) } }, maxSamples === undefined ? {} : { maxSamples });
 /**
  * @file Direct tests for `speech-ipc.ts`. No real Electron `ipcMain` — a tiny fake that records
