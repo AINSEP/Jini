@@ -162,7 +162,7 @@ export function classifyStatusTransition(
  * Call it inside the write's transaction, so the row and its events commit or roll back together.
  */
 export async function emitPublicTransitionEvent(
-  required: { outbox: OutboxPort; previous: PostRecord | null; next: PostRecord; nowIso: string; actorId?: string; source?: string },
+  required: { outbox: OutboxPort; previous: PostRecord | null; next: PostRecord; nowIso: string; actorId?: string | undefined; source?: string | undefined },
   _optional: Record<string, never> = {}
 ): Promise<void> {
   const { outbox, previous, next, nowIso } = required;
@@ -199,8 +199,8 @@ async function emitStatusTransitionEvent(
 /** Enqueue only after a changed revision write, inside its transaction. No document text is copied.
  * @complexity O(1), one outbox insert. */
 export async function enqueueContentWrite(
-  { outbox, post, actorId, source, operation }: { outbox: OutboxPort; post: PostRecord; actorId?: string;
-    source?: string; operation: "created" | "saved" },
+  { outbox, post, actorId, source, operation }: { outbox: OutboxPort; post: PostRecord; actorId?: string | undefined;
+    source?: string | undefined; operation: "created" | "saved" },
   _optional: Record<string, never> = {},
 ): Promise<void> {
   await outbox.enqueue({ id: `${post.id}-content.${operation}-${post.version}`, name: `content.${operation}`,

@@ -21,6 +21,7 @@
       "./publish/content/content-hash": "node",
       "./publish/content/execute-import": "universal",
       "./publish/content/precheck-reasons": "universal",
+      "./publish/content/ui": "universal",
       "./publish/content/publish-readiness": "universal",
       "./publish/content/peer-url": "universal",
       "./themes/template-applicability": "universal",
@@ -84,6 +85,7 @@
       "./posts/post-tool-errors": "universal",
       "./posts/search": "universal",
       "./posts/sql": "node",
+      "./posts/post-import": "universal",
       "./posts/post-write-fields": "universal",
       "./posts/go-live-sweep": "universal",
       "./posts/expected-version": "universal",
@@ -630,6 +632,11 @@
       "import": "./dist/publish/content/precheck-reasons.js",
       "default": "./dist/publish/content/precheck-reasons.js"
     },
+    "./publish/content/ui": {
+      "types": "./dist/publish/content/ui/index.d.ts",
+      "import": "./dist/publish/content/ui/index.js",
+      "default": "./dist/publish/content/ui/index.js"
+    },
     "./publish/content/publish-readiness": {
       "types": "./dist/publish/content/publish-readiness.d.ts",
       "import": "./dist/publish/content/publish-readiness.js",
@@ -954,6 +961,11 @@
       "types": "./dist/posts/sql/index.d.ts",
       "import": "./dist/posts/sql/index.js",
       "default": "./dist/posts/sql/index.js"
+    },
+    "./posts/post-import": {
+      "types": "./dist/posts/post-import.d.ts",
+      "import": "./dist/posts/post-import.js",
+      "default": "./dist/posts/post-import.js"
     },
     "./posts/post-write-fields": {
       "types": "./dist/posts/post-write-fields.d.ts",

@@ -140,13 +140,13 @@ export interface PostRecord {
    * `updatableColumns()` is the second, structural enforcement of the same rule. This is an
    * ATTRIBUTION field, not an authorization one; nothing may key a permission check off it.
    */
-  createdByPrincipalId?: string | null;
+  createdByPrincipalId?: string | null | undefined;
   /**
    * Authorship attribution (2026-09-18, `posts.created_at`) — the ISO timestamp `createPost` first
    * wrote this row at, or `null`/absent when that is genuinely unknown (every pre-migration row).
    * Same write-once contract as {@link createdByPrincipalId} — never set by `updatePost`.
    */
-  createdAt?: string | null;
+  createdAt?: string | null | undefined;
   /**
    * Scheduled publishing (2026-10-05, `posts.publish_at`) — the ISO UTC instant a `published` row
    * goes live, or `null`/absent for "live as soon as published". A published row whose `publishAt`
