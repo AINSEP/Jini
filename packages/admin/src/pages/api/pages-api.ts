@@ -1,5 +1,5 @@
-import type { AdminPost } from "../../posts/api/posts-api.types";
-import type { AdminPagePluginEmbed } from "./pages-api.types";
+import type { AdminPost } from "../../posts/api/posts-api.types.js";
+import type { AdminPagePluginEmbed } from "./pages-api.types.js";
 
 /** What the host injects into {@link createPagesApi}. */
 export interface PagesApiDeps {

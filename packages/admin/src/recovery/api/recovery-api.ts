@@ -1,5 +1,5 @@
 import type { GatedConfirmResult, GatedPlanResult } from "@jini-ai/core/contracts/site/gated-results";
-import type { AdminDisclosureResult, AdminRecoveryDeepLinkResult, AdminRecoveryStatus, AdminRestorePoint, DatabaseContextEnvelope, RestoreExecuteResult } from "../../core";
+import type { AdminDisclosureResult, AdminRecoveryDeepLinkResult, AdminRecoveryStatus, AdminRestorePoint, DatabaseContextEnvelope, RestoreExecuteResult } from "../../core/index.js";
 
 /** What the host injects into {@link createRecoveryApi}. */
 export interface RecoveryApiDeps {

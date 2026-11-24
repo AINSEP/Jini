@@ -5,7 +5,7 @@ import type {
   MailActivityPage, MailDnsStatus, MailProviderConfiguration, MailProviderConfigurationReport,
   MailProviderCredentialInput, MailSuppressionPage, MailSuppressionRemovalPlan, MailSuppressionScope, MailTestSendResult,
   MailUseRow,
-} from "./email-api.types";
+} from "./email-api.types.js";
 
 /**
  * @file The Email page's client for the round-2 mail routes (2026-10-22). Each shape mirrors its
@@ -54,14 +54,14 @@ export function createEmailApi({ authenticatedAdminRequest, workspaceId }: Email
     readDns: () => get<MailDnsStatus>({ path: `${SYSTEM}/mail-dns` }),
     verifyDns: () => send<MailDnsStatus>({ method: "POST", path: `${SYSTEM}/mail-dns/verify` }),
 
-    sendTest: ({ to, requestId }: { to?: string; requestId: string }) =>
+    sendTest: ({ to, requestId }: { to?: string | undefined; requestId: string }) =>
       send<{ sent: boolean; result: MailTestSendResult }>({ method: "POST", path: `${SYSTEM}/mail-test-send` }, { body: { ...(to ? { to } : {}), requestId } }),
     readUses: () => get<{ checkedAt: string; uses: MailUseRow[] }>({ path: `${SYSTEM}/mail-uses` }),
 
     listActivity: ({ filter, cursor }: { filter: MailActivityFilter; cursor?: string }) =>
       get<MailActivityPage>({ path: `${SYSTEM}/mail-activity${query({ outcome: filter.outcome, recipient: filter.recipient, cursor })}` }),
     getActivity: ({ id }: { id: string }) => get<MailActivityDetail>({ path: `${SYSTEM}/mail-activity/${enc(id)}` }),
-    listSuppressions: ({ search, cursor }: { search?: string; cursor?: string }) =>
+    listSuppressions: ({ search, cursor }: { search?: string | undefined; cursor?: string }) =>
       get<MailSuppressionPage>({ path: `${SYSTEM}/mail-suppressions${query({ search, cursor })}` }),
     /** Without `confirm` this only previews (`plan`); with it, `revision` must be the previewed one. */
     removeSuppression: (required: { address: string; scope: MailSuppressionScope; reason: string }, options: { confirm?: { revision: string } } = {}) =>

@@ -1,4 +1,4 @@
-import type { AdminExportRunSnapshot } from "../../../core";
+import type { AdminExportRunSnapshot } from "../../../core/index.js";
 
 /** What the host injects into {@link createImportExportApi}. */
 export interface ImportExportApiDeps {
