@@ -61,3 +61,17 @@ redaction and PKCE helpers; consumers receive it automatically on installation.
 Provider network predicates now live in `@jini-ai/platform/net`; secret redaction lives in `@jini-ai/core` and takes `{ input }` with `{ exactSecrets }`. Runtime no longer re-exports those utilities. Core's conservative policy retains model/request identifiers and returns categorized redaction markers. Model catalog hosts pass core `Clock` (`nowMs()`); ACP transport values use `UnknownRecord` to avoid claiming validated JSON.
 
 PKCE providers pass `{ verifierBytes: 64 }` to the main OAuth API. Fixed-issuer token operations use its URL guard, bounded parser, timeout, redirect refusal and typed errors; the runtime maps normalized tokens into its existing persisted provider DTO. Pending callbacks use the main storage factory with an explicit exclusive expiry option and an unref scheduler. The cache is bounded to the main 256-entry default. The conversion report remains in the repository for relocation and is excluded from package files.
+
+## Wiring
+
+- **CLI inventory cache** (`@jini-ai/agent-runtime/cli-probe-cache`): the host calls
+  `createCliProbeCache({ initial, probe }, { expiresAt, retryAfterMs })`, injecting `initial` (the
+  empty/placeholder snapshot), `probe` (its detection/inventory port) and optionally the catalog
+  expiry reader and failure cooldown (e.g. `MODEL_CATALOG_TTL_MS`/`MODEL_NEGATIVE_TTL_MS`). HTTP
+  readers call `read({})`; Rescan calls `read({ force: true })`.
+- **Custom instructions overlay** (`@jini-ai/agent-runtime/custom-instructions`): the host injects
+  `settingsRepo`, `getEffective` (from `@jini-ai/core/settings`), `instructionsNamespace` (its
+  settings namespace holding the `custom` key) and optionally `settingsReady`. The daemon builds one
+  `createCustomInstructionsCache(deps, { workspaceId })`, calls `refresh()` before each run and wires
+  `readOverlay()` into `PromptAugmenter.systemOverlay()`; BYOK turns call
+  `resolveCustomInstructions` + `formatCustomInstructionsOverlay` directly.

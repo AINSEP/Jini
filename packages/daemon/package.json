@@ -33,7 +33,9 @@
       "./ports/agent-runtime": "node",
       "./ports/provider-http": "node",
       "./ports/xai-oauth": "node",
-      "./exclusive-run-lease": "universal"
+      "./exclusive-run-lease": "universal",
+      "./daemon-call-context": "node",
+      "./byok-meta-tool-result": "universal"
     },
     "isolation": {
       "shared": [
@@ -127,6 +129,16 @@
       "types": "./dist/exclusive-run-lease.d.ts",
       "import": "./dist/exclusive-run-lease.js",
       "default": "./dist/exclusive-run-lease.js"
+    },
+    "./daemon-call-context": {
+      "types": "./dist/daemon-call-context.d.ts",
+      "import": "./dist/daemon-call-context.js",
+      "default": "./dist/daemon-call-context.js"
+    },
+    "./byok-meta-tool-result": {
+      "types": "./dist/byok-meta-tool-result.d.ts",
+      "import": "./dist/byok-meta-tool-result.js",
+      "default": "./dist/byok-meta-tool-result.js"
     },
     "./tool-audit": {
       "types": "./dist/tool-audit.d.ts",

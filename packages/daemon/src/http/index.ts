@@ -15,6 +15,8 @@ export {
   activeContextRoutes,
   setActiveRoute,
 } from './active-context.js';
+export type { RunActiveContextAnswer, RunActiveContextStore, RunActiveScreen } from './run-active-context.js';
+export { createRunActiveContextStore } from './run-active-context.js';
 export type {
   CatalogueEntry,
   HostEditor,
@@ -194,6 +196,7 @@ export {
   delegatedToolRoutes,
 } from './delegated-tools.js';
 export type { FamilySelector, ToolFamilyDescription, ToolFamilyPort } from '../core/tool-family.js';
+export { createPrefixToolFamilyPort } from '../core/tool-family.js';
 export type {
   RemoteRunEventHttpDeps,
   RemoteRunEventResponse,

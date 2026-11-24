@@ -272,3 +272,14 @@ reference or host stylesheet is required for the settings presentation.
 `AgentEvent` and `ToolResultMediaBlock` are declared in `@jini-ai/core/contracts/site/chat-core`;
 `./core` imports them and keeps a deprecated type re-export until the next major. Hosts import them
 from core.
+
+### Embed send bridge (`@jini-ai/chat/browser/embed-send-bridge`)
+
+An embedding page can drive a mounted widget through `installEmbedSendBridge`. The host decides
+`enabled` and names the events; ordinary visitors get no listener. The host injects `send` (the
+mounted widget's own conversation owner — the bridge never opens a parallel transport),
+`requestEventName` (the CustomEvent dispatched on the mount root with `{ text, done }`),
+`readyMessageType` (posted to the parent frame once listening) and optionally `busyMessage`.
+React widgets pass `agentControl: createEmbedSendAgentControl({ root, enabled, invocationId,
+requestEventName, readyMessageType }, { capabilityId?, unmountedMessage? })` to `ChatPane`, which
+relays each request through the existing `chat.send_message` capability.

@@ -103,6 +103,7 @@ export * from './remote-tool-executor.js';
 export * from './routing-tool-executor.js';
 export * from './frontend-session-registry.js';
 export * from './frontend-capability-tools.js';
+export * from './page-approval-context.js';
 export * from './agent-executor.js';
 export * from './terminal-session.js';
 export * from './tokens.js';

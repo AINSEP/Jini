@@ -154,3 +154,32 @@ and `createOwnedRunListHandler`) lives in `@jini-ai/http-kit/middleware`. Instal
 execution gate; compose it around the bare executor, beneath recovery decorators, since an
 outer wrapper cannot intercept references those decorators already hold.
 See [API.md](https://github.com/AINSEP/Jini/blob/main/packages/daemon/API.md) for route, credential, audit, surface and session contracts.
+
+## Wiring
+
+- **Tool families** (`@jini-ai/daemon/http`'s `createPrefixToolFamilyPort`): a host whose tools
+  form a `<familyId>.<name>` namespace passes `delegatedToolRoutes` deps
+  `families: createPrefixToolFamilyPort({ registry, familyId, selectorKeys })`. The host injects
+  the run-scoped `registry` (only `list` is read), its product `familyId`, and the input
+  `selectorKeys` agents use to name a card. Omit `families` when the host has no groups.
+- **Page-click approval context** (`@jini-ai/daemon`'s `pageApprovalOptions` /
+  `createPageApprovalContext`): when registering each frontend capability, the host passes
+  `pageApprovalOptions({ toolId, execute, navigationQuery })` as the approval policy's options.
+  The host injects the same audited `execute` used for the frontend invocation and its own
+  `navigationQuery` string (a `page.find_elements` query that matches no element, so the
+  revision read stays cheap). Only `page.click` gets a context port.
+- **Per-run active screen** (`@jini-ai/daemon/http`'s `createRunActiveContextStore`): the host
+  records each run's validated page context at run start (`record({ runId, pageContext })`),
+  forgets it at run end, and serves `store.read()` from its own token-guarded `GET /api/active`
+  mount. The host injects its page-context type as the store's type argument (anything with a
+  `path` and optional `entry { kind, id, title }`) and the `now` clock seam when testing.
+- **Per-call daemon context** (`@jini-ai/daemon/daemon-call-context`): the host's tool-RPC route
+  parses the daemon's opaque wire `context` with `parseDaemonCallContext({ value })` and runs the
+  call inside `runWithDaemonCallContext({ context, fn })`; host tool readers call
+  `readDaemonCallContext()` (`undefined` means not a daemon call, e.g. a BYOK turn). Nothing is
+  injected; the host owns the route path and wire field name.
+- **BYOK meta-tool results** (`@jini-ai/daemon/byok-meta-tool-result`): a host BYOK tool surface
+  maps `ToolExecutor.execute` outcomes with `mapToolExecutionResult({ result, toolId })`, normalizes
+  `execute_delegated_tool` input with `resolveDelegatedInput({ raw })`, and returns `ok`/`err`
+  results straight to `@jini-ai/agent-runtime/providers/tool-turn`'s `ProviderToolExecutor`.
+  The host owns its meta-tool descriptors and registry; nothing is injected.
