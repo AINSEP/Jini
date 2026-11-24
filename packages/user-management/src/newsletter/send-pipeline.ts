@@ -251,8 +251,9 @@ function hookChainInput(required: Parameters<typeof dispatchRow>[0]): Parameters
       from: { email: required.message.fromEmail, name: required.message.fromName },
       replyTo: { email: required.message.replyTo },
       subject: required.message.subject,
-      ...(required.message.text === undefined ? {} : { text: required.message.text }),
-      ...(required.message.html === undefined ? {} : { html: required.message.html }),
+      // Keys stay present even when undefined: in-process hooks can tell a missing key from an undefined one.
+      text: required.message.text,
+      html: required.message.html,
     },
   };
 }

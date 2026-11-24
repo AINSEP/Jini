@@ -97,3 +97,14 @@ test("resumeCampaign reports a failed requeue through the injected reporter and 
   assert.deepEqual(result, { campaign: campaign({ status: "sending" }), requeueFailed: true });
   assert.deepEqual(reports, [{ message: "[newsletter] pending delivery requeue failed after resume; inspect the send log before retrying", error: boom }]);
 });
+
+test("dispatchRow hands in-process hooks a message whose text and html keys are present even when undefined", async () => {
+  const hooks = createHookRegistry();
+  const seenKeys: string[][] = [];
+  hooks.registerBeforeSendHook({ hook: (_ctx, message) => { seenKeys.push(Object.keys(message)); return message; } });
+  const deps = makeDeps({ hooks });
+  await dispatchRow({ deps, row: sendRow(), campaignId: "camp-1", listId: "list-1", status: "subscribed",
+    message: { subject: "Hello", fromName: "Sender", fromEmail: "sender@example.test", replyTo: "reply@example.test" } });
+  assert.equal(seenKeys.length, 1);
+  assert.ok(seenKeys[0]?.includes("text") && seenKeys[0]?.includes("html"), `hook saw keys ${JSON.stringify(seenKeys[0])}`);
+});
