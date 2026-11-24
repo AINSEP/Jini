@@ -1,17 +1,17 @@
 import { useMemo } from "react";
-import type { formatUserFacingError } from "@jini-ai/core";
+import type { formatUserFacingError as coreFormatUserFacingError } from "@jini-ai/core";
 import { ErrorNotice, type ExtEventRenderProps, type KitChatTranslator } from "../../../react/kit.js";
 import type { useAgentFailureCard } from "./AgentFailureCard.hooks.js";
 
 /** Product copy the host supplies: its secret-redaction patterns for the formatted failure. */
-export type AgentFailureRedactionOptions = Parameters<typeof formatUserFacingError>[1];
+export type AgentFailureRedactionOptions = Parameters<typeof coreFormatUserFacingError>[1];
 
 export function AgentFailureCard({ useTHook, useAgentFailureCardHook, formatUserFacingError, redactionOptions, ...props }: (ExtEventRenderProps) & {
   /** The host's chat translator hook (the kit chat `useT`); also handed to the failure hook. */
   useTHook: () => KitChatTranslator;
   useAgentFailureCardHook: typeof useAgentFailureCard;
   /** The host's failure formatter (core's `formatUserFacingError`): redacts with `redactionOptions`. */
-  formatUserFacingError: typeof formatUserFacingError;
+  formatUserFacingError: typeof coreFormatUserFacingError;
   redactionOptions: AgentFailureRedactionOptions; }) {
   const t = useTHook();
   const failure = useAgentFailureCardHook({ ...props, useTHook }, {});

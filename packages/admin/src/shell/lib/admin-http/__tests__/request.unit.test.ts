@@ -250,8 +250,6 @@ describe("createAdminHttp — legacy request shapes", () => {
     expect(r.fetch.mock.calls[0]![0].init.headers).toEqual({ "Content-Type": "application/json", "if-match": "v2" });
   });
 
-  });
-
   // An object spread copies no entries out of a Headers instance and turns a tuple array into
   // numeric keys, so both forms used to arrive with their caller headers silently dropped.
   it.each([
