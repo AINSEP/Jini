@@ -58,3 +58,15 @@ it.each([NaN, -1, 1.5, Infinity, '10', null])('ignores invalid read offset %s in
   render(<ToolCard use={{ kind: 'tool_use', id: 'invalid-offset', name: 'Read', input: { file_path: '/site/index.html', offset } }} runSucceeded />);
   expect(screen.getByRole('button').textContent).toBe('Readindex.html');
 });
+
+it('shows the read limit in a generic tool row and in the dedicated Read card', () => {
+  render(<ToolCard use={{ kind: 'tool_use', id: 'limit-generic', name: 'theme_read_file', input: { path: 'templates/index.html', limit: 5 } }} runSucceeded />);
+  expect(screen.getByRole('button').textContent).toContain('templates/index.html (limit 5)');
+  render(<ToolCard use={{ kind: 'tool_use', id: 'limit-read', name: 'Read', input: { file_path: '/site/index.html', offset: 10, limit: 20 } }} runSucceeded />);
+  expect(screen.getAllByRole('button').at(-1)!.textContent).toContain('index.html (offset 10, limit 20)');
+});
+
+it.each([NaN, -1, 1.5, Infinity, '10', null])('ignores invalid read limit %s in the collapsed target', limit => {
+  render(<ToolCard use={{ kind: 'tool_use', id: 'invalid-limit', name: 'Read', input: { file_path: '/site/index.html', limit } }} runSucceeded />);
+  expect(screen.getByRole('button').textContent).toBe('Readindex.html');
+});

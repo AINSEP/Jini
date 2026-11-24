@@ -6,6 +6,7 @@ import { createHash } from 'node:crypto';
 import { createAgentPluginLifecycle, createAgentPluginLayout, type AgentPluginLifecyclePorts } from '../../index.js';
 import { createAgentPluginUpdateStore, AgentPluginUpdateError, isMissing, type AgentPluginUpdateJournal } from '../../update-store.js';
 import { createUpdateModule } from '../../update.js';
+import { FileLockTimeoutError } from '@jini-ai/core/contracts/runtime';
 import { createInstallModule } from '../../install.js';
 import { ports } from '../test-support.js';
 import { forceRemove } from '../fixtures/force-remove.js';
@@ -645,4 +646,57 @@ test('uninstall and enable/disable refuse while an update is unfinished, and fil
 
 test('isMissing recognizes only ENOENT-coded errors', () => {
   expect([undefined, 'ENOENT', null, {}, { code: 'EACCES' }, { code: 'ENOENT' }].map(error => isMissing({ error }))).toEqual([false, false, false, false, false, true]);
+});
+
+// A007: a lock that stays busy at boot must never switch the plugin off; recovery retries in the background.
+const busyLock = () => new FileLockTimeoutError({ lockPath: 'plugin.lock', holder: undefined, waitedMs: 1 });
+async function settle(h: Harness, event: string) {
+  for (let i = 0; i < 200 && !h.warnings.includes(event); i += 1) await new Promise(resolve => setTimeout(resolve, 5));
+}
+
+test('a plugin lock that stays busy at boot leaves the plugin on and retries recovery in the background until it resumes', async () => {
+  let busyFor = 2;
+  const fileLock = { ...ports.fileLock, withFileLock: ((required, optional) => {
+    if (busyFor > 0) { busyFor -= 1; throw busyLock(); }
+    return ports.fileLock.withFileLock(required, optional);
+  }) as typeof ports.fileLock.withFileLock };
+  await fixture(async h => {
+    await h.store.write({ journal: journalFor(h, { state: 'committed' }) });
+    const boot = createAgentPluginLifecycle({ ...h.context, fileLock, clock: { ...h.context.clock, sleep: async () => undefined } });
+    await expect(boot.reconcileAgentPluginUpdates({ workspaceId })).resolves.toBeUndefined();
+    expect(h.warnings[0]).toBe('agent-plugin-update-recovery-waiting');
+    expect(h.messages[0]).toContain('retry in the background');
+    expect(await verdict(h)).toBe('active');
+    await settle(h, 'agent-plugin-update-recovery-resumed');
+    expect(h.warnings).toEqual(['agent-plugin-update-recovery-waiting', 'agent-plugin-update-recovery-resumed']);
+    expect(await h.store.read({})).toBeUndefined();
+    expect(await verdict(h)).toBe('active');
+  });
+});
+
+test('a lock that never frees gives up with a named line and still leaves the plugin on', async () => {
+  const fileLock = { ...ports.fileLock, withFileLock: (() => { throw busyLock(); }) as typeof ports.fileLock.withFileLock };
+  await fixture(async h => {
+    const boot = createAgentPluginLifecycle({ ...h.context, fileLock, clock: { ...h.context.clock, sleep: async () => undefined } });
+    await fs.writeFile(path.join(h.pluginRoot, 'update-journal.json'), '{');
+    await expect(boot.reconcileAgentPluginUpdates({ workspaceId })).resolves.toBeUndefined();
+    await settle(h, 'agent-plugin-update-recovery-gave-up');
+    expect(h.warnings).toEqual(['agent-plugin-update-recovery-waiting', 'agent-plugin-update-recovery-gave-up']);
+    expect(await verdict(h)).toBe('active');
+  });
+});
+
+test('a lock wait while restoring an interrupted update does not switch the plugin off', async () => {
+  await fixture(async h => {
+    await h.store.write({ journal: journalFor(h) });
+    // The journal read itself waits on a lock: that used to switch the plugin off.
+    const filesystem = { ...fs, readFile: (async (file: string, ...rest: never[]) => {
+      if (String(file).endsWith('update-journal.json')) throw busyLock();
+      return (fs.readFile as (...a: unknown[]) => Promise<unknown>)(file, ...rest);
+    }) as typeof fs.readFile };
+    const boot = createAgentPluginLifecycle({ ...h.context, filesystem, clock: { ...h.context.clock, sleep: () => new Promise<void>(() => undefined) } });
+    await expect(boot.reconcileAgentPluginUpdates({ workspaceId })).resolves.toBeUndefined();
+    expect(h.warnings).toEqual(['agent-plugin-update-recovery-waiting']);
+    expect(await verdict(h)).toBe('active');
+  });
 });

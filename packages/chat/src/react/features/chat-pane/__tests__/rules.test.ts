@@ -585,7 +585,7 @@ describe('describeAttachmentError', () => {
   it('says what failed and what to do, with the redacted reason as pasteable details', () => {
     const error = new Error('upload to /api/attachments failed with sk-abcdefghijklmnopqrstuvwxyz123456');
     const { summary, details } = describeAttachmentError({ error });
-    expect(summary).toBe('Attachment upload failed. Remove it and try again.');
+    expect(summary).toBe('Attachment upload failed. The file was not attached. Choose it again to retry.');
     expect(details).toContain('/api/attachments failed');
     expect(details).not.toContain('sk-abcdefghijklmnop');
   });

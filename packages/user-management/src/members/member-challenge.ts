@@ -1,6 +1,6 @@
 import { decideChallenge, verifyChallengeCode, type AuthChallengeRecord, type ChallengeStorePort } from "../server/auth-challenge.js";
 import type { MagicLinkTokenRepoPort, MemberSignInInput, MembersWriteServiceDeps } from "./ports.js";
-import { MemberAuthError, type MagicLinkTokenRecord, type MemberRecord } from "./types.js";
+import { MagicLinkTokenRejectedError, MemberAuthError, type MagicLinkTokenRecord, type MemberRecord } from "./types.js";
 import { dummyPasswordHash, hashToken, isoPlusMs, memberPasswordHasher } from "./member-credentials.js";
 
 export const INVALID_SIGN_IN_CREDENTIAL = "sign-in credential is invalid" as const;
@@ -33,10 +33,8 @@ export function memberChallengeStore(required: {
         await repo.consume({ workspaceId: input.workspaceId, id: input.id, consumedAt: input.nowIso });
         return true;
       } catch (error) {
-        // Only the repo's known single-use rejections are invalid credentials. Outages must surface.
-        const prefix = `magic link token '${input.id}' `;
-        if (error instanceof Error && ["was not found", "has expired", "was already consumed"]
-          .some(reason => error.message === prefix + reason)) return false;
+        // Only the repo's typed single-use rejections are invalid credentials. Outages must surface.
+        if (error instanceof MagicLinkTokenRejectedError) return false;
         throw error;
       }
     },

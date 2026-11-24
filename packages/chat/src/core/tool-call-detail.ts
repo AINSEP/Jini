@@ -53,7 +53,20 @@ export function describeToolCallDetail(
   const inputText = show(serializeInput(input));
   if (!result) return { inputText, outputText: null, noteKey: missingResultNote({ runStreaming, runSucceeded }) };
   if (!result.content.trim()) return { inputText, outputText: null, noteKey: result.isError ? 'Failed without an error message.' : 'Finished with no output.' };
-  return { inputText, outputText: show(formatToolOutputForDisplay({ text: result.content })), noteKey: null };
+  const text = result.isError && isRefusedArgumentsError(result.content) ? REFUSED_ARGUMENTS_SENTENCE : formatToolOutputForDisplay({ text: result.content });
+  return { inputText, outputText: show(text), noteKey: null };
+}
+
+/**
+ * The tool server words a refused call for the model that made it ("invalid arguments for <tool>: change
+ * `path`: ..." plus the accepted-argument contract) so it can repair the call. That text is protocol, not
+ * something a person can act on, so the card says it in plain words; the model still receives the original.
+ */
+const REFUSED_ARGUMENTS_PREFIX = 'invalid arguments for ';
+const REFUSED_ARGUMENTS_SENTENCE = 'This step did not run because the assistant sent details the tool could not use. It usually corrects itself and tries again.';
+
+function isRefusedArgumentsError(content: string): boolean {
+  return content.trimStart().startsWith(REFUSED_ARGUMENTS_PREFIX);
 }
 
 /** Per-block cap for the text a collapsed row keeps mounted — see {@link describeCollapsedToolCall}. */

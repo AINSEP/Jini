@@ -82,6 +82,7 @@ import { createPersistentStateModule } from "./persistent-state.js";
 import type { Dirent } from "node:fs";
 import path from "node:path";
 import { describeErrorForLog } from "@jini-ai/core";
+import { AgentPluginInstallError } from "./install-errors.js";
 import { createActivationModule } from "./activation.js";
 import { createBundledDigestsModule } from "./bundled-digests.js";
 import { createBundledSourceArchiveModule } from "./bundled-source-archive.js";
@@ -184,7 +185,7 @@ async function seedBundledAgentPlugins({ ports, required }: {
       : await createPersistentStateModule(ports).migrate({ workspaceRoot: layout.forWorkspace({ workspaceId }).root });
     if (!migration.complete) throw new Error('Legacy plugin layout migration has unfinished filesystem moves; see boot log');
   } catch (error) {
-    const reason = describeErrorForLog({ err: error });
+    const reason = describeSeedFailure({ err: error });
     return { sourceRoot, outcomes: pluginDirNames.map(pluginId => ({ pluginId, status: 'failed' as const, reason })), retirements: [] };
   }
 
@@ -297,9 +298,18 @@ async function seedOne({ ports, args }: {
     return {
       pluginId: args.dirName,
       status: "failed",
-      reason: describeErrorForLog({ err: error }),
+      reason: describeSeedFailure({ err: error }),
     };
   }
+}
+
+/** The reason a bundled plugin failed to seed, for the boot log. An install error carries its own code
+ *  and a plain message written for this purpose (never raw filesystem or credential text), so both are
+ *  logged; the core describer has no vocabulary for this class and would print a bare "Error".
+ *  Everything else keeps the core describer's class-only line. @complexity O(1). */
+function describeSeedFailure({ err }: { err: unknown }, _optional = {}): string {
+  if (err instanceof AgentPluginInstallError) return `${err.code}: ${err.message}`;
+  return describeErrorForLog({ err });
 }
 
 /**

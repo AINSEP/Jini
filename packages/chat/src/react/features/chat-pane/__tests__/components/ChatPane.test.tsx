@@ -468,7 +468,7 @@ describe('ChatPane', () => {
       screen.getByLabelText('Attach files', { selector: 'input' }),
       new File(['content'], 'notes.txt', { type: 'text/plain' }),
     );
-    expect(await screen.findByText('Attachment upload failed. Remove it and try again.')).toBeInTheDocument();
+    expect(await screen.findByText('Attachment upload failed. The file was not attached. Choose it again to retry.')).toBeInTheDocument();
     expect(screen.getByText(/attachment upload unavailable/)).toBeInTheDocument();
 
     await userEvent.click(screen.getByTestId('working-dir-trigger'));

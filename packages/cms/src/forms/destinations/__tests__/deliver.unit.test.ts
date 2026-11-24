@@ -44,3 +44,15 @@ test("a missing adapter is retryable and a missing credential is not", async () 
   const noCred = createFormDestinationDeliverer({ resolveRequestTarget, kit, connections: async () => null, loadRegistry: async () => registryWith({ deliver: async () => undefined }) });
   assert.equal(await noCred({ workspaceId: "w", job }).catch(code), "authorization-required");
 });
+
+test("host-supplied adapter options reach the adapter next to the plugin's state, for that plugin only", async () => {
+  const seen: unknown[] = [];
+  const registry = registryWith({ deliver: async (_required, optional) => { seen.push(optional); } });
+  const state = { get: async () => null };
+  const deliver = createFormDestinationDeliverer({ resolveRequestTarget, kit, connections: async () => credential, loadRegistry: async () => registry }, {
+    pluginState: () => state,
+    adapterOptions: ({ workspaceId, pluginId }) => ({ legacyHeaders: { submissionId: [`${workspaceId}/${pluginId}`] } }),
+  });
+  await deliver({ workspaceId: "w", job });
+  assert.deepEqual(seen, [{ state, legacyHeaders: { submissionId: ["w/p"] } }]);
+});

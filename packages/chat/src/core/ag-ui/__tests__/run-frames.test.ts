@@ -38,31 +38,45 @@ test('a daemon-canceled end finishes with the cancelled reason and canceled stat
   ]);
 });
 
-test('an error frame writes its message as RUN_ERROR and fails the run', async () => {
-  const bytes = new TextEncoder().encode(`event: error\ndata: ${JSON.stringify({ payload: { message: 'boom' } })}\n\n`);
+test('an error frame fails the run with the host sentence and keeps the daemon text out of RUN_ERROR (C131)', async () => {
+  const bytes = new TextEncoder().encode(`event: error\ndata: ${JSON.stringify({ payload: { message: 'boom: ECONNRESET at /srv/daemon' } })}\n\n`);
   const reader = new ReadableStream<Uint8Array>({ start(c) { c.enqueue(bytes); c.close(); } }).getReader();
   const events: AgUiEvent[] = [];
   const outcome = await drainRunFramesToAgUi({ reader, threadId: 't', runId: 'r',
-    state: createAgUiTranslationState(translation), notices, write: event => { events.push(event); } });
+    state: createAgUiTranslationState(translation), notices, write: event => { events.push(event); } },
+    { failureMessage: 'The assistant could not finish. Send your request again.' });
   expect(outcome).toEqual({ status: 'failed' });
   expect(events).toEqual([
-    { type: 'CUSTOM', name: 'example.status', value: { kind: 'status', label: 'boom' } },
-    { type: 'RUN_ERROR', message: 'boom' },
+    { type: 'CUSTOM', name: 'example.status', value: { kind: 'status', label: 'boom: ECONNRESET at /srv/daemon' } },
+    { type: 'RUN_ERROR', message: 'The assistant could not finish. Send your request again.' },
   ]);
 });
 
-test('a stream closing without a terminal frame closes messages and finishes with stop', async () => {
+test('a daemon-failed end frame fails the run with the host sentence, not the daemon exit text (C131)', async () => {
+  const bytes = new TextEncoder().encode(`event: end\ndata: ${JSON.stringify({ payload: { status: 'failed', code: 1, signal: null, resumable: false } })}\n\n`);
+  const reader = new ReadableStream<Uint8Array>({ start(c) { c.enqueue(bytes); c.close(); } }).getReader();
+  const events: AgUiEvent[] = [];
+  const outcome = await drainRunFramesToAgUi({ reader, threadId: 't', runId: 'r',
+    state: createAgUiTranslationState(translation), notices, write: event => { events.push(event); } },
+    { failureMessage: 'The assistant could not finish. Send your request again.' });
+  expect(outcome).toEqual({ status: 'failed' });
+  const last = events[events.length - 1];
+  expect(last).toEqual({ type: 'RUN_ERROR', message: 'The assistant could not finish. Send your request again.' });
+});
+
+test('a stream closing without a terminal frame is reported as an interrupted failed run, never as finished (B143)', async () => {
   const bytes = new TextEncoder().encode(`event: agent\ndata: ${JSON.stringify({ payload: { type: 'text_delta', delta: 'hello' } })}\n\n`);
   const reader = new ReadableStream<Uint8Array>({ start(c) { c.enqueue(bytes); c.close(); } }).getReader();
   const events: AgUiEvent[] = [];
   const outcome = await drainRunFramesToAgUi({ reader, threadId: 't', runId: 'r',
-    state: createAgUiTranslationState(translation), notices, write: event => { events.push(event); } });
-  expect(outcome).toEqual({ status: 'succeeded' });
+    state: createAgUiTranslationState(translation), notices, write: event => { events.push(event); } },
+    { interruptionMessage: 'The response was cut off. Send your request again.' });
+  expect(outcome).toEqual({ status: 'failed' });
   expect(events).toEqual([
     { type: 'TEXT_MESSAGE_START', messageId: 'msg_1', role: 'assistant' },
     { type: 'TEXT_MESSAGE_CONTENT', messageId: 'msg_1', delta: 'hello' },
     { type: 'TEXT_MESSAGE_END', messageId: 'msg_1' },
-    { type: 'RUN_FINISHED', threadId: 't', runId: 'r', result: { reason: 'stop' } },
+    { type: 'RUN_ERROR', message: 'The response was cut off. Send your request again.' },
   ]);
 });
 

@@ -225,18 +225,22 @@ function writeAllAgUiEvents({ write, events }: { write: (event: AgUiEvent) => vo
  * an `end` the daemon classified as failed, else `RUN_FINISHED` — with reason `cancelled` for an
  * `end` the daemon classified as canceled, else the frame's own reason (`stop` when it names none).
  *
+ * The `RUN_ERROR` message is the host's `failureMessage` sentence, never the daemon's own text: that
+ * text (an exit code, a transport error, a path) is not something a site owner can act on, and it
+ * stays visible only through the `status` event the same frame already produced.
+ *
  * @returns the run's final status once a terminal frame has closed it — the caller stops reading
  *   further frames and ends the response — else `null`.
  */
 function writeFrameOutcome(
-  { frame, outcome, ctx }: { frame: { data: string }; outcome: RunFrameOutcome; ctx: AgUiFrameContext },
+  { frame, outcome, ctx, failureMessage }: { frame: { data: string }; outcome: RunFrameOutcome; ctx: AgUiFrameContext; failureMessage: string },
   _optional = {},
 ): "succeeded" | "failed" | "canceled" | null {
   for (const event of outcome.events) writeAllAgUiEvents({ write: ctx.write, events: translateAgentEventToAgUi({ event, state: ctx.state }) });
   if (!outcome.error && !outcome.terminal) return null;
   writeAllAgUiEvents({ write: ctx.write, events: closeAgUiRun({ state: ctx.state }) });
   if (outcome.error) {
-    ctx.write({ type: EventType.RUN_ERROR, message: outcome.error.message });
+    ctx.write({ type: EventType.RUN_ERROR, message: failureMessage });
     return "failed";
   }
   const canceled = outcome.terminal === "canceled";
@@ -246,17 +250,16 @@ function writeFrameOutcome(
 }
 
 /** Drains one AG-UI run's daemon frames to completion, writing translated events directly to
- *  `ctx.res` and ending the response either on an explicit terminal frame, on the stream simply
- *  closing (same dual-completion posture `consumeByokStream` uses for the identical case), or on a
- *  read error. Split out of `handleAgUiRun` so the try/catch and its loop don't add to that
+ *  `ctx.res` and ending the response either on an explicit terminal frame, or as an
+ *  interrupted failure when the stream closes without one or a read fails. Split out of `handleAgUiRun` so the try/catch and its loop don't add to that
  *  function's own branch count.
  *  @returns How the run ended, for its agent-run span: a terminal frame's own status (an `end` the
- *  daemon classified as failed or canceled is that, not `succeeded`); a natural close counts as
- *  `succeeded`, like the `RUN_FINISHED` it writes; a read error is `failed` with that error. */
+ *  daemon classified as failed or canceled is that, not `succeeded`); a close with no terminal
+ *  frame is `failed` (no verdict arrived), like the `RUN_ERROR` it writes; a read error is `failed` with that error. */
 export async function drainRunFramesToAgUi(
   ctx: AgUiFrameContext,
-  { interruptionMessage = "The response was interrupted. Try again." }:
-    { interruptionMessage?: string } = {},
+  { interruptionMessage = "The response was interrupted. Try again.", failureMessage = "The run failed. Try again." }:
+    { interruptionMessage?: string; failureMessage?: string } = {},
 ): Promise<{ status: "succeeded" | "failed" | "canceled"; error?: unknown }> {
   // One carry per daemon connection, so the later chunks of a split echo line are dropped too.
   const carry: RunFrameCarry = {};
@@ -271,14 +274,16 @@ export async function drainRunFramesToAgUi(
           return { status: 'succeeded' };
         }
       }
-      const status = writeFrameOutcome({ frame, outcome, ctx });
+      const status = writeFrameOutcome({ frame, outcome, ctx, failureMessage });
       if (status) {
         return { status };
       }
     }
+    // The daemon always ends a run with an `end` or `error` frame, so a stream that simply closes
+    // lost the verdict. Calling that "finished" would show a run that may have failed as a success.
     writeAllAgUiEvents({ write: ctx.write, events: closeAgUiRun({ state: ctx.state }) });
-    ctx.write({ type: EventType.RUN_FINISHED, threadId: ctx.threadId, runId: ctx.runId, result: { reason: "stop" } });
-    return { status: "succeeded" };
+    ctx.write({ type: EventType.RUN_ERROR, message: interruptionMessage });
+    return { status: "failed" };
   } catch (error) {
     writeAllAgUiEvents({ write: ctx.write, events: closeAgUiRun({ state: ctx.state }) });
     ctx.write({ type: EventType.RUN_ERROR, message: interruptionMessage });

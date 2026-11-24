@@ -173,7 +173,7 @@ async function deliverRow(required, optional) {
   const client = googleClientFor({ capabilities: { http: { fetch: ({ url }, init) => required.kit.fetch(url, init, { timeoutMs: DELIVERY_REQUEST_TIMEOUT_MS }) }, connections } });
   const requests = sheetsRequests({ client, connectionRef: required.binding.connectionRef, spreadsheetId });
   const tab = await requests.tab(tabConfig.sheetId);
-  const mapping = buildMapping({ form: required.form });
+  const mapping = buildMapping({ form: required.form }, { legacyHeaders: optional.legacyHeaders });
   const headerRow = (await requests.rows(a1(tab.title, '1:1')))[0] ?? [];
   const layout = planColumns({ mapping, headerRow, markers: await requests.markers(tab.sheetId) });
   const existing = await scanFor(requests, tab, layout.columns[0], required.submission.id);
@@ -186,10 +186,12 @@ export default {
   /**
    * The forms delivery contract's `deliver`. Never throws: every failure is a contract result.
    * @param {{ kit: { fetch(url: string, init: RequestInit, options: { timeoutMs: number }): Promise<Response> }, credential: { token: string, getAccessToken?: () => Promise<string> }, form: { slug: string, fields: readonly { name: string, label?: string }[] }, submission: { id: string, answers: Readonly<Record<string, unknown>>, submittedAt: string }, binding: { connectionRef: string, config: Readonly<Record<string, unknown>> }, idempotencyKey?: string }} required
-   * @param {{ state?: { get(input: { key: string }): Promise<unknown> } }} [optional]
+   * @param {{ state?: { get(input: { key: string }): Promise<unknown> }, legacyHeaders?: { submissionId?: readonly string[], submittedAt?: readonly string[] } }} [optional]
    *   `state`: the host's read-only reader of this plugin's settings, the same store and gate the
    *   tools use (`isProductEnabled`); absent = Sheets off. Quotas are the host's budgets, charged
    *   on every token read (`credential.getAccessToken`).
+   *   `legacyHeaders`: `{ submissionId?: string[], submittedAt?: string[] }`, older names of the two
+   *   plugin columns that a sheet the host already delivers to may still carry.
    * @returns {Promise<{ ok: true, reference?: string } | { ok: false, error: { code: string, retryable: boolean, retryAfterMs?: number, outcome?: 'not-applied' | 'unknown' } }>}
    */
   async deliver(required, optional = {}) {

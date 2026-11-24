@@ -76,7 +76,7 @@ it.each([
   ['db', 'better-sqlite3'], ['db', 'pg'], ['db', '@electric-sql/pglite'], ['server', 'node-pty'],
   ['capability-providers', 'ws'], ['user-management', 'argon2'], ['cms', 'sharp'],
   ['cms', 'jsdom'], ['ui', '@excalidraw/excalidraw'], ['ui', 'grapesjs'],
-  ['ui', 'lexical'], ['ui', 'shiki'], ['sandbox', '@e2b/code-interpreter'],
+  ['ui', 'shiki'], ['sandbox', '@e2b/code-interpreter'],
   // Host frameworks used only by opt-in subpaths or types must not be auto-installed by npm/pnpm.
   ['cms', 'express'], ['commerce', 'express'], ['commerce', 'react'],
   ['admin', 'react'], ['chat', 'react'], ['user-management', 'react'], ['vibecoding', 'react'],
@@ -191,7 +191,7 @@ it('cms forms entries reach only required libraries or optional peers that name 
 }, 120000);
 
 // Cross-package defaults count too: UI loads UI kit's React bindings; server loads daemon HTTP.
-it.each([['ui', 'react'], ['ui', 'react-dom'], ['daemon', 'express'], ['server', 'express'],
+it.each([['ui', 'react'], ['ui', 'react-dom'], ['server', 'express'],
   ['ui-kit', 'react'], ['ui-kit', 'react-dom']])
 ('keeps default-entry host framework %s → %s required', async (directory, dependency) => {
   const { readFileSync } = await import('node:fs');
@@ -200,6 +200,16 @@ it.each([['ui', 'react'], ['ui', 'react-dom'], ['daemon', 'express'], ['server',
   expect(manifest.peerDependenciesMeta?.[dependency]?.optional).not.toBe(true);
   expect(manifest.jini.optionalPeers?.[dependency]).toBeUndefined();
   expect(manifest.dependencies?.[dependency]).toBeUndefined();
+});
+
+// The Express credential middleware moved to http-kit, so the daemon no longer declares express as a
+// runtime peer or dependency (it stays a dev dependency for its own tests), and ui no longer loads lexical.
+it.each([['daemon', 'express'], ['ui', 'lexical']])('%s no longer declares %s as a runtime peer or dependency', async (directory, dependency) => {
+  const { readFileSync } = await import('node:fs');
+  const manifest = JSON.parse(readFileSync(new URL(`../../packages/${directory}/package.json`, import.meta.url), 'utf8'));
+  expect(manifest.peerDependencies?.[dependency]).toBeUndefined();
+  expect(manifest.dependencies?.[dependency]).toBeUndefined();
+  expect(manifest.jini.optionalPeers?.[dependency]).toBeUndefined();
 });
 
 it.each([['core', 'express'], ['http-kit', 'express'], ['ui-kit', 'vue'], ['vibecoding', 'react-dom']])

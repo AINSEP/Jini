@@ -11,6 +11,8 @@ import { authorizeIntegrations, rejectWebhookError, webhookMessageMapping, type 
  */
 export type WebhookSubscriptionCreateFn = (required: {
   workspaceId: string;
+  /** The signed-in operator making the request: the host records them as the subscription's owner and creator. */
+  actorPrincipalId: string;
   label: string;
   targetUrl: string;
   topics: string[];
@@ -22,6 +24,9 @@ export interface IntegrationsCreateRouteDeps {
   createSubscription: WebhookSubscriptionCreateFn;
   isValidationError: WebhookFailureMatcher;
 }
+
+/** The signed-in operator the host's session port resolved; only its id is read. */
+export interface IntegrationsCreatePrincipal { id: string }
 
 /** The POST body's fields, read off the untyped body in one place. */
 export interface IntegrationsCreateInput { label: string; targetUrl: string; topics: string[] }
@@ -35,7 +40,7 @@ export interface IntegrationsCreateInput { label: string; targetUrl: string; top
  * refuses: a malformed shape just becomes an empty or invalid value that the service rejects (400),
  * after authorization, as the hand-written route did.
  */
-export const integrationsCreateRoute = defineJsonRoute<IntegrationsCreateInput, AdminWebhookSubscriptionEnvelope, IntegrationsCreateRouteDeps, unknown>({
+export const integrationsCreateRoute = defineJsonRoute<IntegrationsCreateInput, AdminWebhookSubscriptionEnvelope, IntegrationsCreateRouteDeps, IntegrationsCreatePrincipal>({
   method: "post",
   path: "/api/admin/v1/workspaces/:workspaceId/integrations/subscriptions",
   parse: (raw) => {
@@ -47,10 +52,12 @@ export const integrationsCreateRoute = defineJsonRoute<IntegrationsCreateInput, 
       topics: Array.isArray(rawTopics) ? rawTopics.map(String) : [],
     } });
   },
-  handle: async ({ input, deps, authorize }) => {
+  handle: async ({ input, deps, context, authorize }) => {
     await authorizeIntegrations({ authorize });
+    // Fail closed: a subscription must never be stamped with a made-up owner when no one is signed in.
+    if (!context) throw new Error("integrations admin route has no authenticated principal");
     try {
-      const { subscription } = await deps.createSubscription({ workspaceId: deps.workspaceId, ...input });
+      const { subscription } = await deps.createSubscription({ workspaceId: deps.workspaceId, actorPrincipalId: context.id, ...input });
       return ok({ value: { subscription: toAdminSubscriptionResponse({ subscription, lastDelivery: null }) } });
     } catch (err) {
       return rejectWebhookError({ err, mappings: [webhookMessageMapping({ matches: deps.isValidationError, status: 400 })] });

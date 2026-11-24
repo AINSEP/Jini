@@ -28,19 +28,23 @@ function shortDescription({ text }: { text: string }, { maxBytes = 240 } = {}): 
  * @returns The active candidate, or the same searchable metadata clearly marked off.
  * @complexity O(1) bounded text work and shallow copy; no I/O or mutation.
  */
-export function agentVisiblePluginCandidate({ candidate }: { candidate: AgentPluginSearchCandidate }, _options = {}): AgentPluginSearchCandidate {
+export function agentVisiblePluginCandidate({ candidate }: { candidate: AgentPluginSearchCandidate & { readonly maturity?: string } }, _options = {}): AgentPluginSearchCandidate {
   if (candidate.enabled) return candidate;
   const purpose = shortDescription({ text: (candidate.summary ?? candidate.description ?? '').slice(0, 1024).replace(/\s+/g, ' ').trim() }, { maxBytes: 100 });
   const label = shortDescription({ text: (candidate.displayName ?? candidate.pluginId).slice(0, 1024).replace(/\s+/g, ' ').trim() }, { maxBytes: 80 });
-  return { ...candidate, id: candidate.id ?? candidate.pluginId, enabled: false,
-    description: `installed, off: ${label}: ${purpose} — read guidance; tools unavailable` };
+  // A Soon plugin is locked off, so it is described as coming soon: "installed, off" invites an enable offer.
+  const description = candidate.maturity === 'soon'
+    ? `coming soon: ${label}: ${purpose} — not ready yet; it cannot be turned on`
+    : `installed, off: ${label}: ${purpose} — read guidance; tools unavailable`;
+  return { ...candidate, id: candidate.id ?? candidate.pluginId, enabled: false, description };
 }
 
 /** Project one candidate without copying skills, keywords, credentials or host metadata. O(1). */
 function discoveryMatch({ candidate }: { candidate: AgentPluginSearchCandidate & { readonly maturity?: string } }, _options = {}): AgentPluginDiscoveryMatch {
   if (!candidate.enabled) {
     const visible = agentVisiblePluginCandidate({ candidate });
-    return { id: visible.id ?? visible.pluginId, pluginId: visible.pluginId, enabled: false, description: visible.description ?? '' };
+    return { id: visible.id ?? visible.pluginId, pluginId: visible.pluginId, enabled: false,
+      ...(candidate.maturity === 'soon' ? { maturity: 'soon' } : {}), description: visible.description ?? '' };
   }
   return { id: candidate.id ?? candidate.pluginId, pluginId: candidate.pluginId, enabled: candidate.enabled,
     ...(candidate.maturity ? { maturity: candidate.maturity } : {}),
