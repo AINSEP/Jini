@@ -1,6 +1,6 @@
 ---
 "@jini-ai/core": minor
-"@jini-ai/daemon": minor
+"@jini-ai/daemon": major
 ---
 
 Neutral Core owners for definitions that blocked wave-3 extraction lanes (w4-core-owners):
