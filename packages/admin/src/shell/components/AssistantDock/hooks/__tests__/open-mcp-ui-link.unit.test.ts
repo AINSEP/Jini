@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 
-import { openMcpUiLink } from "../open-mcp-ui-link";
+import { openMcpUiLink } from "../open-mcp-ui-link.js";
 
 const ORIGIN = "https://admin.example.com";
 

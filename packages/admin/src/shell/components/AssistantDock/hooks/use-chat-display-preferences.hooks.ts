@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { FetchQueryAdapter } from "@jini-ai/core/fetch";
 
-/** The tool-call card display modes: every card, one fold-up line per turn, or none. */
+/** The tool-call card display modes: every card, one fold-up line per turn, or none. Mirrors the chat library's
+ *  `ToolCallDisplay` (declared here so this compiles against a chat build that predates it). */
 export type ChatToolCallDisplay = "show" | "collapsed" | "hidden";
 
 export interface ChatDisplayPreferences {
