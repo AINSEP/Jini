@@ -259,7 +259,7 @@ const decoyByHasher = new WeakMap<ApiKeySecretHasherPort, Promise<string>>();
  * @complexity O(1) after the first call for a given hasher.
  * @overallScore 100
  */
-export function decoyKeyHash(hasher: ApiKeySecretHasherPort): Promise<string> {
+export function decoyKeyHash({ hasher }: { hasher: ApiKeySecretHasherPort }, _optional: Record<string, never> = {}): Promise<string> {
   const existing = decoyByHasher.get(hasher);
   if (existing) return existing;
 

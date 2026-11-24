@@ -101,8 +101,8 @@ test("decoyKeyHash hashes one verifiable decoy per hasher and rejects presented 
   const inputs: string[] = [];
   vi.spyOn(hasher, "hash").mockImplementation(async ({ secret }: { secret: string }) => { inputs.push(secret); return hash({ secret }); });
 
-  const first = await decoyKeyHash(hasher);
-  const second = await decoyKeyHash(hasher);
+  const first = await decoyKeyHash({ hasher });
+  const second = await decoyKeyHash({ hasher });
   assert.equal(first, second, "memoized: one derivation per hasher per process");
   assert.match(first, /^scrypt\$/);
   assert.equal(inputs.length, 1, "memoization performs exactly one real hash");
@@ -111,7 +111,7 @@ test("decoyKeyHash hashes one verifiable decoy per hasher and rejects presented 
   // null would return instantly and defeat the timing defence it exists to provide.
   assert.equal(await hasher.verify({ storedHash: first, secret: mintApiKey().secret }), false);
 
-  const other = await decoyKeyHash(new ScryptApiKeySecretHasher());
+  const other = await decoyKeyHash({ hasher: new ScryptApiKeySecretHasher() });
   assert.notEqual(first, other, "not a shared constant across hashers");
 });
 

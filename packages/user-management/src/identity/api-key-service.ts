@@ -471,7 +471,7 @@ export async function authenticateApiKey(required: {
     prefix: parsed.prefix,
   });
   if (!candidate) {
-    await deps.secretHasher.verify({ storedHash: await decoyKeyHash(deps.secretHasher), secret: parsed.secret });
+    await deps.secretHasher.verify({ storedHash: await decoyKeyHash({ hasher: deps.secretHasher }), secret: parsed.secret });
     return null;
   }
 

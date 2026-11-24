@@ -16,8 +16,10 @@ The why for the extraction and the package layout is in
 - `register*PermissionGrants({ registry })` takes the `PermissionGrantRegistry` the host created.
   `registerSiteKeyPermissionGrants({ registry, siteKeyName })` also takes the host's site-key env var
   name (product identity, K3); the migration's audit reason names it.
-- `createBootSessionTokenStore()` takes nothing; the module-level `mintBootSessionToken` /
-  `redeemBootSessionToken` wrap one process-scoped store.
+- `createBootSessionTokenStore()` takes nothing and the module keeps no state: the host builds ONE
+  store per process in its own binding and hands that same instance to its serve command (mint) and
+  its boot-session route (redeem). Two stores would refuse every launcher token; the host pins the
+  sharing with a test.
 
 - `createApiKeySecret({ prefix })` takes the host's api-key scheme marker (product identity, e.g.
   `acme_ak_`; lowercase letters, digits, `_`). Every issued key carries it, so the host binds one
@@ -48,13 +50,14 @@ record and ports with their in-memory adapter (`InMemoryApiKeyRepo`), the user-p
 import { createPermissionGrantRegistry } from "@jini-ai/user-management/identity/permission-grants";
 import { registerRoleManagePermissionGrants } from "@jini-ai/user-management/identity/role-manage-permission";
 import { applyBuiltinRoleGrants } from "@jini-ai/user-management/identity/builtin-role-grants";
-import { mintBootSessionToken, redeemBootSessionToken } from "@jini-ai/user-management/identity/boot-session-token";
+import { createBootSessionTokenStore } from "@jini-ai/user-management/identity/boot-session-token";
 
 const registry = createPermissionGrantRegistry({});          // composition root owns the registry
 registerRoleManagePermissionGrants({ registry });            // each feature registers its own grants
 await applyBuiltinRoleGrants({ grants: registry.roleGrants.list({}), roles, rolePolicies, policies, policyPermissions, idGen, workspaceId });
-const bootToken = mintBootSessionToken();                    // launcher side, only when asked for one
-const ok = redeemBootSessionToken({ rawToken });             // route side, true at most once
+const bootTokens = createBootSessionTokenStore();            // host binding: ONE per process
+const bootToken = bootTokens.mint();                         // launcher side, only when asked for one
+const ok = bootTokens.redeem({ rawToken });                  // route side, same instance, true at most once
 ```
 
 **Must never import:** a host app module, an HTTP/server framework, UI packages, or another Jini

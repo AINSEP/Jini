@@ -22,7 +22,7 @@ REQUIRED), `queryScope` (the host's workspace id), `t` (the host's users diction
 `openOwnPasswordReset`. The host mounts `FetchQueryProvider` and `UserManagementKitProvider`.
 The users dictionary itself stays host-side for now: its `translationEntry`/`mergeLocaleOverlays`
 helpers live in `@jini-ai/admin`, which this package may not import (L5 injection gate).
-Tovu's binding: `apps/admin/src/features/users/{index.tsx,users-host-binding.ts,hooks/use-wired-users.hooks.ts}`.
+The host's binding lives in its own users feature (its page entry, a host-binding module and the wired-users hook).
 CSS: no classes of its own beyond the `Users` screen's existing `jini-*` family.
 
 **Must never import:** the host's HTTP client, locale hook, router or dictionaries, or

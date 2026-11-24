@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
-import { onTestFinished, test } from "vitest";
+import { test } from "vitest";
 
-import { createBootSessionTokenStore, mintBootSessionToken, redeemBootSessionToken, isBootSessionTokenArmed } from "../boot-session-token.js";
+import { createBootSessionTokenStore } from "../boot-session-token.js";
 
 /**
  * @file Coverage for the boot-session token store.
@@ -78,18 +78,6 @@ test("a short input does not throw — timingSafeEqual would, on unequal lengths
   store.mint();
   assert.doesNotThrow(() => store.redeem({ rawToken: "x" }));
   assert.equal(store.redeem({ rawToken: "x" }), false);
-});
-
-test("the production process wrappers share one armed single-use store", () => {
-  const token = mintBootSessionToken();
-  onTestFinished(() => { redeemBootSessionToken({ rawToken: token }); });
-  assert.equal(isBootSessionTokenArmed(), true);
-  assert.equal(redeemBootSessionToken({ rawToken: "wrong-token" }), false);
-  assert.equal(isBootSessionTokenArmed(), true);
-  assert.equal(redeemBootSessionToken({ rawToken: token }), true);
-  assert.equal(isBootSessionTokenArmed(), false);
-  assert.equal(redeemBootSessionToken({ rawToken: token }), false);
-  assert.equal(redeemBootSessionToken({ rawToken: "" }), false);
 });
 
 test("an ARMED store refuses empty and non-string tokens without throwing and without burning the real one", () => {

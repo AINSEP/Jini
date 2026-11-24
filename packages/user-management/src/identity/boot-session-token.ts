@@ -12,8 +12,8 @@ import { createHash, randomBytes, timingSafeEqual } from "node:crypto";
  * redeemed.
  *
  * How it relates to the project:
- * `cli/commands/serve.ts` mints and emits it; `admin-http/dev-auth.ts`'s
- * `POST /api/admin/v1/auth/boot-session` redeems it. Browser dev uses this same factory with a
+ * The host's serve command mints and emits it; the host's admin boot-session route
+ * (`POST /auth/boot-session`) redeems it. Browser dev uses this same factory with a
  * request-scoped store after local-launch admission (`POST /auth/local-boot-session`), so its
  * internal token never leaves server memory and cannot replace the launcher's process token.
  *
@@ -42,22 +42,13 @@ import { createHash, randomBytes, timingSafeEqual } from "node:crypto";
  *   `timingSafeEqual`, which requires equal lengths and would otherwise throw on a short input.
  *
  * Architectural role:
- * A factory plus one process-scoped instance. The factory is what the tests drive, so no test has
- * to reach into module state or reset a singleton between cases. The instance exists to keep this
- * state OUT of `RouteDeps`/the composition root: `cli/commands/serve.ts` (the minting call site) and
- * `admin-http/dev-auth.ts`'s route (the redeeming call site) both call this module's own exported
- * functions directly, never through `deps`.
- *
- * An earlier version of this comment claimed the two call sites "have no dependency path between
- * them" — that is false at the module level and is corrected here (2026-09-06, while adding this
- * route's first server-side test, `admin-boot-session-route.test.ts`): `serve.ts` builds the very
- * `RouteDeps` bag it hands to `createApp(deps)`, which is what wires `registerAuthRoutes(app, deps)` —
- * i.e. `serve.ts` already depends on `dev-auth.ts`, transitively through `createApp`, in the very same
- * function that calls {@link mintBootSessionToken}. What is actually true, and is the real reason for
- * this singleton, is narrower: NEITHER call site reads or writes the token through `deps`, so this
- * module (mint and redeem sites included) can be deleted outright without `RouteDeps`'s shape ever
- * having to change — unlike a hypothetical `deps.bootToken` field, which every other `RouteDeps`
- * consumer and test fixture would have had to account for.
+ * A factory only — this module holds no state. The tests drive the factory, so no test has to
+ * reach into module state or reset a singleton between cases. The host builds exactly ONE store
+ * per process for the launcher token and hands that same instance to both call sites: its serve
+ * command (the minting side) and its boot-session route (the redeeming side). A mint and a redeem
+ * on two different stores would refuse every launcher token, so sharing that one instance is the
+ * host's job and the host pins it with a test. Neither call site needs the token through a
+ * route-deps bag, so the host can keep this state out of its composition root's dependency shape.
  */
 
 /** Bytes of entropy per token. 32 bytes = 256 bits, the same size the identity library uses for a
@@ -112,24 +103,4 @@ export function createBootSessionTokenStore(_optional: Record<string, never> = {
       return armed !== null;
     },
   };
-}
-
-/** The one store this process uses. See this file's header ("Architectural role") for why a
- *  module-scoped instance, not a `RouteDeps`-threaded field, is the right shape: neither the CLI's
- *  mint call nor the route's redeem call ever needs to read this through `deps`. */
-const processStore = createBootSessionTokenStore();
-
-/** Mint this launch's boot token. Called at most once, by `cli/commands/serve.ts`. */
-export function mintBootSessionToken(_optional: Record<string, never> = {}): string {
-  return processStore.mint();
-}
-
-/** Redeem a raw boot token. `false` unless one was minted this launch and this is it, first time. */
-export function redeemBootSessionToken({ rawToken }: { rawToken: unknown }, _options: Record<string, never> = {}): boolean {
-  return processStore.redeem({ rawToken });
-}
-
-/** Whether this launch minted a boot token. Diagnostics only. */
-export function isBootSessionTokenArmed(_optional: Record<string, never> = {}): boolean {
-  return processStore.isArmed();
 }
