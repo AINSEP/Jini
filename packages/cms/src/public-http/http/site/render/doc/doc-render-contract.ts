@@ -1,6 +1,50 @@
 import type { WidgetRenderIR } from "../../../../../widgets/index.js";
 import type { MediaAssetRenderMeta } from "@jini-ai/core/contracts/site/cms-media";
 import type { JsonObject, JsonValue } from "@jini-ai/core/primitives";
+import type { renderImageTag, renderVideoTag } from "../../../../../widgets/media-tags.js";
+import type { resolveEmbedHtmlAttributes, formatHtmlAttributes, omitKey } from "../../../../../widgets/media-attributes.js";
+import type { isPlausibleMediaRefId, plausibleMediaRefId } from "../../../../../widgets/markers/index.js";
+import type { mediaPublicPath, mediaUrlKey } from "../../../../../media/site/public-path.js";
+import type { PlaceholderClasses } from "../media-placeholder.js";
+
+/** The class names the doc renderer emits, bound by the host to whatever its stylesheet targets
+ *  (Jini hard-codes none). Each name is escaped on emission. */
+export interface DocRenderClasses {
+  readonly mediaPlaceholder: PlaceholderClasses;
+  /** The "content too deeply nested" box emitted past `MAX_RENDER_DEPTH`. */
+  readonly contentPlaceholder: PlaceholderClasses;
+  readonly youtubeEmbed: string;
+  readonly postMention: string;
+  /** The wrapper a `widgetEmbed` carrying its own `cssClass`/`htmlAttributes` renders in. */
+  readonly widgetEmbed: string;
+}
+
+/** Everything host- or sibling-domain-specific the doc node handlers need, injected so this
+ *  entry's closure stays inside its own isolation domain (media URL policy and tag rendering live
+ *  in the `media`/`widgets` domains; the URL allowlists are host policy). Bound once by the host's
+ *  composition (`content-html.ts` in Tovu). */
+export interface DocNodeHost {
+  readonly media: {
+    readonly renderImageTag: typeof renderImageTag;
+    readonly renderVideoTag: typeof renderVideoTag;
+    readonly mediaPublicPath: typeof mediaPublicPath;
+    readonly mediaUrlKey: typeof mediaUrlKey;
+    readonly isPlausibleMediaRefId: typeof isPlausibleMediaRefId;
+    readonly plausibleMediaRefId: typeof plausibleMediaRefId;
+  };
+  readonly attributes: {
+    readonly resolveEmbedHtmlAttributes: typeof resolveEmbedHtmlAttributes;
+    readonly formatHtmlAttributes: typeof formatHtmlAttributes;
+    readonly omitKey: typeof omitKey;
+  };
+  /** Host URL policy: the allowlists that decide which image `src` / YouTube URL a doc node may
+   *  publish. Each returns `null` for anything it rejects. */
+  readonly safeUrl: {
+    readonly safeImageSrc: (required: { value: JsonValue | undefined }, optional?: Record<string, never>) => string | null;
+    readonly extractYoutubeVideoId: (required: { value: JsonValue | undefined }, optional?: Record<string, never>) => string | null;
+  };
+  readonly classes: DocRenderClasses;
+}
 
 /** Threaded-through render state every {@link renderDocNode} case handler needs — bundled into one
  *  object so each extracted handler (see {@link DOC_NODE_HANDLERS}) takes one params object instead
@@ -15,6 +59,8 @@ export interface DocNodeRenderDeps {
    *  `render/content-html.ts`) because the widget renderer itself renders docs: an import in both
    *  directions would be a cycle, so the doc renderer never imports it. */
   readonly renderWidget: (ir: WidgetRenderIR) => string;
+  /** The host collaborators (media rendering/URL policy, URL allowlists, class names). */
+  readonly host: DocNodeHost;
 }
 
 /** One handler per doc-node `type`, dispatched by {@link renderDocNode} through

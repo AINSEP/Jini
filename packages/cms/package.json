@@ -157,9 +157,14 @@
       "./public-http/http/site/render/media-playback-copy": "universal",
       "./public-http/http/site/render/value-readers": "universal",
       "./public-http/http/site/render/doc/doc-render-contract": "universal",
+      "./public-http/http/site/render/doc/doc-nodes": "universal",
+      "./public-http/http/site/render/doc/media-ref": "universal",
+      "./public-http/http/site/render/doc/nodes-media": "universal",
+      "./public-http/http/site/render/media-placeholder": "universal",
       "./public-http/routes/site/pages/listing/listing-state": "universal",
       "./public-http/routes/site/pages/redirect-phase": "universal",
       "./public-http/routes/site/pages/render-context/collection-lists": "universal",
+      "./public-http/routes/site/pages/render-context/static-menus": "universal",
       "./entries/site/system-content-types": "universal",
       "./widgets/site/declared-content-type-owners": "universal",
       "./widgets/site/preview-render": "universal",
@@ -174,6 +179,7 @@
       "./public-http/middleware/theme-content-security-headers": "node",
       "./public-http/middleware/theme-static-assets": "universal",
       "./public-http/middleware/theme-page-preview": "universal",
+      "./public-http/middleware/render-theme-override": "universal",
       "./public-http/http/site/form-validation-i18n": "universal",
       "./public-http/http/site/member-auth-script": "universal",
       "./public-http/http/site/form-presentation-assets": "universal",
@@ -269,6 +275,7 @@
       "./admin-http/routes/site/profile": "universal",
       "./admin-http/routes/redirects/create": "universal",
       "./admin-http/http/plugin-hook-error": "universal",
+      "./admin-http/http/forms-write-error": "universal",
       "./admin-http/routes/posts/autosave": "universal",
       "./admin-http/routes/posts/create": "universal",
       "./admin-http/routes/posts/update": "universal",
@@ -499,7 +506,11 @@
         "src/html/site/slug.ts",
         "src/widgets/markers/gallery.ts",
         "src/widgets/markers/media-reference.ts",
-        "src/navigation/types.ts"
+        "src/navigation/types.ts",
+        "src/html/style-values.ts",
+        "src/html/text-layout.ts",
+        "src/html/document-marks.ts",
+        "src/posts/slug.ts"
       ],
       "entries": {
         "./admin-http/http/redirects": "redirects",
@@ -512,6 +523,7 @@
         "./admin-http/routes/redirects/update": "redirects",
         "./public-http/routes/site/pages/listing/listing-state": "listing",
         "./admin-http/http/forms": "forms",
+        "./admin-http/http/forms-write-error": "forms",
         "./admin-http/http/menus": "navigation",
         "./admin-http/routes/menus/get-by-id": "navigation",
         "./admin-http/routes/menus/list": "navigation",
@@ -1339,6 +1351,26 @@
       "import": "./dist/public-http/http/site/render/media-playback-copy.js",
       "default": "./dist/public-http/http/site/render/media-playback-copy.js"
     },
+    "./public-http/http/site/render/doc/doc-nodes": {
+      "types": "./dist/public-http/http/site/render/doc/doc-nodes.d.ts",
+      "import": "./dist/public-http/http/site/render/doc/doc-nodes.js",
+      "default": "./dist/public-http/http/site/render/doc/doc-nodes.js"
+    },
+    "./public-http/http/site/render/doc/media-ref": {
+      "types": "./dist/public-http/http/site/render/doc/media-ref.d.ts",
+      "import": "./dist/public-http/http/site/render/doc/media-ref.js",
+      "default": "./dist/public-http/http/site/render/doc/media-ref.js"
+    },
+    "./public-http/http/site/render/doc/nodes-media": {
+      "types": "./dist/public-http/http/site/render/doc/nodes-media.d.ts",
+      "import": "./dist/public-http/http/site/render/doc/nodes-media.js",
+      "default": "./dist/public-http/http/site/render/doc/nodes-media.js"
+    },
+    "./public-http/http/site/render/media-placeholder": {
+      "types": "./dist/public-http/http/site/render/media-placeholder.d.ts",
+      "import": "./dist/public-http/http/site/render/media-placeholder.js",
+      "default": "./dist/public-http/http/site/render/media-placeholder.js"
+    },
     "./public-http/http/site/render/value-readers": {
       "types": "./dist/public-http/http/site/render/value-readers.d.ts",
       "import": "./dist/public-http/http/site/render/value-readers.js",
@@ -1358,6 +1390,11 @@
       "types": "./dist/public-http/routes/site/pages/redirect-phase.d.ts",
       "import": "./dist/public-http/routes/site/pages/redirect-phase.js",
       "default": "./dist/public-http/routes/site/pages/redirect-phase.js"
+    },
+    "./public-http/routes/site/pages/render-context/static-menus": {
+      "types": "./dist/public-http/routes/site/pages/render-context/static-menus.d.ts",
+      "import": "./dist/public-http/routes/site/pages/render-context/static-menus.js",
+      "default": "./dist/public-http/routes/site/pages/render-context/static-menus.js"
     },
     "./public-http/routes/site/pages/render-context/collection-lists": {
       "types": "./dist/public-http/routes/site/pages/render-context/collection-lists.d.ts",
@@ -1423,6 +1460,11 @@
       "types": "./dist/public-http/middleware/theme-static-assets.d.ts",
       "import": "./dist/public-http/middleware/theme-static-assets.js",
       "default": "./dist/public-http/middleware/theme-static-assets.js"
+    },
+    "./public-http/middleware/render-theme-override": {
+      "types": "./dist/public-http/middleware/render-theme-override.d.ts",
+      "import": "./dist/public-http/middleware/render-theme-override.js",
+      "default": "./dist/public-http/middleware/render-theme-override.js"
     },
     "./public-http/middleware/theme-page-preview": {
       "types": "./dist/public-http/middleware/theme-page-preview.d.ts",
@@ -1903,6 +1945,11 @@
       "types": "./dist/admin-http/routes/redirects/create.d.ts",
       "import": "./dist/admin-http/routes/redirects/create.js",
       "default": "./dist/admin-http/routes/redirects/create.js"
+    },
+    "./admin-http/http/forms-write-error": {
+      "types": "./dist/admin-http/http/forms-write-error.d.ts",
+      "import": "./dist/admin-http/http/forms-write-error.js",
+      "default": "./dist/admin-http/http/forms-write-error.js"
     },
     "./admin-http/http/plugin-hook-error": {
       "types": "./dist/admin-http/http/plugin-hook-error.d.ts",

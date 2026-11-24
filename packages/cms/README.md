@@ -509,6 +509,7 @@ host resolves `origin` with this package's `./seo` lookup, injects its `toAbsolu
 `@jini-ai/platform/fs`'s `resolvePathWithin` (this package does not depend on platform). `theme-static-assets`:
 `trustedPreviewRevision` (takes the host's `isAuthenticatedPreviewRevision`), `isRewritableCssPath`, `previewCss`,
 `inheritedTemplateSource` (reads `{ dir, inheritedTemplateSources }` structurally from the host's discovered themes).
+`./public-http/middleware/render-theme-override` (w5-routes) is the request-local render-theme seam over a `{ locals }` store: `setRequestRenderTheme`, `hasRequestRenderTheme` (the reader the consent middleware uses) and `resolveRenderThemeId` (override, else the stored active theme); the host keeps the `app.use` that stamps it.
 `./public-http/middleware/theme-page-preview` (w4-routes) answers the theme Explore preview routes with a neutral
 `{ status, headers, type, body }` the host writes in order. `staticThemePagePreview` / `staticThemePartialPreview` take
 `{ findTheme({ themeId }), renderStaticPage, renderStaticPartial }`; `templatedThemePagePreview` takes `findTheme`,
