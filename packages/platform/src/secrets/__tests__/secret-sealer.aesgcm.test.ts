@@ -5,6 +5,15 @@ import { FixedRootKeyKeyring } from "../keyring.env.js";
 import { InMemoryKeyring } from "../keyring.memory.js";
 import { createCipheriv, randomBytes } from "node:crypto";
 import type { KeyringPort, RootKeyHandle } from "@jini-ai/core/contracts/vault";
+/**
+ * @file `AesGcmSecretSealer` — the real `SecretSealerPort` implementation (ADR-058).
+ *
+ * What matters most here, in order: a value round-trips through REAL AES-GCM (not a stub), a
+ * tampered ciphertext or auth tag is rejected rather than silently decrypted into garbage, an
+ * unsupported `alg` is rejected before any key derivation happens, and two `seal()` calls for the
+ * same plaintext never produce the same ciphertext (a fresh IV every time — GCM's core requirement).
+ */
+
 test("seal then open round-trips the plaintext exactly", async () => {
     const keyring = new InMemoryKeyring({ hkdfSalt: "fixture-salt" });
     const sealer = new AesGcmSecretSealer({ keyring: keyring });
@@ -53,6 +62,12 @@ test("an unsupported alg is rejected before any key derivation", async () => {
     await assert.rejects(() => sealer.open({ sealed: { keyId: "v1", ciphertext: "AAAA", nonce: "AAAA", alg: "xchacha20poly1305" } }), /cannot open alg/);
     assert.equal(deriveCalls, 0);
 });
+/**
+ * `aad` regression coverage — see `secret-sealer.aesgcm.ts`'s file header for the full design. These
+ * four tests are the exact scenarios the design must satisfy: existing no-AAD callers are untouched,
+ * and AAD becomes a real cryptographic binding, not a decorative parameter.
+ */
+
 test("backward compatibility: a value sealed with no aad still opens with no aad (existing rows keep working)", async () => {
     const keyring = new InMemoryKeyring({ hkdfSalt: "fixture-salt" });
     const sealer = new AesGcmSecretSealer({ keyring: keyring });

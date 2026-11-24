@@ -39,6 +39,8 @@ const IV_LENGTH_BYTES = 12;
 const AUTH_TAG_LENGTH_BYTES = 16;
 const SEALER_PURPOSE = "secret-sealer.v1";
 
+/** Fixed `KeyringPort.derive()` workspace-scope label for the sealer's OWN key derivation: one shared
+ * key per root-key generation, not one per tenant (see this file's header). */
 const SEALER_KEY_SCOPE = "secret-sealer";
 
 /**
@@ -60,6 +62,7 @@ export class SecretOpenError extends Error {
   }
 }
 
+/** AES-256-GCM `SecretSealerPort` adapter over a `KeyringPort`; the key is re-derived on every call. */
 export class AesGcmSecretSealer implements SecretSealerPort {
   // Derive one key per root generation, not per tenant. Data-layer ownership checks and context AAD
   // must prevent ciphertext substitution between rows; the shared encryption key alone cannot.

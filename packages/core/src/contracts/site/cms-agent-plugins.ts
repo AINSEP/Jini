@@ -77,10 +77,11 @@ export interface AdminAgentPluginRow<
   requiredBy?: string[];
   archiveDigest?: string;
   pluginId: string;
-  /** `null` (or absent, from a server predating the field) means title-case `pluginId` instead. */
+  /** `plugin.json`'s `extensions.jini.displayName`; `null` (or absent, from a server predating the
+   *  field) means title-case `pluginId` instead. */
   displayName?: string | null;
-  /** The plain-language explainer a row shows in place of `description` (which is written for the
-   *  assistant); `null`/absent means show `description`. */
+  /** `plugin.json`'s `extensions.jini.summary` — the plain-language explainer a row shows in place
+   *  of `description` (which is written for the assistant); `null`/absent means show `description`. */
   summary?: string | null;
   version: string | null;
   description: string | null;
