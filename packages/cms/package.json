@@ -260,6 +260,7 @@
       "./public-http/routes/members/set-password": "universal",
       "./admin-http/routes/commerce/status": "universal",
       "./admin-http/routes/consent/routes": "universal",
+      "./admin-http/routes/widgets/preview": "universal",
       "./admin-http/routes/site/profile": "universal",
       "./admin-http/routes/redirects/create": "universal",
       "./admin-http/http/plugin-hook-error": "universal",
@@ -1849,6 +1850,11 @@
       "types": "./dist/admin-http/routes/consent/routes.d.ts",
       "import": "./dist/admin-http/routes/consent/routes.js",
       "default": "./dist/admin-http/routes/consent/routes.js"
+    },
+    "./admin-http/routes/widgets/preview": {
+      "types": "./dist/admin-http/routes/widgets/preview.d.ts",
+      "import": "./dist/admin-http/routes/widgets/preview.js",
+      "default": "./dist/admin-http/routes/widgets/preview.js"
     },
     "./admin-http/routes/site/profile": {
       "types": "./dist/admin-http/routes/site/profile.d.ts",
