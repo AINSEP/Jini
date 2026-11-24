@@ -40,7 +40,8 @@ describe("accessTokenCategoryMatches", () => {
 
 describe("sortAccessTokenGroups", () => {
   type Group = AccessTokenGroupSortInput & { label: string };
-  /** `savedCount` stands in for `rows.length` — the sort only ever reads its length. */
+  /** A minimal {@link AccessTokenGroupSortInput} — `savedCount` stands in for `rows.length` (the
+   *  function only ever reads its length, never its contents). */
   function group(label: string, category: AccessTokenRowCategoryId, savedCount: number): Group {
     return { info: { category, label }, rows: Array.from({ length: savedCount }), label };
   }
@@ -66,7 +67,25 @@ describe("sortAccessTokenGroups", () => {
 
   it("orders the unsaved tier independently of the saved tier", () => {
     const groups = [group("Vercel", "hosting", 0), group("GitHub", "source-control", 1), group("Bitbucket", "source-control", 0)];
+    // Saved tier (GitHub) first; within the unsaved tier, source control (Bitbucket) still outranks
+    // hosting (Vercel) by category order, unaffected by GitHub already having moved to the other tier.
     expect(labelsOf(groups)).toEqual(["GitHub", "Bitbucket", "Vercel"]);
+  });
+
+  it("a filtered or searched subset still sorts by the same rule", () => {
+    // Simulates the "Hosting" chip or an active search query narrowing `groups` before it reaches
+    // this function — every entry shares one category, so only the saved-tier/alphabetical rules
+    // are left to apply.
+    const groups = [group("Vercel", "hosting", 0), group("GitHub Pages", "hosting", 1), group("Cloudflare Pages", "hosting", 0)];
+    expect(labelsOf(groups)).toEqual(["GitHub Pages", "Cloudflare Pages", "Vercel"]);
+  });
+
+  it("a provider moving from zero saved rows to one moves into the saved tier on the next call", () => {
+    expect(labelsOf([group("Vercel", "hosting", 0), group("GitHub", "source-control", 1)])).toEqual(["GitHub", "Vercel"]);
+    // Alphabetical within the same (saved, hosting-vs-source-control) categories: GitHub's category
+    // (source control) still ranks before Vercel's (hosting) — the tier move alone should not also
+    // reorder categories.
+    expect(labelsOf([group("Vercel", "hosting", 1), group("GitHub", "source-control", 1)])).toEqual(["GitHub", "Vercel"]);
   });
 
   it("sorts alphabetically within a category, case-insensitively and ignoring surrounding whitespace", () => {
