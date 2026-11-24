@@ -1,4 +1,5 @@
 import type { ProviderDomainVerification } from "./api/mail-status-api.types.js";
+import type { MailFeedbackSetupReport } from "@jini-ai/core/contracts/site/platform-mail";
 
 /**
  * @file The wire shapes of the host admin's Email page client (the round-2 mail routes,
@@ -156,22 +157,6 @@ export interface MailSuppressionRemovalPlan {
   suppressedAt: string;
   revision: string;
   warnings: string[];
-}
-
-export interface MailFeedbackProviderSetup {
-  providerId: string;
-  label: string;
-  supported: boolean;
-  webhookUrl: string | null;
-  webhookPath: string;
-  signingSecret: { current: { label: string; configured: boolean } } | null;
-  lastVerifiedEvent: { kind: string; receivedAt: string } | null;
-  state: "unsupported" | "secret_missing" | "no_events_yet" | "receiving";
-}
-
-export interface MailFeedbackSetupReport {
-  available: boolean;
-  providers: MailFeedbackProviderSetup[];
 }
 
 // --- templates (`@jini-ai/platform/mail/email-template-operations`) ------------------------

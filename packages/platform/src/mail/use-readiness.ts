@@ -26,6 +26,7 @@ import type { PositionalMailer as MailerPort } from "@jini-ai/core/contracts/mai
 import type { MailActivityOutcome, MailActivityUse } from "./activity/vocabulary.js";
 import type { MailActivityRepo } from "./activity/ports.js";
 import type { MailPurposeGateProbe } from "./purpose-gate-probe.js";
+import type { MailLaunchGatePrecondition, MailLaunchGateResult } from "@jini-ai/core/contracts/site/platform-mail";
 
 export type MailUseState = "ready" | "blocked" | "disabled" | "not_configured" | "unknown";
 export type MailUseId = "sign_in" | "newsletter_confirmation" | "form_notifications" | "newsletter";
@@ -48,13 +49,6 @@ export interface MailUseRow {
   formsConfigured?: number;
   evidence: { outcome: MailActivityOutcome; at: string } | null;
 }
-
-/** The host Newsletter gate's precondition codes, in its fixed order (the host evaluator returns these). */
-export type MailUseLaunchGatePrecondition =
-  | "sending_enabled_false"
-  | "consent_capability_unbound"
-  | "origin_not_verified"
-  | "mailer_adapter_not_production";
 
 /** The structural slice of the host Newsletter gate's inputs that readiness builds and hands back to it. */
 export interface MailUseLaunchGateDeps {
@@ -81,7 +75,7 @@ export interface MailUseReadinessDeps {
   /** Present only when Newsletter is installed; absent, its two rows are omitted. */
   newsletterLaunchGate?: MailUseLaunchGateDeps;
   /** Host: Newsletter's launch gate evaluator (the one its send path runs); absent, Newsletter's rows are `newsletter_gate_unavailable` unknown. */
-  evaluateNewsletterLaunchGate?(required: { deps: MailUseLaunchGateDeps; workspaceId: string; isTestSend: boolean }): Promise<{ unmetPreconditions: readonly MailUseLaunchGatePrecondition[] }>;
+  evaluateNewsletterLaunchGate?(required: { deps: MailUseLaunchGateDeps; workspaceId: string; isTestSend: boolean }): Promise<Pick<MailLaunchGateResult, "unmetPreconditions">>;
   mailActivity?: Pick<MailActivityRepo, "list">;
   nowIso?: () => string;
 }
@@ -101,7 +95,7 @@ const SPECS: Record<MailUseId, UseSpec> = {
 };
 
 /** Newsletter's own precondition codes; a switched-off sending setting is Disabled, not Blocked. */
-const LAUNCH_GATE_STATE: Record<MailUseLaunchGatePrecondition, Finding["state"]> = {
+const LAUNCH_GATE_STATE: Record<MailLaunchGatePrecondition, Finding["state"]> = {
   sending_enabled_false: "disabled",
   consent_capability_unbound: "blocked",
   origin_not_verified: "blocked",

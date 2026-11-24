@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
-import type { EmailApi, MailActivityDetail, MailActivityFilter, MailActivityPage, MailFeedbackSetupReport, MailSuppressionEntry, MailSuppressionRemovalPlan } from "../email-api.types.js";
+import type { EmailApi, MailActivityDetail, MailActivityFilter, MailActivityPage, MailSuppressionEntry, MailSuppressionRemovalPlan } from "../email-api.types.js";
+import type { MailFeedbackSetupReport } from "@jini-ai/core/contracts/site/platform-mail";
 import { errorMessage, isForbidden, useLoad, type LoadView, type EmailLoadApiError } from "./email-load.hooks.js";
 
 /**

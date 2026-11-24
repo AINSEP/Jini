@@ -17,6 +17,7 @@ import type {
 import type { MailProviderConfiguration } from "@jini-ai/core/contracts/mail";
 import type { MailSuppressionAdminRepo } from "@jini-ai/core/contracts/site/platform-mail";
 import type { MailProviderControl } from "./mail-status.js";
+import type { MailFeedbackProviderSetup, MailFeedbackSetupReport, MailWebhookSecretSlot } from "@jini-ai/core/contracts/site/platform-mail";
 
 export interface MailFeedbackSetupDeps<TCredentialRepo = unknown> {
   workspaceId: string;
@@ -29,32 +30,6 @@ export interface MailFeedbackSetupDeps<TCredentialRepo = unknown> {
   listCustomCredentials(deps: { repo: TCredentialRepo }, input: { workspaceId: string }): Promise<readonly { label: string; updatedAt: string }[]>;
   /** Host: the persisted current/previous signing-secret labels for a provider (product-prefixed). */
   mailWebhookSecretLabels(required: { providerLabel: string }): readonly [string, string];
-}
-
-export interface MailWebhookSecretSlot {
-  label: string;
-  configured: boolean;
-  updatedAt: string | null;
-}
-
-export interface MailFeedbackProviderSetup {
-  providerId: string;
-  label: string;
-  lanes: readonly ("transactional" | "bulk")[];
-  supported: boolean;
-  /** `/hooks/mail/<providerId>` (`server/inbound/public-http/routes/mail-feedback.ts`). */
-  webhookPath: string;
-  /** Absolute, from the site's verified origin; null while the origin is unverified. */
-  webhookUrl: string | null;
-  signingSecret: { current: MailWebhookSecretSlot; previous: MailWebhookSecretSlot } | null;
-  lastVerifiedEvent: { kind: "delivered" | "bounced" | "complained"; receivedAt: string } | null;
-  state: "unsupported" | "secret_missing" | "no_events_yet" | "receiving";
-}
-
-export interface MailFeedbackSetupReport {
-  /** False when this root cannot describe its providers; `providers` is then empty. */
-  available: boolean;
-  providers: MailFeedbackProviderSetup[];
 }
 
 /** Mirrors `features/newsletter/confirmation.ts`'s private `composeOriginUrl` (default ports elided). */
