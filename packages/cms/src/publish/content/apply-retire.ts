@@ -53,6 +53,10 @@ export interface ApplyRetireCollaborators<TRow extends ApplyRetireRow, TEntity, 
   refreshBaseline(input: { row: TRow; entity: TEntity; ctx: TCtx }): Promise<void>;
   /** Success result carrying both change set ids. */
   appliedResult(input: { row: TRow; changeSetId: string; retiredChangeSetId: string }): TResult;
+  /** The operator-facing message of the error thrown when the create failed AND putting the retired
+   *  holder back failed too. The recovery instruction (where the holder can be restored from) is the
+   *  host's wording; this sequence only supplies the two causes. */
+  rollbackFailureMessage(input: { row: TRow; createCause: string; undoCause: string }): string;
 }
 
 /** publish-overwrite-live-plan §4/S5 — an address-clash overwrite. This row's own entity id must
@@ -117,7 +121,7 @@ export async function applyRetiringRow<TRow extends ApplyRetireRow, TEntity, THa
       idempotencyKey: itemIdempotencyKey,
     }));
   } catch (error) {
-    await undoRetire({ error, retireResult, row });
+    await undoRetire({ error, retireResult, row, collaborators });
     return collaborators.downgradeOrRethrow({ error, row, handler });
   }
   // Both writes landed. A failure from here on is accounting only, so it fails the run (keeping
@@ -127,8 +131,9 @@ export async function applyRetiringRow<TRow extends ApplyRetireRow, TEntity, THa
   return collaborators.appliedResult({ row, changeSetId, retiredChangeSetId: retireResult.changeSetId });
 }
 
-async function undoRetire({ error, retireResult, row }: {
-  error: unknown; retireResult: { undo(): Promise<void> } | undefined; row: ApplyRetireRow;
+async function undoRetire<TRow extends ApplyRetireRow>({ error, retireResult, row, collaborators }: {
+  error: unknown; retireResult: { undo(): Promise<void> } | undefined; row: TRow;
+  collaborators: Pick<ApplyRetireCollaborators<TRow, never, never, never, never>, "rollbackFailureMessage">;
 }, _optional = {}): Promise<void> {
   // The retire already landed but the create it was clearing the address FOR did not — put the
   // holder back rather than leaving it retired with nothing to show for it (this handler's own
@@ -139,12 +144,11 @@ async function undoRetire({ error, retireResult, row }: {
     try {
       await retireResult.undo();
     } catch (undoError) {
-      const cause = error instanceof Error ? error.message : String(error);
-      const undoCause = undoError instanceof Error ? undoError.message : String(undoError);
-      throw new Error(
-        `${row.entityType} '${row.entityId}' was not created (${cause}), and putting the retired ` +
-        `${row.retires.entityType} '${row.retires.entityId}' back failed too (${undoCause}) — restore it from Trash`
-      );
+      throw new Error(collaborators.rollbackFailureMessage({
+        row,
+        createCause: error instanceof Error ? error.message : String(error),
+        undoCause: undoError instanceof Error ? undoError.message : String(undoError),
+      }));
     }
   }
 }

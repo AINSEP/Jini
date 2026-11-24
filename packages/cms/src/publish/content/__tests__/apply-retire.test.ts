@@ -39,6 +39,8 @@ function setup(overrides: { [K in keyof ApplyRetireHandler<Entity, Row["retires"
     itemIdempotencyKey: ({ entity }) => `item:${entity.id}`,
     refreshBaseline: async () => { calls.push("refresh"); },
     appliedResult: ({ row: r, changeSetId, retiredChangeSetId }) => ({ kind: "applied", row: r, changeSetId, retiredChangeSetId }),
+    rollbackFailureMessage: ({ row: r, createCause, undoCause }) =>
+      `host-bound: ${r.entityType} '${r.entityId}' not created (${createCause}); ${r.retires.entityType} '${r.retires.entityId}' not restored (${undoCause})`,
   };
   const step = { row: row(), ctx, key: "page:new", entity: { id: "new" }, handler, current };
   return { calls, keys, applied, collaborators, step };
@@ -93,13 +95,13 @@ test("a failed retire has nothing to undo and a hard failure is rethrown", async
   assert.deepEqual(s.calls, []);
 });
 
-test("when the undo also fails the error names both causes and points at Trash", async () => {
+test("when the undo also fails the error is the host-bound rollback-failure wording naming both causes", async () => {
   const s = setup({
     retire: async () => ({ changeSetId: "cs-retire", undo: async () => { throw new Error("undo broke"); } }),
     apply: async () => { throw new Error("create broke"); },
   });
   await assert.rejects(applyRetiringRow({ step: s.step, collaborators: s.collaborators }), {
-    message: "page 'new' was not created (create broke), and putting the retired page 'old' back failed too (undo broke) — restore it from Trash",
+    message: "host-bound: page 'new' not created (create broke); page 'old' not restored (undo broke)",
   });
 });
 

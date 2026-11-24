@@ -130,10 +130,7 @@ function lifecycleInstallFacade(context: AgentPluginLifecyclePorts, modules: Lif
     preferBundledAgentPluginDigests: <T extends InstalledDigestIdentity>(input: { readonly installed: readonly T[]; readonly bundled: Parameters<typeof digests.preferBundledAgentPluginDigests>[1] }) => digests.preferBundledAgentPluginDigests(input.installed, input.bundled),
     normalizePackageEntryPath: (input: { readonly rawEntryPath: string }) => paths.normalizePackageEntryPath(input.rawEntryPath),
     assertContainedOnDisk: (input: { readonly packageRoot: string; readonly entryPath: string }) => paths.assertContainedOnDisk(input.packageRoot, input.entryPath),
-    classifyAgentPluginMcpServerTrust: (input: { readonly server: Parameters<typeof capabilities.classifyAgentPluginMcpServerTrust>[0] }) => capabilities.classifyAgentPluginMcpServerTrust(input.server),
-    /** The same trust rule in the positional `classifyTrust` shape the connect/federation planners
-     *  take (`AgentPluginMcpTrustClassifier`), so a host injects the owner's rule rather than a copy. */
-    mcpServerTrustClassifier: capabilities.classifyAgentPluginMcpServerTrust,
+    classifyAgentPluginMcpServerTrust: (input: { readonly server: Parameters<typeof capabilities.classifyAgentPluginMcpServerTrust>[0] }, _optional: Record<string, never> = {}) => capabilities.classifyAgentPluginMcpServerTrust(input.server),
     readInstalledSkillMarkdown: (input: { readonly packageRoot: string; readonly skillPath: string }) => capabilities.readInstalledSkillMarkdown(input.packageRoot, input.skillPath),
     readInstalledSkillFile: capabilities.readInstalledSkillFile,
     readInstalledMcpServerIds: (input: { readonly packageRoot: string }) => capabilities.readInstalledMcpServerIds(input.packageRoot),

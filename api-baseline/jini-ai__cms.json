@@ -4169,7 +4169,7 @@
  "./publish/content/apply-retire": {
   "types": "./dist/publish/content/apply-retire.d.ts",
   "symbols": {
-   "ApplyRetireCollaborators": "interface:a02fbeee36",
+   "ApplyRetireCollaborators": "interface:58c673b677",
    "ApplyRetireContext": "interface:36eb476bba",
    "ApplyRetireHandler": "interface:a3da1a6ed3",
    "ApplyRetireRow": "interface:980fbaee25",
