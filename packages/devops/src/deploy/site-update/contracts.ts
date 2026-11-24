@@ -59,6 +59,16 @@ export interface SiteUpdatePort {
   rollback(required: { to: string; backupId: string }, optional?: SiteUpdateCallOptions): Promise<void>;
 }
 
+/** The live check an adapter runs after the new version is up: does the site work on `expectedVersion`? */
+export interface SiteHealthPort {
+  check(required: { expectedVersion: string }, optional?: SiteUpdateCallOptions): Promise<SiteUpdateVerification>;
+}
+
+/** Puts the site's stored data back from a backup made by {@link SiteBackupPort}. */
+export interface SiteDataRestorePort {
+  restore(required: { backupId: string }, optional?: SiteUpdateCallOptions): Promise<void>;
+}
+
 export type SiteUpdateStep = 'approval' | 'backup' | 'readiness' | 'apply' | 'verify' | 'rollback';
 export type SiteUpdateStepStatus = 'done' | 'refused' | 'blocked' | 'failed' | 'skipped';
 export type SiteUpdateOutcome = 'updated' | 'refused' | 'blocked' | 'aborted' | 'failed' | 'rolled-back' | 'rollback-failed';
@@ -66,7 +76,7 @@ export type SiteUpdateOutcome = 'updated' | 'refused' | 'blocked' | 'aborted' | 
 /** One line of the step log, in the order the steps ran. */
 export interface SiteUpdateStepLog { step: SiteUpdateStep; status: SiteUpdateStepStatus; detail: string }
 
-export type SiteUpdateErrorCode = 'invalid-version';
+export type SiteUpdateErrorCode = 'invalid-version' | 'invalid-image-tag';
 
 /** A plain-words failure whose message starts with its `ERR-` id. */
 export class SiteUpdateError extends Error {
@@ -106,6 +116,18 @@ function splitVersion(version: string): { core: string; prerelease: string[] } |
   if (dash === -1) return { core: main, prerelease: [] };
   const prerelease = main.slice(dash + 1).split('.');
   return prerelease.every(isIdentifier) ? { core: main.slice(0, dash), prerelease } : null;
+}
+
+/**
+ * Says whether text is a semver version that {@link compareSiteVersions} accepts, without throwing.
+ *
+ * @param required.version - Candidate text, e.g. `1.2.3` or `v1.2.3-rc.1`.
+ * @returns true for a valid version.
+ * @complexity O(n) in the length of the text.
+ */
+export function isSiteVersion(required: { version: string }, _optional: Record<string, never> = {}): boolean {
+  const parts = splitVersion(required.version);
+  return parts !== null && CORE_PATTERN.test(parts.core);
 }
 
 function parseVersion(required: { version: string; ids?: IdGenerator | undefined }): ParsedVersion {

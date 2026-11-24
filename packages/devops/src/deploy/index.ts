@@ -24,3 +24,5 @@ export * from './site-update/contracts.js';
 export * from './site-update/check-for-update.js';
 export * from './site-update/run-site-update.js';
 export * from './site-update/fake-site-update.js';
+export * from './site-update/desktop-site-update.js';
+export * from './site-update/self-hosted-site-update.js';
