@@ -57,6 +57,7 @@
       "./members/password-auth": "node",
       "./members/ports": "universal",
       "./members/repo": "universal",
+      "./members/repo.sessions": "universal",
       "./members/repo.memory": "universal",
       "./members/subscriber-directory": "universal",
       "./members/trash-member": "universal",
@@ -307,6 +308,11 @@
       "types": "./dist/members/repo.d.ts",
       "import": "./dist/members/repo.js",
       "default": "./dist/members/repo.js"
+    },
+    "./members/repo.sessions": {
+      "types": "./dist/members/repo.sessions.d.ts",
+      "import": "./dist/members/repo.sessions.js",
+      "default": "./dist/members/repo.sessions.js"
     },
     "./members/repo.memory": {
       "types": "./dist/members/repo.memory.d.ts",

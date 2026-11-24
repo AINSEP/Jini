@@ -14,12 +14,16 @@ import type {
 
 /**
  * @file Row types and mapping for the newsletter tables, shared by every dialect. The campaign pair
- * is in the host's migrated core schema (snake_case, JSON as compact text); its stored column shape
- * is copied here without schema changes. The five `p_newsletter__*` tables are created by the
- * dataModule engine (`@jini-ai/user-management/newsletter/data-module-manifest`), not the migrated schema.
- * Every table name is host-owned ({@link NewsletterSqlTables}); each repo brings its tables into a
- * query with Kysely's `withTables<…TableViews>()`.
+ * is in the migrated core schema, so its columns are the generated `ContentDatabase` types
+ * (snake_case, JSON as compact text). The five `p_newsletter__*` tables are created by the
+ * dataModule engine (`data-module-manifest.ts`), not the migrated schema, so they are NOT in
+ * `ContentDatabase`: the repo brings them into a query with Kysely's `withTables<NewsletterTables>()`.
  * Neutral on purpose: no repo, no driver.
+ *
+ * Now: the campaign pair's stored column shape is copied here without schema changes (the host owns
+ * that schema), the manifest is `@jini-ai/user-management/newsletter/data-module-manifest`, and every
+ * table name is host-owned ({@link NewsletterSqlTables}): each repo brings its tables into a query
+ * with Kysely's `withTables<…TableViews>()`.
  */
 
 /** Host-owned table names. No schema or product table defaults live in the adapters. */
@@ -135,8 +139,9 @@ export type ConfirmationTokenTableRow = {
   consumed_at: string | null;
 };
 
-/** Per-table views for `withTables`. Type aliases of `Record<string, Row>`, not interfaces:
- *  Kysely's `withTables` needs the implicit index signature only an alias has. */
+/** The tables the newsletter repos add to the content kernel's schema. Type aliases, not interfaces:
+ *  Kysely's `withTables` needs the implicit index signature only an alias has.
+ *  Now: one per-table view each, a `Record<string, Row>` alias keyed by the host-owned table name. */
 export type ListTableViews = Record<string, ListTableRow>;
 export type SubscriptionTableViews = Record<string, SubscriptionTableRow>;
 export type AudienceSnapshotTableViews = Record<string, AudienceSnapshotTableRow>;
@@ -167,7 +172,8 @@ function editorialBody({ row, onUnreadableBody }: { row: { id: string; editorial
   }
 }
 
-/** One `newsletter_campaigns` row as a {@link CampaignRecord}; an unreadable revision body goes to `onUnreadableBody`. */
+/** One `newsletter_campaigns` row as a {@link CampaignRecord}.
+ * Now: an unreadable revision body goes to `onUnreadableBody`. */
 export function toCampaignRecord(
   { row, onUnreadableBody }: { row: CampaignTableRow & { editorial_state_json?: string | null; editorial_seq?: number | null }; onUnreadableBody: CampaignBodyReporter },
   _optional: Record<string, never> = {}

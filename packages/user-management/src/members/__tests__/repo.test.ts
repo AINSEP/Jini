@@ -2,16 +2,18 @@ import { sql } from "kysely";
 import { describe, expect, it } from "vitest";
 
 import {
-  SqlMagicLinkTokenRepo,
   SqlMemberConsentRepo,
   SqlMemberExternalIdentityRepo,
   SqlMemberRepo,
-  SqlMemberSessionRepo,
   SqlMemberSubscriptionRepo,
   SqlMemberTierRepo,
   type KeepStoredRevocationPort,
   type MemberTables,
 } from "../repo.js";
+import {
+  SqlMagicLinkTokenRepo,
+  SqlMemberSessionRepo,
+} from "../repo.sessions.js";
 import { MemberConflictError } from "../types.js";
 import { createSqlHarness } from "./sql-harness.js";
 

@@ -20,12 +20,13 @@ import { DEFAULT_LIST_LIMIT } from "./repo-subscribers.js";
 /**
  * @file THE newsletter repositories: one Kysely query body for every database the storage kernel
  * drives (SQLite, PGlite, Postgres), six classes over the campaign pair (migrated core schema) and
- * the five `p_newsletter__*` dataModule tables (typed locally in `repo.rows.ts`). Every table name is
- * the host's ({@link NewsletterSqlTables}); an unreadable campaign revision body goes to the
- * host-bound {@link CampaignBodyReporter} (this package never logs).
+ * the five `p_newsletter__*` dataModule tables (typed locally in `repo.rows.ts`).
  *
  * Every statement goes through `kernel.run` and is awaited. A read-then-write takes `lockKey`
  * inside `kernel.transaction` first, so two writers cannot interleave on Postgres.
+ *
+ * Now: every table name is the host's ({@link NewsletterSqlTables}); an unreadable campaign revision
+ * body goes to the host-bound {@link CampaignBodyReporter} (this package never logs).
  */
 
 /** One query with indexed latest-body and sequence projections for the opened campaign; no history scan.
