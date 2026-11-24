@@ -132,3 +132,14 @@ Backend options accept core `Clock` (`nowMs()`), while tool-catalog snapshots us
 Import both kernel types from `@jini-ai/core/primitives`; `RegistryDatabasePort` is exported at root.
 `tool-catalog-builder` stays universal; its `tool-catalog-builder/sqlite` factory is a Node subpath.
 Ranking belongs to the injected backend, source/enrichment policy belongs to the host.
+
+## Wiring
+
+- **Revision-refreshing tool catalog** (`@jini-ai/registry/tool-catalog-builder`'s
+  `createRefreshingToolCatalogQuery({ seed, registry })`): the host injects `registry` (a core
+  `ToolRegistry` whose revocable scopes advance `toolRegistryRevision`) and a `seed()` returning
+  `{ query, ...anythingElse }` built from ONE `registry.list({})` snapshot — typically
+  `buildToolCatalogQuery` over a store factory bound to the same backend connection, so reseeding
+  never leaks a connection. Search/describe reseed only when the revision moved; hosts that answer
+  extra describe fallbacks (renamed ids, namespace overviews) read `current()` so both come from the
+  same seed. The host keeps the backend connection, its disposal, and its enricher/classifier.

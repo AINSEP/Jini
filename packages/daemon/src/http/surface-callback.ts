@@ -1,9 +1,7 @@
-import { SURFACE_TYPED_ANSWER_PARAM, type SurfaceExchangeStore } from '@jini-ai/core';
+import type { SurfaceExchangeStore } from '@jini-ai/core';
 import { jsonResponse, type SseSchedulerPort } from '@jini-ai/core/contracts/server';
 import { restoreSurface } from './surface-restoration.js';
-
-/** Fixed, secret-free recovery copy shared by callback HTTP hops. */
-export const SURFACE_TYPED_ANSWER_REFUSAL = 'This card cannot accept a typed answer. Open its form and submit it there. Details: MCP_UI_TYPED_ANSWER_REFUSED.';
+import { isTypedSurfaceAnswer, surfaceCallbackRefusalBody, surfaceNotPendingBody } from './surface-callback-request.js';
 
 /** Apply host membership and exchange-only policy; composer answers require explicit opt-in.
  * Pure, constant time/space; never authorizes fresh execution for exchange-only tools.
@@ -33,13 +31,6 @@ export interface SurfaceCallbackInput {
   admit: (input: { toolId: string; answersAnExchange: boolean; typedAnswer: boolean }) => boolean;
 }
 
-/** Recognize composer text without coercing non-answer fields.
- * @complexity O(n) in the answer length, O(n) temporary trim space. @overallScore 100 */
-function isTypedAnswer(params: Record<string, unknown>): boolean {
-  const raw = params[SURFACE_TYPED_ANSWER_PARAM];
-  return typeof raw === 'string' && raw.trim().length > 0;
-}
-
 /** A callback no open exchange took: a late answer may still be restored; otherwise the dialog is simply no longer waiting. */
 async function answerUndelivered({ reason, restoring, params, restoreOnMiss }: {
   readonly reason: string; readonly restoring: Parameters<typeof restoreSurface>[0]; readonly params: Record<string, unknown>; readonly restoreOnMiss: boolean;
@@ -52,7 +43,7 @@ async function answerUndelivered({ reason, restoring, params, restoreOnMiss }: {
   // one waiting on you" — a second click, a reload of stale scrollback, or an expired form.
   // The distinction between them is not the human's to act on, and reporting it would only
   // describe server state they cannot change.
-  return jsonResponse({ status: 409, body: { error: 'that dialog is no longer waiting for an answer', code: 'SURFACE_NOT_PENDING', reason } });
+  return jsonResponse({ status: 409, body: surfaceNotPendingBody({ reason }) });
 }
 
 /** Terminal exchange delivery only: there is deliberately no arbitrary tool executor here.
@@ -64,9 +55,9 @@ async function answerUndelivered({ reason, restoring, params, restoreOnMiss }: {
 export async function deliverSurfaceCallback({ store, admit, scheduler, signal, ...input }: SurfaceCallbackInput,
   options: { restoreOnly?: boolean; restoreOnMiss?: boolean } = {},
 ): Promise<Response> {
-  const typedAnswer = isTypedAnswer(input.params);
+  const typedAnswer = isTypedSurfaceAnswer({ params: input.params });
   if (!admit({ toolId: input.toolId, answersAnExchange: true, typedAnswer })) {
-    return jsonResponse({ status: 403, body: { error: typedAnswer ? SURFACE_TYPED_ANSWER_REFUSAL : `'${input.toolId}' is not an MCP-UI-redeemable tool`, code: 'TOOL_NOT_ALLOWLISTED' } });
+    return jsonResponse({ status: 403, body: surfaceCallbackRefusalBody({ toolId: input.toolId, typedAnswer }) });
   }
   const restoring = { store, scheduler, signal, exchangeId: input.exchangeId, principalId: input.principalId, toolId: input.toolId };
   if (options.restoreOnly) {

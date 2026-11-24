@@ -76,8 +76,6 @@ export type { RouteRegistration } from './route-manifest.js';
 export type { DaemonRouteHost } from './route-host.js';
 export type { AgentListResponse, AgentModelSummary, AgentsHttpDeps, AgentSummary } from './agents.js';
 export { agentListRoute, agentRescanRoute, agentRoutes } from './agents.js';
-export { createLiveModelDiscovery, fetchLiveClaudeModels, unionModels } from './live-model-cache.js';
-export type { LiveModelCredential, LiveModelDiscovery, LiveModelKey } from './live-model-cache.js';
 export type {
   MemoryChangeEmitter,
   MemoryConfigResponse,
@@ -388,4 +386,9 @@ export { restoreSurface } from './surface-restoration.js';
 export type { SurfaceHttpResult } from './surface-restoration.js';
 export { frontendRequestRoutes } from './frontend-request-route.js';
 export type { FrontendRequestRoutesRequired } from './frontend-request-route.js';
-export { deliverSurfaceCallback, isSurfaceCallbackPermitted, SURFACE_TYPED_ANSWER_REFUSAL, type SurfaceCallbackInput } from './surface-callback.js';
+export { deliverSurfaceCallback, isSurfaceCallbackPermitted, type SurfaceCallbackInput } from './surface-callback.js';
+export {
+  executeSurfaceRedemption, isTypedSurfaceAnswer, parseSurfaceCallbackRequest, surfaceCallbackExchangeId, surfaceCallbackRefusalBody,
+  surfaceNotPendingBody, surfaceRedemptionReply, SURFACE_TYPED_ANSWER_REFUSAL, type SurfaceCallbackReply, type SurfaceCallbackRequest,
+} from './surface-callback-request.js';
+export { a2uiNotPendingBody, deliverA2uiAction, readA2uiAction, type ReadA2uiActionResult } from './a2ui-actions.js';

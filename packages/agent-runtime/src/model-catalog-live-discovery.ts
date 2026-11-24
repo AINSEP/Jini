@@ -1,9 +1,8 @@
 import { createHash } from "node:crypto";
-import { listProviderModels } from "@jini-ai/agent-runtime";
 import { type ProviderModelOption } from "@jini-ai/core/contracts/agents";
-import { ModelCatalogCache, unionModels as unionModelCatalog } from "@jini-ai/agent-runtime/model-catalog/cache";
 import type { Clock } from "@jini-ai/core/primitives";
-import type { AgentModelSummary } from "./agents.js";
+import { listProviderModels } from "./providers/model-catalog.js";
+import { ModelCatalogCache, unionModels as unionModelCatalog } from "./model-catalog-cache.js";
 
 /**
  * @file Live model discovery for a Local CLI picker's `claude` entry — the enrichment step a host's
@@ -41,6 +40,8 @@ export interface LiveModelCredential {
   readonly baseUrl?: string | null;
   readonly providerId?: string | null;
 }
+/** The client-safe projection a live entry is reduced to; a host's fallback entries may carry more. */
+export interface LiveModelSummary { readonly id: string; readonly label: string }
 /** The tenant tuple a credential (and therefore a cache slot) belongs to. */
 export interface LiveModelKey { workspaceId: string; principalId: string }
 interface DiscoveryOutcome {
@@ -67,7 +68,7 @@ export interface LiveModelDiscovery {
 }
 
 /** Creates one host-owned discovery/cache instance; generic cache and its rationale now live in
- * `@jini-ai/agent-runtime/model-catalog/cache`. The in-flight call itself is shared so concurrent
+ * `./model-catalog-cache.ts` (`@jini-ai/agent-runtime/model-catalog/cache`). The in-flight call itself is shared so concurrent
  * requests in a TTL window issue one provider call, rather than caching only its eventual value.
  * Successes and failures keep the same five-minute TTL; credentials are resolved before each read.
  * A host may be multi-workspace: delimiter-joined `${workspaceId}:${principalId}` keys would alias
@@ -155,11 +156,11 @@ export async function fetchLiveClaudeModels(
  * @complexity O(f + l) where f/l are the fallback/live list lengths — one `Set` built from
  *   `fallback`, one pass over `live`.
  */
-export function unionModels(
-  { fallback, live }: { fallback: readonly AgentModelSummary[]; live: readonly ProviderModelOption[] },
+export function unionModels<Model extends LiveModelSummary>(
+  { fallback, live }: { fallback: readonly Model[]; live: readonly ProviderModelOption[] },
   _optional: Record<string, never> = {},
-): AgentModelSummary[] {
+): (Model | LiveModelSummary)[] {
   // Preserve the client-safe projection: fallback metadata survives, while discovered entries
   // expose only the model ID and label. Deduplication/order belong to the package merger.
-  return unionModelCatalog({ fallback, live: live.map(({ id, label }) => ({ id, label })) });
+  return unionModelCatalog<Model | LiveModelSummary>({ fallback, live: live.map(({ id, label }) => ({ id, label })) });
 }

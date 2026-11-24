@@ -273,6 +273,25 @@ reference or host stylesheet is required for the settings presentation.
 `./core` imports them and keeps a deprecated type re-export until the next major. Hosts import them
 from core.
 
+### Chat principals (`@jini-ai/chat/store/runtime`)
+
+`ChatPrincipal` (`AdminChatPrincipal | GuestChatPrincipal`), `ChatStoreFactory`, `hashSessionKey`,
+`chatExpiryFor` and `GUEST_CHAT_TTL_MS` describe whose history a store holds. The host binds a
+principal to `createChatHistoryStore`'s scope (`scopeId` = `workspaceId`, `ownerKind` = `kind`,
+`ownerId` = `userId` or `hashSessionKey({ sessionKey })`), wraps it with `createRunGuardedChatStore`
+and its own run-id policy and ledger, and hands routes only the resulting `ChatStoreFactory`. Guest
+conversations get `chatExpiryFor({ principal })` as their expiry; admin conversations never expire.
+
+### Visitor transcript store (`@jini-ai/chat/browser/session-store`)
+
+`createBrowserSessionStore({ storage, transcriptKey, maxMessages, maxBytes, validateMessage,
+overCapReads?, onFailure? })` keeps one bounded per-tab transcript envelope. The host injects the
+`storage` port (usually a `sessionStorage` wrapper, which may namespace keys), the key, both caps
+and the message validator. Optional: `overCapReads: 'read'` keeps rehydrating an envelope stored
+over the caps (default `'clear'` treats it as corrupt; writes are capped either way), and
+`onFailure({ operation, error })` receives each swallowed `load` / `decode` / `serialize` / `save` /
+`clear` failure (default: silent). A throw from `onFailure` escapes the call.
+
 ### Embed send bridge (`@jini-ai/chat/browser/embed-send-bridge`)
 
 An embedding page can drive a mounted widget through `installEmbedSendBridge`. The host decides

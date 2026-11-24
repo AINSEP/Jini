@@ -16,6 +16,7 @@
       ".": "node",
       "./providers/tool-turn": "node",
       "./model-catalog/cache": "universal",
+      "./model-catalog/live-discovery": "node",
       "./providers/sse-decode": "universal",
       "./providers/credentials": "universal",
       "./model-discovery": "node",
@@ -68,6 +69,11 @@
       "types": "./dist/model-catalog-cache.d.ts",
       "import": "./dist/model-catalog-cache.js",
       "default": "./dist/model-catalog-cache.js"
+    },
+    "./model-catalog/live-discovery": {
+      "types": "./dist/model-catalog-live-discovery.d.ts",
+      "import": "./dist/model-catalog-live-discovery.js",
+      "default": "./dist/model-catalog-live-discovery.js"
     },
     "./providers/sse-decode": {
       "types": "./dist/providers/sse-decode.d.ts",

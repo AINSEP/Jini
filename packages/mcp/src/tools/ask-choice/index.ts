@@ -8,6 +8,15 @@ import type {
 export type * from './types.js';
 export { ASK_CHOICE_INPUT_SCHEMA } from './schema.js';
 export { createAskChoiceAnswerTicketStore } from './pending.js';
+export type { CustomAnswerCall, CustomAnswerCopy, CustomAnswerSplit } from './custom-answer.js';
+export {
+  addCustomAnswerFields,
+  CUSTOM_ANSWER_PARAM,
+  CUSTOM_CHOICE_VALUE,
+  customAnswerExchanges,
+  mergeCustomAnswer,
+  splitCustomAnswer,
+} from './custom-answer.js';
 
 /** Existing callback wire keys; the tool's identity is supplied by the host. */
 export const ASK_CHOICE_ANSWER_TICKET_PARAM = '__askChoiceAnswerTicket';

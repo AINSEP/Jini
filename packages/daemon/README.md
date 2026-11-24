@@ -157,13 +157,6 @@ See [API.md](https://github.com/AINSEP/Jini/blob/main/packages/daemon/API.md) fo
 
 ## Wiring
 
-- **Live Claude model discovery** (`@jini-ai/daemon/http`'s `createLiveModelDiscovery`,
-  `fetchLiveClaudeModels`, `unionModels`): the host creates ONE instance per app lifetime
-  (`createLiveModelDiscovery({ resolveCredential, defaultBaseUrl, clock, discover: fetchLiveClaudeModels })`)
-  — the TTL cache is instance-owned, never module state. The host injects `resolveCredential`
-  (its own stored execution-credential read + decrypt for `{ workspaceId, principalId }`, `null`
-  when absent), `defaultBaseUrl` (its provider catalog's Anthropic endpoint) and `clock`; its
-  `GET /api/agents` handler merges the result with `unionModels({ fallback, live })`.
 - **Tool families** (`@jini-ai/daemon/http`'s `createPrefixToolFamilyPort`): a host whose tools
   form a `<familyId>.<name>` namespace passes `delegatedToolRoutes` deps
   `families: createPrefixToolFamilyPort({ registry, familyId, selectorKeys })`. The host injects
@@ -196,3 +189,15 @@ See [API.md](https://github.com/AINSEP/Jini/blob/main/packages/daemon/API.md) fo
   `execute_delegated_tool` input with `resolveDelegatedInput({ raw })`, and returns `ok`/`err`
   results straight to `@jini-ai/agent-runtime/providers/tool-turn`'s `ProviderToolExecutor`.
   The host owns its meta-tool descriptors and registry; nothing is injected.
+- **Surface callback decisions** (`@jini-ai/daemon/http`'s `parseSurfaceCallbackRequest`,
+  `executeSurfaceRedemption`, `surfaceRedemptionReply`, `isTypedSurfaceAnswer`,
+  `surfaceNotPendingBody`): a host's MCP-UI callback route keeps its own server-framework shell
+  (principal header, response writing, exchange delivery/streaming) and calls these for body
+  validation, allowlist refusal (400/403) and Shape-2 result shaping, writing the returned
+  `{ status, body }`. The host injects `admit` (its redeemable-tool allowlist and typed-answer
+  policy) and an `idGenerator` for the synthetic redemption run id.
+- **A2UI action decisions** (`@jini-ai/daemon/http`'s `readA2uiAction`, `deliverA2uiAction`,
+  `a2uiNotPendingBody`): every hop that accepts an A2UI post (daemon route, local-first proxy)
+  validates with `readA2uiAction({ rawBody })`, delivers with `deliverA2uiAction({ store, ... })`
+  on the `a2ui` channel and answers a miss with the 409 body. The host injects its
+  `SurfaceExchangeStore` and owns the route path and principal header.

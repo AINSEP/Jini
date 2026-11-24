@@ -1,6 +1,5 @@
 import { parseRendererToAgentMessage, type RendererToAgentMessage } from '@jini-ai/protocol/a2ui';
 import type { DeliverResult, SurfaceDeliveryRejectionReason, SurfaceExchangeStore } from '../surface-exchanges.js';
-import type { surfaceNotPendingBody } from './surface-callback-request.js';
 
 /**
  * @file The Express-free decision half of an A2UI (a2ui-project/a2ui v1.0) action endpoint — where a
@@ -104,7 +103,7 @@ export function deliverA2uiAction(
 
 /**
  * The 409 body for an A2UI post whose surface is not waiting. 409, not 404: the same reasoning the
- * MCP-UI callback gives for its own identical choice ({@link surfaceNotPendingBody}) — from the
+ * MCP-UI callback gives for its own identical choice (`surfaceNotPendingBody`) — from the
  * browser's side, "no such exchange" and "already closed" both mean "this surface is no longer the
  * one waiting on you", which the human cannot act on differently.
  */

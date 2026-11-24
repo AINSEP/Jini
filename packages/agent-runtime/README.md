@@ -64,6 +64,13 @@ PKCE providers pass `{ verifierBytes: 64 }` to the main OAuth API. Fixed-issuer 
 
 ## Wiring
 
+- **Stored-credential live Claude models** (`@jini-ai/agent-runtime/model-catalog/live-discovery`):
+  the host creates ONE instance per app lifetime with
+  `createLiveModelDiscovery({ resolveCredential, defaultBaseUrl, clock, discover: fetchLiveClaudeModels })`
+  — the TTL cache is instance-owned, never module state. The host injects `resolveCredential` (its
+  own stored execution-credential read + decrypt for `{ workspaceId, principalId }`, `null` when
+  absent), `defaultBaseUrl` (its provider catalog's Anthropic endpoint) and `clock`; its agent-list
+  handler merges the result into the static list with `unionModels({ fallback, live })`.
 - **CLI inventory cache** (`@jini-ai/agent-runtime/cli-probe-cache`): the host calls
   `createCliProbeCache({ initial, probe }, { expiresAt, retryAfterMs })`, injecting `initial` (the
   empty/placeholder snapshot), `probe` (its detection/inventory port) and optionally the catalog
