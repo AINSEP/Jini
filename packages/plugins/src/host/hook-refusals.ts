@@ -19,7 +19,7 @@ import { PluginHookFailedError } from "./errors.js";
  *
  * @complexity O(1).
  */
-export function pluginHookRefusalText(err: PluginHookFailedError): string {
+export function pluginHookRefusalText({ err }: { err: PluginHookFailedError }, _optional = {}): string {
   // A refused item of a partly applied run must not claim "nothing was saved": the items before it
   // landed. The item ref is a stable id, never body content.
   return err.refusedItemRef === null
@@ -39,20 +39,20 @@ export function pluginHookRefusalText(err: PluginHookFailedError): string {
  */
 export function toModelFacingPluginHookError({ err }: { err: unknown }, _optional = {}): unknown {
   if (!(err instanceof PluginHookFailedError)) return err;
-  return new ToolInputError({ message: `PLUGIN_HOOK_FAILED: ${pluginHookRefusalText(err)}` });
+  return new ToolInputError({ message: `PLUGIN_HOOK_FAILED: ${pluginHookRefusalText({ err })}` });
 }
 
 /**
  * Wraps every handler in a map with {@link toModelFacingPluginHookError} — the whole map at once,
  * so no save handler can be the one that forgot (see `withModelFacingErrors`). Transparent on the
- * success path. Positional handler map: it is passed as-is where a `(handlers) => handlers` wrap port
- * is expected.
+ * success path. A host whose wrap port is `(handlers) => handlers` binds it as
+ * `(handlers) => withPluginHookRefusals({ handlers })`.
  *
- * @param handlers - A domain's handler map, keyed by tool id.
+ * @param required.handlers - A domain's handler map, keyed by tool id.
  * @returns A new map with the same keys; the input is not mutated.
  * @complexity O(h) at build time; O(1) per failed call.
  */
-export function withPluginHookRefusals(handlers: Record<string, ToolHandler>): Record<string, ToolHandler> {
+export function withPluginHookRefusals({ handlers }: { handlers: Record<string, ToolHandler> }, _optional = {}): Record<string, ToolHandler> {
   return Object.fromEntries(
     Object.entries(handlers).map(([toolId, handler]) => [
       toolId,

@@ -65,7 +65,7 @@ describe("plugin hook refusals", () => {
         throw new PluginHookFailedError("seo", "raw");
       }) as ToolHandler,
     };
-    const wrapped = withPluginHookRefusals(handlers);
+    const wrapped = withPluginHookRefusals({ handlers });
     const ctx = { input: { a: 1 } } as unknown as Parameters<ToolHandler>[0];
     const optional = { signal: undefined } as unknown as Parameters<ToolHandler>[1];
 
