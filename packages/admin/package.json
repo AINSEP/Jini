@@ -198,7 +198,8 @@
       "./shell/components/AssistantDock/dock-header-rules": "browser",
       "./shell/components/AssistantDock/DockHeaderTip.hooks": "browser",
       "./shell/components/WidgetConfigFields/HtmlAttributeRows.hooks": "browser",
-      "./shell/components/MediaPickerDialog/JiniMediaPicker.hooks": "browser"
+      "./shell/components/MediaPickerDialog/JiniMediaPicker.hooks": "browser",
+      "./shell/components/WidgetConfigFields/PlacementContentFields": "browser"
     },
     "isolation": {
       "shared": [
@@ -303,7 +304,8 @@
         "./shell/components/AssistantDock/dock-header-rules": "browser",
         "./shell/components/AssistantDock/DockHeaderTip.hooks": "browser",
         "./shell/components/WidgetConfigFields/HtmlAttributeRows.hooks": "browser",
-        "./shell/components/MediaPickerDialog/JiniMediaPicker.hooks": "browser"
+        "./shell/components/MediaPickerDialog/JiniMediaPicker.hooks": "browser",
+        "./shell/components/WidgetConfigFields/PlacementContentFields": "browser"
       }
     },
     "optionalPeers": {
@@ -1235,6 +1237,11 @@
       "types": "./dist/shell/components/MediaPickerDialog/JiniMediaPicker.hooks.d.ts",
       "import": "./dist/shell/components/MediaPickerDialog/JiniMediaPicker.hooks.js",
       "default": "./dist/shell/components/MediaPickerDialog/JiniMediaPicker.hooks.js"
+    },
+    "./shell/components/WidgetConfigFields/PlacementContentFields": {
+      "types": "./dist/shell/components/WidgetConfigFields/PlacementContentFields.d.ts",
+      "import": "./dist/shell/components/WidgetConfigFields/PlacementContentFields.js",
+      "default": "./dist/shell/components/WidgetConfigFields/PlacementContentFields.js"
     }
   },
   "files": [
