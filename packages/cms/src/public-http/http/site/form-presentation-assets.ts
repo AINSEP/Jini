@@ -10,6 +10,14 @@ export interface FormPresentationNames {
   readonly formClass: string;
   /** Class of the per-form error slot. */
   readonly errorClass: string;
+  /** Class every Builder-mode field wrapper (`<div>` or `<fieldset>`) carries; the control rules hang off it. */
+  readonly fieldClass: string;
+  /** Class of a field's help-text line. */
+  readonly fieldHelpClass: string;
+  /** Extra class a checkbox field wrapper carries (box-first row layout). */
+  readonly fieldCheckboxClass: string;
+  /** Class of a field's own validation-error slot. */
+  readonly fieldErrorClass: string;
   /** Attribute HTML-mode forms carry (Builder forms never do), e.g. `data-…-form`. */
   readonly formAttr: string;
   /** Attribute marking an error slot in HTML-mode markup. */
@@ -42,42 +50,42 @@ function rootRules({ names }: NamesArgs, _optional: NoOptions = {}): string {
   );
 }
 
-/** Builder-mode rules: the form shell, every `.widget-form-field` control and the submit button. */
+/** Builder-mode rules: the form shell, every `.{fieldClass}` control and the submit button. */
 function builderRules({ names }: NamesArgs, _optional: NoOptions = {}): string {
   const form = names.formClass;
   return (
     `:where(.${form}[hidden],[${FORM_SLUG_ATTR}][hidden]){display:none!important;}` +
     `:where(.${form}:not([hidden])){display:flex;flex-direction:column;gap:14px;max-width:480px;}` +
-    ":where(.widget-form-field:not([hidden])){display:flex;flex-direction:column;gap:6px;}" +
-    ":where(.widget-form-field label){font-weight:600;font-size:0.9rem;}" +
+    `:where(.${names.fieldClass}:not([hidden])){display:flex;flex-direction:column;gap:6px;}` +
+    `:where(.${names.fieldClass} label){font-weight:600;font-size:0.9rem;}` +
     // Boxed text-like controls only: a checkbox/radio/switch, a range slider or a file picker drawn as
     // a padded text box looks broken (their own rules follow).
-    ":where(.widget-form-field input:not([type=checkbox],[type=radio],[type=range],[type=file])),:where(.widget-form-field textarea),:where(.widget-form-field select){font:inherit;padding:8px 10px;" +
+    `:where(.${names.fieldClass} input:not([type=checkbox],[type=radio],[type=range],[type=file])),:where(.${names.fieldClass} textarea),:where(.${names.fieldClass} select){font:inherit;padding:8px 10px;` +
     "border:1px solid var(--border,#d1d5db);border-radius:6px;background:var(--bg,#fff);color:inherit;}" +
-    ":where(.widget-form-field textarea){min-height:100px;resize:vertical;}" +
-    ":where(.widget-form-field select[multiple]){min-height:7em;}" +
+    `:where(.${names.fieldClass} textarea){min-height:100px;resize:vertical;}` +
+    `:where(.${names.fieldClass} select[multiple]){min-height:7em;}` +
     // Radio/checkbox groups render as `<fieldset><legend>` (registry `control: "group"`): drop the UA
     // box, set the legend like a field label, and put each option's box before its text on one line.
-    ":where(fieldset.widget-form-field:not([hidden])){margin:0;padding:0;border:0;min-width:0;}" +
-    ":where(fieldset.widget-form-field legend){padding:0 0 4px;font-weight:600;font-size:0.9rem;}" +
-    ":where(fieldset.widget-form-field label:not([hidden])){display:flex;align-items:center;gap:8px;font-weight:400;}" +
-    ":where(fieldset.widget-form-field input){margin:0;}" +
-    ":where(.widget-form-field :is(input[type=checkbox],input[type=radio],input[type=range])){accent-color:var(--accent,#2563eb);}" +
-    switchRules() +
-    ":where(.widget-form-field input[type=range]){width:100%;margin:0;}" +
+    `:where(fieldset.${names.fieldClass}:not([hidden])){margin:0;padding:0;border:0;min-width:0;}` +
+    `:where(fieldset.${names.fieldClass} legend){padding:0 0 4px;font-weight:600;font-size:0.9rem;}` +
+    `:where(fieldset.${names.fieldClass} label:not([hidden])){display:flex;align-items:center;gap:8px;font-weight:400;}` +
+    `:where(fieldset.${names.fieldClass} input){margin:0;}` +
+    `:where(.${names.fieldClass} :is(input[type=checkbox],input[type=radio],input[type=range])){accent-color:var(--accent,#2563eb);}` +
+    switchRules({ names }) +
+    `:where(.${names.fieldClass} input[type=range]){width:100%;margin:0;}` +
     // Filled in by the range readout script; absent (and harmless) without JS.
     `:where(.${names.rangeValueClass}){font-size:0.85rem;color:var(--muted,#6b7280);font-variant-numeric:tabular-nums;}` +
-    ":where(.widget-form-field input[type=file]){font:inherit;font-size:0.9rem;color:var(--muted,#6b7280);}" +
-    ":where(.widget-form-field input[type=file])::file-selector-button{font:inherit;font-weight:600;margin-right:10px;padding:6px 12px;" +
+    `:where(.${names.fieldClass} input[type=file]){font:inherit;font-size:0.9rem;color:var(--muted,#6b7280);}` +
+    `:where(.${names.fieldClass} input[type=file])::file-selector-button{font:inherit;font-weight:600;margin-right:10px;padding:6px 12px;` +
     "border:1px solid var(--border-strong,#9ca3af);border-radius:6px;background:var(--surface,#fff);color:var(--fg,#111827);cursor:pointer;}" +
-    ":where(.widget-form-field-help){color:var(--muted,#6b7280);font-size:0.85rem;}" +
+    `:where(.${names.fieldHelpClass}){color:var(--muted,#6b7280);font-size:0.85rem;}` +
     // Builder checkbox: box first, on the label's line, glyph-sized (must follow the input rule above,
     // equal zero specificity); a revealed field error wraps onto its own line below.
-    ":where(.widget-form-field-checkbox){flex-direction:row;flex-wrap:wrap;align-items:center;gap:8px;}" +
-    ":where(.widget-form-field-checkbox input){order:-1;margin:0;padding:0;}" +
-    ":where(.widget-form-field-checkbox label){font-weight:400;}" +
-    ":where(.widget-form-field-checkbox .widget-form-field-error){flex-basis:100%;}" +
-    `:where(.widget-form-field-error){color:var(--danger,var(${names.dangerFallbackProp}));font-size:0.85rem;font-weight:700;}` +
+    `:where(.${names.fieldCheckboxClass}){flex-direction:row;flex-wrap:wrap;align-items:center;gap:8px;}` +
+    `:where(.${names.fieldCheckboxClass} input){order:-1;margin:0;padding:0;}` +
+    `:where(.${names.fieldCheckboxClass} label){font-weight:400;}` +
+    `:where(.${names.fieldCheckboxClass} .${names.fieldErrorClass}){flex-basis:100%;}` +
+    `:where(.${names.fieldErrorClass}){color:var(--danger,var(${names.dangerFallbackProp}));font-size:0.85rem;font-weight:700;}` +
     // Submit = the site's primary-button colours (`--fg` fill, `--bg` text, the convention a host
     // theme's solid button uses), not `--accent`: an accent-filled Send clashed with every site CTA
     // beside it (owner, 2026-10-05). Fields sit on `--bg`, not `--surface`, so they stay distinct from a card.
@@ -88,18 +96,18 @@ function builderRules({ names }: NamesArgs, _optional: NoOptions = {}): string {
 }
 
 /** Toggle rules: a checkbox with role=switch. */
-function switchRules(_optional: NoOptions = {}): string {
+function switchRules({ names }: NamesArgs, _optional: NoOptions = {}): string {
   return (
     // Toggle = a checkbox with role=switch: a pill track (`--border-strong`, `--accent` when on) whose
     // knob is a background gradient rather than `::before`, which Firefox does not draw on inputs.
-    ":where(.widget-form-field input[role=switch]){-webkit-appearance:none;appearance:none;flex-shrink:0;width:2.25rem;height:1.25rem;" +
+    `:where(.${names.fieldClass} input[role=switch]){-webkit-appearance:none;appearance:none;flex-shrink:0;width:2.25rem;height:1.25rem;` +
     "border:0;border-radius:999px;cursor:pointer;background-color:var(--border-strong,#9ca3af);" +
     "background-image:radial-gradient(circle closest-side,var(--bg,#fff) 90%,transparent 100%);" +
     "background-size:1rem 1rem;background-repeat:no-repeat;background-position:2px center;transition:background-position .15s,background-color .15s;}" +
-    ":where(.widget-form-field input[role=switch]:checked){background-color:var(--accent,#2563eb);" +
+    `:where(.${names.fieldClass} input[role=switch]:checked){background-color:var(--accent,#2563eb);` +
     "background-image:radial-gradient(circle closest-side,var(--accent-fg,#fff) 90%,transparent 100%);background-position:calc(100% - 2px) center;}" +
-    ":where(.widget-form-field input[role=switch]:focus-visible){outline:2px solid var(--accent,#2563eb);outline-offset:2px;}" +
-    "@media (prefers-reduced-motion:reduce){:where(.widget-form-field input[role=switch]){transition:none;}}"
+    `:where(.${names.fieldClass} input[role=switch]:focus-visible){outline:2px solid var(--accent,#2563eb);outline-offset:2px;}` +
+    `@media (prefers-reduced-motion:reduce){:where(.${names.fieldClass} input[role=switch]){transition:none;}}`
   );
 }
 
@@ -108,7 +116,7 @@ function htmlModeRules({ names }: NamesArgs, _optional: NoOptions = {}): string 
   const attr = names.formAttr;
   return (
     // HTML-mode forms (`html-render.ts`, keyed by `formAttr`, which Builder forms never carry):
-    // author markup wraps controls in `<label>`s and has no `.widget-form-field`, so the same look is
+    // author markup wraps controls in `<label>`s and has no field class, so the same look is
     // restated over plain descendants. Builder output is untouched by these rules.
     `:where([${attr}] label:not([hidden])){display:flex;flex-direction:column;gap:6px;font-weight:600;font-size:0.9rem;}` +
     `:where([${attr}] label:has(> input[type=checkbox],> input[type=radio])){flex-direction:row;align-items:center;gap:8px;font-weight:400;}` +

@@ -17,81 +17,150 @@
  * stripped first; a start/callback refusal arrives as `#oidcError=<CODE>` and is shown in words. Redirect targets are re-checked here with
  * the contract's same-origin rule even though the server checks them too.
  *
- * `String.raw` keeps the regex backslashes literal; the script must never contain a template
- * placeholder, a backtick or a closing script tag.
+ * `String.raw` keeps the regex backslashes literal; the only template placeholders are the host's
+ * {@link MemberAuthNames} interpolations, and the generated script must never contain a backtick or a
+ * closing script tag (hosts pass plain class names).
  */
 
+/** The host-owned class names the member sign-in style and script select on and emit. The engine
+ *  ships no legacy product class name, so a host passes the ones its themes and member page markup
+ *  already carry (every value is interpolated verbatim, so the generated CSS/JS carries exactly what
+ *  the host supplies). The `data-member-*` hooks are the engine's own contract with the markup and
+ *  are not part of this. */
+export interface MemberAuthNames {
+  /** Root class of a member page (scopes every rule below it). */
+  readonly authClass: string;
+  /** A labelled input row. */
+  readonly fieldClass: string;
+  /** A password input's wrapper (positions the reveal toggle). */
+  readonly passwordClass: string;
+  /** The reveal toggle button inside {@link passwordClass}. */
+  readonly passwordToggleClass: string;
+  /** The "hidden password" slash glyph inside the toggle's icon (the script flips its `hidden`). */
+  readonly passwordSlashClass: string;
+  /** Row holding a label beside its tip. */
+  readonly labelRowClass: string;
+  /** Row of form action buttons. */
+  readonly actionsClass: string;
+  /** The primary submit button. */
+  readonly submitClass: string;
+  /** Row of secondary links under a form. */
+  readonly linksClass: string;
+  /** A link-styled control (also stamped on the unlink button the script builds). */
+  readonly linkClass: string;
+  /** A status/explanatory note. */
+  readonly noteClass: string;
+  /** The sign-out section of the account page. */
+  readonly signoutClass: string;
+  /** List wrapper of login-provider buttons. */
+  readonly providerListClass: string;
+  /** A login-provider button (the script builds these). */
+  readonly providerClass: string;
+  /** Space-separated theme classes the script adds before {@link providerClass} on a provider link (the theme's button look). */
+  readonly providerThemeClasses: string;
+  /** The "or use your email" divider. */
+  readonly orClass: string;
+  /** The login-provider refusal message. */
+  readonly oidcErrorClass: string;
+  /** Heading row sharing a line with its tip. */
+  readonly headingRowClass: string;
+  /** The connected-identities section. */
+  readonly identitiesClass: string;
+  /** List of connected identities. */
+  readonly identityListClass: string;
+  /** One connected-identity row (the script builds these). */
+  readonly identityClass: string;
+  /** The round tip toggle (the script wires every element carrying it). */
+  readonly tipClass: string;
+  /** The tip's revealed text. */
+  readonly tipTextClass: string;
+  /** Short ("Account") label span the script builds in the header link. */
+  readonly accountShortClass: string;
+  /** Email label span the script builds in the header link. */
+  readonly accountEmailClass: string;
+  /** Private custom property holding the mode-aware `--danger` fallback colour. */
+  readonly dangerFallbackProp: string;
+  /** Private custom property holding the mode-aware `--success` fallback colour. */
+  readonly successFallbackProp: string;
+}
+
+type NamesArgs = { names: MemberAuthNames };
+type NoOptions = Record<string, never>;
+
 /** Zero-specificity fallback look, tokens only (the set every theme defines, see
- *  `FORM_BASELINE_STYLE`), so a theme's own `.field`/`.btn` rules always win. */
-export const MEMBER_AUTH_STYLE =
-  ":where([data-member-view][hidden],[data-member-reauth][hidden]){display:none!important;}" +
-  ":where(.member-auth){max-width:30rem;}" +
-  ":where(.member-auth form){display:flex;flex-direction:column;}" +
-  ":where(.member-field){display:flex;flex-direction:column;gap:6px;margin:0 0 16px;}" +
-  ":where(.member-field label){font-weight:600;font-size:0.9rem;}" +
-  ":where(.member-field input){font:inherit;padding:8px 10px;border:1px solid var(--border,#d1d5db);border-radius:6px;background:var(--bg,#fff);color:inherit;max-width:100%;box-sizing:border-box;}" +
-  ":where(.member-password){position:relative;display:flex;}" +
-  ".member-password input{width:100%;padding-inline-end:44px;}" +
-  ":where(.member-password-toggle){position:absolute;inset-inline-end:0;top:0;bottom:0;display:flex;align-items:center;justify-content:center;width:44px;border:0;background:transparent;color:inherit;cursor:pointer;}" +
-  ".member-password-toggle svg [hidden]{display:none;}" +
-  ".member-password-toggle:focus-visible{outline:2px solid currentColor;outline-offset:-4px;border-radius:6px;}" +
-  ":where(.member-label-row){display:flex;align-items:center;gap:8px;}" +
-  ":where(.member-actions){display:flex;flex-wrap:wrap;align-items:center;gap:10px;margin-top:4px;}" +
-  ":where(.member-auth .member-submit){padding:8px 16px;border:1px solid transparent;border-radius:6px;background:var(--fg,#111827);color:var(--bg,#fff);font:inherit;font-weight:600;cursor:pointer;}" +
-  // Scoped: a theme `.btn{opacity:1}` would otherwise hide the in-flight state.
-  ".member-auth button:disabled{opacity:0.6;cursor:progress;}" +
-  ":where(.member-auth-links){display:flex;flex-wrap:wrap;gap:8px 20px;font-size:0.9rem;}" +
-  ":where(.member-link){background:none;border:0;padding:0;font:inherit;cursor:pointer;}" +
-  // Links and link-buttons in one row must look alike, so this one rule is not :where() — it has to
-  // beat a theme's bare `a` reset. Same underline-by-border look as the themes' own `.auth-foot a`.
-  // The "Sign in with a code" re-auth link too: inside a muted note it read as plain grey text.
-  ".member-auth-links :is(a,.member-link),.member-auth [data-member-reauth] a{color:var(--fg,inherit);text-decoration:none;border-bottom:1px solid var(--border-strong,currentColor);}" +
-  // Vertical rhythm is not :where() either: themes zero `h1`/`p` margins
-  // (a starter theme's bare `p{margin:0}`), which left the heading and the links row touching the form.
-  ".member-auth h1{margin:0 0 28px;}" +
-  ".member-auth h2{margin:32px 0 16px;font-size:1.15rem;}" +
-  ".member-auth .member-auth-links{margin:24px 0 0;}" +
-  ".member-auth .member-note{margin:0 0 20px;}" +
-  ".member-auth form .member-note{margin:0 0 16px;}" +
-  // The script focuses a view's status note (tabindex=-1) so it is read out; it is not a control, so
-  // no focus ring (the theme drew one around plain text after "Email me a code").
-  ".member-auth [data-member-focus]:focus{outline:none;}" +
-  // Sign out is its own section on /account, not a second button of the password form.
-  ".member-auth .member-signout{margin:32px 0 0;padding-top:24px;border-top:1px solid var(--border,#d1d5db);}" +
-  // A 6-digit code needs a short box, not the full form width.
-  ":where(.member-auth input[autocomplete=\"one-time-code\"]){max-width:12rem;letter-spacing:0.15em;font-variant-numeric:tabular-nums;}" +
-  // Login providers: content-width buttons, then a quiet "or use your email" rule before the form.
-  ":where([data-member-providers][hidden],[data-member-identities][hidden],[data-member-oidc-error][hidden]){display:none!important;}" +
-  ":where(.member-provider-list){display:flex;flex-direction:column;align-items:flex-start;gap:10px;}" +
-  ":where(.member-auth .member-provider){display:inline-flex;align-items:center;padding:8px 16px;border:1px solid var(--border-strong,#9ca3af);border-radius:6px;background:transparent;color:inherit;font:inherit;font-weight:600;text-decoration:none;}" +
-  ".member-auth .member-or{display:flex;align-items:center;gap:12px;margin:24px 0;color:var(--muted,#6b7280);font-size:0.85rem;}" +
-  ".member-auth .member-or::after{content:\"\";flex:1;border-top:1px solid var(--border,#d1d5db);}" +
-  ".member-auth .member-oidc-error{color:var(--danger,var(--member-danger-fallback));font-weight:600;font-size:0.9rem;}" +
-  // /account: "<Label> connected · Unlink" rows. The heading shares a row with its ⓘ tip.
-  ".member-auth .member-heading-row{margin:32px 0 16px;}" +
-  ".member-auth .member-heading-row h2{margin:0;}" +
-  ".member-auth .member-identities .member-tip-text{margin:-6px 0 16px;}" +
-  ".member-auth .member-identity-list{list-style:none;margin:0 0 16px;padding:0;display:flex;flex-direction:column;align-items:flex-start;gap:12px;}" +
-  ":where(.member-identity){display:flex;flex-wrap:wrap;align-items:baseline;gap:6px 16px;}" +
-  ".member-identity .member-link{color:var(--fg,inherit);border-bottom:1px solid var(--border-strong,currentColor);font-size:0.9rem;}" +
-  ":where(.member-tip){display:inline-flex;align-items:center;justify-content:center;width:1.4rem;height:1.4rem;padding:0;border:1px solid var(--border-strong,#9ca3af);border-radius:50%;background:transparent;color:var(--muted,#6b7280);font:inherit;font-size:0.8rem;line-height:1;cursor:pointer;}" +
-  ":where(.member-tip-text:not([hidden])){display:block;flex-basis:100%;padding:8px 10px;border-radius:6px;background:var(--surface-2,#f3f4f6);border:1px solid var(--border,#d1d5db);color:var(--fg,#111827);font-size:0.85rem;font-weight:400;}" +
-  ":where([data-member-account]){display:inline-block;max-width:14rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;vertical-align:middle;font-size:0.875rem;color:var(--muted,#6b7280);}" +
-  // Phones: the email plus a Sign out button pushed the theme's menu button off a 375px header, so
-  // the link reads "Account" there and Sign out lives on /account.
-  ":where(.member-account-short){display:none;}" +
-  "@media (max-width:600px){[data-member-account] .member-account-email{display:none;}" +
-  "[data-member-account] .member-account-short{display:inline;}button[data-member-nav-sign-out]{display:none;}}" +
-  // Mode-aware fallbacks for themes with no --danger/--success, same values and contrast reasoning
-  // as FORM_BASELINE_STYLE's private pair. Scoped, not :where(): a theme's bare `p{color:…}` would
-  // otherwise turn errors grey.
-  ":root{--member-danger-fallback:#f87171;--member-success-fallback:#4ade80;}" +
-  ":root[data-theme=\"light\"]{--member-danger-fallback:#b91c1c;--member-success-fallback:#166534;}" +
-  ".member-auth [data-member-error]{color:var(--danger,var(--member-danger-fallback));font-weight:600;font-size:0.9rem;}" +
-  ".member-auth [data-member-ok]{color:var(--success,var(--member-success-fallback));font-weight:600;font-size:0.9rem;}";
+ *  `formBaselineStyle`), so a theme's own `.field`/`.btn` rules always win. */
+export function memberAuthStyle({ names: n }: NamesArgs, _optional: NoOptions = {}): string {
+  return (
+    ":where([data-member-view][hidden],[data-member-reauth][hidden]){display:none!important;}" +
+    `:where(.${n.authClass}){max-width:30rem;}` +
+    `:where(.${n.authClass} form){display:flex;flex-direction:column;}` +
+    `:where(.${n.fieldClass}){display:flex;flex-direction:column;gap:6px;margin:0 0 16px;}` +
+    `:where(.${n.fieldClass} label){font-weight:600;font-size:0.9rem;}` +
+    `:where(.${n.fieldClass} input){font:inherit;padding:8px 10px;border:1px solid var(--border,#d1d5db);border-radius:6px;background:var(--bg,#fff);color:inherit;max-width:100%;box-sizing:border-box;}` +
+    `:where(.${n.passwordClass}){position:relative;display:flex;}` +
+    `.${n.passwordClass} input{width:100%;padding-inline-end:44px;}` +
+    `:where(.${n.passwordToggleClass}){position:absolute;inset-inline-end:0;top:0;bottom:0;display:flex;align-items:center;justify-content:center;width:44px;border:0;background:transparent;color:inherit;cursor:pointer;}` +
+    `.${n.passwordToggleClass} svg [hidden]{display:none;}` +
+    `.${n.passwordToggleClass}:focus-visible{outline:2px solid currentColor;outline-offset:-4px;border-radius:6px;}` +
+    `:where(.${n.labelRowClass}){display:flex;align-items:center;gap:8px;}` +
+    `:where(.${n.actionsClass}){display:flex;flex-wrap:wrap;align-items:center;gap:10px;margin-top:4px;}` +
+    `:where(.${n.authClass} .${n.submitClass}){padding:8px 16px;border:1px solid transparent;border-radius:6px;background:var(--fg,#111827);color:var(--bg,#fff);font:inherit;font-weight:600;cursor:pointer;}` +
+    // Scoped: a theme `.btn{opacity:1}` would otherwise hide the in-flight state.
+    `.${n.authClass} button:disabled{opacity:0.6;cursor:progress;}` +
+    `:where(.${n.linksClass}){display:flex;flex-wrap:wrap;gap:8px 20px;font-size:0.9rem;}` +
+    `:where(.${n.linkClass}){background:none;border:0;padding:0;font:inherit;cursor:pointer;}` +
+    // Links and link-buttons in one row must look alike, so this one rule is not :where() — it has to
+    // beat a theme's bare `a` reset. Same underline-by-border look as the themes' own `.auth-foot a`.
+    // The "Sign in with a code" re-auth link too: inside a muted note it read as plain grey text.
+    `.${n.linksClass} :is(a,.${n.linkClass}),.${n.authClass} [data-member-reauth] a{color:var(--fg,inherit);text-decoration:none;border-bottom:1px solid var(--border-strong,currentColor);}` +
+    // Vertical rhythm is not :where() either: themes zero `h1`/`p` margins
+    // (a starter theme's bare `p{margin:0}`), which left the heading and the links row touching the form.
+    `.${n.authClass} h1{margin:0 0 28px;}` +
+    `.${n.authClass} h2{margin:32px 0 16px;font-size:1.15rem;}` +
+    `.${n.authClass} .${n.linksClass}{margin:24px 0 0;}` +
+    `.${n.authClass} .${n.noteClass}{margin:0 0 20px;}` +
+    `.${n.authClass} form .${n.noteClass}{margin:0 0 16px;}` +
+    // The script focuses a view's status note (tabindex=-1) so it is read out; it is not a control, so
+    // no focus ring (the theme drew one around plain text after "Email me a code").
+    `.${n.authClass} [data-member-focus]:focus{outline:none;}` +
+    // Sign out is its own section on /account, not a second button of the password form.
+    `.${n.authClass} .${n.signoutClass}{margin:32px 0 0;padding-top:24px;border-top:1px solid var(--border,#d1d5db);}` +
+    // A 6-digit code needs a short box, not the full form width.
+    `:where(.${n.authClass} input[autocomplete="one-time-code"]){max-width:12rem;letter-spacing:0.15em;font-variant-numeric:tabular-nums;}` +
+    // Login providers: content-width buttons, then a quiet "or use your email" rule before the form.
+    ":where([data-member-providers][hidden],[data-member-identities][hidden],[data-member-oidc-error][hidden]){display:none!important;}" +
+    `:where(.${n.providerListClass}){display:flex;flex-direction:column;align-items:flex-start;gap:10px;}` +
+    `:where(.${n.authClass} .${n.providerClass}){display:inline-flex;align-items:center;padding:8px 16px;border:1px solid var(--border-strong,#9ca3af);border-radius:6px;background:transparent;color:inherit;font:inherit;font-weight:600;text-decoration:none;}` +
+    `.${n.authClass} .${n.orClass}{display:flex;align-items:center;gap:12px;margin:24px 0;color:var(--muted,#6b7280);font-size:0.85rem;}` +
+    `.${n.authClass} .${n.orClass}::after{content:"";flex:1;border-top:1px solid var(--border,#d1d5db);}` +
+    `.${n.authClass} .${n.oidcErrorClass}{color:var(--danger,var(${n.dangerFallbackProp}));font-weight:600;font-size:0.9rem;}` +
+    // /account: "<Label> connected · Unlink" rows. The heading shares a row with its ⓘ tip.
+    `.${n.authClass} .${n.headingRowClass}{margin:32px 0 16px;}` +
+    `.${n.authClass} .${n.headingRowClass} h2{margin:0;}` +
+    `.${n.authClass} .${n.identitiesClass} .${n.tipTextClass}{margin:-6px 0 16px;}` +
+    `.${n.authClass} .${n.identityListClass}{list-style:none;margin:0 0 16px;padding:0;display:flex;flex-direction:column;align-items:flex-start;gap:12px;}` +
+    `:where(.${n.identityClass}){display:flex;flex-wrap:wrap;align-items:baseline;gap:6px 16px;}` +
+    `.${n.identityClass} .${n.linkClass}{color:var(--fg,inherit);border-bottom:1px solid var(--border-strong,currentColor);font-size:0.9rem;}` +
+    `:where(.${n.tipClass}){display:inline-flex;align-items:center;justify-content:center;width:1.4rem;height:1.4rem;padding:0;border:1px solid var(--border-strong,#9ca3af);border-radius:50%;background:transparent;color:var(--muted,#6b7280);font:inherit;font-size:0.8rem;line-height:1;cursor:pointer;}` +
+    `:where(.${n.tipTextClass}:not([hidden])){display:block;flex-basis:100%;padding:8px 10px;border-radius:6px;background:var(--surface-2,#f3f4f6);border:1px solid var(--border,#d1d5db);color:var(--fg,#111827);font-size:0.85rem;font-weight:400;}` +
+    ":where([data-member-account]){display:inline-block;max-width:14rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;vertical-align:middle;font-size:0.875rem;color:var(--muted,#6b7280);}" +
+    // Phones: the email plus a Sign out button pushed the theme's menu button off a 375px header, so
+    // the link reads "Account" there and Sign out lives on /account.
+    `:where(.${n.accountShortClass}){display:none;}` +
+    `@media (max-width:600px){[data-member-account] .${n.accountEmailClass}{display:none;}` +
+    `[data-member-account] .${n.accountShortClass}{display:inline;}button[data-member-nav-sign-out]{display:none;}}` +
+    // Mode-aware fallbacks for themes with no --danger/--success, same values and contrast reasoning
+    // as FORM_BASELINE_STYLE's private pair. Scoped, not :where(): a theme's bare `p{color:…}` would
+    // otherwise turn errors grey.
+    `:root{${n.dangerFallbackProp}:#f87171;${n.successFallbackProp}:#4ade80;}` +
+    `:root[data-theme="light"]{${n.dangerFallbackProp}:#b91c1c;${n.successFallbackProp}:#166534;}` +
+    `.${n.authClass} [data-member-error]{color:var(--danger,var(${n.dangerFallbackProp}));font-weight:600;font-size:0.9rem;}` +
+    `.${n.authClass} [data-member-ok]{color:var(--success,var(${n.successFallbackProp}));font-weight:600;font-size:0.9rem;}`);
+}
 
 /** The browser half. `base` is the member API root for this site's workspace. */
-export const MEMBER_AUTH_SCRIPT = String.raw`(function (base) {
+export function memberAuthScript({ names: n }: NamesArgs, _optional: NoOptions = {}): string {
+  return String.raw`(function (base) {
   "use strict";
   var doc = document;
   function one(sel, root) { return (root || doc).querySelector(sel); }
@@ -140,7 +209,7 @@ export const MEMBER_AUTH_SCRIPT = String.raw`(function (base) {
   }
   function startLink(p, text) {
     var a = doc.createElement("a");
-    a.className = "btn btn-ghost member-provider";
+    a.className = "${n.providerThemeClasses} ${n.providerClass}";
     a.href = base + "/oidc/" + p.id + "/start";
     a.textContent = text;
     return a;
@@ -174,10 +243,10 @@ export const MEMBER_AUTH_SCRIPT = String.raw`(function (base) {
     var account = doc.createElement("a");
     account.href = "/account";
     var full = doc.createElement("span");
-    full.className = "member-account-email";
+    full.className = "${n.accountEmailClass}";
     full.textContent = m.email;
     var short = doc.createElement("span");
-    short.className = "member-account-short";
+    short.className = "${n.accountShortClass}";
     short.textContent = "Account";
     account.append(full, short);
     account.title = m.email;
@@ -334,10 +403,10 @@ export const MEMBER_AUTH_SCRIPT = String.raw`(function (base) {
       var reveal = input.type === "password";
       input.type = reveal ? "text" : "password";
       button.setAttribute("aria-label", button.getAttribute(reveal ? "data-hide-label" : "data-show-label"));
-      button.querySelector(".member-password-slash").toggleAttribute("hidden", !reveal);
+      button.querySelector(".${n.passwordSlashClass}").toggleAttribute("hidden", !reveal);
     });
   });
-  all(".member-tip", page).forEach(function (tip) {
+  all(".${n.tipClass}", page).forEach(function (tip) {
     var text = doc.getElementById(tip.getAttribute("aria-controls"));
     tip.addEventListener("click", function () {
       var open = tip.getAttribute("aria-expanded") !== "true";
@@ -367,12 +436,12 @@ export const MEMBER_AUTH_SCRIPT = String.raw`(function (base) {
   var accounts = one("[data-member-identities]", page);
   function identityRow(i) {
     var li = doc.createElement("li");
-    li.className = "member-identity";
+    li.className = "${n.identityClass}";
     var text = doc.createElement("span");
     text.textContent = i.label + " connected";
     var unlink = doc.createElement("button");
     unlink.type = "button";
-    unlink.className = "member-link";
+    unlink.className = "${n.linkClass}";
     unlink.textContent = "Unlink";
     unlink.setAttribute("aria-label", "Unlink " + i.label);
     unlink.addEventListener("click", function () { unlinkIdentity(unlink, i); });
@@ -426,20 +495,22 @@ export const MEMBER_AUTH_SCRIPT = String.raw`(function (base) {
     show(m ? "signed-in" : params.get("view") === "code" ? "code-request" : "password", false);
   });
 })`;
+}
 
 /**
  * Adds the member style + script before `</body>` when the page has a member hook (a header
  * `data-member-nav` or a member page) and does not carry them yet; otherwise returns `html`.
  * Same shape as `injectListingScript` (`@jini-ai/cms/listing`).
+ * @param required.names The host's class names (see {@link MemberAuthNames}), baked into both the style and the script.
  * @param required.marker The host-owned boolean attribute (e.g. `data-<product>-member-auth`) stamped on both the
  *   `<style>` and the `<script>`; its presence in `html` is the idempotency check, so it must be one fixed name per host.
  * @complexity O(n) in `html`.
  */
-export function injectMemberAuthScript({ html, workspaceId, marker }: { html: string; workspaceId: string; marker: string }, _optional: Record<string, never> = {}): string {
+export function injectMemberAuthScript({ html, workspaceId, marker, names }: { html: string; workspaceId: string; marker: string; names: MemberAuthNames }, _optional: Record<string, never> = {}): string {
   if (html.includes(marker) || !/\sdata-member-(nav|page)\b/.test(html)) return html;
   const base = JSON.stringify(`/api/members/v1/workspaces/${encodeURIComponent(workspaceId)}`).replace(/</g, "\\u003c");
-  const markup = `<style ${marker}>${MEMBER_AUTH_STYLE}</style>` +
-    `<script ${marker}>${MEMBER_AUTH_SCRIPT}(${base});</script>`;
+  const markup = `<style ${marker}>${memberAuthStyle({ names })}</style>` +
+    `<script ${marker}>${memberAuthScript({ names })}(${base});</script>`;
   const bodyClose = html.lastIndexOf("</body>");
   return bodyClose === -1 ? html + markup : html.slice(0, bodyClose) + markup + html.slice(bodyClose);
 }

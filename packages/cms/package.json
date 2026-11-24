@@ -162,6 +162,7 @@
       "./public-http/routes/site/pages/render-context/collection-lists": "universal",
       "./entries/site/system-content-types": "universal",
       "./widgets/site/declared-content-type-owners": "universal",
+      "./widgets/site/preview-render": "universal",
       "./entries/site/tool-registrations": "universal",
       "./entries/site/public-list": "universal",
       "./entries/site/contracts": "universal",
@@ -404,6 +405,7 @@
       "./admin-http/routes/publish-content/destination": "universal",
       "./admin-http/routes/plugins/provider-settings": "universal",
       "./admin-http/routes/plugins/project-key-use": "universal",
+      "./admin-http/routes/plugins/chart-providers": "universal",
       "./admin-http/routes/publish-content/bundle-create": "universal",
       "./admin-http/routes/publish-content/capabilities": "universal",
       "./admin-http/routes/publish-content/import": "universal",
@@ -602,6 +604,7 @@
         "./admin-http/routes/publish-content/destination": "publish",
         "./admin-http/routes/plugins/provider-settings": "core",
         "./admin-http/routes/plugins/project-key-use": "core",
+        "./admin-http/routes/plugins/chart-providers": "core",
         "./admin-http/routes/publish-content/bundle-create": "publish",
         "./admin-http/routes/publish-content/capabilities": "publish",
         "./admin-http/routes/publish-content/import": "publish",
@@ -1370,6 +1373,11 @@
       "types": "./dist/widgets/site/declared-content-type-owners.d.ts",
       "import": "./dist/widgets/site/declared-content-type-owners.js",
       "default": "./dist/widgets/site/declared-content-type-owners.js"
+    },
+    "./widgets/site/preview-render": {
+      "types": "./dist/widgets/site/preview-render.d.ts",
+      "import": "./dist/widgets/site/preview-render.js",
+      "default": "./dist/widgets/site/preview-render.js"
     },
     "./entries/site/tool-registrations": {
       "types": "./dist/entries/site/tool-registrations.d.ts",
@@ -2565,6 +2573,11 @@
       "types": "./dist/admin-http/routes/plugins/project-key-use.d.ts",
       "import": "./dist/admin-http/routes/plugins/project-key-use.js",
       "default": "./dist/admin-http/routes/plugins/project-key-use.js"
+    },
+    "./admin-http/routes/plugins/chart-providers": {
+      "types": "./dist/admin-http/routes/plugins/chart-providers.d.ts",
+      "import": "./dist/admin-http/routes/plugins/chart-providers.js",
+      "default": "./dist/admin-http/routes/plugins/chart-providers.js"
     },
     "./admin-http/routes/publish-content/transport-shared": {
       "types": "./dist/admin-http/routes/publish-content/transport-shared.d.ts",

@@ -17,6 +17,10 @@ import {
 const names: FormPresentationNames = {
   formClass: "x-form",
   errorClass: "x-form-error",
+  fieldClass: "x-field",
+  fieldHelpClass: "x-field-help",
+  fieldCheckboxClass: "x-field-checkbox",
+  fieldErrorClass: "x-field-error",
   formAttr: "data-x-form",
   errorAttr: "data-x-form-error",
   rangeValueClass: "x-range-value",
@@ -42,4 +46,15 @@ test("range readout script wires sliders through the injected names", () => {
   assert.ok(js.includes(".x-form input[type=range]:not([data-x-range]),[data-x-form] input[type=range]:not([data-x-range])"));
   assert.ok(js.includes("o.className='x-range-value'"));
   assert.equal(formRangeReadoutScript({ names }), `<script>${js}</script>`);
+});
+
+test("field classes come from the injected names, never a hardcoded legacy name", () => {
+  const css = formBaselineStyle({ names });
+  assert.ok(css.includes(":where(.x-field:not([hidden])){"));
+  assert.ok(css.includes(":where(fieldset.x-field legend){"));
+  assert.ok(css.includes(":where(.x-field input[role=switch]){"));
+  assert.ok(css.includes(":where(.x-field-help){"));
+  assert.ok(css.includes(":where(.x-field-checkbox .x-field-error){flex-basis:100%;}"));
+  assert.ok(css.includes(":where(.x-field-error){color:var(--danger,var(--x-danger-fb));"));
+  assert.doesNotMatch(css, /widget-form/);
 });

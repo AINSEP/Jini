@@ -12,7 +12,7 @@ import type { RouteBodyRead, RouteBodyReader, RouteBodyReadOptions, RouteBodyRef
 const URLENCODED = 'application/x-www-form-urlencoded';
 
 /** body-parser's error `type` -> the neutral refusal; any other failure is `unreadable`. */
-const REFUSAL_BY_PARSER_TYPE: Readonly<Record<string, Exclude<RouteBodyRefusal['reason'], 'too-large'>>> = {
+const REFUSAL_BY_PARSER_TYPE: Readonly<Record<string, Exclude<RouteBodyRefusal['reason'], 'too-large' | 'incompatible-read'>>> = {
   'encoding.unsupported': 'unsupported-encoding',
   'entity.parse.failed': 'malformed',
   'request.aborted': 'aborted',
@@ -58,13 +58,26 @@ async function readOnce({ req, res, options }: { readonly req: Request; readonly
   return { ok: true, value: body };
 }
 
+/** Whether a later read asked for exactly what the first did (same parser, media type, limit). @complexity O(1). */
+function sameOptions({ first, later }: { readonly first: RouteBodyReadOptions; readonly later: RouteBodyReadOptions }): boolean {
+  const a = first as Readonly<Record<string, unknown>>;
+  const b = later as Readonly<Record<string, unknown>>;
+  return new Set([...Object.keys(a), ...Object.keys(b)]).size === Object.keys(a).length && Object.keys(a).every((key) => a[key] === b[key]);
+}
+
 /**
  * The `readBody` a raw route's handler receives. Nothing is read until it is called; the request stream
- * is consumed once, so a later call answers the first call's outcome whatever options it passes.
+ * is consumed once, so a later call (concurrent or after) with options identical to the first answers the
+ * first call's outcome, and one asking for anything else — another parser, media type or limit — is
+ * refused as `incompatible-read` instead of being handed bytes read under different rules.
  * @complexity O(1) to build; each request at most one parse.
  */
 export function deferredBodyReader({ req, res }: { readonly req: Request; readonly res: Response }, _optional: Record<string, never> = {}): RouteBodyReader {
-  let first: Promise<RouteBodyRead<unknown>> | undefined;
-  const read = (options: RouteBodyReadOptions) => (first ??= readOnce({ req, res, options }));
+  let first: { readonly options: RouteBodyReadOptions; readonly outcome: Promise<RouteBodyRead<unknown>> } | undefined;
+  const read = (options: RouteBodyReadOptions): Promise<RouteBodyRead<unknown>> => {
+    if (first === undefined) first = { options, outcome: readOnce({ req, res, options }) };
+    else if (!sameOptions({ first: first.options, later: options })) return Promise.resolve({ ok: false, refusal: { reason: 'incompatible-read' } });
+    return first.outcome;
+  };
   return read as RouteBodyReader;
 }
