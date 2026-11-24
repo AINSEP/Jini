@@ -138,3 +138,18 @@ export interface PluginMailHttpClient {
 
 export * from "./mail/email-sender.js";
 export type * from "./mail/smtp-payload.js";
+
+// --- captured test emails: the owner's reviewed "clear all" --------------------------------
+
+/** Owner-only grant to delete this workspace's captured test emails (test/capture mode's sink). */
+export const MAIL_CAPTURE_CLEAR_PERMISSION = "mail.capture.clear";
+/** Body of a captured-mail clear: without `confirmed: true` it only previews; a confirm carries the previewed `revision`. */
+export interface MailCaptureClearRequest { confirmed?: boolean; revision?: string }
+/** What a clear would delete, as the owner reviews it: how many, and the newest one's time (`null` when none). */
+export interface MailCaptureClearPlan { count: number; newestAt: string | null }
+/** The preview: nothing is deleted; `revision` names the exact reviewed set of captures and is what a confirm must carry. */
+export interface MailCaptureClearPreview { cleared: false; confirmationRequired: true; plan: MailCaptureClearPlan; revision: string }
+/** The confirmed clear: `deleted` counts the reviewed captures removed (captures that arrived after review are kept). */
+export interface MailCaptureClearResult { cleared: true; deleted: number }
+/** Either answer of the captured-mail clear. */
+export type MailCaptureClearAnswer = MailCaptureClearPreview | MailCaptureClearResult;

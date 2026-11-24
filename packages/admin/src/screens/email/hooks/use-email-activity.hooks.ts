@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
-import type { EmailApi, MailActivityDetail, MailActivityFilter, MailActivityPage, MailCaptureClearPlan, MailSuppressionEntry, MailSuppressionRemovalPlan } from "../email-api.types.js";
+import type { EmailApi, MailActivityDetail, MailActivityFilter, MailActivityPage, MailSuppressionEntry, MailSuppressionRemovalPlan } from "../email-api.types.js";
+import { MAIL_CAPTURE_CLEAR_PERMISSION, type MailCaptureClearPlan } from "@jini-ai/core/contracts/mail";
 import type { MailFeedbackSetupReport } from "@jini-ai/core/contracts/site/platform-mail";
-import { errorMessage, isForbidden, useLoad, type LoadView, type EmailLoadApiError } from "./email-load.hooks.js";
+import { errorMessage, isForbidden, type useLoad, type LoadView, type EmailLoadApiError } from "./email-load.hooks.js";
 
 /**
  * @file Activity tab state: recent sends (`GET …/mail-activity`, filters + cursor paging + one
@@ -32,8 +33,6 @@ export type RemovalStep =
   | { kind: "reason"; entry: MailSuppressionEntry; reason: string; error: string | null; pending: boolean }
   | { kind: "confirm"; entry: MailSuppressionEntry; plan: MailSuppressionRemovalPlan; error: string | null; pending: boolean };
 
-/** The permission that lets a person clear every captured test email (owner only). */
-const CAPTURE_CLEAR_PERMISSION = "mail.capture.clear";
 
 /** Shown when the captured emails changed between the preview and the confirm (HTTP 400). */
 export const STALE_CAPTURE_MESSAGE = "The test emails changed. Review and confirm again.";
@@ -81,9 +80,9 @@ const MIN_REASON = 3;
 type Page<T> = { items: T[]; nextCursor: string | null; empty: "none_recorded" | "no_matches" | null; access?: "full" | "masked" };
 
 /** One paged read keyed on `fetchPage`'s identity: a new identity (new filter) starts over. */
-function usePaged<T>(required: { fetchPage: (cursor?: string) => Promise<Page<T>>; ApiError: EmailLoadApiError }): PagedList<T> {
+function usePaged<T>(required: { fetchPage: (cursor?: string) => Promise<Page<T>>; ApiError: EmailLoadApiError; useLoadHook: typeof useLoad }): PagedList<T> {
   const { fetchPage, ApiError } = required;
-  const { view, reload, setData } = useLoad({ ApiError, load: useCallback(() => fetchPage(), [fetchPage]) });
+  const { view, reload, setData } = required.useLoadHook({ ApiError, load: useCallback(() => fetchPage(), [fetchPage]) });
   const [loadingMore, setLoadingMore] = useState(false);
   const [moreError, setMoreError] = useState<string | null>(null);
   const loadMore = useCallback(async () => {
@@ -190,14 +189,15 @@ export function useCaptureClearFlow(required: { api: Pick<EmailApi, "clearCaptur
   const { api, permissions, ApiError } = required;
   const { onCleared } = optional;
   const clear = api.clearCaptured;
-  const canClear = clear !== undefined && permissions !== undefined && (permissions.includes("*") || permissions.includes(CAPTURE_CLEAR_PERMISSION));
+  const canClear = clear !== undefined && permissions !== undefined && (permissions.includes("*") || permissions.includes(MAIL_CAPTURE_CLEAR_PERMISSION));
   const [state, setState] = useState<CaptureClearState>({ kind: "idle" });
   const start = useCallback(async () => {
     if (!canClear || !clear) return;
     setState({ kind: "checking" });
     try {
-      const { plan, revision } = await clear();
-      if (!plan || revision === undefined) throw new Error("The server did not say what would be cleared.");
+      const answer = await clear();
+      if (answer.cleared) throw new Error("The server did not say what would be cleared.");
+      const { plan, revision } = answer;
       setState(plan.count === 0 ? { kind: "empty" } : { kind: "confirm", plan, revision, error: null, pending: false });
     } catch (error) {
       setState({ kind: "error", message: captureFailure({ error, ApiError }) });
@@ -209,7 +209,7 @@ export function useCaptureClearFlow(required: { api: Pick<EmailApi, "clearCaptur
     setState({ ...state, pending: true, error: null });
     try {
       const answer = await clear({ confirm: { revision } });
-      setState({ kind: "cleared", deleted: answer.deleted ?? plan.count });
+      setState({ kind: "cleared", deleted: answer.cleared ? answer.deleted : plan.count });
       onCleared?.();
     } catch (error) {
       const message = captureFailure({ error, ApiError });
@@ -223,20 +223,25 @@ export function useCaptureClearFlow(required: { api: Pick<EmailApi, "clearCaptur
 /**
  * @param required.api - the Email API port; a fake in tests.
  * @param required.ApiError - the host's transport error class (`message`, `status`; 403 reads as forbidden).
+ * @param required.useLoadHook - the host's one-shot loader (`useLoad`), used for the feedback setup.
+ * @param required.useCaptureClearFlowHook - the host's clear-test-emails flow (`useCaptureClearFlow`).
  * @param optional.debounceMs - text-filter settle time; 0 in tests.
  * @param optional.permissions - the session's effective permissions; "Clear test emails" shows only with `mail.capture.clear`.
  */
 export function useEmailActivity(
-  required: { api: Pick<EmailApi, "listActivity" | "getActivity" | "listSuppressions" | "removeSuppression" | "readFeedback" | "clearCaptured">; ApiError: EmailLoadApiError },
+  required: {
+    api: Pick<EmailApi, "listActivity" | "getActivity" | "listSuppressions" | "removeSuppression" | "readFeedback" | "clearCaptured">; ApiError: EmailLoadApiError;
+    useLoadHook: typeof useLoad; useCaptureClearFlowHook: typeof useCaptureClearFlow;
+  },
   optional: { debounceMs?: number; permissions?: readonly string[] | undefined } = {},
 ): EmailActivityController {
-  const { api, ApiError } = required;
+  const { api, ApiError, useLoadHook, useCaptureClearFlowHook } = required;
   const debounceMs = optional.debounceMs ?? 350;
   const [filter, setFilter] = useState<MailActivityFilter>({});
   const recipient = useDebounced({ value: filter.recipient?.trim() ?? "", ms: debounceMs });
   const outcome = filter.outcome;
   const fetchActivity = useCallback((cursor?: string) => api.listActivity({ filter: { outcome, recipient: recipient || undefined }, ...(cursor ? { cursor } : {}) }), [api, outcome, recipient]);
-  const activity = usePaged({ fetchPage: fetchActivity, ApiError });
+  const activity = usePaged({ fetchPage: fetchActivity, ApiError, useLoadHook });
 
   const [openId, setOpenId] = useState<string | null>(null);
   const [detail, setDetail] = useState<LoadView<MailActivityDetail> | null>(null);
@@ -259,12 +264,12 @@ export function useEmailActivity(
   const [search, setSearch] = useState("");
   const settledSearch = useDebounced({ value: search.trim(), ms: debounceMs });
   const fetchSuppressions = useCallback((cursor?: string) => api.listSuppressions({ search: settledSearch || undefined, ...(cursor ? { cursor } : {}) }), [api, settledSearch]);
-  const suppressions = usePaged({ fetchPage: fetchSuppressions, ApiError });
+  const suppressions = usePaged({ fetchPage: fetchSuppressions, ApiError, useLoadHook });
 
   const { removal, startRemoval, setRemovalReason, continueRemoval, cancelRemoval, removedNotice } = useRemovalFlow({ api, reloadSuppressions: suppressions.reload, ApiError });
 
-  const { view: feedback } = useLoad({ ApiError, load: useCallback(() => api.readFeedback(), [api]) });
-  const capture = useCaptureClearFlow({ api, permissions: optional.permissions, ApiError }, { onCleared: activity.reload });
+  const { view: feedback } = useLoadHook({ ApiError, load: useCallback(() => api.readFeedback(), [api]) });
+  const capture = useCaptureClearFlowHook({ api, permissions: optional.permissions, ApiError }, { onCleared: activity.reload });
 
   return useMemo(() => ({
     filter, setFilter, activity, openId, detail, toggleDetail, search, setSearch, suppressions,

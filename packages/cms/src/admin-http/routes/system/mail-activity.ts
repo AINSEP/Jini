@@ -1,6 +1,7 @@
 import { ToolInputError } from "@jini-ai/core";
 import { defineJsonRoute, ok } from "@jini-ai/core/contracts/server";
 import type { AdminMailSuppressionRemovalPreviewDto } from "@jini-ai/core/contracts/site/cms-mail";
+import type { MailCaptureClearAnswer, MailCaptureClearPlan, MailCaptureClearRequest, MailCaptureClearResult } from "@jini-ai/core/contracts/mail";
 import { rejectRoute } from "@jini-ai/core/errors/route-refusal";
 
 import { mailActorId, type MailRoutePrincipal } from "./mail-shared.js";
@@ -69,11 +70,11 @@ export interface MailSuppressionRemovalPlan { plan: object; revision: unknown; r
 export interface MailSuppressionRemoveRouteDeps extends MailActivityFailureDeps {
   planSuppressionRemoval: (required: { principalId: string; input: Record<string, unknown> }) => Promise<MailSuppressionRemovalPlan>;
 }
-/** A reviewed clear of every captured test email: the plan answered in the preview, its revision, and the confirmed clear. */
-export interface MailCaptureClearPlan { plan: object; revision: unknown; clear: () => Promise<object> }
+/** A reviewed clear of captured test emails: the plan answered in the preview, the revision naming the reviewed set, and the confirmed clear bound to exactly that set. */
+export interface MailCaptureClearBinding { plan: MailCaptureClearPlan; revision: string; clear: () => Promise<MailCaptureClearResult> }
 /** `mail-capture/clear`: the host checks the owner permission, plans the clear for its workspace and binds the confirmed clear. */
 export interface MailCaptureClearRouteDeps extends MailActivityFailureDeps {
-  planCaptureClear: (required: { principalId: string }) => Promise<MailCaptureClearPlan>;
+  planCaptureClear: (required: { principalId: string }) => Promise<MailCaptureClearBinding>;
 }
 /** `mail-feedback`: the feedback setup report is the host's DTO, answered unchanged. */
 export interface MailFeedbackRouteDeps extends MailStatusPermissionDeps { readMailFeedbackSetup: () => Promise<object> }
@@ -179,19 +180,23 @@ export const mailSuppressionRemoveRoute = defineJsonRoute<{ body: Record<string,
 });
 
 /**
- * `POST .../system/mail-capture/clear`: deletes every captured test email of this workspace. Like
+ * `POST .../system/mail-capture/clear`: deletes the reviewed captured test emails of this workspace. Like
  * suppression removal it only previews (`{ cleared: false, confirmationRequired: true, plan, revision }`)
- * unless `confirmed` is exactly `true`, and a confirmed clear must carry the previewed revision.
+ * unless `confirmed` is exactly `true`; a confirmed clear must carry the previewed revision, which names
+ * the exact reviewed set, and deletes only that set (a capture that arrived since is kept).
  * @complexity O(1) plus the injected plan and clear.
  */
-export const mailCaptureClearRoute = defineJsonRoute<{ body: Record<string, unknown> }, object, MailCaptureClearRouteDeps, MailRoutePrincipal>({
+export const mailCaptureClearRoute = defineJsonRoute<MailCaptureClearRequest, MailCaptureClearAnswer, MailCaptureClearRouteDeps, MailRoutePrincipal>({
   method: "post",
   path: `${BASE}/mail-capture/clear`,
-  parse: (raw) => ok({ value: { body: bodyRecord({ body: raw.body }) } }),
+  parse: (raw) => {
+    const body = bodyRecord({ body: raw.body });
+    return ok({ value: { confirmed: body.confirmed === true, ...(typeof body.revision === "string" ? { revision: body.revision } : {}) } });
+  },
   handle: ({ input, deps, context }) => withActivityFailures({ classify: deps.classifyMailActivityError, run: async () => {
     const { plan, revision, clear } = await deps.planCaptureClear({ principalId: mailActorId({ context }) });
-    if (input.body.confirmed !== true) return ok({ value: { cleared: false, confirmationRequired: true, plan, revision } });
-    if (input.body.revision !== revision) throw new ToolInputError({ message: "Captured test emails changed or no reviewed revision was supplied. Review and confirm again." });
+    if (!input.confirmed) return ok({ value: { cleared: false, confirmationRequired: true, plan, revision } });
+    if (input.revision !== revision) throw new ToolInputError({ message: "Captured test emails changed or no reviewed revision was supplied. Review and confirm again." });
     return ok({ value: await clear() });
   } }),
 });

@@ -5,7 +5,8 @@ import {
   type OriginRegistryPort,
 } from "@jini-ai/core/contracts/server/verified-origin";
 import { mailActivityUse } from "./activity.repo.js";
-import { randomUUID } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
+import type { MailCaptureClearPlan } from "@jini-ai/core/contracts/mail";
 import { sql } from "kysely";
 import type { MailCapturePort, MailDeliveryLane, OutboundEmail } from "../ports.js";
 import type { MailRepoDeps, MailRepoOptions } from "./ledger.repo.js";
@@ -23,14 +24,22 @@ export interface CapturedMail {
 export interface MailCaptureRepo extends MailCapturePort {
   /** Newest first. `limit` is clamped to 1..{@link MAX_CAPTURE_LIST}; default {@link DEFAULT_CAPTURE_LIST}. */
   listCaptured(required: { workspaceId: string }, optional?: { limit?: number }): Promise<readonly CapturedMail[]>;
-  /** How many captured test emails this workspace holds and the newest one's time (`null` when none). */
-  summarizeCaptured(required: { workspaceId: string }): Promise<{ count: number; newestAt: string | null }>;
-  /** Deletes every captured test email of this workspace only; send ledger and activity are untouched. */
-  clearCaptured(required: { workspaceId: string }): Promise<{ deleted: number }>;
+  /** The owner's review of a clear: this workspace's capture ids, their summary, and the revision naming exactly that set. */
+  reviewCaptured(required: { workspaceId: string }): Promise<CapturedMailReview>;
+  /**
+   * Deletes, in one transaction, only the reviewed `captureIds` of this workspace: a capture that
+   * arrived after the review, or another workspace's, is never deleted. Send ledger and activity are untouched.
+   */
+  clearReviewedCaptures(required: { workspaceId: string; captureIds: readonly string[] }): Promise<{ deleted: number }>;
 }
+
+/** A reviewed set of captured test emails; `revision` changes whenever the set does (not only its count or newest time). */
+export interface CapturedMailReview { plan: MailCaptureClearPlan; captureIds: readonly string[]; revision: string }
 
 export const DEFAULT_CAPTURE_LIST = 50;
 export const MAX_CAPTURE_LIST = 200;
+/** Ids per `DELETE ... IN (...)`, under every dialect's bound-parameter limit. */
+const CLEAR_CHUNK = 500;
 
 type Row = { id: string; lane: MailDeliveryLane; idempotency_key: string; to_address: string; subject: string; payload_json: string; created_at: string };
 
@@ -42,7 +51,8 @@ const clampLimit = ({ limit }: { limit: number | undefined }, _optional = {}): n
  * can click their links. Public or missing origins retain routing metadata only: subject, body,
  * headers, names and attachments may all contain credentials and must never reach storage.
  * @complexity capture O(payload size); listCaptured O(returned payload size), with a bounded indexed row limit;
- *   summarizeCaptured/clearCaptured O(workspace captures) over the (workspace_id, created_at) index.
+ *   reviewCaptured O(workspace captures) over the (workspace_id, created_at) index; clearReviewedCaptures
+ *   O(reviewed ids) primary-key deletes in ceil(ids / 500) statements, one transaction.
  * @example createMailCaptureRepo({ db: kernel }).capture({ message, lane: "transactional", idempotencyKey })
  */
 export function createMailCaptureRepo<DB>(
@@ -67,16 +77,33 @@ export function createMailCaptureRepo<DB>(
         message: JSON.parse(row.payload_json) as OutboundEmail, createdAt: row.created_at,
       }));
     },
-    async summarizeCaptured({ workspaceId }) {
-      const [row] = await db.query<{ n: number | string; newest: string | null }>(sql`SELECT COUNT(*) AS n, MAX(created_at) AS newest FROM mail_capture WHERE workspace_id = ${workspaceId}`);
-      return { count: Number(row?.n ?? 0), newestAt: row?.newest ?? null };
+    async reviewCaptured({ workspaceId }) {
+      const rows = await db.query<{ id: string; created_at: string }>(sql`SELECT id, created_at FROM mail_capture WHERE workspace_id = ${workspaceId} ORDER BY id`);
+      const captureIds = rows.map((row) => row.id);
+      const newestAt = rows.reduce<string | null>((max, row) => (max === null || row.created_at > max ? row.created_at : max), null);
+      return { plan: { count: rows.length, newestAt }, captureIds, revision: captureSetRevision({ workspaceId, captureIds }) };
     },
-    async clearCaptured({ workspaceId }) {
-      // RETURNING counts deleted rows the same way on SQLite and Postgres.
-      const rows = await db.query<{ id: string }>(sql`DELETE FROM mail_capture WHERE workspace_id = ${workspaceId} RETURNING id`);
-      return { deleted: rows.length };
-    },
+    clearReviewedCaptures: ({ workspaceId, captureIds }) => db.transaction(async () => {
+      let deleted = 0;
+      for (let at = 0; at < captureIds.length; at += CLEAR_CHUNK) {
+        const ids = captureIds.slice(at, at + CLEAR_CHUNK);
+        // RETURNING counts deleted rows the same way on SQLite and Postgres.
+        const rows = await db.query<{ id: string }>(sql`DELETE FROM mail_capture WHERE workspace_id = ${workspaceId} AND id IN (${sql.join(ids)}) RETURNING id`);
+        deleted += rows.length;
+      }
+      return { deleted };
+    }),
   };
+}
+
+/**
+ * The revision of one workspace's reviewed capture set: a digest of its sorted ids, so two different
+ * sets with the same count and newest time never share a revision. @complexity O(ids).
+ */
+function captureSetRevision({ workspaceId, captureIds }: { workspaceId: string; captureIds: readonly string[] }, _optional: Record<string, never> = {}): string {
+  const digest = createHash("sha256").update(workspaceId);
+  for (const id of [...captureIds].sort()) digest.update("\n").update(id);
+  return `captures-v1:${captureIds.length}:${digest.digest("base64url")}`;
 }
 
 /**
