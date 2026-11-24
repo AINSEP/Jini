@@ -28,3 +28,11 @@
   `useLifecycleConfirmDialogHook` (its binding of `useLifecycleConfirmDialog` to locale + kit) as a
   required prop, imports its native-dialog stylesheet at the screen mount, and styles the
   `jini-collections-dialog` shell (buttons use the shared `jini-btn-*` / `jini-editor-actions` rules).
+- `NewContentTypeDialog.tsx` / `EditFieldsDialog.tsx` — create a content type / edit its field schema.
+  The host passes `useNewContentTypeDialogHook` / `useEditFieldsDialogHook` (its bindings of
+  `useNewContentTypeDialog` / `useEditFieldsDialog` to port, locale or translator, and kit) as required
+  props, plus its translator `t`. Both render the shared `ContentTypeFieldsSection.tsx` field list and the
+  kit `Dialog`, and emit only `jini-*` classes: the host styles `jini-collections-dialog` +
+  `jini-collections-type-dialog` (shell), `jini-collections-field-row`, and the shell-scoped
+  `jini-field`, `jini-field-label`, `jini-form-checkbox-field`, `jini-editor-actions`, `jini-save-error`
+  and `jini-btn-secondary`.
