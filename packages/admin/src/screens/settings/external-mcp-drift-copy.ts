@@ -12,19 +12,19 @@ const REFUSAL_COPY: ExternalMcpRefusalCopy = {
   "remote-declares-not-read-only": { kind: "needs-write-grant", key: "Tick 'Allow changes' to enable this tool." },
   "remote-declares-destructive": {
     kind: "destructive",
-    key: "The server marks this tool as destructive. The assistant does not enable destructive external tools.",
+    key: "The server marks this tool as destructive. {productName} does not enable destructive external tools.",
   },
   "missing-or-invalid-input-schema": {
     kind: "server-side-defect",
-    key: "This server published no usable input schema for this tool, so the assistant cannot offer it.",
+    key: "This server published no usable input schema for this tool, so {productName} cannot offer it.",
   },
   "invalid-remote-tool-name": {
     kind: "server-side-defect",
-    key: "This server advertised a tool under a name the assistant will not register.",
+    key: "This server advertised a tool under a name {productName} will not register.",
   },
   "duplicate-remote-tool-name": {
     kind: "server-side-defect",
-    key: "This server advertised the same tool name twice, so the assistant kept only the first.",
+    key: "This server advertised the same tool name twice, so {productName} kept only the first.",
   },
   "connection-tool-cap-reached": {
     kind: "server-side-defect",
