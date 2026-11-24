@@ -737,6 +737,34 @@
    "useMediaPorts": "function:2c6688f2b3"
   }
  },
+ "./pages/hooks/theme-canvas-port.hooks": {
+  "types": "./dist/pages/hooks/theme-canvas-port.hooks.d.ts",
+  "symbols": {
+   "ThemeCanvasPort": "interface:9cc3caf244",
+   "ThemeTokens": "type:cd43347469"
+  }
+ },
+ "./pages/hooks/theme-canvas-wrapper": {
+  "types": "./dist/pages/hooks/theme-canvas-wrapper.d.ts",
+  "symbols": {
+   "deriveContentWrapperChain": "function:d784f9753b"
+  }
+ },
+ "./pages/hooks/theme-pages-port.hooks": {
+  "types": "./dist/pages/hooks/theme-pages-port.hooks.d.ts",
+  "symbols": {
+   "ThemePageSlugCollision": "interface:00aa7d8ed9",
+   "ThemePagesFileEntry": "interface:6a023167f8",
+   "ThemePagesPort": "interface:c3f08b781d"
+  }
+ },
+ "./pages/ThemePageDetailsModal.hooks": {
+  "types": "./dist/pages/ThemePageDetailsModal.hooks.d.ts",
+  "symbols": {
+   "ThemePageDetailsModalController": "interface:00eeef5ad5",
+   "useThemePageDetailsModal": "function:b489bb64c4"
+  }
+ },
  "./playground": {
   "types": "./dist/playground/index.d.ts",
   "symbols": {
@@ -784,6 +812,12 @@
   "symbols": {
    "PostPublishAtField": "function:416681cd31",
    "PostPublishAtFieldProps": "interface:3452e73d7a"
+  }
+ },
+ "./posts/Posts.hooks": {
+  "types": "./dist/posts/Posts.hooks.d.ts",
+  "symbols": {
+   "createPostsTranslator": "function:7fcca15997"
   }
  },
  "./react": {
@@ -1378,6 +1412,77 @@
    "targetForKind": "function:0821772b01"
   }
  },
+ "./screens/plugins/api/plugins-api": {
+  "types": "./dist/screens/plugins/api/plugins-api.d.ts",
+  "symbols": {
+   "PluginsApiDeps": "interface:012b25d31c",
+   "PluginsRequestFn": "type:790ca7001c",
+   "createPluginsApi": "function:c5143e274d"
+  }
+ },
+ "./screens/plugins/api/plugins-api.types": {
+  "types": "./dist/screens/plugins/api/plugins-api.types.d.ts",
+  "symbols": {
+   "AdminPlugin": "interface:3d2473b3c3",
+   "AdminPluginConflict": "interface:da90f53e8f",
+   "AdminPluginFiles": "interface:e42be6ccbb",
+   "AdminPluginPackageFile": "interface:fa562b1ae7",
+   "AdminPluginProviderSettingField": "interface:db2042649d",
+   "AdminPluginProviderSettings": "interface:863be635e0"
+  }
+ },
+ "./screens/plugins/hooks/agent-plugin-memory-port.hooks": {
+  "types": "./dist/screens/plugins/hooks/agent-plugin-memory-port.hooks.d.ts",
+  "symbols": {
+   "AgentPluginMemoryPort": "interface:577af4a85c",
+   "PluginMemoryListing": "interface:50304b1568"
+  }
+ },
+ "./screens/plugins/hooks/plugin-install-port.hooks": {
+  "types": "./dist/screens/plugins/hooks/plugin-install-port.hooks.d.ts",
+  "symbols": {
+   "PluginInstallPort": "interface:88de3e9c8d",
+   "PluginInstallPreview": "interface:ed775cf117",
+   "PluginInstallSource": "interface:2d51327859"
+  }
+ },
+ "./screens/plugins/hooks/plugins-port.hooks": {
+  "types": "./dist/screens/plugins/hooks/plugins-port.hooks.d.ts",
+  "symbols": {
+   "PluginsPort": "interface:e892a8c8aa"
+  }
+ },
+ "./screens/plugins/hooks/use-plugin-row-focus.hooks": {
+  "types": "./dist/screens/plugins/hooks/use-plugin-row-focus.hooks.d.ts",
+  "symbols": {
+   "usePluginRowFocus": "function:07c5ed9356"
+  }
+ },
+ "./screens/plugins/PluginProviderSettingField.hooks": {
+  "types": "./dist/screens/plugins/PluginProviderSettingField.hooks.d.ts",
+  "symbols": {
+   "CUSTOM": "variable:d8887f0d3a",
+   "usePluginProviderChoice": "function:d26fdf540d"
+  }
+ },
+ "./screens/plugins/selected-skills": {
+  "types": "./dist/screens/plugins/selected-skills.d.ts",
+  "symbols": {
+   "SelectedComposerSkill": "interface:96e2554ded",
+   "draftAfterSkillSelection": "function:d02931e767",
+   "promptWithSelectedSkills": "function:dfb9209808",
+   "selectedSkillsFromContext": "function:18cd57bdc9"
+  }
+ },
+ "./screens/providers/api/providers-api": {
+  "types": "./dist/screens/providers/api/providers-api.d.ts",
+  "symbols": {
+   "ProjectKeyUseResult": "interface:d116858e1e",
+   "ProvidersApiDeps": "interface:43cc37c400",
+   "ProvidersRequestFn": "type:0f2982caaa",
+   "createProvidersApi": "function:757f944346"
+  }
+ },
  "./screens/taxonomy/api/taxonomy-api.types": {
   "types": "./dist/screens/taxonomy/api/taxonomy-api.types.d.ts",
   "symbols": {
@@ -1434,6 +1539,17 @@
   "types": "./dist/screens/taxonomy/TaxonomyRowMenu.hooks.d.ts",
   "symbols": {
    "useTaxonomyRowMenu": "function:3cbdb35cfb"
+  }
+ },
+ "./screens/trash/api/trash-api.types": {
+  "types": "./dist/screens/trash/api/trash-api.types.d.ts",
+  "symbols": {
+   "AdminTrashItem": "interface:d9df3f0081",
+   "AdminTrashPage": "interface:57eef70c1c",
+   "AdminTrashPurgeOutcome": "type:e66732b363",
+   "AdminTrashPurgeReport": "interface:7da14fa721",
+   "AdminTrashRestoreOutcome": "type:8daca12e3c",
+   "AdminTrashRestoreReport": "interface:3cfc756a52"
   }
  },
  "./screens/widgets/api/widgets-api.types": {
@@ -1529,6 +1645,19 @@
   "types": "./dist/security/conformance/security-api.conformance.d.ts",
   "symbols": {
    "runSecurityApiConformance": "function:61c7428162"
+  }
+ },
+ "./security/host/hooks/security-permissions-port.hooks": {
+  "types": "./dist/security/host/hooks/security-permissions-port.hooks.d.ts",
+  "symbols": {
+   "SecurityPermissionsPort": "interface:35945b4cd1"
+  }
+ },
+ "./security/host/SiteKeyTab.hooks": {
+  "types": "./dist/security/host/SiteKeyTab.hooks.d.ts",
+  "symbols": {
+   "RevealedKeyCopyState": "interface:a8133afb68",
+   "useRevealedKeyCopy": "function:b6ebf7f9a9"
   }
  },
  "./security/react": {

@@ -15,7 +15,7 @@ import type { CanvasContentWrapperNode } from "../../react/kit.js";
  * `<div data-embed-config='{"type":"content"}'></div>`, and the PUBLISHED page renders that as a bare
  * `<div>` (attribute stripped, tag kept) directly around the page's real body HTML — matching
  * `Jini packages/cms/src/widgets/markers/marker.ts`'s `withInnerContentFinal`, which the server's `content`-marker splice
- * uses (`apps/website/src/server/inbound/public-http/routes/site/pages.ts`): "strips the marker's own `data-embed-config` attribute...
+ * uses (the host's public site pages route): "strips the marker's own `data-embed-config` attribute...
  * every other authored attribute survives". A derivation that stopped at the marker's PARENT (i.e.
  * treated the marker as pure scaffolding to be discarded) would silently drop that innermost level and
  * under-wrap the canvas relative to the real page.
