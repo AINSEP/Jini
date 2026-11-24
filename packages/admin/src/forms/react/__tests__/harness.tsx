@@ -34,6 +34,7 @@ const formsKit: AdminKit = {
     PreviewModalShell: () => { throw new Error('Forms tests do not supply PreviewModalShell'); },
   },
   hooks: {
+    useAdminLocale: () => 'en',
     useAgentHandle: ({ agentHandle }) => agentHandle === false ? undefined : agentHandle ?? 'fake-handle',
     useDirtyGuard: ({ current, original }, options) => {
       const isDirty = original !== null && JSON.stringify(current) !== JSON.stringify(original);
@@ -68,6 +69,8 @@ const formsKit: AdminKit = {
     useInfoTip: () => { throw new Error('Forms tests do not supply useInfoTip'); },
     usePanelPosition: () => { throw new Error('Forms tests do not supply usePanelPosition'); },
     useSelectDropdown: () => { throw new Error('Forms tests do not supply useSelectDropdown'); },
+    useTabbedDialog: () => { throw new Error('Forms tests do not supply useTabbedDialog'); },
+    useCopyToClipboard: () => { throw new Error('Forms tests do not supply useCopyToClipboard'); },
   },
   query: { useFetchQuery, useFetchMutation, useCachedLoader, useInvalidate, useFetchQueryScope },
   get mediaProviders(): never { throw new Error('Forms tests do not supply mediaProviders'); },

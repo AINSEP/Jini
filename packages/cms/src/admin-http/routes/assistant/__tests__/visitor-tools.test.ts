@@ -1,78 +1,107 @@
 import { describe, expect, it } from "vitest";
-import { ForbiddenError, ValueValidationFailedError } from "@jini-ai/core/settings";
-import type { VisitorToolsView } from "@jini-ai/core/contracts/site/api-ai-assistant-api-types";
 
 import {
-  ADMIN_VISITOR_TOOLS_PATH, configureVisitorToolsRoute, listVisitorToolsRoute,
-  type VisitorToolsErrorKind, type VisitorToolsRouteDepsBase,
+  ADMIN_VISITOR_TOOLS_PATH, assistantVisitorToolsConfigureRoute, assistantVisitorToolsListRoute, type VisitorToolsConfigureRouteDeps,
+  type VisitorToolsConfigureRoutePort, type VisitorToolsListRouteDeps, type VisitorToolsListRoutePort, type VisitorToolsManagementRoutePort,
 } from "../visitor-tools.js";
-import { PREFIX, PRINCIPAL, raw, refusal, signal } from "./helpers.js";
+import type { AssistantErrorMapping } from "../shared.js";
+import { PRINCIPAL, raw, refusalOf, WORKSPACE_ID } from "./settings-helpers.js";
 
-const VIEW: VisitorToolsView = { revisionSeq: 3, defaults: { perIpPerHour: 5, perSitePerDay: 50 }, callsPerTurn: 2, tools: [] };
-class HostConflict extends Error {}
-class HostPolicyError extends Error {}
-const kindOf = (error: unknown): VisitorToolsErrorKind | undefined =>
-  error instanceof HostConflict ? "revision-conflict" : error instanceof HostPolicyError ? "policy-validation" : undefined;
+/** @file The visitor-tools admin pair: list and configure over the injected management service. */
 
-/** A recording visitor-tools service whose operations can be made to throw. */
-function serviceDeps({ fail }: { fail?: unknown } = {}): { deps: VisitorToolsRouteDepsBase; calls: unknown[] } {
+class Conflict extends Error {}
+class Denied extends Error {}
+class Invalid extends Error {}
+
+/** The host's ladder, in its order: 409 with `reload`, 403 with fixed copy, 400 validation. */
+const LADDER: readonly AssistantErrorMapping[] = [
+  { matches: ({ err }) => err instanceof Conflict, status: 409, code: "VISITOR_TOOLS_REVISION_CONFLICT", extra: { reload: true } },
+  { matches: ({ err }) => err instanceof Denied, status: 403, code: "FORBIDDEN", error: "visitor-tools.manage is required" },
+  { matches: ({ err }) => err instanceof Invalid, status: 400, code: "VISITOR_TOOLS_VALIDATION_ERROR" },
+];
+const VIEW = { revisionSeq: 3, tools: [] };
+
+function recordingService(fail: Partial<Record<"list" | "prepare" | "apply", Error>> = {}): { service: VisitorToolsManagementRoutePort; calls: unknown[] } {
   const calls: unknown[] = [];
-  const act = async <T>(entry: unknown, value: T) => { calls.push(entry); if (fail !== undefined) throw fail; return value; };
-  return { calls, deps: { visitorToolsErrorKind: kindOf, visitorToolsManagement: {
-    list: (required) => act(["list", required], VIEW),
-    prepare: (required) => act(["prepare", required], "prepared-token"),
-    apply: (required) => act(["apply", required], { ...VIEW, revisionSeq: 4 }),
-  } } };
+  const step = (name: "list" | "prepare" | "apply", value: unknown) => async (input: unknown) => {
+    calls.push({ [name]: input });
+    if (fail[name]) throw fail[name];
+    return value;
+  };
+  return { calls, service: { list: step("list", VIEW), prepare: step("prepare", { prepared: true }), apply: step("apply", VIEW) } };
 }
 
-const handleList = (deps: VisitorToolsRouteDepsBase, { context }: { context: typeof PRINCIPAL | undefined } = { context: PRINCIPAL }) =>
-  listVisitorToolsRoute.handle({ input: undefined, deps, context }, { signal });
-const handleConfigure = (input: unknown, deps: VisitorToolsRouteDepsBase) =>
-  configureVisitorToolsRoute.handle({ input, deps, context: PRINCIPAL }, { signal });
+const deps = (service: VisitorToolsManagementRoutePort | undefined) => ({ workspaceId: WORKSPACE_ID, visitorToolsManagement: () => service, errorMappings: LADDER });
 
 describe("visitor-tools routes", () => {
-  it("pin GET and PUT on the one path; PUT parse hands the raw body to the service", () => {
-    expect(ADMIN_VISITOR_TOOLS_PATH).toBe(`${PREFIX}/visitor-tools`);
-    expect([listVisitorToolsRoute.method, listVisitorToolsRoute.path, configureVisitorToolsRoute.method, configureVisitorToolsRoute.path, configureVisitorToolsRoute.maxBodyBytes])
-      .toEqual(["get", ADMIN_VISITOR_TOOLS_PATH, "put", ADMIN_VISITOR_TOOLS_PATH, undefined]);
-    expect(configureVisitorToolsRoute.parse(raw({ toolId: "t" }))).toEqual({ ok: true, value: { toolId: "t" } });
+  it("keep the shared path, the two methods, success status and no body cap", () => {
+    expect(ADMIN_VISITOR_TOOLS_PATH).toBe("/api/admin/v1/workspaces/:workspaceId/assistant/visitor-tools");
+    expect([assistantVisitorToolsListRoute.method, assistantVisitorToolsConfigureRoute.method]).toEqual(["get", "put"]);
+    for (const route of [assistantVisitorToolsListRoute, assistantVisitorToolsConfigureRoute]) {
+      expect(route.path).toBe(ADMIN_VISITOR_TOOLS_PATH);
+      expect(route.successStatus).toBeUndefined();
+      expect(route.maxBodyBytes).toBeUndefined();
+    }
+    expect(assistantVisitorToolsListRoute.parse(raw())).toEqual({ ok: true, value: {} });
   });
 
-  it("GET lists as the session principal; PUT prepares the raw body then applies the prepared value", async () => {
-    const { deps, calls } = serviceDeps();
-    expect(await handleList(deps)).toEqual({ ok: true, value: { data: VIEW } });
-    const body = { toolId: "t", expectedRevisionSeq: 3, principalId: "forged" };
-    expect(await handleConfigure(body, deps)).toEqual({ ok: true, value: { data: { ...VIEW, revisionSeq: 4 } } });
+  it("hands the service the raw body unchanged, including an absent one (the service validates it)", () => {
+    expect(assistantVisitorToolsConfigureRoute.parse(raw({ toolId: "site" }))).toEqual({ ok: true, value: { body: { toolId: "site" } } });
+    expect(assistantVisitorToolsConfigureRoute.parse({ body: undefined, query: {}, params: {} })).toEqual({ ok: true, value: { body: undefined } });
+  });
+
+  it("list answers the service view for the authenticated caller; configure prepares then applies", async () => {
+    const { service, calls } = recordingService();
+    expect(await assistantVisitorToolsListRoute.handle({ input: {}, deps: deps(service), context: PRINCIPAL })).toEqual({ ok: true, value: { data: VIEW } });
+    expect(await assistantVisitorToolsConfigureRoute.handle({ input: { body: { toolId: "site" } }, deps: deps(service), context: PRINCIPAL })).toEqual({ ok: true, value: { data: VIEW } });
     expect(calls).toEqual([
-      ["list", { callerPrincipalId: PRINCIPAL.id }],
-      ["prepare", { callerPrincipalId: PRINCIPAL.id, input: body }],
-      ["apply", { callerPrincipalId: PRINCIPAL.id, prepared: "prepared-token" }],
+      { list: { callerPrincipalId: PRINCIPAL.id } },
+      { prepare: { callerPrincipalId: PRINCIPAL.id, input: { toolId: "site" } } },
+      { apply: { callerPrincipalId: PRINCIPAL.id, prepared: { prepared: true } } },
     ]);
   });
 
-  it("an absent service or principal is an unexpected failure (the host's redacted 500)", async () => {
-    const { deps } = serviceDeps();
-    await expect(handleList({ ...deps, visitorToolsManagement: undefined })).rejects.toThrow("Visitor tools service unavailable.");
-    await expect(handleConfigure({}, { ...deps, visitorToolsManagement: undefined })).rejects.toThrow("Visitor tools service unavailable.");
-    await expect(handleList(deps, { context: undefined })).rejects.toThrow(/no authenticated principal/);
+  it("hands each route only the half of the service it calls: GET lists, PUT prepares then applies", async () => {
+    const calls: unknown[] = [];
+    const reader: VisitorToolsListRoutePort = { list: async (input) => { calls.push({ list: input }); return VIEW; } };
+    const writer: VisitorToolsConfigureRoutePort = {
+      prepare: async (input) => { calls.push({ prepare: input }); return { prepared: true }; },
+      apply: async (input) => { calls.push({ apply: input }); return VIEW; },
+    };
+    const listDeps: VisitorToolsListRouteDeps = { workspaceId: WORKSPACE_ID, visitorToolsManagement: () => reader, errorMappings: LADDER };
+    const configureDeps: VisitorToolsConfigureRouteDeps = { workspaceId: WORKSPACE_ID, visitorToolsManagement: () => writer, errorMappings: LADDER };
+    expect(await assistantVisitorToolsListRoute.handle({ input: {}, deps: listDeps, context: PRINCIPAL })).toEqual({ ok: true, value: { data: VIEW } });
+    expect(await assistantVisitorToolsConfigureRoute.handle({ input: { body: { toolId: "site" } }, deps: configureDeps, context: PRINCIPAL })).toEqual({ ok: true, value: { data: VIEW } });
+    expect(calls).toEqual([
+      { list: { callerPrincipalId: PRINCIPAL.id } },
+      { prepare: { callerPrincipalId: PRINCIPAL.id, input: { toolId: "site" } } },
+      { apply: { callerPrincipalId: PRINCIPAL.id, prepared: { prepared: true } } },
+    ]);
   });
 
-  it.each([
-    ["revision conflict", new HostConflict("stale revision"), { status: 409, body: { error: "stale revision", code: "VISITOR_TOOLS_REVISION_CONFLICT", reload: true } }],
-    ["forbidden", new ForbiddenError("nope"), { status: 403, body: { error: "visitor-tools.manage is required", code: "FORBIDDEN" } }],
-    ["host policy validation", new HostPolicyError("bad mode"), { status: 400, body: { error: "bad mode", code: "VISITOR_TOOLS_VALIDATION_ERROR" } }],
-    ["settings value validation", new ValueValidationFailedError("bad limit"), { status: 400, body: { error: "bad limit", code: "VISITOR_TOOLS_VALIDATION_ERROR" } }],
-  ])("maps a %s from list, prepare or apply to its exact refusal", async (_label, error, expected) => {
-    const { deps } = serviceDeps({ fail: error });
-    expect(await refusal(handleList(deps))).toEqual(expected);
-    expect(await refusal(handleConfigure({}, deps))).toEqual(expected);
+  it("maps every rung of the host ladder from each step to its exact body", async () => {
+    const cases = [
+      [new Conflict("reload"), { status: 409, body: { error: "reload", code: "VISITOR_TOOLS_REVISION_CONFLICT", reload: true } }],
+      [new Denied("denied"), { status: 403, body: { error: "visitor-tools.manage is required", code: "FORBIDDEN" } }],
+      [new Invalid("bad patch"), { status: 400, body: { error: "bad patch", code: "VISITOR_TOOLS_VALIDATION_ERROR" } }],
+    ] as const;
+    for (const [error, expected] of cases) {
+      expect(await refusalOf(() => assistantVisitorToolsListRoute.handle({ input: {}, deps: deps(recordingService({ list: error }).service), context: PRINCIPAL }))).toEqual(expected);
+      for (const step of ["prepare", "apply"] as const) {
+        const { service } = recordingService({ [step]: error });
+        expect(await refusalOf(() => assistantVisitorToolsConfigureRoute.handle({ input: { body: {} }, deps: deps(service), context: PRINCIPAL }))).toEqual(expected);
+      }
+    }
   });
 
-  it("checks the ladder in order (a conflict that is also forbidden is the 409) and rethrows anything unmapped", async () => {
-    class ForbiddenConflict extends ForbiddenError {}
-    const conflictFirst = serviceDeps({ fail: new ForbiddenConflict("both") }).deps;
-    expect((await refusal(handleList({ ...conflictFirst, visitorToolsErrorKind: () => "revision-conflict" }))).status).toBe(409);
-    const { deps } = serviceDeps({ fail: new Error("db down") });
-    await expect(handleConfigure({}, deps)).rejects.toThrow("db down");
+  it("rethrows unmapped failures, an absent service and a missing principal for the host's redacted 500", async () => {
+    const { service, calls } = recordingService({ list: new Error("/secret/storage/file") });
+    await expect(assistantVisitorToolsListRoute.handle({ input: {}, deps: deps(service), context: PRINCIPAL })).rejects.toThrow("/secret/storage/file");
+    await expect(assistantVisitorToolsListRoute.handle({ input: {}, deps: deps(undefined), context: PRINCIPAL })).rejects.toThrow("Visitor tools service unavailable.");
+    await expect(assistantVisitorToolsConfigureRoute.handle({ input: { body: {} }, deps: deps(undefined), context: PRINCIPAL })).rejects.toThrow("Visitor tools service unavailable.");
+    const idle = recordingService();
+    await expect(assistantVisitorToolsConfigureRoute.handle({ input: { body: {} }, deps: deps(idle.service), context: undefined })).rejects.toThrow(/no authenticated principal/);
+    expect(idle.calls).toEqual([]);
+    expect(calls).toHaveLength(1);
   });
 });

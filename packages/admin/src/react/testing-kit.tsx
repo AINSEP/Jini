@@ -106,6 +106,8 @@ function useFakeFocusTrap({ containerRef }: { containerRef: RefObject<HTMLElemen
 const passthroughTranslator: KitTranslator = (key, vars = {}) => key.replace(/\{(\w+)\}/g, (whole, name: string) => (name in vars ? String(vars[name]) : whole));
 
 const fakeHooks: AdminKitHooks = {
+  // A fixed English locale: tests that care about the locale inject their own hook.
+  useAdminLocale: () => 'en',
   useAgentHandle: (r) => (r.agentHandle === false ? undefined : r.agentHandle ?? 'fake-handle'),
   useFocusTrap: useFakeFocusTrap,
   useDirtyGuard: (r, o) => {
@@ -159,6 +161,15 @@ const fakeHooks: AdminKitHooks = {
       selectOption: (option) => { r.onChange(option.value); setOpen(false); },
       handleTriggerKeyDown: () => {}, handlePanelKeyDown: () => {}, optionId: (index) => `fake-listbox-option-${index}`,
     };
+  },
+  useTabbedDialog: (r) => {
+    const [activeTabId, setActiveTabId] = useState<string | null>(r.initialActiveTabId ?? r.tabs[0]?.id ?? null);
+    return { activeTabId, setActiveTabId };
+  },
+  // No reset timer: `copied` stays as the last copy left it. A test that checks the reset injects the real hook.
+  useCopyToClipboard: (clipboard) => {
+    const [copied, setCopied] = useState(false);
+    return { copied, copy: async (text) => { const ok = await clipboard.copyText(text); setCopied(ok); return ok; } };
   },
 };
 
@@ -218,6 +229,9 @@ const fakeValues: AdminKitValues = Object.freeze({
       reset: () => { generation += 1; snapshot = null; notify(); },
     };
   },
+  resolveInitialActiveTabId: (r: { tabs: readonly { id: string }[] }, o: { initialTabId?: string | null | undefined } = {}) =>
+    (o.initialTabId != null && r.tabs.some((tab) => tab.id === o.initialTabId) ? o.initialTabId : r.tabs[0]?.id ?? null),
+  findActiveTab: <T extends { id: string }>(r: { tabs: readonly T[]; activeTabId: string | null }) => r.tabs.find((tab) => tab.id === r.activeTabId),
 });
 
 // Posters that never reach a server: a typed answer finds no pending question, a mid-run message finds no

@@ -3,7 +3,7 @@ import { expect, test } from "vitest";
 import { listPermissions, principalKindMayExercisePermission, type PrincipalKind } from "../index.js";
 
 /**
- * @file The principal-kind bar (OWNER DECISION 2026-10-04, Tovu F3144): a site `member` may not
+ * @file The principal-kind bar (OWNER DECISION 2026-10-04, host finding F3144): a site `member` may not
  * exercise any operator permission; every other kind is not barred (its grants still decide).
  */
 

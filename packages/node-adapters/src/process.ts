@@ -1,8 +1,9 @@
 /**
  * @module process
  *
- * Node binding of core's `ProcessControlPort` over `@jini-ai/platform`'s process functions. Hosts import
- * {@link nodeProcessControl} instead of hand-copying the adapter: two of the port members take their
+ * Node binding of core's `ProcessControlPort` over `@jini-ai/platform`'s process functions. Hosts call
+ * {@link createProcessControlPort} with those functions (this package imports no other package's
+ * implementation) instead of hand-copying the adapter: two of the port members take their
  * arguments in a different shape from the function they wrap (`{ pids }` vs a positional array,
  * `{ pid }` vs a positional pid), so a binding that merely typechecks can silently reshape an
  * argument. The builder takes the wrapped functions as arguments so a test can hand it recording
@@ -14,13 +15,13 @@
  */
 import { spawn, type ChildProcess, type SpawnOptions } from "node:child_process";
 import type { ProcessControlPort, RuntimePlatform } from "@jini-ai/core/contracts/runtime";
-import { listProcessSnapshots, stopProcesses, waitForProcessExit } from "@jini-ai/platform/process";
 
-/** The three platform process functions the process-control port wraps. */
+/** The three platform process functions the process-control port wraps; a Node host passes
+ * `@jini-ai/platform/process`'s `listProcessSnapshots`, `stopProcesses` and `waitForProcessExit`. */
 export interface ProcessFunctions {
-  readonly listProcessSnapshots: (required: Record<string, never>, optional: { timeoutMs?: number; commandLines?: boolean }) => ReturnType<typeof listProcessSnapshots>;
-  readonly stopProcesses: (pids: Array<number | null | undefined>) => ReturnType<typeof stopProcesses>;
-  readonly waitForProcessExit: (pid: number | null | undefined, timeoutMs?: number) => ReturnType<typeof waitForProcessExit>;
+  readonly listProcessSnapshots: (required: Record<string, never>, optional: { timeoutMs?: number; commandLines?: boolean }) => ReturnType<ProcessControlPort["listProcessSnapshots"]>;
+  readonly stopProcesses: (pids: Array<number | null | undefined>) => ReturnType<ProcessControlPort["stopProcesses"]>;
+  readonly waitForProcessExit: (pid: number | null | undefined, timeoutMs?: number) => ReturnType<ProcessControlPort["waitForProcessExit"]>;
 }
 
 /**
@@ -37,9 +38,6 @@ export function createProcessControlPort(required: { readonly functions: Process
     waitForProcessExit: ({ pid }, { timeoutMs } = {}) => functions.waitForProcessExit(pid, timeoutMs),
   };
 }
-
-/** The Node implementation, ready for a host to hand to daemon. */
-export const nodeProcessControl: ProcessControlPort = createProcessControlPort({ functions: { listProcessSnapshots, stopProcesses, waitForProcessExit } });
 
 /** The one `node:child_process` function the spawn port wraps. */
 export type SpawnFunction = (command: string, args: string[], options: SpawnOptions) => ChildProcess;

@@ -250,7 +250,7 @@ Unannotated port input fields in this table are strings. These interface methods
 | `Login` | `(props: LoginProps): JSX.Element` | Login port, translator, brand, callback |
 | `Users` | `(props: UsersProps): JSX.Element` | Users port, translator, query scope/provider |
 | `UserManagePanel` | `(props: UserManagePanelProps): JSX.Element` | Controlled email/grant callbacks |
-| `Members` | `(props: MembersProps): JSX.Element` | Members port, translator; optional refresh subscription |
+| `Members` | `(props: MembersProps): JSX.Element` | Members port, translator, and the host-bound `useMembersHook` (no default hook; bind `useMembers` or your own); optional refresh subscription |
 | `useLogin` | `(required: LoginHookProps, optional: LoginOptions = {}): LoginController` | `{ port: LoginPort; translate: Translate; onLogin: (user: AdminUser) => void }`; optional `{ initialUsername?: string }` |
 | `useUsers` | `(required: UsersDependencies, optional: UsersOptions = {}): UsersController` | `{ port: UsersPort; translate: Translate; queryScope: string }`; optional `{ openOwnPasswordReset?: boolean; onOwnPasswordResetClosed?: () => void }` |
 | `useMembers` | `(required: MembersDependencies, optional: MembersOptions = {}): MembersController` | `{ port: MembersPort; translate: Translate }`; optional `{ refresh?: IdentityRefreshPort }` |
@@ -265,14 +265,14 @@ Unannotated port input fields in this table are strings. These interface methods
 
 ```tsx
 import { FetchQueryProvider } from '@jini-ai/ui/panel-kit';
-import { Login, Users, Members } from '@jini-ai/user-management/react';
+import { Login, Users, Members, useMembers } from '@jini-ai/user-management/react';
 import type { IdentityAdminPort } from '@jini-ai/user-management/react';
 function Administration({ port }: { port: IdentityAdminPort }) {
   const translate = (text: string) => text;
   return <FetchQueryProvider>
     <Login port={port} translate={translate} productName="Example" onLogin={() => {}} />
     <Users port={port} translate={translate} queryScope="host:workspace:actor" />
-    <Members port={port} translate={translate} />
+    <Members port={port} translate={translate} useMembersHook={useMembers} />
   </FetchQueryProvider>;
 }
 ```

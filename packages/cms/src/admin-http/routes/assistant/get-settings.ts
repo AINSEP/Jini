@@ -1,35 +1,43 @@
 import { defineJsonRoute, ok } from "@jini-ai/core/contracts/server";
+import type { AssistantSettingsEnvelopeDto } from "@jini-ai/core/contracts/site/cms-assistant";
 
-import { ASSISTANT_ROUTE_PREFIX, authorizeAssistant, type AssistantPermissionDeps, type AssistantRoutePrincipal } from "./shared.js";
+import { authorizeAssistant, type AssistantRoutePrincipal } from "./shared.js";
 
-/** What this route reads: the host's public-assistant settings read and its admin-assistant switch. */
-export interface GetAssistantSettingsRouteDeps extends AssistantPermissionDeps {
-  /** Settles once the settings definitions are registered; awaited before anything else. */
-  assistantSettingsReady: Promise<unknown>;
-  /** The workspace's public-assistant settings view. */
-  getPublicAssistantSettings: () => Promise<unknown>;
-  /** Whether the deployment's ADMIN assistant is switched on (not a workspace setting). */
+/** Reads the workspace's public-assistant settings. Injected: the settings ledger mapping is the host's. */
+export type AssistantSettingsReadFn = (required: { workspaceId: string }) => Promise<unknown>;
+
+/** The deps this route reads. */
+export interface AssistantGetSettingsRouteDeps {
+  workspaceId: string;
+  /** The host's boot gate for the settings definitions. */
+  assistantSettingsReady: PromiseLike<unknown>;
+  /** The host's assistant-management permission (a host policy). */
+  managePermission: string;
+  readAssistantSettings: AssistantSettingsReadFn;
+  /** The host's own admin-assistant on/off switch, read once at boot. */
   adminAssistantEnabled: boolean;
 }
 
 /**
- * GET the workspace's public-assistant settings — today, the public assistant's master on/off
- * switch, in the `{ data }` envelope with the 404-on-workspace-mismatch every admin route uses.
+ * GET the workspace's `site.assistant.*` settings — today, the public assistant's master on/off
+ * switch, in the `{ data }` envelope the admin client's `request()` helper expects.
  *
- * Also returns a sibling `adminAssistantEnabled` field — the (unrelated) ADMIN assistant's own
- * deployment switch, NOT part of the public-assistant settings and deliberately not folded into
- * them. Piggy-backed onto this response rather than a new endpoint because the host mounts this
- * route UNCONDITIONALLY — gated assistant routes 404 with the switch off, so they cannot tell the
- * client anything, but this route always can. The admin client reads it to decide whether to mount
- * its own chat dock at all.
+ * Also returns a sibling `adminAssistantEnabled` field — the (unrelated) ADMIN assistant's own off
+ * switch, NOT part of the settings ledger and deliberately not folded into it. Piggy-backed onto
+ * this response rather than a new endpoint because the host mounts this route UNCONDITIONALLY: the
+ * gated assistant modules 404 with the flag off, so they cannot tell the client anything, but this
+ * route always can. The admin SPA reads it to decide whether to mount its chat dock at all.
  */
-export const getAssistantSettingsRoute = defineJsonRoute<undefined, { data: unknown; adminAssistantEnabled: boolean }, GetAssistantSettingsRouteDeps, AssistantRoutePrincipal>({
+export const assistantGetSettingsRoute = defineJsonRoute<Record<string, never>, AssistantSettingsEnvelopeDto, AssistantGetSettingsRouteDeps, AssistantRoutePrincipal>({
   method: "get",
-  path: `${ASSISTANT_ROUTE_PREFIX}/settings`,
-  parse: () => ok({ value: undefined }),
+  path: "/api/admin/v1/workspaces/:workspaceId/assistant/settings",
+  parse: () => ok({ value: {} }),
   handle: async ({ deps, authorize }) => {
+    // Awaited before the permission check (the host's authenticate port has already read the session),
+    // so a request during boot waits for the seeded definitions.
     await deps.assistantSettingsReady;
-    await authorizeAssistant({ authorize, permission: deps.adminAssistantPermission, entityType: "assistant-settings" });
-    return ok({ value: { data: await deps.getPublicAssistantSettings(), adminAssistantEnabled: deps.adminAssistantEnabled } });
+    await authorizeAssistant({ authorize, permission: deps.managePermission });
+    const settings = await deps.readAssistantSettings({ workspaceId: deps.workspaceId });
+    return ok({ value: { data: settings, adminAssistantEnabled: deps.adminAssistantEnabled } });
   },
 });

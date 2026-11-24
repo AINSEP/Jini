@@ -1,4 +1,4 @@
-import { nodeAtomicWriter, nodeFileLock } from '@jini-ai/node-adapters/fs';
+import { nodeAtomicWriter, nodeFileLock } from './node-os-ports.js';
 import { fakeRuntimePorts } from '../../ports/__tests__/fakes/runtime.js';
 import { constants, promises as fs } from 'node:fs';
 import { tmpdir } from 'node:os';

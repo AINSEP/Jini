@@ -1,5 +1,23 @@
-import type { HttpClientPort, HttpRequest } from '@jini-ai/core/primitives';
-import { guardedFetch } from '@jini-ai/platform/http/guarded';
+import type { HttpClientPort, HttpRequest, RequestRedirect } from '@jini-ai/core/primitives';
+
+/** The wire options media outbound hands the injected guarded fetch. */
+export interface MediaGuardedFetchOptions {
+  readonly method?: HttpRequest['method'];
+  readonly headers?: ConstructorParameters<typeof Headers>[0];
+  readonly body?: string | URLSearchParams;
+  readonly signal?: AbortSignal;
+  readonly redirect?: RequestRedirect;
+  /** Deadline over DNS, redirects and the complete decoded body. */
+  readonly totalDeadlineMs?: number;
+}
+
+/** Projects a guarded client's complete, bounded response into a fetch `Response`.
+ * Composition binds the platform's guarded fetch adapter (see `node.ts`); this module never imports one.
+ */
+export type MediaGuardedFetch = (
+  required: { client: HttpClientPort; url: string; timeoutMs: number },
+  options?: MediaGuardedFetchOptions,
+) => Promise<Response>;
 
 /** The host supplies a policy-enforcing client, never a raw fetch implementation. */
 export interface MediaOutboundOptions {
@@ -7,6 +25,8 @@ export interface MediaOutboundOptions {
   readonly outboundMessages?: Partial<typeof defaultMediaOutboundMessages>;
   /** Required for network I/O. Pure context/request builders may omit it. */
   readonly httpClient?: HttpClientPort;
+  /** Required for network I/O alongside `httpClient`. Pure context/request builders may omit it. */
+  readonly guardedFetch?: MediaGuardedFetch;
   /** @deprecated Configure allowPrivateNetwork on the explicit Node client adapter instead. */
   readonly allowPrivateNetwork?: boolean;
 }
@@ -26,14 +46,14 @@ export const defaultMediaOutboundMessages = {
  * @complexity O(h + b) for h headers and b bounded decoded response bytes.
  */
 export async function fetchMediaOutbound(
-  { url, timeoutMs, httpClient }: { url: string; timeoutMs: number; httpClient: HttpClientPort },
-  { init = {}, outboundMessages }: Omit<MediaOutboundOptions, 'httpClient'> & { init?: RequestInit } = {},
+  { url, timeoutMs, httpClient, guardedFetch }: { url: string; timeoutMs: number; httpClient: HttpClientPort; guardedFetch: MediaGuardedFetch },
+  { init = {}, outboundMessages }: Omit<MediaOutboundOptions, 'httpClient' | 'guardedFetch'> & { init?: RequestInit } = {},
 ): Promise<Response> {
   const messages = { ...defaultMediaOutboundMessages, ...outboundMessages };
   // Every wire refusal happens before any I/O starts.
   const { method, body } = validateMediaWireRequest({ init, messages });
   const client = requireMediaHttpClient({ httpClient });
-  return guardedFetch({ client, url, timeoutMs }, {
+  return requireMediaGuardedFetch({ guardedFetch })({ client, url, timeoutMs }, {
     method,
     ...(init.headers === undefined ? {} : { headers: init.headers }),
     ...(body == null ? {} : { body }),
@@ -65,6 +85,14 @@ function validateMediaWireRequest(
 export function requireMediaHttpClient({ httpClient }: Pick<MediaOutboundOptions, 'httpClient'>): HttpClientPort {
   if (!httpClient) throw new TypeError('Media outbound requires an injected guarded HttpClientPort');
   return httpClient;
+}
+
+/** Resolve the injected guarded fetch on context carriers without constructing a fallback.
+ * @throws TypeError before I/O if a standalone renderer/runtime has no injected guarded fetch.
+ */
+export function requireMediaGuardedFetch({ guardedFetch }: Pick<MediaOutboundOptions, 'guardedFetch'>): MediaGuardedFetch {
+  if (!guardedFetch) throw new TypeError('Media outbound requires an injected guarded fetch');
+  return guardedFetch;
 }
 
 const MEDIA_METHODS: ReadonlySet<string> = new Set(['GET', 'HEAD', 'POST', 'PUT', 'PATCH', 'DELETE']);

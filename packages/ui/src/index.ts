@@ -117,6 +117,7 @@ export * from './browser/index.js';
 // seam for asserting the name -> renderer lookup table directly. It must
 // not reach this published package's public surface.
 export { Icon, type IconName } from './react/components/Icon.js';
+export { IconFrame, type IconFrameProps } from './react/components/IconFrame.js';
 export { ICON_PATH_DATA } from './react/components/icon-path-data.js';
 export * from './react/components/RemixIcon.js';
 export { SecretInput, SecretTextarea, type SecretInputProps, type SecretTextareaProps } from './react/components/SecretInput.js';

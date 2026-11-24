@@ -1,41 +1,43 @@
 import { defineJsonRoute, ok } from "@jini-ai/core/contracts/server";
-import { RouteRefusalError } from "@jini-ai/core/errors/route-refusal";
 
 import {
-  ASSISTANT_ROUTE_PREFIX, assistantPrincipalId, authorizeAssistant, type AssistantPermissionDeps, type AssistantRoutePrincipal,
+  assistantActorId, assistantBody, authorizeAssistant, rejectAssistantError, type AssistantErrorMapping, type AssistantRoutePrincipal,
 } from "./shared.js";
 
-/** What this route reads: the host's public-assistant settings write and its validation classifier. */
-export interface PutAssistantSettingsRouteDeps extends AssistantPermissionDeps {
-  /** Settles once the settings definitions are registered; awaited before anything else. */
-  assistantSettingsReady: Promise<unknown>;
-  /** Applies `patch` through the host's settings write chokepoint as `callerPrincipalId`. */
-  setPublicAssistantSettings: (required: { patch: unknown; callerPrincipalId: string }) => Promise<unknown>;
-  /** True for the host's settings validation failures (answered 400 with their message). */
-  isSettingsValidationError: (error: unknown) => boolean;
+/**
+ * Validates and writes a partial public-assistant settings patch, then answers the settings as they
+ * now read. Injected: the settings ledger and its per-key authorization are the host's.
+ */
+export type AssistantSettingsWriteFn = (required: { workspaceId: string; patch: unknown; callerPrincipalId: string }) => Promise<unknown>;
+
+/** The deps this route reads. */
+export interface AssistantPutSettingsRouteDeps {
+  workspaceId: string;
+  assistantSettingsReady: PromiseLike<unknown>;
+  managePermission: string;
+  writeAssistantSettings: AssistantSettingsWriteFn;
+  /** The host's refusals for its own validation errors (400), in order. */
+  errorMappings: readonly AssistantErrorMapping[];
 }
 
 /**
- * PUT (partial) the workspace's public-assistant settings — the route the admin's AI Assistant
- * screen flips the public switch through. The body is the patch; a host that mounts no JSON body
- * parser hands `undefined`, which is the empty patch. Same auth gate as the matching GET, same
- * `{ data }` envelope, 400 `ASSISTANT_SETTINGS_VALIDATION_ERROR` for a rejected value, 500
- * everything else, and the settings are returned AS THEY NOW READ so the client renders the
- * persisted truth rather than the value it optimistically sent.
+ * PUT (partial) the workspace's `site.assistant.*` settings — the route the admin's AI Assistant
+ * screen flips the public switch through. Same auth gate as the matching GET, same `{ data }`
+ * envelope, same 400-on-validation / 500-on-everything-else split, and it returns the settings AS
+ * THEY NOW READ so the client renders the persisted truth rather than the value it optimistically sent.
  */
-export const putAssistantSettingsRoute = defineJsonRoute<unknown, { data: unknown }, PutAssistantSettingsRouteDeps, AssistantRoutePrincipal>({
+export const assistantPutSettingsRoute = defineJsonRoute<{ patch: unknown }, { data: unknown }, AssistantPutSettingsRouteDeps, AssistantRoutePrincipal>({
   method: "put",
-  path: `${ASSISTANT_ROUTE_PREFIX}/settings`,
-  parse: (raw) => ok({ value: raw.body ?? {} }),
+  path: "/api/admin/v1/workspaces/:workspaceId/assistant/settings",
+  parse: (raw) => ok({ value: { patch: assistantBody({ body: raw.body }) } }),
   handle: async ({ input, deps, context, authorize }) => {
     await deps.assistantSettingsReady;
-    const callerPrincipalId = assistantPrincipalId({ context });
-    await authorizeAssistant({ authorize, permission: deps.adminAssistantPermission, entityType: "assistant-settings" });
+    await authorizeAssistant({ authorize, permission: deps.managePermission });
+    const callerPrincipalId = assistantActorId({ context });
     try {
-      return ok({ value: { data: await deps.setPublicAssistantSettings({ patch: input, callerPrincipalId }) } });
-    } catch (error) {
-      if (!deps.isSettingsValidationError(error)) throw error;
-      throw new RouteRefusalError({ status: 400, body: { error: error instanceof Error ? error.message : String(error), code: "ASSISTANT_SETTINGS_VALIDATION_ERROR" } });
+      return ok({ value: { data: await deps.writeAssistantSettings({ workspaceId: deps.workspaceId, patch: input.patch, callerPrincipalId }) } });
+    } catch (err) {
+      return rejectAssistantError({ err, mappings: deps.errorMappings });
     }
   },
 });

@@ -6,19 +6,31 @@ import { join } from "node:path";
 import { sql } from "kysely";
 import { openSqliteFileKernel } from "@jini-ai/db/kernel/sqlite";
 import { runMigrations } from "@jini-ai/db/migrate";
-import { OWNER_STORE_LEDGER, ownerStoreMigrations } from "@jini-ai/db/owner-store";
-import { SqlSecretsVaultRepo } from "@jini-ai/db/secrets-vault";
+import { countOwnerStoreRows, listOwnerDestinations, listOwnerEntryRows, OWNER_STORE_LEDGER, ownerStoreMigrations, type LegacyOwnerDatabase } from "@jini-ai/db/owner-store";
+import type { KyselyKernel } from "@jini-ai/db/kernel";
+import { SqlSecretsVaultRepo, type SecretsVaultDatabase } from "@jini-ai/db/secrets-vault";
 import type { SqliteOpener } from "@jini-ai/core/contracts/storage";
 import { AesGcmSecretSealer, EnvOrFileKeyring, generateFileSiteKey } from "@jini-ai/platform/secrets";
 import { createVaultMetaParsers, SecretsVaultService } from "@jini-ai/platform/secrets/credential-sets";
 import type { VaultSummary } from "@jini-ai/core/contracts/vault";
-import { ownerContext } from "@jini-ai/platform/secrets/legacy-owner";
+import { openLegacyOwnerVault, OWNER_WORKSPACE_ID, ownerContext, readLegacyOwnerEntry } from "@jini-ai/platform/secrets/legacy-owner";
+import type { LegacyOwnerStorePorts } from "../index.js";
 
 export const input = { kind: "vendor" as const, ownerKey: "plugin", binding: null, provider: "provider",
   label: "Shared API key", meta: { credentialType: "vendor", worksFor: ["provider"] },
   payload: { token: "a-secret-value-that-must-not-escape" }, expectedRevision: null };
 
 export const open: SqliteOpener = (filePath, options) => new Database(filePath, options);
+
+/** The real implementations, wired the way a host wires them (the package itself imports none). */
+export const ports = {
+  openKernel: (file, options) => openSqliteFileKernel<LegacyOwnerDatabase>(file, options),
+  countOwnerStoreRows, listOwnerEntryRows, listOwnerDestinations,
+  // Kysely's DB generic is invariant. The vault sees only its table on this same read-only connection.
+  createVaultRepo: ({ kernel }) => new SqlSecretsVaultRepo({ kernel: kernel as unknown as KyselyKernel<SecretsVaultDatabase> }),
+  ownerWorkspaceId: OWNER_WORKSPACE_ID, openLegacyOwnerVault, readLegacyOwnerEntry,
+} satisfies LegacyOwnerStorePorts<KyselyKernel<LegacyOwnerDatabase>, ReturnType<typeof openLegacyOwnerVault>,
+  Awaited<ReturnType<typeof readLegacyOwnerEntry>>, Parameters<typeof openLegacyOwnerVault>[1]>;
 
 /** A real legacy store as published 0.6.12 wrote it: WAL, ledger 0000 only, sealed entries, grants.
  * Written here with the vault directly, since no production code writes an owner store any more.

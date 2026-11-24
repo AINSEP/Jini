@@ -14,7 +14,7 @@ import { createNodeDaemonProcessAdapter, createSupervisorRegistry } from "../sup
 import type { SpawnedDaemonProcess } from "../supervisor.js";
 import { EventEmitter } from "node:events";
 import { writeJsonFileAtomicAsync } from '@jini-ai/platform/fs';
-/** The real atomic writer (platform is a test dependency); hosts pass node-adapters' `nodeAtomicWriter`. */
+/** The real atomic writer (platform is a test dependency); hosts pass node-adapters' `createAtomicWriterPort` over platform's functions. */
 const testWriter = { writeJson: writeJsonFileAtomicAsync };
 
 /** The process control port (recording fakes) and the command shell the adapter now takes from its host. */

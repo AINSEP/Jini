@@ -28,11 +28,19 @@
       "./web-evidence/playwright-page-capture": "node",
       "./domain-dns": "node",
       "./local-text": "node",
-      "./console-tee": "node"
+      "./console-tee": "node",
+      "./server-logs/read-server-logs": "universal",
+      "./server-logs/agent-tools": "universal",
+      "./server-logs/tool-registrations": "universal",
+      "./observability/tool-registrations": "universal",
+      "./tool-audit/repo.memory": "universal",
+      "./tool-audit/repo": "node",
+      "./tool-audit/tool-gaps.repo": "node"
     },
     "runtime": "node",
     "optionalPeers": {
-      "parse5": "opt-in: page body projection; import @jini-ai/diagnostics/web-evidence/page-body — The page body projection could not load parse5. Install parse5@7.3.0 to enable this feature, or check its installed version."
+      "parse5": "opt-in: page body projection; import @jini-ai/diagnostics/web-evidence/page-body — The page body projection could not load parse5. Install parse5@7.3.0 to enable this feature, or check its installed version.",
+      "kysely": "opt-in: sql storage adapters; import @jini-ai/diagnostics/tool-audit/repo — SQL storage adapters could not load kysely. Install kysely to enable this feature, or check its installed version and native binaries."
     }
   },
   "type": "module",
@@ -124,6 +132,41 @@
       "types": "./dist/console-tee.d.ts",
       "import": "./dist/console-tee.js",
       "default": "./dist/console-tee.js"
+    },
+    "./server-logs/read-server-logs": {
+      "types": "./dist/server-logs/read-server-logs.d.ts",
+      "import": "./dist/server-logs/read-server-logs.js",
+      "default": "./dist/server-logs/read-server-logs.js"
+    },
+    "./server-logs/agent-tools": {
+      "types": "./dist/server-logs/agent-tools.d.ts",
+      "import": "./dist/server-logs/agent-tools.js",
+      "default": "./dist/server-logs/agent-tools.js"
+    },
+    "./server-logs/tool-registrations": {
+      "types": "./dist/server-logs/tool-registrations.d.ts",
+      "import": "./dist/server-logs/tool-registrations.js",
+      "default": "./dist/server-logs/tool-registrations.js"
+    },
+    "./observability/tool-registrations": {
+      "types": "./dist/observability/tool-registrations.d.ts",
+      "import": "./dist/observability/tool-registrations.js",
+      "default": "./dist/observability/tool-registrations.js"
+    },
+    "./tool-audit/repo.memory": {
+      "types": "./dist/tool-audit/repo.memory.d.ts",
+      "import": "./dist/tool-audit/repo.memory.js",
+      "default": "./dist/tool-audit/repo.memory.js"
+    },
+    "./tool-audit/repo": {
+      "types": "./dist/tool-audit/repo.d.ts",
+      "import": "./dist/tool-audit/repo.js",
+      "default": "./dist/tool-audit/repo.js"
+    },
+    "./tool-audit/tool-gaps.repo": {
+      "types": "./dist/tool-audit/tool-gaps.repo.d.ts",
+      "import": "./dist/tool-audit/tool-gaps.repo.js",
+      "default": "./dist/tool-audit/tool-gaps.repo.js"
     }
   },
   "files": [
@@ -153,6 +196,7 @@
     "@jini-ai/core": "workspace:^",
     "@vitest/coverage-v8": "^3.2.6",
     "jszip": "^3.10.1",
+    "kysely": "^0.29.6",
     "parse5": "7.3.0"
   },
   "dependencies": {
@@ -161,10 +205,14 @@
     "jszip": "^3.10.1"
   },
   "peerDependencies": {
+    "kysely": "^0.29.6",
     "parse5": "7.3.0"
   },
   "peerDependenciesMeta": {
     "parse5": {
+      "optional": true
+    },
+    "kysely": {
       "optional": true
     }
   }

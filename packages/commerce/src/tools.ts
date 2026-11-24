@@ -1,7 +1,8 @@
 import { buildDomainRegistrations, indexCatalogById, type AgentToolSideEffect, type DerivedRiskByToolId, type ToolRegistration, type AgentToolDefinition } from "@jini-ai/core";
 import { adaptLegacyAuthorize, requireToolPermission, type LegacyToolAuthorizeFn as AuthorizeFn } from "@jini-ai/core";
 import { readCommerceStatus } from "./catalog/status.js";
-import type { CommerceCheckoutReadiness, CommercePaymentRuntimePort } from "./catalog/contracts.js";
+import type { CommerceCheckoutReadiness } from "./catalog/contracts.js";
+import type { CommercePaymentRuntimePort } from "@jini-ai/core/contracts/site/commerce";
 import { CommerceUnavailableError } from "./catalog/plugin-server.js";
 import type { PaymentScope } from "./payments/contract/scope.js";
 export * from "./catalog-tools.js";

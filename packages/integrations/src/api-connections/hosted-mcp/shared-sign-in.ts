@@ -4,7 +4,8 @@ import { ApiConnectionError, assertSharedOAuthCompatibility, createSharedOAuthCo
 import type { OAuthClient, OAuthProviderDescriptor, OAuthTokenSet } from '@jini-ai/core/contracts/oauth';
 import type { VaultRecord } from '@jini-ai/core/contracts/vault';
 import type { ExternalMcpConnectStart, ExternalMcpServerRecord } from '@jini-ai/core/contracts/hosted-mcp';
-import type { ExternalMcpOAuthDeps, ExternalMcpOAuthService, HostedMcpSignInPorts } from './contracts.js';
+import type { HostedMcpSignInPorts } from './contracts.js';
+import type { ExternalMcpOAuthDeps, ExternalMcpOAuthService } from '@jini-ai/core/contracts/site/api-connections-hosted-mcp';
 
 /** @agent-note Issuing configuration sealed in the owner store; a consuming site's client cannot replace it.
  * Storage MUST losslessly preserve the entire supplied context, including additional fields beyond this base interface.

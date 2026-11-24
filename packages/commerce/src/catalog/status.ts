@@ -1,9 +1,8 @@
 import type {
-  CommercePaymentProvider,
-  CommercePaymentRuntimePort,
   CommerceStatus,
   CommerceCheckoutReadiness,
 } from "./contracts.js";
+import type { CommercePaymentProvider, CommercePaymentRuntimePort } from "@jini-ai/core/contracts/site/commerce";
 
 
 /** Copy adapter-owned arrays so callers cannot mutate provider registry state through the read model. */

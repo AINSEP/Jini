@@ -150,7 +150,11 @@ export interface IconProps {
   readonly viewBox?: string | undefined; readonly strokeLinecap?: SvgLineCap | undefined; readonly strokeLinejoin?: SvgLineJoin | undefined;
   readonly focusable?: Booleanish | 'auto' | undefined; readonly 'aria-hidden'?: Booleanish | undefined; readonly 'aria-label'?: string | undefined;
 }
-export interface ErrorNoticeProps { readonly failure: UserFacingError; readonly t?: Translate; readonly className?: string; readonly role?: 'alert' | 'status' }
+export interface ErrorNoticeProps {
+  readonly failure: UserFacingError; readonly t?: Translate; readonly className?: string; readonly role?: 'alert' | 'status';
+  /** The UI library's injectable clipboard write port, for "Copy details" where browser copying is unavailable. */
+  readonly clipboard?: { writeText(requiredArgs: { text: string }): Promise<void> };
+}
 /**
  * A RemixIcon webfont glyph (`ri-<name>`). Unlike `Icon`, the host's own RemixIcon takes any string
  * (it renders whatever `ri-` class it is given), so there is no narrower host name set to pin here.
@@ -178,6 +182,14 @@ export interface SettingsDialogShellProps {
   readonly onActiveTabIdChange?: (tabId: string) => void; readonly onClose?: () => void; readonly presentation?: 'modal' | 'inline';
   readonly welcome?: boolean; readonly defaultSidebarCollapsed?: boolean; readonly fullscreenEnabled?: boolean; readonly defaultFullscreen?: boolean;
   readonly chromeExtra?: ReactNode; readonly dialogAriaLabelledBy?: string; readonly className?: string;
+  /** Chrome labels the shell renders itself; mirrors the UI owner's `TabbedDialogChromeLabels` (all optional). */
+  readonly labels?: SettingsDialogChromeLabels;
+}
+/** Kit mirror of the UI shell's chrome labels (kicker, welcome copy, close/fullscreen/sidebar labels). */
+export interface SettingsDialogChromeLabels {
+  readonly kicker?: string; readonly welcomeKicker?: string; readonly welcomeTitle?: string; readonly welcomeSubtitle?: string;
+  readonly closeLabel?: string; readonly fullscreenLabel?: string; readonly exitFullscreenLabel?: string;
+  readonly collapseSidebarLabel?: string; readonly expandSidebarLabel?: string; readonly sidebarAriaLabel?: string;
 }
 export interface CodeWithLinesProps { readonly text: string; readonly wrap?: boolean }
 export interface CodeWrapToggleProps { readonly wrap: boolean; readonly onToggle: () => void; readonly t: Translate; readonly agentHandleId: string; readonly className?: string }
@@ -262,7 +274,21 @@ export interface SelectDropdownController {
   selectOption: (option: WidgetSelectOption) => void; handleTriggerKeyDown: (event: ReactKeyboardEvent<HTMLButtonElement>) => void;
   handlePanelKeyDown: (event: ReactKeyboardEvent<HTMLDivElement>) => void; optionId: (index: number) => string;
 }
+/** The tabbed-dialog controller fields admin reads; the UI library's controller carries more. */
+export interface TabbedDialogView { activeTabId: string | null; setActiveTabId: (tabId: string) => void }
+export interface KitClipboardPort { copyText(text: string): Promise<boolean> }
+/** A copy action plus its short-lived "copied" flag. */
+export interface CopyToClipboardController { copied: boolean; copy: (text: string) => Promise<boolean> }
+/**
+ * The host's bound admin locale hook: zero inputs, the current locale out. The host builds it once
+ * from `useAdminLocale` (`@jini-ai/admin/shell/hooks/use-admin-locale.hooks`) and passes the same
+ * function here and to every mount that declares a required `useAdminLocaleHook` prop.
+ */
+export type UseAdminLocaleHook = (required: Record<string, never>, optional?: Record<string, never>) => string;
+
 export interface AdminKitHooks {
+  /** The operator's admin locale; see {@link UseAdminLocaleHook}. */
+  useAdminLocale: UseAdminLocaleHook;
   useAgentHandle(required: AgentControlProps, optional?: Record<string, never>): string | undefined;
   useFocusTrap(required: { containerRef: RefObject<HTMLElement | null> }, optional?: { active?: boolean | undefined }): void;
   useDirtyGuard<T>(required: { current: T; original: T | null }, optional?: { translate?: Translate | undefined; host?: DirtyGuardHostPort | undefined }): DirtyGuard;
@@ -281,6 +307,9 @@ export interface AdminKitHooks {
   }, optional?: Record<string, never>): PanelPositionController;
   useSelectDropdown(required: { value: string; onChange: (value: string) => void; options: WidgetSelectOption[] },
     optional?: { disabled?: boolean | undefined }): SelectDropdownController;
+  useTabbedDialog(required: { tabs: readonly SettingsDialogTab[]; initialActiveTabId?: string | undefined }, optional?: Record<string, never>): TabbedDialogView;
+  /** `copied` turns true after a successful copy and back to false after `resetMs`. */
+  useCopyToClipboard(clipboard: KitClipboardPort, resetMs?: number): CopyToClipboardController;
 }
 /** A translator with optional interpolation variables, as the UI library's `useT` returns. */
 export type KitTranslator = (key: string, vars?: Readonly<Record<string, string | number>>) => string;
@@ -371,11 +400,14 @@ export interface AdminKitValues {
     keyPrefix: string; getStorage: (required: Record<string, never>, optional?: Record<string, never>) => Pick<Storage, 'getItem' | 'setItem' | 'removeItem'>;
   }, optional?: Record<string, never>) => StandingDraftLocalBackup;
   readonly createFailureChannel: (required: Record<string, never>, optional?: { onPublish?: (input: { failure: UserFacingError }) => void }) => FailureChannel;
+  /** The requested tab when it is present, else the first tab, else null. */
+  readonly resolveInitialActiveTabId: <T extends SettingsDialogTab>(required: { tabs: readonly T[] }, optional?: { initialTabId?: string | null | undefined }) => string | null;
+  readonly findActiveTab: <T extends SettingsDialogTab>(required: { tabs: readonly T[]; activeTabId: string | null }, optional?: Record<string, never>) => T | undefined;
 }
 
 /* ---------- chat (the host's chat library: its translator and the run posters; shapes restated) ---------- */
-export type { AgentEvent, ChatAttachment, ChatMessage, ChatPaneAgent, ChatPaneAgentOption, ChatPaneAgentSelection, ChatPaneComposerHandle, ChatRole, ChatRunStatus, ChatTransport, ExtEventCall, ExtEventRenderProps, FabPositionInput, FabPositionResult, FeedbackChange, I18nAdapter, KitA2uiActionDeliveryOutcome, KitA2uiActionPosterInput, KitChatAttachment, KitChatTranslator, KitDeliverMidRunMessage, KitDeliverTypedAnswer, KitMidRunMessageDelivery, KitPosterRequestOptions, KitRedactUserText, KitSecretRedactionSignal, KitTypedAnswerDelivery, KitUserTextRedactionOptions, ReattachRunOptions, RunHandlers, SecretRedactionSignal, StartRunInput, ToolResultMediaBlock } from './kit-chat-types.js';
-import type { AgentEvent, ChatAttachment, ChatMessage, ChatPaneAgent, ChatPaneAgentOption, ChatPaneAgentSelection, ChatPaneComposerHandle, ChatRole, ChatRunStatus, ChatTransport, ExtEventCall, ExtEventRenderProps, FabPositionInput, FabPositionResult, FeedbackChange, I18nAdapter, KitA2uiActionDeliveryOutcome, KitA2uiActionPosterInput, KitChatAttachment, KitChatTranslator, KitDeliverMidRunMessage, KitDeliverTypedAnswer, KitMidRunMessageDelivery, KitPosterRequestOptions, KitRedactUserText, KitSecretRedactionSignal, KitTypedAnswerDelivery, KitUserTextRedactionOptions, ReattachRunOptions, RunHandlers, SecretRedactionSignal, StartRunInput, ToolResultMediaBlock } from './kit-chat-types.js';
+export type { A2uiSurfaceCardProps, AgentEvent, ChatAttachment, ChatMessage, ChatPaneAgent, ChatPaneAgentOption, ChatPaneAgentSelection, ChatPaneRuntimeAccess, ChatPaneComposerHandle, ChatPaneWorkingDirectoryAccess, ChatRole, ChatRunStatus, ChatTransport, ExtEventCall, ExtEventRenderProps, FabPositionInput, FabPositionResult, FeedbackChange, I18nAdapter, KitA2uiActionDeliveryOutcome, KitA2uiActionPosterInput, KitChatAttachment, KitChatTranslator, KitDeliverMidRunMessage, KitDeliverTypedAnswer, KitMidRunMessageDelivery, KitPosterRequestOptions, KitRedactUserText, KitSecretRedactionSignal, KitTypedAnswerDelivery, KitUserTextRedactionOptions, ReattachRunOptions, RunHandlers, SecretRedactionSignal, StartRunInput, ToolResultMediaBlock } from './kit-chat-types.js';
+import type { AgentEvent, ChatAttachment, ChatMessage, ChatPaneAgent, ChatPaneAgentOption, ChatPaneAgentSelection, ChatPaneRuntimeAccess, ChatPaneComposerHandle, ChatRole, ChatRunStatus, ChatTransport, ExtEventCall, ExtEventRenderProps, FabPositionInput, FabPositionResult, FeedbackChange, I18nAdapter, KitA2uiActionDeliveryOutcome, KitA2uiActionPosterInput, KitChatAttachment, KitChatTranslator, KitDeliverMidRunMessage, KitDeliverTypedAnswer, KitMidRunMessageDelivery, KitPosterRequestOptions, KitRedactUserText, KitSecretRedactionSignal, KitTypedAnswerDelivery, KitUserTextRedactionOptions, ReattachRunOptions, RunHandlers, SecretRedactionSignal, StartRunInput, ToolResultMediaBlock } from './kit-chat-types.js';
 
 export interface AdminKitChat {
   /** The chat translator hook. Screens receive it as an injected hook prop (`useChatT`), never a direct import. */
@@ -481,6 +513,8 @@ export function useCodeWrap(_required: Record<string, never> = {}, _optional: Re
 export const useInfoTip: AdminKitHooks['useInfoTip'] = (r, o) => useAdminKit().hooks.useInfoTip(r, o);
 export const usePanelPosition: AdminKitHooks['usePanelPosition'] = (r, o) => useAdminKit().hooks.usePanelPosition(r, o);
 export const useSelectDropdown: AdminKitHooks['useSelectDropdown'] = (r, o) => useAdminKit().hooks.useSelectDropdown(r, o);
+export const useTabbedDialog: AdminKitHooks['useTabbedDialog'] = (r, o) => useAdminKit().hooks.useTabbedDialog(r, o);
+export const useCopyToClipboard: AdminKitHooks['useCopyToClipboard'] = (clipboard, resetMs) => useAdminKit().hooks.useCopyToClipboard(clipboard, resetMs);
 
 /** The host's CHAT translator (the chat library's locale context), distinct from the UI `useT` above. */
 export function useChatT(_required: Record<string, never> = {}, _optional: Record<string, never> = {}): KitChatTranslator {

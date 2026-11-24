@@ -1,6 +1,7 @@
 import { expect, test } from "vitest";
 import { createDirectoryRunningLock, type DirectoryRunningRecord } from "../directory-running-lock.js";
-import type { DurableJsonFile, JsonFileRead } from "../durable-json.js";
+import type { DurableJsonFile } from "../durable-json.js";
+import type { JsonFileRead } from "@jini-ai/core/contracts/site/fs-durable-json";
 
 const owner = { pid: 10, app: "Web", started: "2026-11-02T00:00:00Z", token: "old", bootId: "old-boot" };
 const next: DirectoryRunningRecord = { ...owner, pid: 20, port: 3000, scheme: "http", token: "next", bootId: "current-boot" };

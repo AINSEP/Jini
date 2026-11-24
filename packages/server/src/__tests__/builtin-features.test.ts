@@ -13,6 +13,8 @@ import { createTestRouteHost } from '@jini-ai/core/contracts/server/testing';
 import { composeJiniKernel, type JiniKernel } from '../compose-jini-kernel.js';
 import { projectDetectedAgent, createBuiltInFeatures } from '../builtin-features.js';
 import { createJiniKernelBase } from '../kernel-base.js';
+import { egressFeatureOptions } from './fixtures/host-egress-ports.js';
+import { nodeOsPorts } from './fixtures/node-os-ports.js';
 
 /**
  * Per-feature behavior that only shows up once a feature is actually serving: the readiness probe's
@@ -46,7 +48,7 @@ async function boot(
   installRouteRegistrationGuard({ app });
   const resolvedPortRef = { current: 0 };
   const adapter: RouteHostContext = { originPolicy: createLocalSameOriginPolicy({ port: () => resolvedPortRef.current, env: config.env ?? {}, config: { allowedOriginsEnvVar: 'JINI_ALLOWED_ORIGINS', webPortEnvVar: 'JINI_WEB_PORT', bindHostEnvVar: 'JINI_BIND_HOST' } }) };
-  const kernel = await composeJiniKernel({ ...config, app, adapter, resolvedPortRef });
+  const kernel = await composeJiniKernel({ ...config, featureOptions: { ...egressFeatureOptions, ...config.featureOptions }, app, adapter, resolvedPortRef });
   const server = await new Promise<Server>((resolve, reject) => {
     const s = app.listen(0, '127.0.0.1');
     s.once('listening', () => resolve(s));
@@ -79,7 +81,7 @@ const shutdownOption = { daemonStatus: { requestShutdown: () => undefined } };
 describe('health', () => {
   it('reports the composition as ready, checking the kernel-owned sqlite handle', async () => {
     const { url } = await boot({ security: { mode: 'host' },
-      storage: { kind: 'sqlite', open: openSqlite, dataDir: makeTempDataDir() },
+      osPorts: nodeOsPorts, storage: { kind: 'sqlite', open: openSqlite, dataDir: makeTempDataDir() },
       profile: 'local-daemon-v1',
       featureOptions: shutdownOption,
     });
@@ -89,7 +91,7 @@ describe('health', () => {
   });
 
   it('omits the db check entirely under memory storage rather than inventing one', async () => {
-    const { url } = await boot({ security: { mode: 'host' },  storage: { kind: 'memory' }, profile: 'agent-core-v1' });
+    const { url } = await boot({ security: { mode: 'host' },  osPorts: nodeOsPorts, storage: { kind: 'memory' }, profile: 'agent-core-v1' });
 
     const body = (await (await fetch(`${url}/api/ready`)).json()) as { ok: boolean; checks: Record<string, boolean> };
     expect(body).toMatchObject({ ok: true, ready: true });
@@ -100,7 +102,7 @@ describe('health', () => {
 
   it('reports not-ready — rather than throwing — when the shared handle can no longer be probed', async () => {
     const { url, kernel } = await boot({ security: { mode: 'host' },
-      storage: { kind: 'sqlite', open: openSqlite, dataDir: makeTempDataDir() },
+      osPorts: nodeOsPorts, storage: { kind: 'sqlite', open: openSqlite, dataDir: makeTempDataDir() },
       profile: 'local-daemon-v1',
       featureOptions: shutdownOption,
     });
@@ -118,7 +120,7 @@ describe('health', () => {
   it('folds a host-supplied shutting-down signal into readiness', async () => {
     let shuttingDown = false;
     const { url } = await boot({ security: { mode: 'host' },
-      storage: { kind: 'memory' },
+      osPorts: nodeOsPorts, storage: { kind: 'memory' },
       profile: 'agent-core-v1',
       featureOptions: { health: { getVersion: () => '9.9.9', isShuttingDown: () => shuttingDown } },
     });
@@ -133,7 +135,7 @@ describe('health', () => {
   });
 
   it('defaults its reported version to this package\'s own', async () => {
-    const { url } = await boot({ security: { mode: 'host' },  storage: { kind: 'memory' }, profile: 'agent-core-v1' });
+    const { url } = await boot({ security: { mode: 'host' },  osPorts: nodeOsPorts, storage: { kind: 'memory' }, profile: 'agent-core-v1' });
     const body = (await (await fetch(`${url}/api/version`)).json()) as { version: string };
     expect(body.version).toMatch(/^\d+\.\d+\.\d+/);
   });
@@ -149,7 +151,7 @@ describe('agents', () => {
     });
 
     const { url } = await boot({ security: { mode: 'host' },
-      storage: { kind: 'memory' },
+      osPorts: nodeOsPorts, storage: { kind: 'memory' },
       profile: 'agent-core-v1',
       featureOptions: { agents: { detector } },
     });
@@ -175,7 +177,7 @@ describe('agents', () => {
     });
 
     const { url } = await boot({ security: { mode: 'host' },
-      storage: { kind: 'memory' },
+      osPorts: nodeOsPorts, storage: { kind: 'memory' },
       profile: 'agent-core-v1',
       featureOptions: { agents: { detector: detector as never } },
     });
@@ -203,7 +205,7 @@ describe('agents', () => {
 describe('toolCatalog', () => {
   it('serves search and describe over the seeded snapshot of the complete registry', async () => {
     const { url } = await boot({ security: { mode: 'host' },
-      storage: { kind: 'sqlite', open: openSqlite, dataDir: makeTempDataDir() },
+      osPorts: nodeOsPorts, storage: { kind: 'sqlite', open: openSqlite, dataDir: makeTempDataDir() },
       profile: 'local-daemon-v1',
       featureOptions: shutdownOption,
       toolRegistrations: [
@@ -244,7 +246,7 @@ describe('the families the standalone daemon never wired', () => {
 
   it('memory mounts when its capability is granted and it is named', async () => {
     const { app, kernel } = await boot({ security: { mode: 'host' },
-      storage: { kind: 'memory' },
+      osPorts: nodeOsPorts, storage: { kind: 'memory' },
       profile: 'agent-core-v1',
       capabilities: { 'memory:store': true },
       features: { memory: true },
@@ -257,7 +259,7 @@ describe('the families the standalone daemon never wired', () => {
 
   it('routines mounts the same way', async () => {
     const { kernel } = await boot({ security: { mode: 'host' },
-      storage: { kind: 'memory' },
+      osPorts: nodeOsPorts, storage: { kind: 'memory' },
       profile: 'agent-core-v1',
       capabilities: { 'routines:schedule': true },
       features: { routines: true },
@@ -268,7 +270,7 @@ describe('the families the standalone daemon never wired', () => {
 
   it('media mounts the same way', async () => {
     const { kernel } = await boot({ security: { mode: 'host' },
-      storage: { kind: 'memory' },
+      osPorts: nodeOsPorts, storage: { kind: 'memory' },
       profile: 'agent-core-v1',
       capabilities: { 'media:generate': true },
       features: { media: true },
@@ -279,7 +281,7 @@ describe('the families the standalone daemon never wired', () => {
 
   it('frontendSessions mounts the same way', async () => {
     const { kernel } = await boot({ security: { mode: 'host' },
-      storage: { kind: 'memory' },
+      osPorts: nodeOsPorts, storage: { kind: 'memory' },
       profile: 'agent-core-v1',
       capabilities: { 'ui:session': true },
       features: { frontendSessions: true },
@@ -296,7 +298,7 @@ describe('the families the standalone daemon never wired', () => {
         security: { mode: 'host' },
         app,
         adapter: createTestRouteHost(), resolvedPortRef: { current: 0 },
-        storage: { kind: 'memory' },
+        osPorts: nodeOsPorts, storage: { kind: 'memory' },
         profile: 'agent-core-v1',
         capabilities: { 'memory:store': true },
         features: { memory: true },
@@ -312,8 +314,9 @@ describe('the families the standalone daemon never wired', () => {
         security: { mode: 'host' },
         app,
         adapter: createTestRouteHost(), resolvedPortRef: { current: 0 },
-        storage: { kind: 'sqlite', open: openSqlite, dataDir: makeTempDataDir() },
+        osPorts: nodeOsPorts, storage: { kind: 'sqlite', open: openSqlite, dataDir: makeTempDataDir() },
         profile: 'local-daemon-v1',
+        featureOptions: egressFeatureOptions,
       }),
     ).rejects.toThrow(/"featureOptions\.daemonStatus\.requestShutdown" was not supplied/);
   });
@@ -322,7 +325,7 @@ describe('the families the standalone daemon never wired', () => {
 describe('remoteRunEvents', () => {
   it('is mountable as an explicit opt-in, and fails closed until its dedicated token is configured', async () => {
     const { url, kernel } = await boot({ security: { mode: 'host' },
-      storage: { kind: 'memory' },
+      osPorts: nodeOsPorts, storage: { kind: 'memory' },
       profile: 'agent-core-v1',
       capabilities: { 'run:inject': true },
       features: { remoteRunEvents: true },
@@ -343,7 +346,7 @@ describe('remoteRunEvents', () => {
   it('records a real tool_use into the run\'s own log once the token is present', async () => {
     const env = { JINI_REMOTE_TOOL_BRIDGE_TOKEN: 'secret-token' };
     const { url, kernel } = await boot({ security: { mode: 'host' },
-      storage: { kind: 'memory' },
+      osPorts: nodeOsPorts, storage: { kind: 'memory' },
       profile: 'agent-core-v1',
       capabilities: { 'run:inject': true },
       features: { remoteRunEvents: true },
@@ -363,7 +366,7 @@ describe('remoteRunEvents', () => {
 
 describe('runs: mid-run messages', () => {
   it('routes a mid-run message to the kernel executor, which reports a run it is not driving as not-running', async () => {
-    const { url, kernel } = await boot({ security: { mode: 'host' }, storage: { kind: 'memory' }, profile: 'agent-core-v1' });
+    const { url, kernel } = await boot({ security: { mode: 'host' }, osPorts: nodeOsPorts, storage: { kind: 'memory' }, profile: 'agent-core-v1' });
     const { run } = await kernel.base.lifecycle.start({ contextRef: 'ctx-1' });
     const response = await fetch(`${url}/api/runs/${run.id}/messages`, {
       method: 'POST',
@@ -378,7 +381,7 @@ describe('runs: mid-run messages', () => {
 describe('agentExecutor options reach the kernel', () => {
   it('threads host-supplied executor options through composition', async () => {
     const { kernel } = await boot({ security: { mode: 'host' },
-      storage: { kind: 'memory' },
+      osPorts: nodeOsPorts, storage: { kind: 'memory' },
       profile: 'agent-core-v1',
       agentExecutor: { mcpJsonInjection: { command: 'node', args: ['serve.js'], daemonUrl: 'http://127.0.0.1:1' } },
     });
@@ -396,7 +399,7 @@ describe('security defaults', () => {
 
   it('falls back to the standard env var names when jini-local security names none', async () => {
     const { app } = await boot({
-      storage: { kind: 'memory' },
+      osPorts: nodeOsPorts, storage: { kind: 'memory' },
       profile: 'agent-core-v1',
       security: { mode: 'jini-local', host: '127.0.0.1' },
       env: { JINI_API_TOKEN: 'tok' },
@@ -408,7 +411,7 @@ describe('security defaults', () => {
 
   it('registers only the origin guard when no token is configured under those same default names', async () => {
     const { app } = await boot({
-      storage: { kind: 'memory' },
+      osPorts: nodeOsPorts, storage: { kind: 'memory' },
       profile: 'agent-core-v1',
       security: { mode: 'jini-local', host: '127.0.0.1' },
       env: {},
@@ -418,7 +421,7 @@ describe('security defaults', () => {
 
   it('installs neither gate in host-security mode — the caller owns that policy', async () => {
     const { app } = await boot({
-      storage: { kind: 'memory' },
+      osPorts: nodeOsPorts, storage: { kind: 'memory' },
       profile: 'agent-core-v1',
       security: { mode: 'host' },
       env: { JINI_API_TOKEN: 'tok' },
@@ -448,7 +451,7 @@ describe('sidecar-strict security', () => {
 
   it('rejects an unauthenticated loopback caller with 401 — the whole point of the mode', async () => {
     const { url } = await boot({
-      storage: { kind: 'memory' },
+      osPorts: nodeOsPorts, storage: { kind: 'memory' },
       profile: 'agent-core-v1',
       security: strict,
       env: { [TOKEN_ENV_VAR]: 'sidecar-secret' },
@@ -458,7 +461,7 @@ describe('sidecar-strict security', () => {
 
   it('rejects a wrong bearer token from loopback with 401', async () => {
     const { url } = await boot({
-      storage: { kind: 'memory' },
+      osPorts: nodeOsPorts, storage: { kind: 'memory' },
       profile: 'agent-core-v1',
       security: strict,
       env: { [TOKEN_ENV_VAR]: 'sidecar-secret' },
@@ -469,7 +472,7 @@ describe('sidecar-strict security', () => {
 
   it('admits a correct bearer token', async () => {
     const { url } = await boot({
-      storage: { kind: 'memory' },
+      osPorts: nodeOsPorts, storage: { kind: 'memory' },
       profile: 'agent-core-v1',
       security: strict,
       env: { [TOKEN_ENV_VAR]: 'sidecar-secret' },
@@ -483,7 +486,7 @@ describe('sidecar-strict security', () => {
 
   it('fails closed with 503 when the named token env var is unset', async () => {
     const { url } = await boot({
-      storage: { kind: 'memory' },
+      osPorts: nodeOsPorts, storage: { kind: 'memory' },
       profile: 'agent-core-v1',
       security: strict,
       env: {},
@@ -495,7 +498,7 @@ describe('sidecar-strict security', () => {
   // `probe`-phase routes mount ahead of the gate, so monitoring never needs the secret.
   it('leaves health and readiness probes reachable without a token', async () => {
     const { url } = await boot({
-      storage: { kind: 'memory' },
+      osPorts: nodeOsPorts, storage: { kind: 'memory' },
       profile: 'agent-core-v1',
       security: strict,
       env: { [TOKEN_ENV_VAR]: 'sidecar-secret' },
@@ -507,7 +510,7 @@ describe('sidecar-strict security', () => {
 
   it('honors an exact-match exempt path and still gates a longer path sharing its prefix', async () => {
     const { url } = await boot({
-      storage: { kind: 'memory' },
+      osPorts: nodeOsPorts, storage: { kind: 'memory' },
       profile: 'agent-core-v1',
       capabilities: { 'tool:delegated': true },
       features: { delegatedToolCalls: true },
@@ -532,7 +535,7 @@ describe('sidecar-strict security', () => {
   // than structurally here.
   it('registers exactly one /api-scoped gate — the origin guard', async () => {
     const { app } = await boot({
-      storage: { kind: 'memory' },
+      osPorts: nodeOsPorts, storage: { kind: 'memory' },
       profile: 'agent-core-v1',
       security: strict,
       env: { [TOKEN_ENV_VAR]: 'sidecar-secret' },
@@ -545,7 +548,7 @@ describe('sidecar-strict security', () => {
   // orderings apart — the parser answers 400, the gate answers 401, and whichever runs first wins.
   it('rejects an unauthenticated caller before the body parser sees a malformed body', async () => {
     const { url } = await boot({
-      storage: { kind: 'memory' },
+      osPorts: nodeOsPorts, storage: { kind: 'memory' },
       profile: 'agent-core-v1',
       security: strict,
       env: { [TOKEN_ENV_VAR]: 'sidecar-secret' },
@@ -563,7 +566,7 @@ describe('sidecar-strict security', () => {
   // would also pass if the body were simply never parsed by anyone.
   it('lets an authenticated caller reach the body parser, which then rejects the same body', async () => {
     const { url } = await boot({
-      storage: { kind: 'memory' },
+      osPorts: nodeOsPorts, storage: { kind: 'memory' },
       profile: 'agent-core-v1',
       security: strict,
       env: { [TOKEN_ENV_VAR]: 'sidecar-secret' },
@@ -584,7 +587,7 @@ describe('kernel base failure cleanup', () => {
     // already open — the one path where a leak would otherwise be invisible.
     writeFileSync(join(dataDir, 'events.db'), 'not a sqlite file at all');
 
-    await expect(createJiniKernelBase({ storage: { kind: 'sqlite', open: openSqlite, dataDir } })).rejects.toThrow('file is not a database');
+    await expect(createJiniKernelBase({ osPorts: nodeOsPorts, storage: { kind: 'sqlite', open: openSqlite, dataDir } })).rejects.toThrow('file is not a database');
   });
 });
 
@@ -600,7 +603,7 @@ describe('catalog options are closed over at construction', () => {
 describe('host-supplied option overrides reach their feature', () => {
   it('honors an explicit principal for the gated terminal and daemon-db tools', async () => {
     const { kernel } = await boot({ security: { mode: 'host' },
-      storage: { kind: 'sqlite', open: openSqlite, dataDir: makeTempDataDir() },
+      osPorts: nodeOsPorts, storage: { kind: 'sqlite', open: openSqlite, dataDir: makeTempDataDir() },
       profile: 'local-daemon-v1',
       featureOptions: {
         ...shutdownOption,
@@ -616,7 +619,7 @@ describe('host-supplied option overrides reach their feature', () => {
     const stop = vi.fn(async () => undefined);
     const listenerRef = { current: { stop } as never };
     const { kernel } = await boot({ security: { mode: 'host' },
-      storage: { kind: 'sqlite', open: openSqlite, dataDir: makeTempDataDir() },
+      osPorts: nodeOsPorts, storage: { kind: 'sqlite', open: openSqlite, dataDir: makeTempDataDir() },
       profile: 'local-daemon-v1',
       featureOptions: { ...shutdownOption, xai: { listenerRef } },
     });
@@ -630,7 +633,7 @@ describe('host-supplied option overrides reach their feature', () => {
 
   it('honors a custom remote-tool-bridge token env var name', async () => {
     const { url } = await boot({ security: { mode: 'host' },
-      storage: { kind: 'memory' },
+      osPorts: nodeOsPorts, storage: { kind: 'memory' },
       profile: 'agent-core-v1',
       capabilities: { 'run:inject': true },
       features: { remoteRunEvents: true },
@@ -656,7 +659,7 @@ describe('host-supplied option overrides reach their feature', () => {
 
   it('honors every derivable daemon-status field when a host supplies it explicitly', async () => {
     const { url } = await boot({ security: { mode: 'host' },
-      storage: { kind: 'sqlite', open: openSqlite, dataDir: makeTempDataDir() },
+      osPorts: nodeOsPorts, storage: { kind: 'sqlite', open: openSqlite, dataDir: makeTempDataDir() },
       profile: 'local-daemon-v1',
       featureOptions: {
         daemonStatus: {
@@ -687,7 +690,7 @@ describe('host-supplied option overrides reach their feature', () => {
 
   it('carries a tool descriptor\'s inputSchema into the durable catalog', async () => {
     const { url } = await boot({ security: { mode: 'host' },
-      storage: { kind: 'sqlite', open: openSqlite, dataDir: makeTempDataDir() },
+      osPorts: nodeOsPorts, storage: { kind: 'sqlite', open: openSqlite, dataDir: makeTempDataDir() },
       profile: 'local-daemon-v1',
       featureOptions: shutdownOption,
       toolRegistrations: [
@@ -716,7 +719,7 @@ describe('host-supplied option overrides reach their feature', () => {
     });
     try {
       const { url } = await boot({ security: { mode: 'host' },
-        storage: { kind: 'sqlite', open: openSqlite, dataDir: makeTempDataDir() },
+        osPorts: nodeOsPorts, storage: { kind: 'sqlite', open: openSqlite, dataDir: makeTempDataDir() },
         profile: 'local-daemon-v1',
         featureOptions: shutdownOption,
       });
@@ -733,7 +736,7 @@ describe('host-supplied option overrides reach their feature', () => {
 describe('daemon-status derived defaults', () => {
   it('derives version, port and shutting-down state from the composition when a host supplies only requestShutdown', async () => {
     const { url } = await boot({ security: { mode: 'host' },
-      storage: { kind: 'sqlite', open: openSqlite, dataDir: makeTempDataDir() },
+      osPorts: nodeOsPorts, storage: { kind: 'sqlite', open: openSqlite, dataDir: makeTempDataDir() },
       profile: 'local-daemon-v1',
       featureOptions: shutdownOption,
     });
@@ -757,7 +760,7 @@ describe('daemon-status derived defaults', () => {
 
   it('reports an empty dataDir under memory storage rather than inventing a path', async () => {
     const { url } = await boot({ security: { mode: 'host' },
-      storage: { kind: 'memory' },
+      osPorts: nodeOsPorts, storage: { kind: 'memory' },
       profile: 'agent-core-v1',
       capabilities: { 'daemon:control': true },
       features: { daemonStatus: true },
@@ -781,7 +784,7 @@ describe('agents feature — AgentExecutor compatibility filtering', () => {
 
   async function listAgentIds(ids: string[]): Promise<string[]> {
     const { url } = await boot({ security: { mode: 'host' },
-      storage: { kind: 'memory' },
+      osPorts: nodeOsPorts, storage: { kind: 'memory' },
       profile: 'agent-core-v1',
       featureOptions: { agents: { detector: async () => ids.map(detected) as never } },
     });
@@ -835,7 +838,7 @@ describe('agents feature — AgentExecutor compatibility filtering', () => {
   it('applies the same filter to an explicit rescan', async () => {
     await withUnsupportedFakeDef('fake-unsupported-agent', async () => {
       const { url } = await boot({ security: { mode: 'host' },
-        storage: { kind: 'memory' },
+        osPorts: nodeOsPorts, storage: { kind: 'memory' },
         profile: 'agent-core-v1',
         featureOptions: {
           agents: { detector: async () => [detected('claude'), detected('fake-unsupported-agent')] as never },

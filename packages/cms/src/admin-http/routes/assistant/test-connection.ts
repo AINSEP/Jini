@@ -1,23 +1,32 @@
 import { defineJsonRoute, ok } from "@jini-ai/core/contracts/server";
-import type { AdminExecutionTestConnectionResponse } from "@jini-ai/core/contracts/site/api-ai-assistant-api-types";
-import { RouteRefusalError } from "@jini-ai/core/errors/route-refusal";
+import type { AssistantProbeVerdictDto } from "@jini-ai/core/contracts/site/cms-assistant";
+import { rejectRoute } from "@jini-ai/core/errors/route-refusal";
 
-import { readOptionalString, validateSupportedProtocol, type SupportedExecutionProtocol } from "./execution-request-fields.js";
-import { ASSISTANT_ROUTE_PREFIX, assistantPrincipalId, authorizeAssistant, type AssistantPermissionDeps, type AssistantRoutePrincipal } from "./shared.js";
-import { probeCredentialInput, resolveProbeCredential, type ProbeCredentialResolvers, type ProbeRequestBody } from "./stored-credential-probe.js";
+import type { SupportedExecutionProtocol } from "./execution-request-fields.js";
+import {
+  authorizeAssistantExecution, executionActorId, probeCredentialRequest, readProbeRequestFields, resolveProbeCredentialOrReject,
+  supportedProtocolOrReject, type AssistantExecutionRoutePrincipal, type ProbeRequestFields, type ResolveProbeCredentialFn,
+} from "./execution-shared.js";
 
-/** The slice of the provider connection-test result this route reads. */
-export interface ProviderConnectionResult { ok: boolean; kind: string; detail?: string }
+/** What the host's connection probe answers (a structural subset of the runtime's response). */
+export interface ConnectionProbeResult { ok: boolean; kind: string; detail?: string }
 
-/** What this route reads: the stored-credential readers and the host's connection probe, already bound
- * to its DNS/transport seams and to its redirect refusal (a provider redirect must not carry the
- * probe's credentials to a destination that never passed the SSRF guard). */
-export interface TestConnectionRouteDeps extends AssistantPermissionDeps, ProbeCredentialResolvers {
-  testProviderConnection: (
-    required: { protocol: SupportedExecutionProtocol; baseUrl: string; apiKey: string; model: string },
-    optional: { apiVersion?: string },
-  ) => Promise<ProviderConnectionResult>;
+/** The host's outbound connection probe, with its own guarded, redirect-refusing transport bound in. */
+export type TestConnectionFn = (
+  required: { protocol: SupportedExecutionProtocol; baseUrl: string; apiKey: string; model: string },
+  optional?: { apiVersion?: string },
+) => Promise<ConnectionProbeResult>;
+
+/** The deps this route reads. */
+export interface AssistantTestConnectionRouteDeps {
+  workspaceId: string;
+  manageAssistantPermission: string;
+  resolveProbeCredential: ResolveProbeCredentialFn;
+  testConnection: TestConnectionFn;
 }
+
+/** The connection-probe body fields: the shared probe fields plus the model to smoke-test. */
+export type TestConnectionInput = ProbeRequestFields & { model: string };
 
 /** True if either required connection-target field is blank.
  *  @complexity O(1). */
@@ -25,66 +34,41 @@ function isMissingConnectionTarget({ baseUrl, model }: { baseUrl: string; model:
   return !baseUrl.trim() || !model.trim();
 }
 
-/** The probe's own detail when it carries one, else a generic verdict naming the failure kind.
- *  @complexity O(1). */
-function renderMessage({ result }: { result: ProviderConnectionResult }, _optional: Record<string, never> = {}): string {
+/** The verdict message: the probe's detail when it gave one, else a default per outcome. @complexity O(1). */
+function renderMessage({ result }: { result: ConnectionProbeResult }, _optional: Record<string, never> = {}): string {
   if (result.ok) return result.detail?.trim() ? result.detail : "Connection succeeded";
   return result.detail?.trim() ? result.detail : `Connection failed (${result.kind})`;
 }
 
 /**
- * POST probes a BYOK provider endpoint with the caller-supplied credentials
- * — the "Execution mode" tab's `ExecutionPort.testConnection`. Delegates to the
- * host-bound `testProviderConnection` probe: this server makes the real outbound
- * request to the provider so the key never has to leave the admin's own browser
- * via a cross-origin fetch, and so the SSRF guard (`validateBaseUrlResolved`)
- * runs against a base URL the SERVER resolves, not one a hostile client could
- * steer client-side.
+ * POST probes a BYOK provider endpoint with the caller-supplied (or host-resolved stored)
+ * credentials. The server makes the real outbound request so the key never has to leave the
+ * admin's own browser via a cross-origin fetch, and so the SSRF guard runs against a base URL the
+ * SERVER resolves. That guard bounds which ADDRESS SPACE a probe may reach, deliberately not which
+ * HOST; keeping a stored credential away from a caller-chosen host is the host chokepoint's rule.
  *
- * That guard bounds which ADDRESS SPACE a probe may reach (it rejects
- * loopback/RFC1918/link-local/CGNAT), and deliberately not which HOST — every
- * real provider is a public host. It is therefore not what keeps the stored
- * site credential from being sent somewhere it shouldn't go; see
- * `stored-credential-probe.ts` for the separate rule that does.
- *
- * The request body's `apiKey` is used for exactly this one outbound call and
- * is never persisted anywhere on this server — no settings write, no log
- * line includes it (`testProviderConnection` redacts it out of any upstream
- * error text it surfaces). See the host's execution-mode settings for why
- * that constraint exists (ADR-028 §6) and where the key lives instead
- * (the browser's own localStorage).
+ * A typed key wins and travels to the endpoint its owner named; EITHER stored credential travels
+ * only to the endpoint the server already recorded for it. `principalId` comes from the session,
+ * never the body — it is what scopes the admin branch to the caller's own row.
  */
-export const testConnectionRoute = defineJsonRoute<unknown, AdminExecutionTestConnectionResponse, TestConnectionRouteDeps, AssistantRoutePrincipal>({
+export const assistantTestConnectionRoute = defineJsonRoute<TestConnectionInput, AssistantProbeVerdictDto, AssistantTestConnectionRouteDeps, AssistantExecutionRoutePrincipal>({
   method: "post",
-  path: `${ASSISTANT_ROUTE_PREFIX}/execution/test-connection`,
-  parse: (raw) => ok({ value: raw.body }),
-  handle: async ({ input, deps, authorize, context }) => {
-    await authorizeAssistant({ authorize, permission: deps.adminAssistantPermission, entityType: "assistant-execution" });
-    const body = (input ?? {}) as ProbeRequestBody;
-    const protocol = readOptionalString({ value: body.protocol, fallback: "" });
-    const baseUrl = readOptionalString({ value: body.baseUrl, fallback: "" });
-    const model = readOptionalString({ value: body.model, fallback: "" });
-    const apiVersion = readOptionalString({ value: body.apiVersion, fallback: undefined });
-
-    const protocolError = validateSupportedProtocol({ protocol });
-    if (protocolError) throw new RouteRefusalError({ status: 400, body: protocolError });
-    if (isMissingConnectionTarget({ baseUrl, model })) {
-      throw new RouteRefusalError({ status: 400, body: { error: "baseUrl and model are required", code: "VALIDATION_ERROR" } });
-    }
-
-    // Which key probes, and WHERE it is allowed to go — one chokepoint shared with
-    // `list-models.ts`. A typed key wins and travels to the endpoint its owner named; EITHER
-    // stored credential travels only to the endpoint the server already recorded for it, never to
-    // one this request body chose. `principalId` comes from the session, never the body — it is
-    // what scopes the admin branch to the caller's own row. See `stored-credential-probe.ts`.
-    const credential = await resolveProbeCredential({
-      deps, input: probeCredentialInput({ body, requestedBaseUrl: baseUrl, principalId: assistantPrincipalId({ context }) }),
+  path: "/api/admin/v1/workspaces/:workspaceId/assistant/execution/test-connection",
+  parse: (raw) => {
+    const model = (raw.body ?? {}) as { model?: unknown };
+    return ok({ value: { ...readProbeRequestFields({ rawBody: raw.body }), model: typeof model.model === "string" ? model.model : "" } });
+  },
+  handle: async ({ input, deps, context, authorize }) => {
+    await authorizeAssistantExecution({ authorize, permission: deps.manageAssistantPermission });
+    const principalId = executionActorId({ context });
+    const protocol = supportedProtocolOrReject({ protocol: input.protocol });
+    if (isMissingConnectionTarget(input)) rejectRoute({ status: 400, error: "baseUrl and model are required", code: "VALIDATION_ERROR" });
+    const credential = await resolveProbeCredentialOrReject({
+      resolve: deps.resolveProbeCredential, request: probeCredentialRequest({ fields: input, principalId }),
     });
-    if (!credential.ok) throw new RouteRefusalError({ status: 400, body: credential.failure });
-
-    const result = await deps.testProviderConnection(
-      { protocol: protocol as SupportedExecutionProtocol, baseUrl: credential.baseUrl, apiKey: credential.apiKey, model },
-      apiVersion ? { apiVersion } : {},
+    const result = await deps.testConnection(
+      { protocol, baseUrl: credential.baseUrl, apiKey: credential.apiKey, model: input.model },
+      input.apiVersion ? { apiVersion: input.apiVersion } : {},
     );
     return ok({ value: { ok: result.ok, message: renderMessage({ result }) } });
   },

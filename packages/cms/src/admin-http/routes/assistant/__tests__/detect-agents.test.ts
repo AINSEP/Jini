@@ -1,54 +1,77 @@
 import { describe, expect, it } from "vitest";
-import type { DetectedAgent } from "@jini-ai/core/contracts/site/agent-runtime";
 
-import { detectAgentsRoute, type DetectAgentsRouteDeps } from "../detect-agents.js";
-import { PERMISSION, PREFIX, PRINCIPAL, raw, recordingAuthorize, refusal, signal } from "./helpers.js";
+import { assistantDetectAgentsRoute, toExecutionTabAgent } from "../detect-agents.js";
+import { agent, PERMISSION, PRINCIPAL, raw, recordingAuthorize, WORKSPACE_ID } from "./execution-helpers.js";
 
-const AGENT = { id: "codex", name: "Codex", bin: "codex", versionArgs: ["--version"], available: true, version: "1.2.3",
-  models: [{ id: "gpt-5", label: "GPT-5" }], modelsSource: "live" } as unknown as DetectedAgent;
-
-/** Fake detection: records each read's input and the order of reads vs. the pending sample. */
-function detectionDeps(overrides: Partial<DetectAgentsRouteDeps> = {}) {
-  const events: unknown[] = [];
-  const deps: DetectAgentsRouteDeps = {
-    adminAssistantPermission: PERMISSION,
-    readDetectedAgents: async (input) => { events.push(["read", input]); return [AGENT]; },
-    isDiscoveryPending: () => { events.push("pending"); return true; },
-    ...overrides,
+function deps(snapshot = { agents: [agent()], discoveryPending: false }) {
+  const forces: boolean[] = [];
+  return {
+    forces,
+    deps: {
+      workspaceId: WORKSPACE_ID, manageAssistantPermission: PERMISSION,
+      detectAgents: async ({ force }: { force: boolean }) => { forces.push(force); return snapshot; },
+    },
   };
-  return { deps, events };
 }
 
-describe("detectAgentsRoute", () => {
-  const call = (input: unknown, deps: DetectAgentsRouteDeps, authorize = recordingAuthorize().authorize) =>
-    detectAgentsRoute.handle({ input, deps, context: PRINCIPAL, authorize }, { signal });
-
-  it("pins method and path; parse hands the raw body to the handler", () => {
-    expect([detectAgentsRoute.method, detectAgentsRoute.path, detectAgentsRoute.maxBodyBytes]).toEqual(["post", `${PREFIX}/execution/detect-agents`, undefined]);
-    expect(detectAgentsRoute.parse(raw({ force: true }))).toEqual({ ok: true, value: { force: true } });
+describe("assistantDetectAgentsRoute", () => {
+  it("pins method, path, success status and no body cap", () => {
+    expect(assistantDetectAgentsRoute.method).toBe("post");
+    expect(assistantDetectAgentsRoute.path).toBe("/api/admin/v1/workspaces/:workspaceId/assistant/execution/detect-agents");
+    expect(assistantDetectAgentsRoute.successStatus).toBeUndefined();
+    expect(assistantDetectAgentsRoute.maxBodyBytes).toBeUndefined();
   });
 
-  it("authorizes the assistant permission on assistant-execution; a denial probes nothing", async () => {
-    const { deps, events } = detectionDeps();
-    const denied = recordingAuthorize({ deny: true });
-    expect((await refusal(call({ force: true }, deps, denied.authorize))).status).toBe(403);
-    expect(denied.calls).toEqual([{ permission: PERMISSION, entityType: "assistant-execution" }]);
-    expect(events).toEqual([]);
+  it("parses only a strict boolean force:true as a rescan", () => {
+    expect(assistantDetectAgentsRoute.parse(raw({ force: true }))).toEqual({ ok: true, value: { force: true } });
+    expect(assistantDetectAgentsRoute.parse(raw({ force: "true" }))).toEqual({ ok: true, value: { force: false } });
+    expect(assistantDetectAgentsRoute.parse(raw(undefined))).toEqual({ ok: true, value: { force: false } });
   });
 
-  it("forces a rescan only for a literal `force: true`, reads the snapshot before sampling pending, and projects each agent", async () => {
-    const { deps, events } = detectionDeps();
-    expect(await call({ force: true }, deps)).toEqual({ ok: true, value: { data: [{
-      id: "codex", label: "Codex", installed: true, version: "1.2.3", models: [{ id: "gpt-5", label: "GPT-5" }], modelsSource: "live", discoveryPending: true,
-    }] } });
-    await call({ force: "true" }, deps);
-    await call(undefined, deps);
-    expect(events).toEqual([["read", { force: true }], "pending", ["read", { force: false }], "pending", ["read", { force: false }], "pending"]);
+  it("authorizes the injected permission on assistant-execution with no entity scope, then projects each agent with the pending flag", async () => {
+    const auth = recordingAuthorize();
+    const { deps: d, forces } = deps({ agents: [agent({ version: "1.2.3", path: "/bin/a" }), agent({ id: "cli-b", name: "CLI B", available: false })], discoveryPending: true });
+    const result = await assistantDetectAgentsRoute.handle({ input: { force: true }, deps: d, context: PRINCIPAL, authorize: auth.authorize });
+    expect(auth.calls).toEqual([{ permission: PERMISSION, entityType: "assistant-execution" }]);
+    expect(forces).toEqual([true]);
+    expect(result).toEqual({ ok: true, value: { data: [
+      { id: "cli-a", label: "CLI A", installed: true, version: "1.2.3", path: "/bin/a", discoveryPending: true },
+      { id: "cli-b", label: "CLI B", installed: false, discoveryPending: true },
+    ] } });
   });
 
-  it("rethrows a detection failure unchanged and fails closed without an authorizer", async () => {
-    const { deps } = detectionDeps({ readDetectedAgents: async () => { throw new Error("scan failed"); } });
-    await expect(call({}, deps)).rejects.toThrow("scan failed");
-    await expect(detectAgentsRoute.handle({ input: {}, deps, context: PRINCIPAL }, { signal })).rejects.toThrow(/no authorizer/);
+  it("a denied principal never reaches the detector", async () => {
+    const { deps: d, forces } = deps();
+    await expect(assistantDetectAgentsRoute.handle({ input: { force: false }, deps: d, context: PRINCIPAL, authorize: recordingAuthorize(true).authorize }))
+      .rejects.toThrow(`denied ${PERMISSION}`);
+    expect(forces).toEqual([]);
+  });
+
+  it("rethrows a detector failure unchanged for the host 500, and fails closed without an authorizer", async () => {
+    const d = { ...deps().deps, detectAgents: async () => { throw new Error("scan exploded"); } };
+    await expect(assistantDetectAgentsRoute.handle({ input: { force: false }, deps: d, context: PRINCIPAL, authorize: recordingAuthorize().authorize }))
+      .rejects.toThrow("scan exploded");
+    await expect(assistantDetectAgentsRoute.handle({ input: { force: false }, deps: d, context: PRINCIPAL, authorize: undefined as never }))
+      .rejects.toThrow(/no authorizer/);
+  });
+});
+
+describe("toExecutionTabAgent", () => {
+  it("carries models with their own reasoning, reasoning vocabularies, provenance and auth guidance", () => {
+    expect(toExecutionTabAgent({ agent: agent({
+      models: [{ id: "m1", label: "M1", reasoning: [{ id: "low", label: "Low" }] }, { id: "m2", label: "M2" }],
+      modelsSource: "live", reasoningOptions: [{ id: "high", label: "High" }],
+      reasoningInModelId: { levels: [{ id: "max", label: "Max" }] }, authStatus: "missing", authMessage: "run `a login`",
+    }) })).toEqual({
+      id: "cli-a", label: "CLI A", installed: true,
+      models: [{ id: "m1", label: "M1", reasoning: [{ id: "low", label: "Low" }] }, { id: "m2", label: "M2" }],
+      modelsSource: "live", reasoningOptions: [{ id: "high", label: "High" }],
+      reasoningInModelId: { levels: [{ id: "max", label: "Max" }] }, authStatus: "missing", authMessage: "run `a login`",
+    });
+  });
+
+  it("omits every empty collection and absent scalar rather than defaulting it", () => {
+    expect(toExecutionTabAgent({ agent: agent({ models: [], reasoningOptions: [], reasoningInModelId: { levels: [] }, version: null }) }))
+      .toEqual({ id: "cli-a", label: "CLI A", installed: true });
   });
 });

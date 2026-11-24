@@ -1,8 +1,8 @@
 /** Tavily default adapter. Request limits, timeout and secret-redaction policy remain here. */
-import { validateBaseUrl } from '@jini-ai/agent-runtime';
 import { redactSecrets } from '@jini-ai/core';
 import type { ResearchProvider, ResearchProviderCredentials, ResearchSearchRequest, ResearchSource } from './research.js';
 import { trimCharsEnd } from '@jini-ai/core/text';
+import type { BaseUrlGuardPort } from '@jini-ai/core/contracts/agents';
 const DEFAULT_TAVILY_BASE_URL = 'https://api.tavily.com';
 /** Tavily's own documented cap on `max_results` (see OD's `tavily.ts#TAVILY_MAX_RESULTS_LIMIT`). */
 const TAVILY_MAX_RESULTS_LIMIT = 20;
@@ -36,9 +36,10 @@ interface TavilySearchOutput {
  */
 class TavilyHttpError extends Error { }
 
-function resolveTavilyBase(credentials: ResearchProviderCredentials): string {
+/** Resolves the Tavily base URL and runs it through the host-bound SSRF guard before any call out. */
+function resolveTavilyBase({ credentials, baseUrlGuard }: { credentials: ResearchProviderCredentials; baseUrlGuard: BaseUrlGuardPort }): string {
   const baseUrl = credentials.baseUrl ?? DEFAULT_TAVILY_BASE_URL;
-  const baseUrlCheck = validateBaseUrl({ baseUrl });
+  const baseUrlCheck = baseUrlGuard.validate({ baseUrl });
   if (baseUrlCheck.error) {
     throw new Error(baseUrlCheck.error);
   }
@@ -124,10 +125,10 @@ function toTavilyFailure(error: unknown, { apiKey, timedOut }: { apiKey: string;
  * `credentials` is still passed for its optional transport config (`baseUrl`).
  */
 async function tavilySearch(
-  { apiKey, credentials, request }: { apiKey: string; credentials: ResearchProviderCredentials; request: ResearchSearchRequest },
+  { apiKey, credentials, request, baseUrlGuard }: { apiKey: string; credentials: ResearchProviderCredentials; request: ResearchSearchRequest; baseUrlGuard: BaseUrlGuardPort },
   { fetch: fetchImpl = globalThis.fetch }: { fetch?: typeof globalThis.fetch } = {},
 ): Promise<TavilySearchOutput> {
-  const base = resolveTavilyBase(credentials);
+  const base = resolveTavilyBase({ credentials, baseUrlGuard });
   // Floor before clamping, matching OD's real `clampMaxSources` — see research.ts's module doc. Without the
   // floor, a fractional `maxSources` (e.g. `2.7`, or `0.5` before the `Math.max(1, ...)` floor
   // below) would forward a non-integer `max_results` straight to Tavily's real API.
@@ -164,7 +165,7 @@ async function tavilySearch(
   return output;
 }
 
-/** Creates today's transport with a host-owned fetch port. */
-export function createTavilyResearchProvider(_required: Record<string, never>, options: { fetch?: typeof globalThis.fetch } = {}): ResearchProvider {
-  return { id: 'tavily', search: (input) => tavilySearch(input, options) };
+/** Creates today's transport with a host-owned fetch port and the host-bound base-URL guard (required: the guard is the SSRF check). */
+export function createTavilyResearchProvider({ baseUrlGuard }: { baseUrlGuard: BaseUrlGuardPort }, options: { fetch?: typeof globalThis.fetch } = {}): ResearchProvider {
+  return { id: 'tavily', search: (input) => tavilySearch({ ...input, baseUrlGuard }, options) };
 }

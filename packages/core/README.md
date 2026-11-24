@@ -203,6 +203,15 @@ using this unreleased version; see [CHANGELOG.md](./CHANGELOG.md) for BREAKING n
 reaches the spec's `ports.authorize` as its second argument, and an id-free call reaches it with
 the required arguments alone. Hosts mount specs through `@jini-ai/http-kit`'s `mountJsonRoute`.
 
+`entityType` is optional: a permission that names no entity kind (list roles) calls
+`authorize({ permission })`, and the port then receives no `entityType` key. `RouteInputContext`
+carries two optional, opt-in fields the host adapter fills: `headers` (only the names a spec asked
+for, lower-cased) and `facts` (`RouteRequestFacts`: `clientAddress`, `userAgent?`, `host?`, resolved
+by the host; Jini never defaults the client address). A handler that needs its own status, response
+headers or an empty body returns `routeReply({ status, body?, headers? })` (`route-reply.ts`);
+`isRouteReply` tells it from an ordinary value. Core's own web-`Request` `jsonRoute` does not yet
+fill `headers`/`facts` or honour `routeReply`; only the http-kit Express adapter does.
+
 ## Design decisions
 
 - [Confirmation checks have a fixed order and atomic redemption](docs/decisions/DR-001-gated-mutation-check-order.md).
@@ -309,3 +318,7 @@ The former core and CMS `./settings/express` entries have been removed.
 `./tool-metadata/<domain>` ships product-neutral tool metadata maps; a host aggregates them with its
 own maps (for example Tovu keeps `custom-credentials`, whose search vocabulary names providers). A
 test in `src/tool-metadata/__tests__/provider-neutral.test.ts` refuses provider names here.
+`./tool-metadata/deploy-ops` and `./tool-metadata/site-backup` export factories instead of a const map,
+because two of their search queries name host-owned words: the host calls
+`createDeployOpsToolMetadata({ siteKeyEnvName })` and `createSiteBackupToolMetadata({ archiveLabel })` once in
+its aggregator and its registration files import that bound map.
