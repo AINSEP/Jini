@@ -106,6 +106,8 @@ function useFakeFocusTrap({ containerRef }: { containerRef: RefObject<HTMLElemen
 const passthroughTranslator: KitTranslator = (key, vars = {}) => key.replace(/\{(\w+)\}/g, (whole, name: string) => (name in vars ? String(vars[name]) : whole));
 
 const fakeHooks: AdminKitHooks = {
+  // A fixed English locale: tests that care about the locale inject their own hook.
+  useAdminLocale: () => 'en',
   useAgentHandle: (r) => (r.agentHandle === false ? undefined : r.agentHandle ?? 'fake-handle'),
   useFocusTrap: useFakeFocusTrap,
   useDirtyGuard: (r, o) => {

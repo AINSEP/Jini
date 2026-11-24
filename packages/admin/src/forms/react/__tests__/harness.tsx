@@ -34,6 +34,7 @@ const formsKit: AdminKit = {
     PreviewModalShell: () => { throw new Error('Forms tests do not supply PreviewModalShell'); },
   },
   hooks: {
+    useAdminLocale: () => 'en',
     useAgentHandle: ({ agentHandle }) => agentHandle === false ? undefined : agentHandle ?? 'fake-handle',
     useDirtyGuard: ({ current, original }, options) => {
       const isDirty = original !== null && JSON.stringify(current) !== JSON.stringify(original);

@@ -89,7 +89,6 @@
       "./contracts/site/cms-media": "universal",
       "./contracts/site/cookie-consent-react": "universal",
       "./contracts/site/cookie-consent": "universal",
-      "./contracts/site/core-runtime-mode": "universal",
       "./contracts/site/daemon-tool-audit": "universal",
       "./contracts/site/devops-deploy": "universal",
       "./contracts/site/events-outbox": "universal",
@@ -170,7 +169,20 @@
       "./tool-metadata/server-logs": "universal",
       "./contracts/site/integrations-credentialed-http": "universal",
       "./contracts/site/widgets-html": "universal",
-      "./contracts/site/integrations-api-connections": "universal"
+      "./contracts/site/integrations-api-connections": "universal",
+      "./contracts/site/cms-menus": "universal",
+      "./contracts/site/cms-publish-content": "universal",
+      "./contracts/site/cms-mail": "universal",
+      "./contracts/site/cms-system-deploy": "universal",
+      "./contracts/site/cms-settings": "universal",
+      "./contracts/site/cms-sites": "universal",
+      "./contracts/site/cms-seo": "universal",
+      "./contracts/site/cms-assistant": "universal",
+      "./contracts/site/cms-external-mcp": "universal",
+      "./contracts/site/cms-agent-plugins": "universal",
+      "./contracts/site/cms-plugins": "universal",
+      "./contracts/site/cms-recovery": "universal",
+      "./contracts/site/oauth-callback-page": "universal"
     },
     "isolation": {
       "entries": {
@@ -623,11 +635,6 @@
       "import": "./dist/contracts/site/cookie-consent.js",
       "default": "./dist/contracts/site/cookie-consent.js"
     },
-    "./contracts/site/core-runtime-mode": {
-      "types": "./dist/contracts/site/core-runtime-mode.d.ts",
-      "import": "./dist/contracts/site/core-runtime-mode.js",
-      "default": "./dist/contracts/site/core-runtime-mode.js"
-    },
     "./contracts/site/daemon-tool-audit": {
       "types": "./dist/contracts/site/daemon-tool-audit.d.ts",
       "import": "./dist/contracts/site/daemon-tool-audit.js",
@@ -1012,6 +1019,71 @@
       "types": "./dist/contracts/site/integrations-api-connections.d.ts",
       "import": "./dist/contracts/site/integrations-api-connections.js",
       "default": "./dist/contracts/site/integrations-api-connections.js"
+    },
+    "./contracts/site/cms-menus": {
+      "types": "./dist/contracts/site/cms-menus.d.ts",
+      "import": "./dist/contracts/site/cms-menus.js",
+      "default": "./dist/contracts/site/cms-menus.js"
+    },
+    "./contracts/site/cms-publish-content": {
+      "types": "./dist/contracts/site/cms-publish-content.d.ts",
+      "import": "./dist/contracts/site/cms-publish-content.js",
+      "default": "./dist/contracts/site/cms-publish-content.js"
+    },
+    "./contracts/site/cms-mail": {
+      "types": "./dist/contracts/site/cms-mail.d.ts",
+      "import": "./dist/contracts/site/cms-mail.js",
+      "default": "./dist/contracts/site/cms-mail.js"
+    },
+    "./contracts/site/cms-system-deploy": {
+      "types": "./dist/contracts/site/cms-system-deploy.d.ts",
+      "import": "./dist/contracts/site/cms-system-deploy.js",
+      "default": "./dist/contracts/site/cms-system-deploy.js"
+    },
+    "./contracts/site/cms-settings": {
+      "types": "./dist/contracts/site/cms-settings.d.ts",
+      "import": "./dist/contracts/site/cms-settings.js",
+      "default": "./dist/contracts/site/cms-settings.js"
+    },
+    "./contracts/site/cms-sites": {
+      "types": "./dist/contracts/site/cms-sites.d.ts",
+      "import": "./dist/contracts/site/cms-sites.js",
+      "default": "./dist/contracts/site/cms-sites.js"
+    },
+    "./contracts/site/cms-seo": {
+      "types": "./dist/contracts/site/cms-seo.d.ts",
+      "import": "./dist/contracts/site/cms-seo.js",
+      "default": "./dist/contracts/site/cms-seo.js"
+    },
+    "./contracts/site/cms-assistant": {
+      "types": "./dist/contracts/site/cms-assistant.d.ts",
+      "import": "./dist/contracts/site/cms-assistant.js",
+      "default": "./dist/contracts/site/cms-assistant.js"
+    },
+    "./contracts/site/cms-external-mcp": {
+      "types": "./dist/contracts/site/cms-external-mcp.d.ts",
+      "import": "./dist/contracts/site/cms-external-mcp.js",
+      "default": "./dist/contracts/site/cms-external-mcp.js"
+    },
+    "./contracts/site/cms-agent-plugins": {
+      "types": "./dist/contracts/site/cms-agent-plugins.d.ts",
+      "import": "./dist/contracts/site/cms-agent-plugins.js",
+      "default": "./dist/contracts/site/cms-agent-plugins.js"
+    },
+    "./contracts/site/cms-plugins": {
+      "types": "./dist/contracts/site/cms-plugins.d.ts",
+      "import": "./dist/contracts/site/cms-plugins.js",
+      "default": "./dist/contracts/site/cms-plugins.js"
+    },
+    "./contracts/site/cms-recovery": {
+      "types": "./dist/contracts/site/cms-recovery.d.ts",
+      "import": "./dist/contracts/site/cms-recovery.js",
+      "default": "./dist/contracts/site/cms-recovery.js"
+    },
+    "./contracts/site/oauth-callback-page": {
+      "types": "./dist/contracts/site/oauth-callback-page.d.ts",
+      "import": "./dist/contracts/site/oauth-callback-page.js",
+      "default": "./dist/contracts/site/oauth-callback-page.js"
     }
   },
   "files": [

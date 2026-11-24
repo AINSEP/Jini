@@ -5,6 +5,7 @@
  */
 export { AdminConfigError } from './admin-config-error.js';
 export { AdminApiError, describeApiError } from './admin-api-error.js';
+export type { AdminHttpError, AdminHttpOptions, AdminHttpReconnect } from './admin-http.js';
 export { createControllerStore } from './controller-store.js';
 export type { ControllerStore, WritableControllerStore } from './controller-store.js';
 // Permissions — affordance only, never an authorization boundary.
