@@ -7,6 +7,14 @@ import type { TransferColumn, TransferIndex, TransferTable } from "./types.js";
  * @file The generic half of "what a copy carries" for a host schema declared in some ORM: the host
  * injects a structural {@link CatalogIntrospection} (so this package imports no ORM), its exclusion
  * tables and its naming; this module projects the schema into {@link TransferTable}s and plans the snapshot.
+ *
+ * Every table in the snapshot is either a {@link TransferTable} (with its full Postgres layout: columns,
+ * defaults, identity, primary key, indexes, foreign keys and checks) or left out with a reason, never
+ * silently dropped ({@link planCatalogSnapshotTables}).
+ *
+ * - Core tables take their layout from the host's declared schema.
+ * - Every other table (a plugin's own tables, for example) takes the layout the snapshot itself declares,
+ *   translated by SQLite type affinity (see `introspectedTable`).
  */
 
 /** One index term: a plain column (the name can be missing in a malformed declaration) or a raw SQL expression. */
