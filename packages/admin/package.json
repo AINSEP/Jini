@@ -317,6 +317,10 @@
       "./screens/database/api/database-api": "universal",
       "./screens/email/api/mail-status-api": "universal",
       "./screens/trash/api/trash-api": "universal",
+      "./screens/import-export/api/import-export-api": "universal",
+      "./pages/api/pages-api": "universal",
+      "./recovery/api/recovery-api": "universal",
+      "./screens/email/email-api": "universal",
       "./shell/lib/admin-http/settings-api": "browser",
       "./agent-plugins/models": "universal",
       "./screens/integrations/api/integrations-api": "universal",
@@ -2465,6 +2469,26 @@
       "types": "./dist/screens/trash/api/trash-api.d.ts",
       "import": "./dist/screens/trash/api/trash-api.js",
       "default": "./dist/screens/trash/api/trash-api.js"
+    },
+    "./screens/import-export/api/import-export-api": {
+      "types": "./dist/screens/import-export/api/import-export-api.d.ts",
+      "import": "./dist/screens/import-export/api/import-export-api.js",
+      "default": "./dist/screens/import-export/api/import-export-api.js"
+    },
+    "./pages/api/pages-api": {
+      "types": "./dist/pages/api/pages-api.d.ts",
+      "import": "./dist/pages/api/pages-api.js",
+      "default": "./dist/pages/api/pages-api.js"
+    },
+    "./recovery/api/recovery-api": {
+      "types": "./dist/recovery/api/recovery-api.d.ts",
+      "import": "./dist/recovery/api/recovery-api.js",
+      "default": "./dist/recovery/api/recovery-api.js"
+    },
+    "./screens/email/email-api": {
+      "types": "./dist/screens/email/email-api.d.ts",
+      "import": "./dist/screens/email/email-api.js",
+      "default": "./dist/screens/email/email-api.js"
     },
     "./shell/lib/admin-http/settings-api": {
       "types": "./dist/shell/lib/admin-http/settings-api.d.ts",
