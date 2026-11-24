@@ -93,10 +93,8 @@ function flattenAdmissionConnection(raw: RawAdmissionConnection): AdminFederated
   };
 }
 
-/** The admin API calls of the integrations feature, bound to the host's injected collaborators.
- *  @example const integrationsApi = createIntegrationsApi({ request, workspaceId }); */
-export function createIntegrationsApi(deps: IntegrationsApiDeps, _optional: Record<string, never> = {}) {
-  const { request, workspaceId } = deps;
+/** The webhook subscription and delivery calls. */
+function createWebhooksApi({ request, workspaceId }: IntegrationsApiDeps) {
   return {
   listIntegrationSubscriptions: () =>
     request<{ subscriptions: AdminWebhookSubscriptionResponse[] }>(
@@ -124,6 +122,12 @@ export function createIntegrationsApi(deps: IntegrationsApiDeps, _optional: Reco
     request<{ deliveries: AdminWebhookDeliveryResponse[] }>(
       { path: `/workspaces/${workspaceId}/integrations/subscriptions/${encodeURIComponent(subscriptionId)}/deliveries` }
     ),
+  };
+}
+
+/** The external MCP server roster, probe, OAuth and tool-approval calls. */
+function createExternalMcpApi({ request, workspaceId }: IntegrationsApiDeps) {
+  return {
   /** The workspace's configured external MCP servers. Carries env variable NAMES only — there is no
    *  route anywhere that returns a stored env VALUE, by design. */
   listExternalMcpServers: () =>
@@ -209,7 +213,12 @@ export function createIntegrationsApi(deps: IntegrationsApiDeps, _optional: Reco
       { path: `/workspaces/${workspaceId}/mcp-servers/${encodeURIComponent(serverId)}/tool-approvals/${encodeURIComponent(toolName)}` },
       { init: { method: "DELETE" } }
     ),
+  };
+}
 
+/** The Agent Plugins list, files and activation calls. */
+function createAgentPluginsApi({ request, workspaceId }: IntegrationsApiDeps) {
+  return {
   // 2026-09-09 — AGENT_PLUGINS_LIST: the `agent-plugins` screen's read of real installed Agent
   // Plugins (a separate family from listPlugins/setPluginEnabled above — see AgentPluginListRow's doc).
   listAgentPlugins: () => request<{ agentPlugins: AgentPluginListRow[] }>({ path: `/workspaces/${workspaceId}/agent-plugins` }),
@@ -236,4 +245,10 @@ export function createIntegrationsApi(deps: IntegrationsApiDeps, _optional: Reco
       body: JSON.stringify({ enabled }),
     } }),
   };
+}
+
+/** The admin API calls of the integrations feature, bound to the host's injected collaborators.
+ *  @example const integrationsApi = createIntegrationsApi({ request, workspaceId }); */
+export function createIntegrationsApi(deps: IntegrationsApiDeps, _optional: Record<string, never> = {}) {
+  return { ...createWebhooksApi(deps), ...createExternalMcpApi(deps), ...createAgentPluginsApi(deps) };
 }
