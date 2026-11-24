@@ -175,6 +175,7 @@
       "./screens/forms/index-aligned-translations": "universal",
       "./screens/forms/forms-field-settings-i18n": "universal",
       "./screens/forms/forms-leave-guard-i18n": "universal",
+      "./screens/comments/comments-i18n": "universal",
       "./screens/menus/menus-i18n": "universal",
       "./screens/integrations/integrations-i18n": "universal",
       "./screens/providers/providers-i18n": "universal",
@@ -1156,6 +1157,11 @@
       "types": "./dist/screens/forms/forms-leave-guard-i18n.d.ts",
       "import": "./dist/screens/forms/forms-leave-guard-i18n.js",
       "default": "./dist/screens/forms/forms-leave-guard-i18n.js"
+    },
+    "./screens/comments/comments-i18n": {
+      "types": "./dist/screens/comments/comments-i18n.d.ts",
+      "import": "./dist/screens/comments/comments-i18n.js",
+      "default": "./dist/screens/comments/comments-i18n.js"
     },
     "./screens/menus/menus-i18n": {
       "types": "./dist/screens/menus/menus-i18n.d.ts",
