@@ -171,6 +171,12 @@ mounts one with `mountJsonRoute({ app, spec, deps })` from `@jini-ai/http-kit`, 
 and its `authorize` port. Redirect by-id routes (get, hits, update, tombstone) authorize with
 `{ entityId }`; list and import stay id-free. Tests inject typed fakes through those same deps.
 
+Trash marker adapters (`./trash/site/adapters/marker-sql`, node): `flipMarker` / `compareAndDelete`
+take the host's storage kernel and a physical table name per call (`spec.kernel`, `spec.table`); the
+host's own adapters own their table names and literals and pass them in. `MarkerStore<DB>` is generic
+over the host schema, and `lazyKernel` returns the very kernel type it was given, so a host keeps its
+schema-typed kernel (no schema-erasing cast is needed at this seam).
+
 Menus (`src/admin-http/routes/menus/*`; serializers in `src/admin-http/http/menus.ts`, the wire DTO
 declarations in `@jini-ai/core/contracts/site/cms-menus` so an admin client shares them): get-by-id,
 update-tree, assign-location and delete authorize `admin.menus.*` with `{ entityId }`; list and

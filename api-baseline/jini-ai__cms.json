@@ -3816,6 +3816,18 @@
    "unhideIfRemoveThrows": "function:b5d32cc299"
   }
  },
+ "./trash/site/adapters/marker-sql": {
+  "types": "./dist/trash/site/adapters/marker-sql.d.ts",
+  "symbols": {
+   "CompareAndDeleteSpec": "interface:084cd3debb",
+   "MarkerFlipSpec": "interface:2a62b4046b",
+   "MarkerPredicate": "interface:2028e57de4",
+   "MarkerStore": "type:0cb40a15d9",
+   "compareAndDelete": "function:e69b0e24ed",
+   "flipMarker": "function:51e2aabbba",
+   "lazyKernel": "function:6ef2614f2e"
+  }
+ },
  "./trash/site/adapters/plugin": {
   "types": "./dist/trash/site/adapters/plugin.d.ts",
   "symbols": {

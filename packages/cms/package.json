@@ -51,6 +51,7 @@
       "./media/import": "universal",
       "./core/tools": "universal",
       "./trash": "universal",
+      "./trash/site/adapters/marker-sql": "node",
       "./trash/site/adapters/plugin": "universal",
       "./trash/site/adapters/theme": "universal",
       "./trash/site/ports": "universal",
@@ -646,6 +647,11 @@
       "types": "./dist/trash/index.d.ts",
       "import": "./dist/trash/index.js",
       "default": "./dist/trash/index.js"
+    },
+    "./trash/site/adapters/marker-sql": {
+      "types": "./dist/trash/site/adapters/marker-sql.d.ts",
+      "import": "./dist/trash/site/adapters/marker-sql.js",
+      "default": "./dist/trash/site/adapters/marker-sql.js"
     },
     "./trash/site/adapters/plugin": {
       "types": "./dist/trash/site/adapters/plugin.d.ts",
