@@ -229,6 +229,7 @@
       "./screens/plugins/hooks/agent-plugin-surfaces-port.hooks": "universal",
       "./screens/plugins/hooks/use-linked-lock-tip.hooks": "browser",
       "./screens/plugins/plugins-memory-i18n": "universal",
+      "./screens/plugins/plugins-i18n": "universal",
       "./screens/skills/skill-failure": "universal",
       "./screens/skills/skill-upload": "universal",
       "./screens/skills/SkillInstallConfirmation": "browser",
@@ -1708,6 +1709,11 @@
       "types": "./dist/screens/plugins/plugins-memory-i18n.d.ts",
       "import": "./dist/screens/plugins/plugins-memory-i18n.js",
       "default": "./dist/screens/plugins/plugins-memory-i18n.js"
+    },
+    "./screens/plugins/plugins-i18n": {
+      "types": "./dist/screens/plugins/plugins-i18n.d.ts",
+      "import": "./dist/screens/plugins/plugins-i18n.js",
+      "default": "./dist/screens/plugins/plugins-i18n.js"
     },
     "./screens/skills/skill-failure": {
       "types": "./dist/screens/skills/skill-failure.d.ts",
