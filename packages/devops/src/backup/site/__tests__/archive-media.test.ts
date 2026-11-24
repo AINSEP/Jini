@@ -82,6 +82,20 @@ describe('bufferArchiveMedia', () => {
     expect(l.buffered[2]!.content.toString()).not.toMatch(/script|alert/);
   });
 
+  it('keeps the .mov and .m4v extensions for QuickTime and M4V video instead of falling back to .bin', async () => {
+    const mov = Buffer.from('....ftypqt  data');
+    const m4v = Buffer.from('....ftypM4V data');
+    const sniffVideo: ArchiveMediaHost<Ledger, Store> = { ...host, operations: { ...host.operations, sniffContentType: ({ bytes }) => {
+      const text = Buffer.from(bytes).toString();
+      return text.includes('ftypqt') ? 'video/quicktime' : text.includes('ftypM4V') ? 'video/x-m4v' : sniff({ bytes });
+    } } };
+    const copies = await bufferArchiveMedia({
+      sources: [source('a', 'intro', mov), source('b', 'outro', m4v)],
+      blobStore: new Map([['a', mov], ['b', m4v]]), imageTransformer: transformer({ n: 0 }), ledger: ledger(), host: sniffVideo,
+    });
+    expect(copies.map(c => [c.path, c.contentType])).toEqual([['media/intro.mov', 'video/quicktime'], ['media/outro.m4v', 'video/x-m4v']]);
+  });
+
   it('names a slugless item by its id', async () => {
     const store: Store = new Map([['x', pdf]]);
     const copies = await bufferArchiveMedia({ sources: [{ ...source('x', '', pdf), kind: 'document', originalFilename: 'a.pdf' }], blobStore: store, imageTransformer: transformer({ n: 0 }), ledger: ledger(), host });
