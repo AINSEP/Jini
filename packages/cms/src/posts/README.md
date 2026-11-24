@@ -8,7 +8,7 @@ before-save hook seam (`post-before-save.ts`). Each is its own `@jini-ai/cms/pos
 
 ## Wiring
 
-- `posts/post-read`, `posts/post-write-effects`: pure over the injected `PostRepoPort` / `OutboxPort`; the go-live rule comes from `@jini-ai/core/contracts/site/scheduled-publish`.
+- `posts/post-read`, `posts/post-write-effects`: pure over the injected `PostRepoPort` / `OutboxPort`; the go-live rule comes from `@jini-ai/core/scheduled-publish`.
 - `posts/featured-image`: the host binds `FeaturedImageDeps.findMediaByIdOrSlug` (required) to the media owner's lookup, plus `mediaRepo` and the optional `mediaContentTypeStore`.
 - `posts/expected-version`: `versionConflictEnvelope({ err, outwardErrorMessage })` — the host words the 409 `error` copy.
 - `posts/go-live-sweep`: `startPostGoLiveSweep({ deps, workspaceId, onError })` — the host's required reporter receives a failed pass's error.

@@ -1735,17 +1735,6 @@
    "SandboxRenderResult": "type:6828203f4e"
   }
  },
- "./contracts/site/scheduled-publish": {
-  "types": "./dist/contracts/site/scheduled-publish.d.ts",
-  "symbols": {
-   "SchedulableRecord": "interface:bbd0f311bc",
-   "comparePostsByDisplayDate": "function:56296e3bf4",
-   "currentIso": "function:f8a31e3810",
-   "isLiveAt": "function:64755b411c",
-   "isScheduledAt": "function:48fcb89cfc",
-   "postDisplayDateIso": "function:5bd1693794"
-  }
- },
  "./contracts/site/search": {
   "types": "./dist/contracts/site/search.d.ts",
   "symbols": {
@@ -2369,6 +2358,17 @@
    "parseSchemaV1Document": "function:92e07d4416",
    "upsertRecord": "function:a0eef3a423",
    "withoutUndefined": "function:8a94d86a58"
+  }
+ },
+ "./scheduled-publish": {
+  "types": "./dist/scheduled-publish.d.ts",
+  "symbols": {
+   "SchedulableRecord": "interface:bbd0f311bc",
+   "comparePostsByDisplayDate": "function:56296e3bf4",
+   "currentIso": "function:f8a31e3810",
+   "isLiveAt": "function:64755b411c",
+   "isScheduledAt": "function:48fcb89cfc",
+   "postDisplayDateIso": "function:5bd1693794"
   }
  },
  "./settings": {

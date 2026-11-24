@@ -1,4 +1,4 @@
-import { isTrashed } from "./soft-delete.js";
+import { isTrashed } from "./contracts/site/soft-delete.js";
 
 /**
  * @file Scheduled publishing — the one rule for "is this published row live yet?".

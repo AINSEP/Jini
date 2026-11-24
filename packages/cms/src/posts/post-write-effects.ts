@@ -2,7 +2,7 @@ import type { UUID } from "@jini-ai/core/primitives";
 import { type PostRepoPort, type PostRecord, type PostRevisionOp, type PostRevisionAppendResult, SYSTEM_ACTOR_ID, PostVersionConflictError, PostNotFoundError } from "./post.js";
 import { isTrashed } from "@jini-ai/core/contracts/site/soft-delete";
 import type { PostStatus } from "../core/index.js";
-import { isLiveAt } from "@jini-ai/core/contracts/site/scheduled-publish";
+import { isLiveAt } from "@jini-ai/core/scheduled-publish";
 import type { OutboxPort } from "@jini-ai/core/contracts/events";
 import { announcePendingGoLive } from "../entries/go-live.js";
 
