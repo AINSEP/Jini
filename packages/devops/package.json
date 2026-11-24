@@ -38,6 +38,9 @@
       "./deploy/site/types": "universal",
       "./backup/site/credential-warnings": "universal",
       "./backup/site/share-export-failure": "universal",
+      "./backup/site/share-refusal": "universal",
+      "./backup/site/archive-media": "universal",
+      "./backup/site/static-export-selection": "universal",
       "./backup/upload": "node",
       "./backup/plan-store": "node",
       "./backup/push-jobs": "universal",
@@ -192,6 +195,21 @@
       "types": "./dist/backup/site/share-export-failure.d.ts",
       "import": "./dist/backup/site/share-export-failure.js",
       "default": "./dist/backup/site/share-export-failure.js"
+    },
+    "./backup/site/share-refusal": {
+      "types": "./dist/backup/site/share-refusal.d.ts",
+      "import": "./dist/backup/site/share-refusal.js",
+      "default": "./dist/backup/site/share-refusal.js"
+    },
+    "./backup/site/archive-media": {
+      "types": "./dist/backup/site/archive-media.d.ts",
+      "import": "./dist/backup/site/archive-media.js",
+      "default": "./dist/backup/site/archive-media.js"
+    },
+    "./backup/site/static-export-selection": {
+      "types": "./dist/backup/site/static-export-selection.d.ts",
+      "import": "./dist/backup/site/static-export-selection.js",
+      "default": "./dist/backup/site/static-export-selection.js"
     },
     "./backup/upload": {
       "types": "./dist/backup/upload.node.d.ts",
