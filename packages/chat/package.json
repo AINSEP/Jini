@@ -29,6 +29,7 @@
       "./store/legacy": "universal",
       "./store/legacy/sqlite": "node",
       "./core/run-events": "universal",
+      "./core/assistant-tool-metadata": "universal",
       "./core/ag-ui": "universal",
       "./core/ag-ui/reduction": "universal",
       "./server/ag-ui/run-input": "universal",
@@ -155,6 +156,11 @@
       "types": "./dist/core/run-events/entry.d.ts",
       "import": "./dist/core/run-events/entry.js",
       "default": "./dist/core/run-events/entry.js"
+    },
+    "./core/assistant-tool-metadata": {
+      "types": "./dist/core/assistant-tool-metadata.d.ts",
+      "import": "./dist/core/assistant-tool-metadata.js",
+      "default": "./dist/core/assistant-tool-metadata.js"
     },
     "./core/ag-ui": {
       "types": "./dist/core/ag-ui/event-projection.d.ts",
