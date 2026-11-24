@@ -59,6 +59,17 @@ The new probes for replacing host identity, policy, presentation, copy and store
 
 The package integration report records source provenance and the later host adoption ledger.
 
+## Wiring
+
+- **"Something else" answer** (`custom-answer.ts`): a host that offers a free-text choice passes
+  its form fields through `addCustomAnswerFields({ fields, copy })`, wraps the exchange store per
+  call as `customAnswerExchanges({ exchanges, call })` (with `call = { split: {} }`, setting
+  `call.question` once parsed), and folds the result with
+  `mergeCustomAnswer({ result, split: call.split, note })`. The host injects `copy`
+  (`choiceLabel`, `answerLabel`, `answerPlaceholder`) and `note` (its `withPicksNote`); the option
+  value `CUSTOM_CHOICE_VALUE` and the text-box param `CUSTOM_ANSWER_PARAM` are fixed here. Any
+  show/hide styling of the text box is the host's own renderer concern.
+
 Model-authored questions use `{ question, options: [{label, value?, description?}], multiple?: boolean }`.
 Omitted option values default to their labels. `title` with `singleSelect` / `multiSelect`
 remains a legacy alias; do not mix the two forms. Form-generated answers and tickets belong

@@ -144,3 +144,28 @@ export function coerceCliValue({ raw }: { raw: string }): CoercedCliValue {
   if (NUMERIC_LITERAL_RE.test(raw)) return Number(raw);
   return raw;
 }
+
+/** Why {@link parsePortValue} refused a port; the host maps each to its own wording. */
+export interface PortRefusal {
+  reason: 'not-integer' | 'out-of-range';
+  raw: string | number;
+  /** The parsed number, present only for `out-of-range`. */
+  value?: number;
+}
+
+/**
+ * A TCP port: an integer in 1..65535 after trimming. Out-of-range or non-integer input is a refusal,
+ * never a fall-through to another source, so `invalid` receives the reason and the host keeps its
+ * exact messages.
+ * @throws the error `invalid` returns.
+ */
+export function parsePortValue(
+  { raw }: { raw: string | number },
+  { invalid }: { invalid: (refusal: PortRefusal) => Error },
+): number {
+  const str = String(raw).trim();
+  if (!/^\d+$/.test(str)) throw invalid({ reason: 'not-integer', raw });
+  const value = Number(str);
+  if (value < 1 || value > 65535) throw invalid({ reason: 'out-of-range', raw, value });
+  return value;
+}

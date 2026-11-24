@@ -6,7 +6,7 @@ test('the dns subpath exposes the kernel entry points', () => {
   for (const name of [
     'chunkTxt', 'planDnsChanges', 'fingerprintPlan', 'canonicalJson', 'checkDelegation', 'verifyRequirements', 'nextCheckDelayMs',
     'isExpired', 'bindDnsApproval', 'checkDnsApproval', 'createManualDnsProvider', 'renderDnsInstructions', 'createDnsProviderRegistry',
-    'dnsProviderShapeError', 'mergeSpf', 'normalizeDnsName',
+    'dnsProviderShapeError', 'mergeSpf', 'normalizeDnsName', 'startDomainBindingSweeper',
   ] as const) expect(typeof dns[name], name).toBe('function');
   expect(dns.MANUAL_DNS_PROVIDER_ID).toBe('manual');
   expect(dns.DNS_PROVIDER_CONTRACT).toBe('dns');

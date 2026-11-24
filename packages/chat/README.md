@@ -272,3 +272,46 @@ reference or host stylesheet is required for the settings presentation.
 `AgentEvent` and `ToolResultMediaBlock` are declared in `@jini-ai/core/contracts/site/chat-core`;
 `./core` imports them and keeps a deprecated type re-export until the next major. Hosts import them
 from core.
+
+### Chat principals (`@jini-ai/chat/store/runtime`)
+
+`ChatPrincipal` (`AdminChatPrincipal | GuestChatPrincipal`), `ChatStoreFactory`, `hashSessionKey`,
+`chatExpiryFor` and `GUEST_CHAT_TTL_MS` describe whose history a store holds. The host binds a
+principal to `createChatHistoryStore`'s scope (`scopeId` = `workspaceId`, `ownerKind` = `kind`,
+`ownerId` = `userId` or `hashSessionKey({ sessionKey })`), wraps it with `createRunGuardedChatStore`
+and its own run-id policy and ledger, and hands routes only the resulting `ChatStoreFactory`. Guest
+conversations get `chatExpiryFor({ principal })` as their expiry; admin conversations never expire.
+
+### Chat maintenance and lazy run ledger (`@jini-ai/chat/store/runtime`)
+
+`createChatMaintenanceForKernel({ kernel })` picks the SQLite/PGlite/Postgres expiry maintenance by
+the borrowed chat kernel's transport; the host injects only its migrated chat `kernel` and hands
+the result to `sweepExpiredChats`/`startChatExpirySweep` at composition time (never to a scoped
+store). `createLazyChatRunLedger({ peek, open, ledgerFor })` serves a `ChatRunLedger` over a
+database opened on first use: the host injects `open` (opens and memoizes its kernel), `peek`
+(the kernel if already open) and `ledgerFor({ kernel })` (its own ledger, with any wrappers).
+`hasActiveRuns` and `reconcileInterrupted` never open an unopened database.
+
+### Visitor transcript store (`@jini-ai/chat/browser/session-store`)
+
+`createBrowserSessionStore({ storage, transcriptKey, maxMessages, maxBytes, validateMessage,
+overCapReads?, onFailure? })` keeps one bounded per-tab transcript envelope. The host injects the
+`storage` port (usually a `sessionStorage` wrapper, which may namespace keys), the key, both caps
+and the message validator. Optional: `overCapReads: 'read'` keeps rehydrating an envelope stored
+over the caps (default `'clear'` treats it as corrupt; writes are capped either way), and
+`onFailure({ operation, error })` receives each swallowed `load` / `decode` / `serialize` / `save` /
+`clear` failure (default: silent). A throw from `onFailure` escapes the call.
+
+### Embed send bridge (`@jini-ai/chat/browser/embed-send-bridge`)
+
+An embedding page can drive a mounted widget through `installEmbedSendBridge`. The host decides
+`enabled` and names the events; ordinary visitors get no listener. The host injects `send` (the
+mounted widget's own conversation owner — the bridge never opens a parallel transport),
+`requestEventName` (the CustomEvent dispatched on the mount root with `{ text, done }`),
+`readyMessageType` (posted to the parent frame once listening) and optionally `busyMessage`.
+React widgets pass `agentControl: createEmbedSendAgentControl({ root, enabled, invocationId,
+requestEventName, readyMessageType }, { capabilityId?, unmountedMessage? })` to `ChatPane`, which
+relays each request through the existing `chat.send_message` capability.
+`./core/durable-runs/run-finalizer` holds a host run finalizer's pure slices (checkpoint growth and
+size rules, `reportSafely`, `releaseUnreadBody`, and the `RunTimerPort`/`RunLogPort` types). The host
+injects its timer and log through those ports and keeps the ledger, daemon client and watch state.

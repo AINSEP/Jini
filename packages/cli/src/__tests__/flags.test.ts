@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { coerceCliValue, parseFlags, positionalArgs } from '../flags.js';
+import { coerceCliValue, parseFlags, parsePortValue, positionalArgs } from '../flags.js';
 
 describe('parseFlags', () => {
   it('parses a boolean flag', () => {
@@ -101,5 +101,22 @@ describe('coerceCliValue', () => {
 
   it('leaves an empty string unchanged', () => {
     expect(coerceCliValue({ raw: '' })).toBe('');
+  });
+});
+
+describe('parsePortValue', () => {
+  const invalid = (detail: { reason: string; raw: string | number; value?: number }) => new Error(JSON.stringify(detail));
+
+  it('rejects "08a" as not-integer', () => {
+    expect(() => parsePortValue({ raw: '08a' }, { invalid })).toThrow('"reason":"not-integer"');
+  });
+
+  it('rejects 0 and 65536 as out-of-range', () => {
+    expect(() => parsePortValue({ raw: 0 }, { invalid })).toThrow('"reason":"out-of-range","raw":0,"value":0');
+    expect(() => parsePortValue({ raw: '65536' }, { invalid })).toThrow('"value":65536');
+  });
+
+  it('accepts " 3000 "', () => {
+    expect(parsePortValue({ raw: ' 3000 ' }, { invalid })).toBe(3000);
   });
 });

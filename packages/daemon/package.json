@@ -21,6 +21,7 @@
       "./store/agent-sessions/sqlite": "node",
       "./store/agent-sessions/pglite": "node",
       "./store/agent-sessions/postgres": "node",
+      "./store/agent-sessions/kernel": "node",
       "./http": "node",
       "./read-only-tools": "node",
       "./scheduler": "universal",
@@ -33,7 +34,10 @@
       "./chat-settings": "node",
       "./ports/agent-runtime": "node",
       "./ports/xai-oauth": "node",
-      "./exclusive-run-lease": "universal"
+      "./exclusive-run-lease": "universal",
+      "./daemon-call-context": "node",
+      "./byok-meta-tool-result": "universal",
+      "./core-rpc-schema": "universal"
     },
     "isolation": {
       "shared": [
@@ -103,6 +107,11 @@
       "import": "./dist/store/agent-sessions/postgres.js",
       "default": "./dist/store/agent-sessions/postgres.js"
     },
+    "./store/agent-sessions/kernel": {
+      "types": "./dist/store/agent-sessions/kernel.d.ts",
+      "import": "./dist/store/agent-sessions/kernel.js",
+      "default": "./dist/store/agent-sessions/kernel.js"
+    },
     "./http": {
       "types": "./dist/http/index.d.ts",
       "import": "./dist/http/index.js",
@@ -122,6 +131,21 @@
       "types": "./dist/exclusive-run-lease.d.ts",
       "import": "./dist/exclusive-run-lease.js",
       "default": "./dist/exclusive-run-lease.js"
+    },
+    "./daemon-call-context": {
+      "types": "./dist/daemon-call-context.d.ts",
+      "import": "./dist/daemon-call-context.js",
+      "default": "./dist/daemon-call-context.js"
+    },
+    "./core-rpc-schema": {
+      "types": "./dist/core-rpc-schema.d.ts",
+      "import": "./dist/core-rpc-schema.js",
+      "default": "./dist/core-rpc-schema.js"
+    },
+    "./byok-meta-tool-result": {
+      "types": "./dist/byok-meta-tool-result.d.ts",
+      "import": "./dist/byok-meta-tool-result.js",
+      "default": "./dist/byok-meta-tool-result.js"
     },
     "./tool-audit": {
       "types": "./dist/tool-audit.d.ts",
@@ -210,7 +234,8 @@
     "@jini-ai/agent-runtime": "workspace:^",
     "@jini-ai/db": "workspace:^",
     "@jini-ai/platform": "workspace:^",
-    "kysely": "^0.29.6"
+    "kysely": "^0.29.6",
+    "zod": "^4.6.6"
   },
   "peerDependencies": {
     "better-sqlite3": "^13.0.0",

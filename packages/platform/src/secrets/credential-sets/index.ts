@@ -6,3 +6,4 @@ export { InMemoryVaultRepo } from "./vault.repo.memory.js";
 export { captureVaultArchive, prepareVaultArchiveRestore, type VaultArchiveEntry } from "./vault-archive.js";
 export { matchingCredentialProviderIds, selectCredentialForProvider, suggestCredentialWorksFor,
   normalizeCredentialWorksFor, type CredentialProviderDescriptor, type MatchableCredential } from "./provider-matches.js";
+export { createStoreKeyring, protectStorage, type StorageFailureSource } from "./store-vault-guards.js";

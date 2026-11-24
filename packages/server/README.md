@@ -97,3 +97,11 @@ entries — the host binds them with `@jini-ai/node-adapters`' builders (`nodeSp
 `createLocalNodeDaemon` takes the same `osPorts` and writes its discovery record with
 `osPorts.writer`; the server imports no `@jini-ai/platform/fs`, `/process`, `/system` or
 `@jini-ai/node-adapters` implementation.
+
+## Wiring (shutdown)
+
+`@jini-ai/server/shutdown` (`closeStoreOnShutdown`, `closeWithinBound`, `stopServingWithinGrace`) and
+`@jini-ai/server/shutdown/boot-work` (`awaitBootWorkWithinBound`): the host injects its store (any
+`{ storage: { kind }, close() }`), its daemon stop (`onShutdown`), and optionally `bootWork`/`stopServing`/`stopOnEnd`.
+`@jini-ai/server/shutdown/idle-park` (`createIdlePark`): the host injects its run ledger probe, background-work probe,
+watch count, graceful `stop` and the `exitCode` it carries; its HTTP adapter calls `admit()` per request and owns the refusal copy.

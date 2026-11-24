@@ -23,3 +23,5 @@ export * from "./directory-delete-guard.js";
 export * from "./remove-directory-tree.js";
 export * from "./directory-relocation.js";
 export * from "./recent-directories.js";
+export * from "./resolve-directory-target.js";
+export * from "./leased-directory-move.js";

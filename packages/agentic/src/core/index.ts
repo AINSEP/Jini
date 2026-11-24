@@ -31,6 +31,14 @@ export {
 } from './page-executor.js';
 
 export { PAGE_CAPABILITIES } from './page-capabilities.js';
+export {
+  PAGE_NAVIGATE_TOOL_ID,
+  rewrapPageNavigateError,
+  withPageNavigateErrorRewrap,
+  type DescribePageNavigateRefusal,
+  type PageNavigateRefusal,
+  type PageNavigateRegistration,
+} from './page-navigate-error.js';
 
 export {
   findFieldFillRefusal,
@@ -108,3 +116,4 @@ export { resolvePageNavigation, validatePageLink } from './page-navigation.js';
 export type { AgentNavigationScreen, AgentEntityTarget, ResolvedPageEntity, PageEntityLookup } from './page-navigation.js';
 export type { PageNavigationInput, PageNavigationResult } from '@jini-ai/core/contracts/site/agentic-dom';
 export * from './page-publication.js';
+export * from './published-page-input.js';

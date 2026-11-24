@@ -148,3 +148,4 @@ export type {
 } from "./route-policy.js";
 export { resolveTargetWorkspaceId, resolveUserLayerReadTarget, settingsWritePermission } from "./route-policy.js";
 export { createCmsSettingsService, createCmsSettingsChangeFeed } from "./cms-adapter.js";
+export { type FailClosedReadOptions, readEffectiveFailClosed, readUserLayerObject } from "./guarded-reads.js";

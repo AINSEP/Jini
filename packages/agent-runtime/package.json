@@ -16,12 +16,15 @@
       ".": "node",
       "./providers/tool-turn": "node",
       "./model-catalog/cache": "universal",
+      "./model-catalog/live-discovery": "node",
       "./providers/sse-decode": "universal",
       "./providers/credentials": "universal",
       "./model-discovery": "node",
       "./model-selection": "universal",
       "./native-tool-policy": "universal",
       "./native-permissions": "universal",
+      "./cli-probe-cache": "node",
+      "./custom-instructions": "universal",
       "./inventory": "universal"
     },
     "isolation": {
@@ -68,6 +71,11 @@
       "import": "./dist/model-catalog-cache.js",
       "default": "./dist/model-catalog-cache.js"
     },
+    "./model-catalog/live-discovery": {
+      "types": "./dist/model-catalog-live-discovery.d.ts",
+      "import": "./dist/model-catalog-live-discovery.js",
+      "default": "./dist/model-catalog-live-discovery.js"
+    },
     "./providers/sse-decode": {
       "types": "./dist/providers/sse-decode.d.ts",
       "import": "./dist/providers/sse-decode.js",
@@ -87,6 +95,16 @@
       "types": "./dist/model-discovery.d.ts",
       "import": "./dist/model-discovery.js",
       "default": "./dist/model-discovery.js"
+    },
+    "./cli-probe-cache": {
+      "types": "./dist/cli-probe-cache.d.ts",
+      "import": "./dist/cli-probe-cache.js",
+      "default": "./dist/cli-probe-cache.js"
+    },
+    "./custom-instructions": {
+      "types": "./dist/custom-instructions.d.ts",
+      "import": "./dist/custom-instructions.js",
+      "default": "./dist/custom-instructions.js"
     },
     "./inventory": {
       "types": "./dist/inventory/index.d.ts",
@@ -116,6 +134,12 @@
       ],
       "model-discovery": [
         "./dist/model-discovery.d.ts"
+      ],
+      "cli-probe-cache": [
+        "./dist/cli-probe-cache.d.ts"
+      ],
+      "custom-instructions": [
+        "./dist/custom-instructions.d.ts"
       ],
       "inventory": [
         "./dist/inventory/index.d.ts"

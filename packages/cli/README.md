@@ -96,3 +96,7 @@ bounded lowercase-marker output preserved. Former direct `redactSecretLike` call
 `redactSecrets({ input }, { policy: 'aggressive' })`; this explicit policy emits category markers
 and also masks recognized PII. Core's default stays conservative for diagnostics. The CLI keeps
 `sanitizeUnknownDeep` for bounded recursive JSON. Loopback warnings use `@jini-ai/core/net`.
+
+## Wiring
+
+**Strict request fields** — for a host command that reads one JSON request on stdin: `parseRequestObject`, `assertKnownFields`, `require*`. Every refusal comes from the host's `invalid()` factory, so wire codes and wording stay the host's. `parsePortValue` likewise hands the host a refusal reason so it keeps its own `--port` messages.

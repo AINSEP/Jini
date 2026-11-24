@@ -29,6 +29,7 @@
       "./domain-dns": "node",
       "./local-text": "node",
       "./console-tee": "node",
+      "./browser-diagnostics": "node",
       "./server-logs/read-server-logs": "universal",
       "./server-logs/agent-tools": "universal",
       "./server-logs/tool-registrations": "universal",
@@ -133,6 +134,11 @@
       "types": "./dist/console-tee.d.ts",
       "import": "./dist/console-tee.js",
       "default": "./dist/console-tee.js"
+    },
+    "./browser-diagnostics": {
+      "types": "./dist/browser-diagnostics.d.ts",
+      "import": "./dist/browser-diagnostics.js",
+      "default": "./dist/browser-diagnostics.js"
     },
     "./server-logs/read-server-logs": {
       "types": "./dist/server-logs/read-server-logs.d.ts",

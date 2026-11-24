@@ -119,3 +119,21 @@ pump.start({});
 // During host shutdown:
 await pump.stop({});
 ```
+
+## Domain-event adapters
+
+- `@jini-ai/infra/events/memory-bus`: `InMemoryEventBus` and `InMemoryOutbox`, zero-infrastructure
+  implementations of `EventBusPort` / `OutboxPort` from `@jini-ai/core/contracts/events` (development
+  wiring and tests). The outbox claims with the default claim lease unless `claimLeaseMs` is passed.
+- `@jini-ai/infra/events/domain-outbox`: translation between the domain `OutboxPort` and the worker
+  port (`toJiniOutbox`, `toCmsOutbox`, `outboxWorkerArgs`), the enqueue-only view
+  (`toEnqueueOnlyDomainOutbox`), `processDomainOutbox` and `computeDomainOutboxBackoffMs`.
+
+## Wiring
+
+The host injects its per-event retry table as `processDomainOutbox(..., { retryPolicyForEvent })` on
+every drain (inline and background), and gives a non-delivering process `toEnqueueOnlyDomainOutbox`.
+`processDomainOutbox` and `outboxWorkerArgs` take the host's `scheduler` and `logger` as required
+fields beside `outbox`, `bus` and `clock`; this package builds neither a timer nor a console sink.
+A host can pass `createNodeOutboxScheduler({})` (from `@jini-ai/infra/events/outbox`) and a logger
+whose `error` writes its own lines.

@@ -77,6 +77,19 @@ export function ensureAgentDaemonToken({ env, envVarName, crypto }: {
   env[envVarName] = token;
   return token;
 }
+/** Adopt an operator-set secret into a process-memory holder, remove it from the source env, then
+ * preserve or mint via {@link ensureAgentDaemonToken}. Module memory, never `process.env`: every
+ * `...process.env` child (plugin hosts, forks, CLI agents) would otherwise inherit it; a child
+ * receives it only over private startup/control IPC. A later operator value never rotates an
+ * adopted one. `readOperatorSecrets` lets the host resolve secret-file indirection first. */
+export function adoptAndEnsureDaemonSecret({ env, holder, envVarName, crypto }: {
+  env: Record<string, string | undefined>; holder: Record<string, string | undefined>; envVarName: string; crypto: Pick<CredentialCryptoPort, 'mintToken'>;
+}, { readOperatorSecrets = ({ env: source }) => source }: { readOperatorSecrets?: (args: { env: Record<string, string | undefined> }) => Record<string, string | undefined> } = {}): string {
+  const operatorToken = readOperatorSecrets({ env })[envVarName];
+  delete env[envVarName];
+  if (operatorToken && !holder[envVarName]) holder[envVarName] = operatorToken;
+  return ensureAgentDaemonToken({ env: holder, envVarName, crypto });
+}
 export interface RouteAccessPolicy {
   /** Return a URL-decoded run ID; malformed encoding must throw URIError. */
   targetRun(args: { path: string }, optional?: Record<string, never>): string | undefined;

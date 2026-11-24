@@ -157,6 +157,11 @@
       "types": "./dist/data-modules/index.d.ts",
       "import": "./dist/data-modules/index.js",
       "default": "./dist/data-modules/index.js"
+    },
+    "./watermark/kernel": {
+      "types": "./dist/watermark/kernel.d.ts",
+      "import": "./dist/watermark/kernel.js",
+      "default": "./dist/watermark/kernel.js"
     }
   },
   "typesVersions": {
@@ -229,6 +234,9 @@
       ],
       "data-modules": [
         "./dist/data-modules/index.d.ts"
+      ],
+      "watermark/kernel": [
+        "./dist/watermark/kernel.d.ts"
       ]
     }
   },

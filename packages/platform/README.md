@@ -233,6 +233,7 @@ vendor-shaped `NativeSmtpTransport` so the factory adapts the payload once. Poli
 | Subpath | API and required host ports/policy |
 | --- | --- |
 | `./secrets/legacy-owner` | `readLegacyOwnerBackup({ envelope, passphrase })` decodes a legacy `jini-owner-store` v1/v2 passphrase backup read-only; `openLegacyOwnerVault({ repo, keyFilePath }, { metaParsers })` is the legacy keyring + authorize policy (owner workspace, no principal, copyable kind; never generates a key) over a host-supplied `VaultRepoPort`; `readLegacyOwnerEntry({ vault, row })` is one decrypt whose every failure is the fixed `OwnerStoreRecoveryError`. Entries are `VaultArchiveEntry`. The SQL reads are `@jini-ai/db/owner-store`; the file wiring is `@jini-ai/server/owner-store`. |
+| `./secrets/legacy-codecs` | Historical vault AAD builders (`build*Aad`), `legacyVaultAad({ record, legacy, formerCustomOwnerKey })` (decodes only known legacy lineages, fails closed), `legacyTargetProvider` and `normalizeLegacyVaultPayload({ record, legacy, plaintext, policy })` for recovering pre-vault rows. The host injects its own vault owner key and a `LegacyVaultPolicy` (publish catalog + token field). |
 | `./mail` | `createMailAdapterContext({ credential, kit }, { now, settings })` supplies a live clock and fresh empty settings by default; modules validate opaque per-install settings. |
 | `@jini-ai/analytics` (separate package) | `ingestHit({ input, deps }, { hooks, hash })`, `normalizeIngestContext({ input, dailySalt }, { hash })`, `deriveDailySalt({ rootKeySeed, workspaceId, utcDate, saltContext })`. The host supplies sink/config, host resolution, HKDF context, and privacy bounds. `LocalBufferSink({}, { initialHits })` is process-local. |
 | `@jini-ai/cms/trash` (separate package) | `createTrashService({ repo, adapters, transaction, idGen, entityPolicy }, { retentionDays, ...optional })`, `createTrashSweep({ repo, adapters, transaction, entityPolicy })`, and `startTrashSweeper({ sweep, clock, scheduler, leaseOwner }, optional)`. The host owns authorization, transactions, retention, scheduling, and adapters; follow-up hooks are in argument two. |
@@ -290,3 +291,15 @@ AES-GCM AAD. Renaming that persisted field requires a host adapter migration as 
 Analytics is available from the standalone `@jini-ai/analytics` package; soft-delete and purge
 services are available from `@jini-ai/cms/trash`. Their platform subpaths and root namespaces
 have been removed.
+
+## Wiring
+
+
+- `@jini-ai/platform/fs`: `resolveDirectoryTarget({ dirArg })` resolves a directory argument to the one real
+  target path (lexical, existing symlink, dangling symlink); `moveDirectoryUnderLeases({ from, to, ports })`
+  runs the creation-lock, source/target claim, relocate, release-both sequence. The host supplies the idleness
+  check, claims/release, destination preparation, the verified relocation and the refusal copy as `ports`.
+
+- `@jini-ai/platform/image/png-encode` (node): `renderSolidColorPng({ width, height, color })` returns a real,
+  decodable 8-bit truecolor PNG `Buffer` of one solid color (dependency-free, `node:zlib` only). Hosts use it for
+  deterministic typed-image fixtures; it validates dimensions and channels and throws with the exact field named.

@@ -137,6 +137,14 @@ See [API.md](https://github.com/AINSEP/Jini/blob/main/packages/diagnostics/API.m
 
 Bundle collection, inbound request hooks and web evidence share `Clock` from `@jini-ai/core/primitives` (`nowMs()` with no empty argument); the old package-local clock types are removed. Credential regexes come only from core's eleven-entry `SECRET_SHAPE_PATTERNS`; diagnostics keeps its own redaction policies and existing scanner/redactor export names. See [API.md](https://github.com/AINSEP/Jini/blob/main/packages/diagnostics/API.md) for migration details.
 
+## Wiring (site browser diagnostics)
+
+`@jini-ai/diagnostics/browser-diagnostics`: the host injects `consentSetting` (the settings
+`{ namespace, key }` whose explicit `true` is the operator's telemetry consent) into
+`browserDiagnosticsEnabled`'s first arg and `receiveBrowserDiagnostics`'s `deps`, plus its settings repo,
+workspace id and observability port; it serves `siteBrowserDiagnosticsModule` at the bridge's `src` and
+mounts the intake route itself.
+
 ## Wiring
 
 **Global error reporting** (`installGlobalErrorReporting` from `./observability`). The host injects

@@ -342,3 +342,12 @@ lives in `@jini-ai/server/owner-store`.
 with the same names from `'@jini-ai/server/owner-store'`, and add `@jini-ai/server` (same version as
 `@jini-ai/db`) to the host's dependencies. `OWNER_STORE_LEDGER`, `ownerStoreMigrations`, `ownerStoreDdl`
 and `ownerStoreMigration` stay here.
+
+## Wiring (transfer: SQLite online backup)
+
+`captureSqliteBackupBytes` (`@jini-ai/db/transfer`): the host passes its open, structural SQLite handle
+(`backupTo`) and its own `tempDirPrefix` for the short-lived backup directory.
+
+- `@jini-ai/db/pglite`: `copyPgliteSourceTo({ sourceDataDir, targetDataDir, ports })` owns the served-versus-stopped
+  copy and owner-lock lifecycle of a PGlite data dir. The host supplies `runningOwner`, `copyServed`,
+  `acquireOwnerLock` (mapping a refused lock to its own error), `openStopped` and `copyStopped`.

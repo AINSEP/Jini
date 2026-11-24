@@ -185,6 +185,21 @@ confirmation UI/exchanges, and current connection roster. A revocation gate chec
 row on every call; the host composes its credential checks, including preset credentials.
 See [API.md](https://github.com/AINSEP/Jini/blob/main/packages/mcp/API.md) for concrete object-argument examples.
 
+## Wiring
+
+- **Federation runtime** (`createFederationRuntime` from `@jini-ai/mcp/federation`): one per
+  process. The host injects `boot` (its attach bound to registry, approval deps and preset
+  registry), `resolveConnections` (the stored roster), `resolvePresetConnections`,
+  `createReloadCoordinator` (its reload adapter over `createFederationReloadCoordinator`), refusal
+  `messages` and a `FederationHostLogger` (the host owns any console prefix/format); optional
+  `after`, `onAdmitted`, `beforeReload`. Jini owns single-flight boot, boot-plus-reload accounting,
+  connect-failure merging, preset origin stamping on reload and the empty-grant awaiting set.
+- **Roster-change bus** (`createMcpRosterChangeBus` from `@jini-ai/mcp/federation`): the host creates
+  ONE bus in a composition module and binds its `on`/`notify`/`reset`. It injects
+  `createLoweringError` (the host's safe, actionable error a failed or timed-out tool-access lowering
+  rejects with) and may inject `defaultWaitMs` (default 5s). Each runtime registers its reload under a
+  stable key (last wins); roster writers call `notify()`, or `notify({ lowered })` to await Stop/cleanup.
+
 All test, compiler, build, and pack verification is deferred under the owner directive.
 
 ## Design decisions

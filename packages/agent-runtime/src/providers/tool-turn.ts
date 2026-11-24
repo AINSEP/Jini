@@ -3,7 +3,7 @@ import { runAzureToolTurn } from './azure-chat.js';
 import { runGoogleToolTurn, type GoogleContent, type GoogleToolCall, type GoogleToolDef, type GoogleToolResultPart } from './google-messages.js';
 import { runOpenAiToolTurn } from './openai-chat.js';
 import { type OpenAiContentPart, type OpenAiFunctionToolDef, type OpenAiMessageParam, type OpenAiToolCall } from './openai-chat-types.js';
-import type { ProviderTurnAdapters, ProviderTurnEvent, ProviderToolCall, ProviderToolResult, ProviderToolDescriptor, ProviderToolTurnInput, ProviderToolTurnResult, ProviderToolTurnOptions, ProviderToolSnapshotOptions } from './tool-turn-types.js';
+import type { ProviderTurnAdapters, ProviderTurnEvent, ProviderToolCall, ProviderToolResult, ProviderToolDescriptor, ProviderToolTurnInput, ProviderToolTurnResult, ProviderToolTurnOptions, ProviderToolSnapshotOptions, ProviderProtocol } from './tool-turn-types.js';
 import { createToolNameMap } from '@jini-ai/core';
 import { compileOperationSchema, type CompiledOperationSchema } from './operation-schema.js';
 export type * from './tool-turn-types.js';
@@ -13,6 +13,14 @@ export { googleParametersOf, sanitizeGoogleSchema, findNumericEnumPaths, coerceN
 /** Existing provider loops, ready for host composition; callers may replace any adapter. */
 export const providerTurnAdapters: ProviderTurnAdapters = Object.freeze({ anthropic: runAnthropicToolTurn, openai: runOpenAiToolTurn, azure: runAzureToolTurn, google: runGoogleToolTurn });
 type InternalTurnInput = ProviderToolTurnInput & ProviderToolTurnOptions;
+/** A stored, free-form provider string narrowed to a protocol the default adapters can dispatch, or
+ * null when it names something else. Case- and whitespace-insensitive because the stored column is
+ * free-form. The adapters themselves own the supported protocols; no second allowlist lives here.
+ * @complexity O(n) in provider length. */
+export function resolveProviderProtocol({ provider }: { provider: string }, _optional = {}): ProviderProtocol | null {
+  const normalized = provider.trim().toLowerCase();
+  return Object.hasOwn(providerTurnAdapters, normalized) ? normalized as ProviderProtocol : null;
+}
 const TOOL_ERROR_PREFIX = "[tool error] ";
 type AnthropicImageMediaType = "image/jpeg" | "image/png" | "image/gif" | "image/webp";
 function toAnthropicToolContent(content: ProviderToolResult["content"]): string | AnthropicToolResultContentBlock[] {
@@ -112,6 +120,9 @@ function createToolProjection(input: InternalTurnInput, _options = {}) {
   const published = new Map<string, PublishedTool>();
   const reported = new Set<string>();
   function getTools({ strict = false }: ProviderToolSnapshotOptions = {}, { reportFallback = true } = {}): ProjectedTool[] {
+    // Descriptors only, never handlers — the same public shape `ToolRegistry.list()` returns
+    // (`@jini-ai/core`'s own "handlers never publicly retrievable" invariant, see that package's
+    // `tool-registry.ts` module doc). Mapped into each protocol's own tool-def shape below.
     const descriptors = input.getToolSnapshot?.() ?? input.tools;
     pinWireNames(descriptors, names);
     return descriptors.map(descriptor => {
@@ -298,6 +309,61 @@ async function runGoogleTurn(input: InternalTurnInput): Promise<ProviderToolTurn
 }
 /** Runs one provider-neutral turn through the supplied adapters. The adapter end event takes precedence over a raw provider stop code.
  * Local mapping is proportional to the descriptors, expanded schemas and emitted result parts; request and loop cost belongs to the adapter ports.
+ *
+ * Provider mapping constraints (implemented here and in `google-schema.ts`):
+ *
+ * OpenAI/Azure have no host-tool-error flag on their wire. A shared fold marker carries failures
+ * into content and restores `isError` on outgoing events; adapter validation alone cannot detect a
+ * host denial in an otherwise valid string result. Azure uses the same content shape as OpenAI.
+ * Anthropic accepts JPEG/PNG/GIF/WebP image sources; its adapter guards unsupported media types.
+ * OpenAI/Azure move image parts into a follow-up user message because tool messages are text-only;
+ * Gemini places inline data beside function responses. Transcript events describe each image by
+ * MIME type instead of emitting base64 noise. Plain string results remain unchanged.
+ * Missing input schemas use an empty-object schema; schema dialect is a consumer concern.
+ *
+ * Gemini's restricted Schema cannot express full JSON Schema. Its supported-key allowlist follows
+ * the validator's Available Fields list (the Google AI Developer forum's "oneOf in response_schema"
+ * thread), which includes fields omitted by the prose API docs. Unsupported keys are dropped only
+ * from model guidance: tool handlers still validate inputs server-side. `const` becomes `enum`;
+ * `oneOf` becomes `anyOf`. That conversion is equivalent for disjoint tagged unions (e.g. navigation
+ * targets and TipTap nodes); overlapping future branches require an owner decision because the
+ * conversion would loosen the constraint.
+ *
+ * Local #/$defs references are resolved against the nearest enclosing, per-call definitions map,
+ * preventing concurrent turns from sharing definitions. Unknown references degrade to object
+ * guidance instead of failing an entire turn. References are inlined because Gemini has no $ref;
+ * ordinary object/array traversal does not consume the reference-depth budget.
+ * The reference cap is 4, a chosen bound rather than a product invariant: TipTap's recursive
+ * eight-branch block union grows combinatorially, and two reference hops represent one visible
+ * list/blockquote nesting level. Four hops cover two such levels while bounding request size.
+ * A navigation tree's separate depth limit does not determine this cap. Deeper content
+ * remains permissible but undescribed by a shallow type/description stub (union stubs use object);
+ * the stub must not recurse into properties, items or branches and recreate unbounded expansion.
+ *
+ * Gemini requires every array schema to declare items and every node to declare type unless it
+ * has anyOf. Unknown array items degrade to string, the narrowest valid approximation, rather than
+ * inviting arbitrary objects. Structural repair applies only at schema positions (properties.*, items,
+ * anyOf), never arbitrary default/example objects, which must not acquire invented type fields.
+ * Properties preserve author-chosen keys. Validation must use googleParametersOf, including shape
+ * repair, so it checks the actual wire schema rather than an incomplete lower-level conversion.
+ *
+ * Bare const literals infer boolean/integer/number/string; object/array const sites need an explicit
+ * type instead of broader inference. A type array collapses to one non-null type plus nullable;
+ * multiple non-null types lose precision and require an owner decision if used. Null enum members
+ * are removed because Gemini's enum accepts strings only and sibling nullable already conveys null.
+ * Numeric enums are stringified for Gemini and must be converted back at the tool-call boundary:
+ * a handler such as a redirect's statusCode still requires a number. Numeric paths come from the original
+ * unsanitized schema, once per tool, because sanitization overwrites the numeric type. The original
+ * type check prevents coercing numeric enum values on nonnumeric fields. Discovery traverses only
+ * properties, not arrays, unions or $refs; a numeric enum in those positions needs an extension.
+ * Coercion accepts only finite numeric-looking, nonblank strings and clones only the changed path;
+ * malformed paths/arguments remain untouched for the handler's validation rather than inventing data.
+ *
+ * The adapter's captured end-event reason takes precedence over the final response's raw stop code:
+ * a raw tool_use can mean the loop hit its cap while the model still wanted tools. Raw stop/finish
+ * fields are fallbacks only when no end event was observed; callers must explain the loop's actual
+ * stop. Anthropic alone requires a max-token default when omitted, so the shared mapping supplies it.
+ * Provider-internal fabricated-role-marker diagnostics are filtered because the client has no event case.
  */
 export async function runProviderToolTurn(required: ProviderToolTurnInput, optional: ProviderToolTurnOptions = {}): Promise<ProviderToolTurnResult> {
   const input: InternalTurnInput = { ...optional, ...required };

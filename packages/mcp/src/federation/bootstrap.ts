@@ -161,7 +161,7 @@ interface OriginTaggedConnection {
  *  carries its OWN origin already, stamped by `external-mcp-store.ts`'s
  *  `toResolvedFederatedConnections`) and skip the row re-check a preset has no row to support. Split
  *  out purely to keep {@link resolveFederationAttachInputs} under the shop complexity ceiling. */
-function withPresetOrigin(connection: ResolvedFederatedConnection): ResolvedFederatedConnection {
+export function withPresetOrigin({ connection }: { connection: ResolvedFederatedConnection }, _optional = {}): ResolvedFederatedConnection {
   return { ...connection, config: { ...connection.config, origin: { kind: "preset" } } };
 }
 
@@ -174,7 +174,7 @@ function resolveFederationAttachInputs(params: AttachFederatedMcpToolsParams): {
   const connect = params.connect;
   const presetConnections = params.connections ?? resolveFederatedMcpPresets({ env: params.env ?? process.env, logger, registry: params.presetRegistry ?? defaultFederatedMcpPresetRegistry });
   const connections = [
-    ...presetConnections.map((connection): OriginTaggedConnection => ({ connection: withPresetOrigin(connection), isPreset: true })),
+    ...presetConnections.map((connection): OriginTaggedConnection => ({ connection: withPresetOrigin({ connection }), isPreset: true })),
     ...(params.extraConnections ?? []).map((connection): OriginTaggedConnection => ({ connection, isPreset: false })),
   ];
   return { logger, connect, connections };

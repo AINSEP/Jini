@@ -269,6 +269,54 @@ describe('host configuration and failure boundaries', () => {
     assert.equal(storage.getItem('a'), null);
     assert.equal(storage.getItem('b'), null);
   });
+  it('reads a legacy over-cap envelope when the host opts in, while new writes stay capped', () => {
+    const storage = new FakeStorage();
+    const legacy = { open: true, messages: [message('1', 'user', 'a'), message('2', 'user', 'b'), message('3', 'user', 'c')] };
+    storage.setItem('a', JSON.stringify(legacy));
+    const session = createBrowserSessionStore({ storage, transcriptKey: 'a', maxMessages: 2, maxBytes: 200,
+      validateMessage: valid, overCapReads: 'read' });
+    assert.deepEqual(session.load({}), legacy);
+    assert.equal(storage.getItem('a'), JSON.stringify(legacy));
+    storage.setItem('a', JSON.stringify({ open: false, messages: [message('u', 'user', 'x'.repeat(300))] }));
+    assert.deepEqual(session.load({}), { open: false, messages: [message('u', 'user', 'x'.repeat(300))] });
+    session.save({ state: legacy });
+    assert.deepEqual(JSON.parse(storage.getItem('a') as string), { open: true, messages: legacy.messages.slice(1) });
+    storage.setItem('a', '{"open":true,"messages":[{}]}');
+    assert.deepEqual(session.load({}), { open: false, messages: [] });
+    assert.equal(storage.getItem('a'), null);
+  });
+  it('reports every failure through onFailure, in order, and stays silent by default', () => {
+    const failures: string[] = [];
+    const boom = (operation: string) => () => { throw new Error(operation); };
+    const broken: SessionStoragePort = { getItem: boom('get'), setItem: boom('set'), removeItem: boom('remove') };
+    const session = createBrowserSessionStore({ storage: broken, transcriptKey: 'a', maxMessages: 2, maxBytes: 1000,
+      validateMessage: valid, onFailure: ({ operation, error }) => { failures.push(`${operation}:${(error as Error).message}`); } });
+    assert.deepEqual(session.load({}), { open: false, messages: [] });
+    session.save({ state: { open: true, messages: [] } });
+    session.clear({});
+    const circular: Record<string, unknown> = {};
+    circular.self = circular;
+    const looped = { ...message('u', 'user', 'hi'), extra: circular };
+    session.save({ state: { open: true, messages: [looped] } });
+    assert.deepEqual(failures.slice(0, 3), ['load:get', 'save:set', 'clear:remove']);
+    assert.equal(failures[3]?.startsWith('serialize:'), true);
+    assert.equal(failures.length, 4);
+    const corrupt = new FakeStorage();
+    corrupt.setItem('a', 'not json');
+    const decoded: string[] = [];
+    createBrowserSessionStore({ storage: corrupt, transcriptKey: 'a', maxMessages: 2, maxBytes: 1000, validateMessage: valid,
+      onFailure: ({ operation }) => { decoded.push(`${operation}:${corrupt.getItem('a')}`); } }).load({});
+    assert.deepEqual(decoded, ['decode:null']);
+    assert.doesNotThrow(() => configured(broken).load({}));
+  });
+  it('lets a host-supplied onFailure throw escape, so a host may keep a loud serialization failure', () => {
+    const circular: Record<string, unknown> = {};
+    circular.self = circular;
+    const session = createBrowserSessionStore({ storage: new FakeStorage(), transcriptKey: 'a', maxMessages: 2, maxBytes: 1000,
+      validateMessage: valid, onFailure: ({ operation, error }) => { if (operation === 'serialize') throw error; } });
+    const looped = { ...message('u', 'user', 'hi'), extra: circular };
+    assert.throws(() => session.save({ state: { open: true, messages: [looped] } }), TypeError);
+  });
   it('returns fresh empty envelopes and keeps namespaces isolated', () => {
     const storage = new FakeStorage();
     const first = configured(storage);

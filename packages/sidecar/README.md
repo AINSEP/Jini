@@ -130,3 +130,25 @@ process, clock, scheduler and reporting ports and starts no work on import.
 
 The package TypeScript configuration includes production source and `src/**/__tests__`.
 `npx tsc -p tsconfig.json --noEmit`, run from this package directory, checks both without running tests.
+
+## Wiring
+
+`@jini-ai/sidecar/daemon-origin` resolves the agent daemon's origin (`JINI_AGENT_DAEMON_URL`, then
+`JINI_AGENT_DAEMON_PORT`, else a self-allocated free loopback port). The host owns the one production
+resolver, calls `ensure()` before it serves, and layers any delegated-connection URL override on top.
+
+`startOwnParentWatchdog` (root entry) self-terminates a server whose parent dies without signalling it.
+The host injects the live process ports plus `envNames` (its disable and dev-supervisor-pid variable
+names) and a `report` port; Jini owns no env name and no log wording. `report` receives structured
+`ParentWatchdogEvent`s (`disabled`, `parent-gone-at-boot`, `invalid-supervisor-pid`,
+`supervisor-gone`, `parent-reparented`); the host formats each line and picks its severity.
+
+`@jini-ai/sidecar/daemon-park-recovery` replays a request at most once, and only after an explicit
+503 park refusal. The host injects its wire `headers` (`parked`/`pid` names), `ensureReady` (its
+supervisor's readiness wait), `onParked` (its parking note) and `send`; Jini owns no header name.
+
+`@jini-ai/sidecar/daemon-connection` holds the current and previous delegated daemon endpoint, each
+as one `{ url, token }` record so a probe of an old run keeps the credential that belongs to its
+endpoint. `createDaemonConnectionRegistry<Connection>()` returns an instance (no module state); the
+host builds the one production instance in its composition, owns the inherited-IPC registration that
+calls `set`, and layers any fallback credential lookup on top of `current()`.

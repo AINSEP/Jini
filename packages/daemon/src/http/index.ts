@@ -15,6 +15,8 @@ export {
   activeContextRoutes,
   setActiveRoute,
 } from './active-context.js';
+export type { RunActiveContextAnswer, RunActiveContextStore, RunActiveScreen } from './run-active-context.js';
+export { createRunActiveContextStore } from './run-active-context.js';
 export type {
   CatalogueEntry,
   HostEditor,
@@ -194,6 +196,7 @@ export {
   delegatedToolRoutes,
 } from './delegated-tools.js';
 export type { FamilySelector, ToolFamilyDescription, ToolFamilyPort } from '../core/tool-family.js';
+export { createPrefixToolFamilyPort } from '../core/tool-family.js';
 export type {
   RemoteRunEventHttpDeps,
   RemoteRunEventResponse,
@@ -225,6 +228,8 @@ export {
   parseCapabilityQuery,
 } from './frontend-sessions.js';
 export { createFrontendControl } from './frontend-control.js';
+export type { LostFrontendBindingMessages, LostFrontendBindings } from './lost-frontend-binding.js';
+export { createLostFrontendBindings, FrontendDisconnectedError } from './lost-frontend-binding.js';
 export type {
   CreateFrontendControlOptions,
   FrontendBindErrorContext,
@@ -381,4 +386,10 @@ export { restoreSurface } from './surface-restoration.js';
 export type { SurfaceHttpResult } from './surface-restoration.js';
 export { frontendRequestRoutes } from './frontend-request-route.js';
 export type { FrontendRequestRoutesRequired } from './frontend-request-route.js';
-export { deliverSurfaceCallback, isSurfaceCallbackPermitted, SURFACE_TYPED_ANSWER_REFUSAL, type SurfaceCallbackInput } from './surface-callback.js';
+export { deliverSurfaceCallback, isSurfaceCallbackPermitted, type SurfaceCallbackInput } from './surface-callback.js';
+export {
+  executeSurfaceRedemption, isTypedSurfaceAnswer, parseSurfaceCallbackRequest, surfaceCallbackExchangeId, surfaceCallbackRefusalBody,
+  surfaceNotPendingBody, surfaceRedemptionReply, SURFACE_TYPED_ANSWER_REFUSAL, SurfaceReplyRefusal, readSurfacePrincipalId, surfaceReplyOnError, surfaceReplyResponse, unauthenticatedReply, type SurfaceCallbackReply, type SurfaceCallbackRequest,
+} from './surface-callback-request.js';
+export { a2uiActionsRoutes, a2uiNotPendingBody, answerA2uiAction, deliverA2uiAction, readA2uiAction, type A2uiActionsRouteDeps, type ReadA2uiActionResult } from './a2ui-actions.js';
+export { answerSurfaceCallback, surfaceCallbackRoutes, type SurfaceCallbackHttpRequest, type SurfaceCallbackRouteDeps } from './surface-callback-route.js';

@@ -108,6 +108,29 @@ non-DOM host (a native app, a canvas-based renderer) can implement `PageDriver` 
 likewise caller-supplied. Fixed: `PAGE_CAPABILITIES`' verb list and schemas, the `data-agent-*`
 attribute names, and the wire shapes of both the GenUI and A2UI protocols.
 
+## Wiring
+
+- **Published-page manifest gates** (`@jini-ai/agentic/core`'s `acceptsPublishedPageInput`,
+  `pageActionPublishedForTarget`, `findPublishedPageElement`, `publishedPageActionNeedsConfirmation`,
+  `summarizePageTargets`): an untrusted-caller page executor (e.g. a public-site visitor surface)
+  passes the server-issued `publication` it already holds plus the capability/input of each call;
+  nothing else is injected. The host keeps its own target resolution (slug-to-path, route checks,
+  publication freshness) and its capability list; Jini owns action-class eligibility, input
+  acceptance, forced confirmation and the bounded, label-normalized target summary.
+- **`page.navigate` refusal wording** (`@jini-ai/agentic/core`'s `withPageNavigateErrorRewrap`):
+  a host whose own vocabulary collides with the executor's "is not a published page" refusal
+  wraps its frontend tool registrations as
+  `withPageNavigateErrorRewrap({ registrations, describeRefusal })` before registering them. The
+  host injects `describeRefusal({ page, availableScreens })`, returning its own wording (for
+  example, pointing at the host's content-search tool); only the `page.navigate` registration is
+  rewrapped, and every other error passes through as the same object.
+- **Multi-turn A2UI tools** (`@jini-ai/agentic/render-surface`'s `withA2uiExchange`,
+  `a2uiActionOf`, `validatedA2uiMessage`): a host tool handler passes its surface exchange store,
+  the executor's `emitSurface`, its own tool id, the principal id and the run's abort `signal`, plus
+  a `run({ surfaceId, emit, receive })` that scripts the turns; outgoing messages are validated and
+  labelled with the tool id, and the exchange closes on abort and on every return. The host keeps
+  its component trees, catalog id and model-facing result copy.
+
 ## Runtime
 
 `jini.runtime: "universal"` for `.`; `./dom` is `"browser"` (needs a real or jsdom

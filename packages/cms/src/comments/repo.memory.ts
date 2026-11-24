@@ -2,7 +2,7 @@
  * @file In-memory `CommentRepoPort` adapter (rule-of-two "test/dev" half;
  * `repo.sqlite.ts` is the durable half).
  */
-import { decodeKeysetCursor, encodeKeysetCursor } from "../core/keyset-cursor.js";
+import { decodeKeysetCursor, encodeKeysetCursor } from "@jini-ai/core/keyset-cursor";
 
 import type { CommentRepoPort } from "./ports.js";
 import type { CommentRecord, CommentStatus, CommentThreadNode, ModerationLogEntry, ModerationQueuePage } from "./types.js";

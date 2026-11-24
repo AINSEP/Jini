@@ -12,3 +12,4 @@ export * from './verify.js';
 export * from './approval.js';
 export * from './manual.js';
 export * from './registry.js';
+export * from './binding-sweeper.js';

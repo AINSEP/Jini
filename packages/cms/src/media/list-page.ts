@@ -1,5 +1,5 @@
 import { ToolInputError } from '@jini-ai/core';
-import { decodeKeysetCursor, encodeKeysetCursor, type KeysetPosition } from '../core/keyset-cursor.js';
+import { decodeKeysetCursor, encodeKeysetCursor, type KeysetPosition } from '@jini-ai/core/keyset-cursor';
 import type { MediaRepoPort } from './ports.js';
 import type { MediaRecord } from './types.js';
 

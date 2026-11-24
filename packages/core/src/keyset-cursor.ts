@@ -1,4 +1,4 @@
-import { ToolInputError } from "@jini-ai/core";
+import { ToolInputError } from "./tool-input-errors.js";
 
 /**
  * @file The opaque `${createdAt}::${id}` keyset cursor shared by the `(created_at, id)`-ordered

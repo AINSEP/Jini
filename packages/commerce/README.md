@@ -164,3 +164,6 @@ foreign-key integration tests remain in the first host. See [source-map.md](sour
 boundary and coordinator build requirements. Phase 1's cross-package E2E specification is
 `../provider-plugins/src/payments-stripe/__tests__/payments-stripe-kernel.test.ts`. Tests, builds, typechecks and
 coverage were not run during this dispatch; validation and measured coverage remain pending.
+
+## Wiring
+- Merchant selection (`.`): the host calls `ensureCommerceSetting({ deps, systemPrincipalId })` at boot with its settings-definition deps and reads `readCommerceConfiguration({ settingsRepo, workspaceId })`; `commerceCheckoutOrigin({ publicOrigin })` needs nothing injected.

@@ -318,6 +318,44 @@ The former core and CMS `./settings/express` entries have been removed.
 `./tool-metadata/<domain>` ships product-neutral tool metadata maps; a host aggregates them with its
 own maps (for example Tovu keeps `custom-credentials`, whose search vocabulary names providers). A
 test in `src/tool-metadata/__tests__/provider-neutral.test.ts` refuses provider names here.
+
+`./settings` guarded reads: `readEffectiveFailClosed({ settingsRepo, getEffective, settingsReady,
+namespace, key, scopeContext, project, denied, deniedWarning, warn }, { readFailure })` resolves one
+setting fresh and denies on any failure; the host injects its namespace/key, the projection, the
+refusal value, its safe diagnostic copy and logger (`readFailure: "throw"` for HTTP readers).
+`readUserLayerObject({ settingsRepo, namespace, key, workspaceId, principalId, notReadyMessage })`
+reads one principal's raw user-layer object for read-modify-write patches; the host injects the
+not-ready copy.
+
+Read cards (`tool-read-cards.ts`, root export): a host collapsing paired get/list read tools into
+one card passes the source registrations' own published schemas and handlers to
+`unionInputSchema({ getSchema, listSchema, idProperty }, { sharedOnlyKeys })` (the host injects its
+peer-read selector, e.g. `site`) and `dispatchByIdPresence({ idProperty, get, list }, { batchGet })`,
+and renames its source selector to a canonical one with `renameSchemaSelector` (schema) and
+`renameInputSelectors` (input, as a `ToolInputNormalizer` and in the handler). Card ids,
+permissions, copy and which tools pair up stay with the host; `rewriteSchemaDescriptions` and
+`valueAtPath` serve its retired-id rewrite and list lookups.
+
+`httpOriginOf({ value })` (`origin-validation.ts`) parses an operator-configured public URL to its
+origin without throwing; the host injects the value (its own env var).
+## Wiring (tool-access-change)
+
+- `@jini-ai/core/tool-access-change`: the host supplies its own `NotifyToolAccessChanged` effect and throws `ToolAccessLoweringError` (from `@jini-ai/core/tool-access-change`) when it cannot confirm affected answers stopped; nothing else to inject.
+
+## Wiring (primitives/lazy-proxy)
+
+`createLazyProxy({ factory })` (`@jini-ai/core/primitives`) needs nothing injected; the host passes the
+factory that opens the real instance on first use.
+
+### Wiring: daemon RPC and client-directive wire types
+
+- `@jini-ai/core/contracts/site/daemon-core-rpc` (type-only): the request union and consent shapes of the daemon's retained-state RPC; the host parses with `@jini-ai/daemon/core-rpc-schema`, injecting its consent keys and settings namespaces.
+- `@jini-ai/core/contracts/site/client-directives` (type-only): `ClientDirective` (`tool_confirmation` | `ui_surface`), the human-only client channel union a host streams beside the transcript; the host's capability policy decides which tools may raise which directive.
+
+## Wiring (tool-result content block)
+
+`@jini-ai/core/contracts/tool-result-block` declares `ToolResultContentBlock`, the one text/image block shape a tool result carries to a model provider. The daemon's BYOK meta-tool mapping produces it and the agent runtime's provider adapters consume it; both import this declaration rather than keeping a copy. Type-only.
+
 `./tool-metadata/deploy-ops` and `./tool-metadata/site-backup` export factories instead of a const map,
 because two of their search queries name host-owned words: the host calls
 `createDeployOpsToolMetadata({ siteKeyEnvName })` and `createSiteBackupToolMetadata({ archiveLabel })` once in

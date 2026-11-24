@@ -114,3 +114,8 @@ Server provider plugins extend this same host with `contributes.providers` and a
 resources on contribution detach/replacement or shutdown. See [API.md](API.md#server-provider-contributions).
 Self-contained artifacts are distributed by `@jini-ai/provider-plugins`; there are no domain or
 vendor imports in this host extension.
+
+## Wiring
+
+- `@jini-ai/plugins/host/hook-refusals`: the host wraps each save domain's handler map with `withPluginHookRefusals` (or maps one rejection with `toModelFacingPluginHookError`) and uses `pluginHookRefusalText` for its HTTP envelope; nothing to inject.
+- `@jini-ai/plugins/host` activation polling: the serving host calls `startPluginActivationPolling({ workspaceId, pluginActivationRepo, onPluginEnabled, onPluginDisabled, pluginLoadedVersion?, pluginRuntimeReady }, { intervalMs })` once and calls `stop()` on shutdown; it injects its activation repo and its registry attach/detach callbacks.

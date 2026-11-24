@@ -101,9 +101,11 @@
    "PLUGIN_SDK_SPECIFIER": "variable:fb4103d97f",
    "PLUGIN_SDK_SPECIFIERS": "variable:bfb154bb54",
    "ParseDeclaredContentTypesResult": "interface:016e926d22",
+   "PluginActivationPollDeps": "interface:1af8adc816",
    "PluginActivationRecord": "interface:abd0489e33",
    "PluginActivationRepoPort": "interface:b30e6b87f3",
    "PluginAlreadyInTrashError": "class:6ff5b7f47c",
+   "PluginAttachFailure": "interface:406207934e",
    "PluginCapability": "type:f8cdd557a5",
    "PluginCapabilityApprovalPort": "type:69b24989e0",
    "PluginCapabilityExecutableAccess": "interface:da76cca442",
@@ -218,10 +220,12 @@
    "pluginToolIdFor": "function:a8d2e1c8ae",
    "previewUninstallPlugin": "function:b3edd1ce8a",
    "quarantinePlugin": "function:e889d1bdf9",
+   "reconcilePluginActivationsOnce": "function:bc014586a4",
    "renderPluginWidgetFragments": "function:0e2245f74e",
    "resolveClaimConflicts": "function:df4a21bf1d",
    "resolvePluginConflicts": "function:5b5d2f7fe4",
    "setPluginEnabled": "function:3560a8163c",
+   "startPluginActivationPolling": "function:84c2aaab9d",
    "toAdminPluginResponse": "function:87ae1b6b4f",
    "uninstallPlugin": "function:574e5038b8",
    "validateBrowserProviders": "function:9f2de39705",
@@ -229,6 +233,14 @@
    "validatePluginIdFormat": "function:abef194905",
    "validatePluginRoute": "function:768024f2ac",
    "watchProviderRevisions": "function:21fab6a001"
+  }
+ },
+ "./host/hook-refusals": {
+  "types": "./dist/host/hook-refusals.d.ts",
+  "symbols": {
+   "pluginHookRefusalText": "function:35284107b7",
+   "toModelFacingPluginHookError": "function:4c0ffcb4f6",
+   "withPluginHookRefusals": "function:71007ae5f0"
   }
  },
  "./host/node": {

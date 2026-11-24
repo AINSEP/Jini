@@ -1,4 +1,4 @@
-import { toolDiscoveryMetadata } from '@jini-ai/core';
+import { toolDiscoveryMetadata, toolRegistryRevision } from '@jini-ai/core';
 import { nowIso } from '@jini-ai/core/primitives';
 import type { CatalogBuilderArgs, ToolCatalogEntry, ToolCatalogQuery } from './ports.js';
 import { inputSignature } from './input-signature.js';
@@ -88,5 +88,36 @@ export function createLiveToolCatalogQuery(required: { initial: ToolCatalogQuery
       describe: required => current.describe(required),
     },
     rebind({ next }) { current = next; },
+  };
+}
+
+/** A catalog that reseeds its disposable snapshot whenever the registry's revision moves. */
+export interface RefreshingToolCatalogQuery<S extends { readonly query: ToolCatalogQuery }> extends ToolCatalogQuery {
+  /** The snapshot current requests must use, reseeded first if the registry revision advanced.
+   * Hosts that answer from more than `query` (a namespace overview built from the same entries)
+   * read it here so both halves come from one seed and cannot disagree. */
+  current(): S;
+}
+
+/** Revocable host scopes advance a registry revision (`@jini-ai/core`'s `toolRegistryRevision`);
+ * every search/describe compares it and reseeds through the host's `seed` only when it changed.
+ * The host's seed decides what a reseed reuses: reseeding the SAME backend connection keeps one
+ * snapshot owner and avoids leaking a replacement connection per revision. A static registry
+ * without a revision (`undefined`) never reseeds, so it stays a plain snapshot.
+ * @complexity O(1) per request when the revision is unchanged; one `seed()` when it moved. */
+export function createRefreshingToolCatalogQuery<S extends { readonly query: ToolCatalogQuery }>(
+  required: { seed: () => S; registry: object }, _optional: Record<string, never> = {},
+): RefreshingToolCatalogQuery<S> {
+  let snapshot = required.seed();
+  let revision = toolRegistryRevision({ registry: required.registry });
+  const current = (): S => {
+    const next = toolRegistryRevision({ registry: required.registry });
+    if (next !== revision) { snapshot = required.seed(); revision = next; }
+    return snapshot;
+  };
+  return {
+    current,
+    search: (query, optional) => current().query.search(query, optional),
+    describe: query => current().query.describe(query),
   };
 }

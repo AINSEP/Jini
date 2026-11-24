@@ -26,6 +26,8 @@ import { createConsoleLogger, type Logger } from '@jini-ai/core/primitives';
 import { validateEventProps } from "../privacy.js";
 export { createAiGenerationSink } from "./ai-generations.js";
 export { fanOutProductAnalytics } from "./fanout.js";
+export { freezeProductEventCatalog, projectDeclaredProductEvent } from "./projection.js";
+export type { ProductEventCatalog, ProductEventRule, ProductEventRules } from "./projection.js";
 export { injectBrowserAnalytics, renderBrowserAnalytics, resolveBrowserAnalyticsMode } from './browser.js';
 export type { BrowserAnalyticsMode, BrowserAnalyticsConsent } from './browser.js';
 

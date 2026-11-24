@@ -224,8 +224,10 @@
    "PgliteOwnerLockedError": "class:86912feaaa",
    "PgliteSocketServer": "class:05197e07cd",
    "PgliteSocketServerOptions": "interface:a583b2514d",
+   "PgliteSourceCopyPorts": "interface:c57d3bc3d6",
    "acquireOwnerLock": "function:116fc41588",
    "assertSocketPathFits": "function:946bcbe95c",
+   "copyPgliteSourceTo": "function:da3c14799e",
    "defaultPgliteSocketDir": "function:d9b8a7ae32",
    "ensurePrivateDir": "function:769a6e443e",
    "errorResponseFrame": "function:9802b0ca58",
@@ -480,6 +482,7 @@
    "TransferPlanSource": "interface:b53ad48365",
    "TransferSource": "interface:5e9c5340a1",
    "TransferTable": "interface:391744ea78",
+   "captureSqliteBackupBytes": "function:1a74d2cfd0",
    "collectCatalogSchemaTables": "function:0f0e399c69",
    "collectCatalogTransferTables": "function:2f24a0ac68",
    "constraintSql": "function:cd0e6fa9e1",
@@ -516,6 +519,18 @@
    "OriginTables": "interface:756c63ce2a",
    "SqlOriginSettingRepo": "class:8f37d8b218",
    "registerConfiguredOrigin": "function:51aa4653bf"
+  }
+ },
+ "./watermark/kernel": {
+  "types": "./dist/watermark/kernel.d.ts",
+  "symbols": {
+   "WriteWatermarkMirror": "interface:15275d0aea",
+   "WriteWatermarkRequired": "interface:8e9d00de16",
+   "WriteWatermarkTable": "interface:21230596e2",
+   "WriteWatermarkTables": "interface:19af91c575",
+   "kernelStampWatermark": "function:deea291a4f",
+   "readKernelWatermark": "function:fe83da4f32",
+   "reconcileMirror": "function:b0eb38fed8"
   }
  }
 }

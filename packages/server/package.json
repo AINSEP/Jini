@@ -56,6 +56,21 @@
       "types": "./dist/owner-store/index.d.ts",
       "import": "./dist/owner-store/index.js",
       "default": "./dist/owner-store/index.js"
+    },
+    "./shutdown": {
+      "types": "./dist/shutdown/close-store-on-shutdown.d.ts",
+      "import": "./dist/shutdown/close-store-on-shutdown.js",
+      "default": "./dist/shutdown/close-store-on-shutdown.js"
+    },
+    "./shutdown/boot-work": {
+      "types": "./dist/shutdown/await-boot-work.d.ts",
+      "import": "./dist/shutdown/await-boot-work.js",
+      "default": "./dist/shutdown/await-boot-work.js"
+    },
+    "./shutdown/idle-park": {
+      "types": "./dist/shutdown/idle-park.d.ts",
+      "import": "./dist/shutdown/idle-park.js",
+      "default": "./dist/shutdown/idle-park.js"
     }
   },
   "files": [

@@ -1,3 +1,4 @@
+import type { ToolResultContentBlock } from '@jini-ai/core/contracts/tool-result-block';
 import type { runAnthropicToolTurn, AnthropicToolDef } from './anthropic-messages.js';
 import type { runOpenAiToolTurn } from './openai-chat.js';
 import type { OpenAiFunctionToolDef } from './openai-chat-types.js';
@@ -68,18 +69,13 @@ export interface ProviderToolCall {
   readonly name: string;
   readonly input: unknown;
 }
-export type ProviderToolResultBlock = {
-  readonly type: "text";
-  readonly text: string;
-} | {
-  readonly type: "image";
-  readonly mimeType: string;
-  readonly data: string;
-};
 export interface ProviderToolResult {
-  readonly content: string | readonly ProviderToolResultBlock[];
+  /** A string for an ordinary result; blocks only when the result carries an image. */
+  readonly content: string | readonly ToolResultContentBlock[];
   readonly isError?: boolean;
 }
+/** Host-owned tool execution (e.g. bridged to a daemon `ToolExecutor` over the host's own tool
+ *  surface); always supplied, the same convention every protocol adapter uses for its executor. */
 export type ProviderToolExecutor = (call: ProviderToolCall) => Promise<ProviderToolResult>;
 /** Raw provider call metadata: an unpublished wire name has no canonical tool ID or decoder. */
 export interface ProviderUnexposedToolCall {
@@ -97,6 +93,7 @@ export interface ProviderToolTurnInput {
   readonly protocol: ProviderProtocol;
   readonly adapters: ProviderTurnAdapters;
   readonly apiKey: string;
+  /** `anthropic`/`openai`/`google`: a model id. `azure`: the deployment name, not a raw model id — see `AzureTurnOptions.model`'s own doc. */
   readonly model: string;
   readonly system: string;
   readonly messages: readonly ProviderChatMessage[];
@@ -123,8 +120,14 @@ export interface ProviderToolTurnOptions {
   readonly getToolSnapshot?: () => readonly ProviderToolDescriptor[];
   /** Value-free diagnostic only; execution must still validate through the host executor. */
   readonly onSchemaFallback?: (event: ProviderSchemaFallback) => void;
+  /** Required for `azure` (no sane global default — every Azure OpenAI resource has its own
+   *  endpoint); optional for the other three protocols, which fall back to each adapter's own
+   *  public default endpoint. */
   readonly baseUrl?: string;
   readonly maxTokens?: number;
+  /** Overrides the provider's tool-turn limit. A meta-tool surface spends several calls (e.g.
+   *  search/describe/execute) per action, so the provider default can truncate multi-step tasks;
+   *  the host injects its own policy value. Omit to keep the provider default. */
   readonly maxToolTurns?: number;
   readonly signal?: AbortSignal;
 }

@@ -45,6 +45,17 @@
    "redactText": "function:22d890307e"
   }
  },
+ "./browser-diagnostics": {
+  "types": "./dist/browser-diagnostics.d.ts",
+  "symbols": {
+   "BrowserDiagnosticsConsentSetting": "interface:36b9ca9b52",
+   "BrowserDiagnosticsDeps": "interface:c061e5306e",
+   "browserDiagnosticsEnabled": "function:bf7c55140b",
+   "receiveBrowserDiagnostics": "function:b0424859a0",
+   "siteBrowserDiagnosticsBridge": "variable:a5fd4ba4e3",
+   "siteBrowserDiagnosticsModule": "variable:2c27ff0329"
+  }
+ },
  "./console-tee": {
   "types": "./dist/console-tee.d.ts",
   "symbols": {

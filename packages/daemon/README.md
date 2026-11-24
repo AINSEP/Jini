@@ -130,6 +130,8 @@ factories with `{ kernel }` plus optional `{ clock }` (`Clock.nowMs()` from core
 transactions, and use the unchanged `assistant_agent_sessions` mapping. PGlite supports embedded
 and owner-socket kernels. Extra host tables are accepted. No schema/bootstrap/pragma/close occurs
 at construction. SQL failures retain a cause under `AgentSessionStoreError({ code: 'unavailable' })`.
+`./store/agent-sessions/kernel` exports `createAgentSessionStoreForKernel({ kernel, clock })`, which
+selects one of those three adapters by `kernel.transport` (no I/O at construction).
 
 The SQLite entry also preserves rich legacy `agent_sessions` functions and exports
 `LEGACY_AGENT_SESSIONS_DDL`. These records include hashes/model/cwd/message cursors and belong to
@@ -155,3 +157,69 @@ and `createOwnedRunListHandler`) lives in `@jini-ai/http-kit/middleware`. Instal
 execution gate; compose it around the bare executor, beneath recovery decorators, since an
 outer wrapper cannot intercept references those decorators already hold.
 See [API.md](https://github.com/AINSEP/Jini/blob/main/packages/daemon/API.md) for route, credential, audit, surface and session contracts.
+
+## Wiring
+
+- **Process-memory daemon secrets** (`@jini-ai/daemon/run-credentials`'s
+  `adoptAndEnsureDaemonSecret`): the host injects its env record, a module-memory `holder`, the
+  env-var name (product-specific) and its credential `crypto`, and may inject `readOperatorSecrets`
+  (its secret-file resolver). Jini adopts the operator value once, deletes it from env so spawned
+  children never inherit it, and preserves or mints without rotation.
+- **Agent session store by kernel** (`@jini-ai/daemon/store/agent-sessions/kernel`'s
+  `createAgentSessionStoreForKernel`): a host that opens its chat database on more than one
+  dialect passes its already-migrated chat `kernel` (any of `better-sqlite3`, `pglite`,
+  `pglite-socket`, `node-postgres`) and its `clock`; the selector picks the matching adapter. The
+  host keeps the kernel's lifetime and the `assistant_agent_sessions` migration.
+- **Tool families** (`@jini-ai/daemon/http`'s `createPrefixToolFamilyPort`): a host whose tools
+  form a `<familyId>.<name>` namespace passes `delegatedToolRoutes` deps
+  `families: createPrefixToolFamilyPort({ registry, familyId, selectorKeys })`. The host injects
+  the run-scoped `registry` (only `list` is read), its product `familyId`, and the input
+  `selectorKeys` agents use to name a card. Omit `families` when the host has no groups.
+- **Page-click approval context** (`@jini-ai/daemon`'s `pageApprovalOptions` /
+  `createPageApprovalContext`): when registering each frontend capability, the host passes
+  `pageApprovalOptions({ toolId, execute, navigationQuery })` as the approval policy's options.
+  The host injects the same audited `execute` used for the frontend invocation and its own
+  `navigationQuery` string (a `page.find_elements` query that matches no element, so the
+  revision read stays cheap). Only `page.click` gets a context port.
+- **Per-run active screen** (`@jini-ai/daemon/http`'s `createRunActiveContextStore`): the host
+  records each run's validated page context at run start (`record({ runId, pageContext })`),
+  forgets it at run end, and serves `store.read()` from its own token-guarded `GET /api/active`
+  mount. The host injects its page-context type as the store's type argument (anything with a
+  `path` and optional `entry { kind, id, title }`) and the `now` clock seam when testing.
+- **Lost frontend bindings** (`@jini-ai/daemon/http`'s `createLostFrontendBindings`): the host
+  creates one per frontend control with `createLostFrontendBindings({ messages })`, calls
+  `noteBindError(context)` from `createFrontendControl`'s `onBindError`, and registers each
+  frontend tool as `wrap({ registration })`. The host injects `messages` — its own wording for
+  `lostBinding` (the tab outlived a daemon restart), `unboundDetail` and `detachedDetail` (the
+  detail of the recoverable `FrontendDisconnectedError`); `maxRuns` (default 256) is optional.
+- **Per-call daemon context** (`@jini-ai/daemon/daemon-call-context`): the host's tool-RPC route
+  parses the daemon's opaque wire `context` with `parseDaemonCallContext({ value })` and runs the
+  call inside `runWithDaemonCallContext({ context, fn })`; host tool readers call
+  `readDaemonCallContext()` (`undefined` means not a daemon call, e.g. a BYOK turn). Nothing is
+  injected; the host owns the route path and wire field name.
+- **Retained-state RPC parser** (`@jini-ai/daemon/core-rpc-schema`'s
+  `createDaemonCoreRequestSchema({ cliConsentKeys, settingsNamespaces })`, `daemonToolConsentSnapshot`;
+  wire types in `@jini-ai/core/contracts/site/daemon-core-rpc`): the host injects, as required
+  fields, the complete set of consent keys a run may allow and the settings namespaces
+  `getEffective` may read, then parses its authenticated RPC body with the returned schema. The host
+  owns the route, its bootstrap snapshot and its run-store bindings.
+- **BYOK meta-tool results** (`@jini-ai/daemon/byok-meta-tool-result`): a host BYOK tool surface
+  maps `ToolExecutor.execute` outcomes with `mapToolExecutionResult({ result, toolId })`, normalizes
+  `execute_delegated_tool` input with `resolveDelegatedInput({ raw })`, and returns `ok`/`err`
+  results straight to `@jini-ai/agent-runtime/providers/tool-turn`'s `ProviderToolExecutor`.
+  The host owns its meta-tool descriptors and registry; nothing is injected.
+- **Surface callback decisions** (`@jini-ai/daemon/http`'s `parseSurfaceCallbackRequest`,
+  `executeSurfaceRedemption`, `surfaceRedemptionReply`, `isTypedSurfaceAnswer`,
+  `surfaceNotPendingBody`): a host's MCP-UI callback route keeps its own server-framework shell
+  (principal header, response writing, exchange delivery/streaming) and calls these for body
+  validation, allowlist refusal (400/403) and Shape-2 result shaping, writing the returned
+  `{ status, body }`. The host injects `admit` (its redeemable-tool allowlist and typed-answer
+  policy) and an `idGenerator` for the synthetic redemption run id.
+- **A2UI action decisions** (`@jini-ai/daemon/http`'s `readA2uiAction`, `deliverA2uiAction`,
+  `a2uiNotPendingBody`): every hop that accepts an A2UI post (daemon route, local-first proxy)
+  validates with `readA2uiAction({ rawBody })`, delivers with `deliverA2uiAction({ store, ... })`
+  on the `a2ui` channel and answers a miss with the 409 body. The host injects its
+  `SurfaceExchangeStore` and owns the route path and principal header.
+## Wiring (tool-access-lowering)
+
+- `stopRunsForToolAccessChange` takes the host's `revoke`/`cancel`/`waitForCleanup`/`notice` ports; a host that cannot confirm the affected answers stopped throws `ToolAccessLoweringError` (from `@jini-ai/core/tool-access-change`) so its routes map it to `TOOL_ACCESS_STOP_FAILED`.

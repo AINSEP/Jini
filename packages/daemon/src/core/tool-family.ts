@@ -3,6 +3,7 @@
  * group (its ids and its selector keys are product vocabulary); the daemon owns only the rule that
  * nothing the host names is shown unless the run's own registry holds it.
  */
+import type { ToolRegistry } from '@jini-ai/core';
 
 /** Selector keys an input may carry, and which member each value picks. Advice for the caller; never a dispatch. */
 export interface FamilySelector {
@@ -89,4 +90,41 @@ export function selectedFamilyMember(
     if (typeof value === 'string' && Object.hasOwn(byValue, value)) return byValue[value];
   }
   return undefined;
+}
+
+/**
+ * A host's group of `<familyId>.<name>` tools — a namespace of cards, never a tool of its own —
+ * told to the delegated-tool route. When an agent calls the bare id, the route asks this port what
+ * the id is and answers with the members instead of "no such tool". Only the names live here: the
+ * route filters every member by the run's own registry before it shows anything, and nothing is
+ * executed or rerouted, so the agent's next request names a concrete member and passes every host
+ * gate under that id.
+ *
+ * Built from the registry the route serves, read at the moment a bare id arrives so a card
+ * registered or retired since startup is reflected.
+ *
+ * @param required.registry - The run-scoped registry; only `list` is read.
+ * @param required.familyId - The host's group id (product vocabulary, injected).
+ * @param required.selectorKeys - The input fields agents have used to say which card they meant when they called the bare id.
+ * @returns A port that knows `familyId` and nothing else; `undefined` for every other id and when no card is registered.
+ * @complexity O(r) per bare-id request for r registered tools; no I/O.
+ */
+export function createPrefixToolFamilyPort(
+  { registry, familyId, selectorKeys }: {
+    readonly registry: Pick<ToolRegistry, 'list'>;
+    readonly familyId: string;
+    readonly selectorKeys: readonly string[];
+  },
+  _optional: Record<string, never> = {},
+): ToolFamilyPort {
+  const memberPrefix = `${familyId}.`;
+  return {
+    describeFamily({ familyId: requested }) {
+      if (requested !== familyId) return undefined;
+      const members = registry.list({}).map(({ id }) => id).filter((id) => id.startsWith(memberPrefix));
+      if (members.length === 0) return undefined;
+      const byValue = Object.fromEntries(members.map((id) => [id.slice(memberPrefix.length), id]));
+      return { members, selector: { keys: [...selectorKeys], byValue } };
+    },
+  };
 }

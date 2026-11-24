@@ -171,6 +171,22 @@ SUBPATHS["data-modules"] = {
   dirs: ["data-modules", "kernel"], kernel: true,
   probe: `m.isIncompletePhase({ phase: "DDL_IN_PROGRESS" }) === true && m.isIncompletePhase({ phase: "COMMITTED" }) === false && m.isInMemoryDbPath({ dbPath: ":memory:" }) === true && m.isInMemoryDbPath({ dbPath: "site.db" }) === false && typeof m.declareDataModule === "function"`,
 };
+SUBPATHS["watermark/kernel"] = {
+  // Type-only Kysely: the stamp and read run on the injected kernel, so no driver or Kysely loads.
+  dirs: ["watermark"],
+  probe: `await (async () => {
+    const calls = [];
+    const query = {
+      select(...args) { calls.push(["select", ...args]); return this; },
+      where(...args) { calls.push(["where", ...args]); return this; },
+      async executeTakeFirst() { return { value: 7 }; },
+    };
+    const db = { withTables() { return db; }, selectFrom: table => { calls.push(["selectFrom", table]); return query; } };
+    const value = await m.readKernelWatermark({ kernel: { run: fn => fn(db) }, tables: { watermark: "w" } });
+    return value === 7 && typeof m.kernelStampWatermark === "function" && typeof m.reconcileMirror === "function"
+      && JSON.stringify(calls) === '[["selectFrom","w"],["select","value"],["where","id","=",1]]';
+  })()`,
+};
 SUBPATHS.recovery = {
   dirs: ["recovery", "core"],
   probe: `typeof m.planRestore === "function" && typeof m.confirmRestore === "function" && typeof m.executeRestore === "function"`,
