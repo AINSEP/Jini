@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "vitest";
-import { LIPAY_MANIFEST } from "../manifest.js";
+import { createLipayManifest } from "../manifest.js";
+const LIPAY_MANIFEST = createLipayManifest({ publisher: "host-first-party" });
 const LIPAY_PLUGIN_ID = LIPAY_MANIFEST.pluginId;
 
 test("lipay: plugin id and every table short name satisfy BOTH ADR-023's and ADR-026's grammars", () => {

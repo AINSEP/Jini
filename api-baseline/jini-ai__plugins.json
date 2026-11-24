@@ -478,13 +478,13 @@
  "./site/lipay/manifest": {
   "types": "./dist/site/lipay/manifest.d.ts",
   "symbols": {
-   "LIPAY_MANIFEST": "variable:9776018ae4"
+   "createLipayManifest": "function:2aa4e0467f"
   }
  },
  "./site/store/manifest": {
   "types": "./dist/site/store/manifest.d.ts",
   "symbols": {
-   "STORE_MANIFEST": "variable:80ebe98afb"
+   "createStoreManifest": "function:8796810e16"
   }
  }
 }
