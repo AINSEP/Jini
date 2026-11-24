@@ -198,6 +198,9 @@
       "./forms/destinations/select": "universal",
       "./comments/site/comment-targets": "universal",
       "./comments/site/types": "universal",
+      "./comments/site/settings": "universal",
+      "./comments/site/builtin-provider": "universal",
+      "./comments/site/provider-selection": "universal",
       "./comments/site/data-module-install": "node",
       "./admin-http/http/forms": "node",
       "./comments/site/ip-hash-salt": "node",
@@ -1499,6 +1502,21 @@
       "types": "./dist/comments/site/types.d.ts",
       "import": "./dist/comments/site/types.js",
       "default": "./dist/comments/site/types.js"
+    },
+    "./comments/site/settings": {
+      "types": "./dist/comments/site/settings.d.ts",
+      "import": "./dist/comments/site/settings.js",
+      "default": "./dist/comments/site/settings.js"
+    },
+    "./comments/site/builtin-provider": {
+      "types": "./dist/comments/site/builtin-provider.d.ts",
+      "import": "./dist/comments/site/builtin-provider.js",
+      "default": "./dist/comments/site/builtin-provider.js"
+    },
+    "./comments/site/provider-selection": {
+      "types": "./dist/comments/site/provider-selection.d.ts",
+      "import": "./dist/comments/site/provider-selection.js",
+      "default": "./dist/comments/site/provider-selection.js"
     },
     "./comments/site/data-module-install": {
       "types": "./dist/comments/site/data-module-install.d.ts",

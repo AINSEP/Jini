@@ -1,20 +1,6 @@
-import { freezeCommentsDefinition, type CommentsProviderDefinition } from './definitions.js';
-import type { CommentsProviderAdapter, CommentsSelectionStorePort } from './ports.js';
+import type { CommentsProviderBinding, CommentsProviderRegistry, CommentsSelectionStorePort } from '@jini-ai/core/contracts/site/comments-providers';
+import { freezeCommentsDefinition } from './definitions.js';
 
-export interface CommentsProviderBinding {
-  definition: CommentsProviderDefinition;
-  /** Resolves only this site's adapter; undefined explicitly means not ready. No executable metadata loading. */
-  resolve(required: { siteId: string }, optional?: Record<string, never>): Promise<CommentsProviderAdapter | undefined>;
-}
-export interface CommentsProviderRegistry {
-  register(required: CommentsProviderBinding, optional?: Record<string, never>): void;
-  get(required: { providerId: string }, optional?: Record<string, never>): CommentsProviderDefinition | undefined;
-  has(required: { providerId: string }, optional?: Record<string, never>): boolean;
-  list(required: Record<string, never>, optional?: Record<string, never>): readonly CommentsProviderDefinition[];
-  resolve(required: { siteId: string; providerId: string }, optional?: Record<string, never>): Promise<CommentsProviderAdapter | undefined>;
-  active(required: { siteId: string }, optional?: Record<string, never>): Promise<{ providerId: string | null; revision: number; adapter: CommentsProviderAdapter | undefined }>;
-  select(required: { siteId: string; providerId: string | null; expectedRevision: number; actorPrincipalId: string }, optional?: Record<string, never>): Promise<void>;
-}
 /** Definition registry plus site-scoped executable resolution; core bindings still own DI.
  * Selection commits only after readiness, with storage CAS refusing stale confirmations.
  * @complexity O(1) lookups; list is O(p) for p registered providers. */
