@@ -1,7 +1,8 @@
 import { describe, expect, it } from "vitest";
 
 import {
-  ADMIN_VISITOR_TOOLS_PATH, assistantVisitorToolsConfigureRoute, assistantVisitorToolsListRoute, type VisitorToolsManagementRoutePort,
+  ADMIN_VISITOR_TOOLS_PATH, assistantVisitorToolsConfigureRoute, assistantVisitorToolsListRoute, type VisitorToolsConfigureRouteDeps,
+  type VisitorToolsConfigureRoutePort, type VisitorToolsListRouteDeps, type VisitorToolsListRoutePort, type VisitorToolsManagementRoutePort,
 } from "../visitor-tools.js";
 import type { AssistantErrorMapping } from "../shared.js";
 import { PRINCIPAL, raw, refusalOf, WORKSPACE_ID } from "./settings-helpers.js";
@@ -53,6 +54,24 @@ describe("visitor-tools routes", () => {
     const { service, calls } = recordingService();
     expect(await assistantVisitorToolsListRoute.handle({ input: {}, deps: deps(service), context: PRINCIPAL })).toEqual({ ok: true, value: { data: VIEW } });
     expect(await assistantVisitorToolsConfigureRoute.handle({ input: { body: { toolId: "site" } }, deps: deps(service), context: PRINCIPAL })).toEqual({ ok: true, value: { data: VIEW } });
+    expect(calls).toEqual([
+      { list: { callerPrincipalId: PRINCIPAL.id } },
+      { prepare: { callerPrincipalId: PRINCIPAL.id, input: { toolId: "site" } } },
+      { apply: { callerPrincipalId: PRINCIPAL.id, prepared: { prepared: true } } },
+    ]);
+  });
+
+  it("hands each route only the half of the service it calls: GET lists, PUT prepares then applies", async () => {
+    const calls: unknown[] = [];
+    const reader: VisitorToolsListRoutePort = { list: async (input) => { calls.push({ list: input }); return VIEW; } };
+    const writer: VisitorToolsConfigureRoutePort = {
+      prepare: async (input) => { calls.push({ prepare: input }); return { prepared: true }; },
+      apply: async (input) => { calls.push({ apply: input }); return VIEW; },
+    };
+    const listDeps: VisitorToolsListRouteDeps = { workspaceId: WORKSPACE_ID, visitorToolsManagement: () => reader, errorMappings: LADDER };
+    const configureDeps: VisitorToolsConfigureRouteDeps = { workspaceId: WORKSPACE_ID, visitorToolsManagement: () => writer, errorMappings: LADDER };
+    expect(await assistantVisitorToolsListRoute.handle({ input: {}, deps: listDeps, context: PRINCIPAL })).toEqual({ ok: true, value: { data: VIEW } });
+    expect(await assistantVisitorToolsConfigureRoute.handle({ input: { body: { toolId: "site" } }, deps: configureDeps, context: PRINCIPAL })).toEqual({ ok: true, value: { data: VIEW } });
     expect(calls).toEqual([
       { list: { callerPrincipalId: PRINCIPAL.id } },
       { prepare: { callerPrincipalId: PRINCIPAL.id, input: { toolId: "site" } } },
