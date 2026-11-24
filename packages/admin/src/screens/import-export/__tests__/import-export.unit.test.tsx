@@ -82,7 +82,7 @@ describe("useGitBackup", () => {
     const push = vi.fn()
       .mockResolvedValueOnce({ pushed: false, inProgress: true, planId: "plan-1", progress: { filesDone: 3, filesTotal: 12 } })
       .mockResolvedValueOnce({ pushed: true, commitUrl: "https://example.test/c/1", repository: "me/site-backups" });
-    const port = createFakeGitBackupPort({ listConnections: async () => [connection(), connection({ id: "c2", label: "Other" })], plan, push });
+    const port = createFakeGitBackupPort({ overrides: { listConnections: async () => [connection(), connection({ id: "c2", label: "Other" })], plan, push } });
     const { result } = renderHook(() => useGitBackup({ port, t: identity, host: HOST }), { wrapper });
     await waitFor(() => expect(result.current.connections).toEqual(["GitHub", "Other"]));
     expect(result.current.canPlan).toBe(false);
@@ -105,7 +105,7 @@ describe("useGitBackup", () => {
   it("words refusals, thrown errors and a stuck job through the rules and the host", async () => {
     const plan = vi.fn().mockResolvedValueOnce({ planned: false, code: "PLAN_EXPIRED", message: "call site_backup_plan" }).mockRejectedValueOnce(new Error("worded")).mockResolvedValue(PLAN);
     const push = vi.fn(async () => ({ pushed: false as const, inProgress: true as const, planId: "plan-1", progress: { filesDone: 1, filesTotal: 2 } }));
-    const port = createFakeGitBackupPort({ listConnections: async () => [connection()], plan, push });
+    const port = createFakeGitBackupPort({ overrides: { listConnections: async () => [connection()], plan, push } });
     const { result } = renderHook(() => useGitBackup({ port, t: identity, host: HOST }, { maxPushPolls: 2 }), { wrapper });
     await waitFor(() => expect(result.current.connections).toEqual(["GitHub"]));
     act(() => { result.current.setField({ field: "owner", value: "me" }); result.current.setField({ field: "repo", value: "r" }); });
@@ -120,7 +120,7 @@ describe("useGitBackup", () => {
   });
 
   it("reports a failed connections read through the host", async () => {
-    const port = createFakeGitBackupPort({ listConnections: async () => { throw new Error("down"); } });
+    const port = createFakeGitBackupPort({ overrides: { listConnections: async () => { throw new Error("down"); } } });
     const { result } = renderHook(() => useGitBackup({ port, t: identity, host: HOST }), { wrapper });
     await waitFor(() => expect(result.current.connectionsError).toBe("Couldn't load connections."));
     expect(result.current.connections).toBeUndefined();

@@ -59,7 +59,7 @@ export interface GitBackupPort {
 
 /** An in-memory {@link GitBackupPort} for tests. Unlisted calls reject, so a test that reaches one
  *  it did not describe fails loudly. */
-export function createFakeGitBackupPort(overrides: Partial<GitBackupPort> = {}): GitBackupPort {
+export function createFakeGitBackupPort({ overrides = {} }: { overrides?: Partial<GitBackupPort> } = {}, _optional = {}): GitBackupPort {
   const unexpected = ({ name }: { name: string }, _options = {}) => () => Promise.reject(new Error(`${name} was not expected`));
   return {
     listConnections: () => Promise.resolve([]),
