@@ -176,7 +176,6 @@
       "./screens/forms/index-aligned-translations": "universal",
       "./screens/forms/forms-field-settings-i18n": "universal",
       "./screens/forms/forms-leave-guard-i18n": "universal",
-      "./screens/taxonomy/taxonomy-i18n": "universal",
       "./screens/comments/comments-i18n": "universal",
       "./screens/menus/menus-i18n": "universal",
       "./screens/integrations/integrations-i18n": "universal",
@@ -234,7 +233,6 @@
       "./shell/lib/media-embed-extension.hooks": "browser",
       "./shell/components/AssistantDock/hooks/chat-package-kind": "universal",
       "./shell/hooks/assistant-chats-port.hooks": "browser",
-      "./shell/hooks/use-assistant-chats.hooks": "browser",
       "./shell/components/AssistantDock/hooks/conversation-refresh.hooks": "browser",
       "./shell/components/AssistantDock/assistant-dock-i18n": "universal",
       "./shell/components/AssistantDock/FolderDropConfirmation": "browser",
@@ -343,7 +341,6 @@
         "./shell/lib/media-embed-extension.hooks": "browser",
         "./shell/components/AssistantDock/hooks/chat-package-kind": "universal",
         "./shell/hooks/assistant-chats-port.hooks": "browser",
-        "./shell/hooks/use-assistant-chats.hooks": "browser",
         "./shell/components/AssistantDock/hooks/conversation-refresh.hooks": "browser",
         "./shell/components/AssistantDock/assistant-dock-i18n": "universal",
         "./shell/components/AssistantDock/FolderDropConfirmation": "browser",
@@ -1173,11 +1170,6 @@
       "import": "./dist/screens/forms/forms-leave-guard-i18n.js",
       "default": "./dist/screens/forms/forms-leave-guard-i18n.js"
     },
-    "./screens/taxonomy/taxonomy-i18n": {
-      "types": "./dist/screens/taxonomy/taxonomy-i18n.d.ts",
-      "import": "./dist/screens/taxonomy/taxonomy-i18n.js",
-      "default": "./dist/screens/taxonomy/taxonomy-i18n.js"
-    },
     "./screens/comments/comments-i18n": {
       "types": "./dist/screens/comments/comments-i18n.d.ts",
       "import": "./dist/screens/comments/comments-i18n.js",
@@ -1462,11 +1454,6 @@
       "types": "./dist/shell/hooks/assistant-chats-port.hooks.d.ts",
       "import": "./dist/shell/hooks/assistant-chats-port.hooks.js",
       "default": "./dist/shell/hooks/assistant-chats-port.hooks.js"
-    },
-    "./shell/hooks/use-assistant-chats.hooks": {
-      "types": "./dist/shell/hooks/use-assistant-chats.hooks.d.ts",
-      "import": "./dist/shell/hooks/use-assistant-chats.hooks.js",
-      "default": "./dist/shell/hooks/use-assistant-chats.hooks.js"
     },
     "./shell/components/AssistantDock/hooks/conversation-refresh.hooks": {
       "types": "./dist/shell/components/AssistantDock/hooks/conversation-refresh.hooks.d.ts",
