@@ -934,7 +934,7 @@
    "AdminKit": "interface:f08b81f703",
    "AdminKitChat": "interface:69b99c1413",
    "AdminKitComponents": "interface:17a43cd7c3",
-   "AdminKitHooks": "interface:9d04a73632",
+   "AdminKitHooks": "interface:f8b740b67f",
    "AdminKitProvider": "function:94b9894e57",
    "AdminKitValues": "interface:88b7820692",
    "AdminQueryKit": "interface:fe542cee9a",
@@ -1072,6 +1072,7 @@
    "Toast": "variable:f29841bc34",
    "ToastProps": "interface:d6785f7550",
    "ToolResultMediaBlock": "type:f9cd93b194",
+   "UseAdminLocaleHook": "type:ffa1de9d45",
    "VisibilitySource": "interface:7afbe43340",
    "WidgetSelect": "variable:84eaa79a5c",
    "WidgetSelectOption": "interface:f8d19f3d08",
@@ -1768,13 +1769,20 @@
  "./shell/hooks/admin-locale-port.hooks": {
   "types": "./dist/shell/hooks/admin-locale-port.hooks.d.ts",
   "symbols": {
-   "AdminLocalePort": "interface:4be387ae05"
+   "AdminLocalePort": "interface:00873b477d"
   }
  },
  "./shell/hooks/use-admin-document-locale.hooks": {
   "types": "./dist/shell/hooks/use-admin-document-locale.hooks.d.ts",
   "symbols": {
    "useAdminDocumentLocale": "function:06cde3b1c9"
+  }
+ },
+ "./shell/hooks/use-admin-locale.hooks": {
+  "types": "./dist/shell/hooks/use-admin-locale.hooks.d.ts",
+  "symbols": {
+   "UseAdminLocaleArgs": "interface:c17259062b",
+   "useAdminLocale": "function:4ca06c312c"
   }
  },
  "./shell/hooks/use-agent-screen-context.hooks": {
@@ -1875,6 +1883,16 @@
    "adminFrontendTabId": "variable:1fcdc4e732",
    "publishAdminPageSurface": "function:f7948b8864",
    "subscribeToAdminPageSurfaces": "function:8c184f518a"
+  }
+ },
+ "./shell/lib/admin-http/request": {
+  "types": "./dist/shell/lib/admin-http/request.d.ts",
+  "symbols": {
+   "AdminHttp": "interface:60416f5d4c",
+   "CreateAdminHttpArgs": "interface:e5ca6abe99",
+   "CreateAdminHttpPorts": "interface:ce2bc1a308",
+   "buildFetchInit": "function:50e6cf5246",
+   "createAdminHttp": "function:3feca4d9a2"
   }
  },
  "./shell/lib/admin-nav-i18n": {
