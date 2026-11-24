@@ -391,6 +391,10 @@ test("createDevProxyRequestHandler: an upstream that dies after its response hea
   await next.body?.cancel();
 });
 
+// Pure-function coverage for `resolveDevProxyPath` — the bare-`/admin` fix the dev proxy needs because
+// Vite's `base: "/admin/"` only falls through to `index.html` on an exact match, trailing slash
+// included (confirmed against the installed Vite 7.3.6 source; see `dev-proxy.ts`'s module doc).
+// Kept apart from the real-server integration tests above since these need no server at all.
 test("resolveDevProxyPath: rewrites a bare /admin to /admin/", () => {
   assert.equal(resolveDevProxyPath({ basePath: "/admin", url: "/admin" }), "/admin/");
 });
