@@ -1,3 +1,5 @@
+import type { JsonValue } from '@jini-ai/core/primitives';
+
 /** Generic native-capability snapshots. Hosts own grant gates, persistence and migration. */
 export interface NativeAgentPermissions<K extends string> {
   enabled?: boolean;
@@ -103,4 +105,29 @@ export function projectNativePermissions<K extends string>(required: {
   const override = agentId ? settings.byAgent?.[agentId] : undefined;
   return fillNativePermissions({ ...settings, capabilityKeys, enabled: override?.enabled ?? settings.enabled,
     capabilities: { ...settings.capabilities, ...override?.capabilities } });
+}
+
+/** Merge one save into a host's raw stored permission layer (read with its unknown fields intact).
+ * Without `agentId` the master flag and every capability reset to the host defaults and the host's
+ * `masterSaveFields` (for example a migration marker) are stamped; with one, only that agent's entry
+ * changes, and the master/default fields and every other agent's entry remain intact.
+ * Returns a fresh JSON object without mutation or I/O.
+ * @complexity O(k + a + p) time/space for k raw fields, a agents and p capability entries.
+ */
+export function patchNativePermissionLayer<K extends string>(required: {
+  raw: Record<string, JsonValue>; defaults: { enabled: boolean; capabilities: Record<K, boolean> };
+  agentId?: string; capabilities?: Partial<Record<K, boolean>>; enabled?: boolean;
+  masterSaveFields?: Record<string, JsonValue>;
+}, _optional: Record<string, never> = {}): Record<string, JsonValue> {
+  const { raw, defaults, agentId, capabilities, enabled, masterSaveFields } = required;
+  if (!agentId) return { ...raw, enabled: defaults.enabled, capabilities: { ...defaults.capabilities }, ...masterSaveFields };
+  const byAgent = objectValue({ value: raw.byAgent });
+  const previous = objectValue({ value: byAgent[agentId] });
+  return { ...raw, enabled: raw.enabled ?? defaults.enabled, capabilities: raw.capabilities ?? { ...defaults.capabilities },
+    byAgent: { ...byAgent, [agentId]: { ...previous, ...(enabled === undefined ? {} : { enabled }),
+      capabilities: { ...objectValue({ value: previous.capabilities }), ...capabilities } } } };
+}
+
+function objectValue({ value }: { value: JsonValue | undefined }): Record<string, JsonValue> {
+  return value && typeof value === 'object' && !Array.isArray(value) ? value : {};
 }

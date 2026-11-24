@@ -2,6 +2,7 @@ import { describe, expect, test } from 'vitest';
 import {
   fillNativePermissions,
   InvalidNativePermissionsError,
+  patchNativePermissionLayer,
   projectNativePermissions,
   validateNativePermissionSnapshot,
 } from '../native-permissions.js';
@@ -103,5 +104,44 @@ describe('projectNativePermissions', () => {
   test('omitting agentId leaves the settings unchanged', () => {
     const settings = { ...snapshot(), byAgent: { worker: { enabled: false, capabilities: { alpha: false } } } };
     expect(projectNativePermissions({ settings, capabilityKeys })).toEqual(settings);
+  });
+});
+
+describe('patchNativePermissionLayer', () => {
+  const defaults = snapshot();
+  const raw = { enabled: false, capabilities: { alpha: false }, byAgent: { other: { enabled: true }, worker: { enabled: false, capabilities: { alpha: true }, note: 'kept' } }, extra: 'kept' };
+
+  test('a master save resets to defaults, keeps unknown fields and stamps the host fields', () => {
+    expect(patchNativePermissionLayer({ raw, defaults, masterSaveFields: { marker: true } })).toEqual({
+      ...raw, enabled: true, capabilities: { alpha: true, beta: false, gamma: true }, marker: true,
+    });
+  });
+
+  test('a master save without host fields adds nothing else', () => {
+    expect(patchNativePermissionLayer({ raw: {}, defaults })).toEqual(defaults);
+  });
+
+  test('an agent save merges only that agent and preserves the stored master', () => {
+    expect(patchNativePermissionLayer({ raw, defaults, agentId: 'worker', capabilities: { beta: true }, masterSaveFields: { marker: true } })).toEqual({
+      ...raw, byAgent: { other: { enabled: true }, worker: { enabled: false, capabilities: { alpha: true, beta: true }, note: 'kept' } },
+    });
+  });
+
+  test('an agent save on an empty layer fills the master from defaults and sets the flag', () => {
+    expect(patchNativePermissionLayer({ raw: { byAgent: ['bad'] }, defaults, agentId: 'worker', enabled: true })).toEqual({
+      enabled: true, capabilities: defaults.capabilities, byAgent: { worker: { enabled: true, capabilities: {} } },
+    });
+  });
+
+  test('malformed agent entries are replaced, never merged', () => {
+    expect(patchNativePermissionLayer({ raw: { byAgent: { worker: 'bad' } }, defaults, agentId: 'worker', capabilities: { gamma: false } }).byAgent)
+      .toEqual({ worker: { capabilities: { gamma: false } } });
+  });
+
+  test('the input layer and defaults are never mutated', () => {
+    const before = JSON.stringify({ raw, defaults });
+    patchNativePermissionLayer({ raw, defaults, agentId: 'worker', capabilities: { beta: true } });
+    patchNativePermissionLayer({ raw, defaults, masterSaveFields: { marker: true } });
+    expect(JSON.stringify({ raw, defaults })).toBe(before);
   });
 });
