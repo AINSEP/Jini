@@ -32,3 +32,9 @@ activity projection and attempt observer, feedback inbox, retention, and the sit
   route/tool deps bag carries `listCustomCredentials` (its credential-store lister, safe summaries only,
   handed back its opaque `customCredentialSetRepo`) and `mailWebhookSecretLabels` (its product-prefixed
   persisted signing-secret labels). Both are bound in the host's route-deps mail composition.
+- `use-readiness.ts` (`readMailUseReadiness`/`mailUseReadinessDepsFrom`, at `@jini-ai/platform/mail/use-readiness`):
+  the host's route/tool deps bag carries `evaluateNewsletterLaunchGate` (its Newsletter launch gate
+  evaluator, the same one its send path runs; it returns the `MailUseLaunchGatePrecondition` codes over
+  the `MailUseLaunchGateDeps` slice readiness builds) plus the optional sender, purpose-gate probe,
+  form-definition repo and activity repo. Absent the evaluator, Newsletter's rows are
+  `newsletter_gate_unavailable` unknown. Bound in the host's route-deps mail composition.

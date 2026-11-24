@@ -32,6 +32,7 @@
       "./mail/smtp": "node",
       "./mail/test-send": "node",
       "./mail/feedback-setup": "node",
+      "./mail/use-readiness": "node",
       "./mail/sql": "node",
       "./fs/guarded-reader": "node",
       "./fs/durable-json": "node",
@@ -177,6 +178,11 @@
       "types": "./dist/mail/feedback-setup.d.ts",
       "import": "./dist/mail/feedback-setup.js",
       "default": "./dist/mail/feedback-setup.js"
+    },
+    "./mail/use-readiness": {
+      "types": "./dist/mail/use-readiness.d.ts",
+      "import": "./dist/mail/use-readiness.js",
+      "default": "./dist/mail/use-readiness.js"
     },
     "./mail/sql": {
       "types": "./dist/mail/sql/index.d.ts",
