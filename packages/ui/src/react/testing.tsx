@@ -6,8 +6,10 @@ import type { SecretReveal, UiKit } from './kit.js';
  *  stays in `__tests__/render-with-ui-kit.tsx`, so this published entry never imports a test library. */
 export const fakeUiKit: UiKit = {
   components: {
+    // A stored secret is never the viewer's own login password, so the fake declares "new-password"
+    // (the token host credential-input scans require); password managers must not autofill it.
     SecretInput: ({ label, value, onChange, ref }) => (
-      <input type="password" aria-label={label} value={value as string | undefined} onChange={onChange} ref={ref} />
+      <input type="password" aria-label={label} value={value as string | undefined} onChange={onChange} ref={ref} autoComplete="new-password" />
     ),
   },
   hooks: {
