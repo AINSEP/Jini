@@ -5629,5 +5629,269 @@
       "readVisitorToolsSnapshot": "function:526582c550",
       "writeVisitorTools": "function:c3df0696c5"
     }
+  },
+  "./publish/content/dialog": {
+    "types": "./dist/publish/content/dialog/index.d.ts",
+    "symbols": {
+      "CriteriaSelection": "interface:9d7558fd6f",
+      "PUBLISH_CONTENT_CAPABILITY": "variable:e490784b39",
+      "PUBLISH_CRITERIA_QUERY_PARAM": "variable:feb0536448",
+      "PublishContentConfirmResult": "interface:f9e929f850",
+      "PublishContentExecuteResult": "interface:699545733a",
+      "PublishContentNotSupportedByLive": "interface:30a1786ed7",
+      "PublishContentOutcomeKind": "type:b5d1809aae",
+      "PublishContentOutcomeRow": "type:657ce2167a",
+      "PublishContentPeerSummary": "interface:850f4194d6",
+      "PublishContentPhase": "type:0582fe939d",
+      "PublishContentPlanResult": "interface:b9af42b4a2",
+      "PublishContentReport": "type:5ec0bb11d2",
+      "PublishCriteria": "interface:a4ac76d99a",
+      "PublishEntityTypeLabeler": "type:09b64caa0f",
+      "PublishOrderGroup": "type:7a570e4e30",
+      "PublishOrderKey": "interface:9445f1105d",
+      "PublishPlanDriftError": "class:b7b3e8a41e",
+      "PublishReportRow": "interface:03cb026e6e",
+      "PublishReportSummary": "interface:d60193e0e1",
+      "PublishRequestResult": "interface:5ff52716c6",
+      "PublishRowDisposition": "type:bb569f4f9f",
+      "PublishScope": "interface:5a50100769",
+      "applyPublishCriteria": "function:6c444c6cf9",
+      "canConfirmPlan": "function:5cc3b57ef4",
+      "canRequestPlan": "function:2a5fe9d85f",
+      "confirmationTokenFor": "function:0c3bf8598e",
+      "countSelectedPublishing": "function:45c2d28024",
+      "decodePublishCriteriaFromQuery": "function:73e376db09",
+      "encodePublishCriteriaToQuery": "function:4ec1d51527",
+      "overwriteReplanIsConsistent": "function:0b0e003137",
+      "parsePublishContentToolInput": "function:e487243ef3",
+      "planOnScreen": "function:977d1b9f8b",
+      "preparePublishConfirmation": "function:bbd4480856",
+      "publishOrderComparator": "function:800e95a94a",
+      "publishRowDisposition": "function:dd3ff77371",
+      "reportOnScreen": "function:5fc973e778",
+      "rowPublishesWithSelection": "function:592ce1d6ee",
+      "selectableRowKeys": "function:74d30c6cad",
+      "sortPublishReportRows": "function:3cbc7296ca",
+      "summarizePublishReport": "function:4b387f1db9",
+      "toPublishReportRows": "function:b71e951be8"
+    }
+  },
+  "./publish/content/dialog/contract": {
+    "types": "./dist/publish/content/dialog/contract.d.ts",
+    "symbols": {
+      "PublishContentConfirmResult": "interface:f9e929f850",
+      "PublishContentExecuteResult": "interface:699545733a",
+      "PublishContentNotSupportedByLive": "interface:30a1786ed7",
+      "PublishContentOutcomeKind": "type:b5d1809aae",
+      "PublishContentOutcomeRow": "type:657ce2167a",
+      "PublishContentPeerSummary": "interface:850f4194d6",
+      "PublishContentPlanResult": "interface:b9af42b4a2",
+      "PublishContentReport": "type:5ec0bb11d2",
+      "PublishScope": "interface:5a50100769"
+    }
+  },
+  "./publish/content/dialog/criteria": {
+    "types": "./dist/publish/content/dialog/criteria.d.ts",
+    "symbols": {
+      "CriteriaSelection": "interface:9d7558fd6f",
+      "PUBLISH_CONTENT_CAPABILITY": "variable:e490784b39",
+      "PUBLISH_CRITERIA_QUERY_PARAM": "variable:feb0536448",
+      "PublishCriteria": "interface:a4ac76d99a",
+      "PublishRequestResult": "interface:5ff52716c6",
+      "applyPublishCriteria": "function:6c444c6cf9",
+      "decodePublishCriteriaFromQuery": "function:73e376db09",
+      "encodePublishCriteriaToQuery": "function:4ec1d51527",
+      "parsePublishContentToolInput": "function:e487243ef3"
+    }
+  },
+  "./publish/content/dialog/phase": {
+    "types": "./dist/publish/content/dialog/phase.d.ts",
+    "symbols": {
+      "PublishContentPhase": "type:0582fe939d",
+      "canConfirmPlan": "function:5cc3b57ef4",
+      "canRequestPlan": "function:2a5fe9d85f",
+      "confirmationTokenFor": "function:0c3bf8598e",
+      "planOnScreen": "function:977d1b9f8b",
+      "reportOnScreen": "function:5fc973e778"
+    }
+  },
+  "./publish/content/dialog/publish-order": {
+    "types": "./dist/publish/content/dialog/publish-order.d.ts",
+    "symbols": {
+      "PublishOrderGroup": "type:7a570e4e30",
+      "PublishOrderKey": "interface:9445f1105d",
+      "publishOrderComparator": "function:800e95a94a",
+      "sortPublishReportRows": "function:3cbc7296ca"
+    }
+  },
+  "./publish/content/dialog/replan": {
+    "types": "./dist/publish/content/dialog/replan.d.ts",
+    "symbols": {
+      "PublishPlanDriftError": "class:b7b3e8a41e",
+      "overwriteReplanIsConsistent": "function:0b0e003137",
+      "preparePublishConfirmation": "function:bbd4480856"
+    }
+  },
+  "./publish/content/dialog/report-reasons": {
+    "types": "./dist/publish/content/dialog/report-reasons.d.ts",
+    "symbols": {
+      "friendlyPublishReason": "function:463b81e7ec"
+    }
+  },
+  "./publish/content/dialog/report-rows": {
+    "types": "./dist/publish/content/dialog/report-rows.d.ts",
+    "symbols": {
+      "PublishEntityTypeLabeler": "type:09b64caa0f",
+      "PublishReportRow": "interface:03cb026e6e",
+      "PublishReportSummary": "interface:d60193e0e1",
+      "PublishRowDisposition": "type:bb569f4f9f",
+      "countSelectedPublishing": "function:45c2d28024",
+      "publishRowDisposition": "function:dd3ff77371",
+      "rowPublishesWithSelection": "function:592ce1d6ee",
+      "selectableRowKeys": "function:74d30c6cad",
+      "summarizePublishReport": "function:4b387f1db9",
+      "toPublishReportRows": "function:b71e951be8"
+    }
+  },
+  "./publish/content/report-contract": {
+    "types": "./dist/publish/content/report-contract.d.ts",
+    "symbols": {
+      "PublishContentOutcomeKindDto": "type:df597e89f9",
+      "PublishContentOutcomeRowDto": "interface:37e38c8737",
+      "PublishContentReferenceHolderDto": "interface:04ba48ff3e",
+      "PublishContentReportDto": "interface:d0622a2aa7",
+      "PublishContentRetireTargetDto": "interface:985b69c222"
+    }
+  },
+  "./publish/content/type-registry": {
+    "types": "./dist/publish/content/type-registry.d.ts",
+    "symbols": {
+      "EntityReplacement": "interface:f059e43fcd",
+      "MediaSourceReplacement": "interface:5cd99cb6fb",
+      "OverwritablePrecheckRefusal": "interface:ca938cec9d",
+      "PublishContentCatalog": "interface:76c384e47e",
+      "PublishContentCatalogConfigurationError": "class:9c74d2a040",
+      "PublishContentContributor": "interface:ed4f5987e4",
+      "PublishContentDeps": "interface:bed3ca3578",
+      "PublishContentHandler": "interface:17b92f33fc",
+      "PublishContentReference": "interface:1a40d07428",
+      "PublishContentTypeRegistry": "interface:8781b61b3e",
+      "PublishTypeStamp": "interface:4cbfc3d1f1",
+      "ReferenceHolder": "interface:8693c20fc7",
+      "RepointResult": "interface:c2e7706a30",
+      "RetireTarget": "interface:667a3fcb82",
+      "SkippedPackEntity": "interface:778a589c66",
+      "createPublishContentTypeRegistry": "function:8d9777b1a8",
+      "publishTypePermissions": "function:8aafd829ea"
+    }
+  },
+  "./publish/trust/grant": {
+    "types": "./dist/publish/trust/grant.d.ts",
+    "symbols": {
+      "DEFAULT_PUBLISHING_CAPABILITIES": "variable:f481d358d4",
+      "PUBLISHING_CAPABILITIES": "variable:977602492f",
+      "PUBLISH_TRUST_GRANT_VERSION": "variable:e35595b4ff",
+      "PUBLISH_TRUST_ROUTES": "variable:b01b18b39f",
+      "PublishTrustGrant": "interface:5a26633c84",
+      "PublishTrustGrantParse": "type:fe6ecf2f6c",
+      "PublishTrustPublicKey": "interface:89563bb584",
+      "PublishingCapability": "type:5555877d5a",
+      "backstopGrantAllows": "function:530750acc6",
+      "grantAllowsCapability": "function:a85219ba19",
+      "grantAllowsEntityType": "function:269a6cdb43",
+      "isBackstopEntityType": "function:e886f4d175",
+      "isGrantActive": "function:d6006599a0",
+      "isPublishTrustRoute": "function:10cb24879f",
+      "parsePublishTrustGrant": "function:09b805eaf2"
+    }
+  },
+  "./publish/trust/keys": {
+    "types": "./dist/publish/trust/keys.d.ts",
+    "symbols": {
+      "PUBLISH_PRINCIPAL_ID_PREFIX": "variable:e575b17c65",
+      "PublishSigningKey": "interface:904138a5d5",
+      "deriveInstallationId": "function:b3c592792e",
+      "derivePublishSigningKey": "function:d5f1a05573",
+      "publishPrincipalIdFor": "function:6ad45627d3",
+      "verifyPublishSignature": "function:734760cf87"
+    }
+  },
+  "./publish/trust/provisioning": {
+    "types": "./dist/publish/trust/provisioning.d.ts",
+    "symbols": {
+      "COMMITTED_JSON_CODEC": "variable:17bc392fba",
+      "GRANT_LIFETIME_DAYS": "variable:6d6162e7ee",
+      "GrantDocumentParse": "type:9474677fb5",
+      "GrantListEdit": "type:54a93b9810",
+      "MAX_PROVISIONED_GRANTS": "variable:a6a5c20c64",
+      "MS_PER_DAY": "variable:6456ebea28",
+      "PUBLISH_TRUST_CONFIG_PATH": "variable:c14a82ebdc",
+      "ProvisionedRead": "type:9d04237e10",
+      "ProvisioningCodec": "interface:32918720e3",
+      "ProvisioningEvent": "type:0df8dfdda7",
+      "ProvisioningFileIo": "interface:d7dc0d1f4c",
+      "ProvisioningTarget": "interface:b03ee61b6b",
+      "ProvisioningWrite": "type:ce0a14cced",
+      "PublishTrustProvisioningPort": "interface:e177df6593",
+      "PublishTrustResolution": "interface:981009d88c",
+      "PublishTrustState": "type:ed1fead7d5",
+      "RENEWAL_WARNING_DAYS": "variable:f052845cbf",
+      "createFileProvisioning": "function:e60071396f",
+      "findGrantForSource": "function:f76743803c",
+      "grantNotAfterFrom": "function:8e3d0fae64",
+      "mergeGrant": "function:b052c11e52",
+      "parseGrantDocument": "function:e87b06ff09",
+      "removeGrant": "function:042acf0e5a",
+      "resolvePublishTrust": "function:6b3d4bdb67",
+      "serializeGrantDocument": "function:27bee0429e"
+    }
+  },
+  "./publish/trust/provisioning-status": {
+    "types": "./dist/publish/trust/provisioning-status.d.ts",
+    "symbols": {
+      "ConnectionStatus": "interface:9ad6ee5dff",
+      "ConnectionVerdict": "type:3e4d1631ba",
+      "describeConnection": "function:930fe4dafb",
+      "describePublishTrustState": "function:c80f2bed77"
+    }
+  },
+  "./publish/trust/provisioning.node-io": {
+    "types": "./dist/publish/trust/provisioning.node-io.d.ts",
+    "symbols": {
+      "nodeProvisioningFileIo": "variable:24490dce47"
+    }
+  },
+  "./publish/trust/revocations": {
+    "types": "./dist/publish/trust/revocations.d.ts",
+    "symbols": {
+      "AdmissionRefusal": "type:20e824312e",
+      "MAX_REVOCATIONS": "variable:3c9370a20e",
+      "PublishAdmission": "type:403656daed",
+      "PublishTrustRevocation": "interface:ed93e946c6",
+      "PublishTrustRevocationPort": "interface:485f307fd1",
+      "RevocationRead": "type:1c6093c321",
+      "RevocationWrite": "type:3cfd6f51bd",
+      "admitPublish": "function:19b57f8269",
+      "createInMemoryRevocations": "function:21ddb82f3c",
+      "isRevoked": "function:4951c590d8",
+      "parseRevocationDocument": "function:0b9d2ce5fb"
+    }
+  },
+  "./trash/permanent/agent-tools": {
+    "types": "./dist/trash/permanent/agent-tools.d.ts",
+    "symbols": {
+      "PermanentDeleteSpecs": "type:0f17b72684",
+      "PermanentDeleteSpecsArgs": "interface:d80f7b12bb",
+      "PermanentDeleteToolId": "type:a827f408ab",
+      "createPermanentDeleteAgentToolCatalog": "function:85a8261173",
+      "createPermanentDeleteSpecs": "function:566360a2d4"
+    }
+  },
+  "./trash/site/directory-rollback-log": {
+    "types": "./dist/trash/site/directory-rollback-log.d.ts",
+    "symbols": {
+      "DirectoryRollbackLogSink": "type:d35e600655",
+      "createDirectoryRollbackReporter": "function:493d4f0dfc"
+    }
   }
 }

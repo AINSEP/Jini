@@ -263,7 +263,35 @@
       "./screens/content-analysis/hooks/content-analysis-port.hooks": "universal",
       "./screens/content-analysis/hooks/content-analysis-dependencies.hooks": "universal",
       "./screens/import-export/ImportExport": "browser",
-      "./screens/content-analysis/content-analysis-i18n": "universal"
+      "./screens/content-analysis/content-analysis-i18n": "universal",
+      "./deployment/Deployment.hooks": "browser",
+      "./source-control/host/SourceControl.hooks": "browser",
+      "./recovery/hooks/recovery-port.hooks": "universal",
+      "./recovery/hooks/restore-flow-port.hooks": "universal",
+      "./recovery/hooks/use-recovery-navigation.hooks": "browser",
+      "./recovery/rules": "browser",
+      "./recovery/recovery-i18n": "browser",
+      "./recovery/hooks/use-recovery.hooks": "browser",
+      "./recovery/hooks/use-restore-flow.hooks": "browser",
+      "./screens/database/rules": "browser",
+      "./screens/database/database-i18n": "browser",
+      "./screens/database/hooks/migrate-forward-section-port.hooks": "universal",
+      "./screens/database/hooks/schema-state-section-port.hooks": "universal",
+      "./screens/database/hooks/timeline-section-port.hooks": "universal",
+      "./screens/database/hooks/use-migrate-forward-section.hooks": "browser",
+      "./screens/database/hooks/use-schema-state-section.hooks": "browser",
+      "./screens/database/hooks/use-timeline-section.hooks": "browser",
+      "./screens/import-export/import-export-i18n": "universal",
+      "./screens/import-export/git-backup-rules": "universal",
+      "./screens/import-export/hooks/git-backup-port.hooks": "universal",
+      "./screens/import-export/hooks/use-git-backup.hooks": "browser",
+      "./screens/import-export/hooks/use-import-export.hooks": "browser",
+      "./publish-content/screen/hooks/publish-availability.store": "browser",
+      "./publish-content/screen/publish-scope": "universal",
+      "./publish-content/screen/hooks/publish-request.store": "browser",
+      "./publish-content/screen/hooks/use-publish-section-button.hooks": "browser",
+      "./deployment/deployment-i18n": "browser",
+      "./source-control/source-control-i18n": "universal"
     },
     "isolation": {
       "shared": [
@@ -1643,6 +1671,146 @@
       "types": "./dist/screens/content-analysis/content-analysis-i18n.d.ts",
       "import": "./dist/screens/content-analysis/content-analysis-i18n.js",
       "default": "./dist/screens/content-analysis/content-analysis-i18n.js"
+    },
+    "./deployment/Deployment.hooks": {
+      "types": "./dist/deployment/Deployment.hooks.d.ts",
+      "import": "./dist/deployment/Deployment.hooks.js",
+      "default": "./dist/deployment/Deployment.hooks.js"
+    },
+    "./source-control/host/SourceControl.hooks": {
+      "types": "./dist/source-control/host/SourceControl.hooks.d.ts",
+      "import": "./dist/source-control/host/SourceControl.hooks.js",
+      "default": "./dist/source-control/host/SourceControl.hooks.js"
+    },
+    "./recovery/hooks/recovery-port.hooks": {
+      "types": "./dist/recovery/hooks/recovery-port.hooks.d.ts",
+      "import": "./dist/recovery/hooks/recovery-port.hooks.js",
+      "default": "./dist/recovery/hooks/recovery-port.hooks.js"
+    },
+    "./recovery/hooks/restore-flow-port.hooks": {
+      "types": "./dist/recovery/hooks/restore-flow-port.hooks.d.ts",
+      "import": "./dist/recovery/hooks/restore-flow-port.hooks.js",
+      "default": "./dist/recovery/hooks/restore-flow-port.hooks.js"
+    },
+    "./recovery/hooks/use-recovery-navigation.hooks": {
+      "types": "./dist/recovery/hooks/use-recovery-navigation.hooks.d.ts",
+      "import": "./dist/recovery/hooks/use-recovery-navigation.hooks.js",
+      "default": "./dist/recovery/hooks/use-recovery-navigation.hooks.js"
+    },
+    "./recovery/rules": {
+      "types": "./dist/recovery/rules.d.ts",
+      "import": "./dist/recovery/rules.js",
+      "default": "./dist/recovery/rules.js"
+    },
+    "./recovery/recovery-i18n": {
+      "types": "./dist/recovery/recovery-i18n.d.ts",
+      "import": "./dist/recovery/recovery-i18n.js",
+      "default": "./dist/recovery/recovery-i18n.js"
+    },
+    "./recovery/hooks/use-recovery.hooks": {
+      "types": "./dist/recovery/hooks/use-recovery.hooks.d.ts",
+      "import": "./dist/recovery/hooks/use-recovery.hooks.js",
+      "default": "./dist/recovery/hooks/use-recovery.hooks.js"
+    },
+    "./recovery/hooks/use-restore-flow.hooks": {
+      "types": "./dist/recovery/hooks/use-restore-flow.hooks.d.ts",
+      "import": "./dist/recovery/hooks/use-restore-flow.hooks.js",
+      "default": "./dist/recovery/hooks/use-restore-flow.hooks.js"
+    },
+    "./screens/database/rules": {
+      "types": "./dist/screens/database/rules.d.ts",
+      "import": "./dist/screens/database/rules.js",
+      "default": "./dist/screens/database/rules.js"
+    },
+    "./screens/database/database-i18n": {
+      "types": "./dist/screens/database/database-i18n.d.ts",
+      "import": "./dist/screens/database/database-i18n.js",
+      "default": "./dist/screens/database/database-i18n.js"
+    },
+    "./screens/database/hooks/migrate-forward-section-port.hooks": {
+      "types": "./dist/screens/database/hooks/migrate-forward-section-port.hooks.d.ts",
+      "import": "./dist/screens/database/hooks/migrate-forward-section-port.hooks.js",
+      "default": "./dist/screens/database/hooks/migrate-forward-section-port.hooks.js"
+    },
+    "./screens/database/hooks/schema-state-section-port.hooks": {
+      "types": "./dist/screens/database/hooks/schema-state-section-port.hooks.d.ts",
+      "import": "./dist/screens/database/hooks/schema-state-section-port.hooks.js",
+      "default": "./dist/screens/database/hooks/schema-state-section-port.hooks.js"
+    },
+    "./screens/database/hooks/timeline-section-port.hooks": {
+      "types": "./dist/screens/database/hooks/timeline-section-port.hooks.d.ts",
+      "import": "./dist/screens/database/hooks/timeline-section-port.hooks.js",
+      "default": "./dist/screens/database/hooks/timeline-section-port.hooks.js"
+    },
+    "./screens/database/hooks/use-migrate-forward-section.hooks": {
+      "types": "./dist/screens/database/hooks/use-migrate-forward-section.hooks.d.ts",
+      "import": "./dist/screens/database/hooks/use-migrate-forward-section.hooks.js",
+      "default": "./dist/screens/database/hooks/use-migrate-forward-section.hooks.js"
+    },
+    "./screens/database/hooks/use-schema-state-section.hooks": {
+      "types": "./dist/screens/database/hooks/use-schema-state-section.hooks.d.ts",
+      "import": "./dist/screens/database/hooks/use-schema-state-section.hooks.js",
+      "default": "./dist/screens/database/hooks/use-schema-state-section.hooks.js"
+    },
+    "./screens/database/hooks/use-timeline-section.hooks": {
+      "types": "./dist/screens/database/hooks/use-timeline-section.hooks.d.ts",
+      "import": "./dist/screens/database/hooks/use-timeline-section.hooks.js",
+      "default": "./dist/screens/database/hooks/use-timeline-section.hooks.js"
+    },
+    "./screens/import-export/import-export-i18n": {
+      "types": "./dist/screens/import-export/import-export-i18n.d.ts",
+      "import": "./dist/screens/import-export/import-export-i18n.js",
+      "default": "./dist/screens/import-export/import-export-i18n.js"
+    },
+    "./screens/import-export/git-backup-rules": {
+      "types": "./dist/screens/import-export/git-backup-rules.d.ts",
+      "import": "./dist/screens/import-export/git-backup-rules.js",
+      "default": "./dist/screens/import-export/git-backup-rules.js"
+    },
+    "./screens/import-export/hooks/git-backup-port.hooks": {
+      "types": "./dist/screens/import-export/hooks/git-backup-port.hooks.d.ts",
+      "import": "./dist/screens/import-export/hooks/git-backup-port.hooks.js",
+      "default": "./dist/screens/import-export/hooks/git-backup-port.hooks.js"
+    },
+    "./screens/import-export/hooks/use-git-backup.hooks": {
+      "types": "./dist/screens/import-export/hooks/use-git-backup.hooks.d.ts",
+      "import": "./dist/screens/import-export/hooks/use-git-backup.hooks.js",
+      "default": "./dist/screens/import-export/hooks/use-git-backup.hooks.js"
+    },
+    "./screens/import-export/hooks/use-import-export.hooks": {
+      "types": "./dist/screens/import-export/hooks/use-import-export.hooks.d.ts",
+      "import": "./dist/screens/import-export/hooks/use-import-export.hooks.js",
+      "default": "./dist/screens/import-export/hooks/use-import-export.hooks.js"
+    },
+    "./publish-content/screen/hooks/publish-availability.store": {
+      "types": "./dist/publish-content/screen/hooks/publish-availability.store.d.ts",
+      "import": "./dist/publish-content/screen/hooks/publish-availability.store.js",
+      "default": "./dist/publish-content/screen/hooks/publish-availability.store.js"
+    },
+    "./publish-content/screen/publish-scope": {
+      "types": "./dist/publish-content/screen/publish-scope.d.ts",
+      "import": "./dist/publish-content/screen/publish-scope.js",
+      "default": "./dist/publish-content/screen/publish-scope.js"
+    },
+    "./publish-content/screen/hooks/publish-request.store": {
+      "types": "./dist/publish-content/screen/hooks/publish-request.store.d.ts",
+      "import": "./dist/publish-content/screen/hooks/publish-request.store.js",
+      "default": "./dist/publish-content/screen/hooks/publish-request.store.js"
+    },
+    "./publish-content/screen/hooks/use-publish-section-button.hooks": {
+      "types": "./dist/publish-content/screen/hooks/use-publish-section-button.hooks.d.ts",
+      "import": "./dist/publish-content/screen/hooks/use-publish-section-button.hooks.js",
+      "default": "./dist/publish-content/screen/hooks/use-publish-section-button.hooks.js"
+    },
+    "./deployment/deployment-i18n": {
+      "types": "./dist/deployment/deployment-i18n.d.ts",
+      "import": "./dist/deployment/deployment-i18n.js",
+      "default": "./dist/deployment/deployment-i18n.js"
+    },
+    "./source-control/source-control-i18n": {
+      "types": "./dist/source-control/source-control-i18n.d.ts",
+      "import": "./dist/source-control/source-control-i18n.js",
+      "default": "./dist/source-control/source-control-i18n.js"
     }
   },
   "files": [

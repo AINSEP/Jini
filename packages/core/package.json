@@ -207,7 +207,15 @@
       "./contracts/site/cms-agent-plugins": "universal",
       "./contracts/site/cms-plugins": "universal",
       "./contracts/site/cms-recovery": "universal",
-      "./contracts/site/oauth-callback-page": "universal"
+      "./contracts/site/oauth-callback-page": "universal",
+      "./net/public-dns-vocabulary": "universal",
+      "./contracts/site/export-run": "universal",
+      "./contracts/agents/inventory": "universal",
+      "./tool-metadata/deploy-ops": "universal",
+      "./tool-metadata/deployments": "universal",
+      "./tool-metadata/domain-dns": "universal",
+      "./tool-metadata/site-backup": "universal",
+      "./tool-metadata/source-control": "universal"
     },
     "isolation": {
       "entries": {
@@ -1234,6 +1242,46 @@
       "types": "./dist/contracts/site/oauth-callback-page.d.ts",
       "import": "./dist/contracts/site/oauth-callback-page.js",
       "default": "./dist/contracts/site/oauth-callback-page.js"
+    },
+    "./contracts/agents/inventory": {
+      "types": "./dist/contracts/agents/inventory.d.ts",
+      "import": "./dist/contracts/agents/inventory.js",
+      "default": "./dist/contracts/agents/inventory.js"
+    },
+    "./net/public-dns-vocabulary": {
+      "types": "./dist/net/public-dns-vocabulary.d.ts",
+      "import": "./dist/net/public-dns-vocabulary.js",
+      "default": "./dist/net/public-dns-vocabulary.js"
+    },
+    "./contracts/site/export-run": {
+      "types": "./dist/contracts/site/export-run.d.ts",
+      "import": "./dist/contracts/site/export-run.js",
+      "default": "./dist/contracts/site/export-run.js"
+    },
+    "./tool-metadata/deploy-ops": {
+      "types": "./dist/tool-metadata/deploy-ops.d.ts",
+      "import": "./dist/tool-metadata/deploy-ops.js",
+      "default": "./dist/tool-metadata/deploy-ops.js"
+    },
+    "./tool-metadata/deployments": {
+      "types": "./dist/tool-metadata/deployments.d.ts",
+      "import": "./dist/tool-metadata/deployments.js",
+      "default": "./dist/tool-metadata/deployments.js"
+    },
+    "./tool-metadata/domain-dns": {
+      "types": "./dist/tool-metadata/domain-dns.d.ts",
+      "import": "./dist/tool-metadata/domain-dns.js",
+      "default": "./dist/tool-metadata/domain-dns.js"
+    },
+    "./tool-metadata/site-backup": {
+      "types": "./dist/tool-metadata/site-backup.d.ts",
+      "import": "./dist/tool-metadata/site-backup.js",
+      "default": "./dist/tool-metadata/site-backup.js"
+    },
+    "./tool-metadata/source-control": {
+      "types": "./dist/tool-metadata/source-control.d.ts",
+      "import": "./dist/tool-metadata/source-control.js",
+      "default": "./dist/tool-metadata/source-control.js"
     }
   },
   "files": [

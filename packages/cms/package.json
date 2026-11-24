@@ -417,7 +417,25 @@
       "./settings/site/visitor-tools-service": "universal",
       "./settings/site/visitor-tools-registrations": "universal",
       "./settings/site/publish-content": "universal",
-      "./settings/site/settings-confirm-write": "universal"
+      "./settings/site/settings-confirm-write": "universal",
+      "./publish/content/report-contract": "universal",
+      "./publish/content/type-registry": "universal",
+      "./publish/content/dialog": "universal",
+      "./publish/content/dialog/contract": "universal",
+      "./publish/content/dialog/criteria": "universal",
+      "./publish/content/dialog/phase": "universal",
+      "./publish/content/dialog/publish-order": "universal",
+      "./publish/content/dialog/replan": "universal",
+      "./publish/content/dialog/report-reasons": "universal",
+      "./publish/content/dialog/report-rows": "universal",
+      "./publish/trust/grant": "universal",
+      "./publish/trust/keys": "node",
+      "./publish/trust/provisioning": "universal",
+      "./publish/trust/provisioning-status": "universal",
+      "./publish/trust/provisioning.node-io": "node",
+      "./publish/trust/revocations": "universal",
+      "./trash/site/directory-rollback-log": "universal",
+      "./trash/permanent/agent-tools": "universal"
     },
     "isolation": {
       "domains": {
@@ -2655,6 +2673,96 @@
       "types": "./dist/settings/site/settings-confirm-write.d.ts",
       "import": "./dist/settings/site/settings-confirm-write.js",
       "default": "./dist/settings/site/settings-confirm-write.js"
+    },
+    "./publish/content/type-registry": {
+      "types": "./dist/publish/content/type-registry.d.ts",
+      "import": "./dist/publish/content/type-registry.js",
+      "default": "./dist/publish/content/type-registry.js"
+    },
+    "./publish/content/report-contract": {
+      "types": "./dist/publish/content/report-contract.d.ts",
+      "import": "./dist/publish/content/report-contract.js",
+      "default": "./dist/publish/content/report-contract.js"
+    },
+    "./publish/content/dialog": {
+      "types": "./dist/publish/content/dialog/index.d.ts",
+      "import": "./dist/publish/content/dialog/index.js",
+      "default": "./dist/publish/content/dialog/index.js"
+    },
+    "./publish/content/dialog/contract": {
+      "types": "./dist/publish/content/dialog/contract.d.ts",
+      "import": "./dist/publish/content/dialog/contract.js",
+      "default": "./dist/publish/content/dialog/contract.js"
+    },
+    "./publish/content/dialog/criteria": {
+      "types": "./dist/publish/content/dialog/criteria.d.ts",
+      "import": "./dist/publish/content/dialog/criteria.js",
+      "default": "./dist/publish/content/dialog/criteria.js"
+    },
+    "./publish/content/dialog/phase": {
+      "types": "./dist/publish/content/dialog/phase.d.ts",
+      "import": "./dist/publish/content/dialog/phase.js",
+      "default": "./dist/publish/content/dialog/phase.js"
+    },
+    "./publish/content/dialog/publish-order": {
+      "types": "./dist/publish/content/dialog/publish-order.d.ts",
+      "import": "./dist/publish/content/dialog/publish-order.js",
+      "default": "./dist/publish/content/dialog/publish-order.js"
+    },
+    "./publish/content/dialog/replan": {
+      "types": "./dist/publish/content/dialog/replan.d.ts",
+      "import": "./dist/publish/content/dialog/replan.js",
+      "default": "./dist/publish/content/dialog/replan.js"
+    },
+    "./publish/content/dialog/report-reasons": {
+      "types": "./dist/publish/content/dialog/report-reasons.d.ts",
+      "import": "./dist/publish/content/dialog/report-reasons.js",
+      "default": "./dist/publish/content/dialog/report-reasons.js"
+    },
+    "./publish/content/dialog/report-rows": {
+      "types": "./dist/publish/content/dialog/report-rows.d.ts",
+      "import": "./dist/publish/content/dialog/report-rows.js",
+      "default": "./dist/publish/content/dialog/report-rows.js"
+    },
+    "./publish/trust/grant": {
+      "types": "./dist/publish/trust/grant.d.ts",
+      "import": "./dist/publish/trust/grant.js",
+      "default": "./dist/publish/trust/grant.js"
+    },
+    "./publish/trust/keys": {
+      "types": "./dist/publish/trust/keys.d.ts",
+      "import": "./dist/publish/trust/keys.js",
+      "default": "./dist/publish/trust/keys.js"
+    },
+    "./publish/trust/provisioning": {
+      "types": "./dist/publish/trust/provisioning.d.ts",
+      "import": "./dist/publish/trust/provisioning.js",
+      "default": "./dist/publish/trust/provisioning.js"
+    },
+    "./publish/trust/provisioning-status": {
+      "types": "./dist/publish/trust/provisioning-status.d.ts",
+      "import": "./dist/publish/trust/provisioning-status.js",
+      "default": "./dist/publish/trust/provisioning-status.js"
+    },
+    "./publish/trust/provisioning.node-io": {
+      "types": "./dist/publish/trust/provisioning.node-io.d.ts",
+      "import": "./dist/publish/trust/provisioning.node-io.js",
+      "default": "./dist/publish/trust/provisioning.node-io.js"
+    },
+    "./publish/trust/revocations": {
+      "types": "./dist/publish/trust/revocations.d.ts",
+      "import": "./dist/publish/trust/revocations.js",
+      "default": "./dist/publish/trust/revocations.js"
+    },
+    "./trash/site/directory-rollback-log": {
+      "types": "./dist/trash/site/directory-rollback-log.d.ts",
+      "import": "./dist/trash/site/directory-rollback-log.js",
+      "default": "./dist/trash/site/directory-rollback-log.js"
+    },
+    "./trash/permanent/agent-tools": {
+      "types": "./dist/trash/permanent/agent-tools.d.ts",
+      "import": "./dist/trash/permanent/agent-tools.js",
+      "default": "./dist/trash/permanent/agent-tools.js"
     }
   },
   "files": [

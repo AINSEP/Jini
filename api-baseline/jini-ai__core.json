@@ -3088,5 +3088,50 @@
       "AdminPublishCredentialsSnapshot": "interface:9c68f5ec3d",
       "AdminPublishExecutionMode": "type:d11839e0e7"
     }
+  },
+  "./contracts/agents/inventory": {
+    "types": "./dist/contracts/agents/inventory.d.ts",
+    "symbols": {
+      "AgentInventoryOption": "type:f127589505",
+      "AgentInventorySummary": "interface:8635af2893"
+    }
+  },
+  "./net/public-dns-vocabulary": {
+    "types": "./dist/net/public-dns-vocabulary.d.ts",
+    "symbols": {
+      "DNS_TYPES": "variable:65562fb291",
+      "DnsRecordType": "type:95bd6f5bac",
+      "DomainDnsInputError": "class:34b7a7f636"
+    }
+  },
+  "./tool-metadata/deploy-ops": {
+    "types": "./dist/tool-metadata/deploy-ops.d.ts",
+    "symbols": {
+      "createDeployOpsToolMetadata": "function:56b3ee239c"
+    }
+  },
+  "./tool-metadata/deployments": {
+    "types": "./dist/tool-metadata/deployments.d.ts",
+    "symbols": {
+      "toolMetadata": "variable:3e7a745f9a"
+    }
+  },
+  "./tool-metadata/domain-dns": {
+    "types": "./dist/tool-metadata/domain-dns.d.ts",
+    "symbols": {
+      "toolMetadata": "variable:2815f465fa"
+    }
+  },
+  "./tool-metadata/site-backup": {
+    "types": "./dist/tool-metadata/site-backup.d.ts",
+    "symbols": {
+      "createSiteBackupToolMetadata": "function:5dafe8faf8"
+    }
+  },
+  "./tool-metadata/source-control": {
+    "types": "./dist/tool-metadata/source-control.d.ts",
+    "symbols": {
+      "toolMetadata": "variable:7dd3d42eff"
+    }
   }
 }
