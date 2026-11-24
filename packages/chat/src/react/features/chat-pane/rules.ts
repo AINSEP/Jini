@@ -229,7 +229,8 @@ const ATTACHMENT_DETAILS_MAX = 300;
 export function describeAttachmentError({ error }: { error: Error }): { summary: string; details: string } {
   const redacted = redactUserText({ text: error.message }).text.trim();
   return {
-    summary: 'Attachment upload failed. Remove it and try again.',
+    // A failed file is never staged, so there is no chip to remove: the only action is to choose it again.
+    summary: 'Attachment upload failed. The file was not attached. Choose it again to retry.',
     details: redacted.length > ATTACHMENT_DETAILS_MAX ? `${redacted.slice(0, ATTACHMENT_DETAILS_MAX)}…` : redacted,
   };
 }
