@@ -26,7 +26,7 @@
    "MemoryGrowthWarning": "interface:546fe6db39",
    "MemoryKindSummary": "interface:0f7c9ecfd5",
    "ProcessMemoryReading": "interface:4104d0a67e",
-   "RedactionOptions": "interface:484616dcf8",
+   "RedactionOptions": "interface:9e3b671634",
    "aggregateProcessMemory": "function:fceb8a8eb7",
    "buildAgentCliLogSources": "function:4f7e03908a",
    "buildDiagnosticsZip": "function:a8506626f6",
@@ -81,7 +81,7 @@
  "./local-text": {
   "types": "./dist/local-text.d.ts",
   "symbols": {
-   "redactLocalText": "function:0bb52b2449"
+   "redactLocalText": "function:cd502aa112"
   }
  },
  "./observability": {
@@ -142,7 +142,7 @@
    "createTracker": "function:6d635717a3",
    "createTrackerWarning": "function:eba25d5b9d",
    "observabilityNodeProviderContext": "variable:47b73c8889",
-   "redactedError": "function:0abe546c7c",
+   "redactedError": "function:7f4a8de4b8",
    "reportErrorOnce": "function:830a1c17f4",
    "runWithErrorReportScope": "function:8852decc7e"
   }
