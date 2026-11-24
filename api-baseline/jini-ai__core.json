@@ -982,6 +982,12 @@
    "pluginProviderStartupGuidance": "function:ea8a25ca8d"
   }
  },
+ "./contracts/run-attempt": {
+  "types": "./dist/contracts/run-attempt.d.ts",
+  "symbols": {
+   "DurableAttemptStatus": "interface:784cc75829"
+  }
+ },
  "./contracts/runtime": {
   "types": "./dist/contracts/runtime.d.ts",
   "symbols": {
@@ -1074,7 +1080,7 @@
    "RouteBodyRead": "type:97cf4f9b87",
    "RouteBodyReadOptions": "type:e3b19f3c34",
    "RouteBodyReader": "interface:40d533880e",
-   "RouteBodyRefusal": "type:823d2b0b5e",
+   "RouteBodyRefusal": "type:2ed272069d",
    "RouteFormFields": "type:b4fd7e5a84",
    "RouteHostContext": "interface:c26ac79c5e",
    "RouteHostInternalErrorContext": "interface:96ac301673",

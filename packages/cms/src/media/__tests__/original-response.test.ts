@@ -5,6 +5,7 @@
  */
 import assert from "node:assert/strict";
 import { test } from "vitest";
+import { parseRangeHeader } from "@jini-ai/http-kit/range";
 
 import { InMemoryBlobStore } from "../blob-store.memory.js";
 import { trashMedia, uploadMedia } from "../media-service.js";
@@ -27,35 +28,35 @@ const SAFE_HEADERS: Array<readonly [string, string]> = [
 const text = (body: Uint8Array | null) => new TextDecoder().decode(body ?? new Uint8Array());
 
 test("full body: 200 with the security headers and the exact bytes", () => {
-  const reply = decideMediaOriginalReply({ bytes: BYTES, rangeHeader: undefined, type: PNG });
+  const reply = decideMediaOriginalReply({ deps: { parseRangeHeader }, bytes: BYTES, rangeHeader: undefined, type: PNG });
   assert.equal(reply.status, 200);
   assert.deepEqual(reply.headers, SAFE_HEADERS);
   assert.deepEqual(reply.body, BYTES);
 });
 
 test("Range: a satisfiable range is a 206 whose Content-Range and body cover the inclusive end byte", () => {
-  const mid = decideMediaOriginalReply({ bytes: BYTES, rangeHeader: "bytes=8-11", type: PNG });
+  const mid = decideMediaOriginalReply({ deps: { parseRangeHeader }, bytes: BYTES, rangeHeader: "bytes=8-11", type: PNG });
   assert.equal(mid.status, 206);
   assert.deepEqual(mid.headers, [...SAFE_HEADERS, ["Content-Range", "bytes 8-11/20"]]);
   assert.equal(text(mid.body), "89AB");
-  const last = decideMediaOriginalReply({ bytes: BYTES, rangeHeader: "bytes=19-19", type: PNG });
+  const last = decideMediaOriginalReply({ deps: { parseRangeHeader }, bytes: BYTES, rangeHeader: "bytes=19-19", type: PNG });
   assert.equal(text(last.body), "J");
-  const clamped = decideMediaOriginalReply({ bytes: BYTES, rangeHeader: "bytes=15-9999", type: PNG });
+  const clamped = decideMediaOriginalReply({ deps: { parseRangeHeader }, bytes: BYTES, rangeHeader: "bytes=15-9999", type: PNG });
   assert.deepEqual([clamped.status, text(clamped.body), clamped.headers.at(-1)], [206, "FGHIJ", ["Content-Range", "bytes 15-19/20"]]);
-  const suffix = decideMediaOriginalReply({ bytes: BYTES, rangeHeader: "bytes=-5", type: PNG });
+  const suffix = decideMediaOriginalReply({ deps: { parseRangeHeader }, bytes: BYTES, rangeHeader: "bytes=-5", type: PNG });
   assert.equal(text(suffix.body), "FGHIJ");
 });
 
 test("Range: unsatisfiable is a body-less 416 with `bytes */total`; malformed and multi-range are ignored (200)", () => {
-  const bad = decideMediaOriginalReply({ bytes: BYTES, rangeHeader: "bytes=20-30", type: PNG });
+  const bad = decideMediaOriginalReply({ deps: { parseRangeHeader }, bytes: BYTES, rangeHeader: "bytes=20-30", type: PNG });
   assert.deepEqual([bad.status, bad.body, bad.headers.at(-1)], [416, null, ["Content-Range", "bytes */20"]]);
   for (const header of ["bytes=abc-def", "bytes=0-4,10-14"]) {
-    assert.equal(decideMediaOriginalReply({ bytes: BYTES, rangeHeader: header, type: PNG }).status, 200, header);
+    assert.equal(decideMediaOriginalReply({ deps: { parseRangeHeader }, bytes: BYTES, rangeHeader: header, type: PNG }).status, 200, header);
   }
 });
 
 test("types: SVG gets the SVG CSP; sniffed HTML/XHTML is forced to an octet-stream attachment", () => {
-  const svg = decideMediaOriginalReply({ bytes: BYTES, rangeHeader: undefined, type: inlineOriginalType({ sniffed: "image/svg+xml" }) });
+  const svg = decideMediaOriginalReply({ deps: { parseRangeHeader }, bytes: BYTES, rangeHeader: undefined, type: inlineOriginalType({ sniffed: "image/svg+xml" }) });
   assert.deepEqual(svg.headers.find(([name]) => name === "Content-Security-Policy"), ["Content-Security-Policy", SVG_CONTENT_SECURITY_POLICY]);
   for (const sniffed of ["text/html", "application/xhtml+xml"]) {
     assert.deepEqual(inlineOriginalType({ sniffed }), { safe: "application/octet-stream", disposition: "attachment" });
@@ -99,12 +100,12 @@ test("asset: inline original is sniffed (HTML declared as png becomes a download
   const found = await lookupMediaOriginalBlob({ deps: lookupDeps, params: { workspaceId: "ws", mediaId: media.id } });
   assert.equal(found.outcome, "ok");
   if (found.outcome !== "ok") return;
-  const reply = await decideMediaOriginalForAsset({ deps: { blobStore: deps.blobStore }, media: found.media, blob: found.blob, rangeHeader: undefined });
+  const reply = await decideMediaOriginalForAsset({ deps: { blobStore: deps.blobStore, parseRangeHeader }, media: found.media, blob: found.blob, rangeHeader: undefined });
   assert.deepEqual(reply.headers.filter(([name]) => /^Content-(Type|Disposition)$/.test(name)), [["Content-Type", "application/octet-stream"], ["Content-Disposition", "attachment"]]);
   assert.deepEqual(reply.body, html);
 
   const doc = { ...found.media, kind: "document" as const, title: "Q3 'plan' (v2)", originalFilename: "plan.txt" };
-  const docReply = await decideMediaOriginalForAsset({ deps: { blobStore: deps.blobStore }, media: doc, blob: found.blob, rangeHeader: "bytes=0-3" });
+  const docReply = await decideMediaOriginalForAsset({ deps: { blobStore: deps.blobStore, parseRangeHeader }, media: doc, blob: found.blob, rangeHeader: "bytes=0-3" });
   assert.equal(docReply.status, 206);
   assert.deepEqual(docReply.headers.find(([name]) => name === "Content-Disposition"), ["Content-Disposition", `attachment; filename="document"; filename*=UTF-8''Q3%20%27plan%27%20%28v2%29.txt`]);
 });

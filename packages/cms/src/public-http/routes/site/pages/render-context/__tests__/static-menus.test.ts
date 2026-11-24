@@ -1,4 +1,5 @@
 import { expect, test } from "vitest";
+import type { UUID } from "@jini-ai/core/primitives";
 import {
   resolveStaticMenusForIds,
   type StaticMenuCollaborators,
@@ -69,7 +70,7 @@ test("a nav route target reaches urlFor as a routing route target", async () => 
 
 test("a reserved id is resolved by the host's resolver and never looked up as a stored menu", async () => {
   const f = fixture({ menus: [stored("reserved", "reserved", "Stored")] });
-  const reserved = new Map<string, StaticMenuReservedResolver>([["reserved", async ({ menuId }) => [menuId, [{ label: "Host", href: null, available: true, isCurrent: false, children: [] }]]]]);
+  const reserved = new Map<string, StaticMenuReservedResolver>([["reserved", async ({ menuId }) => [menuId, [{ id: "host-item" as UUID, label: "Host", href: null, available: true, isCurrent: false, isActive: false, children: [] }]]]]);
   const out = await resolveStaticMenusForIds({ deps: f.deps, menuIds: ["reserved"], currentPath: "/", collaborators: f.collaborators }, { reserved });
   expect(labelsOf(out.reserved)).toEqual(["Host"]);
 });

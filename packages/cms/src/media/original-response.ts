@@ -1,4 +1,3 @@
-import { parseRangeHeader } from "@jini-ai/http-kit/range";
 import { documentContentType, documentDisplayFilename, MAX_DOCUMENT_BYTES } from "./document-ingress.js";
 import { sniffContentType } from "./content-type-sniffer.js";
 import { findMediaByIdOrSlug } from "./media-service.js";
@@ -38,8 +37,9 @@ import type { AssetBlobRepoPort, BlobStorePort, MediaRecord, MediaRepoPort } fro
  *  - Trashed assets are `trashed` (the host answers 410), mirroring `resolveMediaRendition`'s disclosed
  *    trashed-stands-in-for-purged mapping rather than inventing a new gone/not-found split.
  *
- * RANGE SUPPORT: `Range: bytes=...` is honored via `parseRangeHeader`
- * (`@jini-ai/http-kit/range`) so a `<video>` tag can seek instead of buffering the whole
+ * RANGE SUPPORT: `Range: bytes=...` is honored via the injected `parseRangeHeader`
+ * collaborator (the host binds `@jini-ai/http-kit/range`'s; cms production code may import only core and
+ * protocol) so a `<video>` tag can seek instead of buffering the whole
  * file — see that module's doc comment for the exact malformed/multi-range/
  * out-of-bounds handling this defers to.
  */
@@ -64,6 +64,15 @@ export const DISALLOWED_INLINE_CONTENT_TYPES: ReadonlySet<string> = new Set([
   "text/html",
   "application/xhtml+xml",
 ]);
+
+/** A parsed `Range` header, the shape `@jini-ai/http-kit/range`'s `parseRangeHeader` returns. */
+export type MediaOriginalRange =
+  | { readonly kind: "none" }
+  | { readonly kind: "unsatisfiable" }
+  | { readonly kind: "range"; readonly start: number; readonly end: number };
+
+/** The injected `Range` header parser (the host binds `parseRangeHeader` from `@jini-ai/http-kit/range`). */
+export type ParseRangeHeader = (required: { header: string | undefined; totalLength: number }, _optional?: Record<string, never>) => MediaOriginalRange;
 
 /** What a host writes: status, ordered header pairs, and the body (`null` when the reply has none). */
 export interface MediaOriginalReply {
@@ -162,10 +171,10 @@ function originalSecurityHeaders({ type }: { type: MediaOriginalType }, _optiona
  *
  * @complexity O(1) aside from the byte copy for a partial range.
  */
-export function decideMediaOriginalReply({ bytes, rangeHeader, type }: { bytes: Uint8Array; rangeHeader: string | undefined; type: MediaOriginalType }, _optional = {}): MediaOriginalReply {
+export function decideMediaOriginalReply({ deps, bytes, rangeHeader, type }: { deps: { parseRangeHeader: ParseRangeHeader }; bytes: Uint8Array; rangeHeader: string | undefined; type: MediaOriginalType }, _optional = {}): MediaOriginalReply {
   const totalLength = bytes.byteLength;
   const headers = originalSecurityHeaders({ type });
-  const range = parseRangeHeader({ header: rangeHeader, totalLength });
+  const range = deps.parseRangeHeader({ header: rangeHeader, totalLength });
   if (range.kind === "unsatisfiable") {
     return { status: 416, headers: [...headers, ["Content-Range", `bytes */${totalLength}`]], body: null };
   }
@@ -192,13 +201,13 @@ function documentDisposition({ media }: { media: MediaRecord }, _optional = {}):
  *
  * @complexity O(n) in the document's size (one read, one optional copy for a partial range).
  */
-async function decideDocumentOriginal({ deps, media, blob, rangeHeader }: { deps: { blobStore: BlobStorePort }; media: MediaRecord; blob: { storageKey: string }; rangeHeader: string | undefined }, _optional = {}): Promise<MediaOriginalReply> {
+async function decideDocumentOriginal({ deps, media, blob, rangeHeader }: { deps: { blobStore: BlobStorePort; parseRangeHeader: ParseRangeHeader }; media: MediaRecord; blob: { storageKey: string }; rangeHeader: string | undefined }, _optional = {}): Promise<MediaOriginalReply> {
   const size = await deps.blobStore.sizeOf?.({ storageKey: blob.storageKey });
   if (size != null && size > MAX_DOCUMENT_BYTES) throw new Error("document exceeds size limit");
   const bytes = await deps.blobStore.get({ storageKey: blob.storageKey });
   if (bytes.byteLength > MAX_DOCUMENT_BYTES) throw new Error("document exceeds size limit");
   const type = { safe: documentContentType({ filename: media.originalFilename ?? "" }), disposition: documentDisposition({ media }) };
-  return decideMediaOriginalReply({ bytes, rangeHeader, type });
+  return decideMediaOriginalReply({ deps, bytes, rangeHeader, type });
 }
 
 /**
@@ -207,14 +216,14 @@ async function decideDocumentOriginal({ deps, media, blob, rangeHeader }: { deps
  *
  * @complexity O(n) in the asset's size (read, optional SVG sanitize, optional range copy).
  */
-async function decideInlineOriginal({ deps, blob, rangeHeader }: { deps: { blobStore: BlobStorePort }; blob: { storageKey: string }; rangeHeader: string | undefined }, _optional = {}): Promise<MediaOriginalReply> {
+async function decideInlineOriginal({ deps, blob, rangeHeader }: { deps: { blobStore: BlobStorePort; parseRangeHeader: ParseRangeHeader }; blob: { storageKey: string }; rangeHeader: string | undefined }, _optional = {}): Promise<MediaOriginalReply> {
   const sourceBytes = await deps.blobStore.get({ storageKey: blob.storageKey });
   const sniffed = sniffContentType({ bytes: sourceBytes });
   const bytes = await sanitizeOriginalBytes({ sniffed, sourceBytes });
   // Every response here reflects this principal's authorization at request time and may name
   // whether a specific asset is trashed — never shared-cached; every outcome is `private, no-store`
   // since none of its bytes are safe to cache across principals/permission changes.
-  return decideMediaOriginalReply({ bytes, rangeHeader, type: inlineOriginalType({ sniffed }) });
+  return decideMediaOriginalReply({ deps, bytes, rangeHeader, type: inlineOriginalType({ sniffed }) });
 }
 
 /**
@@ -222,7 +231,7 @@ async function decideInlineOriginal({ deps, blob, rangeHeader }: { deps: { blobS
  * filename-policy type, anything else is served inline under its sniffed type.
  * @complexity O(n) in the asset's size.
  */
-export async function decideMediaOriginalForAsset({ deps, media, blob, rangeHeader }: { deps: { blobStore: BlobStorePort }; media: MediaRecord; blob: { storageKey: string }; rangeHeader: string | undefined }, _optional = {}): Promise<MediaOriginalReply> {
+export async function decideMediaOriginalForAsset({ deps, media, blob, rangeHeader }: { deps: { blobStore: BlobStorePort; parseRangeHeader: ParseRangeHeader }; media: MediaRecord; blob: { storageKey: string }; rangeHeader: string | undefined }, _optional = {}): Promise<MediaOriginalReply> {
   return media.kind === "document"
     ? decideDocumentOriginal({ deps, media, blob, rangeHeader })
     : decideInlineOriginal({ deps, blob, rangeHeader });

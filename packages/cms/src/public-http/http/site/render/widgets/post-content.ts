@@ -123,7 +123,7 @@ function readInlineWidgets({ value }: { value: JsonValue | undefined }, _optiona
 /**
  * Owner-reported bug (2026-08-12): a ref-based image dropped into a post's body rendered as a
  * labelled placeholder box showing the filename — everywhere this function's output reaches (the
- * editor's own "Preview" tab, which renders through `apps/website/src/server/inbound/admin-http/routes/posts/template-preview.ts` ->
+ * editor's own "Preview" tab, which renders through the host's admin template-preview route ->
  * `renderViaTemplate` -> this same "post-content" IR, AND the published public page) — even though
  * the asset, its `"public"` transform registration, and the `/m/` rendition route were all
  * confirmed live and working. Root cause: this function called `renderDocNode(bodyJson)` with only

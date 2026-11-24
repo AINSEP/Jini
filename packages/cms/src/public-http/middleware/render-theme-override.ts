@@ -1,5 +1,3 @@
-import { resolveActiveThemeId, type ActiveThemeIdResolutionDeps } from "../../presentation/site/active-theme-id.js";
-
 /**
  * @file Per-request render-theme override for one app instance (2026-10-08): an app built with
  * `createApp(deps, { themeIdOverride })` — only ever `RouteDeps.createSiteApp({ themeId })`'s
@@ -41,13 +39,15 @@ export function hasRequestRenderTheme(required: { response: RequestLocalStore | 
 
 /**
  * The theme id this request renders with: the app's override when it has one, else the workspace's
- * stored active theme (with `resolveActiveThemeId`'s own "no settings row yet" fallback).
+ * stored active theme, read through the injected `resolveStoredThemeId` (the host binds
+ * `resolveActiveThemeId`, which carries its own "no settings row yet" fallback; this module sits in a
+ * different domain from the presentation layer so it receives the reader instead of importing it).
  * @complexity O(1) plus one settings read when there is no override.
  */
 export function resolveRenderThemeId(
-  required: { response: RequestLocalStore; deps: ActiveThemeIdResolutionDeps },
+  required: { response: RequestLocalStore; resolveStoredThemeId: () => Promise<string> },
   _optional: Record<string, never> = {},
 ): Promise<string> {
   const override = required.response.locals?.[LOCAL_KEY];
-  return typeof override === "string" ? Promise.resolve(override) : resolveActiveThemeId(required.deps);
+  return typeof override === "string" ? Promise.resolve(override) : required.resolveStoredThemeId();
 }

@@ -58,6 +58,13 @@
    "toAdminFormSubmissionResponse": "function:11c45c966e"
   }
  },
+ "./admin-http/http/forms-write-error": {
+  "types": "./dist/admin-http/http/forms-write-error.d.ts",
+  "symbols": {
+   "FormsWriteErrorWire": "interface:b3be9e2e3f",
+   "formsWriteErrorWire": "function:8644332265"
+  }
+ },
  "./admin-http/http/integrations": {
   "types": "./dist/admin-http/http/integrations.d.ts",
   "symbols": {
@@ -1066,6 +1073,19 @@
    "pageUpdateHtmlRoute": "variable:9292221c2f"
   }
  },
+ "./admin-http/routes/plugins/chart-providers": {
+  "types": "./dist/admin-http/routes/plugins/chart-providers.d.ts",
+  "symbols": {
+   "ChartAssetParams": "interface:66578df22e",
+   "ChartProviderAsset": "interface:14c08bfa58",
+   "ChartProviderAssetDeps": "interface:4db0b11d62",
+   "ChartProviderEntry": "interface:cc66391f74",
+   "ChartProviderMetadataDeps": "interface:177d73c189",
+   "ChartProviderReply": "interface:3f599a0f23",
+   "chartProviderAsset": "function:92bbb57c4a",
+   "chartProviderMetadata": "function:6eddc86e16"
+  }
+ },
  "./admin-http/routes/plugins/files": {
   "types": "./dist/admin-http/routes/plugins/files.d.ts",
   "symbols": {
@@ -1964,6 +1984,23 @@
    "siteBackupPushRoute": "variable:26a965e52b"
   }
  },
+ "./admin-http/routes/system/site-imports": {
+  "types": "./dist/admin-http/routes/system/site-imports.d.ts",
+  "symbols": {
+   "OwnerSetupInput": "interface:0a0f38cb2e",
+   "SiteImportFailureCollaborators": "interface:da096a2b8d",
+   "SiteImportIncident": "interface:aecbad9227",
+   "SiteImportReply": "interface:ec7ae076fb",
+   "importIncident": "function:b2026eb748",
+   "importStep": "function:777bd1912c",
+   "importUnavailableReply": "function:239f9dd3a9",
+   "mapImportFailure": "function:5156a2b5a8",
+   "ownerSetupBody": "function:8a61c36950",
+   "parseOwnerSetupBody": "function:6efcb42c4e",
+   "uploadBusyReply": "function:ce9e8cb68d",
+   "workspaceUnavailableReply": "function:7380d737a0"
+  }
+ },
  "./admin-http/routes/system/site-shares": {
   "types": "./dist/admin-http/routes/system/site-shares.d.ts",
   "symbols": {
@@ -2663,7 +2700,7 @@
    "FormAttachmentSpaceError": "class:d7d46fcee8",
    "FormAuthoring": "type:e62e70d0f7",
    "FormAuthoringPort": "interface:b7b970ffe4",
-   "FormBodyOptions": "interface:acc45cca63",
+   "FormBodyOptions": "interface:8ebdb87d1e",
    "FormCollectionRegistry": "type:3cb0a72fbf",
    "FormCommandExecutorPort": "type:5979ac4f5e",
    "FormDefinitionNotFoundError": "class:d2dcfa9132",
@@ -2701,6 +2738,7 @@
    "FormDestinationPluginState": "interface:dbf3c16a65",
    "FormDestinationPublishInput": "interface:6ebdf7768a",
    "FormDestinationRegistry": "interface:e89100d07d",
+   "FormFieldClassOptions": "interface:fba5a1b341",
    "FormFieldValidationError": "class:4a6d3a263e",
    "FormFileInput": "interface:262ce59de3",
    "FormFileStoragePort": "interface:850199a74c",
@@ -2815,9 +2853,9 @@
    "reconcileFormAttachments": "function:b3021caccf",
    "registerFormAttachmentCleanup": "function:524261faa8",
    "registerFormNotifySubscriber": "function:6e52ac62cb",
-   "renderFormCollection": "function:c3d79dfc09",
+   "renderFormCollection": "function:b8feb4ce00",
    "renderFormSchemaHash": "function:ab11c97078",
-   "renderHtmlForm": "function:31697ff2ea",
+   "renderHtmlForm": "function:556f50cbe2",
    "renderHtmlFormBody": "function:92e086871c",
    "resolveFormCollectionPlan": "function:7e5aed26bb",
    "resolveFormField": "function:0b6c32a7f3",
@@ -2920,12 +2958,13 @@
   "types": "./dist/forms/html-render.d.ts",
   "symbols": {
    "FORM_SUBMISSION_TOO_FAST_MESSAGE": "variable:e9f54077df",
-   "FormBodyOptions": "interface:acc45cca63",
+   "FormBodyOptions": "interface:8ebdb87d1e",
+   "FormFieldClassOptions": "interface:fba5a1b341",
    "FormHtmlHooks": "interface:fdc7c07ad1",
    "escapeFormHtml": "function:f4b0a11b7f",
-   "renderFormCollection": "function:c3d79dfc09",
+   "renderFormCollection": "function:b8feb4ce00",
    "renderFormSchemaHash": "function:ab11c97078",
-   "renderHtmlForm": "function:31697ff2ea",
+   "renderHtmlForm": "function:556f50cbe2",
    "renderHtmlFormBody": "function:92e086871c"
   }
  },
@@ -3160,6 +3199,7 @@
    "DEFAULT_ALLOWED_MIME_TYPES": "variable:bc772b03f4",
    "DEFAULT_GC_GRACE_MS": "variable:299934e46d",
    "DEFAULT_MAX_UPLOAD_BYTES": "variable:c084ead420",
+   "DISALLOWED_INLINE_CONTENT_TYPES": "variable:64b6f1f1cb",
    "DOCUMENT_CONTENT_TYPES": "variable:56688926b7",
    "DOCUMENT_EXTRACTION_LIMITS": "variable:004c1299ff",
    "DOCUMENT_TEXT_PAGE_BYTES": "variable:df646e7541",
@@ -3202,6 +3242,10 @@
    "MediaKind": "type:6b7a9bbce2",
    "MediaNotFoundError": "class:6427d6b77d",
    "MediaObjectStorePorts": "interface:95376b9cec",
+   "MediaOriginalBlob": "type:1935f35bec",
+   "MediaOriginalLookup": "type:9fd474d4cb",
+   "MediaOriginalReply": "interface:0b87241402",
+   "MediaOriginalType": "interface:ae857b1989",
    "MediaProvenance": "type:533515c78e",
    "MediaRecord": "interface:393aa415e1",
    "MediaReferenceCheckPort": "interface:0cae301547",
@@ -3217,9 +3261,11 @@
    "MediaStoreEnvDeclaration": "interface:06f24bd1fc",
    "MediaToolDeps": "interface:e0e772b745",
    "MediaValidationError": "class:b419fdb163",
+   "PRIVATE_NO_STORE": "variable:b3ee4f106d",
    "ParsedMediaHtmlAttributes": "interface:107666f83d",
    "PurgeMediaRequired": "interface:01152228bd",
    "PutBlobInput": "interface:a30b5bd256",
+   "REVALIDATING_PUBLIC": "variable:8497f7af4d",
    "ReadMediaStoreEnvOptions": "interface:f90b47215e",
    "RegisterTransformDeps": "interface:204c07012e",
    "RegisterTransformInput": "interface:0bd8396645",
@@ -3233,6 +3279,7 @@
    "RunBlobGcCycleRequired": "interface:5972e22c0b",
    "RunBlobGcDeletePassRequired": "interface:f1658619ee",
    "RunBlobGcUnlinkPassRequired": "interface:6d6af013fa",
+   "SVG_CONTENT_SECURITY_POLICY": "variable:119f7762ee",
    "SniffedContentType": "type:f3a5158e26",
    "TombstoneBlobRequired": "interface:d216bda20c",
    "TransformDefinitionRecord": "interface:43d188d3cb",
@@ -3272,6 +3319,8 @@
    "buildMediaRegistrations": "function:c175a77472",
    "computeBlobStorageKey": "function:8947237945",
    "createDocumentTextReader": "function:8c3d998a2a",
+   "decideMediaOriginalForAsset": "function:4767af45f8",
+   "decideMediaOriginalReply": "function:4c045f93ac",
    "decodeDocumentUtf8": "function:9de4adfd7e",
    "describeMediaHtmlAttributeError": "function:b5b20e1717",
    "documentContentType": "function:7c17f03802",
@@ -3281,6 +3330,8 @@
    "getMediaById": "function:de52ae3520",
    "getVideoFrameEdge": "function:29584c18eb",
    "guardMediaRenditionRepo": "function:7aad153f4d",
+   "ifNoneMatchSatisfied": "function:d73b6aa040",
+   "inlineOriginalType": "function:b74f4b8cce",
    "isAllowedMediaHtmlAttributeName": "function:e10d90590a",
    "isBlobUnreferenced": "function:f6e8074f06",
    "isDocumentOnlyBlob": "function:5906f11d86",
@@ -3288,6 +3339,7 @@
    "isReferencedByPublishedContent": "function:10f9e2ba28",
    "isValidMediaSlugFormat": "function:10ab1965d9",
    "listMedia": "function:1802b23de0",
+   "lookupMediaOriginalBlob": "function:9c144d1ebd",
    "mediaAgentToolCatalog": "variable:4cbb2eb79e",
    "mediaDerivedRisk": "variable:cf00ca09d2",
    "mediaFileReplacementRecord": "function:8d32068e50",
@@ -3306,15 +3358,18 @@
    "readDocumentText": "variable:77a4712f85",
    "readMediaStoreEnvChoice": "function:d4dad1848f",
    "registerTransform": "function:48e25625d9",
+   "renditionCacheControl": "function:5f709a9a23",
    "replaceMediaFile": "function:3031c33af9",
    "resolveGcGraceMs": "function:98d95d5085",
    "resolveMediaRendition": "function:d9b26c9a5c",
+   "resolveRenditionTransformSpec": "function:79b1e08c13",
    "resolveWriteOnceSource": "function:51c49c5fc5",
    "rollbackUploadedMedia": "function:dac499b1a5",
    "runBlobGcCycle": "function:081e0f0dea",
    "runBlobGcDeletePass": "function:1b94d40b20",
    "runBlobGcUnlinkPass": "function:73e0350c10",
    "runMonthlyOrphanSweepStub": "function:d25784a9c9",
+   "sanitizeOriginalBytes": "function:1fba445586",
    "sanitizeSvg": "function:b4aed85163",
    "selectMediaBlobStore": "function:6c9407161e",
    "sniffContentType": "function:3a74d4583f",
@@ -3883,7 +3938,7 @@
   "symbols": {
    "FORM_SLUG_ATTR": "variable:a1cd41d475",
    "FORM_SUCCESS_CLASS": "variable:ae769d3eeb",
-   "FormPresentationNames": "interface:4a233dbfb4",
+   "FormPresentationNames": "interface:99583c776b",
    "formBaselineStyle": "function:545593deea",
    "formRangeReadoutJs": "function:76e11a8686",
    "formRangeReadoutScript": "function:4b0120ed39"
@@ -3899,9 +3954,28 @@
  "./public-http/http/site/member-auth-script": {
   "types": "./dist/public-http/http/site/member-auth-script.d.ts",
   "symbols": {
-   "MEMBER_AUTH_SCRIPT": "variable:0ed0e3dddb",
-   "MEMBER_AUTH_STYLE": "variable:f05262d55a",
-   "injectMemberAuthScript": "function:75377ea6ca"
+   "MemberAuthNames": "interface:3eacb75b58",
+   "injectMemberAuthScript": "function:2222eea51a",
+   "memberAuthScript": "function:7224228e8c",
+   "memberAuthStyle": "function:977ea57fc7"
+  }
+ },
+ "./public-http/http/site/render/contact-form-widget": {
+  "types": "./dist/public-http/http/site/render/contact-form-widget.d.ts",
+  "symbols": {
+   "renderWidgetContactForm": "function:7de004e384"
+  }
+ },
+ "./public-http/http/site/render/doc/doc-nodes": {
+  "types": "./dist/public-http/http/site/render/doc/doc-nodes.d.ts",
+  "symbols": {
+   "DOC_NODE_HANDLERS": "variable:98798abf49",
+   "EMPTY_INLINE_RESOLVED": "variable:ced6dea96c",
+   "EMPTY_MEDIA_ASSET_METADATA": "variable:418dafd437",
+   "EMPTY_MEDIA_TRANSFORM_VERSIONS": "variable:32d3cf89e1",
+   "MAX_RENDER_DEPTH": "variable:349e6e19c1",
+   "renderDocNodeWith": "function:9b51eb4aa0",
+   "renderNodes": "function:375ed489d4"
   }
  },
  "./public-http/http/site/render/doc/doc-render-contract": {
@@ -3909,9 +3983,33 @@
   "symbols": {
    "DocNodeHandler": "type:e9b4fbe262",
    "DocNodeHandlerRequired": "type:448a70a416",
-   "DocNodeRenderDeps": "interface:43048b2f01",
+   "DocNodeHost": "interface:9959af278f",
+   "DocNodeRenderDeps": "interface:b9b68b8ccf",
+   "DocRenderClasses": "interface:0ff47a6d2d",
    "DocRenderOptions": "interface:f8edd8755a",
    "WidgetDocRendering": "interface:db21049b19"
+  }
+ },
+ "./public-http/http/site/render/doc/media-ref": {
+  "types": "./dist/public-http/http/site/render/doc/media-ref.d.ts",
+  "symbols": {
+   "mediaNodeStyleOverride": "function:f4e5f8dc72",
+   "tryRenderRefImage": "function:0f06c74b3b"
+  }
+ },
+ "./public-http/http/site/render/doc/nodes-media": {
+  "types": "./dist/public-http/http/site/render/doc/nodes-media.d.ts",
+  "symbols": {
+   "renderDocImage": "function:d1711c5d3c",
+   "renderDocMedia": "function:7a53870a3c",
+   "renderDocYoutube": "function:afe3ef1f6a"
+  }
+ },
+ "./public-http/http/site/render/media-placeholder": {
+  "types": "./dist/public-http/http/site/render/media-placeholder.d.ts",
+  "symbols": {
+   "PlaceholderClasses": "interface:878efc4297",
+   "mediaPlaceholder": "function:bf95d444db"
   }
  },
  "./public-http/http/site/render/media-playback-copy": {
@@ -3929,11 +4027,46 @@
    "str": "function:c90112bb62"
   }
  },
+ "./public-http/http/site/render/widgets/media": {
+  "types": "./dist/public-http/http/site/render/widgets/media.d.ts",
+  "symbols": {
+   "renderMediaWidget": "function:39074c7126",
+   "renderWidgetMediaImage": "function:ff54c45fc2"
+  }
+ },
  "./public-http/http/site/render/widgets/placeholder": {
   "types": "./dist/public-http/http/site/render/widgets/placeholder.d.ts",
   "symbols": {
    "WIDGET_PLACEHOLDER_IR": "variable:1c470b1586",
    "renderWidgetPlaceholder": "function:427d5df34b"
+  }
+ },
+ "./public-http/http/site/render/widgets/post-content": {
+  "types": "./dist/public-http/http/site/render/widgets/post-content.d.ts",
+  "symbols": {
+   "readMediaAssetMetadata": "function:fdda0d474e",
+   "readMediaTransformVersions": "function:d3d823c746",
+   "renderWidgetPostContent": "function:40afca6931"
+  }
+ },
+ "./public-http/http/site/render/widgets/social-entries": {
+  "types": "./dist/public-http/http/site/render/widgets/social-entries.d.ts",
+  "symbols": {
+   "renderWidgetEntrySummary": "function:0f0c3d8337",
+   "renderWidgetRecentEntries": "function:2d7a9d27c2",
+   "renderWidgetSocialLinks": "function:489f7b0b0c"
+  }
+ },
+ "./public-http/http/site/render/widgets/widget-render-contract": {
+  "types": "./dist/public-http/http/site/render/widgets/widget-render-contract.d.ts",
+  "symbols": {
+   "ContactFormPresentation": "interface:202a90a742",
+   "ContactFormWidgetHost": "interface:38f78903cb",
+   "WidgetDocRendering": "interface:db21049b19",
+   "WidgetEntriesHost": "interface:491ac87978",
+   "WidgetMediaHost": "interface:f96f787316",
+   "WidgetPostContentHost": "interface:3582ab83ce",
+   "WidgetRenderHost": "interface:945b95e6f4"
   }
  },
  "./public-http/middleware/canonical-site-host": {
@@ -3942,6 +4075,15 @@
    "ToAbsoluteUrl": "type:ce7090157e",
    "canonicalSiteHostRedirectLocation": "function:2d0ff34c7c",
    "isCanonicalSiteHostCandidate": "function:2960496220"
+  }
+ },
+ "./public-http/middleware/render-theme-override": {
+  "types": "./dist/public-http/middleware/render-theme-override.d.ts",
+  "symbols": {
+   "RequestLocalStore": "interface:3515663af3",
+   "hasRequestRenderTheme": "function:9d43d6ddb5",
+   "resolveRenderThemeId": "function:66a1ab20ee",
+   "setRequestRenderTheme": "function:19d58aa85c"
   }
  },
  "./public-http/middleware/theme-asset-dirs": {
@@ -3973,6 +4115,20 @@
    "staticThemePartialPreview": "function:5e316427f5",
    "templatedPreviewFailureResponse": "function:7bcb9b2630",
    "templatedThemePagePreview": "function:9de74ffd42"
+  }
+ },
+ "./public-http/middleware/theme-preview-refresh": {
+  "types": "./dist/public-http/middleware/theme-preview-refresh.d.ts",
+  "symbols": {
+   "PreviewRevisionCache": "interface:b41dec43fa",
+   "THEME_PREVIEW_RELOAD_PERMISSION": "variable:2e540b6778",
+   "ThemePreviewReloadAuthorize": "type:89517c6f87",
+   "ThemePreviewReloadOutcome": "type:b2d362ba4e",
+   "createPreviewRevisionCache": "function:5fc743cce7",
+   "freshThemePreviewHtml": "function:658ba6b875",
+   "isThemeAssetPath": "function:62630378cf",
+   "previewRevisionOf": "function:423fb93a8c",
+   "runThemePreviewReload": "function:bfd027582c"
   }
  },
  "./public-http/middleware/theme-static-assets": {
@@ -4127,8 +4283,25 @@
   "types": "./dist/public-http/routes/site/pages/render-context/collection-lists.d.ts",
   "symbols": {
    "CollectionListsCollaborators": "interface:51b537824d",
-   "CollectionListsRenderDeps": "interface:c7dfb2421c",
-   "resolveCollectionListsForRender": "function:0a17bbe8d1"
+   "CollectionListsRenderDeps": "interface:7fbea10cc0",
+   "CollectionListsWarning": "type:b19d0f1d73",
+   "resolveCollectionListsForRender": "function:efb6b53890"
+  }
+ },
+ "./public-http/routes/site/pages/render-context/static-menus": {
+  "types": "./dist/public-http/routes/site/pages/render-context/static-menus.d.ts",
+  "symbols": {
+   "StaticMenuCollaborators": "interface:ab93bf640a",
+   "StaticMenuContent": "type:cb407fc429",
+   "StaticMenuEntry": "type:cff3818edb",
+   "StaticMenuHtml": "interface:9828fe8f2f",
+   "StaticMenuRepoDeps": "interface:dc87e7325a",
+   "StaticMenuReservedResolver": "type:f9bda3f192",
+   "StaticMenuResolution": "interface:b085384923",
+   "StaticMenuUrlFor": "type:caf4ba56d8",
+   "findStaticMenu": "function:418e1d88b8",
+   "resolveMenuContent": "function:a367b6a96c",
+   "resolveStaticMenusForIds": "function:59025d13ad"
   }
  },
  "./publish/content/agent-tools": {
@@ -5507,6 +5680,13 @@
   "symbols": {
    "DECLARED_CONTENT_TYPE_OWNERS": "variable:413e924240",
    "declaredOwnerFor": "function:2cce297a7a"
+  }
+ },
+ "./widgets/site/preview-render": {
+  "types": "./dist/widgets/site/preview-render.d.ts",
+  "symbols": {
+   "WidgetPreviewResolveInput": "interface:0643b08f5c",
+   "resolveWidgetPreviewIr": "function:0e93f1cb74"
   }
  },
  "./widgets/sql": {

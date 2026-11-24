@@ -109,7 +109,7 @@ export function renderWidgetContactForm({ props, host }: { props: JsonObject; ho
   // regions, even repeatedly in one region. No answer data or process-wide counter is retained.
   const idPrefix = `widget-contact-${host.newOccurrenceId()}`;
   // HTML mode is Builder's look plus author refinements, not "unstyled": the same baseline and
-  // `tovu-form` hook let the active theme's form rules apply, and author CSS still wins over both.
+  // host form-class hook let the active theme's form rules apply, and author CSS still wins over both.
   // The slider value readout ships only with forms that have a range field.
   const rangeReadout = arr({ value: props.fields }).some(field => typeof field === "object" && field !== null && !Array.isArray(field) && field.type === "range") ? host.presentation.rangeReadoutScript : "";
   const fieldDescriptors = arr({ value: props.fields }) as unknown as FieldDescriptor[];

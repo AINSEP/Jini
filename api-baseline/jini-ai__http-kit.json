@@ -70,6 +70,15 @@
    "validateLocalDaemonRequest": "function:9de8fc35cb"
   }
  },
+ "./dev-proxy": {
+  "types": "./dist/dev-proxy.d.ts",
+  "symbols": {
+   "createDevProxyRequestHandler": "function:29a93de511",
+   "createDevProxyUpgradeListener": "function:e583a4d205",
+   "resolveDevProxyPath": "function:e5e4e994a0",
+   "stripHopByHopHeaders": "function:b13d4b8886"
+  }
+ },
  "./html-response": {
   "types": "./dist/html-response.d.ts",
   "symbols": {

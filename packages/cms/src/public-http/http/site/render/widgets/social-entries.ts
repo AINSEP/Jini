@@ -72,7 +72,7 @@ function toEntryListItem({ props }: { props: JsonObject }, _optional = {}): Entr
  * (2026-09-23): `withEntryListStyleOnce` is called from ONE place per tier — `static-render.ts`'s
  * `renderStaticPage` (used by `finishStaticTierDocument`) for a static theme, and this file's own
  * `pageShell` for every other tier — not from here; this renderer only has to produce the
- * `[data-tovu-entry-list]`-marked markup {@link withEntryListStyleOnce} looks for. Before this fix,
+ * host-entry-list-attribute-marked markup {@link withEntryListStyleOnce} looks for. Before this fix,
  * `pageShell` never called it at all, so a cards-layout widget on a templated/handlebars/
  * declarative theme (or no theme) rendered with no styling.
  *

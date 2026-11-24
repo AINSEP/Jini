@@ -772,6 +772,16 @@
    "listOwnedRuns": "function:ce708585c6"
   }
  },
+ "./run-start-decisions": {
+  "types": "./dist/run-start-decisions.d.ts",
+  "symbols": {
+   "ImageDeliveryDef": "type:ed85170d0c",
+   "agentReceivesImageAttachments": "function:abb35887de",
+   "durableAttemptOwnsAnswer": "function:176c617521",
+   "resolveStoredSessionId": "function:ec729158a1",
+   "selectRunHistoryPrompt": "function:8318866a2e"
+  }
+ },
  "./scheduler": {
   "types": "./dist/scheduler.d.ts",
   "symbols": {
