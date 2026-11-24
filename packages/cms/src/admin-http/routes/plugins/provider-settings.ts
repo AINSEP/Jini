@@ -153,7 +153,7 @@ async function resolveCard(
 export const pluginProviderSettingsGetRoute = defineJsonRoute<{ pluginId: string }, ProviderSettingsCard, ProviderSettingsRouteDeps, PluginsRoutePrincipal>({
   method: "get",
   path: PATH,
-  parse: (raw) => ok({ value: { pluginId: pluginIdParam(raw.params) } }),
+  parse: (raw) => ok({ value: { pluginId: pluginIdParam({ params: raw.params }) } }),
   handle: async ({ input, deps, context, authorize }) =>
     ok({ value: await cardOf(await resolveCard({ deps, authorize, context, pluginId: input.pluginId, permission: "admin.plugins.read" })) }),
 });
@@ -162,7 +162,7 @@ export const pluginProviderSettingsGetRoute = defineJsonRoute<{ pluginId: string
 export const pluginProviderSettingsSaveRoute = defineJsonRoute<{ pluginId: string; values: unknown }, ProviderSettingsCard, ProviderSettingsRouteDeps, PluginsRoutePrincipal>({
   method: "put",
   path: PATH,
-  parse: (raw) => ok({ value: { pluginId: pluginIdParam(raw.params), values: (raw.body as { values?: unknown } | null | undefined)?.values } }),
+  parse: (raw) => ok({ value: { pluginId: pluginIdParam({ params: raw.params }), values: (raw.body as { values?: unknown } | null | undefined)?.values } }),
   handle: async ({ input, deps, context, authorize }) => {
     const card = await resolveCard({ deps, authorize, context, pluginId: input.pluginId, permission: "admin.plugins.enable" });
     const { deps: _deps, ...saveArgs } = card;
