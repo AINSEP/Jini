@@ -159,6 +159,11 @@ See [API.md](https://github.com/AINSEP/Jini/blob/main/packages/daemon/API.md) fo
 
 ## Wiring
 
+- **Process-memory daemon secrets** (`@jini-ai/daemon/run-credentials`'s
+  `adoptAndEnsureDaemonSecret`): the host injects its env record, a module-memory `holder`, the
+  env-var name (product-specific) and its credential `crypto`, and may inject `readOperatorSecrets`
+  (its secret-file resolver). Jini adopts the operator value once, deletes it from env so spawned
+  children never inherit it, and preserves or mints without rotation.
 - **Agent session store by kernel** (`@jini-ai/daemon/store/agent-sessions/kernel`'s
   `createAgentSessionStoreForKernel`): a host that opens its chat database on more than one
   dialect passes its already-migrated chat `kernel` (any of `better-sqlite3`, `pglite`,

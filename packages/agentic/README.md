@@ -110,6 +110,13 @@ attribute names, and the wire shapes of both the GenUI and A2UI protocols.
 
 ## Wiring
 
+- **Published-page manifest gates** (`@jini-ai/agentic/core`'s `acceptsPublishedPageInput`,
+  `pageActionPublishedForTarget`, `findPublishedPageElement`, `publishedPageActionNeedsConfirmation`,
+  `summarizePageTargets`): an untrusted-caller page executor (e.g. a public-site visitor surface)
+  passes the server-issued `publication` it already holds plus the capability/input of each call;
+  nothing else is injected. The host keeps its own target resolution (slug-to-path, route checks,
+  publication freshness) and its capability list; Jini owns action-class eligibility, input
+  acceptance, forced confirmation and the bounded, label-normalized target summary.
 - **`page.navigate` refusal wording** (`@jini-ai/agentic/core`'s `withPageNavigateErrorRewrap`):
   a host whose own vocabulary collides with the executor's "is not a published page" refusal
   wraps its frontend tool registrations as

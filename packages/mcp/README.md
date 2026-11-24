@@ -187,6 +187,13 @@ See [API.md](https://github.com/AINSEP/Jini/blob/main/packages/mcp/API.md) for c
 
 ## Wiring
 
+- **Federation runtime** (`createFederationRuntime` from `@jini-ai/mcp/federation`): one per
+  process. The host injects `boot` (its attach bound to registry, approval deps and preset
+  registry), `resolveConnections` (the stored roster), `resolvePresetConnections`,
+  `createReloadCoordinator` (its reload adapter over `createFederationReloadCoordinator`), refusal
+  `messages` and a `FederationHostLogger` (the host owns any console prefix/format); optional
+  `after`, `onAdmitted`, `beforeReload`. Jini owns single-flight boot, boot-plus-reload accounting,
+  connect-failure merging, preset origin stamping on reload and the empty-grant awaiting set.
 - **Roster-change bus** (`createMcpRosterChangeBus` from `@jini-ai/mcp/federation`): the host creates
   ONE bus in a composition module and binds its `on`/`notify`/`reset`. It injects
   `createLoweringError` (the host's safe, actionable error a failed or timed-out tool-access lowering

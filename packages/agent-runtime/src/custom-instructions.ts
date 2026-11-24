@@ -50,11 +50,19 @@ export interface ResolveCustomInstructionsDeps {
    *  injected for uniformity with `getEffective` above rather than relocated to a new shared module,
    *  so this module never takes a runtime edge on the host's settings barrel. */
   instructionsNamespace: string;
+  /**
+   * Receives the fail-open read's message and error (see `resolveCustomInstructions`). Injected so
+   * the host owns its log sink and any log-line prefix; the engine never writes to the console.
+   */
+  warn: (message: string, error: unknown) => void;
 }
 
 export interface ResolveCustomInstructionsInput {
   workspaceId: UUID;
 }
+
+/** The single object argument both entry points take: the injected deps plus the per-call input. */
+export type ResolveCustomInstructionsArgs = ResolveCustomInstructionsDeps & ResolveCustomInstructionsInput;
 
 /**
  * Reads `core.instructions.custom` fresh from the ledger for one workspace. getEffective owns
@@ -70,20 +78,20 @@ export interface ResolveCustomInstructionsInput {
  * @overallScore 100
  */
 export async function resolveCustomInstructions(
-  deps: ResolveCustomInstructionsDeps,
-  input: ResolveCustomInstructionsInput,
+  args: ResolveCustomInstructionsArgs,
+  _optional = {},
 ): Promise<string> {
   try {
-    await (deps.settingsReady ?? Promise.resolve());
-    const resolved = await deps.getEffective({
-      deps: { repo: deps.settingsRepo },
-      namespace: deps.instructionsNamespace,
+    await (args.settingsReady ?? Promise.resolve());
+    const resolved = await args.getEffective({
+      deps: { repo: args.settingsRepo },
+      namespace: args.instructionsNamespace,
       key: CUSTOM_INSTRUCTIONS_KEY,
-      scopeContext: { workspaceId: input.workspaceId },
+      scopeContext: { workspaceId: args.workspaceId },
     });
     return typeof resolved?.value === "string" ? resolved.value : "";
   } catch (error) {
-    console.error("[assistant] resolveCustomInstructions failed; treating as unset", error);
+    args.warn("resolveCustomInstructions failed; treating as unset", error);
     return "";
   }
 }
@@ -132,13 +140,13 @@ export interface CustomInstructionsCache {
  * @overallScore 100
  */
 export function createCustomInstructionsCache(
-  deps: ResolveCustomInstructionsDeps,
-  input: ResolveCustomInstructionsInput,
+  args: ResolveCustomInstructionsArgs,
+  _optional = {},
 ): CustomInstructionsCache {
   let latest = "";
   return {
     async refresh() {
-      latest = await resolveCustomInstructions(deps, input);
+      latest = await resolveCustomInstructions(args);
     },
     readOverlay() {
       return formatCustomInstructionsOverlay({ customInstructions: latest });
