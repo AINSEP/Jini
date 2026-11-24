@@ -22,7 +22,7 @@ import { publishEntityTypeLabel, type PublishSection } from "./sections.js";
  * is never staged on the destination at all and no code path downstream has to remember to skip it.
  * `forced` (plan §4's seventh outcome, the operator explicitly choosing a conflicted row) is a
  * different feature and still unbuilt; when it lands it lands here, next to `publishRowDisposition`,
- * not as a second copy in the host's admin.
+ * not as a second copy in the host admin app.
  *
  * `appliesOnExecute` is read straight off the planner's own `writes` flag rather than re-derived
  * from `outcome`, so this file cannot disagree with `planner.ts` about what a run does.
