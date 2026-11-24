@@ -28,3 +28,12 @@ export interface CaptureFolderPathDropInput {
   /** A folder drop with `current === null` is still swallowed; nothing is inserted. */
   readonly composer: FolderPathDropInsertTargetRef;
 }
+
+/**
+ * A host's verdict on one drop: the folder or archive to bring in by its real path, or the plain
+ * sentence (host copy) saying why not. `useClassifiedPathDrop` routes on `kind`.
+ */
+export type ClassifiedPathDrop =
+  | { readonly kind: 'folder'; readonly path: string }
+  | { readonly kind: 'archive'; readonly path: string }
+  | { readonly kind: 'refused'; readonly message: string };

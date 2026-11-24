@@ -388,6 +388,29 @@
    "tier2ImportPolicyData": "function:48c7e56406"
   }
  },
+ "./runtime/agent-tools": {
+  "types": "./dist/runtime/agent-tools.d.ts",
+  "symbols": {
+   "AgentToolDefinition": "type:e8bd587e9c",
+   "AgentToolSideEffect": "type:1baebbfbe6",
+   "PLUGINS_SET_ENABLED_TOOL_ID": "variable:9d6a709610",
+   "PluginFamily": "type:1b08dc43e6",
+   "createPluginAgentToolCatalog": "function:99694b1e49"
+  }
+ },
+ "./runtime/capability-card": {
+  "types": "./dist/runtime/capability-card.d.ts",
+  "symbols": {
+   "createCapabilityCard": "function:307375c861"
+  }
+ },
+ "./runtime/enable-confirmation-ui": {
+  "types": "./dist/runtime/enable-confirmation-ui.d.ts",
+  "symbols": {
+   "EnableConfirmationSubject": "interface:05d3e90fce",
+   "describeEnableApproval": "function:c3884edcf6"
+  }
+ },
  "./runtime/install-consent": {
   "types": "./dist/runtime/install-consent.d.ts",
   "symbols": {
@@ -396,11 +419,72 @@
    "pluginInstallRiskSentence": "function:974d26528c"
   }
  },
+ "./runtime/install-tool-catalog": {
+  "types": "./dist/runtime/install-tool-catalog.d.ts",
+  "symbols": {
+   "PLUGINS_INSTALL_TOOL_ID": "variable:94ff24b53c",
+   "createInstallToolCatalog": "function:fb198fe2fa"
+  }
+ },
+ "./runtime/plugin-export": {
+  "types": "./dist/runtime/plugin-export.d.ts",
+  "symbols": {
+   "readDefinedPlugin": "function:8ae5b0e72e"
+  }
+ },
+ "./runtime/plugin-host-copy": {
+  "types": "./dist/runtime/plugin-host-copy.d.ts",
+  "symbols": {
+   "PluginHostCopy": "interface:46ca1822f7"
+  }
+ },
  "./runtime/plugin-tool-ids": {
   "types": "./dist/runtime/plugin-tool-ids.d.ts",
   "symbols": {
    "pluginManagementToolIds": "variable:9f0fddba5c",
    "pluginSourceToolIds": "variable:f341d76ab6"
+  }
+ },
+ "./runtime/plugin-tool-messages": {
+  "types": "./dist/runtime/plugin-tool-messages.d.ts",
+  "symbols": {
+   "activationsBusyNote": "function:d201a47556",
+   "activationsUnreadableNote": "function:f3e883b42e",
+   "changedSinceConfirmation": "function:95dd8fc2ce",
+   "createPluginInstallMessages": "function:8855d1ee06",
+   "createPluginToolMessages": "function:dc49fa4266",
+   "familyRequired": "variable:b93808a85d",
+   "hostIncompatibleNote": "function:ba76ac482f",
+   "installedNote": "function:39523035ff",
+   "localInstallDisabledNote": "variable:2153328e20",
+   "restartNote": "function:a5d82f4070",
+   "retryInstallHint": "variable:de703b90cc",
+   "updatePendingNextStep": "function:30595055b7"
+  }
+ },
+ "./runtime/source-tool-catalog": {
+  "types": "./dist/runtime/source-tool-catalog.d.ts",
+  "symbols": {
+   "createPluginSourceAgentToolCatalog": "function:fc51888caf"
+  }
+ },
+ "./runtime/uninstall-confirmation-ui": {
+  "types": "./dist/runtime/uninstall-confirmation-ui.d.ts",
+  "symbols": {
+   "PLUGINS_UNINSTALL_TOOL_ID": "variable:9ae1f94f10",
+   "describeUninstallApproval": "function:0c7b118844"
+  }
+ },
+ "./site/lipay/manifest": {
+  "types": "./dist/site/lipay/manifest.d.ts",
+  "symbols": {
+   "createLipayManifest": "function:2aa4e0467f"
+  }
+ },
+ "./site/store/manifest": {
+  "types": "./dist/site/store/manifest.d.ts",
+  "symbols": {
+   "createStoreManifest": "function:8796810e16"
   }
  }
 }

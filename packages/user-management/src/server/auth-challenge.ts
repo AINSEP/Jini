@@ -12,7 +12,7 @@ export interface AuthChallengeRecord {
   /** Null for legacy link-only challenges. */
   readonly codeHash: string | null;
   readonly expiresAt: string;
-  readonly consumedAt?: string | null;
+  readonly consumedAt?: string | null | undefined;
   /**
    * Code attempts spent. Each is reserved before its code is verified, and a correct code
    * consumes the challenge, so on a live challenge every counted attempt failed or is in flight.

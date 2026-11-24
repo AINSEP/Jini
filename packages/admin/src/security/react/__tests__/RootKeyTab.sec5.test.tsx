@@ -1,3 +1,5 @@
+import { TestChipField } from './chip-field.fixture.js';
+import { testClipboard } from './clipboard.fixture.js';
 import { Suspense } from 'react';
 import { afterEach, describe, expect, it } from 'vitest';
 import { render, screen, fireEvent, cleanup, waitFor } from '../../../__tests__/fetch-query-support.js';
@@ -15,7 +17,7 @@ afterEach(cleanup);
 const FIXTURE_KEY = 'a3f9'.repeat(16);
 const st = (over: Partial<RootKeyStatus>): RootKeyStatus => ({ active: true, source: 'file', state: 'active', keyFilePath: '/srv/root.key', runtimeMode: 'local', fingerprint: 'fp-1234', ...over });
 function mount(status: RootKeyStatus, options: SecurityModuleOptions = {}, rootKey = createMemoryRootKey({ status })) {
-  const feature = security({ ui: reactModuleUi }, options);
+  const feature = security({ ui: reactModuleUi, ChipField: TestChipField, clipboard: testClipboard }, options);
   const admin = createAdmin({ modules: [feature], ports: { securityApi: createMemorySecurityApi({}), rootKey } }, { permissions: ['security.read', 'admin.security.tokens.manage'] });
   const { Page, tabs } = feature.react.pages.secrets;
   return render(<feature.react.Provider admin={admin}><Suspense fallback="Loading"><Page tabs={tabs} description={admin.describe().pages[0]!} requestedTab="root-key" /></Suspense></feature.react.Provider>);
@@ -65,13 +67,16 @@ describe('SEC-5 generate visibility and refusals', () => {
     expect(await screen.findByText('A key is created automatically when this install starts.')).toBeVisible();
     expect(screen.queryByRole('button', { name: 'Create root key' })).toBeNull();
   });
-  it('shows a KEY_INVALID refusal by its described detail and never the raw message', async () => {
+  // rv1123c FIX 1: the server detail is reader text and never reaches the page; host copy per code does.
+  it('shows a KEY_INVALID refusal by host copy for its code, never the detail or raw message', async () => {
     const rootKey = createMemoryRootKey({ status: missing });
     rootKey.generate = () => Promise.reject(Object.assign(new Error(FIXTURE_KEY), { code: 'KEY_INVALID', detail: 'The configured key is not valid.' }));
     const describeError = ({ error }: { error: unknown }) => { const e = error as { code: string; detail: string }; return { code: e.code, detail: e.detail }; };
-    const { container } = mount(missing, { describeError }, rootKey);
+    const describeRefusal = ({ code }: { code: string }) => (code === 'KEY_INVALID' ? 'Host copy: the key is not valid.' : undefined);
+    const { container } = mount(missing, { describeError, describeRefusal }, rootKey);
     fireEvent.click(await screen.findByRole('button', { name: 'Create root key' }));
-    expect(await screen.findByText('The configured key is not valid.')).toBeVisible();
+    expect(await screen.findByText('Host copy: the key is not valid.')).toBeVisible();
+    expect(container.textContent).not.toContain('The configured key is not valid.');
     await waitFor(() => expect(container.textContent).not.toContain(FIXTURE_KEY));
   });
 });

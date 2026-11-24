@@ -66,3 +66,12 @@ export interface AdminAgentPluginFilesEnvelope {
   /** The reader's caps, echoed to the viewer. */
   readonly limits: unknown;
 }
+
+/** `GET`/`PUT …/agent-plugins/:pluginId/memory`: the plugin's learned entries and user notes, as the host's store listed them. */
+export interface AdminAgentPluginMemoryEnvelope {
+  readonly pluginId: string;
+  readonly learned: readonly unknown[];
+  readonly notes: readonly unknown[];
+  /** The store's caps, echoed to the notes editor. */
+  readonly limits: unknown;
+}

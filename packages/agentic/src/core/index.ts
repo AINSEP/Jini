@@ -105,5 +105,6 @@ export { createAnnotatedActionsScript } from './annotated-actions-script.js';
 export * from './site-guide/index.js';
 
 export { resolvePageNavigation, validatePageLink } from './page-navigation.js';
-export type { AgentNavigationScreen, AgentEntityTarget, PageNavigationInput, PageNavigationResult, ResolvedPageEntity, PageEntityLookup } from './page-navigation.js';
+export type { AgentNavigationScreen, AgentEntityTarget, ResolvedPageEntity, PageEntityLookup } from './page-navigation.js';
+export type { PageNavigationInput, PageNavigationResult } from '@jini-ai/core/contracts/site/agentic-dom';
 export * from './page-publication.js';

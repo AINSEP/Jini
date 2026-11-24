@@ -19,6 +19,24 @@ export interface RouteInputContext {
   body: unknown;
   query: Record<string, unknown>;
   params: Record<string, string>;
+  /** Only the request headers the route opted into, keyed by lower-cased name; an absent header has no key. Absent unless the route opted in. */
+  headers?: Readonly<Record<string, string>>;
+  /** The host-resolved request facts. Absent unless the route opted in. */
+  facts?: RouteRequestFacts;
+}
+
+/**
+ * Per-request facts only the host can resolve, for a route that opted in: who the client is (a rate
+ * limit key, a probe's identity), its user agent, and the host it addressed. Neutral: no server framework.
+ */
+export interface RouteRequestFacts {
+  /** The host's answer to "who is the client" under its proxy-trust policy. Never defaulted inside Jini. */
+  readonly clientAddress: string;
+  readonly userAgent?: string;
+  readonly host?: string;
+  /** The protocol the host says the request was served over (Express `req.protocol` under its trust-proxy
+   *  policy) — with `host`, what a route needs to rebuild its own public origin (publish-trust identity). */
+  readonly protocol?: string;
 }
 
 /** Parses a `RouteInputContext` into a typed `Input`, or fails with an error. */
@@ -31,11 +49,14 @@ export type HttpMethod = 'get' | 'post' | 'put' | 'delete' | 'patch';
  *  host's authorizer can decide per entity; list/import routes leave it out. */
 export interface JsonRouteAuthorizeScope { readonly entityId?: string }
 
-/** Explicit authorization remains at the route's chosen point, preserving validation precedence. */
-export type JsonRouteAuthorize = (
-  requiredArgs: { readonly permission: string; readonly entityType: string },
-  optionalArgs?: JsonRouteAuthorizeScope,
-) => Promise<void>;
+/** Explicit authorization remains at the route's chosen point, preserving validation precedence.
+ *  `entityType` is optional for a permission that names no entity kind (list roles); the host port then
+ *  receives no `entityType` key at all. */
+export type JsonRouteAuthorize = {
+  // Method syntax on purpose: its parameters compare bivariantly, so the many existing test doubles
+  // typed `entityType: string` (from before it was optional) still type-check — the change stays additive.
+  authorize(requiredArgs: { readonly permission: string; readonly entityType?: string }, optionalArgs?: JsonRouteAuthorizeScope): Promise<void>;
+}['authorize'];
 
 /**
  * Handles a parsed `Input` (plus injected `Deps`) and produces a `Result<Output>`.
@@ -87,7 +108,7 @@ export interface RouteHostContext extends OriginContext {
 export interface JsonRoutePorts<Deps, Context = undefined> {
   readonly workspace?: (required: { readonly raw: RouteInputContext; readonly deps: Deps }) => void | Promise<void>;
   readonly authenticate?: (required: { readonly raw: RouteInputContext; readonly request: Request; readonly locals: Record<string, unknown>; readonly deps: Deps }) => Context | Promise<Context>;
-  readonly authorize?: (required: { readonly context: Context | undefined; readonly deps: Deps; readonly permission: string; readonly entityType: string }, optional?: JsonRouteAuthorizeScope) => void | Promise<void>;
+  readonly authorize?: (required: { readonly context: Context | undefined; readonly deps: Deps; readonly permission: string; readonly entityType?: string }, optional?: JsonRouteAuthorizeScope) => void | Promise<void>;
   /** Host error policy; returns the answer instead of writing it. */
   readonly onError?: (required: { readonly error: unknown; readonly request: Request }) => Response | Promise<Response>;
 }
@@ -229,7 +250,7 @@ function makeAuthorize<I, O, D, C>({ spec, deps, context }: { readonly spec: Jso
   // required arguments alone, exactly as before scopes existed.
   return async ({ permission, entityType }, scope) => {
     if (!spec.ports?.authorize) throw new Error('JSON route authorizer is required');
-    const required = { context, deps, permission, entityType };
+    const required = { context, deps, permission, ...(entityType === undefined ? {} : { entityType }) };
     await (scope ? spec.ports.authorize(required, scope) : spec.ports.authorize(required));
   };
 }

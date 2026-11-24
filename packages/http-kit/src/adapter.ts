@@ -4,12 +4,12 @@
  * file in the module that knows about Express `req`/`res` on the mounting side.
  */
 import type { Express, Request, Response } from 'express';
-import { ClientFacingError, payloadTooLargeError, statusForError, type JsonRouteAuthorize, type Result, type RouteHostInternalErrorContext, type RouteHostContext, type RouteInputContext, type ServerApiError } from '@jini-ai/core/contracts/server';
+import { ClientFacingError, isRouteReply, payloadTooLargeError, statusForError, type JsonRouteAuthorize, type RouteReply, type Result, type RouteHostInternalErrorContext, type RouteHostContext, type RouteInputContext, type ServerApiError } from '@jini-ai/core/contracts/server';
 import { reportRouteInternalError } from './internal-error.js';
 import { rawInput } from './request.js';
 import { sendApiError, sendJson } from './response.js';
 import { passesSameOriginGuard } from './origin.js';
-import type { JsonRoutePorts, JsonRouteSpec } from './types.js';
+import type { JsonRoutePorts, JsonRouteSpec, RouteRequestOptIns } from './types.js';
 
 /**
  * Combines required route fields and optional settings into a fresh spec while pinning its generic
@@ -20,7 +20,7 @@ import type { JsonRoutePorts, JsonRouteSpec } from './types.js';
  * @returns A fresh route spec; never mutates either argument.
  * @complexity O(1) time/space for the fixed spec fields.
  */
-export function defineJsonRoute<Input, Output, Deps, Context = undefined>(requiredArgs: Omit<JsonRouteSpec<Input, Output, Deps, Context>, 'requireSameOrigin' | 'successStatus' | 'ports' | 'maxBodyBytes'>, optionalArgs: Pick<JsonRouteSpec<Input, Output, Deps, Context>, 'requireSameOrigin' | 'successStatus' | 'ports' | 'maxBodyBytes'> = {}
+export function defineJsonRoute<Input, Output, Deps, Context = undefined>(requiredArgs: Omit<JsonRouteSpec<Input, Output, Deps, Context>, 'requireSameOrigin' | 'successStatus' | 'ports' | 'maxBodyBytes'>, optionalArgs: Pick<JsonRouteSpec<Input, Output, Deps, Context>, 'requireSameOrigin' | 'successStatus' | 'ports' | 'maxBodyBytes' | keyof RouteRequestOptIns> = {}
 ): JsonRouteSpec<Input, Output, Deps, Context> {
   return { ...requiredArgs, ...optionalArgs };
 }
@@ -36,6 +36,7 @@ export function defineJsonRoute<Input, Output, Deps, Context = undefined>(requir
  */
 export function mountJsonRoute<Input, Output, Deps, Context = undefined>({ app, spec, deps, adapter }: { readonly app: Express; readonly spec: JsonRouteSpec<Input, Output, Deps, Context>; readonly deps: Deps; readonly adapter?: RouteHostContext }, _optional: Record<string, never> = {}
 ): void {
+  assertRequestFactsPort({ spec });
   // Read once at mount: the per-request callback stays within the complexity budget.
   const onReturnedError = spec.ports?.onReturnedError;
   app[spec.method](spec.path, async (req: Request, res: Response) => {
@@ -57,7 +58,8 @@ export function mountJsonRoute<Input, Output, Deps, Context = undefined>({ app, 
     // which is the correct behavior for a double that never fires `close` anyway.
     res.on?.('close', onResponseClose);
     try {
-      const raw = rawInput({ req });
+      applyResponseHeaders({ res, headers: spec.responseHeaders });
+      const raw = routeRequestInput({ req, spec, deps });
       if (!allowRouteBody({ req, res, spec })) return;
       if (spec.ports?.workspace) await spec.ports.workspace({ raw, deps });
       if (!allowRouteOrigin({ req, res, spec, adapter })) return;
@@ -93,6 +95,40 @@ async function parseHandleAndSend<Input, Output, Deps, Context>({ res, raw, spec
   sendRouteResult({ res, result, spec: { successStatus: spec.successStatus, onReturnedError }, signal });
 }
 
+/**
+ * A spec that opts into request facts needs the host's resolver: refusing at mount means a missing
+ * port is a boot failure, never a route that silently runs without the client address.
+ * @throws When `spec.requestFacts` is set and `spec.ports.requestFacts` is not.
+ */
+export function assertRequestFactsPort({ spec }: { readonly spec: Pick<RouteRequestOptIns, 'requestFacts'> & { readonly path: string; readonly ports?: { readonly requestFacts?: unknown } | undefined } }, _optional: Record<string, never> = {}): void {
+  if (spec.requestFacts && !spec.ports?.requestFacts) throw new Error(`route ${spec.path} opts into requestFacts but no requestFacts port is mounted`);
+}
+
+/** Sets static or reply headers; a no-op without any, so a route that declares none writes nothing extra.
+ *  `Vary` is appended (Express `res.vary`), never overwritten: a host middleware may already vary the
+ *  answer (dev CORS adds `Origin`), and replacing it would let a cache serve one origin's answer to another. */
+export function applyResponseHeaders({ res, headers }: { readonly res: Response; readonly headers: Readonly<Record<string, string>> | undefined }, _optional: Record<string, never> = {}): void {
+  if (!headers) return;
+  for (const [name, value] of Object.entries(headers)) {
+    if (name.toLowerCase() === 'vary') res.vary(value);
+    else res.setHeader(name, value);
+  }
+}
+
+/**
+ * The route's `RouteInputContext` with only the opt-ins its spec declared: `raw.headers` for
+ * `readHeaders`, `raw.facts` (resolved by the host port, with `req` and `deps`) for `requestFacts`.
+ * Synchronous, so the gates after it keep their tick order.
+ */
+export function routeRequestInput<Deps, Context>({ req, spec, deps }: {
+  readonly req: Request;
+  readonly spec: Pick<RouteRequestOptIns, 'readHeaders' | 'requestFacts'> & { readonly ports?: JsonRoutePorts<Deps, Context> | undefined };
+  readonly deps: Deps;
+}, _optional: Record<string, never> = {}): RouteInputContext {
+  const facts = spec.requestFacts ? spec.ports?.requestFacts?.({ req, deps }) : undefined;
+  return rawInput({ req }, { ...(spec.readHeaders === undefined ? {} : { headers: spec.readHeaders }), ...(facts === undefined ? {} : { facts }) });
+}
+
 /** UTF-8 size of a body the host's parser already read: the bytes themselves, or its JSON re-serialization. */
 function parsedBodyBytes(body: unknown): number {
   if (body === undefined || body === null) return 0;
@@ -111,7 +147,7 @@ function parsedBodyBytes(body: unknown): number {
  * @returns `false` when the refusal was written and the route must stop.
  * @complexity O(n) in the body size for the re-serialization; only when a cap is declared.
  */
-function allowRouteBody({ req, res, spec }: {
+export function allowRouteBody({ req, res, spec }: {
   readonly req: Request;
   readonly res: Response;
   readonly spec: Pick<JsonRouteSpec<unknown, unknown, unknown>, 'maxBodyBytes'>;
@@ -128,22 +164,23 @@ function allowRouteBody({ req, res, spec }: {
  * The `authorize` a handler calls. The route chooses where authorization occurs: reads may
  * authorize before validation, while writes must reject an inconsistent tenant target before
  * asking for a permission. A by-id route's scope (`entityId`) reaches the host port; an id-free
- * call reaches it with the required arguments alone, exactly as before scopes existed.
+ * call reaches it with the required arguments alone, exactly as before scopes existed. Likewise an
+ * `entityType` reaches it only when the handler named one (list-style permissions name none).
  * @complexity O(1) plus the injected host authorizer.
  */
-function routeAuthorize<Deps, Context>({ ports, deps, context }: {
+export function routeAuthorize<Deps, Context>({ ports, deps, context }: {
   readonly ports: JsonRoutePorts<Deps, Context> | undefined;
   readonly deps: Deps;
   readonly context: Context | undefined;
 }, _optional: Record<string, never> = {}): JsonRouteAuthorize {
   return async ({ permission, entityType }, scope) => {
     if (!ports?.authorize) throw new Error('JSON route authorizer is required');
-    const required = { context, deps, permission, entityType };
+    const required = { context, deps, permission, ...(entityType === undefined ? {} : { entityType }) };
     await (scope ? ports.authorize(required, scope) : ports.authorize(required));
   };
 }
 
-function allowRouteOrigin({ req, res, spec, adapter }: {
+export function allowRouteOrigin({ req, res, spec, adapter }: {
   readonly req: Request;
   readonly res: Response;
   readonly spec: Pick<JsonRouteSpec<unknown, unknown, unknown>, 'requireSameOrigin'>;
@@ -170,7 +207,24 @@ function sendRouteResult<Output>({ res, result, spec, signal }: {
     sendReturnedFailure({ res, onReturnedError: spec.onReturnedError, error: result.error, phase: 'handle' });
     return;
   }
+  if (isRouteReply(result.value)) {
+    sendRouteReply({ res, reply: result.value });
+    return;
+  }
   sendJson({ res, status: spec.successStatus ?? 200, body: result.value });
+}
+
+/**
+ * A handler's explicit `routeReply`: its headers, its status, and its JSON body — or, with no body, a
+ * bare `send()` (no content type, never JSON `null`), which a 204/304 must be.
+ */
+function sendRouteReply({ res, reply }: { readonly res: Response; readonly reply: RouteReply }, _optional: Record<string, never> = {}): void {
+  applyResponseHeaders({ res, headers: reply.headers });
+  if (reply.body === undefined) {
+    res.status(reply.status).send();
+    return;
+  }
+  sendJson({ res, status: reply.status, body: reply.body });
 }
 
 function sendReturnedFailure({ res, onReturnedError, error, phase }: {
@@ -189,7 +243,7 @@ function sendReturnedFailure({ res, onReturnedError, error, phase }: {
   sendApiError({ res, status, error });
 }
 
-function sendRouteException<Deps, Context>({ res, spec, adapter, error: e }: {
+export function sendRouteException<Deps, Context>({ res, spec, adapter, error: e }: {
   readonly res: Response;
   readonly spec: Pick<JsonRouteSpec<unknown, unknown, Deps, Context>, 'method' | 'path' | 'ports'>;
   readonly adapter: RouteHostContext | undefined;

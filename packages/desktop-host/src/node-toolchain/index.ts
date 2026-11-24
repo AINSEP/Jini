@@ -131,3 +131,5 @@ export function buildNodeToolchainEnv({ toolchainDir, npmRoot, toolchainEnvName,
 }
 
 export { isReadOnlyVolumeRoot, isTransientAppPath, launcherNamesDurableInstall } from "./install-location.js";
+export { createSiteDiscoveryLanes, prepareNodeToolchainEnvBestEffort } from "./boot-setup.js";
+export type { NodeToolchainSetupEvent, PrepareNodeToolchainEnvBestEffortInput, SiteDiscoveryLanes } from "./boot-setup.js";

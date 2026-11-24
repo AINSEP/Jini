@@ -1,5 +1,5 @@
 import type { GitHubSkillSource } from "./github.js";
-import type { SkillUploadFile } from "./validation.js";
+import type { SkillUploadFile } from "@jini-ai/core/contracts/site/skills-install";
 
 /** The adapter uses failsafe YAML and rejects duplicate keys; the installer never parses YAML itself. */
 export interface YamlReaderPort { read(required: { yaml: string }): unknown }

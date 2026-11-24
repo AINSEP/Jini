@@ -208,6 +208,31 @@ it('flushes the unterminated last line when its source unpipes without ending th
   expect(output).toEqual(['fatal without newline\n']);
 });
 
+it('retains each emitted (redacted, bounded) line on the shared tail before mirroring it', async () => {
+  const secret = ['ghp', '_', 'x'.repeat(36)].join('');
+  const retain = { outputTail: '' };
+  const output = await pump(write => write(`boot ${secret}\n` + 'y'.repeat(50)), { retain, maxLength: 20 });
+  expect(retain.outputTail).toBe(output.join(''));
+  expect(retain.outputTail).not.toContain(secret);
+  expect(output).toEqual(['boot [REDACTED]\n', `${'y'.repeat(20)}\n`]);
+});
+
+it('trims the shared tail to the latest tailKeepChars only once it grows past twice that', async () => {
+  const retain = { outputTail: '' };
+  const tails: string[] = [];
+  await pump(write => {
+    for (const line of ['aa\n', 'bb\n', 'cc\n', 'dd\n']) { write(line); tails.push(retain.outputTail); }
+  }, { retain, tailKeepChars: 4 }, ({ text }) => text);
+  expect(tails).toEqual(['aa\n', 'aa\nbb\n', '\ncc\n', '\ncc\ndd\n']);
+});
+
+it('interleaves every sink that shares one retained tail, in emission order', async () => {
+  const retain = { outputTail: '' };
+  const sinks = ['out', 'err'].map(() => createRedactedOutputSink({ sink: { write: () => true }, redact: ({ text }) => text }, { retain }));
+  sinks[0]!.write('one\n'); sinks[1]!.write('two\n'); sinks[0]!.write('three\n');
+  expect(retain.outputTail).toBe('one\ntwo\nthree\n');
+});
+
 it('writes nothing for an empty redaction result', async () => {
   const output = await pump(write => write('hidden\n'), {}, () => '');
   expect(output).toEqual([]);

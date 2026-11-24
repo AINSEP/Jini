@@ -106,7 +106,10 @@
       "./admin-surfaces/node": "node",
       "./site/admin-surfaces/capabilities": "universal",
       "./site/admin-surfaces/forms": "universal",
-      "./site/memory-i18n": "universal"
+      "./site/memory-i18n": "universal",
+      "./site/admin-surfaces/delivery-bindings": "universal",
+      "./site/supersession": "node",
+      "./site/uninstall-tool": "node"
     },
     "isolation": {
       "entries": {
@@ -116,7 +119,10 @@
         "./connect/executable": "lifecycle",
         "./connect/plugin-host": "lifecycle",
         "./site/admin-surfaces/capabilities": "admin-surfaces",
-        "./site/admin-surfaces/forms": "admin-surfaces"
+        "./site/admin-surfaces/forms": "admin-surfaces",
+        "./site/admin-surfaces/delivery-bindings": "admin-surfaces",
+        "./site/supersession": "lifecycle",
+        "./site/uninstall-tool": "lifecycle"
       },
       "shared": [
         "core/persistent-state.js",
@@ -307,6 +313,21 @@
       "types": "./dist/site/memory-i18n.d.ts",
       "import": "./dist/site/memory-i18n.js",
       "default": "./dist/site/memory-i18n.js"
+    },
+    "./site/admin-surfaces/delivery-bindings": {
+      "types": "./dist/site/admin-surfaces/delivery-bindings.d.ts",
+      "import": "./dist/site/admin-surfaces/delivery-bindings.js",
+      "default": "./dist/site/admin-surfaces/delivery-bindings.js"
+    },
+    "./site/supersession": {
+      "types": "./dist/site/supersession.d.ts",
+      "import": "./dist/site/supersession.js",
+      "default": "./dist/site/supersession.js"
+    },
+    "./site/uninstall-tool": {
+      "types": "./dist/site/uninstall-tool.d.ts",
+      "import": "./dist/site/uninstall-tool.js",
+      "default": "./dist/site/uninstall-tool.js"
     }
   },
   "files": [
