@@ -1,20 +1,21 @@
 import { describe, expect, it } from "vitest";
-import { externalMcpToolApprovalRevokeRoute, externalMcpToolApprovalsListRoute, type ExternalMcpToolApprovalStore } from "../tool-approvals.js";
+import { externalMcpToolApprovalRevokeRoute, externalMcpToolApprovalsListRoute } from "../tool-approvals.js";
 import { PERMISSION_CALL, PRINCIPAL, raw, recordingAuthorize, refusalOf, signal, WORKSPACE_ID } from "./helpers.js";
 
 const row = (serverId: string, toolName: string) => ({ workspaceId: WORKSPACE_ID, serverId, toolName, grantedByPrincipalId: "p", grantedAt: "2026-09-28T00:00:00.000Z", fingerprint: "secret-hash" });
-function store(removed = true): ExternalMcpToolApprovalStore & { asked: unknown[] } {
+/** Per-route ports over one recording fake store: each route gets only its own port. */
+function store(removed = true) {
   const asked: unknown[] = [];
   return {
     asked,
-    listByWorkspaceId: async (workspaceId) => { asked.push(workspaceId); return [row("b", "z"), row("a", "y"), row("b", "a")]; },
-    delete: async (input) => { asked.push(input); return removed; },
+    listApprovals: async (input: { workspaceId: string }) => { asked.push(input); return [row("b", "z"), row("a", "y"), row("b", "a")]; },
+    revokeApproval: async (input: { workspaceId: string; serverId: string; toolName: string }) => { asked.push(input); return removed; },
   };
 }
-const list = (repo: ExternalMcpToolApprovalStore | undefined, authorize = recordingAuthorize().authorize) =>
-  externalMcpToolApprovalsListRoute.handle({ input: {}, deps: { workspaceId: WORKSPACE_ID, toolApprovalRepo: repo }, context: PRINCIPAL, authorize }, { signal });
-const revoke = (repo: ExternalMcpToolApprovalStore | undefined, authorize = recordingAuthorize().authorize) =>
-  externalMcpToolApprovalRevokeRoute.handle({ input: { serverId: "s1", toolName: "t1" }, deps: { workspaceId: WORKSPACE_ID, toolApprovalRepo: repo }, context: PRINCIPAL, authorize }, { signal });
+const list = (repo: ReturnType<typeof store>, authorize = recordingAuthorize().authorize) =>
+  externalMcpToolApprovalsListRoute.handle({ input: {}, deps: { workspaceId: WORKSPACE_ID, listApprovals: repo.listApprovals }, context: PRINCIPAL, authorize }, { signal });
+const revoke = (repo: ReturnType<typeof store>, authorize = recordingAuthorize().authorize) =>
+  externalMcpToolApprovalRevokeRoute.handle({ input: { serverId: "s1", toolName: "t1" }, deps: { workspaceId: WORKSPACE_ID, revokeApproval: repo.revokeApproval }, context: PRINCIPAL, authorize }, { signal });
 
 describe("externalMcpToolApprovals routes", () => {
   it("keep their methods and paths and read both revoke params, falling back to empty strings", () => {
@@ -27,19 +28,19 @@ describe("externalMcpToolApprovals routes", () => {
     expect(externalMcpToolApprovalRevokeRoute.parse(raw({}))).toEqual({ ok: true, value: { serverId: "", toolName: "" } });
   });
 
-  it("lists sorted by server then tool, without the fingerprint", async () => {
+  it("lists sorted by server then tool, asking the list port with an object arg, and sends only the four DTO fields", async () => {
     const repo = store();
     const { authorize, calls } = recordingAuthorize();
     const result = await list(repo, authorize);
     expect(calls).toEqual([PERMISSION_CALL]);
-    expect(repo.asked).toEqual([WORKSPACE_ID]);
+    expect(repo.asked).toEqual([{ workspaceId: WORKSPACE_ID }]);
     const pick = (serverId: string, toolName: string) => ({ serverId, toolName, grantedByPrincipalId: "p", grantedAt: "2026-09-28T00:00:00.000Z" });
     expect(result).toEqual({ ok: true, value: { approvals: [pick("a", "y"), pick("b", "a"), pick("b", "z")] } });
   });
 
-  it("a composition with no store lists empty and 404s every revoke", async () => {
-    expect(await list(undefined)).toEqual({ ok: true, value: { approvals: [] } });
-    expect(await refusalOf(() => revoke(undefined))).toEqual({ status: 404, body: { error: "no Always allow is saved for that tool", code: "NOT_FOUND" } });
+  it("an empty list port lists empty", async () => {
+    expect(await externalMcpToolApprovalsListRoute.handle({ input: {}, deps: { workspaceId: WORKSPACE_ID, listApprovals: async () => [] }, context: PRINCIPAL, authorize: recordingAuthorize().authorize }, { signal }))
+      .toEqual({ ok: true, value: { approvals: [] } });
   });
 
   it("revokes the named workspace tool, and 404s when nothing was saved", async () => {

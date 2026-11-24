@@ -1,8 +1,11 @@
 import { defineJsonRoute, ok } from "@jini-ai/core/contracts/server";
+import type {
+  PublishContentPeerListDto, PublishContentPeerResponseDto, PublishContentPeerView,
+} from "@jini-ai/core/contracts/site/cms-publish-content";
 
 import {
   authorizePublishContent, bodyRecord, rejectPublishError, routeParam,
-  type PublishContentPeerView, type PublishRoutePrincipal, type PublishErrorClass, type PublishErrorMapping,
+  type PublishRoutePrincipal, type PublishErrorClass, type PublishErrorMapping,
 } from "./transport-shared.js";
 
 /**
@@ -15,7 +18,7 @@ import {
  * `masked` and `hasCredential` are the ONLY credential-shaped fields that ever leave the server —
  * no `sealedCiphertext`, `sealedNonce`, `sealedKeyId` or `sealedAlg` in any response body, log line
  * or error message, ever. That is enforced by construction rather than by review: every body below
- * is built from {@link PublishContentPeerView}, a type with no field capable of carrying sealed
+ * is built from {@link PublishContentPeerView} (Core's wire DTO), a type with no field capable of carrying sealed
  * material, and these specs never touch a stored peer record.
  *
  * ## Permissions
@@ -43,7 +46,7 @@ export interface PublishPeerErrorClasses {
  *  refusal must never read as a server fault, and a duplicate label must never read as a validation
  *  error the operator can fix by retyping the same value. Anything else is rethrown, so a raw
  *  driver error falls through to the host's approved request wording rather than being echoed. */
-function peerErrorMappings(classes: PublishPeerErrorClasses, _optional: Record<string, never> = {}): readonly PublishErrorMapping[] {
+function peerErrorMappings({ classes }: { classes: PublishPeerErrorClasses }, _optional: Record<string, never> = {}): readonly PublishErrorMapping[] {
   return [
     { errorClass: classes.validation, status: 400, code: "VALIDATION_ERROR" },
     { errorClass: classes.duplicateLabel, status: 409, code: "DUPLICATE_LABEL" },
@@ -62,7 +65,7 @@ export type PublishPeerFields = Partial<Record<(typeof PEER_FIELDS)[number], unk
  *  is what lets the UI rename a peer without re-collecting its credential. Spreading
  *  `undefined` in instead would make every PATCH a full replace.
  *  @complexity O(1) — four fixed fields. */
-function presentPeerFields(body: Record<string, unknown>): PublishPeerFields {
+function presentPeerFields({ body }: { body: Record<string, unknown> }, _optional: Record<string, never> = {}): PublishPeerFields {
   return Object.fromEntries(PEER_FIELDS.filter((field) => field in body).map((field) => [field, body[field]]));
 }
 
@@ -89,11 +92,11 @@ async function guardedPeerCall<T>(
   try {
     return await run();
   } catch (err) {
-    return rejectPublishError({ err, mappings: peerErrorMappings(peerErrors) });
+    return rejectPublishError({ err, mappings: peerErrorMappings({ classes: peerErrors }) });
   }
 }
 
-export const peerListRoute = defineJsonRoute<Record<string, never>, { peers: readonly PublishContentPeerView[] }, PeerListRouteDeps, PublishRoutePrincipal>({
+export const peerListRoute = defineJsonRoute<Record<string, never>, PublishContentPeerListDto, PeerListRouteDeps, PublishRoutePrincipal>({
   method: "get",
   path: PEER_BASE,
   parse: () => ok({ value: {} }),
@@ -104,7 +107,7 @@ export const peerListRoute = defineJsonRoute<Record<string, never>, { peers: rea
   },
 });
 
-export const peerCreateRoute = defineJsonRoute<{ body: Record<string, unknown> }, { peer: PublishContentPeerView }, PeerCreateRouteDeps, PublishRoutePrincipal>({
+export const peerCreateRoute = defineJsonRoute<{ body: Record<string, unknown> }, PublishContentPeerResponseDto, PeerCreateRouteDeps, PublishRoutePrincipal>({
   method: "post",
   path: PEER_BASE,
   parse: (raw) => ok({ value: { body: bodyRecord({ body: raw.body }) } }),
@@ -115,10 +118,10 @@ export const peerCreateRoute = defineJsonRoute<{ body: Record<string, unknown> }
   },
 }, { successStatus: 201 });
 
-export const peerUpdateRoute = defineJsonRoute<{ peerId: string; fields: PublishPeerFields }, { peer: PublishContentPeerView }, PeerUpdateRouteDeps, PublishRoutePrincipal>({
+export const peerUpdateRoute = defineJsonRoute<{ peerId: string; fields: PublishPeerFields }, PublishContentPeerResponseDto, PeerUpdateRouteDeps, PublishRoutePrincipal>({
   method: "patch",
   path: `${PEER_BASE}/:peerId`,
-  parse: (raw) => ok({ value: { peerId: routeParam({ params: raw.params, name: "peerId" }), fields: presentPeerFields(bodyRecord({ body: raw.body })) } }),
+  parse: (raw) => ok({ value: { peerId: routeParam({ params: raw.params, name: "peerId" }), fields: presentPeerFields({ body: bodyRecord({ body: raw.body }) }) } }),
   handle: async ({ input, deps, authorize }) => {
     const peer = await guardedPeerCall({ authorize, permission: "publish_content.apply", peerErrors: deps.peerErrors,
       run: () => deps.updatePeer({ workspaceId: deps.workspaceId, id: input.peerId, ...input.fields }) });

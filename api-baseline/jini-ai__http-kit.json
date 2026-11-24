@@ -18,6 +18,8 @@
    "InstallRouteRegistrationGuardOptions": "interface:8f1f6ec850",
    "JsonRoutePorts": "interface:74b7582754",
    "JsonRouteSpec": "interface:7d207ad9fa",
+   "JsonRoutePorts": "interface:282e190c38",
+   "JsonRouteSpec": "interface:05f4c73774",
    "OwnedRunListRequired": "interface:5b1e4bbc29",
    "RateLimitProfile": "interface:371075b603",
    "RawRouteSpec": "interface:e63cd87709",

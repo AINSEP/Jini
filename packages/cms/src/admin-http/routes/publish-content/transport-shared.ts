@@ -4,20 +4,9 @@ import { rejectRoute } from "@jini-ai/core/errors/route-refusal";
 /**
  * @file Shared guards and error mapping for the publish-content TRANSPORT route specs (peers,
  * destination). One copy, so a route cannot drift from the others on the exact refusal body.
- * The import/export half keeps its own `import-shared.ts`; the two halves share no helper.
+ * The import/export half keeps its own `import-shared.ts`; the two halves share no helper. The
+ * wire bodies these routes answer with are Core's (`@jini-ai/core/contracts/site/cms-publish-content`).
  */
-
-/** A publishing destination as it may leave the server. `masked` and `hasCredential` are the ONLY
- *  credential-shaped fields: no sealed material can ride on a value of this type, which is how the
- *  frozen peers contract keeps secrets out of every response body by construction. */
-export interface PublishContentPeerView {
-  readonly id: string;
-  readonly label: string;
-  readonly baseUrl: string;
-  readonly remoteWorkspaceId: string;
-  readonly masked: string | null;
-  readonly hasCredential: boolean;
-}
 
 /** The principal fields these routes read: none beyond the host's own authorization (typed so the
  *  admin mount's session principal fits). */

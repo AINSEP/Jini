@@ -40,7 +40,7 @@ export interface AdminMenuRouteTargetDto {
   readonly params?: JsonObject | undefined;
 }
 
-/** The link target union, as stored and answered. */
+/** Wire-format link target, as stored and answered — structurally identical to navigation's `NavTarget`. */
 export type AdminMenuTargetDto = AdminMenuEntryTargetDto | AdminMenuTermTargetDto | AdminMenuUrlTargetDto | AdminMenuRouteTargetDto;
 
 /** Presentational item attributes (navigation's `NavItemAttrs`), passed through uninterpreted. */

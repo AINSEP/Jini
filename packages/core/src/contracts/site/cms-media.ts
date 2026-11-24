@@ -165,7 +165,7 @@ export interface ImageCodecPort {
 }
 
 /**
- * The admin `media` wire DTOs (ADR-029): the JSON bodies the media admin routes answer with and
+ * The admin `media` wire DTOs (second section of this module) (ADR-029): the JSON bodies the media admin routes answer with and
  * an admin client reads. Declared here, once, so the server serializer
  * (`@jini-ai/cms/admin-http/http/media`) and any client mirror read the same shapes without the client
  * depending on CMS. Serialization rules (document display names, sniffed content types, public URLs)

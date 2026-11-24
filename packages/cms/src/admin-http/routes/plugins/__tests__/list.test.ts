@@ -1,14 +1,17 @@
 import { describe, expect, it } from "vitest";
 import { pluginListRoute, type PluginListRouteDeps } from "../list.js";
-import { activationRepo, PRINCIPAL, raw, RECORDS, recordingAuthorize, signal, WORKSPACE_ID } from "./helpers.js";
+import { activationRepo, pluginDto, PRINCIPAL, raw, RECORDS, recordingAuthorize, signal, WORKSPACE_ID } from "./helpers.js";
+
+/** A name another plugin already holds (`PluginConflict`). */
+const CONFLICT = { kind: "tool", key: "x", heldBy: "word-count", heldByName: "Word count", heldKey: "x" };
 
 function deps(overrides: Partial<PluginListRouteDeps> = {}) {
   const repo = activationRepo({ "word-count": true });
   const value: PluginListRouteDeps = {
     workspaceId: WORKSPACE_ID, pluginActivationRepo: repo,
     discoverPlugins: async () => RECORDS,
-    listPluginConflicts: async () => new Map([["seo", [{ kind: "tool", name: "x" } as never]]]),
-    toAdminPluginResponse: ({ discovery, activation }, optional = {}) => ({ id: discovery.id, enabled: activation?.enabled ?? false, conflicts: optional.conflicts }),
+    listPluginConflicts: async () => new Map([["seo", [CONFLICT]]]),
+    toAdminPluginResponse: ({ discovery, activation }, optional = {}) => pluginDto({ id: discovery.id, enabled: activation?.enabled ?? false, ...(optional.conflicts ? { conflicts: optional.conflicts } : {}) }),
     localInstallAvailable: () => false,
     ...overrides,
   };
@@ -29,7 +32,7 @@ describe("pluginListRoute", () => {
     const result = await pluginListRoute.handle({ input: {}, deps: deps().value, context: PRINCIPAL, authorize }, { signal });
     expect(calls).toEqual([{ permission: "admin.plugins.read", entityType: "plugin" }]);
     expect(result).toEqual({ ok: true, value: {
-      plugins: [{ id: "word-count", enabled: true, conflicts: [] }, { id: "seo", enabled: false, conflicts: [{ kind: "tool", name: "x" }] }],
+      plugins: [pluginDto({ id: "word-count", enabled: true }), pluginDto({ id: "seo", enabled: false, conflicts: [CONFLICT] })],
       installSources: [],
     } });
   });

@@ -32,9 +32,9 @@ interface SourceControlBaseDeps { workspaceId: string; storeErrors: CredentialSt
 
 /** One provider a plugin declares; `credential`/`i18n` are opaque form data the page renders. */
 export interface SourceControlProviderDescriptor { readonly id: string; readonly label: string; readonly credential?: unknown; readonly i18n?: unknown }
-/** The loaded provider registry: providers, plugin load refusals (logged, never sent), switched-off hosts. */
+/** The loaded provider registry: providers and switched-off hosts. Plugin load refusals are the host
+ *  loader's to report (it owns its log); this spec never reads them, so they cannot reach the response. */
 export interface SourceControlProviderRegistry {
-  readonly refusals: readonly string[];
   list(): readonly { readonly descriptor: SourceControlProviderDescriptor }[];
   readonly switchedOff?: Iterable<readonly [string, string]>;
 }
@@ -66,10 +66,9 @@ const rowsFor = ({ deps }: { deps: SourceControlBaseDeps }, _optional: Record<st
 const authorizeSourceControl = ({ authorize }: { authorize: Parameters<typeof authorizeCredentials>[0]["authorize"] }, _optional: Record<string, never> = {}) =>
   authorizeCredentials({ authorize, permission: PERMISSION, entityType: ENTITY_TYPE });
 
-/** The page's provider rows; `credential`/`i18n` only when declared. Plugin load refusals go to the
- *  server log, never the response. @complexity O(p + s). */
+/** The page's provider rows; `credential`/`i18n` only when declared. Plugin load refusals never
+ *  reach the response: only the named fields are copied out. @complexity O(p + s). */
 function providerList({ registry }: { registry: SourceControlProviderRegistry }, _optional: Record<string, never> = {}) {
-  for (const refusal of registry.refusals) console.warn(`[source-control-providers] ${refusal}`);
   return {
     providers: registry.list().map(({ descriptor }) => ({
       id: descriptor.id,

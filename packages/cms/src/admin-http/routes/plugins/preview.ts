@@ -64,7 +64,7 @@ const PATH = "/api/admin/v1/workspaces/:workspaceId/plugins/:pluginId/preview";
 export const pluginPreviewStatusRoute = defineJsonRoute<{ pluginId: string }, { pluginId: string; enabled: boolean }, PluginPreviewRouteDeps, PluginsRoutePrincipal>({
   method: "get",
   path: PATH,
-  parse: (raw) => ok({ value: { pluginId: pluginIdParam(raw.params) } }),
+  parse: (raw) => ok({ value: { pluginId: pluginIdParam({ params: raw.params }) } }),
   handle: async ({ input, deps, authorize }) => {
     await authorizePlugins({ authorize, permission: "content.write" });
     try {
@@ -96,7 +96,7 @@ function previewEntry({ draft, workspaceId }: { draft: PreviewDraft; workspaceId
 export const pluginPreviewRunRoute = defineJsonRoute<{ pluginId: string; body: unknown }, { pluginId: string; fields: unknown }, PluginPreviewRouteDeps, PluginsRoutePrincipal>({
   method: "post",
   path: PATH,
-  parse: (raw) => ok({ value: { pluginId: pluginIdParam(raw.params), body: raw.body } }),
+  parse: (raw) => ok({ value: { pluginId: pluginIdParam({ params: raw.params }), body: raw.body } }),
   handle: async ({ input, deps, authorize }) => {
     await authorizePlugins({ authorize, permission: "content.write" });
     try {

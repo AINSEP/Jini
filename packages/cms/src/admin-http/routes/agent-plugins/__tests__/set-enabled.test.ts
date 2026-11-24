@@ -16,7 +16,7 @@ function deps(log: unknown[] = [], overrides: Record<string, unknown> = {}) {
     notifyPluginLowered: async (input: { pluginId: string }) => { log.push(["lowered", input]); },
     isError: TEST_ERROR_PREDICATES,
     copy: TEST_COPY,
-    warn: (message: string) => { log.push(["warn", message]); },
+    diagnose: (facts: { pluginId: string; refusal: string; causeMessage: string }) => { log.push(["diagnose", facts]); },
     ...overrides,
   };
 }
@@ -72,21 +72,22 @@ describe("agentPluginSetEnabledRoute", () => {
     expect(log).toEqual([]);
   });
 
-  const LADDER: [string, Error, { status: number; body: unknown }, boolean][] = [
-    ["tool-access lowering", new ToolAccessLoweringTestError("lowering", "TOOL_ACCESS_LOWERING"), { status: 503, body: { error: "lowering", code: "TOOL_ACCESS_LOWERING" } }, false],
-    ["host incompatible", new HostIncompatibleTestError("not this host", "PLUGIN_HOST_INCOMPATIBLE"), { status: 409, body: { code: "PLUGIN_HOST_INCOMPATIBLE", error: "not this host" } }, false],
-    ["update pending", new UpdateTestError("pending", "PLUGIN_UPDATE_PENDING"), { status: 409, body: { code: "PLUGIN_UPDATE_PENDING", error: "pending" } }, false],
-    ["not ready", new NotReadyTestError("soon", "AGENT_PLUGIN_NOT_READY"), { status: 409, body: { code: "AGENT_PLUGIN_NOT_READY", error: "soon" } }, false],
-    ["linked", new LinkedTestError("follows acme", "AGENT_PLUGIN_LINKED", "provider"), { status: 409, body: { code: "AGENT_PLUGIN_LINKED", error: "follows acme", providerPluginId: "provider" } }, false],
-    ["not installed (raced)", new NotInstalledTestError("gone"), { status: 404, body: { error: "gone", code: "AGENT_PLUGIN_NOT_FOUND" } }, false],
-    ["activations unreadable", new UnreadableTestError("/srv/activations.json: bad"), { status: 409, body: { error: TEST_COPY.activationsUnreadable, code: "AGENT_PLUGIN_ACTIVATIONS_UNREADABLE" } }, true],
-    ["activations busy", new BusyTestError("/srv/lock held"), { status: 409, body: { error: TEST_COPY.activationsBusy, code: "AGENT_PLUGIN_ACTIVATIONS_BUSY" } }, true],
+  const LADDER: [string, Error, { status: number; body: unknown }, "activationsUnreadable" | "activationsBusy" | null][] = [
+    ["tool-access lowering", new ToolAccessLoweringTestError("lowering", "TOOL_ACCESS_LOWERING"), { status: 503, body: { error: "lowering", code: "TOOL_ACCESS_LOWERING" } }, null],
+    ["host incompatible", new HostIncompatibleTestError("not this host", "PLUGIN_HOST_INCOMPATIBLE"), { status: 409, body: { code: "PLUGIN_HOST_INCOMPATIBLE", error: "not this host" } }, null],
+    ["update pending", new UpdateTestError("pending", "PLUGIN_UPDATE_PENDING"), { status: 409, body: { code: "PLUGIN_UPDATE_PENDING", error: "pending" } }, null],
+    ["not ready", new NotReadyTestError("soon", "AGENT_PLUGIN_NOT_READY"), { status: 409, body: { code: "AGENT_PLUGIN_NOT_READY", error: "soon" } }, null],
+    ["linked", new LinkedTestError("follows acme", "AGENT_PLUGIN_LINKED", "provider"), { status: 409, body: { code: "AGENT_PLUGIN_LINKED", error: "follows acme", providerPluginId: "provider" } }, null],
+    ["not installed (raced)", new NotInstalledTestError("gone"), { status: 404, body: { error: "gone", code: "AGENT_PLUGIN_NOT_FOUND" } }, null],
+    ["activations unreadable", new UnreadableTestError("/srv/activations.json: bad"), { status: 409, body: { error: TEST_COPY.activationsUnreadable, code: "AGENT_PLUGIN_ACTIVATIONS_UNREADABLE" } }, "activationsUnreadable"],
+    ["activations busy", new BusyTestError("/srv/lock held"), { status: 409, body: { error: TEST_COPY.activationsBusy, code: "AGENT_PLUGIN_ACTIVATIONS_BUSY" } }, "activationsBusy"],
   ];
-  it.each(LADDER)("maps %s to its exact refusal, logging only the host-fault cause", async (_name, error, expected, warns) => {
+  // The route reports structured facts only; the log label and message wording are the host's.
+  it.each(LADDER)("maps %s to its exact refusal, reporting only the host-fault cause's facts", async (_name, error, expected, refusal) => {
     const log: unknown[] = [];
     expect(await refusalOf(() => run(deps(log, { setEnabled: async () => { throw error; } })))).toEqual(expected);
-    const warnings = log.filter((entry) => Array.isArray(entry) && entry[0] === "warn");
-    expect(warnings).toEqual(warns ? [["warn", `[agent-plugins] 'acme': enable/disable refused — ${error.message}`]] : []);
+    const reports = log.filter((entry) => Array.isArray(entry) && entry[0] === "diagnose");
+    expect(reports).toEqual(refusal ? [["diagnose", { pluginId: "acme", refusal, causeMessage: error.message }]] : []);
   });
 
   it("rethrows an unmapped failure unchanged, so the host's error port answers the 500", async () => {

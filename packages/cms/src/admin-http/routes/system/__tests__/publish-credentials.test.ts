@@ -1,7 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { ToolInputError } from "@jini-ai/core";
 import { RouteRefusalError } from "@jini-ai/core/errors/route-refusal";
-import { publishCredentialListRoute } from "../publish-credentials/list.js";
 import { publishCredentialCreateRoute } from "../publish-credentials/create.js";
 import { publishCredentialUpdateRoute } from "../publish-credentials/update.js";
 import { publishCredentialVerifyRoute } from "../publish-credentials/verify.js";
@@ -14,7 +13,7 @@ class DuplicateLabelError extends Error {}
 class NotFoundError extends Error {}
 class SecretStoreError extends Error {}
 const storeErrors = { validation: ValidationError, duplicateLabel: DuplicateLabelError, notFound: NotFoundError, secretStoreUnconfigured: SecretStoreError };
-const ROUTES = [publishCredentialListRoute, publishCredentialCreateRoute, publishCredentialUpdateRoute, publishCredentialVerifyRoute, publishCredentialDeleteRoute];
+const ROUTES = [publishCredentialCreateRoute, publishCredentialUpdateRoute, publishCredentialVerifyRoute, publishCredentialDeleteRoute];
 const input = (body: Record<string, unknown> = {}, id = "c1") => ({ id, body });
 
 function recording(deny = false) {
@@ -52,7 +51,7 @@ describe("publish credential routes", () => {
   it("pins methods, byte-identical paths and success statuses", () => {
     const base = "/api/admin/v1/workspaces/:workspaceId/system/publish/credentials";
     expect(ROUTES.map((r) => [r.method, r.path, r.successStatus, r.maxBodyBytes])).toEqual([
-      ["get", base, undefined, undefined], ["post", base, 201, undefined], ["put", `${base}/:id`, undefined, undefined],
+      ["post", base, 201, undefined], ["put", `${base}/:id`, undefined, undefined],
       ["post", `${base}/:id/verify`, undefined, undefined], ["delete", `${base}/:id`, 204, undefined],
     ]);
     expect(publishCredentialVerifyRoute.parse({ body: undefined, query: {}, params: { id: "x" } })).toEqual({ ok: true, value: { id: "x", body: {} } });
@@ -66,13 +65,7 @@ describe("publish credential routes", () => {
       expect(calls).toEqual([{ permission: "system.publish", entityType: "site-publish" }]);
       expect(logOf(d)).toEqual([]);
     }
-    await expect(publishCredentialListRoute.handle({ input: input(), deps: deps() })).rejects.toThrow(/no authorizer/);
-  });
-
-  it("list answers rows + execution mode and fires the heal for exactly those rows", async () => {
-    const d = deps();
-    expect(await run(publishCredentialListRoute, d)).toEqual({ ok: true, value: { credentials: [{ id: "c1" }], executionMode: "local" } });
-    expect(logOf(d)).toEqual(["list", 'heal [{"id":"c1"}]']);
+    await expect(publishCredentialCreateRoute.handle({ input: input(), deps: deps() })).rejects.toThrow(/no authorizer/);
   });
 
   it("create: registry first, project-bound default, key attach, invalidate, then verify", async () => {
@@ -118,6 +111,6 @@ describe("publish credential routes", () => {
     for (const [thrown, status, error] of cases) {
       expect(await refusal(run(publishCredentialVerifyRoute, deps({ verifyAfterSave: async () => { throw thrown; } })))).toEqual({ status, body: { error, detail: "m" } });
     }
-    await expect(run(publishCredentialListRoute, deps({ listCredentials: async () => { throw new Error("db down"); } }))).rejects.toThrow("db down");
+    await expect(run(publishCredentialDeleteRoute, deps({ deleteCredential: async () => { throw new Error("db down"); } }))).rejects.toThrow("db down");
   });
 });

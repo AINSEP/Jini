@@ -3,7 +3,7 @@ import type { PluginActivationRecord } from "@jini-ai/core/contracts/site/plugin
 
 import { InMemoryChangeSetRepo } from "../../../../core/commands/repo.memory.js";
 import { pluginSetEnabledRoute, type PluginSetEnabledInput, type PluginSetEnabledRouteDeps } from "../set-enabled.js";
-import { FakeNotFoundError, PRINCIPAL, raw, refusalOf, signal, WORKSPACE_ID } from "./helpers.js";
+import { FakeNotFoundError, pluginDto, PRINCIPAL, raw, refusalOf, signal, WORKSPACE_ID } from "./helpers.js";
 
 /** Stand-ins for the engine/host error classes the host injects into the ladder. */
 class FakeToolAccessLoweringError extends Error { readonly code = "TOOL_ACCESS_STOP_FAILED"; }
@@ -43,13 +43,13 @@ function makeDeps(overrides: Partial<PluginSetEnabledRouteDeps> = {}, rows: Reco
       log.push([input.enabled ? "onEnabled" : "onDisabled", input.pluginId]);
       return { activation };
     },
-    onPluginEnabled: async (pluginId) => { log.push(["rollback:onEnabled", pluginId]); },
-    onPluginDisabled: (pluginId) => { log.push(["rollback:onDisabled", pluginId]); },
+    onPluginEnabled: async ({ pluginId }) => { log.push(["rollback:onEnabled", pluginId]); },
+    onPluginDisabled: ({ pluginId }) => { log.push(["rollback:onDisabled", pluginId]); },
     recordApproval: async ({ record }) => { log.push(["approve", record.id]); },
     lowerToolAccess: async ({ pluginId }) => { log.push(["lower", pluginId]); },
     tracker: { capture: (input, options) => { log.push(["track", input, options]); } },
     // A marker proves the host's serializer is the one used.
-    toAdminPluginResponse: ({ discovery, activation }) => ({ id: discovery.id, enabled: activation?.enabled, host: true }),
+    toAdminPluginResponse: ({ discovery, activation }) => pluginDto({ id: discovery.id, enabled: activation?.enabled ?? false }),
     setEnabledErrors: {
       toolAccessLowering: FakeToolAccessLoweringError, install: FakeInstallError, notFound: FakeNotFoundError,
       incompatible: FakeIncompatibleError, invalid: FakeInvalidError, conflict: FakeConflictError, load: FakeLoadError,
@@ -86,7 +86,7 @@ describe("pluginSetEnabledRoute: the audited write", () => {
   it("enables through executeCommand, asking the raw authorizer with the activation entity, and answers the host DTO + change set", async () => {
     const { deps, log, changeSets } = makeDeps();
     const result = await handle(deps, { pluginId: "word-count", enabled: true });
-    expect(result).toEqual({ ok: true, value: { plugin: { id: "word-count", enabled: true, host: true }, changeSetId: expect.any(String) } });
+    expect(result).toEqual({ ok: true, value: { plugin: pluginDto({ id: "word-count", enabled: true }), changeSetId: expect.any(String) } });
     const changeSetId = (result as { value: { changeSetId: string } }).value.changeSetId;
     expect((await changeSets.findById({ workspaceId: WORKSPACE_ID, id: changeSetId }))?.changeSet.summary).toBe("Set plugin 'word-count' enabled=true");
     expect(log).toEqual([

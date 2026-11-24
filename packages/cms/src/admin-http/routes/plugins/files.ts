@@ -26,7 +26,7 @@ export interface PluginFilesRouteDeps {
 export const pluginFilesRoute = defineJsonRoute<{ pluginId: string }, PluginFilesEnvelope, PluginFilesRouteDeps, PluginsRoutePrincipal>({
   method: "get",
   path: "/api/admin/v1/workspaces/:workspaceId/plugins/:pluginId/files",
-  parse: (raw) => ok({ value: { pluginId: pluginIdParam(raw.params) } }),
+  parse: (raw) => ok({ value: { pluginId: pluginIdParam({ params: raw.params }) } }),
   handle: async ({ input, deps, authorize }) => {
     await authorizePlugins({ authorize, permission: "admin.plugins.read" });
     try {

@@ -1,11 +1,12 @@
 import { defineJsonRoute, ok } from "@jini-ai/core/contracts/server";
 import { hasForbiddenRawUrlCharacter } from "@jini-ai/core/contracts/server/verified-origin";
+import type { PublishContentPeerView, PublishDestinationView } from "@jini-ai/core/contracts/site/cms-publish-content";
 import { rejectRoute } from "@jini-ai/core/errors/route-refusal";
 
 import { normalizePeerBaseUrl } from "../../../publish/content/peer-url.js";
 import {
   authorizePublishContent, bodyRecord, rejectPublishError,
-  type PublishContentPeerView, type PublishRoutePrincipal, type PublishErrorClass, type PublishErrorMapping,
+  type PublishRoutePrincipal, type PublishErrorClass, type PublishErrorMapping,
 } from "./transport-shared.js";
 
 /**
@@ -22,20 +23,6 @@ import {
 const DESTINATION_BASE = "/api/admin/v1/workspaces/:workspaceId/publish-content/destination";
 const DESTINATION_ENTITY_TYPE = "publish-destination";
 const NO_DESTINATION = "No live site is set up yet. Deploy this site once, then come back here.";
-
-/** What the destination routes answer. */
-export interface PublishDestinationView {
-  /** `true` once this computer's grant has been written for a site. */
-  readonly connected: boolean;
-  /** The connected site, as the publish list already models it. `null` when there is none. */
-  readonly site: PublishContentPeerView | null;
-  /** Read out of the repo's deploy config — what to offer when nothing is connected yet. */
-  readonly candidateUrl: string | null;
-  /** One sentence describing where things stand. */
-  readonly message: string;
-  /** One sentence naming what the owner does next, or `null` when nothing is pending. */
-  readonly nextStep: string | null;
-}
 
 /** The host's typed handshake/grant-write error classes. */
 export interface PublishDestinationErrorClasses { handshake: PublishErrorClass; notSaved: PublishErrorClass }
@@ -59,7 +46,7 @@ export interface DestinationConnectRouteDeps extends DestinationBaseDeps { listP
 export interface DestinationDisconnectRouteDeps extends DestinationBaseDeps { disconnectDestination: PublishDestinationDisconnectFn }
 
 /** Every message passed through is already written for a person (the handshake client's own rule). */
-function destinationErrorMappings(classes: PublishDestinationErrorClasses, _optional: Record<string, never> = {}): readonly PublishErrorMapping[] {
+function destinationErrorMappings({ classes }: { classes: PublishDestinationErrorClasses }, _optional: Record<string, never> = {}): readonly PublishErrorMapping[] {
   return [
     { errorClass: classes.handshake, status: 502, code: "PUBLISH_TRUST_HANDSHAKE_FAILED" },
     { errorClass: classes.notSaved, status: 500, code: "PUBLISH_TRUST_NOT_SAVED" },
@@ -75,7 +62,7 @@ async function guardedDestination<T>(
     await authorizePublishContent({ authorize, permission: "publish_content.apply", entityType: DESTINATION_ENTITY_TYPE });
     return await run();
   } catch (err) {
-    return rejectPublishError({ err, mappings: destinationErrorMappings(deps.destinationErrors) });
+    return rejectPublishError({ err, mappings: destinationErrorMappings({ classes: deps.destinationErrors }) });
   }
 }
 

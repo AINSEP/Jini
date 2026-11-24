@@ -26,7 +26,7 @@ describe("toPublishContentReportDto", () => {
   it("copies exactly the whitelisted fields and nothing a domain row adds", () => {
     const report = sourceReport();
     const withExtra = { ...report, backstop: { mode: "backstop" }, rows: [{ ...report.rows[0], sourceReplacement: { secret: 1 } }] };
-    const dto = toPublishContentReportDto(withExtra as PublishContentReportSource);
+    const dto = toPublishContentReportDto({ report: withExtra as PublishContentReportSource });
     expect(dto).toEqual({
       refused: false, refusalReason: null, applyOrder: ["media", "post"],
       rows: [{ entityType: "post", entityId: "p1", entityLabel: "Hello", outcome: "conflict", writes: true, reason: "changed on live", canOverwrite: true, retires }],
@@ -36,18 +36,18 @@ describe("toPublishContentReportDto", () => {
   });
 
   it("omits the referencedBy key entirely when the planner row has none", () => {
-    const dto = toPublishContentReportDto(sourceReport());
+    const dto = toPublishContentReportDto({ report: sourceReport() });
     expect("referencedBy" in (dto.rows[0] as object)).toBe(false);
   });
 
   it("maps referencedBy holders field by field when present", () => {
     const holder = { entityType: "menu", entityId: "m1", entityLabel: "Main", referencedId: "p-old", extra: "dropped" };
-    const dto = toPublishContentReportDto(sourceReport({ referencedBy: [holder] }));
+    const dto = toPublishContentReportDto({ report: sourceReport({ referencedBy: [holder] }) });
     expect(dto.rows[0]?.referencedBy).toEqual([{ entityType: "menu", entityId: "m1", entityLabel: "Main", referencedId: "p-old" }]);
   });
 
   it("keeps a refused report's refusal fields", () => {
-    const dto = toPublishContentReportDto({ refused: true, refusalReason: "format too new", applyOrder: [], rows: [] });
+    const dto = toPublishContentReportDto({ report: { refused: true, refusalReason: "format too new", applyOrder: [], rows: [] } });
     expect(dto).toEqual({ refused: true, refusalReason: "format too new", applyOrder: [], rows: [] });
   });
 });
@@ -63,7 +63,7 @@ describe("readBackstopApplyReport", () => {
     const reads: unknown[] = [];
     const port = audit({ get: async (...args: unknown[]) => { reads.push(args[0]); return destinationLog; } });
     const result = await readBackstopApplyReport({ audit: port, workspaceId: "ws-1", runId: "run-1" });
-    expect(result).toEqual({ report: toPublishContentReportDto(sourceReport()) });
+    expect(result).toEqual({ report: toPublishContentReportDto({ report: sourceReport() }) });
     expect(reads).toEqual([{ workspaceId: "ws-1", id: "run-1" }]);
   });
 

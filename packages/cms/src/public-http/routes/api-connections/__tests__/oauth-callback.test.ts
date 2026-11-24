@@ -13,7 +13,7 @@ const PATH = "/host/connections/oauth/callback";
 type Connection = { descriptor: { connectionId: string } };
 
 function harness(overrides: Partial<ApiConnectionOAuthCallbackRouteDeps<Connection>> = {}) {
-  const calls = { limiterKeys: [] as string[], complete: [] as unknown[], deposits: [] as unknown[], logs: [] as string[], peeks: 0 };
+  const calls = { limiterKeys: [] as string[], complete: [] as unknown[], deposits: [] as unknown[], failures: [] as unknown[], peeks: 0 };
   const attempt = { workspaceId: "ws-1", pluginId: "acme", connectionId: "c1", actorId: "u1" };
   const deps: ApiConnectionOAuthCallbackRouteDeps<Connection> = {
     path: PATH,
@@ -31,7 +31,7 @@ function harness(overrides: Partial<ApiConnectionOAuthCallbackRouteDeps<Connecti
     isApiConnectionError: (error): error is { readonly code: string } => error instanceof CodedError,
     renderPage: ({ ok, reason, messageType }) => `${ok ? "ok" : `fail:${reason ?? "-"}`}|${messageType}`,
     publicOrigin: ({ facts }) => `${facts.servingProtocol}://site.test`,
-    log: (line) => { calls.logs.push(line); },
+    reportCallbackFailure: (facts) => { calls.failures.push(facts); },
     ...overrides,
   };
   return { deps, calls, attempt };
@@ -109,23 +109,26 @@ describe("apiConnectionOAuthCallbackRoute", () => {
   it.each([
     ["invalid-attempt", "state_expired"], ["attempt-superseded", "state_expired"], ["access-denied", "provider_denied"],
     ["account-unchanged", "account_unchanged"], ["token-exchange-failed", "exchange_failed"],
-  ])("maps a %s failure to %s by code, logging name + code only", async (code, reason) => {
+  ])("maps a %s failure to %s by code, reporting name + code only", async (code, reason) => {
     const { deps, calls } = harness();
     deps.host.serviceFor = () => ({ complete: async () => { throw new CodedError(code); } });
     const res = await call(deps, { query: { state: "st" } });
     expect(res).toMatchObject({ status: 400, body: `fail:${reason}|host:api-connection-connected` });
     expect(res.headers.getSetCookie()).toEqual(["bind=; Max-Age=0"]);
-    expect(calls.logs).toEqual([`api-connection oauth callback failed: Error ${code}`]);
-    expect(calls.logs.join()).not.toContain("secret");
+    expect(calls.failures).toEqual([{ errorName: "Error", errorCode: code }]);
+    expect(JSON.stringify(calls.failures)).not.toContain("secret");
   });
 
-  it("maps an error the injected predicate does not recognise to exchange_failed, and a non-Error to 'unknown'", async () => {
+  it("maps an error the injected predicate does not recognise to exchange_failed; a non-Error reports no facts, an uncoded Error its name only", async () => {
     const { deps, calls } = harness();
     deps.host.serviceFor = () => ({ complete: async () => { throw Object.assign(new TypeError("boom"), { code: "access-denied" }); } });
     expect((await call(deps, { query: { state: "st" } })).body).toBe("fail:exchange_failed|host:api-connection-connected");
     deps.host.serviceFor = () => ({ complete: async () => { throw "plain"; } });
     await call(deps, { query: { state: "st" } });
-    expect(calls.logs).toEqual(["api-connection oauth callback failed: TypeError access-denied", "api-connection oauth callback failed: unknown"]);
+    deps.host.serviceFor = () => ({ complete: async () => { throw Object.assign(new RangeError("provider said secret"), { code: 42 }); } });
+    await call(deps, { query: { state: "st" } });
+    expect(calls.failures).toEqual([{ errorName: "TypeError", errorCode: "access-denied" }, {}, { errorName: "RangeError" }]);
+    expect(JSON.stringify(calls.failures)).not.toContain("secret");
   });
 
   it("rethrows a limiter failure for the host's error path", async () => {

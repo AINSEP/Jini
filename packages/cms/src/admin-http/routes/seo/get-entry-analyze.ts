@@ -1,7 +1,7 @@
 import { defineJsonRoute, ok } from "@jini-ai/core/contracts/server";
+import type { AdminSeoEntryAnalysisEnvelope } from "@jini-ai/core/contracts/site/cms-seo";
 
 import { analyzeEntry, type GetEntryMetaDeps } from "../../../seo/seo.js";
-import type { SeoAnalysis } from "../../../seo/types.js";
 import { withCoverReadDeps } from "../../../seo/cover-image.js";
 import { authorizeSeo, rejectSeoError, SEO_ENTRY_NOT_FOUND, seoEntryIdParam, type SeoRoutePrincipal } from "./shared.js";
 
@@ -15,7 +15,7 @@ export interface SeoGetEntryAnalyzeRouteDeps {
 const SEO_ANALYZE_ERRORS = [SEO_ENTRY_NOT_FOUND] as const;
 
 /** GET an entry's SEO score and issues (SPEC-008 `SEO_GET_ENTRY_ANALYZE`), over the cover-aware meta. */
-export const seoGetEntryAnalyzeRoute = defineJsonRoute<{ entryId: string }, { data: SeoAnalysis }, SeoGetEntryAnalyzeRouteDeps, SeoRoutePrincipal>({
+export const seoGetEntryAnalyzeRoute = defineJsonRoute<{ entryId: string }, AdminSeoEntryAnalysisEnvelope, SeoGetEntryAnalyzeRouteDeps, SeoRoutePrincipal>({
   method: "get",
   path: "/api/admin/v1/workspaces/:workspaceId/seo/entries/:entryId/analyze",
   parse: (raw) => ok({ value: { entryId: seoEntryIdParam({ params: raw.params }) } }),

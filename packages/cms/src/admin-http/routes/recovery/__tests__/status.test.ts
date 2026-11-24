@@ -1,6 +1,11 @@
 import { describe, expect, it, vi } from "vitest";
 
+import type { AdminDegradedBannerDto } from "@jini-ai/core/contracts/site/cms-recovery";
+
 import { recoveryStatusRoute, type RecoveryStatusRouteDeps } from "../status.js";
+
+/** A real wire banner (the database package's precedence returns this shape or `null`). */
+const BANNER: AdminDegradedBannerDto = { kind: "pending-migration", accessibleText: "A database migration is pending.", actionKind: "deep-link-to-database-migration" };
 
 /** Typed fakes on the seams production injects: the host binds `dbOps`/`siteStatusRepo` to its
  *  database adapters, `isOperationInFlight` to its operation lock and `resolveDegradedBanner` to the
@@ -9,7 +14,7 @@ function bound(overrides: Partial<RecoveryStatusRouteDeps> = {}) {
   const getCapabilities = vi.fn(async () => ({ restorePoint: { costClass: "cheap" as const } }));
   const get = vi.fn(async (_workspaceId: string) => "OPEN" as string | null);
   const isOperationInFlight = vi.fn((_required: { siteId: string }) => false);
-  const resolveDegradedBanner = vi.fn((input: Parameters<RecoveryStatusRouteDeps["resolveDegradedBanner"]>[0]) => ({ seen: input.capabilities }));
+  const resolveDegradedBanner = vi.fn((_input: Parameters<RecoveryStatusRouteDeps["resolveDegradedBanner"]>[0]): AdminDegradedBannerDto | null => BANNER);
   const deps: RecoveryStatusRouteDeps = {
     workspaceId: "ws-1", dbOps: { getCapabilities }, siteStatusRepo: { get }, isOperationInFlight, resolveDegradedBanner, ...overrides,
   };
@@ -37,11 +42,12 @@ describe("recoveryStatusRoute", () => {
   });
 
   it("answers the cost class and the banner resolved from every capability source", async () => {
-    const { deps, get, isOperationInFlight } = bound();
+    const { deps, get, isOperationInFlight, resolveDegradedBanner } = bound();
     const result = await run(deps);
-    expect(result).toEqual({ ok: true, value: { costClass: "cheap", banner: { seen: {
+    expect(result).toEqual({ ok: true, value: { costClass: "cheap", banner: BANNER } });
+    expect(resolveDegradedBanner.mock.calls).toEqual([[{ capabilities: {
       costClass: "cheap", operationInFlight: false, pendingMigration: false, migrationInterrupted: false, watermarkBaselineAvailable: false,
-    } } } });
+    } }]]);
     expect(get.mock.calls).toEqual([["ws-1"]]);
     expect(isOperationInFlight.mock.calls).toEqual([[{ siteId: "ws-1" }, {}]]);
   });
@@ -50,9 +56,14 @@ describe("recoveryStatusRoute", () => {
     ["PENDING_MIGRATION", { pendingMigration: true, migrationInterrupted: false }],
     ["BLOCKED_PENDING_RECOVERY", { pendingMigration: false, migrationInterrupted: true }],
   ])("maps site status %s onto the banner flags", async (status, flags) => {
-    const { deps } = bound({ siteStatusRepo: { get: async () => status } });
-    const result = await run({ ...deps, isOperationInFlight: () => true });
-    expect(result).toMatchObject({ ok: true, value: { banner: { seen: { ...flags, operationInFlight: true } } } });
+    const { deps, resolveDegradedBanner } = bound({ siteStatusRepo: { get: async () => status } });
+    await run({ ...deps, isOperationInFlight: () => true });
+    expect(resolveDegradedBanner.mock.calls[0]?.[0].capabilities).toMatchObject({ ...flags, operationInFlight: true });
+  });
+
+  it("answers a null banner when nothing is degraded", async () => {
+    const { deps } = bound({ resolveDegradedBanner: () => null });
+    expect(await run(deps)).toEqual({ ok: true, value: { costClass: "cheap", banner: null } });
   });
 
   it("reads nothing when authorization refuses", async () => {

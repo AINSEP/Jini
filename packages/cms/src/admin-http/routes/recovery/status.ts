@@ -1,4 +1,7 @@
 import { defineJsonRoute, ok } from "@jini-ai/core/contracts/server";
+import type {
+  AdminDegradedBannerDto, AdminRecoveryCapabilities, AdminRecoveryCostClass, AdminRecoveryStatusEnvelope,
+} from "@jini-ai/core/contracts/site/cms-recovery";
 
 /**
  * @file design-spec.md §4.2/§4.4/§4.8 — `GET /api/admin/v1/recovery/status` (the capability/status
@@ -22,36 +25,22 @@ import { defineJsonRoute, ok } from "@jini-ai/core/contracts/server";
  *  - `watermarkBaselineAvailable`: `false`, matching `disclosure.ts` route's own honest stub.
  */
 
-/** The restore-point cost class the database reports (`DbOpsPort`'s capability). */
-export type RecoveryStatusCostClass = "cheap" | "expensive" | "unavailable";
-
-/** The capability flags the banner precedence reads (`@jini-ai/db/recovery/degraded-banners`). */
-export interface RecoveryStatusCapabilities {
-  costClass: RecoveryStatusCostClass;
-  operationInFlight: boolean;
-  pendingMigration: boolean;
-  migrationInterrupted: boolean;
-  watermarkBaselineAvailable: boolean;
-}
-
 /** The deps this route reads: the workspace, its two status sources, the operation-lock peek and
  * the database package's banner precedence (all bound by the host). The host adds `authorize`. */
 export interface RecoveryStatusRouteDeps {
   workspaceId: string;
-  dbOps: { getCapabilities(): Promise<{ restorePoint: { costClass: RecoveryStatusCostClass } }> };
+  dbOps: { getCapabilities(): Promise<{ restorePoint: { costClass: AdminRecoveryCostClass } }> };
   siteStatusRepo: { get(workspaceId: string): Promise<string | null | undefined> };
   isOperationInFlight: (required: { siteId: string }, optional: Record<string, never>) => boolean;
-  resolveDegradedBanner: (required: { capabilities: RecoveryStatusCapabilities }) => unknown;
+  /** The banner precedence (`@jini-ai/db/recovery/degraded-banners`); `null` when nothing is degraded. */
+  resolveDegradedBanner: (required: { capabilities: AdminRecoveryCapabilities }) => AdminDegradedBannerDto | null;
 }
 
 /** The principal fields this route reads: only its presence (authorization keys on it). */
 export interface RecoveryStatusPrincipal { id: string }
 
-/** The status bar body: the cost class and the one banner to show (or none). */
-export interface RecoveryStatusResponse { costClass: RecoveryStatusCostClass; banner: unknown }
-
 /** Framework-neutral spec; the host mounts it with direct (non-publish-credential) authorization. */
-export const recoveryStatusRoute = defineJsonRoute<undefined, RecoveryStatusResponse, RecoveryStatusRouteDeps, RecoveryStatusPrincipal>({
+export const recoveryStatusRoute = defineJsonRoute<undefined, AdminRecoveryStatusEnvelope, RecoveryStatusRouteDeps, RecoveryStatusPrincipal>({
   method: "get",
   path: "/api/admin/v1/recovery/status",
   parse: () => ok({ value: undefined }),
