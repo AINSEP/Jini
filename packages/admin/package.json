@@ -176,6 +176,7 @@
       "./screens/forms/index-aligned-translations": "universal",
       "./screens/forms/forms-field-settings-i18n": "universal",
       "./screens/forms/forms-leave-guard-i18n": "universal",
+      "./screens/plugins/plugins-i18n": "universal",
       "./security/security-i18n": "universal",
       "./screens/collections/collections-i18n": "universal",
       "./screens/taxonomy/taxonomy-i18n": "universal",
@@ -223,6 +224,9 @@
       "./screens/plugins/hooks/plugin-install-port.hooks": "universal",
       "./screens/plugins/hooks/plugins-port.hooks": "universal",
       "./screens/plugins/PluginProviderSettingField.hooks": "browser",
+      "./screens/plugins/hooks/use-plugin-provider-settings.hooks": "browser",
+      "./screens/plugins/AgentPlugins.hooks": "browser",
+      "./screens/providers/hooks/use-providers.hooks": "browser",
       "./sites/transfer/use-export-password.hooks": "browser",
       "./shell/lib/live-tiptap-editor": "universal",
       "./shell/lib/media-image-extension.hooks": "universal",
@@ -1180,6 +1184,11 @@
       "import": "./dist/screens/forms/forms-leave-guard-i18n.js",
       "default": "./dist/screens/forms/forms-leave-guard-i18n.js"
     },
+    "./screens/plugins/plugins-i18n": {
+      "types": "./dist/screens/plugins/plugins-i18n.d.ts",
+      "import": "./dist/screens/plugins/plugins-i18n.js",
+      "default": "./dist/screens/plugins/plugins-i18n.js"
+    },
     "./security/security-i18n": {
       "types": "./dist/security/security-i18n.d.ts",
       "import": "./dist/security/security-i18n.js",
@@ -1389,6 +1398,21 @@
       "types": "./dist/screens/plugins/selected-skills.d.ts",
       "import": "./dist/screens/plugins/selected-skills.js",
       "default": "./dist/screens/plugins/selected-skills.js"
+    },
+    "./screens/plugins/hooks/use-plugin-provider-settings.hooks": {
+      "types": "./dist/screens/plugins/hooks/use-plugin-provider-settings.hooks.d.ts",
+      "import": "./dist/screens/plugins/hooks/use-plugin-provider-settings.hooks.js",
+      "default": "./dist/screens/plugins/hooks/use-plugin-provider-settings.hooks.js"
+    },
+    "./screens/plugins/AgentPlugins.hooks": {
+      "types": "./dist/screens/plugins/AgentPlugins.hooks.d.ts",
+      "import": "./dist/screens/plugins/AgentPlugins.hooks.js",
+      "default": "./dist/screens/plugins/AgentPlugins.hooks.js"
+    },
+    "./screens/providers/hooks/use-providers.hooks": {
+      "types": "./dist/screens/providers/hooks/use-providers.hooks.d.ts",
+      "import": "./dist/screens/providers/hooks/use-providers.hooks.js",
+      "default": "./dist/screens/providers/hooks/use-providers.hooks.js"
     },
     "./screens/plugins/hooks/use-plugin-row-focus.hooks": {
       "types": "./dist/screens/plugins/hooks/use-plugin-row-focus.hooks.d.ts",
