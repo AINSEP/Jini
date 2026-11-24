@@ -33,7 +33,8 @@ export function memberChallengeStore(required: {
         await repo.consume({ workspaceId: input.workspaceId, id: input.id, consumedAt: input.nowIso });
         return true;
       } catch (error) {
-        // Only the repo's typed single-use rejections are invalid credentials. Outages must surface.
+        // Only the repo's known single-use rejections are invalid credentials. Outages must surface.
+        // They are recognised by their type (MagicLinkTokenRejectedError), never by message text.
         if (error instanceof MagicLinkTokenRejectedError) return false;
         throw error;
       }

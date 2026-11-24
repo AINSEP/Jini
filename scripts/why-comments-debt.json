@@ -1668,6 +1668,74 @@
     {
       "id": "f0ea9462ab11",
       "reason": "w5-admin (coordinator decision 7): the injectedHooks doc was generalised, not dropped; the defaulted `{ useFooHook = useFoo }` form it named is still quoted in the rewritten injectedHooks doc, which now also covers REQUIRED hook props, plain hook parameters and `const { useFoo } = props` (scripts/check-hook-injection-lib.mjs)."
+    },
+    {
+      "id": "ab2c42086878",
+      "reason": "Behaviour inverted by bb7ff2705 (B143/C131): a stream that closes with no terminal frame used to count as `succeeded` and write RUN_FINISHED (the 'dual-completion posture' this doc described); it is now a failed run that writes RUN_ERROR. The code the sentences explained is deleted (event-projection.ts drainRunFramesToAgUi, 'The daemon always ends a run' comment at :289 and the rewritten doc at :260-265 say why)."
+    },
+    {
+      "id": "2235d3f5a6f1",
+      "reason": "Assertion inverted by db09c43f5 (B174): a retried reply now gets a fresh message id and no inherited runId, so the 'falls back to the prior run-1 id' behaviour this comment explained no longer exists. The same test now carries the replacement why-comment at useConversation.test.ts:285-288 and asserts runId is undefined."
+    },
+    {
+      "id": "aed6e075ad52",
+      "reason": "The condition it explained ('not yet a MediaRecord field') ended in 6eedab53a (G7-9): MediaRecord.captions now exists (media/types.ts:128-133), so the sentence is false; the interface keeps its one-line purpose doc at :136."
+    },
+    {
+      "id": "e2ad225cb94a",
+      "reason": "Owner policy changed in f4d1d64e9 (G7-6/G7-7): captured bodies are kept 7 days, not 24 hours, and the boundary is strict `<`. The surviving true half (unresolved reservations and verified feedback event ids keep replay protection) is retained in the rewritten header at retention.ts:1-4."
+    },
+    {
+      "id": "8e04333b88d9",
+      "reason": "Rewritten in f4d1d64e9: the purge now injects the clock AND both retention windows via MailRetentionOptions (not 'timestamps and the clock'); the @complexity line is unchanged and kept at retention.ts:14-16."
+    },
+    {
+      "id": "d3f65fe18dce",
+      "reason": "Path qualifier only: the 'Jini ' prefix named the repo while the mirrored type lived outside it; core/contracts/hosted-mcp/admissions.ts is in Jini itself, so `packages/mcp/src/federation/trust.ts` is same-repo. The sentence is otherwise identical (the matching wording survives at admissions.ts:17 and in site/cms-external-mcp.ts)."
+    },
+    {
+      "id": "9d2472b1466f",
+      "reason": "Moved in 80f26707b collapse of publish/content/dialog into ui (single owner): same header at ui/contract.ts:1-9 with only the module name updated, because `report-contract.ts` no longer exists (the report DTO now comes from @jini-ai/core/contracts/site/cms-publish-content)."
+    },
+    {
+      "id": "6f2f4884e14c",
+      "reason": "Moved in 80f26707b collapse of publish/content/dialog into ui (single owner): the first paragraph is verbatim at ui/criteria.ts:1-9; the second (why PUBLISH_CONTENT_CAPABILITY is left untyped to satisfy ui-stays-client-safe.boundary.test.ts) went with that constant to the host: Tovu apps/website/src/features/publish-content/ui/policy.ts:385-390, where the capability is now defined."
+    },
+    {
+      "id": "3fd9ac05307a",
+      "reason": "Moved in 80f26707b collapse of publish/content/dialog into ui (single owner): identical doc at ui/criteria.ts:99-121; the single changed phrase names 'the host capability's inputSchema' because PUBLISH_CONTENT_CAPABILITY now lives in the host (Tovu publish-content/ui/policy.ts), not in Jini."
+    },
+    {
+      "id": "43f33f7362a0",
+      "reason": "Moved in 80f26707b collapse of publish/content/dialog into ui (single owner): same doc at ui/criteria.ts:245-253; MAX_LIST_LENGTH/MAX_ENTRY_LENGTH are now injected as `limits.maxListLength`/`limits.maxEntryLength` (PublishCriteriaLimits), so the {@link} targets no longer exist."
+    },
+    {
+      "id": "76399d2a31f4",
+      "reason": "Moved in 80f26707b collapse of publish/content/dialog into ui (single owner): the header lives at ui/index.ts:1-23 (neutral public surface; the 'what belongs in this folder' paragraphs are carried over there). The old opening cited `@jini-ai/cms/publish/content/dialog` and the host-injected PublishEntityTypeLabeler, both deleted."
+    },
+    {
+      "id": "1483c3908089",
+      "reason": "canConfirmPlan no longer counts rows by publishRowDisposition; it counts via summarizePublishReport (ui/phase.ts:68-73), so the paragraph 'Counts by publishRowDisposition directly' and its O(n)-stops-at-first-writing-row complexity are false. The still-true first two paragraphs are kept verbatim at phase.ts:60-67."
+    },
+    {
+      "id": "aaf4a5b73f2f",
+      "reason": "Moved in 80f26707b collapse of publish/content/dialog into ui (single owner): reason copy was merged into ui/report-rows.ts (friendlyPublishReason :189, PublishReasonPolicy :144); report-reasons.ts no longer exists, so the 'split out of report-rows.ts' header is false."
+    },
+    {
+      "id": "4628ed2c7f33",
+      "reason": "Moved: ALREADY_FINAL_PREFIX is now host policy (PublishReasonPolicy.alreadyFinalPrefix, ui/report-rows.ts:144-148); the constant and its comment live in Tovu apps/website/src/features/publish-content/ui/policy.ts:27-30."
+    },
+    {
+      "id": "91c377a40a74",
+      "reason": "Moved in 80f26707b collapse of publish/content/dialog into ui (single owner): same doc on friendlyPublishReason at ui/report-rows.ts:176-189; REASON_REWRITES/NAMED_FILE_REWRITES/GENERIC_TREE_WRAP_PATTERN are now injected policy tables, so the {@link} targets were replaced by 'the policy's rewrite tables or generic wrap pattern'."
+    },
+    {
+      "id": "521ac7a0a3c6",
+      "reason": "Moved in 80f26707b collapse of publish/content/dialog into ui (single owner): same doc at ui/report-rows.ts:48-50; the labeler is no longer an injected PublishEntityTypeLabeler (deleted) but the host section table in ui/sections.ts, which the doc now names."
+    },
+    {
+      "id": "46e0367f7cbc",
+      "reason": "PublishEntityTypeLabeler was deleted in 80f26707b collapse of publish/content/dialog into ui (single owner); its doc moved to entityTypeLabelFor (ui/report-rows.ts:261-264) and publishEntityTypeLabel (ui/sections.ts:46-47), which read the host section table directly."
     }
   ]
 }

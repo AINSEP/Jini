@@ -98,14 +98,22 @@ export interface PublishContentReportDto {
   readonly rows: readonly PublishContentOutcomeRowDto[];
 }
 
-/** A publishing destination as it may leave the server. `masked` and `hasCredential` are the ONLY
- *  credential-shaped fields: no sealed material can ride on a value of this type, which is how the
- *  frozen peers contract keeps secrets out of every response body by construction. */
+/**
+ * One configured publish target, as `GET .../publish-content/peers` returns it.
+ *
+ * `masked` and `hasCredential` are the ONLY credential-shaped fields that exist on the client at
+ * all. The sealed material behind them never leaves the server — nothing in this folder, in the
+ * admin dialog, or in any error path may request, render, log or store it.
+ *
+ * A publishing destination as it may leave the server: no sealed material can ride on a value of this
+ * type, which is how the frozen peers contract keeps secrets out of every response body by construction.
+ */
 export interface PublishContentPeerView {
   readonly id: string;
   readonly label: string;
   readonly baseUrl: string;
   readonly remoteWorkspaceId: string;
+  /** A display hint derived from the key, never the key. `null` when the peer holds no credential. */
   readonly masked: string | null;
   readonly hasCredential: boolean;
 }

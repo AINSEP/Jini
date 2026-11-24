@@ -7,6 +7,19 @@
  * product's own wording and tables (reason rewrites, section table, entity-type aliases, query limits,
  * capability copy) are INJECTED by the host (see `PublishReportPolicy`, `PublishCriteriaLimits`,
  * `definePublishSection`); this module names none of them.
+ *
+ * ## What belongs in this folder, and what does not
+ *
+ * It holds the publish dialog's *semantics*: which rows a run writes, what each outcome is called,
+ * and when the ceremony may advance. It is ONE shared module for both the browser dialog and the
+ * server-side publish tool because a second copy of those rules could drift from the planner's real
+ * behaviour without anything going red.
+ *
+ * The React component and the hook that calls the API stay with the host's admin app: a component
+ * here would drag React into every server-side importer of these rules, and a host bundler that
+ * dedupes React across packages must never meet a second React dependency from this folder.
+ *
+ * The host keeps a boundary test that these files take no value import on server code.
  */
 export type {
   PublishContentConfirmResult,

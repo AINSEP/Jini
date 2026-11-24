@@ -99,7 +99,7 @@ function windowBound({ label, value }: { label: string; value: unknown }): strin
   return typeof value === 'number' && Number.isSafeInteger(value) && value >= 0 ? `${label} ${value}` : undefined;
 }
 
-/** Preserve absent/invalid offsets and limits; explicit zero still distinguishes a first-page read.
+/** Preserve absent/invalid offsets; explicit zero still distinguishes a first-page read. Limits follow the same rule.
  * The read window (offset and/or limit) is appended so two reads of one file stay distinguishable.
  */
 export function targetAtOffset({ target, offset, limit }: { target: string | undefined; offset: unknown; limit?: unknown }, _options = {}): string | undefined {

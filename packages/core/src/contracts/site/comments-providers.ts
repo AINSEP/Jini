@@ -1,5 +1,9 @@
 /** Provider-neutral comments boundaries. Private moderation data never enters thread rendering. */
-/** Provider-neutral comments provider contracts (type-only). Registry/definition/selection-store/renderer boundaries
+/** @file Comments provider contracts. Types only; this module owns the declarations that
+ * `@jini-ai/capability-providers/comments` (`definitions.ts`, `ports.ts`, `registry.ts`) used to
+ * declare. That package imports them from here and keeps its runtime values.
+ *
+ * Provider-neutral comments provider contracts (type-only). Registry/definition/selection-store/renderer boundaries
  * live in core so the cms comments owner can be typed against them while hosts inject the runtime registry factory. */
 export type CommentStatus = 'pending' | 'approved' | 'spam' | 'trash';
 /** Optional executable assets are declared separately; ordinary thread HTML remains visible. */
