@@ -7,6 +7,8 @@ import * as runGuarded from '../run-guarded-chat-store.js';
 import * as expirySweep from '../chat-expiry-sweep.js';
 import * as historyTools from '../history-tools.js';
 import * as chatPrincipal from '../chat-principal.js';
+import * as chatMaintenance from '../chat-maintenance.js';
+import * as lazyRunLedger from '../lazy-run-ledger.js';
 import { runtimeFixture, type RuntimeFixture } from './runtime-fixture.js';
 
 let f: RuntimeFixture;
@@ -14,7 +16,7 @@ afterEach(() => { f?.close(); });
 
 describe('store/runtime entry', () => {
   it('re-exports every runtime value of its implementation modules unchanged, and nothing else', () => {
-    const modules = [durableRunStore, runLedger, chatHistoryStore, runGuarded, expirySweep, historyTools, chatPrincipal];
+    const modules = [durableRunStore, runLedger, chatHistoryStore, runGuarded, expirySweep, historyTools, chatPrincipal, chatMaintenance, lazyRunLedger];
     const expected = Object.fromEntries(modules.flatMap((module) => Object.entries(module)));
     expect(Object.keys(entry).sort()).toEqual(Object.keys(expected).sort());
     for (const [name, value] of Object.entries(expected)) expect(entry).toHaveProperty(name, value);
