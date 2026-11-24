@@ -1,6 +1,6 @@
 import { forwardRef, useEffect, useMemo, useRef, useState, type RefObject } from 'react';
 import type { FetchQueryAdapter, QueryResult } from '@jini-ai/core/fetch';
-import { type AdminKit, type DialogProps, type NativeDialogView, type SettlementGeneration, type ButtonProps, type IconButtonProps, type AdminKitComponents, type AdminKitHooks, type AdminKitValues, type AdminThemeKit, type KitTranslator, type AdminKitChat, type KitDeliverTypedAnswer, type PanelPosition, type FailureChannel, type StandingDraftAutosaveSnapshot, type StandingDraftLocalBackup } from './kit.js';
+import { type AdminKit, type DialogProps, type NativeDialogView, type SettlementGeneration, type ButtonProps, type IconButtonProps, type AdminKitComponents, type AdminKitHooks, type AdminKitValues, type AdminThemeKit, type KitTranslator, type AdminKitChat, type KitDeliverTypedAnswer, type PanelPosition, type FailureChannel, type StandingDraftAutosaveSnapshot, type StandingDraftLocalBackup, type SaveState } from './kit.js';
 import type { UserFacingError } from '@jini-ai/core';
 import { fakeMediaProviders } from './testing-kit-media-providers.js';
 
@@ -231,11 +231,12 @@ const fakeValues: AdminKitValues = Object.freeze({
   },
   resolveInitialActiveTabId: (r: { tabs: readonly { id: string }[] }, o: { initialTabId?: string | null | undefined } = {}) =>
     (o.initialTabId != null && r.tabs.some((tab) => tab.id === o.initialTabId) ? o.initialTabId : r.tabs[0]?.id ?? null),
-  readableTextColor: ({ hex }) => (hex.toLowerCase() === '#ffffff' ? '#000000' : '#ffffff'),
-  canAcceptRefresh: (state) => !state.timerPending && !state.hasUnsavedEdits && state.mounted && state.commitsUnchanged,
-  mergeSaveStates: ({ states }) => states.find((state) => state.status === 'error') ?? states.find((state) => state.status === 'saving') ?? states.find((state) => state.status === 'saved') ?? { status: 'idle' },
+  readableTextColor: ({ hex }: { hex: string }) => (hex.toLowerCase() === '#ffffff' ? '#000000' : '#ffffff'),
+  canAcceptRefresh: (state: { timerPending: boolean; hasUnsavedEdits: boolean; mounted: boolean; commitsUnchanged: boolean }) => !state.timerPending && !state.hasUnsavedEdits && state.mounted && state.commitsUnchanged,
+  mergeSaveStates: ({ states }: { states: readonly SaveState[] }): SaveState => states.find((state) => state.status === 'error') ?? states.find((state) => state.status === 'saving')
+    ?? states.find((state) => state.status === 'saved') ?? { status: 'idle' },
   SAVE_DEBOUNCE_MS: 600,
-  startVisibleInterval: ({ tick, periodMs }) => { const id = setInterval(tick, periodMs); return () => clearInterval(id); },
+  startVisibleInterval: ({ tick, periodMs }: { tick: () => void; periodMs: number }) => { const id = setInterval(tick, periodMs); return () => clearInterval(id); },
   findActiveTab: <T extends { id: string }>(r: { tabs: readonly T[]; activeTabId: string | null }) => r.tabs.find((tab) => tab.id === r.activeTabId),
 });
 
