@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { expectTypeOf, test } from "vitest";
 
-import type { AdminExternalMcpAdmissionsSnapshot, AdminFederatedAdmissionEntry, AdminToolRefusalReason } from "../hosted-mcp.js";
+import type { AdminExternalMcpAdmissionsSnapshot, AdminFederatedAdmissionEntry, AdminToolRefusalReason } from "../contracts/hosted-mcp.js";
 
 /**
  * @file Pins the external-MCP admission wire shape this package owns (moved from the host admin).

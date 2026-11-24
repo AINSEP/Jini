@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { expectTypeOf, test } from "vitest";
 
-import type { AttachmentClaim, AttachmentStore, PendingAttachmentSummary, StoredAttachment } from "../daemon-http.js";
+import type { AttachmentClaim, AttachmentStore, PendingAttachmentSummary, StoredAttachment } from "../contracts/site/daemon-http.js";
 
 /**
  * @file Pins the run-attachment lookup port this package owns (`AttachmentStore` / `AttachmentClaim`,
