@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
-import type { EmailApi, MailActivityDetail, MailActivityFilter, MailActivityPage, MailSuppressionEntry, MailSuppressionRemovalPlan } from "../email-api.types.js";
+import type { EmailApi, MailActivityDetail, MailActivityFilter, MailActivityPage, MailCaptureClearPlan, MailSuppressionEntry, MailSuppressionRemovalPlan } from "../email-api.types.js";
 import type { MailFeedbackSetupReport } from "@jini-ai/core/contracts/site/platform-mail";
 import { errorMessage, isForbidden, useLoad, type LoadView, type EmailLoadApiError } from "./email-load.hooks.js";
 
@@ -13,6 +13,10 @@ import { errorMessage, isForbidden, useLoad, type LoadView, type EmailLoadApiErr
  * WITHOUT `confirmed` to get the plan (what was blocked, why, the warnings), then again with
  * `confirmed: true` and that plan's `revision`. The person must give a reason; the server records
  * it and refuses without one, and refuses anyone without `mail.suppressions.manage` (owner).
+ *
+ * "Clear all test emails" (`POST …/mail-capture/clear`) is the same two steps: a bodyless preview
+ * answers the count and a `revision`, and only a confirmed request carrying that revision deletes.
+ * It is offered only to a holder of `mail.capture.clear` (owner).
  */
 
 /** A list that grows by "Load more"; a failed later page keeps what is shown. */
@@ -27,6 +31,30 @@ export interface PagedList<T> {
 export type RemovalStep =
   | { kind: "reason"; entry: MailSuppressionEntry; reason: string; error: string | null; pending: boolean }
   | { kind: "confirm"; entry: MailSuppressionEntry; plan: MailSuppressionRemovalPlan; error: string | null; pending: boolean };
+
+/** The permission that lets a person clear every captured test email (owner only). */
+const CAPTURE_CLEAR_PERMISSION = "mail.capture.clear";
+
+/** Shown when the captured emails changed between the preview and the confirm (HTTP 400). */
+export const STALE_CAPTURE_MESSAGE = "The test emails changed. Review and confirm again.";
+
+export type CaptureClearState =
+  | { kind: "idle" }
+  | { kind: "checking" }
+  | { kind: "confirm"; plan: MailCaptureClearPlan; revision: string; error: string | null; pending: boolean }
+  | { kind: "empty" }
+  | { kind: "cleared"; deleted: number }
+  | { kind: "error"; message: string };
+
+/** Clearing captured test emails: preview → confirm with that preview's revision. */
+export interface CaptureClearFlow {
+  /** Whether the person holds `mail.capture.clear` and the host can clear at all. */
+  canClear: boolean;
+  state: CaptureClearState;
+  start: () => Promise<void>;
+  confirm: () => Promise<void>;
+  cancel: () => void;
+}
 
 export interface EmailActivityController {
   filter: MailActivityFilter;
@@ -45,6 +73,7 @@ export interface EmailActivityController {
   cancelRemoval: () => void;
   removedNotice: string | null;
   feedback: LoadView<MailFeedbackSetupReport>;
+  capture: CaptureClearFlow;
 }
 
 const MIN_REASON = 3;
@@ -142,14 +171,61 @@ function useRemovalFlow(required: { api: Pick<EmailApi, "removeSuppression">; re
   return { removal, startRemoval, setRemovalReason, continueRemoval, cancelRemoval, removedNotice };
 }
 
+/** The words for a failed clear: the owner-only refusal, a changed set, or the server's own safe message. */
+function captureFailure({ error, ApiError }: { error: unknown; ApiError: EmailLoadApiError }, _options = {}): string {
+  if (isForbidden({ error, ApiError })) return "Only the site owner can clear test emails.";
+  if (error instanceof ApiError && error.status === 400) return STALE_CAPTURE_MESSAGE;
+  return errorMessage({ error, ApiError });
+}
+
+/**
+ * The clear-all-test-emails steps of the Activity tab (see the file header for the two-step contract).
+ * A changed set (400) ends the flow with a plain-words error: the next `start` previews afresh, so an
+ * outdated revision is never resent. Nothing is deleted unless `confirm` runs on a `confirm` state.
+ * @param required.api - only `clearCaptured`; absent when the host has no capture store.
+ * @param required.permissions - the session's effective permissions (`undefined` while unknown).
+ */
+export function useCaptureClearFlow(required: { api: Pick<EmailApi, "clearCaptured">; permissions: readonly string[] | undefined; ApiError: EmailLoadApiError }): CaptureClearFlow {
+  const { api, permissions, ApiError } = required;
+  const clear = api.clearCaptured;
+  const canClear = clear !== undefined && permissions !== undefined && (permissions.includes("*") || permissions.includes(CAPTURE_CLEAR_PERMISSION));
+  const [state, setState] = useState<CaptureClearState>({ kind: "idle" });
+  const start = useCallback(async () => {
+    if (!canClear || !clear) return;
+    setState({ kind: "checking" });
+    try {
+      const { plan, revision } = await clear();
+      if (!plan || revision === undefined) throw new Error("The server did not say what would be cleared.");
+      setState(plan.count === 0 ? { kind: "empty" } : { kind: "confirm", plan, revision, error: null, pending: false });
+    } catch (error) {
+      setState({ kind: "error", message: captureFailure({ error, ApiError }) });
+    }
+  }, [canClear, clear, ApiError]);
+  const confirm = useCallback(async () => {
+    if (!canClear || !clear || state.kind !== "confirm" || state.pending) return;
+    const { plan, revision } = state;
+    setState({ ...state, pending: true, error: null });
+    try {
+      const answer = await clear({ confirm: { revision } });
+      setState({ kind: "cleared", deleted: answer.deleted ?? plan.count });
+    } catch (error) {
+      const message = captureFailure({ error, ApiError });
+      setState(error instanceof ApiError && error.status === 400 ? { kind: "error", message } : { ...state, pending: false, error: message });
+    }
+  }, [canClear, clear, state, ApiError]);
+  const cancel = useCallback(() => setState({ kind: "idle" }), []);
+  return { canClear, state, start, confirm, cancel };
+}
+
 /**
  * @param required.api - the Email API port; a fake in tests.
  * @param required.ApiError - the host's transport error class (`message`, `status`; 403 reads as forbidden).
  * @param optional.debounceMs - text-filter settle time; 0 in tests.
+ * @param optional.permissions - the session's effective permissions; "Clear test emails" shows only with `mail.capture.clear`.
  */
 export function useEmailActivity(
-  required: { api: Pick<EmailApi, "listActivity" | "getActivity" | "listSuppressions" | "removeSuppression" | "readFeedback">; ApiError: EmailLoadApiError },
-  optional: { debounceMs?: number } = {},
+  required: { api: Pick<EmailApi, "listActivity" | "getActivity" | "listSuppressions" | "removeSuppression" | "readFeedback" | "clearCaptured">; ApiError: EmailLoadApiError },
+  optional: { debounceMs?: number; permissions?: readonly string[] | undefined } = {},
 ): EmailActivityController {
   const { api, ApiError } = required;
   const debounceMs = optional.debounceMs ?? 350;
@@ -185,9 +261,10 @@ export function useEmailActivity(
   const { removal, startRemoval, setRemovalReason, continueRemoval, cancelRemoval, removedNotice } = useRemovalFlow({ api, reloadSuppressions: suppressions.reload, ApiError });
 
   const { view: feedback } = useLoad({ ApiError, load: useCallback(() => api.readFeedback(), [api]) });
+  const capture = useCaptureClearFlow({ api, permissions: optional.permissions, ApiError });
 
   return useMemo(() => ({
     filter, setFilter, activity, openId, detail, toggleDetail, search, setSearch, suppressions,
-    removal, startRemoval, setRemovalReason, continueRemoval, cancelRemoval, removedNotice, feedback,
-  }), [filter, activity, openId, detail, toggleDetail, search, suppressions, removal, startRemoval, setRemovalReason, continueRemoval, cancelRemoval, removedNotice, feedback]);
+    removal, startRemoval, setRemovalReason, continueRemoval, cancelRemoval, removedNotice, feedback, capture,
+  }), [filter, activity, openId, detail, toggleDetail, search, suppressions, removal, startRemoval, setRemovalReason, continueRemoval, cancelRemoval, removedNotice, feedback, capture]);
 }

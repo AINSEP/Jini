@@ -180,7 +180,7 @@ export const mailSuppressionRemoveRoute = defineJsonRoute<{ body: Record<string,
 
 /**
  * `POST .../system/mail-capture/clear`: deletes every captured test email of this workspace. Like
- * suppression removal it only previews (`{ cleared: false, confirmationRequired: true, plan }`)
+ * suppression removal it only previews (`{ cleared: false, confirmationRequired: true, plan, revision }`)
  * unless `confirmed` is exactly `true`, and a confirmed clear must carry the previewed revision.
  * @complexity O(1) plus the injected plan and clear.
  */
@@ -190,7 +190,7 @@ export const mailCaptureClearRoute = defineJsonRoute<{ body: Record<string, unkn
   parse: (raw) => ok({ value: { body: bodyRecord({ body: raw.body }) } }),
   handle: ({ input, deps, context }) => withActivityFailures({ classify: deps.classifyMailActivityError, run: async () => {
     const { plan, revision, clear } = await deps.planCaptureClear({ principalId: mailActorId({ context }) });
-    if (input.body.confirmed !== true) return ok({ value: { cleared: false, confirmationRequired: true, plan } });
+    if (input.body.confirmed !== true) return ok({ value: { cleared: false, confirmationRequired: true, plan, revision } });
     if (input.body.revision !== revision) throw new ToolInputError({ message: "Captured test emails changed or no reviewed revision was supplied. Review and confirm again." });
     return ok({ value: await clear() });
   } }),

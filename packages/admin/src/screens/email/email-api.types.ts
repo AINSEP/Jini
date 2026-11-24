@@ -159,6 +159,21 @@ export interface MailSuppressionRemovalPlan {
   warnings: string[];
 }
 
+/** What a clear-all of captured test emails would delete: how many, and the newest one's time (`null` when none). */
+export interface MailCaptureClearPlan {
+  count: number;
+  newestAt: string | null;
+}
+
+/** The preview (`confirmationRequired`, `plan`, `revision`) or the confirmed clear (`cleared`, `deleted`) of captured test emails. */
+export interface MailCaptureClearAnswer {
+  cleared: boolean;
+  confirmationRequired?: true;
+  plan?: MailCaptureClearPlan;
+  revision?: string;
+  deleted?: number;
+}
+
 // --- templates (`@jini-ai/platform/mail/email-template-operations`) ------------------------
 
 export interface EmailTemplateField {
@@ -209,6 +224,12 @@ export interface EmailApi {
     required: { address: string; scope: MailSuppressionScope; reason: string },
     options?: { confirm?: { revision: string } },
   ) => Promise<{ removed: boolean; confirmationRequired?: true; plan?: MailSuppressionRemovalPlan }>;
+  /**
+   * Clear every captured test email (owner only, `mail.capture.clear`). Without `confirm` it only
+   * previews (`plan` + `revision`); with it, `revision` must be the previewed one. Optional so a host
+   * that has no capture store simply never offers the action.
+   */
+  clearCaptured?: (options?: { confirm?: { revision: string } }) => Promise<MailCaptureClearAnswer>;
   readFeedback: () => Promise<MailFeedbackSetupReport>;
   listTemplates: () => Promise<{ templates: EmailTemplateSummary[]; nextCursor?: string }>;
   createTemplate: (required: { name: string }) => Promise<EmailTemplateDetail>;
