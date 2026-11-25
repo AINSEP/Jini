@@ -74,7 +74,6 @@ import { defaultRemoveMcpJsonFile } from './mcp-json-file.js';
 import { CODEX_HOME_ENV, codexHttpMcpStaging, prepareCodexHomeIfNeeded, withStagedCodexHome } from './codex/home-staging.js';
 import { CLAUDE_CONFIG_DIR_ENV, prepareClaudeConfigDirIfNeeded, withStagedClaudeConfigDir } from './claude/config-dir.js';
 import { claudeFilesystemAdapter } from './claude/filesystem.js';
-import { AMR_OPENCODE_BIN_ENV } from './amr/executable-env.js';
 import {
   acquireRuntimeLockIfConfigured,
   armHandoffWatcher,
@@ -177,7 +176,7 @@ function toStringEnvRecord(env: NodeJS.ProcessEnv): Record<string, string> {
  * Returns an independent allowlisted record. @complexity O(1), fixed key list. */
 export function selectAgentExecutorHostEnv({ env, hostEnvNames }: { env: NodeJS.ProcessEnv; hostEnvNames: readonly string[] }, _optional: Record<string, never> = {}): NodeJS.ProcessEnv {
   const selected = buildAgentEnv({ hostEnv: env });
-  for (const key of [CODEX_HOME_ENV, CLAUDE_CONFIG_DIR_ENV, AMR_OPENCODE_BIN_ENV, 'AGENT_RUNTIME_HOME', 'AGENT_RUNTIME_RESOURCE_ROOT', 'VP_HOME', 'NPM_CONFIG_PREFIX', 'npm_config_prefix', 'APPDATA', 'LOCALAPPDATA', 'MISE_DATA_DIR', 'FNM_DIR'] as const) {
+  for (const key of [CODEX_HOME_ENV, CLAUDE_CONFIG_DIR_ENV, 'AGENT_RUNTIME_HOME', 'AGENT_RUNTIME_RESOURCE_ROOT', 'VP_HOME', 'NPM_CONFIG_PREFIX', 'npm_config_prefix', 'APPDATA', 'LOCALAPPDATA', 'MISE_DATA_DIR', 'FNM_DIR'] as const) {
     if (typeof env[key] === 'string') selected[key] = env[key];
   }
   // Host-configured resolution names are explicit configuration (the runtime's `launch.hostEnvNames()`), never a scan of the env bag.
@@ -877,12 +876,20 @@ function codexHttpMcpInput({ def, preparedHttpMcp }: { def: RuntimeAgentDef; pre
 
 /** `opencode` receives the HTTP MCP endpoint through its inline config env; every other def keeps the spawn env. */
 function httpMcpSpawnEnv(
-  { def, spawnEnv, preparedHttpMcp }: { def: RuntimeAgentDef; spawnEnv: NodeJS.ProcessEnv; preparedHttpMcp: PreparedHttpMcp | null },
+  { def, spawnEnv, preparedHttpMcp, envVar }: { def: RuntimeAgentDef; spawnEnv: NodeJS.ProcessEnv; preparedHttpMcp: PreparedHttpMcp | null; envVar: string | undefined },
   _options = {},
 ): NodeJS.ProcessEnv {
-  return preparedHttpMcp
-    ? HTTP_MCP_ENV_ADAPTERS.get(def.id)?.({ env: spawnEnv, endpoint: preparedHttpMcp.endpoint }) ?? spawnEnv
+  // The variable's name is the runtime's to bind; without one there is no document to merge the endpoint into.
+  const adapter = envVar === undefined ? undefined : HTTP_MCP_ENV_ADAPTERS.get(def.id);
+  return preparedHttpMcp && envVar !== undefined
+    ? adapter?.({ env: spawnEnv, endpoint: preparedHttpMcp.endpoint, envVar }) ?? spawnEnv
     : spawnEnv;
+}
+
+/** The runtime's bound MCP delivery slot for `def`, as the optional dep `resolveMcpBridgeForRun` reads. */
+function mcpDeliveryDep({ agentRuntime, def }: { agentRuntime: Pick<AgentRuntimePort, 'strategies'>; def: RuntimeAgentDef }, _options = {}): { mcpDelivery?: NonNullable<ReturnType<AgentRuntimePort['strategies']['for']>['mcpDelivery']> } {
+  const mcpDelivery = agentRuntime.strategies.for({ def }).mcpDelivery;
+  return mcpDelivery === undefined ? {} : { mcpDelivery };
 }
 
 /** A required transport refusal is actionable without exposing listener/configuration details. */
@@ -1162,6 +1169,7 @@ export function createAgentExecutor(requiredArgs: Pick<CreateAgentExecutorOption
           child,
           lifecycle,
           streams: agentRuntime.streams,
+          strategies: agentRuntime.strategies,
           identityKind: (required) => agentRuntime.models.identityKind(required),
           listProcessSnapshots: listProcessSnapshotsFn,
           collectProcessTreePids: collectProcessTreePidsFn,
@@ -1455,7 +1463,7 @@ export function createAgentExecutor(requiredArgs: Pick<CreateAgentExecutorOption
     // the five mechanisms ends up carrying it. `null` for an unconfigured host or a def declaring
     // no strategy — see `buildMcpBridgeDelivery`'s doc.
     preparedHttpMcp = await prepareRunHttpMcp({ input, def, cleanupStagedFiles });
-    const mcpBridge = preparedHttpMcp ? null : await resolveMcpBridgeForRun({ input: { runId: input.runId, cwd: input.cwd, def, ...nativeCapabilityInput({ input }, {}) }, deps: { mcpJsonInjection, cleanupStagedFiles, failBeforeSpawn, fileLock: runtime.fileLock, writer: runtime.writer } }
+    const mcpBridge = preparedHttpMcp ? null : await resolveMcpBridgeForRun({ input: { runId: input.runId, cwd: input.cwd, def, ...nativeCapabilityInput({ input }, {}) }, deps: { mcpJsonInjection, cleanupStagedFiles, failBeforeSpawn, fileLock: runtime.fileLock, writer: runtime.writer, ...mcpDeliveryDep({ agentRuntime, def }) } }
     );
 
     const baseRuntimeContext = computeRuntimeContext({ preparedPromptFile, preparedLogFile, mcpBridge }, sessionRuntimeContext(input, {}));
@@ -1537,7 +1545,7 @@ export function createAgentExecutor(requiredArgs: Pick<CreateAgentExecutorOption
     // `McpBridgeDelivery`'s `'codex-toml'` variant doc for why it cannot be pre-computed the way
     // `'claude-mcp-json'`'s deterministic path is). Nothing between the old, earlier call site and
     // here ever read `childEnv`, so moving the call cost nothing.
-    const httpSpawnEnv = httpMcpSpawnEnv({ def, spawnEnv, preparedHttpMcp });
+    const httpSpawnEnv = httpMcpSpawnEnv({ def, spawnEnv, preparedHttpMcp, envVar: agentRuntime.strategies.for({ def }).mcpDelivery?.envContentVar });
     const childEnv = computeChildEnv({ spawnEnv: httpSpawnEnv, mcpBridge }, stagedChildEnvOptions({
       def, preparedCodexHome, preparedClaudeConfigDir, preparedSystemPromptOverlayFile, systemPromptEnvOverrides,
     }, {}));

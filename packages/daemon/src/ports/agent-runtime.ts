@@ -17,6 +17,15 @@ export type AgentStreamSink = (event: Record<string, unknown>) => void;
 
 type LaunchProbe = { agentId: string; launchPath: string; env: RuntimeEnv };
 
+/** Vendor behaviour for one definition. Every slot is optional: a definition that needs none gets `{}`, and the launcher
+ * then does nothing vendor-specific for it. The binding picks each slot from what the definition declares. */
+export interface AgentRuntimeStrategies {
+  /** Re-shapes one parsed stream event so a native tool call carries its bridge-correlation candidate; absent: events pass unchanged. */
+  readonly toolCallReceipt?: (required: { event: Record<string, unknown> }) => Record<string, unknown>;
+  /** For a `*-env-content` MCP delivery: the env variable that carries the serialised config document. */
+  readonly mcpDelivery?: { readonly envContentVar: string };
+}
+
 export interface AgentRuntimePort {
   readonly defs: {
     /** The definition for an id, or `null` when the runtime does not know it. */
@@ -54,6 +63,10 @@ export interface AgentRuntimePort {
     createSupportProbe(): (required: LaunchProbe) => Promise<boolean | void>;
     runtimePaths(required: { launchPath: string }): readonly string[];
     settings(required: { options: RuntimeBuildOptions }, optional?: { platform?: NodeJS.Platform; homeDir?: string; tempDir?: string; uid?: number; realpath?: (path: string) => string }): string;
+  };
+  readonly strategies: {
+    /** The slots bound to this definition; `{}` when it declares nothing. The result is read, never mutated. */
+    for(required: { def: RuntimeAgentDef }): AgentRuntimeStrategies;
   };
   readonly models: {
     resolveForLaunch(required: { def: RuntimeAgentDef; context: ModelDiscoveryContext; effort?: string }, optional?: { signal?: AbortSignal }):

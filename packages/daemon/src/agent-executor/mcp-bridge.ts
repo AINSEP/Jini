@@ -3,12 +3,11 @@ import type { AtomicFileWriterPort, FileLockPort } from '@jini-ai/core/contracts
 import { randomBytes } from 'node:crypto';
 import { supportsMessageRelay } from './message-relay.js';
 import { ensureAntigravityMcpPermission, prepareAntigravityBridge } from './antigravity/permissions.js';
-import { OPENCODE_CONFIG_ENV } from './opencode/constants.js';
-import { MIMO_CONFIG_ENV } from './mimo/constants.js';
 import { buildClaudeMcpDelivery, writeMcpJsonForRun } from './claude/mcp-delivery.js';
 import { buildCodexMcpDelivery } from './codex/mcp-delivery.js';
 import type { McpDeliveryBuildInput } from './mcp-delivery-types.js';
 import type { AcpMcpServerInput } from '../ports/agent-runtime-sessions.js';
+import type { AgentRuntimeStrategies } from '../ports/agent-runtime.js';
 import type { RuntimeAgentDef } from '@jini-ai/core/contracts/agents';
 import {
   isRecord,
@@ -120,12 +119,18 @@ export function buildAcpMcpBridgeServers({ entry }: { readonly entry: McpJsonSer
  * config ... following the same structure as `OPENCODE_CONFIG_CONTENT`"), and differ only in which
  * env var carries it. Adding a third such CLI is a row here, not a new serializer.
  */
-type McpDeliveryBuilder = (input: McpDeliveryBuildInput) => McpBridgeDelivery;
+type McpDeliveryBuilder = (input: McpDeliveryBuildInput, strategy: AgentRuntimeStrategies['mcpDelivery']) => McpBridgeDelivery;
+
+/** The variable's name belongs to the runtime's binding, so a missing one fails the run before spawn rather than guessing. */
+function buildEnvContentDelivery({ serverEntry }: McpDeliveryBuildInput, strategy: AgentRuntimeStrategies['mcpDelivery']): McpBridgeDelivery {
+  if (strategy === undefined) throw new TypeError('An env-content MCP strategy needs the runtime to bind the variable that carries its config document');
+  return { kind: 'env-content', envVarName: strategy.envContentVar, serverEntry };
+}
 const MCP_DELIVERY_BUILDERS: Record<NonNullable<RuntimeAgentDef['externalMcpInjection']>, McpDeliveryBuilder> = {
   'claude-mcp-json': buildClaudeMcpDelivery,
   'acp-merge': ({ serverEntry }) => ({ kind: 'acp-merge', mcpServers: buildAcpMcpBridgeServers({ entry: serverEntry }) }),
-  'opencode-env-content': ({ serverEntry }) => ({ kind: 'env-content', envVarName: OPENCODE_CONFIG_ENV, serverEntry }),
-  'mimo-env-content': ({ serverEntry }) => ({ kind: 'env-content', envVarName: MIMO_CONFIG_ENV, serverEntry }),
+  'opencode-env-content': buildEnvContentDelivery,
+  'mimo-env-content': buildEnvContentDelivery,
   'codex-toml': buildCodexMcpDelivery,
   'env-passthrough': ({ serverEntry }) => ({ kind: 'env-passthrough', serverEntry }),
 };
@@ -146,6 +151,7 @@ const MCP_DELIVERY_WRITERS: ReadonlyMap<string, typeof writeMcpJsonForRun> = new
  * @param input.runId - Scopes the bridge child to this run.
  * @param input.strategy - The def's declared `externalMcpInjection`, or `undefined` for a def with no native MCP transport.
  * @param input.options - The host's bridge options, or `undefined` when the host never configured injection.
+ * @param input.mcpDelivery - The runtime's bound MCP delivery slot for this def; required only by the `*-env-content` strategies.
  * @param input.credential - Already-resolved bearer token, or `undefined` to omit `JINI_DAEMON_TOKEN` entirely.
  * @returns `null` when this run delivers nothing — an unconfigured host, or a def declaring no
  * strategy — which is byte-identical to this feature not existing.
@@ -159,13 +165,14 @@ export function buildMcpBridgeDelivery(input: {
   readonly options: McpJsonInjectionOptions | undefined;
   readonly credential: string | undefined;
   readonly messageRelayNonce?: string;
+  readonly mcpDelivery?: AgentRuntimeStrategies['mcpDelivery'];
 }): McpBridgeDelivery | null {
   const { cwd, runId, strategy, options } = input;
   if (options === undefined || strategy === undefined) return null;
   const serverEntry = buildMcpJsonServerEntry({ runId: runId, options: options }, bridgeCredentialOptions(input));
   // Every declared strategy has a builder; a new one fails typechecking until registered.
   if (!Object.hasOwn(MCP_DELIVERY_BUILDERS, strategy)) throw new TypeError(`Unknown MCP bridge strategy: ${String(strategy)}`);
-  return MCP_DELIVERY_BUILDERS[strategy]({ cwd, runId, serverEntry });
+  return MCP_DELIVERY_BUILDERS[strategy]({ cwd, runId, serverEntry }, input.mcpDelivery);
 }
 
 function bridgeCredentialOptions(input: { credential: string | undefined; messageRelayNonce?: string }) {
@@ -190,6 +197,8 @@ export async function resolveMcpBridgeForRun({ input, deps }: { readonly input: 
     readonly failBeforeSpawn: FailBeforeSpawn;
     readonly fileLock: FileLockPort;
     readonly writer: AtomicFileWriterPort;
+    /** The runtime's bound delivery slot for `input.def` (`strategies.for({ def }).mcpDelivery`). */
+    readonly mcpDelivery?: AgentRuntimeStrategies['mcpDelivery'];
     readonly ensureAntigravityMcpPermission?: typeof ensureAntigravityMcpPermission;
   } }
 ): Promise<McpBridgeDelivery | null> {
@@ -207,6 +216,7 @@ export async function resolveMcpBridgeForRun({ input, deps }: { readonly input: 
       strategy: input.def.externalMcpInjection,
       options: deps.mcpJsonInjection,
       credential,
+      ...(deps.mcpDelivery === undefined ? {} : { mcpDelivery: deps.mcpDelivery }),
       ...(supportsMessageRelay({ def: input.def }) ? { messageRelayNonce: randomBytes(24).toString('hex') } : {}),
     });
     const prepareBridge = MCP_BRIDGE_PREPARERS.get(input.def.id);

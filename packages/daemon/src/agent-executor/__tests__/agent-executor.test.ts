@@ -68,7 +68,7 @@ import {
   type McpBridgeProbeResult,
   type McpBridgeProbe,
 } from '../../index.js';
-import { runtimeFixture, agentRuntimeFixture } from './runtime-fixture.js';
+import { runtimeFixture, agentRuntimeFixture, boundMcpDelivery } from './runtime-fixture.js';
 
 // Fake defs take no stream-json stdin, so every bridged run also carries the mid-run message
 // relay (f40db242) with a fresh per-run nonce.
@@ -5305,11 +5305,11 @@ describe('buildMcpBridgeDelivery', () => {
   });
 
   it('maps the two env-content strategies to their own env var, sharing one serialiser', () => {
-    expect(buildMcpBridgeDelivery({ ...base, strategy: 'opencode-env-content' })).toMatchObject({
+    expect(buildMcpBridgeDelivery({ ...base, strategy: 'opencode-env-content', ...boundMcpDelivery({ externalMcpInjection: 'opencode-env-content' }) })).toMatchObject({
       kind: 'env-content',
       envVarName: 'OPENCODE_CONFIG_CONTENT',
     });
-    expect(buildMcpBridgeDelivery({ ...base, strategy: 'mimo-env-content' })).toMatchObject({
+    expect(buildMcpBridgeDelivery({ ...base, strategy: 'mimo-env-content', ...boundMcpDelivery({ externalMcpInjection: 'mimo-env-content' }) })).toMatchObject({
       kind: 'env-content',
       envVarName: 'MIMOCODE_CONFIG_CONTENT',
     });
@@ -5350,7 +5350,7 @@ describe('buildMcpBridgeDelivery', () => {
     const withToken = { ...base, credential: 'run-scoped-secret' };
     const claude = buildMcpBridgeDelivery({ ...withToken, strategy: 'claude-mcp-json' });
     const acp = buildMcpBridgeDelivery({ ...withToken, strategy: 'acp-merge' });
-    const env = buildMcpBridgeDelivery({ ...withToken, strategy: 'mimo-env-content' });
+    const env = buildMcpBridgeDelivery({ ...withToken, strategy: 'mimo-env-content', ...boundMcpDelivery({ externalMcpInjection: 'mimo-env-content' }) });
     const codex = buildMcpBridgeDelivery({ ...withToken, strategy: 'codex-toml' });
     const passthrough = buildMcpBridgeDelivery({ ...withToken, strategy: 'env-passthrough' });
     expect(claude).toMatchObject({ serverEntry: { env: { JINI_DAEMON_TOKEN: 'run-scoped-secret' } } });
@@ -5367,7 +5367,7 @@ describe('buildMcpBridgeDelivery', () => {
     const declaring = AGENT_DEFS.filter((def) => def.externalMcpInjection !== undefined);
     expect(declaring.length).toBeGreaterThan(0);
     const undelivered = declaring
-      .filter((def) => buildMcpBridgeDelivery({ ...base, strategy: def.externalMcpInjection }) === null)
+      .filter((def) => buildMcpBridgeDelivery({ ...base, strategy: def.externalMcpInjection, ...boundMcpDelivery(def) }) === null)
       .map((def) => def.id);
     expect(undelivered).toEqual([]);
   });

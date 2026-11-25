@@ -38,7 +38,7 @@ function statusWithChildIdentity(
  * @complexity O(1) dispatch; the returned handler's own per-chunk cost is the parser's.
  * @overallScore 100/100
  */
-function createStreamHandlerForDef({ def, streamFormat, streams }: { def: RuntimeAgentDef; streamFormat: JsonStreamFormat; streams: AgentRuntimePort['streams'] },
+function createStreamHandlerForDef({ def, streamFormat, streams, strategies }: { def: RuntimeAgentDef; streamFormat: JsonStreamFormat; streams: AgentRuntimePort['streams']; strategies: AgentRuntimePort['strategies'] },
   { onEvent }: { onEvent: (event: Record<string, unknown>) => void }): StreamHandler {
   switch (streamFormat) {
     case 'claude-stream-json':
@@ -46,7 +46,7 @@ function createStreamHandlerForDef({ def, streamFormat, streams }: { def: Runtim
     case 'qoder-stream-json':
       return streams.qoder({ onEvent: onEvent });
     case 'json-event-stream':
-      return streams.jsonEvents({ kind: def.eventParser ?? '', onEvent: createCliToolCallReceiver({ kind: def.eventParser ?? '', onEvent }) });
+      return streams.jsonEvents({ kind: def.eventParser ?? '', onEvent: createCliToolCallReceiver({ strategy: strategies.for({ def }), onEvent }) });
     default: {
       // Unreachable: every stream format has a case above, and a new one fails typecheck here.
       const unknownFormat: never = streamFormat;
@@ -61,7 +61,7 @@ export function createChildStreamHandler({ ctx, signals, bridge, enqueueEmit, in
   input: ReturnType<typeof createChildInput>; modelReceipt: ReturnType<typeof createModelReceiptTracker>;
 }, _options = {}): StreamHandler | null {
   const { runId, def, streamFormat, lifecycle } = ctx;
-  return streamFormat === 'plain' ? null : createStreamHandlerForDef({ def, streamFormat, streams: ctx.streams }, { onEvent: rawEvent => {
+  return streamFormat === 'plain' ? null : createStreamHandlerForDef({ def, streamFormat, streams: ctx.streams, strategies: ctx.strategies }, { onEvent: rawEvent => {
     if (bridge.bridgeUnavailable) return;
     const translation = translateAgentRuntimeEvent({ rawEvent: rawEvent });
     if (translation.kind === 'agent') {

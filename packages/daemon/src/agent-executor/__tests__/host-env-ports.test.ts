@@ -70,7 +70,16 @@ it('F1: allowlisted and host-configured keys with non-string values are dropped,
 });
 
 it('F1: every documented config key is carried (first, middle and last of the list)', () => {
-  const keys = ['CODEX_HOME', 'CLAUDE_CONFIG_DIR', 'VELA_OPENCODE_BIN', 'AGENT_RUNTIME_HOME', 'AGENT_RUNTIME_RESOURCE_ROOT', 'VP_HOME', 'NPM_CONFIG_PREFIX', 'npm_config_prefix', 'APPDATA', 'LOCALAPPDATA', 'MISE_DATA_DIR', 'FNM_DIR'];
+  const keys = ['CODEX_HOME', 'CLAUDE_CONFIG_DIR', 'AGENT_RUNTIME_HOME', 'AGENT_RUNTIME_RESOURCE_ROOT', 'VP_HOME', 'NPM_CONFIG_PREFIX', 'npm_config_prefix', 'APPDATA', 'LOCALAPPDATA', 'MISE_DATA_DIR', 'FNM_DIR'];
   const env = Object.fromEntries(keys.map((k) => [k, `/v/${k}`]));
   expect(selectAgentExecutorHostEnv({ env, hostEnvNames: [] })).toEqual(env);
+});
+
+// The Vela executable override is the runtime's to name (it moved out of the daemon's literal list): the bound port
+// supplies it with the rest of its host-configured names, so the launcher still carries it and nothing else.
+it('carries the executable override key the bound runtime names, and only through hostEnvNames', () => {
+  const env = { VELA_OPENCODE_BIN: '/opt/vela/opencode', UNRELATED_TOKEN: 'fixture-secret' };
+  expect(agentRuntimeFixture().launch.hostEnvNames()).toContain('VELA_OPENCODE_BIN');
+  expect(selectAgentExecutorHostEnv({ env, hostEnvNames: agentRuntimeFixture().launch.hostEnvNames() })).toEqual({ VELA_OPENCODE_BIN: '/opt/vela/opencode' });
+  expect(selectAgentExecutorHostEnv({ env, hostEnvNames: [] })).toEqual({});
 });

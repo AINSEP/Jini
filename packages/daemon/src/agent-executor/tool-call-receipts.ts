@@ -1,11 +1,11 @@
-import { geminiToolCallReceipt } from './gemini/tool-calls.js';
-import { openCodeToolCallReceipt } from './opencode/tool-calls.js';
+import type { AgentRuntimeStrategies } from '../ports/agent-runtime.js';
 
-/** Select the CLI's receipt dialect once; raw events and tools from other CLIs pass unchanged.
+/** Apply the receipt dialect the runtime bound to this definition once; raw events and tools from other CLIs pass
+ * unchanged. The daemon never inspects which CLI it is: an absent slot means "no dialect".
  * Folding stays in chat's existing shared rule. O(1) construction, O(name length) per receipt. */
-export function createCliToolCallReceiver({ kind, onEvent }: {
-  kind: string; onEvent: (event: Record<string, unknown>) => void;
+export function createCliToolCallReceiver({ strategy, onEvent }: {
+  strategy: Pick<AgentRuntimeStrategies, 'toolCallReceipt'>; onEvent: (event: Record<string, unknown>) => void;
 }, _options = {}): (event: Record<string, unknown>) => void {
-  const adapt = kind === 'legacy-google-stream-json' ? geminiToolCallReceipt : kind === 'opencode' ? openCodeToolCallReceipt : undefined;
-  return event => onEvent(adapt ? adapt({ event }, {}) : event);
+  const adapt = strategy.toolCallReceipt;
+  return event => onEvent(adapt ? adapt({ event }) : event);
 }

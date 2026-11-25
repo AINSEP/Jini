@@ -9,6 +9,10 @@ import { createRunLifecycle } from '../../run-lifecycle.js';
 import { createInMemoryEventLog } from '../../event-log.js';
 import { translateAgentRuntimeEvent } from '../event-translation.js';
 import { createCliToolCallReceiver } from '../tool-call-receipts.js';
+import { agentRuntimeFixture } from './runtime-fixture.js';
+
+// The production binding, asked for a def declaring the dialect, as the launcher asks it.
+const receiptFor = (kind: string) => agentRuntimeFixture().strategies.for({ def: { eventParser: kind } as never });
 
 for (const kind of ['legacy-google-stream-json', 'opencode', 'codex']) {
   it(`${kind}: shows one tool row for a CLI call and its bridge execution`, async () => {
@@ -27,7 +31,7 @@ for (const kind of ['legacy-google-stream-json', 'opencode', 'codex']) {
     const bridge = createDelegatedToolBridge({ lifecycle, toolExecutor: createToolExecutor({ registry }) });
     const input = { path: 'a' };
     const item = { id: 'cli', type: 'mcp_tool_call', server: 'host-server', tool: 'theme_read_file', arguments: input };
-    const receiver = createCliToolCallReceiver({ kind, onEvent: rawEvent => {
+    const receiver = createCliToolCallReceiver({ strategy: receiptFor(kind), onEvent: rawEvent => {
       const translated = translateAgentRuntimeEvent({ rawEvent });
       if (translated.kind === 'agent') save(translated.payload);
     } });
@@ -53,7 +57,7 @@ for (const kind of ['legacy-google-stream-json', 'opencode', 'codex']) {
 
 it('keeps repeated native Gemini calls and a refusal before the bridge visible', () => {
   const events: AgentEvent[] = [];
-  const receiver = createCliToolCallReceiver({ kind: 'legacy-google-stream-json', onEvent: payload => {
+  const receiver = createCliToolCallReceiver({ strategy: receiptFor('legacy-google-stream-json'), onEvent: payload => {
     const translated = translateAgentRuntimeEvent({ rawEvent: payload });
     if (translated.kind !== 'agent') return;
     const event = translateRunAgentPayload({ payload: translated.payload });
