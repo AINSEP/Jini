@@ -97,3 +97,28 @@ test("trackOutboxDelivery traces each delivery as outbox.deliver labelled by eve
     { name: "outbox.deliver", attributes: { "event.name": "entry.deleted" } },
   ]);
 });
+
+test("reads trace ancestry before stripping private transport fields from each delivery", async () => {
+  const order: string[] = [];
+  const parents: unknown[] = [];
+  const delivered: DomainEvent[] = [];
+  const stored = { ...makeEvent("private"), payload: { traceParent: "persisted-parent", value: 1 } };
+  const failure = new Error("publish rejected");
+  const tracker = { trace: async ({ run }: { run: (span: { setOutcome: () => void }) => Promise<unknown> }, options: { traceparent?: string }) => {
+    parents.push(options.traceparent);
+    return run({ setOutcome() {} });
+  } } as unknown as Parameters<typeof trackOutboxDelivery>[0]["tracker"];
+  const bus: Parameters<typeof trackOutboxDelivery>[0]["bus"] = { publish: async ({ event }) => {
+    order.push("publish"); delivered.push(event); throw failure;
+  } };
+  const traced = trackOutboxDelivery({ bus, tracker }, {
+    readParent: ({ event }) => { order.push("parent"); return String(event.payload.traceParent); },
+    prepareEvent: ({ event }) => { order.push("prepare"); const { traceParent, ...payload } = event.payload; return { ...event, payload }; },
+  });
+  await assert.rejects(traced.publish({ event: stored }), error => error === failure);
+  await assert.rejects(traced.publish({ event: stored }), error => error === failure);
+  assert.deepEqual(order, ["parent", "prepare", "publish", "parent", "prepare", "publish"]);
+  assert.deepEqual(parents, ["persisted-parent", "persisted-parent"]);
+  assert.deepEqual(delivered.map(event => event.payload), [{ value: 1 }, { value: 1 }]);
+  assert.equal(stored.payload.traceParent, "persisted-parent");
+});

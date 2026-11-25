@@ -14,6 +14,7 @@
     "runtime": "universal",
     "isolation": {
       "entries": {
+      "./site/pre-consent-cache": "universal",
         "./client.min.js": "client",
         "./extensions.min.js": "client",
         "./site/cookie-consent": "render",
@@ -67,6 +68,11 @@
   "main": "./dist/contract.js",
   "types": "./dist/contract.d.ts",
   "exports": {
+    "./site/pre-consent-cache": {
+      "types": "./dist/site/pre-consent-cache.d.ts",
+      "import": "./dist/site/pre-consent-cache.js",
+      "default": "./dist/site/pre-consent-cache.js"
+    },
     ".": {
       "types": "./dist/contract.d.ts",
       "import": "./dist/contract.js",

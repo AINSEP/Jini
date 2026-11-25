@@ -13,6 +13,7 @@
     "kind": "analytics",
     "runtime": "node",
     "entries": {
+      "./site/visitor-analytics": "universal",
       ".": "node",
       "./product": "universal",
       "./site/agent-tools": "universal",
@@ -37,6 +38,11 @@
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "exports": {
+    "./site/visitor-analytics": {
+      "types": "./dist/site/visitor-analytics.d.ts",
+      "import": "./dist/site/visitor-analytics.js",
+      "default": "./dist/site/visitor-analytics.js"
+    },
     ".": {
       "types": "./dist/index.d.ts",
       "import": "./dist/index.js",
