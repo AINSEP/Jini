@@ -19,7 +19,7 @@ export interface NoteEntityDeps {
   readonly entryRepo: EntryRepoPort & EntryListPort;
   readonly entryDeps: EntryDeps;
   readonly ids: { newId: () => string };
-  readonly actor: { readonly actorId: string; readonly principalKind: 'user' };
+  readonly actor: { readonly actorId: string; readonly principalKind: 'user'; readonly actor: { readonly id: string; readonly kind: 'user' } };
 }
 type NoteRow = AdminEntityRowData & { title: string; body: string };
 

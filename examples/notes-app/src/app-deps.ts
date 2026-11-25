@@ -33,7 +33,7 @@ export interface AppDeps {
     readonly entryRepo: EntryRepo; readonly contentTypeRepo: AppPorts['contentTypeRepo']; readonly clock: AppPorts['clock'];
     readonly authorize: typeof authorize; readonly outbox: AppPorts['entryOutbox'];
   };
-  readonly actor: { readonly actorId: string; readonly principalKind: 'user' };
+  readonly actor: { readonly actorId: string; readonly principalKind: 'user'; readonly actor: { readonly id: string; readonly kind: 'user' } };
   readonly contactForm: FormDefinitionRecord;
   findNoteBySlug(required: { slug: string }, optional?: Record<string, never>): Promise<EntryRecord | null>;
 }
@@ -63,7 +63,7 @@ export async function createAppDeps({ kernel }: { kernel: AppKernel }, _optional
   return {
     kernel, ports, entryRepo, definitionRepo, submissionRepo,
     entryDeps: { entryRepo, contentTypeRepo: ports.contentTypeRepo, clock: ports.clock, authorize, outbox: ports.entryOutbox },
-    actor: { actorId: OWNER_ID, principalKind: 'user' },
+    actor: { actorId: OWNER_ID, principalKind: 'user', actor: { id: OWNER_ID, kind: 'user' } },
     contactForm: await seedContactForm({ definitionRepo, ports }),
     findNoteBySlug: ({ slug }) => entryRepo.findBySlug({ workspaceId: WORKSPACE_ID, type: NOTE_TYPE, slug }),
   };

@@ -14,7 +14,7 @@ async function fixture(): Promise<{ port: AdminErasedEntityPort; repo: InMemoryE
   const ports = await createAppPorts();
   const repo = new InMemoryEntryRepo();
   const entryDeps = { entryRepo: repo, contentTypeRepo: ports.contentTypeRepo, clock: ports.clock, authorize, outbox: ports.entryOutbox };
-  const port = createNoteEntityPort({ deps: { entryRepo: repo, entryDeps, ids: ports.idGen, actor: { actorId: OWNER_ID, principalKind: 'user' } } });
+  const port = createNoteEntityPort({ deps: { entryRepo: repo, entryDeps, ids: ports.idGen, actor: { actorId: OWNER_ID, principalKind: 'user', actor: { id: OWNER_ID, kind: 'user' } } } });
   return { port, repo };
 }
 
