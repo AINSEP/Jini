@@ -95,6 +95,21 @@ async function transcodeInDirectory({ binaries, directory, input, signal, maxOut
   return sniffContentType({ bytes }) === "video/mp4" ? { ok: true, bytes } : failure("invalid");
 }
 
+/** The shared runner rejects with an error carrying `reason`; anything else is an unreadable clip. */
+function reasonOf(error: unknown): VideoTranscodeFailureReason {
+  const reason = (error as { reason?: unknown } | null)?.reason;
+  return typeof reason === "string" && PROCESS_REASONS.has(reason) ? reason as VideoTranscodeFailureReason : "invalid";
+}
+
+/** Refusals that need neither a binary nor scratch space. */
+function earlyRefusal(
+  { input, maxInputBytes }: { input: Uint8Array; maxInputBytes: number },
+  { signal }: { signal: AbortSignal | undefined },
+): VideoTranscodeFailureReason | undefined {
+  if (signal?.aborted) return "canceled";
+  return input.byteLength > maxInputBytes ? "too-large" : undefined;
+}
+
 /**
  * Creates the ffmpeg-backed transcoder. Missing ffmpeg (or nice/ffprobe, which ship with it on
  * supported hosts; Windows is never supported because nice is required) is reported with the
@@ -109,8 +124,8 @@ export function createFfmpegMediaTranscoder(
   // Why-comment — conversion is a host capability with local process risk, not a dependency of portable media services.
   return {
     async transcode({ input }, { signal, maxOutputBytes = maxInputBytes } = {}) {
-      if (signal?.aborted) return failure("canceled");
-      if (input.byteLength > maxInputBytes) return failure("too-large");
+      const refused = earlyRefusal({ input, maxInputBytes }, { signal });
+      if (refused) return failure(refused);
       const binaries = await findBinaries({}, { env });
       if (!binaries) return failure("unavailable");
       const release = lock.tryAcquire({}, {});
@@ -120,9 +135,7 @@ export function createFfmpegMediaTranscoder(
         directory = await mkdtemp(join(tempDir, "video-transcode-"));
         return await transcodeInDirectory({ binaries, directory, input, signal, maxOutputBytes, timeoutMs, runProcess, sniffContentType, failure });
       } catch (error) {
-        // The shared runner rejects with an error carrying `reason`; anything else is an unreadable clip.
-        const reason = (error as { reason?: unknown } | null)?.reason;
-        return failure(typeof reason === "string" && PROCESS_REASONS.has(reason) ? reason as VideoTranscodeFailureReason : "invalid");
+        return failure(reasonOf(error));
       } finally {
         // Cleanup failure must not mask the result; the folder name is unique and private.
         if (directory) await rm(directory, { recursive: true, force: true }).catch(() => undefined);

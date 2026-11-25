@@ -1,4 +1,5 @@
-/** Environment-access ratchet (HW9-env-access, HW12-env-import-time, HW13-env-undeclared-entry). Run directly, or through guard.ts.
+/** Environment-access ratchet (HW9-env-access, HW12-env-import-time). Run directly, or through guard.ts.
+ * HW13-env-undeclared-entry joins them: each process entry is checked against its rows in jini-env-schema.ts.
  *
  * This script is the host half of `@jini-ai/devops/checks/env-access`: it decides where to look and
  * which files are process entries. Both come from the tree and the package manifests, so there is
