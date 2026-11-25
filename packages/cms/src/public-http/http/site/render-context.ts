@@ -84,7 +84,7 @@ export interface SiteRenderContext {
    * `renderSite`, gets an empty object here — not a breaking change).
    */
   widgetRegions: Record<string, readonly WidgetRenderIR[]>;
-  /** Resolved inline `widgetEmbed` IR, keyed by `placementId`. */
+  /** SPEC-043/ADR-047 REQ-21 — resolved inline `widgetEmbed` IR, keyed by `placementId`. */
   widgetInlineResolved: ReadonlyMap<string, WidgetRenderIR>;
   /**
    * The latest registered version of each transform NAME referenced by this render,
