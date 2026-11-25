@@ -18,6 +18,7 @@
         "./client.min.js": "client",
         "./extensions.min.js": "client",
         "./site/cookie-consent": "render",
+        "./site/http": "render",
         "./site/validation": "render",
       "./site/service": "render",
       "./site/tool-registrations": "render"
@@ -46,6 +47,7 @@
       "./extensions.min.js": "browser",
       "./site/config": "universal",
       "./site/cookie-consent": "universal",
+      "./site/http": "universal",
       "./site/validation": "universal",
       "./site/revisions": "universal",
       "./site/privacy-page-template": "universal",
@@ -120,6 +122,11 @@
       "types": "./dist/site/config.d.ts",
       "import": "./dist/site/config.js",
       "default": "./dist/site/config.js"
+    },
+    "./site/http": {
+      "types": "./dist/site/http.d.ts",
+      "import": "./dist/site/http.js",
+      "default": "./dist/site/http.js"
     },
     "./site/cookie-consent": {
       "types": "./dist/site/cookie-consent.d.ts",

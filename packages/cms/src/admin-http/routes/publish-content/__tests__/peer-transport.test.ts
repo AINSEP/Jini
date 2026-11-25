@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
-import { peerPullRoute, type PeerActionRefusalFn } from "../peer-transport.js";
+import type { PeerCallDeps } from "../../../../publish/content/peer-transport.js";
+import { peerPushPlanRoute, peerPushConfirmRoute, peerPushExecuteRoute, peerPullRoute, type PeerActionRefusalFn } from "../peer-transport.js";
 import { raw, recordingAuthorize, refusalOf, WORKSPACE_ID } from "./transport-helpers.js";
 
 const PULL = "/api/admin/v1/workspaces/:workspaceId/publish-content/peers/:peerId/pull";
@@ -74,4 +75,30 @@ describe("peerPullRoute", () => {
     await expect(peerPullRoute.handle({ input: { peerId: "p1" }, deps, context: { id: "u1" }, authorize: undefined } as never)).rejects.toThrow("no authorizer");
     expect(calls).toEqual([]);
   });
+});
+
+it("malformed scope and non-session overwrite are refused before opening a peer, while an empty selection is forwarded", async () => {
+  const calls: unknown[] = [];
+  const peer = {} as PeerCallDeps<string>;
+  const deps = { openPeer: async (input: { peerId: string }) => { calls.push(input); return peer; }, requireOverwriteSession: () => { throw new Error("session"); }, plan: async (input: unknown) => { calls.push(input); return { remote: true }; } };
+  const authorize = async (input: unknown) => { calls.push(input); };
+  expect(await peerPushPlanRoute.handle({ input: { peerId: "p", body: { scope: {} } }, deps, context: { id: "u" }, authorize })).toMatchObject({ value: { status: 400 } });
+  expect(calls).toEqual([{ permission: "publish_content.apply" }]); calls.length = 0;
+  await expect(peerPushPlanRoute.handle({ input: { peerId: "p", body: { overwriteEntityKeys: ["post:p"] } }, deps, context: { id: "u" }, authorize })).rejects.toThrow("session");
+  expect(calls).toEqual([{ permission: "publish_content.apply" }]); calls.length = 0;
+  expect(await peerPushPlanRoute.handle({ input: { peerId: "p", body: { selectedEntityKeys: [] } }, deps, context: { id: "u" }, authorize })).toEqual({ ok: true, value: { remote: true } });
+  expect(calls).toEqual([{ permission: "publish_content.apply" }, { peerId: "p" }, { peer, principalId: "u", scope: null, selectedEntityKeys: [], overwriteEntityKeys: null }]);
+});
+
+it("keeps confirm and execute payloads distinct and forwards remote refusals unchanged", async () => {
+  const calls: unknown[] = [];
+  const peer = {} as PeerCallDeps<string>;
+  const openPeer = async () => peer;
+  const confirm = async (input: unknown) => { calls.push(["confirm", input]); return { refused: true }; };
+  const execute = async (input: unknown) => { calls.push(["execute", input]); return { refused: true }; };
+  const authorize = async () => {};
+  const context = { id: "u" };
+  expect(await peerPushConfirmRoute.handle({ input: { peerId: "p", body: { planId: "plan", planHash: "hash" } }, deps: { openPeer, confirm }, authorize, context })).toEqual({ ok: true, value: { refused: true } });
+  expect(await peerPushExecuteRoute.handle({ input: { peerId: "p", body: { bundleId: "b", confirmationToken: "t", overwriteEntityKeys: [] } }, deps: { openPeer, execute, requireOverwriteSession: () => { throw new Error("must not call"); } }, authorize, context })).toEqual({ ok: true, value: { refused: true } });
+  expect(calls).toEqual([["confirm", { peer, planId: "plan", planHash: "hash" }], ["execute", { peer, bundleId: "b", confirmationToken: "t", overwriteEntityKeys: [] }]]);
 });
