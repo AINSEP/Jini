@@ -4878,6 +4878,12 @@
    "SecurityPermissionsPort": "interface:35945b4cd1"
   }
  },
+ "./security/host/hooks/site-key-status.rules": {
+  "types": "./dist/security/host/hooks/site-key-status.rules.d.ts",
+  "symbols": {
+   "siteKeyStatusBadgeLabel": "function:ad41adbc09"
+  }
+ },
  "./security/host/hooks/use-security-permissions.hooks": {
   "types": "./dist/security/host/hooks/use-security-permissions.hooks.d.ts",
   "symbols": {

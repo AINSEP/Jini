@@ -2401,7 +2401,8 @@
    "AdminSiteKeyStartFreshPreview": "interface:b59e3bea9e",
    "AdminSiteKeyState": "type:4e0c0bc1f5",
    "AdminSiteKeyStatus": "interface:7c27f0a100",
-   "AdminStartedFreshSiteKey": "interface:f9f2351943"
+   "AdminStartedFreshSiteKey": "interface:f9f2351943",
+   "SiteKeyPort": "interface:6895e3cc0e"
   }
  },
  "./contracts/site/skill-install": {
