@@ -36,12 +36,11 @@
  * `fishaudio.ts`/`openai.ts`'s speech renderer return, so it now shares
  * `response-parsers.ts`'s `createRawBytesParser`.
  */
-import { buildOpenAIImageUrl, bytesFromOpenAICompatibleData, parseOpenAICompatibleJson, sniffImageExt, standardImageAspectFor as grokAspectFor, jsonPostInit } from '../openai-compatible.js';
-import { createRawBytesParser } from '../response-parsers.js';
-import type { ProviderCredentials, RenderContext, RenderResult } from '../types.js';
-import { dispatchVendorRequest, requireApiKey } from '../vendor-adapter.js';
-import type { VendorAdapter, VendorRequest } from '../vendor-adapter.js';
-import type { VendorAdapterRegistry } from '../vendor-registry-core.js';
+import {
+  buildOpenAIImageUrl, bytesFromOpenAICompatibleData, createRawBytesParser, dispatchVendorRequest, jsonPostInit,
+  parseOpenAICompatibleJson, requireApiKey, sniffImageExt, standardImageAspectFor as grokAspectFor,
+} from '@jini-ai/integrations/media-providers';
+import type { ProviderCredentials, RenderContext, RenderResult, VendorAdapter, VendorRequest } from '@jini-ai/integrations/media-providers';
 
 export { grokAspectFor };
 
@@ -52,7 +51,7 @@ interface GrokImageMeta {
   readonly aspectRatio: string;
 }
 
-const grokImageAdapter: VendorAdapter<GrokImageMeta> = {
+export const grokImageAdapter: VendorAdapter<GrokImageMeta> = {
   requireCredential: requireApiKey({ message: NO_CREDENTIAL_MESSAGE }),
 
   buildRequest({ ctx, credentials }: { ctx: RenderContext; credentials: ProviderCredentials }): VendorRequest<GrokImageMeta> {
@@ -106,7 +105,7 @@ interface XAITTSMeta {
  * TTS) has no equivalent here since the wire protocol offers nothing to
  * set it with.
  */
-const xaiTTSAdapter: VendorAdapter<XAITTSMeta> = {
+export const xaiTTSAdapter: VendorAdapter<XAITTSMeta> = {
   requireCredential: requireApiKey({ message: NO_CREDENTIAL_MESSAGE }),
 
   buildRequest({ ctx, credentials }: { ctx: RenderContext; credentials: ProviderCredentials }): VendorRequest<XAITTSMeta> {
@@ -134,13 +133,4 @@ const xaiTTSAdapter: VendorAdapter<XAITTSMeta> = {
 
 export async function renderXAITTS({ ctx, credentials }: { ctx: RenderContext; credentials: ProviderCredentials }): Promise<RenderResult> {
   return dispatchVendorRequest({ adapter: xaiTTSAdapter, ctx: ctx, credentials: credentials });
-}
-
-/** Explicit composition: importing a renderer never changes another module's registry. */
-export function registerVendorAdapters(
-  { registry }: { registry: Pick<VendorAdapterRegistry, 'register'> },
-  _optional: Record<string, never> = {},
-): void {
-  registry.register({ providerId: 'grok', routeKey: 'image', adapter: grokImageAdapter });
-  registry.register({ providerId: 'grok', routeKey: 'audio:speech', adapter: xaiTTSAdapter });
 }

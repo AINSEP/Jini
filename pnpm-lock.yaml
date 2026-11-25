@@ -1262,6 +1262,9 @@ importers:
       '@jini-ai/diagnostics':
         specifier: workspace:^
         version: link:../diagnostics
+      '@jini-ai/integrations':
+        specifier: workspace:^
+        version: link:../integrations
       '@jini-ai/plugins':
         specifier: workspace:^
         version: link:../plugins

@@ -12,6 +12,12 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
+// A host-injected stand-in for a vendor-plugin adapter: the engine selects adapters ONLY from the registry the host injected.
+const grokImageAdapter: VendorAdapter = {
+  buildRequest: () => ({ url: 'https://vendor.example/grok-image', init: {}, meta: undefined }),
+  parseResponse: async () => ({ bytes: Buffer.from('injected'), providerNote: 'injected-grok' }),
+};
+
 describe('lookupRoute', () => {
   // The production ROUTES table in engine.ts is empty — every vendor it
   // used to hold has migrated onto mediaVendorRegistry (see engine.ts's
@@ -155,28 +161,16 @@ describe('createMediaDispatchEngine — dispatch routing', () => {
         const result = await engine.generate(...partitionArgs({ value: { surface: 'image', model: 'dall-e-3' } satisfies MediaGenerationRequest, requiredKeys: ['surface', 'model'] }));
         expect(result.providerId).toBe('custom-image');
     });
-    it('routes grok + image to renderGrokImage', async () => {
-        const fetchMock = vi.fn(async (url: string, init: RequestInit) => {
-            expect(url).toBe('https://api.x.ai/v1/images/generations');
-            const body = JSON.parse(init.body as string);
-            expect(body.model).toBe('grok-imagine-image');
-            return new Response(JSON.stringify({ data: [{ b64_json: Buffer.from('x').toString('base64') }] }), { status: 200 });
-        });
+    it('selects a catalogued provider\'s adapter only when the injected registry holds it', async () => {
+        const registry = createBuiltinVendorAdapterRegistry();
+        const fetchMock = vi.fn(async () => new Response('ok', { status: 200 }));
         vi.stubGlobal('fetch', fetchMock);
-        const engine = createMediaDispatchEngine({ registry: createBuiltinVendorAdapterRegistry(), httpClient: createNodeMediaHttpClient({}), guardedFetch: nodeMediaGuardedFetch }, { credentials: { grok: { apiKey: 'xai-key' } } });
-        const result = await engine.generate(...partitionArgs({ value: { surface: 'image', model: 'grok-imagine-image' } satisfies MediaGenerationRequest, requiredKeys: ['surface', 'model'] }));
-        expect(result.providerId).toBe('grok');
-    });
-    it('routes grok + audio:speech to renderXAITTS', async () => {
-        const fetchMock = vi.fn(async (url: string) => {
-            expect(url).toBe('https://api.x.ai/v1/tts');
-            return new Response(Buffer.from('audio'), { status: 200 });
-        });
-        vi.stubGlobal('fetch', fetchMock);
-        const engine = createMediaDispatchEngine({ registry: createBuiltinVendorAdapterRegistry(), httpClient: createNodeMediaHttpClient({}), guardedFetch: nodeMediaGuardedFetch }, { credentials: { grok: { apiKey: 'xai-key' } } });
-        const result = await engine.generate(...partitionArgs({ value: { surface: 'audio', audioKind: 'speech', model: 'grok-tts' } satisfies MediaGenerationRequest, requiredKeys: ['surface', 'model'] }));
-        expect(result.providerId).toBe('grok');
-        expect(result.bytes.toString('utf8')).toBe('audio');
+        const make = () => createMediaDispatchEngine({ registry, httpClient: createNodeMediaHttpClient({}), guardedFetch: nodeMediaGuardedFetch }, { credentials: { grok: { apiKey: 'xai-key' } } });
+        const request = () => partitionArgs({ value: { surface: 'image', model: 'grok-imagine-image' } satisfies MediaGenerationRequest, requiredKeys: ['surface', 'model'] });
+        await expect(make().generate(...request())).rejects.toThrow('no renderer configured for provider "grok" / surface "image"');
+        registry.register({ providerId: 'grok', routeKey: 'image', adapter: grokImageAdapter });
+        const result = await make().generate(...request());
+        expect(result).toMatchObject({ providerId: 'grok', providerNote: 'injected-grok', usedStubFallback: false });
     });
     it('routes nanobanana + image to renderNanoBananaImage', async () => {
         const fetchMock = vi.fn(async (url: string) => {
@@ -391,7 +385,9 @@ describe('createMediaDispatchEngine — characterization', () => {
     });
     it('does not apply the custom-image override to a non-openai image provider', async () => {
         vi.stubGlobal('fetch', vi.fn(async () => b64Image()));
-        const engine = createMediaDispatchEngine({ registry: createBuiltinVendorAdapterRegistry(), httpClient: createNodeMediaHttpClient({}), guardedFetch: nodeMediaGuardedFetch }, { credentials: { grok: { apiKey: 'k' }, 'custom-image': { baseUrl: 'https://custom.example/v1', model: 'grok-imagine-image', apiKey: 'c' } } });
+        const registry = createBuiltinVendorAdapterRegistry();
+        registry.register({ providerId: 'grok', routeKey: 'image', adapter: grokImageAdapter });
+        const engine = createMediaDispatchEngine({ registry, httpClient: createNodeMediaHttpClient({}), guardedFetch: nodeMediaGuardedFetch }, { credentials: { grok: { apiKey: 'k' }, 'custom-image': { baseUrl: 'https://custom.example/v1', model: 'grok-imagine-image', apiKey: 'c' } } });
         const result = await engine.generate(...partitionArgs({ value: { surface: 'image', model: 'grok-imagine-image' } satisfies MediaGenerationRequest, requiredKeys: ['surface', 'model'] }));
         expect(result.providerId).toBe('grok');
     });
