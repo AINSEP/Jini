@@ -24,11 +24,16 @@ function themeOptions(props: AdminShellBaseProps): ThemeOptions {
   };
 }
 
-/** Loading, login or session-error UI for every state except an authenticated one. */
+/**
+ * Loading, login or session-error UI for every state except an authenticated one.
+ * The loading state carries `jini-admin-boot-screen` and the legacy `boot-screen` alias: the Tovu admin
+ * host styles `.boot-screen` (apps/admin/src/styles.css) and Jini ships no rule for either name, so the
+ * alias is a host contract to keep until that host selects the prefixed class.
+ */
 function renderSessionGate({ props, context, state, refresh }: {
   readonly props: AdminShellBaseProps; readonly context: AdminShellContext; readonly state: GateState; readonly refresh: () => Promise<void>;
 }): ReactNode {
-  if (state.status === 'checking') return <div className="boot-screen" role="status">{props.labels.loading}</div>;
+  if (state.status === 'checking') return <div className="jini-admin-boot-screen boot-screen" role="status">{props.labels.loading}</div>;
   if (state.status === 'anonymous') return props.slots.login({ context, refreshSession: refresh });
   if (props.slots.sessionError) return props.slots.sessionError({ error: state.error, retry: refresh });
   return <div role="alert"><p>{props.labels.sessionError}</p><button type="button" onClick={() => { void refresh(); }}>{props.labels.retry}</button></div>;
@@ -78,7 +83,12 @@ interface ShellLayoutArgs {
   readonly drawer: ReturnType<typeof useShellDrawer>; readonly ids: { readonly sidebar: string; readonly main: string };
 }
 
-/** The topbar, `<main>` with the routed panel (or `noAccess`) and the host's `afterMain` content. */
+/**
+ * The topbar, `<main>` with the routed panel (or `noAccess`) and the host's `afterMain` content.
+ * Each topbar element carries its `jini-admin-topbar*` class and the legacy `admin-topbar*` alias: the Tovu
+ * admin host styles the legacy names (apps/admin/src/styles.css, App.chrome.tsx) and Jini ships no rule for
+ * either, so the alias is a host contract to keep until that host selects the prefixed classes.
+ */
 function ShellMainColumn({ props, view, drawer, ids }: {
   readonly props: AdminShellBaseProps; readonly view: ShellView; readonly drawer: ReturnType<typeof useShellDrawer>;
   readonly ids: ShellLayoutArgs['ids'];
@@ -86,13 +96,13 @@ function ShellMainColumn({ props, view, drawer, ids }: {
   const { model, slotArgs } = view;
   return (
     <div className="admin-main-col">
-      <div className="admin-topbar">
-        <button type="button" className="admin-topbar-toggle" aria-expanded={drawer.open} aria-controls={ids.sidebar}
+      <div className="jini-admin-topbar admin-topbar">
+        <button type="button" className="jini-admin-topbar-toggle admin-topbar-toggle" aria-expanded={drawer.open} aria-controls={ids.sidebar}
           aria-label={drawer.open ? props.labels.closeNavigation : props.labels.openNavigation}
           onClick={() => drawer.setOpen((open) => !open)}>
           <svg viewBox="0 0 18 18" fill="none" stroke="currentColor" strokeWidth={1.5} aria-hidden="true"><path d="M2.5 5h13M2.5 9h13M2.5 13h13" strokeLinecap="round" /></svg>
         </button>
-        <span className="admin-topbar-title">{props.title}</span>
+        <span className="jini-admin-topbar-title admin-topbar-title">{props.title}</span>
         {props.slots.topbar}
       </div>
       <main ref={props.mainRef} id={ids.main} className="admin-content" tabIndex={-1} data-agent-page={model.agentPageId ?? undefined}>
