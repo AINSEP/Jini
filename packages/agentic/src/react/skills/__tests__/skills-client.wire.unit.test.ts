@@ -4,9 +4,10 @@ import { createSkillsApi } from "../api.js";
 test("skill requests preserve confirmed install and notify only after acceptance", async () => {
   let accept: (value: unknown) => void = () => {};
   const accepted = new Promise<unknown>(resolve => { accept = resolve; });
-  const request = vi.fn(<T,>(input: { path: string; method: string; body?: unknown }): Promise<T> => accepted as Promise<T>);
+  const request = vi.fn<(input: { path: string; method: string; body?: unknown }) => void>();
+  const send = <T,>(input: { path: string; method: string; body?: unknown }): Promise<T> => { request(input); return accepted as Promise<T>; };
   const notifyChanged = vi.fn();
-  const api = createSkillsApi({ request, workspaceId: "ws", notifyChanged, formatDraft: () => "draft", invalidGuidanceError: () => new Error("invalid") });
+  const api = createSkillsApi({ request: send, workspaceId: "ws", notifyChanged, formatDraft: () => "draft", invalidGuidanceError: () => new Error("invalid") });
   const pending = api.installSkill({ payload: { githubUrl: "https://example/skill" } });
   expect(notifyChanged).not.toHaveBeenCalled();
   expect(request).toHaveBeenCalledWith({ path: "/workspaces/ws/skills", method: "POST", body: { githubUrl: "https://example/skill", confirmed: true } });

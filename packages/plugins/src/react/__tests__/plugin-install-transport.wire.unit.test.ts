@@ -2,8 +2,8 @@ import { expect, test, vi } from "vitest";
 import { createPluginInstallPort } from "../plugin-install-port.js";
 
 test("folder JSON and zip previews preserve replacement consent and digest", async () => {
-  const request = vi.fn(async <T,>(_input: { path: string; method: string; body: unknown }): Promise<T> => ({ plugin: { digest: "accepted" } }) as T);
-  const port = createPluginInstallPort<{ digest: string }>({ request, workspaceId: "ws" });
+  const request = vi.fn(async (_input: { path: string; method: string; body: unknown }): Promise<unknown> => ({ plugin: { digest: "accepted" } }));
+  const port = createPluginInstallPort<{ digest: string }>({ request: <T,>(input: { path: string; method: string; body: unknown }) => request(input) as Promise<T>, workspaceId: "ws" });
   const folder = { source: { kind: "folder" as const, path: "/plugin" }, replace: false };
   await port.preview(folder);
   expect(request).toHaveBeenLastCalledWith({ path: "/workspaces/ws/plugins/install/preview", method: "POST", body: folder });

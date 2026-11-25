@@ -1,6 +1,8 @@
 import { expect, test, vi } from "vitest";
 import { createInstalledSkillsComposerCapabilitySource } from "../installed-skills-composer-source.js";
 
+type Request = Parameters<typeof createInstalledSkillsComposerCapabilitySource>[0]["request"];
+
 test("forced refresh supersedes older work and 304 preserves the last good snapshot", async () => {
   let resolveOlder: (value: unknown) => void = () => {};
   const older = new Promise<unknown>(resolve => { resolveOlder = resolve; });
@@ -11,7 +13,7 @@ test("forced refresh supersedes older work and 304 preserves the last good snaps
     return { skills: [{ toolId: "new", name: "New", description: "summary", markdown: "private" }] } as T;
   });
   const reportFailure = vi.fn();
-  const source = createInstalledSkillsComposerCapabilitySource({ request, path: "/skills", isNotModified: error => error === "304", reportFailure });
+  const source = createInstalledSkillsComposerCapabilitySource({ request: <T,>(input: Parameters<Request>[0], options: Parameters<Request>[1]) => request(input, options) as Promise<T>, path: "/skills", isNotModified: error => error === "304", reportFailure });
   const stale = source.reload();
   const fresh = await source.reload({}, { force: true });
   resolveOlder({ skills: [{ toolId: "old", name: "Old", description: "summary" }] });

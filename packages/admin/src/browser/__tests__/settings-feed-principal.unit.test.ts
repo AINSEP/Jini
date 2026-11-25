@@ -7,7 +7,7 @@ vi.mock("../../shell/lib/browser-stream.js", () => ({ startBrowserStream: vi.fn(
 test("principal keys and supplemental revisions remain independent", () => {
   const listeners = new Map<string, EventListenerOrEventListenerObject>();
   const close = vi.fn();
-  const open = vi.fn(() => ({ readyState: 1, close, addEventListener: (kind: string, listener: EventListenerOrEventListenerObject) => { listeners.set(kind, listener); } }));
+  const open = vi.fn((_url: string) => ({ readyState: 1, close, addEventListener: (kind: string, listener: EventListenerOrEventListenerObject) => { listeners.set(kind, listener); } }) as unknown as Pick<EventSource, "close" | "addEventListener" | "readyState">);
   const urlFor = vi.fn(({ cursor, supplementalRevision }: { workspaceId: string; cursor: string; supplementalRevision: string }) => `${cursor}/${supplementalRevision}`);
   const publishSettings = vi.fn();
   const ports = {} as BrowserStreamPorts;

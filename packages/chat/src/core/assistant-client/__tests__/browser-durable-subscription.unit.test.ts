@@ -20,7 +20,7 @@ test("checkpoint ETags never suppress explicit recovery and reset after it", asy
 test("named error frames differ from native stream drops", () => {
   const listeners = new Map<string, EventListenerOrEventListenerObject>();
   const close = vi.fn();
-  const open = vi.fn(() => ({ readyState: 1, close, addEventListener: (kind: string, listener: EventListenerOrEventListenerObject) => { listeners.set(kind, listener); } }));
+  const open = vi.fn((_url: string) => ({ readyState: 1, close, addEventListener: (kind: string, listener: EventListenerOrEventListenerObject) => { listeners.set(kind, listener); } }) as unknown as Pick<EventSource, "close" | "addEventListener" | "readyState">);
   const ports = browserDurableSubscriptionPorts({ request: vi.fn(), open, schedule: () => () => {}, runPath: () => "/runs/r" });
   const frame = vi.fn();
   const dropped = vi.fn();

@@ -2,8 +2,8 @@ import { expect, test, vi } from "vitest";
 import { createFsFilesApi } from "../fs-files-api.js";
 
 test("folder custom-root and picker requests retain verbs, paths and cancel values", async () => {
-  const request = vi.fn(async <T,>(input: { path: string; method: string; body?: unknown }): Promise<T> => ({ path: null }) as T);
-  const api = createFsFilesApi({ request, workspaceId: "ws" });
+  const request = vi.fn(async (_input: { path: string; method: string; body?: unknown }): Promise<unknown> => ({ path: null }));
+  const api = createFsFilesApi({ request: <T,>(input: { path: string; method: string; body?: unknown }) => request(input) as Promise<T>, workspaceId: "ws" });
   await api.getFsFilesCustomRoot();
   await api.setFsFilesCustomRoot({ path: "/folder" });
   expect(await api.clearFsFilesCustomRoot()).toEqual({ path: null });
