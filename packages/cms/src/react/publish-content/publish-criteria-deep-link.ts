@@ -7,7 +7,7 @@ import { querySuffix } from "@jini-ai/core/admin-runtime";
  * {@link takePublishCriteriaFromQuery} is the one-time read/strip step for that query param, the
  * same shape `boot-token-fragment.ts`'s `takeBootToken` already established for the zip launcher's
  * `#boot=<token>` fragment — narrowed `Location`/`History` types, pure, unit-tested directly. No
- * logic belongs in `apps/admin/src/App.hooks.ts`'s `.tsx` sibling (memory `component_logic_belongs_hooks`), so
+ * logic belongs in the host app shell's `.tsx` component (only in its hooks file) (memory `component_logic_belongs_hooks`), so
  * this pure helper is the one place that parses or mutates the query string.
  *
  * Unlike `takeBootToken`, an invalid payload still gets stripped — `decodePublishCriteriaFromQuery`
