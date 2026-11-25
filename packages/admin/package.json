@@ -94,6 +94,7 @@
       "./shell/components/TemplateSource/template-source-port.hooks": "browser",
       "./shell/components/line-icon": "browser",
       "./shell/lib/acceptance-cancellation": "browser",
+      "./shell/lib/assistant-daemon-activation": "browser",
       "./shell/lib/addons-routes": "browser",
       "./shell/lib/admin-boot-scope": "browser",
       "./shell/lib/admin-draft-identity": "browser",
@@ -740,6 +741,7 @@
         "./shell/components/TemplateSource/template-source-port.hooks": "browser",
         "./shell/components/line-icon": "browser",
         "./shell/lib/acceptance-cancellation": "browser",
+        "./shell/lib/assistant-daemon-activation": "browser",
         "./shell/lib/addons-routes": "browser",
         "./shell/lib/admin-http/config": "universal",
         "./shell/lib/admin-http/settings-api.types": "universal",
@@ -1376,6 +1378,11 @@
       "types": "./dist/shell/components/line-icon.d.ts",
       "import": "./dist/shell/components/line-icon.js",
       "default": "./dist/shell/components/line-icon.js"
+    },
+    "./shell/lib/assistant-daemon-activation": {
+      "types": "./dist/shell/lib/assistant-daemon-activation.d.ts",
+      "import": "./dist/shell/lib/assistant-daemon-activation.js",
+      "default": "./dist/shell/lib/assistant-daemon-activation.js"
     },
     "./shell/lib/acceptance-cancellation": {
       "types": "./dist/shell/lib/acceptance-cancellation.d.ts",
