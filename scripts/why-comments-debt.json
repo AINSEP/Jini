@@ -1752,6 +1752,30 @@
     {
       "id": "a53cc2fe1cc3",
       "reason": "Superseded by 9a9da3df3: formatMaxUploadBytesAsMb was replaced by describeUploadOverLimit (packages/core/src/text/upload-limit-message.ts), which names both sizes and never shows a raw byte count for MB-scale limits; its own docblock states the rounding rule."
+    },
+    {
+      "id": "23f6cfa7da71",
+      "reason": "Explained the whole-map GET+PUT rebuild in createHttpOtherCredentials.writeMedia, removed in 538470813; media Replace/Remove now send one PATCH/DELETE per provider row (see the new why-comment there), so there is no map to rebuild or echo."
+    },
+    {
+      "id": "408e723ea32f",
+      "reason": "Explained the whole-map GET+PUT rebuild in createHttpOtherCredentials.writeMedia, removed in 538470813; media Replace/Remove now send one PATCH/DELETE per provider row (see the new why-comment there), so there is no map to rebuild or echo."
+    },
+    {
+      "id": "e95b76890b6b",
+      "reason": "Explained the whole-map GET+PUT rebuild in createHttpOtherCredentials.writeMedia, removed in 538470813; media Replace/Remove now send one PATCH/DELETE per provider row (see the new why-comment there), so there is no map to rebuild or echo."
+    },
+    {
+      "id": "1157965b7a53",
+      "reason": "Explained the whole-map GET+PUT rebuild in createHttpOtherCredentials.writeMedia, removed in 538470813; media Replace/Remove now send one PATCH/DELETE per provider row (see the new why-comment there), so there is no map to rebuild or echo."
+    },
+    {
+      "id": "a203c8e01715",
+      "reason": "Explained the whole-map GET+PUT rebuild in createHttpOtherCredentials.writeMedia, removed in 538470813; media Replace/Remove now send one PATCH/DELETE per provider row (see the new why-comment there), so there is no map to rebuild or echo."
+    },
+    {
+      "id": "5c6520cbd59f",
+      "reason": "Explained the whole-map GET+PUT rebuild in createHttpOtherCredentials.writeMedia, removed in 538470813; media Replace/Remove now send one PATCH/DELETE per provider row (see the new why-comment there), so there is no map to rebuild or echo."
     }
   ]
 }
