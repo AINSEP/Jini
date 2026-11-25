@@ -54,20 +54,32 @@ export function cleanSlug({ input }, _optional = {}) {
     .replace(/[^a-z0-9]+/g, "-") });
 }
 
-export function notesTemplate({ name, url, mode, level }, _optional = {}) {
+function notesHeadingSection({ name }, _optional = {}) {
   return `# ${name} · 克隆笔记
 
-## 源信息
+`;
+}
+
+function notesSourceSection({ url }, _optional = {}) {
+  return `## 源信息
 - 原站 URL: ${url}
 - 源码仓库:
 - 原作者:
 - 许可证:
 - 致谢要求:
 
-## 技术栈
+`;
+}
+
+function notesStackSection({}, _optional = {}) {
+  return `## 技术栈
 - 框架 / 关键库 / Node 版本:
 
-## 复刻前预判
+`;
+}
+
+function notesAssessmentSection({ level, mode }, _optional = {}) {
+  return `## 复刻前预判
 - 复杂度等级: ${level}
 - 推荐模式: ${mode}
 - 可高保真的部分:
@@ -75,15 +87,27 @@ export function notesTemplate({ name, url, mode, level }, _optional = {}) {
 - 不克隆的部分:
 - 主要风险:
 
-## 跑起来
+`;
+}
+
+function notesRunSection({}, _optional = {}) {
+  return `## 跑起来
 \`\`\`bash
 python3 -m http.server 8123
 \`\`\`
 
-## 改了什么（对照原版）
+`;
+}
+
+function notesChangesSection({}, _optional = {}) {
+  return `## 改了什么（对照原版）
 -
 
-## 原站 vs 克隆站
+`;
+}
+
+function notesComparisonSection({}, _optional = {}) {
+  return `## 原站 vs 克隆站
 | 模块 | 原站表现 | 克隆实现 | 差异 / 取舍 | 证据 |
 |---|---|---|---|---|
 | 首屏 |  |  |  |  |
@@ -92,7 +116,11 @@ python3 -m http.server 8123
 | 内容区块 |  |  |  |  |
 | 移动端 |  |  |  |  |
 
-## 复刻评分
+`;
+}
+
+function notesScoreSection({}, _optional = {}) {
+  return `## 复刻评分
 - 源证据: /5
 - 结构保真: /5
 - 视觉保真: /5
@@ -103,17 +131,40 @@ python3 -m http.server 8123
 - 法务/部署风险: /5
 - 总评:
 
-## 替换地图（要换什么改哪）
+`;
+}
+
+function notesReplacementSection({}, _optional = {}) {
+  return `## 替换地图（要换什么改哪）
 - 文字 -> 文件 行
 - 图片/媒体 -> 目录
 - 配色 -> CSS 变量 / theme
 - 3D 模型 / 字体 ->
 
-## 验证
+`;
+}
+
+function notesVerificationSection({}, _optional = {}) {
+  return `## 验证
 - [ ] 本地跑通、console 0 error
 - [ ] 截图对照原站（RECON/screenshots/）
 - 验证不了的点（如实记，别伪造）:
 `;
+}
+
+export function notesTemplate({ name, url, mode, level }, _optional = {}) {
+  return [
+    notesHeadingSection({ name }),
+    notesSourceSection({ url }),
+    notesStackSection({}),
+    notesAssessmentSection({ level, mode }),
+    notesRunSection({}),
+    notesChangesSection({}),
+    notesComparisonSection({}),
+    notesScoreSection({}),
+    notesReplacementSection({}),
+    notesVerificationSection({}),
+  ].join("");
 }
 
 function init(argv, io) {

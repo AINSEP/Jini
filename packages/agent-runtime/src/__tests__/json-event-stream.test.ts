@@ -650,6 +650,22 @@ describe('createJsonEventStreamHandler (opencode)', () => {
 });
 
 describe('createJsonEventStreamHandler (gemini)', () => {
+  it('carries an incomplete artifact tag across chunks while preserving distinct surrounding text', () => {
+    const events: Record<string, unknown>[] = [];
+    const handler = createJsonEventStreamHandler({ kind: 'legacy-google-stream-json', onEvent: (event) => events.push(event) });
+    handler.feed({ chunk: `${JSON.stringify({ type: 'tool_use', tool_id: 'write-17', tool_name: 'write_file', parameters: { file_path: 'index.html', content: 'saved file 29' } })}\n` });
+    handler.feed({ chunk: `${JSON.stringify({ type: 'message', role: 'assistant', content: 'Prefix marker 41 <art' })}\n` });
+    expect(events.filter((event) => event.type === 'text_delta')).toEqual([
+      { type: 'text_delta', delta: 'Prefix marker 41 ' },
+    ]);
+    handler.feed({ chunk: `${JSON.stringify({ type: 'message', role: 'assistant', content: 'ifact id="echo-53">hidden echo 67</artifact>Suffix marker 79' })}\n` });
+    handler.flush();
+    expect(events.filter((event) => event.type === 'text_delta')).toEqual([
+      { type: 'text_delta', delta: 'Prefix marker 41 ' },
+      { type: 'text_delta', delta: 'Suffix marker 79' },
+    ]);
+  });
+
   it('replays an init → user message (swallowed) → assistant text → tool_use → tool_result → usage result trace', () => {
     const events = feed('legacy-google-stream-json', [
       { type: 'init', model: 'gemini-2.5-pro' },

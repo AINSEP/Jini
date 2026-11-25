@@ -1,6 +1,9 @@
 import assert from "node:assert/strict";
-import { test } from "vitest";
-import { buildAgentPluginSearchRegistrations } from "../search-tool.js";
+import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import os from "node:os";
+import path from "node:path";
+import { expect, test } from "vitest";
+import { buildAgentPluginSearchRegistrations, loadAgentPluginSearchCandidates } from "../search-tool.js";
 import type { AgentPluginHostToolPorts } from "../ports.js";
 
 const unexpected = () => { throw new Error("unexpected port call"); };
@@ -55,4 +58,37 @@ test("search checks the principal's configured use permission before reading the
     { input: { workspaceId: "workspace-a", principalId: "allowed", permission: ports.permissions.use },
       entity: { entityType: "workspace", entityId: "workspace-a" } },
   ], "both principals are checked for the configured use permission in the same workspace");
+});
+
+test("search omits absent metadata and preserves display and dependency field order", async () => {
+  const packageRoot = await mkdtemp(path.join(os.tmpdir(), "search-fields-"));
+  try {
+    await writeFile(path.join(packageRoot, "plugin.json"), JSON.stringify({ name: "metadata", version: "1.0.0", description: "identity fixture" }));
+    const candidates = await loadAgentPluginSearchCandidates({
+      workspaceId: "workspace-a",
+      ports: {
+        ...ports,
+        lifecycle: {
+          ...ports.lifecycle,
+          listInstalledPlugins: async () => [
+            { pluginId: "sparse", packageRoot, archiveDigest: "digest-17", files: [], skills: [] },
+            { pluginId: "full", packageRoot, archiveDigest: "digest-29", files: [], skills: [],
+              displayName: "", summary: "summary-41", version: "2.3.5", description: "description-53", requires: [], companions: ["peer-67"] },
+          ],
+          readInstalledMcpServerIds: async () => [],
+        },
+        activations: { ...ports.activations, isAgentPluginActive: () => true },
+      },
+    });
+    expect(candidates).toHaveLength(2);
+    const [sparse, full] = candidates;
+    expect(Object.keys(sparse!).filter(key => ["displayName", "summary", "version", "description", "requires", "companions"].includes(key))).toEqual([]);
+    expect(Object.keys(sparse!).slice(0, 5)).toEqual(["pluginId", "id", "provides", "keywords", "enabled"]);
+    expect(full).toMatchObject({ displayName: "", summary: "summary-41", version: "2.3.5", description: "description-53", requires: [], companions: ["peer-67"] });
+    expect(Object.keys(full!).slice(0, 11)).toEqual([
+      "pluginId", "displayName", "summary", "version", "description", "id", "provides", "requires", "companions", "keywords", "enabled",
+    ]);
+  } finally {
+    await rm(packageRoot, { recursive: true, force: true });
+  }
 });

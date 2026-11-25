@@ -42,61 +42,77 @@ export function usage({ log }, _optional = {}) {
 schema 与字段含义见 references/design-dna.md。`);
 }
 
-// 完整 DNA 骨架（与 references/design-dna.md 对齐）
-export function skeleton({ name }, _optional = {}) {
+function dnaMetaSection({ name }, _optional = {}) {
+  return { name: name || "", description: "", source_references: "", created_at: "" };
+}
+
+function dnaDesignSystemSection({}, _optional = {}) {
   const ts = () => ({ size: "", weight: "", line_height: "", tracking: "" });
   return {
-    meta: { name: name || "", description: "", source_references: "", created_at: "" },
-    design_system: {
-      color: {
-        palette_type: "",
-        primary: { hex: "", role: "" },
-        secondary: { hex: "", role: "" },
-        accent: { hex: "", role: "" },
-        neutral: { scale: "", usage: "" },
-        semantic: { success: "", warning: "", error: "", info: "" },
-        surface: { background: "", card: "", elevated: "" },
-        contrast_strategy: "",
+    color: {
+      palette_type: "",
+      primary: { hex: "", role: "" },
+      secondary: { hex: "", role: "" },
+      accent: { hex: "", role: "" },
+      neutral: { scale: "", usage: "" },
+      semantic: { success: "", warning: "", error: "", info: "" },
+      surface: { background: "", card: "", elevated: "" },
+      contrast_strategy: "",
+    },
+    typography: {
+      type_scale: {
+        display: ts(), heading_1: ts(), heading_2: ts(), heading_3: ts(),
+        body: ts(), body_small: ts(), caption: ts(), overline: ts(),
       },
-      typography: {
-        type_scale: {
-          display: ts(), heading_1: ts(), heading_2: ts(), heading_3: ts(),
-          body: ts(), body_small: ts(), caption: ts(), overline: ts(),
-        },
-        font_families: { heading: "", body: "", mono: "" },
-        font_style_notes: "",
-      },
-      spacing: { base_unit: "", scale: "", content_density: "", section_rhythm: "" },
-      layout: { grid_system: "", max_content_width: "", columns: "", gutter: "", breakpoints: "", alignment_tendency: "" },
-      shape: { border_radius: { small: "", medium: "", large: "", pill: "" }, border_usage: "", divider_style: "" },
-      elevation: { shadow_style: "", levels: { low: "", medium: "", high: "" }, depth_cues: "" },
-      iconography: { style: "", stroke_weight: "", size_scale: "", preferred_set: "" },
-      motion: { easing: "", duration_scale: { micro: "", normal: "", macro: "" }, entrance_pattern: "", exit_pattern: "", philosophy: "" },
-      components: { button_style: "", input_style: "", card_style: "", navigation_pattern: "", modal_style: "", list_style: "", component_notes: "" },
+      font_families: { heading: "", body: "", mono: "" },
+      font_style_notes: "",
     },
-    design_style: {
-      aesthetic: { mood: [], visual_metaphor: "", era_influence: "", genre: "", personality_traits: [], adjectives: [] },
-      visual_language: { complexity: "", ornamentation: "", whitespace_usage: "", visual_weight_distribution: "", focal_strategy: "", contrast_level: "", texture_usage: "" },
-      composition: { hierarchy_method: "", balance_type: "", flow_direction: "", grouping_strategy: "", negative_space_role: "" },
-      imagery: { photo_treatment: "", illustration_style: "", graphic_elements: "", pattern_usage: "", image_shape: "" },
-      interaction_feel: { feedback_style: "", hover_behavior: "", transition_personality: "", loading_style: "", microinteraction_density: "" },
-      brand_voice_in_ui: { tone: "", formality: "", cta_style: "", empty_state_approach: "", error_tone: "" },
-    },
-    visual_effects: {
-      overview: { effect_intensity: "", performance_tier: "", fallback_strategy: "", primary_technology: "" },
-      background_effects: { type: "", description: "", technology: "", params: { color_palette: "", speed: "", density: "", opacity: "", blend_mode: "" } },
-      particle_systems: { enabled: false, type: "", description: "", technology: "", params: { count: "", shape: "", size_range: "", movement_pattern: "", color_behavior: "", interaction: "", spawn_area: "" } },
-      "3d_elements": { enabled: false, type: "", description: "", technology: "", params: { renderer: "", lighting: "", camera: "", materials: "", geometry: "", post_processing: [], interaction_model: "" } },
-      shader_effects: { enabled: false, type: "", description: "", technology: "", params: { uniforms: "", vertex_manipulation: "", fragment_output: "", noise_type: "", distortion: "" } },
-      scroll_effects: { parallax: { enabled: false, layers: "", depth_range: "", speed_curve: "" }, scroll_triggered_animations: { enabled: false, trigger_points: "", animation_type: "", scrub_behavior: "" }, scroll_morphing: { enabled: false, description: "" } },
-      text_effects: { type: "", description: "", technology: "", params: { split_strategy: "", animation_per_unit: "", stagger: "", effect_style: "" } },
-      cursor_effects: { enabled: false, type: "", description: "", params: { shape: "", size: "", blend_mode: "", trail: "", interaction_zone: "" } },
-      image_effects: { type: "", description: "", technology: "", params: { filter_pipeline: "", hover_transform: "", reveal_animation: "", distortion_type: "" } },
-      glassmorphism_neumorphism: { enabled: false, style: "", params: { blur_radius: "", transparency: "", border_treatment: "", shadow_type: "", light_source_angle: "" } },
-      canvas_drawings: { enabled: false, type: "", description: "", technology: "", params: { draw_method: "", animation_loop: "", color_scheme: "", responsiveness: "", interaction: "" } },
-      svg_animations: { enabled: false, type: "", description: "", params: { animation_method: "", path_morphing: "", stroke_animation: "", filter_effects: "" } },
-      composite_notes: "",
-    },
+    spacing: { base_unit: "", scale: "", content_density: "", section_rhythm: "" },
+    layout: { grid_system: "", max_content_width: "", columns: "", gutter: "", breakpoints: "", alignment_tendency: "" },
+    shape: { border_radius: { small: "", medium: "", large: "", pill: "" }, border_usage: "", divider_style: "" },
+    elevation: { shadow_style: "", levels: { low: "", medium: "", high: "" }, depth_cues: "" },
+    iconography: { style: "", stroke_weight: "", size_scale: "", preferred_set: "" },
+    motion: { easing: "", duration_scale: { micro: "", normal: "", macro: "" }, entrance_pattern: "", exit_pattern: "", philosophy: "" },
+    components: { button_style: "", input_style: "", card_style: "", navigation_pattern: "", modal_style: "", list_style: "", component_notes: "" },
+  };
+}
+
+function dnaDesignStyleSection({}, _optional = {}) {
+  return {
+    aesthetic: { mood: [], visual_metaphor: "", era_influence: "", genre: "", personality_traits: [], adjectives: [] },
+    visual_language: { complexity: "", ornamentation: "", whitespace_usage: "", visual_weight_distribution: "", focal_strategy: "", contrast_level: "", texture_usage: "" },
+    composition: { hierarchy_method: "", balance_type: "", flow_direction: "", grouping_strategy: "", negative_space_role: "" },
+    imagery: { photo_treatment: "", illustration_style: "", graphic_elements: "", pattern_usage: "", image_shape: "" },
+    interaction_feel: { feedback_style: "", hover_behavior: "", transition_personality: "", loading_style: "", microinteraction_density: "" },
+    brand_voice_in_ui: { tone: "", formality: "", cta_style: "", empty_state_approach: "", error_tone: "" },
+  };
+}
+
+function dnaVisualEffectsSection({}, _optional = {}) {
+  return {
+    overview: { effect_intensity: "", performance_tier: "", fallback_strategy: "", primary_technology: "" },
+    background_effects: { type: "", description: "", technology: "", params: { color_palette: "", speed: "", density: "", opacity: "", blend_mode: "" } },
+    particle_systems: { enabled: false, type: "", description: "", technology: "", params: { count: "", shape: "", size_range: "", movement_pattern: "", color_behavior: "", interaction: "", spawn_area: "" } },
+    "3d_elements": { enabled: false, type: "", description: "", technology: "", params: { renderer: "", lighting: "", camera: "", materials: "", geometry: "", post_processing: [], interaction_model: "" } },
+    shader_effects: { enabled: false, type: "", description: "", technology: "", params: { uniforms: "", vertex_manipulation: "", fragment_output: "", noise_type: "", distortion: "" } },
+    scroll_effects: { parallax: { enabled: false, layers: "", depth_range: "", speed_curve: "" }, scroll_triggered_animations: { enabled: false, trigger_points: "", animation_type: "", scrub_behavior: "" }, scroll_morphing: { enabled: false, description: "" } },
+    text_effects: { type: "", description: "", technology: "", params: { split_strategy: "", animation_per_unit: "", stagger: "", effect_style: "" } },
+    cursor_effects: { enabled: false, type: "", description: "", params: { shape: "", size: "", blend_mode: "", trail: "", interaction_zone: "" } },
+    image_effects: { type: "", description: "", technology: "", params: { filter_pipeline: "", hover_transform: "", reveal_animation: "", distortion_type: "" } },
+    glassmorphism_neumorphism: { enabled: false, style: "", params: { blur_radius: "", transparency: "", border_treatment: "", shadow_type: "", light_source_angle: "" } },
+    canvas_drawings: { enabled: false, type: "", description: "", technology: "", params: { draw_method: "", animation_loop: "", color_scheme: "", responsiveness: "", interaction: "" } },
+    svg_animations: { enabled: false, type: "", description: "", params: { animation_method: "", path_morphing: "", stroke_animation: "", filter_effects: "" } },
+    composite_notes: "",
+  };
+}
+
+// 完整 DNA 骨架（与 references/design-dna.md 对齐）
+export function skeleton({ name }, _optional = {}) {
+  return {
+    meta: dnaMetaSection({ name }),
+    design_system: dnaDesignSystemSection({}),
+    design_style: dnaDesignStyleSection({}),
+    visual_effects: dnaVisualEffectsSection({}),
   };
 }
 
