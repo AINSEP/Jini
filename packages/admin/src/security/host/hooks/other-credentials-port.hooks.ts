@@ -26,6 +26,9 @@ export interface OtherCredentialsPort {
   deleteAdminByokCredential(): Promise<{ data: AdminExecutionCredential }>;
 
   getMediaProviders(): Promise<AdminMediaProviderMap>;
+  /** The host's LIVE provider catalog body (the one the Media tab's External Providers cards read), so a
+   *  provider contributed at runtime by a plugin reads with its human label rather than its raw id. */
+  getMediaProviderCatalog(): Promise<{ providers?: unknown } | null | undefined>;
   /** Merges ONE provider's fields into its own stored row; an omitted `apiKey`/`baseUrl`/`model` keeps
    *  the stored value, and no other provider is named. Deliberately not the whole map: a map built from
    *  this page's snapshot re-sends every other provider as it was at load, undoing a newer save from
