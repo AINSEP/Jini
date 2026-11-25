@@ -978,7 +978,7 @@
    "SurfaceExchange": "interface:deee18dae2",
    "SurfaceExchangeBinding": "interface:efd4f8d4fc",
    "SurfaceExchangeConversation": "type:50ba4a0b27",
-   "SurfaceExchangeStore": "interface:4a8829f9c4",
+   "SurfaceExchangeStore": "interface:45388eaa42",
    "SurfaceMessage": "type:3b73557b7e",
    "askOnce": "function:ae358a48fd",
    "askThenReport": "function:0923f4cd43",
