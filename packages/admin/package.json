@@ -776,7 +776,10 @@
       "./browser/server-reconnect": "browser",
       "./browser/settings-events": "browser",
       "./react/shell/Placeholder": "browser",
-      "./react/shell/appearance": "browser"
+      "./react/shell/appearance": "browser",
+      "./security/react/live/Security": "browser",
+      "./shell/lib/execution-settings-ledger": "universal",
+      "./react/settings/SettingsPageLayout": "browser"
     },
     "isolation": {
       "shared": [
@@ -4865,6 +4868,21 @@
       "types": "./dist/react/shell/appearance.d.ts",
       "import": "./dist/react/shell/appearance.js",
       "default": "./dist/react/shell/appearance.js"
+    },
+    "./security/react/live/Security": {
+      "types": "./dist/security/react/live/Security.d.ts",
+      "import": "./dist/security/react/live/Security.js",
+      "default": "./dist/security/react/live/Security.js"
+    },
+    "./shell/lib/execution-settings-ledger": {
+      "types": "./dist/shell/lib/execution-settings-ledger.d.ts",
+      "import": "./dist/shell/lib/execution-settings-ledger.js",
+      "default": "./dist/shell/lib/execution-settings-ledger.js"
+    },
+    "./react/settings/SettingsPageLayout": {
+      "types": "./dist/react/settings/SettingsPageLayout.d.ts",
+      "import": "./dist/react/settings/SettingsPageLayout.js",
+      "default": "./dist/react/settings/SettingsPageLayout.js"
     }
   },
   "files": [
@@ -5390,6 +5408,15 @@
       ],
       "react/shell/appearance": [
         "./dist/react/shell/appearance.d.ts"
+      ],
+      "security/react/live/Security": [
+        "./dist/security/react/live/Security.d.ts"
+      ],
+      "shell/lib/execution-settings-ledger": [
+        "./dist/shell/lib/execution-settings-ledger.d.ts"
+      ],
+      "react/settings/SettingsPageLayout": [
+        "./dist/react/settings/SettingsPageLayout.d.ts"
       ]
     }
   },

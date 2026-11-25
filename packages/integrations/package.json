@@ -51,7 +51,8 @@
       "./custom-credentials/agent-tools": "node",
       "./custom-credentials/credentialed-request": "node",
       "./secrets": "node",
-      "./react/credentials/credential-copy": "browser"
+      "./react/credentials/credential-copy": "browser",
+      "./react/admin-credentials/byok-footer-status": "universal"
     },
     "optionalPeers": {
       "better-sqlite3": "opt-in: sqlite storage; import @jini-ai/integrations/media-providers — SQLite storage could not load better-sqlite3. Install better-sqlite3 to enable this feature, or check its installed version and native binaries.",
@@ -272,6 +273,11 @@
       "types": "./dist/react/credentials/credential-copy.d.ts",
       "import": "./dist/react/credentials/credential-copy.js",
       "default": "./dist/react/credentials/credential-copy.js"
+    },
+    "./react/admin-credentials/byok-footer-status": {
+      "types": "./dist/react/admin-credentials/byok-footer-status.d.ts",
+      "import": "./dist/react/admin-credentials/byok-footer-status.js",
+      "default": "./dist/react/admin-credentials/byok-footer-status.js"
     }
   },
   "typesVersions": {
@@ -386,6 +392,9 @@
       ],
       "secrets": [
         "./dist/secrets/index.d.ts"
+      ],
+      "react/admin-credentials/byok-footer-status": [
+        "./dist/react/admin-credentials/byok-footer-status.d.ts"
       ]
     }
   },
