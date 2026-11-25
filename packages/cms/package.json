@@ -713,7 +713,16 @@
       "./react/media/MediaPickerDialog/MediaPickerDialog.hooks": "browser",
       "./react/widgets/WidgetConfigFields/HtmlAttributeRows": "browser",
       "./react/widgets/EmbedInsertControl/EmbedInsertControl": "browser",
-      "./react/widgets/EmbedInsertControl/EmbedInsertControl.hooks": "browser"
+      "./react/widgets/EmbedInsertControl/EmbedInsertControl.hooks": "browser",
+      "./react/posts/editor/header/PostEditorActions": "browser",
+      "./react/posts/editor/header/PostEditorHeader": "browser",
+      "./react/posts/editor/view-bar/PostEditorViewBar": "browser",
+      "./react/posts/editor/preview/PostPreview": "browser",
+      "./react/posts/editor/preview/PostPreviewFrame": "browser",
+      "./react/posts/hooks/post-editor-messages": "universal",
+      "./react/posts/hooks/post-editor-state.rules": "universal",
+      "./react/posts/hooks/post-editor-save.rules": "universal",
+      "./react/posts/hooks/use-post-url-dialog.hooks": "browser"
     },
     "isolation": {
       "domains": {
@@ -864,6 +873,60 @@
           "parse5"
         ],
         "./react/media/MediaPickerDialog/MediaPickerDialog.hooks": [
+          "node:",
+          "express",
+          "kysely",
+          "parse5"
+        ],
+        "./react/posts/editor/header/PostEditorActions": [
+          "node:",
+          "express",
+          "kysely",
+          "parse5"
+        ],
+        "./react/posts/editor/header/PostEditorHeader": [
+          "node:",
+          "express",
+          "kysely",
+          "parse5"
+        ],
+        "./react/posts/editor/view-bar/PostEditorViewBar": [
+          "node:",
+          "express",
+          "kysely",
+          "parse5"
+        ],
+        "./react/posts/editor/preview/PostPreview": [
+          "node:",
+          "express",
+          "kysely",
+          "parse5"
+        ],
+        "./react/posts/editor/preview/PostPreviewFrame": [
+          "node:",
+          "express",
+          "kysely",
+          "parse5"
+        ],
+        "./react/posts/hooks/post-editor-messages": [
+          "node:",
+          "express",
+          "kysely",
+          "parse5"
+        ],
+        "./react/posts/hooks/post-editor-state.rules": [
+          "node:",
+          "express",
+          "kysely",
+          "parse5"
+        ],
+        "./react/posts/hooks/post-editor-save.rules": [
+          "node:",
+          "express",
+          "kysely",
+          "parse5"
+        ],
+        "./react/posts/hooks/use-post-url-dialog.hooks": [
           "node:",
           "express",
           "kysely",
@@ -1095,7 +1158,16 @@
         "./react/media/MediaPickerDialog/MediaPickerDialog.hooks": "media",
         "./react/widgets/WidgetConfigFields/HtmlAttributeRows": "widgets",
         "./react/widgets/EmbedInsertControl/EmbedInsertControl": "widgets",
-        "./react/widgets/EmbedInsertControl/EmbedInsertControl.hooks": "widgets"
+        "./react/widgets/EmbedInsertControl/EmbedInsertControl.hooks": "widgets",
+        "./react/posts/editor/header/PostEditorActions": "posts",
+        "./react/posts/editor/header/PostEditorHeader": "posts",
+        "./react/posts/editor/view-bar/PostEditorViewBar": "posts",
+        "./react/posts/editor/preview/PostPreview": "posts",
+        "./react/posts/editor/preview/PostPreviewFrame": "posts",
+        "./react/posts/hooks/post-editor-messages": "posts",
+        "./react/posts/hooks/post-editor-state.rules": "posts",
+        "./react/posts/hooks/post-editor-save.rules": "posts",
+        "./react/posts/hooks/use-post-url-dialog.hooks": "posts"
       }
     },
     "optionalPeers": {
@@ -4618,6 +4690,51 @@
       "types": "./dist/react/widgets/EmbedInsertControl/EmbedInsertControl.hooks.d.ts",
       "import": "./dist/react/widgets/EmbedInsertControl/EmbedInsertControl.hooks.js",
       "default": "./dist/react/widgets/EmbedInsertControl/EmbedInsertControl.hooks.js"
+    },
+    "./react/posts/editor/header/PostEditorActions": {
+      "types": "./dist/react/posts/editor/header/PostEditorActions.d.ts",
+      "import": "./dist/react/posts/editor/header/PostEditorActions.js",
+      "default": "./dist/react/posts/editor/header/PostEditorActions.js"
+    },
+    "./react/posts/editor/header/PostEditorHeader": {
+      "types": "./dist/react/posts/editor/header/PostEditorHeader.d.ts",
+      "import": "./dist/react/posts/editor/header/PostEditorHeader.js",
+      "default": "./dist/react/posts/editor/header/PostEditorHeader.js"
+    },
+    "./react/posts/editor/view-bar/PostEditorViewBar": {
+      "types": "./dist/react/posts/editor/view-bar/PostEditorViewBar.d.ts",
+      "import": "./dist/react/posts/editor/view-bar/PostEditorViewBar.js",
+      "default": "./dist/react/posts/editor/view-bar/PostEditorViewBar.js"
+    },
+    "./react/posts/editor/preview/PostPreview": {
+      "types": "./dist/react/posts/editor/preview/PostPreview.d.ts",
+      "import": "./dist/react/posts/editor/preview/PostPreview.js",
+      "default": "./dist/react/posts/editor/preview/PostPreview.js"
+    },
+    "./react/posts/editor/preview/PostPreviewFrame": {
+      "types": "./dist/react/posts/editor/preview/PostPreviewFrame.d.ts",
+      "import": "./dist/react/posts/editor/preview/PostPreviewFrame.js",
+      "default": "./dist/react/posts/editor/preview/PostPreviewFrame.js"
+    },
+    "./react/posts/hooks/post-editor-messages": {
+      "types": "./dist/react/posts/hooks/post-editor-messages.d.ts",
+      "import": "./dist/react/posts/hooks/post-editor-messages.js",
+      "default": "./dist/react/posts/hooks/post-editor-messages.js"
+    },
+    "./react/posts/hooks/post-editor-state.rules": {
+      "types": "./dist/react/posts/hooks/post-editor-state.rules.d.ts",
+      "import": "./dist/react/posts/hooks/post-editor-state.rules.js",
+      "default": "./dist/react/posts/hooks/post-editor-state.rules.js"
+    },
+    "./react/posts/hooks/post-editor-save.rules": {
+      "types": "./dist/react/posts/hooks/post-editor-save.rules.d.ts",
+      "import": "./dist/react/posts/hooks/post-editor-save.rules.js",
+      "default": "./dist/react/posts/hooks/post-editor-save.rules.js"
+    },
+    "./react/posts/hooks/use-post-url-dialog.hooks": {
+      "types": "./dist/react/posts/hooks/use-post-url-dialog.hooks.d.ts",
+      "import": "./dist/react/posts/hooks/use-post-url-dialog.hooks.js",
+      "default": "./dist/react/posts/hooks/use-post-url-dialog.hooks.js"
     }
   },
   "files": [

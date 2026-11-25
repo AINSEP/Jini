@@ -5,5 +5,5 @@
     "rootDir": "src"
   },
   "include": ["src"],
-  "exclude": ["src/core/dom"]
+  "exclude": ["src/core/dom", "src/react/skills"]
 }
