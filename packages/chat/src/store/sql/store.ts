@@ -1,10 +1,3 @@
-import { sqliteReadVersion } from './read-version.js';
-import { withFolderReceipt, foldersFromReceipts } from '../../core/accepted-input.js';
-import type { OnConflictBuilder } from 'kysely';
-const MESSAGE_POSITION = 'm.position';
-
-const CONVERSATION_UPDATED_AT = 'c.updated_at';
-
 /** One SQL query body upstreamed from the existing host adapter; no resource/schema ownership. */
 // Legacy project/conversation CRUD trusts access to a local database file; this owner-bound store
 // serves shared databases instead. Choose by trust model: borrowing a handle must not grant access
@@ -16,82 +9,22 @@ const CONVERSATION_UPDATED_AT = 'c.updated_at';
  * cannot serialize two appends as SQLite BEGIN IMMEDIATE does. The unique conversation/position
  * constraint remains the backstop, and nested appends join the host's existing transaction.
  */
-import { sql, type Kysely } from 'kysely';
+import type { Kysely } from 'kysely';
 import type { Clock } from '@jini-ai/core/primitives';
-import { isUniqueViolation, type StorageKernel } from '@jini-ai/core/contracts/storage';
+import type { StorageKernel } from '@jini-ai/core/contracts/storage';
+import { foldersFromReceipts } from '../../core/accepted-input.js';
 import { redactUserMessage, type UserTextRedactionOptions } from '../../core/user-text-redaction.js';
 import type { ChatMessage } from '../../core/messages.js';
 import { MID_RUN_USER_MESSAGE_EVENT_NAME } from '../../core/turn-usage.js';
-import type { ChatConversation, ChatStore, ChatOwnerScope, ChatTitleSource, CreateChatConversationInput, ChatPageOptions, ChatMessagePageInput } from '../ports.js';
+import type { ChatStore, ChatOwnerScope } from '../ports.js';
 import type { ChatDatabase } from './tables.js';
-import { ChatStoreError } from '../errors.js';
-import { copyScope, atStoreBoundary, runChatQuery } from './boundary.js';
-import { pageLimit, decodeCursor, encodeCursor } from './cursor.js';
-
-/** UTF-8 byte ordinal ordering, identical on SQLite BINARY and PostgreSQL C collation. */
-function ordinalId(dialect: 'sqlite' | 'postgres', column: 'c.id' | 'm.id') {
-  return dialect === 'sqlite' ? sql<string>`${sql.ref(column)} collate BINARY` : sql<string>`${sql.ref(column)} collate "C"`;
-}
-
-/** The lock every position-assigning append to one conversation takes. */
-function conversationLockKey(conversationId: string): string {
-  return `chat-conversation:${conversationId}`;
-}
-
-interface ConversationRow {
-  id: string;
-  title: string | null;
-  title_source: string;
-  created_at: number;
-  updated_at: number;
-  expires_at: number | null;
-  message_count: number | string | bigint | null;
-}
-
-interface MessageRow {
-  id: string;
-  role: string;
-  content: string;
-  agent_id: string | null;
-  agent_name: string | null;
-  events_json: string | null;
-  attachments_json: string | null;
-  run_id: string | null;
-  run_status: string | null;
-  created_at: number;
-  started_at: number | null;
-  ended_at: number | null;
-}
-
-function toConversation(row: ConversationRow): ChatConversation {
-  return {
-    id: row.id,
-    title: row.title,
-    titleSource: row.title_source as ChatTitleSource,
-    // COUNT(*) never yields null; Number() also maps a driver's string/bigint count.
-    messageCount: Number(row.message_count),
-    createdAt: Number(row.created_at),
-    updatedAt: Number(row.updated_at),
-    ...(row.expires_at === null ? {} : { expiresAt: Number(row.expires_at) }),
-  };
-}
-
-/**
- * A malformed JSON column yields `undefined` rather than throwing: one half-written `events_json`
- * must not make the whole conversation unreadable (same rule as Jini's store).
- */
-function safeParse(value: string): any {
-  try {
-    return JSON.parse(value);
-  } catch {
-    return undefined;
-  }
-}
-
-/** A NULL (or empty) JSON column is absent; anything else goes through {@link safeParse}. */
-function parseJsonColumn(value: string | null): any {
-  return value ? safeParse(value) : undefined;
-}
+import { copyScope, atStoreBoundary, chatKernelTables, runChatQuery } from './boundary.js';
+import { parseJsonColumn, type MessageRow } from './store-rows.js';
+import {
+  getConversation, historyList, historyRead, listConversations, listMessages, messageById, messageRowsWithValidity,
+  messagesVersion, pageConversations, pageMessages, type SqlStoreContext,
+} from './store-queries.js';
+import { createConversation, deleteConversation, renameConversation, touchConversation, writeMessage } from './store-writes.js';
 
 /** Project only existing ai_* fields: resumable and lastRunEventId belong to run state. */
 // Both fields disappear on a transcript round trip today. Adding columns alone would let the
@@ -142,6 +75,14 @@ function rawMessageMetadata({ row }: { row: MessageRow }, _optional = {}): ChatM
   return message;
 }
 
+/** Empty run columns are omitted. */
+function runFields(row: MessageRow): Pick<ChatMessage, 'runId' | 'runStatus'> {
+  return {
+    ...(row.run_id ? { runId: row.run_id } : {}),
+    ...(row.run_status ? { runStatus: row.run_status as NonNullable<ChatMessage['runStatus']> } : {}),
+  };
+}
+
 type RawMessageRow = MessageRow & { events_json_valid: number | null };
 
 /** Keep malformed-column tolerance without reserializing event trees. SQLite validates in SQL;
@@ -177,55 +118,6 @@ async function* messageJsonChunks(
   yield ']}';
 }
 
-/** Receipt-bearing user rows retain their public metadata while large assistant histories stay
- * outside recovery/acceptance projections. Both dialects evaluate the same CASE expression. */
-function messageEventsColumn({ includeEvents }: { includeEvents: boolean | "user" }, _options = {}) {
-  if (includeEvents === 'user') return sql<string | null>`case when m.role = 'user' then m.events_json else null end`;
-  return includeEvents ? sql<string | null>`m.events_json` : sql<string | null>`null`;
-}
-
-/** Empty run columns are omitted. */
-function runFields(row: MessageRow): Pick<ChatMessage, 'runId' | 'runStatus'> {
-  return {
-    ...(row.run_id ? { runId: row.run_id } : {}),
-    ...(row.run_status ? { runStatus: row.run_status as NonNullable<ChatMessage['runStatus']> } : {}),
-  };
-}
-
-/** The bounded history reader's projection: no attachment, agent or run column is selected. */
-interface HistoryRow {
-  id: string;
-  role: string;
-  content: string;
-  position: number;
-  created_at: number;
-  events_json: string | null;
-}
-
-/** Reject an unbounded or malformed history read before any query runs. */
-function assertHistoryReadBounds({ limit, fromPosition }: { limit: number; fromPosition: number | undefined }): void {
-  if (!Number.isInteger(limit) || limit < 1 || limit > 100) throw new ChatStoreError({ code: 'invalid-input' });
-  if (fromPosition !== undefined && (!Number.isSafeInteger(fromPosition) || fromPosition < 0)) {
-    throw new ChatStoreError({ code: 'invalid-input' });
-  }
-}
-
-/** Project one history row; `events` is present (possibly undefined) only when tool events were asked for. */
-function toHistoryMessage(row: HistoryRow, { includeToolEvents }: { includeToolEvents: boolean }) {
-  return { id: row.id, role: row.role as ChatMessage['role'], content: row.content,
-    position: Number(row.position), createdAt: Number(row.created_at),
-    ...(includeToolEvents ? { events: parseJsonColumn(row.events_json) } : {}),
-  };
-}
-
-/** @throws {ChatStoreError} `invalid-input` for an out-of-range limit or an over-long/non-string query. */
-function assertHistoryListInputs({ limit, query }: { limit: number; query: unknown }, _optional = {}): void {
-  if (!Number.isInteger(limit) || limit < 1 || limit > 50) throw new ChatStoreError({ code: 'invalid-input' });
-  if (query !== undefined && (typeof query !== 'string' || query.length > 200)) {
-    throw new ChatStoreError({ code: 'invalid-input' });
-  }
-}
-
 /**
  * Returns a {@link ChatHistoryStore} that can only ever see `scope`'s own conversations.
  *
@@ -241,364 +133,57 @@ export function createSqlChatStore<DB extends ChatDatabase>(
   { kernel, scope: inputScope, clock }: { kernel: StorageKernel<Kysely<DB>, DB>; scope: ChatOwnerScope; clock: Clock },
   redactionOptions: UserTextRedactionOptions = {},
 ): ChatStore {
-  const scope = copyScope({ scope: inputScope });
-  const { scopeId, ownerKind, ownerId } = scope;
   // The single subset boundary: DB must contain both required table definitions. Extra host tables
   // stay on the exact borrowed kernel; its transaction context is never projected or recreated.
-  const run = <T>(body: (db: Kysely<ChatDatabase>) => T | Promise<T>): Promise<T> =>
-    runChatQuery({ kernel: kernel, body: body });
-
-  // Count embedded user messages in SQL: list/get still return summaries, never whole transcripts.
-  // Writers store `JSON.stringify` output (no whitespace, as appendedEventsJson also relies on), so
-  // each mid-run event holds this exact text once; text inside a JSON string has escaped quotes and
-  // cannot match, and invalid JSON stays readable (it counts what it holds, never throws). Plain
-  // length/replace run on SQLite and PostgreSQL 14+, unlike `IS JSON` (PostgreSQL 16+).
-  const needle = `"name":"${MID_RUN_USER_MESSAGE_EVENT_NAME}"`;
-  const midRunCount = sql<number>`((length(coalesce(m.events_json, '')) - length(replace(coalesce(m.events_json, ''), ${sql.lit(needle)}, ''))) / ${sql.lit(needle.length)})`;
-
-  /** This scope's conversations, projected as {@link ConversationRow}s with their message count. */
-  function ownedConversations(db: Kysely<ChatDatabase>) {
-    return db
-      .selectFrom("ai_chats as c")
-      .select((eb) => [
-        "c.id",
-        "c.title",
-        "c.title_source",
-        "c.created_at",
-        CONVERSATION_UPDATED_AT,
-        "c.expires_at",
-        eb
-          .selectFrom("ai_chat_messages as m")
-          .select(sql<number>`coalesce(sum(1 + case when m.role = 'assistant' then ${midRunCount} else 0 end), 0)`.as("n"))
-          .whereRef("m.conversation_id", "=", "c.id")
-          .as("message_count"),
-      ])
-      .where("c.scope_id", "=", scopeId)
-      .where("c.owner_kind", "=", ownerKind)
-      .where("c.owner_id", "=", ownerId);
-  }
-
-  /** One owner-filtered indexed lookup; missing and foreign IDs both return null. */
-  async function get({ id }: { readonly id: string }, _optional: Record<string, never> = {}): Promise<ChatConversation | null> {
-    const row = await run((db) => ownedConversations(db).where("c.id", "=", id).executeTakeFirst());
-    return row ? toConversation(row as ConversationRow) : null;
-  }
-
-  /** One scoped projection for all message reads, including the row returned by an upsert. */
-  function ownedMessages(db: Kysely<ChatDatabase>, conversationId: string, { includeEvents = true }: { includeEvents?: boolean | "user" } = {}) {
-    return db
-        .selectFrom("ai_chat_messages as m")
-        .innerJoin("ai_chats as c", "c.id", "m.conversation_id")
-        .select([
-          "m.id",
-          "m.role",
-          "m.content",
-          "m.agent_id",
-          "m.agent_name",
-          "m.attachments_json",
-          "m.run_id",
-          "m.run_status",
-          "m.created_at",
-          "m.started_at",
-          "m.ended_at",
-        ])
-        .select(messageEventsColumn({ includeEvents }).as('events_json'))
-        .where("m.conversation_id", "=", conversationId)
-        .where("c.scope_id", "=", scopeId)
-        .where("c.owner_kind", "=", ownerKind)
-        .where("c.owner_id", "=", ownerId);
-  }
-
-  /** Read owned messages in persisted position order; foreign IDs produce no rows. */
-  async function messages({ conversationId }: ChatMessagePageInput, { includeEvents = true }: { includeEvents?: boolean | "user" } = {}): Promise<ChatMessage[]> {
-    const rows = await run(db => ownedMessages(db, conversationId, { includeEvents }).orderBy(MESSAGE_POSITION).execute());
-    return rows.map(toMessage);
-  }
-
-  /** Writes and projects one message inside the borrowed transaction; null for absent/foreign IDs. */
-  function writeMessage(conversationId: string, message: ChatMessage): Promise<ChatMessage | null> {
-    const m = withFolderReceipt({ message });
-    return kernel.transaction(async () => {
-      await kernel.lockKey(conversationLockKey(conversationId));
-      const owned = await run((db) =>
-        db
-          .selectFrom("ai_chats")
-          .select("id")
-          .where("id", "=", conversationId)
-          .where("scope_id", "=", scopeId)
-          .where("owner_kind", "=", ownerKind)
-          .where("owner_id", "=", ownerId)
-          .executeTakeFirst()
-      );
-      if (!owned) return null;
-
-      const existing = await run((db) =>
-        db
-          .selectFrom("ai_chat_messages")
-          .select("position")
-          .where("id", "=", m.id)
-          .where("conversation_id", "=", conversationId)
-          .executeTakeFirst()
-      );
-      const position = existing ? Number(existing.position) : await nextPosition(conversationId);
-
-      // The conflict target is `id`, the GLOBAL key: the `where` keeps an id that already lives in
-      // another conversation from updating THAT row (the contract's "colliding id to its OWN chat" case).
-      await run((db) =>
-        db
-          .insertInto("ai_chat_messages")
-          .values({
-            id: m.id,
-            conversation_id: conversationId,
-            role: m.role,
-            content: m.content,
-            agent_id: m.agentId ?? null,
-            agent_name: m.agentName ?? null,
-            events_json: m.events ? JSON.stringify(m.events) : null,
-            attachments_json: m.attachments ? JSON.stringify(m.attachments) : null,
-            run_id: m.runId ?? null,
-            run_status: m.runStatus ?? null,
-            position,
-            created_at: m.createdAt ?? clock.nowMs(),
-            started_at: m.startedAt ?? null,
-            ended_at: m.endedAt ?? null,
-          })
-          .onConflict(updateOwnedMessageConflict)
-          .execute()
-      );
-
-      // A new message is activity: the list orders by `updated_at`.
-      await run((db) => db.updateTable("ai_chats").set({ updated_at: clock.nowMs() }).where("id", "=", conversationId).execute());
-      // Re-read only the written row, while still in the same transaction and conversation lock.
-      const saved = await run(db => ownedMessages(db, conversationId).where('m.id', '=', m.id).executeTakeFirst());
-      return saved ? toMessage(saved) : null;
-    });
-  }
-
-  async function nextPosition(conversationId: string): Promise<number> {
-    const row = await run((db) =>
-      db
-        .selectFrom("ai_chat_messages")
-        .select((eb) => eb.fn.max("position").as("max"))
-        .where("conversation_id", "=", conversationId)
-        .executeTakeFirst()
-    );
-    return row?.max === null || row?.max === undefined ? 0 : Number(row.max) + 1;
-  }
-
-  const store: ChatStore = {
-    history: {
-      /** Literal search uses two scoped projections, not a transcript fetch per conversation.
-       * A continuation is bound to this owner and orders by activity descending, then ID ascending.
-       * @throws {ChatStoreError} For invalid inputs or a cursor belonging to another scope.
-       * @complexity The database scans owned content for search; at most limit+1 rows are returned.
-       */
-      async list(_required, { query, limit = 20, cursor } = {}) {
-        assertHistoryListInputs({ limit, query });
-        const anchor = decodeCursor({ cursor: cursor ?? undefined, kind: 'conversations', scope, conversation: null });
-        const id = ordinalId(kernel.dialect, 'c.id');
-        const rows = await run(db => {
-          let statement = ownedConversations(db).select(eb => eb.selectFrom('ai_chat_messages as first')
-            .select('first.content').whereRef('first.conversation_id', '=', 'c.id').where('first.role', '=', 'user')
-            .orderBy('first.position').limit(1).as('first_user_line'));
-          if (query?.trim()) {
-            // Escape LIKE wildcards: user search is literal text, never an SQL/FTS expression.
-            const pattern = '%' + query.trim().toLowerCase().replace(/[!%_]/g, char => '!' + char) + '%';
-            statement = statement.where(eb => eb.or([
-              sql<boolean>`lower(c.title) like ${pattern} escape '!'`,
-              eb.exists(eb.selectFrom('ai_chat_messages as found').select('found.id')
-                .whereRef('found.conversation_id', '=', 'c.id')
-                .where(sql<boolean>`lower(found.content) like ${pattern} escape '!'`)),
-            ]));
-          }
-          if (anchor) statement = statement.where(eb => eb.or([
-            eb(CONVERSATION_UPDATED_AT, '<', anchor[0]),
-            eb.and([eb(CONVERSATION_UPDATED_AT, '=', anchor[0]), eb(id, '>', anchor[1])]),
-          ]));
-          return statement.orderBy(CONVERSATION_UPDATED_AT, 'desc').orderBy(id, 'asc').limit(limit + 1).execute();
-        });
-        const items = rows.slice(0, limit).map(row => ({ ...toConversation(row as ConversationRow), firstUserLine: row.first_user_line ?? '' }));
-        const last = items.at(-1);
-        const nextCursor = rows.length > limit && last
-          ? encodeCursor({ kind: 'conversations', scope, conversation: null, anchor: [last.updatedAt, last.id] })
-          : null;
-        return { items, nextCursor };
-      },
-      /** No attachment column is read. O(limit) rows; default tail is reversed into position order. */
-      async read({ chatId }, { fromPosition, limit = 50, includeToolEvents = false } = {}) {
-        assertHistoryReadBounds({ limit, fromPosition });
-        const rows = await run(db => {
-          let statement = ownedMessages(db, chatId).clearSelect().select([
-            'm.id', 'm.role', 'm.content', MESSAGE_POSITION, 'm.created_at',
-          ]);
-          if (fromPosition !== undefined) statement = statement.where(MESSAGE_POSITION, '>=', fromPosition);
-          return statement.select(includeToolEvents ? sql<string | null>`m.events_json`.as('events_json') : sql<null>`null`.as('events_json'))
-            .orderBy(MESSAGE_POSITION, fromPosition === undefined ? 'desc' : 'asc').limit(limit + 1).execute();
-        });
-        const page = rows.slice(0, limit);
-        if (fromPosition === undefined) page.reverse();
-        return { messages: page.map(row => toHistoryMessage(row, { includeToolEvents })), hasMore: rows.length > limit };
-      },
-    },
-    async list() {
-      const rows = await run((db) => ownedConversations(db).orderBy(CONVERSATION_UPDATED_AT, "desc").execute());
-      return rows.map((row) => toConversation(row as ConversationRow));
-    },
-
-    get,
-
-    async create(input: CreateChatConversationInput, _optional: Record<string, never> = {}) {
-      const ts = clock.nowMs();
-      try {
-      await run((db) =>
-        db
-          .insertInto("ai_chats")
-          .values({
-            id: input.id,
-            scope_id: scopeId,
-            owner_kind: ownerKind,
-            owner_id: ownerId,
-            title: input.title ?? null,
-            title_source: input.titleSource ?? "fallback",
-            created_at: ts,
-            updated_at: ts,
-            expires_at: input.expiresAt ?? null,
-          })
-          .execute()
-      );
-      } catch (cause) {
-        if (isUniqueViolation({ err: cause })) throw new ChatStoreError({ code: 'conflict' }, { cause });
-        throw cause;
-      }
-      const created = await get({ id: input.id });
-      // Unreachable: the insert used this exact scope. Asserted so a future change to either
-      // statement fails loudly instead of returning a malformed conversation.
-      if (!created) throw new Error(`ai_chats: created conversation ${input.id} was not readable in its own scope`);
-      return created;
-    },
-
-    async rename({ id, title }: { readonly id: string; readonly title: string }, { source = "manual" }: { readonly source?: ChatTitleSource } = {}) {
-      // A generated title never overwrites a typed one: in the WHERE clause, so a concurrent
-      // rename cannot slip between a read and this write.
-      await run((db) =>
-        db
-          .updateTable("ai_chats")
-          .set({ title, title_source: source, updated_at: clock.nowMs() })
-          .where("id", "=", id)
-          .where("scope_id", "=", scopeId)
-          .where("owner_kind", "=", ownerKind)
-          .where("owner_id", "=", ownerId)
-          .$if(source === "generated", (qb) => qb.where("title_source", "<>", "manual"))
-          .execute()
-      );
-      return get({ id });
-    },
-
-    async touch({ id }: { readonly id: string }, options: { readonly expiresAt?: number } = {}) {
-      const ts = clock.nowMs();
-      await run((db) =>
-        db
-          .updateTable("ai_chats")
-          .set(options?.expiresAt === undefined ? { updated_at: ts } : { updated_at: ts, expires_at: options.expiresAt })
-          .where("id", "=", id)
-          .where("scope_id", "=", scopeId)
-          .where("owner_kind", "=", ownerKind)
-          .where("owner_id", "=", ownerId)
-          .execute()
-      );
-    },
-
-    async delete({ id }: { readonly id: string }, _optional: Record<string, never> = {}) {
-      // Messages, agent sessions and tool approvals go with it through `ON DELETE CASCADE`.
-      await run((db) =>
-        db
-          .deleteFrom("ai_chats")
-          .where("id", "=", id)
-          .where("scope_id", "=", scopeId)
-          .where("owner_kind", "=", ownerKind)
-          .where("owner_id", "=", ownerId)
-          .execute()
-      );
-    },
-
-    messages,
-
-    /** One indexed, owner-scoped row; browser save fences do not need the conversation's history. */
-    async message({ conversationId, messageId }, _optional = {}) {
-      const row = await run(db => ownedMessages(db, conversationId).where('m.id', '=', messageId).executeTakeFirst());
-      return row ? toMessage(row) : null;
-    },
-
-    /** SQLite's connection/external-commit counters avoid reading message rows at all. PG uses
-     * MVCC versions from only this conversation's indexed metadata, never large event columns.
-     * @complexity O(1) SQLite; O(n) PG message metadata for n messages; O(1) returned bytes.
-     */
-    async messagesVersion({ conversationId }, _optional = {}) {
-      const row = await run(db => db.selectFrom('ai_chats as c').select(eb => {
-        const version = kernel.dialect === 'sqlite' ? sqliteReadVersion({ kernel })
-          : sql<string>`md5(coalesce(${eb.selectFrom('ai_chat_messages as m')
-            .select(sql<string>`string_agg(m.id || ':' || cast(m.xmin as text), ',' order by m.position)`.as('versions'))
-            .whereRef('m.conversation_id', '=', 'c.id')}, ''))`;
-        return version.as('version');
-      })
-        .where('c.id', '=', conversationId).where('c.scope_id', '=', scopeId)
-        .where('c.owner_kind', '=', ownerKind).where('c.owner_id', '=', ownerId).executeTakeFirst());
-      return row?.version ?? null;
-    },
-
-    async messagesJson({ conversationId }, optional = {}) {
-      const valid = kernel.dialect === 'sqlite' ? sql<number | null>`json_valid(m.events_json)` : sql<number | null>`null`;
-      const rows = await run(db => ownedMessages(db, conversationId).select(valid.as('events_json_valid')).orderBy(MESSAGE_POSITION).execute());
-      return messageJsonChunks({ rows }, optional);
-    },
-
-    async appendMessage({ conversationId, message }: { readonly conversationId: string; readonly message: ChatMessage }, _optional: Record<string, never> = {}) {
-      const prepared = redactUserMessage({ message }, { ...(redactionOptions.redactUserText ? { redactUserText: redactionOptions.redactUserText } : {}) });
-      const saved = await writeMessage(conversationId, prepared.message);
-      if (!saved || !prepared.secretRedacted) return saved;
-      const signal = { secretRedacted: true as const, count: prepared.count };
-      redactionOptions.onSecretRedacted?.(signal);
-      return { ...saved, secretRedaction: signal };
-    },
-
-    async pageConversations(_required: Record<string, never>, options: ChatPageOptions = {}) {
-      const limit = pageLimit({ options: options });
-      const anchor = decodeCursor({ cursor: options?.cursor, kind: 'conversations', scope: scope, conversation: null });
-      const id = ordinalId(kernel.dialect, 'c.id');
-      const rows = await run(db => {
-        let query = ownedConversations(db);
-        if (anchor) query = query.where(eb => eb.or([
-          eb(CONVERSATION_UPDATED_AT, '<', anchor[0]),
-          eb.and([eb(CONVERSATION_UPDATED_AT, '=', anchor[0]), eb(id, '>', anchor[1])]),
-        ]));
-        return query.orderBy(CONVERSATION_UPDATED_AT, 'desc').orderBy(id, 'asc').limit(limit + 1).execute();
-      });
-      const items = rows.slice(0, limit).map(row => toConversation(row as ConversationRow));
-      const last = items.at(-1);
-      return { items, ...(rows.length > limit && last ? {
-        nextCursor: encodeCursor({ kind: 'conversations', scope: scope, conversation: null, anchor: [last.updatedAt, last.id] }),
-      } : {}) };
-    },
-
-    async pageMessages(input: ChatMessagePageInput, options: ChatPageOptions = {}) {
-      const limit = pageLimit({ options: options });
-      const anchor = decodeCursor({ cursor: options?.cursor, kind: 'messages', scope: scope, conversation: input.conversationId });
-      const id = ordinalId(kernel.dialect, 'm.id');
-      // One join, at most limit+1 rows, including the ownership check; no parent pre-read.
-      const rows = await run(db => {
-        let query = ownedMessages(db, input.conversationId).select(MESSAGE_POSITION);
-        if (anchor) query = query.where(eb => eb.or([
-          eb(MESSAGE_POSITION, '>', anchor[0]),
-          eb.and([eb(MESSAGE_POSITION, '=', anchor[0]), eb(id, '>', anchor[1])]),
-        ]));
-        return query.orderBy(MESSAGE_POSITION, 'asc').orderBy(id, 'asc').limit(limit + 1).execute();
-      });
-      const page = rows.slice(0, limit), last = page.at(-1);
-      return { items: page.map(toMessage), ...(rows.length > limit && last ? {
-        nextCursor: encodeCursor({ kind: 'messages', scope: scope, conversation: input.conversationId, anchor: [Number(last.position), last.id] }),
-      } : {}) };
-    },
+  const ctx: SqlStoreContext = {
+    kernel: chatKernelTables<DB>({ kernel }, {}),
+    run: body => runChatQuery({ kernel: kernel, body: body }),
+    scope: copyScope({ scope: inputScope }),
+    clock,
+    toMessage,
   };
+  return wrapAtStoreBoundary(createRawChatStore({ ctx, redactionOptions }));
+}
+
+/** The raw store: every method delegates to a query/write function; errors are not yet translated. */
+function createRawChatStore({ ctx, redactionOptions }: { ctx: SqlStoreContext; redactionOptions: UserTextRedactionOptions }): ChatStore {
+  return {
+    history: {
+      list: (_required, options = {}) => historyList({ ctx, options }),
+      read: ({ chatId }, options = {}) => historyRead({ ctx, chatId, options }),
+    },
+    list: () => listConversations({ ctx }),
+    get: ({ id }, _optional = {}) => getConversation({ ctx, id }),
+    create: (input, _optional = {}) => createConversation({ ctx, input }),
+    rename: ({ id, title }, { source = "manual" } = {}) => renameConversation({ ctx, id, title, source }),
+    touch: ({ id }, options = {}) => touchConversation({ ctx, id, options }),
+    delete: ({ id }, _optional = {}) => deleteConversation({ ctx, id }),
+    messages: ({ conversationId }, { includeEvents = true } = {}) => listMessages({ ctx, conversationId }, { includeEvents }),
+    message: ({ conversationId, messageId }, _optional = {}) => messageById({ ctx, conversationId, messageId }),
+    messagesVersion: ({ conversationId }, _optional = {}) => messagesVersion({ ctx, conversationId }),
+    async messagesJson({ conversationId }, optional = {}) {
+      return messageJsonChunks({ rows: await messageRowsWithValidity({ ctx, conversationId }) }, optional);
+    },
+    appendMessage: ({ conversationId, message }, _optional = {}) => appendRedacted({ ctx, redactionOptions, conversationId, message }),
+    pageConversations: (_required, options = {}) => pageConversations({ ctx, options }),
+    pageMessages: (input, options = {}) => pageMessages({ ctx, input, options }),
+  };
+}
+
+/** Redact the user text first, write once, then report (never log) that a secret was removed. */
+async function appendRedacted(
+  { ctx, redactionOptions, conversationId, message }: { ctx: SqlStoreContext; redactionOptions: UserTextRedactionOptions; conversationId: string; message: ChatMessage },
+): Promise<ChatMessage | null> {
+  const prepared = redactUserMessage({ message }, { ...(redactionOptions.redactUserText ? { redactUserText: redactionOptions.redactUserText } : {}) });
+  const saved = await writeMessage({ ctx, conversationId, message: prepared.message });
+  if (!saved || !prepared.secretRedacted) return saved;
+  const signal = { secretRedacted: true as const, count: prepared.count };
+  redactionOptions.onSecretRedacted?.(signal);
+  return { ...saved, secretRedaction: signal };
+}
+
+/** Wrap every operation so a driver failure surfaces as a structured {@link ChatStoreError}. */
+function wrapAtStoreBoundary(store: ChatStore): ChatStore {
   return {
     history: {
       list: (required, optional = {}) => atStoreBoundary({ operation: () => store.history!.list(required, optional) }),
@@ -618,18 +203,4 @@ export function createSqlChatStore<DB extends ChatDatabase>(
     pageConversations: (required, optional = {}) => atStoreBoundary({ operation: () => store.pageConversations(required, optional) }),
     pageMessages: (required, optional = {}) => atStoreBoundary({ operation: () => store.pageMessages(required, optional) }),
   };
-}
-
-function updateOwnedMessageConflict(oc: OnConflictBuilder<ChatDatabase, "ai_chat_messages">) {
-  return oc.column("id")
-    .doUpdateSet((eb) => ({
-      content: eb.ref("excluded.content"),
-      events_json: eb.ref("excluded.events_json"),
-      attachments_json: eb.ref("excluded.attachments_json"),
-      run_id: eb.ref("excluded.run_id"),
-      run_status: eb.ref("excluded.run_status"),
-      started_at: eb.ref("excluded.started_at"),
-      ended_at: eb.ref("excluded.ended_at"),
-    }))
-    .where((eb) => eb("ai_chat_messages.conversation_id", "=", eb.ref("excluded.conversation_id")));
 }

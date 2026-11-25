@@ -203,13 +203,6 @@
     "value": 185
   },
   {
-    "file": "packages/chat/src/store/sql/store.ts",
-    "function": "createSqlChatStore",
-    "line": 240,
-    "rule": "max-lines-per-function",
-    "value": 325
-  },
-  {
     "file": "packages/daemon/src/agent-executor/launch.ts",
     "function": "<file>",
     "line": 852,
