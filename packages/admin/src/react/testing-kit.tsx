@@ -43,6 +43,9 @@ const fakeComponents: AdminKitComponents = {
     </select>
   ),
   TabBar: (p) => <div role="tablist" aria-label={p.ariaLabel}>{p.tabs.map((t) => <button key={t.id} type="button" role="tab" aria-selected={t.id === p.activeId} onClick={() => p.onChange(t.id)}>{t.label}</button>)}</div>,
+  FileDropzone: (p) => (
+    <label>{p.prompt ?? 'Drop files'}<input type="file" accept={p.accept} multiple onChange={(e) => p.onFiles(Array.from(e.target.files ?? []))} /></label>
+  ),
   SeeMore: (p) => <span className={p.className}>{p.children}</span>,
   SearchableModelSelect: (p) => (
     <select aria-label={p.ariaLabel} value={p.value} className={p.className} onChange={(e) => p.onChange(e.target.value)}>

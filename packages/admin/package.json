@@ -750,7 +750,11 @@
       "./screens/media/hooks/use-media-preview.hooks": "browser",
       "./shell/components/AssistantDock/OverflowAwareMcpUiSurfaceCard": "browser",
       "./shell/components/AssistantDock/hooks/run-context.hooks": "browser",
-      "./shell/components/AssistantDock/hooks/assistant-transport.hooks": "browser"
+      "./shell/components/AssistantDock/hooks/assistant-transport.hooks": "browser",
+      "./screens/trash/Trash": "browser",
+      "./screens/trash/hooks/use-trash.hooks": "browser",
+      "./screens/library/Library": "browser",
+      "./screens/library/hooks/library-api-port.hooks": "browser"
     },
     "isolation": {
       "shared": [
@@ -771,7 +775,8 @@
         "src/screens/plugins/rules.ts",
         "src/screens/plugins/agent-plugins-visuals.tsx",
         "src/agent-plugins/package-file-tree.ts",
-        "src/screens/taxonomy/TaxonomyRowMenu.hooks.ts"
+        "src/screens/taxonomy/TaxonomyRowMenu.hooks.ts",
+        "src/screens/trash/rules.ts"
       ],
       "forbidden": {
         "universal": [
@@ -1063,7 +1068,10 @@
         "./screens/media/hooks/fake-media-port": "browser",
         "./shell/components/AssistantDock/OverflowAwareMcpUiSurfaceCard": "browser",
         "./shell/components/AssistantDock/hooks/run-context.hooks": "browser",
-        "./shell/components/AssistantDock/hooks/assistant-transport.hooks": "browser"
+        "./shell/components/AssistantDock/hooks/assistant-transport.hooks": "browser",
+        "./screens/trash/Trash": "browser",
+        "./screens/trash/hooks/use-trash.hooks": "browser",
+        "./screens/trash/rules": "universal"
       }
     },
     "optionalPeers": {
@@ -4693,6 +4701,26 @@
       "types": "./dist/shell/components/AssistantDock/hooks/assistant-transport.hooks.d.ts",
       "import": "./dist/shell/components/AssistantDock/hooks/assistant-transport.hooks.js",
       "default": "./dist/shell/components/AssistantDock/hooks/assistant-transport.hooks.js"
+    },
+    "./screens/trash/Trash": {
+      "types": "./dist/screens/trash/Trash.d.ts",
+      "import": "./dist/screens/trash/Trash.js",
+      "default": "./dist/screens/trash/Trash.js"
+    },
+    "./screens/trash/hooks/use-trash.hooks": {
+      "types": "./dist/screens/trash/hooks/use-trash.hooks.d.ts",
+      "import": "./dist/screens/trash/hooks/use-trash.hooks.js",
+      "default": "./dist/screens/trash/hooks/use-trash.hooks.js"
+    },
+    "./screens/library/Library": {
+      "types": "./dist/screens/library/Library.d.ts",
+      "import": "./dist/screens/library/Library.js",
+      "default": "./dist/screens/library/Library.js"
+    },
+    "./screens/library/hooks/library-api-port.hooks": {
+      "types": "./dist/screens/library/hooks/library-api-port.hooks.d.ts",
+      "import": "./dist/screens/library/hooks/library-api-port.hooks.js",
+      "default": "./dist/screens/library/hooks/library-api-port.hooks.js"
     }
   },
   "files": [
@@ -5191,6 +5219,18 @@
       ],
       "screens/settings/hooks/use-external-mcp-tool-picker.hooks": [
         "./dist/screens/settings/hooks/use-external-mcp-tool-picker.hooks.d.ts"
+      ],
+      "screens/trash/Trash": [
+        "./dist/screens/trash/Trash.d.ts"
+      ],
+      "screens/trash/hooks/use-trash.hooks": [
+        "./dist/screens/trash/hooks/use-trash.hooks.d.ts"
+      ],
+      "screens/library/Library": [
+        "./dist/screens/library/Library.d.ts"
+      ],
+      "screens/library/hooks/library-api-port.hooks": [
+        "./dist/screens/library/hooks/library-api-port.hooks.d.ts"
       ]
     }
   },
