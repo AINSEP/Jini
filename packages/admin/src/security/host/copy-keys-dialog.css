@@ -1,0 +1,5 @@
+.jini-copy-keys-source, .jini-copy-keys-list label, .jini-copy-keys-overwrite { display: flex; align-items: center; gap: var(--space-2); }
+.jini-copy-keys-source { flex-wrap: wrap; }
+.jini-copy-keys-source select { width: auto; max-width: min(20rem, 100%); min-width: 0; }
+.jini-copy-keys-list { display: flex; flex-direction: column; gap: var(--space-2); }
+.jini-copy-keys-results { list-style: none; padding: 0; margin: 0; }
