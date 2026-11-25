@@ -154,17 +154,31 @@ function redactedParams({ params, redaction }: { params: Readonly<Record<string,
     [name, typeof value === 'number' ? value : redactSecrets({ input: value }, redaction).slice(0, MAX_PARAM_TEXT)]));
 }
 
+function refusalMessage(
+  required: { match: ErrorMatch; fallback: { message: string }; audience: ErrorAudience }, _optional: Record<string, never> = {},
+): { kind: 'text'; message: string } | { kind: 'sentence'; sentence: NonNullable<ErrorMatch['sentence']> } {
+  const { match, fallback, audience } = required;
+  if (match.sentence?.audience === 'authorized' && audience !== 'authorized') return { kind: 'text', message: fallback.message };
+  switch (match.mode) {
+    case 'own-message':
+      // Injected catalogs may supply the original exception text.
+      return { kind: 'text', message: fallback.message };
+    case 'fixed':
+      return { kind: 'text', message: match.message ?? fallback.message };
+    case 'sentence':
+      return match.sentence === undefined ? { kind: 'text', message: fallback.message } : { kind: 'sentence', sentence: match.sentence };
+  }
+}
+
 /** The wire error of a refusal. Words a sentence reserves for authorised callers are replaced by the boundary's fallback words. */
 function refusalError(required: { match: ErrorMatch; fallback: { readonly message: string }; audience: ErrorAudience; redaction: SecretRedactionOptions }): ServerApiError {
   const { match, fallback, audience, redaction } = required;
   const { sentence } = match;
   const base = { code: match.code, ...(sentence === undefined ? {} : { retryable: sentence.retryable }) };
-  if (sentence?.audience === 'authorized' && audience !== 'authorized') return { ...base, message: fallback.message };
-  if (match.mode === 'own-message') return { ...base, message: fallback.message };
-  if (match.mode !== 'sentence') return { ...base, message: match.message ?? fallback.message };
-  if (sentence === undefined) return { ...base, message: fallback.message };
+  const selected = refusalMessage({ match, fallback, audience });
+  if (selected.kind === 'text') return { ...base, message: selected.message };
   const params = redactedParams({ params: match.params ?? {}, redaction });
-  const message = interpolateSentence({ text: sentence.message }, { params });
+  const message = interpolateSentence({ text: selected.sentence.message }, { params });
   return Object.keys(params).length === 0 ? { ...base, message } : { ...base, message, details: { params } };
 }
 

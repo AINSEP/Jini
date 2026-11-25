@@ -241,6 +241,18 @@ describe('disclosure: redaction is not permission', () => {
 });
 
 describe('refusal', () => {
+  test('an own-message match carrying a canary message answers the fallback words', () => {
+    const error = new MemberNotFoundError(CANARIES[0]!);
+    const built = build({ catalog: { ...catalog, match: () => ({
+      scope: 'members', code: 'MEMBERS_NOT_FOUND', mode: 'own-message', message: error.message,
+    }) } });
+    const described = built.reporter.describe({ error, step: STEP, operation: OPERATION, tracker, scope: 'members', fallback });
+    expect(described.kind).toBe('refusal');
+    expect(described.error).toEqual({ code: 'MEMBERS_NOT_FOUND', message: fallback.message });
+    expect(built.entries).toEqual([]);
+    expect(built.reports).toEqual([]);
+  });
+
   test('a bound error answers its code and words, with no host record, no tracker report and no ID', () => {
     const built = build();
     const described = built.reporter.describe({ error: new MemberNotFoundError("member 'm-9' was not found"), step: STEP, operation: OPERATION, tracker, scope: 'members', fallback });
