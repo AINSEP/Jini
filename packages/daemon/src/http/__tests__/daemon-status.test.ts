@@ -103,7 +103,7 @@ describe('daemonStatusRoute', () => {
     const body = await response.json() as { error: { code: string; message: string; requestId: string } };
     expect(body.error.code).toBe('INTERNAL_ERROR');
     // A failed GET changed nothing, so the fallback copy says so instead of asking whether a change was saved.
-    expect(body.error.message).toBe('The server could not finish this request. Nothing was changed. Try again; if it keeps failing, copy the request ID and report this problem.');
+    expect(body.error.message).toBe(`The server could not finish this request. Nothing was changed. Try again; if it keeps failing, report the error ID. (error ${body.error.requestId})`);
     expect(fixture.entries).toHaveLength(1);
     expect(fixture.entries[0]?.meta?.errorId).toBe(body.error.requestId);
     expect(JSON.stringify(body)).not.toContain('boom');

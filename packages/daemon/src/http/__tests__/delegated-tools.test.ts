@@ -346,7 +346,8 @@ describe('delegatedToolExecuteRoute.handle', () => {
     const result = await resultPromise;
     expect(result.ok).toBe(false);
     if (!result.ok) {
-      expect(result.error).toEqual({ code: 'INTERNAL_ERROR', message: 'The tool could not run because of a server fault. Do not retry the same call; tell the user to copy the request ID and report this problem.', requestId: expect.any(String) });
+      // The bound reporter owns the incident: the caller-safe copy names the same ID as `requestId`.
+      expect(result.error).toEqual({ code: 'INTERNAL_ERROR', message: `The tool could not run because of a server fault. Do not retry the same call; tell the user to copy the request ID and report this problem. (error ${result.error.requestId})`, requestId: expect.stringMatching(/^ERR-/) });
     }
   });
 
