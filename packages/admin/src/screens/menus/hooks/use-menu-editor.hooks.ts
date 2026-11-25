@@ -73,6 +73,7 @@ export interface MenuEditorController {
   error: string | null;
   loading: boolean;
   confirmLeave: () => boolean;
+  readonly leaveGuardOwner?: "router";
   changeAt: (required: { path: number[]; fn: (item: AdminMenuItem) => AdminMenuItem }, optional?: Record<string, never>) => void;
   removeAt: (required: { path: number[] }, optional?: Record<string, never>) => void;
   addChildAt: (required: { path: number[] }, optional?: Record<string, never>) => void;

@@ -13,6 +13,7 @@ import { DEFAULT_ADMIN_BASE, adminHref, currentRoutePath, stripTrailingSlash } f
 
 /** Fires on `navigate()`. `pushState` does not emit `popstate`, so subscribers need this too. */
 export const NAVIGATION_EVENT = 'jini:admin-navigate';
+export const BEFORE_LINK_NAVIGATION_EVENT = 'jini:admin-before-link-navigate';
 
 /** The current route path, read from the address bar. */
 export function readRoutePath(
@@ -30,7 +31,7 @@ export function readRoutePath(
  */
 export function navigate(
   { routePath, window }: { readonly routePath: string; readonly window: Pick<Window, 'location' | 'history' | 'dispatchEvent'> },
-  options: { readonly replace?: boolean; readonly base?: string } = {},
+  options: { readonly replace?: boolean; readonly base?: string; readonly fromInternalLink?: boolean } = {},
 ): void {
   const base = options.base ?? DEFAULT_ADMIN_BASE;
   const url = adminHref({ routePath }, { base });
@@ -52,11 +53,18 @@ export function navigate(
    * same-path/different-query navigation is a real one.
    */
   const target = new URL(url, window.location.href);
-  const isCurrent =
-    stripTrailingSlash({ pathname: target.pathname }) === stripTrailingSlash({ pathname: window.location.pathname }) &&
-    target.search === window.location.search &&
-    target.hash === window.location.hash;
+  const samePath =
+    stripTrailingSlash({ pathname: target.pathname }) ===
+    stripTrailingSlash({ pathname: window.location.pathname });
+  const sameSearch = target.search === window.location.search;
+  const isCurrent = samePath && sameSearch && target.hash === window.location.hash;
   if (isCurrent) return;
+  // Ask before changing history; the router does not know what makes an editor dirty.
+  if (
+    options.fromInternalLink &&
+    !(samePath && sameSearch) &&
+    !window.dispatchEvent(new Event(BEFORE_LINK_NAVIGATION_EVENT, { cancelable: true }))
+  ) return;
 
   if (options.replace) window.history.replaceState(null, '', url);
   else window.history.pushState(null, '', url);
@@ -124,7 +132,7 @@ export function installInternalLinkInterceptor(
     if (routePath === null) return;
 
     event.preventDefault();
-    navigate({ window, routePath }, { base });
+    navigate({ window, routePath }, { base, fromInternalLink: true });
   };
 
   document.addEventListener('click', onClick);

@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { NAVIGATION_EVENT, installInternalLinkInterceptor, subscribeToRoute } from '../navigation.js';
+import { BEFORE_LINK_NAVIGATION_EVENT, NAVIGATION_EVENT, installInternalLinkInterceptor, subscribeToRoute } from '../navigation.js';
 
 function at(url: string) { window.history.replaceState(null, '', url); }
 
@@ -47,6 +47,56 @@ afterEach(() => {
 });
 
 describe('installInternalLinkInterceptor intercepts plain clicks on internal links', () => {
+  it('canceling an internal link preflight keeps the route and emits no navigation event', () => {
+    const anchor = link({ href: '/admin/settings' });
+    const initialUrl = window.location.href;
+    const historyLength = window.history.length;
+    const historyState = window.history.state;
+    let allowed = false;
+    let preflights = 0;
+    const onBefore = (event: Event) => {
+      preflights += 1;
+      if (!allowed) event.preventDefault();
+    };
+    window.addEventListener(BEFORE_LINK_NAVIGATION_EVENT, onBefore);
+    try {
+      expect(click(anchor).defaultPrevented).toBe(true);
+      expect(preflights).toBe(1);
+      expect(window.location.href).toBe(initialUrl);
+      expect(window.history.length).toBe(historyLength);
+      expect(window.history.state).toBe(historyState);
+      expect(navigations).toBe(0);
+
+      allowed = true;
+      expect(click(anchor).defaultPrevented).toBe(true);
+      expect(preflights).toBe(2);
+      expect(window.location.pathname).toBe('/admin/settings');
+      expect(window.history.length).toBe(historyLength + 1);
+      expect(navigations).toBe(1);
+    } finally {
+      window.removeEventListener(BEFORE_LINK_NAVIGATION_EVENT, onBefore);
+    }
+  });
+
+  it('modified clicks and hash-only changes do not ask the leave guard', () => {
+    let preflights = 0;
+    const onBefore = () => { preflights += 1; };
+    window.addEventListener(BEFORE_LINK_NAVIGATION_EVENT, onBefore);
+    try {
+      expect(click(link({ href: '/admin/settings' }), { metaKey: true }).defaultPrevented).toBe(false);
+      expect(preflights).toBe(0);
+      expect(click(link({ href: '#frag' })).defaultPrevented).toBe(false);
+      expect(preflights).toBe(0);
+      expect(click(link({ href: '/admin/start#frag' })).defaultPrevented).toBe(true);
+      expect(window.location.pathname).toBe('/admin/start');
+      expect(window.location.hash).toBe('#frag');
+      expect(navigations).toBe(1);
+      expect(preflights).toBe(0);
+    } finally {
+      window.removeEventListener(BEFORE_LINK_NAVIGATION_EVENT, onBefore);
+    }
+  });
+
   it('turns a plain left click on an /admin link into an SPA navigation', () => {
     const event = click(link({ href: '/admin/settings' }));
     expect(event.defaultPrevented).toBe(true);
