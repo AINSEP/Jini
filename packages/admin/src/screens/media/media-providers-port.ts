@@ -1,5 +1,4 @@
-import type { MediaProviderMap } from "../../react/kit-media-providers.js";
-import type { MediaProviderFields, MediaProviderRowsPort } from "@jini-ai/ui/core";
+import type { MediaProviderEditPatch as MediaProviderFields, MediaProviderMap, MediaProviderRowsPort } from "../../react/kit-media-providers.js";
 import type { MediaProviderOption } from "@jini-ai/core";
 import { orFallback } from "@jini-ai/core/errors/idioms";
 

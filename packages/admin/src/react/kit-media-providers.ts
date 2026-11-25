@@ -117,6 +117,22 @@ export interface MediaProvidersPort {
  *  distinction this narrows around. */
 export type MediaProviderEditPatch = Pick<MediaProviderCredentials, 'apiKey' | 'baseUrl' | 'model'>;
 
+/**
+ * The per-provider alternative to {@link MediaProvidersPort}: the same read, and one write per provider
+ * instead of a whole-map replace, so another window's write to a different provider is never undone
+ * and deletion is never inferred from absence. Both writes REJECT on failure and resolve the server's
+ * authoritative map afterward (markers only). A local copy of the editor's rows-port shape, so this
+ * package's types pin no UI library; `kit-media-providers.types.test.ts` pins the two together.
+ */
+export interface MediaProviderRowsPort {
+  /** Same contract as {@link MediaProvidersPort.fetchMediaProviders}, including `null` for unreachable. */
+  fetchMediaProviders(): Promise<MediaProviderMap | null>;
+  /** Merges `fields` into one provider's stored credentials; no other provider is touched. */
+  patchProvider(required: { providerId: string; fields: MediaProviderEditPatch }, optional?: Record<string, never>): Promise<MediaProviderMap>;
+  /** Deletes exactly one provider's stored credentials. */
+  removeProvider(required: { providerId: string }, optional?: Record<string, never>): Promise<MediaProviderMap>;
+}
+
 export interface UseMediaProvidersTabOptions {
   port: MediaProvidersPort;
   /** Identity rules shared by catalog rows, local edits and daemon responses. Stable while mounted. */

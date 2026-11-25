@@ -3,8 +3,7 @@ import { querySuffix } from "@jini-ai/core/admin-runtime";
 import type { AdminMedia, MediaGridOrder, MediaGridPage, MediaGridTab } from "@jini-ai/core/contracts/site/cms-admin-media";
 import type { MediaProviderOption } from "@jini-ai/core";
 import type { MediaUploadResult } from "@jini-ai/core/contracts/site/cms-media";
-import type { MediaProviderCredentials } from "../../../react/kit-media-providers.js";
-import type { MediaProviderFields } from "@jini-ai/ui/core";
+import type { MediaProviderCredentials, MediaProviderEditPatch as MediaProviderFields } from "../../../react/kit-media-providers.js";
 import type { CredentialTokenHint } from "@jini-ai/core/contracts/site/secrets-credential-token";
 
 /**
