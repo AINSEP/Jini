@@ -2,6 +2,7 @@ import { BASE, WORKSPACE_ID } from "@jini-ai/admin/shell/lib/admin-http/config";
 import { querySuffix } from "@jini-ai/core/admin-runtime";
 import type { AdminMedia } from "@jini-ai/core/contracts/site/cms-admin-media";
 import type { MediaProviderCredentials } from "../../../react/kit-media-providers.js";
+import type { MediaProviderFields } from "@jini-ai/ui/core";
 import type { CredentialTokenHint } from "@jini-ai/core/contracts/site/secrets-credential-token";
 
 /**
@@ -32,23 +33,44 @@ export interface MediaApiDeps {
   siteUrl: (required: { path: string }) => string;
 }
 
+/** One provider's own credentials row — the only target a provider write may name. */
+function mediaProviderPath({ providerId }: { providerId: string }, _optional: Record<string, never> = {}): string {
+  return `/workspaces/${WORKSPACE_ID}/media/providers/${encodeURIComponent(providerId)}`;
+}
+
+/**
+ * The media-provider credential calls: one read of the markers map and one write per provider. There
+ * is deliberately no whole-map write — a map sent from one window omits a key another window saved
+ * since, and omission deleted it. Split out of {@link createMediaApi} so each stays short.
+ */
+function createMediaProviderCalls({ request }: Pick<MediaApiDeps, "request">, _optional: Record<string, never> = {}) {
+  return {
+    /** The workspace's media-generation vendor credentials, as markers only — never key material.
+     *  Bare map, not a `{ data }` envelope, matching `MediaProvidersPort.fetchMediaProviders`. */
+    getMediaProviders: () =>
+      request<AdminMediaProviderMap>({ path: `/workspaces/${WORKSPACE_ID}/media/providers` }),
+    /** Merges ONE provider's editable fields into its stored credentials; no other provider is named,
+     *  so another window's saved key cannot be undone. An omitted `apiKey` keeps the stored key. Resolves
+     *  the authoritative markers map. Replaces the whole-map PUT, whose omissions deleted. */
+    patchMediaProvider: ({ providerId, fields }: { providerId: string; fields: MediaProviderFields }, _o: Record<string, never> = {}) =>
+      request<AdminMediaProviderMap>({ path: mediaProviderPath({ providerId }) }, { init: {
+        method: "PATCH",
+        body: JSON.stringify(fields),
+      } }),
+    /** Deletes exactly one provider's stored credentials — deletion is only ever this named request,
+     *  never inferred from a provider missing in a map. Resolves the authoritative markers map. */
+    removeMediaProvider: ({ providerId }: { providerId: string }, _o: Record<string, never> = {}) =>
+      request<AdminMediaProviderMap>({ path: mediaProviderPath({ providerId }) }, { init: { method: "DELETE" } }),
+  };
+}
+
 /** The admin API calls of the media feature, bound to the host's injected collaborators.
  *  @example const mediaApi = createMediaApi({ request, siteUrl }); */
 export function createMediaApi({ request, siteUrl }: MediaApiDeps, _optional: Record<string, never> = {}) {
   const mediaOriginalUrl = ({ id }: { id: string }, _o: Record<string, never> = {}) => `${BASE}/workspaces/${WORKSPACE_ID}/media/${encodeURIComponent(id)}/original`;
   return {
     listMedia: () => request<{ media: AdminMedia[] }>({ path: `/workspaces/${WORKSPACE_ID}/media` }),
-    /** The workspace's media-generation vendor credentials, as markers only — never key material.
-     *  Bare map, not a `{ data }` envelope, matching `MediaProvidersPort.fetchMediaProviders`. */
-    getMediaProviders: () =>
-      request<AdminMediaProviderMap>({ path: `/workspaces/${WORKSPACE_ID}/media/providers` }),
-    /** Replaces the workspace's ENTIRE provider set — a provider absent from `providers` is deleted
-     *  server-side, which is how the tab expresses Clear. Resolves the authoritative copy back. */
-    saveMediaProviders: (providers: AdminMediaProviderMap) =>
-      request<AdminMediaProviderMap>({ path: `/workspaces/${WORKSPACE_ID}/media/providers` }, { init: {
-        method: "PUT",
-        body: JSON.stringify(providers),
-      } }),
+    ...createMediaProviderCalls({ request }),
     /** Byte-serving URL for an asset's original file (MSG-05) — authenticated, same-origin, so a
      *  plain `<img src>`/`<video src>` sends the session cookie automatically with no `crossorigin`
      *  attribute needed. Not wrapped in `request()` like the rest of this file's methods: callers
