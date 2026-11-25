@@ -119,11 +119,32 @@ beforeAll(async () => {
 }, 120_000);
 afterAll(async () => { await rm(root, { recursive: true, force: true }); });
 
-it('packs every provider source as an independently loadable distribution payload, each with a spec here', async () => {
-  const sources = (await readdir(path.join(packageRoot, 'src'), { withFileTypes: true }))
+/** Source folders without a `jini.plugin.json` are host-side libraries (the `model-proxy-<vendor>` registrations a
+ * host injects into the daemon's model proxy): tsc emits them to `dist/`, the host imports them in its own process,
+ * and no plugin loader ever sees them, so they have no payload and no spec here. */
+async function providerSourceDirs(): Promise<{ plugins: string[]; hostLibraries: string[] }> {
+  const dirs = (await readdir(path.join(packageRoot, 'src'), { withFileTypes: true }))
     .filter(entry => entry.isDirectory() && !entry.name.startsWith('__')).map(entry => entry.name).sort();
-  expect([...artifacts.keys()]).toEqual(sources);
+  const hasManifest = await Promise.all(dirs.map(dir => readFile(path.join(packageRoot, 'src', dir, 'jini.plugin.json')).then(() => true, () => false)));
+  return { plugins: dirs.filter((_, index) => hasManifest[index]), hostLibraries: dirs.filter((_, index) => !hasManifest[index]) };
+}
+
+it('packs every provider source as an independently loadable distribution payload, each with a spec here', async () => {
+  const { plugins } = await providerSourceDirs();
+  expect([...artifacts.keys()]).toEqual(plugins);
   expect([...artifacts.keys()]).toEqual(Object.keys(SPECS).sort());
+});
+
+it('publishes every host-library source as an emitted dist/ subpath, never as a plugin payload', async () => {
+  const { hostLibraries } = await providerSourceDirs();
+  const packageManifest = JSON.parse(await readFile(path.join(packageRoot, 'package.json'), 'utf8')) as { files: string[] };
+  const libraryConfig = JSON.parse(await readFile(path.join(packageRoot, 'tsconfig.lib.json'), 'utf8')) as { files: string[] };
+  expect(hostLibraries.length).toBeGreaterThan(0);
+  for (const dir of hostLibraries) {
+    expect(packageManifest.files).toContain(`dist/${dir}`);
+    expect(libraryConfig.files).toContain(`src/${dir}/index.ts`);
+    expect(packageManifest.files).not.toContain(`plugins/${dir}`);
+  }
 });
 
 it('packs the provider NOTICE and integrity-pins its retained copy in the Stripe artifact', async () => {
@@ -141,7 +162,13 @@ it('packs the provider NOTICE and integrity-pins its retained copy in the Stripe
   expect(await readFile(path.join(installedPackage, 'NOTICE'), 'utf8')).toBe(notice);
 });
 
-/** The packed package installs alone: its own name and payload only, isolated, with no runtime dependencies. */
+/** Peers the host itself supplies. The tsc-emitted host-side subpaths (`dist/xai/routes.js`, `dist/model-proxy-*`) run in
+ * the host's process and import core's route kit and proxy-provider kit at runtime, so the package declares them as
+ * peers (one host-owned core instance, never a private copy). No bundled payload may resolve them: the standalone
+ * process below proves each payload loads with neither reachable. */
+const HOST_SUPPLIED_PEERS = ['@jini-ai/core', '@jini-ai/protocol'];
+
+/** The packed package installs alone: its own name and payload only, isolated, with no runtime dependencies of its own. */
 async function assertPackedAlone(required: { pluginId: string; installedPackage: string; packedPaths: string[] }): Promise<{ readonly version: string }> {
   const { pluginId, installedPackage, packedPaths } = required;
   const packageManifest = JSON.parse(await readFile(path.join(installedPackage, 'package.json'), 'utf8'));
@@ -150,7 +177,8 @@ async function assertPackedAlone(required: { pluginId: string; installedPackage:
   expect(packedPaths).toEqual(expect.arrayContaining(['package.json', 'README.md', 'LICENSE', 'NOTICE']));
   expect(await readdir(path.join(installedPackage, 'plugins'))).toEqual([pluginId]);
   expect(await readdir(path.dirname(installedPackage))).toEqual([distributionDir(pluginId)]);
-  for (const field of ['dependencies', 'optionalDependencies', 'peerDependencies']) expect(Object.keys(packageManifest[field] ?? {})).toEqual([]);
+  for (const field of ['dependencies', 'optionalDependencies']) expect(Object.keys(packageManifest[field] ?? {})).toEqual([]);
+  expect(Object.keys(packageManifest.peerDependencies ?? {}).sort()).toEqual(HOST_SUPPLIED_PEERS);
   return packageManifest;
 }
 
@@ -216,14 +244,17 @@ it.each(SERVER_IDS)('%s: packs, installs and loads identical standalone bytes wi
     import { readdirSync } from 'node:fs';
     const resolve = createRequire(${JSON.stringify(pathToFileURL(path.join(installedPackage, 'package.json')).href)}).resolve;
     if (readdirSync(${JSON.stringify(path.dirname(installedPackage))}).join() !== ${JSON.stringify(distributionDir(pluginId))}) throw new Error('sibling plugin available');
-    for (const name of ['posthog-node', 'posthog-js', '@sentry/node', 'langfuse', '@opentelemetry/api', '@opentelemetry/sdk-trace-node']) {
+    for (const name of [...${JSON.stringify(HOST_SUPPLIED_PEERS)}, 'posthog-node', 'posthog-js', '@sentry/node', 'langfuse', '@opentelemetry/api', '@opentelemetry/sdk-trace-node']) {
       let available = false;
       try { resolve(name); available = true; } catch (error) { if (error.code !== 'MODULE_NOT_FOUND') throw error; }
-      if (available) throw new Error('vendor SDK available: ' + name);
+      if (available) throw new Error('unbundled dependency available: ' + name);
     }
     const {default: plugin} = await import(${JSON.stringify(pathToFileURL(path.join(artifact, 'server/index.mjs')).href)});
-    let provider; plugin.definition.setup({providers: {register(value) {provider = value;}}});
-    if (provider.contract !== ${JSON.stringify(spec.contract)} || provider.id !== ${JSON.stringify(spec.id)}) throw new Error('wrong provider');
+    // A manifest may contribute several providers (xai: routes + media); the spec loads the one it names.
+    const registered = []; plugin.definition.setup({providers: {register(value) {registered.push(value);}}});
+    const contributed = registered.map(value => ({ contract: value.contract, id: value.id, contractVersion: value.contractVersion ?? 1 }));
+    if (JSON.stringify(contributed) !== ${JSON.stringify(JSON.stringify(spec.providers ?? [{ contract: spec.contract, id: spec.id, contractVersion: 1 }]))}) throw new Error('wrong providers: ' + JSON.stringify(contributed));
+    const provider = registered.find(value => value.contract === ${JSON.stringify(spec.contract)} && value.id === ${JSON.stringify(spec.id)});
     const resource = await provider.factory(${JSON.stringify(spec.input('standalone'))}, ${spec.standaloneOptions ?? '{}'});
     if (!resource.port) throw new Error('standalone provider failed');
     await resource.dispose({});
@@ -354,7 +385,7 @@ it.each(BROWSER_IDS)('%s: packs, installs, loads and admits identical browser-on
     import { readdirSync } from 'node:fs';
     const resolve = createRequire(${JSON.stringify(pathToFileURL(path.join(installedPackage, 'package.json')).href)}).resolve;
     if (readdirSync(${JSON.stringify(path.dirname(installedPackage))}).join() !== ${JSON.stringify(distributionDir(pluginId))}) throw new Error('sibling plugin available');
-    for (const name of ['recharts', 'react', 'react-dom', 'echarts', 'zrender']) {
+    for (const name of [...${JSON.stringify(HOST_SUPPLIED_PEERS)}, 'recharts', 'react', 'react-dom', 'echarts', 'zrender']) {
       let available = false;
       try { resolve(name); available = true; } catch (error) { if (error.code !== 'MODULE_NOT_FOUND') throw error; }
       if (available) throw new Error('chart library available: ' + name);
