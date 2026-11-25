@@ -1,3 +1,4 @@
+import type { ParsedRegion } from "@jini-ai/core/contracts/site/html-region-ports";
 /**
  * @module html/node/parse5-region-parser
  *
@@ -64,9 +65,9 @@
  */
 import { defaultTreeAdapter, html, parseFragment, type DefaultTreeAdapterTypes, type ParserError } from "parse5";
 
-import type { HtmlRegionScan, HtmlTopLevelElement, ScannedRegion } from "../edit.js";
+import type { HtmlRegionScan, HtmlTopLevelElement, ScannedRegion } from "@jini-ai/core/contracts/site/html-region-ports";
 
-import { AGENT_ELEMENT_ATTRIBUTE, isValidRegionHandle, type HtmlRegionParser, type ParsedRegion } from "../regions.js";
+import { AGENT_ELEMENT_ATTRIBUTE, isValidRegionHandle, type HtmlRegionParser } from "../regions.js";
 
 // parse5's package.json `exports` map publishes only its top-level entry — a deep import like
 // `parse5/dist/tree-adapters/default.js` resolves under `moduleResolution: "Bundler"` at typecheck

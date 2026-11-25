@@ -34,11 +34,12 @@
       "./runtime/lower-tool-access": "universal",
       "./site/lipay/manifest": "universal",
       "./site/store/manifest": "universal",
-      "./runtime/lower-tool-access": "universal",
       "./runtime/sdk-resolver": "node",
       "./runtime/service-ports": "universal",
       "./runtime/built-ins/word-count/count-words": "universal",
-      "./react/plugin-install-port": "browser"
+      "./react/plugin-install-port": "browser",
+      "./runtime/install-source": "universal",
+      "./runtime/built-ins/word-count/plugin": "universal"
     },
     "isolation": {
       "forbidden": {
@@ -161,11 +162,6 @@
       "import": "./dist/site/store/manifest.js",
       "default": "./dist/site/store/manifest.js"
     },
-    "./runtime/lower-tool-access": {
-      "types": "./dist/runtime/lower-tool-access.d.ts",
-      "import": "./dist/runtime/lower-tool-access.js",
-      "default": "./dist/runtime/lower-tool-access.js"
-    },
     "./runtime/sdk-resolver": {
       "types": "./dist/runtime/sdk-resolver.d.ts",
       "import": "./dist/runtime/sdk-resolver.js",
@@ -185,6 +181,16 @@
       "types": "./dist/react/plugin-install-port.d.ts",
       "import": "./dist/react/plugin-install-port.js",
       "default": "./dist/react/plugin-install-port.js"
+    },
+    "./runtime/install-source": {
+      "types": "./dist/runtime/install-source.d.ts",
+      "import": "./dist/runtime/install-source.js",
+      "default": "./dist/runtime/install-source.js"
+    },
+    "./runtime/built-ins/word-count/plugin": {
+      "types": "./dist/runtime/built-ins/word-count/plugin.d.ts",
+      "import": "./dist/runtime/built-ins/word-count/plugin.js",
+      "default": "./dist/runtime/built-ins/word-count/plugin.js"
     }
   },
   "files": [

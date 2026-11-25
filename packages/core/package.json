@@ -238,7 +238,6 @@
       "./contracts/site/gated-mutations-ports": "universal",
       "./contracts/site/legacy-owner-store": "universal",
       "./contracts/site/composition-provider-config-source": "universal",
-      "./contracts/site/cms-trash": "universal",
       "./contracts/site/seo-content-analysis": "universal",
       "./contracts/site/ui-sections": "universal",
       "./contracts/site/admin-surfaces-connections": "universal",
@@ -287,7 +286,9 @@
       "./contracts/site/deployment-admin": "universal",
       "./contracts/site/content-editor-ports": "universal",
       "./contracts/site/database-introspection": "universal",
-      "./contracts/site/external-mcp-tool-ports": "universal"
+      "./contracts/site/external-mcp-tool-ports": "universal",
+      "./contracts/site/html-region-ports": "universal",
+      "./contracts/headless/plugin-install-source": "universal"
     },
     "isolation": {
       "entries": {
@@ -1470,11 +1471,6 @@
       "import": "./dist/contracts/site/legacy-owner-store.js",
       "default": "./dist/contracts/site/legacy-owner-store.js"
     },
-    "./contracts/site/cms-trash": {
-      "types": "./dist/contracts/site/cms-trash.d.ts",
-      "import": "./dist/contracts/site/cms-trash.js",
-      "default": "./dist/contracts/site/cms-trash.js"
-    },
     "./contracts/site/composition-provider-config-source": {
       "types": "./dist/contracts/site/composition-provider-config-source.d.ts",
       "import": "./dist/contracts/site/composition-provider-config-source.js",
@@ -1724,6 +1720,16 @@
       "types": "./dist/contracts/site/external-mcp-tool-ports.d.ts",
       "import": "./dist/contracts/site/external-mcp-tool-ports.js",
       "default": "./dist/contracts/site/external-mcp-tool-ports.js"
+    },
+    "./contracts/site/html-region-ports": {
+      "types": "./dist/contracts/site/html-region-ports.d.ts",
+      "import": "./dist/contracts/site/html-region-ports.js",
+      "default": "./dist/contracts/site/html-region-ports.js"
+    },
+    "./contracts/headless/plugin-install-source": {
+      "types": "./dist/contracts/headless/plugin-install-source.d.ts",
+      "import": "./dist/contracts/headless/plugin-install-source.js",
+      "default": "./dist/contracts/headless/plugin-install-source.js"
     }
   },
   "files": [

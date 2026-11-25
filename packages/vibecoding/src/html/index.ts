@@ -12,7 +12,6 @@ export type {
   HtmlRegionParser,
   HtmlRegionTargetDeps,
   HtmlRegionTargetOptions,
-  ParsedRegion,
 } from "./regions.js";
 export {
   AGENT_ELEMENT_ATTRIBUTE,
@@ -29,7 +28,7 @@ export type {
   RegionMoveProblem,
   ScannedRegion,
   UntaggedSection,
-} from "./edit.js";
+} from "@jini-ai/core/contracts/site/html-region-ports";
 export {
   handlesMadeAmbiguous,
   locateRegion,
@@ -39,3 +38,5 @@ export {
   suggestRegionHandle,
   untaggedTopLevelSections,
 } from "./edit.js";
+
+export type { ParsedRegion } from "@jini-ai/core/contracts/site/html-region-ports";

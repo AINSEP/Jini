@@ -8,7 +8,7 @@
  * const found = locateRegion({ scan, handle: "hero" });
  * if ("region" in found) replaceRegionInner({ html, region: found.region, fragment: "<h1>Hi</h1>" });
  */
-import type { ParsedRegion } from "./regions.js";
+import type { ParsedRegion, ScannedRegion, HtmlTopLevelElement, HtmlRegionScan, RegionLookupProblem, RegionLookup, RegionMoveProblem, RegionHandleOptions, UntaggedSection } from "@jini-ai/core/contracts/site/html-region-ports";
 import { trimCharsEnd } from "@jini-ai/core/primitives";
 
 /** Replaces each `<...>` tag with a space, exactly as `text.replace(/<[^>]*>/g, " ")` does but in
@@ -26,43 +26,6 @@ function replaceTags(text: string): string {
   }
   return out + text.slice(from);
 }
-
-/** A discovered handle, including unsafe regions so reads never silently lose an address. */
-export interface ScannedRegion extends ParsedRegion {
-  readonly tag: string;
-  /** Outer offsets; -1 means parse5 could not locate the boundary. Never splice a problem region. */
-  readonly start: number;
-  readonly end: number;
-  /** Why this region cannot safely be replaced or moved. */
-  readonly problem?: string;
-}
-
-/** A direct fragment child, used for host tagging advice; implicit closes are allowed here. */
-export interface HtmlTopLevelElement {
-  readonly tag: string;
-  readonly handle?: string;
-  readonly start: number;
-  readonly end: number;
-  readonly innerStart: number;
-  readonly innerEnd: number;
-}
-
-/** Reusable analysis of exactly one source string. Parse errors are diagnostics, not read failures. */
-export interface HtmlRegionScan {
-  readonly regions: readonly ScannedRegion[];
-  readonly topLevel: readonly HtmlTopLevelElement[];
-  /** A raw-source handle could not be accounted for in the recovered tree. */
-  readonly documentProblem?: string;
-  readonly parseErrorReasons?: readonly string[];
-}
-
-/** Why lookup could not identify a single safe span. Legacy handle values are deliberately retained. */
-export type RegionLookupProblem =
-  | { readonly kind: "absent"; readonly available: readonly string[] }
-  | { readonly kind: "ambiguous"; readonly count: number }
-  | { readonly kind: "not-replaceable"; readonly tag: string };
-
-export type RegionLookup = { readonly region: ScannedRegion } | { readonly problem: RegionLookupProblem };
 
 /** Resolve one address, refusing duplicates and unsafe boundaries without throwing on reads. */
 export function locateRegion(
@@ -87,8 +50,6 @@ export function replaceRegionInner(
 ): string {
   return html.slice(0, region.innerStart) + fragment + html.slice(region.innerEnd);
 }
-
-export type RegionMoveProblem = "self" | "into-itself";
 
 /** The end of the whitespace run adjoining an element, in either direction. */
 function whitespaceRun(html: string, from: number, direction: 1 | -1): number {
@@ -124,17 +85,6 @@ export function moveRegion(
   const at = anchor >= cutEnd ? anchor - (cutEnd - cutStart) : anchor;
   const piece = placement === "before" ? element + gap : gap + element;
   return { html: without.slice(0, at) + piece + without.slice(at) };
-}
-
-/** Host-owned slug policy keeps suggestions compatible without adding a slugifier dependency. */
-export interface RegionHandleOptions {
-  readonly slugify: (text: string) => string;
-}
-
-/** A top-level element needing a handle, with a suggestion only when its own heading provides one. */
-export interface UntaggedSection {
-  readonly tag: string;
-  readonly suggestedHandle: string | undefined;
 }
 
 const HEADING_PATTERN = /<h[1-6]\b[^>]*>([\s\S]*?)<\/h[1-6]>/i;

@@ -139,7 +139,9 @@
       "./member-login/credentials": "universal",
       "./member-login/ready-providers": "universal",
       "./mail/site/capture-clear": "universal",
-      "./newsletter/http-error-responses": "universal"
+      "./newsletter/http-error-responses": "universal",
+      "./newsletter/confirmation": "universal",
+      "./newsletter/subscriptions": "universal"
     },
     "optionalPeers": {
       "kysely": "opt-in: sql storage adapters; import @jini-ai/user-management/members/repo — SQL storage adapters could not load kysely. Install kysely to enable this feature, or check its installed version and native binaries.",
@@ -821,6 +823,16 @@
       "types": "./dist/newsletter/http-error-responses.d.ts",
       "import": "./dist/newsletter/http-error-responses.js",
       "default": "./dist/newsletter/http-error-responses.js"
+    },
+    "./newsletter/confirmation": {
+      "types": "./dist/newsletter/confirmation.d.ts",
+      "import": "./dist/newsletter/confirmation.js",
+      "default": "./dist/newsletter/confirmation.js"
+    },
+    "./newsletter/subscriptions": {
+      "types": "./dist/newsletter/subscriptions.d.ts",
+      "import": "./dist/newsletter/subscriptions.js",
+      "default": "./dist/newsletter/subscriptions.js"
     }
   },
   "files": [
