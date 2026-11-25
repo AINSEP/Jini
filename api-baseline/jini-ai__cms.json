@@ -2307,7 +2307,7 @@
    "SiteShareFailureArgs": "interface:66e03f1413",
    "SiteSharePrincipal": "interface:cbb54678c4",
    "SiteShareRoute": "interface:9626b71de7",
-   "SiteShareRouteBackend": "interface:5f92471297",
+   "SiteShareRouteBackend": "interface:beb4cbfdae",
    "SiteShareRouteDeps": "interface:6053bbc444",
    "SiteShareUploadRefusal": "class:1efe8d1902",
    "siteShareAcknowledgeRoute": "variable:49828934d8",
