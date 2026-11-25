@@ -4,7 +4,7 @@ import type { CredentialWarning } from "./credential-warnings.js";
 import { SiteShareExportFailure, type SiteShareExportStep } from "./share-export-failure.js";
 import { SiteBackupPushJobs, type PushJobKey, type PushJobWait, type SiteBackupPushProgress } from "../push-jobs.js";
 import type { StaticSitePorts, StaticSiteCopy } from "./static-copy.js";
-import { isShareExpiryChoice, shareExpiresAt, type ShareExpiryHost } from "./share-expiry.js";
+import { isShareExpired, isShareExpiryChoice, shareExpiresAt, type ShareExpiryHost } from "./share-expiry.js";
 import type { StaticExportOptions } from "./static-export-selection.js";
 import { SAVED_KEYS_PATH, type SiteSavedKeysPort } from "./saved-keys-port.js";
 import { SiteShareRefusal } from "./share-refusal.js";
@@ -345,6 +345,8 @@ async function revealSharePassword({ ctx, input }: { ctx: ShareBackendContext; i
   if (input.principalId !== await required.ownerPrincipalId) throw new SiteShareRefusal({ code: "FORBIDDEN", message: "Only the site owner can reveal an export password." });
   const row = await required.registry.get({ site: required.site, shareId: input.shareId });
   if (!row?.hasEncryptedKeys || !row.sealedPassword || row.status === "revoked") throw new SiteShareRefusal({ code: "NOT_FOUND", message: "Export password not found for this site." });
+  // An ended share stays ended for its secret too: a retention tombstone OR a passed `expiresAt` (before the sweep runs).
+  if (row.status === "expired" || isShareExpired({ row, now: ctx.now() })) throw new SiteShareRefusal({ code: "EXPIRED", message: required.host.expiry.expiredMessage({ row }) });
   if (!required.savedKeys) throw new SiteShareRefusal({ code: "UNAVAILABLE", message: "Saved keys are unavailable." });
   return required.savedKeys.reveal({ sealedPassword: row.sealedPassword, shareId: row.shareId, workspaceId: required.site });
 }

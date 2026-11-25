@@ -50,6 +50,14 @@ describe("share backend password reveal", () => {
     const b = backend({ rows: [row({ shareId: "revoked", status: "revoked" }), row({ shareId: "keyless", hasEncryptedKeys: false })], reveal: async () => ({ password: "pw" }) });
     for (const shareId of ["revoked", "keyless", "missing"]) await expect(b.revealPassword({ principalId: "owner", shareId })).rejects.toSatisfy(code("NOT_FOUND"));
   });
+  it("refuses an ended share EXPIRED (tombstoned, or past its expiresAt before the sweep) without opening anything", async () => {
+    let opened = 0;
+    const b = backend({ rows: [row({ shareId: "tombstoned", status: "expired", expiresAt: "2999-01-01T00:00:00Z" }), row({ shareId: "lapsed", expiresAt: "2000-01-01T00:00:00Z" }), row({ shareId: "current", expiresAt: "2999-01-01T00:00:00Z" })],
+      reveal: async () => { opened++; return { password: "pw" }; } });
+    for (const shareId of ["tombstoned", "lapsed"]) await expect(b.revealPassword({ principalId: "owner", shareId })).rejects.toSatisfy(code("EXPIRED"));
+    expect(opened).toBe(0);
+    await expect(b.revealPassword({ principalId: "owner", shareId: "current" })).resolves.toEqual({ password: "pw" });
+  });
   it("is UNAVAILABLE when no saved-keys port is wired", async () => {
     await expect(backend().revealPassword({ principalId: "owner", shareId: "share-1" })).rejects.toSatisfy(code("UNAVAILABLE"));
   });
