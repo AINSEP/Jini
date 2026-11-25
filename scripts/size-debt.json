@@ -14,13 +14,6 @@
     "value": 258
   },
   {
-    "file": "packages/chat/src/embed-widget/browser/frontend-session-bridge.ts",
-    "function": "createFrontendSessionBridge",
-    "line": 199,
-    "rule": "max-lines-per-function",
-    "value": 219
-  },
-  {
     "file": "packages/chat/src/embed-widget/vanilla/index.ts",
     "function": "mountVanillaChat",
     "line": 55,

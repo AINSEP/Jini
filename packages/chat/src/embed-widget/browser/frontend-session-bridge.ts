@@ -39,10 +39,8 @@ import { CHAT_CAPABILITIES } from '../../core/index.js';
 import type { ChatPagePort } from '../../core/page-port.js';
 
 import type { ApprovalAnswer } from '@jini-ai/core';
+import { createInvocationHandler, type InvocationResponder } from './frontend-invocation-handler.js';
 import type { ChatPaneAgentToolAction, ChatPaneAgentBridgeAccess } from '../../react/features/chat-pane/types.js';
-
-/** How many settled invocation ids to remember for replay suppression. */
-const EXECUTED_MEMORY = 256;
 
 export interface FrontendSessionBridgeOptions {
   /** Host validates its server-bound envelope before the shared page executor sees plain args. */
@@ -121,10 +119,6 @@ function claimedCapabilities(options: FrontendSessionBridgeOptions): readonly st
   return claims;
 }
 
-function errorMessage(error: unknown): string {
-  return error instanceof Error ? error.message : String(error);
-}
-
 /** What one server-sent frame means to this surface, decided without touching any state. */
 type FrameReading =
   | { readonly kind: 'cancelled'; readonly invocationId: string }
@@ -190,6 +184,194 @@ function readFrame(data: string): FrameReading {
   }
 }
 
+type Attached = { sessionId: string; bindToken: string };
+
+interface AttachmentWaiter {
+  resolve: (value: Attached) => void;
+  reject: (error: unknown) => void;
+}
+
+/** The attachment state one bridge instance shares between its lifecycle and result handling. */
+interface SessionCore {
+  sessionId: string | undefined;
+  /** Replaced on every reattach; a promise resolved once could never carry this. */
+  bindToken: string | undefined;
+  // A page driver owns one live screen. Serialize its observations, effect and acknowledgement;
+  // otherwise a second invocation could overwrite the first one's host-bound navigation plan.
+  pageQueue: Promise<void>;
+  readonly pending: Map<string, AbortController>;
+  readonly attachments: Set<AttachmentWaiter>;
+}
+
+function abortPending(pending: Map<string, AbortController>): void {
+  for (const controller of pending.values()) { controller.abort(); }
+  pending.clear();
+}
+
+/** Invalidate before any reopen; queued and running page work cannot cross attachments.
+ * O(pending invocations + attachment waiters), with no retained settled waiters. */
+function invalidateSession({ core, error }: { core: SessionCore; error: unknown }): void {
+  abortPending(core.pending);
+  core.pageQueue = Promise.resolve();
+  // The daemon deletes a session's bind token the instant that connection drops, so by the time
+  // this fires the token in hand is already gone from the registry. Holding it until the next
+  // `attached` frame leaves a window where `bindToken()` hands back something dead, and a run
+  // started in that window fails to bind — reported to the agent only as "no frontend is bound
+  // to this run", with the real reason (a reconnect it never saw) nowhere in view.
+  // Reporting no token is the honest answer for a surface that is, right now, not attached.
+  core.bindToken = undefined;
+  core.sessionId = undefined;
+  for (const waiter of core.attachments) waiter.reject(error);
+  core.attachments.clear();
+}
+
+/** Adopt a fresh attachment: drop work from the previous one, then release every waiter. */
+function adoptAttachment(
+  { frame, core, resolveReady }: { frame: Extract<FrameReading, { kind: 'attached' }>; core: SessionCore; resolveReady: (value: Attached) => void },
+  _optional = {},
+): void {
+  abortPending(core.pending);
+  core.sessionId = frame.sessionId;
+  core.bindToken = frame.bindToken;
+  // A no-op after the first attach — which is exactly why `core.bindToken` exists.
+  resolveReady({ sessionId: core.sessionId, bindToken: core.bindToken });
+  for (const waiter of core.attachments) waiter.resolve({ sessionId: core.sessionId, bindToken: core.bindToken });
+  core.attachments.clear();
+}
+
+/** One waiter on the next attachment; cancelling rejects only this caller's wait. */
+function awaitAttachment(
+  { attachments, signal, connectIfIdle }: { attachments: Set<AttachmentWaiter>; signal: AbortSignal | undefined; connectIfIdle: () => void },
+): Promise<Attached> {
+  return new Promise<Attached>((resolve, reject) => {
+    const cleanup = () => { attachments.delete(waiter); signal?.removeEventListener('abort', abort); };
+    const waiter = {
+      resolve: (value: Attached) => { cleanup(); resolve(value); },
+      reject: (error: unknown) => { cleanup(); reject(error); },
+    };
+    const abort = () => waiter.reject(signal?.reason);
+    attachments.add(waiter);
+    signal?.addEventListener('abort', abort, { once: true });
+    connectIfIdle();
+  });
+}
+
+/** What the bridge does for each kind of frame; `cancelled` needs only the pending registry. */
+interface FrameActions {
+  readonly attach: (frame: Extract<FrameReading, { kind: 'attached' }>) => void;
+  readonly refuse: (error: Error) => void;
+  readonly malformed: (error: unknown) => void;
+  readonly invocation: (action: ChatPaneAgentToolAction) => void;
+}
+
+function applyFrame({ frame, pending, actions }: { frame: FrameReading; pending: Map<string, AbortController>; actions: FrameActions }): void {
+  switch (frame.kind) {
+    case 'cancelled':
+      pending.get(frame.invocationId)?.abort();
+      return;
+    case 'attached':
+      actions.attach(frame);
+      return;
+    case 'refused':
+      actions.refuse(new Error(frame.message));
+      return;
+    case 'malformed':
+      actions.malformed(frame.error);
+      return;
+    case 'invocation':
+      actions.invocation(frame.action);
+      return;
+    case 'ignored':
+      return;
+  }
+}
+
+/** Wires one stream's events to the bridge, ignoring any stream that is no longer the current one. */
+function watchStream(
+  { current, isCurrent, handlers }: {
+    current: Pick<EventSource, 'addEventListener'>;
+    isCurrent: () => boolean;
+    handlers: { message: (data: string) => void; parked: () => void; suspended: () => void; failed: (event: Event) => void };
+  },
+): void {
+  current.addEventListener('message', (event: MessageEvent<string>) => {
+    if (isCurrent()) handlers.message(event.data);
+  });
+  current.addEventListener('parked', () => {
+    if (isCurrent()) handlers.parked();
+  });
+  // Intentional visibility pauses keep their transport owner, which reopens on visibility/activity.
+  current.addEventListener('suspended', () => {
+    if (isCurrent()) handlers.suspended();
+  });
+  current.addEventListener('error', (event) => {
+    if (isCurrent()) handlers.failed(event);
+  });
+}
+
+/** Answers invocations over the HTTP responses endpoint, reading the bind token at send time. */
+function createResponder(
+  { core, send, base, endpointPrefix, headers, maxResponseBytes }: {
+    core: SessionCore;
+    send: NonNullable<FrontendSessionBridgeArgs['request']>;
+    base: string;
+    endpointPrefix: string;
+    headers: FrontendSessionBridgeArgs['headers'];
+    maxResponseBytes: number | undefined;
+  },
+): InvocationResponder {
+  async function respond(invocationId: string, body: Record<string, unknown>): Promise<void> {
+    if (core.sessionId === undefined) throw new Error('the surface is not attached yet');
+    const wire = boundedFrontendResponse({ invocationId, body, maxBytes: maxResponseBytes });
+    const response = await send({
+      url: `${base}${endpointPrefix}/${encodeURIComponent(core.sessionId)}/responses`,
+      init: { method: 'POST', headers: { 'content-type': 'application/json', ...headers?.(), ...(headers ? { 'x-frontend-bind-token': core.bindToken ?? '' } : {}) }, body: wire.payload },
+      timeoutMs: 15_000,
+    });
+    await assertFrontendResponse({ response, invocationId, body, scoped: Boolean(headers), refused: wire.refused });
+  }
+  return {
+    respond,
+    respondSuccess: (invocationId, output) => respond(invocationId, { ok: true, output }),
+    respondError: (invocationId, message) => respond(invocationId, { ok: false, message }),
+  };
+}
+
+/** 0.6.x compatibility: fetch was optional for published hosts;
+ * remove when fetch injection becomes required in the next minor.
+ * The only caller (`respond`) never passes its own signal, so the deadline is the whole signal. */
+function resolveSend({ request, fetch }: { request: FrontendSessionBridgeArgs['request'] | undefined; fetch: FrontendSessionBridgeArgs['fetch'] | undefined }): NonNullable<FrontendSessionBridgeArgs['request']> {
+  return request ?? (({ url, init, timeoutMs }) =>
+    (fetch ?? globalThis.fetch)(url, { ...init, signal: AbortSignal.timeout(timeoutMs) }));
+}
+
+function createReadySignal(): { ready: Promise<Attached>; resolveReady: (value: Attached) => void; rejectReady: (error: unknown) => void } {
+  // Definite assignment rather than no-op placeholders: a Promise executor runs synchronously, so
+  // both are set before this line finishes, and placeholders would only add two functions that
+  // can never be called.
+  let resolveReady!: (value: Attached) => void;
+  let rejectReady!: (error: unknown) => void;
+  const ready = new Promise<Attached>((resolve, reject) => {
+    resolveReady = resolve;
+    rejectReady = reject;
+  });
+  return { ready, resolveReady, rejectReady };
+}
+
+function createBridgeAccess(
+  { chatListeners, responder }: { chatListeners: Set<(action: ChatPaneAgentToolAction) => void>; responder: InvocationResponder },
+): ChatPaneAgentBridgeAccess {
+  return {
+    subscribe(onAction) {
+      chatListeners.add(onAction);
+      // Removes this listener only. The connection outlives any one pane — see the module doc.
+      return () => chatListeners.delete(onAction);
+    },
+    respondSuccess: responder.respondSuccess,
+    respondError: responder.respondError,
+  };
+}
+
 /**
  * Opens the surface's connection and starts routing invocations.
  *
@@ -200,261 +382,59 @@ export function createFrontendSessionBridge(
   { baseUrl: base, openStream, request, fetch, endpointPrefix = '/api/frontend-sessions', headers }: FrontendSessionBridgeArgs,
   options: FrontendSessionBridgeOptions = {},
 ): FrontendSessionBridge {
-  const capabilities = claimedCapabilities(options);
-  // 0.6.x compatibility: fetch was optional for published hosts;
-  // remove when fetch injection becomes required in the next minor.
-  // The only caller (`respond`) never passes its own signal, so the deadline is the whole signal.
-  const send = request ?? (({ url, init, timeoutMs }: { url: string; init: RequestInit; timeoutMs: number }) =>
-    (fetch ?? globalThis.fetch)(url, { ...init, signal: AbortSignal.timeout(timeoutMs) }));
-
-  let sessionId: string | undefined;
-  /** Replaced on every reattach; a promise resolved once could never carry this. */
-  let currentBindToken: string | undefined;
-  // Definite assignment rather than no-op placeholders: a Promise executor runs synchronously, so
-  // both are set before this line finishes, and placeholders would only add two functions that
-  // can never be called.
-  let resolveReady!: (value: { sessionId: string; bindToken: string }) => void;
-  let rejectReady!: (error: unknown) => void;
-  const ready = new Promise<{ sessionId: string; bindToken: string }>((resolve, reject) => {
-    resolveReady = resolve;
-    rejectReady = reject;
-  });
-
+  const query = claimedCapabilities(options).map((id) => `capability=${encodeURIComponent(id)}`).join('&');
+  const { ready, resolveReady, rejectReady } = createReadySignal();
+  const core: SessionCore = { sessionId: undefined, bindToken: undefined, pageQueue: Promise.resolve(), pending: new Map(), attachments: new Set() };
+  const responder = createResponder({ core, send: resolveSend({ request, fetch }), base, endpointPrefix, headers, maxResponseBytes: options.maxResponseBytes });
   /** Chat-pane listeners. The pane registers exactly one; a second host could register another. */
   const chatListeners = new Set<(action: ChatPaneAgentToolAction) => void>();
-  /** Invocation ids already run here, so a stream reconnect cannot double-click a button. */
-  const executed = new Set<string>();
-  const pending = new Map<string, AbortController>();
-  const attachments = new Set<{
-    resolve: (value: { sessionId: string; bindToken: string }) => void;
-    reject: (error: unknown) => void;
-  }>();
+  const handleInvocation = createInvocationHandler({ deps: {
+    options, responder, pending: core.pending, chatListeners,
+    enqueuePage: (work) => { core.pageQueue = core.pageQueue.then(work).catch(error => options.onError?.(error)); },
+  } });
   let source: ReturnType<FrontendSessionBridgeArgs['openStream']> | undefined;
   let closed = false;
-  // A page driver owns one live screen. Serialize its observations, effect and acknowledgement;
-  // otherwise a second invocation could overwrite the first one's host-bound navigation plan.
-  let pageQueue = Promise.resolve();
-  const abortPending = () => {
-    for (const controller of pending.values()) { controller.abort(); }
-    pending.clear();
-  };
-
-  const query = capabilities.map((id) => `capability=${encodeURIComponent(id)}`).join('&');
-
-  /** Invalidate before any reopen; queued and running page work cannot cross attachments.
-   * O(pending invocations + attachment waiters), with no retained settled waiters. */
-  function invalidate({ error }: { error: unknown }): void {
-    abortPending();
-    pageQueue = Promise.resolve();
-    // The daemon deletes a session's bind token the instant that connection drops, so by the time
-    // this fires the token in hand is already gone from the registry. Holding it until the next
-    // `attached` frame leaves a window where `bindToken()` hands back something dead, and a run
-    // started in that window fails to bind — reported to the agent only as "no frontend is bound
-    // to this run", with the real reason (a reconnect it never saw) nowhere in view.
-    // Reporting no token is the honest answer for a surface that is, right now, not attached.
-    currentBindToken = undefined;
-    sessionId = undefined;
-    for (const waiter of attachments) waiter.reject(error);
-    attachments.clear();
-  }
 
   function disconnect({ error }: { error: unknown }): void {
     const previous = source;
     source = undefined;
-    invalidate({ error });
+    invalidateSession({ core, error });
     previous?.close();
   }
 
-  async function respond(invocationId: string, body: Record<string, unknown>): Promise<void> {
-    if (sessionId === undefined) throw new Error('the surface is not attached yet');
-    const wire = boundedFrontendResponse({ invocationId, body, maxBytes: options.maxResponseBytes });
-    const response = await send({
-      url: `${base}${endpointPrefix}/${encodeURIComponent(sessionId)}/responses`,
-      init: { method: 'POST', headers: { 'content-type': 'application/json', ...headers?.(), ...(headers ? { 'x-frontend-bind-token': currentBindToken ?? '' } : {}) }, body: wire.payload },
-      timeoutMs: 15_000,
-    });
-    await assertFrontendResponse({ response, invocationId, body, scoped: Boolean(headers), refused: wire.refused });
-  }
-
-  const respondSuccess = (invocationId: string, output: unknown): Promise<void> =>
-    respond(invocationId, { ok: true, output });
-  const respondError = (invocationId: string, message: string): Promise<void> =>
-    respond(invocationId, { ok: false, message });
-
-  /** Freeze once, ask on the app's existing human-only channel, then use the same page executor.
-   * The server pauses its execution deadline only after acknowledging the bounded human wait. */
-  async function servePage(action: ChatPaneAgentToolAction, signal: AbortSignal): Promise<unknown> {
-    const input = options.preparePageInput ? options.preparePageInput({ action }) : structuredClone(action.input);
-    const args = { capabilityId: action.capabilityId, input };
-    if (options.pageApproval && !options.pageApproval.isDirect(args)) {
-      await respond(action.invocationId, { phase: 'approval-pending' });
-      signal.throwIfAborted();
-      const answer = await options.pageApproval.request({ ...args, input: structuredClone(input), signal });
-      signal.throwIfAborted();
-      // Report the decision before effects, including decline/expiry; the server audits it.
-      await respond(action.invocationId, { phase: 'execution-started', decision: answer.confirmed ? 'approved' : answer.reason });
-      if (!answer.confirmed) return { executed: false, reason: answer.reason };
-    }
-    if (signal.aborted) return { executed: false, reason: 'abandoned' };
-    return options.page!.execute(args, { signal });
-  }
-
-  /** Runs one non-chat invocation here and answers it. Chat ones go to the pane instead. */
-  async function serveLocally(action: ChatPaneAgentToolAction, controller: AbortController): Promise<void> {
-    let output: unknown;
-    try {
-      controller.signal.throwIfAborted();
-      if (options.page !== undefined && action.capabilityId.startsWith('page.')) {
-        output = await servePage(action, controller.signal);
-      } else {
-        const entry = Object.entries(options.executors ?? {})
-          .find(([prefix]) => action.capabilityId.startsWith(prefix));
-        if (entry === undefined) throw new Error(`nothing on this page serves "${action.capabilityId}"`);
-        output = await entry[1](action.capabilityId, action.input);
-      }
-    } catch (error) {
-      pending.delete(action.invocationId);
-      if (controller.signal.aborted) return;
-      await respondError(action.invocationId, errorMessage(error)).catch(options.onError ?? (() => undefined));
-      return;
-    }
-    await acknowledge({ action, output, signal: controller.signal });
-    pending.delete(action.invocationId);
-  }
-
-  async function acknowledge({ action, output, signal }: { action: ChatPaneAgentToolAction; output: unknown; signal: AbortSignal }): Promise<void> {
-    try {
-      signal.throwIfAborted();
-      const projected = await options.onBeforeResponse?.({ action, output });
-      signal.throwIfAborted();
-      const acceptedOutput = projected ?? output;
-      await respondSuccess(action.invocationId, acceptedOutput);
-      signal.throwIfAborted();
-      await options.onAfterResponse?.({ action, output: acceptedOutput });
-    } catch (error) { options.onError?.(error); }
-  }
-
-  function remember(invocationId: string): void {
-    executed.add(invocationId);
-    if (executed.size > EXECUTED_MEMORY) {
-      const oldest = executed.values().next().value;
-      if (oldest !== undefined) executed.delete(oldest);
-    }
-  }
-
-  /** Runs one well-formed invocation: replay check, announcement, then pane or local serving. */
-  function handleInvocation(action: ChatPaneAgentToolAction): void {
-    // A redelivery after a dropped answer must not re-run the side effect.
-    if (executed.has(action.invocationId)) {
-      void respondError(action.invocationId, 'already executed on this surface').catch(() => undefined);
-      return;
-    }
-    if (options.capabilityIds && !options.capabilityIds.includes(action.capabilityId)) {
-      void respondError(action.invocationId, 'Capability unavailable').catch(() => undefined);
-      return;
-    }
-    remember(action.invocationId);
-    options.onInvocation?.(action);
-
-    if (action.capabilityId.startsWith('chat.')) {
-      for (const listener of chatListeners) listener(action);
-      return;
-    }
-    const controller = new AbortController();
-    pending.set(action.invocationId, controller);
-    if (action.capabilityId.startsWith('page.')) {
-      pageQueue = pageQueue.then(() => serveLocally(action, controller)).catch(error => options.onError?.(error));
-    } else void serveLocally(action, controller);
-  }
-
-  /** Adopt a fresh attachment: drop work from the previous one, then release every waiter. */
-  function attach({ frame }: { frame: Extract<FrameReading, { kind: 'attached' }> }, _optional = {}): void {
-    abortPending();
-    sessionId = frame.sessionId;
-    currentBindToken = frame.bindToken;
-    // A no-op after the first attach — which is exactly why `currentBindToken` exists.
-    resolveReady({ sessionId, bindToken: currentBindToken });
-    for (const waiter of attachments) waiter.resolve({ sessionId, bindToken: currentBindToken });
-    attachments.clear();
-  }
+  const actions: FrameActions = {
+    attach: (frame) => adoptAttachment({ frame, core, resolveReady }),
+    refuse: (error) => { rejectReady(error); disconnect({ error }); },
+    malformed: (error) => options.onError?.(error),
+    invocation: handleInvocation,
+  };
 
   function connect(): void {
     const current = openStream({ url: `${base}${endpointPrefix}/stream?${query}`, ...(headers ? { headers: headers() } : {}) });
     source = current;
-    current.addEventListener('message', (event: MessageEvent<string>) => {
-      if (source !== current) return;
-      const frame = readFrame(event.data);
-      switch (frame.kind) {
-        case 'cancelled':
-          pending.get(frame.invocationId)?.abort();
-          return;
-        case 'attached':
-          attach({ frame });
-          return;
-        case 'refused': {
-          const error = new Error(frame.message);
-          rejectReady(error);
-          disconnect({ error });
-          return;
-        }
-        case 'malformed':
-          options.onError?.(frame.error);
-          return;
-        case 'invocation':
-          handleInvocation(frame.action);
-          return;
-        case 'ignored':
-          return;
-      }
-    });
-
-    current.addEventListener('parked', () => {
-      if (source === current) disconnect({ error: new Error('the surface is parked') });
-    });
-    // Intentional visibility pauses keep their transport owner, which reopens on visibility/activity.
-    current.addEventListener('suspended', () => {
-      if (source === current) invalidate({ error: new Error('the surface is suspended') });
-    });
-    current.addEventListener('error', (event) => {
-      if (source !== current) return;
-      disconnect({ error: new Error('the frontend stream failed') });
-      options.onError?.(event);
-    });
+    watchStream({ current, isCurrent: () => source === current, handlers: {
+      message: (data) => applyFrame({ frame: readFrame(data), pending: core.pending, actions }),
+      parked: () => disconnect({ error: new Error('the surface is parked') }),
+      suspended: () => invalidateSession({ core, error: new Error('the surface is suspended') }),
+      failed: (event) => { disconnect({ error: new Error('the frontend stream failed') }); options.onError?.(event); },
+    } });
   }
 
   connect();
 
-  const bridgeAccess: ChatPaneAgentBridgeAccess = {
-    subscribe(onAction) {
-      chatListeners.add(onAction);
-      // Removes this listener only. The connection outlives any one pane — see the module doc.
-      return () => chatListeners.delete(onAction);
-    },
-    respondSuccess,
-    respondError,
-  };
-
   return {
-    bridgeAccess,
+    bridgeAccess: createBridgeAccess({ chatListeners, responder }),
     ready,
-    bindToken: () => currentBindToken,
+    bindToken: () => core.bindToken,
     async rebind({ signal } = {}, _optional = {}) {
       signal?.throwIfAborted();
       if (closed) throw new Error('the frontend bridge is closed');
-      if (sessionId !== undefined && currentBindToken !== undefined) return { sessionId, bindToken: currentBindToken };
-      return new Promise<{ sessionId: string; bindToken: string }>((resolve, reject) => {
-        const cleanup = () => { attachments.delete(waiter); signal?.removeEventListener('abort', abort); };
-        const waiter = {
-          resolve: (value: { sessionId: string; bindToken: string }) => { cleanup(); resolve(value); },
-          reject: (error: unknown) => { cleanup(); reject(error); },
-        };
-        const abort = () => waiter.reject(signal?.reason);
-        attachments.add(waiter);
-        signal?.addEventListener('abort', abort, { once: true });
+      if (core.sessionId !== undefined && core.bindToken !== undefined) return { sessionId: core.sessionId, bindToken: core.bindToken };
+      return awaitAttachment({ attachments: core.attachments, signal, connectIfIdle: () => {
         if (!source) {
           try { connect(); } catch (error) { disconnect({ error }); }
         }
-      });
+      } });
     },
     close() {
       closed = true;
@@ -480,16 +460,10 @@ export function openFetchFrontendStream({ url, headers }: { url: string; headers
   let retry: ReturnType<typeof setTimeout> | undefined;
   let delay = reconnectMs;
   async function connect(): Promise<void> {
-    let retryable = true;
-    try {
-      const response = await send(url, { credentials: 'same-origin', mode: 'same-origin', redirect: 'error', headers: headers(), signal: abort.signal });
-      retryable = ![401, 403, 404, 429].includes(response.status);
-      if (!response.ok || !response.body) throw new Error('Frontend stream unavailable');
-      for await (const frame of decodeSseFrames({ source: streamChunks(response.body) }, { maxBufferChars: 128_000 })) {
-        delay = reconnectMs; // A delivered event proves the connection recovered.
-        if (!abort.signal.aborted) events.dispatchEvent(new MessageEvent(frame.event === 'parked' ? 'parked' : 'message', { data: frame.data }));
-      }
-    } catch { /* The stream error has one value-free notification below. */ }
+    const { retryable } = await attemptFrontendStream({
+      send, url, headers, signal: abort.signal, events,
+      onDelivered: () => { delay = reconnectMs; }, // A delivered event proves the connection recovered.
+    });
     if (abort.signal.aborted) return;
     events.dispatchEvent(new Event('error'));
     if (retryable && !abort.signal.aborted) {
@@ -500,6 +474,30 @@ export function openFetchFrontendStream({ url, headers }: { url: string; headers
   void connect();
   return { addEventListener: events.addEventListener.bind(events) as EventSource['addEventListener'],
     close() { abort.abort(); clearTimeout(retry); } };
+}
+
+/** One fetch-and-read pass over the stream; says whether its failure, if any, is worth retrying. */
+async function attemptFrontendStream(
+  { send, url, headers, signal, events, onDelivered }: {
+    send: typeof fetch;
+    url: string;
+    headers: () => Record<string, string>;
+    signal: AbortSignal;
+    events: EventTarget;
+    onDelivered: () => void;
+  },
+): Promise<{ retryable: boolean }> {
+  let retryable = true;
+  try {
+    const response = await send(url, { credentials: 'same-origin', mode: 'same-origin', redirect: 'error', headers: headers(), signal });
+    retryable = ![401, 403, 404, 429].includes(response.status);
+    if (!response.ok || !response.body) throw new Error('Frontend stream unavailable');
+    for await (const frame of decodeSseFrames({ source: streamChunks(response.body) }, { maxBufferChars: 128_000 })) {
+      onDelivered();
+      if (!signal.aborted) events.dispatchEvent(new MessageEvent(frame.event === 'parked' ? 'parked' : 'message', { data: frame.data }));
+    }
+  } catch { /* The stream error has one value-free notification below. */ }
+  return { retryable };
 }
 
 async function* streamChunks(body: ReadableStream<Uint8Array>): AsyncGenerator<Uint8Array> {
