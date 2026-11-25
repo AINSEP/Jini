@@ -1,3 +1,4 @@
+import type { RecordedActorKind } from "@jini-ai/core/contracts/events";
 import type { Clock, IdGenerator } from "@jini-ai/core/primitives";
 
 /** Local, structurally-compatible authorize gate — no `workspaceId` is threaded through this
@@ -73,6 +74,9 @@ export interface TaxonomyRevisionRow {
   op: "create" | "rename" | "reparent" | "deprecate" | "delete" | "import";
   previousState: Record<string, unknown> | null;
   actorId: string;
+  /** Typed kind of `actorId`, persisted as `actor_kind` when the writer has one; absent stays NULL (unknown).
+   *  Never inferred from `actorId`, and `previousState` is domain data, not attribution. */
+  actorKind?: RecordedActorKind | null;
   recordedAt: string;
 }
 

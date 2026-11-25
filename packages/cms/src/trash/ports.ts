@@ -6,6 +6,7 @@
  * describe method: a read that can throw must never become a dependency of trash listing.
  */
 import type { TrashActor, TrashDisplay, TrashMarkerResult } from "@jini-ai/core/contracts/site/cms-trash";
+import type { RecordedActor } from "@jini-ai/core/contracts/events";
 
 export type { TrashActor } from "@jini-ai/core/contracts/site/cms-trash";
 
@@ -31,6 +32,8 @@ export interface TrashItem {
   entityVersion: number | null;
 
   priorMarker: string | null;
+  /** Typed attribution for the new row's `actor_kind`/`actor_id`; absent or null leaves both NULL (unknown). */
+  recordedActor?: RecordedActor | null;
 }
 
 export interface TrashPage {

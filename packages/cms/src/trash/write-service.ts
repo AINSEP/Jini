@@ -145,6 +145,8 @@ function buildTrashRow(
 
     // The adapter's marker reading wins; caller state only fills in for adapters without one.
     priorMarker: marker.priorMarker ?? priorMarker ?? null,
+    // Only a typed actor adds the key, so a caller without one builds the exact row it always did.
+    ...(required.actor.recorded ? { recordedActor: required.actor.recorded } : {}),
   };
 }
 

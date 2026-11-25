@@ -1,3 +1,4 @@
+import { sql } from "kysely";
 import assert from "node:assert/strict";
 import { test } from "vitest";
 
@@ -422,6 +423,15 @@ describeEachDialect<Bundle>({ title: "taxonomy revision repo", options: { tables
       assert.deepEqual(await repo.insert(first), first);
       await repo.insert(second);
       assert.deepEqual(await repo.listForTests({ taxonomyId: "t1" }), [first, second]);
+    });
+
+    test("insert persists a typed actor kind beside actor_id; without one actor_kind stays NULL (unknown)", async () => {
+      const repo = makeRepo();
+      await repo.insert({ ...revision("t1", "create", null), actorKind: "member" });
+      await repo.insert(revision("t1", "rename", null));
+      const rows = await ctx.kernel.query<{ op: string; actor_id: string; actor_kind: string | null }>(
+        sql`SELECT op, actor_id, actor_kind FROM taxonomy_revisions ORDER BY seq`);
+      assert.deepEqual(rows, [{ op: "create", actor_id: "user-1", actor_kind: "member" }, { op: "rename", actor_id: "user-1", actor_kind: null }]);
     });
 
     test("listForTests misses an unknown taxonomy and another workspace's ledger", async () => {

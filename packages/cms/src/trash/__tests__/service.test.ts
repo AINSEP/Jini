@@ -15,6 +15,16 @@ test("hide and restore never parse or rewrite the entity payload; listing uses t
   assert.equal(h.records.records.get("record-1")!.version, 3);
   assert.equal(h.repo.all({}).length, 0);
 });
+test("a typed actor reaches the new index row; a caller without one adds no recordedActor key", async () => {
+  const typed = harness();
+  await typed.trash.trash({ ...removal, actor: { ...ACTOR, recorded: { kind: "plugin", id: "plugin-9" } } });
+  assert.deepEqual(typed.repo.all({})[0]!.recordedActor, { kind: "plugin", id: "plugin-9" });
+  assert.equal(typed.repo.all({})[0]!.actorPrincipalId, ACTOR.principalId, "the principal field keeps its meaning");
+  const plain = harness();
+  await plain.trash.trash(removal);
+  assert.equal("recordedActor" in plain.repo.all({})[0]!, false);
+});
+
 test("index insert failure rolls back the marker flip", async () => {
   const h = harness();
   h.repo.insert = async () => { throw new Error("disk full"); };

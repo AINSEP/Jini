@@ -32,6 +32,8 @@ export interface TrashedItemRow {
   prior_marker: string | null;
   purge_lease_owner: string | null;
   purge_lease_expires_at: string | null;
+  actor_kind: string | null;
+  actor_id: string | null;
 }
 export type TrashedItemTables = Record<string, TrashedItemRow>;
 
@@ -119,6 +121,9 @@ export class SqlTrashRepo implements TrashRepoPort {
           // `priorMarker` is a required field on `TrashItem`, but a hand-built literal in a test can
           // still omit the key — default it here rather than trust every call site set it.
           prior_marker: row.priorMarker ?? null,
+          // Only a typed actor is written; without one the columns are omitted and stay NULL (unknown),
+          // so a host schema that predates them keeps inserting. Never derived from the principal/plugin.
+          ...(row.recordedActor ? { actor_kind: row.recordedActor.kind, actor_id: row.recordedActor.id } : {}),
         })
         .onConflict((oc) => oc.doNothing())
         .execute()
