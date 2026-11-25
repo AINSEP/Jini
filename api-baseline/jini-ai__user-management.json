@@ -997,9 +997,9 @@
   "symbols": {
    "AdminIdentityUser": "interface:2ce5eb8c93",
    "AdminMember": "interface:33728c5ad2",
-   "AdminPolicy": "interface:8312604a96",
+   "AdminPolicy": "interface:670c9855fd",
    "AdminPolicyPermission": "interface:79c403155f",
-   "AdminRole": "interface:082b214d1e",
+   "AdminRole": "interface:7335b7ecfc",
    "AdminUser": "interface:0be19e739a",
    "ChangeUsernameController": "interface:2a438caed8",
    "ChangeUsernameDialog": "function:ca27d500f8",
@@ -1043,7 +1043,7 @@
    "RecoveryKitController": "interface:596fff53b2",
    "ResetPasswordFieldsController": "interface:bb80f6154c",
    "ResetPasswordFieldsInput": "interface:694c6a745d",
-   "RolesPort": "interface:754cb08fb8",
+   "RolesPort": "interface:2e88ff79c2",
    "RowActionState": "interface:a27727c12d",
    "TotpSettings": "function:5acc0a6ecb",
    "TotpSettingsPort": "interface:0527fe37d2",
@@ -1171,7 +1171,7 @@
   "types": "./dist/react/roles/api/roles-api.d.ts",
   "symbols": {
    "RolesApiDeps": "interface:81f794f65c",
-   "createRolesApi": "function:f2555e58ea"
+   "createRolesApi": "function:b6570baa98"
   }
  },
  "./react/testing": {
