@@ -1,7 +1,7 @@
 import { reportRouteInternalError } from '@jini-ai/http-kit';
 import { describe, expect, it, vi } from 'vitest';
 import { denyAllOrigins } from '@jini-ai/core/contracts/server/testing';
-import { fakeDaemonRouteHost } from './fakes/route-host.js';
+import { fakeDaemonRouteHost, injectedRecordingReporter, withInjectedReporter } from './fakes/route-host.js';
 import { jsonRequest, serveRoutes } from './fakes/serve-routes.js';
 import { describeRoutes } from '../route-table.js';
 import {
@@ -374,7 +374,7 @@ describe('mediaGenerateRoute.handle', () => {
   it('SEC-005: a failed background generation marks the task failed with a redacted error, and reports via onInternalError', async () => {
     const onInternalError = vi.fn();
     const deps = makeDeps({
-      onInternalError,
+      reportInternalError: injectedRecordingReporter({ record: onInternalError }),
       engine: makeEngine(async () => {
         throw new Error('vendor API key rejected: sk-secret-123');
       }),
@@ -400,7 +400,7 @@ describe('mediaGenerateRoute.handle', () => {
     const onInternalError = vi.fn();
     const realStore = createInMemoryMediaTaskStore();
     const deps = makeDeps({
-      onInternalError,
+      reportInternalError: injectedRecordingReporter({ record: onInternalError }),
       taskStore: {
         ...realStore,
         create: async () => {
@@ -430,7 +430,7 @@ describe('mediaGenerateRoute.handle', () => {
     const realStore = createInMemoryMediaTaskStore();
     let updateCallCount = 0;
     const deps = makeDeps({
-      onInternalError,
+      reportInternalError: injectedRecordingReporter({ record: onInternalError }),
       engine: makeEngine(async () => {
         throw new Error('vendor call failed');
       }),
@@ -518,7 +518,7 @@ describe('mediaTaskGetRoute.handle', () => {
     const onInternalError = vi.fn();
     const realStore = createInMemoryMediaTaskStore();
     const deps = makeDeps({
-      onInternalError,
+      reportInternalError: injectedRecordingReporter({ record: onInternalError }),
       taskStore: {
         ...realStore,
         get: async () => {
@@ -559,7 +559,7 @@ describe('mediaTaskDeleteRoute.handle', () => {
     const realStore = createInMemoryMediaTaskStore();
     await realStore.create({ input: { id: 't1', ownerRef: 'owner-1' } });
     const deps = makeDeps({
-      onInternalError,
+      reportInternalError: injectedRecordingReporter({ record: onInternalError }),
       taskStore: {
         ...realStore,
         delete: async () => {
@@ -645,7 +645,7 @@ describe('mediaTaskListRoute.handle', () => {
     const onInternalError = vi.fn();
     const realStore = createInMemoryMediaTaskStore();
     const deps = makeDeps({
-      onInternalError,
+      reportInternalError: injectedRecordingReporter({ record: onInternalError }),
       taskStore: {
         ...realStore,
         listByOwner: async () => {
@@ -668,7 +668,7 @@ describe('mediaTaskListRoute.handle', () => {
 
 describe('mediaRoutes', () => {
   const serve = ({ deps, denyOrigins = false }: { deps: MediaHttpDeps; denyOrigins?: boolean }) =>
-    serveRoutes({ routes: mediaRoutes({ deps, host: fakeDaemonRouteHost({}, denyOrigins ? { originPolicy: denyAllOrigins } : {}) }) });
+    serveRoutes({ routes: mediaRoutes({ deps, host: withInjectedReporter({ host: fakeDaemonRouteHost({}, denyOrigins ? { originPolicy: denyAllOrigins } : {}), deps }) }) });
   const send = async ({ deps, method, path, body, denyOrigins = false }: { deps: MediaHttpDeps; method: string; path: string; body?: unknown; denyOrigins?: boolean }) => {
     const response = await serve({ deps, denyOrigins })(jsonRequest({ path, method }, { body }));
     return { status: response.status, body: await response.json() as unknown };

@@ -6,7 +6,7 @@ import { modelProxyRoutes, type ModelProxyHttpDeps as BoundModelProxyHttpDeps } 
 import { fakeProviderToolTurnPort } from '../../ports/__tests__/provider-http-ports.fake.js';
 import { runAnthropicToolTurn, runAzureToolTurn, runGoogleToolTurn, runOllamaToolTurn, runOpenAiToolTurn } from '@jini-ai/agent-runtime';
 import { describeRoutes } from '../route-table.js';
-import { fakeDaemonRouteHost } from './fakes/route-host.js';
+import { fakeDaemonRouteHost, injectedRecordingReporter, withInjectedReporter } from './fakes/route-host.js';
 import { serveRoutes } from './fakes/serve-routes.js';
 
 /** The real provider tool-turn runners, bound the way the host binds them (the transport is still faked through `fetchImpl`). */
@@ -76,10 +76,13 @@ const testOriginPolicy = {
 };
 const throwFromOriginCheck = (message: string) => scriptedOrigin.push(() => { throw new Error(message); });
 
-/** The host the routes are built for: the recording origin policy and a recording incident reporter (the real reporter's log line and sink containment are http-kit's own pinned behaviour). */
-function proxyHost({ onInternalError }: { readonly onInternalError?: (context: never) => void } = {}) {
-  return fakeDaemonRouteHost({}, { originPolicy: testOriginPolicy, ...(onInternalError ? { onInternalError: onInternalError as never } : {}) });
+/** The host the routes are built for: the recording origin policy and a recording incident reporter (the real reporter's log line is http-kit's own pinned behaviour). */
+function proxyHost(_required: Record<string, never> = {}, _optional: Record<string, never> = {}) {
+  return fakeDaemonRouteHost({}, { originPolicy: testOriginPolicy });
 }
+
+/** Route deps plus, for an incident test, the recording reporter the host injects (see `withInjectedReporter`). */
+type ProxyTestDeps = ModelProxyHttpDeps & { readonly reportInternalError?: ReturnType<typeof injectedRecordingReporter> };
 
 /** The host the last `mountWith` built its routes for: its `reports` say what the routes asked the reporter to record. */
 let lastHost = proxyHost();
@@ -122,7 +125,8 @@ function bodyText(body: unknown): string {
 }
 
 /** Calls each route's handler directly (so the catch-all is reachable with any provider name, as the old mock app allowed) and records the answer. */
-function mountWith({ deps, host }: { readonly deps: ModelProxyHttpDeps; readonly host: ReturnType<typeof proxyHost> }) {
+function mountWith({ deps, host: baseHost }: { readonly deps: ProxyTestDeps; readonly host: ReturnType<typeof proxyHost> }) {
+  const host = withInjectedReporter({ host: baseHost, deps });
   lastHost = host;
   const handlers: Record<string, RouteCall> = {};
   for (const route of proxyRoutes({ deps, host })) {
@@ -135,7 +139,7 @@ function mountWith({ deps, host }: { readonly deps: ModelProxyHttpDeps; readonly
 }
 
 /** Always injects `injectedFetch`/`injectedDnsLookup` as the transport/resolver — a caller-supplied `deps.fetchImpl`/`deps.dnsLookup` would still win (spread order). */
-function mount(deps: ModelProxyHttpDeps = {}) {
+function mount(deps: ProxyTestDeps = {}) {
   return mountWith({ // The local deps type omits `toolTurns`; `proxyRoutes` lets a supplied one override the real runners.
       deps: { fetchImpl: injectedFetch, dnsLookup: injectedDnsLookup, ...deps } as ModelProxyHttpDeps, host: proxyHost() });
 }
@@ -307,7 +311,7 @@ describe('modelProxyRoutes — route list', () => {
 });
 
 describe('POST /api/proxy/anthropic/stream', () => {
-  function handler(deps: ModelProxyHttpDeps = {}) {
+  function handler(deps: ProxyTestDeps = {}) {
     return mount(deps).handlers['POST /api/proxy/anthropic/stream']!;
   }
 
@@ -462,7 +466,7 @@ describe('POST /api/proxy/anthropic/stream', () => {
     const onInternalError = vi.fn();
     const anthropicExecuteTool = vi.fn().mockRejectedValue(new Error('tool exploded: secret-token-xyz'));
     const res = makeSseRes();
-    await handler({ anthropicExecuteTool, onInternalError })(makeReq(validAnthropicBody), res);
+    await handler({ anthropicExecuteTool, reportInternalError: injectedRecordingReporter({ record: onInternalError }) })(makeReq(validAnthropicBody), res);
 
     expect(onInternalError).toHaveBeenCalledTimes(1);
     const [context] = onInternalError.mock.calls[0]!;
@@ -535,7 +539,7 @@ describe('POST /api/proxy/anthropic/stream', () => {
 });
 
 describe('POST /api/proxy/openai/stream', () => {
-  function handler(deps: ModelProxyHttpDeps = {}) {
+  function handler(deps: ProxyTestDeps = {}) {
     return mount(deps).handlers['POST /api/proxy/openai/stream']!;
   }
 
@@ -633,7 +637,7 @@ describe('POST /api/proxy/openai/stream', () => {
 });
 
 describe('POST /api/proxy/azure/stream', () => {
-  function handler(deps: ModelProxyHttpDeps = {}) {
+  function handler(deps: ProxyTestDeps = {}) {
     return mount(deps).handlers['POST /api/proxy/azure/stream']!;
   }
 
@@ -726,7 +730,7 @@ describe('POST /api/proxy/azure/stream', () => {
     const onInternalError = vi.fn();
     const azureExecuteTool = vi.fn().mockRejectedValue(new Error('azure tool exploded: key-abc'));
     const res = makeSseRes();
-    await handler({ azureExecuteTool, onInternalError })(makeReq(validAzureBody), res);
+    await handler({ azureExecuteTool, reportInternalError: injectedRecordingReporter({ record: onInternalError }) })(makeReq(validAzureBody), res);
 
     expect(onInternalError).toHaveBeenCalledTimes(1);
     expect(onInternalError.mock.calls[0]![0].provider).toBe('azure');
@@ -737,7 +741,7 @@ describe('POST /api/proxy/azure/stream', () => {
 });
 
 describe('POST /api/proxy/google/stream', () => {
-  function handler(deps: ModelProxyHttpDeps = {}) {
+  function handler(deps: ProxyTestDeps = {}) {
     return mount(deps).handlers['POST /api/proxy/google/stream']!;
   }
 
@@ -839,7 +843,7 @@ describe('POST /api/proxy/google/stream', () => {
     const onInternalError = vi.fn();
     const googleExecuteTool = vi.fn().mockRejectedValue(new Error('gemini tool exploded: goog-secret'));
     const res = makeSseRes();
-    await handler({ googleExecuteTool, onInternalError })(makeReq(validGoogleBody), res);
+    await handler({ googleExecuteTool, reportInternalError: injectedRecordingReporter({ record: onInternalError }) })(makeReq(validGoogleBody), res);
 
     expect(onInternalError).toHaveBeenCalledTimes(1);
     expect(onInternalError.mock.calls[0]![0].provider).toBe('google');
@@ -848,7 +852,7 @@ describe('POST /api/proxy/google/stream', () => {
 });
 
 describe('POST /api/proxy/ollama/stream', () => {
-  function handler(deps: ModelProxyHttpDeps = {}) {
+  function handler(deps: ProxyTestDeps = {}) {
     return mount(deps).handlers['POST /api/proxy/ollama/stream']!;
   }
 
@@ -978,7 +982,7 @@ describe('POST /api/proxy/ollama/stream', () => {
     const onInternalError = vi.fn();
     const ollamaExecuteTool = vi.fn().mockRejectedValue(new Error('ollama tool exploded: ollama-secret'));
     const res = makeSseRes();
-    await handler({ ollamaExecuteTool, onInternalError })(makeReq(validOllamaBody), res);
+    await handler({ ollamaExecuteTool, reportInternalError: injectedRecordingReporter({ record: onInternalError }) })(makeReq(validOllamaBody), res);
 
     expect(onInternalError).toHaveBeenCalledTimes(1);
     expect(onInternalError.mock.calls[0]![0].provider).toBe('ollama');
@@ -994,7 +998,7 @@ describe('POST /api/proxy/ollama/stream', () => {
  * shipped code a caller reaches by choosing the parameterized endpoint (see module doc).
  */
 describe('POST /api/proxy/:provider/stream — the generic catch-all', () => {
-  function handler(deps: ModelProxyHttpDeps = {}) {
+  function handler(deps: ProxyTestDeps = {}) {
     return mount(deps).handlers['POST /api/proxy/:provider/stream']!;
   }
 
@@ -1211,7 +1215,7 @@ describe('POST /api/proxy/:provider/stream — the generic catch-all', () => {
     const onInternalError = vi.fn();
     const anthropicExecuteTool = vi.fn().mockRejectedValue(new Error('boom'));
     const res = makeSseRes();
-    await handler({ anthropicExecuteTool, onInternalError })(makeParamReq({ provider: 'anthropic' }, validAnthropicBody), res);
+    await handler({ anthropicExecuteTool, reportInternalError: injectedRecordingReporter({ record: onInternalError }) })(makeParamReq({ provider: 'anthropic' }, validAnthropicBody), res);
     expect(onInternalError).toHaveBeenCalledTimes(1);
     expect(onInternalError.mock.calls[0]![0].provider).toBe('anthropic');
   });
@@ -1241,13 +1245,13 @@ function badRequest(message: string, issuePath?: string, issueMessage?: string) 
     : { error: { code: 'BAD_REQUEST', message } };
 }
 
-async function callFixed(provider: PinProvider, body: unknown, deps: ModelProxyHttpDeps = {}) {
+async function callFixed(provider: PinProvider, body: unknown, deps: ProxyTestDeps = {}) {
   const res = makeSseRes();
   await mount(deps).handlers[`POST /api/proxy/${provider}/stream`]!(makeReq(body), res);
   return res;
 }
 
-async function callCatchAll(provider: string, body: unknown, deps: ModelProxyHttpDeps = {}, res = makeSseRes()) {
+async function callCatchAll(provider: string, body: unknown, deps: ProxyTestDeps = {}, res = makeSseRes()) {
   await mount(deps).handlers['POST /api/proxy/:provider/stream']!(makeParamReq({ provider }, body), res);
   return res;
 }
@@ -1495,8 +1499,8 @@ describe('model-proxy pins — executeTool wiring per provider', () => {
     );
     const onInternalError = vi.fn();
     const body = FIXED_ROUTE_BODIES[provider];
-    if (shape === 'fixed') await callFixed(provider, body, { ...deps, onInternalError });
-    else await callCatchAll(provider, body, { ...deps, onInternalError });
+    if (shape === 'fixed') await callFixed(provider, body, { ...deps, reportInternalError: injectedRecordingReporter({ record: onInternalError }) });
+    else await callCatchAll(provider, body, { ...deps, reportInternalError: injectedRecordingReporter({ record: onInternalError }) });
     expect(own).toHaveBeenCalledTimes(1);
     expect(own.mock.calls[0]).toHaveLength(1);
     expect(others).not.toHaveBeenCalled();
@@ -1514,7 +1518,7 @@ describe('model-proxy pins — failures before the stream exists', () => {
     throwingOriginOnce();
     const onInternalError = vi.fn();
     const res = makeSseRes();
-    await mount({ onInternalError }).handlers['POST /api/proxy/google/stream']!(makeReq(validGoogleBody), res);
+    await mount({ reportInternalError: injectedRecordingReporter({ record: onInternalError }) }).handlers['POST /api/proxy/google/stream']!(makeReq(validGoogleBody), res);
     expect(res.status).toHaveBeenCalledWith(500);
     const { correlationId } = onInternalError.mock.calls[0]![0];
     expect(res.json).toHaveBeenCalledWith({ error: { code: 'INTERNAL_ERROR', message: 'The assistant response stopped. Review any completed actions before starting another turn. Copy the request ID and report this problem.', requestId: correlationId } });
@@ -1522,30 +1526,30 @@ describe('model-proxy pins — failures before the stream exists', () => {
 
   // The provider param is request input: an unrecognized one is never reported as a provider, and never handed to
   // the typed provider sink as if it were confirmed.
-  it('catch-all: an unrecognized provider is reported under the fixed label model-proxy/unknown, never the raw param or the typed sink', async () => {
+  it('catch-all: an unrecognized provider is reported under the fixed label model-proxy/unknown, never the raw param or a provider', async () => {
     throwingOriginOnce();
-    const onInternalError = vi.fn();
+    const recordIncident = vi.fn();
     const res = makeSseRes();
-    await callCatchAll('PRIVATEVALUE', validOpenAiBody, { onInternalError }, res);
-    expect(onInternalError).not.toHaveBeenCalled();
+    await callCatchAll('PRIVATEVALUE', validOpenAiBody, { reportInternalError: injectedRecordingReporter({ record: recordIncident }) }, res);
+    expect(recordIncident).toHaveBeenCalledTimes(1);
+    expect(recordIncident.mock.calls[0]![0]).not.toHaveProperty('provider');
     expect(lastHost.reports).toHaveLength(1);
     expect(lastHost.reports[0]).toMatchObject({ logSource: 'model-proxy/unknown', report: { method: 'POST', path: '/api/proxy/:provider/stream' } });
     expect(JSON.stringify(lastHost.reports)).not.toContain('PRIVATEVALUE');
     expect(res.status).toHaveBeenCalledWith(500);
   });
 
-  // The incident still reaches the host: through the adapter's generic route sink (method +
-  // registered path), with the same request ID the caller was given.
-  it('catch-all: an unrecognized provider reaches the adapter sink with the registered path and the answered request ID', async () => {
+  // The incident still reaches the host: through its injected reporter as a generic route incident
+  // (method + registered path), with the same request ID the caller was given.
+  it('catch-all: an unrecognized provider reaches the injected reporter with the registered path and the answered request ID', async () => {
     throwingOriginOnce();
-    const adapterSink = vi.fn();
-    const onInternalError = vi.fn();
-    const app = mountWith({ deps: { fetchImpl: injectedFetch, dnsLookup: injectedDnsLookup, onInternalError }, host: proxyHost({ onInternalError: adapterSink }) });
+    const recordIncident = vi.fn();
+    const app = mountWith({ deps: { fetchImpl: injectedFetch, dnsLookup: injectedDnsLookup, reportInternalError: injectedRecordingReporter({ record: recordIncident }) }, host: proxyHost() });
     const res = makeSseRes();
     await app.handlers['POST /api/proxy/:provider/stream']!(makeParamReq({ provider: 'PRIVATEVALUE' }, validOpenAiBody), res);
-    expect(onInternalError).not.toHaveBeenCalled();
-    expect(adapterSink).toHaveBeenCalledTimes(1);
-    const [context] = adapterSink.mock.calls[0]!;
+    expect(lastHost.reports).toHaveLength(1);
+    expect(recordIncident).toHaveBeenCalledTimes(1);
+    const [context] = recordIncident.mock.calls[0]!;
     expect(context).toEqual({ method: 'POST', path: '/api/proxy/:provider/stream', error: expect.any(Error), correlationId: expect.any(String), logSource: 'model-proxy/unknown' });
     expect(res.json.mock.calls[0]![0].error.requestId).toBe(context.correlationId);
     expect(JSON.stringify(context)).not.toContain('PRIVATEVALUE');
@@ -1554,7 +1558,7 @@ describe('model-proxy pins — failures before the stream exists', () => {
   it('catch-all: labels an empty provider param as "unknown" and answers 500', async () => {
     throwingOriginOnce();
     const res = makeSseRes();
-    await mount({ onInternalError: vi.fn() }).handlers['POST /api/proxy/:provider/stream']!(makeParamReq({}, validOpenAiBody), res);
+    await mount({ reportInternalError: injectedRecordingReporter({ record: vi.fn() }) }).handlers['POST /api/proxy/:provider/stream']!(makeParamReq({}, validOpenAiBody), res);
     expect(lastHost.reports[0]).toMatchObject({ logSource: 'model-proxy/unknown' });
     expect(res.status).toHaveBeenCalledWith(500);
     expect(res.json.mock.calls[0]![0].error).toMatchObject({ code: 'INTERNAL_ERROR', message: 'The assistant response stopped. Review any completed actions before starting another turn. Copy the request ID and report this problem.' });

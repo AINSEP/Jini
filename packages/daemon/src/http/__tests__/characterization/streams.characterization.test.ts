@@ -460,11 +460,9 @@ describe('model proxy streams (POST /api/proxy/<provider>/stream)', () => {
   const validBody = JSON.stringify({ apiKey: 'characterization-key', model: 'llama3', baseUrl: 'http://127.0.0.1:11434', messages: [{ role: 'user', content: 'hi' }] });
   let harness: RouteHarness;
   let transportCalls = 0;
-  const proxyIncidents: Array<{ correlationId: string; provider: string; error: unknown }> = [];
   beforeAll(async () => {
     harness = await startRouteHarness({}, { familyDeps: { 'model-proxy': {
       toolTurns: { anthropic: runAnthropicToolTurn, openai: runOpenAiToolTurn, azure: runAzureToolTurn, google: runGoogleToolTurn, ollama: runOllamaToolTurn },
-      onInternalError: (incident: { correlationId: string; provider: string; error: unknown }) => { proxyIncidents.push(incident); },
       dnsLookup: undefined,
       fetchImpl: async () => { transportCalls += 1; throw new Error(INTERNAL_FAILURE_MARKER); },
     } } });
@@ -480,11 +478,13 @@ describe('model proxy streams (POST /api/proxy/<provider>/stream)', () => {
 
   // DM-R3-3 (owner decision 2026-11-17): the upstream's own text never reaches the client; it goes to the host's error sink.
   it('a transport failure after the stream is open is reported inside it as fixed words plus a request ID, and the real text goes to the host sink', async () => {
-    proxyIncidents.length = 0;
+    // The host's injected reporter hands every route incident to the harness's record.
+    const before = harness.internalErrors.length;
     const stream = await openStream({ harness, route }, { body: validBody });
     expect(stream.response.status).toBe(200);
     expectHeaders(stream.response, EVENT_STREAM_HEADERS);
     const frames = await stream.rest();
+    const proxyIncidents = harness.internalErrors.slice(before) as Array<{ correlationId: string; provider: string; error: unknown }>;
     expect(proxyIncidents).toHaveLength(1);
     const [incident] = proxyIncidents;
     expect(frames).toEqual([

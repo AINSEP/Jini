@@ -116,8 +116,6 @@ export interface DelegatedToolsHttpDeps {
   readonly toolExecutor: ToolExecutor;
   /** Host-owned: resolves the `Principal` a given delegated-tool-call request executes as. Mandatory — see module doc; there is no safe default identity this package could assume on a host's behalf. */
   readonly resolvePrincipal: (requiredArgs: { readonly request: DelegatedToolExecuteRequest }) => Principal | Promise<Principal>;
-  /** Host-owned sink for the real exception behind the generic `INTERNAL_ERROR` fallback (SEC-005); never called when the describer answered or a stamped id was reused. */
-  readonly onInternalError?: (context: DelegatedToolsInternalErrorContext) => void;
   /** Required for direct handlers; {@link delegatedToolRoutes} binds the host's reporter. */
   readonly reportInternalError: ReportRouteInternalError;
   /**
@@ -268,7 +266,7 @@ function reportInternalError({ deps, report }: { readonly deps: DelegatedToolsHt
   // The same words and id shape the reporter-mode `reportInternalError` gives, without its second write.
   if (stamped !== undefined) return createApiError({ code: 'INTERNAL_ERROR', message: `${DELEGATED_TOOL_FAULT_MESSAGE} (error ${stamped})` }, { requestId: stamped });
   // Exceptions can echo credentials: the default line prints class and code only; the host sink gets the original.
-  return deps.reportInternalError<DelegatedToolsInternalErrorContext>({ report, logSource: report.source, message: DELEGATED_TOOL_FAULT_MESSAGE }, { onInternalError: deps.onInternalError });
+  return deps.reportInternalError<DelegatedToolsInternalErrorContext>({ report, logSource: report.source, message: DELEGATED_TOOL_FAULT_MESSAGE });
 }
 
 /** The in-process stamped id of a settled result, spread-ready so an unstamped result adds no field. */
@@ -318,7 +316,7 @@ function parseDelegatedToolExecute(input: RouteInputContext): Result<DelegatedTo
  * union: `completed` → `200 {result}`; a batch with failed items carries
  * `partial_failure` or `error` plus its per-item output and isError. Other states map as follows:
  * `denied`/`confirmation-denied` → `403 TOOL_OPERATION_DENIED`, `timed-out`/`cancelled` → a
- * SEC-005-redacted `500 INTERNAL_ERROR` (the real status/error goes to `onInternalError`, never the
+ * SEC-005-redacted `500 INTERNAL_ERROR` (the real status/error goes to the injected `reportInternalError`, never the
  * wire — unless the host supplies `deps.describeInternalError`, whose text then replaces the generic
  * message on every redacted 500 below).
  *

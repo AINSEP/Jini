@@ -24,7 +24,7 @@ info:
     **SEC-005 throughout.** Every provider call is wrapped (`guardedCall`) so a raw
     storage/SQL/JWT/WebSocket error never reaches the caller verbatim — a correlation-id-
     bearing generic `INTERNAL_ERROR` instead, with the real error reaching only a
-    host-owned `onInternalError` sink.
+    host's injected error reporter.
 
     **Same-origin guard is asymmetric by read/write, not applied uniformly.** Every
     mutating route (`POST`/`PUT`/`PATCH`/`DELETE`) requires same-origin; every plain `GET`

@@ -1,7 +1,7 @@
 import { reportRouteInternalError } from '@jini-ai/http-kit';
 import { describe, expect, it, vi } from 'vitest';
 import { denyAllOrigins } from '@jini-ai/core/contracts/server/testing';
-import { fakeDaemonRouteHost } from './fakes/route-host.js';
+import { fakeDaemonRouteHost, injectedRecordingReporter, withInjectedReporter } from './fakes/route-host.js';
 import { jsonRequest, serveRoutes } from './fakes/serve-routes.js';
 import { describeRoutes } from '../route-table.js';
 import { ClientFacingError } from '@jini-ai/core/contracts/server';
@@ -116,7 +116,7 @@ describe('auth routes', () => {
     const auth = makeAuthProvider({ signIn: vi.fn(async () => { throw rejection; }) });
     const onInternalError = vi.fn();
     const host = fakeDaemonRouteHost({}, { onInternalError });
-    const response = await serveRoutes({ routes: connectorsRoutes({ deps: makeDeps({ auth, onInternalError }), host }) })(
+    const response = await serveRoutes({ routes: connectorsRoutes({ deps: makeDeps({ auth, reportInternalError: injectedRecordingReporter({ record: onInternalError }) }), host }) })(
       jsonRequest({ path: '/api/connectors/auth/signin', method: 'POST' }, { body: { email: 'a@example.com', password: 'wrong-password' } }));
 
     expect(auth.signIn).toHaveBeenCalledWith({ email: 'a@example.com', password: 'wrong-password' });
@@ -158,7 +158,7 @@ describe('auth routes', () => {
     const boom = new Error('jwt secret leaked: abc123');
     const auth = makeAuthProvider({ signIn: vi.fn(async () => { throw boom; }) });
     const onInternalError = vi.fn();
-    const result = await connectorsAuthSignInRoute.handle({ input: { email: 'a@example.com', password: 'x' }, deps: makeDeps({ auth, onInternalError }) });
+    const result = await connectorsAuthSignInRoute.handle({ input: { email: 'a@example.com', password: 'x' }, deps: makeDeps({ auth, reportInternalError: injectedRecordingReporter({ record: onInternalError }) }) });
     expect(result.ok).toBe(false);
     if (!result.ok) {
       expect(result.error.code).toBe('INTERNAL_ERROR');
@@ -351,7 +351,7 @@ describe('realtime routes', () => {
 
 describe('connectorsRoutes', () => {
   const serve = ({ deps, denyOrigins = false }: { deps: ConnectorsHttpDeps; denyOrigins?: boolean }) =>
-    serveRoutes({ routes: connectorsRoutes({ deps, host: fakeDaemonRouteHost({}, denyOrigins ? { originPolicy: denyAllOrigins } : {}) }) });
+    serveRoutes({ routes: connectorsRoutes({ deps, host: withInjectedReporter({ host: fakeDaemonRouteHost({}, denyOrigins ? { originPolicy: denyAllOrigins } : {}), deps }) }) });
 
   it('lists every connectors route (auth x4, storage x4, db x5, realtime x1 = 14) and nothing under /payments', () => {
     const routes = describeRoutes({ routes: connectorsRoutes({ deps: makeDeps(), host: fakeDaemonRouteHost() }) });
@@ -436,7 +436,7 @@ describe('every connectors route', () => {
         [entry.method]: vi.fn(async () => { throw new Error(`provider blew up: ${secret}`); }),
       } as never);
       const onInternalError = vi.fn();
-      const result = await entry.route.handle({ input: entry.input as never, deps: makeDeps({ [entry.slot]: provider, onInternalError }) });
+      const result = await entry.route.handle({ input: entry.input as never, deps: makeDeps({ [entry.slot]: provider, reportInternalError: injectedRecordingReporter({ record: onInternalError }) }) });
 
       expect(result.ok).toBe(false);
       if (!result.ok) {
@@ -566,7 +566,7 @@ describe('path-parameter parsers reject a missing segment', () => {
 describe('connectorsRoutes — one round-trip per route', () => {
   type Served = (request: Request) => Promise<Response>;
   const listen = (deps: Omit<ConnectorsHttpDeps, 'reportInternalError'>, { denyOrigins = false }: { denyOrigins?: boolean } = {}): Served =>
-    serveRoutes({ routes: connectorsRoutes({ deps, host: fakeDaemonRouteHost({}, denyOrigins ? { originPolicy: denyAllOrigins } : {}) }) });
+    serveRoutes({ routes: connectorsRoutes({ deps, host: withInjectedReporter({ host: fakeDaemonRouteHost({}, denyOrigins ? { originPolicy: denyAllOrigins } : {}), deps }) }) });
 
   function fullyConfigured() {
     return {

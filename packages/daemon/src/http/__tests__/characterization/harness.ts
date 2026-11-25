@@ -5,13 +5,14 @@
  * (today: a real Express app on a real socket with every `register*` function mounted; afterwards:
  * the route lists on an in-memory server). Nothing here is published.
  */
+import { randomUUID } from 'node:crypto';
 import { createServer, type Server as HttpServer } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import express, { type Express, type RequestHandler } from 'express';
-import type { RouteHostContext } from '@jini-ai/core/contracts/server';
+import type { ReportRouteInternalError, RouteHostContext } from '@jini-ai/core/contracts/server';
 import { createLocalSameOriginPolicy } from '@jini-ai/core/contracts/server';
 import type { ServerRoute } from '@jini-ai/core/contracts/server';
-import { reportRouteInternalError } from '@jini-ai/http-kit';
+import { createApiError } from '@jini-ai/protocol';
 import { createNodeDispatcher, maxReserializedJsonBytes } from '@jini-ai/http-kit/node-bridge';
 import { testOriginConfig } from '../fixtures/local-origin.js';
 import { fakeDaemonRouteHost } from '../fakes/route-host.js';
@@ -162,9 +163,19 @@ const nodeIntervalScheduler: DaemonRouteHost['scheduler'] = {
   cancel: ({ handle }) => { clearInterval(handle as NodeJS.Timeout); },
 };
 
-/** The host a route list is given: the harness's own origin policy and sink, the real reporter, and the body limit a host derives from the blanket parser (100 KB). */
+/**
+ * The host a route list is given: the harness's own origin policy, a reporter that answers as the real one
+ * does and hands each incident to the harness's record, and the body limit a host derives from the blanket
+ * parser (100 KB).
+ */
 function routeHost(adapter: RouteHostContext): DaemonRouteHost {
-  return { ...fakeDaemonRouteHost(), scheduler: nodeIntervalScheduler, context: adapter, reportInternalError: reportRouteInternalError, jsonBodyMaxBytes: maxReserializedJsonBytes({ parserLimitBytes: 102_400 }) };
+  const record = adapter.onInternalError as ((incident: unknown) => void) | undefined;
+  const reportInternalError: ReportRouteInternalError = ({ report, logSource, message }) => {
+    const correlationId = randomUUID();
+    record?.({ ...report, correlationId, logSource });
+    return createApiError({ code: 'INTERNAL_ERROR', message }, { requestId: correlationId });
+  };
+  return { ...fakeDaemonRouteHost(), scheduler: nodeIntervalScheduler, context: adapter, reportInternalError, jsonBodyMaxBytes: maxReserializedJsonBytes({ parserLimitBytes: 102_400 }) };
 }
 
 /**
@@ -204,7 +215,7 @@ function mountEverything({ app, adapter, familyDeps }: { app: Express; adapter: 
       continue;
     }
     const [family, mount] = entry;
-    mount({ app: recordingApp({ app, family, routes }), adapter, mountList: (list, optional) => mountRouteList({ app, family, routes: list, described: routes }, optional), deps: (known = {}) => throwingDeps({ onInternalError: adapter.onInternalError, ...known, ...familyDeps[family] }) });
+    mount({ app: recordingApp({ app, family, routes }), adapter, mountList: (list, optional) => mountRouteList({ app, family, routes: list, described: routes }, optional), deps: (known = {}) => throwingDeps({ ...known, ...familyDeps[family] }) });
   }
   return routes;
 }

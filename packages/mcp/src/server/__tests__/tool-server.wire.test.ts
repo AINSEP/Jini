@@ -333,7 +333,6 @@ async function daemonFixture(registrations: readonly ToolRegistration[], delegat
     if (!parsed.ok) return Response.json({ error: parsed.error }, { status: 400 });
     const result = await delegatedToolExecuteRoute.handle({ input: parsed.value, deps: {
       lifecycle, toolExecutor, toolRegistry: registry, resolvePrincipal: () => ({ id: 'host-principal' }),
-      onInternalError: () => {},
       reportInternalError: ({ message }) => createApiError({ code: 'INTERNAL_ERROR', message }),
     } }, init.signal ? { signal: init.signal } : {});
     if (result.ok) return Response.json(result.value);

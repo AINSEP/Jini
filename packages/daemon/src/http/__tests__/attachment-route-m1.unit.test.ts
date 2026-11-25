@@ -18,7 +18,7 @@ it('reports an unexpected lookup failure once, with the run ID, and answers plai
   const failure = new Error('boom api_key=SECRETSECRETSECRETSECRET');
   const store = { resolveForRun: vi.fn(async () => { throw failure; }), listPendingForOwner: async () => [] };
   const onInternalError = vi.fn();
-  const fetch = serveRoutes({ routes: attachmentLookupRoutes({ store, host: fakeDaemonRouteHost() }, { onInternalError }) });
+  const fetch = serveRoutes({ routes: attachmentLookupRoutes({ store, host: fakeDaemonRouteHost({}, { recordIncident: onInternalError }) }) });
   const response = await lookup(fetch, { op: 'resolveForRun', ref: 'r', runId: 'run-7' });
   expect(response.status).toBe(500);
   const body = await response.json() as { error: { code: string; message: string; requestId: string } };

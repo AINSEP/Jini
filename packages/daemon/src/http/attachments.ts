@@ -190,8 +190,6 @@ export interface AttachmentsHttpDeps {
    * this route.
    */
   readonly requireSameOrigin?: boolean;
-  /** Host-owned sink for the real exception behind a generic `INTERNAL_ERROR` (SEC-005). Defaults to `console.error`. */
-  readonly onInternalError?: (context: AttachmentsInternalErrorContext) => void;
   /**
    * Resolves the principal id that owns this upload, if any, passed through to `store.register()`'s
    * `ownerId` (see that field's own doc, and `AttachmentStore.listPendingForOwner`). Optional: a
@@ -222,7 +220,7 @@ export function reportInternalError(
   const message = source === 'attachment-upload'
     ? 'The file could not be attached. Try again; if it keeps failing, copy the request ID and report this problem.'
     : 'The attachment could not be removed. Try again; if it keeps failing, copy the request ID and report this problem.';
-  return host.reportInternalError({ report: { source, batchId, error }, logSource: source, message }, { onInternalError: deps.onInternalError });
+  return host.reportInternalError({ report: { source, batchId, error }, logSource: source, message });
 }
 
 export const failureAnswer = ({ status, error }: { readonly status: number; readonly error: ApiError }): Response =>

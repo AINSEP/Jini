@@ -1,6 +1,6 @@
 import { reportRouteInternalError } from '@jini-ai/http-kit';
 import { describe, expect, it, vi } from 'vitest';
-import { fakeDaemonRouteHost } from './fakes/route-host.js';
+import { fakeDaemonRouteHost, injectedRecordingReporter, withInjectedReporter } from './fakes/route-host.js';
 import { jsonRequest, serveRoutes } from './fakes/serve-routes.js';
 import { describeRoutes } from '../route-table.js';
 import {
@@ -31,7 +31,7 @@ function provider(id: string, search: ResearchProvider['search'] = async () => (
 
 function sinkDeps(overrides: Partial<ResearchHttpDeps> = {}) {
   const errors: ResearchInternalErrorContext[] = [];
-  const deps: ResearchHttpDeps = { reportInternalError: reportRouteInternalError, baseUrlGuard, resolveCredentials: async () => ({ apiKey: KEY }), onInternalError: (context) => { errors.push(context); }, ...overrides };
+  const deps: ResearchHttpDeps = { baseUrlGuard, resolveCredentials: async () => ({ apiKey: KEY }), reportInternalError: injectedRecordingReporter({ record: (context) => { errors.push(context); } }), ...overrides };
   return { deps, errors };
 }
 

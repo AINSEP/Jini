@@ -3,7 +3,7 @@ import { withReadOnlyToolConstraint, defaultDaemonMessages } from '../../read-on
 import { createNodeCredentialCrypto } from '../../run-credentials.js';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { denyAllOrigins } from '@jini-ai/core/contracts/server/testing';
-import { fakeDaemonRouteHost } from './fakes/route-host.js';
+import { fakeDaemonRouteHost, injectedRecordingReporter, withInjectedReporter } from './fakes/route-host.js';
 import { serveRoutes } from './fakes/serve-routes.js';
 import { describeRoutes } from '../route-table.js';
 import { createToolRegistry, ToolInputError, type Principal, type ToolRegistry } from '@jini-ai/core';
@@ -212,7 +212,7 @@ describe('delegatedToolExecuteRoute.handle', () => {
     });
     const toolExecutor = createToolExecutor({ registry });
     const onInternalError = vi.fn();
-    const deps = makeDeps({ toolExecutor, onInternalError });
+    const deps = makeDeps({ toolExecutor, reportInternalError: injectedRecordingReporter({ record: onInternalError }) });
     const { run } = await deps.lifecycle.start({ contextRef: 'ctx-1' });
     const result = await delegatedToolExecuteRoute.handle({ input: { runId: run.id, toolUseId: 'tu-1', toolId: 'flaky' }, deps });
     expect(result.ok).toBe(false);
@@ -236,7 +236,7 @@ describe('delegatedToolExecuteRoute.handle', () => {
     });
     const toolExecutor = createToolExecutor({ registry });
     const onInternalError = vi.fn();
-    const deps = makeDeps({ toolExecutor, onInternalError });
+    const deps = makeDeps({ toolExecutor, reportInternalError: injectedRecordingReporter({ record: onInternalError }) });
     const { run } = await deps.lifecycle.start({ contextRef: 'ctx-1' });
     const result = await delegatedToolExecuteRoute.handle({ input: { runId: run.id, toolUseId: 'tu-1', toolId: 'picky' }, deps });
     expect(result).toEqual({
@@ -258,7 +258,7 @@ describe('delegatedToolExecuteRoute.handle', () => {
     });
     const toolExecutor = createToolExecutor({ registry });
     const onInternalError = vi.fn();
-    const deps = makeDeps({ toolExecutor, onInternalError });
+    const deps = makeDeps({ toolExecutor, reportInternalError: injectedRecordingReporter({ record: onInternalError }) });
     const { run } = await deps.lifecycle.start({ contextRef: 'ctx-1' });
     const result = await delegatedToolExecuteRoute.handle({ input: { runId: run.id, toolUseId: 'tu-1', toolId: 'flaky-internal' }, deps });
     expect(result).toEqual({
@@ -282,7 +282,7 @@ describe('delegatedToolExecuteRoute.handle', () => {
     });
     const toolExecutor = createToolExecutor({ registry });
     const onInternalError = vi.fn();
-    const deps = makeDeps({ toolExecutor, onInternalError });
+    const deps = makeDeps({ toolExecutor, reportInternalError: injectedRecordingReporter({ record: onInternalError }) });
     const { run } = await deps.lifecycle.start({ contextRef: 'ctx-1' });
     const result = await delegatedToolExecuteRoute.handle({ input: { runId: run.id, toolUseId: 'tu-1', toolId: 'slow' }, deps });
     expect(result.ok).toBe(false);
@@ -295,7 +295,7 @@ describe('delegatedToolExecuteRoute.handle', () => {
 
   it('returns an unknown tool id as BAD_REQUEST without an internal-error report', async () => {
     const onInternalError = vi.fn();
-    const deps = makeDeps({ onInternalError });
+    const deps = makeDeps({ reportInternalError: injectedRecordingReporter({ record: onInternalError }) });
     const { run } = await deps.lifecycle.start({ contextRef: 'ctx-1' });
     const result = await delegatedToolExecuteRoute.handle({ input: { runId: run.id, toolUseId: 'tu-1', toolId: 'nope' }, deps });
     expect(result).toEqual({ ok: false, error: { code: 'BAD_REQUEST', message: 'ToolExecutor: unknown tool "nope"' } });
@@ -350,7 +350,7 @@ describe('delegatedToolExecuteRoute.handle', () => {
   it('SEC-005: redacts a thrown resolvePrincipal failure to a generic INTERNAL_ERROR with source resolve-principal', async () => {
     const onInternalError = vi.fn();
     const deps = makeDeps({
-      onInternalError,
+      reportInternalError: injectedRecordingReporter({ record: onInternalError }),
       resolvePrincipal: () => {
         throw new Error('principal resolution failed: secret detail');
       },
@@ -371,7 +371,7 @@ describe('delegatedToolRoutes', () => {
   const callPath = '/api/delegated-tool-calls';
   const call = (body: unknown, { signal }: { signal?: AbortSignal } = {}) => new Request(`http://local${callPath}`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body), ...(signal ? { signal } : {}) });
   const serve = ({ deps, denyOrigins = false }: { deps: DelegatedToolsHttpDeps; denyOrigins?: boolean }) =>
-    serveRoutes({ routes: delegatedToolRoutes({ deps, host: fakeDaemonRouteHost({}, denyOrigins ? { originPolicy: denyAllOrigins } : {}) }) });
+    serveRoutes({ routes: delegatedToolRoutes({ deps, host: withInjectedReporter({ host: fakeDaemonRouteHost({}, denyOrigins ? { originPolicy: denyAllOrigins } : {}), deps }) }) });
 
   it('lists exactly POST /api/delegated-tool-calls, behind the same-origin gate', () => {
     expect(describeRoutes({ routes: delegatedToolRoutes({ deps: makeDeps(), host: fakeDaemonRouteHost() }) })).toEqual([{ method: 'POST', path: callPath, gates: ['same-origin'] }]);
@@ -518,7 +518,7 @@ describe('delegatedToolExecuteRoute read-only constraint (requireReadOnly)', () 
   it('answers UNKNOWN_TOOL for an unregistered toolId under the constraint rather than falling through to ToolExecutor', async () => {
     const { registry, toolExecutor } = makeReadOnlyStack();
     const onInternalError = vi.fn();
-    const deps = makeDeps({ toolExecutor, toolRegistry: registry, onInternalError });
+    const deps = makeDeps({ toolExecutor, toolRegistry: registry, reportInternalError: injectedRecordingReporter({ record: onInternalError }) });
     const { run } = await deps.lifecycle.start({ contextRef: 'ctx-1' });
     const result = await delegatedToolExecuteRoute.handle({ input: { runId: run.id, toolUseId: 'tu-1', toolId: 'nope', requireReadOnly: true }, deps }
     );
@@ -706,7 +706,7 @@ describe('delegated tool route: one incident owner (log safety)', () => {
     const failure = new Error('boom api_key=SECRETSECRETSECRETSECRET');
     const toolExecutor: ToolExecutor = { ...makeToolExecutor(), execute: async () => { throw failure; } };
     const onInternalError = vi.fn();
-    const deps = makeDeps({ toolExecutor, onInternalError });
+    const deps = makeDeps({ toolExecutor, reportInternalError: injectedRecordingReporter({ record: onInternalError }) });
     const { run } = await deps.lifecycle.start({ contextRef: 'ctx-incident' });
     const result = await delegatedToolExecuteRoute.handle({ input: { runId: run.id, toolUseId: 'tu-1', toolId: 'nope' }, deps });
     if (result.ok) throw new Error('expected failure');

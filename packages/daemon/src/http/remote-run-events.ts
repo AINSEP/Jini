@@ -49,8 +49,6 @@ export interface RemoteRunEventHttpDeps {
   readonly tokenConfig?: RemoteToolBridgeTokenConfig;
   /** Where the bridge token is read from. Required (the daemon never reaches for `process.env`); tests pass a plain object. */
   readonly env: Readonly<Record<string, string | undefined>>;
-  /** Host-owned sink for the real exception behind a generic `INTERNAL_ERROR` response (SEC-005). Defaults to `console.error`. */
-  readonly onInternalError?: (context: RemoteRunEventInternalErrorContext) => void;
   /** Required for direct handlers; {@link remoteRunEventRoutes} binds the host's reporter. */
   readonly reportInternalError: ReportRouteInternalError;
 }
@@ -223,7 +221,7 @@ async function toRemoteEventError(
   const message = source === 'tool-use'
     ? 'The tool call could not be recorded for this run. Check the run status; copy the request ID and report this problem.'
     : 'The tool result could not be recorded for this run. Check the run status; copy the request ID and report this problem.';
-  return deps.reportInternalError<Omit<RemoteRunEventInternalErrorContext, 'correlationId'>>({ report: { source, runId, error }, logSource: `remote-run-events/${source}`, message }, { onInternalError: deps.onInternalError });
+  return deps.reportInternalError<Omit<RemoteRunEventInternalErrorContext, 'correlationId'>>({ report: { source, runId, error }, logSource: `remote-run-events/${source}`, message });
 }
 
 export const remoteToolUseRoute = defineJsonRoute<RemoteToolUseRequest, RemoteRunEventResponse, RemoteRunEventHttpDeps>({

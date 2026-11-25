@@ -72,8 +72,6 @@ export interface TerminalsHttpDeps {
   readonly principal: Principal;
   /** Resolves a `resourceRef` to a spawn working directory. Defaults to {@link denyAllWorkspaceRoots} — a host that never wires a real resolver gets a 404 on every create call, never a guessed path (see `workspace-root.ts`). */
   readonly resolveRoot?: WorkspaceRootResolver;
-  /** Host-owned sink for the real exception behind a generic `INTERNAL_ERROR` response (SEC-005). Defaults to `console.error`. */
-  readonly onInternalError?: (context: TerminalsInternalErrorContext) => void;
   /** Required for direct handlers; {@link terminalRoutes} binds the host's reporter. */
   readonly reportInternalError: ReportRouteInternalError;
 }
@@ -96,7 +94,7 @@ function toolResultToApiResult(deps: TerminalsHttpDeps, result: ToolExecutionRes
     case 'failed': {
       const message = 'The terminal could not be opened. Try again; if it keeps failing, copy the request ID and report this problem.';
       // No host sink: `reportRouteInternalError`'s default line keeps the failure observable, never silent.
-      return err({ error: deps.reportInternalError<Omit<TerminalsInternalErrorContext, 'correlationId'>>({ report: { source: 'terminal-create', error: result.status === 'failed' ? result.error : result.status }, logSource: 'terminal-create', message }, { onInternalError: deps.onInternalError }) });
+      return err({ error: deps.reportInternalError<Omit<TerminalsInternalErrorContext, 'correlationId'>>({ report: { source: 'terminal-create', error: result.status === 'failed' ? result.error : result.status }, logSource: 'terminal-create', message }) });
     }
     default: {
       // Unreachable: every tool result status has a case above, and a new one fails typecheck here.

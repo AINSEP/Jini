@@ -160,8 +160,6 @@ export interface MediaInternalErrorContext {
 export interface MediaHttpDeps {
   readonly engine: MediaDispatchEngine;
   readonly taskStore: MediaTaskStore;
-  /** Host-owned sink for the real exception behind a generic `INTERNAL_ERROR` response (SEC-005). Defaults to `console.error`. */
-  readonly onInternalError?: (context: MediaInternalErrorContext) => void;
   /** Required for direct handlers; {@link mediaRoutes} binds the host's reporter. */
   readonly reportInternalError: ReportRouteInternalError;
 }
@@ -176,7 +174,7 @@ function reportInternalError(
   { deps, source, error, taskId, ownerRef }: { readonly deps: MediaHttpDeps; readonly source: MediaInternalErrorContext['source']; readonly error: unknown; readonly taskId: string | null; readonly ownerRef: string | null },
   _optional: Record<string, never> = {},
 ): ReturnType<typeof createApiError> {
-  return deps.reportInternalError<Omit<MediaInternalErrorContext, 'correlationId'>>({ report: { source, taskId, ownerRef, error }, logSource: source, message: MEDIA_FAILURE_MESSAGES[source] }, { onInternalError: deps.onInternalError });
+  return deps.reportInternalError<Omit<MediaInternalErrorContext, 'correlationId'>>({ report: { source, taskId, ownerRef, error }, logSource: source, message: MEDIA_FAILURE_MESSAGES[source] });
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

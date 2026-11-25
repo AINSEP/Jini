@@ -1,7 +1,7 @@
 import { reportRouteInternalError } from '@jini-ai/http-kit';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { denyAllOrigins } from '@jini-ai/core/contracts/server/testing';
-import { fakeDaemonRouteHost } from './fakes/route-host.js';
+import { fakeDaemonRouteHost, injectedRecordingReporter, withInjectedReporter } from './fakes/route-host.js';
 import { jsonRequest, serveRoutes } from './fakes/serve-routes.js';
 import { describeRoutes } from '../route-table.js';
 import { researchRoutes, researchSearchRoute, type ResearchHttpDeps } from '../research.js';
@@ -168,7 +168,7 @@ describe('researchSearchRoute.handle', () => {
   it('SEC-005: a non-ok Tavily response is reported to onInternalError and never leaks the api key to the caller', async () => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: false, status: 401, text: async () => 'Unauthorized: tvly-test-key invalid' }));
     const onInternalError = vi.fn();
-    const result = await researchSearchRoute.handle({ input: { query: 'q' }, deps: makeDeps({ onInternalError }) });
+    const result = await researchSearchRoute.handle({ input: { query: 'q' }, deps: makeDeps({ reportInternalError: injectedRecordingReporter({ record: onInternalError }) }) });
     expect(result.ok).toBe(false);
     if (!result.ok) {
       expect(result.error.code).toBe('INTERNAL_ERROR');
@@ -184,7 +184,7 @@ describe('researchSearchRoute.handle', () => {
   it('SEC-005: a network-level fetch rejection is also redacted and reported', async () => {
     vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new Error('ECONNRESET')));
     const onInternalError = vi.fn();
-    const result = await researchSearchRoute.handle({ input: { query: 'q' }, deps: makeDeps({ onInternalError }) });
+    const result = await researchSearchRoute.handle({ input: { query: 'q' }, deps: makeDeps({ reportInternalError: injectedRecordingReporter({ record: onInternalError }) }) });
     expect(result.ok).toBe(false);
     expect(onInternalError).toHaveBeenCalledTimes(1);
   });
@@ -193,7 +193,7 @@ describe('researchSearchRoute.handle', () => {
     const fetchMock = vi.fn();
     vi.stubGlobal('fetch', fetchMock);
     const onInternalError = vi.fn();
-    const deps = makeDeps({ resolveCredentials: async () => ({ apiKey: 'k', baseUrl: 'http://169.254.169.254' }), onInternalError });
+    const deps = makeDeps({ resolveCredentials: async () => ({ apiKey: 'k', baseUrl: 'http://169.254.169.254' }), reportInternalError: injectedRecordingReporter({ record: onInternalError }) });
     const result = await researchSearchRoute.handle({ input: { query: 'q' }, deps });
     expect(result).toMatchObject({ ok: false, error: { code: 'INTERNAL_ERROR' } });
     expect(fetchMock).not.toHaveBeenCalled();
@@ -305,7 +305,7 @@ describe('researchSearchRoute.handle', () => {
     it('reports an empty-bodied non-ok response as "no body" rather than an empty message', async () => {
       vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: false, status: 429, text: async () => '' }));
       const onInternalError = vi.fn();
-      const result = await researchSearchRoute.handle({ input: { query: 'q' }, deps: makeDeps({ onInternalError }) });
+      const result = await researchSearchRoute.handle({ input: { query: 'q' }, deps: makeDeps({ reportInternalError: injectedRecordingReporter({ record: onInternalError }) }) });
       expect(result).toMatchObject({ ok: false, error: { code: 'INTERNAL_ERROR' } });
       expect((onInternalError.mock.calls[0]![0].error as Error).message).toBe('Tavily 429: no body');
     });
@@ -314,7 +314,7 @@ describe('researchSearchRoute.handle', () => {
       // A rejected promise carrying a bare string — real fetch polyfills and proxies do this.
       vi.stubGlobal('fetch', vi.fn().mockRejectedValue('socket hang up on tvly-test-key'));
       const onInternalError = vi.fn();
-      const result = await researchSearchRoute.handle({ input: { query: 'q' }, deps: makeDeps({ onInternalError }) });
+      const result = await researchSearchRoute.handle({ input: { query: 'q' }, deps: makeDeps({ reportInternalError: injectedRecordingReporter({ record: onInternalError }) }) });
       expect(result).toMatchObject({ ok: false, error: { code: 'INTERNAL_ERROR' } });
       const reported = onInternalError.mock.calls[0]![0].error as Error;
       expect(reported.message).toContain('Tavily request failed: socket hang up on');
@@ -341,7 +341,7 @@ describe('researchSearchRoute.handle', () => {
 
     vi.useFakeTimers();
     try {
-      const pending = researchSearchRoute.handle({ input: { query: 'q' }, deps: makeDeps({ onInternalError }) });
+      const pending = researchSearchRoute.handle({ input: { query: 'q' }, deps: makeDeps({ reportInternalError: injectedRecordingReporter({ record: onInternalError }) }) });
       // Let the fetch/json microtasks settle, then trip the route's own timer.
       await vi.advanceTimersByTimeAsync(120_000);
       const result = await pending;
@@ -358,7 +358,7 @@ describe('researchSearchRoute.handle', () => {
       resolveCredentials: async () => {
         throw new Error('vault unreachable');
       },
-      onInternalError,
+      reportInternalError: injectedRecordingReporter({ record: onInternalError }),
     });
     const result = await researchSearchRoute.handle({ input: { query: 'q' }, deps });
     expect(result).toMatchObject({ ok: false, error: { code: 'INTERNAL_ERROR' } });
@@ -368,7 +368,7 @@ describe('researchSearchRoute.handle', () => {
 
 describe('researchRoutes', () => {
   const serve = ({ deps, denyOrigins = false }: { deps: ResearchHttpDeps; denyOrigins?: boolean }) =>
-    serveRoutes({ routes: researchRoutes({ deps, host: fakeDaemonRouteHost({}, denyOrigins ? { originPolicy: denyAllOrigins } : {}) }) });
+    serveRoutes({ routes: researchRoutes({ deps, host: withInjectedReporter({ host: fakeDaemonRouteHost({}, denyOrigins ? { originPolicy: denyAllOrigins } : {}), deps }) }) });
   const search = async ({ deps, body, denyOrigins = false }: { deps: ResearchHttpDeps; body: unknown; denyOrigins?: boolean }) => {
     const response = await serve({ deps, denyOrigins })(jsonRequest({ path: '/api/research/search', method: 'POST' }, { body }));
     return { status: response.status, body: await response.json() as unknown };

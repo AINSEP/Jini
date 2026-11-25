@@ -1,6 +1,6 @@
 import { reportRouteInternalError } from '@jini-ai/http-kit';
 import { expect, it } from 'vitest';
-import { fakeDaemonRouteHost } from './fakes/route-host.js';
+import { fakeDaemonRouteHost, injectedRecordingReporter } from './fakes/route-host.js';
 import { createResearchSearchRoute, researchSearchRoute, type ResearchProvider } from '../research.js';
 import { createTavilyResearchProvider } from '../research-tavily.adapter.js';
 import { validateBaseUrl } from '@jini-ai/agent-runtime';
@@ -44,8 +44,8 @@ it('redacts the resolved key from injected provider failures before calling the 
   failure.stack = 'TypeError: upstream rejected fixture-key\n    at hostSearch (provider.ts:42:7)';
   const provider: ResearchProvider = { id: 'host-research', search: async () => { throw failure; } };
   const errors: unknown[] = [];
-  const host = fakeDaemonRouteHost();
-  const result = await createResearchSearchRoute({ provider }).handle({ input: { query: 'q' }, deps: { reportInternalError: host.reportInternalError, baseUrlGuard, resolveCredentials: async () => ({ apiKey: 'fixture-key' }), onInternalError: ({ error }) => { errors.push(error); } } });
+  const host = fakeDaemonRouteHost({}, { recordIncident: ({ error }) => { errors.push(error); } });
+  const result = await createResearchSearchRoute({ provider }).handle({ input: { query: 'q' }, deps: { reportInternalError: host.reportInternalError, baseUrlGuard, resolveCredentials: async () => ({ apiKey: 'fixture-key' }) } });
   expect(result).toMatchObject({ ok: false, error: { code: 'INTERNAL_ERROR', message: 'The web research request could not be completed. Try again; if it keeps failing, copy the request ID and report this problem.' } });
   expect(result).toMatchObject({ ok: false, error: { requestId: 'req-1' } });
   expect(host.reports[0]).toMatchObject({ report: { error: errors[0] }, requestId: 'req-1' });

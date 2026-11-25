@@ -141,8 +141,6 @@ export interface ModelProxyHttpDeps {
   readonly googleExecuteTool?: ProxyToolExecutor;
   /** Host-owned tool execution for the Ollama proxy route. Same default-unset behavior as `anthropicExecuteTool`. */
   readonly ollamaExecuteTool?: ProxyToolExecutor;
-  /** Host-owned sink for the real exception behind an internal-error SSE event (SEC-005). Without one, the default line carries the error class only (`reportRouteInternalError`). */
-  readonly onInternalError?: (context: ModelProxyInternalErrorContext) => void;
   /**
    * Injectable HTTP transport, forwarded verbatim to every provider turn-runner as its own
    * `fetchImpl` option (`@jini-ai/agent-runtime`'s `AnthropicTurnOptions.fetchImpl`, etc.), which
@@ -357,7 +355,6 @@ const internalErrorResponse = ({ incident }: { readonly incident: ProxyIncident 
   failure({ status: 500, error: createApiError({ code: 'INTERNAL_ERROR', message: incident.message }, { requestId: String(incident.requestId) }) });
 
 type ProxyProvider = ModelProxyInternalErrorContext['provider'];
-type InternalErrorSink = (context: ModelProxyInternalErrorContext) => void;
 
 /** Type-erased registry entry: one provider's request parser plus its turn-runner call. See {@link buildProxyProviderRegistry}. */
 interface ProxyProviderRegistryEntry {
@@ -365,12 +362,12 @@ interface ProxyProviderRegistryEntry {
   readonly run: (parsed: unknown, onEvent: (event: { type: string }) => void) => Promise<unknown>;
 }
 
-/** Reports a failure and returns the request ID the client gets, as the incident it is answered with (the real error goes only to the host's sinks). */
+/** Reports a failure and returns the request ID the client gets, as the incident it is answered with (the real error goes only to the host's injected reporter). */
 function reportProxyError(
   { host, provider, error }: { readonly host: DaemonRouteHost; readonly provider: ProxyProvider; readonly error: unknown },
-  { onInternalError }: { readonly onInternalError?: InternalErrorSink | undefined } = {},
+  _optional: Record<string, never> = {},
 ): ProxyIncident {
-  return host.reportInternalError({ report: { provider, error }, logSource: `model-proxy/${provider}`, message: PROXY_STREAM_STOPPED_MESSAGE }, { onInternalError });
+  return host.reportInternalError({ report: { provider, error }, logSource: `model-proxy/${provider}`, message: PROXY_STREAM_STOPPED_MESSAGE });
 }
 
 /**
@@ -381,10 +378,10 @@ function reportProxyError(
  */
 function clientSafeEvent(
   { event, host, provider }: { readonly event: AnyProxyTurnEvent; readonly host: DaemonRouteHost; readonly provider: ProxyProvider },
-  { onInternalError }: { readonly onInternalError?: InternalErrorSink | undefined } = {},
+  _optional: Record<string, never> = {},
 ): AnyProxyTurnEvent {
   if (event.type !== 'error') return event;
-  const code = String(reportProxyError({ host, provider, error: event }, { onInternalError }).requestId);
+  const code = String(reportProxyError({ host, provider, error: event }).requestId);
   return { type: 'error', message: PROXY_STREAM_STOPPED_MESSAGE, code } as AnyProxyTurnEvent;
 }
 
@@ -397,7 +394,7 @@ function clientSafeEvent(
  * stream has no heartbeat: this route never sent one.
  */
 function openProxyStream(
-  { request, host, provider, onInternalError, entry, parsed }: { readonly request: Request; readonly host: DaemonRouteHost; readonly provider: ProxyProvider; readonly onInternalError?: InternalErrorSink | undefined; readonly entry: ProxyProviderRegistryEntry; readonly parsed: unknown },
+  { request, host, provider, entry, parsed }: { readonly request: Request; readonly host: DaemonRouteHost; readonly provider: ProxyProvider; readonly entry: ProxyProviderRegistryEntry; readonly parsed: unknown },
 ): Response {
   let seq = 0;
   const nextSeq = () => { const current = seq; seq += 1; return current; };
@@ -406,9 +403,9 @@ function openProxyStream(
     isEndEvent: ({ event }) => event.kind === 'end',
   });
   // An async closure so a runner that throws before returning a promise is reported like one that rejects.
-  void (async () => entry.run(parsed, (event) => stream.send({ event: toStreamEvent(nextSeq(), clientSafeEvent({ event: event as AnyProxyTurnEvent, host, provider }, { onInternalError })) })))()
+  void (async () => entry.run(parsed, (event) => stream.send({ event: toStreamEvent(nextSeq(), clientSafeEvent({ event: event as AnyProxyTurnEvent, host, provider })) })))()
     .catch((error: unknown) => {
-      const correlationId = String(reportProxyError({ host, provider, error }, { onInternalError }).requestId);
+      const correlationId = String(reportProxyError({ host, provider, error }).requestId);
       // `send` is a documented no-op once the stream is closed, so these two are safe to send unconditionally.
       stream.send({ event: toStreamEvent(nextSeq(), { type: 'error', message: PROXY_STREAM_STOPPED_MESSAGE, code: correlationId } as AnyProxyTurnEvent) });
       stream.send({ event: toStreamEvent(nextSeq(), { type: 'end', reason: 'error' } as AnyProxyTurnEvent) });
@@ -420,7 +417,6 @@ interface ProxyAnswerInput {
   readonly request: Request;
   readonly host: DaemonRouteHost;
   readonly provider: ProxyProvider;
-  readonly onInternalError?: InternalErrorSink | undefined;
   readonly entry: ProxyProviderRegistryEntry;
 }
 
@@ -429,7 +425,7 @@ interface ProxyAnswerInput {
  * guard, body read, request parsing, then the stream. A throw before the stream exists (nothing has been
  * sent) answers the redacted JSON 500; provider-specific pieces (`provider`, `entry`) are injected.
  */
-async function answerProxyStream({ request, host, provider, onInternalError, entry }: ProxyAnswerInput): Promise<Response> {
+async function answerProxyStream({ request, host, provider, entry }: ProxyAnswerInput): Promise<Response> {
   try {
     const refused = sameOriginRefusal({ request, origin: host.context });
     if (refused) return refused;
@@ -437,9 +433,9 @@ async function answerProxyStream({ request, host, provider, onInternalError, ent
     if (!body.ok) return failure({ status: statusForError({ error: body.error }), error: body.error });
     const parsed = entry.parse(body.value);
     if (!parsed.ok) return failure({ status: 400, error: parsed.error });
-    return openProxyStream({ request, host, provider, onInternalError, entry, parsed: parsed.value });
+    return openProxyStream({ request, host, provider, entry, parsed: parsed.value });
   } catch (error) {
-    return internalErrorResponse({ incident: reportProxyError({ host, provider, error }, { onInternalError }) });
+    return internalErrorResponse({ incident: reportProxyError({ host, provider, error }) });
   }
 }
 
@@ -557,16 +553,16 @@ const CATCH_ALL_PATH = '/api/proxy/:provider/stream';
 /** Reports a throw from the catch-all before {@link answerProxyStream} took over; returns the incident. */
 function reportCatchAllError(
   { host, providerParam, error }: { readonly host: DaemonRouteHost; readonly providerParam: string; readonly error: unknown },
-  { onInternalError }: { readonly onInternalError?: InternalErrorSink | undefined } = {},
+  _optional: Record<string, never> = {},
 ): ProxyIncident {
-  if (isRecognizedProvider(providerParam)) return reportProxyError({ host, provider: providerParam, error }, { onInternalError });
-  // `onInternalError`'s contract only accepts the 5 recognized provider literals; a throw
+  if (isRecognizedProvider(providerParam)) return reportProxyError({ host, provider: providerParam, error });
+  // A provider incident's report only carries the 5 recognized provider literals; a throw
   // this early (e.g. the same-origin check) may have happened before the provider name was even
-  // validated, so an unrecognized/empty `providerParam` goes to the host's generic route sink
+  // validated, so an unrecognized/empty `providerParam` goes to the host's reporter as a generic route incident
   // (method + registered path) instead of lying to that typed contract with a provider that was
   // never actually confirmed. The label is fixed words: the raw param is request input and can
   // carry anything, so it never reaches a log line.
-  return host.reportInternalError({ report: { method: 'POST', path: CATCH_ALL_PATH, error }, logSource: 'model-proxy/unknown', message: PROXY_STREAM_STOPPED_MESSAGE }, { onInternalError: host.context.onInternalError });
+  return host.reportInternalError({ report: { method: 'POST', path: CATCH_ALL_PATH, error }, logSource: 'model-proxy/unknown', message: PROXY_STREAM_STOPPED_MESSAGE });
 }
 
 /**
@@ -574,9 +570,8 @@ function reportCatchAllError(
  * five fixed routes" section for why an unrecognized-but-registry-present provider name is the only branch
  * of this handler real HTTP traffic can reach for the five known provider ids.
  */
-function genericProxyStreamRoute({ host, onInternalError, registry }: {
+function genericProxyStreamRoute({ host, registry }: {
   readonly host: DaemonRouteHost;
-  readonly onInternalError?: InternalErrorSink | undefined;
   readonly registry: Record<string, ProxyProviderRegistryEntry>;
 }): DaemonRoute {
   return gated({
@@ -592,10 +587,10 @@ function genericProxyStreamRoute({ host, onInternalError, registry }: {
           // `constructor` yields a truthy `entry` that only the recognized-provider set rejects.
           const entry = registry[providerParam];
           if (!entry || !isRecognizedProvider(providerParam)) return failure({ status: 400, error: createApiError({ code: 'BAD_REQUEST', message: `unknown provider: ${providerParam}` }) });
-          return await answerProxyStream({ request, host, provider: providerParam, onInternalError, entry });
+          return await answerProxyStream({ request, host, provider: providerParam, entry });
         } catch (error) {
           // This catch covers failures before answerProxyStream takes over. No SSE response has been returned, so a JSON error can still be sent.
-          return internalErrorResponse({ incident: reportCatchAllError({ host, providerParam, error }, { onInternalError }) });
+          return internalErrorResponse({ incident: reportCatchAllError({ host, providerParam, error }) });
         }
       },
     },
@@ -605,12 +600,11 @@ function genericProxyStreamRoute({ host, onInternalError, registry }: {
 
 /** `POST /api/proxy/{anthropic,openai,azure,google,ollama}/stream` and the generic `POST /api/proxy/:provider/stream` catch-all, as data. */
 export function modelProxyRoutes({ deps, host }: { readonly deps: ModelProxyHttpDeps; readonly host: DaemonRouteHost }, _optional: Record<string, never> = {}): DaemonRoute[] {
-  const onInternalError = deps.onInternalError;
   const registry = buildProxyProviderRegistry(deps);
   // Each fixed route is a thin wrapper over `answerProxyStream` with `provider` fixed, not read from the path.
   const fixed = PROXY_PROVIDERS.map((provider): DaemonRoute => gated({
-    route: { method: 'POST', path: `/api/proxy/${provider}/stream`, handler: ({ request }) => answerProxyStream({ request, host, provider, onInternalError, entry: registry[provider]! }) },
+    route: { method: 'POST', path: `/api/proxy/${provider}/stream`, handler: ({ request }) => answerProxyStream({ request, host, provider, entry: registry[provider]! }) },
     gates: [{ name: 'same-origin' }],
   }));
-  return [...fixed, genericProxyStreamRoute({ host, onInternalError, registry })];
+  return [...fixed, genericProxyStreamRoute({ host, registry })];
 }

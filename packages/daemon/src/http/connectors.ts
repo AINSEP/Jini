@@ -128,8 +128,6 @@ export interface ConnectorsHttpDeps {
   readonly storage?: StorageProvider;
   readonly db?: DbProvider;
   readonly realtime?: RealtimeProvider;
-  /** Host-owned sink for the real exception behind a generic `INTERNAL_ERROR` response (SEC-005). Defaults to `console.error`. */
-  readonly onInternalError?: (context: ConnectorsInternalErrorContext) => void;
   /** Required for direct handlers; {@link connectorsRoutes} binds the host's reporter. */
   readonly reportInternalError: ReportRouteInternalError;
 }
@@ -161,7 +159,7 @@ async function guardedCall<T>(
     return ok({ value: await fn() });
   } catch (error) {
     if (error instanceof ClientFacingError) return err({ error: error.apiError });
-    return err({ error: deps.reportInternalError<Omit<ConnectorsInternalErrorContext, 'correlationId'>>({ report: { source, operation, error }, logSource: `connectors/${source}.${operation}`, message: CONNECTOR_FAILURE_MESSAGES[source] }, { onInternalError: deps.onInternalError }) });
+    return err({ error: deps.reportInternalError<Omit<ConnectorsInternalErrorContext, 'correlationId'>>({ report: { source, operation, error }, logSource: `connectors/${source}.${operation}`, message: CONNECTOR_FAILURE_MESSAGES[source] }) });
   }
 }
 

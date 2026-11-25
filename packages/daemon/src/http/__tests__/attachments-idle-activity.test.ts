@@ -1,7 +1,7 @@
 import { expect, it, vi } from 'vitest';
 import { attachmentCleanupRoutes, attachmentUploadRoutes } from '../attachment-routes.js';
 import type { AttachmentStore } from '@jini-ai/core/contracts/site/daemon-http';
-import { fakeDaemonRouteHost } from './fakes/route-host.js';
+import { fakeDaemonRouteHost, injectedRecordingReporter } from './fakes/route-host.js';
 
 /** The host's busy lease must outlive the handler's own tidy-up, not just the answer: it is released only when the whole call is done. */
 it.each(['upload', 'cleanup'] as const)('%s holds activity until its cleanup finishes', async kind => {
@@ -14,7 +14,7 @@ it.each(['upload', 'cleanup'] as const)('%s holds activity until its cleanup fin
     pruneExpired: async () => { throw new Error('upload aborted'); },
     deleteUnclaimed: async () => { entered(); await pending; },
   } as unknown as AttachmentStore;
-  const deps = { store, requireSameOrigin: false, acquireActivity, onInternalError: () => {} };
+  const deps = { store, requireSameOrigin: false, acquireActivity, reportInternalError: injectedRecordingReporter({ record: () => {} }) };
   const host = fakeDaemonRouteHost();
   const [route] = (kind === 'upload' ? attachmentUploadRoutes : attachmentCleanupRoutes)({ deps, host });
   const request = kind === 'upload'
