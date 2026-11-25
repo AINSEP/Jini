@@ -726,7 +726,11 @@
       "./screens/voice-input/hooks/mic-capture": "browser",
       "./screens/settings/rules": "universal",
       "./screens/media/rules": "universal",
-      "./shell/components/SecretInput/SecretInput": "browser"
+      "./shell/components/SecretInput/SecretInput": "browser",
+      "./screens/media/api/media-api": "universal",
+      "./screens/media/media-providers-port": "universal",
+      "./screens/media/hooks/fake-media-port": "browser",
+      "./screens/media/media-tabs.hooks": "browser"
     },
     "isolation": {
       "shared": [
@@ -1012,7 +1016,10 @@
         "./screens/media/hooks/use-media-card-metadata.hooks": "media",
         "./screens/settings/rules": "universal",
         "./screens/media/rules": "universal",
-        "./shell/components/SecretInput/SecretInput": "browser"
+        "./shell/components/SecretInput/SecretInput": "browser",
+        "./screens/media/api/media-api": "universal",
+        "./screens/media/media-providers-port": "universal",
+        "./screens/media/hooks/fake-media-port": "browser"
       }
     },
     "optionalPeers": {
@@ -4522,6 +4529,26 @@
       "types": "./dist/shell/components/SecretInput/SecretInput.d.ts",
       "import": "./dist/shell/components/SecretInput/SecretInput.js",
       "default": "./dist/shell/components/SecretInput/SecretInput.js"
+    },
+    "./screens/media/api/media-api": {
+      "types": "./dist/screens/media/api/media-api.d.ts",
+      "import": "./dist/screens/media/api/media-api.js",
+      "default": "./dist/screens/media/api/media-api.js"
+    },
+    "./screens/media/media-providers-port": {
+      "types": "./dist/screens/media/media-providers-port.d.ts",
+      "import": "./dist/screens/media/media-providers-port.js",
+      "default": "./dist/screens/media/media-providers-port.js"
+    },
+    "./screens/media/hooks/fake-media-port": {
+      "types": "./dist/screens/media/hooks/fake-media-port.d.ts",
+      "import": "./dist/screens/media/hooks/fake-media-port.js",
+      "default": "./dist/screens/media/hooks/fake-media-port.js"
+    },
+    "./screens/media/media-tabs.hooks": {
+      "types": "./dist/screens/media/media-tabs.hooks.d.ts",
+      "import": "./dist/screens/media/media-tabs.hooks.js",
+      "default": "./dist/screens/media/media-tabs.hooks.js"
     }
   },
   "files": [
