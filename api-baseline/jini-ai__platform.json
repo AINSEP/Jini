@@ -610,7 +610,7 @@
   "types": "./dist/mail/email-template-agent-tools.d.ts",
   "symbols": {
    "EmailTemplatesHostCopy": "interface:d55582b0a0",
-   "createEmailTemplatesAgentToolCatalog": "function:0f5586f362"
+   "createEmailTemplatesAgentToolCatalog": "function:c1e85cddfd"
   }
  },
  "./mail/email-template-operations": {
@@ -740,6 +740,15 @@
    "createLocalFsObjectStore": "function:02f70b1b07",
    "createLocalFsObjectStoreProvider": "function:aca28c426c",
    "parseObjectStoresFile": "function:7dee0f4c77"
+  }
+ },
+ "./object-store/site/artifact-provider": {
+  "types": "./dist/object-store/site/artifact-provider.d.ts",
+  "symbols": {
+   "ArtifactStoreCapable": "interface:c7acf75f77",
+   "artifactStoreBinding": "function:14987d7151",
+   "artifactStoreTarget": "function:b814910c17",
+   "selectArtifactStoreProvider": "function:35ffd212db"
   }
  },
  "./object-store/site/registry": {
@@ -1076,6 +1085,15 @@
    "stripHtmlPresentation": "function:1e18c79fb9",
    "webFetchPageInputSchema": "function:0c764238f6",
    "webFetchPageToolDefinition": "function:ee6b1ed669"
+  }
+ },
+ "./web/tool-registrations": {
+  "types": "./dist/web/tool-registrations.d.ts",
+  "symbols": {
+   "WebToolDeps": "interface:9d9b4f7d54",
+   "buildWebRegistrations": "function:8d90f14e67",
+   "contributeWebTools": "function:b7a821939e",
+   "webDerivedRisk": "variable:16c8c19af6"
   }
  }
 }

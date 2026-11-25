@@ -443,5 +443,21 @@
   "symbols": {
    "FakeCaptureClock": "class:147d19cde2"
   }
+ },
+ "./web-evidence/web-screenshot/agent-tools": {
+  "types": "./dist/web-evidence/web-screenshot/agent-tools.d.ts",
+  "symbols": {
+   "AgentToolDefinition": "type:e8bd587e9c",
+   "createWebScreenshotCatalog": "function:3cc26b01a7"
+  }
+ },
+ "./web-evidence/web-screenshot/tool-registrations": {
+  "types": "./dist/web-evidence/web-screenshot/tool-registrations.d.ts",
+  "symbols": {
+   "WebScreenshotToolDeps": "interface:c87e980869",
+   "buildWebScreenshotRegistrations": "function:5aee253126",
+   "contributeWebScreenshotTools": "function:b040bc0f61",
+   "webScreenshotDerivedRisk": "variable:5be9b862e9"
+  }
  }
 }
