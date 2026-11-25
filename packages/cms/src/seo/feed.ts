@@ -1,5 +1,5 @@
 import type { UUID } from "@jini-ai/core/primitives";
-import { escapeXml } from "./xml-escape.js";
+import { escapeXml } from "@jini-ai/core/text";
 import { resolveWorkspaceOrigin, toAbsoluteUrl } from "./absolute-url.js";
 import { deriveExcerpt } from "./seo.js";
 import { computeIndexableEntries, type SeoSitemapDeps } from "./sitemap.js";
