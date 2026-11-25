@@ -16,8 +16,7 @@
  * other field — `principalId`, `attempt`, `workspaceId`, anything — is refused with a 400 instead of
  * being silently ignored, and a caller cannot mistake an ignored field for an honored one.
  */
-import { defineJsonRoute } from '@jini-ai/http-kit';
-import { err, ok, validationError, type Result } from '@jini-ai/core/contracts/server';
+import { defineJsonRoute, err, ok, validationError, type Result } from '@jini-ai/core/contracts/server';
 import type { AgentPluginGuidanceOffer } from '@jini-ai/core/contracts/site/daemon';
 
 export const AGENT_PLUGIN_PREFLIGHT_ROUTE_PATH = '/internal/agent-plugin-preflight';
