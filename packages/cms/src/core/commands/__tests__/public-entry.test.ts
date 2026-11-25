@@ -5,7 +5,11 @@ import {
   revertChangeSet,
   RevertForbiddenError,
 } from "@jini-ai/cms/core/commands";
-import { type ChangeSetRecord, type ChangeSetItemRecord } from "@jini-ai/core/contracts/events";
+import { type ChangeSetRecord, type ChangeSetItemRecord, type MutationActor } from "@jini-ai/core/contracts/events";
+
+/** Whoever is reverting now; revert input requires the reverting actor (the event records it). */
+const USER_REVERTER: MutationActor = { id: "reverter", kind: "user" };
+const AGENT_REVERTER: MutationActor = { id: "reverter", kind: "agent" };
 
 test("public commands entry reverts in reverse order and preserves the agent force guard", async () => {
   const record: ChangeSetRecord = {
@@ -77,14 +81,14 @@ const STRICT = { permission: "documents.write_raw" } as const;
 
 test("a reverter with a policy fails closed without an item authorizer", async () => {
   const { deps, log, repo } = policyFixture({ policy: STRICT });
-  const error = await revertChangeSet({ deps, input: { workspaceId: "workspace", changeSetId: "change" } }, {}).catch((err: unknown) => err);
+  const error = await revertChangeSet({ deps, input: { workspaceId: "workspace", changeSetId: "change", actor: USER_REVERTER } }, {}).catch((err: unknown) => err);
   expect(error).toBeInstanceOf(RevertForbiddenError);
   expect((error as RevertForbiddenError).reasonCode).toBe("ITEM_PERMISSION_DENIED");
   expect(log).toEqual([]);
   expect((await repo.findById({ workspaceId: "workspace", id: "change" }))?.changeSet.status).toBe("applied");
   // Unmarked kinds keep their behavior: with no policy, no authorizer is needed.
   const plain = policyFixture();
-  await expect(revertChangeSet({ deps: plain.deps, input: { workspaceId: "workspace", changeSetId: "change" } }, {})).resolves.toMatchObject({ status: "reverted" });
+  await expect(revertChangeSet({ deps: plain.deps, input: { workspaceId: "workspace", changeSetId: "change", actor: USER_REVERTER } }, {})).resolves.toMatchObject({ status: "reverted" });
 });
 
 test("the existing force guard runs first and a denied item prevents all current-version reads and inverse writes", async () => {
@@ -93,7 +97,7 @@ test("the existing force guard runs first and a denied item prevents all current
   let repoRead = false;
   const watchedRepo = Object.assign(Object.create(first.repo) as InMemoryChangeSetRepo, { findById: async () => { repoRead = true; return null; } });
   const forced = await revertChangeSet(
-    { deps: { ...first.deps, changeSets: watchedRepo }, input: { workspaceId: "workspace", changeSetId: "change", force: true, principalKind: "agent" } },
+    { deps: { ...first.deps, changeSets: watchedRepo }, input: { workspaceId: "workspace", changeSetId: "change", force: true, principalKind: "agent", actor: AGENT_REVERTER } },
     { authorizeItem: async (call) => { authorizerCalls.push(call); } },
   ).catch((err: unknown) => err);
   expect((forced as RevertForbiddenError).reasonCode).toBe("AGENT_CANNOT_FORCE");
@@ -102,7 +106,7 @@ test("the existing force guard runs first and a denied item prevents all current
   const { deps, log, repo } = policyFixture({ policy: STRICT });
   const seen: string[] = [];
   const denied = new RevertForbiddenError("You can't undo one of these changes.", "ITEM_PERMISSION_DENIED");
-  await expect(revertChangeSet({ deps, input: { workspaceId: "workspace", changeSetId: "change" } }, {
+  await expect(revertChangeSet({ deps, input: { workspaceId: "workspace", changeSetId: "change", actor: USER_REVERTER } }, {
     authorizeItem: async ({ entityId }) => { seen.push(entityId); if (entityId === "raw-1") throw denied; },
   })).rejects.toBe(denied);
   // Descending position: raw-2 is authorized, raw-1 (the second policy item) is denied; nothing was read or written.
@@ -114,7 +118,7 @@ test("the existing force guard runs first and a denied item prevents all current
 test("the item authorizer receives the mapped entity kind and no inverse payload", async () => {
   const { deps, log, actors } = policyFixture({ policy: { permission: "documents.write_raw", authorizationEntityType: "document" } });
   const calls: unknown[] = [];
-  await revertChangeSet({ deps, input: { workspaceId: "workspace", changeSetId: "change" } }, {
+  await revertChangeSet({ deps, input: { workspaceId: "workspace", changeSetId: "change", actor: { id: "current-reverter", kind: "user" } } }, {
     actorId: "current-reverter",
     authorizeItem: async (...args) => { calls.push(args); },
   });
@@ -127,20 +131,20 @@ test("the item authorizer receives the mapped entity kind and no inverse payload
   // Without the mapping, the item's own kind is what gets authorized.
   const unmapped = policyFixture({ policy: STRICT });
   const kinds: string[] = [];
-  await revertChangeSet({ deps: unmapped.deps, input: { workspaceId: "workspace", changeSetId: "change" } }, { authorizeItem: async ({ entityType }) => { kinds.push(entityType); } });
+  await revertChangeSet({ deps: unmapped.deps, input: { workspaceId: "workspace", changeSetId: "change", actor: USER_REVERTER } }, { authorizeItem: async ({ entityType }) => { kinds.push(entityType); } });
   expect(kinds).toEqual(["raw-doc", "raw-doc"]);
 });
 
 test("force remains available for existing kinds and is refused for a non-forceable inverse", async () => {
   const forceable = policyFixture({ policy: STRICT, version: 9 });
-  await expect(revertChangeSet({ deps: forceable.deps, input: { workspaceId: "workspace", changeSetId: "change", force: true, principalKind: "user" } }, {
+  await expect(revertChangeSet({ deps: forceable.deps, input: { workspaceId: "workspace", changeSetId: "change", force: true, principalKind: "user", actor: USER_REVERTER } }, {
     authorizeItem: async () => {},
   })).resolves.toMatchObject({ status: "reverted" });
   expect(forceable.log.filter((entry) => entry.startsWith("write:"))).toHaveLength(3);
 
   const strict = policyFixture({ policy: { ...STRICT, allowForce: false }, version: 9 });
   const authorized: string[] = [];
-  const refused = await revertChangeSet({ deps: strict.deps, input: { workspaceId: "workspace", changeSetId: "change", force: true, principalKind: "user" } }, {
+  const refused = await revertChangeSet({ deps: strict.deps, input: { workspaceId: "workspace", changeSetId: "change", force: true, principalKind: "user", actor: USER_REVERTER } }, {
     authorizeItem: async ({ entityId }) => { authorized.push(entityId); },
   }).catch((err: unknown) => err);
   expect(refused).toBeInstanceOf(RevertForbiddenError);
@@ -149,5 +153,5 @@ test("force remains available for existing kinds and is refused for a non-forcea
   expect(strict.log).toEqual([]);
   // A non-forced revert of the same non-forceable kind still works when nothing changed since.
   const unchanged = policyFixture({ policy: { ...STRICT, allowForce: false } });
-  await expect(revertChangeSet({ deps: unchanged.deps, input: { workspaceId: "workspace", changeSetId: "change" } }, { authorizeItem: async () => {} })).resolves.toMatchObject({ status: "reverted" });
+  await expect(revertChangeSet({ deps: unchanged.deps, input: { workspaceId: "workspace", changeSetId: "change", actor: USER_REVERTER } }, { authorizeItem: async () => {} })).resolves.toMatchObject({ status: "reverted" });
 });
