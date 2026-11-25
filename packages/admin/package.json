@@ -88,11 +88,13 @@
       "./shell/components/AssistantDock/hooks/use-composer-send-stop-guard.hooks": "browser",
       "./shell/components/AssistantDock/hooks/useOverflowDetection.hooks": "browser",
       "./shell/components/DevicePreview/DevicePreview.hooks": "browser",
+      "./shell/components/ChatFab/ChatFab": "browser",
       "./shell/components/ChatFab/ChatFab.hooks": "browser",
       "./shell/components/InstallTabCard/use-zip-drop.hooks": "browser",
       "./shell/components/TemplateSource/template-source-port.hooks": "browser",
       "./shell/components/line-icon": "browser",
       "./shell/lib/acceptance-cancellation": "browser",
+      "./shell/lib/assistant-daemon-activation": "browser",
       "./shell/lib/addons-routes": "browser",
       "./shell/lib/admin-boot-scope": "browser",
       "./shell/lib/admin-draft-identity": "browser",
@@ -224,6 +226,7 @@
       "./shell/components/DevicePreview/DevicePreviewToggle": "browser",
       "./shell/components/InstallTabCard/InstallTabCard": "browser",
       "./shell/components/MediaPickerDialog/media-picker-port.hooks": "browser",
+      "./shell/components/WidgetConfigFields/media-content-rules": "universal",
       "./shell/components/PlainTextBlocks": "browser",
       "./shell/components/WidgetConfigFields/widget-config-fields-port.hooks": "browser",
       "./shell/components/WidgetPickerDialog/widget-picker-port.hooks": "browser",
@@ -734,11 +737,13 @@
         "./shell/components/AssistantDock/hooks/use-composer-send-stop-guard.hooks": "browser",
         "./shell/components/AssistantDock/hooks/useOverflowDetection.hooks": "browser",
         "./shell/components/DevicePreview/DevicePreview.hooks": "browser",
+        "./shell/components/ChatFab/ChatFab": "browser",
         "./shell/components/ChatFab/ChatFab.hooks": "browser",
         "./shell/components/InstallTabCard/use-zip-drop.hooks": "browser",
         "./shell/components/TemplateSource/template-source-port.hooks": "browser",
         "./shell/components/line-icon": "browser",
         "./shell/lib/acceptance-cancellation": "browser",
+        "./shell/lib/assistant-daemon-activation": "browser",
         "./shell/lib/addons-routes": "browser",
         "./shell/lib/admin-http/config": "universal",
         "./shell/lib/admin-http/settings-api.types": "universal",
@@ -867,6 +872,7 @@
         "./shell/components/DevicePreview/DevicePreviewToggle": "browser",
         "./shell/components/InstallTabCard/InstallTabCard": "browser",
         "./shell/components/MediaPickerDialog/media-picker-port.hooks": "browser",
+        "./shell/components/WidgetConfigFields/media-content-rules": "universal",
         "./shell/components/PlainTextBlocks": "browser",
         "./shell/components/WidgetConfigFields/widget-config-fields-port.hooks": "browser",
         "./shell/components/WidgetPickerDialog/widget-picker-port.hooks": "browser",
@@ -1350,6 +1356,11 @@
       "import": "./dist/shell/components/DevicePreview/DevicePreview.hooks.js",
       "default": "./dist/shell/components/DevicePreview/DevicePreview.hooks.js"
     },
+    "./shell/components/ChatFab/ChatFab": {
+      "types": "./dist/shell/components/ChatFab/ChatFab.d.ts",
+      "import": "./dist/shell/components/ChatFab/ChatFab.js",
+      "default": "./dist/shell/components/ChatFab/ChatFab.js"
+    },
     "./shell/components/ChatFab/ChatFab.hooks": {
       "types": "./dist/shell/components/ChatFab/ChatFab.hooks.d.ts",
       "import": "./dist/shell/components/ChatFab/ChatFab.hooks.js",
@@ -1369,6 +1380,11 @@
       "types": "./dist/shell/components/line-icon.d.ts",
       "import": "./dist/shell/components/line-icon.js",
       "default": "./dist/shell/components/line-icon.js"
+    },
+    "./shell/lib/assistant-daemon-activation": {
+      "types": "./dist/shell/lib/assistant-daemon-activation.d.ts",
+      "import": "./dist/shell/lib/assistant-daemon-activation.js",
+      "default": "./dist/shell/lib/assistant-daemon-activation.js"
     },
     "./shell/lib/acceptance-cancellation": {
       "types": "./dist/shell/lib/acceptance-cancellation.d.ts",
@@ -2020,6 +2036,11 @@
       "types": "./dist/shell/components/InstallTabCard/InstallTabCard.d.ts",
       "import": "./dist/shell/components/InstallTabCard/InstallTabCard.js",
       "default": "./dist/shell/components/InstallTabCard/InstallTabCard.js"
+    },
+    "./shell/components/WidgetConfigFields/media-content-rules": {
+      "types": "./dist/shell/components/WidgetConfigFields/media-content-rules.d.ts",
+      "import": "./dist/shell/components/WidgetConfigFields/media-content-rules.js",
+      "default": "./dist/shell/components/WidgetConfigFields/media-content-rules.js"
     },
     "./shell/components/MediaPickerDialog/media-picker-port.hooks": {
       "types": "./dist/shell/components/MediaPickerDialog/media-picker-port.hooks.d.ts",
