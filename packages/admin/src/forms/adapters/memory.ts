@@ -10,6 +10,21 @@ const PATCHABLE_KEYS = ['name', 'fields', 'notify', 'status', 'mode', 'html', 'p
 function suppliedPatch(patch: AdminFormUpdatePatch): AdminFormUpdatePatch {
   return Object.fromEntries(PATCHABLE_KEYS.filter(key => patch[key] !== undefined).map(key => [key, patch[key]]));
 }
+const VERSION_CONFLICT_MESSAGE = 'This form changed since you opened it. Reload it before saving.';
+/** Matches the versioned PUT route: a conditional definition write is never paired with a status
+ * change, and a basis with nothing to write is refused rather than treated as a read. The basis
+ * itself is compared here and never persisted (it is not in `PATCHABLE_KEYS`). */
+function assertVersionBasis({ current, patch, supplied }: { current: AdminFormDefinition; patch: AdminFormUpdatePatch; supplied: AdminFormUpdatePatch }): void {
+  if (patch.expectedVersion === undefined) return;
+  if (supplied.status !== undefined) throw new AdminApiError({ message: 'Save the form and change its status as two separate actions.', status: 400 }, { code: 'VALIDATION_ERROR' });
+  if (Object.keys(supplied).length === 0) throw new AdminApiError({ message: 'Change at least one form setting before saving.', status: 400 }, { code: 'VALIDATION_ERROR' });
+  if (current.version !== patch.expectedVersion) throw new AdminApiError({ message: VERSION_CONFLICT_MESSAGE, status: 409 }, { code: 'VERSION_CONFLICT' });
+}
+/** An unversioned legacy row gains version 1 on its first actual write; an empty patch is no write. */
+function nextVersion({ current, supplied }: { current: AdminFormDefinition; supplied: AdminFormUpdatePatch }): Pick<AdminFormDefinition, 'version'> {
+  if (Object.keys(supplied).length === 0) return current.version === undefined ? {} : { version: current.version };
+  return { version: (current.version ?? 0) + 1 };
+}
 /** The core contract's add/edit-only invariant: a fields replacement must keep every current id. */
 function assertNoFieldRemoved({ current, patch }: { current: AdminFormDefinition; patch: AdminFormUpdatePatch }): void {
   if (!patch.fields) return;
@@ -28,14 +43,16 @@ function createMemoryFormWriters(
       let id = nextId?.() ?? nextFakeId();
       if (!nextId) while (definitions.some(form => form.id === id)) id = nextFakeId();
       if (definitions.some(form => form.id === id)) throw new AdminApiError({ message: 'form id already exists', status: 409 });
-      const created: AdminFormDefinition = { ...structuredClone(input), id, notify: structuredClone(options.notify ?? { enabled: false, recipients: [] }), status: 'active', createdAt: now(), updatedAt: now() };
+      const created: AdminFormDefinition = { ...structuredClone(input), id, notify: structuredClone(options.notify ?? { enabled: false, recipients: [] }), status: 'active', createdAt: now(), updatedAt: now(), version: 1 };
       definitions.push(created);
       return structuredClone(created);
     },
     async updateFormDefinition({ id }, patch = {}) {
       const current = definitions.find(form => form.id === id) ?? missing(id);
+      const supplied = suppliedPatch(patch);
+      assertVersionBasis({ current, patch, supplied });
       assertNoFieldRemoved({ current, patch });
-      const updated = { ...current, ...structuredClone(suppliedPatch(patch)), updatedAt: now() };
+      const updated = { ...current, ...structuredClone(supplied), updatedAt: now(), ...nextVersion({ current, supplied }) };
       definitions[definitions.indexOf(current)] = updated;
       return structuredClone(updated);
     },

@@ -24,11 +24,11 @@ export function forms<Page, Tab>({ ui }: { ui: ModuleUi<Page, Tab> }, options: F
       return { default: (_props: ModulePageProps) => createElement(FormsList) };
     }, tabs: {} },
     editor: { page: async () => {
-      const { FormEditor } = await import('./pages/FormEditor.js');
+      const [{ FormEditor }, { useWiredFormEditor }] = await Promise.all([import('./pages/FormEditor.js'), import('./hooks/use-form-editor.hooks.js')]);
       return { default: (props: FormsModulePageProps) => {
         const formId = props.formId ?? props.params?.formId;
         if (typeof formId !== 'string' || !formId) throw new Error('Forms editor page requires formId');
-        return createElement(FormEditor, { formId, tab: props.requestedTab === 'submissions' ? 'submissions' : 'fields' });
+        return createElement(FormEditor, { formId, tab: props.requestedTab === 'submissions' ? 'submissions' : 'fields', useFormEditorHook: useWiredFormEditor });
       } };
     },
     // The editor owns one persistent draft for both route tabs. Section rendering stays in

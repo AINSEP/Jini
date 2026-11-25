@@ -4,6 +4,7 @@ import { assert, afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
 import { FormsTestProvider } from "./harness.js";
 import { FormEditor } from "../pages/FormEditor.js";
+import { useWiredFormEditor } from "../hooks/use-form-editor.hooks.js";
 
 /**
  * @file `FormEditor` — pins the fix for the audit's live-verified blocker (exec summary #3): a
@@ -60,7 +61,7 @@ describe("a form id that does not resolve", () => {
   it("renders only the not-found error, never a live Save button underneath it", async () => {
     fetchMock.mockResolvedValueOnce(jsonResponse({ error: "form definition 'bogus' was not found" }, 404));
 
-    renderScreen(<FormEditor formId="bogus" tab="fields" />);
+    renderScreen(<FormEditor useFormEditorHook={useWiredFormEditor} formId="bogus" tab="fields" />);
 
     expect(await screen.findByText(/was not found/i)).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /^save$/i })).not.toBeInTheDocument();
@@ -84,7 +85,7 @@ describe("a later save failure, after the form already loaded", () => {
       .mockResolvedValueOnce(jsonResponse({ data: form }))
       .mockResolvedValueOnce(jsonResponse({ error: "save failed" }, 500));
 
-    renderScreen(<FormEditor formId="f1" tab="fields" />);
+    renderScreen(<FormEditor useFormEditorHook={useWiredFormEditor} formId="f1" tab="fields" />);
 
     const saveButton = await screen.findByRole("button", { name: /^save$/i });
     saveButton.click();
@@ -113,7 +114,7 @@ describe("field attributes modal", () => {
       .mockResolvedValueOnce(jsonResponse({ data: formWithOneField() }))
       .mockResolvedValueOnce(jsonResponse({ data: formWithOneField() }));
 
-    renderScreen(<FormEditor formId="f1" tab="fields" />);
+    renderScreen(<FormEditor useFormEditorHook={useWiredFormEditor} formId="f1" tab="fields" />);
 
     const trigger = await screen.findByRole("button", { name: /settings for field "email"/i });
     await user.click(trigger);
@@ -144,7 +145,7 @@ describe("field attributes modal", () => {
     const user = userEvent.setup();
     fetchMock.mockResolvedValueOnce(jsonResponse({ data: formWithOneField() }));
 
-    renderScreen(<FormEditor formId="f1" tab="fields" />);
+    renderScreen(<FormEditor useFormEditorHook={useWiredFormEditor} formId="f1" tab="fields" />);
 
     const trigger = await screen.findByRole("button", { name: /settings for field "email"/i });
     await user.click(trigger);
@@ -166,7 +167,7 @@ describe("field attributes modal", () => {
     const user = userEvent.setup();
     fetchMock.mockResolvedValueOnce(jsonResponse({ data: formWithOneField() }));
 
-    renderScreen(<FormEditor formId="f1" tab="fields" />);
+    renderScreen(<FormEditor useFormEditorHook={useWiredFormEditor} formId="f1" tab="fields" />);
 
     const trigger = await screen.findByRole("button", { name: /settings for field "email"/i });
     await user.click(trigger);
@@ -200,14 +201,14 @@ describe("field attributes modal", () => {
  */
 describe("new form — no tabs, Create form label", () => {
   it("renders no tab strip for a new form, and the Save button reads 'Create form'", async () => {
-    renderScreen(<FormEditor formId="new" tab="fields" />);
+    renderScreen(<FormEditor useFormEditorHook={useWiredFormEditor} formId="new" tab="fields" />);
 
     expect(screen.getByRole("button", { name: /create form/i })).toBeInTheDocument();
     expect(screen.queryByRole("tablist")).not.toBeInTheDocument();
   });
 
   it("never renders the removed notify checkbox or recipients input", async () => {
-    renderScreen(<FormEditor formId="new" tab="fields" />);
+    renderScreen(<FormEditor useFormEditorHook={useWiredFormEditor} formId="new" tab="fields" />);
 
     await screen.findByRole("button", { name: /create form/i });
     expect(screen.queryByRole("checkbox", { name: /notification/i })).not.toBeInTheDocument();
@@ -232,7 +233,7 @@ describe("existing form — tab strip, status toggle, submissions panel", () => 
       .mockResolvedValueOnce(jsonResponse({ data: activeForm() }))
       .mockResolvedValueOnce(jsonResponse({ data: [] })); // FormSubmissions' own load on mount
 
-    renderScreen(<FormEditor formId="f1" tab="submissions" />);
+    renderScreen(<FormEditor useFormEditorHook={useWiredFormEditor} formId="f1" tab="submissions" />);
 
     const tablist = await screen.findByRole("tablist");
     expect(tablist).toBeInTheDocument();
@@ -244,7 +245,7 @@ describe("existing form — tab strip, status toggle, submissions panel", () => 
     const user = userEvent.setup();
     fetchMock.mockResolvedValueOnce(jsonResponse({ data: activeForm() }));
 
-    renderScreen(<FormEditor formId="f1" tab="fields" />);
+    renderScreen(<FormEditor useFormEditorHook={useWiredFormEditor} formId="f1" tab="fields" />);
 
     const tablist = await screen.findByRole("tablist");
     expect(tablist).toBeInTheDocument();
@@ -266,7 +267,7 @@ describe("existing form — tab strip, status toggle, submissions panel", () => 
       .mockResolvedValueOnce(jsonResponse({ data: activeForm() }))
       .mockResolvedValueOnce(jsonResponse({ data: [] })); // FormSubmissions' own load on mount
 
-    renderScreen(<FormEditor formId="f1" tab="submissions" />);
+    renderScreen(<FormEditor useFormEditorHook={useWiredFormEditor} formId="f1" tab="submissions" />);
     await screen.findByRole("tablist");
 
     await user.click(screen.getByRole("tab", { name: /^fields$/i }));
@@ -284,17 +285,17 @@ describe("existing form — tab strip, status toggle, submissions panel", () => 
     // key, changing only `tab`, simulates the route change a real Submissions-tab click drives,
     // without tearing the component down and remounting it (which a naive `key={view}` or a fresh
     // `<FormEditor>` at a different tree position would do instead).
-    const { rerender } = renderScreen(<FormEditor key="f1" formId="f1" tab="fields" />);
+    const { rerender } = renderScreen(<FormEditor useFormEditorHook={useWiredFormEditor} key="f1" formId="f1" tab="fields" />);
 
     const nameInput = await screen.findByLabelText(/^name$/i);
     await user.clear(nameInput);
     await user.type(nameInput, "Contact (editing)");
     expect(nameInput).toHaveValue("Contact (editing)");
 
-    rerender(<FormEditor key="f1" formId="f1" tab="submissions" />);
+    rerender(<FormEditor useFormEditorHook={useWiredFormEditor} key="f1" formId="f1" tab="submissions" />);
     expect(await screen.findByRole("tabpanel", { name: /submissions/i })).toBeInTheDocument();
 
-    rerender(<FormEditor key="f1" formId="f1" tab="fields" />);
+    rerender(<FormEditor useFormEditorHook={useWiredFormEditor} key="f1" formId="f1" tab="fields" />);
 
     // A remount would reset `useFormEditor`'s local `name` state to `""`, then re-seed it from the
     // form-load query's already-cached response — the ORIGINAL "Contact", never this in-progress
@@ -316,7 +317,7 @@ describe("existing form — tab strip, status toggle, submissions panel", () => 
       .mockResolvedValueOnce(jsonResponse({ data: activeForm() }))
       .mockResolvedValueOnce(jsonResponse({ data: { ...activeForm(), status: "disabled" } })); // PUT status update
 
-    renderScreen(<FormEditor formId="f1" tab="fields" />);
+    renderScreen(<FormEditor useFormEditorHook={useWiredFormEditor} formId="f1" tab="fields" />);
 
     const disableButton = await screen.findByRole("button", { name: /^disable$/i });
     expect(disableButton).toHaveClass("btn-warning");
@@ -361,7 +362,7 @@ describe("form submission delete — confirm modal (S5 fix, 2026-09-20)", () => 
       .mockResolvedValueOnce(jsonResponse({ data: [submissionFixture()], nextCursor: null })) // submissions list
       .mockResolvedValueOnce(jsonResponse({ data: submissionFixture() })); // submission detail
 
-    renderScreen(<FormEditor formId="f1" tab="submissions" />);
+    renderScreen(<FormEditor useFormEditorHook={useWiredFormEditor} formId="f1" tab="submissions" />);
 
     await user.click(await screen.findByRole("button", { name: /view/i }));
     const deleteButton = await screen.findByRole("button", { name: /^delete submission$/i });
@@ -445,7 +446,7 @@ describe("form submissions — Load more paging (2026-09-20)", () => {
           }),
       );
 
-    renderScreen(<FormEditor formId="f1" tab="submissions" />);
+    renderScreen(<FormEditor useFormEditorHook={useWiredFormEditor} formId="f1" tab="submissions" />);
 
     const loadMoreButton = await screen.findByRole("button", { name: /^load more$/i });
     expect(loadMoreButton).not.toBeDisabled();
@@ -458,5 +459,71 @@ describe("form submissions — Load more paging (2026-09-20)", () => {
     resolveSecondPage?.();
 
     await waitFor(() => expect(screen.getByRole("button", { name: /^load more$/i })).not.toBeDisabled());
+  });
+});
+
+describe("version-aware reload", () => {
+  const versioned = (overrides: Record<string, unknown> = {}) => ({
+    id: "f1", name: "Contact", slug: "contact", status: "active", fields: [],
+    notify: { enabled: false, recipients: [] }, createdAt: "2026-08-01T00:00:00.000Z", updatedAt: "2026-08-01T00:00:00.000Z", version: 1, ...overrides,
+  });
+  /** Routes by method so background re-reads do not consume a PUT's queued answer. */
+  function serve({ reads, puts }: { reads: Response[]; puts: Response[] }) {
+    fetchMock.mockImplementation((_input: RequestInfo | URL, init?: RequestInit) => {
+      const queue = init?.method === "PUT" ? puts : reads;
+      const next = queue.length > 1 ? queue.shift()! : queue[0]!.clone();
+      return Promise.resolve(next);
+    });
+  }
+  const conflict = () => jsonResponse({ error: "This form changed since you opened it. Reload it before saving.", code: "VERSION_CONFLICT" }, 409);
+  const notice = "This form changed since you opened it. Reload it to see the latest version.";
+
+  async function editAndSave(user: ReturnType<typeof userEvent.setup>) {
+    const input = await screen.findByDisplayValue("Contact");
+    await user.clear(input);
+    await user.type(input, "My draft");
+    await user.click(screen.getByRole("button", { name: /^save$/i }));
+    expect(await screen.findByText(notice)).toBeInTheDocument();
+  }
+
+  it("a stale save offers Reload form and cancelling keeps the draft", async () => {
+    const user = userEvent.setup();
+    serve({ reads: [jsonResponse({ data: versioned() }), jsonResponse({ data: versioned({ name: "Assistant edit", version: 2 }) })], puts: [conflict()] });
+    renderScreen(<FormEditor formId="f1" tab="fields" useFormEditorHook={useWiredFormEditor} />);
+    await editAndSave(user);
+    const putBody = JSON.parse(String(fetchMock.mock.calls.find(([, init]) => init?.method === "PUT")![1].body));
+    expect(putBody.expectedVersion).toBe(1);
+
+    await user.click(screen.getByRole("button", { name: "Reload form" }));
+    const dialog = await screen.findByRole("dialog");
+    expect(within(dialog).getByText("Reloading discards your unsaved changes.")).toBeInTheDocument();
+    await user.click(within(dialog).getByRole("button", { name: "Keep editing" }));
+
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+    expect(screen.getByDisplayValue("My draft")).toBeInTheDocument();
+    expect(screen.getByText(notice)).toBeInTheDocument();
+    expect(screen.queryByText(/reload it before saving/i)).not.toBeInTheDocument();
+  });
+
+  it("confirmed Reload form applies the fresh definition but a failed reload keeps the draft", async () => {
+    const user = userEvent.setup();
+    const reads = [jsonResponse({ data: versioned() }), jsonResponse({ data: versioned({ name: "Assistant edit", version: 2 }) })];
+    serve({ reads, puts: [conflict()] });
+    renderScreen(<FormEditor formId="f1" tab="fields" useFormEditorHook={useWiredFormEditor} />);
+    await editAndSave(user);
+    await waitFor(() => expect(reads).toHaveLength(1));
+
+    reads.splice(0, reads.length, jsonResponse({ error: "service unavailable" }, 500));
+    await user.click(screen.getByRole("button", { name: "Reload form" }));
+    await user.click(within(await screen.findByRole("dialog")).getByRole("button", { name: "Reload form" }));
+    await waitFor(() => expect(screen.getByRole("button", { name: "Reload form" })).toBeEnabled());
+    expect(screen.getByDisplayValue("My draft")).toBeInTheDocument();
+    expect(screen.getByText(notice)).toBeInTheDocument();
+
+    reads.splice(0, reads.length, jsonResponse({ data: versioned({ name: "Fresh edit", version: 3 }) }));
+    await user.click(screen.getByRole("button", { name: "Reload form" }));
+    await user.click(within(await screen.findByRole("dialog")).getByRole("button", { name: "Reload form" }));
+    expect(await screen.findByDisplayValue("Fresh edit")).toBeInTheDocument();
+    expect(screen.queryByText(notice)).not.toBeInTheDocument();
   });
 });

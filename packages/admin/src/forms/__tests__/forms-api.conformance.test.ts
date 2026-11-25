@@ -145,3 +145,18 @@ it('reports a trash that leaves the submission readable and listed', async () =>
     'trashed submission detail is unavailable', 'trashed submission is absent from active pages',
   ]);
 });
+
+it('the HTTP adapter forwards expectedVersion on the ordinary PUT and reads the version back', async () => {
+  const { createHttpFormsApi } = await import('../adapters/http.js');
+  const requests: { path: string; method: string; body?: unknown }[] = [];
+  const api = createHttpFormsApi({ basePath: '/forms', transport: {
+    async request<T>(required: { path: string; method: string; body?: unknown }): Promise<T> {
+      requests.push(required);
+      return { data: { id: 'f1', version: 5 } } as T;
+    },
+    url: ({ path }) => path,
+  } });
+  const updated = await api.updateFormDefinition({ id: 'f1' }, { name: 'Renamed', expectedVersion: 4 });
+  expect(requests).toEqual([{ path: '/forms/f1', method: 'PUT', body: { name: 'Renamed', expectedVersion: 4 } }]);
+  expect(updated.version).toBe(5);
+});

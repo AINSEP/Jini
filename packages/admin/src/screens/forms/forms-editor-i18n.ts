@@ -5,6 +5,10 @@
  */
 export const FORMS_EDITOR_I18N: Record<string, Record<string, string>> = {
   es: {
+    // FormEditorReloadNotice (version-aware refresh)
+    "This form changed since you opened it. Reload it to see the latest version.": "Este formulario cambió desde que lo abriste. Recárgalo para ver la versión más reciente.",
+    "Reload form": "Recargar formulario",
+    "Reloading discards your unsaved changes.": "Al recargar se descartan tus cambios sin guardar.",
     // FormEditorFieldsBody
     "Create form": "Crear formulario",
     // FormEditorHeaderText
@@ -18,6 +22,9 @@ export const FORMS_EDITOR_I18N: Record<string, Record<string, string>> = {
     "Actions for form \"{name}\"": "Acciones para el formulario \"{name}\"",
   },
   id: {
+    "This form changed since you opened it. Reload it to see the latest version.": "Formulir ini berubah sejak Anda membukanya. Muat ulang untuk melihat versi terbaru.",
+    "Reload form": "Muat ulang formulir",
+    "Reloading discards your unsaved changes.": "Memuat ulang akan membuang perubahan Anda yang belum disimpan.",
     "Create form": "Buat formulir",
     Form: "Formulir",
     "Configure a new form's fields.": "Konfigurasikan bidang formulir baru.",
@@ -27,6 +34,9 @@ export const FORMS_EDITOR_I18N: Record<string, Record<string, string>> = {
     "Actions for form \"{name}\"": "Tindakan untuk formulir \"{name}\"",
   },
   de: {
+    "This form changed since you opened it. Reload it to see the latest version.": "Dieses Formular wurde geändert, seit Sie es geöffnet haben. Laden Sie es neu, um die neueste Version zu sehen.",
+    "Reload form": "Formular neu laden",
+    "Reloading discards your unsaved changes.": "Beim Neuladen gehen Ihre nicht gespeicherten Änderungen verloren.",
     "Create form": "Formular erstellen",
     Form: "Formular",
     "Configure a new form's fields.": "Konfigurieren Sie die Felder eines neuen Formulars.",
@@ -36,6 +46,9 @@ export const FORMS_EDITOR_I18N: Record<string, Record<string, string>> = {
     "Actions for form \"{name}\"": "Aktionen für Formular \"{name}\"",
   },
   "zh-CN": {
+    "This form changed since you opened it. Reload it to see the latest version.": "此表单在你打开后已被更改。请重新加载以查看最新版本。",
+    "Reload form": "重新加载表单",
+    "Reloading discards your unsaved changes.": "重新加载将丢弃你未保存的更改。",
     "Create form": "创建表单",
     Form: "表单",
     "Configure a new form's fields.": "配置新表单的字段。",
@@ -45,6 +58,9 @@ export const FORMS_EDITOR_I18N: Record<string, Record<string, string>> = {
     "Actions for form \"{name}\"": "表单\"{name}\"的操作",
   },
   "zh-TW": {
+    "This form changed since you opened it. Reload it to see the latest version.": "此表單在你開啟後已被變更。請重新載入以查看最新版本。",
+    "Reload form": "重新載入表單",
+    "Reloading discards your unsaved changes.": "重新載入將捨棄你尚未儲存的變更。",
     "Create form": "建立表單",
     Form: "表單",
     "Configure a new form's fields.": "設定新表單的欄位。",
@@ -54,6 +70,9 @@ export const FORMS_EDITOR_I18N: Record<string, Record<string, string>> = {
     "Actions for form \"{name}\"": "表單\"{name}\"的操作",
   },
   "pt-BR": {
+    "This form changed since you opened it. Reload it to see the latest version.": "Este formulário mudou desde que você o abriu. Recarregue-o para ver a versão mais recente.",
+    "Reload form": "Recarregar formulário",
+    "Reloading discards your unsaved changes.": "Recarregar descarta suas alterações não salvas.",
     "Create form": "Criar formulário",
     Form: "Formulário",
     "Configure a new form's fields.": "Configure os campos de um novo formulário.",
@@ -63,6 +82,9 @@ export const FORMS_EDITOR_I18N: Record<string, Record<string, string>> = {
     "Actions for form \"{name}\"": "Ações para o formulário \"{name}\"",
   },
   ru: {
+    "This form changed since you opened it. Reload it to see the latest version.": "Эта форма изменилась с тех пор, как вы её открыли. Перезагрузите её, чтобы увидеть последнюю версию.",
+    "Reload form": "Перезагрузить форму",
+    "Reloading discards your unsaved changes.": "При перезагрузке несохранённые изменения будут потеряны.",
     "Create form": "Создать форму",
     Form: "Форма",
     "Configure a new form's fields.": "Настройте поля для новой формы.",
@@ -72,6 +94,9 @@ export const FORMS_EDITOR_I18N: Record<string, Record<string, string>> = {
     "Actions for form \"{name}\"": "Действия для формы \"{name}\"",
   },
   fa: {
+    "This form changed since you opened it. Reload it to see the latest version.": "این فرم از زمانی که آن را باز کردید تغییر کرده است. برای دیدن آخرین نسخه، آن را دوباره بارگیری کنید.",
+    "Reload form": "بارگیری دوباره فرم",
+    "Reloading discards your unsaved changes.": "بارگیری دوباره، تغییرات ذخیره‌نشده شما را حذف می‌کند.",
     "Create form": "ایجاد فرم",
     Form: "فرم",
     "Configure a new form's fields.": "فیلدها فرم جدید را پیکربندی کنید.",
@@ -81,6 +106,9 @@ export const FORMS_EDITOR_I18N: Record<string, Record<string, string>> = {
     "Actions for form \"{name}\"": "عملیات مربوط به فرم \"{name}\"",
   },
   ar: {
+    "This form changed since you opened it. Reload it to see the latest version.": "تغيّر هذا النموذج منذ أن فتحته. أعد تحميله لرؤية أحدث إصدار.",
+    "Reload form": "إعادة تحميل النموذج",
+    "Reloading discards your unsaved changes.": "تؤدي إعادة التحميل إلى تجاهل تغييراتك غير المحفوظة.",
     "Create form": "إنشاء نموذج",
     Form: "نموذج",
     "Configure a new form's fields.": "اضبط حقول النموذج الجديد.",
@@ -90,6 +118,9 @@ export const FORMS_EDITOR_I18N: Record<string, Record<string, string>> = {
     "Actions for form \"{name}\"": "إجراءات لنموذج \"{name}\"",
   },
   ja: {
+    "This form changed since you opened it. Reload it to see the latest version.": "このフォームは開いた後に変更されました。最新版を表示するには再読み込みしてください。",
+    "Reload form": "フォームを再読み込み",
+    "Reloading discards your unsaved changes.": "再読み込みすると、保存されていない変更は破棄されます。",
     "Create form": "フォームを作成",
     Form: "フォーム",
     "Configure a new form's fields.": "新規フォームのフィールドを設定します。",
@@ -99,6 +130,9 @@ export const FORMS_EDITOR_I18N: Record<string, Record<string, string>> = {
     "Actions for form \"{name}\"": "フォーム\"{name}\"の操作",
   },
   ko: {
+    "This form changed since you opened it. Reload it to see the latest version.": "이 양식은 연 이후 변경되었습니다. 최신 버전을 보려면 다시 불러오세요.",
+    "Reload form": "양식 다시 불러오기",
+    "Reloading discards your unsaved changes.": "다시 불러오면 저장하지 않은 변경 사항이 삭제됩니다.",
     "Create form": "양식 만들기",
     Form: "양식",
     "Configure a new form's fields.": "새 양식의 필드을 구성하세요.",
@@ -108,6 +142,9 @@ export const FORMS_EDITOR_I18N: Record<string, Record<string, string>> = {
     "Actions for form \"{name}\"": "양식 \"{name}\" 작업",
   },
   pl: {
+    "This form changed since you opened it. Reload it to see the latest version.": "Ten formularz zmienił się od czasu jego otwarcia. Załaduj go ponownie, aby zobaczyć najnowszą wersję.",
+    "Reload form": "Załaduj formularz ponownie",
+    "Reloading discards your unsaved changes.": "Ponowne załadowanie odrzuci niezapisane zmiany.",
     "Create form": "Utwórz formularz",
     Form: "Formularz",
     "Configure a new form's fields.": "Skonfiguruj pola nowego formularza.",
@@ -117,6 +154,9 @@ export const FORMS_EDITOR_I18N: Record<string, Record<string, string>> = {
     "Actions for form \"{name}\"": "Działania dla formularza \"{name}\"",
   },
   hu: {
+    "This form changed since you opened it. Reload it to see the latest version.": "Ez az űrlap megváltozott, mióta megnyitottad. Töltsd újra a legfrissebb változat megtekintéséhez.",
+    "Reload form": "Űrlap újratöltése",
+    "Reloading discards your unsaved changes.": "Az újratöltés elveti a nem mentett módosításokat.",
     "Create form": "Űrlap létrehozása",
     Form: "Űrlap",
     "Configure a new form's fields.": "Konfigurálja az új űrlap mezőit.",
@@ -126,6 +166,9 @@ export const FORMS_EDITOR_I18N: Record<string, Record<string, string>> = {
     "Actions for form \"{name}\"": "Műveletek: űrlap \"{name}\"",
   },
   fr: {
+    "This form changed since you opened it. Reload it to see the latest version.": "Ce formulaire a changé depuis que vous l'avez ouvert. Rechargez-le pour voir la dernière version.",
+    "Reload form": "Recharger le formulaire",
+    "Reloading discards your unsaved changes.": "Le rechargement supprime vos modifications non enregistrées.",
     "Create form": "Créer le formulaire",
     Form: "Formulaire",
     "Configure a new form's fields.": "Configurez les champs d'un nouveau formulaire.",
@@ -135,6 +178,9 @@ export const FORMS_EDITOR_I18N: Record<string, Record<string, string>> = {
     "Actions for form \"{name}\"": "Actions pour le formulaire \"{name}\"",
   },
   uk: {
+    "This form changed since you opened it. Reload it to see the latest version.": "Ця форма змінилася відтоді, як ви її відкрили. Перезавантажте її, щоб побачити останню версію.",
+    "Reload form": "Перезавантажити форму",
+    "Reloading discards your unsaved changes.": "Перезавантаження скасує ваші незбережені зміни.",
     "Create form": "Створити форму",
     Form: "Форма",
     "Configure a new form's fields.": "Налаштуйте поля для нової форми.",
@@ -144,6 +190,9 @@ export const FORMS_EDITOR_I18N: Record<string, Record<string, string>> = {
     "Actions for form \"{name}\"": "Дії для форми \"{name}\"",
   },
   tr: {
+    "This form changed since you opened it. Reload it to see the latest version.": "Bu form siz açtıktan sonra değişti. En son sürümü görmek için yeniden yükleyin.",
+    "Reload form": "Formu yeniden yükle",
+    "Reloading discards your unsaved changes.": "Yeniden yükleme, kaydedilmemiş değişikliklerinizi siler.",
     "Create form": "Form oluştur",
     Form: "Form",
     "Configure a new form's fields.": "Yeni bir formun alanlarını yapılandırın.",
@@ -153,6 +202,9 @@ export const FORMS_EDITOR_I18N: Record<string, Record<string, string>> = {
     "Actions for form \"{name}\"": "\"{name}\" formu için işlemler",
   },
   th: {
+    "This form changed since you opened it. Reload it to see the latest version.": "ฟอร์มนี้มีการเปลี่ยนแปลงหลังจากที่คุณเปิด โหลดใหม่เพื่อดูเวอร์ชันล่าสุด",
+    "Reload form": "โหลดฟอร์มใหม่",
+    "Reloading discards your unsaved changes.": "การโหลดใหม่จะทิ้งการเปลี่ยนแปลงที่ยังไม่ได้บันทึก",
     "Create form": "สร้างแบบฟอร์ม",
     Form: "แบบฟอร์ม",
     "Configure a new form's fields.": "กำหนดค่าฟิลด์ของแบบฟอร์มใหม่",
@@ -162,6 +214,9 @@ export const FORMS_EDITOR_I18N: Record<string, Record<string, string>> = {
     "Actions for form \"{name}\"": "การดำเนินการสำหรับแบบฟอร์ม \"{name}\"",
   },
   it: {
+    "This form changed since you opened it. Reload it to see the latest version.": "Questo modulo è cambiato da quando l'hai aperto. Ricaricalo per vedere la versione più recente.",
+    "Reload form": "Ricarica modulo",
+    "Reloading discards your unsaved changes.": "Ricaricando, le modifiche non salvate andranno perse.",
     "Create form": "Crea modulo",
     Form: "Modulo",
     "Configure a new form's fields.": "Configura i campi di un nuovo modulo.",
@@ -171,6 +226,9 @@ export const FORMS_EDITOR_I18N: Record<string, Record<string, string>> = {
     "Actions for form \"{name}\"": "Azioni per il modulo \"{name}\"",
   },
   hi: {
+    "This form changed since you opened it. Reload it to see the latest version.": "आपके खोलने के बाद यह फ़ॉर्म बदल गया है। नवीनतम संस्करण देखने के लिए इसे फिर से लोड करें।",
+    "Reload form": "फ़ॉर्म फिर से लोड करें",
+    "Reloading discards your unsaved changes.": "फिर से लोड करने पर आपके सहेजे न गए बदलाव हट जाएंगे।",
     "Create form": "फ़ॉर्म बनाएं",
     Form: "फ़ॉर्म",
     "Configure a new form's fields.": "नए फ़ॉर्म के फ़ील्ड कॉन्फ़िगर करें।",
@@ -180,6 +238,9 @@ export const FORMS_EDITOR_I18N: Record<string, Record<string, string>> = {
     "Actions for form \"{name}\"": "फ़ॉर्म \"{name}\" के लिए कार्रवाइयां",
   },
   ur: {
+    "This form changed since you opened it. Reload it to see the latest version.": "آپ کے کھولنے کے بعد یہ فارم تبدیل ہو گیا ہے۔ تازہ ترین ورژن دیکھنے کے لیے اسے دوبارہ لوڈ کریں۔",
+    "Reload form": "فارم دوبارہ لوڈ کریں",
+    "Reloading discards your unsaved changes.": "دوبارہ لوڈ کرنے سے آپ کی غیر محفوظ تبدیلیاں ختم ہو جائیں گی۔",
     "Create form": "فارم بنائیں",
     Form: "فارم",
     "Configure a new form's fields.": "نئے فارم کی فیلڈز کو ترتیب دیں۔",
@@ -189,6 +250,9 @@ export const FORMS_EDITOR_I18N: Record<string, Record<string, string>> = {
     "Actions for form \"{name}\"": "فارم \"{name}\" کے لیے کارروائیاں",
   },
   bn: {
+    "This form changed since you opened it. Reload it to see the latest version.": "আপনি খোলার পর এই ফর্মটি পরিবর্তিত হয়েছে। সর্বশেষ সংস্করণ দেখতে এটি আবার লোড করুন।",
+    "Reload form": "ফর্ম আবার লোড করুন",
+    "Reloading discards your unsaved changes.": "আবার লোড করলে আপনার সংরক্ষণ না করা পরিবর্তন বাতিল হবে।",
     "Create form": "ফর্ম তৈরি করুন",
     Form: "ফর্ম",
     "Configure a new form's fields.": "নতুন ফর্মের ফিল্ড কনফিগার করুন।",

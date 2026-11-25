@@ -116,6 +116,9 @@ export interface AdminFormDefinition {
   readonly mode?: AdminFormMode | undefined;
   readonly html?: string | undefined;
   readonly provider?: AdminFormProviderSelection | undefined;
+  /** Optimistic-concurrency revision. Absent on legacy records that have never been versioned;
+   *  editors then save without a basis rather than inventing one. */
+  readonly version?: number;
 }
 
 export interface AdminFormSubmission {
@@ -161,6 +164,9 @@ export interface AdminFormUpdatePatch {
   readonly fields?: readonly AdminFormField[];
   readonly notify?: AdminFormNotifyConfig;
   readonly status?: FormDefinitionStatus;
+  /** The `version` this edit was made from. A stale basis is refused with 409 `VERSION_CONFLICT`;
+   *  it is a precondition, never stored. Not valid with `status` or without a definition field. */
+  readonly expectedVersion?: number;
 }
 
 export interface AdminFormsPort {
