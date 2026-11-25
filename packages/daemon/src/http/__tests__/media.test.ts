@@ -1,7 +1,6 @@
-import { reportRouteInternalError } from '@jini-ai/http-kit';
 import { describe, expect, it, vi } from 'vitest';
 import { denyAllOrigins } from '@jini-ai/core/contracts/server/testing';
-import { fakeDaemonRouteHost, injectedRecordingReporter, withInjectedReporter } from './fakes/route-host.js';
+import { createRouteTestErrors, fakeDaemonRouteHost, injectedRecordingReporter, withInjectedReporter } from './fakes/route-host.js';
 import { jsonRequest, serveRoutes } from './fakes/serve-routes.js';
 import { describeRoutes } from '../route-table.js';
 import {
@@ -103,7 +102,7 @@ function makeEngine(generate: MediaDispatchEngine['generate']): MediaDispatchEng
 
 function makeDeps(overrides: Partial<MediaHttpDeps> = {}): MediaHttpDeps {
   return {
-    reportInternalError: reportRouteInternalError,
+    reportInternalError: createRouteTestErrors().reportInternalError,
     engine: makeEngine(async () => fakeResult()),
     taskStore: createInMemoryMediaTaskStore(),
     ...overrides,
@@ -467,9 +466,10 @@ describe('mediaGenerateRoute.handle', () => {
     });
   });
 
-  it('SEC-005: falls back to console.error when no onInternalError sink is supplied', async () => {
-    const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => { });
+  it('SEC-005: records a media failure once with the fixture reporter and correlated ERR id', async () => {
+    const fixture = createRouteTestErrors();
     const deps = makeDeps({
+      reportInternalError: fixture.reportInternalError,
       engine: makeEngine(async () => {
         throw new Error('boom');
       }),
@@ -480,11 +480,12 @@ describe('mediaGenerateRoute.handle', () => {
       const task = await deps.taskStore.get({ id: taskId });
       expect(task?.status).toBe('failed');
     });
-    expect(consoleErrorSpy).toHaveBeenCalledTimes(1);
-    expect(consoleErrorSpy.mock.calls[0]?.[0]).toMatch(/^\[@jini-ai\/http-kit\] internal error \(media-generate-dispatch, correlationId=[0-9a-f-]{36}\)$/);
-    expect(consoleErrorSpy.mock.calls[0]?.[1]).toBe('Error');
-    expect(JSON.stringify(consoleErrorSpy.mock.calls)).not.toContain('boom');
-    consoleErrorSpy.mockRestore();
+    expect(fixture.entries).toHaveLength(1);
+    expect(fixture.reports).toHaveLength(1);
+    expect(fixture.entries[0]?.meta).toMatchObject({ errorId: 'ERR-AAAA-BBBB-CCCC-0001', label: 'Error' });
+    expect(fixture.reports[0]?.context.incidentId).toBe('ERR-AAAA-BBBB-CCCC-0001');
+    expect((await deps.taskStore.get({ id: taskId }))?.error).toEqual({ code: 'INTERNAL_ERROR', message: 'The media could not be generated. Try again; if it keeps failing, copy the request ID and report this problem. (error ERR-AAAA-BBBB-CCCC-0001)' });
+    expect(JSON.stringify((await deps.taskStore.get({ id: taskId }))?.error)).not.toContain('boom');
   });
 });
 

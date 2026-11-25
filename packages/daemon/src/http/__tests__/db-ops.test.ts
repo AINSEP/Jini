@@ -1,7 +1,6 @@
-import { reportRouteInternalError } from '@jini-ai/http-kit';
 import { describe, expect, it, vi } from 'vitest';
 import { denyAllOrigins } from '@jini-ai/core/contracts/server/testing';
-import { fakeDaemonRouteHost, injectedRecordingReporter, withInjectedReporter } from './fakes/route-host.js';
+import { createRouteTestErrors, fakeDaemonRouteHost, injectedRecordingReporter, withInjectedReporter } from './fakes/route-host.js';
 import { jsonRequest, serveRoutes } from './fakes/serve-routes.js';
 import { describeRoutes } from '../route-table.js';
 import { createToolRegistry, type Principal, type ToolPolicy, type ToolRegistry } from '@jini-ai/core';
@@ -91,7 +90,7 @@ function makeDeps(overrides: Partial<DaemonDbHttpDeps> & { operations?: DaemonDb
     ? { executor: overrides.toolExecutor }
     : makeExecutor(operations, useProductionDefaultPolicy, overrides.policy);
   return {
-    deps: { reportInternalError: reportRouteInternalError, toolExecutor: executor, principal, ...overrides },
+    deps: { reportInternalError: createRouteTestErrors().reportInternalError, toolExecutor: executor, principal, ...overrides },
     operations,
   };
 }
@@ -112,7 +111,7 @@ function makeDenyByDefaultDeps(operations: DaemonDbOperations = makeOperations()
   registry.register(regs.verify);
   registry.register(regs.vacuum);
   const executor = createToolExecutor({ registry });
-  return { deps: { reportInternalError: reportRouteInternalError, toolExecutor: executor, principal }, operations };
+  return { deps: { reportInternalError: createRouteTestErrors().reportInternalError, toolExecutor: executor, principal }, operations };
 }
 
 /** A minimal fake `ToolExecutor` that resolves `execute()` synchronously with a fixed result — used to test `toolResultToApiResult`'s mapping for statuses (`timed-out`/`cancelled`) a real executor only reaches via a genuine race. */
@@ -258,16 +257,20 @@ describe('daemonDbInspectRoute', () => {
     expect(context.error).toBe(boom.message);
   });
 
-  it('logs to console.error by default when onInternalError is omitted', async () => {
-    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => { });
+  it('records a database failure once with the fixture reporter and correlated ERR id', async () => {
+    const fixture = createRouteTestErrors();
     const operations = makeOperations({ inspect: vi.fn(async () => { throw new Error('boom'); }) });
-    const { deps } = makeDeps({ operations });
+    const { deps } = makeDeps({ operations, reportInternalError: fixture.reportInternalError });
     const result = await daemonDbInspectRoute.handle({ input: undefined, deps });
     if (result.ok) throw new Error('expected failure');
-    expect(result.error.message).toBe('The database could not be inspected. Try again; if it keeps failing, copy the request ID and report this problem.');
-    expect(consoleError.mock.calls).toEqual([[`[@jini-ai/http-kit] internal error (db-inspect, correlationId=${result.error.requestId})`, 'string']]);
-    expect(JSON.stringify(consoleError.mock.calls)).not.toContain('boom');
-    consoleError.mockRestore();
+    expect(result.error.message).toBe('The database could not be inspected. Try again; if it keeps failing, copy the request ID and report this problem. (error ERR-AAAA-BBBB-CCCC-0001)');
+    expect(fixture.entries).toHaveLength(1);
+    expect(fixture.reports).toHaveLength(1);
+    expect(result.error.requestId).toBe('ERR-AAAA-BBBB-CCCC-0001');
+    expect(fixture.entries[0]?.meta?.errorId).toBe(result.error.requestId);
+    expect(fixture.reports[0]?.context.incidentId).toBe(result.error.requestId);
+    expect(fixture.entries[0]?.meta?.label).toBe('string');
+    expect(JSON.stringify(result)).not.toContain('boom');
   });
 
   it('reports a denied confirmation the same as a policy denial', async () => {
@@ -278,7 +281,7 @@ describe('daemonDbInspectRoute', () => {
     registry.register(regs.verify);
     registry.register(regs.vacuum);
     const executor = createToolExecutor({ registry }, { delegate: { onConfirm: () => 'deny' } });
-    const deps: DaemonDbHttpDeps = { reportInternalError: reportRouteInternalError, toolExecutor: executor, principal };
+    const deps: DaemonDbHttpDeps = { reportInternalError: createRouteTestErrors().reportInternalError, toolExecutor: executor, principal };
     const result = await daemonDbInspectRoute.handle({ input: undefined, deps });
     expect(result).toEqual({
       ok: false,
@@ -301,21 +304,21 @@ describe('daemonDbInspectRoute', () => {
     // generic `INTERNAL_ERROR` with a correlation id, the same as `failed`/`cancelled`? See
     // `toolResultToApiResult`'s switch.
     const executor = fakeExecutorResolving({ executionId: 'timed-out-1', status: 'timed-out' });
-    const deps: DaemonDbHttpDeps = { reportInternalError: reportRouteInternalError, toolExecutor: executor, principal };
+    const deps: DaemonDbHttpDeps = { reportInternalError: createRouteTestErrors().reportInternalError, toolExecutor: executor, principal };
     const result = await daemonDbInspectRoute.handle({ input: undefined, deps });
     expect(result).toEqual({
       ok: false,
-      error: { code: 'INTERNAL_ERROR', message: 'The database could not be inspected. Try again; if it keeps failing, copy the request ID and report this problem.', requestId: expect.any(String) },
+      error: { code: 'INTERNAL_ERROR', message: 'The database could not be inspected. Try again; if it keeps failing, copy the request ID and report this problem. (error ERR-AAAA-BBBB-CCCC-0001)', requestId: 'ERR-AAAA-BBBB-CCCC-0001' },
     });
   });
 
   it('reports a cancellation as a redacted INTERNAL_ERROR', async () => {
     const executor = fakeExecutorResolving({ executionId: 'cancelled-1', status: 'cancelled' });
-    const deps: DaemonDbHttpDeps = { reportInternalError: reportRouteInternalError, toolExecutor: executor, principal };
+    const deps: DaemonDbHttpDeps = { reportInternalError: createRouteTestErrors().reportInternalError, toolExecutor: executor, principal };
     const result = await daemonDbInspectRoute.handle({ input: undefined, deps });
     expect(result).toEqual({
       ok: false,
-      error: { code: 'INTERNAL_ERROR', message: 'The database could not be inspected. Try again; if it keeps failing, copy the request ID and report this problem.', requestId: expect.any(String) },
+      error: { code: 'INTERNAL_ERROR', message: 'The database could not be inspected. Try again; if it keeps failing, copy the request ID and report this problem. (error ERR-AAAA-BBBB-CCCC-0001)', requestId: 'ERR-AAAA-BBBB-CCCC-0001' },
     });
   });
 });

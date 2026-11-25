@@ -93,7 +93,7 @@ function toolResultToApiResult(deps: TerminalsHttpDeps, result: ToolExecutionRes
     case 'cancelled':
     case 'failed': {
       const message = 'The terminal could not be opened. Try again; if it keeps failing, copy the request ID and report this problem.';
-      // No host sink: `reportRouteInternalError`'s default line keeps the failure observable, never silent.
+      // The injected host reporter owns the incident and the caller-safe request ID.
       return err({ error: deps.reportInternalError<Omit<TerminalsInternalErrorContext, 'correlationId'>>({ report: { source: 'terminal-create', error: result.status === 'failed' ? result.error : result.status }, logSource: 'terminal-create', message }) });
     }
     default: {

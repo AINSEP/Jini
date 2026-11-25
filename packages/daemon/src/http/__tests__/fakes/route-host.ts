@@ -3,9 +3,11 @@
  * hand, so a test states what the host answers and reads back what the routes asked of it.
  * Not published.
  */
-import type { ReportRouteInternalError, RouteHostContext, SameOriginPolicyPort, SseSchedulerPort } from '@jini-ai/core/contracts/server';
+import type { ReportRouteInternalError, RouteErrorPorts, RouteHostContext, SameOriginPolicyPort, SseSchedulerPort } from '@jini-ai/core/contracts/server';
 import { createTestRouteHost, fakeTimingSafeEqual, type RecordingTimingSafeEqual } from '@jini-ai/core/contracts/server/testing';
 import type { DaemonRouteHost } from '../../route-host.js';
+import { createRecordingReporter } from '@jini-ai/core/errors/testing';
+import { createReporterRouteInternalError } from '@jini-ai/http-kit';
 
 /** Timers that fire only when the test says so. */
 export interface ManualScheduler extends SseSchedulerPort {
@@ -48,6 +50,12 @@ export interface FakeDaemonRouteHost extends DaemonRouteHost {
 
 /** One incident as the host's reporter saw it: the route's report, its log source and the request ID it answered with. */
 export type RecordedIncident = { readonly error: unknown; readonly correlationId: string; readonly logSource: string } & Record<string, unknown>;
+
+export function createRouteTestErrors(_required: Record<string, never> = {}, _optional: Record<string, never> = {}) {
+  const recording = createRecordingReporter({ ids: ['ERR-AAAA-BBBB-CCCC-0001', 'ERR-AAAA-BBBB-CCCC-0002', 'ERR-AAAA-BBBB-CCCC-0003'], iso: '2026-01-01T00:00:00.000Z' });
+  const errors: RouteErrorPorts = { reporter: recording.reporter, observability: { trackOperation: () => ({ run: work => work(), end() {} }) } };
+  return { ...recording, errors, reportInternalError: createReporterRouteInternalError({ reporter: recording.reporter }) };
+}
 
 /**
  * @param optional.originPolicy - Who counts as same-origin; everyone by default.

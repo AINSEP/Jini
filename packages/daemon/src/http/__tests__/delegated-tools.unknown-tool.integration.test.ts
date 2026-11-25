@@ -1,4 +1,4 @@
-import { reportRouteInternalError } from '@jini-ai/http-kit';
+import { createRouteTestErrors } from './fakes/route-host.js';
 import { describe, expect, it } from 'vitest';
 import { createToolRegistry, type Principal, type ToolRegistry } from '@jini-ai/core';
 import {
@@ -31,7 +31,7 @@ function buildHarness(options: { withRegistryDep?: boolean; registry?: ToolRegis
   const toolExecutor: ToolExecutor = { ...inner, execute: (request) => { executorCalls.push(request); return inner.execute(request); } };
   const principalCalls: unknown[] = [];
   const lifecycle = createRunLifecycle({ eventLog: createInMemoryEventLog({}) });
-  const deps: DelegatedToolsHttpDeps = { reportInternalError: reportRouteInternalError,
+  const deps: DelegatedToolsHttpDeps = { reportInternalError: createRouteTestErrors().reportInternalError,
     lifecycle,
     toolExecutor,
     resolvePrincipal: (call) => { principalCalls.push(call); return PRINCIPAL; },

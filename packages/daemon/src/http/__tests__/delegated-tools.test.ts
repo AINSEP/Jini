@@ -1,9 +1,8 @@
-import { reportRouteInternalError } from '@jini-ai/http-kit';
 import { withReadOnlyToolConstraint, defaultDaemonMessages } from '../../read-only-tools.js';
 import { createNodeCredentialCrypto } from '../../run-credentials.js';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { denyAllOrigins } from '@jini-ai/core/contracts/server/testing';
-import { fakeDaemonRouteHost, injectedRecordingReporter, withInjectedReporter } from './fakes/route-host.js';
+import { createRouteTestErrors, fakeDaemonRouteHost, injectedRecordingReporter, withInjectedReporter } from './fakes/route-host.js';
 import { serveRoutes } from './fakes/serve-routes.js';
 import { describeRoutes } from '../route-table.js';
 import { createToolRegistry, ToolInputError, type Principal, type ToolRegistry } from '@jini-ai/core';
@@ -45,7 +44,7 @@ function makeToolExecutor(): ToolExecutor {
 
 function makeDeps(overrides: Partial<DelegatedToolsHttpDeps> = {}): DelegatedToolsHttpDeps {
   return {
-    reportInternalError: reportRouteInternalError,
+    reportInternalError: createRouteTestErrors().reportInternalError,
     lifecycle: makeLifecycle(),
     toolExecutor: makeToolExecutor(),
     resolvePrincipal: () => TEST_PRINCIPAL,
@@ -302,18 +301,22 @@ describe('delegatedToolExecuteRoute.handle', () => {
     expect(onInternalError).not.toHaveBeenCalled();
   });
 
-  it('SEC-005: falls back to console.error when no onInternalError sink is supplied', async () => {
-    const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => { });
+  it('SEC-005: records one fixture incident with the correlated ERR id', async () => {
+    const fixture = createRouteTestErrors();
     const toolExecutor: ToolExecutor = {
       ...makeToolExecutor(),
       execute: async () => { throw new Error('executor unavailable'); },
     };
-    const deps = makeDeps({ toolExecutor });
+    const deps = makeDeps({ toolExecutor, reportInternalError: fixture.reportInternalError });
     const { run } = await deps.lifecycle.start({ contextRef: 'ctx-1' });
     const result = await delegatedToolExecuteRoute.handle({ input: { runId: run.id, toolUseId: 'tu-1', toolId: 'nope' }, deps });
     expect(result.ok).toBe(false);
-    expect(consoleErrorSpy).toHaveBeenCalledTimes(1);
-    consoleErrorSpy.mockRestore();
+    expect(fixture.entries).toHaveLength(1);
+    expect(fixture.reports).toHaveLength(1);
+    if (result.ok) throw new Error('expected failure');
+    expect(result.error.requestId).toBe('ERR-AAAA-BBBB-CCCC-0001');
+    expect(fixture.entries[0]?.meta?.errorId).toBe(result.error.requestId);
+    expect(fixture.reports[0]?.context.incidentId).toBe(result.error.requestId);
   });
 
   it('propagates a caller-supplied abort signal through the bridge into ToolExecutor, cancelling a pending confirmation', async () => {

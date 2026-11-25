@@ -27,7 +27,7 @@ import type { ErrorReporter } from '@jini-ai/core/errors/reporter';
 import { defineJsonRoute, mountJsonRoute } from '../adapter.js';
 import { rejectOversizedJsonBody } from '../middleware.js';
 import { createReporterRouteInternalError } from '../reporter-internal-error.js';
-import type { JsonRouteSpec } from '../types.js';
+import type { JsonRouteSpec, RouteMountOptions } from '../types.js';
 
 const IDS = ['ERR-AAAA-AAAA-AAAA-0001', 'ERR-AAAA-AAAA-AAAA-0002', 'ERR-AAAA-AAAA-AAAA-0003'];
 const ERR_ID = /ERR-[A-Z0-9]{4}-[A-Z0-9]{4}-[A-Z0-9]{4}-[A-Z0-9]{4}/;
@@ -58,7 +58,7 @@ function harness(options: { readonly endThrows?: boolean } = {}) {
   } } };
   const onInternalError = vi.fn();
   let handled = 0;
-  async function mount(spec: Partial<Spec> = {}, { withErrors = true, upstream }: { withErrors?: boolean; upstream?: express.RequestHandler } = {}) {
+  async function mount(spec: Partial<Spec> = {}, { withErrors = true, upstream, mountOptions, errorMiddleware }: { withErrors?: boolean; upstream?: express.RequestHandler; mountOptions?: RouteMountOptions<object>; errorMiddleware?: express.ErrorRequestHandler } = {}) {
     const app = express();
     app.use(express.json({ limit: 1024 }));
     if (upstream) app.use(upstream);
@@ -69,7 +69,11 @@ function harness(options: { readonly endThrows?: boolean } = {}) {
       handle: () => { handled += 1; return ok({ value: { saved: true } }); }, ...spec,
     });
     const adapter = { onInternalError, ...(withErrors ? { errors } : {}) } as unknown as RouteHostContext;
-    mountJsonRoute({ app, spec: route, deps: {}, adapter });
+    const mountApp = errorMiddleware ? { post: (path: string, handler: (req: express.Request, res: express.Response) => Promise<void>) => {
+      app.post(path, (req, res, next) => { void handler(req, res).catch(next); });
+    } } as unknown as express.Express : app;
+    mountJsonRoute({ app: mountApp, spec: route, deps: {}, adapter }, mountOptions);
+    if (errorMiddleware) app.use(errorMiddleware);
     const server = app.listen(0, '127.0.0.1');
     servers.push(server);
     await new Promise<void>((resolve) => server.once('listening', () => resolve()));
@@ -162,6 +166,44 @@ describe('mountJsonRoute reporter mode', () => {
     expect(h.calls).toEqual({ describe: 1, record: 1 });
     expect(h.reports.map((report) => report.context.incidentId)).toEqual([IDS[0], IDS[1]]);
     expect(h.ends[1]).toEqual({ outcome: 'failed', failed: true });
+  });
+
+  it('an opted-in host policy rejection reaches Express unchanged after the operation ends', async () => {
+    const h = harness();
+    const policyError = { status: 422 };
+    const nextError = vi.fn();
+    const post = await h.mount({ handle: () => { throw new Error('original'); }, ports: { onError: () => { throw policyError; } } }, {
+      mountOptions: { preserveHostErrorRouting: true },
+      errorMiddleware: (error: unknown, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
+        nextError(error);
+        expect(h.log).toEqual(['start', 'end']);
+        expect(h.ends).toEqual([{ outcome: 'failed', failed: true }]);
+        expect([h.calls.describe, h.calls.record, h.entries.length, h.reports.length]).toEqual([0, 0, 0, 0]);
+        res.status(422).json({ host: 'refused' });
+      },
+    });
+    const response = await post();
+    expect([response.status, await response.json()]).toEqual([422, { host: 'refused' }]);
+    expect(nextError).toHaveBeenCalledTimes(1);
+    expect(nextError.mock.calls[0]?.[0]).toBe(policyError);
+    expect(h.log).toEqual(['start', 'end', 'write 422']);
+  });
+
+  it('an opted-in pre-header JSON or buffered raw write failure uses the existing host writer once', async () => {
+    const h = harness();
+    const reportInternalError = createReporterRouteInternalError({ reporter: h.errors.reporter });
+    const onError = vi.fn<NonNullable<NonNullable<Spec['ports']>['onError']>>(({ res, error }) => {
+      expect(h.ends).toHaveLength(1);
+      const failure = reportInternalError({ report: { error }, logSource: 'host-write', message: 'Host write failed.' });
+      res.status(503).json({ host: failure });
+    });
+    const handle = vi.fn(() => ok({ value: { big: 1n } }));
+    const post = await h.mount({ handle, ports: { onError } }, { mountOptions: { preserveHostErrorRouting: true } });
+    const response = await post();
+    expect([response.status, await response.json()]).toEqual([503, { host: { code: 'INTERNAL_ERROR', message: `Host write failed. (error ${IDS[0]})`, requestId: IDS[0] } }]);
+    expect(onError).toHaveBeenCalledTimes(1);
+    expect(handle).toHaveBeenCalledTimes(1);
+    expect([h.starts.length, h.ends.length, h.calls.describe, h.calls.record, h.entries.length, h.reports.length]).toEqual([1, 1, 0, 1, 1, 1]);
   });
 
   it('no second response after headers are sent', async () => {
