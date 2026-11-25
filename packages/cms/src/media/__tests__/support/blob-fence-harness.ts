@@ -13,12 +13,15 @@ export const SHA = "ab".repeat(32);
 export const KEY = computeBlobStorageKey({ workspaceId: WS, sha256: SHA });
 
 /** A kernel whose key locks are shared by every connection and released when the transaction ends. */
-export function createSharedLockKernel(): BlobFenceKernelPort & { readonly locked: string[] } {
+export function createSharedLockKernel(): BlobFenceKernelPort & { readonly locked: string[]; heldKeys(): string[] } {
   const tails = new Map<string, Promise<void>>();
   const tx = new AsyncLocalStorage<Array<() => void>>();
+  const held = new WeakMap<Array<() => void>, string[]>();
   const locked: string[] = [];
   return {
     locked,
+    /** Keys this async context's open transaction holds (empty outside a transaction). */
+    heldKeys() { const releases = tx.getStore(); return releases ? [...(held.get(releases) ?? [])] : []; },
     async transaction(fn) {
       const releases: Array<() => void> = [];
       try { return await tx.run(releases, fn); } finally { for (const release of releases) release(); }
@@ -31,6 +34,7 @@ export function createSharedLockKernel(): BlobFenceKernelPort & { readonly locke
       const mine = new Promise<void>((resolve) => { release = resolve; });
       tails.set(key, previous.then(() => mine));
       releases.push(release);
+      held.set(releases, [...(held.get(releases) ?? []), key]);
       locked.push(key);
       await previous;
     },
@@ -86,4 +90,13 @@ export async function seedTombstone(world: ReturnType<typeof createSharedWorld>,
     createdAt: new Date(world.clock.nowMs()).toISOString(), status: "tombstoned",
     tombstonedAt: new Date(world.clock.nowMs()).toISOString(), ...(purgeReason ? { purgeReason } : {}),
   });
+}
+
+/** Wraps `methods` on `target` in place so each call records which fence keys were held when it ran. */
+export function recordHeldKeys<T extends object>(kernel: { heldKeys(): string[] }, target: T, methods: ReadonlyArray<keyof T & string>, log: Array<{ call: string; held: string[] }>): T {
+  for (const name of methods) {
+    const original = (target[name] as (...args: unknown[]) => unknown).bind(target);
+    Object.assign(target, { [name]: (...args: unknown[]) => { log.push({ call: name, held: kernel.heldKeys() }); return original(...args); } });
+  }
+  return target;
 }

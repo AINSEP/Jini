@@ -6,6 +6,7 @@
  * trashed->410/not-found->404 outcome mapping, and an unknown transform
  * returning `not-found`.
  */
+import { passthroughBlobFence } from "./support/passthrough-blob-fence.js";
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 import { withSha256Lock } from "../blob-gc-lock.js";
@@ -44,7 +45,7 @@ function makeDeps() {
     blobRepo: new InMemoryAssetBlobRepo({}),
     renditionRepo: new InMemoryAssetRenditionRepo({}),
     transformRepo: new InMemoryTransformDefinitionRepo({}),
-    blobStore: new InMemoryBlobStore(),
+    blobStore: new InMemoryBlobStore(), blobFence: passthroughBlobFence,
     imageTransformer: countingTransformer,
   };
   return { deps, transformCalls };

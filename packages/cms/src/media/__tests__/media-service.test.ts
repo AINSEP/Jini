@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { passthroughBlobFence } from "./support/passthrough-blob-fence.js";
 import { createHash } from "node:crypto";
 import { test } from "vitest";
 
@@ -45,7 +46,7 @@ function makeDeps() {
     mediaRepo: new InMemoryMediaRepo({}),
     blobRepo: new InMemoryAssetBlobRepo({}),
     renditionRepo: new InMemoryAssetRenditionRepo({}),
-    blobStore: new InMemoryBlobStore(),
+    blobStore: new InMemoryBlobStore(), blobFence: passthroughBlobFence,
     journalRepo: new InMemoryBlobGcJournalRepo({}),
     referenceCheck: { findReferences: async (): Promise<readonly string[]> => [] },
   };

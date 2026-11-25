@@ -173,6 +173,7 @@ async function uploadDuplicateMedia({ routeDeps, source, bytes, contentType, inp
       blobRepo: routeDeps.assetBlobRepo,
       renditionRepo: routeDeps.assetRenditionRepo,
       blobStore: routeDeps.blobStore,
+      blobFence: routeDeps.blobFence,
     },
     input: {
       workspaceId: routeDeps.workspaceId,

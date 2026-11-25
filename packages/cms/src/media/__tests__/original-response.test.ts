@@ -3,6 +3,7 @@
  * a host writes when serving a media asset's original bytes (status, header and byte decisions for full,
  * Range 206, bad-range 416, forced-download, SVG CSP, document disposition, and lookup outcomes).
  */
+import { passthroughBlobFence } from "./support/passthrough-blob-fence.js";
 import assert from "node:assert/strict";
 import { test } from "vitest";
 import { parseRangeHeader } from "@jini-ai/http-kit/range";
@@ -69,7 +70,7 @@ function makeDeps() {
   return {
     clock: { nowMs: () => Date.parse("2026-01-01T00:00:00.000Z") }, idGen: { newId: () => `id-${(n += 1)}` },
     mediaRepo: new InMemoryMediaRepo({}), blobRepo: new InMemoryAssetBlobRepo({}),
-    renditionRepo: new InMemoryAssetRenditionRepo({}), blobStore: new InMemoryBlobStore(),
+    renditionRepo: new InMemoryAssetRenditionRepo({}), blobStore: new InMemoryBlobStore(), blobFence: passthroughBlobFence,
   };
 }
 const upload = (deps: ReturnType<typeof makeDeps>, bytes: Uint8Array, filename: string) =>

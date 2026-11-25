@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { passthroughBlobFence } from "../support/passthrough-blob-fence.js";
 import { test, expect, vi } from 'vitest';
 import type { ToolExecutionContext } from '@jini-ai/core';
 import { readDocumentText, createDocumentTextReader, DOCUMENT_TEXT_PAGE_BYTES } from '../../document-read.js';
@@ -14,7 +15,7 @@ async function fixture(extractors: readonly DocumentTextExtractorPort[] = []) {
   let id = 0;
   const deps = { clock: { nowMs: () => 0 }, idGen: { newId: () => `doc-${++id}` },
     mediaRepo: new InMemoryMediaRepo({}), blobRepo: new InMemoryAssetBlobRepo({}),
-    renditionRepo: new InMemoryAssetRenditionRepo({}), blobStore: new InMemoryBlobStore(), documentTextExtractors: extractors };
+    renditionRepo: new InMemoryAssetRenditionRepo({}), blobStore: new InMemoryBlobStore(), blobFence: passthroughBlobFence, documentTextExtractors: extractors };
   const { media } = await uploadMedia({ deps, input: { workspaceId: 'site', filename: 'guide.pdf', kind: 'document',
     contentType: 'application/pdf', bytes: Buffer.from('%PDF-1.7\nfixture'), createdByPrincipal: 'owner' } });
   return { deps, input: { workspaceId: 'site', id: media.id } };

@@ -1,4 +1,5 @@
 import { expect, test } from 'vitest';
+import { passthroughBlobFence } from "./support/passthrough-blob-fence.js";
 import { readDocumentText } from '../document-read.js';
 import { uploadMedia } from '../media-service.js';
 import { InMemoryAssetBlobRepo, InMemoryAssetRenditionRepo, InMemoryMediaRepo } from '../repo.memory.js';
@@ -7,7 +8,7 @@ import { InMemoryBlobStore } from '../blob-store.memory.js';
 test('a host without size probing can read an empty text page at EOF with exact byte offsets', async () => {
   const blobStore = new InMemoryBlobStore();
   const deps = { mediaRepo: new InMemoryMediaRepo({}), blobRepo: new InMemoryAssetBlobRepo({}),
-    renditionRepo: new InMemoryAssetRenditionRepo({}), blobStore,
+    renditionRepo: new InMemoryAssetRenditionRepo({}), blobStore, blobFence: passthroughBlobFence,
     clock: { nowMs: () => 0 }, idGen: { newId: () => 'doc' } };
   const { media } = await uploadMedia({ deps, input: { workspaceId: 'site', filename: 'guide.md', kind: 'document',
     contentType: 'text/markdown', bytes: Buffer.from('é'), createdByPrincipal: 'owner' } });
@@ -24,7 +25,7 @@ test('a host without size probing can read an empty text page at EOF with exact 
 test('document text reads limit concurrent byte loads and release capacity after a failure', async () => {
   const blobStore = new InMemoryBlobStore();
   const deps = { mediaRepo: new InMemoryMediaRepo({}), blobRepo: new InMemoryAssetBlobRepo({}),
-    renditionRepo: new InMemoryAssetRenditionRepo({}), blobStore,
+    renditionRepo: new InMemoryAssetRenditionRepo({}), blobStore, blobFence: passthroughBlobFence,
     clock: { nowMs: () => 0 }, idGen: { newId: () => 'doc' } };
   const { media } = await uploadMedia({ deps, input: { workspaceId: 'site', filename: 'guide.md', kind: 'document',
     contentType: 'text/markdown', bytes: Buffer.from('hello'), createdByPrincipal: 'owner' } });

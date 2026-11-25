@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { passthroughBlobFence } from "./support/passthrough-blob-fence.js";
 import { createHash } from "node:crypto";
 import { test } from "vitest";
 
@@ -46,7 +47,7 @@ function fakeDeps(
     mediaRepo,
     assetBlobRepo,
     assetRenditionRepo,
-    blobStore: new InMemoryBlobStore(),
+    blobStore: new InMemoryBlobStore(), blobFence: passthroughBlobFence,
     ...overrides,
   };
   return { deps, mediaRepo, assetBlobRepo, assetRenditionRepo };
@@ -350,7 +351,7 @@ test("m1: a legacy document without provenance keeps its metadata without invent
 
 async function seedDocument(deps: MediaToolDeps, filename: string, body: string): Promise<MediaRecord> {
   const { media } = await uploadMedia({
-    deps: { clock: deps.clock, idGen: deps.idGen, mediaRepo: deps.mediaRepo, blobRepo: deps.assetBlobRepo, renditionRepo: deps.assetRenditionRepo, blobStore: deps.blobStore },
+    deps: { clock: deps.clock, idGen: deps.idGen, mediaRepo: deps.mediaRepo, blobRepo: deps.assetBlobRepo, renditionRepo: deps.assetRenditionRepo, blobStore: deps.blobStore, blobFence: deps.blobFence },
     input: { workspaceId: WORKSPACE_ID, kind: "document", filename, contentType: "application/octet-stream", bytes: Buffer.from(body), createdByPrincipal: "uploader" },
   });
   return media;

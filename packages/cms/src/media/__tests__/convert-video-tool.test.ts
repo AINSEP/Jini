@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { passthroughBlobFence } from "./support/passthrough-blob-fence.js";
 import { test } from "vitest";
 import type { ToolExecutionContext } from "@jini-ai/core";
 import { buildMediaRegistrations, type MediaToolDeps } from "../tool-registrations.js";
@@ -22,7 +23,7 @@ function deps(): MediaToolDeps {
     mediaRepo: new InMemoryMediaRepo({}),
     assetBlobRepo: new InMemoryAssetBlobRepo({}),
     assetRenditionRepo: new InMemoryAssetRenditionRepo({}),
-    blobStore: new InMemoryBlobStore(),
+    blobStore: new InMemoryBlobStore(), blobFence: passthroughBlobFence,
   };
 }
 const mp4 = (marker: number) => { const bytes = new Uint8Array(32); bytes.set([0, 0, 0, 16], 0); bytes.set(Buffer.from("ftypisom"), 4); bytes.fill(marker, 16); return bytes; };

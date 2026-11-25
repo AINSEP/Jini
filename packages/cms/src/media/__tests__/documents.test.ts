@@ -1,4 +1,5 @@
 /** Library L1 steps 2–4: documents extend media's lifecycle; no second storage owner. */
+import { passthroughBlobFence } from "./support/passthrough-blob-fence.js";
 import assert from 'node:assert/strict';
 import { test } from 'vitest';
 import { uploadMedia, listMedia, updateMediaMetadata, trashMedia, purgeMedia } from '../media-service.js';
@@ -13,7 +14,7 @@ function fixture() {
   let id = 0;
   return { clock: { nowMs: () => Date.parse('2026-10-18T00:00:00Z') }, idGen: { newId: () => `doc-${++id}` },
     mediaRepo: new InMemoryMediaRepo({}), blobRepo: new InMemoryAssetBlobRepo({}),
-    renditionRepo: new InMemoryAssetRenditionRepo({}), blobStore: new InMemoryBlobStore(),
+    renditionRepo: new InMemoryAssetRenditionRepo({}), blobStore: new InMemoryBlobStore(), blobFence: passthroughBlobFence,
     journalRepo: new InMemoryBlobGcJournalRepo({}), referenceCheck: { findReferences: async () => [] } };
 }
 const input = { workspaceId: 'site-a', filename: 'guide.md', kind: 'document' as const,

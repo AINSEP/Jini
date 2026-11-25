@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { passthroughBlobFence } from "./support/passthrough-blob-fence.js";
 import { createHash } from 'node:crypto';
 import { test } from 'vitest';
 import { replaceMediaFile, type MediaFileReplacementRepoPort } from '../replace-media-file.js';
@@ -18,7 +19,7 @@ async function fixture() {
   const deps = {
     workspaceId: 'workspace', clock: { nowMs: () => Date.parse('2026-10-17T00:00:00Z') },
     idGen: { newId: () => `id-${++ids}` }, mediaRepo, assetBlobRepo: new InMemoryAssetBlobRepo({}),
-    blobStore: new InMemoryBlobStore(), mediaContentTypeStore: { set: async (_input: unknown) => {} },
+    blobStore: new InMemoryBlobStore(), blobFence: passthroughBlobFence, mediaContentTypeStore: { set: async (_input: unknown) => {} },
   };
   const { media } = await uploadMedia({ deps: { ...deps, blobRepo: deps.assetBlobRepo, renditionRepo: new InMemoryAssetRenditionRepo({}) },
     input: { workspaceId: deps.workspaceId, filename: 'original.png', bytes: new Uint8Array([1]), contentType: 'image/png', createdByPrincipal: 'creator' } });

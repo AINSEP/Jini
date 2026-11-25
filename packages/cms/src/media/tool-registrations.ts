@@ -1,4 +1,5 @@
 import { DocumentTextExtractionError, type DocumentTextExtractorPort } from './document-text.js';
+import type { BlobGc } from "./blob-gc-fence.js";
 import { readDocumentText } from "./document-read.js";
 import { documentContentType, documentDisplayFilename } from "./document-ingress.js";
 import { listMediaPage, type MediaListTypeStore } from './list-page.js';
@@ -62,6 +63,8 @@ export interface MediaToolDeps {
   assetBlobRepo: AssetBlobRepoPort;
   assetRenditionRepo: AssetRenditionRepoPort;
   blobStore: BlobStorePort;
+  /** The cross-process blob fence (`createBlobGc(...)`) every media byte write runs under. */
+  blobFence: Pick<BlobGc, "claimWrite">;
   /** Optional format adapters; SDKs are loaded only when library_read extracts that format. */
   documentTextExtractors?: readonly DocumentTextExtractorPort[] | undefined;
   /**
@@ -278,6 +281,7 @@ function mediaUploadHandlers(routeDeps: MediaToolDeps): Record<string, ToolHandl
     blobRepo: routeDeps.assetBlobRepo,
     renditionRepo: routeDeps.assetRenditionRepo,
     blobStore: routeDeps.blobStore,
+    blobFence: routeDeps.blobFence,
   });
 
   return {
@@ -383,6 +387,7 @@ export function buildMediaRegistrations(required: Omit<MediaToolDeps, "resolvePu
     assetBlobRepo: required.assetBlobRepo,
     assetRenditionRepo: required.assetRenditionRepo,
     blobStore: required.blobStore,
+    blobFence: required.blobFence,
     documentTextExtractors: required.documentTextExtractors,
     ...optional,
   };

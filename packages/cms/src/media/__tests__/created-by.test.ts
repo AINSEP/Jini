@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { passthroughBlobFence } from "./support/passthrough-blob-fence.js";
 import { test } from "vitest";
 import { uploadMedia, updateMediaMetadata, trashMedia } from "../media-service.js";
 import { InMemoryMediaRepo, InMemoryAssetBlobRepo, InMemoryAssetRenditionRepo } from "../repo.memory.js";
@@ -13,7 +14,7 @@ test("createdBy stamps each acting principal despite sharing a blob, and survive
     clock: { nowMs: () => Date.parse("2026-10-04T00:00:00Z") },
     idGen: { newId: () => `creator-test-${++id}` },
     mediaRepo: new InMemoryMediaRepo({}), blobRepo: new InMemoryAssetBlobRepo({}),
-    renditionRepo: new InMemoryAssetRenditionRepo({}), blobStore: new InMemoryBlobStore(),
+    renditionRepo: new InMemoryAssetRenditionRepo({}), blobStore: new InMemoryBlobStore(), blobFence: passthroughBlobFence,
   };
   const media = [];
   for (const principal of ["owner", "user-2", "agent-3", "plugin-4"]) {

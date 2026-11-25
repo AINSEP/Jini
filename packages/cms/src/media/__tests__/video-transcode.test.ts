@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { passthroughBlobFence } from "./support/passthrough-blob-fence.js";
 import { test } from "vitest";
 import { InMemoryAssetBlobRepo, InMemoryAssetRenditionRepo, InMemoryMediaRepo } from "../repo.memory.js";
 import { InMemoryBlobStore } from "../blob-store.memory.js";
@@ -70,7 +71,7 @@ async function harness({ result, original = mp4Bytes({ marker: 1 }), onTranscode
   const deps: ConvertMediaVideoDeps = {
     clock: { nowMs: () => Date.parse("2026-11-23T00:00:00.000Z") },
     idGen: { newId: () => `id-${++counter}` },
-    mediaRepo, blobRepo, renditionRepo, blobStore, transcoder,
+    mediaRepo, blobRepo, renditionRepo, blobStore, blobFence: passthroughBlobFence, transcoder,
     linkDerivedMedia: async (link) => { links.push(link); },
     randomHex: ({ bytes }) => "ab".repeat(bytes),
   };

@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { passthroughBlobFence } from "./support/passthrough-blob-fence.js";
 import { test } from 'vitest';
 import type { ToolExecutionContext } from '@jini-ai/core';
 import { buildMediaRegistrations, type MediaToolDeps } from '../tool-registrations.js';
@@ -11,7 +12,7 @@ function fixture(optional: Pick<MediaToolDeps, 'listContentTypes'> = {}) {
   const deps: MediaToolDeps = { workspaceId: 'site', authorize: async () => ({ allowed: true, reason: 'matched' }),
     clock: { nowMs: () => Date.parse('2026-10-28T00:00:00Z') }, idGen: { newId: () => `id-${++id}` },
     mediaRepo: new InMemoryMediaRepo({}), assetBlobRepo: new InMemoryAssetBlobRepo({}),
-    assetRenditionRepo: new InMemoryAssetRenditionRepo({}), blobStore: new InMemoryBlobStore() };
+    assetRenditionRepo: new InMemoryAssetRenditionRepo({}), blobStore: new InMemoryBlobStore(), blobFence: passthroughBlobFence };
   const tools = buildMediaRegistrations(deps, optional);
   const call = async (name: string, input: Record<string, unknown> = {}) => tools.find(t => t.descriptor.id === name)!.handler({
     input, executionId: 'exec', principal: { id: 'owner' }, run: { id: 'run' }, signal: new AbortController().signal,

@@ -6,6 +6,7 @@
  * assistant a tool it cannot run. The conversion is costly (minutes of CPU) and adds a library
  * item, so the entry declares approval metadata: the owner confirms each call directly.
  */
+import type { BlobGc } from "./blob-gc-fence.js";
 import type { AuthorizeFn } from "@jini-ai/core/contracts/events";
 import type { Clock, IdGenerator } from "@jini-ai/core/primitives";
 import { buildDomainRegistrations, indexCatalogById, requireInputRecord, requireString, type AgentToolDefinition, type AgentToolSideEffect, type ToolRegistration } from "@jini-ai/core";
@@ -59,6 +60,8 @@ export interface ConvertVideoToolDeps extends VideoConversionToolOptions {
   assetBlobRepo: AssetBlobRepoPort;
   assetRenditionRepo: AssetRenditionRepoPort;
   blobStore: BlobStorePort;
+  /** The cross-process blob fence (`createBlobGc(...)`) every media byte write runs under. */
+  blobFence: Pick<BlobGc, "claimWrite">;
 }
 
 /**
@@ -70,7 +73,7 @@ export interface ConvertVideoToolDeps extends VideoConversionToolOptions {
 export function buildConvertVideoRegistrations(deps: ConvertVideoToolDeps, _optional: Record<string, never> = {}): ToolRegistration[] {
   const conversionDeps = {
     clock: deps.clock, idGen: deps.idGen, mediaRepo: deps.mediaRepo, blobRepo: deps.assetBlobRepo,
-    renditionRepo: deps.assetRenditionRepo, blobStore: deps.blobStore, transcoder: deps.transcoder,
+    renditionRepo: deps.assetRenditionRepo, blobStore: deps.blobStore, blobFence: deps.blobFence, transcoder: deps.transcoder,
     linkDerivedMedia: deps.linkDerivedMedia, randomHex: deps.randomHex,
   };
   return buildDomainRegistrations({

@@ -76,6 +76,8 @@ import {
 } from "./types.js";
 import type { AssetBlobRepoPort, AssetRenditionRepoPort, BlobStorePort, MediaRepoPort, MediaReferenceCheckPort } from "./ports.js";
 import { withSha256Lock } from "./blob-gc-lock.js";
+import type { BlobGc } from "./blob-gc-fence.js";
+import { computeBlobStorageKey } from "./blob-key.js";
 import { tombstoneBlobIfUnreferenced } from "./blob-gc.js";
 import { describeMediaHtmlAttributeError, parseMediaHtmlAttributes } from "./html-attributes.js";
 
@@ -284,6 +286,9 @@ export interface UploadMediaDeps {
   blobRepo: AssetBlobRepoPort;
   renditionRepo: AssetRenditionRepoPort;
   blobStore: BlobStorePort;
+  /** The cross-process blob fence (`createBlobGc(...)`): the byte write and the rows that own the
+   *  bytes are published under it, so no unlinker in any process can remove them in between. */
+  blobFence: Pick<BlobGc, "claimWrite">;
   documentArchiveReader?: DocumentArchiveReaderPort | undefined;
 }
 
@@ -445,8 +450,22 @@ export async function uploadMedia(
   const sha256 = createHash("sha256").update(bytes).digest("hex");
   const nowIso = kernelNowIso({ clock: deps.clock });
 
-  const storageKey = await withSha256Lock({ key: sha256, criticalSection: () => claimUploadBlob({ deps, input, kind, sha256, bytes, nowIso }) });
+  const fenceTarget = { workspaceId: input.workspaceId, sha256, storageKey: computeBlobStorageKey({ workspaceId: input.workspaceId, sha256 }), kind: "original" as const };
+  // Lock order: the in-process hash lock wraps the cross-process fence, never the reverse. The
+  // fence stays held until the media and original-rendition rows exist, because those rows are
+  // what a purge in another process reads as ownership before it tombstones or unlinks the bytes.
+  const media = await withSha256Lock({ key: sha256, criticalSection: () => deps.blobFence.claimWrite({ ...fenceTarget, work: async () => {
+    const storageKey = await claimUploadBlob({ deps, input, kind, sha256, bytes, nowIso });
+    return publishUploadedMedia(deps, { input, kind, sha256, bytes, nowIso, provenance, storageKey });
+  } }) });
+  return { media };
+}
 
+/** Saves the media row and its original rendition; runs inside the blob fence (see `uploadMedia`). */
+async function publishUploadedMedia(
+  deps: UploadMediaRequired["deps"],
+  { input, kind, sha256, bytes, nowIso, provenance, storageKey }: { input: UploadMediaRequired["input"]; kind: UploadKind; sha256: string; bytes: Uint8Array; nowIso: string; provenance: ReturnType<typeof safeMediaProvenance>; storageKey: string },
+): Promise<MediaRecord> {
   const title = deriveTitleFromFilename(input.filename);
   const slug = await deriveUniqueMediaSlug(deps.mediaRepo, input.workspaceId, title);
 
@@ -481,7 +500,7 @@ export async function uploadMedia(
 
   await saveOriginalRendition(deps, { input, media, storageKey, nowIso });
 
-  return { media };
+  return media;
 }
 
 // ---------------------------------------------------------------------------

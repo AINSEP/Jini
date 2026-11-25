@@ -1,4 +1,5 @@
 import { afterEach, expect, test, vi } from "vitest";
+import { passthroughBlobFence } from "./media/__tests__/support/passthrough-blob-fence.js";
 import type { Request, Response } from "express";
 import type { ToolExecutionContext } from "@jini-ai/core";
 import { createConsoleLogger } from "@jini-ai/core/primitives";
@@ -154,10 +155,10 @@ test.each(["DOCUMENT_TEXT_UNAVAILABLE", "DOCUMENT_TEXT_FAILED"] as const)("H: li
   const bytes = Buffer.from("%PDF-1.7\n%%EOF");
   const deps: MediaToolDeps = { workspaceId: "ws", authorize: async () => ({ allowed: true, reason: "matched" }),
     clock: { nowMs: () => 0 }, idGen: { newId: () => "id" }, mediaRepo, assetBlobRepo: blobRepo,
-    assetRenditionRepo: new InMemoryAssetRenditionRepo({}), blobStore,
+    assetRenditionRepo: new InMemoryAssetRenditionRepo({}), blobStore, blobFence: passthroughBlobFence,
     documentTextExtractors: [{ contentType: "application/pdf", extract: async () => { throw new DocumentTextExtractionError({ code, message: SECRET, cause: failure() }); } }] };
   const { media } = await uploadMedia({ deps: { clock: deps.clock, idGen: deps.idGen, mediaRepo, blobRepo,
-    renditionRepo: deps.assetRenditionRepo, blobStore }, input: { workspaceId: "ws", kind: "document", filename: "guide.pdf",
+    renditionRepo: deps.assetRenditionRepo, blobStore, blobFence: passthroughBlobFence }, input: { workspaceId: "ws", kind: "document", filename: "guide.pdf",
     contentType: "application/octet-stream", bytes, createdByPrincipal: "actor" } });
   const tool = buildMediaRegistrations(deps).find(row => row.descriptor.id === "library_read")!;
   const context: ToolExecutionContext = { executionId: "exec", principal: { id: "actor" }, run: { id: "run" }, input: { documentId: media.id }, signal: new AbortController().signal };

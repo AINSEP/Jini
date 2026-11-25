@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { passthroughBlobFence } from "../../__tests__/support/passthrough-blob-fence.js";
 import { test } from "vitest";
 
 import { InMemoryAssetBlobRepo, InMemoryAssetRenditionRepo, InMemoryBlobStore, InMemoryMediaRepo, uploadMedia } from "../../index.js";
@@ -37,7 +38,7 @@ function makeDeps() {
     clock: { nowMs: () => Date.parse("2026-11-25T00:00:00.000Z"), nowIso: () => "2026-11-25T00:00:00.000Z" },
     idGen: { newId: () => `id-${++n}` },
     mediaRepo: new InMemoryMediaRepo({}), assetBlobRepo: new InMemoryAssetBlobRepo({}),
-    assetRenditionRepo: new InMemoryAssetRenditionRepo({}), blobStore: new InMemoryBlobStore(),
+    assetRenditionRepo: new InMemoryAssetRenditionRepo({}), blobStore: new InMemoryBlobStore(), blobFence: passthroughBlobFence,
   };
 }
 
@@ -46,7 +47,7 @@ async function seed({ bytes, contentType }: { bytes: Uint8Array; contentType: st
   const deps = makeDeps();
   const { media } = await uploadMedia({
     deps: { clock: deps.clock, idGen: deps.idGen, mediaRepo: deps.mediaRepo, blobRepo: deps.assetBlobRepo,
-      renditionRepo: deps.assetRenditionRepo, blobStore: deps.blobStore },
+      renditionRepo: deps.assetRenditionRepo, blobStore: deps.blobStore, blobFence: deps.blobFence },
     input: { workspaceId: WORKSPACE_ID, bytes, filename: "source", contentType, alt: "", caption: "", credit: "", createdByPrincipal: "p" },
   }, { maxUploadBytes: VIDEO_CAP, maxVideoUploadBytes: VIDEO_CAP });
   return { deps, source: media };

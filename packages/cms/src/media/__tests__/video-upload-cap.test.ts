@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { passthroughBlobFence } from "./support/passthrough-blob-fence.js";
 import { test } from "vitest";
 import { uploadMedia } from "../media-service.js";
 import { replaceMediaFile, type MediaFileReplacementRepoPort } from "../replace-media-file.js";
@@ -16,7 +17,7 @@ function fixture() {
     saveRenditionIfSource: async () => ({ applied: true }),
   });
   const assetBlobRepo = new InMemoryAssetBlobRepo({});
-  const base = { clock: { nowMs: () => Date.parse("2026-11-25T00:00:00Z") }, idGen: { newId: () => `id-${++ids}` }, blobStore: new InMemoryBlobStore() };
+  const base = { clock: { nowMs: () => Date.parse("2026-11-25T00:00:00Z") }, idGen: { newId: () => `id-${++ids}` }, blobStore: new InMemoryBlobStore(), blobFence: passthroughBlobFence };
   return {
     uploadDeps: { ...base, mediaRepo, blobRepo: assetBlobRepo, renditionRepo: new InMemoryAssetRenditionRepo({}) },
     replaceDeps: { ...base, workspaceId: "ws", mediaRepo, assetBlobRepo },

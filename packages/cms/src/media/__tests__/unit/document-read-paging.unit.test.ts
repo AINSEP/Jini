@@ -1,4 +1,5 @@
 import { expect, test, vi } from 'vitest';
+import { passthroughBlobFence } from "../support/passthrough-blob-fence.js";
 import { createDocumentTextReader } from '../../document-read.js';
 import { uploadMedia } from '../../media-service.js';
 import { InMemoryMediaRepo, InMemoryAssetBlobRepo, InMemoryAssetRenditionRepo } from '../../repo.memory.js';
@@ -9,7 +10,7 @@ async function fixture(extractor?: DocumentTextExtractorPort) {
   let id = 0;
   const blobStore = new InMemoryBlobStore();
   const deps = { mediaRepo: new InMemoryMediaRepo({}), blobRepo: new InMemoryAssetBlobRepo({}),
-    renditionRepo: new InMemoryAssetRenditionRepo({}), blobStore,
+    renditionRepo: new InMemoryAssetRenditionRepo({}), blobStore, blobFence: passthroughBlobFence,
     clock: { nowMs: () => 0 }, idGen: { newId: () => `document-${++id}` },
     documentTextExtractors: extractor ? [extractor] : [] };
   const text = 'é'.repeat(40_000);
