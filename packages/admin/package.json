@@ -730,7 +730,8 @@
       "./screens/media/api/media-api": "universal",
       "./screens/media/media-providers-port": "universal",
       "./screens/media/hooks/fake-media-port": "browser",
-      "./screens/media/media-tabs.hooks": "browser"
+      "./screens/media/media-tabs.hooks": "browser",
+      "./screens/media/hooks/use-media-preview.hooks": "browser"
     },
     "isolation": {
       "shared": [
@@ -1015,7 +1016,6 @@
         "./screens/email/hooks/use-email-template-view.hooks": "browser",
         "./screens/media/hooks/use-media-card-metadata.hooks": "media",
         "./screens/settings/rules": "universal",
-        "./screens/media/rules": "universal",
         "./shell/components/SecretInput/SecretInput": "browser",
         "./screens/media/api/media-api": "universal",
         "./screens/media/media-providers-port": "universal",
@@ -4549,6 +4549,11 @@
       "types": "./dist/screens/media/media-tabs.hooks.d.ts",
       "import": "./dist/screens/media/media-tabs.hooks.js",
       "default": "./dist/screens/media/media-tabs.hooks.js"
+    },
+    "./screens/media/hooks/use-media-preview.hooks": {
+      "types": "./dist/screens/media/hooks/use-media-preview.hooks.d.ts",
+      "import": "./dist/screens/media/hooks/use-media-preview.hooks.js",
+      "default": "./dist/screens/media/hooks/use-media-preview.hooks.js"
     }
   },
   "files": [
