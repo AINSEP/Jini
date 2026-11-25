@@ -73,7 +73,7 @@ const SPECS: Record<string, ServerSpec | BrowserSpec> = {
   'payments-stripe': { contract: 'payments', id: 'stripe', validate: port => paymentsProviderContract.validate({ provider: port }) === undefined,
     input: () => ({}), context: paymentsProviderContract.context,
     standaloneOptions: '{ context: { paymentError: required => required, moneyProblem: () => null } }' },
-  'xai-grok-imagine': { contract: 'media', id: 'xai-grok-imagine', validate: port => (port as { provider?: { id?: string } })?.provider?.id === 'xai-grok-imagine',
+  'xai-grok-imagine': { contract: 'media', id: 'xai_grok_imagine', validate: port => (port as { provider?: { id?: string } })?.provider?.id === 'xai-grok-imagine',
     input: () => ({}), context: { mediaWire: fakeWire },
     standaloneOptions: `{ context: { mediaWire: Object.fromEntries(${JSON.stringify(Object.keys(fakeWire))}.map(name => [name, () => ({})])) } }` },
   'observability-opentelemetry': { contract: 'observability', id: 'opentelemetry', validate: port => observabilityProviderContract.validate({ provider: port }) === undefined,

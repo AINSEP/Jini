@@ -9,7 +9,7 @@
     "jini": { "id": "jini/xai-grok-imagine" }
   },
   "capabilities": ["providers.register"],
-  "contributes": { "providers": [{ "contract": "media", "id": "xai-grok-imagine", "contractVersion": 1, "settings": [] }] },
+  "contributes": { "providers": [{ "contract": "media", "id": "xai_grok_imagine", "contractVersion": 1, "settings": [] }] },
   "hooks": [],
   "fields": [],
   "integrity": {}

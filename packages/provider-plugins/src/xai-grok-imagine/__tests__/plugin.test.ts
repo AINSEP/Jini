@@ -7,7 +7,7 @@ it('registers one media factory on setup and builds the contribution from the in
   const register = vi.fn();
   plugin.definition.setup({ providers: { register } } as never);
   expect(register).toHaveBeenCalledTimes(1);
-  expect(register).toHaveBeenCalledWith({ contract: 'media', id: 'xai-grok-imagine', contractVersion: 1, factory: createXaiMediaProvider });
+  expect(register).toHaveBeenCalledWith({ contract: 'media', id: 'xai_grok_imagine', contractVersion: 1, factory: createXaiMediaProvider });
   const resource = createXaiMediaProvider({}, { context: { mediaWire: fakeWire } });
   expect(resource.port.provider.id).toBe('xai-grok-imagine');
   expect(resource.dispose({})).toBeUndefined();
@@ -24,7 +24,7 @@ it('declares the media contribution in its manifest, with no credential settings
   expect(manifest).toMatchObject({
     id: 'xai-grok-imagine', name: 'xAI Grok Imagine media provider', sdkRange: '^0.1.0 || ^1.0.0', engine: 1, tier: 'tier-3',
     extensions: { jini: { id: 'jini/xai-grok-imagine' } }, capabilities: ['providers.register'], hooks: [], fields: [], integrity: {},
-    contributes: { providers: [{ contract: 'media', id: 'xai-grok-imagine', contractVersion: 1, settings: [] }] },
+    contributes: { providers: [{ contract: 'media', id: 'xai_grok_imagine', contractVersion: 1, settings: [] }] },
   });
 });
 

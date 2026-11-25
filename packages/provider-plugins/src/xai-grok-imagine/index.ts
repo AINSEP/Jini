@@ -42,7 +42,8 @@ export function createXaiMediaProvider(_required: Readonly<Record<string, unknow
 export default {
   definition: {
     setup(sdk: PluginSdk): void {
-      sdk.providers.register({ contract: 'media', id: 'xai-grok-imagine', contractVersion: 1, factory: createXaiMediaProvider });
+      // The shared provider-id grammar forbids hyphens, so the registered id is the media registry key (`-` -> `_`) of the public id.
+      sdk.providers.register({ contract: 'media', id: 'xai_grok_imagine', contractVersion: 1, factory: createXaiMediaProvider });
     },
   },
 };
