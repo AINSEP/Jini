@@ -87,7 +87,7 @@ it.each(['{broken', '[]', '{"permissions":[]}', '{"permissions":null}', '{"permi
 it('launch preparation authorizes the Jini bridge before returning delivery, and fails closed on setup errors', async () => {
   let release!: () => void;
   const gate = new Promise<void>(resolve => { release = resolve; });
-  const authorize = vi.fn(async (_required: { serverName: string }) => { await gate; });
+  const authorize = vi.fn(async (_required: { serverName: string; delivery: unknown }) => { await gate; });
   const cleanupStagedFiles = vi.fn(async () => {});
   const failBeforeSpawn = vi.fn(async (input: { message: string }): Promise<never> => { throw new Error(input.message); });
   const input = { nativeCapabilities: { userMcp: true }, runId: 'run', cwd: '/isolated', def: { id: 'antigravity', externalMcpInjection: 'env-passthrough' } as RuntimeAgentDef };
@@ -106,7 +106,7 @@ it('launch preparation authorizes the Jini bridge before returning delivery, and
   authorize.mockClear();
   await resolveMcpBridgeForRun({ input, deps: { ...deps, mcpJsonInjection: undefined } });
   // With no injection configured the slot sees no delivery (the binding's own early return is pinned in agent-runtime).
-  expect(authorize.mock.calls.map(([required]) => (required as { delivery: unknown }).delivery)).toEqual([null]);
+  expect(authorize.mock.calls.map(([required]) => required.delivery)).toEqual([null]);
   authorize.mockClear();
   const { mcpBridge: _unbound, ...unbound } = deps;
   await resolveMcpBridgeForRun({ input: { ...input, def: { ...input.def, id: 'another-agent' } }, deps: unbound });
