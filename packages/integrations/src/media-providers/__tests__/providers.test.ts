@@ -85,9 +85,9 @@ describe('provider catalogue shape', () => {
     const claimedButUnregistered = MEDIA_PROVIDERS.filter(
       (provider) => provider.integrated && providerIdsWithModels.has(provider.id) && !registeredProviderIds.has(provider.id),
     ).map((provider) => provider.id);
-    // The xAI row is a vendor-plugin contribution (its adapters live in @jini-ai/provider-plugins/xai/media), so
-    // no built-in registers it; every other integrated provider with models must still have a built-in adapter.
-    expect(claimedButUnregistered).toEqual(['grok']);
+    // The xAI row is not in this catalogue at all: the xai vendor plugin (@jini-ai/provider-plugins/xai/media)
+    // contributes its own row, models and adapters, so every catalogued integrated provider has a built-in adapter.
+    expect(claimedButUnregistered).toEqual([]);
   });
 });
 

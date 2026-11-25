@@ -32,24 +32,25 @@ const SURFACES: { surface: MediaSurface; audioKind?: AudioKind }[] = [
 ];
 
 describe('builtin contribution = today\'s catalogue', () => {
-  // The one integrated row no built-in adapter serves: a vendor plugin contributes its adapters at the host.
-  const PLUGIN_SERVED = 'grok';
-  const builtinRows = MEDIA_PROVIDERS.filter(provider => provider.id !== PLUGIN_SERVED);
+  // No catalogued row is plugin-served any more (the xai plugin carries its own row), so a vendor plugin's
+  // contribution is modelled here as a row the catalogue does not hold.
+  const PLUGIN_SERVED = 'plugin_fake';
+  const builtinRows = MEDIA_PROVIDERS;
   const builtinOnly = createMediaProviderRegistry();
-  // The same catalogue once the host has contributed the plugin-served row (adapters are irrelevant to catalogue shape).
-  const registry = createMediaProviderRegistry({}, { contributions: [...builtinMediaProviderContributions(), catalogMediaProviderContribution({ providerId: PLUGIN_SERVED, adapters: {} })] });
+  const pluginRow = { ...MEDIA_PROVIDERS[0]!, id: PLUGIN_SERVED, label: 'Plugin fake' };
+  const registry = createMediaProviderRegistry({}, { contributions: [...builtinMediaProviderContributions(), { provider: pluginRow, models: [], adapters: {} }] });
 
-  it('lists every MEDIA_PROVIDERS entry but the plugin-served row in order, keyed by the hyphen-free registry id', () => {
+  it('lists every MEDIA_PROVIDERS entry in order, keyed by the hyphen-free registry id', () => {
     expect(builtinOnly.listProviders()).toEqual(builtinRows);
     expect(builtinOnly.providers.contract).toBe(MEDIA_PROVIDER_CONTRACT);
     expect(builtinOnly.providers.has({ id: 'custom_image' })).toBe(true);
-    expect(builtinOnly.providers.has({ id: PLUGIN_SERVED })).toBe(false);
+    expect(builtinOnly.providers.has({ id: 'grok' })).toBe(false);
     expect(builtinOnly.providers.list().map(entry => entry.origin)).toEqual(builtinRows.map(() => 'core'));
   });
 
-  it('with the plugin-served row contributed, models list in the static catalogue order', () => {
-    expect(registry.listProviders()).toHaveLength(MEDIA_PROVIDERS.length);
-    expect(registry.findProvider({ id: PLUGIN_SERVED })).toEqual(findProvider({ id: PLUGIN_SERVED }));
+  it('with a plugin row contributed, the registry lists it after the static catalogue', () => {
+    expect(registry.listProviders()).toHaveLength(MEDIA_PROVIDERS.length + 1);
+    expect(registry.findProvider({ id: PLUGIN_SERVED })).toEqual(pluginRow);
   });
 
   it('refuses a catalogue contribution for a provider the catalogue does not hold', () => {
