@@ -154,7 +154,7 @@ test("createEntry: a principal holding ONLY an entry-scoped admin.collections.ma
 
   const result = await createEntry({
     deps: { entryRepo, contentTypeRepo, clock, ids, authorize, outbox },
-    input: { workspaceId: WORKSPACE, actorId: "scoped1", type: "recipe", slug: "chili", title: "Chili", fieldsJson: { ext: { site: {} } } },
+    input: { workspaceId: WORKSPACE, actorId: "scoped1", actor: { id: "scoped1", kind: "user" }, type: "recipe", slug: "chili", title: "Chili", fieldsJson: { ext: { site: {} } } },
   });
 
   assert.equal(result.ok, true, "an entry-scoped grant must be sufficient to create an entry, same as the HTTP route's own pre-check already allows");
@@ -171,7 +171,7 @@ test("updateEntry: a principal holding ONLY an entry-scoped admin.collections.ma
 
   const result = await updateEntry({
     deps: { entryRepo, contentTypeRepo, clock, authorize, outbox },
-    input: { workspaceId: WORKSPACE, actorId: "scoped1", id: "entry-1", title: "Updated", expectedVersion: 1 },
+    input: { workspaceId: WORKSPACE, actorId: "scoped1", actor: { id: "scoped1", kind: "user" }, id: "entry-1", title: "Updated", expectedVersion: 1 },
   });
 
   assert.equal(result.ok, true, "an entry-scoped grant must be sufficient to update an entry, same as the HTTP route's own pre-check already allows");
@@ -190,7 +190,7 @@ test("publishEntry/unpublishEntry: a principal holding ONLY an entry-scoped admi
 
     const result = await action({
       deps: { entryRepo, contentTypeRepo, clock, authorize, outbox },
-      input: { workspaceId: WORKSPACE, actorId: "scoped1", id: "entry-1", expectedVersion: 1 },
+      input: { workspaceId: WORKSPACE, actorId: "scoped1", actor: { id: "scoped1", kind: "user" }, id: "entry-1", expectedVersion: 1 },
     });
 
     assert.equal(result.ok, true, `${action.name}: an entry-scoped grant must be sufficient, same as the HTTP route's own pre-check already allows`);
@@ -208,7 +208,7 @@ test("negative control: a principal holding ONLY a post-scoped grant is still de
 
   const result = await createEntry({
     deps: { entryRepo, contentTypeRepo, clock, ids, authorize, outbox },
-    input: { workspaceId: WORKSPACE, actorId: "scoped-wrong", type: "recipe", slug: "chili", title: "Chili", fieldsJson: { ext: { site: {} } } },
+    input: { workspaceId: WORKSPACE, actorId: "scoped-wrong", actor: { id: "scoped-wrong", kind: "user" }, type: "recipe", slug: "chili", title: "Chili", fieldsJson: { ext: { site: {} } } },
   });
 
   assert.equal(result.ok, false);
