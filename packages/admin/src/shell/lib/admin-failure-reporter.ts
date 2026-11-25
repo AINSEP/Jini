@@ -169,7 +169,9 @@ export function createAdminFailureReporter<Channel extends AdminFailureChannelPo
     { details, body, requestId }: { details: Record<string, unknown>; body: unknown; requestId?: unknown },
     _optional = {},
   ): string | undefined {
-    return optionalString(details.errorId ?? record({ value: body }).errorId ?? requestId);
+    // Each source is checked for a string before falling through: a malformed `details.errorId`
+    // (a number, null) must not win the chain and then be dropped, hiding a real lower ID.
+    return optionalString(details.errorId) ?? optionalString(record({ value: body }).errorId) ?? optionalString(requestId);
   }
 
   /** The vocabulary wording for a failed request; a page entry names its route as `/pages/`.
