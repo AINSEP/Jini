@@ -35,12 +35,15 @@ export function indexStatePaths({ root }: { root: string }, _optional: Record<st
 const legacyState = (): LegacyIndexState => ({ schema: IMPORT_INDEX_STATE_SCHEMA, mode: 'legacy', dbId: null, cutoverAt: 0, firstIndexedWriteAt: 0, legacyRetiredAt: 0 });
 const isTime = (value: unknown): value is number => Number.isSafeInteger(value) && (value as number) >= 0;
 
-function modeFieldsValid({ state }: { state: Record<string, unknown> }): boolean {
-  if (state.mode === 'legacy') return state.dbId === null && state.cutoverAt === 0 && state.firstIndexedWriteAt === 0 && state.legacyRetiredAt === 0;
-  const recordedCutover = typeof state.dbId === 'string' && UUID.test(state.dbId) && (state.cutoverAt as number) > 0;
-  if (state.mode === 'cutover') return recordedCutover && state.firstIndexedWriteAt === 0 && state.legacyRetiredAt === 0;
-  return state.mode === 'indexed' && recordedCutover && (state.firstIndexedWriteAt as number) > 0;
+// Each mode's invariant as one list of checks, so every field is judged and nothing is inferred from another.
+function modeChecks({ state }: { state: Record<string, unknown> }): boolean[] {
+  const recordedCutover = [typeof state.dbId === 'string' && UUID.test(state.dbId), (state.cutoverAt as number) > 0];
+  if (state.mode === 'legacy') return [state.dbId === null, state.cutoverAt === 0, state.firstIndexedWriteAt === 0, state.legacyRetiredAt === 0];
+  if (state.mode === 'cutover') return [...recordedCutover, state.firstIndexedWriteAt === 0, state.legacyRetiredAt === 0];
+  return [state.mode === 'indexed', ...recordedCutover, (state.firstIndexedWriteAt as number) > 0];
 }
+
+const modeFieldsValid = ({ state }: { state: Record<string, unknown> }): boolean => modeChecks({ state }).every(Boolean);
 
 /** Strict shape check: an exact key set and per-mode invariants. Nothing is salvaged from a near miss. */
 export function parseIndexState({ value }: { value: unknown }, _optional: Record<string, never> = {}): ImportIndexState | undefined {
