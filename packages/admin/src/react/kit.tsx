@@ -23,7 +23,7 @@ import type { AdminPluginProviderSettingField } from '../screens/plugins/api/plu
 import type { ByokConfig, ExecutionConfig } from '@jini-ai/core/contracts/execution';
 import type { CreateExecutionPortOptions, CursorPages, ExecutionCredentialController, ExecutionCredentialEffects, ExecutionCredentialPort, ExecutionCredentialView,
   ExecutionProbeTransport, FolderPathDropPort, HtmlPreviewPort, HtmlPreviewState, KitSaveState, SettingsSlice, SettingsSliceOptions, SourceConfigItem, SourceFieldSpec,
-  UseExecutionCredentialInput, SecretInputProps } from './kit-ui-types.js';
+  UseExecutionCredentialInput, SecretInputProps, SeeMoreProps, SearchableModelSelectProps, PackageFileTreeController, PackageFileTreeInput, FileDropzoneProps } from './kit-ui-types.js';
 import type { ExecutionPort, ProviderPreset } from '@jini-ai/core/contracts/execution';
 import type { QueryKey } from '@jini-ai/core/fetch';
 
@@ -233,6 +233,13 @@ export interface AdminKitComponents {
   CodeWrapToggle: ComponentType<CodeWrapToggleProps>; PreviewModalShell: ComponentType<PreviewModalShellProps>;
   /** A masked password/token/key input with an eye toggle; every `<input>` prop passes through, and the ref reaches the input. */
   SecretInput: ComponentType<SecretInputProps & { ref?: Ref<HTMLInputElement> }>;
+  /* settings screens' own slots (x8-w3) */
+  /** Clamps long text to N lines with a More/Less toggle. */
+  SeeMore: ComponentType<SeeMoreProps>;
+  /** A model dropdown with a search box once the list is long enough to need one. */
+  SearchableModelSelect: ComponentType<SearchableModelSelectProps>;
+  /** A drag/drop/click-to-browse zone that resolves whatever the user hands it to a flat `File[]`. */
+  FileDropzone: ComponentType<FileDropzoneProps>;
 }
 
 /* ---------- hooks ---------- */
@@ -312,6 +319,8 @@ export interface AdminKitHooks {
   useTabBarKeyboard(required: { tabs: readonly TabBarTab[]; activeId: string; onChange: (id: string) => void }, optional?: Record<string, never>): TabBarKeyboardHandlers;
   useSerialWrites(): SerialWrites;
   useCodeWrap(): CodeWrapController;
+  /** The package-files tree's expansion, focus and keys (the host's agent-plugins hook); `locale` orders siblings the way the host sorts. */
+  useAgentPluginFileTree(required: PackageFileTreeInput, optional?: { locale?: string | string[] | undefined }): PackageFileTreeController;
   useInfoTip(required?: Record<string, never>, optional?: { placement?: 'top' | 'bottom' | undefined }): InfoTipController;
   usePanelPosition(required: {
     open: boolean; triggerRef: RefObject<HTMLButtonElement | null>; panelRef: RefObject<HTMLDivElement | null>;
@@ -494,9 +503,9 @@ export type { FetchQueryEnvironmentPort, QueryKey } from '@jini-ai/core/fetch';
 export type { AddSourceInput, AddSourceResult, CreateExecutionPortOptions, CursorPage, CursorPages, ExecutionCredentialController, ExecutionCredentialEffects,
   ExecutionCredentialPatch, ExecutionCredentialPort, ExecutionCredentialSaveState, ExecutionCredentialView, ExecutionProbeFlags, ExecutionProbeTransport, FolderPathDropPort,
   HtmlPreviewPort, HtmlPreviewState, MemoryConfigFlagKey, MemoryEntrySummary, MemoryExtractionPhase, MemoryExtractionProvider, MemoryExtractionRecord,
-  MemoryExtractionSkipReason, MemoryType, PrivacyConsentState, SecretInputProps, SettingsRefreshScope, SettingsSlice, SettingsSliceOptions, SettingsSliceRefreshPort,
+  MemoryExtractionSkipReason, MemoryType, PrivacyConsentState, SecretInputProps, SearchableModelSelectProps, SeeMoreProps, FileDropzoneProps, SettingsRefreshScope, SettingsSlice, SettingsSliceOptions, SettingsSliceRefreshPort,
   SourceConfigDependencies, SourceConfigItem, SourceConfigPort, SourceConnectionStatus, SourceFieldKind, SourceFieldOption, SourceFieldSpec, SourceFieldValues,
-  SourceTestResult, SourceUpdateInput, TelemetryPreferences, UseExecutionCredentialInput } from './kit-ui-types.js';
+  SourceTestResult, SourceUpdateInput, TelemetryPreferences, UseExecutionCredentialInput, PackageFileTreeController, PackageFileTreeInput, PackageFileTreeRowView } from './kit-ui-types.js';
 /** The standing-draft autosave's port, controller and options (the UI library's panel-kit shapes). */
 export interface StandingDraftAutosavePort {
   getBackupPrincipalId?: (required: Record<string, never>, optional?: Record<string, never>) => string | null;
@@ -522,6 +531,12 @@ export type { AgentInventoryEntry, AgentInventorySnapshot, AgentInventorySnapsho
   AttemptResult, ChatAttachmentValidatorInput, ChatAttachmentValidatorOptions, ComposerDiscoveryArgument, ComposerDiscoveryGroup, ComposerDiscoveryItem, ComposerDiscoveryOutcome,
   ComposerDiscoverySelection, CreateA2uiActionPosterOptions, DeliverTypedAnswer, DurableRunBinding, DurableSubscriptionPorts, ExtEventRenderer, ExtEventRendererOptions,
   ExtEventRendererRegistry, ExtEventSlotKey, LastConversationStorage, LastConversationStore, SaveFailureInput, SaveOutcome, UseAssistantChats, UserTextRedactionOptions } from './kit-chat-types.js';
+export type { FrontendSessionBridge, KitByokRuntimeSummary, KitChatPaneAgentBridgeAccess, KitChatPaneAgentControlOptions, KitChatPaneAgentToolAction, KitChatPaneAttachmentUploadOptions,
+  KitChatPaneComposerSlots, KitChatPaneProps, KitChatPaneRunContext, KitChatPermissionsPort, KitChatSettingsDialogProps, KitChatSettingsSection, KitChatSettingsSegmentedProps,
+  KitA2uiSurfaceCardProps, KitConversationListItem, KitConversationListProps, KitDaemonAttachmentUploaderOptions, KitJiniChatProviderProps,
+  KitMcpUiSurfaceCardProps, KitMcpUiToolCall, KitSurfaceExpiryClock, KitToolCallDisplay, KitUploadAttachments } from './kit-chat-component-types.js';
+import type { KitA2uiSurfaceCardProps, KitChatPaneProps, KitChatSettingsDialogProps, KitChatSettingsSegmentedProps, KitConversationListProps, KitDaemonAttachmentUploaderOptions,
+  KitJiniChatProviderProps, KitMcpUiSurfaceCardProps, KitUploadAttachments } from './kit-chat-component-types.js';
 import type { AgentEvent, ChatAttachment, ChatMessage, ChatPaneAgent, ChatPaneAgentOption, ChatPaneAgentSelection, ChatPaneRuntimeAccess, ChatPaneComposerHandle, ChatRole, ChatRunStatus, ChatTransport, ExtEventCall, ExtEventRenderProps, FabPositionInput, FabPositionResult, FeedbackChange, I18nAdapter, KitA2uiActionDeliveryOutcome, KitA2uiActionPosterInput, KitChatAttachment, KitChatTranslator, KitDeliverMidRunMessage, KitDeliverTypedAnswer, KitMidRunMessageDelivery, KitPosterRequestOptions, KitRedactUserText, KitSecretRedactionSignal, KitTypedAnswerDelivery, KitUserTextRedactionOptions, ReattachRunOptions, RunHandlers, SecretRedactionSignal, StartRunInput, ToolResultMediaBlock } from './kit-chat-types.js';
 import type { AgentInventoryEntry, AgentInventorySnapshot, AgentInventorySnapshotArgs, AssistantChatsClient, AssistantChatsClientPorts, ChatAttachmentValidatorInput,
   ChatAttachmentValidatorOptions, ExtEventRendererRegistry, LastConversationStorage, LastConversationStore } from './kit-chat-types.js';
@@ -569,6 +584,16 @@ export interface AdminKitChat {
   /** Drops attachments whose files no longer exist on the host. */
   createChatAttachmentValidator(required: ChatAttachmentValidatorInput, optional?: Omit<ChatAttachmentValidatorOptions, 'fetchImpl'>)
     : (attachments: readonly ChatAttachment[]) => Promise<readonly ChatAttachment[]>;
+  /** The chat pane, its settings dialog and provider, the conversation switcher and the two ext-event cards (props restated; see `kit-chat-component-types.ts`). */
+  ChatPane: ComponentType<KitChatPaneProps>;
+  ChatSettingsDialog: ComponentType<KitChatSettingsDialogProps>;
+  JiniChatProvider: ComponentType<KitJiniChatProviderProps>;
+  ConversationList: ComponentType<KitConversationListProps>;
+  ChatSettingsSegmented: ComponentType<KitChatSettingsSegmentedProps>;
+  McpUiSurfaceCard: ComponentType<KitMcpUiSurfaceCardProps>;
+  A2uiSurfaceCard: ComponentType<KitA2uiSurfaceCardProps>;
+  /** Uploads composer files to the daemon's attachment route; `baseUrl: ''` keeps the same-origin proxy. */
+  createDaemonAttachmentUploader(required: { baseUrl: string; fetch?: typeof globalThis.fetch }, optional?: KitDaemonAttachmentUploaderOptions): KitUploadAttachments;
 }
 
 export interface AdminKit {
@@ -634,6 +659,9 @@ export const CodeWithLines = slot('CodeWithLines');
 export const CodeWrapToggle = slot('CodeWrapToggle');
 export const PreviewModalShell = slot('PreviewModalShell');
 export const SecretInput = slot('SecretInput');
+export const SeeMore = slot('SeeMore');
+export const SearchableModelSelect = slot('SearchableModelSelect');
+export const FileDropzone = slot('FileDropzone');
 
 export const useAgentHandle: AdminKitHooks['useAgentHandle'] = (r, o) => useAdminKit().hooks.useAgentHandle(r, o);
 export const useFocusTrap: AdminKitHooks['useFocusTrap'] = (r, o) => useAdminKit().hooks.useFocusTrap(r, o);
@@ -655,6 +683,7 @@ export function useSerialWrites(_required: Record<string, never> = {}, _optional
 export function useCodeWrap(_required: Record<string, never> = {}, _optional: Record<string, never> = {}): CodeWrapController {
   return useAdminKit().hooks.useCodeWrap();
 }
+export const useAgentPluginFileTree: AdminKitHooks['useAgentPluginFileTree'] = (r, o) => useAdminKit().hooks.useAgentPluginFileTree(r, o);
 export const useInfoTip: AdminKitHooks['useInfoTip'] = (r, o) => useAdminKit().hooks.useInfoTip(r, o);
 export const usePanelPosition: AdminKitHooks['usePanelPosition'] = (r, o) => useAdminKit().hooks.usePanelPosition(r, o);
 export const useSelectDropdown: AdminKitHooks['useSelectDropdown'] = (r, o) => useAdminKit().hooks.useSelectDropdown(r, o);
@@ -679,6 +708,27 @@ export function useAdminKitChatPosters(_required: Record<string, never> = {}, _o
 }
 
 export const useFabPosition: AdminKitChat['useFabPosition'] = (r, o) => useAdminKit().chat.useFabPosition(r, o);
+/** Builds a same-name facade of one chat component: it renders the kit's implementation, and the kit hook is an injectable prop like `slot`'s. */
+type ChatComponentName = 'ChatPane' | 'ChatSettingsDialog' | 'JiniChatProvider' | 'ConversationList' | 'ChatSettingsSegmented' | 'McpUiSurfaceCard' | 'A2uiSurfaceCard';
+function chatSlot<K extends ChatComponentName>(name: K): ComponentType<ComponentProps<AdminKitChat[K]> & { useAdminKitHook?: typeof useAdminKit }> {
+  return function AdminKitChatSlot({ useAdminKitHook = useAdminKit, ...props }) {
+    const Impl = useAdminKitHook().chat[name] as unknown as ComponentType<Record<string, unknown>>;
+    return <Impl {...props} />;
+  };
+}
+/* Same-name facades of the chat components: each renders the kit's real implementation, so moved admin code imports them from here, never from the chat library. */
+export const ChatPane = chatSlot('ChatPane');
+export const ChatSettingsDialog = chatSlot('ChatSettingsDialog');
+export const JiniChatProvider = chatSlot('JiniChatProvider');
+export const ConversationList = chatSlot('ConversationList');
+export const ChatSettingsSegmented = chatSlot('ChatSettingsSegmented');
+export const McpUiSurfaceCard = chatSlot('McpUiSurfaceCard');
+export const A2uiSurfaceCard = chatSlot('A2uiSurfaceCard');
+/** The attachment uploader factory, read once per render: the injected function, never copied. */
+export function useAdminKitChatRunValues(_required: Record<string, never> = {}, _optional: Record<string, never> = {})
+  : Pick<AdminKitChat, 'createDaemonAttachmentUploader'> {
+  return useAdminKit().chat;
+}
 /** The chat library's plain values (selection resolver and notice copy), read once per render: the injected object, never copied. */
 export function useAdminKitChatValues(_required: Record<string, never> = {}, _optional: Record<string, never> = {})
   : Pick<AdminKitChat, 'resolveChatPaneSelection' | 'SECRET_REDACTED_NOTICE' | 'CREDENTIAL_CARD_GUIDANCE' | 'conversationTitleForDisplay' | 'deriveConversationTitle'

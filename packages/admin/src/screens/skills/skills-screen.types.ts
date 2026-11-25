@@ -96,7 +96,7 @@ export interface SkillDialogClassNames {
   readonly buttonPrimary: string; readonly buttonSecondary: string; readonly buttonDanger: string;
 }
 
-/** The host design-system classes an installed-skill row renders (the shared plugin-row look). */
+/** The host design-system classes an installed-skill row renders (the shared jini-plugin-row look). */
 export interface SkillRowClassNames {
   readonly row: string; readonly rowMain: string; readonly rowSummary: string; readonly rowGlyph: string;
   readonly rowText: string; readonly rowHeading: string; readonly rowName: string; readonly rowDesc: string;

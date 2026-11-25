@@ -43,6 +43,16 @@ const fakeComponents: AdminKitComponents = {
     </select>
   ),
   TabBar: (p) => <div role="tablist" aria-label={p.ariaLabel}>{p.tabs.map((t) => <button key={t.id} type="button" role="tab" aria-selected={t.id === p.activeId} onClick={() => p.onChange(t.id)}>{t.label}</button>)}</div>,
+  FileDropzone: (p) => (
+    <label>{p.prompt ?? 'Drop files'}<input type="file" accept={p.accept} multiple onChange={(e) => p.onFiles(Array.from(e.target.files ?? []))} /></label>
+  ),
+  SeeMore: (p) => <span className={p.className}>{p.children}</span>,
+  SearchableModelSelect: (p) => (
+    <select aria-label={p.ariaLabel} value={p.value} className={p.className} onChange={(e) => p.onChange(e.target.value)}>
+      {p.models.map((m) => <option key={m.id} value={m.id}>{m.label}</option>)}
+      {(p.additionalOptions ?? []).map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+    </select>
+  ),
   HtmlEditor: (p) => <textarea value={p.html} className={p.className} onChange={(e) => p.onChange(e.target.value)} />,
   ErrorNotice: (p) => <p role={p.role ?? 'alert'}>{p.failure.message}</p>,
   Icon: (p) => <svg data-icon={p.name} width={p.size} height={p.size} className={p.className} aria-hidden={p['aria-hidden']} aria-label={p['aria-label']} />,
@@ -137,6 +147,13 @@ const fakeHooks: AdminKitHooks = {
     const [wrap, setWrap] = useState(false);
     return { wrap, toggleWrap: () => setWrap((w) => !w) };
   },
+  // A flat, always-expanded list: enough for rendering and click tests; a test of tree behaviour injects the real hook.
+  useAgentPluginFileTree: (r) => ({
+    rows: r.files.map((file, index) => ({ key: `file:${file.relativePath}`, name: file.relativePath.split('/').pop() ?? file.relativePath, path: file.relativePath,
+      depth: 1, setSize: r.files.length, posInSet: index + 1, expanded: undefined, selected: file.relativePath === r.selectedPath,
+      tabIndex: index === 0 ? 0 : -1, onClick: () => r.onOpen({ path: file.relativePath }), onFocus: () => {} })),
+    onKeyDown: () => {},
+  }),
   useInfoTip: () => {
     const iconRef = useRef<HTMLSpanElement | null>(null);
     const [open, setOpen] = useState(false);
@@ -327,6 +344,16 @@ const fakeChat: AdminKitChat = {
   SECRET_REDACTED_NOTICE: 'fake secret-redacted notice',
   CREDENTIAL_CARD_GUIDANCE: 'fake credential-card guidance',  // Terminal means the run will not change again.
   isTerminalRunStatus: ({ status }) => status === 'succeeded' || status === 'failed' || status === 'canceled',
+  // Components render inert markers (a test that needs real behaviour injects its own); children pass through so a provider never hides its subtree.
+  ChatPane: () => <div data-testid="fake-chat-pane" />,
+  ChatSettingsDialog: ({ open }) => (open ? <div role="dialog" data-testid="fake-chat-settings-dialog" /> : null),
+  JiniChatProvider: ({ children }) => <>{children}</>,
+  ConversationList: ({ conversations }) => <div data-testid="fake-conversation-list">{conversations.length}</div>,
+  ChatSettingsSegmented: ({ name, items }) => <div data-testid={`fake-segmented-${name}`}>{items.map((item) => item.label).join('|')}</div>,
+  McpUiSurfaceCard: () => <div data-testid="fake-mcp-ui-card" />,
+  A2uiSurfaceCard: () => <div data-testid="fake-a2ui-card" />,
+  // An uploader that stages nothing (no network): every file is refused with an empty result.
+  createDaemonAttachmentUploader: () => async () => [],
   // A real in-memory registry: private per call, so one test's renderers never reach another's.
   createExtEventRendererRegistry: () => {
     const renderers = new Map<string, { renderer: ExtEventRenderer; options: ExtEventRendererOptions }>();
