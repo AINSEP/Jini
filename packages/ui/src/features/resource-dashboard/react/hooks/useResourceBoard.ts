@@ -184,6 +184,9 @@ function useBoardMenu() {
     if (!openMenuId) return undefined;
     const onKey = (event: KeyboardEvent) => {
       if (event.key === 'Escape') {
+        // Only Escape hands focus back to the trigger: a keyboard user dismissing the menu would
+        // otherwise land on <body>. An outside click already moved focus to whatever was clicked,
+        // so stealing it back there would fight the user. Focus first, then unmount the menu.
         menuContainerRef.current?.querySelector<HTMLButtonElement>("button.jini-resource-board-card-more")?.focus();
         setOpenMenuId(null);
       }
