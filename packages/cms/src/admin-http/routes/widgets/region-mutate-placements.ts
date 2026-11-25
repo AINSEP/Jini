@@ -93,7 +93,7 @@ export const widgetRegionMutatePlacementsRoute = defineJsonRoute<WidgetRegionMut
 
       const { areaEntry } = await mutateWidgetAreaPlacements({
         deps: deps.regionDeps(),
-        input: { workspaceId: deps.workspaceId, actor: { principalId }, areaEntryId: binding.areaEntryId, baseVersion: input.baseVersion, placements: input.placements },
+        input: { workspaceId: deps.workspaceId, actor: { principalId, kind: "user" }, areaEntryId: binding.areaEntryId, baseVersion: input.baseVersion, placements: input.placements },
       });
       return ok({ value: toAdminWidgetAreaResponse(areaEntry) });
     } catch (err) {

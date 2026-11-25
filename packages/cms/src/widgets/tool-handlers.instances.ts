@@ -5,7 +5,7 @@
  * file and `tool-handlers.areas.ts` use (the deps type, the schema guard, the error mapping) and
  * the id -> handler table; see that file's header for the authorization shape these share.
  */
-import { isRecord, requireInputRecord, requireNumber, requireObject, requireString, type ToolHandler } from "@jini-ai/core";
+import { AGENT_TOOL_PRINCIPAL_KIND, isRecord, requireInputRecord, requireNumber, requireObject, requireString, type ToolHandler } from "@jini-ai/core";
 import { requireWidgetPermission } from "./authorize-helper.js";
 import { WidgetInstanceNotFoundError } from "./errors.js";
 import { getWidgetInstance, listWidgetInstances } from "./read-service.js";
@@ -74,7 +74,7 @@ export const widgetsCreateInstanceHandler = ({ deps, withSchema }: WidgetsHandle
       deps: deps.composeWriteDeps(),
       input: {
         workspaceId: deps.workspaceId,
-        actor: { principalId: ctx.principal.id },
+        actor: { principalId: ctx.principal.id, kind: AGENT_TOOL_PRINCIPAL_KIND },
         widgetType: requireString({ input: input, key: "widgetType" }) as WidgetTypeKey,
         title: requireString({ input: input, key: "title" }),
         config: requireObject({ input: input, key: "config" }),
@@ -92,7 +92,7 @@ export const widgetsUpdateInstanceHandler = ({ deps, withSchema }: WidgetsHandle
       deps: deps.composeWriteDeps(),
       input: {
         workspaceId: deps.workspaceId,
-        actor: { principalId: ctx.principal.id },
+        actor: { principalId: ctx.principal.id, kind: AGENT_TOOL_PRINCIPAL_KIND },
         widgetInstanceId: requireString({ input: input, key: "widgetInstanceId" }),
         baseVersion: requireNumber({ input: input, key: "baseVersion" }),
         config: requireObject({ input: input, key: "config" }),

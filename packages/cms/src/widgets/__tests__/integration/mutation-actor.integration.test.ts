@@ -9,6 +9,7 @@ import { createWidgetInstance, type WidgetWriteServiceDeps } from "../../write-s
 import { InMemoryWidgetRegionBindingRepo } from "../../repo.memory.js";
 import { WIDGETS_SYSTEM_ACTOR_ID } from "../../authorize-helper.js";
 import { bindWidgetArea, type RegionAreaServiceDeps } from "../support/compat/region-area-service.js";
+import { widgetsCreateInstanceHandler } from "../../tool-handlers.instances.js";
 
 /**
  * @file P10-H2.J — widget writes stamp the trusted actor their caller vouches for on the entry
@@ -88,4 +89,18 @@ test("an entry write handed an actor naming another principal is refused before 
     ConflictingMutationActorError,
   );
   assert.deepEqual(events, []);
+});
+
+test("the assistant's widget create tool vouches kind agent for the principal it acts for", async () => {
+  const { deps, events } = makeDeps();
+  // The tool channel is the assistant: an assistant acting for an owner does not turn the action into an owner click.
+  const handler = widgetsCreateInstanceHandler({
+    deps: { workspaceId: WORKSPACE_ID, composeWriteDeps: () => deps } as never,
+    withSchema: (async ({ fn }: { fn: () => Promise<unknown> }) => fn()) as never,
+  });
+  await handler({ executionId: "e1", principal: { id: "owner-1" }, run: { id: "r1" }, signal: new AbortController().signal,
+    input: { widgetType: "text", title: "Hello", config: { body: "hi" } } });
+
+  const [created] = entryEvents(events);
+  assert.deepEqual(created?.actor, { id: "owner-1", kind: "agent" });
 });
