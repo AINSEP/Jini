@@ -36,6 +36,7 @@ import {
 } from "../types.js";
 import type { CreateRedirectInput, RedirectRecord, RedirectStatus } from "../types.js";
 import { isNeverInTrash, removeVia, restoreVia } from "./remove-redirect-double.js";
+const TRASH_RETENTION_DAYS = 30; // the host-injected window; the engine has no default
 
 /**
  * @file T008 — the write chokepoint (`redirects.ts`): validate-before-write
@@ -834,7 +835,7 @@ function makeDepsWithRealTrash(): RedirectsWriteDeps {
     idGen: { newId: () => randomUUID() },
     transaction: ({ work }) => ((fn) => fn())(work),
     entityPolicy: ({ entityType }) => (new Map([[REDIRECT_ENTITY_TYPE, redirectTrashAdapter]])).has(entityType)
-  }, { onError: ({ error }) => console.error("[trash] onChanged hook failed; the trash/restore/purge it followed already committed", error) });
+  }, { retentionDays: TRASH_RETENTION_DAYS, onError: ({ error }) => console.error("[trash] onChanged hook failed; the trash/restore/purge it followed already committed", error) });
 
   let clockTick = 0;
   let idTick = 0;

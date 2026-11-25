@@ -3,6 +3,7 @@ import { test } from "vitest";
 import { InMemoryTrashRepo, createTrashSweep, bindRemoveEntity, createTrashService } from "../index.js";
 import type { TrashAdapter, TrashMarkerResult, TrashPurgeOutcome, TrashRepoPort, TrashPort } from "../ports.js";
 import type { TrashSweepOnce } from "../sweeper.js";
+const TRASH_RETENTION_DAYS = 30; // the host-injected window; the engine has no default
 
 /**
  * @file The 60-day backstop, and the one property that matters about it: **a concurrent restore
@@ -95,7 +96,7 @@ function harness(optional: { repoWrapper?: (repo: InMemoryTrashRepo) => TrashRep
     idGen: { newId: () => `trash-${(seq += 1)}` },
     transaction: ({ work }) => (passThrough)(work),
     entityPolicy: ({ entityType }) => (adapters).has(entityType)
-  }, { onError: ({ error }) => console.error("[trash] onChanged hook failed; the trash/restore/purge it followed already committed", error) });
+  }, { retentionDays: TRASH_RETENTION_DAYS, onError: ({ error }) => console.error("[trash] onChanged hook failed; the trash/restore/purge it followed already committed", error) });
   const sweep = createTrashSweep({
     repo: optional.repoWrapper ? optional.repoWrapper(repo) : repo,
     adapters,

@@ -1,6 +1,6 @@
 import { InMemoryTrashRepo } from "../repo.memory.js";
 import { createRecordStoreTrashAdapter } from "../adapters/record-store.js";
-import { createTrashService, type TrashServiceOptional } from "../write-service.js";
+import { createTrashService, type TrashServiceOptions } from "../write-service.js";
 import type { TransactionRunner, TrashAdapter } from "../ports.js";
 
 export interface RecordValue {
@@ -39,7 +39,12 @@ export const WS = "workspace-1";
 export const AT = "2026-09-20T12:00:00.000Z";
 export const ACTOR = { principalId: "principal-1" };
 export const ALLOW_ALL = async () => true;
-export function harness(optional: TrashServiceOptional = {}) {
+/**
+ * The window this fixture injects. Deliberately NOT a product value: the engine has no default,
+ * and a number no host uses proves the stamp comes from what was injected.
+ */
+export const FIXTURE_RETENTION_DAYS = 60;
+export function harness(optional: Partial<TrashServiceOptions> = {}) {
   const records = new MemoryRecordStore([{ id: "record-1", workspaceId: WS, version: 1, updatedAt: AT, bodyJson: "{corrupt" }]);
   const repo = new InMemoryTrashRepo({});
   let sequence = 0;
@@ -67,6 +72,6 @@ export function harness(optional: TrashServiceOptional = {}) {
   }, { hardDelete: required => records.hardDelete(required) });
   const adapters = new Map<string, TrashAdapter>([["record", adapter]]);
   const deps = { repo, adapters, idGen: { newId: () => `trash-${++sequence}` }, transaction, entityPolicy: () => true };
-  return { records, repo, adapter, adapters, deps, trash: createTrashService(deps, optional) };
+  return { records, repo, adapter, adapters, deps, trash: createTrashService(deps, { retentionDays: FIXTURE_RETENTION_DAYS, ...optional }) };
 }
 export const removal = { workspaceId: WS, entityType: "record", entityId: "record-1", actor: ACTOR, display: { title: "Snapshot title" }, at: AT, expectedVersion: 1 };
