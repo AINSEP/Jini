@@ -52,13 +52,14 @@
  *
  */
 import type { Clock, IdGenerator } from '@jini-ai/core/primitives';
-import type { SurfaceEmission, SurfaceAnswerChannel, SurfaceExchangeBinding, SurfaceMessage, SurfaceExchangeConversation, SurfaceDeliverySpec, SurfaceExchangeStore } from '@jini-ai/core';
+import type { ApprovalReceiptObserver, SurfaceEmission, SurfaceAnswerChannel, SurfaceExchangeBinding, SurfaceMessage, SurfaceExchangeConversation, SurfaceDeliverySpec, SurfaceExchangeStore } from '@jini-ai/core';
 export {
   SURFACE_EXCHANGE_ID_PARAM, SURFACE_DISMISSED_PARAM, SURFACE_TYPED_ANSWER_PARAM,
 } from '@jini-ai/core';
 export type {
   SurfaceAnswerChannel, SurfaceExchangeBinding, SurfaceMessage, SurfaceDeliveryRejectionReason,
   DeliverResult, SurfaceExchange, SurfaceExchangeConversation, SurfaceDeliverySpec, SurfaceExchangeStore, SurfaceAskThenReport,
+  ApprovalReceipt, ApprovalReceiptObserver,
 } from '@jini-ai/core';
 import type { SchedulerPort } from './scheduler.js';
 import { createSurfaceRestoration } from './surface-restoration.js';
@@ -116,7 +117,50 @@ interface SurfaceStoreContext {
   maxLifetimeMs: number;
 }
 
-function createSurfaceConversationState(context: SurfaceStoreContext, { binding, emit }: Parameters<SurfaceExchangeStore['open']>[0]) {
+/**
+ * The receipt sequence for one confirmation exchange: `open` once, then at most one `answered` or
+ * `ended`. Sequencing lives here (not in the observer) so a fast answer to the first emission still
+ * reports `open` first, a duplicate delivery reports nothing, and a normal close after an answer
+ * cannot overwrite it with `ended`. The observer runs synchronously and can never affect consent.
+ */
+function createApprovalReceipts({ id, observer, runId, principalId }: {
+  id: string; observer: ApprovalReceiptObserver | undefined; runId: string; principalId: string;
+}) {
+  let sendStarted = false;
+  let opened = false;
+  let settled = false;
+  const notify = (receipt: Parameters<ApprovalReceiptObserver>[0]['receipt']) => {
+    try {
+      const result: unknown = observer!({ receipt, runId, principalId }, {});
+      // Ignored, never awaited; a rejected promise must not become an unhandled rejection either.
+      if (result instanceof Promise) result.catch(() => {});
+    } catch { /* an observer failure is the observer's problem; the answer path continues */ }
+  };
+  const open = () => {
+    if (!observer || opened || !sendStarted) return;
+    opened = true;
+    notify({ exchangeId: id, kind: 'open' });
+  };
+  return {
+    sending() { sendStarted = true; },
+    open,
+    answered(params: Record<string, unknown>) {
+      if (!observer || settled) return;
+      open();
+      settled = true;
+      const { confirmed } = classifyConfirmationAnswer({ answer: { status: 'received', params } });
+      notify({ exchangeId: id, kind: 'answered', confirmed });
+    },
+    ended(reason: SurfaceMessage) {
+      if (!observer || settled || !opened || (reason.status !== 'expired' && reason.status !== 'abandoned')) return;
+      settled = true;
+      notify({ exchangeId: id, kind: 'ended', reason: reason.status });
+    },
+  };
+}
+
+function createSurfaceConversationState(context: SurfaceStoreContext, { binding, emit }: Parameters<SurfaceExchangeStore['open']>[0],
+  { onApprovalReceipt }: { onApprovalReceipt?: ApprovalReceiptObserver } = {}) {
   const { deps, openExchanges, restoration, idleTtlMs, maxLifetimeMs } = context;
   // Waiting without a live emitter is a deadlock; reject before allocating any timers or ID.
   if (typeof emit !== 'function') throw new Error('surface exchange requires an emitter');
@@ -127,6 +171,10 @@ function createSurfaceConversationState(context: SurfaceStoreContext, { binding,
   // confirmations) retain their existing deadlines. No card/tool needs its own TTL override.
   const leased = lifetime !== undefined && lifetime.principalId === binding.principalId;
   const recovery = leased ? restoration.track({ id, binding, lifetime }) : undefined;
+  // Receipts are run-bound: only a leased exchange knows which run (and so which routine run) it
+  // belongs to. An unleased exchange never reports, whatever the caller injected.
+  const receipts = createApprovalReceipts({ id, observer: leased ? onApprovalReceipt : undefined,
+    runId: lifetime?.runId ?? '', principalId: binding.principalId });
   const inbox: Record<string, unknown>[] = [];
   const waiters: ((message: SurfaceMessage) => void)[] = [];
   let terminal: SurfaceMessage | undefined;
@@ -135,7 +183,7 @@ function createSurfaceConversationState(context: SurfaceStoreContext, { binding,
   const deadlines = initialSurfaceDeadlines({ leased, nowMs: deps.clock.nowMs(), idleTtlMs, maxLifetimeMs });
   const lifetimeDeadline = deadlines.lifetime;
   let idleDeadline = deadlines.idle;
-  return { id, lifetime, leased, recovery, inbox, waiters, terminal: terminal as SurfaceMessage | undefined,
+  return { id, lifetime, leased, recovery, receipts, inbox, waiters, terminal: terminal as SurfaceMessage | undefined,
     cancelIdle: cancelIdle as (() => void) | undefined, cancelLifetime: cancelLifetime as (() => void) | undefined,
     lifetimeDeadline, idleDeadline, binding, emit };
 }
@@ -152,6 +200,7 @@ function createSurfaceConversationLifecycle(context: SurfaceStoreContext, state:
     openExchanges.delete(id);
     lifetime?.signal.removeEventListener('abort', closeOnAbort);
     recovery?.end();
+    state.receipts.ended(reason);
     while (waiters.length > 0) waiters.shift()!(reason);
   }
   function expireIfDue(): void {
@@ -190,8 +239,10 @@ function createSurfaceConversation(state: ReturnType<typeof createSurfaceConvers
       armIdle();
       const sent = recovery === undefined ? emission : { ...emission, payload: { ...emission.payload,
         surfaceExchange: { exchangeId: id, toolId: binding.toolId, runId: lifetime!.runId } } };
+      state.receipts.sending();
       await recovery?.send({ emission: sent });
       await emit(sent);
+      state.receipts.open();
     },
     async receive(_args: Record<string, never>, _optional = {}) {
       expireIfDue();
@@ -208,8 +259,8 @@ function createSurfaceConversation(state: ReturnType<typeof createSurfaceConvers
 
 function createSurfaceExchangeOpener(context: SurfaceStoreContext): SurfaceExchangeStore['open'] {
   const { openExchanges } = context;
-  return function open({ binding, emit }, _optional = {}) {
-    const state = createSurfaceConversationState(context, { binding, emit });
+  return function open({ binding, emit }, optional = {}) {
+    const state = createSurfaceConversationState(context, { binding, emit }, optional);
     const { id, recovery, waiters, inbox, leased, lifetime } = state;
     const lifecycle = createSurfaceConversationLifecycle(context, state);
     // Register only after both timers are installed, so scheduler failure leaves no discoverable exchange.
@@ -220,6 +271,8 @@ function createSurfaceExchangeOpener(context: SurfaceStoreContext): SurfaceExcha
         lifecycle.expireIfDue();
         if (state.terminal) return;
         recovery?.answered();
+        // Reported before any waiter resolves, so the observer sees the answer before the handler acts.
+        state.receipts.answered(params);
         lifecycle.armIdle();
         const waiter = waiters.shift();
         if (waiter) waiter({ status: 'received', params });

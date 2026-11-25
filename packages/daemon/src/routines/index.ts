@@ -8,4 +8,5 @@
 export * from './types.js';
 export * from './schedule.js';
 export * from './scheduler.js';
+export * from './routine-errors.js';
 export * from './routine-store.js';

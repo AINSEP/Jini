@@ -20,8 +20,13 @@
  * faithful port, not a redesign, per the proposal's own warning against "casually reinventing"
  * the race-safe scheduled-slot claim below.
  */
+import { ClientFacingError } from '@jini-ai/core/contracts/server';
 import { describeErrorForLog } from '@jini-ai/core';
 import { randomUUID } from 'node:crypto';
+import { createTimeoutScheduler, type SchedulerPort } from '../scheduler.js';
+import { RoutineActiveError, ScheduledRunPersistenceError } from './routine-errors.js';
+import { DurableScheduler, claimStrategy, type RoutineRunAttempt } from './durable-scheduler.js';
+import type { ReconcileReason, RoutineDurablePersistence } from './types.js';
 import { nextRunAtForSchedule } from './schedule.js';
 import type {
   Routine,
@@ -34,32 +39,12 @@ import type {
 
 interface ScheduledTimer {
   routineId: string;
-  timer: NodeJS.Timeout;
+  timer: () => void;
   fireAt: Date;
 }
 
 function clearRoutinePlaceholderId(value: string): string {
   return value.startsWith('routine-pending-') ? '' : value;
-}
-
-/**
- * Distinguishes "a sibling daemon already won this scheduled slot, or the durable write itself
- * failed" from every other run-handler failure, so the scheduler can retry the same slot instead
- * of silently advancing to the next cadence (which would skip a fire the caller never actually
- * got).
- */
-export class ScheduledRunPersistenceError extends Error {
-  readonly routineId: string;
-  readonly slotAt: number;
-  readonly originalError: unknown;
-  constructor({ routineId, slotAt, originalError }: { readonly routineId: string; readonly slotAt: number; readonly originalError: unknown }
-  ) {
-    super(`Routine ${routineId} scheduled slot ${slotAt} could not be persisted`);
-    this.routineId = routineId;
-    this.slotAt = slotAt;
-    this.originalError = originalError;
-    this.name = 'ScheduledRunPersistenceError';
-  }
 }
 
 /** Preserve the underlying failure (including its code) for the redacted log diagnostic. */
@@ -75,56 +60,68 @@ function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
 }
 
-/**
- * One in-flight attempt to fire a routine, threaded through the persistence steps of
- * {@link RoutineService.start_}. `scheduledSlotAt` is set only for a scheduled (not manual) fire —
- * its presence is what makes a persistence failure retryable against the same slot.
- */
-interface RoutineRunAttempt {
-  routine: Routine;
-  run: RoutineRun;
-  runId: string;
-  handlerStart: RoutineRunHandlerStart;
-  scheduledSlotAt: number | undefined;
-  insertOptions: { scheduledSlotAt?: number };
-}
-
 export class RoutineService {
   private timers = new Map<string, ScheduledTimer>();
   private inflight = new Map<string, Promise<RoutineRunHandlerStart>>();
   private runHandler: RoutineRunHandler | null = null;
   private started = false;
+  private active = new Map<string, string>();
+  private readonly durable: DurableScheduler | undefined;
+  private readonly holderId: string | undefined;
+  private readonly timerPort: SchedulerPort;
 
   private readonly persistence: RoutinePersistence;
   private readonly now: () => number;
   private readonly newId: () => string;
   constructor(
     { persistence }: { readonly persistence: RoutinePersistence },
-    { now = Date.now, newId = randomUUID }: { now?: () => number; newId?: () => string } = {},
+    { now = Date.now, monotonicNow = () => performance.now(), newId = randomUUID, timers = createTimeoutScheduler({}, {}), holderId,
+      graceMs = 60_000, maxArmMs = 300_000, leaseTtlMs = 90_000,
+      policy = {}, log = (code, detail) => console.error(code, detail), onInterrupted = async () => {} }:
+    { now?: () => number; monotonicNow?: () => number; newId?: () => string; timers?: SchedulerPort; holderId?: string;
+      graceMs?: number; maxArmMs?: number; leaseTtlMs?: number;
+      policy?: { activeSlotVisibility?: 'diagnostic-only'; catchUpOnAssistantEnable?: boolean };
+      log?: (code: string, detail: unknown) => void;
+      onInterrupted?: (required: { runs: RoutineRun[] }, optional: Record<string, never>) => Promise<void> } = {},
   ) {
     this.persistence = persistence;
     this.now = now;
     this.newId = newId;
+    this.timerPort = timers;
+    this.holderId = holderId;
+    if ('claimDueSlot' in persistence) {
+      if (!holderId) throw new Error('Durable routines require holderId');
+      this.durable = new DurableScheduler({ persistence: persistence as RoutineDurablePersistence,
+        now, monotonicNow, timers, holderId, graceMs, maxArmMs, leaseTtlMs, log, onInterrupted,
+        policy: { activeSlotVisibility: policy.activeSlotVisibility ?? 'diagnostic-only',
+          catchUpOnAssistantEnable: policy.catchUpOnAssistantEnable ?? false },
+        fireSlot: (id, options) => this.start_(id, 'scheduled', options),
+        pendingRunIds: () => [...this.active.values()],
+      });
+    }
   }
 
-  setRunHandler({ handler }: { readonly handler: RoutineRunHandler }): void {
+  setRunHandler({ handler }: { readonly handler: RoutineRunHandler }, _optional = {}): void {
     this.runHandler = handler;
   }
 
-  start(_args: Record<string, never>): void {
+  start(_args: Record<string, never> = {}, { reason = 'start' }: { reason?: ReconcileReason } = {}): void {
+    if (this.durable) { this.durable.start({}, { reason }); return; }
     if (this.started) return;
     this.started = true;
     this.rescheduleAll({});
   }
 
-  stop(_args: Record<string, never>): void {
-    for (const entry of this.timers.values()) clearTimeout(entry.timer);
+  stop(_args: Record<string, never>, { releaseLease = true } = {}): void {
+    if (this.durable) { this.durable.stop({}, { releaseLease }); return; }
+    for (const entry of this.timers.values()) entry.timer();
     this.timers.clear();
     this.started = false;
   }
 
   rescheduleAll(_args: Record<string, never>): void {
-    for (const entry of this.timers.values()) clearTimeout(entry.timer);
+    if (this.durable) { void this.durable.reconcile({ reason: 'edit' }, {}); return; }
+    for (const entry of this.timers.values()) entry.timer();
     this.timers.clear();
     if (!this.started) return;
     for (const routine of this.persistence.list()) {
@@ -132,10 +129,11 @@ export class RoutineService {
     }
   }
 
-  rescheduleOne({ routineId }: { readonly routineId: string }): void {
+  rescheduleOne({ routineId }: { readonly routineId: string }, _optional = {}): void {
+    if (this.durable) { this.durable.rescheduleOne({ routineId }, {}); return; }
     const existing = this.timers.get(routineId);
     if (existing) {
-      clearTimeout(existing.timer);
+      existing.timer();
       this.timers.delete(routineId);
     }
     if (!this.started) return;
@@ -144,11 +142,27 @@ export class RoutineService {
   }
 
   unschedule({ routineId }: { readonly routineId: string }): void {
+    if (this.durable) { this.durable.unschedule({ routineId }); return; }
     const existing = this.timers.get(routineId);
     if (existing) {
-      clearTimeout(existing.timer);
+      existing.timer();
       this.timers.delete(routineId);
     }
+  }
+
+  whenReady(_required = {}, _optional = {}): Promise<void> { return this.durable?.whenReady({}, {}) ?? Promise.resolve(); }
+  reconcile({ reason }: { reason: ReconcileReason }, _optional = {}): Promise<void> {
+    if (this.durable) return this.durable.reconcile({ reason }, {});
+    this.rescheduleAll({}); return Promise.resolve();
+  }
+  leaseState(_required = {}, _optional = {}): 'owner' | 'passive' | 'stopped' {
+    return this.durable?.leaseState({}, {}) ?? (this.started ? 'owner' : 'stopped');
+  }
+  quiesce(_required = {}, _optional = {}): void {
+    if (this.durable) this.durable.quiesce({}, {}); else this.stop({});
+  }
+  drainActive(_required = {}, { timeoutMs = 2000 } = {}): Promise<{ drained: boolean; pendingRunIds: string[] }> {
+    return this.durable?.drainActive({}, { timeoutMs }) ?? Promise.resolve({ drained: true, pendingRunIds: [] });
   }
 
   private scheduleRoutine(routine: Routine): void {
@@ -170,7 +184,7 @@ export class RoutineService {
     // Routines fire within hours/days, but a misconfigured "next month" weekly value could
     // otherwise overflow.
     const delay = Math.max(1_000, Math.min(2_000_000_000, fireAt.getTime() - this.now()));
-    const timer = setTimeout(() => {
+    const timer = this.timerPort.schedule({ delayMs: delay, callback: () => {
       this.timers.delete(routine.id);
       const slotAt = fireAt.getTime();
       this.start_(routine.id, 'scheduled', { scheduledSlotAt: slotAt })
@@ -189,17 +203,17 @@ export class RoutineService {
             this.rescheduleOne({ routineId: routine.id });
           }
         });
-    }, delay);
-    if (typeof timer.unref === 'function') timer.unref();
+    } });
     this.timers.set(routine.id, { routineId: routine.id, timer, fireAt });
   }
 
   nextRunAt({ routineId }: { readonly routineId: string }): Date | null {
+    if (this.durable) return this.durable.nextRunAt({ routineId });
     return this.timers.get(routineId)?.fireAt ?? null;
   }
 
   async runNow({ routineId }: { readonly routineId: string }): Promise<RoutineRunHandlerStart> {
-    return this.start_(routineId, 'manual');
+    return this.start_(routineId, 'manual', this.durable ? { current: this.durable.claimStrategy({}, {}) } : {});
   }
 
   /**
@@ -235,15 +249,29 @@ export class RoutineService {
    * handler's start handle back); throws when the write itself failed.
    */
   private claimRunRow(attempt: RoutineRunAttempt): boolean {
+    if (this.durable && attempt.current && !attempt.current()) {
+      this.discardUnstartedRun(attempt);
+      if (attempt.run.trigger === 'manual') throw new ClientFacingError({ apiError: { code: 'SERVICE_UNAVAILABLE', message: 'Routine lease lost', details: { reason: 'ROUTINES_UNAVAILABLE' } } });
+      return false;
+    }
     let inserted = true;
     try {
-      inserted = this.persistence.insertRun({ run: attempt.run }, attempt.insertOptions) !== false;
+      if (this.durable && attempt.scheduledSlotAt !== undefined) {
+        const result = (this.persistence as RoutineDurablePersistence).claimDueSlot({
+          routineId: attempt.routine.id, expectedNextRunAt: attempt.scheduledSlotAt,
+          nextRunAt: nextRunAtForSchedule({ schedule: attempt.routine.schedule },
+            { now: new Date(Math.max(this.now(), attempt.scheduledSlotAt + 1)) })?.getTime() ?? null,
+          run: attempt.run, holderId: this.holderId!, now: this.now(),
+        }, {});
+        inserted = result.claimed;
+      } else inserted = this.persistence.insertRun({ run: attempt.run }, this.durable ? { ...attempt.insertOptions, now: this.now() } : attempt.insertOptions) !== false;
     } catch (error) {
       this.discardUnstartedRun(attempt);
       throw this.asPersistenceFailure(attempt, error);
     }
-    if (inserted) return true;
+    if (inserted) { if (this.durable) this.active.set(attempt.routine.id, attempt.runId); return true; }
     this.discardUnstartedRun(attempt);
+    if (this.durable && attempt.run.trigger === 'manual') throw new RoutineActiveError();
     return false;
   }
 
@@ -257,15 +285,18 @@ export class RoutineService {
     const preparedIdsChanged =
       run.projectId !== handlerStart.projectId
       || run.conversationId !== handlerStart.conversationId
-      || run.agentRunId !== handlerStart.agentRunId;
+      || run.agentRunId !== handlerStart.agentRunId
+      || run.assistantMessageId !== handlerStart.assistantMessageId;
     handlerStart.projectId = run.projectId;
     handlerStart.conversationId = run.conversationId;
     handlerStart.agentRunId = run.agentRunId;
-    if (attempt.scheduledSlotAt != null || preparedIdsChanged) {
+    if (this.durable) handlerStart.assistantMessageId = run.assistantMessageId ?? null;
+    if (this.durable || attempt.scheduledSlotAt != null || preparedIdsChanged) {
       this.persistence.updateRun({ id: attempt.runId, patch: {
         projectId: run.projectId,
         conversationId: run.conversationId,
         agentRunId: run.agentRunId,
+        ...(this.durable ? { assistantMessageId: run.assistantMessageId, agentId: run.agentId, model: run.model } : {}),
       } });
     }
   }
@@ -308,7 +339,9 @@ export class RoutineService {
       projectId: run.projectId,
       conversationId: run.conversationId,
       agentRunId: run.agentRunId,
+      ...(this.durable ? { assistantMessageId: run.assistantMessageId, agentId: run.agentId, model: run.model } : {}),
     } });
+    if (this.active.get(attempt.routine.id) === attempt.runId) this.active.delete(attempt.routine.id);
   }
 
   /** Persists the terminal row once the host's run completes (or its completion promise rejects). */
@@ -317,6 +350,7 @@ export class RoutineService {
       .then((completion) => {
         this.persistence.updateRun({ id: attempt.runId, patch: {
           status: completion.status,
+          ...(this.durable ? { agentRunId: attempt.handlerStart.agentRunId } : {}),
           completedAt: this.now(),
           summary: completion.summary ?? null,
           error: completion.error ?? null,
@@ -331,13 +365,17 @@ export class RoutineService {
           error: errorMessage(error),
           errorCode: null,
         } });
-      });
+      })
+      .then(() => { if (this.active.get(attempt.routine.id) === attempt.runId) this.active.delete(attempt.routine.id); });
   }
 
   /** Hands control to the host's `start()`, finalizing the row as failed if it throws synchronously. */
-  private startPreparedRun(attempt: RoutineRunAttempt): void {
+  private startPreparedRun(attempt: RoutineRunAttempt): void | Promise<void> {
     try {
-      attempt.handlerStart.start?.();
+      const launched = attempt.handlerStart.start?.();
+      if (this.durable) return Promise.resolve(launched).then(() => {
+        this.persistence.updateRun({ id: attempt.runId, patch: { agentRunId: attempt.handlerStart.agentRunId } });
+      }, (error) => { this.finalizeUnpreparedRun(attempt, error); throw error; });
     } catch (error) {
       this.persistence.updateRun({ id: attempt.runId, patch: {
         status: 'failed',
@@ -346,64 +384,51 @@ export class RoutineService {
         error: errorMessage(error),
         errorCode: null,
       } });
+      if (this.active.get(attempt.routine.id) === attempt.runId) this.active.delete(attempt.routine.id);
       throw error;
     }
+  }
+
+  private async fireSlot(routine: Routine, trigger: RoutineRunTrigger, startedAt: number, runId: string,
+    options: { scheduledSlotAt?: number; catchUp?: boolean; current?: () => boolean }): Promise<RoutineRunHandlerStart> {
+    const handler = this.runHandler;
+    if (!handler) throw new Error('Routine run handler is not configured');
+    const handlerStart = await handler({ routine, trigger, startedAt, runId,
+      ...(this.durable ? { catchUp: options.catchUp ?? false, slotAt: options.scheduledSlotAt ?? null } : {}),
+    });
+    const attempt = claimStrategy({ routine, trigger, startedAt, runId, handlerStart, options }, this.durable ? { holderId: this.holderId! } : {});
+    const { run } = attempt;
+    if (!this.claimRunRow(attempt)) return handlerStart;
+    // `await` stays inline here rather than moving into a helper: wrapping it in an extra async
+    // frame would add microtask ticks that callers observe.
+    try {
+      await handlerStart.prepare?.(run);
+      this.persistPreparedIds(attempt);
+    } catch (error) {
+      this.finalizeUnpreparedRun(attempt, error);
+      throw error;
+    }
+    this.wireRunCompletion(attempt);
+    const launched = this.startPreparedRun(attempt);
+    if (this.durable) await launched;
+    return handlerStart;
   }
 
   private async start_(
     routineId: string,
     trigger: RoutineRunTrigger,
-    options: { scheduledSlotAt?: number } = {},
+    options: { scheduledSlotAt?: number; catchUp?: boolean; current?: () => boolean } = {},
   ): Promise<RoutineRunHandlerStart> {
     if (!this.runHandler) throw new Error('Routine run handler is not configured');
     const inflight = this.inflight.get(routineId);
-    if (inflight) return inflight;
+    if (inflight && !this.durable) return inflight;
 
     const routine = this.persistence.list().find((r) => r.id === routineId);
     if (!routine) throw new Error(`Routine ${routineId} not found`);
 
     const startedAt = this.now();
     const runId = `routine-run-${this.newId()}`;
-    const promise = (async () => {
-      const handler = this.runHandler;
-      if (!handler) throw new Error('Routine run handler is not configured');
-      const handlerStart = await handler({ routine, trigger, startedAt, runId });
-      const run: RoutineRun = {
-        id: runId,
-        routineId: routine.id,
-        trigger,
-        status: 'running',
-        projectId: handlerStart.projectId,
-        conversationId: handlerStart.conversationId,
-        agentRunId: handlerStart.agentRunId,
-        startedAt,
-        completedAt: null,
-        summary: null,
-        error: null,
-        errorCode: null,
-      };
-      const attempt: RoutineRunAttempt = {
-        routine,
-        run,
-        runId,
-        handlerStart,
-        scheduledSlotAt: options.scheduledSlotAt,
-        insertOptions: options,
-      };
-      if (!this.claimRunRow(attempt)) return handlerStart;
-      // `await` stays inline here rather than moving into a helper: wrapping it in an extra async
-      // frame would add microtask ticks that callers observe.
-      try {
-        await handlerStart.prepare?.(run);
-        this.persistPreparedIds(attempt);
-      } catch (error) {
-        this.finalizeUnpreparedRun(attempt, error);
-        throw error;
-      }
-      this.wireRunCompletion(attempt);
-      this.startPreparedRun(attempt);
-      return handlerStart;
-    })();
+    const promise = this.fireSlot(routine, trigger, startedAt, runId, options);
     this.inflight.set(routineId, promise);
     // The trailing `finally(...)` returns a new promise that mirrors the original rejection;
     // without `.catch` it would surface as an unhandled rejection (fatal in modern Node) when the

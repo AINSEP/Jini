@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { AgentExecutorError, isSupportedStreamFormat } from '../agent-executor/index.js';
 import { LegacyMigrationError } from '../legacy-data-migration.js';
 import { RunContextNotBoundError } from '../continuation/run-scoped-context-store.js';
-import { ScheduledRunPersistenceError } from '../routines/scheduler.js';
+import { ScheduledRunPersistenceError } from '../routines/routine-errors.js';
 import { AgentSessionStoreError } from '../store/agent-sessions/errors.js';
 import { createInactivityWatchdog } from '../close-status.js';
 import { classifyProcessExitFailure, resumableFromProcessExit } from '../run/core/retry.js';

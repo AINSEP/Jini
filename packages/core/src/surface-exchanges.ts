@@ -138,6 +138,26 @@ export type SurfaceExchangeConversation = Omit<SurfaceExchange, 'expiresAtMs'> &
 export interface SurfaceDeliverySpec {
   exchangeId: string; params: Record<string, unknown>; principalId: string; toolId?: string; channel?: SurfaceAnswerChannel;
 }
+/**
+ * What the authoritative exchange reports about a confirmation card, in order: `open` once the card
+ * has been emitted, then at most one of `answered` (an accepted, correctly bound delivery) or `ended`
+ * (expired or abandoned with no answer). It never carries the raw answer, prompt or tool result.
+ * `answered` with `confirmed: true` means only "the owner said yes": it is reported before the host's
+ * approver and grant rechecks, so it is not proof the effect ran.
+ */
+export type ApprovalReceipt =
+  | { exchangeId: string; kind: 'open' }
+  | { exchangeId: string; kind: 'answered'; confirmed: boolean }
+  | { exchangeId: string; kind: 'ended'; reason: 'expired' | 'abandoned' };
+/**
+ * Observe-only hook a host injects for confirmation exchanges on a run-bound (leased) call. Called
+ * synchronously inside try/catch, never awaited, its return value ignored: an observer that throws,
+ * hangs or returns a rejected promise cannot change the answer, the delivery or the effect count.
+ */
+export type ApprovalReceiptObserver = (
+  required: { receipt: ApprovalReceipt; runId: string; principalId: string },
+  optional?: Record<string, never>,
+) => void;
 export interface SurfaceExchangeStore {
   /** Restore an unanswered call through its original executor, or observe its still-live card.
    * Streams human-only emissions until the exchange settles. A late answer is delivered once to
@@ -153,7 +173,7 @@ export interface SurfaceExchangeStore {
    * messages cannot reach anybody is a guaranteed deadlock, and taking the emitter here is what makes
    * that state unrepresentable rather than merely discouraged.
    */
-  open(args: { binding: SurfaceExchangeBinding; emit: SurfaceEmitter }, optional?: Record<string, never>): SurfaceExchange;
+  open(args: { binding: SurfaceExchangeBinding; emit: SurfaceEmitter }, optional?: { onApprovalReceipt?: ApprovalReceiptObserver }): SurfaceExchange;
   /**
    * Routes one inbound message to the exchange it names, queueing it if nothing is waiting yet.
    * See {@link SurfaceDeliverySpec} for why `toolId` is optional rather than part of

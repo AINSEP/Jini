@@ -16,6 +16,7 @@
       ".": "node",
       "./ports/process": "node",
       "./ports/runtime": "node",
+      "./routines/sqlite": "node",
       "./store/event-log/sqlite": "node",
       "./store/agent-sessions": "universal",
       "./store/agent-sessions/sqlite": "node",
@@ -81,6 +82,11 @@
       "types": "./dist/ports/xai-oauth.d.ts",
       "import": "./dist/ports/xai-oauth.js",
       "default": "./dist/ports/xai-oauth.js"
+    },
+    "./routines/sqlite": {
+      "types": "./dist/routines/routine-store.sqlite.d.ts",
+      "import": "./dist/routines/routine-store.sqlite.js",
+      "default": "./dist/routines/routine-store.sqlite.js"
     },
     "./store/event-log/sqlite": {
       "types": "./dist/store/event-log/sqlite.d.ts",

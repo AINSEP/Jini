@@ -6,7 +6,7 @@
  * typechecks under NodeNext," not a product coupling, so the port is a straight lift.
  */
 
-export type RoutineRunStatus = 'queued' | 'running' | 'succeeded' | 'failed' | 'canceled';
+export type RoutineRunStatus = 'queued' | 'running' | 'succeeded' | 'failed' | 'canceled' | 'interrupted';
 
 export type RoutineRunTrigger = 'manual' | 'scheduled';
 
@@ -42,6 +42,9 @@ export interface Routine {
   lastRun: unknown;
   createdAt: number;
   updatedAt: number;
+  revision?: number;
+  creatorId?: string;
+  model?: string | null;
 }
 
 export interface RoutineRun {
@@ -57,6 +60,15 @@ export interface RoutineRun {
   summary: string | null;
   error: string | null;
   errorCode: string | null;
+  catchUp?: boolean;
+  slotAt?: number | null;
+  holderId?: string;
+  approvalState?: 'none' | 'waiting' | 'approved' | 'declined' | 'expired';
+  approvalRef?: string | null;
+  approvalSince?: number | null;
+  assistantMessageId?: string | null;
+  agentId?: string | null;
+  model?: string | null;
 }
 
 export interface RoutineRunHandlerStart {
@@ -64,8 +76,9 @@ export interface RoutineRunHandlerStart {
   conversationId: string;
   agentRunId: string;
   completion: Promise<RoutineRunCompletion>;
+  assistantMessageId?: string | null;
   prepare?: (run: RoutineRun) => void | Promise<void>;
-  start?: () => void;
+  start?: () => void | Promise<void>;
   /**
    * Tear-down for the case where the handler returned a start handle but {@link RoutineService}
    * later reached `prepare()` and it failed — i.e. the routine_run row exists, prepare may have
@@ -97,6 +110,8 @@ export type RoutineRunHandler = (input: {
   trigger: RoutineRunTrigger;
   startedAt: number;
   runId: string;
+  catchUp?: boolean;
+  slotAt?: number | null;
 }) => Promise<RoutineRunHandlerStart>;
 
 /**
@@ -117,7 +132,39 @@ export type RoutineRunHandler = (input: {
  */
 export interface RoutinePersistence {
   list(): Routine[];
-  insertRun(args: { readonly run: RoutineRun }, optionalArgs?: { scheduledSlotAt?: number }): boolean | void;
+  insertRun(args: { readonly run: RoutineRun }, optionalArgs?: { scheduledSlotAt?: number; holderId?: string; now?: number }): boolean | void;
   updateRun(args: { readonly id: string; readonly patch: Partial<RoutineRun> }): void;
   getLatestRun(args: { readonly routineId: string }): RoutineRun | null;
+}
+
+export type ReconcileReason = 'start' | 'wake' | 'enable' | 'edit';
+export type ClaimResult =
+  | { claimed: true }
+  | { claimed: false; reason: 'slot-moved' | 'disabled' | 'gone' | 'active-run' | 'lease-lost' };
+
+export interface DurableRoutine extends Routine {
+  revision: number;
+  creatorId: string;
+  model: string | null;
+}
+
+export interface DurableRoutineRun extends RoutineRun {
+  catchUp: boolean;
+  slotAt: number | null;
+  holderId: string;
+  approvalState: 'none' | 'waiting' | 'approved' | 'declined' | 'expired';
+  approvalRef: string | null;
+  approvalSince: number | null;
+  assistantMessageId: string | null;
+}
+
+export interface RoutineDurablePersistence extends RoutinePersistence {
+  claimDueSlot(required: { routineId: string; expectedNextRunAt: number; nextRunAt: number | null;
+    run: RoutineRun; holderId: string; now: number }, optional?: Record<string, never>): ClaimResult;
+  setNextRunAt(required: { routineId: string; expected: number | null; nextRunAt: number | null;
+    holderId: string; now: number }, optional?: Record<string, never>): boolean;
+  listInFlight(required: { excludeHolderId?: string }, optional?: Record<string, never>): RoutineRun[];
+  markInterrupted(required: { runIds: string[]; now: number; holderId: string }, optional?: Record<string, never>): void;
+  acquireLease(required: { holderId: string; now: number; ttlMs: number }, optional?: Record<string, never>): boolean;
+  releaseLease(required: { holderId: string }, optional?: Record<string, never>): void;
 }

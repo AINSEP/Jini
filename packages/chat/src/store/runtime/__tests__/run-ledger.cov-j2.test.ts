@@ -203,6 +203,37 @@ describe('createChatRunLedger().checkpoint', () => {
 });
 
 describe('createChatRunLedger().reconcileInterrupted', () => {
+  it('leave-owned neither dispatches recovery nor invokes fallback', async () => {
+    const { ledger, history } = setup(); await seed(history());
+    const recover = vi.fn(async () => true);
+    const transaction = vi.spyOn(f.kernel, 'transaction');
+    const admit = vi.fn(async ({ turn }: { turn: InterruptedChatTurn }) => {
+      expect(transaction).not.toHaveBeenCalled();
+      expect(turn).toMatchObject({ principalId: 'alice', conversationId: 'c', message: { id: 'a1', runId: 'daemon-1' } });
+      return 'leave-owned' as const;
+    });
+    const before = { ...row() }; const updated = chatUpdatedAt();
+    expect(await ledger.reconcileInterrupted({}, { admit, recover })).toBe(0);
+    expect(admit).toHaveBeenCalledTimes(1); expect(recover).not.toHaveBeenCalled();
+    expect(transaction).not.toHaveBeenCalled(); expect(row()).toEqual(before); expect(chatUpdatedAt()).toBe(updated);
+  });
+  it('admission rejection is treated as leave-owned', async () => {
+    const { history } = setup(); await seed(history());
+    const log = vi.fn();
+    const ledger = createChatRunLedger({ kernel: f.kernel, isDaemonRunId }, { now: () => CLOCK, log });
+    const recover = vi.fn(async () => true);
+    expect(await ledger.reconcileInterrupted({}, { admit: async () => { throw new Error('private prompt and context'); }, recover })).toBe(0);
+    expect(recover).not.toHaveBeenCalled(); expect(row().run_status).toBe('running');
+    expect(log).toHaveBeenCalledTimes(1);
+    expect(JSON.stringify(log.mock.calls)).not.toContain('private prompt and context');
+  });
+  it('ordinary interrupted chat recovery without an admission port', async () => {
+    const { ledger, history } = setup(); await seed(history());
+    const recover = vi.fn(async () => true);
+    expect(await ledger.reconcileInterrupted({}, { recover })).toBe(1);
+    expect(recover).toHaveBeenCalledTimes(1); expect(row().run_status).toBe('running');
+  });
+
   it('hands each unfinished row, with its persisted owner, to recovery and keeps the adopted ones', async () => {
     const { ledger, history } = setup();
     await seed(history(), { runStatus: 'queued', events: [toolUse] });
