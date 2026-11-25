@@ -22,7 +22,14 @@
       "./site/jini-adapters": "universal",
       "./site/salt": "node",
       "./site/tool-registrations": "universal",
-      "./site/config.settings": "universal"
+      "./site/config.settings": "universal",
+      "./admin-http/routes/recent-hits": "universal",
+      "./public-http/routes/analytics-ingest": "universal"
+    },
+    "isolation": {
+      "entries": {
+        "./public-http/routes/analytics-ingest": "site"
+      }
     }
   },
   "type": "module",
@@ -79,6 +86,16 @@
       "types": "./dist/site/config.settings.d.ts",
       "import": "./dist/site/config.settings.js",
       "default": "./dist/site/config.settings.js"
+    },
+    "./admin-http/routes/recent-hits": {
+      "types": "./dist/admin-http/routes/recent-hits.d.ts",
+      "import": "./dist/admin-http/routes/recent-hits.js",
+      "default": "./dist/admin-http/routes/recent-hits.js"
+    },
+    "./public-http/routes/analytics-ingest": {
+      "types": "./dist/public-http/routes/analytics-ingest.d.ts",
+      "import": "./dist/public-http/routes/analytics-ingest.js",
+      "default": "./dist/public-http/routes/analytics-ingest.js"
     }
   },
   "files": [

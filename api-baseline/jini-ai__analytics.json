@@ -81,6 +81,16 @@
    "validateEventProps": "function:aa8cf92456"
   }
  },
+ "./admin-http/routes/recent-hits": {
+  "types": "./dist/admin-http/routes/recent-hits.d.ts",
+  "symbols": {
+   "ANALYTICS_READ": "variable:1d20bb128f",
+   "AdminAnalyticsHitResponse": "interface:3fecd03a27",
+   "AnalyticsRecentHitsRouteDeps": "interface:40ef5c001f",
+   "AnalyticsRoutePrincipal": "interface:445113c027",
+   "analyticsRecentHitsRoute": "variable:f7e6da04f8"
+  }
+ },
  "./product": {
   "types": "./dist/product/index.d.ts",
   "symbols": {
@@ -102,6 +112,15 @@
    "renderBrowserAnalytics": "function:4ed8604294",
    "resolveBrowserAnalyticsMode": "function:9e4f9205a7",
    "withProductAnalyticsGuards": "function:434c5b091a"
+  }
+ },
+ "./public-http/routes/analytics-ingest": {
+  "types": "./dist/public-http/routes/analytics-ingest.d.ts",
+  "symbols": {
+   "AnalyticsIngestBeaconRouteDeps": "interface:4342d1613c",
+   "AnalyticsIngestPorts": "type:87ca683f11",
+   "AnalyticsPublicRawRoute": "interface:8971058457",
+   "analyticsIngestRoute": "variable:245e404a3a"
   }
  },
  "./site/agent-tools": {

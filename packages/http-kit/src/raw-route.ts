@@ -6,13 +6,13 @@
  */
 import type { Express, Request, Response } from 'express';
 import type { RouteHostContext } from '@jini-ai/core/contracts/server';
-import { allowRouteBody, allowRouteOrigin, applyResponseHeaders, assertRequestFactsPort, routeAuthorize, routeRequestInput, sendRouteException } from './adapter.js';
+import { allowRouteBody, allowRouteOrigin, applyAdmittedResponseHeaders, applyResponseHeaders, assertRequestFactsPort, requestScopedDeps, routeAuthorize, routeRequestInput, sendRouteException } from './adapter.js';
 import { deferredBodyReader } from './deferred-body.js';
 import { sendWebResponse } from './node-bridge.js';
-import type { RawRouteSpec } from './types.js';
+import type { RawRouteSpec, RouteMountOptions } from './types.js';
 
 /** The optional fields of a raw spec, settable in `defineRawRoute`'s second argument. */
-type RawRouteOptionalKey = 'requireSameOrigin' | 'maxBodyBytes' | 'ports' | 'readHeaders' | 'requestFacts' | 'responseHeaders' | 'bufferedReply';
+type RawRouteOptionalKey = 'requireSameOrigin' | 'maxBodyBytes' | 'ports' | 'readHeaders' | 'requestFacts' | 'responseHeaders' | 'admittedResponseHeaders' | 'bufferedReply';
 
 /**
  * Combines required route fields and optional settings into a fresh raw spec, pinning its generic
@@ -25,24 +25,25 @@ export function defineRawRoute<Deps, Context = undefined>(requiredArgs: Omit<Raw
 
 /**
  * Mounts one raw spec. Gates run in `mountJsonRoute`'s order — static response headers, body cap,
- * workspace, same-origin, authenticate — then `handle`, whose `raw.readBody` reads the request body only
+ * workspace (then `admittedResponseHeaders`), same-origin, authenticate — then `handle`, whose `raw.readBody` reads the request body only
  * when called (so a route that defers its body never reads an unauthorized one); a thrown error takes the same `onError` /
  * SEC-005 path. The returned `Response` is written with its status, every header (each `Set-Cookie`
  * on its own line) and its body: none ends the answer, a stream is piped and cancelled when the
  * client leaves, and `handle`'s `signal` aborts on that same disconnect.
+ * `optional.bodyParsers` are registered between the path and the handler of this one route (`RouteMountOptions`).
  * @throws At mount, when the spec opts into `requestFacts` without the host's resolver port.
  * @complexity O(1) setup; per request, the gates, the host ports, `handle` and the body copy.
  */
-export function mountRawRoute<Deps, Context = undefined>({ app, spec, deps, adapter }: { readonly app: Express; readonly spec: RawRouteSpec<Deps, Context>; readonly deps: Deps; readonly adapter?: RouteHostContext }, _optional: Record<string, never> = {}): void {
+export function mountRawRoute<Deps, Context = undefined>({ app, spec, deps, adapter }: { readonly app: Express; readonly spec: RawRouteSpec<Deps, Context>; readonly deps: Deps; readonly adapter?: RouteHostContext }, optional: RouteMountOptions<Deps> = {}): void {
   assertRequestFactsPort({ spec });
-  app[spec.method](spec.path, async (req: Request, res: Response) => {
+  app[spec.method](spec.path, ...(optional.bodyParsers ?? []), async (req: Request, res: Response) => {
     // Observed on `res`, not `req`, for the reason `mountJsonRoute` documents: a parsed request
     // body has already ended the request stream, so `req`'s `close` is not a disconnect.
     const abortController = new AbortController();
     const onResponseClose = () => abortController.abort();
     res.on('close', onResponseClose);
     try {
-      await answerRawRoute({ req, res, spec, deps, adapter, signal: abortController.signal });
+      await answerRawRoute({ req, res, spec, deps, adapter, signal: abortController.signal }, optional);
     } catch (e) {
       // A body that fails after the head went out cannot be answered any more: cut the connection.
       if (res.headersSent) res.destroy();
@@ -54,15 +55,18 @@ export function mountRawRoute<Deps, Context = undefined>({ app, spec, deps, adap
 }
 
 /** The gates, `handle`, and the write-back of its `Response`; returns early when a gate answered. */
-async function answerRawRoute<Deps, Context>({ req, res, spec, deps, adapter, signal }: {
+async function answerRawRoute<Deps, Context>({ req, res, spec, deps: mountedDeps, adapter, signal }: {
   readonly req: Request; readonly res: Response; readonly spec: RawRouteSpec<Deps, Context>;
   readonly deps: Deps; readonly adapter: RouteHostContext | undefined; readonly signal: AbortSignal;
-}): Promise<void> {
+}, mountOptions: Pick<RouteMountOptions<Deps>, 'requestDeps'> = {}): Promise<void> {
   applyResponseHeaders({ res, headers: spec.responseHeaders });
+  // Once per request, before every gate: the ports and `handle` see this request's bound deps.
+  const deps = requestScopedDeps({ req, res, deps: mountedDeps }, mountOptions);
   // `readBody` reads nothing until `handle` calls it, after every gate below (`deferred-body.ts`).
   const raw = { ...routeRequestInput({ req, spec, deps }), readBody: deferredBodyReader({ req, res }) };
   if (!allowRouteBody({ req, res, spec })) return;
   if (spec.ports?.workspace) await spec.ports.workspace({ raw, deps });
+  applyAdmittedResponseHeaders({ res, raw, spec });
   if (!allowRouteOrigin({ req, res, spec, adapter })) return;
   const context = spec.ports?.authenticate ? await spec.ports.authenticate({ raw, res, deps }) : undefined;
   const authorize = routeAuthorize({ ports: spec.ports, deps, context });
@@ -72,7 +76,8 @@ async function answerRawRoute<Deps, Context>({ req, res, spec, deps, adapter, si
     await response.body?.cancel();
     return;
   }
-  if (spec.bufferedReply) await sendBufferedReply({ response, res });
+  if (spec.bufferedReply === 'redirect') await sendRedirectOrBufferedReply({ response, res });
+  else if (spec.bufferedReply) await sendBufferedReply({ response, res });
   else await sendWebResponse({ response, res }, { headOnly: req.method === 'HEAD' });
 }
 
@@ -89,11 +94,33 @@ async function answerRawRoute<Deps, Context>({ req, res, spec, deps, adapter, si
 async function sendBufferedReply({ response, res }: { readonly response: globalThis.Response; readonly res: Response }): Promise<void> {
   const body = Buffer.from(await response.arrayBuffer());
   res.statusCode = response.status;
+  copyResponseHeaders({ response, res });
+  res.send(body);
+}
+
+/** Every header of `response` onto `res` as `sendBufferedReply` copies them (each `Set-Cookie` on its own line, `Vary` merged), minus `skip`. O(h). */
+function copyResponseHeaders({ response, res }: { readonly response: globalThis.Response; readonly res: Response }, { skip = '' }: { readonly skip?: string } = {}): void {
   const cookies = response.headers.getSetCookie();
   response.headers.forEach((value, name) => {
     if (name === 'vary') res.vary(value);
-    else if (name !== 'set-cookie') res.setHeader(name, value);
+    else if (name !== 'set-cookie' && name !== skip) res.setHeader(name, value);
   });
   for (const cookie of cookies) res.append('set-cookie', cookie);
-  res.send(body);
+}
+
+/**
+ * The `bufferedReply: 'redirect'` write: a 3xx `Response` with a `Location` is answered by Express's own
+ * `res.redirect(status, location)`, after its other headers and cookies are copied as `sendBufferedReply`
+ * copies them, so the answer is exactly what a hand-written `res.redirect` route gave — the Accept-negotiated
+ * HTML / plain-text / empty body, `Vary: Accept`, `Content-Length`, no body for HEAD. (`Location` itself is
+ * left to `res.redirect`, which writes it through `res.location`'s encoding, as the hand-written route did.)
+ * Any other answer takes `sendBufferedReply`.
+ * @complexity O(h) headers for a redirect (its body is discarded); otherwise `sendBufferedReply`'s.
+ */
+async function sendRedirectOrBufferedReply({ response, res }: { readonly response: globalThis.Response; readonly res: Response }): Promise<void> {
+  const location = response.headers.get('location');
+  if (response.status < 300 || response.status > 399 || location === null) { await sendBufferedReply({ response, res }); return; }
+  await response.body?.cancel();
+  copyResponseHeaders({ response, res }, { skip: 'location' });
+  res.redirect(response.status, location);
 }

@@ -1,8 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import { RouteRefusalError } from '@jini-ai/core/errors/route-refusal';
 import {
-  sitesConfigReadRoute, sitesHomeSetRoute, validateSitesSettingsDirectories, parseSitesSettingsDirectory,
-  type SitesDirectoryProbe, type SitesHomeSetRouteDeps,
+  sitesConfigReadRoute, sitesConfigSaveRoute, sitesHomeSetRoute, validateSitesSettingsDirectories, parseSitesSettingsDirectory,
+  SITES_SETTINGS_DISABLED_MESSAGE,
+  type SitesConfigSaveRouteDeps, type SitesDirectoryProbe, type SitesHomeSetRouteDeps,
 } from '../sites-home.js';
 
 const PREFIX = '/api/admin/v1/workspaces/:workspaceId/system/sites';
@@ -116,5 +117,93 @@ describe('sites settings route specs', () => {
     const f = fixture();
     await expect(sitesConfigReadRoute.handle({ input: {}, deps: f.deps }, {})).rejects.toThrow(/no authorizer/);
     await expect(sitesHomeSetRoute.handle({ input: { path: '/mnt/x' }, deps: f.deps }, {})).rejects.toThrow(/no authorizer/);
+  });
+});
+
+describe('sitesConfigSaveRoute spec', () => {
+  type Patch = { sitesHome?: unknown; siteRoots?: readonly string[] };
+  function saveFixture({ deny = false, kinds = { '/mnt': 'directory' } as Record<string, 'directory' | 'other'>, validated = { sitesHome: '/mnt/new' } as Patch, validateError }: { deny?: boolean; kinds?: Record<string, 'directory' | 'other'>; validated?: Patch; validateError?: unknown } = {}) {
+    const calls: unknown[] = [];
+    const base = probe(kinds);
+    const deps: SitesConfigSaveRouteDeps = {
+      directories: { ...base, kind: (required) => { calls.push(['probe', required.directory]); return base.kind(required); } },
+      validatePatch: ({ value }) => { calls.push(['validatePatch', value]); if (validateError !== undefined) throw validateError; return validated; },
+      workspace: { updateConfig: ({ patch }) => { calls.push(['updateConfig', patch]); return { saved: patch }; } },
+    };
+    const authorize = async (args: { permission: string; entityType: string }) => {
+      calls.push(['authorize', args]);
+      if (deny) throw new RouteRefusalError({ status: 403, body: { error: 'denied' } });
+    };
+    const save = (body: unknown, { withAuthorize = true } = {}) => {
+      const parsed = sitesConfigSaveRoute.parse({ body, query: {}, params: {} });
+      if (!parsed.ok) throw new Error('parse must be total');
+      return sitesConfigSaveRoute.handle({ input: parsed.value, deps, context: { id: 'owner' }, ...(withAuthorize ? { authorize } : {}) }, {});
+    };
+    return { calls, save };
+  }
+
+  it('pins method, path, success status and no body cap', () => {
+    expect([sitesConfigSaveRoute.method, sitesConfigSaveRoute.path, sitesConfigSaveRoute.successStatus, sitesConfigSaveRoute.maxBodyBytes])
+      .toEqual(['put', `${PREFIX}/config`, undefined, undefined]);
+    expect(SITES_SETTINGS_DISABLED_MESSAGE).toBe('Local sites management is disabled.');
+  });
+
+  it('parse is total: the body is carried raw, validation runs after authorization', () => {
+    expect(sitesConfigSaveRoute.parse({ body: { sitesHome: 7 }, query: {}, params: {} })).toEqual({ ok: true, value: { body: { sitesHome: 7 } } });
+    expect(sitesConfigSaveRoute.parse({ body: undefined, query: {}, params: {} })).toEqual({ ok: true, value: { body: undefined } });
+  });
+
+  it('asks system.write on the site registry (no entity id) before anything else, and a denial stops every side effect', async () => {
+    const ok = saveFixture();
+    await ok.save({ sitesHome: '/mnt/new' });
+    expect(ok.calls[0]).toEqual(['authorize', { permission: 'system.write', entityType: 'site-registry' }]);
+    const denied = saveFixture({ deny: true });
+    expect((await refusalOf(() => denied.save({ sitesHome: '/mnt/new' }))).status).toBe(403);
+    expect(denied.calls.map((call) => (call as unknown[])[0])).toEqual(['authorize']);
+  });
+
+  it('fails closed without an authorizer (a wiring bug), before any validation', async () => {
+    const f = saveFixture();
+    await expect(f.save({ sitesHome: '/mnt/new' }, { withAuthorize: false })).rejects.toThrow('sites settings route has no authorizer');
+    expect(f.calls).toEqual([]);
+  });
+
+  it('checks the shape of sitesHome BEFORE the host validates the patch or any folder is probed', async () => {
+    for (const sitesHome of [7, '', 'relative/dir', '/mnt/a\0b']) {
+      const f = saveFixture();
+      expect(await refusalOf(() => f.save({ sitesHome }))).toEqual({ status: 400, body: { error: INVALID } });
+      expect(f.calls.map((call) => (call as unknown[])[0])).toEqual(['authorize']);
+    }
+  });
+
+  it('runs the host patch validation, then the folder rules over the validated patch, then writes that patch', async () => {
+    const validated: Patch = { sitesHome: '/mnt/new', siteRoots: ['/mnt'] };
+    const f = saveFixture({ validated });
+    await expect(f.save({ sitesHome: '/mnt/new', siteRoots: ['/mnt'] })).resolves.toEqual({ ok: true, value: { saved: validated } });
+    expect(f.calls.slice(1)).toEqual([
+      ['validatePatch', { sitesHome: '/mnt/new', siteRoots: ['/mnt'] }], ['probe', '/mnt/new'], ['probe', '/mnt'], ['updateConfig', validated],
+    ]);
+  });
+
+  it('skips the sitesHome shape check when the body names none, and still validates the patch', async () => {
+    const f = saveFixture({ validated: { siteRoots: ['/mnt'] } });
+    await f.save({ siteRoots: ['/mnt'] });
+    expect(f.calls.slice(1, 2)).toEqual([['validatePatch', { siteRoots: ['/mnt'] }]]);
+    await expect(saveFixture({ validated: {} }).save(undefined)).resolves.toEqual({ ok: true, value: { saved: {} } });
+  });
+
+  it('answers each folder refusal and writes nothing', async () => {
+    const missingRoot = saveFixture({ validated: { siteRoots: ['/gone'] } });
+    expect((await refusalOf(() => missingRoot.save({}))).body).toEqual({ error: 'Sites folder is unavailable: /gone. Mount it or choose an existing local folder.' });
+    const file = saveFixture({ kinds: { '/mnt': 'directory', '/mnt/file': 'other' }, validated: { sitesHome: '/mnt/file' } });
+    expect((await refusalOf(() => file.save({}))).body).toEqual({ error: 'Sites folder must be a directory.' });
+    for (const f of [missingRoot, file]) expect(f.calls.some((call) => (call as unknown[])[0] === 'updateConfig')).toBe(false);
+  });
+
+  it('passes the host patch refusal through and rethrows anything unexpected unchanged', async () => {
+    const refusal = new RouteRefusalError({ status: 400, body: { error: 'siteRoots must be an array' } });
+    expect(await refusalOf(() => saveFixture({ validateError: refusal }).save({ siteRoots: 1 }))).toEqual({ status: 400, body: { error: 'siteRoots must be an array' } });
+    const eacces = Object.assign(new Error('EACCES'), { code: 'EACCES' });
+    await expect(saveFixture({ validateError: eacces }).save({})).rejects.toBe(eacces);
   });
 });
