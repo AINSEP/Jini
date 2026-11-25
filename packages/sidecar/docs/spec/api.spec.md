@@ -55,7 +55,7 @@ Path fields are strings; `env` is `NodeJS.ProcessEnv`. Bootstrap returns `{app, 
 | `removeDaemonRegistryRecordIfCurrent({registryPath, pid: number})` | `Promise<void>` |
 | `isProcessAlive({pid: number})` | `boolean`; signal-zero probe |
 | `readLiveDaemonRegistryRecord({registryPath})` | `Promise<LocalDaemonRegistryRecord|null>` |
-| `createJsonIpcServer({socketPath, handler: JsonIpcHandler}, optional = {maxFrameBytes?, idleTimeoutMs?})` | `Promise<JsonIpcServerHandle>` |
+| `createJsonIpcServer({socketPath, handler: JsonIpcHandler}, optional: JsonIpcServerOptions = {maxFrameBytes?, idleTimeoutMs?, errors?: {reporter, observability?, methodOf?, refusalCode: 'HANDLER_ERROR'}, logger?})` | `Promise<JsonIpcServerHandle>`; `errors` opts in to reporter mode |
 | `requestJsonIpc<T = any>({socketPath, payload: unknown}, optional = {timeoutMs?})` | `Promise<T>`; response result is trusted as `T` |
 
 `PortAllocation = {port: number, source: 'dynamic'|'forced'}`. `LocalDaemonRegistryRecord` has `{url: string, host: string, port: number, pid: number, startedAt: string}`. `JsonIpcHandler({message: any})` returns `unknown|Promise<unknown>`; `JsonIpcServerHandle.close(): Promise<void>` closes the listener and removes a Unix endpoint. The consumer supplies message validation, authentication and authorization inside its handler.

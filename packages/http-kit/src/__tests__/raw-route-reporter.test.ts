@@ -4,9 +4,10 @@
 // is recorded once and the connection cut. Without `errors` the legacy SEC-005 sink is unchanged.
 import express from 'express';
 import { describe, expect, it, vi } from 'vitest';
-import type { ObservabilityPort, OperationTrackingOutcome } from '@jini-ai/core';
+import type { ObservabilityPort, OperationTrackingOutcome } from '@jini-ai/core/contracts/observability';
 import { createRecordingReporter } from '@jini-ai/core/errors/testing';
 import { defineRawRoute, mountRawRoute } from '../raw-route.js';
+import type { RawRouteSpec } from '../types.js';
 import { listen } from './route-test-host.js';
 
 const ISO = '2026-01-01T00:00:00.000Z';
@@ -16,7 +17,8 @@ interface TrackedOperation { readonly name: string; readonly attributes: unknown
 
 /** A real reporter over recording ports, plus a tracker port that keeps every operation and its end. */
 function reporterPorts() {
-  const { reporter, entries, reports } = createRecordingReporter({ ids: [ID], iso: ISO });
+  // A spare ID, so a second record would succeed and be counted rather than fail on an exhausted list.
+  const { reporter, entries, reports } = createRecordingReporter({ ids: [ID, 'ERR-AAAA-BBBB-CCCC-0009'], iso: ISO });
   const operations: TrackedOperation[] = [];
   const observability: Pick<ObservabilityPort, 'trackOperation'> = {
     trackOperation: ({ name, attributes }) => {
@@ -28,9 +30,12 @@ function reporterPorts() {
   return { errors: { reporter, observability }, entries, reports, operations };
 }
 
-function mounted(spec: Parameters<typeof mountRawRoute>[0]['spec'], ports: ReturnType<typeof reporterPorts>) {
+/** Same-origin is not under test here; the host context only carries `errors`. */
+const ANY_ORIGIN = { isSameOrigin: () => true };
+
+function mounted(spec: RawRouteSpec<object>, ports: ReturnType<typeof reporterPorts>) {
   const app = express();
-  mountRawRoute({ app, spec, deps: {}, adapter: { errors: ports.errors } });
+  mountRawRoute({ app, spec, deps: {}, adapter: { originPolicy: ANY_ORIGIN, errors: ports.errors } });
   return listen({ app });
 }
 
@@ -81,7 +86,8 @@ describe('mountRawRoute reporter mode', () => {
     expect(new TextDecoder().decode((await reader.read()).value)).toBe('part');
     producer.error(new Error('disk gone'));
     await expect(reader.read()).rejects.toThrow();
-    await vi.waitFor(() => expect(ports.entries).toHaveLength(1));
+    // Recorded synchronously before the cut: once the client sees the reset, every record is in.
+    expect(ports.entries).toHaveLength(1);
     expect(ports.reports.map((r) => r.context.incidentId)).toEqual([ID]);
     expect(ports.entries[0]?.message).toContain('Write response');
     // The drain is transport-owned: the operation had already ended, and is not ended again.
@@ -112,8 +118,8 @@ describe('mountRawRoute reporter mode', () => {
     const ports = reporterPorts();
     const app = express();
     app.use(express.raw({ type: '*/*' }));
-    mountRawRoute({ app, spec: defineRawRoute<object>({ method: 'post', path: '/up', handle: async () => new Response('ok') }, { maxBodyBytes: 2 }), deps: {}, adapter: { errors: ports.errors } });
-    mountRawRoute({ app, spec: defineRawRoute<object>({ method: 'get', path: '/gone', handle: async () => new Response('gone', { status: 410 }) }), deps: {}, adapter: { errors: ports.errors } });
+    mountRawRoute({ app, spec: defineRawRoute<object>({ method: 'post', path: '/up', handle: async () => new Response('ok') }, { maxBodyBytes: 2 }), deps: {}, adapter: { originPolicy: ANY_ORIGIN, errors: ports.errors } });
+    mountRawRoute({ app, spec: defineRawRoute<object>({ method: 'get', path: '/gone', handle: async () => new Response('gone', { status: 410 }) }), deps: {}, adapter: { originPolicy: ANY_ORIGIN, errors: ports.errors } });
     const base = await listen({ app });
     expect((await fetch(`${base}/up`, { method: 'POST', body: 'too big' })).status).toBe(413);
     expect((await fetch(`${base}/gone`)).status).toBe(410);
@@ -126,8 +132,8 @@ describe('mountRawRoute reporter mode', () => {
     const { reporter, entries } = createRecordingReporter({ ids: ['ERR-AAAA-BBBB-CCCC-0002', ID], iso: ISO });
     const errors = { reporter, observability: ports.errors.observability };
     const app = express();
-    mountRawRoute({ app, spec: defineRawRoute<object>({ method: 'get', path: '/tea', handle: async () => { throw new Error('x'); } }, { ports: { onError: ({ res }) => { res.status(418).send('teapot'); } } }), deps: {}, adapter: { errors } });
-    mountRawRoute({ app, spec: defineRawRoute<object>({ method: 'get', path: '/bad', handle: async () => { throw new Error('original'); } }, { ports: { onError: () => { throw new Error('policy'); } } }), deps: {}, adapter: { errors } });
+    mountRawRoute({ app, spec: defineRawRoute<object>({ method: 'get', path: '/tea', handle: async () => { throw new Error('x'); } }, { ports: { onError: ({ res }) => { res.status(418).send('teapot'); } } }), deps: {}, adapter: { originPolicy: ANY_ORIGIN, errors } });
+    mountRawRoute({ app, spec: defineRawRoute<object>({ method: 'get', path: '/bad', handle: async () => { throw new Error('original'); } }, { ports: { onError: () => { throw new Error('policy'); } } }), deps: {}, adapter: { originPolicy: ANY_ORIGIN, errors } });
     const base = await listen({ app });
     const tea = await fetch(`${base}/tea`);
     expect([tea.status, await tea.text(), entries.length]).toEqual([418, 'teapot', 0]);
@@ -141,7 +147,7 @@ describe('mountRawRoute reporter mode', () => {
   it('raw route without errors keeps the legacy sink', async () => {
     const internal = vi.fn();
     const app = express();
-    mountRawRoute({ app, spec: defineRawRoute<object>({ method: 'get', path: '/boom', handle: async () => { throw new Error('secret dsn'); } }), deps: {}, adapter: { onInternalError: internal } });
+    mountRawRoute({ app, spec: defineRawRoute<object>({ method: 'get', path: '/boom', handle: async () => { throw new Error('secret dsn'); } }), deps: {}, adapter: { originPolicy: ANY_ORIGIN, onInternalError: internal } });
     const response = await fetch(`${await listen({ app })}/boom`);
     const body = await response.json() as { error: { code: string; requestId?: string } };
     expect([response.status, body.error.code]).toEqual([500, 'INTERNAL_ERROR']);

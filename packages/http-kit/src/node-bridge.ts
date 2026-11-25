@@ -11,6 +11,7 @@ import { Readable } from 'node:stream';
 import { inspect } from 'node:util';
 import { redactSecrets, type SecretRedactionPattern } from '@jini-ai/core';
 import { createRouteTable, type RouteMatch, type Server } from '@jini-ai/core/contracts/server';
+import { UNAVAILABLE_ERROR_ID, type ErrorReporter } from '@jini-ai/core/errors/reporter';
 
 /** Optional per-request hints from a host framework that already touched the request. */
 export interface NodeDispatchOptions {
@@ -56,6 +57,14 @@ export interface NodeDispatcherOptions {
    * host passes its own API key shape). Ignored when `onUnhandledError` is given: that sink owns redaction.
    */
   readonly redactionPatterns?: readonly SecretRedactionPattern[];
+  /**
+   * The host's error reporter. When given, it is the one reference source: an unhandled failure is
+   * recorded once (one host record, one tracker report) and the plain-words 500 shows its ERR- ID, so
+   * `onUnhandledError` and `redactionPatterns` are ignored (the reporter owns redaction). Only
+   * `record` is used, with no tracker: a route behind the bridge that is already traced (a reporter-mode
+   * JSON route) owns its own `http.route` operation, and the bridge never opens a second one around it.
+   */
+  readonly reporter?: Pick<ErrorReporter, 'record'>;
   /**
    * For a host that replaces Express routes with route lists and must keep answering what Express
    * answered. Paths match as Express 4 matches by default (fixed segments ignore letter case, one
@@ -332,17 +341,46 @@ function internalErrorResponse(reference: string): Response {
   return plainText({ status: 500, text: `The server could not finish this request. Reference: ${reference}. Try again; if it keeps failing, send this reference to the site's owner.` });
 }
 
+/** Records one unhandled failure and returns the reference its caller is shown. Never throws. */
+type ReportIncident = (required: { readonly error: unknown; readonly step: string }) => string;
+
+/**
+ * Picks the reference source once, at creation: the reporter's ERR- incident ID when one is wired,
+ * else today's 12-hex reference through the contained sink. Never both, so a failure has one ID.
+ */
+function incidentSource({ reporter, onUnhandledError, redactionPatterns }: {
+  readonly reporter: NodeDispatcherOptions['reporter'] | undefined; readonly onUnhandledError: NodeDispatcherOptions['onUnhandledError'] | undefined;
+  readonly redactionPatterns: readonly SecretRedactionPattern[];
+}): ReportIncident {
+  if (reporter) return ({ error, step }) => recordWithReporter({ reporter, error, step });
+  const sink = containedSink(onUnhandledError ?? stderrSink(redactionPatterns));
+  return ({ error }) => {
+    const reference = newErrorReference();
+    sink({ error, reference });
+    return reference;
+  };
+}
+
+/** The reporter promises never to throw; this guard keeps a broken one from rejecting `handle()`, and the caller still gets the stand-in ID. */
+function recordWithReporter({ reporter, error, step }: { readonly reporter: Pick<ErrorReporter, 'record'>; readonly error: unknown; readonly step: string }): string {
+  try {
+    return reporter.record({ error, step, operation: 'http.route' }).errorId;
+  } catch {
+    return UNAVAILABLE_ERROR_ID;
+  }
+}
+
 interface Dispatch {
   readonly incoming: IncomingMessage;
   readonly out: ServerResponse;
   readonly method: string;
   readonly options: NodeDispatchOptions;
-  readonly onUnhandledError: (required: UnhandledErrorReport) => void;
+  readonly reportIncident: ReportIncident;
   readonly expressCompatible: boolean;
 }
 
 /** Calls the matched route and writes its answer; a handler failure goes to `next(error)` or a plain 500. */
-async function serveRoute({ incoming, out, method, options, onUnhandledError }: Dispatch, { url, match }: { url: URL; match: Extract<RouteMatch, { kind: 'route' }> }): Promise<void> {
+async function serveRoute({ incoming, out, method, options, reportIncident }: Dispatch, { url, match }: { url: URL; match: Extract<RouteMatch, { kind: 'route' }> }): Promise<void> {
   // A client that hangs up aborts `request.signal`, which is how a handler or stream notices.
   // Observe response close: request close can fire when a POST body finishes while its response is still streaming. A normally finished response does not abort the signal.
   const abort = new AbortController();
@@ -355,12 +393,14 @@ async function serveRoute({ incoming, out, method, options, onUnhandledError }: 
     response = await match.route.handler({ request, params: match.params, locals: { ...options.locals }, ...(address ? { client: { address } } : {}) });
   } catch (error) {
     out.off('close', onClose);
+    // Before any head went out the host's own error handler owns this failure, so it is handed over
+    // unrecorded: recording here as well would give one failure two incidents.
     if (options.next) {
       options.next(error);
       return;
     }
-    const reference = newErrorReference();
-    onUnhandledError({ error, reference });
+    // No host handler: the bridge owns both the record and the one plain-words reply that shows its reference.
+    const reference = reportIncident({ error, step: 'Handle request' });
     await sendWebResponse({ response: internalErrorResponse(reference), res: out })
       .catch(() => { out.destroy(); });
     return;
@@ -369,8 +409,9 @@ async function serveRoute({ incoming, out, method, options, onUnhandledError }: 
     await sendWebResponse({ response, res: out }, { headOnly: method === 'HEAD' });
   } catch (error) {
     // Headers are already on the wire, so no error page can follow: cut the connection so the
-    // client sees a failed response instead of a silently truncated one.
-    onUnhandledError({ error, reference: newErrorReference() });
+    // client sees a failed response instead of a silently truncated one. The bridge owns this write,
+    // so it records the failure itself, once.
+    reportIncident({ error, step: 'Write response' });
     out.destroy();
   } finally {
     out.off('close', onClose);
@@ -400,14 +441,15 @@ function expressAnswer({ dispatch, match }: { dispatch: Dispatch; match: RouteMa
  * Creates a dispatcher with an empty route table.
  * @param optional.onUnhandledError - Where a handler failure goes when no `next` was given, with the reference its 500 shows (default: redacted, to stderr).
  * @param optional.redactionPatterns - Host key shapes the default stderr sink also masks.
+ * @param optional.reporter - The host's error reporter; its ERR- IDs replace the 12-hex references (see {@link NodeDispatcherOptions}).
  * @param optional.expressCompatible - Keep Express's answers for path spellings, a bad percent-escape and OPTIONS (see {@link NodeDispatcherOptions}).
  */
 export function createNodeDispatcher(
   _required: Record<string, never> = {},
-  { onUnhandledError, redactionPatterns = [], expressCompatible = false }: NodeDispatcherOptions = {},
+  { onUnhandledError, redactionPatterns = [], expressCompatible = false, reporter }: NodeDispatcherOptions = {},
 ): NodeDispatcher {
   const table = createRouteTable({}, { lenientPaths: expressCompatible });
-  const report = containedSink(onUnhandledError ?? stderrSink(redactionPatterns));
+  const reportIncident = incidentSource({ reporter, onUnhandledError, redactionPatterns });
   const dispatch = async (dispatchArgs: Dispatch): Promise<void> => {
     const target = requestTarget({ incoming: dispatchArgs.incoming, origin: dispatchArgs.options.origin });
     const match = target ? table.match({ method: dispatchArgs.method, pathname: target.pathname }) : null;
@@ -422,10 +464,10 @@ export function createNodeDispatcher(
     server: { route: (route) => table.route(route) },
     handle({ incoming, out }, options = {}) {
       // The promise never rejects (the Express adapter discards it): anything left is reported and
-      // the connection cut. `report` is contained, and the cut runs even if it were not.
-      return dispatch({ incoming, out, method: incoming.method ?? 'GET', options, onUnhandledError: report, expressCompatible }).catch((error: unknown) => {
+      // the connection cut. `reportIncident` is contained, and the cut runs even if it were not.
+      return dispatch({ incoming, out, method: incoming.method ?? 'GET', options, reportIncident, expressCompatible }).catch((error: unknown) => {
         try {
-          report({ error, reference: newErrorReference() });
+          reportIncident({ error, step: 'Serve request' });
         } finally {
           out.destroy();
         }

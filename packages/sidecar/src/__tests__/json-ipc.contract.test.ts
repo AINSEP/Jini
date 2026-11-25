@@ -1,10 +1,13 @@
 import { spawn, type ChildProcess } from "node:child_process";
 import { existsSync, lstatSync } from "node:fs";
 import { mkdtemp, rm } from "node:fs/promises";
-import { createConnection, createServer as createNetServer, type Server } from "node:net";
+import { createConnection, createServer as createNetServer, Socket, type Server } from "node:net";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
+import { ClientFacingError } from "@jini-ai/core/contracts/server";
+import type { ObservabilityPort } from "@jini-ai/core/contracts/observability";
+import { createRecordingLogger, createRecordingReporter } from "@jini-ai/core/errors/testing";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { createJsonIpcServer, prepareIpcPath, requestJsonIpc } from "../json-ipc.js";
@@ -356,5 +359,253 @@ describe("frame size boundary (SEC-004)", () => {
       await server.close();
     }
     expect(handler).toHaveBeenCalledTimes(1);
+  });
+});
+
+// ---- Reporter mode (additive `errors` option) -------------------------------------------------
+const NOW = "2026-01-01T00:00:00.000Z";
+const ERR = "ERR-0123-4567-89AB-CDEF";
+type IpcRejection = Error & { code?: string; reason?: string; requestId?: string };
+type Started = { name: string; attributes?: Readonly<Record<string, string | number>> };
+
+/** A real reporter over recording ports, plus a tracker that keeps what each operation started with. */
+const reporterHost = (extra: { methodOf?: (required: { message: unknown }) => string | undefined } = {}) => {
+  const recording = createRecordingReporter({ ids: [ERR, "ERR-0000-0000-0000-0002"], iso: NOW });
+  const started: Started[] = [];
+  const observability: Pick<ObservabilityPort, "trackOperation"> = {
+    trackOperation: (input) => {
+      started.push(input);
+      return { run: (fn) => fn(), end: () => undefined };
+    },
+  };
+  const sidecarLog = createRecordingLogger();
+  const errors = { reporter: recording.reporter, observability, refusalCode: "HANDLER_ERROR" as const, ...extra };
+  return { ...recording, started, errors, sidecarLog };
+};
+const failureOf = async (socketPath: string, payload: unknown = { type: "X" }) =>
+  (await requestJsonIpc({ socketPath, payload }, { timeoutMs: 2000 }).then(() => undefined, (error) => error)) as IpcRejection | undefined;
+const consoleLines = () => vi.mocked(console.error).mock.calls;
+
+describe("reporter mode (errors option)", () => {
+  it("a handler throw yields one report and the ERR- id in requestId", async () => {
+    delete process.env.JINI_JSON_IPC_TRACE;
+    const host = reporterHost();
+    const socketPath = join(root, "report.sock");
+    const server = await createJsonIpcServer({ handler: async () => { throw new Error("db at /secret/path failed"); }, socketPath }, { errors: host.errors, logger: host.sidecarLog.logger });
+    let rejection: IpcRejection | undefined;
+    try {
+      rejection = await failureOf(socketPath);
+    } finally {
+      await server.close();
+    }
+    expect(rejection?.requestId).toBe(ERR);
+    expect(rejection?.message, "the ERR id is in the words a person reads").toContain(ERR);
+    expect(rejection?.message).not.toContain("/secret/path");
+    expect(consoleLines(), "reporter mode never writes the legacy console line").toHaveLength(0);
+    expect(host.entries.filter((entry) => entry.level === "error"), "the reporter's logger gets the one incident record").toHaveLength(1);
+    expect(host.reports, "the tracker gets one report").toHaveLength(1);
+    expect(host.sidecarLog.entries, "the sidecar's own logger adds no second incident").toEqual([]);
+  });
+
+  it("without errors the legacy reply keeps traceId as requestId and logs once", async () => {
+    delete process.env.JINI_JSON_IPC_TRACE;
+    const socketPath = join(root, "legacy.sock");
+    const server = await createJsonIpcServer({ handler: async () => { throw new Error("db at /secret/path failed"); }, socketPath });
+    let rejection: IpcRejection | undefined;
+    try {
+      rejection = await failureOf(socketPath);
+    } finally {
+      await server.close();
+    }
+    expect(rejection?.code).toBe("HANDLER_ERROR");
+    expect(rejection?.requestId).toMatch(new RegExp(`^ipc-${process.pid}-\\d+$`));
+    expect(rejection?.reason).toBeUndefined();
+    expect(consoleLines()).toHaveLength(1);
+    expect(String(consoleLines()[0]?.[0])).toBe(`[@jini-ai/sidecar] json-ipc handler failed (traceId=${rejection?.requestId})`);
+    expect(JSON.stringify(consoleLines())).not.toContain("/secret/path");
+  });
+
+  it("without errors an injected logger receives the one legacy incident write instead of the console", async () => {
+    delete process.env.JINI_JSON_IPC_TRACE;
+    const log = createRecordingLogger();
+    const socketPath = join(root, "legacy-logger.sock");
+    const server = await createJsonIpcServer({ handler: async () => { throw new Error("boom"); }, socketPath }, { logger: log.logger });
+    try {
+      await failureOf(socketPath);
+    } finally {
+      await server.close();
+    }
+    expect(consoleLines()).toHaveLength(0);
+    expect(log.entries.filter((entry) => entry.level === "error")).toHaveLength(1);
+  });
+
+  it("the ipc.method attribute is the bounded label, never message text", async () => {
+    const socketPath = join(root, "method.sock");
+    const secretText = "tool run with secret words";
+    const candidates: Array<[string, (required: { message: unknown }) => string | undefined, string]> = [
+      ["a 500-character candidate", () => "m".repeat(500), "unknown"],
+      ["raw message text", ({ message }) => (message as { type: string }).type, "unknown"],
+      ["a label with a leading digit", () => "1tool", "unknown"],
+      ["a throwing label function", () => { throw new Error("label broke"); }, "unknown"],
+      ["no label", () => undefined, "unknown"],
+      ["a valid label", () => "tool.run:v2", "tool.run:v2"],
+    ];
+    for (const [label, methodOf, expected] of candidates) {
+      const host = reporterHost({ methodOf });
+      const server = await createJsonIpcServer({ handler: async () => "fine", socketPath }, { errors: host.errors });
+      try {
+        await expect(requestJsonIpc({ socketPath, payload: { type: secretText, input: { apiKey: "k" } } })).resolves.toBe("fine");
+      } finally {
+        await server.close();
+      }
+      expect(host.started, label).toHaveLength(1);
+      expect(host.started[0]?.name).toBe("ipc.handle");
+      expect(host.started[0]?.attributes?.["ipc.method"], label).toBe(expected);
+      const published = JSON.stringify(host.started);
+      for (const forbidden of [secretText, "apiKey", socketPath]) expect(published, `${label} must not publish ${forbidden}`).not.toContain(forbidden);
+      expect(host.started[0]?.attributes?.["ipc.trace_id"]).toMatch(new RegExp(`^ipc-${process.pid}-\\d+$`));
+      expect(host.started[0]?.attributes?.["ipc.trace_id"]).not.toBe(ERR);
+    }
+  });
+
+  it("a peer gone before the reply produces no second incident", async () => {
+    const host = reporterHost();
+    let release!: () => void;
+    const gate = new Promise<void>((resolve) => (release = resolve));
+    let handlerStarted!: () => void;
+    const started = new Promise<void>((resolve) => (handlerStarted = resolve));
+    const socketPath = join(root, "gone.sock");
+    const server = await createJsonIpcServer({ handler: async () => { handlerStarted(); await gate; throw new Error("late failure"); }, socketPath }, { errors: host.errors, logger: host.sidecarLog.logger });
+    try {
+      const client = createConnection(socketPath, () => client.write('{"type":"X"}\n'));
+      client.on("error", () => undefined);
+      await started;
+      client.destroy();
+      await new Promise((resolve) => setTimeout(resolve, 100));
+      release();
+      await vi.waitFor(() => expect(host.sidecarLog.entries.filter((entry) => entry.level === "warn")).toHaveLength(1));
+    } finally {
+      await server.close();
+    }
+    expect(host.sidecarLog.entries).toEqual([{ level: "warn", message: "[@jini-ai/sidecar] json-ipc could not write the reply; the peer is gone." }]);
+    expect(host.reports, "only the handler's own failure is reported").toHaveLength(1);
+    expect(host.entries.filter((entry) => entry.level === "error")).toHaveLength(1);
+  });
+
+  it("a synchronous write failure on the success reply is contained with a warning and no incident", async () => {
+    const host = reporterHost();
+    const realEnd = Socket.prototype.end;
+    vi.spyOn(Socket.prototype, "end").mockImplementation(function (this: Socket, ...args: unknown[]) {
+      if (typeof args[0] === "string" && args[0].includes('"ok":true')) throw new Error("EPIPE: write after peer reset");
+      return (realEnd as (...inner: unknown[]) => Socket).apply(this, args);
+    });
+    const socketPath = join(root, "sync-write.sock");
+    const server = await createJsonIpcServer({ handler: async () => "fine", socketPath }, { errors: host.errors, logger: host.sidecarLog.logger });
+    try {
+      await expect(requestJsonIpc({ socketPath, payload: {} }, { timeoutMs: 2000 })).rejects.toThrow(/closed before a complete response/);
+      await vi.waitFor(() => expect(host.sidecarLog.entries).toHaveLength(1));
+    } finally {
+      await server.close();
+    }
+    expect(host.sidecarLog.entries[0]).toEqual({ level: "warn", message: "[@jini-ai/sidecar] json-ipc could not write the reply; the peer is gone." });
+    expect(JSON.stringify(host.sidecarLog.entries)).not.toContain("EPIPE");
+    expect(host.reports).toHaveLength(0);
+  });
+
+  it("HANDLER_ERROR code is kept in reporter mode", async () => {
+    const host = reporterHost();
+    const socketPath = join(root, "code.sock");
+    const server = await createJsonIpcServer({ handler: async () => { throw new Error("x"); }, socketPath }, { errors: host.errors });
+    let rejection: IpcRejection | undefined;
+    try {
+      rejection = await failureOf(socketPath);
+    } finally {
+      await server.close();
+    }
+    expect(rejection?.code).toBe("HANDLER_ERROR");
+    expect(rejection?.reason, "an incident has no refusal reason").toBeUndefined();
+    expect(rejection?.requestId).toBe(ERR);
+  });
+
+  it("a refusal keeps HANDLER_ERROR, carries its code as reason with safe words, and has no requestId", async () => {
+    const host = reporterHost();
+    const socketPath = join(root, "refusal.sock");
+    const refusal = new ClientFacingError({ apiError: { code: "WIDGET_MISSING", message: "That widget does not exist." } });
+    const server = await createJsonIpcServer({ handler: async () => { throw refusal; }, socketPath }, { errors: host.errors });
+    let rejection: IpcRejection | undefined;
+    try {
+      rejection = await failureOf(socketPath);
+    } finally {
+      await server.close();
+    }
+    expect(rejection?.code).toBe("HANDLER_ERROR");
+    expect(rejection?.reason).toBe("WIDGET_MISSING");
+    expect(rejection?.message).toBe("That widget does not exist.");
+    expect("requestId" in (rejection as object)).toBe(false);
+    expect(host.reports).toHaveLength(0);
+    expect(host.entries).toHaveLength(0);
+  });
+
+  it("a successful handler replies {ok,result} untouched and reports nothing", async () => {
+    const host = reporterHost();
+    const socketPath = join(root, "success.sock");
+    const server = await createJsonIpcServer({ handler: async ({ message }) => ({ echo: message }), socketPath }, { errors: host.errors });
+    try {
+      await expect(rawExchange(socketPath, '{"n":1}\n')).resolves.toBe(`${JSON.stringify({ ok: true, result: { echo: { n: 1 } } })}\n`);
+    } finally {
+      await server.close();
+    }
+    expect(host.reports).toHaveLength(0);
+    expect(host.entries).toHaveLength(0);
+  });
+
+  it("an unserializable success result becomes an incident, not a half-written reply", async () => {
+    const host = reporterHost();
+    const socketPath = join(root, "bigint.sock");
+    const server = await createJsonIpcServer({ handler: async () => 10n, socketPath }, { errors: host.errors });
+    let rejection: IpcRejection | undefined;
+    try {
+      rejection = await failureOf(socketPath);
+    } finally {
+      await server.close();
+    }
+    expect(rejection?.code).toBe("HANDLER_ERROR");
+    expect(rejection?.requestId).toBe(ERR);
+    expect(host.reports).toHaveLength(1);
+  });
+
+  it("keeps the oversized-frame and idle-connection behavior, and never calls the handler for them", async () => {
+    const host = reporterHost();
+    const handler = vi.fn(async () => "never");
+    const socketPath = join(root, "bounds.sock");
+    const server = await createJsonIpcServer({ handler, socketPath }, { errors: host.errors, maxFrameBytes: 16, idleTimeoutMs: 40 });
+    try {
+      const refused = JSON.parse(await rawExchange(socketPath, `${JSON.stringify({ pad: "x".repeat(40) })}\n`));
+      expect(refused).toEqual({ ok: false, error: { code: "FRAME_TOO_LARGE", message: "request frame exceeds the maximum size" } });
+      await expect(rawExchange(socketPath, '{"partial":')).resolves.toBe("");
+      expect(JSON.parse(await rawExchange(socketPath, "{nope\n"))).toEqual({ ok: false, error: { code: "BAD_FRAME", message: "The sidecar could not read the request frame. Send one line of valid JSON." } });
+    } finally {
+      await server.close();
+    }
+    expect(handler).not.toHaveBeenCalled();
+    expect(host.reports).toHaveLength(0);
+  });
+
+  it("traces go to the injected logger without request summaries or exception text", async () => {
+    process.env.JINI_JSON_IPC_TRACE = "1";
+    const host = reporterHost();
+    const socketPath = join(root, "traces.sock");
+    const server = await createJsonIpcServer({ handler: async () => { throw new Error("db at /secret/path failed"); }, socketPath }, { errors: host.errors, logger: host.sidecarLog.logger });
+    try {
+      await failureOf(socketPath, { type: "SECRET_TYPE", input: { secretKey: 1 } });
+      await new Promise((resolve) => setTimeout(resolve, 20));
+    } finally {
+      await server.close();
+    }
+    expect(traces.filter((trace) => trace.event.startsWith("server."))).toEqual([]);
+    const serverEvents = host.sidecarLog.entries.map((entry) => (entry.meta as { event: string }).event);
+    expect(serverEvents).toEqual(expect.arrayContaining(["server.connection", "server.handler_start", "server.handler_failed", "server.socket_close"]));
+    const written = JSON.stringify(host.sidecarLog.entries);
+    for (const forbidden of ["SECRET_TYPE", "secretKey", "/secret/path", "db at"]) expect(written).not.toContain(forbidden);
   });
 });

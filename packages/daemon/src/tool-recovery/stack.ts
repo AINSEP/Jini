@@ -23,12 +23,19 @@
  *    refusal message is set on the OUTER result, after this layer has already run, so that message is
  *    never redacted either — only the original/remedy/retry calls recovery makes THROUGH `inner` pass
  *    through this layer, each redacted on its own.
+ * 2b. `withToolCallObservability` — between redaction and audit, installed UNCONDITIONALLY. It
+ *    records each failed or timed-out attempt once through the required `reporter`, under the id
+ *    redaction already minted (or, for a timeout, one it mints and stamps), so the model's words,
+ *    the audit row and the host record carry one id. With tracing off it still records: the
+ *    observation switch gates spans and metrics only, never the incident.
  * 3. `withToolAttemptAudit` — appends `requested` BEFORE delegating, which is the only ordering that
  *    records an unknown tool id or a throwing authorization (see that file's own doc). Sitting above
  *    the constraint gate means a read-only refusal is itself audited as a denial. Skipped entirely
  *    when the caller supplies no `toolAttemptAudit` — see {@link AssistantToolExecutorDeps}'s own doc.
  * 4. `withToolFailureRecovery` — outermost, so the remedy call and the retry it can make each land as
- *    their own audited attempt row. The opposite order would collapse all three into the one outer
+ *    their own audited attempt row. It also stays OUTSIDE the per-attempt observation decorator, so
+ *    each attempt is its own operation and its own record, and the outer result is the final
+ *    attempt's, carrying that attempt's id. The opposite order would collapse all three into the one outer
  *    "completed" row the audit records for the call the transport actually made, losing the remedy
  *    tool's own attempt from the trail entirely.
  *
@@ -42,9 +49,10 @@
  * arguments and constructs no policy, sink, or registry of its own.
  */
 import { createToolExecutor } from '../tool-executor.js';
-import { type ToolExecutor, type PrepareToolGuidance } from '../tool-executor-types.js';
+import { type ToolExecutor, type ToolExecutionResult, type PrepareToolGuidance } from '../tool-executor-types.js';
 import type { ToolRegistry } from "@jini-ai/core";
 import { isNoopObservabilityPort, type ObservabilityPort } from "@jini-ai/core/contracts/observability";
+import type { ErrorReporter } from "@jini-ai/core/errors/reporter";
 import type { ToolAttemptAuditSink } from "../core/tool-audit.js";
 import type { SurfaceExchangeStore } from "../surface-exchanges.js";
 import { withReadOnlyToolConstraint } from "../core/read-only-tools.js";
@@ -52,7 +60,7 @@ import { withToolAttemptAudit } from "../core/tool-audit.js";
 import { withToolFailureRecovery, type ToolFailureRecoveryDeps } from "./recovery.js";
 import { withRedactedToolFailures, redactFailedResult, readToolErrorId, type RedactedToolFailuresDeps } from "./redaction.js";
 import { withSurfaceExchangeLifetime } from './surface-lifetime.js';
-import { withToolCallObservability } from "./observability.js";
+import { reportNestedFailure, toolCallLabel, withToolCallObservability, type IsRegisteredTool } from "./observability.js";
 
 export interface AssistantToolExecutorDeps extends Omit<ToolFailureRecoveryDeps, "registry"> {
   readonly registry: ToolRegistry;
@@ -62,6 +70,8 @@ export interface AssistantToolExecutorDeps extends Omit<ToolFailureRecoveryDeps,
   /** Optional sink is a real supported configuration; never require a dummy observer. */
   readonly toolAttemptAudit?: { readonly sink: ToolAttemptAuditSink; readonly workspaceId: string; readonly now: () => string; readonly newAttemptId: () => string; readonly onSinkError?: (error: unknown) => void };
   readonly toolFailures: RedactedToolFailuresDeps;
+  /** The host's one reporter; every tool incident (decorated or nested) is recorded through it. */
+  readonly reporter: Pick<ErrorReporter, "record">;
   readonly observability?: ObservabilityPort;
   readonly observabilityEnabled?: () => boolean;
 }
@@ -71,23 +81,33 @@ function auditOptions(audit: NonNullable<AssistantToolExecutorDeps['toolAttemptA
   return audit.onSinkError ? { onSinkError: audit.onSinkError } : {};
 }
 
+/** A nested failure: redacted and minted here, then recorded once, because a nested call goes to the
+ * bare executor and never passes the observation decorator that records every other failure. */
+function redactAndReportNested({ result, toolId, runId, deps, isRegisteredTool }: { result: ToolExecutionResult; toolId: string; runId: string; deps: AssistantToolExecutorDeps; isRegisteredTool: IsRegisteredTool }): string | undefined {
+  const redacted = redactFailedResult({ result, toolId, deps: deps.toolFailures });
+  reportNestedFailure({ reporter: deps.reporter, result: redacted, attributes: { "tool.id": toolCallLabel({ toolId }, { isRegisteredTool }), "agent.run.id": runId } });
+  return redacted.error;
+}
+
 /** One registry and innermost read-only gate protect original, remedy and retry alike.
  * Redaction precedes observation; recovery is outermost so each actual attempt is audited.
  * @complexity O(1) composition; each decorator owns its runtime cost.
  */
 export function createAssistantToolExecutor(deps: AssistantToolExecutorDeps, _optional = {}): ToolExecutor {
+  const isRegisteredTool: IsRegisteredTool = ({ toolId }) => deps.registry.has({ toolId });
   const guarded = withReadOnlyToolConstraint({ inner: createToolExecutor({ registry: deps.registry }, {
     ...(deps.prepareGuidance ? { prepareGuidance: deps.prepareGuidance } : {}),
-    redactNestedFailure: ({ result, ...context }) => redactFailedResult({ result, ...context, deps: deps.toolFailures }).error,
+    redactNestedFailure: ({ result, toolId, runId }) => redactAndReportNested({ result, toolId, runId, deps, isRegisteredTool }),
   }),
     registry: deps.registry, idGenerator: { newId: deps.newExecutionId }, messages: deps.readOnlyMessages }, {});
   const redacted = withRedactedToolFailures({ inner: guarded, ...deps.toolFailures }, {});
-  const observed = deps.observability && !isNoopObservabilityPort(deps.observability)
-    ? withToolCallObservability({ inner: redacted, observability: deps.observability }, {
-      isRegisteredTool: ({ toolId }) => deps.registry.has({ toolId }),
-      ...(deps.observabilityEnabled ? { observabilityEnabled: deps.observabilityEnabled } : {}),
-    })
-    : redacted;
+  // Installed whether or not telemetry is on: recording must not depend on tracing. The singleton
+  // no-op port only means "no spans", so it is passed as no observability at all.
+  const spans = deps.observability && !isNoopObservabilityPort(deps.observability) ? deps.observability : undefined;
+  const observed = withToolCallObservability({ inner: redacted, reporter: deps.reporter, ...(spans ? { observability: spans } : {}) }, {
+    isRegisteredTool,
+    ...(deps.observabilityEnabled ? { observabilityEnabled: deps.observabilityEnabled } : {}),
+  });
   const audited = deps.toolAttemptAudit
     ? withToolAttemptAudit({ inner: observed, ...deps.toolAttemptAudit, readErrorId: readToolErrorId }, auditOptions(deps.toolAttemptAudit))
     : observed;

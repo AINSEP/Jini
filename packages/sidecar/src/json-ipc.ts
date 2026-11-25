@@ -408,9 +408,19 @@ async function parseAndDispatchJsonIpcFrame({ socket, socketPath, handler, trace
   await dispatchJsonIpcHandler({ socket, socketPath, handler, traceId, startedAt, message, messageSummary, ports });
 }
 
-async function dispatchJsonIpcHandler({ socket, socketPath, handler, traceId, startedAt, message, messageSummary }: {
-  socket: Socket; socketPath: string; handler: JsonIpcHandler; traceId: string; startedAt: bigint; message: unknown; messageSummary: ReturnType<typeof summarizeJsonIpcMessage>;
-}, _optional: Record<string, never> = {}): Promise<void> {
+interface DispatchRequired {
+  socket: Socket; socketPath: string; handler: JsonIpcHandler; traceId: string; startedAt: bigint; message: unknown;
+  messageSummary: ReturnType<typeof summarizeJsonIpcMessage>; ports: IpcFailurePorts;
+}
+
+async function dispatchJsonIpcHandler(required: DispatchRequired, _optional: Record<string, never> = {}): Promise<void> {
+  const { ports } = required;
+  if (ports.mode === "reporter") await dispatchViaReporter({ ...required, ports });
+  else await dispatchLegacy(required);
+}
+
+/** The pre-reporter path, kept byte-for-byte in behavior for hosts that do not pass `errors`. */
+async function dispatchLegacy({ socket, socketPath, handler, traceId, startedAt, message, messageSummary, ports }: DispatchRequired, _optional: Record<string, never> = {}): Promise<void> {
   try {
     traceJsonIpc("server.handler_start", {
       durationMs: jsonIpcTraceDurationMs(startedAt),
@@ -431,7 +441,7 @@ async function dispatchJsonIpcHandler({ socket, socketPath, handler, traceId, st
     // same trust-boundary concern as SEC-005's HTTP fix). The peer gets a stable code plus
     // the traceId as a correlation handle; the error's class and code are logged
     // server-side only, unconditionally (not gated behind JINI_JSON_IPC_TRACE).
-    createConsoleLogger({ prefix: '' }).error({ message: `[@jini-ai/sidecar] json-ipc handler failed (traceId=${traceId})` }, { error });
+    ports.logger.error({ message: `[@jini-ai/sidecar] json-ipc handler failed (traceId=${traceId})` }, { error });
     traceJsonIpc("server.handler_failed", {
       durationMs: jsonIpcTraceDurationMs(startedAt),
       error: describeErrorForLog({ err: error }),
@@ -446,6 +456,76 @@ async function dispatchJsonIpcHandler({ socket, socketPath, handler, traceId, st
       })}\n`,
     );
   }
+}
+
+/**
+ * @internal The host's request label as a tracker attribute value. Only a label matching
+ * {@link IPC_METHOD_LABEL} passes; message text, input keys and a throwing label function all
+ * give `unknown`, so request content can never become an indexed provider-side field.
+ */
+function ipcMethodLabel({ methodOf, message }: { methodOf: ReporterIpcPorts["errors"]["methodOf"]; message: unknown }, _optional: Record<string, never> = {}): string {
+  let candidate: unknown;
+  try {
+    candidate = methodOf?.({ message });
+  } catch {
+    candidate = undefined;
+  }
+  return typeof candidate === "string" && IPC_METHOD_LABEL.test(candidate) ? candidate : "unknown";
+}
+
+/**
+ * @internal The wire frame of a settled operation. Both failure kinds keep the legacy code; an
+ * incident adds the ERR id the reporter put in its words, a refusal adds its own code as `reason`
+ * and no id.
+ */
+function replyFrameFor({ run, refusalCode }: { run: OperationRunResult<string>; refusalCode: string }, _optional: Record<string, never> = {}): string {
+  if (run.ok) return run.value;
+  // core only reports a cancellation when the caller passes a `settle` hook, and this call passes
+  // none, so a non-ok result always carries a described failure.
+  const { kind, error } = (run as { failure: DescribedFailure }).failure;
+  const wire = kind === "incident"
+    ? { code: refusalCode, message: error.message, requestId: error.requestId }
+    : { code: refusalCode, message: error.message, reason: error.code };
+  return `${JSON.stringify({ ok: false, error: wire })}\n`;
+}
+
+/**
+ * @internal End the connection with `frame`, containing a peer that hung up before the reply. The
+ * handler's own failure, if any, was already recorded once; a dead socket is not a second incident,
+ * so it gets a fixed warning with no error text.
+ */
+function safeEnd({ socket, frame, logger }: { socket: Socket; frame: string; logger: Pick<Logger, "warn"> }, _optional: Record<string, never> = {}): void {
+  try {
+    if (socket.destroyed) throw new Error("socket already destroyed");
+    socket.end(frame);
+  } catch {
+    logger.warn({ message: "[@jini-ai/sidecar] json-ipc could not write the reply; the peer is gone." });
+    // Nothing more can be said on this connection; close it so a half-open peer is not left waiting.
+    socket.destroy();
+  }
+}
+
+async function dispatchViaReporter({ socket, socketPath, handler, traceId, startedAt, message, ports }: DispatchRequired & { ports: ReporterIpcPorts }, _optional: Record<string, never> = {}): Promise<void> {
+  const { errors, logger } = ports;
+  const trace = (event: string) => traceJsonIpc(event, { durationMs: jsonIpcTraceDurationMs(startedAt), socketPath, traceId }, { ports });
+  trace("server.handler_start");
+  // SEC-004 still holds: the peer's words come from the reporter (fixed fallback plus the ERR id),
+  // never from the thrown value. Serialising the success inside the operation makes an
+  // unserialisable result an incident like any handler throw, instead of a rejection after the
+  // operation had already ended as completed.
+  const run = await runOperation({
+    deps: { reporter: errors.reporter, observability: errors.observability },
+    operation: "ipc.handle",
+    scope: "ipc",
+    step: "Handle sidecar request",
+    fallback: IPC_HANDLER_FALLBACK,
+    // `ipc.trace_id` is the connection's own correlation handle and stays distinct from the ERR id.
+    attributes: { "ipc.method": ipcMethodLabel({ methodOf: errors.methodOf, message }), "ipc.trace_id": traceId },
+    work: async () => `${JSON.stringify({ ok: true, result: await handler({ message }) })}\n`,
+  });
+  trace(run.ok ? "server.handler_success" : "server.handler_failed");
+  // The operation has ended by here: a write that fails below cannot reopen or re-report it.
+  safeEnd({ socket, frame: replyFrameFor({ run, refusalCode: errors.refusalCode }), logger });
 }
 
 /**
@@ -535,7 +615,7 @@ export async function requestJsonIpc<T = any>(
       socket.end();
       settle(() => {
         let response: {
-          error?: { code?: string; message?: string; requestId?: string };
+          error?: { code?: string; message?: string; reason?: string; requestId?: string };
           ok: boolean;
           result?: T;
         };
@@ -591,9 +671,11 @@ export async function requestJsonIpc<T = any>(
   });
 }
 
-function ipcResponseError(error: { code?: string; message?: string; requestId?: string } | undefined): Error & { code?: string; requestId?: string } {
-  const rejection = new Error(error?.message ?? "IPC request failed") as Error & { code?: string; requestId?: string };
+function ipcResponseError(error: { code?: string; message?: string; reason?: string; requestId?: string } | undefined): Error & { code?: string; reason?: string; requestId?: string } {
+  const rejection = new Error(error?.message ?? "IPC request failed") as Error & { code?: string; reason?: string; requestId?: string };
   if (error?.code !== undefined) rejection.code = error.code;
+  // `reason` names a refusal's own code and rides beside `code`, which keeps its legacy value.
+  if (error?.reason !== undefined) rejection.reason = error.reason;
   if (error?.requestId !== undefined) rejection.requestId = error.requestId;
   return rejection;
 }

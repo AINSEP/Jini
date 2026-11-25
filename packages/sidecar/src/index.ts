@@ -55,6 +55,7 @@ export { bootstrapSidecarRuntime, createSidecarLaunchEnv } from "./bootstrap.js"
 export { allocatePort } from "./port.js";
 export { readJsonFile, removeFile, removePointerIfCurrent, writeJsonFile, type JsonFileWriter } from "./json-file.js";
 export { createJsonIpcServer, requestJsonIpc } from "./json-ipc.js";
+export type { JsonIpcServerOptions } from "./json-ipc.js";
 export type { LocalDaemonRegistryRecord } from "./daemon-registry.js";
 export {
   isProcessAlive,
