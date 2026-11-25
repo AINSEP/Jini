@@ -26,14 +26,14 @@ export function createContinueAuthorization({ redirectUrl, onOpenExternalUrl }: 
     // holds in that same render, and React re-binds this closure fresh on
     // every render — so a re-check here was dead code for every real
     // click, removed rather than tested around (see
-    // archived UI source map's 2026-07-22 dated entry).
+    // `070311a07^:packages/ui/source-map.md` (section "2026-07-22 addition", subsection "Real refactors — dead branches removed rather than tested around")).
     // `continueAuthorization`'s only call site (the "continue in browser"
     // button below) only ever renders while `authorizationPending &&
     // authorizationPending.redirectUrl` already holds in that same render,
     // and React re-binds this closure fresh on every render — so a
     // re-check here was dead code for every real click, removed rather
     // than tested around (same pattern as this package's `ConnectorCard.tsx`
-    // precedent; see archived UI source map's 2026-07-22 dated entry).
+    // precedent; see `070311a07^:packages/ui/source-map.md` (section "2026-07-22 addition", subsection "Real refactors — dead branches removed rather than tested around")).
     onOpenExternalUrl?.(redirectUrl);
   };
 }

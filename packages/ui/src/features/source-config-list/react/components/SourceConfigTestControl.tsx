@@ -26,7 +26,7 @@ export interface SourceConfigTestControlProps {
  * and `McpClientSection.tsx`'s `McpOAuthControl` status/action shape, but
  * deliberately simplified — the OAuth-specific postMessage/polling handshake
  * and the "ready to test" pre-flight hint are origin-source-specific UX, not
- * part of this generic primitive. See `archived UI source map`.
+ * part of this generic primitive. See `070311a07^:packages/ui/source-map.md` (section "features/source-config-list/").
  *
  * ## Agent handles
  *

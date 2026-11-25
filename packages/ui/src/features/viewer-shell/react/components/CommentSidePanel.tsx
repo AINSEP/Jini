@@ -32,7 +32,7 @@ export interface CommentSidePanelProps<TComment extends ViewerCommentBase> {
    * `elementId`/`label`/`htmlHint` conventions (regex-matching HTML tag
    * names embedded in a board-annotation payload) — that heuristic is not
    * generic, so it's a required host-supplied function here rather than
-   * baked in. See `archived UI source map` for the full discrepancy
+   * baked in. See `070311a07^:packages/ui/source-map.md` (section "features/viewer-shell/") for the full discrepancy
    * writeup.
    */
   getCommentLabel: (comment: TComment, index: number) => string;
@@ -65,7 +65,7 @@ export interface CommentSidePanelProps<TComment extends ViewerCommentBase> {
  * this extraction) is that the comment-label and timestamp derivation are
  * OD-specific logic, not just an OD-specific *type* — see
  * `getCommentLabel`/`getCommentTimestamp` above and
- * `archived UI source map`.
+ * `070311a07^:packages/ui/source-map.md` (section "features/viewer-shell/").
  */
 export function CommentSidePanel<TComment extends ViewerCommentBase>({
   useCommentReorder: useCommentReorderHook = useCommentReorder,

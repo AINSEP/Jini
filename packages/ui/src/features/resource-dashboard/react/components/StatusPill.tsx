@@ -14,7 +14,7 @@ export interface StatusPillProps {
  * card badge and TasksView's `StatusPill` (`automation-status is-${status}`)
  * — both origins render "a status value as a small colored label," just at
  * different nesting depths (DesignsTab: top-level item; TasksView: a run
- * nested inside a row). See `archived UI source map` for the full
+ * nested inside a row). See `070311a07^:packages/ui/source-map.md` (section "features/resource-dashboard/") for the full
  * shared-vs-separate verdict this component is the "shared" half of.
  */
 export function StatusPill({ status, label, toneMap }: StatusPillProps) {

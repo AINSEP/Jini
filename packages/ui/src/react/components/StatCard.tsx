@@ -1,7 +1,7 @@
 // Minimal labeled-number stat tile. Origin: `StatCard` in `PluginsView.tsx`
 // (OD), verbatim structural port — the component carried no
 // product-specific typing or copy (label/value come entirely from props).
-// See archived UI source map.
+// See `070311a07^:packages/ui/source-map.md` (section "bucket-A flat atoms").
 
 export interface StatCardProps {
   label: string;

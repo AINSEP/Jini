@@ -165,7 +165,7 @@ function VersionManagerHeader<TVersion extends VersionRecord>({
 /**
  * The generic slice of the source's `FileVersionManagerModal`: a list +
  * cached-preview + restore + search modal shell. See
- * `archived UI source map`'s `html-viewer` classification section for
+ * `070311a07^:packages/ui/source-map.md` (section "`html-viewer` — classification of `HtmlViewer` + `FileVersionManagerModal`") for
  * what was dropped (deploy/analytics calls — there were none; the actual
  * fetch/restore/preview-resolution calls became the injected
  * `VersionManagerPort`).

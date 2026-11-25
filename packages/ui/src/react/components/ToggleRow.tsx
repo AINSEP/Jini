@@ -2,7 +2,7 @@
 // heavier sibling of `CompactToggle` for standalone toggles that deserve
 // more visual weight. Origin: `ToggleRow` in `NewProjectPanel.tsx` (Open
 // Design), verbatim structural port — the component carried no
-// product-specific typing or copy. See archived UI source map.
+// product-specific typing or copy. See `070311a07^:packages/ui/source-map.md` (section "bucket-A flat atoms").
 
 export interface ToggleRowProps {
   label: string;

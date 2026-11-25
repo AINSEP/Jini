@@ -1,8 +1,8 @@
-import { useT } from '../../../i18n/index.js';
+import type { useT } from '../../../i18n/index.js';
 import type { CommandPaletteItem } from '../../types.js';
-import { useWiredCommandPalette } from '../hooks/useCommandPalette.js';
+import type { useWiredCommandPalette } from '../hooks/useCommandPalette.js';
 import { CommandPaletteRow } from './CommandPaletteRow.js';
-import { useCommandPaletteView } from './CommandPalette.hooks.js';
+import type { useCommandPaletteView } from './CommandPalette.hooks.js';
 
 export interface CommandPaletteProps {
   items: readonly CommandPaletteItem[];
@@ -10,10 +10,10 @@ export interface CommandPaletteProps {
   onClose: () => void;
   scopeKey?: string | undefined;
   placeholder?: string | undefined;
-  /** Custom hook override for dependency injection / testing. */
-  useWiredCommandPalette?: typeof useWiredCommandPalette;
-  useTHook?: typeof useT;
-  useCommandPaletteViewHook?: typeof useCommandPaletteView;
+  /** Required hooks: the host injects the real implementations (type-only references here, no local defaults). */
+  useWiredCommandPalette: typeof useWiredCommandPalette;
+  useTHook: typeof useT;
+  useCommandPaletteViewHook: typeof useCommandPaletteView;
 }
 
 /**
@@ -25,20 +25,21 @@ export interface CommandPaletteProps {
  *
  * Origin: `QuickSwitcher.tsx` — the origin's `ProjectFile`/`WorkspaceContextItem`
  * split (files vs. tabs, two different shapes) is replaced by one generic
- * `CommandPaletteItem`; see `archived UI source map` for the full
+ * `CommandPaletteItem`; see `070311a07^:packages/ui/source-map.md` (section "features/command-palette/") for the full
  * genericization writeup, including why this is a distinct primitive from
  * `features/mention-autocomplete/`.
  */
-export function CommandPalette({
-  items,
-  onSelect,
-  onClose,
-  scopeKey,
-  placeholder,
-  useWiredCommandPalette: useWiredCommandPaletteHook = useWiredCommandPalette,
-  useTHook = useT,
-  useCommandPaletteViewHook = useCommandPaletteView,
-}: CommandPaletteProps) {
+export function CommandPalette(required: CommandPaletteProps, _optional = {}) {
+  const {
+    items,
+    onSelect,
+    onClose,
+    scopeKey,
+    placeholder,
+    useWiredCommandPalette: useWiredCommandPaletteHook,
+    useTHook,
+    useCommandPaletteViewHook,
+  } = required;
   const t = useTHook();
   const palette = useWiredCommandPaletteHook({ items, onSelect, onClose, scopeKey });
   const { listRef, setInputRef } = useCommandPaletteViewHook({ cursor: palette.cursor });

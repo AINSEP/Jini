@@ -5,7 +5,7 @@
 // carrying the same three optional fields any "ran an operation, got a
 // result + warnings + a log" flow would need. Every user-facing string now
 // goes through `useT()` — the origin hardcoded "Install log" and the
-// warning-count pluralization. See archived UI source map.
+// warning-count pluralization. See `070311a07^:packages/ui/source-map.md` (section "bucket-A flat atoms").
 
 import { useT } from '../../features/i18n/index.js';
 

@@ -46,7 +46,7 @@ export interface ResourceRowListViewProps {
  * "your automations" row-list section — loading, a clickable empty state
  * (TasksView's own empty state is itself the create button), or the rows.
  * The template-gallery and proposals-review sections are deliberately NOT
- * part of this primitive — see `archived UI source map`'s "Dropped"
+ * part of this primitive — see `070311a07^:packages/ui/source-map.md` (section "features/resource-dashboard/"), its "Dropped"
  * list (create-flow and automation-evolution-specific concerns, no
  * DesignsTab analog at all).
  */

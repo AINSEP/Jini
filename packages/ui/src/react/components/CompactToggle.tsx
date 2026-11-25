@@ -3,7 +3,7 @@
 // (contrast with the fuller-card `ToggleRow`). Origin: `CompactToggle` in
 // `NewProjectPanel.tsx` (OD), verbatim structural port — the
 // component carried no product-specific typing or copy. See
-// archived UI source map.
+// `070311a07^:packages/ui/source-map.md` (section "bucket-A flat atoms").
 
 export interface CompactToggleProps {
   label: string;

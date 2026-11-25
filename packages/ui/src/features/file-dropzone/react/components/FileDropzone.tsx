@@ -92,7 +92,7 @@ function FileDropzoneBrowseFolder({ onBrowseFolder, t }: { onBrowseFolder: (() =
  * file-dialog cancel-vs-still-loading detection heuristic and a plain
  * staged-names list). Both are the same underlying interaction — native
  * drag/drop + click-to-browse resolving to a flat `File[]` — configured
- * differently; see `archived UI source map` for the full writeup.
+ * differently; see `070311a07^:packages/ui/source-map.md` (section "features/file-dropzone/") for the full writeup.
  */
 export function FileDropzone({
   label,

@@ -132,7 +132,7 @@ function TabLauncherScrollBody<TActionCtx>({ menu, renderIcon, useTHook = useT }
  * `TabLauncherResultItem`; `LauncherAction`/`LauncherContext` become
  * `TabLauncherAction<TActionCtx>` generic over whatever context the host's
  * actions need; the OD analytics contract (`TabLauncherClickProps`) becomes
- * a generic `TabLauncherTrackEvent` union. See `archived UI source map`
+ * a generic `TabLauncherTrackEvent` union. See `070311a07^:packages/ui/source-map.md` (section "features/tab-launcher-menu/")
  * for the full genericization writeup, including why this is a distinct
  * primitive from `features/command-palette/`.
  */

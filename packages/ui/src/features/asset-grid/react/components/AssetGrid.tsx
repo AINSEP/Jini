@@ -94,7 +94,7 @@ function renderGridContent<TAsset extends AssetGridItem>(
 
 /**
  * A live-updating, filterable, multi-selectable asset grid — the generic
- * pattern behind a photo library / DAM. See `archived UI source map` for
+ * pattern behind a photo library / DAM. See `070311a07^:packages/ui/source-map.md` (section "features/asset-grid/") for
  * the full retained-behavior manifest against the original `LibrarySection.tsx`.
  */
 export function AssetGrid<TAsset extends AssetGridItem>({

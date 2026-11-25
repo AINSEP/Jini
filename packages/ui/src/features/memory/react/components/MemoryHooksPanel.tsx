@@ -11,7 +11,7 @@
 // the reload()/SSE wiring; this panel is presentational and calls the passed
 // toggle callbacks. Folded into this slice from OD's separate
 // `components/MemoryHooksPanel.tsx` (single consumer, `MemoryHowPanel`) — see
-// `archived UI source map`.
+// `070311a07^:packages/ui/source-map.md` (section "features/memory/").
 import { agentHandleProps } from '@jini-ai/core/agent-handles';
 import { Icon, type IconName } from '../../../../react/components/Icon.js';
 import { useT } from '../../../i18n/index.js';

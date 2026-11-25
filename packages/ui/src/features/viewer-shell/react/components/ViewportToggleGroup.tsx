@@ -13,7 +13,7 @@ export interface ViewportToggleGroupProps {
  * source component's `FileVersionViewportControls` (used in its file-version
  * manager's tighter toolbar, where a dropdown menu didn't fit). See
  * `ViewportSwitcher` for the dropdown-menu variant used by the main preview
- * toolbar (`PreviewViewportControls`), and `archived UI source map` for
+ * toolbar (`PreviewViewportControls`), and `070311a07^:packages/ui/source-map.md` (section "features/viewer-shell/") for
  * why both ship rather than just one.
  */
 export function ViewportToggleGroup({ presets, viewport, onViewport, ariaLabel }: ViewportToggleGroupProps) {
