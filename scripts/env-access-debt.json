@@ -80,13 +80,6 @@
     },
     {
       "rule": "HW9-env-access",
-      "file": "packages/cli/src/daemon-url.ts",
-      "line": 54,
-      "reason": "Only a declared process entry may touch process.env or import.meta.env; take the value or an environment map from the host.",
-      "fingerprint": "a97d7492edeb30eaf7b260e2b02ffe125474c2adcf5764051a055aeb22e51457"
-    },
-    {
-      "rule": "HW9-env-access",
       "file": "packages/cms/src/media/video-frames.ffmpeg.ts",
       "line": 31,
       "reason": "Only a declared process entry may touch process.env or import.meta.env; take the value or an environment map from the host.",
@@ -173,13 +166,6 @@
       "rule": "HW9-env-access",
       "file": "packages/desktop-host/src/paths.ts",
       "line": 90,
-      "reason": "Only a declared process entry may touch process.env or import.meta.env; take the value or an environment map from the host.",
-      "fingerprint": "a97d7492edeb30eaf7b260e2b02ffe125474c2adcf5764051a055aeb22e51457"
-    },
-    {
-      "rule": "HW9-env-access",
-      "file": "packages/devops/src/local-dev/node-runtime.ts",
-      "line": 33,
       "reason": "Only a declared process entry may touch process.env or import.meta.env; take the value or an environment map from the host.",
       "fingerprint": "a97d7492edeb30eaf7b260e2b02ffe125474c2adcf5764051a055aeb22e51457"
     },

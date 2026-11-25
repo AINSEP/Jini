@@ -747,8 +747,8 @@
       "rule": "HW3-module-state",
       "file": "packages/admin/src/shell/lib/shell-failure-log.ts",
       "line": 15,
-      "reason": "rv-g FIX 1 (2026-11-23): the host-bound failure logger for the shell's browser-tab buses (content-refresh, assistant-dock, agent-screenshot, settings-refresh, playground-render-target), which are themselves module-scope singletons listed above under the same follow-up. One admin per page, no tenant or request state; bound once at the host's composition root, unbind restores drop-silently. Moves to instance ownership with the buses.",
-      "fingerprint": "5e1cf42878df58fea7bfa45b715b7832d889092ad23e802e63912b1bfd205630"
+      "reason": "rv-g FIX 1 (2026-11-23): the host-bound failure logger for the shell's browser-tab buses (content-refresh, assistant-dock, agent-screenshot, settings-refresh, playground-render-target), which are themselves module-scope singletons listed above under the same follow-up. One admin per page, no tenant or request state; bound once at the host's composition root, unbind restores drop-silently. Moves to instance ownership with the buses. Fingerprint refreshed 2026-11-25: combine-15 renamed `bound` to `boundLogger` (same reviewed occurrence, no new state).",
+      "fingerprint": "15b08574bf0b9ccf082a998a81f3f306ad56faf66cb120325f5526654cba57c9"
     },
     {
       "rule": "HW3-module-state",
