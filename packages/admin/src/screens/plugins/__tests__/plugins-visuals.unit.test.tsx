@@ -7,20 +7,23 @@ import { PluginChevronIcon, PluginPackageIcon, PluginTrashIcon } from "../plugin
 
 afterEach(cleanup);
 
-it.each([["plugin package", PluginPackageIcon, 18], ["plugin trash", PluginTrashIcon, 16], ["plugin chevron", PluginChevronIcon, 14]] as const)(
-  "%s draws a decorative kit icon at its default and requested size",
-  (_name, Glyph, defaultSize) => {
-    const view = renderWithAdminKit(<Glyph />);
-    expect(view.container.querySelector("svg")).toBeTruthy();
-    expect(view.container.querySelector("svg")?.getAttribute("aria-hidden")).toBe("true");
-    view.rerender(<Glyph size={31} />);
-    expect(view.container.querySelector("svg")?.getAttribute("aria-hidden")).toBe("true");
-    expect(defaultSize).toBeGreaterThan(0);
+it.each([["plugin package", PluginPackageIcon], ["plugin trash", PluginTrashIcon], ["plugin chevron", PluginChevronIcon]] as const)(
+  "%s draws a decorative kit icon at the requested size",
+  (_name, Glyph) => {
+    const view = renderWithAdminKit(<Glyph size={31} />);
+    const svg = view.container.querySelector("svg");
+    expect(svg?.getAttribute("width")).toBe("31");
+    expect(svg?.getAttribute("aria-hidden")).toBe("true");
   },
 );
 
+it("the chevron carries the package-prefixed class a host styles its rotation by", () => {
+  expect(renderWithAdminKit(<PluginChevronIcon />).container.querySelector(".jini-plugin-chevron-glyph")).not.toBeNull();
+});
+
 it("the maturity tag renders nothing without a maturity and a labelled tip with one", () => {
   const t = (key: string) => key;
-  expect(renderWithAdminKit(<AgentPluginMaturity maturity={undefined} t={t} />).container.textContent).toBe("");
-  expect(renderWithAdminKit(<AgentPluginMaturity maturity="untested" t={t} />).container.textContent).toContain("Untested");
+  expect(renderWithAdminKit(<AgentPluginMaturity maturity={undefined} t={t} />).container.querySelector(".jini-agent-plugin-maturity")).toBeNull();
+  const tagged = renderWithAdminKit(<AgentPluginMaturity maturity="untested" t={t} />);
+  expect(tagged.container.querySelector(".jini-agent-plugin-maturity [title='Not yet tested end to end. It may not work.']")).not.toBeNull();
 });

@@ -12,7 +12,7 @@ export function AgentPluginMaturity({ maturity, t }: { maturity: AgentPluginList
   if (!maturity) return null;
   const label = maturity === "untested" ? t("Untested") : t("Soon");
   return (
-    <span className="agent-plugin-maturity">
+    <span className="jini-agent-plugin-maturity">
       <InfoTip
         triggerLabel={label}
         label={maturity === "untested" ? t("Not yet tested end to end. It may not work.") : t(SOON_PLUGIN_TIP)}

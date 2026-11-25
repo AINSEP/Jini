@@ -81,6 +81,6 @@ export function PluginTrashIcon({ size = 16 }: IconProps) {
  *  for a second glyph, so the transition is one continuous motion. */
 export function PluginChevronIcon({ size = 14 }: IconProps) {
   return (
-    <Icon name="chevron-right-wide" size={size} focusable={undefined} {...LINE_ICON} className="plugin-chevron-glyph" />
+    <Icon name="chevron-right-wide" size={size} focusable={undefined} {...LINE_ICON} className="jini-plugin-chevron-glyph" />
   );
 }

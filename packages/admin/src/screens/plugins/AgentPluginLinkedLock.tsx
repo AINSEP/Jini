@@ -26,7 +26,7 @@ export function AgentPluginLinkedLock({ plugin, providerPlugin, t, agentHandleBa
     <>
       {/* The word stays beside the padlock — see `AgentPluginRow`'s header (never colour or icon alone). */}
       <span className="agent-plugin-state">{plugin.enabled ? t("Enabled") : t("Disabled")}</span>
-      <span className="agent-plugin-linked-lock">
+      <span className="jini-agent-plugin-linked-lock">
         <InfoTip label={t(LINKED_PLUGIN_TIP)} icon={<LockIcon />} agentHandle={`${agentHandleBase}-linked`}
           useTip={linkedLockTip({ onFollow: () => navigate({ routePath: linkedPluginHref({ providerPlugin }) }) })} />
       </span>
