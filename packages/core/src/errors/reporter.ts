@@ -8,7 +8,7 @@
  * cannot be dropped for lack of wiring. Nothing here throws: a failing ID, clock, catalog, logger or
  * tracker port must not replace the failure being reported; its adapter blanks secrets before anything leaves the process.
  */
-import { ClientFacingError } from '../contracts/server/json-route.js';
+import { ClientFacingError } from '../contracts/server/client-facing-error.js';
 import type { ObservabilityPort, OperationAttributes, OperationTracker } from '../contracts/observability.js';
 import { statusForError, type ServerApiError } from '../contracts/server/api-error.js';
 import { createErrorDescriber, describeErrorForLog, describeErrorParts, type ErrorDescriber } from '../model-facing-tool-errors.js';

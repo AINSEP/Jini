@@ -4,7 +4,7 @@
  * a draft line or a customer note, so they must stay out of every caller-visible field by policy.
  */
 import { describe, expect, test } from 'vitest';
-import { ClientFacingError } from '../../contracts/server/json-route.js';
+import { ClientFacingError } from '../../contracts/server/client-facing-error.js';
 import { approveCause, type ApprovedCause } from '../approved-cause.js';
 import { defineErrorScope } from '../bindings.js';
 import { createErrorCatalog } from '../catalog.js';

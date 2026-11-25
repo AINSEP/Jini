@@ -8,6 +8,7 @@ import { statusForError, type ServerApiError } from './api-error.js';
 import { guardSameOrigin, type OriginContext } from './origin.js';
 import { readQuery } from './query.js';
 import { readJsonBody } from './request-body.js';
+import { ClientFacingError } from './client-facing-error.js';
 import type { Result } from './result.js';
 
 /**
@@ -128,28 +129,6 @@ export interface JsonRouteSpec<Input, Output, Deps, Context = undefined> {
   handle: Handler<Input, Output, Deps, Context>;
   successStatus?: number;
   ports?: JsonRoutePorts<Deps, Context>;
-}
-
-/**
- * Thrown by a route's `handle` — or by anything it calls, at any depth — to bypass the SEC-005
- * redaction below with an error the throwing code has already decided is safe for the caller
- * to see. Prefer returning `err(...)` from `handle` when the failure is anticipated at that point;
- * this class is for the same kind of failure discovered a level deeper, inside an awaited call
- * `handle` did not wrap in its own `try`.
- *
- * Not a way to defeat SEC-005: the only way to reach the branch that reads this class is for code to
- * construct one itself, naming the exact error — code and message — it is choosing to disclose.
- * Any thrown value that is not this class (including a plain `Error` with an actionable-looking
- * message) still redacts; nothing here widens what a route can leak by accident.
- */
-export class ClientFacingError extends Error {
-  readonly apiError: ServerApiError;
-
-  constructor({ apiError }: { readonly apiError: ServerApiError }, _optional: Record<string, never> = {}) {
-    super(apiError.message);
-    this.name = 'ClientFacingError';
-    this.apiError = apiError;
-  }
 }
 
 /**

@@ -1,5 +1,5 @@
 import { expect, test, vi } from 'vitest';
-import { ClientFacingError } from '../../contracts/server/json-route.js';
+import { ClientFacingError } from '../../contracts/server/client-facing-error.js';
 import { runOperation } from '../reporter.js';
 import { createRecordingReporter } from '../testing.js';
 
