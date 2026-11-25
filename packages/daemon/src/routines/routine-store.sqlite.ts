@@ -7,7 +7,7 @@ import { summarizeLastRun } from './routine-store.js';
 import type { ClaimResult, DurableRoutine, DurableRoutineRun, RoutineDurablePersistence, RoutineRun } from './types.js';
 import { nextRunAtForSchedule } from './schedule.js';
 import { JINI_ROUTINES_LEDGER_TABLE, pinnedChecksum } from './migrations/index.js';
-export { SQLITE_ROUTINES_SCHEMA } from './routine-store.sqlite-schema.js';
+export { SQLITE_ROUTINES_SCHEMA } from './migrations/0001_jini_routines_v1.js';
 export { JINI_ROUTINES_LEDGER_TABLE, JINI_ROUTINES_MIGRATIONS, migrateJiniRoutines, pinnedChecksum } from './migrations/index.js';
 
 export function createSqliteRoutineStore(

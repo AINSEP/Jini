@@ -17,9 +17,13 @@ export class DurableScheduler {
   private ready: Promise<void> = Promise.resolve();
   private resolveReady: (() => void) | undefined;
   private reason: ReconcileReason = 'start';
+  /** Wall-clock expiry of the lease this process last wrote; past it, the row may already be someone else's. */
+  private leaseExpiresAt = 0;
+  /** The last wall/monotonic pair a passive acquire attempt saw (see {@link DurableScheduler.sleptSinceLastLook}). */
+  private lastLook: { wall: number; mono: number } | undefined;
 
   constructor(private readonly input: {
-    persistence: RoutineDurablePersistence; holderId: string; now: () => number; timers: SchedulerPort;
+    persistence: RoutineDurablePersistence; holderId: string; now: () => number; monotonicNow: () => number; timers: SchedulerPort;
     graceMs: number; maxArmMs: number; leaseTtlMs: number;
     policy: { activeSlotVisibility: 'diagnostic-only'; catchUpOnAssistantEnable: boolean };
     log: (code: string, detail: unknown) => void;
@@ -48,13 +52,18 @@ export class DurableScheduler {
   }
 
   private acquireLease(): void {
-    const { persistence, holderId, now, leaseTtlMs, timers } = this.input;
-    if (!persistence.acquireLease({ holderId, now: now(), ttlMs: leaseTtlMs }, {})) {
-      this.state = 'passive';
-      this.retry = timers.schedule({ delayMs: leaseTtlMs, callback: () => this.acquireLease() });
+    const { persistence, holderId, now, leaseTtlMs } = this.input;
+    // Sleep-safe takeover: when the whole machine slept past the TTL, every holder's lease looks
+    // expired on wake, and whichever process's timer fires first could take over and interrupt a run
+    // whose owner is alive and about to renew. A wall-vs-monotonic gap proves this process slept, so
+    // it waits one more TTL of awake time; a live owner renews within TTL/3, a dead one does not.
+    if (this.sleptSinceLastLook() || !persistence.acquireLease({ holderId, now: now(), ttlMs: leaseTtlMs }, {})) {
+      this.goPassive();
       return;
     }
     this.state = 'owner';
+    this.lastLook = undefined;
+    this.leaseExpiresAt = now() + leaseTtlMs;
     const generation = this.generation;
     this.renewLease();
     void this.reconcileInFlight().then(() => {
@@ -64,19 +73,54 @@ export class DurableScheduler {
     });
   }
 
+  /** True when wall time ran ahead of monotonic time since the last look by more than TTL/3 (a suspend). */
+  private sleptSinceLastLook(): boolean {
+    const look = { wall: this.input.now(), mono: this.input.monotonicNow() };
+    const last = this.lastLook;
+    this.lastLook = look;
+    if (!last) return false;
+    return (look.wall - last.wall) - (look.mono - last.mono) > this.input.leaseTtlMs / 3;
+  }
+
+  private goPassive(): void {
+    this.state = 'passive';
+    if (this.lastLook === undefined) this.lastLook = { wall: this.input.now(), mono: this.input.monotonicNow() };
+    this.retry = this.input.timers.schedule({ delayMs: this.input.leaseTtlMs, callback: () => this.acquireLease() });
+  }
+
+  /** Fences every claim path the moment a renewal fails: no timer of this generation may fire again. */
+  private loseLease(): void {
+    this.generation += 1;
+    for (const entry of this.armed.values()) entry.cancel();
+    this.armed.clear();
+    this.heartbeat?.();
+    this.input.log('ROUTINES_LEASE_LOST', { holderId: this.input.holderId });
+    this.goPassive();
+  }
+
+  /**
+   * Fenced renew-on-wake. Timers run on monotonic time, so after a suspend the wall clock may be past
+   * the lease this process wrote; renew (holder-checked in the store) before acting on any slot, and
+   * fence if another holder has legitimately taken over meanwhile.
+   */
+  private ensureLease(): boolean {
+    if (this.state !== 'owner') return false;
+    const { persistence, holderId, now, leaseTtlMs } = this.input;
+    if (now() < this.leaseExpiresAt) return true;
+    if (persistence.acquireLease({ holderId, now: now(), ttlMs: leaseTtlMs }, {})) {
+      this.leaseExpiresAt = now() + leaseTtlMs;
+      return true;
+    }
+    this.loseLease();
+    return false;
+  }
+
   private renewLease(): void {
-    const { timers, leaseTtlMs, persistence, holderId, now, log } = this.input;
+    const { timers, leaseTtlMs, persistence, holderId, now } = this.input;
     this.heartbeat = timers.schedule({ delayMs: leaseTtlMs / 3, callback: () => {
       if (this.state !== 'owner') return;
-      if (!persistence.acquireLease({ holderId, now: now(), ttlMs: leaseTtlMs }, {})) {
-        this.generation += 1;
-        for (const entry of this.armed.values()) entry.cancel();
-        this.armed.clear();
-        this.state = 'passive';
-        log('ROUTINES_LEASE_LOST', { holderId });
-        this.retry = timers.schedule({ delayMs: leaseTtlMs, callback: () => this.acquireLease() });
-        return;
-      }
+      if (!persistence.acquireLease({ holderId, now: now(), ttlMs: leaseTtlMs }, {})) { this.loseLease(); return; }
+      this.leaseExpiresAt = now() + leaseTtlMs;
       this.renewLease();
     } });
   }
@@ -90,7 +134,7 @@ export class DurableScheduler {
   }
 
   async reconcile({ reason }: { reason: ReconcileReason }, _optional = {}): Promise<void> {
-    if (this.state !== 'owner' || !this.accepting) return;
+    if (this.state !== 'owner' || !this.accepting || !this.ensureLease()) return;
     const routines = this.input.persistence.list();
     for (const id of this.armed.keys()) {
       if (!routines.some((r) => r.id === id)) this.unschedule({ routineId: id });
@@ -153,6 +197,7 @@ export class DurableScheduler {
   }
 
   private async onTimer(routineId: string): Promise<void> {
+    if (!this.ensureLease()) return;
     const routine = this.input.persistence.list().find((r) => r.id === routineId);
     if (!routine) { this.unschedule({ routineId }); return; }
     await this.applySlotDecision(routine, 'wake');

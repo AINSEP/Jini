@@ -130,11 +130,31 @@ describe('durable routine storage', () => {
     b.persistence.acquireLease({ holderId: 'b', now: clock, ttlMs: 90_000 }, {});
     b.persistence.insertRun({ run: { ...run(other.id, 'other'), holderId: 'b' } }, { holderId: 'b', now: clock });
     for (let i = 0; i < 4; i++) {
-      a.persistence.insertRun({ run: { ...run(row.id, `r${i}`), startedAt: clock + i } }, { holderId: 'a', now: clock });
+      a.persistence.insertRun({ run: { ...run(row.id, `r${i}`), startedAt: clock + i, slotAt: clock + i } }, { holderId: 'a', now: clock });
       a.persistence.updateRun({ id: `r${i}`, patch: { status: 'succeeded' } });
     }
     expect((await a.store.listRuns({ routineId: row.id }, {})).items).toHaveLength(2);
     expect((await b.store.listRuns({ routineId: other.id }, {})).items).toHaveLength(1);
     expect(f.db.prepare('SELECT id FROM conversations').all()).toEqual([{ id: 'real-chat' }]);
+  });
+});
+
+describe('routine sidecar migration through the real ADR-066 runner', () => {
+  it('migrates a borrowed handle, opens the host-mode store, and a rerun applies nothing', async () => {
+    const { runMigrations } = await import('@jini-ai/db/migrate');
+    const { sqliteKernel } = await import('@jini-ai/db/kernel/sqlite');
+    const { migrateJiniRoutines } = await import('../routine-store.sqlite.js');
+    const db = new Database(':memory:'); handles.push(db); db.pragma('foreign_keys = ON');
+    const kernel = sqliteKernel<unknown>({ source: db });
+    const first = await migrateJiniRoutines({ kernel, runMigrations }, {});
+    expect(first.applied).toEqual(['0001_jini_routines_v1']);
+    expect((await migrateJiniRoutines({ kernel, runMigrations }, {})).applied).toEqual([]);
+    const { store } = createSqliteRoutineStore({ db, scope: 'a' }, { now: () => clock, holderId: 'a' });
+    expect((await store.create(draft, { creatorId: 'owner' })).revision).toBe(1);
+  });
+  it('a database without the ledger stamp is refused before any read', () => {
+    const db = new Database(':memory:'); handles.push(db); db.exec(SQLITE_ROUTINES_SCHEMA);
+    db.exec(`CREATE TABLE ${JINI_ROUTINES_LEDGER_TABLE} (id TEXT PRIMARY KEY, checksum TEXT NOT NULL, applied_at TEXT NOT NULL)`);
+    expect(() => createSqliteRoutineStore({ db, scope: 'a' }, { holderId: 'a' })).toThrow('Routine migration history mismatch');
   });
 });

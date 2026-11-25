@@ -98,10 +98,10 @@ export class RoutineService {
   private readonly newId: () => string;
   constructor(
     { persistence }: { readonly persistence: RoutinePersistence },
-    { now = Date.now, newId = randomUUID, timers = createTimeoutScheduler({}, {}), holderId,
+    { now = Date.now, monotonicNow = () => performance.now(), newId = randomUUID, timers = createTimeoutScheduler({}, {}), holderId,
       graceMs = 60_000, maxArmMs = 300_000, leaseTtlMs = 90_000,
       policy = {}, log = (code, detail) => console.error(code, detail), onInterrupted = async () => {} }:
-    { now?: () => number; newId?: () => string; timers?: SchedulerPort; holderId?: string;
+    { now?: () => number; monotonicNow?: () => number; newId?: () => string; timers?: SchedulerPort; holderId?: string;
       graceMs?: number; maxArmMs?: number; leaseTtlMs?: number;
       policy?: { activeSlotVisibility?: 'diagnostic-only'; catchUpOnAssistantEnable?: boolean };
       log?: (code: string, detail: unknown) => void;
@@ -115,7 +115,7 @@ export class RoutineService {
     if ('claimDueSlot' in persistence) {
       if (!holderId) throw new Error('Durable routines require holderId');
       this.durable = new DurableScheduler({ persistence: persistence as RoutineDurablePersistence,
-        now, timers, holderId, graceMs, maxArmMs, leaseTtlMs, log, onInterrupted,
+        now, monotonicNow, timers, holderId, graceMs, maxArmMs, leaseTtlMs, log, onInterrupted,
         policy: { activeSlotVisibility: policy.activeSlotVisibility ?? 'diagnostic-only',
           catchUpOnAssistantEnable: policy.catchUpOnAssistantEnable ?? false },
         fireSlot: (id, options) => this.start_(id, 'scheduled', options),

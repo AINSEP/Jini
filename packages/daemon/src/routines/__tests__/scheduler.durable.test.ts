@@ -137,7 +137,8 @@ describe('durable routine slots', () => {
   it('lost claim reloads and does not run', async () => {
     const f = fixture(); f.routine.nextRunAt = boot;
     vi.mocked(f.persistence.claimDueSlot).mockImplementation(() => { f.routine.nextRunAt = boot + 2 * hour; return { claimed: false, reason: 'slot-moved' }; });
-    f.service.start({}); await f.service.whenReady({}, {});
+    // whenReady covers the lease and boot interruption only; the first slot decision settles a tick later.
+    f.service.start({}); await f.service.whenReady({}, {}); await vi.advanceTimersByTimeAsync(0);
     expect(f.start).not.toHaveBeenCalled(); expect(f.service.nextRunAt({ routineId: 'r' })?.getTime()).toBe(boot + 2 * hour); f.service.stop({});
   });
   it('clock set back one hour re-arms and does not refire the same slot', async () => {
