@@ -611,8 +611,23 @@
   "types": "./dist/web-screenshot/capture-files.d.ts",
   "symbols": {
    "CAPTURES_DIR_NAME": "variable:4172f41930",
+   "CAPTURE_PARTIAL_SUFFIX": "variable:1cf2b031f6",
+   "CaptureRootLock": "interface:55285284d7",
    "captureRootFor": "function:83da56505f",
-   "createCaptureFileWriter": "function:ece31278af"
+   "createCaptureFileWriter": "function:2e9931a366"
+  }
+ },
+ "./web-screenshot/capture-retention": {
+  "types": "./dist/web-screenshot/capture-retention.d.ts",
+  "symbols": {
+   "CaptureEntry": "interface:56f02ca1e7",
+   "CaptureFs": "interface:dadb595f42",
+   "CaptureRetentionPreview": "interface:f774cde31c",
+   "CaptureRetentionResult": "interface:844b875ac4",
+   "ListOwnedCaptures": "type:0bb3c953d1",
+   "RemoveOwnedCapture": "type:f83d91cbdb",
+   "createCaptureFilePorts": "function:79a66ba168",
+   "createCaptureRetention": "function:932f37fa50"
   }
  },
  "./web-screenshot/desktop-page-capture": {
