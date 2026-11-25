@@ -39,6 +39,7 @@
       "./webhooks/site/http.memory": "node",
       "./api-connections/shared-api": "node",
       "./api-connections/form-delivery-connection": "node",
+      "./api-connections/bundled-client-namespace": "universal",
       "./vendor-credentials/project-scope": "node",
       "./custom-credentials/card-token": "node",
       "./custom-credentials/credential-recovery": "node",
@@ -202,6 +203,11 @@
       "import": "./dist/api-connections/form-delivery-connection.js",
       "default": "./dist/api-connections/form-delivery-connection.js"
     },
+    "./api-connections/bundled-client-namespace": {
+      "types": "./dist/api-connections/bundled-client-namespace.d.ts",
+      "import": "./dist/api-connections/bundled-client-namespace.js",
+      "default": "./dist/api-connections/bundled-client-namespace.js"
+    },
     "./vendor-credentials/project-scope": {
       "types": "./dist/vendor-credentials/project-scope.d.ts",
       "import": "./dist/vendor-credentials/project-scope.js",
@@ -329,6 +335,9 @@
       ],
       "api-connections/form-delivery-connection": [
         "./dist/api-connections/form-delivery-connection.d.ts"
+      ],
+      "api-connections/bundled-client-namespace": [
+        "./dist/api-connections/bundled-client-namespace.d.ts"
       ],
       "vendor-credentials/project-scope": [
         "./dist/vendor-credentials/project-scope.d.ts"

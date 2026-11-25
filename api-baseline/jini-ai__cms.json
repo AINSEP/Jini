@@ -6551,6 +6551,7 @@
    "ReadabilityBand": "type:01de3ad6ce",
    "TocEntry": "interface:f4670fce48",
    "analyzeContent": "function:82656b6fad",
+   "analyzeContentWithSiteSlug": "function:3fe5be2523",
    "countSyllables": "function:9a0b05c175",
    "summarizeReport": "function:0e2dc1bbdf",
    "tiptapToBlocks": "function:9c5974287a"
