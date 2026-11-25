@@ -679,16 +679,46 @@ function assertRestoreLanded(
  * editing a row the caller cannot see the current shape of.
  *
  * @throws {EntityNotLiveError} On a non-restore update to a rule in the Trash.
- * @throws {RedirectConflictError} If the Trash row's version moved before the restore landed.
+ * @throws {RedirectConflictError} If the Trash row's version moved before the restore landed, or the
+ *   stored row is no longer at `input.expectedVersion`.
  */
 export async function updateRedirect(required: UpdateRedirectRequired, _optional: Record<string, never> = {}): Promise<{ record: RedirectRecord }> {
   const { deps, input } = required;
+  // The read, the `expectedVersion` comparison, validation and the write are ONE writer transaction:
+  // `deps.transaction` holds the redirect write lock, so no other chokepoint write can land between the
+  // comparison and the write. A comparison made on a read taken before the lock would not be a CAS.
+  const outcome = await deps.transaction(() => updateUnderWriteLock({ deps, input }));
+  // The restore runs outside the lock: `deps.restore` opens its own Trash transaction and guards it
+  // with the Trash row's own version check. Publish never reaches it (it is never a pure restore).
+  if (outcome.trashed) return restoreTrashedRedirect({ deps, input, existing: outcome.existing });
+  await enqueueMutatedEvent(deps, outcome.record, "updated");
+  return { record: outcome.record };
+}
 
+/** Plain words for a lost `expectedVersion` race; the stored row is left exactly as the other writer left it. */
+const CHANGED_DURING_WRITE = "This redirect changed while it was being published. Review it and try again.";
+
+/**
+ * {@link updateRedirect}'s body under the writer lock: load, compare the caller's version basis, then
+ * (for a live rule) validate and write the row and its revision. A trashed rule is handed back
+ * unwritten so the restore decision runs after the lock is released.
+ *
+ * @throws {RedirectNotFoundError} If the row is gone.
+ * @throws {RedirectConflictError} If the row is no longer at `input.expectedVersion`.
+ * @complexity O(1) plus the validation reads.
+ */
+async function updateUnderWriteLock(
+  { deps, input }: { deps: RedirectsWriteDeps; input: UpdateRedirectInput },
+  _optional: Record<string, never> = {},
+): Promise<{ trashed: true; existing: RedirectRecord } | { trashed: false; record: RedirectRecord }> {
   const existing = await deps.repo.findById({ workspaceId: input.workspaceId, id: input.id });
   if (!existing) throw new RedirectNotFoundError(`redirect '${input.id}' was not found`);
+  if (input.expectedVersion !== undefined && existing.version !== input.expectedVersion) {
+    throw new RedirectConflictError(CHANGED_DURING_WRITE);
+  }
 
   const inTrash = await deps.isInTrash({ workspaceId: input.workspaceId, id: input.id });
-  if (inTrash) return restoreTrashedRedirect({ deps, input, existing });
+  if (inTrash) return { trashed: true, existing };
 
   const fields = resolveUpdateFields(input, existing);
   // Every field check a create runs, against the merged update; a disable-only update skips it as
@@ -701,7 +731,9 @@ export async function updateRedirect(required: UpdateRedirectRequired, _optional
   const version = existing.version + 1;
   const record: RedirectRecord = { ...existing, ...fields, toTarget: finalTarget, updatedAt: now, version };
   await requireWildcardCapacity({ deps, record, existingId: existing.id });
-  return persistRedirectWrite({ deps, record, revision: redirectRevision({ record, input, tombstoned: false }), change: "updated" });
+  // Joins the transaction opened by `updateRedirect`, so no nested lock is taken.
+  await insertRedirectAndRevision({ db: deps.db, record, revision: redirectRevision({ record, input, tombstoned: false }) });
+  return { trashed: false, record };
 }
 
 export interface TombstoneRedirectRequired {

@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "vitest";
 
+import { EntityNotLiveError } from "../../../core/entity-liveness.js";
 import { createVerifiedOrigin, InMemoryOriginSettingRepo, OriginRegistry } from "@jini-ai/core/contracts/server/verified-origin";
 import { InMemoryOutbox } from "../../__tests__/support/events.fixture.js";
 import { redirectMatcher } from "../../matcher.js";
@@ -52,7 +53,7 @@ test("the config claims the injected table and redirects' own permission and blo
   assert.equal(config.entityType, "redirect");
   assert.deepEqual(config.coversTables, ["site_redirects"]);
   assert.equal(config.permission, "admin.redirects.manage");
-  assert.deepEqual(config.errors.blocked, [RedirectValidationError, RedirectTargetNotAllowedError, RedirectLoopError, RedirectConflictError]);
+  assert.deepEqual(config.errors.blocked, [RedirectValidationError, RedirectTargetNotAllowedError, RedirectLoopError, RedirectConflictError, EntityNotLiveError]);
   const deps = makeDeps();
   assert.equal(config.ports({ deps: { ports: { redirect: deps } } }), deps);
   assert.equal(config.ports({ deps: { ports: {} } }), undefined);

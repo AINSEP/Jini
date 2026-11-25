@@ -17,7 +17,8 @@ import {
   updateRedirect,
   type RedirectsWriteDeps,
 } from "../redirects.js";
-import { RedirectLoopError, RedirectNotFoundError, RedirectValidationError } from "../types.js";
+import { contributeRedirectPublish, type RedirectRepoPublishConfig } from "../site/publish-content.js";
+import { RedirectConflictError, RedirectLoopError, RedirectNotFoundError, RedirectValidationError } from "../types.js";
 import type { RedirectRecord } from "../types.js";
 
 /**
@@ -198,4 +199,103 @@ test("restoring a trashed rule returns the re-read row and enqueues one redirect
   assert.equal(restored.id, "trashed");
   const pending = await deps.outbox.claimPending({ batchSize: 10, nowIso: "2099-01-01T00:00:00.000Z" });
   assert.deepEqual(pending.map((row) => row.event.name), ["redirect.updated"]);
+});
+
+const CHANGED_DURING_PUBLISH = "This redirect changed while it was being published. Review it and try again.";
+
+async function pendingEvents(deps: RedirectsWriteDeps): Promise<string[]> {
+  const pending = await deps.outbox.claimPending({ batchSize: 10, nowIso: "2099-01-01T00:00:00.000Z" });
+  return pending.map((row) => `${row.event.name}:${String((row.event.payload as { redirectId?: string }).redirectId)}`);
+}
+
+test("a destination redirect changed after review is not overwritten by publish", async () => {
+  const repo = new InMemoryRedirectRepo();
+  await repo.insertRedirect(record({ id: "dest", fromPattern: "/moved", toTarget: "/reviewed", version: 1 }));
+  const deps = makeDeps(repo);
+  const config: RedirectRepoPublishConfig = contributeRedirectPublish({ createRepoPublishHandler: (cfg) => cfg, redirectsTable: "site_redirects" });
+  // The publish handler read (and version-checked) this row; an operator then edits it before the write lands.
+  const reviewed = await config.find({ ports: deps, workspaceId: WORKSPACE_ID, id: "exact:/moved" });
+  assert.equal(reviewed?.version, 1);
+  await updateRedirect({ deps, input: { workspaceId: WORKSPACE_ID, id: "dest", toTarget: "/operator-edit", actorId: ACTOR_ID } });
+  await deps.outbox.claimPending({ batchSize: 10, nowIso: "2099-01-01T00:00:00.000Z" });
+
+  const state = { matchType: "exact", fromPattern: "/moved", toTarget: "/published", statusCode: 301, override: false, priority: 0, status: "active" };
+  await assert.rejects(
+    () => config.write({ ports: deps, workspaceId: WORKSPACE_ID, id: "exact:/moved", state, existing: reviewed, principalId: "publisher" }),
+    (err: unknown) => err instanceof RedirectConflictError && err.message === CHANGED_DURING_PUBLISH,
+  );
+  const stored = await repo.findById({ workspaceId: WORKSPACE_ID, id: "dest" });
+  assert.equal(stored?.toTarget, "/operator-edit");
+  assert.equal(stored?.version, 2);
+  assert.deepEqual(repo.listRevisionsForTests({ redirectId: "dest" }).map((rev) => [rev.seq, rev.actorId]), [[2, ACTOR_ID]]);
+  assert.deepEqual(await pendingEvents(deps), []);
+});
+
+/** A one-holder writer lock, like the adapter's `redirects:write` lock; `queued` resolves the first
+ *  time a caller has to wait for it, so the test can observe contention without a timer. */
+function writerLock() {
+  let tail: Promise<void> = Promise.resolve();
+  let held = false;
+  let signalQueued!: () => void;
+  const queued = new Promise<void>((resolve) => { signalQueued = resolve; });
+  const transaction = async <T>(fn: () => Promise<T>): Promise<T> => {
+    if (held) signalQueued();
+    const prior = tail;
+    let release!: () => void;
+    tail = new Promise<void>((resolve) => { release = resolve; });
+    await prior;
+    held = true;
+    try { return await fn(); } finally { held = false; release(); }
+  };
+  return { transaction, queued };
+}
+
+/** Holds the first `findById` caller just after its read returns, until `release` settles. */
+class PausingFirstReadRepo extends InMemoryRedirectRepo {
+  private reads = 0;
+  constructor(private readonly gate: { paused: () => void; release: Promise<void> }) { super(); }
+  override async findById(required: { workspaceId: string; id: string }): Promise<RedirectRecord | null> {
+    const row = await super.findById(required);
+    this.reads += 1;
+    if (this.reads === 1) { this.gate.paused(); await this.gate.release; }
+    return row;
+  }
+}
+
+function deferred(): { promise: Promise<void>; resolve: () => void } {
+  let resolve!: () => void;
+  const promise = new Promise<void>((r) => { resolve = r; });
+  return { promise, resolve };
+}
+
+test("an intervening redirect edit cannot pass the version-gated write", async () => {
+  const firstPaused = deferred();
+  const releaseFirst = deferred();
+  // The first writer pauses right after it reads the row its version comparison is made against.
+  const repo = new PausingFirstReadRepo({ paused: firstPaused.resolve, release: releaseFirst.promise });
+  await repo.insertRedirect(record({ id: "dest", fromPattern: "/moved", toTarget: "/reviewed", version: 1 }));
+  const lock = writerLock();
+  const deps: RedirectsWriteDeps = { ...makeDeps(repo), transaction: lock.transaction };
+  const write = (toTarget: string, actorId: string) =>
+    updateRedirect({ deps, input: { workspaceId: WORKSPACE_ID, id: "dest", toTarget, expectedVersion: 1, actorId } });
+
+  const first = write("/first", "first-writer");
+  await firstPaused.promise;
+  const second = write("/second", "second-writer");
+  const secondSettled = second.then(() => undefined, () => undefined);
+  // Either the second writer is held behind the first one's lock, or it ran straight through.
+  await Promise.race([lock.queued, secondSettled]);
+  releaseFirst.resolve();
+  const [firstResult, secondResult] = await Promise.allSettled([first, second]);
+
+  assert.equal(firstResult.status, "fulfilled");
+  assert.equal(secondResult.status, "rejected");
+  assert.ok(secondResult.status === "rejected" && secondResult.reason instanceof RedirectConflictError);
+  assert.equal(secondResult.reason.message, CHANGED_DURING_PUBLISH);
+  const stored = await repo.findById({ workspaceId: WORKSPACE_ID, id: "dest" });
+  assert.equal(stored?.toTarget, "/first");
+  assert.equal(stored?.version, 2);
+  // The losing writer leaves no revision and no success event behind.
+  assert.deepEqual(repo.listRevisionsForTests({ redirectId: "dest" }).map((rev) => [rev.seq, rev.actorId]), [[2, "first-writer"]]);
+  assert.deepEqual(await pendingEvents(deps), ["redirect.updated:dest"]);
 });
