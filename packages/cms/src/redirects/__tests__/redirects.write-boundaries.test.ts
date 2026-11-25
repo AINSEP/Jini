@@ -414,10 +414,9 @@ function makeDepsWithRealTrash(repo: InMemoryRedirectRepo): { deps: RedirectsWri
   return { deps, isTrashed };
 }
 
-// B272. RED today: `restoreTrashedRedirect` hands the row straight to `deps.restore` and never runs
-// `requireWildcardCapacity`, so a pure restore re-activates a 501st wildcard rule. Kept as a todo,
-// not a failing active test; the body is the reproduction through the real Trash restore.
-test.todo("restoring a wildcard redirect at capacity leaves it in Trash", async () => {
+// B272: a pure restore through the real Trash restore must run the same active-wildcard capacity
+// check as create and update, so a 501st wildcard rule stays in Trash.
+test("restoring a wildcard redirect at capacity leaves it in Trash", async () => {
   const repo = new InMemoryRedirectRepo();
   const { deps, isTrashed } = makeDepsWithRealTrash(repo);
   const { record: wildcard } = await createRedirect({ deps, input: { ...fields, matchType: "wildcard", fromPattern: "/old/*", toTarget: "/new", actorId: ACTOR_ID } });

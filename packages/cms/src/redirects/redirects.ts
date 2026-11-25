@@ -637,6 +637,9 @@ async function restoreTrashedRedirect(
   }
 
   assertRedirectSourceAllowed({ fromPattern: existing.fromPattern, reservedSegments: deps.reservedSegments });
+  // A restored wildcard counts against the active-wildcard cap like a new one: leaving Trash must
+  // not become the way past the limit that create and update enforce.
+  await requireWildcardCapacity({ deps, record: { ...existing, status: input.status ?? existing.status }, existingId: existing.id });
   const outcome = await deps.restore({
     workspaceId: input.workspaceId,
     id: input.id,
