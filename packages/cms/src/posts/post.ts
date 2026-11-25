@@ -1,4 +1,4 @@
-import type { MutationActor } from "@jini-ai/core/contracts/events";
+import type { MutationActor, RecordedActorKind } from "@jini-ai/core/contracts/events";
 import type { UUID, JsonObject, CreatorKind } from "@jini-ai/core/primitives";
 import type { PostStatus, PublicPostKind } from "../core/index.js";
 import type { PostKind } from "@jini-ai/core/contracts/site/post-kind";
@@ -245,6 +245,9 @@ export interface PostRevisionInput {
    *  nothing writes a `"restore"` row yet (out of scope until a restore feature exists). */
   restoredFrom?: string | null;
   recordedAt: string;
+  /** Typed kind of `actorId`, persisted as the row's nullable `actor_kind` when the writer has one.
+   *  Absent stays NULL (unknown); never inferred from `actorId` or the delegation fields. */
+  actorKind?: RecordedActorKind | null;
 }
 
 /** One row read back from `post_revisions` — {@link PostRevisionInput} plus the two fields the
