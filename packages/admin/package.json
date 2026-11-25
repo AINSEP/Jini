@@ -692,7 +692,18 @@
       "./screens/plugins/hooks/use-agent-plugin-tab.hooks": "browser",
       "./screens/plugins/provider-settings-dialog.css": "browser",
       "./screens/import-export/GitBackupCard": "browser",
-      "./screens/import-export/import-export-links": "universal"
+      "./screens/import-export/import-export-links": "universal",
+      "./screens/email/EmailParts": "browser",
+      "./screens/email/EmailOverviewTab": "browser",
+      "./screens/email/EmailSenderTab": "browser",
+      "./screens/email/EmailActivityTab": "browser",
+      "./screens/email/EmailTemplatesTab": "browser",
+      "./screens/trash/trash-i18n/create-trash-dictionary": "universal",
+      "./screens/providers/AlwaysAllowPanel": "browser",
+      "./screens/providers/hooks/use-always-allow.hooks": "browser",
+      "./screens/library/library-i18n/create-library-dictionary": "universal",
+      "./screens/library/library-i18n/library-i18n-data": "universal",
+      "./screens/voice-input/hooks/mic-capture": "browser"
     },
     "isolation": {
       "shared": [
@@ -4297,6 +4308,61 @@
       "types": "./dist/screens/import-export/import-export-links.d.ts",
       "import": "./dist/screens/import-export/import-export-links.js",
       "default": "./dist/screens/import-export/import-export-links.js"
+    },
+    "./screens/email/EmailParts": {
+      "types": "./dist/screens/email/EmailParts.d.ts",
+      "import": "./dist/screens/email/EmailParts.js",
+      "default": "./dist/screens/email/EmailParts.js"
+    },
+    "./screens/email/EmailOverviewTab": {
+      "types": "./dist/screens/email/EmailOverviewTab.d.ts",
+      "import": "./dist/screens/email/EmailOverviewTab.js",
+      "default": "./dist/screens/email/EmailOverviewTab.js"
+    },
+    "./screens/email/EmailSenderTab": {
+      "types": "./dist/screens/email/EmailSenderTab.d.ts",
+      "import": "./dist/screens/email/EmailSenderTab.js",
+      "default": "./dist/screens/email/EmailSenderTab.js"
+    },
+    "./screens/email/EmailActivityTab": {
+      "types": "./dist/screens/email/EmailActivityTab.d.ts",
+      "import": "./dist/screens/email/EmailActivityTab.js",
+      "default": "./dist/screens/email/EmailActivityTab.js"
+    },
+    "./screens/email/EmailTemplatesTab": {
+      "types": "./dist/screens/email/EmailTemplatesTab.d.ts",
+      "import": "./dist/screens/email/EmailTemplatesTab.js",
+      "default": "./dist/screens/email/EmailTemplatesTab.js"
+    },
+    "./screens/trash/trash-i18n/create-trash-dictionary": {
+      "types": "./dist/screens/trash/trash-i18n/create-trash-dictionary.d.ts",
+      "import": "./dist/screens/trash/trash-i18n/create-trash-dictionary.js",
+      "default": "./dist/screens/trash/trash-i18n/create-trash-dictionary.js"
+    },
+    "./screens/providers/AlwaysAllowPanel": {
+      "types": "./dist/screens/providers/AlwaysAllowPanel.d.ts",
+      "import": "./dist/screens/providers/AlwaysAllowPanel.js",
+      "default": "./dist/screens/providers/AlwaysAllowPanel.js"
+    },
+    "./screens/providers/hooks/use-always-allow.hooks": {
+      "types": "./dist/screens/providers/hooks/use-always-allow.hooks.d.ts",
+      "import": "./dist/screens/providers/hooks/use-always-allow.hooks.js",
+      "default": "./dist/screens/providers/hooks/use-always-allow.hooks.js"
+    },
+    "./screens/library/library-i18n/create-library-dictionary": {
+      "types": "./dist/screens/library/library-i18n/create-library-dictionary.d.ts",
+      "import": "./dist/screens/library/library-i18n/create-library-dictionary.js",
+      "default": "./dist/screens/library/library-i18n/create-library-dictionary.js"
+    },
+    "./screens/library/library-i18n/library-i18n-data": {
+      "types": "./dist/screens/library/library-i18n/library-i18n-data.d.ts",
+      "import": "./dist/screens/library/library-i18n/library-i18n-data.js",
+      "default": "./dist/screens/library/library-i18n/library-i18n-data.js"
+    },
+    "./screens/voice-input/hooks/mic-capture": {
+      "types": "./dist/screens/voice-input/hooks/mic-capture.d.ts",
+      "import": "./dist/screens/voice-input/hooks/mic-capture.js",
+      "default": "./dist/screens/voice-input/hooks/mic-capture.js"
     }
   },
   "files": [
