@@ -449,6 +449,7 @@
       "./admin-http/routes/agent-plugins/memory": "universal",
       "./admin-http/routes/agent-plugins/admin-surfaces": "universal",
       "./admin-http/routes/agent-plugins/install": "universal",
+      "./admin-http/routes/agent-plugins/install-response": "universal",
       "./admin-http/http/agent-plugins": "universal",
       "./admin-http/http/change-sets": "universal",
       "./admin-http/routes/external-mcp/list": "universal",
@@ -862,11 +863,6 @@
       "entries": {
         "./public-http/routes/site/pages/extra-head": "presentation",
         "./public-http/http/site/bare-page": "presentation",
-        "./public-http/http/site/render/components/marketing": "presentation",
-        "./public-http/http/site/render/post-body": "presentation",
-        "./public-http/http/site/render/template-render-data": "presentation",
-        "./public-http/http/site/render/components/entry-lists": "presentation",
-        "./public-http/http/site/render/blocks": "presentation",
         "./admin-http/routes/system/site-share-password": "admin-http",
         "./admin-http/routes/publish-content/route-helpers": "publish",
         "./admin-http/routes/publish-content/import-errors": "publish",
@@ -3313,6 +3309,11 @@
       "types": "./dist/admin-http/routes/agent-plugins/install.d.ts",
       "import": "./dist/admin-http/routes/agent-plugins/install.js",
       "default": "./dist/admin-http/routes/agent-plugins/install.js"
+    },
+    "./admin-http/routes/agent-plugins/install-response": {
+      "types": "./dist/admin-http/routes/agent-plugins/install-response.d.ts",
+      "import": "./dist/admin-http/routes/agent-plugins/install-response.js",
+      "default": "./dist/admin-http/routes/agent-plugins/install-response.js"
     },
     "./admin-http/routes/media/byte-size": {
       "types": "./dist/admin-http/routes/media/byte-size.d.ts",
