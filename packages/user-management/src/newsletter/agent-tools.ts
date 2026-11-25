@@ -119,14 +119,16 @@ export const newsletterAgentToolCatalog: AgentToolDefinition[] = [
   },
   {
     name: "newsletter_list_send_log",
-    description: "Lists the per-recipient delivery log for one campaign (id, recipient email, delivery status, attempts). Read-only; PII-adjacent (recipient email addresses). Returns at most 100 rows; truncated: true means more rows exist.",
+    description: "Lists the per-recipient delivery log for one campaign (id, recipient email, delivery status, attempts). Read-only; PII-adjacent (recipient email addresses). Returns at most 100 rows per page; supply the previous nextCursor and stop on null.",
     sideEffects: "none",
     authorization: { permission: "admin.newsletter.subscriber.read" },
     inputSchema: {
       type: "object",
       additionalProperties: false,
       required: ["campaignId"],
-      properties: { campaignId: CAMPAIGN_ID_SCHEMA },
+      properties: { campaignId: CAMPAIGN_ID_SCHEMA,
+        limit: { type: "integer", minimum: 1, maximum: 100, clamp: true, description: "Maximum send rows per page." },
+        cursor: { type: "string", description: "nextCursor from the previous call. Omit for the first page." } },
     },
   },
 
