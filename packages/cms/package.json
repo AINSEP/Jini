@@ -13,6 +13,8 @@
     "kind": "content-model",
     "runtime": "universal",
     "entries": {
+      "./media/site-import/tool-registrations": "node",
+      "./asset-transfer/asset-destinations": "node",
       "./public-http/routes/site/pages/extra-head": "universal",
       "./public-http/http/site/bare-page": "universal",
       "./public-http/http/site/render/components/marketing": "universal",
@@ -1109,6 +1111,16 @@
   "main": "./dist/core/index.js",
   "types": "./dist/core/index.d.ts",
   "exports": {
+    "./media/site-import/tool-registrations": {
+      "types": "./dist/media/site-import/tool-registrations.d.ts",
+      "import": "./dist/media/site-import/tool-registrations.js",
+      "default": "./dist/media/site-import/tool-registrations.js"
+    },
+    "./asset-transfer/asset-destinations": {
+      "types": "./dist/asset-transfer/asset-destinations.d.ts",
+      "import": "./dist/asset-transfer/asset-destinations.js",
+      "default": "./dist/asset-transfer/asset-destinations.js"
+    },
     "./public-http/routes/site/pages/extra-head": {
       "types": "./dist/public-http/routes/site/pages/extra-head.d.ts",
       "import": "./dist/public-http/routes/site/pages/extra-head.js",
