@@ -22,7 +22,7 @@
       "./public-http/http/site/render/blocks": "node",
       "./admin-http/routes/system/site-share-password": "universal",
       "./admin-http/routes/publish-content/route-helpers": "universal",
-      "./admin-http/routes/publish-content/import-errors": "universal",
+      "./admin-http/routes/publish-content/import-errors": "node",
       "./admin-http/routes/assistant/stored-credential-probe": "universal",
       "./admin-http/routes/media/stored-media-response": "universal",
       "./admin-http/http/presentation": "universal",
@@ -860,6 +860,7 @@
         "src/publish/content/precheck-reasons.ts",
         "src/publish/transfer/apply-errors.ts",
         "src/seo/html-plain-text.ts",
+        "src/seo/absolute-url.ts",
         "src/entries/go-live.ts",
         "src/publish/content/media-references.ts"
       ],

@@ -14,7 +14,6 @@
     "runtime": "universal",
     "isolation": {
       "entries": {
-      "./site/pre-consent-cache": "universal",
         "./client.min.js": "client",
         "./extensions.min.js": "client",
         "./site/cookie-consent": "render",
@@ -45,6 +44,7 @@
       "./node": "node",
       "./extensions.min.js": "browser",
       "./site/config": "universal",
+      "./site/pre-consent-cache": "universal",
       "./site/cookie-consent": "universal",
       "./site/validation": "universal",
       "./site/revisions": "universal",

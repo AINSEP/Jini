@@ -1406,14 +1406,14 @@ function createLaunchCleanup({ resources, cleanupFilesystemTemp, removeMcpJsonFi
       await removeMcpJsonFile({ path: mcpJsonFileToRemove });
     }
     if (resources.preparedRunHome) {
-      const codexHomeToRemove = resources.preparedRunHome;
+      const runHomeToRemove = resources.preparedRunHome;
       resources.preparedRunHome = null;
-      await codexHomeToRemove.cleanup();
+      await runHomeToRemove.cleanup();
     }
     if (resources.preparedClaudeConfigDir) {
-      const claudeConfigDirToRemove = resources.preparedClaudeConfigDir;
+      const stagedConfigDirToRemove = resources.preparedClaudeConfigDir;
       resources.preparedClaudeConfigDir = null;
-      await claudeConfigDirToRemove.cleanup();
+      await stagedConfigDirToRemove.cleanup();
     }
     if (resources.preparedSystemPromptOverlayFile) {
       const overlayFileToRemove = resources.preparedSystemPromptOverlayFile;
