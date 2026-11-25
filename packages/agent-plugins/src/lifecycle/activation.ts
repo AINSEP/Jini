@@ -175,60 +175,233 @@ export interface DeleteAgentPluginActivationRequired {
 }
 
 type ActivationPorts = Pick<AgentPluginLifecyclePorts, "filesystem" | "fileLock" | "clock" | "ids" | "process" | "onEvent">;
+const EMPTY_ACTIVATIONS: AgentPluginActivations = { schemaVersion: 1, plugins: {} };
 
-function buildModule(ports: ActivationPorts) {
-  const randomUUID = () => ports.ids.newId();
-  const mkdir = ports.filesystem.mkdir.bind(ports.filesystem);
-  const open = ports.filesystem.open.bind(ports.filesystem);
+/**
+ * Same grammar `layout.ts` guards path segments with — an id that reaches this module is used as
+ *  an object key, not a path, but validating in both places keeps a future caller from being the
+ *  first one to find out the two disagreed.
+ */
+const SAFE_PLUGIN_ID_PATTERN = /^[a-z0-9]+(?:[-.][a-z0-9]+)*$/;
+
+/**
+ * Whether a plugin may be discovered, registered as a tool, or injected into a run.
+ *
+ * @param activations - This workspace's record, as returned by {@link readAgentPluginActivations}.
+ * @param pluginId - The plugin's manifest `name`.
+ * @returns `false` only when an explicit record says `enabled: false`. See this file's header for
+ * why an absent record means active.
+ * @complexity O(1).
+ *
+ * `Object.hasOwn`, not a plain lookup: `activations.plugins` comes straight from `JSON.parse` (via
+ * `normalizeActivations`), so it still carries `Object.prototype`, and an id like `constructor` or
+ * `hasownproperty` passes the plugin-name grammar and would otherwise resolve to an inherited
+ * value rather than a missing entry — see `resolveAgentPluginActivation`'s identical guard.
+ */
+function isAgentPluginActive(activations: AgentPluginActivations, pluginId: string): boolean {
+
+  if (!Object.hasOwn(activations.plugins, pluginId)) return true;
+  return activations.plugins[pluginId]!.enabled;
+}
+
+/**
+ * Filters any list of plugin-shaped values down to the ones this workspace has active.
+ *
+ * Takes the id accessor rather than a concrete type so the three gate sites — which hold
+ * `InstalledAgentPlugin`s, `AgentPluginToolSource`s, and capability cards respectively — all share
+ * one implementation of the rule instead of three `filter` calls that could drift apart on what
+ * "active" means.
+ *
+ * @complexity O(n) in the list length.
+ */
+function filterActiveAgentPlugins<T>(
+  activations: AgentPluginActivations,
+  items: readonly T[],
+  pluginIdOf: (item: T) => string,
+): readonly T[] {
+  return items.filter((item) => isAgentPluginActive(activations, pluginIdOf(item)));
+}
+
+/**
+ * What one workspace's activations file was found to be — the one place the difference between
+ * "there is nothing recorded here" and "something is recorded and I cannot read it" survives.
+ * {@link readAgentPluginActivations} deliberately discards that difference; the tool gate's
+ * {@link resolveAgentPluginActivation} is the reader that needs it.
+ */
+type ActivationsDocument =
+  | { readonly kind: "absent" }
+  | { readonly kind: "entries"; readonly entries: Readonly<Record<string, unknown>> }
+  | { readonly kind: "unreadable"; readonly reason: string };
+
+function errorCode(error: unknown): string | undefined {
+  if (typeof error !== "object" || error === null || !("code" in error)) return undefined;
+  const code = (error as { code?: unknown }).code;
+  return typeof code === "string" ? code : undefined;
+}
+
+/**
+ * A short, log-safe rendering of a thrown value. Carries the error's own message (which for a
+ *  filesystem fault names this workspace's own path — a host path, so a caller that surfaces this
+ *  must keep it in a server-side log and out of any model- or user-facing payload).
+ */
+function describeError(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
+}
+
+/**
+ * Turns a lock failure from {@link withExclusiveFileLock} into {@link AgentPluginActivationsBusyError};
+ *  any other error (including a thrown {@link AgentPluginActivationsUnreadableError} from the read
+ *  inside the callback) passes through unchanged. @complexity O(1).
+ */
+function toActivationsBusyError(lockPath: string, error: unknown): unknown {
+  if (error instanceof FileLockTimeoutError) return new AgentPluginActivationsBusyError({ lockPath: lockPath, holder: error.holder, lost: false });
+  if (error instanceof FileLockLostError) return new AgentPluginActivationsBusyError({ lockPath: lockPath, holder: undefined, lost: true });
+  return error;
+}
+
+/**
+ * Every `plugins` entry exactly as parsed — malformed ones included — which is what a writer edits
+ *  so a malformed sibling entry survives a toggle of a different plugin byte-for-byte.
+ */
+type RawPluginsBag = Readonly<Record<string, unknown>>;
+
+/**
+ * Whether the RAW entry for `pluginId` records `origin: "bundled"` — read raw so a malformed
+ *  entry's provenance still survives a toggle. `Object.hasOwn`, not a plain lookup, for the same
+ *  `Object.prototype` reason {@link resolveAgentPluginActivation} uses it. @complexity O(1).
+ */
+function isRecordedAsBundled(bag: RawPluginsBag, pluginId: string): boolean {
+  if (!Object.hasOwn(bag, pluginId)) return false;
+  const entry = bag[pluginId];
+  return isPlainObject(entry) && entry.origin === "bundled";
+}
+
+/**
+ * Whether `value` is a plain (non-null, non-array) object — the shape every one of this file's
+ *  JSON-adjacent values (the activations envelope, and each individual plugin entry) must have
+ *  before its own fields are worth looking at.
+ */
+function isPlainObject(value: unknown): value is Readonly<Record<string, unknown>> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+/**
+ * The `plugins` bag out of an already-`JSON.parse`d activations value, or `undefined` when the
+ *  top-level envelope doesn't match this schema version at all (wrong shape, wrong
+ *  `schemaVersion`, or a non-object `plugins`) — collapsing the three top-level shape gates
+ *  {@link normalizeActivations} used to inline into one lookup its loop can build on.
+ */
+function extractPluginsBag(value: unknown): Readonly<Record<string, unknown>> | undefined {
+  if (!isPlainObject(value) || value.schemaVersion !== 1 || !isPlainObject(value.plugins)) return undefined;
+  return value.plugins;
+}
+
+/**
+ * Fills in an activation record's optional fields from a (validated-boolean-`enabled`) raw entry.
+ *  Pure defaulting: no field here can fail validation, only fall back to a safe default — matching
+ *  the file's own "fail-OPEN per malformed field, never per entry" discipline (see this file's
+ *  header).
+ */
+function withActivationDefaults(record: Readonly<Record<string, unknown>>, enabled: boolean): AgentPluginActivationRecord {
+  return {
+    enabled,
+    origin: record.origin === "bundled" ? "bundled" : "operator-installed",
+    updatedAt: typeof record.updatedAt === "string" ? record.updatedAt : new Date(0).toISOString(),
+    updatedBy: typeof record.updatedBy === "string" ? record.updatedBy : "unknown",
+  };
+}
+
+/**
+ * One `plugins` entry, normalized — or `undefined` when it does not match the shape (bad plugin
+ *  id, non-object entry, or a non-boolean `enabled`), so {@link normalizeActivations}'s loop stays a
+ *  simple accumulate-or-skip.
+ */
+function normalizeActivationEntry(pluginId: string, entry: unknown): AgentPluginActivationRecord | undefined {
+  if (!SAFE_PLUGIN_ID_PATTERN.test(pluginId)) return undefined;
+  const record = isPlainObject(entry) ? entry : undefined;
+  if (record === undefined || typeof record.enabled !== "boolean") return undefined;
+  return withActivationDefaults(record, record.enabled);
+}
+
+/**
+ * Validates an already-`JSON.parse`d activations value, dropping anything that does not match the
+ * shape. Pure, so the parsing rules are assertable without touching a filesystem.
+ *
+ * Per-entry rather than all-or-nothing: one malformed entry must not discard the operator's other,
+ * perfectly good decisions.
+ *
+ * @complexity O(p) in the entry count.
+ */
+function normalizeActivations(value: unknown): AgentPluginActivations {
+  /**
+   * Provenance is a fact about how the package arrived, not about this decision (comment kept
+   * from the pre-F1.1 version): an existing value is preserved rather than overwritten by a
+   * toggle. Read raw (`isRecordedAsBundled`), not through normalization, so a malformed sibling
+   * entry does not lose its own provenance either.
+   */
+  const plugins = extractPluginsBag(value);
+  if (plugins === undefined) return EMPTY_ACTIVATIONS;
+  return normalizePluginsBag(plugins);
+}
+
+/**
+ * The per-entry accumulate-or-skip loop itself, split out of {@link normalizeActivations} so
+ *  {@link readAgentPluginActivations} can run it over an ALREADY shape-checked bag rather than
+ *  re-deriving one — one implementation of "which entries survive", not two.
+ *
+ *  @complexity O(p) in the entry count.
+ */
+function normalizePluginsBag(plugins: Readonly<Record<string, unknown>>): AgentPluginActivations {
+  const normalized: Record<string, AgentPluginActivationRecord> = {};
+  for (const [pluginId, entry] of Object.entries(plugins)) {
+    const record = normalizeActivationEntry(pluginId, entry);
+    if (record !== undefined) normalized[pluginId] = record;
+  }
+
+  return { schemaVersion: 1, plugins: normalized };
+}
+
+/**
+ * Refuse a malformed target entry rather than guessing operator-installed origin. Guessing would
+ * defeat bundled uninstall refusal and make seeding confuse a fabricated record with consent.
+ * An undetermined entry stays intact. recordBundledAgentPluginIfAbsent reaches this writer only
+ * when the target key is genuinely absent, so it does not repair a malformed decision either.
+ * @throws {AgentPluginActivationsUnreadableError} The target entry exists but cannot normalize.
+ * @complexity O(1).
+ */
+function assertTargetEntryReadable(workspaceRoot: string, current: RawPluginsBag, pluginId: string): void {
+  if (!Object.hasOwn(current, pluginId)) return;
+  if (normalizeActivationEntry(pluginId, current[pluginId]) !== undefined) return;
+  throw new AgentPluginActivationsUnreadableError({ filePath: path.join(workspaceRoot, ACTIVATIONS_FILENAME), reason: `${ACTIVATIONS_FILENAME} holds an unreadable record for '${pluginId}', so it cannot be safely toggled` });
+}
+
+/**
+ * `updatedBy` of every record the boot seeder writes.
+ */
+const SEED_ACTOR = "system:seed";
+
+/**
+ * Whether a RAW entry is the seeder's own disabled record that no operator has touched since.
+ *  @complexity O(1).
+ */
+function isUntouchedDisabledSeed(entry: unknown): boolean {
+  return isPlainObject(entry) && entry.enabled === false && entry.updatedBy === SEED_ACTOR;
+}
+
+function assertPluginId(pluginId: string): void {
+  if (!SAFE_PLUGIN_ID_PATTERN.test(pluginId) || pluginId.length > 64) {
+    throw new Error(`agent-plugin activation: '${pluginId}' is not a valid Agent Plugin id`);
+  }
+}
+
+/**
+ * Read phase: the lenient discovery read and the strict reads every writer and the tool gate use,
+ * all over one shape-checked document read. No lock is taken here; writers call the strict read
+ * only inside their own locked turn.
+ */
+function createActivationReads(args: { readonly ports: ActivationPorts }, _optional: Record<string, never> = {}) {
+  const { ports } = args;
   const readFile = ports.filesystem.readFile.bind(ports.filesystem);
-  const rename = ports.filesystem.rename.bind(ports.filesystem);
-  const rm = ports.filesystem.rm.bind(ports.filesystem);
-  const EMPTY_ACTIVATIONS: AgentPluginActivations = { schemaVersion: 1, plugins: {} };
-
-  /**
-   * Same grammar `layout.ts` guards path segments with — an id that reaches this module is used as
-   *  an object key, not a path, but validating in both places keeps a future caller from being the
-   *  first one to find out the two disagreed.
-   */
-  const SAFE_PLUGIN_ID_PATTERN = /^[a-z0-9]+(?:[-.][a-z0-9]+)*$/;
-
-  /**
-   * Whether a plugin may be discovered, registered as a tool, or injected into a run.
-   *
-   * @param activations - This workspace's record, as returned by {@link readAgentPluginActivations}.
-   * @param pluginId - The plugin's manifest `name`.
-   * @returns `false` only when an explicit record says `enabled: false`. See this file's header for
-   * why an absent record means active.
-   * @complexity O(1).
-   *
-   * `Object.hasOwn`, not a plain lookup: `activations.plugins` comes straight from `JSON.parse` (via
-   * `normalizeActivations`), so it still carries `Object.prototype`, and an id like `constructor` or
-   * `hasownproperty` passes the plugin-name grammar and would otherwise resolve to an inherited
-   * value rather than a missing entry — see `resolveAgentPluginActivation`'s identical guard.
-   */
-  function isAgentPluginActive(activations: AgentPluginActivations, pluginId: string): boolean {
-
-    if (!Object.hasOwn(activations.plugins, pluginId)) return true;
-    return activations.plugins[pluginId]!.enabled;
-  }
-
-  /**
-   * Filters any list of plugin-shaped values down to the ones this workspace has active.
-   *
-   * Takes the id accessor rather than a concrete type so the three gate sites — which hold
-   * `InstalledAgentPlugin`s, `AgentPluginToolSource`s, and capability cards respectively — all share
-   * one implementation of the rule instead of three `filter` calls that could drift apart on what
-   * "active" means.
-   *
-   * @complexity O(n) in the list length.
-   */
-  function filterActiveAgentPlugins<T>(
-    activations: AgentPluginActivations,
-    items: readonly T[],
-    pluginIdOf: (item: T) => string,
-  ): readonly T[] {
-    return items.filter((item) => isAgentPluginActive(activations, pluginIdOf(item)));
-  }
 
   /**
    * Reads one workspace's activation record.
@@ -254,17 +427,6 @@ function buildModule(ports: ActivationPorts) {
     const document = await readActivationsDocument(workspaceRoot);
     return document.kind === "entries" ? normalizePluginsBag(document.entries) : EMPTY_ACTIVATIONS;
   }
-
-  /**
-   * What one workspace's activations file was found to be — the one place the difference between
-   * "there is nothing recorded here" and "something is recorded and I cannot read it" survives.
-   * {@link readAgentPluginActivations} deliberately discards that difference; the tool gate's
-   * {@link resolveAgentPluginActivation} is the reader that needs it.
-   */
-  type ActivationsDocument =
-    | { readonly kind: "absent" }
-    | { readonly kind: "entries"; readonly entries: Readonly<Record<string, unknown>> }
-    | { readonly kind: "unreadable"; readonly reason: string };
 
   /**
    * Reads and shape-checks the activations file once, for BOTH readers above and below — so the
@@ -301,50 +463,6 @@ function buildModule(ports: ActivationPorts) {
     return { kind: "entries", entries };
   }
 
-  function errorCode(error: unknown): string | undefined {
-    if (typeof error !== "object" || error === null || !("code" in error)) return undefined;
-    const code = (error as { code?: unknown }).code;
-    return typeof code === "string" ? code : undefined;
-  }
-
-  /**
-   * A short, log-safe rendering of a thrown value. Carries the error's own message (which for a
-   *  filesystem fault names this workspace's own path — a host path, so a caller that surfaces this
-   *  must keep it in a server-side log and out of any model- or user-facing payload).
-   */
-  function describeError(error: unknown): string {
-    return error instanceof Error ? error.message : String(error);
-  }
-
-  /**
-   * Turns a lock failure from {@link withExclusiveFileLock} into {@link AgentPluginActivationsBusyError};
-   *  any other error (including a thrown {@link AgentPluginActivationsUnreadableError} from the read
-   *  inside the callback) passes through unchanged. @complexity O(1).
-   */
-  function toActivationsBusyError(lockPath: string, error: unknown): unknown {
-    if (error instanceof FileLockTimeoutError) return new AgentPluginActivationsBusyError({ lockPath: lockPath, holder: error.holder, lost: false });
-    if (error instanceof FileLockLostError) return new AgentPluginActivationsBusyError({ lockPath: lockPath, holder: undefined, lost: true });
-    return error;
-  }
-
-  /**
-   * Logs a stale lock's removal — server-side only, since the path and pid are host detail.
-   *  @complexity O(1).
-   */
-  function warnStaleActivationsLockRemoved(lockPath: string, holder: FileLockHolder | undefined): void {
-    ports.onEvent?.({ event: "stale-activation-lock-removed", message: (
-      holder !== undefined
-        ? `[agent-plugins] removed a stale activations.json lock left by pid ${holder.pid} on ${holder.hostname} (acquired ${holder.acquiredAt}): ${lockPath}`
-        : `[agent-plugins] removed a stale activations.json lock with an unreadable holder: ${lockPath}`
-    ) });
-  }
-
-  /**
-   * Every `plugins` entry exactly as parsed — malformed ones included — which is what a writer edits
-   *  so a malformed sibling entry survives a toggle of a different plugin byte-for-byte.
-   */
-  type RawPluginsBag = Readonly<Record<string, unknown>>;
-
   /**
    * The strict read every writer uses: `absent` (no file yet) is an empty bag, same as
    * {@link readAgentPluginActivations}; a file that exists but cannot be read, parsed, or
@@ -359,34 +477,6 @@ function buildModule(ports: ActivationPorts) {
       throw new AgentPluginActivationsUnreadableError({ filePath: path.join(workspaceRoot, ACTIVATIONS_FILENAME), reason: document.reason });
     }
     return document.kind === "entries" ? document.entries : {};
-  }
-
-  /**
-   * Whether the RAW entry for `pluginId` records `origin: "bundled"` — read raw so a malformed
-   *  entry's provenance still survives a toggle. `Object.hasOwn`, not a plain lookup, for the same
-   *  `Object.prototype` reason {@link resolveAgentPluginActivation} uses it. @complexity O(1).
-   */
-  function isRecordedAsBundled(bag: RawPluginsBag, pluginId: string): boolean {
-    if (!Object.hasOwn(bag, pluginId)) return false;
-    const entry = bag[pluginId];
-    return isPlainObject(entry) && entry.origin === "bundled";
-  }
-
-  /**
-   * Pre-flight for a caller about to do work whose record it must then write — the boot seeder calls
-   * this BEFORE installing anything, so a bundled package never lands on disk without the activation
-   * record that would keep it inactive.
-   *
-   * Also proves the cross-process write lock can actually be taken right now, and clears a stale one
-   * left by a crashed process — the same lock every real writer below takes (this file's header,
-   * "Concurrency", ACROSS processes).
-   *
-   * @throws {AgentPluginActivationsUnreadableError} The file exists but cannot be read.
-   * @throws {AgentPluginActivationsBusyError} The lock could not be taken within 15s.
-   * @complexity Same as {@link readPluginsBagStrict}, plus one lock acquisition/release.
-   */
-  async function assertAgentPluginActivationsWritable(workspaceRoot: string): Promise<void> {
-    await lockedActivationsWrite(workspaceRoot, () => readPluginsBagStrict(workspaceRoot));
   }
 
   /**
@@ -434,244 +524,6 @@ function buildModule(ports: ActivationPorts) {
   }
 
   /**
-   * Whether `value` is a plain (non-null, non-array) object — the shape every one of this file's
-   *  JSON-adjacent values (the activations envelope, and each individual plugin entry) must have
-   *  before its own fields are worth looking at.
-   */
-  function isPlainObject(value: unknown): value is Readonly<Record<string, unknown>> {
-    return typeof value === "object" && value !== null && !Array.isArray(value);
-  }
-
-  /**
-   * The `plugins` bag out of an already-`JSON.parse`d activations value, or `undefined` when the
-   *  top-level envelope doesn't match this schema version at all (wrong shape, wrong
-   *  `schemaVersion`, or a non-object `plugins`) — collapsing the three top-level shape gates
-   *  {@link normalizeActivations} used to inline into one lookup its loop can build on.
-   */
-  function extractPluginsBag(value: unknown): Readonly<Record<string, unknown>> | undefined {
-    if (!isPlainObject(value) || value.schemaVersion !== 1 || !isPlainObject(value.plugins)) return undefined;
-    return value.plugins;
-  }
-
-  /**
-   * Fills in an activation record's optional fields from a (validated-boolean-`enabled`) raw entry.
-   *  Pure defaulting: no field here can fail validation, only fall back to a safe default — matching
-   *  the file's own "fail-OPEN per malformed field, never per entry" discipline (see this file's
-   *  header).
-   */
-  function withActivationDefaults(record: Readonly<Record<string, unknown>>, enabled: boolean): AgentPluginActivationRecord {
-    return {
-      enabled,
-      origin: record.origin === "bundled" ? "bundled" : "operator-installed",
-      updatedAt: typeof record.updatedAt === "string" ? record.updatedAt : new Date(0).toISOString(),
-      updatedBy: typeof record.updatedBy === "string" ? record.updatedBy : "unknown",
-    };
-  }
-
-  /**
-   * One `plugins` entry, normalized — or `undefined` when it does not match the shape (bad plugin
-   *  id, non-object entry, or a non-boolean `enabled`), so {@link normalizeActivations}'s loop stays a
-   *  simple accumulate-or-skip.
-   */
-  function normalizeActivationEntry(pluginId: string, entry: unknown): AgentPluginActivationRecord | undefined {
-    if (!SAFE_PLUGIN_ID_PATTERN.test(pluginId)) return undefined;
-    const record = isPlainObject(entry) ? entry : undefined;
-    if (record === undefined || typeof record.enabled !== "boolean") return undefined;
-    return withActivationDefaults(record, record.enabled);
-  }
-
-  /**
-   * Validates an already-`JSON.parse`d activations value, dropping anything that does not match the
-   * shape. Pure, so the parsing rules are assertable without touching a filesystem.
-   *
-   * Per-entry rather than all-or-nothing: one malformed entry must not discard the operator's other,
-   * perfectly good decisions.
-   *
-   * @complexity O(p) in the entry count.
-   */
-  function normalizeActivations(value: unknown): AgentPluginActivations {
-    /**
-     * Provenance is a fact about how the package arrived, not about this decision (comment kept
-     * from the pre-F1.1 version): an existing value is preserved rather than overwritten by a
-     * toggle. Read raw (`isRecordedAsBundled`), not through normalization, so a malformed sibling
-     * entry does not lose its own provenance either.
-     */
-    const plugins = extractPluginsBag(value);
-    if (plugins === undefined) return EMPTY_ACTIVATIONS;
-    return normalizePluginsBag(plugins);
-  }
-
-  /**
-   * The per-entry accumulate-or-skip loop itself, split out of {@link normalizeActivations} so
-   *  {@link readAgentPluginActivations} can run it over an ALREADY shape-checked bag rather than
-   *  re-deriving one — one implementation of "which entries survive", not two.
-   *
-   *  @complexity O(p) in the entry count.
-   */
-  function normalizePluginsBag(plugins: Readonly<Record<string, unknown>>): AgentPluginActivations {
-    const normalized: Record<string, AgentPluginActivationRecord> = {};
-    for (const [pluginId, entry] of Object.entries(plugins)) {
-      const record = normalizeActivationEntry(pluginId, entry);
-      if (record !== undefined) normalized[pluginId] = record;
-    }
-
-    return { schemaVersion: 1, plugins: normalized };
-  }
-
-  /**
-   * Records an operator's explicit activation decision for one plugin.
-   *
-   * Reads and writes the RAW `plugins` bag, not the normalized view — see this file's header,
-   * "Writers never rewrite what they could not read" — so a malformed sibling entry (or any field a
-   * future schema version adds) survives this write byte-for-byte.
-   *
-   * @throws {Error} If `pluginId` does not match the Agent Plugins name grammar.
-   * @throws {AgentPluginActivationsUnreadableError} The file exists but cannot be read.
-   * @throws {AgentPluginActivationsBusyError} The cross-process write lock could not be taken or was
-   * lost; nothing was written.
-   * @returns The record as written, normalized, so a caller does not have to re-read to confirm.
-   * @complexity O(p) in the recorded plugin count — the whole (small) file is rewritten.
-   */
-  async function setAgentPluginActivation(
-    required: SetAgentPluginActivationRequired,
-    optional: SetAgentPluginActivationOptional = {},
-  ): Promise<AgentPluginActivations> {
-    assertPluginId(required.pluginId);
-    return lockedActivationsWrite(required.workspaceRoot, async (lock) =>
-      writeActivationDecision(await readPluginsBagStrict(required.workspaceRoot), required, optional, lock),
-    );
-  }
-
-  /** Reconcile a mirror from current canonical state inside the activation owner's existing queue
-   * and file lock. Resolving before queueing can let an older request overwrite a newer decision.
-   * @returns Whether the face changed. @throws The same strict-read/lock errors as a normal write.
-   * @complexity One canonical read and O(p) in the workspace's recorded activations.
-   */
-  async function reconcileAgentPluginActivation(
-    required: Omit<SetAgentPluginActivationRequired, "enabled"> & { resolveEnabled: () => Promise<boolean> },
-    optional: SetAgentPluginActivationOptional = {},
-  ): Promise<boolean> {
-    assertPluginId(required.pluginId);
-    return lockedActivationsWrite(required.workspaceRoot, async (lock) => {
-      const enabled = await required.resolveEnabled();
-      const current = await readPluginsBagStrict(required.workspaceRoot);
-      assertTargetEntryReadable(required.workspaceRoot, current, required.pluginId);
-      const active = normalizeActivationEntry(required.pluginId, current[required.pluginId])?.enabled ?? true;
-      if (active === enabled) return false;
-      await writeActivationDecision(current, { ...required, enabled }, optional, lock);
-      return true;
-    });
-  }
-
-  /**
-   * The write half of {@link setAgentPluginActivation}, over a bag the caller has ALREADY read strictly
-   * inside its own {@link lockedActivationsWrite} turn — so {@link recordBundledAgentPluginIfAbsent} can
-   * decide and write within one turn instead of re-entering the chain or the lock, either of which
-   * would wait on itself (this file's header, "Concurrency").
-   *
-   * @complexity O(p) in the recorded plugin count — the whole (small) file is rewritten.
-   */
-  async function writeActivationDecision(
-    current: RawPluginsBag,
-    required: SetAgentPluginActivationRequired,
-    optional: SetAgentPluginActivationOptional,
-    lock: HeldFileLock,
-  ): Promise<AgentPluginActivations> {
-    const { workspaceRoot, pluginId, enabled, actor } = required;
-    assertTargetEntryReadable(workspaceRoot, current, pluginId);
-    const plugins: RawPluginsBag = {
-      ...current,
-      [pluginId]: {
-        enabled,
-
-        origin: optional.origin ?? (isRecordedAsBundled(current, pluginId) ? "bundled" : "operator-installed"),
-        updatedAt: (optional.now?.({}) ?? new Date(ports.clock.nowMs())).toISOString(),
-        updatedBy: actor,
-      },
-    };
-
-    await writeActivationsAtomically(workspaceRoot, plugins, lock);
-    return normalizePluginsBag(plugins);
-  }
-
-  /**
-   * Refuse a malformed target entry rather than guessing operator-installed origin. Guessing would
-   * defeat bundled uninstall refusal and make seeding confuse a fabricated record with consent.
-   * An undetermined entry stays intact. recordBundledAgentPluginIfAbsent reaches this writer only
-   * when the target key is genuinely absent, so it does not repair a malformed decision either.
-   * @throws {AgentPluginActivationsUnreadableError} The target entry exists but cannot normalize.
-   * @complexity O(1).
-   */
-  function assertTargetEntryReadable(workspaceRoot: string, current: RawPluginsBag, pluginId: string): void {
-    if (!Object.hasOwn(current, pluginId)) return;
-    if (normalizeActivationEntry(pluginId, current[pluginId]) !== undefined) return;
-    throw new AgentPluginActivationsUnreadableError({ filePath: path.join(workspaceRoot, ACTIVATIONS_FILENAME), reason: `${ACTIVATIONS_FILENAME} holds an unreadable record for '${pluginId}', so it cannot be safely toggled` });
-  }
-
-  /**
-   * Writes the initial `{ enabled: false, origin: "bundled" }` record for a plugin the host itself placed
-   * on disk — and does nothing at all if any record already exists.
-   *
-   * The no-overwrite rule is the whole contract: this runs on every boot (see `seed-bundled.ts`), so
-   * overwriting would re-disable a plugin the operator had deliberately enabled, every restart.
-   *
-   * `optional.enabled: true` seeds the record ENABLED instead, for a bundled plugin core behaviour
-   * depends on (`seed-bundled.ts`'s `BUNDLED_AGENT_PLUGINS_SEEDED_ENABLED`). It makes one exception to
-   * no-overwrite, for the upgrade path: a record the seeder itself wrote disabled and nobody has
-   * touched since (`enabled: false`, `updatedBy: "system:seed"`) is switched on, so an existing site
-   * needs no manual step. Any record an operator wrote is still left alone.
-   *
-   * @returns `{ recorded: true }` when it wrote the initial disabled record, `{ recorded: false }`
-   * when a decision already existed and was left alone. A present-but-MALFORMED entry still counts as
-   * an existing decision — `Object.hasOwn`, not a shape check — because the gate is already answering
-   * `undetermined` (deny) for it; overwriting it with a fresh disabled record would be a write this
-   * function has no business making just because the entry it found looked wrong.
-   * @throws {Error} If `pluginId` does not match the Agent Plugins name grammar.
-   * @throws {AgentPluginActivationsUnreadableError} The file exists but cannot be read.
-   * @throws {AgentPluginActivationsBusyError} The cross-process write lock could not be taken or was
-   * lost; nothing was written.
-   * @complexity O(p) in the recorded plugin count.
-   */
-  async function recordBundledAgentPluginIfAbsent(
-    required: { readonly workspaceRoot: string; readonly pluginId: string },
-    optional: { readonly now?: ((required: Record<string, never>) => Date) | undefined; readonly enabled?: boolean } = {},
-  ): Promise<{ readonly recorded: boolean }> {
-    assertPluginId(required.pluginId);
-    const enabled = optional.enabled === true;
-
-    return lockedActivationsWrite(required.workspaceRoot, async (lock) => {
-      /**
-       * Recorded as `updatedBy` when this call writes.
-       */
-      const current = await readPluginsBagStrict(required.workspaceRoot);
-      if (Object.hasOwn(current, required.pluginId) && !(enabled && isUntouchedDisabledSeed(current[required.pluginId]))) {
-        return { recorded: false };
-      }
-
-      await writeActivationDecision(
-        current,
-        { workspaceRoot: required.workspaceRoot, pluginId: required.pluginId, enabled, actor: SEED_ACTOR },
-        { origin: "bundled", ...(optional.now !== undefined ? { now: optional.now } : {}) },
-        lock,
-      );
-      return { recorded: true };
-    });
-  }
-
-  /**
-   * `updatedBy` of every record the boot seeder writes.
-   */
-  const SEED_ACTOR = "system:seed";
-
-  /**
-   * Whether a RAW entry is the seeder's own disabled record that no operator has touched since.
-   *  @complexity O(1).
-   */
-  function isUntouchedDisabledSeed(entry: unknown): boolean {
-    return isPlainObject(entry) && entry.enabled === false && entry.updatedBy === SEED_ACTOR;
-  }
-
-  /**
    * Whether `pluginId`'s record is an operator's own "off" (any disabled record but the seeder's), the
    *  one a conditional enable leaves as it is. A read, no lock: callers that must not race a toggle
    *  hold the plugin lock every switch takes. @complexity Same as {@link readPluginsBagStrict}.
@@ -681,93 +533,27 @@ function buildModule(ports: ActivationPorts) {
     return Object.hasOwn(bag, pluginId) && normalizeActivationEntry(pluginId, bag[pluginId])?.enabled === false && !isUntouchedDisabledSeed(bag[pluginId]);
   }
 
-  /**
-   * Switches a bundled plugin ON unless an operator has explicitly turned it off — for
-   * `retire-bundled.ts`, which moves a retired plugin's users onto its successor.
-   *
-   * Enables when there is no record, or the record is the seeder's own untouched disabled one (the
-   * same exception {@link recordBundledAgentPluginIfAbsent} makes). A disabled record anyone else wrote
-   * is an operator decision and is left exactly as it is; the caller reports it rather than
-   * overriding it. Decided and written inside one locked turn, so a toggle racing the boot cannot be
-   * overwritten by a decision made on a stale read.
-   *
-   * @throws {Error} If `pluginId` does not match the Agent Plugins name grammar.
-   * @throws {AgentPluginActivationsUnreadableError} The file, or `pluginId`'s own entry, cannot be read.
-   * @throws {AgentPluginActivationsBusyError} The cross-process write lock could not be taken or was
-   * lost; nothing was written.
-   * @complexity O(p) in the recorded plugin count.
-   */
-  async function enableBundledAgentPluginUnlessOperatorDisabled(required: {
-    readonly workspaceRoot: string;
-    readonly pluginId: string;
+  return { readActivationsDocument, readAgentPluginActivations, readPluginsBagStrict, isAgentPluginRecordedAsBundled, resolveAgentPluginActivation, isAgentPluginDisabledByOperator };
+}
 
-    readonly actor: string;
-    readonly now?: ((required: Record<string, never>) => Date) | undefined;
-  }): Promise<BundledAgentPluginEnableOutcome> {
-    assertPluginId(required.pluginId);
-    const { workspaceRoot, pluginId, actor } = required;
-
-    return lockedActivationsWrite(workspaceRoot, async (lock) => {
-      const current = await readPluginsBagStrict(workspaceRoot);
-      if (Object.hasOwn(current, pluginId) && !isUntouchedDisabledSeed(current[pluginId])) {
-        assertTargetEntryReadable(workspaceRoot, current, pluginId);
-        return normalizeActivationEntry(pluginId, current[pluginId])?.enabled === true ? "already-enabled" : "left-disabled-by-operator";
-      }
-
-      await writeActivationDecision(
-        current,
-        { workspaceRoot, pluginId, enabled: true, actor },
-        { origin: "bundled", ...(required.now !== undefined ? { now: required.now } : {}) },
-        lock,
-      );
-      return "enabled";
-    });
-  }
+/**
+ * Lock phase: the per-workspace in-process chain composed in front of the cross-process file lock.
+ * One instance per module, so every writer of a host context shares the same chain.
+ */
+function createActivationLock(args: { readonly ports: ActivationPorts }, _optional: Record<string, never> = {}) {
+  const { ports } = args;
+  const mkdir = ports.filesystem.mkdir.bind(ports.filesystem);
 
   /**
-   * Removes a plugin's activation record entirely, rather than leaving a disabled tombstone.
-   *
-   * Callers: `uninstall.ts`'s `uninstallAgentPlugin()`, on a successful uninstall (see that file's own
-   * header for the full decision), and `retire-bundled.ts`, for a retired bundled plugin's leftover
-   * record when no package of it is installed.
-   * Short version: a tombstone (`enabled: false` left behind after the bytes are gone) would invert
-   * this file's own "absent means active, because an operator's own install IS the consent" rule
-   * (this file's header, above) the moment the SAME plugin id is ever reinstalled — the fresh install
-   * would silently inherit a stale disabled flag about bytes that no longer exist. Deleting the record
-   * makes a future reinstall of this id start exactly where any first-ever install starts.
-   *
-   * A no-op, not an error, when no record exists — matches `recordBundledAgentPluginIfAbsent`'s own
-   * idempotent style; a caller uninstalling a plugin that was never explicitly toggled should not have
-   * to special-case "there was nothing to clear".
-   *
-   * @throws {Error} If `pluginId` does not match the Agent Plugins name grammar.
-   * @throws {AgentPluginActivationsUnreadableError} The file exists but cannot be read — an unreadable
-   * file might well hold a record for `pluginId`, so treating that as "nothing to delete" could mean
-   * silently leaving a decision in place that this call was supposed to remove.
-   * @throws {AgentPluginActivationsBusyError} The cross-process write lock could not be taken or was
-   * lost; nothing was written.
-   * @complexity O(p) in the recorded plugin count — the whole (small) file is rewritten, same as every
-   * other write in this file.
+   * Logs a stale lock's removal — server-side only, since the path and pid are host detail.
+   *  @complexity O(1).
    */
-  async function deleteAgentPluginActivation(required: DeleteAgentPluginActivationRequired): Promise<void> {
-    const { workspaceRoot, pluginId } = required;
-    assertPluginId(pluginId);
-
-    await lockedActivationsWrite(workspaceRoot, async (lock) => {
-      const current = await readPluginsBagStrict(workspaceRoot);
-      if (!Object.hasOwn(current, pluginId)) return;
-
-      const remaining: Record<string, unknown> = { ...current };
-      delete remaining[pluginId];
-
-      await writeActivationsAtomically(workspaceRoot, remaining, lock);
-    });
-  }
-
-  function assertPluginId(pluginId: string): void {
-    if (!SAFE_PLUGIN_ID_PATTERN.test(pluginId) || pluginId.length > 64) {
-      throw new Error(`agent-plugin activation: '${pluginId}' is not a valid Agent Plugin id`);
-    }
+  function warnStaleActivationsLockRemoved(lockPath: string, holder: FileLockHolder | undefined): void {
+    ports.onEvent?.({ event: "stale-activation-lock-removed", message: (
+      holder !== undefined
+        ? `[agent-plugins] removed a stale activations.json lock left by pid ${holder.pid} on ${holder.hostname} (acquired ${holder.acquiredAt}): ${lockPath}`
+        : `[agent-plugins] removed a stale activations.json lock with an unreadable holder: ${lockPath}`
+    ) });
   }
 
   /**
@@ -827,6 +613,51 @@ function buildModule(ports: ActivationPorts) {
         throw toActivationsBusyError(lockPath, error);
       }
     });
+  }
+
+  return { lockedActivationsWrite };
+}
+
+/**
+ * Durable-write phase: builds the next raw bag and commits it with temp-write, fsync, lock re-check,
+ * rename, then a best-effort directory fsync. Callers must already hold the activation lock.
+ */
+function createDurableActivationWrites(args: { readonly ports: ActivationPorts }, _optional: Record<string, never> = {}) {
+  const { ports } = args;
+  const randomUUID = () => ports.ids.newId();
+  const open = ports.filesystem.open.bind(ports.filesystem);
+  const rename = ports.filesystem.rename.bind(ports.filesystem);
+  const rm = ports.filesystem.rm.bind(ports.filesystem);
+
+  /**
+   * The write half of {@link setAgentPluginActivation}, over a bag the caller has ALREADY read strictly
+   * inside its own {@link lockedActivationsWrite} turn — so {@link recordBundledAgentPluginIfAbsent} can
+   * decide and write within one turn instead of re-entering the chain or the lock, either of which
+   * would wait on itself (this file's header, "Concurrency").
+   *
+   * @complexity O(p) in the recorded plugin count — the whole (small) file is rewritten.
+   */
+  async function writeActivationDecision(
+    current: RawPluginsBag,
+    required: SetAgentPluginActivationRequired,
+    optional: SetAgentPluginActivationOptional,
+    lock: HeldFileLock,
+  ): Promise<AgentPluginActivations> {
+    const { workspaceRoot, pluginId, enabled, actor } = required;
+    assertTargetEntryReadable(workspaceRoot, current, pluginId);
+    const plugins: RawPluginsBag = {
+      ...current,
+      [pluginId]: {
+        enabled,
+
+        origin: optional.origin ?? (isRecordedAsBundled(current, pluginId) ? "bundled" : "operator-installed"),
+        updatedAt: (optional.now?.({}) ?? new Date(ports.clock.nowMs())).toISOString(),
+        updatedBy: actor,
+      },
+    };
+
+    await writeActivationsAtomically(workspaceRoot, plugins, lock);
+    return normalizePluginsBag(plugins);
   }
 
   /**
@@ -896,6 +727,235 @@ function buildModule(ports: ActivationPorts) {
     }
   }
 
+  return { writeActivationDecision, writeActivationsAtomically };
+}
+
+/** The three phases every writer composes: strict read, lock, durable write. */
+interface ActivationWritePhases {
+  readonly reads: ReturnType<typeof createActivationReads>;
+  readonly lock: ReturnType<typeof createActivationLock>;
+  readonly durable: ReturnType<typeof createDurableActivationWrites>;
+}
+
+/** Operator writers: explicit decisions, mirror reconcile, record removal, and the writable pre-flight. */
+function createOperatorActivationWrites(args: ActivationWritePhases, _optional: Record<string, never> = {}) {
+  const { readPluginsBagStrict } = args.reads;
+  const { lockedActivationsWrite } = args.lock;
+  const { writeActivationDecision, writeActivationsAtomically } = args.durable;
+
+  /**
+   * Pre-flight for a caller about to do work whose record it must then write — the boot seeder calls
+   * this BEFORE installing anything, so a bundled package never lands on disk without the activation
+   * record that would keep it inactive.
+   *
+   * Also proves the cross-process write lock can actually be taken right now, and clears a stale one
+   * left by a crashed process — the same lock every real writer below takes (this file's header,
+   * "Concurrency", ACROSS processes).
+   *
+   * @throws {AgentPluginActivationsUnreadableError} The file exists but cannot be read.
+   * @throws {AgentPluginActivationsBusyError} The lock could not be taken within 15s.
+   * @complexity Same as {@link readPluginsBagStrict}, plus one lock acquisition/release.
+   */
+  async function assertAgentPluginActivationsWritable(workspaceRoot: string): Promise<void> {
+    await lockedActivationsWrite(workspaceRoot, () => readPluginsBagStrict(workspaceRoot));
+  }
+
+  /**
+   * Records an operator's explicit activation decision for one plugin.
+   *
+   * Reads and writes the RAW `plugins` bag, not the normalized view — see this file's header,
+   * "Writers never rewrite what they could not read" — so a malformed sibling entry (or any field a
+   * future schema version adds) survives this write byte-for-byte.
+   *
+   * @throws {Error} If `pluginId` does not match the Agent Plugins name grammar.
+   * @throws {AgentPluginActivationsUnreadableError} The file exists but cannot be read.
+   * @throws {AgentPluginActivationsBusyError} The cross-process write lock could not be taken or was
+   * lost; nothing was written.
+   * @returns The record as written, normalized, so a caller does not have to re-read to confirm.
+   * @complexity O(p) in the recorded plugin count — the whole (small) file is rewritten.
+   */
+  async function setAgentPluginActivation(
+    required: SetAgentPluginActivationRequired,
+    optional: SetAgentPluginActivationOptional = {},
+  ): Promise<AgentPluginActivations> {
+    assertPluginId(required.pluginId);
+    return lockedActivationsWrite(required.workspaceRoot, async (lock) =>
+      writeActivationDecision(await readPluginsBagStrict(required.workspaceRoot), required, optional, lock),
+    );
+  }
+
+  /** Reconcile a mirror from current canonical state inside the activation owner's existing queue
+   * and file lock. Resolving before queueing can let an older request overwrite a newer decision.
+   * @returns Whether the face changed. @throws The same strict-read/lock errors as a normal write.
+   * @complexity One canonical read and O(p) in the workspace's recorded activations.
+   */
+  async function reconcileAgentPluginActivation(
+    required: Omit<SetAgentPluginActivationRequired, "enabled"> & { resolveEnabled: () => Promise<boolean> },
+    optional: SetAgentPluginActivationOptional = {},
+  ): Promise<boolean> {
+    assertPluginId(required.pluginId);
+    return lockedActivationsWrite(required.workspaceRoot, async (lock) => {
+      const enabled = await required.resolveEnabled();
+      const current = await readPluginsBagStrict(required.workspaceRoot);
+      assertTargetEntryReadable(required.workspaceRoot, current, required.pluginId);
+      const active = normalizeActivationEntry(required.pluginId, current[required.pluginId])?.enabled ?? true;
+      if (active === enabled) return false;
+      await writeActivationDecision(current, { ...required, enabled }, optional, lock);
+      return true;
+    });
+  }
+
+  /**
+   * Removes a plugin's activation record entirely, rather than leaving a disabled tombstone.
+   *
+   * Callers: `uninstall.ts`'s `uninstallAgentPlugin()`, on a successful uninstall (see that file's own
+   * header for the full decision), and `retire-bundled.ts`, for a retired bundled plugin's leftover
+   * record when no package of it is installed.
+   * Short version: a tombstone (`enabled: false` left behind after the bytes are gone) would invert
+   * this file's own "absent means active, because an operator's own install IS the consent" rule
+   * (this file's header, above) the moment the SAME plugin id is ever reinstalled — the fresh install
+   * would silently inherit a stale disabled flag about bytes that no longer exist. Deleting the record
+   * makes a future reinstall of this id start exactly where any first-ever install starts.
+   *
+   * A no-op, not an error, when no record exists — matches `recordBundledAgentPluginIfAbsent`'s own
+   * idempotent style; a caller uninstalling a plugin that was never explicitly toggled should not have
+   * to special-case "there was nothing to clear".
+   *
+   * @throws {Error} If `pluginId` does not match the Agent Plugins name grammar.
+   * @throws {AgentPluginActivationsUnreadableError} The file exists but cannot be read — an unreadable
+   * file might well hold a record for `pluginId`, so treating that as "nothing to delete" could mean
+   * silently leaving a decision in place that this call was supposed to remove.
+   * @throws {AgentPluginActivationsBusyError} The cross-process write lock could not be taken or was
+   * lost; nothing was written.
+   * @complexity O(p) in the recorded plugin count — the whole (small) file is rewritten, same as every
+   * other write in this file.
+   */
+  async function deleteAgentPluginActivation(required: DeleteAgentPluginActivationRequired): Promise<void> {
+    const { workspaceRoot, pluginId } = required;
+    assertPluginId(pluginId);
+
+    await lockedActivationsWrite(workspaceRoot, async (lock) => {
+      const current = await readPluginsBagStrict(workspaceRoot);
+      if (!Object.hasOwn(current, pluginId)) return;
+
+      const remaining: Record<string, unknown> = { ...current };
+      delete remaining[pluginId];
+
+      await writeActivationsAtomically(workspaceRoot, remaining, lock);
+    });
+  }
+
+  return { assertAgentPluginActivationsWritable, setAgentPluginActivation, reconcileAgentPluginActivation, deleteAgentPluginActivation };
+}
+
+/** Bundled writers: the boot seeder's no-overwrite record and the retire path's conditional enable. */
+function createBundledActivationWrites(args: ActivationWritePhases, _optional: Record<string, never> = {}) {
+  const { readPluginsBagStrict } = args.reads;
+  const { lockedActivationsWrite } = args.lock;
+  const { writeActivationDecision } = args.durable;
+
+  /**
+   * Writes the initial `{ enabled: false, origin: "bundled" }` record for a plugin the host itself placed
+   * on disk — and does nothing at all if any record already exists.
+   *
+   * The no-overwrite rule is the whole contract: this runs on every boot (see `seed-bundled.ts`), so
+   * overwriting would re-disable a plugin the operator had deliberately enabled, every restart.
+   *
+   * `optional.enabled: true` seeds the record ENABLED instead, for a bundled plugin core behaviour
+   * depends on (`seed-bundled.ts`'s `BUNDLED_AGENT_PLUGINS_SEEDED_ENABLED`). It makes one exception to
+   * no-overwrite, for the upgrade path: a record the seeder itself wrote disabled and nobody has
+   * touched since (`enabled: false`, `updatedBy: "system:seed"`) is switched on, so an existing site
+   * needs no manual step. Any record an operator wrote is still left alone.
+   *
+   * @returns `{ recorded: true }` when it wrote the initial disabled record, `{ recorded: false }`
+   * when a decision already existed and was left alone. A present-but-MALFORMED entry still counts as
+   * an existing decision — `Object.hasOwn`, not a shape check — because the gate is already answering
+   * `undetermined` (deny) for it; overwriting it with a fresh disabled record would be a write this
+   * function has no business making just because the entry it found looked wrong.
+   * @throws {Error} If `pluginId` does not match the Agent Plugins name grammar.
+   * @throws {AgentPluginActivationsUnreadableError} The file exists but cannot be read.
+   * @throws {AgentPluginActivationsBusyError} The cross-process write lock could not be taken or was
+   * lost; nothing was written.
+   * @complexity O(p) in the recorded plugin count.
+   */
+  async function recordBundledAgentPluginIfAbsent(
+    required: { readonly workspaceRoot: string; readonly pluginId: string },
+    optional: { readonly now?: ((required: Record<string, never>) => Date) | undefined; readonly enabled?: boolean } = {},
+  ): Promise<{ readonly recorded: boolean }> {
+    assertPluginId(required.pluginId);
+    const enabled = optional.enabled === true;
+
+    return lockedActivationsWrite(required.workspaceRoot, async (lock) => {
+      /**
+       * Recorded as `updatedBy` when this call writes.
+       */
+      const current = await readPluginsBagStrict(required.workspaceRoot);
+      if (Object.hasOwn(current, required.pluginId) && !(enabled && isUntouchedDisabledSeed(current[required.pluginId]))) {
+        return { recorded: false };
+      }
+
+      await writeActivationDecision(
+        current,
+        { workspaceRoot: required.workspaceRoot, pluginId: required.pluginId, enabled, actor: SEED_ACTOR },
+        { origin: "bundled", ...(optional.now !== undefined ? { now: optional.now } : {}) },
+        lock,
+      );
+      return { recorded: true };
+    });
+  }
+
+  /**
+   * Switches a bundled plugin ON unless an operator has explicitly turned it off — for
+   * `retire-bundled.ts`, which moves a retired plugin's users onto its successor.
+   *
+   * Enables when there is no record, or the record is the seeder's own untouched disabled one (the
+   * same exception {@link recordBundledAgentPluginIfAbsent} makes). A disabled record anyone else wrote
+   * is an operator decision and is left exactly as it is; the caller reports it rather than
+   * overriding it. Decided and written inside one locked turn, so a toggle racing the boot cannot be
+   * overwritten by a decision made on a stale read.
+   *
+   * @throws {Error} If `pluginId` does not match the Agent Plugins name grammar.
+   * @throws {AgentPluginActivationsUnreadableError} The file, or `pluginId`'s own entry, cannot be read.
+   * @throws {AgentPluginActivationsBusyError} The cross-process write lock could not be taken or was
+   * lost; nothing was written.
+   * @complexity O(p) in the recorded plugin count.
+   */
+  async function enableBundledAgentPluginUnlessOperatorDisabled(required: {
+    readonly workspaceRoot: string;
+    readonly pluginId: string;
+
+    readonly actor: string;
+    readonly now?: ((required: Record<string, never>) => Date) | undefined;
+  }): Promise<BundledAgentPluginEnableOutcome> {
+    assertPluginId(required.pluginId);
+    const { workspaceRoot, pluginId, actor } = required;
+
+    return lockedActivationsWrite(workspaceRoot, async (lock) => {
+      const current = await readPluginsBagStrict(workspaceRoot);
+      if (Object.hasOwn(current, pluginId) && !isUntouchedDisabledSeed(current[pluginId])) {
+        assertTargetEntryReadable(workspaceRoot, current, pluginId);
+        return normalizeActivationEntry(pluginId, current[pluginId])?.enabled === true ? "already-enabled" : "left-disabled-by-operator";
+      }
+
+      await writeActivationDecision(
+        current,
+        { workspaceRoot, pluginId, enabled: true, actor },
+        { origin: "bundled", ...(required.now !== undefined ? { now: required.now } : {}) },
+        lock,
+      );
+      return "enabled";
+    });
+  }
+
+  return { recordBundledAgentPluginIfAbsent, enableBundledAgentPluginUnlessOperatorDisabled };
+}
+
+function buildModule(ports: ActivationPorts) {
+  const reads = createActivationReads({ ports });
+  const phases: ActivationWritePhases = { reads, lock: createActivationLock({ ports }), durable: createDurableActivationWrites({ ports }) };
+  const { readAgentPluginActivations, isAgentPluginRecordedAsBundled, isAgentPluginDisabledByOperator, resolveAgentPluginActivation } = reads;
+  const { assertAgentPluginActivationsWritable, setAgentPluginActivation, reconcileAgentPluginActivation, deleteAgentPluginActivation } = createOperatorActivationWrites(phases);
+  const { recordBundledAgentPluginIfAbsent, enableBundledAgentPluginUnlessOperatorDisabled } = createBundledActivationWrites(phases);
   return { reconcileAgentPluginActivation, isAgentPluginActive, filterActiveAgentPlugins, readAgentPluginActivations, assertAgentPluginActivationsWritable, isAgentPluginRecordedAsBundled, isAgentPluginDisabledByOperator, resolveAgentPluginActivation, normalizeActivations, setAgentPluginActivation, recordBundledAgentPluginIfAbsent, enableBundledAgentPluginUnlessOperatorDisabled, deleteAgentPluginActivation };
 }
 
