@@ -127,14 +127,22 @@ function searchVisible({ query, limit, view }: { query: string; limit: number; v
   const offers = new Map<string, ToolCatalogHit | null>();
   for (let window = limit; ; window *= 2) {
     const hits = view.catalog.search({ query }, { limit: window });
-    const visible: ToolCatalogHit[] = [];
-    for (const hit of hits) {
-      if (!offers.has(hit.id)) offers.set(hit.id, offerHit({ hit, view }));
-      const offered = offers.get(hit.id);
-      if (offered) visible.push(offered);
-    }
+    const visible = visibleHits({ hits, offers, view });
     if (visible.length >= limit || hits.length < window) return visible.slice(0, limit);
   }
+}
+
+/** One fetch window's visible hits, in rank order, reusing offers already computed for this search. */
+function visibleHits(
+  { hits, offers, view }: { hits: readonly ToolCatalogHit[]; offers: Map<string, ToolCatalogHit | null>; view: ViewArgs },
+): ToolCatalogHit[] {
+  const visible: ToolCatalogHit[] = [];
+  for (const hit of hits) {
+    if (!offers.has(hit.id)) offers.set(hit.id, offerHit({ hit, view }));
+    const offered = offers.get(hit.id);
+    if (offered) visible.push(offered);
+  }
+  return visible;
 }
 
 /** Collapses whitespace so equivalent queries share one key and reach the index identically. */
@@ -152,24 +160,26 @@ function scopeKey({ scope, cache }: { scope: ToolCatalogScope; cache: ScopedTool
 
 function scopedView({ view, cache }: { view: ViewArgs; cache: ScopedToolCatalogCache | undefined }): ScopedToolCatalogView {
   const keyFor = scopeKey({ scope: view.scope, cache });
+  const read = (key: string | undefined) => (key === undefined ? undefined : cache?.get({ key }));
+  const write = (key: string | undefined, value: ScopedToolCatalogResult) => { if (key !== undefined) cache?.set({ key, value }); };
   return {
     search({ query }, { limit = 10 } = {}) {
       if (!Number.isSafeInteger(limit) || limit < 0) throw new RangeError('catalog limit must be a nonnegative integer');
       const normalized = normalizeQuery(query);
       const key = keyFor?.(['search', normalized, limit]);
-      const stored = key === undefined ? undefined : cache?.get({ key });
+      const stored = read(key);
       if (stored?.kind === 'search') return [...stored.hits];
       const hits = searchVisible({ query: normalized, limit, view });
-      if (key !== undefined) cache?.set({ key, value: { kind: 'search', hits } });
+      write(key, { kind: 'search', hits });
       return hits;
     },
     describe({ id }) {
       const key = keyFor?.(['describe', id]);
-      const stored = key === undefined ? undefined : cache?.get({ key });
+      const stored = read(key);
       if (stored?.kind === 'describe') return stored.entry;
       const entry = view.catalog.describe({ id });
       const offered = entry === null ? null : offerEntry({ entry, view });
-      if (key !== undefined) cache?.set({ key, value: { kind: 'describe', entry: offered } });
+      write(key, { kind: 'describe', entry: offered });
       return offered;
     },
   };
