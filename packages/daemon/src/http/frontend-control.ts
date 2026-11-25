@@ -182,7 +182,8 @@ function createBindOnStarted({ registry, options }: { readonly registry: Fronten
 }
 
 /** Request-lifetime binding for hosts without daemon runs. */
-function createBindRequest({ registry, ownerGated }: { readonly registry: FrontendSessionRegistry; readonly ownerGated: boolean }): FrontendControl['bindRequest'] {
+function createBindRequest({ registry, session }: { readonly registry: FrontendSessionRegistry; readonly session: CreateFrontendControlOptions['session'] }): FrontendControl['bindRequest'] {
+  const ownerGated = session?.resolveOwner !== undefined;
   const bindRequest: FrontendControl['bindRequest'] = ({ runId, bindToken, owner, signal }, { deliverInvocation } = {}) => {
     if (signal.aborted) throw new Error('Frontend request cancelled');
     // Without the owner gate there is no begin route, so an opted-in invocation could never be
@@ -229,6 +230,6 @@ export function createFrontendControl(requiredArgs: Omit<CreateFrontendControlOp
   });
 
   const bindOnStarted = createBindOnStarted({ registry, options: { ...options, onBindError } });
-  const bindRequest = createBindRequest({ registry, ownerGated: options.session?.resolveOwner !== undefined });
+  const bindRequest = createBindRequest({ registry, session: options.session });
   return { routes, toolRegistrations, bindOnStarted, bindRequest, begin: registry.begin };
 }

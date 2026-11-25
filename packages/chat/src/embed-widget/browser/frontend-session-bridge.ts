@@ -69,9 +69,21 @@ export interface FrontendSessionBridgeOptions {
   readonly onInvocation?: (action: ChatPaneAgentToolAction) => void;
   /** Reported for failures that are nobody's tool call: stream errors, malformed frames. */
   readonly onError?: (error: unknown) => void;
+  /**
+   * Opt-in run-specific delivery (`acceptRunInvocation`). `begin` is required within it: delivery
+   * alone is not permission, so an opted-in invocation never reaches a driver without a claim.
+   */
+  readonly runInvocations?: { readonly begin: FrontendRunInvocationBegin };
 }
 
 /** The host supplies its origin and stream transport; native fetch defaults may be overridden. */
+/**
+ * Claims one run-delivered invocation on the server before this surface acts on it. Resolves
+ * `true` only when the live binding granted the claim. Host composition supplies authentication
+ * and the request; this package never imports the server that answers it.
+ */
+export type FrontendRunInvocationBegin = (required: { runId: string; invocationId: string; signal: AbortSignal }, optional?: Record<string, never>) => Promise<boolean>;
+
 export interface FrontendSessionBridgeArgs {
   /** Pass an empty string for the same-origin proxy used by a browser host. */
   readonly baseUrl: string;
@@ -105,6 +117,13 @@ export interface FrontendSessionBridge {
    * after park, suspension, failure or {@link FrontendSessionBridge.close}. Read it at run-start.
    */
   bindToken(): string | undefined;
+  /**
+   * Executes one invocation the host received through run-specific delivery (for example an AG-UI
+   * tool call it projected into an action carrying the registry-minted invocation id). It reuses
+   * the page queue, executors, pending cancellation and response hooks, but always claims first.
+   * Throws when the bridge was built without `runInvocations`.
+   */
+  acceptRunInvocation(required: { runId: string; action: ChatPaneAgentToolAction }, optional?: Record<string, never>): void;
   close(): void;
 }
 
@@ -343,28 +362,61 @@ export function createFrontendSessionBridge(
   }
 
   /** Runs one well-formed invocation: replay check, announcement, then pane or local serving. */
-  function handleInvocation(action: ChatPaneAgentToolAction): void {
+  function admit(action: ChatPaneAgentToolAction): boolean {
     // A redelivery after a dropped answer must not re-run the side effect.
     if (executed.has(action.invocationId)) {
       void respondError(action.invocationId, 'already executed on this surface').catch(() => undefined);
-      return;
+      return false;
     }
     if (options.capabilityIds && !options.capabilityIds.includes(action.capabilityId)) {
       void respondError(action.invocationId, 'Capability unavailable').catch(() => undefined);
-      return;
+      return false;
     }
     remember(action.invocationId);
     options.onInvocation?.(action);
+    return true;
+  }
 
+  function schedule(action: ChatPaneAgentToolAction, serve: (controller: AbortController) => Promise<void>): void {
+    const controller = new AbortController();
+    pending.set(action.invocationId, controller);
+    if (action.capabilityId.startsWith('page.')) {
+      pageQueue = pageQueue.then(() => serve(controller)).catch(error => options.onError?.(error));
+    } else void serve(controller);
+  }
+
+  function handleInvocation(action: ChatPaneAgentToolAction): void {
+    if (!admit(action)) return;
     if (action.capabilityId.startsWith('chat.')) {
       for (const listener of chatListeners) listener(action);
       return;
     }
-    const controller = new AbortController();
-    pending.set(action.invocationId, controller);
-    if (action.capabilityId.startsWith('page.')) {
-      pageQueue = pageQueue.then(() => serveLocally(action, controller)).catch(error => options.onError?.(error));
-    } else void serveLocally(action, controller);
+    schedule(action, controller => serveLocally(action, controller));
+  }
+
+  /**
+   * Registry-authenticated delivery chooses one browser, but delivery alone is not permission:
+   * `begin` must claim the invocation against the live binding before any effect. The claim uses
+   * the registry-minted invocation id — model tool IDs correlate transcripts and are not capabilities.
+   */
+  async function serveClaimed({ runId, action, controller, begin }: { runId: string; action: ChatPaneAgentToolAction; controller: AbortController; begin: FrontendRunInvocationBegin }): Promise<void> {
+    let begun = false;
+    try {
+      begun = await begin({ runId, invocationId: action.invocationId, signal: controller.signal });
+    } catch (error) { options.onError?.(error); }
+    // Checked right after the claim and before the driver: a cancel during the claim retires it.
+    if (!begun || controller.signal.aborted) {
+      pending.delete(action.invocationId);
+      return;
+    }
+    await serveLocally(action, controller);
+  }
+
+  function acceptRunInvocation({ runId, action }: { runId: string; action: ChatPaneAgentToolAction }, _optional: Record<string, never> = {}): void {
+    const begin = options.runInvocations?.begin;
+    if (!begin) throw new Error('Run-specific frontend delivery needs an injected begin');
+    if (!admit(action)) return;
+    schedule(action, controller => serveClaimed({ runId, action, controller, begin }));
   }
 
   /** Adopt a fresh attachment: drop work from the previous one, then release every waiter. */
@@ -438,6 +490,7 @@ export function createFrontendSessionBridge(
     bridgeAccess,
     ready,
     bindToken: () => currentBindToken,
+    acceptRunInvocation,
     async rebind({ signal } = {}, _optional = {}) {
       signal?.throwIfAborted();
       if (closed) throw new Error('the frontend bridge is closed');
