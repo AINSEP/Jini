@@ -23,6 +23,8 @@ const item = (over: Partial<ChangeSetItemRecord> = {}): ChangeSetItemRecord => (
 });
 const EVENT: DomainEvent = { id: "evt-1", name: "change-set.applied", occurredAt: AT, workspaceId: "ws-a", payload: { changeSetId: "cs-a" } };
 
+const PARENT = "00-0af7651916cd43dd8448eb211c80319c-b7ad6b7169203331-01";
+
 const opened: KyselyKernel<unknown>[] = [];
 afterAll(async () => { for (const kernel of opened) await kernel.close(); });
 
@@ -65,6 +67,27 @@ describe.each(["sqlite", "postgres"] as const)("change-set sql repo [%s]", (dial
     const [row] = await kernel.query<Record<string, unknown>>(sql`SELECT id, workspace_id, status, attempts, next_attempt_at, created_at FROM outbox_events`);
     const { event_json: _json, ...expected } = outboxEventValues(EVENT);
     assert.deepEqual({ ...row, attempts: Number(row?.attempts) }, expected);
+  });
+
+  test("producer context survives durable enqueue without modifying the original envelope", async () => {
+    const { kernel } = await make();
+    const prepared = new SqlChangeSetRepo({ kernel, tables: TABLES }, {
+      prepareOutboxEvent: ({ event }) => ({ ...event, metadata: { ...event.metadata, traceparent: PARENT } }),
+    });
+    const original = structuredClone(EVENT);
+    await prepared.insert({ record: header(), items: [item()] }, { event: original });
+    assert.deepEqual(original, EVENT, "the caller's envelope is untouched");
+    const [row] = await kernel.query<{ id: string; event_json: string }>(sql`SELECT id, event_json FROM outbox_events`);
+    assert.deepEqual({ id: row?.id, event: JSON.parse(row?.event_json ?? "null") }, { id: EVENT.id, event: { ...EVENT, metadata: { traceparent: PARENT } } });
+  });
+
+  test("a failing preparation stores the original envelope in the same write and does not fail it", async () => {
+    const { kernel, count } = await make();
+    const failing = new SqlChangeSetRepo({ kernel, tables: TABLES }, { prepareOutboxEvent: () => { throw new Error("context reader down"); } });
+    await failing.insert({ record: header(), items: [item()] }, { event: EVENT });
+    assert.deepEqual([await count("change_sets"), await count("change_set_items"), await count("outbox_events")], [1, 1, 1]);
+    const [row] = await kernel.query<{ event_json: string }>(sql`SELECT event_json FROM outbox_events`);
+    assert.deepEqual(JSON.parse(row?.event_json ?? "null"), EVENT, "jsonb may reorder keys, so compare the parsed envelope");
   });
 
   test("a failing item write rolls back the header and the event; a failing event write rolls back header and items", async () => {

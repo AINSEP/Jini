@@ -35,7 +35,11 @@ function startSpan({ observability, name, options }: { observability: NonNullabl
     ...(options.agent.conversationId === undefined ? {} : { conversationId: options.agent.conversationId }),
     ...(options.agent.agentName === undefined ? {} : { agentName: options.agent.agentName }),
   }) as Lifecycle;
-  return observability.trackOperation({ name, ...(options.attributes ? { attributes: options.attributes } : {}) }) as Lifecycle;
+  return observability.trackOperation({
+    name,
+    ...(options.attributes ? { attributes: options.attributes } : {}),
+    ...(options.traceparent ? { traceparent: options.traceparent } : {}),
+  }) as Lifecycle;
 }
 
 /** Choose the lifecycle's typed default or failure outcome. @complexity O(1). */

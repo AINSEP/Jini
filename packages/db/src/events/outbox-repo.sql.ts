@@ -35,6 +35,12 @@ export interface OutboxSqlRequired {
 }
 export type OutboxSqlOptional = Record<string, never>;
 
+/** Host hook returning the envelope to persist (for example with producer trace context in
+ * `metadata`). It must return a new envelope rather than modify the one it is given. */
+export type PrepareOutboxEvent = (required: { event: DomainEvent }, _optional?: Record<string, never>) => DomainEvent;
+/** Constructor options shared by both outbox writers: the direct enqueue and the co-persisted change-set write. */
+export interface OutboxEventPreparation { prepareOutboxEvent?: PrepareOutboxEvent }
+
 function toRecord(row: Selectable<OutboxEventsTable>): OutboxRecord {
   return {
     id: row.id,
@@ -75,20 +81,46 @@ export function outboxEventValues(event: DomainEvent<object>) {
   };
 }
 
+/**
+ * The envelope an outbox writer serializes, prepared inside the caller's existing write. Correlation
+ * is captured here, while the producer is still running, because the asynchronous delivery cannot
+ * inherit the producer's request-local state and must not depend on when this transaction commits.
+ * The prepared envelope keeps the original's id, workspace and occurrence time, so the dedupe key
+ * (`ON CONFLICT (id)`) and the first due time cannot move. A failing or malformed preparation
+ * persists the original envelope and the write still succeeds: losing correlation is preferable to
+ * losing the event or rolling back the domain write it belongs to.
+ * @example const stored = preparedOutboxEvent({ event }, { prepareOutboxEvent });
+ * @complexity O(1) beyond the injected hook.
+ */
+export function preparedOutboxEvent(required: { event: DomainEvent }, optional: OutboxEventPreparation = {}): DomainEvent {
+  const { event } = required;
+  if (!optional.prepareOutboxEvent) return event;
+  try {
+    const prepared = optional.prepareOutboxEvent({ event });
+    if (typeof prepared !== "object" || prepared === null) return event;
+    return { ...prepared, id: event.id, workspaceId: event.workspaceId, occurredAt: event.occurredAt };
+  } catch {
+    return event;
+  }
+}
+
 export class SqlOutboxAdapter implements OutboxPort {
   protected readonly kernel: StorageKernel<Kysely<unknown>, unknown>;
   protected readonly tables: OutboxTables;
   private readonly claimLeaseMs: number;
+  private readonly preparation: OutboxEventPreparation;
 
   /**
    * @param required.kernel the database holding the outbox table.
    * @param required.tables.outboxEvents the host's outbox table name.
    * @param required.claimLeaseMs claim lease length.
+   * @param optional.prepareOutboxEvent host hook preparing each envelope inside the enqueue write.
    */
-  constructor({ kernel, tables, claimLeaseMs }: OutboxSqlRequired, _optional: OutboxSqlOptional = {}) {
+  constructor({ kernel, tables, claimLeaseMs }: OutboxSqlRequired, optional: OutboxEventPreparation = {}) {
     this.kernel = kernel;
     this.tables = tables;
     this.claimLeaseMs = claimLeaseMs;
+    this.preparation = optional;
   }
 
   /** Host-owned table name needs an explicit column schema, as in the settings adapter. */
@@ -102,7 +134,7 @@ export class SqlOutboxAdapter implements OutboxPort {
    *  (`features/post/go-live.ts`) relies on this to announce each go-live exactly once. */
   async enqueue(event: DomainEvent): Promise<void> {
     await this.kernel.run((db) =>
-      this.table(db).insertInto(this.tables.outboxEvents).values(outboxEventValues(event)).onConflict((oc) => oc.column("id").doNothing()).execute()
+      this.table(db).insertInto(this.tables.outboxEvents).values(outboxEventValues(preparedOutboxEvent({ event }, this.preparation))).onConflict((oc) => oc.column("id").doNothing()).execute()
     );
   }
 

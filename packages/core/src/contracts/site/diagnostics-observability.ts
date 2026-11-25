@@ -34,8 +34,10 @@ export interface TrackerErrorContext {
 export interface TrackerSpan<Outcome = OperationTrackingOutcome> {
   setOutcome(outcome: Outcome): void;
 }
-/** Fixed labels and ids only; never pass user text or credential values as span attributes. */
-export interface OperationSpanOptions { attributes?: OperationAttributes; }
+/** Fixed labels and ids only; never pass user text or credential values as span attributes.
+ * `traceparent` is a structural W3C parent for work that cannot inherit the active span (a
+ * background delivery of a persisted event); it is never recorded as an attribute. */
+export interface OperationSpanOptions { attributes?: OperationAttributes; traceparent?: string; }
 export interface RequestSpanOptions { request: RequestTrackingInput & RequestTrackingOptions; }
 export interface AgentSpanOptions { agent: AgentRunTrackingInput & AgentRunTrackingOptions; }
 

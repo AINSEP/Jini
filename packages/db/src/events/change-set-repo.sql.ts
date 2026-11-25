@@ -7,7 +7,7 @@ import type {
   ChangeSetRepoPort,
   ChangeSetWithItems,
 } from "@jini-ai/core/contracts/events";
-import { outboxEventValues } from "./outbox-repo.sql.js";
+import { outboxEventValues, preparedOutboxEvent, type OutboxEventPreparation } from "./outbox-repo.sql.js";
 import {
   toItemRecord,
   toItemRow,
@@ -57,9 +57,12 @@ export type ChangeSetSqlOptional = Record<string, never>;
 export class SqlChangeSetRepo implements ChangeSetRepoPort {
   protected readonly kernel: StorageKernel<Kysely<unknown>, unknown>;
   protected readonly tables: ChangeSetTables;
-  constructor({ kernel, tables }: ChangeSetSqlRequired, _optional: ChangeSetSqlOptional = {}) {
+  private readonly preparation: OutboxEventPreparation;
+  /** @param optional.prepareOutboxEvent host hook preparing the co-persisted event inside this repo's one transaction. */
+  constructor({ kernel, tables }: ChangeSetSqlRequired, optional: OutboxEventPreparation = {}) {
     this.kernel = kernel;
     this.tables = tables;
+    this.preparation = optional;
   }
 
   // Host-owned table names need an explicit column schema, as in the settings adapter.
@@ -82,7 +85,7 @@ export class SqlChangeSetRepo implements ChangeSetRepoPort {
       this.kernel.run(async (db) => {
         await this.sets(db).insertInto(this.tables.changeSets).values(toRow(record)).execute();
         for (const item of items) await this.items(db).insertInto(this.tables.changeSetItems).values(toItemRow(item)).execute();
-        if (event) await db.withTables<Record<string, OutboxEventsTable>>().insertInto(this.tables.outboxEvents).values(outboxEventValues(event)).execute();
+        if (event) await db.withTables<Record<string, OutboxEventsTable>>().insertInto(this.tables.outboxEvents).values(outboxEventValues(preparedOutboxEvent({ event }, this.preparation))).execute();
       })
     );
   }
