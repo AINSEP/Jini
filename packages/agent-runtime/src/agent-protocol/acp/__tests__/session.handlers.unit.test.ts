@@ -71,6 +71,46 @@ describe('createAcpSessionState', () => {
 });
 
 describe('handleRpcError', () => {
+  it('recovers model selection before treating an unexpected internal-error id as cleanup', () => {
+    const state = createAcpSessionState();
+    state.expectedId = 3;
+    state.setModelRequestId = 5;
+    const effects = fakeEffects({ model: 'default' });
+    handleRpcError({ state, effects, obj: { id: 5 }, error: { code: -32603 }, rpcErr: 'model selection' });
+    expect(effects.recoverFromModelSelectionError).toHaveBeenCalledOnce();
+    expect(effects.fail).not.toHaveBeenCalled();
+    expect(effects.failWithPayload).not.toHaveBeenCalled();
+  });
+
+  it('reports auth required before rejecting an explicit model selection', () => {
+    const state = createAcpSessionState();
+    state.expectedId = 5;
+    state.setModelRequestId = 5;
+    const effects = fakeEffects({ model: 'chosen-model-17' });
+    handleRpcError({ state, effects, obj: { id: 5 }, error: { code: -32000 }, rpcErr: 'AUTH required marker 29' });
+    const message = 'This agent is not signed in. Sign in to its command-line tool on this computer, then retry. (AUTH required marker 29)';
+    expect(effects.failWithPayload).toHaveBeenCalledExactlyOnceWith({
+      message,
+      error: { code: 'AUTH_REQUIRED', message, retryable: false, details: { kind: 'account_failure', action: 'sign_in' } },
+    });
+    expect(effects.fail).not.toHaveBeenCalled();
+    expect(effects.recoverFromModelSelectionError).not.toHaveBeenCalled();
+  });
+
+  it('rejects an explicit model with its current refusal instead of a generic RPC failure', () => {
+    const state = createAcpSessionState();
+    state.expectedId = 5;
+    state.setModelRequestId = 5;
+    const effects = fakeEffects({ model: 'chosen-model-41' });
+    handleRpcError({ state, effects, obj: { id: 5 }, error: { code: -32001 }, rpcErr: 'refused marker 53' });
+    expect(effects.fail).toHaveBeenCalledExactlyOnceWith(
+      'This agent did not accept the model "chosen-model-41". Pick a model from its list and retry. (refused marker 53)',
+      { details: { kind: 'model_unsupported', model: 'chosen-model-41' }, retryable: false },
+    );
+    expect(effects.failWithPayload).not.toHaveBeenCalled();
+    expect(effects.recoverFromModelSelectionError).not.toHaveBeenCalled();
+  });
+
   it('recovers a model-selection error when the request id matches an in-flight set_model and no prompt has been sent yet', () => {
     const state = createAcpSessionState();
     state.setModelRequestId = 5;

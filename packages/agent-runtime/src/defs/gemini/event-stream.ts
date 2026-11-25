@@ -150,7 +150,7 @@ function stripDuplicateArtifactText(text: string, state: ParserState): string {
   }
   const openIndex = current.indexOf(openTag);
   if (openIndex === -1) {
-    const candidateLength = artifactOpenCandidateLength(current, openTag);
+    const candidateLength = artifactOpenCandidateLength({ text: current, openTag });
     if (state.legacyGoogle.suppressNextArtifactText && candidateLength > 0) {
       state.legacyGoogle.artifactOpenCandidate = current.slice(-candidateLength);
       return current.slice(0, -candidateLength);
@@ -174,7 +174,7 @@ function stripDuplicateArtifactText(text: string, state: ParserState): string {
   return `${prefix}${stripDuplicateArtifactText(current.slice(openIndex), state)}`;
 }
 
-function artifactOpenCandidateLength(text: string, openTag: string): number {
+function artifactOpenCandidateLength({ text, openTag }: { text: string; openTag: string }, _optional: Record<string, never> = {}): number {
   const max = Math.min(openTag.length - 1, text.length);
   for (let len = max; len > 0; len -= 1) {
     if (openTag.startsWith(text.slice(-len))) return len;

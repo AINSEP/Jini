@@ -1,9 +1,11 @@
 import { MediaDialog } from './MediaDialog.js';
 import { Button, TextField } from '../../../react/kit.js';
-import { useEditMediaPanel } from '../hooks/EditMediaPanel.hooks.js';
+import type { useEditMediaPanel } from '../hooks/EditMediaPanel.hooks.js';
 import type { EditMediaPanelProps } from '../hooks/EditMediaPanel.hooks.js';
 import { UploadButton } from './UploadButton.js';
-export function EditMediaPanel({ useEditMediaPanelHook = useEditMediaPanel, ...props }: EditMediaPanelProps & { useEditMediaPanelHook?: typeof useEditMediaPanel }) {
+/** The view-model hook is a required prop: each mount names the hook it wires, so a missing
+ * injection fails to compile instead of silently falling back to a built-in hook. */
+export function EditMediaPanel({ useEditMediaPanelHook, ...props }: EditMediaPanelProps & { useEditMediaPanelHook: typeof useEditMediaPanel }) {
   const vm = useEditMediaPanelHook(props);
   return (
     <MediaDialog className="jini-media-edit-dialog" attrs={{ 'data-jini-part': 'media.editor', 'data-agent-element': 'media-edit-dialog' }}

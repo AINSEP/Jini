@@ -5,7 +5,7 @@
  * cache headers and error handling.
  */
 import type { SeoMeta, SitemapEntry } from "./types.js";
-import { escapeXml } from "./xml-escape.js";
+import { escapeXml } from "@jini-ai/core/text";
 
 /**
  * The sitemaps.org `urlset` document: one `<url>` per entry with `<loc>` and, when present,

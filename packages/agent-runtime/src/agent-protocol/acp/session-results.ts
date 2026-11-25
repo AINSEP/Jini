@@ -35,17 +35,35 @@ export function handleRpcError({
     effects.recoverFromModelSelectionError();
     return;
   }
-  if (error?.code === -32603 && obj.id !== state.expectedId) {
+  if (isUnexpectedInternalError({ state, obj, error })) {
     return;
   }
-  if (error?.code === ACP_AUTH_REQUIRED_ERROR_CODE && /auth/i.test(rpcErr)) { failAuthRequired({ effects, rpcErr }); return; }
-  if (awaitingModelSelectionReply({ state, obj }) && effects.model && effects.model !== 'default') {
+  if (isAuthRequiredError({ error, rpcErr })) { failAuthRequired({ effects, rpcErr }); return; }
+  if (isRejectedModelReply({ state, obj, effects })) {
     effects.fail(`This agent did not accept the model "${effects.model}". Pick a model from its list and retry. (${rpcErr})`, {
       details: { kind: 'model_unsupported', model: effects.model }, retryable: false,
     });
     return;
   }
   failWithRpcError({ effects, obj, rpcErr });
+}
+
+function isUnexpectedInternalError({ state, obj, error }: {
+  state: AcpSessionState; obj: UnknownRecord; error: UnknownRecord | null;
+}, _optional: Record<string, never> = {}): boolean {
+  return error?.code === -32603 && obj.id !== state.expectedId;
+}
+
+function isAuthRequiredError({ error, rpcErr }: {
+  error: UnknownRecord | null; rpcErr: string;
+}, _optional: Record<string, never> = {}): boolean {
+  return error?.code === ACP_AUTH_REQUIRED_ERROR_CODE && /auth/i.test(rpcErr);
+}
+
+function isRejectedModelReply({ state, obj, effects }: {
+  state: AcpSessionState; obj: UnknownRecord; effects: AcpSessionEffects;
+}, _optional: Record<string, never> = {}): boolean {
+  return awaitingModelSelectionReply({ state, obj }) && !!effects.model && effects.model !== 'default';
 }
 
 function failAuthRequired({ effects, rpcErr }: { effects: AcpSessionEffects; rpcErr: string }): void {

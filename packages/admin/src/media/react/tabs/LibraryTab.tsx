@@ -4,6 +4,7 @@ import { useLibraryTab } from '../hooks/LibraryTab.hooks.js';
 import { MediaGrid } from '../components/MediaGrid.js';
 import { UploadButton } from '../components/UploadButton.js';
 import { EditMediaPanel } from '../components/EditMediaPanel.js';
+import { useEditMediaPanel } from '../hooks/EditMediaPanel.hooks.js';
 import { MediaLightbox } from '../components/MediaLightbox.js';
 import { MediaPurgeDialog } from '../components/MediaPurgeDialog.js';
 export function LibraryTab({ useLibraryTabHook = useLibraryTab, ...props }: TabViewProps & { useLibraryTabHook?: typeof useLibraryTab }) {
@@ -39,6 +40,7 @@ export function LibraryTab({ useLibraryTabHook = useLibraryTab, ...props }: TabV
       {vm.editing && (
         <EditMediaPanel
           key={vm.editing.id}
+          useEditMediaPanelHook={useEditMediaPanel}
           api={vm.mediaApi}
           item={vm.editing}
           onSaved={vm.saved}

@@ -22,7 +22,7 @@ import type { ApprovedCause } from './approved-cause.js';
 import type { ErrorCatalog, ErrorMatch } from './catalog.js';
 import { discloseIncident, type ErrorAudience } from './disclosure.js';
 import { describeThrownValue } from './incident-text.js';
-import { interpolateSentence } from './sentences.js';
+import { interpolateSentence, type ErrorSentence } from './sentences.js';
 
 export interface ErrorReporterPorts {
   /** Returns a finished error ID. Hosts mint `ERR-XXXX-XXXX-XXXX-XXXX`, the one shape a reader can recover from plain text. */
@@ -154,17 +154,27 @@ function redactedParams({ params, redaction }: { params: Readonly<Record<string,
     [name, typeof value === 'number' ? value : redactSecrets({ input: value }, redaction).slice(0, MAX_PARAM_TEXT)]));
 }
 
+/**
+ * The audience choice: the fixed words this caller is shown, or the sentence to render with its params.
+ * The authorised-only check runs first, so a caller outside the audience never reaches parameter rendering.
+ */
+function refusalWords(required: { match: ErrorMatch; fallback: { readonly message: string }; audience: ErrorAudience }): { readonly message: string } | { readonly sentence: ErrorSentence } {
+  const { match, fallback, audience } = required;
+  const { sentence } = match;
+  if (sentence?.audience === 'authorized' && audience !== 'authorized') return { message: fallback.message };
+  if (match.mode === 'own-message') return { message: fallback.message };
+  if (match.mode !== 'sentence') return { message: match.message ?? fallback.message };
+  return sentence === undefined ? { message: fallback.message } : { sentence };
+}
+
 /** The wire error of a refusal. Words a sentence reserves for authorised callers are replaced by the boundary's fallback words. */
 function refusalError(required: { match: ErrorMatch; fallback: { readonly message: string }; audience: ErrorAudience; redaction: SecretRedactionOptions }): ServerApiError {
-  const { match, fallback, audience, redaction } = required;
-  const { sentence } = match;
-  const base = { code: match.code, ...(sentence === undefined ? {} : { retryable: sentence.retryable }) };
-  if (sentence?.audience === 'authorized' && audience !== 'authorized') return { ...base, message: fallback.message };
-  if (match.mode === 'own-message') return { ...base, message: fallback.message };
-  if (match.mode !== 'sentence') return { ...base, message: match.message ?? fallback.message };
-  if (sentence === undefined) return { ...base, message: fallback.message };
+  const { match, redaction } = required;
+  const base = { code: match.code, ...(match.sentence === undefined ? {} : { retryable: match.sentence.retryable }) };
+  const words = refusalWords({ match, fallback: required.fallback, audience: required.audience });
+  if ('message' in words) return { ...base, message: words.message };
   const params = redactedParams({ params: match.params ?? {}, redaction });
-  const message = interpolateSentence({ text: sentence.message }, { params });
+  const message = interpolateSentence({ text: words.sentence.message }, { params });
   return Object.keys(params).length === 0 ? { ...base, message } : { ...base, message, details: { params } };
 }
 

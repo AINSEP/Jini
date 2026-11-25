@@ -86,17 +86,39 @@ export async function prepareTermSync(input: {
   wanted: unknown;
 }, _optional = {}): Promise<TermSync> {
   const { ports, deps, entityType, entityId, principalId, contentType } = input;
-  const wanted = Array.isArray(input.wanted) ? (input.wanted as string[]) : [];
-  const noop: TermSync = { apply: async () => {}, revert: async () => {} };
+  const plan = await planTermSync({ ports, entityType, entityId, contentType, wanted: input.wanted });
+  if (!plan) return { apply: async () => {}, revert: async () => {} };
+  const gateway = await authorizeTermSync({ deps, entityType, entityId, principalId });
+  await validateAddedTerms({ ports: plan.ports, termIds: plan.add, entityType, entityId });
+  const move = termMover({ ports: plan.ports, deps, gateway, principalId, contentType, entityId });
+  return { apply: () => move(plan.add, plan.remove), revert: () => move(plan.remove, plan.add) };
+}
+
+interface TermSyncPlan { readonly ports: TermSyncPorts; readonly add: readonly string[]; readonly remove: readonly string[] }
+
+/** The term planning: which terms to add and remove, or `undefined` when nothing differs. Reads only. */
+async function planTermSync(
+  { ports, entityType, entityId, contentType, wanted: raw }: { ports: TermSyncPorts | undefined; entityType: string; entityId: string; contentType: string; wanted: unknown },
+  _optional = {},
+): Promise<TermSyncPlan | undefined> {
+  const wanted = Array.isArray(raw) ? (raw as string[]) : [];
   if (!ports) {
-    if (wanted.length === 0) return noop;
+    if (wanted.length === 0) return undefined;
     throw new Error(`publish-content: ${entityType} '${entityId}' carries term assignments, but this deps bag wires no taxonomy ports — wire ports.term.`);
   }
   const current = (await readTermIds({ ports, contentType, contentId: entityId })) ?? [];
   const add = wanted.filter((id) => !current.includes(id));
   const remove = current.filter((id) => !wanted.includes(id));
-  if (add.length === 0 && remove.length === 0) return noop;
+  return add.length === 0 && remove.length === 0 ? undefined : { ports, add, remove };
+}
 
+interface TermSyncGateway { readonly authorize: AuthorizeFn; readonly outbox: OutboxPort }
+
+/** The permission check a changed set needs, before any term read or write; a denial is a `blocked` row. */
+async function authorizeTermSync(
+  { deps, entityType, entityId, principalId }: { deps: TermSyncDeps; entityType: string; entityId: string; principalId: string },
+  _optional = {},
+): Promise<TermSyncGateway> {
   const { workspaceId, authorize, outbox } = deps;
   if (!authorize || !outbox) {
     throw new Error(`publish-content: ${entityType}.apply() requires PublishContentDeps.authorize/outbox to sync term assignments.`);
@@ -105,22 +127,28 @@ export async function prepareTermSync(input: {
   if (!allowed.allowed) {
     throw new PublishContentApplyRowError({ rowOutcome: "blocked", message: `${entityType} '${entityId}' has category or tag changes, and you need '${TERM_SYNC_PERMISSION}' to publish them (${allowed.reason})` });
   }
-  await validateAddedTerms({ ports, termIds: add, entityType, entityId });
+  return { authorize, outbox };
+}
 
+/** The authorized apply/revert: moves the destination's set through `assignTerms`/`unassignTerms`. */
+function termMover(
+  { ports, deps, gateway, principalId, contentType, entityId }: { ports: TermSyncPorts; deps: TermSyncDeps; gateway: TermSyncGateway; principalId: string; contentType: string; entityId: string },
+  _optional = {},
+): (assign: readonly string[], unassign: readonly string[]) => Promise<void> {
+  const { workspaceId } = deps;
   const writeDeps = {
     ...ports,
     clock: deps.clock,
     idGen: deps.idGen,
     workspaceId,
-    authorize: (params: { principalId: string; permission: string }) => authorize({ ...params, workspaceId }),
-    outbox: toTaxonomyOutbox({ outbox, clock: deps.clock, idGen: deps.idGen, workspaceId }),
+    authorize: (params: { principalId: string; permission: string }) => gateway.authorize({ ...params, workspaceId }),
+    outbox: toTaxonomyOutbox({ outbox: gateway.outbox, clock: deps.clock, idGen: deps.idGen, workspaceId }),
   };
-  const move = async (assign: readonly string[], unassign: readonly string[]) => {
+  return async (assign, unassign) => {
     const target = { principalId, contentType, contentId: entityId };
     if (assign.length > 0) await assignTerms({ deps: writeDeps, ...target, termIds: [...assign] });
     if (unassign.length > 0) await unassignTerms({ deps: writeDeps, ...target, termIds: [...unassign] });
   };
-  return { apply: () => move(add, remove), revert: () => move(remove, add) };
 }
 
 async function validateAddedTerms(

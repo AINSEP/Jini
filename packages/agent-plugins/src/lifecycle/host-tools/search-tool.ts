@@ -329,6 +329,17 @@ async function resolveSkillsForSearchTolerant(plugin: {
   return skills;
 }
 
+function optionalPluginFields({ plugin }: { plugin: InstalledAgentPlugin }, _optional: Record<string, never> = {}): Pick<IdentifiedAgentPluginSearchCandidate, "displayName" | "summary" | "version" | "description" | "requires" | "companions"> {
+  return {
+    ...(plugin.displayName !== undefined ? { displayName: plugin.displayName } : {}),
+    ...(plugin.summary !== undefined ? { summary: plugin.summary } : {}),
+    ...(plugin.version !== undefined ? { version: plugin.version } : {}),
+    ...(plugin.description !== undefined ? { description: plugin.description } : {}),
+    ...(plugin.requires !== undefined ? { requires: plugin.requires } : {}),
+    ...(plugin.companions !== undefined ? { companions: plugin.companions } : {}),
+  };
+}
+
 async function buildSearchCandidate(
   { plugin, activations, ports }: { plugin: InstalledAgentPlugin; activations: AgentPluginActivations; ports: AgentPluginHostToolPorts },
   _optional: Record<string, never> = {},
@@ -337,19 +348,17 @@ async function buildSearchCandidate(
   const mcpServerIds = await ports.lifecycle.readInstalledMcpServerIds({ packageRoot: plugin.packageRoot });
   const identity = await readInstalledAgentPluginIdentity({ plugin });
   const maturity = identity.maturity ?? ports.hostMaturity?.({ pluginId: plugin.pluginId });
+  const { requires, companions, ...displayFields } = optionalPluginFields({ plugin });
 
   return {
     pluginId: plugin.pluginId,
-    ...(plugin.displayName !== undefined ? { displayName: plugin.displayName } : {}),
-    ...(plugin.summary !== undefined ? { summary: plugin.summary } : {}),
-    ...(plugin.version !== undefined ? { version: plugin.version } : {}),
-    ...(plugin.description !== undefined ? { description: plugin.description } : {}),
+    ...displayFields,
     id: identity.id,
     ...(maturity ? { maturity } : {}),
     ...(identity.providerPlugin ? { providerPlugin: identity.providerPlugin } : {}),
     provides: identity.provides,
-    ...(plugin.requires !== undefined ? { requires: plugin.requires } : {}),
-    ...(plugin.companions !== undefined ? { companions: plugin.companions } : {}),
+    ...(requires !== undefined ? { requires } : {}),
+    ...(companions !== undefined ? { companions } : {}),
     keywords: identity.keywords,
     enabled: ports.activations.isAgentPluginActive({ activations: activations, pluginId: plugin.pluginId }),
     skills: skills.map((skill) => ({ name: skill.name, summary: skill.summary })),

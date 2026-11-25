@@ -264,18 +264,25 @@ async function provisionPluginMcp<UninstallInput, Layout extends AgentPluginLayo
       servers,
     }, { skipServerKeys: result.failed.map(failure => failure.serverKey), ...(approvedEnable ? { approvedEnable } : {}) });
   } catch (error) {
-    // A ToolInputError here is one of our own deliberate, owner-facing refusals (missing snapshot, the
-    // failed server and its redacted reason, the grant owner's "changed after approval"): its message
-    // already says what to do, so the generic load failure below must not replace it with a class name.
-    if (execution.approvedEnable && error instanceof ToolInputError) throw error;
-    const detail = describeErrorForLog({ err: error });
-    if (execution.approvedEnable) throw new ToolInputError({ message: redactSecrets({ input: deps.messages.approvedLoadFailed({ detail }) }) });
-    // An injected reporter receives the caught value itself; the default channel logs its class only.
-    const logger = deps.report;
-    if (logger) logger.warn({ message: `Plugin '${pluginId}': MCP provisioning could not run.` }, { error });
-    else warn(redactSecrets({ input: `Plugin '${pluginId}': MCP provisioning could not run — ${detail}` }));
+    handleProvisioningError({ deps, pluginId, approved: execution.approvedEnable === true, error });
   }
 
+}
+
+/** An approved enable refuses to the owner; otherwise provisioning stays best-effort and only warns. */
+function handleProvisioningError<UninstallInput, Layout extends AgentPluginLayoutInput = AgentPluginLayoutInput>({ deps, pluginId, approved, error }: {
+  deps: PluginHostDeps<UninstallInput, Layout>; pluginId: string; approved: boolean; error: unknown;
+}, _optional = {}): void {
+  // A ToolInputError here is one of our own deliberate, owner-facing refusals (missing snapshot, the
+  // failed server and its redacted reason, the grant owner's "changed after approval"): its message
+  // already says what to do, so the generic load failure below must not replace it with a class name.
+  if (approved && error instanceof ToolInputError) throw error;
+  const detail = describeErrorForLog({ err: error });
+  if (approved) throw new ToolInputError({ message: redactSecrets({ input: deps.messages.approvedLoadFailed({ detail }) }) });
+  // An injected reporter receives the caught value itself; the default channel logs its class only.
+  const { report: logger, warn } = deps;
+  if (logger) logger.warn({ message: `Plugin '${pluginId}': MCP provisioning could not run.` }, { error });
+  else warn(redactSecrets({ input: `Plugin '${pluginId}': MCP provisioning could not run — ${detail}` }));
 }
 
 /** Bind both plugin families to one workspace. Read manifests through the same installed-package

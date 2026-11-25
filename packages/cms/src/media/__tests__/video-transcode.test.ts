@@ -145,6 +145,30 @@ test("convertMediaVideo refuses an input over the configured maximum before tran
   assert.equal(h.calls.length, 0);
 });
 
+test("convertMediaVideo refuses a video the store reports as oversize before reading its bytes", async () => {
+  const h = await harness({});
+  const reads: string[] = [];
+  const get = h.blobStore.get.bind(h.blobStore);
+  h.blobStore.get = async (request) => { reads.push(request.storageKey); return get(request); };
+  h.blobStore.sizeOf = async () => 10 * MIB;
+  await assert.rejects(convertMediaVideo({ deps: h.deps, input: input(h.originalId) }, { maxInputBytes: MIB }),
+    (error: unknown) => error instanceof VideoConversionError && error.reason === "too-large" && /The limit is 1 MB\./.test(error.message));
+  assert.deepEqual(reads, [], "the size guard runs before any byte read");
+  assert.equal(h.calls.length, 0);
+});
+
+test("convertMediaVideo still refuses oversize bytes when the store cannot report a size", async () => {
+  const h = await harness({});
+  let reads = 0;
+  const get = h.blobStore.get.bind(h.blobStore);
+  h.blobStore.get = async (request) => { reads += 1; return get(request); };
+  h.blobStore.sizeOf = async () => null;
+  await assert.rejects(convertMediaVideo({ deps: h.deps, input: input(h.originalId) }, { maxInputBytes: 31 }),
+    (error: unknown) => error instanceof VideoConversionError && error.reason === "too-large");
+  assert.equal(reads, 1);
+  assert.equal(h.calls.length, 0);
+});
+
 test("convertMediaVideo refuses a non-video item and never transcodes it", async () => {
   const png = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 1, 2, 3, 4]);
   const h = await harness({ original: png });

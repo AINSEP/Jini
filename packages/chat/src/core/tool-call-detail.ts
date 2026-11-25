@@ -49,12 +49,28 @@ export function describeToolCallDetail(
   { input, result }: { readonly input: unknown; readonly result?: { readonly content: string; readonly isError?: boolean } | undefined },
   { runStreaming = false, runSucceeded = false, maxChars = DEFAULT_MAX_CHARS, redact = redactUserText }: ToolCallDetailOptions = {},
 ): ToolCallDetail {
-  const show = (text: string | null): string | null => (text === null ? null : truncate(redact({ text: text }).text, maxChars));
-  const inputText = show(serializeInput(input));
-  if (!result) return { inputText, outputText: null, noteKey: missingResultNote({ runStreaming, runSucceeded }) };
-  if (!result.content.trim()) return { inputText, outputText: null, noteKey: result.isError ? 'Failed without an error message.' : 'Finished with no output.' };
+  const inputText = showSafely({ text: serializeInput(input), redact, maxChars });
+  const { text, noteKey } = selectOutputOrNote({ result, runStreaming, runSucceeded });
+  return { inputText, outputText: showSafely({ text, redact, maxChars }), noteKey };
+}
+
+/** Redacts, then caps — never the reverse, so a cut can never leave part of a secret the redactor would have matched whole. */
+function showSafely(
+  { text, redact, maxChars }: { text: string | null; redact: RedactUserText; maxChars: number },
+  _optional = {},
+): string | null {
+  return text === null ? null : truncate(redact({ text: text }).text, maxChars);
+}
+
+/** The unredacted output text to show, or the note explaining why there is none. */
+function selectOutputOrNote(
+  { result, runStreaming, runSucceeded }: { result: Parameters<typeof describeToolCallDetail>[0]['result']; runStreaming: boolean; runSucceeded: boolean },
+  _optional = {},
+): { text: string | null; noteKey: ToolCallDetailNote | null } {
+  if (!result) return { text: null, noteKey: missingResultNote({ runStreaming, runSucceeded }) };
+  if (!result.content.trim()) return { text: null, noteKey: result.isError ? 'Failed without an error message.' : 'Finished with no output.' };
   const text = result.isError && isRefusedArgumentsError(result.content) ? REFUSED_ARGUMENTS_SENTENCE : formatToolOutputForDisplay({ text: result.content });
-  return { inputText, outputText: show(text), noteKey: null };
+  return { text, noteKey: null };
 }
 
 /**

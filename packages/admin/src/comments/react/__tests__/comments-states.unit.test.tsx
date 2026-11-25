@@ -14,6 +14,7 @@ import { comments, CommentQueueScopeProvider, useCommentsPorts } from "../index.
 import { QueueSection } from "../components/QueueSection.js";
 import { SettingsSection } from "../components/SettingsSection.js";
 import { CommentsPage } from "../pages/CommentsPage.js";
+import { useCommentsPage } from "../hooks/CommentsPage.hooks.js";
 import { CommentsTranslationContext } from "../hooks/CommentsPorts.hooks.js";
 import type { CommentQueueController } from "../hooks/use-comment-queue.hooks.js";
 import type { CommentSettingsController } from "../hooks/use-comment-settings.hooks.js";
@@ -54,7 +55,7 @@ describe("comments module page", () => {
   });
 
   it("shows the permissions error instead of the page", () => {
-    render(<CommentsPage useCommentsHook={() => ({ permissions: null, error: "permissions unavailable", t: englishComments })} />);
+    render(<CommentsPage useCommentsPageHook={useCommentsPage} useCommentsHook={() => ({ permissions: null, error: "permissions unavailable", t: englishComments })} />);
     expect(screen.getByText("permissions unavailable")).toHaveClass("notice", "error");
     expect(screen.queryByRole("heading")).toBeNull();
   });

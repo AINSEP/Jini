@@ -1,12 +1,5 @@
 [
   {
-    "file": "packages/agent-plugins/src/lifecycle/activation.ts",
-    "function": "buildModule",
-    "line": 175,
-    "rule": "max-lines-per-function",
-    "value": 314
-  },
-  {
     "file": "packages/agent-runtime/src/skills/web-clone/scripts/recon-site.mjs",
     "function": "collectSignals",
     "line": 115,

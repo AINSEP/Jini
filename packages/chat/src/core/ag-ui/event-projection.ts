@@ -236,6 +236,15 @@ function writeFrameOutcome(
   { frame, outcome, ctx, failureMessage }: { frame: { data: string }; outcome: RunFrameOutcome; ctx: AgUiFrameContext; failureMessage: string },
   _optional = {},
 ): "succeeded" | "failed" | "canceled" | null {
+  writeFrameEvents({ outcome, ctx, failureMessage });
+  return writeFrameTerminal({ frame, outcome, ctx, failureMessage });
+}
+
+/** Writes the frame's own translated events (its notices included), before any terminal mapping. */
+function writeFrameEvents(
+  { outcome, ctx, failureMessage }: { outcome: RunFrameOutcome; ctx: AgUiFrameContext; failureMessage: string },
+  _optional = {},
+): void {
   // An `error` frame (error, no terminal) yields one status event labeled with the daemon's own
   // message; the shared decoder keeps that for its other consumers, but the AG-UI wire carries the
   // host sentence there too (the error code survives).
@@ -244,6 +253,14 @@ function writeFrameOutcome(
     const wireEvent = daemonError && event.kind === "status" ? { kind: "status" as const, label: failureMessage, ...(event.code ? { code: event.code } : {}) } : event;
     writeAllAgUiEvents({ write: ctx.write, events: translateAgentEventToAgUi({ event: wireEvent, state: ctx.state }) });
   }
+}
+
+/** Maps a terminal frame to its closing events and the run's final status; `null` (and nothing
+ *  written) for a frame that neither errors nor ends the run. */
+function writeFrameTerminal(
+  { frame, outcome, ctx, failureMessage }: { frame: { data: string }; outcome: RunFrameOutcome; ctx: AgUiFrameContext; failureMessage: string },
+  _optional = {},
+): "succeeded" | "failed" | "canceled" | null {
   if (!outcome.error && !outcome.terminal) return null;
   writeAllAgUiEvents({ write: ctx.write, events: closeAgUiRun({ state: ctx.state }) });
   if (outcome.error) {
@@ -308,13 +325,28 @@ export function confirmationInterrupt({ threadId, runId, interrupt }: {
 export function readConfirmationResume({ input, threadId, runId, interruptId }: {
   input: unknown; threadId: string; runId: string; interruptId: string;
 }, _optional: Record<string, never> = {}): { decision: 'allow' | 'deny' } | undefined {
+  const entry = readOwnedResumeEntry({ input, threadId, runId, interruptId });
+  return entry ? decodeResumeDecision({ entry }) : undefined;
+}
+
+type ResumeEntry = NonNullable<ReturnType<typeof RunAgentInputSchema.parse>['resume']>[number];
+
+/** The one resume entry, only when the input continues the paused thread from the paused run and
+ *  answers that run's interrupt; anything else (a foreign thread or parent, several answers) is not this pause's. */
+function readOwnedResumeEntry({ input, threadId, runId, interruptId }: {
+  input: unknown; threadId: string; runId: string; interruptId: string;
+}, _optional: Record<string, never> = {}): ResumeEntry | undefined {
   const parsed = RunAgentInputSchema.safeParse(input);
   if (!parsed.success) return undefined;
   const value = parsed.data;
   if (value.threadId !== threadId || value.parentRunId !== runId) return undefined;
   if (value.resume?.length !== 1) return undefined;
   const entry = value.resume[0]!;
-  if (entry.interruptId !== interruptId) return undefined;
+  return entry.interruptId === interruptId ? entry : undefined;
+}
+
+/** A cancelled or dismissed answer is a denial; an unrecognized payload decides nothing. */
+function decodeResumeDecision({ entry }: { entry: ResumeEntry }, _optional: Record<string, never> = {}): { decision: 'allow' | 'deny' } | undefined {
   if (entry.status === 'cancelled') return { decision: 'deny' };
   if (entry.payload === 'allow') return { decision: 'allow' };
   if (['deny', 'dismissed'].includes(entry.payload)) return { decision: 'deny' };

@@ -12,6 +12,6 @@ export * from "./sitemap.js";
 export * from "./feed.js";
 export * from "./page-head.js";
 export * from "./write-service.js";
-export * from "./xml-escape.js";
+export { escapeXml } from "@jini-ai/core/text";
 export * from "./sitemap-documents.js";
 export * from "./html-plain-text.js";

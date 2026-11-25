@@ -5,6 +5,7 @@ import { assert, afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
 import { FetchQueryProvider } from "@jini-ai/ui/fetch-query";
 import { Comments } from "./support.js";
+import { useCommentsPage } from "../hooks/CommentsPage.hooks.js";
 
 /**
  * @file `Comments` (QueueSection) — pins the MSG-03 RowMenu rollout: the per-status conditional
@@ -102,7 +103,7 @@ it("offers only Approve/Spam/Trash for a pending comment — no Restore, no Purg
     // moderation POST itself.
     .mockResolvedValueOnce(jsonResponse({ items: [], nextCursor: null }));
 
-  renderScreen(<Comments />);
+  renderScreen(<Comments useCommentsPageHook={useCommentsPage} />);
 
   const trigger = await screen.findByRole("button", { name: /actions for the comment by "jane"/i }, ROW_MENU_TRIGGER_TIMEOUT);
   await user.click(trigger);
@@ -131,7 +132,7 @@ it("offers Purge only under the trash filter, and gates it through ConfirmDialog
     // Switching the status filter to "trash" refetches under that status.
     .mockResolvedValueOnce(jsonResponse({ items: [TRASHED_COMMENT], nextCursor: null }));
 
-  renderScreen(<Comments />);
+  renderScreen(<Comments useCommentsPageHook={useCommentsPage} />);
 
   await screen.findByRole("button", { name: /actions for the comment by "jane"/i }, ROW_MENU_TRIGGER_TIMEOUT);
   await user.selectOptions(screen.getByLabelText(/status/i), "trash");
@@ -192,7 +193,7 @@ it("an owner holding only the wildcard grant still sees both the moderation queu
     .mockResolvedValueOnce(jsonResponse({ items: [PENDING_COMMENT], nextCursor: null }))
     .mockResolvedValueOnce(jsonResponse({ data: COMMENTS_SETTINGS_FIXTURE }));
 
-  renderScreen(<Comments />);
+  renderScreen(<Comments useCommentsPageHook={useCommentsPage} />);
 
   expect(await screen.findByRole("button", { name: /actions for the comment by "jane"/i }, ROW_MENU_TRIGGER_TIMEOUT)).toBeInTheDocument();
   expect(screen.queryByText(/you do not have permission to view the moderation queue/i)).not.toBeInTheDocument();
@@ -202,7 +203,7 @@ it("an owner holding only the wildcard grant still sees both the moderation queu
 it("a principal holding only an unrelated grant (comments.delete) sees neither the queue nor the settings form", async () => {
   fetchMock.mockResolvedValueOnce(jsonResponse({ effectivePermissions: ["comments.delete"] }));
 
-  renderScreen(<Comments />);
+  renderScreen(<Comments useCommentsPageHook={useCommentsPage} />);
 
   expect(
     await screen.findByText(/you do not have permission to view the moderation queue/i)
