@@ -85,7 +85,7 @@ function reportInternalError(
   const message = source === 'run-start'
     ? 'The agent could not be started. Check the run status before starting another task. Copy the request ID and report this problem.'
     : 'The connection to run updates could not be opened. Check the run status before starting another task. Copy the request ID and report this problem.';
-  // No host sink: `reportRouteInternalError`'s default line keeps the failure observable, never silent.
+  // The injected host reporter owns the incident and the caller-safe request ID.
   return deps.reportInternalError<Omit<RunInternalErrorContext, 'correlationId'>>({ report: { source, runId, error }, logSource: source, message });
 }
 

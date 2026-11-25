@@ -1,6 +1,5 @@
-import { reportRouteInternalError } from '@jini-ai/http-kit';
 import { describe, expect, it, vi } from 'vitest';
-import { fakeDaemonRouteHost, injectedRecordingReporter, withInjectedReporter } from './fakes/route-host.js';
+import { createRouteTestErrors, fakeDaemonRouteHost, injectedRecordingReporter, withInjectedReporter } from './fakes/route-host.js';
 import { jsonRequest, serveRoutes } from './fakes/serve-routes.js';
 import { describeRoutes } from '../route-table.js';
 import {
@@ -49,20 +48,20 @@ describe('research handle: provider selection', () => {
 
   it('a non-tavily provider without resolveCredentials gets no credentials even when TAVILY_API_KEY is set', async () => {
     const search = vi.fn<ResearchProvider['search']>();
-    const result = await researchSearchRoute.handle({ input: { query: 'q' }, deps: { reportInternalError: reportRouteInternalError, baseUrlGuard, provider: provider('other', search), env: { TAVILY_API_KEY: KEY } } });
+    const result = await researchSearchRoute.handle({ input: { query: 'q' }, deps: { reportInternalError: createRouteTestErrors().reportInternalError, baseUrlGuard, provider: provider('other', search), env: { TAVILY_API_KEY: KEY } } });
     expect(result).toEqual({ ok: false, error: { code: 'NOT_CONFIGURED', message: 'other provider not configured' } });
     expect(search).not.toHaveBeenCalled();
   });
 
   it('a deps.provider whose id is "tavily" reads TAVILY_API_KEY from deps.env by default', async () => {
     const search = vi.fn<ResearchProvider['search']>(async () => ({ answer: 'a', sources: [SOURCE] }));
-    await researchSearchRoute.handle({ input: { query: 'q' }, deps: { reportInternalError: reportRouteInternalError, baseUrlGuard, provider: provider('tavily', search), env: { TAVILY_API_KEY: ` ${KEY} ` } } });
+    await researchSearchRoute.handle({ input: { query: 'q' }, deps: { reportInternalError: createRouteTestErrors().reportInternalError, baseUrlGuard, provider: provider('tavily', search), env: { TAVILY_API_KEY: ` ${KEY} ` } } });
     expect(search).toHaveBeenCalledWith({ apiKey: KEY, credentials: { apiKey: KEY }, request: { query: 'q' } }, {});
   });
 
   it('passes the selected provider id to resolveCredentials', async () => {
     const resolveCredentials = vi.fn(async () => ({ apiKey: KEY }));
-    await createResearchSearchRoute({ provider: provider('bound') }).handle({ input: { query: 'q' }, deps: { reportInternalError: reportRouteInternalError, baseUrlGuard, resolveCredentials } });
+    await createResearchSearchRoute({ provider: provider('bound') }).handle({ input: { query: 'q' }, deps: { reportInternalError: createRouteTestErrors().reportInternalError, baseUrlGuard, resolveCredentials } });
     expect(resolveCredentials).toHaveBeenCalledWith({ providerId: 'bound' });
   });
 });

@@ -1,4 +1,3 @@
-import { reportRouteInternalError } from '@jini-ai/http-kit';
 import { describe, expect, it, vi } from 'vitest';
 import { injectedRecordingReporter } from './fakes/route-host.js';
 import { createToolRegistry, type Principal } from '@jini-ai/core';

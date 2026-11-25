@@ -62,7 +62,7 @@ export function mountRawRoute<Deps, Context = undefined>({ app, spec, deps, adap
  *  mounted ones; `executeRawRoute` binds them to the request through `mountOptions.requestDeps`. */
 interface RawCall<Deps, Context> {
   readonly req: Request; readonly res: Response; readonly spec: RawRouteSpec<Deps, Context>;
-  readonly deps: Deps; readonly mountOptions: Pick<RouteMountOptions<Deps>, 'requestDeps'>;
+  readonly deps: Deps; readonly mountOptions: Pick<RouteMountOptions<Deps>, 'requestDeps' | 'preserveHostErrorRouting'>;
   readonly adapter: RouteHostContext | undefined; readonly signal: AbortSignal;
 }
 
@@ -122,7 +122,7 @@ const HTTP_FALLBACK = {
 } as const;
 
 /** The work's result: `handle`'s `Response` (absent when a gate or `onError` already answered) and its verdict. */
-interface RawTagged { readonly response: globalThis.Response | undefined; readonly verdict: OperationVerdict }
+interface RawTagged { readonly response: globalThis.Response | undefined; readonly verdict: OperationVerdict; readonly forwarded?: { readonly error: unknown } }
 
 /**
  * Reporter mode: one `http.route` operation spans the gates, `handle` and the creation of its
@@ -142,6 +142,7 @@ async function reporterRawRoute<Deps, Context>(call: RawCall<Deps, Context>, { e
   // The operation has ended. Every write below is the transport's, so a failure in it is recorded on
   // its own and never reopens or re-ends the route operation.
   if (run.ok) {
+    if (run.value.forwarded) throw run.value.forwarded.error;
     if (run.value.response) await writeTracedResponse(call, { reporter: errors.reporter, attributes, response: run.value.response });
     return;
   }
@@ -162,7 +163,7 @@ async function tracedRawRoute<Deps, Context>(call: RawCall<Deps, Context>, { err
     // No host policy, or a head already on the wire: the throw reaches `runOperation`, whose reporter
     // classifies it (a ClientFacingError or catalog refusal, else one incident).
     if (!onError || call.res.headersSent) throw error;
-    return hostPolicyAnswer({ res: call.res, error, onError }, { reporter: errors.reporter });
+    return hostPolicyAnswer({ res: call.res, error, onError }, { reporter: errors.reporter, mountOptions: call.mountOptions });
   }
 }
 
@@ -171,10 +172,11 @@ async function tracedRawRoute<Deps, Context>(call: RawCall<Deps, Context>, { err
  * to `res` itself, so this one write precedes the operation's end; the verdict is the status it chose.
  * A policy that throws is its own incident, and the ORIGINAL error is rethrown so the reply carries its ID.
  */
-function hostPolicyAnswer({ res, error, onError }: { readonly res: Response; readonly error: unknown; readonly onError: NonNullable<JsonRoutePorts<unknown, unknown>['onError']> }, { reporter }: { readonly reporter: Pick<ErrorReporter, 'record'> }): RawTagged {
+function hostPolicyAnswer({ res, error, onError }: { readonly res: Response; readonly error: unknown; readonly onError: NonNullable<JsonRoutePorts<unknown, unknown>['onError']> }, { reporter, mountOptions }: { readonly reporter: Pick<ErrorReporter, 'record'>; readonly mountOptions: Pick<RouteMountOptions, 'preserveHostErrorRouting'> }): RawTagged {
   try {
     onError({ res, error });
   } catch (policyError) {
+    if (mountOptions.preserveHostErrorRouting) return { response: undefined, verdict: { outcome: 'failed', failed: true }, forwarded: { error: policyError } };
     recordOnce({ reporter, error: policyError, step: 'Answer with host error policy' });
     throw error;
   }
@@ -231,6 +233,10 @@ async function writeTracedResponse<Deps, Context>(call: RawCall<Deps, Context>, 
   } catch (error) {
     if (disconnectVerdict({ signal, error })) {
       res.destroy();
+      return;
+    }
+    if (!res.headersSent && call.mountOptions.preserveHostErrorRouting && call.spec.ports?.onError) {
+      call.spec.ports.onError({ res, error });
       return;
     }
     const errorId = recordOnce({ reporter, error, step: 'Write response', attributes });

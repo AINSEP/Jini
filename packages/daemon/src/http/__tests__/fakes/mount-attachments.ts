@@ -4,19 +4,21 @@
  */
 import type { Express } from 'express';
 import type { ReportRouteInternalError, RouteHostContext, ServerRoute } from '@jini-ai/core/contracts/server';
-import { reportRouteInternalError } from '@jini-ai/http-kit';
+import { createReporterRouteInternalError } from '@jini-ai/http-kit';
 import { createNodeDispatcher, maxReserializedJsonBytes } from '@jini-ai/http-kit/node-bridge';
 import { attachmentCleanupRoutes, attachmentUploadRoutes } from '../../attachment-routes.js';
 import type { AttachmentsHttpDeps } from '../../attachments.js';
 import type { DaemonRouteHost } from '../../route-host.js';
-import { fakeDaemonRouteHost } from './route-host.js';
+import { createRouteTestErrors, fakeDaemonRouteHost } from './route-host.js';
 
 /**
  * The host a route list is given: the test's origin context, the real reporter (or the one the test injects),
  * and the body limit a host derives from a 100 KB parser.
  */
-export function testRouteHost({ context }: { readonly context: RouteHostContext }, { reportInternalError = reportRouteInternalError }: { readonly reportInternalError?: ReportRouteInternalError | undefined } = {}): DaemonRouteHost {
-  return { ...fakeDaemonRouteHost(), context, reportInternalError, jsonBodyMaxBytes: maxReserializedJsonBytes({ parserLimitBytes: 102_400 }) };
+export function testRouteHost({ context }: { readonly context: RouteHostContext }, { reportInternalError }: { readonly reportInternalError?: ReportRouteInternalError | undefined } = {}): DaemonRouteHost {
+  if (reportInternalError) return { ...fakeDaemonRouteHost(), context, reportInternalError, jsonBodyMaxBytes: maxReserializedJsonBytes({ parserLimitBytes: 102_400 }) };
+  const errors = context.errors ?? createRouteTestErrors().errors;
+  return { ...fakeDaemonRouteHost(), context: { ...context, errors }, reportInternalError: createReporterRouteInternalError({ reporter: errors.reporter }), jsonBodyMaxBytes: maxReserializedJsonBytes({ parserLimitBytes: 102_400 }) };
 }
 
 /**

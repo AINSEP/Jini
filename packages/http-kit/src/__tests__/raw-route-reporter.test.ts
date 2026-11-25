@@ -9,6 +9,7 @@ import { createRecordingReporter } from '@jini-ai/core/errors/testing';
 import { defineRawRoute, mountRawRoute } from '../raw-route.js';
 import type { RawRouteSpec } from '../types.js';
 import { listen } from './route-test-host.js';
+import { createReporterRouteInternalError } from '../reporter-internal-error.js';
 
 const ISO = '2026-01-01T00:00:00.000Z';
 const ID = 'ERR-AAAA-BBBB-CCCC-0001';
@@ -142,6 +143,55 @@ describe('mountRawRoute reporter mode', () => {
     expect(entries).toHaveLength(2);
     expect(body.error.requestId).toBe(ID);
     expect(ports.operations.map((op) => op.ends[0]?.outcome)).toEqual(['refused', 'failed']);
+  });
+
+  it('an opted-in host policy rejection reaches Express unchanged after the operation ends', async () => {
+    const ports = reporterPorts();
+    const app = express();
+    const writes = vi.fn();
+    app.use((_req, res, next) => { const status = res.status.bind(res); res.status = (code) => { writes(code); return status(code); }; next(); });
+    const policyError = { status: 422 };
+    const nextError = vi.fn();
+    const mountApp = { get: (path: string, handler: (req: express.Request, res: express.Response) => Promise<void>) => {
+      app.get(path, (req, res, next) => { void handler(req, res).catch(next); });
+    } } as unknown as express.Express;
+    const spec = defineRawRoute<object>({ method: 'get', path: '/policy', handle: async () => { throw new Error('original'); } }, { ports: { onError: () => { throw policyError; } } });
+    mountRawRoute({ app: mountApp, spec, deps: {}, adapter: { originPolicy: ANY_ORIGIN, errors: ports.errors } }, { preserveHostErrorRouting: true });
+    app.use((error: unknown, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
+      nextError(error);
+      expect(ports.operations).toHaveLength(1);
+      expect(ports.operations[0]?.ends).toEqual([{ outcome: 'failed', failed: true }]);
+      expect([ports.entries.length, ports.reports.length, writes.mock.calls.length]).toEqual([0, 0, 0]);
+      res.status(422).send('host refusal');
+    });
+    const response = await fetch(`${await listen({ app })}/policy`);
+    expect([response.status, await response.text()]).toEqual([422, 'host refusal']);
+    expect(nextError).toHaveBeenCalledTimes(1);
+    expect(nextError.mock.calls[0]?.[0]).toBe(policyError);
+    expect(writes.mock.calls).toEqual([[422]]);
+  });
+
+  it('an opted-in pre-header JSON or buffered raw write failure uses the existing host writer once', async () => {
+    const ports = reporterPorts();
+    const reportInternalError = createReporterRouteInternalError({ reporter: ports.errors.reporter });
+    const failure = new Error('buffered body failed');
+    const onError = vi.fn(({ res, error }: { res: express.Response; error: unknown }) => {
+      expect(ports.operations[0]?.ends).toHaveLength(1);
+      const incident = reportInternalError({ report: { error }, logSource: 'host-write', message: 'Host write failed.' });
+      res.status(503).json({ host: incident });
+    });
+    const handle = vi.fn(async () => new Response(new ReadableStream<Uint8Array>({ start: (controller) => { controller.error(failure); } })));
+    const spec = defineRawRoute<object>({ method: 'get', path: '/buffered', handle }, { bufferedReply: true, ports: { onError } });
+    const app = express();
+    mountRawRoute({ app, spec, deps: {}, adapter: { originPolicy: ANY_ORIGIN, errors: ports.errors } }, { preserveHostErrorRouting: true });
+    const response = await fetch(`${await listen({ app })}/buffered`);
+    expect([response.status, await response.json()]).toEqual([503, { host: { code: 'INTERNAL_ERROR', message: `Host write failed. (error ${ID})`, requestId: ID } }]);
+    expect(onError).toHaveBeenCalledTimes(1);
+    expect(onError.mock.calls[0]?.[0].error).toBe(failure);
+    expect(handle).toHaveBeenCalledTimes(1);
+    expect(ports.operations).toHaveLength(1);
+    expect(ports.operations[0]?.ends).toEqual([{ outcome: 'completed', failed: false, attributes: { 'http.status_code': 200 } }]);
+    expect([ports.entries.length, ports.reports.length]).toEqual([1, 1]);
   });
 
   it('raw route without errors keeps the legacy sink', async () => {

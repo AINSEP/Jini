@@ -1,13 +1,13 @@
 import type { AddressInfo } from 'node:net';
 import type { Server } from 'node:http';
 import express from 'express';
-import { reportRouteInternalError } from '@jini-ai/http-kit';
+import { createReporterRouteInternalError } from '@jini-ai/http-kit';
 import { createNodeDispatcher } from '@jini-ai/http-kit/node-bridge';
 import { createInMemoryServer } from '@jini-ai/core/contracts/server/testing';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { createLocalTestOrigin } from './fixtures/local-origin.js';
 
-import { fakeDaemonRouteHost } from './fakes/route-host.js';
+import { createRouteTestErrors, fakeDaemonRouteHost } from './fakes/route-host.js';
 import { createFrontendControl as createControl } from '../frontend-control.js';
 
 /** The host's timer: nothing in these tests waits for a session TTL, so a timer that never fires is the honest fake. */
@@ -48,7 +48,8 @@ describe('createFrontendControl', () => {
     app.use(express.json());
     const { adapter, portRef: resolvedPortRef } = createLocalTestOrigin();
     const dispatcher = createNodeDispatcher({}, { expressCompatible: true });
-    for (const route of control.routes({ host: { ...fakeDaemonRouteHost(), context: adapter, reportInternalError: reportRouteInternalError } })) dispatcher.server.route(route);
+    const errors = adapter.errors ?? createRouteTestErrors().errors;
+    for (const route of control.routes({ host: { ...fakeDaemonRouteHost(), context: { ...adapter, errors }, reportInternalError: createReporterRouteInternalError({ reporter: errors.reporter }) } })) dispatcher.server.route(route);
     app.use((req, res, next) => { void dispatcher.handle({ incoming: req, out: res }, { next, parsedBody: (req as { body?: unknown }).body, locals: res.locals }); });
     const server = await new Promise<Server>((resolve, reject) => {
       const s = app.listen(0, '127.0.0.1', () => resolve(s));

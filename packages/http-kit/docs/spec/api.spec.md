@@ -51,6 +51,8 @@ const spec = defineJsonRoute({ method: 'get', path: '/api/example', parse: () =>
 mountJsonRoute({ app, spec, deps: {}, adapter });
 ```
 
+`mountJsonRoute` and `mountRawRoute` accept `preserveHostErrorRouting?: true` in their existing second mount-options object. Omit the key to keep the existing reporter policy; `false` and explicit `undefined` are not accepted under `exactOptionalPropertyTypes`. With the option and a reporter binding, a thrown `onError` value reaches the Express host unchanged after the route operation ends, without a kit record or reply. A pre-header JSON or buffered raw write failure goes to the existing `onError` writer once; its rejection escapes. Post-header raw failures and disconnects retain their transport behavior. This Express transport option does not enter core route specs.
+
 ## Root origin, authentication and inventory operations
 
 | Export | Current signature/result |

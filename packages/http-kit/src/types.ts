@@ -50,6 +50,7 @@ export interface RouteMountOptions<Deps = never> {
    * `express.urlencoded`. Scoped to the one registration, never an `app.use`, so no other route sees it.
    */
   readonly bodyParsers?: readonly RequestHandler[];
+  readonly preserveHostErrorRouting?: true;
   /**
    * Per-request host deps: called once per request, after the spec's static `responseHeaders` and
    * before every gate, with the request, the response and the mounted deps; what it returns is the
