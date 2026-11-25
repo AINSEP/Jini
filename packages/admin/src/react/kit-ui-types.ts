@@ -5,7 +5,7 @@
  * own public types, nothing else imports this file. The execution contract itself lives in core and
  * is re-exported by name from `kit.tsx`, not restated here.
  */
-import type { InputHTMLAttributes } from 'react';
+import type { InputHTMLAttributes, KeyboardEvent, ReactNode } from 'react';
 import type { ExecutionCardAgent, ExecutionPort } from '@jini-ai/core/contracts/execution';
 import type { ByokConfig } from '@jini-ai/core/contracts/execution';
 
@@ -121,3 +121,66 @@ export interface SecretToggleProps {
   readonly revealed?: boolean; readonly onRevealedChange?: (revealed: boolean) => void;
 }
 export type SecretInputProps = SecretToggleProps & Omit<InputHTMLAttributes<HTMLInputElement>, 'type'>;
+
+/* ---------- settings screens' own slots (x8-w3) ---------- */
+/** Props of the host's "show N lines, expand on demand" text clamp (`SeeMore`). */
+export interface SeeMoreProps {
+  children: ReactNode;
+  lines?: number | undefined;
+  moreLabel?: string | undefined;
+  lessLabel?: string | undefined;
+  className?: string | undefined;
+  textClassName?: string | undefined;
+  toggleClassName?: string | undefined;
+  toggleAriaLabel?: string | undefined;
+  agentHandle?: string | false | undefined;
+}
+/** One model entry the searchable model picker lists (the execution contract's `AgentModelOption`, narrowed to what the picker reads). */
+export interface SearchableModelOption { id: string; label: string }
+/** Props of the host's searchable model dropdown (a plain select plus a search box once the list is long). */
+export interface SearchableModelSelectProps {
+  models: readonly SearchableModelOption[];
+  value: string;
+  onChange: (value: string) => void;
+  ariaLabel: string;
+  searchPlaceholder: string;
+  additionalOptions?: readonly { value: string; label: string }[] | undefined;
+  minSearchableOptions?: number;
+  className?: string | undefined;
+  menuClassName?: string | undefined;
+  testId?: string | undefined;
+  searchInputTestId?: string | undefined;
+  agentHandle?: string | false | undefined;
+}
+
+/* ---------- package-file tree ---------- */
+/** One visible row of the package-files tree: the ARIA positions and handlers a row spreads onto its element. `expanded` is set only on folders. */
+export interface PackageFileTreeRowView {
+  readonly key: string; readonly name: string; readonly path: string; readonly depth: number; readonly setSize: number; readonly posInSet: number;
+  readonly expanded: boolean | undefined; readonly selected: boolean | undefined; readonly tabIndex: number;
+  onClick(): void; onFocus(): void;
+}
+/** The tree's rows plus the key handler for its container: expansion, roving focus and keyboard navigation live behind the host's hook. */
+export interface PackageFileTreeController { readonly rows: readonly PackageFileTreeRowView[]; onKeyDown(event: KeyboardEvent<HTMLElement>): void }
+/** The files a tree is built from (only the paths matter) and the selection and open callback it reports through. */
+export interface PackageFileTreeInput {
+  readonly files: readonly { readonly relativePath: string; readonly sizeBytes: number; readonly content: string | null; readonly omitted: null }[];
+  readonly selectedPath: string | null;
+  onOpen(required: { path: string }, optional?: Record<string, never>): void;
+}
+/**
+ * Props of the host's drag/drop/click-to-browse file staging zone (`FileDropzone`): the data and callback
+ * props a screen passes. The zone's own hook overrides (injection seams for the UI library's tests) are
+ * not part of the kit's surface, so a screen cannot reach past the kit into the zone's internals.
+ */
+export interface FileDropzoneProps {
+  label?: string | undefined; prompt?: string | undefined; helper?: string | undefined; accept?: string | undefined;
+  directory?: boolean | undefined; enablePaste?: boolean | undefined;
+  files?: File[] | undefined; onRemove?: ((file: File) => void) | undefined;
+  names?: string[] | undefined; onRemoveName?: ((name: string) => void) | undefined;
+  /** Resolved files ready to stage: always the fully directory-expanded flat list, whatever the origin (drag, click, paste). */
+  onFiles: (files: File[]) => void;
+  onZoneClick?: (() => void) | undefined; onError?: ((message: string | null) => void) | undefined;
+  onProcessingStart?: (() => () => void) | undefined; onBrowseFolder?: (() => void) | undefined;
+  secondaryAction?: { label: string; onClick: () => void } | undefined;
+}

@@ -544,7 +544,7 @@ Source line 254
 Source line 286
 
 ```text
-/* The summary line above clips this same string to one line (`.agent-plugin-row-desc`,
+/* The summary line above clips this same string to one line (`.jini-agent-plugin-row-desc`,
             `-webkit-line-clamp: 1`) — a hover tooltip covers a sighted mouse user, but expanding
             the row is the only path assistive tech and touch have, so the full text repeats here,
             unclamped, first — before every other per-plugin fact this panel already held. */

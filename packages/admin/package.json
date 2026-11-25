@@ -43,6 +43,10 @@
       "./security/host/hooks/security-permissions-port.hooks": "universal",
       "./security/host/hooks/access-tokens-port.hooks": "universal",
       "./security/host/hooks/use-security-permissions.hooks": "browser",
+      "./security/host/Security.hooks": "browser",
+      "./security/host/hooks/other-credentials-port.hooks": "universal",
+      "./security/host/hooks/site-key-port.hooks": "universal",
+      "./security/host/copy-keys-dialog.css": "browser",
       "./playground": "universal",
       "./playground/react": "browser",
       "./playground/adapters/http": "universal",
@@ -410,6 +414,7 @@
       "./shell/components/AssistantDock/FolderDropNotice": "browser",
       "./shell/components/AssistantDock/DockLeadingAccessory": "browser",
       "./shell/components/AssistantDock/DockHeaderTip": "browser",
+      "./shell/components/AssistantDock/DockHeader": "browser",
       "./shell/components/AssistantDock/DockHeaderTip.hooks": "browser",
       "./shell/components/WidgetConfigFields/HtmlAttributeRows.hooks": "browser",
       "./shell/components/MediaPickerDialog/JiniMediaPicker.hooks": "browser",
@@ -702,6 +707,7 @@
       "./screens/voice-input/voice-unavailability": "universal",
       "./screens/authentication/authentication.css": "browser",
       "./screens/database/Database.hooks": "browser",
+      "./screens/database/Database": "browser",
       "./screens/email/email.css": "browser",
       "./screens/email/EmailProviderTab.hooks": "browser",
       "./screens/email/hooks/use-email-template-view.hooks": "browser",
@@ -726,7 +732,44 @@
       "./screens/voice-input/hooks/mic-capture": "browser",
       "./screens/settings/rules": "universal",
       "./screens/media/rules": "universal",
-      "./shell/components/SecretInput/SecretInput": "browser"
+      "./shell/components/SecretInput/SecretInput": "browser",
+      "./screens/settings/ExternalMcpToolPicker": "browser",
+      "./screens/settings/ExternalMcpToolPicker.hooks": "browser",
+      "./screens/settings/ExternalMcpToolsModal": "browser",
+      "./screens/settings/hooks/use-external-mcp-tool-picker.hooks": "browser",
+      "./screens/plugins/PluginProviderSettingField": "browser",
+      "./screens/plugins/hooks/use-plugin-remove-confirm.hooks": "browser",
+      "./screens/plugins/hooks/use-agent-plugin-disable-confirm.hooks": "browser",
+      "./screens/plugins/PluginRemoveConfirmDialog": "browser",
+      "./screens/plugins/AgentPluginDisableConfirmDialog": "browser",
+      "./screens/plugins/AgentPluginManageButton": "browser",
+      "./screens/plugins/PluginRow": "browser",
+      "./screens/plugins/AgentPluginRow": "browser",
+      "./screens/plugins/PackageFilesModal": "browser",
+      "./screens/plugins/PluginPackageFilesModal": "browser",
+      "./screens/plugins/AgentPluginUpdateControl": "browser",
+      "./screens/plugins/AddAgentPluginPanel": "browser",
+      "./screens/plugins/AddPluginPanel": "browser",
+      "./screens/plugins/hooks/use-plugins.hooks": "browser",
+      "./screens/plugins/hooks/use-agent-plugin-details-modal.hooks": "browser",
+      "./screens/plugins/hooks/use-agent-plugin-update.hooks": "browser",
+      "./screens/plugins/hooks/use-agent-plugin-install.hooks": "browser",
+      "./screens/plugins/hooks/use-plugin-install.hooks": "browser",
+      "./screens/plugins/hooks/use-plugin-package-files.hooks": "browser",
+      "./screens/plugins/rules-context": "browser",
+      "./screens/media/api/media-api": "universal",
+      "./screens/media/media-providers-port": "universal",
+      "./screens/media/hooks/fake-media-port": "browser",
+      "./screens/media/media-tabs.hooks": "browser",
+      "./screens/media/hooks/use-media-preview.hooks": "browser",
+      "./shell/components/AssistantDock/OverflowAwareMcpUiSurfaceCard": "browser",
+      "./shell/components/AssistantDock/hooks/run-context.hooks": "browser",
+      "./shell/components/AssistantDock/hooks/assistant-transport.hooks": "browser",
+      "./shell/components/AssistantDock/hooks/composer-files.hooks": "browser",
+      "./screens/trash/Trash": "browser",
+      "./screens/trash/hooks/use-trash.hooks": "browser",
+      "./screens/library/Library": "browser",
+      "./screens/library/hooks/library-api-port.hooks": "browser"
     },
     "isolation": {
       "shared": [
@@ -744,7 +787,13 @@
         "src/media/html-attributes.ts",
         "src/screens/plugins/composer-capabilities.ts",
         "src/screens/plugins/selected-skills.ts",
-        "src/agent-plugins/package-file-tree.ts"
+        "src/screens/plugins/rules.ts",
+        "src/screens/plugins/agent-plugins-visuals.tsx",
+        "src/agent-plugins/package-file-tree.ts",
+        "src/screens/taxonomy/TaxonomyRowMenu.hooks.ts",
+        "src/screens/trash/rules.ts",
+        "src/shell/components/AssistantDock/hooks/chat-package-kind.ts",
+        "src/screens/skills/skill-drop.ts"
       ],
       "forbidden": {
         "universal": [
@@ -941,6 +990,7 @@
         "./shell/components/AssistantDock/FolderDropNotice": "browser",
         "./shell/components/AssistantDock/DockLeadingAccessory": "browser",
         "./shell/components/AssistantDock/DockHeaderTip": "browser",
+        "./shell/components/AssistantDock/DockHeader": "browser",
         "./shell/components/AssistantDock/DockHeaderTip.hooks": "browser",
         "./shell/components/WidgetConfigFields/HtmlAttributeRows.hooks": "browser",
         "./shell/components/MediaPickerDialog/JiniMediaPicker.hooks": "browser",
@@ -1011,8 +1061,44 @@
         "./screens/email/hooks/use-email-template-view.hooks": "browser",
         "./screens/media/hooks/use-media-card-metadata.hooks": "media",
         "./screens/settings/rules": "universal",
-        "./screens/media/rules": "universal",
-        "./shell/components/SecretInput/SecretInput": "browser"
+        "./screens/plugins/hooks/use-linked-lock-tip.hooks": "browser",
+        "./screens/plugins/plugins-visuals": "browser",
+        "./screens/plugins/AgentPluginMaturity": "browser",
+        "./screens/plugins/AgentPluginLinkedLock": "browser",
+        "./screens/plugins/hooks/use-plugin-row-focus.hooks": "browser",
+        "./screens/plugins/PluginProviderSettingField.hooks": "browser",
+        "./screens/plugins/hooks/use-agent-plugin-surfaces.hooks": "browser",
+        "./screens/plugins/PluginProviderSettingField": "browser",
+        "./screens/plugins/hooks/use-plugin-remove-confirm.hooks": "browser",
+        "./screens/plugins/hooks/use-agent-plugin-disable-confirm.hooks": "browser",
+        "./screens/plugins/PluginRemoveConfirmDialog": "browser",
+        "./screens/plugins/AgentPluginDisableConfirmDialog": "browser",
+        "./screens/plugins/AgentPluginManageButton": "browser",
+        "./screens/plugins/PluginRow": "browser",
+        "./screens/plugins/AgentPluginRow": "browser",
+        "./screens/plugins/PackageFilesModal": "browser",
+        "./screens/plugins/PluginPackageFilesModal": "browser",
+        "./screens/plugins/AgentPluginUpdateControl": "browser",
+        "./screens/plugins/AddAgentPluginPanel": "browser",
+        "./screens/plugins/AddPluginPanel": "browser",
+        "./screens/plugins/hooks/use-plugins.hooks": "browser",
+        "./screens/plugins/hooks/use-agent-plugin-details-modal.hooks": "browser",
+        "./screens/plugins/hooks/use-agent-plugin-update.hooks": "browser",
+        "./screens/plugins/hooks/use-agent-plugin-install.hooks": "browser",
+        "./screens/plugins/hooks/use-plugin-install.hooks": "browser",
+        "./screens/plugins/hooks/use-plugin-package-files.hooks": "browser",
+        "./screens/plugins/rules-context": "browser",
+        "./shell/components/SecretInput/SecretInput": "browser",
+        "./screens/media/api/media-api": "universal",
+        "./screens/media/media-providers-port": "universal",
+        "./screens/media/hooks/fake-media-port": "browser",
+        "./shell/components/AssistantDock/OverflowAwareMcpUiSurfaceCard": "browser",
+        "./shell/components/AssistantDock/hooks/run-context.hooks": "browser",
+        "./shell/components/AssistantDock/hooks/assistant-transport.hooks": "browser",
+        "./shell/components/AssistantDock/hooks/composer-files.hooks": "browser",
+        "./screens/trash/Trash": "browser",
+        "./screens/trash/hooks/use-trash.hooks": "browser",
+        "./screens/trash/rules": "universal"
       }
     },
     "optionalPeers": {
@@ -1167,6 +1253,22 @@
       "import": "./dist/security/host/hooks/use-security-permissions.hooks.js",
       "default": "./dist/security/host/hooks/use-security-permissions.hooks.js"
     },
+    "./security/host/Security.hooks": {
+      "types": "./dist/security/host/Security.hooks.d.ts",
+      "import": "./dist/security/host/Security.hooks.js",
+      "default": "./dist/security/host/Security.hooks.js"
+    },
+    "./security/host/hooks/other-credentials-port.hooks": {
+      "types": "./dist/security/host/hooks/other-credentials-port.hooks.d.ts",
+      "import": "./dist/security/host/hooks/other-credentials-port.hooks.js",
+      "default": "./dist/security/host/hooks/other-credentials-port.hooks.js"
+    },
+    "./security/host/hooks/site-key-port.hooks": {
+      "types": "./dist/security/host/hooks/site-key-port.hooks.d.ts",
+      "import": "./dist/security/host/hooks/site-key-port.hooks.js",
+      "default": "./dist/security/host/hooks/site-key-port.hooks.js"
+    },
+    "./security/host/copy-keys-dialog.css": "./src/security/host/copy-keys-dialog.css",
     "./playground": {
       "types": "./dist/playground/index.d.ts",
       "import": "./dist/playground/index.js",
@@ -2981,6 +3083,11 @@
       "import": "./dist/shell/components/AssistantDock/DockLeadingAccessory.js",
       "default": "./dist/shell/components/AssistantDock/DockLeadingAccessory.js"
     },
+    "./shell/components/AssistantDock/DockHeader": {
+      "types": "./dist/shell/components/AssistantDock/DockHeader.d.ts",
+      "import": "./dist/shell/components/AssistantDock/DockHeader.js",
+      "default": "./dist/shell/components/AssistantDock/DockHeader.js"
+    },
     "./shell/components/AssistantDock/DockHeaderTip": {
       "types": "./dist/shell/components/AssistantDock/DockHeaderTip.d.ts",
       "import": "./dist/shell/components/AssistantDock/DockHeaderTip.js",
@@ -4406,6 +4513,11 @@
       "import": "./dist/screens/database/Database.hooks.js",
       "default": "./dist/screens/database/Database.hooks.js"
     },
+    "./screens/database/Database": {
+      "types": "./dist/screens/database/Database.d.ts",
+      "import": "./dist/screens/database/Database.js",
+      "default": "./dist/screens/database/Database.js"
+    },
     "./screens/email/email.css": "./src/screens/email/email.css",
     "./screens/email/EmailProviderTab.hooks": {
       "types": "./dist/screens/email/EmailProviderTab.hooks.d.ts",
@@ -4522,6 +4634,191 @@
       "types": "./dist/shell/components/SecretInput/SecretInput.d.ts",
       "import": "./dist/shell/components/SecretInput/SecretInput.js",
       "default": "./dist/shell/components/SecretInput/SecretInput.js"
+    },
+    "./screens/settings/ExternalMcpToolPicker": {
+      "types": "./dist/screens/settings/ExternalMcpToolPicker.d.ts",
+      "import": "./dist/screens/settings/ExternalMcpToolPicker.js",
+      "default": "./dist/screens/settings/ExternalMcpToolPicker.js"
+    },
+    "./screens/settings/ExternalMcpToolPicker.hooks": {
+      "types": "./dist/screens/settings/ExternalMcpToolPicker.hooks.d.ts",
+      "import": "./dist/screens/settings/ExternalMcpToolPicker.hooks.js",
+      "default": "./dist/screens/settings/ExternalMcpToolPicker.hooks.js"
+    },
+    "./screens/settings/ExternalMcpToolsModal": {
+      "types": "./dist/screens/settings/ExternalMcpToolsModal.d.ts",
+      "import": "./dist/screens/settings/ExternalMcpToolsModal.js",
+      "default": "./dist/screens/settings/ExternalMcpToolsModal.js"
+    },
+    "./screens/settings/hooks/use-external-mcp-tool-picker.hooks": {
+      "types": "./dist/screens/settings/hooks/use-external-mcp-tool-picker.hooks.d.ts",
+      "import": "./dist/screens/settings/hooks/use-external-mcp-tool-picker.hooks.js",
+      "default": "./dist/screens/settings/hooks/use-external-mcp-tool-picker.hooks.js"
+    },
+    "./screens/plugins/PluginProviderSettingField": {
+      "types": "./dist/screens/plugins/PluginProviderSettingField.d.ts",
+      "import": "./dist/screens/plugins/PluginProviderSettingField.js",
+      "default": "./dist/screens/plugins/PluginProviderSettingField.js"
+    },
+    "./screens/plugins/hooks/use-plugin-remove-confirm.hooks": {
+      "types": "./dist/screens/plugins/hooks/use-plugin-remove-confirm.hooks.d.ts",
+      "import": "./dist/screens/plugins/hooks/use-plugin-remove-confirm.hooks.js",
+      "default": "./dist/screens/plugins/hooks/use-plugin-remove-confirm.hooks.js"
+    },
+    "./screens/plugins/hooks/use-agent-plugin-disable-confirm.hooks": {
+      "types": "./dist/screens/plugins/hooks/use-agent-plugin-disable-confirm.hooks.d.ts",
+      "import": "./dist/screens/plugins/hooks/use-agent-plugin-disable-confirm.hooks.js",
+      "default": "./dist/screens/plugins/hooks/use-agent-plugin-disable-confirm.hooks.js"
+    },
+    "./screens/plugins/PluginRemoveConfirmDialog": {
+      "types": "./dist/screens/plugins/PluginRemoveConfirmDialog.d.ts",
+      "import": "./dist/screens/plugins/PluginRemoveConfirmDialog.js",
+      "default": "./dist/screens/plugins/PluginRemoveConfirmDialog.js"
+    },
+    "./screens/plugins/AgentPluginDisableConfirmDialog": {
+      "types": "./dist/screens/plugins/AgentPluginDisableConfirmDialog.d.ts",
+      "import": "./dist/screens/plugins/AgentPluginDisableConfirmDialog.js",
+      "default": "./dist/screens/plugins/AgentPluginDisableConfirmDialog.js"
+    },
+    "./screens/plugins/AgentPluginManageButton": {
+      "types": "./dist/screens/plugins/AgentPluginManageButton.d.ts",
+      "import": "./dist/screens/plugins/AgentPluginManageButton.js",
+      "default": "./dist/screens/plugins/AgentPluginManageButton.js"
+    },
+    "./screens/plugins/PluginRow": {
+      "types": "./dist/screens/plugins/PluginRow.d.ts",
+      "import": "./dist/screens/plugins/PluginRow.js",
+      "default": "./dist/screens/plugins/PluginRow.js"
+    },
+    "./screens/plugins/AgentPluginRow": {
+      "types": "./dist/screens/plugins/AgentPluginRow.d.ts",
+      "import": "./dist/screens/plugins/AgentPluginRow.js",
+      "default": "./dist/screens/plugins/AgentPluginRow.js"
+    },
+    "./screens/plugins/PackageFilesModal": {
+      "types": "./dist/screens/plugins/PackageFilesModal.d.ts",
+      "import": "./dist/screens/plugins/PackageFilesModal.js",
+      "default": "./dist/screens/plugins/PackageFilesModal.js"
+    },
+    "./screens/plugins/PluginPackageFilesModal": {
+      "types": "./dist/screens/plugins/PluginPackageFilesModal.d.ts",
+      "import": "./dist/screens/plugins/PluginPackageFilesModal.js",
+      "default": "./dist/screens/plugins/PluginPackageFilesModal.js"
+    },
+    "./screens/plugins/AgentPluginUpdateControl": {
+      "types": "./dist/screens/plugins/AgentPluginUpdateControl.d.ts",
+      "import": "./dist/screens/plugins/AgentPluginUpdateControl.js",
+      "default": "./dist/screens/plugins/AgentPluginUpdateControl.js"
+    },
+    "./screens/plugins/AddAgentPluginPanel": {
+      "types": "./dist/screens/plugins/AddAgentPluginPanel.d.ts",
+      "import": "./dist/screens/plugins/AddAgentPluginPanel.js",
+      "default": "./dist/screens/plugins/AddAgentPluginPanel.js"
+    },
+    "./screens/plugins/AddPluginPanel": {
+      "types": "./dist/screens/plugins/AddPluginPanel.d.ts",
+      "import": "./dist/screens/plugins/AddPluginPanel.js",
+      "default": "./dist/screens/plugins/AddPluginPanel.js"
+    },
+    "./screens/plugins/hooks/use-plugins.hooks": {
+      "types": "./dist/screens/plugins/hooks/use-plugins.hooks.d.ts",
+      "import": "./dist/screens/plugins/hooks/use-plugins.hooks.js",
+      "default": "./dist/screens/plugins/hooks/use-plugins.hooks.js"
+    },
+    "./screens/plugins/hooks/use-agent-plugin-details-modal.hooks": {
+      "types": "./dist/screens/plugins/hooks/use-agent-plugin-details-modal.hooks.d.ts",
+      "import": "./dist/screens/plugins/hooks/use-agent-plugin-details-modal.hooks.js",
+      "default": "./dist/screens/plugins/hooks/use-agent-plugin-details-modal.hooks.js"
+    },
+    "./screens/plugins/hooks/use-agent-plugin-update.hooks": {
+      "types": "./dist/screens/plugins/hooks/use-agent-plugin-update.hooks.d.ts",
+      "import": "./dist/screens/plugins/hooks/use-agent-plugin-update.hooks.js",
+      "default": "./dist/screens/plugins/hooks/use-agent-plugin-update.hooks.js"
+    },
+    "./screens/plugins/hooks/use-agent-plugin-install.hooks": {
+      "types": "./dist/screens/plugins/hooks/use-agent-plugin-install.hooks.d.ts",
+      "import": "./dist/screens/plugins/hooks/use-agent-plugin-install.hooks.js",
+      "default": "./dist/screens/plugins/hooks/use-agent-plugin-install.hooks.js"
+    },
+    "./screens/plugins/hooks/use-plugin-install.hooks": {
+      "types": "./dist/screens/plugins/hooks/use-plugin-install.hooks.d.ts",
+      "import": "./dist/screens/plugins/hooks/use-plugin-install.hooks.js",
+      "default": "./dist/screens/plugins/hooks/use-plugin-install.hooks.js"
+    },
+    "./screens/plugins/hooks/use-plugin-package-files.hooks": {
+      "types": "./dist/screens/plugins/hooks/use-plugin-package-files.hooks.d.ts",
+      "import": "./dist/screens/plugins/hooks/use-plugin-package-files.hooks.js",
+      "default": "./dist/screens/plugins/hooks/use-plugin-package-files.hooks.js"
+    },
+    "./screens/plugins/rules-context": {
+      "types": "./dist/screens/plugins/rules-context.d.ts",
+      "import": "./dist/screens/plugins/rules-context.js",
+      "default": "./dist/screens/plugins/rules-context.js"
+    },
+    "./screens/media/api/media-api": {
+      "types": "./dist/screens/media/api/media-api.d.ts",
+      "import": "./dist/screens/media/api/media-api.js",
+      "default": "./dist/screens/media/api/media-api.js"
+    },
+    "./screens/media/media-providers-port": {
+      "types": "./dist/screens/media/media-providers-port.d.ts",
+      "import": "./dist/screens/media/media-providers-port.js",
+      "default": "./dist/screens/media/media-providers-port.js"
+    },
+    "./screens/media/hooks/fake-media-port": {
+      "types": "./dist/screens/media/hooks/fake-media-port.d.ts",
+      "import": "./dist/screens/media/hooks/fake-media-port.js",
+      "default": "./dist/screens/media/hooks/fake-media-port.js"
+    },
+    "./screens/media/media-tabs.hooks": {
+      "types": "./dist/screens/media/media-tabs.hooks.d.ts",
+      "import": "./dist/screens/media/media-tabs.hooks.js",
+      "default": "./dist/screens/media/media-tabs.hooks.js"
+    },
+    "./screens/media/hooks/use-media-preview.hooks": {
+      "types": "./dist/screens/media/hooks/use-media-preview.hooks.d.ts",
+      "import": "./dist/screens/media/hooks/use-media-preview.hooks.js",
+      "default": "./dist/screens/media/hooks/use-media-preview.hooks.js"
+    },
+    "./shell/components/AssistantDock/OverflowAwareMcpUiSurfaceCard": {
+      "types": "./dist/shell/components/AssistantDock/OverflowAwareMcpUiSurfaceCard.d.ts",
+      "import": "./dist/shell/components/AssistantDock/OverflowAwareMcpUiSurfaceCard.js",
+      "default": "./dist/shell/components/AssistantDock/OverflowAwareMcpUiSurfaceCard.js"
+    },
+    "./shell/components/AssistantDock/hooks/run-context.hooks": {
+      "types": "./dist/shell/components/AssistantDock/hooks/run-context.hooks.d.ts",
+      "import": "./dist/shell/components/AssistantDock/hooks/run-context.hooks.js",
+      "default": "./dist/shell/components/AssistantDock/hooks/run-context.hooks.js"
+    },
+    "./shell/components/AssistantDock/hooks/assistant-transport.hooks": {
+      "types": "./dist/shell/components/AssistantDock/hooks/assistant-transport.hooks.d.ts",
+      "import": "./dist/shell/components/AssistantDock/hooks/assistant-transport.hooks.js",
+      "default": "./dist/shell/components/AssistantDock/hooks/assistant-transport.hooks.js"
+    },
+    "./shell/components/AssistantDock/hooks/composer-files.hooks": {
+      "types": "./dist/shell/components/AssistantDock/hooks/composer-files.hooks.d.ts",
+      "import": "./dist/shell/components/AssistantDock/hooks/composer-files.hooks.js",
+      "default": "./dist/shell/components/AssistantDock/hooks/composer-files.hooks.js"
+    },
+    "./screens/trash/Trash": {
+      "types": "./dist/screens/trash/Trash.d.ts",
+      "import": "./dist/screens/trash/Trash.js",
+      "default": "./dist/screens/trash/Trash.js"
+    },
+    "./screens/trash/hooks/use-trash.hooks": {
+      "types": "./dist/screens/trash/hooks/use-trash.hooks.d.ts",
+      "import": "./dist/screens/trash/hooks/use-trash.hooks.js",
+      "default": "./dist/screens/trash/hooks/use-trash.hooks.js"
+    },
+    "./screens/library/Library": {
+      "types": "./dist/screens/library/Library.d.ts",
+      "import": "./dist/screens/library/Library.js",
+      "default": "./dist/screens/library/Library.js"
+    },
+    "./screens/library/hooks/library-api-port.hooks": {
+      "types": "./dist/screens/library/hooks/library-api-port.hooks.d.ts",
+      "import": "./dist/screens/library/hooks/library-api-port.hooks.js",
+      "default": "./dist/screens/library/hooks/library-api-port.hooks.js"
     }
   },
   "files": [
@@ -5008,6 +5305,30 @@
       ],
       "screens/media/hooks/use-media-card-details.hooks": [
         "./dist/screens/media/hooks/use-media-card-details.hooks.d.ts"
+      ],
+      "screens/settings/ExternalMcpToolPicker": [
+        "./dist/screens/settings/ExternalMcpToolPicker.d.ts"
+      ],
+      "screens/settings/ExternalMcpToolPicker.hooks": [
+        "./dist/screens/settings/ExternalMcpToolPicker.hooks.d.ts"
+      ],
+      "screens/settings/ExternalMcpToolsModal": [
+        "./dist/screens/settings/ExternalMcpToolsModal.d.ts"
+      ],
+      "screens/settings/hooks/use-external-mcp-tool-picker.hooks": [
+        "./dist/screens/settings/hooks/use-external-mcp-tool-picker.hooks.d.ts"
+      ],
+      "screens/trash/Trash": [
+        "./dist/screens/trash/Trash.d.ts"
+      ],
+      "screens/trash/hooks/use-trash.hooks": [
+        "./dist/screens/trash/hooks/use-trash.hooks.d.ts"
+      ],
+      "screens/library/Library": [
+        "./dist/screens/library/Library.d.ts"
+      ],
+      "screens/library/hooks/library-api-port.hooks": [
+        "./dist/screens/library/hooks/library-api-port.hooks.d.ts"
       ]
     }
   },

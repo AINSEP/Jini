@@ -44,7 +44,7 @@ function activationRefusalMessage({ status, body }: { status: number; body: { er
  * @complexity O(1), one activation and one bounded attachment wait.
  */
 export async function prepareAssistantPageBinding(
-  { bridge, signal }: { bridge?: PageBindingBridge | null; signal?: AbortSignal },
+  { bridge, signal }: { bridge?: PageBindingBridge | null | undefined; signal?: AbortSignal | undefined },
   { activate = activateAssistantDaemon, onActivationSettled }: {
     activate?: typeof activateAssistantDaemon;
     onActivationSettled?: () => void;

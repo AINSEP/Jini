@@ -1,11 +1,12 @@
 import { act, render, renderHook, screen, waitFor } from '@testing-library/react';
 import { createRef, type ReactNode } from 'react';
 import { describe, expect, it, vi } from 'vitest';
-import { AdminKitProvider, Button, Icon, InfoTip, TabBar, type AdminKitChat, type InfoTipProps, type KitIconName, useAdminKitChatPosters, useAdminKitValues, useAdminThemeKit, useChatT, useDirtyGuard, useFetchQuery, useMediaProviderRules, useT } from '../kit.js';
+import { AdminKitProvider, SearchableModelSelect, SeeMore, Button, Icon, InfoTip, TabBar, type AdminKitChat, type InfoTipProps, type KitIconName, useAdminKitChatPosters, useAdminKitValues, useAdminThemeKit, useChatT, useDirtyGuard, useFetchQuery, useMediaProviderRules, useT } from '../kit.js';
 import {
-  CodeWithLines, CodeWrapToggle, I18nProvider, PreviewModalShell, RemixIcon, SettingsDialogShell, Toast,
-  useAdminKitChatValues, useCodeWrap, useCopyToClipboard, useFabPosition, useInfoTip, usePanelPosition, useSelectDropdown, useSerialWrites, useTabBarKeyboard,
+  CodeWithLines, CodeWrapToggle, FileDropzone, I18nProvider, PreviewModalShell, RemixIcon, SettingsDialogShell, Toast,
+  useAdminKitChatValues, useAgentPluginFileTree, useCodeWrap, useCopyToClipboard, useFabPosition, useInfoTip, usePanelPosition, useSelectDropdown, useSerialWrites, useTabBarKeyboard,
   useTabbedDialog, useCursorPages, useDebouncedHtmlPreview, useExecutionCredential, useI18n, useSettingsSlice, useStandingDraftAutosave, useWiredCopyToClipboard,
+  A2uiSurfaceCard, ChatPane, ChatSettingsDialog, ChatSettingsSegmented, ConversationList, JiniChatProvider, McpUiSurfaceCard, useAdminKitChatRunValues,
   type AdminKit, type AdminKitHooks, type AdminKitValues, type ChatPaneAgent, type FabPositionInput,
 } from '../kit.js';
 import { fakeAdminKit, fixtureQuery } from '../testing-kit.js';
@@ -177,11 +178,12 @@ describe('admin kit: B5 additions (A-K2-0a remainder + A-K2-0.J)', () => {
     const record = (name: string) => (props: object) => { seen[name] = props; return <span data-testid={name}>{(props as { children?: ReactNode }).children}</span>; };
     const kit = fakeAdminKit({ components: {
       RemixIcon: record('RemixIcon'), Toast: record('Toast'), I18nProvider: record('I18nProvider'), SettingsDialogShell: record('SettingsDialogShell'),
-      CodeWithLines: record('CodeWithLines'), CodeWrapToggle: record('CodeWrapToggle'), PreviewModalShell: record('PreviewModalShell'),
+      CodeWithLines: record('CodeWithLines'), CodeWrapToggle: record('CodeWrapToggle'), PreviewModalShell: record('PreviewModalShell'), FileDropzone: record('FileDropzone'),
     } });
     const onDismiss = () => {};
     const onToggle = () => {};
     const onClose = () => {};
+    const onFiles = () => {};
     const t = (key: string) => key;
     const tabs = [{ id: 'general', label: 'General', panel: <p>panel</p> }];
     const views = [{ id: 'source', label: 'Source', custom: <p>code</p> }];
@@ -194,6 +196,7 @@ describe('admin kit: B5 additions (A-K2-0a remainder + A-K2-0.J)', () => {
         <CodeWithLines text={'a\nb'} wrap />
         <CodeWrapToggle wrap={false} onToggle={onToggle} t={t} agentHandleId="wrap-toggle" />
         <PreviewModalShell title="theme.html" views={views} onClose={onClose} icons={icons} />
+        <FileDropzone accept=".pdf" prompt="Drop here" onFiles={onFiles} />
       </I18nProvider>, { kit });
     expect(screen.getByTestId('I18nProvider')).toBeTruthy();
     expect(seen.RemixIcon).toEqual({ name: 'group-line', size: 16, ref: null });
@@ -202,6 +205,7 @@ describe('admin kit: B5 additions (A-K2-0a remainder + A-K2-0.J)', () => {
     expect(seen.CodeWithLines).toEqual({ text: 'a\nb', wrap: true, ref: null });
     expect(seen.CodeWrapToggle).toEqual({ wrap: false, onToggle, t, agentHandleId: 'wrap-toggle', ref: null });
     expect(seen.PreviewModalShell).toEqual({ title: 'theme.html', views, onClose, icons, ref: null });
+    expect(seen.FileDropzone).toEqual({ accept: '.pdf', prompt: 'Drop here', onFiles, ref: null });
     expect((seen.I18nProvider as { initialLocale: string }).initialLocale).toBe('en');
   });
 
@@ -210,29 +214,33 @@ describe('admin kit: B5 additions (A-K2-0a remainder + A-K2-0.J)', () => {
       useTabBarKeyboard: { onKeyDown: () => {} }, useSerialWrites: { run: async <T,>({ task }: { task: () => Promise<T> }) => task() },
       useCodeWrap: { wrap: true, toggleWrap: () => {} },
     };
+    const useFileTreeImpl = vi.fn(() => 'file-tree-sentinel' as unknown as ReturnType<AdminKitHooks['useAgentPluginFileTree']>);
     const useInfoTipImpl = vi.fn(() => 'info-tip-sentinel' as unknown as ReturnType<AdminKitHooks['useInfoTip']>);
     const usePanelPositionImpl = vi.fn(() => 'panel-sentinel' as unknown as ReturnType<AdminKitHooks['usePanelPosition']>);
     const useSelectDropdownImpl = vi.fn(() => 'dropdown-sentinel' as unknown as ReturnType<AdminKitHooks['useSelectDropdown']>);
     const useTabBarKeyboardImpl = vi.fn(() => sentinels.useTabBarKeyboard);
     const kit = fakeAdminKit({ hooks: {
       useTabBarKeyboard: useTabBarKeyboardImpl, useSerialWrites: () => sentinels.useSerialWrites, useCodeWrap: () => sentinels.useCodeWrap,
-      useInfoTip: useInfoTipImpl, usePanelPosition: usePanelPositionImpl, useSelectDropdown: useSelectDropdownImpl,
+      useAgentPluginFileTree: useFileTreeImpl, useInfoTip: useInfoTipImpl, usePanelPosition: usePanelPositionImpl, useSelectDropdown: useSelectDropdownImpl,
     } });
     const tabBarArgs = { tabs: [{ id: 'a', label: 'A' }], activeId: 'a', onChange: () => {} };
+    const fileTreeArgs = { files: [{ relativePath: 'a/b.md', sizeBytes: 0, content: null, omitted: null }], selectedPath: null, onOpen: () => {} };
     const panelArgs = { open: true, triggerRef: createRef<HTMLButtonElement>(), panelRef: createRef<HTMLDivElement>(),
       searchInputRef: createRef<HTMLInputElement>(), showSearch: false, onOutOfView: () => {} };
     const dropdownArgs = { value: 'b', onChange: () => {}, options: [{ value: 'b', label: 'B', group: 'Pages' }] };
     const read = renderHook(() => ({
       tabBar: useTabBarKeyboard(tabBarArgs, {}), serial: useSerialWrites(), codeWrap: useCodeWrap({}, {}),
-      infoTip: useInfoTip({}, { placement: 'bottom' }), panel: usePanelPosition(panelArgs, {}), dropdown: useSelectDropdown(dropdownArgs, { disabled: true }),
+      fileTree: useAgentPluginFileTree(fileTreeArgs, { locale: 'de' }), infoTip: useInfoTip({}, { placement: 'bottom' }), panel: usePanelPosition(panelArgs, {}), dropdown: useSelectDropdown(dropdownArgs, { disabled: true }),
     }), { wrapper: wrap(kit) }).result.current;
     expect(read.tabBar).toBe(sentinels.useTabBarKeyboard);
     expect(read.serial).toBe(sentinels.useSerialWrites);
     expect(read.codeWrap).toBe(sentinels.useCodeWrap);
+    expect(read.fileTree).toBe('file-tree-sentinel');
     expect(read.infoTip).toBe('info-tip-sentinel');
     expect(read.panel).toBe('panel-sentinel');
     expect(read.dropdown).toBe('dropdown-sentinel');
     expect(useTabBarKeyboardImpl).toHaveBeenCalledWith(tabBarArgs, {});
+    expect(useFileTreeImpl).toHaveBeenCalledWith(fileTreeArgs, { locale: 'de' });
     expect(useInfoTipImpl).toHaveBeenCalledWith({}, { placement: 'bottom' });
     expect(usePanelPositionImpl).toHaveBeenCalledWith(panelArgs, {});
     expect(useSelectDropdownImpl).toHaveBeenCalledWith(dropdownArgs, { disabled: true });
@@ -470,5 +478,64 @@ describe('admin kit: plugin admin-surface values and provider-setting rule', () 
     const kit = fakeAdminKit({ components: { InfoTip: (props) => { seen.push(props); return null; } } });
     renderWithAdminKit(<InfoTip label="x" useTip={useTip} />, { kit });
     expect(seen[0]?.useTip).toBe(useTip);
+  });
+});
+
+describe('admin kit: chat components and run values (x8)', () => {
+  const noop = () => {};
+  it('renders each same-name facade through the injected implementation, passing props intact', () => {
+    const seen: unknown[] = [];
+    const chat: Partial<AdminKitChat> = {
+      ChatPane: (props) => { seen.push(props); return <div data-testid="inj-pane">{props.title}</div>; },
+      ChatSettingsDialog: ({ open }) => <div data-testid="inj-dialog">{String(open)}</div>,
+      JiniChatProvider: ({ children }) => <section data-testid="inj-provider">{children}</section>,
+      ConversationList: ({ conversations, triggerLabel }) => <div data-testid="inj-list">{conversations.length}:{triggerLabel}</div>,
+      ChatSettingsSegmented: ({ name }) => <div data-testid="inj-seg">{name}</div>,
+      McpUiSurfaceCard: ({ name }) => <div data-testid="inj-mcp">{name}</div>,
+      A2uiSurfaceCard: ({ name }) => <div data-testid="inj-a2ui">{name}</div>,
+    };
+    const transport = { startRun: async () => ({ runId: 'r' }), reattachRun: async () => {}, fetchRunStatus: async () => null, stopRun: async () => {} };
+    const cardProps = { name: 'card', events: [], runStreaming: false, runSucceeded: false, runId: undefined };
+    renderWithAdminKit(<JiniChatProvider transport={transport}>
+      <ChatPane transport={transport} title="Assistant" />
+      <ChatSettingsDialog open onClose={noop} displaySections={[]} permissions={{ enabled: true, canEdit: true, capabilities: [], onChange: noop }} />
+      <ConversationList conversations={[{ id: 'c1', title: null }]} activeConversationId="c1" onSelect={noop} onCreate={noop} triggerLabel="Chats" />
+      <ChatSettingsSegmented name="tools" items={[]} />
+      <McpUiSurfaceCard {...cardProps} sandboxProxyUrl={new URL('https://proxy.test/')} />
+      <A2uiSurfaceCard {...cardProps} clock={{ nowMs: () => 0 }} />
+    </JiniChatProvider>, { kit: fakeAdminKit({ chat }) });
+    expect(screen.getByTestId('inj-pane').textContent).toBe('Assistant');
+    expect(screen.getByTestId('inj-dialog').textContent).toBe('true');
+    expect(screen.getByTestId('inj-list').textContent).toBe('1:Chats');
+    expect(screen.getByTestId('inj-seg').textContent).toBe('tools');
+    expect(screen.getByTestId('inj-mcp').textContent).toBe('card');
+    expect(screen.getByTestId('inj-a2ui').textContent).toBe('card');
+    expect((seen[0] as { transport: unknown }).transport).toBe(transport);
+  });
+  it('hands the uploader factory out as the injected function, uncopied', () => {
+    const upload = async () => [];
+    const chat: Partial<AdminKitChat> = { createDaemonAttachmentUploader: vi.fn(() => upload) };
+    const wrapper = ({ children }: { children: ReactNode }) => <AdminKitProvider kit={fakeAdminKit({ chat })}>{children}</AdminKitProvider>;
+    const values = renderHook(() => useAdminKitChatRunValues(), { wrapper }).result.current;
+    const required = { baseUrl: '', fetch: globalThis.fetch };
+    expect(values.createDaemonAttachmentUploader(required, { concurrency: 1 })).toBe(upload);
+    expect(chat.createDaemonAttachmentUploader).toHaveBeenCalledWith(required, { concurrency: 1 });
+  });
+});
+
+describe('admin kit: settings slots (SeeMore, SearchableModelSelect)', () => {
+  it('renders SeeMore and SearchableModelSelect through the injected host components with the screen props', () => {
+    const seen: Record<string, unknown> = {};
+    const kit = fakeAdminKit({ components: {
+      SeeMore: (props) => { seen.SeeMore = props; return <span data-testid="see-more">{props.children}</span>; },
+      SearchableModelSelect: (props) => { seen.Model = props; return <span data-testid="model-select">{props.value}</span>; },
+    } });
+    const onChange = () => {};
+    renderWithAdminKit(<><SeeMore lines={1} moreLabel="More">body</SeeMore>
+      <SearchableModelSelect models={[{ id: 'm1', label: 'M1' }]} value="m1" onChange={onChange} ariaLabel="Model" searchPlaceholder="Search" /></>, { kit });
+    expect(screen.getByTestId('see-more').textContent).toBe('body');
+    expect(screen.getByTestId('model-select').textContent).toBe('m1');
+    expect(seen.SeeMore).toMatchObject({ lines: 1, moreLabel: 'More' });
+    expect(seen.Model).toMatchObject({ ariaLabel: 'Model', searchPlaceholder: 'Search', onChange });
   });
 });

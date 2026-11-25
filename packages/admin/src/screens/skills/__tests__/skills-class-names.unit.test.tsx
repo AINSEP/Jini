@@ -29,7 +29,7 @@ function expectOnlyBoundClasses(container: HTMLElement) {
   expect(classes.filter(name => !name.startsWith("jini-") && !bound.has(name))).toEqual([]);
 }
 
-it("renders a skill row's shared plugin-row look only through the host's bound class names", () => {
+it("renders a skill row's shared jini-plugin-row look only through the host's bound class names", () => {
   const row: SkillRowView = { skill, busy: false, expanded: false, detailId: "d1", onToggleExpanded() {}, onToggleEnabled() {}, onRemove() {}, onInspect() {} };
   const view = renderWithAdminKit(<ul><SkillRow row={row} PlainTextBlocks={PlainTextBlocks} classNames={CLASS_NAMES} /></ul>);
   expect(view.container.querySelector("li")?.className).toBe("host-row");

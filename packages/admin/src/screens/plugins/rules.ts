@@ -109,6 +109,9 @@ export interface PackageFilesViewState {
   readonly listNotice: string | null;
 }
 
+/** The viewer's own locale, so the package-file tree orders siblings the way the rest of the host sorts. */
+export const PACKAGE_FILE_TREE_LOCALE = new Intl.Collator(undefined, { numeric: true, sensitivity: "base" }).resolvedOptions().locale;
+
 /**
  * Builds the plugins screens' rule functions for one host. The host calls it once and exports the
  * returned names, so the screens import them as plain functions.
@@ -117,8 +120,6 @@ export function createPluginRules({ productName, translate: t, describeApiError:
   /** Resource names on the existing assistant content-refresh bus. Unknown scope refreshes both. */
   const PLUGINS_RESOURCE = "plugins";
   const AGENT_PLUGINS_RESOURCE = "agent-plugins";
-  /** The viewer's own locale, so the package-file tree orders siblings the way the rest of the host sorts. */
-  const PACKAGE_FILE_TREE_LOCALE = new Intl.Collator(undefined, { numeric: true, sensitivity: "base" }).resolvedOptions().locale;
 
   /**
    * @file Pure logic for the `plugins` feature — everything that computes a value rather than
@@ -735,7 +736,7 @@ export function createPluginRules({ productName, translate: t, describeApiError:
   /** One settled package-files read: the listing, or the failure text in its place. */
 
   /** One query's settled read: its listing, else its error text, else `null` while it loads. */
-  function packageFilesRead(query: { data?: PackageFilesListing; error?: Error | null }): PackageFilesRead | null {
+  function packageFilesRead(query: { data?: PackageFilesListing | undefined; error?: Error | null | undefined }): PackageFilesRead | null {
     if (query.data) return { listing: query.data, error: null };
     if (query.error) return { listing: null, error: query.error.message };
     return null;
