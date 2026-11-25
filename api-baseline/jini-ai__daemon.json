@@ -119,7 +119,7 @@
    "RoutineRunStatus": "type:fcd4dcd06c",
    "RoutineRunTrigger": "type:509decb1c5",
    "RoutineSchedule": "type:808e25b68d",
-   "RoutineService": "class:3351ce420c",
+   "RoutineService": "class:e1497a322c",
    "RoutineStore": "interface:fefd76cea3",
    "RoutineUpdateInput": "interface:9863b91199",
    "RoutingToolExecutorRequired": "interface:c943a5c78c",
@@ -957,6 +957,8 @@
  "./surface-exchanges": {
   "types": "./dist/surface-exchanges.d.ts",
   "symbols": {
+   "ApprovalReceipt": "type:fa9c8f1b37",
+   "ApprovalReceiptObserver": "type:9018e3e9e8",
    "BoundConfirmationBinding": "interface:cc119c2925",
    "BoundConfirmationGate": "interface:dd1489e1c1",
    "BoundConfirmationGatePorts": "interface:d073d072d2",

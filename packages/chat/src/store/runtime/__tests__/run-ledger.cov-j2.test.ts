@@ -218,8 +218,9 @@ describe('createChatRunLedger().reconcileInterrupted', () => {
     expect(transaction).not.toHaveBeenCalled(); expect(row()).toEqual(before); expect(chatUpdatedAt()).toBe(updated);
   });
   it('admission rejection is treated as leave-owned', async () => {
-    const { ledger, history } = setup(); await seed(history());
-    const log = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const { history } = setup(); await seed(history());
+    const log = vi.fn();
+    const ledger = createChatRunLedger({ kernel: f.kernel, isDaemonRunId }, { now: () => CLOCK, log });
     const recover = vi.fn(async () => true);
     expect(await ledger.reconcileInterrupted({}, { admit: async () => { throw new Error('private prompt and context'); }, recover })).toBe(0);
     expect(recover).not.toHaveBeenCalled(); expect(row().run_status).toBe('running');

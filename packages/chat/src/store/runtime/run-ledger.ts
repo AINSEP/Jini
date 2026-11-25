@@ -126,7 +126,8 @@ function keepToolCheckpoints(saved: readonly AgentEvent[], incoming: readonly Ag
  */
 export function createChatRunLedger<DB extends ChatDatabase>(
   { kernel: hostKernel, isDaemonRunId }: { kernel: ChatKernel<DB>; isDaemonRunId: RunIdPolicy },
-  { now = () => Date.now() }: { now?: () => number } = {},
+  { now = () => Date.now(), log = (code: string) => console.error(code) }:
+  { now?: () => number; log?: (code: string, detail?: Record<string, never>) => void } = {},
 ): ChatRunLedger {
   const kernel = chatKernelTables<DB, ChatDatabase>({ kernel: hostKernel }, {});
   const version = kernel.dialect === 'sqlite' ? sqliteReadVersion({ kernel }) : sql<string>`cast(ai_chat_messages.xmin as text)`;
@@ -304,6 +305,10 @@ export function createChatRunLedger<DB extends ChatDatabase>(
           .orderBy("ai_chat_messages.id")
           .execute()
       );
+      const admitSafely = async (turn: InterruptedChatTurn): Promise<'recover' | 'leave-owned'> => {
+        try { return await optional.admit?.({ turn }, {}) ?? 'recover'; }
+        catch { log('CHAT_RUN_RECOVERY_ADMISSION_FAILED'); return 'leave-owned'; }
+      };
       let count = 0;
       for (const row of stuck) {
         const turn: InterruptedChatTurn = {
@@ -315,10 +320,10 @@ export function createChatRunLedger<DB extends ChatDatabase>(
             runStatus: row.run_status as "queued" | "running",
           },
         };
-        const admitSafely = async (turn: InterruptedChatTurn) => {
-          try { return await optional.admit?.({ turn }, {}) ?? 'recover'; }
-          catch { console.error('CHAT_RUN_RECOVERY_ADMISSION_FAILED'); return 'leave-owned'; }
-        };
+        // The host may own a class of turns whose lifecycle must not race generic boot repair (a
+        // routine run is recorded Interrupted, never re-run). Admission runs outside any write
+        // transaction and fails closed: a throwing port leaves the turn alone, and the log carries
+        // only a code, never the error text, which could echo prompt or context.
         if ((await admitSafely(turn)) === 'leave-owned') continue;
         const dispatched = await optional.recover?.(turn);
         if (dispatched) { count += 1; continue; }
