@@ -57,6 +57,8 @@
       "./admin-http/routes/api-keys/create-principal": "universal",
       "./admin-http/routes/api-keys/issue": "universal",
       "./admin-http/routes/api-keys/revoke": "universal",
+      "./public-http/routes/newsletter/confirm": "universal",
+      "./public-http/routes/newsletter/unsubscribe": "universal",
       "./admin-http/auth": "node",
       "./identity/boot-session-token": "node",
       "./identity/builtin-role-grants": "universal",
@@ -117,12 +119,11 @@
       "./members/write-service": "node"
     },
     "optionalPeers": {
-      "kysely": "opt-in: sql identity stores; import @jini-ai/user-management/server/sql — SQL identity stores could not load kysely. Install kysely to enable this feature, or check its installed version and native binaries.",
+      "kysely": "opt-in: sql storage adapters; import @jini-ai/user-management/members/repo — SQL storage adapters could not load kysely. Install kysely to enable this feature, or check its installed version and native binaries.",
       "argon2": "opt-in: argon2 password hashing; import @jini-ai/user-management/server — Argon2 password hashing could not load argon2. Install argon2 to enable this feature, or check its installed version and native binaries.",
       "@jini-ai/ui-kit": "opt-in: ui kit integrations; import @jini-ai/user-management/admin/react — UI kit integrations could not load @jini-ai/ui-kit. Install @jini-ai/ui-kit to enable this feature, or check its installed version and native binaries.",
       "react": "opt-in: react user-management ui; import @jini-ai/user-management/react — React user-management UI could not load react. Install react to enable this feature, or check its installed version.",
-      "react-dom": "opt-in: react user-management ui; import @jini-ai/user-management/admin/react — React user-management UI could not load react-dom. Install react-dom to enable this feature, or check its installed version.",
-      "kysely": "opt-in: sql storage adapters; import @jini-ai/user-management/members/repo — SQL storage adapters could not load kysely. Install kysely to enable this feature, or check its installed version and native binaries."
+      "react-dom": "opt-in: react user-management ui; import @jini-ai/user-management/admin/react — React user-management UI could not load react-dom. Install react-dom to enable this feature, or check its installed version."
     },
     "isolation": {
       "entries": {
@@ -375,6 +376,16 @@
       "types": "./dist/admin-http/routes/api-keys/revoke.d.ts",
       "import": "./dist/admin-http/routes/api-keys/revoke.js",
       "default": "./dist/admin-http/routes/api-keys/revoke.js"
+    },
+    "./public-http/routes/newsletter/confirm": {
+      "types": "./dist/public-http/routes/newsletter/confirm.d.ts",
+      "import": "./dist/public-http/routes/newsletter/confirm.js",
+      "default": "./dist/public-http/routes/newsletter/confirm.js"
+    },
+    "./public-http/routes/newsletter/unsubscribe": {
+      "types": "./dist/public-http/routes/newsletter/unsubscribe.d.ts",
+      "import": "./dist/public-http/routes/newsletter/unsubscribe.js",
+      "default": "./dist/public-http/routes/newsletter/unsubscribe.js"
     },
     "./admin-http/auth": {
       "types": "./dist/admin-http/auth/index.d.ts",
@@ -696,8 +707,7 @@
     "argon2": "^0.44.0",
     "kysely": "^0.29.6",
     "react": "^18.3.0 || ^19.0.0",
-    "react-dom": "^18.3.0 || ^19.0.0",
-    "kysely": "^0.29.6"
+    "react-dom": "^18.3.0 || ^19.0.0"
   },
   "devDependencies": {
     "@jini-ai/admin": "workspace:*",
@@ -719,8 +729,7 @@
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
     "typescript": "^5.6.0",
-    "vitest": "^3.2.6",
-    "kysely": "^0.29.6"
+    "vitest": "^3.2.6"
   },
   "peerDependenciesMeta": {
     "argon2": {
@@ -736,9 +745,6 @@
       "optional": true
     },
     "react-dom": {
-      "optional": true
-    },
-    "kysely": {
       "optional": true
     }
   }

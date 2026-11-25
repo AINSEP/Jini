@@ -288,6 +288,8 @@
       "./public-http/routes/members/me": "universal",
       "./public-http/routes/members/reset-password": "universal",
       "./public-http/routes/members/password-sign-in": "universal",
+      "./public-http/routes/members/sign-in": "universal",
+      "./public-http/routes/members/complete-sign-in": "universal",
       "./public-http/routes/members/set-password": "universal",
       "./admin-http/routes/commerce/status": "universal",
       "./admin-http/routes/consent/routes": "universal",
@@ -2391,6 +2393,16 @@
       "types": "./dist/public-http/routes/members/password-sign-in.d.ts",
       "import": "./dist/public-http/routes/members/password-sign-in.js",
       "default": "./dist/public-http/routes/members/password-sign-in.js"
+    },
+    "./public-http/routes/members/sign-in": {
+      "types": "./dist/public-http/routes/members/sign-in.d.ts",
+      "import": "./dist/public-http/routes/members/sign-in.js",
+      "default": "./dist/public-http/routes/members/sign-in.js"
+    },
+    "./public-http/routes/members/complete-sign-in": {
+      "types": "./dist/public-http/routes/members/complete-sign-in.d.ts",
+      "import": "./dist/public-http/routes/members/complete-sign-in.js",
+      "default": "./dist/public-http/routes/members/complete-sign-in.js"
     },
     "./public-http/routes/members/set-password": {
       "types": "./dist/public-http/routes/members/set-password.d.ts",
