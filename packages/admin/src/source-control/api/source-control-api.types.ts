@@ -30,6 +30,9 @@ export interface AdminSourceControlProviderDescriptor {
 export interface AdminSourceControlProvidersSnapshot {
   providers: AdminSourceControlProviderDescriptor[];
   switchedOff: { id: AdminSourceControlProviderId; pluginId: string }[];
+  /** Why an installed plugin's hosts were not loaded (one sentence each, naming the plugin), so an
+   *  empty list can say why instead of showing nothing. */
+  refusals: string[];
 }
 
 /**

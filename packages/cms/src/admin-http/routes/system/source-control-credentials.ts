@@ -32,11 +32,13 @@ interface SourceControlBaseDeps { workspaceId: string; storeErrors: CredentialSt
 
 /** One provider a plugin declares; `credential`/`i18n` are opaque form data the page renders. */
 export interface SourceControlProviderDescriptor { readonly id: string; readonly label: string; readonly credential?: unknown; readonly i18n?: unknown }
-/** The loaded provider registry: providers and switched-off hosts. Plugin load refusals are the host
- *  loader's to report (it owns its log); this spec never reads them, so they cannot reach the response. */
+/** The loaded provider registry: providers, switched-off hosts, and plugin load refusals. Logging the
+ *  refusals stays the host loader's (it owns its log); this spec only copies them into the response
+ *  so the page can say why a host is missing (see `providerList`). */
 export interface SourceControlProviderRegistry {
   list(): readonly { readonly descriptor: SourceControlProviderDescriptor }[];
   readonly switchedOff?: Iterable<readonly [string, string]>;
+  readonly refusals: readonly string[];
 }
 /** Host loader for this workspace's provider registry. */
 export type SourceControlProvidersLoader = (args: { workspaceId: string }) => Promise<SourceControlProviderRegistry>;
@@ -66,8 +68,11 @@ const rowsFor = ({ deps }: { deps: SourceControlBaseDeps }, _optional: Record<st
 const authorizeSourceControl = ({ authorize }: { authorize: Parameters<typeof authorizeCredentials>[0]["authorize"] }, _optional: Record<string, never> = {}) =>
   authorizeCredentials({ authorize, permission: PERMISSION, entityType: ENTITY_TYPE });
 
-/** The page's provider rows; `credential`/`i18n` only when declared. Plugin load refusals never
- *  reach the response: only the named fields are copied out. @complexity O(p + s). */
+/** The page's provider rows; `credential`/`i18n` only when declared. Plugin load refusals are sent
+ *  too: with them withheld, an installed-and-enabled plugin whose hosts were refused (e.g. a copy the
+ *  trust gate rejects) left the page an empty list with no reason. They are plugin-naming sentences
+ *  built for the operator, behind this route's own permission, and carry no credential.
+ *  @complexity O(p + s + r). */
 function providerList({ registry }: { registry: SourceControlProviderRegistry }, _optional: Record<string, never> = {}) {
   return {
     providers: registry.list().map(({ descriptor }) => ({
@@ -77,6 +82,7 @@ function providerList({ registry }: { registry: SourceControlProviderRegistry },
       ...(descriptor.i18n !== undefined ? { i18n: descriptor.i18n } : {}),
     })),
     switchedOff: [...(registry.switchedOff ?? [])].map(([id, pluginId]) => ({ id, pluginId })),
+    refusals: [...registry.refusals],
   };
 }
 
