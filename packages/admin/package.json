@@ -707,6 +707,7 @@
       "./screens/voice-input/voice-unavailability": "universal",
       "./screens/authentication/authentication.css": "browser",
       "./screens/database/Database.hooks": "browser",
+      "./screens/database/Database": "browser",
       "./screens/email/email.css": "browser",
       "./screens/email/EmailProviderTab.hooks": "browser",
       "./screens/email/hooks/use-email-template-view.hooks": "browser",
@@ -4511,6 +4512,11 @@
       "types": "./dist/screens/database/Database.hooks.d.ts",
       "import": "./dist/screens/database/Database.hooks.js",
       "default": "./dist/screens/database/Database.hooks.js"
+    },
+    "./screens/database/Database": {
+      "types": "./dist/screens/database/Database.d.ts",
+      "import": "./dist/screens/database/Database.js",
+      "default": "./dist/screens/database/Database.js"
     },
     "./screens/email/email.css": "./src/screens/email/email.css",
     "./screens/email/EmailProviderTab.hooks": {
