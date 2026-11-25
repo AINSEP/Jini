@@ -7,7 +7,7 @@ it("setup attaches once to the injected hook and counts the whole draft body", a
   const addFilter = vi.fn((hook: string, callback: BeforeSaveFilter) => { expect(hook).toBe("injected.before-save"); filter = callback; });
   const definePlugin = vi.fn((definition: DefinedPlugin["definition"]) => ({ definition }));
   const plugin = createWordCountPlugin({ definePlugin, beforeSaveHook: "injected.before-save" });
-  await plugin.definition.setup({ addFilter } as PluginSdk);
+  await plugin.definition.setup({ addFilter } as unknown as PluginSdk);
   expect(definePlugin).toHaveBeenCalledTimes(1);
   expect(addFilter).toHaveBeenCalledTimes(1);
   if (!filter) throw new Error("missing filter");

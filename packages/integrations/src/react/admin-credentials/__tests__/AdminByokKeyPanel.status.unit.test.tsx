@@ -7,7 +7,7 @@ afterEach(cleanup);
 
 it("asks for the current provider's key instead of claiming the other endpoint's stored key", () => {
   const resolveByokFooterStatusLine: AdminByokKeyFooterProps["resolveByokFooterStatusLine"] =
-    ({ isStored }, { storedKeyIsForOtherEndpoint, t = key => key } = {}) =>
+    ({ isStored }, { storedKeyIsForOtherEndpoint, t = (key: string) => key } = {}) =>
       t(storedKeyIsForOtherEndpoint
         ? "Your saved key is for a different provider. Paste a key for this one."
         : isStored ? "Stored on the server, encrypted. Paste a new key to replace it." : "Paste your key, then press Save key.");

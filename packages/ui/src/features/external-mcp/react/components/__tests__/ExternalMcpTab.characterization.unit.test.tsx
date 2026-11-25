@@ -3,8 +3,8 @@ import { render, screen, waitFor, within } from '../../../../../__tests__/ui-kit
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
 import { I18nProvider, type useT } from '../../../../i18n/index.js';
-import type { SourceConfigPort } from '../../../../jini-ui-source-config-list/ports.js';
-import type { SourceConfigItem, SourceFieldSpec } from '../../../../jini-ui-source-config-list/types.js';
+import type { SourceConfigPort } from '../../../../source-config-list/ports.js';
+import type { SourceConfigItem, SourceFieldSpec } from '../../../../source-config-list/types.js';
 import { ExternalMcpTab, defaultExternalMcpTabHooks, type ExternalMcpTabProps } from '../ExternalMcpTab.js';
 
 const fields: readonly SourceFieldSpec[] = [{ key: 'id', label: 'Server ID', kind: 'text', required: true }];
