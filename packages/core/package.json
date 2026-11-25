@@ -237,6 +237,7 @@
       "./contracts/site/admin-surfaces-connections": "universal",
       "./contracts/site/api-connections-hosted-mcp": "universal",
       "./contracts/site/media-providers-catalog": "universal",
+      "./contracts/site/media-provider-contribution": "universal",
       "./contracts/site/core-custom-credential-categories": "universal",
       "./contracts/site/packaging-electron": "universal",
       "./contracts/site/platform-process": "universal",
@@ -1447,6 +1448,11 @@
       "types": "./dist/contracts/site/media-providers-catalog.d.ts",
       "import": "./dist/contracts/site/media-providers-catalog.js",
       "default": "./dist/contracts/site/media-providers-catalog.js"
+    },
+    "./contracts/site/media-provider-contribution": {
+      "types": "./dist/contracts/site/media-provider-contribution.d.ts",
+      "import": "./dist/contracts/site/media-provider-contribution.js",
+      "default": "./dist/contracts/site/media-provider-contribution.js"
     },
     "./contracts/site/core-custom-credential-categories": {
       "types": "./dist/contracts/site/core-custom-credential-categories.d.ts",
