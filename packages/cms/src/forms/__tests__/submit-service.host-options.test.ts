@@ -355,12 +355,14 @@ test("submitForm: a duplicate reaching the claim before the first insert complet
   const releaseFirstInsert = deferred();
   const secondReachedClaim = deferred();
 
-  // The first copy's clock reads fall before a minute boundary; once its insert is in flight the
-  // clock moves past it, so every read the duplicate makes lands in the next minute.
+  // The first copy reads the clock just before a minute boundary, the second just after it.
+  // Here that is tied to steps: once the first insert is in flight the clock moves past the
+  // boundary, so every read the duplicate makes lands in the next minute.
   const boundary = 1000 * 60_000;
   let pastBoundary = false;
   const clock = { nowMs: () => (pastBoundary ? boundary + 1 : boundary - 1) };
 
+  // The first insert stalls, so the second copy decides while the first row is not yet written.
   let inserts = 0;
   const holdFirst = <A extends unknown[], R>(write: (...args: A) => Promise<R>) => async (...args: A): Promise<R> => {
     if (++inserts === 1) { steps.push("first insert entered"); firstInsertEntered.resolve(); await releaseFirstInsert.promise; }
