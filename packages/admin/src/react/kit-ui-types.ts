@@ -152,3 +152,20 @@ export interface SearchableModelSelectProps {
   searchInputTestId?: string | undefined;
   agentHandle?: string | false | undefined;
 }
+
+/**
+ * Props of the host's drag/drop/click-to-browse file staging zone (`FileDropzone`): the data and callback
+ * props a screen passes. The zone's own hook overrides (injection seams for the UI library's tests) are
+ * not part of the kit's surface, so a screen cannot reach past the kit into the zone's internals.
+ */
+export interface FileDropzoneProps {
+  label?: string | undefined; prompt?: string | undefined; helper?: string | undefined; accept?: string | undefined;
+  directory?: boolean | undefined; enablePaste?: boolean | undefined;
+  files?: File[] | undefined; onRemove?: ((file: File) => void) | undefined;
+  names?: string[] | undefined; onRemoveName?: ((name: string) => void) | undefined;
+  /** Resolved files ready to stage: always the fully directory-expanded flat list, whatever the origin (drag, click, paste). */
+  onFiles: (files: File[]) => void;
+  onZoneClick?: (() => void) | undefined; onError?: ((message: string | null) => void) | undefined;
+  onProcessingStart?: (() => () => void) | undefined; onBrowseFolder?: (() => void) | undefined;
+  secondaryAction?: { label: string; onClick: () => void } | undefined;
+}

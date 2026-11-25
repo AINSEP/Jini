@@ -1,9 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type Dispatch, type SetStateAction } from "react";
 
 import type { AdminTrashItemDto } from "@jini-ai/core/contracts/site/cms-trash";
-import { useFetchQuery, useInvalidate } from "@jini-ai/ui/fetch-query";
+import { useFetchQuery, useInvalidate, useSettlementGeneration } from "../../../react/kit.js";
 import { useContentRefreshSubscription } from "../../../shell/hooks/use-content-refresh-subscription.hooks.js";
-import { useSettlementGeneration } from "@jini-ai/ui/panel-kit";
 import {
   allVisibleSelected,
   describePurgeReport,

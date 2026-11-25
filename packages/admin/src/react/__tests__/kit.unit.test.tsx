@@ -3,7 +3,7 @@ import { createRef, type ReactNode } from 'react';
 import { describe, expect, it, vi } from 'vitest';
 import { AdminKitProvider, SearchableModelSelect, SeeMore, Button, Icon, InfoTip, TabBar, type AdminKitChat, type InfoTipProps, type KitIconName, useAdminKitChatPosters, useAdminKitValues, useAdminThemeKit, useChatT, useDirtyGuard, useFetchQuery, useMediaProviderRules, useT } from '../kit.js';
 import {
-  CodeWithLines, CodeWrapToggle, I18nProvider, PreviewModalShell, RemixIcon, SettingsDialogShell, Toast,
+  CodeWithLines, CodeWrapToggle, FileDropzone, I18nProvider, PreviewModalShell, RemixIcon, SettingsDialogShell, Toast,
   useAdminKitChatValues, useCodeWrap, useCopyToClipboard, useFabPosition, useInfoTip, usePanelPosition, useSelectDropdown, useSerialWrites, useTabBarKeyboard,
   useTabbedDialog, useCursorPages, useDebouncedHtmlPreview, useExecutionCredential, useI18n, useSettingsSlice, useStandingDraftAutosave, useWiredCopyToClipboard,
   A2uiSurfaceCard, ChatPane, ChatSettingsDialog, ChatSettingsSegmented, ConversationList, JiniChatProvider, McpUiSurfaceCard, useAdminKitChatRunValues,
@@ -178,11 +178,12 @@ describe('admin kit: B5 additions (A-K2-0a remainder + A-K2-0.J)', () => {
     const record = (name: string) => (props: object) => { seen[name] = props; return <span data-testid={name}>{(props as { children?: ReactNode }).children}</span>; };
     const kit = fakeAdminKit({ components: {
       RemixIcon: record('RemixIcon'), Toast: record('Toast'), I18nProvider: record('I18nProvider'), SettingsDialogShell: record('SettingsDialogShell'),
-      CodeWithLines: record('CodeWithLines'), CodeWrapToggle: record('CodeWrapToggle'), PreviewModalShell: record('PreviewModalShell'),
+      CodeWithLines: record('CodeWithLines'), CodeWrapToggle: record('CodeWrapToggle'), PreviewModalShell: record('PreviewModalShell'), FileDropzone: record('FileDropzone'),
     } });
     const onDismiss = () => {};
     const onToggle = () => {};
     const onClose = () => {};
+    const onFiles = () => {};
     const t = (key: string) => key;
     const tabs = [{ id: 'general', label: 'General', panel: <p>panel</p> }];
     const views = [{ id: 'source', label: 'Source', custom: <p>code</p> }];
@@ -195,6 +196,7 @@ describe('admin kit: B5 additions (A-K2-0a remainder + A-K2-0.J)', () => {
         <CodeWithLines text={'a\nb'} wrap />
         <CodeWrapToggle wrap={false} onToggle={onToggle} t={t} agentHandleId="wrap-toggle" />
         <PreviewModalShell title="theme.html" views={views} onClose={onClose} icons={icons} />
+        <FileDropzone accept=".pdf" prompt="Drop here" onFiles={onFiles} />
       </I18nProvider>, { kit });
     expect(screen.getByTestId('I18nProvider')).toBeTruthy();
     expect(seen.RemixIcon).toEqual({ name: 'group-line', size: 16, ref: null });
@@ -203,6 +205,7 @@ describe('admin kit: B5 additions (A-K2-0a remainder + A-K2-0.J)', () => {
     expect(seen.CodeWithLines).toEqual({ text: 'a\nb', wrap: true, ref: null });
     expect(seen.CodeWrapToggle).toEqual({ wrap: false, onToggle, t, agentHandleId: 'wrap-toggle', ref: null });
     expect(seen.PreviewModalShell).toEqual({ title: 'theme.html', views, onClose, icons, ref: null });
+    expect(seen.FileDropzone).toEqual({ accept: '.pdf', prompt: 'Drop here', onFiles, ref: null });
     expect((seen.I18nProvider as { initialLocale: string }).initialLocale).toBe('en');
   });
 

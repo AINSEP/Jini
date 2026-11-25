@@ -3,9 +3,8 @@ import { useLayoutEffect, useRef, useState } from "react";
 import { DataTable } from "../../react/components/DataTable.js";
 import { RowMenu, type RowMenuItem } from "../../react/components/RowMenu/RowMenu.js";
 import { agentHandle } from "@jini-ai/core/agent-handles";
-import { FileDropzone, Icon, Toast } from "@jini-ai/ui";
+import { FileDropzone, Icon, TabBar, Toast } from "../../react/kit.js";
 
-import { TabBar } from "@jini-ai/ui/tab-strip";
 import type { AdminMedia } from "@jini-ai/core/contracts/site/cms-admin-media";
 import { navigate } from "../../shell/lib/router.js";
 import type { LibraryController, LibraryPreviewState, LibraryUploadRow } from "./hooks/use-library.hooks.js";

@@ -1,7 +1,7 @@
 import { DataTable, type DataTableColumn } from "../../react/components/DataTable.js";
 import { ConfirmDialog } from "../../react/components/ConfirmDialog/ConfirmDialog.js";
 import { agentHandle, buildAgentListHandles } from "@jini-ai/core/agent-handles";
-import { InfoTip } from "@jini-ai/ui/admin-widgets";
+import { InfoTip } from "../../react/kit.js";
 
 import type { AdminTrashItemDto } from "@jini-ai/core/contracts/site/cms-trash";
 
