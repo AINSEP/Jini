@@ -1,5 +1,6 @@
 import type { AdminExternalMcpServer } from "@jini-ai/core/contracts/site/cms-external-mcp";
 import type { AdminExecutionCredential, AdminExecutionCredentialPatch, SiteAssistantCredential, SiteAssistantCredentialPatch } from "@jini-ai/core/contracts/site/api-ai-assistant-api-types";
+import type { MediaProviderFields } from "@jini-ai/ui/core";
 import type { AdminMediaProviderMap } from "../../../screens/media/api/media-api.js";
 
 /**
@@ -25,11 +26,14 @@ export interface OtherCredentialsPort {
   deleteAdminByokCredential(): Promise<{ data: AdminExecutionCredential }>;
 
   getMediaProviders(): Promise<AdminMediaProviderMap>;
-  /** Sends the WHOLE map — a provider absent from `providers` is deleted server-side (`put-providers.ts`'s
-   *  own doc), so a caller replacing or removing ONE provider's key must still round-trip every other
-   *  provider's own entry unchanged. See `use-other-credentials.hooks.ts`'s `replaceMediaProviderKey`/
-   *  `removeMediaProviderKey` for where that reconstruction happens. */
-  saveMediaProviders(providers: AdminMediaProviderMap, optional?: Record<string, never>): Promise<AdminMediaProviderMap>;
+  /** Merges ONE provider's fields into its own stored row; an omitted `apiKey`/`baseUrl`/`model` keeps
+   *  the stored value, and no other provider is named. Deliberately not the whole map: a map built from
+   *  this page's snapshot re-sends every other provider as it was at load, undoing a newer save from
+   *  another window, and deletes any provider missing from that snapshot. */
+  patchMediaProvider(required: { providerId: string; fields: MediaProviderFields }, optional?: Record<string, never>): Promise<AdminMediaProviderMap>;
+  /** Deletes exactly the named provider's stored credentials — deletion is only ever this explicit
+   *  request, never inferred from a provider missing in a map. */
+  removeMediaProvider(required: { providerId: string }, optional?: Record<string, never>): Promise<AdminMediaProviderMap>;
 
   listExternalMcpServers(): Promise<{ servers: AdminExternalMcpServer[] }>;
   deleteExternalMcpServer(required: { serverId: string }, optional?: Record<string, never>): Promise<{ removed: boolean; restartRequired: boolean }>;

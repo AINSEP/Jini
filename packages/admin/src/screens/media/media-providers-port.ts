@@ -1,21 +1,24 @@
-import type { MediaProviderMap, MediaProvidersPort } from "../../react/kit-media-providers.js";
+import type { MediaProviderMap } from "../../react/kit-media-providers.js";
+import type { MediaProviderFields, MediaProviderRowsPort } from "@jini-ai/ui/core";
 import { orFallback } from "@jini-ai/core/errors/idioms";
 
 import type { AdminMediaProviderMap } from "./api/media-api.js";
 
 /**
- * @file The real `MediaProvidersPort` — the host's own implementation of the transport
+ * @file The real `MediaProviderRowsPort` — the host's own implementation of the transport
  * `@jini-ai/ui`'s Media providers tab declares but deliberately does not ship (same convention as
  * `ProjectLocationsPort`/`SkillsPort`; the package ships only a fake).
  *
  * Replaces `createFakeMediaProvidersPort()`, whose in-memory store forgot everything on reload.
  */
 
-/** The two media-API calls the port needs, injected so this file never imports the host client. */
+/** The three media-API calls the port needs, injected so this file never imports the host client.
+ *  There is no whole-map save among them: see {@link patchProvider}. */
 export interface MediaProvidersPortDeps {
   mediaApi: {
     getMediaProviders: () => Promise<AdminMediaProviderMap>;
-    saveMediaProviders: (providers: AdminMediaProviderMap) => Promise<AdminMediaProviderMap>;
+    patchMediaProvider: (required: { providerId: string; fields: MediaProviderFields }) => Promise<AdminMediaProviderMap>;
+    removeMediaProvider: (required: { providerId: string }) => Promise<AdminMediaProviderMap>;
   };
 }
 
@@ -41,23 +44,35 @@ async function fetchMediaProviders({ mediaApi }: MediaProvidersPortDeps): Promis
 }
 
 /**
- * Persists the whole provider map and resolves the server's authoritative copy.
+ * Saves ONE provider's fields (PATCH to its own row) and resolves the server's authoritative map.
  *
- * REJECTS on failure, unlike {@link fetchMediaProviders} — the port models a save as having only
- * two outcomes, and the tab renders the rejection as its `save-error` state. Callers must not
- * overlap two of these; `useMediaProvidersTab`'s `persist`/`flushNow` already serializes them.
+ * Per-provider rather than a whole-map PUT: a whole map from this tab omits any key
+ * another window saved since it loaded, and omission deleted it. Naming one provider can never undo a
+ * write to another. REJECTS on failure, unlike {@link fetchMediaProviders} — the tab renders the
+ * rejection as its `save-error` state; `useMediaProvidersTab` issues one write at a time.
  *
  * @complexity O(1) plus one request.
- * @overallScore 100
  */
-async function saveMediaProviders({ mediaApi }: MediaProvidersPortDeps, providers: MediaProviderMap): Promise<MediaProviderMap> {
-  return mediaApi.saveMediaProviders(providers);
+async function patchProvider({ mediaApi }: MediaProvidersPortDeps, { providerId, fields }: { providerId: string; fields: MediaProviderFields }): Promise<MediaProviderMap> {
+  return mediaApi.patchMediaProvider({ providerId, fields });
+}
+
+/**
+ * Removes exactly one provider's stored credentials (DELETE on its own row) — including a plugin
+ * vendor's key whose plugin is no longer in the catalog — and resolves the authoritative map.
+ * Rejects on failure, like {@link patchProvider}.
+ *
+ * @complexity O(1) plus one request.
+ */
+async function removeProvider({ mediaApi }: MediaProvidersPortDeps, { providerId }: { providerId: string }): Promise<MediaProviderMap> {
+  return mediaApi.removeMediaProvider({ providerId });
 }
 
 /** Builds the port over the host's media API; the host binds it once, so every call site shares one object. */
-export function createMediaProvidersPort(deps: MediaProvidersPortDeps, _optional: Record<string, never> = {}): MediaProvidersPort {
+export function createMediaProvidersPort(deps: MediaProvidersPortDeps, _optional: Record<string, never> = {}): MediaProviderRowsPort {
   return {
     fetchMediaProviders: () => fetchMediaProviders(deps),
-    saveMediaProviders: (providers: MediaProviderMap) => saveMediaProviders(deps, providers),
+    patchProvider: (required: { providerId: string; fields: MediaProviderFields }) => patchProvider(deps, required),
+    removeProvider: (required: { providerId: string }) => removeProvider(deps, required),
   };
 }
