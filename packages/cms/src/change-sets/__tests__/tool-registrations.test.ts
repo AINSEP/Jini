@@ -178,3 +178,58 @@ describe('toChangeSetView', () => {
     });
   });
 });
+
+describe('change_sets_revert per-item policy', () => {
+  /** Adds a policy-bearing kind beside the ordinary widget, recording what the current revert actor is. */
+  function withStrictKind(deps: ChangeSetToolDeps, options: { allowForce?: boolean; version?: number } = {}) {
+    const writes: Array<{ entityId: string; actorId: string | undefined }> = [];
+    deps.revertRegistry.register('raw-widget', 'update', {
+      policy: { permission: 'widgets.write_raw', authorizationEntityType: 'widget', ...(options.allowForce === undefined ? {} : { allowForce: options.allowForce }) },
+      currentVersion: async () => options.version ?? 1,
+      applyInverse: async ({ item }, extra) => { writes.push({ entityId: item.entityId, actorId: extra?.actorId }); },
+    });
+    return writes;
+  }
+  const strictSet = async (changeSets: InMemoryChangeSetRepo, id: string) => {
+    await changeSets.insert({ record: record(id, { actorId: 'original-writer' }), items: [{ id: `${id}-raw`, changeSetId: id, entityType: 'raw-widget', entityId: 'raw-1', operation: 'update', position: 0, entityVersionAtApply: 1, inversePayload: { body: 'inverse' } }] });
+  };
+
+  it('tool and admin revert forward the current principal and authorize the scoped item', async () => {
+    const { deps, changeSets, calls, tool } = setup();
+    const writes = withStrictKind(deps);
+    await strictSet(changeSets, 'cs-1');
+    expect(await tool('change_sets_revert').handler(context({ changeSetId: 'cs-1' }))).toMatchObject({ reverted: true });
+    expect(calls).toEqual([
+      { principalId: PRINCIPAL_ID, permission: 'changeset.revert', workspaceId: WORKSPACE_ID, entityType: 'change_set', entityId: 'cs-1' },
+      { principalId: PRINCIPAL_ID, permission: 'widgets.write_raw', workspaceId: WORKSPACE_ID, entityType: 'widget', entityId: 'raw-1' },
+    ]);
+    expect(writes).toEqual([{ entityId: 'raw-1', actorId: PRINCIPAL_ID }]);
+  });
+
+  it('the tool returns REVERT_NOT_ALLOWED for a policy denial and does not suggest Recovery for a non-forceable conflict', async () => {
+    const denied = setup({ allowed: ['changeset.revert'] });
+    const deniedWrites = withStrictKind(denied.deps);
+    await strictSet(denied.changeSets, 'cs-1');
+    const result = await denied.tool('change_sets_revert').handler(context({ changeSetId: 'cs-1' }));
+    expect(result).toEqual({ reverted: false, code: 'REVERT_NOT_ALLOWED', note: expect.any(String) });
+    expect(JSON.stringify(result)).not.toMatch(/widgets\.write_raw|insufficient_permission|principal-under-test/);
+    expect(deniedWrites).toEqual([]);
+    expect((await denied.changeSets.findById({ workspaceId: WORKSPACE_ID, id: 'cs-1' }))?.changeSet.status).toBe('applied');
+
+    const stale = setup();
+    withStrictKind(stale.deps, { allowForce: false, version: 4 });
+    await strictSet(stale.changeSets, 'cs-2');
+    const conflict = (await stale.tool('change_sets_revert').handler(context({ changeSetId: 'cs-2' }))) as { code: string; note: string };
+    expect(conflict).toMatchObject({ reverted: false, code: 'REVERT_CONFLICT', currentVersion: 4 });
+    expect(conflict.note).not.toMatch(/Recovery/);
+    expect(conflict.note).toMatch(/keep the newer version and edit it again/i);
+
+    // A forceable policy kind still gets the existing Recovery suggestion.
+    const forceable = setup();
+    withStrictKind(forceable.deps, { version: 4 });
+    await strictSet(forceable.changeSets, 'cs-3');
+    expect(await forceable.tool('change_sets_revert').handler(context({ changeSetId: 'cs-3' }))).toMatchObject({
+      code: 'REVERT_CONFLICT', note: 'someone edited it since; ask the human to revert from the Recovery page if they still want it',
+    });
+  });
+});

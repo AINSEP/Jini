@@ -106,7 +106,27 @@ export interface RevertChangeSetRequired {
   };
 }
 
-export interface RevertChangeSetOptional {}
+export interface RevertChangeSetOptional {
+  /** The principal performing this revert; passed to each `applyInverse`, never the original writer. */
+  actorId?: UUID;
+  /**
+   * Asks the caller's authorizer whether the current principal may undo one policy-bearing item
+   * (see `EntityReverter.policy`). It receives only the scoped ids and the permission, never the
+   * inverse payload, and throws to refuse. Required whenever any item's reverter declares a policy:
+   * without it the revert fails closed, because a grant to revert an ordinary audited change must
+   * not confer the stricter authority that kind's inverse needs.
+   */
+  authorizeItem?: (
+    required: { permission: string; entityType: string; entityId: UUID },
+    _optional?: Record<string, never>,
+  ) => Promise<void>;
+}
+
+/** Plain words for an item whose undo needs a permission the caller could not show. */
+const ITEM_PERMISSION_DENIED_MESSAGE = "You don't have permission to undo one of the changes in this set.";
+/** Plain words for a force on a kind that never allows it. */
+const ITEM_CANNOT_FORCE_MESSAGE =
+  "This change can't be forced back over a newer version. Keep the newer version and edit it again instead.";
 
 function revertedChangeSetEvent(deps: RevertChangeSetDeps, reverted: ChangeSetRecord): DomainEvent<{ changeSetId: UUID }> {
   return {
@@ -150,15 +170,17 @@ export async function revertChangeSet(
 
   const ordered = [...items].sort((a, b) => b.position - a.position);
 
-  await requireRevertibleItems({ ordered, registry, input });
+  await requireRevertibleItems({ ordered, registry, input }, _optional);
 
   // All preconditions passed — apply inverses in descending position (INV-05: all-or-nothing).
+  // The actor is whoever is reverting now, never the item's original writer.
+  const inverseOptional = _optional.actorId === undefined ? {} : { actorId: _optional.actorId };
   for (const item of ordered) {
     const reverter = registry.resolve(item.entityType, item.operation)!;
     await reverter.applyInverse({
       workspaceId: input.workspaceId,
       item,
-    });
+    }, inverseOptional);
   }
 
   // Compare-and-set: re-assert the change set is still 'applied' before flipping,
@@ -214,7 +236,7 @@ function requireForceAllowed(
 
 async function requireRevertibleItems(
   { ordered, registry, input }: { ordered: readonly ChangeSetItemRecord[]; registry: RevertRegistry; input: RevertChangeSetRequired["input"] },
-  _optional: RevertChangeSetOptional = {},
+  optional: RevertChangeSetOptional = {},
 ): Promise<void> {
   // (3) every item has a registered reverter, (4) every item has a non-null inverse
   for (const item of ordered) {
@@ -231,6 +253,10 @@ async function requireRevertibleItems(
     }
   }
 
+  // (4b) every policy-bearing item is authorized — all of them, before the first version read or
+  // inverse write, so a denial on any item leaves every entity untouched.
+  await requireItemPolicies({ ordered, registry, input }, optional);
+
   // (5) every item passes the version guard (strict equality; missing entity fails). `force`
   // bypasses ONLY a stale-version mismatch (`current !== null`) — a missing entity always throws,
   // regardless of `force` (see `RevertChangeSetRequired.input.force`'s doc comment).
@@ -238,6 +264,32 @@ async function requireRevertibleItems(
     const reverter = registry.resolve(item.entityType, item.operation)!;
     await requireCurrentVersion({ item, reverter, input });
   }
+}
+
+/**
+ * Enforces each registered reverter's `policy`. The policy is read from the registry only — never
+ * from client input or the stored inverse. Force and missing-authorizer refusals are checked for
+ * every item first (no I/O), then each item's authorization is awaited in descending position.
+ * @complexity O(n) in the item count plus one authorizer call per policy-bearing item.
+ */
+async function requireItemPolicies(
+  { ordered, registry, input }: { ordered: readonly ChangeSetItemRecord[]; registry: RevertRegistry; input: RevertChangeSetRequired["input"] },
+  optional: RevertChangeSetOptional = {},
+): Promise<void> {
+  const checks: Array<{ permission: string; entityType: string; entityId: UUID }> = [];
+  for (const item of ordered) {
+    const policy = registry.resolve(item.entityType, item.operation)!.policy;
+    if (!policy) continue;
+    if (input.force && policy.allowForce === false) {
+      throw new RevertForbiddenError(ITEM_CANNOT_FORCE_MESSAGE, "ITEM_CANNOT_FORCE");
+    }
+    checks.push({ permission: policy.permission, entityType: policy.authorizationEntityType ?? item.entityType, entityId: item.entityId });
+  }
+  if (checks.length === 0) return;
+  // Fail closed: a caller that cannot answer for an item does not get to undo it.
+  const { authorizeItem } = optional;
+  if (!authorizeItem) throw new RevertForbiddenError(ITEM_PERMISSION_DENIED_MESSAGE, "ITEM_PERMISSION_DENIED");
+  for (const check of checks) await authorizeItem(check);
 }
 
 async function requireCurrentVersion(

@@ -1,10 +1,10 @@
-import { defineJsonRoute, ok } from "@jini-ai/core/contracts/server";
+import { defineJsonRoute, ok, type JsonRouteAuthorize } from "@jini-ai/core/contracts/server";
 import { RouteRefusalError } from "@jini-ai/core/errors/route-refusal";
 import type { ChangeSetRecord } from "@jini-ai/core/contracts/events";
 
 import {
   ChangeSetInvalidStatusError, ChangeSetNotFoundError, RevertConflictError, RevertForbiddenError, RevertNotPossibleError,
-  revertChangeSet, type RevertChangeSetDeps,
+  revertChangeSet, type RevertChangeSetDeps, type RevertChangeSetOptional,
 } from "../../../core/commands/revert.js";
 import type { RevertRegistry } from "../../../core/commands/appliers.js";
 import { authorizeChangeSet, changeSetIdParam, type ChangeSetRoutePrincipal } from "./shared.js";
@@ -58,6 +58,33 @@ function rejectRevertError({ err }: { err: unknown }, _optional: Record<string, 
   throw new RouteRefusalError({ status: mapping.status, body });
 }
 
+/** Plain words for a denied item; the host's own denial (permission, grant detail) is never echoed. */
+const ITEM_PERMISSION_DENIED_MESSAGE = "You don't have permission to undo one of the changes in this set.";
+
+/**
+ * The per-item authorizer `revertChangeSet` asks for each policy-bearing item, closing over this
+ * request's own authorizer. Only a classified 403 refusal from the item check becomes a
+ * `RevertForbiddenError` (plain words, nothing from the host's denial echoed); any other failure
+ * propagates unchanged so the host answers it as an unexpected error.
+ * @complexity O(1) plus the injected authorizer.
+ */
+function itemAuthorizer(
+  { authorize }: { authorize: JsonRouteAuthorize | undefined },
+  _optional: Record<string, never> = {},
+): NonNullable<RevertChangeSetOptional["authorizeItem"]> {
+  return async ({ permission, entityType, entityId }) => {
+    if (!authorize) throw new Error("change-sets admin route has no authorizer");
+    try {
+      await authorize({ permission, entityType }, { entityId });
+    } catch (err) {
+      if (err instanceof RouteRefusalError && err.response.status === 403) {
+        throw new RevertForbiddenError(ITEM_PERMISSION_DENIED_MESSAGE, "ITEM_PERMISSION_DENIED");
+      }
+      throw err;
+    }
+  };
+}
+
 /** The authenticated principal; a mount without one is a wiring bug, so it fails closed (before authorizing, as the host did). */
 function revertPrincipal({ context }: { context: ChangeSetRoutePrincipal | undefined }, _optional: Record<string, never> = {}): ChangeSetRoutePrincipal {
   if (!context) throw new Error("change-sets admin route has no authenticated principal");
@@ -80,6 +107,11 @@ function revertPrincipal({ context }: { context: ChangeSetRoutePrincipal | undef
  * primitive this route has no other reason to adopt. `force` is forwarded to `revertChangeSet`
  * alongside `principal.kind` so the agent-cannot-force rule is enforced once, in `core/commands`,
  * not re-implemented at this layer.
+ *
+ * Items whose registered reverter declares a policy are also authorized one by one, through this
+ * same request's authorizer, after the outer `changeset.revert` check: a grant to revert ordinary
+ * audited changes must not confer a stricter write authority. A denied item and a force on a kind
+ * that never allows one both answer 403 `REVERT_FORBIDDEN` with their reason.
  */
 export const changeSetRevertRoute = defineJsonRoute<{ changeSetId: string; force: boolean }, { changeSet: object }, ChangeSetRevertRouteDeps, ChangeSetRoutePrincipal>({
   method: "post",
@@ -93,7 +125,7 @@ export const changeSetRevertRoute = defineJsonRoute<{ changeSetId: string; force
       const reverted = await revertChangeSet({
         deps: { changeSets: deps.changeSets, registry: deps.revertRegistry, clock: deps.clock, idGen: deps.idGen, outbox: deps.outbox },
         input: { workspaceId: deps.workspaceId, changeSetId: input.changeSetId, force: input.force, principalKind: principal.kind },
-      });
+      }, { actorId: principal.id, authorizeItem: itemAuthorizer({ authorize }) });
       return ok({ value: { changeSet: deps.toChangeSetHeader({ changeSet: reverted }) } });
     } catch (err) {
       return rejectRevertError({ err });

@@ -17,6 +17,16 @@ import type { ChangeSetItemRecord } from "../events/change-set.js";
 
 /** Restore + version-read behavior for one `(entityType, operation)`. */
 export interface EntityReverter {
+  /**
+   * Optional per-item authorization for undoing this kind. A grant to revert an ordinary audited
+   * change must not confer a stricter write authority this kind's inverse needs, so when set, the
+   * revert executor asks the caller's item authorizer for `permission` on each item (as
+   * `authorizationEntityType ?? item.entityType`) before reading any version or writing any
+   * inverse, and fails closed when no authorizer is supplied. `allowForce: false` refuses an
+   * operator force past a newer version. The policy comes from this registration only, never from
+   * client input or the stored inverse. Omitted: the kind keeps its existing behavior.
+   */
+  policy?: { permission: string; authorizationEntityType?: string; allowForce?: boolean };
   /** Current entity version, or null when the entity no longer exists. */
   currentVersion(required: { workspaceId: UUID; entityId: UUID }): Promise<number | null>;
   /**
@@ -29,8 +39,11 @@ export interface EntityReverter {
    * which already has `deps.principalRepo`, not here.
    */
   currentActor?(required: { workspaceId: UUID; entityId: UUID }): Promise<string | null>;
-  /** Apply the item's inverse as a new write (bumps the entity version). */
-  applyInverse(required: { workspaceId: UUID; item: ChangeSetItemRecord }): Promise<void>;
+  /**
+   * Apply the item's inverse as a new write (bumps the entity version). `actorId` is the principal
+   * performing the revert now, never the item's original writer.
+   */
+  applyInverse(required: { workspaceId: UUID; item: ChangeSetItemRecord }, optional?: { actorId?: UUID }): Promise<void>;
 }
 
 /** A mutable registry of entity reverters keyed by `(entityType, operation)`. */

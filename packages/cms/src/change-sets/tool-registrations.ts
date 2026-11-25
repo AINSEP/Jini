@@ -1,6 +1,6 @@
 import { toolMetadata } from '@jini-ai/core/tool-metadata/change-sets';
 import { type Clock } from "@jini-ai/core/primitives";
-import { adaptLegacyAuthorize, requireToolPermission } from "@jini-ai/core";
+import { adaptLegacyAuthorize, requireToolPermission, ToolPermissionDeniedError } from "@jini-ai/core";
 import { ToolInputError } from "@jini-ai/core";
 import { buildDomainRegistrations, indexCatalogById, optionalNumber, requireInputRecord, requireString, type AgentToolSideEffect, type DerivedRiskByToolId, type ToolHandler, type ToolRegistration } from "@jini-ai/core";
 import {
@@ -15,6 +15,7 @@ import {
   ChangeSetInvalidStatusError,
   ChangeSetNotFoundError,
   RevertConflictError,
+  RevertForbiddenError,
   RevertNotPossibleError,
   revertChangeSet,
   type RevertRegistry,
@@ -50,9 +51,19 @@ import {
  *   different-input problems (a wrong id, a change set that was never applied or already reverted,
  *   or one this codebase cannot invert) — each becomes a `ToolInputError` carrying the domain's own
  *   message, so the model sees exactly why and does not retry the identical call.
- * - `RevertForbiddenError` is not caught here at all: this handler always sends `force: false`, and
- *   that error can only fire when `force: true` — see `revertChangeSet`'s own precondition order.
+ * - `RevertForbiddenError` (an item whose registered policy the principal does not hold) and the
+ *   item check's `ToolPermissionDeniedError` become `{ reverted: false, code: "REVERT_NOT_ALLOWED",
+ *   note }`. The internal denial (permission name, reason) is never echoed. The outer
+ *   `changeset.revert` refusal stays outside that catch and keeps its existing typed rejection.
+ * - A conflict on a set holding a kind whose registered policy never allows force gets a note telling
+ *   the assistant to keep the newer version and edit it again, not to send the human to Recovery,
+ *   where a force would be refused anyway.
  */
+
+const CONFLICT_NOTE = "someone edited it since; ask the human to revert from the Recovery page if they still want it";
+const NON_FORCEABLE_CONFLICT_NOTE =
+  "someone edited it since and this change can't be forced back; keep the newer version and edit it again if it still needs changing";
+const NOT_ALLOWED_NOTE = "you are not allowed to undo every change in this set; tell the person instead of retrying";
 
 /**
  * The exact slice of the route-deps bag this domain's tool handlers read. Declared structurally
@@ -133,6 +144,10 @@ export function toChangeSetView({ changeSet }: { changeSet: ChangeSetRecord }, _
       await requireToolPermission({ authorize: adaptLegacyAuthorize({ authorize: routeDeps.authorize }), workspaceId: routeDeps.workspaceId, principalId: ctx.principal.id, permission: CHANGE_SET_REVERT_PERMISSION }, { entityType: "change_set", entityId: changeSetId });
 
       try {
+        // Each policy-bearing item is checked through the same permission path as the outer check,
+        // for this workspace and principal, against the item's mapped scope.
+        const authorizeItem = ({ permission, entityType, entityId }: { permission: string; entityType: string; entityId: string }) =>
+          requireToolPermission({ authorize: adaptLegacyAuthorize({ authorize: routeDeps.authorize }), workspaceId: routeDeps.workspaceId, principalId: ctx.principal.id, permission }, { entityType, entityId });
         const reverted = await revertChangeSet({
           deps: {
             changeSets: routeDeps.changeSets,
@@ -150,26 +165,43 @@ export function toChangeSetView({ changeSet }: { changeSet: ChangeSetRecord }, _
             force: false,
             principalKind: "agent",
           },
-        });
+        }, { actorId: ctx.principal.id, authorizeItem });
         return { reverted: true, changeSet: toChangeSetView({ changeSet: reverted }) };
       } catch (err) {
-        if (err instanceof RevertConflictError) {
-          return {
-            reverted: false,
-            code: "REVERT_CONFLICT",
-            currentVersion: err.currentVersion,
-            note: "someone edited it since; ask the human to revert from the Recovery page if they still want it",
-          };
-        }
-        if (
-          err instanceof ChangeSetNotFoundError ||
-          err instanceof ChangeSetInvalidStatusError ||
-          err instanceof RevertNotPossibleError
-        ) {
-          throw new ToolInputError({ message: err.message });
-        }
-        throw err;
+        return revertToolFailure({ err, routeDeps, changeSetId });
       }
+    }
+
+    /** The result or rethrow for one failed `revertChangeSet` call; unexpected failures rethrow unchanged. */
+    async function revertToolFailure({ err, routeDeps, changeSetId }: { err: unknown; routeDeps: ChangeSetToolDeps; changeSetId: string }, _optional: Record<string, never> = {}) {
+      if (err instanceof RevertConflictError) {
+        return {
+          reverted: false,
+          code: "REVERT_CONFLICT",
+          currentVersion: err.currentVersion,
+          note: (await conflictForbidsForce({ routeDeps, changeSetId })) ? NON_FORCEABLE_CONFLICT_NOTE : CONFLICT_NOTE,
+        };
+      }
+      if (err instanceof RevertForbiddenError || err instanceof ToolPermissionDeniedError) {
+        return { reverted: false, code: "REVERT_NOT_ALLOWED", note: NOT_ALLOWED_NOTE };
+      }
+      if (
+        err instanceof ChangeSetNotFoundError ||
+        err instanceof ChangeSetInvalidStatusError ||
+        err instanceof RevertNotPossibleError
+      ) {
+        throw new ToolInputError({ message: err.message });
+      }
+      throw err;
+    }
+
+    /**
+     * Re-reads the already-authorized, workspace-scoped set and asks the registry (never the stored
+     * inverse or client input) whether any item's policy forbids force.
+     */
+    async function conflictForbidsForce({ routeDeps, changeSetId }: { routeDeps: ChangeSetToolDeps; changeSetId: string }, _optional: Record<string, never> = {}): Promise<boolean> {
+      const found = await routeDeps.changeSets.findById({ workspaceId: routeDeps.workspaceId, id: changeSetId });
+      return (found?.items ?? []).some((item) => routeDeps.revertRegistry.resolve(item.entityType, item.operation)?.policy?.allowForce === false);
     }
 
 

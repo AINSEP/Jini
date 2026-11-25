@@ -3,7 +3,8 @@ import type { DomainEvent, OutboxPort } from "@jini-ai/core/contracts/events";
 import { createRevertRegistry } from "../../../../core/commands/appliers.js";
 import { InMemoryChangeSetRepo } from "../../../../core/commands/repo.memory.js";
 import { changeSetRevertRoute, type ChangeSetRevertRouteDeps } from "../revert.js";
-import { fakeChangeSet, fakeItem, PRINCIPAL, raw, recordingAuthorize, refusalOf, toChangeSetHeader, WORKSPACE_ID } from "./helpers.js";
+import { RouteRefusalError } from "@jini-ai/core/errors/route-refusal";
+import { fakeChangeSet, fakeItem, PRINCIPAL, raw, recordingAuthorize, refusalOf, toChangeSetHeader, WORKSPACE_ID, type RecordedAuthorize } from "./helpers.js";
 
 /** @file POST /change-sets/:changeSetId/revert over the real `revertChangeSet` service and in-memory repos. */
 
@@ -103,5 +104,79 @@ describe("changeSetRevertRoute", () => {
     const { deps } = setup();
     await expect(changeSetRevertRoute.handle({ input: { changeSetId: "cs-1", force: false }, deps, context: PRINCIPAL })).rejects.toThrow(/no authorizer/);
     await expect(changeSetRevertRoute.handle({ input: { changeSetId: "cs-1", force: false }, deps, authorize: recordingAuthorize().authorize })).rejects.toThrow(/no authenticated principal/);
+  });
+});
+
+/** A change set holding one ordinary item and one item whose reverter declares a policy. */
+function policySetup(options: { allowForce?: boolean; current?: number } = {}) {
+  const writes: Array<{ id: string; actorId: string | undefined }> = [];
+  const registry = createRevertRegistry({});
+  const reverter = (extra: object) => ({
+    ...extra,
+    currentVersion: async () => options.current ?? 2,
+    applyInverse: async ({ item }: { item: { id: string } }, second?: { actorId?: string }) => { writes.push({ id: item.id, actorId: second?.actorId }); },
+  });
+  registry.register("post", "update", reverter({}));
+  registry.register("raw-doc", "update", reverter({ policy: { permission: "documents.write_raw", authorizationEntityType: "document", ...(options.allowForce === undefined ? {} : { allowForce: options.allowForce }) } }));
+  const changeSets = new InMemoryChangeSetRepo(
+    [fakeChangeSet({ actorId: "original-writer" })],
+    [fakeItem(), fakeItem({ id: "item-2", entityType: "raw-doc", entityId: "raw-1", position: 1, inversePayload: { body: "inverse" } })],
+  );
+  const deps = {
+    workspaceId: WORKSPACE_ID, changeSets, revertRegistry: registry, outbox: { enqueue: async () => {} } as unknown as OutboxPort,
+    clock: { nowMs: () => Date.parse("2026-10-05T00:00:00.000Z") }, idGen: { newId: () => "evt-1" }, toChangeSetHeader,
+  } as ChangeSetRevertRouteDeps;
+  return { deps, writes, changeSets };
+}
+
+/** An authorizer that answers a classified 403 refusal for the listed permissions, as a host port does. */
+function refusingAuthorize(denied: readonly string[]) {
+  const calls: RecordedAuthorize[] = [];
+  const authorize = async ({ permission, entityType }: { permission: string; entityType: string }, optional: { entityId?: string } = {}) => {
+    calls.push({ permission, entityType, ...optional });
+    if (denied.includes(permission)) throw new RouteRefusalError({ status: 403, body: { error: "internal grant detail", code: "FORBIDDEN" } });
+  };
+  return { authorize, calls };
+}
+
+describe("changeSetRevertRoute per-item policy", () => {
+  it("tool and admin revert forward the current principal and authorize the scoped item", async () => {
+    const { deps, writes } = policySetup();
+    const { authorize, calls } = recordingAuthorize();
+    const result = await run(deps, { changeSetId: "cs-1", force: false }, { id: "current-reverter", kind: "user" }, authorize);
+    expect(result.ok).toBe(true);
+    expect(calls).toEqual([
+      { permission: "changeset.revert", entityType: "change_set", entityId: "cs-1" },
+      { permission: "documents.write_raw", entityType: "document", entityId: "raw-1" },
+    ]);
+    expect(writes).toEqual([{ id: "item-2", actorId: "current-reverter" }, { id: "item-1", actorId: "current-reverter" }]);
+  });
+
+  it("admin revert answers 403, not 500, for a denied item and for force on a non-forceable item", async () => {
+    const denied = policySetup();
+    const refusal = await refusalOf(() => run(denied.deps, { changeSetId: "cs-1", force: false }, PRINCIPAL, refusingAuthorize(["documents.write_raw"]).authorize));
+    expect(refusal).toEqual({ status: 403, body: { error: expect.any(String), code: "REVERT_FORBIDDEN", details: { reason: "ITEM_PERMISSION_DENIED" } } });
+    expect(JSON.stringify(refusal)).not.toContain("internal grant detail");
+    expect(JSON.stringify(refusal)).not.toContain("documents.write_raw");
+    expect(denied.writes).toEqual([]);
+
+    const strict = policySetup({ allowForce: false, current: 7 });
+    const forced = await refusalOf(() => run(strict.deps, { changeSetId: "cs-1", force: true }, PRINCIPAL, recordingAuthorize().authorize));
+    expect(forced).toEqual({ status: 403, body: { error: expect.stringMatching(/keep the newer version and edit it again/i), code: "REVERT_FORBIDDEN", details: { reason: "ITEM_CANNOT_FORCE" } } });
+    expect(strict.writes).toEqual([]);
+    expect((await strict.changeSets.findById({ workspaceId: WORKSPACE_ID, id: "cs-1" }))?.changeSet.status).toBe("applied");
+  });
+
+  it("keeps the outer changeset.revert refusal unchanged and propagates an unclassified item-check failure", async () => {
+    const outer = policySetup();
+    const outerRefusal = new RouteRefusalError({ status: 403, body: { error: "outer", code: "FORBIDDEN" } });
+    const outerCalls: string[] = [];
+    await expect(run(outer.deps, { changeSetId: "cs-1", force: false }, PRINCIPAL, async ({ permission }) => { outerCalls.push(permission); throw outerRefusal; })).rejects.toBe(outerRefusal);
+    expect(outerCalls).toEqual(["changeset.revert"]);
+
+    const broken = policySetup();
+    const failure = new Error("authorizer storage down");
+    await expect(run(broken.deps, { changeSetId: "cs-1", force: false }, PRINCIPAL, async ({ permission }) => { if (permission !== "changeset.revert") throw failure; })).rejects.toBe(failure);
+    expect(broken.writes).toEqual([]);
   });
 });
