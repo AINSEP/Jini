@@ -40,7 +40,6 @@
   {"rule": "L5-injected-edge", "file": "packages/daemon/package.json", "spec": "@jini-ai/platform", "kind": "manifest-dependencies", "count": 1, "lane": "L-PLATFORM"},
   {"rule": "L5-injected-edge", "file": "packages/daemon/src/http/attachment-persistence.ts", "spec": "@jini-ai/platform/fs", "kind": "import", "count": 1, "lane": "L-PLATFORM"},
   {"rule": "L5-injected-edge", "file": "packages/daemon/src/http/host-tools.ts", "spec": "@jini-ai/platform/command", "kind": "import", "count": 1, "lane": "L-PLATFORM"},
-  {"rule": "L5-injected-edge", "file": "packages/daemon/src/http/xai.ts", "spec": "@jini-ai/agent-runtime", "kind": "import", "count": 1, "lane": "L-AGENTS"},
   {"rule": "L5-injected-edge", "file": "packages/integrations/package.json", "spec": "@jini-ai/platform", "kind": "manifest-peer", "count": 1, "lane": "L-PLATFORM"},
   {"rule": "L5-injected-edge", "file": "packages/integrations/src/media-providers/dispatch/node.ts", "spec": "@jini-ai/platform/http/guarded", "kind": "import", "count": 1, "lane": "L-PLATFORM"},
   {"rule": "L5-injected-edge", "file": "packages/user-management/package.json", "spec": "@jini-ai/ui-kit", "kind": "manifest-peer", "count": 1, "lane": "L-KIT-UM"},

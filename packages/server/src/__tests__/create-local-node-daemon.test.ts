@@ -7,6 +7,7 @@ import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { DetectedAgent } from '@jini-ai/agent-runtime';
 import { definePack } from '@jini-ai/core';
+import type { ServerRoute } from '@jini-ai/core/contracts/server';
 import { AgentExecutorToken } from '@jini-ai/daemon';
 import { componentCatalogRoutes, type DaemonStatusResponse, type RunStartContext, type RunStartHandler } from '@jini-ai/daemon/http';
 import { readLiveDaemonRegistryRecord, resolveDaemonRegistryPath } from '@jini-ai/sidecar';
@@ -584,7 +585,7 @@ describe('createLocalNodeDaemon', () => {
 
     expect(daemon.activeFeatures).toEqual([
       'health', 'runs', 'agents', 'hostTools', 'modelProxy', 'activeContext', 'terminal',
-      'daemonDb', 'toolCatalog', 'delegatedToolCalls', 'connectors', 'research', 'xai', 'daemonStatus',
+      'daemonDb', 'toolCatalog', 'delegatedToolCalls', 'connectors', 'research', 'daemonStatus',
     ]);
   });
 
@@ -776,6 +777,38 @@ describe('createLocalNodeDaemon', () => {
     expect([sameOrigin.status, await sameOrigin.json()]).toEqual([200, { hits: [] }]);
     const foreign = await fetch(`${daemon.url}/api/components/search?q=table`, { headers: { origin: 'http://evil.example.com' } });
     expect(foreign.status).toBe(403);
+  });
+
+  it('lets a host mount an extra ServerRoute[] through httpExtensions and release the listener that list owns from onShutdown', async () => {
+    const dataDir = makeTempDataDir();
+    // Stands in for any host-owned resource a mounted route list holds open (a loopback callback listener, a socket).
+    const hostListener = { open: false, closeCalls: 0 };
+    const hostRoutes: ServerRoute[] = [
+      {
+        method: 'POST',
+        path: '/api/host-mounted/open',
+        handler: () => {
+          hostListener.open = true;
+          return Response.json({ ok: true });
+        },
+      },
+    ];
+    const daemon = await createLocalNodeDaemon({ ...hostEgressPorts, osPorts: nodeOsPorts, open: openSqlite,
+      dataDir,
+      packs: [makePingPack()],
+      httpExtensions: [(app) => { mountRoutes({ app, routes: hostRoutes }); }],
+      onShutdown: () => {
+        hostListener.closeCalls += 1;
+        hostListener.open = false;
+      },
+    });
+
+    const res = await fetch(`${daemon.url}/api/host-mounted/open`, { method: 'POST', headers: { origin: daemon.url } });
+    expect([res.status, await res.json()]).toEqual([200, { ok: true }]);
+    expect(hostListener).toEqual({ open: true, closeCalls: 0 });
+
+    await daemon.stop();
+    expect(hostListener).toEqual({ open: false, closeCalls: 1 });
   });
 
   it('serves POST /api/proxy/<id>/stream for a host-injected provider (no server-side credentials needed to reach the route)', async () => {

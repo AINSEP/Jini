@@ -69,7 +69,7 @@ Run-event routes attach the lifecycle subscription before opening, release it on
 
 Routine scheduling/store state, terminal sessions, connector records and credentials remain in supplied domain ports. Routine mutation reschedules/unschedules after storage changes; no cross-port transaction is supplied. Media routes persist a queued task, run background work, update progress/status and store base64 result bytes; deleting a task does not cancel the outstanding generation promise.
 
-xAI route registration resolves one pending cache and mutable callback-listener slot shared across its six routes. A listener already running rejects another start. Completion consumes pending state and persists a token through the runtime adapter; cancel closes the listener; disconnect also deletes stored token data. Defaults include a 30-minute pending cache and a file under the supplied data directory. The registrar supplies no public disposer; host-provided pending/listener adapters own shutdown. OAuth credential storage and refresh semantics come from the imported runtime implementation.
+xAI OAuth and search routes are not daemon routes: `xaiRoutes` lives in `@jini-ai/provider-plugins/xai/routes` (see that package's `src/xai/`), and the host mounts its `ServerRoute[]` through `httpExtensions` and closes its listener slot from `onShutdown`.
 
 ## Dedicated entry ownership
 

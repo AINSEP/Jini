@@ -23,7 +23,8 @@ read-only policy entry do not load HTTP or Express.
   context (`activeContextRoutes`), host tools (`hostToolsRoutes`), model proxy
   (`modelProxyRoutes`), connectors — auth/db/storage/realtime provider seams (no payments slot: money moves only through `@jini-ai/commerce`)
   (`connectorsRoutes`), research (`researchRoutes`), media
-  (`mediaRoutes`), and xai (`xaiRoutes`). Each exports its own `*HttpDeps` type so
+  (`mediaRoutes`). The xAI OAuth and search routes are not part of the daemon: they are
+  `xaiRoutes` in `@jini-ai/provider-plugins/xai/routes`, mounted by the host. Each exports its own `*HttpDeps` type so
   you inject exactly the backing services it needs.
 - **Workspace root resolution** — `resolveWorkspaceRoot`/`denyAllWorkspaceRoots`/
   `WorkspaceRootDeniedError`.

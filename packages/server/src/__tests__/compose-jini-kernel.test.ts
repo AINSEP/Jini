@@ -225,7 +225,6 @@ describe('profiles', () => {
       'delegatedToolCalls',
       'connectors',
       'research',
-      'xai',
       'daemonStatus',
     ]);
   });

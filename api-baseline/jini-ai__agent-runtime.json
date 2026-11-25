@@ -225,11 +225,6 @@
    "TerminalLaunchResult": "type:c94d503001",
    "VelaBillingSummary": "interface:d56f2255aa",
    "VelaModelJsonSource": "type:afe9727971",
-   "XAI_OAUTH_PROVIDER_CONFIG": "variable:1de8d34649",
-   "XAI_OAUTH_PROVIDER_ID": "variable:4f01a1d3d1",
-   "XAI_OAUTH_REDIRECT_HOST": "variable:1b9ba41d71",
-   "XAI_OAUTH_REDIRECT_PATH": "variable:8bf9f53952",
-   "XAI_OAUTH_REDIRECT_PORT": "variable:5296f7ad49",
    "accumulateOpenAiToolCallDelta": "function:ea4ad29485",
    "agentBinEnvKey": "function:25eaebe41f",
    "agentCapabilities": "variable:e8c4c35255",
@@ -307,7 +302,7 @@
    "completeOAuthPkce": "function:55dbb55fd8",
    "configureExecutableResolutionEnv": "function:eb72e95b31",
    "createAgentModelDiscovery": "function:dfa755d38c",
-   "createAgentRuntimeBindings": "function:01e4ed24d3",
+   "createAgentRuntimeBindings": "function:181d7ac8c6",
    "createAgentRuntimeState": "function:e68cf59719",
    "createAgentSelectionResolver": "function:69c5fd59ae",
    "createClaudeFilesystemSupportProbe": "function:ea992e38f1",
@@ -537,8 +532,7 @@
    "validateReadOnlyExtraDirs": "function:efc47412d9",
    "validateRuntimeSelection": "function:71733842a5",
    "vibeAgentDef": "variable:daa8819e99",
-   "withModelProbeTimeout": "function:97a0f05871",
-   "xaiOAuthRedirectUri": "function:cb1b7857d2"
+   "withModelProbeTimeout": "function:97a0f05871"
   }
  },
  "./cli-probe-cache": {

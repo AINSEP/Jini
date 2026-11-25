@@ -279,7 +279,7 @@
    "resolveIdempotentReplayRunId": "function:a48a6ce7be",
    "resolveImageDeliveryAndArgvBudget": "function:bdfbbf6845",
    "resolveLaunch": "function:18e631a285",
-   "resolveMcpBridgeForRun": "function:6667b0d4a0",
+   "resolveMcpBridgeForRun": "function:60eb7c513d",
    "resolveRunEnv": "function:93e2f4cc72",
    "resolveSourceClaudeConfigDir": "function:2094564739",
    "resolveSourceCodexHomeDir": "function:4402140049",
@@ -582,12 +582,6 @@
    "WorkspaceRootDeniedError": "class:29913509de",
    "WorkspaceRootRequest": "interface:becd271f56",
    "WorkspaceRootResolver": "type:3a803c0d66",
-   "XaiAuthStatusResponse": "interface:84fb8d27a7",
-   "XaiHttpDeps": "interface:9732bf4034",
-   "XaiInternalErrorContext": "interface:d2ae2ff970",
-   "XaiOauthStartResponse": "interface:ee0abcf56f",
-   "XaiOkResponse": "interface:b9d3f761a5",
-   "XaiSearchResponse": "interface:074bed322c",
    "a2uiActionsRoutes": "function:22793d9cd6",
    "a2uiNotPendingBody": "function:5e3b51b491",
    "activeContextRoutes": "function:954ef528df",
@@ -745,21 +739,14 @@
    "toolExecutionRoutes": "function:b26cd2fde0",
    "unauthenticatedReply": "function:696e1061eb",
    "versionInfoRoute": "variable:20ced04703",
-   "writeBoundedAttachmentBody": "function:79319781c1",
-   "xaiAuthStatusRoute": "variable:706b1dd6b6",
-   "xaiOauthCancelRoute": "variable:a6b8b85547",
-   "xaiOauthCompleteRoute": "variable:89ac155892",
-   "xaiOauthDisconnectRoute": "variable:5ce1f46956",
-   "xaiOauthStartRoute": "variable:ef699442dc",
-   "xaiRoutes": "function:931a190502",
-   "xaiSearchRoute": "variable:e6826f510b"
+   "writeBoundedAttachmentBody": "function:79319781c1"
   }
  },
  "./ports/agent-runtime": {
   "types": "./dist/ports/agent-runtime.d.ts",
   "symbols": {
    "AgentRuntimePort": "interface:9bad2bfdba",
-   "AgentRuntimeStrategies": "interface:2044692545",
+   "AgentRuntimeStrategies": "interface:f1dc36d44f",
    "AgentStreamHandler": "interface:d72de2cf9b",
    "AgentStreamSink": "type:af3b37412a",
    "BaseUrlGuardPort": "interface:685d407b4b",
@@ -776,19 +763,6 @@
   "types": "./dist/ports/runtime.d.ts",
   "symbols": {
    "AgentExecutorRuntimePorts": "interface:68c7117fb6"
-  }
- },
- "./ports/xai-oauth": {
-  "types": "./dist/ports/xai-oauth.d.ts",
-  "symbols": {
-   "OAuthCallbackListener": "interface:36c82c83ed",
-   "OAuthCallbackOutcome": "type:5d2f8ce9c4",
-   "OAuthPendingAuthorizations": "interface:4a6a5bed16",
-   "OAuthPkceProviderConfig": "interface:8d4e003bd4",
-   "OAuthTokenResponse": "interface:85b8074deb",
-   "ResolvedOAuthCredential": "interface:06484d1d94",
-   "StoredOAuthToken": "interface:a2fc95ca3d",
-   "XaiOAuthPort": "interface:c8205a2610"
   }
  },
  "./read-only-tools": {

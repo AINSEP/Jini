@@ -12,6 +12,9 @@
   "files": [
     "src/observability-opentelemetry/otel-port.ts",
     "src/xai/media/index.ts",
+    "src/xai/routes.ts",
+    "src/xai/preset.ts",
+    "src/xai/oauth-port.ts",
     "src/model-proxy-anthropic/index.ts",
     "src/model-proxy-azure/index.ts",
     "src/model-proxy-google/index.ts",
