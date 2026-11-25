@@ -59,6 +59,7 @@
       "./admin-http/routes/api-keys/revoke": "universal",
       "./public-http/routes/newsletter/confirm": "universal",
       "./public-http/routes/newsletter/unsubscribe": "universal",
+      "./public-http/routes/mail/feedback": "universal",
       "./admin-http/auth": "node",
       "./identity/boot-session-token": "node",
       "./identity/builtin-role-grants": "universal",
@@ -386,6 +387,11 @@
       "types": "./dist/public-http/routes/newsletter/unsubscribe.d.ts",
       "import": "./dist/public-http/routes/newsletter/unsubscribe.js",
       "default": "./dist/public-http/routes/newsletter/unsubscribe.js"
+    },
+    "./public-http/routes/mail/feedback": {
+      "types": "./dist/public-http/routes/mail/feedback.d.ts",
+      "import": "./dist/public-http/routes/mail/feedback.js",
+      "default": "./dist/public-http/routes/mail/feedback.js"
     },
     "./admin-http/auth": {
       "types": "./dist/admin-http/auth/index.d.ts",

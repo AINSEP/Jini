@@ -147,6 +147,7 @@ function readCredentialInput({ body }: { body: unknown }, _optional: Record<stri
   return input;
 }
 
+/** `PUT …/:providerId/credential`: authorize, save (never activates), answer `{ provider }` or the mapped refusal. */
 export const mailProviderCredentialSaveRoute = defineJsonRoute<{ providerId: string; body: unknown }, { provider: unknown }, MailProviderCredentialSaveRouteDeps, MailRoutePrincipal>({
   method: "put",
   path: `${BASE_PATH}/:providerId/credential`,

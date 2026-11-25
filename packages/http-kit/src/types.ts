@@ -117,8 +117,11 @@ export interface RawRouteSpec<Deps, Context = undefined> extends RouteRequestOpt
    * Opt-in: read the whole `Response` body and answer through Express's `res.send(Buffer)` instead of
    * streaming it — `Content-Length`, the host's ETag and a bodiless 304 for a fresh GET/HEAD, as a
    * hand-written `res.send` route answered. Absent: the body streams chunked, with no ETag and no 304.
+   * `'redirect'`: the same, except that a 3xx answer carrying `Location` is replayed through the host
+   * framework's own redirect writer, so a top-level browser redirect keeps its Accept-negotiated body and
+   * `Vary: Accept` (the spec still only states its intent: status, `Location`, headers, cookies).
    */
-  bufferedReply?: true;
+  bufferedReply?: true | 'redirect';
   handle(
     requiredArgs: { readonly raw: RawRouteInputContext; readonly deps: Deps; readonly context: Context | undefined; readonly authorize: JsonRouteAuthorize },
     optionalArgs: { readonly signal: AbortSignal },

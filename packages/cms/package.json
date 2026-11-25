@@ -317,6 +317,7 @@
       "./admin-http/routes/change-sets/revert": "universal",
       "./admin-http/routes/presentation/get": "universal",
       "./admin-http/routes/themes/list": "universal",
+      "./admin-http/routes/themes/preview": "universal",
       "./admin-http/routes/presentation/rescan-themes": "universal",
       "./admin-http/routes/presentation/patch": "universal",
       "./admin-http/routes/themes/duplicate": "universal",
@@ -831,6 +832,7 @@
         "./admin-http/routes/presentation/get": "presentation",
         "./admin-http/routes/presentation/patch": "presentation",
         "./admin-http/routes/themes/list": "presentation",
+        "./admin-http/routes/themes/preview": "presentation",
         "./admin-http/routes/pages/get-by-id": "widgets",
         "./admin-http/routes/seo/get-entry": "seo",
         "./admin-http/routes/seo/get-entry-analyze": "seo",
@@ -2545,6 +2547,11 @@
       "types": "./dist/admin-http/routes/themes/list.d.ts",
       "import": "./dist/admin-http/routes/themes/list.js",
       "default": "./dist/admin-http/routes/themes/list.js"
+    },
+    "./admin-http/routes/themes/preview": {
+      "types": "./dist/admin-http/routes/themes/preview.d.ts",
+      "import": "./dist/admin-http/routes/themes/preview.js",
+      "default": "./dist/admin-http/routes/themes/preview.js"
     },
     "./admin-http/routes/presentation/rescan-themes": {
       "types": "./dist/admin-http/routes/presentation/rescan-themes.d.ts",

@@ -76,7 +76,8 @@ async function answerRawRoute<Deps, Context>({ req, res, spec, deps: mountedDeps
     await response.body?.cancel();
     return;
   }
-  if (spec.bufferedReply) await sendBufferedReply({ response, res });
+  if (spec.bufferedReply === 'redirect') await sendRedirectOrBufferedReply({ response, res });
+  else if (spec.bufferedReply) await sendBufferedReply({ response, res });
   else await sendWebResponse({ response, res }, { headOnly: req.method === 'HEAD' });
 }
 
@@ -93,11 +94,33 @@ async function answerRawRoute<Deps, Context>({ req, res, spec, deps: mountedDeps
 async function sendBufferedReply({ response, res }: { readonly response: globalThis.Response; readonly res: Response }): Promise<void> {
   const body = Buffer.from(await response.arrayBuffer());
   res.statusCode = response.status;
+  copyResponseHeaders({ response, res });
+  res.send(body);
+}
+
+/** Every header of `response` onto `res` as `sendBufferedReply` copies them (each `Set-Cookie` on its own line, `Vary` merged), minus `skip`. O(h). */
+function copyResponseHeaders({ response, res }: { readonly response: globalThis.Response; readonly res: Response }, { skip = '' }: { readonly skip?: string } = {}): void {
   const cookies = response.headers.getSetCookie();
   response.headers.forEach((value, name) => {
     if (name === 'vary') res.vary(value);
-    else if (name !== 'set-cookie') res.setHeader(name, value);
+    else if (name !== 'set-cookie' && name !== skip) res.setHeader(name, value);
   });
   for (const cookie of cookies) res.append('set-cookie', cookie);
-  res.send(body);
+}
+
+/**
+ * The `bufferedReply: 'redirect'` write: a 3xx `Response` with a `Location` is answered by Express's own
+ * `res.redirect(status, location)`, after its other headers and cookies are copied as `sendBufferedReply`
+ * copies them, so the answer is exactly what a hand-written `res.redirect` route gave — the Accept-negotiated
+ * HTML / plain-text / empty body, `Vary: Accept`, `Content-Length`, no body for HEAD. (`Location` itself is
+ * left to `res.redirect`, which writes it through `res.location`'s encoding, as the hand-written route did.)
+ * Any other answer takes `sendBufferedReply`.
+ * @complexity O(h) headers for a redirect (its body is discarded); otherwise `sendBufferedReply`'s.
+ */
+async function sendRedirectOrBufferedReply({ response, res }: { readonly response: globalThis.Response; readonly res: Response }): Promise<void> {
+  const location = response.headers.get('location');
+  if (response.status < 300 || response.status > 399 || location === null) { await sendBufferedReply({ response, res }); return; }
+  await response.body?.cancel();
+  copyResponseHeaders({ response, res }, { skip: 'location' });
+  res.redirect(response.status, location);
 }
