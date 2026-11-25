@@ -125,7 +125,8 @@ export function createInvocationHandler({ deps }: { deps: InvocationDeps }, _opt
   const { options, responder } = deps;
   /** Invocation ids already run here, so a stream reconnect cannot double-click a button. */
   const executed = new Set<string>();
-  return (action) => {
+  /** Runs one well-formed invocation: replay check, announcement, then pane or local serving. */
+  return function handleInvocation(action) {
     // A redelivery after a dropped answer must not re-run the side effect.
     if (executed.has(action.invocationId)) {
       void responder.respondError(action.invocationId, 'already executed on this surface').catch(() => undefined);
