@@ -24,23 +24,33 @@ export interface CapturedMail {
 export interface MailCaptureRepo extends MailCapturePort {
   /** Newest first. `limit` is clamped to 1..{@link MAX_CAPTURE_LIST}; default {@link DEFAULT_CAPTURE_LIST}. */
   listCaptured(required: { workspaceId: string }, optional?: { limit?: number }): Promise<readonly CapturedMail[]>;
-  /** The owner's review of a clear: this workspace's capture ids, their summary, and the revision naming exactly that set. */
+  /**
+   * The owner's review of a clear: this workspace's stored captures plus the activity rows the Email
+   * Activity list shows as kept locally (`outcome = 'captured'`, which includes console-driver sends that
+   * never store a copy), their summary, and the revision naming exactly that set. `plan.count` counts
+   * distinct test emails (a test-mode capture and its activity row are one email).
+   */
   reviewCaptured(required: { workspaceId: string }): Promise<CapturedMailReview>;
   /**
-   * Deletes, in one transaction, only the reviewed `captureIds` of this workspace: a capture that
-   * arrived after the review, or another workspace's, is never deleted. Send ledger and activity are untouched.
+   * Deletes, in one transaction, only the reviewed `captureIds` and still-captured `attemptIds` of this
+   * workspace, and retires the matching send-ledger rows from the activity projection so a cleared send
+   * cannot resurface there. A capture that arrived after the review, or another workspace's, is never
+   * deleted; the ledger rows themselves (duplicate protection) and real sends are untouched.
+   * @returns `deleted`: the distinct test emails removed, counted like `plan.count`.
    */
-  clearReviewedCaptures(required: { workspaceId: string; captureIds: readonly string[] }): Promise<{ deleted: number }>;
+  clearReviewedCaptures(required: { workspaceId: string; captureIds: readonly string[]; attemptIds: readonly string[] }): Promise<{ deleted: number }>;
 }
 
 /** A reviewed set of captured test emails; `revision` changes whenever the set does (not only its count or newest time). */
-export interface CapturedMailReview { plan: MailCaptureClearPlan; captureIds: readonly string[]; revision: string }
+export interface CapturedMailReview { plan: MailCaptureClearPlan; captureIds: readonly string[]; attemptIds: readonly string[]; revision: string }
 
 export const DEFAULT_CAPTURE_LIST = 50;
 export const MAX_CAPTURE_LIST = 200;
 /** Ids per `DELETE ... IN (...)`, under every dialect's bound-parameter limit. */
 const CLEAR_CHUNK = 500;
 
+/** The identity of one reviewed or deleted row: which test email it is, and when. */
+type KeyedRow = { id: string; created_at: string; idempotency_key: string; recipient: string };
 type Row = { id: string; lane: MailDeliveryLane; idempotency_key: string; to_address: string; subject: string; payload_json: string; created_at: string };
 
 const clampLimit = ({ limit }: { limit: number | undefined }, _optional = {}): number =>
@@ -51,8 +61,9 @@ const clampLimit = ({ limit }: { limit: number | undefined }, _optional = {}): n
  * can click their links. Public or missing origins retain routing metadata only: subject, body,
  * headers, names and attachments may all contain credentials and must never reach storage.
  * @complexity capture O(payload size); listCaptured O(returned payload size), with a bounded indexed row limit;
- *   reviewCaptured O(workspace captures) over the (workspace_id, created_at) index; clearReviewedCaptures
- *   O(reviewed ids) primary-key deletes in ceil(ids / 500) statements, one transaction.
+ *   reviewCaptured O(workspace captures + captured attempts), two workspace-scoped reads; clearReviewedCaptures
+ *   O(reviewed ids) primary-key deletes in ceil(ids / 500) statements per table plus one indexed ledger
+ *   update per deleted attempt, one transaction.
  * @example createMailCaptureRepo({ db: kernel }).capture({ message, lane: "transactional", idempotencyKey })
  */
 export function createMailCaptureRepo<DB>(
@@ -78,32 +89,53 @@ export function createMailCaptureRepo<DB>(
       }));
     },
     async reviewCaptured({ workspaceId }) {
-      const rows = await db.query<{ id: string; created_at: string }>(sql`SELECT id, created_at FROM mail_capture WHERE workspace_id = ${workspaceId} ORDER BY id`);
-      const captureIds = rows.map((row) => row.id);
-      const newestAt = rows.reduce<string | null>((max, row) => (max === null || row.created_at > max ? row.created_at : max), null);
-      return { plan: { count: rows.length, newestAt }, captureIds, revision: captureSetRevision({ workspaceId, captureIds }) };
+      const captures = await db.query<KeyedRow>(sql`SELECT id, created_at, idempotency_key, to_address AS recipient FROM mail_capture WHERE workspace_id = ${workspaceId} ORDER BY id`);
+      const attempts = await db.query<KeyedRow>(sql`SELECT id, created_at, idempotency_key, recipient FROM mail_activity_attempts
+        WHERE workspace_id = ${workspaceId} AND outcome = 'captured' ORDER BY id`);
+      const captureIds = captures.map((row) => row.id);
+      const attemptIds = attempts.map((row) => row.id);
+      const newestAt = [...captures, ...attempts].reduce<string | null>((max, row) => (max === null || row.created_at > max ? row.created_at : max), null);
+      return { plan: { count: distinctEmails({ rows: [...captures, ...attempts] }), newestAt }, captureIds, attemptIds, revision: captureSetRevision({ workspaceId, captureIds, attemptIds }) };
     },
-    clearReviewedCaptures: ({ workspaceId, captureIds }) => db.transaction(async () => {
-      let deleted = 0;
+    clearReviewedCaptures: ({ workspaceId, captureIds, attemptIds }) => db.transaction(async () => {
+      const removed: KeyedRow[] = [];
       for (let at = 0; at < captureIds.length; at += CLEAR_CHUNK) {
         const ids = captureIds.slice(at, at + CLEAR_CHUNK);
-        // RETURNING counts deleted rows the same way on SQLite and Postgres.
-        const rows = await db.query<{ id: string }>(sql`DELETE FROM mail_capture WHERE workspace_id = ${workspaceId} AND id IN (${sql.join(ids)}) RETURNING id`);
-        deleted += rows.length;
+        // RETURNING reads deleted rows the same way on SQLite and Postgres.
+        removed.push(...await db.query<KeyedRow>(sql`DELETE FROM mail_capture WHERE workspace_id = ${workspaceId} AND id IN (${sql.join(ids)})
+          RETURNING id, created_at, idempotency_key, to_address AS recipient`));
       }
-      return { deleted };
+      for (let at = 0; at < attemptIds.length; at += CLEAR_CHUNK) {
+        const ids = attemptIds.slice(at, at + CLEAR_CHUNK);
+        // `outcome = 'captured'` again: an attempt upserted into a real send since the review is not a test email.
+        const rows = await db.query<KeyedRow>(sql`DELETE FROM mail_activity_attempts WHERE workspace_id = ${workspaceId} AND outcome = 'captured' AND id IN (${sql.join(ids)})
+          RETURNING id, created_at, idempotency_key, recipient`);
+        // The activity list falls back to a retained ledger row when its attempt is missing; retire it (as retention does) so the cleared send stays gone.
+        for (const row of rows) {
+          await db.execute(sql`UPDATE mail_send_ledger SET activity_retained = 0 WHERE workspace_id = ${workspaceId} AND idempotency_key = ${row.idempotency_key} AND recipient = ${row.recipient}`);
+        }
+        removed.push(...rows);
+      }
+      return { deleted: distinctEmails({ rows: removed }) };
     }),
   };
 }
 
 /**
  * The revision of one workspace's reviewed capture set: a digest of its sorted ids, so two different
- * sets with the same count and newest time never share a revision. @complexity O(ids).
+ * sets with the same count and newest time never share a revision. @complexity O(ids log ids).
  */
-function captureSetRevision({ workspaceId, captureIds }: { workspaceId: string; captureIds: readonly string[] }, _optional: Record<string, never> = {}): string {
+function captureSetRevision(required: { workspaceId: string; captureIds: readonly string[]; attemptIds: readonly string[] }, _optional: Record<string, never> = {}): string {
+  const { workspaceId, captureIds, attemptIds } = required;
   const digest = createHash("sha256").update(workspaceId);
-  for (const id of [...captureIds].sort()) digest.update("\n").update(id);
-  return `captures-v1:${captureIds.length}:${digest.digest("base64url")}`;
+  for (const id of [...captureIds].sort()) digest.update("\nc:").update(id);
+  for (const id of [...attemptIds].sort()) digest.update("\na:").update(id);
+  return `captures-v2:${captureIds.length}:${attemptIds.length}:${digest.digest("base64url")}`;
+}
+
+/** One test email per (idempotency key, recipient): a test-mode capture and its activity row count once. @complexity O(rows). */
+function distinctEmails({ rows }: { rows: readonly KeyedRow[] }, _optional: Record<string, never> = {}): number {
+  return new Set(rows.map((row) => `${row.idempotency_key}\n${row.recipient.trim().toLowerCase()}`)).size;
 }
 
 /**
