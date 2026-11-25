@@ -57,6 +57,43 @@ describe.each(["sqlite", "postgres"] as const)("change-set sql repo [%s]", (dial
     }]);
   });
 
+  async function makeMigrated() {
+    const kernel = await openEventsKernel({ dialect }, { actorKindColumn: true });
+    opened.push(kernel);
+    return { kernel, repo: new SqlChangeSetRepo({ kernel, tables: TABLES }, { actorKindColumn: true }) };
+  }
+  const AGENT = { id: "agent-7", kind: "agent" } as const;
+
+  test("a legacy row keeps its actor id without inventing kind", async () => {
+    const migrated = await makeMigrated();
+    await migrated.kernel.execute(sql`INSERT INTO change_sets (id, workspace_id, actor_id, status, summary, created_at) VALUES ('cs-old', 'ws-a', 'user-1', 'applied', 's', ${AT})`);
+    const found = await migrated.repo.findById({ workspaceId: "ws-a", id: "cs-old" });
+    assert.equal(found?.changeSet.actorId, "user-1");
+    assert.equal(found?.changeSet.actor, undefined);
+    const legacy = await make();
+    await legacy.repo.insert({ record: header({ actor: AGENT, actorId: AGENT.id }), items: [] });
+    const [stored] = await legacy.kernel.query<Record<string, unknown>>(sql`SELECT * FROM change_sets`);
+    assert.equal("actor_kind" in (stored ?? {}), false);
+    const read = await legacy.repo.findById({ workspaceId: "ws-a", id: "cs-a" });
+    assert.deepEqual([read?.changeSet.actorId, read?.changeSet.actor], ["agent-7", undefined]);
+  });
+
+  test("a migrated host round-trips the actor kind; an unknown stored kind stays unknown", async () => {
+    const { kernel, repo } = await makeMigrated();
+    const attributed = header({ actor: AGENT, actorId: AGENT.id, appliedAt: AT, revertedAt: AT });
+    await repo.insert({ record: attributed, items: [] });
+    assert.deepEqual((await repo.findById({ workspaceId: "ws-a", id: "cs-a" }))?.changeSet, attributed);
+    await kernel.execute(sql`UPDATE change_sets SET actor_kind = 'robot'`);
+    assert.equal((await repo.findById({ workspaceId: "ws-a", id: "cs-a" }))?.changeSet.actor, undefined);
+  });
+
+  test("a record whose actor id disagrees with its actor is refused before anything is written", async () => {
+    const { kernel, repo } = await makeMigrated();
+    await assert.rejects(repo.insert({ record: header({ actor: AGENT, actorId: "user-1" }), items: [] }), /actor/);
+    await assert.rejects(repo.insert({ record: header({ idempotencyKey: undefined }), items: [] }, { event: { ...EVENT, actor: AGENT, actorId: "user-1" } }), /actor/);
+    assert.deepEqual(await kernel.query(sql`SELECT id FROM change_sets`), []);
+  });
+
   test("a supplied event lands as the one stored outbox row; no event means no outbox row", async () => {
     const { kernel, repo, count } = await make();
     await repo.insert({ record: header({ id: "cs-0", idempotencyKey: undefined }), items: [] });

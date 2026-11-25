@@ -2,7 +2,7 @@ import type { Kysely, Selectable } from "kysely";
 import type { StorageKernel } from "@jini-ai/core/contracts/storage";
 import type { ISODateTime, UUID } from "@jini-ai/core/primitives";
 import type { DomainEvent, OutboxPort, OutboxRecord } from "@jini-ai/core/contracts/events";
-import type { OutboxEventsTable } from "./repo.rows.js";
+import { assertConsistentActor, type OutboxEventsTable } from "./repo.rows.js";
 
 /**
  * @file THE `OutboxPort` adapter over `outbox_events` (Phase 1): one Kysely query body for
@@ -64,6 +64,8 @@ const UNSETTLED_STATUSES = ["pending", "processing"];
  * writes, using the identical row shape rather than a copy or an independent enqueue.
  */
 export function outboxEventValues(event: DomainEvent<object>) {
+  // The actor (id and kind) rides inside the existing `event_json`, so no outbox column is added.
+  assertConsistentActor(event);
   return {
     id: event.id,
     workspace_id: event.workspaceId,

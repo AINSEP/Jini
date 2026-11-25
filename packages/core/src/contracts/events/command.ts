@@ -1,10 +1,12 @@
 import type { Clock, IdGenerator, JsonObject, UUID } from "../../primitives/index.js";
 import type { ChangeSetItemRecord, ChangeSetOperation, ChangeSetRecord, ChangeSetRepoPort } from "./change-set.js";
-import type { DomainEvent, OutboxPort } from "./ports.js";
+import type { DomainEvent, MutationActor, OutboxPort } from "./ports.js";
 
-/** Principal executing a command. Agents act on behalf of a user. */
-export interface CommandActor {
-  id: UUID;
+/**
+ * Principal executing a command: a `MutationActor` narrowed to the kinds that run commands,
+ * plus the delegation field. Agents act on behalf of a user.
+ */
+export interface CommandActor extends MutationActor {
   kind: "user" | "agent";
   /** User the agent is acting for; unset for direct human commands. */
   onBehalfOfId?: UUID | undefined;

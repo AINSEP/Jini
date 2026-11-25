@@ -16,6 +16,16 @@
 import type { UUID, ISODateTime } from "../../primitives/index.js";
 
 /**
+ * Who a recorded mutation or event is attributed to, as stamped by the trusted writer.
+ * `kind` is never inferred from the shape of `id`; a historic record without provenance
+ * carries no `MutationActor` at all rather than a guessed kind.
+ */
+export interface MutationActor {
+  id: UUID;
+  kind: "user" | "agent" | "system";
+}
+
+/**
  * Immutable domain event emitted by synchronous command handlers and delivered
  * asynchronously via the outbox pipeline.
  */
@@ -39,6 +49,12 @@ export interface DomainEvent<TPayload = Record<string, unknown>> {
    * vocabulary; optional until the identity library lands.
    */
   actorId?: UUID;
+  /**
+   * Attribution stamped by the trusted writer. When both are present, `actor.id` must equal
+   * `actorId` (writers refuse a mismatch); `actorId` stays as the compatibility field.
+   * Optional for now: an event recorded before provenance existed has none.
+   */
+  actor?: MutationActor | undefined;
   /**
    * Change set this event belongs to, enabling propose/preview/apply/revert
    * grouping. Reserved change-set vocabulary.

@@ -56,6 +56,17 @@ describe("changeSetRevertRoute", () => {
     expect(events.map((event) => event.name)).toEqual(["change-set.reverted"]);
   });
 
+  it("the reverted event carries the change set's recorded actor, and a legacy set's stays unknown", async () => {
+    const legacy = setup();
+    await run(legacy.deps, { changeSetId: "cs-1", force: false });
+    expect(legacy.events[0]?.actor).toBeUndefined();
+    const attributed = setup();
+    const found = await attributed.changeSets.findById({ workspaceId: WORKSPACE_ID, id: "cs-1" });
+    await attributed.changeSets.save({ ...found!.changeSet, actorId: "agent-7", actor: { id: "agent-7", kind: "agent" } });
+    await run(attributed.deps, { changeSetId: "cs-1", force: false });
+    expect([attributed.events[0]?.actorId, attributed.events[0]?.actor]).toStrictEqual(["agent-7", { id: "agent-7", kind: "agent" }]);
+  });
+
   it("does not revert anything when authorization refuses", async () => {
     const { deps, applied, events } = setup();
     const { authorize } = recordingAuthorize(["changeset.revert"]);

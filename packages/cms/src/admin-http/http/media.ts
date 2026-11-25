@@ -18,6 +18,15 @@ import type { MediaRecord } from "../../media/types.js";
  * declarations; this module only serializes into them.
  */
 
+/** The DTO's optional keys, present only when the record has a value: a description and a confirmed
+ *  video codec (an unknown codec is omitted, never guessed). @complexity O(1). */
+function optionalMediaFields({ media }: { media: MediaRecord }, _optional: Record<string, never> = {}): Pick<AdminMediaDto, 'description' | 'videoCodec'> {
+  return {
+    ...(media.description === undefined ? {} : { description: media.description }),
+    ...(media.source.videoCodec ? { videoCodec: media.source.videoCodec } : {}),
+  };
+}
+
 /**
  * `contentType`/`publicUrl` are REQUIRED fields rather than optional ones with a
  * `null` default: neither can be derived from `MediaRecord` alone (`contentType` is looked up
@@ -49,7 +58,7 @@ export function toAdminMediaResponse(
     alt: media.alt,
     caption: media.caption,
     credit: media.credit,
-    ...(media.description === undefined ? {} : { description: media.description }),
+    ...optionalMediaFields({ media }),
     sha256: media.source.sha256,
     byteSize,
     status: media.status,
@@ -62,7 +71,6 @@ export function toAdminMediaResponse(
     htmlAttributes: media.htmlAttributes,
     contentType: media.kind === "document" ? documentContentType({ filename: media.originalFilename ?? "" }) : contentType,
     publicUrl: media.kind === "document" ? null : publicUrl,
-    ...(media.source.videoCodec ? { videoCodec: media.source.videoCodec } : {}),
   };
 }
 

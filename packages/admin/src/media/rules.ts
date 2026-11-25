@@ -54,7 +54,7 @@ export function diffMediaMetadata(
   _optional: Record<string, never> = {},
 ): MediaMetadataPatch {
   const patch: Record<string, unknown> = {};
-  for (const key of ['title', 'slug', 'alt', 'caption', 'credit', 'width', 'height', 'cssClass', 'htmlAttributes'] as const)
+  for (const key of ['title', 'slug', 'alt', 'caption', 'credit', 'description', 'width', 'height', 'cssClass', 'htmlAttributes'] as const)
     if (draft[key] !== undefined && draft[key] !== item[key]) patch[key] = draft[key];
   return patch as MediaMetadataPatch;
 }

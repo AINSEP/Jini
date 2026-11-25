@@ -8,7 +8,7 @@ import type {
   MediaMetadataPatch,
 } from '../models.js';
 import { queryMedia } from '../rules.js';
-const METADATA_KEYS: readonly string[] = ['title', 'slug', 'alt', 'caption', 'credit', 'width', 'height', 'cssClass', 'htmlAttributes'];
+const METADATA_KEYS: readonly string[] = ['title', 'slug', 'alt', 'caption', 'credit', 'description', 'width', 'height', 'cssClass', 'htmlAttributes'];
 /** Only metadata keys with a defined value; null stays, so a patch can clear a nullable field. */
 function pickMetadata({ patch }: { patch: MediaMetadataPatch }): MediaMetadataPatch {
   return Object.fromEntries(Object.entries(patch).filter(([key, value]) => METADATA_KEYS.includes(key) && value !== undefined));

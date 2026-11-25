@@ -4,6 +4,7 @@ import type {
   ChangeSetOperation,
   ChangeSetRecord,
   ChangeSetStatus,
+  MutationActor,
 } from "@jini-ai/core/contracts/events";
 
 /** Stored column shapes, copied without schema changes; the table names are host-owned (see `ChangeSetTables`, `OutboxTables`). */
@@ -24,6 +25,8 @@ export interface ChangeSetsTable {
   id: string;
   workspace_id: string;
   actor_id: string | null;
+  /** Present only once the host has migrated; read and written only under `ActorKindColumn`. */
+  actor_kind?: string | null;
   status: string;
   summary: string;
   idempotency_key: string | null;
@@ -44,8 +47,38 @@ export interface OutboxEventsTable {
   created_at: string;
 }
 
-export function toRecord(row: Selectable<ChangeSetsTable>): ChangeSetRecord {
+/** Whether the host's `change_sets` table has the `actor_kind` column yet; off means it is never named. */
+export interface ActorKindColumn { actorKindColumn?: boolean }
+
+const ACTOR_KINDS: ReadonlySet<string> = new Set<MutationActor["kind"]>(["user", "agent", "system"]);
+
+/**
+ * Refuses a record or event whose compatibility `actorId` names someone other than its `actor`,
+ * so the two attribution fields can never be persisted disagreeing.
+ *
+ * @param required - The record or event's `actorId` and `actor`.
+ * @throws {Error} When both are present and the ids differ.
+ * @complexity O(1).
+ */
+export function assertConsistentActor(
+  { actorId, actor }: { actorId?: string | undefined; actor?: MutationActor | undefined },
+  _optional: Record<string, never> = {},
+): void {
+  if (actor && actorId !== undefined && actorId !== actor.id) {
+    throw new Error("The actor id does not match the recorded actor; refusing to write conflicting attribution.");
+  }
+}
+
+/** The stored provenance as an actor, or nothing: a missing or unrecognised kind is unknown, never guessed. */
+function storedActor(row: Selectable<ChangeSetsTable>, { actorKindColumn = false }: ActorKindColumn): { actor?: MutationActor } {
+  const kind = actorKindColumn ? row.actor_kind : null;
+  if (!row.actor_id || !kind || !ACTOR_KINDS.has(kind)) return {};
+  return { actor: { id: row.actor_id, kind: kind as MutationActor["kind"] } };
+}
+
+export function toRecord(row: Selectable<ChangeSetsTable>, options: ActorKindColumn = {}): ChangeSetRecord {
   return {
+    ...storedActor(row, options),
     id: row.id,
     workspaceId: row.workspace_id,
     actorId: row.actor_id ?? undefined,
@@ -74,12 +107,14 @@ export function toItemRecord(row: Selectable<ChangeSetItemsTable>): ChangeSetIte
   };
 }
 
-/** `toRecord`'s inverse: every absent optional field is written as SQL NULL. */
-export function toRow(record: ChangeSetRecord): Insertable<ChangeSetsTable> {
+/** `toRecord`'s inverse: every absent optional field is written as SQL NULL; `actor_kind` only under `ActorKindColumn`. */
+export function toRow(record: ChangeSetRecord, { actorKindColumn = false }: ActorKindColumn = {}): Insertable<ChangeSetsTable> {
+  assertConsistentActor(record);
   return {
+    ...(actorKindColumn ? { actor_kind: record.actor?.kind ?? null } : {}),
     id: record.id,
     workspace_id: record.workspaceId,
-    actor_id: record.actorId ?? null,
+    actor_id: record.actorId ?? record.actor?.id ?? null,
     status: record.status,
     summary: record.summary,
     idempotency_key: record.idempotencyKey ?? null,

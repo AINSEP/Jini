@@ -116,6 +116,8 @@ function revertedChangeSetEvent(deps: RevertChangeSetDeps, reverted: ChangeSetRe
     aggregateId: reverted.id,
     workspaceId: reverted.workspaceId,
     actorId: reverted.actorId,
+    // Same attribution as the change set it reverts; a historic set without provenance stays unknown.
+    actor: reverted.actor,
     changeSetId: reverted.id,
     payload: { changeSetId: reverted.id },
   } as DomainEvent<{ changeSetId: UUID }>;

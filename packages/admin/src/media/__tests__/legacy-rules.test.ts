@@ -195,6 +195,12 @@ describe('legacy query order and tab resolution', () => {
 });
 
 describe('legacy metadata and public embed rules', () => {
+  it('includes a changed description in the patch and omits an untouched one', () => {
+    const item = asset({ description: 'A fox.' });
+    expect(diffMediaMetadata({ item, draft: { description: 'A red fox on a hill.' } })).toEqual({ description: 'A red fox on a hill.' });
+    expect(diffMediaMetadata({ item, draft: { description: 'A fox.' } })).toEqual({});
+    expect(diffMediaMetadata({ item, draft: { description: '' } })).toEqual({ description: '' });
+  });
   it('keeps slug independent of title and sends only genuinely changed metadata', () => {
     const item = asset({});
     expect(diffMediaMetadata({ item, draft: { title: 'Renamed', slug: 'photo', alt: item.alt } })).toEqual({ title: 'Renamed' });

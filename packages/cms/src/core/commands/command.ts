@@ -10,6 +10,7 @@ import type {
   ExecuteCommandDeps,
   ExecuteCommandOptional,
   ExecuteCommandRequired,
+  MutationActor,
 } from "@jini-ai/core/contracts/events";
 
 /**
@@ -193,6 +194,20 @@ async function rejectReplayedCommand(
   }
 }
 
+/**
+ * The attribution both audit outputs carry, copied from the one trusted command actor so the
+ * change set and its applied event can never disagree. Delegation (`onBehalfOfId`) is not part
+ * of attribution and stays on the envelope.
+ *
+ * @param required - The command envelope.
+ * @returns The actor's id and kind, nothing else.
+ * @complexity O(1).
+ */
+function attributedActor({ command }: { command: CommandEnvelope }, _optional: Record<string, never> = {}): MutationActor {
+  // The execution channel supplies attribution, the principal ID still governs authorization, and the two are not interchangeable.
+  return { id: command.actor.id, kind: command.actor.kind };
+}
+
 function appliedChangeSetEvent(
   { deps, command, mutation }: { deps: ExecuteCommandDeps; command: CommandEnvelope; mutation: Pick<CommandMutation<unknown>, 'entityType' | 'entityId'> },
   { now, changeSetId }: { now: string; changeSetId: UUID },
@@ -207,6 +222,7 @@ function appliedChangeSetEvent(
     aggregateId: changeSetId,
     workspaceId: command.workspaceId,
     actorId: command.actor.id,
+    actor: attributedActor({ command }),
     changeSetId,
     payload: {
       changeSetId,
@@ -250,6 +266,7 @@ function buildAppliedChangeSet<TResult>(
       id: changeSetId,
       workspaceId: command.workspaceId,
       actorId: command.actor.id,
+      actor: attributedActor({ command }),
       status: "applied",
       summary: command.summary,
       idempotencyKey: command.idempotencyKey,

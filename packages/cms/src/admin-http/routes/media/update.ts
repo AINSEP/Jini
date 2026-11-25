@@ -55,6 +55,7 @@ function parseMediaMetadataPatch({ rawBody }: { rawBody: unknown }, _optional = 
     caption: parseOptionalStringField({ raw: body.caption, field: "caption" }),
     credit: parseOptionalStringField({ raw: body.credit, field: "credit" }),
     // The 2,000-character bound lives in `updateMediaMetadata` (one validator); blank or null clears, omitted leaves it unchanged.
+    description: parseOptionalStringField({ raw: body.description, field: "description" }),
     width: parseOptionalNullableField({ raw: body.width, convert: Number }),
     height: parseOptionalNullableField({ raw: body.height, convert: Number }),
     cssClass: parseOptionalNullableField({ raw: body.cssClass, convert: String }),

@@ -72,6 +72,6 @@ export function createEditMediaController(
 /** Do not invent CMS fields for hosts which omit them: undefined is an untouched field. */
 function metadataDraft({ item }: { item: MediaAsset }): MediaMetadataPatch {
   return Object.fromEntries(Object.entries({ title: item.title, slug: item.slug, alt: item.alt,
-    caption: item.caption, credit: item.credit, width: item.width, height: item.height,
+    caption: item.caption, credit: item.credit, description: item.description, width: item.width, height: item.height,
     cssClass: item.cssClass, htmlAttributes: item.htmlAttributes }).filter(([, value]) => value !== undefined));
 }
