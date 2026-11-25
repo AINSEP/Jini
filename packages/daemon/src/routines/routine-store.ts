@@ -36,6 +36,7 @@ export interface RoutineCreateInput {
   readonly target: RoutineProjectTarget;
   readonly skillId?: string | null;
   readonly agentId?: string | null;
+  readonly model?: string | null;
   readonly context?: RoutineContextSelection;
   /** @default true */
   readonly enabled?: boolean;
@@ -48,6 +49,7 @@ export interface RoutineUpdateInput {
   readonly target?: RoutineProjectTarget;
   readonly skillId?: string | null;
   readonly agentId?: string | null;
+  readonly model?: string | null;
   readonly context?: RoutineContextSelection;
   readonly enabled?: boolean;
 }
@@ -58,17 +60,20 @@ export interface RoutineUpdateInput {
  * (a SQLite store, future work) implements the same interface.
  */
 export interface RoutineStore {
-  list(): Promise<readonly Routine[]>;
+  list(required?: Record<string, never>, optional?: Record<string, never>): Promise<readonly Routine[]>;
   /** Returns `null` when no routine with `id` exists — never throws for a missing id. */
-  get(args: { readonly id: string }): Promise<Routine | null>;
+  get(args: { readonly id: string }, optional?: Record<string, never>): Promise<Routine | null>;
   /** Assigns and returns the new routine's `id` — never supplied by the caller, matching `EventLog.append`'s cursor-assignment precedent. */
-  create(requiredArgs: Pick<RoutineCreateInput, "name" | "prompt" | "schedule" | "target">, optionalArgs?: Pick<RoutineCreateInput, "skillId" | "agentId" | "context" | "enabled">): Promise<Routine>;
+  create(requiredArgs: RoutineCreateInput, optionalArgs?: Pick<RoutineCreateInput, "skillId" | "agentId" | "model" | "context" | "enabled"> & { creatorId?: string }): Promise<Routine>;
   /** Applies a partial patch and returns the updated routine, or `null` if `id` does not exist. */
-  update(args: { readonly id: string; readonly patch: RoutineUpdateInput }): Promise<Routine | null>;
+  update(args: { readonly id: string; readonly patch: RoutineUpdateInput }, optional?: { expectedRevision?: number }): Promise<Routine | null>;
   /** Returns whether a routine with `id` existed (and was removed). */
-  delete(args: { readonly id: string }): Promise<boolean>;
+  delete(args: { readonly id: string }, optional?: { expectedRevision?: number }): Promise<boolean>;
   /** Returns up to `limit` runs for `routineId`, newest first, with a `nextCursor` when older runs exist. Returns an empty last page for an unknown routine rather than throwing — mirrors `list()`'s empty-collection convention. A malformed `cursor` throws `ToolInputError`. */
-  listRuns(required: { readonly routineId: string; readonly limit: number }, optional?: { readonly cursor?: string | null }): Promise<ListPage<RoutineRun>>;
+  listRuns(required: { readonly routineId: string; readonly limit?: number }, optional?: { readonly cursor?: string | null; readonly limit?: number }): Promise<ListPage<RoutineRun>>;
+  setEnabled(required: { id: string; enabled: boolean }, optional?: { expectedRevision?: number }): Promise<Routine | null>;
+  setApproval(required: { runId: string; state: NonNullable<RoutineRun['approvalState']> },
+    optional?: { ref?: string; expectedRef?: string; since?: number }): Promise<void>;
   /** Returns the most recently started run for `routineId`, or `null` if none has ever run. */
   getLatestRun(args: { readonly routineId: string }): Promise<RoutineRun | null>;
 }
@@ -94,6 +99,13 @@ export function summarizeLastRun({ run }: { readonly run: RoutineRun | null }): 
     ...(run.summary ? { summary: run.summary } : {}),
     ...(run.error ? { error: run.error } : {}),
     ...(run.errorCode ? { errorCode: run.errorCode } : {}),
+    ...(run.catchUp === undefined ? {} : { catchUp: run.catchUp }),
+    ...(run.slotAt === undefined ? {} : { slotAt: run.slotAt }),
+    ...(run.assistantMessageId === undefined ? {} : { assistantMessageId: run.assistantMessageId }),
+    ...(run.agentId === undefined ? {} : { agentId: run.agentId }),
+    ...(run.model === undefined ? {} : { model: run.model }),
+    ...(run.approvalState === undefined ? {} : { approvalState: run.approvalState }),
+    ...(run.approvalSince === undefined ? {} : { approvalSince: run.approvalSince }),
   };
 }
 
@@ -168,7 +180,7 @@ export function createInMemoryRoutineStore(_requiredArgs: Record<string, never>,
       return routine ? withLastRun(routine) : null;
     },
 
-    async create(requiredArgs: Pick<RoutineCreateInput, "name" | "prompt" | "schedule" | "target">, optionalArgs: Pick<RoutineCreateInput, "skillId" | "agentId" | "context" | "enabled"> = {}): Promise<Routine> {
+    async create(requiredArgs: RoutineCreateInput, optionalArgs: Pick<RoutineCreateInput, "skillId" | "agentId" | "model" | "context" | "enabled"> & { creatorId?: string } = {}): Promise<Routine> {
       const input: RoutineCreateInput = { ...requiredArgs, ...optionalArgs };
       const createdAt = now();
       const routine: Routine = {
@@ -179,6 +191,8 @@ export function createInMemoryRoutineStore(_requiredArgs: Record<string, never>,
         target: input.target,
         skillId: input.skillId ?? null,
         agentId: input.agentId ?? null,
+        ...(input.model !== undefined ? { model: input.model } : {}),
+        ...(optionalArgs.creatorId !== undefined ? { creatorId: optionalArgs.creatorId } : {}),
         context: input.context ?? {},
         enabled: input.enabled ?? true,
         nextRunAt: null,
@@ -201,6 +215,7 @@ export function createInMemoryRoutineStore(_requiredArgs: Record<string, never>,
         ...(patch.target !== undefined ? { target: patch.target } : {}),
         ...(patch.skillId !== undefined ? { skillId: patch.skillId } : {}),
         ...(patch.agentId !== undefined ? { agentId: patch.agentId } : {}),
+        ...(patch.model !== undefined ? { model: patch.model } : {}),
         ...(patch.context !== undefined ? { context: patch.context } : {}),
         ...(patch.enabled !== undefined ? { enabled: patch.enabled } : {}),
         updatedAt: now(),
@@ -213,12 +228,19 @@ export function createInMemoryRoutineStore(_requiredArgs: Record<string, never>,
       return routines.delete(id);
     },
 
-    async listRuns({ routineId, limit }: { readonly routineId: string; readonly limit: number }, optional: { readonly cursor?: string | null } = {}): Promise<ListPage<RoutineRun>> {
-      return pageFromArray({ rows: runsFor(routineId), limit, cursor: optional.cursor ?? null, positionOf: (run) => [-run.startedAt, run.id], shape: ['number', 'string'] });
+    async listRuns({ routineId, limit = 20 }: { readonly routineId: string; readonly limit?: number }, optional: { readonly cursor?: string | null; readonly limit?: number } = {}): Promise<ListPage<RoutineRun>> {
+      return pageFromArray({ rows: runsFor(routineId), limit: optional.limit ?? limit, cursor: optional.cursor ?? null, positionOf: (run) => [-run.startedAt, run.id], shape: ['number', 'string'] });
     },
 
     async getLatestRun({ routineId }: { readonly routineId: string }): Promise<RoutineRun | null> {
       return runsFor(routineId)[0] ?? null;
+    },
+
+    async setEnabled({ id, enabled }, optional = {}) { return this.update({ id, patch: { enabled } }, optional); },
+    async setApproval({ runId, state }, { ref, expectedRef, since } = {}) {
+      const run = runs.find((r) => r.id === runId);
+      if (run?.status !== 'running' || (expectedRef !== undefined && run.approvalRef !== expectedRef)) return;
+      Object.assign(run, { approvalState: state, approvalRef: ref ?? run.approvalRef, approvalSince: since ?? run.approvalSince });
     },
 
     recordRun({ run }: { readonly run: RoutineRun }): boolean {

@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import type { ChatRunLedger } from '../../../core/durable-runs/ledger-contracts.js';
+import type { ChatRunLedger, ChatRunRecoveryOptions } from '../../../core/durable-runs/ledger-contracts.js';
 import { createLazyChatRunLedger } from '../lazy-run-ledger.js';
 
 /** A recording ledger per kernel, and a lazily "opened" kernel the test controls. */
@@ -8,6 +8,7 @@ function harness() {
   const open = vi.fn(() => (kernel ??= 'k1'));
   const built: string[] = [];
   const durable = { find: vi.fn() } as unknown as NonNullable<ChatRunLedger['durable']>;
+  const reconcileInterrupted = vi.fn(async (_required?: { now?: number }, _optional?: ChatRunRecoveryOptions) => 7);
   const ledgerFor = ({ kernel: k }: { kernel: string }): ChatRunLedger => {
     built.push(k);
     return {
@@ -16,11 +17,11 @@ function harness() {
       unlessSettled: async (required) => ({ settled: false, value: await required.write() }) as never,
       settle: async () => true,
       checkpoint: async () => true,
-      reconcileInterrupted: async () => 7,
+      reconcileInterrupted,
     };
   };
   const ledger = createLazyChatRunLedger({ peek: () => kernel, open, ledgerFor });
-  return { ledger, open, built, durable };
+  return { ledger, open, built, durable, reconcileInterrupted };
 }
 
 describe('createLazyChatRunLedger', () => {
@@ -43,4 +44,12 @@ describe('createLazyChatRunLedger', () => {
     expect(await h.ledger.reconcileInterrupted()).toBe(7);
     expect(new Set(h.built)).toEqual(new Set(['k1']));
   });
+});
+
+it('forwards both recovery objects including admission unchanged', async () => {
+  const h = harness(); await h.ledger.settle({ runId: 'r' } as never);
+  const required = { now: 42 }; const optional = { admit: vi.fn(async () => 'leave-owned' as const), recover: vi.fn(async () => true) };
+  expect(await h.ledger.reconcileInterrupted(required, optional)).toBe(7);
+  expect(h.reconcileInterrupted.mock.calls[0]?.[0]).toBe(required);
+  expect(h.reconcileInterrupted.mock.calls[0]?.[1]).toBe(optional);
 });

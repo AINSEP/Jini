@@ -22,3 +22,7 @@ describe('statusForError', () => {
     expect(statusForError({ error: { code: 'TOOL_OPERATION_DENIED', message: 'x' } })).toBe(403);
   });
 });
+
+it('maps INSUFFICIENT_STORAGE to 507', () => {
+  expect(statusForError({ error: { code: 'INSUFFICIENT_STORAGE', message: 'full' } })).toBe(507);
+});

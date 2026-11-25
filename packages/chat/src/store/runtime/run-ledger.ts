@@ -37,7 +37,7 @@ import type { AgentEvent } from "@jini-ai/core/contracts/site/chat-core";
 const TERMINAL_STATUSES = ["succeeded", "failed", "canceled"] as const;
 
 export type * from "../../core/durable-runs/ledger-contracts.js";
-import type { RunRef, RunProgress, ChatRunLedger, CheckpointOptions } from "../../core/durable-runs/ledger-contracts.js";
+import type { RunRef, RunProgress, ChatRunLedger, CheckpointOptions, InterruptedChatTurn } from "../../core/durable-runs/ledger-contracts.js";
 import { runLockKey } from "../../core/durable-runs/run-lock.js";
 export { runLockKey } from "../../core/durable-runs/run-lock.js";
 
@@ -306,7 +306,7 @@ export function createChatRunLedger<DB extends ChatDatabase>(
       );
       let count = 0;
       for (const row of stuck) {
-        const dispatched = await optional.recover?.({
+        const turn: InterruptedChatTurn = {
           principalId: row.owner_kind === "user" ? row.owner_id : null,
           conversationId: row.conversation_id,
           message: {
@@ -314,7 +314,13 @@ export function createChatRunLedger<DB extends ChatDatabase>(
             ...(row.run_id ? { runId: row.run_id } : {}),
             runStatus: row.run_status as "queued" | "running",
           },
-        });
+        };
+        const admitSafely = async (turn: InterruptedChatTurn) => {
+          try { return await optional.admit?.({ turn }, {}) ?? 'recover'; }
+          catch { console.error('CHAT_RUN_RECOVERY_ADMISSION_FAILED'); return 'leave-owned'; }
+        };
+        if ((await admitSafely(turn)) === 'leave-owned') continue;
+        const dispatched = await optional.recover?.(turn);
         if (dispatched) { count += 1; continue; }
         // A legacy stub without an attempt id, or a host without durable recovery, cannot ever
         // be adopted. Preserve the latest checkpoint under the same lock as settle: discovery's

@@ -12,6 +12,8 @@ import {
 } from '../../index.js';
 import {
   routineRoutes,
+  createRoutineCreateRoute,
+  createRoutineListRoute,
   routineCreateRoute,
   routineDeleteRoute,
   routineGetRoute,
@@ -910,4 +912,44 @@ describe('routineRoutes', () => {
       expect((response.body as { error: { code: string } }).error.code).toBe('INTERNAL_ERROR');
     });
   });
+});
+
+
+describe('host-bound routine factories', () => {
+  it('POST ignores body ownerId and uses resolveCreator', async () => {
+    const deps = makeDeps();
+    const resolveCreator = vi.fn(async ({ context }: { context: { principalId: string } | undefined }) => context?.principalId ?? null);
+    const spec = createRoutineCreateRoute({ path: '/admin/routines', copy: {} });
+    const parsed = spec.parse({ body: validCreateBody({ ownerId: 'attacker' }), params: {}, query: {} });
+    expect(parsed.ok).toBe(true); if (!parsed.ok) return;
+    const result = await spec.handle({ input: parsed.value, deps: { ...deps, resolveCreator }, context: { principalId: 'owner' } });
+    expect(result.ok && result.value.routine.creatorId).toBe('owner');
+    expect(resolveCreator).toHaveBeenCalledWith({ context: { principalId: 'owner' } }, {});
+  });
+  it('missing authenticated creator refuses creation', async () => {
+    const deps = makeDeps(); const create = vi.spyOn(deps.store, 'create');
+    const spec = createRoutineCreateRoute({ path: '/admin/routines', copy: {} });
+    const parsed = spec.parse({ body: validCreateBody(), params: {}, query: {} });
+    expect(parsed.ok).toBe(true); if (!parsed.ok) return;
+    expect(await spec.handle({ input: parsed.value, deps: { ...deps, resolveCreator: async () => null } })).toMatchObject({ ok: false, error: { code: 'UNAUTHORIZED' } });
+    expect(create).not.toHaveBeenCalled();
+  });
+  it('POST accepts optional model and agentId', async () => {
+    const deps = makeDeps(); const spec = createRoutineCreateRoute({ path: '/admin/routines', copy: {} });
+    const parsed = spec.parse({ body: validCreateBody({ agentId: 'claude', model: 'model-1' }), params: {}, query: {} });
+    expect(parsed.ok).toBe(true); if (!parsed.ok) return;
+    expect(await spec.handle({ input: parsed.value, deps: { ...deps, resolveCreator: async () => 'owner' } })).toMatchObject({ ok: true,
+      value: { routine: { agentId: 'claude', model: 'model-1' } } });
+  });
+  it('legacy no-creator creation', async () => {
+    const deps = makeDeps();
+    expect(await routineCreateRoute.handle({ input: validCreateBody() as Parameters<typeof deps.store.create>[0], deps })).toMatchObject({ ok: true });
+    expect((await deps.store.list())[0]?.creatorId).toBeUndefined();
+  });
+  it.each([['SQLITE_BUSY', 'SERVICE_UNAVAILABLE', 'ROUTINES_BUSY'], ['SQLITE_FULL', 'INSUFFICIENT_STORAGE', 'ROUTINES_DISK_FULL']])(
+    'maps %s without exposing driver text', async (code, expected, reason) => {
+      const deps = makeDeps(); vi.spyOn(deps.store, 'list').mockRejectedValue(Object.assign(new Error('private path'), { code }));
+      const spec = createRoutineListRoute({ path: '/admin/routines', copy: { [reason]: 'Unavailable' } });
+      expect(await spec.handle({ input: undefined, deps })).toEqual({ ok: false, error: { code: expected, message: 'Unavailable', details: { reason } } });
+    });
 });

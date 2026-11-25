@@ -130,6 +130,8 @@ export type {
 } from './routines.js';
 export {
   routineRoutes,
+  createRoutineListRoute, createRoutineCreateRoute, createRoutineGetRoute, createRoutineUpdateRoute,
+  createRoutineDeleteRoute, createRoutineRunNowRoute, createRoutineRunsRoute,
   routineCreateRoute,
   routineDeleteRoute,
   routineGetRoute,

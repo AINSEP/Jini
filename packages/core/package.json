@@ -122,6 +122,7 @@
       "./contracts/site/search": "universal",
       "./contracts/site/assistant-host-ports": "universal",
       "./contracts/site/assistant-mcp-services": "universal",
+      "./contracts/site/routines": "universal",
       "./contracts/site/chat-core": "universal",
       "./contracts/site/cms-core": "universal",
       "./contracts/site/core-commands": "universal",
@@ -890,6 +891,11 @@
       "types": "./dist/contracts/site/assistant-mcp-services.d.ts",
       "import": "./dist/contracts/site/assistant-mcp-services.js",
       "default": "./dist/contracts/site/assistant-mcp-services.js"
+    },
+    "./contracts/site/routines": {
+      "types": "./dist/contracts/site/routines.d.ts",
+      "import": "./dist/contracts/site/routines.js",
+      "default": "./dist/contracts/site/routines.js"
     },
     "./contracts/site/chat-core": {
       "types": "./dist/contracts/site/chat-core.d.ts",

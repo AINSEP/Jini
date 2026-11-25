@@ -15,6 +15,10 @@ export interface InterruptedChatTurn {
 }
 
 export interface ChatRunRecoveryOptions {
+  readonly admit?: (
+    required: { turn: InterruptedChatTurn },
+    optional?: Record<string, never>
+  ) => Promise<'recover' | 'leave-owned'>;
   /** True retains the row: a daemon run was adopted with bounded resolution of uncertainty.
    * Called outside storage transactions so a daemon request cannot hold the database lock. */
   readonly recover?: (input: InterruptedChatTurn) => Promise<boolean>;
