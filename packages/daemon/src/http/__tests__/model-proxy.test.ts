@@ -1581,3 +1581,87 @@ describe('modelProxyRoutes — host-bound tool-turn runners', () => {
     expect(port.calls[0]!.required).toMatchObject({ apiKey: 'k', model: 'm', messages: [{ role: 'user', content: 'hi' }] });
   });
 });
+
+/**
+ * K06 pin: which provider answers a request, what an unsupported provider gets, how a bad request is
+ * answered before any stream exists, and how a provider failure reaches the client. Two assembled
+ * providers with different capabilities (one streams text, one fails upstream) are used so a daemon that
+ * answered from a built-in provider list instead of the assembled one would be caught.
+ */
+describe('model proxy provider selection and projection', () => {
+  const anthropicBody = { apiKey: 'k', model: 'm', maxTokens: 10, messages: [{ role: 'user', content: 'hi' }] };
+  const openaiBody = { apiKey: 'k', model: 'm', messages: [{ role: 'user', content: 'hi' }] };
+
+  function twoProviderPort() {
+    const streaming = fakeProviderToolTurnPort({ events: [{ type: 'text', text: 'streamed-by-anthropic' }, { type: 'end', reason: 'stop' }] });
+    const calls = streaming.calls;
+    return {
+      calls,
+      port: {
+        ...streaming,
+        openai: async (_required: unknown): Promise<never> => { throw new Error('openai upstream blew up api_key=SECRETSECRETSECRETSECRET'); },
+      },
+    };
+  }
+
+  async function post({ routes, path, body, params }: { readonly routes: ReturnType<typeof modelProxyRoutes>; readonly path: string; readonly body: unknown; readonly params?: Record<string, string> }) {
+    const route = routes.find((candidate) => candidate.path === path)!;
+    const request = new Request(`http://local${path.replace(':provider', params?.provider ?? '')}`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) });
+    return route.handler({ request, params: params ?? {}, locals: {} });
+  }
+
+  it('answers each provider path from that provider only, with the runner events as the stream', async () => {
+    const { port, calls } = twoProviderPort();
+    const routes = modelProxyRoutes({ deps: { toolTurns: port }, host: proxyHost() });
+    const response = await post({ routes, path: '/api/proxy/anthropic/stream', body: anthropicBody });
+    const text = await response.text();
+    expect(response.headers.get('content-type')).toContain('text/event-stream');
+    expect(text).toContain('streamed-by-anthropic');
+    expect(calls.map((call) => call.member)).toEqual(['anthropic']);
+  });
+
+  it('answers an unsupported provider on the catch-all with a 400 and never calls a runner', async () => {
+    const { port, calls } = twoProviderPort();
+    const routes = modelProxyRoutes({ deps: { toolTurns: port }, host: proxyHost() });
+    for (const provider of ['cohere', 'constructor']) {
+      const response = await post({ routes, path: '/api/proxy/:provider/stream', body: anthropicBody, params: { provider } });
+      expect(response.status).toBe(400);
+      expect(await response.json()).toMatchObject({ error: { code: 'BAD_REQUEST', message: `unknown provider: ${provider}` } });
+    }
+    expect(calls).toEqual([]);
+  });
+
+  it('answers a malformed request as a plain JSON 400 before any stream, per provider rules', async () => {
+    const { port, calls } = twoProviderPort();
+    const routes = modelProxyRoutes({ deps: { toolTurns: port }, host: proxyHost() });
+    const noKey = await post({ routes, path: '/api/proxy/openai/stream', body: { model: 'm', messages: [{}] } });
+    const noMaxTokens = await post({ routes, path: '/api/proxy/anthropic/stream', body: { apiKey: 'k', model: 'm', messages: [{}] } });
+    for (const response of [noKey, noMaxTokens]) {
+      expect(response.status).toBe(400);
+      expect(response.headers.get('content-type')).toContain('application/json');
+    }
+    expect(await noKey.json()).toMatchObject({ error: { details: { issues: [{ path: 'apiKey' }] } } });
+    expect(await noMaxTokens.json()).toMatchObject({ error: { details: { issues: [{ path: 'maxTokens' }] } } });
+    expect(calls).toEqual([]);
+  });
+
+  it('forwards only the optional fields a request carried', async () => {
+    const { port, calls } = twoProviderPort();
+    const routes = modelProxyRoutes({ deps: { toolTurns: port }, host: proxyHost() });
+    await (await post({ routes, path: '/api/proxy/anthropic/stream', body: { ...anthropicBody, system: 'be brief' } })).text();
+    expect(calls[0]!.optional).toEqual({ system: 'be brief' });
+  });
+
+  it('projects an upstream failure to fixed words plus a request id, keeping the real error for the host sink', async () => {
+    const { port } = twoProviderPort();
+    const host = proxyHost();
+    const routes = modelProxyRoutes({ deps: { toolTurns: port }, host });
+    const text = await (await post({ routes, path: '/api/proxy/openai/stream', body: openaiBody })).text();
+    expect(text).not.toContain('SECRETSECRET');
+    expect(text).toContain('The assistant response stopped.');
+    expect(text).toContain('"reason":"error"');
+    expect(host.reports).toHaveLength(1);
+    expect(host.reports[0]).toMatchObject({ logSource: 'model-proxy/openai' });
+    expect(host.reports[0]!.report.error).toMatchObject({ message: expect.stringContaining('api_key=SECRET') });
+  });
+});
