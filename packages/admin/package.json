@@ -743,7 +743,9 @@
       "./screens/plugins/PluginPackageFilesModal": "browser",
       "./screens/plugins/rules-context": "browser",
       "./screens/trash/Trash": "browser",
-      "./screens/trash/hooks/use-trash.hooks": "browser"
+      "./screens/trash/hooks/use-trash.hooks": "browser",
+      "./screens/library/Library": "browser",
+      "./screens/library/hooks/library-api-port.hooks": "browser"
     },
     "isolation": {
       "shared": [
@@ -4635,6 +4637,16 @@
       "types": "./dist/screens/trash/hooks/use-trash.hooks.d.ts",
       "import": "./dist/screens/trash/hooks/use-trash.hooks.js",
       "default": "./dist/screens/trash/hooks/use-trash.hooks.js"
+    },
+    "./screens/library/Library": {
+      "types": "./dist/screens/library/Library.d.ts",
+      "import": "./dist/screens/library/Library.js",
+      "default": "./dist/screens/library/Library.js"
+    },
+    "./screens/library/hooks/library-api-port.hooks": {
+      "types": "./dist/screens/library/hooks/library-api-port.hooks.d.ts",
+      "import": "./dist/screens/library/hooks/library-api-port.hooks.js",
+      "default": "./dist/screens/library/hooks/library-api-port.hooks.js"
     }
   },
   "files": [
@@ -5139,6 +5151,12 @@
       ],
       "screens/trash/hooks/use-trash.hooks": [
         "./dist/screens/trash/hooks/use-trash.hooks.d.ts"
+      ],
+      "screens/library/Library": [
+        "./dist/screens/library/Library.d.ts"
+      ],
+      "screens/library/hooks/library-api-port.hooks": [
+        "./dist/screens/library/hooks/library-api-port.hooks.d.ts"
       ]
     }
   },
