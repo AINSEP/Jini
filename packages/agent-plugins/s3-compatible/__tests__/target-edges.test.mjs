@@ -63,10 +63,10 @@ test("manifest-write refusals with an empty body carry only the status; a 4xx ot
   }
 });
 
-const SHARE_KEY = `_share/${"a".repeat(16)}/site.tovu.zip`;
+const SHARE_KEY = `_share/${"a".repeat(16)}/site.alpha.zip`;
 
 test("share upload honors the caller's abort signal before sending anything, and works without one", async () => {
-  const { kit, sent } = kitWith(() => new Response(null, { status: 200 }));
+  const { kit, sent } = kitWith(() => new Response(null, { status: 200 }), { isShareArtifactKey: ({ key }) => /^_share\/[A-Za-z]{16}\/[a-z0-9][a-z0-9-]{0,79}\.alpha\.zip$/.test(key) });
   const store = target.createArtifactStore({ credential: CREDENTIAL, kit });
   const aborted = AbortSignal.abort(new Error("cancelled by caller"));
   await assert.rejects(store.upload({ key: SHARE_KEY, bytes: new Uint8Array([1]), headers: {} }, { signal: aborted }), { message: "cancelled by caller" });
@@ -80,6 +80,7 @@ test("share verify: refuses a URL that is not this key's public URL without a re
   const heads = [];
   let status = 404;
   const { kit } = kitWith(() => new Response(null, { status: 500 }), {
+    isShareArtifactKey: ({ key }) => /^_share\/[A-Za-z]{16}\/[a-z0-9][a-z0-9-]{0,79}\.alpha\.zip$/.test(key),
     fetch: async (url, init) => { heads.push([init.method, url, init.redirect]); return new Response(null, { status }); },
   });
   const store = target.createArtifactStore({ credential: CREDENTIAL, kit });
@@ -125,4 +126,30 @@ test("the manifest lists keys sorted; an export listing one path twice keeps bot
   await target.create({ credential: CREDENTIAL, kit }).publish({ files });
   assert.deepEqual(manifestBody.keys.map((k) => k.key), ["a.html", "b.html", "b.html"]);
   assert.equal(manifestBody.version, 2);
+});
+
+test("the same provider follows the key rule of the host that built it", async () => {
+  for (const suffix of ["alpha", "beta"]) {
+    const calls = [];
+    const key = `_share/${"a".repeat(16)}/site.${suffix}.zip`;
+    const otherKey = key.replace(`.${suffix}.zip`, suffix === "alpha" ? ".beta.zip" : ".alpha.zip");
+    const { kit } = kitWith((method) => { calls.push(method); return new Response(null, { status: 200 }); }, {
+      isShareArtifactKey: ({ key }) => new RegExp(`^_share/[A-Za-z]{16}/[a-z0-9][a-z0-9-]{0,79}\\.${suffix}\\.zip$`).test(key),
+      fetch: async (_url, init) => { calls.push(init.method); return new Response(null, { status: 200, headers: { "content-length": "1", "cache-control": "no-store", "content-disposition": "attachment" } }); },
+    });
+    const store = target.createArtifactStore({ credential: CREDENTIAL, kit });
+    const url = `https://cdn.example.test/${key}`;
+    assert.deepEqual(await store.upload({ key, bytes: new Uint8Array([1]), headers: {} }), { url });
+    await store.delete({ key });
+    assert.equal(await store.verify({ key, url, present: true, bytes: 1 }), true);
+    assert.deepEqual(calls, ["PUT", "DELETE", "HEAD"]);
+    calls.length = 0;
+    await assert.rejects(store.upload({ key: otherKey, bytes: new Uint8Array([1]), headers: {} }), { message: "Invalid share artifact key." });
+    await assert.rejects(store.delete({ key: otherKey }), { message: "Invalid share artifact key." });
+    await assert.rejects(store.verify({ key: otherKey, url: `https://cdn.example.test/${otherKey}`, present: true, bytes: 1 }), { message: "Invalid share artifact key." });
+    assert.deepEqual(calls, []);
+    delete kit.isShareArtifactKey;
+    await assert.rejects(store.delete({ key }), { message: "Invalid share artifact key." });
+    assert.deepEqual(calls, []);
+  }
 });

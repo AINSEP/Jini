@@ -26,8 +26,8 @@ export function renderChartTable(
   ])];
   const columns = keys.map((key) => ({ key, label: spec.series.find((series) => series.key === key)?.label ?? key }));
   const numeric = getNumericColumnKeys({ columns, rows: spec.data });
-  const scroll = doc.createElement('div'); scroll.className = 'jini-data-table-scroll';
-  const table = doc.createElement('table'); table.className = 'jini-data-table';
+  const scroll = doc.createElement('div'); scroll.className = 'jini-ui-data-table-scroll';
+  const table = doc.createElement('table'); table.className = 'jini-ui-data-table';
   const caption = table.createCaption(); caption.textContent = spec.title ?? 'Chart data';
   const header = table.createTHead().insertRow();
   for (const { key, label } of columns) {
@@ -45,8 +45,8 @@ export function renderChartTable(
   }
   if (spec.data.length === 0) {
     const cell = body.insertRow().insertCell(); cell.colSpan = Math.max(1, columns.length);
-    cell.className = 'jini-data-table-empty'; cell.textContent = 'No results.';
+    cell.className = 'jini-ui-data-table-empty'; cell.textContent = 'No results.';
   }
-  scroll.append(table); element.className = 'jini-data-table-frame'; element.dataset.tableProvider = 'native';
+  scroll.append(table); element.className = 'jini-ui-data-table-frame'; element.dataset.tableProvider = 'native';
   element.replaceChildren(scroll);
 }

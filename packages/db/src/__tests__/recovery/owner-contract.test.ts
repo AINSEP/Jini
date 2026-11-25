@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "vitest";
 import { createOperationLock } from "../../recovery/operation-lock.js";
 import { buildRestoreHooks } from "../../recovery/restore-hooks.js";
-import { buildMigrateForwardHooks } from "../../recovery/migrate-forward-hooks.js";
+import { buildMigrateForwardHooks, type LedgerAppendPort } from "../../recovery/migrate-forward-hooks.js";
 
 const clock = { nowMs: () => Date.parse("2026-10-07T00:00:00.000Z") };
 const identity = async ({ principalId }: { principalId: string }) => principalId;
@@ -73,7 +73,7 @@ test("migrate hooks use the supplied hash and fresh capture capabilities, retain
   const saved: unknown[] = [];
   const ledger: unknown[] = [];
   const hooks = buildMigrateForwardHooks({
-    workspaceId: "site", actorId: "operator", clock, idGen: { newId: () => `id-${++sequence}` },
+    workspaceId: "site", actor: { id: "operator", kind: "user" }, clock, idGen: { newId: () => `id-${++sequence}` },
     planHashOf: ({ details }) => { assert.deepEqual(details, { costClass: "cheap", siteId: "site" }); return "host-verified-hash"; },
     resolveActorClassIdentity: identity,
     dbOps: {
@@ -90,5 +90,32 @@ test("migrate hooks use the supplied hash and fresh capture capabilities, retain
   assert.deepEqual(saved, [{ restorePointId: "id-1", idempotencyKey: "id-1", trigger: "migrate-forward",
     createdAt: "2026-10-07T00:00:00.000Z", createdBy: "operator", costClass: "expensive", kind: "provider-snapshot", watermarkAtCapture: 7, artifactRef: "/snapshots/captured.db" }]);
   assert.deepEqual(ledger, [{ id: "id-2", kind: "core.migration", restorePointId: "id-1", outcome: "success",
-    detailJson: '{"artifactRef":"/snapshots/captured.db"}', actorWorkspaceId: "site", actorId: "operator", createdAt: "2026-10-07T00:00:00.000Z" }]);
+    detailJson: '{"artifactRef":"/snapshots/captured.db","actor":{"id":"operator","kind":"user"}}', actorWorkspaceId: "site", actorId: "operator", createdAt: "2026-10-07T00:00:00.000Z" }]);
+});
+
+test("migrate-forward retains user, agent, and explicit system attribution without changing the plan", async () => {
+  for (const kind of ["user", "agent", "system"] as const) {
+    const actor = { id: "same-principal", kind };
+    const createdBy: string[] = [];
+    const ledger: Parameters<LedgerAppendPort["append"]>[0][] = [];
+    let sequence = 0;
+    const hooks = buildMigrateForwardHooks({
+      workspaceId: "site", actor, clock, idGen: { newId: () => `id-${++sequence}` },
+      planHashOf: ({ details }) => { assert.deepEqual(details, { costClass: "cheap", siteId: "site" }); return "same-plan"; },
+      resolveActorClassIdentity: identity,
+      dbOps: {
+        getCapabilities: async () => ({ restorePoint: { costClass: "cheap", kind: "provider-snapshot" } }),
+        captureRestorePoint: async () => ({ artifactRef: "/snapshots/captured.db", watermarkAtCapture: 7 }),
+      },
+      restorePointsRepo: { save: async row => { createdBy.push(row.createdBy); } },
+      databaseLedgerRepo: { append: async row => { ledger.push(row); } },
+    }, {});
+    const plan = await hooks.computePlan({});
+    assert.deepEqual(plan, { planHash: "same-plan", details: { costClass: "cheap", siteId: "site" } });
+    assert.deepEqual(await hooks.executeMutation(plan), { migrated: true });
+    assert.deepEqual(createdBy, [actor.id]);
+    assert.equal(ledger.length, 1);
+    assert.equal(ledger[0]!.actorId, actor.id);
+    assert.deepEqual(JSON.parse(ledger[0]!.detailJson!), { artifactRef: "/snapshots/captured.db", actor });
+  }
 });

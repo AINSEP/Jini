@@ -895,9 +895,9 @@ function filesystemHooks({ slot }: { slot: AgentRuntimeStrategies['filesystem'] 
 
 /** The runtime's bound MCP delivery slot for `def`, as the optional dep `resolveMcpBridgeForRun` reads.
  * Also carries the bound bridge-preparation slot (`mcpBridge`) the same function reads. */
-function mcpDeliveryDep({ agentRuntime, def }: { agentRuntime: Pick<AgentRuntimePort, 'strategies'>; def: RuntimeAgentDef }, _options = {}): { mcpDelivery?: NonNullable<AgentRuntimeStrategies['mcpDelivery']>; mcpBridge?: NonNullable<AgentRuntimeStrategies['mcpBridge']>; mcpHome?: NonNullable<AgentRuntimeStrategies['mcpHome']>; mcpConfigFile?: NonNullable<AgentRuntimeStrategies['mcpConfigFile']> } {
-  const { mcpDelivery, mcpBridge, mcpHome, mcpConfigFile } = agentRuntime.strategies.for({ def });
-  return { ...(mcpDelivery === undefined ? {} : { mcpDelivery }), ...(mcpBridge === undefined ? {} : { mcpBridge }), ...(mcpHome === undefined ? {} : { mcpHome }), ...(mcpConfigFile === undefined ? {} : { mcpConfigFile }) };
+function mcpDeliveryDep({ agentRuntime, def }: { agentRuntime: Pick<AgentRuntimePort, 'strategies'>; def: RuntimeAgentDef }, _options = {}): { mechanism?: NonNullable<AgentRuntimeStrategies['mcpBridgeMechanism']>; mcpDelivery?: NonNullable<AgentRuntimeStrategies['mcpDelivery']>; mcpBridge?: NonNullable<AgentRuntimeStrategies['mcpBridge']>; mcpHome?: NonNullable<AgentRuntimeStrategies['mcpHome']>; mcpConfigFile?: NonNullable<AgentRuntimeStrategies['mcpConfigFile']> } {
+  const { mcpBridgeMechanism, mcpDelivery, mcpBridge, mcpHome, mcpConfigFile } = agentRuntime.strategies.for({ def });
+  return { ...(mcpBridgeMechanism === undefined ? {} : { mechanism: mcpBridgeMechanism }), ...(mcpDelivery === undefined ? {} : { mcpDelivery }), ...(mcpBridge === undefined ? {} : { mcpBridge }), ...(mcpHome === undefined ? {} : { mcpHome }), ...(mcpConfigFile === undefined ? {} : { mcpConfigFile }) };
 }
 
 /** A required transport refusal is actionable without exposing listener/configuration details. */
@@ -1469,7 +1469,7 @@ export function createAgentExecutor(requiredArgs: Pick<CreateAgentExecutorOption
     // the five mechanisms ends up carrying it. `null` for an unconfigured host or a def declaring
     // no strategy — see `buildMcpBridgeDelivery`'s doc.
     preparedHttpMcp = await prepareRunHttpMcp({ input, def, cleanupStagedFiles });
-    const mcpBridge = preparedHttpMcp ? null : await resolveMcpBridgeForRun({ input: { runId: input.runId, cwd: input.cwd, def, ...nativeCapabilityInput({ input }, {}) }, deps: { mcpJsonInjection, cleanupStagedFiles, failBeforeSpawn, fileLock: runtime.fileLock, writer: runtime.writer, ...mcpDeliveryDep({ agentRuntime, def }) } }
+    const mcpBridge = preparedHttpMcp ? null : await resolveMcpBridgeForRun({ input: { runId: input.runId, cwd: input.cwd, def, ...nativeCapabilityInput({ input }, {}) }, deps: { mechanism: undefined, mcpJsonInjection, cleanupStagedFiles, failBeforeSpawn, fileLock: runtime.fileLock, writer: runtime.writer, ...mcpDeliveryDep({ agentRuntime, def }) } }
     );
 
     const baseRuntimeContext = computeRuntimeContext({ preparedPromptFile, preparedLogFile, mcpBridge }, sessionRuntimeContext(input, {}));

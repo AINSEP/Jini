@@ -10,7 +10,7 @@ it('spawn_gate_uses_fresh_nonces_only_for_mcp_relay_engines', async () => {
   const options = { command: 'node', daemonUrl: 'http://daemon', env: { JINI_MESSAGE_RELAY: '1', JINI_MESSAGE_RELAY_NONCE: 'forged' } };
   const resolve = async (agentId: string, runId: string) => resolveMcpBridgeForRun({
     input: { runId, cwd: '/work', def: getAgentDef({ id: agentId })! },
-    deps: { ...boundMcpConfigFile(), mcpJsonInjection: options, ...fakeRuntimePorts(), ...boundMcpHome(getAgentDef({ id: agentId })!), cleanupStagedFiles: async () => {}, failBeforeSpawn: async ({ message }) => { throw new Error(message); } },
+    deps: { mechanism: agentId === 'claude' ? 'config-file' : agentId === 'codex' ? 'staged-home' : undefined, ...boundMcpConfigFile(), mcpJsonInjection: options, ...fakeRuntimePorts(), ...boundMcpHome(getAgentDef({ id: agentId })!), cleanupStagedFiles: async () => {}, failBeforeSpawn: async ({ message }) => { throw new Error(message); } },
   });
   const native = await resolve('claude', 'native');
   expect(native?.kind).toBe('claude-mcp-json');

@@ -25,6 +25,7 @@ export interface ConsentDeploymentRefusal {
 }
 
 export interface ConsentServicePorts {
+  bannerModeRefusal?: string | undefined;
   workspaceId: string;
   authorize: AuthorizeFn;
   store?: SiteConsentStore;
@@ -66,8 +67,8 @@ async function declarationDiagnostics({ ports, path, html }: { ports: ConsentSer
 
 /** Unsaved input takes precedence over the draft, then the effective published/legacy policy.
  * An emptied Custom CSS previews the default style, exactly as the public site delivers it. */
-function sampleConsentConfig({ state, proposed }: { state: SiteConsentState & { effective: ConsentConfig }; proposed: unknown }, _options = {}): ConsentConfig {
-  return withSiteConsentDefaultCss({ config: parseConsentConfig({ value: proposed === undefined ? state.draft?.config ?? state.effective : proposed }) });
+function sampleConsentConfig({ state, proposed, bannerModeRefusal }: { state: SiteConsentState & { effective: ConsentConfig }; proposed: unknown; bannerModeRefusal?: string | undefined }, _options = {}): ConsentConfig {
+  return withSiteConsentDefaultCss({ config: parseConsentConfig({ value: proposed === undefined ? state.draft?.config ?? state.effective : proposed, bannerModeRefusal }) });
 }
 
 /** Readiness requires complete bounded page evidence; banner preview is independent. */
@@ -106,7 +107,7 @@ function createConsentReader(ports: ConsentServicePorts) {
     // An empty Custom CSS is what the public site fills with the default style, so the editor shows
     // that default in the field for the owner to edit (owner, 2026-10-22).
     const draft = state.draft && { ...state.draft, config: withSiteConsentDefaultCss({ config: state.draft.config }) };
-    return { ...state, draft, effective: withSiteConsentDefaultCss({ config: parseConsentConfig({ value: state.published?.config ?? legacy }) }), categoriesEditable: false,
+    return { ...state, draft, effective: withSiteConsentDefaultCss({ config: parseConsentConfig({ value: state.published?.config ?? legacy, bannerModeRefusal: ports.bannerModeRefusal }) }), categoriesEditable: false,
       editor: { defaults: { ...SITE_CONSENT_DEFAULTS, customCss: SITE_CONSENT_DEFAULT_CSS }, placements: [...SITE_CONSENT_PLACEMENTS], textLimits: { ...SITE_CONSENT_TEXT_LIMITS },
         maxCssLength: CONSENT_MAX_CSS_LENGTH, cssSelectors: [...CONSENT_CSS_SELECTORS],
         regionModes: ['opt-in', 'auto'], bannerModes: [...SITE_CONSENT_BANNER_MODES],
@@ -121,7 +122,7 @@ function createConsentReadiness(ports: ConsentServicePorts, read: ReturnType<typ
    * Storage errors expose no private paths; render failure/truncation also blocks readiness. */
   const readiness = async ({ principalId, path = '/', config: proposed }: { principalId: string; path?: string | undefined; config?: unknown }, _optional = {}) => {
     const state = await read({ principalId });
-    const config = sampleConsentConfig({ state, proposed });
+    const config = sampleConsentConfig({ state, proposed, bannerModeRefusal: ports.bannerModeRefusal });
     path = ports.consentPagePath({ path });
     const blockingProblems = await problems({ config: { ...config, enabled: true } });
     let receipts: ConsentReceiptStorageHealth;
@@ -168,7 +169,7 @@ function createConsentDeploymentCheck(ports: ConsentServicePorts, problems: (inp
       const effective = state.published?.config ?? await ports.readLegacy({});
       // Explicit OFF remains a rollback even when saved legacy copy exceeds today's editor limits.
       if (effective.enabled === false) return null;
-      const config = parseConsentConfig({ value: effective });
+      const config = parseConsentConfig({ value: effective, bannerModeRefusal: ports.bannerModeRefusal });
       return await staticDeploymentRefusal({ config });
     } catch (error) {
       ports.reportConsentFailure({ message: 'The consent policy could not be verified; deployment remains blocked.', error });
@@ -195,7 +196,7 @@ export function createSiteConsentService({ ports }: { ports: ConsentServicePorts
   /** A separate scriptless banner preview; no page content is parsed or represented as protected. */
   const preview = async ({ principalId, path = '/', config: proposed }: { principalId: string; path?: string; config?: unknown }, _optional = {}) => {
     const state = await read({ principalId });
-    const config = sampleConsentConfig({ state, proposed });
+    const config = sampleConsentConfig({ state, proposed, bannerModeRefusal: ports.bannerModeRefusal });
     ports.consentPagePath({ path });
     const rendered = renderSiteConsentPreview({ config, policy: config.policyVersion });
     const html = `<!doctype html><html ${rendered.htmlAttrs}><head><meta charset="utf-8">${rendered.head}</head><body>${rendered.body}</body></html>`;
@@ -205,7 +206,7 @@ export function createSiteConsentService({ ports }: { ports: ConsentServicePorts
   /** Append an immutable draft; invalid CSS rules are diagnosed and dropped by the preview compiler. */
   const saveDraft = async ({ principalId, config: value, expectedDraftId, signal }: { principalId: string; config: unknown; expectedDraftId: string | null; signal?: AbortSignal }, _optional = {}) => {
     const store = await authorize({ principalId, write: true });
-    const config = parseConsentConfig({ value });
+    const config = parseConsentConfig({ value, bannerModeRefusal: ports.bannerModeRefusal });
     const blockingProblems = await problems({ config });
     const revision = { id: ports.ids.newId(), config, actorId: principalId, createdAt: ports.clock.nowIso() };
     await store.saveDraft({ revision, expectedDraftId, signal });
@@ -216,7 +217,7 @@ export function createSiteConsentService({ ports }: { ports: ConsentServicePorts
     const store = await authorize({ principalId, write: true });
     const state = await store.read({});
     if (state.draft?.id !== draftId) throw new SiteConsentConflict();
-    const config = parseConsentConfig({ value: state.draft.config });
+    const config = parseConsentConfig({ value: state.draft.config, bannerModeRefusal: ports.bannerModeRefusal });
     const blockingProblems = await problems({ config });
     if (blockingProblems.length) throw new ToolInputError({ message: blockingProblems.map(problem => problem.message).join(' ') });
     await store.publish({ draftId, expectedPublishedId, signal });

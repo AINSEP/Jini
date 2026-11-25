@@ -704,11 +704,11 @@ export function bindS3Compatible(kit, _optional = {}) {
               region: config.region,
           });
       }
-      /** A share has its own exact object key and never participates in publish cleanup. The token is
-       *  16 ASCII letters, the shape core's `SHARE_TOKEN` mints (a plugin cannot import core). */
+      /** A share has its own exact object key and never participates in publish cleanup. The host
+       *  validates its exact key, including the token and suffix. */
       artifactStore(_required, _optional = {}) {
           const requireKey = (key) => {
-              if (!/^_share\/[A-Za-z]{16}\/[a-z0-9][a-z0-9-]{0,79}\.tovu\.zip$/.test(key)) throw new DeployError("Invalid share artifact key.", 400);
+              if (kit.isShareArtifactKey?.({ key }) !== true) throw new DeployError("Invalid share artifact key.", 400);
           };
           const publicUrl = (key) => `${this.config.publicUrl.replace(TRAILING_URL_SLASHES, "$1")}/${key}`;
           return {

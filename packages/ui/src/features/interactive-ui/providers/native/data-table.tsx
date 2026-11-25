@@ -16,9 +16,9 @@ export interface DataTableProps {
 export function DataTable({ columns, rows, onRowClick }: DataTableProps) {
   const numericKeys = getNumericColumnKeys({ columns, rows });
   return (
-    <div className="jini-data-table-frame" data-table-provider="native">
-      <div className="jini-data-table-scroll">
-        <table className="jini-data-table">
+    <div className="jini-ui-data-table-frame" data-table-provider="native">
+      <div className="jini-ui-data-table-scroll">
+        <table className="jini-ui-data-table">
           <thead>
             <tr>
               {columns.map((column) => (
@@ -27,7 +27,7 @@ export function DataTable({ columns, rows, onRowClick }: DataTableProps) {
             </tr>
           </thead>
           <tbody>
-            {rows.length === 0 && <tr><td className="jini-data-table-empty" colSpan={columns.length}>No results.</td></tr>}
+            {rows.length === 0 && <tr><td className="jini-ui-data-table-empty" colSpan={columns.length}>No results.</td></tr>}
             {rows.map((row, index) => (
               <tr
                 key={index}

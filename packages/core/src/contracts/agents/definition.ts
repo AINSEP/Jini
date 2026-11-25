@@ -16,6 +16,8 @@ import type { NativeCapabilities } from './native-tool-policy.js';
 
 export type RuntimeModelSource = 'live' | 'fallback';
 
+export type McpBridgeMechanism = 'config-file' | 'acp-merge' | 'env-content' | 'staged-home' | 'env-passthrough';
+
 /**
  * Declares that a runtime carries its reasoning-effort choice INSIDE the model
  * id — as a trailing `-<level>` on the slug — rather than in a flag of its own.

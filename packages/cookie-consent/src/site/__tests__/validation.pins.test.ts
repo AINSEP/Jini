@@ -1,6 +1,10 @@
 /** @file Pin host copy validation and error precedence before splitting the text loop. */
 import assert from 'node:assert/strict';
-import { test } from 'vitest';
+import { test, vi } from 'vitest';
+import { ToolInputError } from '@jini-ai/core';
+import { createSiteConsentService, type ConsentServicePorts } from '../service.js';
+import { buildConsentRegistrations } from '../tool-registrations.js';
+import type { SiteConsentState } from '../revisions.js';
 import { SITE_CONSENT_DEFAULTS, SITE_CONSENT_TEXT_LIMITS } from '../config.js';
 import { consentConfigProblems, parseConsentConfig } from '../validation.js';
 
@@ -70,4 +74,46 @@ test('unsafe-eval is optional for old snapshots and accepts only literal boolean
 test('host reopen policy accepts link mode and refuses an author-selected corner control', () => {
   assert.equal(parseConsentConfig({ value: { ...SITE_CONSENT_DEFAULTS, reopen: 'link' } }).reopen, 'link');
   assert.throws(() => parseConsentConfig({ value: { ...SITE_CONSENT_DEFAULTS, reopen: 'corner' } }), /reopen through a link/);
+});
+
+test('banner-mode refusal comes from each host and defaults to neutral copy', () => {
+  for (const bannerModeRefusal of ['Host Alpha banner choices.', 'Host Beta banner choices.', undefined]) {
+    assert.throws(() => parseConsentConfig({ value: { ...SITE_CONSENT_DEFAULTS, bannerMode: 'invalid' }, bannerModeRefusal }),
+      { constructor: ToolInputError, message: bannerModeRefusal ?? 'Choose the built-in banner, your own banner, or none.' });
+    for (const bannerMode of ['jini', 'headless', 'off']) {
+      const value = { ...SITE_CONSENT_DEFAULTS, bannerMode };
+      assert.deepEqual(parseConsentConfig({ value, bannerModeRefusal }), value);
+    }
+    assert.deepEqual(parseConsentConfig({ value: SITE_CONSENT_DEFAULTS, bannerModeRefusal }), SITE_CONSENT_DEFAULTS);
+  }
+});
+
+test('draft and assistant preparation use the bound banner-mode refusal', async () => {
+  const bannerModeRefusal = 'Host Alpha banner choices.';
+  const config = { ...SITE_CONSENT_DEFAULTS };
+  const invalid = { ...config, bannerMode: 'invalid' };
+  const state: SiteConsentState = { draft: null, published: null };
+  const saveDraft = vi.fn();
+  const ports: ConsentServicePorts = {
+    workspaceId: 'w', bannerModeRefusal, authorize: async () => ({ allowed: true, reason: 'allowed' }),
+    ready: Promise.resolve(), clock: { nowIso: () => '2026-11-25T00:00:00Z' }, ids: { newId: () => 'draft' }, trustedRegion: false,
+    store: { read: async () => state, readPublished: async () => null, saveDraft, publish: vi.fn() },
+    readLegacy: async () => config, defaultOnly: async () => false, privacyPageExists: async () => true,
+    renderPage: async () => ({ html: '', ok: true, truncated: false }), receiptStorage: async () => ({ writable: true, count: 0 }),
+    consentPagePath: ({ path }) => path, deploymentRefusal: ({ problems }) => ({ code: 'CONSENT', error: 'refused', blockingProblems: problems, choices: [] }),
+    reportConsentFailure: vi.fn(),
+  };
+  const siteConsent = createSiteConsentService({ ports });
+  await assert.rejects(siteConsent.saveDraft({ principalId: 'p', config: invalid, expectedDraftId: null }), { constructor: ToolInputError, message: bannerModeRefusal });
+  const registrations = buildConsentRegistrations({ siteConsent, host: {
+    bannerModeRefusal, approvalToolHandler: ({ prepare }) => ctx => prepare({ ctx }),
+    readConsentRequest: ({ body }) => body as Record<string, unknown>, consentRevisionToken: ({ input, key }) => input[key] as string | null,
+  } }, { surfaceExchanges: { open: () => { throw new Error('unexpected confirmation'); }, deliver: () => { throw new Error('unexpected delivery'); }, findTypedAnswerTarget: () => undefined, size: () => 0 } });
+  const ctx = { executionId: 'e', principal: { id: 'p' }, run: { id: 'r' }, signal: new AbortController().signal, input: { config: invalid, expectedDraftId: null } };
+  const update = registrations.find(item => item.descriptor.id === 'consent_update_settings')!;
+  await assert.rejects(update.handler(ctx), { constructor: ToolInputError, message: bannerModeRefusal });
+  state.draft = { id: 'draft', config: invalid as typeof config, actorId: 'p', createdAt: '2026-11-25T00:00:00Z' };
+  const publish = registrations.find(item => item.descriptor.id === 'consent_publish_settings')!;
+  await assert.rejects(publish.handler({ ...ctx, input: { draftId: 'draft', expectedPublishedId: null } }), { constructor: ToolInputError, message: bannerModeRefusal });
+  assert.equal(saveDraft.mock.calls.length, 0);
 });

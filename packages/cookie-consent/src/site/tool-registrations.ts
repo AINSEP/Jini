@@ -27,6 +27,7 @@ export type ConsentApprovalToolHandler = <TPrepared>(
  * shared with the host's HTTP transport (`readConsentRequest` rejects unknown fields; `consentRevisionToken`
  * reads a required nullable revision id). Both throw `ToolInputError` on refusal. */
 export interface ConsentToolHost {
+  bannerModeRefusal?: string | undefined;
   approvalToolHandler: ConsentApprovalToolHandler;
   readConsentRequest(required: { body: unknown; fields: readonly string[] }, optional?: Record<string, never>): Record<string, unknown>;
   consentRevisionToken(required: { input: Record<string, unknown>; key: string }, optional?: Record<string, never>): string | null;
@@ -51,7 +52,7 @@ export const consentDerivedRisk: ReadonlyMap<string, AgentToolSideEffect> = new 
  * @example buildConsentRegistrations({ siteConsent, host }, surfaces)
  * @complexity O(1) setup; effects/limits belong to the injected service. */
 export function buildConsentRegistrations(deps: ConsentToolDeps & { host: ConsentToolHost }, surfaces: AssistantSurfaceDeps): ToolRegistration[] {
-  const { approvalToolHandler, readConsentRequest, consentRevisionToken } = deps.host;
+  const { approvalToolHandler, readConsentRequest, consentRevisionToken, bannerModeRefusal } = deps.host;
   /** Missing bindings are never replaced by a permissive in-memory store. */
   const service = (_input = {}, _options = {}) => {
     if (!deps.siteConsent) throw new ToolInputError({ message: 'The site consent service is unavailable. Nothing was changed.' });
@@ -71,7 +72,7 @@ export function buildConsentRegistrations(deps: ConsentToolDeps & { host: Consen
       prepare: async ({ ctx }) => {
         const input = readConsentRequest({ body: ctx.input, fields: ['config', 'expectedDraftId'] });
         const state = await service().read({ principalId: ctx.principal.id });
-        return { config: parseConsentConfig({ value: input.config }), previous: state.draft?.config ?? state.effective, expectedDraftId: consentRevisionToken({ input, key: 'expectedDraftId' }) };
+        return { config: parseConsentConfig({ value: input.config, bannerModeRefusal }), previous: state.draft?.config ?? state.effective, expectedDraftId: consentRevisionToken({ input, key: 'expectedDraftId' }) };
       },
       describe: ({ prepared }) => ({ toolId: 'consent_update_settings', errorCode: 'CONSENT', title: 'Save this cookie consent draft?', details: [{ label: 'Configuration', value: prepared.config, previous: prepared.previous }], confirmLabel: 'Save draft' }),
       run: ({ ctx, prepared }) => service().saveDraft({ principalId: ctx.principal.id, config: prepared.config, expectedDraftId: prepared.expectedDraftId, signal: ctx.signal }),
@@ -82,7 +83,7 @@ export function buildConsentRegistrations(deps: ConsentToolDeps & { host: Consen
         const state = await service().read({ principalId: ctx.principal.id });
         const draftId = consentRevisionToken({ input, key: 'draftId' });
         if (!draftId || state.draft?.id !== draftId) throw new ToolInputError({ message: 'Reload the saved consent draft before publishing.' });
-        return { draftId, expectedPublishedId: consentRevisionToken({ input, key: 'expectedPublishedId' }), config: parseConsentConfig({ value: state.draft.config }), previous: state.effective };
+        return { draftId, expectedPublishedId: consentRevisionToken({ input, key: 'expectedPublishedId' }), config: parseConsentConfig({ value: state.draft.config, bannerModeRefusal }), previous: state.effective };
       },
       describe: ({ prepared }) => ({ toolId: 'consent_publish_settings', errorCode: 'CONSENT', title: 'Publish this cookie consent policy?', details: [{ label: 'Revision', value: prepared.draftId }, { label: 'Configuration', value: prepared.config, previous: prepared.previous }], warning: prepared.config.enabled ? 'Visitors will be asked again for this policy revision.' : 'The banner and declared-script consent will be disabled. Optional scripts may run without a visitor choice.', confirmLabel: 'Publish policy' }),
       run: ({ ctx, prepared }) => service().publish({ principalId: ctx.principal.id, draftId: prepared.draftId, expectedPublishedId: prepared.expectedPublishedId, signal: ctx.signal }),
