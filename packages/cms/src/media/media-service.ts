@@ -68,6 +68,7 @@ import {
   MediaNotFoundError,
   MediaSourceImmutableError,
   MediaStillReferencedError,
+  MediaUploadSizeError,
   MediaValidationError,
   type MediaRecord,
   type MediaKind,
@@ -78,6 +79,8 @@ import type { AssetBlobRepoPort, AssetRenditionRepoPort, BlobStorePort, MediaRep
 import { withSha256Lock } from "./blob-gc-lock.js";
 import { tombstoneBlobIfUnreferenced } from "./blob-gc.js";
 import { describeMediaHtmlAttributeError, parseMediaHtmlAttributes } from "./html-attributes.js";
+import type { VideoCodec, VideoCodecProbePort } from "@jini-ai/core/contracts/site/cms-media";
+import { MEDIA_MAX_UPLOAD_BYTES } from "@jini-ai/core/contracts/site/media-upload-limits";
 
 export {
   MediaConflictError,
@@ -297,6 +300,31 @@ export interface UploadMediaOptional {
   /** Cap for `video/*` files when it differs from `maxUploadBytes` (see `upload-cap.ts`). */
   maxVideoUploadBytes?: number | undefined;
   allowedMimeTypes?: ReadonlySet<string> | undefined;
+  /** Host codec probe for admitted, byte-sniffed videos; omitted records no codec hint. */
+  videoCodecProbe?: VideoCodecProbePort | undefined;
+  /** Forwarded to the codec probe only; upload itself keeps its existing cancellation behavior. */
+  signal?: AbortSignal | undefined;
+}
+
+/**
+ * Asks the host probe for the codec of admitted, byte-sniffed video bytes within the media upload
+ * limit. Never throws: a missing probe, a rejection or an abort all leave the hint unknown, so the
+ * accepted bytes and the upload's outcome never depend on probing.
+ * @returns `{ videoCodec }` to spread into a media source, or `{}` when unknown.
+ * @complexity O(1) here plus the probe's own bounded work.
+ */
+export async function probeVideoCodec(
+  { bytes, contentType }: { bytes: Uint8Array; contentType: string },
+  { videoCodecProbe, signal }: { videoCodecProbe?: VideoCodecProbePort | undefined; signal?: AbortSignal | undefined } = {},
+): Promise<{ videoCodec?: VideoCodec }> {
+  // Compatibility depends on the codec, not the filename or container.
+  if (!videoCodecProbe || !contentType.startsWith("video/") || bytes.byteLength > MEDIA_MAX_UPLOAD_BYTES) return {};
+  try {
+    const videoCodec = await videoCodecProbe.probe({ bytes, contentType }, signal ? { signal } : {});
+    return videoCodec ? { videoCodec } : {};
+  } catch {
+    return {}; // An unconfirmed codec is unknown; probing never refuses accepted bytes.
+  }
 }
 
 /**
@@ -354,7 +382,7 @@ function resolveUploadKind(input: UploadMediaRequired["input"]): UploadKind {
 function assertWithinUploadCap(byteLength: number, maxUploadBytes: number): void {
   if (byteLength > maxUploadBytes) {
     // Plain words, naming both sizes (2026-11-24): the same sentence the Library screen and chat composer use.
-    throw new MediaValidationError({ message: describeUploadOverLimit({ fileBytes: byteLength, limitBytes: maxUploadBytes }) });
+    throw new MediaUploadSizeError({ message: describeUploadOverLimit({ fileBytes: byteLength, limitBytes: maxUploadBytes }), fileBytes: byteLength, limitBytes: maxUploadBytes });
   }
 }
 
@@ -447,6 +475,8 @@ export async function uploadMedia(
 
   const storageKey = await withSha256Lock({ key: sha256, criticalSection: () => claimUploadBlob({ deps, input, kind, sha256, bytes, nowIso }) });
 
+  const contentType = kind === 'document' ? documentContentType({ filename: input.filename }) : sniffContentType({ bytes });
+  const codec = kind === 'media' ? await probeVideoCodec({ bytes, contentType }, optional) : {};
   const title = deriveTitleFromFilename(input.filename);
   const slug = await deriveUniqueMediaSlug(deps.mediaRepo, input.workspaceId, title);
 
@@ -462,7 +492,7 @@ export async function uploadMedia(
     source: {
       ...resolveWriteOnceSource({ existing: undefined, requestedSha256: sha256 }),
       ...(input.access === "private" ? { private: true as const } : {}),
-      contentType: kind === 'document' ? documentContentType({ filename: input.filename }) : sniffContentType({ bytes }), provenance
+      contentType, provenance, ...codec,
     },
     status: "active",
     createdAt: nowIso,

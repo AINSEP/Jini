@@ -2,6 +2,8 @@ import { describeUploadOverLimit } from "@jini-ai/core/text";
 import { describe, expect, it } from "vitest";
 import type { MediaRecord } from "../../../../media/types.js";
 import { MediaValidationError } from "../../../../media/types.js";
+import { MediaUploadSizeError } from "../../../../media/types.js";
+import { isoBmffVideoBytes } from "../../../../media/__tests__/iso-bmff-fixture.js";
 import { mediaReplaceRoute } from "../replace.js";
 import { fakeMedia, PRINCIPAL, recordingAuthorize, refusalOf, signal, WORKSPACE_ID } from "./helpers.js";
 
@@ -75,7 +77,7 @@ describe("mediaReplaceRoute", () => {
   });
 
   it("refuses bytes over the injected cap with the plain-words limit sentence", async () => {
-    expect(await refusalOf(() => run(BODY, deps([], { maxUploadBytes: 1024 * 1024 * 0.00001 })))).toEqual({ status: 400, body: { error: describeUploadOverLimit({ fileBytes: 16, limitBytes: 1024 * 1024 * 0.00001 }) } });
+    expect(await refusalOf(() => run(BODY, deps([], { maxUploadBytes: 1024 * 1024 * 0.00001 })))).toEqual({ status: 400, body: { error: describeUploadOverLimit({ fileBytes: 16, limitBytes: 1024 * 1024 * 0.00001 }), code: "MEDIA_UPLOAD_TOO_LARGE", fileBytes: 16, limitBytes: 1024 * 1024 * 0.00001 } });
     expect(describeUploadOverLimit({ fileBytes: 60 * 1024 * 1024, limitBytes: 50 * 1024 * 1024 })).toBe("That file is 60 MB; the limit is 50 MB.");
   });
 
@@ -95,5 +97,29 @@ describe("mediaReplaceRoute", () => {
   it("fails closed on a mount without an authorizer or principal (wiring bugs)", async () => {
     await expect(mediaReplaceRoute.handle({ input: { mediaId: "m-1", body: BODY }, deps: deps(), context: PRINCIPAL })).rejects.toThrow(/no authorizer/);
     await expect(mediaReplaceRoute.handle({ input: { mediaId: "m-1", body: BODY }, deps: deps(), authorize: recordingAuthorize().authorize })).rejects.toThrow(/no authenticated principal/);
+  });
+
+  describe("typed size refusals", () => {
+    const MOV = isoBmffVideoBytes("qt  ");
+    const VIDEO = { filename: "clip.mov", contentType: "video/quicktime", dataBase64: MOV.toString("base64") };
+
+    it("carries the video cap for a video refusal from the early byte check", async () => {
+      const d = { ...deps([], { maxUploadBytes: 4096 }), maxVideoUploadBytes: 8 };
+      expect(await refusalOf(() => run(VIDEO, d))).toEqual({ status: 400, body: {
+        error: describeUploadOverLimit({ fileBytes: MOV.byteLength, limitBytes: 8 }), code: "MEDIA_UPLOAD_TOO_LARGE", fileBytes: MOV.byteLength, limitBytes: 8 } });
+    });
+
+    it("serializes a size refusal raised by the host's file switch", async () => {
+      const fail = new MediaUploadSizeError({ message: "sanitized file exceeds the upload size cap", fileBytes: 20, limitBytes: 16 });
+      expect(await refusalOf(() => run(BODY, deps([], { fail })))).toEqual({ status: 400, body: { error: "sanitized file exceeds the upload size cap", code: "MEDIA_UPLOAD_TOO_LARGE", fileBytes: 20, limitBytes: 16 } });
+    });
+
+    it("leaves forbidden-type, invalid-payload and arbitrary validation refusals unlabelled", async () => {
+      const forbidden = await refusalOf(() => run({ ...BODY, contentType: "text/html", dataBase64: Buffer.from("<html></html>").toString("base64") }));
+      expect(forbidden).toMatchObject({ status: 400 });
+      expect(Object.keys(forbidden.body as object)).toEqual(["error"]);
+      expect(await refusalOf(() => run({ ...BODY, dataBase64: "@@@" }))).toEqual({ status: 400, body: { error: "dataBase64 is not valid base64" } });
+      expect(await refusalOf(() => run(BODY, deps([], { fail: new MediaValidationError({ message: "replacement file is empty or exceeds the upload size cap" }) })))).toEqual({ status: 400, body: { error: "replacement file is empty or exceeds the upload size cap" } });
+    });
   });
 });

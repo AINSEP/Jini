@@ -1,5 +1,8 @@
+import { describeUploadOverLimit } from "@jini-ai/core/text";
 import { describe, expect, it } from "vitest";
 import { MediaConflictError, MediaValidationError, type MediaRecord } from "../../../../media/types.js";
+import { uploadMedia } from "../../../../media/media-service.js";
+import { isoBmffVideoBytes } from "../../../../media/__tests__/iso-bmff-fixture.js";
 import { mediaUploadRoute, type MediaUploadInput } from "../upload.js";
 import { fakeMedia, PRINCIPAL, recordingAuthorize, refusalOf, signal, WORKSPACE_ID } from "./helpers.js";
 
@@ -70,7 +73,7 @@ describe("mediaUploadRoute", () => {
     const log: string[] = [];
     expect(await refusalOf(() => run({ ...FIELDS, dataBase64: "@@@" }, deps(log)))).toEqual({ status: 400, body: { error: "dataBase64 is not valid base64" } });
     const huge = "A".repeat(4 * Math.ceil((50 * 1024 * 1024) / 3) + 4);
-    expect(await refusalOf(() => run({ ...FIELDS, kind: "document", filename: "a.txt", dataBase64: huge }, deps(log)))).toEqual({ status: 400, body: { error: "document exceeds the 50 MiB limit" } });
+    expect(await refusalOf(() => run({ ...FIELDS, kind: "document", filename: "a.txt", dataBase64: huge }, deps(log)))).toMatchObject({ status: 400, body: { error: "document exceeds the 50 MiB limit", code: "MEDIA_UPLOAD_TOO_LARGE" } });
     expect(log).toEqual([]);
   });
 
@@ -100,5 +103,35 @@ describe("mediaUploadRoute", () => {
   it("fails closed on a mount without an authorizer or principal (wiring bugs)", async () => {
     await expect(mediaUploadRoute.handle({ input: { fields: FIELDS } as never, deps: deps(), context: PRINCIPAL })).rejects.toThrow(/no authorizer/);
     await expect(mediaUploadRoute.handle({ input: { fields: FIELDS } as never, deps: deps(), authorize: recordingAuthorize().authorize })).rejects.toThrow(/no authenticated principal/);
+  });
+
+  describe("typed size refusals", () => {
+    // The real CMS byte checks refuse before touching any repository, so no store deps are needed.
+    const realStore = (optional: Parameters<typeof uploadMedia>[1]) => ({ ...deps(), storeUpload: (input: MediaUploadInput) =>
+      uploadMedia({ deps: {} as never, input: { ...input, workspaceId: WORKSPACE_ID } }, optional) });
+    const MOV = isoBmffVideoBytes("qt  ");
+
+    it("carries the static code and both sizes for a base-cap refusal, keeping the 400 and the plain sentence", async () => {
+      const refusal = await refusalOf(() => run(FIELDS, realStore({ maxUploadBytes: 4, maxVideoUploadBytes: 64 })));
+      expect(refusal).toEqual({ status: 400, body: { error: describeUploadOverLimit({ fileBytes: 16, limitBytes: 4 }), code: "MEDIA_UPLOAD_TOO_LARGE", fileBytes: 16, limitBytes: 4 } });
+    });
+
+    it("carries the video cap for a video refusal", async () => {
+      const video = { ...FIELDS, filename: "clip.mov", contentType: "video/quicktime", dataBase64: MOV.toString("base64") };
+      const refusal = await refusalOf(() => run(video, realStore({ maxUploadBytes: 4096, maxVideoUploadBytes: 8 })));
+      expect(refusal).toMatchObject({ status: 400, body: { code: "MEDIA_UPLOAD_TOO_LARGE", fileBytes: MOV.byteLength, limitBytes: 8 } });
+    });
+
+    it("carries the decoded size for the early document payload check", async () => {
+      const huge = "A".repeat(4 * Math.ceil(50 * 1024 * 1024 / 3) + 4);
+      expect(await refusalOf(() => run({ ...FIELDS, kind: "document", filename: "a.txt", dataBase64: huge }))).toEqual({ status: 400, body: {
+        error: "document exceeds the 50 MiB limit", code: "MEDIA_UPLOAD_TOO_LARGE", fileBytes: huge.length / 4 * 3, limitBytes: 50 * 1024 * 1024 } });
+    });
+
+    it("leaves forbidden-type, invalid-payload and arbitrary validation refusals unlabelled", async () => {
+      expect(await refusalOf(() => run(FIELDS, realStore({ allowedMimeTypes: new Set(["image/gif"]) })))).toEqual({ status: 400, body: { error: "content type 'image/png' is not allowed for upload" } });
+      expect(await refusalOf(() => run({ ...FIELDS, dataBase64: "@@@" }))).toEqual({ status: 400, body: { error: "dataBase64 is not valid base64" } });
+      expect(await refusalOf(() => run(FIELDS, deps([], { fail: new MediaValidationError({ message: "batch has too many files" }) })))).toEqual({ status: 400, body: { error: "batch has too many files" } });
+    });
   });
 });

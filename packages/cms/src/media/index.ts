@@ -26,6 +26,7 @@ export type {
 export {
   MediaNotFoundError,
   MediaValidationError,
+  MediaUploadSizeError,
   MediaConflictError,
   MediaSourceImmutableError,
   MediaStillReferencedError,
@@ -193,6 +194,7 @@ export {
 } from './video-transcode.js';
 export type {
   VideoTranscodeTarget, VideoTranscodeFailureReason, VideoTranscodeResult, MediaTranscoderPort,
+  VideoCodec, VideoCodecProbePort,
 } from '@jini-ai/core/contracts/site/cms-media';
 export {
   CONVERT_VIDEO_TOOL_ID, convertVideoToolDefinition, buildConvertVideoRegistrations,

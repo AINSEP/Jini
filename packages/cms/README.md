@@ -368,6 +368,11 @@ its read-model row (`installedRow`), its body-refusal and known-installer-error 
 `installRefusal`; `undefined` rethrows for the mount's redacted 500).
 Media where-used (`src/admin-http/routes/media/where-used`): asks `media.read` on `media` with no entity id; the
 host injects its usage finder (`findWhereUsed`) and answers the denial with its own body (mount `forbidden`).
+Media grid (`src/admin-http/routes/media/grid`, Node entry): refuses an addressed workspace other than the
+trusted one (404), asks `media.read` on `media`, then refuses a cursor issued for another workspace, tab or order
+(plain 400) before any read. The host injects a bounded page read (`readPage`, up to `limit + 1` rows after a
+position), an exact lookup (`findItem`, the `itemId` mode: no cursor, no page scan) and batch enrichment
+(`enrichMedia`); only the trimmed page is enriched. Counts span every matching row, never the page.
 Media import-url (`src/admin-http/routes/media/import-url`, POST, 201): asks `media.upload` on `media` with no
 entity id, then checks the body (so a denied caller learns nothing about it). The host injects its guarded
 fetch (`fetchImage`), upload pipeline (`uploadMedia`), recorded-type store (`recordContentType`), public-URL

@@ -7,7 +7,8 @@ and the host owns mounting: [`ADS-memory/reports/jini-port/extraction-plan.md`](
 
 **Provides:** `mediaGetProvidersRoute` (GET `…/media/providers`), `mediaDeleteRoute` (DELETE
 `…/media/:mediaId`), `mediaTrashRoute` (POST `…/media/:mediaId/trash`), `mediaWhereUsedRoute` (GET
-`…/media/:mediaId/where-used`), `mediaImportUrlRoute` (POST `…/media/import-url`, 201), plus `shared.ts`
+`…/media/:mediaId/where-used`), `mediaImportUrlRoute` (POST `…/media/import-url`, 201), `mediaGridRoute` (GET
+`…/media/grid`, bounded pages or one exact `itemId`; `parseMediaGridInput`), plus `shared.ts`
 (`authorizeMedia`, `authorizeMediaOrForbid`, `principalOf`, `rejectMediaNotFound`, `MediaRoutePrincipal`).
 `authorizeMediaOrForbid` re-answers the authorize port's 403 with a route's own body (built from the
 port's `details`), for routes whose denied-permission body predates the shared one.
@@ -16,6 +17,8 @@ port's `details`), for routes whose denied-permission body predates the shared o
 - `MediaGetProvidersRouteDeps`: `workspaceId`, `getMediaProviderCredentials` (host store + sealer bound in).
 - `MediaDeleteRouteDeps`: `workspaceId`, `purgeMedia` (host's reference-checking purge), `forgetRemovedMedia`.
 - `MediaTrashRouteDeps`: `workspaceId`, `mediaRepo.findById`, `removeMedia` (`MediaTrashRemove`), `clock.nowIso`, `toMediaResponse` (host DTO).
+- `MediaGridRouteDeps`: `workspaceId` (trusted; a different `:workspaceId` is a 404), `readPage` (up to `limit + 1`
+  rows after a cursor position), `findItem` (exact lookup), `enrichMedia` (content types, public URLs, byte sizes).
 - `MediaWhereUsedRouteDeps`: `workspaceId`, `mediaRepo.findById`, `findWhereUsed` (host usage scan: reference index + current post bodies).
 - `MediaImportUrlRouteDeps`: `workspaceId`, `fetchImage` (the host's SSRF-guarded media-import egress client only),
   `uploadMedia` (`MediaImportUpload`; host binds repos, blob store, size cap), `mediaContentTypeStore.set`,

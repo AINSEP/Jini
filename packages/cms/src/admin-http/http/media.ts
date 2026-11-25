@@ -62,6 +62,7 @@ export function toAdminMediaResponse(
     htmlAttributes: media.htmlAttributes,
     contentType: media.kind === "document" ? documentContentType({ filename: media.originalFilename ?? "" }) : contentType,
     publicUrl: media.kind === "document" ? null : publicUrl,
+    ...(media.source.videoCodec ? { videoCodec: media.source.videoCodec } : {}),
   };
 }
 

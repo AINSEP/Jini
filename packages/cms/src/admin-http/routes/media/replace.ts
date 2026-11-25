@@ -9,8 +9,8 @@ import { DEFAULT_ALLOWED_MIME_TYPES } from "../../../media/media-service.js";
 import type { MediaRepoPort } from "../../../media/ports.js";
 import { resolveUploadCap, type UploadCaps } from "../../../media/upload-cap.js";
 import { resolveUploadContentType } from "../../../media/site/upload-content-type.js";
-import { MediaValidationError, type MediaRecord } from "../../../media/types.js";
-import { authorizeMedia, MEDIA_VALIDATION, mediaActorId, mediaIdParam, rejectMediaError, type MediaRoutePrincipal } from "./shared.js";
+import { MediaUploadSizeError, MediaValidationError, type MediaRecord } from "../../../media/types.js";
+import { authorizeMedia, MEDIA_UPLOAD_SIZE, MEDIA_VALIDATION, mediaActorId, mediaIdParam, rejectMediaError, type MediaRoutePrincipal } from "./shared.js";
 
 /** The `{ media }` body for an asset just stored under the type verified from its bytes (host: public URL, stored size). */
 export type MediaStoredDescriber = (required: { media: MediaRecord; contentType: string; byteLength: number }) => Promise<AdminMediaEnvelope>;
@@ -65,7 +65,7 @@ function parseReplacement({ body, caps }: { body: unknown; caps: UploadCaps }, _
   const maxUploadBytes = resolveUploadCap({ contentType: verified }, caps);
   if (bytes.byteLength > maxUploadBytes) {
     // Plain words naming both sizes, the same sentence upload, the Library and the chat composer use.
-    throw new MediaValidationError({ message: describeUploadOverLimit({ fileBytes: bytes.byteLength, limitBytes: maxUploadBytes }) });
+    throw new MediaUploadSizeError({ message: describeUploadOverLimit({ fileBytes: bytes.byteLength, limitBytes: maxUploadBytes }), fileBytes: bytes.byteLength, limitBytes: maxUploadBytes });
   }
   return { bytes, contentType: verified, provenance: { kind: "upload" as const, path: filename } };
 }
@@ -107,7 +107,7 @@ export const mediaReplaceRoute = defineJsonRoute<{ mediaId: string; body: unknow
     try {
       return ok({ value: await replaceFromBody({ deps, media, body: input.body, principalId }) });
     } catch (err) {
-      return rejectMediaError({ err, mappings: [MEDIA_VALIDATION], outwardErrorMessage: deps.outwardErrorMessage });
+      return rejectMediaError({ err, mappings: [MEDIA_UPLOAD_SIZE, MEDIA_VALIDATION], outwardErrorMessage: deps.outwardErrorMessage });
     }
   },
 });
