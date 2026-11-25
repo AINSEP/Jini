@@ -2,7 +2,7 @@ import path from "node:path";
 import { downloadDocumentBase, type DownloadHtmlSourceEdits } from "./static-download-html.js";
 import type { StaticExportTheme } from "./static-export-selection.js";
 import { readmeText, type StaticSiteMetadata } from "./static-copy.js";
-import { LANDING_FILE, landingPages, staticLandingPage, type ExtractPlainText, type LandingTheme } from "./static-download-landing.js";
+import { LANDING_FILE, landingPages, type ExtractPlainText, type LandingRenderer, type LandingTheme } from "./static-download-landing.js";
 
 /** One URL range found in a rendered body (start/end index the original spelling). */
 export interface StaticUrlLocation { start: number; end: number; kind: string; identity?: boolean | undefined }
@@ -19,7 +19,8 @@ export interface StaticUrlParsing {
 }
 
 /** Host values the portable layout cannot own: the parse5 source edits, the share path policy, the share size limits,
- *  the theme-folder allocator, the HTML-to-text decoder used for landing titles and the static-export URL parsers. */
+ *  the theme-folder allocator, the HTML-to-text decoder used for landing titles, the landing-page renderer (the
+ *  host's exported HTML) and the static-export URL parsers. */
 export interface StaticDownloadHost extends StaticUrlParsing {
   sourceEdits: DownloadHtmlSourceEdits;
   validateSharePath: (required: { path: string }) => void;
@@ -27,6 +28,7 @@ export interface StaticDownloadHost extends StaticUrlParsing {
   allocateThemes: (required: { themeIds: readonly string[]; siteSlug: string }) => StaticExportTheme[];
   checkShareLimits: (required: { files: readonly { path: string; bytes: number }[]; totalBytes?: number | undefined }) => void;
   extractPlainText: ExtractPlainText;
+  renderLanding: LandingRenderer;
 }
 
 /** Portable packaging consumes rendered files and real site/theme context, without backup metadata. */
@@ -283,14 +285,14 @@ export function staticDownloadLayout({ copy, copies = [copy], activeThemeId, the
     landing.push(landingTheme({ plan, files, activeThemeId: activeThemeId ?? copy.themeId, host }));
   }
   // A partial render may lose a home page; the landing page still lists every delivered page.
-  add(landingFile({ copy, landing }));
+  add(landingFile({ copy, landing, host }));
   if (readmes.length) add(readmeFile({ readmes }, { sharedMedia: copies.length > 1 ? deliveredMedia.size : undefined }));
   return entries;
 }
 
 /** The download's landing page, named after the site and listing every theme card. */
-function landingFile({ copy, landing }: { copy: Copy; landing: readonly LandingTheme[] }, _options = {}): File {
-  return { path: LANDING_FILE, content: staticLandingPage({ siteName: copy.readme?.name ?? copy.siteSlug ?? "Website", exportedWords: copy.readme?.words, themes: landing }) };
+function landingFile({ copy, landing, host }: { copy: Copy; landing: readonly LandingTheme[]; host: StaticDownloadHost }, _options = {}): File {
+  return { path: LANDING_FILE, content: host.renderLanding({ siteName: copy.readme?.name ?? copy.siteSlug ?? "Website", exportedWords: copy.readme?.words, themes: landing }) };
 }
 
 /** The combined per-theme README; a multi-theme download also counts its shared media. */

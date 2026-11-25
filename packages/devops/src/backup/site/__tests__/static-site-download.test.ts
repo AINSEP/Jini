@@ -52,6 +52,7 @@ function layoutHost(over: Partial<StaticDownloadHost> = {}): StaticDownloadHost 
   return { sourceEdits: countingEdits().edits, validateSharePath: () => undefined, sharePathAlias: ({ path }) => path.toLowerCase(),
     allocateThemes: ({ themeIds }) => themeIds.map(themeId => ({ themeId, name: `folder-${themeId}` })) as never,
     checkShareLimits: () => undefined, extractPlainText: ({ html }) => html,
+    renderLanding: input => Buffer.from(JSON.stringify(input)),
     exportUrlLocations, extractHtmlReferences, outputFileForUrl, ...over };
 }
 
@@ -120,6 +121,14 @@ describe("staticDownloadLayout", () => {
   it("lists landing titles through the injected extractor", () => {
     const files = staticDownloadLayout({ copy: copy([page("index.html", "Hello")]), host: layoutHost({ extractPlainText: () => "EXTRACTED" }) });
     assert.match(files.find(file => file.path === "index.html")!.content.toString(), /EXTRACTED/);
+  });
+  it("renders the root landing page only through the injected renderer", () => {
+    const seen: unknown[] = [];
+    const files = staticDownloadLayout({ copy: copy([page("index.html", "Hello")]),
+      host: layoutHost({ renderLanding: input => { seen.push(input); return Buffer.from("HOST LANDING"); } }) });
+    assert.equal(files.find(file => file.path === "index.html")!.content.toString(), "HOST LANDING");
+    assert.deepEqual(seen, [{ siteName: "demo", exportedWords: undefined,
+      themes: [{ title: "folder-t1", folder: "folder-t1", active: true, pages: [{ href: "sites/folder-t1/index.html", label: "/", title: "Hello" }] }] }]);
   });
 });
 
