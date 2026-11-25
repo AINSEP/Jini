@@ -1,3 +1,4 @@
+import type { WorkspaceMigrationOwnership } from '../../core/persistent-state.js';
 import type { Clock, IdGenerator } from "@jini-ai/core/primitives";
 import type { AtomicFileWriterPort, BootIdentity, FileLockPort } from "@jini-ai/core/contracts/runtime";
 import type { AgentPluginServerMetadataReader } from './manifest.js';
@@ -69,7 +70,9 @@ export interface AgentPluginLifecyclePorts {
   readonly extensionNamespace: string;
   /** Host boot policy may migrate every workspace before seeding the requested workspace.
    * A failure refuses all publication; absent uses the owner's single-workspace migration. */
-  readonly migrateBeforeSeed?: ((required: { readonly layout: AgentPluginLayoutPort; readonly workspaceId: string }, optional: Record<string, never>) => Promise<{ readonly complete: boolean }>) | undefined;
+  /** `ownership`, when present, proves the caller already holds this workspace's migration lock: run
+   * the migration under it (`migratePluginLayout`'s `ownership`), never acquire it again. */
+  readonly migrateBeforeSeed?: ((required: { readonly layout: AgentPluginLayoutPort; readonly workspaceId: string }, optional: { readonly ownership?: WorkspaceMigrationOwnership }) => Promise<{ readonly complete: boolean }>) | undefined;
   /** Host-facing recovery instructions; the bundled refusal and its security gate remain owned here. */
   readonly formatBundledUninstallRecovery?: ((required: { readonly pluginId: string }, optional: Record<string, never>) => string) | undefined;
   readonly readServerMetadata?: AgentPluginServerMetadataReader | undefined;
