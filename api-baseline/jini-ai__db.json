@@ -68,12 +68,14 @@
    "ChangeSetSqlRequired": "interface:8fcb4cb8ba",
    "ChangeSetTables": "interface:b1deefe524",
    "ChangeSetsTable": "interface:c3b56ad52b",
+   "OutboxEventPreparation": "interface:7f2b6a41dc",
    "OutboxEventsTable": "interface:4d66e6c483",
    "OutboxSqlOptional": "type:a0fa436d1f",
    "OutboxSqlRequired": "interface:2a86d5a818",
    "OutboxTables": "interface:581ba7a1a6",
-   "SqlChangeSetRepo": "class:b207d7521a",
-   "SqlOutboxAdapter": "class:f9d241c408",
+   "PrepareOutboxEvent": "type:522412c54e",
+   "SqlChangeSetRepo": "class:aded00e494",
+   "SqlOutboxAdapter": "class:02ad16fb21",
    "outboxEventValues": "function:8905363407"
   }
  },

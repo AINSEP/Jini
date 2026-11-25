@@ -2008,7 +2008,7 @@
   "symbols": {
    "AgentSpanOptions": "interface:567ec35508",
    "CaptureEvent": "interface:b90b233e98",
-   "OperationSpanOptions": "interface:c5804ecd7b",
+   "OperationSpanOptions": "interface:7d26255d01",
    "RequestSpanOptions": "interface:d8ec2a1c52",
    "Tracker": "interface:a8e95733db",
    "TrackerErrorContext": "interface:6f2dcbd670",
