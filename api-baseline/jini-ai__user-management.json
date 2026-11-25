@@ -141,6 +141,15 @@
    "passwordLoginRoute": "variable:0b76ad90cf"
   }
  },
+ "./admin-http/http/api-keys": {
+  "types": "./dist/admin-http/http/api-keys.d.ts",
+  "symbols": {
+   "AdminApiKeyIssueResponse": "interface:0edd0624d7",
+   "AdminApiKeyPrincipalResponse": "interface:6cbc247193",
+   "toApiKeyIssueResponse": "function:93082726ed",
+   "toApiKeyPrincipalResponse": "function:29573df25f"
+  }
+ },
  "./admin-http/http/users": {
   "types": "./dist/admin-http/http/users.d.ts",
   "symbols": {
@@ -159,6 +168,59 @@
    "OwnerAuthServiceDepsFn": "type:a72e0e8798",
    "OwnerMfaSource": "interface:18c4467321",
    "composeOwnerMfaDeps": "function:5e6c397362"
+  }
+ },
+ "./admin-http/owner/mfa-routes": {
+  "types": "./dist/admin-http/owner/mfa-routes.d.ts",
+  "symbols": {
+   "OwnerMfaRoute": "interface:5e7fa629c9",
+   "OwnerMfaRouteCaller": "interface:448c89c83d",
+   "OwnerMfaRouteDeps": "interface:b9f133d4fe",
+   "OwnerMfaServices": "interface:a9c5c308e4",
+   "ownerMfaConfirmRoute": "variable:5c64ee40d2",
+   "ownerMfaEnrollRoute": "variable:0bd9c3d8b0",
+   "ownerMfaRemoveRoute": "variable:c0d19ec46b",
+   "ownerMfaStatusRoute": "variable:33f71125b1"
+  }
+ },
+ "./admin-http/owner/recovery-routes": {
+  "types": "./dist/admin-http/owner/recovery-routes.d.ts",
+  "symbols": {
+   "OwnerRecoveryRoute": "interface:e3e56c7193",
+   "OwnerRecoveryRouteDeps": "interface:2ffe717c9c",
+   "OwnerRecoveryServices": "interface:5ca574d3dc",
+   "createOwnerRecoveryRoutes": "function:c052ec006f"
+  }
+ },
+ "./admin-http/routes/api-keys/create-principal": {
+  "types": "./dist/admin-http/routes/api-keys/create-principal.d.ts",
+  "symbols": {
+   "ApiKeyPrincipalCreateRouteDeps": "interface:d20ba6af26",
+   "apiKeyPrincipalCreateRoute": "variable:058958fd05"
+  }
+ },
+ "./admin-http/routes/api-keys/issue": {
+  "types": "./dist/admin-http/routes/api-keys/issue.d.ts",
+  "symbols": {
+   "ApiKeyIssueRouteDeps": "interface:bdba0cc8a1",
+   "BoundIssueApiKeyFn": "type:a01714ff33",
+   "apiKeyIssueRoute": "variable:bdba24060e"
+  }
+ },
+ "./admin-http/routes/api-keys/revoke": {
+  "types": "./dist/admin-http/routes/api-keys/revoke.d.ts",
+  "symbols": {
+   "ApiKeyRevokeRouteDeps": "interface:639529ae9e",
+   "apiKeyRevokeRoute": "variable:823a369580"
+  }
+ },
+ "./admin-http/routes/api-keys/shared": {
+  "types": "./dist/admin-http/routes/api-keys/shared.d.ts",
+  "symbols": {
+   "API_KEY_ERRORS": "variable:e84d665601",
+   "API_KEY_SESSION_CREDENTIAL_GATE": "variable:a92f241faa",
+   "ApiKeyServicesFn": "type:efa357de5e",
+   "apiKeyBody": "function:3921d9ee5b"
   }
  },
  "./admin-http/routes/users/assign-role": {
@@ -990,6 +1052,30 @@
    "UnsubscribeTokenClaims": "interface:ff21bb5e1e",
    "buildUnsubscribeLink": "function:c0046b1571",
    "processUnsubscribe": "function:827b1f274a"
+  }
+ },
+ "./public-http/routes/mail/feedback": {
+  "types": "./dist/public-http/routes/mail/feedback.d.ts",
+  "symbols": {
+   "MailFeedbackHeaders": "type:8078c63519",
+   "MailFeedbackPublicRawRoute": "interface:a047c593b9",
+   "MailFeedbackRouteDeps": "interface:be0bc65ff0",
+   "mailFeedbackRoute": "variable:e6748bc72e"
+  }
+ },
+ "./public-http/routes/newsletter/confirm": {
+  "types": "./dist/public-http/routes/newsletter/confirm.d.ts",
+  "symbols": {
+   "NewsletterConfirmRouteDeps": "interface:11c6b21f81",
+   "newsletterConfirmRoute": "variable:37d7d9b913"
+  }
+ },
+ "./public-http/routes/newsletter/unsubscribe": {
+  "types": "./dist/public-http/routes/newsletter/unsubscribe.d.ts",
+  "symbols": {
+   "NewsletterUnsubscribeRouteDeps": "interface:34fee09267",
+   "newsletterUnsubscribeGetRoute": "variable:ebc0f416e8",
+   "newsletterUnsubscribePostRoute": "variable:0dce668f40"
   }
  },
  "./react": {

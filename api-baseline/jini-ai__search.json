@@ -81,6 +81,14 @@
    "parseSearchRequest": "function:3c3f074eaf"
   }
  },
+ "./public-http/routes/site/search": {
+  "types": "./dist/public-http/routes/site/search.d.ts",
+  "symbols": {
+   "SiteSearchRouteDeps": "interface:a63cffcc43",
+   "SiteSearchRouteRuntime": "interface:383745fc7d",
+   "siteSearchRoute": "variable:5eed08aea4"
+  }
+ },
  "./site/access": {
   "types": "./dist/site/access.d.ts",
   "symbols": {
