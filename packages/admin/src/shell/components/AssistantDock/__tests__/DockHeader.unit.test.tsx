@@ -14,7 +14,7 @@ import { REPLY_LENGTH_OPTIONS } from "../assistant-runtime-preferences.js";
  * @file `DockHeader` — the dock's replacement for `ChatPane`'s default header — rendered on its
  * own: the title heading, the empty-transcript greeting, and the gear menu's failed-save notice.
  * The conversation switcher's delete gate and the title editor are driven through the whole dock
- * in the host's `components/__tests__/AssistantDock.unit.test.tsx` and `conversation-title-editor.unit.test.tsx`.
+ * in `components/__tests__/AssistantDock.unit.test.tsx` and `conversation-title-editor.unit.test.tsx`.
  */
 
 afterEach(() => cleanup());
