@@ -404,7 +404,7 @@ These names are also reachable through the current export map. Parameter declara
 | `AssetTreeUploadErrorBanner({ message, onDismiss }: AssetTreeUploadErrorBannerProps)` | [AssetTreeUploadErrorBanner.tsx](../../src/features/asset-tree-browser/react/components/AssetTreeUploadErrorBanner.tsx) |
 | `AudioViewerBody({ src, label }: AudioViewerBodyProps)` | [AudioViewerBody.tsx](../../src/features/viewer-shell/react/components/AudioViewerBody.tsx) |
 | `BrowserViewportControls({ viewport, onViewport, disabled, presets = BROWSER_VIEWPORT_PRESETS, }: BrowserViewportControlsProps)` | [BrowserViewportControls.tsx](../../src/features/browser-chrome/react/components/BrowserViewportControls.tsx) |
-| `ByokProviderForm({ config, onConfigChange, preset, presets = DEFAULT_PROVIDER_PRESETS, modelDiscovery, connectionTest, onTestConnection, canTestConnection = true, apiKeyFooter, formFooter, apiKeyStoredExternally = false, apiKeyPlaceholder, agentHandle, }: ByokProviderFormProps)` | [ByokProviderForm.tsx](../../src/features/execution/react/components/ByokProviderForm.tsx) |
+| `ByokProviderForm({ config, onConfigChange, preset, presets = DEFAULT_PROVIDER_PRESETS, modelDiscovery, connectionTest, onTestConnection, onBaseUrlCommit, canTestConnection = true, apiKeyFooter, formFooter, apiKeyStoredExternally = false, apiKeyPlaceholder, agentHandle, }: ByokProviderFormProps)` | [ByokProviderForm.tsx](../../src/features/execution/react/components/ByokProviderForm.tsx) |
 | `ClientPicker({ clients, selectedClientId, onSelect, methodLabel, methodLabels, agentHandle }: ClientPickerProps)` | [ClientPicker.tsx](../../src/features/integrations/react/components/ClientPicker.tsx) |
 | `CodeWithLines({ text }: CodeWithLinesProps)` | [CodeWithLines.tsx](../../src/features/viewer-shell/react/components/CodeWithLines.tsx) |
 | `CodexInstallToggleButton({ port, agentHandle }: CodexInstallToggleButtonProps)` | [CodexInstallToggleButton.tsx](../../src/features/integrations/react/components/CodexInstallToggleButton.tsx) |
@@ -1258,7 +1258,7 @@ These names are also reachable through the current export map. Parameter declara
 | `BrowserSseLiveUpdatesOptions`, `FakeAssetGridDataPortOptions` | type; [dependencies.ts](../../src/features/asset-grid/dependencies.ts) |
 | `BrowserViewportControlsProps` | type; [BrowserViewportControls.tsx](../../src/features/browser-chrome/react/components/BrowserViewportControls.tsx) |
 | `BufferedWindowMessage` | interface; [early-message-buffer.ts](../../src/features/mcp-ui/early-message-buffer.ts) |
-| `ByokProviderFormProps` | type; [ByokProviderForm.tsx](../../src/features/execution/react/components/ByokProviderForm.tsx) |
+| `ByokProviderFormProps` | type (optional `onBaseUrlCommit({ baseUrl })` fires on Base URL blur or non-composing Enter with the input's current value); [ByokProviderForm.tsx](../../src/features/execution/react/components/ByokProviderForm.tsx) |
 | `COMMENT_SIDE_DRAG_MIME`, `COPY_FEEDBACK_RESET_MS`, `DEFAULT_VIEWPORT_PRESETS` | const; [constants.ts](../../src/features/viewer-shell/constants.ts) |
 | `CONFIRM_DWELL_MS` | const; [confirmation.ts](../../src/features/mcp-ui/surfaces/confirmation.ts) |
 | `CONNECTOR_CALLBACK_MESSAGE_TYPE`, `DEFAULT_CONNECTOR_PROVIDER`, `EMPTY_DRAFT`, `MEMORY_CONNECTOR_APP_IDS`, `MEMORY_CONNECTOR_APP_LABELS`, `MEMORY_CONNECTOR_PENDING_AUTH_STORAGE_KEY`, `STARTERS`, `TYPES` | const; [constants.ts](../../src/features/memory/constants.ts) |

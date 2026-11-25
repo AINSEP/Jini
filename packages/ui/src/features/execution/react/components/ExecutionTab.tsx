@@ -4,6 +4,7 @@ import { useT } from '../../../i18n/index.js';
 import { DEFAULT_AGENT_CLI_ENV_FIELDS } from '../../constants.js';
 import type { AgentCliEnvFieldSpec, ExecutionCardAgent, ExecutionConfig, ExecutionMode, ExecutionPort, ProviderPreset } from '@jini-ai/core/contracts/execution';
 import {
+  isValidApiBaseUrl,
   nextConfigForAgentCliEnvChange,
   nextConfigForAgentModel,
   nextConfigForAgentReasoning,
@@ -121,7 +122,7 @@ export function ExecutionTab({
   useExecutionTabViewHook = useExecutionTabView,
 }: ExecutionTabProps) {
   const t = useTHook();
-  const { tab, selectedPreset, setMode } = useExecutionTabViewHook({ config, onConfigChange, port, presets, autoDetect, canDiscoverModels, describeProbeError });
+  const { tab, selectedPreset, setMode, commitBaseUrl, isBaseUrlApproved } = useExecutionTabViewHook({ config, onConfigChange, port, presets, autoDetect, canDiscoverModels, describeProbeError });
 
   const modes: ReadonlyArray<{ id: ExecutionMode; title: string; meta: string }> = [
     { id: 'local-cli', title: t('Local CLI'), meta: t('Run an agent installed on this machine') },
@@ -157,6 +158,7 @@ export function ExecutionTab({
           tab={tab}
           canDiscoverModels={canDiscoverModels}
           canListModels={typeof port.listModels === 'function'}
+          approval={{ commitBaseUrl, isBaseUrlApproved }}
           formProps={{ apiKeyFooter, formFooter, apiKeyStoredExternally, apiKeyPlaceholder }}
           agentHandle={agentHandle}
         />
@@ -211,7 +213,7 @@ function ExecutionModeSwitch({ modes, activeMode, localCliUnavailableReason, onS
 
 /** The BYOK half of the tab: protocol and gateway chip rows over the credential card. */
 function ByokPane({
-  config, onConfigChange, presets, selectedPreset, tab, canDiscoverModels, canListModels, formProps, agentHandle,
+  config, onConfigChange, presets, selectedPreset, tab, canDiscoverModels, canListModels, approval, formProps, agentHandle,
   useTHook = useT,
   useByokPaneHook = useByokPane,
 }: {
@@ -222,6 +224,7 @@ function ByokPane({
   tab: ReturnType<typeof useExecutionTab>;
   canDiscoverModels: boolean;
   canListModels: boolean;
+  approval: EndpointApproval;
   formProps: {
     apiKeyFooter: ReactNode;
     formFooter: ReactNode;
@@ -233,7 +236,7 @@ function ByokPane({
   useByokPaneHook?: typeof useByokPane;
 }) {
   const t = useTHook();
-  const { protocols, gateways, configuredPresetIds, selectPreset, selectedPresetId } = useByokPaneHook({ config, onConfigChange, presets, selectedPreset });
+  const { protocols, gateways, configuredPresetIds, selectPreset, selectedPresetId } = useByokPaneHook({ config, onConfigChange, presets, selectedPreset, commitBaseUrl: approval.commitBaseUrl });
   return (
     <section className="jini-settings-section jini-settings-byok">
       <ProviderChipGroup
@@ -273,10 +276,10 @@ function ByokPane({
         // from before this key existed (or from any earlier transient
         // failure) would otherwise never clear, even once Test Connection
         // itself goes green with the same config.
-        onTestConnection={() => {
-          tab.testConnection(config.byok);
-          if (canDiscoverModels && canListModels) tab.loadModels(config.byok);
-        }}
+        onTestConnection={() => testEndpoint({ byok: config.byok, tab, approval, canDiscover: canDiscoverModels && canListModels })}
+        // Typing only patches the displayed config; blur or Enter is the operator committing the
+        // endpoint for the CURRENT provider/protocol pair.
+        onBaseUrlCommit={({ baseUrl }) => approval.commitBaseUrl({ endpoint: { providerId: config.byok.providerId, protocol: config.byok.protocol, baseUrl } })}
         {...(formProps.apiKeyFooter !== undefined ? { apiKeyFooter: formProps.apiKeyFooter } : {})}
         {...(formProps.formFooter !== undefined ? { formFooter: formProps.formFooter } : {})}
         {...(formProps.apiKeyStoredExternally !== undefined ? { apiKeyStoredExternally: formProps.apiKeyStoredExternally } : {})}
@@ -284,6 +287,27 @@ function ByokPane({
       />
     </section>
   );
+}
+
+type EndpointApproval = Pick<ReturnType<typeof useExecutionTabView>, 'commitBaseUrl' | 'isBaseUrlApproved'>;
+
+/**
+ * Test connection is an explicit commit of the endpoint it tests. An incomplete or disallowed URL
+ * goes to neither probe (the key would travel with it). Approval is read BEFORE committing: a newly
+ * approved endpoint is discovered by the tab's automatic discovery effect, so calling `loadModels`
+ * here too would probe it twice; an already approved one gets this explicit discovery retry, which
+ * is what clears a stale "could not load live models" error once the connection itself goes green.
+ */
+function testEndpoint({ byok, tab, approval, canDiscover }: {
+  byok: ExecutionConfig['byok']; tab: ReturnType<typeof useExecutionTab>; approval: EndpointApproval; canDiscover: boolean;
+}, _optional = {}): void {
+  const trimmed = byok.baseUrl.trim();
+  if (trimmed && !isValidApiBaseUrl({ raw: trimmed })) return;
+  const endpoint = { providerId: byok.providerId, protocol: byok.protocol, baseUrl: trimmed };
+  const wasApproved = approval.isBaseUrlApproved({ endpoint });
+  approval.commitBaseUrl({ endpoint });
+  tab.testConnection({ ...byok, baseUrl: trimmed });
+  if (wasApproved && canDiscover) tab.loadModels({ ...byok, baseUrl: trimmed });
 }
 
 /** The Local CLI half of the tab: detected agents, wired to the config's next-state rules. */

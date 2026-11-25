@@ -1,40 +1,59 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { groupPresets, isProviderConfigured, isValidApiBaseUrl, nextConfigForModeChange, nextConfigForPresetSelect, resolveSelectedPreset } from '../../rules.js';
-import type { ExecutionConfig, ExecutionMode, ExecutionPort, ProviderPreset } from '@jini-ai/core/contracts/execution';
+import type { ByokConfig, ExecutionConfig, ExecutionMode, ExecutionPort, ProviderPreset } from '@jini-ai/core/contracts/execution';
 import { useExecutionTab } from '../hooks/useExecutionTab.js';
 
-/** How long a typed Base URL must stay unchanged before discovery may send the key to it. */
-export const BASE_URL_SETTLE_MS = 600;
+type DiscoveryEndpoint = Pick<ByokConfig, 'providerId' | 'protocol' | 'baseUrl'>;
+type CommitBaseUrl = ({ endpoint }: { readonly endpoint: DiscoveryEndpoint }, _optional?: Record<string, never>) => void;
+type IsBaseUrlApproved = ({ endpoint }: { readonly endpoint: DiscoveryEndpoint }, _optional?: Record<string, never>) => boolean;
 
-/**
- * B216: model discovery sends the provider key to the Base URL, so it must only ever go to a URL
- * the operator finished typing — never to `https://ap`, `https://api.ex`, … one keystroke at a time.
- * A typed change counts once it has stayed put for `delayMs`; a preset or protocol switch
- * (`endpointKey` changes) is a deliberate pick and counts at once.
- */
-function useSettledBaseUrl({ baseUrl, endpointKey, delayMs }: { baseUrl: string; endpointKey: string; delayMs: number }, _optional = {}): string {
-  const [settled, setSettled] = useState({ baseUrl, endpointKey });
-  // Adjusting state while rendering (React's "store info from previous renders" pattern): a preset
-  // pick must not wait out the typing delay, nor run one render with the old URL.
-  if (settled.endpointKey !== endpointKey) setSettled({ baseUrl, endpointKey });
-  useEffect(() => {
-    const timer = settled.baseUrl === baseUrl ? undefined : setTimeout(() => setSettled({ baseUrl, endpointKey }), delayMs);
-    return () => clearTimeout(timer);
-  }, [baseUrl, endpointKey, delayMs, settled.baseUrl]);
-  return settled.endpointKey === endpointKey ? settled.baseUrl : baseUrl;
+/** One approval slot per provider/protocol pair; JSON keeps `null` (Custom) distinct from any id. */
+function endpointPairKey({ providerId, protocol }: DiscoveryEndpoint, _optional = {}): string {
+  return JSON.stringify([providerId, protocol]);
 }
 
-/** True when discovery may send the key to this Base URL: it has settled and is blank (the host's
- *  default endpoint) or a complete, allowed URL. */
-function mayProbeBaseUrl({ baseUrl, settledBaseUrl }: { baseUrl: string; settledBaseUrl: string }, _optional = {}): boolean {
-  return baseUrl === settledBaseUrl && (!baseUrl.trim() || isValidApiBaseUrl({ raw: baseUrl }));
+/** The trimmed URL discovery may be approved for, or `null` when it is not a complete, allowed URL. */
+function approvableBaseUrl({ baseUrl }: DiscoveryEndpoint, _optional = {}): string | null {
+  const trimmed = baseUrl.trim();
+  return trimmed && isValidApiBaseUrl({ raw: trimmed }) ? trimmed : null;
+}
+
+/**
+ * B216: model discovery sends the provider key to the Base URL, so it may only go to a URL the
+ * operator explicitly committed (blur, Enter, a preset's own default, Test connection). A parseable
+ * URL and a pause do not establish intent: `https://api.ex` parses, and people pause mid-word. And
+ * preset selection can carry a draft across identities, so approval belongs to the exact provider,
+ * protocol and URL — never to "the identity changed". Holds URLs only; a key never enters this state.
+ */
+function useEndpointApproval({ initial }: { initial: DiscoveryEndpoint }, _optional = {}) {
+  // Seeding exception: the host's initial endpoint is the one the server already uses for runs, so
+  // approving it adds no new egress — even when an autosaving host persisted a half-typed value
+  // before a reload. Read once on mount only: never from `savedByProviderId`, never from a later
+  // prop rerender, either of which would turn an unreviewed URL into an approved one.
+  const [approved, setApproved] = useState<ReadonlyMap<string, string>>(() => {
+    const seed = approvableBaseUrl(initial);
+    return new Map(seed === null ? [] : [[endpointPairKey(initial), seed]]);
+  });
+  const isBaseUrlApproved = useCallback<IsBaseUrlApproved>(({ endpoint }) => {
+    const trimmed = endpoint.baseUrl.trim();
+    // Blank is the host's own default endpoint for every pair, not an operator-supplied destination.
+    return !trimmed || approved.get(endpointPairKey(endpoint)) === trimmed;
+  }, [approved]);
+  const commitBaseUrl = useCallback<CommitBaseUrl>(({ endpoint }) => {
+    const url = approvableBaseUrl(endpoint);
+    if (url === null) return;
+    const key = endpointPairKey(endpoint);
+    // Same pair and URL keeps the same Map, so React bails out and no discovery is re-scheduled.
+    setApproved((current) => (current.get(key) === url ? current : new Map(current).set(key, url)));
+  }, []);
+  return { isBaseUrlApproved, commitBaseUrl };
 }
 
 /** Wire execution state and preserve the existing model-discovery triggers. */
 export function useExecutionTabView({ config, onConfigChange, port, presets, autoDetect, canDiscoverModels, describeProbeError }: {
   config: ExecutionConfig; onConfigChange: (config: ExecutionConfig) => void; port: ExecutionPort;
   presets: readonly ProviderPreset[]; autoDetect: boolean; canDiscoverModels: boolean; describeProbeError: ((error: unknown) => string) | undefined;
-}, { baseUrlSettleMs = BASE_URL_SETTLE_MS }: { baseUrlSettleMs?: number } = {}) {
+}, _optional = {}) {
   const tab = useExecutionTab({
     port,
     autoDetect: autoDetect && config.mode === 'local-cli',
@@ -53,7 +72,7 @@ export function useExecutionTabView({ config, onConfigChange, port, presets, aut
   const hasApiKey = config.byok.apiKey.trim().length > 0;
 
   // Re-discover models whenever the selected endpoint changes (preset pick,
-  // manual protocol switch, or a typed base URL settling on a new value), and
+  // manual protocol switch, or a Base URL the operator committed), and
   // once a key first becomes available (`hasApiKey`).
   //
   // Still deliberately NOT keyed on `apiKey`'s VALUE or on `model` — refetching
@@ -74,13 +93,16 @@ export function useExecutionTabView({ config, onConfigChange, port, presets, aut
   // `canDiscoverModels` is read here but is deliberately not a dependency — see that prop's doc for why
   // its turning `true` on its own must never probe.
   //
-  // Keyed on the SETTLED Base URL, not the typed one (B216): see `useSettledBaseUrl`.
-  const settledBaseUrl = useSettledBaseUrl({ baseUrl: config.byok.baseUrl, endpointKey: `${config.byok.providerId}\n${config.byok.protocol}`, delayMs: baseUrlSettleMs });
+  // Keyed on the APPROVED Base URL, never the typed one (B216): see `useEndpointApproval`. `null`
+  // while the current pair and URL are unapproved; the trimmed URL (blank for the host default)
+  // otherwise — and that trimmed value, not the raw input, is what the probe receives.
+  const { isBaseUrlApproved, commitBaseUrl } = useEndpointApproval({ initial: config.byok });
+  const approvedBaseUrl = isBaseUrlApproved({ endpoint: config.byok }) ? config.byok.baseUrl.trim() : null;
   useEffect(() => {
     if (config.mode !== 'byok' || typeof port.listModels !== 'function' || !canDiscoverModels) return;
-    if (!mayProbeBaseUrl({ baseUrl: config.byok.baseUrl, settledBaseUrl })) return;
-    loadModels(config.byok);
-  }, [config.mode, port, loadModels, config.byok.protocol, settledBaseUrl, config.byok.providerId, hasApiKey]);
+    if (approvedBaseUrl === null) return;
+    loadModels({ ...config.byok, baseUrl: approvedBaseUrl });
+  }, [config.mode, port, loadModels, config.byok.protocol, approvedBaseUrl, config.byok.providerId, hasApiKey]);
 
   // All a turn to "cannot discover" does: drop the current result and any response still in flight —
   // e.g. one started before the host learned that its stored key belongs to another endpoint.
@@ -94,19 +116,28 @@ export function useExecutionTabView({ config, onConfigChange, port, presets, aut
     onConfigChange(nextConfigForModeChange({ config, mode }));
   };
 
-  return { tab, selectedPreset, setMode };
+  return { tab, selectedPreset, setMode, commitBaseUrl, isBaseUrlApproved };
 }
 
 /** Derive BYOK chip state and apply the selected preset through the existing rules. */
-export function useByokPane({ config, onConfigChange, presets, selectedPreset }: {
+export function useByokPane({ config, onConfigChange, presets, selectedPreset, commitBaseUrl }: {
   config: ExecutionConfig; onConfigChange: (config: ExecutionConfig) => void; presets: readonly ProviderPreset[]; selectedPreset: ProviderPreset | null;
+  commitBaseUrl: CommitBaseUrl;
 }, _options = {}) {
   const { protocols, gateways } = groupPresets({ presets });
   const configuredPresetIds = new Set(
     presets.filter((preset) => isProviderConfigured({ config: config.byok, preset })).map((preset) => preset.id),
   );
-  const selectPreset = (preset: ProviderPreset) =>
-    onConfigChange({ ...config, byok: nextConfigForPresetSelect({ config: config.byok, preset }) });
+  const selectPreset = (preset: ProviderPreset) => {
+    const next = nextConfigForPresetSelect({ config: config.byok, preset });
+    // A deliberate pick of a preset's OWN default endpoint is the operator choosing that endpoint.
+    // A carried Custom draft or a restored saved non-default URL is not; it stays unapproved unless
+    // that exact pair and URL were already approved.
+    if (!preset.custom && next.baseUrl.trim() === (preset.baseUrl ?? '').trim()) {
+      commitBaseUrl({ endpoint: { providerId: next.providerId, protocol: next.protocol, baseUrl: next.baseUrl } });
+    }
+    onConfigChange({ ...config, byok: next });
+  };
   const selectedPresetId = selectedPreset?.id ?? null;
   return { protocols, gateways, configuredPresetIds, selectPreset, selectedPresetId };
 }
