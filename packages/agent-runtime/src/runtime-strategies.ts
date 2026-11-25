@@ -51,7 +51,8 @@ const SHARED_FILESYSTEM_SLOT: FilesystemSlot = { supported: claudeFilesystemAdap
 
 /** Keyed by definition id, not by the shared `claude-mcp-json` delivery: isolating the operator's own config is the real CLI's concern, not `codebuddy`'s. */
 const CONFIG_DIR_BY_ID: ReadonlyMap<string, ConfigDirSlot> = new Map([['claude', { envKey: CLAUDE_CONFIG_DIR_ENV, stage: stageClaudeConfigDir }]]);
-const SUBAGENT_START_BY_ID: ReadonlyMap<string, SubagentStartSlot> = new Map([['claude', { prepare: prepareClaudeSubagentStartSettings }]]);
+/** Keyed by the declared `subagentStartHook`: a definition that says its CLI fires a SubagentStart hook gets the settings that register one. */
+const SUBAGENT_START: SubagentStartSlot = { prepare: prepareClaudeSubagentStartSettings };
 
 /** Keyed by the declared `externalMcpInjection` strategy, which `codebuddy` shares with `claude`. */
 const MCP_CONFIG_FILE_BY_STRATEGY: ReadonlyMap<string, McpConfigFileSlot> = new Map([
@@ -63,12 +64,12 @@ const MCP_CONFIG_FILE_BY_STRATEGY: ReadonlyMap<string, McpConfigFileSlot> = new 
 export const RUNTIME_STRATEGY_HOST_ENV_NAMES: readonly string[] = [AMR_OPENCODE_BIN_ENV, CLAUDE_CONFIG_DIR_ENV];
 
 /** Strategies for one definition. O(1): a handful of map lookups. Every definition gets the shared folder-limit policy; the other slots appear only where the definition declares or is named for one. */
-export function strategiesForDef({ def }: { def: Pick<RuntimeAgentDef, 'id' | 'eventParser' | 'externalMcpInjection'> }, _optional: Record<string, never> = {}) {
+export function strategiesForDef({ def }: { def: Pick<RuntimeAgentDef, 'id' | 'eventParser' | 'externalMcpInjection' | 'subagentStartHook'> }, _optional: Record<string, never> = {}) {
   const toolCallReceipt = def.eventParser === undefined ? undefined : RECEIPT_BY_DIALECT.get(def.eventParser);
   const envContentVar = def.externalMcpInjection === undefined ? undefined : ENV_CONTENT_VAR_BY_STRATEGY.get(def.externalMcpInjection);
   const mcpBridge = MCP_BRIDGE_BY_ID.get(def.id);
   const configDir = CONFIG_DIR_BY_ID.get(def.id);
-  const subagentStart = SUBAGENT_START_BY_ID.get(def.id);
+  const subagentStart = def.subagentStartHook === true ? SUBAGENT_START : undefined;
   const mcpConfigFile = def.externalMcpInjection === undefined ? undefined : MCP_CONFIG_FILE_BY_STRATEGY.get(def.externalMcpInjection);
   return {
     filesystem: FILESYSTEM_BY_ID.get(def.id) ?? SHARED_FILESYSTEM_SLOT,

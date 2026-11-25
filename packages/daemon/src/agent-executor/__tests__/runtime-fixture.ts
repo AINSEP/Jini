@@ -125,6 +125,12 @@ export function boundConfigDir(required: Pick<RuntimeAgentDef, 'id'>, _optional:
   return { configDir: agentRuntimeFixture().strategies.for({ def: required as RuntimeAgentDef }).configDir };
 }
 
+/** The run-scoped MCP config-file slot the production binding supplies for a strategy (the JSON-config-file one by default). */
+export function boundMcpConfigFile(required: Pick<RuntimeAgentDef, 'externalMcpInjection'> = { externalMcpInjection: 'claude-mcp-json' }, _optional: Record<string, never> = {}): { mcpConfigFile?: NonNullable<AgentRuntimeStrategies['mcpConfigFile']> } {
+  const mcpConfigFile = agentRuntimeFixture().strategies.for({ def: required as RuntimeAgentDef }).mcpConfigFile;
+  return mcpConfigFile === undefined ? {} : { mcpConfigFile };
+}
+
 /** The MCP bridge-preparation slot the production binding supplies for a def, as the launcher passes it to the bridge. */
 export function boundMcpBridge(required: Pick<RuntimeAgentDef, 'id' | 'externalMcpInjection'>, _optional: Record<string, never> = {}): { mcpBridge?: NonNullable<ReturnType<AgentRuntimePort['strategies']['for']>['mcpBridge']> } {
   const mcpBridge = agentRuntimeFixture().strategies.for({ def: required as RuntimeAgentDef }).mcpBridge;

@@ -1,4 +1,4 @@
-import { agentRuntimeFixture, boundConfigDir } from './runtime-fixture.js';
+import { agentRuntimeFixture, boundConfigDir, boundMcpConfigFile } from './runtime-fixture.js';
 import { EventEmitter } from 'node:events';
 import type { ChildProcess } from 'node:child_process';
 import { existsSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
@@ -47,7 +47,7 @@ describe('writeMcpJsonIfNeeded', () => {
     let reads = 0;
     let written = '';
     await writeMcpJsonIfNeeded({ input: { runId: 'run', cwd: '/site', nativeToolAccess: true, nativeCapabilities: { userMcp: false }, def, mcpBridge: delivery },
-      deps: { mcpJsonInjection: { command: 'host-bridge', daemonUrl: 'http://site',
+      deps: { ...boundMcpConfigFile(), mcpJsonInjection: { command: 'host-bridge', daemonUrl: 'http://site',
         readFile: async () => { reads += 1; return '{"mcpServers":{"chrome":{"command":"chrome"}}}'; },
         writeFile: async ({ content }) => { written = content; },
       }, releaseStagedResources: async () => {}, failBeforeSpawn: refuse } });
@@ -58,7 +58,7 @@ describe('writeMcpJsonIfNeeded', () => {
   it('releases staged resources and fails before spawn when the config cannot be written', async () => {
     const releaseStagedResources = vi.fn(async () => {});
     await expect(writeMcpJsonIfNeeded({ input: { runId: 'run', cwd: '/site', def, mcpBridge: delivery },
-      deps: { mcpJsonInjection: { command: 'host-bridge', daemonUrl: 'http://site',
+      deps: { ...boundMcpConfigFile(), mcpJsonInjection: { command: 'host-bridge', daemonUrl: 'http://site',
         readFile: async () => { throw new Error('ENOENT'); },
         writeFile: async () => { throw new Error('EROFS: read-only file system'); },
       }, releaseStagedResources, failBeforeSpawn: refuse } }))
