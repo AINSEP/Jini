@@ -32,7 +32,7 @@ export function createFakeMediaPort(options: FakeMediaPortOptions = {}): MediaPo
       status: "active",
       sha256: `fake-sha-${items.length + 1}`,
       title: input.filename,
-      // Rough approximation of the real server's `slugifyMediaTitle` (the host server's media service) — good
+      // Rough approximation of the real server's `slugifyMediaTitle` (`@jini-ai/cms/media`) — good
       // enough for a fake store's own uniqueness-free happy path; a test needing a REAL collision or
       // conflict must seed `options.media` directly with an explicit `slug`, same as `contentType`'s
       // own disclosed limit above.
@@ -106,7 +106,7 @@ export function createFakeMediaPort(options: FakeMediaPortOptions = {}): MediaPo
       return { purged: true };
     },
 
-    // A distinct `fake://` scheme, not the real media API's
+    // A distinct `fake://` scheme, not `api.mediaOriginalUrl`'s real
     // `/workspaces/.../media/.../original` shape — so a test asserting a resolved URL came from
     // THIS fake fails if a consumer ever goes back to calling the real `api` directly.
     mediaOriginalUrl(id) {

@@ -4,6 +4,7 @@
  * menu. Kept out of the `.tsx` files so the behaviour is testable without rendering.
  */
 
+import type { UseAssistantChats } from "../../hooks/use-assistant-chats.hooks.js";
 import { CHAT_AGENT_PLUGIN_OPTIONS } from "./chat-agent-plugin-preferences.js";
 import type { ChatAgentPluginsController } from "./hooks/use-chat-agent-plugins.hooks.js";
 import type { AssistantRuntimePreferences, AssistantRuntimePreferencesController } from "./hooks/use-assistant-runtime-preferences.hooks.js";
@@ -235,4 +236,16 @@ export function activateDockMenuItem({ item, selectItem }: {
   if (item.role === "menuitemradio" || item.role === "menuitemcheckbox") item.onSelect();
   else selectItem({ onSelect: item.onSelect });
   return true;
+}
+
+/**
+ * The header title editor's rename handler. Renames the active conversation; with no active
+ * conversation there is nothing to rename (the editor is disabled then too), so it does nothing.
+ *
+ * @param chats The dock's conversation state; `activeId` is read when the handler runs.
+ * @returns A handler taking the new title.
+ * @complexity O(1).
+ */
+export function renameActiveConversation(chats: Pick<UseAssistantChats, "activeId" | "rename">) {
+  return (title: string) => chats.activeId ? chats.rename({ id: chats.activeId, title }) : undefined;
 }

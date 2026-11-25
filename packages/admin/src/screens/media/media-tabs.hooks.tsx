@@ -3,7 +3,7 @@ import type { IconProps, TabBarTab } from "../../react/kit.js";
 import { MEDIA_TABS, resolveActiveTab, type MediaTabId, type MediaTabsController } from "./hooks/use-media-tabs.hooks.js";
 
 /**
- * @file the Media screen's own derived-value logic for its tab strip, split out per the
+ * @file `Media.tsx`'s own derived-value logic for its tab strip, split out per the
  * `<Name>.tsx`/`<Name>.hooks.tsx` pattern `Roles.hooks.tsx` establishes for the identical shape
  * (admin TSX-logic-sweep, 2026-09-05) — this repo's rule that a `.tsx` file carries no functions or
  * derived logic of its own. The icons live here too, exactly as `RolesIcon`/`PoliciesIcon` do in
@@ -12,7 +12,7 @@ import { MEDIA_TABS, resolveActiveTab, type MediaTabId, type MediaTabsController
  *
  * The tab strip itself moved to the shared `@jini-ai/ui/tab-strip` on 2026-09-06 (owner: "give the
  * tabs icons … every other tab row in this admin already pairs an icon with its label — match
- * that"). Until then the Media screen drew its own pill row (`media.css`'s retired `.media-tabs`), the
+ * that"). Until then `Media.tsx` drew its own pill row (`media.css`'s retired `.media-tabs`), the
  * last tab strip in the admin not drawn by `TabBar`. Which tabs exist, their ids, the `?tab=`
  * deep-linking (`use-media-tabs.hooks.ts`) and every per-tab agent handle are unchanged — only
  * where the buttons are drawn from.

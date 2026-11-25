@@ -6,7 +6,7 @@ import type { CredentialTokenHint } from "@jini-ai/core/contracts/site/secrets-c
 
 /**
  * One media-generation vendor's stored credentials, keyed by ENGINE-CANONICAL provider id (`grok`,
- * `nanobanana`, …) — see the host's media-provider catalog for why the spelling matters.
+ * `nanobanana`, …) — see `features/media/media-provider-catalog.ts` for why the spelling matters.
  *
  * Structurally `@jini-ai/ui`'s `MediaProviderCredentials` and mirrors
  * the host server's `MediaProviderCredentialView`. `apiKey`
@@ -54,7 +54,7 @@ export function createMediaApi({ request, siteUrl }: MediaApiDeps, _optional: Re
      *  attribute needed. Not wrapped in `request()` like the rest of this file's methods: callers
      *  want the URL string itself to hand to a DOM element, not a parsed JSON response. `Content-Type`
      *  is sniffed server-side from magic bytes (falls back to `application/octet-stream`, and a
-     *  sniffed HTML/SVG is deliberately served as a non-rendering attachment) — see the Media screen's
+     *  sniffed HTML/SVG is deliberately served as a non-rendering attachment) — see `Media.tsx`'s
      *  `MediaPreview` for how the client discovers which element type an asset actually needs. */
     mediaOriginalUrl,
     /** The image a public post shows as its cover: the `/m/` route's core `public` rendition (WebP,

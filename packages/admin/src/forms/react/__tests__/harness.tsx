@@ -35,6 +35,7 @@ const formsKit: AdminKit = {
     CodeWithLines: () => { throw new Error('Forms tests do not supply CodeWithLines'); },
     CodeWrapToggle: () => { throw new Error('Forms tests do not supply CodeWrapToggle'); },
     PreviewModalShell: () => { throw new Error('Forms tests do not supply PreviewModalShell'); },
+    FileDropzone: () => { throw new Error('Forms tests do not supply FileDropzone'); },
   },
   hooks: {
     useAdminLocale: () => 'en',
