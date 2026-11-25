@@ -47,6 +47,10 @@
   "types": null,
   "symbols": {}
  },
+ "./model-proxy-*": {
+  "types": null,
+  "symbols": {}
+ },
  "./observability-opentelemetry": {
   "types": null,
   "symbols": {}

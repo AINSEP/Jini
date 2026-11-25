@@ -116,7 +116,6 @@
   "dependencies": {
     "@jini-ai/core": "workspace:^",
     "@jini-ai/agent-runtime": "workspace:^",
-    "@jini-ai/provider-plugins": "workspace:^",
     "@jini-ai/daemon": "workspace:^",
     "@jini-ai/db": "workspace:^",
     "@jini-ai/http-kit": "workspace:^",

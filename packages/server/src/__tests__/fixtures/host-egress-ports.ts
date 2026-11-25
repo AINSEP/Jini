@@ -1,14 +1,18 @@
 import { runAnthropicToolTurn, runAzureToolTurn, runGoogleToolTurn, runOllamaToolTurn, runOpenAiToolTurn, validateBaseUrl } from '@jini-ai/agent-runtime';
-import { createAnthropicProxyRegistration } from '@jini-ai/provider-plugins/model-proxy-anthropic';
-import { createAzureProxyRegistration } from '@jini-ai/provider-plugins/model-proxy-azure';
-import { createGoogleProxyRegistration } from '@jini-ai/provider-plugins/model-proxy-google';
-import { createOllamaProxyRegistration } from '@jini-ai/provider-plugins/model-proxy-ollama';
-import { createOpenAiProxyRegistration } from '@jini-ai/provider-plugins/model-proxy-openai';
+import { ok } from '@jini-ai/core/contracts/server';
+import type { ProxyProviderRegistration } from '@jini-ai/core/contracts/agents/proxy-provider';
+
+/** A vendor-free proxy registration: the server preset only forwards what the host injects, so its tests inject a stub that parses any body and ends the turn at once. */
+const fixtureProxyRegistration: ProxyProviderRegistration = {
+  id: 'fixture',
+  parse: (body) => ok({ value: body }),
+  run: async (_parsed, { onEvent }) => { onEvent({ type: 'end' }); },
+};
 
 /** The egress ports a real host binds into the preset, so tests exercise production behaviour. */
 export const hostEgressPorts = {
   toolTurns: { anthropic: runAnthropicToolTurn, openai: runOpenAiToolTurn, azure: runAzureToolTurn, google: runGoogleToolTurn, ollama: runOllamaToolTurn },
-  proxyProviders: [createAnthropicProxyRegistration(), createOpenAiProxyRegistration(), createAzureProxyRegistration(), createGoogleProxyRegistration(), createOllamaProxyRegistration()],
+  proxyProviders: [fixtureProxyRegistration],
   baseUrlGuard: { validate: validateBaseUrl },
 } as const;
 

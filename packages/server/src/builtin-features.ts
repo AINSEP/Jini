@@ -93,8 +93,12 @@ export interface BuiltInFeatureOptions {
   };
   readonly remoteRunEvents?: { readonly tokenConfig?: RemoteToolBridgeTokenConfig };
   readonly xai?: { readonly listenerRef?: { current: OAuthCallbackListener | null } };
-  /** Required to activate `modelProxy`: provider tool-turn implementations and the provider registrations (request parser plus runner call, per provider) are host-bound, never preset defaults; this package assembles no vendor. */
-  readonly modelProxy?: { readonly toolTurns: ProviderToolTurnPort; readonly providers: readonly ProxyProviderRegistration[] };
+  /** Required to activate `modelProxy`: provider tool-turn implementations are host-bound, never preset defaults. */
+  readonly modelProxy?: {
+    readonly toolTurns: ProviderToolTurnPort;
+    /** The provider registrations (request parser plus runner call, per provider) the proxy serves; the host imports the vendor factories, this package assembles no vendor. */
+    readonly providers: readonly ProxyProviderRegistration[];
+  };
   /** Required to activate `research`: the host binds the base-URL guard the search provider checks against. */
   readonly research?: { readonly baseUrlGuard: BaseUrlGuardPort };
   /**

@@ -778,14 +778,13 @@ describe('createLocalNodeDaemon', () => {
     expect(foreign.status).toBe(403);
   });
 
-  it('serves POST /api/proxy/anthropic/stream zero-config (BYOK — no server-side credentials needed to reach the route)', async () => {
+  it('serves POST /api/proxy/<id>/stream for a host-injected provider (no server-side credentials needed to reach the route)', async () => {
     const dataDir = makeTempDataDir();
     const daemon = await createLocalNodeDaemon({ ...hostEgressPorts, osPorts: nodeOsPorts, open: openSqlite, dataDir, packs: [makePingPack()] });
     daemonsToStop.push(daemon);
 
-    // No apiKey in the body: proves the route is mounted and reachable (a validation error, not a
-    // 404) without asserting anything about a real upstream call, which needs a real credential.
-    const res = await fetch(`${daemon.url}/api/proxy/anthropic/stream`, {
+    // The injected stub accepts any body: proves the route the host's registration names is mounted and reachable (not a 404).
+    const res = await fetch(`${daemon.url}/api/proxy/fixture/stream`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({}),
