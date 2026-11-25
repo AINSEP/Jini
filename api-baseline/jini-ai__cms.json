@@ -8528,5 +8528,20 @@
     "symbols": {
       "createRevisionThinning": "function:dae49705af"
     }
+  },
+  "./react/widgets/WidgetConfigFields/WidgetConfigFields": {
+    "types": "./dist/react/widgets/WidgetConfigFields/WidgetConfigFields.d.ts",
+    "symbols": {
+      "WidgetConfigFieldsProps": "interface:pending-opus",
+      "WidgetConfigFields": "function:pending-opus"
+    }
+  },
+  "./react/collections/CollectionEntryEditor": {
+    "types": "./dist/react/collections/CollectionEntryEditor.d.ts",
+    "symbols": {
+      "CollectionEntryEditorProps": "interface:pending-opus",
+      "CollectionEntryViewController": "interface:pending-opus",
+      "CollectionEntryEditor": "function:pending-opus"
+    }
   }
 }

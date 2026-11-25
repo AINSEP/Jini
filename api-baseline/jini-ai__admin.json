@@ -7185,5 +7185,51 @@
     "symbols": {
       "StoragePanel": "function:7a20ccdf90"
     }
+  },
+  "./shell/components/AssistantDock/hooks/execution-config-ledger.hooks": {
+    "types": "./dist/shell/components/AssistantDock/hooks/execution-config-ledger.hooks.d.ts",
+    "symbols": {
+      "EXECUTION_CONFIG_MAX_AGE_MS": "variable:pending-opus",
+      "useExecutionConfigLedger": "function:pending-opus"
+    }
+  },
+  "./shell/components/AssistantDock/hooks/execution-config.hooks": {
+    "types": "./dist/shell/components/AssistantDock/hooks/execution-config.hooks.d.ts",
+    "symbols": {
+      "UseExecutionConfig": "interface:pending-opus",
+      "DockExecutionConfigPort": "interface:pending-opus",
+      "ExecutionWrite": "type:pending-opus",
+      "useStoredAdminKey": "function:pending-opus",
+      "useExecutionConfig": "function:pending-opus"
+    }
+  },
+  "./shell/components/AssistantDock/hooks/byok-runtime.hooks": {
+    "types": "./dist/shell/components/AssistantDock/hooks/byok-runtime.hooks.d.ts",
+    "symbols": {
+      "UseByokRuntime": "interface:pending-opus",
+      "useByokModels": "function:pending-opus",
+      "useByokRuntime": "function:pending-opus"
+    }
+  },
+  "./shell/components/AssistantDock/hooks/local-cli-selection.hooks": {
+    "types": "./dist/shell/components/AssistantDock/hooks/local-cli-selection.hooks.d.ts",
+    "symbols": {
+      "UseLocalCliSelection": "interface:pending-opus",
+      "useLocalCliSelection": "function:pending-opus"
+    }
+  },
+  "./shell/components/AssistantDock/hooks/composer-discovery.hooks": {
+    "types": "./dist/shell/components/AssistantDock/hooks/composer-discovery.hooks.d.ts",
+    "symbols": {
+      "UseComposerCapabilities": "interface:pending-opus",
+      "useComposerCapabilities": "function:pending-opus",
+      "useComposerDiscoverySelect": "function:pending-opus"
+    }
+  },
+  "./shell/components/AssistantDock/hooks/composer-files.hooks": {
+    "types": "./dist/shell/components/AssistantDock/hooks/composer-files.hooks.d.ts",
+    "symbols": {
+      "withSizeRefusalCopy": "function:pending-opus"
+    }
   }
 }

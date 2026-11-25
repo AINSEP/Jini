@@ -519,5 +519,23 @@
    "mergeCustomAnswer": "function:d060e8ab6a",
    "splitCustomAnswer": "function:d5c6b0f629"
   }
+ },
+ "./react/external-mcp/ExternalMcpAdmissionsBanner": {
+  "types": "./dist/react/external-mcp/ExternalMcpAdmissionsBanner.d.ts",
+  "symbols": {
+   "ExternalMcpAdmissionsBannerProps": "interface:pending-opus",
+   "ExternalMcpAdmissionsBanner": "function:pending-opus"
+  }
+ },
+ "./react/external-mcp/ExternalMcpSettingsPanel.hooks": {
+  "types": "./dist/react/external-mcp/ExternalMcpSettingsPanel.hooks.d.ts",
+  "symbols": {
+   "resolveExternalMcpCardHandles": "function:pending-opus",
+   "useSavedAllowedToolNamesById": "function:pending-opus",
+   "useExternalMcpDriftCopy": "function:pending-opus",
+   "buildAllowWritePatch": "function:pending-opus",
+   "ExternalMcpAddFormController": "interface:pending-opus",
+   "useExternalMcpAddForm": "function:pending-opus"
+  }
  }
 }

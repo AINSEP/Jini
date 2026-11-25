@@ -27,7 +27,9 @@
       "./federation/external-mcp-admissions": "universal",
       "./external/external-mcp-host-copy": "universal",
       "./external/save-form": "universal",
-      "./federation/external-mcp-probe": "node"
+      "./federation/external-mcp-probe": "node",
+      "./react/external-mcp/ExternalMcpAdmissionsBanner": "browser",
+      "./react/external-mcp/ExternalMcpSettingsPanel.hooks": "browser"
     }
   },
   "type": "module",
@@ -109,6 +111,16 @@
       "types": "./dist/federation/external-mcp-probe.d.ts",
       "import": "./dist/federation/external-mcp-probe.js",
       "default": "./dist/federation/external-mcp-probe.js"
+    },
+    "./react/external-mcp/ExternalMcpAdmissionsBanner": {
+      "types": "./dist/react/external-mcp/ExternalMcpAdmissionsBanner.d.ts",
+      "import": "./dist/react/external-mcp/ExternalMcpAdmissionsBanner.js",
+      "default": "./dist/react/external-mcp/ExternalMcpAdmissionsBanner.js"
+    },
+    "./react/external-mcp/ExternalMcpSettingsPanel.hooks": {
+      "types": "./dist/react/external-mcp/ExternalMcpSettingsPanel.hooks.d.ts",
+      "import": "./dist/react/external-mcp/ExternalMcpSettingsPanel.hooks.js",
+      "default": "./dist/react/external-mcp/ExternalMcpSettingsPanel.hooks.js"
     }
   },
   "bin": {
@@ -147,6 +159,20 @@
     "@jini-ai/core": "workspace:^",
     "@jini-ai/daemon": "workspace:^",
     "@jini-ai/platform": "workspace:^",
-    "@modelcontextprotocol/sdk": "^1.32.2"
+    "@modelcontextprotocol/sdk": "^1.32.2",
+    "react": "^19.2.0",
+    "@types/react": "^19.2.0",
+    "@testing-library/react": "^16.3.0",
+    "react-dom": "^19.2.0",
+    "@types/react-dom": "^19.2.0",
+    "jsdom": "^26.1.0"
+  },
+  "peerDependencies": {
+    "react": "^18.3.0 || ^19.0.0"
+  },
+  "peerDependenciesMeta": {
+    "react": {
+      "optional": true
+    }
   }
 }

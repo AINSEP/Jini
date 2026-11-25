@@ -710,7 +710,9 @@
       "./react/publish-content/hooks/publish-content-port.hooks": "universal",
       "./react/media/MediaEditDialog/MediaEditDialog": "browser",
       "./react/media/MediaPickerDialog/MediaPickerDialog": "browser",
-      "./react/media/MediaPickerDialog/MediaPickerDialog.hooks": "browser"
+      "./react/media/MediaPickerDialog/MediaPickerDialog.hooks": "browser",
+      "./react/widgets/WidgetConfigFields/WidgetConfigFields": "browser",
+      "./react/collections/CollectionEntryEditor": "browser"
     },
     "isolation": {
       "domains": {
@@ -4579,6 +4581,16 @@
       "types": "./dist/react/media/MediaPickerDialog/MediaPickerDialog.hooks.d.ts",
       "import": "./dist/react/media/MediaPickerDialog/MediaPickerDialog.hooks.js",
       "default": "./dist/react/media/MediaPickerDialog/MediaPickerDialog.hooks.js"
+    },
+    "./react/widgets/WidgetConfigFields/WidgetConfigFields": {
+      "types": "./dist/react/widgets/WidgetConfigFields/WidgetConfigFields.d.ts",
+      "import": "./dist/react/widgets/WidgetConfigFields/WidgetConfigFields.js",
+      "default": "./dist/react/widgets/WidgetConfigFields/WidgetConfigFields.js"
+    },
+    "./react/collections/CollectionEntryEditor": {
+      "types": "./dist/react/collections/CollectionEntryEditor.d.ts",
+      "import": "./dist/react/collections/CollectionEntryEditor.js",
+      "default": "./dist/react/collections/CollectionEntryEditor.js"
     }
   },
   "files": [

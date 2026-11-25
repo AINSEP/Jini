@@ -180,3 +180,31 @@ export function useFolderDropBridge(
   useEffect(() => { onReady?.(handleDropCapture); }, [onReady, handleDropCapture]);
   return { ...folderDrop, handleDropCapture };
 }
+
+/**
+ * Wraps the uploader so a file over its own limit is refused with the host's copy: the ordinary 50 MB limit gets
+ * the translated sentence, while the larger video limit keeps its plain "That file is N MB; the limit is M MB."
+ * wording (converting cannot bring a file under it). The uploader would refuse the same first file with English
+ * text, so checking here first changes only the wording, never which files are accepted.
+ *
+ * @complexity O(files) per call; the wrapped uploader's cost is unchanged.
+ */
+export function withSizeRefusalCopy(
+  { uploader, t, limitForFile, describeRefusal }: {
+    uploader: KitUploadAttachments;
+    t: (key: string) => string;
+    limitForFile: (file: File) => number;
+    describeRefusal: (required: { t: (key: string) => string; limitBytes: number; fileBytes: number }, optional?: Record<string, never>) => string;
+  },
+  _optional: Record<string, never> = {},
+): KitUploadAttachments {
+  return async (files, options) => {
+    const oversize = files.find((file) => file.size > limitForFile(file));
+    if (oversize) {
+      const limitBytes = limitForFile(oversize);
+      throw new Error(describeRefusal({ t, limitBytes, fileBytes: oversize.size }));
+    }
+    return options === undefined ? uploader(files) : uploader(files, options);
+  };
+}
+
