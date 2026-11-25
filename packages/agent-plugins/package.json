@@ -123,7 +123,8 @@
       "./site/analytics-provider-registry": "node",
       "./site/host-signals": "node",
       "./site/bundled-contribution-sources": "node",
-      "./site/auth-schemes": "node"
+      "./site/auth-schemes": "node",
+      "./site/soon-lock": "node"
     },
     "isolation": {
       "entries": {
@@ -145,7 +146,8 @@
         "./site/analytics-provider-registry": "lifecycle",
         "./site/host-signals": "lifecycle",
         "./site/bundled-contribution-sources": "lifecycle",
-        "./site/auth-schemes": "lifecycle"
+        "./site/auth-schemes": "lifecycle",
+        "./site/soon-lock": "lifecycle"
       },
       "shared": [
         "core/persistent-state.js",
@@ -421,6 +423,11 @@
       "types": "./dist/site/auth-schemes.d.ts",
       "import": "./dist/site/auth-schemes.js",
       "default": "./dist/site/auth-schemes.js"
+    },
+    "./site/soon-lock": {
+      "types": "./dist/site/soon-lock.d.ts",
+      "import": "./dist/site/soon-lock.js",
+      "default": "./dist/site/soon-lock.js"
     }
   },
   "files": [

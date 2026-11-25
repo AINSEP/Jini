@@ -410,6 +410,12 @@
    "createPluginAgentToolCatalog": "function:99694b1e49"
   }
  },
+ "./runtime/built-ins/word-count/count-words": {
+  "types": "./dist/runtime/built-ins/word-count/count-words.d.ts",
+  "symbols": {
+   "countWords": "function:1327d8afa5"
+  }
+ },
  "./runtime/capability-card": {
   "types": "./dist/runtime/capability-card.d.ts",
   "symbols": {
