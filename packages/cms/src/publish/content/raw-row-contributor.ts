@@ -5,6 +5,7 @@ import { BackstopRefusal, type RawBackstopPolicy } from "./backstop-refusal.js";
 import type { RawColumn, RawRowPort, RawRowSnapshot, RawValue, PackedEntity } from "../transfer/index.js";
 import { PublishContentApplyRowError } from "../transfer/index.js";
 import { contentHash, CONTENT_HASH_VERSION } from "./content-hash.js";
+import { applyRunActor } from "./repo-handler.js";
 import type { PublishContentContributor, PublishContentDeps, PublishContentHandler, SkippedPackEntity } from "./type-registry.js";
 
 /** Everything the host owns about hand-sent raw rows: the table/value rules, the row-count limit and
@@ -185,7 +186,8 @@ async function writeRawRowCommand<P>(
   let prior: RawRowSnapshot | null = null;
   const result = await executeCommand<{ version: number }>({
     deps: { clock: deps.clock, idGen: deps.idGen, authorize, changeSets, outbox },
-    command: { workspaceId: deps.workspaceId, actor: deps.mutationActor ?? { id: input.principalId, kind: "user" }, permission: "publish.backstop",
+    // The run's trusted actor, or a refusal before the row is touched — never a guessed kind (FIX 19 / H2).
+    command: { workspaceId: deps.workspaceId, actor: applyRunActor({ deps, principalId: input.principalId }), permission: "publish.backstop",
       summary: `Send '${input.entity.id}' by hand`, idempotencyKey: input.idempotencyKey },
     mutation: { entityType: "raw-row", entityId: input.entity.id, operation: input.expectedVersion === undefined ? "create" : "update",
       captureInverse: async () => {
