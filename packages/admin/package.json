@@ -741,7 +741,8 @@
       "./screens/plugins/AgentPluginRow": "browser",
       "./screens/plugins/PackageFilesModal": "browser",
       "./screens/plugins/PluginPackageFilesModal": "browser",
-      "./screens/plugins/rules-context": "browser"
+      "./screens/plugins/rules-context": "browser",
+      "./shell/components/AssistantDock/OverflowAwareMcpUiSurfaceCard": "browser"
     },
     "isolation": {
       "shared": [
@@ -1038,7 +1039,8 @@
         "./screens/plugins/AgentPluginRow": "browser",
         "./screens/plugins/PackageFilesModal": "browser",
         "./screens/plugins/PluginPackageFilesModal": "browser",
-        "./screens/plugins/rules-context": "browser"
+        "./screens/plugins/rules-context": "browser",
+        "./shell/components/AssistantDock/OverflowAwareMcpUiSurfaceCard": "browser"
       }
     },
     "optionalPeers": {
@@ -4623,6 +4625,11 @@
       "types": "./dist/screens/plugins/rules-context.d.ts",
       "import": "./dist/screens/plugins/rules-context.js",
       "default": "./dist/screens/plugins/rules-context.js"
+    },
+    "./shell/components/AssistantDock/OverflowAwareMcpUiSurfaceCard": {
+      "types": "./dist/shell/components/AssistantDock/OverflowAwareMcpUiSurfaceCard.d.ts",
+      "import": "./dist/shell/components/AssistantDock/OverflowAwareMcpUiSurfaceCard.js",
+      "default": "./dist/shell/components/AssistantDock/OverflowAwareMcpUiSurfaceCard.js"
     }
   },
   "files": [
