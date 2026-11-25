@@ -70,6 +70,14 @@ export interface ResolvedMailer {
   /** Drops cached provider mailers and the cached status; the next send and read resolve fresh. */
   invalidate: () => void;
   laneReady: (required: { lane: MailDeliveryLane }) => Promise<boolean>;
+  /**
+   * The provider id the lane's policy-wrapped mailer is really built for, from the SAME resolution that
+   * routes a send: `"console"` when a chosen provider could not resolve and the local console fallback
+   * took over, the chosen id otherwise (production refusals keep it), `null` when nothing is chosen.
+   * A host planning a test-send approval reads this instead of re-reading settings, which could name a
+   * provider the send never used. Optional so hosts that implement this interface keep compiling.
+   */
+  readonly effectiveProviderId?: (required: { lane: MailDeliveryLane }) => Promise<string | null>;
   senderDomainVerification: SenderDomainVerificationPort;
   /** Whether `id` may be selected: a registered hosted provider whose saved key resolves. Sends nothing. */
   checkProvider: (required: { id: string }) => Promise<MailProviderCheck>;
@@ -87,6 +95,8 @@ interface ResolverState {
   nowMs: () => number;
   warn: (message: string) => void;
   wrap: NonNullable<ResolveMailerOptions["wrapProviderMailer"]>;
+  /** Console fallback mailers this resolver built, so a lane resolution can tell a fallback from a choice. */
+  consoleFallbacks: WeakSet<MailerPort>;
   resolved: Map<string, ResolvedEntry>;
   inFlight: Map<string, Promise<MailerPort>>;
   warned: Set<string>;
@@ -165,6 +175,7 @@ async function consoleMailer({ state, catalog }: { state: ResolverState; catalog
   const provider = catalog.registry.get({ id: "console" })!.provider;
   const mailer = state.wrap({ providerId: "console", provider, mailer: state.deps.createProviderMailer({ provider, credential: { token: "" } }) });
   state.resolved.set("console", { mailer, fingerprint: "" });
+  state.consoleFallbacks.add(mailer);
   return mailer;
 }
 
@@ -248,19 +259,27 @@ async function currentMailer({ state, id }: { state: ResolverState; id: string }
   return resolveOnce({ state, id });
 }
 
-/** Fresh lane selection precedes every resolution and updates the synchronous transactional projection. */
-async function mailerForLane({ state, lane }: { state: ResolverState; lane: MailDeliveryLane }): Promise<MailerPort> {
+/** A lane's mailer plus the provider id it was built for (`null` when nothing is chosen). */
+interface LaneResolution { mailer: MailerPort; providerId: string | null }
+
+/** Fresh lane selection precedes every resolution and updates the synchronous transactional projection.
+ * The reported id comes from this same pass, so a settings change mid-flight cannot split id from mailer. */
+async function resolveLane({ state, lane }: { state: ResolverState; lane: MailDeliveryLane }): Promise<LaneResolution> {
   const id = (await currentSetting(state))[lane];
   const mailer = id === null
     ? await fallback({ state, catalog: await state.deps.loadCatalog({}), errorCode: "MAIL_UNCONFIGURED", message: state.deps.unconfiguredMessage({ lane }) })
     : await currentMailer({ state, id });
   if (lane === "transactional") state.lastTransactional = mailer;
-  return mailer;
+  return { mailer, providerId: id !== null && state.consoleFallbacks.has(mailer) ? "console" : id };
 }
 
 /** Settings/catalog faults become a refusal rather than throwing across the routing boundary. */
+function laneResolution(required: { state: ResolverState; lane: MailDeliveryLane }): Promise<LaneResolution> {
+  return resolveLane(required).catch(() => ({ mailer: refusingMailer({ errorCode: "MAIL_PROVIDER_UNAVAILABLE", message: "Mail provider selection failed; check configuration." }), providerId: null }));
+}
+
 function forLane(required: { state: ResolverState; lane: MailDeliveryLane }): Promise<MailerPort> {
-  return mailerForLane(required).catch(() => refusingMailer({ errorCode: "MAIL_PROVIDER_UNAVAILABLE", message: "Mail provider selection failed; check configuration." }));
+  return laneResolution(required).then(resolution => resolution.mailer);
 }
 
 /** The public mailer preserves synchronous capability reporting and awaits the proper lane for sends. */
@@ -411,7 +430,7 @@ function invalidate(state: ResolverState): void {
 export function createResolvedMailer<TRecord extends MailCredentialFact = MailCredentialFact>(required: ResolveMailerDeps<TRecord>, optional: ResolveMailerOptions = {}): ResolvedMailer {
   const state: ResolverState = { deps: required, options: optional, nowMs: () => (optional.clock ?? { nowMs: () => Date.now() }).nowMs(),
     warn: optional.warn ?? (message => createConsoleLogger({ prefix: '' }).warn({ message })),
-    wrap: optional.wrapProviderMailer ?? (({ mailer }) => mailer), resolved: new Map(), inFlight: new Map(), warned: new Set(), generation: 0,
+    wrap: optional.wrapProviderMailer ?? (({ mailer }) => mailer), consoleFallbacks: new WeakSet(), resolved: new Map(), inFlight: new Map(), warned: new Set(), generation: 0,
     initialization: undefined, lastTransactional: undefined, lastError: undefined };
   const ready = forLane({ state, lane: "transactional" }).then(() => undefined);
   const mailer = createRouter(state);
@@ -425,6 +444,7 @@ export function createResolvedMailer<TRecord extends MailCredentialFact = MailCr
     describeProviders: () => describeProviders({ state, deps: required }),
     invalidate: () => { invalidate(state); statusCache.invalidate(); },
     laneReady: async ({ lane }) => (await forLane({ state, lane })).capabilities({}).driver !== "console",
+    effectiveProviderId: async ({ lane }) => (await laneResolution({ state, lane })).providerId,
     checkProvider: input => checkProvider({ state, ...input }),
     domainRequirements: input => domainRequirements({ state, ...input, resolveDomainReadCredential }),
   };

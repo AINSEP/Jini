@@ -368,3 +368,31 @@ test("successful requirements clear the timeout and preserve the exact provider 
     assert.equal(vi.getTimerCount(), 0);
   } finally { vi.useRealTimers(); }
 });
+
+// The provider id a host plans a test-send approval against must come from the SAME resolution that picks
+// (and policy-wraps) the mailer. Re-deriving it from a separate settings read raced with that resolution
+// and could name a provider the send never used, so the approval was refused as "configuration changed".
+test("effectiveProviderId reports the provider the lane really resolved to, console on the local fallback", async () => {
+  const configured = fixture({ setting: { transactional: "api", bulk: "console" } }).create();
+  assert.equal(await configured.effectiveProviderId?.({ lane: "transactional" }), "api");
+  assert.equal(await configured.effectiveProviderId?.({ lane: "bulk" }), "console");
+
+  const keyMissing = fixture({ setting: { transactional: "api", bulk: "api" }, saved: false, mode: "local" }).create();
+  assert.equal(await keyMissing.laneReady({ lane: "transactional" }), false);
+  assert.equal(await keyMissing.effectiveProviderId?.({ lane: "transactional" }), "console", "a chosen provider with no key falls back to console in local mode");
+
+  const unselected = fixture({ setting: { transactional: null, bulk: null } }).create();
+  assert.equal(await unselected.effectiveProviderId?.({ lane: "transactional" }), null, "nothing chosen: no provider id, the approval stays null-provider");
+
+  const production = fixture({ setting: { transactional: "api", bulk: "api" }, saved: false, mode: "production" }).create();
+  assert.equal(await production.effectiveProviderId?.({ lane: "transactional" }), "api", "production refuses before any fallback, so the chosen id stays");
+});
+
+test("effectiveProviderId follows a setting change made after the first resolution", async () => {
+  const host = fixture({ setting: { transactional: "api", bulk: "api" } });
+  const resolved = host.create();
+  await resolved.ready;
+  assert.equal(await resolved.effectiveProviderId?.({ lane: "transactional" }), "api");
+  host.setting.value = { transactional: "console", bulk: "console" };
+  assert.equal(await resolved.effectiveProviderId?.({ lane: "transactional" }), "console");
+});
