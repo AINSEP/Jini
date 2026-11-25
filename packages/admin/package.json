@@ -395,6 +395,14 @@
       "./shell/components/AssistantDock/FolderDropPathHint": "browser",
       "./shell/components/AssistantDock/FolderPathButton": "browser",
       "./shell/components/AssistantDock/dock-header-rules": "browser",
+      "./screens/plugins/resolve-composer-discovery-outcome": "browser",
+      "./shell/components/AssistantDock/hooks/assistant-mcp-ui": "universal",
+      "./screens/plugins/composer-skills.hooks": "browser",
+      "./shell/components/AssistantDock/assistant-runtime-preferences": "universal",
+      "./shell/components/AssistantDock/chat-display-preferences": "universal",
+      "./shell/components/AssistantDock/FolderDropNotice": "browser",
+      "./shell/components/AssistantDock/DockLeadingAccessory": "browser",
+      "./shell/components/AssistantDock/DockHeaderTip": "browser",
       "./shell/components/AssistantDock/DockHeaderTip.hooks": "browser",
       "./shell/components/WidgetConfigFields/HtmlAttributeRows.hooks": "browser",
       "./shell/components/MediaPickerDialog/JiniMediaPicker.hooks": "browser",
@@ -723,7 +731,9 @@
         "src/browser/shell-navigation.ts",
         "src/browser/navigation.ts",
         "src/shell/components/AssistantDock/chat-agent-plugin-preferences.ts",
-        "src/media/html-attributes.ts"
+        "src/media/html-attributes.ts",
+        "src/screens/plugins/composer-capabilities.ts",
+        "src/screens/plugins/selected-skills.ts"
       ],
       "forbidden": {
         "universal": [
@@ -908,6 +918,14 @@
         "./shell/components/AssistantDock/FolderDropPathHint": "browser",
         "./shell/components/AssistantDock/FolderPathButton": "browser",
         "./shell/components/AssistantDock/dock-header-rules": "browser",
+        "./screens/plugins/resolve-composer-discovery-outcome": "browser",
+        "./shell/components/AssistantDock/hooks/assistant-mcp-ui": "universal",
+        "./screens/plugins/composer-skills.hooks": "browser",
+        "./shell/components/AssistantDock/assistant-runtime-preferences": "universal",
+        "./shell/components/AssistantDock/chat-display-preferences": "universal",
+        "./shell/components/AssistantDock/FolderDropNotice": "browser",
+        "./shell/components/AssistantDock/DockLeadingAccessory": "browser",
+        "./shell/components/AssistantDock/DockHeaderTip": "browser",
         "./shell/components/AssistantDock/DockHeaderTip.hooks": "browser",
         "./shell/components/WidgetConfigFields/HtmlAttributeRows.hooks": "browser",
         "./shell/components/MediaPickerDialog/JiniMediaPicker.hooks": "browser",
@@ -2874,6 +2892,46 @@
       "types": "./dist/shell/components/AssistantDock/dock-header-rules.d.ts",
       "import": "./dist/shell/components/AssistantDock/dock-header-rules.js",
       "default": "./dist/shell/components/AssistantDock/dock-header-rules.js"
+    },
+    "./screens/plugins/resolve-composer-discovery-outcome": {
+      "types": "./dist/screens/plugins/resolve-composer-discovery-outcome.d.ts",
+      "import": "./dist/screens/plugins/resolve-composer-discovery-outcome.js",
+      "default": "./dist/screens/plugins/resolve-composer-discovery-outcome.js"
+    },
+    "./shell/components/AssistantDock/hooks/assistant-mcp-ui": {
+      "types": "./dist/shell/components/AssistantDock/hooks/assistant-mcp-ui.d.ts",
+      "import": "./dist/shell/components/AssistantDock/hooks/assistant-mcp-ui.js",
+      "default": "./dist/shell/components/AssistantDock/hooks/assistant-mcp-ui.js"
+    },
+    "./screens/plugins/composer-skills.hooks": {
+      "types": "./dist/screens/plugins/composer-skills.hooks.d.ts",
+      "import": "./dist/screens/plugins/composer-skills.hooks.js",
+      "default": "./dist/screens/plugins/composer-skills.hooks.js"
+    },
+    "./shell/components/AssistantDock/assistant-runtime-preferences": {
+      "types": "./dist/shell/components/AssistantDock/assistant-runtime-preferences.d.ts",
+      "import": "./dist/shell/components/AssistantDock/assistant-runtime-preferences.js",
+      "default": "./dist/shell/components/AssistantDock/assistant-runtime-preferences.js"
+    },
+    "./shell/components/AssistantDock/chat-display-preferences": {
+      "types": "./dist/shell/components/AssistantDock/chat-display-preferences.d.ts",
+      "import": "./dist/shell/components/AssistantDock/chat-display-preferences.js",
+      "default": "./dist/shell/components/AssistantDock/chat-display-preferences.js"
+    },
+    "./shell/components/AssistantDock/FolderDropNotice": {
+      "types": "./dist/shell/components/AssistantDock/FolderDropNotice.d.ts",
+      "import": "./dist/shell/components/AssistantDock/FolderDropNotice.js",
+      "default": "./dist/shell/components/AssistantDock/FolderDropNotice.js"
+    },
+    "./shell/components/AssistantDock/DockLeadingAccessory": {
+      "types": "./dist/shell/components/AssistantDock/DockLeadingAccessory.d.ts",
+      "import": "./dist/shell/components/AssistantDock/DockLeadingAccessory.js",
+      "default": "./dist/shell/components/AssistantDock/DockLeadingAccessory.js"
+    },
+    "./shell/components/AssistantDock/DockHeaderTip": {
+      "types": "./dist/shell/components/AssistantDock/DockHeaderTip.d.ts",
+      "import": "./dist/shell/components/AssistantDock/DockHeaderTip.js",
+      "default": "./dist/shell/components/AssistantDock/DockHeaderTip.js"
     },
     "./shell/components/AssistantDock/DockHeaderTip.hooks": {
       "types": "./dist/shell/components/AssistantDock/DockHeaderTip.hooks.d.ts",
