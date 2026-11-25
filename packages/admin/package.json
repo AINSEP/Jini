@@ -726,7 +726,11 @@
       "./screens/voice-input/hooks/mic-capture": "browser",
       "./screens/settings/rules": "universal",
       "./screens/media/rules": "universal",
-      "./shell/components/SecretInput/SecretInput": "browser"
+      "./shell/components/SecretInput/SecretInput": "browser",
+      "./screens/settings/ExternalMcpToolPicker": "browser",
+      "./screens/settings/ExternalMcpToolPicker.hooks": "browser",
+      "./screens/settings/ExternalMcpToolsModal": "browser",
+      "./screens/settings/hooks/use-external-mcp-tool-picker.hooks": "browser"
     },
     "isolation": {
       "shared": [
@@ -4522,6 +4526,26 @@
       "types": "./dist/shell/components/SecretInput/SecretInput.d.ts",
       "import": "./dist/shell/components/SecretInput/SecretInput.js",
       "default": "./dist/shell/components/SecretInput/SecretInput.js"
+    },
+    "./screens/settings/ExternalMcpToolPicker": {
+      "types": "./dist/screens/settings/ExternalMcpToolPicker.d.ts",
+      "import": "./dist/screens/settings/ExternalMcpToolPicker.js",
+      "default": "./dist/screens/settings/ExternalMcpToolPicker.js"
+    },
+    "./screens/settings/ExternalMcpToolPicker.hooks": {
+      "types": "./dist/screens/settings/ExternalMcpToolPicker.hooks.d.ts",
+      "import": "./dist/screens/settings/ExternalMcpToolPicker.hooks.js",
+      "default": "./dist/screens/settings/ExternalMcpToolPicker.hooks.js"
+    },
+    "./screens/settings/ExternalMcpToolsModal": {
+      "types": "./dist/screens/settings/ExternalMcpToolsModal.d.ts",
+      "import": "./dist/screens/settings/ExternalMcpToolsModal.js",
+      "default": "./dist/screens/settings/ExternalMcpToolsModal.js"
+    },
+    "./screens/settings/hooks/use-external-mcp-tool-picker.hooks": {
+      "types": "./dist/screens/settings/hooks/use-external-mcp-tool-picker.hooks.d.ts",
+      "import": "./dist/screens/settings/hooks/use-external-mcp-tool-picker.hooks.js",
+      "default": "./dist/screens/settings/hooks/use-external-mcp-tool-picker.hooks.js"
     }
   },
   "files": [
@@ -5008,6 +5032,18 @@
       ],
       "screens/media/hooks/use-media-card-details.hooks": [
         "./dist/screens/media/hooks/use-media-card-details.hooks.d.ts"
+      ],
+      "screens/settings/ExternalMcpToolPicker": [
+        "./dist/screens/settings/ExternalMcpToolPicker.d.ts"
+      ],
+      "screens/settings/ExternalMcpToolPicker.hooks": [
+        "./dist/screens/settings/ExternalMcpToolPicker.hooks.d.ts"
+      ],
+      "screens/settings/ExternalMcpToolsModal": [
+        "./dist/screens/settings/ExternalMcpToolsModal.d.ts"
+      ],
+      "screens/settings/hooks/use-external-mcp-tool-picker.hooks": [
+        "./dist/screens/settings/hooks/use-external-mcp-tool-picker.hooks.d.ts"
       ]
     }
   },
