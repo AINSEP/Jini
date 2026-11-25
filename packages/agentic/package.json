@@ -25,10 +25,12 @@
       "./skills/site/install-service": "node",
       "./skills/site/install-tool": "node",
       "./skills/site/layout": "node",
-      "./skills/site/tool-registrations": "node"
+      "./skills/site/tool-registrations": "node",
+      "./react/skills/api": "browser"
     },
     "optionalPeers": {
-      "@jini-ai/protocol": "opt-in: agent protocol adapters; import @jini-ai/agentic/render-surface — Agent protocol adapters could not load @jini-ai/protocol. Install @jini-ai/protocol to enable this feature, or check its installed version and native binaries."
+      "@jini-ai/protocol": "opt-in: agent protocol adapters; import @jini-ai/agentic/render-surface — Agent protocol adapters could not load @jini-ai/protocol. Install @jini-ai/protocol to enable this feature, or check its installed version and native binaries.",
+      "react": "opt-in: react browser bindings; import @jini-ai/agentic/react/skills/api — React browser bindings could not load react. Install react to enable this feature, or check its installed version."
     }
   },
   "type": "module",
@@ -100,6 +102,11 @@
       "types": "./dist/skills/site/tool-registrations.d.ts",
       "import": "./dist/skills/site/tool-registrations.js",
       "default": "./dist/skills/site/tool-registrations.js"
+    },
+    "./react/skills/api": {
+      "types": "./dist/react/skills/api.d.ts",
+      "import": "./dist/react/skills/api.js",
+      "default": "./dist/react/skills/api.js"
     }
   },
   "files": [
@@ -129,14 +136,20 @@
     "jsdom": "^26.1.0",
     "@jini-ai/protocol": "workspace:^",
     "zod": "^4.6.6",
-    "@jini-ai/core": "workspace:^"
+    "@jini-ai/core": "workspace:^",
+    "react": "^19.2.0",
+    "@types/react": "^19.2.0"
   },
   "peerDependencies": {
     "@jini-ai/protocol": "^0.7.3-next.2",
-    "@jini-ai/core": "^0.7.3-next.2"
+    "@jini-ai/core": "^0.7.3-next.2",
+    "react": "^18.3.0 || ^19.0.0"
   },
   "peerDependenciesMeta": {
     "@jini-ai/protocol": {
+      "optional": true
+    },
+    "react": {
       "optional": true
     }
   },
