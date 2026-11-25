@@ -65,7 +65,7 @@ export interface ClearPartitionCacheRequired {
 export interface ClearPartitionCacheOptional { fallbackMultiplier?: number; timeoutMs?: number; asideDirName?: string }
 
 type Act = { state: 'cleared'; aside: string | null } | { state: 'pending'; reason: PendingReason; settlement?: Promise<Settlement> };
-const BUSY = new Set(['EBUSY', 'EPERM', 'EACCES']);
+const BUSY: readonly string[] = ['EBUSY', 'EPERM', 'EACCES'];
 const code = (error: unknown) => (error as NodeJS.ErrnoException)?.code;
 const describe = (error: unknown) => String(code(error) ?? (error instanceof Error ? error.message : error));
 const evidenceSkip = (verdict: unknown) => ({ state: 'skipped' as const, reason: verdict === 'no-go' ? 'evidence-no-go' as const : 'evidence-unknown' as const });
@@ -125,7 +125,7 @@ export async function renameCacheAside(
   } catch (error) {
     const errno = code(error);
     if (errno === 'ENOENT') return { state: 'pending', reason: 'missing' };
-    return { state: 'pending', reason: errno !== undefined && BUSY.has(errno) ? 'busy' : 'failed' };
+    return { state: 'pending', reason: errno !== undefined && BUSY.includes(errno) ? 'busy' : 'failed' };
   }
 }
 
