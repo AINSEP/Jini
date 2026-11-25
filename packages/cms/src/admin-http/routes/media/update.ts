@@ -34,7 +34,7 @@ function parseOptionalNullableField<T>({ raw, convert }: { raw: unknown; convert
 }
 
 /**
- * Reads the eight metadata fields `updateMediaMetadata` accepts off an untyped request body,
+ * Reads the nine metadata fields `updateMediaMetadata` accepts off an untyped request body,
  * applying the field-level parse rules above. A missing body coerces to `{}` so every field
  * reads as omitted rather than throwing on a property access — the pre-extraction route made the
  * same allowance via `req.body?.field`.
@@ -44,7 +44,7 @@ function parseOptionalNullableField<T>({ raw, convert }: { raw: unknown; convert
  * this line was added (the 2026-09-07 media admin UI report's "the trap" records the
  * confirmed mechanism: a 200 response with every OTHER field's change applied and no error at all).
  *
- * @complexity O(1) — reads nine fixed properties.
+ * @complexity O(1) — reads ten fixed properties.
  */
 function parseMediaMetadataPatch({ rawBody }: { rawBody: unknown }, _optional = {}) {
   const body = (rawBody ?? {}) as Record<string, unknown>;
@@ -54,6 +54,7 @@ function parseMediaMetadataPatch({ rawBody }: { rawBody: unknown }, _optional = 
     alt: parseOptionalStringField({ raw: body.alt, field: "alt" }),
     caption: parseOptionalStringField({ raw: body.caption, field: "caption" }),
     credit: parseOptionalStringField({ raw: body.credit, field: "credit" }),
+    // The 2,000-character bound lives in `updateMediaMetadata` (one validator); blank or null clears, omitted leaves it unchanged.
     width: parseOptionalNullableField({ raw: body.width, convert: Number }),
     height: parseOptionalNullableField({ raw: body.height, convert: Number }),
     cssClass: parseOptionalNullableField({ raw: body.cssClass, convert: String }),
@@ -69,7 +70,7 @@ function parseMediaMetadataPatch({ rawBody }: { rawBody: unknown }, _optional = 
 const MEDIA_UPDATE_ERRORS = [MEDIA_NOT_LIVE, MEDIA_NOT_FOUND, MEDIA_VALIDATION, MEDIA_CONFLICT] as const;
 
 /**
- * PATCH media metadata (title/slug/alt/caption/credit/width/height/cssClass — `source.sha256` is
+ * PATCH media metadata (title/slug/alt/caption/credit/description/width/height/cssClass — `source.sha256` is
  * write-once and this route's input shape has no field for it, matching
  * `updateMediaMetadata`'s contract). Gated by `media.update` (SPEC-021 REQ-39/OQ-01, ADR-027 §7).
  *

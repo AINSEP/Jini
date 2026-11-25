@@ -398,7 +398,7 @@ export function createFfmpegVideoCodecProbe(
 ): VideoCodecProbePort {
   const deps: ExtractorDeps = { findBinaries, runProcess, nowMs: () => nowMs({}, {}), env, platform };
   return {
-    probe: async ({ bytes, contentType }, { signal } = {}) => { if (contentType === 'video/quicktime') return 'hevc';
+    probe: async ({ bytes }, { signal } = {}) => {
       if (signal?.aborted || rejectVideoInput({ bytes })) return undefined;
       const release = lock.tryAcquire({}, {});
       if (!release) return undefined;
