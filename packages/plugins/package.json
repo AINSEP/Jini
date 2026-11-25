@@ -37,7 +37,8 @@
       "./runtime/lower-tool-access": "universal",
       "./runtime/sdk-resolver": "node",
       "./runtime/service-ports": "universal",
-      "./runtime/built-ins/word-count/count-words": "universal"
+      "./runtime/built-ins/word-count/count-words": "universal",
+      "./react/plugin-install-port": "browser"
     },
     "isolation": {
       "forbidden": {
@@ -48,7 +49,8 @@
     },
     "optionalPeers": {
       "semver": "opt-in: plugin version compatibility; import @jini-ai/plugins/host — Plugin version compatibility could not load semver. Install semver to enable this feature, or check its installed version and native binaries.",
-      "kysely": "opt-in: sql storage adapters; import @jini-ai/plugins/host/sql — SQL storage adapters could not load kysely. Install kysely to enable this feature, or check its installed version and native binaries."
+      "kysely": "opt-in: sql storage adapters; import @jini-ai/plugins/host/sql — SQL storage adapters could not load kysely. Install kysely to enable this feature, or check its installed version and native binaries.",
+      "react": "opt-in: react browser bindings; import @jini-ai/plugins/react/plugin-install-port — React browser bindings could not load react. Install react to enable this feature, or check its installed version."
     }
   },
   "type": "module",
@@ -178,6 +180,11 @@
       "types": "./dist/runtime/built-ins/word-count/count-words.d.ts",
       "import": "./dist/runtime/built-ins/word-count/count-words.js",
       "default": "./dist/runtime/built-ins/word-count/count-words.js"
+    },
+    "./react/plugin-install-port": {
+      "types": "./dist/react/plugin-install-port.d.ts",
+      "import": "./dist/react/plugin-install-port.js",
+      "default": "./dist/react/plugin-install-port.js"
     }
   },
   "files": [
@@ -206,7 +213,8 @@
   },
   "peerDependencies": {
     "semver": "^7.6.2",
-    "kysely": "^0.29.6"
+    "kysely": "^0.29.6",
+    "react": "^18.3.0 || ^19.0.0"
   },
   "devDependencies": {
     "@jini-ai/core": "workspace:^",
@@ -214,13 +222,20 @@
     "semver": "^7.6.2",
     "@types/semver": "^7.5.8",
     "kysely": "^0.29.6",
-    "@jini-ai/db": "workspace:*"
+    "@jini-ai/db": "workspace:*",
+    "react": "^19.2.0",
+    "react-dom": "^19.2.0",
+    "@types/react": "^19.2.0",
+    "@types/react-dom": "^19.2.0"
   },
   "peerDependenciesMeta": {
     "semver": {
       "optional": true
     },
     "kysely": {
+      "optional": true
+    },
+    "react": {
       "optional": true
     }
   }

@@ -126,7 +126,9 @@
       "./site/host-signals": "node",
       "./site/bundled-contribution-sources": "node",
       "./site/auth-schemes": "node",
-      "./site/soon-lock": "node"
+      "./site/soon-lock": "node",
+      "./react/installed-skills-composer-source": "browser",
+      "./react/agent-plugin-install-port": "browser"
     },
     "isolation": {
       "entries": {
@@ -149,7 +151,9 @@
         "./site/host-signals": "lifecycle",
         "./site/bundled-contribution-sources": "lifecycle",
         "./site/auth-schemes": "lifecycle",
-        "./site/soon-lock": "lifecycle"
+        "./site/soon-lock": "lifecycle",
+        "./react/installed-skills-composer-source": "react",
+        "./react/agent-plugin-install-port": "react"
       },
       "shared": [
         "core/persistent-state.js",
@@ -161,7 +165,8 @@
     "optionalPeers": {
       "yauzl": "opt-in: plugin zip import — Plugin ZIP import could not load yauzl. Install yauzl to enable this feature, or check its installed version and native binaries.",
       "@cfworker/json-schema": "opt-in: json schema validation; import @jini-ai/agent-plugins/lifecycle/tools, import @jini-ai/agent-plugins/connect/executable — JSON Schema validation could not load @cfworker/json-schema. Install @cfworker/json-schema to enable this feature, or check its installed version and native binaries.",
-      "semver": "opt-in: plugin version compatibility; import @jini-ai/agent-plugins/lifecycle, import @jini-ai/agent-plugins/lifecycle/host-tools — Plugin version compatibility could not load semver. Install semver to enable this feature, or check its installed version and native binaries."
+      "semver": "opt-in: plugin version compatibility; import @jini-ai/agent-plugins/lifecycle, import @jini-ai/agent-plugins/lifecycle/host-tools — Plugin version compatibility could not load semver. Install semver to enable this feature, or check its installed version and native binaries.",
+      "react": "opt-in: react browser bindings; import @jini-ai/agent-plugins/react/installed-skills-composer-source — React browser bindings could not load react. Install react to enable this feature, or check its installed version."
     }
   },
   "type": "module",
@@ -436,6 +441,16 @@
       "types": "./dist/site/soon-lock.d.ts",
       "import": "./dist/site/soon-lock.js",
       "default": "./dist/site/soon-lock.js"
+    },
+    "./react/installed-skills-composer-source": {
+      "types": "./dist/react/installed-skills-composer-source.d.ts",
+      "import": "./dist/react/installed-skills-composer-source.js",
+      "default": "./dist/react/installed-skills-composer-source.js"
+    },
+    "./react/agent-plugin-install-port": {
+      "types": "./dist/react/agent-plugin-install-port.d.ts",
+      "import": "./dist/react/agent-plugin-install-port.js",
+      "default": "./dist/react/agent-plugin-install-port.js"
     }
   },
   "files": [
@@ -519,13 +534,18 @@
     "@jini-ai/oauth": "workspace:^",
     "fast-check": "4.3.0",
     "jsdom": "^26.1.0",
-    "esbuild": "^0.28.1"
+    "esbuild": "^0.28.1",
+    "react": "^19.2.0",
+    "react-dom": "^19.2.0",
+    "@types/react": "^19.2.0",
+    "@types/react-dom": "^19.2.0"
   },
   "peerDependencies": {
     "yauzl": "^3.4.0",
     "@jini-ai/core": "^0.7.3-next.2",
     "@cfworker/json-schema": "^4.1.1",
-    "semver": "^7.6.2"
+    "semver": "^7.6.2",
+    "react": "^18.3.0 || ^19.0.0"
   },
   "peerDependenciesMeta": {
     "yauzl": {
@@ -535,6 +555,9 @@
       "optional": true
     },
     "semver": {
+      "optional": true
+    },
+    "react": {
       "optional": true
     }
   }
