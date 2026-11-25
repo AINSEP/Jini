@@ -1,6 +1,6 @@
 import { defineJsonRoute, ok } from "@jini-ai/core/contracts/server";
 import { RouteRefusalError } from "@jini-ai/core/errors/route-refusal";
-import type { ChangeSetRecord } from "@jini-ai/core/contracts/events";
+import type { ChangeSetRecord, MutationActor } from "@jini-ai/core/contracts/events";
 
 import {
   ChangeSetInvalidStatusError, ChangeSetNotFoundError, RevertConflictError, RevertForbiddenError, RevertNotPossibleError,
@@ -65,6 +65,19 @@ function revertPrincipal({ context }: { context: ChangeSetRoutePrincipal | undef
 }
 
 /**
+ * The attribution an admin-route revert carries. The route is an authenticated admin command, so
+ * the channel says `user`, unless the authenticated principal itself is an agent or a named system
+ * identity. An API key is a credential its owner issued, not an assistant run, so it stays `user`.
+ * The kind is never read from the shape of the id.
+ *
+ * @complexity O(1).
+ */
+function revertActor({ principal }: { principal: ChangeSetRoutePrincipal }, _optional: Record<string, never> = {}): MutationActor {
+  const kind = principal.kind === "agent" || principal.kind === "system" ? principal.kind : "user";
+  return { id: principal.id, kind };
+}
+
+/**
  * POST revert an applied change set (SPEC-001 REQ-07/08/10).
  *
  * Gated by the existing `changeset.revert` permission, checked directly via `authorize()` —
@@ -92,7 +105,7 @@ export const changeSetRevertRoute = defineJsonRoute<{ changeSetId: string; force
     try {
       const reverted = await revertChangeSet({
         deps: { changeSets: deps.changeSets, registry: deps.revertRegistry, clock: deps.clock, idGen: deps.idGen, outbox: deps.outbox },
-        input: { workspaceId: deps.workspaceId, changeSetId: input.changeSetId, force: input.force, principalKind: principal.kind },
+        input: { workspaceId: deps.workspaceId, changeSetId: input.changeSetId, force: input.force, principalKind: principal.kind, actor: revertActor({ principal }) },
       });
       return ok({ value: { changeSet: deps.toChangeSetHeader({ changeSet: reverted }) } });
     } catch (err) {

@@ -56,15 +56,20 @@ describe("changeSetRevertRoute", () => {
     expect(events.map((event) => event.name)).toEqual(["change-set.reverted"]);
   });
 
-  it("the reverted event carries the change set's recorded actor, and a legacy set's stays unknown", async () => {
-    const legacy = setup();
-    await run(legacy.deps, { changeSetId: "cs-1", force: false });
-    expect(legacy.events[0]?.actor).toBeUndefined();
+  // The execution channel supplies attribution, the principal ID still governs authorization, and
+  // the two are not interchangeable: undoing an agent's change is a new act by whoever reverts it.
+  it("the reverted event names the reverting principal, not the reverted set's author", async () => {
     const attributed = setup();
     const found = await attributed.changeSets.findById({ workspaceId: WORKSPACE_ID, id: "cs-1" });
     await attributed.changeSets.save({ ...found!.changeSet, actorId: "agent-7", actor: { id: "agent-7", kind: "agent" } });
-    await run(attributed.deps, { changeSetId: "cs-1", force: false });
-    expect([attributed.events[0]?.actorId, attributed.events[0]?.actor]).toStrictEqual(["agent-7", { id: "agent-7", kind: "agent" }]);
+    await run(attributed.deps, { changeSetId: "cs-1", force: false }, { id: "owner-1", kind: "user" });
+    expect([attributed.events[0]?.actorId, attributed.events[0]?.actor]).toStrictEqual(["owner-1", { id: "owner-1", kind: "user" }]);
+    const viaAgent = setup();
+    await run(viaAgent.deps, { changeSetId: "cs-1", force: false }, { id: "owner-1", kind: "agent" });
+    expect(viaAgent.events[0]?.actor).toStrictEqual({ id: "owner-1", kind: "agent" });
+    const viaKey = setup();
+    await run(viaKey.deps, { changeSetId: "cs-1", force: false }, { id: "key-1", kind: "api_key" });
+    expect(viaKey.events[0]?.actor).toStrictEqual({ id: "key-1", kind: "user" });
   });
 
   it("does not revert anything when authorization refuses", async () => {

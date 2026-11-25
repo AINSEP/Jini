@@ -3,11 +3,15 @@ import type { ChangeSetItemRecord, ChangeSetOperation, ChangeSetRecord, ChangeSe
 import type { DomainEvent, MutationActor, OutboxPort } from "./ports.js";
 
 /**
- * Principal executing a command. Agents act on behalf of a user.
- * A `MutationActor` narrowed to the kinds that run commands, plus the delegation field.
+ * Principal executing a command. Agents act on behalf of a user; a `system` actor is a stable,
+ * named identity for a truly autonomous job that acts for nobody.
+ * A `MutationActor` plus the delegation field.
+ *
+ * The execution channel supplies attribution (`kind`), the principal ID still governs
+ * authorization (`id`), and the two are not interchangeable.
  */
 export interface CommandActor extends MutationActor {
-  kind: "user" | "agent";
+  kind: MutationActor["kind"];
   /** User the agent is acting for; unset for direct human commands. */
   onBehalfOfId?: UUID | undefined;
 }
