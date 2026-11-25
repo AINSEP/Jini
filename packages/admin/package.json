@@ -741,7 +741,12 @@
       "./screens/plugins/AgentPluginRow": "browser",
       "./screens/plugins/PackageFilesModal": "browser",
       "./screens/plugins/PluginPackageFilesModal": "browser",
-      "./screens/plugins/rules-context": "browser"
+      "./screens/plugins/rules-context": "browser",
+      "./screens/media/api/media-api": "universal",
+      "./screens/media/media-providers-port": "universal",
+      "./screens/media/hooks/fake-media-port": "browser",
+      "./screens/media/media-tabs.hooks": "browser",
+      "./screens/media/hooks/use-media-preview.hooks": "browser"
     },
     "isolation": {
       "shared": [
@@ -1038,7 +1043,11 @@
         "./screens/plugins/AgentPluginRow": "browser",
         "./screens/plugins/PackageFilesModal": "browser",
         "./screens/plugins/PluginPackageFilesModal": "browser",
-        "./screens/plugins/rules-context": "browser"
+        "./screens/plugins/rules-context": "browser",
+        "./shell/components/SecretInput/SecretInput": "browser",
+        "./screens/media/api/media-api": "universal",
+        "./screens/media/media-providers-port": "universal",
+        "./screens/media/hooks/fake-media-port": "browser"
       }
     },
     "optionalPeers": {
@@ -4623,6 +4632,31 @@
       "types": "./dist/screens/plugins/rules-context.d.ts",
       "import": "./dist/screens/plugins/rules-context.js",
       "default": "./dist/screens/plugins/rules-context.js"
+    },
+    "./screens/media/api/media-api": {
+      "types": "./dist/screens/media/api/media-api.d.ts",
+      "import": "./dist/screens/media/api/media-api.js",
+      "default": "./dist/screens/media/api/media-api.js"
+    },
+    "./screens/media/media-providers-port": {
+      "types": "./dist/screens/media/media-providers-port.d.ts",
+      "import": "./dist/screens/media/media-providers-port.js",
+      "default": "./dist/screens/media/media-providers-port.js"
+    },
+    "./screens/media/hooks/fake-media-port": {
+      "types": "./dist/screens/media/hooks/fake-media-port.d.ts",
+      "import": "./dist/screens/media/hooks/fake-media-port.js",
+      "default": "./dist/screens/media/hooks/fake-media-port.js"
+    },
+    "./screens/media/media-tabs.hooks": {
+      "types": "./dist/screens/media/media-tabs.hooks.d.ts",
+      "import": "./dist/screens/media/media-tabs.hooks.js",
+      "default": "./dist/screens/media/media-tabs.hooks.js"
+    },
+    "./screens/media/hooks/use-media-preview.hooks": {
+      "types": "./dist/screens/media/hooks/use-media-preview.hooks.d.ts",
+      "import": "./dist/screens/media/hooks/use-media-preview.hooks.js",
+      "default": "./dist/screens/media/hooks/use-media-preview.hooks.js"
     }
   },
   "files": [
