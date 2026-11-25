@@ -3,6 +3,8 @@ import { defineJsonRoute, ok, type JsonRouteAuthorize } from "@jini-ai/core/cont
 import { parseExpectedVersion } from "@jini-ai/core/optimistic-concurrency";
 import { rejectRoute } from "@jini-ai/core/errors/route-refusal";
 
+import { EntityNotLiveError } from "../../../core/entity-liveness.js";
+
 import type { AdminPageRecord, PageRoutePrincipal } from "./shared.js";
 
 /** The parsed request: the `:pageId` segment and the two body fields, still unjudged (see `parse`). */
@@ -45,19 +47,23 @@ export interface PageUpdateHtmlRouteDeps {
   isPageConcurrentEdit: PageHtmlErrorPredicate;
 }
 
-/** One rung of the store-failure ladder: the recognizer, the status and the `code` it answers. */
+/**
+ * One rung of the store-failure ladder: the recognizer, the status and the `code` it answers —
+ * `"own"` answers the matched error's own `code` (an `EntityNotLiveError` carries one).
+ */
 type StoreErrorRung = { matches: (required: { err: unknown; deps: PageUpdateHtmlRouteDeps }) => boolean; status: number; code: string };
 
 /**
- * The store-failure ladder, in the hand-written route's order. Unmapped → rethrown (the host's 500).
+ * The store-failure ladder, first match wins. Unmapped → rethrown (the host's 500).
  *
- * `ToolInputError` comes first and also answers its subclasses — the host's plugin-embed validation
- * error and `EntityNotLiveError` both extend it. The hand-written ladder named those two in later
- * arms (`PLUGIN_EMBED_INVALID_PROPS`, the 409 entity-not-live envelope) that the first arm therefore
- * always pre-empted, so both answer `400 VALIDATION_ERROR`; the dead arms were not carried over, and
- * reordering them would be a wire change, not a move.
+ * `EntityNotLiveError` extends `ToolInputError`, so its rung MUST precede the generic 400 or a
+ * trashed/tombstoned page answers `400 VALIDATION_ERROR` instead of the 409 entity-not-live
+ * envelope (`ENTITY_IN_TRASH` / `ENTITY_TOMBSTONED`) — the same ordering the redirects, seo and
+ * taxonomy routes use. The host's plugin-embed validation error also extends `ToolInputError` and
+ * deliberately answers the generic `400 VALIDATION_ERROR`.
  */
 const STORE_ERROR_LADDER: readonly StoreErrorRung[] = [
+  { matches: ({ err }) => err instanceof EntityNotLiveError, status: 409, code: "own" },
   { matches: ({ err }) => err instanceof ToolInputError, status: 400, code: "VALIDATION_ERROR" },
   { matches: ({ err, deps }) => deps.isPageKindMismatch({ err }), status: 400, code: "KIND_MISMATCH" },
   { matches: ({ err, deps }) => deps.isPageNotFound({ err }), status: 404, code: "ENTRY_NOT_FOUND" },
@@ -67,7 +73,9 @@ const STORE_ERROR_LADDER: readonly StoreErrorRung[] = [
 /** Map a store-layer failure onto its HTTP refusal, or return to let the caller rethrow it. @complexity O(rungs). */
 function rejectStoreError({ err, deps }: { err: unknown; deps: PageUpdateHtmlRouteDeps }, _optional: Record<string, never> = {}): void {
   const rung = STORE_ERROR_LADDER.find((candidate) => candidate.matches({ err, deps }));
-  if (rung) rejectRoute({ status: rung.status, error: err instanceof Error ? err.message : String(err), code: rung.code });
+  if (!rung) return;
+  const code = rung.code === "own" ? (err as EntityNotLiveError).code : rung.code;
+  rejectRoute({ status: rung.status, error: err instanceof Error ? err.message : String(err), code });
 }
 
 /**

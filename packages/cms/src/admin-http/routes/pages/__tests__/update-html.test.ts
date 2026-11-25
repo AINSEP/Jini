@@ -106,9 +106,12 @@ describe("pageUpdateHtmlRoute", () => {
   it("maps store failures in the hand-written ladder's order", async () => {
     const cases: [Error, number, string][] = [
       [new ToolInputError({ message: "bad html" }), 400, "VALIDATION_ERROR"],
-      // Both subclass ToolInputError, so the first arm answers them — the hand-written ladder's
-      // later `PluginEmbedValidationError` and entity-not-live arms never ran.
-      [new EntityNotLiveError({ entityType: "post", entityId: "p1", state: "trashed" }), 400, "VALIDATION_ERROR"],
+      // `EntityNotLiveError` subclasses ToolInputError, so its rung must sit ahead of the generic
+      // 400: a trashed (or tombstoned) page answers 409 with the error's own code, as the
+      // redirects/seo/taxonomy routes do.
+      [new EntityNotLiveError({ entityType: "post", entityId: "p1", state: "trashed" }), 409, "ENTITY_IN_TRASH"],
+      [new EntityNotLiveError({ entityType: "post", entityId: "p1", state: "tombstoned" }), 409, "ENTITY_TOMBSTONED"],
+      // The plugin-embed validation error is a ToolInputError too and keeps the generic 400.
       [Object.assign(new ToolInputError({ message: "embed props" }), { code: "PLUGIN_EMBED_INVALID_PROPS" }), 400, "VALIDATION_ERROR"],
       [new FakeKindMismatch("not a page"), 400, "KIND_MISMATCH"],
       [new FakeKindAndMissing("both"), 400, "KIND_MISMATCH"],
