@@ -52,7 +52,7 @@ beforeEach(async () => {
   const disk = await createDiskAttachmentStore({ uploadDirectory: root });
   store = { ...disk, pruneExpired: async (...args: Parameters<AttachmentStore['pruneExpired']>) => { await beforeStoring(); return disk.pruneExpired(...args); } };
   harness = await startRouteHarness({}, { familyDeps: { attachments: {
-    store, acquireActivity, maxAttachmentBytes: MAX_ATTACHMENT_BYTES,
+    store, acquireActivity, maxAttachmentBytes: MAX_ATTACHMENT_BYTES, maxAttachmentBytesFor: undefined,
     maxConcurrentUploads: undefined, maxCleanupPaths: undefined, requireSameOrigin: undefined, resolveOwnerId: undefined,
   } } });
 });

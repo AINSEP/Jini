@@ -136,7 +136,7 @@ describe('state is per mount: two mounts of the same route group share nothing',
     const gate = new Promise<void>((resolve) => { letThrough = resolve; });
     let waiting = 0;
     const store: AttachmentStore = { ...disk, pruneExpired: async (...args: Parameters<AttachmentStore['pruneExpired']>) => { waiting += 1; if (waiting === 1) await gate; return disk.pruneExpired(...args); } };
-    const deps = { attachments: { store, maxConcurrentUploads: 1, maxAttachmentBytes: undefined, maxCleanupPaths: undefined, requireSameOrigin: undefined, resolveOwnerId: undefined } };
+    const deps = { attachments: { store, maxConcurrentUploads: 1, maxAttachmentBytes: undefined, maxAttachmentBytesFor: undefined, maxCleanupPaths: undefined, requireSameOrigin: undefined, resolveOwnerId: undefined } };
     const first = await startRouteHarness({}, { familyDeps: deps });
     const second = await startRouteHarness({}, { familyDeps: deps });
     const upload = (harness: RouteHarness, name: string): Promise<Response> => harness.fetch(new Request(`http://harness.invalid/api/attachments?batch=batch-upload-1&name=${name}`, {
