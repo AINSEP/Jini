@@ -54,7 +54,10 @@
       "./react/credentials/credential-copy": "browser",
       "./webhooks/site/seal-aad-invariant": "universal",
       "./react/admin-credentials/byok-footer-status": "universal",
-      "./vendor-credentials/vault-adapter": "universal"
+      "./vendor-credentials/vault-adapter": "universal",
+      "./api-connections/vault-stores": "node",
+      "./custom-credentials/delete-request-confirmation-ui": "universal",
+      "./custom-credentials/write-files-validation": "node"
     },
     "optionalPeers": {
       "better-sqlite3": "opt-in: sqlite storage; import @jini-ai/integrations/media-providers — SQLite storage could not load better-sqlite3. Install better-sqlite3 to enable this feature, or check its installed version and native binaries.",
@@ -75,7 +78,9 @@
         "./custom-credentials/credential-ports": "credentialed-http",
         "./custom-credentials/agent-tools": "credentialed-http",
         "./custom-credentials/credentialed-request": "credentialed-http",
-        "./react/credentials/credential-copy": "react"
+        "./react/credentials/credential-copy": "react",
+        "./custom-credentials/delete-request-confirmation-ui": "credentialed-http",
+        "./custom-credentials/write-files-validation": "credentialed-http"
       }
     }
   },
@@ -291,6 +296,21 @@
       "types": "./dist/vendor-credentials/vault-adapter.d.ts",
       "import": "./dist/vendor-credentials/vault-adapter.js",
       "default": "./dist/vendor-credentials/vault-adapter.js"
+    },
+    "./api-connections/vault-stores": {
+      "types": "./dist/api-connections/vault-stores.d.ts",
+      "import": "./dist/api-connections/vault-stores.js",
+      "default": "./dist/api-connections/vault-stores.js"
+    },
+    "./custom-credentials/delete-request-confirmation-ui": {
+      "types": "./dist/custom-credentials/delete-request-confirmation-ui.d.ts",
+      "import": "./dist/custom-credentials/delete-request-confirmation-ui.js",
+      "default": "./dist/custom-credentials/delete-request-confirmation-ui.js"
+    },
+    "./custom-credentials/write-files-validation": {
+      "types": "./dist/custom-credentials/write-files-validation.d.ts",
+      "import": "./dist/custom-credentials/write-files-validation.js",
+      "default": "./dist/custom-credentials/write-files-validation.js"
     }
   },
   "typesVersions": {
