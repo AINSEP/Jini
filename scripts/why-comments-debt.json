@@ -614,6 +614,10 @@
       "reason": "packages/daemon/src/http/tool-execution-routes.ts:227-231 (\"mounts both routes on `app` (an express app or a `router`). mount it b...\"): Code gone: the Express ToolExecutionRouteTarget, the optional env/timingSafeEqual defaults, requireToolExecutionCaller, bodyParserFailure, streamToolExecution (res 'close'/setInterval heartbeat) and the Express mount were deleted in e36a4062 (routes are data; the caller gate is toolExecutionCallerRefusal in tool-execution-caller.ts; NDJSON is line-stream.ts + tool-execution-stream.ts). Current why-text: tool-execution-routes.ts:40-100 and :160-195; the keepalive why was restored next to the line stream that keeps one (frontend-request-route.ts)."
     },
     {
+      "id": "c14d9650b790",
+      "reason": "packages/daemon/src/http/xai.ts:793-793 (\"mounts every xai route on `app`. a pack's `http(app, services)` calls ...\"): Code gone: the Express mount function this doc described was deleted in 56f64c61 (daemon-r7: routes are returned as data); the replacement list is packages/daemon/src/http/xai.ts:796 (`xaiRoutes`), with its own doc."
+    },
+    {
       "id": "0bc5a7c409ca",
       "reason": "packages/http-kit/src/__tests__/raw-sse.test.ts:17-17 (\"a response whose `write` reports backpressure from the nth call onward...\"): Test comment of raw-sse.test.ts, deleted with its only subject createSseResponse in b6605838 (20 cases of the deleted primitive). Nothing left for it to explain; streamed-answer behaviour is pinned by http-kit's node-bridge tests and core's sse tests."
     },
@@ -696,6 +700,10 @@
     {
       "id": "c5494475acec",
       "reason": "packages/daemon/src/http/__tests__/runs.test.ts:849-856 (\"`cleanup()` unsubscribes from the lifecycle for real, so a *subsequent...\"): Test comment in runs.test.ts about the deleted Express test harness (fake req/res, MockApp, captured handlers or a real-Express-socket suite) for routes removed in a9498587; the suite was rewritten against the route-data/web-Response API and the harness it explains no longer exists."
+    },
+    {
+      "id": "4e75d6b91c76",
+      "reason": "packages/daemon/src/http/__tests__/xai.test.ts:1183-1189 (\"real express app on a real socket, one genuine round-trip per mounted ...\"): Test comment in xai.test.ts about the deleted Express test harness (fake req/res, MockApp, captured handlers or a real-Express-socket suite) for routes removed in 56f64c61; the suite was rewritten against the route-data/web-Response API and the harness it explains no longer exists."
     },
     {
       "id": "3aa650fbea6a",
@@ -1744,6 +1752,46 @@
     {
       "id": "a53cc2fe1cc3",
       "reason": "Superseded by 9a9da3df3: formatMaxUploadBytesAsMb was replaced by describeUploadOverLimit (packages/core/src/text/upload-limit-message.ts), which names both sizes and never shows a raw byte count for MB-scale limits; its own docblock states the rounding rule."
+    },
+    {
+      "id": "23e2dbbd124f",
+      "reason": "packages/agent-runtime/src/providers/oauth-provider.ts:154-156: the concrete-preset section divider moved with the preset to packages/provider-plugins/src/xai/preset.ts (K04); agent-runtime keeps only the generic mechanics, so the divider no longer describes anything here."
+    },
+    {
+      "id": "fd97566bb1fc",
+      "reason": "packages/daemon/src/http/xai.ts:192: the dep field doc moved with the route to packages/provider-plugins/src/xai/routes.ts, where the listener is a required injected port member rather than defaulted to agent-runtime (K04)."
+    },
+    {
+      "id": "bb14819100cb",
+      "reason": "packages/daemon/src/ports/xai-oauth.ts:1-5: file deleted; the port is now OAuthPkceFlowPort in packages/provider-plugins/src/xai/oauth-port.ts, whose own header states the host-binding rule (K04)."
+    },
+    {
+      "id": "523cbed522c7",
+      "reason": "packages/daemon/src/ports/xai-oauth.ts:75: file deleted; the preset type lives with the preset in provider-plugins xai/preset.ts (K04)."
+    },
+    {
+      "id": "dfd4e869d6c0",
+      "reason": "packages/daemon/src/ports/xai-oauth.ts:77: file deleted; the loopback callback address constants live in provider-plugins xai/preset.ts (K04)."
+    },
+    {
+      "id": "372ee1ade564",
+      "reason": "packages/server/src/__tests__/builtin-features.test.ts:625-626: the xAI feature and its listener-disposal test were removed from server (K04); the listener close is now pinned by the host-mount witness in create-local-node-daemon.test.ts and provider-plugins xai routes.test.ts."
+    },
+    {
+      "id": "ccbb9022d052",
+      "reason": "packages/server/src/__tests__/runtime-port-bindings.typecheck.ts:28: the xAI OAuth port binding witness left server with the port (K04); the host binding is type-checked by provider-plugins xai routes.test.ts (REAL_OAUTH satisfies OAuthPkceFlowPort)."
+    },
+    {
+      "id": "551f52f15942",
+      "reason": "packages/server/src/builtin-features.ts:542-544: xaiFeature and its listener slot were removed from server (K04); the host now owns the slot and stops it in onShutdown (examples/reference-web/src/daemon.ts)."
+    },
+    {
+      "id": "af4243e25a8e",
+      "reason": "packages/server/src/create-local-node-daemon.ts:384: the local daemon no longer owns a vendor listener slot (K04); the host owns it and stops it in onShutdown."
+    },
+    {
+      "id": "4b9866fd46b6",
+      "reason": "packages/server/src/create-local-node-daemon.ts:434-436: the inline vendor-listener stop was removed with the slot (K04); feature teardown ordering is unchanged and still pinned by the existing stop() tests."
     }
   ]
 }
