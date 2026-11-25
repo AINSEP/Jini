@@ -46,8 +46,7 @@ export const publishContentAgentToolCatalog: AgentToolDefinition[] = [
   {
     name: PUBLISH_CONTENT_PUBLISH_TOOL_ID,
     description: "Publishes pending local content to the connected live site immediately, through the same plan/confirm/execute gateway as the Publish dialog. " +
-      "Omit peerId for the connected destination; several destinations require choosing a saved peerId. " +
-      "Omit filters to publish everything pending. Use types and items (exact title, slug, id or type:id) to select only named items; excludeItems removes named items. " +
+      "Call publish_content_status first to check whether publishing is ready. If asked to publish a specific item, resolve its exact key and pass it in items, such as \"page:<id>\"; types and items (exact title, slug, id or type:id) select only named items and excludeItems removes named items. If several destinations are saved, pass the chosen peerId; otherwise omit it for the connected destination. Publish everything pending only when the owner explicitly asks for everything. " +
       "Set overwrite:true ONLY when the user explicitly asks to replace conflicting live content; defaults to skipping conflicts and reporting why. " +
       "Waits for a human confirmation card (owner 2026-10-07). Returns published items with live publicUrl, skipped items with reasons, unchanged items, and verification problems. " +
       "Give the live publicUrl first in your reply; an admin edit link is secondary. Never invent a live link or claim unverified items landed.",
