@@ -1,6 +1,7 @@
 import { configDefaults, coverageConfigDefaults, defineConfig } from 'vitest/config';
 
 export default defineConfig({
+  esbuild: { jsx: "automatic" },
   test: {
     environment: 'node',
     exclude: [...configDefaults.exclude, '**/*.postgres.test.ts'],

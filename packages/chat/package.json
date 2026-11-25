@@ -52,7 +52,9 @@
       "./react/styles/chat-settings.css": "browser",
       "./react/features/voice-input/space-hold-rules": "browser",
       "./server/chat-cleanup-routes": "node",
-      "./react/components/RoutedA2uiSurfaceCard": "browser"
+      "./react/components/RoutedA2uiSurfaceCard": "browser",
+      "./react/admin-execution/ai-agent-presentation": "universal",
+      "./react/admin-execution/hooks/use-ai-agent-presentation.hooks": "browser"
     },
     "neutralEntries": [
       "src/store/contracts"
@@ -62,7 +64,9 @@
         "./transports/http": "core",
         "./transports/ag-ui": "core",
         "./browser/frontend-session-bridge": "core",
-        "./react/components/RoutedA2uiSurfaceCard": "react"
+        "./react/components/RoutedA2uiSurfaceCard": "react",
+        "./react/admin-execution/ai-agent-presentation": "react",
+        "./react/admin-execution/hooks/use-ai-agent-presentation.hooks": "react"
       }
     },
     "optionalPeers": {
@@ -272,6 +276,16 @@
       "types": "./dist/react/components/RoutedA2uiSurfaceCard.d.ts",
       "import": "./dist/react/components/RoutedA2uiSurfaceCard.js",
       "default": "./dist/react/components/RoutedA2uiSurfaceCard.js"
+    },
+    "./react/admin-execution/ai-agent-presentation": {
+      "types": "./dist/react/admin-execution/ai-agent-presentation.d.ts",
+      "import": "./dist/react/admin-execution/ai-agent-presentation.js",
+      "default": "./dist/react/admin-execution/ai-agent-presentation.js"
+    },
+    "./react/admin-execution/hooks/use-ai-agent-presentation.hooks": {
+      "types": "./dist/react/admin-execution/hooks/use-ai-agent-presentation.hooks.d.ts",
+      "import": "./dist/react/admin-execution/hooks/use-ai-agent-presentation.hooks.js",
+      "default": "./dist/react/admin-execution/hooks/use-ai-agent-presentation.hooks.js"
     }
   },
   "files": [
@@ -454,6 +468,12 @@
       ],
       "react/components/RoutedA2uiSurfaceCard": [
         "./dist/react/components/RoutedA2uiSurfaceCard.d.ts"
+      ],
+      "react/admin-execution/ai-agent-presentation": [
+        "./dist/react/admin-execution/ai-agent-presentation.d.ts"
+      ],
+      "react/admin-execution/hooks/use-ai-agent-presentation.hooks": [
+        "./dist/react/admin-execution/hooks/use-ai-agent-presentation.hooks.d.ts"
       ]
     }
   },

@@ -10,7 +10,7 @@ export default defineConfig({
     // runs under vitest's default 'node' environment. Only src/core/dom/** (the browser
     // PageDriver) needs a DOM to exercise, hence the scoped override rather than a package-wide
     // 'jsdom' environment.
-    environmentMatchGlobs: [['src/core/dom/**', 'jsdom']],
+    environmentMatchGlobs: [['src/core/dom/**', 'jsdom'], ['src/react/skills/__tests__/*.test.tsx', 'jsdom']],
     coverage: {
       provider: 'v8',
       // The v8 text table silently drops rows once there are many files —

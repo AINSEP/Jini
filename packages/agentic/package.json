@@ -26,7 +26,10 @@
       "./skills/site/install-tool": "node",
       "./skills/site/layout": "node",
       "./skills/site/tool-registrations": "node",
-      "./react/skills/api": "browser"
+      "./react/skills/api": "browser",
+      "./react/skills/use-skill-files.hooks": "browser",
+      "./react/skills/use-skill-install.hooks": "browser",
+      "./react/skills/use-skills.hooks": "browser"
     },
     "optionalPeers": {
       "@jini-ai/protocol": "opt-in: agent protocol adapters; import @jini-ai/agentic/render-surface — Agent protocol adapters could not load @jini-ai/protocol. Install @jini-ai/protocol to enable this feature, or check its installed version and native binaries.",
@@ -107,6 +110,21 @@
       "types": "./dist/react/skills/api.d.ts",
       "import": "./dist/react/skills/api.js",
       "default": "./dist/react/skills/api.js"
+    },
+    "./react/skills/use-skill-files.hooks": {
+      "types": "./dist/react/skills/use-skill-files.hooks.d.ts",
+      "import": "./dist/react/skills/use-skill-files.hooks.js",
+      "default": "./dist/react/skills/use-skill-files.hooks.js"
+    },
+    "./react/skills/use-skill-install.hooks": {
+      "types": "./dist/react/skills/use-skill-install.hooks.d.ts",
+      "import": "./dist/react/skills/use-skill-install.hooks.js",
+      "default": "./dist/react/skills/use-skill-install.hooks.js"
+    },
+    "./react/skills/use-skills.hooks": {
+      "types": "./dist/react/skills/use-skills.hooks.d.ts",
+      "import": "./dist/react/skills/use-skills.hooks.js",
+      "default": "./dist/react/skills/use-skills.hooks.js"
     }
   },
   "files": [
@@ -126,8 +144,8 @@
     "registry": "https://registry.npmjs.org"
   },
   "scripts": {
-    "build": "tsc -p tsconfig.json && tsc -p tsconfig.dom.json",
-    "typecheck": "tsc -p tsconfig.json --noEmit && tsc -p tsconfig.dom.json --noEmit",
+    "build": "tsc -p tsconfig.json && tsc -p tsconfig.dom.json && tsc -p tsconfig.react.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit && tsc -p tsconfig.dom.json --noEmit && tsc -p tsconfig.react.json --noEmit",
     "test": "vitest run",
     "test:coverage": "vitest run --coverage"
   },
@@ -138,7 +156,9 @@
     "zod": "^4.6.6",
     "@jini-ai/core": "workspace:^",
     "react": "^19.2.0",
-    "@types/react": "^19.2.0"
+    "@types/react": "^19.2.0",
+    "react-dom": "^19.2.0",
+    "@types/react-dom": "^19.2.0"
   },
   "peerDependencies": {
     "@jini-ai/protocol": "^0.7.3-next.2",
