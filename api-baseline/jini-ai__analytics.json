@@ -205,5 +205,13 @@
    "buildAnalyticsRegistrations": "function:f7da8f82e4",
    "contributeAnalyticsTools": "function:810378b674"
   }
+ },
+ "./site/visitor-analytics": {
+  "types": "./dist/site/visitor-analytics.d.ts",
+  "symbols": {
+   "VisitorAnalyticsProvenance": "interface:af53ffd341",
+   "captureVisitorEvent": "function:cefb33b35b",
+   "visitorAnalyticsProvenance": "function:89d0fb9260"
+  }
  }
 }

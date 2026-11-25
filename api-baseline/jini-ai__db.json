@@ -74,7 +74,7 @@
    "OutboxSqlRequired": "interface:2a86d5a818",
    "OutboxTables": "interface:581ba7a1a6",
    "PrepareOutboxEvent": "type:522412c54e",
-   "SqlChangeSetRepo": "class:49c0a87a97",
+   "SqlChangeSetRepo": "class:75e55f6794",
    "SqlOutboxAdapter": "class:02ad16fb21",
    "outboxEventValues": "function:8905363407"
   }
@@ -93,6 +93,8 @@
   "symbols": {
    "ColumnAffinity": "type:1930dcf2e0",
    "DbTransport": "type:4bfd0ff4ed",
+   "IdleTurnRefusal": "type:b21fd0bc65",
+   "IdleTurnResult": "type:5cdd874e5d",
    "IndexInfo": "interface:ed78cd8a43",
    "KernelDriver": "interface:d1044aedaa",
    "KyselyKernel": "interface:69a893dcea",
@@ -101,7 +103,7 @@
    "StorageOpNotSupportedError": "class:1f4f5f1dcb",
    "StorageOps": "interface:80c7b1c2b1",
    "TableShape": "interface:718a0f0c63",
-   "TurnLock": "class:44fdf74aea",
+   "TurnLock": "class:2e1b35f094",
    "autoIdColumnSql": "function:25c37b55b6",
    "buildKernel": "function:71e4b83a68",
    "checkpointWal": "function:74f25a8a8e",
@@ -123,6 +125,7 @@
    "scopeToSchema": "function:e1bda39cab",
    "tableExists": "function:e1756b051d",
    "verifyLedgerReadBack": "function:e1e3744c21",
+   "withIdleTurn": "function:3c9274013b",
    "withKernelSessionLock": "function:05458eb826"
   }
  },
@@ -250,13 +253,21 @@
    "pgTypesFor": "function:2ccede7819"
   }
  },
+ "./react/recovery/Recovery": {
+  "types": "./dist/react/recovery/Recovery.d.ts",
+  "symbols": {
+   "Recovery": "function:c418693635",
+   "RecoveryProps": "interface:7a3c991f84",
+   "RestoreFlowProps": "interface:e08cbd23e9"
+  }
+ },
  "./recovery": {
   "types": "./dist/recovery/index.d.ts",
   "symbols": {
    "AcquireOperationLockResult": "type:3b481d5704",
    "AlwaysUnavailableWatermarkSource": "class:03cb2948e9",
    "BootLedgerPort": "interface:6b7b3a1383",
-   "BuildMigrateForwardHooksInput": "interface:74bebaef67",
+   "BuildMigrateForwardHooksInput": "interface:05f58780b1",
    "BuildRestoreHooksInput": "interface:80d7b9a432",
    "CategoryCount": "type:8538f6553e",
    "ComputeDisclosureRequired": "interface:620d4e1aa4",

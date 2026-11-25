@@ -495,6 +495,24 @@
    "createInMemoryConversationToolApprovalStore": "function:a110afe621"
   }
  },
+ "./react/external-mcp/ExternalMcpAdmissionsBanner": {
+  "types": "./dist/react/external-mcp/ExternalMcpAdmissionsBanner.d.ts",
+  "symbols": {
+   "ExternalMcpAdmissionsBanner": "function:a2d0c39703",
+   "ExternalMcpAdmissionsBannerProps": "interface:9bb49796f2"
+  }
+ },
+ "./react/external-mcp/ExternalMcpSettingsPanel.hooks": {
+  "types": "./dist/react/external-mcp/ExternalMcpSettingsPanel.hooks.d.ts",
+  "symbols": {
+   "ExternalMcpAddFormController": "interface:cd39560075",
+   "buildAllowWritePatch": "function:38275ae191",
+   "resolveExternalMcpCardHandles": "function:5d7f9f15f6",
+   "useExternalMcpAddForm": "function:b802f03724",
+   "useExternalMcpDriftCopy": "function:8b7cff9e06",
+   "useSavedAllowedToolNamesById": "function:664d8bc003"
+  }
+ },
  "./tools/ask-choice": {
   "types": "./dist/tools/ask-choice/index.d.ts",
   "symbols": {
@@ -525,24 +543,6 @@
    "customAnswerExchanges": "function:e2fcbfc041",
    "mergeCustomAnswer": "function:d060e8ab6a",
    "splitCustomAnswer": "function:d5c6b0f629"
-  }
- },
- "./react/external-mcp/ExternalMcpAdmissionsBanner": {
-  "types": "./dist/react/external-mcp/ExternalMcpAdmissionsBanner.d.ts",
-  "symbols": {
-   "ExternalMcpAdmissionsBannerProps": "interface:pending-opus",
-   "ExternalMcpAdmissionsBanner": "function:pending-opus"
-  }
- },
- "./react/external-mcp/ExternalMcpSettingsPanel.hooks": {
-  "types": "./dist/react/external-mcp/ExternalMcpSettingsPanel.hooks.d.ts",
-  "symbols": {
-   "resolveExternalMcpCardHandles": "function:pending-opus",
-   "useSavedAllowedToolNamesById": "function:pending-opus",
-   "useExternalMcpDriftCopy": "function:pending-opus",
-   "buildAllowWritePatch": "function:pending-opus",
-   "ExternalMcpAddFormController": "interface:pending-opus",
-   "useExternalMcpAddForm": "function:pending-opus"
   }
  }
 }

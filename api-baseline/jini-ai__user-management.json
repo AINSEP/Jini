@@ -555,10 +555,24 @@
    "registerSiteKeyPermissionGrants": "function:e491cc4a7f"
   }
  },
+ "./identity/sql/user-trash-adapter": {
+  "types": "./dist/identity/sql/user-trash-adapter.d.ts",
+  "symbols": {
+   "UserTrashAdapterDeps": "interface:04bb7b62c5",
+   "createUserTrashAdapter": "function:528c31e902"
+  }
+ },
  "./identity/user-manage-permission": {
   "types": "./dist/identity/user-manage-permission.d.ts",
   "symbols": {
    "registerUserManagePermissionGrants": "function:3a7e2cc229"
+  }
+ },
+ "./identity/user-purge": {
+  "types": "./dist/identity/user-purge.d.ts",
+  "symbols": {
+   "SqlUserPurge": "class:df09a3e8a0",
+   "UserPurgeSqlPorts": "interface:50dddebf7f"
   }
  },
  "./identity/user-purge-types": {
@@ -654,6 +668,16 @@
    "sealLoginEmailContinuation": "function:8cdefe33ad"
   }
  },
+ "./member-login/oidc-request": {
+  "types": "./dist/member-login/oidc-request.d.ts",
+  "symbols": {
+   "OidcCallbackResult": "type:be2db14a4e",
+   "completeMemberOidcCallback": "function:2683a6b6ec",
+   "readOidcCallbackParams": "function:8c967afb5c",
+   "readOidcEmailProof": "function:a104522370",
+   "verifyMemberOidcEmailProof": "function:2a6c711f8a"
+  }
+ },
  "./member-login/providers": {
   "types": "./dist/member-login/providers.d.ts",
   "symbols": {
@@ -664,6 +688,12 @@
   "types": "./dist/member-login/ready-providers.d.ts",
   "symbols": {
    "createReadyLoginProviderList": "function:031a4f8750"
+  }
+ },
+ "./member-login/unlink-identity": {
+  "types": "./dist/member-login/unlink-identity.d.ts",
+  "symbols": {
+   "unlinkMemberIdentity": "function:019052283c"
   }
  },
  "./members/access-resolver": {
@@ -789,6 +819,21 @@
    "buildMembersWriteServiceDeps": "function:efcd56692e"
   }
  },
+ "./members/public-member-auth-response": {
+  "types": "./dist/members/public-member-auth-response.d.ts",
+  "symbols": {
+   "memberAuthRefusal": "function:51e03b347c",
+   "memberCookieExpiry": "function:1dad8192dd",
+   "memberSignInRefusal": "function:706ad535bf"
+  }
+ },
+ "./members/public-member-response": {
+  "types": "./dist/members/public-member-response.d.ts",
+  "symbols": {
+   "PublicMemberResponse": "interface:f8d86e1c76",
+   "toPublicMemberResponse": "function:0c39f75337"
+  }
+ },
  "./members/repo": {
   "types": "./dist/members/repo.d.ts",
   "symbols": {
@@ -905,6 +950,15 @@
    "isValidScheduleTimestamp": "function:beeb9515ef",
    "saveCampaign": "function:ded2ce773c",
    "scheduleCampaign": "function:460952e337"
+  }
+ },
+ "./newsletter/confirmation": {
+  "types": "./dist/newsletter/confirmation.d.ts",
+  "symbols": {
+   "CONFIRMATION_TOKEN_TTL_MS": "variable:d39377bbef",
+   "ConfirmationDeps": "interface:4d7a6223b8",
+   "consumeConfirmationToken": "function:f0bd883cca",
+   "issueConfirmationToken": "function:c663dca284"
   }
  },
  "./newsletter/data-module-manifest": {
@@ -1085,6 +1139,16 @@
    "sendTestCampaign": "function:5d4241966d"
   }
  },
+ "./newsletter/subscriptions": {
+  "types": "./dist/newsletter/subscriptions.d.ts",
+  "symbols": {
+   "SubscriptionsDeps": "interface:9d3b10851b",
+   "UnsubscribeSubscriptionDeps": "interface:351bf0b1d0",
+   "importSubscriptions": "function:c27abef645",
+   "saveSubscription": "function:85f3f501a0",
+   "unsubscribeSubscription": "function:4f8aa91dd5"
+  }
+ },
  "./newsletter/types": {
   "types": "./dist/newsletter/types.d.ts",
   "symbols": {
@@ -1142,11 +1206,49 @@
    "projectKeyCreateVault": "function:0e869a888d"
   }
  },
+ "./project-keys/service": {
+  "types": "./dist/project-keys/service.d.ts",
+  "symbols": {
+   "CreateProjectKeysRequired": "interface:9b48508aaf",
+   "ProjectKeyRow": "interface:e86e04c896",
+   "ProjectKeysPort": "interface:92aaf4c1fe",
+   "SITE_KEY_ID_PREFIX": "variable:1a0feacb92",
+   "SiteKeyChoice": "interface:c7a57f2fe1",
+   "SiteKeySource": "interface:876579ab61",
+   "createProjectKeys": "function:93ba376b59",
+   "isSharedOAuthKey": "variable:24c84e616f",
+   "providerKeyId": "variable:112241fdc0",
+   "providerPluginOf": "variable:7925c4513c"
+  }
+ },
+ "./project-keys/site-references": {
+  "types": "./dist/project-keys/site-references.d.ts",
+  "symbols": {
+   "createSiteKeyReferences": "function:112dd96b19",
+   "createSiteOAuthBindings": "function:5fa3cef8a0"
+  }
+ },
  "./project-keys/site-sealer": {
   "types": "./dist/project-keys/site-sealer.d.ts",
   "symbols": {
    "ownerKeyHandleOnly": "function:802da700b4",
    "siteGrantedSealer": "function:f38ad687b2"
+  }
+ },
+ "./project-keys/sql/attachments": {
+  "types": "./dist/project-keys/sql/attachments.d.ts",
+  "symbols": {
+   "AttachmentPolicy": "interface:68d85c94d2",
+   "AttachmentSqlPort": "interface:c44d7e6a9c",
+   "createKeyAttachments": "function:e621c713ac"
+  }
+ },
+ "./project-keys/tools": {
+  "types": "./dist/project-keys/tools.d.ts",
+  "symbols": {
+   "buildProjectKeyRegistrations": "function:e05bedc848",
+   "createProjectKeysCatalog": "function:942e34ca6a",
+   "projectKeysRisk": "variable:41c581dde4"
   }
  },
  "./public-http/routes/mail/feedback": {

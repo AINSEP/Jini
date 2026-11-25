@@ -216,6 +216,24 @@
    "ensureSitePrivacyDefaults": "function:3d8b4fc29b"
   }
  },
+ "./site/http": {
+  "types": "./dist/site/http.d.ts",
+  "symbols": {
+   "analyticsProof": "function:7339a4303e",
+   "collectorDecision": "function:630e0d2318",
+   "matchConsentPluginHttp": "function:cb24c68800",
+   "readVisitorConsent": "function:f75dc23bcc",
+   "receiptAllowsAnalytics": "function:46daee7019"
+  }
+ },
+ "./site/pre-consent-cache": {
+  "types": "./dist/site/pre-consent-cache.d.ts",
+  "symbols": {
+   "CACHE_CONTROL_PRE_CONSENT_TRACKING": "variable:6a9939059a",
+   "hasConsentGatedScripts": "function:ee4c820d8c",
+   "preConsentCacheControl": "function:ffd923eb72"
+  }
+ },
  "./site/privacy-page-template": {
   "types": "./dist/site/privacy-page-template.d.ts",
   "symbols": {
@@ -271,7 +289,7 @@
   "types": "./dist/site/service.d.ts",
   "symbols": {
    "ConsentDeploymentRefusal": "interface:4b5e2626ce",
-   "ConsentServicePorts": "interface:ddee792a00",
+   "ConsentServicePorts": "interface:ecdef909dc",
    "SiteConsentService": "type:87415975d4",
    "createSiteConsentService": "function:09a20bed3c"
   }
@@ -295,7 +313,7 @@
    "ConsentApprovalDescription": "interface:c09e20a2ad",
    "ConsentApprovalToolHandler": "type:0e2be938e7",
    "ConsentToolDeps": "interface:8c6628b561",
-   "ConsentToolHost": "interface:1fb0f5b2da",
+   "ConsentToolHost": "interface:4435ddfcbf",
    "buildConsentRegistrations": "function:1c38e90a48",
    "consentAgentToolCatalog": "variable:bbc7e7b3ef",
    "consentDerivedRisk": "variable:f35b291da3",
@@ -306,7 +324,7 @@
   "types": "./dist/site/validation.d.ts",
   "symbols": {
    "consentConfigProblems": "function:0d20fccb05",
-   "parseConsentConfig": "function:8ed869d798"
+   "parseConsentConfig": "function:27c887a93b"
   }
  }
 }

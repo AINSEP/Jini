@@ -1017,6 +1017,16 @@
    "verdictOfCheck": "function:871ae10bf7"
   }
  },
+ "./secrets/root-key/reconcile": {
+  "types": "./dist/secrets/root-key/reconcile.d.ts",
+  "symbols": {
+   "RootKeyMaterialRead": "type:f7e3df4929",
+   "RootKeyReconcilePorts": "interface:91c5a16be4",
+   "RootKeyReconcileResult": "type:5b505fc807",
+   "RootKeyStampRead": "type:5fff02bc53",
+   "reconcileRootKey": "function:b54060a2e7"
+  }
+ },
  "./secrets/testing": {
   "types": "./dist/secrets/testing.d.ts",
   "symbols": {

@@ -465,6 +465,7 @@
    "DiscoveredModel": "interface:600ff33f83",
    "DnsLookupAddress": "type:3822d631cf",
    "DnsLookupFn": "type:f2525f6416",
+   "McpBridgeMechanism": "type:b4cb4c6de2",
    "ModelCacheEntry": "interface:e61561cdec",
    "ModelCatalogSnapshot": "interface:71ec2295d1",
    "ModelDiscoveryContext": "interface:e7f8b5d354",
@@ -589,6 +590,16 @@
    "BlobFileMeta": "interface:85d6421a59",
    "BlobStorage": "interface:0097788d2f",
    "StorageError": "class:f963ae5e0e"
+  }
+ },
+ "./contracts/blob-gc": {
+  "types": "./dist/contracts/blob-gc.d.ts",
+  "symbols": {
+   "BlobFence": "interface:85fc185c0d",
+   "BlobGcScope": "interface:2e0886df1d",
+   "BlobIdentity": "type:c4f2141eb1",
+   "BlobPurgeReason": "type:a2caf09383",
+   "BlobStorageKeyFor": "type:48f67f5e31"
   }
  },
  "./contracts/capabilities": {
@@ -735,11 +746,12 @@
  "./contracts/events": {
   "types": "./dist/contracts/events.d.ts",
   "symbols": {
+   "AttributedDomainEvent": "type:958b8dc248",
    "AuthorizeFn": "type:a37e758d08",
    "ChangeSetItemRecord": "interface:dacb3cee90",
    "ChangeSetOperation": "type:6b7b6bcb4a",
    "ChangeSetRecord": "interface:4d5c935848",
-   "ChangeSetRepoPort": "interface:f5977e5aba",
+   "ChangeSetRepoPort": "interface:3314fa3f75",
    "ChangeSetStatus": "type:411e5eed4c",
    "ChangeSetWithItems": "interface:58817f5ef7",
    "CommandActor": "interface:04d401d3f4",
@@ -752,8 +764,12 @@
    "ExecuteCommandOptional": "interface:f3cf8ce12b",
    "ExecuteCommandRequired": "interface:abdd1ce66f",
    "MutationActor": "interface:ba943ed9e3",
+   "NewChangeSetRecord": "type:cc1d214e72",
    "OutboxPort": "interface:053c1c807d",
    "OutboxRecord": "interface:6d13316eb7",
+   "RECORDED_ACTOR_KINDS": "variable:0d443669db",
+   "RecordedActor": "interface:524dc06557",
+   "RecordedActorKind": "type:75149d836e",
    "TransactionalRepoPort": "interface:5f66eb000a"
   }
  },
@@ -879,6 +895,15 @@
    "PluginLookupPort": "interface:31b4019446",
    "PluginProvider": "interface:8e73b5c511",
    "SetAgentPluginEnabledInput": "type:310aaca3ba"
+  }
+ },
+ "./contracts/headless/plugin-install-source": {
+  "types": "./dist/contracts/headless/plugin-install-source.d.ts",
+  "symbols": {
+   "InstallArchiveFiles": "interface:3cb3d5e4c1",
+   "InstallAttachmentReader": "type:59986d37af",
+   "PluginInstallRequest": "interface:41f9316627",
+   "PluginInstallSourcePort": "interface:9e67013acf"
   }
  },
  "./contracts/headless/site-cookie-consent": {
@@ -1561,6 +1586,25 @@
    "AdminPublishExecutionMode": "type:d11839e0e7"
   }
  },
+ "./contracts/site/approval-i18n": {
+  "types": "./dist/contracts/site/approval-i18n.d.ts",
+  "symbols": {
+   "APPROVAL_COPY": "variable:b9d29d5370",
+   "approvalText": "function:cfddd12751"
+  }
+ },
+ "./contracts/site/asset-transfer-tool-ports": {
+  "types": "./dist/contracts/site/asset-transfer-tool-ports.d.ts",
+  "symbols": {
+   "AssetDestination": "type:077e8b3ec7",
+   "AssetFile": "interface:c412f0d6d2",
+   "AssetSourceSchema": "interface:0f5c1df688",
+   "AssetTheme": "interface:e981d059c1",
+   "OverwritePolicy": "type:e354d59969",
+   "PreparedAssetBatch": "type:39cea9bfaa",
+   "PreparedAssets": "type:536b256dab"
+  }
+ },
  "./contracts/site/assistant-host-ports": {
   "types": "./dist/contracts/site/assistant-host-ports.d.ts",
   "symbols": {
@@ -1856,7 +1900,14 @@
    "AdminTrashPurgeReportDto": "interface:4fe3fd1e60",
    "AdminTrashRestoreOutcome": "type:72a534371c",
    "AdminTrashRestoreReportDto": "interface:33721fb08a",
-   "TrashActor": "interface:92b4352cd5"
+   "MoveToTrashOutcome": "type:3907d89f3b",
+   "TrashActor": "interface:045fd17c4c",
+   "TrashAdapter": "interface:135fd892cd",
+   "TrashAuthorizeFn": "type:87fa1dca4f",
+   "TrashDisplay": "interface:424a9e7571",
+   "TrashKindMover": "interface:dd8257feee",
+   "TrashMarkerResult": "type:8d9945bc77",
+   "TrashPurgeOutcome": "type:2a5b4b1920"
   }
  },
  "./contracts/site/cms-workspace": {
@@ -1897,6 +1948,14 @@
    "ProviderConfigSource": "interface:57228e6fac",
    "ProviderPluginConfig": "interface:bbd9f6afcc",
    "ProviderSettingsView": "interface:2d88611532"
+  }
+ },
+ "./contracts/site/content-editor-ports": {
+  "types": "./dist/contracts/site/content-editor-ports.d.ts",
+  "symbols": {
+   "EditorDraftPort": "interface:5b96640190",
+   "PageEditorPort": "interface:249a42274c",
+   "PostEditorPort": "interface:5f939e5da3"
   }
  },
  "./contracts/site/contracts-resources": {
@@ -1953,6 +2012,7 @@
  "./contracts/site/core-custom-credential-categories": {
   "types": "./dist/contracts/site/core-custom-credential-categories.d.ts",
   "symbols": {
+   "CUSTOM_CREDENTIAL_CATEGORIES": "variable:c26f98e4f2",
    "CustomCredentialCategoryId": "type:e2a87724c8"
   }
  },
@@ -1982,6 +2042,13 @@
   "types": "./dist/contracts/site/core-theme-slots.d.ts",
   "symbols": {
    "ThemeSlotDescriptor": "interface:db04614bc6"
+  }
+ },
+ "./contracts/site/credential-project-half": {
+  "types": "./dist/contracts/site/credential-project-half.d.ts",
+  "symbols": {
+   "CredentialProjectHalf": "interface:724cd7c019",
+   "CredentialScope": "type:6831ffe922"
   }
  },
  "./contracts/site/custom-credential-publish-compatibility": {
@@ -2022,7 +2089,9 @@
  "./contracts/site/daemon-surface-exchanges": {
   "types": "./dist/contracts/site/daemon-surface-exchanges.d.ts",
   "symbols": {
-   "AssistantSurfaceDeps": "interface:7b0241e5a6"
+   "AssistantSurfaceDeps": "interface:7b0241e5a6",
+   "ChatDeleteSurfaceDeps": "type:7abbd7a59f",
+   "HumanConfirmSurfaceDeps": "type:f0b8abe734"
   }
  },
  "./contracts/site/daemon-tool-audit": {
@@ -2063,6 +2132,16 @@
    "PluginProvenance": "interface:e4b8069a48",
    "PluginTier": "type:2023fb2d73",
    "TableDecl": "interface:4055da58f2"
+  }
+ },
+ "./contracts/site/deployment-admin": {
+  "types": "./dist/contracts/site/deployment-admin.d.ts",
+  "symbols": {
+   "DeployRunDestination": "type:cb2b0f0006",
+   "DeploymentDestination": "type:e57402daf7",
+   "StaticDeploymentDestination": "type:4370439e0f",
+   "StaticExportPort": "interface:ed2141066a",
+   "StaticPublishPort": "interface:0f58ea394f"
   }
  },
  "./contracts/site/dev-supervisor-dev-restart": {
@@ -2190,6 +2269,21 @@
    "PluginValidationError": "interface:9c92e6f570"
   }
  },
+ "./contracts/site/html-region-ports": {
+  "types": "./dist/contracts/site/html-region-ports.d.ts",
+  "symbols": {
+   "HtmlRegionScan": "interface:dd5f9587d9",
+   "HtmlTopLevelElement": "interface:787e4bcf74",
+   "PageHtmlRegionPorts": "interface:4953c6b66f",
+   "ParsedRegion": "interface:b8fce2b3ff",
+   "RegionHandleOptions": "interface:b716e9674f",
+   "RegionLookup": "type:eec00a0786",
+   "RegionLookupProblem": "type:fefee2dc06",
+   "RegionMoveProblem": "type:d54441918a",
+   "ScannedRegion": "interface:d229d4f7b0",
+   "UntaggedSection": "interface:1747e48b3a"
+  }
+ },
  "./contracts/site/http-kit-rate-limit": {
   "types": "./dist/contracts/site/http-kit-rate-limit.d.ts",
   "symbols": {
@@ -2277,6 +2371,19 @@
    "MediaProvider": "interface:5f8cffc486"
   }
  },
+ "./contracts/site/media-tool-ports": {
+  "types": "./dist/contracts/site/media-tool-ports.d.ts",
+  "symbols": {
+   "GeneratedImageBytes": "interface:538a7a5eb7",
+   "ImageGenerationCredential": "interface:3fdb41ce95",
+   "ImageGenerationPorts": "interface:372cd1bc3e",
+   "ImportedMediaView": "interface:dbaffa1a3e",
+   "MediaImportRefusalPorts": "interface:f8960bd9c5",
+   "MediaImportSourcePorts": "interface:c4ef65a9f6",
+   "MediaToolStoragePorts": "interface:b9b656f0a0",
+   "MediaToolUploadInput": "interface:d4f2287395"
+  }
+ },
  "./contracts/site/media-upload-limits": {
   "types": "./dist/contracts/site/media-upload-limits.d.ts",
   "symbols": {
@@ -2312,10 +2419,15 @@
  "./contracts/site/page-html-store": {
   "types": "./dist/contracts/site/page-html-store.d.ts",
   "symbols": {
+   "PageHtmlInverse": "type:137cc61db8",
+   "PageHtmlOperation": "type:7d74a0c467",
+   "PageHtmlWriteOutcome": "interface:044115d664",
    "PagesHtmlDocumentStoreFactory": "type:38cec27a93",
-   "PagesHtmlDocumentStorePort": "interface:c37c1b3182",
+   "PagesHtmlDocumentStorePort": "interface:576ff9bea1",
    "PagesHtmlDocumentStoreScope": "interface:2be584b4e8",
-   "PluginEmbedDiagnostic": "interface:d3011be33d"
+   "PluginEmbedDiagnostic": "interface:d3011be33d",
+   "RecordPageHtmlWritePort": "interface:29b243f46b",
+   "RecordedHtmlWrites": "type:e6eae96428"
   }
  },
  "./contracts/site/platform-mail": {
@@ -2411,7 +2523,9 @@
   "symbols": {
    "KeyAttachments": "interface:f6c5e60136",
    "ProjectKeyTransaction": "type:2b3faf6778",
-   "SiteGrantedVault": "type:80f044d647"
+   "SiteGrantedVault": "type:80f044d647",
+   "SiteKeyReferences": "interface:5270032da4",
+   "SiteOAuthBindings": "interface:cd19132556"
   }
  },
  "./contracts/site/protocol-mcp-ui": {
@@ -2581,6 +2695,20 @@
    "isTrashed": "function:69ac508777"
   }
  },
+ "./contracts/site/source-control-credentials": {
+  "types": "./dist/contracts/site/source-control-credentials.d.ts",
+  "symbols": {
+   "CanonicalSourceControlKeys": "interface:2e9fc213b0",
+   "CanonicalSourceControlUpdate": "type:e01e6ca01e",
+   "CredentialVaultBinding": "interface:e00a864404",
+   "SourceControlConnectionInput": "interface:7123ed4bd4",
+   "SourceControlCredentialPatch": "type:60e8ee43e3",
+   "SourceControlCredentialSetRecord": "interface:1adf2df2c7",
+   "SourceControlCredentialSetRepoPort": "interface:4520807129",
+   "SourceControlCredentialSummary": "interface:8d227f6928",
+   "SourceControlProviderId": "type:4863989474"
+  }
+ },
  "./contracts/site/strict-base64": {
   "types": "./dist/contracts/site/strict-base64.d.ts",
   "symbols": {
@@ -2658,6 +2786,14 @@
    "MfaStore": "interface:508412231e",
    "SessionTokenPort": "interface:ad050e6777",
    "UsernameChangePort": "interface:e7132fdde4"
+  }
+ },
+ "./contracts/site/vendor-credentials": {
+  "types": "./dist/contracts/site/vendor-credentials.d.ts",
+  "symbols": {
+   "VendorCredentialProjectScope": "interface:8746d61181",
+   "VendorCredentialSetRecord": "interface:8ee8a07aeb",
+   "VendorCredentialSetRepoPort": "interface:bea84bbe73"
   }
  },
  "./contracts/site/web-evidence-capture-budget": {
@@ -3445,6 +3581,12 @@
    "assertRepairKeywords": "function:db7f7d38e9",
    "clampDeclaredBounds": "function:80355df88f",
    "missingArgumentGuidance": "function:6e67772d50"
+  }
+ },
+ "./tool-metadata/agent-pause": {
+  "types": "./dist/tool-metadata/agent-pause.d.ts",
+  "symbols": {
+   "createResumeAgentWorkMetadata": "function:b748a4826d"
   }
  },
  "./tool-metadata/agent-plugins": {

@@ -831,7 +831,7 @@
    "DeployErrorDetails": "type:76aa9d33fb",
    "DeployFetchTimeouts": "interface:0bd6dd21cd",
    "DeployFile": "interface:f26aa335ea",
-   "DeployHostKit": "interface:7e07a90e89",
+   "DeployHostKit": "interface:5f1fffd681",
    "DeployHostingSetup": "interface:90f6309d28",
    "DeployLinkStatus": "type:fdd1f9a30c",
    "DeployOpsBoundedRequest": "interface:3f38c3ac63",
@@ -905,7 +905,7 @@
    "MigrationReadiness": "type:0444df8afd",
    "MigrationReadinessPort": "interface:46e5002286",
    "PluginDeployCredentialCheckContext": "type:ecd07541ac",
-   "PluginDeployHostKit": "interface:e1cec3bde9",
+   "PluginDeployHostKit": "interface:dc903d20f1",
    "PluginDeployTargetCreateContext": "type:4a6532bbb7",
    "PluginDeployTargetModule": "interface:252ba4c9b8",
    "PluginSigV4Client": "interface:7b807ccce4",
@@ -1029,11 +1029,97 @@
   "symbols": {
    "DeploymentOverviewArgs": "interface:ce0af6af20",
    "DeploymentOverviewController": "interface:95e2ab607b",
-   "HistoryTab": "function:0210002295",
-   "HistoryTabProps": "interface:8b7a3b6daf",
-   "PublishRunResult": "function:d70d98c179",
-   "PublishRunResultProps": "interface:fa67bd1211",
+   "HistoryTab": "function:fc4fcb7340",
+   "HistoryTabProps": "interface:ca91fdc83b",
+   "PublishRunResult": "function:c34a5e907b",
+   "PublishRunResultProps": "interface:f9f6115282",
    "useDeploymentOverview": "function:b25f987ee9"
+  }
+ },
+ "./deploy/react/Deployment": {
+  "types": "./dist/deploy/react/Deployment.d.ts",
+  "symbols": {
+   "Deployment": "function:9397a0f699",
+   "DeploymentProps": "interface:36f9b80666"
+  }
+ },
+ "./deploy/react/deployment-visuals": {
+  "types": "./dist/deploy/react/deployment-visuals.d.ts",
+  "symbols": {
+   "CapabilityList": "function:9ac8df5004",
+   "CapabilityMark": "function:a511ed7945",
+   "DisclosureChevron": "function:7f827e0403",
+   "FullSiteIcon": "function:886c0436cc",
+   "HistoryIcon": "function:843b9faa5c",
+   "LayersIcon": "function:e6b23775e3",
+   "OverviewIcon": "function:7e7c0799b9",
+   "StaticSiteIcon": "function:70c4ad6e39",
+   "StepDoneIcon": "function:95efd63300"
+  }
+ },
+ "./deploy/react/DockerfileTab": {
+  "types": "./dist/deploy/react/DockerfileTab.d.ts",
+  "symbols": {
+   "DockerfileTab": "function:1449caf877",
+   "DockerfileTabProps": "interface:a796167e2a"
+  }
+ },
+ "./deploy/react/hooks/use-dockerfile-source.hooks": {
+  "types": "./dist/deploy/react/hooks/use-dockerfile-source.hooks.d.ts",
+  "symbols": {
+   "DockerfileSourceController": "interface:6648284f6c",
+   "useDockerfileSource": "function:5acc4a5263"
+  }
+ },
+ "./deploy/react/OverviewTab": {
+  "types": "./dist/deploy/react/OverviewTab.d.ts",
+  "symbols": {
+   "OverviewTab": "function:58eab15ca7",
+   "OverviewTabProps": "interface:461e612e61"
+  }
+ },
+ "./deploy/react/rules": {
+  "types": "./dist/deploy/react/rules.d.ts",
+  "symbols": {
+   "AdminPublishTargetCredentialSpec": "interface:f43efdf39b",
+   "AdminPublishTargetDescriptor": "interface:5df4b45d96",
+   "AdminPublishTargetField": "interface:0947d84a03",
+   "DEPLOYMENT_EXPORT_RESOURCE": "variable:d520d394df",
+   "DeploymentCapability": "interface:eb65b46621",
+   "PUBLISH_CREDENTIAL_ROW_LABEL": "variable:6dfd8934ad",
+   "PublishCredentialSubmitFailure": "type:f3eacad132",
+   "StaticPublishProjectNameCopy": "interface:2a339bcf9a",
+   "buildCredentialConnectionInput": "function:4c1fc6a8c3",
+   "buildStaticPublishConfig": "function:06ea900c38",
+   "credentialFieldHandleId": "function:1303b2f71d",
+   "credentialFormReadyToSave": "function:5a834b0b81",
+   "credentialNoun": "function:382f80e716",
+   "credentialStepSubtitle": "function:1cd494a579",
+   "credentialVerifyStatusClass": "function:d041cca195",
+   "credentialsForProvider": "function:fb78c9af4b",
+   "daemonStatusLabelKey": "function:b6079698a9",
+   "declaredFieldValues": "function:18703fa401",
+   "defaultCredentialForProvider": "function:acb0ce5c03",
+   "deploymentEnvVarNoteKey": "function:a9e19be43b",
+   "envVarStatusLabelKey": "function:843508e0d5",
+   "exportRunStatusLabelKey": "function:e535f85cf7",
+   "fieldHelpText": "function:b6e724e363",
+   "fieldLabelParts": "function:119fb71c8c",
+   "fieldNameHandleSegment": "function:866902900c",
+   "isEnvVarRowUnsafe": "function:734f4582ca",
+   "ownerPasswordLabelKey": "function:7ef2a49eb1",
+   "productionGateLabelKey": "function:0fcaa98b1d",
+   "publishConfigFieldHandleId": "function:8b2e96e8d9",
+   "publishRunStatusLabelKey": "function:09371a912a",
+   "publishTargetById": "function:8b4f0ad90c",
+   "requiredFieldsFilled": "function:c06f96b341",
+   "runStatusTone": "function:41042d748b",
+   "runtimeModeLabelKey": "function:c73f36206d",
+   "staticPublishFormReadyForPreview": "function:4f4fac37fc",
+   "staticPublishFormReadyToPublish": "function:0e7d219732",
+   "staticPublishProjectNameCopy": "function:ac5df376f2",
+   "staticPublishProjectNameToSend": "function:d286ef0501",
+   "withPromotedDefault": "function:caf1135c3f"
   }
  },
  "./deploy/react/site-update-notice": {
@@ -1647,9 +1733,62 @@
  "./source-control/react": {
   "types": "./dist/source-control/react/SourceControl.d.ts",
   "symbols": {
-   "SourceControl": "function:214e3783f6",
-   "SourceControlProps": "interface:a30e9a52ee",
+   "SourceControl": "function:92bcb879ad",
+   "SourceControlProps": "interface:21275fa297",
    "SourceControlTabBarProps": "interface:e1412356eb"
+  }
+ },
+ "./source-control/react/hooks/use-source-control-credentials.hooks": {
+  "types": "./dist/source-control/react/hooks/use-source-control-credentials.hooks.d.ts",
+  "symbols": {
+   "SourceControlCredentialRowState": "interface:dc92810d76",
+   "SourceControlCredentialsController": "interface:63f189a7d9",
+   "useSourceControlCredentials": "function:4a03cb3637"
+  }
+ },
+ "./source-control/react/ProvidersTab": {
+  "types": "./dist/source-control/react/ProvidersTab.d.ts",
+  "symbols": {
+   "ProvidersTab": "function:2e9c5da0a9",
+   "ProvidersTabProps": "interface:667e70b25d"
+  }
+ },
+ "./source-control/react/rules": {
+  "types": "./dist/source-control/react/rules.d.ts",
+  "symbols": {
+   "AdminSourceControlConnectionInput": "type:ef85c4729e",
+   "AdminSourceControlCredentialSummary": "interface:20a8bb72d2",
+   "AdminSourceControlProviderDescriptor": "interface:563e3b8c9d",
+   "AdminSourceControlProviderId": "type:b035cd15f5",
+   "AdminSourceControlProvidersSnapshot": "interface:ebbbc1af30",
+   "SOURCE_CONTROL_CREDENTIAL_ROW_LABEL": "variable:dd9546b84f",
+   "SourceControlCredentialFormFields": "interface:9eeb9b7be4",
+   "SourceControlCredentialSubmitFailure": "type:aa6875ec4e",
+   "SourceControlProviderInfo": "interface:7939e11a4e",
+   "SourceControlProvidersNotice": "interface:e148949512",
+   "buildSourceControlConnectionInput": "function:06e9c92d7f",
+   "classifySourceControlCredentialSubmitError": "function:ebb7e88486",
+   "defaultSourceControlCredentialForProvider": "function:3ab80fe5a8",
+   "sourceControlCredentialRowReadyToSave": "function:ffdd804c75",
+   "sourceControlCredentialsForProvider": "function:c465fcb5ad",
+   "sourceControlProviderInfoFromDescriptor": "function:6992666617",
+   "sourceControlProviders": "function:ff9fc57180",
+   "sourceControlProvidersNotice": "function:bc3e06dab8"
+  }
+ },
+ "./source-control/react/source-control-visuals": {
+  "types": "./dist/source-control/react/source-control-visuals.d.ts",
+  "symbols": {
+   "ConnectedMarkIcon": "function:84e75a9b17",
+   "DisclosureChevronIcon": "function:5aaf6126eb",
+   "SourceControlIcon": "function:ee84514dc9"
+  }
+ },
+ "./source-control/site/bundled-provider-registry": {
+  "types": "./dist/source-control/site/bundled-provider-registry.d.ts",
+  "symbols": {
+   "BundledProviderRefusalCopy": "interface:965bd1e401",
+   "collectBundledSourceControlProviders": "function:c01bd376a8"
   }
  },
  "./source-control/site/commit-schema": {
@@ -1812,6 +1951,14 @@
    "exportPublicOrigin": "function:4d2b0322be",
    "rewriteExportOriginResponse": "function:1608c8b961",
    "rewriteRenderOrigins": "function:5beb95d093"
+  }
+ },
+ "./static-export/site/route-manifest": {
+  "types": "./dist/static-export/site/route-manifest.d.ts",
+  "symbols": {
+   "RouteManifestPolicy": "interface:053b705807",
+   "RouteManifestSources": "interface:082fe3a0bd",
+   "buildRouteManifest": "function:7798d6c815"
   }
  },
  "./static-export/site/static-security-headers": {

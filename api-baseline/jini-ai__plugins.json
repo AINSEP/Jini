@@ -89,17 +89,13 @@
    "HookRegistry": "interface:220d11b184",
    "HookRegistryFieldDecl": "interface:4ac3891389",
    "InMemoryPluginActivationRepo": "class:b351711794",
-   "LEGACY_PLUGIN_MANIFEST_FILENAME": "variable:0ea644b975",
-   "LEGACY_PLUGIN_SDK_SPECIFIER": "variable:87251d84f4",
    "MAX_DECLARED_CONTENT_TYPES": "variable:74cbc68e0d",
    "MAX_DECLARED_FIELDS": "variable:0ac0d3b258",
    "MAX_DECLARED_QUERYABLE_FIELDS": "variable:7a75d08666",
-   "ManifestHostPorts": "interface:c5eef6b6b4",
+   "ManifestHostPorts": "interface:03c7585c66",
    "PLUGIN_CONTRIBUTION_CAPABILITIES": "variable:c96e09c8d9",
    "PLUGIN_MANIFEST_FILENAME": "variable:ef867b2101",
-   "PLUGIN_MANIFEST_FILENAMES": "variable:915c8953b3",
    "PLUGIN_SDK_SPECIFIER": "variable:fb4103d97f",
-   "PLUGIN_SDK_SPECIFIERS": "variable:bfb154bb54",
    "ParseDeclaredContentTypesResult": "interface:016e926d22",
    "PluginActivationPollDeps": "interface:1af8adc816",
    "PluginActivationRecord": "interface:abd0489e33",
@@ -135,6 +131,7 @@
    "PluginInvalidError": "class:8a6feda664",
    "PluginManifest": "interface:36dd234899",
    "PluginManifestFieldDecl": "interface:2a08bd2e6f",
+   "PluginManifestReadOptions": "interface:d69e91639f",
    "PluginModuleImportPort": "type:ca34bc4fec",
    "PluginNotFoundError": "class:c11f7818fb",
    "PluginNotUninstallableError": "class:5a7684bcdb",
@@ -192,7 +189,7 @@
    "attachPluginContributionTools": "function:9c27dbccd7",
    "buildCapabilityScopedSdk": "function:c1a4aedb70",
    "buildPluginContributionToolRegistrations": "function:8bdc830f64",
-   "canonicalizePluginManifest": "function:cb087586ec",
+   "canonicalizePluginManifest": "function:b58cee21ad",
    "capabilityToolIdFor": "function:bc777e8da1",
    "createDeclarativeContentTypes": "function:b1c6d395b9",
    "createHookRegistry": "function:1c7e30150f",
@@ -217,6 +214,7 @@
    "pluginCapabilitySet": "function:677cb08be2",
    "pluginCapabilityToolDerivedRisk": "function:1176d79943",
    "pluginClaimsFromManifest": "function:2369f26caa",
+   "pluginManifestFilenames": "function:3e4fc3b14d",
    "pluginToolIdFor": "function:a8d2e1c8ae",
    "previewUninstallPlugin": "function:b3edd1ce8a",
    "quarantinePlugin": "function:e889d1bdf9",
@@ -252,7 +250,7 @@
    "CreatePluginInvocationBindingRequired": "interface:cb4e745e96",
    "DiscoverPluginsOptional": "interface:bc2c8c8bbb",
    "DiscoverPluginsRequired": "interface:36645a0110",
-   "LoadPluginOptional": "type:94eddd5fdc",
+   "LoadPluginOptional": "type:62f182445e",
    "LoadPluginRequired": "interface:c7aea35b45",
    "LoadPluginResult": "type:77b77b7b2b",
    "MAX_PLUGIN_ARCHIVE_BYTES": "variable:9711531631",
@@ -282,8 +280,8 @@
    "PluginPackageSnapshot": "interface:b781d3bc59",
    "PluginRuntimeCoreBindings": "interface:a1b7eff1c2",
    "PluginRuntimeCoreOptional": "interface:9360f32038",
-   "PluginRuntimeCoreRequired": "interface:9670ac0a85",
-   "PluginRuntimeHostBinding": "interface:e625d072fd",
+   "PluginRuntimeCoreRequired": "interface:0bb0c7d0c2",
+   "PluginRuntimeHostBinding": "interface:23e70066c3",
    "PluginRuntimeLookup": "interface:849feb1876",
    "PluginRuntimeSource": "interface:f02954325b",
    "PluginRuntimeText": "interface:45ad68342d",
@@ -305,31 +303,31 @@
    "ReadPluginPackageFilesRequired": "interface:0dbf03514e",
    "SitePluginPackage": "interface:8f5e56bf6c",
    "SitePluginPackageFile": "interface:328a4ecded",
-   "admitBrowserProviderAssets": "function:eb24f35ed6",
+   "admitBrowserProviderAssets": "function:a4a64f83c0",
    "assertPluginInstallIdle": "function:5677bc8557",
    "attachLoadedPlugin": "function:3416182ad5",
-   "computePluginIntegrity": "function:8ac32747be",
+   "computePluginIntegrity": "function:595cd537b9",
    "createPluginInvocationBinding": "function:7b54a64de3",
-   "createPluginModuleImporter": "function:b02fe32749",
+   "createPluginModuleImporter": "function:2fbd896723",
    "createPluginModuleSnapshotLifecycle": "function:9a44296fc6",
    "createPluginRuntimeCore": "function:9c6993d139",
    "createPluginSourceService": "function:9263f87598",
    "digestSitePluginSnapshot": "function:d4243b12a1",
    "discoverPlugins": "function:5cc00615f3",
    "installSitePlugin": "function:072023a67b",
-   "listSitePluginPackage": "function:c1eed58d02",
-   "loadPlugin": "function:8c522597d7",
+   "listSitePluginPackage": "function:60e4da6de9",
+   "loadPlugin": "function:cfb9084802",
    "loadProviderPluginArtifact": "function:0d122dd607",
    "previewSitePluginInstall": "function:b946067ba3",
    "pruneSitePluginVersions": "function:4525765d48",
    "readPluginArchive": "function:d2706a9b95",
    "readPluginPackageFiles": "function:9008b5130e",
-   "runPluginIntegrityCommand": "function:b1a45a148d",
+   "runPluginIntegrityCommand": "function:daa19efa98",
    "siteEntryPath": "function:236ea59230",
    "sitePluginRoot": "function:e84153efb7",
-   "snapshotPluginModuleGraph": "function:7ce1ab8a2d",
+   "snapshotPluginModuleGraph": "function:b3f3127351",
    "snapshotSitePluginPackage": "function:ceebf70a78",
-   "verifyPluginSnapshotIntegrity": "function:0e5cb6c13a"
+   "verifyPluginSnapshotIntegrity": "function:0fbbe325f9"
   }
  },
  "./host/sql": {
@@ -400,6 +398,12 @@
    "tier2ImportPolicyData": "function:48c7e56406"
   }
  },
+ "./react/plugin-install-port": {
+  "types": "./dist/react/plugin-install-port.d.ts",
+  "symbols": {
+   "createPluginInstallPort": "function:4728cef9e8"
+  }
+ },
  "./runtime/agent-tools": {
   "types": "./dist/runtime/agent-tools.d.ts",
   "symbols": {
@@ -414,6 +418,12 @@
   "types": "./dist/runtime/built-ins/word-count/count-words.d.ts",
   "symbols": {
    "countWords": "function:1327d8afa5"
+  }
+ },
+ "./runtime/built-ins/word-count/plugin": {
+  "types": "./dist/runtime/built-ins/word-count/plugin.d.ts",
+  "symbols": {
+   "createWordCountPlugin": "function:8a030a0c23"
   }
  },
  "./runtime/capability-card": {
@@ -435,6 +445,13 @@
    "PLUGIN_INSTALL_STAYS_OFF": "variable:d84ebe8e64",
    "pluginInstallConsent": "function:561691726a",
    "pluginInstallRiskSentence": "function:974d26528c"
+  }
+ },
+ "./runtime/install-source": {
+  "types": "./dist/runtime/install-source.d.ts",
+  "symbols": {
+   "readPluginInstallArchive": "function:0539b12e2f",
+   "readPluginInstallRequest": "function:013fa8dcd4"
   }
  },
  "./runtime/install-tool-catalog": {
@@ -513,6 +530,12 @@
   "symbols": {
    "PLUGINS_UNINSTALL_TOOL_ID": "variable:9ae1f94f10",
    "describeUninstallApproval": "function:0c7b118844"
+  }
+ },
+ "./runtime/widget-partials": {
+  "types": "./dist/runtime/widget-partials.d.ts",
+  "symbols": {
+   "renderPluginWidgetPartials": "function:ae9483dedb"
   }
  },
  "./site/lipay/manifest": {

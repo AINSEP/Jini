@@ -137,6 +137,12 @@
    "toAdminPostResponse": "function:c589545dfa"
   }
  },
+ "./admin-http/http/presentation": {
+  "types": "./dist/admin-http/http/presentation.d.ts",
+  "symbols": {
+   "toAdminPresentationResponse": "function:4e6f4b449f"
+  }
+ },
  "./admin-http/http/publish-content": {
   "types": "./dist/admin-http/http/publish-content.d.ts",
   "symbols": {
@@ -236,6 +242,18 @@
    "AgentPluginZipUpload": "interface:c034a4fc34",
    "agentPluginInstallZipRoute": "variable:1d983f5df2",
    "agentPluginUpdateZipRoute": "variable:069dd343e3"
+  }
+ },
+ "./admin-http/routes/agent-plugins/install-response": {
+  "types": "./dist/admin-http/routes/agent-plugins/install-response.d.ts",
+  "symbols": {
+   "InstallHostErrorClass": "interface:7485b6dedb",
+   "InstallLifecycleErrorPredicates": "type:6cf0485684",
+   "InstallRefusal": "interface:4562f5fd58",
+   "InstalledAgentPluginRow": "type:a98afb7e03",
+   "bodyParseRefusal": "function:ce67991450",
+   "installedAgentPluginRow": "function:9df035928d",
+   "knownInstallRefusal": "function:03d22e8679"
   }
  },
  "./admin-http/routes/agent-plugins/list": {
@@ -401,6 +419,16 @@
    "assistantBody": "function:de53c5d971",
    "authorizeAssistant": "function:71e3ccdb4c",
    "rejectAssistantError": "function:001fcb42f3"
+  }
+ },
+ "./admin-http/routes/assistant/stored-credential-probe": {
+  "types": "./dist/admin-http/routes/assistant/stored-credential-probe.d.ts",
+  "symbols": {
+   "ProbeCredentialRejection": "interface:3a4fe742bf",
+   "ProbeCredentialResolution": "type:b6334f1352",
+   "ResolveProbeCredentialInput": "interface:84d36f2602",
+   "StoredProbeCredential": "type:4f47e13c40",
+   "resolveProbeCredential": "function:44b15ef020"
   }
  },
  "./admin-http/routes/assistant/test-agent": {
@@ -707,6 +735,19 @@
    "externalMcpListRoute": "variable:8b97d0192e"
   }
  },
+ "./admin-http/routes/external-mcp/oauth": {
+  "types": "./dist/admin-http/routes/external-mcp/oauth.d.ts",
+  "symbols": {
+   "createExternalMcpBrowserSignInRoute": "function:330ff7a06f",
+   "externalMcpBrowserSignInRoute": "variable:c76092eecb",
+   "externalMcpOAuthConnectRoute": "variable:7120d97c75",
+   "externalMcpOAuthPollRoute": "variable:30a5c0fa19",
+   "externalMcpProviderRefusal": "function:ec4f585a58",
+   "externalMcpSharedListRoute": "variable:8ac277540c",
+   "externalMcpSharedLocalRoute": "variable:23b8e62933",
+   "externalMcpSharedSelectRoute": "variable:75cff69357"
+  }
+ },
  "./admin-http/routes/external-mcp/oauth-disconnect": {
   "types": "./dist/admin-http/routes/external-mcp/oauth-disconnect.d.ts",
   "symbols": {
@@ -714,6 +755,12 @@
    "ExternalMcpProviderOAuthError": "interface:985ac2938b",
    "ExternalMcpReauthRequiredError": "interface:25f4999d21",
    "externalMcpOAuthDisconnectRoute": "variable:e5868a6da3"
+  }
+ },
+ "./admin-http/routes/external-mcp/probe": {
+  "types": "./dist/admin-http/routes/external-mcp/probe.d.ts",
+  "symbols": {
+   "externalMcpProbeRoute": "variable:8263b4a31c"
   }
  },
  "./admin-http/routes/external-mcp/put": {
@@ -1038,6 +1085,12 @@
    "principalOf": "function:8f9b6b6d03",
    "rejectMediaError": "function:33f5e50b09",
    "rejectMediaNotFound": "function:fb2a29b890"
+  }
+ },
+ "./admin-http/routes/media/stored-media-response": {
+  "types": "./dist/admin-http/routes/media/stored-media-response.d.ts",
+  "symbols": {
+   "toStoredMediaResponse": "function:a08eb77f29"
   }
  },
  "./admin-http/routes/media/text": {
@@ -1406,6 +1459,18 @@
    "pluginFilesRoute": "variable:d5d8165f95"
   }
  },
+ "./admin-http/routes/plugins/install": {
+  "types": "./dist/admin-http/routes/plugins/install.d.ts",
+  "symbols": {
+   "InstallRefusal": "interface:f2eaf6e763",
+   "folderPluginInstallPreviewRoute": "variable:0088a1d681",
+   "folderPluginInstallRoute": "variable:244bf1f0a6",
+   "pluginInstallErrorStatus": "function:35ddaedcc8",
+   "zipParserRefusal": "function:d17905ade3",
+   "zipPluginInstallPreviewRoute": "variable:b28bac4f57",
+   "zipPluginInstallRoute": "variable:93522f9a89"
+  }
+ },
  "./admin-http/routes/plugins/list": {
   "types": "./dist/admin-http/routes/plugins/list.d.ts",
   "symbols": {
@@ -1512,9 +1577,9 @@
  "./admin-http/routes/posts/revision-thinning": {
   "types": "./dist/admin-http/routes/posts/revision-thinning.d.ts",
   "symbols": {
-   "RevisionThinningApplyDeps": "interface:6aa3c4d867",
-   "RevisionThinningPreviewDeps": "interface:0fa79f2bfa",
-   "createRevisionThinningRoutes": "function:ea18f7cfa4"
+   "RevisionThinningApplyDeps": "interface:7e3a7b3843",
+   "RevisionThinningPreviewDeps": "interface:cb6c880bb7",
+   "createRevisionThinningRoutes": "function:c59e8aa87e"
   }
  },
  "./admin-http/routes/posts/template-preview": {
@@ -1607,7 +1672,7 @@
   "types": "./dist/admin-http/routes/publish-content/blob-put.d.ts",
   "symbols": {
    "BlobPutBody": "interface:7a0caa89b0",
-   "BlobPutRouteDeps": "interface:8a23cfbccf",
+   "BlobPutRouteDeps": "interface:a8636c81d3",
    "blobPutRoute": "variable:cd1cc24e22",
    "decodeBlobBytes": "function:54852b517e"
   }
@@ -1686,13 +1751,24 @@
    "readOverwriteEntityKeys": "function:028ffcbf0a"
   }
  },
+ "./admin-http/routes/publish-content/import-errors": {
+  "types": "./dist/admin-http/routes/publish-content/import-errors.d.ts",
+  "symbols": {
+   "ImportErrorHost": "interface:7e7e1c8129",
+   "ImportErrorResponse": "interface:ae6ff68ab9",
+   "knownImportErrorResponse": "function:889bd64049"
+  }
+ },
  "./admin-http/routes/publish-content/peer-transport": {
   "types": "./dist/admin-http/routes/publish-content/peer-transport.d.ts",
   "symbols": {
    "PeerActionRefusalFn": "type:1f026387be",
    "PeerActionRouteRefusal": "interface:67171e6ab3",
    "PeerPullRouteDeps": "interface:5a575343a8",
-   "peerPullRoute": "variable:4be732fc33"
+   "peerPullRoute": "variable:4be732fc33",
+   "peerPushConfirmRoute": "variable:76dad233a1",
+   "peerPushExecuteRoute": "variable:3a61faa1b2",
+   "peerPushPlanRoute": "variable:3dd8d30c37"
   }
  },
  "./admin-http/routes/publish-content/peers": {
@@ -1712,6 +1788,14 @@
    "peerDeleteRoute": "variable:a8c512a316",
    "peerListRoute": "variable:b282ee9e53",
    "peerUpdateRoute": "variable:cb7fc3bda8"
+  }
+ },
+ "./admin-http/routes/publish-content/route-helpers": {
+  "types": "./dist/admin-http/routes/publish-content/route-helpers.d.ts",
+  "symbols": {
+   "MappedErrorClass": "type:442df2fe21",
+   "RouteRefusal": "interface:0672c9f6d1",
+   "knownMappedErrorResponse": "function:bdcd479cb7"
   }
  },
  "./admin-http/routes/publish-content/transport-shared": {
@@ -1890,6 +1974,13 @@
    "CLEAR_ERROR_MAPPINGS": "variable:d8c97adb98",
    "SettingsClearRouteDeps": "interface:31f1c51946",
    "settingsClearRoute": "variable:04db67883f"
+  }
+ },
+ "./admin-http/routes/settings/events": {
+  "types": "./dist/admin-http/routes/settings/events.d.ts",
+  "symbols": {
+   "FeedAccess": "type:1e0dbedfe4",
+   "settingsEventsRoute": "variable:1aede9c204"
   }
  },
  "./admin-http/routes/settings/get-effective": {
@@ -2259,6 +2350,7 @@
    "MailProviderOperationCode": "type:6ff9643a82",
    "MailProviderStoreErrorCode": "type:3758ba22ef",
    "MailProvidersListRouteDeps": "interface:421666839b",
+   "classifyMailProviderError": "function:de397417c2",
    "mailProviderActivateRoute": "variable:51861c1edd",
    "mailProviderCredentialPlanRoute": "variable:f411171cc1",
    "mailProviderCredentialSaveRoute": "variable:d75e72eabe",
@@ -2348,6 +2440,13 @@
    "publishCredentialVerifyRoute": "variable:834a333bcd"
   }
  },
+ "./admin-http/routes/system/publish-site/destinations": {
+  "types": "./dist/admin-http/routes/system/publish-site/destinations.d.ts",
+  "symbols": {
+   "PublishDestinationsDeps": "interface:59e8d01ec9",
+   "createPublishDestinationsRoute": "function:d2e67f6ad6"
+  }
+ },
  "./admin-http/routes/system/publish-site/preview": {
   "types": "./dist/admin-http/routes/system/publish-site/preview.d.ts",
   "symbols": {
@@ -2372,6 +2471,13 @@
    "PublishTargetsListFn": "type:40efca6417",
    "PublishTargetsRouteDeps": "interface:990306b9f6",
    "publishTargetsRoute": "variable:7baca8f1f8"
+  }
+ },
+ "./admin-http/routes/system/publish-site/trigger": {
+  "types": "./dist/admin-http/routes/system/publish-site/trigger.d.ts",
+  "symbols": {
+   "PublishTriggerDeps": "interface:6cb5d00f82",
+   "createPublishTriggerRoute": "function:0833f74ccc"
   }
  },
  "./admin-http/routes/system/server-logs": {
@@ -2415,6 +2521,14 @@
    "siteImportListRouteSpec": "variable:565fa04fb5",
    "uploadBusyReply": "function:ce9e8cb68d",
    "workspaceUnavailableReply": "function:7380d737a0"
+  }
+ },
+ "./admin-http/routes/system/site-share-password": {
+  "types": "./dist/admin-http/routes/system/site-share-password.d.ts",
+  "symbols": {
+   "savedKeysSameOrigin": "function:30102f1d29",
+   "savedShareRefusalStatus": "function:466cf165e1",
+   "savedShareUploadRefusal": "function:a971c0bdd3"
   }
  },
  "./admin-http/routes/system/site-shares": {
@@ -2977,6 +3091,30 @@
    "seaApi": "function:db09db41ea"
   }
  },
+ "./asset-transfer/asset-destinations": {
+  "types": "./dist/asset-transfer/asset-destinations.d.ts",
+  "symbols": {
+   "AssetDestinationDeps": "interface:d39247aedc",
+   "AssetDestinationKit": "type:601082c244",
+   "AssetWriteResult": "type:5047c19399",
+   "prepareAssetWrites": "function:6324249dc4",
+   "requireAssetDestination": "function:0cd395db55",
+   "writeAssetFiles": "function:48d23cb443"
+  }
+ },
+ "./asset-transfer/copy-tool": {
+  "types": "./dist/asset-transfer/copy-tool.d.ts",
+  "symbols": {
+   "AssetApprovalToolHandler": "type:1ca2ddf4f0",
+   "AssetBatchApproval": "interface:4e8d3e3e17",
+   "FILES_COPY_LIMITS": "variable:00f3904a2c",
+   "FilesCopyToolDeps": "interface:af04c0509b",
+   "buildFilesCopyAgentToolCatalog": "function:241ff9c998",
+   "buildFilesCopyRegistrations": "function:3f773b22b7",
+   "contributeFilesCopyTools": "function:b8576a2302",
+   "filesCopyDerivedRisk": "variable:5a1a4aff83"
+  }
+ },
  "./change-sets/agent-tools": {
   "types": "./dist/change-sets/agent-tools.d.ts",
   "symbols": {
@@ -3309,7 +3447,7 @@
    "EntityNotLiveError": "class:96aef90dd0",
    "EntityReverter": "interface:2e2ec6d701",
    "ForbiddenError": "class:afffa8dd07",
-   "InMemoryChangeSetRepo": "class:95dba47558",
+   "InMemoryChangeSetRepo": "class:175b77e8ba",
    "PostStatus": "type:5adf203907",
    "PublicPostKind": "type:5021e95e78",
    "RequireToolPermissionOptional": "interface:9debdb6bb9",
@@ -4487,12 +4625,35 @@
    "saveMediaCredential": "function:06e4859361"
   }
  },
+ "./media/site-generation/tool-registrations": {
+  "types": "./dist/media/site-generation/tool-registrations.d.ts",
+  "symbols": {
+   "MediaGenerationCatalogInput": "type:0bb039b48e",
+   "MediaGenerationToolDeps": "interface:ffa226ae1d",
+   "MediaGenerationValidationError": "class:2c6c5e23aa",
+   "buildMediaGenerationRegistrations": "function:9fa1314f15",
+   "contributeMediaGenerationTools": "function:b9e2544009",
+   "mediaGenerationDerivedRisk": "variable:902c645828"
+  }
+ },
  "./media/site-import/agent-tools": {
   "types": "./dist/media/site-import/agent-tools.d.ts",
   "symbols": {
    "AgentToolDefinition": "type:b4d7d744be",
    "MediaImportAgentToolCatalogArgs": "interface:b365e1cb71",
    "buildMediaImportAgentToolCatalog": "function:9189f8d4b1"
+  }
+ },
+ "./media/site-import/tool-registrations": {
+  "types": "./dist/media/site-import/tool-registrations.d.ts",
+  "symbols": {
+   "MediaImportToolDeps": "interface:13e1320c98",
+   "buildMediaImportRegistrations": "function:914407df1a",
+   "contributeMediaImportTools": "function:54c89d3566",
+   "isImportShapeRejection": "function:5e5eddd659",
+   "mediaImportDerivedRisk": "variable:fb92be1b2f",
+   "persistImportedMedia": "function:e5167dd853",
+   "withCallerSafeEgressRefusal": "function:927d807929"
   }
  },
  "./media/site-transform/image-ops": {
@@ -4511,6 +4672,17 @@
    "inspectImage": "function:626a544315",
    "normalizeOutputs": "function:8b9c28aae0",
    "renderOutputs": "function:8ac8f72d40"
+  }
+ },
+ "./media/site-transform/tool": {
+  "types": "./dist/media/site-transform/tool.d.ts",
+  "symbols": {
+   "IMAGE_TRANSFORM_TOOL_ID": "variable:898ddc3fb3",
+   "ImageTransformToolDeps": "interface:c9b792d424",
+   "buildImageTransformAgentToolCatalog": "function:243df4518b",
+   "buildImageTransformRegistrations": "function:443ce19114",
+   "contributeImageTransformTools": "function:01ccfc864e",
+   "imageTransformDerivedRisk": "variable:37fa304a7b"
   }
  },
  "./media/site/access-evidence": {
@@ -4587,7 +4759,7 @@
   "types": "./dist/media/site/hydrate-blob-store-from-seed.d.ts",
   "symbols": {
    "HydrateBlobStoreFromSeedFailure": "interface:d389363d70",
-   "HydrateBlobStoreFromSeedRequired": "interface:b215a16526",
+   "HydrateBlobStoreFromSeedRequired": "interface:7e4000244a",
    "HydrateBlobStoreFromSeedResult": "interface:ce36d11478",
    "HydrateBlobStoreFromSeedStatus": "type:78d08dc58c",
    "hydrateBlobStoreFromSeed": "function:92ad6fbdab"
@@ -4597,10 +4769,10 @@
   "types": "./dist/media/site/import-media-entity.d.ts",
   "symbols": {
    "ImportMediaEntityBlockedCode": "type:168c1e4fed",
-   "ImportMediaEntityDeps": "interface:acb85392eb",
+   "ImportMediaEntityDeps": "interface:88e2e57ebc",
    "ImportMediaEntityInput": "interface:b9f3da48c8",
    "ImportMediaEntityResult": "type:25d384a11d",
-   "importMediaEntity": "function:c10428777c",
+   "importMediaEntity": "function:a8cef49589",
    "restoreImportedMedia": "function:4efa406c53"
   }
  },
@@ -4608,6 +4780,13 @@
   "types": "./dist/media/site/large-upload-routing.d.ts",
   "symbols": {
    "withLargeUploadRouting": "function:555f7e43c8"
+  }
+ },
+ "./media/site/library-save-attachment": {
+  "types": "./dist/media/site/library-save-attachment.d.ts",
+  "symbols": {
+   "buildLibrarySaveAttachmentTool": "function:1df26cd7f8",
+   "saveLibraryDocument": "function:f5fc5976d6"
   }
  },
  "./media/site/list-pending-chat-attachments": {
@@ -4624,6 +4803,15 @@
    "readStoredBytes": "function:6150c159b4"
   }
  },
+ "./media/site/promote-chat-attachment": {
+  "types": "./dist/media/site/promote-chat-attachment.d.ts",
+  "symbols": {
+   "ChatAttachmentLookup": "type:c44183ef65",
+   "MEDIA_PROMOTE_CHAT_ATTACHMENT_TOOL_ID": "variable:bdc072e867",
+   "buildPromoteChatAttachmentTool": "function:d5bc19a920",
+   "resolveChatAttachmentBytes": "function:17db0075a7"
+  }
+ },
  "./media/site/provider-credential-contracts": {
   "types": "./dist/media/site/provider-credential-contracts.d.ts",
   "symbols": {
@@ -4631,6 +4819,52 @@
    "MediaProviderCredentialReplacePlan": "interface:1a28112c37",
    "MediaProviderCredentialReplacePlanner": "type:06439d1f6b",
    "MediaProviderCredentialRepoPort": "interface:58f50efc12"
+  }
+ },
+ "./media/site/provider-credential-store": {
+  "types": "./dist/media/site/provider-credential-store.d.ts",
+  "symbols": {
+   "MediaProviderCredentialInput": "interface:811df7c013",
+   "MediaProviderCredentialMap": "type:020aa3c8a2",
+   "MediaProviderCredentialPolicy": "interface:dbc9bbc87c",
+   "MediaProviderCredentialReadDeps": "interface:21de83703e",
+   "MediaProviderCredentialReadModel": "interface:f91f572cc1",
+   "MediaProviderCredentialResolveDeps": "interface:10acb42550",
+   "MediaProviderCredentialRowDeps": "type:067bd36ad2",
+   "MediaProviderCredentialSaveDeps": "type:665f44fa39",
+   "MediaProviderCredentialSecretStoreUnconfiguredError": "class:4c9db4a7cd",
+   "MediaProviderCredentialStaleError": "class:3c218cf54b",
+   "MediaProviderCredentialValidationError": "class:31aa2da3ca",
+   "MediaProviderCredentialView": "interface:2d85e8dba3",
+   "MediaProviderCredentialWriteDeps": "interface:91e04423cd",
+   "MediaProviderIdCatalog": "interface:37cb001258",
+   "ResolvedMediaProviderCredential": "interface:e0fae6b372",
+   "SaveMediaProviderCredentialsInput": "interface:088f5777b0",
+   "getMediaProviderCredentials": "function:9bef961d0e",
+   "getMediaProviderCredentialsModel": "function:8c65645096",
+   "mediaProviderSetRevision": "function:a71892e04e",
+   "patchMediaProvider": "function:31d99c2287",
+   "removeMediaProvider": "function:c711729aee",
+   "resolveMediaProviderCredential": "function:58086db008",
+   "saveMediaProviderCredentials": "function:45128f807b"
+  }
+ },
+ "./media/site/provider-credential-store.memory": {
+  "types": "./dist/media/site/provider-credential-store.memory.d.ts",
+  "symbols": {
+   "InMemoryMediaProviderCredentialRepo": "class:5650798b69"
+  }
+ },
+ "./media/site/provider-credential-vault": {
+  "types": "./dist/media/site/provider-credential-vault.d.ts",
+  "symbols": {
+   "MediaCredentialVaultPolicy": "interface:3f96d7b0cf",
+   "MediaProviderCredentialVaultRepo": "class:6d2f60f831",
+   "mediaProviderVault": "function:ca13f0d284",
+   "mediaVaultId": "function:6cdedc9510",
+   "mediaVaultRecord": "function:3c6868bd9f",
+   "mediaVaultScope": "function:041c99da52",
+   "resolveMediaCredentialIds": "function:1d8bc8fdca"
   }
  },
  "./media/site/public-path": {
@@ -4657,6 +4891,13 @@
    "purgeMedia": "function:0abb223659"
   }
  },
+ "./media/site/rendition-access": {
+  "types": "./dist/media/site/rendition-access.d.ts",
+  "symbols": {
+   "RenditionAccess": "interface:a445c86e7c",
+   "createRenditionAccess": "function:e45bd069ee"
+  }
+ },
  "./media/site/upload-content-type": {
   "types": "./dist/media/site/upload-content-type.d.ts",
   "symbols": {
@@ -4681,6 +4922,19 @@
    "buildMediaViewImageRegistrations": "function:565c3f2b03",
    "contributeMediaViewImageTools": "function:8365684653",
    "mediaViewImageDerivedRisk": "variable:dd1e485230"
+  }
+ },
+ "./media/site/view-video-tool": {
+  "types": "./dist/media/site/view-video-tool.d.ts",
+  "symbols": {
+   "MEDIA_VIEW_VIDEO_TOOL_ID": "variable:d0aa168658",
+   "MediaVideoToolPorts": "interface:6159fc9917",
+   "MediaViewVideoToolDeps": "interface:5683e7d0d2",
+   "VideoAttachmentReader": "type:28c2da3f5e",
+   "buildMediaViewVideoRegistrations": "function:b3603f7212",
+   "contributeMediaViewVideoTools": "function:6ee35c4eca",
+   "createMediaViewVideoCatalog": "function:45e09b51c4",
+   "mediaViewVideoDerivedRisk": "variable:8886fdf535"
   }
  },
  "./media/site/where-used": {
@@ -5044,6 +5298,14 @@
    "ResolvedNavItem": "interface:111ab85e38"
   }
  },
+ "./pages/agent-tools": {
+  "types": "./dist/pages/agent-tools.d.ts",
+  "symbols": {
+   "AgentToolDefinition": "type:b4d7d744be",
+   "AgentToolSideEffect": "type:1baebbfbe6",
+   "createPagesAgentToolCatalog": "function:a789c5aa89"
+  }
+ },
  "./pages/authoring-html": {
   "types": "./dist/pages/authoring-html.d.ts",
   "symbols": {
@@ -5058,6 +5320,33 @@
    "findScriptRevealedContent": "function:3aa10db42e"
   }
  },
+ "./pages/html-document-store": {
+  "types": "./dist/pages/html-document-store.d.ts",
+  "symbols": {
+   "PageConcurrentEditError": "class:24bf33e163",
+   "PageHtmlStatementRow": "interface:8cce900d10",
+   "PageHtmlStatements": "interface:07c41b450d",
+   "PageKindMismatchError": "class:25ad1f5998",
+   "PageNotFoundError": "class:f5271295a2",
+   "PagesHtmlDocumentStoreDeps": "interface:6a664a6543",
+   "SqlPagesHtmlDocumentStore": "class:7086bfdb61"
+  }
+ },
+ "./pages/html-document-store.memory": {
+  "types": "./dist/pages/html-document-store.memory.d.ts",
+  "symbols": {
+   "InMemoryPagesHtmlDocumentStore": "class:169e301a58"
+  }
+ },
+ "./pages/tool-registrations": {
+  "types": "./dist/pages/tool-registrations.d.ts",
+  "symbols": {
+   "PagesToolDeps": "interface:e2c4abbe2a",
+   "buildPagesRegistrations": "function:d29b1d1e73",
+   "contributePagesTools": "function:08f1a202a2",
+   "pagesDerivedRisk": "variable:33acd2433b"
+  }
+ },
  "./posts/agent-hold": {
   "types": "./dist/posts/agent-hold.d.ts",
   "symbols": {
@@ -5065,11 +5354,30 @@
    "withoutHeldAgentSchedule": "function:b549ea4413"
   }
  },
+ "./posts/agent-tools": {
+  "types": "./dist/posts/agent-tools.d.ts",
+  "symbols": {
+   "AgentToolDefinition": "type:b4d7d744be",
+   "AgentToolSideEffect": "type:1baebbfbe6",
+   "CONTENT_POST_DELETE_TOOL_ID": "variable:caf285bc13",
+   "createPostAgentToolCatalog": "function:83a011b4a7"
+  }
+ },
  "./posts/capability-card": {
   "types": "./dist/posts/capability-card.d.ts",
   "symbols": {
    "ContentCapabilityCardHost": "interface:9038ba522e",
    "createContentCapabilityCard": "function:8011c859c0"
+  }
+ },
+ "./posts/content-stats-tool": {
+  "types": "./dist/posts/content-stats-tool.d.ts",
+  "symbols": {
+   "ContentStatsToolDeps": "interface:2eb45a4bb5",
+   "buildContentStatsRegistrations": "function:d2c28f0137",
+   "contentStatsAgentToolCatalog": "variable:417e15a45d",
+   "contentStatsDerivedRisk": "variable:eb89f0be23",
+   "contributeContentStatsTools": "function:a2ddd5ecb6"
   }
  },
  "./posts/expected-version": {
@@ -5112,7 +5420,7 @@
    "PostRecord": "interface:0a3a8633df",
    "PostRepoPort": "interface:392e2f8cd4",
    "PostRevisionAppendResult": "interface:9e7c7da1e8",
-   "PostRevisionInput": "interface:5e1adc2147",
+   "PostRevisionInput": "interface:1fbbf705a9",
    "PostRevisionOp": "type:4711bde23f",
    "PostRevisionRecord": "interface:3e5a00599f",
    "PostValidationError": "class:58127a83fb",
@@ -5279,6 +5587,13 @@
    "toSearchTerms": "function:247c21928d"
   }
  },
+ "./posts/search-index.memory": {
+  "types": "./dist/posts/search-index.memory.d.ts",
+  "symbols": {
+   "InMemoryPostSearchIndex": "class:3ad6707c10",
+   "PostSearchScratch": "interface:dd6cda6f3c"
+  }
+ },
  "./posts/slug": {
   "types": "./dist/posts/slug.d.ts",
   "symbols": {
@@ -5398,6 +5713,13 @@
    "toHeadlessPost": "function:28f4473961"
   }
  },
+ "./public-http/http/site/bare-page": {
+  "types": "./dist/public-http/http/site/bare-page.d.ts",
+  "symbols": {
+   "RenderBareEntryDocumentRequired": "interface:f17de53fd9",
+   "renderBareEntryDocument": "function:c9d149fc2a"
+  }
+ },
  "./public-http/http/site/form-label-inspection": {
   "types": "./dist/public-http/http/site/form-label-inspection.d.ts",
   "symbols": {
@@ -5438,6 +5760,22 @@
    "SiteRenderContext": "interface:b68088e2e0"
   }
  },
+ "./public-http/http/site/render/blocks": {
+  "types": "./dist/public-http/http/site/render/blocks.d.ts",
+  "symbols": {
+   "BlockRenderPorts": "interface:edae250912",
+   "renderBlock": "function:bf321ae4b4",
+   "renderBlockSeam": "function:4207f04b11"
+  }
+ },
+ "./public-http/http/site/render/components/entry-lists": {
+  "types": "./dist/public-http/http/site/render/components/entry-lists.d.ts",
+  "symbols": {
+   "entryList": "function:3120de023d",
+   "productEntryContent": "function:97aca251cb",
+   "productEntryList": "function:ade3fc9c28"
+  }
+ },
  "./public-http/http/site/render/components/layout": {
   "types": "./dist/public-http/http/site/render/components/layout.d.ts",
   "symbols": {
@@ -5447,10 +5785,27 @@
    "siteNav": "function:c8e58f8dcc"
   }
  },
+ "./public-http/http/site/render/components/marketing": {
+  "types": "./dist/public-http/http/site/render/components/marketing.d.ts",
+  "symbols": {
+   "announcement": "function:bacbae4c10",
+   "ctaBand": "function:e803b80bb8",
+   "featureGrid": "function:2311a5fc9a",
+   "hero": "function:ec4fea142a",
+   "section": "function:a9091026cc"
+  }
+ },
  "./public-http/http/site/render/contact-form-widget": {
   "types": "./dist/public-http/http/site/render/contact-form-widget.d.ts",
   "symbols": {
    "renderWidgetContactForm": "function:7de004e384"
+  }
+ },
+ "./public-http/http/site/render/content-html": {
+  "types": "./dist/public-http/http/site/render/content-html.d.ts",
+  "symbols": {
+   "ContentHtmlRenderer": "interface:95a597eda5",
+   "createContentHtmlRenderer": "function:33a6c32874"
   }
  },
  "./public-http/http/site/render/doc/doc-nodes": {
@@ -5503,6 +5858,30 @@
   "types": "./dist/public-http/http/site/render/media-playback-copy.d.ts",
   "symbols": {
    "MEDIA_PLAYBACK_COPY": "variable:0459d13578"
+  }
+ },
+ "./public-http/http/site/render/page-body": {
+  "types": "./dist/public-http/http/site/render/page-body.d.ts",
+  "symbols": {
+   "renderHtmlPageBody": "function:9f50c0867c"
+  }
+ },
+ "./public-http/http/site/render/post-body": {
+  "types": "./dist/public-http/http/site/render/post-body.d.ts",
+  "symbols": {
+   "entryContent": "function:19fc510e44",
+   "renderAssignedTermsBlock": "function:915b30d980",
+   "renderPostBody": "function:2482c46de6",
+   "shortDate": "function:9594be7cbb"
+  }
+ },
+ "./public-http/http/site/render/template-render-data": {
+  "types": "./dist/public-http/http/site/render/template-render-data.d.ts",
+  "symbols": {
+   "FeaturedImageView": "interface:eed5118ee5",
+   "buildTemplateRenderData": "function:cb4b1f89fd",
+   "featuredImageView": "function:49a1040b15",
+   "formatProductMoney": "function:109d3b8d85"
   }
  },
  "./public-http/http/site/render/value-readers": {
@@ -5816,6 +6195,14 @@
    "healthzRoute": "variable:82e28a0166"
   }
  },
+ "./public-http/routes/plugin-contributions": {
+  "types": "./dist/public-http/routes/plugin-contributions.d.ts",
+  "symbols": {
+   "PluginHttpReply": "type:4b357fd19a",
+   "invokeLivePluginRoute": "function:60386e19b7",
+   "isPluginActivated": "function:c94d31d3a1"
+  }
+ },
  "./public-http/routes/publish-trust/handshake": {
   "types": "./dist/public-http/routes/publish-trust/handshake.d.ts",
   "symbols": {
@@ -5836,6 +6223,15 @@
    "publishTrustSessionRoute": "variable:ffdf59f428"
   }
  },
+ "./public-http/routes/site/comments-submit": {
+  "types": "./dist/public-http/routes/site/comments-submit.d.ts",
+  "symbols": {
+   "CommentIngressSubmitResult": "type:0af94a3b29",
+   "commentFormReturnTo": "function:0d048ef8f2",
+   "commentProviderIngress": "function:d6e73d582c",
+   "isSameOriginCommentPost": "function:375164bcea"
+  }
+ },
  "./public-http/routes/site/feed": {
   "types": "./dist/public-http/routes/site/feed.d.ts",
   "symbols": {
@@ -5848,6 +6244,20 @@
   "symbols": {
    "LlmsTxtRouteDeps": "interface:9ccf63c3b2",
    "llmsTxtRoute": "variable:4c3b844503"
+  }
+ },
+ "./public-http/routes/site/member-pages": {
+  "types": "./dist/public-http/routes/site/member-pages.d.ts",
+  "symbols": {
+   "MemberPageReply": "type:ca3abaf2da",
+   "makeMemberPagePost": "function:50e0e79692",
+   "memberPageRoute": "variable:ca86e963bd"
+  }
+ },
+ "./public-http/routes/site/pages/extra-head": {
+  "types": "./dist/public-http/routes/site/pages/extra-head.d.ts",
+  "symbols": {
+   "buildExtraHead": "function:a1f8d4761f"
   }
  },
  "./public-http/routes/site/pages/listing/listing-state": {
@@ -5896,12 +6306,30 @@
    "resolveAssignedTermsForRender": "function:372e853e18"
   }
  },
+ "./public-http/routes/site/pages/response": {
+  "types": "./dist/public-http/routes/site/pages/response.d.ts",
+  "symbols": {
+   "PerVisitorResponse": "interface:59c16d56f0",
+   "finalizePublicPageHtml": "function:94bb79acd6",
+   "publicPageCache": "function:0ddd427d7b",
+   "resolveVisitorPagePolicy": "function:04df7978d0"
+  }
+ },
  "./public-http/routes/site/product-checkout": {
   "types": "./dist/public-http/routes/site/product-checkout.d.ts",
   "symbols": {
    "ProductCheckoutReadiness": "interface:d75e14374b",
    "appendProductCheckout": "function:3aee5e3b9d",
    "productCheckoutWhenReady": "function:54e014f5c7"
+  }
+ },
+ "./public-http/routes/site/products": {
+  "types": "./dist/public-http/routes/site/products.d.ts",
+  "symbols": {
+   "resolveStorefrontProduct": "function:f05ad57f53",
+   "resolveStorefrontProducts": "function:7fb4c55206",
+   "storefrontProductRoute": "variable:452abbe3a9",
+   "storefrontProductsRoute": "variable:77d721a1f3"
   }
  },
  "./public-http/routes/site/robots": {
@@ -6414,6 +6842,24 @@
    "SqlPublishContentBaselineRepo": "class:7ffdad7274"
   }
  },
+ "./publish/content/sql/raw-row-sqlite": {
+  "types": "./dist/publish/content/sql/raw-row-sqlite.d.ts",
+  "symbols": {
+   "createRawRowSqlitePort": "function:467a8c0dd0"
+  }
+ },
+ "./publish/content/tool-helpers": {
+  "types": "./dist/publish/content/tool-helpers.d.ts",
+  "symbols": {
+   "acceptedPullReport": "function:2247a641ce",
+   "plainSentence": "function:8e3e1a6201",
+   "publishContentDerivedRisk": "variable:46cf63db73",
+   "pullCounts": "function:8fa7ce04a6",
+   "pullOverwriteKeys": "function:b761651b91",
+   "pullTitle": "function:4233865dde",
+   "requiredPullBundleId": "function:1c3a7d653e"
+  }
+ },
  "./publish/content/tool-metadata": {
   "types": "./dist/publish/content/tool-metadata.d.ts",
   "symbols": {
@@ -6698,6 +7144,14 @@
    "parseRevocationDocument": "function:0b9d2ce5fb"
   }
  },
+ "./publish/trust/revocations.sql": {
+  "types": "./dist/publish/trust/revocations.sql.d.ts",
+  "symbols": {
+   "PublishTrustRevocationDatabase": "interface:3c17d49632",
+   "SqlPublishTrustRevocationStore": "class:99975a490b",
+   "publishTrustRevocationStoreFor": "function:f679e07fe8"
+  }
+ },
  "./publish/trust/session": {
   "types": "./dist/publish/trust/session.d.ts",
   "symbols": {
@@ -6706,6 +7160,20 @@
    "SESSION_TTL_MS": "variable:672694cfee",
    "mintPublishSession": "function:41864bf657",
    "verifyPublishSession": "function:465abfd4df"
+  }
+ },
+ "./react/collections/CollectionEntryEditor": {
+  "types": "./dist/react/collections/CollectionEntryEditor.d.ts",
+  "symbols": {
+   "CollectionEntryEditor": "function:e3a5f0f887",
+   "CollectionEntryEditorProps": "interface:0dc2601790",
+   "CollectionEntryViewController": "interface:a789cb73d6"
+  }
+ },
+ "./react/fs-files/fs-files-api": {
+  "types": "./dist/react/fs-files/fs-files-api.d.ts",
+  "symbols": {
+   "createFsFilesApi": "function:353b9e033b"
   }
  },
  "./react/media": {
@@ -6720,10 +7188,56 @@
    "useRemoteImageImport": "function:4d335ce20f"
   }
  },
+ "./react/media/MediaEditDialog/MediaEditDialog": {
+  "types": "./dist/react/media/MediaEditDialog/MediaEditDialog.d.ts",
+  "symbols": {
+   "MediaEditDialog": "function:b73f737ca0",
+   "MediaEditDialogProps": "interface:71b7b8347b"
+  }
+ },
+ "./react/media/MediaPickerDialog/MediaPickerDialog": {
+  "types": "./dist/react/media/MediaPickerDialog/MediaPickerDialog.d.ts",
+  "symbols": {
+   "MediaPickerDialog": "function:c4058ef587",
+   "MediaPickerDialogProps": "interface:2c29df930a"
+  }
+ },
+ "./react/media/MediaPickerDialog/MediaPickerDialog.hooks": {
+  "types": "./dist/react/media/MediaPickerDialog/MediaPickerDialog.hooks.d.ts",
+  "symbols": {
+   "MediaPickerDialogController": "interface:4bc947144b",
+   "acceptedMediaItems": "function:20ea2a6f28",
+   "useMediaPickerDialog": "function:f2fbc9147e",
+   "useMediaPickerItems": "function:64bb9bbcdd"
+  }
+ },
+ "./react/pages/hooks/page-editor-save": {
+  "types": "./dist/react/pages/hooks/page-editor-save.d.ts",
+  "symbols": {
+   "PageBodyWriteError": "class:7165fb5207",
+   "PageSavePlan": "interface:ce2a382eaa",
+   "applyPartialSave": "function:7f61f5257d",
+   "applySaveFailure": "function:037e0915f6",
+   "applySavedPage": "function:99a9f76ec0",
+   "writePage": "function:6457b7f4aa"
+  }
+ },
  "./react/pages/PageExternalChangeBanner": {
   "types": "./dist/react/pages/PageExternalChangeBanner.d.ts",
   "symbols": {
    "PageExternalChangeBanner": "function:b9341224f8"
+  }
+ },
+ "./react/posts/editor/header/PostEditorActions": {
+  "types": "./dist/react/posts/editor/header/PostEditorActions.d.ts",
+  "symbols": {
+   "PostEditorActions": "function:b0b813da76"
+  }
+ },
+ "./react/posts/editor/header/PostEditorHeader": {
+  "types": "./dist/react/posts/editor/header/PostEditorHeader.d.ts",
+  "symbols": {
+   "PostEditorHeader": "function:929df973b0"
   }
  },
  "./react/posts/editor/notices/PostEditorSlugCollisionWarning": {
@@ -6732,11 +7246,77 @@
    "PostEditorSlugCollisionWarning": "function:3d81986e3c"
   }
  },
+ "./react/posts/editor/preview/PostPreview": {
+  "types": "./dist/react/posts/editor/preview/PostPreview.d.ts",
+  "symbols": {
+   "PostPreview": "function:ef3a200b89"
+  }
+ },
+ "./react/posts/editor/preview/PostPreviewFrame": {
+  "types": "./dist/react/posts/editor/preview/PostPreviewFrame.d.ts",
+  "symbols": {
+   "PostPreviewFrame": "function:9edfe2f056"
+  }
+ },
+ "./react/posts/editor/view-bar/PostEditorViewBar": {
+  "types": "./dist/react/posts/editor/view-bar/PostEditorViewBar.d.ts",
+  "symbols": {
+   "PostEditorViewBar": "function:9c55c24549"
+  }
+ },
+ "./react/posts/hooks/post-editor-messages": {
+  "types": "./dist/react/posts/hooks/post-editor-messages.d.ts",
+  "symbols": {
+   "POST_LOAD_FAILED": "variable:ac8a9650cf",
+   "POST_NOT_LOADED_SAVE_REFUSED": "variable:fa986b304d",
+   "SaveStatusOverride": "type:ca13559225",
+   "formatOutsideChangeMessage": "function:87d75a2934",
+   "formatSaveErrorMessage": "function:fcdc6f51e0",
+   "formatSaveSuccessMessage": "function:6728de559d",
+   "reportPostLoadFailure": "function:b4ab1c685e"
+  }
+ },
+ "./react/posts/hooks/post-editor-save.rules": {
+  "types": "./dist/react/posts/hooks/post-editor-save.rules.d.ts",
+  "symbols": {
+   "PostSaveWorkingCopy": "interface:f9526639b8",
+   "PostUpdatePatch": "type:2d3e3e4bbd",
+   "SavedPostFields": "interface:33322a2da4",
+   "authorFieldsPatch": "function:a16a29d4f1",
+   "buildPostUpdatePatch": "function:f7c4979818",
+   "keepNewerEdit": "function:d0cb4e3f83",
+   "savedPostFields": "function:0cc2c92194",
+   "scheduleFieldsPatch": "function:5a194b2a02",
+   "withEverPublished": "function:2e89d92109"
+  }
+ },
+ "./react/posts/hooks/post-editor-state.rules": {
+  "types": "./dist/react/posts/hooks/post-editor-state.rules.d.ts",
+  "symbols": {
+   "ActivePostTheme": "interface:e4f1c3936f",
+   "LoadedPostHandles": "interface:4157a0aa7c",
+   "PostFormState": "interface:c232193354",
+   "loadedPostForm": "function:9813ffecaf",
+   "loadedPostHandles": "function:35bc0a0ff0",
+   "postFormSnapshot": "function:ec21124d75",
+   "resolveActivePostTheme": "function:6c4313cb8b",
+   "resolveEditorSlug": "function:3d623a364b",
+   "savedHideCoverImageInBody": "function:cce6ccf050"
+  }
+ },
  "./react/posts/hooks/use-post-featured-image.hooks": {
   "types": "./dist/react/posts/hooks/use-post-featured-image.hooks.d.ts",
   "symbols": {
    "PostFeaturedImageController": "interface:d5de801969",
    "usePostFeaturedImage": "function:956e394830"
+  }
+ },
+ "./react/posts/hooks/use-post-url-dialog.hooks": {
+  "types": "./dist/react/posts/hooks/use-post-url-dialog.hooks.d.ts",
+  "symbols": {
+   "PostUrlDialogController": "type:744d23dd25",
+   "PostUrlEditorPort": "interface:3109fc3181",
+   "usePostUrlDialog": "function:ad63b3acc4"
   }
  },
  "./react/posts/PostCoverImage": {
@@ -6747,10 +7327,28 @@
    "PostCoverImageProps": "interface:786acbe5dc"
   }
  },
+ "./react/publish-content/api/publish-content-api": {
+  "types": "./dist/react/publish-content/api/publish-content-api.d.ts",
+  "symbols": {
+   "createPublishContentApi": "function:73b488d7d7"
+  }
+ },
  "./react/publish-content/criteria-publish-result": {
   "types": "./dist/react/publish-content/hooks/criteria-publish-result.d.ts",
   "symbols": {
    "buildCriteriaPublishResult": "function:459813a5cb"
+  }
+ },
+ "./react/publish-content/hooks/publish-content-port.hooks": {
+  "types": "./dist/react/publish-content/hooks/publish-content-port.hooks.d.ts",
+  "symbols": {
+   "PublishContentPort": "interface:bd2a53a62a"
+  }
+ },
+ "./react/publish-content/publish-criteria-deep-link": {
+  "types": "./dist/react/publish-content/publish-criteria-deep-link.d.ts",
+  "symbols": {
+   "takePublishCriteriaFromQuery": "function:aca3275371"
   }
  },
  "./react/publish-content/PublishSectionButton": {
@@ -6758,6 +7356,41 @@
   "symbols": {
    "PublishSectionButton": "function:debbb6a72d",
    "PublishSectionButtonProps": "interface:14a14413be"
+  }
+ },
+ "./react/widgets/EmbedInsertControl/EmbedInsertControl": {
+  "types": "./dist/react/widgets/EmbedInsertControl/EmbedInsertControl.d.ts",
+  "symbols": {
+   "EmbedInsertControl": "function:c865d667ee",
+   "EmbedInsertControlProps": "interface:9048988908",
+   "EmbedInsertControlState": "interface:1439108446"
+  }
+ },
+ "./react/widgets/EmbedInsertControl/EmbedInsertControl.hooks": {
+  "types": "./dist/react/widgets/EmbedInsertControl/EmbedInsertControl.hooks.d.ts",
+  "symbols": {
+   "EmbedEditor": "interface:2bc1bcadcc",
+   "UseWidgetAddControlHook": "type:35b172ee9d",
+   "WidgetAddControlState": "interface:755f7cb6b1",
+   "WidgetShortcutType": "type:1d9244a090",
+   "createEmbedInsertControlTranslator": "function:36ea981204",
+   "useEmbedInsertControl": "function:a515fba440"
+  }
+ },
+ "./react/widgets/WidgetConfigFields/HtmlAttributeRows": {
+  "types": "./dist/react/widgets/WidgetConfigFields/HtmlAttributeRows.d.ts",
+  "symbols": {
+   "HtmlAttributeRow": "interface:373a44047e",
+   "HtmlAttributeRows": "function:07ca7c42e7",
+   "HtmlAttributeRowsController": "interface:9de2fac243",
+   "HtmlAttributeRowsProps": "interface:9556d2b085"
+  }
+ },
+ "./react/widgets/WidgetConfigFields/WidgetConfigFields": {
+  "types": "./dist/react/widgets/WidgetConfigFields/WidgetConfigFields.d.ts",
+  "symbols": {
+   "WidgetConfigFields": "function:569e39e352",
+   "WidgetConfigFieldsProps": "interface:ce718ed04b"
   }
  },
  "./redirects": {
@@ -7116,6 +7749,14 @@
    "countSyllables": "function:9a0b05c175",
    "summarizeReport": "function:0e2dc1bbdf",
    "tiptapToBlocks": "function:9c5974287a"
+  }
+ },
+ "./seo/content-analyzer-plugin/plugin": {
+  "types": "./dist/seo/content-analyzer-plugin/plugin.d.ts",
+  "symbols": {
+   "buildContentAnalyzerPatch": "function:e316f4e773",
+   "default": "variable:daf9e98ba5",
+   "readMetaDescription": "function:d5f894d234"
   }
  },
  "./seo/cover-image": {
@@ -7555,6 +8196,15 @@
    "writeVisitorTools": "function:c3df0696c5"
   }
  },
+ "./site-inspection/agent-tools": {
+  "types": "./dist/site-inspection/agent-tools.d.ts",
+  "symbols": {
+   "AgentToolDefinition": "type:b4d7d744be",
+   "AgentToolSideEffect": "type:11eb2b47d7",
+   "createFetchPublishedPageInputSchema": "function:85bac87fcc",
+   "createSiteInspectionAgentToolCatalog": "function:a34cc84377"
+  }
+ },
  "./site-inspection/section-collector": {
   "types": "./dist/site-inspection/section-collector.d.ts",
   "symbols": {
@@ -7687,7 +8337,7 @@
    "TaxonomyRecordNotFoundError": "class:4d5fa18ed6",
    "TaxonomyRepoPort": "interface:d117952d13",
    "TaxonomyRevisionRepoPort": "interface:b17b53de45",
-   "TaxonomyRevisionRow": "interface:cdde74f69e",
+   "TaxonomyRevisionRow": "interface:8a6a8e1096",
    "TaxonomyRevisionWritePort": "interface:0bd231d8fc",
    "TaxonomyToolSurfaces": "interface:e74fac4e78",
    "TaxonomyTrashReadPort": "interface:2240ae83c9",
@@ -7796,7 +8446,7 @@
    "SqlTaxonomyRepo": "class:a2b81275af",
    "SqlTaxonomyRevisionRepo": "class:562489f307",
    "SqlTermRepo": "class:e87ef2be85",
-   "TaxonomyRevisionTableRow": "interface:de0dd4bbc4",
+   "TaxonomyRevisionTableRow": "interface:d22ca36ec0",
    "TaxonomyRow": "interface:50eb46c12c",
    "TaxonomySqlRequired": "interface:d87e2fb458",
    "TaxonomyTables": "interface:ad1fff6a51",
@@ -7948,8 +8598,8 @@
    "RestoreOutcome": "type:15cbae8419",
    "TRASH_ITEM_TOOL_ID": "variable:dce7f71d2d",
    "TransactionRunner": "type:488c833db5",
-   "TrashActor": "interface:92b4352cd5",
-   "TrashAdapter": "interface:6bf0d10b1a",
+   "TrashActor": "interface:045fd17c4c",
+   "TrashAdapter": "interface:135fd892cd",
    "TrashAdapterMissingError": "class:de3dada9a6",
    "TrashBlockerSpec": "interface:1d00d69655",
    "TrashCascadeSpec": "interface:69f1b329ba",
@@ -7962,7 +8612,7 @@
    "TrashEntry": "interface:e0cff85d7a",
    "TrashFollowUpHooks": "interface:d110c4ec2c",
    "TrashHiddenWithParentSpec": "interface:322e24fdf1",
-   "TrashItem": "interface:1e71eb3cfb",
+   "TrashItem": "interface:c24c086362",
    "TrashItemAuthorizer": "type:732a12330c",
    "TrashItemDelegate": "interface:d59fa73e9d",
    "TrashItemToolDeps": "interface:1fa875cb80",
@@ -8039,10 +8689,31 @@
    "lazyKernel": "function:41a1441eca"
   }
  },
+ "./trash/site/adapters/media": {
+  "types": "./dist/trash/site/adapters/media.d.ts",
+  "symbols": {
+   "MEDIA_ENTITY_TYPE": "variable:9d2d76f6f6",
+   "MediaTrashAdapterDeps": "interface:53cdb8f776",
+   "createMediaTrashAdapter": "function:07cba7d129"
+  }
+ },
+ "./trash/site/adapters/member": {
+  "types": "./dist/trash/site/adapters/member.d.ts",
+  "symbols": {
+   "createMemberTrashAdapter": "function:1b6820e030"
+  }
+ },
  "./trash/site/adapters/plugin": {
   "types": "./dist/trash/site/adapters/plugin.d.ts",
   "symbols": {
    "PLUGIN_ENTITY_TYPE": "variable:e54ef0b8a3"
+  }
+ },
+ "./trash/site/adapters/post": {
+  "types": "./dist/trash/site/adapters/post.d.ts",
+  "symbols": {
+   "POST_ENTITY_TYPE": "variable:4bdc86f554",
+   "createPostTrashAdapter": "function:5ad57fbf3b"
   }
  },
  "./trash/site/adapters/theme": {
@@ -8056,6 +8727,14 @@
   "symbols": {
    "DirectoryRollbackLogSink": "type:c13f610e04",
    "createDirectoryRollbackReporter": "function:493d4f0dfc"
+  }
+ },
+ "./trash/site/move-to-trash": {
+  "types": "./dist/trash/site/move-to-trash.d.ts",
+  "symbols": {
+   "MoveToTrashDeps": "interface:7837568b6d",
+   "MoveToTrashRequired": "interface:61e44eed10",
+   "moveToTrash": "function:3d3be0b990"
   }
  },
  "./trash/site/ports": {
@@ -8095,7 +8774,7 @@
    "TrashCondition": "type:01e0d7d09b",
    "TrashSqlRequired": "interface:3c74c50ec4",
    "TrashTables": "interface:eb4693295a",
-   "TrashedItemRow": "interface:4b63fd4d6b",
+   "TrashedItemRow": "interface:cbcf945181",
    "createTableTrashAdapter": "function:af690035d0",
    "entryWhere": "function:96155df9eb",
    "isTrashedRecord": "function:d1828b763c",
@@ -8103,6 +8782,15 @@
    "notTrashed": "function:f7d26b898a",
    "qualified": "function:4ce5fbe921",
    "readLiveSnapshot": "function:beebd0e5c0"
+  }
+ },
+ "./trash/visibility": {
+  "types": "./dist/trash/visibility.d.ts",
+  "symbols": {
+   "filterVisibleTrashItems": "function:456963175e",
+   "mayActOnEntityType": "function:7c94441d0e",
+   "trashDaysRemaining": "function:6fd91c37f8",
+   "trashPermissionFor": "function:9b9e836d3a"
   }
  },
  "./webmcp/settings": {

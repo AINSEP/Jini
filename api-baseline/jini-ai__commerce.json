@@ -96,6 +96,17 @@
    "registerPaymentsWebhookRoute": "function:ec2e0e97ab"
   }
  },
+ "./http/purchase": {
+  "types": "./dist/http/purchase.d.ts",
+  "symbols": {
+   "admitPurchase": "function:f3c7d3f738",
+   "commerceCancelRoute": "variable:4d8aea1b4f",
+   "commerceReturnRoute": "variable:f4fa9d2ff0",
+   "createOrderRoute": "variable:eec1d82c23",
+   "payOrderRoute": "variable:56fa32e96e",
+   "readOrderRoute": "variable:aaaa6c9858"
+  }
+ },
  "./money": {
   "types": "./dist/money/money.d.ts",
   "symbols": {
@@ -409,7 +420,8 @@
  "./react": {
   "types": "./dist/react/index.d.ts",
   "symbols": {
-   "Payments": "function:0833381401"
+   "Payments": "function:187994f078",
+   "PaymentsClasses": "interface:59e76d39e9"
   }
  },
  "./repo": {

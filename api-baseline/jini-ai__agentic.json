@@ -219,6 +219,33 @@
    "registerAdminPageWebMcpTools": "function:ff6b438c85"
   }
  },
+ "./react/skills/api": {
+  "types": "./dist/react/skills/api.d.ts",
+  "symbols": {
+   "SkillFiles": "type:149044ff9e",
+   "createSkillsApi": "function:3dae79434e"
+  }
+ },
+ "./react/skills/use-skill-files.hooks": {
+  "types": "./dist/react/skills/use-skill-files.hooks.d.ts",
+  "symbols": {
+   "useSkillFiles": "function:c3cf6c38e0",
+   "useSkillFilesModal": "function:e8a40548b6"
+  }
+ },
+ "./react/skills/use-skill-install.hooks": {
+  "types": "./dist/react/skills/use-skill-install.hooks.d.ts",
+  "symbols": {
+   "useSkillInstall": "function:eca9949a43"
+  }
+ },
+ "./react/skills/use-skills.hooks": {
+  "types": "./dist/react/skills/use-skills.hooks.d.ts",
+  "symbols": {
+   "SkillsController": "type:4462c104b5",
+   "useSkills": "function:2a463b12d6"
+  }
+ },
  "./render-surface": {
   "types": "./dist/core/render-surface.d.ts",
   "symbols": {

@@ -792,6 +792,21 @@
    "writeCachedAttachmentBatchId": "function:791bb8a878"
   }
  },
+ "./react/admin-execution/ai-agent-presentation": {
+  "types": "./dist/react/admin-execution/ai-agent-presentation.d.ts",
+  "symbols": {
+   "createAgentPresentationPort": "function:d0b381f3ef",
+   "localCliScopeCopy": "function:d749da056b",
+   "normalizeAgentDescription": "function:1721e9a8da",
+   "selectedAgentWarning": "function:e289a1b884"
+  }
+ },
+ "./react/admin-execution/hooks/use-ai-agent-presentation.hooks": {
+  "types": "./dist/react/admin-execution/hooks/use-ai-agent-presentation.hooks.d.ts",
+  "symbols": {
+   "useAiAgentPresentation": "function:895a60e36c"
+  }
+ },
  "./react/bridged-chat": {
   "types": "./dist/react/features/bridged-chat/index.d.ts",
   "symbols": {
@@ -858,6 +873,13 @@
    "useChatPaneAgentControl": "function:22dfeb4f1a",
    "useChatPaneRuntimeInventory": "function:2e88f07d8b",
    "useChatPaneWorkingDirectory": "function:ede0694c2a"
+  }
+ },
+ "./react/components/RoutedA2uiSurfaceCard": {
+  "types": "./dist/react/components/RoutedA2uiSurfaceCard.d.ts",
+  "symbols": {
+   "RoutedA2uiSurfaceCard": "function:e336a8a168",
+   "RoutedA2uiSurfaceCardProps": "interface:c1edefaf25"
   }
  },
  "./react/conversation-chat-pane": {
@@ -1196,6 +1218,7 @@
    "DurableSubscriptionPorts": "interface:bb8dc9f954",
    "LocalRunLaunch": "interface:26d648d735",
    "activeRunStub": "function:4d82ef5211",
+   "browserDurableSubscriptionPorts": "function:02d767ee90",
    "createA2uiActionPoster": "function:f84793846b",
    "createAssistantTransportClient": "function:321270c57a",
    "createChatAttachmentValidator": "function:3cc377685f",

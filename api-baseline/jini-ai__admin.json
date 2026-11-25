@@ -271,15 +271,41 @@
    "BrowserTelemetryDeps": "interface:bc35cf0a02",
    "BrowserTelemetryPayload": "type:068d9c4c51",
    "NAVIGATION_EVENT": "variable:81f25bb12a",
+   "ServerConnectionStatus": "type:0691a23287",
+   "ServerReconnect": "interface:cbcc7b567c",
+   "ServerReconnectDeps": "interface:f2ff298acb",
+   "ServerReconnectOptional": "interface:c1bae1cdf3",
    "createAdminShellNavigation": "function:d6c104a119",
    "createBrowserTelemetry": "function:4034290254",
    "createReactRootErrorHandlers": "function:e6469475de",
+   "createServerReconnect": "function:a94987b8e1",
    "installBrowserErrorListeners": "function:8332e3fccd",
    "installInternalLinkInterceptor": "function:f0224d9274",
    "navigate": "function:2053e20299",
+   "probeReadyz": "function:1460120b64",
    "readRoutePath": "function:8eddccddd9",
+   "shouldRetryAfterReconnect": "function:edd288e886",
    "subscribeToRoute": "function:80af65051e",
+   "subscribeToSettingsChanges": "function:a97bbdb384",
    "toRouteTemplate": "function:a6a4522eb5"
+  }
+ },
+ "./browser/server-reconnect": {
+  "types": "./dist/browser/server-reconnect.d.ts",
+  "symbols": {
+   "ServerConnectionStatus": "type:0691a23287",
+   "ServerReconnect": "interface:cbcc7b567c",
+   "ServerReconnectDeps": "interface:f2ff298acb",
+   "ServerReconnectOptional": "interface:c1bae1cdf3",
+   "createServerReconnect": "function:a94987b8e1",
+   "probeReadyz": "function:1460120b64",
+   "shouldRetryAfterReconnect": "function:edd288e886"
+  }
+ },
+ "./browser/settings-events": {
+  "types": "./dist/browser/settings-events.d.ts",
+  "symbols": {
+   "subscribeToSettingsChanges": "function:a97bbdb384"
   }
  },
  "./browser/shell-navigation": {
@@ -1858,6 +1884,14 @@
    "createOverlayController": "function:45e8753744"
   }
  },
+ "./react/settings/SettingsPageLayout": {
+  "types": "./dist/react/settings/SettingsPageLayout.d.ts",
+  "symbols": {
+   "SettingsAboutPanel": "function:0c2f4b94fe",
+   "SettingsPageLayout": "function:2e0522e559",
+   "SettingsPageLayoutProps": "interface:98a4f606bb"
+  }
+ },
  "./react/shell": {
   "types": "./dist/react/shell/index.d.ts",
   "symbols": {
@@ -1886,6 +1920,22 @@
    "resolveAdminShellModel": "function:5ff071ada8",
    "useAdminShellSession": "function:b683ae5a2a",
    "useAdminTheme": "function:8eee9c61ef"
+  }
+ },
+ "./react/shell/appearance": {
+  "types": "./dist/react/shell/appearance.d.ts",
+  "symbols": {
+   "createAppearanceDraftStore": "function:9d90842d1d",
+   "useAdminAppearance": "function:38150b26f5",
+   "useSettingsAppearance": "function:fa0d8a61ea"
+  }
+ },
+ "./react/shell/Placeholder": {
+  "types": "./dist/react/shell/Placeholder.d.ts",
+  "symbols": {
+   "ComingSoonNotice": "function:e7a870b259",
+   "Placeholder": "function:0eb03a6f2c",
+   "findNavGroupLabel": "function:d32b34c91d"
   }
  },
  "./react/testing-kit": {
@@ -5861,6 +5911,13 @@
    "useSecurityTranslation": "function:7d8accfc14"
   }
  },
+ "./security/react/live/Security": {
+  "types": "./dist/security/react/live/Security.d.ts",
+  "symbols": {
+   "Security": "function:ba59749e3a",
+   "SecurityProps": "interface:bf57e31525"
+  }
+ },
  "./security/security-i18n": {
   "types": "./dist/security/security-i18n.d.ts",
   "symbols": {
@@ -6219,11 +6276,27 @@
    "useLocalCliDaemonPrewarm": "function:af536b1e7c"
   }
  },
+ "./shell/components/AssistantDock/hooks/byok-runtime.hooks": {
+  "types": "./dist/shell/components/AssistantDock/hooks/byok-runtime.hooks.d.ts",
+  "symbols": {
+   "UseByokRuntime": "interface:d1709592f8",
+   "useByokModels": "function:2d32050853",
+   "useByokRuntime": "function:929874672f"
+  }
+ },
  "./shell/components/AssistantDock/hooks/chat-package-kind": {
   "types": "./dist/shell/components/AssistantDock/hooks/chat-package-kind.d.ts",
   "symbols": {
    "chatPackageKind": "function:b46a5ee845",
    "partitionChatPackages": "function:72fe1af8ee"
+  }
+ },
+ "./shell/components/AssistantDock/hooks/composer-discovery.hooks": {
+  "types": "./dist/shell/components/AssistantDock/hooks/composer-discovery.hooks.d.ts",
+  "symbols": {
+   "UseComposerCapabilities": "interface:9cdad4ac1b",
+   "useComposerCapabilities": "function:1b76f171cb",
+   "useComposerDiscoverySelect": "function:60bc5e22f4"
   }
  },
  "./shell/components/AssistantDock/hooks/composer-files.hooks": {
@@ -6234,13 +6307,38 @@
    "useAttachmentValidator": "function:a46b90abe0",
    "useFolderDropBridge": "function:e0d4d6c1d0",
    "useSkillAwareAttachmentUploader": "function:7fa8774435",
-   "useWorkingDirectoryAccess": "function:04163175b8"
+   "useWorkingDirectoryAccess": "function:04163175b8",
+   "withSizeRefusalCopy": "function:e229a53ac0"
   }
  },
  "./shell/components/AssistantDock/hooks/conversation-refresh.hooks": {
   "types": "./dist/shell/components/AssistantDock/hooks/conversation-refresh.hooks.d.ts",
   "symbols": {
    "useConversationRefreshSignal": "function:51011352cb"
+  }
+ },
+ "./shell/components/AssistantDock/hooks/execution-config-ledger.hooks": {
+  "types": "./dist/shell/components/AssistantDock/hooks/execution-config-ledger.hooks.d.ts",
+  "symbols": {
+   "EXECUTION_CONFIG_MAX_AGE_MS": "variable:6b30cbe131",
+   "useExecutionConfigLedger": "function:4391180444"
+  }
+ },
+ "./shell/components/AssistantDock/hooks/execution-config.hooks": {
+  "types": "./dist/shell/components/AssistantDock/hooks/execution-config.hooks.d.ts",
+  "symbols": {
+   "DockExecutionConfigPort": "interface:fbb7522947",
+   "ExecutionWrite": "type:bbabfcaf93",
+   "UseExecutionConfig": "interface:8cf1baf1d2",
+   "useExecutionConfig": "function:a81a226f7e",
+   "useStoredAdminKey": "function:edbb051e91"
+  }
+ },
+ "./shell/components/AssistantDock/hooks/local-cli-selection.hooks": {
+  "types": "./dist/shell/components/AssistantDock/hooks/local-cli-selection.hooks.d.ts",
+  "symbols": {
+   "UseLocalCliSelection": "interface:8ec63f17d1",
+   "useLocalCliSelection": "function:95fbc129bc"
   }
  },
  "./shell/components/AssistantDock/hooks/open-mcp-ui-link": {
@@ -7091,6 +7189,23 @@
   "symbols": {
    "InnerLayerQueryRoot": "interface:a8dd1065e7",
    "isEscapeOwnedByInnerLayer": "function:4df26d01f5"
+  }
+ },
+ "./shell/lib/execution-settings-ledger": {
+  "types": "./dist/shell/lib/execution-settings-ledger.d.ts",
+  "symbols": {
+   "EXECUTION_NAMESPACE": "variable:294f405a8d",
+   "buildByokConfigFromLedger": "function:abdaf23296",
+   "buildLocalCliConfigFromLedger": "function:2de8122f56",
+   "createExecutionSettingsLedger": "function:19ce85aa81",
+   "hasTypedAdminKey": "function:d972a4a9af",
+   "hasUsableAdminKey": "function:a997600e27",
+   "readByokProtocol": "function:4d9f33bdd6",
+   "readByokProviderId": "function:ec0ff6006c",
+   "readExecutionMode": "function:8ea251667d",
+   "reconcileExecutionConfigRefresh": "function:219134ab0a",
+   "selectedLocalCliModel": "function:cf450f806a",
+   "selectedLocalCliReasoning": "function:63f1b30bff"
   }
  },
  "./shell/lib/external-entry-refresh": {

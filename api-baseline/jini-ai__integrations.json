@@ -160,6 +160,29 @@
    "createSharedApiConnections": "function:58f2d92ba6"
   }
  },
+ "./api-connections/shared-oauth-disconnect": {
+  "types": "./dist/api-connections/shared-oauth-disconnect.d.ts",
+  "symbols": {
+   "DisconnectOwner": "type:1728c58d26",
+   "SharedOAuthDisconnectContext": "interface:b4dd49646f",
+   "SharedOAuthDisconnectInspection": "interface:90d53d6ad2",
+   "SharedOAuthDisconnectReport": "interface:ccfb2e3827",
+   "SharedOAuthDisconnectStorage": "interface:0779f173a1",
+   "disconnectSharedOAuth": "function:5091731f5f",
+   "inspectSharedOAuthDisconnect": "function:75fe37f3df"
+  }
+ },
+ "./api-connections/vault-stores": {
+  "types": "./dist/api-connections/vault-stores.d.ts",
+  "symbols": {
+   "ApiConnectionArchiveEntry": "interface:42682d60cd",
+   "ApiConnectionVaultPolicy": "interface:fee0720904",
+   "ApiConnectionVaultRecordStore": "interface:c37a3ac758",
+   "createApiConnectionVaultRecordStore": "function:b7d3947672",
+   "createApiConnectionVaultTokenStore": "function:e692a300b4",
+   "rebindApiConnectionArchive": "function:44cd8b700b"
+  }
+ },
  "./credentialed-http": {
   "types": "./dist/credentialed-http/index.d.ts",
   "symbols": {
@@ -331,6 +354,12 @@
    "setTokenOutcome": "function:5917e5cbc8"
   }
  },
+ "./custom-credentials/delete-request-confirmation-ui": {
+  "types": "./dist/custom-credentials/delete-request-confirmation-ui.d.ts",
+  "symbols": {
+   "describeDeleteRequestApproval": "function:d947744f5b"
+  }
+ },
  "./custom-credentials/provider-settings-card": {
   "types": "./dist/custom-credentials/provider-settings-card.d.ts",
   "symbols": {
@@ -340,6 +369,20 @@
    "buildProviderSettingsCredentialHandler": "function:41fc2f72bd",
    "buildProviderSettingsForm": "function:66eff209ba",
    "readProviderSettingsValues": "function:269166b63c"
+  }
+ },
+ "./custom-credentials/write-files-validation": {
+  "types": "./dist/custom-credentials/write-files-validation.d.ts",
+  "symbols": {
+   "NormalizedWriteFile": "interface:15780467c8",
+   "ValidatedWriteFilesInput": "interface:d544499f36",
+   "WRITE_FILES_LIMITS": "variable:3ac6e926d7",
+   "WriteFilesRequest": "interface:181aba89f6",
+   "normalizeWriteFilePath": "function:8c4df65a68",
+   "validateBranch": "function:1cce529149",
+   "validateCommitMessage": "function:5cfe40359f",
+   "validateRepositoryTarget": "function:60e5084847",
+   "validateWriteFilesInput": "function:acc2e5a5c4"
   }
  },
  "./media-providers": {
@@ -575,6 +618,107 @@
    "nodeMediaGuardedFetch": "variable:7cca3360aa"
   }
  },
+ "./react/admin-credentials/AdminByokKeyPanel": {
+  "types": "./dist/react/admin-credentials/AdminByokKeyPanel.d.ts",
+  "symbols": {
+   "AdminByokKeyFooter": "function:51210b88b7",
+   "AdminByokKeyFooterProps": "interface:3f89bce5e3",
+   "AdminByokMigrationPrompt": "function:5f1a89409d",
+   "AdminByokMigrationPromptProps": "interface:00eff0d684",
+   "AdminByokSettingsFooter": "function:41cc3dbc29",
+   "AdminByokSettingsFooterProps": "interface:36e9396d1d",
+   "resolveByokSettingsStatusLine": "function:6c09dd1ab7"
+  }
+ },
+ "./react/admin-credentials/byok-footer-status": {
+  "types": "./dist/react/admin-credentials/byok-footer-status.d.ts",
+  "symbols": {
+   "AdminByokSaveState": "type:7c5aabd987",
+   "resolveByokFooterStatusLine": "function:0cfca442d2"
+  }
+ },
+ "./react/credentials/credential-copy": {
+  "types": "./dist/react/credentials/credential-copy.d.ts",
+  "symbols": {
+   "storedCredentialHint": "function:98bf2cc316"
+  }
+ },
+ "./react/site-key/hooks/use-site-key-recovery.hooks": {
+  "types": "./dist/react/site-key/hooks/use-site-key-recovery.hooks.d.ts",
+  "symbols": {
+   "START_FRESH_CONFIRMATION": "variable:bd12c30403",
+   "SiteKeyRecoveryController": "interface:1e89932999",
+   "SiteKeyRecoveryPort": "type:a3ef1c433f",
+   "isSiteKeyLocked": "function:d715065f40",
+   "siteKeyLockedNote": "function:e8961c1ae1",
+   "useSiteKeyRecovery": "function:1c4c4afb56"
+  }
+ },
+ "./react/site-key/hooks/use-site-key.hooks": {
+  "types": "./dist/react/site-key/hooks/use-site-key.hooks.d.ts",
+  "symbols": {
+   "SiteKeyController": "interface:c8210f461e",
+   "SiteKeyGenerateFailure": "type:eba706b9c1",
+   "classifySiteKeyGenerateError": "function:22160016c7",
+   "useSiteKey": "function:d85e859be9"
+  }
+ },
+ "./react/site-key/SiteKeyRecoveryCard": {
+  "types": "./dist/react/site-key/SiteKeyRecoveryCard.d.ts",
+  "symbols": {
+   "SiteKeyRecoveryCard": "function:7203a1c562"
+  }
+ },
+ "./react/site-key/SiteKeyTab": {
+  "types": "./dist/react/site-key/SiteKeyTab.d.ts",
+  "symbols": {
+   "SiteKeyGenerateAction": "function:d16374a664",
+   "SiteKeyTab": "function:cbdb91a877",
+   "SiteKeyTabProps": "interface:9a21b8b925"
+  }
+ },
+ "./react/webhooks/hooks/use-integration-deliveries.hooks": {
+  "types": "./dist/react/webhooks/hooks/use-integration-deliveries.hooks.d.ts",
+  "symbols": {
+   "IntegrationDeliveriesController": "interface:b00f06bb1d",
+   "IntegrationDeliveriesPort": "interface:eaf85c8b8e",
+   "useIntegrationDeliveries": "function:4b75fe251a"
+  }
+ },
+ "./react/webhooks/hooks/use-integrations.hooks": {
+  "types": "./dist/react/webhooks/hooks/use-integrations.hooks.d.ts",
+  "symbols": {
+   "IntegrationsController": "interface:bf2425a02d",
+   "IntegrationsPort": "interface:0b054628ad",
+   "useIntegrations": "function:9c7852d41f"
+  }
+ },
+ "./react/webhooks/IntegrationDeliveries": {
+  "types": "./dist/react/webhooks/IntegrationDeliveries.d.ts",
+  "symbols": {
+   "IntegrationDeliveries": "function:e37fab064d",
+   "IntegrationDeliveriesProps": "interface:a56a95ae14"
+  }
+ },
+ "./react/webhooks/Integrations": {
+  "types": "./dist/react/webhooks/Integrations.d.ts",
+  "symbols": {
+   "Integrations": "function:6ec57d8d1b",
+   "IntegrationsProps": "interface:2b17a10a4e"
+  }
+ },
+ "./react/webhooks/rules": {
+  "types": "./dist/react/webhooks/rules.d.ts",
+  "symbols": {
+   "IntegrationRowMenuHandlers": "interface:18cc5bfa61",
+   "KEYS": "variable:acd376ad41",
+   "WEBHOOKS_RESOURCE": "variable:8f0a36f8b7",
+   "displayTimestamp": "function:46ab7c8380",
+   "integrationRowMenuItems": "function:4b2731bc01",
+   "parseTopics": "function:01de5b168f",
+   "visibleIntegrationsError": "function:6ac22e6d60"
+  }
+ },
  "./saved-requests": {
   "types": "./dist/saved-requests/index.d.ts",
   "symbols": {
@@ -612,6 +756,20 @@
    "ScopedCredentialDeps": "interface:c82b39ed04",
    "credentialCreateTarget": "function:78df0c6acb",
    "credentialScopes": "function:08399a70cb"
+  }
+ },
+ "./vendor-credentials/vault-adapter": {
+  "types": "./dist/vendor-credentials/vault-adapter.d.ts",
+  "symbols": {
+   "CredentialSetVaultAdapter": "class:307a20657b",
+   "CredentialVaultAdapterPolicy": "interface:596695fe00",
+   "CredentialVaultServiceArgs": "interface:23611978e1",
+   "VendorCredentialSetVaultRepo": "class:c033e13a36",
+   "createCredentialVaultBinding": "function:26ba1bd727",
+   "credentialHint": "function:36490e2184",
+   "credentialScope": "function:f2f83d17b2",
+   "toSourceControlCredentialRecord": "function:9c988d8f42",
+   "toVendorCredentialRecord": "function:7c884c085e"
   }
  },
  "./web-screenshot/capture-files": {

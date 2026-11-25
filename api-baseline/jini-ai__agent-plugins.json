@@ -4,6 +4,8 @@
   "symbols": {
    "AGENT_PLUGINS_MCP_SCHEMA_URL": "variable:640488e7cb",
    "AGENT_PLUGINS_SCHEMA_URL": "variable:8f680f7a01",
+   "AgentPluginIdentityReadOptions": "interface:848234d9bc",
+   "LegacyAgentPluginIdentity": "interface:70222d84ad",
    "McpManifest": "interface:8b59523ecb",
    "McpServerEntry": "type:32d55a1a29",
    "PLUGIN_MANIFEST_FILENAME": "variable:5eb623e683",
@@ -14,7 +16,7 @@
    "isMcpManifest": "function:4bad6a3e0a",
    "isPluginManifest": "function:1a82343a80",
    "validateMcpManifest": "function:c12eaf1e0f",
-   "validatePluginManifest": "function:a6c852f16e"
+   "validatePluginManifest": "function:3f5cefebb0"
   }
  },
  "./admin-surfaces": {
@@ -275,6 +277,7 @@
    "checkAgentPluginAccessToken": "function:94d9fa6b01",
    "chooseApiConnectionDestinationWithPorts": "function:9f7a5f346c",
    "createApplyConnectDefaults": "function:fa44e4c529",
+   "createCredentialCardsContribution": "function:60479fc057",
    "createCredentialSaveTools": "function:a755363300",
    "createPluginCredentialCardOperations": "function:f72a70e018",
    "credentialCardsContribution": "variable:894d2122a5",
@@ -294,7 +297,7 @@
    "loadPluginCredentialCardsSafely": "function:32f9cb172f",
    "mergePluginCredentialCards": "function:ea48e2e035",
    "parseCredentialCardUsedFor": "function:513ff5a08e",
-   "parsePluginCredentialCards": "function:cb0ce38651",
+   "parsePluginCredentialCards": "function:bfe0b9fe3d",
    "parsePluginTokenMap": "function:336228ba8f",
    "planAgentPluginMcpFederation": "function:f1e6836537",
    "previewAgentPluginEnableAccess": "function:ae6eb1c415",
@@ -405,7 +408,7 @@
   "types": "./dist/folder-zip-node.d.ts",
   "symbols": {
    "CustomizeAgentPluginFolderInput": "interface:6e825d1cdd",
-   "zipCustomizedAgentPluginFolder": "function:1bf0fe9a35",
+   "zipCustomizedAgentPluginFolder": "function:68108064b5",
    "zipLocalFolder": "function:9fa056b6ff"
   }
  },
@@ -520,15 +523,16 @@
    "AgentPluginFetchPort": "type:6cecb29803",
    "AgentPluginHostIncompatibleError": "class:de00a3845b",
    "AgentPluginHostSignal": "interface:a5f1819f43",
+   "AgentPluginIdentityReadOptions": "interface:848234d9bc",
    "AgentPluginIdsPort": "type:c61b55ae0e",
    "AgentPluginInstallError": "class:cf6634340a",
    "AgentPluginInstallErrorCode": "type:a20011b938",
    "AgentPluginIntegrity": "type:4eea3cb6ac",
    "AgentPluginLayout": "type:08d4efab5f",
    "AgentPluginLayoutPort": "interface:d85ecc33eb",
-   "AgentPluginLifecycleOptional": "type:5e69b9ca3d",
-   "AgentPluginLifecyclePorts": "interface:17a4ec2939",
-   "AgentPluginLifecycleRequired": "type:5ed9a704ff",
+   "AgentPluginLifecycleOptional": "type:fd2ee9742c",
+   "AgentPluginLifecyclePorts": "interface:4e5821ec44",
+   "AgentPluginLifecycleRequired": "type:11add0c515",
    "AgentPluginManifest": "interface:0243f71b24",
    "AgentPluginMcpConfig": "interface:c642887fd5",
    "AgentPluginMcpProvisioningPort": "interface:08ae0a5915",
@@ -576,6 +580,8 @@
    "InstalledAgentPluginFromUrl": "interface:3bed5b7d6d",
    "InstalledAgentPluginSkill": "interface:b99bf06a89",
    "InstalledDigestIdentity": "interface:402ff1fb54",
+   "LegacyAgentPluginIdentity": "interface:70222d84ad",
+   "LegacyMcpAliases": "interface:c2c654178e",
    "LoadPluginContributionsOptional": "interface:d7ecd663d2",
    "LoadedPluginContribution": "interface:a4a1f2edd8",
    "LoadedProviderContribution": "interface:b43a84befe",
@@ -648,35 +654,34 @@
    "fetchAgentPluginArchive": "function:8af33048c2",
    "isAgentPluginName": "function:e17a3cd2f7",
    "isValidAgentPluginHostRange": "function:8b20ed6bf4",
-   "legacyAgentPluginMetadataWarning": "variable:20062880ac",
    "maxAgentPluginArchiveBytes": "function:79a562fc6f",
    "parseAgentPluginExports": "function:50a4cbdffb",
-   "parseAgentPluginManifest": "function:cf39a3623c",
-   "parseAgentPluginMcpConfig": "function:8e825c4d2b",
+   "parseAgentPluginManifest": "function:3d237ba466",
+   "parseAgentPluginMcpConfig": "function:f3f1217d9e",
    "parseCredentialCardUsedFor": "function:513ff5a08e",
-   "parsePluginCredentialCards": "function:cb0ce38651",
+   "parsePluginCredentialCards": "function:bfe0b9fe3d",
    "planAgentPluginToolGrant": "function:93572ef4ae",
    "planAgentPluginUpdate": "function:c43178184e",
    "projectAgentPluginSearchPage": "function:bbdbcd8da6",
    "provisionAgentPluginMcp": "function:58e0df7c8e",
    "readAgentPluginCompatibilityMetadata": "function:4cd642871c",
-   "readAgentPluginCompatibilityWarnings": "function:61b964846c",
+   "readAgentPluginCompatibilityWarnings": "function:c596411e12",
    "readAgentPluginExtension": "function:3653d2c922",
-   "readAgentPluginMetadata": "function:722000ab87",
-   "readAgentPluginPortableExtension": "function:fcf7173e41",
+   "readAgentPluginMetadata": "function:35a8dcede6",
+   "readAgentPluginPortableExtension": "function:8c827cb037",
    "readChatAgentPluginState": "function:b5ce5ce5c7",
    "removeAgentPluginMcp": "function:ae9ff8301e",
-   "resolveAgentPluginIdentityNamespace": "function:976cc15f0f",
+   "resolveAgentPluginIdentityNamespace": "function:85c7a60417",
    "syncAgentPluginMcpEnabled": "function:27eb7c1651",
    "validateAgentPluginExportProps": "function:66db482df5",
    "validateMcpManifest": "function:c12eaf1e0f",
-   "validatePluginManifest": "function:a6c852f16e"
+   "validatePluginManifest": "function:3f5cefebb0"
   }
  },
  "./lifecycle/host-tools": {
   "types": "./dist/lifecycle/host-tools/index.d.ts",
   "symbols": {
-   "AgentPluginHostToolPorts": "interface:fa3d736ab8",
+   "AgentPluginHostToolPorts": "interface:74fcc7b6db",
    "AgentPluginSearchToolInput": "interface:696d68a2ce",
    "AgentPluginSkillDetail": "interface:0a7ffcd554",
    "AgentPluginToolGate": "interface:5baca6d175",
@@ -717,9 +722,9 @@
    "pluginNoteHandler": "function:83dd5308d4",
    "pluginNoteRisk": "variable:c358322c15",
    "pluginNoteToolCatalog": "function:079a01342a",
-   "readInstalledAgentPluginIdentity": "function:3c857a04c2",
-   "readPluginMaturity": "function:6665405c53",
-   "readProviderPluginLink": "function:939ff574e3",
+   "readInstalledAgentPluginIdentity": "function:b368e7aac1",
+   "readPluginMaturity": "function:05fecf27ee",
+   "readProviderPluginLink": "function:1f0cc7584a",
    "registerInstalledAgentPluginTools": "function:6f9d974ca7"
   }
  },
@@ -795,12 +800,15 @@
    "AgentPluginExportMetadata": "interface:8760f6f2ca",
    "AgentPluginExportStaticMode": "type:65b59d6555",
    "AgentPluginHostSignal": "interface:a5f1819f43",
+   "AgentPluginIdentityReadOptions": "interface:848234d9bc",
    "AgentPluginManifest": "interface:0243f71b24",
    "AgentPluginMcpConfig": "interface:c642887fd5",
    "AgentPluginMetadata": "interface:04ffbf0663",
    "AgentPluginServerMetadata": "interface:9019ba443e",
    "AgentPluginServerMetadataReader": "type:ccfa5d6e1b",
    "AgentPluginTokenAuth": "interface:7bdb980948",
+   "LegacyAgentPluginIdentity": "interface:70222d84ad",
+   "LegacyMcpAliases": "interface:c2c654178e",
    "MCP_SERVER_TRANSPORTS": "variable:8960591bee",
    "McpManifest": "interface:8b59523ecb",
    "McpServerConfig": "type:e9d3a5cb67",
@@ -816,20 +824,19 @@
    "RemoteMcpServerConfig": "interface:f581a4c4b3",
    "StdioMcpServerConfig": "interface:399aac4e44",
    "isAgentPluginName": "function:e17a3cd2f7",
-   "legacyAgentPluginMetadataWarning": "variable:20062880ac",
    "parseAgentPluginExports": "function:50a4cbdffb",
-   "parseAgentPluginManifest": "function:cf39a3623c",
-   "parseAgentPluginMcpConfig": "function:8e825c4d2b",
+   "parseAgentPluginManifest": "function:3d237ba466",
+   "parseAgentPluginMcpConfig": "function:f3f1217d9e",
    "parseCredentialCardUsedFor": "function:513ff5a08e",
-   "parsePluginCredentialCards": "function:cb0ce38651",
-   "readAgentPluginCompatibilityWarnings": "function:61b964846c",
+   "parsePluginCredentialCards": "function:bfe0b9fe3d",
+   "readAgentPluginCompatibilityWarnings": "function:c596411e12",
    "readAgentPluginExtension": "function:3653d2c922",
-   "readAgentPluginMetadata": "function:722000ab87",
-   "readAgentPluginPortableExtension": "function:fcf7173e41",
-   "resolveAgentPluginIdentityNamespace": "function:976cc15f0f",
+   "readAgentPluginMetadata": "function:35a8dcede6",
+   "readAgentPluginPortableExtension": "function:8c827cb037",
+   "resolveAgentPluginIdentityNamespace": "function:85c7a60417",
    "validateAgentPluginExportProps": "function:66db482df5",
    "validateMcpManifest": "function:c12eaf1e0f",
-   "validatePluginManifest": "function:a6c852f16e"
+   "validatePluginManifest": "function:3f5cefebb0"
   }
  },
  "./meilisearch": {
@@ -889,6 +896,18 @@
  "./railway/*": {
   "types": null,
   "symbols": {}
+ },
+ "./react/agent-plugin-install-port": {
+  "types": "./dist/react/agent-plugin-install-port.d.ts",
+  "symbols": {
+   "createAgentPluginInstallPort": "function:c2660891a7"
+  }
+ },
+ "./react/installed-skills-composer-source": {
+  "types": "./dist/react/installed-skills-composer-source.d.ts",
+  "symbols": {
+   "createInstalledSkillsComposerCapabilitySource": "function:8250afa0d4"
+  }
  },
  "./render": {
   "types": null,
@@ -1049,7 +1068,7 @@
   "symbols": {
    "CustomizeAgentPluginDeps": "interface:0bfa9a84ef",
    "CustomizeAgentPluginLifecycle": "interface:1ee6433577",
-   "prepareCustomizedAgentPluginArchive": "function:a9de5713ba"
+   "prepareCustomizedAgentPluginArchive": "function:558e31a31f"
   }
  },
  "./site/deploy-split-activation": {
@@ -1082,9 +1101,9 @@
    "BundledHostSignalDeclaration": "interface:af20ed4d1d",
    "BundledHostSignalSources": "type:4cf1207fb9",
    "HostSignalPolicyPorts": "interface:81042c60cb",
-   "parseHostSignalDeclaration": "function:88799d638f",
-   "readBundledHostSignalDeclaration": "function:c304f3d750",
-   "resolveBundledHostSignals": "function:52b54112bb"
+   "parseHostSignalDeclaration": "function:dfb5a79afa",
+   "readBundledHostSignalDeclaration": "function:8b4b3c20fb",
+   "resolveBundledHostSignals": "function:b1b557d695"
   }
  },
  "./site/memory-i18n": {
@@ -1100,7 +1119,7 @@
    "ProviderFaceActivations": "interface:119f7d3329",
    "ProviderFaceCatalog": "interface:9c6f9a62df",
    "ProviderFacePorts": "interface:9587095f97",
-   "bindProviderFacePorts": "function:66deefd6a2",
+   "bindProviderFacePorts": "function:12971e317e",
    "followProviderActivations": "function:f234aad8a5",
    "linkedProviderOf": "function:98ebb54d29",
    "syncProviderFaces": "function:6547f697f1"
@@ -1132,10 +1151,10 @@
    "AgentPluginNotReadyError": "class:c96dab5457",
    "SOON_LOCK_ACTOR": "variable:dfd0e0194b",
    "SoonCatalogPort": "interface:7b2d83e885",
-   "assertAgentPluginReady": "function:483159b2c8",
-   "findSoonAgentPlugin": "function:2171bcd554",
-   "lockSoonAgentPlugins": "function:107885aa78",
-   "readHostPluginMaturity": "function:e7e5ed6f9c"
+   "assertAgentPluginReady": "function:3eb5db1e4c",
+   "findSoonAgentPlugin": "function:583fd17731",
+   "lockSoonAgentPlugins": "function:ea063d41ae",
+   "readHostPluginMaturity": "function:3b4bc11878"
   }
  },
  "./site/supersession": {
@@ -1146,8 +1165,8 @@
    "SupersessionManifestsPort": "interface:5180e68a25",
    "SupersessionOrFallback": "type:dc97b6e057",
    "createBundledSourceManifestReader": "function:e28499741e",
-   "parseSupersedes": "function:318161d36b",
-   "readSupersessions": "function:228d22efd1",
+   "parseSupersedes": "function:7cf5cb9904",
+   "readSupersessions": "function:6fd4dafa8b",
    "supersededDescriptorRefusal": "function:d7b0069281",
    "supersededPackageRefusal": "function:b56e8522f5"
   }

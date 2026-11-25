@@ -208,7 +208,7 @@
    "bridgePreflightEntry": "function:ed10fa07cc",
    "buildAcpMcpBridgeServers": "function:4e96dba73b",
    "buildAgentBuildArgsOptions": "function:670b2e897a",
-   "buildMcpBridgeDelivery": "function:9137fa5e0e",
+   "buildMcpBridgeDelivery": "function:268277d80d",
    "buildMcpJsonServerEntry": "function:064440e5b8",
    "buildRunArgs": "function:faef9fdd82",
    "buildStartPayload": "function:818070e9c9",
@@ -280,7 +280,7 @@
    "resolveIdempotentReplayRunId": "function:a48a6ce7be",
    "resolveImageDeliveryAndArgvBudget": "function:bdfbbf6845",
    "resolveLaunch": "function:18e631a285",
-   "resolveMcpBridgeForRun": "function:b50eb95781",
+   "resolveMcpBridgeForRun": "function:6ee18ac5f8",
    "resolveRunEnv": "function:93e2f4cc72",
    "resolveSystemPromptOverlayDelivery": "function:8922559906",
    "resolveTimeoutMs": "function:f620ad1d71",
@@ -387,6 +387,7 @@
    "AttachmentLookup": "type:b9302ce69f",
    "AttachmentLookupRequest": "type:25a6105e40",
    "AttachmentLookupRoutesRequired": "interface:ef0af78965",
+   "AttachmentReadPorts": "interface:9e197c8f81",
    "AttachmentRejectedError": "class:655ea09607",
    "AttachmentRejectionReason": "type:345eae530a",
    "AttachmentUploadResponse": "interface:46f860aff2",
@@ -607,6 +608,7 @@
    "attachmentLookupRoutes": "function:6a998e05e9",
    "attachmentUploadRoutes": "function:1f2136d5e9",
    "cancelRunsOwnedBy": "function:3f794c381b",
+   "chatAttachmentSidecarFileName": "function:6d19a438ec",
    "componentCatalogDescribeRoute": "variable:cee9ceb516",
    "componentCatalogRoutes": "function:2a2331eac2",
    "componentCatalogSearchRoute": "variable:bab02ff0ba",
@@ -669,6 +671,7 @@
    "healthRoutes": "function:7c7efa06ff",
    "hostEditorsRoute": "variable:706c6f1e3d",
    "hostToolsRoutes": "function:181e27a296",
+   "isChatAttachmentSidecarShape": "function:d7e45e6414",
    "isSurfaceCallbackPermitted": "function:d24f4eac48",
    "isTypedSurfaceAnswer": "function:b704ff9f62",
    "isUnchangedAttachment": "function:8f6d451968",
@@ -705,6 +708,7 @@
    "probeCommandOnPath": "function:296f781dd7",
    "probeMacBundle": "function:bb39050d52",
    "readA2uiAction": "function:c1bdf3b7fb",
+   "readChatAttachmentForOwner": "function:fd996586a8",
    "readSurfacePrincipalId": "function:be388fcbfe",
    "readyRoute": "variable:b3e0c7e292",
    "remoteRunEventRoutes": "function:55e93271a8",
@@ -713,6 +717,7 @@
    "remoteToolUseRoute": "variable:8b96adbce6",
    "researchRoutes": "function:70607ac6de",
    "researchSearchRoute": "variable:f4492220f2",
+   "resolveContainedAttachmentPath": "function:6e3a1601aa",
    "resolveEntry": "function:4959806f0c",
    "resolveHostToolLaunchPlan": "function:b2a4a4f47a",
    "resolveWorkspaceRoot": "function:95c1a1d678",
@@ -763,7 +768,7 @@
   "types": "./dist/ports/agent-runtime.d.ts",
   "symbols": {
    "AgentRuntimePort": "interface:9bad2bfdba",
-   "AgentRuntimeStrategies": "interface:7af9908e71",
+   "AgentRuntimeStrategies": "interface:dca27ca567",
    "AgentStreamHandler": "interface:d72de2cf9b",
    "AgentStreamSink": "type:af3b37412a",
    "BaseUrlGuardPort": "interface:685d407b4b",
@@ -971,6 +976,29 @@
    "createBoundConfirmations": "function:b585330906",
    "createSurfaceExchangeStore": "function:910548c516",
    "resolveConfirmationDecision": "function:c172b291a6"
+  }
+ },
+ "./surface-exchanges/chat-delete-grant": {
+  "types": "./dist/surface-exchanges/chat-delete-grant.d.ts",
+  "symbols": {
+   "requireChatDeleteGrant": "function:43bf05fb83"
+  }
+ },
+ "./surface-exchanges/human-confirm": {
+  "types": "./dist/surface-exchanges/human-confirm.d.ts",
+  "symbols": {
+   "HUMAN_CONFIRM_CHOICE_PARAM": "variable:f332a70fa8",
+   "HumanConfirmOutcome": "type:b84cc3a8a9",
+   "requireAccessApprover": "function:c8e98763d8",
+   "requireHumanConfirm": "function:e71169f294"
+  }
+ },
+ "./surface-exchanges/site-assistant-confirm": {
+  "types": "./dist/surface-exchanges/site-assistant-confirm.d.ts",
+  "symbols": {
+   "SITE_ASSISTANT_CONFIRM_PATH": "variable:a3738297bf",
+   "SiteAssistantConfirmDeps": "interface:498614c947",
+   "siteAssistantConfirmRoute": "variable:26eec65e99"
   }
  },
  "./tool-audit": {

@@ -169,6 +169,14 @@
    "observabilityDerivedRisk": "variable:f19ffb193c"
   }
  },
+ "./redaction/repo-secret-scan": {
+  "types": "./dist/redaction/repo-secret-scan.d.ts",
+  "symbols": {
+   "SecretScanViolation": "interface:e43292e4cc",
+   "scanRepoHistory": "function:91f154cf8a",
+   "scanTrackedRepo": "function:d04ad8698c"
+  }
+ },
  "./redaction/secrets-only": {
   "types": "./dist/redaction/secrets-only.d.ts",
   "symbols": {
