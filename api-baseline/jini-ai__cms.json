@@ -6316,25 +6316,6 @@
    "PublishSectionButtonProps": "interface:14a14413be"
   }
  },
- "./react/themes/hooks/theme-explore-open-file.hooks": {
-  "types": "./dist/react/themes/hooks/theme-explore-open-file.hooks.d.ts",
-  "symbols": {
-   "isOpenFileLoaded": "function:813c7e0399",
-   "keepsOpenFileSelected": "function:6420e4d35e"
-  }
- },
- "./react/themes/hooks/use-theme-card-preview.hooks": {
-  "types": "./dist/react/themes/hooks/use-theme-card-preview.hooks.d.ts",
-  "symbols": {
-   "useThemeCardPreview": "function:eccfab38b0"
-  }
- },
- "./react/themes/ThemePreviewReloadButton": {
-  "types": "./dist/react/themes/ThemePreviewReloadButton.d.ts",
-  "symbols": {
-   "WiredThemePreviewReloadButton": "function:bc2ea2e000"
-  }
- },
  "./redirects": {
   "types": "./dist/redirects/index.d.ts",
   "symbols": {

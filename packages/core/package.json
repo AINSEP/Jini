@@ -269,10 +269,6 @@
       "./contracts/site/comments-providers": "universal",
       "./contracts/site/publish-ports": "universal",
       "./contracts/site/cms-admin-media": "universal",
-      "./contracts/site/cms-admin-theme-types": "universal",
-      "./contracts/site/cms-admin-theme-registry": "universal",
-      "./contracts/site/cms-admin-theme-explore": "universal",
-      "./contracts/site/cms-admin-held-back-themes": "universal",
       "./contracts/site/page-html-store": "universal",
       "./contracts/site/post-kind": "universal",
       "./scheduled-publish": "universal",
@@ -1612,26 +1608,6 @@
       "types": "./dist/contracts/site/cms-admin-media.d.ts",
       "import": "./dist/contracts/site/cms-admin-media.js",
       "default": "./dist/contracts/site/cms-admin-media.js"
-    },
-    "./contracts/site/cms-admin-theme-types": {
-      "types": "./dist/contracts/site/cms-admin-theme-types.d.ts",
-      "import": "./dist/contracts/site/cms-admin-theme-types.js",
-      "default": "./dist/contracts/site/cms-admin-theme-types.js"
-    },
-    "./contracts/site/cms-admin-theme-registry": {
-      "types": "./dist/contracts/site/cms-admin-theme-registry.d.ts",
-      "import": "./dist/contracts/site/cms-admin-theme-registry.js",
-      "default": "./dist/contracts/site/cms-admin-theme-registry.js"
-    },
-    "./contracts/site/cms-admin-theme-explore": {
-      "types": "./dist/contracts/site/cms-admin-theme-explore.d.ts",
-      "import": "./dist/contracts/site/cms-admin-theme-explore.js",
-      "default": "./dist/contracts/site/cms-admin-theme-explore.js"
-    },
-    "./contracts/site/cms-admin-held-back-themes": {
-      "types": "./dist/contracts/site/cms-admin-held-back-themes.d.ts",
-      "import": "./dist/contracts/site/cms-admin-held-back-themes.js",
-      "default": "./dist/contracts/site/cms-admin-held-back-themes.js"
     },
     "./contracts/site/page-html-store": {
       "types": "./dist/contracts/site/page-html-store.d.ts",
