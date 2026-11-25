@@ -4,12 +4,13 @@ import { expect, test, vi } from "vitest";
 import { createToolRegistry, withBatchInput, ToolInputError, type BatchResult, type ToolRegistration } from "@jini-ai/core";
 import { createSurfaceExchangeStore } from "../../surface-exchanges.js";
 import { createTimeoutScheduler } from "../../scheduler.js";
+import type { ToolOutputValidation } from "../../tool-executor-types.js";
 import { createAssistantToolExecutor, issueCredentialSetup, type ToolFailureRecord, type RedactedToolFailuresDeps } from "../index.js";
 
 const call = { principal: { id: "operator" }, run: { id: "run-1" }, toolId: "deploy", input: {} };
 const readOnlyMessages = { unverifiableMessage: "cannot verify", toolRefusalMessage: () => "write refused", unknownToolMessage: () => "unknown tool" };
 
-function assemble({ audit, guided, toolFailures }: { audit?: { appended: unknown[]; sinkErrors?: unknown[] }; guided?: string[]; toolFailures?: Partial<RedactedToolFailuresDeps> } = {}) {
+function assemble({ audit, guided, toolFailures, outputValidation }: { audit?: { appended: unknown[]; sinkErrors?: unknown[] }; guided?: string[]; toolFailures?: Partial<RedactedToolFailuresDeps>; outputValidation?: ToolOutputValidation } = {}) {
   const registry = createToolRegistry({});
   const failing: ToolRegistration = {
     descriptor: { id: "deploy", metadata: { guidanceCapabilities: ["deploy-checklist"] } },
@@ -31,6 +32,7 @@ function assemble({ audit, guided, toolFailures }: { audit?: { appended: unknown
     formatReadOnlyRemedyRefusal: ({ refusal }) => refusal,
     buildRecoveryForm: () => ({}),
     toolFailures: { mintErrorId: () => "ERR-AAAA-BBBB-CCCC-DDDD", redactSecretShapes: ({ text }) => ({ text, redactions: 0 }), onFailure: (record) => { failures.push(record); }, ...toolFailures },
+    ...(outputValidation ? { outputValidation } : {}),
     ...(guided ? { prepareGuidance: async ({ tool }: { tool: { id: string } }) => { guided.push(tool.id); return ""; } } : {}),
     ...(audit ? { toolAttemptAudit: {
       sink: { append: async (event: unknown) => { audit.appended.push(event); } },
@@ -138,4 +140,13 @@ test("a host's prepareGuidance hook is wired into the registry executor and cons
   const result = await executor.execute(call);
   expect(guided).toEqual(["deploy"]);
   expect(result.error).toBe("Error ERR-AAAA-BBBB-CCCC-DDDD: upstream 500");
+});
+
+test("the assembled stack hands its output validation to the bare executor", async () => {
+  const reportMismatch = vi.fn();
+  const { executor, registry } = assemble({ outputValidation: { mode: "report", validator: { validate: () => false }, reportMismatch } });
+  registry.register({ descriptor: { id: "shaped", outputSchema: { type: "object" } }, policy: { authorize: () => "allow" }, handler: async () => "raw" });
+  const result = await executor.execute({ ...call, toolId: "shaped" });
+  expect(result).toMatchObject({ status: "completed", output: "raw" });
+  expect(reportMismatch.mock.calls).toEqual([[{ toolId: "shaped", code: "TOOL_OUTPUT_SCHEMA_MISMATCH" }]]);
 });

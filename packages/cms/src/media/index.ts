@@ -189,9 +189,11 @@ export {
 export {
   VIDEO_TRANSCODE_THRESHOLD_BYTES, VIDEO_TRANSCODE_MAX_INPUT_BYTES, VIDEO_CONVERSION_MESSAGES, VideoConversionError,
   shouldTranscodeOnImport, convertMediaVideo,
-  type VideoTranscodeTarget, type VideoTranscodeFailureReason, type VideoTranscodeResult, type MediaTranscoderPort,
   type DerivedMediaLinkPort, type VideoConversionFailureReason, type ConvertMediaVideoDeps, type ConvertMediaVideoRequired, type ConvertMediaVideoOptional,
 } from './video-transcode.js';
+export type {
+  VideoTranscodeTarget, VideoTranscodeFailureReason, VideoTranscodeResult, MediaTranscoderPort,
+} from '@jini-ai/core/contracts/site/cms-media';
 export {
   CONVERT_VIDEO_TOOL_ID, convertVideoToolDefinition, buildConvertVideoRegistrations,
   type VideoConversionToolOptions, type ConvertVideoToolDeps,

@@ -1,4 +1,4 @@
-import type { Principal, RunRef, ToolDescriptor, AuthorizationDecision, SurfaceEmitter, ToolRegistry, ToolHandler } from '@jini-ai/core';
+import type { Principal, RunRef, ToolDescriptor, AuthorizationDecision, SurfaceEmitter, ToolRegistry, ToolHandler, ToolOutputValidator, ToolOutputMismatchReporter } from '@jini-ai/core';
 import type { ToolInvocationAuthorization } from '@jini-ai/core/composition';
 import type { PrepareToolGuidance } from "@jini-ai/core/contracts/site/daemon";
 
@@ -130,8 +130,22 @@ export interface ToolExecutor {
 
 export type { PrepareToolGuidance } from "@jini-ai/core/contracts/site/daemon";
 
+/**
+ * Checks a tool's raw settled output against its declared `outputSchema`. `'enforce'` turns a
+ * mismatch into one fixed internal failure; `'report'` emits one value-free diagnostic and keeps the
+ * normal result. The host picks the mode and supplies the validator; the executor reads no ambient
+ * configuration.
+ */
+export interface ToolOutputValidation {
+  readonly mode: 'enforce' | 'report';
+  readonly validator: ToolOutputValidator;
+  readonly reportMismatch: ToolOutputMismatchReporter;
+}
+
 export interface CreateToolExecutorOptions {
   readonly prepareGuidance?: PrepareToolGuidance;
+  /** Omit to settle every output unchecked, which is also what a tool with no `outputSchema` gets. */
+  readonly outputValidation?: ToolOutputValidation;
   /** Host redaction for nested internal failures only; top-level failures keep their wrapper path. */
   readonly redactNestedFailure?: (required: { result: ToolExecutionResult; toolId: string; runId: string; principalId: string }) => string | undefined;
   readonly registry: ToolRegistry;

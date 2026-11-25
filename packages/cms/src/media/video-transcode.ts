@@ -6,8 +6,9 @@
  * a browser, but it is still the owner's original. Conversion therefore always writes a NEW media
  * item ("<title> (web)") and asks the host to record that it was derived from the original; the
  * original row and its bytes are never touched. No codec, binary or vendor lives in this file —
- * `video-transcode.ffmpeg.ts` is one adapter of {@link MediaTranscoderPort}.
+ * the ffmpeg adapter lives in an agent plugin and is one adapter of {@link MediaTranscoderPort}.
  */
+import type { MediaTranscoderPort, VideoTranscodeFailureReason, VideoTranscodeTarget } from "@jini-ai/core/contracts/site/cms-media";
 import { mintToolErrorId } from "@jini-ai/core/errors/error-id";
 import { MEDIA_MAX_UPLOAD_BYTES } from "@jini-ai/core/contracts/site/media-upload-limits";
 import { sniffContentType } from "./content-type-sniffer.js";
@@ -19,21 +20,6 @@ const MIB = 1024 * 1024;
 export const VIDEO_TRANSCODE_THRESHOLD_BYTES = MEDIA_MAX_UPLOAD_BYTES;
 /** Largest original this package will hand to a transcoder; the bytes are held in memory. */
 export const VIDEO_TRANSCODE_MAX_INPUT_BYTES = 2 * 1024 * MIB;
-
-export type VideoTranscodeTarget = "mp4-h264-aac-faststart";
-export type VideoTranscodeFailureReason = "unavailable" | "busy" | "too-large" | "timeout" | "canceled" | "invalid";
-export type VideoTranscodeResult =
-  | { readonly ok: true; readonly bytes: Uint8Array }
-  | { readonly ok: false; readonly reason: VideoTranscodeFailureReason; readonly message: string };
-
-/** Turns authorized video bytes into the requested web-safe encoding. Inputs are bytes, never
- * caller paths. Implementations report expected failures as results and keep the original intact. */
-export interface MediaTranscoderPort {
-  transcode(
-    required: { input: Uint8Array; target: VideoTranscodeTarget },
-    optional?: { signal?: AbortSignal | undefined; maxOutputBytes?: number | undefined },
-  ): Promise<VideoTranscodeResult>;
-}
 
 /** Host-owned record that `derivedId` is a converted copy of `originalId` (provenance link). */
 export type DerivedMediaLinkPort = (

@@ -1,5 +1,5 @@
 import type { createExecutionAppendEvent } from './tool-executor-audit.js';
-import type { ToolExecutionResult, ToolExecutionErrorKind } from './tool-executor-types.js';
+import type { ToolExecutionResult, ToolExecutionErrorKind, ToolOutputValidation } from './tool-executor-types.js';
 import { withNormalizationNotes, ToolInputError, type ToolDescriptor } from '@jini-ai/core';
 
 
@@ -62,7 +62,42 @@ export function createExecutionFailureResult({ terminal, appendEvent }: { termin
   return failureResult;
 }
 
-export function createExecutionSettleOutput({ failureResult, appendEvent }: { failureResult: ReturnType<typeof createExecutionFailureResult>; appendEvent: ReturnType<typeof createExecutionAppendEvent> }) {
+const UNEXPECTED_RESULT = 'The tool returned an unexpected result.';
+
+/** A throwing validator counts as a failed check, so its message or error tree can never escape. */
+function outputMatches({ validation, schema, value }: { validation: ToolOutputValidation; schema: unknown; value: unknown }): boolean {
+  try {
+    return validation.validator.validate({ schema, value }, {}) === true;
+  } catch {
+    return false;
+  }
+}
+
+/** A failing diagnostic sink must not turn a report-mode call into a failure. */
+function reportSafely({ validation, toolId }: { validation: ToolOutputValidation; toolId: string }): void {
+  try {
+    validation.reportMismatch({ toolId, code: 'TOOL_OUTPUT_SCHEMA_MISMATCH' });
+  } catch {
+    // Reporting is best-effort; the result it describes is still returned.
+  }
+}
+
+/**
+ * Whether the raw output may settle as `completed`. Tools without a declared schema, and executors
+ * without a validator, always may. A report-mode mismatch reports and still settles.
+ */
+function acceptsDeclaredOutput({ descriptor, rawOutput }: { descriptor: ToolDescriptor; rawOutput: unknown }, { validation }: { validation?: ToolOutputValidation | undefined } = {}): boolean {
+  if (!validation || descriptor.outputSchema === undefined) return true;
+  if (outputMatches({ validation, schema: descriptor.outputSchema, value: rawOutput })) return true;
+  if (validation.mode === 'enforce') return false;
+  reportSafely({ validation, toolId: descriptor.id });
+  return true;
+}
+
+export function createExecutionSettleOutput(
+  { failureResult, appendEvent }: { failureResult: ReturnType<typeof createExecutionFailureResult>; appendEvent: ReturnType<typeof createExecutionAppendEvent> },
+  { outputValidation }: { outputValidation?: ToolOutputValidation | undefined } = {},
+) {
   /**
    * Turns a resolved handler output into the terminal result: `completed` with the (guidance-
    * annotated, normalization-noted, truncated) output, or the terminal state the call already
@@ -81,6 +116,11 @@ export function createExecutionSettleOutput({ failureResult, appendEvent }: { fa
     // disagreed. Whether the handler cooperated does not change what happened to the CALL.
     if (timedOut || aborted) {
       return failureResult({ executionId, err: new Error('handler resolved after the execution was already terminal'), timedOut, aborted });
+    }
+    // Bad tool output is a server contract problem, not bad caller input.
+    // The RAW value is checked, before guidance, notes or truncation decorate it.
+    if (!acceptsDeclaredOutput({ descriptor, rawOutput }, { validation: outputValidation })) {
+      return failureResult({ executionId, err: new Error(UNEXPECTED_RESULT), timedOut, aborted }, { guidance, normalizationNotes });
     }
     const { output, truncated } = truncateOutput(withNormalizationNotes({ output: attachToolGuidance({ output: rawOutput, guidance }), notes: normalizationNotes }), descriptor.maxOutputBytes);
     appendEvent(executionId, 'completed');

@@ -310,3 +310,19 @@ export interface MediaAssetRenderMeta {
    */
   captionsTrack?: { readonly src: string; readonly srclang: string; readonly label?: string | null } | null;
 }
+
+/** The only encoding a host converter is asked for: a web-safe MP4 that streams before it finishes loading. */
+export type VideoTranscodeTarget = "mp4-h264-aac-faststart";
+export type VideoTranscodeFailureReason = "unavailable" | "busy" | "too-large" | "timeout" | "canceled" | "invalid";
+export type VideoTranscodeResult =
+  | { readonly ok: true; readonly bytes: Uint8Array }
+  | { readonly ok: false; readonly reason: VideoTranscodeFailureReason; readonly message: string };
+
+/** Turns authorized video bytes into the requested web-safe encoding. Inputs are bytes, never
+ * caller paths. Implementations report expected failures as results and keep the original intact. */
+export interface MediaTranscoderPort {
+  transcode(
+    required: { input: Uint8Array; target: VideoTranscodeTarget },
+    optional?: { signal?: AbortSignal | undefined; maxOutputBytes?: number | undefined },
+  ): Promise<VideoTranscodeResult>;
+}

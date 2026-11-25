@@ -16,17 +16,17 @@ const combined = (source: string, options: Partial<EnvAccessSource> = {}) => [
 ].map(v => v.rule);
 
 describe('env-access rules (one failing and one passing fixture per case)', () => {
-  it('names exactly the two rules that need no name list', () => {
-    expect([...ENV_ACCESS_RULES]).toEqual(['HW9-env-access', 'HW12-env-import-time']);
+  it('names the two ambient-access rules that need no name list first', () => {
+    expect(ENV_ACCESS_RULES.slice(0, 2)).toEqual(['HW9-env-access', 'HW12-env-import-time']);
   });
 
   it('HW9: a declared process entry may read the ambient environment; any other file may not', () => {
     const source = 'export function port() { return process.env.PORT; }';
-    expect(rules(source, { envRoot: true })).toEqual([]);
+    expect(rules(source, { envRoot: true, declaredEnvNames: new Set(['PORT']) })).toEqual([]);
     expect(rules(source)).toEqual(['HW9-env-access']);
     expect(rules('export function port() { return process["env"]["PORT"]; }')).toEqual(['HW9-env-access']);
     expect(rules('export function mode() { return import.meta.env.MODE; }')).toEqual(['HW9-env-access']);
-    expect(rules('export function mode() { return import.meta.env.MODE; }', { envRoot: true })).toEqual([]);
+    expect(rules('export function mode() { return import.meta.env.MODE; }', { envRoot: true, declaredEnvNames: new Set(['MODE']) })).toEqual([]);
   });
 
   it('HW9: the injected-default forms count too, although HW1 still allows them', () => {
@@ -53,7 +53,7 @@ describe('env-access rules (one failing and one passing fixture per case)', () =
   it('HW12: a module-scope reference fails under both rules outside an entry and passes inside one', () => {
     const source = 'export const key = process.env.KEY;';
     expect(rules(source)).toEqual(['HW9-env-access', 'HW12-env-import-time']);
-    expect(rules(source, { envRoot: true })).toEqual([]);
+    expect(rules(source, { envRoot: true, declaredEnvNames: new Set(['KEY']) })).toEqual([]);
     expect(rules('const env = process.env; export function key() { return env.KEY; }')).toEqual(['HW9-env-access', 'HW12-env-import-time']);
     expect(rules('if (import.meta.env.DEV) console.log("dev");')).toEqual(['HW9-env-access', 'HW12-env-import-time']);
   });

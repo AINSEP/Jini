@@ -23,6 +23,8 @@
       "./persistent-state": "node",
       "./folder-zip": "universal",
       "./folder-zip/node": "node",
+      "./ffmpeg-transcode": "universal",
+      "./ffmpeg-transcode/adapter": "node",
       "./admin-surfaces": "universal",
       "./admin-surfaces/client": "universal",
       "./charts-echarts": "universal",
@@ -222,6 +224,12 @@
       "types": "./dist/admin-surfaces/surface-client.d.ts",
       "import": "./dist/admin-surfaces/surface-client.js",
       "default": "./dist/admin-surfaces/surface-client.js"
+    },
+    "./ffmpeg-transcode": "./ffmpeg-transcode/plugin.json",
+    "./ffmpeg-transcode/adapter": {
+      "types": "./dist/ffmpeg-transcode/adapter.d.ts",
+      "import": "./dist/ffmpeg-transcode/adapter.js",
+      "default": "./dist/ffmpeg-transcode/adapter.js"
     },
     "./charts-echarts": "./charts-echarts/plugin.json",
     "./charts-echarts/*": "./charts-echarts/*",
@@ -441,6 +449,7 @@
     "persistent-state.d.ts",
     "core",
     "charts-echarts",
+    "ffmpeg-transcode",
     "calendly",
     "charts-recharts",
     "cloudflare",
