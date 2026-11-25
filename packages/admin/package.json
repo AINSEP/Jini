@@ -741,6 +741,12 @@
       "./screens/plugins/AgentPluginRow": "browser",
       "./screens/plugins/PackageFilesModal": "browser",
       "./screens/plugins/PluginPackageFilesModal": "browser",
+      "./screens/plugins/hooks/use-plugins.hooks": "browser",
+      "./screens/plugins/hooks/use-agent-plugin-details-modal.hooks": "browser",
+      "./screens/plugins/hooks/use-agent-plugin-update.hooks": "browser",
+      "./screens/plugins/hooks/use-agent-plugin-install.hooks": "browser",
+      "./screens/plugins/hooks/use-plugin-install.hooks": "browser",
+      "./screens/plugins/hooks/use-plugin-package-files.hooks": "browser",
       "./screens/plugins/rules-context": "browser",
       "./screens/media/api/media-api": "universal",
       "./screens/media/media-providers-port": "universal",
@@ -1053,6 +1059,12 @@
         "./screens/plugins/AgentPluginRow": "browser",
         "./screens/plugins/PackageFilesModal": "browser",
         "./screens/plugins/PluginPackageFilesModal": "browser",
+        "./screens/plugins/hooks/use-plugins.hooks": "browser",
+        "./screens/plugins/hooks/use-agent-plugin-details-modal.hooks": "browser",
+        "./screens/plugins/hooks/use-agent-plugin-update.hooks": "browser",
+        "./screens/plugins/hooks/use-agent-plugin-install.hooks": "browser",
+        "./screens/plugins/hooks/use-plugin-install.hooks": "browser",
+        "./screens/plugins/hooks/use-plugin-package-files.hooks": "browser",
         "./screens/plugins/rules-context": "browser",
         "./shell/components/SecretInput/SecretInput": "browser",
         "./screens/media/api/media-api": "universal",
@@ -4640,6 +4652,36 @@
       "types": "./dist/screens/plugins/PluginPackageFilesModal.d.ts",
       "import": "./dist/screens/plugins/PluginPackageFilesModal.js",
       "default": "./dist/screens/plugins/PluginPackageFilesModal.js"
+    },
+    "./screens/plugins/hooks/use-plugins.hooks": {
+      "types": "./dist/screens/plugins/hooks/use-plugins.hooks.d.ts",
+      "import": "./dist/screens/plugins/hooks/use-plugins.hooks.js",
+      "default": "./dist/screens/plugins/hooks/use-plugins.hooks.js"
+    },
+    "./screens/plugins/hooks/use-agent-plugin-details-modal.hooks": {
+      "types": "./dist/screens/plugins/hooks/use-agent-plugin-details-modal.hooks.d.ts",
+      "import": "./dist/screens/plugins/hooks/use-agent-plugin-details-modal.hooks.js",
+      "default": "./dist/screens/plugins/hooks/use-agent-plugin-details-modal.hooks.js"
+    },
+    "./screens/plugins/hooks/use-agent-plugin-update.hooks": {
+      "types": "./dist/screens/plugins/hooks/use-agent-plugin-update.hooks.d.ts",
+      "import": "./dist/screens/plugins/hooks/use-agent-plugin-update.hooks.js",
+      "default": "./dist/screens/plugins/hooks/use-agent-plugin-update.hooks.js"
+    },
+    "./screens/plugins/hooks/use-agent-plugin-install.hooks": {
+      "types": "./dist/screens/plugins/hooks/use-agent-plugin-install.hooks.d.ts",
+      "import": "./dist/screens/plugins/hooks/use-agent-plugin-install.hooks.js",
+      "default": "./dist/screens/plugins/hooks/use-agent-plugin-install.hooks.js"
+    },
+    "./screens/plugins/hooks/use-plugin-install.hooks": {
+      "types": "./dist/screens/plugins/hooks/use-plugin-install.hooks.d.ts",
+      "import": "./dist/screens/plugins/hooks/use-plugin-install.hooks.js",
+      "default": "./dist/screens/plugins/hooks/use-plugin-install.hooks.js"
+    },
+    "./screens/plugins/hooks/use-plugin-package-files.hooks": {
+      "types": "./dist/screens/plugins/hooks/use-plugin-package-files.hooks.d.ts",
+      "import": "./dist/screens/plugins/hooks/use-plugin-package-files.hooks.js",
+      "default": "./dist/screens/plugins/hooks/use-plugin-package-files.hooks.js"
     },
     "./screens/plugins/rules-context": {
       "types": "./dist/screens/plugins/rules-context.d.ts",

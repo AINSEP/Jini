@@ -736,7 +736,7 @@ export function createPluginRules({ productName, translate: t, describeApiError:
   /** One settled package-files read: the listing, or the failure text in its place. */
 
   /** One query's settled read: its listing, else its error text, else `null` while it loads. */
-  function packageFilesRead(query: { data?: PackageFilesListing; error?: Error | null }): PackageFilesRead | null {
+  function packageFilesRead(query: { data?: PackageFilesListing | undefined; error?: Error | null | undefined }): PackageFilesRead | null {
     if (query.data) return { listing: query.data, error: null };
     if (query.error) return { listing: null, error: query.error.message };
     return null;
