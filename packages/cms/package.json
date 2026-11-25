@@ -481,7 +481,9 @@
       "./settings/site/form-destination": "universal",
       "./settings/site/mail-sender": "universal",
       "./settings/site/site-timezone": "universal",
+      "./settings/site/site-timezone-fallback": "universal",
       "./settings/site/site-title": "universal",
+      "./settings/site/site-title-reporter": "universal",
       "./seo/site/page-head-contributor": "node",
       "./redirects/site/phase-handler": "universal",
       "./redirects/site/publish-content": "universal",
@@ -3410,10 +3412,20 @@
       "import": "./dist/settings/site/site-timezone.js",
       "default": "./dist/settings/site/site-timezone.js"
     },
+    "./settings/site/site-timezone-fallback": {
+      "types": "./dist/settings/site/site-timezone-fallback.d.ts",
+      "import": "./dist/settings/site/site-timezone-fallback.js",
+      "default": "./dist/settings/site/site-timezone-fallback.js"
+    },
     "./settings/site/site-title": {
       "types": "./dist/settings/site/site-title.d.ts",
       "import": "./dist/settings/site/site-title.js",
       "default": "./dist/settings/site/site-title.js"
+    },
+    "./settings/site/site-title-reporter": {
+      "types": "./dist/settings/site/site-title-reporter.d.ts",
+      "import": "./dist/settings/site/site-title-reporter.js",
+      "default": "./dist/settings/site/site-title-reporter.js"
     },
     "./seo/site/page-head-contributor": {
       "types": "./dist/seo/site/page-head-contributor.d.ts",
