@@ -12,9 +12,10 @@ export type MenuEditorHeaderState = Pick<MenuEditorController, "isNew" | "menu" 
 function MenuEditorBackLink({ menusHref, confirmLeave, t, leaveGuardOwner }: { menusHref: string } & Pick<MenuEditorHeaderState, "confirmLeave" | "t" | "leaveGuardOwner">) {
   return (
     <div className="jini-page-header-lead">
-      {/* The header guards Back as a fallback when the router does not own the dirty check.
-          Router ownership skips this call so each Back click has only one confirmation owner.
-          `preventDefault()` here stops
+      {/* Audit finding: no editor screen warns before an in-app navigation discards unsaved
+          edits — confirmed live on this exact screen. The header guards Back as a fallback when
+          the router does not own the dirty check; router ownership skips this call so each Back
+          click has only one confirmation owner. `preventDefault()` here stops
           the host router's document-level click interceptor from firing `navigate()`, since that
           listener's first check is `event.defaultPrevented`.
           Plain `<a className="jini-btn-secondary">`, not a `<button>` nested inside an `<a>`

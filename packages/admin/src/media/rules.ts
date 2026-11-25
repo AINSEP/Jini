@@ -167,7 +167,9 @@ export function mediaRowHandles({ media }: { media: readonly Pick<MediaAsset, 'i
   });
 }
 
-/** Timestamps remain instants; only the calendar label belongs to the person viewing it. */
+/** A calendar date in UTC, so cards do not shift an upload to yesterday across host timezones.
+ *  Timestamps remain instants; only the calendar label belongs to the person viewing it, so a host
+ *  that knows the viewer's zone passes `viewerTimeZone` and UTC stays the default. */
 export function formatUploadDate({ createdAt }: { createdAt: string }, { locale = 'en-US', viewerTimeZone = 'UTC' }: { locale?: string; viewerTimeZone?: string | undefined } = {}): string | null {
   const date = new Date(createdAt);
   if (!Number.isFinite(date.getTime())) return null;
