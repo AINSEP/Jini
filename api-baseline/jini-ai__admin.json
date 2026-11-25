@@ -4866,6 +4866,12 @@
    "parseAdditionalHostsInput": "function:476e6d3a00"
   }
  },
+ "./security/host/CopyKeysDialog": {
+  "types": "./dist/security/host/CopyKeysDialog.d.ts",
+  "symbols": {
+   "CopyKeysDialog": "function:0af43ddcee"
+  }
+ },
  "./security/host/hooks/access-tokens-port.hooks": {
   "types": "./dist/security/host/hooks/access-tokens-port.hooks.d.ts",
   "symbols": {
@@ -4876,6 +4882,21 @@
   "types": "./dist/security/host/hooks/security-permissions-port.hooks.d.ts",
   "symbols": {
    "SecurityPermissionsPort": "interface:35945b4cd1"
+  }
+ },
+ "./security/host/hooks/site-key-status.rules": {
+  "types": "./dist/security/host/hooks/site-key-status.rules.d.ts",
+  "symbols": {
+   "siteKeyStatusBadgeLabel": "function:ad41adbc09"
+  }
+ },
+ "./security/host/hooks/use-copy-keys.hooks": {
+  "types": "./dist/security/host/hooks/use-copy-keys.hooks.d.ts",
+  "symbols": {
+   "CopyKeysArgs": "interface:7991ab09e0",
+   "CopyKeysController": "type:d42ed4b887",
+   "CopyKeysPort": "interface:ab0169f3b5",
+   "useCopyKeys": "function:33df5a091a"
   }
  },
  "./security/host/hooks/use-security-permissions.hooks": {

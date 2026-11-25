@@ -41,6 +41,9 @@
       "./security/conformance": "universal",
       "./security/host/SiteKeyTab.hooks": "browser",
       "./security/host/hooks/security-permissions-port.hooks": "universal",
+      "./security/host/hooks/site-key-status.rules": "universal",
+      "./security/host/CopyKeysDialog": "browser",
+      "./security/host/hooks/use-copy-keys.hooks": "browser",
       "./security/host/hooks/access-tokens-port.hooks": "universal",
       "./security/host/hooks/use-security-permissions.hooks": "browser",
       "./playground": "universal",
@@ -1156,6 +1159,21 @@
       "types": "./dist/security/host/hooks/security-permissions-port.hooks.d.ts",
       "import": "./dist/security/host/hooks/security-permissions-port.hooks.js",
       "default": "./dist/security/host/hooks/security-permissions-port.hooks.js"
+    },
+    "./security/host/hooks/site-key-status.rules": {
+      "types": "./dist/security/host/hooks/site-key-status.rules.d.ts",
+      "import": "./dist/security/host/hooks/site-key-status.rules.js",
+      "default": "./dist/security/host/hooks/site-key-status.rules.js"
+    },
+    "./security/host/CopyKeysDialog": {
+      "types": "./dist/security/host/CopyKeysDialog.d.ts",
+      "import": "./dist/security/host/CopyKeysDialog.js",
+      "default": "./dist/security/host/CopyKeysDialog.js"
+    },
+    "./security/host/hooks/use-copy-keys.hooks": {
+      "types": "./dist/security/host/hooks/use-copy-keys.hooks.d.ts",
+      "import": "./dist/security/host/hooks/use-copy-keys.hooks.js",
+      "default": "./dist/security/host/hooks/use-copy-keys.hooks.js"
     },
     "./security/host/hooks/access-tokens-port.hooks": {
       "types": "./dist/security/host/hooks/access-tokens-port.hooks.d.ts",
