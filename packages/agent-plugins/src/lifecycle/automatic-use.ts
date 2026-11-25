@@ -181,7 +181,8 @@ function recordDelivery({ ctx, plugin, result }: {
 }): void {
   if (result.status === 'loaded') ctx.delivered.set(plugin.pluginId, plugin.displayName ?? plugin.pluginId);
 }
-/** Bound automatic attachments into a draft; recording delivery is the caller's separate step.
+/** Bound automatic attachments before recording delivery; explicit loads retain complete text.
+ * The bounded sections land in a draft; recording delivery is the caller's separate step.
  * O(p*b) in resolved plugins and guidance bytes; a deferred plugin remains retryable.
  */
 async function resolveGuidance({ ctx, matches }: {

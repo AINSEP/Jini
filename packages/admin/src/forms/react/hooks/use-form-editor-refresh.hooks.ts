@@ -73,8 +73,8 @@ function consumeRead({ tagged, formId, generation, refs, requestRead, applyIncom
   applyIncoming({ form: tagged.data, force });
 }
 
-/** Apply-or-prompt for every read of `KEYS.form(formId)`, the scoped refresh subscription, and the
- * reload controller slice.
+/** Seeds the section controller from the loaded definition. Apply-or-prompt for every read of
+ * `KEYS.form(formId)`, the scoped refresh subscription, and the reload controller slice.
  * @complexity O(f) per applied read; one definition read per refresh request. */
 export function useFormEditorRefresh({ stateController, formId, isNew, list, events, generation }: {
   stateController: StateController; formId: string; isNew: boolean; list: ListQuery; events?: FormsEventsPort | undefined; generation: FormEditorGeneration;
