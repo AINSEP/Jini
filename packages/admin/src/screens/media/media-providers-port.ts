@@ -1,5 +1,6 @@
 import type { MediaProviderMap } from "../../react/kit-media-providers.js";
 import type { MediaProviderFields, MediaProviderRowsPort } from "@jini-ai/ui/core";
+import type { MediaProviderOption } from "@jini-ai/core";
 import { orFallback } from "@jini-ai/core/errors/idioms";
 
 import type { AdminMediaProviderMap } from "./api/media-api.js";
@@ -75,4 +76,39 @@ export function createMediaProvidersPort(deps: MediaProvidersPortDeps, _optional
     patchProvider: (required: { providerId: string; fields: MediaProviderFields }) => patchProvider(deps, required),
     removeProvider: (required: { providerId: string }) => removeProvider(deps, required),
   };
+}
+
+/** The read seam the External Providers tab takes its cards (and its count) from. */
+export interface MediaProviderCatalogPort {
+  fetchMediaProviderCatalog(_required?: Record<string, never>): Promise<readonly MediaProviderOption[] | null>;
+}
+
+/** The one media-API call the catalog port needs, injected so this file never imports the host client. */
+export interface MediaProviderCatalogPortDeps {
+  mediaApi: { getMediaProviderCatalog: () => Promise<{ providers?: unknown } | null | undefined> };
+}
+
+/** A card only when its id and label are strings; anything else in the body is dropped, not trusted. @complexity O(1). */
+function isProviderOption(value: unknown): value is MediaProviderOption {
+  const candidate = value as Partial<MediaProviderOption> | null;
+  return typeof candidate?.id === "string" && typeof candidate.label === "string";
+}
+
+/**
+ * Reads the host's live provider catalog. Resolves `null` — never rejects, never `[]` — when the
+ * server could not be reached or answered something that is not a catalog, for the same reason as
+ * {@link fetchMediaProviders}: an unreachable host is not evidence that no provider exists, and a
+ * `[]` would render as "no providers" with a count of 0.
+ *
+ * @complexity O(p) over the returned cards plus one request.
+ */
+async function fetchMediaProviderCatalog({ mediaApi }: MediaProviderCatalogPortDeps, _required: Record<string, never> = {}): Promise<readonly MediaProviderOption[] | null> {
+  const body = await orFallback({ work: () => mediaApi.getMediaProviderCatalog(), fallback: null, step: "Read media provider catalog" });
+  const providers: unknown = body?.providers;
+  return Array.isArray(providers) ? providers.filter(isProviderOption) : null;
+}
+
+/** Builds the catalog port over the host's media API; the host binds it once. */
+export function createMediaProviderCatalogPort(deps: MediaProviderCatalogPortDeps, _optional: Record<string, never> = {}): MediaProviderCatalogPort {
+  return { fetchMediaProviderCatalog: () => fetchMediaProviderCatalog(deps) };
 }
