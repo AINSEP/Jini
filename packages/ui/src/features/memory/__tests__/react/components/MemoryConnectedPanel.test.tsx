@@ -513,12 +513,12 @@ describe('MemoryConnectedPanel', () => {
 
   it('shows Loading in the summary badge while connectors load', () => {
     const { container } = renderPanel({ connectorsLoading: true, connectedCount: 3 });
-    expect(container.querySelector('.jini-memory-connected-summary .memory-source-badge')?.textContent).toBe('Loading');
+    expect(container.querySelector('.jini-memory-connected-summary .jini-ui-memory-source-badge')?.textContent).toBe('Loading');
   });
 
   it('shows the connected count in the summary badge once loaded', () => {
     const { container } = renderPanel({ connectedCount: 3 });
-    expect(container.querySelector('.jini-memory-connected-summary .memory-source-badge')?.textContent).toBe('3 connected');
+    expect(container.querySelector('.jini-memory-connected-summary .jini-ui-memory-source-badge')?.textContent).toBe('3 connected');
   });
 
   it('uses the singular app noun in the run bar for exactly one connected app', () => {

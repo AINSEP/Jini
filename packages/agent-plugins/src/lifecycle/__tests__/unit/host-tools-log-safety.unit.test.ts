@@ -1,5 +1,7 @@
 import { createConsoleLogger } from '@jini-ai/core/primitives';
 import { afterEach, expect, test, vi } from 'vitest';
+import { readInstalledAgentPluginIdentity } from '../../host-tools/identity.js';
+import { readPluginMaturity, readProviderPluginLink } from '../../host-tools/identity.js';
 import { loadAgentPluginSearchCandidates } from '../../host-tools/search-tool.js';
 import { loadInstalledAgentPluginToolSources } from '../../host-tools/skill-tool.js';
 
@@ -38,4 +40,14 @@ test('tool sources skip a broken plugin with a class-only warning', async () => 
   expect(await loadInstalledAgentPluginToolSources({ workspaceId: 'ws', ports: ports(createConsoleLogger({ prefix: '[agent-plugins]' })) })).toEqual([]);
   expect(warn.mock.calls.map(call => call.join(' '))).toEqual(["[agent-plugins] Plugin tool source skipped. Error"]);
   for (const banned of BANNED) expect(printed(warn)).not.toContain(banned);
+});
+
+test('legacy-only manifest produces the same capability decisions before and after boot', async () => {
+  const legacyIdentity = { namespace: 'alpha', warning: 'Alpha legacy' };
+  const manifest = { name: 'alpha', extensions: { alpha: { id: 'publisher/alpha', maturity: 'soon', providerPlugin: 'provider-alpha' } } };
+  expect(readPluginMaturity({ manifest }, { legacyIdentity })).toBe('soon');
+  expect(readProviderPluginLink({ manifest }, { legacyIdentity })).toBe('provider-alpha');
+  const identity = await readInstalledAgentPluginIdentity({ plugin }, { legacyIdentity, readText: async () => JSON.stringify(manifest) });
+  expect(identity).toMatchObject({ id: 'publisher/alpha', maturity: 'soon', providerPlugin: 'provider-alpha' });
+  expect(readPluginMaturity({ manifest })).toBeUndefined();
 });

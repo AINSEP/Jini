@@ -56,7 +56,7 @@ function MemoryViewSwitch({ topTab, onTopTabChange, agentHandle, t }: {
 }) {
   return (
     <div
-      className="jini-seg-control memory-panel-seg"
+      className="jini-seg-control jini-ui-memory-panel-seg"
       role="tablist"
       aria-label={t('Memory view')}
       style={{ '--seg-cols': 2 } as CSSProperties}
@@ -105,19 +105,19 @@ export function MemorySettingsPanel({
   const savedHandleProps = agentHandle ? { agentHandle: agentSubHandle({ base: agentHandle, action: 'saved' }) } : {};
   const howHandleProps = agentHandle ? { agentHandle: agentSubHandle({ base: agentHandle, action: 'how' }) } : {};
   return (
-    <div className="memory-settings-panel">
-      <section className="memory-panel-head-card">
-        <div className="memory-panel-head-copy">
+    <div className="jini-ui-memory-settings-panel">
+      <section className="jini-ui-memory-panel-head-card">
+        <div className="jini-ui-memory-panel-head-copy">
           <h4>{t('Memory')}</h4>
           <p className="hint">
             {t('Control whether saved facts, preferences, and project context are reused in future chats.')}
           </p>
         </div>
-        <div className="memory-panel-head-controls">
+        <div className="jini-ui-memory-panel-head-controls">
           <MemoryViewSwitch topTab={topTab} onTopTabChange={onTopTabChange} agentHandle={agentHandle} t={t} />
           <button
             type="button"
-            className="memory-icon-btn"
+            className="jini-ui-memory-icon-btn"
             onClick={onAdd}
             disabled={!onAdd}
             aria-label={t('Add memory')}
@@ -128,7 +128,7 @@ export function MemorySettingsPanel({
           </button>
           <button
             type="button"
-            className="memory-icon-btn"
+            className="jini-ui-memory-icon-btn"
             onClick={onOpenAdvanced}
             disabled={!onOpenAdvanced}
             aria-label={t('Advanced')}
@@ -137,7 +137,7 @@ export function MemorySettingsPanel({
           >
             <Icon name="settings" size={14} />
           </button>
-          <label className="toggle-switch memory-panel-master-toggle" title={enabled ? t('On') : t('Off')}>
+          <label className="jini-ui-toggle-switch memory-panel-master-toggle" title={enabled ? t('On') : t('Off')}>
             <input
               type="checkbox"
               aria-label={t('Enable memory')}
@@ -145,7 +145,7 @@ export function MemorySettingsPanel({
               onChange={(event) => onToggleEnabled(event.target.checked)}
               {...agentHandleProps({}, { base: agentHandle, ...({ action: 'enabled', role: 'checkbox', label: t('Enable memory') }) })}
             />
-            <span className="toggle-slider" />
+            <span className="jini-ui-toggle-slider" />
           </label>
         </div>
       </section>

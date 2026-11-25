@@ -99,11 +99,11 @@ export function SourceConfigItemCard<TSource extends SourceConfigItem>({ useItem
 
   return (
     <article
-      className={`source-config-item-card${expanded ? ' is-expanded' : ''}`}
+      className={`jini-ui-source-config-item-card${expanded ? ' is-expanded' : ''}`}
       data-testid="source-config-item-card"
       {...sourceConfigAgentProps({ base: agentHandle, role: 'region', label })}
     >
-      <div className="source-config-item-card-head">
+      <div className="jini-ui-source-config-item-card-head">
         <ItemCardEnabledToggle {...props} label={label} />
         <ItemCardSummary {...props} label={label} expanded={expanded} onToggle={() => setExpanded((current) => !current)} />
         <ItemCardActions {...props} label={label} />
@@ -126,7 +126,7 @@ function ItemCardEnabledToggle<TSource extends SourceConfigItem>({ source, capab
   if (source.enabled === undefined || !capabilities.canUpdate) return null;
   const enabledLabel = t('Enable {name}', { name: label });
   return (
-    <label className="source-config-item-card-enabled-toggle" title={source.enabled ? t('Enabled') : t('Disabled')}>
+    <label className="jini-ui-source-config-item-card-enabled-toggle" title={source.enabled ? t('Enabled') : t('Disabled')}>
       <input
         type="checkbox"
         checked={source.enabled}
@@ -163,7 +163,7 @@ function ItemCardSummary<TSource extends SourceConfigItem>({
       onClick={onToggle}
       aria-expanded={expanded}
     >
-      <span className="source-config-item-card-label">{label}</span>
+      <span className="jini-ui-source-config-item-card-label">{label}</span>
       {source.trust ? <span className="jini-source-config-item-card-trust-badge">{t(trustOption?.label ?? source.trust)}</span> : null}
     </button>
   );
@@ -175,7 +175,7 @@ function ItemCardActions<TSource extends SourceConfigItem>({ useTHook = useT, ..
   const t = useTHook();
   const anyActionPending = isAnyActionPending(props);
   return (
-    <div className="source-config-item-card-actions">
+    <div className="jini-ui-source-config-item-card-actions">
       <ItemCardTrustSelect {...props} />
       {capabilities.canRefresh ? (
         <button
@@ -323,8 +323,8 @@ function ItemCardEditFields<TSource extends SourceConfigItem>({ source, fieldSpe
   const t = useTHook();
   return (
     <div className="jini-source-config-item-card-edit-fields">
-      <label className="source-config-field" htmlFor={`source-config-item-card-${source.id}-label`}>
-        <span className="source-config-field-label">{t('Label')}</span>
+      <label className="jini-ui-source-config-field" htmlFor={`source-config-item-card-${source.id}-label`}>
+        <span className="jini-ui-source-config-field-label">{t('Label')}</span>
         <input
           id={`source-config-item-card-${source.id}-label`}
           type="text"

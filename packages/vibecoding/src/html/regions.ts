@@ -1,3 +1,4 @@
+import type { ParsedRegion } from "@jini-ai/core/contracts/site/html-region-ports";
 /**
  * @module html/regions
  *
@@ -70,20 +71,6 @@ const MAX_HANDLE_LENGTH = 128;
 /** Whether `handle` is a syntactically valid region handle. */
 export function isValidRegionHandle({ handle }: { readonly handle: string }): boolean {
   return handle.length > 0 && handle.length <= MAX_HANDLE_LENGTH && HANDLE_PATTERN.test(handle);
-}
-
-/** One tagged region located in a document, as reported by the injected parser. */
-export interface ParsedRegion {
-  /** The `data-agent-element` value. */
-  readonly handle: string;
-  /** The `data-agent-role` value, if the markup carries one. */
-  readonly role?: string;
-  /** The `data-agent-label` value, if present. Page-authored and therefore untrusted for display. */
-  readonly label?: string;
-  /** Index of the first character of the region's INNER content. */
-  readonly innerStart: number;
-  /** Index one past the last character of the region's inner content. */
-  readonly innerEnd: number;
 }
 
 /**

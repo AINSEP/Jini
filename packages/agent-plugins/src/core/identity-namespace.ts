@@ -1,8 +1,20 @@
+/** Existing installed copies remain readable through at least this date; removal requires an
+ * explicit release decision, never a clock-based refusal to load a plugin. */
+export interface LegacyAgentPluginIdentity {
+  readonly namespace: string;
+  readonly warning: string;
+}
+
+export interface AgentPluginIdentityReadOptions {
+  readonly identityNamespace?: string | undefined;
+  readonly legacyIdentity?: LegacyAgentPluginIdentity | undefined;
+}
+
 const isObject = (value: unknown): value is Readonly<Record<string, unknown>> => typeof value === 'object' && value !== null && !Array.isArray(value);
 
 /** Explicit unrelated namespaces retain their isolation; omitted names select portable metadata. */
-export function isPortableAgentPluginNamespace({ namespace }: { readonly namespace?: string | undefined }, _optional = {}): boolean {
-  return namespace === undefined || namespace === 'jini' || namespace === 'tovu';
+export function isPortableAgentPluginNamespace({ namespace }: { readonly namespace?: string | undefined }, { legacyIdentity }: Pick<AgentPluginIdentityReadOptions, "legacyIdentity"> = {}): boolean {
+  return namespace === undefined || namespace === 'jini' || namespace === legacyIdentity?.namespace;
 }
 
 /** Selects the portable identity key without changing explicit host isolation.
@@ -13,33 +25,29 @@ export function isPortableAgentPluginNamespace({ namespace }: { readonly namespa
  */
 export function resolveAgentPluginIdentityNamespace(
   { value }: { readonly value: unknown },
-  { identityNamespace }: { readonly identityNamespace?: string } = {},
+  { identityNamespace, legacyIdentity }: AgentPluginIdentityReadOptions = {},
 ): string {
   // The legacy key names the same portable metadata, so a declared canonical `jini` copy wins.
-  if (identityNamespace === 'tovu' && isObject(value) && isObject(value.extensions) && Object.hasOwn(value.extensions, 'jini')) return 'jini';
+  if (legacyIdentity !== undefined && identityNamespace === legacyIdentity.namespace && isObject(value) && isObject(value.extensions) && Object.hasOwn(value.extensions, 'jini')) return 'jini';
   if (identityNamespace !== undefined) return identityNamespace;
-  return defaultIdentityNamespace({ value });
+  return defaultIdentityNamespace({ value }, { legacyIdentity });
 }
 
 /** The namespace a manifest selects when the host requested none: `jini` unless only the legacy key is present.
  * @complexity O(1) time and space; no I/O or manifest mutation. */
-function defaultIdentityNamespace({ value }: { readonly value: unknown }, _optional = {}): string {
+function defaultIdentityNamespace({ value }: { readonly value: unknown }, { legacyIdentity }: Pick<AgentPluginIdentityReadOptions, "legacyIdentity"> = {}): string {
   if (!isObject(value) || !isObject(value.extensions)) return 'jini';
   const extensions = value.extensions;
   if (Object.hasOwn(extensions, 'jini')) return 'jini';
   // Compatibility only: existing published manifests used this product's extension key.
-  return Object.hasOwn(extensions, 'tovu') ? 'tovu' : 'jini';
+  return legacyIdentity !== undefined && Object.hasOwn(extensions, legacyIdentity.namespace) ? legacyIdentity.namespace : 'jini';
 }
-
-/** Existing installed copies remain readable through at least this date; removal requires an
- * explicit release decision, never a clock-based refusal to load a plugin. */
-export const legacyAgentPluginMetadataWarning = 'Legacy extensions.tovu agent-plugin metadata is deprecated; compatibility is retained through at least 2027-05-06. Portable packages use extensions.jini and unprefixed MCP metadata.';
 
 /** Select an extension without requiring a complete manifest, for preboot metadata readers.
  * @complexity O(1); no I/O or mutation. */
 export function readAgentPluginPortableExtension(
   required: { readonly value: unknown },
-  optional: { readonly identityNamespace?: string } = {},
+  optional: AgentPluginIdentityReadOptions = {},
 ): Readonly<Record<string, unknown>> | undefined {
   const namespace = resolveAgentPluginIdentityNamespace(required, optional);
   const value = required.value;
@@ -51,10 +59,10 @@ export function readAgentPluginPortableExtension(
 /** Diagnostics are returned to the host so it can choose its normal warning surface. */
 export function readAgentPluginCompatibilityWarnings(
   required: { readonly value: unknown },
-  optional: { readonly identityNamespace?: string } = {},
+  optional: AgentPluginIdentityReadOptions = {},
 ): readonly string[] {
-  return isPortableAgentPluginNamespace({ namespace: optional.identityNamespace }) && resolveAgentPluginIdentityNamespace(required, optional) === 'tovu'
-    ? [legacyAgentPluginMetadataWarning] : [];
+  return optional.legacyIdentity !== undefined && isPortableAgentPluginNamespace({ namespace: optional.identityNamespace }, optional) && resolveAgentPluginIdentityNamespace(required, optional) === optional.legacyIdentity.namespace
+    ? [optional.legacyIdentity.warning] : [];
 }
 
 /** Lifecycle host names identify effects and packaging; portable metadata remains portable.
@@ -62,13 +70,13 @@ export function readAgentPluginCompatibilityWarnings(
  * A valid legacy object remains the fallback for hosts without their own declaration. */
 export function resolveAgentPluginLifecycleNamespace(
   { value, extensionNamespace }: { readonly value: unknown; readonly extensionNamespace: string },
-  _optional = {},
+  { legacyIdentity }: Pick<AgentPluginIdentityReadOptions, "legacyIdentity"> = {},
 ): string {
   if (!isObject(value) || !isObject(value.extensions)) return extensionNamespace;
   const extensions = value.extensions;
   if (Object.hasOwn(extensions, 'jini')) return 'jini';
-  if (!isPortableAgentPluginNamespace({ namespace: extensionNamespace }) && (Object.hasOwn(extensions, extensionNamespace) || !isObject(extensions.tovu))) return extensionNamespace;
-  return Object.hasOwn(extensions, 'tovu') ? 'tovu' : extensionNamespace;
+  if (!isPortableAgentPluginNamespace({ namespace: extensionNamespace }, { legacyIdentity }) && (Object.hasOwn(extensions, extensionNamespace) || legacyIdentity === undefined || !isObject(extensions[legacyIdentity.namespace]))) return extensionNamespace;
+  return legacyIdentity !== undefined && Object.hasOwn(extensions, legacyIdentity.namespace) ? legacyIdentity.namespace : extensionNamespace;
 }
 
 type LegacyMcpField = 'authMode' | 'defaultTools' | 'tokenAuth' | 'renamedTools';

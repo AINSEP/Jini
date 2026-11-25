@@ -16,7 +16,7 @@ describe('ConnectorLogo', () => {
     act(() => {
       img.dispatchEvent(new Event('error'));
     });
-    expect(container.querySelector('.connector-logo')?.className).toContain('is-fallback');
+    expect(container.querySelector('.jini-ui-connector-logo')?.className).toContain('is-fallback');
   });
 
   it('is decorative (aria-hidden) since the caption is the accessible label elsewhere', () => {
@@ -30,8 +30,8 @@ describe('ConnectorLogo', () => {
     act(() => {
       img.dispatchEvent(new Event('load'));
     });
-    expect(container.querySelector('.connector-logo')?.className).toContain('state-loaded');
-    expect(container.querySelector('.connector-logo')?.className).not.toContain('is-fallback');
+    expect(container.querySelector('.jini-ui-connector-logo')?.className).toContain('state-loaded');
+    expect(container.querySelector('.jini-ui-connector-logo')?.className).not.toContain('is-fallback');
   });
 
   it('detects an already-complete, successfully-loaded image synchronously on mount', () => {
@@ -43,7 +43,7 @@ describe('ConnectorLogo', () => {
       const { container } = render(
         <ConnectorLogo connectorId="slack" connectorName="Slack" logoUrl="https://example.com/slack.png" />,
       );
-      expect(container.querySelector('.connector-logo')?.className).toContain('state-loaded');
+      expect(container.querySelector('.jini-ui-connector-logo')?.className).toContain('state-loaded');
     } finally {
       if (originalComplete) Object.defineProperty(HTMLImageElement.prototype, 'complete', originalComplete);
       if (originalNaturalWidth) Object.defineProperty(HTMLImageElement.prototype, 'naturalWidth', originalNaturalWidth);
@@ -59,7 +59,7 @@ describe('ConnectorLogo', () => {
       const { container } = render(
         <ConnectorLogo connectorId="slack" connectorName="Slack" logoUrl="https://example.com/slack.png" />,
       );
-      expect(container.querySelector('.connector-logo')?.className).toContain('is-fallback');
+      expect(container.querySelector('.jini-ui-connector-logo')?.className).toContain('is-fallback');
     } finally {
       if (originalComplete) Object.defineProperty(HTMLImageElement.prototype, 'complete', originalComplete);
       if (originalNaturalWidth) Object.defineProperty(HTMLImageElement.prototype, 'naturalWidth', originalNaturalWidth);
@@ -76,14 +76,14 @@ describe('ConnectorLogo', () => {
     // a deterministic index, so directly compare against a real
     // connectorId="Slack" render to prove they match).
     const { container: viaIdSlack } = render(<ConnectorLogo connectorId="Slack" connectorName="unused" />);
-    expect(withoutId.querySelector('.connector-logo')?.getAttribute('data-palette')).toBe(
-      viaIdSlack.querySelector('.connector-logo')?.getAttribute('data-palette'),
+    expect(withoutId.querySelector('.jini-ui-connector-logo')?.getAttribute('data-palette')).toBe(
+      viaIdSlack.querySelector('.jini-ui-connector-logo')?.getAttribute('data-palette'),
     );
-    expect(withId.querySelector('.connector-logo')?.getAttribute('data-palette')).not.toBeNull();
+    expect(withId.querySelector('.jini-ui-connector-logo')?.getAttribute('data-palette')).not.toBeNull();
   });
 
   it('renders the lg size variant', () => {
     const { container } = render(<ConnectorLogo connectorId="slack" connectorName="Slack" size="lg" />);
-    expect(container.querySelector('.connector-logo')?.className).toContain('size-lg');
+    expect(container.querySelector('.jini-ui-connector-logo')?.className).toContain('size-lg');
   });
 });

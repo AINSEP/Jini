@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs";
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
@@ -110,4 +111,20 @@ describe('MemorySettingsPanel', () => {
     expect(screen.getByRole('tab', { name: 'Souvenirs' })).toBeInTheDocument();
     expect(screen.queryByRole('tab', { name: 'Memories' })).toBeNull();
   });
+});
+
+it('the expanded memory section retains its layout', async () => {
+  const css = readFileSync(new URL('../../../../settings/dialog/styles/settings-dialog.css', import.meta.url), 'utf8');
+  const onToggleEnabled = vi.fn();
+  const { container } = render(<MemorySettingsPanel {...props({ onToggleEnabled, savedMemory: {
+    ...props().savedMemory, previewId: 'e1', previewBody: 'Full saved text',
+  } })} />);
+  expect(screen.getByText('Full saved text')).toBeInTheDocument();
+  for (const token of ['jini-ui-memory-settings-panel', 'jini-ui-library-content', 'jini-ui-settings-section-card', 'jini-ui-toggle-switch', 'jini-ui-toggle-slider']) {
+    expect(container.querySelector(`.${token}`)).not.toBeNull();
+    expect(css).toContain(`.${token}`);
+  }
+  expect(container.querySelector('.jini-ui-memory-panel-head-copy p')).toHaveClass('hint');
+  await userEvent.click(screen.getByRole('checkbox', { name: 'Enable memory' }));
+  expect(onToggleEnabled).toHaveBeenCalledWith(false);
 });

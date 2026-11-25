@@ -279,6 +279,12 @@ state · [README](packages/admin/README.md)
 
 | Entry point | What it does | Key exports / assets | Runtime | Used by |
 |---|---|---|---|---|
+| `@jini-ai/admin/shell/components/AssistantDock/hooks/execution-config-ledger.hooks` | Injected dock execution/discovery behavior. | `EXECUTION_CONFIG_MAX_AGE_MS`, `useExecutionConfigLedger` | browser | none yet |
+| `@jini-ai/admin/shell/components/AssistantDock/hooks/execution-config.hooks` | Injected dock execution/discovery behavior. | `UseExecutionConfig`, `DockExecutionConfigPort`, `ExecutionWrite`, `useStoredAdminKey`, `useExecutionConfig` | browser | none yet |
+| `@jini-ai/admin/shell/components/AssistantDock/hooks/byok-runtime.hooks` | Injected dock execution/discovery behavior. | `UseByokRuntime`, `useByokModels`, `useByokRuntime` | browser | none yet |
+| `@jini-ai/admin/shell/components/AssistantDock/hooks/local-cli-selection.hooks` | Injected dock execution/discovery behavior. | `UseLocalCliSelection`, `useLocalCliSelection` | browser | none yet |
+| `@jini-ai/admin/shell/components/AssistantDock/hooks/composer-discovery.hooks` | Injected dock execution/discovery behavior. | `UseComposerCapabilities`, `useComposerCapabilities`, `useComposerDiscoverySelect` | browser | none yet |
+| `@jini-ai/admin/shell/components/AssistantDock/hooks/composer-files.hooks` | Injected dock execution/discovery behavior. | `withSizeRefusalCopy` | browser | none yet |
 | `@jini-ai/admin` | Framework-free admin panel/route/transport contracts; same owner as core. | `AdminPanel`, `resolvePanels`, `buildNav` | universal | none yet |
 | `@jini-ai/admin/core` | Panel registry, navigation, route matching, permission display rules and HTTP transport. | `AdminPanel`, `resolvePanels`, `buildNav`, `createHttpTransport` | universal | Tovu: admin |
 | `@jini-ai/admin/browser` | Browser navigation, internal-link interception and shell History API wiring. | `installInternalLinkInterceptor`, `navigate`, `readRoutePath` | browser | none yet |
@@ -408,6 +414,8 @@ content-model · [README](packages/cms/README.md)
 
 | Entry point | What it does | Key exports / assets | Runtime | Used by |
 |---|---|---|---|---|
+| `@jini-ai/cms/react/widgets/WidgetConfigFields/WidgetConfigFields` | Injected widget/entry editor view. | `WidgetConfigFieldsProps`, `WidgetConfigFields` | browser | none yet |
+| `@jini-ai/cms/react/collections/CollectionEntryEditor` | Injected widget/entry editor view. | `CollectionEntryEditorProps`, `CollectionEntryViewController`, `CollectionEntryEditor` | browser | none yet |
 | `@jini-ai/cms` | Content kernel contracts and services; same framework-free owner as core. | `executeCommand`, `EventBusPort`, `OutboxPort` | universal | none yet |
 | `@jini-ai/cms/core` | Content events/outbox contracts, audited commands, registries and domain ports. | `executeCommand`, `EventBusPort`, `OutboxPort` | universal | Tovu: website; Jini: cms-forms, commerce |
 | `@jini-ai/cms/forms` | Forms definitions, submissions and delivery planning. | `createFormDefinition`, `planFormDeliveries` | universal | Tovu: website |
@@ -554,6 +562,8 @@ protocol-adapter · [README](packages/mcp/README.md)
 
 | Entry point | What it does | Key exports / assets | Runtime | Used by |
 |---|---|---|---|---|
+| `@jini-ai/mcp/react/external-mcp/ExternalMcpAdmissionsBanner` | Injected external MCP admissions/form behavior. | `ExternalMcpAdmissionsBannerProps`, `ExternalMcpAdmissionsBanner` | browser | none yet |
+| `@jini-ai/mcp/react/external-mcp/ExternalMcpSettingsPanel.hooks` | Injected external MCP admissions/form behavior. | `resolveExternalMcpCardHandles`, `useSavedAllowedToolNamesById`, `useExternalMcpDriftCopy`, `buildAllowWritePatch`, `ExternalMcpAddFormController`, `useExternalMcpAddForm` | browser | none yet |
 | `@jini-ai/mcp` | Serve MCP tools/resources; config/token storage and external-agent install planning. | `createMcpToolServer`, `RUN_TOOLS`, `readMcpConfig`, `planAgentInstall` | node | Tovu: desktop, website |
 | `@jini-ai/mcp/tools/ask-choice` | Ask human choices with schema, select/question builders and bound answer tickets. | `createAskChoiceTool`, `createAskChoiceAnswerTicketStore` | universal | Tovu: website |
 | `@jini-ai/mcp/federation` | Admit federated servers; sessions, trust, fingerprints, reload and call orchestration. | `connectMcpHttpSession`, `buildFederatedMcpRegistrations` | node | Tovu: website |

@@ -292,7 +292,7 @@ describe('ConnectorCard', () => {
     // `onKeyDown` with `event.target` still the nested title span, distinct
     // from `event.currentTarget` (the card) — unlike the actual interactive
     // buttons, which all stop propagation before it would ever reach here.
-    const titleSpan = container.querySelector('.connector-card-title-name')!;
+    const titleSpan = container.querySelector('.jini-ui-connector-card-title-name')!;
     titleSpan.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
     expect(onOpenDetails).not.toHaveBeenCalled();
   });

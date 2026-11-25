@@ -69,24 +69,24 @@ function ConnectorDrawerHead({
   const toolsBadgeLabel = t(toolsBadge.key, toolsBadge.vars);
   const statusTone = isAuthorizationPending ? 'pending' : connector.status;
   return (
-    <header className="connector-drawer-head">
+    <header className="jini-ui-connector-drawer-head">
       <ConnectorLogo connectorId={connector.id} connectorName={connector.name} logoUrl={connector.logoUrl} size="lg" />
-      <div className="connector-drawer-titles">
-        <div className="connector-drawer-eyebrow">
+      <div className="jini-ui-connector-drawer-titles">
+        <div className="jini-ui-connector-drawer-eyebrow">
           <span>{categoryLabel}</span>
-          <span className="connector-meta-dot" aria-hidden>
+          <span className="jini-ui-connector-meta-dot" aria-hidden>
             ·
           </span>
           <span>{connector.provider}</span>
         </div>
         <h2 id="connector-drawer-title">{connector.name}</h2>
-        <div className="connector-drawer-status">
-          <span className={`connector-status-pill status-${statusTone}`}>
-            <span className="connector-status-dot" aria-hidden />
+        <div className="jini-ui-connector-drawer-status">
+          <span className={`jini-ui-connector-status-pill status-${statusTone}`}>
+            <span className="jini-ui-connector-status-dot" aria-hidden />
             {isAuthorizationPending ? t('Authorization pending') : t(statusLabel({ status: connector.status }))}
           </span>
           {showToolsBadge ? (
-            <span className="connector-drawer-tool-count-chip" title={toolsBadgeLabel}>
+            <span className="jini-ui-connector-drawer-tool-count-chip" title={toolsBadgeLabel}>
               <span>{toolsBadgeLabel}</span>
             </span>
           ) : null}
@@ -95,7 +95,7 @@ function ConnectorDrawerHead({
       <button
         ref={closeBtnRef}
         type="button"
-        className="ghost connector-drawer-close"
+        className="ghost jini-ui-connector-drawer-close"
         onClick={onClose}
         aria-label={t('Close')}
         data-testid="connector-drawer-close"
@@ -129,8 +129,8 @@ function ConnectorDrawerAbout({
   const continueAuthorization = redirectUrl ? createContinueAuthorization({ redirectUrl, onOpenExternalUrl }) : undefined;
 
   return (
-    <section className="connector-drawer-section">
-      <h3 className="connector-drawer-section-title">{t('About')}</h3>
+    <section className="jini-ui-connector-drawer-section">
+      <h3 className="jini-ui-connector-drawer-section-title">{t('About')}</h3>
       <p className="jini-connector-drawer-description">{description}</p>
       {isAuthorizationPending ? (
         <div className="jini-connector-authorization-block" role="status">
@@ -168,13 +168,13 @@ function ConnectorDrawerDetails({ connector, categoryLabel, accountLabel, flags,
   const t = useTHook();
   const { isDisconnecting } = flags;
   return (
-    <section className="connector-drawer-section">
+    <section className="jini-ui-connector-drawer-section">
       <div className="jini-connector-drawer-section-head">
-        <h3 className="connector-drawer-section-title">{t('Details')}</h3>
+        <h3 className="jini-ui-connector-drawer-section-title">{t('Details')}</h3>
         {flags.isConnected ? (
           <button
             type="button"
-            className={`ghost connector-drawer-inline-action jini-connector-action is-disconnect${isDisconnecting ? ' is-loading' : ''}`}
+            className={`ghost jini-ui-connector-drawer-inline-action jini-connector-action is-disconnect${isDisconnecting ? ' is-loading' : ''}`}
             disabled={!flags.canDisconnect}
             aria-busy={isDisconnecting || undefined}
             onClick={() => onDisconnect(connector.id)}
@@ -220,7 +220,7 @@ function ConnectorDrawerTool({ tool }: { tool: Connector['tools'][number] }) {
     <li className="jini-connector-drawer-tool">
       <div className="jini-connector-drawer-tool-head">
         <span className="jini-connector-drawer-tool-title">{tool.title || tool.name}</span>
-        <span className={`connector-drawer-tool-badge side-${tool.safety.sideEffect}`} title={tool.safety.reason}>
+        <span className={`jini-ui-connector-drawer-tool-badge side-${tool.safety.sideEffect}`} title={tool.safety.reason}>
           {tool.safety.sideEffect}
         </span>
       </div>
@@ -427,14 +427,14 @@ export function ConnectorDetailDrawer({
 
   return (
     <div
-      className="connector-drawer-backdrop"
+      className="jini-ui-connector-drawer-backdrop"
       role="presentation"
       onMouseDown={(e) => {
         if (e.target === e.currentTarget) onClose();
       }}
     >
       <aside
-        className="connector-drawer"
+        className="jini-ui-connector-drawer"
         role="dialog"
         aria-modal="true"
         aria-labelledby="connector-drawer-title"
@@ -452,7 +452,7 @@ export function ConnectorDetailDrawer({
           agentHandle={agentHandle}
         />
 
-        <div className="connector-drawer-body">
+        <div className="jini-ui-connector-drawer-body">
           <ConnectorDrawerNotices
             connector={connector}
             flags={flags}
@@ -473,9 +473,9 @@ export function ConnectorDetailDrawer({
             agentHandle={agentHandle}
           />
 
-          <section className="connector-drawer-section">
-            <h3 className="connector-drawer-section-title">
-              {t('Tools')} <span className="connector-drawer-count">{getConnectorDisplayToolCount(connector)}</span>
+          <section className="jini-ui-connector-drawer-section">
+            <h3 className="jini-ui-connector-drawer-section-title">
+              {t('Tools')} <span className="jini-ui-connector-drawer-count">{getConnectorDisplayToolCount(connector)}</span>
             </h3>
             <ConnectorDrawerToolsBody
               connector={connector}

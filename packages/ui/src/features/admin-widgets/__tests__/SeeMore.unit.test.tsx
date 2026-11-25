@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
@@ -70,7 +71,7 @@ describe("SeeMore", () => {
     stubLayout(true);
     const { container } = render(<SeeMore>{LONG_TEXT}</SeeMore>);
 
-    const region = container.querySelector(".see-more-text");
+    const region = container.querySelector(".jini-ui-see-more-text");
     // The point of clamping over conditional rendering: every word is present and findable even
     // while visually cut off. A substring-based implementation would pass nothing but this.
     expect(region).toHaveTextContent(LONG_TEXT);
@@ -88,7 +89,7 @@ describe("SeeMore", () => {
     const user = userEvent.setup();
     stubLayout(true);
     const { container } = render(<SeeMore>{LONG_TEXT}</SeeMore>);
-    const region = container.querySelector(".see-more-text");
+    const region = container.querySelector(".jini-ui-see-more-text");
 
     await user.click(screen.getByRole("button", { name: "See more" }));
     expect(region).toHaveClass("is-expanded");
@@ -117,7 +118,7 @@ describe("SeeMore", () => {
     stubLayout(true);
     const { container } = render(<SeeMore>{LONG_TEXT}</SeeMore>);
 
-    const region = container.querySelector(".see-more-text");
+    const region = container.querySelector(".jini-ui-see-more-text");
     const controlled = screen.getByRole("button").getAttribute("aria-controls");
     expect(controlled).toBeTruthy();
     expect(region?.id).toBe(controlled);
@@ -127,7 +128,7 @@ describe("SeeMore", () => {
     stubLayout(true);
     for (const lines of [1, 2, 3]) {
       const { container, unmount } = render(<SeeMore lines={lines}>{LONG_TEXT}</SeeMore>);
-      const region = container.querySelector<HTMLElement>(".see-more-text");
+      const region = container.querySelector<HTMLElement>(".jini-ui-see-more-text");
       expect(region?.style.getPropertyValue("--see-more-lines")).toBe(String(lines));
       unmount();
     }
@@ -136,11 +137,11 @@ describe("SeeMore", () => {
   it("defaults to two lines and raises a below-1 value to 1", () => {
     stubLayout(true);
     const { container, unmount } = render(<SeeMore>{LONG_TEXT}</SeeMore>);
-    expect(container.querySelector<HTMLElement>(".see-more-text")?.style.getPropertyValue("--see-more-lines")).toBe("2");
+    expect(container.querySelector<HTMLElement>(".jini-ui-see-more-text")?.style.getPropertyValue("--see-more-lines")).toBe("2");
     unmount();
 
     const { container: zero } = render(<SeeMore lines={0}>{LONG_TEXT}</SeeMore>);
-    expect(zero.querySelector<HTMLElement>(".see-more-text")?.style.getPropertyValue("--see-more-lines")).toBe("1");
+    expect(zero.querySelector<HTMLElement>(".jini-ui-see-more-text")?.style.getPropertyValue("--see-more-lines")).toBe("1");
   });
 
   it("applies caller styling classes without dropping its own", () => {
@@ -151,11 +152,11 @@ describe("SeeMore", () => {
       </SeeMore>
     );
 
-    expect(container.querySelector(".see-more")).toHaveClass("host-wrap");
-    // `field-attrs-hint` is what carries the caller's typography; `see-more-text` is what carries
+    expect(container.querySelector(".jini-ui-see-more")).toHaveClass("host-wrap");
+    // `field-attrs-hint` is what carries the caller's typography; `jini-ui-see-more-text` is what carries
     // the clamp. Both must survive — dropping either is a silent visual regression.
-    expect(container.querySelector(".see-more-text")).toHaveClass("field-attrs-hint");
-    expect(screen.getByRole("button")).toHaveClass("see-more-toggle", "host-toggle");
+    expect(container.querySelector(".jini-ui-see-more-text")).toHaveClass("field-attrs-hint");
+    expect(screen.getByRole("button")).toHaveClass("jini-ui-see-more-toggle", "host-toggle");
   });
 
   it("accepts custom toggle labels and an explicit accessible name", async () => {
@@ -184,7 +185,7 @@ describe("SeeMore", () => {
         Use <code>md:col-span-2</code> here.
       </SeeMore>
     );
-    expect(container.querySelector(".see-more-text code")).toHaveTextContent("md:col-span-2");
+    expect(container.querySelector(".jini-ui-see-more-text code")).toHaveTextContent("md:col-span-2");
   });
 });
 
@@ -240,9 +241,9 @@ describe("resolveSeeMoreView", () => {
   // its branch combinations without a render at all.
   it("defaults every className to its bare form and the label to moreLabel when collapsed", () => {
     expect(resolveSeeMoreView({ expanded: false })).toEqual({
-      wrapperClassName: "see-more",
-      textClassName: "see-more-text",
-      toggleClassName: "see-more-toggle",
+      wrapperClassName: "jini-ui-see-more",
+      textClassName: "jini-ui-see-more-text",
+      toggleClassName: "jini-ui-see-more-toggle",
       toggleLabel: "See more",
     });
   });
@@ -251,9 +252,9 @@ describe("resolveSeeMoreView", () => {
     expect(
       resolveSeeMoreView({ expanded: true }, { className: "host", textClassName: "host-text", toggleClassName: "host-toggle" })
     ).toEqual({
-      wrapperClassName: "see-more host",
-      textClassName: "see-more-text is-expanded host-text",
-      toggleClassName: "see-more-toggle host-toggle",
+      wrapperClassName: "jini-ui-see-more host",
+      textClassName: "jini-ui-see-more-text is-expanded host-text",
+      toggleClassName: "jini-ui-see-more-toggle host-toggle",
       toggleLabel: "See less",
     });
   });
@@ -273,4 +274,18 @@ it('defaults the expand control handle and preserves opt-out', () => {
   expect(screen.getByRole('button')).toHaveAttribute('data-agent-element');
   rerender(<SeeMore useClamp={useClamp} agentHandle={false}>Long text</SeeMore>);
   expect(screen.getByRole('button')).not.toHaveAttribute('data-agent-element');
+});
+
+it("SeeMore expands only its own text", async () => {
+  const css = readFileSync(new URL("../../../styles/admin.css", import.meta.url), "utf8");
+  stubLayout(true);
+  const user = userEvent.setup();
+  const { container } = render(<><SeeMore toggleAriaLabel="First">First full text</SeeMore><SeeMore toggleAriaLabel="Second">Second full text</SeeMore></>);
+  await user.click(screen.getByRole("button", { name: "First" }));
+  expect(screen.getByText("First full text")).toHaveClass("jini-ui-see-more-text", "is-expanded");
+  expect(screen.getByText("Second full text")).not.toHaveClass("is-expanded");
+  expect(css).toContain(".jini-ui-see-more .jini-ui-see-more-text.is-expanded");
+  for (const node of container.querySelectorAll("[class]")) {
+    for (const token of node.classList) if (token.startsWith("jini-ui-see-more")) expect(css).toContain(`.${token}`);
+  }
 });

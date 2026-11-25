@@ -287,7 +287,14 @@
       "./contracts/site/database-introspection": "universal",
       "./contracts/site/external-mcp-tool-ports": "universal",
       "./contracts/site/deployment-admin": "universal",
-      "./contracts/site/content-editor-ports": "universal"
+      "./contracts/site/content-editor-ports": "universal",
+      "./contracts/site/media-tool-ports": "universal",
+      "./contracts/site/asset-transfer-tool-ports": "universal",
+      "./contracts/site/html-region-ports": "universal",
+      "./contracts/headless/plugin-install-source": "universal",
+      "./contracts/site/source-control-credentials": "universal",
+      "./contracts/site/vendor-credentials": "universal",
+      "./contracts/site/credential-project-half": "universal"
     },
     "isolation": {
       "entries": {
@@ -1724,6 +1731,41 @@
       "types": "./dist/contracts/site/content-editor-ports.d.ts",
       "import": "./dist/contracts/site/content-editor-ports.js",
       "default": "./dist/contracts/site/content-editor-ports.js"
+    },
+    "./contracts/site/media-tool-ports": {
+      "types": "./dist/contracts/site/media-tool-ports.d.ts",
+      "import": "./dist/contracts/site/media-tool-ports.js",
+      "default": "./dist/contracts/site/media-tool-ports.js"
+    },
+    "./contracts/site/asset-transfer-tool-ports": {
+      "types": "./dist/contracts/site/asset-transfer-tool-ports.d.ts",
+      "import": "./dist/contracts/site/asset-transfer-tool-ports.js",
+      "default": "./dist/contracts/site/asset-transfer-tool-ports.js"
+    },
+    "./contracts/site/html-region-ports": {
+      "types": "./dist/contracts/site/html-region-ports.d.ts",
+      "import": "./dist/contracts/site/html-region-ports.js",
+      "default": "./dist/contracts/site/html-region-ports.js"
+    },
+    "./contracts/headless/plugin-install-source": {
+      "types": "./dist/contracts/headless/plugin-install-source.d.ts",
+      "import": "./dist/contracts/headless/plugin-install-source.js",
+      "default": "./dist/contracts/headless/plugin-install-source.js"
+    },
+    "./contracts/site/source-control-credentials": {
+      "types": "./dist/contracts/site/source-control-credentials.d.ts",
+      "import": "./dist/contracts/site/source-control-credentials.js",
+      "default": "./dist/contracts/site/source-control-credentials.js"
+    },
+    "./contracts/site/vendor-credentials": {
+      "types": "./dist/contracts/site/vendor-credentials.d.ts",
+      "import": "./dist/contracts/site/vendor-credentials.js",
+      "default": "./dist/contracts/site/vendor-credentials.js"
+    },
+    "./contracts/site/credential-project-half": {
+      "types": "./dist/contracts/site/credential-project-half.d.ts",
+      "import": "./dist/contracts/site/credential-project-half.js",
+      "default": "./dist/contracts/site/credential-project-half.js"
     }
   },
   "files": [

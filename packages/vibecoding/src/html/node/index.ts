@@ -8,4 +8,4 @@
  */
 export { createParse5RegionParser, isValidRegionHandle, scanHtmlRegions } from "./parse5-region-parser.js";
 
-export type { HtmlRegionScan, HtmlTopLevelElement, ScannedRegion } from "../edit.js";
+export type { HtmlRegionScan, HtmlTopLevelElement, ScannedRegion } from "@jini-ai/core/contracts/site/html-region-ports";

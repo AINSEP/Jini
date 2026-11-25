@@ -1,5 +1,5 @@
 import type { ISODateTime, JsonObject, UUID } from "../../primitives/index.js";
-import type { DomainEvent, MutationActor } from "./ports.js";
+import type { AttributedDomainEvent, MutationActor } from "./ports.js";
 
 /**
  * @file Change-set vocabulary and persistence contract.
@@ -85,6 +85,12 @@ export interface ChangeSetWithItems {
   items: ChangeSetItemRecord[];
 }
 
+export type NewChangeSetRecord =
+  Omit<ChangeSetRecord, "actor" | "actorId"> & {
+    actor: MutationActor;
+    actorId: MutationActor["id"];
+  };
+
 /** Persistence contract for change sets. */
 export interface ChangeSetRepoPort {
   /**
@@ -94,7 +100,7 @@ export interface ChangeSetRepoPort {
    * that has no associated domain event to deliver.
  * See docs/decisions/DR-006-mutation-audit-atomicity.md.
  */
-  insert(required: { record: ChangeSetRecord; items: ChangeSetItemRecord[] }, optional?: { event?: DomainEvent | undefined }): Promise<void>;
+  insert(required: { record: NewChangeSetRecord; items: ChangeSetItemRecord[] }, optional?: { event?: AttributedDomainEvent | undefined }): Promise<void>;
   findById(required: { workspaceId: UUID; id: UUID }): Promise<ChangeSetWithItems | null>;
   findByIdempotencyKey(required: {
     workspaceId: UUID;

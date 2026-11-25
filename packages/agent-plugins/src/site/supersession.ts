@@ -1,3 +1,4 @@
+import type { AgentPluginIdentityReadOptions } from "../core/identity-namespace.js";
 import { readAgentPluginPortableExtension } from "../lifecycle/manifest.js";
 import type { orFallback } from "@jini-ai/core/errors/idioms";
 /**
@@ -59,15 +60,15 @@ function parseContribution({ value }: { value: unknown }, _optional: Record<stri
 function parseJson({ text }: { text: string }, _optional: Record<string, never> = {}): unknown {
   try { return JSON.parse(text); } catch { return undefined; }
 }
-function declaredSupersedes({ manifest }: { manifest: unknown }, _optional: Record<string, never> = {}): unknown {
-  return readAgentPluginPortableExtension({ value: manifest })?.supersedes;
+function declaredSupersedes({ manifest }: { manifest: unknown }, optional: Pick<AgentPluginIdentityReadOptions, "legacyIdentity"> = {}): unknown {
+  return readAgentPluginPortableExtension({ value: manifest }, optional)?.supersedes;
 }
 
 /** The manifest's declaration, or `undefined` when it has none or any part is malformed — a
  *  half-understood declaration must never refuse contributions it did not clearly name.
  *  @complexity O(n) in the declaration's entries. */
-export function parseSupersedes(required: { readonly manifestText: string | undefined }, _optional: Record<string, never> = {}): Omit<PluginSupersession, "successorId"> | undefined {
-  const declared = declaredSupersedes({ manifest: required.manifestText === undefined ? undefined : parseJson({ text: required.manifestText }) });
+export function parseSupersedes(required: { readonly manifestText: string | undefined }, optional: Pick<AgentPluginIdentityReadOptions, "legacyIdentity"> = {}): Omit<PluginSupersession, "successorId"> | undefined {
+  const declared = declaredSupersedes({ manifest: required.manifestText === undefined ? undefined : parseJson({ text: required.manifestText }) }, optional);
   if (!isRecord(declared)) return undefined;
   const packages = stringList({ value: declared.packages ?? [] });
   const rawContributions: unknown = declared.contributions ?? [];
@@ -85,23 +86,23 @@ async function readOrUndefined({ read, orFallback }: { read: () => Promise<strin
   return orFallback<string | undefined>({ work: read, fallback: undefined, step: "read plugin supersession manifest" });
 }
 
-async function declaredBy(required: { readonly plugin: TrustedPluginPackage; readonly manifests: SupersessionManifestsPort; readonly orFallback: SupersessionOrFallback }) {
+async function declaredBy(required: { readonly plugin: TrustedPluginPackage; readonly manifests: SupersessionManifestsPort; readonly orFallback: SupersessionOrFallback }, optional: Pick<AgentPluginIdentityReadOptions, "legacyIdentity"> = {}) {
   const { plugin, manifests, orFallback } = required;
-  const installed = parseSupersedes({ manifestText: await readOrUndefined({ read: () => manifests.readInstalled({ plugin }), orFallback }) });
+  const installed = parseSupersedes({ manifestText: await readOrUndefined({ read: () => manifests.readInstalled({ plugin }), orFallback }) }, optional);
   if (installed !== undefined) return installed;
   // A trusted package can predate its own declaration: the trust gate accepts the digest the
   // bundled-digest ledger last recorded, and a boot whose seed of the new version failed keeps the
   // previous one. The build's own source manifest for the same id is then the declaration.
-  return parseSupersedes({ manifestText: await readOrUndefined({ read: () => manifests.readBundledSource({ pluginId: plugin.pluginId }), orFallback }) });
+  return parseSupersedes({ manifestText: await readOrUndefined({ read: () => manifests.readBundledSource({ pluginId: plugin.pluginId }), orFallback }) }, optional);
 }
 
 /** Every trusted verdict's declaration, in verdict order. Refusal verdicts never supersede.
  *  @complexity O(v) manifest reads, at most two per trusted verdict. */
-export async function readSupersessions(required: { readonly verdicts: readonly TrustedPluginVerdict[]; readonly manifests: SupersessionManifestsPort; readonly orFallback: SupersessionOrFallback }, _optional: Record<string, never> = {}): Promise<readonly PluginSupersession[]> {
+export async function readSupersessions(required: { readonly verdicts: readonly TrustedPluginVerdict[]; readonly manifests: SupersessionManifestsPort; readonly orFallback: SupersessionOrFallback }, optional: Pick<AgentPluginIdentityReadOptions, "legacyIdentity"> = {}): Promise<readonly PluginSupersession[]> {
   const supersessions: PluginSupersession[] = [];
   for (const verdict of required.verdicts) {
     if (!("trusted" in verdict)) continue;
-    const declared = await declaredBy({ plugin: verdict.trusted, manifests: required.manifests, orFallback: required.orFallback });
+    const declared = await declaredBy({ plugin: verdict.trusted, manifests: required.manifests, orFallback: required.orFallback }, optional);
     if (declared !== undefined) supersessions.push({ successorId: verdict.trusted.pluginId, ...declared });
   }
   return supersessions;

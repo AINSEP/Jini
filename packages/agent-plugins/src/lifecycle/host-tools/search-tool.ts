@@ -346,7 +346,7 @@ async function buildSearchCandidate(
 ): Promise<IdentifiedAgentPluginSearchCandidate> {
   const skills = await resolveSkillsForSearchTolerant(plugin, ports);
   const mcpServerIds = await ports.lifecycle.readInstalledMcpServerIds({ packageRoot: plugin.packageRoot });
-  const identity = await readInstalledAgentPluginIdentity({ plugin });
+  const identity = await readInstalledAgentPluginIdentity({ plugin }, { legacyIdentity: ports.legacyIdentity });
   const maturity = identity.maturity ?? ports.hostMaturity?.({ pluginId: plugin.pluginId });
   const { requires, companions, ...displayFields } = optionalPluginFields({ plugin });
 

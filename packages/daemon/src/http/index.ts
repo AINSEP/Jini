@@ -385,3 +385,5 @@ export {
   type AgentPluginPreflightCommitResponse, type AgentPluginPreflightInput, type AgentPluginPreflightOfferResponse, type AgentPluginPreflightPrefix,
   type AgentPluginPreflightPrepared, type AgentPluginPreflightResponse, type AgentPluginPreflightRouteDeps, type AgentPluginPreflightRouteSpec,
 } from './agent-plugin-preflight.js';
+
+export { readChatAttachmentForOwner, resolveContainedAttachmentPath, chatAttachmentSidecarFileName, isChatAttachmentSidecarShape, type AttachmentReadPorts } from './attachment-owner-read.js';

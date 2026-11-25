@@ -1,4 +1,5 @@
-import type { KeyringPort, SecretSealerPort } from "../secrets/ports.js";
+import type { CredentialScope, CredentialProjectHalf } from "@jini-ai/core/contracts/site/credential-project-half";
+export type { CredentialScope, CredentialProjectHalf };
 
 /**
  * @file Shared scope policy for custom, publish and source-control credentials. Site-owned keys
@@ -7,24 +8,6 @@ import type { KeyringPort, SecretSealerPort } from "../secrets/ports.js";
  * Earlier boot adoption removed local overrides to prevent copied keys bypassing revoke. Adoption
  * is retired: grants govern shared rows only, and existing local keys remain independently owned.
  */
-
-/** This site's own vault, or the project store every site of the project shares (the host's project database). */
-export type CredentialScope = "site" | "project";
-
-/**
- * A store's project half: the same repo shape over the project's own `secrets_vault`, opened with the
- * project's keyring and sealer, under the project's workspace id. Jini derives the sealing key from
- * the store's key and the row's AAD binds its workspace, so a project row opens only with these.
- */
-export interface CredentialProjectHalf<R> {
-  readonly workspaceId: string;
-  readonly repo: R;
-  /** Trusted human replacement only; the adapter still requires the current site grant. */
-  readonly replaceRepo?: R;
-  readonly createRepo?: R;
-  readonly sealer: SecretSealerPort;
-  readonly keyring: KeyringPort;
-}
 
 /** One store a site reads credentials from, with the deps (repo, sealer, keyring) that open its rows. */
 export interface ScopedCredentialDeps<D> { readonly deps: D; readonly workspaceId: string; readonly scope: CredentialScope }

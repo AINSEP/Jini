@@ -19,3 +19,17 @@ export interface KeyAttachments {
  * Structural only: the Project Keys grant wrapper produces it and the custom-credential repo consumes it.
  */
 export type SiteGrantedVault = VaultRepoPort & { findByLabel?: (input: { workspaceId: string; label: string }, options?: Record<string, never>) => Promise<VaultRecord | null> };
+
+/** Site storage contains references only. Grants and secrets remain in the owner database. */
+export interface SiteKeyReferences {
+  set(input: { credentialId: string }, options?: Record<string, never>): Promise<void>;
+  has(input: { credentialId: string }, options?: Record<string, never>): Promise<boolean>;
+  remove(input: { credentialId: string }, options?: Record<string, never>): Promise<void>;
+}
+
+/** A consumer binding names one owner credential; a live owner grant still authorizes every use. */
+export interface SiteOAuthBindings {
+  read(input: { consumerId: string }, options?: Record<string, never>): Promise<{ credentialId: string } | null>;
+  set(input: { consumerId: string; credentialId: string }, options?: Record<string, never>): Promise<void>;
+  remove(input: { consumerId: string }, options?: Record<string, never>): Promise<void>;
+}

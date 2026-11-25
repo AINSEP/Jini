@@ -3,10 +3,10 @@ import { nowIso as kernelNowIso } from "@jini-ai/core/primitives";
 import type { JsonObject, UUID } from "@jini-ai/core/primitives";
 import type {
   ChangeSetItemRecord,
-  ChangeSetRecord,
+  NewChangeSetRecord,
+  AttributedDomainEvent,
   CommandEnvelope,
   CommandMutation,
-  DomainEvent,
   ExecuteCommandDeps,
   ExecuteCommandOptional,
   ExecuteCommandRequired,
@@ -211,7 +211,7 @@ function attributedActor({ command }: { command: CommandEnvelope }, _optional: R
 function appliedChangeSetEvent(
   { deps, command, mutation }: { deps: ExecuteCommandDeps; command: CommandEnvelope; mutation: Pick<CommandMutation<unknown>, 'entityType' | 'entityId'> },
   { now, changeSetId }: { now: string; changeSetId: UUID },
-): DomainEvent<{ changeSetId: UUID; entityType: string; entityId: UUID }> {
+): AttributedDomainEvent<{ changeSetId: UUID; entityType: string; entityId: UUID }> {
   // the event rides into insert's optional object (see this function's doc comment) so a. See docs/decisions/DR-006-mutation-audit-atomicity.md.
   // durable adapter co-persists it atomically with the record it belongs to. Built unconditionally
   // (cheap, pure data) but only passed through when an outbox is actually wired.
@@ -251,7 +251,7 @@ function buildAppliedChangeSet<TResult>(
     inversePayload: JsonObject | null;
   },
   _optional: Record<string, never> = {}
-): { record: ChangeSetRecord; items: ChangeSetItemRecord[]; event: DomainEvent | undefined } {
+): { record: NewChangeSetRecord; items: ChangeSetItemRecord[]; event: AttributedDomainEvent | undefined } {
   const { deps, command, mutation, result, inversePayload } = required;
   const entityVersionAtApply = mutation.captureEntityVersion?.({ result }) ?? undefined;
 

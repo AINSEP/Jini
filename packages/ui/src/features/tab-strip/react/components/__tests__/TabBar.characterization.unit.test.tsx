@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs";
 import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
@@ -41,7 +42,7 @@ describe("TabBar characterization", () => {
     expect(Array.from(button.childNodes, (node) => node.textContent)).toEqual(["", "", "Provider", ", Connected", "Soon", "0"]);
     expect(button.querySelector(".jini-tab-bar-dot")).toHaveAttribute("aria-hidden", "true");
     expect(screen.getByTestId("provider-icon").parentElement).toHaveAttribute("aria-hidden", "true");
-    expect(button.querySelector(".tab-bar-count")).toHaveTextContent("0");
+    expect(button.querySelector(".jini-ui-tab-bar-count")).toHaveTextContent("0");
   });
 
   it("keeps plain tabs undecorated and selection controlled after a click", () => {
@@ -72,4 +73,18 @@ describe("TabBar characterization", () => {
     fireEvent.click(button);
     expect(onChange).not.toHaveBeenCalled();
   });
+});
+
+it("a selected UI TabBar item retains its count and underline", () => {
+  const css = readFileSync(new URL("../../../../../styles/admin.css", import.meta.url), "utf8");
+  render(<TabBar tabs={[{ id: "a", label: "Alpha", count: 3, icon: <svg /> }]} activeId="a" onChange={vi.fn()} ariaLabel="Tabs" />);
+  const tab = screen.getByRole("tab");
+  expect(tab).toHaveAttribute("aria-selected", "true");
+  expect(tab).toHaveClass("jini-ui-tab-bar-item");
+  expect(tab.querySelector(".jini-ui-tab-bar-count")).toHaveTextContent("3");
+  expect(css).toContain('.jini-ui-tab-bar-item[aria-selected="true"]');
+  expect(css).toContain("border-bottom-color: var(--jini-accent)");
+  for (const node of [tab.parentElement!, tab, ...tab.querySelectorAll("[class]")]) {
+    for (const token of node.classList) if (token.startsWith("jini-ui-tab-bar")) expect(css).toContain(`.${token}`);
+  }
 });

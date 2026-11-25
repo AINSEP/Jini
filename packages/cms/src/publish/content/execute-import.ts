@@ -47,11 +47,12 @@ export async function executePublishContentImport<TResult>(
 ): Promise<TResult> {
   const { workspaceId, costClass, gatewayExecute } = required;
 
+  // Import cannot be recovered without an available restore point, so attestation cannot bypass this refusal.
   if (costClass === "unavailable") {
     throw new RestorePointUnavailableError({
       message:
         `workspace '${workspaceId}' has restore-point costClass 'unavailable' — publish-content import ` +
-        "is refused with no attestation override (mirrors ADR-041 §2's forward-migrate rule)",
+        "is refused with no attestation override",
     });
   }
 

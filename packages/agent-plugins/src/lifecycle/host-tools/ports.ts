@@ -1,3 +1,4 @@
+import type { LegacyAgentPluginIdentity } from "../../core/identity-namespace.js";
 /**
  * @file The ports the host-tools take. Each is structural, so a host binds its own lifecycle,
  * activation effects, memory store, permission check and text without these tools importing a
@@ -66,6 +67,7 @@ export interface HostToolMessages {
 
 /** Every host-tools entry point takes this one bag. */
 export interface AgentPluginHostToolPorts {
+  readonly legacyIdentity?: LegacyAgentPluginIdentity | undefined;
   readonly report?: Pick<Logger, 'warn'>;
   readonly lifecycle: HostToolsLifecyclePort;
   readonly activations: HostToolsActivationsPort;

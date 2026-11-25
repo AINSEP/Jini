@@ -116,3 +116,13 @@ test("readSupersessions routes every manifest read through the injected fallback
   assert.deepEqual(supersessions, []);
   assert.deepEqual(steps, ["read plugin supersession manifest", "read plugin supersession manifest"]);
 });
+
+test('an untrusted successor cannot use the namespace binding', async () => {
+  const reads: string[] = [];
+  const raw = JSON.stringify({ extensions: { alpha: { supersedes: { packages: ['old'] } } } });
+  const result = await readSupersessions({ verdicts: [{ refusal: 'not trusted' }, { trusted: { pluginId: 'trusted', packageRoot: '/trusted' } }],
+    manifests: { readInstalled: async ({ plugin }) => { reads.push(plugin.pluginId); return raw; }, readBundledSource: async () => { throw new Error('unexpected fallback'); } }, orFallback,
+  }, { legacyIdentity: { namespace: 'alpha', warning: 'Alpha legacy' } });
+  assert.deepEqual(reads, ['trusted']);
+  assert.deepEqual(result, [{ successorId: 'trusted', packages: ['old'], contributions: [] }]);
+});

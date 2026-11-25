@@ -54,10 +54,10 @@ export function InfoTip({ label, triggerLabel, descriptionId, placement: preferr
   const { name, textId, describedBy } = infoTipNaming({ label, autoId }, { triggerLabel, descriptionId });
 
   return (
-    <span className={inline ? "info-tip info-tip--inline" : "info-tip"}>
+    <span className={inline ? "jini-ui-info-tip jini-ui-info-tip--inline" : "jini-ui-info-tip"}>
       <span
         ref={iconRef}
-        className={icon ? "info-tip-icon info-tip-icon--custom" : "info-tip-icon"}
+        className={icon ? "jini-ui-info-tip-icon jini-ui-info-tip-icon--custom" : "jini-ui-info-tip-icon"}
         role="button"
         tabIndex={0}
         aria-label={name}
@@ -109,11 +109,11 @@ type InfoTipOpenCopyProps = { label: string; inline: boolean; bubbleRef: InfoTip
 
 /** The open tip: inline copy beside the icon, or the bubble portaled out of clipping ancestors. */
 function InfoTipOpenCopy({ label, inline, placement, coords, iconRef, bubbleRef }: InfoTipOpenCopyProps) {
-  if (inline) return <span className="info-tip-inline-copy" aria-hidden="true">{label}</span>;
+  if (inline) return <span className="jini-ui-info-tip-inline-copy" aria-hidden="true">{label}</span>;
   return createPortal(
     <span
       ref={bubbleRef}
-      className={placement === "below" ? "info-tip-bubble info-tip-bubble-below" : "info-tip-bubble"}
+      className={placement === "below" ? "jini-ui-info-tip-bubble jini-ui-info-tip-bubble-below" : "jini-ui-info-tip-bubble"}
       role="presentation"
       aria-hidden="true"
       style={{ ...infoTipBubbleStyle(coords), whiteSpace: "pre-line" }}
@@ -133,7 +133,7 @@ function InfoTipBubbleText({ label }: { label: string }) {
   return lines.map((line, index) => {
     const separator = index < lines.length - 1 ? "\n" : null;
     return line.bullet
-      ? <span key={index} className="info-tip-bullet"><span aria-hidden="true">•</span>{" "}<span>{line.text}</span>{separator}</span>
-      : <span key={index} className="info-tip-line">{line.text}{separator}</span>;
+      ? <span key={index} className="jini-ui-info-tip-bullet"><span aria-hidden="true">•</span>{" "}<span>{line.text}</span>{separator}</span>
+      : <span key={index} className="jini-ui-info-tip-line">{line.text}{separator}</span>;
   });
 }

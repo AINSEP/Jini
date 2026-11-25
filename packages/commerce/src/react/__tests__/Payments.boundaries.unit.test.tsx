@@ -1,10 +1,12 @@
+const classes = { page: "page", pageHeader: "page-header", pageHeaderText: "page-header-text", pageKicker: "page-kicker", pageTitle: "page-title", pageDescription: "page-description", notice: "notice", panels: "dash-panels", panel: "dash-panel", panelHead: "dash-panel-head", panelTitle: "dash-panel-title", panelBody: "dash-panel-body", actions: "page-actions", disabledStatus: "status status-disabled", secondaryButton: "btn-secondary" };
+import { usePayments } from "../Payments.hooks.js";
 import { render, screen, within } from "@testing-library/react";
 import { describe, expect, test } from "vitest";
 import { Payments } from "../index.js";
 
 describe("Payments public component boundaries", () => {
-  test("calling the component without props renders the accessible English overview", () => {
-    render(Payments());
+  test("the required presentation props render the accessible English overview", () => {
+    render(<Payments classes={classes} usePaymentsHook={usePayments} />);
     expect(screen.getByRole("heading", { level: 1, name: "Payments" })).toBeInTheDocument();
     expect(screen.getAllByRole("region")).toHaveLength(4);
     expect(within(screen.getByRole("region", { name: "Payment providers" })).getByText("Setup required")).toBeInTheDocument();
@@ -20,7 +22,7 @@ describe("Payments public component boundaries", () => {
     ["zh-CN", "付款", "打开产品", "打开订阅", "打开订单"],
     ["id", "Pembayaran", "Buka produk", "Buka langganan", "Buka pesanan"],
   ])("locale %s translates navigation while retaining stable destinations and agent handles", (locale, heading, products, subscriptions, orders) => {
-    render(<Payments locale={locale} />);
+    render(<Payments classes={classes} usePaymentsHook={usePayments} locale={locale} />);
     expect(screen.getByRole("heading", { level: 1, name: heading })).toBeInTheDocument();
     for (const [label, href, handle, agentLabel] of [
       [products, "/admin/products", "payments-open-products", "Go to Products"],
@@ -40,9 +42,9 @@ describe("Payments public component boundaries", () => {
   });
 
   test("changing locale refreshes headings and link labels without retaining stale translations", () => {
-    const view = render(<Payments locale="de" />);
+    const view = render(<Payments classes={classes} usePaymentsHook={usePayments} locale="de" />);
     expect(screen.getByRole("heading", { name: "Zahlungen" })).toBeInTheDocument();
-    view.rerender(<Payments locale={undefined} />);
+    view.rerender(<Payments classes={classes} usePaymentsHook={usePayments} locale={undefined} />);
     expect(screen.getByRole("heading", { name: "Payments" })).toBeInTheDocument();
     expect(screen.queryByRole("heading", { name: "Zahlungen" })).not.toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Open subscriptions" })).toHaveAttribute("href", "/admin/subscriptions");

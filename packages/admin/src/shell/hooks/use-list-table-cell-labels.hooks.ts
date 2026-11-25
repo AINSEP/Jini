@@ -22,7 +22,7 @@ function headerLabels(table: HTMLTableElement): string[] {
   for (const th of Array.from(row.cells)) {
     // Tooltip descriptions and icons are help, not the column title printed on cards.
     const title = th.cloneNode(true) as HTMLTableCellElement;
-    title.querySelectorAll('.info-tip, [role="tooltip"], [hidden], [aria-hidden="true"]')
+    title.querySelectorAll('.jini-ui-info-tip, [role="tooltip"], [hidden], [aria-hidden="true"]')
       .forEach((help) => help.remove());
     // An element's `textContent` is never null (only a document's or doctype's is), so no "" fallback.
     const text = (th.getAttribute(DATA_LABEL) ?? title.textContent).replace(SORT_GLYPHS, "").trim();

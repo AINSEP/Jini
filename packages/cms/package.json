@@ -733,7 +733,44 @@
       "./react/media/MediaPickerDialog/MediaPickerDialog.hooks": "browser",
       "./react/widgets/WidgetConfigFields/HtmlAttributeRows": "browser",
       "./react/widgets/EmbedInsertControl/EmbedInsertControl": "browser",
-      "./react/widgets/EmbedInsertControl/EmbedInsertControl.hooks": "browser"
+      "./react/widgets/EmbedInsertControl/EmbedInsertControl.hooks": "browser",
+      "./admin-http/routes/system/publish-site/destinations": "universal",
+      "./admin-http/routes/system/publish-site/trigger": "universal",
+      "./admin-http/routes/settings/events": "universal",
+      "./admin-http/routes/plugins/install": "universal",
+      "./admin-http/routes/external-mcp/probe": "universal",
+      "./admin-http/routes/external-mcp/oauth": "universal",
+      "./media/site/rendition-access": "universal",
+      "./public-http/routes/plugin-contributions": "universal",
+      "./public-http/routes/site/products": "universal",
+      "./public-http/routes/site/member-pages": "universal",
+      "./public-http/routes/site/pages/response": "universal",
+      "./public-http/http/site/render/page-body": "universal",
+      "./public-http/http/site/render/content-html": "universal",
+      "./react/widgets/WidgetConfigFields/WidgetConfigFields": "browser",
+      "./react/collections/CollectionEntryEditor": "browser",
+      "./media/site/provider-credential-store": "universal",
+      "./media/site/provider-credential-vault": "universal",
+      "./media/site/provider-credential-store.memory": "universal",
+      "./media/site/promote-chat-attachment": "node",
+      "./media/site/library-save-attachment": "node",
+      "./media/site/view-video-tool": "universal",
+      "./pages/html-document-store": "universal",
+      "./pages/html-document-store.memory": "universal",
+      "./pages/agent-tools": "universal",
+      "./pages/tool-registrations": "node",
+      "./seo/content-analyzer-plugin/plugin": "node",
+      "./posts/agent-tools": "universal",
+      "./posts/content-stats-tool": "node",
+      "./posts/search-index.memory": "universal",
+      "./publish/trust/revocations.sql": "node",
+      "./site-inspection/agent-tools": "universal",
+      "./trash/site/move-to-trash": "universal",
+      "./trash/site/adapters/member": "universal",
+      "./trash/site/adapters/media": "node",
+      "./trash/site/adapters/post": "node",
+      "./media/site-import/tool-registrations": "node",
+      "./asset-transfer/asset-destinations": "node"
     },
     "isolation": {
       "domains": {
@@ -1130,7 +1167,12 @@
         "./react/media/MediaPickerDialog/MediaPickerDialog.hooks": "media",
         "./react/widgets/WidgetConfigFields/HtmlAttributeRows": "widgets",
         "./react/widgets/EmbedInsertControl/EmbedInsertControl": "widgets",
-        "./react/widgets/EmbedInsertControl/EmbedInsertControl.hooks": "widgets"
+        "./react/widgets/EmbedInsertControl/EmbedInsertControl.hooks": "widgets",
+        "./media/site/rendition-access": "media",
+        "./public-http/routes/site/pages/response": "presentation",
+        "./public-http/http/site/render/page-body": "presentation",
+        "./public-http/http/site/render/content-html": "presentation",
+        "./public-http/http/site/render/components/marketing": "presentation"
       }
     },
     "optionalPeers": {
@@ -4753,6 +4795,191 @@
       "types": "./dist/react/widgets/EmbedInsertControl/EmbedInsertControl.hooks.d.ts",
       "import": "./dist/react/widgets/EmbedInsertControl/EmbedInsertControl.hooks.js",
       "default": "./dist/react/widgets/EmbedInsertControl/EmbedInsertControl.hooks.js"
+    },
+    "./admin-http/routes/system/publish-site/destinations": {
+      "types": "./dist/admin-http/routes/system/publish-site/destinations.d.ts",
+      "import": "./dist/admin-http/routes/system/publish-site/destinations.js",
+      "default": "./dist/admin-http/routes/system/publish-site/destinations.js"
+    },
+    "./admin-http/routes/system/publish-site/trigger": {
+      "types": "./dist/admin-http/routes/system/publish-site/trigger.d.ts",
+      "import": "./dist/admin-http/routes/system/publish-site/trigger.js",
+      "default": "./dist/admin-http/routes/system/publish-site/trigger.js"
+    },
+    "./admin-http/routes/settings/events": {
+      "types": "./dist/admin-http/routes/settings/events.d.ts",
+      "import": "./dist/admin-http/routes/settings/events.js",
+      "default": "./dist/admin-http/routes/settings/events.js"
+    },
+    "./admin-http/routes/plugins/install": {
+      "types": "./dist/admin-http/routes/plugins/install.d.ts",
+      "import": "./dist/admin-http/routes/plugins/install.js",
+      "default": "./dist/admin-http/routes/plugins/install.js"
+    },
+    "./admin-http/routes/external-mcp/probe": {
+      "types": "./dist/admin-http/routes/external-mcp/probe.d.ts",
+      "import": "./dist/admin-http/routes/external-mcp/probe.js",
+      "default": "./dist/admin-http/routes/external-mcp/probe.js"
+    },
+    "./admin-http/routes/external-mcp/oauth": {
+      "types": "./dist/admin-http/routes/external-mcp/oauth.d.ts",
+      "import": "./dist/admin-http/routes/external-mcp/oauth.js",
+      "default": "./dist/admin-http/routes/external-mcp/oauth.js"
+    },
+    "./media/site/rendition-access": {
+      "types": "./dist/media/site/rendition-access.d.ts",
+      "import": "./dist/media/site/rendition-access.js",
+      "default": "./dist/media/site/rendition-access.js"
+    },
+    "./public-http/routes/plugin-contributions": {
+      "types": "./dist/public-http/routes/plugin-contributions.d.ts",
+      "import": "./dist/public-http/routes/plugin-contributions.js",
+      "default": "./dist/public-http/routes/plugin-contributions.js"
+    },
+    "./public-http/routes/site/products": {
+      "types": "./dist/public-http/routes/site/products.d.ts",
+      "import": "./dist/public-http/routes/site/products.js",
+      "default": "./dist/public-http/routes/site/products.js"
+    },
+    "./public-http/routes/site/member-pages": {
+      "types": "./dist/public-http/routes/site/member-pages.d.ts",
+      "import": "./dist/public-http/routes/site/member-pages.js",
+      "default": "./dist/public-http/routes/site/member-pages.js"
+    },
+    "./public-http/routes/site/pages/response": {
+      "types": "./dist/public-http/routes/site/pages/response.d.ts",
+      "import": "./dist/public-http/routes/site/pages/response.js",
+      "default": "./dist/public-http/routes/site/pages/response.js"
+    },
+    "./public-http/http/site/render/page-body": {
+      "types": "./dist/public-http/http/site/render/page-body.d.ts",
+      "import": "./dist/public-http/http/site/render/page-body.js",
+      "default": "./dist/public-http/http/site/render/page-body.js"
+    },
+    "./public-http/http/site/render/content-html": {
+      "types": "./dist/public-http/http/site/render/content-html.d.ts",
+      "import": "./dist/public-http/http/site/render/content-html.js",
+      "default": "./dist/public-http/http/site/render/content-html.js"
+    },
+    "./react/widgets/WidgetConfigFields/WidgetConfigFields": {
+      "types": "./dist/react/widgets/WidgetConfigFields/WidgetConfigFields.d.ts",
+      "import": "./dist/react/widgets/WidgetConfigFields/WidgetConfigFields.js",
+      "default": "./dist/react/widgets/WidgetConfigFields/WidgetConfigFields.js"
+    },
+    "./react/collections/CollectionEntryEditor": {
+      "types": "./dist/react/collections/CollectionEntryEditor.d.ts",
+      "import": "./dist/react/collections/CollectionEntryEditor.js",
+      "default": "./dist/react/collections/CollectionEntryEditor.js"
+    },
+    "./media/site/provider-credential-store": {
+      "types": "./dist/media/site/provider-credential-store.d.ts",
+      "import": "./dist/media/site/provider-credential-store.js",
+      "default": "./dist/media/site/provider-credential-store.js"
+    },
+    "./media/site/provider-credential-vault": {
+      "types": "./dist/media/site/provider-credential-vault.d.ts",
+      "import": "./dist/media/site/provider-credential-vault.js",
+      "default": "./dist/media/site/provider-credential-vault.js"
+    },
+    "./media/site/provider-credential-store.memory": {
+      "types": "./dist/media/site/provider-credential-store.memory.d.ts",
+      "import": "./dist/media/site/provider-credential-store.memory.js",
+      "default": "./dist/media/site/provider-credential-store.memory.js"
+    },
+    "./media/site/promote-chat-attachment": {
+      "types": "./dist/media/site/promote-chat-attachment.d.ts",
+      "import": "./dist/media/site/promote-chat-attachment.js",
+      "default": "./dist/media/site/promote-chat-attachment.js"
+    },
+    "./media/site/library-save-attachment": {
+      "types": "./dist/media/site/library-save-attachment.d.ts",
+      "import": "./dist/media/site/library-save-attachment.js",
+      "default": "./dist/media/site/library-save-attachment.js"
+    },
+    "./media/site/view-video-tool": {
+      "types": "./dist/media/site/view-video-tool.d.ts",
+      "import": "./dist/media/site/view-video-tool.js",
+      "default": "./dist/media/site/view-video-tool.js"
+    },
+    "./pages/html-document-store": {
+      "types": "./dist/pages/html-document-store.d.ts",
+      "import": "./dist/pages/html-document-store.js",
+      "default": "./dist/pages/html-document-store.js"
+    },
+    "./pages/html-document-store.memory": {
+      "types": "./dist/pages/html-document-store.memory.d.ts",
+      "import": "./dist/pages/html-document-store.memory.js",
+      "default": "./dist/pages/html-document-store.memory.js"
+    },
+    "./pages/agent-tools": {
+      "types": "./dist/pages/agent-tools.d.ts",
+      "import": "./dist/pages/agent-tools.js",
+      "default": "./dist/pages/agent-tools.js"
+    },
+    "./pages/tool-registrations": {
+      "types": "./dist/pages/tool-registrations.d.ts",
+      "import": "./dist/pages/tool-registrations.js",
+      "default": "./dist/pages/tool-registrations.js"
+    },
+    "./seo/content-analyzer-plugin/plugin": {
+      "types": "./dist/seo/content-analyzer-plugin/plugin.d.ts",
+      "import": "./dist/seo/content-analyzer-plugin/plugin.js",
+      "default": "./dist/seo/content-analyzer-plugin/plugin.js"
+    },
+    "./posts/agent-tools": {
+      "types": "./dist/posts/agent-tools.d.ts",
+      "import": "./dist/posts/agent-tools.js",
+      "default": "./dist/posts/agent-tools.js"
+    },
+    "./posts/content-stats-tool": {
+      "types": "./dist/posts/content-stats-tool.d.ts",
+      "import": "./dist/posts/content-stats-tool.js",
+      "default": "./dist/posts/content-stats-tool.js"
+    },
+    "./posts/search-index.memory": {
+      "types": "./dist/posts/search-index.memory.d.ts",
+      "import": "./dist/posts/search-index.memory.js",
+      "default": "./dist/posts/search-index.memory.js"
+    },
+    "./publish/trust/revocations.sql": {
+      "types": "./dist/publish/trust/revocations.sql.d.ts",
+      "import": "./dist/publish/trust/revocations.sql.js",
+      "default": "./dist/publish/trust/revocations.sql.js"
+    },
+    "./site-inspection/agent-tools": {
+      "types": "./dist/site-inspection/agent-tools.d.ts",
+      "import": "./dist/site-inspection/agent-tools.js",
+      "default": "./dist/site-inspection/agent-tools.js"
+    },
+    "./trash/site/move-to-trash": {
+      "types": "./dist/trash/site/move-to-trash.d.ts",
+      "import": "./dist/trash/site/move-to-trash.js",
+      "default": "./dist/trash/site/move-to-trash.js"
+    },
+    "./trash/site/adapters/member": {
+      "types": "./dist/trash/site/adapters/member.d.ts",
+      "import": "./dist/trash/site/adapters/member.js",
+      "default": "./dist/trash/site/adapters/member.js"
+    },
+    "./trash/site/adapters/media": {
+      "types": "./dist/trash/site/adapters/media.d.ts",
+      "import": "./dist/trash/site/adapters/media.js",
+      "default": "./dist/trash/site/adapters/media.js"
+    },
+    "./trash/site/adapters/post": {
+      "types": "./dist/trash/site/adapters/post.d.ts",
+      "import": "./dist/trash/site/adapters/post.js",
+      "default": "./dist/trash/site/adapters/post.js"
+    },
+    "./media/site-import/tool-registrations": {
+      "types": "./dist/media/site-import/tool-registrations.d.ts",
+      "import": "./dist/media/site-import/tool-registrations.js",
+      "default": "./dist/media/site-import/tool-registrations.js"
+    },
+    "./asset-transfer/asset-destinations": {
+      "types": "./dist/asset-transfer/asset-destinations.d.ts",
+      "import": "./dist/asset-transfer/asset-destinations.js",
+      "default": "./dist/asset-transfer/asset-destinations.js"
     }
   },
   "files": [

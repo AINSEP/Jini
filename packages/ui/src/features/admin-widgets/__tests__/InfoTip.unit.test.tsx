@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs";
 import { act, fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
@@ -24,8 +25,8 @@ describe("InfoTip", () => {
     await user.tab();
     const copy = screen.getByText(LABEL);
     expect(container.querySelector('.label-row')).toContainElement(copy);
-    expect(copy).toHaveClass('info-tip-inline-copy');
-    expect(document.querySelector('.info-tip-bubble')).toBeNull();
+    expect(copy).toHaveClass('jini-ui-info-tip-inline-copy');
+    expect(document.querySelector('.jini-ui-info-tip-bubble')).toBeNull();
     expect(screen.getByRole('button')).toHaveAttribute('aria-expanded', 'true');
     await user.keyboard('{Escape}');
     expect(screen.queryByText(LABEL)).not.toBeInTheDocument();
@@ -37,9 +38,9 @@ describe("InfoTip", () => {
     const trigger = screen.getByRole("button", { name: "Subagents" });
     expect(trigger).toContainElement(screen.getByTestId("custom-icon"));
     expect(trigger).not.toHaveTextContent("ⓘ");
-    expect(trigger).toHaveClass("info-tip-icon--custom");
+    expect(trigger).toHaveClass("jini-ui-info-tip-icon--custom");
     fireEvent.mouseEnter(trigger);
-    expect(screen.getByText(LABEL, { selector: ".info-tip-bubble" })).toBeInTheDocument();
+    expect(screen.getByText(LABEL, { selector: ".jini-ui-info-tip-bubble" })).toBeInTheDocument();
   });
 
   it("is closed by default, with the icon reachable by its accessible name", () => {
@@ -121,7 +122,7 @@ describe("InfoTip", () => {
       ({ top: 40, bottom: 60, left: 100, right: 120, width: 20, height: 20 }) as DOMRect;
 
     await user.tab();
-    expect(screen.getByText(LABEL)).toHaveClass("info-tip-bubble-below");
+    expect(screen.getByText(LABEL)).toHaveClass("jini-ui-info-tip-bubble-below");
   });
 
   it("opens above the icon when there is enough room above it", async () => {
@@ -133,8 +134,8 @@ describe("InfoTip", () => {
 
     await user.tab();
     const bubble = screen.getByText(LABEL);
-    expect(bubble).toHaveClass("info-tip-bubble");
-    expect(bubble).not.toHaveClass("info-tip-bubble-below");
+    expect(bubble).toHaveClass("jini-ui-info-tip-bubble");
+    expect(bubble).not.toHaveClass("jini-ui-info-tip-bubble-below");
   });
 });
 
@@ -212,7 +213,7 @@ describe("InfoTip tap and description wiring", () => {
     await user.hover(second);
     expect(first).toHaveAttribute("aria-expanded", "false");
     expect(second).toHaveAttribute("aria-expanded", "true");
-    expect(document.querySelectorAll(".info-tip-bubble")).toHaveLength(1);
+    expect(document.querySelectorAll(".jini-ui-info-tip-bubble")).toHaveLength(1);
   });
 
   it("a page scroll closes an open tip", async () => {
@@ -286,14 +287,14 @@ describe("InfoTip tip-hook injection", () => {
     render(<InfoTip label={LABEL} useTip={useFakeInfoTip} />);
 
     const bubble = screen.getByText(LABEL);
-    expect(bubble).toHaveClass("info-tip-bubble-below");
+    expect(bubble).toHaveClass("jini-ui-info-tip-bubble-below");
     expect(bubble).toHaveStyle({ top: "12px", left: "34px" });
   });
 
   it("shows \"• \" lines as a hanging list, the bullet beside its text", async () => {
     render(<InfoTip label={"• Show: every call.\n• Hidden: failed calls only."} />);
     await userEvent.setup().hover(screen.getByRole("button"));
-    const bullets = [...document.querySelectorAll(".info-tip-bubble .info-tip-bullet")];
+    const bullets = [...document.querySelectorAll(".jini-ui-info-tip-bubble .jini-ui-info-tip-bullet")];
     expect(bullets.map((line) => [...line.children].map((part) => part.textContent))).toEqual([
       ["•", "Show: every call."], ["•", "Hidden: failed calls only."],
     ]);
@@ -321,9 +322,9 @@ describe("InfoTip tip-hook injection", () => {
   it("a bulleted label keeps its plain lines as lines, separated by newlines except after the last", async () => {
     render(<InfoTip label={"Pick one:\n• Show: all.\nThen save."} />);
     await userEvent.setup().hover(screen.getByRole("button"));
-    const bubble = document.querySelector(".info-tip-bubble");
+    const bubble = document.querySelector(".jini-ui-info-tip-bubble");
     expect([...bubble!.children].map((line) => [line.className, line.textContent])).toEqual([
-      ["info-tip-line", "Pick one:\n"], ["info-tip-bullet", "• Show: all.\n"], ["info-tip-line", "Then save."],
+      ["jini-ui-info-tip-line", "Pick one:\n"], ["jini-ui-info-tip-bullet", "• Show: all.\n"], ["jini-ui-info-tip-line", "Then save."],
     ]);
   });
 
@@ -333,13 +334,13 @@ describe("InfoTip tip-hook injection", () => {
     document.body.appendChild(dialog);
     render(<InfoTip label={LABEL} />, { container: dialog });
     await userEvent.setup().hover(screen.getByRole("button"));
-    expect(document.querySelector(".info-tip-bubble")?.parentElement).toBe(dialog);
+    expect(document.querySelector(".jini-ui-info-tip-bubble")?.parentElement).toBe(dialog);
     dialog.remove();
   });
 
   it("closed inline help shows no copy of its label beside the icon", () => {
     const { container } = render(<InfoTip label={LABEL} placement="inline" />);
-    expect(container.querySelector(".info-tip-inline-copy")).toBeNull();
+    expect(container.querySelector(".jini-ui-info-tip-inline-copy")).toBeNull();
   });
 
   it("without a short name, a caller's descriptionId still gets the hidden copy but the icon is not described by it", () => {
@@ -355,4 +356,20 @@ it('defaults the info trigger handle and preserves opt-out', () => {
   expect(screen.getByRole('button')).toHaveAttribute('data-agent-element');
   rerender(<InfoTip label="Help" agentHandle={false} />);
   expect(screen.getByRole('button')).not.toHaveAttribute('data-agent-element');
+});
+
+it("InfoTip retains the below-placement marker and keyboard focus", async () => {
+  const css = readFileSync(new URL("../../../styles/admin.css", import.meta.url), "utf8");
+  const user = userEvent.setup();
+  render(<InfoTip label="Below help" placement="bottom" />);
+  const trigger = screen.getByRole("button", { name: "Below help" });
+  await user.tab();
+  const bubble = screen.getByText("Below help", { selector: ".jini-ui-info-tip-bubble" });
+  expect(bubble).toHaveClass("jini-ui-info-tip-bubble-below");
+  for (const token of bubble.classList) expect(css).toContain(`.${token}`);
+  expect(css).toContain(".jini-ui-info-tip-icon:focus-visible");
+  expect(trigger).toHaveFocus();
+  await user.keyboard("{Escape}");
+  expect(bubble).not.toBeInTheDocument();
+  expect(trigger).toHaveFocus();
 });

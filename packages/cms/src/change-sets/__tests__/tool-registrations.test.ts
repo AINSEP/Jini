@@ -53,7 +53,7 @@ function setup(options: { allowed?: readonly string[] } = {}) {
 }
 
 const appliedWithItem = async (changeSets: InMemoryChangeSetRepo, id: string, atVersion: number) => {
-  await changeSets.insert({ record: record(id), items: [{ id: `${id}-item`, changeSetId: id, entityType: 'widget', entityId: 'widget-1', operation: 'update', position: 0, entityVersionAtApply: atVersion, inversePayload: { title: 'Before' } }] });
+  await changeSets.insert({ record: { ...record(id), actorId: 'test-writer', actor: { id: 'test-writer', kind: 'user' } }, items: [{ id: `${id}-item`, changeSetId: id, entityType: 'widget', entityId: 'widget-1', operation: 'update', position: 0, entityVersionAtApply: atVersion, inversePayload: { title: 'Before' } }] });
 };
 
 describe('change_sets_list', () => {
@@ -70,7 +70,7 @@ describe('change_sets_list', () => {
   it('lists newest first, defaults to 20, and caps at 100 however large the requested limit', async () => {
     const { changeSets, tool } = setup();
     // Inserted oldest first: a list that trusted insertion order would come back reversed.
-    for (let i = 0; i < 105; i++) await changeSets.insert({ record: record(`cs-${i}`, { createdAt: new Date(Date.UTC(2026, 8, 24, 0, 0, i)).toISOString() }), items: [] });
+    for (let i = 0; i < 105; i++) await changeSets.insert({ record: { ...record(`cs-${i}`, { createdAt: new Date(Date.UTC(2026, 8, 24, 0, 0, i)).toISOString() }), actorId: 'test-writer', actor: { id: 'test-writer', kind: 'user' } }, items: [] });
     const list = async (input?: Record<string, unknown>) => (await tool('change_sets_list').handler(context(input))) as { changeSets: Array<{ id: string }> };
     const byDefault = await list({});
     expect(byDefault.changeSets).toHaveLength(20);
@@ -137,9 +137,9 @@ describe('change_sets_revert', () => {
     const { changeSets, tool } = setup();
     const revert = (changeSetId: string) => tool('change_sets_revert').handler(context({ changeSetId }));
     await expect(revert('missing')).rejects.toMatchObject({ name: 'ToolInputError', message: expect.stringMatching(/was not found/) });
-    await changeSets.insert({ record: record('done', { status: 'reverted' }), items: [] });
+    await changeSets.insert({ record: { ...record('done', { status: 'reverted' }), actorId: 'test-writer', actor: { id: 'test-writer', kind: 'user' } }, items: [] });
     await expect(revert('done')).rejects.toMatchObject({ name: 'ToolInputError', message: expect.stringMatching(/only 'applied'/) });
-    await changeSets.insert({ record: record('odd'), items: [{ id: 'odd-item', changeSetId: 'odd', entityType: 'unregistered', entityId: 'e-1', operation: 'update', position: 0, inversePayload: {} }] });
+    await changeSets.insert({ record: { ...record('odd'), actorId: 'test-writer', actor: { id: 'test-writer', kind: 'user' } }, items: [{ id: 'odd-item', changeSetId: 'odd', entityType: 'unregistered', entityId: 'e-1', operation: 'update', position: 0, inversePayload: {} }] });
     await expect(revert('odd')).rejects.toMatchObject({ name: 'ToolInputError', message: expect.stringMatching(/no inverse applier/) });
   });
 
@@ -191,7 +191,7 @@ describe('change_sets_revert per-item policy', () => {
     return writes;
   }
   const strictSet = async (changeSets: InMemoryChangeSetRepo, id: string) => {
-    await changeSets.insert({ record: record(id, { actorId: 'original-writer' }), items: [{ id: `${id}-raw`, changeSetId: id, entityType: 'raw-widget', entityId: 'raw-1', operation: 'update', position: 0, entityVersionAtApply: 1, inversePayload: { body: 'inverse' } }] });
+    await changeSets.insert({ record: { ...record(id, { actorId: 'original-writer' }), actorId: 'original-writer', actor: { id: 'original-writer', kind: 'user' } }, items: [{ id: `${id}-raw`, changeSetId: id, entityType: 'raw-widget', entityId: 'raw-1', operation: 'update', position: 0, entityVersionAtApply: 1, inversePayload: { body: 'inverse' } }] });
   };
 
   it('tool and admin revert forward the current principal and authorize the scoped item', async () => {

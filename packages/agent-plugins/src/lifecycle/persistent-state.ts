@@ -29,7 +29,7 @@ export function createPersistentStateModule(ports: AgentPluginLifecyclePorts, _o
     assertOwnedPath: (required: { workspaceRoot: string; entryPath: string }, optional = {}) => assertPluginStatePath({ ...effects, ...required }, optional),
     migrate: (required: { workspaceRoot: string }, optional: { ownership?: WorkspaceMigrationOwnership } = {}) => migratePluginLayout({ ...effects, ...required,
       parsePluginId: ({ value }) => {
-        const parsed = parseAgentPluginManifest({ value }, { identityNamespace: resolveAgentPluginLifecycleNamespace({ value, extensionNamespace: ports.extensionNamespace }) });
+        const parsed = parseAgentPluginManifest({ value }, { identityNamespace: resolveAgentPluginLifecycleNamespace({ value, extensionNamespace: ports.extensionNamespace }, { legacyIdentity: ports.legacyIdentity }), legacyIdentity: ports.legacyIdentity });
         if (!parsed.ok) throw new Error(parsed.errors.join('; '));
         return parsed.manifest.name;
       }, ...(ports.onEvent ? { onEvent: ports.onEvent } : {}),

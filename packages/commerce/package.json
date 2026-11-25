@@ -13,6 +13,7 @@
     "kind": "commerce",
     "runtime": "universal",
     "entries": {
+      "./http/purchase": "universal",
       ".": "universal",
       "./repo": "node",
       "./payments/testkit": "node",
@@ -40,6 +41,11 @@
   "type": "module",
   "sideEffects": false,
   "exports": {
+    "./http/purchase": {
+      "types": "./dist/http/purchase.d.ts",
+      "import": "./dist/http/purchase.js",
+      "default": "./dist/http/purchase.js"
+    },
     ".": {
       "types": "./dist/index.d.ts",
       "import": "./dist/index.js",

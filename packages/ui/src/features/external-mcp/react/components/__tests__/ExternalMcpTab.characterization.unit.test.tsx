@@ -1,9 +1,10 @@
+import { readFileSync } from "node:fs";
 import { render, screen, waitFor, within } from '../../../../../__tests__/ui-kit-render-support.js';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
 import { I18nProvider, type useT } from '../../../../i18n/index.js';
-import type { SourceConfigPort } from '../../../../source-config-list/ports.js';
-import type { SourceConfigItem, SourceFieldSpec } from '../../../../source-config-list/types.js';
+import type { SourceConfigPort } from '../../../../jini-ui-source-config-list/ports.js';
+import type { SourceConfigItem, SourceFieldSpec } from '../../../../jini-ui-source-config-list/types.js';
 import { ExternalMcpTab, defaultExternalMcpTabHooks, type ExternalMcpTabProps } from '../ExternalMcpTab.js';
 
 const fields: readonly SourceFieldSpec[] = [{ key: 'id', label: 'Server ID', kind: 'text', required: true }];
@@ -38,9 +39,9 @@ describe('ExternalMcpTab characterization', () => {
     const port = createPort({ sources: [] });
     const { container } = render(<ExternalMcpTab dependencies={{ port }} {...props} />);
     await screen.findByText('No MCP servers configured.');
-    const pill = container.querySelector('.external-mcp-save-pill');
-    const storedAt = container.querySelector('.external-mcp-stored-at');
-    expect(container.querySelector('.external-mcp-footer') !== null).toBe(footer !== null);
+    const pill = container.querySelector('.jini-ui-external-mcp-save-pill');
+    const storedAt = container.querySelector('.jini-ui-external-mcp-stored-at');
+    expect(container.querySelector('.jini-ui-external-mcp-footer') !== null).toBe(footer !== null);
     expect(pill?.textContent ?? null).toBe(footer);
     expect(storedAt !== null).toBe(path !== null);
     expect(storedAt?.querySelector('code')?.textContent ?? null).toBe(path);
@@ -55,8 +56,8 @@ describe('ExternalMcpTab characterization', () => {
       </I18nProvider>,
     );
     await screen.findByText('No MCP servers configured.');
-    expect(container.querySelector('.external-mcp-save-pill')).toHaveTextContent('Guardado');
-    expect(container.querySelector('.external-mcp-stored-at')?.textContent).toBe(`En ${path}`);
+    expect(container.querySelector('.jini-ui-external-mcp-save-pill')).toHaveTextContent('Guardado');
+    expect(container.querySelector('.jini-ui-external-mcp-stored-at')?.textContent).toBe(`En ${path}`);
     expect(container.querySelector('code')?.textContent).toBe(path);
     expect(container.querySelector('code b')).toBeNull();
   });
@@ -66,10 +67,10 @@ describe('ExternalMcpTab characterization', () => {
     const { container, rerender } = render(<ExternalMcpTab dependencies={dependencies} saveStatusLabel="Saving" configPath="/first" />);
     await screen.findByText('No MCP servers configured.');
     rerender(<ExternalMcpTab dependencies={dependencies} saveStatusLabel="Saved" configPath="/second" />);
-    expect(container.querySelector('.external-mcp-save-pill')).toHaveTextContent('Saved');
+    expect(container.querySelector('.jini-ui-external-mcp-save-pill')).toHaveTextContent('Saved');
     expect(container.querySelector('code')).toHaveTextContent('/second');
     rerender(<ExternalMcpTab dependencies={dependencies} configPath="/second" />);
-    expect(container.querySelector('.external-mcp-footer')).toBeNull();
+    expect(container.querySelector('.jini-ui-external-mcp-footer')).toBeNull();
   });
 
   it('starts loading with the form collapsed, then displays the empty state without a banner', async () => {
@@ -188,4 +189,16 @@ describe('ExternalMcpTab characterization', () => {
     render(<ExternalMcpTab dependencies={{ port }} hooks={{ ...defaultExternalMcpTabHooks, useT: useQuotingT }} />);
     expect(await screen.findByText('«External MCP servers»')).toBeInTheDocument();
   });
+});
+
+it('the empty external-tool view retains its layout', async () => {
+  const css = readFileSync(new URL('../../../../settings/dialog/styles/settings-dialog.css', import.meta.url), 'utf8');
+  const { container } = render(<ExternalMcpTab dependencies={{ port: createPort({ sources: [] }) }} />);
+  await screen.findByText('No MCP servers configured.');
+  expect(container.querySelector('.jini-ui-external-mcp-empty')).not.toBeNull();
+  for (const node of container.querySelectorAll('[class]')) {
+    for (const token of node.classList) if (token.startsWith('jini-ui-external-mcp-')) expect(css).toContain(`.${token}`);
+  }
+  await userEvent.click(screen.getByRole('button', { name: 'Add server' }));
+  expect(screen.getByRole('button', { name: 'Add server' })).toHaveAttribute('aria-expanded', 'true');
 });

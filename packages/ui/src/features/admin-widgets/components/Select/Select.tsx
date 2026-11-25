@@ -71,7 +71,7 @@ function SelectOptionRow({
       id={optionId}
       role="option"
       aria-selected={isSelected}
-      className={`select-option${isSelected ? " is-selected" : ""}${isHighlighted ? " is-highlighted" : ""}`}
+      className={`jini-ui-select-option${isSelected ? " is-selected" : ""}${isHighlighted ? " is-highlighted" : ""}`}
       onMouseEnter={() => onHighlight(index)}
       onClick={() => onSelect(option)}
       {...(optionHandle ? agentHandle({ handle: optionHandle }, { role: "button", label: option.label }) : {})}
@@ -80,7 +80,7 @@ function SelectOptionRow({
       {option.detail ? <span className="select-option-detail">{option.detail}</span> : null}
       {option.badge ? <span className="select-option-badge">{option.badge}</span> : null}
       {isSelected ? (
-        <svg className="select-option-check" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+        <svg className="jini-ui-select-option-check" viewBox="0 0 16 16" fill="none" aria-hidden="true">
           <path d="M3.5 8.5 6.5 11.5 12.5 4.5" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" />
         </svg>
       ) : null}
@@ -115,7 +115,7 @@ function SelectPanel(props: {
     <div
       ref={panelRef}
       data-agent-page={page}
-      className="select-panel"
+      className="jini-ui-select-panel"
       style={{ left: position.left, width: position.width, top: position.top, bottom: position.bottom, maxHeight: position.maxHeight }}
       tabIndex={-1}
       onKeyDown={onKeyDown}
@@ -134,7 +134,7 @@ function renderSelectSearch(
         <input
           ref={searchInputRef}
           type="text"
-          className="select-search"
+          className="jini-ui-select-search"
           aria-label={t("Search options")}
           placeholder={t("Search…")}
           value={query}
@@ -148,9 +148,9 @@ function renderSelectOptions(
   { listboxId, filtered, value, highlightedIndex, optionId, setOptionRef, onHighlight, onSelect, optionHandles, t }: Parameters<typeof SelectPanel>[0],
 ): React.JSX.Element {
   return (
-      <ul className="select-list" role="listbox" id={listboxId}>
+      <ul className="jini-ui-select-list" role="listbox" id={listboxId}>
         {filtered.length === 0 ? (
-          <li className="select-empty" role="presentation">
+          <li className="jini-ui-select-empty" role="presentation">
             {t("No matches")}
           </li>
         ) : (
@@ -179,8 +179,8 @@ function renderSelectOptions(
 
 export function resolveSelectTriggerLabel({ selectedOption, placeholder }: { selectedOption: SelectOption | null; placeholder: string | undefined }, { t = (key) => key }: { t?: Translate | undefined } = {}
 ): { text: string; className: string } {
-  if (selectedOption) return { text: selectedOption.label, className: "select-trigger-label" };
-  return { text: placeholder ?? t("Select…"), className: "select-trigger-label is-placeholder" };
+  if (selectedOption) return { text: selectedOption.label, className: "jini-ui-select-trigger-label" };
+  return { text: placeholder ?? t("Select…"), className: "jini-ui-select-trigger-label is-placeholder" };
 }
 
 function resolveSelectTriggerActiveDescendant(
@@ -251,7 +251,7 @@ function renderSelectTrigger({
         type="button"
         ref={triggerRef}
         id={id}
-        className="select-trigger"
+        className="jini-ui-select-trigger"
         role="combobox"
         aria-expanded={open}
         aria-haspopup="listbox"
@@ -265,7 +265,7 @@ function renderSelectTrigger({
         {...resolveSelectTriggerHandleProps(base, ariaLabel, placeholder)}
       >
         <span className={triggerLabel.className}>{triggerLabel.text}</span>
-        <span className="select-trigger-chevron" aria-hidden="true" />
+        <span className="jini-ui-select-trigger-chevron" aria-hidden="true" />
       </button>
   );
 }

@@ -1,8 +1,8 @@
 import { render, screen } from '../../../../../__tests__/ui-kit-render-support.js';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
-import type { SourceConfigPort } from '../../../../source-config-list/ports.js';
-import type { SourceConfigItem, SourceFieldValues, SourceUpdateInput } from '../../../../source-config-list/types.js';
+import type { SourceConfigPort } from '../../../../jini-ui-source-config-list/ports.js';
+import type { SourceConfigItem, SourceFieldValues, SourceUpdateInput } from '../../../../jini-ui-source-config-list/types.js';
 import { ExternalMcpTab } from '../ExternalMcpTab.js';
 
 /**

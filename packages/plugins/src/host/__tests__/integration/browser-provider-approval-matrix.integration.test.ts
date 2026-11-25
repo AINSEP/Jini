@@ -88,3 +88,16 @@ describe('reviewed digests must equal the manifest digests', () => {
     expect(Object.isFrozen(result.providers[0]!.declaration.kinds)).toBe(true);
   });
 });
+
+it('snapshot and browser admission exclude exactly the configured manifest alias', async () => {
+  const alias = path.join(root, 'legacy.plugin.json');
+  const unrelated = path.join(root, 'unrelated.plugin.json');
+  await writeFile(alias, '{');
+  const policy = { legacyManifestFilenames: ['legacy.plugin.json'] };
+  try {
+    expect((await admitBrowserProviderAssets({ record, manifest, pluginRoot: root, approvals: [approval] }, policy)).admitted).toBe(true);
+    expect(await admitBrowserProviderAssets({ record, manifest, pluginRoot: root, approvals: [approval] })).toEqual({ admitted: false, reason: 'INTEGRITY_FAILED' });
+    await writeFile(unrelated, '{}');
+    expect(await admitBrowserProviderAssets({ record, manifest, pluginRoot: root, approvals: [approval] }, policy)).toEqual({ admitted: false, reason: 'INTEGRITY_FAILED' });
+  } finally { await rm(alias, { force: true }); await rm(unrelated, { force: true }); }
+});

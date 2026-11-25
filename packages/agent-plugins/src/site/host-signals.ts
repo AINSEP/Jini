@@ -1,3 +1,4 @@
+import type { AgentPluginIdentityReadOptions } from "../core/identity-namespace.js";
 import { readAgentPluginMetadata, type AgentPluginHostSignal } from "@jini-ai/agent-plugins/manifest";
 import { orFallbackSync } from "@jini-ai/core/errors/idioms";
 import { readFileSync } from "node:fs";
@@ -31,10 +32,10 @@ export interface HostSignalPolicyPorts<S> {
  * @param required Parsed JSON manifest, never executable plugin code.
  * @returns Validated hints, or undefined for absent/invalid metadata. Never throws for JSON input.
  * @complexity O(s) for s declared signals; no I/O.
- * @example parseHostSignalDeclaration({ manifest: JSON.parse(text) });
+ * @example parseHostSignalDeclaration({ manifest: JSON.parse(text) }, optional);
  */
-export function parseHostSignalDeclaration({ manifest }: { manifest: unknown }, _optional = {}): BundledHostSignalDeclaration | undefined {
-  const { metadata } = readAgentPluginMetadata({ value: manifest });
+export function parseHostSignalDeclaration({ manifest }: { manifest: unknown }, optional: Pick<AgentPluginIdentityReadOptions, "legacyIdentity"> = {}): BundledHostSignalDeclaration | undefined {
+  const { metadata } = readAgentPluginMetadata({ value: manifest }, optional);
   if (metadata.hostSignals === undefined) return undefined;
   return { signals: metadata.hostSignals, ...(metadata.deploymentAdvice === undefined ? {} : { deploymentAdvice: metadata.deploymentAdvice }) };
 }
@@ -54,7 +55,7 @@ interface ReaderPorts {
  * @example readBundledHostSignalDeclaration({ sourceRoot, sources });
  */
 export function readBundledHostSignalDeclaration(
-  required: { readonly sourceRoot: string; readonly sources: BundledHostSignalSources }, optional: ReaderPorts = {},
+  required: { readonly sourceRoot: string; readonly sources: BundledHostSignalSources }, optional: ReaderPorts & Pick<AgentPluginIdentityReadOptions, "legacyIdentity"> = {},
 ): BundledHostSignalDeclaration {
   // Preboot readers must not turn a missing bundled payload into a boot failure (phase 2 policy).
   const sources = orFallbackSync({
@@ -67,7 +68,7 @@ export function readBundledHostSignalDeclaration(
       work: () => {
         const file = path.join(source.packageRoot, "plugin.json");
         const text = optional.readText === undefined || optional.readText === null ? readManifestText({ file }) : optional.readText(file);
-        const declaration = parseHostSignalDeclaration({ manifest: JSON.parse(text) });
+        const declaration = parseHostSignalDeclaration({ manifest: JSON.parse(text) }, optional);
         return declaration === undefined ? [] : [declaration];
       },
       fallback: [],
@@ -105,12 +106,12 @@ export function resolveBundledHostSignals<S>(
     env: Readonly<Record<string, string | undefined>>;
     readonly sources: BundledHostSignalSources;
   },
-  optional: { readDeclaration?: (required: { readonly sourceRoot: string }) => BundledHostSignalDeclaration } = {},
+  optional: Pick<AgentPluginIdentityReadOptions, "legacyIdentity"> & { readDeclaration?: (required: { readonly sourceRoot: string }) => BundledHostSignalDeclaration } = {},
 ): S {
   return orFallbackSync({
     work: () => {
       const sourceRoot = required.bundledSourceRoot;
-      const read = optional.readDeclaration ?? (({ sourceRoot: root }) => readBundledHostSignalDeclaration({ sourceRoot: root, sources: required.sources }));
+      const read = optional.readDeclaration ?? (({ sourceRoot: root }) => readBundledHostSignalDeclaration({ sourceRoot: root, sources: required.sources }, optional));
       const declaration = required.selectCoreHostSignalDeclaration({ declaration: read({ sourceRoot }) });
       return required.evaluateHostSignals({ env: required.env, declaration });
     },

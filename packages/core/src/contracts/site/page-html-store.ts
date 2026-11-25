@@ -1,3 +1,4 @@
+import type { JsonObject } from "../../primitives/index.js";
 import type { PostKind } from "./post-kind.js";
 
 export interface PluginEmbedDiagnostic { readonly code: string; readonly message: string }
@@ -57,6 +58,14 @@ export interface PagesHtmlDocumentStorePort {
    * edits never read the store or advance this basis.
    */
   capturedVersion(): number | null;
+  /**
+   * Restores a recorded pre-write body verbatim, conditioned on the row still being live at exactly
+   * `expectedVersion` (the reverter's compare-and-set, kept even after the revert gateway's own
+   * version preflight). Matching live HTML at that version is a successful no-op. Optional only so
+   * narrow test fakes keep compiling; the `page-html` reverter refuses a store without it.
+   * @throws {PageConcurrentEditError} When the row moved, was trashed, or is gone.
+   */
+  restore?(required: { inverse: PageHtmlInverse; expectedVersion: number }, optional?: Record<string, never>): Promise<void>;
 }
 
 /**
@@ -71,3 +80,30 @@ export type PagesHtmlDocumentStoreFactory = (
   scope: PagesHtmlDocumentStoreScope,
   options?: { allowedKinds?: ReadonlySet<PostKind> },
 ) => PagesHtmlDocumentStorePort;
+
+/**
+ * @file The exact pre-write body a recorded assistant HTML change restores (P1-T2.T).
+ *
+ * Kept as the stored row's own bytes, never a normalized or rendered copy: an Undo that restores
+ * something nobody ever saved is not an Undo. A doc Page's first full HTML write records the doc
+ * body and format captured BEFORE `ensureHtmlFormat` nulls `body_json`, because after that the
+ * doc exists nowhere else the reverter is allowed to read (the `pages_read_html` doc fallback is
+ * rendered HTML, not the body).
+ */
+export type PageHtmlInverse = { format: "html"; html: string } | { format: "doc"; bodyJson: JsonObject };
+
+/** The assistant tools whose real HTML changes earn a recorded Undo. */
+export type PageHtmlOperation = "pages_write_html" | "pages_write_region" | "pages_move_region";
+/** What one store operation did: `changed: false` covers refusals and unchanged normalized writes. */
+export interface PageHtmlWriteOutcome<T> { changed: boolean; version: number | null; value: T }
+/**
+ * Whether this composition can run a recorded HTML write at all (FIX 11). `enabled` only where one
+ * transaction spans the page write, its revisions, events and the change-set record (sqlite,
+ * postgres). The in-memory composition binds `disabled`: its post snapshot does not cover the
+ * change-set repo or the outbox, so a late failure would orphan the Undo record.
+ */
+export type RecordedHtmlWrites = "enabled" | "disabled";
+export interface RecordPageHtmlWritePort {
+  <T>(required: { target: { workspaceId: string; pageId: string; actorId: string; executionId: string }; expectedVersion: number;
+    operation: PageHtmlOperation; write: () => Promise<PageHtmlWriteOutcome<T>>; signal: AbortSignal }, optional?: Record<string, never>): Promise<{ value: T; version: number | null; changeSetId?: string }>;
+}

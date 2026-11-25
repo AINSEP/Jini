@@ -6,6 +6,7 @@ describe("SourceControl shell", () => {
   it.each(["providers", "stale-tab"])("renders only Providers and keeps the panel visible for %s", tabId => {
     const resolveActiveTabId = vi.fn<SourceControlProps["resolveActiveTabId"]>(() => "providers");
     const html = renderToStaticMarkup(<SourceControl
+      classes={{ page: "fixture-page", pageHeader: "fixture-header", pageHeaderText: "fixture-header-text", pageKicker: "fixture-kicker", pageTitle: "fixture-title", pageDescription: "fixture-description" }}
       tabId={tabId}
       useAdminLocaleHook={() => "fixture-locale"}
       t={({ locale, key }) => key === "fixture.description" ? `${locale}: supplied description` : key}
@@ -26,6 +27,8 @@ describe("SourceControl shell", () => {
     expect(html).toContain('<svg data-provider-icon="fixture"></svg>Providers</button>');
     expect(html).toContain('data-agent-element="fixture-header"');
     expect(html).toContain("fixture-locale: supplied description");
+    expect(html).toContain('class="fixture-page"');
+    expect(html).toContain('class="fixture-description"');
     expect(html).toContain('<section data-providers="fixture">Supplied providers panel</section>');
   });
 });

@@ -84,3 +84,28 @@ export interface AdminTrashPurgeReportDto {
   readonly purged: number;
   readonly results: readonly { readonly id: string; readonly outcome: AdminTrashPurgeOutcome }[];
 }
+
+/**
+ * Outcome of one `moveToTrash` call. `version` is the entity's version AFTER the flip (`null` for a
+ * kind with no version column) — mirrors {@link TrashPort.trash}'s own success shape rather than
+ * inventing a second one.
+ */
+export type MoveToTrashOutcome =
+  | { ok: true; version: number | null }
+  | { ok: false; reason: "unknown-type" }
+  | { ok: false; reason: "not-found" }
+  | { ok: false; reason: "forbidden"; permission: string }
+  | { ok: false; reason: "version-changed" }
+  | { ok: false; reason: "blocked"; code: string; count: number };
+
+/**
+ * A Trash kind that performs its own move — a theme is a folder, not a row
+ * (`features/theme/trash-theme-tool.ts`'s `createThemeTrashMover`); a hermetic memory-backed form has
+ * no row `deps.db` can read (`composition/app.ts`'s `createRouteDeps`). {@link moveToTrash} checks
+ * `permission` exactly as it checks a registry entry's, then hands the move over; the mover owns its
+ * own lookup and refusals and answers in the same outcome shape.
+ */
+export interface TrashKindMover {
+  readonly permission: string;
+  move(required: { workspaceId: string; entityId: string; actor: TrashActor }): Promise<MoveToTrashOutcome>;
+}

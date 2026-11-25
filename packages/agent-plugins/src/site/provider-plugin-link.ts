@@ -1,3 +1,4 @@
+import type { AgentPluginIdentityReadOptions } from "../core/identity-namespace.js";
 import type { PluginActivationRecord, PluginActivationRepoPort } from "@jini-ai/core/contracts/site/plugins-host";
 import { orFallback } from "@jini-ai/core/errors/idioms";
 
@@ -103,7 +104,7 @@ export async function linkedProviderOf({ ports, pluginId }: { ports: Pick<Provid
  */
 export function bindProviderFacePorts<A, P extends { readonly pluginId: string; readonly archiveDigest: string }, B>(
   { workspaceRoot, activations, catalog }: { workspaceRoot: () => string; activations: ProviderFaceActivations<A>; catalog: ProviderFaceCatalog<P, B> },
-  _optional: Record<string, never> = {},
+  optional: Pick<AgentPluginIdentityReadOptions, "legacyIdentity"> = {},
 ): ProviderFacePorts {
   return {
     links: async () => {
@@ -116,7 +117,7 @@ export function bindProviderFacePorts<A, P extends { readonly pluginId: string; 
         // The lifecycle refuses ambiguous non-bundled revisions; none may decide a current switch.
         if (counts.get(plugin.pluginId) !== 1) throw new Error(`Agent Plugin '${plugin.pluginId}' matches ${counts.get(plugin.pluginId)} installed packages — refusing to guess which one to use`);
         const provider = await orFallback({
-          work: async () => readProviderPluginLink({ manifest: JSON.parse(await catalog.read({ plugin, filename: "plugin.json" })) }),
+          work: async () => readProviderPluginLink({ manifest: JSON.parse(await catalog.read({ plugin, filename: "plugin.json" })) }, optional),
           fallback: undefined,
           step: "read provider face link",
         }); // An unreadable manifest links nothing.

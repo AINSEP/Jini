@@ -776,7 +776,15 @@
       "./browser/server-reconnect": "browser",
       "./browser/settings-events": "browser",
       "./react/shell/Placeholder": "browser",
-      "./react/shell/appearance": "browser"
+      "./react/shell/appearance": "browser",
+      "./shell/components/AssistantDock/hooks/execution-config-ledger.hooks": "browser",
+      "./shell/components/AssistantDock/hooks/execution-config.hooks": "browser",
+      "./shell/components/AssistantDock/hooks/byok-runtime.hooks": "browser",
+      "./shell/components/AssistantDock/hooks/local-cli-selection.hooks": "browser",
+      "./shell/components/AssistantDock/hooks/composer-discovery.hooks": "browser",
+      "./security/react/live/Security": "browser",
+      "./shell/lib/execution-settings-ledger": "universal",
+      "./react/settings/SettingsPageLayout": "browser"
     },
     "isolation": {
       "shared": [
@@ -4865,6 +4873,46 @@
       "types": "./dist/react/shell/appearance.d.ts",
       "import": "./dist/react/shell/appearance.js",
       "default": "./dist/react/shell/appearance.js"
+    },
+    "./shell/components/AssistantDock/hooks/execution-config-ledger.hooks": {
+      "types": "./dist/shell/components/AssistantDock/hooks/execution-config-ledger.hooks.d.ts",
+      "import": "./dist/shell/components/AssistantDock/hooks/execution-config-ledger.hooks.js",
+      "default": "./dist/shell/components/AssistantDock/hooks/execution-config-ledger.hooks.js"
+    },
+    "./shell/components/AssistantDock/hooks/execution-config.hooks": {
+      "types": "./dist/shell/components/AssistantDock/hooks/execution-config.hooks.d.ts",
+      "import": "./dist/shell/components/AssistantDock/hooks/execution-config.hooks.js",
+      "default": "./dist/shell/components/AssistantDock/hooks/execution-config.hooks.js"
+    },
+    "./shell/components/AssistantDock/hooks/byok-runtime.hooks": {
+      "types": "./dist/shell/components/AssistantDock/hooks/byok-runtime.hooks.d.ts",
+      "import": "./dist/shell/components/AssistantDock/hooks/byok-runtime.hooks.js",
+      "default": "./dist/shell/components/AssistantDock/hooks/byok-runtime.hooks.js"
+    },
+    "./shell/components/AssistantDock/hooks/local-cli-selection.hooks": {
+      "types": "./dist/shell/components/AssistantDock/hooks/local-cli-selection.hooks.d.ts",
+      "import": "./dist/shell/components/AssistantDock/hooks/local-cli-selection.hooks.js",
+      "default": "./dist/shell/components/AssistantDock/hooks/local-cli-selection.hooks.js"
+    },
+    "./shell/components/AssistantDock/hooks/composer-discovery.hooks": {
+      "types": "./dist/shell/components/AssistantDock/hooks/composer-discovery.hooks.d.ts",
+      "import": "./dist/shell/components/AssistantDock/hooks/composer-discovery.hooks.js",
+      "default": "./dist/shell/components/AssistantDock/hooks/composer-discovery.hooks.js"
+    },
+    "./security/react/live/Security": {
+      "types": "./dist/security/react/live/Security.d.ts",
+      "import": "./dist/security/react/live/Security.js",
+      "default": "./dist/security/react/live/Security.js"
+    },
+    "./shell/lib/execution-settings-ledger": {
+      "types": "./dist/shell/lib/execution-settings-ledger.d.ts",
+      "import": "./dist/shell/lib/execution-settings-ledger.js",
+      "default": "./dist/shell/lib/execution-settings-ledger.js"
+    },
+    "./react/settings/SettingsPageLayout": {
+      "types": "./dist/react/settings/SettingsPageLayout.d.ts",
+      "import": "./dist/react/settings/SettingsPageLayout.js",
+      "default": "./dist/react/settings/SettingsPageLayout.js"
     }
   },
   "files": [
@@ -5390,6 +5438,33 @@
       ],
       "react/shell/appearance": [
         "./dist/react/shell/appearance.d.ts"
+      ],
+      "shell/components/AssistantDock/hooks/execution-config-ledger.hooks": [
+        "./dist/shell/components/AssistantDock/hooks/execution-config-ledger.hooks.d.ts"
+      ],
+      "shell/components/AssistantDock/hooks/execution-config.hooks": [
+        "./dist/shell/components/AssistantDock/hooks/execution-config.hooks.d.ts"
+      ],
+      "shell/components/AssistantDock/hooks/byok-runtime.hooks": [
+        "./dist/shell/components/AssistantDock/hooks/byok-runtime.hooks.d.ts"
+      ],
+      "shell/components/AssistantDock/hooks/local-cli-selection.hooks": [
+        "./dist/shell/components/AssistantDock/hooks/local-cli-selection.hooks.d.ts"
+      ],
+      "shell/components/AssistantDock/hooks/composer-discovery.hooks": [
+        "./dist/shell/components/AssistantDock/hooks/composer-discovery.hooks.d.ts"
+      ],
+      "shell/components/AssistantDock/hooks/composer-files.hooks": [
+        "./dist/shell/components/AssistantDock/hooks/composer-files.hooks.d.ts"
+      ],
+      "security/react/live/Security": [
+        "./dist/security/react/live/Security.d.ts"
+      ],
+      "shell/lib/execution-settings-ledger": [
+        "./dist/shell/lib/execution-settings-ledger.d.ts"
+      ],
+      "react/settings/SettingsPageLayout": [
+        "./dist/react/settings/SettingsPageLayout.d.ts"
       ]
     }
   },

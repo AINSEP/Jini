@@ -1,3 +1,4 @@
+import type { PluginManifestReadOptions } from "../plugin-format.js";
 /** SDK version, hashing and executable import are required host ports. The importer must retain
  * the fresh snapshot and containment guarantees described below. */
 /**
@@ -91,7 +92,7 @@ export interface LoadPluginRequired<H extends HookPoints = HookPoints> {
   readonly browserProviderApprovals?: readonly BundledBrowserProviderApproval[];
 }
 
-export type LoadPluginOptional = Record<string, never>;
+export type LoadPluginOptional = PluginManifestReadOptions;
 
 export type PluginLoadFailureReason =
   | "INTEGRITY_FAILED"
@@ -150,10 +151,10 @@ async function verifyIntegrity(required: {
 /** Declared browser providers go through bundled-approval admission; none declared admits trivially. */
 async function admitDeclaredBrowserProviders(required: {
   record: PluginDiscoveryRecord; manifest: PluginManifest; pluginRoot: string; approvals?: readonly BundledBrowserProviderApproval[] | undefined;
-}): Promise<{ admitted: true; providers?: readonly AdmittedBrowserProvider[] } | { admitted: false; reason: PluginLoadFailureReason }> {
+}, optional: PluginManifestReadOptions = {}): Promise<{ admitted: true; providers?: readonly AdmittedBrowserProvider[] } | { admitted: false; reason: PluginLoadFailureReason }> {
   const { record, manifest, pluginRoot } = required;
   if (!manifest.browserProviders?.length) return { admitted: true };
-  return admitBrowserProviderAssets({ record, manifest, pluginRoot, approvals: required.approvals ?? [] });
+  return admitBrowserProviderAssets({ record, manifest, pluginRoot, approvals: required.approvals ?? [] }, optional);
 }
 
 function isExecutionAdmitted(required: { tierPolicy: PluginTierPolicy; record: PluginDiscoveryRecord; manifest: PluginManifest }): boolean {
@@ -221,7 +222,7 @@ function publishProviderCapture(required: {
 }
 
 /** Integrity and SDK compatibility remain ordered before any executable importer. */
-async function admitPluginPackage<H extends HookPoints>(required: LoadPluginRequired<H>): Promise<
+async function admitPluginPackage<H extends HookPoints>(required: LoadPluginRequired<H>, optional: PluginManifestReadOptions = {}): Promise<
   { pluginRoot: string; loaded: LoadPluginResult } | { failure: PluginLoadFailureReason }
 > {
   const { record, manifest, entryPath } = required;
@@ -231,7 +232,7 @@ async function admitPluginPackage<H extends HookPoints>(required: LoadPluginRequ
   if (!await verifyIntegrity({ record, manifest, pluginRoot, entryPath, computeFileHash })) return { failure: 'INTEGRITY_FAILED' };
   // --- Step (2), sdkRange, MUST complete successfully before step (3). ---
   if (!semver.satisfies(required.pluginSdkBinding.runtimeSdkVersion, manifest.sdkRange)) return { failure: 'SDK_RANGE_UNSATISFIED' };
-  const admission = await admitDeclaredBrowserProviders({ record, manifest, pluginRoot, approvals: required.browserProviderApprovals });
+  const admission = await admitDeclaredBrowserProviders({ record, manifest, pluginRoot, approvals: required.browserProviderApprovals }, optional);
   if (!admission.admitted) return { failure: admission.reason };
   return { pluginRoot, loaded: { loaded: true, ...(admission.providers ? { browserProviders: admission.providers } : {}) } };
 }
@@ -258,10 +259,10 @@ function isProviderSelected<H extends HookPoints>(required: LoadPluginRequired<H
  */
 export async function loadPlugin<H extends HookPoints>(
   required: LoadPluginRequired<H>,
-  _optional: LoadPluginOptional = {}
+  optional: LoadPluginOptional = {}
 ): Promise<LoadPluginResult> {
   const { record, manifest, coreDeps, importModule, pluginSdkBinding } = required;
-  const admission = await admitPluginPackage(required);
+  const admission = await admitPluginPackage(required, optional);
   if ('failure' in admission) return failed(admission.failure);
   const { pluginRoot, loaded } = admission;
   // Declarative plugins never reach an executable importer. A worker port is mandatory for tier-2,

@@ -151,8 +151,8 @@ const setEnabledSchema = ({ copy }: { copy: PluginHostCopy }) => ({
         "true to enable, false to disable. ENABLING ALWAYS ASKS THE HUMAN FIRST — this tool opens a confirmation dialog and waits for the " +
         "answer, because turning a plugin on changes what you yourself can do next; do not promise the user it is on until this call returns " +
         "with changed:true. Disabling is not confirmed (it only removes capability). For family 'site-runtime', enabling a plugin whose " +
-        "manifest declares a data module runs schema DDL against the live database (ADR-023's snapshot-protected, transactional core-mediated " +
-        "engine) and is refused unless the plugin's discovery status is 'valid'; disabling has no such precondition. For family 'agent-plugin', " +
+        "manifest declares a data module runs schema DDL against the live database (snapshot-protected, transactional schema changes" +
+        ") and is refused unless the plugin's discovery status is 'valid'; disabling has no such precondition. For family 'agent-plugin', " +
         "enabling reports restartRequired:true for the legacy agent_plugin_<id> registration only. Load its guidance now with " +
         "load_agent_plugin and use agent_plugin_connect if it needs account sign-in. Continue with available tools; do not ask the person " +
         `to restart ${copy.productName} or claim an unavailable tool is ready.`,
@@ -215,7 +215,7 @@ export function createPluginAgentToolCatalog({ copy }: { copy: PluginHostCopy },
       "For Agent Plugins the same card lists the external MCP sources, declared tools and may-write grants to turn on; discovery reloads after approval. " +
       "Disabling is not confirmed. Author site-local behavior with plugin_source_create/open → write/edit → seal → enable (family 'site-runtime'). " +
       "Site plugins support content filters, content types and fields, plus sdk.routes.add (http.route.register + contributes.routes, mounted under /api/p/<plugin-id>), sdk.tools.add (tools.register + contributes.tools, ids p_<normalized-plugin-id>__<name>), and sdk.widgets.add (render.contribute + contributes.widgets, public SSR partials). Refuses to enable a site-runtime plugin whose discovery status is 'invalid' " +
-      "or 'incompatible'; enabling one with a data module runs live schema DDL (ADR-023) — reversible in the sense that disabling flips the " +
+      "or 'incompatible'; enabling one with a data module runs live schema DDL (snapshot-protected, transactional schema changes) — reversible in the sense that disabling flips the " +
       "activation flag back, but not a pure no-op toggle. Installing and uninstalling are SEPARATE tools, deliberately: this one only flips " +
       "an already-installed plugin's switch and its listed access; it never installs or removes plugin packages.",
     sideEffects: "mutates-durable-state",

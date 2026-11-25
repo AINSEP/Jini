@@ -1,5 +1,5 @@
 import { validatePluginIdentity } from "@jini-ai/core/plugin-directory";
-import { resolveAgentPluginIdentityNamespace } from './core/identity-namespace.js';
+import { type AgentPluginIdentityReadOptions, resolveAgentPluginIdentityNamespace } from './core/identity-namespace.js';
 import type { PluginManifestAuthor } from "@jini-ai/core/contracts/site/agent-plugins-lifecycle";
 /**
  * Types for the Agent Plugins 1.0.0 open standard (published by a Technical Steering Committee
@@ -78,7 +78,7 @@ export function isMcpManifest(required: { readonly value: unknown }, _optional: 
 
 /** Object-argument facade for the legacy structural validator.
  * Hosts inject identityNamespace; the default is `jini`, with a legacy-key fallback. */
-export function validatePluginManifest(required: { readonly value: unknown }, optional: { readonly identityNamespace?: string } = {}): boolean {
+export function validatePluginManifest(required: { readonly value: unknown }, optional: AgentPluginIdentityReadOptions = {}): boolean {
   return isPluginManifest(required) && validatePluginIdentity({ manifest: required.value, namespace: resolveAgentPluginIdentityNamespace(required, optional) }).errors.length === 0;
 }
 
@@ -86,3 +86,5 @@ export function validatePluginManifest(required: { readonly value: unknown }, op
 export function validateMcpManifest(required: { readonly value: unknown }, _optional: Record<string, never> = {}): boolean {
   return isMcpManifest(required);
 }
+
+export type { AgentPluginIdentityReadOptions, LegacyAgentPluginIdentity } from "./core/identity-namespace.js";

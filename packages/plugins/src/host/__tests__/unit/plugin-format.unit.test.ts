@@ -1,8 +1,10 @@
+const LEGACY_PLUGIN_MANIFEST_FILENAME = "legacy.plugin.json";
+const manifestRead = { legacyManifestFilenames: [LEGACY_PLUGIN_MANIFEST_FILENAME] };
 import { afterEach, expect, it } from 'vitest';
 import { mkdir, mkdtemp, readFile, readdir, rm, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { tmpdir } from 'node:os';
-import { PLUGIN_MANIFEST_FILENAME, LEGACY_PLUGIN_MANIFEST_FILENAME } from '../../plugin-format.js';
+import { PLUGIN_MANIFEST_FILENAME } from "../../plugin-format.js";
 import type { PluginManifest } from '../../manifest.js';
 import { discoverPlugins } from '../../node/discovery.js';
 import { computePluginIntegrity, installSitePlugin, previewSitePluginInstall } from '../../node/install.js';
@@ -20,7 +22,7 @@ async function fixture() {
   const installDir = path.join(root, 'plugins');
   const sourceDir = path.join(root, 'source'); await mkdir(sourceDir);
   const versionDir = path.join(installDir, 'sample', '1.0.0'); await mkdir(installDir);
-  const deps = { ...manifestHost, installDir, builtInIds: [], repo: { listAll: async () => [] },
+  const deps = { ...manifestHost, ...manifestRead, installDir, builtInIds: [], repo: { listAll: async () => [] },
     conflicts: async () => [], archiveReader: async () => new Map<string, Uint8Array>(),
     tierPolicy: { siteErrors: () => [], checkInstall: () => {}, allowLoad: () => true, execution: 'in-process' as const } };
   return { deps, sourceDir, versionDir };
@@ -72,9 +74,9 @@ it('integrity generation and runtime snapshots exclude both manifest filenames',
   await writeFile(path.join(f.versionDir, LEGACY_PLUGIN_MANIFEST_FILENAME), '{'); // legacy alias
   await mkdir(path.join(f.versionDir, 'server'));
   await writeFile(path.join(f.versionDir, 'server/index.mjs'), 'export default 1;');
-  const integrity = await computePluginIntegrity({ sourceDir: f.versionDir });
+  const integrity = await computePluginIntegrity({ sourceDir: f.versionDir }, manifestRead);
   expect(Object.keys(integrity)).toEqual(['server/index.mjs']);
-  const entry = await snapshotPluginModuleGraph({ pluginRoot: f.versionDir, manifest: { ...manifest(), integrity } });
+  const entry = await snapshotPluginModuleGraph({ pluginRoot: f.versionDir, manifest: { ...manifest(), integrity } }, manifestRead);
   expect(await readFile(entry, 'utf8')).toBe('export default 1;');
   expect((await readdir(path.dirname(path.dirname(entry)))).sort()).toEqual([PLUGIN_MANIFEST_FILENAME, LEGACY_PLUGIN_MANIFEST_FILENAME, 'server'].sort()); // legacy alias
 });

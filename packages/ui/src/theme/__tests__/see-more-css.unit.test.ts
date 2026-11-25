@@ -3,7 +3,7 @@ import path from "node:path";
 import { describe, expect, it } from "vitest";
 
 /**
- * @file Static comment-hygiene regression test for `styles/see-more.css`.
+ * @file Static comment-hygiene regression test for `styles/jini-ui-see-more.css`.
  *
  * This suite runs under `environment: "jsdom"` with `css: false` (see `vitest.config.ts`) — CSS
  * imports are stubbed to nothing, and jsdom has no layout engine regardless, so nothing under
@@ -11,15 +11,15 @@ import { describe, expect, it } from "vitest";
  * own header says so explicitly). That is a real, unfixable gap for the *layout* claim.
  *
  * The specific bug this file regressions-tests is different in kind and IS observable without a
- * browser: `see-more.css` once had a documentation comment whose second paragraph was missing its
+ * browser: `jini-ui-see-more.css` once had a documentation comment whose second paragraph was missing its
  * opening delimiter, which left it as bare text sitting directly in front of the
- * `.see-more .see-more-text {` selector. A CSS parser collects all component values up to the next
+ * `.jini-ui-see-more .jini-ui-see-more-text {` selector. A CSS parser collects all component values up to the next
  * top-level `{` as one rule's prelude — so that stray paragraph (plus its own trailing, and by then
  * meaningless, closing delimiter) got fused onto the real selector into one unparseable prelude,
  * and per CSS's error-recovery rules the *entire* qualified rule — selector and declaration block
  * together — was silently dropped. No console error, no HMR warning: the browser simply never saw
  * `display: -webkit-box` or `-webkit-line-clamp` at all. Confirmed live via
- * `document.styleSheets`: the served sheet had 4 rules instead of 5, with `.see-more .see-more-text`
+ * `document.styleSheets`: the served sheet had 4 rules instead of 5, with `.jini-ui-see-more .jini-ui-see-more-text`
  * entirely absent.
  *
  * `stripWellFormedComments` models exactly the part of the CSS tokenizer this bug depends on: only
@@ -27,7 +27,7 @@ import { describe, expect, it } from "vitest";
  * delimiter ends it — a closing delimiter with no open comment has no special meaning and is
  * ordinary content, exactly as a real parser treats it. Extracting rule preludes the same way a
  * parser does (text between `}` and the next `{`) turns "a rule silently vanished" into a plain
- * string assertion, which is what `toContain(".see-more .see-more-text")` checks below: if a
+ * string assertion, which is what `toContain(".jini-ui-see-more .jini-ui-see-more-text")` checks below: if a
  * comment ever goes unbalanced again and fuses prose onto this selector, the exact string stops
  * appearing in the prelude list and this test fails — for the same reason the browser would drop
  * the rule.
@@ -86,19 +86,19 @@ function declarations(block: string): Record<string, string> {
   }));
 }
 
-describe("styles/see-more.css comment hygiene", () => {
+describe("styles/jini-ui-see-more.css comment hygiene", () => {
   it("keeps the clamp selector's prelude free of leaked comment text", () => {
     const raw = readFileSync(CSS_PATH, "utf8");
     const preludes = extractRulePreludes(stripWellFormedComments(raw));
 
     // Regression pin: if any comment above this rule loses its opening `/*` again, the prelude
     // here would be that comment's prose plus this selector fused together, not this exact string.
-    expect(preludes).toContain(".see-more .see-more-text");
+    expect(preludes).toContain(".jini-ui-see-more .jini-ui-see-more-text");
     for (const selector of [
-      ".see-more",
-      ".see-more .see-more-text.is-expanded",
-      ".see-more .see-more-toggle",
-      ".see-more .see-more-toggle:hover",
+      ".jini-ui-see-more",
+      ".jini-ui-see-more .jini-ui-see-more-text.is-expanded",
+      ".jini-ui-see-more .jini-ui-see-more-toggle",
+      ".jini-ui-see-more .jini-ui-see-more-toggle:hover",
     ]) {
       expect(preludes).toContain(selector);
     }
@@ -107,7 +107,7 @@ describe("styles/see-more.css comment hygiene", () => {
   it("keeps the clamp declarations attached to their selector", () => {
     const raw = readFileSync(CSS_PATH, "utf8");
     const stripped = stripWellFormedComments(raw);
-    const ruleStart = stripped.indexOf(".see-more .see-more-text {");
+    const ruleStart = stripped.indexOf(".jini-ui-see-more .jini-ui-see-more-text {");
     expect(ruleStart).toBeGreaterThan(-1);
 
     const blockEnd = stripped.indexOf("}", ruleStart);
@@ -127,8 +127,8 @@ describe("styles/see-more.css comment hygiene", () => {
 
   it("lifts the clamp and reveals overflow when the text is expanded", () => {
     const stripped = stripWellFormedComments(readFileSync(CSS_PATH, "utf8"));
-    expect(extractRulePreludes(stripped)).toContain(".see-more .see-more-text.is-expanded");
-    const ruleStart = stripped.indexOf(".see-more .see-more-text.is-expanded {");
+    expect(extractRulePreludes(stripped)).toContain(".jini-ui-see-more .jini-ui-see-more-text.is-expanded");
+    const ruleStart = stripped.indexOf(".jini-ui-see-more .jini-ui-see-more-text.is-expanded {");
     expect(ruleStart).toBeGreaterThan(-1);
     const block = stripped.slice(ruleStart, stripped.indexOf("}", ruleStart));
     expect(block).toContain("display: block;");
@@ -138,8 +138,8 @@ describe("styles/see-more.css comment hygiene", () => {
 
   it("keeps the toggle legible and overrides the global filled button style", () => {
     const stripped = stripWellFormedComments(readFileSync(CSS_PATH, "utf8"));
-    expect(extractRulePreludes(stripped)).toContain(".see-more .see-more-toggle");
-    const ruleStart = stripped.indexOf(".see-more .see-more-toggle {");
+    expect(extractRulePreludes(stripped)).toContain(".jini-ui-see-more .jini-ui-see-more-toggle");
+    const ruleStart = stripped.indexOf(".jini-ui-see-more .jini-ui-see-more-toggle {");
     expect(ruleStart).toBeGreaterThan(-1);
     const block = stripped.slice(ruleStart, stripped.indexOf("}", ruleStart));
     expect(declarations(block)).toMatchObject({ display: "inline-block", background: "none", color: "var(--jini-accent)", border: "none" });

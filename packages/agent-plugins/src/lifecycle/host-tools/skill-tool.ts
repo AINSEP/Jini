@@ -294,7 +294,7 @@ export async function loadInstalledAgentPluginToolSources(ctx: {
       // Empty skills leave nothing this plugin's tool could ever return.
       if (plugin.skills.length > 0) {
         const skills = await resolveSkillsForPlugin(plugin, ctx.ports);
-        const identity = await readInstalledAgentPluginIdentity({ plugin });
+        const identity = await readInstalledAgentPluginIdentity({ plugin }, { legacyIdentity: ctx.ports.legacyIdentity });
         sourceByPluginId.set(plugin.pluginId, buildToolSource({ ...plugin, maturity: identity.maturity, publisherId: identity.id, keywords: identity.keywords, provides: identity.provides }, skills, ctx.ports));
       }
     } catch (error) {

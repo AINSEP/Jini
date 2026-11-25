@@ -57,7 +57,7 @@ function LoadMore<T>(props: { list: PagedList<T>; locale: string; handle: string
   const { list, locale } = props;
   if (list.view.kind !== "loaded" || !list.view.data.nextCursor) return list.moreError ? <p className="jini-field-error">{t({ locale, key: list.moreError })}</p> : null;
   return (
-    <div className="email-row">
+    <div className="jini-admin-email-row">
       <button type="button" className="btn-secondary" disabled={list.loadingMore} onClick={() => void list.loadMore()} {...agentHandle({ handle: props.handle }, { role: "button", label: "Load more rows" })}>
         {list.loadingMore ? t({ locale, key: "Loading…" }) : t({ locale, key: "Load more" })}
       </button>
@@ -73,32 +73,32 @@ function ActivityRow(props: { item: MailActivityItem; controller: EmailActivityC
   const open = item.id !== undefined && controller.openId === item.id;
   const detail = open ? controller.detail : null;
   return (
-    <li className="email-activity">
-      <div className="email-row email-activity-row">
+    <li className="jini-admin-email-activity">
+      <div className="jini-admin-email-row jini-admin-email-activity-row">
         <Chip tone={outcome.tone}>{t({ locale, key: outcome.label })}</Chip>
-        <span className="email-activity-what">
-          <span className="email-activity-recipient">{item.recipient}</span>
+        <span className="jini-admin-email-activity-what">
+          <span className="jini-admin-email-activity-recipient">{item.recipient}</span>
           <span className="jini-field-hint">{t({ locale, key: USE[item.use] ?? item.use })} · {when({ iso: item.createdAt, locale })}</span>
         </span>
         {itemId ? (
-          <button type="button" className="btn-secondary email-push-end" aria-expanded={open} onClick={() => controller.toggleDetail(itemId)}
+          <button type="button" className="btn-secondary jini-admin-email-push-end" aria-expanded={open} onClick={() => controller.toggleDetail(itemId)}
             {...agentHandle({ handle: `email-activity-${props.index}-details` }, { role: "button", label: "Show this send's details" })}>
             {open ? t({ locale, key: "Hide details" }) : t({ locale, key: "Details" })}
           </button>
         ) : null}
       </div>
       {detail ? (
-        <div className="email-activity-detail">
+        <div className="jini-admin-email-activity-detail">
           <Loaded view={detail} locale={locale}>
             {(data) => (
-              <dl className="email-facts">
-                <div className="email-fact"><dt className="jini-field-label">{t({ locale, key: "Provider" })}</dt><dd>{data.activity.providerId}</dd></div>
+              <dl className="jini-admin-email-facts">
+                <div className="jini-admin-email-fact"><dt className="jini-field-label">{t({ locale, key: "Provider" })}</dt><dd>{data.activity.providerId}</dd></div>
                 {data.activity.originalRecipient ? (
-                  <div className="email-fact"><dt className="jini-field-label">{t({ locale, key: "Meant for" })}</dt><dd>{data.activity.originalRecipient}</dd></div>
+                  <div className="jini-admin-email-fact"><dt className="jini-field-label">{t({ locale, key: "Meant for" })}</dt><dd>{data.activity.originalRecipient}</dd></div>
                 ) : null}
-                {data.activity.errorCode ? <div className="email-fact"><dt className="jini-field-label">{t({ locale, key: "Error" })}</dt><dd><code>{data.activity.errorCode}</code>{data.activity.message ? <p>{data.activity.message}</p> : null}</dd></div> : null}
-                {data.activity.providerMessageId ? <div className="email-fact"><dt className="jini-field-label">{t({ locale, key: "Message ID" })}</dt><dd><code>{data.activity.providerMessageId}</code></dd></div> : null}
-                <div className="email-fact">
+                {data.activity.errorCode ? <div className="jini-admin-email-fact"><dt className="jini-field-label">{t({ locale, key: "Error" })}</dt><dd><code>{data.activity.errorCode}</code>{data.activity.message ? <p>{data.activity.message}</p> : null}</dd></div> : null}
+                {data.activity.providerMessageId ? <div className="jini-admin-email-fact"><dt className="jini-field-label">{t({ locale, key: "Message ID" })}</dt><dd><code>{data.activity.providerMessageId}</code></dd></div> : null}
+                <div className="jini-admin-email-fact">
                   <dt className="jini-field-label">{t({ locale, key: "Feedback" })}</dt>
                   <dd>
                     {data.feedback.length === 0
@@ -141,7 +141,7 @@ function CaptureClear(props: { controller: EmailActivityController; locale: stri
   const step = capture.state.kind === "confirm" ? capture.state : null;
   return (
     <div className="email-capture-clear">
-      <div className="email-row">
+      <div className="jini-admin-email-row">
         <button type="button" className="btn-secondary" disabled={capture.state.kind === "checking"} onClick={() => void capture.start()}
           {...agentHandle({ handle: "email-capture-clear" }, { role: "button", label: "Clear all captured test messages" })}>
           {t({ locale, key: capture.state.kind === "checking" ? "Checking…" : "Clear captured test messages" })}
@@ -153,7 +153,7 @@ function CaptureClear(props: { controller: EmailActivityController; locale: stri
         agentHandle="email-capture-clear-confirm"
         title={t({ locale, key: "Clear all captured test messages?" })}
         body={step ? (
-          <div className="email-removal">
+          <div className="jini-admin-email-removal">
             <p>{t({ locale, key: "Captured test messages: {count}. This deletes their saved copies, not Email Activity records. This cannot be undone." }).replace("{count}", () => String(step.plan.count))}</p>
             {step.error ? <p className="jini-field-error" role="alert">{t({ locale, key: step.error })}</p> : null}
           </div>
@@ -172,7 +172,7 @@ function RecentSends(props: { controller: EmailActivityController; locale: strin
   const { controller, locale } = props;
   return (
     <Section id="activity" title={t({ locale, key: "Recent sends" })} hideTitle={props.hideTitle}>
-      <div className="email-filters">
+      <div className="jini-admin-email-filters">
         <select className="jini-input" aria-label={t({ locale, key: "Outcome" })} value={controller.filter.outcome ?? ""}
           onChange={(e) => controller.setFilter({ ...controller.filter, outcome: e.target.value || undefined })}
           {...agentHandle({ handle: "email-activity-outcome" }, { role: "field", label: "Filter sends by outcome" })}>
@@ -195,7 +195,7 @@ function RecentSends(props: { controller: EmailActivityController; locale: strin
             {page.items.length === 0 ? (
               <p className="jini-field-hint">{t({ locale, key: page.empty === "no_matches" ? "No sends match." : "No sends recorded yet." })}</p>
             ) : (
-              <ul className="email-list">{page.items.map((item, i) => <ActivityRow key={item.id ?? `${item.createdAt}-${i}`} item={item} controller={controller} locale={locale} index={i} />)}</ul>
+              <ul className="jini-admin-email-list">{page.items.map((item, i) => <ActivityRow key={item.id ?? `${item.createdAt}-${i}`} item={item} controller={controller} locale={locale} index={i} />)}</ul>
             )}
           </>
         )}
@@ -211,7 +211,7 @@ function RemovalBody(props: { controller: EmailActivityController; locale: strin
   if (!step) return null;
   if (step.kind === "reason") {
     return (
-      <div className="email-removal">
+      <div className="jini-admin-email-removal">
         <p>{t({ locale, key: "{address} won't be blocked anymore. Why?" }).replace("{address}", () => step.entry.address)}</p>
         <label className="jini-field-label" htmlFor="email-removal-reason">{t({ locale, key: "Reason (kept in the record)" })}</label>
         <textarea id="email-removal-reason" className="jini-input" rows={3} value={step.reason} onChange={(e) => controller.setRemovalReason(e.target.value)}
@@ -221,11 +221,11 @@ function RemovalBody(props: { controller: EmailActivityController; locale: strin
     );
   }
   return (
-    <div className="email-removal">
+    <div className="jini-admin-email-removal">
       <p>
         {t({ locale, key: "Blocked since {when} ({why})." }).replace("{when}", () => when({ iso: step.plan.suppressedAt, locale })).replace("{why}", () => t({ locale, key: SUPPRESSION_REASON[step.plan.suppressionReason] }))}
       </p>
-      <ul className="email-reasons">{step.plan.warnings.map((warning) => <li key={warning}>{warning}</li>)}</ul>
+      <ul className="jini-admin-email-reasons">{step.plan.warnings.map((warning) => <li key={warning}>{warning}</li>)}</ul>
       <p className="jini-field-hint">{t({ locale, key: "Reason: {reason}" }).replace("{reason}", () => step.plan.reason)}</p>
       {step.error ? <p className="jini-field-error" role="alert">{t({ locale, key: step.error })}</p> : null}
     </div>
@@ -247,13 +247,13 @@ function BlockedAddresses(props: { controller: EmailActivityController; locale: 
         {(page) => (page.items.length === 0 ? (
           <p className="jini-field-hint">{t({ locale, key: page.empty === "no_matches" ? "No blocked addresses match." : "No blocked addresses." })}</p>
         ) : (
-          <ul className="email-list">
+          <ul className="jini-admin-email-list">
             {page.items.map((entry, i) => (
-              <li key={`${entry.address}-${entry.scope}`} className="email-row email-blocked">
-                <span className="email-activity-recipient">{entry.address}</span>
+              <li key={`${entry.address}-${entry.scope}`} className="jini-admin-email-row jini-admin-email-blocked">
+                <span className="jini-admin-email-activity-recipient">{entry.address}</span>
                 <Chip tone={entry.reason === "manual" ? "neutral" : "warning"}>{t({ locale, key: SUPPRESSION_REASON[entry.reason] })}</Chip>
                 <span className="jini-field-hint">{t({ locale, key: entry.scope === "bulk" ? "Newsletters only" : "All email" })} · {when({ iso: entry.createdAt, locale })}</span>
-                <button type="button" className="btn-secondary email-push-end" onClick={() => controller.startRemoval(entry)}
+                <button type="button" className="btn-secondary jini-admin-email-push-end" onClick={() => controller.startRemoval(entry)}
                   {...agentHandle({ handle: `email-blocked-${i}-remove` }, { role: "button", label: `Unblock ${entry.address}` })}>
                   {t({ locale, key: "Unblock" })}
                 </button>
@@ -286,20 +286,20 @@ function FeedbackSetup(props: { controller: EmailActivityController; locale: str
         {(report) => (!report.available || report.providers.length === 0 ? (
           <p className="jini-field-hint">{t({ locale, key: "No active provider reports bounces here." })}</p>
         ) : (
-          <ul className="email-list">
+          <ul className="jini-admin-email-list">
             {report.providers.map((provider) => {
               const state = FEEDBACK_STATE[provider.state];
               const lastVerifiedEvent = provider.lastVerifiedEvent;
               return (
-                <li key={provider.providerId} className="email-provider">
-                  <div className="email-row">
-                    <strong className="email-provider-name">{provider.label}</strong>
+                <li key={provider.providerId} className="jini-admin-email-provider">
+                  <div className="jini-admin-email-row">
+                    <strong className="jini-admin-email-provider-name">{provider.label}</strong>
                     <Chip tone={state.tone}>{t({ locale, key: state.label })}</Chip>
                   </div>
                   {provider.supported && provider.webhookUrl ? (
-                      <div className="email-row">
+                      <div className="jini-admin-email-row">
                         <span className="jini-field-label">{t({ locale, key: "Webhook URL" })}</span>
-                        <code className="email-break">{provider.webhookUrl}</code>
+                        <code className="jini-admin-email-break">{provider.webhookUrl}</code>
                         <CopyButton text={provider.webhookUrl} label={t({ locale, key: "{provider} webhook URL" }).replace("{provider}", () => provider.label)} locale={locale} handle={`email-feedback-${provider.providerId}-copy`} />
                       </div>
                   ) : null}

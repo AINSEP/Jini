@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs";
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
@@ -202,7 +203,7 @@ describe('ConnectorDetailDrawer', () => {
         onLoadMoreTools={noop}
       />,
     );
-    expect(screen.queryByText(/tool/i, { selector: '.connector-drawer-tool-count-chip *' })).toBeNull();
+    expect(screen.queryByText(/tool/i, { selector: '.jini-ui-connector-drawer-tool-count-chip *' })).toBeNull();
   });
 
   it('fires onDisconnect when the inline details-section action is actually clicked', async () => {
@@ -537,8 +538,8 @@ describe('ConnectorDetailDrawer', () => {
         onLoadMoreTools={noop}
       />,
     );
-    expect(container.querySelector('.connector-drawer-status .connector-status-pill')?.className).toBe(
-      'connector-status-pill status-pending',
+    expect(container.querySelector('.jini-ui-connector-drawer-status .jini-ui-connector-status-pill')?.className).toBe(
+      'jini-ui-connector-status-pill status-pending',
     );
   });
 
@@ -584,3 +585,20 @@ describe('ConnectorDetailDrawer', () => {
   });
 });
 
+
+it('drawer, connector status and keyboard close agree with the shipped settings sheet', async () => {
+  const css = readFileSync(new URL('../../../settings/dialog/styles/settings-dialog.css', import.meta.url), 'utf8');
+  const onClose = vi.fn();
+  const { container } = render(<ConnectorDetailDrawer connector={makeConnector()} disabled={false}
+    pendingAction={null} authorizationCancelFailed={false} authorizationError={null}
+    toolsPreviewLoading={false} toolsLoaded onClose={onClose} onConnect={noop}
+    onDisconnect={noop} onCancelAuthorization={noop} onLoadMoreTools={noop} />);
+  const status = container.querySelector('.jini-ui-connector-status-pill');
+  expect(status).toHaveClass('status-available');
+  for (const node of container.querySelectorAll('[class]')) {
+    for (const token of node.classList) if (token.startsWith('jini-ui-connector')) expect(css).toContain(`.${token}`);
+  }
+  expect(screen.getByRole('button', { name: 'Close' })).toHaveClass('ghost');
+  await userEvent.keyboard('{Escape}');
+  expect(onClose).toHaveBeenCalledTimes(1);
+});

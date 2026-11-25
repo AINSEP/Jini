@@ -95,7 +95,7 @@ export function ConnectorGrid({
 }: ConnectorGridProps) {
   const cardHandles = agentHandle ? buildAgentListHandles({ prefix: agentHandle, ids: connectors.map((c) => c.id) }) : [];
   return (
-    <div className={`connector-grid-wrap${locked ? ' is-masked' : ''}`} data-testid="connector-grid-wrap">
+    <div className={`jini-ui-connector-grid-wrap${locked ? ' is-masked' : ''}`} data-testid="connector-grid-wrap">
       {hasNoResults && !locked ? (
         <ConnectorGridEmpty
           searchQuery={searchQuery}
@@ -106,7 +106,7 @@ export function ConnectorGrid({
           agentHandle={agentHandle}
         />
       ) : (
-        <div className="connector-grid" aria-hidden={locked || undefined}>
+        <div className="jini-ui-connector-grid" aria-hidden={locked || undefined}>
           {connectors.map((connector, index) => (
             <ConnectorCard
               key={connector.id}
