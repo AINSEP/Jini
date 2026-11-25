@@ -62,17 +62,7 @@ function receiveSettingsFrame({ state, frame, publishSettings }: {
   state: SettingsFeedState; frame: Frame; publishSettings: Parameters<typeof subscribeToSettingsChanges>[0]["publishSettings"];
 }, { supplemental }: Parameters<typeof subscribeToSettingsChanges>[1] = {}): void {
   if (frame.id) state.cursor = frame.id;
-  if (frame.kind === "open") {
-    // A new leader/follower connection may have no cursor yet. Re-read after boot so a
-    // handoff cannot leave stale values even when no settings frame preceded it.
-    // Theme's durable marker replays independently.
-    // The FIRST attach belongs to boot's fresh reads, not a change. Later opens still cover
-    // reconnects/leadership handoffs, including those for which no cursor was received.
-    // A prior frame can supply the resume cursor even if that source never emitted open.
-    if (state.opened || state.cursor) publishSettings();
-    state.opened = true;
-    return;
-  }
+  if (frame.kind === "open") { receiveOpenFrame({ state, publishSettings }); return; }
   if (supplemental && frame.kind === supplemental.event) {
     const revision = supplemental.consume({ data: frame.data });
     if (revision !== undefined) state.supplementalRevision = revision;
@@ -84,6 +74,19 @@ function receiveSettingsFrame({ state, frame, publishSettings }: {
     // rather than dropping a notification because its payload shape was unexpected.
     publishSettings(Array.isArray(changed.namespaces) ? changed.namespaces : undefined);
   } catch { publishSettings(); }
+}
+
+function receiveOpenFrame({ state, publishSettings }: {
+  state: SettingsFeedState; publishSettings: Parameters<typeof subscribeToSettingsChanges>[0]["publishSettings"];
+}, _optional: Record<string, never> = {}): void {
+  // A new leader/follower connection may have no cursor yet. Re-read after boot so a
+  // handoff cannot leave stale values even when no settings frame preceded it.
+  // Theme's durable marker replays independently.
+  // The FIRST attach belongs to boot's fresh reads, not a change. Later opens still cover
+  // reconnects/leadership handoffs, including those for which no cursor was received.
+  // A prior frame can supply the resume cursor even if that source never emitted open.
+  if (state.opened || state.cursor) publishSettings();
+  state.opened = true;
 }
 
 function createSettingsFeedConnector(state: SettingsFeedState, { open, workspaceId, urlFor, warn }: Pick<Parameters<typeof subscribeToSettingsChanges>[0], "open" | "workspaceId" | "urlFor" | "warn">,
