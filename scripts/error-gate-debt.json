@@ -1245,16 +1245,6 @@
     "value": 1
   },
   {
-    "file": "packages/daemon/src/http/xai.ts",
-    "rule": "catch-reads-error",
-    "value": 2
-  },
-  {
-    "file": "packages/daemon/src/http/xai.ts",
-    "rule": "no-generic-failure-text",
-    "value": 1
-  },
-  {
     "file": "packages/daemon/src/legacy-data-migration.ts",
     "rule": "catch-reads-error",
     "value": 3

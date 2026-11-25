@@ -25,6 +25,9 @@ import { createLocalNodeDaemon, installGracefulShutdown, mountRoutes, nodeSessio
 import { CHAT_CAPABILITIES } from '@jini-ai/chat/core';
 import { PAGE_CAPABILITIES } from '@jini-ai/agentic';
 import type { RunAgentPayload } from '@jini-ai/protocol';
+import type { OAuthCallbackListener } from '@jini-ai/provider-plugins/xai/oauth-port';
+import { xaiRoutes } from '@jini-ai/provider-plugins/xai/routes';
+import { hostOAuthPort } from './xai-oauth-port.js';
 import { WEBMCP_LAB_CAPABILITIES } from './webmcp-lab-capabilities.js';
 import {
   createPlaygroundRuntimeEnvironment,
@@ -410,6 +413,9 @@ async function main(): Promise<void> {
     },
   }, { policy: { authorize: () => 'allow' } });
 
+  // Owned here so `onShutdown` stops the same loopback listener the xAI routes opened: the fixed
+  // 127.0.0.1:56121 socket would otherwise outlive the daemon by up to its 30-minute self-close timeout.
+  const xaiListenerRef: { current: OAuthCallbackListener | null } = { current: null };
   let daemon: Awaited<ReturnType<typeof createLocalNodeDaemon>>;
   try {
     daemon = await createLocalNodeDaemon({
@@ -485,6 +491,8 @@ async function main(): Promise<void> {
           mountRoutes({ app, routes: attachmentUploadRoutes({ deps: { store: attachmentStore }, host: routeHost }) }, { rawBody: true });
           mountRoutes({ app, routes: attachmentCleanupRoutes({ deps: { store: attachmentStore }, host: routeHost }) });
         },
+        (app, { routeHost }) =>
+          mountRoutes({ app, routes: xaiRoutes({ deps: { oauth: hostOAuthPort, baseUrlGuard: { validate: validateBaseUrl }, now: () => Date.now(), dataDir, listenerRef: xaiListenerRef }, host: routeHost }) }),
         (app, { routeHost }) => mountRoutes({ app, routes: memoryRoutes({ deps: memoryRoutesDeps, host: routeHost }) }),
         (app, { routeHost }) =>
           mountRoutes({ app, routes: mediaRoutes({ deps: {
@@ -504,6 +512,10 @@ async function main(): Promise<void> {
             }, host: routeHost }) }),
       ],
       onShutdown: async () => {
+        const xaiListener = xaiListenerRef.current;
+        xaiListenerRef.current = null;
+        // Best-effort — the listener self-closes on its own timeout anyway.
+        if (xaiListener) await xaiListener.stop();
         clearInterval(attachmentPruneTimer);
         await attachmentStore.dispose();
         await mediaTaskStore.close();

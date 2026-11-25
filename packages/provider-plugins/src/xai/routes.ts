@@ -1,5 +1,5 @@
 /**
- * @module xai
+ * @module xai/routes
  *
  * `POST /api/xai/oauth/start`, `POST /api/xai/oauth/complete`, `POST /api/xai/oauth/cancel`,
  * `GET /api/xai/auth/status`, `POST /api/xai/oauth/disconnect`, `POST /api/xai/search` — ported
@@ -118,31 +118,22 @@
  *    without special-casing one provider's capitalization inside otherwise-generic code.
  */
 import { redactSecrets } from '@jini-ai/core';
-import {
-  beginOAuthPkce,
-  clearStoredOAuthToken,
-  completeOAuthPkce,
-  getStoredOAuthToken,
-  PendingAuthCache,
-  resolveOAuthBearer,
-  setStoredOAuthToken,
-  startOAuthCallbackListener,
-  validateBaseUrl,
-  XAI_OAUTH_PROVIDER_CONFIG,
-  XAI_OAUTH_REDIRECT_HOST,
-  XAI_OAUTH_REDIRECT_PATH,
-  XAI_OAUTH_REDIRECT_PORT,
-  type OAuthCallbackListener,
-  type OAuthCallbackOutcome,
-  type OAuthPkceProviderConfig,
-  type OAuthTokenResponse,
-  type ResolvedOAuthCredential,
-  type StoredOAuthToken,
-} from '@jini-ai/agent-runtime';
+import type { BaseUrlGuardPort } from '@jini-ai/core/contracts/agents';
 import { createApiError } from '@jini-ai/protocol';
-import { defineJsonRoute, validationError, err, ok, type JsonRouteSpec, type ReportRouteInternalError, type Result, type RouteInputContext } from '@jini-ai/core/contracts/server';
-import type { DaemonRouteHost } from './route-host.js'; import { gatedJsonRoute, withHostReporter, type DaemonRoute } from './route-table.js';
+import { defineJsonRoute, jsonRoute, validationError, err, ok, type JsonRouteSpec, type ReportRouteInternalError, type Result, type RouteHostContext, type RouteInputContext, type ServerRoute } from '@jini-ai/core/contracts/server';
 import { trimCharsEnd } from '@jini-ai/core/text';
+import type {
+  OAuthCallbackListener, OAuthCallbackOutcome, OAuthPendingAuthorizations, OAuthPkceFlowPort, OAuthPkceProviderConfig, OAuthTokenResponse, ResolvedOAuthCredential, StoredOAuthToken,
+} from './oauth-port.js';
+import { XAI_OAUTH_PROVIDER_CONFIG, XAI_OAUTH_REDIRECT_HOST, XAI_OAUTH_REDIRECT_PATH, XAI_OAUTH_REDIRECT_PORT } from './preset.js';
+
+/** What a host hands the xAI route list: the same-origin policy and incident sink, the reporter, and the body ceiling.
+ * A structural subset of the daemon's route host, so a daemon host passes its own object with no adapter. */
+export interface XaiRouteHost {
+  readonly context: RouteHostContext;
+  readonly reportInternalError: ReportRouteInternalError;
+  readonly jsonBodyMaxBytes: number;
+}
 
 /** Plain words per failing operation; the caller also gets the request ID. */
 const XAI_FAILURE_MESSAGES: Readonly<Record<XaiInternalErrorContext['source'], string>> = {
@@ -171,6 +162,12 @@ export interface XaiInternalErrorContext {
 }
 
 export interface XaiHttpDeps {
+  /** The OAuth+PKCE mechanics, bound by the host (agent-runtime's functions). Required: this plugin imports no implementation. */
+  readonly oauth: OAuthPkceFlowPort;
+  /** Refuses a search base URL that points at an internal address (SSRF guard). Required, host-bound. */
+  readonly baseUrlGuard: BaseUrlGuardPort;
+  /** The clock for token save/expiry instants. Required, host-bound. */
+  readonly now: () => number;
   /** Directory the xAI OAuth token is persisted under (`<dataDir>/<tokenFileName>`). Defaults to `process.cwd()` — a host with a real dataDir should override this (matching `create-local-node-daemon.ts`'s `memoryRoutesDeps.dataDir` pattern). */
   readonly dataDir?: string;
   /** On-disk file name for the stored token, scoped under `dataDir`. Defaults to `xai-oauth-token.json`. */
@@ -184,11 +181,9 @@ export interface XaiHttpDeps {
   /** Loopback callback path `providerConfig.clientId` is registered against. Defaults to `XAI_OAUTH_REDIRECT_PATH` (`/callback`). */
   readonly callbackPath?: string;
   /** In-memory pending-authorization cache backing the begin/complete dance. Defaults to a fresh 30-minute `PendingAuthCache`, shared across every request `xaiRoutes` mounts — see module doc on why this must be resolved once, not per-call. */
-  readonly pending?: PendingAuthCache;
+  readonly pending?: OAuthPendingAuthorizations;
   /** Mutable slot holding the in-flight loopback listener, if any (only one OAuth dance can be in flight at a time — the port is a singleton). Shared the same way `pending` is. Defaults to `{ current: null }`. */
   readonly listenerRef?: { current: OAuthCallbackListener | null };
-  /** Opens the loopback callback listener. Defaults to `@jini-ai/agent-runtime`'s `startOAuthCallbackListener`. Overridable so tests never bind a real socket. */
-  readonly startCallbackListener?: typeof startOAuthCallbackListener;
   /** Base URL for xAI's Responses API (`POST {searchBaseUrl}/responses`). Defaults to `https://api.x.ai/v1`. */
   readonly searchBaseUrl?: string;
   /** Model id sent to the Responses API when a search request doesn't supply its own. Defaults to xAI's real `grok-4.20-reasoning`. */
@@ -208,9 +203,11 @@ interface ResolvedXaiHttpDeps {
   callbackHost: string;
   callbackPort: number;
   callbackPath: string;
-  pending: PendingAuthCache;
+  pending: OAuthPendingAuthorizations;
   listenerRef: { current: OAuthCallbackListener | null };
-  startCallbackListener: typeof startOAuthCallbackListener;
+  oauth: OAuthPkceFlowPort;
+  baseUrlGuard: BaseUrlGuardPort;
+  now: () => number;
   searchBaseUrl: string;
   searchDefaultModel: string;
   fetchImpl: typeof fetch;
@@ -233,15 +230,17 @@ function resolveXaiHttpDeps(deps: XaiHttpDeps): ResolvedXaiHttpDeps {
 }
 
 /** The OAuth dance's provider, loopback-callback and in-flight state defaults. */
-function resolveOAuthFlowDeps(deps: XaiHttpDeps): Pick<ResolvedXaiHttpDeps, 'providerConfig' | 'callbackHost' | 'callbackPort' | 'callbackPath' | 'pending' | 'listenerRef' | 'startCallbackListener'> {
+function resolveOAuthFlowDeps(deps: XaiHttpDeps): Pick<ResolvedXaiHttpDeps, 'providerConfig' | 'callbackHost' | 'callbackPort' | 'callbackPath' | 'pending' | 'listenerRef' | 'oauth' | 'baseUrlGuard' | 'now'> {
   return {
     providerConfig: deps.providerConfig ?? XAI_OAUTH_PROVIDER_CONFIG,
     callbackHost: deps.callbackHost ?? XAI_OAUTH_REDIRECT_HOST,
     callbackPort: deps.callbackPort ?? XAI_OAUTH_REDIRECT_PORT,
     callbackPath: deps.callbackPath ?? XAI_OAUTH_REDIRECT_PATH,
-    pending: deps.pending ?? new PendingAuthCache({}, { ttlMs: DEFAULT_PENDING_AUTH_TTL_MS }),
+    pending: deps.pending ?? deps.oauth.createPendingCache({}, { ttlMs: DEFAULT_PENDING_AUTH_TTL_MS }),
     listenerRef: deps.listenerRef ?? { current: null },
-    startCallbackListener: deps.startCallbackListener ?? startOAuthCallbackListener,
+    oauth: deps.oauth,
+    baseUrlGuard: deps.baseUrlGuard,
+    now: deps.now,
   };
 }
 
@@ -332,8 +331,8 @@ export function toStoredOAuthToken({ tokenResp, nowMs }: { tokenResp: OAuthToken
 }
 
 async function persistToken(resolved: ResolvedXaiHttpDeps, tokenResp: OAuthTokenResponse): Promise<void> {
-  const stored = toStoredOAuthToken({ tokenResp, nowMs: Date.now() });
-  await setStoredOAuthToken({ dataDir: resolved.dataDir, fileName: resolved.tokenFileName, token: stored });
+  const stored = toStoredOAuthToken({ tokenResp, nowMs: resolved.now() });
+  await resolved.oauth.tokens.set({ dataDir: resolved.dataDir, fileName: resolved.tokenFileName, token: stored });
 }
 
 /** Invoked when the loopback listener actually receives xAI's redirect (the real-browser path, as opposed to `oauth/complete`'s manual paste-back path — xAI's own docs note the loopback redirect commonly shows the user a code to paste rather than following the redirect). No HTTP response to write here; failures are only reported through the internal-error sink. */
@@ -344,7 +343,7 @@ async function handleListenerCallback(resolved: ResolvedXaiHttpDeps, outcome: OA
     return;
   }
   try {
-    const tokenResp = await completeOAuthPkce({
+    const tokenResp = await resolved.oauth.complete({
 config: resolved.providerConfig,
 pending: resolved.pending,
 state: outcome.state,
@@ -432,13 +431,13 @@ export const xaiOauthStartRoute = defineJsonRoute<void, XaiOauthStartResponse, X
         });
       }
       try {
-        const { authorizeUrl, state } = beginOAuthPkce({
+        const { authorizeUrl, state } = resolved.oauth.begin({
           config: resolved.providerConfig,
           pending: resolved.pending,
           redirectUri: xaiRedirectUri(resolved),
         });
         pendingOAuthStates.set(resolved.listenerRef, state);
-        const listener = await resolved.startCallbackListener({
+        const listener = await resolved.oauth.startCallbackListener({
           host: resolved.callbackHost,
           port: resolved.callbackPort,
           path: resolved.callbackPath,
@@ -487,7 +486,7 @@ export const xaiOauthCompleteRoute = defineJsonRoute<XaiOauthCompleteRequest, Xa
   method: 'post', path: '/api/xai/oauth/complete', parse: parseXaiOauthComplete, handle: async ({ input: { state, code }, deps }) => {
     const resolved = resolveXaiHttpDeps(deps);
     try {
-      const tokenResp = await completeOAuthPkce({
+      const tokenResp = await resolved.oauth.complete({
 config: resolved.providerConfig,
 pending: resolved.pending,
 state,
@@ -549,7 +548,7 @@ export const xaiAuthStatusRoute = defineJsonRoute<void, XaiAuthStatusResponse, X
   method: 'get', path: '/api/xai/auth/status', parse: () => ok({ value: undefined }), handle: async ({ input: _input, deps }) => {
     const resolved = resolveXaiHttpDeps(deps);
     try {
-      const token = await getStoredOAuthToken({ dataDir: resolved.dataDir, fileName: resolved.tokenFileName });
+      const token = await resolved.oauth.tokens.get({ dataDir: resolved.dataDir, fileName: resolved.tokenFileName });
       const listening = resolved.listenerRef.current !== null;
       if (!token) return ok({ value: { connected: false, expiresAt: null, scope: null, savedAt: null, listening } });
       return ok({
@@ -576,7 +575,7 @@ export const xaiOauthDisconnectRoute = defineJsonRoute<void, XaiOkResponse, XaiH
     const resolved = resolveXaiHttpDeps(deps);
     try {
       await stopListener(resolved);
-      await clearStoredOAuthToken({ dataDir: resolved.dataDir, fileName: resolved.tokenFileName });
+      await resolved.oauth.tokens.clear({ dataDir: resolved.dataDir, fileName: resolved.tokenFileName });
       return ok({ value: { ok: true } });
     } catch (error) {
       return err({ error: reportXaiInternalError({ resolved, source: 'oauth-disconnect', error }) });
@@ -731,7 +730,7 @@ async function readXaiJson(response: Response, guard: XaiCallGuard): Promise<unk
 
 /** Calls xAI's real `POST {searchBaseUrl}/responses` endpoint with the `x_search` native tool, using `accessToken` as the bearer credential. Throws (never a `Result`) on any failure — `xaiSearchRoute.handle` is the one place that converts a thrown error into this package's SEC-005 response shape. Any thrown message is pre-redacted of `accessToken` here so the sink never even logs it unredacted. */
 async function callXaiSearch(resolved: ResolvedXaiHttpDeps, accessToken: string, request: XaiSearchRequest): Promise<XaiSearchResponse> {
-  const baseUrlCheck = validateBaseUrl({ baseUrl: resolved.searchBaseUrl });
+  const baseUrlCheck = resolved.baseUrlGuard.validate({ baseUrl: resolved.searchBaseUrl });
   if (baseUrlCheck.error) throw new Error(baseUrlCheck.error);
   const base = trimCharsEnd({ text: resolved.searchBaseUrl, chars: '/' });
   const model = request.model ?? resolved.searchDefaultModel;
@@ -770,7 +769,7 @@ export const xaiSearchRoute = defineJsonRoute<XaiSearchRequest, XaiSearchRespons
 
     let credential: ResolvedOAuthCredential | null;
     try {
-      credential = await resolveOAuthBearer({ config: resolved.providerConfig, tokenFileName: resolved.tokenFileName, dataDir: resolved.dataDir }, { fetchImpl: resolved.fetchImpl });
+      credential = await resolved.oauth.resolveBearer({ config: resolved.providerConfig, tokenFileName: resolved.tokenFileName, dataDir: resolved.dataDir }, { fetchImpl: resolved.fetchImpl });
     } catch (error) {
       return err({ error: reportXaiInternalError({ resolved, source: 'search', error }) });
     }
@@ -791,9 +790,20 @@ export const xaiSearchRoute = defineJsonRoute<XaiSearchRequest, XaiSearchRespons
   }
 }, { requireSameOrigin: true });
 
+/** `deps` with the host's reporter added, without copying `deps`: every member stays readable through the original object. */
+function withHostReporter<Deps extends object>({ deps, host }: { readonly deps: Deps; readonly host: XaiRouteHost }, _optional: Record<string, never> = {}): Deps & { readonly reportInternalError: ReportRouteInternalError } {
+  return Object.create(deps, { reportInternalError: { value: host.reportInternalError, enumerable: true } }) as Deps & { readonly reportInternalError: ReportRouteInternalError };
+}
+
+/** One JSON spec as a server route: the host's body limit bounds (never replaces) the spec's, and the host's reporter is applied. The same-origin check is the JSON route's own, driven by `requireSameOrigin`. */
+function hostedJsonRoute<I, O>({ spec, deps, host }: { readonly spec: JsonRouteSpec<I, O, XaiHttpDeps>; readonly deps: XaiHttpDeps; readonly host: XaiRouteHost }, _optional: Record<string, never> = {}): ServerRoute {
+  const maxBodyBytes = Math.min(spec.maxBodyBytes ?? host.jsonBodyMaxBytes, host.jsonBodyMaxBytes);
+  return jsonRoute({ spec: { ...spec, maxBodyBytes }, deps, reportInternalError: host.reportInternalError }, { host: host.context });
+}
+
 /** Every xAI route as data, each behind the same-origin gate its spec declares. Defaults are resolved once per call, so the routes share one pending-auth cache and listener slot. Internal failures are reported through the host's reporter. */
-export function xaiRoutes({ deps, host }: { readonly deps: Omit<XaiHttpDeps, 'reportInternalError'>; readonly host: DaemonRouteHost }, _optional: Record<string, never> = {}): DaemonRoute[] {
+export function xaiRoutes({ deps, host }: { readonly deps: Omit<XaiHttpDeps, 'reportInternalError'>; readonly host: XaiRouteHost }, _optional: Record<string, never> = {}): ServerRoute[] {
   const routeDeps = resolveXaiHttpDeps(withHostReporter({ deps, host }));
-  const json = <I, O>(spec: JsonRouteSpec<I, O, XaiHttpDeps>): DaemonRoute => gatedJsonRoute({ spec, deps: routeDeps, host });
+  const json = <I, O>(spec: JsonRouteSpec<I, O, XaiHttpDeps>): ServerRoute => hostedJsonRoute({ spec, deps: routeDeps, host });
   return [json(xaiOauthStartRoute), json(xaiOauthCompleteRoute), json(xaiOauthCancelRoute), json(xaiAuthStatusRoute), json(xaiOauthDisconnectRoute), json(xaiSearchRoute)];
 }

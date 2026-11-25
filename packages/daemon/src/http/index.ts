@@ -343,23 +343,6 @@ export { isUnchangedAttachment } from './attachment-records.js';
 export { stageAttachmentClaim } from './attachment-staging.js';
 export { writeBoundedAttachmentBody } from './attachment-body.js';
 export { attachmentCleanupRoutes, attachmentUploadRoutes } from './attachment-routes.js';
-export type {
-  XaiAuthStatusResponse,
-  XaiHttpDeps,
-  XaiInternalErrorContext,
-  XaiOauthStartResponse,
-  XaiOkResponse,
-  XaiSearchResponse,
-} from './xai.js';
-export {
-  xaiRoutes,
-  xaiAuthStatusRoute,
-  xaiOauthCancelRoute,
-  xaiOauthCompleteRoute,
-  xaiOauthDisconnectRoute,
-  xaiOauthStartRoute,
-  xaiSearchRoute,
-} from './xai.js';
 export type { RunWithToolContext } from './tool-execution-stream.js';
 export type {
   AuthorizeToolRun,

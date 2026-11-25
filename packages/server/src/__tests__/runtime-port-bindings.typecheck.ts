@@ -3,11 +3,8 @@
 import { createAgentRuntimeBindings, createNativeAgentRuntime } from '@jini-ai/agent-runtime';
 import type { AgentRuntimePort } from '@jini-ai/daemon/ports/agent-runtime';
 import type { BaseUrlGuardPort, ProviderToolTurnPort } from '@jini-ai/core/contracts/agents';
-import type { XaiOAuthPort } from '@jini-ai/daemon/ports/xai-oauth';
 import {
-  beginOAuthPkce, clearStoredOAuthToken, completeOAuthPkce, getStoredOAuthToken, PendingAuthCache, resolveOAuthBearer, runAnthropicToolTurn,
-  runAzureToolTurn, runGoogleToolTurn, runOllamaToolTurn, runOpenAiToolTurn, setStoredOAuthToken, startOAuthCallbackListener, validateBaseUrl,
-  XAI_OAUTH_PROVIDER_CONFIG, XAI_OAUTH_REDIRECT_HOST, XAI_OAUTH_REDIRECT_PATH, XAI_OAUTH_REDIRECT_PORT,
+  runAnthropicToolTurn, runAzureToolTurn, runGoogleToolTurn, runOllamaToolTurn, runOpenAiToolTurn, validateBaseUrl,
 } from '@jini-ai/agent-runtime';
 
 export function bindForTypecheck(required: { env: Record<string, string | undefined> }, _optional: Record<string, never> = {}): AgentRuntimePort {
@@ -24,19 +21,3 @@ export const providerToolTurns = {
   google: runGoogleToolTurn,
   ollama: runOllamaToolTurn,
 } satisfies ProviderToolTurnPort;
-
-/** The xAI OAuth operations, as `xai.ts` calls them. */
-export const xaiOAuth = {
-  config: XAI_OAUTH_PROVIDER_CONFIG,
-  redirect: { host: XAI_OAUTH_REDIRECT_HOST, port: XAI_OAUTH_REDIRECT_PORT, path: XAI_OAUTH_REDIRECT_PATH },
-  begin: (required) => beginOAuthPkce(required),
-  complete: (required, optional = {}) => completeOAuthPkce(required, optional),
-  tokens: {
-    get: (required) => getStoredOAuthToken(required),
-    set: (required) => setStoredOAuthToken(required),
-    clear: (required) => clearStoredOAuthToken(required),
-  },
-  resolveBearer: (required, optional = {}) => resolveOAuthBearer(required, optional),
-  startCallbackListener: (required, optional = {}) => startOAuthCallbackListener(required, optional),
-  createPendingCache: (required = {}, optional = {}) => new PendingAuthCache(required, optional),
-} satisfies XaiOAuthPort<PendingAuthCache>;

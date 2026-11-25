@@ -615,22 +615,6 @@ describe('host-supplied option overrides reach their feature', () => {
     expect(kernel.base.registry.has({ toolId: 'daemon.db.vacuum' })).toBe(true);
   });
 
-  it('honors a caller-owned xAI listener ref, and disposes an in-flight listener on teardown', async () => {
-    const stop = vi.fn(async () => undefined);
-    const listenerRef = { current: { stop } as never };
-    const { kernel } = await boot({ security: { mode: 'host' },
-      osPorts: nodeOsPorts, storage: { kind: 'sqlite', open: openSqlite, dataDir: makeTempDataDir() },
-      profile: 'local-daemon-v1',
-      featureOptions: { ...shutdownOption, xai: { listenerRef } },
-    });
-
-    await kernel.disposeFeatures();
-    // The fixed loopback OAuth port would otherwise outlive the composition by up to its own
-    // 30-minute self-close timeout.
-    expect(stop).toHaveBeenCalledTimes(1);
-    expect(listenerRef.current).toBeNull();
-  });
-
   it('honors a custom remote-tool-bridge token env var name', async () => {
     const { url } = await boot({ security: { mode: 'host' },
       osPorts: nodeOsPorts, storage: { kind: 'memory' },

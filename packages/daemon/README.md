@@ -103,8 +103,7 @@ filesystem policy, model resolution, ACP/PI sessions, stream parsers, startup fa
 `@jini-ai/agent-runtime`'s `createAgentRuntimeBindings` is the one binding, and the host proves it with
 `satisfies AgentRuntimePort`. The provider-facing HTTP routes take two more ports:
 `@jini-ai/core/contracts/agents` (`ProviderToolTurnPort`, `BaseUrlGuardPort`, the pinned-fetch types; neutral, so a host
-types its bindings without importing daemon) and
-`@jini-ai/daemon/ports/xai-oauth` (`XaiOAuthPort`). Each has a DI fake under `src/ports/__tests__/` for route and launcher tests.
+types its bindings without importing daemon). Each has a DI fake under `src/ports/__tests__/` for route and launcher tests.
 
 ## Runtime
 

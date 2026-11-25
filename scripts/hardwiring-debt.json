@@ -128,13 +128,6 @@
       "fingerprint": "a97d7492edeb30eaf7b260e2b02ffe125474c2adcf5764051a055aeb22e51457"
     },
     {
-      "rule": "HW8-provider-url",
-      "file": "packages/daemon/src/http/xai.ts",
-      "line": 152,
-      "reason": "Vendor API URL belongs in a provider, adapter or catalog.",
-      "fingerprint": "396fbae1cae141eb85e04bf8071c2fc131c8523bec3cecea3cc85a821c1b0692"
-    },
-    {
       "rule": "HW3-module-state",
       "file": "packages/db/src/kernel/sqlite/driver.ts",
       "line": 44,

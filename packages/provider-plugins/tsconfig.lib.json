@@ -11,6 +11,9 @@
   "include": [],
   "files": [
     "src/observability-opentelemetry/otel-port.ts",
-    "src/xai/media/index.ts"
+    "src/xai/media/index.ts",
+    "src/xai/routes.ts",
+    "src/xai/preset.ts",
+    "src/xai/oauth-port.ts"
   ]
 }

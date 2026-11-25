@@ -279,6 +279,9 @@ importers:
       '@jini-ai/protocol':
         specifier: workspace:*
         version: link:../../packages/protocol
+      '@jini-ai/provider-plugins':
+        specifier: workspace:*
+        version: link:../../packages/provider-plugins
       '@jini-ai/server':
         specifier: workspace:*
         version: link:../../packages/server

@@ -28,5 +28,5 @@ mountRoutes({ app, routes: researchRoutes({ deps: { baseUrlGuard: { validate: va
 ```
 
 Must never import: `@jini-ai/agent-runtime` or any other package's implementation from these two routes (types from
-`@jini-ai/core` contracts and this package's own `ports/` only). `xai.ts`, `host-tools.ts` and
+`@jini-ai/core` contracts and this package's own `ports/` only). `host-tools.ts` and
 `attachment-persistence.ts` still import implementations and are tracked as open XC-4 sites.

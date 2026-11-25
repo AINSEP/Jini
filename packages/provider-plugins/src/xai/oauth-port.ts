@@ -1,8 +1,7 @@
-/** @file The xAI OAuth (PKCE) operations `daemon/src/http/xai.ts` calls, stated as one daemon port. The host binds it (the
- * OAuth functions of `@jini-ai/agent-runtime`) and proves the match with `satisfies XaiOAuthPort`. The OAuth types are
- * restated here from `@jini-ai/agent-runtime/providers/{oauth-provider,oauth-tokens,oauth-credentials,oauth-callback-server,pkce}`
- * because daemon is their only consumer outside agent-runtime. Follow-up F1: once the xAI routes leave daemon for the xAI
- * provider, this port disappears. R7 threads it into `registerXaiRoutes`'s deps as a required field. */
+/** @file The generic OAuth (PKCE) mechanics the xAI routes call, stated as one injected port. The host binds it (the OAuth
+ * functions of `@jini-ai/agent-runtime`, which keeps owning them) and proves the match with `satisfies OAuthPkceFlowPort`.
+ * The OAuth types are restated here from `@jini-ai/agent-runtime/providers/{oauth-provider,oauth-tokens,oauth-credentials,oauth-callback-server,pkce}`
+ * so this plugin imports no agent-runtime implementation. The xAI preset itself lives in `./preset.ts`. */
 
 /** A provider's OAuth+PKCE client config. */
 export interface OAuthPkceProviderConfig {
@@ -70,12 +69,8 @@ export interface OAuthPendingAuthorizations {
 }
 
 /** `Pending` is the host's concrete cache: `begin` fills the cache that `createPendingCache` made, so a host states its own
- * class (`XaiOAuthPort<PendingAuthCache>`) and the check against the real functions stays exact. The daemon takes the default. */
-export interface XaiOAuthPort<Pending extends OAuthPendingAuthorizations = OAuthPendingAuthorizations> {
-  /** The xAI client config (the concrete preset). */
-  readonly config: OAuthPkceProviderConfig;
-  /** The loopback callback address `config.clientId` is registered against. */
-  readonly redirect: { readonly host: string; readonly port: number; readonly path: string };
+ * class (`OAuthPkceFlowPort<PendingAuthCache>`) and the check against the real functions stays exact. The routes take the default. */
+export interface OAuthPkceFlowPort<Pending extends OAuthPendingAuthorizations = OAuthPendingAuthorizations> {
   begin(required: { config: OAuthPkceProviderConfig; pending: Pending; redirectUri: string }): { authorizeUrl: string; state: string };
   /** Throws when `state` is unknown, expired, already consumed, or issued for a different provider. */
   complete(

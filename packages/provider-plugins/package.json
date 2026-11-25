@@ -35,7 +35,12 @@
       "./formspree": "node",
       "./formspree/*": "node",
       "./google-forms": "node",
-      "./google-forms/*": "node"
+      "./google-forms/*": "node",
+      "./xai": "node",
+      "./xai/routes": "node",
+      "./xai/preset": "node",
+      "./xai/oauth-port": "node",
+      "./xai/*": "node"
     }
   },
   "exports": {
@@ -66,9 +71,28 @@
     "./formspree": "./plugins/formspree/0.7.3-next.2/jini.plugin.json",
     "./formspree/*": "./plugins/formspree/*",
     "./google-forms": "./plugins/google-forms/0.7.3-next.2/jini.plugin.json",
-    "./google-forms/*": "./plugins/google-forms/*"
+    "./google-forms/*": "./plugins/google-forms/*",
+    "./xai": "./plugins/xai/0.7.3-next.2/jini.plugin.json",
+    "./xai/routes": {
+      "types": "./dist/xai/routes.d.ts",
+      "import": "./dist/xai/routes.js"
+    },
+    "./xai/preset": {
+      "types": "./dist/xai/preset.d.ts",
+      "import": "./dist/xai/preset.js"
+    },
+    "./xai/oauth-port": {
+      "types": "./dist/xai/oauth-port.d.ts",
+      "import": "./dist/xai/oauth-port.js"
+    },
+    "./xai/*": "./plugins/xai/*"
   },
   "files": [
+    "CHANGELOG.md",
+    "LICENSE",
+    "NOTICE",
+    "README.md",
+    "catalog.json",
     "dist/observability-opentelemetry",
     "dist/xai",
     "plugins/ai-trace-langfuse",
@@ -81,14 +105,10 @@
     "plugins/observability-opentelemetry",
     "plugins/observability-sentry",
     "plugins/payments-stripe",
-    "catalog.json",
-    "README.md",
-    "CHANGELOG.md",
-    "LICENSE",
-    "NOTICE"
+    "plugins/xai"
   ],
   "scripts": {
-    "build": "pnpm run typecheck && tsc -p tsconfig.lib.json && node --import tsx scripts/build.ts charts-recharts . && node --import tsx scripts/build.ts charts-echarts . && node --import tsx scripts/build.ts ai-trace-langfuse . && node --import tsx scripts/build.ts analytics-posthog . && node --import tsx scripts/build.ts observability-opentelemetry . && node --import tsx scripts/build.ts observability-sentry . && node --import tsx scripts/build.ts payments-stripe . && node --import tsx scripts/build.ts fixture-provider . && node --import tsx scripts/build.ts formspree . && node --import tsx scripts/build.ts google-forms .",
+    "build": "pnpm run typecheck && tsc -p tsconfig.lib.json && node --import tsx scripts/build.ts charts-recharts . && node --import tsx scripts/build.ts charts-echarts . && node --import tsx scripts/build.ts ai-trace-langfuse . && node --import tsx scripts/build.ts analytics-posthog . && node --import tsx scripts/build.ts observability-opentelemetry . && node --import tsx scripts/build.ts observability-sentry . && node --import tsx scripts/build.ts payments-stripe . && node --import tsx scripts/build.ts fixture-provider . && node --import tsx scripts/build.ts formspree . && node --import tsx scripts/build.ts google-forms . && node --import tsx scripts/build.ts xai .",
     "prepack": "pnpm run build",
     "typecheck": "tsc -p tsconfig.json --noEmit && tsc -p tsconfig.charts.json --noEmit",
     "test": "vitest run",
