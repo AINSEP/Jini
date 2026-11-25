@@ -3,6 +3,8 @@ import { access, readdir } from "node:fs/promises";
 import { parse, type DefaultTreeAdapterMap } from "parse5";
 import { escapeHtml } from "@jini-ai/core/text";
 import { describe, it } from "vitest";
+import { exportUrlLocations } from "../../../static-export/html-url-locations.js";
+import { extractHtmlReferences, outputFileForUrl } from "../../../static-export/transforms.js";
 import { SiteShareRefusal } from "../share-refusal.js";
 import type { DownloadHtmlSourceEdits, Edit } from "../static-download-html.js";
 import { captureStaticSite, prepareStaticReport, type ExportReport, type StaticCopyHost } from "../static-copy.js";
@@ -49,7 +51,8 @@ function report(files: { path: string; data: string }[] = [{ path: "index.html",
 function layoutHost(over: Partial<StaticDownloadHost> = {}): StaticDownloadHost {
   return { sourceEdits: countingEdits().edits, validateSharePath: () => undefined, sharePathAlias: ({ path }) => path.toLowerCase(),
     allocateThemes: ({ themeIds }) => themeIds.map(themeId => ({ themeId, name: `folder-${themeId}` })) as never,
-    checkShareLimits: () => undefined, extractPlainText: ({ html }) => html, ...over };
+    checkShareLimits: () => undefined, extractPlainText: ({ html }) => html,
+    exportUrlLocations, extractHtmlReferences, outputFileForUrl, ...over };
 }
 
 const copy = (files: { path: string; content: Buffer }[]) => ({ files, siteSlug: "demo", themeId: "t1" });

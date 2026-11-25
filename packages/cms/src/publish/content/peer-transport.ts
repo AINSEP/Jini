@@ -158,7 +158,7 @@ function toTransportError(
   return new PublishContentPeerTransportError({ message: `the peer at '${peerHostname({ baseUrl })}' could not be reached.${peerNetworkReason({ err })}`, code: "PEER_UNREACHABLE", redact: host.redact });
 }
 
-const PEER_NETWORK_REASONS = new Map<string, string>([
+const PEER_NETWORK_REASONS: ReadonlyMap<string, string> = new Map<string, string>([
   ["ECONNREFUSED", " The peer refused the connection; check that it is running and reachable."],
   ...["ENOTFOUND", "EAI_AGAIN"].map(code => [code, " The peer's hostname could not be resolved; check its address and DNS."] as const),
   ...["ETIMEDOUT", "UND_ERR_CONNECT_TIMEOUT"].map(code => [code, " The connection timed out; check the peer and try again."] as const),
@@ -181,7 +181,7 @@ function peerCauseCode({ cause }: { cause: unknown }, _options: Record<string, n
   return typeof cause === "object" && cause !== null && "code" in cause ? cause.code : undefined;
 }
 
-const PEER_REFUSAL_REASONS = new Map<unknown, string>([
+const PEER_REFUSAL_REASONS: ReadonlyMap<unknown, string> = new Map<unknown, string>([
   ["WORKSPACE_NOT_FOUND", "The destination workspace was not found; check the peer's workspace setting."],
   ["PAYLOAD_TOO_LARGE", "The transfer exceeds the peer's size limit; publish a smaller selection."],
   ["PLAN_STALE", "The destination changed since the plan was checked; check what would change again."],

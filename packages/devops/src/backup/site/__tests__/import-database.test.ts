@@ -28,6 +28,7 @@ function host(over: Partial<ImportDatabaseHost> = {}): ImportDatabaseHost {
     schemaMismatchExitCode: SCHEMA_CODE,
     refusalExitCode: REFUSAL_CODE,
     workerEnv: ({ root }) => ({ PKG_PROFILE_DIR: path.join(root, "profile") }),
+    inheritedEnv: () => ({ PATH: process.env.PATH, SystemRoot: process.env.SystemRoot }),
     ...over,
   } as ImportDatabaseHost;
 }

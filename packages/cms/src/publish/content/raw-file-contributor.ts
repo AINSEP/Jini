@@ -2,27 +2,26 @@ import { createHash } from "node:crypto";
 import { executeCommand } from "../../core/index.js";
 import { orFallback } from "@jini-ai/core/errors/idioms";
 import type { JsonObject } from "@jini-ai/core/primitives";
-import { computeBlobStorageKey } from "../../media/blob-key.js";
-import { isDocumentOnlyBlob } from "../../media/document-read.js";
-import type { AssetBlobRepoPort, MediaRepoPort } from "../../media/ports.js";
 import { BackstopRefusal, type RawBackstopPolicy } from "./backstop-refusal.js";
-import { normalizeMode } from "./file-tree-policy.js";
 import type { RawFileInverse, RawFilePort, RawFileSnapshot, PackedEntity } from "../transfer/index.js";
 import { PublishContentApplyRowError } from "../transfer/index.js";
 import { CONTENT_HASH_VERSION, contentHash } from "./content-hash.js";
 import type { PublishContentContributor, PublishContentDeps, PublishContentHandler, SkippedPackEntity } from "./type-registry.js";
-
-/** The library media stores the raw-file blob guard reads, resolved from the host's port bag. */
-export interface RawFileMediaPorts { readonly repo: MediaRepoPort; readonly assetBlobRepo: AssetBlobRepoPort }
 
 /** Everything the host owns about hand-sent raw files: the path/value rules, the numeric limits, the
  *  refusal copy that states those limits (so it stays in step with them), and where the media stores
  *  live in the host's port bag. All fields are required: nothing here has a default. */
 export interface RawFileContributorConfig<TPorts> {
   readonly policy: Pick<RawBackstopPolicy, "checkRawFilePath" | "checkRawValues">;
+  /** Mode normalizer whose output is part of the checked hash (the host's file-tree rule). */
+  readonly normalizeMode: (args: { mode: number }, _optional?: object) => number;
   readonly limits: { readonly files: number; readonly bytes: number; readonly scanBytes: number };
   readonly copy: { readonly tooManyFiles: string; readonly tooManyBytes: string };
-  readonly mediaPorts: (deps: PublishContentDeps<TPorts>) => RawFileMediaPorts | undefined;
+  /** The host's blob address for one workspace-scoped checksum. */
+  readonly blobStorageKey: (args: { workspaceId: string; sha256: string }) => string;
+  /** True when the bytes must NOT be published: they are private library-document bytes, or the host
+   *  cannot tell (no media stores wired), so the guard fails closed. */
+  readonly isLibraryOnlyBlob: (args: { deps: PublishContentDeps<TPorts>; workspaceId: string; sha256: string }) => Promise<boolean>;
 }
 
 type Deps<P> = PublishContentDeps<P>;
@@ -66,10 +65,10 @@ function pathReason<P>({ cfg, deps, relPath }: { cfg: RawFileContributorConfig<P
 
 async function loadBlob<P>({ cfg, deps, entity }: { cfg: RawFileContributorConfig<P>; deps: Deps<P>; entity: PackedEntity }, _optional = {}): Promise<Uint8Array | null> {
   if (!deps.backstop?.blobs) return null;
-  const media = cfg.mediaPorts(deps);
+
   // A forged file entity must not turn private or purged Library bytes into a public file.
   // Missing policy dependencies fail closed rather than allowing an unguarded store read.
-  if (!media || await isDocumentOnlyBlob({ deps: { mediaRepo: media.repo, blobRepo: media.assetBlobRepo },
+  if (!media || await cfg.isDocumentOnlyBlob({ deps: { mediaRepo: media.repo, blobRepo: media.assetBlobRepo },
     input: { workspaceId: deps.workspaceId, sha256: entity.state.sha256 as string } })) {
     throw new PublishContentApplyRowError({ rowOutcome: "blocked", message: "Library documents cannot be published" });
   }

@@ -1,4 +1,3 @@
-import { MAX_DOCUMENT_BYTES } from "../../media/document-ingress.js";
 
 /** The secret scanner a host injects into {@link checkTreeFiles}: given a text sample, the hits it found
  *  (empty when clean). Structural so this package never imports a scanner implementation; only the first
@@ -190,10 +189,11 @@ function deniedKeyOrDatabaseReason({ base }: { base: string }, _optional: Record
  *  `config.json` fixture). `${path}` here is already known to contain no `/` when this is checked. */
 const ROOT_ONLY_DENIED_NAMES: ReadonlySet<string> = new Set([".site-meta.json", "config.json"]);
 
-/** §3 caps: file ≤ `MAX_DOCUMENT_BYTES`; tree ≤ 64 MiB and ≤2000 files. Exported so a caller
- *  (or a test) can reference the exact numbers rather than re-deriving them. */
+/** §3 caps: tree ≤ 64 MiB and ≤2000 files. The per-file cap (the host's document byte ceiling) is
+ *  REQUIRED on {@link checkTreeFiles} (`maxFileBytes`) rather than imported, so this domain never
+ *  reaches the media implementation. Exported so a caller (or a test) can reference the exact numbers
+ *  rather than re-deriving them. */
 export const FILE_TREE_LIMITS = {
-  maxFileBytes: MAX_DOCUMENT_BYTES,
   maxTreeBytes: 64 * 1024 * 1024,
   maxTreeFiles: 2000,
 } as const;
@@ -437,7 +437,7 @@ export interface FileTreeFileInput {
  *   secret scan (§(p) pattern count times sample length) per qualifying file; `b` is the sum of every
  *   scanned file's `textSample` length.
  */
-export function checkTreeFiles({ kind, files, scanTextForSecrets }: { kind: FileTreeKind; files: readonly FileTreeFileInput[]; scanTextForSecrets: TextSecretScanner }, _optional = {}): string | null {
+export function checkTreeFiles({ kind, files, scanTextForSecrets, maxFileBytes }: { kind: FileTreeKind; files: readonly FileTreeFileInput[]; scanTextForSecrets: TextSecretScanner; maxFileBytes: number }, _optional = {}): string | null {
   const limits = FILE_TREE_LIMITS;
   if (files.length > limits.maxTreeFiles) {
     return `this tree has ${files.length} files, more than the ${limits.maxTreeFiles}-file limit`;
@@ -451,7 +451,7 @@ export function checkTreeFiles({ kind, files, scanTextForSecrets }: { kind: File
   const spec = FILE_TREE_KINDS[kind];
 
   for (const file of files) {
-    const reason = treeFileReason({ file, spec, seenLowercase, scanTextForSecrets });
+    const reason = treeFileReason({ file, spec, seenLowercase, scanTextForSecrets, maxFileBytes });
     if (reason) return reason;
   }
 
@@ -459,8 +459,8 @@ export function checkTreeFiles({ kind, files, scanTextForSecrets }: { kind: File
 }
 
 /** Checks one file in original refusal order, recording case collisions. @complexity O(k) in path length. */
-function treeFileReason({ file, spec, seenLowercase, scanTextForSecrets }: {
-  file: FileTreeFileInput; spec: FileTreeKindSpec; seenLowercase: Map<string, string>; scanTextForSecrets: TextSecretScanner;
+function treeFileReason({ file, spec, seenLowercase, scanTextForSecrets, maxFileBytes }: {
+  file: FileTreeFileInput; spec: FileTreeKindSpec; seenLowercase: Map<string, string>; scanTextForSecrets: TextSecretScanner; maxFileBytes: number;
 }, _options = {}): string | null {
   const shapeReason = checkTreePath({ relPath: file.path });
   if (shapeReason) return shapeReason;
@@ -478,8 +478,8 @@ function treeFileReason({ file, spec, seenLowercase, scanTextForSecrets }: {
   }
   seenLowercase.set(lower, file.path);
 
-  if (file.size > FILE_TREE_LIMITS.maxFileBytes) {
-    return `"${file.path}" is ${file.size} bytes, larger than the ${FILE_TREE_LIMITS.maxFileBytes}-byte per-file limit`;
+  if (file.size > maxFileBytes) {
+    return `"${file.path}" is ${file.size} bytes, larger than the ${maxFileBytes}-byte per-file limit`;
   }
 
   return treeFileContentReason({ file, spec, scanTextForSecrets });

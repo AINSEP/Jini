@@ -13,6 +13,7 @@ const allow: RawFileContributorConfig<Ports> = {
   limits: { files: 2, bytes: 10, scanBytes: 4 },
   copy: { tooManyFiles: "HOST-COPY: too many files", tooManyBytes: "HOST-COPY: too many bytes" },
   mediaPorts: () => ({ repo: { list: async () => [] }, assetBlobRepo: { findByHash: async () => null } }) as never,
+  isDocumentOnlyBlob: async () => false,
 };
 const sha = (b: Uint8Array) => createHash("sha256").update(b).digest("hex");
 
@@ -86,6 +87,12 @@ describe("createRawFileContributor", () => {
 
   it("blocks apply when the host exposes no media stores, so private library bytes are never read", async () => {
     const f = setup({ ...allow, mediaPorts: () => undefined }, { "a.txt": "abc" }, ["a.txt"]);
+    const [entity] = await f.pack();
+    await expect(f.handler.apply({ entity: entity!, principalId: "u", idempotencyKey: "k" } as never)).rejects.toThrow("Library documents cannot be published");
+  });
+
+  it("blocks apply when the injected document-only guard reports the blob private", async () => {
+    const f = setup({ ...allow, isDocumentOnlyBlob: async () => true }, { "a.txt": "abc" }, ["a.txt"]);
     const [entity] = await f.pack();
     await expect(f.handler.apply({ entity: entity!, principalId: "u", idempotencyKey: "k" } as never)).rejects.toThrow("Library documents cannot be published");
   });

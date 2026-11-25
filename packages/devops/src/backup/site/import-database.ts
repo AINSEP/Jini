@@ -52,6 +52,8 @@ export interface ImportDatabaseHost {
   refusalExitCode: number;
   /** Host-specific environment entries for the helper, minted under its private root. */
   workerEnv(required: { root: string }): Record<string, string | undefined>;
+  /** The only variables the helper inherits from the host process (read per call, e.g. `PATH`, `SystemRoot`); the engine never reads `process.env` itself. */
+  inheritedEnv(required?: Record<string, never>): { PATH?: string | undefined; SystemRoot?: string | undefined };
 }
 
 /** The helper entrypoint beside `moduleUrl` and the Node flags it needs (heap ceiling; tsx in source mode). */
@@ -76,7 +78,8 @@ async function requireWorkerSuccess(required: { code: number | null; root: strin
 
 /** No inherited deployment credentials, startup injection or archived executable input. */
 function workerEnvironment({ root, host }: { root: string; host: ImportDatabaseHost }, _optional = {}): Record<string, string | undefined> {
-  return { PATH: process.env.PATH, SystemRoot: process.env.SystemRoot, TMPDIR: root, TMP: root, TEMP: root,
+  const inherited = host.inheritedEnv({});
+  return { PATH: inherited.PATH, SystemRoot: inherited.SystemRoot, TMPDIR: root, TMP: root, TEMP: root,
     HOME: root, USERPROFILE: root, ...host.workerEnv({ root }),
     XDG_DATA_HOME: path.join(root, "data"), XDG_CONFIG_HOME: path.join(root, "config"), APPDATA: path.join(root, "appdata"),
   };

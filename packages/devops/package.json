@@ -100,6 +100,8 @@
       "./backup/site/share-hosting": "node",
       "./backup/site/import-registry": "node",
       "./backup/site/share-registry": "node",
+      "./backup/site/import-backend": "node",
+      "./backup/site/import-backend-steps": "node",
       "./deploy/site/ports": "universal",
       "./deploy/site/deploy-config": "node",
       "./deploy/site/deploy-config-registry": "node"
@@ -556,6 +558,16 @@
       "types": "./dist/backup/site/share-registry.d.ts",
       "import": "./dist/backup/site/share-registry.js",
       "default": "./dist/backup/site/share-registry.js"
+    },
+    "./backup/site/import-backend": {
+      "types": "./dist/backup/site/import-backend.d.ts",
+      "import": "./dist/backup/site/import-backend.js",
+      "default": "./dist/backup/site/import-backend.js"
+    },
+    "./backup/site/import-backend-steps": {
+      "types": "./dist/backup/site/import-backend-steps.d.ts",
+      "import": "./dist/backup/site/import-backend-steps.js",
+      "default": "./dist/backup/site/import-backend-steps.js"
     },
     "./deploy/site/ports": {
       "types": "./dist/deploy/site/ports.d.ts",

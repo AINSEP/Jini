@@ -1,14 +1,26 @@
 import path from "node:path";
-import { exportUrlLocations } from "../../static-export/html-url-locations.js";
-import { extractHtmlReferences, outputFileForUrl } from "../../static-export/transforms.js";
 import { downloadDocumentBase, type DownloadHtmlSourceEdits } from "./static-download-html.js";
 import type { StaticExportTheme } from "./static-export-selection.js";
 import { readmeText, type StaticSiteMetadata } from "./static-copy.js";
 import { LANDING_FILE, landingPages, staticLandingPage, type ExtractPlainText, type LandingTheme } from "./static-download-landing.js";
 
+/** One URL range found in a rendered body (start/end index the original spelling). */
+export interface StaticUrlLocation { start: number; end: number; kind: string; identity?: boolean | undefined }
+
+/** The static-export URL parsers the layout drives, injected so the backup domain never imports the
+ *  static-export implementation (pass the `@jini-ai/devops/static-export` functions of the same names). */
+export interface StaticUrlParsing {
+  /** Every URL range in a body of the given content type. */
+  exportUrlLocations: (required: { body: string; contentType: string }) => readonly StaticUrlLocation[];
+  /** Every URL candidate in an HTML fragment (srcset descriptors and data URLs included). */
+  extractHtmlReferences: (required: { html: string }) => Iterable<{ url: string }>;
+  /** The output file a root-relative URL maps to; throws on a URL that resolves outside the output directory. */
+  outputFileForUrl: (required: { url: string }, optional?: { contentRoute?: boolean }) => string;
+}
+
 /** Host values the portable layout cannot own: the parse5 source edits, the share path policy, the share size limits,
- *  the theme-folder allocator and the HTML-to-text decoder used for landing titles. */
-export interface StaticDownloadHost {
+ *  the theme-folder allocator, the HTML-to-text decoder used for landing titles and the static-export URL parsers. */
+export interface StaticDownloadHost extends StaticUrlParsing {
   sourceEdits: DownloadHtmlSourceEdits;
   validateSharePath: (required: { path: string }) => void;
   sharePathAlias: (required: { path: string }) => string;
@@ -53,9 +65,9 @@ function withoutExportPrefix({ url, basePath }: { url: URL; basePath?: string | 
 }
 
 /** Reuse the exporter's candidate parser, including data URLs and descriptors. O(srcset bytes). */
-function rewriteSrcset({ value, rewrite }: { value: string; rewrite: RewriteUrl }, _options = {}): string {
+function rewriteSrcset({ value, rewrite, parsing }: { value: string; rewrite: RewriteUrl; parsing: StaticUrlParsing }, _options = {}): string {
   // Ranges contain the original HTML spelling; protect the wrapper quote without double-escaping &amp;.
-  const refs = extractHtmlReferences({ html: `<img srcset="${value.replaceAll('"', "&quot;")}">` });
+  const refs = parsing.extractHtmlReferences({ html: `<img srcset="${value.replaceAll('"', "&quot;")}">` });
   let cursor = 0;
   const parts: string[] = [];
   for (const { url } of refs) {
@@ -68,10 +80,10 @@ function rewriteSrcset({ value, rewrite }: { value: string; rewrite: RewriteUrl 
 }
 
 /** Jini supplies linear CSS token ranges; only the URL inside each token changes. */
-function rewriteCss({ body, rewrite }: { body: string; rewrite: RewriteUrl }, _options = {}): string {
+function rewriteCss({ body, rewrite, parsing }: { body: string; rewrite: RewriteUrl; parsing: StaticUrlParsing }, _options = {}): string {
   const parts: string[] = [];
   let cursor = 0;
-  for (const { start, end } of exportUrlLocations({ body, contentType: "text/css" })) {
+  for (const { start, end } of parsing.exportUrlLocations({ body, contentType: "text/css" })) {
     const inner = body.slice(start + 4, end - 1).trim();
     const quote = /^["']/.test(inner) ? inner[0] : "";
     const value = quote ? inner.slice(1, -1) : inner;
@@ -86,10 +98,10 @@ function rewriteHtml({ body, rewrite, host }: { body: string; rewrite: RewriteUr
   body = downloadDocumentBase({ html: body, rewrite: value => rewrite({ value }), sourceEdits: host.sourceEdits });
   const parts: string[] = [];
   let cursor = 0;
-  for (const { start, end, kind, identity } of exportUrlLocations({ body, contentType: "text/html" })) {
+  for (const { start, end, kind, identity } of host.exportUrlLocations({ body, contentType: "text/html" })) {
     if (kind === "action" || identity) continue;
     const value = body.slice(start, end);
-    const replacement = rewriteHtmlValue({ value, kind, rewrite });
+    const replacement = rewriteHtmlValue({ value, kind, rewrite, parsing: host });
     parts.push(body.slice(cursor, start), replacement);
     cursor = end;
   }
@@ -97,9 +109,9 @@ function rewriteHtml({ body, rewrite, host }: { body: string; rewrite: RewriteUr
 }
 
 /** Keep CSS and candidate-list grammar with their existing owners. */
-function rewriteHtmlValue({ value, kind, rewrite }: { value: string; kind: string; rewrite: RewriteUrl }, _options = {}): string {
-  if (kind === "css") return rewriteCss({ body: value, rewrite });
-  if (kind === "srcset") return rewriteSrcset({ value, rewrite });
+function rewriteHtmlValue({ value, kind, rewrite, parsing }: { value: string; kind: string; rewrite: RewriteUrl; parsing: StaticUrlParsing }, _options = {}): string {
+  if (kind === "css") return rewriteCss({ body: value, rewrite, parsing });
+  if (kind === "srcset") return rewriteSrcset({ value, rewrite, parsing });
   return rewrite({ value });
 }
 
@@ -114,19 +126,19 @@ function rewriteManifest({ body, rewrite }: { body: string; rewrite: RewriteUrl 
 /** The same transform visits references during discovery and rewrites them after paths are assigned. */
 function rewriteFile({ file, rewrite, host }: { file: File; rewrite: RewriteUrl; host: StaticDownloadHost }, _options = {}): Buffer {
   if (/\.html$/i.test(file.path)) return Buffer.from(rewriteHtml({ body: file.content.toString(), rewrite, host }));
-  if (/\.css$/i.test(file.path)) return Buffer.from(rewriteCss({ body: file.content.toString(), rewrite }));
+  if (/\.css$/i.test(file.path)) return Buffer.from(rewriteCss({ body: file.content.toString(), rewrite, parsing: host }));
   if (/\.(?:webmanifest|json)$/i.test(file.path)) return Buffer.from(rewriteManifest({ body: file.content.toString(), rewrite }));
-  if (file.path === "llms.txt") return Buffer.from(rewriteMarkdown({ body: file.content.toString(), rewrite }));
+  if (file.path === "llms.txt") return Buffer.from(rewriteMarkdown({ body: file.content.toString(), rewrite, parsing: host }));
   return file.content;
 }
 
 /** Reuse Jini's generated Markdown ranges and the same relocation map as HTML assets.
  * @complexity O(body bytes + references), no effects.
  */
-function rewriteMarkdown({ body, rewrite }: { body: string; rewrite: RewriteUrl }, _options = {}): string {
+function rewriteMarkdown({ body, rewrite, parsing }: { body: string; rewrite: RewriteUrl; parsing: StaticUrlParsing }, _options = {}): string {
   const parts: string[] = [];
   let cursor = 0;
-  for (const { start, end } of exportUrlLocations({ body, contentType: "text/markdown" })) {
+  for (const { start, end } of parsing.exportUrlLocations({ body, contentType: "text/markdown" })) {
     parts.push(body.slice(cursor, start), rewrite({ value: body.slice(start, end) }));
     cursor = end;
   }
@@ -227,12 +239,12 @@ function downloadPaths({ copy, theme, reached, media, claimed, host }: { copy: C
 /** Map a local page or asset from its old location to a file-relative download URL.
  * Missing /m/ responses include private Library documents; never retain their URLs.
  */
-function relocatedUrl({ value, file, target, paths, copy, theme }: { value: string; file: string; target: string; paths: ReadonlyMap<string, string>; copy: Copy; theme: string }, _options = {}): string {
+function relocatedUrl({ value, file, target, paths, copy, theme, parsing }: { value: string; file: string; target: string; paths: ReadonlyMap<string, string>; copy: Copy; theme: string; parsing: StaticUrlParsing }, _options = {}): string {
   const url = localUrl({ value, file, publicOrigin: copy.publicOrigin, basePath: copy.basePath });
   if (!url) return value;
   const source = url.pathname.slice(1);
   const page = source.replace(/\/$/, "");
-  const destination = paths.get(source) ?? paths.get(outputFileForUrl({ url: url.pathname }, { contentRoute: true }));
+  const destination = paths.get(source) ?? paths.get(parsing.outputFileForUrl({ url: url.pathname }, { contentRoute: true }));
   if (!destination && source.startsWith("m/")) return "";
   const themeRoot = `sites/${theme}`;
   const fallback = `${themeRoot}/${page || "index.html"}`;
@@ -322,7 +334,7 @@ function relocatedFiles({ copy, theme, paths, deliveredMedia, host }: { copy: Co
     if (target.startsWith("media/")) {
       deliveredMedia.add(target);
     }
-    const content = downloadRobots({ file: file.path, content: rewriteFile({ file, rewrite: ({ value }, _optional = {}) => relocatedUrl({ value, file: file.path, target, paths, copy, theme }), host }) });
+    const content = downloadRobots({ file: file.path, content: rewriteFile({ file, rewrite: ({ value }, _optional = {}) => relocatedUrl({ value, file: file.path, target, paths, copy, theme, parsing: host }), host }) });
     entries.push({ path: target, content });
   }
   return entries;

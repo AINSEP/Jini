@@ -22,8 +22,8 @@ export interface SiteImportDurableDeps {
 export interface SiteImportRecord {
   importId: string;
   principalId: string;
-  requestId?: string;
-  sourceDigest?: string;
+  requestId?: string | undefined;
+  sourceDigest?: string | undefined;
   source: { url: string } | { uploadId: string };
   newSiteId: string | null;
   newSiteName: string | null;

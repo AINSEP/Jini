@@ -175,7 +175,7 @@ export interface CollectedSiteBackupFiles {
  *  a backup must never capture a half-staged tree. `.storage-secret.json` is a Postgres site's sealed
  *  connection string (`storage-secret.ts`): it lives in the site root, which no scope walks, and is
  *  named here for repository backups too. The share profile retains nested copies with warnings. */
-const IGNORED_NAMES = new Set([".DS_Store", ".git", ".publish-staging", ".publish-previous", ".storage-secret.json"]);
+const IGNORED_NAMES: ReadonlySet<string> = new Set([".DS_Store", ".git", ".publish-staging", ".publish-previous", ".storage-secret.json"]);
 
 const SYMLINK_REASON = "a symbolic link — never followed, so nothing outside the site can ride along";
 

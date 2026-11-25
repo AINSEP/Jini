@@ -2,7 +2,7 @@
 import assert from "node:assert/strict";
 import { test } from "vitest";
 import { checkTreePath, checkTreeFiles, checkMcpJsonSecretPlaceholders, FILE_TREE_LIMITS, MAX_SECRET_SCAN_BYTES } from "../file-tree-policy.js";
-import { fakeScanTextForSecrets } from "./file-tree-policy.fixtures.js";
+import { fakeScanTextForSecrets, TEST_MAX_FILE_BYTES } from "./file-tree-policy.fixtures.js";
 
 test("L044 path checks preserve shape, segment, name and extension precedence", () => {
   const cases: readonly [string, string | null][] = [
@@ -24,19 +24,19 @@ test("L044 path checks preserve shape, segment, name and extension precedence", 
 
 test("L044 tree checks preserve aggregate caps, collision ordering, extension and scan boundaries", () => {
   const file = { path: "ok.html", size: 1, mode: 0o644, textSample: "ok" };
-  assert.match(checkTreeFiles({ scanTextForSecrets: fakeScanTextForSecrets, kind: "theme-files", files: Array(FILE_TREE_LIMITS.maxTreeFiles + 1).fill(file) })!, /file limit/);
-  assert.match(checkTreeFiles({ scanTextForSecrets: fakeScanTextForSecrets, kind: "theme-files", files: [{ ...file, size: FILE_TREE_LIMITS.maxTreeBytes + 1 }] })!, /byte limit/);
-  assert.match(checkTreeFiles({ scanTextForSecrets: fakeScanTextForSecrets, kind: "theme-files", files: [{ ...file, path: ".DS_Store" }] })!, /system file/);
-  assert.match(checkTreeFiles({ scanTextForSecrets: fakeScanTextForSecrets, kind: "theme-files", files: [file, { ...file, path: "OK.html", size: FILE_TREE_LIMITS.maxFileBytes + 1 }] })!, /letter case/);
-  assert.match(checkTreeFiles({ scanTextForSecrets: fakeScanTextForSecrets, kind: "theme-files", files: [{ ...file, size: FILE_TREE_LIMITS.maxFileBytes + 1 }] })!, /per-file/);
-  assert.equal(checkTreeFiles({ scanTextForSecrets: fakeScanTextForSecrets, kind: "theme-files", files: [{ ...file, path: "clip.mp4" }] }), "Can't publish: contains a video file (clip.mp4)");
-  assert.equal(checkTreeFiles({ scanTextForSecrets: fakeScanTextForSecrets, kind: "theme-files", files: [{ ...file, path: "app.exe" }] }), "Can't publish: contains a file type that isn't allowed (app.exe)");
+  assert.match(checkTreeFiles({ scanTextForSecrets: fakeScanTextForSecrets, maxFileBytes: TEST_MAX_FILE_BYTES, kind: "theme-files", files: Array(FILE_TREE_LIMITS.maxTreeFiles + 1).fill(file) })!, /file limit/);
+  assert.match(checkTreeFiles({ scanTextForSecrets: fakeScanTextForSecrets, maxFileBytes: TEST_MAX_FILE_BYTES, kind: "theme-files", files: [{ ...file, size: FILE_TREE_LIMITS.maxTreeBytes + 1 }] })!, /byte limit/);
+  assert.match(checkTreeFiles({ scanTextForSecrets: fakeScanTextForSecrets, maxFileBytes: TEST_MAX_FILE_BYTES, kind: "theme-files", files: [{ ...file, path: ".DS_Store" }] })!, /system file/);
+  assert.match(checkTreeFiles({ scanTextForSecrets: fakeScanTextForSecrets, maxFileBytes: TEST_MAX_FILE_BYTES, kind: "theme-files", files: [file, { ...file, path: "OK.html", size: TEST_MAX_FILE_BYTES + 1 }] })!, /letter case/);
+  assert.match(checkTreeFiles({ scanTextForSecrets: fakeScanTextForSecrets, maxFileBytes: TEST_MAX_FILE_BYTES, kind: "theme-files", files: [{ ...file, size: TEST_MAX_FILE_BYTES + 1 }] })!, /per-file/);
+  assert.equal(checkTreeFiles({ scanTextForSecrets: fakeScanTextForSecrets, maxFileBytes: TEST_MAX_FILE_BYTES, kind: "theme-files", files: [{ ...file, path: "clip.mp4" }] }), "Can't publish: contains a video file (clip.mp4)");
+  assert.equal(checkTreeFiles({ scanTextForSecrets: fakeScanTextForSecrets, maxFileBytes: TEST_MAX_FILE_BYTES, kind: "theme-files", files: [{ ...file, path: "app.exe" }] }), "Can't publish: contains a file type that isn't allowed (app.exe)");
   const secret = ["gh", "p_"].join("") + "A".repeat(36);
-  assert.match(checkTreeFiles({ scanTextForSecrets: fakeScanTextForSecrets, kind: "theme-files", files: [{ ...file, size: MAX_SECRET_SCAN_BYTES, textSample: secret }] })!, /holds a key/);
-  assert.equal(checkTreeFiles({ scanTextForSecrets: fakeScanTextForSecrets, kind: "theme-files", files: [{ ...file, size: MAX_SECRET_SCAN_BYTES + 1, textSample: secret }] }), null);
-  assert.equal(checkTreeFiles({ scanTextForSecrets: fakeScanTextForSecrets, kind: "theme-files", files: [{ ...file, path: "x.png", textSample: secret }] }), null);
-  assert.equal(checkTreeFiles({ scanTextForSecrets: fakeScanTextForSecrets, kind: "agent-plugin", files: [{ ...file, path: "app.exe" }] }), null);
-  assert.equal(checkTreeFiles({ scanTextForSecrets: fakeScanTextForSecrets, kind: "theme-files", files: [file] }), null);
+  assert.match(checkTreeFiles({ scanTextForSecrets: fakeScanTextForSecrets, maxFileBytes: TEST_MAX_FILE_BYTES, kind: "theme-files", files: [{ ...file, size: MAX_SECRET_SCAN_BYTES, textSample: secret }] })!, /holds a key/);
+  assert.equal(checkTreeFiles({ scanTextForSecrets: fakeScanTextForSecrets, maxFileBytes: TEST_MAX_FILE_BYTES, kind: "theme-files", files: [{ ...file, size: MAX_SECRET_SCAN_BYTES + 1, textSample: secret }] }), null);
+  assert.equal(checkTreeFiles({ scanTextForSecrets: fakeScanTextForSecrets, maxFileBytes: TEST_MAX_FILE_BYTES, kind: "theme-files", files: [{ ...file, path: "x.png", textSample: secret }] }), null);
+  assert.equal(checkTreeFiles({ scanTextForSecrets: fakeScanTextForSecrets, maxFileBytes: TEST_MAX_FILE_BYTES, kind: "agent-plugin", files: [{ ...file, path: "app.exe" }] }), null);
+  assert.equal(checkTreeFiles({ scanTextForSecrets: fakeScanTextForSecrets, maxFileBytes: TEST_MAX_FILE_BYTES, kind: "theme-files", files: [file] }), null);
 });
 
 test("L044 MCP scan checks nested literals while preserving malformed JSON handling", () => {
@@ -63,10 +63,10 @@ test("L044 SSH basenames require an exact name or a literal dot suffix", () => {
 test("L044 absent text samples block qualifying files instead of bypassing the secret scan", () => {
   for (const kind of ["theme-files", "agent-plugin"] as const) {
     const file = { path: "secret.txt", size: 5, mode: 0o644 };
-    assert.equal(checkTreeFiles({ scanTextForSecrets: fakeScanTextForSecrets, kind, files: [file] }), '"secret.txt" is missing the text required for its secret scan');
-    assert.equal(checkTreeFiles({ scanTextForSecrets: fakeScanTextForSecrets, kind, files: [{ ...file, textSample: "safe" }] }), null);
-    assert.equal(checkTreeFiles({ scanTextForSecrets: fakeScanTextForSecrets, kind, files: [{ ...file, size: MAX_SECRET_SCAN_BYTES + 1 }] }), null);
-    assert.equal(checkTreeFiles({ scanTextForSecrets: fakeScanTextForSecrets, kind, files: [{ ...file, path: "safe.png" }] }), null);
+    assert.equal(checkTreeFiles({ scanTextForSecrets: fakeScanTextForSecrets, maxFileBytes: TEST_MAX_FILE_BYTES, kind, files: [file] }), '"secret.txt" is missing the text required for its secret scan');
+    assert.equal(checkTreeFiles({ scanTextForSecrets: fakeScanTextForSecrets, maxFileBytes: TEST_MAX_FILE_BYTES, kind, files: [{ ...file, textSample: "safe" }] }), null);
+    assert.equal(checkTreeFiles({ scanTextForSecrets: fakeScanTextForSecrets, maxFileBytes: TEST_MAX_FILE_BYTES, kind, files: [{ ...file, size: MAX_SECRET_SCAN_BYTES + 1 }] }), null);
+    assert.equal(checkTreeFiles({ scanTextForSecrets: fakeScanTextForSecrets, maxFileBytes: TEST_MAX_FILE_BYTES, kind, files: [{ ...file, path: "safe.png" }] }), null);
   }
 });
 

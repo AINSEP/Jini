@@ -8,6 +8,9 @@ const KEY_PATTERNS: readonly (readonly [RegExp, string])[] = [
   [/sk-[A-Za-z0-9]{32,}/, "generic secret key"],
 ];
 
+/** The per-file byte cap a host injects into `checkTreeFiles` (50 MiB, the document ceiling the host used before it became an injected value). */
+export const TEST_MAX_FILE_BYTES = 50 * 1024 * 1024;
+
 /** Returns one hit per matching key pattern; the first hit's name appears in the tree's refusal reason. */
 export const fakeScanTextForSecrets: TextSecretScanner = ({ text }) =>
   KEY_PATTERNS.filter(([pattern]) => pattern.test(text)).map(([, patternName]) => ({ patternName }));

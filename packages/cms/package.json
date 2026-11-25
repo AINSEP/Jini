@@ -536,6 +536,9 @@
       "./publish/content/destination-credential": "universal",
       "./publish/content/permissions": "universal",
       "./publish/content/file-tree-policy": "universal",
+      "./publish/content/connect-destination": "universal",
+      "./publish/content/pull": "node",
+      "./publish/content/disconnect-tool": "universal",
       "./trash/site/adapters/marker-sql": "node",
       "./posts/tiptap-text-schema": "universal",
       "./taxonomy/site/publish-term-ids": "universal",
@@ -749,6 +752,7 @@
         "src/widgets/markers/marker.ts",
         "src/navigation/href.ts",
         "src/media/cover-image.ts",
+        "src/media/blob-key.ts",
         "src/html/site/slug.ts",
         "src/widgets/markers/gallery.ts",
         "src/widgets/markers/media-reference.ts",
@@ -3581,6 +3585,21 @@
       "types": "./dist/publish/content/file-tree-policy.d.ts",
       "import": "./dist/publish/content/file-tree-policy.js",
       "default": "./dist/publish/content/file-tree-policy.js"
+    },
+    "./publish/content/connect-destination": {
+      "types": "./dist/publish/content/connect-destination.d.ts",
+      "import": "./dist/publish/content/connect-destination.js",
+      "default": "./dist/publish/content/connect-destination.js"
+    },
+    "./publish/content/pull": {
+      "types": "./dist/publish/content/pull.d.ts",
+      "import": "./dist/publish/content/pull.js",
+      "default": "./dist/publish/content/pull.js"
+    },
+    "./publish/content/disconnect-tool": {
+      "types": "./dist/publish/content/disconnect-tool.d.ts",
+      "import": "./dist/publish/content/disconnect-tool.js",
+      "default": "./dist/publish/content/disconnect-tool.js"
     },
     "./trash/site/adapters/marker-sql": {
       "types": "./dist/trash/site/adapters/marker-sql.d.ts",
