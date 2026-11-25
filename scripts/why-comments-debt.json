@@ -1924,6 +1924,58 @@
     {
       "id": "538da77440c0",
       "reason": "P11 ST-8b.J made ConversationList `hooks` a required prop (major), so 'defaults to the real ones' is false; the rewritten doc on defaultConversationListHooks says the host passes them."
+    },
+    {
+      "id": "9362643fed7d",
+      "reason": "formatUploadDate now defaults to UTC with an injected viewerTimeZone (the 'owner's zone by default' behavior was intentionally reversed); the new doc states the UTC default, see 0693ac543."
+    },
+    {
+      "id": "d939ee337c2d",
+      "reason": "saveMediaProviders (whole-map PUT whose omissions deleted) was intentionally removed for per-provider patchMediaProvider/removeMediaProvider; the new docs explain, commit 8435d9b71 (b-g4)."
+    },
+    {
+      "id": "87036f03ecf2",
+      "reason": "The whole-map saveMediaProviders port method was intentionally replaced by per-provider writes (8435d9b71, b-g4); the new port docs describe the per-provider contract."
+    },
+    {
+      "id": "604c422c1467",
+      "reason": "Regression asserted the 60-day default, which owner decision G7-4 removed (no engine retention default); the test now pins refusal, commit 05713c898."
+    },
+    {
+      "id": "d69a47873f89",
+      "reason": "The file-level doc pinned the 30-day host window; retention is now one host-injected required value with no engine constant (G7-4), commit 05713c898."
+    },
+    {
+      "id": "99d351defaf3",
+      "reason": "TRASH_RETENTION_DAYS was intentionally removed (owner decision G7-4); ports.ts now states the window is host-injected, commit 05713c898."
+    },
+    {
+      "id": "82b34906f8d2",
+      "reason": "retentionDays option 'defaults to 60 days' is false now: it is required and host-injected, commit 05713c898."
+    },
+    {
+      "id": "8379a1226dc9",
+      "reason": "DEFAULT_TRASH_RETENTION_DAYS was intentionally removed (G7-4); the stamp-once rationale lives on computePurgeAfter's doc, commit 05713c898."
+    },
+    {
+      "id": "9c8cb9d5a2bd",
+      "reason": "computePurgeAfter doc no longer refers to DEFAULT_TRASH_RETENTION_DAYS (removed, G7-4); the stamped-at-trash-time rationale is kept in the new doc, commit 05713c898."
+    },
+    {
+      "id": "51bbb6c0b1d8",
+      "reason": "SiteImportDurableDeps was removed when the registry moved to injected payload ports/FileLockPort and an import index (1796cc7e3); the class doc states the new ports."
+    },
+    {
+      "id": "3849a0b5b333",
+      "reason": "openJsonFile dep was removed with SiteImportDurableDeps in 1796cc7e3 (registry now persists through the import index and payload-namespace ports)."
+    },
+    {
+      "id": "519e9929f192",
+      "reason": "withFileLock dep was removed with SiteImportDurableDeps in 1796cc7e3; locking is the injected FileLockPort."
+    },
+    {
+      "id": "a0cfc547f566",
+      "reason": "The @param for the removed durable dep no longer applies after 1796cc7e3 (constructor takes payload fs, clock and FileLockPort)."
     }
   ]
 }

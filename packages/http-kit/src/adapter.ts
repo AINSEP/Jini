@@ -386,6 +386,7 @@ function writeBodyRefusal({ res, spec, refusal }: {
   readonly spec: { readonly ports?: { readonly payloadTooLarge?: JsonRoutePorts<unknown>['payloadTooLarge'] } | undefined };
   readonly refusal: BodyRefusal;
 }): void {
+  // The host's own 413 body (its admin client reads it); absent, core's envelope below is unchanged.
   if (spec.ports?.payloadTooLarge) {
     spec.ports.payloadTooLarge({ res, maxBytes: refusal.maxBytes });
     return;

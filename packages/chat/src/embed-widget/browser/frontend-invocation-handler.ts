@@ -173,6 +173,7 @@ export function createInvocationHandler({ deps }: { deps: InvocationDeps }, _opt
     return true;
   }
   return {
+    /** Runs one well-formed invocation: replay check, announcement, then pane or local serving. */
     handleInvocation(action) {
       if (admit(action)) dispatchAccepted({ action, deps });
     },
