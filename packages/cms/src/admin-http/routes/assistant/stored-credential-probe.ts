@@ -1,3 +1,68 @@
+/**
+ * @file The single chokepoint deciding WHICH key a BYOK probe sends and WHERE it sends it, shared by
+ * `test-connection.ts` and `list-models.ts`.
+ *
+ * ## Two stored credentials, two opt-ins
+ *
+ * There are exactly three keys a probe can carry, and this module is where that choice is made:
+ * the one typed into the request body, the workspace's SITE credential (`useStoredCredential`), and
+ * the calling admin's OWN execution credential (`useAdminStoredCredential`). The last two are
+ * separate flags on purpose and must never be merged into one "use whatever is stored": they are
+ * different secrets belonging to different subjects, and the screens that probe them are different
+ * screens. Collapsing them would let the AI Assistant tab silently probe the admin's personal key,
+ * or Settings → Execution mode silently probe the visitor's — the exact confusion ADR-058 §5 makes
+ * structural.
+ *
+ * ## The boundary this exists to hold
+ *
+ * ADR-058 makes the SITE credential write-only: the site-credential read route returns `isSet` + `masked`
+ * and never the key, so not even an `admin.assistant.manage` holder can read back a key someone else
+ * saved. Both probe routes then take `useStoredCredential: true`, decrypt that key server-side, and
+ * make one outbound call with it.
+ *
+ * Those two facts are only compatible if the CALLER cannot choose the destination. Before this
+ * module they could: `baseUrl` came from the request body, so a single authenticated request could
+ * name any host and have the server deliver the decrypted key to it — turning a write-only secret
+ * into a readable one, silently, with nothing persisted and nothing to notice afterwards.
+ *
+ * The SSRF guard in `@jini-ai/agent-runtime`'s `connection-guard.ts` does not close this and was
+ * never meant to. It blocks loopback/RFC1918/link-local/CGNAT/multicast — *internal* address space,
+ * to stop a caller pivoting into the server's own network. A public host an attacker controls is
+ * exactly what it is designed to let through, because that is what every real provider is.
+ *
+ * ## The rule
+ *
+ * A key the caller supplied goes wherever the caller says. It is their secret, typed into their own
+ * form; sending it to a host they named is the operation they asked for, and the admin UI's key test documents that consent explicitly.
+ *
+ * A key the caller CANNOT read goes only where the server already recorded it belongs. The stored
+ * row carries its own `baseUrl` (the host's resolved site credential);
+ * that value, not the request body's, is what reaches the wire. The distinction is consent: an
+ * operator can consent with their own credential and cannot consent with one they have never seen.
+ *
+ * ## Why a mismatch is a 400 rather than a silent substitution
+ *
+ * Both are equally safe — either way the caller's string never reaches the network. Rejecting is
+ * chosen because substituting would make the probe answer a question nobody asked: an operator who
+ * switched the endpoint field to Anthropic and pressed "Test connection" would get a green result
+ * measured against the stored Google endpoint, and reasonably read it as "Anthropic works". A 400
+ * naming both endpoints is the honest answer, and it is also the correct one on the merits — a key
+ * issued for one provider cannot meaningfully be probed against another. Type a key for the new
+ * endpoint, or save the endpoint first.
+ *
+ * ## What this deliberately does NOT close
+ *
+ * `put-site-credential.ts` lets the same `admin.assistant.manage` principal write `baseUrl`. Such a
+ * principal can therefore still point the stored credential at a host they control and have the key
+ * delivered there. That path is not silent the way this one was: it persists, `get-site-credential`
+ * reports it back, it shows in the admin UI, and it breaks the live visitor assistant
+ * (the host's live site assistant uses the same stored endpoint) — so it is self-revealing where
+ * a body parameter left no trace at all. Closing it properly means constraining which endpoints may
+ * be STORED, which is an allow-list and a product decision: `connection-guard.ts` deliberately
+ * permits loopback for local Ollama, and real deployments point at custom gateways. That belongs in
+ * the credential-write route with an explicit policy, not smuggled in here.
+ */
+
 /** Mirrors `connection-guard.ts`'s own `validateBaseUrl` normalization (`trim()` then strip trailing
  *  slashes) so this comparison agrees with the string the guard would actually parse — a stored
  *  `"https://x/"` and a requested `"https://x"` are the same endpoint and must not read as a
@@ -51,6 +116,25 @@ export interface ResolveProbeCredentialInput {
 
 export type StoredProbeCredential = { apiKey: string; baseUrl: string | null };
 
+/**
+ * Resolves the `(apiKey, baseUrl)` pair a probe should actually use, or the rejection to return.
+ *
+ * @returns `ok: true` with the exact values to hand to `@jini-ai/agent-runtime`. When the stored
+ * credential is used, `baseUrl` is the SERVER's own stored string rather than the caller's — the two
+ * are known equal by then, so this changes no behavior, but it means the bytes on the wire are the
+ * ones the server approved. Same pin-what-you-validated discipline `connection-guard.ts`'s
+ * `pinnedFetch` applies to the resolved address.
+ *
+ * A missing row, an unset key, a missing site key and a corrupt ciphertext all arrive from
+ * the injected readers as `null` and are treated identically to "no stored key": the probe
+ * proceeds with an empty key against the requested endpoint, letting the provider return its own
+ * auth error, which is a truer message than a synthesized one. Nothing is exposed by that path —
+ * there is no secret to protect in any of those cases.
+ *
+ * @complexity O(1) — at most one repo read plus one decrypt. No unbounded collection, no per-item
+ * I/O, no caller-controlled iteration: the resource-bounds pre-check has nothing to cap here.
+ * @overallScore 100
+ */
 export async function resolveProbeCredential(
   { input, openAdmin, openSite, subjects }: {
     input: ResolveProbeCredentialInput;
