@@ -364,6 +364,24 @@
    "createPluginHost": "function:7e7f7d12b6"
   }
  },
+ "./ffmpeg-transcode": {
+  "types": null,
+  "symbols": {}
+ },
+ "./ffmpeg-transcode/adapter": {
+  "types": "./dist/ffmpeg-transcode/adapter.d.ts",
+  "symbols": {
+   "FfmpegMediaTranscoderOptional": "interface:dd57ce261b",
+   "FfmpegMediaTranscoderRequired": "interface:1f0b7c1008",
+   "VIDEO_TRANSCODE_TIMEOUT_MS": "variable:2141507a0d",
+   "VideoBinaries": "interface:032da7101b",
+   "VideoBinaryFinder": "type:666e184fb5",
+   "VideoExtractionLock": "interface:7fcf4e81dd",
+   "VideoProcessRunner": "type:749bc14b16",
+   "buildVideoTranscodeArgs": "function:24181aa2d6",
+   "createFfmpegMediaTranscoder": "function:f744d511bb"
+  }
+ },
  "./fly": {
   "types": null,
   "symbols": {}

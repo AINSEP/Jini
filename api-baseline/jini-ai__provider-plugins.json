@@ -92,5 +92,19 @@
  "./plugins/*": {
   "types": null,
   "symbols": {}
+ },
+ "./xai-grok-imagine": {
+  "types": null,
+  "symbols": {}
+ },
+ "./xai-grok-imagine/*": {
+  "types": null,
+  "symbols": {}
+ },
+ "./xai-grok-imagine/media": {
+  "types": "./dist/xai-grok-imagine/media.d.ts",
+  "symbols": {
+   "createXaiMediaContribution": "function:28db2db50a"
+  }
  }
 }

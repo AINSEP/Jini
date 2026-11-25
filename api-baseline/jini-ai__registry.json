@@ -42,13 +42,20 @@
    "CatalogBuilderArgs": "interface:061acd17b0",
    "CatalogStoreFactory": "interface:2ae56adc95",
    "DeclaredKeywordSource": "interface:6bda9f0361",
+   "EntityTypeProjection": "interface:636c74fa7a",
    "LiveToolCatalogQuery": "interface:bf91b345f6",
    "RefreshingToolCatalogQuery": "interface:ae4e053b84",
+   "ScopedToolCatalog": "interface:69437e0335",
+   "ScopedToolCatalogArgs": "interface:c931d38e9c",
+   "ScopedToolCatalogCache": "interface:56129c03b0",
+   "ScopedToolCatalogResult": "type:685c313255",
+   "ScopedToolCatalogView": "interface:01a956a5c2",
    "SearchEnricher": "interface:f6134e54fb",
    "SourceClassifier": "interface:4d6b79a615",
    "ToolCatalogEntry": "interface:7f69d0c37f",
    "ToolCatalogHit": "interface:40fc791cbe",
    "ToolCatalogQuery": "interface:add9a462f6",
+   "ToolCatalogScope": "interface:fc7b6ee731",
    "ToolDescriptor": "interface:bc781f1906",
    "ToolDescriptorSource": "interface:3942a2450e",
    "appendToolKeywords": "function:d7f6b460f7",
@@ -57,9 +64,11 @@
    "createLiveToolCatalogQuery": "function:2c6908c299",
    "createPrefixSourceClassifier": "function:537b81aa87",
    "createRefreshingToolCatalogQuery": "function:b10c96ac77",
+   "createScopedToolCatalog": "function:3ee77e5043",
    "createSearchEnricher": "function:e82b5d68d0",
    "listToolCatalogEntries": "function:1d57d8f79a",
-   "mergeKeywordMaps": "function:c01734e387"
+   "mergeKeywordMaps": "function:c01734e387",
+   "projectEntityDiscriminator": "function:4411c0904a"
   }
  },
  "./tool-catalog-builder/sqlite": {

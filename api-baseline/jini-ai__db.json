@@ -64,15 +64,15 @@
   "types": "./dist/events/index.d.ts",
   "symbols": {
    "ChangeSetItemsTable": "interface:04159e78e1",
-   "ChangeSetSqlOptional": "type:d5677dc40c",
+   "ChangeSetSqlOptional": "type:d0416ee7f4",
    "ChangeSetSqlRequired": "interface:8fcb4cb8ba",
    "ChangeSetTables": "interface:b1deefe524",
-   "ChangeSetsTable": "interface:c3b56ad52b",
+   "ChangeSetsTable": "interface:d0d008ff77",
    "OutboxEventsTable": "interface:4d66e6c483",
    "OutboxSqlOptional": "type:a0fa436d1f",
    "OutboxSqlRequired": "interface:2a86d5a818",
    "OutboxTables": "interface:581ba7a1a6",
-   "SqlChangeSetRepo": "class:b207d7521a",
+   "SqlChangeSetRepo": "class:1cfab5bba2",
    "SqlOutboxAdapter": "class:f9d241c408",
    "outboxEventValues": "function:8905363407"
   }

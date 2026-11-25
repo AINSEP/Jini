@@ -188,7 +188,7 @@
    "ToolAuthorizationContext": "interface:c1da11b712",
    "ToolContributions": "interface:de4818d839",
    "ToolContributor": "interface:305da859d1",
-   "ToolDescriptor": "interface:3aa82ef907",
+   "ToolDescriptor": "interface:20a24a852c",
    "ToolExecutionContext": "interface:bbc56f0782",
    "ToolExecutionOptions": "interface:1bb42eb714",
    "ToolExposure": "interface:52d2a4eb36",
@@ -204,6 +204,9 @@
    "ToolMetadataById": "type:16bef659b4",
    "ToolMetadataProjections": "interface:0c27da3191",
    "ToolNameMap": "interface:239a0c8ab0",
+   "ToolOutputMismatchDiagnostic": "interface:36bb3475b9",
+   "ToolOutputMismatchReporter": "type:d47af77488",
+   "ToolOutputValidator": "interface:aa44bbf279",
    "ToolPermissionAuthorizationOptional": "interface:818667366e",
    "ToolPermissionAuthorizationPort": "type:54a5239d6d",
    "ToolPermissionAuthorizationRequired": "interface:c0cf76962c",
@@ -406,6 +409,17 @@
    "ToolAuthorizationDelegate": "interface:cfc4ac6945",
    "ToolInvocationAuthorization": "type:1716a8965b",
    "authorizeToolInvocation": "function:0e8ff4cadd"
+  }
+ },
+ "./config/env-schema": {
+  "types": "./dist/config/env-schema.d.ts",
+  "symbols": {
+   "EnvConfigError": "class:95a2ed70a2",
+   "EnvValues": "type:f34119e69a",
+   "EnvVarField": "type:ff298438b5",
+   "EnvVars": "type:5a0fb3ce07",
+   "defineEnvSchema": "function:833b98ce7b",
+   "readEnv": "function:f3f41a2fff"
   }
  },
  "./contracts/admin-module": {
@@ -690,19 +704,20 @@
    "AuthorizeFn": "type:a37e758d08",
    "ChangeSetItemRecord": "interface:dacb3cee90",
    "ChangeSetOperation": "type:6b7b6bcb4a",
-   "ChangeSetRecord": "interface:c815820220",
+   "ChangeSetRecord": "interface:4d5c935848",
    "ChangeSetRepoPort": "interface:f5977e5aba",
    "ChangeSetStatus": "type:411e5eed4c",
    "ChangeSetWithItems": "interface:58817f5ef7",
-   "CommandActor": "interface:55c6c16ff9",
+   "CommandActor": "interface:b228185f4b",
    "CommandEnvelope": "interface:8d32d4faf2",
    "CommandMutation": "interface:410c93838d",
-   "DomainEvent": "interface:e36751430b",
+   "DomainEvent": "interface:4ce3365b02",
    "EventBusPort": "interface:43d5f3909e",
    "ExecuteCommandDeps": "interface:bf4a279929",
    "ExecuteCommandFn": "type:123f206b4f",
    "ExecuteCommandOptional": "interface:f3cf8ce12b",
    "ExecuteCommandRequired": "interface:abdd1ce66f",
+   "MutationActor": "interface:ba943ed9e3",
    "OutboxPort": "interface:053c1c807d",
    "OutboxRecord": "interface:6d13316eb7",
    "TransactionalRepoPort": "interface:5f66eb000a"
@@ -1548,7 +1563,11 @@
  "./contracts/site/cms-admin-media": {
   "types": "./dist/contracts/site/cms-admin-media.d.ts",
   "symbols": {
-   "AdminMedia": "type:7afe4a503e"
+   "AdminMedia": "type:7afe4a503e",
+   "MediaGridOrder": "type:cda69efbfb",
+   "MediaGridPage": "interface:e2b16906e2",
+   "MediaGridRequest": "interface:fd66cbf2b0",
+   "MediaGridTab": "type:11899490bb"
   }
  },
  "./contracts/site/cms-agent-plugins": {
@@ -1647,13 +1666,14 @@
  "./contracts/site/cms-media": {
   "types": "./dist/contracts/site/cms-media.d.ts",
   "symbols": {
-   "AdminMediaDto": "interface:528dd7f2cb",
+   "AdminMediaDto": "interface:ac2cd7a0f1",
    "AdminMediaEnvelope": "interface:fd5dd0c345",
    "AdminMediaKind": "type:e5f5c298f7",
    "AdminMediaListEnvelope": "interface:f4673d2b6e",
    "AdminMediaProviderMarkers": "type:fb1530d948",
    "AdminMediaPurgeEnvelope": "interface:f341c9883e",
    "AdminMediaStatus": "type:fc7dfac77d",
+   "AdminMediaUploadTooLargeRefusal": "interface:29d3611670",
    "AdminMediaWhereUsedEnvelope": "interface:02792a4cd6",
    "EncodedImage": "interface:3a422c016a",
    "ImageCodecLimits": "interface:8163e55ba2",
@@ -1662,6 +1682,7 @@
    "ImageGeometry": "interface:29aba57b4b",
    "ImageMetadata": "interface:319c09f36c",
    "ImageTileInput": "interface:bc78079811",
+   "MEDIA_UPLOAD_TOO_LARGE": "variable:1fc58f5f2e",
    "MediaAssetRenderMeta": "interface:79161c71d6",
    "MediaKind": "type:6b7a9bbce2",
    "MediaProvenance": "type:533515c78e",
@@ -1669,9 +1690,15 @@
    "MediaRepoPort": "interface:0b1df85146",
    "MediaSource": "interface:40f27c07d0",
    "MediaStatus": "type:fb08580bb1",
+   "MediaTranscoderPort": "interface:52485bac39",
    "TransformFit": "type:c06b6c0368",
    "TransformFormat": "type:e12c2fb303",
-   "TransformParams": "interface:37f709014d"
+   "TransformParams": "interface:37f709014d",
+   "VideoCodec": "type:cc5757055c",
+   "VideoCodecProbePort": "interface:598db0059c",
+   "VideoTranscodeFailureReason": "type:dcc6552fdd",
+   "VideoTranscodeResult": "type:376e035313",
+   "VideoTranscodeTarget": "type:ff23eb513e"
   }
  },
  "./contracts/site/cms-menus": {
@@ -2159,11 +2186,33 @@
    "ProviderStatusRow": "interface:35684ffbba"
   }
  },
+ "./contracts/site/media-provider-contribution": {
+  "types": "./dist/contracts/site/media-provider-contribution.d.ts",
+  "symbols": {
+   "MEDIA_PROVIDER_CONTRACT_ID": "variable:aac946ec54",
+   "MediaContributionModel": "interface:70ceb0f32a",
+   "MediaCredentialGuard": "type:a0b3dcc856",
+   "MediaProviderContribution": "interface:3b2c356b4d",
+   "MediaProviderCredentials": "interface:9446af9f09",
+   "MediaRawBytesParserOptions": "interface:51c421df5e",
+   "MediaRenderContext": "interface:d4c59aa6d8",
+   "MediaRenderResult": "interface:3361945684",
+   "MediaVendorAdapter": "interface:1caa249d43",
+   "MediaVendorRequest": "interface:62dfff186d",
+   "MediaWirePort": "interface:5a2af8b922"
+  }
+ },
  "./contracts/site/media-providers-catalog": {
   "types": "./dist/contracts/site/media-providers-catalog.d.ts",
   "symbols": {
    "MediaModel": "interface:9cca162139",
    "MediaProvider": "interface:5f8cffc486"
+  }
+ },
+ "./contracts/site/media-upload-limits": {
+  "types": "./dist/contracts/site/media-upload-limits.d.ts",
+  "symbols": {
+   "MEDIA_MAX_UPLOAD_BYTES": "variable:bd6915b362"
   }
  },
  "./contracts/site/nav": {

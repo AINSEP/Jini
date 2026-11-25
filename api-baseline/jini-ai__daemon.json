@@ -32,7 +32,7 @@
    "CreateTerminalSessionManagerRequired": "interface:a305a224ed",
    "CreateTerminalSessionOptions": "interface:05a931569e",
    "CreateTerminalToolRegistrationsOptions": "interface:c6bce26a4a",
-   "CreateToolExecutorOptions": "interface:dedb0cc16f",
+   "CreateToolExecutorOptions": "interface:7dc9ab6b31",
    "DEFAULT_BUFFERED_STDOUT_MAX_BYTES": "variable:c2081b10e9",
    "DEFAULT_FRONTEND_CAPABILITY_TIMEOUT_MS": "variable:cbd38851a3",
    "DEFAULT_MAX_AUDIT_RECORDS": "variable:e1b7807843",
@@ -236,7 +236,7 @@
    "createRunScopedContextStore": "function:340f42c49d",
    "createTerminalSessionManager": "function:568e6759b9",
    "createTerminalToolRegistrations": "function:3f97b79fb5",
-   "createToolExecutor": "function:025407f80a",
+   "createToolExecutor": "function:76b2a9ad67",
    "dataDirHasExistingPayload": "function:c41d56bced",
    "dataDirIsEmptyOrFresh": "function:c3aac3e259",
    "decideSafeRunRetry": "function:5babc262b0",
@@ -995,7 +995,7 @@
  "./tool-recovery": {
   "types": "./dist/tool-recovery/index.d.ts",
   "symbols": {
-   "AssistantToolExecutorDeps": "interface:e829cfe001",
+   "AssistantToolExecutorDeps": "interface:92f9ef7576",
    "DelegatedInternalErrorContext": "interface:24072f7375",
    "FederatedRefusalDiagnosisDeps": "interface:c76db88561",
    "FederationBootStatus": "interface:2250f7336e",

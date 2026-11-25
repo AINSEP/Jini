@@ -210,9 +210,11 @@
  "./checks/env-access": {
   "types": "./dist/checks/env-access.d.ts",
   "symbols": {
-   "ENV_ACCESS_RULES": "variable:cc740d81dc",
-   "EnvAccessSource": "interface:1169651cc3",
-   "createEnvAccessInspector": "function:f9be6ef611"
+   "DeclaredEnvMap": "type:34cfd19c16",
+   "ENV_ACCESS_RULES": "variable:f179eb347d",
+   "EnvAccessSource": "interface:5062355921",
+   "createEnvAccessInspector": "function:f9be6ef611",
+   "readDeclaredEnvKey": "function:f362858952"
   }
  },
  "./checks/live-verify-checks": {
