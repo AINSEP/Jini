@@ -1,6 +1,6 @@
-import { useCallback, type ComponentProps, type ComponentType } from "react";
+import { useCallback, type ComponentProps, type ComponentType, type ReactNode } from "react";
 
-import { ChatSettingsSegmented, ConversationList, type I18nAdapter } from "../../../react/kit.js";
+import { ChatSettingsSegmented, ConversationList, type I18nAdapter, type KitConversationListProps } from "../../../react/kit.js";
 import type { useConfirmRequest } from "../../../react/index.js";
 import { useTaxonomyRowMenu } from "../../../screens/taxonomy/TaxonomyRowMenu.hooks.js";
 import type { UseAssistantChats } from "../../hooks/use-assistant-chats.hooks.js";
@@ -12,6 +12,18 @@ import type { ChatDisplayPreferencesController } from "./hooks/use-chat-display-
 import type { ChatAgentPluginsController } from "./hooks/use-chat-agent-plugins.hooks.js";
 
 type SubagentsIndicatorProps = ComponentProps<typeof SubagentsIndicator>;
+type DockConversationRow = UseAssistantChats["conversations"][number];
+
+/**
+ * What a host adds to the dock's conversation switcher: the extra switcher props it binds (list-view
+ * hooks, pinning, row ticking), a filter over the rows it shows (e.g. rows the host just removed),
+ * and an accessory mounted beside the switcher (e.g. a bulk-tidy panel). The dock owns none of it.
+ */
+export interface DockConversationTools {
+  readonly listProps: Pick<KitConversationListProps, "hooks" | "selectable" | "selectedIds" | "onTogglePin" | "onSelectionChange">;
+  readonly visibleConversations: (required: { conversations: DockConversationRow[] }) => DockConversationRow[];
+  readonly accessory: ReactNode;
+}
 
 export interface DockHeaderProps {
   /** The dock's conversation state; the switcher and the title editor drive it directly. */
@@ -45,6 +57,8 @@ export interface DockHeaderProps {
   readonly useSubagentsSettingsHook: UseSubagentsIndicatorSettings;
   /** The chat library's inline title editor (the kit has no slot for it), injected by the host. */
   readonly ConversationTitle: ComponentType<{ title: string | null; displayTitle: string; disabled: boolean; onRename: (title: string) => void | Promise<void> }>;
+  /** Required, `null` for none: the host's switcher extras and the accessory mounted beside the switcher. */
+  readonly conversationTools: DockConversationTools | null;
 }
 
 /**
@@ -57,7 +71,7 @@ export interface DockHeaderProps {
  */
 export function DockHeader({
   chats, activeTitle, mode, agentId, locale, t, chatI18n, conversationDelete, chatDisplay, agentPlugins, runtime, onMoreSettings, empty,
-  translateAiAssistant, useSubagentsSettingsHook, ConversationTitle, toolCallOptions, replyLengthOptions,
+  translateAiAssistant, useSubagentsSettingsHook, ConversationTitle, toolCallOptions, replyLengthOptions, conversationTools,
 }: DockHeaderProps) {
   const onSelect = useCallback((id: string) => chats.select({ id }), [chats.select]);
   const onDelete = useCallback((id: string) => chats.remove({ id }), [chats.remove]);
@@ -92,7 +106,8 @@ export function DockHeader({
         {/* Each header button gets the subagents icon's white tip, under it (owner, 2026-10-11). */}
         <DockHeaderTip label={t({ key: "Chats" })}>
           <ConversationList
-            conversations={chats.conversations}
+            {...conversationTools?.listProps}
+            conversations={conversationTools ? conversationTools.visibleConversations({ conversations: chats.conversations }) : chats.conversations}
             activeConversationId={chats.activeId}
             onSelect={onSelect}
             onCreate={chats.create}
@@ -111,6 +126,7 @@ export function DockHeader({
             nativeTitle={false}
           />
         </DockHeaderTip>
+        {conversationTools?.accessory}
         {/* Right of the switcher; the bar's ✕ (App.tsx) sits to its right. */}
         <DockHeaderTip label={t({ key: "Settings" })}>
           <DockSettingsMenu label={t({ key: "Settings" })} sections={dockSettingsMenuSections({ t: (key) => t({ key }), toolCallOptions, replyLengthOptions }, { display: chatDisplay, agentPlugins, runtime, onMoreSettings })}

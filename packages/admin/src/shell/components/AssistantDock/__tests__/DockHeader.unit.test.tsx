@@ -6,7 +6,8 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { AdminKitProvider } from "../../../../react/kit.js";
 import { fakeAdminKit } from "../../../../react/testing-kit.js";
-import { DockHeader, type DockHeaderProps } from "../DockHeader.js";
+import { DockHeader, type DockConversationTools, type DockHeaderProps } from "../DockHeader.js";
+import type { KitConversationListProps } from "../../../../react/kit.js";
 import { CHAT_TOOL_CALL_OPTIONS, DEFAULT_CHAT_DISPLAY } from "../chat-display-preferences.js";
 import { REPLY_LENGTH_OPTIONS } from "../assistant-runtime-preferences.js";
 
@@ -45,6 +46,7 @@ function headerProps(overrides: Partial<DockHeaderProps> = {}): DockHeaderProps 
     translateAiAssistant: ({ key }) => key,
     useSubagentsSettingsHook: () => ({ tooltipKey: null }),
     ConversationTitle,
+    conversationTools: null,
     ...overrides,
   };
 }
@@ -84,5 +86,48 @@ describe("DockHeader", () => {
   it("shows no save notice in the gear menu when both choices saved", async () => {
     render(<DockHeader {...headerProps()} />);
     expect(within(await openSettingsMenu()).queryByRole("status")).toBeNull();
+  });
+});
+
+describe("DockHeader conversation tools", () => {
+  const conversations = [{ id: "a", title: "Alpha" }, { id: "b", title: "Beta" }] as DockHeaderProps["chats"]["conversations"];
+  const chats = { conversations, activeId: "a", select: vi.fn(), create: vi.fn(), remove: vi.fn(), rename: vi.fn() };
+
+  it("mounts the host's accessory beside the conversation switcher", () => {
+    const tools: DockConversationTools = { accessory: <button type="button">Tidy chats</button>, listProps: {}, visibleConversations: ({ conversations: rows }) => rows };
+    render(<DockHeader {...headerProps({ chats, conversationTools: tools })} />);
+    const accessory = screen.getByRole("button", { name: "Tidy chats" });
+    expect(accessory.closest(".jini-chat-pane__header")).not.toBeNull();
+  });
+
+  it("forwards the host's switcher extras and row filter to the conversation list", () => {
+    const seen: KitConversationListProps[] = [];
+    const listKit = fakeAdminKit({ chat: { ConversationList: (props: KitConversationListProps) => { seen.push(props); return null; } } });
+    const listHooks = { useConversationListView: vi.fn() };
+    const onTogglePin = vi.fn();
+    const onSelectionChange = vi.fn();
+    const tools: DockConversationTools = {
+      accessory: null,
+      listProps: { hooks: listHooks, selectable: true, selectedIds: ["b"], onTogglePin, onSelectionChange },
+      visibleConversations: ({ conversations: rows }) => rows.filter((row) => row.id !== "a"),
+    };
+    rtlRender(<DockHeader {...headerProps({ chats, conversationTools: tools })} />, { wrapper: ({ children }) => <AdminKitProvider kit={listKit}>{children}</AdminKitProvider> });
+    const props = seen.at(-1)!;
+    expect(props.hooks).toBe(listHooks);
+    expect(props.selectable).toBe(true);
+    expect(props.selectedIds).toEqual(["b"]);
+    expect(props.onTogglePin).toBe(onTogglePin);
+    expect(props.onSelectionChange).toBe(onSelectionChange);
+    expect(props.conversations.map((row) => row.id)).toEqual(["b"]);
+  });
+
+  it("passes no extras and every row when the host injects no tools", () => {
+    const seen: KitConversationListProps[] = [];
+    const listKit = fakeAdminKit({ chat: { ConversationList: (props: KitConversationListProps) => { seen.push(props); return null; } } });
+    rtlRender(<DockHeader {...headerProps({ chats, conversationTools: null })} />, { wrapper: ({ children }) => <AdminKitProvider kit={listKit}>{children}</AdminKitProvider> });
+    const props = seen.at(-1)!;
+    expect(props.hooks).toBeUndefined();
+    expect(props.selectable).toBeUndefined();
+    expect(props.conversations.map((row) => row.id)).toEqual(["a", "b"]);
   });
 });

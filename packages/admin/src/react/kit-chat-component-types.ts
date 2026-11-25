@@ -77,7 +77,16 @@ export interface KitConversationListProps {
   onRename?: (id: string, title: string) => void | Promise<void>; onSearch?: (query: string) => Promise<KitConversationListItem[]>;
   confirmDelete?: (item: KitConversationListItem) => boolean | Promise<boolean>; createDisabled?: boolean; emptyState?: ReactNode;
   triggerLabel?: string; nativeTitle?: boolean;
+  /** The switcher's own list-view hooks, forwarded untouched: the admin kit never calls them, so it keeps them opaque
+   *  and the host's component narrows them to its real type. Absent means the host component's defaults. */
+  hooks?: KitConversationListHooks | undefined;
+  /** Row ticking and pinning, when the host injects them (see `DockHeader`'s `conversationTools`). */
+  selectable?: boolean | undefined; selectedIds?: readonly string[] | undefined;
+  onTogglePin?: ((required: { id: string; pinned: boolean }) => void) | undefined;
+  onSelectionChange?: ((required: { ids: string[] }) => void) | undefined;
 }
+/** Opaque list-view hooks a host's conversation switcher understands; see {@link KitConversationListProps.hooks}. */
+export type KitConversationListHooks = object;
 export interface KitChatSettingsSegmentedProps {
   name: string; items: readonly { key: string; label: string; checked?: boolean | undefined; disabled?: boolean | undefined; change: () => void }[];
   inputRole?: 'menuitemradio' | undefined; checkedRef?: ((input: HTMLInputElement | null) => void) | undefined;

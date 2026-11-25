@@ -533,7 +533,7 @@ export type { AgentInventoryEntry, AgentInventorySnapshot, AgentInventorySnapsho
   ExtEventRendererRegistry, ExtEventSlotKey, LastConversationStorage, LastConversationStore, SaveFailureInput, SaveOutcome, UseAssistantChats, UserTextRedactionOptions } from './kit-chat-types.js';
 export type { FrontendSessionBridge, KitByokRuntimeSummary, KitChatPaneAgentBridgeAccess, KitChatPaneAgentControlOptions, KitChatPaneAgentToolAction, KitChatPaneAttachmentUploadOptions,
   KitChatPaneComposerSlots, KitChatPaneProps, KitChatPaneRunContext, KitChatPermissionsPort, KitChatSettingsDialogProps, KitChatSettingsSection, KitChatSettingsSegmentedProps,
-  KitA2uiSurfaceCardProps, KitConversationListItem, KitConversationListProps, KitDaemonAttachmentUploaderOptions, KitJiniChatProviderProps,
+  KitA2uiSurfaceCardProps, KitConversationListHooks, KitConversationListItem, KitConversationListProps, KitDaemonAttachmentUploaderOptions, KitJiniChatProviderProps,
   KitMcpUiSurfaceCardProps, KitMcpUiToolCall, KitSurfaceExpiryClock, KitToolCallDisplay, KitUploadAttachments } from './kit-chat-component-types.js';
 import type { KitA2uiSurfaceCardProps, KitChatPaneProps, KitChatSettingsDialogProps, KitChatSettingsSegmentedProps, KitConversationListProps, KitDaemonAttachmentUploaderOptions,
   KitJiniChatProviderProps, KitMcpUiSurfaceCardProps, KitUploadAttachments } from './kit-chat-component-types.js';
