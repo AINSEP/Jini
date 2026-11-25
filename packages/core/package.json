@@ -268,6 +268,7 @@
       "./contracts/site/comments-providers": "universal",
       "./contracts/site/publish-ports": "universal",
       "./contracts/site/cms-admin-media": "universal",
+      "./contracts/site/page-html-store": "universal",
       "./contracts/site/post-kind": "universal",
       "./scheduled-publish": "universal",
       "./tool-metadata/post": "universal",
@@ -1601,6 +1602,11 @@
       "types": "./dist/contracts/site/cms-admin-media.d.ts",
       "import": "./dist/contracts/site/cms-admin-media.js",
       "default": "./dist/contracts/site/cms-admin-media.js"
+    },
+    "./contracts/site/page-html-store": {
+      "types": "./dist/contracts/site/page-html-store.d.ts",
+      "import": "./dist/contracts/site/page-html-store.js",
+      "default": "./dist/contracts/site/page-html-store.js"
     },
     "./contracts/site/post-kind": {
       "types": "./dist/contracts/site/post-kind.d.ts",

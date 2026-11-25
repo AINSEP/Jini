@@ -54,6 +54,10 @@
       "./presentation/page-head": "universal",
       "./presentation/site/active-theme-id": "universal",
       "./media/import": "universal",
+      "./react/posts/PostCoverImage": "browser",
+      "./react/posts/hooks/use-post-featured-image.hooks": "browser",
+      "./react/posts/editor/notices/PostEditorSlugCollisionWarning": "browser",
+      "./react/pages/PageExternalChangeBanner": "browser",
       "./react/media": "browser",
       "./core/tools": "universal",
       "./trash": "universal",
@@ -84,6 +88,7 @@
       "./html/document-marks": "universal",
       "./html/site/slug": "universal",
       "./html/site/source-edits": "node",
+      "./posts/agent-hold": "universal",
       "./posts/post-before-save": "universal",
       "./posts/slug": "universal",
       "./navigation/types": "universal",
@@ -210,6 +215,8 @@
       "./admin-http/http/forms": "node",
       "./comments/site/ip-hash-salt": "node",
       "./media/site-transform/image-ops": "node",
+      "./media/site/large-upload-routing": "universal",
+      "./media/site/verify-published-media": "node",
       "./media/site/bootstrap": "node",
       "./media/site/chat-preview": "node",
       "./media/site/content-type-resolution": "node",
@@ -655,6 +662,12 @@
     },
     "isolation": {
       "domains": {
+        "pages": [
+          "src/react/pages"
+        ],
+        "posts": [
+          "src/react/posts"
+        ],
         "publish": [
           "src/publish"
         ],
@@ -715,6 +728,30 @@
         ]
       },
       "forbidden": {
+        "./react/posts/PostCoverImage": [
+          "node:",
+          "express",
+          "kysely",
+          "parse5"
+        ],
+        "./react/posts/hooks/use-post-featured-image.hooks": [
+          "node:",
+          "express",
+          "kysely",
+          "parse5"
+        ],
+        "./react/posts/editor/notices/PostEditorSlugCollisionWarning": [
+          "node:",
+          "express",
+          "kysely",
+          "parse5"
+        ],
+        "./react/pages/PageExternalChangeBanner": [
+          "node:",
+          "express",
+          "kysely",
+          "parse5"
+        ],
         "./react/media": [
           "node:",
           "express",
@@ -1183,6 +1220,26 @@
       "import": "./dist/media/import/index.js",
       "default": "./dist/media/import/index.js"
     },
+    "./react/posts/PostCoverImage": {
+      "types": "./dist/react/posts/PostCoverImage.d.ts",
+      "import": "./dist/react/posts/PostCoverImage.js",
+      "default": "./dist/react/posts/PostCoverImage.js"
+    },
+    "./react/posts/hooks/use-post-featured-image.hooks": {
+      "types": "./dist/react/posts/hooks/use-post-featured-image.hooks.d.ts",
+      "import": "./dist/react/posts/hooks/use-post-featured-image.hooks.js",
+      "default": "./dist/react/posts/hooks/use-post-featured-image.hooks.js"
+    },
+    "./react/posts/editor/notices/PostEditorSlugCollisionWarning": {
+      "types": "./dist/react/posts/editor/notices/PostEditorSlugCollisionWarning.d.ts",
+      "import": "./dist/react/posts/editor/notices/PostEditorSlugCollisionWarning.js",
+      "default": "./dist/react/posts/editor/notices/PostEditorSlugCollisionWarning.js"
+    },
+    "./react/pages/PageExternalChangeBanner": {
+      "types": "./dist/react/pages/PageExternalChangeBanner.d.ts",
+      "import": "./dist/react/pages/PageExternalChangeBanner.js",
+      "default": "./dist/react/pages/PageExternalChangeBanner.js"
+    },
     "./react/media": {
       "types": "./dist/react/media/index.d.ts",
       "import": "./dist/react/media/index.js",
@@ -1317,6 +1374,11 @@
       "types": "./dist/html/site/source-edits.d.ts",
       "import": "./dist/html/site/source-edits.js",
       "default": "./dist/html/site/source-edits.js"
+    },
+    "./posts/agent-hold": {
+      "types": "./dist/posts/agent-hold.d.ts",
+      "import": "./dist/posts/agent-hold.js",
+      "default": "./dist/posts/agent-hold.js"
     },
     "./posts/post-before-save": {
       "types": "./dist/posts/post-before-save.d.ts",
@@ -1997,6 +2059,16 @@
       "types": "./dist/media/site-transform/image-ops.d.ts",
       "import": "./dist/media/site-transform/image-ops.js",
       "default": "./dist/media/site-transform/image-ops.js"
+    },
+    "./media/site/large-upload-routing": {
+      "types": "./dist/media/site/large-upload-routing.d.ts",
+      "import": "./dist/media/site/large-upload-routing.js",
+      "default": "./dist/media/site/large-upload-routing.js"
+    },
+    "./media/site/verify-published-media": {
+      "types": "./dist/media/site/verify-published-media.d.ts",
+      "import": "./dist/media/site/verify-published-media.js",
+      "default": "./dist/media/site/verify-published-media.js"
     },
     "./media/site/bootstrap": {
       "types": "./dist/media/site/bootstrap.d.ts",
