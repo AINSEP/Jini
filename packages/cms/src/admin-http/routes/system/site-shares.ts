@@ -23,6 +23,8 @@ export interface SiteShareRouteBackend {
   staticOptions(required: Record<string, never>): Promise<unknown>;
   acknowledge(required: { shareId: string }): Promise<unknown>;
   revoke(required: { shareId: string }): Promise<unknown>;
+  /** The expiry day counts the current share destination honours, besides Never; omitted means Never only. */
+  expiryChoices?(required: Record<string, never>): Promise<readonly unknown[]>;
 }
 
 /** The principal fields these routes read. */
@@ -136,10 +138,22 @@ function principalId({ principal }: { principal: SiteSharePrincipal | undefined 
   return principal.id;
 }
 
-/** `GET …/site-shares`. */
+/**
+ * The list's `expiryChoices`: `null` (Never) first, then the host's whole positive day counts.
+ * Why Never is always present and first: it is the default every destination accepts, so an existing
+ * link keeps working and a client that picks nothing sends no expiry; a host value that is not a whole
+ * positive day count is dropped rather than guessed. @complexity O(choices).
+ */
+async function listExpiryChoices({ backend }: { backend: SiteShareRouteBackend }, _optional: Record<string, never> = {}): Promise<readonly (number | null)[]> {
+  const offered = (await backend.expiryChoices?.({})) ?? [];
+  const days = offered.filter((value): value is number => Number.isInteger(value) && (value as number) > 0);
+  return [null, ...days];
+}
+
+/** `GET …/site-shares`: the export history plus the expiry choices a new export may ask for. */
 export const siteShareListRoute: SiteShareRoute = siteShareRoute({
   method: "get", path: ROOT, step: "Export history",
-  work: async ({ backend }) => jsonReply({ status: 200, body: { shares: await backend.list({}) } }),
+  work: async ({ backend }) => jsonReply({ status: 200, body: { shares: await backend.list({}), expiryChoices: await listExpiryChoices({ backend }) } }),
 });
 
 /** `POST …/site-shares`: start an export, or poll one with `{ jobId }`. */

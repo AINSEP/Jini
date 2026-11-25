@@ -45,6 +45,7 @@
       "./electron/webview": "desktop",
       "./electron/session-bootstrap": "desktop",
       "./electron/windows": "desktop",
+      "./electron/partitions": "desktop",
       "./shell/find-menu": "desktop",
       "./shell/node-toolchain": "node",
       "./shell/speech/mac-on-device-transcriber": "node",
@@ -224,6 +225,11 @@
       "types": "./dist/electron/windows/index.d.ts",
       "import": "./dist/electron/windows/index.js",
       "default": "./dist/electron/windows/index.js"
+    },
+    "./electron/partitions": {
+      "types": "./dist/electron/partitions/index.d.ts",
+      "import": "./dist/electron/partitions/index.js",
+      "default": "./dist/electron/partitions/index.js"
     },
     "./shell/find-menu": {
       "types": "./dist/shell/find-menu.d.ts",
