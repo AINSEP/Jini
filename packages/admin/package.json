@@ -1031,8 +1031,6 @@
         "./screens/email/hooks/use-email-template-view.hooks": "browser",
         "./screens/media/hooks/use-media-card-metadata.hooks": "media",
         "./screens/settings/rules": "universal",
-        "./screens/media/rules": "universal",
-        "./shell/components/SecretInput/SecretInput": "browser",
         "./screens/plugins/PluginProviderSettingField": "browser",
         "./screens/plugins/hooks/use-plugin-remove-confirm.hooks": "browser",
         "./screens/plugins/hooks/use-agent-plugin-disable-confirm.hooks": "browser",
