@@ -1,3 +1,4 @@
+import type { MutationActor } from "@jini-ai/core/contracts/events";
 import { nowIso as kernelNowIso } from "@jini-ai/core/primitives";
 import type { KernelOutboxAdapterDeps } from "../core/kernel-outbox.js";
 import type { ContentLookupPort, EntryTermRepoPort, TaxonomyRepoPort, TaxonomyRevisionRepoPort, TaxonomyRevisionRow, Term, TermRepoPort } from "./write-contracts.js";
@@ -239,7 +240,10 @@ export function toTaxonomyOutbox(deps: KernelOutboxAdapterDeps): { enqueue: ({ e
       const record = event as Record<string, unknown>;
       const name = typeof record.name === "string" ? record.name : "taxonomy.event";
       const occurredAt = typeof record.occurredAt === "string" ? record.occurredAt : kernelNowIso({ clock: deps.clock });
-      await deps.outbox.enqueue({ id: deps.idGen.newId(), workspaceId: deps.workspaceId, name, occurredAt, payload: record });
+      // A writer-stamped actor is lifted onto the event envelope so the outbox serializer keeps its
+      // kind; an event without one stays unattributed rather than defaulting to any kind.
+      const actor = record.actor as MutationActor | undefined;
+      await deps.outbox.enqueue({ id: deps.idGen.newId(), workspaceId: deps.workspaceId, name, occurredAt, payload: record, ...(actor ? { actorId: actor.id, actor } : {}) });
     },
   };
 }

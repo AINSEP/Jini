@@ -26,7 +26,7 @@ export const widgetRemoveToolRoute = defineJsonRoute<WidgetRemoveToolInput, Widg
   },
   handle: async ({ input, deps, context }) => {
     try {
-      const actor = { principalId: widgetActorId({ context }), kind: "user" };
+      const actor = { principalId: widgetActorId({ context }), kind: "user" as const };
       const result = await removeWidgetToolPlacement({ deps, actor, target: input.target, placementId: input.placementId });
       return ok({ value: { tool: "widgets.remove", result } });
     } catch (err) {
