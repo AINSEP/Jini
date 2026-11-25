@@ -32,7 +32,7 @@ export function createFakeMediaPort(options: FakeMediaPortOptions = {}): MediaPo
       status: "active",
       sha256: `fake-sha-${items.length + 1}`,
       title: input.filename,
-      // Rough approximation of the real server's `slugifyMediaTitle` (the host server's media service) — good
+      // Rough approximation of the real server's `slugifyMediaTitle` (`@jini-ai/cms/media`) — good
       // enough for a fake store's own uniqueness-free happy path; a test needing a REAL collision or
       // conflict must seed `options.media` directly with an explicit `slug`, same as `contentType`'s
       // own disclosed limit above.
@@ -45,7 +45,7 @@ export function createFakeMediaPort(options: FakeMediaPortOptions = {}): MediaPo
       cssClass: null,
       htmlAttributes: null,
       // The REAL server ignores this declared string and stores `sniffContentType(bytes)` instead
-      // (see the host server's upload route). This fake has no bytes to sniff — its input is
+      // (see `apps/website/src/server/inbound/admin-http/routes/media/upload.ts`). This fake has no bytes to sniff — its input is
       // an opaque base64 string a test made up — so it echoes what the caller declared. A test that
       // needs the two to disagree (uploading bytes whose real type differs from the declared one)
       // must seed `options.media` directly rather than rely on this path.
@@ -106,7 +106,7 @@ export function createFakeMediaPort(options: FakeMediaPortOptions = {}): MediaPo
       return { purged: true };
     },
 
-    // A distinct `fake://` scheme, not the real media API's
+    // A distinct `fake://` scheme, not `api.mediaOriginalUrl`'s real
     // `/workspaces/.../media/.../original` shape — so a test asserting a resolved URL came from
     // THIS fake fails if a consumer ever goes back to calling the real `api` directly.
     mediaOriginalUrl(id) {
