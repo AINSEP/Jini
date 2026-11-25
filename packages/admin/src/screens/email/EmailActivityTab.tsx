@@ -1,5 +1,6 @@
 import { ConfirmDialog } from "../../react/components/ConfirmDialog/ConfirmDialog.js";
 import { agentHandle } from "@jini-ai/core/agent-handles";
+import { pickPlural } from "@jini-ai/core/text";
 
 import { t } from "./email-i18n.js";
 import type { MailActivityItem, MailSuppressionEntry } from "./email-api.types.js";
@@ -118,7 +119,12 @@ function ActivityRow(props: { item: MailActivityItem; controller: EmailActivityC
 function CaptureNotice(props: { state: CaptureClearState; locale: string }) {
   const { state, locale } = props;
   if (state.kind === "empty") return <p className="jini-field-hint" role="status">{t({ locale, key: "No captured test messages to clear. Email Activity records are kept separately." })}</p>;
-  if (state.kind === "cleared") return <p className="jini-field-hint" role="status">{t({ locale, key: "Cleared {count} captured test messages." }).replace("{count}", () => String(state.deleted))}</p>;
+  if (state.kind === "cleared") {
+    // The noun agrees with the count, so each form is its own dictionary key (a locale with no written
+    // singular reuses its one translation for both).
+    const key = pickPlural({ count: state.deleted, forms: { one: "Cleared {count} captured test message.", other: "Cleared {count} captured test messages." } });
+    return <p className="jini-field-hint" role="status">{t({ locale, key }).replace("{count}", () => String(state.deleted))}</p>;
+  }
   if (state.kind === "error") return <p className="jini-field-error" role="alert">{t({ locale, key: state.message })}</p>;
   return null;
 }

@@ -1,7 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { renderLlmsTxt, serializeSitemapXml } from "../sitemap-documents.js";
 
-const entry = (title: string, canonical: string, description?: string) => ({ meta: { title, canonical, ...(description ? { description } : {}) } });
+const entry = (title: string, canonical: string, description?: string, kind: "post" | "page" = "page") =>
+  ({ post: { kind }, meta: { title, canonical, ...(description ? { description } : {}) } });
 
 describe("serializeSitemapXml", () => {
   it("serializes an empty urlset without a blank line", () => {
@@ -35,6 +36,26 @@ describe("renderLlmsTxt", () => {
     const entries = [entry("B", "https://x.example/b"), entry("A", "https://x.example/a")];
     expect(renderLlmsTxt({ title: "T", entries })).toBe("# T\n\n## Pages\n\n- [A](https://x.example/a)\n- [B](https://x.example/b)\n");
     expect(entries.map((e) => e.meta.title)).toEqual(["B", "A"]);
-    expect(renderLlmsTxt({ title: "T", entries: [] })).toBe("# T\n\n## Pages\n\n");
+  });
+
+  it("lists posts under ## Posts and pages under ## Pages, each section sorted by title", () => {
+    const text = renderLlmsTxt({ title: "T", entries: [
+      entry("Zeta page", "https://x.example/zp", undefined, "page"),
+      entry("Beta post", "https://x.example/bp", "About beta", "post"),
+      entry("Alpha page", "https://x.example/ap", undefined, "page"),
+      entry("Alpha post", "https://x.example/alp", undefined, "post"),
+    ] });
+    expect(text).toBe("# T\n\n## Posts\n\n- [Alpha post](https://x.example/alp)\n- [Beta post](https://x.example/bp): About beta\n\n"
+      + "## Pages\n\n- [Alpha page](https://x.example/ap)\n- [Zeta page](https://x.example/zp)\n");
+  });
+
+  it("omits an empty section instead of printing a bare heading", () => {
+    const onlyPosts = renderLlmsTxt({ title: "T", entries: [entry("P", "https://x.example/p", undefined, "post")] });
+    expect(onlyPosts).toBe("# T\n\n## Posts\n\n- [P](https://x.example/p)\n");
+    expect(onlyPosts).not.toMatch(/^## Pages$/m);
+    const onlyPages = renderLlmsTxt({ title: "T", entries: [entry("Q", "https://x.example/q")] });
+    expect(onlyPages).toBe("# T\n\n## Pages\n\n- [Q](https://x.example/q)\n");
+    expect(onlyPages).not.toMatch(/^## Posts$/m);
+    expect(renderLlmsTxt({ title: "T", entries: [] })).toBe("# T\n");
   });
 });
