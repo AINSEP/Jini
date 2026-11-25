@@ -365,6 +365,7 @@
       "./screens/plugins/hooks/agent-plugin-memory-port.hooks": "universal",
       "./screens/plugins/hooks/plugin-install-port.hooks": "universal",
       "./screens/plugins/hooks/plugins-port.hooks": "universal",
+      "./screens/plugins/rules": "universal",
       "./screens/plugins/PluginProviderSettingField.hooks": "browser",
       "./screens/plugins/hooks/use-plugin-provider-settings.hooks": "browser",
       "./screens/plugins/AgentPlugins.hooks": "browser",
@@ -922,6 +923,7 @@
         "./shell/components/AssistantDock/FolderPathButton": "browser",
         "./shell/components/AssistantDock/dock-header-rules": "browser",
         "./screens/plugins/resolve-composer-discovery-outcome": "browser",
+        "./screens/plugins/rules": "universal",
         "./shell/components/AssistantDock/hooks/assistant-mcp-ui": "universal",
         "./screens/plugins/composer-skills.hooks": "browser",
         "./shell/components/AssistantDock/assistant-runtime-preferences": "universal",
@@ -2775,6 +2777,11 @@
       "types": "./dist/screens/plugins/hooks/plugin-install-port.hooks.d.ts",
       "import": "./dist/screens/plugins/hooks/plugin-install-port.hooks.js",
       "default": "./dist/screens/plugins/hooks/plugin-install-port.hooks.js"
+    },
+    "./screens/plugins/rules": {
+      "types": "./dist/screens/plugins/rules.d.ts",
+      "import": "./dist/screens/plugins/rules.js",
+      "default": "./dist/screens/plugins/rules.js"
     },
     "./screens/plugins/hooks/plugins-port.hooks": {
       "types": "./dist/screens/plugins/hooks/plugins-port.hooks.d.ts",
