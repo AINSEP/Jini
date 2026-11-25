@@ -31,7 +31,7 @@ import { identityAgentToolCatalog } from "../agent-tools.js";
 type Schema = Record<string, unknown>;
 
 /** Exactly the keywords the catalog is allowed to use — kept independent of the parser's own copy. */
-const SUPPORTED_KEYWORDS = new Set(["type", "properties", "required", "additionalProperties", "minLength", "description"]);
+const SUPPORTED_KEYWORDS = new Set(["type", "properties", "required", "additionalProperties", "minLength", "minimum", "description"]);
 
 /**
  * A minimal JSON Schema check written independently of `agent-tool-input.ts`, so agreement between
@@ -57,6 +57,10 @@ function validate(schema: Schema, value: unknown): boolean {
 
   for (const [key, sub] of Object.entries(properties)) {
     if (!Object.hasOwn(record, key)) continue;
+    if (sub.type === "integer") {
+      if (!Number.isSafeInteger(record[key]) || (record[key] as number) < ((sub.minimum as number | undefined) ?? Number.MIN_SAFE_INTEGER)) return false;
+      continue;
+    }
     if (typeof record[key] !== "string") return false;
     if (typeof sub.minLength === "number" && (record[key] as string).replace(/[\uD800-\uDBFF][\uDC00-\uDFFF]/g, "x").length < sub.minLength) return false;
   }
@@ -79,16 +83,21 @@ function requiredOf(schema: Schema): string[] {
 }
 
 /** A payload satisfying every declared property of `schema` — the base every fixture perturbs. */
+/** A conforming value for one property: a string, or an integer editor basis at its minimum + 3. */
+function sampleFor(sub: Schema, key: string): unknown {
+  return sub.type === "integer" ? ((sub.minimum as number | undefined) ?? 0) + 3 : `value-for-${key}`;
+}
+
 function fullyPopulated(schema: Schema): Record<string, unknown> {
   const payload: Record<string, unknown> = {};
-  for (const key of Object.keys(propertiesOf(schema))) payload[key] = `value-for-${key}`;
+  for (const [key, sub] of Object.entries(propertiesOf(schema))) payload[key] = sampleFor(sub, key);
   return payload;
 }
 
 /** A payload with only the required properties present. */
 function requiredOnly(schema: Schema): Record<string, unknown> {
   const payload: Record<string, unknown> = {};
-  for (const key of requiredOf(schema)) payload[key] = `value-for-${key}`;
+  for (const key of requiredOf(schema)) payload[key] = sampleFor(propertiesOf(schema)[key]!, key);
   return payload;
 }
 
@@ -120,7 +129,17 @@ function corpusFor(schema: Schema): Array<{ label: string; payload: unknown; acc
     fixtures.push({ label: `explicitly-undefined required '${key}'`, payload: { ...fullyPopulated(schema), [key]: undefined }, accepted: false });
   }
 
-  for (const key of Object.keys(properties)) {
+  for (const [key, sub] of Object.entries(properties)) {
+    if (sub.type !== "integer") continue;
+    const floor = (sub.minimum as number | undefined) ?? 0;
+    fixtures.push({ label: `integer '${key}' as a string`, payload: { ...fullyPopulated(schema), [key]: String(floor + 3) }, accepted: false });
+    fixtures.push({ label: `fractional '${key}'`, payload: { ...fullyPopulated(schema), [key]: floor + 1.5 }, accepted: false });
+    fixtures.push({ label: `'${key}' below its minimum`, payload: { ...fullyPopulated(schema), [key]: floor - 1 }, accepted: false });
+    fixtures.push({ label: `'${key}' at its minimum`, payload: { ...fullyPopulated(schema), [key]: floor }, accepted: true });
+    fixtures.push({ label: `null '${key}'`, payload: { ...fullyPopulated(schema), [key]: null }, accepted: false });
+  }
+
+  for (const key of Object.keys(properties).filter((name) => properties[name]!.type !== "integer")) {
     fixtures.push({ label: `numeric '${key}'`, payload: { ...fullyPopulated(schema), [key]: 7 }, accepted: false });
     fixtures.push({ label: `null '${key}'`, payload: { ...fullyPopulated(schema), [key]: null }, accepted: false });
     fixtures.push({ label: `array '${key}'`, payload: { ...fullyPopulated(schema), [key]: ["x"] }, accepted: false });
@@ -235,9 +254,14 @@ test("every required key is actually a declared property — a required key with
   }
 });
 
-test("every declared property is a string — the shape the parser and every handler assume", () => {
+test("every declared property is a string, except the integer editor basis — the shapes the parser and every handler assume", () => {
   for (const entry of identityAgentToolCatalog) {
     for (const [property, sub] of Object.entries(propertiesOf(schemaOf(entry.name)))) {
+      // The one non-string the parser reads (agent-tool-input.ts header): the read basis an edit tool requires.
+      if (property === "expectedVersion") {
+        assert.deepEqual([sub.type, sub.minimum], ["integer", 0], `${entry.name}.expectedVersion must be a non-negative integer`);
+        continue;
+      }
       assert.equal(sub.type, "string", `${entry.name}.${property} must be a string property`);
     }
   }
@@ -248,6 +272,8 @@ test("every required property carries minLength — a required key that accepted
     const schema = schemaOf(entry.name);
     const properties = propertiesOf(schema);
     for (const key of requiredOf(schema)) {
+      // A required integer basis cannot be blank; its floor is pinned by the property-shape test above.
+      if (properties[key]!.type === "integer") continue;
       assert.equal(properties[key]!.minLength, 1, `${entry.name}.${key} is required, so it must publish minLength:1`);
     }
   }

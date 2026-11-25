@@ -214,7 +214,7 @@ test("a role view exposes isBuiltin — the flag that predicts whether rename/de
 
   assert.ok(roles.length >= 4, "the seed provides four built-in roles");
   for (const role of roles) {
-    assert.deepEqual(Object.keys(role).sort(), ["id", "isBuiltin", "name"]);
+    assert.deepEqual(Object.keys(role).sort(), ["id", "isBuiltin", "name", "version"]);
   }
   assert.equal(roles.every((role) => role.isBuiltin === true), true, "a freshly seeded workspace has only built-in roles");
 });
@@ -225,7 +225,7 @@ test("a policy view carries exactly the keys the model needs, with description o
   const withoutDescription = (await wired(deps, "identity_policy_create").handler(asOwner(ownerPrincipalId, { name: "Bare Policy" }))) as {
     policy: Record<string, unknown>;
   };
-  assert.deepEqual(Object.keys(withoutDescription.policy).sort(), ["id", "isBuiltin", "isFrozen", "name"]);
+  assert.deepEqual(Object.keys(withoutDescription.policy).sort(), ["id", "isBuiltin", "isFrozen", "name", "version"]);
   assert.equal("description" in withoutDescription.policy, false, "a policy without a description must carry no always-undefined key");
   assert.equal(withoutDescription.policy.isBuiltin, false);
   assert.equal(withoutDescription.policy.isFrozen, false);
@@ -358,7 +358,7 @@ test("END TO END: create a policy, see it in the list, attach it to a user, and 
   assert.deepEqual(rows.map((row) => row.policyId), [policy.id]);
 
   // 6. A rename, then a delete-while-unattached-elsewhere is refused because it is STILL attached.
-  const renamed = (await wired(deps, "identity_policy_update").handler(asOwner(ownerPrincipalId, { policyId: policy.id, name: "Reviewer Bundle (renamed)" }))) as {
+  const renamed = (await wired(deps, "identity_policy_update").handler(asOwner(ownerPrincipalId, { policyId: policy.id, name: "Reviewer Bundle (renamed)", expectedVersion: 1 }))) as {
     policy: { name: string };
   };
   assert.equal(renamed.policy.name, "Reviewer Bundle (renamed)");
@@ -417,7 +417,7 @@ test("a custom role can be renamed and then deleted while unassigned, but not on
 
   const { role } = (await wired(deps, "identity_role_create").handler(asOwner(ownerPrincipalId, { name: "Temp" }))) as { role: { id: string } };
 
-  const renamed = (await wired(deps, "identity_role_rename").handler(asOwner(ownerPrincipalId, { roleId: role.id, name: "Temp Renamed" }))) as {
+  const renamed = (await wired(deps, "identity_role_rename").handler(asOwner(ownerPrincipalId, { roleId: role.id, name: "Temp Renamed", expectedVersion: 1 }))) as {
     role: { name: string; isBuiltin: boolean };
   };
   assert.equal(renamed.role.name, "Temp Renamed");
@@ -504,10 +504,10 @@ const TOOL_INPUTS: Record<string, Record<string, unknown>> = {
   identity_user_enable: { principalId: "target-principal" },
   identity_role_create: { name: "Custom Role" },
   identity_role_assign: { principalId: "target-principal", roleId: "target-role" },
-  identity_role_rename: { roleId: "target-role", name: "Renamed" },
+  identity_role_rename: { roleId: "target-role", name: "Renamed", expectedVersion: 1 },
   identity_role_delete: { roleId: "target-role" },
   identity_policy_create: { name: "Custom Policy" },
-  identity_policy_update: { policyId: "target-policy", name: "Renamed Policy" },
+  identity_policy_update: { policyId: "target-policy", name: "Renamed Policy", expectedVersion: 1 },
   identity_policy_delete: { policyId: "target-policy" },
   identity_policy_attach: { principalId: "target-principal", policyId: "target-policy" },
 };
@@ -679,7 +679,7 @@ test("identity_policy_delete / identity_policy_update: built-in policies are ref
   assert.ok(builtin, "the seed must provide at least one built-in policy for this test to mean anything");
 
   await assert.rejects(
-    () => wired(deps, "identity_policy_update").handler(executionContext(ownerPrincipalId, { policyId: builtin.id, name: "Trusted Admin" })),
+    () => wired(deps, "identity_policy_update").handler(executionContext(ownerPrincipalId, { policyId: builtin.id, name: "Trusted Admin", expectedVersion: builtin.version })),
     /built-in/,
   );
   await assert.rejects(
@@ -708,7 +708,7 @@ test("identity_role_rename / identity_role_delete: built-in roles are refused, s
   assert.ok(viewer?.isBuiltin, "viewer must be seeded built-in for this test to mean anything");
 
   await assert.rejects(
-    () => wired(deps, "identity_role_rename").handler(executionContext(ownerPrincipalId, { roleId: viewer.id, name: "Trusted Admin" })),
+    () => wired(deps, "identity_role_rename").handler(executionContext(ownerPrincipalId, { roleId: viewer.id, name: "Trusted Admin", expectedVersion: viewer.version })),
     /built-in role cannot be renamed/,
   );
   await assert.rejects(
@@ -784,5 +784,25 @@ test("every wired identity tool declares user.manage or role.manage — never a 
         `${toolId} declares '${permission}', which is not one of the identity-admin permissions`,
       );
     }
+  }
+});
+
+test("identity editor tools require the read basis, name the read tool when it is missing, and refuse a stale one", async () => {
+  const { deps, ownerPrincipalId } = await buildHarness();
+  const { policy } = (await wired(deps, "identity_policy_create").handler(asOwner(ownerPrincipalId, { name: "Basis Policy" }))) as { policy: { id: string } };
+  const { role } = (await wired(deps, "identity_role_create").handler(asOwner(ownerPrincipalId, { name: "Basis Role" }))) as { role: { id: string } };
+  const cases = [
+    { toolId: "identity_policy_update", readTool: "identity_policy_list", key: "policies", target: { policyId: policy.id }, id: policy.id },
+    { toolId: "identity_role_rename", readTool: "identity_role_list", key: "roles", target: { roleId: role.id }, id: role.id },
+  ] as const;
+  for (const { toolId, readTool, key, target, id } of cases) {
+    await assert.rejects(() => wired(deps, toolId).handler(asOwner(ownerPrincipalId, { ...target, name: "No Basis" })), new RegExp(`'expectedVersion'.*${readTool}`));
+    const listed = (await wired(deps, readTool).handler(asOwner(ownerPrincipalId, {}))) as Record<string, Array<{ id: string; name: string; version: number }>>;
+    const opened = listed[key]!.find((row) => row.id === id)!;
+    const saved = (await wired(deps, toolId).handler(asOwner(ownerPrincipalId, { ...target, name: "First", expectedVersion: opened.version }))) as Record<string, { version: number }>;
+    assert.equal(Object.values(saved)[0]!.version, opened.version + 1, `${toolId} returns the next basis`);
+    await assert.rejects(() => wired(deps, toolId).handler(asOwner(ownerPrincipalId, { ...target, name: "Second", expectedVersion: opened.version })), /VERSION_CONFLICT|changed|version/i);
+    const after = (await wired(deps, readTool).handler(asOwner(ownerPrincipalId, {}))) as Record<string, Array<{ id: string; name: string }>>;
+    assert.equal(after[key]!.find((row) => row.id === id)!.name, "First", `${toolId}: the first save survives the stale second editor`);
   }
 });

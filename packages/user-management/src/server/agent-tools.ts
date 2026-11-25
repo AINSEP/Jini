@@ -102,6 +102,19 @@ const POLICY_ID_SCHEMA = {
   description: "The policy's id. Get it from identity_policy_list, or from identity_policy_create's result.",
 } as const;
 
+/**
+ * The editor basis an identity edit tool requires: the `version` its read tool returned. A server
+ * read made after the model opened the record is not the model's basis — saving against it would
+ * silently overwrite whatever another editor saved in between, so the tool takes the basis it read.
+ */
+function editorBasisSchema({ readTool, noun }: { readTool: string; noun: string }, _optional: Record<string, never> = {}) {
+  return {
+    type: "integer",
+    minimum: 0,
+    description: `The 'version' ${readTool} returned for this ${noun}. A save is refused if the ${noun} changed since that read — read it again and retry.`,
+  } as const;
+}
+
 /** A required, non-blank human-authored name. `minLength` is published because the service
  * functions reject a blank/whitespace-only name — leaving it unstated would show the model a
  * contract wider than the one enforced. */
@@ -266,8 +279,8 @@ export const identityAgentToolCatalog: IdentityAgentToolDefinition[] = [
     inputSchema: {
       type: "object",
       additionalProperties: false,
-      required: ["roleId", "name"],
-      properties: { roleId: ROLE_ID_SCHEMA, name: REQUIRED_NAME_SCHEMA },
+      required: ["roleId", "name", "expectedVersion"],
+      properties: { roleId: ROLE_ID_SCHEMA, name: REQUIRED_NAME_SCHEMA, expectedVersion: editorBasisSchema({ readTool: "identity_role_list", noun: "role" }) },
     },
   },
   {
@@ -308,11 +321,12 @@ export const identityAgentToolCatalog: IdentityAgentToolDefinition[] = [
     inputSchema: {
       type: "object",
       additionalProperties: false,
-      required: ["policyId"],
+      required: ["policyId", "expectedVersion"],
       properties: {
         policyId: POLICY_ID_SCHEMA,
         name: { type: "string", minLength: 1, description: "New name. Omit to leave unchanged." },
         description: { type: "string", description: "New description. Omit to leave unchanged." },
+        expectedVersion: editorBasisSchema({ readTool: "identity_policy_list", noun: "policy" }),
       },
     },
   },
