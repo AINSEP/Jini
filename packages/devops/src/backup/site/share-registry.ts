@@ -93,22 +93,25 @@ export class SiteShareRegistry {
     } finally { await unlink(temp).catch(error => { if (error.code !== "ENOENT") throw error; }); }
   }
   async get(required: { shareId: string; site?: string }, _optional: Record<string, never> = {}): Promise<SiteShareRecord | null> {
-    let row: SiteShareRecord;
-    try { row = JSON.parse(await readFile(this.meta({ id: required.shareId }), "utf8")) as SiteShareRecord; }
-    catch (error) { if ((error as NodeJS.ErrnoException).code === "ENOENT") { return null; } throw error; }
-    row = { ...row, credentialWarnings: row.credentialWarnings ?? [], needsAcknowledgement: row.needsAcknowledgement ?? false };
+    const stored = await this.readRow(required.shareId);
+    if (!stored) return null;
+    const row = { ...stored, credentialWarnings: stored.credentialWarnings ?? [], needsAcknowledgement: stored.needsAcknowledgement ?? false };
     if (required.site !== undefined && row.site !== required.site) return null;
-    try {
-      const revokedAt = await readFile(path.join(this.directory, `${row.shareId}.revoked`), "utf8");
-      return { ...row, status: "revoked", revokedAt };
-    } catch (error) { if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error; }
+    const revokedAt = await this.readTombstone(`${row.shareId}.revoked`);
+    if (revokedAt !== null) return { ...row, status: "revoked", revokedAt };
     // Checked after `.revoked` so `revoked > expired`; like revocation, a racing whole-record `put`
     // (acknowledge, delivery rewrite) cannot bring an expired link back to `active`.
-    try {
-      await readFile(path.join(this.directory, `${row.shareId}.expired`), "utf8");
-      return { ...row, status: "expired" };
-    } catch (error) { if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error; }
+    if (await this.readTombstone(`${row.shareId}.expired`) !== null) return { ...row, status: "expired" };
     return row;
+  }
+  private async readRow(shareId: string): Promise<SiteShareRecord | null> {
+    try { return JSON.parse(await readFile(this.meta({ id: shareId }), "utf8")) as SiteShareRecord; }
+    catch (error) { if ((error as NodeJS.ErrnoException).code === "ENOENT") { return null; } throw error; }
+  }
+  /** A tombstone's content, or null when it does not exist; any other read error propagates. */
+  private async readTombstone(name: string): Promise<string | null> {
+    try { return await readFile(path.join(this.directory, name), "utf8"); }
+    catch (error) { if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error; return null; }
   }
   /**
    * The permanent, create-only expiry tombstone (content: the stated `expiresAt`), synced to disk

@@ -151,9 +151,7 @@ async function deleteRemoteArtifact(required: { row: SiteShareRecord; storage: N
  * @complexity O(archive bytes) for a pending remote delivery, O(1) for ZIP-only exports/retries.
  */
 export async function acknowledgeSiteShare(required: { host: ShareServiceHost; registry: SiteShareRegistry; site: string; shareId: string }, optional: { delivery?: ShareDelivery | undefined } = {}): Promise<SiteShareRecord> {
-  const row = await required.registry.get({ site: required.site, shareId: required.shareId });
-  if (!row || row.status === "revoked") throw new SiteShareRefusal({ code: "NOT_FOUND", message: "This export is missing or was revoked." });
-  if (row.status === "expired") throw new SiteShareRefusal({ code: "EXPIRED", message: required.host.expiry.expiredMessage({ row }) });
+  const row = assertAcknowledgeable({ host: required.host, row: await required.registry.get({ site: required.site, shareId: required.shareId }) });
   if (!row.needsAcknowledgement) return row;
   const acknowledged = { ...row, needsAcknowledgement: false };
   const deliveryStorage = !row.credentialWarnings?.length ? row.storage : undefined;
@@ -165,6 +163,13 @@ export async function acknowledgeSiteShare(required: { host: ShareServiceHost; r
   if (!deliveryStorage || !delivery) return acknowledged;
   const archive = await required.registry.readArtifact({ shareId: required.shareId });
   return deliverShare({ host: required.host, registry: required.registry, row: acknowledged, delivery, key: deliveryStorage.key, file: row.file, archive }, { signal: AbortSignal.timeout(10 * 60 * 1000) });
+}
+
+/** Refuses a missing, revoked or expired export; otherwise hands back the live row. */
+function assertAcknowledgeable({ host, row }: { host: ShareServiceHost; row: SiteShareRecord | null }): SiteShareRecord {
+  if (!row || row.status === "revoked") throw new SiteShareRefusal({ code: "NOT_FOUND", message: "This export is missing or was revoked." });
+  if (row.status === "expired") throw new SiteShareRefusal({ code: "EXPIRED", message: host.expiry.expiredMessage({ row }) });
+  return row;
 }
 
 /** A stored export publishes only through the provider and binding that first stored it. */

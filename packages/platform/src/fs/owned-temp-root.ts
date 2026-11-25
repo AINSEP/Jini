@@ -167,6 +167,13 @@ async function sweepOneSafely(ctx: SweepContext, parent: string, root: string): 
   }
 }
 
+/** Why a pass must stop before the next root; abort wins over the limit. */
+function sweepStop({ signal, count, limit }: { signal: AbortSignal; count: number; limit: number }): { truncated: boolean; aborted: boolean } | undefined {
+  if (signal.aborted) return { truncated: false, aborted: true };
+  if (count >= limit) return { truncated: true, aborted: false };
+  return undefined;
+}
+
 /**
  * Tidies owned roots left by dead writers in the named parents, reporting everything else.
  * @param required.roots `{ parent, prefix }` pairs; nothing outside them is read or touched.
@@ -183,8 +190,8 @@ export async function sweepOwnedTempRoots(
   const limit = optional.limit ?? 20, entries: OwnedTempRootEntry[] = [];
   for (const { parent, prefix } of required.roots) {
     for (const name of exactRootNames(await required.fs.readdir(parent), prefix)) {
-      if (required.signal.aborted) return { entries, truncated: false, aborted: true };
-      if (entries.length >= limit) return { entries, truncated: true, aborted: false };
+      const stop = sweepStop({ signal: required.signal, count: entries.length, limit });
+      if (stop) return { entries, ...stop };
       const result = await sweepOneSafely(ctx, parent, join(parent, name));
       if (result) entries.push(result);
     }
