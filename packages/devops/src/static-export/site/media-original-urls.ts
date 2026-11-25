@@ -1,7 +1,7 @@
 import { exportUrlLocations } from "../html-url-locations.js";
 import type { OriginRegistryPort } from "@jini-ai/core/contracts/server/verified-origin";
 
-export interface ExportMediaUrlDeps<R extends { status: string; kind: string; source: { sha256: string } }> {
+export interface ExportMediaUrlDeps<R extends { status: string; kind?: string | undefined; source: { sha256: string } }> {
   workspaceId: string;
   originRegistry: Pick<OriginRegistryPort, "canonicalOrigin">;
   findMedia(required: { workspaceId: string; idOrSlug: string }, optional?: Record<string, never>): Promise<R | null>;
@@ -20,7 +20,7 @@ function sameOrigin({ url, origin }: { url: string; origin: string }): boolean {
 
 /** Local paths need no origin lookup; absolute references must belong to the configured site.
  * With no verified origin, absolute references stay as written: a link must never fail the export. */
-async function localOriginalPaths<R extends { status: string; kind: string; source: { sha256: string } }>({ body, deps, locations }: { body: string; deps: ExportMediaUrlDeps<R>; locations: readonly { start: number; end: number }[] }, _optional: Record<string, never> = {}): Promise<Map<string, { prefix: string; key: string }>> {
+async function localOriginalPaths<R extends { status: string; kind?: string | undefined; source: { sha256: string } }>({ body, deps, locations }: { body: string; deps: ExportMediaUrlDeps<R>; locations: readonly { start: number; end: number }[] }, _optional: Record<string, never> = {}): Promise<Map<string, { prefix: string; key: string }>> {
   const matches = locations.flatMap(({ start, end }) => [...body.slice(start, end).matchAll(ORIGINAL_URL)]);
   const paths = new Map<string, { prefix: string; key: string }>();
   let origin: string | null | undefined;
@@ -45,7 +45,7 @@ async function localOriginalPaths<R extends { status: string; kind: string; sour
  * O(text length + URL positions log URL positions + distinct media keys) work, one batched type lookup; legacy bytes read only
  * when their type was never recorded. Missing/private documents retain their existing URLs.
  */
-export async function rewriteMediaOriginalUrls<R extends { status: string; kind: string; source: { sha256: string } }>(
+export async function rewriteMediaOriginalUrls<R extends { status: string; kind?: string | undefined; source: { sha256: string } }>(
   { body, deps }: { body: string; deps: ExportMediaUrlDeps<R> }, { contentType = "text/html" }: { contentType?: string } = {},
 ): Promise<string> {
   // Parsed once: the same URL positions are scanned for keys and then rewritten.
@@ -76,7 +76,7 @@ export async function rewriteMediaOriginalUrls<R extends { status: string; kind:
 }
 
 /** Missing, inactive and document records keep their original URL; lookups remain sequential. */
-async function exportableMediaRecords<R extends { status: string; kind: string; source: { sha256: string } }>({ paths, deps }: { paths: ReadonlyMap<string, { key: string }>; deps: ExportMediaUrlDeps<R> }, _optional: Record<string, never> = {}) {
+async function exportableMediaRecords<R extends { status: string; kind?: string | undefined; source: { sha256: string } }>({ paths, deps }: { paths: ReadonlyMap<string, { key: string }>; deps: ExportMediaUrlDeps<R> }, _optional: Record<string, never> = {}) {
   const records = new Map<string, R>();
   for (const [url, { key }] of paths) {
     const record = await deps.findMedia({ workspaceId: deps.workspaceId, idOrSlug: key });
@@ -89,7 +89,7 @@ async function exportableMediaRecords<R extends { status: string; kind: string; 
  * stay streaming and untouched. Response headers remain authoritative except for the byte length,
  * which must be recalculated after a text rewrite. No extra HTTP requests or renderer are used.
  */
-export async function rewriteExportMediaResponse<R extends { status: string; kind: string; source: { sha256: string } }>(
+export async function rewriteExportMediaResponse<R extends { status: string; kind?: string | undefined; source: { sha256: string } }>(
   { response, deps }: { response: Response; deps: ExportMediaUrlDeps<R> }, _optional: Record<string, never> = {},
 ): Promise<Response> {
   if (response.body === null) return response;
