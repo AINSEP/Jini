@@ -13,6 +13,13 @@
     "kind": "content-model",
     "runtime": "universal",
     "entries": {
+      "./public-http/routes/site/pages/extra-head": "universal",
+      "./public-http/http/site/bare-page": "universal",
+      "./public-http/http/site/render/components/marketing": "universal",
+      "./admin-http/routes/system/site-share-password": "universal",
+      "./admin-http/routes/publish-content/route-helpers": "universal",
+      "./admin-http/routes/assistant/stored-credential-probe": "universal",
+      "./admin-http/routes/media/stored-media-response": "universal",
       "./themes/token-aliases": "universal",
       "./themes/theme-slots": "universal",
       "./publish/transfer": "universal",
@@ -872,6 +879,13 @@
         "src/publish/content/media-references.ts"
       ],
       "entries": {
+        "./public-http/routes/site/pages/extra-head": "presentation",
+        "./public-http/http/site/bare-page": "presentation",
+        "./public-http/http/site/render/components/marketing": "presentation",
+        "./admin-http/routes/system/site-share-password": "admin-http",
+        "./admin-http/routes/publish-content/route-helpers": "publish",
+        "./admin-http/routes/assistant/stored-credential-probe": "admin-http",
+        "./admin-http/routes/media/stored-media-response": "media",
         "./admin-http/http/redirects": "redirects",
         "./admin-http/routes/redirects/get-by-id": "redirects",
         "./admin-http/routes/redirects/hits": "redirects",
@@ -1090,6 +1104,41 @@
   "main": "./dist/core/index.js",
   "types": "./dist/core/index.d.ts",
   "exports": {
+    "./public-http/routes/site/pages/extra-head": {
+      "types": "./dist/public-http/routes/site/pages/extra-head.d.ts",
+      "import": "./dist/public-http/routes/site/pages/extra-head.js",
+      "default": "./dist/public-http/routes/site/pages/extra-head.js"
+    },
+    "./public-http/http/site/bare-page": {
+      "types": "./dist/public-http/http/site/bare-page.d.ts",
+      "import": "./dist/public-http/http/site/bare-page.js",
+      "default": "./dist/public-http/http/site/bare-page.js"
+    },
+    "./public-http/http/site/render/components/marketing": {
+      "types": "./dist/public-http/http/site/render/components/marketing.d.ts",
+      "import": "./dist/public-http/http/site/render/components/marketing.js",
+      "default": "./dist/public-http/http/site/render/components/marketing.js"
+    },
+    "./admin-http/routes/system/site-share-password": {
+      "types": "./dist/admin-http/routes/system/site-share-password.d.ts",
+      "import": "./dist/admin-http/routes/system/site-share-password.js",
+      "default": "./dist/admin-http/routes/system/site-share-password.js"
+    },
+    "./admin-http/routes/publish-content/route-helpers": {
+      "types": "./dist/admin-http/routes/publish-content/route-helpers.d.ts",
+      "import": "./dist/admin-http/routes/publish-content/route-helpers.js",
+      "default": "./dist/admin-http/routes/publish-content/route-helpers.js"
+    },
+    "./admin-http/routes/assistant/stored-credential-probe": {
+      "types": "./dist/admin-http/routes/assistant/stored-credential-probe.d.ts",
+      "import": "./dist/admin-http/routes/assistant/stored-credential-probe.js",
+      "default": "./dist/admin-http/routes/assistant/stored-credential-probe.js"
+    },
+    "./admin-http/routes/media/stored-media-response": {
+      "types": "./dist/admin-http/routes/media/stored-media-response.d.ts",
+      "import": "./dist/admin-http/routes/media/stored-media-response.js",
+      "default": "./dist/admin-http/routes/media/stored-media-response.js"
+    },
     "./themes/token-aliases": {
       "types": "./dist/themes/token-aliases.d.ts",
       "import": "./dist/themes/token-aliases.js",

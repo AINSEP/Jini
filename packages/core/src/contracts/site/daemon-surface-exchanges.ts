@@ -1,3 +1,5 @@
+import type { ToolExecutionContext } from "../../tool-registry.js";
+import type { ApprovalReceiptObserver } from "../../surface-exchanges.js";
 import type { SurfaceExchangeStore } from "../../surface-exchanges.js";
 
 /**
@@ -15,3 +17,22 @@ export interface AssistantSurfaceDeps {
    * and delivering to another leaves the human's answer unreachable until the deadline expires. */
   readonly surfaceExchanges: SurfaceExchangeStore;
 }
+
+/** Host port carried alongside the existing authenticated human exchange. */
+export type ChatDeleteSurfaceDeps = AssistantSurfaceDeps & {
+  assertChatDeleteAllowed?: (required: { toolId: string; principalId?: string }, optional?: Record<string, never>) => Promise<void>;
+  /** Re-read the human identity before displaying and after accepting a fresh access card. */
+  assertAccessApprover?: (required: { toolId: string; principalId: string }, optional?: Record<string, never>) => Promise<void>;
+};
+
+/**
+ * Surfaces for a confirmation, plus one OPTIONAL observe-only port (P3-T3.T). Why optional and
+ * per-call: only a trusted routine run has somewhere to project "waiting for approval", so every
+ * other run gets `undefined` and opens exactly the exchange it always did. The port can never answer:
+ * it receives the exchange's own receipts and, with `restorable: false`, refuses to restart a closed
+ * invocation after a late answer (a routine has no tab that could legitimately bring it back).
+ */
+export type HumanConfirmSurfaceDeps = ChatDeleteSurfaceDeps & {
+  approvalReceiptsFor?: (required: { ctx: Pick<ToolExecutionContext, "run" | "principal"> }, optional?: Record<string, never>) =>
+    { onApprovalReceipt: ApprovalReceiptObserver; restorable?: false } | undefined;
+};

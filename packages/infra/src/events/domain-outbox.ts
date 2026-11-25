@@ -96,12 +96,12 @@ function persistedParent({ event, readParent }: { event: DomainEvent; readParent
  * @complexity O(1) beyond the wrapped publish. */
 export function trackOutboxDelivery(
   { bus, tracker }: { bus: DeliveryBus; tracker: Tracker },
-  optional: { readParent?: ReadOutboxParent } = {},
+  optional: { readParent?: ReadOutboxParent; prepareEvent?: (required: { event: DomainEvent }, _optional?: Record<string, never>) => DomainEvent } = {},
 ): DeliveryBus {
   return { publish: (input) => {
     const traceparent = persistedParent({ event: input.event, readParent: optional.readParent });
     return tracker.trace({ name: "outbox.deliver", run: async (span) => {
-      const result = await bus.publish(input);
+      const result = await bus.publish(optional.prepareEvent ? { ...input, event: optional.prepareEvent({ event: input.event }) } : input);
       span.setOutcome({ outcome: "delivered", failed: false });
       return result;
     } }, { attributes: { "event.name": input.event.name }, ...(traceparent ? { traceparent } : {}) });

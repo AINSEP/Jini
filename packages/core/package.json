@@ -13,6 +13,8 @@
     "kind": "kernel",
     "runtime": "universal",
     "entries": {
+      "./tool-metadata/agent-pause": "universal",
+      "./contracts/site/approval-i18n": "universal",
       ".": "universal",
       "./composition": "universal",
       "./gated-mutations": "universal",
@@ -346,6 +348,16 @@
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "exports": {
+    "./tool-metadata/agent-pause": {
+      "types": "./dist/tool-metadata/agent-pause.d.ts",
+      "import": "./dist/tool-metadata/agent-pause.js",
+      "default": "./dist/tool-metadata/agent-pause.js"
+    },
+    "./contracts/site/approval-i18n": {
+      "types": "./dist/contracts/site/approval-i18n.d.ts",
+      "import": "./dist/contracts/site/approval-i18n.js",
+      "default": "./dist/contracts/site/approval-i18n.js"
+    },
     "./contracts/site/site-import-history": {
       "types": "./dist/contracts/site/site-import-history.d.ts",
       "import": "./dist/contracts/site/site-import-history.js",
