@@ -929,12 +929,24 @@
    "mediaDeleteRoute": "variable:f2d93d88cd"
   }
  },
+ "./admin-http/routes/media/delete-provider": {
+  "types": "./dist/admin-http/routes/media/delete-provider.d.ts",
+  "symbols": {
+   "MediaDeleteProviderRouteDeps": "interface:483391200c",
+   "MediaProviderRemoveFn": "type:27703b2c99",
+   "mediaDeleteProviderRoute": "variable:6ae8318618"
+  }
+ },
  "./admin-http/routes/media/get-providers": {
   "types": "./dist/admin-http/routes/media/get-providers.d.ts",
   "symbols": {
+   "MEDIA_PROVIDERS_REVISION_REQUEST_HEADER": "variable:6ec97e9fa7",
+   "MEDIA_PROVIDERS_REVISION_RESPONSE_HEADER": "variable:8fd36dd692",
    "MediaGetProvidersRouteDeps": "interface:d6eb9faa56",
-   "MediaProvidersGetFn": "type:16b02458ff",
-   "mediaGetProvidersRoute": "variable:5dd7e05f11"
+   "MediaProvidersGetFn": "type:9490a12be7",
+   "MediaProvidersReadModel": "interface:b68460b60b",
+   "mediaGetProvidersRoute": "variable:19ff273cc9",
+   "mediaProvidersReply": "function:9e38f529f6"
   }
  },
  "./admin-http/routes/media/import-url": {
@@ -945,12 +957,24 @@
    "mediaImportUrlRoute": "variable:b2cb43c8fc"
   }
  },
+ "./admin-http/routes/media/patch-provider": {
+  "types": "./dist/admin-http/routes/media/patch-provider.d.ts",
+  "symbols": {
+   "MediaPatchProviderRouteDeps": "interface:7a4cf80d4a",
+   "MediaProviderFieldsInput": "interface:1a3944660b",
+   "MediaProviderPatchFn": "type:3ec8c4a807",
+   "mediaPatchProviderRoute": "variable:36353f75ab"
+  }
+ },
  "./admin-http/routes/media/put-providers": {
   "types": "./dist/admin-http/routes/media/put-providers.d.ts",
   "symbols": {
-   "MediaProvidersSaveFn": "type:cfdd90db0c",
+   "MEDIA_PROVIDERS_STALE_CODE": "variable:df6dca5da9",
+   "MEDIA_PROVIDERS_STALE_MESSAGE": "variable:d3fc325954",
+   "MediaProvidersSaveFn": "type:c83872f703",
+   "MediaProvidersSaveOutcome": "type:c2886fde7e",
    "MediaPutProvidersRouteDeps": "interface:20c2813773",
-   "mediaPutProvidersRoute": "variable:1dc74cff14"
+   "mediaPutProvidersRoute": "variable:77b0e2208e"
   }
  },
  "./admin-http/routes/media/replace": {
@@ -6268,7 +6292,7 @@
    "SlugChangeCapture": "interface:05d0731170",
    "SlugChangeCaptureInput": "interface:9f3e111df6",
    "TombstoneRedirectRequired": "interface:f4f3fdbb50",
-   "UpdateRedirectInput": "interface:734145e871",
+   "UpdateRedirectInput": "interface:dbeacc755a",
    "UpdateRedirectRequired": "interface:297e5400ea",
    "VALID_STATUS_CODES": "variable:de29bf880f",
    "ValidatePatternRequired": "interface:a833e357d3",
