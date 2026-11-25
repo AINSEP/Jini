@@ -723,7 +723,10 @@
       "./screens/providers/hooks/use-always-allow.hooks": "browser",
       "./screens/library/library-i18n/create-library-dictionary": "universal",
       "./screens/library/library-i18n/library-i18n-data": "universal",
-      "./screens/voice-input/hooks/mic-capture": "browser"
+      "./screens/voice-input/hooks/mic-capture": "browser",
+      "./screens/settings/rules": "universal",
+      "./screens/media/rules": "universal",
+      "./shell/components/SecretInput/SecretInput": "browser"
     },
     "isolation": {
       "shared": [
@@ -1006,7 +1009,10 @@
         "./screens/observability/recent-errors-rules": "browser",
         "./screens/observability/tool-gaps-panel": "browser",
         "./screens/email/hooks/use-email-template-view.hooks": "browser",
-        "./screens/media/hooks/use-media-card-metadata.hooks": "media"
+        "./screens/media/hooks/use-media-card-metadata.hooks": "media",
+        "./screens/settings/rules": "universal",
+        "./screens/media/rules": "universal",
+        "./shell/components/SecretInput/SecretInput": "browser"
       }
     },
     "optionalPeers": {
@@ -4501,6 +4507,21 @@
       "types": "./dist/screens/voice-input/hooks/mic-capture.d.ts",
       "import": "./dist/screens/voice-input/hooks/mic-capture.js",
       "default": "./dist/screens/voice-input/hooks/mic-capture.js"
+    },
+    "./screens/settings/rules": {
+      "types": "./dist/screens/settings/rules.d.ts",
+      "import": "./dist/screens/settings/rules.js",
+      "default": "./dist/screens/settings/rules.js"
+    },
+    "./screens/media/rules": {
+      "types": "./dist/screens/media/rules.d.ts",
+      "import": "./dist/screens/media/rules.js",
+      "default": "./dist/screens/media/rules.js"
+    },
+    "./shell/components/SecretInput/SecretInput": {
+      "types": "./dist/shell/components/SecretInput/SecretInput.d.ts",
+      "import": "./dist/shell/components/SecretInput/SecretInput.js",
+      "default": "./dist/shell/components/SecretInput/SecretInput.js"
     }
   },
   "files": [

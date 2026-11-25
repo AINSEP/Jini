@@ -60,6 +60,7 @@ const fakeComponents: AdminKitComponents = {
       </div>
     );
   },
+  SecretInput: ({ label, toggleLabels: _toggleLabels, toggleAttrs: _toggleAttrs, revealed: _revealed, onRevealedChange: _onRevealedChange, ...rest }) => <input {...rest} type="password" aria-label={label} />,
   CodeWithLines: (p) => <pre data-wrap={p.wrap ? 'true' : 'false'}>{p.text}</pre>,
   CodeWrapToggle: (p) => <button type="button" aria-pressed={p.wrap} className={p.className} onClick={p.onToggle}>{p.t('Wrap lines')}</button>,
   PreviewModalShell: (p) => (

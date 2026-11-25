@@ -23,7 +23,7 @@ import type { AdminPluginProviderSettingField } from '../screens/plugins/api/plu
 import type { ByokConfig, ExecutionConfig } from '@jini-ai/core/contracts/execution';
 import type { CreateExecutionPortOptions, CursorPages, ExecutionCredentialController, ExecutionCredentialEffects, ExecutionCredentialPort, ExecutionCredentialView,
   ExecutionProbeTransport, FolderPathDropPort, HtmlPreviewPort, HtmlPreviewState, KitSaveState, SettingsSlice, SettingsSliceOptions, SourceConfigItem, SourceFieldSpec,
-  UseExecutionCredentialInput } from './kit-ui-types.js';
+  UseExecutionCredentialInput, SecretInputProps } from './kit-ui-types.js';
 import type { ExecutionPort, ProviderPreset } from '@jini-ai/core/contracts/execution';
 import type { QueryKey } from '@jini-ai/core/fetch';
 
@@ -231,6 +231,8 @@ export interface AdminKitComponents {
   RemixIcon: ComponentType<RemixIconProps>; Toast: ComponentType<ToastProps>; I18nProvider: ComponentType<I18nProviderProps>;
   SettingsDialogShell: ComponentType<SettingsDialogShellProps>; CodeWithLines: ComponentType<CodeWithLinesProps>;
   CodeWrapToggle: ComponentType<CodeWrapToggleProps>; PreviewModalShell: ComponentType<PreviewModalShellProps>;
+  /** A masked password/token/key input with an eye toggle; every `<input>` prop passes through, and the ref reaches the input. */
+  SecretInput: ComponentType<SecretInputProps & { ref?: Ref<HTMLInputElement> }>;
 }
 
 /* ---------- hooks ---------- */
@@ -631,6 +633,7 @@ export const SettingsDialogShell = slot('SettingsDialogShell');
 export const CodeWithLines = slot('CodeWithLines');
 export const CodeWrapToggle = slot('CodeWrapToggle');
 export const PreviewModalShell = slot('PreviewModalShell');
+export const SecretInput = slot('SecretInput');
 
 export const useAgentHandle: AdminKitHooks['useAgentHandle'] = (r, o) => useAdminKit().hooks.useAgentHandle(r, o);
 export const useFocusTrap: AdminKitHooks['useFocusTrap'] = (r, o) => useAdminKit().hooks.useFocusTrap(r, o);

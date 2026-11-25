@@ -115,7 +115,7 @@ export interface CursorPages<Filters, Item> {
   rows: Item[] | null; nextCursor: string | null; failure: { error: unknown } | null; appliedFilters: Filters;
   applyFilters: (filters: Filters) => void; loadingMore: boolean; loadMore: () => Promise<void>;
 }
-interface SecretToggleProps {
+export interface SecretToggleProps {
   readonly label: string; readonly toggleLabels?: { readonly show: string; readonly hide: string };
   readonly toggleAttrs?: Readonly<Record<string, string | boolean | undefined>>;
   readonly revealed?: boolean; readonly onRevealedChange?: (revealed: boolean) => void;
