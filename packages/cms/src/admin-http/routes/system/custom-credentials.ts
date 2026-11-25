@@ -63,9 +63,14 @@ export interface CustomCredentialDeleteRouteDeps extends CustomCredentialBaseDep
 }
 
 const parse = (raw: RouteInputContext) => ok({ value: credentialRouteInput({ raw }) });
+/** Every error this route can produce, shaped once so each handler below stays a thin dispatch —
+ *  mirrors `source-control-credentials.ts`'s own `sendStoreError`. */
 const rowsFor = ({ deps }: { deps: CustomCredentialBaseDeps }, _optional: Record<string, never> = {}) => credentialErrorRows({ classes: deps.storeErrors }, {
   extra: [{ type: deps.storeErrors.concurrentModification, status: 409, error: "CONCURRENT_MODIFICATION" }],
 });
+/** Shared workspace-path-param + `custom-credentials.write` authorization check every verb below
+ *  performs first — mirrors `source-control-credentials.ts`'s own `rejectUnlessAuthorized`.
+ *  Throws the refusal (nothing else reached) when the caller should stop. */
 const authorizeCustom = ({ authorize }: { authorize: JsonRouteAuthorize | undefined }, _optional: Record<string, never> = {}) => authorizeCredentials({ authorize, permission: PERMISSION, entityType: ENTITY_TYPE });
 
 /** The site's Access Tokens add action is its explicit yes; other sites still need their own yes. */
@@ -159,6 +164,7 @@ function withKeyUsage({ inventory, keys }: { inventory: readonly CustomCredentia
   });
 }
 
+/** `GET` the inventory (owner-session gate when a project key store is attached). */
 export const customCredentialListRoute = defineJsonRoute<CredentialRouteInput, { credentials: readonly CustomCredentialView[]; projectKeysAvailable?: true }, CustomCredentialListRouteDeps, CredentialRoutePrincipal>({
   method: "get",
   path: BASE_PATH,
@@ -174,8 +180,15 @@ export const customCredentialListRoute = defineJsonRoute<CredentialRouteInput, {
   },
 });
 
-/** The partial-update input: each field forwarded only when the request supplied that key.
- * @complexity O(1). */
+/**
+ * Builds the PUT body into `updateCustomCredential`'s partial-update input — each field is forwarded
+ * only when the request actually supplied that key (an omitted key must leave the stored value
+ * alone; see `UpdateCustomCredentialInput`'s own per-field "omitted = unchanged" doc). Extracted from
+ * the PUT handler below: six independent `!== undefined` checks inlined into one object literal
+ * pushed that handler's cyclomatic complexity to 10 against the repo's ceiling of 9 — this helper's
+ * own complexity is a flat 7 (one per checked field, no nesting), comfortably under the gate.
+ * @complexity O(1).
+ */
 function updateInput({ workspaceId, input }: { workspaceId: string; input: CredentialRouteInput }, _optional: Record<string, never> = {}) {
   return {
     workspaceId,
@@ -189,6 +202,7 @@ function updateInput({ workspaceId, input }: { workspaceId: string; input: Crede
   };
 }
 
+/** `PUT` one credential (owner-session shared-key replacement). */
 export const customCredentialUpdateRoute = defineJsonRoute<CredentialRouteInput, { credential: CustomCredentialView }, CustomCredentialUpdateRouteDeps, CredentialRoutePrincipal>({
   method: "put",
   path: `${BASE_PATH}/:id`,

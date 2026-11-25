@@ -6,13 +6,13 @@
  */
 import type { Express, Request, Response } from 'express';
 import type { RouteHostContext } from '@jini-ai/core/contracts/server';
-import { allowRouteBody, allowRouteOrigin, applyResponseHeaders, assertRequestFactsPort, requestScopedDeps, routeAuthorize, routeRequestInput, sendRouteException } from './adapter.js';
+import { allowRouteBody, allowRouteOrigin, applyAdmittedResponseHeaders, applyResponseHeaders, assertRequestFactsPort, requestScopedDeps, routeAuthorize, routeRequestInput, sendRouteException } from './adapter.js';
 import { deferredBodyReader } from './deferred-body.js';
 import { sendWebResponse } from './node-bridge.js';
 import type { RawRouteSpec, RouteMountOptions } from './types.js';
 
 /** The optional fields of a raw spec, settable in `defineRawRoute`'s second argument. */
-type RawRouteOptionalKey = 'requireSameOrigin' | 'maxBodyBytes' | 'ports' | 'readHeaders' | 'requestFacts' | 'responseHeaders' | 'bufferedReply';
+type RawRouteOptionalKey = 'requireSameOrigin' | 'maxBodyBytes' | 'ports' | 'readHeaders' | 'requestFacts' | 'responseHeaders' | 'admittedResponseHeaders' | 'bufferedReply';
 
 /**
  * Combines required route fields and optional settings into a fresh raw spec, pinning its generic
@@ -25,7 +25,7 @@ export function defineRawRoute<Deps, Context = undefined>(requiredArgs: Omit<Raw
 
 /**
  * Mounts one raw spec. Gates run in `mountJsonRoute`'s order — static response headers, body cap,
- * workspace, same-origin, authenticate — then `handle`, whose `raw.readBody` reads the request body only
+ * workspace (then `admittedResponseHeaders`), same-origin, authenticate — then `handle`, whose `raw.readBody` reads the request body only
  * when called (so a route that defers its body never reads an unauthorized one); a thrown error takes the same `onError` /
  * SEC-005 path. The returned `Response` is written with its status, every header (each `Set-Cookie`
  * on its own line) and its body: none ends the answer, a stream is piped and cancelled when the
@@ -66,6 +66,7 @@ async function answerRawRoute<Deps, Context>({ req, res, spec, deps: mountedDeps
   const raw = { ...routeRequestInput({ req, spec, deps }), readBody: deferredBodyReader({ req, res }) };
   if (!allowRouteBody({ req, res, spec })) return;
   if (spec.ports?.workspace) await spec.ports.workspace({ raw, deps });
+  applyAdmittedResponseHeaders({ res, raw, spec });
   if (!allowRouteOrigin({ req, res, spec, adapter })) return;
   const context = spec.ports?.authenticate ? await spec.ports.authenticate({ raw, res, deps }) : undefined;
   const authorize = routeAuthorize({ ports: spec.ports, deps, context });

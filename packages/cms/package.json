@@ -273,6 +273,7 @@
       "./admin-http/routes/skills/uninstall": "universal",
       "./admin-http/routes/skills/guidance": "universal",
       "./admin-http/routes/fs-files/custom-root": "universal",
+      "./admin-http/routes/fs-files/folder-picker": "universal",
       "./public-http/routes/ops/health": "universal",
       "./public-http/routes/publish-trust/handshake": "universal",
       "./public-http/routes/members/shared": "universal",
@@ -291,6 +292,7 @@
       "./public-http/routes/members/password-sign-in": "universal",
       "./public-http/routes/members/sign-in": "universal",
       "./public-http/routes/members/complete-sign-in": "universal",
+      "./public-http/routes/members/unlink-identity": "universal",
       "./public-http/routes/members/set-password": "universal",
       "./admin-http/routes/commerce/status": "universal",
       "./admin-http/routes/consent/routes": "universal",
@@ -2321,6 +2323,11 @@
       "import": "./dist/admin-http/routes/fs-files/custom-root.js",
       "default": "./dist/admin-http/routes/fs-files/custom-root.js"
     },
+    "./admin-http/routes/fs-files/folder-picker": {
+      "types": "./dist/admin-http/routes/fs-files/folder-picker.d.ts",
+      "import": "./dist/admin-http/routes/fs-files/folder-picker.js",
+      "default": "./dist/admin-http/routes/fs-files/folder-picker.js"
+    },
     "./public-http/routes/ops/health": {
       "types": "./dist/public-http/routes/ops/health.d.ts",
       "import": "./dist/public-http/routes/ops/health.js",
@@ -2410,6 +2417,11 @@
       "types": "./dist/public-http/routes/members/complete-sign-in.d.ts",
       "import": "./dist/public-http/routes/members/complete-sign-in.js",
       "default": "./dist/public-http/routes/members/complete-sign-in.js"
+    },
+    "./public-http/routes/members/unlink-identity": {
+      "types": "./dist/public-http/routes/members/unlink-identity.d.ts",
+      "import": "./dist/public-http/routes/members/unlink-identity.js",
+      "default": "./dist/public-http/routes/members/unlink-identity.js"
     },
     "./public-http/routes/members/set-password": {
       "types": "./dist/public-http/routes/members/set-password.d.ts",

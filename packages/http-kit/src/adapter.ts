@@ -63,6 +63,7 @@ export function mountJsonRoute<Input, Output, Deps, Context = undefined>({ app, 
       const raw = routeRequestInput({ req, spec, deps });
       if (!allowRouteBody({ req, res, spec })) return;
       if (spec.ports?.workspace) await spec.ports.workspace({ raw, deps });
+      applyAdmittedResponseHeaders({ res, raw, spec });
       if (!allowRouteOrigin({ req, res, spec, adapter })) return;
       let context: Context | undefined;
       if (spec.ports?.authenticate) context = await spec.ports.authenticate({ raw, res, deps });
@@ -112,6 +113,18 @@ export function assertRequestFactsPort({ spec }: { readonly spec: Pick<RouteRequ
  */
 export function requestScopedDeps<Deps>({ req, res, deps }: { readonly req: Request; readonly res: Response; readonly deps: Deps }, { requestDeps }: Pick<RouteMountOptions<Deps>, 'requestDeps'> = {}): Deps {
   return requestDeps ? requestDeps({ req, res, deps }) : deps;
+}
+
+/**
+ * The spec's `admittedResponseHeaders` for this request, called right after the workspace port: only an
+ * admitted request carries them, so the workspace refusal (a throw from that port) never does.
+ * Synchronous, so a mount without a workspace port keeps its tick order (adapter-pins.test.ts).
+ * @complexity O(h) in the header count.
+ */
+export function applyAdmittedResponseHeaders({ res, raw, spec }: {
+  readonly res: Response; readonly raw: RouteInputContext; readonly spec: Pick<RouteRequestOptIns, 'admittedResponseHeaders'>;
+}, _optional: Record<string, never> = {}): void {
+  if (spec.admittedResponseHeaders) applyResponseHeaders({ res, headers: spec.admittedResponseHeaders(raw) });
 }
 
 /** Sets static or reply headers; a no-op without any, so a route that declares none writes nothing extra.

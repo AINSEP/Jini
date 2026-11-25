@@ -70,6 +70,14 @@ export interface RouteRequestOptIns {
   requestFacts?: true;
   /** Static headers set on EVERY answer of the route, before any gate (a refusal carries them too). */
   responseHeaders?: Readonly<Record<string, string>>;
+  /**
+   * Request-dependent headers, set once the workspace port admitted the request — before same-origin,
+   * authenticate, parse and handle — so the workspace refusal never carries them and every later answer
+   * (a refusal, a thrown authorization or handler failure, the success) does. `undefined` sets none.
+   * For a hand-written route that set a header from the query right after its workspace check
+   * (`?kind=document`'s `Cache-Control: private, no-store`). Absent, nothing extra is written.
+   */
+  admittedResponseHeaders?: (raw: RouteInputContext) => Readonly<Record<string, string>> | undefined;
 }
 
 /**
