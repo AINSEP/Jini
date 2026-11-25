@@ -17,9 +17,9 @@ export function useAgentPluginUpdate(
   required: { plugin: AgentPluginListRow; expectedOldDigest: string; port: AgentPluginInstallPort; t: Translate; onUpdated: (plugin: AgentPluginListRow) => void } & AgentPluginInstallHost,
   _optional: Record<string, never> = {},
 ) {
-  const { plugin, expectedOldDigest, port, t, onUpdated, productName, isApiError, rules } = required;
+  const { plugin, expectedOldDigest, port, t, onUpdated, productName, isApiError, rules, folderZip } = required;
   const [open, setOpen] = useState(false);
-  const controller = useAgentPluginInstall({ port, t, onInstalled: onUpdated, productName, isApiError, rules }, { update: { pluginId: plugin.pluginId, expectedOldDigest } });
+  const controller = useAgentPluginInstall({ port, t, onInstalled: onUpdated, productName, isApiError, rules, folderZip }, { update: { pluginId: plugin.pluginId, expectedOldDigest } });
   return { open, onToggle: () => setOpen(!open), displayName: rules.agentPluginDisplayName(plugin), controller };
 }
 

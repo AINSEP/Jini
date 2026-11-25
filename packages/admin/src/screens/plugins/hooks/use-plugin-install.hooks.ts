@@ -3,8 +3,7 @@ import { useEffect, useRef, useState, type ChangeEvent, type FormEvent } from "r
 import type { PluginInstallPort, PluginInstallPreview, PluginInstallSource } from "./plugin-install-port.hooks.js";
 import type { PluginRules } from "../rules.js";
 import { useZipDrop } from "../../../shell/components/InstallTabCard/use-zip-drop.hooks.js";
-import { useFolderUpload } from "../../../shell/components/InstallTabCard/use-folder-upload.hooks.js";
-import * as folderZip from "@jini-ai/agent-plugins/folder-zip";
+import { useFolderUpload, type FolderZipPort } from "../../../shell/components/InstallTabCard/use-folder-upload.hooks.js";
 import { formatByteSize } from "@jini-ai/core/text";
 
 import { type Translate } from '@jini-ai/core/text';
@@ -48,7 +47,7 @@ function installFailureKey({ error, install, isApiError }: { error: unknown; ins
  * install it unlocks. Changing any input invalidates the preview, so an install always matches what
  * was reviewed.
  */
-export function usePluginInstall(required: { port: PluginInstallPort; t: Translate; onInstalled: () => Promise<void>; isApiError: IsInstallApiError; rules: Pick<PluginRules, "pluginInstallPreviewDisplay"> }, _optional = {}) {
+export function usePluginInstall(required: { port: PluginInstallPort; t: Translate; onInstalled: () => Promise<void>; isApiError: IsInstallApiError; folderZip: FolderZipPort; rules: Pick<PluginRules, "pluginInstallPreviewDisplay"> }, _optional = {}) {
   const [folder, setFolder] = useState("");
   const [zipFile, setZipFile] = useState<File | null>(null);
   const zipInputRef = useRef<HTMLInputElement | null>(null);
@@ -108,7 +107,7 @@ export function usePluginInstall(required: { port: PluginInstallPort; t: Transla
   const drop = useZipDrop({ isLocked: () => locked.current, onDropFiles: ({ files }, _optional = {}) => chooseZip({ file: files[0] ?? null }) });
   // A picked folder becomes `<folder>.zip` and then IS the chosen zip: same limit, preview, install.
   const folderUpload = useFolderUpload({
-    folderZip, maxBytes: ZIP_MAX_BYTES, tooLarge: TOO_LARGE, isLocked: () => locked.current, onZipped: (file) => chooseZip({ file }),
+    folderZip: required.folderZip, maxBytes: ZIP_MAX_BYTES, tooLarge: TOO_LARGE, isLocked: () => locked.current, onZipped: (file) => chooseZip({ file }),
     onError: ({ key }, _optional = {}) => { invalidate(); setZipFile(null); setError(required.t(key)); },
   });
   return {

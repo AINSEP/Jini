@@ -3,8 +3,7 @@ import { useRef, useState, type ChangeEvent } from "react";
 import type { AgentPluginListRow } from "../../../agent-plugins/models.js";
 
 import { useZipDrop } from "../../../shell/components/InstallTabCard/use-zip-drop.hooks.js";
-import { useFolderUpload } from "../../../shell/components/InstallTabCard/use-folder-upload.hooks.js";
-import * as folderZip from "@jini-ai/agent-plugins/folder-zip";
+import { useFolderUpload, type FolderZipPort } from "../../../shell/components/InstallTabCard/use-folder-upload.hooks.js";
 import { formatByteSize } from "@jini-ai/core/text";
 import type { PluginRules } from "../rules.js";
 import type { IsInstallApiError } from "./use-plugin-install.hooks.js";
@@ -100,6 +99,8 @@ function fileProblem(file: File): string | null {
 export interface AgentPluginInstallHost {
   readonly productName: string;
   readonly isApiError: IsInstallApiError;
+  /** The host's folder zipper (this package never imports the implementation). */
+  readonly folderZip: FolderZipPort;
   readonly rules: Pick<PluginRules, "agentPluginDisplayName" | "agentPluginWarningText">;
 }
 
@@ -108,11 +109,11 @@ export function useAgentPluginInstall(
   options: { update?: { pluginId: string; expectedOldDigest: string } } = {},
 ) {
   const {
-    port, t, onInstalled, warnings, setWarnings, file, setFile, replace, setReplace, busy, setBusy, error, setError, installed, setInstalled, inputRef, locked,
+    port, t, onInstalled, folderZip, warnings, setWarnings, file, setFile, replace, setReplace, busy, setBusy, error, setError, installed, setInstalled, inputRef, locked,
     choose,
   } = useAgentPluginInstallState({ required });
   const { install } = createAgentPluginInstaller({ locked, file, setBusy, setError, port, replace, options, setWarnings, t, onInstalled, setInstalled, setFile, setReplace, host: required });
-  const { drop, folderUpload } = useAgentPluginUploadSources({ locked, choose, setInstalled, setError, t, setFile });
+  const { drop, folderUpload } = useAgentPluginUploadSources({ locked, choose, setInstalled, setError, t, setFile, folderZip });
 
   const installedMessage = installed ? t(installedMessageKey({ alreadyInstalled: installed.alreadyInstalled, updating: options.update !== undefined })).replace("{name}", () => installed.name) : null;
 
@@ -140,8 +141,8 @@ export function useAgentPluginInstall(
 }
 
 function useAgentPluginUploadSources(
-  { locked, choose, setInstalled, setError, t, setFile }:
-    Pick<ReturnType<typeof useAgentPluginInstallState>, "locked" | "choose" | "setInstalled" | "setError" | "t" | "setFile">
+  { locked, choose, setInstalled, setError, t, setFile, folderZip }:
+    Pick<ReturnType<typeof useAgentPluginInstallState>, "locked" | "choose" | "setInstalled" | "setError" | "t" | "setFile" | "folderZip">
 ) {
   const drop = useZipDrop({
     isLocked: () => locked.current,
@@ -203,7 +204,7 @@ function useAgentPluginInstallState(
   { required }:
     { required: Parameters<typeof useAgentPluginInstall>[0] }
 ) {
-  const { port, t, onInstalled } = required;
+  const { port, t, onInstalled, folderZip } = required;
   const [warnings, setWarnings] = useState<readonly string[]>([]);
   const [file, setFile] = useState<File | null>(null);
   const [replace, setReplace] = useState(false);
@@ -225,7 +226,7 @@ function useAgentPluginInstallState(
     if (problem) setError(t(problem));
   }
   return {
-    port, t, onInstalled, warnings, setWarnings, file, setFile, replace, setReplace, busy, setBusy, error, setError, installed, setInstalled, inputRef, locked,
+    port, t, onInstalled, folderZip, warnings, setWarnings, file, setFile, replace, setReplace, busy, setBusy, error, setError, installed, setInstalled, inputRef, locked,
     choose,
   };
 }

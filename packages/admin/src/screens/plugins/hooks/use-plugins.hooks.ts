@@ -6,6 +6,7 @@ import type { PluginRules, PluginsLocaleTranslate } from "../rules.js";
 
 import { useContentRefreshSubscription } from "../../../shell/hooks/use-content-refresh-subscription.hooks.js";
 import type { PluginsPort } from "./plugins-port.hooks.js";
+import type { FolderZipPort } from "../../../shell/components/InstallTabCard/use-folder-upload.hooks.js";
 import { usePluginInstall, type IsInstallApiError, type PluginInstallController } from "./use-plugin-install.hooks.js";
 import type { PluginInstallPort } from "./plugin-install-port.hooks.js";
 
@@ -52,6 +53,8 @@ export interface PluginsDependencies {
   translate: PluginsLocaleTranslate;
   /** The host's API-error test, handed to the install controller. */
   isApiError: IsInstallApiError;
+  /** The host's folder zipper, handed to the install controller. */
+  folderZip: FolderZipPort;
   /** The host's bound rule functions. */
   rules: Pick<PluginRules, "describeApiError" | "pluginInstallPreviewDisplay" | "PLUGINS_RESOURCE">;
 }
@@ -142,14 +145,14 @@ function findPluginById({ plugins, id }: {
  * wire must never be unlocked by an UNRELATED row's request settling — see both `finally` blocks.
  * @overallScore 92
  */
-export function usePlugins({ port, locale, t, installPort, translate, isApiError, rules }: PluginsDependencies): PluginsController {
+export function usePlugins({ port, locale, t, installPort, translate, isApiError, folderZip, rules }: PluginsDependencies): PluginsController {
   const {
     loader, plugins, canInstallFolder, write, error, rowError, setRowError, rowSavingId, setRowSavingId, expandedIds, setExpandedIds, inspectedPluginId,
     setInspectedPluginId, settingsPluginId, setSettingsPluginId, settingsNotice, setSettingsNotice, pendingRemoveId, setPendingRemoveId, reload,
   } = usePluginsState({ port, locale, t, translate, rules });
   const { onToggleEnabled, onRemovePlugin } = createPluginActions({ rowSavingId, setRowSavingId, setRowError, write, port, loader, locale, t, translate, rules });
 
-  const install = usePluginInstall({ port: installPort, t, onInstalled: reload, isApiError, rules });
+  const install = usePluginInstall({ port: installPort, t, onInstalled: reload, isApiError, folderZip, rules });
 
   return {
     install,

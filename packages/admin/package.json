@@ -741,6 +741,9 @@
       "./screens/plugins/AgentPluginRow": "browser",
       "./screens/plugins/PackageFilesModal": "browser",
       "./screens/plugins/PluginPackageFilesModal": "browser",
+      "./screens/plugins/AgentPluginUpdateControl": "browser",
+      "./screens/plugins/AddAgentPluginPanel": "browser",
+      "./screens/plugins/AddPluginPanel": "browser",
       "./screens/plugins/hooks/use-plugins.hooks": "browser",
       "./screens/plugins/hooks/use-agent-plugin-details-modal.hooks": "browser",
       "./screens/plugins/hooks/use-agent-plugin-update.hooks": "browser",
@@ -1059,6 +1062,9 @@
         "./screens/plugins/AgentPluginRow": "browser",
         "./screens/plugins/PackageFilesModal": "browser",
         "./screens/plugins/PluginPackageFilesModal": "browser",
+        "./screens/plugins/AgentPluginUpdateControl": "browser",
+        "./screens/plugins/AddAgentPluginPanel": "browser",
+        "./screens/plugins/AddPluginPanel": "browser",
         "./screens/plugins/hooks/use-plugins.hooks": "browser",
         "./screens/plugins/hooks/use-agent-plugin-details-modal.hooks": "browser",
         "./screens/plugins/hooks/use-agent-plugin-update.hooks": "browser",
@@ -4652,6 +4658,21 @@
       "types": "./dist/screens/plugins/PluginPackageFilesModal.d.ts",
       "import": "./dist/screens/plugins/PluginPackageFilesModal.js",
       "default": "./dist/screens/plugins/PluginPackageFilesModal.js"
+    },
+    "./screens/plugins/AgentPluginUpdateControl": {
+      "types": "./dist/screens/plugins/AgentPluginUpdateControl.d.ts",
+      "import": "./dist/screens/plugins/AgentPluginUpdateControl.js",
+      "default": "./dist/screens/plugins/AgentPluginUpdateControl.js"
+    },
+    "./screens/plugins/AddAgentPluginPanel": {
+      "types": "./dist/screens/plugins/AddAgentPluginPanel.d.ts",
+      "import": "./dist/screens/plugins/AddAgentPluginPanel.js",
+      "default": "./dist/screens/plugins/AddAgentPluginPanel.js"
+    },
+    "./screens/plugins/AddPluginPanel": {
+      "types": "./dist/screens/plugins/AddPluginPanel.d.ts",
+      "import": "./dist/screens/plugins/AddPluginPanel.js",
+      "default": "./dist/screens/plugins/AddPluginPanel.js"
     },
     "./screens/plugins/hooks/use-plugins.hooks": {
       "types": "./dist/screens/plugins/hooks/use-plugins.hooks.d.ts",
