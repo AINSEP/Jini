@@ -1,7 +1,7 @@
 import { act, render, renderHook, screen, waitFor } from '@testing-library/react';
 import { createRef, type ReactNode } from 'react';
 import { describe, expect, it, vi } from 'vitest';
-import { AdminKitProvider, Button, Icon, InfoTip, TabBar, type AdminKitChat, type KitIconName, useAdminKitChatPosters, useAdminKitValues, useAdminThemeKit, useChatT, useDirtyGuard, useFetchQuery, useMediaProviderRules, useT } from '../kit.js';
+import { AdminKitProvider, Button, Icon, InfoTip, TabBar, type AdminKitChat, type InfoTipProps, type KitIconName, useAdminKitChatPosters, useAdminKitValues, useAdminThemeKit, useChatT, useDirtyGuard, useFetchQuery, useMediaProviderRules, useT } from '../kit.js';
 import {
   CodeWithLines, CodeWrapToggle, I18nProvider, PreviewModalShell, RemixIcon, SettingsDialogShell, Toast,
   useAdminKitChatValues, useCodeWrap, useCopyToClipboard, useFabPosition, useInfoTip, usePanelPosition, useSelectDropdown, useSerialWrites, useTabBarKeyboard,
@@ -449,5 +449,26 @@ describe('admin kit: chat factories (A-K2-0 batch 3)', () => {
     const client = chat().createAssistantChatsClient({ ports: { statusOf: () => 500, sleep: async () => {}, reportPermanent: () => {}, requestRunPrefixes: [] } });
     expect(client.resolveRememberedConversation({ remembered: 'a', conversations: [], listFailed: false })).toBe('forget');
     expect(chat().createAgentInventorySnapshot({ storage: sessionStorage, key: 'k' }).read({})).toBeUndefined();
+  });
+});
+
+describe('admin kit: plugin admin-surface values and provider-setting rule', () => {
+  it('hands screens the exact injected protocol functions, not copies', () => {
+    const adminSurfaceFrameAttributes = vi.fn(() => ({ src: 's', title: 't', sandbox: 'allow-scripts', referrerPolicy: 'no-referrer' as const }));
+    const isProviderSettingRequired = vi.fn(() => true);
+    const values = { ...fakeAdminKit().values, adminSurfaceFrameAttributes, isProviderSettingRequired };
+    const wrapper = ({ children }: { children: ReactNode }) => <AdminKitProvider kit={fakeAdminKit({ values })}>{children}</AdminKitProvider>;
+    const got = renderHook(() => useAdminKitValues({}, {}), { wrapper }).result.current;
+    expect(got.adminSurfaceFrameAttributes({ src: 's', title: 't' }).sandbox).toBe('allow-scripts');
+    expect(adminSurfaceFrameAttributes).toHaveBeenCalledWith({ src: 's', title: 't' });
+    expect(got.isProviderSettingRequired({ field: { required: true }, values: {} })).toBe(true);
+    expect(got.createAdminSurfaceMount({ surfaceId: 'a' }).mountId).toBe('fake-mount-a');
+  });
+  it('passes a custom tip controller through the InfoTip slot', () => {
+    const useTip = () => { throw new Error('unused'); };
+    const seen: InfoTipProps[] = [];
+    const kit = fakeAdminKit({ components: { InfoTip: (props) => { seen.push(props); return null; } } });
+    renderWithAdminKit(<InfoTip label="x" useTip={useTip} />, { kit });
+    expect(seen[0]?.useTip).toBe(useTip);
   });
 });

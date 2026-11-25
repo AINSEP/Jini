@@ -289,6 +289,17 @@ const fakeValuesDraft: AdminKitValues = {
   infoTipBubbleStyle: ({ top, left }) => ({ top, left }),
   renderMarkdownToSafeHtml: (markdown) => markdown.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;'),
   sourceDisplayLabel: ({ source, fieldSpecs }) => source.label ?? source.fields[fieldSpecs[0]?.key ?? ''] ?? source.id,
+  // Plugin admin-surface protocol and provider-setting rule: neutral envelopes with the hosts' shapes.
+  adminSurfaceFrameAttributes: ({ src, title }) => ({ src, title, sandbox: 'allow-scripts', referrerPolicy: 'no-referrer' }),
+  readAdminSurfaceTheme: ({ scheme }) => ({ scheme, tokens: {} }),
+  adminSurfaceThemeMessage: ({ mountId, theme }) => ({ kind: 'theme', mountId, theme }),
+  adminSurfaceInitMessage: ({ mountId }, optional) => ({ kind: 'init', mountId, ...optional }),
+  adminSurfaceActionResponse: ({ request, outcome }) => ({ kind: 'action-response', mountId: request.mountId, requestId: request.requestId, ...outcome }),
+  createAdminSurfaceMount: ({ surfaceId }) => ({ surfaceId, mountId: `fake-mount-${surfaceId}` }),
+  openAdminSurfaceLink: () => Promise.resolve({ ok: false, ignored: 'fake' }),
+  readAdminSurfaceResize: () => null,
+  validateAdminSurfaceMessage: () => ({ ok: false, ignored: 'fake' }),
+  isProviderSettingRequired: ({ field }) => field.required === true,
 };
 const fakeValues: AdminKitValues = Object.freeze(fakeValuesDraft);
 
