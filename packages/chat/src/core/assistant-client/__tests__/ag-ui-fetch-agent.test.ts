@@ -7,6 +7,60 @@ import type { AgUiEvent } from '../../ag-ui/event-projection.js';
 const input: RunAgentInput = { threadId: 'thread', runId: 'run', state: null, messages: [], tools: [], context: [], forwardedProps: {} };
 const names = { usage: 'usage', status: 'status', extensionPrefix: 'ext.' };
 
+test('reports byte activity before a split event completes', async () => {
+  let push: ReadableStreamDefaultController<Uint8Array> | undefined;
+  const body = new ReadableStream<Uint8Array>({ start(controller) { push = controller; } });
+  const onBytes = vi.fn();
+  const agent = createAgUiFetchAgent({ request: async () => new Response(body) }, { onBytes });
+  const observer = { next: vi.fn(), error: vi.fn(), complete: vi.fn() };
+  const subscribed = agent.run(input).subscribe(observer);
+  const bytes = new TextEncoder();
+  const heartbeat = bytes.encode(': heartbeat\n\n');
+  const prefix = bytes.encode('data: {"type":"TEXT_MESSAGE_CONTENT","messageId":"m","delta":"hel');
+  const suffix = bytes.encode('lo"}\n\n');
+  push!.enqueue(new Uint8Array());
+  push!.enqueue(heartbeat);
+  await vi.waitFor(() => expect(onBytes).toHaveBeenCalledOnce());
+  expect(onBytes).toHaveBeenCalledWith({ byteLength: heartbeat.byteLength });
+  expect(observer.next).not.toHaveBeenCalled();
+  push!.enqueue(prefix);
+  await vi.waitFor(() => expect(onBytes).toHaveBeenCalledTimes(2));
+  expect(observer.next).not.toHaveBeenCalled();
+  push!.enqueue(suffix);
+  await vi.waitFor(() => expect(observer.next).toHaveBeenCalledOnce());
+  expect(observer.next).toHaveBeenCalledWith({ type: EventType.TEXT_MESSAGE_CONTENT, messageId: 'm', delta: 'hello' });
+  expect(onBytes.mock.calls).toEqual([
+    [{ byteLength: heartbeat.byteLength }], [{ byteLength: prefix.byteLength }], [{ byteLength: suffix.byteLength }],
+  ]);
+  expect(onBytes.mock.invocationCallOrder[2]).toBeLessThan(observer.next.mock.invocationCallOrder[0]!);
+  expect(observer.complete).not.toHaveBeenCalled();
+  push!.close();
+  await subscribed;
+  expect(observer.complete).toHaveBeenCalledOnce();
+  expect(observer.error).not.toHaveBeenCalled();
+});
+
+test('uses the supplied controller and cancels the reader once', async () => {
+  const cancel = vi.fn();
+  const body = new ReadableStream<Uint8Array>({ cancel });
+  const request = vi.fn(async () => new Response(body));
+  const abortController = new AbortController();
+  const agent = createAgUiFetchAgent({ request }, { abortController });
+  const observer = { next: vi.fn(), error: vi.fn(), complete: vi.fn() };
+  const subscribed = agent.run(input).subscribe(observer);
+  await vi.waitFor(() => expect(body.locked).toBe(true));
+  expect(agent.abortController).toBe(abortController);
+  expect(request).toHaveBeenCalledWith({ input, signal: abortController.signal });
+  abortController.abort();
+  await vi.waitFor(() => expect(cancel).toHaveBeenCalledOnce());
+  await subscribed;
+  expect(cancel).toHaveBeenCalledOnce();
+  expect(body.locked).toBe(false);
+  expect(observer.error).toHaveBeenCalledOnce();
+  expect(observer.next).not.toHaveBeenCalled();
+  expect(observer.complete).not.toHaveBeenCalled();
+});
+
 test('joins split SSE frames, ignores comments and delivers the first event before response completion', async () => {
   let push: ReadableStreamDefaultController<Uint8Array> | undefined;
   const body = new ReadableStream<Uint8Array>({ start(controller) { push = controller; } });

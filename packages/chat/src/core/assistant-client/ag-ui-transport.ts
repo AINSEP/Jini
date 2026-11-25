@@ -18,7 +18,7 @@ import type { ChatMessage } from "../messages.js";
 import type { RunHandlers, StartRunInput } from "../transport.js";
 import type { AgentEvent } from "@jini-ai/core/contracts/site/chat-core";
 
-export { createAgUiFetchAgent } from "./ag-ui-fetch-agent.js";
+export { createAgUiFetchAgent, type AgUiFetchAgent } from "./ag-ui-fetch-agent.js";
 
 export interface AgUiClient {
  readonly abortController: AbortController;

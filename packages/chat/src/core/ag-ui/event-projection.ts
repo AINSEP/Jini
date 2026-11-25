@@ -6,7 +6,7 @@
  * reads them back. Strict interruption ordering closes a message before a tool starts. IDs and custom event names
  * are injected, with official AG-UI types authoritative; auth, routes and encoder stay with the host.
  * The host emits RUN_STARTED and terminal RUN_FINISHED/RUN_ERROR outside this pure projection. */
-import { EventType, InterruptSchema, RunAgentInputSchema, type AGUIEvent, type Interrupt } from '@ag-ui/core';
+import { EventType, InterruptSchema, RunAgentInputSchema, type AGUIEvent, type Interrupt, type RunAgentInput } from '@ag-ui/core';
 import { readSseFrames, readTerminalReason, translateRunFrame, type RunFrameCarry, type RunFrameOutcome, type RunNotices } from '../run-events/entry.js';
 import type { AgentEvent } from "@jini-ai/core/contracts/site/chat-core";
 
@@ -315,6 +315,12 @@ export function readConfirmationResume({ input, threadId, runId, interruptId }: 
   if (value.resume?.length !== 1) return undefined;
   const entry = value.resume[0]!;
   if (entry.interruptId !== interruptId) return undefined;
+  return readResumeDecision({ entry });
+}
+
+function readResumeDecision({ entry }: {
+  entry: NonNullable<RunAgentInput['resume']>[number];
+}, _optional: Record<string, never> = {}): { decision: 'allow' | 'deny' } | undefined {
   if (entry.status === 'cancelled') return { decision: 'deny' };
   if (entry.payload === 'allow') return { decision: 'allow' };
   if (['deny', 'dismissed'].includes(entry.payload)) return { decision: 'deny' };

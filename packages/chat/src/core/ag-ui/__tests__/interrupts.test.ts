@@ -1,5 +1,5 @@
 import { expect, test, vi } from 'vitest';
-import { EventSchemas, EventType, type RunAgentInput } from '@ag-ui/core';
+import { EventSchemas, EventType, RunAgentInputSchema, type RunAgentInput } from '@ag-ui/core';
 import { confirmationInterrupt, readConfirmationResume, createAgUiPauseStore } from '../event-projection.js';
 import { createAgUiRunClient, type AgUiClient } from '../../assistant-client/ag-ui-transport.js';
 
@@ -10,6 +10,12 @@ const resume: RunAgentInput = { threadId: 'thread', runId: 'fresh', parentRunId:
 test.each(['allow', 'deny', 'dismissed'])('reads one matching %s confirmation and treats dismissal as denial', decision => {
   expect(readConfirmationResume({ input: { ...resume, resume: [{ interruptId: 'approval', status: 'resolved', payload: decision }] }, ...handoff }))
     .toEqual({ decision: decision === 'allow' ? 'allow' : 'deny' });
+});
+
+test('rejects a matching resume with an unrecognized resolved payload', () => {
+  const input = { ...resume, resume: [{ interruptId: 'approval', status: 'resolved', payload: 'unknown' }] };
+  expect(RunAgentInputSchema.safeParse(input).success).toBe(true);
+  expect(readConfirmationResume({ input, ...handoff })).toBeUndefined();
 });
 
 test('rejects wrong thread, parent, interrupt, repeated settlement and forwardedProps answers', () => {
