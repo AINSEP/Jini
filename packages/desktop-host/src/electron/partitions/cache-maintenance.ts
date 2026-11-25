@@ -1,8 +1,10 @@
 import path from 'node:path';
 import type { StrictRead } from './claim-sources.js';
-import type { HolderRecord } from './holder-registry.js';
+import type { HolderRecord, PartitionFsPort } from './holder-registry.js';
+import type { CodeCacheMark } from './maintenance-marker.js';
+import { listCandidates } from './partition-root.js';
 import { DEFAULT_ASIDE_DIR_NAME } from './partition-pass.js';
-import type { PartitionWriterContext } from './profile-interlock.js';
+import type { PartitionInterlock, PartitionWriterContext } from './profile-interlock.js';
 
 /**
  * Cache maintenance for site partitions. Every mutation here is cache-only (`Cache`, `Code Cache`) and
@@ -193,4 +195,136 @@ export async function clearPartitionCacheOnce(
   }
   await mark(required, plan.mode, { state: 'pending', reason: act.reason });
   return act;
+}
+
+export interface CodeCacheMarker {
+  readCodeCache(): Promise<CodeCacheMark>;
+  writeCodeCachePending(required: { forVersion: string; pending: string[] }): Promise<void>;
+  writeLaunchVersion(required: { version: string }): Promise<void>;
+  settleCodeCache(required: { partition: string }): Promise<void>;
+}
+export interface CodeCacheInterlock {
+  withPartitionWriter: PartitionInterlock['withPartitionWriter'];
+  readHoldersStrict: () => Promise<StrictRead<HolderRecord[]>>;
+  isManaged: (name: string) => boolean;
+  newToken: () => string;
+}
+export type CodeCacheFsPort = CacheFsPort & Pick<PartitionFsPort, 'readdir' | 'lstat' | 'realpath'>;
+export interface ClearCodeCacheOnUpdateRequired {
+  interlock: CodeCacheInterlock; fs: CodeCacheFsPort; marker: CodeCacheMarker;
+  evidence: PackagedEvidence; version: string; isUpdate: boolean;
+}
+export type CodeCacheUpdateResult =
+  | { state: 'ran'; update: boolean; cleared: string[]; kept: Array<{ partition: string; reason: PendingReason }> }
+  | { state: 'skipped'; reason: 'evidence-no-go' | 'evidence-unknown' | 'writer-busy' | 'root-unknown' | 'marker-failed' };
+type CodeCacheRun = Exclude<CodeCacheUpdateResult, { state: 'skipped'; reason: 'writer-busy' }>;
+interface CodeCachePass { required: ClearCodeCacheOnUpdateRequired; ctx: PartitionWriterContext; asideDirName: string }
+
+/** The managed, contained partition folders under the root; `null` when the root cannot be read for sure. */
+async function listManaged(pass: CodeCachePass): Promise<{ root: string; names: string[] } | null> {
+  const root = await pass.ctx.resolveRoot();
+  if (root.state === 'absent') return { root: '', names: [] };
+  if (root.state !== 'ok') return null;
+  const list = await listCandidates({ root: root.root, fs: pass.required.fs, isManaged: pass.required.interlock.isManaged });
+  return list.state === 'ok' ? { root: root.root, names: list.candidates.map(c => c.name) } : null;
+}
+
+/**
+ * Pending is durable before the launch version moves: a crash between the two re-detects the update next
+ * start and re-adds the same partitions (idempotent), whereas the reverse order could lose the clears.
+ */
+async function recordUpdate(pass: CodeCachePass, pending: readonly string[], names: readonly string[]): Promise<string[] | null> {
+  const next = [...new Set([...pending, ...names])];
+  try {
+    await pass.required.marker.writeCodeCachePending({ forVersion: pass.required.version, pending: next });
+    await pass.required.marker.writeLaunchVersion({ version: pass.required.version });
+    return next;
+  } catch { return null; }
+}
+
+/** Renames `Code Cache` of each pending, unheld partition; busy and held ones stay pending for the next start. */
+async function clearPending(pass: CodeCachePass, root: string, pending: readonly string[], present: ReadonlySet<string>) {
+  const { interlock, fs, marker } = pass.required;
+  const boot: BootCacheInterlock = { phase: 'boot', writer: pass.ctx, readHoldersStrict: interlock.readHoldersStrict, newToken: interlock.newToken };
+  const cleared: string[] = [], kept: Array<{ partition: string; reason: PendingReason }> = [];
+  for (const name of pending) {
+    // A pending partition that is gone, or no longer a contained managed folder, has nothing to clear here.
+    if (!present.has(name)) { await marker.settleCodeCache({ partition: name }).catch(() => {}); continue; }
+    const result = await renameCacheAside({ partition: { name, dir: path.join(root, name) }, sub: 'Code Cache', interlock: boot, fs }, { asideDirName: pass.asideDirName });
+    // ENOENT: no code cache from the old version remains, which is what the update clear is for.
+    if (result.state === 'pending' && result.reason !== 'missing') { kept.push({ partition: name, reason: result.reason }); continue; }
+    await marker.settleCodeCache({ partition: name }).catch(() => {});
+    cleared.push(name);
+  }
+  return { cleared, kept };
+}
+
+async function codeCacheUnderWriter(pass: CodeCachePass): Promise<CodeCacheRun> {
+  const { marker, evidence, version, isUpdate } = pass.required;
+  const read = await marker.readCodeCache();
+  // An unreadable record counts as an update launch: strictly more clears of a re-creatable cache.
+  const state = read.state === 'ok' ? read : { lastLaunchVersion: null, pending: [] as string[] };
+  const update = isUpdate || state.lastLaunchVersion !== version;
+  const managed = await listManaged(pass);
+  if (!managed) return { state: 'skipped', reason: 'root-unknown' };
+  const pending = update ? await recordUpdate(pass, state.pending, managed.names) : state.pending;
+  if (!pending) return { state: 'skipped', reason: 'marker-failed' };
+  if (evidence.clearOps.clearCodeCaches !== 'go') return evidenceSkip(evidence.clearOps.clearCodeCaches);
+  const { cleared, kept } = await clearPending(pass, managed.root, pending, new Set(managed.names));
+  return { state: 'ran', update, cleared, kept };
+}
+
+/**
+ * Boot: on an update launch (flag or version change) every managed partition's `Code Cache` becomes
+ * pending; then, under the writer lock, each pending partition no holder lists is renamed aside. The
+ * rename runs only with `'go'` evidence for the code-cache clear. Never throws.
+ * @complexity O(partitions) fs operations.
+ */
+export async function clearCodeCacheOnUpdate(
+  required: ClearCodeCacheOnUpdateRequired,
+  { asideDirName = DEFAULT_ASIDE_DIR_NAME }: { asideDirName?: string } = {},
+): Promise<CodeCacheUpdateResult> {
+  try {
+    const outcome = await required.interlock.withPartitionWriter({ run: ctx => codeCacheUnderWriter({ required, ctx, asideDirName }) });
+    return outcome.state === 'ran' ? outcome.value : { state: 'skipped', reason: 'writer-busy' };
+  } catch { return { state: 'skipped', reason: 'writer-busy' }; }
+}
+
+export interface MaybeClearCodeCacheAtOpenRequired {
+  session: { clearCodeCaches(options: Record<string, never>): Promise<void> };
+  /** Size of this partition's `Code Cache`; a bounded walk that answers unknown rather than guessing. */
+  measure: () => Promise<SizeRead>;
+  evidence: PackagedEvidence;
+  /** Bound to this partition: drops it from the update-pending list. */
+  marker: { settle(): Promise<void> };
+  clock: TimeoutClock;
+}
+export type CodeCacheOpenResult =
+  | { state: 'cleared'; bytes: number }
+  | { state: 'below-threshold'; bytes: number }
+  | { state: 'pending'; reason: 'failed' | 'timeout'; settlement?: Promise<Settlement> }
+  | { state: 'skipped'; reason: 'evidence-no-go' | 'evidence-unknown' | 'unmeasured' };
+
+/**
+ * Open-time code-cache clear. It runs only as the interlock's `openMaintenance` hook (step 2.5), which
+ * already found no other holder and has not yet marked the partition held, so no window or guest uses the
+ * session while it clears; it does no holders check of its own. A second window of a held site must skip
+ * it: that window shares the live session, whose pages are already running and may be compiling into the
+ * code cache, and the clear would race them; the interlock returns `already-held` without calling it.
+ * Success is marked only when `clearCodeCaches` resolves; a timeout is reported apart from the settlement.
+ * @complexity O(1) plus one measurement.
+ */
+export async function maybeClearCodeCacheAtOpen(
+  { session, measure, evidence, marker, clock }: MaybeClearCodeCacheAtOpenRequired,
+  { maxBytes = 64 * 2 ** 20, timeoutMs = 10_000 }: { maxBytes?: number; timeoutMs?: number } = {},
+): Promise<CodeCacheOpenResult> {
+  if (evidence.clearOps.clearCodeCaches !== 'go') return evidenceSkip(evidence.clearOps.clearCodeCaches);
+  const size = await measure().catch((error): SizeRead => ({ state: 'unknown', reason: describe(error) }));
+  if (size.state === 'unknown') return { state: 'skipped', reason: 'unmeasured' };
+  if (size.bytes <= maxBytes) return { state: 'below-threshold', bytes: size.bytes };
+  const outcome = await settleWithin({ run: () => session.clearCodeCaches({}), clock, timeoutMs });
+  if (outcome.state === 'rejected') return { state: 'pending', reason: 'failed' };
+  if (outcome.state === 'timed-out') return { state: 'pending', reason: 'timeout', settlement: outcome.settlement };
+  await marker.settle().catch(() => {});
+  return { state: 'cleared', bytes: size.bytes };
 }

@@ -74,6 +74,18 @@ export function createMaintenanceMarker(
       : { state: 'pending', capBytes, attempts, lastReason: outcome.reason };
     doc.partitions[partition] = { ...doc.partitions[partition], cacheClear };
   });
-  return { readCacheClear, markCacheClear, update, load };
+  const readCodeCache = async (): Promise<CodeCacheMark> => {
+    const loaded = await load();
+    if ('unknown' in loaded) return { state: 'unknown', reason: loaded.unknown };
+    const { lastLaunchVersion, codeCache } = loaded.doc;
+    return { state: 'ok', lastLaunchVersion: lastLaunchVersion ?? null, forVersion: codeCache?.forVersion ?? null, pending: [...(codeCache?.pending ?? [])] };
+  };
+  const writeCodeCachePending = ({ forVersion, pending }: { forVersion: string; pending: string[] }) =>
+    update(doc => { doc.codeCache = { forVersion, pending: [...pending] }; });
+  const writeLaunchVersion = ({ version }: { version: string }) => update(doc => { doc.lastLaunchVersion = version; });
+  const settleCodeCache = ({ partition }: { partition: string }) => update(doc => {
+    if (doc.codeCache) doc.codeCache.pending = doc.codeCache.pending.filter(name => name !== partition);
+  });
+  return { readCacheClear, markCacheClear, readCodeCache, writeCodeCachePending, writeLaunchVersion, settleCodeCache };
 }
 export type MaintenanceMarker = ReturnType<typeof createMaintenanceMarker>;
