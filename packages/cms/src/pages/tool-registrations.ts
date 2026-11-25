@@ -105,7 +105,7 @@ export { pagesDerivedRisk };
  * the host's `server/runtime/composition/tool-catalog-manifest.ts`'s `installFirstPartyToolContributors()`, not by importing this
  * module. `assistant/tool-registrations.ts` no longer imports `buildPagesRegistrations`/
  * `pagesDerivedRisk` by name; this is the seam that replaced it (Stage 2 batch 2). Safe: the only
- * importer of `features/pages/tool-registrations` (relative or `#src/*` subpath) is
+ * importer of `features/pages/tool-registrations` (relative or host subpath alias) is
  * `assistant/tool-registrations.ts` itself, every other importer of `features/pages` at large is
  * `server/*` (never reachable from `assistant`). Domain behavior is reached through the Post and
  * Theme public APIs; active-theme settings are host-injected. `ToolContributor` stays type-only,
