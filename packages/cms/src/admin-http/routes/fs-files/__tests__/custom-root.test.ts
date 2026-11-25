@@ -32,7 +32,10 @@ describe("fsCustomRootGetRoute", () => {
   it("authorizes the injected read permission on no entity, with no entity id", async () => {
     const { authorize, calls } = recordingAuthorize();
     await fsCustomRootGetRoute.handle({ input: {}, deps: getDeps(), context: PRINCIPAL, authorize }, { signal });
-    expect(calls).toEqual([{ permission: READ_PERMISSION, entityType: "fs-files-custom-root" }]);
+    expect(calls).toEqual([{ permission: READ_PERMISSION }]);
+    // The hand-written route asked the host authorizer for the permission and workspace only — no
+    // entity type — so a resource-scoped grant can never widen or narrow this decision.
+    expect(Object.keys(calls[0]!)).toEqual(["permission"]);
     expect("entityId" in calls[0]!).toBe(false);
   });
 
@@ -95,7 +98,10 @@ describe("fsCustomRootPutRoute", () => {
   it("authorizes the injected manage permission on no entity, with no entity id", async () => {
     const { authorize, calls } = recordingAuthorize();
     await fsCustomRootPutRoute.handle({ input: { path: "/srv/files" }, deps: putDeps(), context: PRINCIPAL, authorize }, { signal });
-    expect(calls).toEqual([{ permission: MANAGE_PERMISSION, entityType: "fs-files-custom-root" }]);
+    expect(calls).toEqual([{ permission: MANAGE_PERMISSION }]);
+    // The hand-written route asked the host authorizer for the permission and workspace only — no
+    // entity type — so a resource-scoped grant can never widen or narrow this decision.
+    expect(Object.keys(calls[0]!)).toEqual(["permission"]);
     expect("entityId" in calls[0]!).toBe(false);
   });
 
@@ -177,7 +183,10 @@ describe("fsCustomRootDeleteRoute", () => {
     const { authorize, calls } = recordingAuthorize();
     const store = makeRootStore({ [WORKSPACE_ID]: "/srv/files", "ws-other": "/srv/other" });
     expect(await fsCustomRootDeleteRoute.handle({ input: {}, deps: deleteDeps(store), context: PRINCIPAL, authorize }, { signal })).toEqual({ ok: true, value: { path: null } });
-    expect(calls).toEqual([{ permission: MANAGE_PERMISSION, entityType: "fs-files-custom-root" }]);
+    expect(calls).toEqual([{ permission: MANAGE_PERMISSION }]);
+    // The hand-written route asked the host authorizer for the permission and workspace only — no
+    // entity type — so a resource-scoped grant can never widen or narrow this decision.
+    expect(Object.keys(calls[0]!)).toEqual(["permission"]);
     expect(store.writes).toEqual([{ workspaceId: WORKSPACE_ID, path: null }]);
     expect(store.readCustomRoot({ workspaceId: WORKSPACE_ID }).path).toBeUndefined();
     expect(store.readCustomRoot({ workspaceId: "ws-other" }).path).toBe("/srv/other");

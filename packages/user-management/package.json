@@ -32,6 +32,8 @@
       "./mail/status/domain-deps": "universal",
       "./admin-http/http/users": "universal",
       "./admin-http/owner/mfa-deps": "universal",
+      "./admin-http/owner/mfa-routes": "universal",
+      "./admin-http/owner/recovery-routes": "universal",
       "./admin-http/routes/users/create-role": "universal",
       "./admin-http/routes/users/update-role": "universal",
       "./admin-http/routes/users/delete-role": "universal",
@@ -52,6 +54,14 @@
       "./admin-http/routes/users/list-policies": "universal",
       "./admin-http/routes/users/list-policy-permissions": "universal",
       "./admin-http/routes/users/remove-policy-permission": "universal",
+      "./admin-http/http/api-keys": "universal",
+      "./admin-http/routes/api-keys/shared": "universal",
+      "./admin-http/routes/api-keys/create-principal": "universal",
+      "./admin-http/routes/api-keys/issue": "universal",
+      "./admin-http/routes/api-keys/revoke": "universal",
+      "./public-http/routes/newsletter/confirm": "universal",
+      "./public-http/routes/newsletter/unsubscribe": "universal",
+      "./public-http/routes/mail/feedback": "universal",
       "./admin-http/auth": "node",
       "./identity/boot-session-token": "node",
       "./identity/builtin-role-grants": "universal",
@@ -115,12 +125,11 @@
       "./members/write-service": "node"
     },
     "optionalPeers": {
-      "kysely": "opt-in: sql identity stores; import @jini-ai/user-management/server/sql — SQL identity stores could not load kysely. Install kysely to enable this feature, or check its installed version and native binaries.",
+      "kysely": "opt-in: sql storage adapters; import @jini-ai/user-management/members/repo — SQL storage adapters could not load kysely. Install kysely to enable this feature, or check its installed version and native binaries.",
       "argon2": "opt-in: argon2 password hashing; import @jini-ai/user-management/server — Argon2 password hashing could not load argon2. Install argon2 to enable this feature, or check its installed version and native binaries.",
       "@jini-ai/ui-kit": "opt-in: ui kit integrations; import @jini-ai/user-management/admin/react — UI kit integrations could not load @jini-ai/ui-kit. Install @jini-ai/ui-kit to enable this feature, or check its installed version and native binaries.",
       "react": "opt-in: react user-management ui; import @jini-ai/user-management/react — React user-management UI could not load react. Install react to enable this feature, or check its installed version.",
-      "react-dom": "opt-in: react user-management ui; import @jini-ai/user-management/admin/react — React user-management UI could not load react-dom. Install react-dom to enable this feature, or check its installed version.",
-      "kysely": "opt-in: sql storage adapters; import @jini-ai/user-management/members/repo — SQL storage adapters could not load kysely. Install kysely to enable this feature, or check its installed version and native binaries."
+      "react-dom": "opt-in: react user-management ui; import @jini-ai/user-management/admin/react — React user-management UI could not load react-dom. Install react-dom to enable this feature, or check its installed version."
     },
     "isolation": {
       "entries": {
@@ -139,7 +148,9 @@
         "./identity/username-change-ports": "server",
         "./identity/delete-user-service": "server",
         "./member-login/oidc-login": "server",
-        "./member-login/link-service": "members"
+        "./member-login/link-service": "members",
+        "./public-http/routes/newsletter/confirm": "newsletter",
+        "./public-http/routes/newsletter/unsubscribe": "newsletter"
       },
       "shared": [
         "src/server/auth-challenge.ts",
@@ -249,6 +260,16 @@
       "import": "./dist/admin-http/owner/mfa-deps.js",
       "default": "./dist/admin-http/owner/mfa-deps.js"
     },
+    "./admin-http/owner/mfa-routes": {
+      "types": "./dist/admin-http/owner/mfa-routes.d.ts",
+      "import": "./dist/admin-http/owner/mfa-routes.js",
+      "default": "./dist/admin-http/owner/mfa-routes.js"
+    },
+    "./admin-http/owner/recovery-routes": {
+      "types": "./dist/admin-http/owner/recovery-routes.d.ts",
+      "import": "./dist/admin-http/owner/recovery-routes.js",
+      "default": "./dist/admin-http/owner/recovery-routes.js"
+    },
     "./admin-http/routes/users/create-role": {
       "types": "./dist/admin-http/routes/users/create-role.d.ts",
       "import": "./dist/admin-http/routes/users/create-role.js",
@@ -348,6 +369,46 @@
       "types": "./dist/admin-http/routes/users/remove-policy-permission.d.ts",
       "import": "./dist/admin-http/routes/users/remove-policy-permission.js",
       "default": "./dist/admin-http/routes/users/remove-policy-permission.js"
+    },
+    "./admin-http/http/api-keys": {
+      "types": "./dist/admin-http/http/api-keys.d.ts",
+      "import": "./dist/admin-http/http/api-keys.js",
+      "default": "./dist/admin-http/http/api-keys.js"
+    },
+    "./admin-http/routes/api-keys/shared": {
+      "types": "./dist/admin-http/routes/api-keys/shared.d.ts",
+      "import": "./dist/admin-http/routes/api-keys/shared.js",
+      "default": "./dist/admin-http/routes/api-keys/shared.js"
+    },
+    "./admin-http/routes/api-keys/create-principal": {
+      "types": "./dist/admin-http/routes/api-keys/create-principal.d.ts",
+      "import": "./dist/admin-http/routes/api-keys/create-principal.js",
+      "default": "./dist/admin-http/routes/api-keys/create-principal.js"
+    },
+    "./admin-http/routes/api-keys/issue": {
+      "types": "./dist/admin-http/routes/api-keys/issue.d.ts",
+      "import": "./dist/admin-http/routes/api-keys/issue.js",
+      "default": "./dist/admin-http/routes/api-keys/issue.js"
+    },
+    "./admin-http/routes/api-keys/revoke": {
+      "types": "./dist/admin-http/routes/api-keys/revoke.d.ts",
+      "import": "./dist/admin-http/routes/api-keys/revoke.js",
+      "default": "./dist/admin-http/routes/api-keys/revoke.js"
+    },
+    "./public-http/routes/newsletter/confirm": {
+      "types": "./dist/public-http/routes/newsletter/confirm.d.ts",
+      "import": "./dist/public-http/routes/newsletter/confirm.js",
+      "default": "./dist/public-http/routes/newsletter/confirm.js"
+    },
+    "./public-http/routes/newsletter/unsubscribe": {
+      "types": "./dist/public-http/routes/newsletter/unsubscribe.d.ts",
+      "import": "./dist/public-http/routes/newsletter/unsubscribe.js",
+      "default": "./dist/public-http/routes/newsletter/unsubscribe.js"
+    },
+    "./public-http/routes/mail/feedback": {
+      "types": "./dist/public-http/routes/mail/feedback.d.ts",
+      "import": "./dist/public-http/routes/mail/feedback.js",
+      "default": "./dist/public-http/routes/mail/feedback.js"
     },
     "./admin-http/auth": {
       "types": "./dist/admin-http/auth/index.d.ts",
@@ -684,8 +745,7 @@
     "argon2": "^0.44.0",
     "kysely": "^0.29.6",
     "react": "^18.3.0 || ^19.0.0",
-    "react-dom": "^18.3.0 || ^19.0.0",
-    "kysely": "^0.29.6"
+    "react-dom": "^18.3.0 || ^19.0.0"
   },
   "devDependencies": {
     "@jini-ai/admin": "workspace:*",
@@ -707,8 +767,7 @@
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
     "typescript": "^5.6.0",
-    "vitest": "^3.2.6",
-    "kysely": "^0.29.6"
+    "vitest": "^3.2.6"
   },
   "peerDependenciesMeta": {
     "argon2": {
@@ -724,9 +783,6 @@
       "optional": true
     },
     "react-dom": {
-      "optional": true
-    },
-    "kysely": {
       "optional": true
     }
   }

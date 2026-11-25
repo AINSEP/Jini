@@ -76,12 +76,11 @@ export type FsCustomRootGetEnvelope = { path: string | null } | { path: null; va
 /** `PUT`'s body: the path the store resolved (a key-less body if the folder vanished again at once). */
 export interface FsCustomRootPutEnvelope { path: string | undefined }
 
-/** The route has no entity of its own to authorize against; the host's authorizer still wants a type. */
-const FS_CUSTOM_ROOT_ENTITY_TYPE = "fs-files-custom-root";
-
 /**
  * Asks the host for one permission. A mount without an authorizer is a wiring bug, not a caller
- * error, so it fails closed.
+ * error, so it fails closed. No entity type and no entity id: the root is workspace-wide, so the
+ * host's authorizer is asked for the permission in the workspace only — exactly the question the
+ * hand-written route asked — and no resource-scoped grant can widen or narrow the decision.
  * @complexity O(1) plus the injected authorizer.
  */
 async function authorizeFsCustomRoot(
@@ -89,7 +88,7 @@ async function authorizeFsCustomRoot(
   _optional: Record<string, never> = {},
 ): Promise<void> {
   if (!authorize) throw new Error("fs-files custom-root admin route has no authorizer");
-  await authorize({ permission, entityType: FS_CUSTOM_ROOT_ENTITY_TYPE });
+  await authorize({ permission });
 }
 
 /** The body's `path`, untouched: `undefined` for a missing, null or non-object body. @complexity O(1). */

@@ -1752,6 +1752,10 @@
     {
       "id": "a53cc2fe1cc3",
       "reason": "Superseded by 9a9da3df3: formatMaxUploadBytesAsMb was replaced by describeUploadOverLimit (packages/core/src/text/upload-limit-message.ts), which names both sizes and never shows a raw byte count for MB-scale limits; its own docblock states the rounding rule."
+    },
+    {
+      "id": "b8d5f2d0dd81",
+      "reason": "obsolete: it justified passing entityType \"fs-files-custom-root\" to authorize; x8-server O3 removed that argument because the hand-written route asked for the permission only (an extra entity type could change the host RBAC decision). The replacement rationale is the authorize doc in packages/cms/src/admin-http/routes/fs-files/custom-root.ts (\"No entity type and no entity id: the root is workspace-wide…\")."
     }
   ]
 }
