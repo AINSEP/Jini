@@ -1018,6 +1018,15 @@
    "CreateChatConversationInput": "interface:73f1564479"
   }
  },
+ "./store/attempt-base-retention": {
+  "types": "./dist/store/runtime/attempt-base-retention.d.ts",
+  "symbols": {
+   "ATTEMPT_BASE_READERS": "variable:6bda4db947",
+   "AttemptBaseReaderProof": "interface:e96b1e1e9b",
+   "AttemptBaseTrimPolicy": "interface:e6c9274c39",
+   "createAttemptBaseTrimPolicy": "function:49be2709cb"
+  }
+ },
  "./store/legacy": {
   "types": "./dist/store/legacy/index.d.ts",
   "symbols": {
