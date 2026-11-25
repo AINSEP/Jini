@@ -1,3 +1,4 @@
+import type { MutationActor } from "@jini-ai/core/contracts/events";
 import type { UUID, JsonObject, CreatorKind } from "@jini-ai/core/primitives";
 import type { PostStatus, PublicPostKind } from "../core/index.js";
 import type { PostKind } from "@jini-ai/core/contracts/site/post-kind";
@@ -493,6 +494,10 @@ export const DEFAULT_BODY_JSON: JsonObject = { type: "doc", content: [] };
  *  rather than left blank, so `post_revisions.actor_id NOT NULL` never has a "whose write was
  *  this" gap. */
 export const SYSTEM_ACTOR_ID = "system";
+
+/** {@link SYSTEM_ACTOR_ID} as stamped on the outbox events of a write with no acting principal: the
+ *  ledger has no kind column, so the events are where that write is named a `system` change explicitly. */
+export const SYSTEM_MUTATION_ACTOR: MutationActor = { id: SYSTEM_ACTOR_ID, kind: "system" };
 
 /**
  * Content-owned homepage — the literal root slug a `kind: "page"` row may claim so `GET /`
