@@ -1,6 +1,6 @@
 import { parse } from 'smol-toml';
-import { JINI_MCP_SERVER_KEY } from '../mcp-json-file.js';
-import { isRecord } from '../values.js';
+import { isRecord } from '../../json-event-stream-shared.js';
+import { JINI_MCP_SERVER_KEY } from './contracts.js';
 
 /** A run with personal MCP off that Codex cannot keep to the bridge alone: refused, never run with a leak. */
 export class CodexMcpIsolationError extends Error {}

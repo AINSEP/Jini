@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import { getAgentDef } from '@jini-ai/agent-runtime';
-import { prepareCodexHomeIfNeeded, type McpJsonInjectionOptions } from '../../index.js';
+import { type McpJsonInjectionOptions } from '../index.js';
+import { prepareBoundRunHome } from './runtime-fixture.js';
 import { mkdtemp, readFile, writeFile, mkdir, rm, stat } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -11,7 +12,7 @@ import { join } from 'node:path';
  * calls back the returned `cleanup()` — the two paths a leak would show up on. Both already pass
  * against the current code; see the report for why the reviewed finding did not reproduce.
  */
-describe('prepareCodexHomeIfNeeded — scratch CODEX_HOME credential cleanup', () => {
+describe('prepareBoundRunHome — scratch CODEX_HOME credential cleanup', () => {
   const def = getAgentDef({ id: 'codex' });
   if (!def) throw new Error('codex def missing from registry');
 
@@ -34,7 +35,7 @@ describe('prepareCodexHomeIfNeeded — scratch CODEX_HOME credential cleanup', (
     const releaseStagedResources = vi.fn(async () => {});
     const failBeforeSpawn = vi.fn(async () => undefined as never);
 
-    const result = await prepareCodexHomeIfNeeded({ input: { runId: 'run-leak-1', def, mcpBridge: { kind: 'codex-toml', serverEntry: { command: 'x', args: [], env: { JINI_RUN_ID: 'run-leak-1', JINI_DAEMON_URL: 'http://x' } } } }, deps: { mcpJsonInjection, hostEnv: {}, releaseStagedResources, failBeforeSpawn } }
+    const result = await prepareBoundRunHome({ input: { runId: 'run-leak-1', def, mcpBridge: { kind: 'codex-toml', serverEntry: { command: 'x', args: [], env: { JINI_RUN_ID: 'run-leak-1', JINI_DAEMON_URL: 'http://x' } } } }, deps: { mcpJsonInjection, hostEnv: {}, releaseStagedResources, failBeforeSpawn } }
     );
 
     expect(result).toBeUndefined();
@@ -57,7 +58,7 @@ describe('prepareCodexHomeIfNeeded — scratch CODEX_HOME credential cleanup', (
       removeDir,
     };
 
-    const result = await prepareCodexHomeIfNeeded({ input: { runId: 'run-ok-1', def, mcpBridge: { kind: 'codex-toml', serverEntry: { command: 'x', args: [], env: { JINI_RUN_ID: 'run-ok-1', JINI_DAEMON_URL: 'http://x' } } } }, deps: { mcpJsonInjection, hostEnv: {}, releaseStagedResources: vi.fn(async () => {}), failBeforeSpawn: vi.fn(async () => undefined as never) } }
+    const result = await prepareBoundRunHome({ input: { runId: 'run-ok-1', def, mcpBridge: { kind: 'codex-toml', serverEntry: { command: 'x', args: [], env: { JINI_RUN_ID: 'run-ok-1', JINI_DAEMON_URL: 'http://x' } } } }, deps: { mcpJsonInjection, hostEnv: {}, releaseStagedResources: vi.fn(async () => {}), failBeforeSpawn: vi.fn(async () => undefined as never) } }
     );
 
     expect(result).not.toBeNull();
@@ -75,7 +76,7 @@ describe('prepareCodexHomeIfNeeded — scratch CODEX_HOME credential cleanup', (
       await mkdir(sourceHome);
       await writeFile(join(sourceHome, 'config.toml'), 'model = "test-model"\n');
       await writeFile(join(sourceHome, 'auth.json'), '{"fixture":"not-a-credential"}');
-      const stage = (runId: string) => prepareCodexHomeIfNeeded({ input: { runId, def, mcpBridge: { kind: 'codex-toml', serverEntry: entry } }, deps: {
+      const stage = (runId: string) => prepareBoundRunHome({ input: { runId, def, mcpBridge: { kind: 'codex-toml', serverEntry: entry } }, deps: {
         mcpJsonInjection: { command: 'x', daemonUrl: 'http://x', mkdtemp: ({ prefix }) => mkdtemp(join(root, prefix)) },
         hostEnv: { CODEX_HOME: sourceHome }, releaseStagedResources: async () => {}, failBeforeSpawn: async () => { throw new Error('staging failed'); },
       } });
@@ -98,7 +99,7 @@ describe('prepareCodexHomeIfNeeded — scratch CODEX_HOME credential cleanup', (
     const removed: string[] = [];
     const error = new Error('session store unavailable');
     const failed: string[] = [];
-    const result = await prepareCodexHomeIfNeeded({ input: { runId: 'link-failure', def, mcpBridge: { kind: 'codex-toml', serverEntry: { command: 'x', args: [], env: { JINI_RUN_ID: 'r', JINI_DAEMON_URL: 'http://x' } } } }, deps: {
+    const result = await prepareBoundRunHome({ input: { runId: 'link-failure', def, mcpBridge: { kind: 'codex-toml', serverEntry: { command: 'x', args: [], env: { JINI_RUN_ID: 'r', JINI_DAEMON_URL: 'http://x' } } } }, deps: {
       mcpJsonInjection: { command: 'x', daemonUrl: 'http://x', mkdtemp: async () => '/fake/staged', readFile: async () => '', writeFile: async () => {},
         linkSessionStore: async () => { throw error; }, removeDir: async ({ path }) => { removed.push(path); } },
       hostEnv: {}, releaseStagedResources: async () => {}, failBeforeSpawn: async ({ message }) => { failed.push(message); return undefined as never; },
@@ -121,7 +122,7 @@ it('parity links user skills/instructions and rotating auth; locked homes expose
     const config = 'model = "operator-model"\n[mcp_servers.chrome]\ncommand = "chrome"\n';
     await writeFile(join(sourceHome, 'config.toml'), config);
     await writeFile(join(sourceHome, 'auth.json'), '{"refresh":"old"}');
-    const stage = (nativeToolAccess: boolean) => prepareCodexHomeIfNeeded({ input: {
+    const stage = (nativeToolAccess: boolean) => prepareBoundRunHome({ input: {
       runId: String(nativeToolAccess), def, nativeToolAccess, mcpBridge: { kind: 'codex-toml', serverEntry: entry },
     }, deps: { mcpJsonInjection: { command: 'bridge', daemonUrl: 'http://site', mkdtemp: ({ prefix }) => mkdtemp(join(root, prefix)) },
       hostEnv: { CODEX_HOME: sourceHome }, releaseStagedResources: async () => {}, failBeforeSpawn: async () => { throw new Error('staging failed'); } } });

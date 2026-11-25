@@ -13,8 +13,7 @@ import { scheduler } from '../../__tests__/surface-fixture.js';
 import { createToolExecutor } from '../../tool-executor.js';
 import { withSurfaceExchangeLifetime } from '../../tool-recovery/surface-lifetime.js';
 import { computeChildEnv } from '../launch.js';
-import { boundEnvContent, boundMcpDelivery, boundMcpConfigFile } from './runtime-fixture.js';
-import { prepareCodexHomeIfNeeded } from '../codex/home-staging.js';
+import { boundEnvContent, boundMcpDelivery, boundMcpConfigFile, boundMcpHome, prepareBoundRunHome } from './runtime-fixture.js';
 import { resolveMcpBridgeForRun, writeMcpJsonIfNeeded } from '../mcp-bridge.js';
 
 // Adapter staging and shared delegated execution, not a claim to launch vendor CLI binaries.
@@ -35,7 +34,7 @@ async function stage(def: RuntimeAgentDef, runId: string, credential: string) {
   };
   const delivery = await resolveMcpBridgeForRun({
     input: { runId, cwd: '/fixture', def, nativeCapabilities: { userMcp: true } },
-    deps: { ...boundMcpConfigFile(), mcpJsonInjection: options, cleanupStagedFiles: async () => {}, failBeforeSpawn: refuse, ...fakeRuntimePorts(), ...boundMcpDelivery(def) },
+    deps: { ...boundMcpConfigFile(), mcpJsonInjection: options, cleanupStagedFiles: async () => {}, failBeforeSpawn: refuse, ...fakeRuntimePorts(), ...boundMcpDelivery(def), ...boundMcpHome(def) },
   });
   if (delivery === null) {
     expect(computeChildEnv({ spawnEnv: {}, mcpBridge: delivery })).toEqual({});
@@ -62,9 +61,9 @@ async function stage(def: RuntimeAgentDef, runId: string, credential: string) {
     return JSON.parse(written.get(delivery.mcpJsonPath)!).mcpServers.jini.env as Record<string, string>;
   }
   if (delivery.kind === 'codex-toml') {
-    const home = await prepareCodexHomeIfNeeded({ input: { runId, def, mcpBridge: delivery },
+    const home = await prepareBoundRunHome({ input: { runId, def, mcpBridge: delivery },
       deps: { hostEnv: {}, mcpJsonInjection: options, releaseStagedResources: async () => {}, failBeforeSpawn: refuse } });
-    expect(computeChildEnv({ spawnEnv: {}, mcpBridge: delivery }, { codexHomeDir: home!.path }).CODEX_HOME).toBe(home!.path);
+    expect(computeChildEnv({ spawnEnv: {}, mcpBridge: delivery }, { stagedHome: { dir: home!.path, withStagedHome: boundMcpHome(def).mcpHome!.withStagedHome } }).CODEX_HOME).toBe(home!.path);
     const config = parse(written.get('/fixture/codex-home/config.toml')!) as { mcp_servers: { jini: { env: Record<string, string> } } };
     await home!.cleanup();
     return config.mcp_servers.jini.env;

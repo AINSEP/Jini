@@ -1,9 +1,11 @@
 /** @file The vendor behaviour a runtime hands the daemon for one definition, as `AgentRuntimePort['strategies']`.
  * The daemon asks for it by definition and never names a CLI: a dialect or a delivery strategy the definition already
  * declares (`eventParser`, `externalMcpInjection`) selects the implementation here, in the one package that owns vendors. */
-import type { RuntimeAgentDef } from '@jini-ai/core/contracts/agents';
+import type { NativeCapabilities, RuntimeAgentDef } from '@jini-ai/core/contracts/agents';
 import type { AtomicFileWriterPort, FileLockPort } from '@jini-ai/core/contracts/runtime';
 import { ensureAntigravityMcpPermission, prepareAntigravityBridge } from './defs/antigravity/permissions.js';
+import { buildCodexMcpDelivery } from './defs/codex/mcp-delivery.js';
+import { CODEX_HOME_ENV, codexTurnsOffPersonalConfig, stageCodexHome, withStagedCodexHome } from './defs/codex/home-staging.js';
 import { CLAUDE_CONFIG_DIR_ENV, stageClaudeConfigDir } from './defs/claude/config-dir.js';
 import { claudeFilesystemAdapter } from './defs/claude/filesystem.js';
 import { prepareClaudeHttpMcpConfig } from './defs/claude/mcp-config.js';
@@ -18,6 +20,16 @@ import { mergeEnvContentInstructions, mergeEnvContentMcpConfig, withOpenCodeHttp
 
 /** Structurally the daemon port's `AgentRuntimeStrategies['mcpBridge']`; the host checks the binding against that port. */
 type McpBridgeSlot = { prepare(required: { delivery: { readonly kind: string } | null; serverName: string; fileLock: FileLockPort; writer: AtomicFileWriterPort }): Promise<void> };
+
+/** Structurally the daemon port's `AgentRuntimeStrategies['mcpHome']`; the host checks the binding against that port. */
+type McpHomeSlot = {
+  readonly envVar: string;
+  readonly deliveryKind: 'codex-toml';
+  buildDelivery<E>(required: { serverEntry: E }): { readonly kind: 'codex-toml'; readonly serverEntry: E };
+  withStagedHome(required: { env: NodeJS.ProcessEnv; homeDir: string }): NodeJS.ProcessEnv;
+  turnsOffPersonalConfig(required: { nativeCapabilities?: Partial<NativeCapabilities> }): boolean;
+  stage: typeof stageCodexHome;
+};
 
 type EnvContentSlot = { mergeMcp: typeof mergeEnvContentMcpConfig };
 type InstructionsDocumentSlot = { merge: typeof mergeEnvContentInstructions };
@@ -47,6 +59,18 @@ const ENV_CONTENT_VAR_BY_STRATEGY: ReadonlyMap<string, string> = new Map([
  * declared strategy (`env-passthrough`) is not enough to select it. */
 const MCP_BRIDGE_BY_ID: ReadonlyMap<string, McpBridgeSlot> = new Map([
   ['antigravity', { prepare: (required) => prepareAntigravityBridge(required, { ensurePermission: ensureAntigravityMcpPermission }) }],
+]);
+
+/** Keyed by the declared `externalMcpInjection` strategy, as the delivery already is: the strategy names the staged-home mechanism. */
+const MCP_HOME_BY_STRATEGY: ReadonlyMap<string, McpHomeSlot> = new Map([
+  ['codex-toml', {
+    envVar: CODEX_HOME_ENV,
+    deliveryKind: 'codex-toml',
+    buildDelivery: buildCodexMcpDelivery,
+    withStagedHome: ({ env, homeDir }) => withStagedCodexHome({ env, codexHomeDir: homeDir }),
+    turnsOffPersonalConfig: codexTurnsOffPersonalConfig,
+    stage: stageCodexHome,
+  }],
 ]);
 
 /** Keyed by the declared MCP delivery strategy, like the variable above: both CLIs read one OpenCode-schema document. */
@@ -83,20 +107,29 @@ const MCP_CONFIG_FILE_BY_STRATEGY: ReadonlyMap<string, McpConfigFileSlot> = new 
 
 /** Env names the launcher must copy from the host env besides the runtime state's own (`launch.hostEnvNames`).
  * `CLAUDE_CONFIG_DIR` is not in the child baseline env, but the staging step reads the operator's real value from the host env. */
-export const RUNTIME_STRATEGY_HOST_ENV_NAMES: readonly string[] = [AMR_OPENCODE_BIN_ENV, CLAUDE_CONFIG_DIR_ENV];
+export const RUNTIME_STRATEGY_HOST_ENV_NAMES: readonly string[] = [AMR_OPENCODE_BIN_ENV, CLAUDE_CONFIG_DIR_ENV, CODEX_HOME_ENV];
 
 type StrategyDef = Pick<RuntimeAgentDef, 'id' | 'eventParser' | 'externalMcpInjection' | 'systemPromptDelivery' | 'subagentStartHook'>;
+
+/** The slots the declared `externalMcpInjection` strategy selects: how the MCP bridge reaches the CLI (an env-carried document, or a staged home). */
+function mcpStrategySlots({ def }: { def: StrategyDef }, _optional: Record<string, never> = {}) {
+  const envContentVar = def.externalMcpInjection === undefined ? undefined : ENV_CONTENT_VAR_BY_STRATEGY.get(def.externalMcpInjection);
+  const envContent = def.externalMcpInjection === undefined ? undefined : ENV_CONTENT_BY_STRATEGY.get(def.externalMcpInjection);
+  const mcpHome = def.externalMcpInjection === undefined ? undefined : MCP_HOME_BY_STRATEGY.get(def.externalMcpInjection);
+  return {
+    ...(envContentVar ? { mcpDelivery: { envContentVar } } : {}),
+    ...(envContent ? { envContent } : {}),
+    ...(mcpHome ? { mcpHome } : {}),
+  };
+}
 
 /** The slots a definition's own declarations select (dialect, MCP delivery strategy, system-prompt strategy). */
 function declaredSlots({ def }: { def: StrategyDef }, _optional: Record<string, never> = {}) {
   const toolCallReceipt = def.eventParser === undefined ? undefined : RECEIPT_BY_DIALECT.get(def.eventParser);
-  const envContentVar = def.externalMcpInjection === undefined ? undefined : ENV_CONTENT_VAR_BY_STRATEGY.get(def.externalMcpInjection);
-  const envContent = def.externalMcpInjection === undefined ? undefined : ENV_CONTENT_BY_STRATEGY.get(def.externalMcpInjection);
   const instructionsDocument = def.systemPromptDelivery === undefined ? undefined : INSTRUCTIONS_DOCUMENT_BY_STRATEGY.get(def.systemPromptDelivery.strategy);
   return {
     ...(toolCallReceipt ? { toolCallReceipt } : {}),
-    ...(envContentVar ? { mcpDelivery: { envContentVar } } : {}),
-    ...(envContent ? { envContent } : {}),
+    ...mcpStrategySlots({ def }),
     ...(instructionsDocument ? { instructionsDocument } : {}),
   };
 }

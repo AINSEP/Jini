@@ -225,7 +225,6 @@
   "dependencies": {
     "@jini-ai/core": "workspace:^",
     "@jini-ai/protocol": "workspace:^",
-    "smol-toml": "1.9.1",
     "@jini-ai/agent-runtime": "workspace:^",
     "@jini-ai/db": "workspace:^",
     "@jini-ai/platform": "workspace:^",

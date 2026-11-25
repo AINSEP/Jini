@@ -2,7 +2,6 @@ import type { McpBridgeProbeResult } from './mcp-bridge-probe.js';
 import type { AtomicFileWriterPort, FileLockPort } from '@jini-ai/core/contracts/runtime';
 import { randomBytes } from 'node:crypto';
 import { supportsMessageRelay } from './message-relay.js';
-import { buildCodexMcpDelivery } from './codex/mcp-delivery.js';
 import type { McpDeliveryBuildInput } from './mcp-delivery-types.js';
 import type { AcpMcpServerInput } from '../ports/agent-runtime-sessions.js';
 import type { AgentRuntimeStrategies } from '../ports/agent-runtime.js';
@@ -117,12 +116,17 @@ export function buildAcpMcpBridgeServers({ entry }: { readonly entry: McpJsonSer
  * config ... following the same structure as `OPENCODE_CONFIG_CONTENT`"), and differ only in which
  * env var carries it. Adding a third such CLI is a row here, not a new serializer.
  */
-type McpDeliveryBuilder = (input: McpDeliveryBuildInput, slots: { mcpDelivery?: AgentRuntimeStrategies['mcpDelivery']; mcpConfigFile?: AgentRuntimeStrategies['mcpConfigFile'] }) => McpBridgeDelivery;
+type McpDeliveryBuilder = (input: McpDeliveryBuildInput, slots: { mcpDelivery?: AgentRuntimeStrategies['mcpDelivery']; mcpConfigFile?: AgentRuntimeStrategies['mcpConfigFile']; mcpHome?: AgentRuntimeStrategies['mcpHome'] }) => McpBridgeDelivery;
 
 /** The variable's name belongs to the runtime's binding, so a missing one fails the run before spawn rather than guessing. */
 function buildEnvContentDelivery({ serverEntry }: McpDeliveryBuildInput, { mcpDelivery: strategy }: { mcpDelivery?: AgentRuntimeStrategies['mcpDelivery'] }): McpBridgeDelivery {
   if (strategy === undefined) throw new TypeError('An env-content MCP strategy needs the runtime to bind the variable that carries its config document');
   return { kind: 'env-content', envVarName: strategy.envContentVar, serverEntry };
+}
+/** The delivery's shape belongs to the runtime's staged-home binding, so a missing one fails the run before spawn rather than guessing. */
+function buildStagedHomeDelivery({ serverEntry }: McpDeliveryBuildInput, { mcpHome: home }: { mcpHome?: AgentRuntimeStrategies['mcpHome'] }): McpBridgeDelivery {
+  if (home === undefined) throw new TypeError('A staged-home MCP strategy needs the runtime to bind the home slot that builds its delivery');
+  return home.buildDelivery({ serverEntry });
 }
 const MCP_DELIVERY_BUILDERS: Record<NonNullable<RuntimeAgentDef['externalMcpInjection']>, McpDeliveryBuilder> = {
   'claude-mcp-json': (input, { mcpConfigFile }) => {
@@ -132,7 +136,7 @@ const MCP_DELIVERY_BUILDERS: Record<NonNullable<RuntimeAgentDef['externalMcpInje
   'acp-merge': ({ serverEntry }) => ({ kind: 'acp-merge', mcpServers: buildAcpMcpBridgeServers({ entry: serverEntry }) }),
   'opencode-env-content': buildEnvContentDelivery,
   'mimo-env-content': buildEnvContentDelivery,
-  'codex-toml': buildCodexMcpDelivery,
+  'codex-toml': buildStagedHomeDelivery,
   'env-passthrough': ({ serverEntry }) => ({ kind: 'env-passthrough', serverEntry }),
 };
 
@@ -166,6 +170,7 @@ export function buildMcpBridgeDelivery(input: {
   readonly credential: string | undefined;
   readonly messageRelayNonce?: string;
   readonly mcpDelivery?: AgentRuntimeStrategies['mcpDelivery'];
+  readonly mcpHome?: AgentRuntimeStrategies['mcpHome'];
   readonly mcpConfigFile?: AgentRuntimeStrategies['mcpConfigFile'];
 }): McpBridgeDelivery | null {
   const { cwd, runId, strategy, options } = input;
@@ -173,7 +178,7 @@ export function buildMcpBridgeDelivery(input: {
   const serverEntry = buildMcpJsonServerEntry({ runId: runId, options: options }, bridgeCredentialOptions(input));
   // Every declared strategy has a builder; a new one fails typechecking until registered.
   if (!Object.hasOwn(MCP_DELIVERY_BUILDERS, strategy)) throw new TypeError(`Unknown MCP bridge strategy: ${String(strategy)}`);
-  return MCP_DELIVERY_BUILDERS[strategy]({ cwd, runId, serverEntry }, { ...(input.mcpDelivery === undefined ? {} : { mcpDelivery: input.mcpDelivery }), ...(input.mcpConfigFile === undefined ? {} : { mcpConfigFile: input.mcpConfigFile }) });
+  return MCP_DELIVERY_BUILDERS[strategy]({ cwd, runId, serverEntry }, { ...(input.mcpDelivery === undefined ? {} : { mcpDelivery: input.mcpDelivery }), ...(input.mcpConfigFile === undefined ? {} : { mcpConfigFile: input.mcpConfigFile }), ...(input.mcpHome === undefined ? {} : { mcpHome: input.mcpHome }) });
 }
 
 function bridgeCredentialOptions(input: { credential: string | undefined; messageRelayNonce?: string }) {
@@ -202,6 +207,8 @@ export async function resolveMcpBridgeForRun({ input, deps }: { readonly input: 
     readonly mcpConfigFile?: AgentRuntimeStrategies['mcpConfigFile'];
     /** The runtime's bound bridge-preparation slot for `input.def` (`strategies.for({ def }).mcpBridge`). */
     readonly mcpBridge?: AgentRuntimeStrategies['mcpBridge'];
+    /** The runtime's bound staged-home slot for `input.def` (`strategies.for({ def }).mcpHome`), which builds the staged-home delivery. */
+    readonly mcpHome?: AgentRuntimeStrategies['mcpHome'];
   } }
 ): Promise<McpBridgeDelivery | null> {
   if (needsInheritedMcpConsent(input, deps.mcpJsonInjection)) {
@@ -219,6 +226,7 @@ export async function resolveMcpBridgeForRun({ input, deps }: { readonly input: 
       options: deps.mcpJsonInjection,
       credential,
       ...(deps.mcpDelivery === undefined ? {} : { mcpDelivery: deps.mcpDelivery }),
+      ...(deps.mcpHome === undefined ? {} : { mcpHome: deps.mcpHome }),
       ...(deps.mcpConfigFile === undefined ? {} : { mcpConfigFile: deps.mcpConfigFile }),
       ...(supportsMessageRelay({ def: input.def }) ? { messageRelayNonce: randomBytes(24).toString('hex') } : {}),
     });

@@ -44,7 +44,6 @@ import {
   DEFAULT_BUFFERED_STDOUT_MAX_BYTES,
   assessAgentExecutorCompatibility,
   buildAcpMcpBridgeServers,
-  buildCodexMcpServerToml,
   buildMcpBridgeDelivery,
   buildMcpJsonServerEntry,
   computeChildEnv,
@@ -64,7 +63,7 @@ import {
   type McpBridgeProbeResult,
   type McpBridgeProbe,
 } from '../../index.js';
-import { runtimeFixture, agentRuntimeFixture, boundEnvContent, boundInstructionsDocument, boundMcpDelivery, boundMcpConfigFile } from './runtime-fixture.js';
+import { runtimeFixture, agentRuntimeFixture, boundEnvContent, boundInstructionsDocument, boundMcpDelivery, boundMcpConfigFile, boundMcpHome } from './runtime-fixture.js';
 
 // Fake defs take no stream-json stdin, so every bridged run also carries the mid-run message
 // relay (f40db242) with a fresh per-run nonce.
@@ -5209,7 +5208,7 @@ describe('buildMcpBridgeDelivery', () => {
   // scratch CODEX_HOME directory needs `fs.mkdtemp` (a real, non-deterministic effect), which this
   // pure, synchronous dispatch cannot perform. `prepareCodexHomeIfNeeded` stages it separately.
   it('maps codex-toml to a bare serverEntry with no path — the directory is staged separately', () => {
-    const delivery = buildMcpBridgeDelivery({ ...boundMcpConfigFile(), ...base, strategy: 'codex-toml' });
+    const delivery = buildMcpBridgeDelivery({ ...boundMcpConfigFile(), ...base, strategy: 'codex-toml', ...boundMcpHome({ externalMcpInjection: 'codex-toml' }) });
     expect(delivery).toEqual({
       kind: 'codex-toml',
       serverEntry: {
@@ -5241,7 +5240,7 @@ describe('buildMcpBridgeDelivery', () => {
     const claude = buildMcpBridgeDelivery({ ...boundMcpConfigFile(), ...withToken, strategy: 'claude-mcp-json' });
     const acp = buildMcpBridgeDelivery({ ...boundMcpConfigFile(), ...withToken, strategy: 'acp-merge' });
     const env = buildMcpBridgeDelivery({ ...boundMcpConfigFile(), ...withToken, strategy: 'mimo-env-content', ...boundMcpDelivery({ externalMcpInjection: 'mimo-env-content' }) });
-    const codex = buildMcpBridgeDelivery({ ...boundMcpConfigFile(), ...withToken, strategy: 'codex-toml' });
+    const codex = buildMcpBridgeDelivery({ ...boundMcpConfigFile(), ...withToken, strategy: 'codex-toml', ...boundMcpHome({ externalMcpInjection: 'codex-toml' }) });
     const passthrough = buildMcpBridgeDelivery({ ...boundMcpConfigFile(), ...withToken, strategy: 'env-passthrough' });
     expect(claude).toMatchObject({ serverEntry: { env: { JINI_DAEMON_TOKEN: 'run-scoped-secret' } } });
     expect(acp).toMatchObject({ mcpServers: [{ env: { JINI_DAEMON_TOKEN: 'run-scoped-secret' } }] });
@@ -5257,7 +5256,7 @@ describe('buildMcpBridgeDelivery', () => {
     const declaring = AGENT_DEFS.filter((def) => def.externalMcpInjection !== undefined);
     expect(declaring.length).toBeGreaterThan(0);
     const undelivered = declaring
-      .filter((def) => buildMcpBridgeDelivery({ ...boundMcpConfigFile(), ...base, strategy: def.externalMcpInjection, ...boundMcpDelivery(def) }) === null)
+      .filter((def) => buildMcpBridgeDelivery({ ...boundMcpConfigFile(), ...base, strategy: def.externalMcpInjection, ...boundMcpDelivery(def), ...boundMcpHome(def) }) === null)
       .map((def) => def.id);
     expect(undelivered).toEqual([]);
   });
@@ -5889,11 +5888,11 @@ describe("AgentExecutor — 'codex-toml' MCP bridge delivery (Codex CODEX_HOME r
 
     const configWrite = writeCalls.find((c) => c.path.endsWith('config.toml'));
     expect(configWrite?.content).toBe(
-      buildCodexMcpServerToml({ entry: {
-        command: '/usr/bin/jini-mcp',
-        args: ['--quiet'],
-        env: { JINI_RUN_ID: run.id, JINI_DAEMON_URL: 'http://127.0.0.1:4242', JINI_MESSAGE_RELAY: '1', JINI_MESSAGE_RELAY_NONCE: relayNonce(configWrite?.content) },
-      } }),
+      [
+        '[mcp_servers.jini]', 'command = "/usr/bin/jini-mcp"', 'args = ["--quiet"]', 'tool_timeout_sec = 400', '',
+        '[mcp_servers.jini.env]', `JINI_RUN_ID = "${run.id}"`, 'JINI_DAEMON_URL = "http://127.0.0.1:4242"',
+        'JINI_MESSAGE_RELAY = "1"', `JINI_MESSAGE_RELAY_NONCE = "${relayNonce(configWrite?.content)}"`, '',
+      ].join('\n'),
     );
     expect(spawnCalls).toHaveLength(1);
   });

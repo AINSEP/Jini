@@ -15,7 +15,7 @@ import {
 } from '../mcp-bridge.js';
 import { prepareStagedConfigDirIfNeeded } from '../staged-config-dir.js';
 import { defaultRemoveMcpJsonFile } from '../mcp-json-file.js';
-import { prepareCodexHomeIfNeeded } from '../codex/home-staging.js';
+import { prepareBoundRunHome } from './runtime-fixture.js';
 
 /**
  * @file Staging the per-run MCP/config files on the real filesystem defaults (no seams injected),
@@ -80,7 +80,7 @@ it('stages a Codex home on the real filesystem, names it "run" for an empty run 
   mkdirSync(source, { recursive: true });
   writeFileSync(join(source, 'config.toml'), 'model = "personal-model"\n');
   writeFileSync(join(source, 'auth.json'), fixtureCredential());
-  const home = await prepareCodexHomeIfNeeded({ input: { runId: '', def: getAgentDef({ id: 'codex' })!, mcpBridge: { kind: 'codex-toml', serverEntry } },
+  const home = await prepareBoundRunHome({ input: { runId: '', def: getAgentDef({ id: 'codex' })!, mcpBridge: { kind: 'codex-toml', serverEntry } },
     deps: { mcpJsonInjection: { command: 'host-bridge', daemonUrl: 'http://site' }, hostEnv: { CODEX_HOME: source },
       releaseStagedResources: async () => {}, failBeforeSpawn: refuse } });
   try {
