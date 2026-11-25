@@ -59,7 +59,7 @@ describe("newsletterConfirmRoute", () => {
   });
 
   it("answers the 400 invalid-link page for an invalid confirmation token", async () => {
-    const deps = confirmDeps({ consume: async () => { throw new NewsletterConfirmTokenInvalidError({ message: "bad", reason: "signature_invalid" }); } });
+    const deps = confirmDeps({ consume: async () => { throw new NewsletterConfirmTokenInvalidError({ message: "bad", reason: "expired" }); } });
     const res = await newsletterConfirmRoute.handle({ raw: rawWith({ token: "t" }), deps }, { signal });
     expect(res.status).toBe(400);
     expect(res.headers.get("content-type")).toBe(HTML);
