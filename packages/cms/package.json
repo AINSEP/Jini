@@ -651,7 +651,9 @@
       "./admin-http/routes/widgets/agent-tools-diagnose": "universal",
       "./navigation/site/import-menu": "universal",
       "./navigation/site/repoint-menu-refs": "universal",
-      "./admin-http/routes/forms/pull-submissions": "universal"
+      "./admin-http/routes/forms/pull-submissions": "universal",
+      "./react/publish-content/criteria-publish-result": "universal",
+      "./react/publish-content/PublishSectionButton": "browser"
     },
     "isolation": {
       "domains": {
@@ -716,6 +718,12 @@
       },
       "forbidden": {
         "./react/media": [
+          "node:",
+          "express",
+          "kysely",
+          "parse5"
+        ],
+        "./react/publish-content/PublishSectionButton": [
           "node:",
           "express",
           "kysely",
@@ -939,7 +947,9 @@
         "./admin-http/routes/widgets/agent-tools-create": "widgets",
         "./admin-http/routes/widgets/agent-tools-remove": "widgets",
         "./admin-http/routes/widgets/agent-tools-diagnose": "widgets",
-        "./admin-http/routes/forms/pull-submissions": "forms"
+        "./admin-http/routes/forms/pull-submissions": "forms",
+        "./react/publish-content/criteria-publish-result": "publish",
+        "./react/publish-content/PublishSectionButton": "publish"
       }
     },
     "optionalPeers": {
@@ -4152,6 +4162,16 @@
       "types": "./dist/admin-http/routes/forms/pull-submissions.d.ts",
       "import": "./dist/admin-http/routes/forms/pull-submissions.js",
       "default": "./dist/admin-http/routes/forms/pull-submissions.js"
+    },
+    "./react/publish-content/criteria-publish-result": {
+      "types": "./dist/react/publish-content/hooks/criteria-publish-result.d.ts",
+      "import": "./dist/react/publish-content/hooks/criteria-publish-result.js",
+      "default": "./dist/react/publish-content/hooks/criteria-publish-result.js"
+    },
+    "./react/publish-content/PublishSectionButton": {
+      "types": "./dist/react/publish-content/PublishSectionButton.d.ts",
+      "import": "./dist/react/publish-content/PublishSectionButton.js",
+      "default": "./dist/react/publish-content/PublishSectionButton.js"
     }
   },
   "files": [
