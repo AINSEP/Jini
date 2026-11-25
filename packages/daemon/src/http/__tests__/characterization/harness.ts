@@ -35,6 +35,11 @@ import { mediaRoutes } from '../../media.js';
 import { memoryRoutes } from '../../memory.js';
 import { messageRelayRoutes } from '../../message-relay.js';
 import { modelProxyRoutes } from '../../model-proxy.js';
+import { createAnthropicProxyRegistration } from '@jini-ai/provider-plugins/model-proxy-anthropic';
+import { createAzureProxyRegistration } from '@jini-ai/provider-plugins/model-proxy-azure';
+import { createGoogleProxyRegistration } from '@jini-ai/provider-plugins/model-proxy-google';
+import { createOllamaProxyRegistration } from '@jini-ai/provider-plugins/model-proxy-ollama';
+import { createOpenAiProxyRegistration } from '@jini-ai/provider-plugins/model-proxy-openai';
 import { remoteRunEventRoutes } from '../../remote-run-events.js';
 import { researchRoutes } from '../../research.js';
 import { routineRoutes } from '../../routines.js';
@@ -128,7 +133,10 @@ const MOUNT_ORDER: readonly (readonly [family: string, mount: Mount] | 'json-par
   ['runs', ({ adapter, deps, mountList }) => mountList(runRoutes({ deps: deps(), host: routeHost(adapter) }))],
   ['agents', ({ adapter, deps, mountList }) => mountList(agentRoutes({ deps: deps(), host: routeHost(adapter) }))],
   ['host-tools', ({ adapter, deps, mountList }) => mountList(hostToolsRoutes({ deps: deps(), host: routeHost(adapter) }))],
-  ['model-proxy', ({ adapter, deps, mountList }) => mountList(modelProxyRoutes({ deps: deps(), host: routeHost(adapter) }))],
+  // The proxy holds no provider list: like the reference host's composition, the harness injects the five vendor
+  // registrations, in that host's order. A test's own `model-proxy` family deps still override them.
+  ['model-proxy', ({ adapter, deps, mountList }) => mountList(modelProxyRoutes({ deps: deps({ providers: [createAnthropicProxyRegistration(), createOpenAiProxyRegistration(),
+    createAzureProxyRegistration(), createGoogleProxyRegistration(), createOllamaProxyRegistration()] }), host: routeHost(adapter) }))],
   ['active-context', ({ adapter, deps, mountList }) => mountList(activeContextRoutes({ deps: deps(), host: routeHost(adapter) }))],
   ['terminals', ({ adapter, deps, mountList }) => mountList(terminalRoutes({ deps: deps(), host: routeHost(adapter) }))],
   ['db-ops', ({ adapter, deps, mountList }) => mountList(daemonDbRoutes({ deps: deps(), host: routeHost(adapter) }))],
