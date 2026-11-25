@@ -1,4 +1,4 @@
-PARTIAL e0fb57bcc3 621c12e8c: 72 lane files left by planner count (contracts-core 24, site-backup 33, publish-content 15); 3 real moves left (site-backup backup-service, push-content, tool-registrations), 33 STAYS-HOST bindings await keep-rules; Tovu node test comparison still running
+PARTIAL cf38b15793 621c12e8c: contracts-core 24, site-backup 33, publish-content 15 left by planner count (82 -> 72, lane LOC 13,817 -> 5,536). 3 real moves left: site-backup backup-service, push-content, tool-registrations. The other 69 are STAYS-HOST, including 33 new binding files that need planner keep-rules.
 
 SHAs in the first line are the work tips before this report commit (Tovu `codex/x8-domains-tovu`, Jini `codex/x8-domains-jini`).
 
@@ -141,7 +141,7 @@ site-backup (24):
 | Tovu `check:why-comments --base origin/codex/x6-server-tovu` | – | 27 found, now 0 open, exit 0. 1 was restored verbatim in `import-plugin-state.ts`, and 26 debt entries each cite the Jini file and line where the block now lives. |
 | Tovu `check:errors` | WARN, 7 new | WARN, the same 7. 16 debt rows for violations that moved out were removed. |
 | Tovu `check:architecture` | red (3 hard regressions) | red, the same 3. The renamed edge `share-hosting -> peer-transport-binding` replaces the old `-> peer-transport` row. |
-| Tovu node tests (438 files: changed tests plus importers of changed or deleted sources, `--test-concurrency=2`) | TOVUBASE | TOVUBRANCH |
+| Tovu node tests (438 files: changed tests plus importers of changed or deleted sources, `--test-concurrency=2`) | 5198 tests, 36 failing tests | 5240 tests, 34 failing. The single new red was the T-FROZEN peer vault-scope pin, which still pointed at the deleted `peers.ts` text. It was repointed to the binding literals (11/11 pass; mutation `owner-key-changed` turns it red). 3 failures that are red at base are fixed: `peers.l061`, `publish-content-peer-repo.sqlite.integration`, `peers.routes.pins`. **Net: no new red.** |
 
 Reds that are red at base too and unrelated: `publish-zero-setup-end-to-end` (`deployConfigGenerators`), `library-share.integration` (`features/members/index.js`), `L131-characterization`/`fetch-live-url` (`RESERVED_SEGMENTS`), and `import-restore.unit` "starter radio" (`fieldKinds`).
 
@@ -163,7 +163,7 @@ Reds that are red at base too and unrelated: `publish-zero-setup-end-to-end` (`d
 - `apps/desktop` was not touched, so the pre-push hook skipped the desktop gates on every push.
 
 ## Caps
-- **Wall clock:** about 2 h 20 min (01:34 to about 03:55 UTC).
+- **Wall clock:** about 2 h 25 min (01:34 to about 04:00 UTC).
 - **Coordinator:** about 135 tool calls; context stayed under the cap.
 - **Subagents:** 19 in total, at most 4 at once.
 - **CAP DEVIATION (token):** many workers went over the 120k-token budget, for example W5 168k, W14 175k, W16 166k, W2 163k, W18 162k and W7 158k. All stayed at or under 50 tool calls (the maximum was 49: W16 and W17). Their returns were verified by the coordinator's gates.
