@@ -51,7 +51,17 @@
       "./custom-credentials/agent-tools": "node",
       "./custom-credentials/credentialed-request": "node",
       "./secrets": "node",
-      "./react/credentials/credential-copy": "browser"
+      "./react/credentials/credential-copy": "browser",
+      "./react/admin-credentials/AdminByokKeyPanel": "browser",
+      "./react/webhooks/rules": "browser",
+      "./react/webhooks/hooks/use-integrations.hooks": "browser",
+      "./react/webhooks/hooks/use-integration-deliveries.hooks": "browser",
+      "./react/webhooks/Integrations": "browser",
+      "./react/webhooks/IntegrationDeliveries": "browser",
+      "./react/site-key/SiteKeyTab": "browser",
+      "./react/site-key/SiteKeyRecoveryCard": "browser",
+      "./react/site-key/hooks/use-site-key.hooks": "browser",
+      "./react/site-key/hooks/use-site-key-recovery.hooks": "browser"
     },
     "optionalPeers": {
       "better-sqlite3": "opt-in: sqlite storage; import @jini-ai/integrations/media-providers — SQLite storage could not load better-sqlite3. Install better-sqlite3 to enable this feature, or check its installed version and native binaries.",
@@ -71,7 +81,17 @@
         "./custom-credentials/credential-ports": "credentialed-http",
         "./custom-credentials/agent-tools": "credentialed-http",
         "./custom-credentials/credentialed-request": "credentialed-http",
-        "./react/credentials/credential-copy": "react"
+        "./react/credentials/credential-copy": "react",
+        "./react/admin-credentials/AdminByokKeyPanel": "react",
+        "./react/webhooks/rules": "react",
+        "./react/webhooks/hooks/use-integrations.hooks": "react",
+        "./react/webhooks/hooks/use-integration-deliveries.hooks": "react",
+        "./react/webhooks/Integrations": "react",
+        "./react/webhooks/IntegrationDeliveries": "react",
+        "./react/site-key/SiteKeyTab": "react",
+        "./react/site-key/SiteKeyRecoveryCard": "react",
+        "./react/site-key/hooks/use-site-key.hooks": "react",
+        "./react/site-key/hooks/use-site-key-recovery.hooks": "react"
       }
     }
   },
@@ -272,6 +292,56 @@
       "types": "./dist/react/credentials/credential-copy.d.ts",
       "import": "./dist/react/credentials/credential-copy.js",
       "default": "./dist/react/credentials/credential-copy.js"
+    },
+    "./react/admin-credentials/AdminByokKeyPanel": {
+      "types": "./dist/react/admin-credentials/AdminByokKeyPanel.d.ts",
+      "import": "./dist/react/admin-credentials/AdminByokKeyPanel.js",
+      "default": "./dist/react/admin-credentials/AdminByokKeyPanel.js"
+    },
+    "./react/webhooks/rules": {
+      "types": "./dist/react/webhooks/rules.d.ts",
+      "import": "./dist/react/webhooks/rules.js",
+      "default": "./dist/react/webhooks/rules.js"
+    },
+    "./react/webhooks/hooks/use-integrations.hooks": {
+      "types": "./dist/react/webhooks/hooks/use-integrations.hooks.d.ts",
+      "import": "./dist/react/webhooks/hooks/use-integrations.hooks.js",
+      "default": "./dist/react/webhooks/hooks/use-integrations.hooks.js"
+    },
+    "./react/webhooks/hooks/use-integration-deliveries.hooks": {
+      "types": "./dist/react/webhooks/hooks/use-integration-deliveries.hooks.d.ts",
+      "import": "./dist/react/webhooks/hooks/use-integration-deliveries.hooks.js",
+      "default": "./dist/react/webhooks/hooks/use-integration-deliveries.hooks.js"
+    },
+    "./react/webhooks/Integrations": {
+      "types": "./dist/react/webhooks/Integrations.d.ts",
+      "import": "./dist/react/webhooks/Integrations.js",
+      "default": "./dist/react/webhooks/Integrations.js"
+    },
+    "./react/webhooks/IntegrationDeliveries": {
+      "types": "./dist/react/webhooks/IntegrationDeliveries.d.ts",
+      "import": "./dist/react/webhooks/IntegrationDeliveries.js",
+      "default": "./dist/react/webhooks/IntegrationDeliveries.js"
+    },
+    "./react/site-key/SiteKeyTab": {
+      "types": "./dist/react/site-key/SiteKeyTab.d.ts",
+      "import": "./dist/react/site-key/SiteKeyTab.js",
+      "default": "./dist/react/site-key/SiteKeyTab.js"
+    },
+    "./react/site-key/SiteKeyRecoveryCard": {
+      "types": "./dist/react/site-key/SiteKeyRecoveryCard.d.ts",
+      "import": "./dist/react/site-key/SiteKeyRecoveryCard.js",
+      "default": "./dist/react/site-key/SiteKeyRecoveryCard.js"
+    },
+    "./react/site-key/hooks/use-site-key.hooks": {
+      "types": "./dist/react/site-key/hooks/use-site-key.hooks.d.ts",
+      "import": "./dist/react/site-key/hooks/use-site-key.hooks.js",
+      "default": "./dist/react/site-key/hooks/use-site-key.hooks.js"
+    },
+    "./react/site-key/hooks/use-site-key-recovery.hooks": {
+      "types": "./dist/react/site-key/hooks/use-site-key-recovery.hooks.d.ts",
+      "import": "./dist/react/site-key/hooks/use-site-key-recovery.hooks.js",
+      "default": "./dist/react/site-key/hooks/use-site-key-recovery.hooks.js"
     }
   },
   "typesVersions": {
@@ -386,6 +456,36 @@
       ],
       "secrets": [
         "./dist/secrets/index.d.ts"
+      ],
+      "react/admin-credentials/AdminByokKeyPanel": [
+        "./dist/react/admin-credentials/AdminByokKeyPanel.d.ts"
+      ],
+      "react/webhooks/rules": [
+        "./dist/react/webhooks/rules.d.ts"
+      ],
+      "react/webhooks/hooks/use-integrations.hooks": [
+        "./dist/react/webhooks/hooks/use-integrations.hooks.d.ts"
+      ],
+      "react/webhooks/hooks/use-integration-deliveries.hooks": [
+        "./dist/react/webhooks/hooks/use-integration-deliveries.hooks.d.ts"
+      ],
+      "react/webhooks/Integrations": [
+        "./dist/react/webhooks/Integrations.d.ts"
+      ],
+      "react/webhooks/IntegrationDeliveries": [
+        "./dist/react/webhooks/IntegrationDeliveries.d.ts"
+      ],
+      "react/site-key/SiteKeyTab": [
+        "./dist/react/site-key/SiteKeyTab.d.ts"
+      ],
+      "react/site-key/SiteKeyRecoveryCard": [
+        "./dist/react/site-key/SiteKeyRecoveryCard.d.ts"
+      ],
+      "react/site-key/hooks/use-site-key.hooks": [
+        "./dist/react/site-key/hooks/use-site-key.hooks.d.ts"
+      ],
+      "react/site-key/hooks/use-site-key-recovery.hooks": [
+        "./dist/react/site-key/hooks/use-site-key-recovery.hooks.d.ts"
       ]
     }
   },
@@ -406,8 +506,8 @@
     "registry": "https://registry.npmjs.org"
   },
   "scripts": {
-    "build": "tsc -p tsconfig.json",
-    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "build": "tsc -p tsconfig.json && tsc -p tsconfig.react.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit && tsc -p tsconfig.react.json --noEmit",
     "test": "vitest run",
     "test:coverage": "vitest run --coverage"
   },
@@ -436,7 +536,9 @@
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
     "@types/react": "^19.2.0",
-    "@types/react-dom": "^19.2.0"
+    "@types/react-dom": "^19.2.0",
+    "@testing-library/react": "^16.3.0",
+    "jsdom": "^26.1.0"
   },
   "peerDependenciesMeta": {
     "better-sqlite3": {

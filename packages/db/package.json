@@ -17,7 +17,8 @@
     ],
     "isolation": {
       "entries": {
-        "./tools": "transfer"
+        "./tools": "transfer",
+        "./react/recovery/Recovery": "react"
       },
       "shared": [
         "src/shared/ddl.adapter.ts",
@@ -41,7 +42,36 @@
     "optionalPeers": {
       "better-sqlite3": "opt-in: sqlite storage — SQLite storage could not load better-sqlite3. Install better-sqlite3 to enable this feature, or check its installed version and native binaries.",
       "@electric-sql/pglite": "opt-in: embedded postgresql storage — Embedded PostgreSQL storage could not load @electric-sql/pglite. Install @electric-sql/pglite to enable this feature, or check its installed version and native binaries.",
-      "pg": "opt-in: postgresql storage — PostgreSQL storage could not load pg. Install pg to enable this feature, or check its installed version and native binaries."
+      "pg": "opt-in: postgresql storage — PostgreSQL storage could not load pg. Install pg to enable this feature, or check its installed version and native binaries.",
+      "react": "opt-in: react browser bindings; import @jini-ai/db/react/recovery/Recovery — React browser bindings could not load react. Install react to enable this feature, or check its installed version.",
+      "react-dom": "opt-in: react browser bindings; import @jini-ai/db/react/recovery/Recovery — React browser bindings could not load react-dom. Install react-dom to enable this feature, or check its installed version."
+    },
+    "entries": {
+      "./core": "node",
+      "./sqlite": "node",
+      "./pglite": "node",
+      "./postgres": "node",
+      "./kernel": "node",
+      "./kernel/sqlite": "node",
+      "./kernel/pglite": "node",
+      "./kernel/postgres": "node",
+      "./migrate": "node",
+      "./testing/pg-fixture": "node",
+      "./package.json": "node",
+      "./transfer": "node",
+      "./tools": "node",
+      "./kernel/store-copy": "node",
+      "./recovery/*": "node",
+      "./recovery": "node",
+      "./owner-store": "node",
+      "./secrets-vault": "node",
+      "./settings": "node",
+      "./events": "node",
+      "./gated-mutations": "node",
+      "./verified-origin": "node",
+      "./data-modules": "node",
+      "./watermark/kernel": "node",
+      "./react/recovery/Recovery": "browser"
     }
   },
   "type": "module",
@@ -162,6 +192,11 @@
       "types": "./dist/watermark/kernel.d.ts",
       "import": "./dist/watermark/kernel.js",
       "default": "./dist/watermark/kernel.js"
+    },
+    "./react/recovery/Recovery": {
+      "types": "./dist/react/recovery/Recovery.d.ts",
+      "import": "./dist/react/recovery/Recovery.js",
+      "default": "./dist/react/recovery/Recovery.js"
     }
   },
   "typesVersions": {
@@ -237,6 +272,9 @@
       ],
       "watermark/kernel": [
         "./dist/watermark/kernel.d.ts"
+      ],
+      "react/recovery/Recovery": [
+        "./dist/react/recovery/Recovery.d.ts"
       ]
     }
   },
@@ -258,8 +296,8 @@
     "registry": "https://registry.npmjs.org"
   },
   "scripts": {
-    "build": "tsc -p tsconfig.build.json",
-    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "build": "tsc -p tsconfig.build.json && tsc -p tsconfig.react.build.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit && tsc -p tsconfig.react.json --noEmit",
     "test": "vitest run",
     "test:coverage": "vitest run --coverage",
     "test:postgres": "vitest run --config vitest.postgres.config.ts"
@@ -271,7 +309,9 @@
   "peerDependencies": {
     "better-sqlite3": "^13.0.0",
     "@electric-sql/pglite": "0.5.8",
-    "pg": "^8.23.0"
+    "pg": "^8.23.0",
+    "react": "^18.3.0 || ^19.0.0",
+    "react-dom": "^18.3.0 || ^19.0.0"
   },
   "devDependencies": {
     "@electric-sql/pglite": "0.5.8",
@@ -282,7 +322,13 @@
     "kysely": "0.29.6",
     "pg": "8.23.0",
     "@jini-ai/core": "workspace:*",
-    "@jini-ai/platform": "workspace:*"
+    "@jini-ai/platform": "workspace:*",
+    "react": "^19.2.0",
+    "react-dom": "^19.2.0",
+    "@types/react": "^19.2.0",
+    "@types/react-dom": "^19.2.0",
+    "@testing-library/react": "^16.3.0",
+    "jsdom": "^26.1.0"
   },
   "peerDependenciesMeta": {
     "better-sqlite3": {
@@ -292,6 +338,12 @@
       "optional": true
     },
     "pg": {
+      "optional": true
+    },
+    "react": {
+      "optional": true
+    },
+    "react-dom": {
       "optional": true
     }
   }
