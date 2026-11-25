@@ -9,10 +9,10 @@ import { useDockHeaderTip } from "./DockHeaderTip.hooks.js";
  * classes as `InfoTip`'s portal, so `styles.css`'s `.info-tip-bubble` rules style both.
  * The bubble is `aria-hidden`: each wrapped button carries the same text as its own `aria-label`.
  */
-export function DockHeaderTip({ label, children, useTip = useDockHeaderTip }: {
-  label: string; children: ReactNode; useTip?: typeof useDockHeaderTip;
+export function DockHeaderTip({ label, children, useTip = useDockHeaderTip, useAdminKitValuesHook = useAdminKitValues }: {
+  label: string; children: ReactNode; useTip?: typeof useDockHeaderTip; useAdminKitValuesHook?: typeof useAdminKitValues;
 }) {
-  const { infoTipBubbleStyle } = useAdminKitValues();
+  const { infoTipBubbleStyle } = useAdminKitValuesHook();
   const tip = useTip({ useTip: useInfoTip });
   return (
     <span ref={tip.anchorRef} className="dock-header-tip" {...tip.handlers}>
