@@ -281,7 +281,9 @@
       "./contracts/site/post-kind": "universal",
       "./scheduled-publish": "universal",
       "./tool-metadata/post": "universal",
-      "./tool-metadata/image-transform": "universal"
+      "./tool-metadata/image-transform": "universal",
+      "./contracts/site/database-introspection": "universal",
+      "./contracts/site/external-mcp-tool-ports": "universal"
     },
     "isolation": {
       "entries": {
@@ -1686,6 +1688,16 @@
       "types": "./dist/tool-metadata/image-transform.d.ts",
       "import": "./dist/tool-metadata/image-transform.js",
       "default": "./dist/tool-metadata/image-transform.js"
+    },
+    "./contracts/site/database-introspection": {
+      "types": "./dist/contracts/site/database-introspection.d.ts",
+      "import": "./dist/contracts/site/database-introspection.js",
+      "default": "./dist/contracts/site/database-introspection.js"
+    },
+    "./contracts/site/external-mcp-tool-ports": {
+      "types": "./dist/contracts/site/external-mcp-tool-ports.d.ts",
+      "import": "./dist/contracts/site/external-mcp-tool-ports.js",
+      "default": "./dist/contracts/site/external-mcp-tool-ports.js"
     }
   },
   "files": [

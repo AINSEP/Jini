@@ -27,13 +27,8 @@
  * beside the recovery modules that consume the classification. Still pure and dependency-free.
  */
 
-/** A schema's version index plus its migration-lineage tag (ADR-015 §5/RT-005). */
-export interface SchemaSnapshot {
-  version: number;
-  tag: string;
-}
-
-export type DriftStatus = "in-sync" | "ahead" | "diverged" | "behind";
+import type { DriftStatus, SchemaSnapshot } from "@jini-ai/core/contracts/site/database-introspection";
+export type { DriftStatus, SchemaSnapshot } from "@jini-ai/core/contracts/site/database-introspection";
 
 /**
  * Classifies drift between a site's persisted schema snapshot and the runtime's current schema.

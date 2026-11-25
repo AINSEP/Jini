@@ -42,6 +42,11 @@
       "better-sqlite3": "opt-in: sqlite storage — SQLite storage could not load better-sqlite3. Install better-sqlite3 to enable this feature, or check its installed version and native binaries.",
       "@electric-sql/pglite": "opt-in: embedded postgresql storage — Embedded PostgreSQL storage could not load @electric-sql/pglite. Install @electric-sql/pglite to enable this feature, or check its installed version and native binaries.",
       "pg": "opt-in: postgresql storage — PostgreSQL storage could not load pg. Install pg to enable this feature, or check its installed version and native binaries."
+    },
+    "entries": {
+      "./site/repo.memory": "universal",
+      "./transfer/confirmation-ui": "universal",
+      "./transfer/destination-store": "universal"
     }
   },
   "type": "module",
@@ -162,6 +167,21 @@
       "types": "./dist/watermark/kernel.d.ts",
       "import": "./dist/watermark/kernel.js",
       "default": "./dist/watermark/kernel.js"
+    },
+    "./site/repo.memory": {
+      "types": "./dist/site/repo.memory.d.ts",
+      "import": "./dist/site/repo.memory.js",
+      "default": "./dist/site/repo.memory.js"
+    },
+    "./transfer/confirmation-ui": {
+      "types": "./dist/transfer/confirmation-ui.d.ts",
+      "import": "./dist/transfer/confirmation-ui.js",
+      "default": "./dist/transfer/confirmation-ui.js"
+    },
+    "./transfer/destination-store": {
+      "types": "./dist/transfer/destination-store.d.ts",
+      "import": "./dist/transfer/destination-store.js",
+      "default": "./dist/transfer/destination-store.js"
     }
   },
   "typesVersions": {

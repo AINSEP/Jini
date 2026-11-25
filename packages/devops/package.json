@@ -124,7 +124,8 @@
       "./backup/site/react/ShowMoreImports": "browser",
       "./backup/site/import-index/backfill": "node",
       "./backup/site/import-index/mode": "node",
-      "./react/site-share-expiry": "browser"
+      "./react/site-share-expiry": "browser",
+      "./deploy/site/deploy-targets/host-kit": "node"
     },
     "isolation": {
       "shared": [
@@ -703,6 +704,11 @@
       "types": "./dist/react/site-share-expiry/index.d.ts",
       "import": "./dist/react/site-share-expiry/index.js",
       "default": "./dist/react/site-share-expiry/index.js"
+    },
+    "./deploy/site/deploy-targets/host-kit": {
+      "types": "./dist/deploy/site/deploy-targets/host-kit.d.ts",
+      "import": "./dist/deploy/site/deploy-targets/host-kit.js",
+      "default": "./dist/deploy/site/deploy-targets/host-kit.js"
     }
   },
   "typesVersions": {
