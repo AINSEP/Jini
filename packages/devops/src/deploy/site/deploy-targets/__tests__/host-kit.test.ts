@@ -11,10 +11,10 @@ it("caller abort identity wins and reachability closes on refusal", async () => 
     createReachability: () => ({ guard: { assertSafeUrl: () => { throw new Error("refused"); } }, fetch: guardedFetch, close }),
     now: () => 0, sleep: async () => {}, createSigV4Client: () => ({ fetch: vi.fn(), sign: vi.fn() }),
   });
-  const kitFetch = kit.fetch;
-  if (!kitFetch) throw new Error("deploy host kit exposes no fetch");
+  const { fetch: kitFetch, probeContent } = kit;
+  if (!kitFetch || !probeContent) throw new Error("deploy host kit exposes no fetch/probeContent");
   await expect(kitFetch("https://example.test", { signal: caller.signal }, { timeoutMs: 10000 })).rejects.toBe(reason);
-  expect(await kit.probeContent({ url: "https://refused.test", expected: "proof" })).toBe(false);
+  expect(await probeContent({ url: "https://refused.test", expected: "proof" })).toBe(false);
   expect(close).toHaveBeenCalledTimes(1);
   expect(guardedFetch).not.toHaveBeenCalled();
 });
