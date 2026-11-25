@@ -1752,6 +1752,14 @@
     {
       "id": "a53cc2fe1cc3",
       "reason": "Superseded by 9a9da3df3: formatMaxUploadBytesAsMb was replaced by describeUploadOverLimit (packages/core/src/text/upload-limit-message.ts), which names both sizes and never shows a raw byte count for MB-scale limits; its own docblock states the rounding rule."
+    },
+    {
+      "id": "763c69ac2a1d",
+      "reason": "P10-H2.J (b-g5b): the change-set.reverted event now names the reverting principal, not the reverted set's author (an owner undoing an agent change was recorded as the agent). The old claim is false; revert.ts documents the new attribution and historic rows still read back without kind (db witness)."
+    },
+    {
+      "id": "83e226a5d53c",
+      "reason": "P10-H2.J (b-g5b): CommandActor now admits the system kind, so \"narrowed to the kinds that run commands\" is false; the rewritten header keeps the delegation note and adds the sheet why-comment on attribution vs authorization."
     }
   ]
 }
