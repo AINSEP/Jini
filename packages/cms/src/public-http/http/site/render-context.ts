@@ -78,16 +78,16 @@ export interface SiteRenderContext {
    */
   themeName: string | null;
   /**
-   * SPEC-043/ADR-047 W-004 — `resolvePageWidgets`'s per-region resolved widget IR, keyed by region
+   * `resolvePageWidgets`'s per-region resolved widget IR, keyed by region
    * key. Empty object when the theme declares no regions or nothing resolved were passed in
    * (every render that doesn't opt into widgets, including every pre-existing test/caller of
    * `renderSite`, gets an empty object here — not a breaking change).
    */
   widgetRegions: Record<string, readonly WidgetRenderIR[]>;
-  /** SPEC-043/ADR-047 REQ-21 — resolved inline `widgetEmbed` IR, keyed by `placementId`. */
+  /** Resolved inline `widgetEmbed` IR, keyed by `placementId`. */
   widgetInlineResolved: ReadonlyMap<string, WidgetRenderIR>;
   /**
-   * ADR-027 §4 — the latest registered version of each transform NAME referenced by this render,
+   * The latest registered version of each transform NAME referenced by this render,
    * keyed by `transformName` (see {@link EMPTY_MEDIA_TRANSFORM_VERSIONS}'s doc for why this is
    * name-keyed rather than per-asset). Populated by the route caller from the same
    * `transform_registry` the public `/m/` route itself resolves against — `renderDocNode`'s `image`
@@ -96,7 +96,7 @@ export interface SiteRenderContext {
    */
   mediaTransformVersions: ReadonlyMap<string, number>;
   /**
-   * SPEC-047 Slice 2 — an `"html"`-format Page's resolved `data-embed-type`
+   * An `"html"`-format Page's resolved `data-embed-type`
    * targets (`resolver-service.ts`'s `resolveHtmlPageEmbeds`), consumed by {@link renderPostBody}.
    * `undefined` for every render this feature doesn't touch (a `"doc"` post/home route, or any
    * pre-existing caller/test of `renderSite`) — `renderHtmlPageBody` treats that identically to "no

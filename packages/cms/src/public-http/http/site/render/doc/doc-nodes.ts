@@ -373,7 +373,7 @@ export const DOC_NODE_HANDLERS: Record<string, DocNodeHandler> = {
  * `renderSite`) degrades to the same public-safe placeholder REQ-28 requires, never a crash or a raw
  * dump of the node's attrs.
  *
- * `mediaTransformVersions` (ADR-027 §4) is the same "optional, defaults to empty, degrades to the
+ * `mediaTransformVersions` (the frozen rendition URL contract) is the same "optional, defaults to empty, degrades to the
  * placeholder" shape for the `image` case's `{assetId, transformName}` ref path — see that case's
  * own comment for the full resolution rule and the legacy-`src` backward-compat guarantee.
  *

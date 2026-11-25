@@ -22,7 +22,7 @@ import type { LifecycleConfirmOp } from "./rules.js";
  * authoritative check, same disclosed pattern `the former raw settings screen`'s header comment documents for its
  * own client-side checks.
  *
- * SPEC-037 REQ-05: `EditFieldsDialog` wires the previously-unused `api.updateContentTypeFields` —
+ * `EditFieldsDialog` wires the previously-unused `api.updateContentTypeFields` —
  * post-creation field-schema editing, full-replace semantics (the whole `fields` array is sent),
  * optimistic-concurrency via `expectedVersion`. A `409` (stale version — another edit landed since
  * this dialog loaded) surfaces a dedicated "refresh and try again" message rather than silently

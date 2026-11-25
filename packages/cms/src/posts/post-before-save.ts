@@ -2,7 +2,7 @@ import type { UUID, JsonObject } from "@jini-ai/core/primitives";
 import type { PostStatus } from "../core/index.js";
 
 /**
- * SPEC-005 REQ-05 — the read-only entry snapshot handed to `BeforeSaveHookPort`. Declared
+ * The read-only entry snapshot handed to `BeforeSaveHookPort`. Declared
  * structurally here rather than importing the host SDK's `ContentEntryDraft` so `post.ts` stays
  * plugin-ignorant (Module Map): `post` knows it may call one optional function before saving, and
  * nothing about plugins, capabilities, or the hook registry. `Jini/packages/plugins/src/host/hook-registry.ts`'s
@@ -19,14 +19,14 @@ export interface BeforeSaveEntryDraft {
 }
 
 /**
- * SPEC-005 C-014/W-003 — the sole plugin-facing surface `post.ts` depends on. Resolves to the
+ * The sole plugin-facing surface `post.ts` depends on. Resolves to the
  * merged, already-validated `ext` patch (`{ [pluginId]: { …fields } }`), or throws to abort the
  * whole save (BR-07/EC-10 fail-closed).
  */
 export type BeforeSaveHookPort = (entry: BeforeSaveEntryDraft) => Promise<JsonObject>;
 
 /**
- * SPEC-005 CIC U-004-B1/F1 — runs the optional `content.entry.beforeSave` hook and resolves to the
+ * Runs the optional `content.entry.beforeSave` hook and resolves to the
  * patch, or throws. The no-op default (`{}` when no hook is wired) is what keeps the zero-plugin
  * path byte-for-byte unchanged.
  *

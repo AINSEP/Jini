@@ -33,7 +33,7 @@ export function createDatabaseApi({ request }: DatabaseApiDeps, _optional: Recor
         { path: `/database/timeline${querySuffix({ query: qs })}` }
       );
     },
-    /** ADR-041 §3 — this site's drift classification. Read-only: there is deliberately no matching
+    /** This site's drift classification. Read-only: there is deliberately no matching
      *  write/repair call, and the server exposes none. */
     getDatabaseSchemaState: () => request<AdminSchemaState>({ path: "/database/schema-state" }),
 

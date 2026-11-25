@@ -12,7 +12,7 @@ import { mediaPublicPath, mediaUrlKey } from "./public-path.js";
  * from here.
  */
 
-/** Cosmetic only (ADR-027 section 4: never participates in the rendition lookup itself); it
+/** Cosmetic only (never participates in the rendition lookup itself); it
  *  duplicates `seo/media.ts`'s identical local copy rather than sharing it. */
 const EXT_BY_TRANSFORM_FORMAT: Record<string, string> = { jpeg: "jpg", png: "png", webp: "webp", gif: "gif" };
 

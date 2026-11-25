@@ -6,7 +6,7 @@ import type { AdminPost, ContentPost } from "@jini-ai/core/contracts/headless/co
  * Maps a post/page record into the richer admin-facing DTO shape.
  * @throws PostNotFoundError for storage-only kinds such as email templates.
  *
- * SPEC-005 REQ-11 (T022): `ext` is spread in only when the record actually carries one, so an
+ * `ext` is spread in only when the record actually carries one, so an
  * entry with no contributing plugin serializes with no `ext` key at all (AC-14) and every
  * pre-feature response field is untouched.
  *

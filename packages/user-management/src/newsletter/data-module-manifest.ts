@@ -34,7 +34,7 @@ export const NEWSLETTER_TABLE_NAMES = {
 } as const;
 
 /**
- * ADR-023 §5/§6 — stable, unchanging provenance for this first-party bundled module (not an
+ * Stable, unchanging provenance for this first-party bundled module (not an
  * externally-fetched artifact, so there is no real `sourceUrl`/signature to report; this fixed
  * value is what `checkNamespaceAdoption` compares against itself on every subsequent boot, which
  * is exactly what keeps every repeat boot on the `unchanged` track rather than requiring consent).

@@ -26,7 +26,7 @@ export function createPagesApi({ request, workspaceId }: PagesApiDeps, _optional
     // between them.
     getPage: ({ id }: { id: string }, _optional: Record<string, never> = {}) =>
       request<{ post: AdminPost; pluginEmbeds?: readonly AdminPagePluginEmbed[] }>({ path: `/workspaces/${workspaceId}/pages/${encodeURIComponent(id)}` }),
-    // SPEC-047 — writes the bespoke-HTML body, and births the html row on first call. A DIFFERENT
+    // Writes the bespoke-HTML body, and births the html row on first call. A DIFFERENT
     // endpoint from `updatePost` on purpose: the body and the title/slug/status go through two
     // separate server-side write paths.
     //

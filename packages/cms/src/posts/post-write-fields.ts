@@ -80,7 +80,7 @@ export function presentScheduleFields(fields: { publishAt?: string | null; featu
 }
 
 /**
- * SPEC-047/ADR-056 Decision 3 / CIC-3 — the `kind` -> `bodyFormat` write-chokepoint gate,
+ * The `kind` -> `bodyFormat` write-chokepoint gate,
  * shared by `resolveCreateFields` and `updatePost`. Deliberately takes NO input: neither
  * `CreatePostInput` nor `UpdatePostInput` has a `bodyFormat`/`bodyHtml` field at all, so there is
  * nothing to read, let alone trust, from a caller — `createPost`/`updatePost` can produce only
