@@ -112,6 +112,12 @@
    "waitForHostedSignIn": "function:8594374a85"
   }
  },
+ "./api-connections/bundled-client-namespace": {
+  "types": "./dist/api-connections/bundled-client-namespace.d.ts",
+  "symbols": {
+   "createBundledClientNamespaceReader": "function:eaf18024a1"
+  }
+ },
  "./api-connections/form-delivery-connection": {
   "types": "./dist/api-connections/form-delivery-connection.d.ts",
   "symbols": {

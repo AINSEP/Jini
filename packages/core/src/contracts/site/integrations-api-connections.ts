@@ -10,3 +10,6 @@
  * Returned in both states so a later call can use it once the person finishes signing in.
  */
 export type ApiConnectionConnectStatus = { readonly status: "connected" | "waiting-for-sign-in"; readonly connectionRef: string };
+
+/** Resolves the client-setting prefix a plugin's manifest declares (`extensions.jini.clientNamespace`); `undefined` when it declares none. */
+export type ClientNamespaceFor = (input: { readonly pluginId: string }) => Promise<string | undefined>;

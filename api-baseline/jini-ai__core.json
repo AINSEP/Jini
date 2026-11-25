@@ -2125,7 +2125,8 @@
  "./contracts/site/integrations-api-connections": {
   "types": "./dist/contracts/site/integrations-api-connections.d.ts",
   "symbols": {
-   "ApiConnectionConnectStatus": "type:a0e3af7cd3"
+   "ApiConnectionConnectStatus": "type:a0e3af7cd3",
+   "ClientNamespaceFor": "type:73ec146565"
   }
  },
  "./contracts/site/integrations-credentialed-http": {
