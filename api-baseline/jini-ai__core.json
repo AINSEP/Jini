@@ -543,6 +543,20 @@
    "StorageError": "class:f963ae5e0e"
   }
  },
+ "./contracts/blob-gc": {
+  "types": "./dist/contracts/blob-gc.d.ts",
+  "symbols": {
+   "BlobClaimTarget": "interface:61f09b8e34",
+   "BlobFenceKernelPort": "interface:9774f8058d",
+   "BlobGcPolicy": "interface:2d98bba0ed",
+   "BlobOwnershipProbes": "interface:6728751ef3",
+   "BlobOwnershipQuery": "interface:6da6fb9635",
+   "BlobPurgeReason": "type:a2caf09383",
+   "BlobUnlinkJournalRow": "interface:5e048bc8ec",
+   "BlobUnlinkOutcome": "interface:4d3a6a3462",
+   "BlobWriteKind": "type:cbc720920d"
+  }
+ },
  "./contracts/capabilities": {
   "types": "./dist/contracts/capabilities.d.ts",
   "symbols": {
@@ -2549,6 +2563,7 @@
  "./contracts/storage": {
   "types": "./dist/contracts/storage.d.ts",
   "symbols": {
+   "CleanupPreviewStore": "interface:aa1b84d5b2",
    "ColumnInfo": "interface:caa29495da",
    "DbRow": "type:c3149fade0",
    "MigrationContext": "interface:e2bfdaf6f0",

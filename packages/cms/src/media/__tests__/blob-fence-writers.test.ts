@@ -62,7 +62,7 @@ test("concurrent import resurrects a tombstone instead of trusting it", async ()
 
 test("concurrent publish-content blob PUT of journaled bytes keeps the file", async () => {
   const { world, gate, unlinking, writerFence } = await pausedUnlink();
-  const deps = { workspaceId: WS, maxUploadBytes: 1024, blobStore: world.blobStore, blobFence: writerFence };
+  const deps = { workspaceId: WS, maxUploadBytes: 1024, blobStore: world.blobStore, blobFence: writerFence, storageKeyFor: computeBlobStorageKey };
   const putting = blobPutRoute.handle({ input: { claimedSha256: SHA, rawBody: { dataBase64: Buffer.from(BYTES).toString("base64") } }, deps, context: { id: "u1" }, authorize: async () => {} } as never);
   await new Promise((resolve) => setTimeout(resolve, 5));
   gate.open();

@@ -1452,6 +1452,14 @@
    "postListRoute": "variable:33d6f7c134"
   }
  },
+ "./admin-http/routes/posts/revision-thinning": {
+  "types": "./dist/admin-http/routes/posts/revision-thinning.d.ts",
+  "symbols": {
+   "RevisionThinningApplyDeps": "interface:6aa3c4d867",
+   "RevisionThinningPreviewDeps": "interface:0fa79f2bfa",
+   "createRevisionThinningRoutes": "function:ea18f7cfa4"
+  }
+ },
  "./admin-http/routes/posts/update": {
   "types": "./dist/admin-http/routes/posts/update.d.ts",
   "symbols": {
@@ -1521,7 +1529,7 @@
   "types": "./dist/admin-http/routes/publish-content/blob-put.d.ts",
   "symbols": {
    "BlobPutBody": "interface:7a0caa89b0",
-   "BlobPutRouteDeps": "interface:8a23cfbccf",
+   "BlobPutRouteDeps": "interface:1b2187ff9f",
    "blobPutRoute": "variable:cd1cc24e22",
    "decodeBlobBytes": "function:54852b517e"
   }
@@ -2300,7 +2308,7 @@
    "SiteSharePrincipal": "interface:cbb54678c4",
    "SiteShareRoute": "interface:9626b71de7",
    "SiteShareRouteBackend": "interface:5f92471297",
-   "SiteShareRouteDeps": "interface:3e0d29dbd8",
+   "SiteShareRouteDeps": "interface:6053bbc444",
    "SiteShareUploadRefusal": "class:1efe8d1902",
    "siteShareAcknowledgeRoute": "variable:49828934d8",
    "siteShareArtifactDeleteRoute": "variable:aaae5eb04b",
@@ -3991,21 +3999,27 @@
  "./media": {
   "types": "./dist/media/index.d.ts",
   "symbols": {
-   "AssetBlobRecord": "interface:4803f7dc72",
+   "AssetBlobRecord": "interface:e8ca92ab2a",
    "AssetBlobRepoPort": "interface:c05725bacb",
    "AssetBlobStatus": "type:ab6fa51711",
    "AssetRenditionRecord": "interface:de3b2ef748",
    "AssetRenditionRepoPort": "interface:1bd3440401",
+   "BlobClaimWriteRequired": "interface:7f7e39c52a",
+   "BlobGc": "interface:c5474117ad",
    "BlobGcJournalEntry": "interface:f69007e9ec",
    "BlobGcJournalRepoPort": "interface:af803e3f08",
    "BlobReferenceProbes": "interface:56051a611e",
    "BlobStorePort": "interface:2629b78977",
+   "BlobUnlinkJournalPort": "interface:acfedd650a",
    "CONVERT_VIDEO_TOOL_ID": "variable:48bb3f8744",
    "ConvertMediaVideoDeps": "interface:4aff3dd148",
    "ConvertMediaVideoOptional": "interface:fe656e8605",
    "ConvertMediaVideoRequired": "interface:23afaaedb1",
    "ConvertVideoToolDeps": "interface:15089e1e8b",
+   "CreateBlobGcOptional": "interface:9daf4f8b51",
+   "CreateBlobGcRequired": "interface:4c3b742e8a",
    "DEFAULT_ALLOWED_MIME_TYPES": "variable:bc772b03f4",
+   "DEFAULT_BLOB_GC_GRACE_MS": "variable:8c1d6fcc2b",
    "DEFAULT_GC_GRACE_MS": "variable:299934e46d",
    "DEFAULT_MAX_UPLOAD_BYTES": "variable:c084ead420",
    "DISALLOWED_INLINE_CONTENT_TYPES": "variable:64b6f1f1cb",
@@ -4030,7 +4044,7 @@
    "ImageTileInput": "interface:bc78079811",
    "ImageTransformerPort": "interface:f8dcda0417",
    "InMemoryAssetBlobRepo": "class:7cd67f9854",
-   "InMemoryAssetRenditionRepo": "class:c612a9a792",
+   "InMemoryAssetRenditionRepo": "class:1efa7d3214",
    "InMemoryBlobGcJournalRepo": "class:048ea5d1ee",
    "InMemoryBlobStore": "class:fb71680281",
    "InMemoryImageTransformer": "class:8b375c2bb9",
@@ -4082,6 +4096,7 @@
    "RegisterTransformDeps": "interface:204c07012e",
    "RegisterTransformInput": "interface:0bd8396645",
    "RegisterTransformRequired": "interface:2cd4efb595",
+   "RenditionKeyOwnersPort": "interface:3bb381c3ff",
    "ReplaceMediaFileDeps": "interface:8842a0f477",
    "ResolveMediaRenditionDeps": "interface:066dfd3cb7",
    "ResolveMediaRenditionInput": "interface:2a09dc605f",
@@ -4136,12 +4151,14 @@
    "VideoTranscodeFailureReason": "type:dcc6552fdd",
    "VideoTranscodeResult": "type:376e035313",
    "VideoTranscodeTarget": "type:ff23eb513e",
+   "blobFenceKey": "function:b083cee78b",
    "blobStoreFromObjectStore": "function:b0b3b11d10",
    "buildConvertVideoRegistrations": "function:67ab56322b",
    "buildMediaRegistrations": "function:bb2264bb23",
    "computeBlobStorageKey": "function:8947237945",
    "convertMediaVideo": "function:6f8efa5c43",
    "convertVideoToolDefinition": "variable:cc882812fb",
+   "createBlobGc": "function:d0acc93a0d",
    "createDocumentTextReader": "function:8c3d998a2a",
    "decideMediaOriginalForAsset": "function:4767af45f8",
    "decideMediaOriginalReply": "function:4c045f93ac",
@@ -4414,7 +4431,7 @@
   "types": "./dist/media/site/import-media-entity.d.ts",
   "symbols": {
    "ImportMediaEntityBlockedCode": "type:168c1e4fed",
-   "ImportMediaEntityDeps": "interface:acb85392eb",
+   "ImportMediaEntityDeps": "interface:614c16eae8",
    "ImportMediaEntityInput": "interface:b9f3da48c8",
    "ImportMediaEntityResult": "type:25d384a11d",
    "importMediaEntity": "function:c10428777c",
@@ -5049,6 +5066,12 @@
    "resolveBodyFields": "function:e6751a80af",
    "resolveUpdateBodyFields": "function:2fff4bfb1f",
    "savedPostContent": "function:2bb4a672a8"
+  }
+ },
+ "./posts/revision-thinning": {
+  "types": "./dist/posts/revision-thinning.d.ts",
+  "symbols": {
+   "createRevisionThinning": "function:dae49705af"
   }
  },
  "./posts/search": {
