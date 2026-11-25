@@ -26,6 +26,7 @@ import { ATTACHMENTS_ROUTE_PATH, type AttachmentsHttpDeps, type AttachmentsInter
 import { createDiskAttachmentStore } from '../disk-attachment-store.js';
 import { ftypBoxEnd, hasAvifSignature } from '../attachment-signatures.js';
 import type { AttachmentStore } from '@jini-ai/core/contracts/site/daemon-http';
+import { injectedRecordingReporter } from './fakes/route-host.js';
 
 const cleanups: Array<() => Promise<void>> = [];
 
@@ -112,12 +113,12 @@ function throwingEnv(): NodeJS.ProcessEnv {
 async function throwingGuardHarness(): Promise<{ url: string; sink: ReturnType<typeof vi.fn<(context: AttachmentsInternalErrorContext) => void>> }> {
   const store = await diskStore();
   const sink = vi.fn<(context: AttachmentsInternalErrorContext) => void>();
-  const deps: AttachmentsHttpDeps = { store, onInternalError: sink };
+  const deps: AttachmentsHttpDeps = { store };
   const portRef = { current: 0 };
   const adapter: RouteHostContext = { originPolicy: createLocalSameOriginPolicy({ port: () => portRef.current, env: throwingEnv(), config: testOriginConfig }) };
   const app = express();
   app.use(express.json());
-  mountAttachmentRoutes({ app, deps, adapter });
+  mountAttachmentRoutes({ app, deps, adapter }, { reportInternalError: injectedRecordingReporter({ record: sink }) });
   const server: Server = app.listen(0);
   await new Promise((ready) => server.once('listening', ready));
   const { port } = server.address() as { port: number };

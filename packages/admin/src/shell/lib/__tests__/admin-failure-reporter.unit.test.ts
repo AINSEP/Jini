@@ -51,6 +51,14 @@ describe("createAdminFailureReporter", () => {
     expect(last(channel)).toMatchObject({ errorId: "incident-1", cause: "The error ID identifies the server report.", appVersion: "Host Admin 1.0.0", jiniVersion: "0.7.3" });
   });
 
+  it("a non-string details id falls through to the flat id instead of hiding every id", () => {
+    const { channel, reporter } = build();
+    reporter.publishAdminFailure({ body: { details: { errorId: 123 }, errorId: "ERR-0123-4567-89AB-CDEF" }, path: "/posts/ID", method: "PUT", status: 500, generation: 1 });
+    expect(last(channel)?.errorId).toBe("ERR-0123-4567-89AB-CDEF");
+    reporter.publishAdminFailure({ body: { error: { details: { errorId: null }, requestId: "req-7" } }, path: "/posts/ID", method: "PUT", status: 500, generation: 1 });
+    expect(last(channel)?.errorId).toBe("req-7");
+  });
+
   it("swaps post wording for page when the caller says the row is a page", () => {
     const { channel, reporter } = build();
     const failure = formatUserFacingError({ message: "The post failed.", action: "Reload posts.", step: "Saving post", cause: "approved" }, { errorId: "a" });

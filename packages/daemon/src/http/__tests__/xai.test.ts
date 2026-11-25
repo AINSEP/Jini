@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { denyAllOrigins } from '@jini-ai/core/contracts/server/testing';
-import { fakeDaemonRouteHost } from './fakes/route-host.js';
+import { fakeDaemonRouteHost, injectedRecordingReporter, withInjectedReporter } from './fakes/route-host.js';
 import { jsonRequest, serveRoutes } from './fakes/serve-routes.js';
 import { describeRoutes } from '../route-table.js';
 import {
@@ -183,7 +183,7 @@ describe('xaiOauthStartRoute', () => {
       throw boom;
     });
     const onInternalError = vi.fn();
-    const deps = makeDeps({ startCallbackListener, onInternalError });
+    const deps = makeDeps({ startCallbackListener, reportInternalError: injectedRecordingReporter({ record: onInternalError }) });
     const result = await xaiOauthStartRoute.handle({ input: undefined, deps });
     expect(result).toEqual({ ok: false, error: { code: 'INTERNAL_ERROR', message: 'xAI sign-in could not start. Try again; if it keeps failing, copy the request ID and report this problem.', requestId: expect.any(String) } });
     expect(onInternalError).toHaveBeenCalledWith(expect.objectContaining({ source: 'oauth-start', error: boom }));
@@ -207,7 +207,7 @@ describe('xaiOauthStartRoute', () => {
       }
       return goodListener;
     });
-    const deps = makeDeps({ startCallbackListener, onInternalError: vi.fn() });
+    const deps = makeDeps({ startCallbackListener, reportInternalError: injectedRecordingReporter({ record: vi.fn() }) });
 
     const [first, second] = await Promise.all([
       xaiOauthStartRoute.handle({ input: undefined, deps }),
@@ -257,7 +257,7 @@ describe('xaiOauthStartRoute', () => {
 
     it('reports (never throws) a non-ok outcome', async () => {
       const onInternalError = vi.fn();
-      const { onCallback } = await startAndCapture({ onInternalError });
+      const { onCallback } = await startAndCapture({ reportInternalError: injectedRecordingReporter({ record: onInternalError }) });
       await expect(onCallback({ kind: 'error', error: 'access_denied' })).resolves.toBeUndefined();
       expect(onInternalError).toHaveBeenCalledWith(expect.objectContaining({ source: 'oauth-start' }));
     });
@@ -265,7 +265,7 @@ describe('xaiOauthStartRoute', () => {
     it('SEC-005: reports (never throws) a token-exchange failure without leaking the upstream body', async () => {
       const onInternalError = vi.fn();
       const { state, onCallback } = await startAndCapture({
-        onInternalError,
+        reportInternalError: injectedRecordingReporter({ record: onInternalError }),
         fetchImpl: vi.fn(async () => Response.json({ error: 'invalid_grant', error_description: 'replayed code' }, { status: 400 })),
       });
       await onCallback({ kind: 'ok', code: 'c', state });
@@ -352,7 +352,7 @@ describe('xaiOauthCompleteRoute', () => {
     const onInternalError = vi.fn();
     const deps = makeDeps({
       pending,
-      onInternalError,
+      reportInternalError: injectedRecordingReporter({ record: onInternalError }),
       fetchImpl: vi.fn(async () => ({ ok: false, status: 400, statusText: 'Bad Request', text: async () => 'invalid_grant: code already used' })),
     });
     const result = await xaiOauthCompleteRoute.handle({ input: { state, code: 'auth-code-1' }, deps });
@@ -372,7 +372,7 @@ describe('xaiOauthCompleteRoute', () => {
     const deps = makeDeps({
       pending,
       fetchImpl: vi.fn(async () => { throw 'token endpoint blew up with Bearer atk-leaked-123'; }),
-      onInternalError,
+      reportInternalError: injectedRecordingReporter({ record: onInternalError }),
     });
 
     const result = await xaiOauthCompleteRoute.handle({ input: { state, code: 'c1' }, deps });
@@ -390,7 +390,7 @@ describe('xaiOauthCompleteRoute', () => {
     const onInternalError = vi.fn();
     const deps = makeDeps({
       pending,
-      onInternalError,
+      reportInternalError: injectedRecordingReporter({ record: onInternalError }),
       fetchImpl: vi.fn(async () => {
         throw new Error('ECONNRESET');
       }),
@@ -405,7 +405,7 @@ describe('xaiOauthCompleteRoute — non-Error failures and token defaults', () =
   it('SEC-005: a non-Error thrown before the exchange is stringified, redacted and reported as INTERNAL_ERROR', async () => {
     const onInternalError = vi.fn();
     const pending = { consume: () => { throw 'pending store gone with Bearer atk-leaked-9'; } };
-    const deps = makeDeps({ pending, onInternalError });
+    const deps = makeDeps({ pending, reportInternalError: injectedRecordingReporter({ record: onInternalError }) });
     const result = await xaiOauthCompleteRoute.handle({ input: { state: 's', code: 'c' }, deps });
     expect(result).toMatchObject({ ok: false, error: { code: 'INTERNAL_ERROR' } });
     // The host sink now gets the original value and redacts under its own policy; the caller never sees it.
@@ -588,7 +588,7 @@ describe('xaiAuthStatusRoute', () => {
     // token file's own path makes `readFile` throw for a real reason, no network involved.
     await mkdir(path.join(dataDir, 'xai-oauth-token.json'));
     const onInternalError = vi.fn();
-    const deps = makeDeps({ onInternalError });
+    const deps = makeDeps({ reportInternalError: injectedRecordingReporter({ record: onInternalError }) });
     const result = await xaiAuthStatusRoute.handle({ input: undefined, deps });
     expect(result).toMatchObject({ ok: false, error: { code: 'INTERNAL_ERROR', message: 'The xAI connection status could not be read. Try again; if it keeps failing, copy the request ID and report this problem.' } });
     expect(onInternalError).toHaveBeenCalledWith(expect.objectContaining({ source: 'auth-status' }));
@@ -629,7 +629,7 @@ describe('xaiOauthDisconnectRoute', () => {
   it('SEC-005: a genuine token-file failure during disconnect is reported and redacted to INTERNAL_ERROR', async () => {
     await mkdir(path.join(dataDir, 'xai-oauth-token.json'));
     const onInternalError = vi.fn();
-    const deps = makeDeps({ onInternalError });
+    const deps = makeDeps({ reportInternalError: injectedRecordingReporter({ record: onInternalError }) });
     const result = await xaiOauthDisconnectRoute.handle({ input: undefined, deps });
     expect(result).toMatchObject({ ok: false, error: { code: 'INTERNAL_ERROR' } });
     expect(onInternalError).toHaveBeenCalledWith(expect.objectContaining({ source: 'oauth-disconnect' }));
@@ -739,7 +739,7 @@ describe('xaiSearchRoute.handle', () => {
           });
         }),
       );
-    const deps = makeDeps({ pending, fetchImpl, searchTimeoutMs: 25, onInternalError: vi.fn() });
+    const deps = makeDeps({ pending, fetchImpl, searchTimeoutMs: 25, reportInternalError: injectedRecordingReporter({ record: vi.fn() }) });
     await xaiOauthCompleteRoute.handle({ input: { state, code: 'c1' }, deps });
 
     const result = await xaiSearchRoute.handle({ input: { query: 'what is xAI' }, deps });
@@ -772,7 +772,7 @@ describe('xaiSearchRoute.handle', () => {
         };
       });
     const onInternalError = vi.fn();
-    const deps = makeDeps({ pending, fetchImpl, searchTimeoutMs: 25, onInternalError });
+    const deps = makeDeps({ pending, fetchImpl, searchTimeoutMs: 25, reportInternalError: injectedRecordingReporter({ record: onInternalError }) });
     await xaiOauthCompleteRoute.handle({ input: { state, code: 'c1' }, deps });
 
     const result = await xaiSearchRoute.handle({ input: { query: 'what is xAI' }, deps });
@@ -968,7 +968,7 @@ describe('xaiSearchRoute.handle', () => {
       .mockResolvedValueOnce(okTokenResponse())
       .mockResolvedValueOnce({ ok: false, status: 503, text: async () => '' });
     const onInternalError = vi.fn();
-    const deps = makeDeps({ pending, fetchImpl, onInternalError });
+    const deps = makeDeps({ pending, fetchImpl, reportInternalError: injectedRecordingReporter({ record: onInternalError }) });
     await xaiOauthCompleteRoute.handle({ input: { state, code: 'c1' }, deps });
     const result = await xaiSearchRoute.handle({ input: { query: 'q' }, deps });
     expect(result).toMatchObject({ ok: false, error: { code: 'INTERNAL_ERROR' } });
@@ -984,7 +984,7 @@ describe('xaiSearchRoute.handle', () => {
       // A bare string rejection — real fetch polyfills and proxies do this.
       .mockRejectedValueOnce('socket hang up while sending Bearer atk-123');
     const onInternalError = vi.fn();
-    const deps = makeDeps({ pending, fetchImpl, onInternalError });
+    const deps = makeDeps({ pending, fetchImpl, reportInternalError: injectedRecordingReporter({ record: onInternalError }) });
     await xaiOauthCompleteRoute.handle({ input: { state, code: 'c1' }, deps });
     const result = await xaiSearchRoute.handle({ input: { query: 'q' }, deps });
     expect(result).toMatchObject({ ok: false, error: { code: 'INTERNAL_ERROR' } });
@@ -1004,7 +1004,7 @@ describe('xaiSearchRoute.handle', () => {
       .mockResolvedValueOnce(okTokenResponse())
       .mockResolvedValueOnce({ ok: true, status: 200, json: async () => { throw failure; }, text: async () => '' });
     const onInternalError = vi.fn();
-    const deps = makeDeps({ pending, fetchImpl, onInternalError });
+    const deps = makeDeps({ pending, fetchImpl, reportInternalError: injectedRecordingReporter({ record: onInternalError }) });
     await xaiOauthCompleteRoute.handle({ input: { state, code: 'c1' }, deps });
     const result = await xaiSearchRoute.handle({ input: { query: 'q' }, deps });
     expect(result).toMatchObject({ ok: false, error: { code: 'INTERNAL_ERROR' } });
@@ -1019,7 +1019,7 @@ describe('xaiSearchRoute.handle', () => {
       .mockResolvedValueOnce(okTokenResponse({ access_token: 'super-secret-token' }))
       .mockResolvedValueOnce({ ok: false, status: 401, text: async () => 'Bearer super-secret-token invalid' });
     const onInternalError = vi.fn();
-    const deps = makeDeps({ pending, fetchImpl, onInternalError });
+    const deps = makeDeps({ pending, fetchImpl, reportInternalError: injectedRecordingReporter({ record: onInternalError }) });
     await xaiOauthCompleteRoute.handle({ input: { state, code: 'c1' }, deps });
 
     const result = await xaiSearchRoute.handle({ input: { query: 'q' }, deps });
@@ -1039,7 +1039,7 @@ describe('xaiSearchRoute.handle', () => {
       .mockResolvedValueOnce(okTokenResponse({ access_token: 'super-secret-token' }))
       .mockRejectedValueOnce(new Error('ECONNRESET while talking to super-secret-token owner'));
     const onInternalError = vi.fn();
-    const deps = makeDeps({ pending, fetchImpl, onInternalError });
+    const deps = makeDeps({ pending, fetchImpl, reportInternalError: injectedRecordingReporter({ record: onInternalError }) });
     await xaiOauthCompleteRoute.handle({ input: { state, code: 'c1' }, deps });
 
     const result = await xaiSearchRoute.handle({ input: { query: 'q' }, deps });
@@ -1057,7 +1057,7 @@ describe('xaiSearchRoute.handle', () => {
 
     const forbiddenFetchImpl = vi.fn();
     const onInternalError = vi.fn();
-    const deps2 = makeDeps({ ...deps, searchBaseUrl: 'http://169.254.169.254', fetchImpl: forbiddenFetchImpl, onInternalError });
+    const deps2 = makeDeps({ ...deps, searchBaseUrl: 'http://169.254.169.254', fetchImpl: forbiddenFetchImpl, reportInternalError: injectedRecordingReporter({ record: onInternalError }) });
     const result = await xaiSearchRoute.handle({ input: { query: 'q' }, deps: deps2 });
     expect(result).toMatchObject({ ok: false, error: { code: 'INTERNAL_ERROR' } });
     expect(forbiddenFetchImpl).not.toHaveBeenCalled();
@@ -1067,7 +1067,7 @@ describe('xaiSearchRoute.handle', () => {
   it('SEC-005: a throwing token resolver (real fs failure) is caught and reported as INTERNAL_ERROR', async () => {
     await mkdir(path.join(dataDir, 'xai-oauth-token.json'));
     const onInternalError = vi.fn();
-    const deps = makeDeps({ onInternalError });
+    const deps = makeDeps({ reportInternalError: injectedRecordingReporter({ record: onInternalError }) });
     const result = await xaiSearchRoute.handle({ input: { query: 'q' }, deps });
     expect(result).toMatchObject({ ok: false, error: { code: 'INTERNAL_ERROR' } });
     expect(onInternalError).toHaveBeenCalledWith(expect.objectContaining({ source: 'search' }));
@@ -1081,7 +1081,7 @@ describe('xaiSearchRoute.handle', () => {
 describe('xaiRoutes', () => {
   type Served = (request: Request) => Promise<Response>;
   const listen = (deps: Omit<XaiHttpDeps, 'reportInternalError'>, { denyOrigins = false }: { denyOrigins?: boolean } = {}): Served =>
-    serveRoutes({ routes: xaiRoutes({ deps, host: fakeDaemonRouteHost({}, denyOrigins ? { originPolicy: denyAllOrigins } : {}) }) });
+    serveRoutes({ routes: xaiRoutes({ deps, host: withInjectedReporter({ host: fakeDaemonRouteHost({}, denyOrigins ? { originPolicy: denyAllOrigins } : {}), deps }) }) });
   async function send(served: Served, method: string, routePath: string, body?: unknown) {
     const response = await served(jsonRequest({ path: routePath, method }, { body }));
     return { status: response.status, body: await response.json() as Record<string, unknown> };

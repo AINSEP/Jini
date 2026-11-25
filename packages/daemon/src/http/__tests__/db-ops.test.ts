@@ -1,7 +1,7 @@
 import { reportRouteInternalError } from '@jini-ai/http-kit';
 import { describe, expect, it, vi } from 'vitest';
 import { denyAllOrigins } from '@jini-ai/core/contracts/server/testing';
-import { fakeDaemonRouteHost } from './fakes/route-host.js';
+import { fakeDaemonRouteHost, injectedRecordingReporter, withInjectedReporter } from './fakes/route-host.js';
 import { jsonRequest, serveRoutes } from './fakes/serve-routes.js';
 import { describeRoutes } from '../route-table.js';
 import { createToolRegistry, type Principal, type ToolPolicy, type ToolRegistry } from '@jini-ai/core';
@@ -238,7 +238,7 @@ describe('daemonDbInspectRoute', () => {
     const boom = new Error('disk read failed at /secret/data/app.sqlite');
     const operations = makeOperations({ inspect: vi.fn(async () => { throw boom; }) });
     const onInternalError = vi.fn();
-    const { deps } = makeDeps({ operations, onInternalError });
+    const { deps } = makeDeps({ operations, reportInternalError: injectedRecordingReporter({ record: onInternalError }) });
     const result = await daemonDbInspectRoute.handle({ input: undefined, deps });
     expect(result.ok).toBe(false);
     if (!result.ok) {
@@ -380,7 +380,7 @@ describe('daemonDbVacuumRoute.handle', () => {
 
 describe('daemonDbRoutes', () => {
   const serve = ({ deps, denyOrigins = false }: { deps: DaemonDbHttpDeps; denyOrigins?: boolean }) =>
-    serveRoutes({ routes: daemonDbRoutes({ deps, host: fakeDaemonRouteHost({}, denyOrigins ? { originPolicy: denyAllOrigins } : {}) }) });
+    serveRoutes({ routes: daemonDbRoutes({ deps, host: withInjectedReporter({ host: fakeDaemonRouteHost({}, denyOrigins ? { originPolicy: denyAllOrigins } : {}), deps }) }) });
   const call = (path: string, method = 'GET') => jsonRequest({ path, method });
 
   it('lists exactly the three documented routes, each behind the same-origin gate', () => {

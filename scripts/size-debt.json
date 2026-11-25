@@ -274,27 +274,6 @@
   },
   {
     "file": "packages/sidecar/src/json-ipc.ts",
-    "function": "createJsonIpcServer",
-    "line": 188,
-    "rule": "max-lines-per-function",
-    "value": 156
-  },
-  {
-    "file": "packages/sidecar/src/json-ipc.ts",
-    "function": "createJsonIpcServer.createNetServer callback",
-    "line": 201,
-    "rule": "max-lines-per-function",
-    "value": 131
-  },
-  {
-    "file": "packages/sidecar/src/json-ipc.ts",
-    "function": "createJsonIpcServer.createNetServer callback.socket.on callback#3",
-    "line": 272,
-    "rule": "max-lines-per-function",
-    "value": 91
-  },
-  {
-    "file": "packages/sidecar/src/json-ipc.ts",
     "function": "requestJsonIpc",
     "line": 398,
     "rule": "max-lines-per-function",

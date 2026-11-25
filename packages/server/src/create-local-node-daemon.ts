@@ -42,7 +42,7 @@ import type { AnyPack, MissingTokenIds } from '@jini-ai/core/composition';
 import type { ResolveRunInput, RunLifecycle } from '@jini-ai/daemon';
 import type { BaseUrlGuardPort, ProviderToolTurnPort } from '@jini-ai/core/contracts/agents';
 import { installRouteRegistrationGuard, mountPackHttp } from '@jini-ai/http-kit';
-import { createLocalSameOriginPolicy, type RouteHostContext } from '@jini-ai/core/contracts/server';
+import { createLocalSameOriginPolicy, type RouteErrorPorts, type RouteHostContext } from '@jini-ai/core/contracts/server';
 import type { DaemonRouteHost, DelegatedToolExecuteRequest,  RunStartHandler,  WorkspaceRootResolver } from '@jini-ai/daemon/http';
 import { removeDaemonRegistryRecordIfCurrent, resolveDaemonRegistryPath, writeDaemonRegistryRecord } from '@jini-ai/sidecar';
 
@@ -192,6 +192,12 @@ export interface CreateLocalNodeDaemonConfig<
    * and locked route packs, before caller packs and daemon-status routes.
    */
   httpExtensions?: readonly LocalNodeHttpExtension[];
+  /**
+   * The host's reporter and tracker. Present → every route this daemon mounts (kernel features and
+   * `httpExtensions` alike) answers an unanticipated failure with one ERR ID, one host record, one
+   * tracker report and one `http.route` operation per request. Absent → the legacy path, unchanged.
+   */
+  errors?: RouteErrorPorts;
   /**
    * Host-contributed `{descriptor, handler, policy}` triples, registered into the same internal
    * registry this preset's own gated tools (`jini.terminal.create`, `daemon.db.*`) use — and so
@@ -516,7 +522,9 @@ export async function createLocalNodeDaemon(
 
   const resolvedPortRef = { current: requestedPort };
   // The kernel's origin middleware and per-route guards must share the same daemon-local env.
-  const adapter: RouteHostContext = { originPolicy: localOriginPolicy({ env, resolvedPortRef }) };
+  // `errors` rides on the one adapter, so the kernel's route host and every extension's route host
+  // (both built from this object) answer in the same reporter mode.
+  const adapter: RouteHostContext = { originPolicy: localOriginPolicy({ env, resolvedPortRef }), ...(config.errors ? { errors: config.errors } : {}) };
 
   let shuttingDown = false;
   let stopPromise: Promise<void> | null = null;

@@ -57,8 +57,6 @@ export type RunStartHandler = (context: RunStartContext) => Promise<void> | void
 export interface RunHttpDeps {
   readonly lifecycle: RunLifecycle;
   readonly onStarted?: RunStartHandler;
-  /** Host-owned sink for the real exception behind a generic `INTERNAL_ERROR` response (SEC-005). Defaults to `console.error`. */
-  readonly onInternalError?: (context: RunInternalErrorContext) => void;
   /**
    * Delivers a message the human sent mid-run into that run's live agent — a host passes its
    * `AgentExecutor.sendUserMessage`. Omitted, every such message reports `'unsupported'`, so the
@@ -88,7 +86,7 @@ function reportInternalError(
     ? 'The agent could not be started. Check the run status before starting another task. Copy the request ID and report this problem.'
     : 'The connection to run updates could not be opened. Check the run status before starting another task. Copy the request ID and report this problem.';
   // No host sink: `reportRouteInternalError`'s default line keeps the failure observable, never silent.
-  return deps.reportInternalError<Omit<RunInternalErrorContext, 'correlationId'>>({ report: { source, runId, error }, logSource: source, message }, { onInternalError: deps.onInternalError });
+  return deps.reportInternalError<Omit<RunInternalErrorContext, 'correlationId'>>({ report: { source, runId, error }, logSource: source, message });
 }
 
 export interface RunStartResponse {

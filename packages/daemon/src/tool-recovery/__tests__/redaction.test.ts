@@ -1,6 +1,8 @@
 /** Failed-tool redaction: model-facing failures carry only a redacted message plus an error id, the
- * real record goes to the host sink, and delegated internal errors get the same disclosure shape. */
+ * real record goes to the host reporter (written by the observation layer, under that id), and
+ * delegated internal errors get the same disclosure shape with one host record. */
 import { expect, test } from "vitest";
+import { createRecordingReporter } from "@jini-ai/core/errors/testing";
 import { mintToolErrorId } from "@jini-ai/core/errors/error-id";
 import type { ToolExecutionResult, ToolExecutor } from "../../tool-executor-types.js";
 import {
@@ -10,13 +12,12 @@ import {
   isRedactedToolFailure,
   readToolErrorId,
   withRedactedToolFailures,
-  type ToolFailureRecord,
 } from "../index.js";
 
 const call = { principal: { id: "operator" }, run: { id: "run-1" }, toolId: "deploy", input: {} };
 const credential = () => ["sk", "live", "abc123"].join("_");
 
-function deps(records: ToolFailureRecord[], { sinkThrows = false }: { sinkThrows?: boolean } = {}) {
+function deps() {
   let next = 0;
   return {
     mintErrorId: () => `ERR-000${++next}-0000-0000-0000`,
@@ -24,8 +25,16 @@ function deps(records: ToolFailureRecord[], { sinkThrows = false }: { sinkThrows
       const parts = text.split(credential());
       return { text: parts.join("[REDACTED]"), redactions: parts.length - 1 };
     },
-    onFailure: (record: ToolFailureRecord) => { records.push(record); if (sinkThrows) throw new Error("sink down"); },
   };
+}
+
+const IDS = ["ERR-0001-0000-0000-0000", "ERR-0002-0000-0000-0000", "ERR-0003-0000-0000-0000", "ERR-0004-0000-0000-0000", "ERR-0005-0000-0000-0000", "ERR-0006-0000-0000-0000", "ERR-0007-0000-0000-0000"];
+/** The describer's deps: the host reporter (over recording ports) and the same redactor. */
+function disclosureDeps() {
+  // The host reporter carries its standing secrets; a thrown object is recorded as-is (so it dedupes
+  // with the tool decorator) and the reporter's own redaction blanks it in the host record.
+  const recorded = createRecordingReporter({ ids: IDS, iso: "2026-11-25T00:00:00.000Z" }, { redaction: { exactSecrets: [credential()] } });
+  return { deps: { reporter: recorded.reporter, redactSecretShapes: deps().redactSecretShapes }, entries: recorded.entries };
 }
 
 function executor(result: ToolExecutionResult, seen: unknown[] = []): ToolExecutor {
@@ -42,38 +51,37 @@ test("the pattern recognizes an ID minted by core's one owner of the format, and
   expect(TOOL_ERROR_ID_PATTERN.test(mintToolErrorId({ randomHex: () => "" }))).toBe(false);
 });
 
-test("a non-validation failure is redacted, given an error id, and reported once to the host sink", async () => {
-  const records: ToolFailureRecord[] = [];
+test("a non-validation failure is redacted and given an error id, with the id minted exactly once", async () => {
+  let mints = 0;
   const failed: ToolExecutionResult = { executionId: "exec-1", status: "failed", errorKind: "internal", error: `auth ${credential()} rejected` };
-  const result = await withRedactedToolFailures({ inner: executor(failed), ...deps(records) }).execute(call);
+  const result = await withRedactedToolFailures({ inner: executor(failed), ...deps(), mintErrorId: () => `ERR-000${++mints}-0000-0000-0000` }).execute(call);
 
   expect(result).toEqual({ ...failed, error: "Error ERR-0001-0000-0000-0000: auth [REDACTED] rejected", errorId: "ERR-0001-0000-0000-0000" });
   expect(readToolErrorId({ result })).toBe("ERR-0001-0000-0000-0000");
   expect(isRedactedToolFailure({ result })).toBe(true);
-  expect(records).toEqual([{ errorId: "ERR-0001-0000-0000-0000", toolId: "deploy", runId: "run-1", principalId: "operator",
-    executionId: "exec-1", redactions: 1, message: "auth [REDACTED] rejected" }]);
+  expect(mints).toBe(1);
 });
 
-test("a failure with no message gets a generic one, and a throwing sink never changes the result", async () => {
-  const records: ToolFailureRecord[] = [];
-  const result = await withRedactedToolFailures({ inner: executor({ executionId: "e", status: "failed" }), ...deps(records, { sinkThrows: true }) })
+test("a failure with no message gets a generic one", async () => {
+  const result = await withRedactedToolFailures({ inner: executor({ executionId: "e", status: "failed" }), ...deps() })
     .execute(call);
   expect(result.error).toBe('Error ERR-0001-0000-0000-0000: tool "deploy" failed');
-  expect(records).toHaveLength(1);
+  expect(readToolErrorId({ result })).toBe("ERR-0001-0000-0000-0000");
 });
 
 test("validation failures stay model-visible (redacted, no error id); successes and message-less validation pass through", async () => {
-  const records: ToolFailureRecord[] = [];
+  let mints = 0;
+  const counted = () => ({ ...deps(), mintErrorId: () => { mints += 1; return "ERR-0009-0000-0000-0000"; } });
   const validation: ToolExecutionResult = { executionId: "v", status: "failed", errorKind: "validation", error: `bad key ${credential()}` };
-  const redacted = await withRedactedToolFailures({ inner: executor(validation), ...deps(records) }).execute(call);
+  const redacted = await withRedactedToolFailures({ inner: executor(validation), ...counted() }).execute(call);
   expect(redacted).toEqual({ ...validation, error: "bad key [REDACTED]" });
   expect(isRedactedToolFailure({ result: redacted })).toBe(false);
 
   const bare: ToolExecutionResult = { executionId: "v2", status: "failed", errorKind: "validation" };
-  expect(await withRedactedToolFailures({ inner: executor(bare), ...deps(records) }).execute(call)).toBe(bare);
+  expect(await withRedactedToolFailures({ inner: executor(bare), ...counted() }).execute(call)).toBe(bare);
   const ok: ToolExecutionResult = { executionId: "ok", status: "completed", output: 1 };
-  expect(await withRedactedToolFailures({ inner: executor(ok), ...deps(records) }).execute(call)).toBe(ok);
-  expect(records).toEqual([]);
+  expect(await withRedactedToolFailures({ inner: executor(ok), ...counted() }).execute(call)).toBe(ok);
+  expect(mints).toBe(0);
 });
 
 test("signal and emitSurface are forwarded only when supplied, and the other methods delegate", async () => {
@@ -83,7 +91,7 @@ test("signal and emitSurface are forwarded only when supplied, and the other met
     resumeConfirmation: ({ executionId }) => { calls.push(`resume:${executionId}`); },
     cancel: ({ executionId }) => { calls.push(`cancel:${executionId}`); },
     getAuditRecord: ({ executionId }) => { calls.push(`audit:${executionId}`); return null; } };
-  const wrapped = withRedactedToolFailures({ inner, ...deps([]) });
+  const wrapped = withRedactedToolFailures({ inner, ...deps() });
   const signal = new AbortController().signal;
   const emitSurface = async () => {};
   await wrapped.execute(call);
@@ -96,10 +104,14 @@ test("signal and emitSurface are forwarded only when supplied, and the other met
 });
 
 test("a delegated internal error is described by status, then by its own message, then generically — always redacted and id-tagged", () => {
-  const records: ToolFailureRecord[] = [];
-  const base = { source: "delegated-tools", runId: "run-1", toolId: "deploy", correlationId: "corr-1" };
-  const describe = (context: Parameters<typeof describeDelegatedInternalError>[0]["context"]) =>
-    describeDelegatedInternalError({ context, ...deps(records) });
+  const base = { source: "delegated-tools", runId: "run-1", toolId: "deploy" };
+  const describe = (context: Parameters<typeof describeDelegatedInternalError>[0]["context"]) => {
+    const { deps: described, entries } = disclosureDeps();
+    const { message: text } = describeDelegatedInternalError({ context, ...described });
+    records.push(entries);
+    return text;
+  };
+  const records: { meta?: Record<string, unknown> }[][] = [];
 
   expect(describe({ ...base, error: new Error("ignored"), status: "timed-out" })).toBe('Error ERR-0001-0000-0000-0000: tool "deploy" timed out before it finished');
   expect(describe({ ...base, error: null, status: "cancelled" }))
@@ -109,26 +121,40 @@ test("a delegated internal error is described by status, then by its own message
   for (const error of [new Error(""), "", 42]) {
     expect(describe({ ...base, error })).toBe('Error ERR-0001-0000-0000-0000: tool "deploy" failed');
   }
-  expect(records[2]).toEqual({ errorId: "ERR-0001-0000-0000-0000", toolId: "deploy", runId: "run-1", principalId: "(unresolved)",
-    executionId: "(none) correlationId=corr-1", redactions: 1, message: "leaked [REDACTED]" });
+  expect(records.map((entries) => entries.length)).toEqual(Array.from({ length: 7 }, () => 1));
+  expect(records[2]?.[0]?.meta).toMatchObject({ errorId: "ERR-0001-0000-0000-0000", step: "Run tool", attributes: { "agent.run.id": "run-1" } });
+  expect(JSON.stringify(records)).not.toContain(credential());
 });
 
 test("delegatedToolErrorDisclosure exposes the model-safe check and the internal-error describer over the same deps", () => {
-  const records: ToolFailureRecord[] = [];
-  const disclosure = delegatedToolErrorDisclosure(deps(records));
+  const { deps: described, entries } = disclosureDeps();
+  const disclosure = delegatedToolErrorDisclosure(described);
   expect(disclosure.isModelSafeToolFailure({ result: { executionId: "x", status: "failed", errorId: "ERR-1" } as ToolExecutionResult })).toBe(true);
   expect(disclosure.isModelSafeToolFailure({ result: { executionId: "x", status: "failed", error: "raw" } })).toBe(false);
-  expect(disclosure.describeInternalError({ source: "s", runId: "r", toolId: "t", correlationId: "c", error: "boom" })).toBe("Error ERR-0001-0000-0000-0000: boom");
-  expect(records).toHaveLength(1);
+  // A timed-out result carries the observation layer's id, but its text was never redacted by this layer.
+  expect(disclosure.isModelSafeToolFailure({ result: { executionId: "x", status: "timed-out", errorId: "ERR-1" } as ToolExecutionResult })).toBe(false);
+  expect(disclosure.describeInternalError({ source: "s", runId: "r", toolId: "t", error: "boom" }).message).toBe("Error ERR-0001-0000-0000-0000: boom");
+  expect(entries).toHaveLength(1);
 });
 
 test('delegated timeout carries host recovery facts through the same redaction and error-id boundary', () => {
-  const records: ToolFailureRecord[] = [];
-  const disclosure = delegatedToolErrorDisclosure(deps(records));
-  const message = disclosure.describeInternalError({ source: 'delegated-tool-execute', runId: 'run-1', toolId: 'publish', correlationId: 'corr', error: 'timed-out', status: 'timed-out', recoveryMessage: `Publish job job-1 is still running. Deployment: created; uploaded: 4/5; URL: https://new.test; status: BUILDING. Read job-1 before retrying. ${credential()}` });
+  const { deps: described, entries } = disclosureDeps();
+  const disclosure = delegatedToolErrorDisclosure(described);
+  const { message } = disclosure.describeInternalError({ source: 'delegated-tool-execute', runId: 'run-1', toolId: 'publish', error: 'timed-out', status: 'timed-out', recoveryMessage: `Publish job job-1 is still running. Deployment: created; uploaded: 4/5; URL: https://new.test; status: BUILDING. Read job-1 before retrying. ${credential()}` });
   expect(message).toContain('Deployment: created; uploaded: 4/5');
   expect(message).toContain('Read job-1 before retrying');
   expect(message).toContain('ERR-0001-0000-0000-0000');
   expect(message).not.toContain(credential());
-  expect(records).toHaveLength(1);
+  expect(entries).toHaveLength(1);
+  expect(JSON.stringify(entries)).not.toContain(credential());
+});
+
+test("a stamped in-process id is reused without writing a second record; a breached reporter throws so the route owns the incident", () => {
+  const { deps: described, entries } = disclosureDeps();
+  const stamped = "ERR-ABCD-0000-0000-0000";
+  expect(describeDelegatedInternalError({ context: { source: "s", runId: "r", toolId: "t", error: "timed-out", status: "timed-out", errorId: stamped }, ...described }))
+    .toEqual({ errorId: stamped, message: `Error ${stamped}: tool "t" timed out before it finished` });
+  expect(entries).toEqual([]);
+  const broken = { reporter: { record: () => { throw new Error("down"); } }, redactSecretShapes: described.redactSecretShapes };
+  expect(() => describeDelegatedInternalError({ context: { source: "s", runId: "r", toolId: "t", error: "x" }, ...broken })).toThrow("down");
 });

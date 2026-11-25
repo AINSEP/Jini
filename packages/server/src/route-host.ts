@@ -5,9 +5,9 @@
  * bound to Node here, once per composed kernel.
  */
 import { timingSafeEqual } from 'node:crypto';
-import type { RouteHostContext, SseSchedulerPort } from '@jini-ai/core/contracts/server';
+import type { ReportRouteInternalError, RouteHostContext, SseSchedulerPort } from '@jini-ai/core/contracts/server';
 import type { DaemonRouteHost, FrontendSessionTimer } from '@jini-ai/daemon/http';
-import { reportRouteInternalError } from '@jini-ai/http-kit';
+import { createReporterRouteInternalError, reportRouteInternalError } from '@jini-ai/http-kit';
 import { maxReserializedJsonBytes } from '@jini-ai/http-kit/node-bridge';
 
 /** The byte limit of the JSON parser this preset installs (`express.json()` with its default of 100 KB). */
@@ -27,14 +27,23 @@ export const nodeSessionTimer: FrontendSessionTimer = ({ callback, delayMs }) =>
 };
 
 /**
+ * The in-route incident reporter matching the context's mode. With `errors` the host's reporter owns
+ * the one record and error ID, so a route that handles its own failure and returns `INTERNAL_ERROR`
+ * agrees with a route that throws; without it the legacy SEC-005 sink path stays exactly as it was.
+ */
+function internalErrorReporterFor({ context }: { readonly context: RouteHostContext }): ReportRouteInternalError {
+  return context.errors ? createReporterRouteInternalError({ reporter: context.errors.reporter }) : reportRouteInternalError;
+}
+
+/**
  * The host object for every daemon route group of one composed kernel.
- * @param required.context - The same-origin policy and incident sink the composition was given.
+ * @param required.context - The same-origin policy and incident sink the composition was given. Its `errors`, when present, puts the in-route incident reporter in reporter mode.
  * @param required.parserLimitBytes - The byte limit of the JSON parser mounted above the routes. A route re-reads the body that parser produced, and re-serialized JSON can be up to 5.25 times longer (a number such as `1e20` prints as 21 digits), so the routes' own limit is derived from it; the parser's limit stays the effective one.
  */
 export function presetRouteHost(required: { readonly context: RouteHostContext; readonly parserLimitBytes: number }, _optional: Record<string, never> = {}): DaemonRouteHost {
   return {
     context: required.context,
-    reportInternalError: reportRouteInternalError,
+    reportInternalError: internalErrorReporterFor({ context: required.context }),
     scheduler: nodeIntervalScheduler,
     // The daemon's Node binding for core's injected constant-time byte comparison (moved here from the
     // deleted daemon `http/node-timing-safe-equal.ts`). Core's `timingSafeTokenMatch` takes the comparison as a

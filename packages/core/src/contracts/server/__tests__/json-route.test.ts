@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { err, ok } from '../result.js';
-import { ClientFacingError, jsonResponse, jsonRoute, sameOriginRefusal, type JsonRouteSpec, type ReportRouteInternalError, type RouteHostContext } from '../json-route.js';
+import { ClientFacingError } from '../client-facing-error.js';
+import { jsonResponse, jsonRoute, sameOriginRefusal, type JsonRouteSpec, type ReportRouteInternalError, type RouteHostContext } from '../json-route.js';
 import { createInMemoryServer } from '../testing.js';
 import { createLocalSameOriginPolicy } from '../origin.js';
 import { createRecordingOriginPolicy } from '../testing.js';

@@ -32,6 +32,14 @@ domain sockets), plus `resolveAppIpcPath` for the app-scoped socket path.
 `requestJsonIpc({ socketPath, payload }, { timeoutMs })`: a newline-delimited JSON request/response
 channel over a local socket, with a per-frame byte cap and an idle-connection timeout.
 
+Pass `errors: { reporter, observability?, methodOf?, refusalCode: 'HANDLER_ERROR' }` (and optionally
+`logger`) to `createJsonIpcServer` to report handler failures through your host's `ErrorReporter`: one
+`ipc.handle` operation runs around the handler and success serialization, a failure becomes one
+incident whose `ERR-` ID is both in the peer's words and in `requestId`, and a deliberate refusal
+keeps `code: 'HANDLER_ERROR'` and adds its own code as `reason` (no ID). `requestJsonIpc` rejections
+carry `reason` beside `code`. Without `errors`, the legacy reply (the connection trace ID as
+`requestId`) and its one console write are unchanged.
+
 **Port allocation** — `allocatePort({}, { host, label, port, reserved })`, which either honors a forced
 port or finds a free dynamic one, returning `{ port, source: 'dynamic' | 'forced' }`.
 

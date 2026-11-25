@@ -157,11 +157,13 @@ describe('createLineStream', () => {
 });
 
 describe('fakeDaemonRouteHost', () => {
-  it('reports an internal error under a counted request ID, keeps the report, and tells the sink it was given', () => {
+  it('reports an internal error under a counted request ID, keeps the report, and tells the incident recorder (never a second-argument sink)', () => {
     const sink = vi.fn();
-    const host = fakeDaemonRouteHost();
+    const legacySink = vi.fn();
+    const host = fakeDaemonRouteHost({}, { recordIncident: sink });
     const failure = new Error('boom');
-    const answer = host.reportInternalError({ report: { error: failure, source: 'test' }, logSource: 'test-source', message: 'It failed.' }, { onInternalError: sink });
+    const answer = host.reportInternalError({ report: { error: failure, source: 'test' }, logSource: 'test-source', message: 'It failed.' }, { onInternalError: legacySink });
+    expect(legacySink).not.toHaveBeenCalled();
     expect(answer).toEqual({ code: 'INTERNAL_ERROR', message: 'It failed.', requestId: 'req-1' });
     expect(host.reports).toEqual([{ report: { error: failure, source: 'test' }, logSource: 'test-source', message: 'It failed.', requestId: 'req-1' }]);
     expect(sink).toHaveBeenCalledWith({ error: failure, source: 'test', correlationId: 'req-1', logSource: 'test-source' });

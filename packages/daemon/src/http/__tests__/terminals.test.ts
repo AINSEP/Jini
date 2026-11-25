@@ -26,7 +26,7 @@ import {
 } from '../terminals.js';
 import type { WorkspaceRootResolver } from '../workspace-root.js';
 import { describeRoutes } from '../route-table.js';
-import { fakeDaemonRouteHost } from './fakes/route-host.js';
+import { fakeDaemonRouteHost, injectedRecordingReporter, withInjectedReporter } from './fakes/route-host.js';
 import { jsonRequest, serveRoutes } from './fakes/serve-routes.js';
 import { readFrames } from './fakes/sse-reader.js';
 
@@ -226,12 +226,11 @@ describe('terminalCreateRoute.handle', () => {
     });
     const executor = createToolExecutor({ registry });
     const onInternalError = vi.fn();
-    const deps: TerminalsHttpDeps = { reportInternalError: reportRouteInternalError,
-      manager: makeManager().manager,
+    const deps: TerminalsHttpDeps = { manager: makeManager().manager,
       toolExecutor: executor,
       principal: alice,
       resolveRoot: () => '/work',
-      onInternalError,
+      reportInternalError: injectedRecordingReporter({ record: onInternalError }),
     };
     const result = await terminalCreateRoute.handle({ input: { resourceRef: 'proj-1' }, deps });
     expect(result.ok).toBe(false);
@@ -477,7 +476,7 @@ describe('terminalKillRoute / terminalDeleteRoute', () => {
 
 /** The terminal routes on an in-memory server, behind the recording origin policy. */
 function serve(deps: TerminalsHttpDeps) {
-  const host = fakeDaemonRouteHost({}, { originPolicy: testOriginPolicy });
+  const host = withInjectedReporter({ host: fakeDaemonRouteHost({}, { originPolicy: testOriginPolicy }), deps });
   return serveRoutes({ routes: terminalRoutes({ deps, host }) });
 }
 
@@ -518,7 +517,7 @@ describe('terminalRoutes', () => {
   it('a failing tool execution answers the fixed sentence with a request ID and gives the host the real error', async () => {
     const onInternalError = vi.fn();
     const toolExecutor = { execute: async () => ({ status: 'failed', error: new Error('spawn failed at /opt/secret/pty') }) } as unknown as ToolExecutor;
-    const { deps } = makeDeps({ toolExecutor, onInternalError });
+    const { deps } = makeDeps({ toolExecutor, reportInternalError: injectedRecordingReporter({ record: onInternalError }) });
     const response = await serve(deps)(jsonRequest({ path: '/api/terminals', method: 'POST' }, { body: { resourceRef: 'proj-1' } }));
     const text = await response.text();
     expect(response.status).toBe(500);

@@ -85,7 +85,7 @@
  * would have clamped to `0.5`, not `1`); this port now floors first, matching OD.
  *
  * **SEC-005 for everything else**: a genuine Tavily request/response failure is caught, reported
- * through `onInternalError` (defaults to `console.error`, matching every other route pack), and
+ * through the injected `reportInternalError` (the host's one incident path, as in every other route pack), and
  * surfaced to the caller as a generic `INTERNAL_ERROR` — the raw error message (which can echo
  * request details) is never sent to the HTTP caller directly. `redactSecrets` (reused from
  * `@jini-ai/core`'s `connection-guard.ts`, already reachable via this package's existing
@@ -156,8 +156,6 @@ export interface ResearchHttpDeps {
   readonly env?: Readonly<Record<string, string | undefined>>;
   /** Resolves per-provider credentials. Defaults to `TAVILY_API_KEY` for the built-in Tavily transport. */
   readonly resolveCredentials?: ({ providerId }: { providerId: string }) => Promise<ResearchProviderCredentials>;
-  /** Host-owned sink for the real exception behind a generic `INTERNAL_ERROR` response (SEC-005). Defaults to `console.error`. */
-  readonly onInternalError?: (context: ResearchInternalErrorContext) => void;
   /** Required for direct handlers; {@link researchRoutes} binds the host's reporter. */
   readonly reportInternalError: ReportRouteInternalError;
 }
@@ -240,7 +238,7 @@ function credentialResolver(provider: ResearchProvider, deps: ResearchHttpDeps):
 
 /** Reports `error` to the host sink under a fresh correlation id and returns the generic SEC-005 public error. */
 function reportInternalError({ deps, error }: { readonly deps: ResearchHttpDeps; readonly error: unknown }, _optional: Record<string, never> = {}): ReturnType<typeof createApiError> {
-  return deps.reportInternalError<Omit<ResearchInternalErrorContext, 'correlationId'>>({ report: { error }, logSource: 'research/search', message: 'The web research request could not be completed. Try again; if it keeps failing, copy the request ID and report this problem.' }, { onInternalError: deps.onInternalError });
+  return deps.reportInternalError<Omit<ResearchInternalErrorContext, 'correlationId'>>({ report: { error }, logSource: 'research/search', message: 'The web research request could not be completed. Try again; if it keeps failing, copy the request ID and report this problem.' });
 }
 
 /** A copy of a provider failure with `apiKey` redacted from its message, name and stack, safe for the error sink. */

@@ -46,19 +46,24 @@ export interface FakeDaemonRouteHost extends DaemonRouteHost {
   readonly reports: readonly { readonly report: { readonly error: unknown }; readonly logSource: string; readonly message: string; readonly requestId: string }[];
 }
 
+/** One incident as the host's reporter saw it: the route's report, its log source and the request ID it answered with. */
+export type RecordedIncident = { readonly error: unknown; readonly correlationId: string; readonly logSource: string } & Record<string, unknown>;
+
 /**
  * @param optional.originPolicy - Who counts as same-origin; everyone by default.
+ * @param optional.recordIncident - Told of every incident the injected reporter takes, as one flat record.
  * @param optional.jsonBodyMaxBytes - The host's body limit; 1 MiB by default.
  */
 export function fakeDaemonRouteHost(
   _required: Record<string, never> = {},
-  { originPolicy, onInternalError, jsonBodyMaxBytes = 1024 * 1024 }: { readonly originPolicy?: SameOriginPolicyPort; readonly onInternalError?: RouteHostContext['onInternalError']; readonly jsonBodyMaxBytes?: number } = {},
+  { originPolicy, onInternalError, recordIncident, jsonBodyMaxBytes = 1024 * 1024 }: { readonly originPolicy?: SameOriginPolicyPort; readonly onInternalError?: RouteHostContext['onInternalError']; readonly recordIncident?: ((incident: never) => void) | undefined; readonly jsonBodyMaxBytes?: number } = {},
 ): FakeDaemonRouteHost {
   const reports: Array<FakeDaemonRouteHost['reports'][number]> = [];
-  const reportInternalError: ReportRouteInternalError = ({ report, logSource, message }, optional = {}) => {
+  // Reporter mode: the host's one reporter owns each incident, so a second argument is never consulted.
+  const reportInternalError: ReportRouteInternalError = ({ report, logSource, message }) => {
     const requestId = `req-${reports.length + 1}`;
     reports.push({ report, logSource, message, requestId });
-    optional.onInternalError?.({ ...report, correlationId: requestId, logSource });
+    (recordIncident as ((incident: RecordedIncident) => void) | undefined)?.({ ...report, correlationId: requestId, logSource });
     return { code: 'INTERNAL_ERROR', message, requestId };
   };
   return {
@@ -69,4 +74,23 @@ export function fakeDaemonRouteHost(
     jsonBodyMaxBytes,
     reports,
   };
+}
+
+const recordingHosts = new WeakMap<ReportRouteInternalError, FakeDaemonRouteHost>();
+
+/** A recording `reportInternalError` port a test injects through deps: each incident reaches `record` as one flat record. It is remembered so {@link withInjectedReporter} can put it in charge of a served host. */
+export function injectedRecordingReporter({ record }: { readonly record: (incident: never) => void }, _optional: Record<string, never> = {}): ReportRouteInternalError {
+  const host = fakeDaemonRouteHost({}, { recordIncident: record });
+  recordingHosts.set(host.reportInternalError, host);
+  return host.reportInternalError;
+}
+
+/**
+ * The host a served test mounts: when the test's deps carry a reporter made by {@link injectedRecordingReporter},
+ * that reporter (and its `reports`) stands in for the host's, as a real host injects its one reporter.
+ */
+export function withInjectedReporter<H extends FakeDaemonRouteHost>({ host, deps }: { readonly host: H; readonly deps: object }, _optional: Record<string, never> = {}): H {
+  const injected = (deps as { readonly reportInternalError?: ReportRouteInternalError }).reportInternalError;
+  const recording = injected === undefined ? undefined : recordingHosts.get(injected);
+  return recording === undefined ? host : { ...host, reportInternalError: recording.reportInternalError, reports: recording.reports };
 }

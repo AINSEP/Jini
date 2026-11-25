@@ -26,7 +26,7 @@ import {
   type MemoryVerifyLog,
 } from '../memory.js';
 import { describeRoutes } from '../route-table.js';
-import { fakeDaemonRouteHost } from './fakes/route-host.js';
+import { fakeDaemonRouteHost, injectedRecordingReporter } from './fakes/route-host.js';
 import { jsonRequest, serveRoutes } from './fakes/serve-routes.js';
 import { readFrames } from './fakes/sse-reader.js';
 
@@ -246,7 +246,7 @@ describe('memoryWriteIndexRoute', () => {
     // eslint-disable-next-line @typescript-eslint/no-throw-literal
     const notes = makeNoteStore({ writeIndex: vi.fn(async () => { throw 'raw string failure'; }) });
     const onInternalError = vi.fn();
-    const result = await memoryWriteIndexRoute.handle({ input: 'x', deps: makeDeps({ notes, onInternalError }) });
+    const result = await memoryWriteIndexRoute.handle({ input: 'x', deps: makeDeps({ notes, reportInternalError: injectedRecordingReporter({ record: onInternalError }) }) });
     expect(result).toEqual(storeFailureAnswer);
     expect(onInternalError.mock.calls[0]![0]).toMatchObject({ error: 'raw string failure', source: 'memory/index-write' });
   });
@@ -337,7 +337,7 @@ describe('entry CRUD', () => {
   it('never sends the store exception text, including a filesystem path, to the client: the sink gets it', async () => {
     const onInternalError = vi.fn();
     const deps = makeDeps({
-      notes: makeNoteStore({ upsertEntry: vi.fn(async () => { throw new Error("EACCES: permission denied, open '/home/op/.data/notes/x.md'"); }) }), onInternalError,
+      notes: makeNoteStore({ upsertEntry: vi.fn(async () => { throw new Error("EACCES: permission denied, open '/home/op/.data/notes/x.md'"); }) }), reportInternalError: injectedRecordingReporter({ record: onInternalError }),
     });
     const result = await memoryCreateEntryRoute.handle({ input: { name: 'n', type: 't' }, deps });
     expect(result).toEqual(storeFailureAnswer);

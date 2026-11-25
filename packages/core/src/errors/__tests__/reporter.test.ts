@@ -4,7 +4,7 @@
  * a draft line or a customer note, so they must stay out of every caller-visible field by policy.
  */
 import { describe, expect, test } from 'vitest';
-import { ClientFacingError } from '../../contracts/server/json-route.js';
+import { ClientFacingError } from '../../contracts/server/client-facing-error.js';
 import { approveCause, type ApprovedCause } from '../approved-cause.js';
 import { defineErrorScope } from '../bindings.js';
 import { createErrorCatalog } from '../catalog.js';
@@ -66,6 +66,20 @@ describe('incident', () => {
     expect(reports[0]!.error).toBe(original);
   });
 
+  test('record and describe both hand the tracker adapter the call\'s exact secrets, which no other report field carries', () => {
+    const built = build();
+    const error = new Error('upstream refused canary-secret');
+    built.reporter.record({ error, step: STEP, operation: OPERATION, tracker }, { exactSecrets: ['canary-secret'] });
+    built.reporter.describe({ error: new Error('again canary-secret'), step: STEP, operation: OPERATION, tracker, scope: 'members', fallback }, { exactSecrets: ['canary-secret'] });
+    expect(built.reports).toHaveLength(2);
+    for (const report of built.reports) {
+      expect(report.context.exactSecrets, 'the adapter needs the secret to blank it before export').toEqual(['canary-secret']);
+      const { exactSecrets: _consumed, ...projected } = report.context;
+      expect(JSON.stringify(projected), 'no other provider-bound field repeats the secret').not.toContain('canary-secret');
+    }
+    expect(JSON.stringify(built.entries), 'the host record never holds it').not.toContain('canary-secret');
+  });
+
   test('the boundary may pass an ID it already minted; the ID port is then not asked', () => {
     const built = build();
     const described = built.reporter.describe({ error: new Error('x'), step: STEP, operation: OPERATION, tracker, scope: 'members', fallback }, { errorId: 'ERR-AAAA-BBBB-CCCC-DDDD' });
@@ -91,8 +105,8 @@ describe('incident', () => {
     const operatorText = String(built.entries[0]!.meta!.diagnostic);
     expect(built.reports[0]!.error).toBe(error);
     expect(built.entries[0], 'the logger must never receive the original error').not.toHaveProperty('error');
-    expect(built.reports[0]!.context, 'the report uses fixed operation and explicit tracker IDs').toEqual({
-      operation: OPERATION, level: 'error', incidentId: ID, label: 'Error', trace,
+    expect(built.reports[0]!.context, 'the report uses fixed operation, explicit tracker IDs and every exact secret the adapter must blank').toEqual({
+      operation: OPERATION, level: 'error', incidentId: ID, label: 'Error', trace, exactSecrets: ['host-standing-secret', 'call-scoped-secret'],
     });
     for (const secret of ['host-standing-secret', 'call-scoped-secret', 'abcdefghijklmnopqrstuvwxyz012345']) expect(operatorText).not.toContain(secret);
     expect(operatorText).toContain('upstream said');
@@ -244,6 +258,18 @@ describe('disclosure: redaction is not permission', () => {
 });
 
 describe('refusal', () => {
+  test('an own-message match carrying a canary message answers the fallback words', () => {
+    const error = new MemberNotFoundError(CANARIES[0]!);
+    const built = build({ catalog: { ...catalog, match: () => ({
+      scope: 'members', code: 'MEMBERS_NOT_FOUND', mode: 'own-message', message: error.message,
+    }) } });
+    const described = built.reporter.describe({ error, step: STEP, operation: OPERATION, tracker, scope: 'members', fallback });
+    expect(described.kind).toBe('refusal');
+    expect(described.error).toEqual({ code: 'MEMBERS_NOT_FOUND', message: fallback.message });
+    expect(built.entries).toEqual([]);
+    expect(built.reports).toEqual([]);
+  });
+
   test('a bound error answers its code and words, with no host record, no tracker report and no ID', () => {
     const built = build();
     const described = built.reporter.describe({ error: new MemberNotFoundError("member 'm-9' was not found"), step: STEP, operation: OPERATION, tracker, scope: 'members', fallback });
@@ -326,5 +352,109 @@ describe('record', () => {
     const built = build();
     built.reporter.record({ error: new Error('slow'), step: 'Probe', operation: 'probe.run' }, { level: 'warning' });
     expect(built.reports[0]!.context.level).toBe('warning');
+  });
+});
+
+describe('one error object, one incident', () => {
+  test('the same error object recorded and then described keeps one ID, one host record and one tracker report', () => {
+    const built = build();
+    const error = new Error('tool failed');
+    const recorded = built.reporter.record({ error, step: 'Run tool', operation: 'tool.call', tracker });
+    const described = built.reporter.describe({ error, step: STEP, operation: OPERATION, tracker, scope: 'members', fallback });
+    expect(recorded).toEqual({ errorId: ID });
+    expect(described.error.requestId, 'the second boundary answers with the first ID').toBe(ID);
+    expect(built.entries).toHaveLength(1);
+    expect(built.reports).toHaveLength(1);
+  });
+
+  test('describing the same error object twice writes once', () => {
+    const built = build();
+    const error = new Error('x');
+    built.reporter.describe({ error, step: STEP, operation: OPERATION, tracker, scope: 'members', fallback });
+    const again = built.reporter.describe({ error, step: STEP, operation: OPERATION, tracker, scope: 'members', fallback });
+    expect(again.error.requestId).toBe(ID);
+    expect([built.entries.length, built.reports.length]).toEqual([1, 1]);
+  });
+
+  test('independently created reporters each record the same error object', () => {
+    const error = new Error('shared');
+    const first = build();
+    const second = build();
+    first.reporter.record({ error, step: STEP, operation: OPERATION });
+    second.reporter.record({ error, step: STEP, operation: OPERATION });
+    expect([first.entries.length, second.entries.length, first.reports.length, second.reports.length]).toEqual([1, 1, 1, 1]);
+  });
+
+  test('a primitive thrown twice is two incidents with two IDs', () => {
+    const built = build();
+    const ids = ['disk full', 'disk full'].map(error => built.reporter.record({ error, step: STEP, operation: OPERATION }).errorId);
+    expect(ids).toEqual([ID, 'ERR-0000-0000-0000-0002']);
+    expect(built.entries).toHaveLength(2);
+  });
+
+  test('a refusal is still classified first, even for an error object this reporter already recorded', () => {
+    const built = build();
+    const error = new MemberNotFoundError('m-9');
+    built.reporter.record({ error, step: STEP, operation: OPERATION });
+    expect(built.reporter.describe({ error, step: STEP, operation: OPERATION, tracker, scope: 'members', fallback }).kind).toBe('refusal');
+  });
+});
+
+describe('incident attributes', () => {
+  const offered = {
+    'http.route': '/runs/:id', 'http.status_code': 500, 'http.url': '/runs/abc?x=1', 'long.label': 'a'.repeat(200),
+    'not.a.number': Number.NaN, 'infinite': Number.POSITIVE_INFINITY, 'carries.call.secret': 'run-canary-secret', 'carries.standing.secret': 'k-standing-secret',
+    'free text': 'ok', 'blank': '',
+  };
+
+  test('only short fixed-shape values without a known secret reach the host record and the tracker report', () => {
+    const built = build({ redaction: { exactSecrets: ['standing-secret'] } });
+    built.reporter.record({ error: new Error('x'), step: STEP, operation: OPERATION }, { attributes: offered, exactSecrets: ['canary-secret'] });
+    const kept = { 'http.route': '/runs/:id', 'http.status_code': 500 };
+    expect(built.entries[0]!.meta!.attributes).toEqual(kept);
+    expect(built.reports[0]!.context.attributes).toEqual(kept);
+  });
+
+  test('a value of a recognised token shape fits the label pattern but is dropped by the redactor check', () => {
+    const built = build();
+    built.reporter.record({ error: new Error('x'), step: STEP, operation: OPERATION }, { attributes: { 'auth.token': `ghp_${'A1b2C3d4E5'.repeat(4).slice(0, 36)}`, 'tool.id': 'site.export' } });
+    expect(built.reports[0]!.context.attributes).toEqual({ 'tool.id': 'site.export' });
+  });
+
+  test('describe forwards admitted attributes too', () => {
+    const built = build();
+    built.reporter.describe({ error: new Error('x'), step: STEP, operation: OPERATION, tracker, scope: 'members', fallback }, { attributes: { 'tool.id': 'site.export' } });
+    expect(built.reports[0]!.context.attributes).toEqual({ 'tool.id': 'site.export' });
+  });
+
+  test('when nothing is admitted the attributes key is absent from both records', () => {
+    const built = build();
+    built.reporter.record({ error: new Error('x'), step: STEP, operation: OPERATION }, { attributes: { 'http.url': '/a?b=c' } });
+    expect(built.entries[0]!.meta).not.toHaveProperty('attributes');
+    expect(built.reports[0]!.context).not.toHaveProperty('attributes');
+  });
+
+  test('at most sixteen attributes are kept', () => {
+    const built = build();
+    const many = Object.fromEntries(Array.from({ length: 20 }, (_, index) => [`label.${index}`, index]));
+    built.reporter.record({ error: new Error('x'), step: STEP, operation: OPERATION }, { attributes: many });
+    expect(Object.keys(built.reports[0]!.context.attributes ?? {})).toHaveLength(16);
+  });
+});
+
+describe('diagnostics ports failing together', () => {
+  test('a throwing logger and a rejecting tracker still answer with the one ID and leave nothing unhandled', async () => {
+    const { observability } = createRecordingObservability();
+    const unhandled: unknown[] = [];
+    const onUnhandled = (reason: unknown): void => { unhandled.push(reason); };
+    process.on('unhandledRejection', onUnhandled);
+    const reporter = createErrorReporter({ ids: createSequenceIds({ ids: [ID] }), clock: createFixedClock({ iso: NOW }), catalog, versions: { app: '4.2.0', jini: '0.7.2' },
+      logger: { warn: () => { throw new Error('log down'); }, error: () => { throw new Error('log down'); } },
+      observability: { ...observability, reportError: () => Promise.reject(new Error('tracker offline')) } });
+    const described = reporter.describe({ error: new Error('x'), step: STEP, operation: OPERATION, tracker, scope: 'members', fallback });
+    await new Promise(resolve => setTimeout(resolve, 0));
+    process.off('unhandledRejection', onUnhandled);
+    expect(described.error.requestId).toBe(ID);
+    expect(unhandled).toEqual([]);
   });
 });

@@ -141,8 +141,6 @@ export interface MemoryHttpDeps {
   readonly verifications: MemoryVerifyLog;
   /** Forwarded verbatim to every `MemoryNoteStore`/log call — the same `dataDir` a host passes to its own `createNoteStore`-backed instance. */
   readonly dataDir: string;
-  /** Host-owned sink for the real exception behind a store failure's generic answer. Without one the failure is still logged (class only) by the reporter's default line. */
-  readonly onInternalError?: (context: MemoryInternalErrorContext) => void;
 }
 
 /** What every memory route's `handle` is given: the host's deps plus the reporter {@link memoryRoutes} takes from the host (it makes the request ID and writes the log line for a store failure). */
@@ -183,12 +181,11 @@ function readRequiredString(body: Record<string, unknown>, key: string): Result<
 /**
  * What every mutating route answers when its store call throws: one fixed sentence and a request ID,
  * never the store's own text (it can carry a filesystem path or a driver message). The real error
- * goes to the host's sink under the same ID.
+ * goes to the injected reporter under the same ID.
  */
 function storeFailure({ deps, source, error }: { readonly deps: MemoryRouteDeps; readonly source: string; readonly error: unknown }, _optional: Record<string, never> = {}): Result<never> {
   const failure = deps.reportInternalError<Omit<MemoryInternalErrorContext, 'correlationId'>>(
-    { report: { source, error }, logSource: source, message: 'The memory store could not complete the request. Copy the request ID and report this problem.' },
-    { onInternalError: deps.onInternalError },
+    { report: { source, error }, logSource: source, message: 'The memory store could not complete the request. Copy the request ID and report this problem.' }
   );
   return err({ error: failure });
 }

@@ -11,7 +11,7 @@ import {
 } from '../remote-run-events.js';
 import type { DaemonRouteHost } from '../route-host.js';
 import { describeRoutes } from '../route-table.js';
-import { fakeDaemonRouteHost } from './fakes/route-host.js';
+import { fakeDaemonRouteHost, injectedRecordingReporter, withInjectedReporter } from './fakes/route-host.js';
 import { jsonRequest, serveRoutes } from './fakes/serve-routes.js';
 
 /** What a gate did with one request: its answer, and how often it let the request through. */
@@ -401,7 +401,7 @@ describe('remote-run-events — remaining contract surface', () => {
     const result = await remoteToolUseRoute.handle({
       input: { runId: run.id, toolUseId: 'tu-1', toolId: 'echo' }, deps: { 
         ...deps,
-        onInternalError,
+        reportInternalError: injectedRecordingReporter({ record: onInternalError }),
         recorder: {
           recordToolUse: () => Promise.reject('a bare string rejection'),
           recordToolResult: deps.recorder.recordToolResult.bind(deps.recorder),
@@ -425,7 +425,7 @@ describe('remote-run-events — remaining contract surface', () => {
     const result = await remoteToolUseRoute.handle({
       input: { runId: run.id, toolUseId: 'tu-1', toolId: 'echo' }, deps: { 
         ...deps,
-        onInternalError,
+        reportInternalError: injectedRecordingReporter({ record: onInternalError }),
         recorder: {
           recordToolUse: () => Promise.reject(new Error(secret)),
           recordToolResult: deps.recorder.recordToolResult.bind(deps.recorder),
@@ -478,7 +478,7 @@ describe('remote-run-events — remaining contract surface', () => {
     });
     const result = await remoteToolUseRoute.handle({
       input: { runId: run.id, toolUseId: 'tu-1', toolId: 'echo' }, deps: { 
-        ...deps, lifecycle, onInternalError,
+        ...deps, lifecycle, reportInternalError: injectedRecordingReporter({ record: onInternalError }),
         recorder: { recordToolUse: () => Promise.reject(new Error('write failed')), recordToolResult: deps.recorder.recordToolResult.bind(deps.recorder) },
       },
     });
@@ -494,7 +494,7 @@ describe('remote-run-events — remaining contract surface', () => {
     const result = await remoteToolResultRoute.handle({
       input: { runId: run.id, toolUseId: 'tu-1', content: 'x' }, deps: { 
         ...deps,
-        onInternalError,
+        reportInternalError: injectedRecordingReporter({ record: onInternalError }),
         recorder: {
           recordToolUse: deps.recorder.recordToolUse.bind(deps.recorder),
           recordToolResult: () => Promise.reject(new Error('disk on fire at /srv/private/runs.db')),
@@ -515,7 +515,7 @@ describe('remote-run-events — remaining contract surface', () => {
     const { run } = await deps.lifecycle.start({ contextRef: 'ctx-still-conflict' });
     await deps.lifecycle.finish({ runId: run.id, status: 'failed', code: 1, signal: null, resumable: false });
 
-    const result = await remoteToolUseRoute.handle({ input: { runId: run.id, toolUseId: 'tu-1', toolId: 'echo' }, deps: {  ...deps, onInternalError } });
+    const result = await remoteToolUseRoute.handle({ input: { runId: run.id, toolUseId: 'tu-1', toolId: 'echo' }, deps: {  ...deps, reportInternalError: injectedRecordingReporter({ record: onInternalError }) } });
 
     expect(result).toMatchObject({ ok: false, error: { code: 'CONFLICT', details: { runId: run.id } } });
     // A legitimate business conflict is not an internal fault and must not page anyone.

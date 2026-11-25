@@ -64,9 +64,6 @@ export type AuthorizeToolRun = (
   optional?: { readonly signal?: AbortSignal },
 ) => Promise<ToolRunVerdict>;
 
-/** Where an unexpected failure's original error goes (the reporter's own sink argument). */
-type RouteInternalErrorSink = NonNullable<Parameters<DaemonRouteHost['reportInternalError']>[1]>['onInternalError'];
-
 export interface ToolExecutionRoutesRequired {
   readonly executor: ToolExecutor;
   /** Built fresh on every catalog request; the route never caches it. */
@@ -84,8 +81,6 @@ export interface ToolExecutionRoutesOptional {
   readonly runWithContext?: RunWithToolContext;
   /** Host-owned live-run/identity gate, after the body is read and before either route dispatches. */
   readonly authorizeRun?: AuthorizeToolRun;
-  /** Receives an unexpected route failure with its request ID; defaults to a redacted `console.error`. */
-  readonly onInternalError?: RouteInternalErrorSink | undefined;
 }
 
 function callerGate({ env, host }: Pick<ToolExecutionRoutesRequired, 'env' | 'host'>, { tokenEnvVar }: { readonly tokenEnvVar?: string | undefined }): ServerMiddleware {
@@ -165,7 +160,7 @@ function executionRoute(
  */
 function catalogRoute(
   { listToolsFor, host }: Pick<ToolExecutionRoutesRequired, 'listToolsFor' | 'host'>,
-  { authorizeRun, onInternalError }: { readonly authorizeRun?: AuthorizeToolRun | undefined; readonly onInternalError?: ToolExecutionRoutesOptional['onInternalError'] },
+  { authorizeRun }: { readonly authorizeRun?: AuthorizeToolRun | undefined },
 ): (required: { readonly request: Request }) => Promise<Response> {
   return async ({ request }) => {
     const query = readQuery({ request });
@@ -181,7 +176,7 @@ function catalogRoute(
       const failure = host.reportInternalError({
         report: { source: 'tool-catalog', error }, logSource: 'tool-catalog',
         message: 'The tool list could not be loaded. Try again; if it keeps failing, copy the request ID and report this problem.',
-      }, { onInternalError });
+      });
       return jsonResponse({ status: 500, body: createApiErrorResponse({ error: failure }) });
     }
   };
@@ -195,11 +190,11 @@ function catalogRoute(
  */
 export function toolExecutionRoutes(
   { executor, listToolsFor, env, host }: ToolExecutionRoutesRequired,
-  { tokenEnvVar, maxBodyBytes = DEFAULT_TOOL_EXEC_MAX_BODY_BYTES, runWithContext, authorizeRun, onInternalError }: ToolExecutionRoutesOptional = {},
+  { tokenEnvVar, maxBodyBytes = DEFAULT_TOOL_EXEC_MAX_BODY_BYTES, runWithContext, authorizeRun }: ToolExecutionRoutesOptional = {},
 ): DaemonRoute[] {
   const gates = [{ name: 'tool-exec-caller' as const, middleware: callerGate({ env, host }, { tokenEnvVar }) }];
   return [
     gated({ route: { method: 'POST', path: TOOL_EXECUTIONS_ROUTE_PATH, handler: executionRoute({ executor, host }, { maxBodyBytes, authorizeRun, runWithContext }) }, gates }),
-    gated({ route: { method: 'GET', path: TOOL_CATALOG_ROUTE_PATH, handler: catalogRoute({ listToolsFor, host }, { authorizeRun, onInternalError }) }, gates }),
+    gated({ route: { method: 'GET', path: TOOL_CATALOG_ROUTE_PATH, handler: catalogRoute({ listToolsFor, host }, { authorizeRun }) }, gates }),
   ];
 }

@@ -16,6 +16,7 @@
  */
 import { mountAttachmentRoutes, mountRoutes, testRouteHost } from './fakes/mount-attachments.js';
 import type { Server } from 'node:http';
+import { injectedRecordingReporter } from './fakes/route-host.js';
 import { tmpdir } from 'node:os';
 import { dirname, resolve } from 'node:path';
 import {
@@ -130,21 +131,19 @@ interface Harness {
 async function harness(
   overrides: Partial<AttachmentsHttpDeps> & {
     store?: AttachmentStore;
-    /**
-     * Leaves `onInternalError` genuinely absent rather than set to `undefined` — under
-     * `exactOptionalPropertyTypes` those are different, and only absence selects the default sink.
-     */
+    /** Told of every incident the host's injected reporter takes; a fresh recorder by default. */
+    recordIncident?: ReturnType<typeof vi.fn>;
+    /** Leaves the injected recorder out, so the host's real reporter and its default log line answer. */
     useDefaultErrorSink?: boolean;
   } = {},
-): Promise<Harness & { store: AttachmentStore }> {
-  const { useDefaultErrorSink, ...depOverrides } = overrides;
+): Promise<Harness & { store: AttachmentStore; recordIncident: ReturnType<typeof vi.fn> }> {
+  const { useDefaultErrorSink, recordIncident = vi.fn(), ...depOverrides } = overrides;
   const store = overrides.store ?? (await diskStore()).store;
   const deps: AttachmentsHttpDeps = {
     store,
     // Off by default here: `isLocalSameOrigin` is exercised by its own test below, and every other
     // case in this file is about upload/cleanup behavior rather than the CSRF guard.
     requireSameOrigin: false,
-    ...(useDefaultErrorSink === true ? {} : { onInternalError: vi.fn() }),
     ...depOverrides,
   };
   const app = express();
@@ -153,7 +152,7 @@ async function harness(
   // "body already drained" case below a genuine reproduction rather than a contrived one.
   app.use(express.json());
   const { adapter: adapter, portRef: adapterPortRef } = createLocalTestOrigin({}, { port: 0 });
-  mountAttachmentRoutes({ app, deps, adapter });
+  mountAttachmentRoutes({ app, deps, adapter }, useDefaultErrorSink === true ? {} : { reportInternalError: injectedRecordingReporter({ record: recordIncident }) });
   const server: Server = app.listen(0);
   await new Promise((ready) => server.once('listening', ready));
   const { port } = server.address() as { port: number };
@@ -163,7 +162,7 @@ async function harness(
       server.close(() => closed());
     }),
   );
-  return { url: `http://127.0.0.1:${port}${ATTACHMENTS_ROUTE_PATH}`, deps, store };
+  return { url: `http://127.0.0.1:${port}${ATTACHMENTS_ROUTE_PATH}`, deps, store, recordIncident };
 }
 
 async function upload(
@@ -1387,13 +1386,13 @@ describe('POST /api/attachments', () => {
   });
 
   it('rejects an unusable batch id with 400 and no internal-error report', async () => {
-    const { url, deps } = await harness();
+    const { url, recordIncident } = await harness();
 
     const response = await upload(url, { batch: 'bad', name: 'a.txt' });
 
     expect(response.status).toBe(400);
     expect(await response.json()).toMatchObject({ error: { message: 'Invalid attachment batch' } });
-    expect(deps.onInternalError).not.toHaveBeenCalled();
+    expect(recordIncident).not.toHaveBeenCalled();
   });
 
   it('rejects an upload past the per-request byte cap with 413 and its real message', async () => {
@@ -1481,7 +1480,7 @@ describe('POST /api/attachments', () => {
         throw new Error('ENOENT: /Users/someone/secret/uploads/batch/file.bin');
       },
     };
-    const { url } = await harness({ store, onInternalError });
+    const { url } = await harness({ store, recordIncident: onInternalError });
 
     const response = await upload(url, { batch: 'batch-upload-6', name: 'a.txt' });
 
@@ -1505,7 +1504,7 @@ describe('POST /api/attachments', () => {
         throw new AttachmentRejectedError({ reason: 'attachment-integrity', message: 'Attachment path is not canonical' });
       },
     };
-    const { url } = await harness({ store, onInternalError });
+    const { url } = await harness({ store, recordIncident: onInternalError });
 
     const response = await upload(url, { batch: 'batch-upload-7', name: 'a.txt' });
 
@@ -1539,7 +1538,7 @@ describe('POST /api/attachments', () => {
     const onInternalError = vi.fn();
     // The exact real-world shape of this: the harness's app-wide JSON body parser, and a user
     // dropping a `.json` file, whose browser-assigned content type that parser then claims.
-    const { url } = await harness({ onInternalError });
+    const { url } = await harness({ recordIncident: onInternalError });
 
     const response = await upload(url, {
       batch: 'batch-upload-8',
@@ -1651,7 +1650,7 @@ describe('DELETE /api/attachments', () => {
   });
 
   it('reports an unusable batch id as a client error, not an internal one', async () => {
-    const { url, deps } = await harness();
+    const { url, recordIncident } = await harness();
 
     const response = await fetch(url, {
       method: 'DELETE',
@@ -1661,7 +1660,7 @@ describe('DELETE /api/attachments', () => {
 
     expect(response.status).toBe(400);
     expect(await response.json()).toMatchObject({ error: { message: 'Invalid attachment batch' } });
-    expect(deps.onInternalError).not.toHaveBeenCalled();
+    expect(recordIncident).not.toHaveBeenCalled();
   });
 
   it('redacts an unexpected cleanup failure behind a correlation id', async () => {
@@ -1673,7 +1672,7 @@ describe('DELETE /api/attachments', () => {
         throw new Error('EACCES: /Users/someone/secret/uploads');
       },
     };
-    const { url } = await harness({ store, onInternalError });
+    const { url } = await harness({ store, recordIncident: onInternalError });
 
     const response = await fetch(url, {
       method: 'DELETE',
@@ -2264,12 +2263,12 @@ describe('removeUnadoptedUploads', () => {
  */
 async function directUploadHarness(
   { deps, state }: { readonly deps: AttachmentsHttpDeps; readonly state: { activeUploads: number } },
-  { jsonParser = false }: { readonly jsonParser?: boolean } = {},
+  { jsonParser = false, reportInternalError }: { readonly jsonParser?: boolean; readonly reportInternalError?: ReturnType<typeof injectedRecordingReporter> } = {},
 ): Promise<string> {
   const app = express();
   if (jsonParser) app.use(express.json());
   const { adapter } = createLocalTestOrigin({}, { port: 0 });
-  const host = testRouteHost({ context: adapter });
+  const host = testRouteHost({ context: adapter }, { reportInternalError });
   mountRoutes({ app, routes: [{ method: 'POST', path: ATTACHMENTS_ROUTE_PATH, handler: ({ request, locals }) => handleAttachmentUpload({ request, locals: locals ?? {}, deps, host, state }) }] }, { rawBody: true });
   const server: Server = app.listen(0);
   await new Promise((ready) => server.once('listening', ready));
@@ -2365,7 +2364,7 @@ describe('handleAttachmentUpload', () => {
       store.createBatchDirectory.mockRejectedValue(Object.assign(new Error('preparation failed'), { code }));
       const onInternalError = vi.fn();
       const state = { activeUploads: 0 };
-      const url = await directUploadHarness({ deps: { store, onInternalError }, state });
+      const url = await directUploadHarness({ deps: { store }, state }, { reportInternalError: injectedRecordingReporter({ record: onInternalError }) });
 
       const response = await upload(url, { batch: 'batch-race-failure', name: 'a.txt', body: 'body' });
 
@@ -2419,7 +2418,7 @@ describe('handleAttachmentUpload', () => {
     const { store } = await spiedStore();
     const onInternalError = vi.fn();
     const state = { activeUploads: 1 };
-    const url = await directUploadHarness({ deps: { store, onInternalError, maxConcurrentUploads: 1 }, state }, { jsonParser: true });
+    const url = await directUploadHarness({ deps: { store, maxConcurrentUploads: 1 }, state }, { reportInternalError: injectedRecordingReporter({ record: onInternalError }), jsonParser: true });
 
     const response = await upload(url, { batch: 'batch-direct-4', name: 'a.json', body: '{}', contentType: 'application/json' });
 
@@ -2431,7 +2430,7 @@ describe('handleAttachmentUpload', () => {
     const { store } = await spiedStore();
     const onInternalError = vi.fn();
     const state = { activeUploads: 0 };
-    const url = await directUploadHarness({ deps: { store, onInternalError }, state }, { jsonParser: true });
+    const url = await directUploadHarness({ deps: { store }, state }, { reportInternalError: injectedRecordingReporter({ record: onInternalError }), jsonParser: true });
 
     const response = await upload(url, { batch: 'batch-direct-5', name: 'a.json', body: '{"a":1}', contentType: 'application/json' });
 
@@ -2555,7 +2554,7 @@ describe('handleAttachmentUpload', () => {
     store.deleteUnclaimed.mockRejectedValue(new Error('tidy failed'));
     const onInternalError = vi.fn();
     const state = { activeUploads: 0 };
-    const url = await directUploadHarness({ deps: { store, onInternalError }, state });
+    const url = await directUploadHarness({ deps: { store }, state }, { reportInternalError: injectedRecordingReporter({ record: onInternalError }) });
 
     const response = await upload(url, { batch: 'batch-direct-14', name: 'a.txt' });
 
@@ -2569,7 +2568,7 @@ describe('handleAttachmentUpload', () => {
     store.pruneExpired.mockRejectedValue(new Error('prune exploded at /secret/path'));
     const onInternalError = vi.fn();
     const state = { activeUploads: 0 };
-    const url = await directUploadHarness({ deps: { store, onInternalError }, state });
+    const url = await directUploadHarness({ deps: { store }, state }, { reportInternalError: injectedRecordingReporter({ record: onInternalError }) });
 
     const response = await upload(url, { batch: 'batch-direct-15', name: 'a.txt' });
 
@@ -2587,7 +2586,7 @@ describe('handleAttachmentUpload', () => {
   it('keeps a classified rejection from the store (an unusable batch) as its real 400', async () => {
     const { store } = await spiedStore();
     const onInternalError = vi.fn();
-    const url = await directUploadHarness({ deps: { store, onInternalError }, state: { activeUploads: 0 } });
+    const url = await directUploadHarness({ deps: { store }, state: { activeUploads: 0 } }, { reportInternalError: injectedRecordingReporter({ record: onInternalError }) });
 
     const response = await upload(url, { name: 'a.txt' });
 

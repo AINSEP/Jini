@@ -196,8 +196,6 @@ export interface XaiHttpDeps {
   readonly fetchImpl?: typeof fetch;
   /** Deadline for one search request *and* its response body, in milliseconds. Defaults to {@link DEFAULT_SEARCH_TIMEOUT_MS}. */
   readonly searchTimeoutMs?: number;
-  /** Host-owned sink for the real exception behind a generic `INTERNAL_ERROR` response (SEC-005). It receives the original error: upstream bodies can carry secrets, so the host redacts under its own policy. Without it the default line prints the class only. */
-  readonly onInternalError?: ((context: XaiInternalErrorContext) => void) | undefined;
   /** Required for direct handlers; {@link xaiRoutes} binds the host's reporter. */ readonly reportInternalError: ReportRouteInternalError;
 }
 
@@ -215,16 +213,15 @@ interface ResolvedXaiHttpDeps {
   searchDefaultModel: string;
   fetchImpl: typeof fetch;
   searchTimeoutMs: number;
-  onInternalError?: ((context: XaiInternalErrorContext) => void) | undefined;
   reportInternalError: ReportRouteInternalError;
 }
 
 /** The one incident owner for every xAI route failure (local wrapper: it picks the message). */
 function reportXaiInternalError(
-  { resolved, source, error }: { readonly resolved: Pick<ResolvedXaiHttpDeps, 'onInternalError' | 'reportInternalError'>; readonly source: XaiInternalErrorContext['source']; readonly error: unknown },
+  { resolved, source, error }: { readonly resolved: Pick<ResolvedXaiHttpDeps, 'reportInternalError'>; readonly source: XaiInternalErrorContext['source']; readonly error: unknown },
   _optional: Record<string, never> = {},
 ): ReturnType<typeof createApiError> {
-  return resolved.reportInternalError<Omit<XaiInternalErrorContext, 'correlationId'>>({ report: { source, error }, logSource: `xai/${source}`, message: XAI_FAILURE_MESSAGES[source] }, { onInternalError: resolved.onInternalError });
+  return resolved.reportInternalError<Omit<XaiInternalErrorContext, 'correlationId'>>({ report: { source, error }, logSource: `xai/${source}`, message: XAI_FAILURE_MESSAGES[source] });
 }
 
 /** Resolves every optional `XaiHttpDeps` field to a concrete value. Idempotent — calling this again on an already-resolved object (e.g. `xaiRoutes`'s own single resolution, passed through to each route's `handle`) is a harmless pass-through. See module doc on why stateful fields (`pending`/`listenerRef`) must be resolved once per registration, not once per request. */
@@ -246,7 +243,7 @@ function resolveOAuthFlowDeps(deps: XaiHttpDeps): Pick<ResolvedXaiHttpDeps, 'pro
 }
 
 /** Token storage, search transport and error-sink defaults. */
-function resolveStorageAndSearchDeps(deps: XaiHttpDeps): Pick<ResolvedXaiHttpDeps, 'dataDir' | 'tokenFileName' | 'searchBaseUrl' | 'searchDefaultModel' | 'fetchImpl' | 'searchTimeoutMs' | 'onInternalError' | 'reportInternalError'> {
+function resolveStorageAndSearchDeps(deps: XaiHttpDeps): Pick<ResolvedXaiHttpDeps, 'dataDir' | 'tokenFileName' | 'searchBaseUrl' | 'searchDefaultModel' | 'fetchImpl' | 'searchTimeoutMs' | 'reportInternalError'> {
   return {
     dataDir: deps.dataDir ?? process.cwd(),
     tokenFileName: deps.tokenFileName ?? DEFAULT_TOKEN_FILE_NAME,
@@ -254,7 +251,6 @@ function resolveStorageAndSearchDeps(deps: XaiHttpDeps): Pick<ResolvedXaiHttpDep
     searchDefaultModel: deps.searchDefaultModel ?? DEFAULT_SEARCH_MODEL,
     fetchImpl: deps.fetchImpl ?? fetch,
     searchTimeoutMs: deps.searchTimeoutMs ?? DEFAULT_SEARCH_TIMEOUT_MS,
-    onInternalError: deps.onInternalError,
     reportInternalError: deps.reportInternalError,
   };
 }

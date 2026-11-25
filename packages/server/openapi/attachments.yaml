@@ -35,7 +35,7 @@ info:
     `attachment-integrity` — is deliberately redacted to the generic, correlation-id-bearing
     `INTERNAL_ERROR` shape instead, even though the source constructs a specific message for
     each (the module doc's own example: "mount this route pack before any global body
-    parser..."). That message only ever reaches the operator-owned `onInternalError` sink,
+    parser..."). That message only ever reaches the host's injected error reporter,
     never the HTTP caller. This is intentional per `REJECTION_STATUS`'s own comment ("The
     remaining reasons describe a broken or hostile server-side state... never given a real
     message over HTTP"), not a bug — flagged here only because it means integrating against

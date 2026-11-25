@@ -1,5 +1,6 @@
 import { reportRouteInternalError } from '@jini-ai/http-kit';
 import { describe, expect, it, vi } from 'vitest';
+import { injectedRecordingReporter } from './fakes/route-host.js';
 import { createToolRegistry, type Principal } from '@jini-ai/core';
 import {
   createInMemoryEventLog,
@@ -24,11 +25,10 @@ function settlingExecutor(result: ToolExecutionResult): ToolExecutor {
 
 async function callRoute(result: ToolExecutionResult, overrides: Partial<DelegatedToolsHttpDeps> = {}) {
   const onInternalError = vi.fn<(context: DelegatedToolsInternalErrorContext) => void>();
-  const deps: DelegatedToolsHttpDeps = { reportInternalError: reportRouteInternalError,
-    lifecycle: createRunLifecycle({ eventLog: createInMemoryEventLog({}) }),
+  const deps: DelegatedToolsHttpDeps = { lifecycle: createRunLifecycle({ eventLog: createInMemoryEventLog({}) }),
     toolExecutor: settlingExecutor(result),
     resolvePrincipal: () => PRINCIPAL,
-    onInternalError,
+    reportInternalError: injectedRecordingReporter({ record: onInternalError }),
     ...overrides,
   };
   const { run } = await deps.lifecycle.start({ contextRef: 'ctx-status-mapping' });

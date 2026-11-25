@@ -23,7 +23,6 @@ import type { DaemonRouteHost } from './route-host.js';
 import { gated, type DaemonRoute } from './route-table.js';
 
 /** Where an unexpected failure's original error goes (the reporter's own sink argument). */
-type RouteInternalErrorSink = NonNullable<Parameters<DaemonRouteHost['reportInternalError']>[1]>['onInternalError'];
 
 export const ATTACHMENT_LOOKUP_ROUTE_PATH = '/internal/attachment-lookup';
 
@@ -68,21 +67,21 @@ const failure = ({ status, error }: { readonly status: number; readonly error: u
 
 function lookupFailure(
   { error, host }: { readonly error: unknown; readonly host: DaemonRouteHost },
-  { onInternalError, runId }: { readonly onInternalError?: RouteInternalErrorSink | undefined; readonly runId?: string | undefined } = {},
+  { runId }: { readonly runId?: string | undefined } = {},
 ): Response {
   if (error instanceof AttachmentRejectedError) {
     return failure({ status: 400, error: createApiError({ code: 'ATTACHMENT_REJECTED', message: error.message }, { details: { reason: error.reason } }) });
   }
   const report = { source: 'attachment-lookup', ...(runId === undefined ? {} : { runId }), error };
-  return failure({ status: 500, error: host.reportInternalError({ report, logSource: 'attachment-lookup', message: 'The attachment could not be looked up. Try again; if it keeps failing, copy the request ID and report this problem.' }, { onInternalError }) });
+  return failure({ status: 500, error: host.reportInternalError({ report, logSource: 'attachment-lookup', message: 'The attachment could not be looked up. Try again; if it keeps failing, copy the request ID and report this problem.' }) });
 }
 
 /**
- * The lookup route as data. It reads its own JSON body (64 KB at most). `onInternalError` (optional) gets an
- * unexpected failure's original error, the run ID and the request ID the caller sees; without it the default
- * line prints the class only. The host's own bearer gate belongs in front of wherever this list is mounted.
+ * The lookup route as data. It reads its own JSON body (64 KB at most). An
+ * unexpected failure's original error and run ID go to the host's injected `reportInternalError`, whose
+ * request ID the caller sees. The host's own bearer gate belongs in front of wherever this list is mounted.
  */
-export function attachmentLookupRoutes({ store, host }: AttachmentLookupRoutesRequired, { onInternalError }: { readonly onInternalError?: RouteInternalErrorSink | undefined } = {}): DaemonRoute[] {
+export function attachmentLookupRoutes({ store, host }: AttachmentLookupRoutesRequired, _optional: Record<string, never> = {}): DaemonRoute[] {
   return [gated({
     route: {
       method: 'POST', path: ATTACHMENT_LOOKUP_ROUTE_PATH,
@@ -96,7 +95,7 @@ export function attachmentLookupRoutes({ store, host }: AttachmentLookupRoutesRe
         try {
           return jsonResponse({ status: 200, body: { value: await runLookup(store, lookup) } });
         } catch (error) {
-          return lookupFailure({ error, host }, { onInternalError, runId: lookup.runId });
+          return lookupFailure({ error, host }, { runId: lookup.runId });
         }
       },
     },

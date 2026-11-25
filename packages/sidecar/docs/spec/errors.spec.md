@@ -24,7 +24,7 @@ No package-specific error class is exported. Most operations throw/reject `Error
 | Supervisor failure reporter / message | Spawn/stop failure, unexpected exit or policy give-up | Surface reason; manually recover only if host policy permits |
 | Node termination / `Error` | Process tree still has remaining PIDs | Report failed cleanup; do not assume replacement is safe |
 | IPC remote / `Error.code = 'FRAME_TOO_LARGE'` | Received request bytes exceed server cap | Reduce payload or explicitly configure a valid cap |
-| IPC remote / `Error.code = 'HANDLER_ERROR'` | Handler or success serialization throws | Correlate `requestId` with host logs; retry only if handler is safe to repeat |
+| IPC remote / `Error.code = 'HANDLER_ERROR'` | Handler or success serialization throws | Correlate `requestId` with host logs (the `ERR-` ID in reporter mode, a trace ID otherwise); retry only if handler is safe to repeat. A `reason` field means a refusal, not an incident |
 | IPC remote / message-only `Error` | Malformed JSON or untyped peer failure envelope | Treat as protocol failure; malformed-request detail is the serialized SyntaxError message |
 | IPC client / message-only `Error` | Deadline expires (`IPC request timed out: <socketPath>`) | Check server/liveness; work can still be running |
 | IPC client / native error | Missing, refused or inaccessible endpoint | Rediscover endpoint or fix permissions |

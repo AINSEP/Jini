@@ -4,10 +4,13 @@
  * host mounts them on whatever adapter it runs.
  */
 import type { ServerMethod, ServerRoute } from '../server.js';
+import type { ObservabilityPort } from '../observability.js';
+import { runOperation, type DescribedFailure, type ErrorReporter, type OperationVerdict } from '../../errors/reporter.js';
 import { statusForError, type ServerApiError } from './api-error.js';
 import { guardSameOrigin, type OriginContext } from './origin.js';
 import { readQuery } from './query.js';
 import { readJsonBody } from './request-body.js';
+import { ClientFacingError } from './client-facing-error.js';
 import type { Result } from './result.js';
 
 /**
@@ -94,13 +97,26 @@ export type ReportRouteInternalError = <E extends { readonly error: unknown }>(
   optional?: { readonly onInternalError?: ((context: E & { readonly correlationId: string; readonly logSource: string }) => void) | undefined },
 ) => ServerApiError;
 
+/**
+ * The ports that put a host's routes in reporter mode: an unanticipated throw goes through the one
+ * incident path (one error ID, one host record, one tracker report), and each request is one
+ * `http.route` operation. The lifecycle helpers are pure functions imported from core, not ports.
+ */
+export interface RouteErrorPorts {
+  readonly reporter: ErrorReporter;
+  readonly observability: Pick<ObservabilityPort, 'trackOperation'>;
+}
+
 /** Server startup state a route needs to evaluate its same-origin guard and report incidents. */
 export interface RouteHostContext extends OriginContext {
   /**
    * Host-owned sink for the real exception behind a generic `INTERNAL_ERROR` response (SEC-005).
-   * The catch-all for a route that throws outside its own guarded path.
+   * The catch-all for a route that throws outside its own guarded path. Legacy mode only: with
+   * `errors` present the reporter owns that record and this sink is never called.
    */
   readonly onInternalError?: (context: RouteHostInternalErrorContext) => void;
+  /** Reporter mode, chosen once when the route is built. Absent → the legacy SEC-005 path. */
+  readonly errors?: RouteErrorPorts;
 }
 
 /**
@@ -128,28 +144,6 @@ export interface JsonRouteSpec<Input, Output, Deps, Context = undefined> {
   handle: Handler<Input, Output, Deps, Context>;
   successStatus?: number;
   ports?: JsonRoutePorts<Deps, Context>;
-}
-
-/**
- * Thrown by a route's `handle` — or by anything it calls, at any depth — to bypass the SEC-005
- * redaction below with an error the throwing code has already decided is safe for the caller
- * to see. Prefer returning `err(...)` from `handle` when the failure is anticipated at that point;
- * this class is for the same kind of failure discovered a level deeper, inside an awaited call
- * `handle` did not wrap in its own `try`.
- *
- * Not a way to defeat SEC-005: the only way to reach the branch that reads this class is for code to
- * construct one itself, naming the exact error — code and message — it is choosing to disclose.
- * Any thrown value that is not this class (including a plain `Error` with an actionable-looking
- * message) still redacts; nothing here widens what a route can leak by accident.
- */
-export class ClientFacingError extends Error {
-  readonly apiError: ServerApiError;
-
-  constructor({ apiError }: { readonly apiError: ServerApiError }, _optional: Record<string, never> = {}) {
-    super(apiError.message);
-    this.name = 'ClientFacingError';
-    this.apiError = apiError;
-  }
 }
 
 /**
@@ -181,6 +175,38 @@ export function jsonResponse({ status, body }: { readonly status: number; readon
 const errorAnswer = ({ error }: { readonly error: ServerApiError }): Response =>
   jsonResponse({ status: statusForError({ error }), body: { error } });
 
+/** One answer and how the request's `http.route` operation ended; the verdict is classified before anything is written. */
+interface TaggedAnswer { readonly response: Response; readonly verdict: OperationVerdict }
+
+/** The non-standard "client closed request" sentinel: a bodyless answer nobody will read. */
+const CLIENT_CLOSED_STATUS = 499;
+const COMPLETED: OperationVerdict = { outcome: 'completed', failed: false };
+const REFUSED: OperationVerdict = { outcome: 'refused', failed: false };
+const FAILED: OperationVerdict = { outcome: 'failed', failed: true };
+const CANCELLED: OperationVerdict = { outcome: 'cancelled', failed: false };
+const HTTP_FALLBACK = {
+  message: 'The server could not finish this request.',
+  action: 'Check whether your change was saved, then try again. If it keeps failing, report the error ID.',
+} as const;
+
+/** Stamps the answer's status on the verdict, so the operation ends with `http.status_code`. */
+function tag({ response, verdict }: { readonly response: Response; readonly verdict: OperationVerdict }): TaggedAnswer {
+  return { response, verdict: { ...verdict, attributes: { ...verdict.attributes, 'http.status_code': response.status } } };
+}
+
+/**
+ * A returned `INTERNAL_ERROR` was produced inside the route by its reporter-backed
+ * `reportInternalError` (or `reporter.describe`), which already wrote the one record and tracker
+ * report: the producer owns that report, so this only classifies it `failed` and never records it
+ * again. Every other returned code is a refusal the caller caused or was told about.
+ */
+function verdictFor({ apiError }: { readonly apiError: ServerApiError }): OperationVerdict {
+  return apiError.code === 'INTERNAL_ERROR' ? FAILED : REFUSED;
+}
+
+const errorTagged = ({ error }: { readonly error: ServerApiError }): TaggedAnswer =>
+  tag({ response: errorAnswer({ error }), verdict: verdictFor({ apiError: error }) });
+
 interface RouteCall<I, O, D, C> {
   readonly spec: JsonRouteSpec<I, O, D, C>;
   readonly deps: D;
@@ -207,19 +233,107 @@ export function jsonRoute<I, O, D, C = undefined>(
   },
   { host }: { readonly host?: RouteHostContext } = {},
 ): ServerRoute {
+  const answer = answerJsonRoute<I, O, D, C>({ host });
   return {
     method: spec.method.toUpperCase() as ServerMethod,
     path: spec.path,
-    handler: ({ request, params, locals = {} }) => answerJsonRoute({ spec, deps, reportInternalError, request, params: { ...params }, locals }, { host }),
+    handler: ({ request, params, locals = {} }) => answer({ spec, deps, reportInternalError, request, params: { ...params }, locals }),
   };
 }
 
-async function answerJsonRoute<I, O, D, C>(call: RouteCall<I, O, D, C>, { host }: { readonly host: RouteHostContext | undefined }): Promise<Response> {
+/** Picks the route's mode once, at creation: reporter mode when the host passed `errors`, else legacy. */
+function answerJsonRoute<I, O, D, C>({ host }: { readonly host: RouteHostContext | undefined }): (call: RouteCall<I, O, D, C>) => Promise<Response> {
+  const errors = host?.errors;
+  return errors ? call => reporterAnswer(call, { host, errors }) : call => legacyAnswer(call, { host });
+}
+
+async function legacyAnswer<I, O, D, C>(call: RouteCall<I, O, D, C>, { host }: { readonly host: RouteHostContext | undefined }): Promise<Response> {
   try {
-    return await routeAnswer(call, { host });
+    return (await routeAnswerTagged(call, { host })).response;
   } catch (error) {
     return exceptionAnswer({ call, error }, { host });
   }
+}
+
+/**
+ * Reporter mode: the request is one `http.route` operation. `runOperation` settles the work, ends
+ * the operation once and only then hands back the answer, so the operation always ends before the
+ * response is returned. A thrown failure is described by the reporter, which owns its one record and
+ * tracker report; `onInternalError` is never called in this mode.
+ */
+async function reporterAnswer<I, O, D, C>(call: RouteCall<I, O, D, C>, { host, errors }: { readonly host: RouteHostContext | undefined; readonly errors: RouteErrorPorts }): Promise<Response> {
+  const method = call.spec.method.toUpperCase();
+  const run = await runOperation<TaggedAnswer>({
+    deps: errors, operation: 'http.route', scope: 'http', step: `Handle ${method} ${call.spec.path}`, fallback: HTTP_FALLBACK,
+    // The registered pattern (`/runs/:id`), never `request.url`: a URL carries ids, query strings and
+    // tokens, which would leak into telemetry and give every request its own unbounded group.
+    attributes: { 'http.method': method, 'http.route': call.spec.path },
+    work: () => tracedAnswer(call, { host, errors }),
+    classify: tagged => tagged.verdict,
+    settle: error => disconnectVerdict({ request: call.request, error }),
+  }, { audience: 'anonymous' });
+  if (run.ok) return run.value.response;
+  if ('cancelled' in run) return new Response(null, { status: CLIENT_CLOSED_STATUS });
+  return failureResponse({ failure: run.failure });
+}
+
+async function tracedAnswer<I, O, D, C>(call: RouteCall<I, O, D, C>, { host, errors }: { readonly host: RouteHostContext | undefined; readonly errors: RouteErrorPorts }): Promise<TaggedAnswer> {
+  try {
+    return await routeAnswerTagged(call, { host });
+  } catch (error) {
+    const onError = call.spec.ports?.onError;
+    // No host policy: the throw reaches `runOperation`, whose reporter classifies it (a
+    // ClientFacingError or catalog refusal, else one incident).
+    if (!onError) throw error;
+    return hostPolicyAnswer({ call, error, onError }, { errors });
+  }
+}
+
+/**
+ * An explicit host error port answers BEFORE the reporter classifies anything, exactly as in legacy
+ * mode (it also wins over ClientFacingError): the host owns that answer, so the reporter records
+ * nothing for it and the verdict comes from the status it chose. If the policy itself throws, that
+ * policy failure is recorded as its own incident and the ORIGINAL error is rethrown, so the reply
+ * carries the original's ID rather than the policy's.
+ */
+async function hostPolicyAnswer<I, O, D, C>(
+  { call, error, onError }: { readonly call: RouteCall<I, O, D, C>; readonly error: unknown; readonly onError: NonNullable<JsonRoutePorts<D, C>['onError']> },
+  { errors }: { readonly errors: RouteErrorPorts },
+): Promise<TaggedAnswer> {
+  let response: Response;
+  try {
+    response = await onError({ error, request: call.request });
+  } catch (policyError) {
+    recordPolicyFailure({ reporter: errors.reporter, policyError });
+    throw error;
+  }
+  return tag({ response, verdict: response.status >= 500 ? FAILED : REFUSED });
+}
+
+function recordPolicyFailure({ reporter, policyError }: { readonly reporter: ErrorReporter; readonly policyError: unknown }): void {
+  // The reporter promises never to throw; this guard keeps a broken one from replacing the
+  // original failure, whose ID the caller must still be given.
+  try {
+    reporter.record({ error: policyError, step: 'Answer with host error policy', operation: 'http.route' });
+  } catch { /* the original failure is still described and answered below */ }
+}
+
+/**
+ * Cancellation only when the client is gone AND the throw is the abort itself. The adapter aborts
+ * `request.signal` on the response's close, so an abort-like throw after that is the handler
+ * stopping because nobody is listening: nothing to report and nothing to write. Any other throw
+ * after a disconnect is still a real failure and is recorded.
+ */
+function disconnectVerdict({ request, error }: { readonly request: Request; readonly error: unknown }): OperationVerdict | undefined {
+  const { signal } = request;
+  if (!signal.aborted) return undefined;
+  const abortLike = error === signal.reason || (typeof error === 'object' && error !== null && (error as { name?: unknown }).name === 'AbortError');
+  return abortLike ? { ...CANCELLED, attributes: { 'http.status_code': CLIENT_CLOSED_STATUS } } : undefined;
+}
+
+/** The reporter's answer: a refusal's own status and safe words (no ID), or an incident's 500 with the original incident ID as `requestId`. */
+function failureResponse({ failure }: { readonly failure: DescribedFailure }): Response {
+  return jsonResponse({ status: failure.status, body: { error: failure.error } });
 }
 
 async function readRawInput<I, O, D, C>({ spec, request, params }: RouteCall<I, O, D, C>): Promise<Result<RouteInputContext>> {
@@ -264,31 +378,35 @@ function authenticate<I, O, D, C>({ call, raw }: { readonly call: RouteCall<I, O
   return spec.ports?.authenticate ? spec.ports.authenticate({ raw, request, locals, deps }) : undefined;
 }
 
-async function routeAnswer<I, O, D, C>(call: RouteCall<I, O, D, C>, { host }: { readonly host: RouteHostContext | undefined }): Promise<Response> {
+/** Raw read → workspace → origin → authenticate → parse → handle → final answer, each exit tagged with its verdict. */
+async function routeAnswerTagged<I, O, D, C>(call: RouteCall<I, O, D, C>, { host }: { readonly host: RouteHostContext | undefined }): Promise<TaggedAnswer> {
   const { spec, deps, request } = call;
   const raw = await readRawInput(call);
-  if (!raw.ok) return errorAnswer({ error: raw.error });
+  // Includes the 413 and 415 refusals of `readJsonBody`: refused, never reported.
+  if (!raw.ok) return errorTagged({ error: raw.error });
   if (spec.ports?.workspace) await spec.ports.workspace({ raw: raw.value, deps });
   const refused = originRefusal(call, { host });
-  if (refused) return refused;
+  if (refused) return tag({ response: refused, verdict: REFUSED });
   const context = await authenticate({ call, raw: raw.value });
   const parsed = spec.parse(raw.value);
-  if (!parsed.ok) return errorAnswer({ error: parsed.error });
+  if (!parsed.ok) return errorTagged({ error: parsed.error });
   const authorize = makeAuthorize({ spec, deps, context });
   const result = await spec.handle({ input: parsed.value, deps, context, authorize }, { signal: request.signal });
   return finalAnswer({ spec, result, request });
 }
 
 
-function finalAnswer<I, O, D, C>({ spec, result, request }: { readonly spec: JsonRouteSpec<I, O, D, C>; readonly result: Result<O>; readonly request: Request }): Response {
+function finalAnswer<I, O, D, C>({ spec, result, request }: { readonly spec: JsonRouteSpec<I, O, D, C>; readonly result: Result<O>; readonly request: Request }): TaggedAnswer {
   // Disconnect comes from `request.signal`, which the adapter aborts on the response's close,
   // never on the request body finishing. Aborted means the client was already gone before any
   // answer: serializing one now is wasted work and would turn a benign disconnect into a false
   // internal error if the socket rejects the write.
-  if (request.signal.aborted) return new Response(null, { status: 499 });
-  return result.ok ? jsonResponse({ status: spec.successStatus ?? 200, body: result.value }) : errorAnswer({ error: result.error });
+  if (request.signal.aborted) return tag({ response: new Response(null, { status: CLIENT_CLOSED_STATUS }), verdict: CANCELLED });
+  if (!result.ok) return errorTagged({ error: result.error });
+  return tag({ response: jsonResponse({ status: spec.successStatus ?? 200, body: result.value }), verdict: COMPLETED });
 }
 
+/** Legacy mode only (no `errors`): the route's own SEC-005 sink owns the record. */
 async function exceptionAnswer<I, O, D, C>({ call, error }: { readonly call: RouteCall<I, O, D, C>; readonly error: unknown }, { host }: { readonly host: RouteHostContext | undefined }): Promise<Response> {
   const { spec, request } = call;
   // An explicit host error port owns exception classification and the answer, including its

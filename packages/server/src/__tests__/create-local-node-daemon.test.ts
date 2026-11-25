@@ -7,6 +7,7 @@ import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { DetectedAgent } from '@jini-ai/agent-runtime';
 import { definePack } from '@jini-ai/core';
+import { createRecordingObservability, createRecordingReporter } from '@jini-ai/core/errors/testing';
 import { AgentExecutorToken } from '@jini-ai/daemon';
 import { componentCatalogRoutes, type DaemonStatusResponse, type RunStartContext, type RunStartHandler } from '@jini-ai/daemon/http';
 import { readLiveDaemonRegistryRecord, resolveDaemonRegistryPath } from '@jini-ai/sidecar';
@@ -776,6 +777,24 @@ describe('createLocalNodeDaemon', () => {
     expect([sameOrigin.status, await sameOrigin.json()]).toEqual([200, { hits: [] }]);
     const foreign = await fetch(`${daemon.url}/api/components/search?q=table`, { headers: { origin: 'http://evil.example.com' } });
     expect(foreign.status).toBe(403);
+  });
+
+  it('forwards errors to the route context every extension mount receives, keeping its origin policy', async () => {
+    const { reporter } = createRecordingReporter({ ids: ['ERR-0000-0000-0000-0001'], iso: '2026-01-01T00:00:00.000Z' });
+    const { observability } = createRecordingObservability();
+    const errors = { reporter, observability };
+    const seen: { adapter: unknown; context: unknown }[] = [];
+    const daemon = await createLocalNodeDaemon({ ...hostEgressPorts, osPorts: nodeOsPorts, open: openSqlite,
+      dataDir: makeTempDataDir(),
+      packs: [makePingPack()],
+      errors,
+      httpExtensions: [(_app, { adapter, routeHost }) => { seen.push({ adapter, context: routeHost.context }); }],
+    });
+    daemonsToStop.push(daemon);
+    expect(seen).toHaveLength(1);
+    expect((seen[0]!.adapter as { errors?: unknown }).errors).toBe(errors);
+    expect(seen[0]!.context).toBe(seen[0]!.adapter);
+    expect(typeof (seen[0]!.adapter as { originPolicy?: unknown }).originPolicy).toBe('object');
   });
 
   it('serves POST /api/proxy/anthropic/stream zero-config (BYOK — no server-side credentials needed to reach the route)', async () => {

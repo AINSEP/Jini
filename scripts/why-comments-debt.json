@@ -1792,6 +1792,46 @@
     {
       "id": "5c6520cbd59f",
       "reason": "Explained the whole-map GET+PUT rebuild in createHttpOtherCredentials.writeMedia, removed in 538470813; media Replace/Remove now send one PATCH/DELETE per provider row (see the new why-comment there), so there is no map to rebuild or echo."
+    },
+    {
+      "id": "26f90179f72b",
+      "reason": "P4-J4 item 3: JSDoc of the retired `onInternalError` deps field (SEC-005 host sink), deleted with the field; the injected `reportInternalError` (host reporter) now owns every route incident and its own docs say so."
+    },
+    {
+      "id": "78a37562d155",
+      "reason": "P4-J4 item 3: JSDoc of the retired attachments `onInternalError` deps field, deleted with the field; incidents go through the injected `reportInternalError`."
+    },
+    {
+      "id": "551d1d2ae6c1",
+      "reason": "P4-J4 item 3: JSDoc of the retired delegated-tools `onInternalError` sink, deleted with the field; the disclosure/reporter path (J4 route half) owns the incident."
+    },
+    {
+      "id": "805d30297efc",
+      "reason": "P4-J4 item 3: JSDoc of the retired memory `onInternalError` sink, deleted with the field; store failures are reported through the injected `reportInternalError`."
+    },
+    {
+      "id": "c544be25a82f",
+      "reason": "P4-J4 item 3: JSDoc of the retired model-proxy `onInternalError` SSE sink, deleted with the field; the reporter's requestId is the SSE error code (J4 route half)."
+    },
+    {
+      "id": "f3555127ac28",
+      "reason": "P4-J4 item 3: JSDoc of the retired xai `onInternalError` sink, deleted with the field and its resolver plumbing."
+    },
+    {
+      "id": "009807ca795d",
+      "reason": "P4-J4 item 3: JSDoc of the retired tool-execution-routes `onInternalError` option, deleted with the option."
+    },
+    {
+      "id": "a02d308b6fa5",
+      "reason": "P4-J4 item 3: the attachment-lookup route doc block described the retired second-argument `onInternalError` sink; the block was rewritten for the reporter-only signature `attachmentLookupRoutes(required, _optional = {})`."
+    },
+    {
+      "id": "f0b9cf3baa66",
+      "reason": "P4-J4 item 3: test comment explained keeping `onInternalError` absent under exactOptionalPropertyTypes; the option no longer exists, so there is nothing to keep absent."
+    },
+    {
+      "id": "7ecf2a610ca0",
+      "reason": "P4-J4 item 3: test comment claimed the catch-all incident reaches the adapter's generic route sink; it now goes through the injected `reportInternalError`, which the rewritten test asserts (one record, same request ID)."
     }
   ]
 }

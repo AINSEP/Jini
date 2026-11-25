@@ -16,7 +16,7 @@ info:
     `200 {result}`. `denied` and `confirmation-denied` both surface as the
     same `403 TOOL_OPERATION_DENIED`. `timed-out`, `cancelled`, and `failed`
     are folded into the generic `500 INTERNAL_ERROR` (SEC-005 — the real
-    status/error is only logged server-side via `onInternalError`, never
+    status/error only reaches the host's injected error reporter, never
     returned to the caller). A genuinely unexpected throw (an unregistered
     `toolId`, or a run turning terminal mid-flight) reaches that same generic
     `500 INTERNAL_ERROR`. `input` is intentionally unvalidated `unknown` at

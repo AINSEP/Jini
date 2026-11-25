@@ -17,7 +17,8 @@ import { toolExecutionRoutes, type AuthorizeToolRun, type ToolExecutionRoutesOpt
 import { jsonResponse } from '@jini-ai/core/contracts/server';
 import { reportRouteInternalError } from '@jini-ai/http-kit';
 import { createNodeDispatcher } from '@jini-ai/http-kit/node-bridge';
-import { fakeDaemonRouteHost } from './fakes/route-host.js';
+import type { ReportRouteInternalError } from '@jini-ai/core/contracts/server';
+import { fakeDaemonRouteHost, injectedRecordingReporter } from './fakes/route-host.js';
 import { createDelegatedToolBridge } from '../../delegated-tool-bridge.js';
 import { createInMemoryEventLog } from '../../event-log.js';
 import { createRunLifecycle } from '../../run-lifecycle.js';
@@ -70,14 +71,14 @@ interface Served {
  */
 async function serve(
   required: Partial<Omit<ToolExecutionRoutesRequired, 'host'>> & Pick<ToolExecutionRoutesRequired, 'executor'>,
-  optional: ToolExecutionRoutesOptional & { before?: RequestHandler; tls?: boolean; env?: Record<string, string | undefined> } = {},
+  optional: ToolExecutionRoutesOptional & { before?: RequestHandler; tls?: boolean; env?: Record<string, string | undefined>; reportInternalError?: ReportRouteInternalError } = {},
 ): Promise<Served> {
   const seen: Served['seen'] = [];
   const app = express();
   app.use((req, res, next) => { seen.push({ req, res, closeListeners: res.listenerCount('close') }); next(); });
   if (optional.before) app.use(optional.before);
-  const { before: _before, tls: _tls, env: hostEnv = env, ...routeOptions } = optional;
-  const host = { ...fakeDaemonRouteHost(), reportInternalError: reportRouteInternalError };
+  const { before: _before, tls: _tls, env: hostEnv = env, reportInternalError = reportRouteInternalError, ...routeOptions } = optional;
+  const host = { ...fakeDaemonRouteHost(), reportInternalError };
   const dispatcher = createNodeDispatcher({}, { expressCompatible: true });
   for (const route of toolExecutionRoutes({ listToolsFor: () => [], env: hostEnv, host, ...required }, routeOptions)) dispatcher.server.route(route);
   app.use((req, res, next) => { void dispatcher.handle({ incoming: req, out: res }, { next, locals: res.locals }); });
@@ -468,13 +469,14 @@ describe('remote tool catalog', () => {
   it('answers a listToolsFor failure with plain words and a request ID the host sink receives with the cause', async () => {
     const thrown = new Error('boom api_key=SECRETSECRETSECRETSECRET');
     const onInternalError = vi.fn();
-    const { baseUrl } = await serve({ executor: executorWith(), listToolsFor: () => { throw thrown; } }, { onInternalError });
+    const { baseUrl } = await serve({ executor: executorWith(), listToolsFor: () => { throw thrown; } }, { reportInternalError: injectedRecordingReporter({ record: onInternalError }) });
     const response = await rawRequest(baseUrl, { method: 'GET', path: '/internal/tool-catalog?principalId=p1', token: TOKEN });
     const { error } = JSON.parse(response.text) as { error: { code: string; message: string; requestId?: string } };
     expect(response.status).toBe(500);
     expect(error.code).toBe('INTERNAL_ERROR');
     expect(error.message).toBe('The tool list could not be loaded. Try again; if it keeps failing, copy the request ID and report this problem.');
-    expect(error.requestId).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/);
+    // The injected reporter's own request ID is the one the caller is answered with.
+    expect(error.requestId).toBe('req-1');
     expect(response.text).not.toContain('SECRETSECRET');
     expect(onInternalError).toHaveBeenCalledWith({ source: 'tool-catalog', correlationId: error.requestId, error: thrown, logSource: 'tool-catalog' });
   });

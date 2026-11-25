@@ -13,7 +13,7 @@ import {
   type RunStartContext,
 } from '../runs.js';
 import { describeRoutes } from '../route-table.js';
-import { fakeDaemonRouteHost } from './fakes/route-host.js';
+import { fakeDaemonRouteHost, injectedRecordingReporter, withInjectedReporter } from './fakes/route-host.js';
 import { jsonRequest, serveRoutes } from './fakes/serve-routes.js';
 import { readFrames } from './fakes/sse-reader.js';
 
@@ -289,7 +289,7 @@ describe('runStartRoute.handle', () => {
       onStarted: () => {
         throw new Error('driver spawn failed at /secret/executable/path');
       },
-      onInternalError,
+      reportInternalError: injectedRecordingReporter({ record: onInternalError }),
     });
     const result = await runStartRoute.handle({ input: { contextRef: 'ctx-1' }, deps });
     expect(result.ok).toBe(false);
@@ -315,7 +315,7 @@ describe('runStartRoute.handle', () => {
 
   it('SEC-005: fails the run and returns a generic INTERNAL_ERROR when onStarted returns a rejected promise', async () => {
     const onInternalError = vi.fn();
-    const deps = makeDeps({ onStarted: () => Promise.reject(new Error('async spawn failure: DB_URL=postgres://secret')), onInternalError });
+    const deps = makeDeps({ onStarted: () => Promise.reject(new Error('async spawn failure: DB_URL=postgres://secret')), reportInternalError: injectedRecordingReporter({ record: onInternalError }) });
     const result = await runStartRoute.handle({ input: { contextRef: 'ctx-1' }, deps });
     expect(result.ok).toBe(false);
     if (!result.ok) {
@@ -331,7 +331,7 @@ describe('runStartRoute.handle', () => {
         // eslint-disable-next-line @typescript-eslint/no-throw-literal
         throw 'raw string failure with a secret token abc123';
       },
-      onInternalError,
+      reportInternalError: injectedRecordingReporter({ record: onInternalError }),
     });
     const result = await runStartRoute.handle({ input: { contextRef: 'ctx-1' }, deps });
     expect(result.ok).toBe(false);
@@ -404,7 +404,7 @@ describe('runCancelRoute.handle', () => {
 
 /** The run routes on an in-memory server, behind the recording origin policy. */
 function serve(deps: RunHttpDeps) {
-  const host = fakeDaemonRouteHost({}, { originPolicy: testOriginPolicy });
+  const host = withInjectedReporter({ host: fakeDaemonRouteHost({}, { originPolicy: testOriginPolicy }), deps });
   return { host, fetch: serveRoutes({ routes: runRoutes({ deps, host }) }) };
 }
 
@@ -464,7 +464,7 @@ describe('GET /api/runs/:runId/events — answers before the stream opens', () =
 
   it('SEC-005: sends a generic 500 INTERNAL_ERROR (never the raw message) when subscribing rejects before anything is committed, and gives the host the real error', async () => {
     const onInternalError = vi.fn();
-    const deps = makeDeps({ onInternalError });
+    const deps = makeDeps({ reportInternalError: injectedRecordingReporter({ record: onInternalError }) });
     deps.lifecycle.stream = vi.fn(async () => { throw new Error('subscribe blew up at /internal/secret/path'); });
     const { fetch, host } = serve(deps);
     const response = await openEvents({ fetch, runId: 'run-1' });
@@ -481,7 +481,7 @@ describe('GET /api/runs/:runId/events — answers before the stream opens', () =
   it('answers the same generic 500 when the source throws before it returns anything, and when it throws a non-Error', async () => {
     for (const failure of [() => { throw new Error('thrown at once'); }, () => { throw 'raw stream failure'; }]) {
       const onInternalError = vi.fn();
-      const deps = makeDeps({ onInternalError });
+      const deps = makeDeps({ reportInternalError: injectedRecordingReporter({ record: onInternalError }) });
       deps.lifecycle.stream = vi.fn(failure) as never;
       const response = await openEvents({ fetch: serve(deps).fetch, runId: 'run-1' });
       expect([response.status, (await response.json() as { error: { message: string } }).error.message]).toEqual([500, STREAM_FAILURE_SENTENCE]);
@@ -661,7 +661,7 @@ describe('GET /api/runs/:runId/events — the client leaves, the source fails', 
 
   it('a failure after the stream was committed ends the stream (no second answer) and still reaches the host', async () => {
     const onInternalError = vi.fn();
-    const deps = makeDeps({ onInternalError });
+    const deps = makeDeps({ reportInternalError: injectedRecordingReporter({ record: onInternalError }) });
     const { run } = await deps.lifecycle.start({ contextRef: 'ctx-1' });
     const realStream = deps.lifecycle.stream.bind(deps.lifecycle);
     deps.lifecycle.stream = (async (...args: Parameters<typeof realStream>) => {
@@ -736,7 +736,7 @@ describe('run routes: one incident owner (log safety)', () => {
   it('the host sink gets the original error, the run ID and the request ID the caller sees', async () => {
     const failure = new Error('boom api_key=SECRETSECRETSECRETSECRET');
     const onInternalError = vi.fn();
-    const deps = makeDeps({ onStarted: () => { throw failure; }, onInternalError });
+    const deps = makeDeps({ onStarted: () => { throw failure; }, reportInternalError: injectedRecordingReporter({ record: onInternalError }) });
     const result = await runStartRoute.handle({ input: { contextRef: 'ctx-1' }, deps });
     if (result.ok) throw new Error('expected failure');
     const context = onInternalError.mock.calls[0]?.[0];

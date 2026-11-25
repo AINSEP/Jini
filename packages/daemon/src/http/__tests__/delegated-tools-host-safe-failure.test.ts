@@ -1,6 +1,6 @@
 import { reportRouteInternalError } from '@jini-ai/http-kit';
 import { describe, expect, it, vi } from 'vitest';
-import { fakeDaemonRouteHost } from './fakes/route-host.js';
+import { fakeDaemonRouteHost, injectedRecordingReporter, withInjectedReporter } from './fakes/route-host.js';
 import { jsonRequest, serveRoutes } from './fakes/serve-routes.js';
 import { createToolRegistry, type Principal } from '@jini-ai/core';
 import {
@@ -44,11 +44,10 @@ function makeExecutor(message: string, errorId?: string): ToolExecutor {
 
 async function callRoute(toolExecutor: ToolExecutor, overrides: Partial<DelegatedToolsHttpDeps> = {}) {
   const onInternalError = vi.fn();
-  const deps: DelegatedToolsHttpDeps = { reportInternalError: reportRouteInternalError,
-    lifecycle: createRunLifecycle({ eventLog: createInMemoryEventLog({}) }),
+  const deps: DelegatedToolsHttpDeps = { lifecycle: createRunLifecycle({ eventLog: createInMemoryEventLog({}) }),
     toolExecutor,
     resolvePrincipal: () => PRINCIPAL,
-    onInternalError,
+    reportInternalError: injectedRecordingReporter({ record: onInternalError }),
     ...overrides,
   };
   const { run } = await deps.lifecycle.start({ contextRef: 'ctx-host-safe' });

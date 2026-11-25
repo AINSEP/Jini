@@ -210,8 +210,6 @@ export interface DaemonDbHttpDeps {
    * something other than `Principal` to make its decision.
    */
   readonly principal: Principal;
-  /** Host-owned sink for the real exception behind a generic `INTERNAL_ERROR` response (SEC-005). Defaults to `console.error`. */
-  readonly onInternalError?: (context: DaemonDbInternalErrorContext) => void;
   /** Required for direct handlers; {@link daemonDbRoutes} binds the host's reporter. */
   readonly reportInternalError: ReportRouteInternalError;
 }
@@ -236,7 +234,7 @@ function toolResultToApiResult<T>(
     case 'timed-out':
     case 'cancelled':
     case 'failed': {
-      return err({ error: deps.reportInternalError<Omit<DaemonDbInternalErrorContext, 'correlationId'>>({ report: { source, error: result.status === 'failed' ? result.error : result.status }, logSource: source, message: DB_FAILURE_MESSAGES[source] }, { onInternalError: deps.onInternalError }) });
+      return err({ error: deps.reportInternalError<Omit<DaemonDbInternalErrorContext, 'correlationId'>>({ report: { source, error: result.status === 'failed' ? result.error : result.status }, logSource: source, message: DB_FAILURE_MESSAGES[source] }) });
     }
     default: {
       // Unreachable: every tool result status has a case above, and a new one fails typecheck here.

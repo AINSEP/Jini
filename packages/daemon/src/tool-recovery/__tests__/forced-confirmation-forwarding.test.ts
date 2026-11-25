@@ -23,14 +23,14 @@ function recordingInner(seen: unknown[]): ToolExecutor {
   };
 }
 
-const observability: Pick<ObservabilityPort, "trackOperation" | "reportError"> = {
+const observability: Pick<ObservabilityPort, "trackOperation"> = {
   trackOperation: () => ({ run: (fn) => fn(), end: () => {} }),
-  reportError: () => {},
 };
+const reporter = { record: () => ({ errorId: "ERR-0001-0000-0000-0000" }) };
 
 const wrappers: ReadonlyArray<readonly [string, (inner: ToolExecutor) => ToolExecutor]> = [
   ["withToolCallAnalytics", (inner) => withToolCallAnalytics({ inner, analytics: { capture: () => {} } })],
-  ["withToolCallObservability", (inner) => withToolCallObservability({ inner, observability }, {})],
+  ["withToolCallObservability", (inner) => withToolCallObservability({ inner, reporter, observability }, {})],
   ["withFederatedRefusalDiagnosis", (inner) => withFederatedRefusalDiagnosis({
     inner,
     isFederatedTool: () => false,
@@ -43,7 +43,6 @@ const wrappers: ReadonlyArray<readonly [string, (inner: ToolExecutor) => ToolExe
     inner,
     mintErrorId: () => "ERR-0001-0000-0000-0000",
     redactSecretShapes: ({ text }) => ({ text, redactions: 0 }),
-    onFailure: () => {},
   })],
 ];
 
