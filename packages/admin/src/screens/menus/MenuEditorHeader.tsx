@@ -75,7 +75,7 @@ export function MenuEditorHeader({ editor, menusHref }: { editor: MenuEditorHead
         label: "Menu editor header — the back link, the menu's title, and the Save button",
       })}
     >
-      <MenuEditorBackLink menusHref={menusHref} confirmLeave={confirmLeave} t={t} leaveGuardOwner={leaveGuardOwner} />
+      <MenuEditorBackLink menusHref={menusHref} confirmLeave={confirmLeave} t={t} {...(leaveGuardOwner === undefined ? {} : { leaveGuardOwner })} />
       <div className="jini-page-header-text">
         <p className="jini-page-kicker">{t("Content")}</p>
         <h1 className="jini-page-title">{t(isNew ? "New menu" : "Edit menu")}</h1>
