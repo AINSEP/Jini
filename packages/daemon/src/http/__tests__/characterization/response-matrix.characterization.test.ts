@@ -122,6 +122,7 @@ const RESPONSE_MATRIX: readonly (readonly [route: string, sameOrigin: string, fo
   ['POST /api/frontend-sessions/:sessionId/responses', '400 BAD_REQUEST', '403 FORBIDDEN'],
   // frontend-sessions (scoped)
   ['POST /api/scoped-frontend-sessions/:sessionId/responses', '403 text:Forbidden', '403 text:Forbidden'],
+  ['POST /api/scoped-frontend-sessions/:sessionId/begin', '403 text:Forbidden', '403 text:Forbidden'],
   // daemon-status
   ['GET /api/daemon/status', '500 INTERNAL_ERROR', '500 INTERNAL_ERROR'],
   ['POST /api/daemon/shutdown', '200 json{ok,scheduled}', '403 FORBIDDEN'],
@@ -177,7 +178,7 @@ describe('JSON response matrix', () => {
       .map((route) => `${route.method} ${route.path}`)
       .filter((route) => !streamsAndUploads.has(route));
     expect([...answered].sort()).toEqual([...new Set(expected)].sort());
-    expect(RESPONSE_MATRIX).toHaveLength(88);
+    expect(RESPONSE_MATRIX).toHaveLength(89);
   });
 
   it('has a same-origin gate on exactly the routes the matrix says, and no route that leaks a dependency message', () => {

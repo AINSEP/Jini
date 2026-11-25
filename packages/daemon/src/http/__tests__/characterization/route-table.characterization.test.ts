@@ -148,6 +148,7 @@ const ROUTE_TABLE: Readonly<Record<string, readonly string[]>> = {
   'frontend-sessions (scoped)': [
     'GET /api/scoped-frontend-sessions/stream [frontend-session-owner]',
     'POST /api/scoped-frontend-sessions/:sessionId/responses [frontend-session-owner]',
+    'POST /api/scoped-frontend-sessions/:sessionId/begin [frontend-session-owner, same-origin]',
   ],
   'daemon-status': [
     'GET /api/daemon/status []',
@@ -181,7 +182,7 @@ describe('daemon route table', () => {
     expect(describeRouteTable({ routes: harness.routes })).toEqual(ROUTE_TABLE);
   });
 
-  it('is 100 routes and no Express path gate (the scoped frontend-session mount adds its own stream and response route; its owner gate and the two remote-run-event gates now sit in front of their routes as named gates)', async () => {
+  it('is 100 routes and no Express path gate (the scoped frontend-session mount adds its own stream, response and begin route; its owner gate and the two remote-run-event gates now sit in front of their routes as named gates)', async () => {
     harness = await startRouteHarness();
     const scoped = harness.routes.filter((route) => route.family === 'frontend-sessions (scoped)');
     const rest = harness.routes.filter((route) => route.family !== 'frontend-sessions (scoped)');
@@ -189,7 +190,7 @@ describe('daemon route table', () => {
     const gates = [...rest, ...scoped].filter((route) => isGate(route));
     expect(rest.filter((route) => route.method !== 'USE')).toHaveLength(100);
     expect(gates.map((route) => `${route.method} ${route.path}`)).toEqual([]);
-    expect(scoped.filter((route) => !isGate(route))).toHaveLength(2);
+    expect(scoped.filter((route) => !isGate(route))).toHaveLength(3);
   });
 
   it('answers one registration per method and path: no route is mounted twice', async () => {

@@ -39,6 +39,7 @@ import { gated, gatedJsonRoute, type DaemonRoute } from './route-table.js';
 
 export const FRONTEND_SESSION_STREAM_ROUTE_PATH = '/api/frontend-sessions/stream';
 export const FRONTEND_SESSION_RESPONSE_ROUTE_PATH = '/api/frontend-sessions/:sessionId/responses';
+export const FRONTEND_SESSION_BEGIN_ROUTE_PATH = '/api/frontend-sessions/:sessionId/begin';
 
 /** First event on the stream, telling the surface the id it must answer under. */
 export interface FrontendSessionAttachedEvent {
@@ -215,6 +216,83 @@ export const frontendSessionResponseRoute = defineJsonRoute<
   }
 }, { requireSameOrigin: true });
 
+/** A claim on one delivered invocation. Bounded: three identifiers, nothing else. */
+export interface FrontendSessionBeginRequest {
+  readonly sessionId: string;
+  readonly runId: string;
+  readonly invocationId: string;
+}
+
+/** `{ begun: false }` on any refusal; it never echoes invocation data. */
+export interface FrontendSessionBeginBody {
+  readonly begun: boolean;
+}
+
+/** Session authorization plus the registry's existing claim operations, and nothing else. */
+export interface FrontendSessionBeginDeps {
+  readonly registry: Pick<FrontendSessionRegistry, 'ownsSession' | 'sessionFor' | 'begin'>;
+  readonly resolveOwner: NonNullable<FrontendSessionsHttpDeps['resolveOwner']>;
+}
+
+interface FrontendSessionBeginAuth {
+  readonly owner: FrontendSessionOwner | null;
+  readonly bindToken: string;
+}
+
+const BEGIN_ID_MAX_LENGTH = 200;
+
+function boundedId(value: unknown): value is string {
+  return typeof value === 'string' && value.trim().length > 0 && value.length <= BEGIN_ID_MAX_LENGTH;
+}
+
+function parseFrontendSessionBegin(input: RouteInputContext): Result<FrontendSessionBeginRequest> {
+  const sessionId = input.params['sessionId'];
+  const runId = isRecord(input.body) ? input.body['runId'] : undefined;
+  const invocationId = isRecord(input.body) ? input.body['invocationId'] : undefined;
+  if (!boundedId(sessionId) || !boundedId(runId) || !boundedId(invocationId)) {
+    return err({ error: validationError({ message: 'sessionId, runId and invocationId must be short non-empty strings' }) });
+  }
+  return ok({ value: { sessionId, runId, invocationId } });
+}
+
+/** A throwing owner hook authenticates nobody; the owner gate in front has already reported it. */
+async function authenticateBegin({ request, locals, deps }: { readonly request: Request; readonly locals: Record<string, unknown>; readonly deps: FrontendSessionBeginDeps }): Promise<FrontendSessionBeginAuth> {
+  const bindToken = request.headers.get('x-frontend-bind-token') ?? '';
+  try {
+    return { owner: await deps.resolveOwner({ request, locals }), bindToken };
+  } catch {
+    return { owner: null, bindToken };
+  }
+}
+
+/**
+ * The resolved owner, the session and its live bind token must all match, and the run must be bound
+ * to that very session, before the registry is asked to claim the invocation. Model tool IDs
+ * correlate transcripts and are not capabilities: only the registry-minted invocation id can be claimed.
+ */
+function claimInvocation({ input, deps, auth }: { readonly input: FrontendSessionBeginRequest; readonly deps: FrontendSessionBeginDeps; readonly auth: FrontendSessionBeginAuth | undefined }): boolean {
+  const owner = auth?.owner;
+  if (!owner || !deps.registry.ownsSession({ sessionId: input.sessionId, owner, bindToken: auth.bindToken })) return false;
+  if (deps.registry.sessionFor({ runId: input.runId })?.sessionId !== input.sessionId) return false;
+  return deps.registry.begin({ runId: input.runId, invocationId: input.invocationId, owner });
+}
+
+/**
+ * `POST /api/frontend-sessions/:sessionId/begin` — a surface claims one delivered invocation before
+ * it acts. Delivery alone is not permission: `begin` must claim the invocation against the live
+ * binding, once. Always `200` once authenticated; `{begun:false}` is an ordinary refusal.
+ * Mounted only behind the owner gate (see `frontendSessionRoutes`).
+ */
+export const frontendSessionBeginRoute = defineJsonRoute<
+  FrontendSessionBeginRequest,
+  FrontendSessionBeginBody,
+  FrontendSessionBeginDeps,
+  FrontendSessionBeginAuth
+>({
+  method: 'post', path: FRONTEND_SESSION_BEGIN_ROUTE_PATH, parse: parseFrontendSessionBegin,
+  handle: ({ input, deps, context }) => ok({ value: { begun: claimInvocation({ input, deps, auth: context }) } }),
+}, { requireSameOrigin: true, maxBodyBytes: 1_024, ports: { authenticate: ({ request, locals, deps }) => authenticateBegin({ request, locals, deps }) } });
+
 /** Plain-text refusal with the status's own words, the shape `res.sendStatus` gave (no `ETag`: DM-ETAG). */
 function plainStatus({ status, text }: { readonly status: number; readonly text: string }): Response {
   return new Response(text, { status, headers: { 'content-type': 'text/plain; charset=utf-8' } });
@@ -346,11 +424,22 @@ function frontendResponseRoute({ deps, host, prefix }: { readonly deps: Frontend
   return gated({ route, gates: [{ name: 'frontend-session-owner', middleware: sessionOwnerGate({ deps, host, resolveOwner: deps.resolveOwner }) }] });
 }
 
+/** `POST <prefix>/:sessionId/begin`, behind the owner gate and the spec's own origin check. */
+function frontendBeginRoute({ deps, host, prefix, resolveOwner }: { readonly deps: FrontendSessionsHttpDeps; readonly host: DaemonRouteHost; readonly prefix: string; readonly resolveOwner: NonNullable<FrontendSessionsHttpDeps['resolveOwner']> }): DaemonRoute {
+  const route = gatedJsonRoute({ spec: { ...frontendSessionBeginRoute, path: `${prefix}/:sessionId/begin` }, deps: { registry: deps.registry, resolveOwner }, host });
+  return gated({ route, gates: [{ name: 'frontend-session-owner', middleware: sessionOwnerGate({ deps, host, resolveOwner }) }, { name: 'same-origin' }] });
+}
+
 /**
  * Both frontend-session routes as data: the SSE stream that carries invocations down to a surface, and
  * the POST that carries its answers back. A host mounts the list on its own server.
  */
 export function frontendSessionRoutes({ deps, host }: { readonly deps: FrontendSessionsHttpDeps; readonly host: DaemonRouteHost }, _optional: Record<string, never> = {}): DaemonRoute[] {
   const prefix = deps.routePrefix ?? '/api/frontend-sessions';
-  return [frontendStreamRoute({ deps, host, prefix }), frontendResponseRoute({ deps, host, prefix })];
+  const routes = [frontendStreamRoute({ deps, host, prefix }), frontendResponseRoute({ deps, host, prefix })];
+  // Begin is mounted ONLY through the owner gate. Without an owner hook there is nothing that can
+  // tie a claim to a live owner, so the route does not exist (and opted-in binds refuse). It must
+  // not fall back to the same-origin gate the responses route uses in that configuration.
+  if (deps.resolveOwner) routes.push(frontendBeginRoute({ deps, host, prefix, resolveOwner: deps.resolveOwner }));
+  return routes;
 }
