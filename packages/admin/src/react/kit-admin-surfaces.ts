@@ -28,8 +28,8 @@ export interface AdminSurfaceMountRecord {
 }
 export interface AdminSurfaceActionRequest { readonly mountId: string; readonly requestId: string; readonly action: string; readonly payload: unknown }
 /** A posted envelope; its `protocol`/`version`/`kind` fields are the protocol library's own. */
-export type AdminSurfaceEnvelope = { readonly mountId: string } & Readonly<Record<string, unknown>>;
-export type AdminSurfaceActionResponse = AdminSurfaceEnvelope & { readonly requestId: string };
+export interface AdminSurfaceEnvelope { readonly mountId: string }
+export interface AdminSurfaceActionResponse extends AdminSurfaceEnvelope { readonly requestId: string }
 export type AdminSurfaceMessageVerdict =
   | { readonly ok: true; readonly request: AdminSurfaceActionRequest }
   | { readonly ok: false; readonly ignored: string }

@@ -1,7 +1,7 @@
 import { act, render, renderHook, screen, waitFor } from '@testing-library/react';
 import { createRef, type ReactNode } from 'react';
 import { describe, expect, it, vi } from 'vitest';
-import { AdminKitProvider, Button, Icon, InfoTip, TabBar, type AdminKitChat, type KitIconName, useAdminKitChatPosters, useAdminKitValues, useAdminThemeKit, useChatT, useDirtyGuard, useFetchQuery, useMediaProviderRules, useT } from '../kit.js';
+import { AdminKitProvider, Button, Icon, InfoTip, TabBar, type AdminKitChat, type InfoTipProps, type KitIconName, useAdminKitChatPosters, useAdminKitValues, useAdminThemeKit, useChatT, useDirtyGuard, useFetchQuery, useMediaProviderRules, useT } from '../kit.js';
 import {
   CodeWithLines, CodeWrapToggle, I18nProvider, PreviewModalShell, RemixIcon, SettingsDialogShell, Toast,
   useAdminKitChatValues, useCodeWrap, useCopyToClipboard, useFabPosition, useInfoTip, usePanelPosition, useSelectDropdown, useSerialWrites, useTabBarKeyboard,
