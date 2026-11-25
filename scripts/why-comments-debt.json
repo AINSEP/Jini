@@ -1744,6 +1744,14 @@
     {
       "id": "fe8c6cbf4a7d",
       "reason": "Not deleted: wcj 14da82aa0 restored the merge-19 original wording ('known single-use rejections') and the merge-20 'typed' point is kept as the next line naming the type (member-challenge.ts:36-37)."
+    },
+    {
+      "id": "4abcca7fdf96",
+      "reason": "Claim false since 9a9da3df3: Library's default limit is now 50 MiB (the server's MAX_DOCUMENT_BYTES); the replacement comment in the same place says so."
+    },
+    {
+      "id": "a53cc2fe1cc3",
+      "reason": "Superseded by 9a9da3df3: formatMaxUploadBytesAsMb was replaced by describeUploadOverLimit (packages/core/src/text/upload-limit-message.ts), which names both sizes and never shows a raw byte count for MB-scale limits; its own docblock states the rounding rule."
     }
   ]
 }
