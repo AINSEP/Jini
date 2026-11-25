@@ -88,6 +88,7 @@
       "./shell/components/AssistantDock/hooks/use-composer-send-stop-guard.hooks": "browser",
       "./shell/components/AssistantDock/hooks/useOverflowDetection.hooks": "browser",
       "./shell/components/DevicePreview/DevicePreview.hooks": "browser",
+      "./shell/components/ChatFab/ChatFab": "browser",
       "./shell/components/ChatFab/ChatFab.hooks": "browser",
       "./shell/components/InstallTabCard/use-zip-drop.hooks": "browser",
       "./shell/components/TemplateSource/template-source-port.hooks": "browser",
@@ -732,6 +733,7 @@
         "./shell/components/AssistantDock/hooks/use-composer-send-stop-guard.hooks": "browser",
         "./shell/components/AssistantDock/hooks/useOverflowDetection.hooks": "browser",
         "./shell/components/DevicePreview/DevicePreview.hooks": "browser",
+        "./shell/components/ChatFab/ChatFab": "browser",
         "./shell/components/ChatFab/ChatFab.hooks": "browser",
         "./shell/components/InstallTabCard/use-zip-drop.hooks": "browser",
         "./shell/components/TemplateSource/template-source-port.hooks": "browser",
@@ -1347,6 +1349,11 @@
       "types": "./dist/shell/components/DevicePreview/DevicePreview.hooks.d.ts",
       "import": "./dist/shell/components/DevicePreview/DevicePreview.hooks.js",
       "default": "./dist/shell/components/DevicePreview/DevicePreview.hooks.js"
+    },
+    "./shell/components/ChatFab/ChatFab": {
+      "types": "./dist/shell/components/ChatFab/ChatFab.d.ts",
+      "import": "./dist/shell/components/ChatFab/ChatFab.js",
+      "default": "./dist/shell/components/ChatFab/ChatFab.js"
     },
     "./shell/components/ChatFab/ChatFab.hooks": {
       "types": "./dist/shell/components/ChatFab/ChatFab.hooks.d.ts",
