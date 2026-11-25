@@ -3,7 +3,7 @@ import { expect, test } from "vitest";
 
 const targets = ["../AgentPluginSurfaceFrame.tsx", "../hooks/use-agent-plugin-surfaces.hooks.ts"];
 
-// The Tovu guard still owns host seams, and the Jini package now owns these two sources.
+// The host app's own guard still owns host seams, and this package now owns these two sources.
 function scanSurfaceVendorWords(
   { targets, readText }: { targets: readonly string[]; readText: (required: { file: string }) => string },
   _optional: Record<string, never> = {},

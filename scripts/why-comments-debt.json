@@ -1752,6 +1752,22 @@
     {
       "id": "a53cc2fe1cc3",
       "reason": "Superseded by 9a9da3df3: formatMaxUploadBytesAsMb was replaced by describeUploadOverLimit (packages/core/src/text/upload-limit-message.ts), which names both sizes and never shows a raw byte count for MB-scale limits; its own docblock states the rounding rule."
+    },
+    {
+      "id": "8e2fc0930e08",
+      "reason": "P8-J1.J deleted the timer-based Base URL approval (useSettledBaseUrl, mayProbeBaseUrl, BASE_URL_SETTLE_MS) outright per the sheet; the replacement useEndpointApproval in ExecutionTab.hooks.ts carries the B216 why (explicit commit, exact provider/protocol/URL, seeding exception)."
+    },
+    {
+      "id": "209de28cee7f",
+      "reason": "P8-J1.J deleted the timer-based Base URL approval (useSettledBaseUrl, mayProbeBaseUrl, BASE_URL_SETTLE_MS) outright per the sheet; the replacement useEndpointApproval in ExecutionTab.hooks.ts carries the B216 why (explicit commit, exact provider/protocol/URL, seeding exception)."
+    },
+    {
+      "id": "5d1d23383a17",
+      "reason": "P8-J1.J deleted the timer-based Base URL approval (useSettledBaseUrl, mayProbeBaseUrl, BASE_URL_SETTLE_MS) outright per the sheet; the replacement useEndpointApproval in ExecutionTab.hooks.ts carries the B216 why (explicit commit, exact provider/protocol/URL, seeding exception)."
+    },
+    {
+      "id": "08aa98f5889b",
+      "reason": "P8-J1.J deleted the timer-based Base URL approval (useSettledBaseUrl, mayProbeBaseUrl, BASE_URL_SETTLE_MS) outright per the sheet; the replacement useEndpointApproval in ExecutionTab.hooks.ts carries the B216 why (explicit commit, exact provider/protocol/URL, seeding exception)."
     }
   ]
 }
