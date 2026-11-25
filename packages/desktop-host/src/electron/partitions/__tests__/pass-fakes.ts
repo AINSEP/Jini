@@ -1,7 +1,7 @@
 /** In-memory durable JSON store and a directory-aware filesystem for the ledger and partition-pass tests. */
 import path from 'node:path';
 import type { JsonFileRead, QuarantineNotice } from '@jini-ai/core/contracts/site/fs-durable-json';
-import type { RetirementLedgerStore } from '../index.js';
+import type { PartitionPassFsPort, RetirementLedgerStore } from '../index.js';
 import { MemoryFs } from './fakes.js';
 
 const errno = (code: string, target: string) => Object.assign(new Error(`${code}: ${target}`), { code });
@@ -32,7 +32,7 @@ export class MemoryDurableJson implements RetirementLedgerStore {
 }
 
 /** `MemoryFs` plus directory trees, device numbers, recursive removal and fault injection. */
-export class PassFs extends MemoryFs {
+export class PassFs extends MemoryFs implements PartitionPassFsPort {
   devs = new Map<string, number>();
   fault: FaultHook = () => undefined;
   frozen = false;
