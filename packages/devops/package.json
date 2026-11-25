@@ -75,6 +75,7 @@
       "./backup/site/share-refusal": "universal",
       "./backup/site/archive-media": "universal",
       "./backup/site/static-export-selection": "universal",
+      "./backup/site/import-verifier-projection": "universal",
       "./backup/site/import-plugin-state": "node",
       "./backup/site/import-restore-placement": "node",
       "./backup/site/static-download-landing": "universal",
@@ -414,6 +415,11 @@
       "types": "./dist/backup/site/static-export-selection.d.ts",
       "import": "./dist/backup/site/static-export-selection.js",
       "default": "./dist/backup/site/static-export-selection.js"
+    },
+    "./backup/site/import-verifier-projection": {
+      "types": "./dist/backup/site/import-verifier-projection.d.ts",
+      "import": "./dist/backup/site/import-verifier-projection.js",
+      "default": "./dist/backup/site/import-verifier-projection.js"
     },
     "./backup/site/import-plugin-state": {
       "types": "./dist/backup/site/import-plugin-state.d.ts",
