@@ -221,8 +221,8 @@ function recordIncident(required: { context: ReporterContext; error: unknown; st
   const incident: Incident = { errorId, label, ...(time === undefined ? {} : { time }) };
   const level = optional.level ?? 'error';
   const attributes = admitAttributes({ attributes: optional.attributes, redaction });
-  // `diagnostic` is the operator-only record. The tracker gets the original `error` plus the standing and per-call
-  // `exactSecrets` (on `ErrorReport.context`); the tracker adapter blanks them before anything leaves the process.
+  // `diagnostic` is the operator-only record. The tracker gets the original `error` and the call's `exactSecrets`; the tracker adapter blanks secrets before anything leaves the process.
+  // Standing host secrets travel with them on `ErrorReport.context.exactSecrets` (see `reportToTracker`).
   writeHostRecord({ context, error, incident, step, level, redaction, attributes });
   if (optional.tracker !== 'skip') {
     reportToTracker({ context, incident, operation: required.operation, tracker: required.tracker, error, level, exactSecrets: knownSecrets({ redaction }), attributes });

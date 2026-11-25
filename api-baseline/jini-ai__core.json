@@ -1199,8 +1199,9 @@
    "RouteBodyReadOptions": "type:e3b19f3c34",
    "RouteBodyReader": "interface:40d533880e",
    "RouteBodyRefusal": "type:2ed272069d",
+   "RouteErrorPorts": "interface:6dcab5c5dc",
    "RouteFormFields": "type:b4fd7e5a84",
-   "RouteHostContext": "interface:c26ac79c5e",
+   "RouteHostContext": "interface:6b6b54f2dc",
    "RouteHostInternalErrorContext": "interface:96ac301673",
    "RouteInputContext": "interface:c6b8e27c78",
    "RouteMatch": "type:2d41b49165",
@@ -2714,15 +2715,20 @@
  "./errors/reporter": {
   "types": "./dist/errors/reporter.d.ts",
   "symbols": {
-   "DescribeFailureOptions": "interface:ef4c9db83f",
+   "DescribeFailureOptions": "interface:be8b898a4b",
    "DescribedFailure": "interface:7aedc11e91",
    "ErrorReporter": "interface:7c0c9ecea4",
    "ErrorReporterOptions": "interface:ac22a19a67",
    "ErrorReporterPorts": "interface:868a3a6148",
-   "RecordFailureOptions": "interface:a5fcc0a160",
+   "NOOP_OPERATION_TRACKER": "variable:dccc9c1989",
+   "OperationRunResult": "type:89fbdbe783",
+   "OperationVerdict": "type:e09e3e9f0d",
+   "RecordFailureOptions": "interface:95ba1b3c95",
    "UNAVAILABLE_ERROR_ID": "variable:e377da43a0",
    "createErrorReporter": "function:62aa2f03cb",
-   "runOperation": "function:98c41a1385"
+   "endOnce": "function:4682d349c5",
+   "runOperation": "function:410597734e",
+   "startOperation": "function:e4cdfa4fb7"
   }
  },
  "./errors/route-refusal": {

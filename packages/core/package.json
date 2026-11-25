@@ -300,7 +300,12 @@
         "src/tool-permissions.ts",
         "src/records.ts",
         "src/tool-input-repairs.ts",
-        "src/errors/idioms.ts"
+        "src/errors/idioms.ts",
+        "src/errors/reporter.ts",
+        "src/errors/disclosure.ts",
+        "src/errors/incident-text.ts",
+        "src/errors/sentences.ts",
+        "src/errors/approved-cause.ts"
       ],
       "forbidden": {
         "universal": [
