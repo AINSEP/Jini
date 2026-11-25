@@ -1,5 +1,5 @@
 import type { ReactNode, Ref } from "react";
-import type { AdminKit, KitDictionaries, SaveState, SettingsDialogTab } from "../kit.js";
+import type { AdminKitComponents, KitDictionaries, SaveState, SettingsDialogTab } from "../kit.js";
 import type { Translate } from "@jini-ai/core/text";
 import { describeSaveStatus } from "../../screens/settings/rules.js";
 
@@ -10,7 +10,7 @@ export interface SettingsPageLayoutProps {
   save: SaveState;
   tabId: string | null | undefined;
   tabs: Record<"execution" | "instructions" | "notifications" | "privacy" | "language" | "interface" | "memory" | "workspace" | "about", Omit<SettingsDialogTab, "id" | "icon">>;
-  kit: Pick<AdminKit, "I18nProvider" | "SettingsDialogShell">;
+  kit: Pick<AdminKitComponents, "I18nProvider" | "SettingsDialogShell">;
   themeBoundary: { "data-theme": string; "data-color-scheme"?: string };
   rootRef: Ref<HTMLDivElement>;
   rootDataAttributes: Readonly<Record<`data-${string}`, string | number | boolean | undefined>>;
