@@ -18,6 +18,7 @@
  * product-specific prefixes, parents, the lock adapter (and through it the liveness probe).
  */
 import { basename, dirname, join } from "node:path";
+import type { Stats } from "node:fs";
 import type * as nodeFs from "node:fs/promises";
 import { FileLockTimeoutError } from "@jini-ai/core/contracts/runtime";
 import type { Clock } from "@jini-ai/core/primitives";
@@ -30,7 +31,7 @@ const EXACT_UUID = new RegExp(`^${UUID}$`);
 const PLAIN_PREFIX = /^[A-Za-z0-9._-]+$/;
 const DAY_MS = 86_400_000;
 
-export type OwnedTempRootFilesystem = Pick<typeof nodeFs, "mkdir" | "rm" | "writeFile" | "readdir" | "lstat" | "realpath">;
+export type OwnedTempRootFilesystem = Pick<typeof nodeFs, "mkdir" | "rm" | "writeFile" | "readdir" | "realpath"> & { lstat(path: string): Promise<Stats> };
 /** A lock adapter shaped like `withFileLock`; the host binds its process/liveness port into it. */
 export type OwnedTempRootLock = <T>(required: { lockPath: string; run: () => Promise<T> }, options: { timeoutMs?: number; staleMs: number }) => Promise<T>;
 export interface OwnedTempRootRemovalError { root: string; error: unknown }
@@ -80,7 +81,7 @@ export type OwnedTempRootReason = "dead-owner" | "orphan-lock" | "young" | "owne
 export interface OwnedTempRootEntry { path: string; outcome: OwnedTempRootOutcome; reason: OwnedTempRootReason }
 export interface OwnedTempRootSweepReport { entries: OwnedTempRootEntry[]; truncated: boolean; aborted: boolean }
 interface SweepContext { fs: OwnedTempRootFilesystem; lock: OwnedTempRootLock; nowMs: number; olderThanMs: number }
-type Stat = Awaited<ReturnType<OwnedTempRootFilesystem["lstat"]>>;
+type Stat = Stats;
 
 const entry = (path: string, outcome: OwnedTempRootOutcome, reason: OwnedTempRootReason): OwnedTempRootEntry => ({ path, outcome, reason });
 async function lstatOrUndefined(fs: OwnedTempRootFilesystem, path: string): Promise<Stat | undefined> {
