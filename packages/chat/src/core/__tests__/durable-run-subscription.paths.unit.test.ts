@@ -162,3 +162,58 @@ describe("followDurableRun and the caller's abort signal", () => {
     expect(streams[0]!.closed).toBe(true);
   });
 });
+
+describe("followDurableRun behind an accepted AG-UI start", () => {
+  it("an accepted AG-UI start follows the canonical run checkpoint without duplicate deltas", async () => {
+    const binding: DurableRunBinding = { messageId: "a-1", conversationId: "c1" };
+    const bindings = new Map<string, DurableRunBinding>();
+    const running = saved({ id: "a-1", runId: "run-canon", runStatus: "running", content: "Hi", events: [{ kind: "text", text: "Hi" }] });
+    const finished = saved({ id: "a-1", runId: "run-canon", runStatus: "succeeded", content: "Hi there", events: [{ kind: "text", text: "Hi there" }], usage: { inputTokens: 3, outputTokens: 2 } } as Partial<ChatMessage>);
+    const { ports, reads, streams, timers } = fakePorts([running, finished]);
+    const h = handlers();
+    const onCheckpoint = vi.fn();
+    const controller = new AbortController();
+    let observer: { next: (event: unknown) => void; complete: () => void } | undefined;
+    const runInputs: { runId: string }[] = [];
+    const client = createAgUiRunClient({ ports: {
+      endpoint: "/ag-ui", runIdPrefix: "ag:", mintId: () => "segment",
+      customEventNames: { usage: "usage", status: "status", extensionPrefix: "ext:" },
+      createAgent: () => ({ abortController: controller, abortRun: () => controller.abort(),
+        run: (input) => { runInputs.push(input); return { subscribe: next => { observer = next; } }; },
+      }),
+      durableLocalCli: {
+        prepareRunInput: ({ wire }) => wire,
+        readAcceptedRun: ({ event }) => ({ runId: event.runId, messageId: "a-1", conversationId: "c1" }),
+        // Saved projections replace replay: the host follows the canonical row, never the segment.
+        followAcceptedRun: ({ runId, messageId, conversationId, handlers: follow, signal }) => {
+          bindings.set(runId, { messageId, conversationId });
+          followDurableRun({ runId, signal, binding: { messageId, conversationId }, ports, notices: NOTICES, bindings, handlers: { ...follow, onCheckpoint } });
+        },
+        cancelAcceptedRun: async () => {},
+      },
+    } });
+    const started = client.startAgUiRun({ input: { history: [{ id: "u", role: "user", content: "hi" }], conversationId: "c1", signal: new AbortController().signal },
+      handlers: h, durable: { launch: { contextRef: {}, messageId: "a-1", conversationId: "c1" }, bindRun: () => {} } });
+    observer!.next({ type: "RUN_STARTED", threadId: "c1", runId: "run-canon" });
+    await expect(started).resolves.toEqual({ runId: "run-canon" });
+    expect(runInputs[0]!.runId).toBe("ag:segment");
+    // The segment keeps streaming the same answer the durable row will project: drop both views.
+    observer!.next({ type: "TEXT_MESSAGE_CONTENT", messageId: "m", delta: "Hi" });
+    streams[0]!.frame("agent", '{"payload":{"type":"text_delta","delta":"Hi"}}', "1");
+    expect(streams[0]!.runId).toBe("run-canon");
+    timers[0]!();
+    await flush();
+    timers[1]!();
+    await flush();
+    observer!.next({ type: "RUN_FINISHED", threadId: "c1", runId: "ag:segment" });
+    observer!.complete();
+    expect(reads.map(read => read.runId)).toEqual(["run-canon", "run-canon"]);
+    expect(reads[0]!.messageId).toBe("a-1");
+    expect(bindings.has("ag:segment")).toBe(false);
+    expect(h.onEvent).not.toHaveBeenCalled();
+    expect(onCheckpoint.mock.calls.map(([message]) => message.content)).toEqual(["Hi", "Hi there"]);
+    expect(h.onDone).toHaveBeenCalledTimes(1);
+    expect(h.onDone).toHaveBeenCalledWith([{ kind: "text", text: "Hi there" }]);
+    expect(h.onError).not.toHaveBeenCalled();
+  });
+});
