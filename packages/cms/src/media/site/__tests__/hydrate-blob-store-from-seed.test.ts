@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { passthroughBlobFence } from "../../__tests__/support/passthrough-blob-fence.js";
 import { createHash, randomUUID } from "node:crypto";
 import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -114,6 +115,7 @@ test("hydrateBlobStoreFromSeed: no-op when the seed payload does not exist", asy
     const result = await hydrateBlobStoreFromSeed({
       seedUploadsDir: join(dir, "absent-uploads"),
       blobStore: store,
+      blobFence: passthroughBlobFence,
     });
     assert.equal(result.status, "no-seed-source");
     assert.equal(result.copied, 0);
@@ -138,7 +140,7 @@ test("hydrateBlobStoreFromSeed: fills in a missing blob — reproduces the failu
       "precondition: the live store must NOT have this blob yet — otherwise this test would not be exercising the bug"
     );
 
-    const result = await hydrateBlobStoreFromSeed({ seedUploadsDir: dir, blobStore: store });
+    const result = await hydrateBlobStoreFromSeed({ seedUploadsDir: dir, blobStore: store, blobFence: passthroughBlobFence });
 
     assert.equal(result.status, "seeded");
     assert.equal(result.copied, 1);
@@ -167,7 +169,7 @@ test("hydrateBlobStoreFromSeed: never overwrites a key that already exists in th
     // way to know which content is the "right" one for a given key, so it must never guess.
     await store.put({ workspaceId, sha256: seeded.sha256, bytes: realBytes });
 
-    const result = await hydrateBlobStoreFromSeed({ seedUploadsDir: dir, blobStore: store });
+    const result = await hydrateBlobStoreFromSeed({ seedUploadsDir: dir, blobStore: store, blobFence: passthroughBlobFence });
 
     assert.equal(result.status, "already-present");
     assert.equal(result.copied, 0);
@@ -188,14 +190,14 @@ test("hydrateBlobStoreFromSeed: is a no-op on a second run once the store alread
 
     const store = new InMemoryBlobStore();
 
-    const first = await hydrateBlobStoreFromSeed({ seedUploadsDir: dir, blobStore: store });
+    const first = await hydrateBlobStoreFromSeed({ seedUploadsDir: dir, blobStore: store, blobFence: passthroughBlobFence });
     assert.equal(first.status, "seeded");
     assert.equal(first.copied, 1);
 
     // Simulates a later redeploy against the SAME (already-populated) volume — this must never
     // re-copy, matching `hydrateContentDbFromSeed`'s own "never touch it again" guarantee applied
     // per-key instead of per-file.
-    const second = await hydrateBlobStoreFromSeed({ seedUploadsDir: dir, blobStore: store });
+    const second = await hydrateBlobStoreFromSeed({ seedUploadsDir: dir, blobStore: store, blobFence: passthroughBlobFence });
     assert.equal(second.status, "already-present");
     assert.equal(second.copied, 0);
     assert.equal(second.skipped, 1);
@@ -214,7 +216,7 @@ test("hydrateBlobStoreFromSeed: a malformed seed entry is reported, not thrown, 
     await writeFile(join(dir, "ws", workspaceId, "not-a-blob.txt"), "unrelated file");
 
     const store = new InMemoryBlobStore();
-    const result = await hydrateBlobStoreFromSeed({ seedUploadsDir: dir, blobStore: store });
+    const result = await hydrateBlobStoreFromSeed({ seedUploadsDir: dir, blobStore: store, blobFence: passthroughBlobFence });
 
     assert.equal(result.status, "partial");
     assert.equal(result.copied, 1);
@@ -238,7 +240,7 @@ test("hydrateBlobStoreFromSeed: REGRESSION — a concurrent production write lan
     // leave open — see `RaceInjectingBlobStore`'s own doc for exactly which call it fires on.
     store.armConcurrentWrite(seeded.storageKey, productionBytes);
 
-    await hydrateBlobStoreFromSeed({ seedUploadsDir: dir, blobStore: store });
+    await hydrateBlobStoreFromSeed({ seedUploadsDir: dir, blobStore: store, blobFence: passthroughBlobFence });
 
     // Against the OLD exists()-then-put() implementation this fails: exists() observes the key
     // absent (the race hasn't landed yet), the concurrent write then lands, and the hydrator's own
@@ -279,7 +281,7 @@ test("hydrateBlobStoreFromSeed: a putIfAbsent failure for one file is reported, 
     const seededBad = await writeSeedBlob(dir, { workspaceId, bytes: badBytes });
 
     const store = new ThrowingBlobStore(seededBad.storageKey);
-    const result = await hydrateBlobStoreFromSeed({ seedUploadsDir: dir, blobStore: store });
+    const result = await hydrateBlobStoreFromSeed({ seedUploadsDir: dir, blobStore: store, blobFence: passthroughBlobFence });
 
     assert.equal(result.status, "partial");
     assert.equal(result.copied, 1);
@@ -311,7 +313,7 @@ test("hydrateBlobStoreFromSeed: a putIfAbsent rejection with a non-Error value i
     await writeSeedBlob(dir, { workspaceId, bytes: new TextEncoder().encode("bytes") });
 
     const store = new NonErrorThrowingBlobStore();
-    const result = await hydrateBlobStoreFromSeed({ seedUploadsDir: dir, blobStore: store });
+    const result = await hydrateBlobStoreFromSeed({ seedUploadsDir: dir, blobStore: store, blobFence: passthroughBlobFence });
 
     assert.equal(result.status, "partial");
     assert.equal(result.failed.length, 1);
@@ -325,7 +327,7 @@ test("hydrateBlobStoreFromSeed: an unreadable seed directory (not merely absent)
     const seedUploadsDir = join(dir, "uploads");
     await writeFile(seedUploadsDir, "a file where the seed directory should be");
     const store = new InMemoryBlobStore();
-    await assert.rejects(hydrateBlobStoreFromSeed({ seedUploadsDir, blobStore: store }), (err: NodeJS.ErrnoException) => err.code === "ENOTDIR");
+    await assert.rejects(hydrateBlobStoreFromSeed({ seedUploadsDir, blobStore: store, blobFence: passthroughBlobFence }), (err: NodeJS.ErrnoException) => err.code === "ENOTDIR");
   } finally {
     await rm(dir, { recursive: true, force: true });
   }
