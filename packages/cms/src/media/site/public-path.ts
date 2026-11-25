@@ -8,7 +8,7 @@ const WEBVTT_CONTENT_TYPE = "text/vtt";
 
 /**
  * @file The one place that decides whether a `/m/...` URL is keyed by a media asset's id or its
- * slug, and the one place that templates that URL (ADR-027 §4's `/m/{key}/...` contract).
+ * slug, and the one place that templates that URL (the `/m/{key}/...` contract).
  *
  * Readable-slugs plan (2026-09-23), S1: every URL builder used to template `record.id` directly,
  * with one comment explaining why (`Jini/packages/cms/src/widgets/resolver-service.ts`'s pre-S2 note — a rename
@@ -44,7 +44,7 @@ export function mediaUrlKey(asset: MediaUrlKeySource): string {
   return asset.id;
 }
 
-/** Either variant of the `/m/{key}/...` URL contract (ADR-027 §4): the byte-passthrough original
+/** Either variant of the `/m/{key}/...` URL contract (the media rendition URL contract): the byte-passthrough original
  *  (used for video, and for any admin/original-blob link), or a versioned image transform.
  *  Original extensions use the stored, server-validated content type so static hosts can infer
  *  the same MIME type as the live server; never pass a client-declared upload type here. */

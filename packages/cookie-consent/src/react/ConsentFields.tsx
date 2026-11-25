@@ -26,6 +26,9 @@ export interface ConsentFieldsProps {
   problems?: readonly ConsentFieldProblem[] | undefined;
   /** Host translations keyed by the exact fallback copy; unspecified entries use English. */
   dictionary?: Readonly<Record<string, string>> | undefined;
+  /** The host product's name. The built-in banner mode is labelled `<productName> banner`, so a host
+   * translates it under that exact key; omitted, the label names no product ("Built-in banner"). */
+  productName?: string | undefined;
   /** Host max lengths per text field; the defaults are the engine's loosest bounds. */
   limits?: Readonly<Partial<Record<TextKey | 'policyVersion', number>>> | undefined;
   /** Seam for tests: the handlers hook, defaulted to the real one. */
@@ -38,7 +41,12 @@ const BANNER_FIELDS: readonly { key: TextKey; label: string; multiline?: boolean
   { key: 'preferencesLabel', label: 'Preferences label' }, { key: 'privacyPolicyUrl', label: 'Privacy policy page URL' },
   { key: 'secondaryLinkLabel', label: 'Second link text' }, { key: 'secondaryLinkUrl', label: 'Second link URL' },
 ];
-const BANNER_MODE_LABELS = { jini: 'Jini banner', headless: 'My own', off: 'None' } as const;
+const BANNER_MODE_LABELS = { headless: 'My own', off: 'None' } as const;
+/** The built-in banner is the host product's banner, so its label is the host's name and not Jini's. */
+function bannerModeLabel({ mode, productName }: { mode: NonNullable<ConsentSettingsView['bannerMode']>; productName?: string | undefined }, _optional: Record<string, never> = {}): string {
+  if (mode !== 'jini') return BANNER_MODE_LABELS[mode];
+  return productName ? `${productName} banner` : 'Built-in banner';
+}
 const REGION_LABELS: Readonly<Record<ConsentSettingsView['regionMode'], string>> = {
   auto: 'Automatic (unknown region: opt-in)', 'opt-in': 'Opt-in everywhere (EU / UK)', 'opt-out': 'Opt-out everywhere (California)',
 };
@@ -75,7 +83,7 @@ function Field({ label, field, problems, children }: { label: string; field: str
 
 /** Host-supplied banner modes. Native radios provide keyboard selection; the hint keeps its space
  * while hidden, and the parent fieldset supplies the disabled state. */
-function BannerModeFields({ value, onChange, dictionary, modes, useConsentSettingsPanelHook = useConsentSettingsPanel }: Pick<ConsentFieldsProps, 'value' | 'onChange' | 'dictionary' | 'useConsentSettingsPanelHook'> & { modes: readonly NonNullable<ConsentSettingsView['bannerMode']>[] }) {
+function BannerModeFields({ value, onChange, dictionary, productName, modes, useConsentSettingsPanelHook = useConsentSettingsPanel }: Pick<ConsentFieldsProps, 'value' | 'onChange' | 'dictionary' | 'productName' | 'useConsentSettingsPanelHook'> & { modes: readonly NonNullable<ConsentSettingsView['bannerMode']>[] }) {
   const id = useId();
   const t = createConsentTranslator({ dictionary });
   const handlers = useConsentSettingsPanelHook({ value, onChange });
@@ -83,7 +91,7 @@ function BannerModeFields({ value, onChange, dictionary, modes, useConsentSettin
       <legend>{t('Banner mode')}</legend>
       <div className="jini-consent-banner-options">{modes.map(mode => <label key={mode}>
         <input type="radio" name={`${id}-banner-mode`} value={mode} checked={(value.bannerMode ?? 'jini') === mode} onChange={handlers.bannerMode({ mode })} />
-        <span>{t(BANNER_MODE_LABELS[mode])}</span>
+        <span>{t(bannerModeLabel({ mode, productName }))}</span>
       </label>)}</div>
       <p id={`${id}-mode-hint`} className="jini-hint jini-consent-banner-mode-hint" style={{ visibility: value.bannerMode === 'headless' ? 'visible' : 'hidden' }}>
         {t('Your banner calls window.jiniConsent.set(...)')}
@@ -94,11 +102,11 @@ function BannerModeFields({ value, onChange, dictionary, modes, useConsentSettin
 /** Banner copy and its links. Optional host modes report only a mode patch; the host's independent
  * enabled switch stays authoritative. Text is always plain text.
  * @example <ConsentBannerFields value={value} onChange={onChange} bannerModes={['jini', 'headless', 'off']} /> */
-export function ConsentBannerFields({ value, onChange, disabled = false, problems, dictionary, limits = {}, bannerModes, useConsentSettingsPanelHook = useConsentSettingsPanel }: ConsentFieldsProps & { bannerModes?: readonly NonNullable<ConsentSettingsView['bannerMode']>[] | undefined }) {
+export function ConsentBannerFields({ value, onChange, disabled = false, problems, dictionary, productName, limits = {}, bannerModes, useConsentSettingsPanelHook = useConsentSettingsPanel }: ConsentFieldsProps & { bannerModes?: readonly NonNullable<ConsentSettingsView['bannerMode']>[] | undefined }) {
   const t = createConsentTranslator({ dictionary });
   const handlers = useConsentSettingsPanelHook({ value, onChange });
   return <fieldset disabled={disabled} className="jini-consent-settings-fields"><legend>{t('Banner text')}</legend>
-    {bannerModes && <BannerModeFields value={value} onChange={onChange} dictionary={dictionary} modes={bannerModes} useConsentSettingsPanelHook={useConsentSettingsPanelHook} />}
+    {bannerModes && <BannerModeFields value={value} onChange={onChange} dictionary={dictionary} productName={productName} modes={bannerModes} useConsentSettingsPanelHook={useConsentSettingsPanelHook} />}
     {BANNER_FIELDS.map(({ key, label, multiline }) => <Field key={key} label={t(label)} field={key} problems={problems}>{aria => multiline
       ? <textarea className="jini-input" value={value[key] ?? ''} maxLength={limits[key] ?? 2000} rows={3} onChange={handlers.text(key)} {...aria} />
       : <input className="jini-input" type="text" value={value[key] ?? ''} maxLength={limits[key] ?? 2000} onChange={handlers.text(key)} {...aria} />}</Field>)}

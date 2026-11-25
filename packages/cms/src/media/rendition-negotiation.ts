@@ -1,6 +1,6 @@
 /**
  * @file Framework-neutral negotiation helpers for the public media rendition route
- * (`GET /m/{assetId}/{transformName}.v{version}/{slug}.{ext}`, ADR-027 §4): the URL's transform-spec
+ * (`GET /m/{assetId}/{transformName}.v{version}/{slug}.{ext}`): the URL's transform-spec
  * parse, the `If-None-Match` comparison, and the `Cache-Control` choice. Pure functions over strings,
  * so any host can answer the same wire without a request object.
  */

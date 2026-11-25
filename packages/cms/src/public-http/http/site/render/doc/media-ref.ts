@@ -51,7 +51,7 @@ export function mediaNodeStyleOverride({ nodeValue, assetValue }: { nodeValue: s
 
 /**
  * Attempts the REF-node image path — `attrs.assetId`/`attrs.transformName` resolved against
- * `mediaTransformVersions`/`mediaAssetMetadata` (ADR-027 §4's frozen URL contract). Returns `null`
+ * `mediaTransformVersions`/`mediaAssetMetadata` (the frozen URL contract). Returns `null`
  * when the ref shape isn't present/plausible, or the transform name isn't yet resolvable.
  * {@link renderDocImage} then uses LEGACY `src` only when no assetId is present — see that
  * function's own doc for the full two-shape contract this implements one

@@ -4,7 +4,7 @@ import { getLatestTransformDefinition, registerTransform, type RegisterTransform
 
 /**
  * @file Boot-time registration of the core transforms this host needs before the public `/m/`
- * rendition route (the host's public media-rendition route, ADR-027 §4) can serve ANY asset at
+ * rendition route (the host's public media-rendition route) can serve ANY asset at
  * all.
  *
  * `resolveMediaRendition` (`@jini-ai/cms/media`) looks up `(assetId, transformName, version)`

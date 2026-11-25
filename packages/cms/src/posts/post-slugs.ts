@@ -152,7 +152,7 @@ export async function releaseTrashedSlug({ repo, holder }: { repo: PostRepoPort;
 }
 
 /**
- * SPEC-009 REQ-15/16 — hands the bound `SlugChangeCapture` a published entry's old and new public
+ * Hands the bound `SlugChangeCapture` a published entry's old and new public
  * paths, so its old URL 301s to the new one instead of 404ing. Called inside `updatePost`'s
  * transaction, after the row write: the capture opens no transaction of its own (ADR-PIPE-009
  * Decision A), so its redirect lands or rolls back with the rename, and a throw aborts both (INV-02).

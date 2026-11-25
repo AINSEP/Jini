@@ -220,7 +220,7 @@ export interface MemberAccessResolver {
 
 /**
  * The single write chokepoint for all member-domain mutations (ADR-022 §4a /
- * ADR-028 §4 discipline: authorize/entitle → validate → upsert + append revision
+ * Discipline: authorize/entitle → validate → upsert + append revision
  * in ONE transaction → emit outbox event). Repo ports above are package-private
  * behind this service; no module writes member tables by any other path (CI
  * canary asserts it). Interface-only here; implementation is ADR-030's follow-up.

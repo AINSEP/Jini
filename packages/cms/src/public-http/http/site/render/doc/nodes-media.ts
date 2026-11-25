@@ -70,7 +70,7 @@ function legacyImageExtras(attrs: JsonObject): Record<string, string> {
  * `image`, add ONE node and dispatch on the asset's real content type, so the next kind (audio, …)
  * costs one more branch instead of one more node type/schema entry/renderer everywhere again).
  *
- * Same ref-only contract `image`'s REF shape already established (ADR-027 §4): `attrs.assetId` plus
+ * Same ref-only contract `image`'s REF shape already established: `attrs.assetId` plus
  * `attrs.transformName` locked to `CORE_PUBLIC_TRANSFORM_NAME` by both the published agent schema
  * (`TIPTAP_DOC_SCHEMA`, `features/post/agent-tools.ts`) and the admin editor's own insert command —
  * there is no `attrs.src` shape here at all, unlike `image`'s LEGACY fallback: `media` is new as of
