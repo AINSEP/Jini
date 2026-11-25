@@ -14,20 +14,6 @@
     "value": 258
   },
   {
-    "file": "packages/chat/src/core/assistant-client/durable-run-subscription.ts",
-    "function": "followDurableRun",
-    "line": 21,
-    "rule": "max-lines-per-function",
-    "value": 103
-  },
-  {
-    "file": "packages/chat/src/core/assistant-client/transport.ts",
-    "function": "createAssistantTransportClient",
-    "line": 125,
-    "rule": "max-lines-per-function",
-    "value": 400
-  },
-  {
     "file": "packages/chat/src/core/util/parser.ts",
     "function": "createArtifactParser",
     "line": 156,

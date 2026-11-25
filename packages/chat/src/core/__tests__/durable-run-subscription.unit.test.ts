@@ -134,3 +134,43 @@ for (const failure of ["null", "throw"] as const) {
     expect(timers.size).toBe(0);
   });
 }
+
+test("disconnect then replay-from-cursor then caller abort: ordered, no duplicate events, one teardown per stream", async () => {
+  vi.useFakeTimers();
+  const log: string[] = [];
+  const streams: Parameters<DurableSubscriptionPorts["stream"]>[0][] = [];
+  const controller = new AbortController();
+  const ports: DurableSubscriptionPorts = {
+    read: async () => ({ id: "answer", role: "assistant", content: "", runId: "run", runStatus: "running" }),
+    stream: input => { streams.push(input); const index = streams.length; log.push(`open#${index}@${JSON.stringify(input.cursor)}`); return () => { log.push(`close#${index}`); }; },
+    schedule: ({ work, delayMs }) => { const timer = setTimeout(work, delayMs); return () => clearTimeout(timer); },
+  };
+  const delta = (text: string) => `{"payload":{"type":"text_delta","delta":"${text}"}}`;
+  const stop = followDurableRun({ runId: "run", ports, bindings: new Map(), signal: controller.signal,
+    notices: { toolStepLimit: { kind: "status", label: "Limit" }, interrupted: { kind: "status", label: "Interrupted" },
+      neverStarted: { kind: "status", label: "Never started" }, canceledLabel: "Canceled", failedLabel: "Failed", terminalDetail: () => "Ended" },
+    handlers: { onEvent: event => { log.push(`event:${JSON.stringify(event)}`); }, onDone: () => { log.push("done"); }, onError: () => {} },
+  }, { report: { info: () => {} } });
+  try {
+    streams[0]!.frame("agent", delta("a"), "1");
+    streams[0]!.frame("agent", delta("b"), "2");
+    streams[0]!.dropped("connection-error");
+    // The dead stream is torn down once, and a late frame from it is ignored (no duplicate).
+    streams[0]!.frame("agent", delta("late"), "99");
+    await vi.advanceTimersByTimeAsync(1_000);
+    // Replay resumes from the stored cursor, never from the start.
+    expect(streams).toHaveLength(2);
+    expect(streams[1]!.cursor).toBe("2");
+    streams[1]!.frame("agent", delta("c"), "3");
+    controller.abort();
+    controller.abort();
+    stop();
+    streams[1]!.frame("agent", delta("after-abort"), "4");
+    await vi.advanceTimersByTimeAsync(60_000);
+    expect(log.filter(entry => entry.startsWith("event:")).map(entry => /"delta":"(\w+)"|"text":"(\w+)"/.exec(entry)?.slice(1).find(Boolean) ?? entry)).toEqual(["a", "b", "c"]);
+    expect(log.filter(entry => entry.startsWith("event:"))).toHaveLength(3);
+    expect(log.filter(entry => entry.startsWith("open") || entry.startsWith("close") || entry === "done")).toEqual(['open#1@""', "close#1", 'open#2@"2"', "close#2"]);
+    expect(streams).toHaveLength(2);
+    expect(vi.getTimerCount()).toBe(0);
+  } finally { vi.useRealTimers(); }
+});
