@@ -77,7 +77,10 @@
       "./backup/site/static-export-selection": "universal",
       "./deploy/site/ports": "universal",
       "./deploy/site/deploy-config": "node",
-      "./deploy/site/deploy-config-registry": "node"
+      "./deploy/site/deploy-config-registry": "node",
+      "./static-export/site/export-preflight": "node",
+      "./static-export/site/theme-preview-manifest": "universal",
+      "./source-control/react": "browser"
     },
     "isolation": {
       "shared": [
@@ -421,6 +424,21 @@
       "types": "./dist/deploy/site/deploy-config-registry.d.ts",
       "import": "./dist/deploy/site/deploy-config-registry.js",
       "default": "./dist/deploy/site/deploy-config-registry.js"
+    },
+    "./static-export/site/export-preflight": {
+      "types": "./dist/static-export/site/export-preflight.d.ts",
+      "import": "./dist/static-export/site/export-preflight.js",
+      "default": "./dist/static-export/site/export-preflight.js"
+    },
+    "./static-export/site/theme-preview-manifest": {
+      "types": "./dist/static-export/site/theme-preview-manifest.d.ts",
+      "import": "./dist/static-export/site/theme-preview-manifest.js",
+      "default": "./dist/static-export/site/theme-preview-manifest.js"
+    },
+    "./source-control/react": {
+      "types": "./dist/source-control/react/SourceControl.d.ts",
+      "import": "./dist/source-control/react/SourceControl.js",
+      "default": "./dist/source-control/react/SourceControl.js"
     }
   },
   "files": [

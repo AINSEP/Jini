@@ -201,6 +201,8 @@
       "./tool-metadata/pages": "universal",
       "./contracts/site/integrations-credentialed-http": "universal",
       "./contracts/site/widgets-html": "universal",
+      "./contracts/site/custom-credential-publish-compatibility": "universal",
+      "./contracts/site/project-key-attachments": "universal",
       "./contracts/site/integrations-api-connections": "universal",
       "./contracts/site/cms-menus": "universal",
       "./contracts/site/cms-publish-content": "universal",
@@ -267,6 +269,11 @@
       "./contracts/site/comments-providers": "universal",
       "./contracts/site/publish-ports": "universal",
       "./contracts/site/cms-admin-media": "universal",
+      "./contracts/site/cms-admin-theme-types": "universal",
+      "./contracts/site/cms-admin-theme-registry": "universal",
+      "./contracts/site/cms-admin-theme-explore": "universal",
+      "./contracts/site/cms-admin-held-back-themes": "universal",
+      "./contracts/site/page-html-store": "universal",
       "./contracts/site/post-kind": "universal",
       "./scheduled-publish": "universal",
       "./tool-metadata/post": "universal",
@@ -1266,6 +1273,16 @@
       "import": "./dist/contracts/site/widgets-html.js",
       "default": "./dist/contracts/site/widgets-html.js"
     },
+    "./contracts/site/custom-credential-publish-compatibility": {
+      "types": "./dist/contracts/site/custom-credential-publish-compatibility.d.ts",
+      "import": "./dist/contracts/site/custom-credential-publish-compatibility.js",
+      "default": "./dist/contracts/site/custom-credential-publish-compatibility.js"
+    },
+    "./contracts/site/project-key-attachments": {
+      "types": "./dist/contracts/site/project-key-attachments.d.ts",
+      "import": "./dist/contracts/site/project-key-attachments.js",
+      "default": "./dist/contracts/site/project-key-attachments.js"
+    },
     "./contracts/site/integrations-api-connections": {
       "types": "./dist/contracts/site/integrations-api-connections.d.ts",
       "import": "./dist/contracts/site/integrations-api-connections.js",
@@ -1595,6 +1612,31 @@
       "types": "./dist/contracts/site/cms-admin-media.d.ts",
       "import": "./dist/contracts/site/cms-admin-media.js",
       "default": "./dist/contracts/site/cms-admin-media.js"
+    },
+    "./contracts/site/cms-admin-theme-types": {
+      "types": "./dist/contracts/site/cms-admin-theme-types.d.ts",
+      "import": "./dist/contracts/site/cms-admin-theme-types.js",
+      "default": "./dist/contracts/site/cms-admin-theme-types.js"
+    },
+    "./contracts/site/cms-admin-theme-registry": {
+      "types": "./dist/contracts/site/cms-admin-theme-registry.d.ts",
+      "import": "./dist/contracts/site/cms-admin-theme-registry.js",
+      "default": "./dist/contracts/site/cms-admin-theme-registry.js"
+    },
+    "./contracts/site/cms-admin-theme-explore": {
+      "types": "./dist/contracts/site/cms-admin-theme-explore.d.ts",
+      "import": "./dist/contracts/site/cms-admin-theme-explore.js",
+      "default": "./dist/contracts/site/cms-admin-theme-explore.js"
+    },
+    "./contracts/site/cms-admin-held-back-themes": {
+      "types": "./dist/contracts/site/cms-admin-held-back-themes.d.ts",
+      "import": "./dist/contracts/site/cms-admin-held-back-themes.js",
+      "default": "./dist/contracts/site/cms-admin-held-back-themes.js"
+    },
+    "./contracts/site/page-html-store": {
+      "types": "./dist/contracts/site/page-html-store.d.ts",
+      "import": "./dist/contracts/site/page-html-store.js",
+      "default": "./dist/contracts/site/page-html-store.js"
     },
     "./contracts/site/post-kind": {
       "types": "./dist/contracts/site/post-kind.d.ts",

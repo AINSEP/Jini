@@ -54,7 +54,14 @@
       "./presentation/page-head": "universal",
       "./presentation/site/active-theme-id": "universal",
       "./media/import": "universal",
+      "./react/posts/PostCoverImage": "browser",
+      "./react/posts/hooks/use-post-featured-image.hooks": "browser",
+      "./react/posts/editor/notices/PostEditorSlugCollisionWarning": "browser",
+      "./react/pages/PageExternalChangeBanner": "browser",
       "./react/media": "browser",
+      "./react/themes/hooks/theme-explore-open-file.hooks": "universal",
+      "./react/themes/hooks/use-theme-card-preview.hooks": "browser",
+      "./react/themes/ThemePreviewReloadButton": "browser",
       "./core/tools": "universal",
       "./trash": "universal",
       "./trash/site/adapters/plugin": "universal",
@@ -84,6 +91,7 @@
       "./html/document-marks": "universal",
       "./html/site/slug": "universal",
       "./html/site/source-edits": "node",
+      "./posts/agent-hold": "universal",
       "./posts/post-before-save": "universal",
       "./posts/slug": "universal",
       "./navigation/types": "universal",
@@ -210,6 +218,8 @@
       "./admin-http/http/forms": "node",
       "./comments/site/ip-hash-salt": "node",
       "./media/site-transform/image-ops": "node",
+      "./media/site/large-upload-routing": "universal",
+      "./media/site/verify-published-media": "node",
       "./media/site/bootstrap": "node",
       "./media/site/chat-preview": "node",
       "./media/site/content-type-resolution": "node",
@@ -471,7 +481,9 @@
       "./settings/site/form-destination": "universal",
       "./settings/site/mail-sender": "universal",
       "./settings/site/site-timezone": "universal",
+      "./settings/site/site-timezone-fallback": "universal",
       "./settings/site/site-title": "universal",
+      "./settings/site/site-title-reporter": "universal",
       "./seo/site/page-head-contributor": "node",
       "./redirects/site/phase-handler": "universal",
       "./redirects/site/publish-content": "universal",
@@ -504,12 +516,16 @@
       "./publish/content/idempotency": "node",
       "./publish/content/plan-rows": "universal",
       "./publish/content/report-labels": "universal",
+      "./publish/trust/challenge": "node",
+      "./publish/trust/connect": "node",
       "./publish/trust/grant": "universal",
+      "./publish/trust/handshake-client": "node",
       "./publish/trust/keys": "node",
       "./publish/trust/provisioning": "universal",
       "./publish/trust/provisioning-status": "universal",
       "./publish/trust/provisioning.node-io": "node",
       "./publish/trust/revocations": "universal",
+      "./publish/trust/session": "node",
       "./trash/site/directory-rollback-log": "universal",
       "./trash/permanent/agent-tools": "universal",
       "./publish/content/run-repo": "universal",
@@ -584,6 +600,7 @@
       "./comments/site/settings": "universal",
       "./comments/site/builtin-provider": "universal",
       "./comments/site/provider-selection": "universal",
+      "./comments/site/public-markers": "universal",
       "./comments/site/data-module-install": "node",
       "./media/site/import-media-entity": "node",
       "./media/site/where-used": "node",
@@ -651,10 +668,18 @@
       "./admin-http/routes/widgets/agent-tools-diagnose": "universal",
       "./navigation/site/import-menu": "universal",
       "./navigation/site/repoint-menu-refs": "universal",
-      "./admin-http/routes/forms/pull-submissions": "universal"
+      "./admin-http/routes/forms/pull-submissions": "universal",
+      "./react/publish-content/criteria-publish-result": "universal",
+      "./react/publish-content/PublishSectionButton": "browser"
     },
     "isolation": {
       "domains": {
+        "pages": [
+          "src/react/pages"
+        ],
+        "posts": [
+          "src/react/posts"
+        ],
         "publish": [
           "src/publish"
         ],
@@ -715,7 +740,49 @@
         ]
       },
       "forbidden": {
+        "./react/posts/PostCoverImage": [
+          "node:",
+          "express",
+          "kysely",
+          "parse5"
+        ],
+        "./react/posts/hooks/use-post-featured-image.hooks": [
+          "node:",
+          "express",
+          "kysely",
+          "parse5"
+        ],
+        "./react/posts/editor/notices/PostEditorSlugCollisionWarning": [
+          "node:",
+          "express",
+          "kysely",
+          "parse5"
+        ],
+        "./react/pages/PageExternalChangeBanner": [
+          "node:",
+          "express",
+          "kysely",
+          "parse5"
+        ],
         "./react/media": [
+          "node:",
+          "express",
+          "kysely",
+          "parse5"
+        ],
+        "./react/publish-content/PublishSectionButton": [
+          "node:",
+          "express",
+          "kysely",
+          "parse5"
+        ],
+        "./react/themes/hooks/use-theme-card-preview.hooks": [
+          "node:",
+          "express",
+          "kysely",
+          "parse5"
+        ],
+        "./react/themes/ThemePreviewReloadButton": [
           "node:",
           "express",
           "kysely",
@@ -939,7 +1006,9 @@
         "./admin-http/routes/widgets/agent-tools-create": "widgets",
         "./admin-http/routes/widgets/agent-tools-remove": "widgets",
         "./admin-http/routes/widgets/agent-tools-diagnose": "widgets",
-        "./admin-http/routes/forms/pull-submissions": "forms"
+        "./admin-http/routes/forms/pull-submissions": "forms",
+        "./react/publish-content/criteria-publish-result": "publish",
+        "./react/publish-content/PublishSectionButton": "publish"
       }
     },
     "optionalPeers": {
@@ -1183,10 +1252,45 @@
       "import": "./dist/media/import/index.js",
       "default": "./dist/media/import/index.js"
     },
+    "./react/posts/PostCoverImage": {
+      "types": "./dist/react/posts/PostCoverImage.d.ts",
+      "import": "./dist/react/posts/PostCoverImage.js",
+      "default": "./dist/react/posts/PostCoverImage.js"
+    },
+    "./react/posts/hooks/use-post-featured-image.hooks": {
+      "types": "./dist/react/posts/hooks/use-post-featured-image.hooks.d.ts",
+      "import": "./dist/react/posts/hooks/use-post-featured-image.hooks.js",
+      "default": "./dist/react/posts/hooks/use-post-featured-image.hooks.js"
+    },
+    "./react/posts/editor/notices/PostEditorSlugCollisionWarning": {
+      "types": "./dist/react/posts/editor/notices/PostEditorSlugCollisionWarning.d.ts",
+      "import": "./dist/react/posts/editor/notices/PostEditorSlugCollisionWarning.js",
+      "default": "./dist/react/posts/editor/notices/PostEditorSlugCollisionWarning.js"
+    },
+    "./react/pages/PageExternalChangeBanner": {
+      "types": "./dist/react/pages/PageExternalChangeBanner.d.ts",
+      "import": "./dist/react/pages/PageExternalChangeBanner.js",
+      "default": "./dist/react/pages/PageExternalChangeBanner.js"
+    },
     "./react/media": {
       "types": "./dist/react/media/index.d.ts",
       "import": "./dist/react/media/index.js",
       "default": "./dist/react/media/index.js"
+    },
+    "./react/themes/hooks/theme-explore-open-file.hooks": {
+      "types": "./dist/react/themes/hooks/theme-explore-open-file.hooks.d.ts",
+      "import": "./dist/react/themes/hooks/theme-explore-open-file.hooks.js",
+      "default": "./dist/react/themes/hooks/theme-explore-open-file.hooks.js"
+    },
+    "./react/themes/hooks/use-theme-card-preview.hooks": {
+      "types": "./dist/react/themes/hooks/use-theme-card-preview.hooks.d.ts",
+      "import": "./dist/react/themes/hooks/use-theme-card-preview.hooks.js",
+      "default": "./dist/react/themes/hooks/use-theme-card-preview.hooks.js"
+    },
+    "./react/themes/ThemePreviewReloadButton": {
+      "types": "./dist/react/themes/ThemePreviewReloadButton.d.ts",
+      "import": "./dist/react/themes/ThemePreviewReloadButton.js",
+      "default": "./dist/react/themes/ThemePreviewReloadButton.js"
     },
     "./trash": {
       "types": "./dist/trash/index.d.ts",
@@ -1317,6 +1421,11 @@
       "types": "./dist/html/site/source-edits.d.ts",
       "import": "./dist/html/site/source-edits.js",
       "default": "./dist/html/site/source-edits.js"
+    },
+    "./posts/agent-hold": {
+      "types": "./dist/posts/agent-hold.d.ts",
+      "import": "./dist/posts/agent-hold.js",
+      "default": "./dist/posts/agent-hold.js"
     },
     "./posts/post-before-save": {
       "types": "./dist/posts/post-before-save.d.ts",
@@ -1997,6 +2106,16 @@
       "types": "./dist/media/site-transform/image-ops.d.ts",
       "import": "./dist/media/site-transform/image-ops.js",
       "default": "./dist/media/site-transform/image-ops.js"
+    },
+    "./media/site/large-upload-routing": {
+      "types": "./dist/media/site/large-upload-routing.d.ts",
+      "import": "./dist/media/site/large-upload-routing.js",
+      "default": "./dist/media/site/large-upload-routing.js"
+    },
+    "./media/site/verify-published-media": {
+      "types": "./dist/media/site/verify-published-media.d.ts",
+      "import": "./dist/media/site/verify-published-media.js",
+      "default": "./dist/media/site/verify-published-media.js"
     },
     "./media/site/bootstrap": {
       "types": "./dist/media/site/bootstrap.d.ts",
@@ -3303,10 +3422,20 @@
       "import": "./dist/settings/site/site-timezone.js",
       "default": "./dist/settings/site/site-timezone.js"
     },
+    "./settings/site/site-timezone-fallback": {
+      "types": "./dist/settings/site/site-timezone-fallback.d.ts",
+      "import": "./dist/settings/site/site-timezone-fallback.js",
+      "default": "./dist/settings/site/site-timezone-fallback.js"
+    },
     "./settings/site/site-title": {
       "types": "./dist/settings/site/site-title.d.ts",
       "import": "./dist/settings/site/site-title.js",
       "default": "./dist/settings/site/site-title.js"
+    },
+    "./settings/site/site-title-reporter": {
+      "types": "./dist/settings/site/site-title-reporter.d.ts",
+      "import": "./dist/settings/site/site-title-reporter.js",
+      "default": "./dist/settings/site/site-title-reporter.js"
     },
     "./seo/site/page-head-contributor": {
       "types": "./dist/seo/site/page-head-contributor.d.ts",
@@ -3413,10 +3542,25 @@
       "import": "./dist/publish/content/type-registry.js",
       "default": "./dist/publish/content/type-registry.js"
     },
+    "./publish/trust/challenge": {
+      "types": "./dist/publish/trust/challenge.d.ts",
+      "import": "./dist/publish/trust/challenge.js",
+      "default": "./dist/publish/trust/challenge.js"
+    },
+    "./publish/trust/connect": {
+      "types": "./dist/publish/trust/connect.d.ts",
+      "import": "./dist/publish/trust/connect.js",
+      "default": "./dist/publish/trust/connect.js"
+    },
     "./publish/trust/grant": {
       "types": "./dist/publish/trust/grant.d.ts",
       "import": "./dist/publish/trust/grant.js",
       "default": "./dist/publish/trust/grant.js"
+    },
+    "./publish/trust/handshake-client": {
+      "types": "./dist/publish/trust/handshake-client.d.ts",
+      "import": "./dist/publish/trust/handshake-client.js",
+      "default": "./dist/publish/trust/handshake-client.js"
     },
     "./publish/trust/keys": {
       "types": "./dist/publish/trust/keys.d.ts",
@@ -3442,6 +3586,11 @@
       "types": "./dist/publish/trust/revocations.d.ts",
       "import": "./dist/publish/trust/revocations.js",
       "default": "./dist/publish/trust/revocations.js"
+    },
+    "./publish/trust/session": {
+      "types": "./dist/publish/trust/session.d.ts",
+      "import": "./dist/publish/trust/session.js",
+      "default": "./dist/publish/trust/session.js"
     },
     "./trash/site/directory-rollback-log": {
       "types": "./dist/trash/site/directory-rollback-log.d.ts",
@@ -3808,6 +3957,11 @@
       "import": "./dist/comments/site/builtin-provider.js",
       "default": "./dist/comments/site/builtin-provider.js"
     },
+    "./comments/site/public-markers": {
+      "types": "./dist/comments/site/public-markers.d.ts",
+      "import": "./dist/comments/site/public-markers.js",
+      "default": "./dist/comments/site/public-markers.js"
+    },
     "./comments/site/provider-selection": {
       "types": "./dist/comments/site/provider-selection.d.ts",
       "import": "./dist/comments/site/provider-selection.js",
@@ -4152,6 +4306,16 @@
       "types": "./dist/admin-http/routes/forms/pull-submissions.d.ts",
       "import": "./dist/admin-http/routes/forms/pull-submissions.js",
       "default": "./dist/admin-http/routes/forms/pull-submissions.js"
+    },
+    "./react/publish-content/criteria-publish-result": {
+      "types": "./dist/react/publish-content/hooks/criteria-publish-result.d.ts",
+      "import": "./dist/react/publish-content/hooks/criteria-publish-result.js",
+      "default": "./dist/react/publish-content/hooks/criteria-publish-result.js"
+    },
+    "./react/publish-content/PublishSectionButton": {
+      "types": "./dist/react/publish-content/PublishSectionButton.d.ts",
+      "import": "./dist/react/publish-content/PublishSectionButton.js",
+      "default": "./dist/react/publish-content/PublishSectionButton.js"
     }
   },
   "files": [

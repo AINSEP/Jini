@@ -1545,10 +1545,45 @@
    "UiSurfaceDirective": "interface:b4efb3bb7a"
   }
  },
+ "./contracts/site/cms-admin-held-back-themes": {
+  "types": "./dist/contracts/site/cms-admin-held-back-themes.d.ts",
+  "symbols": {
+   "ChosenThemeHeldBack": "interface:3e7c6aeea3",
+   "HeldBackApprovalResult": "interface:5ad347f9e3",
+   "HeldBackCheckResult": "interface:25b0b4fbdf",
+   "HeldBackRestoreResult": "interface:42a18b7374",
+   "HeldBackTheme": "interface:4f5b8deb74",
+   "HeldBackThemesList": "interface:fa1dc5bcb2",
+   "HeldBackThemesPort": "interface:d897ef21b6"
+  }
+ },
  "./contracts/site/cms-admin-media": {
   "types": "./dist/contracts/site/cms-admin-media.d.ts",
   "symbols": {
    "AdminMedia": "type:7afe4a503e"
+  }
+ },
+ "./contracts/site/cms-admin-theme-explore": {
+  "types": "./dist/contracts/site/cms-admin-theme-explore.d.ts",
+  "symbols": {
+   "ThemeExploreFileEntry": "interface:2d01fff691",
+   "ThemeExplorePort": "interface:1c90f0c1d4",
+   "ThemeExploreSlugCollision": "interface:e1dbbe9ce4"
+  }
+ },
+ "./contracts/site/cms-admin-theme-registry": {
+  "types": "./dist/contracts/site/cms-admin-theme-registry.d.ts",
+  "symbols": {
+   "ThemesPort": "interface:ce6bb05050"
+  }
+ },
+ "./contracts/site/cms-admin-theme-types": {
+  "types": "./dist/contracts/site/cms-admin-theme-types.d.ts",
+  "symbols": {
+   "AdminThemeSummary": "interface:b6318afe4d",
+   "PresentationSettings": "interface:96ee126ab2",
+   "ThemeFileGroup": "type:fd3d5cc96b",
+   "ThemeTier": "type:49d51cd108"
   }
  },
  "./contracts/site/cms-agent-plugins": {
@@ -1918,6 +1953,12 @@
    "ThemeSlotDescriptor": "interface:db04614bc6"
   }
  },
+ "./contracts/site/custom-credential-publish-compatibility": {
+  "types": "./dist/contracts/site/custom-credential-publish-compatibility.d.ts",
+  "symbols": {
+   "PublishCompatibilityPort": "interface:40a90c0ac8"
+  }
+ },
  "./contracts/site/daemon": {
   "types": "./dist/contracts/site/daemon.d.ts",
   "symbols": {
@@ -2125,7 +2166,8 @@
  "./contracts/site/integrations-api-connections": {
   "types": "./dist/contracts/site/integrations-api-connections.d.ts",
   "symbols": {
-   "ApiConnectionConnectStatus": "type:a0e3af7cd3"
+   "ApiConnectionConnectStatus": "type:a0e3af7cd3",
+   "ClientNamespaceFor": "type:73ec146565"
   }
  },
  "./contracts/site/integrations-credentialed-http": {
@@ -2190,6 +2232,15 @@
    "AsarHeaderNode": "interface:11eea7b90d",
    "AsarMismatch": "interface:f296a9828b",
    "AsarVerification": "interface:bcfe772663"
+  }
+ },
+ "./contracts/site/page-html-store": {
+  "types": "./dist/contracts/site/page-html-store.d.ts",
+  "symbols": {
+   "PagesHtmlDocumentStoreFactory": "type:38cec27a93",
+   "PagesHtmlDocumentStorePort": "interface:c37c1b3182",
+   "PagesHtmlDocumentStoreScope": "interface:2be584b4e8",
+   "PluginEmbedDiagnostic": "interface:d3011be33d"
   }
  },
  "./contracts/site/platform-mail": {
@@ -2278,6 +2329,13 @@
   "types": "./dist/contracts/site/post-kind.d.ts",
   "symbols": {
    "PostKind": "type:294f476993"
+  }
+ },
+ "./contracts/site/project-key-attachments": {
+  "types": "./dist/contracts/site/project-key-attachments.d.ts",
+  "symbols": {
+   "KeyAttachments": "interface:f6c5e60136",
+   "ProjectKeyTransaction": "type:2b3faf6778"
   }
  },
  "./contracts/site/protocol-mcp-ui": {
@@ -2401,7 +2459,8 @@
    "AdminSiteKeyStartFreshPreview": "interface:b59e3bea9e",
    "AdminSiteKeyState": "type:4e0c0bc1f5",
    "AdminSiteKeyStatus": "interface:7c27f0a100",
-   "AdminStartedFreshSiteKey": "interface:f9f2351943"
+   "AdminStartedFreshSiteKey": "interface:f9f2351943",
+   "SiteKeyPort": "interface:6895e3cc0e"
   }
  },
  "./contracts/site/skill-install": {
