@@ -15,9 +15,9 @@ const peerRow = (id: string, over: Record<string, unknown> = {}) => ({ workspace
 function row(entityType: string, entityId: string, outcome: PublishContentOutcomeRow["outcome"] = "created", extra: Partial<PublishContentOutcomeRow> = {}): PublishContentOutcomeRow {
   return { entityType, entityId, entityLabel: entityId, outcome, writes: ["created", "applied", "forced"].includes(outcome), reason: null, ...extra };
 }
-const report = (...rows: PublishContentOutcomeRow[]): PublishContentReport => ({ refused: false, rows } as PublishContentReport);
+const report = (...rows: PublishContentOutcomeRow[]): PublishContentReport => ({ refused: false, rows } as unknown as PublishContentReport);
 
-interface Setup { peers?: unknown[]; mode?: string; planRows?: PublishContentOutcomeRow[]; executeReport?: unknown; omitReport?: boolean; notSupported?: { entityType: string; count: number }[]; liveCanOverwrite?: boolean }
+interface Setup { peers?: unknown[]; mode?: string; planRows?: PublishContentOutcomeRow[]; executeReport?: unknown; omitReport?: boolean; extraItemNames?: Record<string, string[]>; notSupported?: { entityType: string; count: number }[]; liveCanOverwrite?: boolean }
 function setup(options: Setup = {}) {
   const calls = { plan: [] as unknown[], confirm: [] as unknown[], execute: [] as unknown[], credential: [] as unknown[] };
   const rows = options.planRows ?? [row("page", "a"), row("page", "b")];
@@ -37,7 +37,7 @@ function setup(options: Setup = {}) {
       lastKept = kept;
       return { planId: "plan-1", planHash: "hash-1", bundleId: "bundle-1", liveCanOverwrite: options.liveCanOverwrite ?? true, notSupportedByLive: options.notSupported ?? [],
         publicUrls: Object.fromEntries(rows.map(r => [`${r.entityType}:${r.entityId}`, `${BASE_URL}/${r.entityId}`])),
-        itemNames: Object.fromEntries(rows.map(r => [`${r.entityType}:${r.entityId}`, [`Name ${r.entityId}`]])),
+        itemNames: { ...Object.fromEntries(rows.map(r => [`${r.entityType}:${r.entityId}`, [`Name ${r.entityId}`]])), ...options.extraItemNames },
         details: { ...report(...kept), refused: false }, ...(selection.overwriteEntityKeys ? { overwriteEntityKeys: selection.overwriteEntityKeys } : {}) };
     }) as never,
     peerTransport: {
@@ -88,6 +88,8 @@ describe("publishContentFromTool", () => {
     expect(result.published).toEqual([]);
     expect(result.unmatchedItems).toEqual(["nothing-matches"]);
     expect(result.message).toMatch(/^Published nothing\./);
+    // Never re-stage an empty bundle on live: the one initial plan is the only plan.
+    expect(t.calls.plan).toHaveLength(1);
     expect(t.calls.confirm).toEqual([]);
     expect(t.calls.execute).toEqual([]);
   });
@@ -146,10 +148,10 @@ describe("publishContentFromTool", () => {
   });
 
   it("returns source items the live build cannot hold as skipped, blocked rows", async () => {
-    const t = setup({ planRows: [row("page", "a"), row("widget", "w", "unchanged")], notSupported: [{ entityType: "widget", count: 1 }] });
+    const t = setup({ planRows: [row("page", "a")], extraItemNames: { "widget:w": ["Widget W"] }, notSupported: [{ entityType: "widget", count: 1 }] });
     const result = await t.run();
     expect(result.notSupportedByLive).toEqual([{ entityType: "widget", count: 1 }]);
-    expect(result.skipped.map((r: { entityKey: string }) => r.entityKey)).toContain("widget:w");
+    expect(result.skipped).toEqual([{ entityKey: "widget:w", title: "Widget W", reason: "The live site's build does not support this kind of content yet." }]);
   });
 
   it("refuses an overwrite selection while the live site cannot overwrite", async () => {
