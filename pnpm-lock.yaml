@@ -1450,9 +1450,6 @@ importers:
       '@jini-ai/platform':
         specifier: workspace:^
         version: link:../platform
-      '@jini-ai/provider-plugins':
-        specifier: workspace:^
-        version: link:../provider-plugins
       '@jini-ai/registry':
         specifier: workspace:^
         version: link:../registry
