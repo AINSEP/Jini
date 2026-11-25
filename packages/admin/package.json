@@ -720,7 +720,8 @@
       "./screens/library/library-i18n/create-library-dictionary": "universal",
       "./screens/library/library-i18n/library-i18n-data": "universal",
       "./screens/voice-input/hooks/mic-capture": "browser",
-      "./screens/settings/rules": "universal"
+      "./screens/settings/rules": "universal",
+      "./screens/media/rules": "universal"
     },
     "isolation": {
       "shared": [
@@ -999,7 +1000,8 @@
         "./screens/observability/tool-gaps-panel": "browser",
         "./screens/email/hooks/use-email-template-view.hooks": "browser",
         "./screens/media/hooks/use-media-card-metadata.hooks": "media",
-        "./screens/settings/rules": "universal"
+        "./screens/settings/rules": "universal",
+        "./screens/media/rules": "universal"
       }
     },
     "optionalPeers": {
@@ -4479,6 +4481,11 @@
       "types": "./dist/screens/settings/rules.d.ts",
       "import": "./dist/screens/settings/rules.js",
       "default": "./dist/screens/settings/rules.js"
+    },
+    "./screens/media/rules": {
+      "types": "./dist/screens/media/rules.d.ts",
+      "import": "./dist/screens/media/rules.js",
+      "default": "./dist/screens/media/rules.js"
     }
   },
   "files": [
