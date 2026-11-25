@@ -7,11 +7,11 @@ import { fakeAdminKit } from "../../../react/testing-kit.js";
 import { EmailActivityTab } from "../EmailActivityTab.js";
 import type { CaptureClearState, EmailActivityController } from "../hooks/use-email-activity.hooks.js";
 
-function mount(count: number) {
+function mount(count: number, initial: CaptureClearState = { kind: "idle" }, locale = "en-US") {
   const preview = vi.fn(async () => ({ count, newestAt: null }));
   const confirm = vi.fn(async () => {});
   function Activity() {
-    const [state, setState] = useState<CaptureClearState>({ kind: "idle" });
+    const [state, setState] = useState<CaptureClearState>(initial);
     const controller: EmailActivityController = {
       filter: {}, setFilter: vi.fn(), openId: null, detail: null, toggleDetail: vi.fn(),
       activity: {
@@ -34,7 +34,7 @@ function mount(count: number) {
         },
       },
     };
-    return <EmailActivityTab controller={controller} locale="en-US" part="sends" />;
+    return <EmailActivityTab controller={controller} locale={locale} part="sends" />;
   }
   // The confirmation dialog reads the host kit, so mount under the same provider hosts use.
   render(<AdminKitProvider kit={fakeAdminKit()}><Activity /></AdminKitProvider>);
@@ -63,4 +63,23 @@ it("the confirmation names captured messages and leaves Activity records alone",
   expect(screen.getByText("owner@example.com").closest("li")!.textContent).toContain("Kept locally");
   expect(preview).toHaveBeenCalledTimes(1);
   expect(confirm).not.toHaveBeenCalled();
+});
+
+// The count is substituted into the sentence, so the noun must agree with it: "Cleared 1 captured test messages."
+// read as broken copy. Only 1 is singular (`pickPlural`'s one/other split), including 0.
+it.each([
+  [1, "Cleared 1 captured test message."],
+  [2, "Cleared 2 captured test messages."],
+  [0, "Cleared 0 captured test messages."],
+])("after clearing %i captured messages the notice reads %j", async (deleted, sentence) => {
+  mount(deleted, { kind: "cleared", deleted });
+  expect((await screen.findByRole("status")).textContent).toBe(sentence);
+});
+
+it("uses the locale's own singular sentence when exactly one message was cleared", async () => {
+  mount(1, { kind: "cleared", deleted: 1 }, "fr");
+  expect((await screen.findByRole("status")).textContent).toBe("1 message de test capturé effacé.");
+  cleanup();
+  mount(2, { kind: "cleared", deleted: 2 }, "fr");
+  expect((await screen.findByRole("status")).textContent).toBe("2 messages de test capturés effacés.");
 });
