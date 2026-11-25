@@ -4,7 +4,7 @@ import type { AdminPluginDto, AdminPluginFilesEnvelope } from "@jini-ai/core/con
 import type { PluginConflict } from "@jini-ai/core/contracts/site/plugins-host";
 import type { PluginPackageFile } from "@jini-ai/core/contracts/site/host-node";
 import type { AgentPluginGlyphKind } from "./agent-plugins-visuals.js";
-import { buildPackageFileTree, firstPackageFilePath } from "../../agent-plugins/index.js";
+import { buildPackageFileTree, firstPackageFilePath } from "../../agent-plugins/package-file-tree.js";
 import type { PluginInstallPreview } from "./hooks/plugin-install-port.hooks.js";
 import { type Translate } from "@jini-ai/core/text";
 

@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { readAdminTheme as readTheme, watchAdminTheme as watchTheme } from "../admin-surface-theme.js";
 import type { AdminSurfaceProtocolKit } from "../../../react/kit-admin-surfaces.js";
 
@@ -39,6 +39,11 @@ function manualFrames() {
 
 /** Lets the MutationObserver deliver its records. */
 const settleObservers = () => new Promise<void>((resolve) => setTimeout(resolve, 0));
+
+// jsdom ships no `matchMedia`; the watcher listens to the system colour scheme through it.
+beforeEach(() => {
+  Object.defineProperty(window, "matchMedia", { configurable: true, writable: true, value: () => ({ matches: false, addEventListener: () => undefined, removeEventListener: () => undefined }) });
+});
 
 afterEach(() => {
   vi.restoreAllMocks();
