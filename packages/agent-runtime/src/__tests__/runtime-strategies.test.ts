@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { RuntimeAgentDef } from '@jini-ai/core/contracts/agents';
 import { opencodeAgentDef } from '../defs/opencode/index.js';
-import { opencodeAcpAgentDef } from '../defs/opencode-acp.js';
+import { opencodeAcpAgentDef } from '../defs/opencode-acp/index.js';
 import { claudeAgentDef } from '../defs/claude/index.js';
 import { codebuddyAgentDef } from '../defs/codebuddy/index.js';
 import { mimoAgentDef } from '../defs/mimo/index.js';
