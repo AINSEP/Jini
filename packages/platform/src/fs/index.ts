@@ -25,3 +25,4 @@ export * from "./directory-relocation.js";
 export * from "./recent-directories.js";
 export * from "./resolve-directory-target.js";
 export * from "./leased-directory-move.js";
+export * from "./owned-temp-root.js";
