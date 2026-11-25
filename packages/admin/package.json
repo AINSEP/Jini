@@ -255,6 +255,9 @@
       "./screens/plugins/add-plugin-tab-soon": "universal",
       "./screens/plugins/composer-capabilities": "universal",
       "./screens/plugins/agent-plugins-visuals": "browser",
+      "./screens/plugins/plugins-visuals": "browser",
+      "./screens/plugins/AgentPluginMaturity": "browser",
+      "./screens/plugins/AgentPluginLinkedLock": "browser",
       "./screens/plugins/AgentPluginMemoryPanel": "browser",
       "./screens/plugins/hooks/use-agent-plugin-memory.hooks": "browser",
       "./screens/plugins/hooks/agent-plugin-surfaces-port.hooks": "universal",
@@ -2176,6 +2179,21 @@
       "types": "./dist/screens/plugins/agent-plugins-visuals.d.ts",
       "import": "./dist/screens/plugins/agent-plugins-visuals.js",
       "default": "./dist/screens/plugins/agent-plugins-visuals.js"
+    },
+    "./screens/plugins/plugins-visuals": {
+      "types": "./dist/screens/plugins/plugins-visuals.d.ts",
+      "import": "./dist/screens/plugins/plugins-visuals.js",
+      "default": "./dist/screens/plugins/plugins-visuals.js"
+    },
+    "./screens/plugins/AgentPluginMaturity": {
+      "types": "./dist/screens/plugins/AgentPluginMaturity.d.ts",
+      "import": "./dist/screens/plugins/AgentPluginMaturity.js",
+      "default": "./dist/screens/plugins/AgentPluginMaturity.js"
+    },
+    "./screens/plugins/AgentPluginLinkedLock": {
+      "types": "./dist/screens/plugins/AgentPluginLinkedLock.d.ts",
+      "import": "./dist/screens/plugins/AgentPluginLinkedLock.js",
+      "default": "./dist/screens/plugins/AgentPluginLinkedLock.js"
     },
     "./screens/plugins/AgentPluginMemoryPanel": {
       "types": "./dist/screens/plugins/AgentPluginMemoryPanel.d.ts",
