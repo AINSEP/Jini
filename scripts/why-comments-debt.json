@@ -1984,6 +1984,14 @@
     {
       "id": "4e8acd605046",
       "reason": "Superseded by the f221e8c34 behaviour fix: the test comment said both subclasses answer 400; the rewritten comment beside the assertions explains the 409 entity-not-live rung and the plugin-embed 400."
+    },
+    {
+      "id": "0fe0d99baf0a",
+      "reason": "Superseded by the 9cac715ed behaviour fix (combine-23 new bug 6): the route now sends plugin load refusals so the Source Control page can say why a host is missing; the rewritten doc on the registry type explains the new rule (logging stays the loader's; the spec copies them)."
+    },
+    {
+      "id": "c07b8764dcb8",
+      "reason": "Superseded by the 9cac715ed behaviour fix (combine-23 new bug 6): refusals now reach the response; the rewritten providerList doc explains why (empty list with no reason) and that they carry no credential."
     }
   ]
 }
