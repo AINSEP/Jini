@@ -695,14 +695,22 @@ export function useAdminKitChatPosters(_required: Record<string, never> = {}, _o
 }
 
 export const useFabPosition: AdminKitChat['useFabPosition'] = (r, o) => useAdminKit().chat.useFabPosition(r, o);
+/** Builds a same-name facade of one chat component: it renders the kit's implementation, and the kit hook is an injectable prop like `slot`'s. */
+type ChatComponentName = 'ChatPane' | 'ChatSettingsDialog' | 'JiniChatProvider' | 'ConversationList' | 'ChatSettingsSegmented' | 'McpUiSurfaceCard' | 'A2uiSurfaceCard';
+function chatSlot<K extends ChatComponentName>(name: K): ComponentType<ComponentProps<AdminKitChat[K]> & { useAdminKitHook?: typeof useAdminKit }> {
+  return function AdminKitChatSlot({ useAdminKitHook = useAdminKit, ...props }) {
+    const Impl = useAdminKitHook().chat[name] as unknown as ComponentType<Record<string, unknown>>;
+    return <Impl {...props} />;
+  };
+}
 /* Same-name facades of the chat components: each renders the kit's real implementation, so moved admin code imports them from here, never from the chat library. */
-export const ChatPane: AdminKitChat['ChatPane'] = (props) => { const Impl = useAdminKit().chat.ChatPane; return <Impl {...props} />; };
-export const ChatSettingsDialog: AdminKitChat['ChatSettingsDialog'] = (props) => { const Impl = useAdminKit().chat.ChatSettingsDialog; return <Impl {...props} />; };
-export const JiniChatProvider: AdminKitChat['JiniChatProvider'] = (props) => { const Impl = useAdminKit().chat.JiniChatProvider; return <Impl {...props} />; };
-export const ConversationList: AdminKitChat['ConversationList'] = (props) => { const Impl = useAdminKit().chat.ConversationList; return <Impl {...props} />; };
-export const ChatSettingsSegmented: AdminKitChat['ChatSettingsSegmented'] = (props) => { const Impl = useAdminKit().chat.ChatSettingsSegmented; return <Impl {...props} />; };
-export const McpUiSurfaceCard: AdminKitChat['McpUiSurfaceCard'] = (props) => { const Impl = useAdminKit().chat.McpUiSurfaceCard; return <Impl {...props} />; };
-export const A2uiSurfaceCard: AdminKitChat['A2uiSurfaceCard'] = (props) => { const Impl = useAdminKit().chat.A2uiSurfaceCard; return <Impl {...props} />; };
+export const ChatPane = chatSlot('ChatPane');
+export const ChatSettingsDialog = chatSlot('ChatSettingsDialog');
+export const JiniChatProvider = chatSlot('JiniChatProvider');
+export const ConversationList = chatSlot('ConversationList');
+export const ChatSettingsSegmented = chatSlot('ChatSettingsSegmented');
+export const McpUiSurfaceCard = chatSlot('McpUiSurfaceCard');
+export const A2uiSurfaceCard = chatSlot('A2uiSurfaceCard');
 /** The attachment uploader factory, read once per render: the injected function, never copied. */
 export function useAdminKitChatRunValues(_required: Record<string, never> = {}, _optional: Record<string, never> = {})
   : Pick<AdminKitChat, 'createDaemonAttachmentUploader'> {
