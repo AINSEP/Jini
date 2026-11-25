@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import type { FileLockPort } from '@jini-ai/core/contracts/runtime';
 import { ensureAntigravityMcpPermission } from '../antigravity/permissions.js';
-import { fakeAtomicWriter, fakeFileLock, type EffectLog } from '../../ports/__tests__/fakes/runtime.js';
+import { fakeAtomicWriter, fakeFileLock, type EffectLog } from './fakes/file-ports.js';
 
 /**
  * @file R8a step 4: the antigravity grant takes its lock and writer as ports. Order and failure

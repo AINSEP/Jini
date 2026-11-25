@@ -2,11 +2,16 @@
  * The daemon asks for it by definition and never names a CLI: a dialect or a delivery strategy the definition already
  * declares (`eventParser`, `externalMcpInjection`) selects the implementation here, in the one package that owns vendors. */
 import type { RuntimeAgentDef } from '@jini-ai/core/contracts/agents';
+import type { AtomicFileWriterPort, FileLockPort } from '@jini-ai/core/contracts/runtime';
+import { ensureAntigravityMcpPermission, prepareAntigravityBridge } from './defs/antigravity/permissions.js';
 import { AMR_OPENCODE_BIN_ENV } from './defs/amr/executable-env.js';
 import { geminiToolCallReceipt } from './defs/gemini/tool-calls.js';
 import { OPENCODE_CONFIG_ENV } from './defs/opencode/constants.js';
 import { openCodeToolCallReceipt } from './defs/opencode/tool-calls.js';
 import { MIMO_CONFIG_ENV } from './defs/mimo/constants.js';
+
+/** Structurally the daemon port's `AgentRuntimeStrategies['mcpBridge']`; the host checks the binding against that port. */
+type McpBridgeSlot = { prepare(required: { delivery: { readonly kind: string } | null; serverName: string; fileLock: FileLockPort; writer: AtomicFileWriterPort }): Promise<void> };
 
 type ToolCallReceipt = (required: { event: Record<string, unknown> }) => Record<string, unknown>;
 
@@ -23,15 +28,23 @@ const ENV_CONTENT_VAR_BY_STRATEGY: ReadonlyMap<string, string> = new Map([
   ['mimo-env-content', MIMO_CONFIG_ENV],
 ]);
 
+/** Keyed by definition id: the bridge preparation writes the one CLI's own settings file, so a shared
+ * declared strategy (`env-passthrough`) is not enough to select it. */
+const MCP_BRIDGE_BY_ID: ReadonlyMap<string, McpBridgeSlot> = new Map([
+  ['antigravity', { prepare: (required) => prepareAntigravityBridge(required, { ensurePermission: ensureAntigravityMcpPermission }) }],
+]);
+
 /** Env names the launcher must copy from the host env besides the runtime state's own (`launch.hostEnvNames`). */
 export const RUNTIME_STRATEGY_HOST_ENV_NAMES: readonly string[] = [AMR_OPENCODE_BIN_ENV];
 
-/** Strategies for one definition. O(1): two map lookups. A definition that declares nothing gets `{}`. */
-export function strategiesForDef({ def }: { def: Pick<RuntimeAgentDef, 'eventParser' | 'externalMcpInjection'> }, _optional: Record<string, never> = {}) {
+/** Strategies for one definition. O(1): three map lookups. A definition that declares nothing gets `{}`. */
+export function strategiesForDef({ def }: { def: Pick<RuntimeAgentDef, 'id' | 'eventParser' | 'externalMcpInjection'> }, _optional: Record<string, never> = {}) {
   const toolCallReceipt = def.eventParser === undefined ? undefined : RECEIPT_BY_DIALECT.get(def.eventParser);
   const envContentVar = def.externalMcpInjection === undefined ? undefined : ENV_CONTENT_VAR_BY_STRATEGY.get(def.externalMcpInjection);
+  const mcpBridge = MCP_BRIDGE_BY_ID.get(def.id);
   return {
     ...(toolCallReceipt ? { toolCallReceipt } : {}),
     ...(envContentVar ? { mcpDelivery: { envContentVar } } : {}),
+    ...(mcpBridge ? { mcpBridge } : {}),
   };
 }

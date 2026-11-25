@@ -2,7 +2,6 @@ import type { McpBridgeProbeResult } from './mcp-bridge-probe.js';
 import type { AtomicFileWriterPort, FileLockPort } from '@jini-ai/core/contracts/runtime';
 import { randomBytes } from 'node:crypto';
 import { supportsMessageRelay } from './message-relay.js';
-import { ensureAntigravityMcpPermission, prepareAntigravityBridge } from './antigravity/permissions.js';
 import { buildClaudeMcpDelivery, writeMcpJsonForRun } from './claude/mcp-delivery.js';
 import { buildCodexMcpDelivery } from './codex/mcp-delivery.js';
 import type { McpDeliveryBuildInput } from './mcp-delivery-types.js';
@@ -187,9 +186,7 @@ function needsInheritedMcpConsent(input: { def: RuntimeAgentDef; nativeCapabilit
   return input.def.externalMcpInjection === 'env-passthrough' && injection !== undefined && input.nativeCapabilities?.userMcp !== true;
 }
 
-const MCP_BRIDGE_PREPARERS: ReadonlyMap<string, typeof prepareAntigravityBridge> = new Map([['antigravity', prepareAntigravityBridge]]);
-
-/** Phase 5: resolve credentials and delivery, then await agy's scoped MCP permission setup.
+/** Phase 5: resolve credentials and delivery, then await the bound CLI's own MCP permission setup (`mcpBridge` slot).
  * Setup errors release staged files and fail before spawn. @complexity O(settings bytes) for agy. */
 export async function resolveMcpBridgeForRun({ input, deps }: { readonly input: { readonly runId: string; readonly cwd: string; readonly def: RuntimeAgentDef; readonly nativeCapabilities?: Partial<import('@jini-ai/core/contracts/agents').NativeCapabilities> }; readonly deps: {
     readonly mcpJsonInjection: McpJsonInjectionOptions | undefined;
@@ -199,7 +196,8 @@ export async function resolveMcpBridgeForRun({ input, deps }: { readonly input: 
     readonly writer: AtomicFileWriterPort;
     /** The runtime's bound delivery slot for `input.def` (`strategies.for({ def }).mcpDelivery`). */
     readonly mcpDelivery?: AgentRuntimeStrategies['mcpDelivery'];
-    readonly ensureAntigravityMcpPermission?: typeof ensureAntigravityMcpPermission;
+    /** The runtime's bound bridge-preparation slot for `input.def` (`strategies.for({ def }).mcpBridge`). */
+    readonly mcpBridge?: AgentRuntimeStrategies['mcpBridge'];
   } }
 ): Promise<McpBridgeDelivery | null> {
   if (needsInheritedMcpConsent(input, deps.mcpJsonInjection)) {
@@ -219,10 +217,7 @@ export async function resolveMcpBridgeForRun({ input, deps }: { readonly input: 
       ...(deps.mcpDelivery === undefined ? {} : { mcpDelivery: deps.mcpDelivery }),
       ...(supportsMessageRelay({ def: input.def }) ? { messageRelayNonce: randomBytes(24).toString('hex') } : {}),
     });
-    const prepareBridge = MCP_BRIDGE_PREPARERS.get(input.def.id);
-    if (prepareBridge) await prepareBridge({ delivery, serverName: JINI_MCP_SERVER_KEY, fileLock: deps.fileLock, writer: deps.writer }, {
-      ensurePermission: deps.ensureAntigravityMcpPermission ?? ensureAntigravityMcpPermission,
-    });
+    if (deps.mcpBridge) await deps.mcpBridge.prepare({ delivery, serverName: JINI_MCP_SERVER_KEY, fileLock: deps.fileLock, writer: deps.writer });
     return delivery;
   } catch (err) {
     // Spawning a child that cannot authenticate would produce a run whose every bridged tool call
