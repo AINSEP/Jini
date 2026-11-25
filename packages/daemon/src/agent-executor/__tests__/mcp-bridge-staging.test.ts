@@ -1,4 +1,4 @@
-import { agentRuntimeFixture } from './runtime-fixture.js';
+import { agentRuntimeFixture, boundConfigDir, boundMcpConfigFile } from './runtime-fixture.js';
 import { EventEmitter } from 'node:events';
 import type { ChildProcess } from 'node:child_process';
 import { existsSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
@@ -13,9 +13,9 @@ import {
   unavailableJiniBridgeStatus,
   writeMcpJsonIfNeeded,
 } from '../mcp-bridge.js';
-import { prepareClaudeConfigDirIfNeeded } from '../claude/config-dir.js';
+import { prepareStagedConfigDirIfNeeded } from '../staged-config-dir.js';
 import { defaultRemoveMcpJsonFile } from '../mcp-json-file.js';
-import { prepareCodexHomeIfNeeded } from '../codex/home-staging.js';
+import { prepareBoundRunHome } from './runtime-fixture.js';
 
 /**
  * @file Staging the per-run MCP/config files on the real filesystem defaults (no seams injected),
@@ -47,7 +47,7 @@ describe('writeMcpJsonIfNeeded', () => {
     let reads = 0;
     let written = '';
     await writeMcpJsonIfNeeded({ input: { runId: 'run', cwd: '/site', nativeToolAccess: true, nativeCapabilities: { userMcp: false }, def, mcpBridge: delivery },
-      deps: { mcpJsonInjection: { command: 'host-bridge', daemonUrl: 'http://site',
+      deps: { ...boundMcpConfigFile(), mcpJsonInjection: { command: 'host-bridge', daemonUrl: 'http://site',
         readFile: async () => { reads += 1; return '{"mcpServers":{"chrome":{"command":"chrome"}}}'; },
         writeFile: async ({ content }) => { written = content; },
       }, releaseStagedResources: async () => {}, failBeforeSpawn: refuse } });
@@ -58,7 +58,7 @@ describe('writeMcpJsonIfNeeded', () => {
   it('releases staged resources and fails before spawn when the config cannot be written', async () => {
     const releaseStagedResources = vi.fn(async () => {});
     await expect(writeMcpJsonIfNeeded({ input: { runId: 'run', cwd: '/site', def, mcpBridge: delivery },
-      deps: { mcpJsonInjection: { command: 'host-bridge', daemonUrl: 'http://site',
+      deps: { ...boundMcpConfigFile(), mcpJsonInjection: { command: 'host-bridge', daemonUrl: 'http://site',
         readFile: async () => { throw new Error('ENOENT'); },
         writeFile: async () => { throw new Error('EROFS: read-only file system'); },
       }, releaseStagedResources, failBeforeSpawn: refuse } }))
@@ -80,7 +80,7 @@ it('stages a Codex home on the real filesystem, names it "run" for an empty run 
   mkdirSync(source, { recursive: true });
   writeFileSync(join(source, 'config.toml'), 'model = "personal-model"\n');
   writeFileSync(join(source, 'auth.json'), fixtureCredential());
-  const home = await prepareCodexHomeIfNeeded({ input: { runId: '', def: getAgentDef({ id: 'codex' })!, mcpBridge: { kind: 'codex-toml', serverEntry } },
+  const home = await prepareBoundRunHome({ input: { runId: '', def: getAgentDef({ id: 'codex' })!, mcpBridge: { kind: 'codex-toml', serverEntry } },
     deps: { mcpJsonInjection: { command: 'host-bridge', daemonUrl: 'http://site' }, hostEnv: { CODEX_HOME: source },
       releaseStagedResources: async () => {}, failBeforeSpawn: refuse } });
   try {
@@ -102,8 +102,8 @@ it('stages an isolated Claude config dir on the real filesystem with only the fi
   mkdirSync(source, { recursive: true });
   writeFileSync(join(source, '.credentials.json'), fixtureCredential());
   writeFileSync(join(source, 'settings.json'), '{"personal":true}');
-  const dir = await prepareClaudeConfigDirIfNeeded({ input: { runId: '', def: getAgentDef({ id: 'claude' })! },
-    deps: { enabled: true, claudeConfigDirIsolation: undefined, hostEnv: { CLAUDE_CONFIG_DIR: source },
+  const dir = await prepareStagedConfigDirIfNeeded({ input: { runId: '', def: getAgentDef({ id: 'claude' })!, ...boundConfigDir({ id: 'claude' }) },
+    deps: { enabled: true, isolationSeams: undefined, hostEnv: { CLAUDE_CONFIG_DIR: source },
       releaseStagedResources: async () => {}, failBeforeSpawn: refuse } });
   try {
     expect(dirname(dir!.path)).toBe(tmpdir());
@@ -120,9 +120,9 @@ it('stages an isolated Claude config dir on the real filesystem with only the fi
 it('removes a half-staged Claude config dir and fails before spawn when the login copy cannot be written', async () => {
   const removed: string[] = [];
   const releaseStagedResources = vi.fn(async () => {});
-  await expect(prepareClaudeConfigDirIfNeeded({ input: { runId: 'run-1', def: getAgentDef({ id: 'claude' })! },
+  await expect(prepareStagedConfigDirIfNeeded({ input: { runId: 'run-1', def: getAgentDef({ id: 'claude' })!, ...boundConfigDir({ id: 'claude' }) },
     deps: { enabled: true, hostEnv: { CLAUDE_CONFIG_DIR: '/operator/claude' }, releaseStagedResources, failBeforeSpawn: refuse,
-      claudeConfigDirIsolation: {
+      isolationSeams: {
         mkdtemp: async ({ prefix }) => `/scratch/${prefix}abc`,
         readFile: async () => fixtureCredential(),
         writeFile: async () => { throw new Error('ENOSPC: no space left on device'); },

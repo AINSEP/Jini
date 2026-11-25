@@ -2,13 +2,9 @@ import type { McpBridgeProbeResult } from './mcp-bridge-probe.js';
 import type { AtomicFileWriterPort, FileLockPort } from '@jini-ai/core/contracts/runtime';
 import { randomBytes } from 'node:crypto';
 import { supportsMessageRelay } from './message-relay.js';
-import { ensureAntigravityMcpPermission, prepareAntigravityBridge } from './antigravity/permissions.js';
-import { OPENCODE_CONFIG_ENV } from './opencode/constants.js';
-import { MIMO_CONFIG_ENV } from './mimo/constants.js';
-import { buildClaudeMcpDelivery, writeMcpJsonForRun } from './claude/mcp-delivery.js';
-import { buildCodexMcpDelivery } from './codex/mcp-delivery.js';
 import type { McpDeliveryBuildInput } from './mcp-delivery-types.js';
 import type { AcpMcpServerInput } from '../ports/agent-runtime-sessions.js';
+import type { AgentRuntimeStrategies } from '../ports/agent-runtime.js';
 import type { RuntimeAgentDef } from '@jini-ai/core/contracts/agents';
 import {
   isRecord,
@@ -120,16 +116,29 @@ export function buildAcpMcpBridgeServers({ entry }: { readonly entry: McpJsonSer
  * config ... following the same structure as `OPENCODE_CONFIG_CONTENT`"), and differ only in which
  * env var carries it. Adding a third such CLI is a row here, not a new serializer.
  */
-type McpDeliveryBuilder = (input: McpDeliveryBuildInput) => McpBridgeDelivery;
+type McpDeliveryBuilder = (input: McpDeliveryBuildInput, slots: { mcpDelivery?: AgentRuntimeStrategies['mcpDelivery']; mcpConfigFile?: AgentRuntimeStrategies['mcpConfigFile']; mcpHome?: AgentRuntimeStrategies['mcpHome'] }) => McpBridgeDelivery;
+
+/** The variable's name belongs to the runtime's binding, so a missing one fails the run before spawn rather than guessing. */
+function buildEnvContentDelivery({ serverEntry }: McpDeliveryBuildInput, { mcpDelivery: strategy }: { mcpDelivery?: AgentRuntimeStrategies['mcpDelivery'] }): McpBridgeDelivery {
+  if (strategy === undefined) throw new TypeError('An env-content MCP strategy needs the runtime to bind the variable that carries its config document');
+  return { kind: 'env-content', envVarName: strategy.envContentVar, serverEntry };
+}
+/** The delivery's shape belongs to the runtime's staged-home binding, so a missing one fails the run before spawn rather than guessing. */
+function buildStagedHomeDelivery({ serverEntry }: McpDeliveryBuildInput, { mcpHome: home }: { mcpHome?: AgentRuntimeStrategies['mcpHome'] }): McpBridgeDelivery {
+  if (home === undefined) throw new TypeError('A staged-home MCP strategy needs the runtime to bind the home slot that builds its delivery');
+  return home.buildDelivery({ serverEntry });
+}
 const MCP_DELIVERY_BUILDERS: Record<NonNullable<RuntimeAgentDef['externalMcpInjection']>, McpDeliveryBuilder> = {
-  'claude-mcp-json': buildClaudeMcpDelivery,
+  'claude-mcp-json': (input, { mcpConfigFile }) => {
+    if (mcpConfigFile === undefined) throw new TypeError('A JSON-config-file MCP strategy needs the runtime to bind the slot that places its config file');
+    return mcpConfigFile.build(input);
+  },
   'acp-merge': ({ serverEntry }) => ({ kind: 'acp-merge', mcpServers: buildAcpMcpBridgeServers({ entry: serverEntry }) }),
-  'opencode-env-content': ({ serverEntry }) => ({ kind: 'env-content', envVarName: OPENCODE_CONFIG_ENV, serverEntry }),
-  'mimo-env-content': ({ serverEntry }) => ({ kind: 'env-content', envVarName: MIMO_CONFIG_ENV, serverEntry }),
-  'codex-toml': buildCodexMcpDelivery,
+  'opencode-env-content': buildEnvContentDelivery,
+  'mimo-env-content': buildEnvContentDelivery,
+  'codex-toml': buildStagedHomeDelivery,
   'env-passthrough': ({ serverEntry }) => ({ kind: 'env-passthrough', serverEntry }),
 };
-const MCP_DELIVERY_WRITERS: ReadonlyMap<string, typeof writeMcpJsonForRun> = new Map([['claude-mcp-json', writeMcpJsonForRun]]);
 
 /**
  * **The single dispatch point from an `externalMcpInjection` strategy to its delivery mechanism.**
@@ -146,6 +155,7 @@ const MCP_DELIVERY_WRITERS: ReadonlyMap<string, typeof writeMcpJsonForRun> = new
  * @param input.runId - Scopes the bridge child to this run.
  * @param input.strategy - The def's declared `externalMcpInjection`, or `undefined` for a def with no native MCP transport.
  * @param input.options - The host's bridge options, or `undefined` when the host never configured injection.
+ * @param input.mcpDelivery - The runtime's bound MCP delivery slot for this def; required only by the `*-env-content` strategies.
  * @param input.credential - Already-resolved bearer token, or `undefined` to omit `JINI_DAEMON_TOKEN` entirely.
  * @returns `null` when this run delivers nothing — an unconfigured host, or a def declaring no
  * strategy — which is byte-identical to this feature not existing.
@@ -159,13 +169,16 @@ export function buildMcpBridgeDelivery(input: {
   readonly options: McpJsonInjectionOptions | undefined;
   readonly credential: string | undefined;
   readonly messageRelayNonce?: string;
+  readonly mcpDelivery?: AgentRuntimeStrategies['mcpDelivery'];
+  readonly mcpHome?: AgentRuntimeStrategies['mcpHome'];
+  readonly mcpConfigFile?: AgentRuntimeStrategies['mcpConfigFile'];
 }): McpBridgeDelivery | null {
   const { cwd, runId, strategy, options } = input;
   if (options === undefined || strategy === undefined) return null;
   const serverEntry = buildMcpJsonServerEntry({ runId: runId, options: options }, bridgeCredentialOptions(input));
   // Every declared strategy has a builder; a new one fails typechecking until registered.
   if (!Object.hasOwn(MCP_DELIVERY_BUILDERS, strategy)) throw new TypeError(`Unknown MCP bridge strategy: ${String(strategy)}`);
-  return MCP_DELIVERY_BUILDERS[strategy]({ cwd, runId, serverEntry });
+  return MCP_DELIVERY_BUILDERS[strategy]({ cwd, runId, serverEntry }, { ...(input.mcpDelivery === undefined ? {} : { mcpDelivery: input.mcpDelivery }), ...(input.mcpConfigFile === undefined ? {} : { mcpConfigFile: input.mcpConfigFile }), ...(input.mcpHome === undefined ? {} : { mcpHome: input.mcpHome }) });
 }
 
 function bridgeCredentialOptions(input: { credential: string | undefined; messageRelayNonce?: string }) {
@@ -180,9 +193,7 @@ function needsInheritedMcpConsent(input: { def: RuntimeAgentDef; nativeCapabilit
   return input.def.externalMcpInjection === 'env-passthrough' && injection !== undefined && input.nativeCapabilities?.userMcp !== true;
 }
 
-const MCP_BRIDGE_PREPARERS: ReadonlyMap<string, typeof prepareAntigravityBridge> = new Map([['antigravity', prepareAntigravityBridge]]);
-
-/** Phase 5: resolve credentials and delivery, then await agy's scoped MCP permission setup.
+/** Phase 5: resolve credentials and delivery, then await agy's scoped MCP permission setup (the bound `mcpBridge` slot).
  * Setup errors release staged files and fail before spawn. @complexity O(settings bytes) for agy. */
 export async function resolveMcpBridgeForRun({ input, deps }: { readonly input: { readonly runId: string; readonly cwd: string; readonly def: RuntimeAgentDef; readonly nativeCapabilities?: Partial<import('@jini-ai/core/contracts/agents').NativeCapabilities> }; readonly deps: {
     readonly mcpJsonInjection: McpJsonInjectionOptions | undefined;
@@ -190,7 +201,14 @@ export async function resolveMcpBridgeForRun({ input, deps }: { readonly input: 
     readonly failBeforeSpawn: FailBeforeSpawn;
     readonly fileLock: FileLockPort;
     readonly writer: AtomicFileWriterPort;
-    readonly ensureAntigravityMcpPermission?: typeof ensureAntigravityMcpPermission;
+    /** The runtime's bound delivery slot for `input.def` (`strategies.for({ def }).mcpDelivery`). */
+    readonly mcpDelivery?: AgentRuntimeStrategies['mcpDelivery'];
+    /** The runtime's bound config-file slot for `input.def` (`strategies.for({ def }).mcpConfigFile`). */
+    readonly mcpConfigFile?: AgentRuntimeStrategies['mcpConfigFile'];
+    /** The runtime's bound bridge-preparation slot for `input.def` (`strategies.for({ def }).mcpBridge`). */
+    readonly mcpBridge?: AgentRuntimeStrategies['mcpBridge'];
+    /** The runtime's bound staged-home slot for `input.def` (`strategies.for({ def }).mcpHome`), which builds the staged-home delivery. */
+    readonly mcpHome?: AgentRuntimeStrategies['mcpHome'];
   } }
 ): Promise<McpBridgeDelivery | null> {
   if (needsInheritedMcpConsent(input, deps.mcpJsonInjection)) {
@@ -207,12 +225,12 @@ export async function resolveMcpBridgeForRun({ input, deps }: { readonly input: 
       strategy: input.def.externalMcpInjection,
       options: deps.mcpJsonInjection,
       credential,
+      ...(deps.mcpDelivery === undefined ? {} : { mcpDelivery: deps.mcpDelivery }),
+      ...(deps.mcpHome === undefined ? {} : { mcpHome: deps.mcpHome }),
+      ...(deps.mcpConfigFile === undefined ? {} : { mcpConfigFile: deps.mcpConfigFile }),
       ...(supportsMessageRelay({ def: input.def }) ? { messageRelayNonce: randomBytes(24).toString('hex') } : {}),
     });
-    const prepareBridge = MCP_BRIDGE_PREPARERS.get(input.def.id);
-    if (prepareBridge) await prepareBridge({ delivery, serverName: JINI_MCP_SERVER_KEY, fileLock: deps.fileLock, writer: deps.writer }, {
-      ensurePermission: deps.ensureAntigravityMcpPermission ?? ensureAntigravityMcpPermission,
-    });
+    if (deps.mcpBridge) await deps.mcpBridge.prepare({ delivery, serverName: JINI_MCP_SERVER_KEY, fileLock: deps.fileLock, writer: deps.writer });
     return delivery;
   } catch (err) {
     // Spawning a child that cannot authenticate would produce a run whose every bridged tool call
@@ -230,13 +248,15 @@ export async function writeMcpJsonIfNeeded({ input, deps }: { readonly input: { 
     readonly mcpJsonInjection: McpJsonInjectionOptions | undefined;
     readonly releaseStagedResources: () => Promise<void>;
     readonly failBeforeSpawn: FailBeforeSpawn;
+    /** The runtime's bound config-file slot for `input.def`; absent for a def whose delivery is no file. */
+    readonly mcpConfigFile?: AgentRuntimeStrategies['mcpConfigFile'];
   } }
 ): Promise<string | undefined> {
   const delivery = input.mcpBridge;
-  const writer = delivery ? MCP_DELIVERY_WRITERS.get(delivery.kind) : undefined;
+  const writer = deps.mcpConfigFile;
   if (!delivery || !writer || deps.mcpJsonInjection === undefined) return undefined;
   try {
-    return await writer({ cwd: input.cwd, delivery, options: deps.mcpJsonInjection }, { inheritUserConfig: input.nativeToolAccess !== false && input.nativeCapabilities?.userMcp !== false });
+    return await writer.write({ cwd: input.cwd, delivery, options: deps.mcpJsonInjection, serverName: JINI_MCP_SERVER_KEY }, { inheritUserConfig: input.nativeToolAccess !== false && input.nativeCapabilities?.userMcp !== false });
   } catch (err) {
     await deps.releaseStagedResources();
     return deps.failBeforeSpawn(

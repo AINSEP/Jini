@@ -102,6 +102,9 @@ importers:
       '@jini-ai/platform':
         specifier: workspace:*
         version: link:../../packages/platform
+      '@jini-ai/provider-plugins':
+        specifier: workspace:*
+        version: link:../../packages/provider-plugins
       '@jini-ai/registry':
         specifier: workspace:*
         version: link:../../packages/registry
@@ -279,6 +282,9 @@ importers:
       '@jini-ai/protocol':
         specifier: workspace:*
         version: link:../../packages/protocol
+      '@jini-ai/provider-plugins':
+        specifier: workspace:*
+        version: link:../../packages/provider-plugins
       '@jini-ai/server':
         specifier: workspace:*
         version: link:../../packages/server
@@ -446,6 +452,9 @@ importers:
       '@jini-ai/protocol':
         specifier: workspace:^
         version: link:../protocol
+      smol-toml:
+        specifier: 1.9.1
+        version: 1.9.1
     devDependencies:
       '@vitest/coverage-v8':
         specifier: ^3.2.6
@@ -874,9 +883,6 @@ importers:
       kysely:
         specifier: ^0.29.6
         version: 0.29.6
-      smol-toml:
-        specifier: 1.9.1
-        version: 1.9.1
       zod:
         specifier: ^4.6.6
         version: 4.6.7
@@ -893,6 +899,9 @@ importers:
       '@jini-ai/node-adapters':
         specifier: workspace:^
         version: link:../node-adapters
+      '@jini-ai/provider-plugins':
+        specifier: workspace:^
+        version: link:../provider-plugins
       '@types/better-sqlite3':
         specifier: ^7.6.11
         version: 7.6.13
@@ -914,6 +923,9 @@ importers:
       pg:
         specifier: ^8.23.0
         version: 8.23.0
+      smol-toml:
+        specifier: 1.9.1
+        version: 1.9.1
 
   packages/db:
     dependencies:
@@ -1262,6 +1274,9 @@ importers:
       '@jini-ai/diagnostics':
         specifier: workspace:^
         version: link:../diagnostics
+      '@jini-ai/integrations':
+        specifier: workspace:^
+        version: link:../integrations
       '@jini-ai/plugins':
         specifier: workspace:^
         version: link:../plugins

@@ -13,6 +13,7 @@
   },
   "dependencies": {
     "@jini-ai/agent-runtime": "workspace:*",
+    "@jini-ai/provider-plugins": "workspace:*",
     "@jini-ai/agentic": "workspace:*",
     "@jini-ai/chat": "workspace:*",
     "@jini-ai/core": "workspace:*",
@@ -25,6 +26,7 @@
     "@jini-ai/platform": "workspace:*",
     "@jini-ai/server": "workspace:*",
     "@jini-ai/protocol": "workspace:*",
+    "@jini-ai/provider-plugins": "workspace:*",
     "@jini-ai/ui": "workspace:*",
     "better-sqlite3": "^13.0.0",
     "react": "^19.2.0",

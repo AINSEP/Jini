@@ -20,8 +20,9 @@ import { statSync } from 'node:fs';
 import { createRequire } from 'node:module';
 
 import { definePack, type Principal, type ToolRegistration } from '@jini-ai/core';
-import { getAgentDef, type DetectedAgent, type OAuthCallbackListener } from '@jini-ai/agent-runtime';
+import { getAgentDef, type DetectedAgent } from '@jini-ai/agent-runtime';
 import type { BaseUrlGuardPort, ProviderToolTurnPort } from '@jini-ai/core/contracts/agents';
+import type { ProxyProviderRegistration } from '@jini-ai/core/contracts/agents/proxy-provider';
 import {
   createDefaultRunStartHandler,
   createRemoteToolEventRecorder,
@@ -39,7 +40,7 @@ import {
   searchToolCatalog,
 } from '@jini-ai/registry/tool-catalog/sqlite';
 import { inspectSqliteDatabase, verifySqliteIntegrity } from '@jini-ai/db/sqlite'; import type { SqliteDb } from '@jini-ai/core/contracts/storage';
-import { xaiRoutes, connectorsRoutes, routineRoutes, mediaRoutes, hostToolsRoutes, healthRoutes, daemonDbRoutes, researchRoutes, delegatedToolRoutes, activeContextRoutes, daemonStatusRoutes, agentRoutes, toolCatalogRoutes, createDaemonDbToolRegistrations, denyAllWorkspaceRoots, frontendSessionRoutes, memoryRoutes, modelProxyRoutes, remoteRunEventRoutes, runRoutes, terminalRoutes, type AgentSummary, type DaemonDbOperations, type DaemonDbVacuumResult, type DelegatedToolExecuteRequest, type FrontendSessionsHttpDeps, type MediaHttpDeps, type MemoryHttpDeps, type RemoteToolBridgeTokenConfig, type RoutineHttpDeps, type RunStartHandler, type WorkspaceRootResolver } from '@jini-ai/daemon/http';
+import { connectorsRoutes, routineRoutes, mediaRoutes, hostToolsRoutes, healthRoutes, daemonDbRoutes, researchRoutes, delegatedToolRoutes, activeContextRoutes, daemonStatusRoutes, agentRoutes, toolCatalogRoutes, createDaemonDbToolRegistrations, denyAllWorkspaceRoots, frontendSessionRoutes, memoryRoutes, modelProxyRoutes, remoteRunEventRoutes, runRoutes, terminalRoutes, type AgentSummary, type DaemonDbOperations, type DaemonDbVacuumResult, type DelegatedToolExecuteRequest, type FrontendSessionsHttpDeps, type MediaHttpDeps, type MemoryHttpDeps, type RemoteToolBridgeTokenConfig, type RoutineHttpDeps, type RunStartHandler, type WorkspaceRootResolver } from '@jini-ai/daemon/http';
 import type { Express } from 'express';
 
 import { defineJiniFeature, type FeatureBuildContext, type JiniFeature } from './feature.js';
@@ -91,9 +92,12 @@ export interface BuiltInFeatureOptions {
     readonly resolvePrincipal?: (request: DelegatedToolExecuteRequest) => Principal | Promise<Principal>;
   };
   readonly remoteRunEvents?: { readonly tokenConfig?: RemoteToolBridgeTokenConfig };
-  readonly xai?: { readonly listenerRef?: { current: OAuthCallbackListener | null } };
   /** Required to activate `modelProxy`: provider tool-turn implementations are host-bound, never preset defaults. */
-  readonly modelProxy?: { readonly toolTurns: ProviderToolTurnPort };
+  readonly modelProxy?: {
+    readonly toolTurns: ProviderToolTurnPort;
+    /** The provider registrations (request parser plus runner call, per provider) the proxy serves; the host imports the vendor factories, this package assembles no vendor. */
+    readonly providers: readonly ProxyProviderRegistration[];
+  };
   /** Required to activate `research`: the host binds the base-URL guard the search provider checks against. */
   readonly research?: { readonly baseUrlGuard: BaseUrlGuardPort };
   /**
@@ -548,34 +552,6 @@ export function createBuiltInFeatures(options: BuiltInFeatureOptions = {}): read
     },
   });
 
-  const xaiFeature = defineJiniFeature({
-    id: 'xai',
-    provides: ['net:egress'],
-    compose: (context) => {
-      const sqlite = requireSqlite(context, 'xai');
-      // Owned here (rather than left to xai.ts's internal default) so this feature's `dispose` can
-      // close an in-flight OAuth loopback listener — otherwise the fixed 127.0.0.1:56121 socket
-      // outlives the composition by up to its 30-minute self-close timeout.
-      const listenerRef = options.xai?.listenerRef ?? { current: null as OAuthCallbackListener | null };
-      return {
-        pack: definePack({
-          name: 'jini.xai',
-          deps: [],
-          services: () => ({ context, listenerRef }),
-        }, {
-          http: ({ app, services }) =>
-            mountRoutes({ app, routes: xaiRoutes({ deps: { dataDir: sqlite.dataDir, listenerRef: services.listenerRef }, host: services.context.routeHost }) }),
-          dispose: async ({ services }) => {
-            const listener = services.listenerRef.current;
-            services.listenerRef.current = null;
-            // Best-effort — the listener self-closes on its own timeout anyway.
-            if (listener) await listener.stop();
-          },
-        }),
-      };
-    },
-  });
-
   const remoteRunEventsFeature = defineJiniFeature({
     id: 'remoteRunEvents',
     // Never granted by any shipped profile: writing agent events into a run this process does not
@@ -708,7 +684,6 @@ export function createBuiltInFeatures(options: BuiltInFeatureOptions = {}): read
     delegatedToolCallsFeature,
     connectorsFeature,
     researchFeature,
-    xaiFeature,
     remoteRunEventsFeature,
     memoryFeature,
     routinesFeature,

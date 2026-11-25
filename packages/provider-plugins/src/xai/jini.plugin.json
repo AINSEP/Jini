@@ -1,0 +1,17 @@
+{
+  "id": "xai",
+  "name": "xAI provider",
+  "version": "0.6.12",
+  "sdkRange": "^0.1.0 || ^1.0.0",
+  "engine": 1,
+  "tier": "tier-3",
+  "extensions": {
+    "jini": { "id": "jini/xai" },
+    "open-marketing": { "id": "jini/xai" }
+  },
+  "capabilities": ["providers.register"],
+  "contributes": { "providers": [{ "contract": "xai_routes", "id": "xai", "contractVersion": 1 }, { "contract": "media", "id": "grok", "contractVersion": 1, "settings": [] }] },
+  "hooks": [],
+  "fields": [],
+  "integrity": {}
+}

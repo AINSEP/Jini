@@ -156,9 +156,8 @@ The root wildcard exposes the following functions. These are composition/testing
 | `translateStatusEvent({ rawEvent }: { readonly rawEvent: Record<string, unknown> })` / `translateToolResultEvent({ rawEvent }: { readonly rawEvent: Record<string, unknown> })` / `translateErrorEvent({ rawEvent }: { readonly rawEvent: Record<string, unknown> })` / `translateTurnEndEvent({ rawEvent }: { readonly rawEvent: Record<string, unknown> })` | AgentRuntimeEventTranslation; rawEvent Record<string,unknown> |
 | `translateAgentRuntimeEvent({ rawEvent }: { readonly rawEvent: unknown })` / `unavailableJiniBridgeStatus({ rawEvent }: { readonly rawEvent: unknown })` | AgentRuntimeEventTranslation / string or undefined |
 | `buildMcpJsonServerEntry({ runId, options }: { readonly runId: string; readonly options: Pick<McpJsonInjectionOptions, 'command' \| 'args' \| 'daemonUrl' \| 'env'> }, { credential }: { readonly credential?: string } = {})` | McpJsonServerEntry |
-| `mergeMcpJsonContent({ existingRaw, serverEntry }: { readonly existingRaw: string \| undefined; readonly serverEntry: McpJsonServerEntry })` / `mergeEnvContentMcpConfig({ existingRaw, entry }: { readonly existingRaw: string \| undefined; readonly entry: McpJsonServerEntry })` | string |
+| `mergeMcpJsonContent({ existingRaw, serverEntry }: { readonly existingRaw: string \| undefined; readonly serverEntry: McpJsonServerEntry })` | string |
 | `buildAcpMcpBridgeServers({ entry }: { readonly entry: McpJsonServerEntry })` | AcpMcpServerInput[] |
-| `mergeEnvContentInstructions({ existingRaw, instructionsFilePath }: { readonly existingRaw: string \| undefined; readonly instructionsFilePath: string })` | string |
 | `buildCodexMcpServerToml({ entry }: { readonly entry: McpJsonServerEntry })` / `buildCodexHomeConfigToml({ existingRaw, entry }: { readonly existingRaw: string \| undefined; readonly entry: McpJsonServerEntry })` | string |
 | `resolveSourceCodexHomeDir({ hostEnv }: { readonly hostEnv: NodeJS.ProcessEnv })` / `resolveSourceClaudeConfigDir({ hostEnv }: { readonly hostEnv: NodeJS.ProcessEnv })` | string |
 | `buildMcpBridgeDelivery(input: { readonly cwd: string; readonly runId: string; readonly strategy: RuntimeAgentDef['externalMcpInjection']; readonly options: McpJsonInjectionOptions \| undefined; readonly credential: string \| undefined; })` | McpBridgeDelivery or null; supplied cwd/runId/strategy/options/credential |
@@ -333,12 +332,11 @@ Registrars use `({app: Express, deps: D, adapter: AdapterContext}, {}) => void`.
 | `remoteRunEventRoutes` | `({ deps: RemoteRunEventHttpDeps, host: DaemonRouteHost }) => DaemonRoute[]`; deps: `lifecycle`, `recorder: RemoteToolEventRecorder`, `env`; optional `tokenConfig`. Both routes are returned behind the `remote-bridge-token` gate |
 | `frontendSessionRoutes` | `({ deps: FrontendSessionsHttpDeps, host: DaemonRouteHost }, {}) => DaemonRoute[]`; `FrontendSessionsHttpDeps`: `registry: FrontendSessionRegistry`, required `setTimer`; optional `newSessionId()`, `resolveOwner(FrontendHookInput)`, `resolveCapacityKeys(FrontendHookInput & { owner? })` |
 | `terminalRoutes` | `TerminalsHttpDeps`: `manager: TerminalSessionManager`, `toolExecutor`, `principal`; optional `resolveRoot` |
-| `modelProxyRoutes` | `ModelProxyHttpDeps`: optional provider tool executors `anthropicExecuteTool`, `openaiExecuteTool`, `azureExecuteTool`, `googleExecuteTool`, `ollamaExecuteTool`; optional `fetchImpl`, `dnsLookup` |
+| `modelProxyRoutes` | `ModelProxyHttpDeps`: required injected `providers` (proxy registrations; the daemon lists no vendor); optional provider tool executors `anthropicExecuteTool`, `openaiExecuteTool`, `azureExecuteTool`, `googleExecuteTool`, `ollamaExecuteTool`; optional `fetchImpl`, `dnsLookup` |
 | `connectorsRoutes` | `({deps, host}, {}) => DaemonRoute[]` (routes as data; a host mounts them); `ConnectorsHttpDeps`: optional `auth`, `storage`, `db`, `realtime` provider ports (no payments slot — removed 2026-10-21, ungated money movement); omitted providers return unavailable |
 | `researchRoutes` | `({deps, host}, {}) => DaemonRoute[]` (routes as data; a host mounts them); `ResearchHttpDeps`: optional `resolveCredentials({providerId}) => Promise<{apiKey?, baseUrl?, model?}>` |
 | `mediaRoutes` | `({deps, host}, {}) => DaemonRoute[]` (routes as data; a host mounts them); `MediaHttpDeps`: `engine.generate({surface, model}, remainingOptions)`, `taskStore` with async create/get/update/listByOwner/delete |
 | `registerAttachmentRoutes` | `AttachmentsHttpDeps`: `store: AttachmentStore`; optional `maxConcurrentUploads`, `maxAttachmentBytes`, `maxCleanupPaths`, `requireSameOrigin`, trusted `resolveOwnerId({req})` |
-| `xaiRoutes` | `({deps, host}, {}) => DaemonRoute[]` (routes as data; a host mounts them); `XaiHttpDeps`: every dependency field is optional: data/token path, provider config, callback host/port/path, pending cache, listener slot/factory, search base/model/fetch/deadline, private error sink |
 | `hostToolsRoutes` | `({deps, host}, {}) => DaemonRoute[]` (routes as data; a host mounts them);  |
 | `memoryRoutes` | `({ deps: MemoryHttpDeps, host: DaemonRouteHost }) => DaemonRoute[]`; `deps = {notes, extractions, verifications, dataDir}`. Includes the SSE change feed |
 | `toolCatalogRoutes` | `({deps: ToolCatalogHttpDeps, host: DaemonRouteHost}, {}) => DaemonRoute[]`; catalog declares `search({query}, {limit?})`, `describe({id}, {})`; the routes are data a host mounts |
@@ -375,8 +373,6 @@ Named constants below are `/http` exports. Path ids are nonempty strings unless 
 | `terminalStdinRoute`, `terminalResizeRoute`, `terminalKillRoute`, `terminalDeleteRoute` | POST `/api/terminals/:id/stdin` S `{data:string}`, `/resize` S `{cols,rows}`, `/kill` S; DELETE `/api/terminals/:id` S → `TerminalActionResponse` |
 | `mediaGenerateRoute`, `mediaTaskGetRoute`, `mediaTaskDeleteRoute`, `mediaTaskListRoute` | POST `/api/media/generate` S `{ownerRef,surface,model,...generationOptions}` → 202 `{task}`; GET `/api/media/tasks/:id` S → `{task}`; DELETE S → `{ok:true}`; GET `/api/media/tasks` S `ownerRef`, `includeTerminal?` → `{tasks}` |
 | `researchSearchRoute` | POST `/api/research/search` S `{query,maxSources?,providers?}` → `{query,summary,sources,provider,depth:'shallow',fetchedAt}` |
-| `xaiOauthStartRoute`, `xaiOauthCompleteRoute`, `xaiOauthCancelRoute`, `xaiOauthDisconnectRoute` | POST `/api/xai/oauth/start` S → `{authorizeUrl,state,callback:{host,port}}`; `/complete` S `{state,code}` → `{ok:true}`; `/cancel`, `/disconnect` S → `{ok:true}` |
-| `xaiAuthStatusRoute`, `xaiSearchRoute` | GET `/api/xai/auth/status` S → `{connected,expiresAt,scope,savedAt,listening}`; POST `/api/xai/search` S `{query,allowedXHandles?,excludedXHandles?,fromDate?,toDate?,enableImageUnderstanding?,enableVideoUnderstanding?,model?}` → `{answer,citations,model}` |
 
 Remote paths and stream paths are current source contracts. Additional hand-mounted streams: GET `/api/terminals/:id/stream` S returns terminal data/exit SSE; POST `/api/proxy/{anthropic,openai,azure,google,ollama}/stream` and `/api/proxy/:provider/stream` S accept provider-specific model/messages/tools/credentials and return provider-turn SSE. Anthropic requires `maxTokens`; Azure additionally requires `baseUrl`, `apiVersion`; Google uses nonempty `contents`; Ollama uses model/messages and does not require an API key. Optional turn fields include `baseUrl`, `temperature`, `maxToolTurns`; exact provider payloads are narrowed in `src/model-proxy.ts`.
 
@@ -552,7 +548,6 @@ These names are also reachable through the current export map. Parameter declara
 | `ToolAuthorizationRequest`, `ToolConfirmationRequest`, `ToolExecutionAuditEvent` | interface; [tool-executor.ts](../../src/tool-executor.ts) |
 | `ToolCatalogQuery` | type; [tool-catalog.ts](../../src/http/tool-catalog.ts) |
 | `Unsubscribe` | type; [run-lifecycle.ts](../../src/run-lifecycle.ts) |
-| `XaiAuthStatusResponse`, `XaiInternalErrorContext`, `XaiOauthStartResponse`, `XaiOkResponse`, `XaiSearchResponse` | type; [xai.ts](../../src/http/xai.ts) |
 | `defaultDaemonMessages` | const; [read-only-tools.ts](../../src/read-only-tools.ts) |
 | `denyAllWorkspaceRoots` | const; [workspace-root.ts](../../src/http/workspace-root.ts) |
 

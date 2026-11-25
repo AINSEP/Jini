@@ -25,7 +25,7 @@ describe('ConsentBannerFields', () => {
     expect(screen.queryByRole('radio')).toBeNull();
     unmount();
     host(ConsentBannerFields, { bannerModes: ['jini', 'headless', 'off'] });
-    expect(screen.getByRole('radio', { name: 'Jini banner' })).toBeChecked();
+    expect(screen.getByRole('radio', { name: 'Built-in banner' })).toBeChecked();
     expect(screen.getAllByRole('radio').map(radio => radio.getAttribute('value'))).toEqual(['jini', 'headless', 'off']);
   });
 
@@ -33,7 +33,7 @@ describe('ConsentBannerFields', () => {
     const patches = host(ConsentBannerFields, { bannerModes: ['jini', 'headless', 'off'] });
     const user = userEvent.setup();
     await user.tab();
-    expect(screen.getByRole('radio', { name: 'Jini banner' })).toHaveFocus();
+    expect(screen.getByRole('radio', { name: 'Built-in banner' })).toHaveFocus();
     await user.keyboard('{ArrowRight}');
     expect(screen.getByRole('radio', { name: 'My own' })).toBeChecked();
     expect(screen.getByRole('group', { name: 'Banner mode' })).toHaveAccessibleDescription('Your banner calls window.jiniConsent.set(...)');
@@ -46,7 +46,7 @@ describe('ConsentBannerFields', () => {
     render(<ConsentBannerFields value={{ ...initial, bannerMode: 'off' }} onChange={() => undefined} disabled
       bannerModes={['headless', 'off']} dictionary={{ 'My own': 'La mienne', 'None': 'Aucune', 'Banner mode': 'Mode de bannière' }} />);
     expect(screen.getByRole('group', { name: 'Mode de bannière' })).toBeInTheDocument();
-    expect(screen.queryByRole('radio', { name: 'Jini banner' })).toBeNull();
+    expect(screen.queryByRole('radio', { name: 'Built-in banner' })).toBeNull();
     expect(screen.getByRole('radio', { name: 'La mienne' })).toBeDisabled();
     expect(screen.getByRole('radio', { name: 'Aucune' })).toBeDisabled();
     expect(screen.getByRole('radio', { name: 'Aucune' })).toBeChecked();
@@ -57,7 +57,7 @@ describe('ConsentBannerFields', () => {
     const second = host(ConsentBannerFields, { bannerModes: ['jini', 'headless'] });
     const user = userEvent.setup();
     await user.click(screen.getAllByRole('radio', { name: 'My own' })[1]!);
-    expect(screen.getAllByRole('radio', { name: 'Jini banner' })[0]).toBeChecked();
+    expect(screen.getAllByRole('radio', { name: 'Built-in banner' })[0]).toBeChecked();
     expect(screen.getAllByRole('radio', { name: 'My own' })[1]).toBeChecked();
     expect(first).toEqual([]);
     expect(second).toEqual([{ bannerMode: 'headless' }]);

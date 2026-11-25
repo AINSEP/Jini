@@ -1,6 +1,7 @@
 import { createAgentRuntimeBindings, createNativeAgentRuntime, type AgentRuntimeState } from '@jini-ai/agent-runtime';
 import type { RuntimeAgentDef } from '@jini-ai/core/contracts/agents';
-import type { AgentRuntimePort } from '../../ports/agent-runtime.js';
+import type { AgentRuntimePort, AgentRuntimeStrategies } from '../../ports/agent-runtime.js';
+import { prepareRunHomeIfNeeded } from '../run-home.js';
 import type { ProcessSnapshot, RuntimePlatform, StopProcessesResult } from '@jini-ai/core/contracts/runtime';
 import { nodeAtomicWriter, nodeFileLock, nodeProcessControl } from './node-os-ports.js';
 import { createSpawnPort, nodeCommandShell, nodeSpawnPort, type SpawnFunction } from '@jini-ai/node-adapters/process';
@@ -112,4 +113,50 @@ export function agentRuntimeFixture(script: AgentRuntimeScript = {}, optional: {
       ...(script.attachPiRpcSession ? { attachPiRpc: script.attachPiRpcSession } : {}),
     },
   };
+}
+
+/** The MCP delivery slot the production binding supplies for a def (or a bare strategy), as the launcher passes it to the bridge. */
+export function boundMcpDelivery(required: Pick<RuntimeAgentDef, 'externalMcpInjection'>, _optional: Record<string, never> = {}): { mcpDelivery?: NonNullable<ReturnType<AgentRuntimePort['strategies']['for']>['mcpDelivery']> } {
+  const mcpDelivery = agentRuntimeFixture().strategies.for({ def: required as RuntimeAgentDef }).mcpDelivery;
+  return mcpDelivery === undefined ? {} : { mcpDelivery };
+}
+
+/** The scratch config-dir slot the production binding supplies for a def (absent for any def that does not bind one). */
+export function boundConfigDir(required: Pick<RuntimeAgentDef, 'id'>, _optional: Record<string, never> = {}): { configDir: AgentRuntimeStrategies['configDir'] } {
+  return { configDir: agentRuntimeFixture().strategies.for({ def: required as RuntimeAgentDef }).configDir };
+}
+
+/** The run-scoped MCP config-file slot the production binding supplies for a strategy (the JSON-config-file one by default). */
+export function boundMcpConfigFile(required: Pick<RuntimeAgentDef, 'externalMcpInjection'> = { externalMcpInjection: 'claude-mcp-json' }, _optional: Record<string, never> = {}): { mcpConfigFile?: NonNullable<AgentRuntimeStrategies['mcpConfigFile']> } {
+  const mcpConfigFile = agentRuntimeFixture().strategies.for({ def: required as RuntimeAgentDef }).mcpConfigFile;
+  return mcpConfigFile === undefined ? {} : { mcpConfigFile };
+}
+
+/** The MCP bridge-preparation slot the production binding supplies for a def, as the launcher passes it to the bridge. */
+export function boundMcpBridge(required: Pick<RuntimeAgentDef, 'id' | 'externalMcpInjection'>, _optional: Record<string, never> = {}): { mcpBridge?: NonNullable<ReturnType<AgentRuntimePort['strategies']['for']>['mcpBridge']> } {
+  const mcpBridge = agentRuntimeFixture().strategies.for({ def: required as RuntimeAgentDef }).mcpBridge;
+  return mcpBridge === undefined ? {} : { mcpBridge };
+}
+
+/** The staged-home slot the production binding supplies for a def (`undefined` for a def that stages no home). */
+export function boundMcpHome(required: Pick<RuntimeAgentDef, 'externalMcpInjection'>, _optional: Record<string, never> = {}): { mcpHome?: NonNullable<ReturnType<AgentRuntimePort['strategies']['for']>['mcpHome']> } {
+  const mcpHome = agentRuntimeFixture().strategies.for({ def: required as RuntimeAgentDef }).mcpHome;
+  return mcpHome === undefined ? {} : { mcpHome };
+}
+
+/** `prepareRunHomeIfNeeded` with the slot the production binding supplies for `input.def`, so a seam test runs the real staging. */
+export function prepareBoundRunHome(required: { input: Parameters<typeof prepareRunHomeIfNeeded>[0]['input']; deps: Omit<Parameters<typeof prepareRunHomeIfNeeded>[0]['deps'], 'mcpHome'> }, _optional: Record<string, never> = {}): ReturnType<typeof prepareRunHomeIfNeeded> {
+  return prepareRunHomeIfNeeded({ input: required.input, deps: { ...required.deps, mcpHome: boundMcpHome(required.input.def).mcpHome } });
+}
+
+/** The env-content document slot the production binding supplies for a def (or a bare strategy), as the launcher passes it to `computeChildEnv`. */
+export function boundEnvContent(required: Pick<RuntimeAgentDef, 'externalMcpInjection'>, _optional: Record<string, never> = {}): { envContent?: NonNullable<ReturnType<AgentRuntimePort['strategies']['for']>['envContent']> } {
+  const envContent = agentRuntimeFixture().strategies.for({ def: { id: 'unbound', ...required } as RuntimeAgentDef }).envContent;
+  return envContent === undefined ? {} : { envContent };
+}
+
+/** The instructions-document slot the production binding supplies for a def (or a bare system-prompt strategy), as the launcher passes it to `computeChildEnv`. */
+export function boundInstructionsDocument(required: Pick<RuntimeAgentDef, 'systemPromptDelivery'>, _optional: Record<string, never> = {}): { instructionsDocument?: NonNullable<ReturnType<AgentRuntimePort['strategies']['for']>['instructionsDocument']> } {
+  const instructionsDocument = agentRuntimeFixture().strategies.for({ def: { id: 'unbound', ...required } as RuntimeAgentDef }).instructionsDocument;
+  return instructionsDocument === undefined ? {} : { instructionsDocument };
 }

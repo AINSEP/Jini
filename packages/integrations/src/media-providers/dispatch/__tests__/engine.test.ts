@@ -14,6 +14,12 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
+// A host-injected stand-in for a vendor-plugin adapter: the engine selects adapters ONLY from the registry the host injected.
+const grokImageAdapter: VendorAdapter = {
+  buildRequest: () => ({ url: 'https://vendor.example/grok-image', init: {}, meta: undefined }),
+  parseResponse: async () => ({ bytes: Buffer.from('injected'), providerNote: 'injected-grok' }),
+};
+
 describe('lookupRoute', () => {
   // The production ROUTES table in engine.ts is empty — every vendor it
   // used to hold has migrated onto mediaVendorRegistry (see engine.ts's
@@ -156,6 +162,19 @@ describe('createMediaDispatchEngine — dispatch routing', () => {
             } });
         const result = await engine.generate(...partitionArgs({ value: { surface: 'image', model: 'dall-e-3' } satisfies MediaGenerationRequest, requiredKeys: ['surface', 'model'] }));
         expect(result.providerId).toBe('custom-image');
+    });
+    it('selects a catalogued provider\'s adapter only when the injected registry holds it', async () => {
+        // Merged with b-g5b: the catalogue carries no vendor-plugin row any more, so a built-in catalogued provider
+        // stands in; an empty injected registry has no renderer for it until the host registers one.
+        const registry = createVendorAdapterRegistry();
+        const fetchMock = vi.fn(async () => new Response('ok', { status: 200 }));
+        vi.stubGlobal('fetch', fetchMock);
+        const make = () => createMediaDispatchEngine({ registry, httpClient: createNodeMediaHttpClient({}), guardedFetch: nodeMediaGuardedFetch }, { credentials: { imagerouter: { apiKey: 'router-key' } } });
+        const request = () => partitionArgs({ value: { surface: 'image', model: 'openai/gpt-image-2' } satisfies MediaGenerationRequest, requiredKeys: ['surface', 'model'] });
+        await expect(make().generate(...request())).rejects.toThrow('no renderer configured for provider "imagerouter" / surface "image"');
+        registry.register({ providerId: 'imagerouter', routeKey: 'image', adapter: grokImageAdapter });
+        const result = await make().generate(...request());
+        expect(result).toMatchObject({ providerId: 'imagerouter', providerNote: 'injected-grok', usedStubFallback: false });
     });
     it('routes nanobanana + image to renderNanoBananaImage', async () => {
         const fetchMock = vi.fn(async (url: string) => {

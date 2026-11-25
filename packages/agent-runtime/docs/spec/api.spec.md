@@ -593,7 +593,6 @@ function refreshAccessToken({ input }: { input: RefreshTokenInput }, { fetchImpl
 function beginOAuthPkce(input: BeginOAuthPkceInput, _optional: Record<string, never> = {}): BeginOAuthPkceResult;
 function completeOAuthPkce(requiredArgs: Pick<CompleteOAuthPkceInput, "config" | "pending" | "state" | "code">, optionalArgs: Omit<CompleteOAuthPkceInput, "config" | "pending" | "state" | "code"> = {} ): Promise<OAuthTokenResponse>;
 function refreshOAuthPkceToken(requiredArgs: Pick<RefreshOAuthPkceInput, "config" | "refreshToken">, optionalArgs: Omit<RefreshOAuthPkceInput, "config" | "refreshToken"> = {} ): Promise<OAuthTokenResponse>;
-function xaiOAuthRedirectUri(): string;
 ```
 
 ### [providers/oauth-callback-server.ts](../../src/providers/oauth-callback-server.ts)
@@ -747,7 +746,7 @@ Every listed name is exported from the root; source links define fields and lite
 | [providers/ollama-chat.ts](../../src/providers/ollama-chat.ts) | `OllamaFunctionToolDef`, `OllamaMessageParam`, `OllamaStreamState`, `OllamaToolCall`, `OllamaToolCallParam`, `OllamaToolExecutor`, `OllamaToolResult`, `OllamaTurnEndReason`, `OllamaTurnEvent`, `OllamaTurnOptions`, `OllamaTurnResult` |
 | [providers/elevenlabs.ts](../../src/providers/elevenlabs.ts) | `ElevenLabsCredentialMissingError`, `ElevenLabsCredentialResolver`, `ElevenLabsCredentials`, `ElevenLabsVoiceOption` |
 | [providers/pkce.ts](../../src/providers/pkce.ts) | `AuthorizationServerMetadata`, `AuthorizeUrlInput`, `ExchangeCodeInput`, `OAuthTokenResponse`, `PendingAuthCache`, `PendingAuthState`, `RefreshTokenInput` |
-| [providers/oauth-provider.ts](../../src/providers/oauth-provider.ts) | `BeginOAuthPkceInput`, `BeginOAuthPkceResult`, `CompleteOAuthPkceInput`, `OAuthPkceProviderConfig`, `RefreshOAuthPkceInput`, `XAI_OAUTH_PROVIDER_CONFIG`, `XAI_OAUTH_PROVIDER_ID`, `XAI_OAUTH_REDIRECT_HOST`, `XAI_OAUTH_REDIRECT_PATH`, `XAI_OAUTH_REDIRECT_PORT` |
+| [providers/oauth-provider.ts](../../src/providers/oauth-provider.ts) | `BeginOAuthPkceInput`, `BeginOAuthPkceResult`, `CompleteOAuthPkceInput`, `OAuthPkceProviderConfig`, `RefreshOAuthPkceInput` |
 | [providers/oauth-callback-server.ts](../../src/providers/oauth-callback-server.ts) | `OAuthCallbackListener`, `OAuthCallbackOutcome`, `StartOAuthCallbackListenerInput` |
 | [providers/oauth-tokens.ts](../../src/providers/oauth-tokens.ts) | `OAuthTokenFile`, `StoredOAuthToken` |
 | [providers/oauth-credentials.ts](../../src/providers/oauth-credentials.ts) | `ResolvedOAuthCredential` |
@@ -763,6 +762,8 @@ Every listed name is exported from the root; source links define fields and lite
 | [runtime-def-binding.ts](../../src/runtime-def-binding.ts) | `bindRuntimeAgentDef` |
 | [defs/codex/options.ts](../../src/defs/codex/options.ts) | `CodexDefOptions`, `codexDefOptionsFromEnv` |
 | [defs/pi/options.ts](../../src/defs/pi/options.ts) | `PiDefOptions`, `piDefOptionsFromEnv` |
+
+The concrete xAI preset (`XAI_OAUTH_PROVIDER_CONFIG`, `XAI_OAUTH_PROVIDER_ID`, `XAI_OAUTH_REDIRECT_HOST`/`_PORT`/`_PATH`) and `xaiOAuthRedirectUri` moved to `@jini-ai/provider-plugins/xai/preset`; this package keeps only the generic OAuth+PKCE mechanics, which a host injects into the plugin.
 
 ### Vocabulary that moved to core
 

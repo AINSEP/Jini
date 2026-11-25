@@ -179,6 +179,7 @@
     "@jini-ai/oauth": "workspace:^",
     "@jini-ai/protocol": "workspace:^",
     "@jini-ai/integrations": "workspace:^",
-    "@jini-ai/platform": "workspace:^"
+    "@jini-ai/platform": "workspace:^",
+    "smol-toml": "1.9.1"
   }
 }

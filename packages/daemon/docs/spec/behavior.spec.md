@@ -82,7 +82,6 @@ Decision rationale: [Agent subprocess environment is an explicit allowlist](../d
 | Disk attachment store | 10 files/batch; 50 MiB/batch; 100 tracked files; 200 MiB total; retention 3,600,000 ms; restart retention false |
 | Attachment batch id | 8–80 ASCII letters/digits/hyphens; no traversal segments |
 | Research | Query trimmed/truncated to 1,000 characters; sources default 5, floor/clamp 1–20; one Tavily request, deadline 30,000 ms covering body |
-| xAI | Search deadline 30,000 ms; model `grok-4.20-reasoning`; base `https://api.x.ai/v1`; callback 127.0.0.1:56121 `/callback`; token file `xai-oauth-token.json` under dataDir default process.cwd |
 
 ## Exchange, coordination, audit and credential rules
 

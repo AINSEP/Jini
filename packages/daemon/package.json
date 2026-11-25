@@ -34,7 +34,6 @@
       "./tool-recovery": "node",
       "./chat-settings": "node",
       "./ports/agent-runtime": "node",
-      "./ports/xai-oauth": "node",
       "./exclusive-run-lease": "universal",
       "./daemon-call-context": "node",
       "./byok-meta-tool-result": "universal",
@@ -77,11 +76,6 @@
       "types": "./dist/ports/agent-runtime.d.ts",
       "import": "./dist/ports/agent-runtime.js",
       "default": "./dist/ports/agent-runtime.js"
-    },
-    "./ports/xai-oauth": {
-      "types": "./dist/ports/xai-oauth.d.ts",
-      "import": "./dist/ports/xai-oauth.js",
-      "default": "./dist/ports/xai-oauth.js"
     },
     "./routines/sqlite": {
       "types": "./dist/routines/routine-store.sqlite.d.ts",
@@ -228,6 +222,7 @@
     "@jini-ai/chat": "workspace:*",
     "@types/express": "^4.17.21",
     "@jini-ai/agent-runtime": "workspace:^",
+    "@jini-ai/provider-plugins": "workspace:^",
     "@jini-ai/core": "workspace:^",
     "@jini-ai/node-adapters": "workspace:^",
     "@jini-ai/platform": "workspace:^",
@@ -236,7 +231,6 @@
   "dependencies": {
     "@jini-ai/core": "workspace:^",
     "@jini-ai/protocol": "workspace:^",
-    "smol-toml": "1.9.1",
     "@jini-ai/agent-runtime": "workspace:^",
     "@jini-ai/db": "workspace:^",
     "@jini-ai/platform": "workspace:^",

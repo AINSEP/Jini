@@ -1,138 +1,138 @@
 {
- ".": {
-  "types": "./dist/index.d.ts",
-  "symbols": {
-   "ANONYMOUS_DELEGATED_PRINCIPAL": "variable:e242e90a12",
-   "ActivationReason": "type:a966e698bb",
-   "ActiveFeatureRecord": "interface:ea0210fe54",
-   "AnyPack": "type:6d1c29b2d4",
-   "BuiltInFeatureOptions": "interface:f81a75abc2",
-   "CAPABILITY_IDS": "variable:277dfa55ab",
-   "CORE_CAPABILITIES": "variable:5336f9eda0",
-   "CapabilityId": "type:a5b5c776c6",
-   "CloseHttpServerOptions": "interface:09ef52feb9",
-   "ComposeJiniKernelConfig": "interface:afd888ed4f",
-   "CreateJiniKernelBaseOptions": "interface:674804c51a",
-   "CreateLocalNodeDaemonConfig": "interface:d8fba4a1ae",
-   "DEFAULT_DAEMON_BIND_HOST": "variable:b7f875e50c",
-   "DeactivationReason": "type:310feaeb2c",
-   "FeatureActivationInput": "interface:85e4a27163",
-   "FeatureActivationPlan": "interface:1ddce33c8b",
-   "FeatureBuildContext": "interface:07e36d7a7f",
-   "FeatureComposition": "interface:450061db57",
-   "FeaturePhase": "type:4ee46d046b",
-   "GracefulShutdownHandle": "interface:67afe986a7",
-   "GracefulShutdownOptions": "interface:15fd420a5a",
-   "InactiveFeatureRecord": "interface:6828087253",
-   "JINI_PROFILES": "variable:06f150c8ef",
-   "JiniFeature": "interface:ebd1e6f2f1",
-   "JiniKernel": "interface:5194c85142",
-   "JiniKernelBase": "interface:5998a1ddee",
-   "JiniKernelSecurity": "type:738e4e05e6",
-   "JiniKernelStorage": "type:ec8fbd8ab9",
-   "JiniProfile": "interface:a0d2c5678f",
-   "JiniProfileId": "type:0117779d77",
-   "KernelBoundIds": "type:64b9c5be2c",
-   "KernelOsPorts": "type:2a8275d9e9",
-   "KernelSqliteAccess": "interface:7f4752618b",
-   "LOCAL_DAEMON_PRINCIPAL": "variable:f608e95920",
-   "LocalNodeDaemon": "interface:310ffd0f40",
-   "LocalNodeHttpExtension": "type:e4be652e98",
-   "LocalNodeHttpExtensionContext": "interface:93cb1f9c9f",
-   "ProfileActivation": "type:3796077c23",
-   "buildDaemonDbOperations": "function:228bbf958c",
-   "classifyRunFailureForRetry": "function:8af5e0e4cf",
-   "closeHttpServer": "function:05f66cdfcd",
-   "composeJiniKernel": "function:12ce059da6",
-   "createBuiltInFeatures": "function:73e46171e3",
-   "createJiniKernelBase": "function:843e65b368",
-   "createLocalNodeDaemon": "function:5cb259aaad",
-   "defaultServerMessages": "variable:3bd40a658e",
-   "defineJiniFeature": "function:ba198541c8",
-   "installGracefulShutdown": "function:8d2865853c",
-   "isCapabilityId": "function:50ce5c97a1",
-   "mountRoutes": "function:88b5fa26d4",
-   "nodeSessionTimer": "variable:b6c161fda8",
-   "normalizeDaemonBindHost": "function:d2d3a4835d",
-   "projectDetectedAgent": "function:e75e0470fc",
-   "resolveBoundPort": "function:62cf14912b",
-   "resolveFeatureActivation": "function:6f7d15862b",
-   "resolveReportHost": "function:e5fb70efbe"
+  ".": {
+    "types": "./dist/index.d.ts",
+    "symbols": {
+      "ANONYMOUS_DELEGATED_PRINCIPAL": "variable:e242e90a12",
+      "ActivationReason": "type:a966e698bb",
+      "ActiveFeatureRecord": "interface:ea0210fe54",
+      "AnyPack": "type:6d1c29b2d4",
+      "BuiltInFeatureOptions": "interface:f81a75abc2",
+      "CAPABILITY_IDS": "variable:277dfa55ab",
+      "CORE_CAPABILITIES": "variable:5336f9eda0",
+      "CapabilityId": "type:a5b5c776c6",
+      "CloseHttpServerOptions": "interface:09ef52feb9",
+      "ComposeJiniKernelConfig": "interface:afd888ed4f",
+      "CreateJiniKernelBaseOptions": "interface:674804c51a",
+      "CreateLocalNodeDaemonConfig": "interface:d8fba4a1ae",
+      "DEFAULT_DAEMON_BIND_HOST": "variable:b7f875e50c",
+      "DeactivationReason": "type:310feaeb2c",
+      "FeatureActivationInput": "interface:85e4a27163",
+      "FeatureActivationPlan": "interface:1ddce33c8b",
+      "FeatureBuildContext": "interface:07e36d7a7f",
+      "FeatureComposition": "interface:450061db57",
+      "FeaturePhase": "type:4ee46d046b",
+      "GracefulShutdownHandle": "interface:67afe986a7",
+      "GracefulShutdownOptions": "interface:15fd420a5a",
+      "InactiveFeatureRecord": "interface:6828087253",
+      "JINI_PROFILES": "variable:06f150c8ef",
+      "JiniFeature": "interface:ebd1e6f2f1",
+      "JiniKernel": "interface:5194c85142",
+      "JiniKernelBase": "interface:5998a1ddee",
+      "JiniKernelSecurity": "type:738e4e05e6",
+      "JiniKernelStorage": "type:ec8fbd8ab9",
+      "JiniProfile": "interface:a0d2c5678f",
+      "JiniProfileId": "type:0117779d77",
+      "KernelBoundIds": "type:64b9c5be2c",
+      "KernelOsPorts": "type:2a8275d9e9",
+      "KernelSqliteAccess": "interface:7f4752618b",
+      "LOCAL_DAEMON_PRINCIPAL": "variable:f608e95920",
+      "LocalNodeDaemon": "interface:310ffd0f40",
+      "LocalNodeHttpExtension": "type:e4be652e98",
+      "LocalNodeHttpExtensionContext": "interface:93cb1f9c9f",
+      "ProfileActivation": "type:3796077c23",
+      "buildDaemonDbOperations": "function:228bbf958c",
+      "classifyRunFailureForRetry": "function:8af5e0e4cf",
+      "closeHttpServer": "function:05f66cdfcd",
+      "composeJiniKernel": "function:12ce059da6",
+      "createBuiltInFeatures": "function:73e46171e3",
+      "createJiniKernelBase": "function:843e65b368",
+      "createLocalNodeDaemon": "function:5cb259aaad",
+      "defaultServerMessages": "variable:3bd40a658e",
+      "defineJiniFeature": "function:ba198541c8",
+      "installGracefulShutdown": "function:8d2865853c",
+      "isCapabilityId": "function:50ce5c97a1",
+      "mountRoutes": "function:88b5fa26d4",
+      "nodeSessionTimer": "variable:b6c161fda8",
+      "normalizeDaemonBindHost": "function:d2d3a4835d",
+      "projectDetectedAgent": "function:e75e0470fc",
+      "resolveBoundPort": "function:62cf14912b",
+      "resolveFeatureActivation": "function:6f7d15862b",
+      "resolveReportHost": "function:e5fb70efbe"
+    }
+  },
+  "./adapters/node-pty": {
+    "types": "./dist/adapters/node-pty.d.ts",
+    "symbols": {
+      "loadRealSpawnPty": "function:2858d082dc"
+    }
+  },
+  "./owner-store": {
+    "types": "./dist/owner-store/index.d.ts",
+    "symbols": {
+      "LegacyOwnerCounts": "interface:fa6fa6844e",
+      "LegacyOwnerStoreFile": "interface:27fdb598dd",
+      "LegacyOwnerStorePorts": "interface:27ae6be52f",
+      "LegacyOwnerStoreRow": "interface:6bc2294cbf",
+      "countLegacyOwnerStore": "function:d384ac8ffd",
+      "readLegacyOwnerStore": "function:1d95f269a7"
+    }
+  },
+  "./shutdown": {
+    "types": "./dist/shutdown/close-store-on-shutdown.d.ts",
+    "symbols": {
+      "ClosableServer": "interface:2341a9f357",
+      "ShutdownProcess": "interface:361d793bb2",
+      "ShutdownStore": "interface:895e3bb5a1",
+      "closeStoreOnShutdown": "function:66b3054e33",
+      "closeWithinBound": "function:aba518e818",
+      "stopServingWithinGrace": "function:11ea2e1fa7"
+    }
+  },
+  "./shutdown/boot-work": {
+    "types": "./dist/shutdown/await-boot-work.d.ts",
+    "symbols": {
+      "awaitBootWorkWithinBound": "function:4062626764"
+    }
+  },
+  "./shutdown/idle-park": {
+    "types": "./dist/shutdown/idle-park.d.ts",
+    "symbols": {
+      "createIdlePark": "function:a4eeeab370"
+    }
+  },
+  "./storage": {
+    "types": "./dist/storage/index.d.ts",
+    "symbols": {
+      "SqliteBackendConfig": "interface:1057db0e8c",
+      "SqliteBackendConfigError": "class:06d0b38a69",
+      "SqliteBackendKind": "type:ba7ca41896",
+      "resolveSqliteBackendConfig": "function:6eb36b749b"
+    }
+  },
+  "./storage/legacy/sqlite": {
+    "types": "./dist/storage/legacy/sqlite.d.ts",
+    "symbols": {
+      "closeDatabase": "variable:e216cdabf0",
+      "createLegacySqliteStorage": "function:3b4e47526e",
+      "migrate": "function:cc9a337798",
+      "openDatabase": "variable:645eb7f77e"
+    }
+  },
+  "./store/projects/sqlite": {
+    "types": "./dist/store/projects/sqlite.d.ts",
+    "symbols": {
+      "LEGACY_PROJECTS_DDL": "variable:721053ec82",
+      "deleteProject": "function:1623a586ae",
+      "getProject": "function:0ef22d8270",
+      "insertProject": "function:98bc91177f",
+      "listConversationsAwaitingInput": "function:0dfa503b93",
+      "listFirstConversationRunStatuses": "function:85f09640a0",
+      "listLatestConversationRunStatuses": "function:d5fb5f6552",
+      "listLatestProjectRunStatuses": "function:cda54f39e6",
+      "listLatestRunStatuses": "function:de7db8db47",
+      "listProjects": "function:e1e23f7222",
+      "listProjectsAwaitingInput": "function:7b86f1eedc",
+      "updateProject": "function:912017c6b4"
+    }
   }
- },
- "./adapters/node-pty": {
-  "types": "./dist/adapters/node-pty.d.ts",
-  "symbols": {
-   "loadRealSpawnPty": "function:2858d082dc"
-  }
- },
- "./owner-store": {
-  "types": "./dist/owner-store/index.d.ts",
-  "symbols": {
-   "LegacyOwnerCounts": "interface:fa6fa6844e",
-   "LegacyOwnerStoreFile": "interface:27fdb598dd",
-   "LegacyOwnerStorePorts": "interface:27ae6be52f",
-   "LegacyOwnerStoreRow": "interface:6bc2294cbf",
-   "countLegacyOwnerStore": "function:d384ac8ffd",
-   "readLegacyOwnerStore": "function:1d95f269a7"
-  }
- },
- "./shutdown": {
-  "types": "./dist/shutdown/close-store-on-shutdown.d.ts",
-  "symbols": {
-   "ClosableServer": "interface:2341a9f357",
-   "ShutdownProcess": "interface:361d793bb2",
-   "ShutdownStore": "interface:895e3bb5a1",
-   "closeStoreOnShutdown": "function:66b3054e33",
-   "closeWithinBound": "function:aba518e818",
-   "stopServingWithinGrace": "function:11ea2e1fa7"
-  }
- },
- "./shutdown/boot-work": {
-  "types": "./dist/shutdown/await-boot-work.d.ts",
-  "symbols": {
-   "awaitBootWorkWithinBound": "function:4062626764"
-  }
- },
- "./shutdown/idle-park": {
-  "types": "./dist/shutdown/idle-park.d.ts",
-  "symbols": {
-   "createIdlePark": "function:a4eeeab370"
-  }
- },
- "./storage": {
-  "types": "./dist/storage/index.d.ts",
-  "symbols": {
-   "SqliteBackendConfig": "interface:1057db0e8c",
-   "SqliteBackendConfigError": "class:06d0b38a69",
-   "SqliteBackendKind": "type:ba7ca41896",
-   "resolveSqliteBackendConfig": "function:6eb36b749b"
-  }
- },
- "./storage/legacy/sqlite": {
-  "types": "./dist/storage/legacy/sqlite.d.ts",
-  "symbols": {
-   "closeDatabase": "variable:e216cdabf0",
-   "createLegacySqliteStorage": "function:3b4e47526e",
-   "migrate": "function:cc9a337798",
-   "openDatabase": "variable:645eb7f77e"
-  }
- },
- "./store/projects/sqlite": {
-  "types": "./dist/store/projects/sqlite.d.ts",
-  "symbols": {
-   "LEGACY_PROJECTS_DDL": "variable:721053ec82",
-   "deleteProject": "function:1623a586ae",
-   "getProject": "function:0ef22d8270",
-   "insertProject": "function:98bc91177f",
-   "listConversationsAwaitingInput": "function:0dfa503b93",
-   "listFirstConversationRunStatuses": "function:85f09640a0",
-   "listLatestConversationRunStatuses": "function:d5fb5f6552",
-   "listLatestProjectRunStatuses": "function:cda54f39e6",
-   "listLatestRunStatuses": "function:de7db8db47",
-   "listProjects": "function:e1e23f7222",
-   "listProjectsAwaitingInput": "function:7b86f1eedc",
-   "updateProject": "function:912017c6b4"
-  }
- }
 }

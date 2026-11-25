@@ -1,3 +1,8 @@
+import { createAnthropicProxyRegistration } from '@jini-ai/provider-plugins/model-proxy-anthropic';
+import { createAzureProxyRegistration } from '@jini-ai/provider-plugins/model-proxy-azure';
+import { createGoogleProxyRegistration } from '@jini-ai/provider-plugins/model-proxy-google';
+import { createOllamaProxyRegistration } from '@jini-ai/provider-plugins/model-proxy-ollama';
+import { createOpenAiProxyRegistration } from '@jini-ai/provider-plugins/model-proxy-openai';
 import { driveA2uiDemoRun } from './a2ui-demo-run.js';
 import { existsSync, mkdirSync } from 'node:fs';
 import { readFile, rm } from 'node:fs/promises';
@@ -25,6 +30,9 @@ import { createLocalNodeDaemon, installGracefulShutdown, mountRoutes, nodeSessio
 import { CHAT_CAPABILITIES } from '@jini-ai/chat/core';
 import { PAGE_CAPABILITIES } from '@jini-ai/agentic';
 import type { RunAgentPayload } from '@jini-ai/protocol';
+import type { OAuthCallbackListener } from '@jini-ai/provider-plugins/xai/oauth-port';
+import { xaiRoutes } from '@jini-ai/provider-plugins/xai/routes';
+import { hostOAuthPort } from './xai-oauth-port.js';
 import { WEBMCP_LAB_CAPABILITIES } from './webmcp-lab-capabilities.js';
 import {
   createPlaygroundRuntimeEnvironment,
@@ -410,12 +418,17 @@ async function main(): Promise<void> {
     },
   }, { policy: { authorize: () => 'allow' } });
 
+  // Owned here so `onShutdown` stops the same loopback listener the xAI routes opened: the fixed
+  // 127.0.0.1:56121 socket would otherwise outlive the daemon by up to its 30-minute self-close timeout.
+  const xaiListenerRef: { current: OAuthCallbackListener | null } = { current: null };
   let daemon: Awaited<ReturnType<typeof createLocalNodeDaemon>>;
   try {
     daemon = await createLocalNodeDaemon({
       agentExecutor: runtimeExecutorOptions,
       // Provider tool turns and the base-URL guard are host-bound: the server preset ships no implementation.
       toolTurns: { anthropic: runAnthropicToolTurn, openai: runOpenAiToolTurn, azure: runAzureToolTurn, google: runGoogleToolTurn, ollama: runOllamaToolTurn },
+      // The proxy serves exactly these providers: the host picks the vendors, the daemon and server list none.
+      proxyProviders: [createAnthropicProxyRegistration(), createOpenAiProxyRegistration(), createAzureProxyRegistration(), createGoogleProxyRegistration(), createOllamaProxyRegistration()],
       baseUrlGuard: { validate: validateBaseUrl },
       // Process control, file lock and atomic writer are host-bound too: the preset imports no platform implementation.
       osPorts: { spawn: nodeSpawnPort, processes: nodeProcessControl, fileLock: nodeFileLock, writer: nodeAtomicWriter, commandShell: nodeCommandShell, clock: createSystemClock() },
@@ -485,6 +498,8 @@ async function main(): Promise<void> {
           mountRoutes({ app, routes: attachmentUploadRoutes({ deps: { store: attachmentStore }, host: routeHost }) }, { rawBody: true });
           mountRoutes({ app, routes: attachmentCleanupRoutes({ deps: { store: attachmentStore }, host: routeHost }) });
         },
+        (app, { routeHost }) =>
+          mountRoutes({ app, routes: xaiRoutes({ deps: { oauth: hostOAuthPort, baseUrlGuard: { validate: validateBaseUrl }, now: () => Date.now(), dataDir, listenerRef: xaiListenerRef }, host: routeHost }) }),
         (app, { routeHost }) => mountRoutes({ app, routes: memoryRoutes({ deps: memoryRoutesDeps, host: routeHost }) }),
         (app, { routeHost }) =>
           mountRoutes({ app, routes: mediaRoutes({ deps: {
@@ -504,6 +519,10 @@ async function main(): Promise<void> {
             }, host: routeHost }) }),
       ],
       onShutdown: async () => {
+        const xaiListener = xaiListenerRef.current;
+        xaiListenerRef.current = null;
+        // Best-effort — the listener self-closes on its own timeout anyway.
+        if (xaiListener) await xaiListener.stop();
         clearInterval(attachmentPruneTimer);
         await attachmentStore.dispose();
         await mediaTaskStore.close();

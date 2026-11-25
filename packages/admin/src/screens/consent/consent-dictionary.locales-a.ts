@@ -2,7 +2,7 @@
 export const CONSENT_LOCALES_A: Record<string, Record<string, string>> = {
   es: {
     "Banner mode": "Modo del banner",
-    "Jini banner": "Banner de Jini",
+    "{productName} banner": "Banner de {productName}",
     "My own": "El mío",
     "None": "Ninguno",
     "Your banner calls window.jiniConsent.set(...)": "Tu banner llama a window.jiniConsent.set(...)",
@@ -94,7 +94,7 @@ export const CONSENT_LOCALES_A: Record<string, Record<string, string>> = {
   },
   id: {
     "Banner mode": "Mode banner",
-    "Jini banner": "Banner Jini",
+    "{productName} banner": "Banner {productName}",
     "My own": "Milik saya",
     "None": "Tidak ada",
     "Your banner calls window.jiniConsent.set(...)": "Banner Anda memanggil window.jiniConsent.set(...)",
@@ -186,7 +186,7 @@ export const CONSENT_LOCALES_A: Record<string, Record<string, string>> = {
   },
   de: {
     "Banner mode": "Banner-Modus",
-    "Jini banner": "Jini-Banner",
+    "{productName} banner": "{productName}-Banner",
     "My own": "Eigenes",
     "None": "Keines",
     "Your banner calls window.jiniConsent.set(...)": "Dein Banner ruft window.jiniConsent.set(...) auf",
@@ -278,7 +278,7 @@ export const CONSENT_LOCALES_A: Record<string, Record<string, string>> = {
   },
   "zh-CN": {
     "Banner mode": "横幅模式",
-    "Jini banner": "Jini 横幅",
+    "{productName} banner": "{productName} 横幅",
     "My own": "自定义",
     "None": "无",
     "Your banner calls window.jiniConsent.set(...)": "你的横幅调用 window.jiniConsent.set(...)",
@@ -370,7 +370,7 @@ export const CONSENT_LOCALES_A: Record<string, Record<string, string>> = {
   },
   "zh-TW": {
     "Banner mode": "橫幅模式",
-    "Jini banner": "Jini 橫幅",
+    "{productName} banner": "{productName} 橫幅",
     "My own": "自訂",
     "None": "無",
     "Your banner calls window.jiniConsent.set(...)": "你的橫幅呼叫 window.jiniConsent.set(...)",

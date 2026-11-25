@@ -48,7 +48,7 @@ import { TermDetailPanel } from "./TermDetailPanel.js";
  * Also disclosed: the production `Term` type (`@jini-ai/cms`'s `taxonomy/write-service.ts`) has no `slug`
  * field — design-spec.md §2.3 assumed one; this screen does not render a slug control.
  *
- * SPEC-037 REQ-02: `NewTaxonomyForm` wires the previously-unused `api.createTaxonomy` — a plain
+ * `NewTaxonomyForm` wires the previously-unused `api.createTaxonomy` — a plain
  * name + hierarchical-toggle form above the taxonomy list, reusing `NewTermForm`'s shape.
  *
  * Web-design pass (2026-08-05): both create forms used to render permanently open, which is why

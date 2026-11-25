@@ -1,0 +1,1 @@
+{ "_comment": "Files whose COMMENT-ONLY vendor-name mentions explain migration history (R15). A hit on a code line still counts. Add an entry only with a reviewer-visible reason in the commit.", "files": [] }

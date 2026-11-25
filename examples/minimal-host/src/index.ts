@@ -9,6 +9,11 @@
  * of this package installed from packed `@jini-ai/*` tarballs (never a workspace link) as the actual
  * proof that the engine works outside this monorepo's source tree.
  */
+import { createAnthropicProxyRegistration } from '@jini-ai/provider-plugins/model-proxy-anthropic';
+import { createAzureProxyRegistration } from '@jini-ai/provider-plugins/model-proxy-azure';
+import { createGoogleProxyRegistration } from '@jini-ai/provider-plugins/model-proxy-google';
+import { createOllamaProxyRegistration } from '@jini-ai/provider-plugins/model-proxy-ollama';
+import { createOpenAiProxyRegistration } from '@jini-ai/provider-plugins/model-proxy-openai';
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -72,6 +77,8 @@ async function main(): Promise<void> {
       dataDir,
       // Provider tool turns and the base-URL guard are host-bound: the server preset ships no implementation.
       toolTurns: { anthropic: runAnthropicToolTurn, openai: runOpenAiToolTurn, azure: runAzureToolTurn, google: runGoogleToolTurn, ollama: runOllamaToolTurn },
+      // The proxy serves exactly these providers: the host picks the vendors, the daemon and server list none.
+      proxyProviders: [createAnthropicProxyRegistration(), createOpenAiProxyRegistration(), createAzureProxyRegistration(), createGoogleProxyRegistration(), createOllamaProxyRegistration()],
       baseUrlGuard: { validate: validateBaseUrl },
       // Process control, file lock and atomic writer are host-bound too: the preset imports no platform implementation.
       osPorts: { spawn: nodeSpawnPort, processes: nodeProcessControl, fileLock: nodeFileLock, writer: nodeAtomicWriter, commandShell: nodeCommandShell, clock: createSystemClock() },

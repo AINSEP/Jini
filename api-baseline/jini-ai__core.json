@@ -3722,5 +3722,37 @@
     "symbols": {
       "MEDIA_MAX_UPLOAD_BYTES": "variable:bd6915b362"
     }
+  },
+  "./contracts/agents/proxy-provider": {
+    "types": "./dist/contracts/agents/proxy-provider.d.ts",
+    "symbols": {
+      "ProxyProviderRegistration": "interface:d8f6e1b30d",
+      "ProxyRunContext": "interface:5a23a8819d",
+      "ProxyRunSharedOptions": "interface:51aba6a9b5"
+    }
+  },
+  "./contracts/agents/proxy-provider-kit": {
+    "types": "./dist/contracts/agents/proxy-provider-kit.d.ts",
+    "symbols": {
+      "COMMON_OPTIONAL_CHECKS": "variable:52acefea9a",
+      "OptionalFieldCheck": "type:25f63a9119",
+      "ParsedProxyCommon": "interface:26183e6dfb",
+      "ParsedToolsProxyRequest": "interface:32f9e817fb",
+      "SYSTEM_CHECK": "variable:f2957a6d9f",
+      "TOOLS_CHECK": "variable:491e73a903",
+      "extendParsed": "function:60a3888fa6",
+      "firstOptionalFieldError": "function:79f3607c07",
+      "firstRequiredFieldError": "function:2678f986f0",
+      "isArray": "variable:d9f576830c",
+      "isNumber": "variable:665907e368",
+      "isRecord": "function:cc9d7a8718",
+      "isString": "variable:099a2f5050",
+      "nonEmptyString": "function:bba55c7310",
+      "parseCommon": "function:8b2b73ae96",
+      "parseToolsProxyRequest": "function:b1bc6d2851",
+      "pickDefined": "function:e3da6cbcad",
+      "requiredFieldError": "function:bba34e4d8b",
+      "toolsOption": "function:96386bda4a"
+    }
   }
 }

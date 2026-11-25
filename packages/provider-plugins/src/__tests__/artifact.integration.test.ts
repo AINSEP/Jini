@@ -22,7 +22,6 @@ import type { createPostHogProvider } from '../analytics-posthog/index.js';
 import { admitBrowserProviderAssets, previewSitePluginInstall, installSitePlugin, loadPlugin, snapshotPluginModuleGraph } from '@jini-ai/plugins/host/node';
 import { describeTelemetryFailure, hostScope } from './observability-host.js';
 import { openBuiltChart } from './browser-provider-dom.js';
-import { fakeWire } from '../xai-grok-imagine/__tests__/fake-wire.js';
 
 const exec = promisify(execFile);
 const packageRoot = fileURLToPath(new URL('../..', import.meta.url));
@@ -49,6 +48,8 @@ type ServerSpec = { contract: string; id: string; validate: (port: unknown) => b
   context?: Readonly<Record<string, unknown>>;
   /** Source text of the factory's optional argument in the standalone Node process, which cannot import a domain package. */
   standaloneOptions?: string;
+  /** Every provider the manifest contributes, when it is more than the one this spec loads. */
+  providers?: readonly { contract: string; id: string; contractVersion: number }[];
   /** What the real host adds to `host.initialize`'s `factoryOptions` for this contract (the span scope, the telemetry classifier). */
   factoryOptions?: Readonly<Record<string, unknown>> };
 /** A browser-only provider: its exact `browserProviders` declaration (kind `chart`, contract version 1). */
@@ -70,12 +71,12 @@ const SPECS: Record<string, ServerSpec | BrowserSpec> = {
     probe: port => (port as { read(required: Record<string, never>): unknown }).read({}) },
   'formspree': { contract: 'form_collection', id: 'formspree', validate: port => typeof (port as { plan?: unknown })?.plan === 'function', input: () => ({}) },
   'google-forms': { contract: 'form_collection', id: 'google_forms', validate: port => typeof (port as { plan?: unknown })?.plan === 'function', input: () => ({}) },
+  // xAI ships two contributions: its routes and the one Grok `media` factory (the former `xai-grok-imagine` artifact folded in; see xai/__tests__/media-plugin.test.ts).
+  'xai': { contract: 'xai_routes', id: 'xai', validate: port => typeof (port as { routes?: unknown })?.routes === 'function', input: () => ({}),
+    providers: [{ contract: 'xai_routes', id: 'xai', contractVersion: 1 }, { contract: 'media', id: 'grok', contractVersion: 1 }] },
   'payments-stripe': { contract: 'payments', id: 'stripe', validate: port => paymentsProviderContract.validate({ provider: port }) === undefined,
     input: () => ({}), context: paymentsProviderContract.context,
     standaloneOptions: '{ context: { paymentError: required => required, moneyProblem: () => null } }' },
-  'xai-grok-imagine': { contract: 'media', id: 'xai_grok_imagine', validate: port => (port as { provider?: { id?: string } })?.provider?.id === 'xai-grok-imagine',
-    input: () => ({}), context: { mediaWire: fakeWire },
-    standaloneOptions: `{ context: { mediaWire: Object.fromEntries(${JSON.stringify(Object.keys(fakeWire))}.map(name => [name, () => ({})])) } }` },
   'observability-opentelemetry': { contract: 'observability', id: 'opentelemetry', validate: port => observabilityProviderContract.validate({ provider: port }) === undefined,
     input: () => ({ serviceName: 'artifact-test', tracerName: 'artifact', endpoint: 'http://127.0.0.1:9', headers: { authorization: 'Bearer unused' } }),
     context: observabilityProviderContract.context, standaloneOptions: STANDALONE_OBSERVABILITY_OPTIONS, factoryOptions: { scope: hostScope() } },
@@ -203,7 +204,7 @@ it.each(SERVER_IDS)('%s: packs, installs and loads identical standalone bytes wi
   const packageManifest = await assertPackedAlone({ pluginId, installedPackage, packedPaths });
   const manifest = JSON.parse(await readFile(path.join(artifact, 'jini.plugin.json'), 'utf8')) as PluginManifest;
   expect(manifest).toMatchObject({ id: pluginId, tier: 'tier-3', engine: 1, sdkRange: '^0.1.0 || ^1.0.0', capabilities: ['providers.register'],
-    contributes: { providers: [{ contract: spec.contract, id: spec.id, contractVersion: 1 }] }, hooks: [], fields: [] });
+    contributes: { providers: spec.providers ?? [{ contract: spec.contract, id: spec.id, contractVersion: 1 }] }, hooks: [], fields: [] });
   expect(manifest.version).toBe(packageManifest.version);
   expect(manifest.integrity['server/index.mjs']).toMatch(/^sha256-[a-f0-9]{64}$/);
   expect(Object.keys(manifest.integrity).some(key => key.startsWith('licenses/'))).toBe(true);

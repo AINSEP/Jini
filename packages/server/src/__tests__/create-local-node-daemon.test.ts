@@ -8,6 +8,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { DetectedAgent } from '@jini-ai/agent-runtime';
 import { definePack } from '@jini-ai/core';
 import { createRecordingObservability, createRecordingReporter } from '@jini-ai/core/errors/testing';
+import type { ServerRoute } from '@jini-ai/core/contracts/server';
 import { AgentExecutorToken } from '@jini-ai/daemon';
 import { componentCatalogRoutes, type DaemonStatusResponse, type RunStartContext, type RunStartHandler } from '@jini-ai/daemon/http';
 import { readLiveDaemonRegistryRecord, resolveDaemonRegistryPath } from '@jini-ai/sidecar';
@@ -585,7 +586,7 @@ describe('createLocalNodeDaemon', () => {
 
     expect(daemon.activeFeatures).toEqual([
       'health', 'runs', 'agents', 'hostTools', 'modelProxy', 'activeContext', 'terminal',
-      'daemonDb', 'toolCatalog', 'delegatedToolCalls', 'connectors', 'research', 'xai', 'daemonStatus',
+      'daemonDb', 'toolCatalog', 'delegatedToolCalls', 'connectors', 'research', 'daemonStatus',
     ]);
   });
 
@@ -797,14 +798,45 @@ describe('createLocalNodeDaemon', () => {
     expect(typeof (seen[0]!.adapter as { originPolicy?: unknown }).originPolicy).toBe('object');
   });
 
-  it('serves POST /api/proxy/anthropic/stream zero-config (BYOK — no server-side credentials needed to reach the route)', async () => {
+  it('lets a host mount an extra ServerRoute[] through httpExtensions and release the listener that list owns from onShutdown', async () => {
+    const dataDir = makeTempDataDir();
+    // Stands in for any host-owned resource a mounted route list holds open (a loopback callback listener, a socket).
+    const hostListener = { open: false, closeCalls: 0 };
+    const hostRoutes: ServerRoute[] = [
+      {
+        method: 'POST',
+        path: '/api/host-mounted/open',
+        handler: () => {
+          hostListener.open = true;
+          return Response.json({ ok: true });
+        },
+      },
+    ];
+    const daemon = await createLocalNodeDaemon({ ...hostEgressPorts, osPorts: nodeOsPorts, open: openSqlite,
+      dataDir,
+      packs: [makePingPack()],
+      httpExtensions: [(app) => { mountRoutes({ app, routes: hostRoutes }); }],
+      onShutdown: () => {
+        hostListener.closeCalls += 1;
+        hostListener.open = false;
+      },
+    });
+
+    const res = await fetch(`${daemon.url}/api/host-mounted/open`, { method: 'POST', headers: { origin: daemon.url } });
+    expect([res.status, await res.json()]).toEqual([200, { ok: true }]);
+    expect(hostListener).toEqual({ open: true, closeCalls: 0 });
+
+    await daemon.stop();
+    expect(hostListener).toEqual({ open: false, closeCalls: 1 });
+  });
+
+  it('serves POST /api/proxy/<id>/stream for a host-injected provider (no server-side credentials needed to reach the route)', async () => {
     const dataDir = makeTempDataDir();
     const daemon = await createLocalNodeDaemon({ ...hostEgressPorts, osPorts: nodeOsPorts, open: openSqlite, dataDir, packs: [makePingPack()] });
     daemonsToStop.push(daemon);
 
-    // No apiKey in the body: proves the route is mounted and reachable (a validation error, not a
-    // 404) without asserting anything about a real upstream call, which needs a real credential.
-    const res = await fetch(`${daemon.url}/api/proxy/anthropic/stream`, {
+    // The injected stub accepts any body: proves the route the host's registration names is mounted and reachable (not a 404).
+    const res = await fetch(`${daemon.url}/api/proxy/fixture/stream`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({}),

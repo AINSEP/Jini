@@ -36,11 +36,12 @@ import { createRequire } from 'node:module';
 import type { Server } from 'node:http';
 
 import express, { type Express } from 'express';
-import type { DetectedAgent, OAuthCallbackListener } from '@jini-ai/agent-runtime';
+import type { DetectedAgent } from '@jini-ai/agent-runtime';
 import type { Bindings, Principal, ToolRegistration } from '@jini-ai/core';
 import type { AnyPack, MissingTokenIds } from '@jini-ai/core/composition';
 import type { ResolveRunInput, RunLifecycle } from '@jini-ai/daemon';
 import type { BaseUrlGuardPort, ProviderToolTurnPort } from '@jini-ai/core/contracts/agents';
+import type { ProxyProviderRegistration } from '@jini-ai/core/contracts/agents/proxy-provider';
 import { installRouteRegistrationGuard, mountPackHttp } from '@jini-ai/http-kit';
 import { createLocalSameOriginPolicy, type RouteErrorPorts, type RouteHostContext } from '@jini-ai/core/contracts/server';
 import type { DaemonRouteHost, DelegatedToolExecuteRequest,  RunStartHandler,  WorkspaceRootResolver } from '@jini-ai/daemon/http';
@@ -132,6 +133,8 @@ export interface CreateLocalNodeDaemonConfig<
   packs: Packs;
   /** Provider tool-turn implementations behind `/api/proxy`; the host binds them (this preset ships none). */
   toolTurns: ProviderToolTurnPort;
+  /** Provider registrations behind `/api/proxy` (request parser plus runner call per provider); the host imports the vendor factories and injects them (this preset ships none). */
+  proxyProviders: readonly ProxyProviderRegistration[];
   /** Base-URL guard the research provider validates against; the host binds it (this preset ships none). */
   baseUrlGuard: BaseUrlGuardPort;
   /**
@@ -250,7 +253,7 @@ export interface LocalNodeDaemon {
   readonly server: Server;
   /**
    * Gracefully shuts the daemon down: closes the HTTP listener, disposes every composed feature
-   * (releasing e.g. an in-flight xAI OAuth loopback listener), removes the discovery record, runs
+   * (releasing whatever a feature or caller pack holds open), removes the discovery record, runs
    * the caller's `onShutdown` hook, then closes the durable sqlite handles. Idempotent and safe to
    * call more than once, or concurrently.
    */
@@ -292,11 +295,11 @@ function localSecurity(
 }
 
 function localFeatureOptions(
-  { config, host, resolvedPortRef, xaiListenerRef, isShuttingDown, requestShutdown }: {
+  { config, host, resolvedPortRef, isShuttingDown, requestShutdown }: {
     config: LocalPresetConfig;
     host: string;
     resolvedPortRef: { current: number };
-    xaiListenerRef: { current: OAuthCallbackListener | null };
+   
     isShuttingDown: () => boolean;
     requestShutdown: () => void;
   },
@@ -319,8 +322,7 @@ function localFeatureOptions(
     ...(config.resolveDelegatedPrincipal === undefined
       ? {}
       : { delegatedToolCalls: { resolvePrincipal: config.resolveDelegatedPrincipal } }),
-    xai: { listenerRef: xaiListenerRef },
-    modelProxy: { toolTurns: config.toolTurns },
+    modelProxy: { toolTurns: config.toolTurns, providers: config.proxyProviders },
     research: { baseUrlGuard: config.baseUrlGuard },
     daemonStatus: {
       getVersion: () => packageVersion,
@@ -369,11 +371,11 @@ function composeLocalDaemonKernel(config: LocalPresetConfig, context: {
   host: string;
   env: NodeJS.ProcessEnv;
   resolvedPortRef: { current: number };
-  xaiListenerRef: { current: OAuthCallbackListener | null };
+ 
   isShuttingDown: () => boolean;
   requestShutdown: () => void;
 }) {
-  const { app, adapter, host, env, resolvedPortRef, xaiListenerRef, isShuttingDown, requestShutdown } = context;
+  const { app, adapter, host, env, resolvedPortRef, isShuttingDown, requestShutdown } = context;
   return composeJiniKernel({
     app, adapter, resolvedPortRef,
     storage: { kind: 'sqlite', dataDir: config.dataDir, open: config.open },
@@ -382,7 +384,7 @@ function composeLocalDaemonKernel(config: LocalPresetConfig, context: {
     security: localSecurity({ config, host }),
     env,
     ...(config.agentExecutor ? { agentExecutor: config.agentExecutor } : {}),
-    featureOptions: localFeatureOptions({ config, host, resolvedPortRef, xaiListenerRef,
+    featureOptions: localFeatureOptions({ config, host, resolvedPortRef,
       isShuttingDown,
       requestShutdown,
     }),
@@ -530,13 +532,10 @@ export async function createLocalNodeDaemon(
   let stopPromise: Promise<void> | null = null;
   let server: Server;
 
-  // Owned here rather than by the xai feature so `stop()` observes the same ref the routes wrote to.
-  const xaiListenerRef: { current: OAuthCallbackListener | null } = { current: null };
-
   const app = createLocalDaemonApp();
 
   const kernel = await composeLocalDaemonKernel(config, {
-    app, adapter, host, env, resolvedPortRef, xaiListenerRef,
+    app, adapter, host, env, resolvedPortRef,
     isShuttingDown: () => shuttingDown,
     requestShutdown: () => requestLocalDaemonShutdown(stop),
   });
@@ -554,7 +553,7 @@ export async function createLocalNodeDaemon(
         try {
           await closeHttpServer(server);
         } finally {
-          // Feature teardown sits exactly where the inline xAI-listener stop used to: after the
+          // Feature teardown sits where a listener stop always has: after the
           // listener is closed, before the discovery record is removed. `disposePacks` is
           // best-effort by contract, so one feature's failure cannot block shutdown.
           await kernel.disposeFeatures();

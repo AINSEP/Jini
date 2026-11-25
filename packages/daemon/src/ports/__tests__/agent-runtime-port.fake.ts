@@ -87,6 +87,7 @@ export function fakeAgentRuntimePort(_required: Record<string, never> = {}, opti
       qoder(required) { log('streams.qoder', required); return idleStream(); },
       jsonEvents(required) { log('streams.jsonEvents', required); return idleStream(); },
     },
+    strategies: { for(required) { log('strategies.for', required); return {}; } },
     failures: { startupMessage(required, opt) { log('failures.startupMessage', required, opt); return `${required.stage}: ${String(required.error)}`; } },
     ...overrides,
   };

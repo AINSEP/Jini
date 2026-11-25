@@ -5,6 +5,8 @@ export { renderAIHubMixImage, renderAIHubMixTTS } from './providers/aihubmix.js'
 export { renderCustomOpenAIImage, customImageOverridesOpenAIModel, CUSTOM_IMAGE_MODEL_ID } from './providers/custom-image.js';
 export { renderElevenLabsSfx, renderElevenLabsTTS } from './providers/elevenlabs.js';
 export { renderFishAudioTTS } from './providers/fishaudio.js';
+// The render context/result a vendor plugin's adapters see (the wire helpers themselves reach a plugin through `createMediaWire`).
+export type { RenderContext, RenderResult } from './types.js';
 export { renderImageRouterImage, renderImageRouterVideo, imageRouterSizeFor } from './providers/imagerouter.js';
 export { renderMinimaxTTS } from './providers/minimax.js';
 export { renderNanoBananaImage } from './providers/nanobanana.js';
@@ -38,6 +40,7 @@ export { createBuiltinVendorAdapterRegistry, createVendorAdapterRegistry, mediaV
 // Vendors as one-unit provider contributions on the shared keyed registry (2026-10-21).
 export {
   builtinMediaProviderContributions,
+  catalogMediaProviderContribution,
   createMediaProviderRegistry,
   MEDIA_PROVIDER_CONTRACT,
   mediaProviderDefinition,

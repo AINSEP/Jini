@@ -319,7 +319,9 @@
       "validateSchedule": "function:75f5093d8c",
       "validateTarget": "function:16e0abf48e",
       "withAiTracing": "function:1be50e4832",
-      "writeMcpJsonIfNeeded": "function:68fef20ca6"
+      "writeMcpJsonIfNeeded": "function:68fef20ca6",
+      "PreparedRunHome": "type:f7887f2c1c",
+      "prepareRunHomeIfNeeded": "function:10a6a6872d"
     }
   },
   "./byok-meta-tool-result": {
@@ -786,7 +788,11 @@
       "AgentStreamHandler": "interface:d72de2cf9b",
       "AgentStreamSink": "type:af3b37412a",
       "BaseUrlGuardPort": "interface:685d407b4b",
-      "BaseUrlValidationResult": "interface:2075b47da4"
+      "BaseUrlValidationResult": "interface:2075b47da4",
+      "AgentRuntimeStrategies": "interface:7af9908e71",
+      "EnvContentBridgeEntry": "type:540c5df7e2",
+      "PreparedRunHome": "type:f7887f2c1c",
+      "RunHomeSeams": "interface:b66adb41dc"
     }
   },
   "./ports/process": {

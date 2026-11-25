@@ -167,8 +167,27 @@ function builtinModels(): MediaProviderModel[] {
 }
 
 /**
+ * One catalogued provider as a contribution: its catalogue row, its catalogued models (with their
+ * catalogue order, so list order is the same whoever registers them) and the adapters the caller brings.
+ * Why: a vendor plugin ships only its adapters; the catalogue rows are generic reference data that stay here.
+ * @throws {Error} When `providerId` is not a catalogued provider.
+ * @complexity O(p + m) providers and models.
+ */
+export function catalogMediaProviderContribution(
+  { providerId, adapters }: { providerId: string; adapters: Readonly<Record<string, VendorAdapter<never>>> },
+  _optional: Record<string, never> = {},
+): MediaProviderContribution {
+  const provider = MEDIA_PROVIDERS.find(entry => entry.id === providerId);
+  if (provider === undefined) throw new Error(`media provider '${providerId}' is not in the catalogue`);
+  return { provider, models: builtinModels().filter(model => model.provider === providerId), adapters };
+}
+
+/**
  * Today's built-in vendors as the default contribution set: one unit per `MEDIA_PROVIDERS` entry, its
- * catalogued models, and the adapters its `registerVendorAdapters` registers.
+ * catalogued models, and the adapters its `registerVendorAdapters` registers. An `integrated` row that
+ * has catalogued models but registers no built-in adapter is served by a vendor plugin the host
+ * contributes (see `catalogMediaProviderContribution`), so it is not built in; a row with no models
+ * (search or stub providers) has nothing to serve and stays.
  * @returns Fresh contributions; adapters are the shared module-level adapter objects.
  * @complexity O(p + m + a) providers, models and adapters.
  */
@@ -183,10 +202,8 @@ export function builtinMediaProviderContributions(_required: Record<string, neve
       },
     },
   });
-  const models = builtinModels();
-  return MEDIA_PROVIDERS.map(provider => ({
-    provider,
-    models: models.filter(model => model.provider === provider.id),
-    adapters: adapters.get(provider.id) ?? {},
-  }));
+  const modeled = new Set(builtinModels().map(model => model.provider));
+  return MEDIA_PROVIDERS
+    .filter(provider => !provider.integrated || adapters.has(provider.id) || !modeled.has(provider.id))
+    .map(provider => catalogMediaProviderContribution({ providerId: provider.id, adapters: adapters.get(provider.id) ?? {} }));
 }

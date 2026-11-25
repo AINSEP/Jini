@@ -20,7 +20,7 @@ afterEach(async () => { while (cleanups.length) await cleanups.pop()!(); });
 
 /** Host-bound ports the egress features require; the preset ships no implementation of its own. */
 const egressPorts = {
-  modelProxy: { toolTurns: { anthropic: vi.fn(), openai: vi.fn(), azure: vi.fn(), google: vi.fn(), ollama: vi.fn() } },
+  modelProxy: { toolTurns: { anthropic: vi.fn(), openai: vi.fn(), azure: vi.fn(), google: vi.fn(), ollama: vi.fn() }, providers: [] },
   research: { baseUrlGuard: { validate: vi.fn(() => null) } },
 };
 
@@ -55,9 +55,6 @@ describe('egress feature mounts', () => {
     '%s refuses to activate without its host-bound port', async (feature, optionPath) => {
       await expect(routesFor({ [feature]: true }, 'memory', {})).rejects.toThrow(`"${optionPath}" was not supplied`);
     });
-  it('xai registers its OAuth routes', async () => {
-    expect(await routesFor({ xai: true }, 'sqlite')).toEqual(expect.arrayContaining(['POST /api/xai/oauth/start', 'POST /api/xai/oauth/complete']));
-  });
 });
 
 describe('principals and agent projection', () => {

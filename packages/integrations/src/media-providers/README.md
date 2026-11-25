@@ -47,7 +47,9 @@ mistaken for a real result.
 `renderMinimaxTTS`, `renderNanoBananaImage`, `renderOpenRouterImage`, `renderImageRouterImage`,
 `renderImageRouterVideo`, `renderSenseAudioImage`, `renderSenseAudioTTS`, `renderVolcengineImage`,
 `renderAIHubMixImage`, `renderAIHubMixTTS`, `renderCustomOpenAIImage`, plus `renderStub` /
-`svgPlaceholder` for the deterministic placeholder path.
+`svgPlaceholder` for the deterministic placeholder path. The xAI Grok image and TTS renderers are not here:
+they live in `@jini-ai/provider-plugins/xai/media` and the host contributes them to the media-provider registry
+(`catalogMediaProviderContribution` attaches their catalogue rows).
 
 **Generic vendor-adapter layer** — `VendorAdapterRegistry`, `createVendorAdapterRegistry`, `createBuiltinVendorAdapterRegistry`,
 the deprecated shared `mediaVendorRegistry`, `dispatchVendorRequest`, `requireApiKey`, and the

@@ -19,7 +19,7 @@ export interface AdminPost {
   slug: string;
   bodyJson: Record<string, unknown>;
   /**
-   * SPEC-047 — which body column this entry actually carries. `"doc"` is a Tiptap document in
+   * Which body column this entry actually carries. `"doc"` is a Tiptap document in
    * `bodyJson`; `"html"` is a bespoke, AI-generated Page whose real content is `bodyHtml`.
    *
    * Optional here only as prototype debt. The server already returns a proper discriminated union

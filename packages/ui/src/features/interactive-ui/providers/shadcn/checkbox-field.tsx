@@ -17,7 +17,7 @@ export function CheckboxField({ label, checked, disabled, onCheckedChange, useAg
   const id = useId();
   const base = useAgentHandleHook(agentProps);
   return (
-    <div className="flex items-center gap-2">
+    <div className="jini-ui-checkbox-field">
       {/* Radix's own prop types are exact-optional (no explicit `| undefined`), so an omitted
           wire prop must not appear on this element at all — conditional spread instead of
           passing `checked={undefined}`. */}

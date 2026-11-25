@@ -136,12 +136,12 @@ The catalog subpath exports core types `MediaSurface`, `AudioKind`, `MediaProvid
 
 `buildRenderContext({ request, resolvedAudioKind: AudioKind | undefined, length: number | undefined, duration: number | undefined }): RenderContext` returns the normalized render DTO. RenderContext contains surface/model/wireModel/prompt, aspect/length/duration, voice/audioKind/language/loop/promptInfluence, imageRef/imageRefs, requestInit/speechFormat/onProgress. `RenderContext` and `RenderResult` are reachable in signatures but are not named re-exports of the main barrel; consumers can infer them using `Parameters`/`ReturnType`. RenderResult is `{ bytes: Buffer, providerNote, suggestedExt? }`.
 
-All these renderer exports take one `{ ctx: RenderContext, credentials: ProviderCredentials }` and return `P<RenderResult>`: `renderAIHubMixImage`, `renderAIHubMixTTS`, `renderCustomOpenAIImage`, `renderElevenLabsSfx`, `renderElevenLabsTTS`, `renderFishAudioTTS`, `renderGrokImage`, `renderXAITTS`, `renderImageRouterImage`, `renderImageRouterVideo`, `renderMinimaxTTS`, `renderNanoBananaImage`, `renderOpenAIImage`, `renderOpenAISpeech`, `renderOpenRouterImage`, `renderSenseAudioImage`, `renderSenseAudioTTS`, `renderVolcengineImage`. They bypass catalog/policy orchestration; credentials, model/context validation, and transport policy are caller responsibilities.
+All these renderer exports take one `{ ctx: RenderContext, credentials: ProviderCredentials }` and return `P<RenderResult>`: `renderAIHubMixImage`, `renderAIHubMixTTS`, `renderCustomOpenAIImage`, `renderElevenLabsSfx`, `renderElevenLabsTTS`, `renderFishAudioTTS`, `renderImageRouterImage`, `renderImageRouterVideo`, `renderMinimaxTTS`, `renderNanoBananaImage`, `renderOpenAIImage`, `renderOpenAISpeech`, `renderOpenRouterImage`, `renderSenseAudioImage`, `renderSenseAudioTTS`, `renderVolcengineImage`. They bypass catalog/policy orchestration; credentials, model/context validation, and transport policy are caller responsibilities.
 
 | Function/class | Required/current argument | Optional | Return |
 |---|---|---|---|
 | `resolveProviderCredentialsFromEnv` | `{ providerId, env: NodeJS.ProcessEnv }` | ∅ | `ProviderCredentials` |
-| `grokAspectFor`, `openRouterAspectFor` | `{ aspect: string \| undefined }` | ∅ | `string` |
+| `standardImageAspectFor`, `openRouterAspectFor` | `{ aspect: string \| undefined }` | ∅ | `string` |
 | `imageRouterSizeFor` | `{ aspect: string \| undefined, surface: 'image' \| 'video' }` | ∅ | `string` |
 | `customImageOverridesOpenAIModel` | `{ ctx, credentials: ProviderCredentials \| null }` | ∅ | Predicate narrowing credentials to non-null |
 | `renderStub` | `{ ctx, providerId, integrated: boolean }` | ∅ | `P<RenderResult>` |

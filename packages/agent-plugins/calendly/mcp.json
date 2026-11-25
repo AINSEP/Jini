@@ -4,7 +4,7 @@
     "calendly": {
       "type": "streamable-http",
       "url": "https://mcp.calendly.com",
-      "tovuAuthMode": "oauth"
+      "authMode": "oauth"
     }
   }
 }

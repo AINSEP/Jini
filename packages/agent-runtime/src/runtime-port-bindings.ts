@@ -26,6 +26,7 @@ import { checkPromptArgvBudget, checkWindowsCmdShimCommandLineBudget, checkWindo
 import { preparePromptFileForAgent } from './prompt-file.js';
 import { createQoderStreamHandler } from './qoder-stream.js';
 import { bindRuntimeAgentDef } from './runtime-def-binding.js';
+import { RUNTIME_STRATEGY_HOST_ENV_NAMES, strategiesForDef } from './runtime-strategies.js';
 
 type StreamSink = (event: Record<string, unknown>) => void;
 type LaunchProbe = { agentId: string; launchPath: string; env: RuntimeEnv };
@@ -51,7 +52,7 @@ function bindLaunch({ runtime }: { runtime: NativeAgentRuntime }, _optional: Rec
     applyEnv: (required: { env: RuntimeEnv; launch: Pick<AgentLaunchResolution, 'childPathPrepend'> }, optional: { nodeBinDir?: string; appendPathDirs?: string[] } = {}) =>
       applyAgentLaunchEnv(required, { appendPathDirs: userToolchainBinDirs({}, { state, env: hostEnv }), ...optional }),
     toolchainBinDirs: (_required: Record<string, never>, optional: { env?: RuntimeEnv } = {}) => userToolchainBinDirs({}, { env: hostEnv, ...optional, state }),
-    hostEnvNames: (): readonly string[] => Object.values(state.executable.envNames),
+    hostEnvNames: (): readonly string[] => [...Object.values(state.executable.envNames), ...RUNTIME_STRATEGY_HOST_ENV_NAMES],
     planRun: (required: { def: PlanningDef; policy: NativeToolPolicyInput; host?: RunPlanHost }) => planRun(required),
     resolveNativeToolPolicy: (required: { def: { name?: string; fullCliAccessOnly?: boolean }; policy: NativeToolPolicyInput }) => resolveNativeToolPolicy(required),
     promptArgvBudget: (required: { def: RuntimeAgentDef; composed: unknown }, optional: { platform?: NodeJS.Platform } = {}) => checkPromptArgvBudget(required, optional),
@@ -104,6 +105,8 @@ export function createAgentRuntimeBindings({ runtime }: { runtime: NativeAgentRu
     defs: bindDefs({ runtime }),
     launch: bindLaunch({ runtime }),
     filesystem: bindFilesystem({}),
+    // Vendor behaviour chosen by what the definition declares, never by its id (see runtime-strategies.ts).
+    strategies: { for: (required: { def: RuntimeAgentDef }) => strategiesForDef(required) },
     models: {
       resolveForLaunch: (required: { def: RuntimeAgentDef; context: ModelDiscoveryContext; effort?: string }, optional: { signal?: AbortSignal } = {}) =>
         resolveModelForLaunch(required, { ...optional, deps: getRuntimeModelDiscoveryDeps({ state }) }),

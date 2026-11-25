@@ -1860,6 +1860,66 @@
     {
       "id": "83e226a5d53c",
       "reason": "P10-H2.J (b-g5b): CommandActor now admits the system kind, so \"narrowed to the kinds that run commands\" is false; the rewritten header keeps the delegation note and adds the sheet why-comment on attribution vs authorization."
+    },
+    {
+      "id": "23e2dbbd124f",
+      "reason": "packages/agent-runtime/src/providers/oauth-provider.ts:154-156: the concrete-preset section divider moved with the preset to packages/provider-plugins/src/xai/preset.ts (K04); agent-runtime keeps only the generic mechanics, so the divider no longer describes anything here."
+    },
+    {
+      "id": "fd97566bb1fc",
+      "reason": "packages/daemon/src/http/xai.ts:192: the dep field doc moved with the route to packages/provider-plugins/src/xai/routes.ts, where the listener is a required injected port member rather than defaulted to agent-runtime (K04)."
+    },
+    {
+      "id": "bb14819100cb",
+      "reason": "packages/daemon/src/ports/xai-oauth.ts:1-5: file deleted; the port is now OAuthPkceFlowPort in packages/provider-plugins/src/xai/oauth-port.ts, whose own header states the host-binding rule (K04)."
+    },
+    {
+      "id": "523cbed522c7",
+      "reason": "packages/daemon/src/ports/xai-oauth.ts:75: file deleted; the preset type lives with the preset in provider-plugins xai/preset.ts (K04)."
+    },
+    {
+      "id": "dfd4e869d6c0",
+      "reason": "packages/daemon/src/ports/xai-oauth.ts:77: file deleted; the loopback callback address constants live in provider-plugins xai/preset.ts (K04)."
+    },
+    {
+      "id": "372ee1ade564",
+      "reason": "packages/server/src/__tests__/builtin-features.test.ts:625-626: the xAI feature and its listener-disposal test were removed from server (K04); the listener close is now pinned by the host-mount witness in create-local-node-daemon.test.ts and provider-plugins xai routes.test.ts."
+    },
+    {
+      "id": "ccbb9022d052",
+      "reason": "packages/server/src/__tests__/runtime-port-bindings.typecheck.ts:28: the xAI OAuth port binding witness left server with the port (K04); the host binding is type-checked by provider-plugins xai routes.test.ts (REAL_OAUTH satisfies OAuthPkceFlowPort)."
+    },
+    {
+      "id": "551f52f15942",
+      "reason": "packages/server/src/builtin-features.ts:542-544: xaiFeature and its listener slot were removed from server (K04); the host now owns the slot and stops it in onShutdown (examples/reference-web/src/daemon.ts)."
+    },
+    {
+      "id": "af4243e25a8e",
+      "reason": "packages/server/src/create-local-node-daemon.ts:384: the local daemon no longer owns a vendor listener slot (K04); the host owns it and stops it in onShutdown."
+    },
+    {
+      "id": "4b9866fd46b6",
+      "reason": "packages/server/src/create-local-node-daemon.ts:434-436: the inline vendor-listener stop was removed with the slot (K04); feature teardown ordering is unchanged and still pinned by the existing stop() tests."
+    },
+    {
+      "id": "e5e5ff1d4d1d",
+      "reason": "K06 (dcfe6d018): the type-erased registry entry is gone; ProxyProviderRegistryEntry now binds a typed ProxyProviderRegistration (the erasure lives in the vendor plugin's registration factory), so 'type-erased' no longer describes it."
+    },
+    {
+      "id": "6c627561ba6b",
+      "reason": "K06 (dcfe6d018): defineProvider (the single type-erasing cast) was deleted; the daemon holds no per-provider concrete types any more, so there is no cast to explain."
+    },
+    {
+      "id": "f04ff93b6180",
+      "reason": "K06 (dcfe6d018): the registry is a Map now (Map.get('constructor') is undefined), so the second isRecognizedProvider check, which only existed to reject inherited plain-object keys, was deleted."
+    },
+    {
+      "id": "7952bfeebc46",
+      "reason": "K06 (06a759fac): the zero-config anthropic server test was replaced by a host-injected fixture-provider test; the apiKey-less anthropic body it described no longer exists in packages/server."
+    },
+    {
+      "id": "2b6d20b712fe",
+      "reason": "packages/daemon/src/agent-executor/claude/config-dir.ts:130-152 (prepareClaudeConfigDirIfNeeded doc): K02b split the function along the new strategy seam, so the block was split with it, not dropped. The per-CLI half (staging is for the real claude CLI only, keyed by def id rather than the shared claude-mcp-json delivery, unconditional for claude runs) lives with the configDir slot binding in packages/agent-runtime/src/runtime-strategies.ts and defs/claude/config-dir.ts; the gate half (deps.enabled defaults off because Keychain login is keyed by the config-dir variable; a host flipping it on must not stage for any other def) is kept on prepareStagedConfigDirIfNeeded in packages/daemon/src/agent-executor/staged-config-dir.ts, worded without vendor names for the R15 daemon vendor-neutral ratchet."
     }
   ]
 }

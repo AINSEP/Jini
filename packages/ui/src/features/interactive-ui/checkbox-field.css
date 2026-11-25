@@ -1,0 +1,7 @@
+/* Owned layout for the shadcn CheckboxField row. Replaces the former Tailwind utilities
+   `flex items-center gap-2` (0.5rem = Tailwind's spacing step 2) so the row does not depend on utility scanning. */
+.jini-ui-checkbox-field {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}

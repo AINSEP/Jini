@@ -27,13 +27,13 @@ describe('CONSENT_DICT', () => {
 
 describe('consentTranslation', () => {
   it('translates page copy and hands the same locale block to the field sections', () => {
-    const translation = consentTranslation({ locale: 'fr' });
+    const translation = consentTranslation({ locale: 'fr', productName: 'Acme' });
     expect(translation.t('Cookie Consent')).toBe('Consentement aux cookies');
-    expect(translation.dictionary).toBe(CONSENT_DICT.fr);
+    expect(translation.dictionary['Acme banner']).toBe('Bannière Acme');
   });
 
   it('falls through to English, with an empty dictionary, for a locale it does not ship', () => {
-    const translation = consentTranslation({ locale: 'en' });
+    const translation = consentTranslation({ locale: 'en', productName: 'Acme' });
     expect(translation.t('Cookie Consent')).toBe('Cookie Consent');
     expect(translation.dictionary).toEqual({});
   });

@@ -86,7 +86,7 @@ export type Renderer = (required: { ctx: RenderContext; credentials: ProviderCre
  * (`imagerouter`/`custom-image`/`grok`/`nanobanana`/`openrouter`/
  * `volcengine`/`elevenlabs`/`aihubmix`) has migrated onto
  * host-populated vendor registries (see `builtin-vendors.ts` and each vendor's
- * explicit registration function) — joining `openai`/`minimax`/`senseaudio`/`fishaudio`, migrated the
+ * explicit registration function; `grok` moved on to a host-contributed xAI plugin contribution) — joining `openai`/`minimax`/`senseaudio`/`fishaudio`, migrated the
  * pass before. Kept (not deleted) as `resolveRenderer`'s fallback path for
  * the next vendor this engine wires up.
  */

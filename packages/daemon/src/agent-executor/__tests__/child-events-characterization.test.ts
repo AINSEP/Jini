@@ -24,7 +24,7 @@ async function fixture(overrides: Partial<Parameters<typeof wireChildLifecycle>[
   await lifecycle.stream({ runId: run.id, onEvent: event => { events.push(event); } });
   const ctx: Parameters<typeof wireChildLifecycle>[0] = {
     runId: run.id, lifecycle, child: child as unknown as ChildProcess,
-    streams: agentRuntimeFixture().streams, identityKind: agentRuntimeFixture().models.identityKind,
+    streams: agentRuntimeFixture().streams, strategies: agentRuntimeFixture().strategies, identityKind: agentRuntimeFixture().models.identityKind,
     def: createDef({ streamFormat: 'claude-stream-json', promptInputFormat: 'stream-json' }),
     streamFormat: 'claude-stream-json', onCleanupFailure: vi.fn(), cleanupStagedFiles: async () => {},
     journal: undefined, continuation: undefined, classifyFailure: undefined,

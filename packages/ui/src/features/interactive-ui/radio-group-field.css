@@ -1,0 +1,7 @@
+/* Owned layout for each radio + label row of the shadcn RadioGroupField. Replaces the former Tailwind
+   utilities `flex items-center gap-2` (0.5rem = Tailwind's spacing step 2) so the row does not depend on utility scanning. */
+.jini-ui-radio-group-field-option {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}

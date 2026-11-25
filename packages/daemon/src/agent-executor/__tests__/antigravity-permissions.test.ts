@@ -6,6 +6,7 @@ import { join } from 'node:path';
 import { afterEach, expect, it, vi } from 'vitest';
 import type { RuntimeAgentDef } from '@jini-ai/core/contracts/agents';
 import { resolveMcpBridgeForRun } from '../mcp-bridge.js';
+import { boundMcpBridge } from './runtime-fixture.js';
 
 const home = vi.hoisted(() => ({ path: '' }));
 vi.mock('node:os', async importOriginal => ({
@@ -24,12 +25,15 @@ async function fixture(raw?: string) {
   return settingsPath;
 }
 
-/** Exercise the existing launch seam so the old resolver reaches the regression assertions. */
+const antigravityDef = { id: 'antigravity', externalMcpInjection: 'env-passthrough' } as RuntimeAgentDef;
+
+/** Exercise the existing launch seam so the old resolver reaches the regression assertions.
+ * The slot is the one the production binding supplies, so the real permission preparation runs end to end. */
 function prepare() {
   return resolveMcpBridgeForRun({
-    input: { nativeCapabilities: { userMcp: true }, runId: 'run', cwd: '/isolated', def: { id: 'antigravity', externalMcpInjection: 'env-passthrough' } as RuntimeAgentDef },
+    input: { nativeCapabilities: { userMcp: true }, runId: 'run', cwd: '/isolated', def: antigravityDef },
     deps: {
-      mcpJsonInjection: { command: 'jini-mcp', daemonUrl: 'http://localhost:4317' }, fileLock: nodeFileLock, writer: nodeAtomicWriter,
+      mcpJsonInjection: { command: 'jini-mcp', daemonUrl: 'http://localhost:4317' }, fileLock: nodeFileLock, writer: nodeAtomicWriter, ...boundMcpBridge(antigravityDef),
       cleanupStagedFiles: async () => {},
       failBeforeSpawn: async ({ message }) => { throw new Error(message); },
     },
@@ -83,15 +87,15 @@ it.each(['{broken', '[]', '{"permissions":[]}', '{"permissions":null}', '{"permi
 it('launch preparation authorizes the Jini bridge before returning delivery, and fails closed on setup errors', async () => {
   let release!: () => void;
   const gate = new Promise<void>(resolve => { release = resolve; });
-  const authorize = vi.fn(async () => { await gate; });
+  const authorize = vi.fn(async (_required: { serverName: string; delivery: unknown }) => { await gate; });
   const cleanupStagedFiles = vi.fn(async () => {});
   const failBeforeSpawn = vi.fn(async (input: { message: string }): Promise<never> => { throw new Error(input.message); });
   const input = { nativeCapabilities: { userMcp: true }, runId: 'run', cwd: '/isolated', def: { id: 'antigravity', externalMcpInjection: 'env-passthrough' } as RuntimeAgentDef };
-  const deps = { mcpJsonInjection: { command: 'jini-mcp', daemonUrl: 'http://localhost:4317' }, cleanupStagedFiles, failBeforeSpawn, ...fakeRuntimePorts(), ensureAntigravityMcpPermission: authorize };
+  const deps = { mcpJsonInjection: { command: 'jini-mcp', daemonUrl: 'http://localhost:4317' }, cleanupStagedFiles, failBeforeSpawn, ...fakeRuntimePorts(), mcpBridge: { prepare: authorize } };
   let ready = false;
   const pending = resolveMcpBridgeForRun({ input, deps }).then(value => { ready = true; return value; });
   await new Promise(resolve => setImmediate(resolve));
-  expect(authorize).toHaveBeenCalledWith(expect.objectContaining({ serverName: 'jini', settingsPath: expect.stringMatching(/\.gemini[\\/]antigravity-cli[\\/]settings\.json$/) }));
+  expect(authorize).toHaveBeenCalledWith(expect.objectContaining({ serverName: 'jini', delivery: expect.objectContaining({ kind: 'env-passthrough' }) }));
   expect(ready).toBe(false);
   release();
   expect(await pending).toMatchObject({ kind: 'env-passthrough' });
@@ -101,18 +105,25 @@ it('launch preparation authorizes the Jini bridge before returning delivery, and
   expect(failBeforeSpawn).toHaveBeenCalledOnce();
   authorize.mockClear();
   await resolveMcpBridgeForRun({ input, deps: { ...deps, mcpJsonInjection: undefined } });
-  await resolveMcpBridgeForRun({ input: { ...input, def: { ...input.def, id: 'another-agent' } }, deps });
+  // With no injection configured the slot sees no delivery (the binding's own early return is pinned in agent-runtime).
+  expect(authorize.mock.calls.map(([required]) => required.delivery)).toEqual([null]);
+  authorize.mockClear();
+  const { mcpBridge: _unbound, ...unbound } = deps;
+  await resolveMcpBridgeForRun({ input: { ...input, def: { ...input.def, id: 'another-agent' } }, deps: unbound });
   expect(authorize).not.toHaveBeenCalled();
 });
 
 it('mints no credential and writes no personal permission without explicit consent', async () => {
   const credential = vi.fn(() => 'sentinel');
   const authorize = vi.fn(async () => {});
+  const ports = fakeRuntimePorts();
   const input = { runId: 'unapproved', cwd: '/site', def: { id: 'antigravity', externalMcpInjection: 'env-passthrough' } as RuntimeAgentDef };
   const deps = { mcpJsonInjection: { command: 'bridge', daemonUrl: 'http://localhost', credential },
-    cleanupStagedFiles: async () => {}, ...fakeRuntimePorts(), ensureAntigravityMcpPermission: authorize,
+    cleanupStagedFiles: async () => {}, ...ports, mcpBridge: { prepare: authorize },
     failBeforeSpawn: async ({ message }: { message: string }): Promise<never> => { throw new Error(message); } };
   await expect(resolveMcpBridgeForRun({ input, deps })).rejects.toThrow(/approval/);
   expect(credential).not.toHaveBeenCalled();
   expect(authorize).not.toHaveBeenCalled();
+  // A refused start acquires nothing: no lock taken, nothing written, backed up or released.
+  expect(ports.log).toEqual([]);
 });

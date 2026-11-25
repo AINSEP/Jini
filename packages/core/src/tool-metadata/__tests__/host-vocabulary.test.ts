@@ -48,8 +48,13 @@ describe('host-supplied vocabulary in the plugin and site-guide tool metadata', 
   it('places the product name in the site-guide keyword (lower-cased) and example question', () => {
     const metadata = createSiteGuideToolMetadata({ productName: 'Acme' });
     expect(metadata.site_guide.search.keywords).toBe(
-      'how acme works site guide learn building blocks forms widgets markers themes members SEO deploy plugins Jini',
+      'how acme works site guide learn building blocks forms widgets markers themes members SEO deploy plugins Acme',
     );
+    const other = createSiteGuideToolMetadata({ productName: 'Zeta' });
+    expect(other.site_guide.search.keywords).toBe(
+      'how zeta works site guide learn building blocks forms widgets markers themes members SEO deploy plugins Zeta',
+    );
+    expect(JSON.stringify([metadata, other])).not.toMatch(/jini/i);
     expect(metadata.site_guide.search.queries).toEqual(['How does Acme work?', 'Design a planner directory site.']);
     expect(metadata.site_guide.approval).toEqual({ class: 'read', confirmation: 'direct' });
   });

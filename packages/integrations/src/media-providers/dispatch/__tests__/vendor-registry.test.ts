@@ -88,6 +88,9 @@ describe('mediaVendorRegistry — the shared singleton', () => {
         expect(mediaVendorRegistry.has({ providerId: 'imagerouter', routeKey: 'image' })).toBe(true);
         expect(mediaVendorRegistry.has({ providerId: 'imagerouter', routeKey: 'video' })).toBe(true);
         expect(mediaVendorRegistry.has({ providerId: 'custom-image', routeKey: 'image' })).toBe(true);
+        // The xAI row is a vendor-plugin contribution: no built-in registers it.
+        expect(mediaVendorRegistry.has({ providerId: 'grok', routeKey: 'image' })).toBe(false);
+        expect(mediaVendorRegistry.has({ providerId: 'grok', routeKey: 'audio:speech' })).toBe(false);
         expect(mediaVendorRegistry.has({ providerId: 'nanobanana', routeKey: 'image' })).toBe(true);
         expect(mediaVendorRegistry.has({ providerId: 'openrouter', routeKey: 'image' })).toBe(true);
         expect(mediaVendorRegistry.has({ providerId: 'volcengine', routeKey: 'image' })).toBe(true);

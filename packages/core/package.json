@@ -262,6 +262,8 @@
       "./net/public-dns-vocabulary": "universal",
       "./contracts/site/export-run": "universal",
       "./contracts/agents/inventory": "universal",
+      "./contracts/agents/proxy-provider": "universal",
+      "./contracts/agents/proxy-provider-kit": "universal",
       "./tool-metadata/deploy-ops": "universal",
       "./tool-metadata/deployments": "universal",
       "./tool-metadata/domain-dns": "universal",
@@ -1574,6 +1576,16 @@
       "types": "./dist/contracts/agents/inventory.d.ts",
       "import": "./dist/contracts/agents/inventory.js",
       "default": "./dist/contracts/agents/inventory.js"
+    },
+    "./contracts/agents/proxy-provider": {
+      "types": "./dist/contracts/agents/proxy-provider.d.ts",
+      "import": "./dist/contracts/agents/proxy-provider.js",
+      "default": "./dist/contracts/agents/proxy-provider.js"
+    },
+    "./contracts/agents/proxy-provider-kit": {
+      "types": "./dist/contracts/agents/proxy-provider-kit.d.ts",
+      "import": "./dist/contracts/agents/proxy-provider-kit.js",
+      "default": "./dist/contracts/agents/proxy-provider-kit.js"
     },
     "./net/public-dns-vocabulary": {
       "types": "./dist/net/public-dns-vocabulary.d.ts",

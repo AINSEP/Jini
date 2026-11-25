@@ -166,7 +166,7 @@ function EditorTab({ tab, page, port, translation, delays, errors, ui, hooks, ag
   const value = page.value;
   if (!value) throw new Error("cookie consent editor has no loaded settings");
   const { textLimits, regionModes, bannerModes, placements } = page.editor ?? {};
-  const fields = { value, onChange: page.onChange, problems: page.problems, dictionary: translation.dictionary, disabled: page.saveState === "conflict", limits: textLimits };
+  const fields = { value, onChange: page.onChange, problems: page.problems, dictionary: translation.dictionary, productName: translation.productName, disabled: page.saveState === "conflict", limits: textLimits };
   if (tab === "rules") {
     return (
       <div className="jini-consent-editor">

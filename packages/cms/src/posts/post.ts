@@ -18,7 +18,7 @@ export const EMAIL_TEMPLATE_KIND = "email-template";
 export const HTML_DOCUMENT_KINDS: ReadonlySet<string> = new Set(["page", EMAIL_TEMPLATE_KIND]);
 
 /**
- * SPEC-047/ADR-056 Decision 3 — discriminates which body column a record actually carries.
+ * Discriminates which body column a record actually carries.
  * `"doc"` (the only value this chokepoint ever writes in v1, see {@link resolveBodyFields}) is a
  * TipTap/ProseMirror document in `bodyJson`; `"html"` is a bespoke-HTML Page written only through
  * `PagesHtmlDocumentStore` (`features/pages/html-document-store.sqlite.ts`), a separate adapter that never calls
@@ -35,14 +35,14 @@ export interface PostRecord {
   status: PostStatus;
   kind: PostKind;
   /**
-   * SPEC-047/ADR-056 Decision 3 / CIC-3 — always `"doc"` for a record built by
+   * Always `"doc"` for a record built by
    * `createPost`/`updatePost` (this chokepoint never accepts a caller-supplied value for this
    * field — see {@link resolveBodyFields}). An `"html"`-format Page is a real, distinct row this
    * same `posts` table can hold, but one only `PagesHtmlDocumentStore` ever writes.
    */
   bodyFormat: PostBodyFormat;
   /**
-   * SPEC-047/ADR-056 Decision 3 — the bespoke-HTML body for an `"html"`-format Page. Always `null`
+   * The bespoke-HTML body for an `"html"`-format Page. Always `null`
    * on a record built by `createPost`/`updatePost` (see {@link bodyFormat}'s doc); populated only by
    * `PagesHtmlDocumentStore`'s own direct write path.
    */
@@ -50,7 +50,7 @@ export interface PostRecord {
   updatedAt: string;
   version: number;
   /**
-   * SPEC-008 (ADR-PIPE-008 Decision §4) — the raw JSON-serialized per-entry
+   * The raw JSON-serialized per-entry
    * SEO override bag (`SeoExtFields`), or `null` when no overrides have ever
    * been written. Written ONLY through `Jini/packages/cms/src/seo/write-service.ts`'s
    * `setEntrySeoOverrides` chokepoint (INV-01) — no other caller may write
@@ -60,7 +60,7 @@ export interface PostRecord {
    */
   seoExtJson?: string | null;
   /**
-   * SPEC-005 (ADR-005-ARCH REQ-06/BR-06) — the plugin extension-field bag, namespaced per plugin
+   * The plugin extension-field bag, namespaced per plugin
    * (`{ [pluginId]: { …declaredFields } }`). Written ONLY by the `content.entry.beforeSave`
    * hook-merge step immediately before the single `deps.repo.save()` call below (CIC U-004), plus
    * the typed post-presentation preference merged by this same update owner, and
