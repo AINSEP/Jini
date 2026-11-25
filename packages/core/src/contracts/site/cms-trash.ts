@@ -7,10 +7,17 @@
  * the cms `RemoveEntity` port stay in the cms package.
  */
 
+import type { RecordedActor } from "../events/ports.js";
+
 /** Who moved an item to the trash. */
 export interface TrashActor {
   principalId: string;
   pluginId?: string | null;
+  /**
+   * Typed attribution, persisted as the row's nullable `actor_kind`/`actor_id` when the caller has one.
+   * Independent of `principalId`/`pluginId`, which keep their meaning; absent leaves both columns NULL.
+   */
+  recorded?: RecordedActor | null;
 }
 
 /**

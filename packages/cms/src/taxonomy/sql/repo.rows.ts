@@ -48,6 +48,7 @@ export interface TaxonomyRevisionTableRow {
   previous_state_json: string | null;
   actor_id: string;
   recorded_at: string;
+  actor_kind: string | null;
 }
 
 /**
@@ -138,5 +139,7 @@ export function toTaxonomyRevisionRow(
     previous_state_json: row.previousState == null ? null : JSON.stringify(row.previousState),
     actor_id: row.actorId,
     recorded_at: row.recordedAt,
+    // Omitted without a typed kind: the column stays NULL (unknown) and an older host schema keeps working.
+    ...(row.actorKind ? { actor_kind: row.actorKind } : {}),
   };
 }

@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { sql } from "kysely";
 import { test } from "vitest";
 
 import { type ContentKernel, describeEachDialect } from "../../core/__tests__/support/dialect-matrix.js";
@@ -40,6 +41,20 @@ describeEachDialect<Bundle>({ title: "trash repo", options: { tables: ["trashed_
     assert.deepEqual(await repo.findByEntity({ workspaceId: WS, entityType: "post", entityId: "entity-a" }), row);
     assert.equal(await repo.findByEntity({ workspaceId: WS, entityType: "post", entityId: "entity-dup" }), null);
     assert.equal(await repo.findByEntity({ workspaceId: "ws-2", entityType: "post", entityId: "entity-a" }), null);
+  });
+
+  test("insert persists a typed actor's kind and id; without one both columns stay NULL (unknown)", async () => {
+    const { repo, kernel } = make();
+    await repo.insert({ row: item("typed", { recordedActor: { kind: "agent", id: "agent-7" } }) });
+    await repo.insert({ row: item("anon", { recordedActor: { kind: "visitor", id: null } }) });
+    await repo.insert({ row: item("legacy") });
+    const rows = await kernel.query<{ id: string; actor_principal_id: string; actor_kind: string | null; actor_id: string | null }>(
+      sql`SELECT id, actor_principal_id, actor_kind, actor_id FROM trashed_items ORDER BY id`);
+    assert.deepEqual(rows, [
+      { id: "anon", actor_principal_id: "p", actor_kind: "visitor", actor_id: null },
+      { id: "legacy", actor_principal_id: "p", actor_kind: null, actor_id: null },
+      { id: "typed", actor_principal_id: "p", actor_kind: "agent", actor_id: "agent-7" },
+    ]);
   });
 
   test("list hides expired rows, is workspace-scoped, newest first, filterable by type, and its cursor walks every row once", async () => {

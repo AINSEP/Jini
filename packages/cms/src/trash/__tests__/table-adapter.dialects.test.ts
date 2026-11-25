@@ -118,7 +118,7 @@ describeEachDialect<Bundle>({ title: "table trash adapter", options: { tables: [
     await seedForm(kernel, AT);
     await kernel.execute(sql.raw("INSERT INTO t_sub VALUES ('s1', 'f1'), ('s2', 'f1'), ('other', 'f2')"));
     for (const id of ["s1", "s2", "other"]) {
-      await kernel.execute(sql.raw(`INSERT INTO trashed_items VALUES ('ti-${id}', '${WS}', 'form_submission', '${id}', '${AT}', '${AT}', 'p', NULL, 't', NULL, NULL, NULL, NULL, NULL)`));
+      await kernel.execute(sql.raw(`INSERT INTO trashed_items VALUES ('ti-${id}', '${WS}', 'form_submission', '${id}', '${AT}', '${AT}', 'p', NULL, 't', NULL, NULL, NULL, NULL, NULL, NULL, NULL)`));
     }
     assert.equal(await adapter(form).purge({ workspaceId: WS, entityId: "f1", expectedVersion: 3 }), "purged");
     assert.equal(await count(kernel, "t_form"), 0);

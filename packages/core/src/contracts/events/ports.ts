@@ -26,6 +26,28 @@ export interface MutationActor {
 }
 
 /**
+ * The ONE code list of actor kinds a ledger row may record in its nullable `actor_kind` column (Trash,
+ * revision ledgers). Wider than {@link MutationActor}'s `kind`: a ledger can name the owner apart
+ * from a member, a plugin apart from an agent, and a public visitor. `unknown` is an explicit
+ * "the writer could not tell"; a row written before the column existed stays NULL instead, and
+ * neither is ever guessed from the shape of an id. Hosts import this list; they never copy it.
+ */
+export const RECORDED_ACTOR_KINDS = ["owner", "member", "agent", "plugin", "system", "visitor", "unknown"] as const;
+
+/** One member of {@link RECORDED_ACTOR_KINDS}. */
+export type RecordedActorKind = (typeof RECORDED_ACTOR_KINDS)[number];
+
+/**
+ * A typed attribution a writer persists as `actor_kind` + `actor_id` on a ledger row. `id` is null
+ * when the kind has no stable id (an anonymous visitor). Separate from any principal/plugin
+ * columns the same row already carries: those keep their meaning and are not derived from this.
+ */
+export interface RecordedActor {
+  kind: RecordedActorKind;
+  id: string | null;
+}
+
+/**
  * Immutable domain event emitted by synchronous command handlers and delivered
  * asynchronously via the outbox pipeline.
  */
