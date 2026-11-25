@@ -45,6 +45,31 @@
    "SiteBackupPushProgress": "interface:17e5c15a76"
   }
  },
+ "./backup/site/archive-extensions": {
+  "types": "./dist/backup/site/archive-extensions.d.ts",
+  "symbols": {
+   "ArchiveExtensionsDeps": "interface:46646f617d",
+   "ArchiveExtensionsLifecycle": "interface:69c3751298",
+   "InstalledAgentPluginRecord": "interface:854333b759",
+   "prepareArchiveExtensions": "function:414515a3d7"
+  }
+ },
+ "./backup/site/archive-manifest": {
+  "types": "./dist/backup/site/archive-manifest.d.ts",
+  "symbols": {
+   "ARCHIVE_DATABASE_PATH": "variable:2fc9859206",
+   "ARCHIVE_MANIFEST_PATH": "variable:da2a0bd614",
+   "ArchiveFile": "interface:d3578d5bd1",
+   "ArchiveManifest": "interface:50a3cdf610",
+   "ArchiveManifestCodec": "interface:41a124f929",
+   "ArchiveManifestDeps": "interface:ee46bc1fa1",
+   "ArchiveMedia": "interface:27990e4109",
+   "ArchivePlugin": "interface:528aed03d3",
+   "ArchiveSchemaIdentity": "interface:7a988e581c",
+   "createArchiveManifestCodec": "function:6baa7d1b1b",
+   "requireArchiveFileRecord": "function:bf92f8221c"
+  }
+ },
  "./backup/site/archive-media": {
   "types": "./dist/backup/site/archive-media.d.ts",
   "symbols": {
@@ -61,6 +86,17 @@
    "bufferArchiveMedia": "function:01d45ac62c"
   }
  },
+ "./backup/site/bundled-export-file-policy": {
+  "types": "./dist/backup/site/bundled-export-file-policy.d.ts",
+  "symbols": {
+   "BundledExportFileDisposition": "type:e655be382a",
+   "BundledExportFilePolicy": "type:50c9dde374",
+   "BundledExportFilePolicyDeps": "interface:e7a5826ef0",
+   "ClassifyBundledExportFile": "type:d46e4e70c5",
+   "ReadBundledExportFile": "type:ea414b8822",
+   "createBundledExportFilePolicy": "function:634172e3a4"
+  }
+ },
  "./backup/site/credential-warnings": {
   "types": "./dist/backup/site/credential-warnings.d.ts",
   "symbols": {
@@ -68,6 +104,172 @@
    "CredentialWarning": "interface:2cdd927433",
    "addCredentialWarning": "function:d1b5338ed7",
    "warnCredentialContent": "function:8055565f09"
+  }
+ },
+ "./backup/site/import-backend": {
+  "types": "./dist/backup/site/import-backend.d.ts",
+  "symbols": {
+   "SiteImportBackend": "interface:826cb08d21",
+   "SiteImportBackendOptional": "type:173f1167e3",
+   "SiteImportBackendRequired": "type:a3f0262a64",
+   "SiteImportCreateOptions": "interface:331a0cae1a",
+   "SiteImportCreateSite": "type:36a7893248",
+   "SiteImportHost": "interface:c98d785009",
+   "SiteImportSanitizer": "type:207bb2630d",
+   "SiteImportSource": "type:c25b2a9c5f",
+   "SiteImportView": "interface:13e7cb59f1",
+   "SiteImportWorkspace": "interface:91a4069071",
+   "createSiteImportBackend": "function:e053f30e6a",
+   "parseSiteImportInput": "function:e281238161"
+  }
+ },
+ "./backup/site/import-backend-steps": {
+  "types": "./dist/backup/site/import-backend-steps.d.ts",
+  "symbols": {
+   "ImportHttpClient": "interface:d376f38381",
+   "ParsedSiteImportInput": "interface:cc0c0eb7fe",
+   "SiteImportCopy": "interface:1244a26d13",
+   "SiteImportSource": "type:c25b2a9c5f",
+   "SiteImportStepsHost": "interface:6db477f2b9",
+   "SiteImportView": "interface:13e7cb59f1",
+   "consumeUpload": "function:aa39a2f52f",
+   "deadlineSignal": "function:102e08fd2b",
+   "downloadShareArchive": "function:3df6cf4adb",
+   "importSiteSlug": "function:92b59ae6db",
+   "parseImportInput": "function:abea9c50ef",
+   "reconcileInterruptedImports": "function:d52836ba7f",
+   "refusal": "function:50a1201444",
+   "requireFreeSpace": "function:1dcd9b4313",
+   "requireOwnerSetup": "function:c3466512d7",
+   "requireStagingBudget": "function:5bd9f69a11",
+   "siteImportView": "function:66ef496eed",
+   "startImportedSite": "function:b2a5c721dc"
+  }
+ },
+ "./backup/site/import-database": {
+  "types": "./dist/backup/site/import-database.d.ts",
+  "symbols": {
+   "ImportDatabase": "interface:520435e943",
+   "ImportDatabaseHost": "interface:c2729c67ce",
+   "ImportFileLock": "type:c392a2ea64",
+   "ImportWorkerChild": "interface:ff05336e8f",
+   "RebuildImportDatabaseOptions": "interface:0ec4e3ce3e",
+   "createImportDatabase": "function:b5fbfceb83",
+   "importWorkerLaunch": "function:4a8ccc7721",
+   "rebuildImportDatabase": "function:bf5dcef422",
+   "tidyImportDatabases": "function:ce5bbfd6d8"
+  }
+ },
+ "./backup/site/import-keep-off": {
+  "types": "./dist/backup/site/import-keep-off.d.ts",
+  "symbols": {
+   "KeepOffHost": "interface:0b492f96e4",
+   "KeepOffNotices": "interface:2b0d406b22",
+   "KeepOffStore": "interface:3d1b10de33",
+   "keepImportedCodeOff": "function:8abf488e82",
+   "pageBodyMayRunScript": "function:f7da8a52de",
+   "unrecognisedThemes": "function:f6b23df39f"
+  }
+ },
+ "./backup/site/import-plugin-state": {
+  "types": "./dist/backup/site/import-plugin-state.d.ts",
+  "symbols": {
+   "ImportPluginLifecycle": "interface:4bd4c102cc",
+   "ImportPluginStateDeps": "interface:47d648f839",
+   "ImportedArchivePlugin": "interface:f223ebdd69",
+   "ImportedExtensionState": "interface:0e585574bc",
+   "InstalledImportPlugin": "interface:39bbaa0736",
+   "restoreImportedPluginState": "function:0d24caefbf"
+  }
+ },
+ "./backup/site/import-registry": {
+  "types": "./dist/backup/site/import-registry.d.ts",
+  "symbols": {
+   "SiteImportDurableDeps": "interface:e14234aece",
+   "SiteImportRecord": "interface:6a5c293246",
+   "SiteImportRegistry": "class:e1ee1cb883",
+   "SiteImportUpload": "interface:5b79fa78c8",
+   "importSourceDigest": "function:63c903a7b8",
+   "withoutQuery": "function:dccdb94066"
+  }
+ },
+ "./backup/site/import-restore": {
+  "types": "./dist/backup/site/import-restore.d.ts",
+  "symbols": {
+   "ImportKeepOffRequest": "interface:2284460d8b",
+   "ImportRestore": "interface:7c8cc9afd6",
+   "ImportRestoreArchivePaths": "interface:b00705e72e",
+   "ImportRestoreHost": "interface:5265359e19",
+   "RestoreStagedImportOptions": "interface:43aeab1c12",
+   "RestoreStagedImportRequest": "interface:e946fce39d",
+   "createImportRestore": "function:39144d998e"
+  }
+ },
+ "./backup/site/import-restore-placement": {
+  "types": "./dist/backup/site/import-restore-placement.d.ts",
+  "symbols": {
+   "CompiledBuild": "type:7af2dee81d",
+   "ImportPlacementChecks": "interface:d515cab0ce",
+   "ThemeManifestFindings": "interface:e879f03912",
+   "explainThemeTree": "function:bbfbe24365",
+   "inspectThemeManifests": "function:400e80b861",
+   "liveThemeTrees": "function:b7366e20f8",
+   "restoreDestination": "function:a0108eca0b",
+   "writeExclusive": "function:c6e933964b"
+  }
+ },
+ "./backup/site/import-verifier": {
+  "types": "./dist/backup/site/import-verifier.d.ts",
+  "symbols": {
+   "SiteImportManifest": "interface:7ba23c186b",
+   "SiteImportProjection": "interface:7d228c9429",
+   "SiteImportVerifierHost": "interface:bb7c03bfa3",
+   "VerifiedSiteImport": "interface:b3779361db",
+   "verifySiteImport": "function:48c12b2a9e"
+  }
+ },
+ "./backup/site/import-verifier-inventory": {
+  "types": "./dist/backup/site/import-verifier-inventory.d.ts",
+  "symbols": {
+   "ArchiveScan": "interface:82bce54bcc",
+   "ImportInventoryHost": "interface:d304bfb63b",
+   "InventoryRecord": "interface:b7075feb90",
+   "SupportedShareManifest": "type:871bbb608c",
+   "buildManifestInventory": "function:3774116df8",
+   "checkArchiveMatchesInventory": "function:dcfe8cf2ec",
+   "ignoredArchivePath": "function:98a5ee4af6",
+   "parseShareManifest": "function:4aa6d129e7",
+   "readListedFiles": "function:d7bd17e192",
+   "refuseArchive": "function:934adba0c4",
+   "scanArchiveMetadata": "function:4f3be5b0db",
+   "sha256Hex": "function:a5cef4a904"
+  }
+ },
+ "./backup/site/import-verifier-projection": {
+  "types": "./dist/backup/site/import-verifier-projection.d.ts",
+  "symbols": {
+   "DocumentAdmission": "type:92b3b72155",
+   "ProjectionDeps": "interface:cc4c1056de",
+   "ProjectionDocument": "interface:fa14460ffc",
+   "ProjectionManifest": "interface:b46d0bba8b",
+   "ProjectionMedia": "interface:5fb8a05058",
+   "ShareProjection": "interface:ea2f0a2dcd",
+   "admitProjectedDocuments": "function:94f5d545d7",
+   "applyShareProjection": "function:e17c46a524"
+  }
+ },
+ "./backup/site/package-file-inventory": {
+  "types": "./dist/backup/site/package-file-inventory.d.ts",
+  "symbols": {
+   "BundledImportPluginIdsDeps": "interface:d266e24e3d",
+   "BundledPackageFilesDeps": "interface:9df0a7d08f",
+   "BundledPackageInventory": "type:0a02a6de73",
+   "BundledSourceArchiveEntry": "type:39ba96ec0a",
+   "CreateBundledSourceArchiveReader": "type:a6649fc1df",
+   "ListBundledAgentPluginServers": "type:9d6074c68c",
+   "PackBundledSourceDirectory": "type:447742c19b",
+   "readBundledImportPluginIds": "function:84f81f5c6f",
+   "readBundledPackageFiles": "function:b9b29170d5"
   }
  },
  "./backup/site/saved-keys": {
@@ -86,6 +288,20 @@
    "SiteSavedKeysPort": "interface:93429690ff"
   }
  },
+ "./backup/site/share-backend": {
+  "types": "./dist/backup/site/share-backend.d.ts",
+  "symbols": {
+   "SiteShareBackend": "interface:6903e0408e",
+   "SiteShareBackendOptional": "type:4454898eed",
+   "SiteShareBackendRequired": "type:909be77621",
+   "SiteShareContent": "interface:bccde24f67",
+   "SiteShareHost": "interface:f5a5915fbe",
+   "SiteShareRecord": "interface:b2a024c282",
+   "SiteShareRegistryLike": "interface:597b8fa94c",
+   "SiteShareView": "type:5fe33073be",
+   "createSiteShareBackend": "function:19c1d2e5a9"
+  }
+ },
  "./backup/site/share-export-failure": {
   "types": "./dist/backup/site/share-export-failure.d.ts",
   "symbols": {
@@ -93,11 +309,146 @@
    "SiteShareExportStep": "type:ee08280859"
   }
  },
+ "./backup/site/share-file-policy": {
+  "types": "./dist/backup/site/share-file-policy.d.ts",
+  "symbols": {
+   "PackageFileInventory": "type:8cea910047",
+   "SHARED_PLUGIN_MEMORY": "variable:967cd175c5",
+   "ShareFilePolicy": "interface:75ee360d18",
+   "ShareFilePolicyDeps": "interface:031afb956f",
+   "createShareFilePolicy": "function:d57197ff88",
+   "sharePathAlias": "function:940fa70eb8"
+  }
+ },
+ "./backup/site/share-hosting": {
+  "types": "./dist/backup/site/share-hosting.d.ts",
+  "symbols": {
+   "ShareDelivery": "interface:3657d3dc45",
+   "ShareHosting": "interface:354f480beb",
+   "ShareHostingDeps": "interface:8cbe05d2c9",
+   "ShareHostingRegistry": "interface:376029ac14",
+   "SharePeerDeps": "interface:b25112e907",
+   "SharePeerRequest": "interface:8d3983d6df",
+   "createShareHosting": "function:5f7ba93470"
+  }
+ },
+ "./backup/site/share-preparation": {
+  "types": "./dist/backup/site/share-preparation.d.ts",
+  "symbols": {
+   "SharePreparationDeps": "interface:bee0156e89",
+   "SharePreparationPorts": "interface:82aacef674",
+   "SharePreparedContent": "interface:e6757bbe01",
+   "prepareShareContent": "function:3a1fcc3696"
+  }
+ },
+ "./backup/site/share-preparation-steps": {
+  "types": "./dist/backup/site/share-preparation-steps.d.ts",
+  "symbols": {
+   "ShareBlobStore": "interface:02b6e81508",
+   "ShareCollectedFiles": "interface:565869db95",
+   "ShareDatabaseProjection": "interface:2c71730849",
+   "ShareDatabaseSanitizer": "type:c955960e9e",
+   "ShareLedger": "interface:4638ca39fc",
+   "ShareMediaReference": "interface:f27acb70ed",
+   "SharePlannedFile": "interface:84da50d5f7",
+   "ShareSnapshotResult": "type:08f82a62f1",
+   "ShareSteps": "interface:ccb6a90382",
+   "ShareStepsDeps": "interface:a22cd4dcc3",
+   "createShareSteps": "function:a8a1e06bbc"
+  }
+ },
  "./backup/site/share-refusal": {
   "types": "./dist/backup/site/share-refusal.d.ts",
   "symbols": {
    "SiteShareRefusal": "class:1b7589023b",
    "archiveRefusalName": "function:de88fa9382"
+  }
+ },
+ "./backup/site/share-registry": {
+  "types": "./dist/backup/site/share-registry.d.ts",
+  "symbols": {
+   "SHARE_TOKEN": "variable:c5485d16c5",
+   "SHARE_TOKEN_ALPHABET": "variable:aa68aef46e",
+   "SHARE_TOKEN_LENGTH": "variable:a44fdbdba8",
+   "SHARE_TOKEN_PATTERN": "variable:7442fe6ad1",
+   "ShareRegistryHost": "interface:5e97561682",
+   "SiteShareRecord": "interface:b2a024c282",
+   "SiteShareRegistry": "class:a4bb069f0e",
+   "newShareIdentity": "function:b313806455"
+  }
+ },
+ "./backup/site/share-service": {
+  "types": "./dist/backup/site/share-service.d.ts",
+  "symbols": {
+   "SHARE_DOWNLOAD_HEADERS": "variable:469ef24815",
+   "ShareServiceHost": "interface:fab6edff63",
+   "SiteShareService": "interface:f39d2957b1",
+   "acknowledgeSiteShare": "function:94ba60a7e9",
+   "createSiteShare": "function:ddd01fcb5c",
+   "createSiteShareService": "function:1e3c0e9654",
+   "isOwnShareFolder": "function:a308e803a6",
+   "receiveSiteShareArtifact": "function:ffde8d1591",
+   "revokeSiteShare": "function:ac0746d072",
+   "shareFileStem": "function:0ca6a6d536"
+  }
+ },
+ "./backup/site/share-zip": {
+  "types": "./dist/backup/site/share-zip.d.ts",
+  "symbols": {
+   "ShareZipHost": "interface:5dbf757185",
+   "ShareZipPlan": "interface:db45ba5e88",
+   "ZipFolderFiles": "type:4bd33efa62",
+   "buildShareZip": "function:014bfb5e94",
+   "buildStaticSiteZip": "function:f9c2e5f02d",
+   "claimArchivePaths": "function:f11c64a2e8"
+  }
+ },
+ "./backup/site/sources": {
+  "types": "./dist/backup/site/sources.d.ts",
+  "symbols": {
+   "CollectedSiteBackupFiles": "interface:5e528d0dbb",
+   "DatabaseSnapshotResult": "type:ced4550d6e",
+   "PlannedDiskFile": "interface:c83c86fa5f",
+   "ReadPlannedFileResult": "type:9e9770f7a3",
+   "ReviewedFile": "interface:a7e2dcbf86",
+   "ReviewedFileHandle": "interface:285350528f",
+   "ReviewedFileSystem": "interface:083246be4b",
+   "SITE_BACKUP_DATABASE_PATH": "variable:269a9c60f7",
+   "SITE_BACKUP_SCOPES": "variable:7015a6aac5",
+   "SiteBackupHostLimit": "interface:a8fd54f04f",
+   "SiteBackupInclude": "type:30737c6ee1",
+   "SiteBackupLimits": "interface:07c5037295",
+   "SiteBackupLimitsResult": "type:dcbbf23c13",
+   "SiteBackupManifestIdentity": "interface:8e4216f11d",
+   "SiteBackupManifestInput": "interface:ea261760ee",
+   "SiteBackupReadHandle": "type:f9d26a7d9d",
+   "SiteBackupScope": "type:f6430b4f70",
+   "SiteBackupSourceDeps": "interface:b20ab7a75d",
+   "SiteBackupSources": "interface:f39c015328",
+   "SiteBackupWalkFileSystem": "interface:590197912d",
+   "SitePluginPackageListing": "interface:88259f8c45",
+   "SkippedSiteBackupFile": "interface:63501c971f",
+   "buildSiteBackupManifest": "function:41486c1396",
+   "captureDatabaseSnapshot": "function:4c529cdbdd",
+   "checkSiteBackupLimits": "function:467c5dbdcb",
+   "collectSiteBackupFiles": "function:ec4ae503e2",
+   "formatByteSize": "function:e838c8214c",
+   "readPlannedFile": "function:f09d128bde",
+   "skipOversizedFiles": "function:f8ab314da7"
+  }
+ },
+ "./backup/site/static-copy": {
+  "types": "./dist/backup/site/static-copy.d.ts",
+  "symbols": {
+   "ExportReport": "type:c20f2c6ae5",
+   "StaticCopyHost": "interface:742a901d89",
+   "StaticSiteCopy": "type:4dc09d54cf",
+   "StaticSiteMetadata": "interface:87b1b11a9c",
+   "StaticSitePorts": "interface:a822db87e1",
+   "captureStaticSite": "function:72e4c752f8",
+   "isStaticSitePath": "function:e572364a40",
+   "prepareStaticReport": "function:c14835bc80",
+   "readmeText": "function:f4a24e2d8e"
   }
  },
  "./backup/site/static-download-html": {
@@ -112,6 +463,27 @@
    "downloadForms": "function:6330245aeb"
   }
  },
+ "./backup/site/static-download-landing": {
+  "types": "./dist/backup/site/static-download-landing.d.ts",
+  "symbols": {
+   "ExtractPlainText": "type:96101beff1",
+   "LANDING_FILE": "variable:b853752a6f",
+   "LandingPage": "interface:7ca48bef3e",
+   "LandingTheme": "interface:d1bd4cb58a",
+   "landingPages": "function:774fa27b4a",
+   "staticLandingPage": "function:7865bb2105"
+  }
+ },
+ "./backup/site/static-download-layout": {
+  "types": "./dist/backup/site/static-download-layout.d.ts",
+  "symbols": {
+   "StaticDownloadCopy": "interface:ecb1cace18",
+   "StaticDownloadHost": "interface:e0ecb64035",
+   "StaticUrlLocation": "interface:6f3c7d8701",
+   "StaticUrlParsing": "interface:34ffa6e1b1",
+   "staticDownloadLayout": "function:4cc7425a0a"
+  }
+ },
  "./backup/site/static-export-selection": {
   "types": "./dist/backup/site/static-export-selection.d.ts",
   "symbols": {
@@ -122,6 +494,13 @@
    "StaticExportTheme": "interface:13d657accf",
    "allocateStaticExportThemes": "function:5edb6ac170",
    "parseStaticExportInput": "function:f39a4563a0"
+  }
+ },
+ "./backup/site/static-site-packager": {
+  "types": "./dist/backup/site/static-site-packager.d.ts",
+  "symbols": {
+   "StaticSitePackagerDeps": "interface:0d64c21880",
+   "createStaticSitePackager": "function:017675ee1b"
   }
  },
  "./backup/upload": {

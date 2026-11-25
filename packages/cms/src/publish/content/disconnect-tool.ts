@@ -1,4 +1,4 @@
-import { buildDomainRegistrations, indexCatalogById, ToolInputError, type AgentToolDefinition, type DerivedRiskByToolId, type ToolContributor, type ToolRegistration } from "@jini-ai/core";
+import { buildDomainRegistrations, indexCatalogById, ToolInputError, type AgentToolDefinition, type AgentToolSideEffect, type ToolContributor, type ToolRegistration } from "@jini-ai/core";
 import type { Clock } from "@jini-ai/core/primitives";
 import { adaptLegacyAuthorize, requireToolPermission } from "../../core/tools/index.js";
 import { disconnectAndForgetDestination, type GrantReverseResult } from "./connect-destination.js";
@@ -36,7 +36,7 @@ export const catalog: readonly AgentToolDefinition[] = [{
   authorization: { permission: "publish_content.apply" },
   inputSchema: { type: "object", additionalProperties: false, properties: {} },
 }];
-export const derivedRisk: DerivedRiskByToolId = new Map([
+export const derivedRisk: ReadonlyMap<string, AgentToolSideEffect> = new Map([
   // disconnectAndForgetDestination -> peer delete/compensating restore + the host's grant reversal (config write).
   ["publish_content_disconnect", "mutates-durable-state"],
 ]);

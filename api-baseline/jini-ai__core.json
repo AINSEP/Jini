@@ -3545,6 +3545,12 @@
    "toolMetadata": "variable:818f929a60"
   }
  },
+ "./tool-metadata/site-update": {
+  "types": "./dist/tool-metadata/site-update.d.ts",
+  "symbols": {
+   "toolMetadata": "variable:a5ae740e28"
+  }
+ },
  "./tool-metadata/sites": {
   "types": "./dist/tool-metadata/sites.d.ts",
   "symbols": {
