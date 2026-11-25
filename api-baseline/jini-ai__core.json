@@ -1545,10 +1545,45 @@
    "UiSurfaceDirective": "interface:b4efb3bb7a"
   }
  },
+ "./contracts/site/cms-admin-held-back-themes": {
+  "types": "./dist/contracts/site/cms-admin-held-back-themes.d.ts",
+  "symbols": {
+   "ChosenThemeHeldBack": "interface:3e7c6aeea3",
+   "HeldBackApprovalResult": "interface:5ad347f9e3",
+   "HeldBackCheckResult": "interface:25b0b4fbdf",
+   "HeldBackRestoreResult": "interface:42a18b7374",
+   "HeldBackTheme": "interface:4f5b8deb74",
+   "HeldBackThemesList": "interface:fa1dc5bcb2",
+   "HeldBackThemesPort": "interface:d897ef21b6"
+  }
+ },
  "./contracts/site/cms-admin-media": {
   "types": "./dist/contracts/site/cms-admin-media.d.ts",
   "symbols": {
    "AdminMedia": "type:7afe4a503e"
+  }
+ },
+ "./contracts/site/cms-admin-theme-explore": {
+  "types": "./dist/contracts/site/cms-admin-theme-explore.d.ts",
+  "symbols": {
+   "ThemeExploreFileEntry": "interface:2d01fff691",
+   "ThemeExplorePort": "interface:1c90f0c1d4",
+   "ThemeExploreSlugCollision": "interface:e1dbbe9ce4"
+  }
+ },
+ "./contracts/site/cms-admin-theme-registry": {
+  "types": "./dist/contracts/site/cms-admin-theme-registry.d.ts",
+  "symbols": {
+   "ThemesPort": "interface:ce6bb05050"
+  }
+ },
+ "./contracts/site/cms-admin-theme-types": {
+  "types": "./dist/contracts/site/cms-admin-theme-types.d.ts",
+  "symbols": {
+   "AdminThemeSummary": "interface:b6318afe4d",
+   "PresentationSettings": "interface:96ee126ab2",
+   "ThemeFileGroup": "type:fd3d5cc96b",
+   "ThemeTier": "type:49d51cd108"
   }
  },
  "./contracts/site/cms-agent-plugins": {
