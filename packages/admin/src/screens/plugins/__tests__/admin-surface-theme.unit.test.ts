@@ -2,6 +2,12 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { readAdminTheme, watchAdminTheme } from "../admin-surface-theme.js";
 
+// jsdom has no matchMedia; the host's own test setup stubs it, this package's does not.
+if (typeof window.matchMedia !== "function") {
+  Object.defineProperty(window, "matchMedia", { configurable: true, value: () => ({ matches: false, addEventListener() {}, removeEventListener() {}, addListener() {}, removeListener() {} }) });
+}
+
+
 /**
  * @file The admin theme bridge for plugin surfaces: which scheme and token values a surface is
  * told about, and the watcher that re-reads them (once per frame) when the admin's theme changes.

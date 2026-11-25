@@ -5,6 +5,12 @@ import type { AdminSurfaceActionOutcome, AdminSurfaceBootstrap } from "@jini-ai/
 import { useAdminSurfaceFrame } from "../hooks/use-admin-surface-frame.hooks.js";
 import type { AgentPluginSurfacesPort, AgentPluginSurfaceSummary } from "../hooks/agent-plugin-surfaces-port.hooks.js";
 
+// jsdom has no matchMedia; the host's own test setup stubs it, this package's does not.
+if (typeof window.matchMedia !== "function") {
+  Object.defineProperty(window, "matchMedia", { configurable: true, value: () => ({ matches: false, addEventListener() {}, removeEventListener() {}, addListener() {}, removeListener() {} }) });
+}
+
+
 /**
  * @file The host page's message gate for one admin-surface mount, driven through the hook alone
  * with a frame element that stays attached. The component unmounts the iframe as soon as it
