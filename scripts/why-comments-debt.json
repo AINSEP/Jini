@@ -614,10 +614,6 @@
       "reason": "packages/daemon/src/http/tool-execution-routes.ts:227-231 (\"mounts both routes on `app` (an express app or a `router`). mount it b...\"): Code gone: the Express ToolExecutionRouteTarget, the optional env/timingSafeEqual defaults, requireToolExecutionCaller, bodyParserFailure, streamToolExecution (res 'close'/setInterval heartbeat) and the Express mount were deleted in e36a4062 (routes are data; the caller gate is toolExecutionCallerRefusal in tool-execution-caller.ts; NDJSON is line-stream.ts + tool-execution-stream.ts). Current why-text: tool-execution-routes.ts:40-100 and :160-195; the keepalive why was restored next to the line stream that keeps one (frontend-request-route.ts)."
     },
     {
-      "id": "c14d9650b790",
-      "reason": "packages/daemon/src/http/xai.ts:793-793 (\"mounts every xai route on `app`. a pack's `http(app, services)` calls ...\"): Code gone: the Express mount function this doc described was deleted in 56f64c61 (daemon-r7: routes are returned as data); the replacement list is packages/daemon/src/http/xai.ts:796 (`xaiRoutes`), with its own doc."
-    },
-    {
       "id": "0bc5a7c409ca",
       "reason": "packages/http-kit/src/__tests__/raw-sse.test.ts:17-17 (\"a response whose `write` reports backpressure from the nth call onward...\"): Test comment of raw-sse.test.ts, deleted with its only subject createSseResponse in b6605838 (20 cases of the deleted primitive). Nothing left for it to explain; streamed-answer behaviour is pinned by http-kit's node-bridge tests and core's sse tests."
     },
@@ -700,10 +696,6 @@
     {
       "id": "c5494475acec",
       "reason": "packages/daemon/src/http/__tests__/runs.test.ts:849-856 (\"`cleanup()` unsubscribes from the lifecycle for real, so a *subsequent...\"): Test comment in runs.test.ts about the deleted Express test harness (fake req/res, MockApp, captured handlers or a real-Express-socket suite) for routes removed in a9498587; the suite was rewritten against the route-data/web-Response API and the harness it explains no longer exists."
-    },
-    {
-      "id": "4e75d6b91c76",
-      "reason": "packages/daemon/src/http/__tests__/xai.test.ts:1183-1189 (\"real express app on a real socket, one genuine round-trip per mounted ...\"): Test comment in xai.test.ts about the deleted Express test harness (fake req/res, MockApp, captured handlers or a real-Express-socket suite) for routes removed in 56f64c61; the suite was rewritten against the route-data/web-Response API and the harness it explains no longer exists."
     },
     {
       "id": "3aa650fbea6a",
