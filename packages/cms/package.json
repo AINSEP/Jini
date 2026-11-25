@@ -591,6 +591,7 @@
       "./comments/site/settings": "universal",
       "./comments/site/builtin-provider": "universal",
       "./comments/site/provider-selection": "universal",
+      "./comments/site/public-markers": "universal",
       "./comments/site/data-module-install": "node",
       "./media/site/import-media-entity": "node",
       "./media/site/where-used": "node",
@@ -3889,6 +3890,11 @@
       "types": "./dist/comments/site/builtin-provider.d.ts",
       "import": "./dist/comments/site/builtin-provider.js",
       "default": "./dist/comments/site/builtin-provider.js"
+    },
+    "./comments/site/public-markers": {
+      "types": "./dist/comments/site/public-markers.d.ts",
+      "import": "./dist/comments/site/public-markers.js",
+      "default": "./dist/comments/site/public-markers.js"
     },
     "./comments/site/provider-selection": {
       "types": "./dist/comments/site/provider-selection.d.ts",
