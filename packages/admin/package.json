@@ -5346,7 +5346,8 @@
         "./dist/screens/library/Library.d.ts"
       ],
       "screens/library/hooks/library-api-port.hooks": [
-        "./dist/screens/library/hooks/library-api-port.hooks.d.ts",
+        "./dist/screens/library/hooks/library-api-port.hooks.d.ts"
+      ],
       "screens/storage/StoragePanel": [
         "./dist/screens/storage/StoragePanel.d.ts"
       ]

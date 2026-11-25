@@ -699,13 +699,10 @@
       "./navigation/site/import-menu": "universal",
       "./navigation/site/repoint-menu-refs": "universal",
       "./admin-http/routes/forms/pull-submissions": "universal",
-<<<<<<< HEAD
       "./react/publish-content/criteria-publish-result": "universal",
-      "./react/publish-content/PublishSectionButton": "browser"
-=======
+      "./react/publish-content/PublishSectionButton": "browser",
       "./posts/revision-thinning": "universal",
       "./admin-http/routes/posts/revision-thinning": "universal"
->>>>>>> origin/integ/feat-p11-2026-11-25
     },
     "isolation": {
       "domains": {
@@ -4489,7 +4486,6 @@
       "import": "./dist/admin-http/routes/forms/pull-submissions.js",
       "default": "./dist/admin-http/routes/forms/pull-submissions.js"
     },
-<<<<<<< HEAD
     "./react/publish-content/criteria-publish-result": {
       "types": "./dist/react/publish-content/hooks/criteria-publish-result.d.ts",
       "import": "./dist/react/publish-content/hooks/criteria-publish-result.js",
@@ -4499,7 +4495,7 @@
       "types": "./dist/react/publish-content/PublishSectionButton.d.ts",
       "import": "./dist/react/publish-content/PublishSectionButton.js",
       "default": "./dist/react/publish-content/PublishSectionButton.js"
-=======
+    },
     "./posts/revision-thinning": {
       "types": "./dist/posts/revision-thinning.d.ts",
       "import": "./dist/posts/revision-thinning.js",
@@ -4509,7 +4505,6 @@
       "types": "./dist/admin-http/routes/posts/revision-thinning.d.ts",
       "import": "./dist/admin-http/routes/posts/revision-thinning.js",
       "default": "./dist/admin-http/routes/posts/revision-thinning.js"
->>>>>>> origin/integ/feat-p11-2026-11-25
     }
   },
   "files": [
