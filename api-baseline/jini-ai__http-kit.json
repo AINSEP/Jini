@@ -37,6 +37,7 @@
    "createMemoryCounterStore": "function:99c1f89bab",
    "createOwnedRunListHandler": "function:f867dc5bbe",
    "createRateLimiter": "function:117b280693",
+   "createReporterRouteInternalError": "function:a1c437599f",
    "createRequestTrackingMiddleware": "function:d8e6648f69",
    "createRunOwnershipMiddleware": "function:8b1fc6fffa",
    "createSseChannel": "function:6b5949a137",
@@ -107,9 +108,9 @@
   "symbols": {
    "NodeDispatchOptions": "interface:0ffe326cd2",
    "NodeDispatcher": "interface:ffabbd8dfe",
-   "NodeDispatcherOptions": "interface:4de2a14ae8",
+   "NodeDispatcherOptions": "interface:789ff76852",
    "UnhandledErrorReport": "interface:2bd72ddd17",
-   "createNodeDispatcher": "function:0aa7998e61",
+   "createNodeDispatcher": "function:e3029a5047",
    "maxReserializedJsonBytes": "function:6c318b6388",
    "nodeRequestHeaders": "function:0fb47c7701",
    "sendWebResponse": "function:acf54277f6"
