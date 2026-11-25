@@ -1,0 +1,5 @@
+---
+"@jini-ai/desktop-host": minor
+---
+
+Add packaged-evidence-gated cache caps to `@jini-ai/desktop-host/electron/partitions`. `applyDesktopCacheLimits` sets the `disk-cache-size` switch before ready only when the packaged `cap` evidence is `'go'`. `clearPartitionCacheOnce` clears one partition's HTTP `Cache` when it is over the threshold, only with `'go'` evidence for that clear: at boot it renames the folder of an unheld partition aside under the writer lock with a fresh holder recheck, and at open (the interlock's `openMaintenance` hook) it awaits the measured `session.clearCache()` before first use. Done is marked per profile only after a successful clear or a below-threshold measurement; busy, held, unmeasured, failed and timed-out clears stay pending. A NO-GO cap with GO clear evidence enforces periodically at ×2 and never latches. `createMaintenanceMarker` is the per-profile JSON record. The partition pass `maintenance` hook now also receives the pass's `writer` context. Cookies, Local Storage and IndexedDB are never touched.
