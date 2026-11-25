@@ -5,14 +5,14 @@ import { mediaAltText, type MediaShape } from "../rules.js";
 import type { MediaPort } from "./media-port.hooks.js";
 
 /**
- * @file Everything `MediaPreview` does, so the component in the Media screen is only markup.
+ * @file Everything `MediaPreview` does, so the component in `Media.tsx` is only markup.
  *
- * See the Media screen's file header for the full rationale of the optimistic image → video →
+ * See `Media.tsx`'s file header for the full rationale of the optimistic image → video →
  * placeholder fallback chain this hook drives — the client has no server-provided content type to
  * read, so `stage` resolves it by trying to render, not by probing first.
  *
- * Naming follows `hooks/use-settings-slice.hooks.ts`: `use-<thing>.hooks.ts`. Screen-local
- * because nothing outside the media screen needs it.
+ * Naming follows `hooks/use-settings-slice.hooks.ts`: `use-<thing>.hooks.ts`. Feature-local
+ * because nothing outside `features/media` needs it.
  *
  * IS a `useWiredX` candidate as of 2026-08-14 (superseding the 2026-08-11 wired-hooks-audit
  * review, which excluded it): `src` now reads `port.mediaOriginalUrl(item.id)` — the same
