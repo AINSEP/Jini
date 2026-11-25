@@ -45,7 +45,7 @@ export function createFakeMediaPort(options: FakeMediaPortOptions = {}): MediaPo
       cssClass: null,
       htmlAttributes: null,
       // The REAL server ignores this declared string and stores `sniffContentType(bytes)` instead
-      // (see `apps/website/src/server/inbound/admin-http/routes/media/upload.ts`). This fake has no bytes to sniff — its input is
+      // (see the host server's upload route). This fake has no bytes to sniff — its input is
       // an opaque base64 string a test made up — so it echoes what the caller declared. A test that
       // needs the two to disagree (uploading bytes whose real type differs from the declared one)
       // must seed `options.media` directly rather than rely on this path.

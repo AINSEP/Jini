@@ -9,7 +9,7 @@ import type { CredentialTokenHint } from "@jini-ai/core/contracts/site/secrets-c
  * `nanobanana`, …) — see `features/media/media-provider-catalog.ts` for why the spelling matters.
  *
  * Structurally `@jini-ai/ui`'s `MediaProviderCredentials` and mirrors
- * `apps/website/src/features/media/provider-credential-store.ts`'s `MediaProviderCredentialView` on the server. `apiKey`
+ * the host server's `MediaProviderCredentialView`. `apiKey`
  * is send-only: the operator types one and it goes up, but no response ever carries it back — a
  * stored key comes back as `apiKeyConfigured`/`apiKeyTail` instead.
  */
@@ -58,7 +58,7 @@ export function createMediaApi({ request, siteUrl }: MediaApiDeps, _optional: Re
      *  `MediaPreview` for how the client discovers which element type an asset actually needs. */
     mediaOriginalUrl,
     /** The image a public post shows as its cover: the `/m/` route's core `public` rendition (WebP,
-     *  uncropped, generated once and cached server-side — `apps/website/src/features/media/bootstrap.ts`).
+     *  uncropped, generated once and cached server-side — the host server's media bootstrap).
      *  The Edit post cover slot shows this one so it matches the published page (owner 2026-10-11:
      *  it showed the `og` 1200 × 630 share crop squeezed into a 220px band; the public page shows the
      *  whole image). A browser that opened the post already has it cached. `v1` because that bootstrap
