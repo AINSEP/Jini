@@ -6135,6 +6135,16 @@
    "verifyChallengeResponse": "function:55f5f47c6a"
   }
  },
+ "./publish/trust/connect": {
+  "types": "./dist/publish/trust/connect.d.ts",
+  "symbols": {
+   "ConnectDeps": "interface:e078bc2e8c",
+   "ConnectedDestination": "interface:5b5a3d11ad",
+   "PublishTrustConnectError": "class:af2eff203b",
+   "connectDestination": "function:a3da0e94b9",
+   "disconnectDestination": "function:8a1fc7e4ed"
+  }
+ },
  "./publish/trust/grant": {
   "types": "./dist/publish/trust/grant.d.ts",
   "symbols": {
@@ -6153,6 +6163,23 @@
    "isGrantActive": "function:d6006599a0",
    "isPublishTrustRoute": "function:10cb24879f",
    "parsePublishTrustGrant": "function:09b805eaf2"
+  }
+ },
+ "./publish/trust/handshake-client": {
+  "types": "./dist/publish/trust/handshake-client.d.ts",
+  "symbols": {
+   "DestinationIdentity": "interface:17519646e9",
+   "HANDSHAKE_TIMEOUT_MS": "variable:2da6a6a7db",
+   "HandshakeClientDeps": "interface:d315c31377",
+   "PUBLISH_TRUST_GENERATION": "variable:17e15e72e9",
+   "PUBLISH_TRUST_HANDSHAKE_BASE": "variable:beee61a128",
+   "PublishHandshakeHttpPort": "interface:cfbc765b2c",
+   "PublishSession": "interface:468f9be2c0",
+   "PublishTrustHandshakeError": "class:dba64b8f57",
+   "PublishTrustHandshakeFailure": "type:714cc85867",
+   "PublishTrustWire": "interface:020d3afdc0",
+   "fetchDestinationIdentity": "function:4a70f7cc26",
+   "openPublishSession": "function:0e2a81d193"
   }
  },
  "./publish/trust/keys": {

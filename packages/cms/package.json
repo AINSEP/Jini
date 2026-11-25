@@ -517,7 +517,9 @@
       "./publish/content/plan-rows": "universal",
       "./publish/content/report-labels": "universal",
       "./publish/trust/challenge": "node",
+      "./publish/trust/connect": "node",
       "./publish/trust/grant": "universal",
+      "./publish/trust/handshake-client": "node",
       "./publish/trust/keys": "node",
       "./publish/trust/provisioning": "universal",
       "./publish/trust/provisioning-status": "universal",
@@ -3545,10 +3547,20 @@
       "import": "./dist/publish/trust/challenge.js",
       "default": "./dist/publish/trust/challenge.js"
     },
+    "./publish/trust/connect": {
+      "types": "./dist/publish/trust/connect.d.ts",
+      "import": "./dist/publish/trust/connect.js",
+      "default": "./dist/publish/trust/connect.js"
+    },
     "./publish/trust/grant": {
       "types": "./dist/publish/trust/grant.d.ts",
       "import": "./dist/publish/trust/grant.js",
       "default": "./dist/publish/trust/grant.js"
+    },
+    "./publish/trust/handshake-client": {
+      "types": "./dist/publish/trust/handshake-client.d.ts",
+      "import": "./dist/publish/trust/handshake-client.js",
+      "default": "./dist/publish/trust/handshake-client.js"
     },
     "./publish/trust/keys": {
       "types": "./dist/publish/trust/keys.d.ts",
