@@ -119,3 +119,9 @@ export function boundMcpDelivery(required: Pick<RuntimeAgentDef, 'externalMcpInj
   const mcpDelivery = agentRuntimeFixture().strategies.for({ def: required as RuntimeAgentDef }).mcpDelivery;
   return mcpDelivery === undefined ? {} : { mcpDelivery };
 }
+
+/** The MCP bridge-preparation slot the production binding supplies for a def, as the launcher passes it to the bridge. */
+export function boundMcpBridge(required: Pick<RuntimeAgentDef, 'id' | 'externalMcpInjection'>, _optional: Record<string, never> = {}): { mcpBridge?: NonNullable<ReturnType<AgentRuntimePort['strategies']['for']>['mcpBridge']> } {
+  const mcpBridge = agentRuntimeFixture().strategies.for({ def: required as RuntimeAgentDef }).mcpBridge;
+  return mcpBridge === undefined ? {} : { mcpBridge };
+}

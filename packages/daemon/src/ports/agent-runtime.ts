@@ -8,6 +8,7 @@ import type {
   NativeToolPolicyInput, PreparedAgentLogFile, PreparedPromptFile, RunPlan, RunPlanHost, RuntimeAgentDef, RuntimeBuildOptions,
   RuntimeCapabilityMap, RuntimeEnv, RuntimePromptBudgetError,
 } from '@jini-ai/core/contracts/agents';
+import type { AtomicFileWriterPort, FileLockPort } from '@jini-ai/core/contracts/runtime';
 import type { AcpAttachOptional, AcpAttachRequired, AcpSessionController, PiRpcAttachOptional, PiRpcAttachRequired, PiRpcSession } from './agent-runtime-sessions.js';
 
 /** A stream parser the launcher feeds the child's stdout. */
@@ -24,6 +25,11 @@ export interface AgentRuntimeStrategies {
   readonly toolCallReceipt?: (required: { event: Record<string, unknown> }) => Record<string, unknown>;
   /** For a `*-env-content` MCP delivery: the env variable that carries the serialised config document. */
   readonly mcpDelivery?: { readonly envContentVar: string };
+  /** Persists whatever the CLI itself requires before an MCP bridge launch (e.g. a permission grant in its own settings file).
+   * Runs through the host's lock and writer ports; a rejection fails the run before spawn. Absent: nothing to prepare. */
+  readonly mcpBridge?: {
+    prepare(required: { delivery: { readonly kind: string } | null; serverName: string; fileLock: FileLockPort; writer: AtomicFileWriterPort }): Promise<void>;
+  };
 }
 
 export interface AgentRuntimePort {

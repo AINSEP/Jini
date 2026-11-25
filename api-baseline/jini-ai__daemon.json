@@ -203,7 +203,7 @@
    "buildAgentBuildArgsOptions": "function:670b2e897a",
    "buildCodexHomeConfigToml": "function:a5d5087fa3",
    "buildCodexMcpServerToml": "function:575e124805",
-   "buildMcpBridgeDelivery": "function:e3d9ab98a9",
+   "buildMcpBridgeDelivery": "function:df1329ea5a",
    "buildMcpJsonServerEntry": "function:064440e5b8",
    "buildRunArgs": "function:b8bd7f4489",
    "buildStartPayload": "function:818070e9c9",
@@ -279,7 +279,7 @@
    "resolveIdempotentReplayRunId": "function:a48a6ce7be",
    "resolveImageDeliveryAndArgvBudget": "function:bdfbbf6845",
    "resolveLaunch": "function:18e631a285",
-   "resolveMcpBridgeForRun": "function:a26e7ca9a0",
+   "resolveMcpBridgeForRun": "function:60eb7c513d",
    "resolveRunEnv": "function:93e2f4cc72",
    "resolveSourceClaudeConfigDir": "function:2094564739",
    "resolveSourceCodexHomeDir": "function:4402140049",
@@ -758,7 +758,8 @@
  "./ports/agent-runtime": {
   "types": "./dist/ports/agent-runtime.d.ts",
   "symbols": {
-   "AgentRuntimePort": "interface:3c55c218ee",
+   "AgentRuntimePort": "interface:9bad2bfdba",
+   "AgentRuntimeStrategies": "interface:f1dc36d44f",
    "AgentStreamHandler": "interface:d72de2cf9b",
    "AgentStreamSink": "type:af3b37412a",
    "BaseUrlGuardPort": "interface:685d407b4b",

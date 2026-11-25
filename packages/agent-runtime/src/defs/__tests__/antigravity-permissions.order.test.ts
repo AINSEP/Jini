@@ -2,7 +2,7 @@ import { promises as fs } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { nodeAtomicWriter, nodeFileLock } from './node-os-ports.js';
+import { nodeAtomicWriter, nodeFileLock } from './fakes/file-ports.js';
 import { ensureAntigravityMcpPermission as grantWithPorts } from '../antigravity/permissions.js';
 
 const ensureAntigravityMcpPermission = (input: { settingsPath: string; serverName: string }) => grantWithPorts({ ...input, fileLock: nodeFileLock, writer: nodeAtomicWriter });

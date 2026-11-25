@@ -1,9 +1,8 @@
 import { homedir } from 'node:os';
 import { join } from 'node:path';
-import type { McpBridgeDelivery } from '../contracts.js';
 import { promises as fs } from 'node:fs';
 import type { AtomicFileWriterPort, FileLockPort } from '@jini-ai/core/contracts/runtime';
-import { isRecord } from '../values.js';
+import { isRecord } from '../../json-event-stream-shared.js';
 
 /** Read the current settings text; a missing file is undefined, every other failure rejects. */
 async function readSettingsText(settingsPath: string): Promise<string | undefined> {
@@ -61,7 +60,7 @@ export async function ensureAntigravityMcpPermission(
 
 /** Prepare this CLI's persistent MCP permission before an env-passthrough launch. */
 export async function prepareAntigravityBridge(
-  { delivery, serverName, fileLock, writer }: { delivery: McpBridgeDelivery | null; serverName: string; fileLock: FileLockPort; writer: AtomicFileWriterPort },
+  { delivery, serverName, fileLock, writer }: { delivery: { readonly kind: string } | null; serverName: string; fileLock: FileLockPort; writer: AtomicFileWriterPort },
   { ensurePermission }: { ensurePermission: typeof ensureAntigravityMcpPermission },
 ): Promise<void> {
   if (delivery?.kind !== 'env-passthrough') return;

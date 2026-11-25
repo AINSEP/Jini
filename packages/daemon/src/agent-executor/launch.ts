@@ -886,10 +886,11 @@ function httpMcpSpawnEnv(
     : spawnEnv;
 }
 
-/** The runtime's bound MCP delivery slot for `def`, as the optional dep `resolveMcpBridgeForRun` reads. */
-function mcpDeliveryDep({ agentRuntime, def }: { agentRuntime: Pick<AgentRuntimePort, 'strategies'>; def: RuntimeAgentDef }, _options = {}): { mcpDelivery?: NonNullable<ReturnType<AgentRuntimePort['strategies']['for']>['mcpDelivery']> } {
-  const mcpDelivery = agentRuntime.strategies.for({ def }).mcpDelivery;
-  return mcpDelivery === undefined ? {} : { mcpDelivery };
+/** The runtime's bound MCP delivery slot for `def`, as the optional dep `resolveMcpBridgeForRun` reads.
+ * Also carries the bound bridge-preparation slot (`mcpBridge`) the same function reads. */
+function mcpDeliveryDep({ agentRuntime, def }: { agentRuntime: Pick<AgentRuntimePort, 'strategies'>; def: RuntimeAgentDef }, _options = {}): { mcpDelivery?: NonNullable<ReturnType<AgentRuntimePort['strategies']['for']>['mcpDelivery']>; mcpBridge?: NonNullable<ReturnType<AgentRuntimePort['strategies']['for']>['mcpBridge']> } {
+  const { mcpDelivery, mcpBridge } = agentRuntime.strategies.for({ def });
+  return { ...(mcpDelivery === undefined ? {} : { mcpDelivery }), ...(mcpBridge === undefined ? {} : { mcpBridge }) };
 }
 
 /** A required transport refusal is actionable without exposing listener/configuration details. */

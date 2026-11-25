@@ -2,7 +2,7 @@ import { promises as fs } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { nodeAtomicWriter, nodeFileLock } from './node-os-ports.js';
+import { nodeAtomicWriter, nodeFileLock } from './fakes/file-ports.js';
 import { ensureAntigravityMcpPermission } from '../antigravity/permissions.js';
 
 // Direct characterization of the permission writer: every branch of the grant decision is pinned

@@ -3,7 +3,6 @@
   "files": {
     "packages/daemon/src/agent-executor.ts": 10,
     "packages/daemon/src/agent-executor/agent-env.ts": 5,
-    "packages/daemon/src/agent-executor/antigravity/permissions.ts": 7,
     "packages/daemon/src/agent-executor/child-input.ts": 3,
     "packages/daemon/src/agent-executor/child-lifecycle.ts": 3,
     "packages/daemon/src/agent-executor/child-stdout.ts": 1,
@@ -24,7 +23,7 @@
     "packages/daemon/src/agent-executor/http-mcp.ts": 7,
     "packages/daemon/src/agent-executor/index.ts": 26,
     "packages/daemon/src/agent-executor/launch.ts": 158,
-    "packages/daemon/src/agent-executor/mcp-bridge.ts": 24,
+    "packages/daemon/src/agent-executor/mcp-bridge.ts": 14,
     "packages/daemon/src/agent-executor/mcp-json-file.ts": 1,
     "packages/daemon/src/agent-executor/message-relay.ts": 1,
     "packages/daemon/src/agent-executor/opencode/mcp-config.ts": 16,

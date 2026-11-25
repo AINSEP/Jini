@@ -35,8 +35,7 @@ async function stage(def: RuntimeAgentDef, runId: string, credential: string) {
   };
   const delivery = await resolveMcpBridgeForRun({
     input: { runId, cwd: '/fixture', def, nativeCapabilities: { userMcp: true } },
-    deps: { mcpJsonInjection: options, cleanupStagedFiles: async () => {}, failBeforeSpawn: refuse, ...fakeRuntimePorts(), ...boundMcpDelivery(def),
-      ensureAntigravityMcpPermission: async () => {} },
+    deps: { mcpJsonInjection: options, cleanupStagedFiles: async () => {}, failBeforeSpawn: refuse, ...fakeRuntimePorts(), ...boundMcpDelivery(def) },
   });
   if (delivery === null) {
     expect(computeChildEnv({ spawnEnv: {}, mcpBridge: delivery })).toEqual({});
