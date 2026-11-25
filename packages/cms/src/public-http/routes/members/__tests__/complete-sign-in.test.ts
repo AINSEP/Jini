@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { ok, routeReply, type RateLimitResult, type RouteInputContext } from "@jini-ai/core/contracts/server";
+import type { RateLimitResult, RouteInputContext } from "@jini-ai/core/contracts/server";
 import { RouteRefusalError } from "@jini-ai/core/errors/route-refusal";
 import { memberCompleteSignInRoute, type MemberCompleteSignInRouteDeps, type MemberCompleteSignInResult } from "../complete-sign-in.js";
 
@@ -36,39 +36,46 @@ function harness(over: Partial<MemberCompleteSignInRouteDeps> = {}) {
   return { deps, calls, inputs };
 }
 
-async function call(deps: MemberCompleteSignInRouteDeps, input: RouteInputContext) {
-  const parsed = memberCompleteSignInRoute.parse(input) as { ok: true; value: never };
-  return memberCompleteSignInRoute.handle({ input: parsed.value, deps }, { signal });
+const call = (deps: MemberCompleteSignInRouteDeps, input: RouteInputContext) => memberCompleteSignInRoute.handle({ raw: input, deps }, { signal });
+
+/** Status, every header line (Set-Cookie each on its own) and the JSON body of an answer. */
+async function answer(response: Response) {
+  return { status: response.status, headers: [...response.headers], cookies: response.headers.getSetCookie(), body: await response.json() };
 }
 
 describe("memberCompleteSignInRoute", () => {
   it("pins method, path and request facts", () => {
+    expect(Object.keys(memberCompleteSignInRoute).sort()).toEqual(["handle", "method", "path", "requestFacts"]);
     expect(memberCompleteSignInRoute.method).toBe("post");
     expect(memberCompleteSignInRoute.path).toBe("/api/members/v1/workspaces/:workspaceId/sign-in/complete");
     expect(memberCompleteSignInRoute.requestFacts).toBe(true);
   });
 
-  it("refuses every body that is not exactly one well-formed credential form", () => {
+  it("refuses every body that is not exactly one well-formed credential form, before any counter or service", async () => {
     for (const body of [null, [], {}, { token: "" }, { token: 1 }, { token: "t", code: "123456" }, { token: "t", extra: "x" },
       { challengeId: "", code: "123456" }, { code: "123456" }, { challengeId: "ch", code: "12345" }, { challengeId: "ch", code: "1234567" },
       { challengeId: "ch", code: "12345a" }, { challengeId: "ch", code: " 123456" }, { challengeId: "ch", code: "123456\n" }, { challengeId: "ch", code: 123456 }]) {
-      expect(() => memberCompleteSignInRoute.parse(raw(body)), JSON.stringify(body)).toThrow(BAD_BODY);
+      const { deps, calls } = harness();
+      await expect(call(deps, raw(body)), JSON.stringify(body)).rejects.toEqual(BAD_BODY);
+      expect(calls).toEqual([]);
     }
   });
 
   it("answers the attempt 429 before the service, keyed by the client address", async () => {
     const attemptLimiter = limiter({ allowed: false, retryAfterSeconds: 9 } as RateLimitResult);
     const { deps, calls } = harness({ attemptLimiter });
-    expect(await call(deps, raw({ token: "t" }))).toEqual(ok({ value: routeReply({ status: 429, headers: { "Retry-After": "9" },
-      body: { error: "too many member authentication requests", code: "RATE_LIMIT_EXCEEDED", details: { retryAfterSeconds: 9 } } }) }));
+    expect(await answer(await call(deps, raw({ token: "t" })))).toEqual({ status: 429, cookies: [],
+      headers: [["content-type", "application/json; charset=utf-8"], ["retry-after", "9"]],
+      body: { error: "too many member authentication requests", code: "RATE_LIMIT_EXCEEDED", details: { retryAfterSeconds: 9 } } });
     expect(attemptLimiter.keys).toEqual(["203.0.113.7"]);
     expect(calls).toEqual([]);
   });
 
   it("completes a link token: the host cookie on the 200, then the analytics hook", async () => {
     const { deps, calls, inputs } = harness();
-    expect(await call(deps, raw({ token: "link-token" }))).toEqual(ok({ value: routeReply({ status: 200, body: { member: { id: "m-1" } },
-      headers: { "Set-Cookie": "member=raw-token; Expires=2030-01-01T00:00:00.000Z" } }) }));
+    expect(await answer(await call(deps, raw({ token: "link-token" })))).toEqual({ status: 200, body: { member: { id: "m-1" } },
+      cookies: ["member=raw-token; Expires=2030-01-01T00:00:00.000Z"],
+      headers: [["content-type", "application/json; charset=utf-8"], ["set-cookie", "member=raw-token; Expires=2030-01-01T00:00:00.000Z"]] });
     expect(inputs).toEqual([{ workspaceId: "ws-1", token: "link-token", userAgent: "UA/1", ip: "203.0.113.7" }]);
     expect(calls).toEqual(["service", "cookie", "signed-in:raw-token"]);
   });

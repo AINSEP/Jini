@@ -43,13 +43,23 @@ export interface JsonRoutePorts<Deps, Context = undefined> {
 }
 
 /** Optional mount settings shared by `mountJsonRoute` and `mountRawRoute`. */
-export interface RouteMountOptions {
+export interface RouteMountOptions<Deps = never> {
   /**
    * Body parsers registered between the path and the handler of THIS route only
    * (`app[method](path, ...bodyParsers, handler)`), as a hand-written route mounted its own
    * `express.urlencoded`. Scoped to the one registration, never an `app.use`, so no other route sees it.
    */
   readonly bodyParsers?: readonly RequestHandler[];
+  /**
+   * Per-request host deps: called once per request, after the spec's static `responseHeaders` and
+   * before every gate, with the request, the response and the mounted deps; what it returns is the
+   * `deps` the ports and `handle` receive for THAT request. It is how a host hands a spec facts only
+   * the request holds (a client address, a consent cookie, whether the socket is local) as closures
+   * already bound to that request, so the spec never sees `req` and stays server-framework neutral.
+   * Synchronous so the gates keep their tick order; a throw takes the route's error path. Absent,
+   * the mounted deps reach the route unchanged.
+   */
+  readonly requestDeps?: (required: { readonly req: Request; readonly res: Response; readonly deps: Deps }) => Deps;
 }
 
 /** The request-context opt-ins and static response headers a JSON or raw spec may declare. */

@@ -6,7 +6,7 @@
  */
 import type { Express, Request, Response } from 'express';
 import type { RouteHostContext } from '@jini-ai/core/contracts/server';
-import { allowRouteBody, allowRouteOrigin, applyResponseHeaders, assertRequestFactsPort, routeAuthorize, routeRequestInput, sendRouteException } from './adapter.js';
+import { allowRouteBody, allowRouteOrigin, applyResponseHeaders, assertRequestFactsPort, requestScopedDeps, routeAuthorize, routeRequestInput, sendRouteException } from './adapter.js';
 import { deferredBodyReader } from './deferred-body.js';
 import { sendWebResponse } from './node-bridge.js';
 import type { RawRouteSpec, RouteMountOptions } from './types.js';
@@ -34,7 +34,7 @@ export function defineRawRoute<Deps, Context = undefined>(requiredArgs: Omit<Raw
  * @throws At mount, when the spec opts into `requestFacts` without the host's resolver port.
  * @complexity O(1) setup; per request, the gates, the host ports, `handle` and the body copy.
  */
-export function mountRawRoute<Deps, Context = undefined>({ app, spec, deps, adapter }: { readonly app: Express; readonly spec: RawRouteSpec<Deps, Context>; readonly deps: Deps; readonly adapter?: RouteHostContext }, optional: RouteMountOptions = {}): void {
+export function mountRawRoute<Deps, Context = undefined>({ app, spec, deps, adapter }: { readonly app: Express; readonly spec: RawRouteSpec<Deps, Context>; readonly deps: Deps; readonly adapter?: RouteHostContext }, optional: RouteMountOptions<Deps> = {}): void {
   assertRequestFactsPort({ spec });
   app[spec.method](spec.path, ...(optional.bodyParsers ?? []), async (req: Request, res: Response) => {
     // Observed on `res`, not `req`, for the reason `mountJsonRoute` documents: a parsed request
@@ -43,7 +43,7 @@ export function mountRawRoute<Deps, Context = undefined>({ app, spec, deps, adap
     const onResponseClose = () => abortController.abort();
     res.on('close', onResponseClose);
     try {
-      await answerRawRoute({ req, res, spec, deps, adapter, signal: abortController.signal });
+      await answerRawRoute({ req, res, spec, deps, adapter, signal: abortController.signal }, optional);
     } catch (e) {
       // A body that fails after the head went out cannot be answered any more: cut the connection.
       if (res.headersSent) res.destroy();
@@ -55,11 +55,13 @@ export function mountRawRoute<Deps, Context = undefined>({ app, spec, deps, adap
 }
 
 /** The gates, `handle`, and the write-back of its `Response`; returns early when a gate answered. */
-async function answerRawRoute<Deps, Context>({ req, res, spec, deps, adapter, signal }: {
+async function answerRawRoute<Deps, Context>({ req, res, spec, deps: mountedDeps, adapter, signal }: {
   readonly req: Request; readonly res: Response; readonly spec: RawRouteSpec<Deps, Context>;
   readonly deps: Deps; readonly adapter: RouteHostContext | undefined; readonly signal: AbortSignal;
-}): Promise<void> {
+}, mountOptions: Pick<RouteMountOptions<Deps>, 'requestDeps'> = {}): Promise<void> {
   applyResponseHeaders({ res, headers: spec.responseHeaders });
+  // Once per request, before every gate: the ports and `handle` see this request's bound deps.
+  const deps = requestScopedDeps({ req, res, deps: mountedDeps }, mountOptions);
   // `readBody` reads nothing until `handle` calls it, after every gate below (`deferred-body.ts`).
   const raw = { ...routeRequestInput({ req, spec, deps }), readBody: deferredBodyReader({ req, res }) };
   if (!allowRouteBody({ req, res, spec })) return;

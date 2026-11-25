@@ -1,6 +1,6 @@
-import { defineJsonRoute, ok, routeReply, type JsonRouteSpec, type RouteReply } from "@jini-ai/core/contracts/server";
+import type { RouteReply } from "@jini-ai/core/contracts/server";
 import { rejectRoute } from "@jini-ai/core/errors/route-refusal";
-import { memberClientAddress, memberRequestLimitReply, memberStringBody, refuseMemberAuthError, type MemberAuthRefusalFor, type MemberRequestLimiter } from "./shared.js";
+import { memberClientAddress, memberRequestLimitReply, memberStringBody, refuseMemberAuthError, type MemberAuthRefusalFor, type MemberRequestLimiter, type PublicMemberRawRoute } from "./shared.js";
 
 /**
  * @file `POST /api/members/v1/workspaces/:workspaceId/sign-in/complete` — the PUBLIC
@@ -55,31 +55,30 @@ export function memberCompletionCredential({ body }: { body: unknown }, _optiona
   return null;
 }
 
-/** The validated credential plus the host-resolved client facts. */
-interface CompleteSignInInput { credential: MemberCompletionCredential; clientAddress: string; userAgent: string | undefined }
+/** A JSON answer as Express's `res.json` wrote it: the same content type and serialized bytes. O(n) body. */
+function jsonResponse({ status, body, headers = {} }: { status: number; body: unknown; headers?: Readonly<Record<string, string>> }, _optional: Record<string, never> = {}): Response {
+  return new Response(JSON.stringify(body), { status, headers: { ...headers, "content-type": "application/json; charset=utf-8" } });
+}
 
-/** Complete a purpose-bound link/code challenge and set only the member session cookie. O(1) I/O. */
-export const memberCompleteSignInRoute: JsonRouteSpec<CompleteSignInInput, RouteReply, MemberCompleteSignInRouteDeps> & { readonly requestFacts: true } = {
-  ...defineJsonRoute<CompleteSignInInput, RouteReply, MemberCompleteSignInRouteDeps>({
-    method: "post",
-    path: "/api/members/v1/workspaces/:workspaceId/sign-in/complete",
-    parse: (raw) => {
-      const credential = memberCompletionCredential({ body: raw.body });
-      if (!credential) rejectRoute({ status: 400, error: "expected token or challengeId and six-digit code strings" });
-      return ok({ value: { credential, clientAddress: memberClientAddress({ raw }), userAgent: raw.facts?.userAgent } });
-    },
-    handle: async ({ input, deps }) => {
-      try {
-        const limited = await memberRequestLimitReply({ clientAddress: input.clientAddress, ipLimiter: deps.attemptLimiter });
-        if (limited) return ok({ value: limited });
-        const result = await deps.completeSignIn({ workspaceId: deps.workspaceId, ...input.credential, userAgent: input.userAgent, ip: input.clientAddress });
-        const cookie = deps.sessionCookie({ rawToken: result.rawSessionToken, expiresAtIso: result.session.expiresAt });
-        deps.signedIn({ result });
-        return ok({ value: routeReply({ status: 200, body: { member: deps.toPublicMember({ member: result.member }) }, headers: { "Set-Cookie": cookie } }) });
-      } catch (error) {
-        return refuseMemberAuthError({ error, refusalFor: deps.refusalFor });
-      }
-    },
-  }),
+/** Complete a purpose-bound link/code challenge and set only the member session cookie. A raw answer, so the
+ *  cookie is APPENDED after any `Set-Cookie` an earlier handler wrote, never replacing it. O(1) I/O. */
+export const memberCompleteSignInRoute: PublicMemberRawRoute<MemberCompleteSignInRouteDeps> & { readonly requestFacts: true } = {
+  method: "post",
+  path: "/api/members/v1/workspaces/:workspaceId/sign-in/complete",
   requestFacts: true,
+  handle: async ({ raw, deps }) => {
+    const credential = memberCompletionCredential({ body: raw.body });
+    if (!credential) rejectRoute({ status: 400, error: "expected token or challengeId and six-digit code strings" });
+    const clientAddress = memberClientAddress({ raw });
+    try {
+      const limited: RouteReply | undefined = await memberRequestLimitReply({ clientAddress, ipLimiter: deps.attemptLimiter });
+      if (limited) return jsonResponse({ status: limited.status, body: limited.body, headers: limited.headers ?? {} });
+      const result = await deps.completeSignIn({ workspaceId: deps.workspaceId, ...credential, userAgent: raw.facts?.userAgent, ip: clientAddress });
+      const cookie = deps.sessionCookie({ rawToken: result.rawSessionToken, expiresAtIso: result.session.expiresAt });
+      deps.signedIn({ result });
+      return jsonResponse({ status: 200, body: { member: deps.toPublicMember({ member: result.member }) }, headers: { "set-cookie": cookie } });
+    } catch (error) {
+      return refuseMemberAuthError({ error, refusalFor: deps.refusalFor });
+    }
+  },
 };

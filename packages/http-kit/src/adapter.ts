@@ -34,7 +34,7 @@ export function defineJsonRoute<Input, Output, Deps, Context = undefined>(requir
  * @returns Void; registers one handler, without starting a listener.
  * @complexity O(1) setup and per-request overhead, plus parsing, host ports and handling.
  */
-export function mountJsonRoute<Input, Output, Deps, Context = undefined>({ app, spec, deps, adapter }: { readonly app: Express; readonly spec: JsonRouteSpec<Input, Output, Deps, Context>; readonly deps: Deps; readonly adapter?: RouteHostContext }, optional: RouteMountOptions = {}
+export function mountJsonRoute<Input, Output, Deps, Context = undefined>({ app, spec, deps: mountedDeps, adapter }: { readonly app: Express; readonly spec: JsonRouteSpec<Input, Output, Deps, Context>; readonly deps: Deps; readonly adapter?: RouteHostContext }, optional: RouteMountOptions<Deps> = {}
 ): void {
   assertRequestFactsPort({ spec });
   // Read once at mount: the per-request callback stays within the complexity budget.
@@ -59,6 +59,7 @@ export function mountJsonRoute<Input, Output, Deps, Context = undefined>({ app, 
     res.on?.('close', onResponseClose);
     try {
       applyResponseHeaders({ res, headers: spec.responseHeaders });
+      const deps = requestScopedDeps({ req, res, deps: mountedDeps }, optional);
       const raw = routeRequestInput({ req, spec, deps });
       if (!allowRouteBody({ req, res, spec })) return;
       if (spec.ports?.workspace) await spec.ports.workspace({ raw, deps });
@@ -102,6 +103,15 @@ async function parseHandleAndSend<Input, Output, Deps, Context>({ res, raw, spec
  */
 export function assertRequestFactsPort({ spec }: { readonly spec: Pick<RouteRequestOptIns, 'requestFacts'> & { readonly path: string; readonly ports?: { readonly requestFacts?: unknown } | undefined } }, _optional: Record<string, never> = {}): void {
   if (spec.requestFacts && !spec.ports?.requestFacts) throw new Error(`route ${spec.path} opts into requestFacts but no requestFacts port is mounted`);
+}
+
+/**
+ * The deps one request runs with: the host's `requestDeps` binding (`RouteMountOptions`) evaluated for
+ * this request, or the mounted deps unchanged when the mount declared none.
+ * @complexity O(1) plus the host binding.
+ */
+export function requestScopedDeps<Deps>({ req, res, deps }: { readonly req: Request; readonly res: Response; readonly deps: Deps }, { requestDeps }: Pick<RouteMountOptions<Deps>, 'requestDeps'> = {}): Deps {
+  return requestDeps ? requestDeps({ req, res, deps }) : deps;
 }
 
 /** Sets static or reply headers; a no-op without any, so a route that declares none writes nothing extra.

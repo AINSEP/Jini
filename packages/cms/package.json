@@ -335,6 +335,7 @@
       "./admin-http/routes/themes/explore-file-copy": "universal",
       "./admin-http/routes/themes/explore-file-rename": "universal",
       "./admin-http/routes/system/mail-status": "universal",
+      "./admin-http/routes/system/dockerfile-source": "universal",
       "./admin-http/routes/system/site-backups": "universal",
       "./admin-http/routes/system/site-imports": "universal",
       "./admin-http/routes/system/site-shares": "universal",
@@ -2628,6 +2629,11 @@
       "types": "./dist/admin-http/routes/system/mail-status.d.ts",
       "import": "./dist/admin-http/routes/system/mail-status.js",
       "default": "./dist/admin-http/routes/system/mail-status.js"
+    },
+    "./admin-http/routes/system/dockerfile-source": {
+      "types": "./dist/admin-http/routes/system/dockerfile-source.d.ts",
+      "import": "./dist/admin-http/routes/system/dockerfile-source.js",
+      "default": "./dist/admin-http/routes/system/dockerfile-source.js"
     },
     "./admin-http/routes/system/site-backups": {
       "types": "./dist/admin-http/routes/system/site-backups.d.ts",
