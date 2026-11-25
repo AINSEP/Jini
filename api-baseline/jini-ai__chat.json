@@ -215,7 +215,7 @@
   "symbols": {
    "FrontendNavigationGuard": "interface:f29713c58c",
    "FrontendRunInvocationBegin": "type:5b6a7be4c9",
-   "FrontendSessionBridge": "interface:cf61734e81",
+   "FrontendSessionBridge": "interface:26532a47e2",
    "FrontendSessionBridgeArgs": "interface:35bca9027f",
    "FrontendSessionBridgeOptions": "interface:fcd712f1ed",
    "createFrontendNavigationGuard": "function:9aea85c191",
@@ -615,7 +615,7 @@
    "FrontendNavigationGuard": "interface:f29713c58c",
    "FrontendRequestCallerRequired": "interface:929e6b181f",
    "FrontendRequestInput": "interface:4d895a770c",
-   "FrontendSessionBridge": "interface:cf61734e81",
+   "FrontendSessionBridge": "interface:26532a47e2",
    "FrontendSessionBridgeArgs": "interface:35bca9027f",
    "FrontendSessionBridgeOptions": "interface:fcd712f1ed",
    "I18nAdapter": "interface:6cf1b517a0",
