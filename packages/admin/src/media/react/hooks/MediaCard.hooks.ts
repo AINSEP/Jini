@@ -7,6 +7,7 @@ export interface MediaCardProps {
   readonly item: MediaAsset;
   readonly handleBase?: string;
   readonly locale?: string;
+  readonly viewerTimeZone?: string;
   readonly api: MediaApiPort;
   readonly busy?: boolean;
   readonly onEdit?: () => void;
@@ -31,9 +32,9 @@ function menuItems({ props }: { props: MediaCardProps }, _optional: Record<strin
     ? [{ id, label, ...(id === 'purge' ? { attrs: { 'data-jini-variant': 'danger' } } : {}), onPress, disabled }]
     : []);
 }
-function metadata({ item }: { item: MediaAsset }, { locale = 'en-US' }: { locale?: string | undefined } = {}) {
+function metadata({ item }: { item: MediaAsset }, { locale = 'en-US', viewerTimeZone }: { locale?: string | undefined; viewerTimeZone?: string | undefined } = {}) {
   const byteSize = item.byteSize === undefined ? null : formatByteSize({ bytes: item.byteSize }, { locale });
-  const uploadDate = formatUploadDate({ createdAt: item.createdAt }, { locale });
+  const uploadDate = formatUploadDate({ createdAt: item.createdAt }, { locale, viewerTimeZone });
   return { byteSize, uploadDate, metadataSeparator: byteSize && uploadDate ? ' · ' : '' };
 }
 function previewFlags({ src, stage }: { src: string | undefined; stage: PreviewStage }, { onPreview }: { onPreview?: (() => void) | undefined } = {}) {
@@ -80,7 +81,7 @@ export function useMediaCard(props: MediaCardProps, _optional: Record<string, ne
   return {
     ...props,
     busy: props.busy === true,
-    ...metadata({ item: props.item }, { locale: props.locale }),
+    ...metadata({ item: props.item }, { locale: props.locale, viewerTimeZone: props.viewerTimeZone }),
     preview: () => props.onPreview?.(),
     ...previewFlags({ src, stage }, { onPreview: props.onPreview }),
     ...agentAttrs({ handleBase, title: props.item.title }),

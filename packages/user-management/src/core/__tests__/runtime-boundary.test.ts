@@ -15,12 +15,82 @@ function sourceFiles(directory: string): string[] {
   });
 }
 
+function readModuleEdges(
+  { source, file }: { source: string; file: string },
+  _optional: Record<string, never> = {},
+): { specifier: string; typeOnly: boolean }[] {
+  const ast = ts.createSourceFile(file, source, ts.ScriptTarget.Latest, true);
+  const edges: { specifier: string; typeOnly: boolean }[] = [];
+  function check(node: ts.Node): void {
+    let specifier: string | undefined;
+    let typeOnly = false;
+    if ((ts.isImportDeclaration(node) || ts.isExportDeclaration(node)) && node.moduleSpecifier && ts.isStringLiteral(node.moduleSpecifier)) {
+      specifier = node.moduleSpecifier.text;
+      typeOnly = ts.isImportDeclaration(node) ? node.importClause?.isTypeOnly === true : node.isTypeOnly;
+    }
+    if (ts.isCallExpression(node) && (node.expression.kind === ts.SyntaxKind.ImportKeyword || node.expression.getText(ast) === "require")) {
+      const argument = node.arguments[0];
+      expect(argument && ts.isStringLiteral(argument), file).toBe(true);
+      if (argument && ts.isStringLiteral(argument)) specifier = argument.text;
+    }
+    if (specifier) {
+      expect(specifier, file).not.toMatch(/^(?:react|react-dom)(?:\/|$)|^@jini-ai\/(?:cms|admin|mcp|ui)(?:\/|$)/);
+      edges.push({ specifier, typeOnly });
+    }
+    ts.forEachChild(node, check);
+  }
+  check(ast);
+  return edges;
+}
+
+function isAllowedPasskeyTypeEdge(
+  { specifier, typeOnly }: { specifier: string; typeOnly: boolean },
+  _optional: Record<string, never> = {},
+): boolean {
+  if (specifier !== "@jini-ai/core/contracts/site/user-management-react" || !typeOnly) return false;
+  // The subpath name indicates who consumes the DTO, not what code it loads.
+  const file = resolve(sourceRoot, "../../core/src/contracts/site/user-management-react.ts");
+  const ast = ts.createSourceFile(file, readFileSync(file, "utf8"), ts.ScriptTarget.Latest, true);
+  for (const statement of ast.statements) {
+    expect(ts.isTypeAliasDeclaration(statement) || ts.isInterfaceDeclaration(statement) || (ts.isExportDeclaration(statement) && statement.isTypeOnly), file).toBe(true);
+  }
+  function check(node: ts.Node): void {
+    expect(ts.isImportDeclaration(node) || ts.isImportEqualsDeclaration(node), file).toBe(false);
+    if (ts.isCallExpression(node)) {
+      expect(node.expression.kind === ts.SyntaxKind.ImportKeyword || node.expression.getText(ast) === "require", file).toBe(false);
+    }
+    ts.forEachChild(node, check);
+  }
+  check(ast);
+  return true;
+}
+
+test("accepts the canonical type-only passkey contract without treating it as React", () => {
+  const edges = readModuleEdges({
+    source: 'export type { PasskeyOptions } from "@jini-ai/core/contracts/site/user-management-react"',
+    file: "fixture.ts",
+  });
+  expect(edges).toEqual([{ specifier: "@jini-ai/core/contracts/site/user-management-react", typeOnly: true }]);
+  expect(isAllowedPasskeyTypeEdge(edges[0]!)).toBe(true);
+});
+
+test("rejects React imports and value imports of the passkey contract", () => {
+  const [edge] = readModuleEdges({
+    source: 'import { PasskeyOptions } from "@jini-ai/core/contracts/site/user-management-react"',
+    file: "fixture.ts",
+  });
+  expect(isAllowedPasskeyTypeEdge(edge!)).toBe(false);
+  for (const specifier of ["react", "react/jsx-runtime", "@jini-ai/admin/media"]) {
+    expect(() => readModuleEdges({ source: `import value from "${specifier}"`, file: "fixture.ts" })).toThrow();
+  }
+});
+
 test("all headless production source stays independent of host and UI packages", () => {
   const files = ["core", "server"].flatMap((entry) => sourceFiles(resolve(sourceRoot, entry)));
   expect(files.length).toBeGreaterThan(0);
   for (const file of files) {
     const source = readFileSync(file, "utf8");
-    expect(source, file).not.toMatch(/@jini-ai\/(?:cms|admin|mcp|ui)(?:[\/"']|$)|\breact(?:[\/"']|$)/i);
+    readModuleEdges({ source, file });
   }
 });
 
@@ -30,27 +100,16 @@ test("the entire universal import graph excludes Node, React, and server modules
     if (visited.has(file)) return;
     visited.add(file);
     expect(file).not.toContain("/server/");
-    const ast = ts.createSourceFile(file, readFileSync(file, "utf8"), ts.ScriptTarget.Latest, true);
-    function check(node: ts.Node): void {
-      let specifier: string | undefined;
-      if ((ts.isImportDeclaration(node) || ts.isExportDeclaration(node)) && node.moduleSpecifier && ts.isStringLiteral(node.moduleSpecifier)) specifier = node.moduleSpecifier.text;
-      if (ts.isCallExpression(node) && (node.expression.kind === ts.SyntaxKind.ImportKeyword || node.expression.getText(ast) === "require")) {
-        const argument = node.arguments[0];
-        expect(argument && ts.isStringLiteral(argument), file).toBe(true);
-        if (argument && ts.isStringLiteral(argument)) specifier = argument.text;
+    for (const edge of readModuleEdges({ source: readFileSync(file, "utf8"), file })) {
+      const { specifier } = edge;
+      if (specifier === "@jini-ai/core/primitives") {
+        // Canonical primitives moved into core; inspect their graph rather than bypassing it.
+        visit(resolve(sourceRoot, "../../core/src/primitives/index.ts"));
+      } else if (!isAllowedPasskeyTypeEdge(edge)) {
+        expect(specifier, file).toMatch(/^\./);
+        visit(resolve(dirname(file), specifier.replace(/\.js$/, ".ts")));
       }
-      if (specifier) {
-        if (specifier === "@jini-ai/core/primitives") {
-          // Canonical primitives moved into core; inspect their graph rather than bypassing it.
-          visit(resolve(sourceRoot, "../../core/src/primitives/index.ts"));
-        } else {
-          expect(specifier, file).toMatch(/^\./);
-          visit(resolve(dirname(file), specifier.replace(/\.js$/, ".ts")));
-        }
-      }
-      ts.forEachChild(node, check);
     }
-    check(ast);
   }
   visit(resolve(sourceRoot, "core/index.ts"));
 });

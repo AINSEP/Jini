@@ -15,6 +15,14 @@ const mount = (props: Partial<MediaCardProps> = {}) =>
   renderHook((p: Partial<MediaCardProps>) => useMediaCard({ item: asset(), api, ...p }), { initialProps: props });
 
 describe('useMediaCard', () => {
+  it('MediaCard shows the upload date in a supplied viewer time zone', () => {
+    const { result } = mount({
+      item: asset({ createdAt: '2026-11-25T07:30:00.000Z' }),
+      locale: 'en-US', viewerTimeZone: 'America/Los_Angeles',
+    });
+    expect(result.current.uploadDate).toBe('Nov 24, 2026');
+  });
+
   it('derives metadata, handles and the image-first preview for an active asset', () => {
     const onPreview = vi.fn();
     const { result } = mount({ onPreview });

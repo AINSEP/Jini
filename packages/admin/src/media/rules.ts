@@ -167,9 +167,9 @@ export function mediaRowHandles({ media }: { media: readonly Pick<MediaAsset, 'i
   });
 }
 
-/** A calendar date in UTC, so cards do not shift an upload to yesterday across host timezones. */
-export function formatUploadDate({ createdAt }: { createdAt: string }, { locale = 'en-US' }: { locale?: string } = {}): string | null {
+/** Timestamps remain instants; only the calendar label belongs to the person viewing it. */
+export function formatUploadDate({ createdAt }: { createdAt: string }, { locale = 'en-US', viewerTimeZone = 'UTC' }: { locale?: string; viewerTimeZone?: string | undefined } = {}): string | null {
   const date = new Date(createdAt);
   if (!Number.isFinite(date.getTime())) return null;
-  return new Intl.DateTimeFormat(locale, { month: 'short', day: 'numeric', year: 'numeric', timeZone: 'UTC' }).format(date);
+  return new Intl.DateTimeFormat(locale, { month: 'short', day: 'numeric', year: 'numeric', timeZone: viewerTimeZone }).format(date);
 }

@@ -4,7 +4,7 @@ import { formatUploadDate } from "../../../media/rules.js";
 /** Jini owns generic formatting; this hook only adapts the legacy card's view model. */
 export interface MediaMetadataFormatters {
   formatByteSize: (required: { bytes: number }, optional?: { locale?: string }) => string;
-  formatUploadDate?: (required: { createdAt: string }, optional?: { locale?: string }) => string | null;
+  formatUploadDate?: (required: { createdAt: string }, optional?: { locale?: string; viewerTimeZone?: string | undefined }) => string | null;
 }
 
 /** The structural slice of the host's media item this hook reads; the host's wire DTO stays with the host. */
@@ -23,13 +23,14 @@ const defaultFormatters: MediaMetadataFormatters = { formatByteSize, formatUploa
  * upload cap. Intl.NumberFormat supplies locale separators, defaulting to en-US. */
 export function useMediaCardMetadata(
   { item }: { item: MediaCardMetadataSource },
-  { locale = "en-US", formatters = defaultFormatters }: {
+  { locale = "en-US", formatters = defaultFormatters, viewerTimeZone }: {
     locale?: string;
     formatters?: MediaMetadataFormatters;
+    viewerTimeZone?: string | undefined;
   } = {},
 ) {
   const byteSize = item.byteSize == null ? null : formatters.formatByteSize({ bytes: item.byteSize }, { locale });
-  const uploadDate = formatters.formatUploadDate?.({ createdAt: item.createdAt }, { locale }) ?? null;
+  const uploadDate = formatters.formatUploadDate?.({ createdAt: item.createdAt }, viewerTimeZone === undefined ? { locale } : { locale, viewerTimeZone }) ?? null;
   return legacyCardMetadata({ byteSize, uploadDate, createdAt: item.createdAt });
 }
 

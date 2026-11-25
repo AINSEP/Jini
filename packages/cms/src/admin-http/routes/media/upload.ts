@@ -1,5 +1,5 @@
 import { defineJsonRoute, ok } from "@jini-ai/core/contracts/server";
-import type { AdminMediaEnvelope } from "@jini-ai/core/contracts/site/cms-media";
+import type { AdminMediaDto, MediaUploadResult } from "@jini-ai/core/contracts/site/cms-media";
 import { decodeStrictBase64 } from "@jini-ai/core/contracts/site/strict-base64";
 import { rejectRoute } from "@jini-ai/core/errors/route-refusal";
 
@@ -27,7 +27,7 @@ export interface MediaUploadInput {
 export interface MediaUploadRouteDeps {
   workspaceId: string;
   /** The host's upload pipeline (repositories, blob store, document archive reader, byte cap). */
-  storeUpload: (required: MediaUploadInput) => Promise<{ media: MediaRecord }>;
+  storeUpload: (required: MediaUploadInput) => Promise<MediaUploadResult<MediaRecord>>;
   /** Persists the sniffed type of a stored media blob (documents are typed by filename and skip it). */
   recordContentType: (required: { sha256: string; contentType: string }) => Promise<void>;
   /** The host's product event for a stored upload. */
@@ -121,17 +121,20 @@ function decodeUploadPayload(
 async function persistUpload(
   { deps, fields, actorId }: { deps: MediaUploadRouteDeps; fields: UploadRequestFields; actorId: string },
   _optional: Record<string, never> = {},
-): Promise<AdminMediaEnvelope> {
+): Promise<MediaUploadResult<AdminMediaDto>> {
   const { kind, filename, alt, caption, credit } = fields;
   const { bytes, contentType } = decodeUploadPayload(fields);
-  const { media } = await deps.storeUpload({ kind, bytes, filename, contentType, alt, caption, credit, createdByPrincipal: actorId });
+  const result = await deps.storeUpload({ kind, bytes, filename, contentType, alt, caption, credit, createdByPrincipal: actorId });
+  const { media } = result;
   // Only media uses the per-blob sniff cache; document type is its validated filename policy.
   // Record the sniffed type so the admin's type filter agrees with what `original.ts` serves
   // (it never trusts the upload-time string either). Written AFTER `uploadMedia` because the
   // blob row it updates is created there.
   if (kind === "media") await deps.recordContentType({ sha256: media.source.sha256, contentType });
   deps.onUploaded({ actorId, kind, contentType, byteLength: bytes.byteLength });
-  return deps.describeStored({ media, contentType, byteLength: bytes.byteLength });
+  const response = await deps.describeStored({ media, contentType, byteLength: bytes.byteLength });
+  // An upload succeeded even when making the optional playable copy failed; diagnostics never travel in the success response.
+  return { ...response, ...(result.conversionNotice === "web-copy-unavailable" ? { conversionNotice: "web-copy-unavailable" as const } : {}) };
 }
 
 /** Slug allocation is a courtesy lookup before save. Concurrent uploads can choose the same free
@@ -147,7 +150,7 @@ const UPLOAD_ERRORS: readonly MediaErrorMapping[] = [
  * with no entity id. The body is checked in `parse`, before the session, so its 400s win; the host
  * mount defers a missing principal to `authorize` for that reason.
  */
-export const mediaUploadRoute = defineJsonRoute<ParsedUpload, AdminMediaEnvelope, MediaUploadRouteDeps, MediaRoutePrincipal>({
+export const mediaUploadRoute = defineJsonRoute<ParsedUpload, MediaUploadResult<AdminMediaDto>, MediaUploadRouteDeps, MediaRoutePrincipal>({
   method: "post",
   path: "/api/admin/v1/workspaces/:workspaceId/media",
   parse: (raw) => ok({ value: parseUploadOrRefuse({ rawBody: raw.body }) }),

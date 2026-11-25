@@ -5,6 +5,14 @@ import { formatByteSize } from "@jini-ai/core/text";
 import { useMediaCardMetadata } from "../use-media-card-metadata.hooks.js";
 
 describe("legacy media card metadata", () => {
+  it("keeps the original ISO timestamp while showing the viewer's date", () => {
+    const { result } = renderHook(() => useMediaCardMetadata({
+      item: { byteSize: 1024, createdAt: "2026-11-25T07:30:00.000Z" },
+    }, { locale: "en-US", viewerTimeZone: "America/Los_Angeles" }));
+    expect(result.current.uploadDate).toBe("Nov 24, 2026");
+    expect(result.current.uploadDateTime).toBe("2026-11-25T07:30:00.000Z");
+  });
+
   it("defaults to Jini's en-US size and UTC upload calendar date", () => {
     const { result } = renderHook(() => useMediaCardMetadata({
       item: { byteSize: 9_961_472, createdAt: "2026-10-03T23:30:00-02:00" },
