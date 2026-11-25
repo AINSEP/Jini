@@ -154,17 +154,19 @@ async function prepareCodexHomeForRun(
   // too, not just path separators, so a run id like `../../etc/evil` cannot leave even a cosmetic
   // `..` substring in the mkdtemp prefix.
   const safeRunId = runId.replace(/[^A-Za-z0-9_-]/g, '-').slice(0, 80) || 'run';
+  // The config is read and judged BEFORE the directory exists: an isolation refusal must acquire nothing (no scratch dir, no
+  // auth.json link), so there is nothing to release afterwards.
+  let existingConfigRaw: string | undefined;
+  try {
+    existingConfigRaw = inheritUserConfig || inheritUserMcp ? await seams.readFile({ path: join(sourceCodexHomeDir, 'config.toml') }) : undefined;
+  } catch {
+    // No config yet (fresh Codex install) or unreadable — start from just this run's block,
+    // matching writeMcpJsonForRun's identical "missing file" handling.
+    existingConfigRaw = undefined;
+  }
+  const content = buildStagedCodexConfig({ existingRaw: existingConfigRaw, entry, inheritUserConfig, inheritUserMcp, sourceHome: sourceCodexHomeDir, toolApprovalOwner });
   const dir = await seams.mkdtemp({ prefix: `jini-codex-home-${safeRunId}-` });
   try {
-    let existingConfigRaw: string | undefined;
-    try {
-      existingConfigRaw = inheritUserConfig || inheritUserMcp ? await seams.readFile({ path: join(sourceCodexHomeDir, 'config.toml') }) : undefined;
-    } catch {
-      // No config yet (fresh Codex install) or unreadable — start from just this run's block,
-      // matching writeMcpJsonForRun's identical "missing file" handling.
-      existingConfigRaw = undefined;
-    }
-    const content = buildStagedCodexConfig({ existingRaw: existingConfigRaw, entry, inheritUserConfig, inheritUserMcp, sourceHome: sourceCodexHomeDir, toolApprovalOwner });
     await seams.writeFile({ path: join(dir, 'config.toml'), content });
     await seams.linkSessionStore({ runHome: dir, sourceHome: sourceCodexHomeDir }, { inheritUserConfig });
   } catch (err) {

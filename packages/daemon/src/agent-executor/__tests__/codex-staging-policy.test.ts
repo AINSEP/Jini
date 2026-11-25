@@ -1,6 +1,7 @@
 import { expect, it } from 'vitest';
 import { getAgentDef } from '@jini-ai/agent-runtime';
 import { prepareBoundRunHome } from './runtime-fixture.js';
+import { JINI_MCP_SERVER_KEY } from '../mcp-json-file.js';
 
 it('refuses to ignore a personal-MCP restriction when Codex home staging is unavailable', async () => {
   await expect(prepareBoundRunHome({ input: { runId: 'run', def: getAgentDef({ id: 'codex' })!,
@@ -64,3 +65,27 @@ it('drops only personal MCP servers when userMcp is off', async () => {
   expect(config).not.toContain('chrome');
 });
 
+
+// The slot (agent-runtime) names the bridge table from its own copy of the key; the host's `JINI_MCP_SERVER_KEY` is the name
+// every other delivery uses, so a drift would stage a config the CLI never finds the bridge in.
+it('stages the bridge under the same server key the host uses for every other delivery', async () => {
+  const config = await stagedConfig({});
+  expect(config).toContain(`[mcp_servers.${JINI_MCP_SERVER_KEY}]\n`);
+  expect(config).toContain(`[mcp_servers.${JINI_MCP_SERVER_KEY}.env]\n`);
+});
+
+// Sheet rule: a refused start acquires no resources. The refusal is decided from the real config alone, so nothing
+// (no scratch dir, no auth.json link, no write) may exist at all, rather than be created and removed afterwards.
+it('an isolation refusal acquires no scratch home and links no auth.json', async () => {
+  const calls: string[] = [];
+  await expect(prepareBoundRunHome({ input: { runId: 'run', def: codexDef, mcpBridge: { kind: 'codex-toml', serverEntry: bridgeEntry }, nativeCapabilities: { userMcp: false } },
+    deps: { hostEnv: { CODEX_HOME: '/home/codex' }, releaseStagedResources: async () => {}, failBeforeSpawn: refuse, mcpJsonInjection: {
+      command: 'host-bridge', daemonUrl: 'http://site',
+      mkdtemp: async ({ prefix }) => { calls.push('mkdtemp'); return `/tmp/${prefix}x`; },
+      removeDir: async () => { calls.push('removeDir'); },
+      linkSessionStore: async () => { calls.push('link'); },
+      readFile: async () => 'model = = not toml [',
+      writeFile: async () => { calls.push('write'); },
+    } } })).rejects.toMatchObject({ code: 'NATIVE_TOOL_POLICY_UNSUPPORTED' });
+  expect(calls).toEqual([]);
+});
