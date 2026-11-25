@@ -190,6 +190,14 @@ function normalizeDeployResult(input: DeployRequest, result: DeployOpsDeployResu
  * @example await runDeploy({ deps, input: { platform: "my-host", target: "owner/repo", ref: "main" } }, { signal });
  */
 export async function runDeploy(required: { deps: DeployOpsRuntime; input: DeployRequest }, optional: { signal?: AbortSignal | undefined } = {}): Promise<DeployOpsDeployResult> {
+  const { deps, input } = required;
+  const work = () => executeDeploy(required, optional);
+  // The observation covers dispatch acceptance (or its refusal), not remote deployment completion: landing is
+  // only knowable later through status/wait, so a started:true result is "accepted", never "deployed".
+  return deps.observeDeploy ? deps.observeDeploy({ providerId: input.platform, work }, {}) : work();
+}
+
+async function executeDeploy(required: { deps: DeployOpsRuntime; input: DeployRequest }, optional: { signal?: AbortSignal | undefined } = {}): Promise<DeployOpsDeployResult> {
   const { deps, input } = required; const { signal } = optional;
   if (signal?.aborted) throw aborted();
   const registry = await deps.loadDeployOps({ workspaceId: deps.workspaceId });

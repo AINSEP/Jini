@@ -2,7 +2,7 @@ import type { AgentToolDefinition, DerivedRiskByToolId, ToolMetadataById, ToolEx
 import type { Clock, Logger } from '@jini-ai/core/primitives';
 import type { SurfaceCardsPort, SurfaceCardSecretForm } from '@jini-ai/core/contracts/cards';
 import type { CredentialedRequestRequired, CredentialedRequestOptional, CredentialedRequestResult, CredentialedRequestPort } from '@jini-ai/core/contracts/credentials';
-import type { DeployOpsRegistry, DeployOpsSecretAppliesOn } from './ops-contracts.js';
+import type { DeployOpsDeployResult, DeployOpsRegistry, DeployOpsSecretAppliesOn } from './ops-contracts.js';
 
 export type SecretValueSource = { kind: "site-key" } | { kind: "secret"; name: string } | { kind: "typed" };
 
@@ -47,6 +47,12 @@ export interface DeployOpsRuntime {
   workspaceId: string;
   clock: Clock;
   loadDeployOps(input: {workspaceId:string}): Promise<DeployOpsRegistry>;
+  /**
+   * Optional host observation around one whole deploy request, including pre-abort and observe-only refusals.
+   * It must return or rethrow exactly what `work` did and must call `work` once. `providerId` is the raw, user-supplied
+   * platform text, not a telemetry label: the host maps it to a recognized id before exporting anything.
+   */
+  observeDeploy?: ((required: { providerId?: string; work: () => Promise<DeployOpsDeployResult> }, optional?: Record<string, never>) => Promise<DeployOpsDeployResult>) | undefined;
   loadDeployWorkflowFiles?: ((input:{workspaceId:string})=>Promise<readonly string[]>) | undefined;
   waitClock?: WaitClock | undefined;
   credentials: DeployOpsBoundedRequest & Pick<CredentialedRequestPort,'resolveTarget'|'classifyError'> & {
