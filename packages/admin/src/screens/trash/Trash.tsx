@@ -289,7 +289,7 @@ export function Trash({ useTrashHook, translateAdminNavLabel }: TrashProps) {
             <InfoTip label={coverageLine({ translate: trashTranslator({ t, locale }) })} agentHandle="trash-coverage-info" />
           </h1>
           <p className="jini-page-description">
-            {t({ locale: locale, key: "Deleted items are kept for 30 days." })}
+            {t({ locale: locale, key: "Each item shows how many days it has left." })}
           </p>
         </div>
       </div>

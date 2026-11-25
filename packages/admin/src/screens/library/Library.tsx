@@ -128,7 +128,7 @@ export function UploadTab({ controller }: { controller: LibraryController }) {
         <FileDropzone
           accept={LIBRARY_ACCEPT}
           prompt={t("Drop documents here, or click to browse")}
-          helper={t("Documents: Markdown, text, PDF, Word, Excel, PowerPoint, Pages, Keynote, RTF, CSV, JSON · up to 10 MiB each")}
+          helper={t("Documents: Markdown, text, PDF, Word, Excel, PowerPoint, Pages, Keynote, RTF, CSV, JSON · up to 50 MiB each")}
           onFiles={addFiles}
         />
         <p className="jini-library-upload-warning">{t("Do not load any sensitive keys, tokens, or secrets here.")}</p>

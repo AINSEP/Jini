@@ -28,19 +28,25 @@ import { useFolderDrop, type UseFolderDrop, type UseFolderDropDeps, type UseFold
  *
  * @returns The memoized uploader instance.
  * @example
- * const uploadAttachments = useAttachmentUploader({ fetch }, { maxAttachmentBytes, maxBatchBytes });
+ * const uploadAttachments = useAttachmentUploader({ fetch }, { maxAttachmentBytes, maxAttachmentBytesFor, maxBatchBytes });
  */
 export function useAttachmentUploader(
   { fetch }: { fetch: typeof globalThis.fetch },
-  { maxAttachmentBytes, maxBatchBytes }: { maxAttachmentBytes?: number; maxBatchBytes?: number } = {},
+  { maxAttachmentBytes, maxAttachmentBytesFor, maxBatchBytes }: {
+    maxAttachmentBytes?: number;
+    /** Per-file cap chosen by the host (e.g. a larger limit for video); wins over `maxAttachmentBytes` for that file. */
+    maxAttachmentBytesFor?: (file: { readonly name: string; readonly type: string }) => number;
+    maxBatchBytes?: number;
+  } = {},
 ): KitUploadAttachments {
   const { createDaemonAttachmentUploader } = useAdminKitChatRunValues();
   return useMemo(
     () => createDaemonAttachmentUploader({ baseUrl: "", fetch }, {
       ...(maxAttachmentBytes === undefined ? {} : { maxAttachmentBytes }),
+      ...(maxAttachmentBytesFor === undefined ? {} : { maxAttachmentBytesFor }),
       ...(maxBatchBytes === undefined ? {} : { maxBatchBytes }),
     }),
-    [createDaemonAttachmentUploader, fetch, maxAttachmentBytes, maxBatchBytes],
+    [createDaemonAttachmentUploader, fetch, maxAttachmentBytes, maxAttachmentBytesFor, maxBatchBytes],
   );
 }
 
