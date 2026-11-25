@@ -59,11 +59,11 @@ export function inheritIdleTurn(
  * Never queues (I2), never joins a transaction (I3), always releases (I5).
  * @complexity O(1) admission plus the body.
  */
-export async function withIdleTurn<T>(
-  { kernel, body }: { kernel: KyselyKernel<unknown>; body: () => Promise<T> },
+export async function withIdleTurn<T, DB = unknown>(
+  { kernel, body }: { kernel: KyselyKernel<DB>; body: () => Promise<T> },
   _optional: Record<string, never> = {},
 ): Promise<IdleTurnResult<T>> {
-  const control = controls.get(kernel);
+  const control = controls.get(kernel as KyselyKernel<unknown>);
   if (control === undefined) return { ran: false, reason: "unsupported" };
   await kernel.ready;
   const taken = control.tryTake();

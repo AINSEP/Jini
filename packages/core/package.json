@@ -62,6 +62,7 @@
       "./contracts/capabilities": "universal",
       "./net": "universal",
       "./contracts/blob": "universal",
+      "./contracts/blob-gc": "universal",
       "./contracts/tool-result-block": "universal",
       "./contracts/run-attempt": "universal",
       "./contracts/runtime": "universal",
@@ -621,6 +622,11 @@
       "types": "./dist/contracts/blob.d.ts",
       "import": "./dist/contracts/blob.js",
       "default": "./dist/contracts/blob.js"
+    },
+    "./contracts/blob-gc": {
+      "types": "./dist/contracts/blob-gc.d.ts",
+      "import": "./dist/contracts/blob-gc.js",
+      "default": "./dist/contracts/blob-gc.js"
     },
     "./contracts/tool-result-block": {
       "types": "./dist/contracts/tool-result-block.d.ts",
