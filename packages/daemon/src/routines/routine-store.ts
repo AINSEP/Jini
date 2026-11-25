@@ -96,17 +96,27 @@ export function summarizeLastRun({ run }: { readonly run: RoutineRun | null }): 
     projectId: run.projectId,
     conversationId: run.conversationId,
     agentRunId: run.agentRunId,
+    ...truthyRunFields({ run }),
+    ...definedRunFields({ run }),
+  };
+}
+
+function truthyRunFields({ run }: { readonly run: RoutineRun }): Record<string, unknown> {
+  return {
     ...(run.summary ? { summary: run.summary } : {}),
     ...(run.error ? { error: run.error } : {}),
     ...(run.errorCode ? { errorCode: run.errorCode } : {}),
-    ...(run.catchUp === undefined ? {} : { catchUp: run.catchUp }),
-    ...(run.slotAt === undefined ? {} : { slotAt: run.slotAt }),
-    ...(run.assistantMessageId === undefined ? {} : { assistantMessageId: run.assistantMessageId }),
-    ...(run.agentId === undefined ? {} : { agentId: run.agentId }),
-    ...(run.model === undefined ? {} : { model: run.model }),
-    ...(run.approvalState === undefined ? {} : { approvalState: run.approvalState }),
-    ...(run.approvalSince === undefined ? {} : { approvalSince: run.approvalSince }),
   };
+}
+
+const DEFINED_RUN_KEYS = ['catchUp', 'slotAt', 'assistantMessageId', 'agentId', 'model', 'approvalState', 'approvalSince'] as const;
+
+function definedRunFields({ run }: { readonly run: RoutineRun }): Record<string, unknown> {
+  const out: Record<string, unknown> = {};
+  for (const key of DEFINED_RUN_KEYS) {
+    if (run[key] !== undefined) out[key] = run[key];
+  }
+  return out;
 }
 
 /**

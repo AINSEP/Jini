@@ -186,14 +186,23 @@ export async function clearPartitionCacheOnce(
     await mark(required, plan.mode, { state: 'done' });
     return { state: 'below-threshold', mode: plan.mode, bytes: size.bytes };
   }
+  return actOnOversizedCache(required, { mode: plan.mode, bytes: size.bytes }, { timeoutMs, asideDirName });
+}
+
+async function actOnOversizedCache(
+  required: ClearPartitionCacheRequired,
+  { mode, bytes }: { mode: CacheClearMode; bytes: number },
+  { timeoutMs, asideDirName }: { timeoutMs: number; asideDirName: string },
+): Promise<CacheClearResult> {
+  const { partition, interlock } = required;
   const act: Act = interlock.phase === 'boot'
     ? await renameCacheAside({ partition, sub: 'Cache', interlock, fs: required.fs }, { asideDirName })
     : await clearAtOpen(interlock, timeoutMs);
   if (act.state === 'cleared') {
-    await mark(required, plan.mode, { state: 'done' });
-    return { state: 'cleared', mode: plan.mode, bytes: size.bytes, aside: act.aside };
+    await mark(required, mode, { state: 'done' });
+    return { state: 'cleared', mode, bytes, aside: act.aside };
   }
-  await mark(required, plan.mode, { state: 'pending', reason: act.reason });
+  await mark(required, mode, { state: 'pending', reason: act.reason });
   return act;
 }
 

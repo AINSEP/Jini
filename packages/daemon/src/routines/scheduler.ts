@@ -60,6 +60,43 @@ function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
 }
 
+interface RoutineServiceOptions {
+  now?: () => number; monotonicNow?: () => number; newId?: () => string; timers?: SchedulerPort; holderId?: string;
+  graceMs?: number; maxArmMs?: number; leaseTtlMs?: number;
+  policy?: { activeSlotVisibility?: 'diagnostic-only'; catchUpOnAssistantEnable?: boolean };
+  log?: (code: string, detail: unknown) => void;
+  onInterrupted?: (required: { runs: RoutineRun[] }, optional: Record<string, never>) => Promise<void>;
+}
+
+interface ResolvedServiceOptions {
+  now: () => number; monotonicNow: () => number; newId: () => string; timers: SchedulerPort; holderId: string | undefined;
+  graceMs: number; maxArmMs: number; leaseTtlMs: number;
+  policy: { activeSlotVisibility?: 'diagnostic-only'; catchUpOnAssistantEnable?: boolean };
+  log: (code: string, detail: unknown) => void;
+  onInterrupted: (required: { runs: RoutineRun[] }, optional: Record<string, never>) => Promise<void>;
+}
+
+/** Destructuring-default semantics: `undefined` falls back, everything else (including `null`) passes through; the fallback is only evaluated when used. */
+function orDefault<T>(value: T | undefined, fallback: () => T): T {
+  return value === undefined ? fallback() : value;
+}
+
+function resolveServiceOptions(options: RoutineServiceOptions): ResolvedServiceOptions {
+  return {
+    now: orDefault(options.now, () => Date.now),
+    monotonicNow: orDefault(options.monotonicNow, () => () => performance.now()),
+    newId: orDefault(options.newId, () => randomUUID),
+    timers: orDefault(options.timers, () => createTimeoutScheduler({}, {})),
+    holderId: options.holderId,
+    graceMs: orDefault(options.graceMs, () => 60_000),
+    maxArmMs: orDefault(options.maxArmMs, () => 300_000),
+    leaseTtlMs: orDefault(options.leaseTtlMs, () => 90_000),
+    policy: orDefault(options.policy, () => ({})),
+    log: orDefault(options.log, () => (code: string, detail: unknown) => console.error(code, detail)),
+    onInterrupted: orDefault(options.onInterrupted, () => async () => {}),
+  };
+}
+
 export class RoutineService {
   private timers = new Map<string, ScheduledTimer>();
   private inflight = new Map<string, Promise<RoutineRunHandlerStart>>();
@@ -75,30 +112,27 @@ export class RoutineService {
   private readonly newId: () => string;
   constructor(
     { persistence }: { readonly persistence: RoutinePersistence },
-    { now = Date.now, monotonicNow = () => performance.now(), newId = randomUUID, timers = createTimeoutScheduler({}, {}), holderId,
-      graceMs = 60_000, maxArmMs = 300_000, leaseTtlMs = 90_000,
-      policy = {}, log = (code, detail) => console.error(code, detail), onInterrupted = async () => {} }:
-    { now?: () => number; monotonicNow?: () => number; newId?: () => string; timers?: SchedulerPort; holderId?: string;
-      graceMs?: number; maxArmMs?: number; leaseTtlMs?: number;
-      policy?: { activeSlotVisibility?: 'diagnostic-only'; catchUpOnAssistantEnable?: boolean };
-      log?: (code: string, detail: unknown) => void;
-      onInterrupted?: (required: { runs: RoutineRun[] }, optional: Record<string, never>) => Promise<void> } = {},
+    options: RoutineServiceOptions = {},
   ) {
+    const opts = resolveServiceOptions(options);
     this.persistence = persistence;
-    this.now = now;
-    this.newId = newId;
-    this.timerPort = timers;
-    this.holderId = holderId;
-    if ('claimDueSlot' in persistence) {
-      if (!holderId) throw new Error('Durable routines require holderId');
-      this.durable = new DurableScheduler({ persistence: persistence as RoutineDurablePersistence,
-        now, monotonicNow, timers, holderId, graceMs, maxArmMs, leaseTtlMs, log, onInterrupted,
-        policy: { activeSlotVisibility: policy.activeSlotVisibility ?? 'diagnostic-only',
-          catchUpOnAssistantEnable: policy.catchUpOnAssistantEnable ?? false },
-        fireSlot: (id, options) => this.start_(id, 'scheduled', options),
-        pendingRunIds: () => [...this.active.values()],
-      });
-    }
+    this.now = opts.now;
+    this.newId = opts.newId;
+    this.timerPort = opts.timers;
+    this.holderId = opts.holderId;
+    if ('claimDueSlot' in persistence) this.durable = this.buildDurable(persistence as RoutineDurablePersistence, opts);
+  }
+
+  private buildDurable(persistence: RoutineDurablePersistence, opts: ResolvedServiceOptions): DurableScheduler {
+    const { now, monotonicNow, timers, holderId, graceMs, maxArmMs, leaseTtlMs, policy, log, onInterrupted } = opts;
+    if (!holderId) throw new Error('Durable routines require holderId');
+    return new DurableScheduler({ persistence,
+      now, monotonicNow, timers, holderId, graceMs, maxArmMs, leaseTtlMs, log, onInterrupted,
+      policy: { activeSlotVisibility: policy.activeSlotVisibility ?? 'diagnostic-only',
+        catchUpOnAssistantEnable: policy.catchUpOnAssistantEnable ?? false },
+      fireSlot: (id, options) => this.start_(id, 'scheduled', options),
+      pendingRunIds: () => [...this.active.values()],
+    });
   }
 
   setRunHandler({ handler }: { readonly handler: RoutineRunHandler }, _optional = {}): void {
@@ -254,25 +288,32 @@ export class RoutineService {
       if (attempt.run.trigger === 'manual') throw new ClientFacingError({ apiError: { code: 'SERVICE_UNAVAILABLE', message: 'Routine lease lost', details: { reason: 'ROUTINES_UNAVAILABLE' } } });
       return false;
     }
-    let inserted = true;
-    try {
-      if (this.durable && attempt.scheduledSlotAt !== undefined) {
-        const result = (this.persistence as RoutineDurablePersistence).claimDueSlot({
-          routineId: attempt.routine.id, expectedNextRunAt: attempt.scheduledSlotAt,
-          nextRunAt: nextRunAtForSchedule({ schedule: attempt.routine.schedule },
-            { now: new Date(Math.max(this.now(), attempt.scheduledSlotAt + 1)) })?.getTime() ?? null,
-          run: attempt.run, holderId: this.holderId!, now: this.now(),
-        }, {});
-        inserted = result.claimed;
-      } else inserted = this.persistence.insertRun({ run: attempt.run }, this.durable ? { ...attempt.insertOptions, now: this.now() } : attempt.insertOptions) !== false;
-    } catch (error) {
-      this.discardUnstartedRun(attempt);
-      throw this.asPersistenceFailure(attempt, error);
-    }
+    const inserted = this.insertClaimedRun(attempt);
     if (inserted) { if (this.durable) this.active.set(attempt.routine.id, attempt.runId); return true; }
     this.discardUnstartedRun(attempt);
     if (this.durable && attempt.run.trigger === 'manual') throw new RoutineActiveError();
     return false;
+  }
+
+  /** The durable-slot claim or plain insert; discards the unstarted run and rethrows as a persistence failure on a write error. */
+  private insertClaimedRun(attempt: RoutineRunAttempt): boolean {
+    try {
+      if (this.durable && attempt.scheduledSlotAt !== undefined) return this.claimDueSlotFor(attempt, attempt.scheduledSlotAt);
+      return this.persistence.insertRun({ run: attempt.run }, this.durable ? { ...attempt.insertOptions, now: this.now() } : attempt.insertOptions) !== false;
+    } catch (error) {
+      this.discardUnstartedRun(attempt);
+      throw this.asPersistenceFailure(attempt, error);
+    }
+  }
+
+  private claimDueSlotFor(attempt: RoutineRunAttempt, scheduledSlotAt: number): boolean {
+    const result = (this.persistence as RoutineDurablePersistence).claimDueSlot({
+      routineId: attempt.routine.id, expectedNextRunAt: scheduledSlotAt,
+      nextRunAt: nextRunAtForSchedule({ schedule: attempt.routine.schedule },
+        { now: new Date(Math.max(this.now(), scheduledSlotAt + 1)) })?.getTime() ?? null,
+      run: attempt.run, holderId: this.holderId!, now: this.now(),
+    }, {});
+    return result.claimed;
   }
 
   /**

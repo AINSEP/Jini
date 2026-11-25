@@ -315,15 +315,22 @@ const keptBecause = (reason: string | undefined): ManualRemovalResult => {
   return { state: 'kept', reason: 'protected' };
 };
 
-async function manualUnderWriter(shared: Shared, ctx: PartitionWriterContext, partition: string, deleteQueue: string[]): Promise<ManualRemovalResult> {
-  const rootRead = await ctx.resolveRoot();
-  if (rootRead.state !== 'ok') return { state: 'kept', reason: rootRead.state === 'absent' ? 'missing' : 'unknown' };
-  const S = openPass(shared, ctx, rootRead.root, emptyReport(), deleteQueue);
+/** Pre-write checks for owner-confirmed removal, in order: claims readable, no other holders, not claimed, a real directory. `null` means proceed. */
+async function manualPreflight(S: Pass, partition: string): Promise<ManualRemovalResult | null> {
   if (!(await loadClaims(S))) return { state: 'kept', reason: 'unknown' };
   if (S.others.length > 0) return { state: 'kept', reason: 'busy' };
   if (S.claimed.has(partition)) return { state: 'kept', reason: 'protected' };
   const stat = await lstatOr(S.fs, path.join(S.root, partition));
   if (typeof stat === 'string' || stat.isSymbolicLink() || !stat.isDirectory()) return { state: 'kept', reason: 'missing' };
+  return null;
+}
+
+async function manualUnderWriter(shared: Shared, ctx: PartitionWriterContext, partition: string, deleteQueue: string[]): Promise<ManualRemovalResult> {
+  const rootRead = await ctx.resolveRoot();
+  if (rootRead.state !== 'ok') return { state: 'kept', reason: rootRead.state === 'absent' ? 'missing' : 'unknown' };
+  const S = openPass(shared, ctx, rootRead.root, emptyReport(), deleteQueue);
+  const notRemovable = await manualPreflight(S, partition);
+  if (notRemovable) return notRemovable;
   await ctx.setTarget({ target: partition });
   const fresh = await freshClaimVerdict(S, partition);
   if (fresh) return keptBecause(fresh.reason);
