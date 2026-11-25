@@ -325,7 +325,7 @@
    "DeployOpsRegistrationHost": "interface:7943142bbc",
    "DeployOpsRegistry": "interface:5b8b445fbd",
    "DeployOpsResponse": "interface:f88a0827f7",
-   "DeployOpsRuntime": "interface:94702eaaeb",
+   "DeployOpsRuntime": "interface:7875d48989",
    "DeployOpsSecretAppliesOn": "type:ae90b37c00",
    "DeployOpsSecretCapabilities": "interface:d8cee89bcc",
    "DeployOpsSecretCards": "interface:aa53af40f5",
