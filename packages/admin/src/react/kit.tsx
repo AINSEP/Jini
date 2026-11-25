@@ -23,7 +23,7 @@ import type { AdminPluginProviderSettingField } from '../screens/plugins/api/plu
 import type { ByokConfig, ExecutionConfig } from '@jini-ai/core/contracts/execution';
 import type { CreateExecutionPortOptions, CursorPages, ExecutionCredentialController, ExecutionCredentialEffects, ExecutionCredentialPort, ExecutionCredentialView,
   ExecutionProbeTransport, FolderPathDropPort, HtmlPreviewPort, HtmlPreviewState, KitSaveState, SettingsSlice, SettingsSliceOptions, SourceConfigItem, SourceFieldSpec,
-  UseExecutionCredentialInput, SecretInputProps } from './kit-ui-types.js';
+  UseExecutionCredentialInput, SecretInputProps, SeeMoreProps, SearchableModelSelectProps } from './kit-ui-types.js';
 import type { ExecutionPort, ProviderPreset } from '@jini-ai/core/contracts/execution';
 import type { QueryKey } from '@jini-ai/core/fetch';
 
@@ -233,6 +233,11 @@ export interface AdminKitComponents {
   CodeWrapToggle: ComponentType<CodeWrapToggleProps>; PreviewModalShell: ComponentType<PreviewModalShellProps>;
   /** A masked password/token/key input with an eye toggle; every `<input>` prop passes through, and the ref reaches the input. */
   SecretInput: ComponentType<SecretInputProps & { ref?: Ref<HTMLInputElement> }>;
+  /* settings screens' own slots (x8-w3) */
+  /** Clamps long text to N lines with a More/Less toggle. */
+  SeeMore: ComponentType<SeeMoreProps>;
+  /** A model dropdown with a search box once the list is long enough to need one. */
+  SearchableModelSelect: ComponentType<SearchableModelSelectProps>;
 }
 
 /* ---------- hooks ---------- */
@@ -494,7 +499,7 @@ export type { FetchQueryEnvironmentPort, QueryKey } from '@jini-ai/core/fetch';
 export type { AddSourceInput, AddSourceResult, CreateExecutionPortOptions, CursorPage, CursorPages, ExecutionCredentialController, ExecutionCredentialEffects,
   ExecutionCredentialPatch, ExecutionCredentialPort, ExecutionCredentialSaveState, ExecutionCredentialView, ExecutionProbeFlags, ExecutionProbeTransport, FolderPathDropPort,
   HtmlPreviewPort, HtmlPreviewState, MemoryConfigFlagKey, MemoryEntrySummary, MemoryExtractionPhase, MemoryExtractionProvider, MemoryExtractionRecord,
-  MemoryExtractionSkipReason, MemoryType, PrivacyConsentState, SecretInputProps, SettingsRefreshScope, SettingsSlice, SettingsSliceOptions, SettingsSliceRefreshPort,
+  MemoryExtractionSkipReason, MemoryType, PrivacyConsentState, SecretInputProps, SearchableModelSelectProps, SeeMoreProps, SettingsRefreshScope, SettingsSlice, SettingsSliceOptions, SettingsSliceRefreshPort,
   SourceConfigDependencies, SourceConfigItem, SourceConfigPort, SourceConnectionStatus, SourceFieldKind, SourceFieldOption, SourceFieldSpec, SourceFieldValues,
   SourceTestResult, SourceUpdateInput, TelemetryPreferences, UseExecutionCredentialInput } from './kit-ui-types.js';
 /** The standing-draft autosave's port, controller and options (the UI library's panel-kit shapes). */
@@ -634,6 +639,8 @@ export const CodeWithLines = slot('CodeWithLines');
 export const CodeWrapToggle = slot('CodeWrapToggle');
 export const PreviewModalShell = slot('PreviewModalShell');
 export const SecretInput = slot('SecretInput');
+export const SeeMore = slot('SeeMore');
+export const SearchableModelSelect = slot('SearchableModelSelect');
 
 export const useAgentHandle: AdminKitHooks['useAgentHandle'] = (r, o) => useAdminKit().hooks.useAgentHandle(r, o);
 export const useFocusTrap: AdminKitHooks['useFocusTrap'] = (r, o) => useAdminKit().hooks.useFocusTrap(r, o);

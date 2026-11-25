@@ -43,6 +43,13 @@ const fakeComponents: AdminKitComponents = {
     </select>
   ),
   TabBar: (p) => <div role="tablist" aria-label={p.ariaLabel}>{p.tabs.map((t) => <button key={t.id} type="button" role="tab" aria-selected={t.id === p.activeId} onClick={() => p.onChange(t.id)}>{t.label}</button>)}</div>,
+  SeeMore: (p) => <span className={p.className}>{p.children}</span>,
+  SearchableModelSelect: (p) => (
+    <select aria-label={p.ariaLabel} value={p.value} className={p.className} onChange={(e) => p.onChange(e.target.value)}>
+      {p.models.map((m) => <option key={m.id} value={m.id}>{m.label}</option>)}
+      {(p.additionalOptions ?? []).map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+    </select>
+  ),
   HtmlEditor: (p) => <textarea value={p.html} className={p.className} onChange={(e) => p.onChange(e.target.value)} />,
   ErrorNotice: (p) => <p role={p.role ?? 'alert'}>{p.failure.message}</p>,
   Icon: (p) => <svg data-icon={p.name} width={p.size} height={p.size} className={p.className} aria-hidden={p['aria-hidden']} aria-label={p['aria-label']} />,

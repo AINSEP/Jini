@@ -5,7 +5,7 @@
  * own public types, nothing else imports this file. The execution contract itself lives in core and
  * is re-exported by name from `kit.tsx`, not restated here.
  */
-import type { InputHTMLAttributes } from 'react';
+import type { InputHTMLAttributes, ReactNode } from 'react';
 import type { ExecutionCardAgent, ExecutionPort } from '@jini-ai/core/contracts/execution';
 import type { ByokConfig } from '@jini-ai/core/contracts/execution';
 
@@ -121,3 +121,34 @@ export interface SecretToggleProps {
   readonly revealed?: boolean; readonly onRevealedChange?: (revealed: boolean) => void;
 }
 export type SecretInputProps = SecretToggleProps & Omit<InputHTMLAttributes<HTMLInputElement>, 'type'>;
+
+/* ---------- settings screens' own slots (x8-w3) ---------- */
+/** Props of the host's "show N lines, expand on demand" text clamp (`SeeMore`). */
+export interface SeeMoreProps {
+  children: ReactNode;
+  lines?: number | undefined;
+  moreLabel?: string | undefined;
+  lessLabel?: string | undefined;
+  className?: string | undefined;
+  textClassName?: string | undefined;
+  toggleClassName?: string | undefined;
+  toggleAriaLabel?: string | undefined;
+  agentHandle?: string | false | undefined;
+}
+/** One model entry the searchable model picker lists (the execution contract's `AgentModelOption`, narrowed to what the picker reads). */
+export interface SearchableModelOption { id: string; label: string }
+/** Props of the host's searchable model dropdown (a plain select plus a search box once the list is long). */
+export interface SearchableModelSelectProps {
+  models: readonly SearchableModelOption[];
+  value: string;
+  onChange: (value: string) => void;
+  ariaLabel: string;
+  searchPlaceholder: string;
+  additionalOptions?: readonly { value: string; label: string }[] | undefined;
+  minSearchableOptions?: number;
+  className?: string | undefined;
+  menuClassName?: string | undefined;
+  testId?: string | undefined;
+  searchInputTestId?: string | undefined;
+  agentHandle?: string | false | undefined;
+}
