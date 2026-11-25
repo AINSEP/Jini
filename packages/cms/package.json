@@ -710,7 +710,8 @@
       "./react/publish-content/hooks/publish-content-port.hooks": "universal",
       "./react/media/MediaEditDialog/MediaEditDialog": "browser",
       "./react/media/MediaPickerDialog/MediaPickerDialog": "browser",
-      "./react/media/MediaPickerDialog/MediaPickerDialog.hooks": "browser"
+      "./react/media/MediaPickerDialog/MediaPickerDialog.hooks": "browser",
+      "./react/widgets/WidgetConfigFields/HtmlAttributeRows": "browser"
     },
     "isolation": {
       "domains": {
@@ -831,6 +832,12 @@
           "react"
         ],
         "./react/media/MediaEditDialog/MediaEditDialog": [
+          "node:",
+          "express",
+          "kysely",
+          "parse5"
+        ],
+        "./react/widgets/WidgetConfigFields/HtmlAttributeRows": [
           "node:",
           "express",
           "kysely",
@@ -1071,7 +1078,8 @@
         "./react/publish-content/hooks/publish-content-port.hooks": "publish",
         "./react/media/MediaEditDialog/MediaEditDialog": "media",
         "./react/media/MediaPickerDialog/MediaPickerDialog": "media",
-        "./react/media/MediaPickerDialog/MediaPickerDialog.hooks": "media"
+        "./react/media/MediaPickerDialog/MediaPickerDialog.hooks": "media",
+        "./react/widgets/WidgetConfigFields/HtmlAttributeRows": "widgets"
       }
     },
     "optionalPeers": {
@@ -4579,6 +4587,11 @@
       "types": "./dist/react/media/MediaPickerDialog/MediaPickerDialog.hooks.d.ts",
       "import": "./dist/react/media/MediaPickerDialog/MediaPickerDialog.hooks.js",
       "default": "./dist/react/media/MediaPickerDialog/MediaPickerDialog.hooks.js"
+    },
+    "./react/widgets/WidgetConfigFields/HtmlAttributeRows": {
+      "types": "./dist/react/widgets/WidgetConfigFields/HtmlAttributeRows.d.ts",
+      "import": "./dist/react/widgets/WidgetConfigFields/HtmlAttributeRows.js",
+      "default": "./dist/react/widgets/WidgetConfigFields/HtmlAttributeRows.js"
     }
   },
   "files": [
