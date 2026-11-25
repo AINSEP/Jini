@@ -6,6 +6,14 @@
  * (built from `typeof` the devops runtime helpers and the `DeployError` class) stay in devops.
  */
 
+export type SiteUpdateAvailability =
+  | { kind: 'unavailable' }
+  | { kind: 'current'; runningVersion: string }
+  | { kind: 'available'; runningVersion: string; latest: string; notes: string }
+  | { kind: 'check-failed' };
+
+export type SiteUpdateStatusReply = { availability: SiteUpdateAvailability };
+
 /** A private locator is kept by the consumer; only verified public URLs reach recipients. */
 export interface ArtifactUpload {
   readonly key: string;
