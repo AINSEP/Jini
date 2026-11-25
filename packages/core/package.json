@@ -281,7 +281,9 @@
       "./contracts/site/post-kind": "universal",
       "./scheduled-publish": "universal",
       "./tool-metadata/post": "universal",
-      "./tool-metadata/image-transform": "universal"
+      "./tool-metadata/image-transform": "universal",
+      "./contracts/site/html-region-ports": "universal",
+      "./contracts/headless/plugin-install-source": "universal"
     },
     "isolation": {
       "entries": {
@@ -1686,6 +1688,16 @@
       "types": "./dist/tool-metadata/image-transform.d.ts",
       "import": "./dist/tool-metadata/image-transform.js",
       "default": "./dist/tool-metadata/image-transform.js"
+    },
+    "./contracts/site/html-region-ports": {
+      "types": "./dist/contracts/site/html-region-ports.d.ts",
+      "import": "./dist/contracts/site/html-region-ports.js",
+      "default": "./dist/contracts/site/html-region-ports.js"
+    },
+    "./contracts/headless/plugin-install-source": {
+      "types": "./dist/contracts/headless/plugin-install-source.d.ts",
+      "import": "./dist/contracts/headless/plugin-install-source.js",
+      "default": "./dist/contracts/headless/plugin-install-source.js"
     }
   },
   "files": [

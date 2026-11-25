@@ -37,7 +37,9 @@
       "./runtime/lower-tool-access": "universal",
       "./runtime/sdk-resolver": "node",
       "./runtime/service-ports": "universal",
-      "./runtime/built-ins/word-count/count-words": "universal"
+      "./runtime/built-ins/word-count/count-words": "universal",
+      "./runtime/install-source": "universal",
+      "./runtime/built-ins/word-count/plugin": "universal"
     },
     "isolation": {
       "forbidden": {
@@ -178,6 +180,16 @@
       "types": "./dist/runtime/built-ins/word-count/count-words.d.ts",
       "import": "./dist/runtime/built-ins/word-count/count-words.js",
       "default": "./dist/runtime/built-ins/word-count/count-words.js"
+    },
+    "./runtime/install-source": {
+      "types": "./dist/runtime/install-source.d.ts",
+      "import": "./dist/runtime/install-source.js",
+      "default": "./dist/runtime/install-source.js"
+    },
+    "./runtime/built-ins/word-count/plugin": {
+      "types": "./dist/runtime/built-ins/word-count/plugin.d.ts",
+      "import": "./dist/runtime/built-ins/word-count/plugin.js",
+      "default": "./dist/runtime/built-ins/word-count/plugin.js"
     }
   },
   "files": [

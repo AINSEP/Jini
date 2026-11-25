@@ -703,7 +703,20 @@
       "./react/publish-content/PublishSectionButton": "browser",
       "./posts/revision-thinning": "universal",
       "./admin-http/routes/posts/revision-thinning": "universal",
-      "./html/site/export-html-policy": "universal"
+      "./html/site/export-html-policy": "universal",
+      "./media/site/provider-credential-store": "universal",
+      "./media/site/provider-credential-vault": "universal",
+      "./media/site/provider-credential-store.memory": "universal",
+      "./media/site/promote-chat-attachment": "node",
+      "./media/site/library-save-attachment": "node",
+      "./media/site/view-video-tool": "universal",
+      "./pages/html-document-store": "universal",
+      "./pages/html-document-store.memory": "universal",
+      "./pages/agent-tools": "universal",
+      "./pages/tool-registrations": "node",
+      "./seo/content-analyzer-plugin/plugin": "node",
+      "./posts/agent-tools": "universal",
+      "./posts/content-stats-tool": "node"
     },
     "isolation": {
       "domains": {
@@ -4511,6 +4524,71 @@
       "types": "./dist/html/site/export-html-policy.d.ts",
       "import": "./dist/html/site/export-html-policy.js",
       "default": "./dist/html/site/export-html-policy.js"
+    },
+    "./media/site/provider-credential-store": {
+      "types": "./dist/media/site/provider-credential-store.d.ts",
+      "import": "./dist/media/site/provider-credential-store.js",
+      "default": "./dist/media/site/provider-credential-store.js"
+    },
+    "./media/site/provider-credential-vault": {
+      "types": "./dist/media/site/provider-credential-vault.d.ts",
+      "import": "./dist/media/site/provider-credential-vault.js",
+      "default": "./dist/media/site/provider-credential-vault.js"
+    },
+    "./media/site/provider-credential-store.memory": {
+      "types": "./dist/media/site/provider-credential-store.memory.d.ts",
+      "import": "./dist/media/site/provider-credential-store.memory.js",
+      "default": "./dist/media/site/provider-credential-store.memory.js"
+    },
+    "./media/site/promote-chat-attachment": {
+      "types": "./dist/media/site/promote-chat-attachment.d.ts",
+      "import": "./dist/media/site/promote-chat-attachment.js",
+      "default": "./dist/media/site/promote-chat-attachment.js"
+    },
+    "./media/site/library-save-attachment": {
+      "types": "./dist/media/site/library-save-attachment.d.ts",
+      "import": "./dist/media/site/library-save-attachment.js",
+      "default": "./dist/media/site/library-save-attachment.js"
+    },
+    "./media/site/view-video-tool": {
+      "types": "./dist/media/site/view-video-tool.d.ts",
+      "import": "./dist/media/site/view-video-tool.js",
+      "default": "./dist/media/site/view-video-tool.js"
+    },
+    "./pages/html-document-store": {
+      "types": "./dist/pages/html-document-store.d.ts",
+      "import": "./dist/pages/html-document-store.js",
+      "default": "./dist/pages/html-document-store.js"
+    },
+    "./pages/html-document-store.memory": {
+      "types": "./dist/pages/html-document-store.memory.d.ts",
+      "import": "./dist/pages/html-document-store.memory.js",
+      "default": "./dist/pages/html-document-store.memory.js"
+    },
+    "./pages/agent-tools": {
+      "types": "./dist/pages/agent-tools.d.ts",
+      "import": "./dist/pages/agent-tools.js",
+      "default": "./dist/pages/agent-tools.js"
+    },
+    "./pages/tool-registrations": {
+      "types": "./dist/pages/tool-registrations.d.ts",
+      "import": "./dist/pages/tool-registrations.js",
+      "default": "./dist/pages/tool-registrations.js"
+    },
+    "./seo/content-analyzer-plugin/plugin": {
+      "types": "./dist/seo/content-analyzer-plugin/plugin.d.ts",
+      "import": "./dist/seo/content-analyzer-plugin/plugin.js",
+      "default": "./dist/seo/content-analyzer-plugin/plugin.js"
+    },
+    "./posts/agent-tools": {
+      "types": "./dist/posts/agent-tools.d.ts",
+      "import": "./dist/posts/agent-tools.js",
+      "default": "./dist/posts/agent-tools.js"
+    },
+    "./posts/content-stats-tool": {
+      "types": "./dist/posts/content-stats-tool.d.ts",
+      "import": "./dist/posts/content-stats-tool.js",
+      "default": "./dist/posts/content-stats-tool.js"
     }
   },
   "files": [

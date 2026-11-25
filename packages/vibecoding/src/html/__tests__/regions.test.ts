@@ -1,3 +1,4 @@
+import type { ParsedRegion } from "@jini-ai/core/contracts/site/html-region-ports";
 import { describe, expect, test } from "vitest";
 
 import { applyEdit } from "../../core/apply.js";
@@ -6,7 +7,6 @@ import {
   createHtmlRegionTarget,
   isValidRegionHandle,
   type HtmlRegionParser,
-  type ParsedRegion,
 } from "../regions.js";
 
 /**
