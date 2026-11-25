@@ -17,10 +17,11 @@ function row(entityType: string, entityId: string, outcome: PublishContentOutcom
 }
 const report = (...rows: PublishContentOutcomeRow[]): PublishContentReport => ({ refused: false, rows } as PublishContentReport);
 
-interface Setup { peers?: unknown[]; mode?: string; planRows?: PublishContentOutcomeRow[]; executeReport?: unknown; notSupported?: { entityType: string; count: number }[]; liveCanOverwrite?: boolean }
+interface Setup { peers?: unknown[]; mode?: string; planRows?: PublishContentOutcomeRow[]; executeReport?: unknown; omitReport?: boolean; notSupported?: { entityType: string; count: number }[]; liveCanOverwrite?: boolean }
 function setup(options: Setup = {}) {
   const calls = { plan: [] as unknown[], confirm: [] as unknown[], execute: [] as unknown[], credential: [] as unknown[] };
   const rows = options.planRows ?? [row("page", "a"), row("page", "b")];
+  let lastKept = rows;
   const deps = {
     workspaceId: "ws", clock: { now: () => new Date(0) }, idGen: { newId: () => "id" },
     publishContentPeerRepo: { listByWorkspace: async () => options.peers ?? [peerRow("peer-1")] },
@@ -33,6 +34,7 @@ function setup(options: Setup = {}) {
       calls.plan.push(selection);
       const keys = selection.selectedEntityKeys;
       const kept = keys ? rows.filter(r => keys.includes(`${r.entityType}:${r.entityId}`) || !r.writes) : rows;
+      lastKept = kept;
       return { planId: "plan-1", planHash: "hash-1", bundleId: "bundle-1", liveCanOverwrite: options.liveCanOverwrite ?? true, notSupportedByLive: options.notSupported ?? [],
         publicUrls: Object.fromEntries(rows.map(r => [`${r.entityType}:${r.entityId}`, `${BASE_URL}/${r.entityId}`])),
         itemNames: Object.fromEntries(rows.map(r => [`${r.entityType}:${r.entityId}`, [`Name ${r.entityId}`]])),
@@ -40,7 +42,7 @@ function setup(options: Setup = {}) {
     }) as never,
     peerTransport: {
       confirmPeerImport: (async (required: { required: unknown }) => { calls.confirm.push(required.required); return { confirmationToken: "token-1" }; }) as never,
-      executePeerImport: (async (required: { required: unknown }) => { calls.execute.push(required.required); return { runId: "run-1", verificationProblems: [], report: options.executeReport === undefined ? report(...rows) : options.executeReport }; }) as never,
+      executePeerImport: (async (required: { required: unknown }) => { calls.execute.push(required.required); return { runId: "run-1", verificationProblems: [], ...(options.omitReport ? {} : { report: "executeReport" in options ? options.executeReport : report(...lastKept) }) }; }) as never,
     },
     ui: {
       toPublishReportRows: (required, optional) => toPublishReportRows({ ...required, policy: TEST_POLICY }, optional),
@@ -118,12 +120,12 @@ describe("publishContentFromTool", () => {
   });
 
   it("reports uncertainty, not success, when an old live build returns no per-item report", async () => {
-    const t = setup({ executeReport: undefined });
-    // `undefined` falls back to the default report in setup, so drive the legacy path with a host that omits it.
-    const legacy = setup();
-    const result = await legacy.run();
-    expect(result.published.length).toBe(2);
-    expect(t.calls.execute).toEqual([]);
+    const t = setup({ omitReport: true });
+    const result = await t.run();
+    expect(result.published).toEqual([]);
+    expect(result.unverified.map((r: { entityKey: string }) => r.entityKey)).toEqual(["page:a", "page:b"]);
+    expect(result.runId).toBe("run-1");
+    expect(result.message).toMatch(/^The publish run completed, but this live site's version did not return per-item results\./);
   });
 
   it.each([null, false, "report", []])("refuses remote report %j as missing", async remote => {
@@ -146,7 +148,7 @@ describe("publishContentFromTool", () => {
   it("returns source items the live build cannot hold as skipped, blocked rows", async () => {
     const t = setup({ planRows: [row("page", "a"), row("widget", "w", "unchanged")], notSupported: [{ entityType: "widget", count: 1 }] });
     const result = await t.run();
-    expect(result.notSupportedByLive).toEqual([]);
+    expect(result.notSupportedByLive).toEqual([{ entityType: "widget", count: 1 }]);
     expect(result.skipped.map((r: { entityKey: string }) => r.entityKey)).toContain("widget:w");
   });
 
