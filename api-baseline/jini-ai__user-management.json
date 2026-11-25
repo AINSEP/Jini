@@ -20,8 +20,8 @@
    "PermissionUnknownError": "class:645e482ecb",
    "PolicyPermissionRecord": "interface:205752fcb3",
    "PolicyPermissionRepoPort": "interface:6d9d1ee9e3",
-   "PolicyRecord": "interface:daf7052fb5",
-   "PolicyRepoPort": "interface:b3a5462493",
+   "PolicyRecord": "interface:8e5ac8ea71",
+   "PolicyRepoPort": "interface:26c9234852",
    "PrincipalKind": "type:a515a37a8b",
    "PrincipalPolicyRecord": "interface:0466496e9c",
    "PrincipalPolicyRepoPort": "interface:ecff2742d9",
@@ -32,13 +32,13 @@
    "PrincipalStatus": "type:5db607e745",
    "RolePolicyRecord": "interface:4329268a51",
    "RolePolicyRepoPort": "interface:036e26aeb7",
-   "RoleRecord": "interface:26bf9402d4",
-   "RoleRepoPort": "interface:ed6178e3a5",
+   "RoleRecord": "interface:19d288ca36",
+   "RoleRepoPort": "interface:662c645f61",
    "SessionRecord": "interface:08ae02fd6a",
    "SessionRepoPort": "interface:0ac9ae46ad",
    "SessionTokenPort": "interface:ad050e6777",
-   "UserRecord": "interface:9d8ad07d74",
-   "UserRepoPort": "interface:629df2aa02",
+   "UserRecord": "interface:2fc0128bc7",
+   "UserRepoPort": "interface:481ac5c20c",
    "UsernameChangePort": "interface:e7132fdde4",
    "isKnownPermission": "function:9e72a4695a",
    "listPermissions": "function:1c6a8972da",
@@ -65,8 +65,8 @@
    "MembersState": "interface:ced7867870",
    "PeopleApiError": "class:70e97ee2d9",
    "PolicyPermissionRecord": "interface:205752fcb3",
-   "PolicyRecord": "interface:daf7052fb5",
-   "RoleRecord": "interface:26bf9402d4",
+   "PolicyRecord": "interface:8e5ac8ea71",
+   "RoleRecord": "interface:19d288ca36",
    "RolesApiError": "class:3f35dc3f40",
    "RolesApiPort": "interface:e1620c6067",
    "RolesCallOptions": "interface:618fdff833",
@@ -144,9 +144,9 @@
  "./admin-http/http/users": {
   "types": "./dist/admin-http/http/users.d.ts",
   "symbols": {
-   "AdminPolicyResponse": "interface:2afb2082dc",
-   "AdminRoleResponse": "interface:3550f336f8",
-   "AdminUserResponse": "interface:aa66fe1d57",
+   "AdminPolicyResponse": "interface:a3aea1e853",
+   "AdminRoleResponse": "interface:c296be3a62",
+   "AdminUserResponse": "interface:e9a528dffc",
    "toAdminPolicyResponse": "function:96db68529a",
    "toAdminRoleResponse": "function:6d3d9fecba",
    "toAdminUserResponse": "function:f463cef2c0"
@@ -283,7 +283,7 @@
  "./admin-http/routes/users/update": {
   "types": "./dist/admin-http/routes/users/update.d.ts",
   "symbols": {
-   "UserUpdateInput": "interface:2bd217986b",
+   "UserUpdateInput": "interface:264237f19f",
    "UserUpdateRouteDeps": "interface:511d753717",
    "userUpdateRoute": "variable:b857a8bcd5"
   }
@@ -299,7 +299,7 @@
   "types": "./dist/admin-http/routes/users/update-role.d.ts",
   "symbols": {
    "RoleUpdateRouteDeps": "interface:c33d1f704c",
-   "roleUpdateRoute": "variable:c6a31141f4"
+   "roleUpdateRoute": "variable:de9bdcd90e"
   }
  },
  "./admin-http/routes/users/write-policy-permission": {
@@ -922,7 +922,7 @@
    "toSendRow": "function:2d79a9eb89",
    "toSubscriptionRecord": "function:0ec909e05c",
    "toSubscriptionRow": "function:8c0587f863",
-   "updatableCampaignColumns": "function:9cb73fb250",
+   "updatableCampaignColumns": "function:3064c7e147",
    "updatableListColumns": "function:efd8239007",
    "updatableSendColumns": "function:617bf925bb",
    "updatableSubscriptionColumns": "function:3c556f788c"
@@ -1153,11 +1153,25 @@
    "useUserManagementKit": "function:78cc420336"
   }
  },
+ "./react/members/api/members-api": {
+  "types": "./dist/react/members/api/members-api.d.ts",
+  "symbols": {
+   "MembersApiDeps": "interface:ef73c8fb78",
+   "createMembersApi": "function:fe376ea921"
+  }
+ },
  "./react/members/members-i18n": {
   "types": "./dist/react/members/members-i18n.d.ts",
   "symbols": {
    "MEMBERS_DICT": "variable:4df75f2500",
    "createMembersTranslator": "function:0f171f6550"
+  }
+ },
+ "./react/roles/api/roles-api": {
+  "types": "./dist/react/roles/api/roles-api.d.ts",
+  "symbols": {
+   "RolesApiDeps": "interface:81f794f65c",
+   "createRolesApi": "function:f2555e58ea"
   }
  },
  "./react/testing": {
@@ -1171,6 +1185,13 @@
    "createFakeMembersPort": "function:8269476309",
    "createFakeRolesPort": "function:1c7d861332",
    "createFakeUsersPort": "function:b755670e72"
+  }
+ },
+ "./react/users/api/users-api": {
+  "types": "./dist/react/users/api/users-api.d.ts",
+  "symbols": {
+   "UsersApiDeps": "interface:3c3010166b",
+   "createUsersApi": "function:2370efb292"
   }
  },
  "./server": {
@@ -1194,14 +1215,15 @@
    "IdentityToolInputResult": "type:ae9e16c203",
    "InMemoryIdentityRows": "class:0abec185a0",
    "InMemoryPolicyPermissionRepo": "class:2c955bfe32",
-   "InMemoryPolicyRepo": "class:d27439575f",
+   "InMemoryPolicyRepo": "class:433b1367d9",
    "InMemoryPrincipalPolicyRepo": "class:6eb415f23f",
    "InMemoryPrincipalRepo": "class:b9ad3d0e77",
    "InMemoryPrincipalRoleRepo": "class:ca097abbe5",
    "InMemoryRolePolicyRepo": "class:50d0b9125a",
-   "InMemoryRoleRepo": "class:ec084bf421",
+   "InMemoryRoleRepo": "class:5c19922df8",
    "InMemorySessionRepo": "class:e3a6963a43",
-   "InMemoryUserRepo": "class:654eaedd8e",
+   "InMemoryUserRepo": "class:70d252b1b0",
+   "InMemoryVersionedIdentityRequired": "interface:2bb572c233",
    "InMemoryWorkspaceRecords": "class:70097d7840",
    "LinkDecision": "type:66a6a25fc3",
    "LoginLinkMember": "interface:64d9298a07",
@@ -1298,9 +1320,9 @@
    "resolveEffectivePermissions": "function:31035ba98f",
    "resolveOwnerResetTarget": "function:b70c065ddc",
    "seedIdentity": "function:c80a400c16",
-   "updatePolicy": "function:e297914006",
-   "updateRole": "function:591d18ee75",
-   "updateUser": "function:a059e36ade",
+   "updatePolicy": "function:bd2a9bf029",
+   "updateRole": "function:f88c43f1f9",
+   "updateUser": "function:0036c1f0b6",
    "validatePasswordPolicy": "function:59620b405b",
    "validateSession": "function:c1367f1118",
    "verifyChallengeCode": "function:3cb92d378a",
