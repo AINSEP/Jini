@@ -1994,7 +1994,8 @@
    "ArtifactUpload": "interface:e688309feb",
    "DeployTargetCredential": "type:ab3baf1da1",
    "SiteUpdateAvailability": "type:8a7455413c",
-   "SiteUpdateStatusReply": "type:7b654b155e"
+   "SiteUpdateLastAttempt": "type:ed77f1ada6",
+   "SiteUpdateStatusReply": "type:1010d8d7e2"
   }
  },
  "./contracts/site/diagnostics-domain-dns": {
