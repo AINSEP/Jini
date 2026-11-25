@@ -5,7 +5,7 @@ import { AUDIO_MODELS_BY_KIND, IMAGE_MODELS, MEDIA_PROVIDERS, VIDEO_MODELS, find
 import type { AudioKind, MediaSurface } from '../../types.js';
 import { createMediaDispatchEngine } from '../engine.js';
 import {
-  builtinMediaProviderContributions, createMediaProviderRegistry, MEDIA_PROVIDER_CONTRACT, mediaProviderDefinition, mediaProviderRegistryId,
+  builtinMediaProviderContributions, catalogMediaProviderContribution, createMediaProviderRegistry, MEDIA_PROVIDER_CONTRACT, mediaProviderDefinition, mediaProviderRegistryId,
   type MediaProviderContribution,
 } from '../media-provider-registry.js';
 import type { VendorAdapter } from '../types.js';
@@ -32,13 +32,28 @@ const SURFACES: { surface: MediaSurface; audioKind?: AudioKind }[] = [
 ];
 
 describe('builtin contribution = today\'s catalogue', () => {
-  const registry = createMediaProviderRegistry();
+  // The one integrated row no built-in adapter serves: a vendor plugin contributes its adapters at the host.
+  const PLUGIN_SERVED = 'grok';
+  const builtinRows = MEDIA_PROVIDERS.filter(provider => provider.id !== PLUGIN_SERVED);
+  const builtinOnly = createMediaProviderRegistry();
+  // The same catalogue once the host has contributed the plugin-served row (adapters are irrelevant to catalogue shape).
+  const registry = createMediaProviderRegistry({}, { contributions: [...builtinMediaProviderContributions(), catalogMediaProviderContribution({ providerId: PLUGIN_SERVED, adapters: {} })] });
 
-  it('lists every MEDIA_PROVIDERS entry in order, keyed by the hyphen-free registry id', () => {
-    expect(registry.listProviders()).toEqual(MEDIA_PROVIDERS);
-    expect(registry.providers.contract).toBe(MEDIA_PROVIDER_CONTRACT);
-    expect(registry.providers.has({ id: 'custom_image' })).toBe(true);
-    expect(registry.providers.list().map(entry => entry.origin)).toEqual(MEDIA_PROVIDERS.map(() => 'core'));
+  it('lists every MEDIA_PROVIDERS entry but the plugin-served row in order, keyed by the hyphen-free registry id', () => {
+    expect(builtinOnly.listProviders()).toEqual(builtinRows);
+    expect(builtinOnly.providers.contract).toBe(MEDIA_PROVIDER_CONTRACT);
+    expect(builtinOnly.providers.has({ id: 'custom_image' })).toBe(true);
+    expect(builtinOnly.providers.has({ id: PLUGIN_SERVED })).toBe(false);
+    expect(builtinOnly.providers.list().map(entry => entry.origin)).toEqual(builtinRows.map(() => 'core'));
+  });
+
+  it('with the plugin-served row contributed, models list in the static catalogue order', () => {
+    expect(registry.listProviders()).toHaveLength(MEDIA_PROVIDERS.length);
+    expect(registry.findProvider({ id: PLUGIN_SERVED })).toEqual(findProvider({ id: PLUGIN_SERVED }));
+  });
+
+  it('refuses a catalogue contribution for a provider the catalogue does not hold', () => {
+    expect(() => catalogMediaProviderContribution({ providerId: 'not-in-catalogue', adapters: {} })).toThrow(/not in the catalogue/);
   });
 
   it('modelsForSurface matches the static catalogue exactly (same order, same shape)', () => {

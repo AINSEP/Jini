@@ -92,5 +92,23 @@
  "./plugins/*": {
   "types": null,
   "symbols": {}
+ },
+ "./xai/media": {
+  "types": "./dist/xai/media/index.d.ts",
+  "symbols": {
+   "XAI_MEDIA_PROVIDER_ID": "variable:ee83e1c979",
+   "XaiCredentialGuard": "type:6188657c96",
+   "XaiCredentials": "interface:4df37cb525",
+   "XaiMediaKit": "interface:4461a6a971",
+   "XaiRawBytesParserOptions": "interface:82cfaedce2",
+   "XaiRenderContext": "interface:0b8d17eaba",
+   "XaiRenderResult": "interface:ffdc51ae5d",
+   "XaiResponseParser": "type:eede743729",
+   "XaiVendorAdapter": "interface:aea61d6f68",
+   "XaiVendorRequest": "interface:e642d286a8",
+   "createGrokImageAdapter": "function:40c4617ae3",
+   "createXaiMediaContribution": "function:8b9703dd89",
+   "createXaiTTSAdapter": "function:302898e441"
+  }
  }
 }

@@ -5,7 +5,11 @@ export { renderAIHubMixImage, renderAIHubMixTTS } from './providers/aihubmix.js'
 export { renderCustomOpenAIImage, customImageOverridesOpenAIModel, CUSTOM_IMAGE_MODEL_ID } from './providers/custom-image.js';
 export { renderElevenLabsSfx, renderElevenLabsTTS } from './providers/elevenlabs.js';
 export { renderFishAudioTTS } from './providers/fishaudio.js';
-export { renderGrokImage, renderXAITTS, grokAspectFor } from './providers/grok.js';
+// The OpenAI-compatible wire helpers a vendor plugin builds its adapters from (the xAI plugin's Grok adapters use them).
+export {
+  buildOpenAIImageUrl, bytesFromOpenAICompatibleData, jsonPostInit, parseOpenAICompatibleJson, sniffImageExt, standardImageAspectFor,
+} from './openai-compatible.js';
+export type { RenderContext, RenderResult } from './types.js';
 export { renderImageRouterImage, renderImageRouterVideo, imageRouterSizeFor } from './providers/imagerouter.js';
 export { renderMinimaxTTS } from './providers/minimax.js';
 export { renderNanoBananaImage } from './providers/nanobanana.js';
@@ -39,6 +43,7 @@ export { createBuiltinVendorAdapterRegistry, createVendorAdapterRegistry, mediaV
 // Vendors as one-unit provider contributions on the shared keyed registry (2026-10-21).
 export {
   builtinMediaProviderContributions,
+  catalogMediaProviderContribution,
   createMediaProviderRegistry,
   MEDIA_PROVIDER_CONTRACT,
   mediaProviderDefinition,

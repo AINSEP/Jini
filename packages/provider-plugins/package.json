@@ -26,6 +26,7 @@
       "./observability-opentelemetry": "node",
       "./observability-opentelemetry/port": "node",
       "./observability-opentelemetry/*": "node",
+      "./xai/media": "node",
       "./observability-sentry": "node",
       "./observability-sentry/*": "node",
       "./payments-stripe": "node",
@@ -53,6 +54,10 @@
       "import": "./dist/observability-opentelemetry/otel-port.js"
     },
     "./observability-opentelemetry/*": "./plugins/observability-opentelemetry/*",
+    "./xai/media": {
+      "types": "./dist/xai/media/index.d.ts",
+      "import": "./dist/xai/media/index.js"
+    },
     "./observability-sentry": "./plugins/observability-sentry/0.7.3-next.2/jini.plugin.json",
     "./observability-sentry/*": "./plugins/observability-sentry/*",
     "./payments-stripe": "./plugins/payments-stripe/0.7.3-next.2/jini.plugin.json",
@@ -65,6 +70,7 @@
   },
   "files": [
     "dist/observability-opentelemetry",
+    "dist/xai",
     "plugins/ai-trace-langfuse",
     "plugins/analytics-posthog",
     "plugins/charts-echarts",
@@ -101,6 +107,7 @@
     "@jini-ai/cookie-consent": "workspace:^",
     "@jini-ai/core": "workspace:^",
     "@jini-ai/diagnostics": "workspace:^",
+    "@jini-ai/integrations": "workspace:^",
     "@jini-ai/plugins": "workspace:^",
     "@jini-ai/protocol": "workspace:^",
     "@jini-ai/ui": "workspace:^",

@@ -1,7 +1,20 @@
-import { createNodeMediaHttpClient, nodeMediaGuardedFetch } from '../../node.js';
+import { nodeMediaGuardedFetch } from '@jini-ai/integrations/media-providers/node';
+import { realKit, testHttpClient } from './fixtures.js';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { grokAspectFor, renderGrokImage, renderXAITTS } from '../grok.js';
-import type { RenderContext } from '../../types.js';
+import { createGrokImageAdapter, createXaiTTSAdapter } from '../grok.js';
+import type { ProviderCredentials, RenderContext, RenderResult } from '@jini-ai/integrations/media-providers';
+
+const grokAspectFor = realKit.standardImageAspectFor;
+const grokImageAdapter = createGrokImageAdapter({ kit: realKit });
+const xaiTTSAdapter = createXaiTTSAdapter({ kit: realKit });
+
+function renderGrokImage({ ctx, credentials }: { ctx: RenderContext; credentials: ProviderCredentials }): Promise<RenderResult> {
+  return realKit.dispatchVendorRequest({ adapter: grokImageAdapter, ctx, credentials });
+}
+
+function renderXAITTS({ ctx, credentials }: { ctx: RenderContext; credentials: ProviderCredentials }): Promise<RenderResult> {
+  return realKit.dispatchVendorRequest({ adapter: xaiTTSAdapter, ctx, credentials });
+}
 
 afterEach(() => {
   vi.unstubAllGlobals();
@@ -9,7 +22,7 @@ afterEach(() => {
 
 function baseCtx(overrides: Partial<RenderContext> = {}): RenderContext {
   return {
-    httpClient: createNodeMediaHttpClient({}), guardedFetch: nodeMediaGuardedFetch,
+    httpClient: testHttpClient((url, init) => globalThis.fetch(url, init)), guardedFetch: nodeMediaGuardedFetch,
     surface: 'image',
     model: 'grok-imagine-image',
     wireModel: 'grok-imagine-image',
@@ -24,7 +37,7 @@ function baseCtx(overrides: Partial<RenderContext> = {}): RenderContext {
     promptInfluence: undefined,
     imageRef: null,
     imageRefs: [],
-    requestInit: {},
+    requestInit: {} as RenderContext['requestInit'],
     speechFormat: 'mp3',
     onProgress: undefined,
     ...overrides,
@@ -143,10 +156,4 @@ describe('renderXAITTS', () => {
         vi.stubGlobal('fetch', vi.fn(async () => new Response(Buffer.alloc(0), { status: 200 })));
         await expect(renderXAITTS({ ctx: ttsCtx(), credentials: { apiKey: 'xai-test' } })).rejects.toThrow(/zero bytes/);
     });
-});
-
-vi.mock('@jini-ai/platform/http/guarded', async (importOriginal) => {
-  const original = await importOriginal<typeof import('@jini-ai/platform/http/guarded')>();
-  const { testNodeGuardedHttpPorts } = await import('../../__tests__/outbound-fixtures.js');
-  return { ...original, createNodeGuardedHttpPorts: testNodeGuardedHttpPorts };
 });
