@@ -29,7 +29,7 @@
     "packages/daemon/src/http/delegated-tools.ts": 1,
     "packages/daemon/src/http/host-tools.ts": 5,
     "packages/daemon/src/http/index.ts": 15,
-    "packages/daemon/src/http/model-proxy.ts": 3,
+    "packages/daemon/src/http/model-proxy.ts": 2,
     "packages/daemon/src/http/xai.ts": 228,
     "packages/daemon/src/image-prompt-delivery.ts": 4,
     "packages/daemon/src/ports/agent-runtime.ts": 3,
