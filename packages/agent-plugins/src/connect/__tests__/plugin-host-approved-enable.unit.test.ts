@@ -12,9 +12,9 @@ const MESSAGES = {
 };
 const NO_FAILURES = { provisioned: [], alreadyProvisioned: [], adopted: [], skipped: [], failed: [] };
 
-interface HostRig { provision?: () => Promise<unknown>; grant?: () => Promise<unknown>; warnings?: string[] }
+interface HostRig { provision?: () => Promise<unknown>; grant?: () => Promise<unknown>; warnings?: string[]; report?: { warn: (...args: unknown[]) => void } }
 
-function lifecycleWith({ provision = async () => NO_FAILURES, grant = async () => [], warnings = [] }: HostRig) {
+function lifecycleWith({ provision = async () => NO_FAILURES, grant = async () => [], warnings = [], report }: HostRig) {
   const deps = {
     workspaceId: 'ws', agentPluginLayout: {}, clock: { now: () => new Date(0) }, namespace: 'other-host',
     discoverPlugins: async () => [], getActivation: async () => null,
@@ -24,6 +24,7 @@ function lifecycleWith({ provision = async () => NO_FAILURES, grant = async () =
     mcp: { repo: {}, applyAccess: async () => {}, notifyRosterChanged: async () => {} },
     mcpPorts: { projections: {}, classifyError: () => 'other' },
     grantSignedInDefaults: grant, warn: (m: string) => { warnings.push(m); }, messages: MESSAGES,
+    ...(report ? { report } : {}),
   } as unknown as PluginHostDeps<never>;
   const host = createPluginHost({ deps }, { resolveMcpServers: async () => ({}) as never, provisionMcpServers: provision as never });
   const capability = host.getHostCapability({ capability: 'agent-plugin-lifecycle' });
@@ -70,4 +71,14 @@ test('an enable nobody approved stays best-effort: a refusal from the grant owne
   const lifecycle = lifecycleWith({ warnings, grant: async () => { throw new ToolInputError({ message: 'The plugin declaration or access changed after approval.' }); } });
   await expect(lifecycle.provisionMcp({ pluginId: 'github', principalId: 'owner' })).resolves.toBeUndefined();
   expect(warnings).toEqual(["Plugin 'github': MCP provisioning could not run — ToolInputError"]);
+});
+
+test('an enable nobody approved hands an unexpected fault to the injected reporter, not the warn channel', async () => {
+  const warnings: string[] = [];
+  const reported: unknown[][] = [];
+  const fault = new Error('boom');
+  const lifecycle = lifecycleWith({ warnings, report: { warn: (...args: unknown[]) => { reported.push(args); } }, provision: async () => { throw fault; } });
+  await expect(lifecycle.provisionMcp({ pluginId: 'github', principalId: 'owner' })).resolves.toBeUndefined();
+  expect(warnings).toEqual([]);
+  expect(reported).toEqual([[{ message: "Plugin 'github': MCP provisioning could not run." }, { error: fault }]]);
 });

@@ -70,3 +70,10 @@ it('allows history cards to retain polite status semantics and host chrome', () 
   expect(screen.queryByRole('alert')).toBeNull();
   expect(screen.getByRole('status').className).toBe('notice error');
 });
+
+it('shows no copy feedback when the feedback belongs to an earlier incident', () => {
+  const useStale = () => ({ feedback: { text: 'Step: earlier\nCause: other', copied: true }, copy: async () => {} });
+  render(<ErrorNotice failure={failure} useErrorNoticeHook={useStale} />);
+  expect(screen.queryByRole('status')).toBeNull();
+  expect(screen.getByRole('alert').textContent).toContain('Copy details');
+});

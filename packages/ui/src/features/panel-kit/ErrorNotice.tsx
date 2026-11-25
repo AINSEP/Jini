@@ -21,6 +21,7 @@ export interface ErrorNoticeProps extends CopyToClipboardOptions {
  */
 export function ErrorNotice({ failure, disclosure = 'full', t = text => text, className = 'notice error', role = 'alert', useErrorNoticeHook = useErrorNotice, ...ports }: ErrorNoticeProps & { useErrorNoticeHook?: typeof useErrorNotice }) {
   const { feedback, copy } = useErrorNoticeHook({ failure, ports });
+  const feedbackText = copyFeedbackText({ feedback, copyText: failure.copyText });
   return (
     <div className={className} role={role}>
       <p>{failure.message}</p>
@@ -29,8 +30,14 @@ export function ErrorNotice({ failure, disclosure = 'full', t = text => text, cl
         <summary>{t('Show details')}</summary>
         <pre style={{ whiteSpace: 'pre-wrap', overflowWrap: 'anywhere', userSelect: 'text' }}>{failure.copyText}</pre>
         <button type="button" onClick={() => void copy()}>{t('Copy details')}</button>
-        {feedback && feedback.text === failure.copyText ? <p role="status">{t(feedback.copied ? 'Copied' : 'Copy failed. Select the details and copy them manually.')}</p> : null}
+        {feedbackText !== null ? <p role="status">{t(feedbackText)}</p> : null}
       </details>}
     </div>
   );
+}
+
+/** Feedback only describes the incident it copied; a stale result from an earlier incident shows nothing. */
+function copyFeedbackText({ feedback, copyText }: { feedback: { text: string; copied: boolean } | null; copyText: string }, _optional = {}): string | null {
+  if (!feedback || feedback.text !== copyText) return null;
+  return feedback.copied ? 'Copied' : 'Copy failed. Select the details and copy them manually.';
 }
