@@ -730,7 +730,18 @@
       "./screens/settings/ExternalMcpToolPicker": "browser",
       "./screens/settings/ExternalMcpToolPicker.hooks": "browser",
       "./screens/settings/ExternalMcpToolsModal": "browser",
-      "./screens/settings/hooks/use-external-mcp-tool-picker.hooks": "browser"
+      "./screens/settings/hooks/use-external-mcp-tool-picker.hooks": "browser",
+      "./screens/plugins/PluginProviderSettingField": "browser",
+      "./screens/plugins/hooks/use-plugin-remove-confirm.hooks": "browser",
+      "./screens/plugins/hooks/use-agent-plugin-disable-confirm.hooks": "browser",
+      "./screens/plugins/PluginRemoveConfirmDialog": "browser",
+      "./screens/plugins/AgentPluginDisableConfirmDialog": "browser",
+      "./screens/plugins/AgentPluginManageButton": "browser",
+      "./screens/plugins/PluginRow": "browser",
+      "./screens/plugins/AgentPluginRow": "browser",
+      "./screens/plugins/PackageFilesModal": "browser",
+      "./screens/plugins/PluginPackageFilesModal": "browser",
+      "./screens/plugins/rules-context": "browser"
     },
     "isolation": {
       "shared": [
@@ -1016,7 +1027,18 @@
         "./screens/media/hooks/use-media-card-metadata.hooks": "media",
         "./screens/settings/rules": "universal",
         "./screens/media/rules": "universal",
-        "./shell/components/SecretInput/SecretInput": "browser"
+        "./shell/components/SecretInput/SecretInput": "browser",
+        "./screens/plugins/PluginProviderSettingField": "browser",
+        "./screens/plugins/hooks/use-plugin-remove-confirm.hooks": "browser",
+        "./screens/plugins/hooks/use-agent-plugin-disable-confirm.hooks": "browser",
+        "./screens/plugins/PluginRemoveConfirmDialog": "browser",
+        "./screens/plugins/AgentPluginDisableConfirmDialog": "browser",
+        "./screens/plugins/AgentPluginManageButton": "browser",
+        "./screens/plugins/PluginRow": "browser",
+        "./screens/plugins/AgentPluginRow": "browser",
+        "./screens/plugins/PackageFilesModal": "browser",
+        "./screens/plugins/PluginPackageFilesModal": "browser",
+        "./screens/plugins/rules-context": "browser"
       }
     },
     "optionalPeers": {
@@ -4546,6 +4568,61 @@
       "types": "./dist/screens/settings/hooks/use-external-mcp-tool-picker.hooks.d.ts",
       "import": "./dist/screens/settings/hooks/use-external-mcp-tool-picker.hooks.js",
       "default": "./dist/screens/settings/hooks/use-external-mcp-tool-picker.hooks.js"
+    },
+    "./screens/plugins/PluginProviderSettingField": {
+      "types": "./dist/screens/plugins/PluginProviderSettingField.d.ts",
+      "import": "./dist/screens/plugins/PluginProviderSettingField.js",
+      "default": "./dist/screens/plugins/PluginProviderSettingField.js"
+    },
+    "./screens/plugins/hooks/use-plugin-remove-confirm.hooks": {
+      "types": "./dist/screens/plugins/hooks/use-plugin-remove-confirm.hooks.d.ts",
+      "import": "./dist/screens/plugins/hooks/use-plugin-remove-confirm.hooks.js",
+      "default": "./dist/screens/plugins/hooks/use-plugin-remove-confirm.hooks.js"
+    },
+    "./screens/plugins/hooks/use-agent-plugin-disable-confirm.hooks": {
+      "types": "./dist/screens/plugins/hooks/use-agent-plugin-disable-confirm.hooks.d.ts",
+      "import": "./dist/screens/plugins/hooks/use-agent-plugin-disable-confirm.hooks.js",
+      "default": "./dist/screens/plugins/hooks/use-agent-plugin-disable-confirm.hooks.js"
+    },
+    "./screens/plugins/PluginRemoveConfirmDialog": {
+      "types": "./dist/screens/plugins/PluginRemoveConfirmDialog.d.ts",
+      "import": "./dist/screens/plugins/PluginRemoveConfirmDialog.js",
+      "default": "./dist/screens/plugins/PluginRemoveConfirmDialog.js"
+    },
+    "./screens/plugins/AgentPluginDisableConfirmDialog": {
+      "types": "./dist/screens/plugins/AgentPluginDisableConfirmDialog.d.ts",
+      "import": "./dist/screens/plugins/AgentPluginDisableConfirmDialog.js",
+      "default": "./dist/screens/plugins/AgentPluginDisableConfirmDialog.js"
+    },
+    "./screens/plugins/AgentPluginManageButton": {
+      "types": "./dist/screens/plugins/AgentPluginManageButton.d.ts",
+      "import": "./dist/screens/plugins/AgentPluginManageButton.js",
+      "default": "./dist/screens/plugins/AgentPluginManageButton.js"
+    },
+    "./screens/plugins/PluginRow": {
+      "types": "./dist/screens/plugins/PluginRow.d.ts",
+      "import": "./dist/screens/plugins/PluginRow.js",
+      "default": "./dist/screens/plugins/PluginRow.js"
+    },
+    "./screens/plugins/AgentPluginRow": {
+      "types": "./dist/screens/plugins/AgentPluginRow.d.ts",
+      "import": "./dist/screens/plugins/AgentPluginRow.js",
+      "default": "./dist/screens/plugins/AgentPluginRow.js"
+    },
+    "./screens/plugins/PackageFilesModal": {
+      "types": "./dist/screens/plugins/PackageFilesModal.d.ts",
+      "import": "./dist/screens/plugins/PackageFilesModal.js",
+      "default": "./dist/screens/plugins/PackageFilesModal.js"
+    },
+    "./screens/plugins/PluginPackageFilesModal": {
+      "types": "./dist/screens/plugins/PluginPackageFilesModal.d.ts",
+      "import": "./dist/screens/plugins/PluginPackageFilesModal.js",
+      "default": "./dist/screens/plugins/PluginPackageFilesModal.js"
+    },
+    "./screens/plugins/rules-context": {
+      "types": "./dist/screens/plugins/rules-context.d.ts",
+      "import": "./dist/screens/plugins/rules-context.js",
+      "default": "./dist/screens/plugins/rules-context.js"
     }
   },
   "files": [
