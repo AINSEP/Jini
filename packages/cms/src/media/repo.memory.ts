@@ -112,6 +112,11 @@ export class InMemoryAssetRenditionRepo implements AssetRenditionRepoPort {
     this.rows = [...initialRows];
   }
 
+  /** Rendition rows naming an exact storage key — the fenced GC's rendition-owner check. */
+  async countByStorageKey(required: { workspaceId: UUID; storageKey: string }): Promise<number> {
+    return this.rows.filter((row) => row.workspaceId === required.workspaceId && row.storageKey === required.storageKey).length;
+  }
+
   async listByAsset(required: { workspaceId: UUID; assetId: UUID }): Promise<AssetRenditionRecord[]> {
     return this.rows.filter(
       (row) => row.workspaceId === required.workspaceId && row.assetId === required.assetId

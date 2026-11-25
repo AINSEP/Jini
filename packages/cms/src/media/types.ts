@@ -23,6 +23,7 @@
  * independent of the entries model, so no scope adjustment was needed there.
  */
 import type { ISODateTime, UUID } from "@jini-ai/core/primitives";
+import type { BlobPurgeReason } from "@jini-ai/core/contracts/blob-gc";
 
 /** Deletion ladder status (mirrored from `navigation`'s menu ladder). */
 export type MediaStatus = "active" | "trashed";
@@ -175,6 +176,9 @@ export interface AssetBlobRecord {
   /** Sticky private/document ownership until blob GC: purge deletes editorial rows before deleting bytes.
    * Absent/false means no recorded document owner; saves must never clear a true value. */
   documentOwned?: boolean | undefined;
+  /** Provenance of the tombstone (set with `tombstonedAt`). Absent on a tombstone means a legacy
+   * row from before provenance was recorded; the fenced GC never unlinks such a row. */
+  purgeReason?: BlobPurgeReason | undefined;
 }
 
 /**
