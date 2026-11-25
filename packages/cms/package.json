@@ -521,7 +521,10 @@
       "./publish/content/backstop-refusal": "universal",
       "./publish/content/backstop-preview": "node",
       "./publish/content/publish-backstop-file": "node",
+      "./publish/content/raw-file-contributor": "node",
+      "./publish/content/raw-row-contributor": "node",
       "./publish/content/peers": "universal",
+      "./publish/content/peer-registry": "universal",
       "./publish/content/apply-retire": "universal",
       "./publish/content/apply-failure": "universal",
       "./publish/content/apply-row": "node",
@@ -3504,10 +3507,25 @@
       "import": "./dist/publish/content/publish-backstop-file.js",
       "default": "./dist/publish/content/publish-backstop-file.js"
     },
+    "./publish/content/raw-file-contributor": {
+      "types": "./dist/publish/content/raw-file-contributor.d.ts",
+      "import": "./dist/publish/content/raw-file-contributor.js",
+      "default": "./dist/publish/content/raw-file-contributor.js"
+    },
+    "./publish/content/raw-row-contributor": {
+      "types": "./dist/publish/content/raw-row-contributor.d.ts",
+      "import": "./dist/publish/content/raw-row-contributor.js",
+      "default": "./dist/publish/content/raw-row-contributor.js"
+    },
     "./publish/content/peers": {
       "types": "./dist/publish/content/peers.d.ts",
       "import": "./dist/publish/content/peers.js",
       "default": "./dist/publish/content/peers.js"
+    },
+    "./publish/content/peer-registry": {
+      "types": "./dist/publish/content/peer-registry.d.ts",
+      "import": "./dist/publish/content/peer-registry.js",
+      "default": "./dist/publish/content/peer-registry.js"
     },
     "./publish/content/apply-failure": {
       "types": "./dist/publish/content/apply-failure.d.ts",

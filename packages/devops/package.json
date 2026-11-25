@@ -76,6 +76,7 @@
       "./backup/site/share-backend": "node",
       "./backup/site/share-file-policy": "node",
       "./backup/site/import-verifier": "node",
+      "./backup/site/import-database": "node",
       "./backup/site/archive-media": "universal",
       "./backup/site/static-export-selection": "universal",
       "./backup/site/import-verifier-projection": "universal",
@@ -431,6 +432,11 @@
       "types": "./dist/backup/site/import-verifier.d.ts",
       "import": "./dist/backup/site/import-verifier.js",
       "default": "./dist/backup/site/import-verifier.js"
+    },
+    "./backup/site/import-database": {
+      "types": "./dist/backup/site/import-database.d.ts",
+      "import": "./dist/backup/site/import-database.js",
+      "default": "./dist/backup/site/import-database.js"
     },
     "./backup/site/archive-media": {
       "types": "./dist/backup/site/archive-media.d.ts",
