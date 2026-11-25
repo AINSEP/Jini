@@ -21,6 +21,15 @@ export interface AgUiToAgentTranslationState {
   readonly customEventNames: CustomEventNames;
 }
 
+/** Read one of the projection's extra fields off a validated event. AG-UI 1.0's generated event
+ *  types are closed, but its validators stay passthrough (as 0.x's were), so these fields still
+ *  arrive on the wire; they read as `unknown`, exactly as 0.x's passthrough index signature typed
+ *  them, and the payload reducer narrows them.
+ *  @complexity O(1). */
+function readExtraField({ event, key }: { event: object; key: string }, _optional: Record<string, never> = {}): unknown {
+  return (event as Record<string, unknown>)[key];
+}
+
 /** One call between its `TOOL_CALL_START` and `TOOL_CALL_END`. `toolOrigin` and `bridgeCall` are
  *  the start event's extra fields as received, not yet checked. */
 export interface AgUiOpenToolCall {
@@ -107,7 +116,7 @@ export function translateAgUiEventToAgentEvent({ event, state }: { event: AgUiEv
       return [{ kind: "thinking", text: event.delta }];
 
     case EventType.TOOL_CALL_START:
-      state.toolCalls.set(event.toolCallId, { name: event.toolCallName, argsJson: "", toolOrigin: event.toolOrigin, bridgeCall: event.bridgeCall });
+      state.toolCalls.set(event.toolCallId, { name: event.toolCallName, argsJson: "", toolOrigin: readExtraField({ event, key: "toolOrigin" }), bridgeCall: readExtraField({ event, key: "bridgeCall" }) });
       return [];
 
     case EventType.TOOL_CALL_ARGS:
@@ -124,7 +133,7 @@ export function translateAgUiEventToAgentEvent({ event, state }: { event: AgUiEv
       // AG-UI's `ToolCallResultEvent` has no standard `isError`, `media` or `outcome` field. The
       // projection writes them as extra fields; a server that sends none (an older one, or another
       // AG-UI server) reads as a plain successful result, as before.
-      return reduced({ payload: { type: "tool_result", toolUseId: event.toolCallId, content: event.content, isError: event.isError, media: event.media, outcome: event.outcome } });
+      return reduced({ payload: { type: "tool_result", toolUseId: event.toolCallId, content: event.content, isError: readExtraField({ event, key: "isError" }), media: readExtraField({ event, key: "media" }), outcome: readExtraField({ event, key: "outcome" }) } });
 
     case EventType.RAW:
       return [{ kind: "raw", line: asString({ value: event.event }) }];

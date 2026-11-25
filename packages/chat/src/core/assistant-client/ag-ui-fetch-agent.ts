@@ -1,4 +1,5 @@
-import { EventSchemas, type AGUIEvent, type RunAgentInput } from '@ag-ui/core';
+import type { AGUIEvent, RunAgentInput } from '@ag-ui/core';
+import { EventSchemas } from '@ag-ui/core/schemas';
 import { readSseFrames } from '../run-events/entry.js';
 import type { AgUiClient } from './ag-ui-transport.js';
 
@@ -40,7 +41,9 @@ async function readAgUiResponse({ request, input, signal, observer, onBytes }: {
   });
   const body = response.body.pipeThrough(activity, { signal });
   for await (const frame of readSseFrames({ body })) {
-    observer.next(EventSchemas.parse(JSON.parse(frame.data)));
+    // AG-UI 1.0's validator output types optional fields as `T | undefined` while its generated
+    // event types are absent-or-`T`; a parsed event never carries an explicit `undefined`.
+    observer.next(EventSchemas.parse(JSON.parse(frame.data)) as AGUIEvent);
   }
 }
 

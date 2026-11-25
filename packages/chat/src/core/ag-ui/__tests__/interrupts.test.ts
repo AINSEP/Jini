@@ -1,5 +1,6 @@
 import { expect, test, vi } from 'vitest';
-import { EventSchemas, EventType, type RunAgentInput } from '@ag-ui/core';
+import { EventType, type RunAgentInput } from '@ag-ui/core';
+import { EventSchemas } from '@ag-ui/core/schemas';
 import { confirmationInterrupt, readConfirmationResume, createAgUiPauseStore } from '../event-projection.js';
 import { createAgUiRunClient, type AgUiClient } from '../../assistant-client/ag-ui-transport.js';
 

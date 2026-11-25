@@ -2,7 +2,8 @@
  * result's error flag, media and outcome ride as extra fields on the standard AG-UI events (the
  * official schemas are passthrough) and come back exactly. Absent fields stay absent, so a plain
  * call's bytes are what they were before. */
-import { EventSchemas, EventType } from '@ag-ui/core';
+import { EventType } from '@ag-ui/core';
+import { EventSchemas } from '@ag-ui/core/schemas';
 import { describe, expect, it } from 'vitest';
 import { createAgUiTranslationState, translateAgentEventToAgUi, type AgUiEvent } from '../event-projection.js';
 import { createAgUiToAgentTranslationState, translateAgUiEventToAgentEvent } from '../event-reduction.js';

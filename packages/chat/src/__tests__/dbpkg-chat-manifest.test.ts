@@ -18,7 +18,7 @@ it('publishes every isolated extraction entry with its browser or universal clas
     'better-sqlite3': '^13.0.0',
     '@electric-sql/pglite': '0.5.8',
     'pg': '^8.23.0',
-    '@ag-ui/core': '0.0.58',
+    '@ag-ui/core': '1.0.4',
     '@mcp-ui/client': '7.1.1',
     '@radix-ui/react-checkbox': '^1.3.11',
     '@radix-ui/react-label': '^2.1.15',
@@ -32,7 +32,7 @@ it('publishes every isolated extraction entry with its browser or universal clas
   expect(manifest.peerDependenciesMeta).toEqual(
     Object.fromEntries(Object.keys(expectedPeers).map(name => [name, { optional: true }])),
   );
-  expect(manifest.devDependencies['@ag-ui/core']).toBe('0.0.58');
+  expect(manifest.devDependencies['@ag-ui/core']).toBe('1.0.4');
   expect(manifest.devDependencies['@jini-ai/agent-runtime']).toBe('workspace:*');
   // Default widget/bridge features need these at runtime; the dependency contract makes
   // them regular dependencies. Only opt-in subpaths and host UI peers remain optional.
