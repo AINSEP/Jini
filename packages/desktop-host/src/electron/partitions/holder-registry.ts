@@ -54,7 +54,7 @@ export function createHolderRegistry({ interlockDir, fs, process, clock }: Holde
     v: 1, pid: process.pid, token, bootId: process.bootId, hostname: process.hostname, profile: interlockDir,
     startedAt, seq, intents: [...intents].sort(), held: [...held].sort(),
   } satisfies HolderRecord);
-  const temporary = () => `${file}.${(writes += 1)}.tmp`;
+  const temporary = () => { writes += 1; return `${file}.${writes}.tmp`; };
   return {
     file, token, intents, held,
     get registered() { return registered; },
@@ -90,13 +90,15 @@ export function createHolderRegistry({ interlockDir, fs, process, clock }: Holde
 }
 export type HolderRegistry = ReturnType<typeof createHolderRegistry>;
 
+const isStringArray = (v: unknown) => Array.isArray(v) && v.every(item => typeof item === 'string');
+function hasHolderShape(r: HolderRecord): boolean {
+  return [r.bootId, r.hostname].every(v => typeof v === 'string') && Number.isFinite(r.seq) && isStringArray(r.intents) && isStringArray(r.held);
+}
 function parseHolder(text: string, pid: string, token: string): HolderRecord | null {
   try {
     const r = JSON.parse(text) as HolderRecord;
-    const strings = (v: unknown) => Array.isArray(v) && v.every(item => typeof item === 'string');
-    const ok = r?.v === 1 && String(r.pid) === pid && r.token === token && typeof r.bootId === 'string'
-      && typeof r.hostname === 'string' && Number.isFinite(r.seq) && strings(r.intents) && strings(r.held);
-    return ok ? r : null;
+    const named = r?.v === 1 && String(r.pid) === pid && r.token === token;
+    return named && hasHolderShape(r) ? r : null;
   } catch { return null; }
 }
 
@@ -119,6 +121,22 @@ async function readOne(file: string, match: RegExpExecArray, fs: PartitionFsPort
   }
 }
 
+async function listHolderNames(dir: string, fs: PartitionFsPort): Promise<StrictRead<string[]>> {
+  try { return { state: 'ok', value: await fs.readdir({ path: dir }) }; }
+  catch (error) {
+    // No holders directory means no process of this profile ever registered: genuinely empty.
+    if (code(error) === 'ENOENT') return { state: 'ok', value: [] };
+    return { state: 'unknown', reason: `holders directory unreadable (${code(error) ?? 'error'})` };
+  }
+}
+
+async function readWithRetry(file: string, match: RegExpExecArray, fs: PartitionFsPort, scheduler: PartitionSchedulerPort): Promise<FileRead> {
+  const first = await readOne(file, match, fs);
+  if (first.state !== 'bad') return first;
+  await scheduler.sleep({ ms: RETRY_MS });
+  return readOne(file, match, fs);
+}
+
 /**
  * Every live holder of this profile, or `unknown`. A bad record is re-read once after a short pause
  * (a writer on a filesystem without atomic rename), then fails the whole read closed.
@@ -129,18 +147,14 @@ export async function readHoldersStrict(
   _optional: Record<string, never> = {},
 ): Promise<StrictRead<HolderRecord[]>> {
   const dir = path.join(interlockDir, 'holders');
-  let names: string[];
-  try { names = await fs.readdir({ path: dir }); }
-  catch (error) {
-    if (code(error) === 'ENOENT') return { state: 'ok', value: [] };
-    return { state: 'unknown', reason: `holders directory unreadable (${code(error) ?? 'error'})` };
-  }
+  const listed = await listHolderNames(dir, fs);
+  if (listed.state === 'unknown') return listed;
+  const names = listed.value;
   const live: HolderRecord[] = [];
   for (const name of names) {
     const match = HOLDER_NAME.exec(name);
     if (!match) continue;
-    let read = await readOne(path.join(dir, name), match, fs);
-    if (read.state === 'bad') { await scheduler.sleep({ ms: RETRY_MS }); read = await readOne(path.join(dir, name), match, fs); }
+    const read = await readWithRetry(path.join(dir, name), match, fs, scheduler);
     if (read.state === 'bad') return { state: 'unknown', reason: read.reason };
     if (read.state === 'record' && holderAlive(read.record, process)) live.push(read.record);
   }

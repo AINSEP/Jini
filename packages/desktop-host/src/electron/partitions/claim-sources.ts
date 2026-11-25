@@ -32,6 +32,14 @@ export function presenceClaimSource(
   return { name, read: async () => readPresenceStrict({ directory, fs, liveness }) };
 }
 
+interface ClaimTally { reasons: string[]; claimed: Set<string>; others: Set<number> }
+
+async function tallySource<T>(tally: ClaimTally, name: string, read: () => Promise<StrictRead<readonly T[]>>, add: (item: T) => void): Promise<void> {
+  const result = await read();
+  if (result.state === 'unknown') tally.reasons.push(`${name}: ${result.reason}`);
+  else result.value.forEach(add);
+}
+
 /**
  * Union of every live holder's intents and held partitions (this process included), every partition
  * source, and every other live instance. One `unknown` source makes the whole answer `unknown`:
@@ -42,23 +50,14 @@ export async function readClaimsStrict(
   { selfPid, holders, sources }: { selfPid: number; holders: () => Promise<StrictRead<readonly HolderClaims[]>>; sources: PartitionClaimSources },
   _optional: Record<string, never> = {},
 ): Promise<ClaimsRead> {
-  const reasons: string[] = [], claimed = new Set<string>(), others = new Set<number>();
-  const holderRead = await holders();
-  if (holderRead.state === 'unknown') reasons.push(`holders: ${holderRead.reason}`);
-  else for (const holder of holderRead.value) {
-    for (const partition of [...holder.intents, ...holder.held]) claimed.add(partition);
-    if (holder.pid !== selfPid) others.add(holder.pid);
-  }
-  for (const source of sources.partitions) {
-    const read = await source.read();
-    if (read.state === 'unknown') reasons.push(`${source.name}: ${read.reason}`);
-    else for (const partition of read.value) claimed.add(partition);
-  }
-  for (const source of sources.instances) {
-    const read = await source.read();
-    if (read.state === 'unknown') reasons.push(`${source.name}: ${read.reason}`);
-    else for (const { pid } of read.value) if (pid !== selfPid) others.add(pid);
-  }
-  if (reasons.length > 0) return { state: 'unknown', reasons };
-  return { state: 'ok', claimed: [...claimed].sort(), otherInstances: [...others].sort((a, b) => a - b) };
+  const tally: ClaimTally = { reasons: [], claimed: new Set(), others: new Set() };
+  const addInstance = (pid: number) => { if (pid !== selfPid) tally.others.add(pid); };
+  await tallySource<HolderClaims>(tally, 'holders', holders, holder => {
+    for (const partition of [...holder.intents, ...holder.held]) tally.claimed.add(partition);
+    addInstance(holder.pid);
+  });
+  for (const source of sources.partitions) await tallySource<string>(tally, source.name, () => source.read(), p => tally.claimed.add(p));
+  for (const source of sources.instances) await tallySource<{ pid: number }>(tally, source.name, () => source.read(), ({ pid }) => addInstance(pid));
+  if (tally.reasons.length > 0) return { state: 'unknown', reasons: tally.reasons };
+  return { state: 'ok', claimed: [...tally.claimed].sort(), otherInstances: [...tally.others].sort((a, b) => a - b) };
 }

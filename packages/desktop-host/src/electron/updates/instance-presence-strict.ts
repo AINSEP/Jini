@@ -25,6 +25,18 @@ function isRecord(value: unknown, name: string): value is InstanceRecord {
   return numeric && name === `${record.pid}.json`;
 }
 
+type RecordRead = { state: 'record'; record: InstanceRecord } | { state: 'gone' } | { state: 'bad'; reason: string };
+function readRecord(name: string, { directory, fs }: Pick<ReadPresenceStrictInput, 'directory' | 'fs'>): RecordRead {
+  let parsed: unknown;
+  try { parsed = JSON.parse(fs.readFileSync({ path: path.join(directory, name), encoding: 'utf8' })); }
+  catch (error) {
+    // Only the owner (on quit) or a dead-PID sweep deletes a record, so a vanished file is proof of exit.
+    if ((error as NodeJS.ErrnoException)?.code === 'ENOENT') return { state: 'gone' };
+    return { state: 'bad', reason: `presence record ${name} unreadable` };
+  }
+  return isRecord(parsed, name) ? { state: 'record', record: parsed } : { state: 'bad', reason: `presence record ${name} malformed` };
+}
+
 /** Live presence records, or `unknown` on any unreadable/malformed record or non-ENOENT directory error.
  * @complexity O(n) records and liveness probes.
  */
@@ -32,20 +44,15 @@ export function readPresenceStrict({ directory, fs, liveness }: ReadPresenceStri
   let names: string[];
   try { names = fs.readdirSync({ path: directory }); }
   catch (error) {
-    if ((error as NodeJS.ErrnoException)?.code === 'ENOENT') return { state: 'ok', value: [] };
-    return { state: 'unknown', reason: `presence directory unreadable (${(error as NodeJS.ErrnoException)?.code ?? 'error'})` };
+    const errorCode = (error as NodeJS.ErrnoException)?.code;
+    if (errorCode === 'ENOENT') return { state: 'ok', value: [] };
+    return { state: 'unknown', reason: `presence directory unreadable (${errorCode ?? 'error'})` };
   }
   const live: InstanceRecord[] = [];
   for (const name of names.filter(entry => /^\d+\.json$/.test(entry))) {
-    let parsed: unknown;
-    try { parsed = JSON.parse(fs.readFileSync({ path: path.join(directory, name), encoding: 'utf8' })); }
-    catch (error) {
-      // Only the owner (on quit) or a dead-PID sweep deletes a record, so a vanished file is proof of exit.
-      if ((error as NodeJS.ErrnoException)?.code === 'ENOENT') continue;
-      return { state: 'unknown', reason: `presence record ${name} unreadable` };
-    }
-    if (!isRecord(parsed, name)) return { state: 'unknown', reason: `presence record ${name} malformed` };
-    if (liveness({ pid: parsed.pid })) live.push(parsed);
+    const read = readRecord(name, { directory, fs });
+    if (read.state === 'bad') return { state: 'unknown', reason: read.reason };
+    if (read.state === 'record' && liveness({ pid: read.record.pid })) live.push(read.record);
   }
   return { state: 'ok', value: live };
 }
