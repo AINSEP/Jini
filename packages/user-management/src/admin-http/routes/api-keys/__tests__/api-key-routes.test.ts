@@ -1,3 +1,4 @@
+import { assertVersionedWrite } from "@jini-ai/core/optimistic-concurrency";
 import { describe, expect, it } from "vitest";
 
 import { InMemoryPolicyPermissionRepo, InMemoryPolicyRepo, InMemoryPrincipalPolicyRepo, InMemoryPrincipalRepo, InMemoryPrincipalRoleRepo, InMemoryRolePolicyRepo, InMemoryRoleRepo, InMemorySessionRepo, InMemoryUserRepo, NodeSessionTokens, createTransactionalInMemoryIdentityRepos } from "../../../../server/index.js";
@@ -19,7 +20,7 @@ async function harness() {
   let id = 0;
   const services: ApiKeyServiceDeps = {
     tokens: new NodeSessionTokens({}),
-    repos: createTransactionalInMemoryIdentityRepos({ repos: { principals: new InMemoryPrincipalRepo({}), users: new InMemoryUserRepo({}), sessions: new InMemorySessionRepo({}), roles: new InMemoryRoleRepo({}), policies: new InMemoryPolicyRepo({}), policyPermissions: new InMemoryPolicyPermissionRepo({}), principalPolicies: new InMemoryPrincipalPolicyRepo({}), principalRoles: new InMemoryPrincipalRoleRepo({}), rolePolicies: new InMemoryRolePolicyRepo({}) } }),
+    repos: createTransactionalInMemoryIdentityRepos({ repos: { principals: new InMemoryPrincipalRepo({}), users: new InMemoryUserRepo({ assertVersionedWrite }), sessions: new InMemorySessionRepo({}), roles: new InMemoryRoleRepo({ assertVersionedWrite }), policies: new InMemoryPolicyRepo({ assertVersionedWrite }), policyPermissions: new InMemoryPolicyPermissionRepo({}), principalPolicies: new InMemoryPrincipalPolicyRepo({}), principalRoles: new InMemoryPrincipalRoleRepo({}), rolePolicies: new InMemoryRolePolicyRepo({}) } }),
     apiKeys: new InMemoryApiKeyRepo(), clock: { nowMs: () => Date.parse(NOW) }, idGen: { newId: () => `ak-${++id}` },
     hasher: { hash: async ({ password }) => `password:${password}`, verify: async ({ hash, password }) => hash === `password:${password}` },
     secretHasher: { hash: async ({ secret }) => `digest:${secret}`, verify: async ({ storedHash, secret }) => storedHash === `digest:${secret}` },
@@ -28,10 +29,10 @@ async function harness() {
   for (const [pid, kind] of [["operator", "user"], ["viewer", "user"], ["machine", "api_key"]] as const) {
     await repos.principals.save({ id: pid, workspaceId: WS, kind, displayName: pid, status: "active", createdAt: NOW });
   }
-  await repos.policies.save({ id: "manage", workspaceId: WS, name: "manage", isBuiltin: false, isFrozen: false });
+  await repos.policies.save({ version: 1, id: "manage", workspaceId: WS, name: "manage", isBuiltin: false, isFrozen: false });
   await repos.policyPermissions.save({ id: "manage-perm", workspaceId: WS, policyId: "manage", permission: "apikey.manage", resourceType: null, constraintJson: null });
   await repos.principalPolicies.save({ id: "operator-grant", workspaceId: WS, principalId: "operator", policyId: "manage" });
-  await repos.policies.save({ id: "wide", workspaceId: WS, name: "wide", isBuiltin: false, isFrozen: false });
+  await repos.policies.save({ version: 1, id: "wide", workspaceId: WS, name: "wide", isBuiltin: false, isFrozen: false });
   await repos.policyPermissions.save({ id: "wide-perm", workspaceId: WS, policyId: "wide", permission: "content.write", resourceType: null, constraintJson: null });
   const deps = { workspaceId: WS, apiKeyServices: () => services, createApiKeyPrincipal, issueApiKey, revokeApiKey };
   return { services, deps };
