@@ -1168,6 +1168,63 @@ describe('xaiRoutes', () => {
   it('answers 400 for a malformed search body', async () => {
     expect((await send(listen({ dataDir }), 'POST', '/api/xai/search', { query: '   ' })).status).toBe(400);
   });
+
+  it('ONE LISTENER: a second oauth/start through the mounted list is a 409 and never opens a second listener', async () => {
+    const startCallbackListener = vi.fn(async () => makeListener());
+    const served = listen({ dataDir, startCallbackListener });
+    expect((await send(served, 'POST', '/api/xai/oauth/start')).status).toBe(200);
+    const second = await send(served, 'POST', '/api/xai/oauth/start');
+    expect(second.status).toBe(409);
+    expect(second.body).toMatchObject({ error: { code: 'OAUTH_FLOW_IN_PROGRESS' } });
+    expect(startCallbackListener).toHaveBeenCalledTimes(1);
+  });
+
+  it('ONE LISTENER: every route of one mounted list sees the slot start filled (status, cancel, status)', async () => {
+    const listener = makeListener();
+    const served = listen({ dataDir, startCallbackListener: vi.fn(async () => listener) });
+    await send(served, 'POST', '/api/xai/oauth/start');
+    expect((await send(served, 'GET', '/api/xai/auth/status')).body).toMatchObject({ listening: true });
+    await send(served, 'POST', '/api/xai/oauth/cancel');
+    expect((await send(served, 'GET', '/api/xai/auth/status')).body).toMatchObject({ listening: false });
+    expect(listener.stop).toHaveBeenCalledTimes(1);
+  });
+
+  it('a caller-supplied listener slot is the one the mounted routes fill and drain (the host closes it on shutdown)', async () => {
+    const listenerRef: { current: OAuthCallbackListener | null } = { current: null };
+    const listener = makeListener();
+    const served = listen({ dataDir, listenerRef, startCallbackListener: vi.fn(async () => listener) });
+    await send(served, 'POST', '/api/xai/oauth/start');
+    expect(listenerRef.current).toBe(listener);
+    await send(served, 'POST', '/api/xai/oauth/disconnect');
+    expect(listenerRef.current).toBeNull();
+  });
+
+  it('SAFE DISCLOSURE over HTTP: an upstream search failure answers 500 INTERNAL_ERROR with the generic text and a request id, never the bearer or upstream body', async () => {
+    const fetchImpl = vi.fn()
+      .mockResolvedValueOnce(okTokenResponse({ access_token: 'secret-bearer-xyz' }))
+      .mockResolvedValueOnce(new Response('upstream said Bearer secret-bearer-xyz is bad', { status: 502 }));
+    const served = listen({ dataDir, startCallbackListener: vi.fn(async () => makeListener()), fetchImpl: fetchImpl as unknown as typeof fetch });
+    const started = await send(served, 'POST', '/api/xai/oauth/start');
+    await send(served, 'POST', '/api/xai/oauth/complete', { state: started.body.state, code: 'c1' });
+    const searched = await send(served, 'POST', '/api/xai/search', { query: 'q' });
+    expect(searched.status).toBe(500);
+    expect(searched.body).toMatchObject({ error: { code: 'INTERNAL_ERROR', requestId: expect.any(String) } });
+    expect(JSON.stringify(searched.body)).not.toMatch(/secret-bearer-xyz|upstream said/);
+  });
+
+  it('TIMEOUT over HTTP: a search whose upstream never answers fails 500 once searchTimeoutMs elapses', async () => {
+    const fetchImpl = vi.fn()
+      .mockResolvedValueOnce(okTokenResponse())
+      .mockImplementationOnce((_url: string, init: RequestInit) => new Promise((_resolve, reject) => {
+        init.signal?.addEventListener('abort', () => reject(new Error('aborted')));
+      }));
+    const served = listen({ dataDir, searchTimeoutMs: 20, startCallbackListener: vi.fn(async () => makeListener()), fetchImpl: fetchImpl as unknown as typeof fetch });
+    const started = await send(served, 'POST', '/api/xai/oauth/start');
+    await send(served, 'POST', '/api/xai/oauth/complete', { state: started.body.state, code: 'c1' });
+    const searched = await send(served, 'POST', '/api/xai/search', { query: 'q' });
+    expect(searched.status).toBe(500);
+    expect(searched.body).toMatchObject({ error: { code: 'INTERNAL_ERROR' } });
+  });
 });
 
 it('retains the injected reporter through xAI dependency resolution', async () => {
