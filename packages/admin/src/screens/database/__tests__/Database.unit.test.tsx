@@ -21,14 +21,18 @@ import { fakeAdminKit } from "../../../react/testing-kit.js";
  *
  * NO RESTORE-POINTS SECTION (2026-09-10): this file used to also cover a third section,
  * the former Database hook, mounted on a `restore-points` tab. That whole
- * capability moved to the host's Recovery screen (the product's todo list's "Recovery vs
+ * capability moved to `features/recovery/Recovery.tsx` (`development/todos.md`'s "Recovery vs
  * Database's Restore Points tab" entry, owner, 2026-09-10) — see `Recovery.unit.test.tsx`'s own
  * "create restore point" describe block for its coverage now. The old hook and its dedicated tests were deleted after confirming it had no production
  * importer; the mixed request-volume suite retained its live sections.
  *
- * `Database` threads the three section hooks and the host parts (`ServerLabel`, `useAdminLocaleHook`)
- * through REQUIRED props, so each test drives every section's state directly: each controller below
- * is held in a `vi.hoisted` ref that tests mutate before rendering, with no real `fetch`.
+ * `TimelineSection`/`MigrateForwardSection` each declare a `use*Hook` DI seam
+ * (`Recovery.tsx`/`Pages.tsx` convention), but `Database` — the only exported component in this
+ * file — never threads a prop through to them, so there is no way to inject a controller via props
+ * from the top (same situation as `RestoreFlow` in `Recovery.tsx`). Module-mocking each `use*Section`
+ * hook is the seam that's actually reachable: each mock is driven through a `vi.hoisted` ref that
+ * tests mutate before rendering, giving direct control over every section's state without a real
+ * `fetch`.
  *
  * `t`/`locale` (2026-08-11, standing i18n rule): each controller fixture below defaults `t` to the
  * identity function (and `locale` to `"en"`, where the controller carries one) — matching
@@ -44,6 +48,8 @@ import { fakeAdminKit } from "../../../react/testing-kit.js";
  * tab regardless of that inference (or needs to assert on the tab bar itself) passes `tabId`
  * explicitly, which always wins.
  */
+// In this package the section hooks, `ServerLabel` and `useAdminLocaleHook` are REQUIRED `Database` props, so
+// each test injects the controllers below through `hostProps` (held in `vi.hoisted` refs) instead of module-mocking.
 
 vi.mock("../../../shell/lib/router.js", () => ({ navigate: vi.fn() }));
 
@@ -159,7 +165,7 @@ describe("page shell", () => {
     expect(screen.getByRole("tablist", { name: "Database" })).toBeInTheDocument();
     expect(screen.getByRole("tab", { name: "Timeline" })).toBeInTheDocument();
     expect(screen.getByRole("tab", { name: "Migrate forward" })).toBeInTheDocument();
-    // Restore points moved to Recovery (2026-09-10, the product's todo list) — Database no longer
+    // Restore points moved to Recovery (2026-09-10, `development/todos.md`) — Database no longer
     // has a tab for it at all.
     expect(screen.queryByRole("tab", { name: "Restore points" })).not.toBeInTheDocument();
   });

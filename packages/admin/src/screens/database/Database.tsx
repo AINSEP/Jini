@@ -15,12 +15,12 @@ import { viewInRecoveryAccessibleName } from "./rules.js";
 
 /**
  * @file Database screen (design-spec.md §3, ADR-041) — the `/admin/database` route: the
- * read-first Timeline and the migrate-forward ceremony, behind a `TabBar` (the kit's `TabBar`)
+ * read-first Timeline and the migrate-forward ceremony, behind a `TabBar` (`@jini-ai/ui/tab-strip`)
  * with two tabs — Timeline, Migrate forward. Markup only.
  *
- * State and API calls live in the package's `hooks/use-timeline-section.hooks.ts` and
- * `hooks/use-migrate-forward-section.hooks.ts` (bound by the host in its own `*-dependencies.hooks.ts`) — one per section, matching the two independent
- * pieces of screen state. Structural reference: the Analytics screen's "raw ingest, said so explicitly"
+ * State and API calls live in the package's `use-timeline-section.hooks.ts` and
+ * `use-migrate-forward-section.hooks.ts` (`@jini-ai/admin/screens/database/hooks/`, bound in `hooks/*-dependencies.hooks.ts`) — one per section, matching the two independent
+ * pieces of screen state. Structural reference: `Analytics.tsx`'s "raw ingest, said so explicitly"
  * pattern (design-spec.md §0.3).
  *
  * The migrate-forward plan/confirm/execute ceremony (ADR-041 §3, SPEC-017 C-103/C-105) is now
@@ -39,35 +39,39 @@ import { viewInRecoveryAccessibleName } from "./rules.js";
  *
  * NO RESTORE-POINTS TAB (2026-09-10): this screen used to carry a third tab — Restore points
  * (list + create, the former Database hook) — between Timeline and Migrate
- * forward. The product owner's call (2026-09-10, superseded same morning) moved that whole capability into the Recovery
- * screen, now tabbed itself, alongside the restore ceremony it already owned — restore
+ * forward. `development/todos.md`'s "Recovery vs Database's Restore Points tab" entry (owner,
+ * 2026-09-10, superseded same morning) moved that whole capability into `features/recovery/
+ * Recovery.tsx`, now tabbed itself, alongside the restore ceremony it already owned — restore
  * points were never a "database" concern per the owner's own call. `Database.tsx` keeps only the
  * two tabs below; anything about a restore point's own list/create lives in Recovery now, not here.
  *
  * TAB GROUPING (this pass): two tabs, one per section, in read → change order — **Timeline** (the
  * read-first ledger, so it's what a returning operator sees first), **Migrate forward** (the one
- * ceremony that actually writes). `?tab=` deep-linking follows the Deployment/SettingsUi screens'
- * own pattern: the host's route passes `ctx.query.get("tab")` in as `tabId`, an unrecognized or absent
+ * ceremony that actually writes). `?tab=` deep-linking follows `Deployment.tsx`/`SettingsUi.tsx`'s
+ * own pattern: `panels.tsx` passes `ctx.query.get("tab")` in as `tabId`, an unrecognized or absent
  * value falls back to the first tab ("timeline") rather than rendering nothing, and switching tabs
  * calls `navigate(..., { replace: true })` so the URL stays a correct deep link without growing the
  * back-button history one entry per click.
  *
  * `Database` itself still has no hook of its own (no single fetch/state this top-level shell owns
- * — the tab-id resolution below is pure, not stateful), so it calls the injected
- * `useAdminLocaleHook` and `database-i18n`'s `t` directly for its own header and tab-bar text — per
- * the standing i18n rule's carve-out for components with no hook file. Each SECTION below
- * (`useTimelineSection`, `useMigrateForwardSection`) already independently resolves the host's
- * locale hook for its own internal error-string translations (unrelated to this file), so
+ * — the tab-id resolution below is pure, not stateful), so it keeps calling
+ * `useAdminLocale()`/`database-i18n`'s `t` directly for its own header and tab-bar text — per the
+ * standing i18n rule's carve-out for components with no hook file. Each SECTION below
+ * (`useTimelineSection`, `useMigrateForwardSection`) already independently resolves
+ * `useAdminLocale()` for its own internal error-string translations (unrelated to this file), so
  * `t`/`locale` are sourced from each section's own hook rather than threaded down from `Database`
  * as a prop — that prop was redundant with a resolution each hook was already doing.
  */
+// In `@jini-ai/admin` the section hooks, the admin locale hook and `ServerLabel` arrive as REQUIRED props
+// (`DatabaseProps`); the host binds its wired hooks in its own `Database.tsx`.
 
 const DATABASE_TAB_IDS = ["timeline", "migrate-forward"] as const;
 type DatabaseTabId = (typeof DATABASE_TAB_IDS)[number];
 
 /** Falls back to the first tab for an absent or unrecognized `?tab=` value. Delegates to the
- *  shared `resolveActiveTabId` guard (`@jini-ai/core/text`) — same "don't trust a raw query value" reason
- *  the Deployment/Security/SourceControl/Themes/SettingsUi screens' own tab-id guards all apply (a stale link or a typo must not blank the panel). */
+ *  shared `../../lib/resolve-active-tab-id` guard — same "don't trust a raw query value" reason
+ *  `Deployment.tsx`/`Security.tsx`/`SourceControl.tsx`/`Themes.tsx` and `SettingsUi.tsx`'s own
+ *  `requestedTabId` all apply (a stale link or a typo must not blank the panel). */
 function resolveDatabaseTabId({ tabId }: { tabId: string | null | undefined }, _options = {}): DatabaseTabId {
   return resolveActiveTabId({ tabId: tabId, validIds: DATABASE_TAB_IDS, defaultId: "timeline" });
 }
@@ -92,8 +96,11 @@ export interface DatabaseHostParts {
 }
 
 export interface TimelineSectionProps {
-  /** The host's WIRED timeline hook (live port, locale, error wording). Mirrored below
-   *  (`MigrateForwardSectionProps`) since each section owns independent state. */
+  /** Dependency injection seam for tests — the same convention `@jini-ai/ui`'s `CustomSelect` uses
+   *  for `useCustomSelect`. Mirrored below (`MigrateForwardSectionProps`) since each section owns
+   *  independent state. Defaulted to the WIRED hook (2026-08-14, Orc-BASH pass) — see
+   *  `timeline-section-dependencies.hooks.ts`'s own `useWiredTimelineSection`. */
+  // Package form: REQUIRED — the host binds its WIRED hook (live port, locale, error wording).
   useTimelineSectionHook: () => TimelineSectionController;
   ServerLabel: ComponentType<{ value: string }>;
 }
@@ -314,7 +321,9 @@ function TimelineSection({ useTimelineSectionHook, ServerLabel }: TimelineSectio
 }
 
 export interface MigrateForwardSectionProps {
-  /** The host's WIRED migrate-forward hook (live port, locale, error wording). */
+  /** Defaulted to the WIRED hook (2026-08-14, Orc-BASH pass) — see `use-migrate-forward-
+   *  section-dependencies.hooks.ts`'s own `useWiredMigrateForwardSection`. */
+  // Package form: REQUIRED — the host binds its WIRED hook (live port, locale, error wording).
   useMigrateForwardSectionHook: () => MigrateForwardSectionController;
 }
 
@@ -450,7 +459,7 @@ function MigrateForwardSection({ useMigrateForwardSectionHook }: MigrateForwardS
 }
 
 export interface SchemaStateWarningBannerProps {
-  /** Same dependency-injection seam as the sections above. */
+  /** Same dependency-injection seam as the three sections above. */
   useSchemaStateSectionHook: () => SchemaStateSectionController;
 }
 
@@ -458,7 +467,7 @@ export interface SchemaStateWarningBannerProps {
  * The drift warning — the screen's only always-on health statement, so it renders ABOVE the
  * Timeline rather than inside any section.
  *
- * Renders nothing at all when the injected schema-state hook reports no warning. That silence
+ * Renders nothing at all when {@link useWiredSchemaStateSection} reports no warning. That silence
  * is load-bearing and narrow: `rules.ts`'s `resolveSchemaStateWarning` only yields `null` for a
  * confirmed-clean read or a check that has not finished yet. Every other outcome — including "the
  * check failed" and "the comparison was incomplete" — arrives here as a real warning, because an
@@ -466,8 +475,8 @@ export interface SchemaStateWarningBannerProps {
  *
  * `role="alert"` rather than a plain `div`: this is unsolicited, it appears after load, and it can
  * change the meaning of everything below it, which is exactly the case the role exists for.
- * `warning.tone` selects between the error and warning notice variants, both already in the
- * host's stylesheet — no new CSS.
+ * `warning.tone` selects between `.notice.error` and `.notice.warning`, both already in
+ * `styles.css` — no new CSS.
  */
 function SchemaStateWarningBanner({ useSchemaStateSectionHook }: SchemaStateWarningBannerProps) {
   const { warning, t } = useSchemaStateSectionHook();
