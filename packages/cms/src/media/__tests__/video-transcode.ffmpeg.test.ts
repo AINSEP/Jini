@@ -8,6 +8,7 @@ import { afterEach, test } from "vitest";
 import { sniffContentType } from "../content-type-sniffer.js";
 import { findVideoBinaries } from "../video-frames.ffmpeg.js";
 import { buildVideoTranscodeArgs, createFfmpegMediaTranscoder } from "../video-transcode.ffmpeg.js";
+import { VIDEO_CONVERSION_MESSAGES } from "../video-transcode.js";
 
 const BINARIES = { nice: "/usr/bin/nice", ffmpeg: "/usr/bin/ffmpeg", ffprobe: "/usr/bin/ffprobe" };
 const directories: string[] = [];
@@ -94,6 +95,40 @@ test("the ffmpeg transcoder does not start when the signal is already aborted", 
   const transcoder = createFfmpegMediaTranscoder({ tempDir: await tempDir(), findBinaries: async () => BINARIES, runProcess: async () => { throw new Error("must not run"); } });
   const result = await transcoder.transcode({ input: mp4(), target: "mp4-h264-aac-faststart" }, { signal: controller.signal });
   assert.equal(!result.ok && result.reason, "canceled");
+});
+
+/** A lock that records each acquire and release, so a failure path that leaks the lock is visible. */
+function countingLock({ busy = false } = {}) {
+  const counts = { acquired: 0, released: 0 };
+  return { counts, lock: { tryAcquire: () => { if (busy) return undefined; counts.acquired += 1; return () => { counts.released += 1; }; } } };
+}
+
+test("the ffmpeg transcoder releases its lock and removes temp files when ffmpeg fails", async () => {
+  const root = await tempDir();
+  const { counts, lock } = countingLock();
+  const transcoder = createFfmpegMediaTranscoder({ tempDir: root, lock, findBinaries: async () => BINARIES, runProcess: async () => { throw new Error("ffmpeg crashed"); } });
+  const result = await transcoder.transcode({ input: mp4(), target: "mp4-h264-aac-faststart" });
+  assert.equal(!result.ok && result.reason, "invalid");
+  assert.deepEqual(counts, { acquired: 1, released: 1 });
+  assert.deepEqual(await readdir(root), []);
+});
+
+test("the ffmpeg transcoder releases its lock when the temp folder cannot be made", async () => {
+  const { counts, lock } = countingLock();
+  const transcoder = createFfmpegMediaTranscoder({ tempDir: join(await tempDir(), "missing", "deeper"), lock, findBinaries: async () => BINARIES, runProcess: async () => { throw new Error("must not run"); } });
+  const result = await transcoder.transcode({ input: mp4(), target: "mp4-h264-aac-faststart" });
+  assert.equal(!result.ok && result.reason, "invalid");
+  assert.deepEqual(counts, { acquired: 1, released: 1 });
+});
+
+test("the ffmpeg transcoder refuses before taking the lock, and reports busy without running when the lock is held", async () => {
+  const free = countingLock();
+  const tooLarge = createFfmpegMediaTranscoder({ tempDir: await tempDir(), maxInputBytes: 8, lock: free.lock, findBinaries: async () => { throw new Error("must not look up ffmpeg"); } });
+  assert.equal(await tooLarge.transcode({ input: mp4(), target: "mp4-h264-aac-faststart" }).then(result => !result.ok && result.reason), "too-large");
+  assert.deepEqual(free.counts, { acquired: 0, released: 0 });
+  const held = countingLock({ busy: true });
+  const busy = createFfmpegMediaTranscoder({ tempDir: await tempDir(), lock: held.lock, findBinaries: async () => BINARIES, runProcess: async () => { throw new Error("must not run"); } });
+  assert.deepEqual(await busy.transcode({ input: mp4(), target: "mp4-h264-aac-faststart" }), { ok: false, reason: "busy", message: VIDEO_CONVERSION_MESSAGES.busy });
 });
 
 // Real codec round trip; skipped on hosts without nice/ffmpeg/ffprobe.

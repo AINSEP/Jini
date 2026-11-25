@@ -85,6 +85,34 @@ async function transcodeInDirectory({ binaries, directory, input, signal, maxOut
   return sniffContentType({ bytes }) === "video/mp4" ? { ok: true, bytes } : failure("invalid");
 }
 
+/** The refusals that need no process: an aborted call or an oversize input, before ffmpeg lookup or the lock. */
+function refuseBeforeStart(
+  { input, signal, maxInputBytes }: { input: Uint8Array; signal: AbortSignal | undefined; maxInputBytes: number },
+  _optional = {},
+): Failure | undefined {
+  if (signal?.aborted) return failure("canceled");
+  if (input.byteLength > maxInputBytes) return failure("too-large");
+  return undefined;
+}
+
+/** Runs one conversion in a fresh private temp folder; the folder and the held lock are released in every outcome. */
+async function transcodeHoldingLock(
+  { release, tempDir, run }: { release: () => void; tempDir: string; run: Omit<RunRequest, "directory"> },
+  _optional = {},
+): Promise<VideoTranscodeResult> {
+  let directory: string | undefined;
+  try {
+    directory = await mkdtemp(join(tempDir, "video-transcode-"));
+    return await transcodeInDirectory({ ...run, directory });
+  } catch (error) {
+    return toFailure(error);
+  } finally {
+    // Cleanup failure must not mask the result; the folder name is unique and private.
+    if (directory) await rm(directory, { recursive: true, force: true }).catch(() => undefined);
+    release();
+  }
+}
+
 /**
  * Creates the ffmpeg-backed transcoder. Missing ffmpeg (or nice/ffprobe, which ship with it on
  * supported hosts; Windows is never supported because nice is required) is reported as
@@ -98,23 +126,13 @@ export function createFfmpegMediaTranscoder(
 ): MediaTranscoderPort {
   return {
     async transcode({ input }, { signal, maxOutputBytes = maxInputBytes } = {}) {
-      if (signal?.aborted) return failure("canceled");
-      if (input.byteLength > maxInputBytes) return failure("too-large");
+      const refused = refuseBeforeStart({ input, signal, maxInputBytes });
+      if (refused) return refused;
       const binaries = await findBinaries({}, env ? { env } : {});
       if (!binaries) return failure("unavailable");
       const release = lock.tryAcquire({}, {});
       if (!release) return failure("busy");
-      let directory: string | undefined;
-      try {
-        directory = await mkdtemp(join(tempDir, "video-transcode-"));
-        return await transcodeInDirectory({ binaries, directory, input, signal, maxOutputBytes, timeoutMs, runProcess });
-      } catch (error) {
-        return toFailure(error);
-      } finally {
-        // Cleanup failure must not mask the result; the folder name is unique and private.
-        if (directory) await rm(directory, { recursive: true, force: true }).catch(() => undefined);
-        release();
-      }
+      return transcodeHoldingLock({ release, tempDir, run: { binaries, input, signal, maxOutputBytes, timeoutMs, runProcess } });
     },
   };
 }

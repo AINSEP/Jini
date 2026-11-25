@@ -112,21 +112,39 @@ function throwIfCanceled({ signal, fail }: { signal: AbortSignal | undefined; fa
 async function readOriginalVideo(
   { deps, input, maxInputBytes, fail }: { deps: ConvertMediaVideoDeps; input: ConvertMediaVideoRequired["input"]; maxInputBytes: number; fail: Fail },
 ): Promise<{ media: MediaRecord; bytes: Uint8Array }> {
+  const { media, storageKey } = await findOriginalBlob({ deps, input, fail });
+  const bytes = await readBoundedBytes({ deps, storageKey, maxInputBytes, fail });
+  // Legacy rows carry no recorded type; sniff their stored bytes instead.
+  if (media.source.contentType === undefined && !isVideoType(sniffContentType({ bytes }))) throw fail("not-video");
+  return { media, bytes };
+}
+
+/** The refusals that need no bytes: a trashed item, a recorded non-video type, a missing blob. */
+async function findOriginalBlob(
+  { deps, input, fail }: { deps: ConvertMediaVideoDeps; input: ConvertMediaVideoRequired["input"]; fail: Fail },
+  _optional = {},
+): Promise<{ media: MediaRecord; storageKey: string }> {
   const { media } = await getMediaById({ deps, input: { workspaceId: input.workspaceId, id: input.mediaId } });
   if (media.status === "trashed") throw fail("trashed");
   // A recorded type is authoritative; refuse a known non-video before reading its bytes.
   if (media.source.contentType !== undefined && !isVideoType(media.source.contentType)) throw fail("not-video");
   const blob = await deps.blobRepo.findByHash({ workspaceId: input.workspaceId, sha256: media.source.sha256 });
   if (!blob) throw fail("invalid", "The original video file is missing from storage, so it cannot be converted.");
+  return { media, storageKey: blob.storageKey };
+}
+
+/** Reads the stored bytes only once the reported size is within the limit, then checks the real length. */
+async function readBoundedBytes(
+  { deps, storageKey, maxInputBytes, fail }: { deps: ConvertMediaVideoDeps; storageKey: string; maxInputBytes: number; fail: Fail },
+  _optional = {},
+): Promise<Uint8Array> {
   const tooLarge = () => fail("too-large", `This video is too large to convert. The limit is ${Math.floor(maxInputBytes / MIB)} MB.`);
   // sizeOf avoids loading a multi-GB payload only to refuse it; the length check below still guards.
-  const size = await deps.blobStore.sizeOf?.({ storageKey: blob.storageKey });
+  const size = await deps.blobStore.sizeOf?.({ storageKey });
   if (typeof size === "number" && size > maxInputBytes) throw tooLarge();
-  const bytes = await deps.blobStore.get({ storageKey: blob.storageKey });
+  const bytes = await deps.blobStore.get({ storageKey });
   if (bytes.byteLength > maxInputBytes) throw tooLarge();
-  // Legacy rows carry no recorded type; sniff their stored bytes instead.
-  if (media.source.contentType === undefined && !isVideoType(sniffContentType({ bytes }))) throw fail("not-video");
-  return { media, bytes };
+  return bytes;
 }
 
 /** Stores the converted bytes as a new item and links it to the original; a failed link removes the new item. */
