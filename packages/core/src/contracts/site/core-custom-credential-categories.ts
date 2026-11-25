@@ -11,3 +11,5 @@
  *  plain literal union rather than importing from the admin app (server code never depends on the
  *  admin app). */
 export type CustomCredentialCategoryId = "source-control" | "hosting" | "media" | "ai" | "ops" | "general";
+
+export const CUSTOM_CREDENTIAL_CATEGORIES: readonly CustomCredentialCategoryId[] = ["source-control", "hosting", "media", "ai", "ops", "general"] satisfies readonly CustomCredentialCategoryId[];
