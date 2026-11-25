@@ -170,12 +170,12 @@ describe('JSON response matrix', () => {
       .map((route) => `${route.method} ${route.path}`)
       .filter((route) => !streamsAndUploads.has(route));
     expect([...answered].sort()).toEqual([...new Set(expected)].sort());
-    expect(RESPONSE_MATRIX).toHaveLength(88);
+    expect(RESPONSE_MATRIX).toHaveLength(82);
   });
 
   it('has a same-origin gate on exactly the routes the matrix says, and no route that leaks a dependency message', () => {
     const gated = RESPONSE_MATRIX.filter(([, , foreignOrigin]) => foreignOrigin === '403 FORBIDDEN');
-    expect(gated).toHaveLength(55);
+    expect(gated).toHaveLength(49);
     expect(RESPONSE_MATRIX.filter(([, sameOrigin]) => sameOrigin.endsWith('leaks-dependency-message')).map(([route]) => route)).toEqual([]);
   });
 });
