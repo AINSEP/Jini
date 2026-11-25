@@ -121,9 +121,10 @@ export interface FrontendSessionBridge {
    * Executes one invocation the host received through run-specific delivery (for example an AG-UI
    * tool call it projected into an action carrying the registry-minted invocation id). It reuses
    * the page queue, executors, pending cancellation and response hooks, but always claims first.
-   * Throws when the bridge was built without `runInvocations`.
+   * Throws when the bridge was built without `runInvocations`. Optional on the interface so hosts
+   * and fakes that implement the bridge without run-specific delivery stay source-compatible.
    */
-  acceptRunInvocation(required: { runId: string; action: ChatPaneAgentToolAction }, optional?: Record<string, never>): void;
+  acceptRunInvocation?(required: { runId: string; action: ChatPaneAgentToolAction }, optional?: Record<string, never>): void;
   close(): void;
 }
 

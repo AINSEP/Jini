@@ -287,7 +287,7 @@ it('an AG-UI page action begins before the driver and acknowledges its own invoc
   const { bridge, send } = runInvocationHarness({ begin, execute: async () => { order.push('driver'); return 'clicked'; } });
   await bridge.ready;
   // The host projected AG-UI tool call "model-call" into the registry-minted invocation id; only the latter is a claim.
-  bridge.acceptRunInvocation({ runId: 'run', action: { invocationId: 'invocation-1', capabilityId: 'page.click', input: { handle: 'save' } } });
+  bridge.acceptRunInvocation!({ runId: 'run', action: { invocationId: 'invocation-1', capabilityId: 'page.click', input: { handle: 'save' } } });
   await vi.waitFor(() => expect(begin).toHaveBeenCalledOnce());
   await new Promise(resolve => setTimeout(resolve, 0));
   expect(order, 'Nothing runs while begin is unanswered').toEqual(['begin']);
@@ -312,9 +312,9 @@ it('refused begin never enters the page driver', async () => {
   });
   const { bridge, send, frame } = runInvocationHarness({ begin, execute });
   await bridge.ready;
-  bridge.acceptRunInvocation({ runId: 'run', action: { invocationId: 'invocation-1', capabilityId: 'page.click', input: {} } });
+  bridge.acceptRunInvocation!({ runId: 'run', action: { invocationId: 'invocation-1', capabilityId: 'page.click', input: {} } });
   await vi.waitFor(() => expect(begin).toHaveBeenCalledTimes(1));
-  bridge.acceptRunInvocation({ runId: 'run', action: { invocationId: 'invocation-2', capabilityId: 'page.click', input: {} } });
+  bridge.acceptRunInvocation!({ runId: 'run', action: { invocationId: 'invocation-2', capabilityId: 'page.click', input: {} } });
   await vi.waitFor(() => expect(begin).toHaveBeenCalledTimes(2));
   frame({ type: 'cancelled', invocationId: 'invocation-2' });
   claimed();
@@ -323,7 +323,7 @@ it('refused begin never enters the page driver', async () => {
   expect(send, 'An unpermitted invocation has nothing to acknowledge').not.toHaveBeenCalled();
 
   const unclaimed = createFrontendSessionBridge({ baseUrl: '', fetch: send as typeof fetch, openStream: () => ({ addEventListener() {}, close() {} }) });
-  expect(() => unclaimed.acceptRunInvocation({ runId: 'run', action: { invocationId: 'i', capabilityId: 'page.click', input: {} } })).toThrow('needs an injected begin');
+  expect(() => unclaimed.acceptRunInvocation!({ runId: 'run', action: { invocationId: 'i', capabilityId: 'page.click', input: {} } })).toThrow('needs an injected begin');
   unclaimed.close();
   bridge.close();
 });
