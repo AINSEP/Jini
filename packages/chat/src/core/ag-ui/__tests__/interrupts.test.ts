@@ -22,6 +22,13 @@ test('rejects wrong thread, parent, interrupt, repeated settlement and forwarded
   expect(readConfirmationResume({ input: { ...resume, resume: [{ interruptId: 'approval', status: 'cancelled' }] }, ...handoff })).toEqual({ decision: 'deny' });
 });
 
+test('rejects a matching resume with an unrecognized resolved payload', () => {
+  for (const payload of ['approve', 'ALLOW', { decision: 'allow' }, true, undefined]) {
+    expect(readConfirmationResume({ input: { ...resume, resume: [{ interruptId: 'approval', status: 'resolved', payload }] }, ...handoff })).toBeUndefined();
+  }
+  expect(readConfirmationResume({ input: resume, ...handoff })).toEqual({ decision: 'allow' });
+});
+
 test('claims the retained handoff once for its owner and thread', () => {
   const store = createAgUiPauseStore({ caps: { global: 3, perScope: 2 }, nowMs: () => 0 });
   expect(store.park(handoff)).toBe(true);

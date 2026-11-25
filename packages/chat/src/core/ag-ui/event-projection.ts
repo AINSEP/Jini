@@ -315,9 +315,17 @@ export function readConfirmationResume({ input, threadId, runId, interruptId }: 
   if (value.resume?.length !== 1) return undefined;
   const entry = value.resume[0]!;
   if (entry.interruptId !== interruptId) return undefined;
+  return readResumeDecision({ entry });
+}
+
+/** Map one matched resume entry to a decision. Only the literal answers count: an unrecognized
+ *  resolved payload is no answer at all, never an implicit allow. */
+function readResumeDecision({ entry }: {
+  entry: { status: string; payload?: unknown };
+}, _optional: Record<string, never> = {}): { decision: 'allow' | 'deny' } | undefined {
   if (entry.status === 'cancelled') return { decision: 'deny' };
   if (entry.payload === 'allow') return { decision: 'allow' };
-  if (['deny', 'dismissed'].includes(entry.payload)) return { decision: 'deny' };
+  if (entry.payload === 'deny' || entry.payload === 'dismissed') return { decision: 'deny' };
   return undefined;
 }
 
