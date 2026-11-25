@@ -1,7 +1,6 @@
-import { reportRouteInternalError } from '@jini-ai/http-kit';
 import { describe, expect, it, vi } from 'vitest';
 import { denyAllOrigins } from '@jini-ai/core/contracts/server/testing';
-import { fakeDaemonRouteHost, injectedRecordingReporter, withInjectedReporter } from './fakes/route-host.js';
+import { createRouteTestErrors, fakeDaemonRouteHost, injectedRecordingReporter, withInjectedReporter } from './fakes/route-host.js';
 import { jsonRequest, serveRoutes } from './fakes/serve-routes.js';
 import { describeRoutes } from '../route-table.js';
 import { ClientFacingError } from '@jini-ai/core/contracts/server';
@@ -81,7 +80,7 @@ function makeRealtimeProvider(overrides: Partial<RealtimeProvider> = {}): Realti
 }
 
 function makeDeps(overrides: Partial<ConnectorsHttpDeps> = {}): ConnectorsHttpDeps {
-  return { reportInternalError: reportRouteInternalError, ...overrides };
+  return { reportInternalError: createRouteTestErrors().reportInternalError, ...overrides };
 }
 
 describe('auth routes', () => {
@@ -375,19 +374,20 @@ describe('connectorsRoutes', () => {
     expect([response.status, await response.json()]).toEqual([503, { error: { code: 'NOT_CONFIGURED', message: 'auth provider not configured' } }]);
   });
 
-  // SEC-005's default sink. Every other guardedCall test injects `onInternalError`, so the
-  // console.error fallback a host gets by default was never exercised — and it is the only thing
-  // standing between a swallowed provider exception and a silent failure in production.
-  it('falls back to console.error when a provider throws and no onInternalError sink is supplied', async () => {
-    const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => { });
+  it('records a provider failure once with the fixture reporter and correlated ERR id', async () => {
+    const fixture = createRouteTestErrors();
     const auth = makeAuthProvider({ signIn: vi.fn(async () => { throw new Error('db down'); }) });
-    const result = await connectorsAuthSignInRoute.handle({ input: { email: 'a@example.com', password: 'x' }, deps: makeDeps({ auth }) });
+    const result = await connectorsAuthSignInRoute.handle({ input: { email: 'a@example.com', password: 'x' }, deps: makeDeps({ auth, reportInternalError: fixture.reportInternalError }) });
     expect(result).toMatchObject({ ok: false, error: { code: 'INTERNAL_ERROR' } });
-    expect(consoleErrorSpy).toHaveBeenCalledTimes(1);
-    expect(consoleErrorSpy.mock.calls[0]![0]).toContain('internal error (connectors/auth.signIn, correlationId=');
-    expect(consoleErrorSpy.mock.calls[0]?.[1]).toBe('Error');
-    expect(JSON.stringify(consoleErrorSpy.mock.calls)).not.toContain('db down');
-    consoleErrorSpy.mockRestore();
+    expect(fixture.entries).toHaveLength(1);
+    expect(fixture.reports).toHaveLength(1);
+    expect(result.ok).toBe(false);
+    if (result.ok) throw new Error('expected failure');
+    expect(result.error.requestId).toBe('ERR-AAAA-BBBB-CCCC-0001');
+    expect(fixture.entries[0]?.meta?.errorId).toBe(result.error.requestId);
+    expect(fixture.reports[0]?.context.incidentId).toBe(result.error.requestId);
+    expect(fixture.entries[0]?.meta?.label).toBe('Error');
+    expect(JSON.stringify(result)).not.toContain('db down');
   });
 });
 

@@ -23,7 +23,7 @@
    "RawRouteSpec": "interface:073092e314",
    "RouteInternalErrorContext": "interface:a7266168db",
    "RouteInternalErrorSink": "type:4919a01145",
-   "RouteMountOptions": "interface:5486affbd6",
+   "RouteMountOptions": "interface:6bd7ba7c85",
    "RouteRegistration": "interface:dd8f03278d",
    "RouteRequestOptIns": "interface:d69dca3ffe",
    "RunAccessDecision": "type:8c32e6c63b",

@@ -1,4 +1,3 @@
-import { reportRouteInternalError } from '@jini-ai/http-kit';
 import { describe, expect, it, vi } from 'vitest';
 import type { ServerMiddleware } from '@jini-ai/core/contracts/server';
 import { createInMemoryEventLog, createRemoteToolEventRecorder, createRunLifecycle, type RunLifecycle } from '../../index.js';
@@ -11,7 +10,7 @@ import {
 } from '../remote-run-events.js';
 import type { DaemonRouteHost } from '../route-host.js';
 import { describeRoutes } from '../route-table.js';
-import { fakeDaemonRouteHost, injectedRecordingReporter, withInjectedReporter } from './fakes/route-host.js';
+import { createRouteTestErrors, fakeDaemonRouteHost, injectedRecordingReporter, withInjectedReporter } from './fakes/route-host.js';
 import { jsonRequest, serveRoutes } from './fakes/serve-routes.js';
 
 /** What a gate did with one request: its answer, and how often it let the request through. */
@@ -32,7 +31,7 @@ function makeLifecycle(): RunLifecycle {
 function makeDeps(overrides: Partial<RemoteRunEventHttpDeps> = {}): RemoteRunEventHttpDeps {
   const lifecycle = overrides.lifecycle ?? makeLifecycle();
   return {
-    reportInternalError: reportRouteInternalError,
+    reportInternalError: createRouteTestErrors().reportInternalError,
     lifecycle,
     recorder: createRemoteToolEventRecorder({ lifecycle }),
     tokenConfig: { tokenEnvVar: TOKEN_ENV_VAR },
@@ -447,25 +446,24 @@ describe('remote-run-events — remaining contract surface', () => {
     expect(result.error.message).toBe('The tool call could not be recorded for this run. Check the run status; copy the request ID and report this problem.');
   });
 
-  it('without a host sink, the real failure goes to console.error with the correlation id the caller received', async () => {
-    const deps = makeDeps();
+  it('the fixture reporter records the failure once with the ERR id the caller received', async () => {
+    const fixture = createRouteTestErrors();
+    const deps = makeDeps({ reportInternalError: fixture.reportInternalError });
     const { run } = await deps.lifecycle.start({ contextRef: 'ctx-default-sink' });
     const failure = new Error('disk full');
-    const logged = vi.spyOn(console, 'error').mockImplementation(() => {});
-    try {
-      const result = await remoteToolResultRoute.handle({
-        input: { runId: run.id, toolUseId: 'tu-1', content: 'x' }, deps: { 
-          ...deps,
-          recorder: { recordToolUse: deps.recorder.recordToolUse.bind(deps.recorder), recordToolResult: () => Promise.reject(failure) },
-        },
-      });
-      if (result.ok) throw new Error('expected failure');
-      expect(result.error.code).toBe('INTERNAL_ERROR');
-      expect(logged).toHaveBeenCalledOnce();
-      expect(logged.mock.calls[0]).toEqual([
-        `[@jini-ai/http-kit] internal error (remote-run-events/tool-result, correlationId=${result.error.requestId})`, 'Error',
-      ]);
-    } finally { logged.mockRestore(); }
+    const result = await remoteToolResultRoute.handle({
+      input: { runId: run.id, toolUseId: 'tu-1', content: 'x' }, deps: {
+        ...deps,
+        recorder: { recordToolUse: deps.recorder.recordToolUse.bind(deps.recorder), recordToolResult: () => Promise.reject(failure) },
+      },
+    });
+    if (result.ok) throw new Error('expected failure');
+    expect(result.error.code).toBe('INTERNAL_ERROR');
+    expect(fixture.entries).toHaveLength(1);
+    expect(fixture.reports).toHaveLength(1);
+    expect(result.error.requestId).toBe('ERR-AAAA-BBBB-CCCC-0001');
+    expect(fixture.entries[0]?.meta?.errorId).toBe(result.error.requestId);
+    expect(fixture.reports[0]?.context.incidentId).toBe(result.error.requestId);
   });
 
   it('reports NOT_FOUND when the run disappears between the recorder failure and the status re-check', async () => {
