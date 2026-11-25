@@ -18,8 +18,8 @@ describe("roleCreateRoute", () => {
     const { routeDeps, OWNER, repos } = await makeAccessDeps();
     const { authorize, calls } = recordingAuthorize();
     const result = await roleCreateRoute.handle({ input: { name: "Editors" }, deps: routeDeps, context: OWNER, authorize }, { signal });
-    expect(result.ok && result.value.role).toMatchObject({ workspaceId: WORKSPACE_ID, name: "Editors", isBuiltin: false });
-    expect(result.ok && Object.keys(result.value.role)).toEqual(["id", "workspaceId", "name", "isBuiltin"]);
+    expect(result.ok && result.value.role).toMatchObject({ workspaceId: WORKSPACE_ID, name: "Editors", isBuiltin: false, version: 1 });
+    expect(result.ok && Object.keys(result.value.role)).toEqual(["id", "workspaceId", "name", "isBuiltin", "version"]);
     expect(calls).toEqual([]);
     expect((await repos.roles.list({ workspaceId: WORKSPACE_ID })).some((role) => role.name === "Editors")).toBe(true);
   });

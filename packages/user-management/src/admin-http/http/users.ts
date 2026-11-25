@@ -71,7 +71,6 @@ export function toAdminUserResponse(required: {
 }): AdminUserResponse {
   const { principal, user, roleIds, policyIds } = required;
   return {
-    version: user.version,
     principalId: principal.id,
     workspaceId: principal.workspaceId,
     username: user.username,
@@ -81,6 +80,7 @@ export function toAdminUserResponse(required: {
     lastLoginAt: user.lastLoginAt,
     roleIds,
     policyIds,
+    version: user.version,
   };
 }
 

@@ -66,9 +66,9 @@ describe("role/policy list specs", () => {
     };
     const { authorize } = recording();
     expect(await roleListRoute.handle({ input: {}, deps, context: { id: "p" }, authorize }))
-      .toEqual({ ok: true, value: { roles: [{ id: "role-7", workspaceId: WORKSPACE_ID, name: "Reviewer", isBuiltin: true }] } });
+      .toEqual({ ok: true, value: { roles: [{ id: "role-7", workspaceId: WORKSPACE_ID, name: "Reviewer", isBuiltin: true, version: 2 }] } });
     expect(await policyListRoute.handle({ input: {}, deps, context: { id: "p" }, authorize })).toEqual({ ok: true, value: { policies: [
-      { id: "policy-7", workspaceId: WORKSPACE_ID, name: "Review", description: "Review content", isBuiltin: false, isFrozen: true },
+      { id: "policy-7", workspaceId: WORKSPACE_ID, name: "Review", description: "Review content", isBuiltin: false, isFrozen: true, version: 4 },
     ] } });
     expect(seen).toEqual([{ workspaceId: WORKSPACE_ID }, { workspaceId: WORKSPACE_ID }]);
   });

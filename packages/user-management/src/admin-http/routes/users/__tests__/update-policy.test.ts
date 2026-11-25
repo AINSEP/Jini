@@ -21,6 +21,25 @@ describe("policyUpdateRoute", () => {
     expect(result.ok && result.value.policy).toMatchObject({ id: policy.id, name: "Keep", description: "New" });
   });
 
+  it("carries the client's basis unparsed and refuses a malformed one 400 before any write", async () => {
+    expect(policyUpdateRoute.parse(raw({ policyId: "p1" }, { expectedVersion: "3" }))).toEqual({ ok: true, value: { policyId: "p1", name: undefined, description: undefined, expectedVersion: "3" } });
+    const { routeDeps, serviceDeps, OWNER, repos } = await makeAccessDeps();
+    const { policy } = await createPolicy({ deps: serviceDeps, input: { workspaceId: WORKSPACE_ID, callerPrincipalId: OWNER.id, name: "Keep" } });
+    expect(await refusalOf(() => policyUpdateRoute.handle({ input: { policyId: policy.id, name: "New", description: undefined, expectedVersion: "3" }, deps: routeDeps, context: OWNER })))
+      .toEqual({ status: 400, body: { error: "'expectedVersion' must be a non-negative integer when present", code: "VALIDATION_ERROR" } });
+    expect((await repos.policies.findById({ workspaceId: WORKSPACE_ID, id: policy.id }))?.name).toBe("Keep");
+  });
+
+  it("answers the second editor from the same version 409 VERSION_CONFLICT and keeps the first save", async () => {
+    const { routeDeps, serviceDeps, OWNER, repos } = await makeAccessDeps();
+    const { policy } = await createPolicy({ deps: serviceDeps, input: { workspaceId: WORKSPACE_ID, callerPrincipalId: OWNER.id, name: "Keep" } });
+    const first = await policyUpdateRoute.handle({ input: { policyId: policy.id, name: "First", description: undefined, expectedVersion: policy.version }, deps: routeDeps, context: OWNER });
+    expect(first.ok && first.value.policy.version).toBe(policy.version + 1);
+    expect(await refusalOf(() => policyUpdateRoute.handle({ input: { policyId: policy.id, name: "Second", description: undefined, expectedVersion: policy.version }, deps: routeDeps, context: OWNER })))
+      .toMatchObject({ status: 409, body: { code: "VERSION_CONFLICT" } });
+    expect((await repos.policies.findById({ workspaceId: WORKSPACE_ID, id: policy.id }))?.name).toBe("First");
+  });
+
   for (const name of ["forbidden", "validation", "notFound"] as const) {
     it(`maps ${name} to its exact flat body`, async () => {
       expect(await refusalOf(() => policyUpdateRoute.handle({ input: { policyId: "p", name: undefined, description: undefined }, deps: throwingDeps(ERRORS[name]), context: { id: "p" } }))).toEqual(BODIES[name]);
