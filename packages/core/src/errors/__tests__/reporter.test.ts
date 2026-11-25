@@ -63,6 +63,20 @@ describe('incident', () => {
     expect(reports[0]!.error).toBe(original);
   });
 
+  test('record and describe both hand the tracker adapter the call\'s exact secrets, which no other report field carries', () => {
+    const built = build();
+    const error = new Error('upstream refused canary-secret');
+    built.reporter.record({ error, step: STEP, operation: OPERATION, tracker }, { exactSecrets: ['canary-secret'] });
+    built.reporter.describe({ error: new Error('again canary-secret'), step: STEP, operation: OPERATION, tracker, scope: 'members', fallback }, { exactSecrets: ['canary-secret'] });
+    expect(built.reports).toHaveLength(2);
+    for (const report of built.reports) {
+      expect(report.context.exactSecrets, 'the adapter needs the secret to blank it before export').toEqual(['canary-secret']);
+      const { exactSecrets: _consumed, ...projected } = report.context;
+      expect(JSON.stringify(projected), 'no other provider-bound field repeats the secret').not.toContain('canary-secret');
+    }
+    expect(JSON.stringify(built.entries), 'the host record never holds it').not.toContain('canary-secret');
+  });
+
   test('the boundary may pass an ID it already minted; the ID port is then not asked', () => {
     const built = build();
     const described = built.reporter.describe({ error: new Error('x'), step: STEP, operation: OPERATION, tracker, scope: 'members', fallback }, { errorId: 'ERR-AAAA-BBBB-CCCC-DDDD' });
@@ -88,8 +102,8 @@ describe('incident', () => {
     const operatorText = String(built.entries[0]!.meta!.diagnostic);
     expect(built.reports[0]!.error).toBe(error);
     expect(built.entries[0], 'the logger must never receive the original error').not.toHaveProperty('error');
-    expect(built.reports[0]!.context, 'the report uses fixed operation and explicit tracker IDs').toEqual({
-      operation: OPERATION, level: 'error', incidentId: ID, label: 'Error', trace,
+    expect(built.reports[0]!.context, 'the report uses fixed operation, explicit tracker IDs and every exact secret the adapter must blank').toEqual({
+      operation: OPERATION, level: 'error', incidentId: ID, label: 'Error', trace, exactSecrets: ['host-standing-secret', 'call-scoped-secret'],
     });
     for (const secret of ['host-standing-secret', 'call-scoped-secret', 'abcdefghijklmnopqrstuvwxyz012345']) expect(operatorText).not.toContain(secret);
     expect(operatorText).toContain('upstream said');

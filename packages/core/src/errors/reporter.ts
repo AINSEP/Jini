@@ -86,6 +86,11 @@ function redactionFor({ context, exactSecrets }: { context: ReporterContext; exa
   return { redactPii: false, ...context.redaction, exactSecrets: [...(context.redaction.exactSecrets ?? []), ...(exactSecrets ?? [])] };
 }
 
+/** The non-empty exact secrets of a merged policy; the policy type admits blank entries a caller may pass. */
+function knownSecrets({ redaction }: { redaction: SecretRedactionOptions }): string[] {
+  return (redaction.exactSecrets ?? []).filter((secret): secret is string => typeof secret === 'string' && secret.length > 0);
+}
+
 function attempt<Value>({ read, fallback }: { read: () => Value; fallback: Value }): Value {
   try { return read(); } catch { return fallback; }
 }
@@ -107,8 +112,11 @@ function headLabel({ error, describer }: { error: unknown; describer: ErrorDescr
   return parts.code === undefined ? parts.label : `${parts.label}(${parts.code})`;
 }
 
-function reportToTracker(required: { context: ReporterContext; incident: Incident; operation: string; tracker?: OperationTracker | undefined; error: unknown; level: 'warning' | 'error' }): void {
-  const { context, incident, operation, tracker, error, level } = required;
+function reportToTracker(required: {
+  context: ReporterContext; incident: Incident; operation: string; tracker?: OperationTracker | undefined; error: unknown; level: 'warning' | 'error';
+  exactSecrets: readonly string[];
+}): void {
+  const { context, incident, operation, tracker, error, level, exactSecrets } = required;
   const failed = (trackerError: unknown): void => {
     // The host record above already holds the incident; say that the tracker copy is missing.
     attempt({ fallback: undefined, read: () => context.ports.logger.warn(
@@ -119,7 +127,10 @@ function reportToTracker(required: { context: ReporterContext; incident: Inciden
     const trace = tracker?.traceIds?.();
     const sent = context.ports.observability.reportError({
       error,
-      context: { operation, level, incidentId: incident.errorId, label: incident.label, ...(trace === undefined ? {} : { trace }) },
+      // The original error goes to the adapter, so it also needs the exact values to blank; without
+      // them a token the request carried would leave the process verbatim in message or stack.
+      context: { operation, level, incidentId: incident.errorId, label: incident.label, ...(trace === undefined ? {} : { trace }),
+        ...(exactSecrets.length === 0 ? {} : { exactSecrets }) },
     });
     if (sent instanceof Promise) sent.then(undefined, failed);
   } catch (trackerError) {
@@ -143,9 +154,12 @@ function recordIncident(required: { context: ReporterContext; error: unknown; st
     errorId, step, label, causes: attempt({ read: () => causeLabels({ error, describer }), fallback: [] }),
     appVersion: ports.versions.app, jiniVersion: ports.versions.jini, ...(time === undefined ? {} : { time }), diagnostic,
   };
-  // `diagnostic` is the operator-only record. The tracker gets the original `error` and the call's `exactSecrets`; the tracker adapter blanks secrets before anything leaves the process.
+  // `diagnostic` is the operator-only record. The tracker gets the original `error` plus the standing and per-call
+  // `exactSecrets` (on `ErrorReport.context`); the tracker adapter blanks them before anything leaves the process.
   attempt({ fallback: undefined, read: () => ports.logger[level === 'warning' ? 'warn' : 'error']({ message: `[incident] ${step} failed (error ${errorId})` }, { meta }) });
-  if (optional.tracker !== 'skip') reportToTracker({ context, incident, operation: required.operation, tracker: required.tracker, error, level });
+  if (optional.tracker !== 'skip') {
+    reportToTracker({ context, incident, operation: required.operation, tracker: required.tracker, error, level, exactSecrets: knownSecrets({ redaction }) });
+  }
   return incident;
 }
 

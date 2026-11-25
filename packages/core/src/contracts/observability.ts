@@ -57,7 +57,13 @@ export interface TraceIds { readonly traceId: string; readonly spanId: string; }
  * opposed to an expected failure a tracker's outcome already records. `error` is handed over raw:
  * adapters own redaction (see `describeReportedError`), exactly as they do for request targets.
  */
-export interface ErrorReport { error: unknown; context: { operation: string; attributes?: OperationAttributes; level?: 'warning' | 'error'; trace?: TraceIds; incidentId?: string; label?: string }; }
+export interface ErrorReport { error: unknown; context: {
+ operation: string; attributes?: OperationAttributes; level?: 'warning' | 'error'; trace?: TraceIds; incidentId?: string; label?: string;
+ /** Private, in-process redaction input: exact values (a token the request carried) the adapter
+  * blanks from the error before export. An adapter consumes it before projecting provider-bound
+  * context and never serializes, logs or forwards the array itself. */
+ exactSecrets?: readonly string[];
+}; }
 /** Native crash upload configuration. Provider-specific field names stay opaque to hosts. */
 export interface CrashUpload { submitURL: string; globalExtra: Readonly<Record<string, string>>; }
 /** Vendor-neutral numeric measurement; names and units are fixed labels, never user text. */

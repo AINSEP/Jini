@@ -1038,7 +1038,7 @@
    "DbQueryTracker": "interface:b98c2b41b6",
    "DbQueryTrackingInput": "interface:b4a3892b07",
    "DbQueryTrackingOutcome": "interface:6b07c3659d",
-   "ErrorReport": "interface:e4222061c5",
+   "ErrorReport": "interface:a0ec0deca7",
    "MetricInput": "interface:752a847e41",
    "MetricOptions": "interface:520fca4487",
    "ObservabilityAdapter": "interface:1491e9a1a8",
