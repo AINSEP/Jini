@@ -5,10 +5,7 @@ function isRestorable(candidate: Element | null, input: HTMLInputElement): candi
   return candidate instanceof HTMLElement && candidate !== input && candidate !== input.ownerDocument.body;
 }
 
-/**
- * Focus the palette's input on attach (remembering where focus came from) and
- * keep the active result visible.
- */
+/** Focus the palette on mount and keep its active result visible. */
 export function useCommandPaletteView({ cursor }: { cursor: number }, _options = {}) {
   const listRef = useRef<HTMLDivElement | null>(null);
   const inputRef = useRef<HTMLInputElement | null>(null);
