@@ -281,7 +281,9 @@
       "./contracts/site/post-kind": "universal",
       "./scheduled-publish": "universal",
       "./tool-metadata/post": "universal",
-      "./tool-metadata/image-transform": "universal"
+      "./tool-metadata/image-transform": "universal",
+      "./contracts/site/deployment-admin": "universal",
+      "./contracts/site/content-editor-ports": "universal"
     },
     "isolation": {
       "entries": {
@@ -290,7 +292,9 @@
         "./settings": "settings",
         "./operator-locale": "settings",
         "./provider-registry": "providers",
-        "./object-store": "providers"
+        "./object-store": "providers",
+        "./contracts/site/deployment-admin": "core",
+        "./contracts/site/content-editor-ports": "core"
       },
       "domains": {
         "fetch": [
@@ -1686,6 +1690,16 @@
       "types": "./dist/tool-metadata/image-transform.d.ts",
       "import": "./dist/tool-metadata/image-transform.js",
       "default": "./dist/tool-metadata/image-transform.js"
+    },
+    "./contracts/site/deployment-admin": {
+      "types": "./dist/contracts/site/deployment-admin.d.ts",
+      "import": "./dist/contracts/site/deployment-admin.js",
+      "default": "./dist/contracts/site/deployment-admin.js"
+    },
+    "./contracts/site/content-editor-ports": {
+      "types": "./dist/contracts/site/content-editor-ports.d.ts",
+      "import": "./dist/contracts/site/content-editor-ports.js",
+      "default": "./dist/contracts/site/content-editor-ports.js"
     }
   },
   "files": [
