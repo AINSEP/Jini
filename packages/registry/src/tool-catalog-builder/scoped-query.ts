@@ -41,9 +41,16 @@ export interface ScopedToolCatalogArgs<R> {
     EntityTypeProjection | undefined;
 }
 
+/** A catalog query whose limit also accepts an explicit undefined, so it satisfies HTTP route ports
+ * declared under exactOptionalPropertyTypes as well as this package's `ToolCatalogQuery`. */
+export interface ScopedToolCatalogView {
+  search(required: { readonly query: string }, optional?: { readonly limit?: number | undefined }): ToolCatalogHit[];
+  describe(required: { readonly id: string }): ToolCatalogEntry | null;
+}
+
 export interface ScopedToolCatalog<R> {
   /** Shaped like the daemon catalog routes' per-request host port. */
-  catalogFor(required: { request: R }): Promise<ToolCatalogQuery>;
+  catalogFor(required: { request: R }): Promise<ScopedToolCatalogView>;
 }
 
 type Schema = Record<string, unknown>;
@@ -52,7 +59,7 @@ function isSchema(value: unknown): value is Schema {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
-const EMPTY_VIEW: ToolCatalogQuery = {
+const EMPTY_VIEW: ScopedToolCatalogView = {
   search: () => [],
   describe: () => null,
 };
@@ -143,7 +150,7 @@ function scopeKey({ scope, cache }: { scope: ToolCatalogScope; cache: ScopedTool
   return parts => JSON.stringify([...identity, ...parts]);
 }
 
-function scopedView({ view, cache }: { view: ViewArgs; cache: ScopedToolCatalogCache | undefined }): ToolCatalogQuery {
+function scopedView({ view, cache }: { view: ViewArgs; cache: ScopedToolCatalogCache | undefined }): ScopedToolCatalogView {
   const keyFor = scopeKey({ scope: view.scope, cache });
   return {
     search({ query }, { limit = 10 } = {}) {

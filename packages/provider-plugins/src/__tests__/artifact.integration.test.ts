@@ -22,6 +22,7 @@ import type { createPostHogProvider } from '../analytics-posthog/index.js';
 import { admitBrowserProviderAssets, previewSitePluginInstall, installSitePlugin, loadPlugin, snapshotPluginModuleGraph } from '@jini-ai/plugins/host/node';
 import { describeTelemetryFailure, hostScope } from './observability-host.js';
 import { openBuiltChart } from './browser-provider-dom.js';
+import { fakeWire } from '../xai-grok-imagine/__tests__/fake-wire.js';
 
 const exec = promisify(execFile);
 const packageRoot = fileURLToPath(new URL('../..', import.meta.url));
@@ -72,6 +73,9 @@ const SPECS: Record<string, ServerSpec | BrowserSpec> = {
   'payments-stripe': { contract: 'payments', id: 'stripe', validate: port => paymentsProviderContract.validate({ provider: port }) === undefined,
     input: () => ({}), context: paymentsProviderContract.context,
     standaloneOptions: '{ context: { paymentError: required => required, moneyProblem: () => null } }' },
+  'xai-grok-imagine': { contract: 'media', id: 'xai-grok-imagine', validate: port => (port as { provider?: { id?: string } })?.provider?.id === 'xai-grok-imagine',
+    input: () => ({}), context: { mediaWire: fakeWire },
+    standaloneOptions: `{ context: { mediaWire: Object.fromEntries(${JSON.stringify(Object.keys(fakeWire))}.map(name => [name, () => ({})])) } }` },
   'observability-opentelemetry': { contract: 'observability', id: 'opentelemetry', validate: port => observabilityProviderContract.validate({ provider: port }) === undefined,
     input: () => ({ serviceName: 'artifact-test', tracerName: 'artifact', endpoint: 'http://127.0.0.1:9', headers: { authorization: 'Bearer unused' } }),
     context: observabilityProviderContract.context, standaloneOptions: STANDALONE_OBSERVABILITY_OPTIONS, factoryOptions: { scope: hostScope() } },

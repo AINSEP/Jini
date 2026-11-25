@@ -22,7 +22,7 @@ export interface MediaRenderContext {
   readonly aspect: string | undefined;
   readonly voice: string;
   readonly language: string;
-  readonly requestInit: Pick<RequestInit, 'dispatcher'>;
+  readonly requestInit: { readonly dispatcher?: unknown };
 }
 
 /** Credentials a host resolved for one provider; never read from the environment by an adapter. */

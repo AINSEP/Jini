@@ -5,7 +5,6 @@ export { renderAIHubMixImage, renderAIHubMixTTS } from './providers/aihubmix.js'
 export { renderCustomOpenAIImage, customImageOverridesOpenAIModel, CUSTOM_IMAGE_MODEL_ID } from './providers/custom-image.js';
 export { renderElevenLabsSfx, renderElevenLabsTTS } from './providers/elevenlabs.js';
 export { renderFishAudioTTS } from './providers/fishaudio.js';
-export { renderGrokImage, renderXAITTS, grokAspectFor } from './providers/grok.js';
 export { renderImageRouterImage, renderImageRouterVideo, imageRouterSizeFor } from './providers/imagerouter.js';
 export { renderMinimaxTTS } from './providers/minimax.js';
 export { renderNanoBananaImage } from './providers/nanobanana.js';
@@ -45,6 +44,7 @@ export {
   mediaProviderRegistryId,
 } from './media-provider-registry.js';
 export type { MediaProviderContribution, MediaProviderModel, MediaProviderRegistry } from './media-provider-registry.js';
+export { createMediaWire } from './media-wire.js';
 export { createHexEnvelopeAudioParser, createRawBytesParser } from './response-parsers.js';
 // The submit-then-poll tier (added 2026-09-02) — purely additive alongside `VendorAdapter`, for
 // vendors that hand back a job handle instead of finishing inside one request/response. See

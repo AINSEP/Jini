@@ -1,0 +1,16 @@
+{
+  "id": "xai-grok-imagine",
+  "name": "xAI Grok Imagine media provider",
+  "version": "0.7.3-next.2",
+  "sdkRange": "^0.1.0 || ^1.0.0",
+  "engine": 1,
+  "tier": "tier-3",
+  "extensions": {
+    "jini": { "id": "jini/xai-grok-imagine" }
+  },
+  "capabilities": ["providers.register"],
+  "contributes": { "providers": [{ "contract": "media", "id": "xai-grok-imagine", "contractVersion": 1, "settings": [] }] },
+  "hooks": [],
+  "fields": [],
+  "integrity": {}
+}

@@ -4,7 +4,6 @@ import { registerVendorAdapters as registerAihubmix } from './providers/aihubmix
 import { registerVendorAdapters as registerCustomImage } from './providers/custom-image.js';
 import { registerVendorAdapters as registerElevenLabs } from './providers/elevenlabs.js';
 import { registerVendorAdapters as registerFishAudio } from './providers/fishaudio.js';
-import { registerVendorAdapters as registerGrok } from './providers/grok.js';
 import { registerVendorAdapters as registerImageRouter } from './providers/imagerouter.js';
 import { registerVendorAdapters as registerMiniMax } from './providers/minimax.js';
 import { registerVendorAdapters as registerNanoBanana } from './providers/nanobanana.js';
@@ -22,7 +21,6 @@ export function registerBuiltinVendorAdapters(
     registerCustomImage,
     registerElevenLabs,
     registerFishAudio,
-    registerGrok,
     registerImageRouter,
     registerMiniMax,
     registerNanoBanana,

@@ -12,8 +12,12 @@ import { canonicalMediaProviderId, PROVIDER_CREDENTIAL_ENV_VARS } from '../provi
 import type { ProviderCredentials } from './types.js';
 
 /** Resolves `{ apiKey }` for `providerId` from the first set environment variable in its priority list, or `{}` if none are set / the provider has no known env vars. */
-export function resolveProviderCredentialsFromEnv({ providerId, env }: { providerId: string; env: NodeJS.ProcessEnv }, _optional: Record<string, never> = {}): ProviderCredentials {
-  const candidates = PROVIDER_CREDENTIAL_ENV_VARS[canonicalMediaProviderId({ id: providerId })];
+export function resolveProviderCredentialsFromEnv(
+  { providerId, env }: { providerId: string; env: NodeJS.ProcessEnv },
+  { envVars = PROVIDER_CREDENTIAL_ENV_VARS, aliases = {} }: { envVars?: Readonly<Record<string, readonly string[]>>; aliases?: Readonly<Record<string, string>> } = {},
+): ProviderCredentials {
+  // `envVars` is the host's table: a plugin vendor's environment key arrives here, never as a built-in row.
+  const candidates = envVars[canonicalMediaProviderId({ id: providerId }, { aliases })];
   if (!candidates) return {};
   for (const name of candidates) {
     const value = env[name];
