@@ -383,5 +383,5 @@ export { answerSurfaceCallback, surfaceCallbackRoutes, type SurfaceCallbackHttpR
 export {
   AGENT_PLUGIN_PREFLIGHT_ROUTE_PATH, agentPluginPreflightRoute, parseAgentPluginPreflightBody,
   type AgentPluginPreflightCommitResponse, type AgentPluginPreflightInput, type AgentPluginPreflightOfferResponse, type AgentPluginPreflightPrefix,
-  type AgentPluginPreflightPrepared, type AgentPluginPreflightResponse, type AgentPluginPreflightRouteDeps,
+  type AgentPluginPreflightPrepared, type AgentPluginPreflightResponse, type AgentPluginPreflightRouteDeps, type AgentPluginPreflightRouteSpec,
 } from './agent-plugin-preflight.js';

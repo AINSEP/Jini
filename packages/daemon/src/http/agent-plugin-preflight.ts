@@ -16,7 +16,7 @@
  * other field — `principalId`, `attempt`, `workspaceId`, anything — is refused with a 400 instead of
  * being silently ignored, and a caller cannot mistake an ignored field for an honored one.
  */
-import { defineJsonRoute, err, ok, validationError, type Result } from '@jini-ai/core/contracts/server';
+import { defineJsonRoute, err, ok, validationError, type JsonRouteSpec, type Result } from '@jini-ai/core/contracts/server';
 import type { AgentPluginGuidanceOffer } from '@jini-ai/core/contracts/site/daemon';
 
 export const AGENT_PLUGIN_PREFLIGHT_ROUTE_PATH = '/internal/agent-plugin-preflight';
@@ -96,7 +96,14 @@ async function handlePreflight({ input, deps }: { readonly input: AgentPluginPre
   return ok({ value: { prefix, refusalPrefix, pluginIds, offer: prepared.value.offer ?? null } });
 }
 
-export const agentPluginPreflightRoute = defineJsonRoute<AgentPluginPreflightInput, AgentPluginPreflightResponse, AgentPluginPreflightRouteDeps>({
+/**
+ * The spec carries no host ports: authentication and the live-run lookup stay with the host (see the
+ * module doc), so it is typed without `ports` and mounts unchanged on any adapter — core's `jsonRoute`
+ * or a framework kit whose port shapes differ — and this module needs no server toolkit to declare it.
+ */
+export type AgentPluginPreflightRouteSpec = Omit<JsonRouteSpec<AgentPluginPreflightInput, AgentPluginPreflightResponse, AgentPluginPreflightRouteDeps>, 'ports'>;
+
+export const agentPluginPreflightRoute: AgentPluginPreflightRouteSpec = defineJsonRoute<AgentPluginPreflightInput, AgentPluginPreflightResponse, AgentPluginPreflightRouteDeps>({
   method: 'post',
   path: AGENT_PLUGIN_PREFLIGHT_ROUTE_PATH,
   parse: (raw) => parseAgentPluginPreflightBody({ body: raw.body }),
