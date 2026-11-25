@@ -65,7 +65,7 @@ export async function verifySiteImport(required: { archive: Buffer; reader: Agen
   const encryptedKeys = files.get(SAVED_KEYS_PATH);
   files.delete(SAVED_KEYS_PATH);
   const plugins = manifest.plugins;
-  const trustedPlugins = plugins;
+  const trustedPlugins = plugins.filter(plugin => bundledIdentical({ plugin, files, packageFiles, modified, sha256Hex: host.sha256Hex }));
   const snapshot = files.get(SITE_BACKUP_DATABASE_PATH);
   if (snapshot === undefined) return host.refuseArchive({ message: "Import archive has no content database." });
   const projection = await required.sanitize({ snapshot }, { signal: optional.signal });

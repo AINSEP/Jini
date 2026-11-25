@@ -92,6 +92,7 @@
       "./backup/site/bundled-export-file-policy": "node",
       "./backup/site/share-hosting": "node",
       "./backup/site/import-registry": "node",
+      "./backup/site/share-registry": "node",
       "./deploy/site/ports": "universal",
       "./deploy/site/deploy-config": "node",
       "./deploy/site/deploy-config-registry": "node"
@@ -508,6 +509,11 @@
       "types": "./dist/backup/site/import-registry.d.ts",
       "import": "./dist/backup/site/import-registry.js",
       "default": "./dist/backup/site/import-registry.js"
+    },
+    "./backup/site/share-registry": {
+      "types": "./dist/backup/site/share-registry.d.ts",
+      "import": "./dist/backup/site/share-registry.js",
+      "default": "./dist/backup/site/share-registry.js"
     },
     "./deploy/site/ports": {
       "types": "./dist/deploy/site/ports.d.ts",
