@@ -1,5 +1,5 @@
 /** Theme-authored {"type":"comments"} placement through the shared HTML marker parser. */
-import { markersOfType, substituteMarkers, withElementKeptIfAttributed } from '../../widgets/markers/index.js';
+import { markersOfType, substituteMarkers, withElementKeptIfAttributed } from '../../widgets/markers/marker.js';
 import type { CommentThreadScript, CommentsProviderRegistry } from "@jini-ai/core/contracts/site/comments-providers";
 import type { DeclaredScript } from '@jini-ai/core/contracts/site/cookie-consent';
 

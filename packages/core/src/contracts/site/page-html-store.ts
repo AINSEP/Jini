@@ -53,7 +53,7 @@ export interface PagesHtmlDocumentStorePort {
    * intruder's version and silently clobber it. That is precisely the failure a version guard exists
    * to prevent, so the basis and the predicate must be the same number.
    *
-   * This is Tovu's concurrency contract, independent of Jini's `HtmlDocumentStore`; pure region
+   * This is the host's concurrency contract, independent of the engine's `HtmlDocumentStore`; pure region
    * edits never read the store or advance this basis.
    */
   capturedVersion(): number | null;

@@ -770,6 +770,12 @@
           "kysely",
           "parse5"
         ],
+        "./react/themes/hooks/use-theme-card-preview.hooks": [
+          "node:",
+          "express",
+          "kysely",
+          "parse5"
+        ],
         "./react/themes/ThemePreviewReloadButton": [
           "node:",
           "express",

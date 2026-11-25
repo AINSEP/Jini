@@ -28,13 +28,13 @@ export type AgentToolDefinition = SharedAgentToolDefinition & { sideEffects: Age
 const CAMPAIGN_ID_SCHEMA = {
   type: "string",
   minLength: 1,
-  description: "The campaign's id. Get it from newsletter_create_campaign's result or content_read.newsletter_campaign.",
+  description: "The campaign's id. Get it from newsletter_create_campaign's result or {{read:newsletter_campaign}}.",
 } as const;
 
 const LIST_ID_SCHEMA = {
   type: "string",
   minLength: 1,
-  description: "A newsletter list's id. Get it from newsletter_create_list's result or content_read.newsletter_list.",
+  description: "A newsletter list's id. Get it from newsletter_create_list's result or {{read:newsletter_list}}.",
 } as const;
 
 /** Campaign editorial fields shared by `create`/`update` — every field but `listId` maps 1:1 onto `CampaignRecord`. */
