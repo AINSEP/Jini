@@ -722,7 +722,9 @@
       "./forms/destinations/port": "universal",
       "./media/site-generation/provider-credential-save": "universal",
       "./media/site-generation/providers-tools": "universal",
-      "./html/site/export-html-policy": "universal"
+      "./html/site/export-html-policy": "universal",
+      "./react/widgets/WidgetConfigFields/WidgetConfigFields": "browser",
+      "./react/collections/CollectionEntryEditor": "browser"
     },
     "isolation": {
       "domains": {
@@ -1024,10 +1026,10 @@
         "./admin-http/routes/workspace/list": "workspace",
         "./admin-http/routes/workspace/update": "workspace",
         "./admin-http/routes/seo/deps": "seo",
-      "./public-http/routes/site/sitemap": "seo",
-      "./public-http/routes/site/robots": "seo",
-      "./public-http/routes/site/feed": "seo",
-      "./public-http/routes/site/llms": "seo",
+        "./public-http/routes/site/sitemap": "seo",
+        "./public-http/routes/site/robots": "seo",
+        "./public-http/routes/site/feed": "seo",
+        "./public-http/routes/site/llms": "seo",
         "./admin-http/http/widgets": "widgets",
         "./admin-http/routes/widgets/list": "widgets",
         "./admin-http/routes/widgets/get-by-id": "widgets",
@@ -4658,6 +4660,16 @@
       "types": "./dist/html/site/export-html-policy.d.ts",
       "import": "./dist/html/site/export-html-policy.js",
       "default": "./dist/html/site/export-html-policy.js"
+    },
+    "./react/widgets/WidgetConfigFields/WidgetConfigFields": {
+      "types": "./dist/react/widgets/WidgetConfigFields/WidgetConfigFields.d.ts",
+      "import": "./dist/react/widgets/WidgetConfigFields/WidgetConfigFields.js",
+      "default": "./dist/react/widgets/WidgetConfigFields/WidgetConfigFields.js"
+    },
+    "./react/collections/CollectionEntryEditor": {
+      "types": "./dist/react/collections/CollectionEntryEditor.d.ts",
+      "import": "./dist/react/collections/CollectionEntryEditor.js",
+      "default": "./dist/react/collections/CollectionEntryEditor.js"
     }
   },
   "files": [
