@@ -68,6 +68,9 @@
       "./identity/username-change-ports": "universal",
       "./identity/delete-user-service": "universal",
       "./react/auth/owner-mfa-api": "browser",
+      "./react/users/api/users-api": "browser",
+      "./react/roles/api/roles-api": "browser",
+      "./react/members/api/members-api": "browser",
       "./react/auth/owner-passkey-api": "browser",
       "./react/auth/owner-recovery-api": "browser",
       "./react/auth/local-owner-signin": "browser",
@@ -425,6 +428,21 @@
       "types": "./dist/react/auth/owner-mfa-api.d.ts",
       "import": "./dist/react/auth/owner-mfa-api.js",
       "default": "./dist/react/auth/owner-mfa-api.js"
+    },
+    "./react/users/api/users-api": {
+      "types": "./dist/react/users/api/users-api.d.ts",
+      "import": "./dist/react/users/api/users-api.js",
+      "default": "./dist/react/users/api/users-api.js"
+    },
+    "./react/roles/api/roles-api": {
+      "types": "./dist/react/roles/api/roles-api.d.ts",
+      "import": "./dist/react/roles/api/roles-api.js",
+      "default": "./dist/react/roles/api/roles-api.js"
+    },
+    "./react/members/api/members-api": {
+      "types": "./dist/react/members/api/members-api.d.ts",
+      "import": "./dist/react/members/api/members-api.js",
+      "default": "./dist/react/members/api/members-api.js"
     },
     "./react/auth/owner-passkey-api": {
       "types": "./dist/react/auth/owner-passkey-api.d.ts",

@@ -1,0 +1,67 @@
+/* The shared "Add a …" tab card (Skills, Agent Plugins, Plugins). `.card`, `.card-title`,
+   `.card-lead`, `.field-label`, `.field-hint` and button paint stay the app's own. */
+.jini-install-tab-card { display: flex; flex-direction: column; gap: var(--jini-admin-space-4); }
+/* No card frame (owner, 2026-10-06: "remove the card outline"): the tab already frames this
+   content, so a bordered box inside it was a second, redundant frame. Flush with the tab bar. */
+.jini-install-tab-card.card { border: none; box-shadow: var(--jini-panel-shadow-flat); background: transparent; padding: var(--jini-admin-space-2) 0 0; border-radius: 0; }
+.jini-install-tab-card .card-title { margin: 0; }
+.jini-install-tab-option { display: flex; flex-direction: column; gap: var(--jini-admin-space-2); }
+.jini-install-tab-option + .jini-install-tab-option { padding-top: var(--jini-admin-space-4); border-top: 1px solid var(--jini-admin-border); }
+.jini-install-tab-option.is-soon { opacity: 0.7; }
+.jini-install-tab-option-heading {
+  display: flex; align-items: center; gap: var(--jini-admin-space-2);
+  margin: 0; font-size: var(--jini-admin-text-sm); font-weight: 650; color: var(--jini-admin-fg);
+}
+.jini-install-tab-badge {
+  padding: 2px 8px; font-size: 11px; font-weight: 600; letter-spacing: 0.02em;
+  color: var(--jini-admin-muted); background: var(--jini-admin-surface-3); border-radius: 999px;
+}
+.jini-install-tab-field { display: flex; flex-direction: column; gap: var(--jini-admin-space-2); }
+.jini-install-tab-field-controls { display: flex; align-items: center; gap: var(--jini-admin-space-3); }
+.jini-install-tab-field-controls input { flex: 1; min-width: 0; }
+.jini-install-tab-field-controls button { flex: 0 0 auto; }
+.jini-install-tab-dropzone {
+  display: flex; flex-direction: column; align-items: center; text-align: center; gap: var(--jini-admin-space-2);
+  padding: 28px 20px;
+  border: 1px dashed var(--jini-admin-border-strong); border-radius: var(--jini-admin-r-md);
+  background: var(--jini-admin-surface-2);
+  transition: border-color 120ms ease, background-color 120ms ease;
+}
+.jini-install-tab-dropzone.is-dragging {
+  border-color: var(--jini-admin-accent);
+  background: color-mix(in srgb, var(--jini-admin-accent) 6%, var(--jini-admin-surface-2));
+}
+.jini-install-tab-dropzone p { margin: 0; }
+.jini-install-tab-dropzone-glyph {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 48px; height: 48px;
+  color: var(--jini-admin-muted); background: var(--jini-admin-surface-3); border-radius: 999px;
+}
+.jini-install-tab-dropzone-actions { display: flex; flex-wrap: wrap; justify-content: center; gap: var(--jini-admin-space-2); }
+.jini-install-tab-dropzone-title { font-size: var(--jini-admin-text-sm); font-weight: 600; color: var(--jini-admin-fg); overflow-wrap: anywhere; }
+/* "Advanced: …" disclosure: a quiet text-weight summary, so the upload above stays the main path. */
+.jini-install-tab-advanced > summary { cursor: pointer; width: fit-content; font-size: var(--jini-admin-text-sm); font-weight: 600; color: var(--jini-admin-fg-2); }
+.jini-install-tab-advanced > .field-hint { margin: var(--jini-admin-space-2) 0; }
+.jini-install-tab-check { display: flex; align-items: center; gap: var(--jini-admin-space-2); font-size: var(--jini-admin-text-sm); color: var(--jini-admin-fg-2); cursor: pointer; }
+.jini-install-tab-review {
+  display: flex; flex-direction: column; gap: 4px;
+  padding: var(--jini-admin-space-3) var(--jini-admin-space-4); border: 1px solid var(--jini-admin-border); border-radius: var(--jini-admin-r-md); background: var(--jini-admin-surface-2);
+}
+.jini-install-tab-review p { margin: 0; font-size: var(--jini-admin-text-sm); color: var(--jini-admin-fg-2); overflow-wrap: anywhere; }
+.jini-install-tab-review strong { color: var(--jini-admin-fg); }
+.jini-install-tab-alert, .jini-install-tab-success {
+  margin: 0; padding: 9px 12px; font-size: 13px; line-height: 1.5; border-radius: var(--jini-admin-r-sm);
+}
+.jini-install-tab-alert { color: var(--jini-admin-danger); background: var(--jini-admin-danger-bg); border: 1px solid color-mix(in srgb, var(--jini-admin-danger) 28%, transparent); }
+.jini-install-tab-success { color: var(--jini-admin-fg); background: var(--jini-admin-ok-bg); border: 1px solid color-mix(in srgb, var(--jini-admin-ok) 28%, transparent); }
+.jini-install-tab-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: var(--jini-admin-space-3); }
+/* Container (2026-10-11): the pane's width, so a desktop pane squeezed by the nav + dock stacks too.
+   536px ≈ the old 560px viewport minus a phone's page padding. The field stacks over its button;
+   buttons stay content-width like "Upload files" beside them (owner, 2026-10-15: a full-width
+   "Add from GitHub" / "Preview plugin" read as a banner, not a button). */
+@container admin-content (max-width: 536px) {
+  .jini-install-tab-field-controls { flex-direction: column; align-items: stretch; }
+  .jini-install-tab-field-controls button { align-self: flex-start; }
+  /* Left, in line with the stacked controls above, and clear of the chat button in the corner. */
+  .jini-install-tab-actions { justify-content: flex-start; }
+}

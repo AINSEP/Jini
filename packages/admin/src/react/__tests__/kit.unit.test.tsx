@@ -1,11 +1,11 @@
-import { render, renderHook, screen } from '@testing-library/react';
+import { act, render, renderHook, screen, waitFor } from '@testing-library/react';
 import { createRef, type ReactNode } from 'react';
 import { describe, expect, it, vi } from 'vitest';
-import { AdminKitProvider, Button, Icon, InfoTip, TabBar, type AdminKitChat, type KitIconName, useAdminKitChatPosters, useAdminKitValues, useAdminThemeKit, useChatT, useDirtyGuard, useFetchQuery, useMediaProviderRules, useT } from '../kit.js';
+import { AdminKitProvider, Button, Icon, InfoTip, TabBar, type AdminKitChat, type InfoTipProps, type KitIconName, useAdminKitChatPosters, useAdminKitValues, useAdminThemeKit, useChatT, useDirtyGuard, useFetchQuery, useMediaProviderRules, useT } from '../kit.js';
 import {
   CodeWithLines, CodeWrapToggle, I18nProvider, PreviewModalShell, RemixIcon, SettingsDialogShell, Toast,
   useAdminKitChatValues, useCodeWrap, useCopyToClipboard, useFabPosition, useInfoTip, usePanelPosition, useSelectDropdown, useSerialWrites, useTabBarKeyboard,
-  useTabbedDialog,
+  useTabbedDialog, useCursorPages, useDebouncedHtmlPreview, useExecutionCredential, useI18n, useSettingsSlice, useStandingDraftAutosave, useWiredCopyToClipboard,
   type AdminKit, type AdminKitHooks, type AdminKitValues, type ChatPaneAgent, type FabPositionInput,
 } from '../kit.js';
 import { fakeAdminKit, fixtureQuery } from '../testing-kit.js';
@@ -307,4 +307,168 @@ it('passes the InfoTip placement, icon, trigger label and description id through
   expect(screen.getByRole('note').textContent).toBe('Runs locally');
   expect(seen).toHaveLength(1);
   expect(seen[0]).toMatchObject({ label: 'Runs locally', placement: 'bottom', icon, triggerLabel: 'About runs', descriptionId: 'run-desc' });
+});
+
+describe('admin kit: settings-slice values, visible interval and chat title/slot values (A-K2-0 batch 2)', () => {
+  it('hands screens the exact injected functions and constants, not copies', () => {
+    const readableTextColor = vi.fn(() => 'x');
+    const mergeSaveStates = vi.fn(() => ({ status: 'saved' as const }));
+    const canAcceptRefresh = vi.fn(() => false);
+    const startVisibleInterval = vi.fn(() => () => {});
+    const values = { ...fakeAdminKit().values, readableTextColor, mergeSaveStates, canAcceptRefresh, startVisibleInterval, SAVE_DEBOUNCE_MS: 5 };
+    const wrapper = ({ children }: { children: ReactNode }) => <AdminKitProvider kit={fakeAdminKit({ values })}>{children}</AdminKitProvider>;
+    const got = renderHook(() => useAdminKitValues({}, {}), { wrapper }).result.current;
+    expect(got.readableTextColor({ hex: 'fff' })).toBe('x');
+    expect(readableTextColor).toHaveBeenCalledWith({ hex: 'fff' });
+    expect(got.mergeSaveStates({ states: [] })).toEqual({ status: 'saved' });
+    expect(got.canAcceptRefresh({ timerPending: false, hasUnsavedEdits: false, mounted: true, commitsUnchanged: true })).toBe(false);
+    got.startVisibleInterval({ tick: () => {}, periodMs: 10 });
+    expect(startVisibleInterval).toHaveBeenCalledOnce();
+    expect(got.SAVE_DEBOUNCE_MS).toBe(5);
+  });
+
+  it('chat values facade returns the injected title, slot-key functions and ext-event names', () => {
+    const deriveConversationTitle = vi.fn(() => 'derived');
+    const chat = { ...fakeAdminKit().chat, deriveConversationTitle, MCP_UI_EXT_EVENT_NAME: 'mcp-x', MID_RUN_USER_MESSAGE_EXT_EVENT_NAME: 'mid-x' };
+    const wrapper = ({ children }: { children: ReactNode }) => <AdminKitProvider kit={fakeAdminKit({ chat })}>{children}</AdminKitProvider>;
+    const got = renderHook(() => useAdminKitChatValues({}, {}), { wrapper }).result.current;
+    expect(got.deriveConversationTitle({ prompt: 'p' })).toBe('derived');
+    expect(deriveConversationTitle).toHaveBeenCalledWith({ prompt: 'p' });
+    expect(got.conversationTitleForDisplay({ title: null, titleSource: 'fallback', firstPrompt: 'first' })).toBe('first');
+    expect(got.mcpUiSurfaceSlotKey({ data: { id: 'a' } })).toBe('a');
+    expect(got.midRunUserMessageSlotKey({ data: {} })).toBeUndefined();
+    expect([got.MCP_UI_EXT_EVENT_NAME, got.MID_RUN_USER_MESSAGE_EXT_EVENT_NAME]).toEqual(['mcp-x', 'mid-x']);
+  });
+});
+
+describe('admin kit: execution, settings-slice and editor hooks and values (A-K2-0 batch 3)', () => {
+  const wrap = (kit: AdminKit) => ({ children }: { children: ReactNode }) => <AdminKitProvider kit={kit}>{children}</AdminKitProvider>;
+
+  it('each new hook facade forwards its arguments to the injected hook and returns its result unchanged', () => {
+    const useSettingsSliceSpy = vi.fn(() => ({ value: 7, loadError: null, saveState: { status: 'idle' as const }, onChange: () => {}, refresh: async () => {} }));
+    const useWiredCopySpy = vi.fn(() => ({ copied: true, copy: async () => true }));
+    const useI18nSpy = vi.fn(() => ({ locale: 'fr', setLocale: () => {}, t: (key: string) => key }));
+    const kit = fakeAdminKit({ hooks: { useSettingsSlice: useSettingsSliceSpy as unknown as AdminKitHooks['useSettingsSlice'], useWiredCopyToClipboard: useWiredCopySpy, useI18n: useI18nSpy } });
+    const options = { load: async () => 1, save: async () => [], defaultValue: 1, refreshPort: { publish: () => {}, subscribe: () => () => {} } };
+    expect(renderHook(() => useSettingsSlice(options), { wrapper: wrap(kit) }).result.current.value).toBe(7);
+    expect(useSettingsSliceSpy).toHaveBeenCalledWith(options);
+    expect(renderHook(() => useWiredCopyToClipboard(250), { wrapper: wrap(kit) }).result.current.copied).toBe(true);
+    expect(useWiredCopySpy).toHaveBeenCalledWith(250);
+    expect(renderHook(() => useI18n(), { wrapper: wrap(kit) }).result.current.locale).toBe('fr');
+  });
+
+  it('the fake kit hooks behave like a quiet host: slice holds its default, preview echoes the source, i18n is English', () => {
+    const wrapper = wrap(fakeAdminKit());
+    const slice = renderHook(() => useSettingsSlice({ load: async () => 'a', save: async () => [], defaultValue: 'a', refreshPort: { publish: () => {}, subscribe: () => () => {} } }), { wrapper });
+    expect(slice.result.current.value).toBe('a');
+    expect(renderHook(() => useDebouncedHtmlPreview({ source: '<p>x</p>', render: async () => '' }), { wrapper }).result.current).toEqual({ document: '<p>x</p>', loading: false, error: null });
+    expect(renderHook(() => useI18n(), { wrapper }).result.current.locale).toBe('en');
+    const draft = renderHook(() => useStandingDraftAutosave({ port: {} as never, backup: {} as never, entryId: null, enabled: false }), { wrapper }).result.current;
+    expect(draft.recoverableDraft).toBeNull();
+    expect(renderHook(() => useExecutionCredential({ byok: {} as never, onByokChange: () => {}, port: {} as never, effects: {} as never }), { wrapper }).result.current.canSaveKey).toBe(false);
+  });
+
+  it('the fake cursor pages load the first page for the initial filters and refetch when the filters change', async () => {
+    const fetchPage = vi.fn(async ({ filters }: { filters: string }) => ({ items: [filters], nextCursor: null }));
+    const view = renderHook(() => useCursorPages({ key: ({ filters }) => ['k', filters], fetchPage, initialFilters: 'a' }), { wrapper: wrap(fakeAdminKit()) });
+    await waitFor(() => expect(view.result.current.rows).toEqual(['a']));
+    act(() => view.result.current.applyFilters('b'));
+    await waitFor(() => expect(view.result.current.rows).toEqual(['b']));
+    expect(fetchPage).toHaveBeenCalledTimes(2);
+  });
+
+  it('the fake values behave like the host ones for config writers, preset lookup, response guard, accent and markdown', () => {
+    const v = fakeAdminKit().values;
+    const config = { mode: 'local-cli' as const, byok: { protocol: 'openai' as const, providerId: 'p1', apiKey: '', baseUrl: '', model: '' }, localCli: { agentId: null } };
+    expect(v.nextConfigForAgentSelect({ config, agentId: 'a' }).localCli.agentId).toBe('a');
+    expect(v.nextConfigForAgentModel({ config, agentId: 'a', model: 'm' }).localCli.modelByAgentId).toEqual({ a: 'm' });
+    expect(v.nextConfigForAgentReasoning({ config, agentId: 'a', reasoning: 'high' }).localCli.reasoningByAgentId).toEqual({ a: 'high' });
+    expect(v.resolveSelectedPreset({ presets: [], config: config.byok })).toBeNull();
+    expect(v.requireExecutionResponseData({ response: { data: 5 }, callSite: 'x' })).toBe(5);
+    expect(() => v.requireExecutionResponseData({ response: null, callSite: 'loadThing' })).toThrow(/loadThing/);
+    expect(v.normalizeAccentColor({ value: 3 })).toBeNull();
+    expect(v.resolveAccentColor({ value: 3 })).toBe('black');
+    expect(v.renderMarkdownToSafeHtml('<b>&')).toBe('&lt;b&gt;&amp;');
+    expect(v.sourceDisplayLabel({ source: { id: 'i', fields: { url: 'u' } }, fieldSpecs: [{ key: 'url', label: 'U', kind: 'url' }] })).toBe('u');
+    expect(v.isEditorSourceError({ error: new Error('x') })).toBe(false);
+    expect(v.resolveSelectTriggerLabel({ selectedOption: null, placeholder: 'pick' }).text).toBe('pick');
+  });
+
+  it('the fake retry makes one attempt and the fake folder-drop maps files through the host port', async () => {
+    const v = fakeAdminKit().values;
+    const load = vi.fn(async () => 'ok');
+    await expect(v.retryWhileUnreachable({ load, signal: new AbortController().signal, isUnreachable: () => true })).resolves.toBe('ok');
+    expect(load).toHaveBeenCalledOnce();
+    const file = new File(['x'], 'a.txt');
+    expect(v.folderPathsFromDataTransfer({ dataTransfer: { files: [file] } as unknown as DataTransfer, port: { getPathForFile: () => '/p' } })).toEqual(['/p']);
+  });
+});
+
+describe('admin kit: chat factories (A-K2-0 batch 3)', () => {
+  const chat = () => fakeAdminKit().chat;
+
+  it('chat values facade returns the injected factories by identity', () => {
+    const createLastConversationStore = vi.fn(() => ({ read: () => 'c1', write: () => {}, clear: () => {} }));
+    const kit = fakeAdminKit({ chat: { createLastConversationStore } });
+    const wrapper = ({ children }: { children: ReactNode }) => <AdminKitProvider kit={kit}>{children}</AdminKitProvider>;
+    const got = renderHook(() => useAdminKitChatValues({}, {}), { wrapper }).result.current;
+    expect(got.createLastConversationStore({ scope: 's' }, { storage: null }).read()).toBe('c1');
+    expect(createLastConversationStore).toHaveBeenCalledWith({ scope: 's' }, { storage: null });
+  });
+
+  it('the fake run-status and last-conversation helpers behave like the library ones', () => {
+    expect(['queued', 'running', 'succeeded', 'failed', 'canceled', undefined].map((status) => chat().isTerminalRunStatus({ status: status as never })))
+      .toEqual([false, false, true, true, true, false]);
+    const store = chat().createLastConversationStore({ scope: 's' });
+    store.write('c9');
+    expect(store.read()).toBe('c9');
+    store.clear();
+    expect(store.read()).toBeNull();
+  });
+
+  it('the fake renderer registry registers, slots, reports terminal notices and unregisters', () => {
+    const registry = chat().createExtEventRendererRegistry();
+    const renderer = () => null;
+    const off = registry.register({ name: 'x', renderer }, { slotKey: ({ data }) => String(data), terminalNotice: ({ events }) => events.length > 0 });
+    expect(registry.get({ name: 'x' })).toBe(renderer);
+    expect(registry.slot({ name: 'x', data: 7 })).toBe('x:7');
+    expect(registry.hasTerminalNotice({ name: 'x', events: [1] })).toBe(true);
+    off();
+    expect(registry.get({ name: 'x' })).toBeUndefined();
+    registry.register({ name: 'y', renderer });
+    registry.clear();
+    expect(registry.get({ name: 'y' })).toBeUndefined();
+  });
+
+  it('the fake history read unwraps messages and the fake validator keeps every attachment', async () => {
+    const read = vi.fn(async () => ({ messages: [{ id: 'm', role: 'user' as const, content: 'hi' }] }));
+    await expect(chat().createConditionalHistoryRead({ read })({ conversationId: 'c' })).resolves.toHaveLength(1);
+    expect(read).toHaveBeenCalledWith({ conversationId: 'c' }, {});
+    const attachments = [{ path: '/a', name: 'a', kind: 'file' as const }];
+    await expect(chat().createChatAttachmentValidator({ fetch, endpoint: () => '', isSupportedRef: () => true, maxProbedAttachments: 1 })(attachments)).resolves.toBe(attachments);
+    const client = chat().createAssistantChatsClient({ ports: { statusOf: () => 500, sleep: async () => {}, reportPermanent: () => {}, requestRunPrefixes: [] } });
+    expect(client.resolveRememberedConversation({ remembered: 'a', conversations: [], listFailed: false })).toBe('forget');
+    expect(chat().createAgentInventorySnapshot({ storage: sessionStorage, key: 'k' }).read({})).toBeUndefined();
+  });
+});
+
+describe('admin kit: plugin admin-surface values and provider-setting rule', () => {
+  it('hands screens the exact injected protocol functions, not copies', () => {
+    const adminSurfaceFrameAttributes = vi.fn(() => ({ src: 's', title: 't', sandbox: 'allow-scripts', referrerPolicy: 'no-referrer' as const }));
+    const isProviderSettingRequired = vi.fn(() => true);
+    const values = { ...fakeAdminKit().values, adminSurfaceFrameAttributes, isProviderSettingRequired };
+    const wrapper = ({ children }: { children: ReactNode }) => <AdminKitProvider kit={fakeAdminKit({ values })}>{children}</AdminKitProvider>;
+    const got = renderHook(() => useAdminKitValues({}, {}), { wrapper }).result.current;
+    expect(got.adminSurfaceFrameAttributes({ src: 's', title: 't' }).sandbox).toBe('allow-scripts');
+    expect(adminSurfaceFrameAttributes).toHaveBeenCalledWith({ src: 's', title: 't' });
+    expect(got.isProviderSettingRequired({ field: { required: true }, values: {} })).toBe(true);
+    expect(got.createAdminSurfaceMount({ surfaceId: 'a' }).mountId).toBe('fake-mount-a');
+  });
+  it('passes a custom tip controller through the InfoTip slot', () => {
+    const useTip = () => { throw new Error('unused'); };
+    const seen: InfoTipProps[] = [];
+    const kit = fakeAdminKit({ components: { InfoTip: (props) => { seen.push(props); return null; } } });
+    renderWithAdminKit(<InfoTip label="x" useTip={useTip} />, { kit });
+    expect(seen[0]?.useTip).toBe(useTip);
+  });
 });

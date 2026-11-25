@@ -88,11 +88,13 @@
       "./shell/components/AssistantDock/hooks/use-composer-send-stop-guard.hooks": "browser",
       "./shell/components/AssistantDock/hooks/useOverflowDetection.hooks": "browser",
       "./shell/components/DevicePreview/DevicePreview.hooks": "browser",
+      "./shell/components/ChatFab/ChatFab": "browser",
       "./shell/components/ChatFab/ChatFab.hooks": "browser",
       "./shell/components/InstallTabCard/use-zip-drop.hooks": "browser",
       "./shell/components/TemplateSource/template-source-port.hooks": "browser",
       "./shell/components/line-icon": "browser",
       "./shell/lib/acceptance-cancellation": "browser",
+      "./shell/lib/assistant-daemon-activation": "browser",
       "./shell/lib/addons-routes": "browser",
       "./shell/lib/admin-boot-scope": "browser",
       "./shell/lib/admin-draft-identity": "browser",
@@ -150,6 +152,11 @@
       "./shell/lib/external-entry-refresh": "browser",
       "./shell/lib/fetch-query/adapter-context": "browser",
       "./shell/lib/page-lifecycle": "browser",
+      "./shell/lib/admin-http/config": "universal",
+      "./shell/lib/admin-http/settings-api.types": "universal",
+      "./shell/lib/admin-http/urls": "universal",
+      "./shell/lib/admin-post-list-sort": "universal",
+      "./shell/lib/descriptor-i18n": "universal",
       "./shell/lib/admin-http/request": "browser",
       "./shell/lib/plain-text-blocks": "browser",
       "./shell/lib/playground-render-target-bus": "browser",
@@ -179,7 +186,12 @@
       "./shell/lib/shell-failure-log": "browser",
       "./shell/hooks/admin-locale-port.hooks": "browser",
       "./shell/hooks/use-admin-locale.hooks": "browser",
+      "./shell/hooks/use-credential-hint.hooks": "browser",
       "./shell/hooks/use-admin-document-locale.hooks": "browser",
+      "./shell/hooks/use-interface-preferences.hooks": "browser",
+      "./shell/hooks/use-admin-appearance-snapshot.hooks": "browser",
+      "./shell/lib/i18n-common": "universal",
+      "./shell/lib/status-labels": "browser",
       "./shell/hooks/use-cms-sidebar-label-tooltips.hooks": "browser",
       "./shell/hooks/use-dock-auto-rail.hooks": "browser",
       "./shell/hooks/use-drawer-active-item-centring.hooks": "browser",
@@ -207,11 +219,23 @@
       "./shell/components/AdminFailureNotice/AdminFailureNotice": "browser",
       "./shell/components/AssistantDock/agent-failure-hints": "browser",
       "./shell/components/MailStatusBanner/MailStatusBanner": "browser",
+      "./shell/components/MailStatusBanner/mail-status-banner.css": "browser",
+      "./shell/components/AssistantDock/hooks/selected-agent-plugins.hooks": "browser",
+      "./shell/components/ConfirmActionDialog": "browser",
+      "./shell/components/DevicePreview/DevicePreviewFrame": "browser",
+      "./shell/components/DevicePreview/DevicePreviewToggle": "browser",
+      "./shell/components/InstallTabCard/InstallTabCard": "browser",
+      "./shell/components/MediaPickerDialog/media-picker-port.hooks": "browser",
+      "./shell/components/WidgetConfigFields/media-content-rules": "browser",
+      "./shell/components/PlainTextBlocks": "browser",
+      "./shell/components/WidgetConfigFields/widget-config-fields-port.hooks": "browser",
+      "./shell/components/WidgetPickerDialog/widget-picker-port.hooks": "browser",
       "./shell/components/SitesSidebarNav": "browser",
       "./shell/components/WidgetConfigFields/WidgetConfigFields.hooks": "browser",
       "./shell/components/AssistantDock/hooks/use-routed-a2ui-surface-card.hooks": "browser",
       "./shell/components/CodeView/preview-modal-icons": "browser",
       "./shell/components/InstallTabCard/use-folder-upload.hooks": "browser",
+      "./shell/components/InstallTabCard/install-tab-card.css": "browser",
       "./shell/components/Select/Select.hooks": "browser",
       "./shell/lib/tab-event-source": "browser",
       "./shell/hooks/use-external-entry-refresh.hooks": "browser",
@@ -234,6 +258,11 @@
       "./screens/plugins/add-plugin-tab-soon": "universal",
       "./screens/plugins/composer-capabilities": "universal",
       "./screens/plugins/agent-plugins-visuals": "browser",
+      "./screens/plugins/plugins-visuals": "browser",
+      "./screens/plugins/AgentPluginMaturity": "browser",
+      "./screens/plugins/AgentPluginLinkedLock": "browser",
+      "./screens/plugins/AgentPluginMemoryPanel": "browser",
+      "./screens/plugins/hooks/use-agent-plugin-memory.hooks": "browser",
       "./screens/plugins/hooks/agent-plugin-surfaces-port.hooks": "universal",
       "./screens/plugins/hooks/use-linked-lock-tip.hooks": "browser",
       "./screens/plugins/plugins-memory-i18n": "universal",
@@ -258,6 +287,9 @@
       "./screens/skills/skills-visuals": "browser",
       "./screens/skills/Skills.hooks": "browser",
       "./screens/skills/use-skill-confirmation.hooks": "browser",
+      "./screens/skills/skill-drop": "browser",
+      "./screens/skills/use-skills-tabs.hooks": "browser",
+      "./screens/skills/skills.css": "browser",
       "./screens/taxonomy/api/taxonomy-api.types": "universal",
       "./screens/taxonomy/html-rules": "universal",
       "./screens/taxonomy/TaxonomyRowMenu.hooks": "browser",
@@ -288,6 +320,16 @@
       "./screens/menus/api/menus-api.types": "universal",
       "./screens/widgets/api/widgets-api.types": "universal",
       "./screens/providers/api/providers-api": "universal",
+      "./screens/analytics/api/analytics-api": "universal",
+      "./screens/auth/api/auth-api": "universal",
+      "./screens/database/api/database-api": "universal",
+      "./screens/email/api/mail-status-api": "universal",
+      "./screens/trash/api/trash-api": "universal",
+      "./screens/import-export/api/import-export-api": "universal",
+      "./pages/api/pages-api": "universal",
+      "./recovery/api/recovery-api": "universal",
+      "./screens/email/email-api": "universal",
+      "./shell/lib/admin-http/settings-api": "browser",
       "./agent-plugins/models": "universal",
       "./screens/integrations/api/integrations-api": "universal",
       "./screens/integrations/IntegrationsRedirect": "universal",
@@ -295,6 +337,7 @@
       "./screens/providers/always-allow-ports": "universal",
       "./screens/integrations/integrations-ports": "universal",
       "./screens/integrations/agent-plugin-ports": "universal",
+      "./screens/integrations/hooks/use-integrations-redirect.hooks": "browser",
       "./security/api/security-api.types": "universal",
       "./security/api/security-api": "universal",
       "./security/access-token-rows": "universal",
@@ -322,11 +365,18 @@
       "./screens/plugins/hooks/agent-plugin-memory-port.hooks": "universal",
       "./screens/plugins/hooks/plugin-install-port.hooks": "universal",
       "./screens/plugins/hooks/plugins-port.hooks": "universal",
+      "./screens/plugins/AgentPluginSurfaceFrame": "browser",
+      "./screens/plugins/hooks/use-admin-surface-frame.hooks": "browser",
+      "./screens/plugins/admin-surface-theme": "browser",
+      "./screens/plugins/rules": "universal",
       "./screens/plugins/PluginProviderSettingField.hooks": "browser",
       "./screens/plugins/hooks/use-plugin-provider-settings.hooks": "browser",
       "./screens/plugins/AgentPlugins.hooks": "browser",
       "./screens/providers/hooks/use-providers.hooks": "browser",
+      "./screens/providers/Providers.hooks": "browser",
+      "./screens/providers/always-allow.css": "browser",
       "./screens/trash/rules": "universal",
+      "./screens/trash/hooks/trash-port.hooks": "universal",
       "./sites/transfer/use-export-password.hooks": "browser",
       "./shell/lib/live-tiptap-editor": "universal",
       "./shell/lib/media-image-extension.hooks": "universal",
@@ -352,6 +402,14 @@
       "./shell/components/AssistantDock/FolderDropPathHint": "browser",
       "./shell/components/AssistantDock/FolderPathButton": "browser",
       "./shell/components/AssistantDock/dock-header-rules": "browser",
+      "./screens/plugins/resolve-composer-discovery-outcome": "browser",
+      "./shell/components/AssistantDock/hooks/assistant-mcp-ui": "universal",
+      "./screens/plugins/composer-skills.hooks": "browser",
+      "./shell/components/AssistantDock/assistant-runtime-preferences": "universal",
+      "./shell/components/AssistantDock/chat-display-preferences": "universal",
+      "./shell/components/AssistantDock/FolderDropNotice": "browser",
+      "./shell/components/AssistantDock/DockLeadingAccessory": "browser",
+      "./shell/components/AssistantDock/DockHeaderTip": "browser",
       "./shell/components/AssistantDock/DockHeaderTip.hooks": "browser",
       "./shell/components/WidgetConfigFields/HtmlAttributeRows.hooks": "browser",
       "./shell/components/MediaPickerDialog/JiniMediaPicker.hooks": "browser",
@@ -416,6 +474,7 @@
       "./screens/settings/settings-execution-i18n": "universal",
       "./screens/settings/SettingsUi.hooks": "browser",
       "./screens/settings/ExternalMcpRemoveConfirmDialog": "browser",
+      "./screens/settings/external-mcp-drift-copy": "universal",
       "./screens/content-analysis/ContentAnalysisCard": "browser",
       "./screens/content-analysis/rules": "universal",
       "./screens/content-analysis/hooks/use-content-analysis.hooks": "browser",
@@ -634,7 +693,40 @@
       "./screens/taxonomy/taxonomy-i18n/taxonomy-detail-i18n": "universal",
       "./screens/taxonomy/taxonomy-i18n/taxonomy-hooks-i18n": "universal",
       "./screens/taxonomy/taxonomy-i18n/taxonomy-term-picker-i18n": "universal",
-      "./screens/taxonomy/taxonomy-i18n/create-taxonomy-dictionary": "universal"
+      "./screens/taxonomy/taxonomy-i18n/create-taxonomy-dictionary": "universal",
+      "./screens/voice-input/hooks/push-to-talk-state.hooks": "browser",
+      "./screens/voice-input/hooks/space-hold-config": "universal",
+      "./screens/voice-input/hooks/mic-button-view.hooks": "browser",
+      "./screens/voice-input/push-to-talk-mic-button.css": "browser",
+      "./screens/voice-input/voice-input-config": "universal",
+      "./screens/voice-input/voice-unavailability": "universal",
+      "./screens/authentication/authentication.css": "browser",
+      "./screens/database/Database.hooks": "browser",
+      "./screens/email/email.css": "browser",
+      "./screens/email/EmailProviderTab.hooks": "browser",
+      "./screens/email/hooks/use-email-template-view.hooks": "browser",
+      "./screens/media/hooks/use-media-tabs.hooks": "browser",
+      "./screens/media/hooks/use-media-item-link.hooks": "browser",
+      "./screens/media/pinned-media-providers": "universal",
+      "./screens/plugins/hooks/use-agent-plugin-surfaces.hooks": "browser",
+      "./screens/plugins/hooks/use-agent-plugin-tab.hooks": "browser",
+      "./screens/plugins/provider-settings-dialog.css": "browser",
+      "./screens/import-export/GitBackupCard": "browser",
+      "./screens/import-export/import-export-links": "universal",
+      "./screens/email/EmailParts": "browser",
+      "./screens/email/EmailOverviewTab": "browser",
+      "./screens/email/EmailSenderTab": "browser",
+      "./screens/email/EmailActivityTab": "browser",
+      "./screens/email/EmailTemplatesTab": "browser",
+      "./screens/trash/trash-i18n/create-trash-dictionary": "universal",
+      "./screens/providers/AlwaysAllowPanel": "browser",
+      "./screens/providers/hooks/use-always-allow.hooks": "browser",
+      "./screens/library/library-i18n/create-library-dictionary": "universal",
+      "./screens/library/library-i18n/library-i18n-data": "universal",
+      "./screens/voice-input/hooks/mic-capture": "browser",
+      "./screens/settings/rules": "universal",
+      "./screens/media/rules": "universal",
+      "./shell/components/SecretInput/SecretInput": "browser"
     },
     "isolation": {
       "shared": [
@@ -649,7 +741,10 @@
         "src/browser/shell-navigation.ts",
         "src/browser/navigation.ts",
         "src/shell/components/AssistantDock/chat-agent-plugin-preferences.ts",
-        "src/media/html-attributes.ts"
+        "src/media/html-attributes.ts",
+        "src/screens/plugins/composer-capabilities.ts",
+        "src/screens/plugins/selected-skills.ts",
+        "src/agent-plugins/package-file-tree.ts"
       ],
       "forbidden": {
         "universal": [
@@ -663,12 +758,20 @@
         "./shell/components/AssistantDock/hooks/use-composer-send-stop-guard.hooks": "browser",
         "./shell/components/AssistantDock/hooks/useOverflowDetection.hooks": "browser",
         "./shell/components/DevicePreview/DevicePreview.hooks": "browser",
+        "./shell/components/ChatFab/ChatFab": "browser",
         "./shell/components/ChatFab/ChatFab.hooks": "browser",
         "./shell/components/InstallTabCard/use-zip-drop.hooks": "browser",
         "./shell/components/TemplateSource/template-source-port.hooks": "browser",
         "./shell/components/line-icon": "browser",
         "./shell/lib/acceptance-cancellation": "browser",
+        "./shell/lib/assistant-daemon-activation": "browser",
         "./shell/lib/addons-routes": "browser",
+        "./shell/lib/admin-http/config": "universal",
+        "./shell/lib/admin-http/settings-api.types": "universal",
+        "./shell/lib/admin-http/settings-api": "browser",
+        "./shell/lib/admin-http/urls": "universal",
+        "./shell/lib/admin-post-list-sort": "universal",
+        "./shell/lib/descriptor-i18n": "universal",
         "./shell/lib/admin-boot-scope": "browser",
         "./shell/lib/admin-draft-identity": "browser",
         "./shell/lib/agent-screenshot-bus": "browser",
@@ -753,6 +856,10 @@
         "./shell/lib/shell-failure-log": "browser",
         "./shell/hooks/admin-locale-port.hooks": "browser",
         "./shell/hooks/use-admin-document-locale.hooks": "browser",
+        "./shell/hooks/use-interface-preferences.hooks": "browser",
+        "./shell/hooks/use-admin-appearance-snapshot.hooks": "browser",
+        "./shell/lib/i18n-common": "universal",
+        "./shell/lib/status-labels": "browser",
         "./shell/hooks/use-cms-sidebar-label-tooltips.hooks": "browser",
         "./shell/hooks/use-dock-auto-rail.hooks": "browser",
         "./shell/hooks/use-drawer-active-item-centring.hooks": "browser",
@@ -780,6 +887,16 @@
         "./shell/components/AdminFailureNotice/AdminFailureNotice": "browser",
         "./shell/components/AssistantDock/agent-failure-hints": "browser",
         "./shell/components/MailStatusBanner/MailStatusBanner": "browser",
+        "./shell/components/AssistantDock/hooks/selected-agent-plugins.hooks": "browser",
+        "./shell/components/ConfirmActionDialog": "browser",
+        "./shell/components/DevicePreview/DevicePreviewFrame": "browser",
+        "./shell/components/DevicePreview/DevicePreviewToggle": "browser",
+        "./shell/components/InstallTabCard/InstallTabCard": "browser",
+        "./shell/components/MediaPickerDialog/media-picker-port.hooks": "browser",
+        "./shell/components/WidgetConfigFields/media-content-rules": "media",
+        "./shell/components/PlainTextBlocks": "browser",
+        "./shell/components/WidgetConfigFields/widget-config-fields-port.hooks": "browser",
+        "./shell/components/WidgetPickerDialog/widget-picker-port.hooks": "browser",
         "./shell/components/SitesSidebarNav": "browser",
         "./shell/components/WidgetConfigFields/WidgetConfigFields.hooks": "browser",
         "./shell/components/AssistantDock/hooks/use-routed-a2ui-surface-card.hooks": "browser",
@@ -812,6 +929,18 @@
         "./shell/components/AssistantDock/FolderDropPathHint": "browser",
         "./shell/components/AssistantDock/FolderPathButton": "browser",
         "./shell/components/AssistantDock/dock-header-rules": "browser",
+        "./screens/plugins/resolve-composer-discovery-outcome": "browser",
+        "./screens/plugins/AgentPluginSurfaceFrame": "browser",
+        "./screens/plugins/hooks/use-admin-surface-frame.hooks": "browser",
+        "./screens/plugins/admin-surface-theme": "browser",
+        "./screens/plugins/rules": "universal",
+        "./shell/components/AssistantDock/hooks/assistant-mcp-ui": "universal",
+        "./screens/plugins/composer-skills.hooks": "browser",
+        "./shell/components/AssistantDock/assistant-runtime-preferences": "universal",
+        "./shell/components/AssistantDock/chat-display-preferences": "universal",
+        "./shell/components/AssistantDock/FolderDropNotice": "browser",
+        "./shell/components/AssistantDock/DockLeadingAccessory": "browser",
+        "./shell/components/AssistantDock/DockHeaderTip": "browser",
         "./shell/components/AssistantDock/DockHeaderTip.hooks": "browser",
         "./shell/components/WidgetConfigFields/HtmlAttributeRows.hooks": "browser",
         "./shell/components/MediaPickerDialog/JiniMediaPicker.hooks": "browser",
@@ -879,7 +1008,11 @@
         "./screens/observability/recent-errors-panel": "browser",
         "./screens/observability/recent-errors-rules": "browser",
         "./screens/observability/tool-gaps-panel": "browser",
-        "./screens/media/hooks/use-media-card-metadata.hooks": "media"
+        "./screens/email/hooks/use-email-template-view.hooks": "browser",
+        "./screens/media/hooks/use-media-card-metadata.hooks": "media",
+        "./screens/settings/rules": "universal",
+        "./screens/media/rules": "universal",
+        "./shell/components/SecretInput/SecretInput": "browser"
       }
     },
     "optionalPeers": {
@@ -1259,6 +1392,11 @@
       "import": "./dist/shell/components/DevicePreview/DevicePreview.hooks.js",
       "default": "./dist/shell/components/DevicePreview/DevicePreview.hooks.js"
     },
+    "./shell/components/ChatFab/ChatFab": {
+      "types": "./dist/shell/components/ChatFab/ChatFab.d.ts",
+      "import": "./dist/shell/components/ChatFab/ChatFab.js",
+      "default": "./dist/shell/components/ChatFab/ChatFab.js"
+    },
     "./shell/components/ChatFab/ChatFab.hooks": {
       "types": "./dist/shell/components/ChatFab/ChatFab.hooks.d.ts",
       "import": "./dist/shell/components/ChatFab/ChatFab.hooks.js",
@@ -1278,6 +1416,11 @@
       "types": "./dist/shell/components/line-icon.d.ts",
       "import": "./dist/shell/components/line-icon.js",
       "default": "./dist/shell/components/line-icon.js"
+    },
+    "./shell/lib/assistant-daemon-activation": {
+      "types": "./dist/shell/lib/assistant-daemon-activation.d.ts",
+      "import": "./dist/shell/lib/assistant-daemon-activation.js",
+      "default": "./dist/shell/lib/assistant-daemon-activation.js"
     },
     "./shell/lib/acceptance-cancellation": {
       "types": "./dist/shell/lib/acceptance-cancellation.d.ts",
@@ -1569,6 +1712,31 @@
       "import": "./dist/shell/lib/page-lifecycle.js",
       "default": "./dist/shell/lib/page-lifecycle.js"
     },
+    "./shell/lib/admin-http/config": {
+      "types": "./dist/shell/lib/admin-http/config.d.ts",
+      "import": "./dist/shell/lib/admin-http/config.js",
+      "default": "./dist/shell/lib/admin-http/config.js"
+    },
+    "./shell/lib/admin-http/settings-api.types": {
+      "types": "./dist/shell/lib/admin-http/settings-api.types.d.ts",
+      "import": "./dist/shell/lib/admin-http/settings-api.types.js",
+      "default": "./dist/shell/lib/admin-http/settings-api.types.js"
+    },
+    "./shell/lib/admin-http/urls": {
+      "types": "./dist/shell/lib/admin-http/urls.d.ts",
+      "import": "./dist/shell/lib/admin-http/urls.js",
+      "default": "./dist/shell/lib/admin-http/urls.js"
+    },
+    "./shell/lib/admin-post-list-sort": {
+      "types": "./dist/shell/lib/admin-post-list-sort.d.ts",
+      "import": "./dist/shell/lib/admin-post-list-sort.js",
+      "default": "./dist/shell/lib/admin-post-list-sort.js"
+    },
+    "./shell/lib/descriptor-i18n": {
+      "types": "./dist/shell/lib/descriptor-i18n.d.ts",
+      "import": "./dist/shell/lib/descriptor-i18n.js",
+      "default": "./dist/shell/lib/descriptor-i18n.js"
+    },
     "./shell/lib/admin-http/request": {
       "types": "./dist/shell/lib/admin-http/request.d.ts",
       "import": "./dist/shell/lib/admin-http/request.js",
@@ -1714,10 +1882,35 @@
       "import": "./dist/shell/hooks/use-admin-locale.hooks.js",
       "default": "./dist/shell/hooks/use-admin-locale.hooks.js"
     },
+    "./shell/hooks/use-credential-hint.hooks": {
+      "types": "./dist/shell/hooks/use-credential-hint.hooks.d.ts",
+      "import": "./dist/shell/hooks/use-credential-hint.hooks.js",
+      "default": "./dist/shell/hooks/use-credential-hint.hooks.js"
+    },
     "./shell/hooks/use-admin-document-locale.hooks": {
       "types": "./dist/shell/hooks/use-admin-document-locale.hooks.d.ts",
       "import": "./dist/shell/hooks/use-admin-document-locale.hooks.js",
       "default": "./dist/shell/hooks/use-admin-document-locale.hooks.js"
+    },
+    "./shell/hooks/use-interface-preferences.hooks": {
+      "types": "./dist/shell/hooks/use-interface-preferences.hooks.d.ts",
+      "import": "./dist/shell/hooks/use-interface-preferences.hooks.js",
+      "default": "./dist/shell/hooks/use-interface-preferences.hooks.js"
+    },
+    "./shell/hooks/use-admin-appearance-snapshot.hooks": {
+      "types": "./dist/shell/hooks/use-admin-appearance-snapshot.hooks.d.ts",
+      "import": "./dist/shell/hooks/use-admin-appearance-snapshot.hooks.js",
+      "default": "./dist/shell/hooks/use-admin-appearance-snapshot.hooks.js"
+    },
+    "./shell/lib/i18n-common": {
+      "types": "./dist/shell/lib/i18n-common.d.ts",
+      "import": "./dist/shell/lib/i18n-common.js",
+      "default": "./dist/shell/lib/i18n-common.js"
+    },
+    "./shell/lib/status-labels": {
+      "types": "./dist/shell/lib/status-labels.d.ts",
+      "import": "./dist/shell/lib/status-labels.js",
+      "default": "./dist/shell/lib/status-labels.js"
     },
     "./shell/hooks/use-cms-sidebar-label-tooltips.hooks": {
       "types": "./dist/shell/hooks/use-cms-sidebar-label-tooltips.hooks.d.ts",
@@ -1854,6 +2047,57 @@
       "import": "./dist/shell/components/MailStatusBanner/MailStatusBanner.js",
       "default": "./dist/shell/components/MailStatusBanner/MailStatusBanner.js"
     },
+    "./shell/components/MailStatusBanner/mail-status-banner.css": "./src/shell/components/MailStatusBanner/mail-status-banner.css",
+    "./shell/components/AssistantDock/hooks/selected-agent-plugins.hooks": {
+      "types": "./dist/shell/components/AssistantDock/hooks/selected-agent-plugins.hooks.d.ts",
+      "import": "./dist/shell/components/AssistantDock/hooks/selected-agent-plugins.hooks.js",
+      "default": "./dist/shell/components/AssistantDock/hooks/selected-agent-plugins.hooks.js"
+    },
+    "./shell/components/ConfirmActionDialog": {
+      "types": "./dist/shell/components/ConfirmActionDialog.d.ts",
+      "import": "./dist/shell/components/ConfirmActionDialog.js",
+      "default": "./dist/shell/components/ConfirmActionDialog.js"
+    },
+    "./shell/components/DevicePreview/DevicePreviewFrame": {
+      "types": "./dist/shell/components/DevicePreview/DevicePreviewFrame.d.ts",
+      "import": "./dist/shell/components/DevicePreview/DevicePreviewFrame.js",
+      "default": "./dist/shell/components/DevicePreview/DevicePreviewFrame.js"
+    },
+    "./shell/components/DevicePreview/DevicePreviewToggle": {
+      "types": "./dist/shell/components/DevicePreview/DevicePreviewToggle.d.ts",
+      "import": "./dist/shell/components/DevicePreview/DevicePreviewToggle.js",
+      "default": "./dist/shell/components/DevicePreview/DevicePreviewToggle.js"
+    },
+    "./shell/components/InstallTabCard/InstallTabCard": {
+      "types": "./dist/shell/components/InstallTabCard/InstallTabCard.d.ts",
+      "import": "./dist/shell/components/InstallTabCard/InstallTabCard.js",
+      "default": "./dist/shell/components/InstallTabCard/InstallTabCard.js"
+    },
+    "./shell/components/WidgetConfigFields/media-content-rules": {
+      "types": "./dist/shell/components/WidgetConfigFields/media-content-rules.d.ts",
+      "import": "./dist/shell/components/WidgetConfigFields/media-content-rules.js",
+      "default": "./dist/shell/components/WidgetConfigFields/media-content-rules.js"
+    },
+    "./shell/components/MediaPickerDialog/media-picker-port.hooks": {
+      "types": "./dist/shell/components/MediaPickerDialog/media-picker-port.hooks.d.ts",
+      "import": "./dist/shell/components/MediaPickerDialog/media-picker-port.hooks.js",
+      "default": "./dist/shell/components/MediaPickerDialog/media-picker-port.hooks.js"
+    },
+    "./shell/components/PlainTextBlocks": {
+      "types": "./dist/shell/components/PlainTextBlocks.d.ts",
+      "import": "./dist/shell/components/PlainTextBlocks.js",
+      "default": "./dist/shell/components/PlainTextBlocks.js"
+    },
+    "./shell/components/WidgetConfigFields/widget-config-fields-port.hooks": {
+      "types": "./dist/shell/components/WidgetConfigFields/widget-config-fields-port.hooks.d.ts",
+      "import": "./dist/shell/components/WidgetConfigFields/widget-config-fields-port.hooks.js",
+      "default": "./dist/shell/components/WidgetConfigFields/widget-config-fields-port.hooks.js"
+    },
+    "./shell/components/WidgetPickerDialog/widget-picker-port.hooks": {
+      "types": "./dist/shell/components/WidgetPickerDialog/widget-picker-port.hooks.d.ts",
+      "import": "./dist/shell/components/WidgetPickerDialog/widget-picker-port.hooks.js",
+      "default": "./dist/shell/components/WidgetPickerDialog/widget-picker-port.hooks.js"
+    },
     "./shell/components/SitesSidebarNav": {
       "types": "./dist/shell/components/SitesSidebarNav.d.ts",
       "import": "./dist/shell/components/SitesSidebarNav.js",
@@ -1879,6 +2123,7 @@
       "import": "./dist/shell/components/InstallTabCard/use-folder-upload.hooks.js",
       "default": "./dist/shell/components/InstallTabCard/use-folder-upload.hooks.js"
     },
+    "./shell/components/InstallTabCard/install-tab-card.css": "./src/shell/components/InstallTabCard/install-tab-card.css",
     "./shell/components/Select/Select.hooks": {
       "types": "./dist/shell/components/Select/Select.hooks.d.ts",
       "import": "./dist/shell/components/Select/Select.hooks.js",
@@ -1988,6 +2233,31 @@
       "types": "./dist/screens/plugins/agent-plugins-visuals.d.ts",
       "import": "./dist/screens/plugins/agent-plugins-visuals.js",
       "default": "./dist/screens/plugins/agent-plugins-visuals.js"
+    },
+    "./screens/plugins/plugins-visuals": {
+      "types": "./dist/screens/plugins/plugins-visuals.d.ts",
+      "import": "./dist/screens/plugins/plugins-visuals.js",
+      "default": "./dist/screens/plugins/plugins-visuals.js"
+    },
+    "./screens/plugins/AgentPluginMaturity": {
+      "types": "./dist/screens/plugins/AgentPluginMaturity.d.ts",
+      "import": "./dist/screens/plugins/AgentPluginMaturity.js",
+      "default": "./dist/screens/plugins/AgentPluginMaturity.js"
+    },
+    "./screens/plugins/AgentPluginLinkedLock": {
+      "types": "./dist/screens/plugins/AgentPluginLinkedLock.d.ts",
+      "import": "./dist/screens/plugins/AgentPluginLinkedLock.js",
+      "default": "./dist/screens/plugins/AgentPluginLinkedLock.js"
+    },
+    "./screens/plugins/AgentPluginMemoryPanel": {
+      "types": "./dist/screens/plugins/AgentPluginMemoryPanel.d.ts",
+      "import": "./dist/screens/plugins/AgentPluginMemoryPanel.js",
+      "default": "./dist/screens/plugins/AgentPluginMemoryPanel.js"
+    },
+    "./screens/plugins/hooks/use-agent-plugin-memory.hooks": {
+      "types": "./dist/screens/plugins/hooks/use-agent-plugin-memory.hooks.d.ts",
+      "import": "./dist/screens/plugins/hooks/use-agent-plugin-memory.hooks.js",
+      "default": "./dist/screens/plugins/hooks/use-agent-plugin-memory.hooks.js"
     },
     "./screens/plugins/hooks/agent-plugin-surfaces-port.hooks": {
       "types": "./dist/screens/plugins/hooks/agent-plugin-surfaces-port.hooks.d.ts",
@@ -2109,6 +2379,17 @@
       "import": "./dist/screens/skills/use-skill-confirmation.hooks.js",
       "default": "./dist/screens/skills/use-skill-confirmation.hooks.js"
     },
+    "./screens/skills/skill-drop": {
+      "types": "./dist/screens/skills/skill-drop.d.ts",
+      "import": "./dist/screens/skills/skill-drop.js",
+      "default": "./dist/screens/skills/skill-drop.js"
+    },
+    "./screens/skills/use-skills-tabs.hooks": {
+      "types": "./dist/screens/skills/use-skills-tabs.hooks.d.ts",
+      "import": "./dist/screens/skills/use-skills-tabs.hooks.js",
+      "default": "./dist/screens/skills/use-skills-tabs.hooks.js"
+    },
+    "./screens/skills/skills.css": "./src/screens/skills/skills.css",
     "./screens/taxonomy/api/taxonomy-api.types": {
       "types": "./dist/screens/taxonomy/api/taxonomy-api.types.d.ts",
       "import": "./dist/screens/taxonomy/api/taxonomy-api.types.js",
@@ -2259,6 +2540,56 @@
       "import": "./dist/screens/providers/api/providers-api.js",
       "default": "./dist/screens/providers/api/providers-api.js"
     },
+    "./screens/analytics/api/analytics-api": {
+      "types": "./dist/screens/analytics/api/analytics-api.d.ts",
+      "import": "./dist/screens/analytics/api/analytics-api.js",
+      "default": "./dist/screens/analytics/api/analytics-api.js"
+    },
+    "./screens/auth/api/auth-api": {
+      "types": "./dist/screens/auth/api/auth-api.d.ts",
+      "import": "./dist/screens/auth/api/auth-api.js",
+      "default": "./dist/screens/auth/api/auth-api.js"
+    },
+    "./screens/database/api/database-api": {
+      "types": "./dist/screens/database/api/database-api.d.ts",
+      "import": "./dist/screens/database/api/database-api.js",
+      "default": "./dist/screens/database/api/database-api.js"
+    },
+    "./screens/email/api/mail-status-api": {
+      "types": "./dist/screens/email/api/mail-status-api.d.ts",
+      "import": "./dist/screens/email/api/mail-status-api.js",
+      "default": "./dist/screens/email/api/mail-status-api.js"
+    },
+    "./screens/trash/api/trash-api": {
+      "types": "./dist/screens/trash/api/trash-api.d.ts",
+      "import": "./dist/screens/trash/api/trash-api.js",
+      "default": "./dist/screens/trash/api/trash-api.js"
+    },
+    "./screens/import-export/api/import-export-api": {
+      "types": "./dist/screens/import-export/api/import-export-api.d.ts",
+      "import": "./dist/screens/import-export/api/import-export-api.js",
+      "default": "./dist/screens/import-export/api/import-export-api.js"
+    },
+    "./pages/api/pages-api": {
+      "types": "./dist/pages/api/pages-api.d.ts",
+      "import": "./dist/pages/api/pages-api.js",
+      "default": "./dist/pages/api/pages-api.js"
+    },
+    "./recovery/api/recovery-api": {
+      "types": "./dist/recovery/api/recovery-api.d.ts",
+      "import": "./dist/recovery/api/recovery-api.js",
+      "default": "./dist/recovery/api/recovery-api.js"
+    },
+    "./screens/email/email-api": {
+      "types": "./dist/screens/email/email-api.d.ts",
+      "import": "./dist/screens/email/email-api.js",
+      "default": "./dist/screens/email/email-api.js"
+    },
+    "./shell/lib/admin-http/settings-api": {
+      "types": "./dist/shell/lib/admin-http/settings-api.d.ts",
+      "import": "./dist/shell/lib/admin-http/settings-api.js",
+      "default": "./dist/shell/lib/admin-http/settings-api.js"
+    },
     "./agent-plugins/models": {
       "types": "./dist/agent-plugins/models.d.ts",
       "import": "./dist/agent-plugins/models.js",
@@ -2293,6 +2624,11 @@
       "types": "./dist/screens/integrations/agent-plugin-ports.d.ts",
       "import": "./dist/screens/integrations/agent-plugin-ports.js",
       "default": "./dist/screens/integrations/agent-plugin-ports.js"
+    },
+    "./screens/integrations/hooks/use-integrations-redirect.hooks": {
+      "types": "./dist/screens/integrations/hooks/use-integrations-redirect.hooks.d.ts",
+      "import": "./dist/screens/integrations/hooks/use-integrations-redirect.hooks.js",
+      "default": "./dist/screens/integrations/hooks/use-integrations-redirect.hooks.js"
     },
     "./security/api/security-api.types": {
       "types": "./dist/security/api/security-api.types.d.ts",
@@ -2424,11 +2760,22 @@
       "import": "./dist/screens/trash/rules.js",
       "default": "./dist/screens/trash/rules.js"
     },
+    "./screens/trash/hooks/trash-port.hooks": {
+      "types": "./dist/screens/trash/hooks/trash-port.hooks.d.ts",
+      "import": "./dist/screens/trash/hooks/trash-port.hooks.js",
+      "default": "./dist/screens/trash/hooks/trash-port.hooks.js"
+    },
     "./screens/providers/hooks/use-providers.hooks": {
       "types": "./dist/screens/providers/hooks/use-providers.hooks.d.ts",
       "import": "./dist/screens/providers/hooks/use-providers.hooks.js",
       "default": "./dist/screens/providers/hooks/use-providers.hooks.js"
     },
+    "./screens/providers/Providers.hooks": {
+      "types": "./dist/screens/providers/Providers.hooks.d.ts",
+      "import": "./dist/screens/providers/Providers.hooks.js",
+      "default": "./dist/screens/providers/Providers.hooks.js"
+    },
+    "./screens/providers/always-allow.css": "./src/screens/providers/always-allow.css",
     "./screens/plugins/hooks/use-plugin-row-focus.hooks": {
       "types": "./dist/screens/plugins/hooks/use-plugin-row-focus.hooks.d.ts",
       "import": "./dist/screens/plugins/hooks/use-plugin-row-focus.hooks.js",
@@ -2443,6 +2790,26 @@
       "types": "./dist/screens/plugins/hooks/plugin-install-port.hooks.d.ts",
       "import": "./dist/screens/plugins/hooks/plugin-install-port.hooks.js",
       "default": "./dist/screens/plugins/hooks/plugin-install-port.hooks.js"
+    },
+    "./screens/plugins/rules": {
+      "types": "./dist/screens/plugins/rules.d.ts",
+      "import": "./dist/screens/plugins/rules.js",
+      "default": "./dist/screens/plugins/rules.js"
+    },
+    "./screens/plugins/admin-surface-theme": {
+      "types": "./dist/screens/plugins/admin-surface-theme.d.ts",
+      "import": "./dist/screens/plugins/admin-surface-theme.js",
+      "default": "./dist/screens/plugins/admin-surface-theme.js"
+    },
+    "./screens/plugins/hooks/use-admin-surface-frame.hooks": {
+      "types": "./dist/screens/plugins/hooks/use-admin-surface-frame.hooks.d.ts",
+      "import": "./dist/screens/plugins/hooks/use-admin-surface-frame.hooks.js",
+      "default": "./dist/screens/plugins/hooks/use-admin-surface-frame.hooks.js"
+    },
+    "./screens/plugins/AgentPluginSurfaceFrame": {
+      "types": "./dist/screens/plugins/AgentPluginSurfaceFrame.d.ts",
+      "import": "./dist/screens/plugins/AgentPluginSurfaceFrame.js",
+      "default": "./dist/screens/plugins/AgentPluginSurfaceFrame.js"
     },
     "./screens/plugins/hooks/plugins-port.hooks": {
       "types": "./dist/screens/plugins/hooks/plugins-port.hooks.d.ts",
@@ -2578,6 +2945,46 @@
       "types": "./dist/shell/components/AssistantDock/dock-header-rules.d.ts",
       "import": "./dist/shell/components/AssistantDock/dock-header-rules.js",
       "default": "./dist/shell/components/AssistantDock/dock-header-rules.js"
+    },
+    "./screens/plugins/resolve-composer-discovery-outcome": {
+      "types": "./dist/screens/plugins/resolve-composer-discovery-outcome.d.ts",
+      "import": "./dist/screens/plugins/resolve-composer-discovery-outcome.js",
+      "default": "./dist/screens/plugins/resolve-composer-discovery-outcome.js"
+    },
+    "./shell/components/AssistantDock/hooks/assistant-mcp-ui": {
+      "types": "./dist/shell/components/AssistantDock/hooks/assistant-mcp-ui.d.ts",
+      "import": "./dist/shell/components/AssistantDock/hooks/assistant-mcp-ui.js",
+      "default": "./dist/shell/components/AssistantDock/hooks/assistant-mcp-ui.js"
+    },
+    "./screens/plugins/composer-skills.hooks": {
+      "types": "./dist/screens/plugins/composer-skills.hooks.d.ts",
+      "import": "./dist/screens/plugins/composer-skills.hooks.js",
+      "default": "./dist/screens/plugins/composer-skills.hooks.js"
+    },
+    "./shell/components/AssistantDock/assistant-runtime-preferences": {
+      "types": "./dist/shell/components/AssistantDock/assistant-runtime-preferences.d.ts",
+      "import": "./dist/shell/components/AssistantDock/assistant-runtime-preferences.js",
+      "default": "./dist/shell/components/AssistantDock/assistant-runtime-preferences.js"
+    },
+    "./shell/components/AssistantDock/chat-display-preferences": {
+      "types": "./dist/shell/components/AssistantDock/chat-display-preferences.d.ts",
+      "import": "./dist/shell/components/AssistantDock/chat-display-preferences.js",
+      "default": "./dist/shell/components/AssistantDock/chat-display-preferences.js"
+    },
+    "./shell/components/AssistantDock/FolderDropNotice": {
+      "types": "./dist/shell/components/AssistantDock/FolderDropNotice.d.ts",
+      "import": "./dist/shell/components/AssistantDock/FolderDropNotice.js",
+      "default": "./dist/shell/components/AssistantDock/FolderDropNotice.js"
+    },
+    "./shell/components/AssistantDock/DockLeadingAccessory": {
+      "types": "./dist/shell/components/AssistantDock/DockLeadingAccessory.d.ts",
+      "import": "./dist/shell/components/AssistantDock/DockLeadingAccessory.js",
+      "default": "./dist/shell/components/AssistantDock/DockLeadingAccessory.js"
+    },
+    "./shell/components/AssistantDock/DockHeaderTip": {
+      "types": "./dist/shell/components/AssistantDock/DockHeaderTip.d.ts",
+      "import": "./dist/shell/components/AssistantDock/DockHeaderTip.js",
+      "default": "./dist/shell/components/AssistantDock/DockHeaderTip.js"
     },
     "./shell/components/AssistantDock/DockHeaderTip.hooks": {
       "types": "./dist/shell/components/AssistantDock/DockHeaderTip.hooks.d.ts",
@@ -2890,6 +3297,11 @@
       "types": "./dist/screens/settings/ExternalMcpRemoveConfirmDialog.d.ts",
       "import": "./dist/screens/settings/ExternalMcpRemoveConfirmDialog.js",
       "default": "./dist/screens/settings/ExternalMcpRemoveConfirmDialog.js"
+    },
+    "./screens/settings/external-mcp-drift-copy": {
+      "types": "./dist/screens/settings/external-mcp-drift-copy.d.ts",
+      "import": "./dist/screens/settings/external-mcp-drift-copy.js",
+      "default": "./dist/screens/settings/external-mcp-drift-copy.js"
     },
     "./screens/content-analysis/ContentAnalysisCard": {
       "types": "./dist/screens/content-analysis/ContentAnalysisCard.d.ts",
@@ -3961,6 +4373,155 @@
       "types": "./dist/screens/taxonomy/taxonomy-i18n/create-taxonomy-dictionary.d.ts",
       "import": "./dist/screens/taxonomy/taxonomy-i18n/create-taxonomy-dictionary.js",
       "default": "./dist/screens/taxonomy/taxonomy-i18n/create-taxonomy-dictionary.js"
+    },
+    "./screens/voice-input/hooks/push-to-talk-state.hooks": {
+      "types": "./dist/screens/voice-input/hooks/push-to-talk-state.hooks.d.ts",
+      "import": "./dist/screens/voice-input/hooks/push-to-talk-state.hooks.js",
+      "default": "./dist/screens/voice-input/hooks/push-to-talk-state.hooks.js"
+    },
+    "./screens/voice-input/hooks/space-hold-config": {
+      "types": "./dist/screens/voice-input/hooks/space-hold-config.d.ts",
+      "import": "./dist/screens/voice-input/hooks/space-hold-config.js",
+      "default": "./dist/screens/voice-input/hooks/space-hold-config.js"
+    },
+    "./screens/voice-input/hooks/mic-button-view.hooks": {
+      "types": "./dist/screens/voice-input/hooks/mic-button-view.hooks.d.ts",
+      "import": "./dist/screens/voice-input/hooks/mic-button-view.hooks.js",
+      "default": "./dist/screens/voice-input/hooks/mic-button-view.hooks.js"
+    },
+    "./screens/voice-input/push-to-talk-mic-button.css": "./src/screens/voice-input/push-to-talk-mic-button.css",
+    "./screens/voice-input/voice-input-config": {
+      "types": "./dist/screens/voice-input/voice-input-config.d.ts",
+      "import": "./dist/screens/voice-input/voice-input-config.js",
+      "default": "./dist/screens/voice-input/voice-input-config.js"
+    },
+    "./screens/voice-input/voice-unavailability": {
+      "types": "./dist/screens/voice-input/voice-unavailability.d.ts",
+      "import": "./dist/screens/voice-input/voice-unavailability.js",
+      "default": "./dist/screens/voice-input/voice-unavailability.js"
+    },
+    "./screens/authentication/authentication.css": "./src/screens/authentication/authentication.css",
+    "./screens/database/Database.hooks": {
+      "types": "./dist/screens/database/Database.hooks.d.ts",
+      "import": "./dist/screens/database/Database.hooks.js",
+      "default": "./dist/screens/database/Database.hooks.js"
+    },
+    "./screens/email/email.css": "./src/screens/email/email.css",
+    "./screens/email/EmailProviderTab.hooks": {
+      "types": "./dist/screens/email/EmailProviderTab.hooks.d.ts",
+      "import": "./dist/screens/email/EmailProviderTab.hooks.js",
+      "default": "./dist/screens/email/EmailProviderTab.hooks.js"
+    },
+    "./screens/email/hooks/use-email-template-view.hooks": {
+      "types": "./dist/screens/email/hooks/use-email-template-view.hooks.d.ts",
+      "import": "./dist/screens/email/hooks/use-email-template-view.hooks.js",
+      "default": "./dist/screens/email/hooks/use-email-template-view.hooks.js"
+    },
+    "./screens/media/hooks/use-media-tabs.hooks": {
+      "types": "./dist/screens/media/hooks/use-media-tabs.hooks.d.ts",
+      "import": "./dist/screens/media/hooks/use-media-tabs.hooks.js",
+      "default": "./dist/screens/media/hooks/use-media-tabs.hooks.js"
+    },
+    "./screens/media/hooks/use-media-item-link.hooks": {
+      "types": "./dist/screens/media/hooks/use-media-item-link.hooks.d.ts",
+      "import": "./dist/screens/media/hooks/use-media-item-link.hooks.js",
+      "default": "./dist/screens/media/hooks/use-media-item-link.hooks.js"
+    },
+    "./screens/media/pinned-media-providers": {
+      "types": "./dist/screens/media/pinned-media-providers.d.ts",
+      "import": "./dist/screens/media/pinned-media-providers.js",
+      "default": "./dist/screens/media/pinned-media-providers.js"
+    },
+    "./screens/plugins/hooks/use-agent-plugin-surfaces.hooks": {
+      "types": "./dist/screens/plugins/hooks/use-agent-plugin-surfaces.hooks.d.ts",
+      "import": "./dist/screens/plugins/hooks/use-agent-plugin-surfaces.hooks.js",
+      "default": "./dist/screens/plugins/hooks/use-agent-plugin-surfaces.hooks.js"
+    },
+    "./screens/plugins/hooks/use-agent-plugin-tab.hooks": {
+      "types": "./dist/screens/plugins/hooks/use-agent-plugin-tab.hooks.d.ts",
+      "import": "./dist/screens/plugins/hooks/use-agent-plugin-tab.hooks.js",
+      "default": "./dist/screens/plugins/hooks/use-agent-plugin-tab.hooks.js"
+    },
+    "./screens/plugins/provider-settings-dialog.css": "./src/screens/plugins/provider-settings-dialog.css",
+    "./screens/import-export/GitBackupCard": {
+      "types": "./dist/screens/import-export/GitBackupCard.d.ts",
+      "import": "./dist/screens/import-export/GitBackupCard.js",
+      "default": "./dist/screens/import-export/GitBackupCard.js"
+    },
+    "./screens/import-export/import-export-links": {
+      "types": "./dist/screens/import-export/import-export-links.d.ts",
+      "import": "./dist/screens/import-export/import-export-links.js",
+      "default": "./dist/screens/import-export/import-export-links.js"
+    },
+    "./screens/email/EmailParts": {
+      "types": "./dist/screens/email/EmailParts.d.ts",
+      "import": "./dist/screens/email/EmailParts.js",
+      "default": "./dist/screens/email/EmailParts.js"
+    },
+    "./screens/email/EmailOverviewTab": {
+      "types": "./dist/screens/email/EmailOverviewTab.d.ts",
+      "import": "./dist/screens/email/EmailOverviewTab.js",
+      "default": "./dist/screens/email/EmailOverviewTab.js"
+    },
+    "./screens/email/EmailSenderTab": {
+      "types": "./dist/screens/email/EmailSenderTab.d.ts",
+      "import": "./dist/screens/email/EmailSenderTab.js",
+      "default": "./dist/screens/email/EmailSenderTab.js"
+    },
+    "./screens/email/EmailActivityTab": {
+      "types": "./dist/screens/email/EmailActivityTab.d.ts",
+      "import": "./dist/screens/email/EmailActivityTab.js",
+      "default": "./dist/screens/email/EmailActivityTab.js"
+    },
+    "./screens/email/EmailTemplatesTab": {
+      "types": "./dist/screens/email/EmailTemplatesTab.d.ts",
+      "import": "./dist/screens/email/EmailTemplatesTab.js",
+      "default": "./dist/screens/email/EmailTemplatesTab.js"
+    },
+    "./screens/trash/trash-i18n/create-trash-dictionary": {
+      "types": "./dist/screens/trash/trash-i18n/create-trash-dictionary.d.ts",
+      "import": "./dist/screens/trash/trash-i18n/create-trash-dictionary.js",
+      "default": "./dist/screens/trash/trash-i18n/create-trash-dictionary.js"
+    },
+    "./screens/providers/AlwaysAllowPanel": {
+      "types": "./dist/screens/providers/AlwaysAllowPanel.d.ts",
+      "import": "./dist/screens/providers/AlwaysAllowPanel.js",
+      "default": "./dist/screens/providers/AlwaysAllowPanel.js"
+    },
+    "./screens/providers/hooks/use-always-allow.hooks": {
+      "types": "./dist/screens/providers/hooks/use-always-allow.hooks.d.ts",
+      "import": "./dist/screens/providers/hooks/use-always-allow.hooks.js",
+      "default": "./dist/screens/providers/hooks/use-always-allow.hooks.js"
+    },
+    "./screens/library/library-i18n/create-library-dictionary": {
+      "types": "./dist/screens/library/library-i18n/create-library-dictionary.d.ts",
+      "import": "./dist/screens/library/library-i18n/create-library-dictionary.js",
+      "default": "./dist/screens/library/library-i18n/create-library-dictionary.js"
+    },
+    "./screens/library/library-i18n/library-i18n-data": {
+      "types": "./dist/screens/library/library-i18n/library-i18n-data.d.ts",
+      "import": "./dist/screens/library/library-i18n/library-i18n-data.js",
+      "default": "./dist/screens/library/library-i18n/library-i18n-data.js"
+    },
+    "./screens/voice-input/hooks/mic-capture": {
+      "types": "./dist/screens/voice-input/hooks/mic-capture.d.ts",
+      "import": "./dist/screens/voice-input/hooks/mic-capture.js",
+      "default": "./dist/screens/voice-input/hooks/mic-capture.js"
+    },
+    "./screens/settings/rules": {
+      "types": "./dist/screens/settings/rules.d.ts",
+      "import": "./dist/screens/settings/rules.js",
+      "default": "./dist/screens/settings/rules.js"
+    },
+    "./screens/media/rules": {
+      "types": "./dist/screens/media/rules.d.ts",
+      "import": "./dist/screens/media/rules.js",
+      "default": "./dist/screens/media/rules.js"
+    },
+    "./shell/components/SecretInput/SecretInput": {
+      "types": "./dist/shell/components/SecretInput/SecretInput.d.ts",
+      "import": "./dist/shell/components/SecretInput/SecretInput.js",
+      "default": "./dist/shell/components/SecretInput/SecretInput.js"
     }
   },
   "files": [
@@ -4051,6 +4612,9 @@
       ],
       "screens/analytics/api/analytics-api.types": [
         "./dist/screens/analytics/api/analytics-api.types.d.ts"
+      ],
+      "screens/analytics/api/analytics-api": [
+        "./dist/screens/analytics/api/analytics-api.d.ts"
       ],
       "screens/analytics/hooks/analytics-port.hooks": [
         "./dist/screens/analytics/hooks/analytics-port.hooks.d.ts"

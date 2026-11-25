@@ -1,0 +1,203 @@
+/*
+ * The Jini Authentication screen renders `jini-*` classes only. These rules are `jini-` copies of
+ * the legacy rules that styled its markup when it lived here, from files this feature does not own:
+ *   - `@jini-ai/ui`'s `settings-dialog.css` (`.source-config-*`, the form/field primitives);
+ *   - `styles/admin-theme-bridge.css`, `styles/settings.css` and `integrations/jini-admin/jini-media.css`
+ *     (`.settings-ui-section` control tokens, disabled buttons and inputs inside the section).
+ * The `.page*` / remaining `.settings-ui-*` rules gained `jini-` selectors in place in `styles.css`.
+ * Imported by `authentication-host-binding.tsx`, beside `settings-dialog.css`.
+ */
+
+/* --- from styles/admin-theme-bridge.css --- */
+.jini-settings-ui-section {
+  --jini-admin-settings-control-bg: var(--jini-control-bg);
+  --jini-admin-settings-control-border: var(--jini-control-border);
+}
+
+:where(:root:not([data-admin-theme]), :root[data-admin-theme="classic"]) .jini-settings-ui-section {
+  --jini-admin-settings-control-bg: var(--jini-bg-panel);
+  --jini-admin-settings-control-border: var(--jini-border);
+}
+
+/* --- from @jini-ai/ui settings-dialog.css --- */
+.jini-source-config-list {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  margin-top: 14px;
+}
+
+.jini-source-config-add-form {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 16px;
+  border: 1px solid var(--jini-border);
+  border-radius: var(--jini-radius);
+  background: var(--jini-bg-panel);
+}
+
+.jini-source-config-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.jini-source-config-field-label {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  color: var(--jini-text-muted);
+}
+
+.jini-source-config-field-required {
+  color: var(--jini-danger);
+}
+
+.jini-source-config-field input,
+.jini-source-config-field select,
+.jini-source-config-field textarea {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 8px 10px;
+  font: inherit;
+  font-size: 13px;
+  color: var(--jini-text);
+  background: var(--jini-bg-panel);
+  border: 1px solid var(--jini-border);
+  border-radius: var(--jini-radius-sm);
+}
+
+.jini-source-config-field textarea {
+  min-height: 64px;
+  resize: vertical;
+  font-family: var(--jini-font-mono);
+  font-size: 12px;
+}
+
+.jini-source-config-field input:focus,
+.jini-source-config-field select:focus,
+.jini-source-config-field textarea:focus {
+  outline: none;
+  border-color: var(--jini-accent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--jini-accent) 18%, transparent);
+}
+
+.jini-source-config-field-toggle {
+  flex: 0 0 auto;
+  padding: 0 12px;
+  font: inherit;
+  font-size: 12px;
+  color: var(--jini-text-muted);
+  background: var(--jini-bg-subtle);
+  border: 1px solid var(--jini-border);
+  border-radius: var(--jini-radius-sm);
+  cursor: pointer;
+}
+
+.jini-source-config-list-loading {
+  padding: 12px 14px;
+  font-size: 12px;
+  border-radius: var(--jini-radius-sm);
+}
+
+.jini-source-config-list-loading {
+  color: var(--jini-text-muted);
+  background: var(--jini-bg-subtle);
+  border: 1px solid var(--jini-border);
+}
+
+.jini-source-config-list-items {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.jini-source-config-item-card {
+  border: 1px solid var(--jini-border);
+  border-radius: var(--jini-radius-sm);
+  background: var(--jini-bg-panel);
+}
+
+.jini-source-config-item-card-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+}
+
+.jini-source-config-item-card-enabled-toggle {
+  flex: 0 0 auto;
+}
+
+.jini-source-config-item-card-label {
+  font-size: 13px;
+  font-weight: 500;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.jini-source-config-item-card-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex: 0 0 auto;
+}
+
+.jini-source-config-item-card-actions button,
+.jini-source-config-item-card-actions select {
+  padding: 5px 10px;
+  font: inherit;
+  font-size: 12px;
+  color: var(--jini-text);
+  background: var(--jini-bg-panel);
+  border: 1px solid var(--jini-border);
+  border-radius: var(--jini-radius-sm);
+  cursor: pointer;
+}
+
+/* --- from styles/settings.css --- */
+:where(:root:not([data-admin-theme]), :root[data-admin-theme="classic"]) .jini-settings-ui-section[data-theme="light"] {
+  --jini-bg-panel: var(--jini-admin-surface);
+  --jini-bg-elevated: var(--jini-admin-surface);
+  /* This panel stays light in a dark admin, where the inherited `--selected-text` is the dark
+     theme's lighter orange (3:1 on white). `--primary` holds 4.5:1 on white in both themes. */
+  --selected-text: var(--jini-admin-primary);
+}
+
+:where(:root[data-admin-accent="light"]:not([data-admin-theme]), :root[data-admin-accent="light"][data-admin-theme="classic"]) .jini-settings-ui-section[data-theme="light"] {
+  --selected-text: color-mix(in oklab, var(--jini-primary) 45%, var(--jini-text));
+}
+
+.jini-settings-ui-section button:disabled {
+  background: transparent;
+  color: inherit;
+}
+
+/* --- from integrations/jini-admin/jini-media.css --- */
+.jini-settings-ui-section :is(.jini-input, .jini-select-trigger):where(:not(.jini-select)) {
+  background-color: var(--jini-admin-settings-control-bg);
+  border-width: var(--jini-border-width, 1px);
+}
+
+.jini-settings-ui-section .jini-input:where(:not(.jini-select, :focus, .is-missing)),
+.jini-settings-ui-section .jini-select-trigger:where(:not(:focus-visible)) {
+  border-color: var(--jini-admin-settings-control-border);
+}
+
+.jini-settings-ui-section :is(.jini-input, .jini-select-trigger):where(:not(.jini-select, :focus, :focus-visible)) {
+  box-shadow: var(--jini-control-shadow-inset, none);
+}
+
+.jini-settings-ui-section :is(.jini-input, .jini-select-trigger):where(:not(.jini-select, :disabled, :focus, :focus-visible):hover) {
+  box-shadow: var(--jini-control-shadow-hover, none);
+}
+
+.jini-settings-ui-section :is(.jini-input, .jini-select-trigger):where(:not(.jini-select, :disabled, :focus, :focus-visible):active) {
+  box-shadow: var(--jini-control-shadow-pressed, none);
+}

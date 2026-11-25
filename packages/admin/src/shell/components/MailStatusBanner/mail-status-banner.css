@@ -1,0 +1,30 @@
+/* Same warning tokens as `@jini-ai/admin`'s `server-restarting-banner.css`, but in flow above the page content. */
+.jini-mail-status-banner {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 8px 16px 0;
+  padding: 8px 8px 8px 14px;
+  border-radius: 8px;
+  font-size: 13px;
+  background: var(--jini-admin-warning-bg);
+  color: var(--jini-admin-warning);
+  box-shadow: var(--jini-panel-shadow-banner);
+}
+.jini-mail-status-banner-text { flex: 1 1 auto; min-width: 0; }
+/* Negative block margins let the 32px hit area sit inside a one-line banner without making it taller. */
+.jini-mail-status-banner-dismiss {
+  flex: none;
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 32px; height: 32px; margin: -6px 0;
+  padding: 0; border: 0; border-radius: 6px;
+  background: transparent; color: inherit; cursor: pointer;
+}
+.jini-mail-status-banner-dismiss:hover { background: color-mix(in srgb, currentColor 14%, transparent); }
+/* `--focus-ring`, not currentColor: styles.css forces that colour on every `:focus-visible` anyway. */
+.jini-mail-status-banner-dismiss:focus-visible { outline: 2px solid var(--jini-admin-focus-ring); outline-offset: 1px; }
+@media (pointer: coarse), (max-width: 640px) {
+  .jini-mail-status-banner-dismiss { width: 44px; height: 44px; margin: -12px -4px; }
+}
+/* Inherits the warning colour so the link reads as part of the banner, underlined to stay findable. */
+.jini-mail-status-banner-link { color: inherit; font-weight: 600; text-decoration: underline; text-underline-offset: 2px; white-space: nowrap; }
