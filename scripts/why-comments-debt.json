@@ -1668,6 +1668,10 @@
     {
       "id": "f0ea9462ab11",
       "reason": "w5-admin (coordinator decision 7): the injectedHooks doc was generalised, not dropped; the defaulted `{ useFooHook = useFoo }` form it named is still quoted in the rewritten injectedHooks doc, which now also covers REQUIRED hook props, plain hook parameters and `const { useFoo } = props` (scripts/check-hook-injection-lib.mjs)."
+    },
+    {
+      "id": "b8d5f2d0dd81",
+      "reason": "obsolete: it justified passing entityType \"fs-files-custom-root\" to authorize; x8-server O3 removed that argument because the hand-written route asked for the permission only (an extra entity type could change the host RBAC decision). The replacement rationale is the authorize doc in packages/cms/src/admin-http/routes/fs-files/custom-root.ts (\"No entity type and no entity id: the root is workspace-wide…\")."
     }
   ]
 }
