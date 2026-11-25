@@ -30,17 +30,20 @@ class MemberNotFoundError extends Error {}
 class SealerError extends Error {}
 class QuotaError extends Error {}
 class StaffOnlyError extends Error {}
+class StaffWorkspaceError extends Error {}
 const catalog = createErrorCatalog({
   sentences: [defineErrorSentences({ domain: 'MEMBERS', codes: {
     MEMBERS_NOT_FOUND: { status: 404, retryable: false, message: 'That member does not exist.', action: 'Check the member list.', audience: 'anyone' },
     MEMBERS_QUOTA: { status: 429, retryable: true, message: 'You have used {used} of {limit} seats for {plan}.', action: 'Remove a member or upgrade.', audience: 'anyone' },
     MEMBERS_STAFF_ONLY: { status: 403, retryable: false, message: 'Only staff of the billing workspace may do this.', action: 'Ask an owner.', audience: 'authorized' },
+    MEMBERS_STAFF_WORKSPACE: { status: 403, retryable: false, message: 'Workspace {workspace} is restricted to staff.', action: 'Ask an owner.', audience: 'authorized' },
   } })],
   scopes: [defineErrorScope({ scope: 'members', bindings: [
     { error: MemberNotFoundError, code: 'MEMBERS_NOT_FOUND', text: { mode: 'own-message' }, label: 'MemberNotFoundError' },
     { error: SealerError, code: 'MEMBERS_SEAL_FAILED', text: { mode: 'fixed', text: 'The member record could not be sealed.' } },
     { error: QuotaError, code: 'MEMBERS_QUOTA', text: { mode: 'sentence', params: () => ({ used: 12, limit: 10, plan: `team ${'x'.repeat(200)}` }) } },
     { error: StaffOnlyError, code: 'MEMBERS_STAFF_ONLY', text: { mode: 'own-message' } },
+    { error: StaffWorkspaceError, code: 'MEMBERS_STAFF_WORKSPACE', text: { mode: 'sentence', params: () => ({ workspace: 'billing-emea' }) } },
   ] })],
 });
 const build = (optional: Parameters<typeof createRecordingReporter>[1] = {}) => createRecordingReporter({ ids: [ID, 'ERR-0000-0000-0000-0002'], iso: NOW }, { catalog, versions: { app: '4.2.0', jini: '0.7.2' }, ...optional });
@@ -281,6 +284,17 @@ describe('refusal', () => {
     expect(wire('anonymous')).toEqual({ kind: 'refusal', status: 403, error: { code: 'MEMBERS_STAFF_ONLY', retryable: false, message: fallback.message } });
     expect(wire('signed-in').error.message).toBe(fallback.message);
     expect(wire('authorized').error.message, 'own-message text is not published to authorized callers').toBe(fallback.message);
+  });
+
+  test('a sentence reserved for authorised callers is rendered with its params only for them; everyone else gets the fallback words and no params', () => {
+    const error = new StaffWorkspaceError('workspace billing-emea is restricted to staff');
+    const wire = (audience: ErrorAudience) => build().reporter.describe({ error, step: STEP, operation: OPERATION, tracker, scope: 'members', fallback }, { audience });
+    expect(wire('authorized'), 'authorized callers see the rendered sentence and its params').toEqual({ kind: 'refusal', status: 403, error: {
+      code: 'MEMBERS_STAFF_WORKSPACE', retryable: false, message: 'Workspace billing-emea is restricted to staff.', details: { params: { workspace: 'billing-emea' } } } });
+    for (const audience of ['anonymous', 'signed-in'] as const) {
+      expect(wire(audience), `${audience} callers get only the fallback words`).toEqual({ kind: 'refusal', status: 403, error: { code: 'MEMBERS_STAFF_WORKSPACE', retryable: false, message: fallback.message } });
+      expect(JSON.stringify(wire(audience)), `${audience} callers never see the reserved param`).not.toContain('billing-emea');
+    }
   });
 
   test('an already-classified carrier is answered as built, with the catalog status when the code has a sentence', () => {
