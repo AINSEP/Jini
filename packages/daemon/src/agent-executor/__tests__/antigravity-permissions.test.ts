@@ -27,7 +27,8 @@ async function fixture(raw?: string) {
 
 const antigravityDef = { id: 'antigravity', externalMcpInjection: 'env-passthrough' } as RuntimeAgentDef;
 
-/** Exercise the launch seam with the slot the production binding supplies, so the real permission preparation runs end to end. */
+/** Exercise the existing launch seam so the old resolver reaches the regression assertions.
+ * The slot is the one the production binding supplies, so the real permission preparation runs end to end. */
 function prepare() {
   return resolveMcpBridgeForRun({
     input: { nativeCapabilities: { userMcp: true }, runId: 'run', cwd: '/isolated', def: antigravityDef },

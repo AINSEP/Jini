@@ -186,7 +186,7 @@ function needsInheritedMcpConsent(input: { def: RuntimeAgentDef; nativeCapabilit
   return input.def.externalMcpInjection === 'env-passthrough' && injection !== undefined && input.nativeCapabilities?.userMcp !== true;
 }
 
-/** Phase 5: resolve credentials and delivery, then await the bound CLI's own MCP permission setup (`mcpBridge` slot).
+/** Phase 5: resolve credentials and delivery, then await agy's scoped MCP permission setup (the bound `mcpBridge` slot).
  * Setup errors release staged files and fail before spawn. @complexity O(settings bytes) for agy. */
 export async function resolveMcpBridgeForRun({ input, deps }: { readonly input: { readonly runId: string; readonly cwd: string; readonly def: RuntimeAgentDef; readonly nativeCapabilities?: Partial<import('@jini-ai/core/contracts/agents').NativeCapabilities> }; readonly deps: {
     readonly mcpJsonInjection: McpJsonInjectionOptions | undefined;
