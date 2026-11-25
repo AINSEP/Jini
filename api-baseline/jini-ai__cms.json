@@ -821,10 +821,10 @@
   "types": "./dist/admin-http/routes/forms/update.d.ts",
   "symbols": {
    "FormsSetDefinitionStatusFn": "type:1287c5dfc1",
-   "FormsUpdateDefinitionFn": "type:d657252205",
+   "FormsUpdateDefinitionFn": "type:4c6c40702d",
    "FormsUpdateInput": "interface:928cc3216a",
    "FormsUpdatePatch": "type:983643e758",
-   "FormsUpdateRouteDeps": "interface:96bdd356a1",
+   "FormsUpdateRouteDeps": "interface:aba1d0e091",
    "FormsUpdateWriteTarget": "interface:9de982440f",
    "formsUpdateRoute": "variable:0c65203baa"
   }
@@ -1450,6 +1450,16 @@
   "symbols": {
    "PostListRouteDeps": "interface:5e3da2f773",
    "postListRoute": "variable:33d6f7c134"
+  }
+ },
+ "./admin-http/routes/posts/template-preview-embeds": {
+  "types": "./dist/admin-http/routes/posts/template-preview-embeds.d.ts",
+  "symbols": {
+   "PreviewEmbedsInput": "interface:0e03fe29eb",
+   "PreviewEmbedsPrincipal": "interface:7656d21eb7",
+   "PreviewEmbedsRouteDeps": "interface:40ee2ac0b5",
+   "PreviewEmbedsRouteSpec": "type:d2392211bf",
+   "createTemplatePreviewEmbedsRoute": "function:410fceac06"
   }
  },
  "./admin-http/routes/posts/update": {
@@ -3167,7 +3177,7 @@
    "DuplicateCommandError": "class:4996a3ed7f",
    "EntityLiveness": "type:9ef93a24c3",
    "EntityNotLiveError": "class:96aef90dd0",
-   "EntityReverter": "interface:74e231bfd5",
+   "EntityReverter": "interface:2e2ec6d701",
    "ForbiddenError": "class:afffa8dd07",
    "InMemoryChangeSetRepo": "class:95dba47558",
    "PostStatus": "type:5adf203907",
@@ -3175,7 +3185,7 @@
    "RequireToolPermissionOptional": "interface:9debdb6bb9",
    "RequireToolPermissionRequired": "interface:9f8bee49fa",
    "RevertChangeSetDeps": "interface:0157fef301",
-   "RevertChangeSetOptional": "interface:8b8bb549a1",
+   "RevertChangeSetOptional": "interface:3a13ab7f4e",
    "RevertChangeSetRequired": "interface:77a8bc100e",
    "RevertConflictError": "class:952f29faf5",
    "RevertForbiddenError": "class:fdb54c62cb",
