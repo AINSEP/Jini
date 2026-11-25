@@ -941,8 +941,8 @@
   "types": "./dist/admin-http/routes/media/import-url.d.ts",
   "symbols": {
    "MediaImportUpload": "interface:f4ba44fcdf",
-   "MediaImportUrlRouteDeps": "interface:5382782fef",
-   "mediaImportUrlRoute": "variable:b2cb43c8fc"
+   "MediaImportUrlRouteDeps": "interface:b5755f9fe5",
+   "mediaImportUrlRoute": "variable:2b0a7c22cd"
   }
  },
  "./admin-http/routes/media/put-providers": {
@@ -1012,9 +1012,9 @@
   "types": "./dist/admin-http/routes/media/upload.d.ts",
   "symbols": {
    "MediaUploadInput": "interface:8508f70c96",
-   "MediaUploadRouteDeps": "interface:6ef79189a8",
+   "MediaUploadRouteDeps": "interface:6ee850a955",
    "UploadRequestFields": "interface:e1144a1b35",
-   "mediaUploadRoute": "variable:09049a8dce"
+   "mediaUploadRoute": "variable:01fc58c63b"
   }
  },
  "./admin-http/routes/media/where-used": {
