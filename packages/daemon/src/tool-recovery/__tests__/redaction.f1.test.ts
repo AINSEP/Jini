@@ -34,7 +34,7 @@ describe('describeDelegatedInternalError — reason branches', () => {
     const recorded = createRecordingReporter({ ids: ['ERR-0000-0000-0000-0001'], iso: '2026-11-25T00:00:00.000Z' });
     return { reporter: recorded.reporter, redactSecretShapes: ({ text }: { text: string }) => ({ text, redactions: 0 }), entries: recorded.entries };
   };
-  const ctx = (extra: Record<string, unknown>) => ({ source: 'delegated', toolId: 'echo', runId: 'r', correlationId: 'c-1', ...extra }) as never;
+  const ctx = (extra: Record<string, unknown>) => ({ source: 'delegated', toolId: 'echo', runId: 'r', ...extra }) as never;
   it.each<[string, Record<string, unknown>, string]>([
     ['timed-out', { status: 'timed-out', error: new Error('ignored') }, 'tool "echo" timed out before it finished'],
     ['cancelled', { status: 'cancelled' }, 'tool "echo" was cancelled before it finished (the run ended or the call was abandoned)'],
@@ -45,12 +45,12 @@ describe('describeDelegatedInternalError — reason branches', () => {
     ['object', { error: { message: 'not an Error' } }, 'tool "echo" failed'],
   ])('%s', (_l, extra, reason) => {
     const d = deps();
-    expect(describeDelegatedInternalError({ context: ctx(extra), reporter: d.reporter, redactSecretShapes: d.redactSecretShapes })).toBe(`Error ERR-0000-0000-0000-0001: ${reason}`);
+    expect(describeDelegatedInternalError({ context: ctx(extra), reporter: d.reporter, redactSecretShapes: d.redactSecretShapes })).toEqual({ errorId: 'ERR-0000-0000-0000-0001', message: `Error ERR-0000-0000-0000-0001: ${reason}` });
     expect(d.entries).toHaveLength(1);
     expect(d.entries[0]?.meta).toMatchObject({ errorId: 'ERR-0000-0000-0000-0001', step: 'Run tool', attributes: { 'agent.run.id': 'r' } });
   });
-  it('a throwing reporter never turns the description into a throw', () => {
-    expect(describeDelegatedInternalError({ context: ctx({ error: 'x' }), reporter: { record: () => { throw new Error('sink'); } }, redactSecretShapes: deps().redactSecretShapes })).toBe('x');
+  it('a throwing reporter throws out so the route reports the original failure itself', () => {
+    expect(() => describeDelegatedInternalError({ context: ctx({ error: 'x' }), reporter: { record: () => { throw new Error('sink'); } }, redactSecretShapes: deps().redactSecretShapes })).toThrow('sink');
   });
 });
 

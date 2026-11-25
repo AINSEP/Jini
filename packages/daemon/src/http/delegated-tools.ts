@@ -1,4 +1,4 @@
-import { createConsoleLogger } from '@jini-ai/core/primitives';
+import type { Logger } from '@jini-ai/core/primitives';
 import type { DelegatedResultCorrelation } from '../delegated-result-correlation.js';
 /**
  * @module delegated-tools
@@ -46,6 +46,7 @@ import * as readOnlyTools from '../core/read-only-tools.js';
 import { resolveToolTarget, unknownToolDetails, unknownToolMessage } from '../core/tool-target.js';
 import { withValidationGuidance } from './validation-guidance.js';
 import type { ToolFamilyPort } from '../core/tool-family.js';
+import { readToolErrorId, TOOL_ERROR_ID_PATTERN, type DelegatedToolErrorDisclosureResult } from '../tool-recovery/redaction.js';
 
 export interface DelegatedToolExecuteRequest {
   readonly runId: string;
@@ -87,7 +88,6 @@ export interface DelegatedToolsInternalErrorContext {
   readonly recoveryMessage?: string;
   readonly runId: string;
   readonly toolId: string;
-  readonly correlationId: string;
   readonly error: unknown;
   /**
    * The settled status when the failure is a `ToolExecutionResult` this route will not show as-is
@@ -96,6 +96,11 @@ export interface DelegatedToolsInternalErrorContext {
    * `error`, which for a settled result is only `result.error ?? result.status`.
    */
   readonly status?: 'timed-out' | 'cancelled' | 'failed';
+  /**
+   * The id this daemon's own tool stack stamped on the settled result (`readToolErrorId`), which it
+   * already recorded under. Set only from the in-process result, never from the request; absent for a throw.
+   */
+  readonly errorId?: string;
 }
 
 export interface DelegatedToolsHttpDeps {
@@ -110,7 +115,7 @@ export interface DelegatedToolsHttpDeps {
   readonly toolExecutor: ToolExecutor;
   /** Host-owned: resolves the `Principal` a given delegated-tool-call request executes as. Mandatory — see module doc; there is no safe default identity this package could assume on a host's behalf. */
   readonly resolvePrincipal: (requiredArgs: { readonly request: DelegatedToolExecuteRequest }) => Principal | Promise<Principal>;
-  /** Host-owned sink for the real exception behind a generic `INTERNAL_ERROR` response (SEC-005). Defaults to `console.error`. */
+  /** Host-owned sink for the real exception behind the generic `INTERNAL_ERROR` fallback (SEC-005); never called when the describer answered or a stamped id was reused. */
   readonly onInternalError?: (context: DelegatedToolsInternalErrorContext) => void;
   /** Required for direct handlers; {@link delegatedToolRoutes} binds the host's reporter. */
   readonly reportInternalError: ReportRouteInternalError;
@@ -153,14 +158,16 @@ export interface DelegatedToolsHttpDeps {
    * `cancelled`, and a `failed` result `isModelSafeToolFailure` did not vouch for. Without it, those
    * reach the model as a bare "INTERNAL_ERROR" it can neither act on nor report.
    *
-   * The response keeps `500 INTERNAL_ERROR` and its `requestId`; only `message` changes, and
-   * `onInternalError` still receives the raw failure first. Returning `undefined` or `''` keeps the
-   * generic message for that failure, and so does a describer that throws — a broken describer can
-   * never turn a 500 into a leak or a crash. Omitted (the default), nothing changes. The host owns
-   * redaction here exactly as for `isModelSafeToolFailure`: this route sends the returned text
-   * verbatim.
+   * The describer owns the incident: it returns the id it recorded under (or the trusted stamped
+   * `context.errorId` it reused) with the words, and the response is `500 INTERNAL_ERROR` with
+   * `requestId` = that id and `message` = those words. Returning `undefined` (or a result without an
+   * id and words) keeps the generic fallback, and so does a describer that throws — a broken describer
+   * can never turn a 500 into a leak or a crash. The host owns redaction here exactly as for
+   * `isModelSafeToolFailure`: this route sends the returned text verbatim.
    */
-  readonly describeInternalError?: (context: DelegatedToolsInternalErrorContext) => string | undefined;
+  readonly describeInternalError?: (context: DelegatedToolsInternalErrorContext) => DelegatedToolErrorDisclosureResult | undefined;
+  /** Host-scoped logger for the one fixed warning when `describeInternalError` throws. Omitted, the breach is silent: there is no console fallback. */
+  readonly logger?: Pick<Logger, 'warn'>;
 }
 
 /** Route preflight shares the same registration decision as nested dispatch. */
@@ -204,34 +211,63 @@ function checkToolGates(
 /** Plain words for a server fault behind a tool call: the model reads them, so they say what to do next. */
 const DELEGATED_TOOL_FAULT_MESSAGE = 'The tool could not run because of a server fault. Do not retry the same call; tell the user to copy the request ID and report this problem.';
 
+/** The fixed words logged when the describer throws: never its error, which may carry what it exists to hide. */
+const DESCRIBER_BREACH_WARNING = '[@jini-ai/daemon] describeInternalError threw; the delegated route answered with its fallback words.';
+
+/** One fixed warning through the host's logger. No console fallback: a global sink would bypass the host's scoped logger. */
+function warnDescriberBreach(deps: DelegatedToolsHttpDeps): void {
+  try {
+    deps.logger?.warn({ message: DESCRIBER_BREACH_WARNING });
+  } catch {
+    // A broken logger must not change the answer the caller gets.
+  }
+}
+
+function isDisclosure(value: unknown): value is DelegatedToolErrorDisclosureResult {
+  return isRecord(value) && typeof value['errorId'] === 'string' && value['errorId'].length > 0 && typeof value['message'] === 'string' && value['message'].length > 0;
+}
+
 /**
- * The host's {@link DelegatedToolsHttpDeps.describeInternalError} text for `context`, or `undefined`
- * when there is no describer, it declines (`undefined`/`''`), or it throws.
+ * The host's {@link DelegatedToolsHttpDeps.describeInternalError} answer for `context`, or `undefined`
+ * when there is no describer, it declines, or it throws.
  *
  * @complexity O(1) plus the describer's own cost.
  */
-function describeSafely(deps: DelegatedToolsHttpDeps, context: DelegatedToolsInternalErrorContext): string | undefined {
+function describeSafely(deps: DelegatedToolsHttpDeps, context: DelegatedToolsInternalErrorContext): DelegatedToolErrorDisclosureResult | undefined {
   if (deps.describeInternalError === undefined) return undefined;
   try {
-    const text = deps.describeInternalError(context);
-    return typeof text === 'string' && text.length > 0 ? text : undefined;
-  } catch (error) {
-    createConsoleLogger({ prefix: '' }).error({ message: `[@jini-ai/http-kit] describeInternalError threw (correlationId=${context.correlationId})` }, { error });
+    const described = deps.describeInternalError(context);
+    return isDisclosure(described) ? described : undefined;
+  } catch {
+    warnDescriberBreach(deps);
     return undefined;
   }
 }
 
-/** Which failure `reportInternalError` reports: everything in its context except the minted `correlationId`. */
-type InternalErrorReport = Omit<DelegatedToolsInternalErrorContext, 'correlationId'>;
+/** The stamped id when it is well formed. Trusted, and reused without writing, because this route sets it
+ * only from the result its own in-process executor returned, which recorded under it; never from the request. */
+function trustedStampedId(context: DelegatedToolsInternalErrorContext): string | undefined {
+  return context.errorId !== undefined && TOOL_ERROR_ID_PATTERN.test(context.errorId) ? context.errorId : undefined;
+}
 
-/** Logs the real failure through the incident owner and returns plain words with the request ID (SEC-005: never the raw exception). */
-function reportInternalError({ deps, report }: { readonly deps: DelegatedToolsHttpDeps; readonly report: InternalErrorReport }, _optional: Record<string, never> = {}): ReturnType<typeof createApiError> {
+/**
+ * One incident, one id: the describer's id and words; else the trusted stamped id with the generic words
+ * (no second write); else the host's `reportInternalError`, called once (SEC-005: never the raw exception).
+ */
+function reportInternalError({ deps, report }: { readonly deps: DelegatedToolsHttpDeps; readonly report: DelegatedToolsInternalErrorContext }, _optional: Record<string, never> = {}): ReturnType<typeof createApiError> {
+  const described = describeSafely(deps, report);
+  if (described !== undefined) return createApiError({ code: 'INTERNAL_ERROR', message: described.message }, { requestId: described.errorId });
+  const stamped = trustedStampedId(report);
+  // The same words and id shape the reporter-mode `reportInternalError` gives, without its second write.
+  if (stamped !== undefined) return createApiError({ code: 'INTERNAL_ERROR', message: `${DELEGATED_TOOL_FAULT_MESSAGE} (error ${stamped})` }, { requestId: stamped });
   // Exceptions can echo credentials: the default line prints class and code only; the host sink gets the original.
-  const apiError = deps.reportInternalError<InternalErrorReport>({ report, logSource: report.source, message: DELEGATED_TOOL_FAULT_MESSAGE }, { onInternalError: deps.onInternalError });
-  const requestId = String(apiError.requestId);
-  // Every caller either omits `status` or sets it, so spreading keeps "absent" absent.
-  const described = describeSafely(deps, { ...report, correlationId: requestId });
-  return described === undefined ? apiError : createApiError({ code: 'INTERNAL_ERROR', message: described }, { requestId });
+  return deps.reportInternalError<DelegatedToolsInternalErrorContext>({ report, logSource: report.source, message: DELEGATED_TOOL_FAULT_MESSAGE }, { onInternalError: deps.onInternalError });
+}
+
+/** The in-process stamped id of a settled result, spread-ready so an unstamped result adds no field. */
+function stampedIdOf(result: ToolExecutionResult): { readonly errorId?: string } {
+  const errorId = readToolErrorId({ result });
+  return errorId === undefined ? {} : { errorId };
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -306,7 +342,7 @@ function toolExecutionResultToApiResult(
       return err({ error: createApiError({ code: 'TOOL_OPERATION_DENIED', message: 'this operation was denied during confirmation' }) });
     case 'timed-out':
     case 'cancelled':
-      return err({ error: reportInternalError({ deps, report: { source: 'delegated-tool-execute', error: result.status, runId, toolId, ...(recoveryMessage ? { recoveryMessage } : {}), status: result.status } }) });
+      return err({ error: reportInternalError({ deps, report: { source: 'delegated-tool-execute', error: result.status, runId, toolId, ...(recoveryMessage ? { recoveryMessage } : {}), status: result.status, ...stampedIdOf(result) } }) });
     case 'failed':
       return err({ error: failedResultToApiError(deps, { runId, toolId, result }) });
     default: {
@@ -328,7 +364,7 @@ function failedResultToApiError(
   if (result.error && deps.isModelSafeToolFailure?.({ result }) === true) {
     return createApiError({ code: 'TOOL_EXECUTION_FAILED', message: result.error });
   }
-  return reportInternalError({ deps, report: { source: 'delegated-tool-execute', error: result.error ?? result.status, runId, toolId, status: 'failed' } });
+  return reportInternalError({ deps, report: { source: 'delegated-tool-execute', error: result.error ?? result.status, runId, toolId, status: 'failed', ...stampedIdOf(result) } });
 }
 
 /** Read host-owned recovery facts once after interruption. The host supplies the deadline and

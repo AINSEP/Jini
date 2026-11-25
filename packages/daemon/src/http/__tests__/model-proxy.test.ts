@@ -1,5 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createRecordingOriginPolicy } from '@jini-ai/core/contracts/server/testing';
+import { createRecordingReporter } from '@jini-ai/core/errors/testing';
+import { createReporterRouteInternalError } from '@jini-ai/http-kit';
 import { modelProxyRoutes, type ModelProxyHttpDeps as BoundModelProxyHttpDeps } from '../model-proxy.js';
 import { fakeProviderToolTurnPort } from '../../ports/__tests__/provider-http-ports.fake.js';
 import { runAnthropicToolTurn, runAzureToolTurn, runGoogleToolTurn, runOllamaToolTurn, runOpenAiToolTurn } from '@jini-ai/agent-runtime';
@@ -134,7 +136,8 @@ function mountWith({ deps, host }: { readonly deps: ModelProxyHttpDeps; readonly
 
 /** Always injects `injectedFetch`/`injectedDnsLookup` as the transport/resolver — a caller-supplied `deps.fetchImpl`/`deps.dnsLookup` would still win (spread order). */
 function mount(deps: ModelProxyHttpDeps = {}) {
-  return mountWith({ deps: { fetchImpl: injectedFetch, dnsLookup: injectedDnsLookup, ...deps }, host: proxyHost() });
+  return mountWith({ // The local deps type omits `toolTurns`; `proxyRoutes` lets a supplied one override the real runners.
+      deps: { fetchImpl: injectedFetch, dnsLookup: injectedDnsLookup, ...deps } as ModelProxyHttpDeps, host: proxyHost() });
 }
 
 /** Every SSE `data:` line's JSON payload, in write order, for a mocked `res.write`. */
@@ -1579,5 +1582,54 @@ describe('modelProxyRoutes — host-bound tool-turn runners', () => {
     expect(await response.text()).toContain('from-port');
     expect(port.calls.map((call) => call.member)).toEqual(['openai']);
     expect(port.calls[0]!.required).toMatchObject({ apiKey: 'k', model: 'm', messages: [{ role: 'user', content: 'hi' }] });
+  });
+});
+
+// Reporter mode: the host's one reporter owns each proxy incident, so the caller gets the reporter's ERR- id
+// and fixed words, and nothing the upstream said.
+describe('model-proxy incidents under the host reporter', () => {
+  const STOPPED = 'The assistant response stopped. Review any completed actions before starting another turn. Copy the request ID and report this problem.';
+  const ERR_ID = /^ERR-[0-9A-F]{4}(?:-[0-9A-F]{4}){3}$/;
+  const CANARY = 'upstream-secret-canary sk-live-0123456789abcdefghij';
+  function reporterMount(deps: Partial<BoundModelProxyHttpDeps> = {}) {
+    const rec = createRecordingReporter({ ids: ['ERR-0A01-0000-0000-0000', 'ERR-0A02-0000-0000-0000'], iso: '2026-11-25T00:00:00.000Z' });
+    const app = mountWith({ // The local deps type omits `toolTurns`; `proxyRoutes` lets a supplied one override the real runners.
+      deps: { fetchImpl: injectedFetch, dnsLookup: injectedDnsLookup, ...deps } as ModelProxyHttpDeps, host: { ...proxyHost(), reportInternalError: createReporterRouteInternalError({ reporter: rec.reporter }) } });
+    const call = (shape: 'fixed' | 'catch-all', res: RecordedRes) => shape === 'fixed'
+      ? app.handlers['POST /api/proxy/openai/stream']!(makeReq(validOpenAiBody), res)
+      : app.handlers['POST /api/proxy/:provider/stream']!(makeParamReq({ provider: 'openai' }, validOpenAiBody), res);
+    return { rec, call };
+  }
+
+  it.each(['fixed', 'catch-all'] as const)('model-proxy upstream failure returns plain words and an ERR- id, no upstream text (%s route)', async (shape) => {
+    // Before the stream exists: one JSON 500.
+    throwFromOriginCheck(CANARY);
+    const before = reporterMount();
+    const res = makeSseRes();
+    await before.call(shape, res);
+    expect(res.status).toHaveBeenCalledWith(500);
+    const answered = res.json.mock.calls[0]![0].error as { code: string; message: string; requestId: string };
+    expect(answered.requestId).toMatch(ERR_ID);
+    expect(answered).toEqual({ code: 'INTERNAL_ERROR', message: `${STOPPED} (error ${answered.requestId})`, requestId: answered.requestId });
+    expect(before.rec.entries).toHaveLength(1);
+    expect(JSON.stringify(res.json.mock.calls)).not.toContain('upstream-secret-canary');
+
+    // After the stream started: the error event's code is the reporter's id, its message only the fixed words,
+    // whether the upstream failure arrives as a provider error event or as a throw out of the turn runner.
+    const throwingTurns = { ...toolTurns, openai: async () => { throw new Error(CANARY); } };
+    for (const stage of ['upstream event', 'runner throw'] as const) {
+      if (stage === 'upstream event') injectedFetch.mockRejectedValueOnce(new Error(CANARY));
+      const after = reporterMount(stage === 'runner throw' ? { toolTurns: throwingTurns as BoundModelProxyHttpDeps['toolTurns'] } : {});
+      const streamed = makeSseRes();
+      await after.call(shape, streamed);
+      await vi.waitFor(() => expect(streamed.end).toHaveBeenCalledOnce());
+      const errors = writtenEvents(streamed).filter((event) => event.kind === 'error');
+      expect(errors).toHaveLength(1);
+      const data = errors[0]!.data as { message: string; code: string };
+      expect(data.code).toMatch(ERR_ID);
+      expect(data).toEqual({ type: 'error', message: STOPPED, code: data.code });
+      expect(after.rec.entries).toHaveLength(1);
+      expect(JSON.stringify(streamed.write.mock.calls)).not.toContain('upstream-secret-canary');
+    }
   });
 });

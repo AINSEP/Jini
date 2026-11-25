@@ -11,6 +11,9 @@ import {
 import { delegatedToolExecuteRoute, type DelegatedToolsHttpDeps, type DelegatedToolsInternalErrorContext } from '../delegated-tools.js';
 
 const PRINCIPAL: Principal = { id: 'test-principal' };
+const DESCRIBED_ID = 'ERR-00AA-0000-0000-0001';
+/** A describer answer: the id the host recorded under, and the words. */
+const said = (message: string) => ({ errorId: DESCRIBED_ID, message });
 const GENERIC = 'The tool could not run because of a server fault. Do not retry the same call; tell the user to copy the request ID and report this problem.';
 
 /** Injects an infrastructure failure; unknown tool ids are caller input errors. */
@@ -53,7 +56,7 @@ function requestIdOf(result: Awaited<ReturnType<typeof callRoute>>['result']): s
 }
 
 describe('delegated tool route: describeInternalError (host-supplied model-safe text for the 500)', () => {
-  it.each([false, true])('redacts default and describer failure logs while retaining request IDs (describer=%s)', async (describerThrows) => {
+  it.each([false, true])('redacts the default failure log while retaining request IDs; a throwing describer adds no console line (describer=%s)', async (describerThrows) => {
     const secret = 'sk-live-0123456789abcdefghijklmnopqrstuv';
     const failure = Object.assign(new Error(`UPSTREAM_FAILED ${secret} Bearer abcdefghijklmnopqrst password=hunter2`), { code: 'ECONNREFUSED' });
     const executor = { ...throwingExecutor(), execute: async () => { throw failure; } };
@@ -68,7 +71,7 @@ describe('delegated tool route: describeInternalError (host-supplied model-safe 
     try {
       const result = await delegatedToolExecuteRoute.handle({ input: { runId: run.id, toolUseId: 'tu-log', toolId: 'broken' }, deps });
       const requestId = requestIdOf(result);
-      expect(log).toHaveBeenCalledTimes(describerThrows ? 2 : 1);
+      expect(log).toHaveBeenCalledTimes(1);
       for (const line of log.mock.calls) {
         const output = line.map(String).join(' ');
         expect(output).toContain(requestId);
@@ -79,47 +82,46 @@ describe('delegated tool route: describeInternalError (host-supplied model-safe 
     } finally { log.mockRestore(); }
   });
 
-  it('an executor infrastructure failure answers with the host text instead of the generic message', async () => {
+  it('an executor infrastructure failure answers with the host id and text instead of the generic message', async () => {
     const describeInternalError = vi.fn((context: DelegatedToolsInternalErrorContext) =>
-      `Error ERR-1: ${(context.error as Error).message}`,
+      said(`Error ${DESCRIBED_ID}: ${(context.error as Error).message}`),
     );
     const { result, onInternalError, runId } = await callRoute(throwingExecutor(), { describeInternalError });
 
     expect(result).toEqual({
       ok: false,
-      error: { code: 'INTERNAL_ERROR', message: 'Error ERR-1: executor unavailable', requestId: expect.any(String) },
+      error: { code: 'INTERNAL_ERROR', message: `Error ${DESCRIBED_ID}: executor unavailable`, requestId: DESCRIBED_ID },
     });
-    const requestId = requestIdOf(result);
     expect(describeInternalError).toHaveBeenCalledTimes(1);
     const context = describeInternalError.mock.calls[0]![0];
-    expect(context).toMatchObject({ source: 'delegated-tool-execute', runId, toolId: 'nope', correlationId: requestId });
+    expect(context).toMatchObject({ source: 'delegated-tool-execute', runId, toolId: 'nope' });
     expect(context.status).toBeUndefined();
-    // The operator sink still sees the same correlated failure — describing never replaces logging.
-    expect(onInternalError).toHaveBeenCalledTimes(1);
-    expect(onInternalError.mock.calls[0]![0]).toMatchObject({ correlationId: requestId });
+    expect(context.errorId).toBeUndefined();
+    // The describer owns the incident, so the route writes no second record under another id.
+    expect(onInternalError).not.toHaveBeenCalled();
   });
 
   it.each(['timed-out', 'cancelled'] as const)('a %s result reaches the host with its status', async (status) => {
-    const describeInternalError = vi.fn((context: DelegatedToolsInternalErrorContext) => `tool ${context.toolId} ${context.status}`);
+    const describeInternalError = vi.fn((context: DelegatedToolsInternalErrorContext) => said(`tool ${context.toolId} ${context.status}`));
     const { result } = await callRoute(settlingExecutor({ executionId: 'x', status }), { describeInternalError }, 'slow');
 
-    expect(result).toEqual({ ok: false, error: { code: 'INTERNAL_ERROR', message: `tool slow ${status}`, requestId: expect.any(String) } });
+    expect(result).toEqual({ ok: false, error: { code: 'INTERNAL_ERROR', message: `tool slow ${status}`, requestId: DESCRIBED_ID } });
     expect(describeInternalError.mock.calls[0]![0]).toMatchObject({ source: 'delegated-tool-execute', status });
   });
 
   it('a failed result the host did not mark model-safe reaches the host with status failed and its error text', async () => {
-    const describeInternalError = vi.fn((_context: DelegatedToolsInternalErrorContext) => 'described');
+    const describeInternalError = vi.fn((_context: DelegatedToolsInternalErrorContext) => said('described'));
     const { result } = await callRoute(
       settlingExecutor({ executionId: 'x', status: 'failed', error: 'recovery gave up', errorKind: 'internal' }),
       { describeInternalError },
     );
 
-    expect(result).toEqual({ ok: false, error: { code: 'INTERNAL_ERROR', message: 'described', requestId: expect.any(String) } });
+    expect(result).toEqual({ ok: false, error: { code: 'INTERNAL_ERROR', message: 'described', requestId: DESCRIBED_ID } });
     expect(describeInternalError.mock.calls[0]![0]).toMatchObject({ status: 'failed', error: 'recovery gave up' });
   });
 
   it('a throwing resolvePrincipal is described too, with source resolve-principal', async () => {
-    const describeInternalError = vi.fn((context: DelegatedToolsInternalErrorContext) => (context.error as Error).message);
+    const describeInternalError = vi.fn((context: DelegatedToolsInternalErrorContext) => said((context.error as Error).message));
     const { result } = await callRoute(throwingExecutor(), {
       describeInternalError,
       resolvePrincipal: () => {
@@ -136,7 +138,8 @@ describe('delegated tool route: describeInternalError (host-supplied model-safe 
 
   it.each([
     ['returns undefined', () => undefined],
-    ['returns an empty string', () => ''],
+    ['returns empty words', () => ({ errorId: DESCRIBED_ID, message: '' })],
+    ['returns no id', () => ({ errorId: '', message: 'words' })],
     [
       'throws',
       () => {
@@ -160,7 +163,7 @@ describe('delegated tool route: describeInternalError (host-supplied model-safe 
 
 it('loads bounded host recovery facts once after interruption and hands them to the redacted describer', async () => {
   const recoverInterruptedTool = vi.fn(async (_required: Parameters<NonNullable<DelegatedToolsHttpDeps['recoverInterruptedTool']>>[0]) => 'Deployment: created; files: 4/5; read job-1 before retrying.');
-  const describeInternalError = vi.fn((context: DelegatedToolsInternalErrorContext) => context.recoveryMessage ?? 'unknown');
+  const describeInternalError = vi.fn((context: DelegatedToolsInternalErrorContext) => said(context.recoveryMessage ?? 'unknown'));
   const { result } = await callRoute(settlingExecutor({ executionId: 'x', status: 'timed-out' }), { recoverInterruptedTool, describeInternalError }, 'publish');
   expect(recoverInterruptedTool).toHaveBeenCalledTimes(1);
   expect(recoverInterruptedTool.mock.calls[0]![0]).toMatchObject({ principal: PRINCIPAL, toolId: 'publish', result: { executionId: 'x', status: 'timed-out' } });
@@ -170,7 +173,7 @@ it('loads bounded host recovery facts once after interruption and hands them to 
 it('recovery lookup failure preserves the interruption response and never leaks the thrown value', async () => {
   const { result } = await callRoute(settlingExecutor({ executionId: 'x', status: 'timed-out' }), {
     recoverInterruptedTool: async () => { throw new Error('secret-canary'); },
-    describeInternalError: context => `interrupted: ${context.status}`,
+    describeInternalError: context => said(`interrupted: ${context.status}`),
   }, 'publish');
   expect(result).toMatchObject({ ok: false, error: { message: 'interrupted: timed-out' } });
   expect(JSON.stringify(result)).not.toContain('secret-canary');

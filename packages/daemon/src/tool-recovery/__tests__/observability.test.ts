@@ -251,7 +251,7 @@ test("a thrown tool error described after the decorator is recorded once under t
   const error = new Error("db down");
   await expect(withToolCallObservability({ inner: executorReturning(() => { throw error; }), reporter: rec.reporter }, {}).execute(CALL)).rejects.toBe(error);
   const disclosure = delegatedToolErrorDisclosure({ reporter: rec.reporter, redactSecretShapes: ({ text }) => ({ text, redactions: 0 }) });
-  expect(disclosure.describeInternalError({ source: "delegated-tools", runId: "run-1", toolId: "pages_list", correlationId: "c", error })).toBe(`Error ${IDS[0]}: db down`);
+  expect(disclosure.describeInternalError({ source: "delegated-tools", runId: "run-1", toolId: "pages_list", error })).toEqual({ errorId: IDS[0], message: `Error ${IDS[0]}: db down` });
   expect(rec.hostRecords()).toHaveLength(1);
   expect(rec.reports).toHaveLength(1);
 });

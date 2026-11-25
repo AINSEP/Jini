@@ -83,8 +83,6 @@ export interface DelegatedInternalErrorContext {
   readonly source: string;
   readonly runId: string;
   readonly toolId: string;
-  /** http-kit's own id for this failure — the one its `[@jini-ai/http-kit] internal error` log line carries. */
-  readonly correlationId: string;
   readonly error: unknown;
   /** Set for a settled `timed-out`/`cancelled`/`failed` result; absent for a throw. */
   readonly status?: string;
@@ -103,6 +101,12 @@ function delegatedInternalErrorReason(context: DelegatedInternalErrorContext): s
   return `tool "${context.toolId}" failed`;
 }
 
+/** What the delegated route shows for one internal error: the incident's id and the model's words. */
+export interface DelegatedToolErrorDisclosureResult {
+  readonly errorId: string;
+  readonly message: string;
+}
+
 /** What the delegated route's describer needs: the host's one reporter and its redactor. */
 export interface DelegatedToolErrorDisclosureDeps {
   readonly reporter: ToolFailureReporter;
@@ -113,15 +117,12 @@ export interface DelegatedToolErrorDisclosureDeps {
  * put on the result in-process by this daemon's own tool stack, which already recorded it (never a
  * client-supplied value). Otherwise one record: a thrown object the tool decorator already recorded
  * dedupes inside the reporter and returns that id, so the incident is still written exactly once. */
-function delegatedErrorId({ context, reporter, text }: { context: DelegatedInternalErrorContext; reporter: ToolFailureReporter; text: string }): string | undefined {
+function delegatedErrorId({ context, reporter, text }: { context: DelegatedInternalErrorContext; reporter: ToolFailureReporter; text: string }): string {
   if (typeof context.errorId === "string" && TOOL_ERROR_ID_PATTERN.test(context.errorId)) return context.errorId;
   const error = typeof context.error === "object" && context.error !== null ? context.error : new ToolExecutionFailure(text);
-  try {
-    return reporter.record({ error, step: "Run tool", operation: "tool.call" }, { attributes: { "agent.run.id": context.runId } }).errorId;
-  } catch {
-    // A breached reporter must not turn a description into a throw; the words then carry no id.
-    return undefined;
-  }
+  // A breached reporter throws out of here on purpose: the route then owns the incident through its
+  // own `reportInternalError`, so the words never show an id nothing recorded.
+  return reporter.record({ error, step: "Run tool", operation: "tool.call" }, { attributes: { "agent.run.id": context.runId } }).errorId;
 }
 
 /**
@@ -133,22 +134,23 @@ function delegatedErrorId({ context, reporter, text }: { context: DelegatedInter
  * `Error <ID>: <reason>` shape as that decorator, with at most one host record per failure.
  *
  * @param required The failure as http-kit reports it, plus the host reporter and redactor.
- * @returns `Error <ID>: <redacted reason>`, or the redacted reason alone if the reporter broke.
+ * @returns The incident id and `Error <ID>: <redacted reason>`.
+ * @throws Whatever a breached reporter throws, so the route reports the original failure itself.
  * @complexity O(reason length) for the redaction pass.
  */
-export function describeDelegatedInternalError({ context, reporter, redactSecretShapes }: DelegatedToolErrorDisclosureDeps & { context: DelegatedInternalErrorContext }, _optional = {}): string {
+export function describeDelegatedInternalError({ context, reporter, redactSecretShapes }: DelegatedToolErrorDisclosureDeps & { context: DelegatedInternalErrorContext }, _optional = {}): DelegatedToolErrorDisclosureResult {
   let reason = delegatedInternalErrorReason(context);
   if ((context.status === "timed-out" || context.status === "cancelled") && context.recoveryMessage) reason = context.recoveryMessage;
   const { text } = redactSecretShapes({ text: reason });
   const errorId = delegatedErrorId({ context, reporter, text });
-  return errorId === undefined ? text : `Error ${errorId}: ${text}`;
+  return { errorId, message: `Error ${errorId}: ${text}` };
 }
 
 /**
  * The two error-disclosure options the agent daemon spreads into `delegatedToolRoutes`, as
  * one value so the daemon and its tests wire the identical pair: a failure this layer already
  * ID-tagged answers `422 TOOL_EXECUTION_FAILED`, and every other internal error answers `500` with
- * {@link describeDelegatedInternalError}'s text.
+ * {@link describeDelegatedInternalError}'s id and words.
  *
  * @param deps - The host reporter (the SAME instance the tool stack records through, so a thrown
  *   object dedupes across both) and the host redactor.
@@ -156,7 +158,7 @@ export function describeDelegatedInternalError({ context, reporter, redactSecret
  */
 export function delegatedToolErrorDisclosure(deps: DelegatedToolErrorDisclosureDeps, _optional = {}): {
   readonly isModelSafeToolFailure: (required: { result: ToolExecutionResult }) => boolean;
-  readonly describeInternalError: (context: DelegatedInternalErrorContext) => string;
+  readonly describeInternalError: (context: DelegatedInternalErrorContext) => DelegatedToolErrorDisclosureResult;
 } {
   return {
     isModelSafeToolFailure: ({ result }) => isRedactedToolFailure({ result }, {}),

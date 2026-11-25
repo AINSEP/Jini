@@ -104,10 +104,10 @@ test("signal and emitSurface are forwarded only when supplied, and the other met
 });
 
 test("a delegated internal error is described by status, then by its own message, then generically — always redacted and id-tagged", () => {
-  const base = { source: "delegated-tools", runId: "run-1", toolId: "deploy", correlationId: "corr-1" };
+  const base = { source: "delegated-tools", runId: "run-1", toolId: "deploy" };
   const describe = (context: Parameters<typeof describeDelegatedInternalError>[0]["context"]) => {
     const { deps: described, entries } = disclosureDeps();
-    const text = describeDelegatedInternalError({ context, ...described });
+    const { message: text } = describeDelegatedInternalError({ context, ...described });
     records.push(entries);
     return text;
   };
@@ -133,14 +133,14 @@ test("delegatedToolErrorDisclosure exposes the model-safe check and the internal
   expect(disclosure.isModelSafeToolFailure({ result: { executionId: "x", status: "failed", error: "raw" } })).toBe(false);
   // A timed-out result carries the observation layer's id, but its text was never redacted by this layer.
   expect(disclosure.isModelSafeToolFailure({ result: { executionId: "x", status: "timed-out", errorId: "ERR-1" } as ToolExecutionResult })).toBe(false);
-  expect(disclosure.describeInternalError({ source: "s", runId: "r", toolId: "t", correlationId: "c", error: "boom" })).toBe("Error ERR-0001-0000-0000-0000: boom");
+  expect(disclosure.describeInternalError({ source: "s", runId: "r", toolId: "t", error: "boom" }).message).toBe("Error ERR-0001-0000-0000-0000: boom");
   expect(entries).toHaveLength(1);
 });
 
 test('delegated timeout carries host recovery facts through the same redaction and error-id boundary', () => {
   const { deps: described, entries } = disclosureDeps();
   const disclosure = delegatedToolErrorDisclosure(described);
-  const message = disclosure.describeInternalError({ source: 'delegated-tool-execute', runId: 'run-1', toolId: 'publish', correlationId: 'corr', error: 'timed-out', status: 'timed-out', recoveryMessage: `Publish job job-1 is still running. Deployment: created; uploaded: 4/5; URL: https://new.test; status: BUILDING. Read job-1 before retrying. ${credential()}` });
+  const { message } = disclosure.describeInternalError({ source: 'delegated-tool-execute', runId: 'run-1', toolId: 'publish', error: 'timed-out', status: 'timed-out', recoveryMessage: `Publish job job-1 is still running. Deployment: created; uploaded: 4/5; URL: https://new.test; status: BUILDING. Read job-1 before retrying. ${credential()}` });
   expect(message).toContain('Deployment: created; uploaded: 4/5');
   expect(message).toContain('Read job-1 before retrying');
   expect(message).toContain('ERR-0001-0000-0000-0000');
@@ -149,12 +149,12 @@ test('delegated timeout carries host recovery facts through the same redaction a
   expect(JSON.stringify(entries)).not.toContain(credential());
 });
 
-test("a stamped in-process id is reused without writing a second record; a breached reporter leaves the words without an id", () => {
+test("a stamped in-process id is reused without writing a second record; a breached reporter throws so the route owns the incident", () => {
   const { deps: described, entries } = disclosureDeps();
   const stamped = "ERR-ABCD-0000-0000-0000";
-  expect(describeDelegatedInternalError({ context: { source: "s", runId: "r", toolId: "t", correlationId: "c", error: "timed-out", status: "timed-out", errorId: stamped }, ...described }))
-    .toBe(`Error ${stamped}: tool "t" timed out before it finished`);
+  expect(describeDelegatedInternalError({ context: { source: "s", runId: "r", toolId: "t", error: "timed-out", status: "timed-out", errorId: stamped }, ...described }))
+    .toEqual({ errorId: stamped, message: `Error ${stamped}: tool "t" timed out before it finished` });
   expect(entries).toEqual([]);
   const broken = { reporter: { record: () => { throw new Error("down"); } }, redactSecretShapes: described.redactSecretShapes };
-  expect(describeDelegatedInternalError({ context: { source: "s", runId: "r", toolId: "t", correlationId: "c", error: "x" }, ...broken })).toBe("x");
+  expect(() => describeDelegatedInternalError({ context: { source: "s", runId: "r", toolId: "t", error: "x" }, ...broken })).toThrow("down");
 });
