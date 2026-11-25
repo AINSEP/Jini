@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import type { AdminMedia } from "@jini-ai/core/contracts/site/cms-admin-media";
-import { describeMediaHtmlAttributeError, mediaRowMenuItems, visibleMediaError } from "../rules.js";
+import { describeMediaHtmlAttributeError, mediaRowMenuItems, mediaUploadAccept, visibleMediaError } from "../rules.js";
 
 /** The rules take the host's translator and error describer as arguments; these fakes prove that is the only seam. */
 const translate = ({ locale, key }: { locale: string; key: string }) => `${locale}:${key}`;
@@ -25,5 +25,21 @@ describe("media rules injected collaborators", () => {
     expect(visibleMediaError(base)).toBe("list/L");
     expect(visibleMediaError({ ...base, trashError: new Error("T") })).toBe("del/T");
     expect(visibleMediaError({ ...base, hasMedia: true })).toBeNull();
+  });
+});
+
+describe("mediaUploadAccept (native picker)", () => {
+  // The server accepts .mov/.m4v (Jini cms sniff + upload), but the picker's `accept` only listed MP4/WebM,
+  // so an iPhone .MOV was greyed out in the OS file dialog. Extensions are listed too because some
+  // platforms report .mov with no MIME type at all.
+  const QUICKTIME_TOKENS = [".mov", ".m4v", "video/quicktime", "video/x-m4v"];
+
+  it.each(["videos", "all"] as const)("the %s tab's picker lists the .mov/.m4v tokens", (tab) => {
+    const tokens = mediaUploadAccept({ tab }).split(",");
+    for (const token of QUICKTIME_TOKENS) expect(tokens).toContain(token);
+  });
+
+  it("the images tab stays image-only", () => {
+    expect(mediaUploadAccept({ tab: "images" })).not.toMatch(/video|\.mov|\.m4v/);
   });
 });

@@ -22,8 +22,8 @@ export const TRASH_I18N_C: Record<string, Record<string, string>> = {
     "The Trash is empty.": "Кошик порожній.",
     "Load more": "Завантажити ще",
     "Loading…": "Завантаження…",
-    "Deleted items are kept for 30 days.":
-      "Видалені елементи зберігаються 30 днів.",
+    "Each item shows how many days it has left.":
+      "Для кожного елемента показано, скільки днів йому залишилось.",
     "Collection entries aren't kept in Trash. Deleted theme files go to the theme's own trash — ask the assistant to restore them.":
       "Записи колекцій не зберігаються в Кошику. Видалені файли теми потрапляють до власного кошика теми — попросіть асистента відновити їх.",
     Post: "Запис",
@@ -78,8 +78,8 @@ export const TRASH_I18N_C: Record<string, Record<string, string>> = {
     "The Trash is empty.": "Çöp kutusu boş.",
     "Load more": "Daha fazla yükle",
     "Loading…": "Yükleniyor…",
-    "Deleted items are kept for 30 days.":
-      "Silinen öğeler 30 gün saklanır.",
+    "Each item shows how many days it has left.":
+      "Her öğe, kaç günü kaldığını gösterir.",
     "Collection entries aren't kept in Trash. Deleted theme files go to the theme's own trash — ask the assistant to restore them.":
       "Koleksiyon kayıtları Çöp Kutusu’nda saklanmaz. Silinen tema dosyaları temanın kendi çöp kutusuna gider — geri yüklemek için asistandan yardım isteyin.",
     Post: "Yazı",
@@ -134,8 +134,8 @@ export const TRASH_I18N_C: Record<string, Record<string, string>> = {
     "The Trash is empty.": "ถังขยะว่างเปล่า",
     "Load more": "โหลดเพิ่มเติม",
     "Loading…": "กำลังโหลด…",
-    "Deleted items are kept for 30 days.":
-      "รายการที่ลบจะถูกเก็บไว้เป็นเวลา 30 วัน",
+    "Each item shows how many days it has left.":
+      "แต่ละรายการจะแสดงจำนวนวันที่เหลืออยู่",
     "Collection entries aren't kept in Trash. Deleted theme files go to the theme's own trash — ask the assistant to restore them.":
       "รายการในคอลเลกชันจะไม่ถูกเก็บไว้ในถังขยะ ไฟล์ธีมที่ลบจะไปอยู่ในถังขยะของธีมนั้น — ขอให้ผู้ช่วยกู้คืนไฟล์ได้",
     Post: "โพสต์",
@@ -190,8 +190,8 @@ export const TRASH_I18N_C: Record<string, Record<string, string>> = {
     "The Trash is empty.": "Il Cestino è vuoto.",
     "Load more": "Carica altro",
     "Loading…": "Caricamento…",
-    "Deleted items are kept for 30 days.":
-      "Gli elementi eliminati vengono conservati per 30 giorni.",
+    "Each item shows how many days it has left.":
+      "Ogni elemento mostra quanti giorni gli restano.",
     "Collection entries aren't kept in Trash. Deleted theme files go to the theme's own trash — ask the assistant to restore them.":
       "Le voci delle raccolte non vengono conservate nel Cestino. I file del tema eliminati vanno nel cestino del tema stesso — chiedi all’assistente di ripristinarli.",
     Post: "Articolo",
@@ -246,8 +246,8 @@ export const TRASH_I18N_C: Record<string, Record<string, string>> = {
     "The Trash is empty.": "ट्रैश खाली है।",
     "Load more": "अधिक लोड करें",
     "Loading…": "लोड हो रहा है…",
-    "Deleted items are kept for 30 days.":
-      "हटाए गए आइटम 30 दिनों तक रखे जाते हैं।",
+    "Each item shows how many days it has left.":
+      "हर आइटम दिखाता है कि उसके कितने दिन बचे हैं।",
     "Collection entries aren't kept in Trash. Deleted theme files go to the theme's own trash — ask the assistant to restore them.":
       "कलेक्शन की प्रविष्टियाँ ट्रैश में नहीं रखी जातीं। हटाई गई थीम फ़ाइलें थीम के अपने ट्रैश में जाती हैं — उन्हें बहाल करने के लिए असिस्टेंट से कहें।",
     Post: "पोस्ट",
@@ -302,8 +302,8 @@ export const TRASH_I18N_C: Record<string, Record<string, string>> = {
     "The Trash is empty.": "ردی کی ٹوکری خالی ہے۔",
     "Load more": "مزید لوڈ کریں",
     "Loading…": "لوڈ ہو رہا ہے…",
-    "Deleted items are kept for 30 days.":
-      "حذف شدہ آئٹمز 30 دن تک رکھے جاتے ہیں۔",
+    "Each item shows how many days it has left.":
+      "ہر آئٹم دکھاتا ہے کہ اس کے کتنے دن باقی ہیں۔",
     "Collection entries aren't kept in Trash. Deleted theme files go to the theme's own trash — ask the assistant to restore them.":
       "کلیکشن کے اندراجات کوڑے دان میں محفوظ نہیں رہتے۔ حذف شدہ تھیم فائلیں تھیم کے اپنے کوڑے دان میں جاتی ہیں — انہیں بحال کرنے کے لیے اسسٹنٹ سے کہیں۔",
     Post: "پوسٹ",
@@ -358,8 +358,8 @@ export const TRASH_I18N_C: Record<string, Record<string, string>> = {
     "The Trash is empty.": "ট্র্যাশ খালি।",
     "Load more": "আরও লোড করুন",
     "Loading…": "লোড হচ্ছে…",
-    "Deleted items are kept for 30 days.":
-      "মুছে ফেলা আইটেম 30 দিন রাখা হয়।",
+    "Each item shows how many days it has left.":
+      "প্রতিটি আইটেম দেখায় তার আর কত দিন বাকি আছে।",
     "Collection entries aren't kept in Trash. Deleted theme files go to the theme's own trash — ask the assistant to restore them.":
       "কালেকশনের এন্ট্রিগুলো ট্র্যাশে রাখা হয় না। মুছে ফেলা থিম ফাইলগুলো থিমের নিজস্ব ট্র্যাশে যায় — সেগুলো পুনরুদ্ধার করতে সহকারীকে বলুন।",
     Post: "পোস্ট",

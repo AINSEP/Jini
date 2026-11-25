@@ -22,8 +22,8 @@ export const TRASH_I18N_A: Record<string, Record<string, string>> = {
     "The Trash is empty.": "La papelera está vacía.",
     "Load more": "Cargar más",
     "Loading…": "Cargando…",
-    "Deleted items are kept for 30 days.":
-      "Los elementos eliminados se conservan durante 30 días.",
+    "Each item shows how many days it has left.":
+      "Cada elemento muestra cuántos días le quedan.",
     "Collection entries aren't kept in Trash. Deleted theme files go to the theme's own trash — ask the assistant to restore them.":
       "Las entradas de colecciones no se guardan en la papelera. Los archivos de temas eliminados van a la papelera del propio tema; pide al asistente que los restaure.",
     Post: "Entrada",
@@ -78,8 +78,8 @@ export const TRASH_I18N_A: Record<string, Record<string, string>> = {
     "The Trash is empty.": "Sampah kosong.",
     "Load more": "Muat lagi",
     "Loading…": "Memuat…",
-    "Deleted items are kept for 30 days.":
-      "Item yang dihapus disimpan selama 30 hari.",
+    "Each item shows how many days it has left.":
+      "Setiap item menampilkan sisa harinya.",
     "Collection entries aren't kept in Trash. Deleted theme files go to the theme's own trash — ask the assistant to restore them.":
       "Entri koleksi tidak disimpan di Sampah. File tema yang dihapus masuk ke sampah tema itu sendiri — minta asisten untuk memulihkannya.",
     Post: "Pos",
@@ -134,8 +134,8 @@ export const TRASH_I18N_A: Record<string, Record<string, string>> = {
     "The Trash is empty.": "Der Papierkorb ist leer.",
     "Load more": "Mehr laden",
     "Loading…": "Wird geladen…",
-    "Deleted items are kept for 30 days.":
-      "Gelöschte Elemente werden 30 Tage aufbewahrt.",
+    "Each item shows how many days it has left.":
+      "Jedes Element zeigt, wie viele Tage ihm noch bleiben.",
     "Collection entries aren't kept in Trash. Deleted theme files go to the theme's own trash — ask the assistant to restore them.":
       "Sammlungseinträge werden nicht im Papierkorb aufbewahrt. Gelöschte Theme-Dateien landen im eigenen Papierkorb des Themes — bitte den Assistenten, sie wiederherzustellen.",
     Post: "Beitrag",
@@ -190,8 +190,8 @@ export const TRASH_I18N_A: Record<string, Record<string, string>> = {
     "The Trash is empty.": "回收站是空的。",
     "Load more": "加载更多",
     "Loading…": "加载中…",
-    "Deleted items are kept for 30 days.":
-      "已删除的项目保留30天。",
+    "Each item shows how many days it has left.":
+      "每个项目都会显示其剩余天数。",
     "Collection entries aren't kept in Trash. Deleted theme files go to the theme's own trash — ask the assistant to restore them.":
       "集合条目不会保留在回收站中。删除的主题文件会进入主题自己的回收站，请让助手恢复它们。",
     Post: "文章",
@@ -246,8 +246,8 @@ export const TRASH_I18N_A: Record<string, Record<string, string>> = {
     "The Trash is empty.": "資源回收筒是空的。",
     "Load more": "載入更多",
     "Loading…": "載入中…",
-    "Deleted items are kept for 30 days.":
-      "已刪除的項目保留30天。",
+    "Each item shows how many days it has left.":
+      "每個項目都會顯示其剩餘天數。",
     "Collection entries aren't kept in Trash. Deleted theme files go to the theme's own trash — ask the assistant to restore them.":
       "集合項目不會保留在垃圾桶中。刪除的佈景主題檔案會進入該主題自己的垃圾桶，請讓助理還原。",
     Post: "文章",
@@ -302,8 +302,8 @@ export const TRASH_I18N_A: Record<string, Record<string, string>> = {
     "The Trash is empty.": "A Lixeira está vazia.",
     "Load more": "Carregar mais",
     "Loading…": "Carregando…",
-    "Deleted items are kept for 30 days.":
-      "Os itens excluídos são mantidos por 30 dias.",
+    "Each item shows how many days it has left.":
+      "Cada item mostra quantos dias ainda restam.",
     "Collection entries aren't kept in Trash. Deleted theme files go to the theme's own trash — ask the assistant to restore them.":
       "As entradas de coleções não são mantidas na Lixeira. Os arquivos de tema excluídos vão para a lixeira do próprio tema — peça ao assistente para restaurá-los.",
     Post: "Publicação",
@@ -358,8 +358,8 @@ export const TRASH_I18N_A: Record<string, Record<string, string>> = {
     "The Trash is empty.": "Корзина пуста.",
     "Load more": "Загрузить ещё",
     "Loading…": "Загрузка…",
-    "Deleted items are kept for 30 days.":
-      "Удалённые элементы хранятся 30 дней.",
+    "Each item shows how many days it has left.":
+      "Для каждого элемента показано, сколько дней у него осталось.",
     "Collection entries aren't kept in Trash. Deleted theme files go to the theme's own trash — ask the assistant to restore them.":
       "Записи коллекций не сохраняются в Корзине. Удалённые файлы темы попадают в собственную корзину темы — попросите ассистента восстановить их.",
     Post: "Запись",

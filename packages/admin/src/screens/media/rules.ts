@@ -373,7 +373,9 @@ export function mediaUploadLabel({ tab }: { tab: MediaContentTabId }, _optional:
 }
 
 const IMAGE_ACCEPT = "image/jpeg,image/png,image/webp,image/gif,image/avif,image/svg+xml";
-const VIDEO_ACCEPT = "video/mp4,video/webm";
+// .mov/.m4v listed by extension as well as MIME: some platforms report a .mov with no MIME type, which would
+// leave an iPhone recording greyed out in the OS dialog.
+const VIDEO_ACCEPT = "video/mp4,video/webm,.mov,.m4v,video/quicktime,video/x-m4v";
 
 /** The picker's `accept` for a tab. Advisory only: the server still enforces its allowlist. */
 export function mediaUploadAccept({ tab }: { tab: MediaContentTabId }, _optional: Record<string, never> = {}): string {

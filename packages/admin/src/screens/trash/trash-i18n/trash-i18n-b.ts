@@ -22,8 +22,8 @@ export const TRASH_I18N_B: Record<string, Record<string, string>> = {
     "The Trash is empty.": "زباله‌دان خالی است.",
     "Load more": "بارگذاری بیشتر",
     "Loading…": "در حال بارگذاری…",
-    "Deleted items are kept for 30 days.":
-      "موارد حذف‌شده به مدت ۳۰ روز نگه داشته می‌شوند.",
+    "Each item shows how many days it has left.":
+      "برای هر مورد نشان داده می‌شود که چند روز از آن باقی مانده است.",
     "Collection entries aren't kept in Trash. Deleted theme files go to the theme's own trash — ask the assistant to restore them.":
       "مدخل‌های مجموعه در سطل زباله نگه‌داری نمی‌شوند. فایل‌های حذف‌شدهٔ پوسته به سطل زبالهٔ خود پوسته می‌روند — از دستیار بخواهید آن‌ها را بازیابی کند.",
     Post: "نوشته",
@@ -78,8 +78,8 @@ export const TRASH_I18N_B: Record<string, Record<string, string>> = {
     "The Trash is empty.": "سلة المهملات فارغة.",
     "Load more": "تحميل المزيد",
     "Loading…": "جارٍ التحميل…",
-    "Deleted items are kept for 30 days.":
-      "تُحفظ العناصر المحذوفة لمدة 30 يومًا.",
+    "Each item shows how many days it has left.":
+      "يعرض كل عنصر عدد الأيام المتبقية له.",
     "Collection entries aren't kept in Trash. Deleted theme files go to the theme's own trash — ask the assistant to restore them.":
       "لا تُحفظ عناصر المجموعات في سلة المهملات. تنتقل ملفات القالب المحذوفة إلى سلة مهملات القالب نفسه — اطلب من المساعد استعادتها.",
     // "Widgets" deliberately does not reuse `admin-nav-i18n.ts`'s own choice ("العناصر", literally
@@ -139,8 +139,8 @@ export const TRASH_I18N_B: Record<string, Record<string, string>> = {
     "The Trash is empty.": "ゴミ箱は空です。",
     "Load more": "さらに読み込む",
     "Loading…": "読み込み中…",
-    "Deleted items are kept for 30 days.":
-      "削除された項目は30日間保持されます。",
+    "Each item shows how many days it has left.":
+      "各項目に残りの日数が表示されます。",
     "Collection entries aren't kept in Trash. Deleted theme files go to the theme's own trash — ask the assistant to restore them.":
       "コレクションの項目はゴミ箱に保存されません。削除したテーマファイルはテーマ専用のゴミ箱に移動します。復元はアシスタントに依頼してください。",
     Post: "投稿",
@@ -195,8 +195,8 @@ export const TRASH_I18N_B: Record<string, Record<string, string>> = {
     "The Trash is empty.": "휴지통이 비어 있습니다.",
     "Load more": "더 보기",
     "Loading…": "로딩 중…",
-    "Deleted items are kept for 30 days.":
-      "삭제된 항목은 30일 동안 보관됩니다.",
+    "Each item shows how many days it has left.":
+      "각 항목에 남은 일수가 표시됩니다.",
     "Collection entries aren't kept in Trash. Deleted theme files go to the theme's own trash — ask the assistant to restore them.":
       "컬렉션 항목은 휴지통에 보관되지 않습니다. 삭제한 테마 파일은 해당 테마의 휴지통으로 이동합니다. 복원하려면 어시스턴트에게 요청하세요.",
     Post: "게시물",
@@ -251,8 +251,8 @@ export const TRASH_I18N_B: Record<string, Record<string, string>> = {
     "The Trash is empty.": "Kosz jest pusty.",
     "Load more": "Wczytaj więcej",
     "Loading…": "Wczytywanie…",
-    "Deleted items are kept for 30 days.":
-      "Usunięte elementy są przechowywane przez 30 dni.",
+    "Each item shows how many days it has left.":
+      "Każdy element pokazuje, ile dni mu zostało.",
     "Collection entries aren't kept in Trash. Deleted theme files go to the theme's own trash — ask the assistant to restore them.":
       "Wpisy kolekcji nie są przechowywane w Koszu. Usunięte pliki motywu trafiają do kosza danego motywu — poproś asystenta o ich przywrócenie.",
     Post: "Wpis",
@@ -307,8 +307,8 @@ export const TRASH_I18N_B: Record<string, Record<string, string>> = {
     "The Trash is empty.": "A Kuka üres.",
     "Load more": "Továbbiak betöltése",
     "Loading…": "Betöltés…",
-    "Deleted items are kept for 30 days.":
-      "A törölt elemeket 30 napig őrizzük meg.",
+    "Each item shows how many days it has left.":
+      "Minden elem mutatja, hány napja maradt még.",
     "Collection entries aren't kept in Trash. Deleted theme files go to the theme's own trash — ask the assistant to restore them.":
       "A gyűjtemények bejegyzései nem kerülnek a Kukába. A törölt témafájlok a téma saját kukájába kerülnek — kérd meg az asszisztenst a visszaállításukra.",
     Post: "Bejegyzés",
@@ -363,8 +363,8 @@ export const TRASH_I18N_B: Record<string, Record<string, string>> = {
     "The Trash is empty.": "La corbeille est vide.",
     "Load more": "Charger plus",
     "Loading…": "Chargement…",
-    "Deleted items are kept for 30 days.":
-      "Les éléments supprimés sont conservés pendant 30 jours.",
+    "Each item shows how many days it has left.":
+      "Chaque élément indique combien de jours il lui reste.",
     "Collection entries aren't kept in Trash. Deleted theme files go to the theme's own trash — ask the assistant to restore them.":
       "Les entrées de collection ne sont pas conservées dans la corbeille. Les fichiers de thème supprimés vont dans la corbeille du thème — demandez à l’assistant de les restaurer.",
     Post: "Article",
