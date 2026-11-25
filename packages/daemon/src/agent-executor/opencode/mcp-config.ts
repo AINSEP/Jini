@@ -1,13 +1,13 @@
 import type { McpHttpEndpoint } from '../contracts.js';
 import { isRecord } from '../values.js';
 import { JINI_MCP_SERVER_KEY, type McpJsonServerEntry } from '../mcp-json-file.js';
-import { OPENCODE_CONFIG_ENV } from './constants.js';
 
-/** Merge the run-scoped HTTP endpoint into OpenCode's existing inline configuration. */
+/** Merge the run-scoped HTTP endpoint into OpenCode's existing inline configuration. `envVar` is the variable the
+ * runtime bound for this def's config document (the daemon no longer owns that name; K03 moves this file). */
 export function withOpenCodeHttpMcp(
-  { env, endpoint }: { env: NodeJS.ProcessEnv; endpoint: McpHttpEndpoint },
+  { env, endpoint, envVar }: { env: NodeJS.ProcessEnv; endpoint: McpHttpEndpoint; envVar: string },
 ): NodeJS.ProcessEnv {
-  return { ...env, [OPENCODE_CONFIG_ENV]: mergeOpenCodeHttpMcpConfig({ existingRaw: env[OPENCODE_CONFIG_ENV], endpoint }) };
+  return { ...env, [envVar]: mergeOpenCodeHttpMcpConfig({ existingRaw: env[envVar], endpoint }) };
 }
 
 /** Keep OpenCode's run-local inline carrier and its existing settings/instruction merge owner.

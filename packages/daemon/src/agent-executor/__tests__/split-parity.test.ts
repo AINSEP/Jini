@@ -1,3 +1,4 @@
+import { boundMcpDelivery } from './runtime-fixture.js';
 import { ChildProcess, type SpawnOptions } from 'node:child_process';
 import { describe, expect, it, vi } from 'vitest';
 import type { RuntimeLockHandoffContext, RuntimeLockHold } from '@jini-ai/core/contracts/agents';
@@ -50,7 +51,7 @@ describe('agent executor split parity', () => {
     const bridge = executor.buildMcpBridgeDelivery({
       cwd: '/workspace', runId: 'run-1', strategy: 'opencode-env-content',
       options: { command: 'bridge', args: ['serve'], daemonUrl: 'http://127.0.0.1:4000' },
-      credential: 'run-token',
+      credential: 'run-token', ...boundMcpDelivery({ externalMcpInjection: 'opencode-env-content' }),
     });
     const env = executor.computeChildEnv({ spawnEnv: {
       OPENCODE_CONFIG_CONTENT: JSON.stringify({ mcp: { existing: { enabled: true } }, instructions: ['host.md'] }),

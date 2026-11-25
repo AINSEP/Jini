@@ -113,3 +113,9 @@ export function agentRuntimeFixture(script: AgentRuntimeScript = {}, optional: {
     },
   };
 }
+
+/** The MCP delivery slot the production binding supplies for a def (or a bare strategy), as the launcher passes it to the bridge. */
+export function boundMcpDelivery(required: Pick<RuntimeAgentDef, 'externalMcpInjection'>, _optional: Record<string, never> = {}): { mcpDelivery?: NonNullable<ReturnType<AgentRuntimePort['strategies']['for']>['mcpDelivery']> } {
+  const mcpDelivery = agentRuntimeFixture().strategies.for({ def: required as RuntimeAgentDef }).mcpDelivery;
+  return mcpDelivery === undefined ? {} : { mcpDelivery };
+}

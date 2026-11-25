@@ -70,6 +70,7 @@ import { checkExtensionlessImports } from './check-extensionless-imports.js';
 import { checkModelFallbackFreshness } from './check-model-fallback-freshness.js';
 import { checkProtocolPurity } from './check-protocol-purity.js';
 import { checkRuntimeCycles } from './check-runtime-cycles.js';
+import { checkVendorNeutral } from './check-vendor-neutral.js';
 import { checkSourceNeutrality } from './lib/source-neutrality.js';
 import { checkPackageLayers } from './check-package-layers.js';
 import { checkPluginPackages } from './check-plugin-packages.js';
@@ -116,6 +117,8 @@ async function main() {
     checkEnvAccess(),
     await checkModelFallbackFreshness(),
     checkRuntimeCycles({ repoRoot: REPO_ROOT }),
+    // R15: daemon/server name no vendor CLI; shrink-only debt until K02-K05 move the vendor code. Pinned in scripts/__tests__/check-vendor-neutral.test.ts.
+    checkVendorNeutral({ repoRoot: REPO_ROOT }),
     // R14: reviewed caller lists for `approveCause` and `tracker: 'skip'` (see the check's module doc).
     // Proven on known-bad files in scripts/__tests__/check-error-disclosure-callers.test.ts, not in runGuardSelfTest.
     checkErrorDisclosureCallers(),

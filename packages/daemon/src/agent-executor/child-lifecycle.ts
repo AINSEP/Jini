@@ -20,6 +20,7 @@ import type { TerminateChildTreeDeps, ChildDrivenStreamFormat, AgentCleanupFailu
 
 export interface WireChildLifecycleContext extends TerminateChildTreeDeps {
   readonly streams: AgentRuntimePort['streams'];
+  readonly strategies: AgentRuntimePort['strategies'];
   readonly identityKind: AgentRuntimePort['models']['identityKind'];
   readonly registerMessageRelay?: (relay: RunMessageRelay) => void;
   readonly delegatedResultCorrelation?: DelegatedResultCorrelation;
