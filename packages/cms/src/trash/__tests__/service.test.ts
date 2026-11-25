@@ -223,3 +223,22 @@ test("restore forwards the restoring actor to the adapter only when one is suppl
 
   assert.deepEqual(seen, [{ priorMarker: "draft", actor: ACTOR }, { priorMarker: null }]);
 });
+
+test("a conflicting restore leaves the item and its index row untouched, notifies nobody and answers the same every time", async () => {
+  const events: TrashChangeEvent[] = [];
+  const h = harness({ onChanged: (event) => { events.push(event); } });
+  await h.trash.trash(removal);
+  events.length = 0;
+  const inRecord = structuredClone(h.records.records.get("record-1"));
+  const inIndex = structuredClone(h.repo.all({}));
+  h.records.records.set("record-1", { ...h.records.records.get("record-1")!, version: 9 });
+  const conflicted = structuredClone(h.records.records.get("record-1"));
+  const restore = () => h.trash.restore({ workspaceId: WS, entityType: "record", entityId: "record-1", at: AT });
+
+  assert.equal(await restore(), "version-changed");
+  assert.equal(await restore(), "version-changed");
+  assert.deepEqual(h.records.records.get("record-1"), conflicted);
+  assert.notDeepEqual(conflicted, inRecord);
+  assert.deepEqual(h.repo.all({}), inIndex);
+  assert.deepEqual(events, []);
+});

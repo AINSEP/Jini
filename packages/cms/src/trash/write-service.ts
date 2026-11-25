@@ -110,6 +110,35 @@ export function computePurgeAfter({ at }: { at: string; }, optional: { retention
   return new Date(base.getTime() + retentionDays * 24 * 60 * 60 * 1000).toISOString();
 }
 
+/** The index row for a hidden entity, stamped with its retention and the marker the adapter reported. */
+function buildTrashRow(
+  { deps, retentionDays, required, marker, priorMarker }: {
+    deps: TrashServiceDeps;
+    retentionDays: number;
+    required: Parameters<TrashPort["trash"]>[0];
+    marker: Extract<TrashMarkerResult, { ok: true }>;
+    priorMarker: string | null | undefined;
+  },
+  _optional = {},
+): TrashItem {
+  return {
+    id: deps.idGen.newId(),
+    workspaceId: required.workspaceId,
+    entityType: required.entityType,
+    entityId: required.entityId,
+    trashedAt: required.at,
+    purgeAfter: computePurgeAfter({ at: required.at }, { retentionDays }),
+    actorPrincipalId: required.actor.principalId,
+    actorPluginId: required.actor.pluginId ?? null,
+    displayTitle: required.display.title,
+    displaySubtitle: required.display.subtitle ?? null,
+    entityVersion: marker.version,
+
+    // The adapter's marker reading wins; caller state only fills in for adapters without one.
+    priorMarker: marker.priorMarker ?? priorMarker ?? null,
+  };
+}
+
 function createTrashHandlers(deps: TrashServiceDeps, optional: TrashServiceOptional, retentionDays: number): Pick<TrashPort, "trash"> {
   /** Resolved on every call — see {@link TrashServiceDeps.adapters}. @complexity O(1). */
   function requireAdapter(entityType: TrashEntityType): TrashAdapter {
@@ -137,22 +166,7 @@ function createTrashHandlers(deps: TrashServiceDeps, optional: TrashServiceOptio
             expectedVersion: required.expectedVersion,
           }, { actor: required.actor });
           if (marker.ok) {
-            const row: TrashItem = {
-              id: deps.idGen.newId(),
-              workspaceId: required.workspaceId,
-              entityType: required.entityType,
-              entityId: required.entityId,
-              trashedAt: required.at,
-              purgeAfter: computePurgeAfter({ at: required.at }, { retentionDays }),
-              actorPrincipalId: required.actor.principalId,
-              actorPluginId: required.actor.pluginId ?? null,
-              displayTitle: required.display.title,
-              displaySubtitle: required.display.subtitle ?? null,
-              entityVersion: marker.version,
-
-              // The adapter's marker reading wins; caller state only fills in for adapters without one.
-              priorMarker: marker.priorMarker ?? trashOptional.priorMarker ?? null,
-            };
+            const row = buildTrashRow({ deps, retentionDays, required, marker, priorMarker: trashOptional.priorMarker });
             await deps.repo.insert({ row });
             // A successful noop may repair a missing index, but did not change the domain marker.
             // Repeated removal must not emit another recovery watermark or outbox event (F1487).

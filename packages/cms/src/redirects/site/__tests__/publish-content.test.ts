@@ -84,3 +84,28 @@ test("validate refuses a malformed key and write creates an import through the c
   assert.deepEqual(stored.map((r) => [r.id, r.source, r.statusCode, r.createdByPrincipal]), [[changeSetId, "import", 302, "p1"]]);
   await assert.rejects(config.write({ ports: deps, workspaceId: WORKSPACE_ID, id: "bad", state, existing: null, principalId: "p1" }), /malformed natural key 'bad'/);
 });
+
+test("a redirect mapped to packed state and applied elsewhere yields the same records, and re-apply updates in place", async () => {
+  const config = captureConfig();
+  const source = makeDeps();
+  const target = makeDeps();
+  await createRedirect({ deps: source, input: { workspaceId: WORKSPACE_ID, matchType: "prefix", fromPattern: "/old:a", toTarget: "/new", statusCode: 301, override: true, priority: 4, actorId: "u" } });
+  await createRedirect({ deps: source, input: { workspaceId: WORKSPACE_ID, matchType: "exact", fromPattern: "/x", toTarget: "/y", statusCode: 302, actorId: "u" } });
+  const transferred = Object.entries(config.fields).filter(([, d]) => d === "transferred").map(([name]) => name);
+  const packed = (await config.list({ ports: source, workspaceId: WORKSPACE_ID })).filter((row) => config.include({ row })).map((row) => ({
+    id: config.idOf({ row }), state: Object.fromEntries(transferred.map((name) => [name, (row as unknown as Record<string, unknown>)[name]])),
+  }));
+  assert.equal(packed.length, 2);
+  for (const { id, state } of packed) {
+    assert.equal(await config.validate({ ports: target, workspaceId: WORKSPACE_ID, entity: { id, state } as never, existing: null }), null);
+    await config.write({ ports: target, workspaceId: WORKSPACE_ID, id, state, existing: null, principalId: "p1" });
+  }
+  const pick = (rows: readonly object[]) => rows.map((r) => Object.fromEntries(transferred.map((name) => [name, (r as Record<string, unknown>)[name]]))).sort((a, b) => String(a.fromPattern).localeCompare(String(b.fromPattern)));
+  const copied = await target.repo.list({ workspaceId: WORKSPACE_ID });
+  assert.deepEqual(pick(copied), pick(await source.repo.list({ workspaceId: WORKSPACE_ID })));
+  const existing = await config.find({ ports: target, workspaceId: WORKSPACE_ID, id: "exact:/x" });
+  await config.write({ ports: target, workspaceId: WORKSPACE_ID, id: "exact:/x", state: { ...packed[1]!.state, toTarget: "/z" }, existing, principalId: "p1" });
+  const after = await target.repo.list({ workspaceId: WORKSPACE_ID });
+  assert.deepEqual(after.map((r) => r.id).sort(), copied.map((r) => r.id).sort());
+  assert.equal(after.find((r) => r.fromPattern === "/x")?.toTarget, "/z");
+});

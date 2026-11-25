@@ -26,6 +26,39 @@ function ignoredThemeWatchPath({ filename }: { filename: string | null }, _optio
   );
 }
 
+/** Debounces change events: one refresh per settled burst, cancellable, never throwing into the event callback. */
+function createSettledRefresh(
+  { themesDir, refresh: refreshThemes, settleMs, onError }: {
+    themesDir: string;
+    refresh: (required: { themesDir: string }) => void;
+    settleMs: number;
+    onError: (input: { error: unknown }) => void;
+  },
+  _optional = {},
+): { schedule(): void; cancel(): void } {
+  let pending: ReturnType<typeof setTimeout> | undefined;
+
+  /** Refresh loaded source maps as well as roster membership; nested edits evade the fingerprint. */
+  // No `closed` check here: `pending` is this refresh's only scheduler, and every path that sets
+  // `closed` (stop(), reached from replacement, watch errors and open failures) clears `pending`
+  // synchronously first, so a refresh never runs after close.
+  const refresh = (): void => {
+    pending = undefined;
+    try {
+      refreshThemes({ themesDir });
+    } catch (error) { onError({ error }); }
+  };
+
+  return {
+    schedule() {
+      clearTimeout(pending);
+      pending = setTimeout(refresh, settleMs);
+      pending.unref();
+    },
+    cancel() { clearTimeout(pending); },
+  };
+}
+
 export function createThemeWatcher(
   { onError: defaultOnError }: { onError: (input: { error: unknown }) => void },
   _optional: Record<string, never> = {},
@@ -56,38 +89,25 @@ export function createThemeWatcher(
   ): { stop(): Promise<void> } {
     stopActiveWatcher?.();
     let closed = false;
-    let pending: ReturnType<typeof setTimeout> | undefined;
+    const settle = createSettledRefresh({ themesDir: required.themesDir, refresh: required.refresh, settleMs, onError });
     let watcher: { close(): void } | undefined;
 
     /** A stale handle must never close a replacement site's watcher. */
     const stop = (): void => {
       if (closed) return;
       closed = true;
-      clearTimeout(pending);
+      settle.cancel();
       watcher?.close();
       if (stopActiveWatcher === stop) stopActiveWatcher = undefined;
     };
     stopActiveWatcher = stop;
-
-    /** Refresh loaded source maps as well as roster membership; nested edits evade the fingerprint. */
-    // No `closed` check here: `pending` is this refresh's only scheduler, and every path that sets
-    // `closed` (stop(), reached from replacement, watch errors and open failures) clears `pending`
-    // synchronously first, so a refresh never runs after close.
-    const refresh = (): void => {
-      pending = undefined;
-      try {
-        required.refresh({ themesDir: required.themesDir });
-      } catch (error) { onError({ error }); }
-    };
 
     try {
       watcher = watchPort.open({
         themesDir: required.themesDir,
         onChange: ({ filename }, _optional = {}) => {
           if (closed || ignoredThemeWatchPath({ filename })) return;
-          clearTimeout(pending);
-          pending = setTimeout(refresh, settleMs);
-          pending.unref();
+          settle.schedule();
         },
         onError: ({ error }, _optional = {}) => { stop(); onError({ error }); },
       });
