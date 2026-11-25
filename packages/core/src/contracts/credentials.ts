@@ -1,5 +1,5 @@
 /** @agent-note Types only. The runtime parts come from the host; this area usually from `@jini-ai/agent-plugins`. */
-import type { SealedSecret, SecretSealerPort, VaultPutRecord, VaultRepoPort } from "./vault.js";
+import type { KeyringPort, SealedSecret, SecretSealerPort, VaultPutRecord, VaultRepoPort } from "./vault.js";
 
 
 
@@ -57,15 +57,11 @@ export interface CredentialSetTokenHint {
   last4: string | null;
 }
 
-/** @agent-note The store keyring as credential-set hosts supply it: zero-argument `activeKey`. A keyring
- *  whose `activeKey` takes the vault port's required options argument (`KeyringPort`) does NOT
- *  satisfy it directly; the host adapts it (`activeKey: () => keyring.activeKey({})`). Only key
+/** @agent-note The store keyring as credential-set hosts supply it: the vault contract's `KeyringPort`
+ *  itself (one owner, `./vault/ports`), so a host passes its one keyring object here unadapted and
+ *  calls `activeKey({})`. A zero-argument redeclaration here split the two (XM-01/PK-02). Only key
  *  handles cross this port, never key bytes. */
-export interface CredentialSetKeyringPort {
-  activeKey(): Promise<{ readonly keyId: string }>;
-  deriveSigningSecret(input: { workspaceId: string; subscriptionId: string; version: number }): Promise<Uint8Array>;
-  derive(input: { workspaceId: string; purpose: string; info: string }): Promise<Uint8Array>;
-}
+export type CredentialSetKeyringPort = KeyringPort;
 
 /** @agent-note The secret half a caller supplies. Only `token` is sealed; `username` is plaintext
  *  account metadata that the store keeps in row metadata, never inside the sealed payload. */

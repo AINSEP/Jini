@@ -585,7 +585,7 @@
  "./secrets": {
   "types": "./dist/secrets/index.d.ts",
   "symbols": {
-   "KeyringPort": "interface:58c784efa7",
+   "KeyringPort": "type:858529ecb5",
    "RootKeyHandle": "interface:15ff237d9b",
    "SealedSecret": "interface:65de776c39",
    "SecretSealerPort": "interface:c780d79e6b"
