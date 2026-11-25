@@ -743,7 +743,8 @@
       "./screens/plugins/PluginPackageFilesModal": "browser",
       "./screens/plugins/rules-context": "browser",
       "./shell/components/AssistantDock/OverflowAwareMcpUiSurfaceCard": "browser",
-      "./shell/components/AssistantDock/hooks/run-context.hooks": "browser"
+      "./shell/components/AssistantDock/hooks/run-context.hooks": "browser",
+      "./shell/components/AssistantDock/hooks/assistant-transport.hooks": "browser"
     },
     "isolation": {
       "shared": [
@@ -1042,7 +1043,8 @@
         "./screens/plugins/PluginPackageFilesModal": "browser",
         "./screens/plugins/rules-context": "browser",
         "./shell/components/AssistantDock/OverflowAwareMcpUiSurfaceCard": "browser",
-        "./shell/components/AssistantDock/hooks/run-context.hooks": "browser"
+        "./shell/components/AssistantDock/hooks/run-context.hooks": "browser",
+        "./shell/components/AssistantDock/hooks/assistant-transport.hooks": "browser"
       }
     },
     "optionalPeers": {
@@ -4637,6 +4639,11 @@
       "types": "./dist/shell/components/AssistantDock/hooks/run-context.hooks.d.ts",
       "import": "./dist/shell/components/AssistantDock/hooks/run-context.hooks.js",
       "default": "./dist/shell/components/AssistantDock/hooks/run-context.hooks.js"
+    },
+    "./shell/components/AssistantDock/hooks/assistant-transport.hooks": {
+      "types": "./dist/shell/components/AssistantDock/hooks/assistant-transport.hooks.d.ts",
+      "import": "./dist/shell/components/AssistantDock/hooks/assistant-transport.hooks.js",
+      "default": "./dist/shell/components/AssistantDock/hooks/assistant-transport.hooks.js"
     }
   },
   "files": [

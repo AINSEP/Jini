@@ -99,7 +99,7 @@ export interface KitDaemonAttachmentUploaderOptions {
 export interface FrontendSessionBridge {
   readonly bridgeAccess: KitChatPaneAgentBridgeAccess;
   readonly ready: Promise<{ sessionId: string; bindToken: string }>;
-  rebind(required?: { signal?: AbortSignal }, optional?: Record<string, never>): Promise<{ sessionId: string; bindToken: string }>;
+  rebind(required?: { signal?: AbortSignal | undefined }, optional?: Record<string, never>): Promise<{ sessionId: string; bindToken: string }>;
   bindToken(): string | undefined;
   close(): void;
 }
