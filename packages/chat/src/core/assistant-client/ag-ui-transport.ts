@@ -336,9 +336,16 @@ async function startRun(
   const durable = ports.durableLocalCli && start ? durableTurn({ binding: ports.durableLocalCli, start, acceptedRuns, input }) : undefined;
   const turn: AgUiRunTurn = { runId, agent, signal: input.signal, abort, handlers, collected: [], agents, settled: false, ...(durable ? { durable } : {}) };
   const state = createAgUiToAgentTranslationState({ customEventNames: ports.customEventNames }, {});
+  return subscribeRun({ turn, runAgentInput: requestBody({ input, runId, threadId, resume, durable }), state, ports });
+}
+
+/** The wire request: the delivery segment's own body, projected by the durable binding when present. */
+function requestBody(
+  { input, runId, threadId, resume, durable }: { input: StartRunInput; runId: string; threadId: string; resume: { parentRunId: string; resume: NonNullable<RunAgentInput["resume"]> } | undefined; durable: DurableTurn | undefined },
+  _optional: Record<string, never> = {},
+): RunAgentInput {
   const wire: RunAgentInput = { ...toRunAgentInput({ input, runId, threadId }), ...(resume ? { parentRunId: resume.parentRunId, resume: resume.resume } : {}) };
-  const runAgentInput = durable ? durable.binding.prepareRunInput({ input, wire, launch: durable.start.launch }, {}) : wire;
-  return subscribeRun({ turn, runAgentInput, state, ports });
+  return durable ? durable.binding.prepareRunInput({ input, wire, launch: durable.start.launch }, {}) : wire;
 }
 
 /** Durable state for one start. Only the explicit cancel signal is Stop; the detach signal (`signal`)
@@ -393,6 +400,7 @@ export function createAgUiRunClient({ ports }: { ports: AgUiClientPorts }, _opti
       const entry = acceptedRuns.get(runId);
       if (entry && binding) return cancelAcceptedOnce({ entry, binding });
       agents.get(runId)?.abortRun();
+      return undefined;
     },
   };
 }

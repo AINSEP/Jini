@@ -314,9 +314,10 @@ describe("durable AG-UI Local CLI binding", () => {
     detach.abort();
     expect(agents[0]!.abortRun).toHaveBeenCalledTimes(1);
     expect(binding.cancelAcceptedRun).not.toHaveBeenCalled();
-    // Explicit Stop, through both the cancel signal and ChatTransport.stopRun, cancels once.
-    stop.abort();
+    // Explicit Stop, through ChatTransport.stopRun and then the cancel signal, cancels once.
     await client.stopAgUiRun({ runId: "run-canon" });
+    expect(binding.cancelAcceptedRun).toHaveBeenCalledTimes(1);
+    stop.abort();
     expect(binding.cancelAcceptedRun).toHaveBeenCalledTimes(1);
     expect(binding.cancelAcceptedRun).toHaveBeenCalledWith({ runId: "run-canon", messageId: "a-1", conversationId: "conv-1" }, {});
     expect(client.isAcceptedAgUiRun?.({ runId: "run-canon" })).toBe(true);
@@ -332,9 +333,12 @@ describe("durable AG-UI Local CLI binding", () => {
     expect(binding.cancelAcceptedRun).not.toHaveBeenCalled();
     agents[0]!.observer!.next({ type: EventType.RUN_STARTED, threadId: "conv-1", runId: "run-canon" });
     await expect(started).resolves.toEqual({ runId: "run-canon" });
-    await client.stopAgUiRun({ runId: "run-canon" });
+    // Acceptance won the race: the latched Stop cancels that accepted run itself.
     expect(binding.cancelAcceptedRun).toHaveBeenCalledTimes(1);
     expect(binding.cancelAcceptedRun).toHaveBeenCalledWith({ runId: "run-canon", messageId: "a-1", conversationId: "conv-1" }, {});
+    // The orphaned-generation stopRun that follows does not cancel a second time.
+    await client.stopAgUiRun({ runId: "run-canon" });
+    expect(binding.cancelAcceptedRun).toHaveBeenCalledTimes(1);
     expect(created).toHaveLength(1);
     expect(agents[0]!.inputs).toHaveLength(1);
     expect(binding.prepareRunInput).toHaveBeenCalledTimes(1);
