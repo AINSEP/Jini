@@ -39,9 +39,10 @@ it('binds the Codex plugin policy of its runtime onto a raw registry definition,
 
 it('names the host env variables of the bound state', () => {
   const { port, state } = bound();
-  expect(port.launch.hostEnvNames()).toEqual(['AGENT_RUNTIME_HOME', 'AGENT_RUNTIME_RESOURCE_ROOT']);
+  // The state's own names, then the env keys the bound CLI strategies read (K01/K02: the daemon no longer lists them).
+  expect(port.launch.hostEnvNames()).toEqual(['AGENT_RUNTIME_HOME', 'AGENT_RUNTIME_RESOURCE_ROOT', 'VELA_OPENCODE_BIN', 'CLAUDE_CONFIG_DIR']);
   state.executable.envNames.agentHomeEnvVar = 'HOST_HOME';
-  expect(port.launch.hostEnvNames()).toEqual(['HOST_HOME', 'AGENT_RUNTIME_RESOURCE_ROOT']);
+  expect(port.launch.hostEnvNames()).toEqual(['HOST_HOME', 'AGENT_RUNTIME_RESOURCE_ROOT', 'VELA_OPENCODE_BIN', 'CLAUDE_CONFIG_DIR']);
 });
 
 it('applies the launch env with the given path dirs, object arguments intact', () => {
