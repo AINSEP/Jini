@@ -339,7 +339,8 @@ export function htmlAttributesToRows({ text }: { text: string | undefined }, _op
     const skipped = source.slice(consumed, match.index).trim();
     if (skipped !== "") rows.push({ name: skipped, value: "" });
     consumed = match.index + match[0].length;
-    rows.push({ name: match[1] ?? "", // group 1 always participates in a match; the fallback only satisfies indexed-access typing value: decodeAttributeValue({ value: match[2] ?? match[3] ?? match[4] ?? "" }) });
+    // Group 1 always participates in a match; the fallback only satisfies indexed-access typing.
+    rows.push({ name: match[1] ?? "", value: decodeAttributeValue({ value: match[2] ?? match[3] ?? match[4] ?? "" }) });
   }
   const trailing = source.slice(consumed).trim();
   if (trailing !== "") rows.push({ name: trailing, value: "" });
