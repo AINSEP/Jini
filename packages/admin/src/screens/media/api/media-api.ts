@@ -1,6 +1,7 @@
 import { BASE, WORKSPACE_ID } from "@jini-ai/admin/shell/lib/admin-http/config";
 import { querySuffix } from "@jini-ai/core/admin-runtime";
 import type { AdminMedia } from "@jini-ai/core/contracts/site/cms-admin-media";
+import type { MediaUploadResult } from "@jini-ai/core/contracts/site/cms-media";
 import type { MediaProviderCredentials } from "../../../react/kit-media-providers.js";
 import type { MediaProviderFields } from "@jini-ai/ui/core";
 import type { CredentialTokenHint } from "@jini-ai/core/contracts/site/secrets-credential-token";
@@ -101,7 +102,7 @@ export function createMediaApi({ request, siteUrl }: MediaApiDeps, _optional: Re
       input: { url: string },
       options: { filename?: string; alt?: string; caption?: string; credit?: string } = {}
     ) =>
-      request<{ media: AdminMedia }>({ path: `/workspaces/${WORKSPACE_ID}/media/import-url` }, { init: {
+      request<MediaUploadResult<AdminMedia>>({ path: `/workspaces/${WORKSPACE_ID}/media/import-url` }, { init: {
         method: "POST",
         body: JSON.stringify({ ...input, ...options }),
       } }),
@@ -109,7 +110,7 @@ export function createMediaApi({ request, siteUrl }: MediaApiDeps, _optional: Re
       input: { filename: string; contentType: string; dataBase64: string },
       options: { alt?: string; caption?: string; credit?: string } = {}
     ) =>
-      request<{ media: AdminMedia }>({ path: `/workspaces/${WORKSPACE_ID}/media` }, { init: {
+      request<MediaUploadResult<AdminMedia>>({ path: `/workspaces/${WORKSPACE_ID}/media` }, { init: {
         method: "POST",
         body: JSON.stringify({ ...input, ...options }),
       } }),
