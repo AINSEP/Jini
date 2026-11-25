@@ -57,3 +57,15 @@ it("keeps all 21 locales in their original order after the split", () => {
     "pl", "hu", "fr", "uk", "tr", "th", "it", "hi", "ur", "bn",
   ]);
 });
+
+// Why: the Routines panel's nav label is keyed by its English text, so a locale missing the key
+// would silently show English in a translated sidebar. Every locale must carry its own wording.
+it("translates the Routines nav label in every locale, never falling back to the English key", () => {
+  const untranslated = Object.keys(ADMIN_NAV_DICT).filter((locale) => {
+    const label = translateAdminNavLabel({ locale, key: "Routines" });
+    return label === "Routines" || label.trim() === "";
+  });
+  expect(untranslated).toEqual([]);
+  expect(translateAdminNavLabel({ locale: "de", key: "Routines" })).toBe("Routinen");
+  expect(translateAdminNavLabel({ locale: "xx", key: "Routines" })).toBe("Routines");
+});
