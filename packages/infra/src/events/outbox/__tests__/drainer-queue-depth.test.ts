@@ -11,10 +11,12 @@ test('samples the durable depth after each drain without changing settlement', a
     const f = fixture([]);
     f.outbox.claimPending.mockImplementation(async () => pending.splice(0, 1));
     let drain!: () => void;
-    const schedule = vi.fn(({ callback }: { callback: () => void }) => {
-      drain = callback;
+    // Delivery also schedules its own timeout timer; only zero-delay loop ticks are drains here.
+    const schedule = vi.fn(({ delayMs, callback }: { delayMs: number; callback: () => void }) => {
+      if (delayMs === 0) drain = callback;
       return { cancel: vi.fn() };
     });
+    const drainTicks = () => schedule.mock.calls.filter(([call]) => call.delayMs === 0).length;
     f.args.scheduler = { schedule };
     const readDepth = vi.fn(async () => pending.length);
     if (rejectFirst) readDepth.mockRejectedValueOnce(new Error('sample unavailable'));
@@ -25,7 +27,7 @@ test('samples the durable depth after each drain without changing settlement', a
       drain();
       await vi.advanceTimersByTimeAsync(0);
       expect(f.outbox.markDelivered).toHaveBeenCalledTimes(i + 1);
-      expect(schedule).toHaveBeenCalledTimes(i + 2);
+      expect(drainTicks()).toBe(i + 2);
     }
     expect(metric.mock.calls).toEqual((rejectFirst ? [0] : [1, 0]).map(value => [
       { name: 'outbox.queue_depth', value }, { kind: 'gauge' },

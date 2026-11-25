@@ -477,6 +477,13 @@
    "waitForReachableDeploymentUrl": "function:adbaed2eb7"
   }
  },
+ "./deploy/admin-http/site-update-status": {
+  "types": "./dist/deploy/admin-http/site-update-status.d.ts",
+  "symbols": {
+   "SiteUpdateStatusRouteDeps": "interface:e9b6cae781",
+   "siteUpdateStatusRoute": "variable:5387455064"
+  }
+ },
  "./deploy/node": {
   "types": "./dist/deploy/node.d.ts",
   "symbols": {
@@ -493,6 +500,13 @@
   "symbols": {
    "PublishRunResult": "function:d70d98c179",
    "PublishRunResultProps": "interface:fa67bd1211"
+  }
+ },
+ "./deploy/react/site-update-notice": {
+  "types": "./dist/deploy/react/SiteUpdateNotice.d.ts",
+  "symbols": {
+   "SiteUpdateNotice": "function:058d514278",
+   "SiteUpdateNoticeProps": "interface:680f42a224"
   }
  },
  "./deploy/site/agent-tools": {

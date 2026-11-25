@@ -1992,7 +1992,9 @@
   "symbols": {
    "ArtifactStorePort": "interface:bb2dc3636a",
    "ArtifactUpload": "interface:e688309feb",
-   "DeployTargetCredential": "type:ab3baf1da1"
+   "DeployTargetCredential": "type:ab3baf1da1",
+   "SiteUpdateAvailability": "type:8a7455413c",
+   "SiteUpdateStatusReply": "type:7b654b155e"
   }
  },
  "./contracts/site/diagnostics-domain-dns": {
