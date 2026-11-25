@@ -617,8 +617,8 @@ Source evidence is the current export map, barrels and linked declarations. `./w
 
 | Export | Current signature / return | Consumer dependencies |
 |---|---|---|
-| `computePurgeAfter` | `({ at: string, retentionDays: number }): string` | Explicit policy/time |
-| `createTrashService` | `(deps: TrashServiceDeps, optional: TrashServiceOptional = {}): TrashPort` | repo/adapters/idGen/retentionDays/entityPolicy/transaction |
+| `computePurgeAfter` | `({ at: string }, { retentionDays: number }): string` — `retentionDays` required, no engine default (a missing window throws `RangeError`) | Explicit host policy/time |
+| `createTrashService` | `(deps: TrashServiceDeps, options: TrashServiceOptions): TrashPort` — `TrashServiceOptions = TrashRetentionPolicy & TrashServiceOptional`; `retentionDays` is REQUIRED (compile error if omitted; `RangeError` for untyped callers). There is no engine retention default: the host owns one value and injects it at every call | repo/adapters/idGen/entityPolicy/transaction + host-injected retentionDays |
 | `bindRemoveEntity` | `({ trash, entityType }): RemoveEntity` | Service and entity type |
 | `bindForgetRemovedEntity` | `({ repo, entityType }): ForgetRemovedEntity` | Index cleanup port |
 | `createTrashSweep` | `(deps: TrashSweepDeps): TrashSweepOnce` | repo/adapters/transaction/entityPolicy |
@@ -651,8 +651,9 @@ Type exports include all named trash types above, plus TrashEntityType, TrashIte
 ```ts
 import { createTrashService, InMemoryTrashRepo } from '@jini-ai/cms/trash';
 const trash = createTrashService({ repo: new InMemoryTrashRepo({}), adapters: hostTrashAdapters,
-  idGen: { next: () => crypto.randomUUID() }, retentionDays: 30,
-  entityPolicy: ({ entityType }) => entityType === 'document', transaction: hostTransaction }, {});
+  idGen: { next: () => crypto.randomUUID() },
+  entityPolicy: ({ entityType }) => entityType === 'document', transaction: hostTransaction },
+  { retentionDays: HOST_TRASH_RETENTION_DAYS }); // host-owned; the engine has no default
 await trash.list({ workspaceId: 'tenant-a', now: new Date().toISOString(), limit: 20 }, {});
 ```
 
@@ -689,7 +690,6 @@ These names are also reachable through the current export map. Parameter declara
 | `ContentTypeAlreadyExistsError`, `ContentTypeLifecycleError`, `ContentTypeNotFoundError`, `ForbiddenError`, `InvalidFieldKindError`, `InvalidFieldNameGrammarError`, `InvalidFieldShapeError`, `InvalidKeyGrammarError`, `QueryableFieldCapExceededError`, `ReservedContentTypeKeyError`, `StorageOnlyFieldNotQueryableError`, `ValidationError`, `VersionConflictError` | class; [errors.ts](../../src/content-types/errors.ts) |
 | `ContentTypeMismatchError`, `HierarchyCycleDetectedError`, `ParentCrossTaxonomyError`, `TaxonomyNotApplicableError`, `TaxonomyNotHierarchicalError`, `TermNotFoundError`, `WorkspaceMismatchError` | class; [validation-chain.ts](../../src/taxonomy/validation-chain.ts) |
 | `ContentTypeNotActiveError`, `EntryFieldValidationError`, `EntryNotFoundError`, `EntrySlugConflictError` | class; [errors.ts](../../src/entries/errors.ts) |
-| `DEFAULT_TRASH_RETENTION_DAYS` | const; [write-service.ts](../../src/trash/write-service.ts) |
 | `DuplicateCommandError` | class; [command.ts](../../src/core/commands/command.ts) |
 | `EntityNotLiveError` | class; [entity-liveness.ts](../../src/core/entity-liveness.ts) |
 | `ImageSourceCorruptError`, `ImageTransformUnavailableError` | class; [image-transformer.sharp.ts](../../src/media/image-transformer.sharp.ts) |

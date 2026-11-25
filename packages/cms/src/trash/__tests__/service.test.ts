@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "vitest";
 import { harness, removal, WS, AT, ACTOR, ALLOW_ALL } from "./fixture.js";
 import { createTrashService, computePurgeAfter, bindRemoveEntity, bindForgetRemovedEntity, TrashAdapterMissingError, type TrashChangeEvent } from "../write-service.js";
+const TRASH_RETENTION_DAYS = 30; // the host-injected window; the engine has no default
 
 // Generalized from trash.contract, prior-marker.contract and on-changed.contract suites.
 test("hide and restore never parse or rewrite the entity payload; listing uses the snapshot", async () => {
@@ -139,7 +140,7 @@ test("retention and entity policy are host-owned and evaluated at the operation"
   assert.equal(h.repo.all({})[0]!.purgeAfter, "2026-09-22T12:00:00.000Z");
   assert.equal((await short.list({ workspaceId: WS, now: "2026-09-22T12:00:00.000Z", limit: 10 })).items.length, 0);
   assert.equal(computePurgeAfter({ at: AT }, { retentionDays: 60 }), "2026-11-19T12:00:00.000Z");
-  const denied = createTrashService({ ...h.deps, entityPolicy: () => false });
+  const denied = createTrashService({ ...h.deps, entityPolicy: () => false }, { retentionDays: TRASH_RETENTION_DAYS });
   await assert.rejects(() => denied.trash(removal), TrashAdapterMissingError);
   assert.throws(() => computePurgeAfter({ at: "invalid" }, { retentionDays: 60 }), RangeError);
 });
@@ -157,7 +158,7 @@ test("authorized missing-domain purge remains adapter-unavailable with a deny po
   const h = harness();
   await h.trash.trash(removal);
   h.adapters.clear();
-  const trash = createTrashService({ ...h.deps, entityPolicy: () => false });
+  const trash = createTrashService({ ...h.deps, entityPolicy: () => false }, { retentionDays: TRASH_RETENTION_DAYS });
   const denied = await trash.purgeSelected({ workspaceId: WS, ids: ["trash-1"], actor: ACTOR, authorizeItem: async () => false });
   assert.deepEqual(denied.results, [{ id: "trash-1", outcome: "forbidden" }]);
   const allowed = await trash.purgeSelected({ workspaceId: WS, ids: ["trash-1"], actor: ACTOR, authorizeItem: async () => true });
@@ -201,7 +202,7 @@ test("restore maps an adapter not-found to not-found and any other refusal to ve
 test("purgeSelected reports forbidden when the entity policy no longer allows the row's installed type", async () => {
   const h = harness();
   await h.trash.trash(removal);
-  const trash = createTrashService({ ...h.deps, entityPolicy: () => false });
+  const trash = createTrashService({ ...h.deps, entityPolicy: () => false }, { retentionDays: TRASH_RETENTION_DAYS });
 
   assert.deepEqual(
     await trash.purgeSelected({ workspaceId: WS, ids: ["trash-1"], actor: ACTOR, authorizeItem: ALLOW_ALL }),

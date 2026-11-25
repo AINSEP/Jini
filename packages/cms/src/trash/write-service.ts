@@ -71,8 +71,6 @@ async function notifyChanged(optional: TrashServiceOptional, event: TrashChangeE
 
 /** Notifications are best effort inside the operation; transactional follow-ups use withFollowUps. */
 export interface TrashServiceOptional {
-  /** Retention is stamped once when removed; defaults to 60 days. */
-  retentionDays?: number;
   /**
    * Fires inside the same transaction after successful marker/index changes. Hosts may stamp a
    * recovery watermark and enqueue an outbox event here; per-type revisions/events use follow-ups.
@@ -82,6 +80,19 @@ export interface TrashServiceOptional {
   onError?: (required: { error: unknown; }) => void;
 }
 
+/**
+ * The trash retention policy. There is NO engine default (owner decision G7-4): the window is one
+ * host-owned value, injected into every call, so a call site that forgets it fails to compile
+ * instead of silently stamping some other number.
+ */
+export interface TrashRetentionPolicy {
+  /** Days a removed entity stays restorable; stamped once into `purgeAfter` at removal. */
+  retentionDays: number;
+}
+
+/** `createTrashService`'s second argument: the required retention policy plus optional hooks. */
+export type TrashServiceOptions = TrashRetentionPolicy & TrashServiceOptional;
+
 /** A host composition error: fail fast rather than hide an entity that can never be restored. */
 export class TrashAdapterMissingError extends Error {
   constructor({ message }: { message: string; }, optional: { cause?: unknown; } = {}) {
@@ -89,20 +100,18 @@ export class TrashAdapterMissingError extends Error {
   }
 }
 
-/** Stamp retention once at removal; later policy changes cannot shorten an existing promise. */
-export const DEFAULT_TRASH_RETENTION_DAYS = 60;
-
 /**
- * `at` + {@link DEFAULT_TRASH_RETENTION_DAYS}, as an ISO timestamp.
+ * `at` + the host-injected `retentionDays`, as an ISO timestamp.
  *
- * Stamped at trash time, not computed at read time, so changing the constant later never
- * retroactively purges what a user was already promised.
+ * Stamped at trash time, not computed at read time, so a host changing its window later never
+ * retroactively purges what a user was already promised. No default: the host owns the window.
  *
  * @complexity O(1).
  */
-export function computePurgeAfter({ at }: { at: string; }, optional: { retentionDays?: number; } = {}): string {
-  const retentionDays = optional.retentionDays ?? DEFAULT_TRASH_RETENTION_DAYS;
-  if (!Number.isFinite(retentionDays) || retentionDays < 0) throw new RangeError("trash retentionDays must be non-negative and finite");
+export function computePurgeAfter({ at }: { at: string; }, policy: TrashRetentionPolicy): string {
+  // Also guards untyped callers: a missing policy or window is `undefined`, which is not a number.
+  const retentionDays = policy?.retentionDays;
+  if (typeof retentionDays !== "number" || !Number.isFinite(retentionDays) || retentionDays < 0) throw new RangeError("trash retentionDays must be non-negative and finite");
   const base = new Date(at);
   if (Number.isNaN(base.getTime())) {
     throw new RangeError(`trash: 'at' is not a parseable timestamp (received ${JSON.stringify(at)})`);
@@ -314,11 +323,14 @@ function createPurgeHandlers(deps: TrashServiceDeps, optional: TrashServiceOptio
  * Builds the Trash service.
  *
  * @param deps repo, the call-time adapter map, an id generator and a reentrant transaction runner.
+ * @param options the host-injected `retentionDays` (required; no engine default) plus optional hooks.
  * @returns the {@link TrashPort} surface. `purgeSelected` requires host-owned human confirmation and per-row authorization.
  * @complexity O(1) to build.
  */
-export function createTrashService(deps: TrashServiceDeps, optional: TrashServiceOptional = {}): TrashPort {
-  const retentionDays = optional.retentionDays ?? DEFAULT_TRASH_RETENTION_DAYS;
+export function createTrashService(deps: TrashServiceDeps, options: TrashServiceOptions): TrashPort {
+  // Untyped callers: fail as loudly as a missing window does, not with a destructuring TypeError.
+  if (options == null) throw new RangeError("trash retentionDays is required: the host owns the retention window");
+  const { retentionDays, ...optional } = options;
   computePurgeAfter({ at: "2000-01-01T00:00:00.000Z" }, { retentionDays });
 
   return {

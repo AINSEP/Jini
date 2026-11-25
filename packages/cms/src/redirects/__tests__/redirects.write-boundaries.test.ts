@@ -24,6 +24,7 @@ import {
 import { contributeRedirectPublish, type RedirectRepoPublishConfig } from "../site/publish-content.js";
 import { RedirectConflictError, RedirectLoopError, RedirectNotFoundError, RedirectValidationError } from "../types.js";
 import type { RedirectRecord } from "../types.js";
+const TRASH_RETENTION_DAYS = 30; // the host-injected window; the engine has no default
 
 /**
  * @file Boundary pins for the write chokepoint's less-travelled arms: the site-relative refusal
@@ -397,7 +398,7 @@ function makeDepsWithRealTrash(repo: InMemoryRedirectRepo): { deps: RedirectsWri
   const trash = createTrashService({
     repo: trashRepo, adapters, idGen: { newId: () => `trash-${++trashIds}` },
     transaction: ({ work }) => work(), entityPolicy: ({ entityType }) => adapters.has(entityType),
-  });
+  }, { retentionDays: TRASH_RETENTION_DAYS });
   const isTrashed = async (id: string) =>
     (await trashRepo.findByEntity({ workspaceId: WORKSPACE_ID, entityType: REDIRECT_ENTITY_TYPE, entityId: id })) !== null;
   const deps: RedirectsWriteDeps = {
