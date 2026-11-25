@@ -35,7 +35,7 @@ for (const restartRequired of [true, false]) {
     const trace: unknown[] = [];
     let sequence = 0;
     const hooks = buildRestoreHooks({
-      workspaceId: "site", actorId: "operator", restorePointId: "point", clock,
+      workspaceId: "site", actorId: "operator", actor: { id: "operator", kind: "user" }, restorePointId: "point", clock,
       idGen: { newId: () => `id-${++sequence}` },
       planHashOf: ({ details }) => {
         assert.deepEqual(details, { restorePointId: "point" });
@@ -60,7 +60,7 @@ for (const restartRequired of [true, false]) {
     assert.deepEqual(trace, [
       ["restore", { artifactRef: "/snapshots/point.db" }],
       ["ledger", { id: "id-2", kind: "restore.executed", restorePointId: "point", outcome: "success",
-        detailJson: JSON.stringify({ restoreRunId: "id-1", restartRequired }), actorWorkspaceId: "site", actorId: "operator", createdAt: "2026-10-07T00:00:00.000Z" }],
+        detailJson: JSON.stringify({ restoreRunId: "id-1", restartRequired, actor: { id: "operator", kind: "user" } }), actorWorkspaceId: "site", actorId: "operator", createdAt: "2026-10-07T00:00:00.000Z" }],
       ["resolved", { id: "interrupted" }],
       ...(restartRequired ? [] : [["status", "site", "SERVING"]]),
     ]);

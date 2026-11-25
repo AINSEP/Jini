@@ -16,6 +16,7 @@ function hooksFor(points: Array<{ id: string; createdAt: string; artifactRef: st
   const input: BuildRestoreHooksInput = {
     workspaceId: "site",
     actorId: "operator",
+    actor: { id: "operator", kind: "user" },
     restorePointId: "rp1",
     clock: { nowMs: () => 0 },
     idGen: { newId: () => "id" },
