@@ -12,8 +12,9 @@ the host screen's own shapes (site key reveal, `/auth/me` permission read).
   implements `me()` over its own `/auth/me` client and passes that port to its permissions hook.
 - `Security.hooks.ts` (`navigateSecurityTab`): nothing injected; it keeps the selected tab in the
   access-tokens route's `?tab=` deep link through the shell router, replacing the history entry.
-- `hooks/other-credentials-port.hooks.ts` (`OtherCredentialsPort`) and `hooks/site-key-port.hooks.ts`
-  (`SiteKeyPort`): types only. The host implements them over its own API client and hands them to
-  its other-credentials and site-key hooks.
-- `copy-keys-dialog.css`: layout for the host's "use a saved key" dialog, under `jini-copy-keys-*`
-  classes. The host imports `@jini-ai/admin/security/host/copy-keys-dialog.css` from the dialog.
+- `hooks/other-credentials-port.hooks.ts` (`OtherCredentialsPort`): a type only. The host implements
+  it over its own API client and hands it to its other-credentials hook. The site-key port has one
+  owner, `SiteKeyPort` in `@jini-ai/core/contracts/site/site-key`; this package does not redeclare it.
+- `copy-keys-dialog.css`: layout for `CopyKeysDialog`'s `jini-copy-keys-*` classes (pinned by
+  `__tests__/copy-keys-dialog-css.test.tsx`). The host loads
+  `@jini-ai/admin/security/host/copy-keys-dialog.css` where it mounts the dialog.

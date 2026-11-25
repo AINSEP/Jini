@@ -48,7 +48,6 @@
       "./security/host/hooks/use-security-permissions.hooks": "browser",
       "./security/host/Security.hooks": "browser",
       "./security/host/hooks/other-credentials-port.hooks": "universal",
-      "./security/host/hooks/site-key-port.hooks": "universal",
       "./security/host/copy-keys-dialog.css": "browser",
       "./playground": "universal",
       "./playground/react": "browser",
@@ -1280,11 +1279,6 @@
       "types": "./dist/security/host/hooks/other-credentials-port.hooks.d.ts",
       "import": "./dist/security/host/hooks/other-credentials-port.hooks.js",
       "default": "./dist/security/host/hooks/other-credentials-port.hooks.js"
-    },
-    "./security/host/hooks/site-key-port.hooks": {
-      "types": "./dist/security/host/hooks/site-key-port.hooks.d.ts",
-      "import": "./dist/security/host/hooks/site-key-port.hooks.js",
-      "default": "./dist/security/host/hooks/site-key-port.hooks.js"
     },
     "./security/host/copy-keys-dialog.css": "./src/security/host/copy-keys-dialog.css",
     "./playground": {
