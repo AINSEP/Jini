@@ -1,6 +1,7 @@
 import { BASE, WORKSPACE_ID } from "@jini-ai/admin/shell/lib/admin-http/config";
 import { querySuffix } from "@jini-ai/core/admin-runtime";
-import type { AdminMedia } from "@jini-ai/core/contracts/site/cms-admin-media";
+import type { AdminMedia, MediaGridOrder, MediaGridPage, MediaGridTab } from "@jini-ai/core/contracts/site/cms-admin-media";
+import type { MediaProviderOption } from "@jini-ai/core";
 import type { MediaProviderCredentials } from "../../../react/kit-media-providers.js";
 import type { MediaProviderFields } from "@jini-ai/ui/core";
 import type { CredentialTokenHint } from "@jini-ai/core/contracts/site/secrets-credential-token";
@@ -49,6 +50,10 @@ function createMediaProviderCalls({ request }: Pick<MediaApiDeps, "request">, _o
      *  Bare map, not a `{ data }` envelope, matching `MediaProvidersPort.fetchMediaProviders`. */
     getMediaProviders: () =>
       request<AdminMediaProviderMap>({ path: `/workspaces/${WORKSPACE_ID}/media/providers` }),
+    /** The host's live, configurable provider cards (one per public provider, aliases merged), projected
+     *  from the registry generation uses. Vendor names, base URLs and model ids only — never keys. */
+    getMediaProviderCatalog: () =>
+      request<{ providers: MediaProviderOption[] }>({ path: `/workspaces/${WORKSPACE_ID}/media/providers/catalog` }),
     /** Merges ONE provider's editable fields into its stored credentials; no other provider is named,
      *  so another window's saved key cannot be undone. An omitted `apiKey` keeps the stored key. Resolves
      *  the authoritative markers map. Replaces the whole-map PUT, whose omissions deleted. */
@@ -64,6 +69,24 @@ function createMediaProviderCalls({ request }: Pick<MediaApiDeps, "request">, _o
   };
 }
 
+/** The paged library read, split out of {@link createMediaApi} so each stays short. */
+function createMediaGridCalls({ request }: Pick<MediaApiDeps, "request">, _optional: Record<string, never> = {}) {
+  return {
+    /** One bounded page of a tab in the server's order, or one exact asset (`itemId`, no cursor), with workspace-wide
+     *  counts. Never reads the whole library; `cursor` is the previous page's opaque `nextCursor`. */
+    listMediaGrid: (
+      view: { tab: MediaGridTab; orderBy: MediaGridOrder },
+      page: { limit?: number; cursor?: string; itemId?: string } = {},
+    ) => {
+      const query = new URLSearchParams({ tab: view.tab, orderBy: view.orderBy });
+      if (page.limit !== undefined) query.set("limit", String(page.limit));
+      if (page.cursor !== undefined) query.set("cursor", page.cursor);
+      if (page.itemId !== undefined) query.set("itemId", page.itemId);
+      return request<MediaGridPage>({ path: `/workspaces/${WORKSPACE_ID}/media/grid${querySuffix({ query: query.toString() })}` });
+    },
+  };
+}
+
 /** The admin API calls of the media feature, bound to the host's injected collaborators.
  *  @example const mediaApi = createMediaApi({ request, siteUrl }); */
 export function createMediaApi({ request, siteUrl }: MediaApiDeps, _optional: Record<string, never> = {}) {
@@ -71,6 +94,7 @@ export function createMediaApi({ request, siteUrl }: MediaApiDeps, _optional: Re
   return {
     listMedia: () => request<{ media: AdminMedia[] }>({ path: `/workspaces/${WORKSPACE_ID}/media` }),
     ...createMediaProviderCalls({ request }),
+    ...createMediaGridCalls({ request }),
     /** Byte-serving URL for an asset's original file (MSG-05) — authenticated, same-origin, so a
      *  plain `<img src>`/`<video src>` sends the session cookie automatically with no `crossorigin`
      *  attribute needed. Not wrapped in `request()` like the rest of this file's methods: callers
