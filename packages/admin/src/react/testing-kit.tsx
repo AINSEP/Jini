@@ -144,6 +144,13 @@ const fakeHooks: AdminKitHooks = {
     const [wrap, setWrap] = useState(false);
     return { wrap, toggleWrap: () => setWrap((w) => !w) };
   },
+  // A flat, always-expanded list: enough for rendering and click tests; a test of tree behaviour injects the real hook.
+  useAgentPluginFileTree: (r) => ({
+    rows: r.files.map((file, index) => ({ key: `file:${file.relativePath}`, name: file.relativePath.split('/').pop() ?? file.relativePath, path: file.relativePath,
+      depth: 1, setSize: r.files.length, posInSet: index + 1, expanded: undefined, selected: file.relativePath === r.selectedPath,
+      tabIndex: index === 0 ? 0 : -1, onClick: () => r.onOpen({ path: file.relativePath }), onFocus: () => {} })),
+    onKeyDown: () => {},
+  }),
   useInfoTip: () => {
     const iconRef = useRef<HTMLSpanElement | null>(null);
     const [open, setOpen] = useState(false);

@@ -23,7 +23,7 @@ import type { AdminPluginProviderSettingField } from '../screens/plugins/api/plu
 import type { ByokConfig, ExecutionConfig } from '@jini-ai/core/contracts/execution';
 import type { CreateExecutionPortOptions, CursorPages, ExecutionCredentialController, ExecutionCredentialEffects, ExecutionCredentialPort, ExecutionCredentialView,
   ExecutionProbeTransport, FolderPathDropPort, HtmlPreviewPort, HtmlPreviewState, KitSaveState, SettingsSlice, SettingsSliceOptions, SourceConfigItem, SourceFieldSpec,
-  UseExecutionCredentialInput, SecretInputProps, SeeMoreProps, SearchableModelSelectProps } from './kit-ui-types.js';
+  UseExecutionCredentialInput, SecretInputProps, SeeMoreProps, SearchableModelSelectProps, PackageFileTreeController, PackageFileTreeInput } from './kit-ui-types.js';
 import type { ExecutionPort, ProviderPreset } from '@jini-ai/core/contracts/execution';
 import type { QueryKey } from '@jini-ai/core/fetch';
 
@@ -317,6 +317,8 @@ export interface AdminKitHooks {
   useTabBarKeyboard(required: { tabs: readonly TabBarTab[]; activeId: string; onChange: (id: string) => void }, optional?: Record<string, never>): TabBarKeyboardHandlers;
   useSerialWrites(): SerialWrites;
   useCodeWrap(): CodeWrapController;
+  /** The package-files tree's expansion, focus and keys (the host's agent-plugins hook); `locale` orders siblings the way the host sorts. */
+  useAgentPluginFileTree(required: PackageFileTreeInput, optional?: { locale?: string | string[] | undefined }): PackageFileTreeController;
   useInfoTip(required?: Record<string, never>, optional?: { placement?: 'top' | 'bottom' | undefined }): InfoTipController;
   usePanelPosition(required: {
     open: boolean; triggerRef: RefObject<HTMLButtonElement | null>; panelRef: RefObject<HTMLDivElement | null>;
@@ -501,7 +503,7 @@ export type { AddSourceInput, AddSourceResult, CreateExecutionPortOptions, Curso
   HtmlPreviewPort, HtmlPreviewState, MemoryConfigFlagKey, MemoryEntrySummary, MemoryExtractionPhase, MemoryExtractionProvider, MemoryExtractionRecord,
   MemoryExtractionSkipReason, MemoryType, PrivacyConsentState, SecretInputProps, SearchableModelSelectProps, SeeMoreProps, SettingsRefreshScope, SettingsSlice, SettingsSliceOptions, SettingsSliceRefreshPort,
   SourceConfigDependencies, SourceConfigItem, SourceConfigPort, SourceConnectionStatus, SourceFieldKind, SourceFieldOption, SourceFieldSpec, SourceFieldValues,
-  SourceTestResult, SourceUpdateInput, TelemetryPreferences, UseExecutionCredentialInput } from './kit-ui-types.js';
+  SourceTestResult, SourceUpdateInput, TelemetryPreferences, UseExecutionCredentialInput, PackageFileTreeController, PackageFileTreeInput, PackageFileTreeRowView } from './kit-ui-types.js';
 /** The standing-draft autosave's port, controller and options (the UI library's panel-kit shapes). */
 export interface StandingDraftAutosavePort {
   getBackupPrincipalId?: (required: Record<string, never>, optional?: Record<string, never>) => string | null;
@@ -678,6 +680,7 @@ export function useSerialWrites(_required: Record<string, never> = {}, _optional
 export function useCodeWrap(_required: Record<string, never> = {}, _optional: Record<string, never> = {}): CodeWrapController {
   return useAdminKit().hooks.useCodeWrap();
 }
+export const useAgentPluginFileTree: AdminKitHooks['useAgentPluginFileTree'] = (r, o) => useAdminKit().hooks.useAgentPluginFileTree(r, o);
 export const useInfoTip: AdminKitHooks['useInfoTip'] = (r, o) => useAdminKit().hooks.useInfoTip(r, o);
 export const usePanelPosition: AdminKitHooks['usePanelPosition'] = (r, o) => useAdminKit().hooks.usePanelPosition(r, o);
 export const useSelectDropdown: AdminKitHooks['useSelectDropdown'] = (r, o) => useAdminKit().hooks.useSelectDropdown(r, o);

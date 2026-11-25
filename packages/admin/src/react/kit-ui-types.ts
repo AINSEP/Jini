@@ -5,7 +5,7 @@
  * own public types, nothing else imports this file. The execution contract itself lives in core and
  * is re-exported by name from `kit.tsx`, not restated here.
  */
-import type { InputHTMLAttributes, ReactNode } from 'react';
+import type { InputHTMLAttributes, KeyboardEvent, ReactNode } from 'react';
 import type { ExecutionCardAgent, ExecutionPort } from '@jini-ai/core/contracts/execution';
 import type { ByokConfig } from '@jini-ai/core/contracts/execution';
 
@@ -151,4 +151,20 @@ export interface SearchableModelSelectProps {
   testId?: string | undefined;
   searchInputTestId?: string | undefined;
   agentHandle?: string | false | undefined;
+}
+
+/* ---------- package-file tree ---------- */
+/** One visible row of the package-files tree: the ARIA positions and handlers a row spreads onto its element. `expanded` is set only on folders. */
+export interface PackageFileTreeRowView {
+  readonly key: string; readonly name: string; readonly path: string; readonly depth: number; readonly setSize: number; readonly posInSet: number;
+  readonly expanded: boolean | undefined; readonly selected: boolean | undefined; readonly tabIndex: number;
+  onClick(): void; onFocus(): void;
+}
+/** The tree's rows plus the key handler for its container: expansion, roving focus and keyboard navigation live behind the host's hook. */
+export interface PackageFileTreeController { readonly rows: readonly PackageFileTreeRowView[]; onKeyDown(event: KeyboardEvent<HTMLElement>): void }
+/** The files a tree is built from (only the paths matter) and the selection and open callback it reports through. */
+export interface PackageFileTreeInput {
+  readonly files: readonly { readonly relativePath: string; readonly sizeBytes: number; readonly content: string | null; readonly omitted: null }[];
+  readonly selectedPath: string | null;
+  onOpen(required: { path: string }, optional?: Record<string, never>): void;
 }

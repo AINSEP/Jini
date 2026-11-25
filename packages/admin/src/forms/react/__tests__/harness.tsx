@@ -69,6 +69,7 @@ const formsKit: AdminKit = {
     useTabBarKeyboard: () => { throw new Error('Forms tests do not supply useTabBarKeyboard'); },
     useSerialWrites: () => { throw new Error('Forms tests do not supply useSerialWrites'); },
     useCodeWrap: () => { throw new Error('Forms tests do not supply useCodeWrap'); },
+    useAgentPluginFileTree: () => { throw new Error('Forms tests do not supply useAgentPluginFileTree'); },
     useInfoTip: () => { throw new Error('Forms tests do not supply useInfoTip'); },
     usePanelPosition: () => { throw new Error('Forms tests do not supply usePanelPosition'); },
     useSelectDropdown: () => { throw new Error('Forms tests do not supply useSelectDropdown'); },

@@ -1,6 +1,6 @@
 import { useEffect, useRef, type RefObject } from "react";
 
-import { useFocusTrap } from "@jini-ai/ui/panel-kit";
+import { useFocusTrap } from "../../../react/kit.js";
 
 import type { AgentPluginDisableConfirmCopy, PluginRules } from "../rules.js";
 

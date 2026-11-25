@@ -66,9 +66,9 @@ export interface PluginRowProps {
 function PluginRowFacts({ plugin, t, usePluginRulesHook = usePluginRules }: { plugin: AdminPluginDto; t: Translate; usePluginRulesHook?: typeof usePluginRules }) {
   const { pluginRowFacts } = usePluginRulesHook();
   return (
-    <dl className="plugin-row-facts" role="group" aria-label={t("Plugin details")}>
+    <dl className="jini-plugin-row-facts" role="group" aria-label={t("Plugin details")}>
       {pluginRowFacts({ plugin, translate: t }).map((fact) => (
-        <div key={fact.label} className="plugin-row-fact">
+        <div key={fact.label} className="jini-plugin-row-fact">
           <dt>{fact.label}</dt>
           <dd>{fact.value}</dd>
         </div>
@@ -90,13 +90,13 @@ function PluginRowProblems({ plugin, t, usePluginRulesHook = usePluginRules }: {
   return (
     <>
       {view.quarantine ? (
-        <div className="plugin-errors">
+        <div className="jini-plugin-errors">
           <span className="save-error">{view.quarantine.headline}</span>
           <div>{view.quarantine.reason}</div>
         </div>
       ) : null}
       {view.conflicts ? (
-        <div className="plugin-errors">
+        <div className="jini-plugin-errors">
           <span className="save-error">{view.conflicts.heading}</span>
           <ul>
             {view.conflicts.lines.map((line) => (
@@ -106,7 +106,7 @@ function PluginRowProblems({ plugin, t, usePluginRulesHook = usePluginRules }: {
         </div>
       ) : null}
       {view.errors.length > 0 ? (
-        <ul className="plugin-errors">
+        <ul className="jini-plugin-errors">
           {view.errors.map((e) => (
             <li key={`${e.code}:${e.file ?? ""}:${e.message}`}>
               <span className="save-error">{e.code}</span> <span>{e.message}</span>
@@ -122,44 +122,44 @@ export function PluginRow({ plugin, t, expanded, onToggleExpanded, agentHandleBa
   const locale = useAdminLocaleHook();
   const detailId = useId();
   const headingId = useId();
-  const rowRef = hooks.usePluginRowFocus({ focused, summarySelector: ".plugin-row-summary" });
+  const rowRef = hooks.usePluginRowFocus({ focused, summarySelector: ".jini-plugin-row-summary" });
 
   return (
-    <li ref={rowRef} className="plugin-row" data-enabled={plugin.enabled} data-focused={focused || undefined} aria-label={plugin.name}>
-      <div className="plugin-row-main">
+    <li ref={rowRef} className="jini-plugin-row" data-enabled={plugin.enabled} data-focused={focused || undefined} aria-label={plugin.name}>
+      <div className="jini-plugin-row-main">
         <button
           type="button"
-          className="plugin-row-summary"
+          className="jini-plugin-row-summary"
           aria-expanded={expanded}
           aria-controls={detailId}
           aria-labelledby={headingId}
           onClick={onToggleExpanded}
           {...agentHandle({ handle: `${agentHandleBase}-details` }, { role: "button", label: `Show or hide the "${plugin.name}" plugin's details` })}
         >
-          <span className="plugin-row-glyph">
+          <span className="jini-plugin-row-glyph">
             <PluginPackageIcon size={18} />
           </span>
-          <span className="plugin-row-text">
-            <span className="plugin-row-heading" id={headingId}>
-              <span className="plugin-row-name">{plugin.name}</span>
+          <span className="jini-plugin-row-text">
+            <span className="jini-plugin-row-heading" id={headingId}>
+              <span className="jini-plugin-row-name">{plugin.name}</span>
               {/* The explicit `{" "}` is load-bearing, not formatting — same reasoning
                   `AgentPluginRow`'s own identical comment gives: this heading IS the summary
                   button's accessible name, and accessible-name computation concatenates adjacent
                   inline elements with no separator, which the flex `gap` cannot supply. */}
               {" "}
-              <span className="plugin-row-version">v{plugin.version}</span>
+              <span className="jini-plugin-row-version">v{plugin.version}</span>
             </span>
-            <span className="plugin-row-subline">{pluginMetadataLabel({ values: [plugin.source, plugin.tier, plugin.status], locale })}</span>
+            <span className="jini-plugin-row-subline">{pluginMetadataLabel({ values: [plugin.source, plugin.tier, plugin.status], locale })}</span>
           </span>
-          <span className="plugin-row-chevron">
+          <span className="jini-plugin-row-chevron">
             <PluginChevronIcon />
           </span>
         </button>
-        <div className="plugin-row-actions">
+        <div className="jini-plugin-row-actions">
           {onSettings ? (
             <button
               type="button"
-              className="plugin-settings-btn"
+              className="jini-plugin-settings-btn"
               onClick={onSettings}
               aria-label={`${t("Settings")} — ${plugin.name}`}
               {...agentHandle({ handle: `${agentHandleBase}-settings` }, { role: "button", label: `Open the "${plugin.name}" settings` })}
@@ -169,7 +169,7 @@ export function PluginRow({ plugin, t, expanded, onToggleExpanded, agentHandleBa
           ) : null}
           <button
             type="button"
-            className="plugin-icon-btn"
+            className="jini-plugin-icon-btn"
             onClick={onInspect}
             // Same accessible name as `AgentPluginRow`'s eye button: the label reads identically on
             // every row, so the plugin's own name has to be part of it.
@@ -181,7 +181,7 @@ export function PluginRow({ plugin, t, expanded, onToggleExpanded, agentHandleBa
           {action}
         </div>
       </div>
-      <div className="plugin-row-detail" id={detailId} hidden={!expanded}>
+      <div className="jini-plugin-row-detail" id={detailId} hidden={!expanded}>
         <PluginRowFacts plugin={plugin} t={t} />
         <PluginRowProblems plugin={plugin} t={t} />
       </div>

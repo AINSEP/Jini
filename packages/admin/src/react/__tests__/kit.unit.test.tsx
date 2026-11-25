@@ -4,7 +4,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { AdminKitProvider, SearchableModelSelect, SeeMore, Button, Icon, InfoTip, TabBar, type AdminKitChat, type InfoTipProps, type KitIconName, useAdminKitChatPosters, useAdminKitValues, useAdminThemeKit, useChatT, useDirtyGuard, useFetchQuery, useMediaProviderRules, useT } from '../kit.js';
 import {
   CodeWithLines, CodeWrapToggle, I18nProvider, PreviewModalShell, RemixIcon, SettingsDialogShell, Toast,
-  useAdminKitChatValues, useCodeWrap, useCopyToClipboard, useFabPosition, useInfoTip, usePanelPosition, useSelectDropdown, useSerialWrites, useTabBarKeyboard,
+  useAdminKitChatValues, useAgentPluginFileTree, useCodeWrap, useCopyToClipboard, useFabPosition, useInfoTip, usePanelPosition, useSelectDropdown, useSerialWrites, useTabBarKeyboard,
   useTabbedDialog, useCursorPages, useDebouncedHtmlPreview, useExecutionCredential, useI18n, useSettingsSlice, useStandingDraftAutosave, useWiredCopyToClipboard,
   A2uiSurfaceCard, ChatPane, ChatSettingsDialog, ChatSettingsSegmented, ConversationList, JiniChatProvider, McpUiSurfaceCard, useAdminKitChatRunValues,
   type AdminKit, type AdminKitHooks, type AdminKitValues, type ChatPaneAgent, type FabPositionInput,
@@ -211,29 +211,33 @@ describe('admin kit: B5 additions (A-K2-0a remainder + A-K2-0.J)', () => {
       useTabBarKeyboard: { onKeyDown: () => {} }, useSerialWrites: { run: async <T,>({ task }: { task: () => Promise<T> }) => task() },
       useCodeWrap: { wrap: true, toggleWrap: () => {} },
     };
+    const useFileTreeImpl = vi.fn(() => 'file-tree-sentinel' as unknown as ReturnType<AdminKitHooks['useAgentPluginFileTree']>);
     const useInfoTipImpl = vi.fn(() => 'info-tip-sentinel' as unknown as ReturnType<AdminKitHooks['useInfoTip']>);
     const usePanelPositionImpl = vi.fn(() => 'panel-sentinel' as unknown as ReturnType<AdminKitHooks['usePanelPosition']>);
     const useSelectDropdownImpl = vi.fn(() => 'dropdown-sentinel' as unknown as ReturnType<AdminKitHooks['useSelectDropdown']>);
     const useTabBarKeyboardImpl = vi.fn(() => sentinels.useTabBarKeyboard);
     const kit = fakeAdminKit({ hooks: {
       useTabBarKeyboard: useTabBarKeyboardImpl, useSerialWrites: () => sentinels.useSerialWrites, useCodeWrap: () => sentinels.useCodeWrap,
-      useInfoTip: useInfoTipImpl, usePanelPosition: usePanelPositionImpl, useSelectDropdown: useSelectDropdownImpl,
+      useAgentPluginFileTree: useFileTreeImpl, useInfoTip: useInfoTipImpl, usePanelPosition: usePanelPositionImpl, useSelectDropdown: useSelectDropdownImpl,
     } });
     const tabBarArgs = { tabs: [{ id: 'a', label: 'A' }], activeId: 'a', onChange: () => {} };
+    const fileTreeArgs = { files: [{ relativePath: 'a/b.md', sizeBytes: 0, content: null, omitted: null }], selectedPath: null, onOpen: () => {} };
     const panelArgs = { open: true, triggerRef: createRef<HTMLButtonElement>(), panelRef: createRef<HTMLDivElement>(),
       searchInputRef: createRef<HTMLInputElement>(), showSearch: false, onOutOfView: () => {} };
     const dropdownArgs = { value: 'b', onChange: () => {}, options: [{ value: 'b', label: 'B', group: 'Pages' }] };
     const read = renderHook(() => ({
       tabBar: useTabBarKeyboard(tabBarArgs, {}), serial: useSerialWrites(), codeWrap: useCodeWrap({}, {}),
-      infoTip: useInfoTip({}, { placement: 'bottom' }), panel: usePanelPosition(panelArgs, {}), dropdown: useSelectDropdown(dropdownArgs, { disabled: true }),
+      fileTree: useAgentPluginFileTree(fileTreeArgs, { locale: 'de' }), infoTip: useInfoTip({}, { placement: 'bottom' }), panel: usePanelPosition(panelArgs, {}), dropdown: useSelectDropdown(dropdownArgs, { disabled: true }),
     }), { wrapper: wrap(kit) }).result.current;
     expect(read.tabBar).toBe(sentinels.useTabBarKeyboard);
     expect(read.serial).toBe(sentinels.useSerialWrites);
     expect(read.codeWrap).toBe(sentinels.useCodeWrap);
+    expect(read.fileTree).toBe('file-tree-sentinel');
     expect(read.infoTip).toBe('info-tip-sentinel');
     expect(read.panel).toBe('panel-sentinel');
     expect(read.dropdown).toBe('dropdown-sentinel');
     expect(useTabBarKeyboardImpl).toHaveBeenCalledWith(tabBarArgs, {});
+    expect(useFileTreeImpl).toHaveBeenCalledWith(fileTreeArgs, { locale: 'de' });
     expect(useInfoTipImpl).toHaveBeenCalledWith({}, { placement: 'bottom' });
     expect(usePanelPositionImpl).toHaveBeenCalledWith(panelArgs, {});
     expect(useSelectDropdownImpl).toHaveBeenCalledWith(dropdownArgs, { disabled: true });

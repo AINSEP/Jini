@@ -28,7 +28,7 @@ export interface UserInterfaceSettingsPanelProps<TSlice> {
  * this operator: whether the floating chat button hides while the assistant dock is open, and
  * (2026-10-07) whether phone tab strips wrap instead of scrolling. Autosaves through the tab's
  * settings slice like every other Settings control; `App.tsx` reads the same `core.interface`
- * values live (`useInterfacePreferences`). The switch reuses `.agent-plugin-switch`'s paint, and
+ * values live (`useInterfacePreferences`). The switch reuses `.jini-agent-plugin-switch`'s paint, and
  * the label says the on/off meaning in words so position is never the only signal.
  *
  * The switch renders `jini-settings-interface-switch` / `-knob`; the host paints them by adding

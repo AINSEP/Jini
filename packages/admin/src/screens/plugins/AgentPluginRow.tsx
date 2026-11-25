@@ -1,5 +1,5 @@
 import { agentHandle } from "@jini-ai/core/agent-handles";
-import { InfoTip } from "@jini-ai/ui/admin-widgets";
+import { InfoTip } from "../../react/kit.js";
 import { useId, type ReactNode } from "react";
 import { AgentPluginLinkedLock } from "./AgentPluginLinkedLock.js";
 import { AgentPluginMaturity, SOON_PLUGIN_TIP } from "./AgentPluginMaturity.js";
@@ -125,11 +125,11 @@ function AgentPluginRowStateArea({
         {/* Same shape as the linked row: the state word, then the padlock in the switch's column. The
             disabled switch stays in the DOM (its name and state) but is visually hidden, so the
             divider, word, eye and trash columns line up down the list. */}
-        <span className="agent-plugin-state">{t("Disabled")}</span>
-        <button type="button" role="switch" aria-checked={false} aria-label={agentPluginToggleAriaLabel({ plugin, locale })} disabled className="agent-plugin-switch agent-plugin-switch--locked">
-          <span className="agent-plugin-switch-knob" aria-hidden="true" />
+        <span className="jini-agent-plugin-state">{t("Disabled")}</span>
+        <button type="button" role="switch" aria-checked={false} aria-label={agentPluginToggleAriaLabel({ plugin, locale })} disabled className="jini-agent-plugin-switch jini-agent-plugin-switch--locked">
+          <span className="jini-agent-plugin-switch-knob" aria-hidden="true" />
         </button>
-        <span className="agent-plugin-linked-lock">
+        <span className="jini-agent-plugin-linked-lock">
           <InfoTip label={t(SOON_PLUGIN_TIP)} icon={<LockIcon />} agentHandle={`${agentHandleBase}-soon`} />
         </span>
       </>
@@ -152,7 +152,7 @@ function AgentPluginToggleState({ plugin, t, locale, busy, agentHandleBase, disp
   return (
     <>
       {/* The word, not just the switch's position — see this file's header. */}
-      <span className="agent-plugin-state">{plugin.enabled ? t("Enabled") : t("Disabled")}</span>
+      <span className="jini-agent-plugin-state">{plugin.enabled ? t("Enabled") : t("Disabled")}</span>
       <button
         type="button"
         role="switch"
@@ -160,7 +160,7 @@ function AgentPluginToggleState({ plugin, t, locale, busy, agentHandleBase, disp
         aria-label={agentPluginToggleAriaLabel({ plugin, locale })}
         aria-busy={busy}
         disabled={busy}
-        className="agent-plugin-switch"
+        className="jini-agent-plugin-switch"
         onClick={stateControl.onToggleEnabled}
         // `checkbox`, not `switch`: `AgentElementRole` (`@jini-ai/agentic`) has no `switch`
         // member, and `checkbox` is the two-state control a page driver already knows how to
@@ -171,7 +171,7 @@ function AgentPluginToggleState({ plugin, t, locale, busy, agentHandleBase, disp
           label: `${plugin.enabled ? "Disable" : "Enable"} the "${displayName}" Agent Plugin`,
         })}
       >
-        <span className="agent-plugin-switch-knob" aria-hidden="true" />
+        <span className="jini-agent-plugin-switch-knob" aria-hidden="true" />
       </button>
     </>
   );
@@ -209,9 +209,9 @@ function AgentPluginActionState({ plugin, t, locale, busy, stateControl, agentHa
 function DetailChips({ label, values, ownId }: { label: string; values: readonly string[]; ownId: string }) {
   if (values.length === 0 || (values.length === 1 && values[0] === ownId)) return null;
   return (
-    <div className="agent-plugin-detail-group">
-      <span className="agent-plugin-detail-label">{label}</span>
-      <ul className="agent-plugin-chips">
+    <div className="jini-agent-plugin-detail-group">
+      <span className="jini-agent-plugin-detail-label">{label}</span>
+      <ul className="jini-agent-plugin-chips">
         {values.map((value) => (
           <li key={value}>
             <code>{value}</code>
@@ -241,21 +241,21 @@ export function AgentPluginRow(props: AgentPluginRowProps) {
 
   return (
     // `data-linked`: a linked plugin's row reads as disabled here; it is switched on the Plugins page.
-    <li className="agent-plugin-row" data-enabled={plugin.enabled} data-linked={plugin.providerPlugin ? true : undefined} aria-label={displayName}>
-      <div className="agent-plugin-row-main">
+    <li className="jini-agent-plugin-row" data-enabled={plugin.enabled} data-linked={plugin.providerPlugin ? true : undefined} aria-label={displayName}>
+      <div className="jini-agent-plugin-row-main">
         {renderAgentPluginSummary({ expanded, detailId, headingId, onToggleExpanded, agentHandleBase, displayName, Glyph, plugin, t, blurb, rules })}
 
         {/* Outside the actions column, against its divider: the switch stays at the same x on every row. */}
-        {manage ? <div className="agent-plugin-row-manage">{manage}</div> : null}
+        {manage ? <div className="jini-agent-plugin-row-manage">{manage}</div> : null}
         {renderAgentPluginActions({ plugin, t, locale, busy, stateControl, agentHandleBase, displayName, onInspect, uninstallNoteId })}
       </div>
 
-      <div className="agent-plugin-row-detail" id={detailId} hidden={!expanded}>
-        {/* The summary line above clips this same string to one line (`.agent-plugin-row-desc`,
+      <div className="jini-agent-plugin-row-detail" id={detailId} hidden={!expanded}>
+        {/* The summary line above clips this same string to one line (`.jini-agent-plugin-row-desc`,
             `-webkit-line-clamp: 1`) — a hover tooltip covers a sighted mouse user, but expanding
             the row is the only path assistive tech and touch have, so the full text repeats here,
             unclamped, first — before every other per-plugin fact this panel already held. */}
-        <PlainTextBlocks text={blurb} className="agent-plugin-detail-description" />
+        <PlainTextBlocks text={blurb} className="jini-agent-plugin-detail-description" />
         {/* The agent-facing `description` and the search `keywords` are NOT rendered here (owner,
             2026-10-17: a "Technical details" wall of tool ids and a 40-chip keyword cloud read as
             noise). Both still reach the assistant unchanged through `search_agent_plugin_local`,
@@ -274,7 +274,7 @@ function renderAgentPluginActions(
     { displayName: string }
 ) {
   return (
-    <div className="agent-plugin-row-actions">
+    <div className="jini-agent-plugin-row-actions">
       <AgentPluginRowStateArea
         plugin={plugin}
         t={t}
@@ -306,7 +306,7 @@ function renderAgentPluginActions(
           never be read. */}
       <button
         type="button"
-        className="agent-plugin-icon-btn"
+        className="jini-agent-plugin-icon-btn"
         disabled
         aria-label={`${t("Uninstall")} ${displayName} — ${t("unavailable")}`}
         aria-describedby={uninstallNoteId}
@@ -324,7 +324,7 @@ function renderAgentPluginInspect(
   return (
     <button
       type="button"
-      className="agent-plugin-icon-btn"
+      className="jini-agent-plugin-icon-btn"
       onClick={onInspect}
       // Preserved verbatim from the text button this replaced: "Inspect package files" reads
       // identically on every row, so the plugin's own name must stay in the accessible name.
@@ -344,7 +344,7 @@ function renderAgentPluginSummary(
   return (
     <button
       type="button"
-      className="agent-plugin-row-summary"
+      className="jini-agent-plugin-row-summary"
       aria-expanded={expanded}
       aria-controls={detailId}
       // The description lives INSIDE this button so the whole row is one comfortable hit
@@ -356,12 +356,12 @@ function renderAgentPluginSummary(
       onClick={onToggleExpanded}
       {...agentHandle({ handle: `${agentHandleBase}-details` }, { role: "button", label: `Show or hide the "${displayName}" package details` })}
     >
-      <span className="agent-plugin-row-glyph">
+      <span className="jini-agent-plugin-row-glyph">
         <Glyph size={18} />
       </span>
-      <span className="agent-plugin-row-text">
+      <span className="jini-agent-plugin-row-text">
         {renderAgentPluginHeading({ headingId, displayName, plugin, t })}
-        {plugin.connectionStatus ? <span className="agent-plugin-row-desc">{t({
+        {plugin.connectionStatus ? <span className="jini-agent-plugin-row-desc">{t({
           connected: "Signed in", disconnected: "Not signed in", pending: "Waiting for sign-in", needs_reauth: "Sign in again",
         }[plugin.connectionStatus])}</span> : null}
         {/* `title` is the ONLY way to read the rest of a clamped line without opening the row —
@@ -370,15 +370,15 @@ function renderAgentPluginSummary(
         {/* Compatibility first: "Not for this product version" explains a switch that refuses to
             turn on, and "Needs …" names capabilities no other enabled plugin provides. */}
         {rules.agentPluginCompatibilityLines({ plugin, translate: t }).map((line) => (
-          <span key={line} className="agent-plugin-row-desc">{line}</span>
+          <span key={line} className="jini-agent-plugin-row-desc">{line}</span>
         ))}
         {blurb ? (
-          <span className="agent-plugin-row-desc" title={blurb}>
+          <span className="jini-agent-plugin-row-desc" title={blurb}>
             {blurb}
           </span>
         ) : null}
       </span>
-      <span className="agent-plugin-row-chevron">
+      <span className="jini-agent-plugin-row-chevron">
         <ChevronIcon />
       </span>
     </button>
@@ -390,8 +390,8 @@ function renderAgentPluginHeading(
     Pick<Parameters<typeof renderAgentPluginSummary>[0], "headingId" | "displayName" | "plugin" | "t">
 ) {
   return (
-    <span className="agent-plugin-row-heading" id={headingId}>
-      <span className="agent-plugin-row-name">{displayName}</span>
+    <span className="jini-agent-plugin-row-heading" id={headingId}>
+      <span className="jini-agent-plugin-row-name">{displayName}</span>
       {/* Shown only when the installed package actually carries a version — both are
           genuinely optional in the Agent Plugins spec, and an invented "1.0.0" would be
           worse than an absent chip.
@@ -404,7 +404,7 @@ function renderAgentPluginHeading(
       {plugin.version ? (
         <>
           {" "}
-          <span className="agent-plugin-row-version">v{plugin.version}</span>
+          <span className="jini-agent-plugin-row-version">v{plugin.version}</span>
         </>
       ) : null}
       {/* Beside the version (owner, 2026-10-24), so it sits inside the summary button: the
@@ -413,7 +413,7 @@ function renderAgentPluginHeading(
       {plugin.maturity ? (
         <>
           {" "}
-          <span className="agent-plugin-row-maturity" onClick={(e) => e.stopPropagation()}>
+          <span className="jini-agent-plugin-row-maturity" onClick={(e) => e.stopPropagation()}>
             <AgentPluginMaturity maturity={plugin.maturity} t={t} />
           </span>
         </>
