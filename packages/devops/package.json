@@ -125,7 +125,11 @@
       "./backup/site/import-index/backfill": "node",
       "./backup/site/import-index/mode": "node",
       "./react/site-share-expiry": "browser",
-      "./deploy/site/deploy-targets/host-kit": "node"
+      "./deploy/site/deploy-targets/host-kit": "node",
+      "./deploy/site/publish-candidate": "universal",
+      "./static-export/site/static-security-headers": "universal",
+      "./static-export/site/media-original-urls": "universal",
+      "./backup/site/push-content": "universal"
     },
     "isolation": {
       "shared": [
@@ -709,6 +713,26 @@
       "types": "./dist/deploy/site/deploy-targets/host-kit.d.ts",
       "import": "./dist/deploy/site/deploy-targets/host-kit.js",
       "default": "./dist/deploy/site/deploy-targets/host-kit.js"
+    },
+    "./deploy/site/publish-candidate": {
+      "types": "./dist/deploy/site/publish-candidate.d.ts",
+      "import": "./dist/deploy/site/publish-candidate.js",
+      "default": "./dist/deploy/site/publish-candidate.js"
+    },
+    "./static-export/site/static-security-headers": {
+      "types": "./dist/static-export/site/static-security-headers.d.ts",
+      "import": "./dist/static-export/site/static-security-headers.js",
+      "default": "./dist/static-export/site/static-security-headers.js"
+    },
+    "./static-export/site/media-original-urls": {
+      "types": "./dist/static-export/site/media-original-urls.d.ts",
+      "import": "./dist/static-export/site/media-original-urls.js",
+      "default": "./dist/static-export/site/media-original-urls.js"
+    },
+    "./backup/site/push-content": {
+      "types": "./dist/backup/site/push-content.d.ts",
+      "import": "./dist/backup/site/push-content.js",
+      "default": "./dist/backup/site/push-content.js"
     }
   },
   "typesVersions": {
