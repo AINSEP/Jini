@@ -8,7 +8,7 @@ export interface PageBindingBridge {
  * Refusals throw the server's public reason so chat can show the cause and recovery action.
  */
 export async function activateAssistantDaemon(
-  { signal }: { signal?: AbortSignal } = {}, { request = fetch }: { request?: typeof fetch } = {},
+  { signal }: { signal?: AbortSignal | undefined } = {}, { request = fetch }: { request?: typeof fetch } = {},
 ): Promise<void> {
   const deadline = AbortSignal.timeout(35_000);
   const response = await request("/api/frontend-sessions/activate", {
