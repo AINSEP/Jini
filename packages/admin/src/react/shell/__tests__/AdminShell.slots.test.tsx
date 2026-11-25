@@ -67,7 +67,7 @@ it('beforeMain renders between the sidebar and the backdrop', () => {
   fireEvent.click(screen.getByRole('button', { name: 'Open navigation' }));
   const root = container.firstElementChild!;
   const order = [...root.children].map((el) => el.getAttribute('data-testid') ?? el.className);
-  expect(order.slice(0, 5)).toEqual(['skip-link', 'cms-nav scroll is-open', 'before-main', 'sidebar-backdrop', 'admin-main-col']);
+  expect(order.slice(0, 5)).toEqual(['jini-admin-skip-link skip-link', 'cms-nav scroll is-open', 'before-main', 'jini-admin-sidebar-backdrop sidebar-backdrop', 'jini-admin-main-col admin-main-col']);
 });
 
 it('assistantAside renders in place of the built-in aside, and wins when both are supplied', () => {
