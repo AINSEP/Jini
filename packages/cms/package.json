@@ -782,6 +782,7 @@
         "./public-http/routes/site/pages/listing/listing-state": "listing",
         "./public-http/http/shared/post": "posts",
         "./public-http/http/content/posts": "posts",
+        "./public-http/routes/content/posts/get-by-slug": "posts",
         "./admin-http/http/posts": "posts",
         "./public-http/routes/site/pages/render-context/taxonomy": "widgets",
         "./publish/content/content-references": "widgets",

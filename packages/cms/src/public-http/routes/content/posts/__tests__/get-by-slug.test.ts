@@ -3,6 +3,7 @@ import { isRouteReply, ok, type RouteInputContext } from "@jini-ai/core/contract
 import { RouteRefusalError } from "@jini-ai/core/errors/route-refusal";
 import { buildPostRecord } from "../../../../../seo/__tests__/support/post.fixture.js";
 import { toContentPostResponse } from "../../../../http/content/posts.js";
+import { getPresentationSettings, PresentationSettingsNotFoundError } from "../../../../../presentation/presentation.js";
 import { contentPostGetRoute, type ContentPostGetRouteDeps } from "../get-by-slug.js";
 
 /** @file `GET …/content/v1/workspaces/:workspaceId/posts/:slug`: a published post with its member gate. A gated
@@ -18,7 +19,12 @@ function deps(over: { row?: unknown; settings?: unknown; token?: string; allowed
   return {
     workspaceId: "ws-1",
     postRepo: { findBySlug: async (args: unknown) => { calls.push(["findBySlug", args]); return "row" in over ? over.row : post(); } } as never,
-    presentationRepo: { findByWorkspaceId: async () => ("settings" in over ? over.settings : { workspaceId: "ws-1", activeThemeId: "theme-a" }) } as never,
+    // The presentation domain's own read and not-found recognition, bound to a fake repo the way a host binds them.
+    readPresentationSettings: ({ workspaceId }) => getPresentationSettings({
+      deps: { repo: { findByWorkspaceId: async () => ("settings" in over ? over.settings : { workspaceId: "ws-1", activeThemeId: "theme-a" }) } as never },
+      input: { workspaceId },
+    }),
+    isPresentationSettingsNotFound: (error): error is Error => error instanceof PresentationSettingsNotFoundError,
     sessionToken: () => over.token,
     memberAccess: () => ({
       resolveContext: async (args) => { calls.push(["resolveContext", args]); return { member: args.sessionToken ?? null }; },
@@ -81,6 +87,24 @@ describe("contentPostGetRoute", () => {
 
   it("answers missing presentation settings as a 404 with its own message", async () => {
     expect((await refusal(call(deps({ settings: null })))).response).toEqual({ status: 404, body: { error: "presentation settings for workspace 'ws-1' were not found" } });
+  });
+
+  // Mutation `presentation-dep-ignored`: the handler reads the theme from a hard-coded value / skips the injected read.
+  it("reads the active theme through the injected presentation read, for the mounted workspace", async () => {
+    const seen: unknown[] = [];
+    const d: ContentPostGetRouteDeps<Ctx> = { ...deps(), readPresentationSettings: async (args) => { seen.push(args); return { settings: { activeThemeId: "injected-theme" } }; } };
+    const result = await call(d) as { value: { body: unknown } };
+    expect(seen).toEqual([{ workspaceId: "ws-1" }]);
+    expect(result.value.body).toEqual(toContentPostResponse({ post: post(), activeThemeId: "injected-theme" }));
+  });
+
+  it("answers what the injected recognition calls a not-found as a 404, and rethrows what it does not", async () => {
+    class HostMissing extends Error {}
+    const missing = new HostMissing("theme store is empty");
+    const recognising: ContentPostGetRouteDeps<Ctx> = { ...deps(), readPresentationSettings: async () => { throw missing; }, isPresentationSettingsNotFound: (error): error is Error => error instanceof HostMissing };
+    expect((await refusal(call(recognising))).response).toEqual({ status: 404, body: { error: "theme store is empty" } });
+    const declining: ContentPostGetRouteDeps<Ctx> = { ...recognising, isPresentationSettingsNotFound: (_error): _error is Error => false };
+    await expect(call(declining)).rejects.toBe(missing);
   });
 
   it("leaves an unexpected failure to the host's error port", async () => {

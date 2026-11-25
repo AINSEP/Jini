@@ -1,8 +1,6 @@
 import { defineJsonRoute, ok } from "@jini-ai/core/contracts/server";
-import type { UUID } from "@jini-ai/core/primitives";
 import { rejectRoute } from "@jini-ai/core/errors/route-refusal";
 
-import { computeBlobStorageKey } from "../../../media/blob-key.js";
 import { PUBLISH_CONTENT_BLOB_PROBE_MAX_SHAS, isValidSha256Hex } from "../../../publish/transfer/blob-staging.js";
 import type { PublishRoutePrincipal } from "./transport-shared.js";
 
@@ -27,9 +25,13 @@ import type { PublishRoutePrincipal } from "./transport-shared.js";
  * with no `code`, answered after the permission check, as the hand-written route did.
  */
 
-/** What the host injects: the mounted workspace and the one blob-store read this route makes. */
+/** What the host injects: the mounted workspace, the storage-key computation and the one blob-store read this route makes.
+ *  The key computation is the media domain's (`computeBlobStorageKey`); it is injected so this publish route does
+ *  not reach into another domain, and so the probe asks the store with exactly the key `put` writes under. */
 export interface BlobsProbeRouteDeps {
   workspaceId: string;
+  /** Method syntax on purpose: the host binds the media domain's function, whose workspace id is a branded UUID. */
+  computeBlobStorageKey(required: { workspaceId: string; sha256: string }): string;
   blobStore: { exists(required: { storageKey: string }): Promise<boolean> };
 }
 
@@ -69,7 +71,7 @@ export const blobsProbeRoute = defineJsonRoute<BlobsProbeInput, { missing: strin
     if ("error" in validated) return rejectRoute({ status: 400, error: validated.error });
     const missing: string[] = [];
     for (const sha256 of validated.shas) {
-      const storageKey = computeBlobStorageKey({ workspaceId: deps.workspaceId as UUID, sha256 });
+      const storageKey = deps.computeBlobStorageKey({ workspaceId: deps.workspaceId, sha256 });
       const present = await deps.blobStore.exists({ storageKey });
       if (!present) missing.push(sha256);
     }

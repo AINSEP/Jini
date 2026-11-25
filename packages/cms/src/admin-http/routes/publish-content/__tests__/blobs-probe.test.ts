@@ -13,7 +13,9 @@ function makeDeps(present: readonly string[]) {
   const asked: string[] = [];
   const deps: BlobsProbeRouteDeps = {
     workspaceId: WORKSPACE_ID,
-    blobStore: { exists: async ({ storageKey }) => { asked.push(storageKey); return present.some((hit) => storageKey.endsWith(hit)); } },
+    // A format that is not the production key's: the asserted keys can only come from this injected function.
+    computeBlobStorageKey: ({ workspaceId, sha256 }) => `injected:${workspaceId}:${sha256}`,
+    blobStore: { exists: async ({ storageKey }) => { asked.push(storageKey); return present.some((hit) => storageKey.endsWith(`:${hit}`)); } },
   };
   return { deps, asked };
 }
@@ -44,7 +46,20 @@ describe("blobsProbeRoute", () => {
     const { outcome, calls } = await run({ body: { shas: [sha("a"), sha("b"), sha("c")] }, deps });
     expect(calls).toEqual([{ permission: "publish_content.apply" }]);
     expect(outcome).toEqual({ result: { ok: true, value: { missing: [sha("a"), sha("c")] } } });
-    expect(asked).toEqual([sha("a"), sha("b"), sha("c")].map((digit) => `ws/${WORKSPACE_ID}/blobs/${digit.slice(0, 2)}/${digit}`));
+    expect(asked).toEqual([sha("a"), sha("b"), sha("c")].map((digit) => `injected:${WORKSPACE_ID}:${digit}`));
+  });
+
+  // Mutation `blob-key-dep-ignored`: the handler computes the key itself instead of calling the injected function.
+  it("asks the store with the key the injected computation answers, for the mounted workspace and each sha", async () => {
+    const seen: unknown[] = [];
+    const { deps } = makeDeps([]);
+    const withSpy: BlobsProbeRouteDeps = { ...deps, computeBlobStorageKey: (args) => { seen.push(args); return `spy:${args.sha256}`; } };
+    const asked: string[] = [];
+    withSpy.blobStore = { exists: async ({ storageKey }) => { asked.push(storageKey); return true; } };
+    const { outcome } = await run({ body: { shas: [sha("a"), sha("b")] }, deps: withSpy });
+    expect(outcome).toEqual({ result: { ok: true, value: { missing: [] } } });
+    expect(seen).toEqual([{ workspaceId: WORKSPACE_ID, sha256: sha("a") }, { workspaceId: WORKSPACE_ID, sha256: sha("b") }]);
+    expect(asked).toEqual([`spy:${sha("a")}`, `spy:${sha("b")}`]);
   });
 
   it("a denial stops before any store read", async () => {

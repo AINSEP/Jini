@@ -3,7 +3,6 @@ import { rejectRoute } from "@jini-ai/core/errors/route-refusal";
 
 import { PostNotFoundError, type PublicPostRecord } from "../../../../posts/post.js";
 import { getPublishedPostBySlug } from "../../../../posts/post-read.js";
-import { getPresentationSettings, PresentationSettingsNotFoundError } from "../../../../presentation/presentation.js";
 import { toContentPostResponse } from "../../../http/content/posts.js";
 
 /**
@@ -23,7 +22,11 @@ export interface ContentPostMemberAccess<MemberContext> {
 export interface ContentPostGetRouteDeps<MemberContext = unknown> {
   readonly workspaceId: string;
   readonly postRepo: Parameters<typeof getPublishedPostBySlug>[0]["deps"]["repo"];
-  readonly presentationRepo: Parameters<typeof getPresentationSettings>[0]["deps"]["repo"];
+  /** The presentation domain's settings read for this workspace, bound to its repo by the host. This route lives in
+   *  the posts domain and does not reach into presentation, so the read is injected rather than imported. */
+  readPresentationSettings(required: { workspaceId: string }): Promise<{ settings: { activeThemeId: string } }>;
+  /** True for the presentation domain's "no settings for this workspace" error, which this route answers as a 404. */
+  isPresentationSettingsNotFound(error: unknown): error is Error;
   /** The caller's member session token, read per request from the host's member cookie. */
   sessionToken(): string | undefined;
   /** Built per request, never a module-level singleton (the host's member repos are per composition). */
@@ -35,7 +38,7 @@ async function readPostView({ deps, slug }: { deps: ContentPostGetRouteDeps; slu
   const memberAccess = deps.memberAccess();
   const [{ post }, { settings }, memberContext] = await Promise.all([
     getPublishedPostBySlug({ deps: { repo: deps.postRepo }, input: { workspaceId: deps.workspaceId, slug } }),
-    getPresentationSettings({ deps: { repo: deps.presentationRepo }, input: { workspaceId: deps.workspaceId } }),
+    deps.readPresentationSettings({ workspaceId: deps.workspaceId }),
     memberAccess.resolveContext({ workspaceId: deps.workspaceId, sessionToken: deps.sessionToken(), nowIso: new Date().toISOString() }),
   ]);
   return { post, settings, allowed: memberAccess.decide({ memberAccessJson: post.memberAccessJson, context: memberContext }).allowed };
@@ -65,7 +68,7 @@ export const contentPostGetRoute = defineJsonRoute<{ slug: string }, unknown, Co
       // `routes/site/media-rendition.ts`'s gated branch both send the identical `private, no-store`.
       return ok({ value: routeReply({ status: 200, body: toContentPostResponse({ post, activeThemeId: settings.activeThemeId }), headers: { "Cache-Control": "private, no-store" } }) });
     } catch (err) {
-      if (err instanceof PostNotFoundError || err instanceof PresentationSettingsNotFoundError) return rejectRoute({ status: 404, error: err.message });
+      if (err instanceof PostNotFoundError || deps.isPresentationSettingsNotFound(err)) return rejectRoute({ status: 404, error: err.message });
       throw err;
     }
   },

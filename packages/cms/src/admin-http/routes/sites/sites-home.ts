@@ -6,6 +6,10 @@
  * every folder refusal is answered after it, so a caller without the permission learns nothing
  * about the host's folders. Filesystem inspection is the host's (`SitesDirectoryProbe`); the
  * rules over its answers live here.
+ *
+ * The settings SAVE (`PUT .../config`) is the exception to "gate inside the spec": the host answers the
+ * deployment gate itself, between the workspace check and the session read, and gives the unexpected-failure
+ * copy by phase (read before authorization, save after), so that spec carries only the write.
  */
 import { defineJsonRoute, ok, type JsonRouteAuthorize } from '@jini-ai/core/contracts/server';
 import type { SitesHomeSetResponse } from '@jini-ai/core/contracts/site/cms-sites';
@@ -13,6 +17,10 @@ import { rejectRoute } from '@jini-ai/core/errors/route-refusal';
 
 const PREFIX = '/api/admin/v1/workspaces/:workspaceId/system/sites';
 const FOLDER_PATH_REFUSAL = 'Choose an absolute folder path for sites settings.';
+
+/** The 403 copy of the deployment gate. A host that answers the gate itself (before the session is read)
+ * answers this same sentence. */
+export const SITES_SETTINGS_DISABLED_MESSAGE = 'Local sites management is disabled.';
 
 /** The host's folder inspection. `kind` throws any probe failure other than "not found" (an I/O
  * error is the host 500, never a public refusal). */
@@ -36,20 +44,36 @@ export interface SitesHomeSetRouteDeps extends SitesSettingsGateDeps {
   directories: SitesDirectoryProbe;
 }
 
+/** What the settings save route reads. The host binds the gate (before the session) and the patch rules. */
+export interface SitesConfigSaveRouteDeps {
+  workspace: { updateConfig(required: { patch: SitesSettingsDirectoryPatch }): unknown };
+  directories: SitesDirectoryProbe;
+  /** The host's settings-patch rules over the raw body; throws a refusal (`RouteRefusalError`) for a malformed patch. */
+  validatePatch(required: { value: unknown }): SitesSettingsDirectoryPatch;
+}
+
 /** The principal fields the host ports read. */
 export interface SitesSettingsPrincipal { id: string }
 
 /** The settings patch fields that name folders. */
 export interface SitesSettingsDirectoryPatch { sitesHome?: unknown; siteRoots?: readonly string[] }
 
-/** Deployment gate, then the permission. A mount without an authorizer is a wiring bug: fail closed. @complexity O(1). */
+/** The permission on the site registry. A mount without an authorizer is a wiring bug: fail closed. @complexity O(1). */
+async function authorizeSitesSettings(
+  { authorize, permission }: { authorize: JsonRouteAuthorize | undefined; permission: string },
+  _optional: Record<string, never> = {},
+): Promise<void> {
+  if (!authorize) throw new Error('sites settings route has no authorizer');
+  await authorize({ permission, entityType: 'site-registry' });
+}
+
+/** Deployment gate, then the permission. @complexity O(1). */
 async function admitSitesSettings(
   { deps, authorize, permission }: { deps: SitesSettingsGateDeps; authorize: JsonRouteAuthorize | undefined; permission: string },
   _optional: Record<string, never> = {},
 ): Promise<void> {
-  if (!deps.switcherEnabled()) rejectRoute({ status: 403, error: 'Local sites management is disabled.' });
-  if (!authorize) throw new Error('sites settings route has no authorizer');
-  await authorize({ permission, entityType: 'site-registry' });
+  if (!deps.switcherEnabled()) rejectRoute({ status: 403, error: SITES_SETTINGS_DISABLED_MESSAGE });
+  await authorizeSitesSettings({ authorize, permission });
 }
 
 /** The folder's shape, before inspecting the filesystem: malformed input is a refusal, not an I/O error. @complexity O(path). */
@@ -99,5 +123,23 @@ export const sitesHomeSetRoute = defineJsonRoute<{ path: unknown }, SitesHomeSet
     if (input.path === undefined) rejectRoute({ status: 400, error: FOLDER_PATH_REFUSAL });
     validateSitesSettingsDirectories({ patch: { sitesHome: input.path }, directories: deps.directories });
     return ok({ value: { home: deps.workspace.setHome({ path: input.path as string }) } });
+  },
+});
+
+/** `PUT .../system/sites/config` — save the sites settings. The deployment gate is the host's (it answers before
+ * the session is read); the permission, the folder shape, the host's patch rules and the folder rules run here, in
+ * that order, and only then the write. @complexity O(roots) stat probes plus the config write. */
+export const sitesConfigSaveRoute = defineJsonRoute<{ body: unknown }, unknown, SitesConfigSaveRouteDeps, SitesSettingsPrincipal>({
+  method: 'put',
+  path: `${PREFIX}/config`,
+  parse: (raw) => ok({ value: { body: raw.body } }),
+  handle: async ({ input, deps, authorize }) => {
+    await authorizeSitesSettings({ authorize, permission: 'system.write' });
+    // Validate the shape before inspecting paths; malformed input is a refusal, not an I/O error.
+    const sitesHome = (input.body as { sitesHome?: unknown } | null | undefined)?.sitesHome;
+    if (sitesHome !== undefined) parseSitesSettingsDirectory({ directory: sitesHome, directories: deps.directories });
+    const patch = deps.validatePatch({ value: input.body });
+    validateSitesSettingsDirectories({ patch, directories: deps.directories });
+    return ok({ value: deps.workspace.updateConfig({ patch }) });
   },
 });
