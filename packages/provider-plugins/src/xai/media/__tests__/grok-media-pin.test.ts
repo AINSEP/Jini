@@ -9,13 +9,13 @@ import {
 } from '@jini-ai/integrations/media-providers';
 import { nodeMediaGuardedFetch } from '@jini-ai/integrations/media-providers/node';
 import { XAI_MEDIA_PROVIDER_ID, createXaiMediaContribution } from '../index.js';
-import { testHttpClient } from './fixtures.js';
+import { realKit, testHttpClient } from './fixtures.js';
 
 const SYNTHETIC_KEY = 'xai-synthetic-credential-0000';
 type Fetch = (url: string, init: RequestInit) => Promise<Response>;
 
 function engineWith({ fetchImpl, withXai = true, credentials = { grok: { apiKey: SYNTHETIC_KEY } } }: { fetchImpl: Fetch; withXai?: boolean; credentials?: Record<string, { apiKey: string }> }) {
-  const contributions = [...builtinMediaProviderContributions(), ...(withXai ? [createXaiMediaContribution()] : [])];
+  const contributions = [...builtinMediaProviderContributions(), ...(withXai ? [createXaiMediaContribution({ kit: realKit })] : [])];
   const registry = createMediaProviderRegistry({}, { contributions });
   return createMediaDispatchEngine(
     { registry, httpClient: testHttpClient(fetchImpl), guardedFetch: nodeMediaGuardedFetch },
@@ -75,7 +75,7 @@ describe('xai media availability follows the injected registry', () => {
   });
 
   it('keeps the catalogue ids and the alias-resolved registry key once contributed', () => {
-    const registry = createMediaProviderRegistry({}, { contributions: [...builtinMediaProviderContributions(), createXaiMediaContribution()] });
+    const registry = createMediaProviderRegistry({}, { contributions: [...builtinMediaProviderContributions(), createXaiMediaContribution({ kit: realKit })] });
     expect(registry.findProvider({ id: 'xai-grok-imagine' })?.id).toBe('grok');
     expect(registry.modelsForSurface({ surface: 'image' }).some(model => model.id === 'grok-imagine-image')).toBe(true);
     expect(registry.modelsForSurface({ surface: 'audio' }, { audioKind: 'speech' }).some(model => model.id === 'grok-tts')).toBe(true);

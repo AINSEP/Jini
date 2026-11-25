@@ -1,4 +1,10 @@
 import type { HttpClientPort } from '@jini-ai/core/primitives';
+import {
+  buildOpenAIImageUrl, bytesFromOpenAICompatibleData, catalogMediaProviderContribution, createRawBytesParser, dispatchVendorRequest,
+  jsonPostInit, parseOpenAICompatibleJson, requireApiKey, sniffImageExt, standardImageAspectFor,
+} from '@jini-ai/integrations/media-providers';
+import type { MediaProviderContribution, RenderContext } from '@jini-ai/integrations/media-providers';
+import type { XaiMediaKit } from '../kit.js';
 
 /** A trusted-port double: the wire request goes to `fetchImpl`, bypassing DNS and sockets (tests never dial out). */
 export function testHttpClient(fetchImpl: (url: string, init: RequestInit) => Promise<Response>): HttpClientPort {
@@ -14,3 +20,9 @@ export function testHttpClient(fetchImpl: (url: string, init: RequestInit) => Pr
       bodyText: Buffer.from(bodyBytes).toString('utf8'), bodyBytes };
   } };
 }
+
+/** The dispatch kit the host composition injects, built from the real `@jini-ai/integrations/media-providers` exports. */
+export const realKit: XaiMediaKit<RenderContext, MediaProviderContribution> = {
+  requireApiKey, createRawBytesParser, jsonPostInit, buildOpenAIImageUrl, parseOpenAICompatibleJson,
+  bytesFromOpenAICompatibleData, sniffImageExt, standardImageAspectFor, dispatchVendorRequest, catalogMediaProviderContribution,
+};

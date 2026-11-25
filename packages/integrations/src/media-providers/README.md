@@ -42,12 +42,14 @@ env-var names. `allowStubFallback` defaults to `false`: with no real renderer fo
 (provider, surface) pair, generation throws rather than returning placeholder bytes that could be
 mistaken for a real result.
 
-**Per-vendor renderers** — `renderOpenAIImage`, `renderOpenAISpeech`, `renderGrokImage`,
-`renderXAITTS`, `renderElevenLabsTTS`, `renderElevenLabsSfx`, `renderFishAudioTTS`,
+**Per-vendor renderers** — `renderOpenAIImage`, `renderOpenAISpeech`,
+`renderElevenLabsTTS`, `renderElevenLabsSfx`, `renderFishAudioTTS`,
 `renderMinimaxTTS`, `renderNanoBananaImage`, `renderOpenRouterImage`, `renderImageRouterImage`,
 `renderImageRouterVideo`, `renderSenseAudioImage`, `renderSenseAudioTTS`, `renderVolcengineImage`,
 `renderAIHubMixImage`, `renderAIHubMixTTS`, `renderCustomOpenAIImage`, plus `renderStub` /
-`svgPlaceholder` for the deterministic placeholder path.
+`svgPlaceholder` for the deterministic placeholder path. The xAI Grok image and TTS renderers are not here:
+they live in `@jini-ai/provider-plugins/xai/media` and the host contributes them to the media-provider registry
+(`catalogMediaProviderContribution` attaches their catalogue rows).
 
 **Generic vendor-adapter layer** — `VendorAdapterRegistry`, `createVendorAdapterRegistry`, `createBuiltinVendorAdapterRegistry`,
 the deprecated shared `mediaVendorRegistry`, `dispatchVendorRequest`, `requireApiKey`, and the

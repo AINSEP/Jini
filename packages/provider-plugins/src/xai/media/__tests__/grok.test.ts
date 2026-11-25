@@ -1,8 +1,20 @@
 import { nodeMediaGuardedFetch } from '@jini-ai/integrations/media-providers/node';
-import { testHttpClient } from './fixtures.js';
+import { realKit, testHttpClient } from './fixtures.js';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { grokAspectFor, renderGrokImage, renderXAITTS } from '../grok.js';
-import type { RenderContext } from '@jini-ai/integrations/media-providers';
+import { createGrokImageAdapter, createXaiTTSAdapter } from '../grok.js';
+import type { ProviderCredentials, RenderContext, RenderResult } from '@jini-ai/integrations/media-providers';
+
+const grokAspectFor = realKit.standardImageAspectFor;
+const grokImageAdapter = createGrokImageAdapter({ kit: realKit });
+const xaiTTSAdapter = createXaiTTSAdapter({ kit: realKit });
+
+function renderGrokImage({ ctx, credentials }: { ctx: RenderContext; credentials: ProviderCredentials }): Promise<RenderResult> {
+  return realKit.dispatchVendorRequest({ adapter: grokImageAdapter, ctx, credentials });
+}
+
+function renderXAITTS({ ctx, credentials }: { ctx: RenderContext; credentials: ProviderCredentials }): Promise<RenderResult> {
+  return realKit.dispatchVendorRequest({ adapter: xaiTTSAdapter, ctx, credentials });
+}
 
 afterEach(() => {
   vi.unstubAllGlobals();
