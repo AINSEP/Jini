@@ -4338,10 +4338,10 @@
  "./media/site/duplicate-asset": {
   "types": "./dist/media/site/duplicate-asset.d.ts",
   "symbols": {
-   "ContributeMediaDuplicateHandlersArgs": "interface:2565da361c",
+   "ContributeMediaDuplicateHandlersArgs": "interface:87f532b7d5",
    "DeriveDuplicateName": "type:41fd8f8284",
-   "contributeMediaDuplicateHandlers": "function:d0d0429362",
-   "duplicateMediaAsset": "function:48fe1f6f33"
+   "contributeMediaDuplicateHandlers": "function:a2bf372e4a",
+   "duplicateMediaAsset": "function:712cdaeaf9"
   }
  },
  "./media/site/hydrate-blob-store-from-seed": {
@@ -4358,7 +4358,7 @@
   "types": "./dist/media/site/import-media-entity.d.ts",
   "symbols": {
    "ImportMediaEntityBlockedCode": "type:168c1e4fed",
-   "ImportMediaEntityDeps": "interface:b5b05fa0ce",
+   "ImportMediaEntityDeps": "interface:acb85392eb",
    "ImportMediaEntityInput": "interface:b9f3da48c8",
    "ImportMediaEntityResult": "type:25d384a11d",
    "importMediaEntity": "function:c10428777c",
