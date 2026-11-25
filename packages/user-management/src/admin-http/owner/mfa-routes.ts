@@ -6,7 +6,7 @@
  * request-bound fact (credential, content type, site origin, client rate key) is a per-request host
  * port; the service functions and the MFA composition are injected (they are node code).
  */
-import type { JsonRouteAuthorize, RawRouteInputContext } from '@jini-ai/core/contracts/server';
+import type { JsonRouteAuthorize, RateLimitResult, RawRouteInputContext } from '@jini-ai/core/contracts/server';
 import { IdentityValidationError, OwnerRequiredError } from '../../core/types.js';
 import type { MfaStore, MfaScope, OwnerMfaDeps } from '../../server/mfa/ports.js';
 // Type-only: the `./server` service is node code, so the host injects it.
@@ -36,7 +36,7 @@ export interface OwnerMfaRouteDeps {
   /** The site's own browser origin for this request. */
   siteOrigin(): string;
   /** One attempt against the host's limiter, keyed by this request's client. */
-  checkRateLimit(): Promise<{ allowed: boolean; retryAfterSeconds: number }>;
+  checkRateLimit(): Promise<RateLimitResult>;
   /** The composed owner MFA deps (`composeOwnerMfaDeps`), built only after admission. */
   ownerMfaDeps(): Promise<OwnerMfaDeps>;
   findUserByPrincipalId(required: MfaScope): Promise<{ username?: string } | null | undefined>;
