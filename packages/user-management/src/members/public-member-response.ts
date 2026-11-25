@@ -22,7 +22,7 @@ export interface PublicMemberResponse {
  * @complexity O(1).
  * @overallScore 100
  */
-export function toPublicMemberResponse({ member }: { member: Pick<MemberRecord, "id" | "email" | "name" | "status"> }, _optional = {}): PublicMemberResponse {
+export function toPublicMemberResponse({ member }: { member: Pick<MemberRecord, "id" | "email" | "name" | "status"> }, _optional: Record<string, never> = {}): PublicMemberResponse {
   return {
     id: member.id,
     email: member.email,

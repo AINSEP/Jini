@@ -15,7 +15,7 @@ const rows = [
 
 describe('shadcn DataTable', () => {
   it('the host stylesheet gives this provider a bounded scroll frame and sticky headers', () => {
-    const css = readFileSync(new URL('../../../data-table.css', import.meta.url), 'utf8');
+    const css = readFileSync(`${__dirname}/../../../data-table.css`, 'utf8');
     const selectors = new Set([...css.matchAll(/\.(jini-ui-data-table[\w-]*)/g)].map(match => match[1]));
     const { container, rerender } = render(<DataTable columns={columns} rows={rows} pageSize={1} />);
     for (const sourceRows of [rows, []]) {

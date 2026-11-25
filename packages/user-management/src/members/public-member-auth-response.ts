@@ -1,6 +1,6 @@
 import { MemberAuthError, MemberReauthenticationRequiredError, MemberSignInUnavailableError, MemberValidationError } from "./types.js";
 
-export function memberCookieExpiry({ expiresAtIso, nowMs }: { expiresAtIso: string; nowMs: () => number }, _optional = {}): { expires: Date; maxAge: number } {
+export function memberCookieExpiry({ expiresAtIso, nowMs }: { expiresAtIso: string; nowMs: () => number }, _optional: Record<string, never> = {}): { expires: Date; maxAge: number } {
   const maxAge = Math.max(0, new Date(expiresAtIso).getTime() - nowMs());
   return { expires: new Date(nowMs() + maxAge), maxAge: Math.floor(maxAge / 1000) };
 }
@@ -20,7 +20,7 @@ export function memberAuthRefusal({ error }: { error: unknown }, options: { rese
 /** `respondToSignInError`'s known answers: credential 401, site-wide setup 503, validation 400.
  * @returns The refusal (status + flat body), or `undefined` for an unexpected error (the 500).
  */
-export function memberSignInRefusal({ error, isSenderNotConfigured, senderNotConfiguredMessage }: { error: unknown; isSenderNotConfigured: (required: { error: unknown }) => boolean; senderNotConfiguredMessage: string }, _optional = {}): { status: number; body: { error: string; code?: string } } | undefined {
+export function memberSignInRefusal({ error, isSenderNotConfigured, senderNotConfiguredMessage }: { error: unknown; isSenderNotConfigured: (required: { error: unknown }) => boolean; senderNotConfiguredMessage: string }, _optional: Record<string, never> = {}): { status: number; body: { error: string; code?: string } } | undefined {
   if (error instanceof MemberAuthError) return memberAuthRefusal({ error });
   if (error instanceof MemberSignInUnavailableError) {
     return { status: 503, body: { error: error.message, code: "MEMBER_SIGN_IN_UNAVAILABLE" } };
