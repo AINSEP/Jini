@@ -70,6 +70,119 @@
    "warnCredentialContent": "function:8055565f09"
   }
  },
+ "./backup/site/import-index/admission": {
+  "types": "./dist/backup/site/import-index/admission.d.ts",
+  "symbols": {
+   "admitImport": "function:7c8e852e70",
+   "lookupFence": "function:971d8dc146",
+   "sameFence": "function:e5abe3a5e6"
+  }
+ },
+ "./backup/site/import-index/backfill": {
+  "types": "./dist/backup/site/import-index/backfill.d.ts",
+  "symbols": {
+   "BackfillResult": "type:80faca0686",
+   "backfillImportIndex": "function:7a95644619",
+   "commitBackfill": "function:b45441f66b",
+   "deriveBackfillRows": "function:893a95e97a",
+   "pickFenceOwners": "function:829e8aacd9",
+   "scanLegacy": "function:3126318a55",
+   "validateLegacyRow": "function:743677a9f8"
+  }
+ },
+ "./backup/site/import-index/errors": {
+  "types": "./dist/backup/site/import-index/errors.d.ts",
+  "symbols": {
+   "ImportHistoryUnavailable": "class:522a53d5e7",
+   "importHistoryMissing": "function:8f7bf2b6d3",
+   "mapSqliteError": "function:e75a8ccea6"
+  }
+ },
+ "./backup/site/import-index/mode": {
+  "types": "./dist/backup/site/import-index/mode.d.ts",
+  "symbols": {
+   "CutoverIndexState": "type:3dedc18d01",
+   "IMPORT_INDEX_STATE_SCHEMA": "variable:751d36e24e",
+   "ImportIndexModeHandle": "interface:eb336f4020",
+   "ImportIndexState": "type:6f1bab45a3",
+   "ImportIndexStateRead": "type:d198ab5cba",
+   "IndexedIndexState": "type:5871fa2009",
+   "IndexedWitnessFs": "type:98c342971d",
+   "LegacyIndexState": "type:f6a7f60ab4",
+   "LegacyRetireFs": "interface:96f9a421ed",
+   "ModeEvidence": "type:6acea3ab6e",
+   "ResolveModeArgs": "interface:cbc053c0c1",
+   "ResolvedMode": "type:3d9bd93fd0",
+   "RetryReason": "type:ad3a0a06f7",
+   "confirmLegacyAuthority": "function:35164e9952",
+   "indexStatePaths": "function:1358072b59",
+   "markIndexedWrite": "function:edc91e3f4c",
+   "parseIndexState": "function:c60427b90b",
+   "readIndexState": "function:747f90dc5d",
+   "resolveMode": "function:4df90487c7",
+   "retireLegacySnapshot": "function:9b678a49da",
+   "writeIndexState": "function:2d6cd0b012",
+   "writeIndexedWitness": "function:3f3ef91a42"
+  }
+ },
+ "./backup/site/import-index/open": {
+  "types": "./dist/backup/site/import-index/open.d.ts",
+  "symbols": {
+   "ImportIndexIntegrityKey": "type:06307ec0bc",
+   "ImportIndexIntegrityMemo": "interface:ddd26c034f",
+   "createImportIndexIntegrityMemo": "function:322c59c2db",
+   "openImportIndex": "function:70f5041d71"
+  }
+ },
+ "./backup/site/import-index/paging": {
+  "types": "./dist/backup/site/import-index/paging.d.ts",
+  "symbols": {
+   "decodeCursor": "function:f80e185a8a",
+   "encodeCursor": "function:aada07c7b4",
+   "listAll": "function:633841a40e",
+   "listPage": "function:a3d0f786f5"
+  }
+ },
+ "./backup/site/import-index/payload-namespace": {
+  "types": "./dist/backup/site/import-index/payload-namespace.d.ts",
+  "symbols": {
+   "ImportPayloadFs": "interface:022423093c",
+   "countStagedPayloads": "function:a981c41c46",
+   "ensurePayloadNamespace": "function:40f5020db9",
+   "expirePayloads": "function:390239d6eb",
+   "payloadPaths": "function:0084f8c783"
+  }
+ },
+ "./backup/site/import-index/rows": {
+  "types": "./dist/backup/site/import-index/rows.d.ts",
+  "symbols": {
+   "assertTransition": "function:5eb1fde580",
+   "isTerminal": "function:fb7c227e40",
+   "minimalOutcome": "function:21292ea363",
+   "replayFenceFor": "function:108c6f6adb",
+   "toRowParams": "function:fa0dabadc5"
+  }
+ },
+ "./backup/site/import-index/store": {
+  "types": "./dist/backup/site/import-index/store.d.ts",
+  "symbols": {
+   "ImportIndexStore": "interface:a4efe5cd87",
+   "createImportIndexStore": "function:012dbcfbbb"
+  }
+ },
+ "./backup/site/import-index/sweep": {
+  "types": "./dist/backup/site/import-index/sweep.d.ts",
+  "symbols": {
+   "sweepExpired": "function:26fb7dbb40"
+  }
+ },
+ "./backup/site/react/ShowMoreImports": {
+  "types": "./dist/backup/site/react/ShowMoreImports.d.ts",
+  "symbols": {
+   "ShowMoreImports": "function:24b66d487c",
+   "ShowMoreImportsButton": "type:6af292bfc0"
+  }
+ },
  "./backup/site/saved-keys": {
   "types": "./dist/backup/site/saved-keys.d.ts",
   "symbols": {

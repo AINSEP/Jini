@@ -2282,6 +2282,9 @@
    "OwnerSetupInput": "interface:0a0f38cb2e",
    "SiteImportFailureCollaborators": "interface:da096a2b8d",
    "SiteImportIncident": "interface:aecbad9227",
+   "SiteImportListPrincipal": "interface:2f124ca2d4",
+   "SiteImportListQuery": "type:62eea52578",
+   "SiteImportListRouteDeps": "interface:7be62fb38d",
    "SiteImportReply": "interface:ec7ae076fb",
    "importIncident": "function:b2026eb748",
    "importStep": "function:777bd1912c",
@@ -2289,6 +2292,8 @@
    "mapImportFailure": "function:5156a2b5a8",
    "ownerSetupBody": "function:8a61c36950",
    "parseOwnerSetupBody": "function:6efcb42c4e",
+   "parseSiteImportListQuery": "function:76c1f0e322",
+   "siteImportListRouteSpec": "variable:565fa04fb5",
    "uploadBusyReply": "function:ce9e8cb68d",
    "workspaceUnavailableReply": "function:7380d737a0"
   }

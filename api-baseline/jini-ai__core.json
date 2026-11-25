@@ -2389,6 +2389,19 @@
    "VisitorToolsView": "interface:b41f46ba2c"
   }
  },
+ "./contracts/site/site-import-history": {
+  "types": "./dist/contracts/site/site-import-history.d.ts",
+  "symbols": {
+   "ImportHistoryPolicy": "type:5fe8fc2f9f",
+   "MinimalImportOutcome": "type:b2c622a6fe",
+   "SiteImportPage": "type:53582cfd8e",
+   "SiteImportPageInput": "type:738e5b1bd3",
+   "SiteImportRecord": "interface:da16f17292",
+   "SiteImportSource": "type:c25b2a9c5f",
+   "SiteImportStatus": "type:e972604e22",
+   "SiteImportView": "interface:a1ca05779a"
+  }
+ },
  "./contracts/site/site-key": {
   "types": "./dist/contracts/site/site-key.d.ts",
   "symbols": {
