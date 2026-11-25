@@ -4,6 +4,9 @@ import type { HumanConfirmSpec } from "@jini-ai/core/contracts/site/human-confir
 import type { ToolExecutionContext, SurfaceEmitter } from "@jini-ai/core";
 import { createSurfaceExchangeStore } from "../../surface-exchanges.js";
 import { requireHumanConfirm } from "../human-confirm.js";
+import type { UIResource } from "@jini-ai/core/contracts/site/protocol-mcp-ui";
+
+const CARD = { type: "resource", resource: { uri: "ui://confirm", mimeType: "text/html", text: "" } } as const satisfies UIResource;
 
 const spec: HumanConfirmSpec = { toolId: "delete", errorCode: "DELETE", title: "Delete", details: [], confirmLabel: "Confirm",
   access: { resources: [{ id: "r", label: "r", scope: { personId: "person" }, previous: null, proposed: null, revision: null }] },
@@ -18,7 +21,7 @@ it("does not resume after the grant or approving person changes while the card i
     const approver = vi.fn(async () => { if (displayed && revoked === "person") throw new Error("changed person"); });
     const surfaces: HumanConfirmSurfaceDeps = { surfaceExchanges: store, assertAccessApprover: approver };
     const writer = vi.fn();
-    const promise = requireHumanConfirm({ ctx, surfaces, spec, requireDeleteGrant: grant, render: () => "ui://confirm" }, {
+    const promise = requireHumanConfirm({ ctx, surfaces, spec, requireDeleteGrant: grant, render: () => CARD }, {
       emitSurface: async () => { displayed = true; store.deliver({ exchangeId: "exchange", principalId: "person", params: { decision: "confirm" } }, { toolId: "delete" }); },
     }).then(writer);
     await expect(promise).rejects.toThrow(revoked === "grant" ? "revoked grant" : "changed person");
@@ -38,7 +41,7 @@ it("opens no exchange when already aborted and balances the abort listener", asy
     const open = vi.spyOn(store, "open");
     const ctx: ToolExecutionContext = { executionId: "e", principal: { id: "person" }, run: { id: "run" }, input: {}, signal: controller.signal };
     const closes: (() => number)[] = [];
-    const outcome = await requireHumanConfirm({ ctx, surfaces: { surfaceExchanges: store }, spec: { toolId: spec.toolId, errorCode: spec.errorCode, title: spec.title, details: [], confirmLabel: spec.confirmLabel }, requireDeleteGrant: async () => {}, render: ({ exchange }) => { const close = vi.spyOn(exchange, "close"); closes.push(() => close.mock.calls.length); return "ui://confirm"; } }, { emitSurface: async () => { controller.abort(); controller.abort(); } });
+    const outcome = await requireHumanConfirm({ ctx, surfaces: { surfaceExchanges: store }, spec: { toolId: spec.toolId, errorCode: spec.errorCode, title: spec.title, details: [], confirmLabel: spec.confirmLabel }, requireDeleteGrant: async () => {}, render: ({ exchange }) => { const close = vi.spyOn(exchange, "close"); closes.push(() => close.mock.calls.length); return CARD; } }, { emitSurface: async () => { controller.abort(); controller.abort(); } });
     expect(outcome).toEqual({ confirmed: false, reason: "abandoned" });
     expect(open).toHaveBeenCalledTimes(preAborted ? 0 : 1);
     expect(add).toHaveBeenCalledTimes(preAborted ? 0 : 1);
@@ -61,7 +64,7 @@ it("does not select an unoffered choice and observes non-restorable receipts", a
   const retry = vi.fn(async () => {});
   const emit: SurfaceEmitter = Object.assign(async () => { store.deliver({ exchangeId: "exchange", principalId: "person", params: { decision: "confirm", choice: "unoffered" } }, { toolId: "delete" }); },
     { exchangeLifetime: { signal: controller.signal, runId: "run", toolId: "delete", principalId: "person", retry } });
-  const outcome = await requireHumanConfirm({ ctx, surfaces: { surfaceExchanges: store, assertAccessApprover: async () => {}, approvalReceiptsFor: () => ({ onApprovalReceipt: receipt, restorable: false }) }, spec, requireDeleteGrant: async () => {}, render: () => "ui://confirm" }, { emitSurface: emit });
+  const outcome = await requireHumanConfirm({ ctx, surfaces: { surfaceExchanges: store, assertAccessApprover: async () => {}, approvalReceiptsFor: () => ({ onApprovalReceipt: receipt, restorable: false }) }, spec, requireDeleteGrant: async () => {}, render: () => CARD }, { emitSurface: emit });
   expect(outcome).toEqual({ confirmed: true });
   expect(receipt).toHaveBeenCalled();
   const wrapped = open.mock.calls[0]?.[0].emit;

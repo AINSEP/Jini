@@ -1,7 +1,7 @@
 import { ToolInputError, type AccessApprovalDescription, type SurfaceEmitter, type ToolExecutionContext, type ToolExecutionOptions } from "@jini-ai/core";
 import type { ChatDeleteSurfaceDeps, HumanConfirmSurfaceDeps } from "@jini-ai/core/contracts/site/daemon-surface-exchanges";
 import type { HumanConfirmSpec, HumanConfirmAlternative } from "@jini-ai/core/contracts/site/human-confirm";
-import type { UIResourceUri } from "@jini-ai/core/contracts/site/protocol-mcp-ui";
+import type { UIResource } from "@jini-ai/core/contracts/site/protocol-mcp-ui";
 import { askOnce, classifyConfirmationAnswer, type ConfirmationOutcome } from "../surface-exchanges.js";
 
 /** Keep the lease (signal, run, principal) but make its retry a no-op, so a late answer restores nothing. */
@@ -30,7 +30,7 @@ export type HumanConfirmOutcome = { confirmed: true; choice?: string } | Extract
  * permanent-delete tools, plus the wait for the human.
  */
 export async function requireHumanConfirm(
-  { ctx, surfaces, spec, requireDeleteGrant, render }: { ctx: ToolExecutionContext; surfaces: HumanConfirmSurfaceDeps; spec: HumanConfirmSpec; requireDeleteGrant: (required: { surfaces: ChatDeleteSurfaceDeps; toolId: string; principalId: string }) => Promise<void>; render: (required: { spec: HumanConfirmSpec; exchange: ReturnType<ChatDeleteSurfaceDeps["surfaceExchanges"]["open"]>; alternatives: readonly HumanConfirmAlternative[] }) => UIResourceUri },
+  { ctx, surfaces, spec, requireDeleteGrant, render }: { ctx: ToolExecutionContext; surfaces: HumanConfirmSurfaceDeps; spec: HumanConfirmSpec; requireDeleteGrant: (required: { surfaces: ChatDeleteSurfaceDeps; toolId: string; principalId: string }) => Promise<void>; render: (required: { spec: HumanConfirmSpec; exchange: ReturnType<ChatDeleteSurfaceDeps["surfaceExchanges"]["open"]>; alternatives: readonly HumanConfirmAlternative[] }) => UIResource },
   { emitSurface }: ToolExecutionOptions = {},
 ): Promise<HumanConfirmOutcome> {
   await requireDeleteGrant({ surfaces, toolId: spec.toolId, principalId: ctx.principal.id });

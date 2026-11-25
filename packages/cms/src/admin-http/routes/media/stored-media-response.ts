@@ -14,7 +14,7 @@ import type { MediaListLookup } from "./list.js";
  * @complexity O(1) — one public-URL lookup, plus one blob size lookup for SVG.
  */
 export async function toStoredMediaResponse(
-  { media, contentType, byteLength, resolvePublicUrls, resolveByteSizes }: { media: MediaRecord; contentType: string; byteLength: number; resolvePublicUrls: MediaListLookup<string | null>; resolveByteSizes: MediaListLookup<number> },
+  { media, contentType, byteLength, resolvePublicUrls, resolveByteSizes }: { media: MediaRecord; contentType: string; byteLength: number; resolvePublicUrls: MediaListLookup<string | null>; resolveByteSizes: MediaListLookup<number | null> },
   _optional = {},
 ): Promise<AdminMediaEnvelope> {
   const publicUrl = (await resolvePublicUrls({ media: [media] })).get(media.id) ?? null;
