@@ -294,6 +294,8 @@
       "./public-http/routes/members/sign-in": "universal",
       "./public-http/routes/members/complete-sign-in": "universal",
       "./public-http/routes/members/unlink-identity": "universal",
+      "./public-http/routes/members/oidc-start": "universal",
+      "./public-http/routes/members/oidc-callback": "universal",
       "./public-http/routes/members/set-password": "universal",
       "./admin-http/routes/commerce/status": "universal",
       "./admin-http/routes/consent/routes": "universal",
@@ -2432,6 +2434,16 @@
       "types": "./dist/public-http/routes/members/unlink-identity.d.ts",
       "import": "./dist/public-http/routes/members/unlink-identity.js",
       "default": "./dist/public-http/routes/members/unlink-identity.js"
+    },
+    "./public-http/routes/members/oidc-start": {
+      "types": "./dist/public-http/routes/members/oidc-start.d.ts",
+      "import": "./dist/public-http/routes/members/oidc-start.js",
+      "default": "./dist/public-http/routes/members/oidc-start.js"
+    },
+    "./public-http/routes/members/oidc-callback": {
+      "types": "./dist/public-http/routes/members/oidc-callback.d.ts",
+      "import": "./dist/public-http/routes/members/oidc-callback.js",
+      "default": "./dist/public-http/routes/members/oidc-callback.js"
     },
     "./public-http/routes/members/set-password": {
       "types": "./dist/public-http/routes/members/set-password.d.ts",
