@@ -1,4 +1,5 @@
-import type { TransactionalRepoPort } from "@jini-ai/core/contracts/events";
+import type { MutationActor, TransactionalRepoPort } from "@jini-ai/core/contracts/events";
+import { checkedMutationActor } from "../core/mutation-actor.js";
 import { nowIso as kernelNowIso } from "@jini-ai/core/primitives";
 import { validateHierarchyAssignment } from "./validation-chain.js";
 import type { Taxonomy, Term, WriteServiceDeps } from "./write-contracts.js";
@@ -42,6 +43,9 @@ import { TermRecordNotFoundError, authorizeTaxonomyManage, requireTaxonomy, reso
 export interface CreateTaxonomyRequired {
   deps: WriteServiceDeps;
   principalId: string;
+  /** Trusted attribution from the caller's execution channel (admin route `user`, assistant tool
+   *  `agent`, publish/background `system`); its `id` must be `principalId`. Optional for now: omitted, the event records no actor. */
+  actor?: MutationActor | undefined;
   name: string;
   hierarchical: boolean;
 }
@@ -53,6 +57,9 @@ export async function createTaxonomy(
   _optional: Record<string, never> = {}
 ): Promise<Taxonomy> {
   const { deps, principalId, name, hierarchical } = required;
+  // The execution channel supplies attribution, the principal ID still governs authorization, and
+  // the two are not interchangeable: refuse an actor naming someone else before any write.
+  const actor = checkedMutationActor({ principalId, actor: required.actor });
   await authorizeTaxonomyManage(deps, principalId);
 
   const now = kernelNowIso({ clock: deps.clock });
@@ -74,7 +81,7 @@ export async function createTaxonomy(
     recordedAt: now,
   });
   await deps.stampWatermark({});
-  await deps.outbox.enqueue({ event: { name: "taxonomy.created", taxonomyId: taxonomy.id, actorId: principalId, occurredAt: now } });
+  await deps.outbox.enqueue({ event: { name: "taxonomy.created", taxonomyId: taxonomy.id, actorId: principalId, ...(actor ? { actor } : {}), occurredAt: now } });
 
   return taxonomy;
 }
@@ -82,6 +89,9 @@ export async function createTaxonomy(
 export interface CreateTermRequired {
   deps: WriteServiceDeps;
   principalId: string;
+  /** Trusted attribution from the caller's execution channel (admin route `user`, assistant tool
+   *  `agent`, publish/background `system`); its `id` must be `principalId`. Optional for now: omitted, the event records no actor. */
+  actor?: MutationActor | undefined;
   taxonomyId: string;
   name: string;
 }
@@ -102,6 +112,9 @@ export async function createTerm(
 ): Promise<Term> {
   const { deps, principalId, taxonomyId, name } = required;
   const { parentId } = optional;
+  // The execution channel supplies attribution, the principal ID still governs authorization, and
+  // the two are not interchangeable: refuse an actor naming someone else before any write.
+  const actor = checkedMutationActor({ principalId, actor: required.actor });
   await authorizeTaxonomyManage(deps, principalId);
 
   const taxonomy = await requireTaxonomy({ taxonomies: deps.taxonomies, taxonomyId });
@@ -132,7 +145,7 @@ export async function createTerm(
   await deps.terms.insert(term);
   await deps.revisions.insert({ taxonomyId, op: "create", previousState: null, actorId: principalId, recordedAt: now });
   await deps.stampWatermark({});
-  await deps.outbox.enqueue({ event: { name: "taxonomy.term_created", termId: term.id, actorId: principalId, occurredAt: now } });
+  await deps.outbox.enqueue({ event: { name: "taxonomy.term_created", termId: term.id, actorId: principalId, ...(actor ? { actor } : {}), occurredAt: now } });
 
   return term;
 }
@@ -144,6 +157,9 @@ export interface RenameTermRequired {
     transaction: TransactionalRepoPort["transaction"];
   };
   principalId: string;
+  /** Trusted attribution from the caller's execution channel (admin route `user`, assistant tool
+   *  `agent`, publish/background `system`); its `id` must be `principalId`. Optional for now: omitted, the event records no actor. */
+  actor?: MutationActor | undefined;
   termId: string;
   newName: string;
 }
@@ -159,6 +175,9 @@ export async function renameTerm(
   _optional: Record<string, never> = {}
 ): Promise<Term> {
   const { deps, principalId, termId, newName } = required;
+  // The execution channel supplies attribution, the principal ID still governs authorization, and
+  // the two are not interchangeable: refuse an actor naming someone else before any write.
+  const actor = checkedMutationActor({ principalId, actor: required.actor });
   await authorizeTaxonomyManage(deps, principalId);
 
   // The narrow taxonomy repo stays independent; the host binds the shared transaction explicitly.
@@ -191,7 +210,7 @@ export async function renameTerm(
         recordedAt: now,
       });
       await deps.stampWatermark({});
-      await deps.outbox.enqueue({ event: { name: "taxonomy.term_renamed", termId, actorId: principalId, occurredAt: now } });
+      await deps.outbox.enqueue({ event: { name: "taxonomy.term_renamed", termId, actorId: principalId, ...(actor ? { actor } : {}), occurredAt: now } });
 
       return updated;
     }

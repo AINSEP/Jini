@@ -1,5 +1,5 @@
 import type { JsonRouteAuthorize, JsonRouteAuthorizeScope } from "@jini-ai/core/contracts/server";
-import type { AuthorizeFn } from "@jini-ai/core/contracts/events";
+import type { AuthorizeFn, MutationActor } from "@jini-ai/core/contracts/events";
 import { rejectRoute } from "@jini-ai/core/errors/route-refusal";
 
 import { ForbiddenError } from "../../../core/index.js";
@@ -53,6 +53,9 @@ export interface TaxonomyWriteRouteDeps extends KernelOutboxAdapterDeps {
   taxonomyRevisionRepo: TaxonomyRevisionRepoPort;
   stampWatermark: WriteServiceDeps["stampWatermark"];
   postRepo: ContentRecordLookupPort;
+  /** The host's trusted attribution for this admin channel, read by every taxonomy write route.
+   *  Optional for now; unbound, the write records no actor rather than a guessed kind. */
+  mutationActor?: ((required: { principalId: string }) => MutationActor) | undefined;
 }
 
 /** The write service's deps for one call; `contentTargets` is the content lookup (and, for

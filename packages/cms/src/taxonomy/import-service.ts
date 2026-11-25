@@ -1,3 +1,5 @@
+import type { MutationActor } from "@jini-ai/core/contracts/events";
+import { checkedMutationActor } from "../core/mutation-actor.js";
 import { nowIso as kernelNowIso } from "@jini-ai/core/primitives";
 import { validateHierarchyAssignment, wouldCreateCycle } from "./validation-chain.js";
 import type { Taxonomy, Term, TaxonomyRepoPort, TermRepoPort, WriteServiceDeps } from "./write-contracts.js";
@@ -17,6 +19,9 @@ export interface ImportableTaxonomyRepoPort {
 export interface ImportTaxonomyRequired {
   deps: WriteServiceDeps & { taxonomies: TaxonomyRepoPort & ImportableTaxonomyRepoPort };
   principalId: string;
+  /** Trusted attribution from the caller's execution channel (admin route `user`, assistant tool
+   *  `agent`, publish/background `system`); its `id` must be `principalId`. Optional for now: omitted, the event records no actor. */
+  actor?: MutationActor | undefined;
   /** The source's own id, preserved verbatim — unlike `createTaxonomy`, which always mints a fresh
    * one. Anything referencing this taxonomy by id (its member terms) needs it to survive a publish
    * round trip unchanged. */
@@ -71,6 +76,9 @@ export async function importTaxonomy(
   _optional: Record<string, never> = {}
 ): Promise<Taxonomy> {
   const { deps, principalId, id, name, hierarchical, expectedVersion } = required;
+  // The execution channel supplies attribution, the principal ID still governs authorization, and
+  // the two are not interchangeable: refuse an actor naming someone else before any write.
+  const actor = checkedMutationActor({ principalId, actor: required.actor });
   await authorizeTaxonomyManage(deps, principalId);
 
   const existing = await deps.taxonomies.findByIdFull({ id: id });
@@ -99,7 +107,7 @@ export async function importTaxonomy(
     recordedAt: now,
   });
   await deps.stampWatermark({});
-  await deps.outbox.enqueue({ event: { name: "taxonomy.imported", taxonomyId: taxonomy.id, actorId: principalId, occurredAt: now } });
+  await deps.outbox.enqueue({ event: { name: "taxonomy.imported", taxonomyId: taxonomy.id, actorId: principalId, ...(actor ? { actor } : {}), occurredAt: now } });
 
   return taxonomy;
 }
@@ -135,6 +143,9 @@ async function loadAncestorChain(terms: ImportableTermRepoPort, startId: string)
 export interface ImportTermRequired {
   deps: WriteServiceDeps & { terms: TermRepoPort & ImportableTermRepoPort };
   principalId: string;
+  /** Trusted attribution from the caller's execution channel (admin route `user`, assistant tool
+   *  `agent`, publish/background `system`); its `id` must be `principalId`. Optional for now: omitted, the event records no actor. */
+  actor?: MutationActor | undefined;
   /** The source's own id, preserved verbatim — unlike `createTerm`, which always mints a fresh one. */
   id: string;
   taxonomyId: string;
@@ -166,6 +177,9 @@ export async function importTerm(
 ): Promise<Term> {
   const { deps, principalId, id, taxonomyId, name, expectedVersion } = required;
   const { parentId } = optional;
+  // The execution channel supplies attribution, the principal ID still governs authorization, and
+  // the two are not interchangeable: refuse an actor naming someone else before any write.
+  const actor = checkedMutationActor({ principalId, actor: required.actor });
   await authorizeTaxonomyManage(deps, principalId);
 
   const taxonomy = await requireTaxonomy({ taxonomies: deps.taxonomies, taxonomyId });
@@ -182,7 +196,7 @@ export async function importTerm(
   const candidateParentId = parentId ?? null;
   await validateImportedTermParent({ terms: deps.terms, taxonomyId, taxonomyIsHierarchical: taxonomy.hierarchical, termId: id, candidateParentId, isExistingTerm: existing !== null });
 
-  return writeImportedTerm({ deps, principalId, existing, term: { id, taxonomyId, parentId: candidateParentId, name } });
+  return writeImportedTerm({ deps, principalId, actor, existing, term: { id, taxonomyId, parentId: candidateParentId, name } });
 }
 
 /**
@@ -217,10 +231,11 @@ async function validateImportedTermParent(required: {
 async function writeImportedTerm(required: {
   deps: ImportTermRequired["deps"];
   principalId: string;
+  actor: MutationActor | undefined;
   existing: Term | null;
   term: { id: string; taxonomyId: string; parentId: string | null; name: string };
 }): Promise<Term> {
-  const { deps, principalId, existing } = required;
+  const { deps, principalId, actor, existing } = required;
   const { id, taxonomyId, parentId, name } = required.term;
   const now = kernelNowIso({ clock: deps.clock });
   const term: Term = {
@@ -246,7 +261,7 @@ async function writeImportedTerm(required: {
     recordedAt: now,
   });
   await deps.stampWatermark({});
-  await deps.outbox.enqueue({ event: { name: "taxonomy.term_imported", termId: term.id, actorId: principalId, occurredAt: now } });
+  await deps.outbox.enqueue({ event: { name: "taxonomy.term_imported", termId: term.id, actorId: principalId, ...(actor ? { actor } : {}), occurredAt: now } });
 
   return term;
 }

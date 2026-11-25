@@ -34,8 +34,6 @@ export interface TaxonomyAssignTermsRouteDeps extends TaxonomyWriteRouteDeps {
   };
   entryRepo: EntryRecordLookupPort;
   contentTypeRepo: CollectionOwnerLookupPort;
-  /** The host's trusted attribution for this admin channel. Optional for now; unbound, the write records no actor. */
-  mutationActor?: ((required: { principalId: string }) => MutationActor) | undefined;
 }
 
 /** The shared `{ contentType, contentId, termIds }` body. */

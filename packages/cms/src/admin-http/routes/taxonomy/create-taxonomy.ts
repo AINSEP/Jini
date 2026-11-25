@@ -38,6 +38,7 @@ export const taxonomyCreateRoute = defineJsonRoute<TaxonomyCreateInput, { taxono
       const taxonomy = await createTaxonomy({
         deps: taxonomyWriteServiceDeps({ deps, contentTargets: postContentTargets({ deps }) }),
         principalId: principal.id,
+        actor: deps.mutationActor?.({ principalId: principal.id }),
         name: input.name,
         hierarchical: input.hierarchical,
       });

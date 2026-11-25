@@ -103,6 +103,7 @@ export const taxonomyCreateTaxonomyHandler = ({ deps }: TaxonomyHandlerArgs): To
   const taxonomy = await createTaxonomy({
     deps: taxonomyDeps(deps),
     principalId: ctx.principal.id,
+    actor: deps.mutationActor?.({ principalId: ctx.principal.id }),
     name: requireString({ input: input, key: "name" }),
     hierarchical: input.hierarchical === true,
   });
@@ -114,6 +115,7 @@ export const taxonomyCreateTermHandler = ({ deps }: TaxonomyHandlerArgs): ToolHa
   const term = await createTerm({
     deps: taxonomyDeps(deps),
     principalId: ctx.principal.id,
+    actor: deps.mutationActor?.({ principalId: ctx.principal.id }),
     taxonomyId: requireString({ input: input, key: "taxonomyId" }),
     name: requireString({ input: input, key: "name" }),
   }, { parentId: optionalString({ input: input, key: "parentId" }) ?? null });
@@ -125,6 +127,7 @@ export const taxonomyRenameTermHandler = ({ deps }: TaxonomyHandlerArgs): ToolHa
   const term = await renameTerm({
     deps: { ...taxonomyDeps(deps), transaction: (required) => deps.taxonomyRepo.transaction(required) },
     principalId: ctx.principal.id,
+    actor: deps.mutationActor?.({ principalId: ctx.principal.id }),
     termId: requireString({ input: input, key: "termId" }),
     newName: requireString({ input: input, key: "newName" }),
   });

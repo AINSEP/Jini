@@ -43,6 +43,7 @@ export const taxonomyRenameTermRoute = defineJsonRoute<TaxonomyRenameTermInput, 
           transaction: (required) => deps.taxonomyRepo.transaction(required),
         },
         principalId: principal.id,
+        actor: deps.mutationActor?.({ principalId: principal.id }),
         termId: input.termId,
         newName: input.newName,
       });
