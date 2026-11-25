@@ -149,6 +149,53 @@ export interface RoleMarkerGuard {
   warningEvent(): RoleMarkerWarningEvent | null;
 }
 
+/** Picks the confirmed-marker and pending-marker matchers for the current stream position. */
+function markerRegexes({ firstChunk }: { firstChunk: boolean }): { matchRe: RegExp; pendingRe: RegExp } {
+  const matchRe = firstChunk
+    ? FABRICATED_ROLE_MARKER_RE
+    : NEWLINE_ANCHORED_ROLE_MARKER_RE;
+  const pendingRe = firstChunk
+    ? FIRST_CHUNK_PENDING_MARKER_TAIL_RE
+    : NEWLINE_ANCHORED_PENDING_MARKER_TAIL_RE;
+  return { matchRe, pendingRe };
+}
+
+/** Bytes between what was already emitted and a just-confirmed marker; `''` when the marker starts inside the emitted tail. */
+function textBeforeMarker({ buffer, alreadyEmitted, markerStart }: { buffer: string; alreadyEmitted: number; markerStart: number }): string {
+  if (markerStart <= alreadyEmitted) return '';
+  return buffer.slice(alreadyEmitted, markerStart);
+}
+
+/** Splits the not-yet-emitted part of `buffer` into the safe prefix and a withheld complete-but-unconfirmed marker suffix. */
+function withholdPendingMarker(
+  { buffer, pendingRe, alreadyEmitted }: { buffer: string; pendingRe: RegExp; alreadyEmitted: number },
+): { safeToEmit: string; pending: string } {
+  const pendingMatch = pendingRe.exec(buffer);
+  const pendingStart = pendingMatch
+    // Never withhold bytes we have already emitted in a prior
+    // feed — the suspicious suffix could in pathological cases
+    // start inside `tail` (we held back `pending` correctly on
+    // the prior call, but the suffix-start position is upstream
+    // of where we hold). Clamp to alreadyEmitted so safeToEmit
+    // never goes negative.
+    ? Math.max(pendingMatch.index, alreadyEmitted)
+    : buffer.length;
+
+  return { safeToEmit: buffer.slice(alreadyEmitted, pendingStart), pending: buffer.slice(pendingStart) };
+}
+
+/** Appends the newly emitted bytes to `tail`, capped at TAIL_BUFFER_SIZE; reports whether the cap sliced it. */
+function rollEmittedTail({ tail, safeToEmit }: { tail: string; safeToEmit: string }): { tail: string; willSlice: boolean } {
+  const fullEmitted = tail + safeToEmit;
+  const willSlice = fullEmitted.length > TAIL_BUFFER_SIZE;
+  return {
+    tail: willSlice
+      ? fullEmitted.slice(fullEmitted.length - TAIL_BUFFER_SIZE)
+      : fullEmitted,
+    willSlice,
+  };
+}
+
 /**
  * Create a stateful guard that detects fabricated role markers across
  * chunk boundaries. Memory + per-call work is O(1): instead of
@@ -214,12 +261,7 @@ export function createRoleMarkerGuard({ messageId }: { messageId: string }, _opt
       // `pending` (deferred-from-prior-call suspicious suffix), and the
       // new `text` into a single matching buffer.
       const buffer = tail + pending + text;
-      const matchRe = firstChunk
-        ? FABRICATED_ROLE_MARKER_RE
-        : NEWLINE_ANCHORED_ROLE_MARKER_RE;
-      const pendingRe = firstChunk
-        ? FIRST_CHUNK_PENDING_MARKER_TAIL_RE
-        : NEWLINE_ANCHORED_PENDING_MARKER_TAIL_RE;
+      const { matchRe, pendingRe } = markerRegexes({ firstChunk });
       // `firstChunk` transitions are tied to actual byte emission, not
       // feed count — see comment above. Transitioned at the end of
       // this function only when we emit at least one byte.
@@ -234,37 +276,20 @@ export function createRoleMarkerGuard({ messageId }: { messageId: string }, _opt
         _contaminated = true;
         markerText = match[0].trim();
         pending = '';
-        const alreadyEmitted = tail.length;
-        const markerStart = match.index;
-        if (markerStart <= alreadyEmitted) return '';
-        return buffer.slice(alreadyEmitted, markerStart);
+        return textBeforeMarker({ buffer, alreadyEmitted: tail.length, markerStart: match.index });
       }
 
       // No confirmed marker. Check whether the buffer ends with a
       // complete-but-unconfirmed marker prefix (role keyword present,
       // lookahead char not yet arrived). If so, withhold that suffix
       // until the next feed; emit the rest.
-      const pendingMatch = pendingRe.exec(buffer);
-      const alreadyEmitted = tail.length;
-      const pendingStart = pendingMatch
-        // Never withhold bytes we have already emitted in a prior
-        // feed — the suspicious suffix could in pathological cases
-        // start inside `tail` (we held back `pending` correctly on
-        // the prior call, but the suffix-start position is upstream
-        // of where we hold). Clamp to alreadyEmitted so safeToEmit
-        // never goes negative.
-        ? Math.max(pendingMatch.index, alreadyEmitted)
-        : buffer.length;
-
-      const safeToEmit = buffer.slice(alreadyEmitted, pendingStart);
-      pending = buffer.slice(pendingStart);
+      const held = withholdPendingMarker({ buffer, pendingRe, alreadyEmitted: tail.length });
+      const safeToEmit = held.safeToEmit;
+      pending = held.pending;
 
       // Roll the emitted-bytes tail forward.
-      const fullEmitted = tail + safeToEmit;
-      const willSlice = fullEmitted.length > TAIL_BUFFER_SIZE;
-      tail = willSlice
-        ? fullEmitted.slice(fullEmitted.length - TAIL_BUFFER_SIZE)
-        : fullEmitted;
+      const rolled = rollEmittedTail({ tail, safeToEmit });
+      tail = rolled.tail;
       // `firstChunk` is true exactly while `tail` still represents the
       // entire emission so far — i.e. no slice has occurred and `^` in
       // the canonical regex genuinely anchors at byte 0 of the stream.
@@ -284,7 +309,7 @@ export function createRoleMarkerGuard({ messageId }: { messageId: string }, _opt
       //     review r3324060995.
       // Slice-based is the invariant that satisfies both: while we
       // haven't sliced, `^` is correct; once we slice, it isn't.
-      if (willSlice) firstChunk = false;
+      if (rolled.willSlice) firstChunk = false;
 
       return safeToEmit;
     },

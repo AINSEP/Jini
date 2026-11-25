@@ -111,79 +111,86 @@ function usageEvent(obj: JsonRecord): QoderEvent {
   };
 }
 
+/** Parser state that outlives a single record: whether `thinking_start` has already been announced. */
+interface QoderTranslationState {
+  emittedThinkingStart: boolean;
+}
+
+function emitThinking({ thinking, state, onEvent }: { thinking: string; state: QoderTranslationState; onEvent: QoderEventSink }) {
+  if (!state.emittedThinkingStart) {
+    state.emittedThinkingStart = true;
+    onEvent({ type: 'thinking_start' });
+  }
+  onEvent({ type: 'thinking_delta', delta: thinking });
+}
+
+/** Emit one content block's text or thinking; returns whether text was emitted. */
+function emitContentBlock({ block, state, onEvent }: { block: unknown; state: QoderTranslationState; onEvent: QoderEventSink }): boolean {
+  const text = textFromContentBlock(block);
+  if (text.length > 0) {
+    onEvent({ type: 'text_delta', delta: text });
+    return true;
+  }
+  const thinking = thinkingFromContentBlock(block);
+  if (thinking.length > 0) emitThinking({ thinking, state, onEvent });
+  return false;
+}
+
+function translateAssistant(
+  { obj, message, rawLine, state, onEvent }: { obj: JsonRecord; message: JsonRecord; rawLine: string; state: QoderTranslationState; onEvent: QoderEventSink },
+) {
+  const content = Array.isArray(message.content) ? message.content : [];
+  let emittedText = false;
+  for (const block of content) {
+    if (emitContentBlock({ block, state, onEvent })) emittedText = true;
+  }
+  if (!emittedText && typeof message.content === 'string') {
+    onEvent({ type: 'text_delta', delta: message.content });
+    emittedText = true;
+  }
+  if (obj.error && !emittedText) {
+    onEvent({
+      type: 'error',
+      message: messageFromError(obj.error),
+      raw: rawLine,
+    });
+  }
+}
+
+function translateResult({ obj, rawLine, onEvent }: { obj: JsonRecord; rawLine: string; onEvent: QoderEventSink }) {
+  onEvent(usageEvent(obj));
+  if (obj.is_error) {
+    onEvent({
+      type: 'error',
+      message: messageFromResult(obj),
+      raw: rawLine,
+    });
+  }
+}
+
+function translateObject({ obj, rawLine, state, onEvent }: { obj: unknown; rawLine: string; state: QoderTranslationState; onEvent: QoderEventSink }) {
+  if (!isRecord(obj)) return;
+  if (obj.type === 'system' && obj.subtype === 'init') {
+    onEvent(initStatusEvent(obj));
+  } else if (obj.type === 'assistant' && isRecord(obj.message)) {
+    translateAssistant({ obj, message: obj.message, rawLine, state, onEvent });
+  } else if (obj.type === 'result') {
+    translateResult({ obj, rawLine, onEvent });
+  } else {
+    onEvent({ type: 'raw', line: rawLine });
+  }
+}
+
 export function createQoderStreamHandler({ onEvent }: { onEvent: QoderEventSink }, _optional: Record<string, never> = {}) {
   const lines = createBoundedLineStream({
     onLine: line => { const trimmed = line.trim(); if (trimmed) handleLine(trimmed); },
     onOverflow: error => onEvent({ type: 'error', message: error.message, raw: '' }),
   });
-  let emittedThinkingStart = false;
-
-  function emitThinking(thinking: string) {
-    if (!emittedThinkingStart) {
-      emittedThinkingStart = true;
-      onEvent({ type: 'thinking_start' });
-    }
-    onEvent({ type: 'thinking_delta', delta: thinking });
-  }
-
-  /** Emit one content block's text or thinking; returns whether text was emitted. */
-  function emitContentBlock(block: unknown): boolean {
-    const text = textFromContentBlock(block);
-    if (text.length > 0) {
-      onEvent({ type: 'text_delta', delta: text });
-      return true;
-    }
-    const thinking = thinkingFromContentBlock(block);
-    if (thinking.length > 0) emitThinking(thinking);
-    return false;
-  }
-
-  function handleAssistant(obj: JsonRecord, message: JsonRecord, rawLine: string) {
-    const content = Array.isArray(message.content) ? message.content : [];
-    let emittedText = false;
-    for (const block of content) {
-      if (emitContentBlock(block)) emittedText = true;
-    }
-    if (!emittedText && typeof message.content === 'string') {
-      onEvent({ type: 'text_delta', delta: message.content });
-      emittedText = true;
-    }
-    if (obj.error && !emittedText) {
-      onEvent({
-        type: 'error',
-        message: messageFromError(obj.error),
-        raw: rawLine,
-      });
-    }
-  }
-
-  function handleResult(obj: JsonRecord, rawLine: string) {
-    onEvent(usageEvent(obj));
-    if (obj.is_error) {
-      onEvent({
-        type: 'error',
-        message: messageFromResult(obj),
-        raw: rawLine,
-      });
-    }
-  }
-
-  function handleObject(obj: unknown, rawLine: string) {
-    if (!isRecord(obj)) return;
-    if (obj.type === 'system' && obj.subtype === 'init') {
-      onEvent(initStatusEvent(obj));
-    } else if (obj.type === 'assistant' && isRecord(obj.message)) {
-      handleAssistant(obj, obj.message, rawLine);
-    } else if (obj.type === 'result') {
-      handleResult(obj, rawLine);
-    } else {
-      onEvent({ type: 'raw', line: rawLine });
-    }
-  }
+  const state: QoderTranslationState = { emittedThinkingStart: false };
 
   function handleLine(line: string) {
     try {
-      handleObject(JSON.parse(line), line);
+      translateObject({ obj: JSON.parse(line), rawLine: line, state, onEvent });
     } catch {
       onEvent({ type: 'raw', line });
     }
