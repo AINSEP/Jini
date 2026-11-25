@@ -75,6 +75,7 @@
       "./backup/site/share-refusal": "universal",
       "./backup/site/share-backend": "node",
       "./backup/site/share-file-policy": "node",
+      "./backup/site/import-verifier": "node",
       "./backup/site/archive-media": "universal",
       "./backup/site/static-export-selection": "universal",
       "./backup/site/import-verifier-projection": "universal",
@@ -89,6 +90,8 @@
       "./backup/site/static-site-packager": "node",
       "./backup/site/package-file-inventory": "node",
       "./backup/site/bundled-export-file-policy": "node",
+      "./backup/site/share-hosting": "node",
+      "./backup/site/import-registry": "node",
       "./deploy/site/ports": "universal",
       "./deploy/site/deploy-config": "node",
       "./deploy/site/deploy-config-registry": "node"
@@ -421,6 +424,11 @@
       "import": "./dist/backup/site/share-file-policy.js",
       "default": "./dist/backup/site/share-file-policy.js"
     },
+    "./backup/site/import-verifier": {
+      "types": "./dist/backup/site/import-verifier.d.ts",
+      "import": "./dist/backup/site/import-verifier.js",
+      "default": "./dist/backup/site/import-verifier.js"
+    },
     "./backup/site/archive-media": {
       "types": "./dist/backup/site/archive-media.d.ts",
       "import": "./dist/backup/site/archive-media.js",
@@ -490,6 +498,16 @@
       "types": "./dist/backup/site/bundled-export-file-policy.d.ts",
       "import": "./dist/backup/site/bundled-export-file-policy.js",
       "default": "./dist/backup/site/bundled-export-file-policy.js"
+    },
+    "./backup/site/share-hosting": {
+      "types": "./dist/backup/site/share-hosting.d.ts",
+      "import": "./dist/backup/site/share-hosting.js",
+      "default": "./dist/backup/site/share-hosting.js"
+    },
+    "./backup/site/import-registry": {
+      "types": "./dist/backup/site/import-registry.d.ts",
+      "import": "./dist/backup/site/import-registry.js",
+      "default": "./dist/backup/site/import-registry.js"
     },
     "./deploy/site/ports": {
       "types": "./dist/deploy/site/ports.d.ts",

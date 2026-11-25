@@ -530,6 +530,9 @@
       "./publish/content/backstop-service": "universal",
       "./publish/content/composite-blob-source": "node",
       "./publish/content/gated-hooks": "node",
+      "./publish/content/destination-credential": "universal",
+      "./publish/content/permissions": "universal",
+      "./publish/content/file-tree-policy": "universal",
       "./trash/site/adapters/marker-sql": "node",
       "./posts/tiptap-text-schema": "universal",
       "./taxonomy/site/publish-term-ids": "universal",
@@ -3545,6 +3548,21 @@
       "types": "./dist/publish/content/gated-hooks.d.ts",
       "import": "./dist/publish/content/gated-hooks.js",
       "default": "./dist/publish/content/gated-hooks.js"
+    },
+    "./publish/content/destination-credential": {
+      "types": "./dist/publish/content/destination-credential.d.ts",
+      "import": "./dist/publish/content/destination-credential.js",
+      "default": "./dist/publish/content/destination-credential.js"
+    },
+    "./publish/content/permissions": {
+      "types": "./dist/publish/content/permissions.d.ts",
+      "import": "./dist/publish/content/permissions.js",
+      "default": "./dist/publish/content/permissions.js"
+    },
+    "./publish/content/file-tree-policy": {
+      "types": "./dist/publish/content/file-tree-policy.d.ts",
+      "import": "./dist/publish/content/file-tree-policy.js",
+      "default": "./dist/publish/content/file-tree-policy.js"
     },
     "./trash/site/adapters/marker-sql": {
       "types": "./dist/trash/site/adapters/marker-sql.d.ts",
