@@ -194,7 +194,7 @@ function initializeRunItems<P>({ run }: { run: ApplyRun<P> }, _optional = {}): v
 /** Opens the run: reads the registry fresh, prepares the audit, and persists the run and every
  *  pending item before the first content write. */
 async function openRun<P>(
-  { input, identity, staged, report, authorize, backstop, host }: {
+  { input, identity, staged, report, authorize, backstop, actor, host }: {
     input: CreatePublishContentApplyPortInput<P>;
     host: ApplyReportHost<P>;
     identity: ApplyRunIdentity;
@@ -202,6 +202,7 @@ async function openRun<P>(
     report: PublishContentReport;
     authorize: ApplyReportInput["authorize"];
     backstop: ApplyReportInput["backstop"];
+    actor: ApplyReportInput["actor"];
   },
   _optional = {}
 ): Promise<ApplyRun<P>> {
@@ -215,6 +216,7 @@ async function openRun<P>(
   // `PublishContentApplyPort.applyReport`'s own doc.
   const handlerDeps = {
     ...input.publishContentDeps,
+    mutationActor: actor,
     ...(authorize === undefined ? {} : { authorize }), ...(backstop === undefined ? {} : { backstop })
   };
   const { handlerByType } = host.catalog.build(handlerDeps);
@@ -538,7 +540,7 @@ async function closeRun<P>({ run }: { run: ApplyRun<P> }, _optional = {}): Promi
 /** Applies a report: loads its bundle, opens the run row, writes row by row (or in one transaction for
  *  a send by hand), and closes the run with the repoint and verification passes. */
 export async function applyPublishContentReport<P>(
-  { input, host, report, principalId, bundleId, restorePointId, authorize, backstop }: {
+  { input, host, report, principalId, actor, bundleId, restorePointId, authorize, backstop }: {
     input: CreatePublishContentApplyPortInput<P>;
     host: ApplyReportHost<P>;
   } & ApplyReportInput,
@@ -549,7 +551,7 @@ export async function applyPublishContentReport<P>(
   const identity: ApplyRunIdentity = { runId: input.idGen.newId(), startedAt, sourcePrincipalId: staged.sourcePrincipalId, principalId, restorePointId };
   if (report.refused) return abandonRefusedRun({ input, identity, report });
 
-  const run = await openRun({ input, identity, staged, report, authorize, backstop, host });
+  const run = await openRun({ input, identity, staged, report, authorize, backstop, actor, host });
   await executeRows({ run, ctx: applyRowContext({ run }), pluginHooks: host.pluginHooks });
   return closeRun({ run });
 }

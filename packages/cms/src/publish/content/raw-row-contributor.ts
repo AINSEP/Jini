@@ -185,7 +185,7 @@ async function writeRawRowCommand<P>(
   let prior: RawRowSnapshot | null = null;
   const result = await executeCommand<{ version: number }>({
     deps: { clock: deps.clock, idGen: deps.idGen, authorize, changeSets, outbox },
-    command: { workspaceId: deps.workspaceId, actor: { id: input.principalId, kind: "user" }, permission: "publish.backstop",
+    command: { workspaceId: deps.workspaceId, actor: deps.mutationActor ?? { id: input.principalId, kind: "user" }, permission: "publish.backstop",
       summary: `Send '${input.entity.id}' by hand`, idempotencyKey: input.idempotencyKey },
     mutation: { entityType: "raw-row", entityId: input.entity.id, operation: input.expectedVersion === undefined ? "create" : "update",
       captureInverse: async () => {

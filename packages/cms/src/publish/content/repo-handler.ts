@@ -368,7 +368,8 @@ async function applyRepoWithUndo<Row, Ports, P>(
     deps: { clock: env.deps.clock, idGen: env.deps.idGen, changeSets, outbox, authorize },
     command: {
       workspaceId: env.workspaceId,
-      actor: { id: input.principalId, kind: "user" },
+      // The run's trusted actor (P10-H2); `user` only for a handler driven outside an apply run.
+      actor: env.deps.mutationActor ?? { id: input.principalId, kind: "user" },
       summary: (await undo.summary?.(repoWriteContext({ run, existing: null }))) ?? `Import ${env.entityType} '${entity.id}' via publish-content`,
       permission: env.permission,
       idempotencyKey: input.idempotencyKey,

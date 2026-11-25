@@ -70,7 +70,7 @@ async function setup(options: { failOn?: { id: string; error: Error }; backstop?
   };
   const run = (overrides: { report?: PublishContentReport; bundleId?: string } = {}) =>
     applyPublishContentReport({
-      input, host, report: overrides.report ?? reportOf(["n1", "n2"]), principalId: "op", bundleId: overrides.bundleId ?? bundleId, restorePointId: "rp",
+      input, host, report: overrides.report ?? reportOf(["n1", "n2"]), principalId: "op", actor: { id: "op", kind: "user" }, bundleId: overrides.bundleId ?? bundleId, restorePointId: "rp",
     });
   return { run, applied, builtWith, runRepo };
 }

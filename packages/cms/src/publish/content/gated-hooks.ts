@@ -1,4 +1,6 @@
 import { nowIso as clockNowIso } from "@jini-ai/core/primitives";
+import type { MutationActor } from "@jini-ai/core/contracts/events";
+import { checkedMutationActor } from "../../core/mutation-actor.js";
 import type { Clock as ClockPort, IdGenerator as IdGeneratorPort } from "@jini-ai/core/primitives";
 import { computeBlobStorageKey } from "../../media/blob-key.js";
 
@@ -116,6 +118,8 @@ export interface PublishContentApplyPort {
   applyReport(input: {
     report: PublishContentReport;
     principalId: string;
+    /** The trusted actor every write of this run is attributed to; its `id` is `principalId`. */
+    actor: MutationActor;
     bundleId: string;
     restorePointId: string;
     /**
@@ -170,6 +174,9 @@ export interface BuildPublishContentImportHooksInput<P> {
    *  `buildMergeTermHooks` closes over `fromTermId`/`intoTermId` per request. */
   bundleId: string;
   actorId: string;
+  /** Trusted attribution from the host's execution channel for every write this import applies
+   *  (P10-H2). Required: an import never records a write without its actor kind. `id` must equal `actorId`. */
+  actor: MutationActor;
   clock: ClockPort;
   idGen: IdGeneratorPort;
   /** The already-built `PublishContentDeps` bag every registered contributor's `build()` closes
@@ -362,6 +369,7 @@ async function executeConfirmedImport<P>({ input, report: confirmedReport }: { i
   } = await input.applyPort.applyReport({
     report,
     principalId: input.actorId,
+    actor: checkedMutationActor({ principalId: input.actorId, actor: input.actor }) as MutationActor,
     bundleId: input.bundleId,
     restorePointId,
     // This hooks bag's OWN authorize, which the route may have attenuated for a publishing

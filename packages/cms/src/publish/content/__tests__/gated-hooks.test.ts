@@ -42,7 +42,7 @@ async function fixture(options: { staged?: boolean } = {}) {
   const clock = { nowMs: () => Date.parse("2026-09-20T12:00:00.000Z") };
   const idGen = { newId: () => "restore-1" };
   const input: BuildPublishContentImportHooksInput<Ports> = {
-    workspaceId: WORKSPACE_ID, bundleId: BUNDLE_ID, actorId: ACTOR_ID, clock, idGen,
+    workspaceId: WORKSPACE_ID, bundleId: BUNDLE_ID, actorId: ACTOR_ID, actor: { id: ACTOR_ID, kind: "user" }, clock, idGen,
     publishContentDeps: { workspaceId: WORKSPACE_ID, clock, idGen, ports: {} },
     catalog: { build: (args) => { calls.catalogBuilds += 1; return registry.buildCatalog(args); } },
     planHashOf: ({ details }) => { calls.hashed.push(details); return `injected-hash:${details.rows.length}`; },

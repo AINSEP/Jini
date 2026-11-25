@@ -1,5 +1,6 @@
 import { nowIso as clockNowIso } from "@jini-ai/core/primitives";
 import type { Clock as ClockPort, IdGenerator as IdGeneratorPort } from "@jini-ai/core/primitives";
+import type { MutationActor } from "@jini-ai/core/contracts/events";
 import {
   ForbiddenError,
   PlanStaleError,
@@ -32,6 +33,9 @@ import type { LedgerAppendPort } from "./migrate-forward-hooks.js";
 export interface BuildRestoreHooksInput extends RecoveryHookPolicy {
   workspaceId: string;
   actorId: string;
+  /** Trusted attribution from the host's execution channel, recorded on the ledger row's detail.
+   *  Required: a restore is never recorded without the kind of actor that ran it. Its `id` must equal `actorId`. */
+  actor: MutationActor;
   restorePointId: string;
   clock: ClockPort;
   idGen: IdGeneratorPort;
@@ -121,7 +125,7 @@ export function buildRestoreHooks(input: BuildRestoreHooksInput, _optional: Reco
         kind: "restore.executed",
         restorePointId: input.restorePointId,
         outcome: "success",
-        detailJson: JSON.stringify({ restoreRunId, restartRequired }),
+        detailJson: JSON.stringify({ restoreRunId, restartRequired, actor: { id: input.actor.id, kind: input.actor.kind } }),
         actorWorkspaceId: input.workspaceId,
         actorId: input.actorId,
         createdAt: now,

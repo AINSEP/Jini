@@ -1,5 +1,5 @@
 import type { Clock as ClockPort } from "@jini-ai/core/primitives";
-import type { AuthorizeFn, ChangeSetRepoPort, OutboxPort } from "@jini-ai/core/contracts/events";
+import type { AuthorizeFn, ChangeSetRepoPort, MutationActor, OutboxPort } from "@jini-ai/core/contracts/events";
 import type { BackstopPorts } from "../transfer/backstop-ports.js";
 import type { PackedEntity } from "../transfer/packed-entity.js";
 /**
@@ -64,6 +64,9 @@ import type { PackedEntity } from "../transfer/packed-entity.js";
  * names its own bag (the host binding instantiates these types once with it).
  */
 export interface PublishContentDeps<TPorts> {
+  /** The trusted actor an apply run writes as, merged in per request by the apply port from the
+   *  ceremony's required `actor` (P10-H2). Absent outside an apply run (export, plan). */
+  readonly mutationActor?: MutationActor;
   /** Only explicit selection packs raw items; ordinary exports always yield none. */
   readonly backstop?: BackstopPorts;
   /** Every publish-content operation is scoped to one workspace (the workspace-scoped admin mount
