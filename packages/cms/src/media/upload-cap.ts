@@ -1,6 +1,6 @@
 /**
- * Why: a host may allow far larger video uploads than everything else (Tovu: 500 MB video, 50 MiB
- * otherwise, owner decision 2026-11-24). The cap depends on the file's type, so every path that
+ * Why: a host may allow far larger video uploads than everything else (for example 500 MB for video, 50 MiB
+ * otherwise). The cap depends on the file's type, so every path that
  * enforces it (upload, replace, assistant tool, admin replace route) asks this one function instead of
  * repeating the `video/` test — a path that kept reading the general number would silently cut videos at it.
  */
