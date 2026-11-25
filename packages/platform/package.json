@@ -54,7 +54,8 @@
       "./retention": "node",
       "./object-store/site/setting": "node",
       "./object-store/site/registry": "node",
-      "./retention/routes": "node"
+      "./retention/routes": "node",
+      "./object-store/site/artifact-provider": "universal"
     },
     "isolation": {
       "entries": {
@@ -297,6 +298,11 @@
       "types": "./dist/retention/routes.d.ts",
       "import": "./dist/retention/routes.js",
       "default": "./dist/retention/routes.js"
+    },
+    "./object-store/site/artifact-provider": {
+      "types": "./dist/object-store/site/artifact-provider.d.ts",
+      "import": "./dist/object-store/site/artifact-provider.js",
+      "default": "./dist/object-store/site/artifact-provider.js"
     }
   },
   "files": [
