@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { templatePreviewGetRoute, templatePreviewPostRoute, type TemplatePreviewRouteDeps } from "../template-preview.js";
+import { renderAuthorizedTemplatePreview, templatePreviewGetRoute, templatePreviewPostRoute, type TemplatePreviewRouteDeps } from "../template-preview.js";
 
 /** @file The template-preview raw specs: the `content.read` gate, the tri-state template choice, the pending body shapes and the text/plain answers. */
 
@@ -90,5 +90,18 @@ describe("template-preview specs", () => {
     expect(await text(new ReferenceError("post gone"))).toEqual([404, "text/plain; charset=utf-8", "post gone"]);
     const boom = new Error("boom");
     expect(await text(boom)).toBe(boom);
+  });
+
+  it("shares one draft render with the embed inspection: same lookup, tri-state and pending body, no auth, errors thrown unchanged", async () => {
+    const { deps, log } = makeDeps();
+    const out = await renderAuthorizedTemplatePreview({ deps, postId: "about", rawTemplateChoice: "", body: { bodyHtml: "<p>draft</p>", bodyJson: "{not json" } });
+    expect(out).toEqual({ html: "<p>preview</p>" });
+    expect(log.lookups).toEqual([{ workspaceId: "ws1", idOrSlug: "about" }]);
+    expect(log.renders).toEqual([{ post: { id: "p1" }, templateChoice: "", bodyJson: undefined, bodyHtml: "<p>draft</p>" }]);
+    await renderAuthorizedTemplatePreview({ deps, postId: "p1", rawTemplateChoice: undefined, body: undefined });
+    expect(log.renders[1]).toEqual({ post: { id: "p1" }, templateChoice: null, bodyJson: undefined, bodyHtml: undefined });
+    const gone = new ReferenceError("post gone");
+    const failing = makeDeps({ getPost: async () => { throw gone; } });
+    await expect(renderAuthorizedTemplatePreview({ deps: failing.deps, postId: "p1", rawTemplateChoice: undefined, body: undefined })).rejects.toBe(gone);
   });
 });

@@ -200,10 +200,41 @@ function plainText({ status, text }: { status: number; text: string }, _optional
   return new Response(text, { status, headers: { "Content-Type": PLAIN_TEXT } });
 }
 
+/** What {@link renderAuthorizedTemplatePreview} needs: the raw request values, never the request. */
+export interface AuthorizedTemplatePreviewInput<Post = unknown> {
+  readonly deps: Pick<TemplatePreviewRouteDeps<Post>, "workspaceId" | "getPost" | "renderPreview">;
+  readonly postId: string;
+  readonly rawTemplateChoice: unknown;
+  readonly body: unknown;
+}
+
 /**
- * `GET`/`POST .../posts/:postId/template-preview`: `content.read` (guarded by the host mount), the row by id, then the
- * preview html. The host's render failure and not-found answer `text/plain`; anything else is rethrown to the host's
- * failure writer. One handler serves both verbs (a `GET` carries no body, so no pending body).
+ * The one draft render both preview surfaces share: the HTML preview below and the host's JSON embed inspection
+ * route, so the inspection sees exactly the document the sandboxed iframe shows — same id-or-slug lookup, template
+ * tri-state and pending body — and never a second, approximated renderer. **It does not authorize**: every caller
+ * must already have passed the type-free, id-free `content.read` check. The host's not-found and render errors are
+ * thrown unchanged; each caller maps them to its own reply.
+ * @complexity One post lookup plus one template render.
+ */
+export async function renderAuthorizedTemplatePreview<Post>(
+  { deps, postId, rawTemplateChoice, body }: AuthorizedTemplatePreviewInput<Post>,
+  _optional: Record<string, never> = {},
+): Promise<{ html: string }> {
+  const { post } = await deps.getPost({ workspaceId: deps.workspaceId, idOrSlug: postId });
+  const overrideTemplateChoice = resolveOverrideTemplateChoice({ rawTemplateChoice });
+  // Pending body override (2026-08-12) — POST-only. The body is parsed by whichever of the host's JSON parser or
+  // the route's own urlencoded parser matched the request's `Content-Type`; a `GET` request never carries a body,
+  // so it is empty there and `pendingBodyJson` stays `undefined` — the exact "byte-identical to before this
+  // existed" behavior this file's header promises for `GET`.
+  const pendingBodyJson = extractPendingBodyJson({ body });
+  const pendingBodyHtml = extractPendingBodyHtml({ body });
+  return await deps.renderPreview({ post, templateChoice: overrideTemplateChoice, bodyJson: pendingBodyJson, bodyHtml: pendingBodyHtml });
+}
+
+/**
+ * `GET`/`POST .../posts/:postId/template-preview`: `content.read` (guarded by the host mount), then
+ * {@link renderAuthorizedTemplatePreview}. The host's render failure and not-found answer `text/plain`; anything else
+ * is rethrown to the host's failure writer. One handler serves both verbs (a `GET` carries no body, so no pending body).
  * @complexity O(1) plus the lookup, the render and the body extraction.
  */
 async function handlePreviewRequest(
@@ -212,15 +243,7 @@ async function handlePreviewRequest(
 ): Promise<Response> {
   await authorize({ permission: "content.read" });
   try {
-    const { post } = await deps.getPost({ workspaceId: deps.workspaceId, idOrSlug: String(raw.params.postId ?? "") });
-    const overrideTemplateChoice = resolveOverrideTemplateChoice({ rawTemplateChoice: raw.query.templateChoice });
-    // Pending body override (2026-08-12) — POST-only. `raw.body` is parsed by whichever of the host's JSON parser or
-    // this route's own urlencoded parser matched the request's `Content-Type`; a `GET` request never carries a body,
-    // so it is empty there and `pendingBodyJson` stays `undefined` — the exact "byte-identical to before this
-    // existed" behavior this file's header promises for `GET`.
-    const pendingBodyJson = extractPendingBodyJson({ body: raw.body });
-    const pendingBodyHtml = extractPendingBodyHtml({ body: raw.body });
-    const { html } = await deps.renderPreview({ post, templateChoice: overrideTemplateChoice, bodyJson: pendingBodyJson, bodyHtml: pendingBodyHtml });
+    const { html } = await renderAuthorizedTemplatePreview({ deps, postId: String(raw.params.postId ?? ""), rawTemplateChoice: raw.query.templateChoice, body: raw.body });
     // Never cached: re-requested on every template selection, and a cached response would show
     // the operator a stale template and read as "the picker did nothing" — the exact bug this
     // route exists to fix (mirrors the theme page preview's identical no-store rule).
