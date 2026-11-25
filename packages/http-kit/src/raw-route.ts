@@ -35,38 +35,64 @@ export function defineRawRoute<Deps, Context = undefined>(requiredArgs: Omit<Raw
  */
 export function mountRawRoute<Deps, Context = undefined>({ app, spec, deps, adapter }: { readonly app: Express; readonly spec: RawRouteSpec<Deps, Context>; readonly deps: Deps; readonly adapter?: RouteHostContext }, _optional: Record<string, never> = {}): void {
   assertRequestFactsPort({ spec });
+  // The mode is chosen once, at mount: with `errors`, every request of this route uses the same
+  // mounted reporter for its execution, its exception and its write failures.
+  const errors = adapter?.errors;
   app[spec.method](spec.path, async (req: Request, res: Response) => {
     // Observed on `res`, not `req`, for the reason `mountJsonRoute` documents: a parsed request
-    // body has already ended the request stream, so `req`'s `close` is not a disconnect.
+    // body has already ended the request stream, so `req`'s `close` is not a disconnect. This abort
+    // is also how reporter mode tells a client that left (cancelled, nothing reported) from a failure.
     const abortController = new AbortController();
     const onResponseClose = () => abortController.abort();
     res.on('close', onResponseClose);
+    const call: RawCall<Deps, Context> = { req, res, spec, deps, adapter, signal: abortController.signal };
     try {
-      await answerRawRoute({ req, res, spec, deps, adapter, signal: abortController.signal });
-    } catch (e) {
-      // A body that fails after the head went out cannot be answered any more: cut the connection.
-      if (res.headersSent) res.destroy();
-      else sendRouteException({ res, spec, adapter, error: e });
+      await (errors ? reporterRawRoute(call, { errors }) : legacyRawRoute(call));
     } finally {
       res.off('close', onResponseClose);
     }
   });
 }
 
-/** The gates, `handle`, and the write-back of its `Response`; returns early when a gate answered. */
-async function answerRawRoute<Deps, Context>({ req, res, spec, deps, adapter, signal }: {
+/** One request of one raw route: what the gates, `handle` and the writers need. */
+interface RawCall<Deps, Context> {
   readonly req: Request; readonly res: Response; readonly spec: RawRouteSpec<Deps, Context>;
   readonly deps: Deps; readonly adapter: RouteHostContext | undefined; readonly signal: AbortSignal;
-}): Promise<void> {
+}
+
+/** Legacy mode (no `errors`): today's try/catch, with the SEC-005 sink of `sendRouteException`. */
+async function legacyRawRoute<Deps, Context>(call: RawCall<Deps, Context>): Promise<void> {
+  const { req, res, spec, adapter, signal } = call;
+  try {
+    const response = await executeRawRoute(call);
+    if (response) await writeRawResponse({ req, res, spec, response, signal });
+  } catch (e) {
+    // A body that fails after the head went out cannot be answered any more: cut the connection.
+    if (res.headersSent) res.destroy();
+    else sendRouteException({ res, spec, adapter, error: e });
+  }
+}
+
+/**
+ * The gates and `handle`; `undefined` when a gate already answered (the gate helpers own that
+ * refusal's write, as in `mountJsonRoute`).
+ */
+async function executeRawRoute<Deps, Context>({ req, res, spec, deps, adapter, signal }: RawCall<Deps, Context>): Promise<globalThis.Response | undefined> {
   applyResponseHeaders({ res, headers: spec.responseHeaders });
   // `readBody` reads nothing until `handle` calls it, after every gate below (`deferred-body.ts`).
   const raw = { ...routeRequestInput({ req, spec, deps }), readBody: deferredBodyReader({ req, res }) };
-  if (!allowRouteBody({ req, res, spec })) return;
+  if (!allowRouteBody({ req, res, spec })) return undefined;
   if (spec.ports?.workspace) await spec.ports.workspace({ raw, deps });
-  if (!allowRouteOrigin({ req, res, spec, adapter })) return;
+  if (!allowRouteOrigin({ req, res, spec, adapter })) return undefined;
   const context = spec.ports?.authenticate ? await spec.ports.authenticate({ raw, res, deps }) : undefined;
   const authorize = routeAuthorize({ ports: spec.ports, deps, context });
-  const response = await spec.handle({ raw, deps, context, authorize }, { signal });
+  return spec.handle({ raw, deps, context, authorize }, { signal });
+}
+
+/** Writes `handle`'s `Response` back; the transport owns this write and the body's drain. */
+async function writeRawResponse({ req, res, spec, response, signal }: Pick<RawCall<unknown, unknown>, 'req' | 'res' | 'signal'> & {
+  readonly spec: Pick<RawRouteSpec<unknown, unknown>, 'bufferedReply'>; readonly response: globalThis.Response;
+}): Promise<void> {
   // The client left while `handle` ran: release the body's producer instead of writing to a closed socket.
   if (signal.aborted) {
     await response.body?.cancel();

@@ -11,7 +11,9 @@
  * the IPC-path recognizer, and the public IPC types.
  */
 
-import { createConsoleLogger } from '@jini-ai/core/primitives';
+import type { ObservabilityPort } from '@jini-ai/core/contracts/observability';
+import { runOperation, type DescribedFailure, type ErrorReporter, type OperationRunResult } from '@jini-ai/core/errors/reporter';
+import { createConsoleLogger, type Logger } from '@jini-ai/core/primitives';
 import { lstat, mkdir, rm } from "node:fs/promises";
 import { createConnection, type Socket } from "node:net";
 import { createServer as createNetServer } from "node:net";
@@ -79,9 +81,25 @@ function summarizeJsonIpcMessage(message: unknown): Record<string, unknown> {
 /**
  * @internal Emit a trace line to stderr when tracing is enabled.
  */
-function traceJsonIpc(event: string, details: Record<string, unknown>): void {
+function traceJsonIpc(event: string, details: Record<string, unknown>, { ports }: { ports?: IpcFailurePorts } = {}): void {
   if (!jsonIpcTraceEnabled()) return;
+  if (ports?.mode === "reporter") {
+    // Reporter mode keeps the host's one logger the only sink: no raw console write. `error` and
+    // `message` are payload keys a logger describes as a bare type, so the class label moves to a
+    // plain field instead of being flattened to "string".
+    const { error, ...rest } = details;
+    ports.logger.warn({ message: "[jini sidecar] json ipc trace" }, { meta: { event, ...rest, ...(error === undefined ? {} : { errorSummary: error }) } });
+    return;
+  }
   console.error("[jini sidecar] json ipc trace", { event, ...details });
+}
+
+/**
+ * @internal The message-summary field of a server trace. Reporter mode omits it: a summary carries
+ * the caller's `type` and input keys, which are raw request content, not host-chosen labels.
+ */
+function traceMessage({ ports, summary }: { ports: IpcFailurePorts; summary: Record<string, unknown> }, _optional: Record<string, never> = {}): { message?: Record<string, unknown> } {
+  return ports.mode === "reporter" ? {} : { message: summary };
 }
 
 /**
@@ -154,6 +172,44 @@ export async function prepareIpcPath({ socketPath }: { socketPath: string }, _op
   if (await staleUnixSocketExists(socketPath)) await rm(socketPath, { force: true });
 }
 
+/** Options of {@link createJsonIpcServer}. */
+export interface JsonIpcServerOptions {
+  /** Reject a connection whose single frame exceeds this many bytes before a newline arrives (SEC-004). @default 1_000_000 */
+  maxFrameBytes?: number;
+  /** Drop a connection that has not delivered one complete frame within this many ms (SEC-004). @default 30_000 */
+  idleTimeoutMs?: number;
+  /**
+   * Opt in to reporter mode: a handler failure becomes one incident (or refusal) through the
+   * host's reporter, and the peer's words carry its error ID. Without it the legacy trace-ID reply
+   * and unconditional console write stay exactly as they were.
+   */
+  errors?: {
+    reporter: ErrorReporter;
+    observability?: Pick<ObservabilityPort, "trackOperation">;
+    /** A host label for the request (`tool.run`); anything outside `/^[a-z][\w.:-]{0,63}$/i` becomes `unknown`. */
+    methodOf?: (required: { message: unknown }) => string | undefined;
+    /** The wire code both incidents and refusals keep, so existing clients' `code` checks still match. */
+    refusalCode: "HANDLER_ERROR";
+  };
+  /** Where server-side warnings (and, in reporter mode, traces) go. Defaults to the console logger. */
+  logger?: Pick<Logger, "error" | "warn">;
+}
+
+/** How a connection reports a failure, chosen once per server so no inner function re-decides it. */
+type IpcFailurePorts =
+  | { mode: "legacy"; logger: Pick<Logger, "error" | "warn"> }
+  | {
+      mode: "reporter";
+      errors: NonNullable<JsonIpcServerOptions["errors"]>;
+      logger: Pick<Logger, "error" | "warn">;
+    };
+type ReporterIpcPorts = Extract<IpcFailurePorts, { mode: "reporter" }>;
+
+/** Wire words when the reporter has none of its own to give. */
+const IPC_HANDLER_FALLBACK = { message: "The sidecar could not finish this request.", action: "Try again, and report the error ID if it keeps failing." } as const;
+/** The only request labels a host may publish as a tracker attribute: short and fixed-shape, never request text. */
+const IPC_METHOD_LABEL = /^[a-z][\w.:-]{0,63}$/i;
+
 /**
  * Start a newline-delimited JSON IPC server on a unix socket / named pipe: each
  * connection carries one JSON request, the handler's result is written back as
@@ -166,15 +222,14 @@ export async function createJsonIpcServer({
 }: {
   handler: JsonIpcHandler;
   socketPath: string;
-}, { maxFrameBytes = DEFAULT_MAX_FRAME_BYTES, idleTimeoutMs = DEFAULT_IDLE_TIMEOUT_MS }: {
-  /** Reject a connection whose single frame exceeds this many bytes before a newline arrives (SEC-004). @default 1_000_000 */
-  maxFrameBytes?: number;
-  /** Drop a connection that has not delivered one complete frame within this many ms (SEC-004). @default 30_000 */
-  idleTimeoutMs?: number;
-} = {}): Promise<JsonIpcServerHandle> {
+}, optional: JsonIpcServerOptions = {}): Promise<JsonIpcServerHandle> {
+  const { maxFrameBytes = DEFAULT_MAX_FRAME_BYTES, idleTimeoutMs = DEFAULT_IDLE_TIMEOUT_MS, errors, logger } = optional;
+  // The mode is decided here, once: every connection below receives the same ports object.
+  const sink = logger ?? createConsoleLogger({ prefix: "" });
+  const ports: IpcFailurePorts = errors === undefined ? { mode: "legacy", logger: sink } : { mode: "reporter", errors, logger: sink };
   await prepareIpcPath({ socketPath });
   const server = createNetServer((socket) => {
-    bindJsonIpcSocket({ socket, socketPath, handler, maxFrameBytes, idleTimeoutMs });
+    bindJsonIpcSocket({ socket, socketPath, handler, maxFrameBytes, idleTimeoutMs, ports });
   });
 
   await new Promise<void>((resolveListen, rejectListen) => {
@@ -193,8 +248,8 @@ export async function createJsonIpcServer({
   };
 }
 
-function bindJsonIpcSocket({ socket, socketPath, handler, maxFrameBytes, idleTimeoutMs }: {
-  socket: Socket; socketPath: string; handler: JsonIpcHandler; maxFrameBytes: number; idleTimeoutMs: number;
+function bindJsonIpcSocket({ socket, socketPath, handler, maxFrameBytes, idleTimeoutMs, ports }: {
+  socket: Socket; socketPath: string; handler: JsonIpcHandler; maxFrameBytes: number; idleTimeoutMs: number; ports: IpcFailurePorts;
 }, _optional: Record<string, never> = {}): void {
   // One-request-per-connection guard (SEC-004): the `data` listener is `async`, so its
   // synchronous prefix (up to the first `await`) always finishes — and can set this flag —
@@ -211,7 +266,7 @@ function bindJsonIpcSocket({ socket, socketPath, handler, maxFrameBytes, idleTim
   const decoder = new StringDecoder("utf8");
   const traceId = nextJsonIpcTraceId();
   const startedAt = process.hrtime.bigint();
-  traceJsonIpc("server.connection", { socketPath, traceId });
+  traceJsonIpc("server.connection", { socketPath, traceId }, { ports });
 
   // Idle deadline (SEC-004): a peer that opens a connection and never completes a
   // newline-terminated frame (or dribbles bytes indefinitely) would otherwise hold the
@@ -229,7 +284,7 @@ function bindJsonIpcSocket({ socket, socketPath, handler, maxFrameBytes, idleTim
       idleTimeoutMs,
       socketPath,
       traceId,
-    });
+    }, { ports });
     socket.destroy();
   }, idleTimeoutMs);
   idleTimer.unref();
@@ -239,12 +294,12 @@ function bindJsonIpcSocket({ socket, socketPath, handler, maxFrameBytes, idleTim
     clearTimeout(idleTimer);
   };
 
-  bindJsonIpcSocketTraces({ socket, socketPath, traceId, startedAt, idleTimer });
-  bindJsonIpcData({ socket, socketPath, handler, maxFrameBytes, traceId, startedAt, decoder, isHandled: () => handled, claimFrame });
+  bindJsonIpcSocketTraces({ socket, socketPath, traceId, startedAt, idleTimer, ports });
+  bindJsonIpcData({ socket, socketPath, handler, maxFrameBytes, traceId, startedAt, decoder, isHandled: () => handled, claimFrame, ports });
 }
 
-function bindJsonIpcSocketTraces({ socket, socketPath, traceId, startedAt, idleTimer }: {
-  socket: Socket; socketPath: string; traceId: string; startedAt: bigint; idleTimer: ReturnType<typeof setTimeout>;
+function bindJsonIpcSocketTraces({ socket, socketPath, traceId, startedAt, idleTimer, ports }: {
+  socket: Socket; socketPath: string; traceId: string; startedAt: bigint; idleTimer: ReturnType<typeof setTimeout>; ports: IpcFailurePorts;
 }, _optional: Record<string, never> = {}): void {
   socket.on("error", (error) => {
     // `error instanceof Error` here is defense-in-depth, not reachable
@@ -261,7 +316,7 @@ function bindJsonIpcSocketTraces({ socket, socketPath, traceId, startedAt, idleT
       error: describeErrorForLog({ err: error }),
       socketPath,
       traceId,
-    });
+    }, { ports });
   });
   socket.on("close", () => {
     clearTimeout(idleTimer);
@@ -269,12 +324,12 @@ function bindJsonIpcSocketTraces({ socket, socketPath, traceId, startedAt, idleT
       durationMs: jsonIpcTraceDurationMs(startedAt),
       socketPath,
       traceId,
-    });
+    }, { ports });
   });
 }
 
-function bindJsonIpcData({ socket, socketPath, handler, maxFrameBytes, traceId, startedAt, decoder, isHandled, claimFrame }: {
-  socket: Socket; socketPath: string; handler: JsonIpcHandler; maxFrameBytes: number; traceId: string; startedAt: bigint; decoder: StringDecoder; isHandled: () => boolean; claimFrame: () => void;
+function bindJsonIpcData({ socket, socketPath, handler, maxFrameBytes, traceId, startedAt, decoder, isHandled, claimFrame, ports }: {
+  socket: Socket; socketPath: string; handler: JsonIpcHandler; maxFrameBytes: number; traceId: string; startedAt: bigint; decoder: StringDecoder; isHandled: () => boolean; claimFrame: () => void; ports: IpcFailurePorts;
 }, _optional: Record<string, never> = {}): void {
   let buffer = "";
   let receivedBytes = 0;
@@ -285,7 +340,7 @@ function bindJsonIpcData({ socket, socketPath, handler, maxFrameBytes, traceId, 
       durationMs: jsonIpcTraceDurationMs(startedAt),
       socketPath,
       traceId,
-    });
+    }, { ports });
     receivedBytes += chunk.byteLength;
     if (receivedBytes > maxFrameBytes) {
       claimFrame();
@@ -295,7 +350,7 @@ function bindJsonIpcData({ socket, socketPath, handler, maxFrameBytes, traceId, 
         receivedBytes,
         socketPath,
         traceId,
-      });
+      }, { ports });
       socket.end(
         `${JSON.stringify({
           ok: false,
@@ -310,12 +365,12 @@ function bindJsonIpcData({ socket, socketPath, handler, maxFrameBytes, traceId, 
     claimFrame(); // Claim the connection before awaiting the handler — see the flag's own doc above.
     const frame = buffer.slice(0, newlineIndex);
     buffer = buffer.slice(newlineIndex + 1);
-    await parseAndDispatchJsonIpcFrame({ socket, socketPath, handler, traceId, startedAt, frame });
+    await parseAndDispatchJsonIpcFrame({ socket, socketPath, handler, traceId, startedAt, frame, ports });
   });
 }
 
-async function parseAndDispatchJsonIpcFrame({ socket, socketPath, handler, traceId, startedAt, frame }: {
-  socket: Socket; socketPath: string; handler: JsonIpcHandler; traceId: string; startedAt: bigint; frame: string;
+async function parseAndDispatchJsonIpcFrame({ socket, socketPath, handler, traceId, startedAt, frame, ports }: {
+  socket: Socket; socketPath: string; handler: JsonIpcHandler; traceId: string; startedAt: bigint; frame: string; ports: IpcFailurePorts;
 }, _optional: Record<string, never> = {}): Promise<void> {
   let message: unknown;
   try {
@@ -333,7 +388,7 @@ async function parseAndDispatchJsonIpcFrame({ socket, socketPath, handler, trace
       frameBytes: Buffer.byteLength(frame),
       socketPath,
       traceId,
-    });
+    }, { ports });
     socket.end(
       `${JSON.stringify({
         ok: false,
@@ -346,11 +401,11 @@ async function parseAndDispatchJsonIpcFrame({ socket, socketPath, handler, trace
   traceJsonIpc("server.frame_parsed", {
     durationMs: jsonIpcTraceDurationMs(startedAt),
     frameBytes: Buffer.byteLength(frame),
-    message: messageSummary,
+    ...traceMessage({ ports, summary: messageSummary }),
     socketPath,
     traceId,
-  });
-  await dispatchJsonIpcHandler({ socket, socketPath, handler, traceId, startedAt, message, messageSummary });
+  }, { ports });
+  await dispatchJsonIpcHandler({ socket, socketPath, handler, traceId, startedAt, message, messageSummary, ports });
 }
 
 async function dispatchJsonIpcHandler({ socket, socketPath, handler, traceId, startedAt, message, messageSummary }: {

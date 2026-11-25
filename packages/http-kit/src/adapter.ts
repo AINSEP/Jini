@@ -39,6 +39,9 @@ export function mountJsonRoute<Input, Output, Deps, Context = undefined>({ app, 
   assertRequestFactsPort({ spec });
   // Read once at mount: the per-request callback stays within the complexity budget.
   const onReturnedError = spec.ports?.onReturnedError;
+  // The mode is chosen here, once per mount (never per request), so two requests of one host can
+  // never take different incident paths: reporter mode when the host passed `errors`, else legacy.
+  const errors = adapter?.errors;
   app[spec.method](spec.path, async (req: Request, res: Response) => {
     // The client-disconnect signal a `handle` can opt into via optional arguments. Observed on `res`,
     // not `req` — `sse.ts` already established why for this exact "detect a disconnect before
@@ -49,7 +52,8 @@ export function mountJsonRoute<Input, Output, Deps, Context = undefined>({ app, 
     // response is sent, with no disconnect having happened at all. `res`'s `'close'` isn't
     // entangled with the request body's lifecycle, only with the response's own connection, so it
     // doesn't share that false positive. Registered before anything awaits and unconditionally
-    // detached in `finally` below, so it never outlives one request.
+    // detached in `finally` below, so it never outlives one request. In reporter mode the same
+    // signal is what turns an abort-like throw into a cancelled operation with no write and no report.
     const abortController = new AbortController();
     const onResponseClose = () => abortController.abort();
     // Optional-called rather than assumed present: a real Express `Response` always has `.on`, but
@@ -57,42 +61,214 @@ export function mountJsonRoute<Input, Output, Deps, Context = undefined>({ app, 
     // that doesn't implement `EventEmitter` at all. Those callers simply never observe an abort,
     // which is the correct behavior for a double that never fires `close` anyway.
     res.on?.('close', onResponseClose);
+    const call: ExpressRouteCall<Input, Output, Deps, Context> = { req, res, spec, deps, adapter, onReturnedError, signal: abortController.signal };
     try {
-      applyResponseHeaders({ res, headers: spec.responseHeaders });
-      const raw = routeRequestInput({ req, spec, deps });
-      if (!allowRouteBody({ req, res, spec })) return;
-      if (spec.ports?.workspace) await spec.ports.workspace({ raw, deps });
-      if (!allowRouteOrigin({ req, res, spec, adapter })) return;
-      let context: Context | undefined;
-      if (spec.ports?.authenticate) context = await spec.ports.authenticate({ raw, res, deps });
-      await parseHandleAndSend({ res, raw, spec, deps, context, onReturnedError, signal: abortController.signal });
-    } catch (e) {
-      sendRouteException({ res, spec, adapter, error: e });
+      await (errors ? reporterServe(call, { errors }) : legacyServe(call));
     } finally {
       res.off?.('close', onResponseClose);
     }
   });
 }
 
+/** One request through `mountJsonRoute`: everything a mode needs, gathered once by the callback. */
+interface ExpressRouteCall<Input, Output, Deps, Context> {
+  readonly req: Request;
+  readonly res: Response;
+  readonly spec: JsonRouteSpec<Input, Output, Deps, Context>;
+  readonly deps: Deps;
+  readonly adapter: RouteHostContext | undefined;
+  readonly onReturnedError: JsonRoutePorts<Deps, Context>['onReturnedError'];
+  readonly signal: AbortSignal;
+}
+
 /**
- * Parse, authorize, handle and answer, after the pre-parse gates admitted the request. Split out of
- * the per-request callback only to keep it within the complexity budget. Not awaited-before-handle:
- * `parse` and `authorize` are synchronous, so `handle` still starts in the same tick as before the
- * split (adapter-pins.test.ts pins that a disconnect right after dispatch reaches `handle`'s signal).
+ * What the route decided, before anything is written: the verdict the operation ends with and the
+ * adapter-owned write that answers it. Keeping the write a closure is what lets reporter mode end
+ * the operation first and write second; legacy mode simply calls it at once.
  */
-async function parseHandleAndSend<Input, Output, Deps, Context>({ res, raw, spec, deps, context, onReturnedError, signal }: {
-  readonly res: Response; readonly raw: RouteInputContext; readonly spec: JsonRouteSpec<Input, Output, Deps, Context>;
-  readonly deps: Deps; readonly context: Context | undefined;
-  readonly onReturnedError: JsonRoutePorts<Deps, Context>['onReturnedError']; readonly signal: AbortSignal;
-}): Promise<void> {
-  const parsed = spec.parse(raw);
-  if (!parsed.ok) {
-    sendReturnedFailure({ res, onReturnedError, error: parsed.error, phase: 'parse' });
+interface ExpressAnswer {
+  readonly write: () => void;
+  readonly verdict: OperationVerdict;
+}
+
+const COMPLETED: OperationVerdict = { outcome: 'completed', failed: false };
+const REFUSED: OperationVerdict = { outcome: 'refused', failed: false };
+const FAILED: OperationVerdict = { outcome: 'failed', failed: true };
+/** The non-standard "client closed request" sentinel, used only as the ended operation's status label. */
+const CLIENT_CLOSED_STATUS = 499;
+const HTTP_FALLBACK = {
+  message: 'The server could not finish this request.',
+  action: 'Check whether your change was saved, then try again. If it keeps failing, report the error ID.',
+} as const;
+const noWrite = (): void => {};
+
+/** Stamps the status the write will send on the verdict, so the operation ends with `http.status_code`. */
+function answer({ verdict, status, write }: { readonly verdict: OperationVerdict; readonly status: number; readonly write: () => void }): ExpressAnswer {
+  return { write, verdict: { ...verdict, attributes: { ...verdict.attributes, 'http.status_code': status } } };
+}
+
+/**
+ * A returned `INTERNAL_ERROR` was produced inside the route by its reporter-backed
+ * `reportInternalError`, which already wrote the one record and tracker report: the producer owns
+ * that report, so this only classifies it `failed` and never records it again.
+ */
+function verdictFor({ apiError }: { readonly apiError: ServerApiError }): OperationVerdict {
+  return apiError.code === 'INTERNAL_ERROR' ? FAILED : REFUSED;
+}
+
+/** Legacy mode (no `errors`): today's flow, every write at once, the SEC-005 sink on a throw. */
+async function legacyServe<Input, Output, Deps, Context>(call: ExpressRouteCall<Input, Output, Deps, Context>): Promise<void> {
+  const { res, spec, adapter } = call;
+  try {
+    applyResponseHeaders({ res, headers: spec.responseHeaders });
+    (await serveExpressRoute(call)).write();
+  } catch (e) {
+    sendRouteException({ res, spec, adapter, error: e });
+  }
+}
+
+/**
+ * Reporter mode: the request is one `http.route` operation. `runOperation` settles the work and
+ * ends the operation exactly once, and only then does the adapter write: the operation's owner is
+ * `runOperation`, the answer's owner is this function. A thrown failure is described by the
+ * reporter (one ID, one host record, one tracker report); `onInternalError` is never called here.
+ */
+async function reporterServe<Input, Output, Deps, Context>(call: ExpressRouteCall<Input, Output, Deps, Context>, { errors }: { readonly errors: RouteErrorPorts }): Promise<void> {
+  const method = call.spec.method.toUpperCase();
+  const run = await runOperation<ExpressAnswer>({
+    deps: errors, operation: 'http.route', scope: 'http', step: `Handle ${method} ${call.spec.path}`, fallback: HTTP_FALLBACK,
+    // The registered pattern (`/runs/:id`), never `req.originalUrl`: a URL carries ids, query strings
+    // and tokens, which would leak into telemetry and give every request its own unbounded group.
+    attributes: { 'http.method': method, 'http.route': call.spec.path },
+    work: () => tracedServe(call, { errors }),
+    classify: tagged => tagged.verdict,
+    settle: error => disconnectVerdict({ signal: call.signal, error }),
+  }, { audience: 'anonymous' });
+  // A client that already went away gets nothing: a cancelled run, and equally a real failure
+  // recorded after the disconnect, have nobody to answer.
+  if ('cancelled' in run || call.signal.aborted) return;
+  const write = run.ok ? run.value.write : () => writeFailure({ res: call.res, failure: run.failure });
+  deliver({ call, write }, { errors });
+}
+
+async function tracedServe<Input, Output, Deps, Context>(call: ExpressRouteCall<Input, Output, Deps, Context>, { errors }: { readonly errors: RouteErrorPorts }): Promise<ExpressAnswer> {
+  try {
+    return await serveExpressRoute(call);
+  } catch (error) {
+    const onError = call.spec.ports?.onError;
+    // No host policy: the throw reaches `runOperation`, whose reporter classifies it (a
+    // ClientFacingError or catalog refusal, else one incident).
+    if (!onError) throw error;
+    return hostPolicyAnswer({ call, error, onError }, { errors });
+  }
+}
+
+/**
+ * An explicit host error port answers BEFORE the reporter classifies anything, exactly as in legacy
+ * mode (it also wins over ClientFacingError). The Express port writes to `res` itself, so it is the
+ * one exception to end-before-write: it runs inside the operation, is called once, and the verdict
+ * comes from the status it actually set. If the policy throws, that failure is recorded as its own
+ * incident and the ORIGINAL error is rethrown, so the reply (if headers are still unsent) carries
+ * the original's ID rather than the policy's.
+ */
+function hostPolicyAnswer<Input, Output, Deps, Context>(
+  { call, error, onError }: { readonly call: ExpressRouteCall<Input, Output, Deps, Context>; readonly error: unknown; readonly onError: NonNullable<JsonRoutePorts<Deps, Context>['onError']> },
+  { errors }: { readonly errors: RouteErrorPorts },
+): ExpressAnswer {
+  const { res, spec } = call;
+  applyResponseHeaders({ res, headers: spec.responseHeaders });
+  try {
+    onError({ res, error });
+  } catch (policyError) {
+    recordQuietly({ reporter: errors.reporter, error: policyError, step: 'Answer with host error policy' });
+    throw error;
+  }
+  return answer({ verdict: res.statusCode >= 500 ? FAILED : REFUSED, status: res.statusCode, write: noWrite });
+}
+
+/** The reporter promises never to throw; this guard keeps a broken one from replacing the failure being answered. */
+function recordQuietly({ reporter, error, step }: { readonly reporter: ErrorReporter; readonly error: unknown; readonly step: string }): { readonly errorId?: string } {
+  try {
+    return reporter.record({ error, step, operation: 'http.route' });
+  } catch {
+    return {};
+  }
+}
+
+/**
+ * Cancellation only when the client is gone AND the throw is the abort itself: an abort-like throw
+ * after the response closed is the handler stopping because nobody is listening. Any other throw
+ * after a disconnect is still a real failure and is recorded (and, with nobody listening, not written).
+ */
+function disconnectVerdict({ signal, error }: { readonly signal: AbortSignal; readonly error: unknown }): OperationVerdict | undefined {
+  if (!signal.aborted) return undefined;
+  const abortLike = error === signal.reason || (typeof error === 'object' && error !== null && (error as { name?: unknown }).name === 'AbortError');
+  return abortLike ? { outcome: 'cancelled', failed: false, attributes: { 'http.status_code': CLIENT_CLOSED_STATUS } } : undefined;
+}
+
+/**
+ * Runs the adapter-owned write after the operation ended. A write that throws (a body that will not
+ * serialize, a socket that refuses) is transport-owned: it is recorded once, never a new route
+ * operation and never a reason to run the handler again; the caller still gets an answer when
+ * nothing was sent yet, else the half-written response is destroyed.
+ */
+function deliver<Input, Output, Deps, Context>({ call, write }: { readonly call: ExpressRouteCall<Input, Output, Deps, Context>; readonly write: () => void }, { errors }: { readonly errors: RouteErrorPorts }): void {
+  const { res, spec } = call;
+  try {
+    // The route's static headers are written here, with the answer, unless the host error policy
+    // already answered (it got them before it ran).
+    if (!res.headersSent) applyResponseHeaders({ res, headers: spec.responseHeaders });
+    write();
+  } catch (writeError) {
+    const { errorId } = recordQuietly({ reporter: errors.reporter, error: writeError, step: `Write ${spec.method.toUpperCase()} ${spec.path} response` });
+    const id = errorId ?? UNAVAILABLE_ERROR_ID;
+    const error: ServerApiError = { code: 'INTERNAL_ERROR', message: `${HTTP_FALLBACK.message} ${HTTP_FALLBACK.action} (error ${id})`, requestId: id };
+    if (res.headersSent) res.destroy?.();
+    else sendApiError({ res, status: 500, error });
+  }
+}
+
+/**
+ * The reporter's answer: a refusal's own status and safe words (no ID), or an incident's 500 with
+ * the original incident ID as `requestId`. Once headers are out (a host policy wrote, then threw)
+ * nothing is answered a second time; an unfinished response is destroyed instead.
+ */
+function writeFailure({ res, failure }: { readonly res: Response; readonly failure: DescribedFailure }): void {
+  if (res.headersSent) {
+    if (!res.writableEnded) res.destroy?.();
     return;
   }
+  sendApiError({ res, status: failure.status, error: failure.error });
+}
+
+/**
+ * The route's gates, parse and handle, deciding the answer without writing it (`write` does).
+ * Gate order is unchanged: body cap → workspace → origin → authenticate → parse → handle.
+ * Not awaited-before-handle: `parse` and `authorize` are synchronous, so `handle` still starts in
+ * the same tick as the request (adapter-pins.test.ts pins that a disconnect right after dispatch
+ * reaches `handle`'s signal).
+ */
+async function serveExpressRoute<Input, Output, Deps, Context>(call: ExpressRouteCall<Input, Output, Deps, Context>): Promise<ExpressAnswer> {
+  const { req, res, spec, deps, adapter, onReturnedError, signal } = call;
+  const raw = routeRequestInput({ req, spec, deps });
+  const tooLarge = routeBodyRefusal({ req, spec });
+  if (tooLarge) return refusalAnswer({ res, error: tooLarge });
+  if (spec.ports?.workspace) await spec.ports.workspace({ raw, deps });
+  const crossOrigin = routeOriginRefusal({ req, spec, adapter });
+  if (crossOrigin) return refusalAnswer({ res, error: crossOrigin });
+  let context: Context | undefined;
+  if (spec.ports?.authenticate) context = await spec.ports.authenticate({ raw, res, deps });
+  const parsed = spec.parse(raw);
+  if (!parsed.ok) return returnedFailureAnswer({ res, onReturnedError, error: parsed.error, phase: 'parse' });
   const authorize = routeAuthorize({ ports: spec.ports, deps, context });
   const result = await spec.handle({ input: parsed.value, deps, context, authorize }, { signal });
-  sendRouteResult({ res, result, spec: { successStatus: spec.successStatus, onReturnedError }, signal });
+  return routeResultAnswer({ res, result, spec: { successStatus: spec.successStatus, onReturnedError }, signal });
+}
+
+/** A gate's refusal (body cap, origin): its own status and core's words, written by the adapter. */
+function refusalAnswer({ res, error }: { readonly res: Response; readonly error: ServerApiError }): ExpressAnswer {
+  const status = statusForError({ error });
+  return answer({ verdict: REFUSED, status, write: () => sendApiError({ res, status, error }) });
 }
 
 /**
