@@ -13,7 +13,7 @@ test("live refusals stay inline while successful portal surfaces dismiss", () =>
   const props = {
     name: "a2ui", runId: "run", clock: { nowMs: () => 0 }, events: [], runStreaming: false, runSucceeded: true,
     SurfaceCard, useTHook: () => (key: string) => key, useRoutedA2uiSurfaceCardHook,
-    useChartRegistryHook: () => ({ registry: { list: () => [], resolveById: () => null }, generation: 1, stylesheets: ["/chart.css"] }),
+    useChartRegistryHook: () => ({ registry: { list: () => [], resolveById: () => null }, generation: "g1", stylesheets: ["/chart.css"] }),
   } satisfies RoutedA2uiSurfaceCardProps;
   const view = render(<RoutedA2uiSurfaceCard {...props} />);
   expect(view.container.querySelector('[data-testid="surface"]')).not.toBeNull();

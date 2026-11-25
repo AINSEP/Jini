@@ -1,5 +1,6 @@
 import { createPortal } from "react-dom";
 import type { ComponentType } from "react";
+import type { AdminChartProviderSnapshot } from "@jini-ai/core/contracts/headless/chart-providers";
 import type { A2uiSurfaceCardProps } from "./A2uiSurfaceCard.js";
 
 /**
@@ -56,9 +57,10 @@ import type { A2uiSurfaceCardProps } from "./A2uiSurfaceCard.js";
 export interface RoutedA2uiSurfaceCardProps extends A2uiSurfaceCardProps {
   SurfaceCard: ComponentType<A2uiSurfaceCardProps>;
   useTHook: () => (key: string) => string;
-  useChartRegistryHook: () => { registry: NonNullable<A2uiSurfaceCardProps["registry"]>; generation: number; stylesheets: readonly string[] };
-  /** Injectable seam for the routing/dismiss/error-tracking hook. Defaults to the real
-   *  {@link useRoutedA2uiSurfaceCard}; a test can pass a fake here to exercise this component's
+  /** `generation` is the server's chart-provider generation (core's {@link AdminChartProviderSnapshot}); it keys the card so a new catalog remounts the interpreter. */
+  useChartRegistryHook: () => { registry: NonNullable<A2uiSurfaceCardProps["registry"]>; generation: AdminChartProviderSnapshot["generation"]; stylesheets: readonly string[] };
+  /** Required seam for the routing/dismiss/error-tracking hook (the host binds its real
+   *  `useRoutedA2uiSurfaceCard`); a test can pass a fake here to exercise this component's
    *  rendering (inline vs. portal, the dismiss control, refusal handling) without driving the real
    *  `playground-render-target-bus` subscription or the hook's own local state. Destructured off
    *  separately from `...props` below so it is never spread through to the real `A2uiSurfaceCard`. */
