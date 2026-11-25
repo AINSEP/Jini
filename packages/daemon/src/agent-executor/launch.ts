@@ -883,6 +883,12 @@ function httpMcpSpawnEnv(
     : spawnEnv;
 }
 
+/** The filesystem slot's members with an absent one as a no-op, so the launch path branches only on the policy decision. */
+function filesystemHooks({ slot }: { slot: AgentRuntimeStrategies['filesystem'] }, _options = {}) {
+  const none = () => undefined;
+  return { prepare: slot?.prepare?.bind(slot) ?? none, unsupported: slot?.unsupported?.bind(slot) ?? none, supported: slot?.supported.bind(slot) ?? none };
+}
+
 /** The runtime's bound MCP delivery slot for `def`, as the optional dep `resolveMcpBridgeForRun` reads.
  * Also carries the bound bridge-preparation slot (`mcpBridge`) the same function reads. */
 function mcpDeliveryDep({ agentRuntime, def }: { agentRuntime: Pick<AgentRuntimePort, 'strategies'>; def: RuntimeAgentDef }, _options = {}): { mcpDelivery?: NonNullable<AgentRuntimeStrategies['mcpDelivery']>; mcpBridge?: NonNullable<AgentRuntimeStrategies['mcpBridge']>; mcpConfigFile?: NonNullable<AgentRuntimeStrategies['mcpConfigFile']> } {
@@ -1057,19 +1063,20 @@ export function createAgentExecutor(requiredArgs: Pick<CreateAgentExecutorOption
       spawnEnv.TMPDIR = input.filesystemTempDir;
       spawnEnv.TMP = input.filesystemTempDir;
       spawnEnv.TEMP = input.filesystemTempDir;
-      const filesystemAdapter = agentRuntime.strategies.for({ def }).filesystem;
-      const preparation = filesystemAdapter?.prepare?.({ input, spawnEnv, runtimeTemps });
+      const filesystemAdapter = filesystemHooks({ slot: agentRuntime.strategies.for({ def }).filesystem });
+      const preparation = filesystemAdapter.prepare({ input, spawnEnv, runtimeTemps });
       if (preparation) await preparation;
       if (supported === false) {
         input.filesystemNotice = 'files and shell are not folder-limited for this agent';
         console.warn('[agent-executor] files and shell are not folder-limited for this agent');
-        filesystemAdapter?.unsupported?.({ input });
+        filesystemAdapter.unsupported({ input });
         delete input.filesystemRoot;
         return;
       }
       if (supported === undefined) console.warn('[agent-executor] filesystem capability unknown; applying read block and sandbox settings');
-      // A host-supplied probe may report support for another id; the runtime binds the shared policy for every definition.
-      filesystemAdapter?.supported({ input, launchPath: launch.launchPath, spawnEnv }, { filesystem: agentRuntime.filesystem });
+      // A host-supplied probe may report support for another id; preserve the existing policy in that case.
+      // (The runtime now binds that shared policy for every definition.)
+      filesystemAdapter.supported({ input, launchPath: launch.launchPath, spawnEnv }, { filesystem: agentRuntime.filesystem });
     } catch {
       await failBeforeSpawn({ runId: input.runId, code: 'FILESYSTEM_POLICY_UNSUPPORTED', message: 'Folder-limited launch refused: invalid host settings or private runtime directory.' });
     }

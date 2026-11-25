@@ -63,19 +63,27 @@ const MCP_CONFIG_FILE_BY_STRATEGY: ReadonlyMap<string, McpConfigFileSlot> = new 
  * `CLAUDE_CONFIG_DIR` is not in the child baseline env, but the staging step reads the operator's real value from the host env. */
 export const RUNTIME_STRATEGY_HOST_ENV_NAMES: readonly string[] = [AMR_OPENCODE_BIN_ENV, CLAUDE_CONFIG_DIR_ENV];
 
-/** Strategies for one definition. O(1): a handful of map lookups. Every definition gets the shared folder-limit policy; the other slots appear only where the definition declares or is named for one. */
-export function strategiesForDef({ def }: { def: Pick<RuntimeAgentDef, 'id' | 'eventParser' | 'externalMcpInjection' | 'subagentStartHook'> }, _optional: Record<string, never> = {}) {
-  const toolCallReceipt = def.eventParser === undefined ? undefined : RECEIPT_BY_DIALECT.get(def.eventParser);
-  const envContentVar = def.externalMcpInjection === undefined ? undefined : ENV_CONTENT_VAR_BY_STRATEGY.get(def.externalMcpInjection);
-  const mcpBridge = MCP_BRIDGE_BY_ID.get(def.id);
+/** The claude-shaped staging slots a definition is bound to; each key is present only when bound. */
+function stagingSlotsForDef({ def }: { def: Pick<RuntimeAgentDef, 'id' | 'externalMcpInjection' | 'subagentStartHook'> }, _optional: Record<string, never> = {}) {
   const configDir = CONFIG_DIR_BY_ID.get(def.id);
   const subagentStart = def.subagentStartHook === true ? SUBAGENT_START : undefined;
   const mcpConfigFile = def.externalMcpInjection === undefined ? undefined : MCP_CONFIG_FILE_BY_STRATEGY.get(def.externalMcpInjection);
   return {
-    filesystem: FILESYSTEM_BY_ID.get(def.id) ?? SHARED_FILESYSTEM_SLOT,
     ...(configDir ? { configDir } : {}),
     ...(subagentStart ? { subagentStart } : {}),
     ...(mcpConfigFile ? { mcpConfigFile } : {}),
+  };
+}
+
+/** Strategies for one definition. O(1): three map lookups. A definition that declares nothing gets `{}`.
+ * Except the shared folder-limit policy, which is bound for every definition (see `SHARED_FILESYSTEM_SLOT`). */
+export function strategiesForDef({ def }: { def: Pick<RuntimeAgentDef, 'id' | 'eventParser' | 'externalMcpInjection' | 'subagentStartHook'> }, _optional: Record<string, never> = {}) {
+  const toolCallReceipt = def.eventParser === undefined ? undefined : RECEIPT_BY_DIALECT.get(def.eventParser);
+  const envContentVar = def.externalMcpInjection === undefined ? undefined : ENV_CONTENT_VAR_BY_STRATEGY.get(def.externalMcpInjection);
+  const mcpBridge = MCP_BRIDGE_BY_ID.get(def.id);
+  return {
+    filesystem: FILESYSTEM_BY_ID.get(def.id) ?? SHARED_FILESYSTEM_SLOT,
+    ...stagingSlotsForDef({ def }),
     ...(toolCallReceipt ? { toolCallReceipt } : {}),
     ...(envContentVar ? { mcpDelivery: { envContentVar } } : {}),
     ...(mcpBridge ? { mcpBridge } : {}),
