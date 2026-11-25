@@ -36,8 +36,10 @@
       "./webhooks/sql": "node",
       "./webhooks/site/repo.memory": "node",
       "./webhooks/site/delivery": "node",
+      "./webhooks/site/http.memory": "node",
       "./api-connections/shared-api": "node",
       "./api-connections/form-delivery-connection": "node",
+      "./api-connections/bundled-client-namespace": "universal",
       "./vendor-credentials/project-scope": "node",
       "./custom-credentials/card-token": "node",
       "./custom-credentials/credential-recovery": "node",
@@ -181,6 +183,11 @@
       "import": "./dist/webhooks/site/repo.memory.js",
       "default": "./dist/webhooks/site/repo.memory.js"
     },
+    "./webhooks/site/http.memory": {
+      "types": "./dist/webhooks/site/http.memory.d.ts",
+      "import": "./dist/webhooks/site/http.memory.js",
+      "default": "./dist/webhooks/site/http.memory.js"
+    },
     "./webhooks/site/delivery": {
       "types": "./dist/webhooks/site/delivery.d.ts",
       "import": "./dist/webhooks/site/delivery.js",
@@ -195,6 +202,11 @@
       "types": "./dist/api-connections/form-delivery-connection.d.ts",
       "import": "./dist/api-connections/form-delivery-connection.js",
       "default": "./dist/api-connections/form-delivery-connection.js"
+    },
+    "./api-connections/bundled-client-namespace": {
+      "types": "./dist/api-connections/bundled-client-namespace.d.ts",
+      "import": "./dist/api-connections/bundled-client-namespace.js",
+      "default": "./dist/api-connections/bundled-client-namespace.js"
     },
     "./vendor-credentials/project-scope": {
       "types": "./dist/vendor-credentials/project-scope.d.ts",
@@ -312,6 +324,9 @@
       "webhooks/site/repo.memory": [
         "./dist/webhooks/site/repo.memory.d.ts"
       ],
+      "webhooks/site/http.memory": [
+        "./dist/webhooks/site/http.memory.d.ts"
+      ],
       "webhooks/site/delivery": [
         "./dist/webhooks/site/delivery.d.ts"
       ],
@@ -320,6 +335,9 @@
       ],
       "api-connections/form-delivery-connection": [
         "./dist/api-connections/form-delivery-connection.d.ts"
+      ],
+      "api-connections/bundled-client-namespace": [
+        "./dist/api-connections/bundled-client-namespace.d.ts"
       ],
       "vendor-credentials/project-scope": [
         "./dist/vendor-credentials/project-scope.d.ts"

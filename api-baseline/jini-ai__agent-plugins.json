@@ -1104,6 +1104,18 @@
    "PluginCredentialsPort": "interface:4847e3eed6"
   }
  },
+ "./site/soon-lock": {
+  "types": "./dist/site/soon-lock.d.ts",
+  "symbols": {
+   "AgentPluginNotReadyError": "class:c96dab5457",
+   "SOON_LOCK_ACTOR": "variable:dfd0e0194b",
+   "SoonCatalogPort": "interface:7b2d83e885",
+   "assertAgentPluginReady": "function:483159b2c8",
+   "findSoonAgentPlugin": "function:2171bcd554",
+   "lockSoonAgentPlugins": "function:107885aa78",
+   "readHostPluginMaturity": "function:e7e5ed6f9c"
+  }
+ },
  "./site/supersession": {
   "types": "./dist/site/supersession.d.ts",
   "symbols": {

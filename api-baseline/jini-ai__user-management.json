@@ -817,6 +817,15 @@
    "membersWriteService": "variable:e701697ab9"
   }
  },
+ "./newsletter/agent-tools": {
+  "types": "./dist/newsletter/agent-tools.d.ts",
+  "symbols": {
+   "AgentToolActorClassRule": "type:ef6ae62ddc",
+   "AgentToolDefinition": "type:b4d7d744be",
+   "AgentToolSideEffect": "type:98290b6384",
+   "newsletterAgentToolCatalog": "variable:cd87ee5624"
+  }
+ },
  "./newsletter/campaign": {
   "types": "./dist/newsletter/campaign.d.ts",
   "symbols": {
@@ -1239,11 +1248,25 @@
    "useUserManagementKit": "function:78cc420336"
   }
  },
+ "./react/members/api/members-api": {
+  "types": "./dist/react/members/api/members-api.d.ts",
+  "symbols": {
+   "MembersApiDeps": "interface:ef73c8fb78",
+   "createMembersApi": "function:fe376ea921"
+  }
+ },
  "./react/members/members-i18n": {
   "types": "./dist/react/members/members-i18n.d.ts",
   "symbols": {
    "MEMBERS_DICT": "variable:4df75f2500",
    "createMembersTranslator": "function:0f171f6550"
+  }
+ },
+ "./react/roles/api/roles-api": {
+  "types": "./dist/react/roles/api/roles-api.d.ts",
+  "symbols": {
+   "RolesApiDeps": "interface:81f794f65c",
+   "createRolesApi": "function:f2555e58ea"
   }
  },
  "./react/testing": {
@@ -1257,6 +1280,13 @@
    "createFakeMembersPort": "function:8269476309",
    "createFakeRolesPort": "function:1c7d861332",
    "createFakeUsersPort": "function:b755670e72"
+  }
+ },
+ "./react/users/api/users-api": {
+  "types": "./dist/react/users/api/users-api.d.ts",
+  "symbols": {
+   "UsersApiDeps": "interface:3c3010166b",
+   "createUsersApi": "function:2370efb292"
   }
  },
  "./server": {

@@ -112,6 +112,12 @@
    "waitForHostedSignIn": "function:8594374a85"
   }
  },
+ "./api-connections/bundled-client-namespace": {
+  "types": "./dist/api-connections/bundled-client-namespace.d.ts",
+  "symbols": {
+   "createBundledClientNamespaceReader": "function:eaf18024a1"
+  }
+ },
  "./api-connections/form-delivery-connection": {
   "types": "./dist/api-connections/form-delivery-connection.d.ts",
   "symbols": {
@@ -760,6 +766,15 @@
    "adaptWebhookHttpClient": "function:8e8ef675c0",
    "enqueueDelivery": "function:50c4c05939",
    "processDueDeliveries": "function:8004f1e327"
+  }
+ },
+ "./webhooks/site/http.memory": {
+  "types": "./dist/webhooks/site/http.memory.d.ts",
+  "symbols": {
+   "RecordedHttpCall": "interface:42abb6ff42",
+   "RecordingHttpClient": "class:673c1eb898",
+   "RecordingHttpClientOptions": "interface:ad03b2c310",
+   "ScriptedHttpResponse": "type:41c81edbed"
   }
  },
  "./webhooks/site/repo.memory": {

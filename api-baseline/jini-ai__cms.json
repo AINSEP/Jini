@@ -3051,6 +3051,12 @@
    "ensureCommentsProviderDefinition": "function:4a4296e6ca"
   }
  },
+ "./comments/site/public-markers": {
+  "types": "./dist/comments/site/public-markers.d.ts",
+  "symbols": {
+   "renderCommentsMarkers": "function:b8f069441c"
+  }
+ },
  "./comments/site/settings": {
   "types": "./dist/comments/site/settings.d.ts",
   "symbols": {
@@ -4491,6 +4497,12 @@
    "restoreImportedMedia": "function:4efa406c53"
   }
  },
+ "./media/site/large-upload-routing": {
+  "types": "./dist/media/site/large-upload-routing.d.ts",
+  "symbols": {
+   "withLargeUploadRouting": "function:555f7e43c8"
+  }
+ },
  "./media/site/list-pending-chat-attachments": {
   "types": "./dist/media/site/list-pending-chat-attachments.d.ts",
   "symbols": {
@@ -4543,6 +4555,12 @@
   "symbols": {
    "assertAllowedSniffedContentType": "function:184f0197e7",
    "resolveUploadContentType": "function:e2813dfcf5"
+  }
+ },
+ "./media/site/verify-published-media": {
+  "types": "./dist/media/site/verify-published-media.d.ts",
+  "symbols": {
+   "verifyPublishedMedia": "function:eff045a1f2"
   }
  },
  "./media/site/view-image-tool": {
@@ -4931,6 +4949,13 @@
    "MAX_REVEAL_FINDINGS": "variable:d8a03f04e9",
    "describeScriptRevealedContent": "function:ed71f4b1c9",
    "findScriptRevealedContent": "function:3aa10db42e"
+  }
+ },
+ "./posts/agent-hold": {
+  "types": "./dist/posts/agent-hold.d.ts",
+  "symbols": {
+   "AgentHoldReader": "interface:4ef373d734",
+   "withoutHeldAgentSchedule": "function:b549ea4413"
   }
  },
  "./posts/capability-card": {
@@ -6423,6 +6448,31 @@
    "SqlPublishContentBundleRepo": "class:99c1d7865e"
   }
  },
+ "./publish/trust/challenge": {
+  "types": "./dist/publish/trust/challenge.d.ts",
+  "symbols": {
+   "CHALLENGE_TTL_MS": "variable:9ea2d32e19",
+   "ChallengeVerification": "type:083f2936c5",
+   "InMemoryPublishChallengeStore": "class:087b615c2c",
+   "PublishChallengeRecord": "interface:e02ab57c71",
+   "PublishChallengeResponse": "interface:96ba5e0583",
+   "PublishChallengeStorePort": "interface:4f1ff585c3",
+   "VerifiedChallenge": "interface:53a020a447",
+   "buildChallengeMessage": "function:d5f23bf433",
+   "issuePublishChallenge": "function:e61e5f3cd9",
+   "verifyChallengeResponse": "function:55f5f47c6a"
+  }
+ },
+ "./publish/trust/connect": {
+  "types": "./dist/publish/trust/connect.d.ts",
+  "symbols": {
+   "ConnectDeps": "interface:e078bc2e8c",
+   "ConnectedDestination": "interface:5b5a3d11ad",
+   "PublishTrustConnectError": "class:af2eff203b",
+   "connectDestination": "function:a3da0e94b9",
+   "disconnectDestination": "function:8a1fc7e4ed"
+  }
+ },
  "./publish/trust/grant": {
   "types": "./dist/publish/trust/grant.d.ts",
   "symbols": {
@@ -6441,6 +6491,23 @@
    "isGrantActive": "function:d6006599a0",
    "isPublishTrustRoute": "function:10cb24879f",
    "parsePublishTrustGrant": "function:09b805eaf2"
+  }
+ },
+ "./publish/trust/handshake-client": {
+  "types": "./dist/publish/trust/handshake-client.d.ts",
+  "symbols": {
+   "DestinationIdentity": "interface:17519646e9",
+   "HANDSHAKE_TIMEOUT_MS": "variable:2da6a6a7db",
+   "HandshakeClientDeps": "interface:d315c31377",
+   "PUBLISH_TRUST_GENERATION": "variable:17e15e72e9",
+   "PUBLISH_TRUST_HANDSHAKE_BASE": "variable:beee61a128",
+   "PublishHandshakeHttpPort": "interface:cfbc765b2c",
+   "PublishSession": "interface:468f9be2c0",
+   "PublishTrustHandshakeError": "class:dba64b8f57",
+   "PublishTrustHandshakeFailure": "type:714cc85867",
+   "PublishTrustWire": "interface:020d3afdc0",
+   "fetchDestinationIdentity": "function:4a70f7cc26",
+   "openPublishSession": "function:0e2a81d193"
   }
  },
  "./publish/trust/keys": {
@@ -6515,6 +6582,16 @@
    "parseRevocationDocument": "function:0b9d2ce5fb"
   }
  },
+ "./publish/trust/session": {
+  "types": "./dist/publish/trust/session.d.ts",
+  "symbols": {
+   "PublishSessionPayload": "interface:4de405cf0b",
+   "PublishSessionVerification": "type:c5e4b69d1d",
+   "SESSION_TTL_MS": "variable:672694cfee",
+   "mintPublishSession": "function:41864bf657",
+   "verifyPublishSession": "function:465abfd4df"
+  }
+ },
  "./react/media": {
   "types": "./dist/react/media/index.d.ts",
   "symbols": {
@@ -6525,6 +6602,46 @@
    "RemoteImageImport": "function:3f75c73825",
    "RemoteImageImportCollaborators": "interface:9ef2d7db69",
    "useRemoteImageImport": "function:4d335ce20f"
+  }
+ },
+ "./react/pages/PageExternalChangeBanner": {
+  "types": "./dist/react/pages/PageExternalChangeBanner.d.ts",
+  "symbols": {
+   "PageExternalChangeBanner": "function:b9341224f8"
+  }
+ },
+ "./react/posts/editor/notices/PostEditorSlugCollisionWarning": {
+  "types": "./dist/react/posts/editor/notices/PostEditorSlugCollisionWarning.d.ts",
+  "symbols": {
+   "PostEditorSlugCollisionWarning": "function:3d81986e3c"
+  }
+ },
+ "./react/posts/hooks/use-post-featured-image.hooks": {
+  "types": "./dist/react/posts/hooks/use-post-featured-image.hooks.d.ts",
+  "symbols": {
+   "PostFeaturedImageController": "interface:d5de801969",
+   "usePostFeaturedImage": "function:956e394830"
+  }
+ },
+ "./react/posts/PostCoverImage": {
+  "types": "./dist/react/posts/PostCoverImage.d.ts",
+  "symbols": {
+   "PostCoverImage": "function:c318d9ba16",
+   "PostCoverImageBindings": "interface:8c027b9247",
+   "PostCoverImageProps": "interface:786acbe5dc"
+  }
+ },
+ "./react/publish-content/criteria-publish-result": {
+  "types": "./dist/react/publish-content/hooks/criteria-publish-result.d.ts",
+  "symbols": {
+   "buildCriteriaPublishResult": "function:459813a5cb"
+  }
+ },
+ "./react/publish-content/PublishSectionButton": {
+  "types": "./dist/react/publish-content/PublishSectionButton.d.ts",
+  "symbols": {
+   "PublishSectionButton": "function:debbb6a72d",
+   "PublishSectionButtonProps": "interface:14a14413be"
   }
  },
  "./redirects": {
@@ -6879,6 +6996,7 @@
    "ReadabilityBand": "type:01de3ad6ce",
    "TocEntry": "interface:f4670fce48",
    "analyzeContent": "function:82656b6fad",
+   "analyzeContentWithSiteSlug": "function:3fe5be2523",
    "countSyllables": "function:9a0b05c175",
    "summarizeReport": "function:0e2dc1bbdf",
    "tiptapToBlocks": "function:9c5974287a"
@@ -7192,6 +7310,12 @@
    "resolveSiteTimeZone": "function:0125f4b887"
   }
  },
+ "./settings/site/site-timezone-fallback": {
+  "types": "./dist/settings/site/site-timezone-fallback.d.ts",
+  "symbols": {
+   "createSiteTimeZoneFallbackReporter": "function:2fec8ca476"
+  }
+ },
  "./settings/site/site-title": {
   "types": "./dist/settings/site/site-title.d.ts",
   "symbols": {
@@ -7226,6 +7350,13 @@
    "SiteTitlePreservationStorePort": "interface:cebc19a1bc",
    "SiteTitlePreservationTables": "interface:3ad8711c81",
    "SqlSiteTitlePreservationStore": "class:f72057b030"
+  }
+ },
+ "./settings/site/site-title-reporter": {
+  "types": "./dist/settings/site/site-title-reporter.d.ts",
+  "symbols": {
+   "createSiteTitleFailureReporter": "function:ecc7c1a759",
+   "createSiteTitlePreservationSummaryReporter": "function:24fc658604"
   }
  },
  "./settings/site/site-title-write": {

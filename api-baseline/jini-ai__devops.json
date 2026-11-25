@@ -870,8 +870,13 @@
  "./deploy/react": {
   "types": "./dist/deploy/react/index.d.ts",
   "symbols": {
+   "DeploymentOverviewArgs": "interface:ce0af6af20",
+   "DeploymentOverviewController": "interface:95e2ab607b",
+   "HistoryTab": "function:0210002295",
+   "HistoryTabProps": "interface:8b7a3b6daf",
    "PublishRunResult": "function:d70d98c179",
-   "PublishRunResultProps": "interface:fa67bd1211"
+   "PublishRunResultProps": "interface:fa67bd1211",
+   "useDeploymentOverview": "function:b25f987ee9"
   }
  },
  "./deploy/site/agent-tools": {
@@ -1456,6 +1461,14 @@
    "validateCommitTarget": "function:21ef3e2965"
   }
  },
+ "./source-control/react": {
+  "types": "./dist/source-control/react/SourceControl.d.ts",
+  "symbols": {
+   "SourceControl": "function:214e3783f6",
+   "SourceControlProps": "interface:a30e9a52ee",
+   "SourceControlTabBarProps": "interface:e1412356eb"
+  }
+ },
  "./source-control/site/commit-schema": {
   "types": "./dist/source-control/site/commit-schema.d.ts",
   "symbols": {
@@ -1583,6 +1596,15 @@
    "createNodeAssetSource": "function:cf1ae459d4"
   }
  },
+ "./static-export/site/export-preflight": {
+  "types": "./dist/static-export/site/export-preflight.d.ts",
+  "symbols": {
+   "ExportPreflightCopy": "interface:fe582fbb85",
+   "createExportPreflight": "function:35df0dbfee",
+   "findContactEmailPlaceholder": "function:5ffdeb8b89",
+   "findThirdPartyScriptHosts": "function:5172479fef"
+  }
+ },
  "./static-export/site/ports": {
   "types": "./dist/static-export/site/ports.d.ts",
   "symbols": {
@@ -1599,6 +1621,13 @@
    "exportPublicOrigin": "function:4d2b0322be",
    "rewriteExportOriginResponse": "function:1608c8b961",
    "rewriteRenderOrigins": "function:5beb95d093"
+  }
+ },
+ "./static-export/site/theme-preview-manifest": {
+  "types": "./dist/static-export/site/theme-preview-manifest.d.ts",
+  "symbols": {
+   "PreviewExportManifestPorts": "interface:81fd0c7990",
+   "buildPreviewExportManifest": "function:999a708a6b"
   }
  }
 }
