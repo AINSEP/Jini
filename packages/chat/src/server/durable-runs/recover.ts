@@ -137,173 +137,205 @@ function continuesNow({ run, trigger, now }: { run: DurableRun; trigger: Recover
 /** One recovery decision plus the evidence it was based on, for the metadata log line. */
 interface Decision { readonly decision: RecoveryResult; readonly probe?: RunProbe; readonly failure?: FailureClass }
 
+/** Terminal-failure notice for a dead attempt that must not be retried; pure, no effects. */
+interface FailureNotice { readonly notice: string; readonly canceled: boolean; readonly detail?: string | undefined }
+
+function isActive({ run }: { run: DurableRun }, _optional = {}): boolean {
+  return run.message.runStatus === "queued" || run.message.runStatus === "running";
+}
+
+/** Pure eligibility: the outcome that ends a recovery before any probe, or null while the saved run is recoverable. */
+function entryOutcome({ run, expectedRunId }: { run: DurableRun | null; expectedRunId: string | undefined }, _optional = {}): RecoveryResult | null {
+  if (!run) return "gone";
+  if (!isActive({ run })) return "terminal";
+  if (expectedRunId && expectedRunId !== run.runId) return "superseded";
+  return null;
+}
+
+/** Pure eligibility after an await: the outcome that ends this decision, or null while `current` is still the probed attempt. */
+function reloadOutcome({ run, current }: { run: DurableRun; current: DurableRun | null }, _optional = {}): RecoveryResult | null {
+  if (!current) return "gone";
+  // A probe only speaks about the generation it inspected. Never apply its dead result to
+  // a newer attempt committed by another caller while this one was awaiting storage/HTTP.
+  if (current.runId !== run.runId) return "superseded";
+  return isActive({ run: current }) ? null : "terminal";
+}
+
+function failureNotice({ failure, diagnostics }: { failure: "permanent" | "auth-failure" | "inactivity-watchdog"; diagnostics: string }, _optional = {}): FailureNotice {
+  if (failure !== "permanent") return { notice: failure === "auth-failure" ? "Not logged in. Saved work is above." : STOPPED_NOTICE, canceled: true };
+  // A bridge failure shows its own reason (and stderr): the generic notice hides what needs repair.
+  const bridgeNotice = diagnostics.match(MCP_BRIDGE_FAILURE)?.[0];
+  return { notice: bridgeNotice ?? EXHAUSTED_NOTICE, canceled: false, detail: bridgeNotice ? undefined : lastDiagnosticLine({ diagnostics }) };
+}
+
+/** Replay starts from attemptBase. Carry this attempt's saved launch notice into it too, so
+ * reconnect/reload cannot replace that evidence with the daemon's shorter replay prefix.
+ * Pure: O(e) in saved events; the run to attach, unchanged when no new notice must be carried. */
+function attachTarget({ run }: { run: DurableRun }, _optional = {}): DurableRun {
+  const events = run.message.events ?? [];
+  const noticeIndex = lastIndexWhere({ events, match: event => event.kind === 'status' && event.code === 'run_launch_unconfirmed' });
+  const marker = lastIndexWhere({ events, match: event => event.kind === 'status' && event.code === 'run_recovering' });
+  if (noticeIndex <= marker) return run;
+  const notice = events[noticeIndex]!;
+  const base = [...run.attemptBase];
+  if (!base.includes(notice)) base.push(notice);
+  return { ...run, attemptBase: base };
+}
+
+function launchUnconfirmed({ stage, error }: { stage: string; error: unknown }, _optional = {}): AgentEvent {
+  return { kind: 'status', code: 'run_launch_unconfirmed',
+    label: 'The assistant start response was not confirmed. Checking whether this attempt is running.',
+    detail: startupFailureMessage({ stage, error }, {
+      notice: 'The assistant start response was not confirmed. Wait while this attempt is checked.',
+    }) };
+}
+
+/** Attaches the watcher to `attachTarget`; no additional store read, write, or polling. */
+function attach({ ports, run }: { ports: RecoveryPorts; run: DurableRun }, _optional = {}): void {
+  ports.attach(attachTarget({ run }), {});
+}
+
+async function finalize({ ports, run, notice, canceled = false, detail }: { ports: RecoveryPorts; run: DurableRun; notice: string; canceled?: boolean; detail?: string | undefined }, _optional = {}): Promise<RecoveryResult> {
+  await ports.cancelAttempt(run, {}).catch(() => undefined);
+  // Persist the notice as an event: hook errors are live-only and would leave a reloaded
+  // terminal message without its explanation. Only this coordinator decides exhaustion.
+  const events: AgentEvent[] = [...(run.message.events ?? []), { kind: "status", label: notice, ...(detail ? { detail } : {}) }];
+  await ports.settle({ ...run, content: run.message.content, events, status: canceled ? "canceled" : "failed", endedAt: ports.now() }, {});
+  return "finalized";
+}
+
+async function nativeAllowed({ ports, run }: { ports: RecoveryPorts; run: DurableRun }, _optional = {}): Promise<boolean> {
+  if (!run.sessionConfirmed || !run.sessionId || !run.child) return false;
+  if (!ports.supportsNativeResume({ agentId: run.request.agentId ?? "claude" }, {})) return false;
+  return ports.verifyChildDead(run.child, {}).catch(() => false);
+}
+
+/** Persist rejection evidence but leave liveness and retry decisions to the existing probe. */
+async function launchNext({ ports, run, next, native }: { ports: RecoveryPorts; run: DurableRun; next: DurableRun; native: boolean }, _optional = {}): Promise<DurableRun> {
+  let stage = 'recovery launch';
+  try {
+    await ports.launch({ run: next, request: continuationRequest({ run: { ...run, message: next.message, transcript: next.transcript }, native }, {}) }, {});
+    stage = 'recovery clock';
+    await ports.store.recoveryClock({ runId: next.runId, now: ports.now(), active: false }, {});
+  } catch (error) {
+    // A rejected/lost start response is uncertain: the daemon may already be executing. The
+    // same idempotent attempt is probed by the attached watcher before another CAS is possible.
+    const events = [...(next.message.events ?? []), launchUnconfirmed({ stage, error })];
+    // Preserve the saved answer and all prior events in the existing projection write. The
+    // checkpoint's generation fence rejects a concurrent stop or successor attempt.
+    await ports.checkpoint?.({ conversationId: next.conversationId, messageId: next.messageId,
+      runId: next.runId, content: next.message.content, events }, {}).catch(() => false);
+    return { ...next, message: { ...next.message, events } };
+  }
+  return next;
+}
+
+async function continueDead({ ports, run }: { ports: RecoveryPorts; run: DurableRun }, _optional = {}): Promise<RecoveryResult> {
+  await ports.cancelAttempt(run, {}).catch(() => undefined);
+  // A locator captured before a hard cancel can outlive its rollout. Reuse reconstruction,
+  // including prior turns/tool outcomes, instead of retrying a known missing native session.
+  const missingResume = run.request.agentId === 'codex' && /no rollout found for thread id/.test(attemptDiagnostics({ run }, {}));
+  const native = !missingResume && await nativeAllowed({ ports, run });
+  const nextRunId = ports.mintRunId();
+  const events = recoveredRunEvents({ saved: savedWork({ run }) }, { notice: missingResume ? 'silent' : 'visible' });
+  if (!await ports.store.advance({ run, nextRunId, now: ports.now(), events }, {})) return "superseded";
+  const next = await ports.store.load({ messageId: run.messageId }, { includeTranscriptEvents: false });
+  // Cancel/deletion can win while the old attempt is being fenced. Re-read after CAS and do
+  // not launch against a removed binding or a newer generation.
+  if (!next || next.runId !== nextRunId) return "superseded";
+  if (next.cancelReason) return finalize({ ports, run: next, notice: STOPPED_NOTICE, canceled: true });
+  const launched = await launchNext({ ports, run, next, native });
+  attach({ ports, run: launched });
+  return "continued";
+}
+
+async function probeAttempt({ ports, run, trigger, liveRunId }: { ports: RecoveryPorts; run: DurableRun; trigger: RecoveryTrigger; liveRunId: string | undefined }, _optional = {}): Promise<RunProbe> {
+  // A terminal executor end confirms this attempt is dead even when the daemon retains its
+  // replayable record (HTTP 200). Other triggers must obtain fresh liveness evidence.
+  if (trigger === "attempt-failed") return "dead";
+  return liveRunId === run.runId ? "live" : ports.probe(run, {});
+}
+
+async function reattach({ ports, run }: { ports: RecoveryPorts; run: DurableRun }, _optional = {}): Promise<RecoveryResult> {
+  await ports.store.recoveryClock({ runId: run.runId, now: ports.now(), active: false }, {});
+  attach({ ports, run });
+  return "reattached";
+}
+
+async function finalizeFailure({ ports, run, failure, diagnostics }: { ports: RecoveryPorts; run: DurableRun; failure: "permanent" | "auth-failure" | "inactivity-watchdog"; diagnostics: string }, _optional = {}): Promise<RecoveryResult> {
+  return finalize({ ports, run, ...failureNotice({ failure, diagnostics }) });
+}
+
+/** The saved row after an await, or the outcome that ends this decision. O(1) store reads. */
+async function reload({ ports, run }: { ports: RecoveryPorts; run: DurableRun }, _optional = {}): Promise<DurableRun | RecoveryResult> {
+  const current = await ports.store.load({ messageId: run.messageId }, { includeTranscriptEvents: false });
+  const ended = reloadOutcome({ run, current });
+  if (ended) return ended;
+  if (exclusion(current!)) return finalize({ ports, run: current!, notice: STOPPED_NOTICE, canceled: true });
+  return current!;
+}
+
+async function resolveDead({ ports, run, trigger }: { ports: RecoveryPorts; run: DurableRun; trigger: RecoveryTrigger }, _optional = {}): Promise<RecoveryResult> {
+  // A dead process cannot resume its question. End this turn with the existing card intact,
+  // rather than minting an attempt that runs preflight and asks the same question again.
+  if (awaitingAnswer({ run })) return finalize({ ports, run, notice: AWAITING_ANSWER_NOTICE });
+  const notice = budgetNotice(run, ports.now());
+  if (notice) return finalize({ ports, run, notice, detail: notice === EXHAUSTED_NOTICE ? exhaustedDetail({ run }) : undefined });
+  // A queued attempt may be between durable acceptance and the daemon's start transaction.
+  // Give that idempotent launch time to appear before a 404 can advance its generation.
+  if (continuesNow({ run, trigger, now: ports.now() })) return continueDead({ ports, run });
+  attach({ ports, run });
+  return "waiting";
+}
+
+async function resolveMissing({ ports, run, trigger }: { ports: RecoveryPorts; run: DurableRun; trigger: RecoveryTrigger }, _optional = {}): Promise<RecoveryResult> {
+  await ports.store.recoveryClock({ runId: run.runId, now: ports.now(), active: true }, {});
+  const timed = await reload({ ports, run });
+  return typeof timed === "string" ? timed : resolveDead({ ports, run: timed, trigger });
+}
+
+async function decideDead({ ports, run, trigger }: { ports: RecoveryPorts; run: DurableRun; trigger: RecoveryTrigger }, _optional = {}): Promise<Decision> {
+  const probe = "dead";
+  // A pending human answer takes precedence over executor exit diagnostics.
+  if (awaitingAnswer({ run })) return { probe, decision: await resolveMissing({ ports, run, trigger }) };
+  // Diagnostics decide only the fate of an attempt that is no longer running. Read before the
+  // probe, raw stdout quoting a tool description ("OAuth-authenticated") canceled a live turn
+  // as "Not logged in" (luvira, 2026-10-08).
+  const diagnostics = attemptDiagnostics({ run });
+  const failure = attemptFailure({ diagnostics });
+  const decision = failure === "retryable" ? await resolveMissing({ ports, run, trigger }) : await finalizeFailure({ ports, run, failure, diagnostics });
+  return { probe, failure, decision };
+}
+
+async function decide({ ports, run, trigger, liveRunId }: { ports: RecoveryPorts; run: DurableRun; trigger: RecoveryTrigger; liveRunId: string | undefined }, _optional = {}): Promise<Decision> {
+  if (exclusion(run)) return { decision: await finalize({ ports, run, notice: STOPPED_NOTICE, canceled: true }) };
+  const probe = await probeAttempt({ ports, run, trigger, liveRunId });
+  // HTTP/storage awaits can cross cancellation, settlement, or an attempt-generation change.
+  // Re-read before attaching or applying diagnostics to the probed attempt.
+  const current = await reload({ ports, run });
+  if (typeof current === "string") return { probe, decision: current };
+  if (probe === "live") return { probe, decision: await reattach({ ports, run: current }) };
+  if (probe === "uncertain") {
+    // Transport uncertainty is not proof of death and spends no restart/time budget. The
+    // existing watcher waits and probes again; even an expired budget cannot kill a live child.
+    await reattach({ ports, run: current });
+    return { probe, decision: "waiting" };
+  }
+  return decideDead({ ports, run: current, trigger });
+}
+
 /** Recovery coordinator behind explicit host ports. One CAS owns both the attempt and its conversation slot.
  * Each recovery decision reports run metadata through the host port or the safe default logger. */
 export function createDurableRecovery(ports: RecoveryPorts, { report = createConsoleLogger({ prefix: '' }) }: { report?: Pick<Logger, "info"> } = {}): DurableRecovery {
-  /** Replay starts from attemptBase. Carry this attempt's saved launch notice into it too, so
-   * reconnect/reload cannot replace that evidence with the daemon's shorter replay prefix.
-   * O(e) in saved events; no additional store read, write, or polling. */
-  function attach(run: DurableRun): void {
-    const events = run.message.events ?? [];
-    const noticeIndex = lastIndexWhere({ events, match: event => event.kind === 'status' && event.code === 'run_launch_unconfirmed' });
-    const marker = lastIndexWhere({ events, match: event => event.kind === 'status' && event.code === 'run_recovering' });
-    if (noticeIndex <= marker) { ports.attach(run, {}); return; }
-    const notice = events[noticeIndex]!;
-    const base = [...run.attemptBase];
-    if (!base.includes(notice)) base.push(notice);
-    ports.attach({ ...run, attemptBase: base }, {});
-  }
-
-  async function finalize(run: DurableRun, notice: string, { canceled = false, detail }: { canceled?: boolean; detail?: string | undefined } = {}): Promise<RecoveryResult> {
-    await ports.cancelAttempt(run, {}).catch(() => undefined);
-    // Persist the notice as an event: hook errors are live-only and would leave a reloaded
-    // terminal message without its explanation. Only this coordinator decides exhaustion.
-    const events: AgentEvent[] = [...(run.message.events ?? []), { kind: "status", label: notice, ...(detail ? { detail } : {}) }];
-    await ports.settle({ ...run, content: run.message.content, events, status: canceled ? "canceled" : "failed", endedAt: ports.now() }, {});
-    return "finalized";
-  }
-
-  async function nativeAllowed(run: DurableRun): Promise<boolean> {
-    if (!run.sessionConfirmed || !run.sessionId || !run.child) return false;
-    if (!ports.supportsNativeResume({ agentId: run.request.agentId ?? "claude" }, {})) return false;
-    return ports.verifyChildDead(run.child, {}).catch(() => false);
-  }
-
-  /** Persist rejection evidence but leave liveness and retry decisions to the existing probe. */
-  async function launchNext({ run, next, native }: { run: DurableRun; next: DurableRun; native: boolean }, _optional = {}): Promise<DurableRun> {
-    let stage = 'recovery launch';
-    try {
-      await ports.launch({ run: next, request: continuationRequest({ run: { ...run, message: next.message, transcript: next.transcript }, native }, {}) }, {});
-      stage = 'recovery clock';
-      await ports.store.recoveryClock({ runId: next.runId, now: ports.now(), active: false }, {});
-    } catch (error) {
-      // A rejected/lost start response is uncertain: the daemon may already be executing. The
-      // same idempotent attempt is probed by the attached watcher before another CAS is possible.
-      const diagnostic: AgentEvent = { kind: 'status', code: 'run_launch_unconfirmed',
-        label: 'The assistant start response was not confirmed. Checking whether this attempt is running.',
-        detail: startupFailureMessage({ stage, error }, {
-          notice: 'The assistant start response was not confirmed. Wait while this attempt is checked.',
-        }) };
-      const events = [...(next.message.events ?? []), diagnostic];
-      // Preserve the saved answer and all prior events in the existing projection write. The
-      // checkpoint's generation fence rejects a concurrent stop or successor attempt.
-      await ports.checkpoint?.({ conversationId: next.conversationId, messageId: next.messageId,
-        runId: next.runId, content: next.message.content, events }, {}).catch(() => false);
-      return { ...next, message: { ...next.message, events } };
-    }
-    return next;
-  }
-
-  async function continueDead(run: DurableRun): Promise<RecoveryResult> {
-    await ports.cancelAttempt(run, {}).catch(() => undefined);
-    // A locator captured before a hard cancel can outlive its rollout. Reuse reconstruction,
-    // including prior turns/tool outcomes, instead of retrying a known missing native session.
-    const missingResume = run.request.agentId === 'codex' && /no rollout found for thread id/.test(attemptDiagnostics({ run }, {}));
-    const native = !missingResume && await nativeAllowed(run);
-    const nextRunId = ports.mintRunId();
-    const events = recoveredRunEvents({ saved: savedWork({ run }) }, { notice: missingResume ? 'silent' : 'visible' });
-    if (!await ports.store.advance({ run, nextRunId, now: ports.now(), events }, {})) return "superseded";
-    const next = await ports.store.load({ messageId: run.messageId }, { includeTranscriptEvents: false });
-    // Cancel/deletion can win while the old attempt is being fenced. Re-read after CAS and do
-    // not launch against a removed binding or a newer generation.
-    if (!next || next.runId !== nextRunId) return "superseded";
-    if (next.cancelReason) return finalize(next, STOPPED_NOTICE, { canceled: true });
-    const launched = await launchNext({ run, next, native });
-    attach(launched);
-    return "continued";
-  }
-
-  async function probeAttempt({ run, trigger, liveRunId }: { run: DurableRun; trigger: RecoveryTrigger; liveRunId: string | undefined }, _optional = {}): Promise<RunProbe> {
-    // A terminal executor end confirms this attempt is dead even when the daemon retains its
-    // replayable record (HTTP 200). Other triggers must obtain fresh liveness evidence.
-    if (trigger === "attempt-failed") return "dead";
-    return liveRunId === run.runId ? "live" : ports.probe(run, {});
-  }
-
-  async function reattach(run: DurableRun): Promise<RecoveryResult> {
-    await ports.store.recoveryClock({ runId: run.runId, now: ports.now(), active: false }, {});
-    attach(run);
-    return "reattached";
-  }
-
-  async function finalizeFailure({ run, failure, diagnostics }: { run: DurableRun; failure: "permanent" | "auth-failure" | "inactivity-watchdog"; diagnostics: string }, _optional = {}): Promise<RecoveryResult> {
-    if (failure !== "permanent") return finalize(run, failure === "auth-failure" ? "Not logged in. Saved work is above." : STOPPED_NOTICE, { canceled: true });
-    // A bridge failure shows its own reason (and stderr): the generic notice hides what needs repair.
-    const bridgeNotice = diagnostics.match(MCP_BRIDGE_FAILURE)?.[0];
-    return finalize(run, bridgeNotice ?? EXHAUSTED_NOTICE, { detail: bridgeNotice ? undefined : lastDiagnosticLine({ diagnostics }) });
-  }
-
-  async function decide(run: DurableRun, trigger: RecoveryTrigger, liveRunId: string | undefined): Promise<Decision> {
-    if (exclusion(run)) return { decision: await finalize(run, STOPPED_NOTICE, { canceled: true }) };
-    const probe = await probeAttempt({ run, trigger, liveRunId });
-    // HTTP/storage awaits can cross cancellation, settlement, or an attempt-generation change.
-    // Re-read before attaching or applying diagnostics to the probed attempt.
-    const current = await reload(run);
-    if (typeof current === "string") return { probe, decision: current };
-    if (probe === "live") return { probe, decision: await reattach(current) };
-    if (probe === "uncertain") {
-      // Transport uncertainty is not proof of death and spends no restart/time budget. The
-      // existing watcher waits and probes again; even an expired budget cannot kill a live child.
-      await reattach(current);
-      return { probe, decision: "waiting" };
-    }
-    return decideDead(current, trigger);
-  }
-
-  async function decideDead(run: DurableRun, trigger: RecoveryTrigger): Promise<Decision> {
-    const probe = "dead";
-    // A pending human answer takes precedence over executor exit diagnostics.
-    if (awaitingAnswer({ run })) return { probe, decision: await resolveMissing(run, trigger) };
-    // Diagnostics decide only the fate of an attempt that is no longer running. Read before the
-    // probe, raw stdout quoting a tool description ("OAuth-authenticated") canceled a live turn
-    // as "Not logged in" (luvira, 2026-10-08).
-    const diagnostics = attemptDiagnostics({ run });
-    const failure = attemptFailure({ diagnostics });
-    const decision = failure === "retryable" ? await resolveMissing(run, trigger) : await finalizeFailure({ run, failure, diagnostics });
-    return { probe, failure, decision };
-  }
-
-  async function resolveMissing(run: DurableRun, trigger: RecoveryTrigger): Promise<RecoveryResult> {
-    await ports.store.recoveryClock({ runId: run.runId, now: ports.now(), active: true }, {});
-    const timed = await reload(run);
-    return typeof timed === "string" ? timed : resolveDead(timed, trigger);
-  }
-
-  /** The saved row after an await, or the outcome that ends this decision. O(1) store reads. */
-  async function reload(run: DurableRun): Promise<DurableRun | RecoveryResult> {
-    const current = await ports.store.load({ messageId: run.messageId }, { includeTranscriptEvents: false });
-    if (!current) return "gone";
-    // A probe only speaks about the generation it inspected. Never apply its dead result to
-    // a newer attempt committed by another caller while this one was awaiting storage/HTTP.
-    if (current.runId !== run.runId) return "superseded";
-    if (current.message.runStatus !== "queued" && current.message.runStatus !== "running") return "terminal";
-    if (exclusion(current)) return finalize(current, STOPPED_NOTICE, { canceled: true });
-    return current;
-  }
-
-  async function resolveDead(run: DurableRun, trigger: RecoveryTrigger): Promise<RecoveryResult> {
-    // A dead process cannot resume its question. End this turn with the existing card intact,
-    // rather than minting an attempt that runs preflight and asks the same question again.
-    if (awaitingAnswer({ run })) return finalize(run, AWAITING_ANSWER_NOTICE);
-    const notice = budgetNotice(run, ports.now());
-    if (notice) return finalize(run, notice, { detail: notice === EXHAUSTED_NOTICE ? exhaustedDetail({ run }) : undefined });
-    // A queued attempt may be between durable acceptance and the daemon's start transaction.
-    // Give that idempotent launch time to appear before a 404 can advance its generation.
-    if (continuesNow({ run, trigger, now: ports.now() })) return continueDead(run);
-    attach(run);
-    return "waiting";
-  }
-
   return {
     async recover({ messageId, trigger, expectedRunId }, options) {
       const run = await ports.store.load({ messageId }, { includeTranscriptEvents: false });
-      if (!run) return "gone";
-      if (run.message.runStatus !== "queued" && run.message.runStatus !== "running") return "terminal";
-      if (expectedRunId && expectedRunId !== run.runId) return "superseded";
-      const { decision, probe, failure } = await decide(run, trigger, options.liveRunId);
+      const ended = entryOutcome({ run, expectedRunId });
+      if (ended) return ended;
+      const { decision, probe, failure } = await decide({ ports, run: run!, trigger, liveRunId: options.liveRunId });
       // The watcher re-confirms its own live run every resolution window; log only real recovery
       // decisions. Metadata only: diagnostics, answers and cancel reasons can hold secrets.
-      if (options.liveRunId !== run.runId) report.info({ message: "[durable-recovery] Recovery decision." }, { meta: { runId: run.runId, trigger, probe, decision, failureClass: failure } });
+      if (options.liveRunId !== run!.runId) report.info({ message: "[durable-recovery] Recovery decision." }, { meta: { runId: run!.runId, trigger, probe, decision, failureClass: failure } });
       return decision;
     },
   };

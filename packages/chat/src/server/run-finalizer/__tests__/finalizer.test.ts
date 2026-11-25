@@ -123,6 +123,21 @@ describe('run finalizer with host ports', () => {
     expect(saved).toBe('Partial answer'); finish(); await until(() => checkpointFinished);
     expect(saved).toBe('Partial answer');
   });
+  it('finalizes a run once when the same message is watched twice: effects happen once, in order', async () => {
+    const s = controllableStream(); const effects: string[] = [];
+    const daemon = daemonFor(() => { effects.push('open'); return s.response; });
+    const h = harness(daemon);
+    h.ledger.checkpoint.mockImplementation(async input => { effects.push(`checkpoint:${input.content}`); return true; });
+    h.ledger.settle.mockImplementation(async input => { effects.push(`settle:${input.status}:${input.content}`); return true; });
+    h.watch(); h.watch();
+    s.push(text('Once')); await until(() => effects.includes('checkpoint:Once'));
+    s.push(frame('end', { status: 'succeeded' })); s.close();
+    await h.finalizer.idle({});
+    expect(h.finalizer.activeCount({})).toBe(0);
+    expect(effects).toEqual(['open', 'checkpoint:Once', 'settle:succeeded:Once']);
+    expect(h.ledger.settle).toHaveBeenCalledOnce();
+    expect(daemon.openEvents).toHaveBeenCalledOnce();
+  });
   it('honors a ledger that already settled the row in the browser', async () => {
     const h = harness(daemonFor(() => streamOf(text('Server'), frame('end', { status: 'succeeded' }))));
     const browserContent = 'Browser'; let saved = browserContent;

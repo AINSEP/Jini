@@ -189,20 +189,6 @@
     "value": 117
   },
   {
-    "file": "packages/chat/src/server/durable-runs/recover.ts",
-    "function": "createDurableRecovery",
-    "line": 140,
-    "rule": "max-lines-per-function",
-    "value": 122
-  },
-  {
-    "file": "packages/chat/src/server/run-finalizer/entry.ts",
-    "function": "createAssistantRunFinalizer",
-    "line": 77,
-    "rule": "max-lines-per-function",
-    "value": 132
-  },
-  {
     "file": "packages/chat/src/store/runtime/durable-run-store.ts",
     "function": "createDurableRunStore",
     "line": 182,
