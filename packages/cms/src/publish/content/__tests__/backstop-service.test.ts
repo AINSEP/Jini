@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { createBackstopService, mayUseBackstop } from "../backstop-service.js";
 import type { BackstopServicePolicy } from "../backstop-service.js";
 import type { BackstopAuditRecord, BackstopAuditPort, PackedEntity } from "../../transfer/index.js";
@@ -108,5 +108,39 @@ describe("backstop service", () => {
     const file = (id: string, size: number) => ({ entityType: "raw-file", id, state: { size }, backstop: { mode: "backstop", reason: "Emergency footer fix", sourceActor: "a", destinationHost: "live.example" } }) as unknown as PackedEntity;
     expect(() => readBackstopMetadata({ entities: [file("a.txt", 51 * 1024 * 1024)] })).toThrow(policy.copy.bundleLimit);
     expect(readBackstopMetadata({ entities: [file("a.txt", 1)] })?.gapLabels).toEqual(["folder:a.txt"]);
+  });
+
+  it("every refusal carries its exact text and neither validation nor a refused audit setup writes anything", async () => {
+    const save = vi.fn(async (_args: { record: BackstopAuditRecord }) => {});
+    const work = vi.fn(async () => ({}));
+    const row = { table: "p_widgets", pk: { id: "x" } };
+    const base = { reason: "Emergency footer fix", typedHost: "live.example", rows: [row], files: [] as string[] };
+    const refusals: [unknown, string][] = [
+      [null, "Choose items to send."],
+      [[row], "Choose items to send."],
+      [{ ...base, rows: [], files: [] }, "Choose rows by their complete primary keys and files by their site-relative paths."],
+      [{ ...base, rows: [{ table: "t", pk: [] }] }, "Choose rows by their complete primary keys and files by their site-relative paths."],
+      [{ ...base, files: [7] }, "Choose rows by their complete primary keys and files by their site-relative paths."],
+      [{ ...base, rows: [row, { table: "p_widgets", pk: { id: "x" } }] }, "Choose each item once."],
+      [{ ...base, rows: [], files: ["a.html", "a.html"] }, "Choose each item once."],
+      [{ ...base, reason: " ".repeat(20) }, "Explain why you need this send in at least 10 characters."],
+    ];
+    for (const [body, error] of refusals) expect(validateBackstopRequest({ body, destinationHost: "live.example" })).toEqual({ error });
+    await expect(runAuditedBackstop({ audit: { ready: async () => false, save } as unknown as BackstopAuditPort, record: {} as BackstopAuditRecord, work }))
+      .rejects.toThrow("Send by hand needs its audit storage installed before it can send anything.");
+    expect(save).not.toHaveBeenCalled();
+    expect(work).not.toHaveBeenCalled();
+  });
+
+  it("destination metadata refusals keep their exact text", () => {
+    const details = { mode: "backstop", reason: "Emergency footer fix", sourceActor: "a", destinationHost: "live.example" };
+    const entity = (id: string, backstop: unknown = details) => ({ entityType: "raw-file", id, state: { size: 1 }, backstop }) as unknown as PackedEntity;
+    expect(readBackstopMetadata({ entities: [{ entityType: "post", id: "p", state: {} } as unknown as PackedEntity] })).toBeNull();
+    expect(() => readBackstopMetadata({ entities: [entity("a"), { entityType: "post", id: "p", state: {} } as unknown as PackedEntity] })).toThrow("Send by hand cannot include normally published items.");
+    expect(() => readBackstopMetadata({ entities: [entity("a"), entity("a")] })).toThrow("Choose each item once.");
+    expect(() => readBackstopMetadata({ entities: [entity("a", null)] })).toThrow("This send is missing its reason, destination confirmation or source actor.");
+    expect(() => readBackstopMetadata({ entities: [entity("a", { ...details, destinationHost: "bad host/x" })] })).toThrow("This send has an invalid destination address.");
+    expect(() => readBackstopMetadata({ entities: [entity("a"), entity("b", { ...details, sourceActor: "b" })] })).toThrow("Every item in this send must have the same audit details.");
+    expect(() => readBackstopMetadata({ entities: [entity("a", { ...details, reason: "Emergency sk-live-1" })] })).toThrow("looks like a key");
   });
 });

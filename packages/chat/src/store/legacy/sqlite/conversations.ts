@@ -7,19 +7,18 @@ import type { SqliteDb, DbRow } from '@jini-ai/core/contracts/storage';
 import type { ChatSessionMode } from '../index.js';
 import { rows } from '@jini-ai/core/contracts/storage';
 
-/**
- * @internal Builds the summary query shared by `listConversations` and `getConversation`: every
- * conversation matching `filterColumn = ?`, each enriched with message count, the latest assistant
- * run summary, and total accumulated run duration across all terminal runs.
- */
-function conversationSummarySql(filterColumn: 'project_id' | 'id') {
-  return `WITH selected_conversations AS (
+/** @internal CTE selecting the conversations that match `filterColumn = ?`; every other CTE joins back to it. */
+function selectedConversationsCte(filterColumn: 'project_id' | 'id') {
+  return `selected_conversations AS (
           SELECT id, project_id AS projectId, title, session_mode AS sessionMode,
                  created_at AS createdAt, updated_at AS updatedAt
             FROM conversations
            WHERE ${filterColumn} = ?
-        ),
-        latest_runs AS (
+        )`;
+}
+
+/** @internal CTE holding each selected conversation's most recent assistant message that carries a run status. */
+const LATEST_RUNS_CTE = `latest_runs AS (
           SELECT conversation_id AS conversationId,
                  run_status AS latestRunStatus,
                  started_at AS latestRunStartedAt,
@@ -41,15 +40,20 @@ function conversationSummarySql(filterColumn: 'project_id' | 'id') {
                  AND m.run_status IS NOT NULL
             )
            WHERE rn = 1
-        ),
-        message_counts AS (
+        )`;
+
+/** @internal CTE counting every message of each selected conversation. */
+const MESSAGE_COUNTS_CTE = `message_counts AS (
           SELECT m.conversation_id AS conversationId,
                  COUNT(*) AS messageCount
             FROM messages m
             JOIN selected_conversations c ON c.id = m.conversation_id
            GROUP BY m.conversation_id
-        ),
-        total_run_durations AS (
+        )`;
+
+/** @internal CTE summing the duration of each selected conversation's terminal assistant runs. */
+function totalRunDurationsCte() {
+  return `total_run_durations AS (
           SELECT m.conversation_id AS conversationId,
                  SUM(${TERMINAL_RUN_DURATION_SQL}) AS totalDurationMs
             FROM messages m
@@ -57,8 +61,11 @@ function conversationSummarySql(filterColumn: 'project_id' | 'id') {
            WHERE m.role = 'assistant'
              AND m.run_status IN ('succeeded', 'failed', 'canceled')
            GROUP BY m.conversation_id
-        )
-        SELECT c.id, c.projectId, c.title, c.sessionMode, c.createdAt, c.updatedAt,
+        )`;
+}
+
+/** @internal Final projection joining the selected conversations to the three summary CTEs. */
+const SUMMARY_SELECT = `SELECT c.id, c.projectId, c.title, c.sessionMode, c.createdAt, c.updatedAt,
                COALESCE(mc.messageCount, 0) AS messageCount,
                lr.latestRunStatus, lr.latestRunStartedAt,
                lr.latestRunEndedAt, lr.latestRunEventsJson,
@@ -67,6 +74,15 @@ function conversationSummarySql(filterColumn: 'project_id' | 'id') {
           LEFT JOIN latest_runs lr ON lr.conversationId = c.id
           LEFT JOIN message_counts mc ON mc.conversationId = c.id
           LEFT JOIN total_run_durations trd ON trd.conversationId = c.id`;
+
+/**
+ * @internal Builds the summary query shared by `listConversations` and `getConversation`: every
+ * conversation matching `filterColumn = ?`, each enriched with message count, the latest assistant
+ * run summary, and total accumulated run duration across all terminal runs.
+ */
+function conversationSummarySql(filterColumn: 'project_id' | 'id') {
+  const ctes = [selectedConversationsCte(filterColumn), LATEST_RUNS_CTE, MESSAGE_COUNTS_CTE, totalRunDurationsCte()];
+  return `WITH ${ctes.join(',\n        ')}\n        ${SUMMARY_SELECT}`;
 }
 
 /**

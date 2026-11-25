@@ -130,6 +130,62 @@ function redirectFields({ workspaceId, state }: { workspaceId: string; state: Re
   };
 }
 
+/** `transferred` = what `CreateRedirectInput`/`UpdateRedirectInput` accept, plus `status` (always
+ * "active" on a packed row). `provenance` fields cannot round-trip: `createdAt` comes from the
+ * destination clock, `source` is always "import" on write, and the `auto_slug_change` capture fields
+ * are written only by `capture.ts`. Hashing them would be a permanent false conflict. */
+function redirectPublishFields(_optional = {}): RedirectRepoPublishConfig["fields"] {
+  return {
+    matchType: "transferred",
+    fromPattern: "transferred",
+    toTarget: "transferred",
+    statusCode: "transferred",
+    status: "transferred",
+    override: "transferred",
+    priority: "transferred",
+    createdAt: "provenance",
+    source: "provenance",
+    sourceEntryId: "provenance",
+    fromPathAtCapture: "provenance",
+    toPathAtCapture: "provenance",
+    title: "provenance",
+    id: "local",
+    workspaceId: "local",
+    createdByPrincipal: "local",
+    createdByPluginId: "local",
+    updatedAt: "local",
+    version: "local",
+  };
+}
+
+/** The same ruleset `createRedirect`/`updateRedirect` run, so preview and apply cannot drift. */
+async function validateRedirectEntity(
+  { ports, workspaceId, entity, existing }: Parameters<RedirectRepoPublishConfig["validate"]>[0],
+  _optional = {},
+): Promise<string | null> {
+  return parseRedirectNaturalKey({ key: entity.id })
+    ? checkRedirectFieldsWouldWrite({ deps: ports, fields: redirectFields({ workspaceId, state: entity.state }) }, existing ? { excludeId: existing.id } : {})
+    : malformedKey({ entityType: "redirect", id: entity.id, expectedShape: "matchType:fromPattern" });
+}
+
+/** Creates or updates through the redirects chokepoint; the row id is the report's `changeSetId`. */
+async function applyRedirectEntity(
+  { ports, workspaceId, id, state, existing, principalId }: Parameters<RedirectRepoPublishConfig["write"]>[0],
+  _optional = {},
+): Promise<{ changeSetId: string }> {
+  if (!parseRedirectNaturalKey({ key: id })) throw new Error(`publish-content: redirect.apply() received a malformed natural key '${id}'`);
+  const fields = { ...redirectFields({ workspaceId, state }), actorId: principalId };
+  const { record } = existing
+    ? await updateRedirect({
+        deps: ports,
+        // The version the handler checked: compared again under the writer lock, so an edit that
+        // lands after that check is refused rather than overwritten.
+        input: { ...fields, id: existing.id, status: (state.status as RedirectStatus | undefined) ?? "active", expectedVersion: existing.version },
+      })
+    : await createRedirect({ deps: ports, input: fields, source: "import" });
+  return { changeSetId: record.id };
+}
+
 /**
  * Called from a host composition root (its publish-content manifest).
  * @param required.createRepoPublishHandler The host's repo-backed publish-handler factory.
@@ -150,49 +206,9 @@ export function contributeRedirectPublish<TContributor>(
     find: ({ ports: p, workspaceId, id }) => findByNaturalKey({ repo: p.repo, workspaceId, id }),
     idOf: ({ row }, _optional = {}) => redirectNaturalKey({ matchType: row.matchType, fromPattern: row.fromPattern }),
     include: ({ row }, _optional = {}) => row.status === "active",
-    // `transferred` = what `CreateRedirectInput`/`UpdateRedirectInput` accept, plus `status` (always
-    // "active" on a packed row). `provenance` fields cannot round-trip: `createdAt` comes from the
-    // destination clock, `source` is always "import" on write, and the `auto_slug_change` capture fields
-    // are written only by `capture.ts`. Hashing them would be a permanent false conflict.
-    fields: {
-      matchType: "transferred",
-      fromPattern: "transferred",
-      toTarget: "transferred",
-      statusCode: "transferred",
-      status: "transferred",
-      override: "transferred",
-      priority: "transferred",
-      createdAt: "provenance",
-      source: "provenance",
-      sourceEntryId: "provenance",
-      fromPathAtCapture: "provenance",
-      toPathAtCapture: "provenance",
-      title: "provenance",
-      id: "local",
-      workspaceId: "local",
-      createdByPrincipal: "local",
-      createdByPluginId: "local",
-      updatedAt: "local",
-      version: "local",
-    },
-    // The same ruleset `createRedirect`/`updateRedirect` run, so preview and apply cannot drift.
-    validate: async ({ ports, workspaceId, entity, existing }) =>
-      parseRedirectNaturalKey({ key: entity.id })
-        ? checkRedirectFieldsWouldWrite({ deps: ports, fields: redirectFields({ workspaceId, state: entity.state }) }, existing ? { excludeId: existing.id } : {})
-        : malformedKey({ entityType: "redirect", id: entity.id, expectedShape: "matchType:fromPattern" }),
-    write: async ({ ports, workspaceId, id, state, existing, principalId }) => {
-      if (!parseRedirectNaturalKey({ key: id })) throw new Error(`publish-content: redirect.apply() received a malformed natural key '${id}'`);
-      const fields = { ...redirectFields({ workspaceId, state }), actorId: principalId };
-      const { record } = existing
-        ? await updateRedirect({
-            deps: ports,
-            // The version the handler checked: compared again under the writer lock, so an edit that
-            // lands after that check is refused rather than overwritten.
-            input: { ...fields, id: existing.id, status: (state.status as RedirectStatus | undefined) ?? "active", expectedVersion: existing.version },
-          })
-        : await createRedirect({ deps: ports, input: fields, source: "import" });
-      return { changeSetId: record.id };
-    },
+    fields: redirectPublishFields(),
+    validate: validateRedirectEntity,
+    write: applyRedirectEntity,
     // `EntityNotLiveError` is `updateRedirect`'s refusal to edit a rule in the Trash: that one row is
     // blocked (its message says the redirect is in the Trash) and the run goes on. Publish never
     // restores it. Any other exception is not listed and still aborts the run.

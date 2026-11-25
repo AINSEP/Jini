@@ -275,3 +275,16 @@ it('an unparseable event timestamp makes observe throw into the run subscription
   await audit.flush();
   expect(rows).toEqual([]);
 });
+
+describe('createToolGapCollector stored fields (g07 pin)', () => {
+  it('a native-tool row carries only allow-listed fields and never the tool input', async () => {
+    const { audit, rows } = collector();
+    audit.observe({ event: event({ type: 'tool_use', id: 'n1', name: 'mcp__other__lookup', input: { token: 'SECRET-INPUT' } }) });
+    await audit.flush();
+    expect(rows).toHaveLength(1);
+    expect(rows[0]!.detail).not.toMatch(/SECRET/);
+    expect(Object.keys(JSON.parse(rows[0]!.detail)).sort()).toEqual(
+      ['at', 'chatId', 'gapLine', 'id', 'provider', 'runId', 'site', 'summary', 'toolUsed', 'type'],
+    );
+  });
+});

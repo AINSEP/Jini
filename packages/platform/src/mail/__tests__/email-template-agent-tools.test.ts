@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { createEmailTemplatesAgentToolCatalog } from '../email-template-agent-tools.js';
 
@@ -47,5 +48,25 @@ describe('createEmailTemplatesAgentToolCatalog', () => {
       required: ['id', 'html', 'expectedVersion'],
       properties: { id: { type: 'string' }, html: { type: 'string' }, expectedVersion: { type: 'integer', minimum: 1 } },
     });
+  });
+});
+
+describe('createEmailTemplatesAgentToolCatalog pin', () => {
+  const recorded = JSON.parse(readFileSync(new URL('./fixtures/email-template-catalog.json', import.meta.url), 'utf8')) as unknown;
+
+  it('matches the catalog recorded from the unsplit implementation, schemas and descriptions included', () => {
+    expect(JSON.parse(JSON.stringify(catalog))).toEqual(recorded);
+  });
+
+  it('keeps denial inputs intact: every read tool is content.read and every write tool is closed to extra input', () => {
+    for (const name of ['email_template_create', 'email_template_edit']) {
+      expect((byName.get(name)!.inputSchema as { additionalProperties: boolean }).additionalProperties).toBe(false);
+    }
+    expect(catalog.filter((tool) => tool.sideEffects === 'none').every((tool) => tool.authorization.permission === 'content.read')).toBe(true);
+  });
+
+  it('never emits a stored credential value in a description or schema', () => {
+    expect(JSON.stringify(catalog)).not.toContain('sk-fixture-secret-0001');
+    expect(JSON.stringify(catalog.map((tool) => tool.inputSchema))).not.toMatch(/"(password|secret|token|apiKey|accessToken)"/i);
   });
 });

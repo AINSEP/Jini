@@ -126,3 +126,227 @@ it("refuses recurring prices before creating a pending order", async () => {
   f.prices.findById.mockResolvedValue({ ...await f.prices.findById(), billingInterval: "month" } as never);
   await expect(f.create()).rejects.toThrow("one-time prices only"); expect(f.orders.placeOrder).not.toHaveBeenCalled();
 });
+// Surface parity: the server's method table and every method's response shape, recorded from the
+// pre-split implementation so the route/method assembly can be reorganised without drifting.
+it("exposes exactly the activate/status/createOrder/pay/readOrder methods", () => {
+  expect(Object.keys(fixture().server).sort()).toEqual(["activate", "createOrder", "pay", "readOrder", "status"]);
+});
+it("records the status, createOrder, pay and readOrder responses", async () => {
+  const f = fixture();
+  expect(await f.server.status()).toEqual({ active: false, ready: false, reason: "Commerce is disabled. Existing payment settlement continues separately.", scope });
+  f.state.active = true;
+  expect(await f.server.status()).toEqual({ active: true, ready: false, reason: "Commerce has not been activated.", scope });
+  expect(await f.server.activate()).toEqual({ active: true, ready: true, reason: null, scope });
+  const created = await f.create();
+  expect(Object.keys(created).sort()).toMatchInlineSnapshot(`
+    [
+      "items",
+      "order",
+    ]
+  `);
+  const paid = await f.server.pay({ memberId: "member", orderId: "order" });
+  expect(paid).toMatchInlineSnapshot(`
+    {
+      "intent": {
+        "ok": true,
+        "payment": {
+          "amount": {
+            "currency": "JPY",
+            "minorUnits": 100,
+          },
+          "captured": {
+            "currency": "JPY",
+            "minorUnits": 0,
+          },
+          "disputed": {
+            "currency": "JPY",
+            "minorUnits": 0,
+          },
+          "id": "payment",
+          "next": {
+            "kind": "redirect",
+            "url": "https://checkout.example/session",
+          },
+          "reference": "order",
+          "refundHeld": {
+            "currency": "JPY",
+            "minorUnits": 0,
+          },
+          "refunded": {
+            "currency": "JPY",
+            "minorUnits": 0,
+          },
+          "scope": {
+            "mode": "test",
+            "providerAccountId": "acct",
+            "providerId": "stripe",
+            "siteId": "site",
+            "workspaceId": "ws",
+          },
+          "status": "pending",
+        },
+        "replayed": false,
+        "risk": {
+          "fallback": false,
+          "reasons": [],
+          "verdict": "allow",
+        },
+      },
+      "order": {
+        "createdAt": "2026-11-05T00:00:00.000Z",
+        "id": "order",
+        "memberId": "member",
+        "placedAt": "2026-11-05T00:00:00.000Z",
+        "provider": "stripe",
+        "providerCustomerRef": undefined,
+        "status": "pending",
+        "totalAmount": {
+          "currency": "JPY",
+          "minorUnits": 100,
+        },
+        "updatedAt": "2026-11-05T00:00:00.000Z",
+        "version": 1,
+        "workspaceId": "ws",
+      },
+      "payment": {
+        "amount": {
+          "currency": "JPY",
+          "minorUnits": 100,
+        },
+        "captured": {
+          "currency": "JPY",
+          "minorUnits": 0,
+        },
+        "disputed": {
+          "currency": "JPY",
+          "minorUnits": 0,
+        },
+        "id": "payment",
+        "next": {
+          "kind": "redirect",
+          "url": "https://checkout.example/session",
+        },
+        "reference": "order",
+        "refundHeld": {
+          "currency": "JPY",
+          "minorUnits": 0,
+        },
+        "refunded": {
+          "currency": "JPY",
+          "minorUnits": 0,
+        },
+        "scope": {
+          "mode": "test",
+          "providerAccountId": "acct",
+          "providerId": "stripe",
+          "siteId": "site",
+          "workspaceId": "ws",
+        },
+        "status": "pending",
+      },
+    }
+  `);
+  expect(await f.server.readOrder({ memberId: "member", orderId: "order" })).toMatchInlineSnapshot(`
+    {
+      "intent": null,
+      "order": {
+        "createdAt": "2026-11-05T00:00:00.000Z",
+        "id": "order",
+        "memberId": "member",
+        "placedAt": "2026-11-05T00:00:00.000Z",
+        "provider": "stripe",
+        "providerCustomerRef": undefined,
+        "status": "pending",
+        "totalAmount": {
+          "currency": "JPY",
+          "minorUnits": 100,
+        },
+        "updatedAt": "2026-11-05T00:00:00.000Z",
+        "version": 1,
+        "workspaceId": "ws",
+      },
+      "payment": {
+        "amount": {
+          "currency": "JPY",
+          "minorUnits": 100,
+        },
+        "captured": {
+          "currency": "JPY",
+          "minorUnits": 0,
+        },
+        "disputed": {
+          "currency": "JPY",
+          "minorUnits": 0,
+        },
+        "id": "payment",
+        "next": {
+          "kind": "redirect",
+          "url": "https://checkout.example/session",
+        },
+        "reference": "order",
+        "refundHeld": {
+          "currency": "JPY",
+          "minorUnits": 0,
+        },
+        "refunded": {
+          "currency": "JPY",
+          "minorUnits": 0,
+        },
+        "scope": {
+          "mode": "test",
+          "providerAccountId": "acct",
+          "providerId": "stripe",
+          "siteId": "site",
+          "workspaceId": "ws",
+        },
+        "status": "pending",
+      },
+    }
+  `);
+  expect(created).toMatchInlineSnapshot(`
+    {
+      "items": [
+        {
+          "createdAt": "2026-11-05T00:00:00.000Z",
+          "description": "Notebook",
+          "id": "order",
+          "orderId": "order",
+          "priceId": "price",
+          "productId": "product",
+          "quantity": 1,
+          "unitAmount": {
+            "currency": "JPY",
+            "minorUnits": 100,
+          },
+          "workspaceId": "ws",
+        },
+      ],
+      "order": {
+        "createdAt": "2026-11-05T00:00:00.000Z",
+        "id": "order",
+        "memberId": "member",
+        "placedAt": "2026-11-05T00:00:00.000Z",
+        "provider": "stripe",
+        "providerCustomerRef": undefined,
+        "status": "pending",
+        "totalAmount": {
+          "currency": "JPY",
+          "minorUnits": 100,
+        },
+        "updatedAt": "2026-11-05T00:00:00.000Z",
+        "version": 1,
+        "workspaceId": "ws",
+      },
+    }
+  `);
+});
+it("raises CommerceUnavailableError (503 COMMERCE_UNAVAILABLE) for a disabled commerce and the sign-in validation for an anonymous order", async () => {
+  const f = fixture();
+  await expect(f.create()).rejects.toMatchObject({ name: "Error", code: "COMMERCE_UNAVAILABLE", status: 503, message: "Commerce is disabled. Existing payment settlement continues separately." });
+  f.state.active = true;
+  await expect(f.server.createOrder({ memberId: "", priceId: "price" })).rejects.toThrow("Sign in before creating an order.");
+  f.prices.findById.mockResolvedValueOnce({ ...(await f.prices.findById()), billingInterval: "month" } as never);
+  await expect(f.create()).rejects.toThrow("Checkout supports one-time prices only.");
+  await f.create(); f.state.active = false;
+  await expect(f.server.pay({ memberId: "member", orderId: "order" })).rejects.toThrow("Commerce is disabled. Existing payment settlement continues separately.");
+});

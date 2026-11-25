@@ -24,26 +24,28 @@ function harness({ events, probe, content = "", run = {} }: { events: AgentEvent
   const attached: string[] = [];
   const canceled: string[] = [];
   const launches: Parameters<RecoveryPorts["launch"]>[0][] = [];
+  const order: string[] = [];
   const store = {
     async load() { return current; },
     async advance(input: Parameters<DurableRunStore["advance"]>[0]) {
+      order.push("advance");
       current = { ...current, runId: input.nextRunId, recoveryCount: current.recoveryCount + 1,
         attemptBase: input.events, message: { ...current.message, runId: input.nextRunId, events: [...input.events] } };
       return true;
     },
-    async recoveryClock() {},
+    async recoveryClock(input: Parameters<DurableRunStore["recoveryClock"]>[0]) { order.push(`recoveryClock:${input.active}`); },
     ...unusedStoreMethods,
   } satisfies DurableRunStore;
   const ports: RecoveryPorts = {
     store, now: () => TIME + 20_000, mintRunId: () => "next",
-    probe: async () => probe, attach: (run) => { attached.push(run.runId); },
-    launch: async (input) => { launches.push(input); }, cancelAttempt: async (run) => { canceled.push(run.runId); },
+    probe: async () => { order.push("probe"); return probe; }, attach: (run) => { order.push("attach"); attached.push(run.runId); },
+    launch: async (input) => { order.push("launch"); launches.push(input); }, cancelAttempt: async (run) => { order.push("cancelAttempt"); canceled.push(run.runId); },
     verifyChildDead: async () => false, supportsNativeResume: () => true,
-    async settle(value) { settlements.push(value); current = { ...current, message: { ...current.message, runStatus: value.status } }; return true; },
+    async settle(value) { order.push(`settle:${value.status}`); settlements.push(value); current = { ...current, message: { ...current.message, runStatus: value.status } }; return true; },
   };
   const info: unknown[][] = [];
   const logger = { info: (...args: unknown[]) => { info.push(args); } };
-  return { recovery: createDurableRecovery(ports, { report: logger }), settlements, attached, canceled, launches, info };
+  return { recovery: createDurableRecovery(ports, { report: logger }), settlements, attached, canceled, launches, info, order };
 }
 
 it.each(['claude', 'codex', 'antigravity', 'aider', 'opencode', 'future-cli'])('never relaunches a typed native-policy failure for %s', async agentId => {
@@ -351,4 +353,29 @@ it('reports recovery metadata through the typed port without saved answer or dia
   expect(h.info).toHaveLength(1);
   expect(h.info[0]).toEqual([{ message: '[durable-recovery] Recovery decision.' }, { meta: { runId: 'old', trigger: 'boot', probe: 'dead', decision: 'continued', failureClass: 'retryable' } }]);
   expect(JSON.stringify(h.info)).not.toContain(sentinel);
+});
+
+describe("durable recovery: effect order and settled-run guard", () => {
+  it("recovers a lost connection by claiming, fencing, launching, then attaching in that order", async () => {
+    const h = harness({ probe: "dead", events: [{ kind: "text", text: "Partial" }] });
+    expect(await h.recovery.recover({ messageId: "answer", trigger: "boot" }, {})).toBe("continued");
+    expect(h.order).toEqual(["probe", "recoveryClock:true", "cancelAttempt", "advance", "launch", "recoveryClock:false", "attach"]);
+    expect(h.attached).toEqual(["next"]);
+    expect(h.settlements).toEqual([]);
+  });
+
+  it("settles a permanent failure once, after fencing the attempt", async () => {
+    const h = harness({ probe: "dead", events: [{ kind: "raw", line: "HTTP 403: forbidden" }] });
+    expect(await h.recovery.recover({ messageId: "answer", trigger: "attempt-failed" }, {})).toBe("finalized");
+    expect(h.order).toEqual(["cancelAttempt", "settle:failed"]);
+    expect(await h.recovery.recover({ messageId: "answer", trigger: "attempt-failed" }, {})).toBe("terminal");
+    expect(h.order).toEqual(["cancelAttempt", "settle:failed"]);
+  });
+
+  it.each(["succeeded", "failed", "canceled"] as const)("leaves a preexisting %s run alone: no probe, claim, fence or re-settlement", async runStatus => {
+    const h = harness({ probe: "dead", events: [{ kind: "raw", line: "HTTP 403: forbidden" }], run: { message: { id: "answer", role: "assistant", runId: "old", runStatus, content: "Done", events: [] } } });
+    expect(await h.recovery.recover({ messageId: "answer", trigger: "boot" }, {})).toBe("terminal");
+    expect(h.order).toEqual([]);
+    expect(h.settlements).toEqual([]);
+  });
 });

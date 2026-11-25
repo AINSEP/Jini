@@ -100,6 +100,33 @@ function configurationProblem({ scope, publicOrigin }: Pick<CommerceServerRequir
   return normalizedCommerceOrigin({ publicOrigin }) === null ? HTTPS_ORIGIN_REQUIRED : null;
 }
 
+interface ServerMethodDeps { required: CommerceServerRequired; scope: PaymentScope; requireReady: () => Promise<void> }
+
+function createOrderMethod({ required, scope, requireReady }: ServerMethodDeps): CommerceServer["createOrder"] {
+  return async input => {
+    await requireReady();
+    if (!input.memberId) throw new CommerceCheckoutValidationError({ message: "Sign in before creating an order." });
+    const price = await required.checkoutDeps.prices.findById({ workspaceId: scope.workspaceId, id: input.priceId });
+    if (price?.billingInterval !== undefined) throw new CommerceCheckoutValidationError({ message: "Checkout supports one-time prices only." });
+    return checkout({ ...input, deps: required.checkoutDeps, workspaceId: scope.workspaceId, provider: scope.providerId });
+  };
+}
+function payMethod({ required, scope, requireReady, ownedOrder, depsForOrder, readOrder }: ServerMethodDeps & {
+  ownedOrder: (input: OwnedOrderInput) => Promise<CommerceOrderRecord>;
+  depsForOrder: (orderId: string) => Promise<PayOrderDeps>;
+  readOrder: CommerceServer["readOrder"];
+}): CommerceServer["pay"] {
+  return async input => {
+    await requireReady();
+    const order = await ownedOrder(input);
+    if (order.status === "paid") return readOrder(input);
+    // Recheck activation after ownership I/O and immediately before any money operation.
+    if (!await required.isActive()) throw new CommerceUnavailableError("Commerce is disabled. This order has not been charged.");
+    const intent = await payOrder({ deps: await depsForOrder(order.id), workspaceId: scope.workspaceId, orderId: order.id, scope });
+    return { ...await readOrder(input), intent };
+  };
+}
+
 /**
  * Compose the dormant commerce plugin over existing order and payments services.
  * Member ids must come from the host's authenticated session; this boundary checks ownership.
@@ -149,23 +176,10 @@ export function createCommerceServer(required: CommerceServerRequired, _optional
     return readOrderPayment({ deps: { workspaceId: scope.workspaceId, siteId: scope.siteId, orders: required.checkoutDeps.orders,
       orderPayments: deps.orderPayments, payments: deps.payments }, order });
   };
+  const methodDeps = { required, scope, requireReady };
   return {
     activate, status, readOrder,
-    createOrder: async input => {
-      await requireReady();
-      if (!input.memberId) throw new CommerceCheckoutValidationError({ message: "Sign in before creating an order." });
-      const price = await required.checkoutDeps.prices.findById({ workspaceId: scope.workspaceId, id: input.priceId });
-      if (price?.billingInterval !== undefined) throw new CommerceCheckoutValidationError({ message: "Checkout supports one-time prices only." });
-      return checkout({ ...input, deps: required.checkoutDeps, workspaceId: scope.workspaceId, provider: scope.providerId });
-    },
-    pay: async input => {
-      await requireReady();
-      const order = await ownedOrder(input);
-      if (order.status === "paid") return readOrder(input);
-      // Recheck activation after ownership I/O and immediately before any money operation.
-      if (!await required.isActive()) throw new CommerceUnavailableError("Commerce is disabled. This order has not been charged.");
-      const intent = await payOrder({ deps: await depsForOrder(order.id), workspaceId: scope.workspaceId, orderId: order.id, scope });
-      return { ...await readOrder(input), intent };
-    },
+    createOrder: createOrderMethod(methodDeps),
+    pay: payMethod({ ...methodDeps, ownedOrder, depsForOrder, readOrder }),
   };
 }

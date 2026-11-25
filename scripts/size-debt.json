@@ -1,13 +1,6 @@
 [
   {
     "file": "packages/agent-runtime/src/skills/web-clone/scripts/recon-site.mjs",
-    "function": "collectSignals",
-    "line": 115,
-    "rule": "max-lines-per-function",
-    "value": 260
-  },
-  {
-    "file": "packages/agent-runtime/src/skills/web-clone/scripts/recon-site.mjs",
     "function": "collectSignals.page.evaluate callback",
     "line": 116,
     "rule": "max-lines-per-function",
@@ -141,13 +134,6 @@
   },
   {
     "file": "packages/chat/src/react/hooks/assistant-chats.ts",
-    "function": "createAssistantChatsClient",
-    "line": 10,
-    "rule": "max-lines-per-function",
-    "value": 382
-  },
-  {
-    "file": "packages/chat/src/react/hooks/assistant-chats.ts",
     "function": "createAssistantChatsClient.useAssistantChats",
     "line": 311,
     "rule": "max-lines-per-function",
@@ -232,13 +218,6 @@
   },
   {
     "file": "packages/daemon/src/agent-executor/launch.ts",
-    "function": "createAgentExecutor",
-    "line": 910,
-    "rule": "max-lines-per-function",
-    "value": 416
-  },
-  {
-    "file": "packages/daemon/src/agent-executor/launch.ts",
     "function": "createAgentExecutor.run",
     "line": 1450,
     "rule": "max-lines-per-function",
@@ -274,13 +253,6 @@
   },
   {
     "file": "packages/sidecar/src/json-ipc.ts",
-    "function": "requestJsonIpc",
-    "line": 398,
-    "rule": "max-lines-per-function",
-    "value": 129
-  },
-  {
-    "file": "packages/sidecar/src/json-ipc.ts",
     "function": "requestJsonIpc.<anonymous>",
     "line": 402,
     "rule": "max-lines-per-function",
@@ -292,13 +264,6 @@
     "line": 400,
     "rule": "max-lines-per-function",
     "value": 97
-  },
-  {
-    "file": "packages/ui/src/features/html-editor/react/hooks/useInteractiveHtmlEditor.ts",
-    "function": "useInteractiveHtmlEditor",
-    "line": 272,
-    "rule": "max-lines-per-function",
-    "value": 121
   },
   {
     "file": "packages/ui/src/features/html-editor/react/hooks/useInteractiveHtmlEditor.ts",
@@ -341,13 +306,6 @@
     "line": 98,
     "rule": "max-lines-per-function",
     "value": 260
-  },
-  {
-    "file": "packages/ui/src/react/components/CustomSelect.tsx",
-    "function": "useCustomSelect",
-    "line": 262,
-    "rule": "max-lines-per-function",
-    "value": 88
   },
   {
     "file": "packages/ui/src/react/components/CustomSelect.tsx",

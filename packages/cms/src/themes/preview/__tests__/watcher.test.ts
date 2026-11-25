@@ -161,3 +161,16 @@ test("two factories keep independent active watcher handles", async () => {
   assert.equal(first.refresh.mock.calls.length, 1);
   assert.equal(second.refresh.mock.calls.length, 1);
 });
+
+test("no callback of any kind fires after close, even for an edit made while a settle was running", async () => {
+  const f = fixture();
+  f.change("static/plain/styles.css");
+  vi.advanceTimersByTime(399);
+  await f.watcher.stop();
+  f.change("static/plain/styles.css");
+  f.change(null);
+  vi.advanceTimersByTime(5000);
+  assert.equal(f.refresh.mock.calls.length, 0);
+  assert.deepEqual(f.errors, []);
+  assert.equal(vi.getTimerCount(), 0);
+});

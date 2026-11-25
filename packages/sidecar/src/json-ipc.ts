@@ -542,133 +542,111 @@ export async function requestJsonIpc<T = any>(
     const socket = createConnection(socketPath);
     const traceId = nextJsonIpcTraceId();
     const startedAt = process.hrtime.bigint();
-    let settled = false;
     let buffer = "";
     // See the server reader above: decode UTF-8 across chunk boundaries so a
     // multibyte character split across two `data` events is not corrupted.
     const decoder = new StringDecoder("utf8");
     const messageSummary = summarizeJsonIpcMessage(payload);
+    const trace = (event: string, extra: Record<string, unknown> = {}) =>
+      traceJsonIpc(event, { durationMs: jsonIpcTraceDurationMs(startedAt), message: messageSummary, socketPath, traceId, ...extra });
     traceJsonIpc("client.connect_start", { message: messageSummary, socketPath, timeoutMs, traceId });
-    const settle = (callback: () => void) => {
-      if (settled) return;
-      settled = true;
-      clearTimeout(timeout);
-      callback();
-    };
-    const timeout = setTimeout(() => {
-      traceJsonIpc("client.timeout", {
-        durationMs: jsonIpcTraceDurationMs(startedAt),
-        message: messageSummary,
-        socketPath,
-        timeoutMs,
-        traceId,
-      });
+    const settlement = createJsonIpcSettlement();
+    settlement.armTimeout(timeoutMs, () => {
+      trace("client.timeout", { timeoutMs });
       socket.destroy();
-      settle(() => rejectRequest(new Error(`IPC request timed out: ${socketPath}`)));
-    }, timeoutMs);
-
-    socket.on("connect", () => {
-      traceJsonIpc("client.connected", {
-        durationMs: jsonIpcTraceDurationMs(startedAt),
-        message: messageSummary,
-        socketPath,
-        traceId,
-      });
-      const frame = `${JSON.stringify(payload)}\n`;
-      traceJsonIpc("client.write_start", {
-        bytes: Buffer.byteLength(frame),
-        durationMs: jsonIpcTraceDurationMs(startedAt),
-        message: messageSummary,
-        socketPath,
-        traceId,
-      });
-      const flushed = socket.write(frame, () => {
-        traceJsonIpc("client.write_callback", {
-          durationMs: jsonIpcTraceDurationMs(startedAt),
-          message: messageSummary,
-          socketPath,
-          traceId,
-        });
-      });
-      if (!flushed) {
-        socket.once("drain", () => {
-          traceJsonIpc("client.drain", {
-            durationMs: jsonIpcTraceDurationMs(startedAt),
-            message: messageSummary,
-            socketPath,
-            traceId,
-          });
-        });
-      }
+      settlement.settle(() => rejectRequest(new Error(`IPC request timed out: ${socketPath}`)));
     });
+
+    socket.on("connect", () => writeJsonIpcRequest({ socket, payload, trace }));
     socket.on("data", (chunk) => {
-      traceJsonIpc("client.data", {
-        bytes: chunk.byteLength,
-        durationMs: jsonIpcTraceDurationMs(startedAt),
-        message: messageSummary,
-        socketPath,
-        traceId,
-      });
+      trace("client.data", { bytes: chunk.byteLength });
       buffer += decoder.write(chunk);
       const newlineIndex = buffer.indexOf("\n");
       if (newlineIndex < 0) return;
       socket.end();
-      settle(() => {
-        let response: {
-          error?: { code?: string; message?: string; reason?: string; requestId?: string };
-          ok: boolean;
-          result?: T;
-        };
-        try {
-          response = JSON.parse(buffer.slice(0, newlineIndex));
-        } catch (error) {
-          // Event-handler throws cannot reject the request promise.
-          rejectRequest(error);
-          return;
-        }
-        if (!response.ok) {
-          traceJsonIpc("client.response_error", {
-            durationMs: jsonIpcTraceDurationMs(startedAt),
-            error: response.error?.message ?? "IPC request failed",
-            message: messageSummary,
-            socketPath,
-            traceId,
-          });
-          rejectRequest(ipcResponseError(response.error));
-          return;
-        }
-        traceJsonIpc("client.response_success", {
-          durationMs: jsonIpcTraceDurationMs(startedAt),
-          message: messageSummary,
-          socketPath,
-          traceId,
-        });
-        resolveRequest(response.result as T);
-      });
+      const line = buffer.slice(0, newlineIndex);
+      settlement.settle(() => deliverJsonIpcReply<T>({ line, trace, resolveRequest, rejectRequest }));
     });
     socket.on("error", (error) => {
       // Same defense-in-depth, not-reachable-through-real-usage reasoning as
       // the server-side `error instanceof Error` check above (see that
       // comment + archived provenance ledger's 2026-07-22 entry).
-      traceJsonIpc("client.socket_error", {
-        durationMs: jsonIpcTraceDurationMs(startedAt),
-        error: describeErrorForLog({ err: error }),
-        message: messageSummary,
-        socketPath,
-        traceId,
-      });
-      settle(() => rejectRequest(error));
+      trace("client.socket_error", { error: describeErrorForLog({ err: error }) });
+      settlement.settle(() => rejectRequest(error));
     });
     socket.on("close", () => {
-      traceJsonIpc("client.socket_close", {
-        durationMs: jsonIpcTraceDurationMs(startedAt),
-        message: messageSummary,
-        socketPath,
-        traceId,
-      });
-      settle(() => rejectRequest(new Error(`IPC connection closed before a complete response: ${socketPath}`)));
+      trace("client.socket_close");
+      settlement.settle(() => rejectRequest(new Error(`IPC connection closed before a complete response: ${socketPath}`)));
     });
   });
+}
+
+/**
+ * @internal The single owner of one client request's final resolution and timer cleanup:
+ * `settle` runs its callback at most once (later socket events — a late reply, the close that
+ * follows a timeout — are no-ops) and clears the timeout first.
+ */
+function createJsonIpcSettlement(): { armTimeout: (timeoutMs: number, onTimeout: () => void) => void; settle: (callback: () => void) => void } {
+  let settled = false;
+  let timeout: ReturnType<typeof setTimeout> | undefined;
+  return {
+    armTimeout: (timeoutMs, onTimeout) => {
+      timeout = setTimeout(onTimeout, timeoutMs);
+    },
+    settle: (callback) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timeout);
+      callback();
+    },
+  };
+}
+
+/** @internal Encode the request as one newline-terminated JSON frame and write it, tracing each write stage. */
+function writeJsonIpcRequest(
+  { socket, payload, trace }: { socket: Socket; payload: unknown; trace: (event: string, extra?: Record<string, unknown>) => void },
+  _optional: Record<string, never> = {},
+): void {
+  trace("client.connected");
+  const frame = `${JSON.stringify(payload)}\n`;
+  trace("client.write_start", { bytes: Buffer.byteLength(frame) });
+  const flushed = socket.write(frame, () => trace("client.write_callback"));
+  if (!flushed) socket.once("drain", () => trace("client.drain"));
+}
+
+/**
+ * @internal Parse one complete reply line and resolve/reject the request accordingly. Runs inside
+ * the settlement callback, so a parse failure rejects here (event-handler throws cannot reject
+ * the request promise).
+ */
+function deliverJsonIpcReply<T>(
+  { line, trace, resolveRequest, rejectRequest }: {
+    line: string;
+    trace: (event: string, extra?: Record<string, unknown>) => void;
+    resolveRequest: (value: T) => void;
+    rejectRequest: (reason: unknown) => void;
+  },
+  _optional: Record<string, never> = {},
+): void {
+  let response: {
+    error?: { code?: string; message?: string; reason?: string; requestId?: string };
+    ok: boolean;
+    result?: T;
+  };
+  try {
+    response = JSON.parse(line);
+  } catch (error) {
+    // Event-handler throws cannot reject the request promise.
+    rejectRequest(error);
+    return;
+  }
+  if (!response.ok) {
+    trace("client.response_error", { error: response.error?.message ?? "IPC request failed" });
+    rejectRequest(ipcResponseError(response.error));
+    return;
+  }
+  trace("client.response_success");
+  resolveRequest(response.result as T);
 }
 
 function ipcResponseError(error: { code?: string; message?: string; reason?: string; requestId?: string } | undefined): Error & { code?: string; reason?: string; requestId?: string } {

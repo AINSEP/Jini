@@ -88,25 +88,9 @@ const DEEP_LINK_ENVELOPE_SCHEMA = {
   },
 } as const;
 
-/**
- * Recovery's fixed agent-tool catalog: reads are freely agent-callable under `backup.read`;
- * `backup_execute_restore` is the one destructive, token-gated tool
- * (`confirmer-must-equal-own-delegatedBy`); `backup_create_restore_point` is an ordinary
- * mutation, never wrapped in a plan/confirm/execute sequence — but see this file's header for why
- * it is nonetheless left unwired from the recovery registrations.
- *
- * @param args.backupWorkflowGuidance - the host's repository-backup / export sentences.
- * @param args.restorePointIdSource - the host read tool(s) that return restore point ids.
- * @param _optional.resolveDeepLinkCitation - a host specification id cited in the deep-link tool description.
- * @returns Seven definitions; ids, permissions, side effects and schemas are fixed by the engine.
- */
-export function createRecoveryAgentToolCatalog(
-  { backupWorkflowGuidance, restorePointIdSource }: RecoveryAgentToolCatalogArgs,
-  _optional: { resolveDeepLinkCitation?: string } = {}
-): AgentToolDefinition[] {
-  // A host that cites its own specification ids passes one; the engine carries none.
-  const citation = _optional.resolveDeepLinkCitation === undefined ? "" : ` (${_optional.resolveDeepLinkCitation})`;
-  const planRestoreSchema = {
+/** `backup_plan_restore`'s and `backup_execute_restore`'s shared input, naming the host tool that returns ids. */
+function planRestoreInputSchema({ restorePointIdSource }: { restorePointIdSource: string }) {
+  return {
     type: "object",
     additionalProperties: false,
     required: ["restorePointId"],
@@ -114,6 +98,13 @@ export function createRecoveryAgentToolCatalog(
       restorePointId: { type: "string", minLength: 1, description: `A restore point id, as returned by ${restorePointIdSource}.` },
     },
   } as const;
+}
+
+/** The restore flow: list, capabilities, plan, and the one destructive execute tool. */
+function restoreFlowTools({ backupWorkflowGuidance, planRestoreSchema }: {
+  backupWorkflowGuidance: string;
+  planRestoreSchema: ReturnType<typeof planRestoreInputSchema>;
+}): AgentToolDefinition[] {
   return [
     {
       name: "backup_list_restore_points",
@@ -149,6 +140,12 @@ export function createRecoveryAgentToolCatalog(
       actorClassRule: "confirmer-must-equal-own-delegatedBy",
       inputSchema: planRestoreSchema,
     },
+  ];
+}
+
+/** The restore-point mint plus the two read-only admin-UI sections (status bar, deep-link resolution). */
+function restoreAdminTools({ citation }: { citation: string }): AgentToolDefinition[] {
+  return [
     {
       // Catalog entry deliberately left UNWIRED — see this file's header and the host's recovery
       // registrations for the full reasoning: an id collision with the Database catalog's own
@@ -178,4 +175,26 @@ export function createRecoveryAgentToolCatalog(
       inputSchema: DEEP_LINK_ENVELOPE_SCHEMA,
     },
   ];
+}
+
+/**
+ * Recovery's fixed agent-tool catalog: reads are freely agent-callable under `backup.read`;
+ * `backup_execute_restore` is the one destructive, token-gated tool
+ * (`confirmer-must-equal-own-delegatedBy`); `backup_create_restore_point` is an ordinary
+ * mutation, never wrapped in a plan/confirm/execute sequence — but see this file's header for why
+ * it is nonetheless left unwired from the recovery registrations.
+ *
+ * @param args.backupWorkflowGuidance - the host's repository-backup / export sentences.
+ * @param args.restorePointIdSource - the host read tool(s) that return restore point ids.
+ * @param _optional.resolveDeepLinkCitation - a host specification id cited in the deep-link tool description.
+ * @returns Seven definitions; ids, permissions, side effects and schemas are fixed by the engine.
+ */
+export function createRecoveryAgentToolCatalog(
+  { backupWorkflowGuidance, restorePointIdSource }: RecoveryAgentToolCatalogArgs,
+  _optional: { resolveDeepLinkCitation?: string } = {}
+): AgentToolDefinition[] {
+  // A host that cites its own specification ids passes one; the engine carries none.
+  const citation = _optional.resolveDeepLinkCitation === undefined ? "" : ` (${_optional.resolveDeepLinkCitation})`;
+  const planRestoreSchema = planRestoreInputSchema({ restorePointIdSource });
+  return [...restoreFlowTools({ backupWorkflowGuidance, planRestoreSchema }), ...restoreAdminTools({ citation })];
 }

@@ -94,6 +94,108 @@ function summarizePaths(paths: unknown): string {
 /** The normalized tool_use payload fields the collector reads. */
 interface ToolUse { readonly id: string; readonly name: string; readonly input: unknown }
 
+/** The run-scoped identity fields every stored entry carries. */
+interface GapIdentity { readonly site: string; readonly chatId: string; readonly runId: string; readonly provider: string }
+
+/** Pure: the explanation announced by one complete text line, or null when it announces none. */
+function explainLine({ line, safe }: { readonly line: string; readonly safe: (text: string) => string }): string | null {
+  const match = /(?:^|\s)Tool gap:\s*(.+)/.exec(line);
+  if (!match) return null;
+  // Prefer the next fallback: a missing explanation on an earlier tool must not steal the
+  // line announcing a later one. A final explanation is attached on the terminal event.
+  return safe(`Tool gap: ${match[1]}`);
+}
+
+/**
+ * Pure line scan of one text delta: returns the last explanation found on a readable complete
+ * line (null when none) plus the carried-over partial `tail` and discard flag.
+ */
+function scanDelta(
+  { buffered, delta, discardingLine, safe }: { readonly buffered: string; readonly delta: string; readonly discardingLine: boolean; readonly safe: (text: string) => string },
+): { readonly explanation: string | null; readonly tail: string; readonly discardingLine: boolean } {
+  const lines = (buffered + delta).split('\n');
+  // String.prototype.split always returns at least one element, so the last piece exists.
+  let tail = lines.pop()!;
+  let discarding = discardingLine;
+  let explanation: string | null = null;
+  for (const line of lines) {
+    if (!discarding) explanation = explainLine({ line, safe }) ?? explanation;
+    discarding = false;
+  }
+  // Discard whole oversized lines rather than cutting a secret token before redaction.
+  if (tail.length > 2048) discarding = true;
+  if (discarding) tail = '';
+  return { explanation, tail, discardingLine: discarding };
+}
+
+/** Pure: the audit entry for a native/MCP tool that is not a fallback gap. */
+function nativeToolEntry(
+  { identity, tool, ts, safe }: { readonly identity: GapIdentity; readonly tool: ToolUse; readonly ts: number; readonly safe: (text: string) => string },
+): ToolGapEntry {
+  // Never store native/MCP inputs: they may contain prompts, credentials or document bodies.
+  return { id: `${identity.runId}:native:${tool.id}`, type: 'native_tool_used',
+    at: new Date(ts).toISOString(), site: identity.site, chatId: identity.chatId,
+    runId: identity.runId, provider: identity.provider, toolUsed: safe(tool.name),
+    summary: 'Native tool used', gapLine: null };
+}
+
+/** Pure: the audit entry for a fallback gap, carrying any explanation read so far. */
+function gapEntry(
+  { identity, tool, summary, ts, safe, gapLine }: { readonly identity: GapIdentity; readonly tool: ToolUse; readonly summary: string; readonly ts: number; readonly safe: (text: string) => string; readonly gapLine: string | null },
+): ToolGapEntry {
+  return { id: `${identity.runId}:gap:${tool.id}`, type: 'tool_gap', at: new Date(ts).toISOString(),
+    site: identity.site, chatId: identity.chatId, runId: identity.runId,
+    provider: identity.provider, toolUsed: safe(tool.name), summary: safe(summary), gapLine };
+}
+
+/** The collector's line-reading state; every transition below returns the next one. */
+interface GapState {
+  readonly tail: string;
+  readonly discardingLine: boolean;
+  readonly explanation: string | null;
+  readonly lastGap: ToolGapEntry | null;
+}
+const INITIAL_GAP_STATE: GapState = { tail: '', discardingLine: false, explanation: null, lastGap: null };
+
+/** Reads the unfinished line into the explanation unless that line is being discarded. */
+function settleTail({ state, safe }: { readonly state: GapState; readonly safe: (text: string) => string }): GapState {
+  if (state.discardingLine) return state;
+  return { ...state, explanation: explainLine({ line: state.tail, safe }) ?? state.explanation };
+}
+
+/** State after one text delta. */
+function afterDelta({ state, delta, safe }: { readonly state: GapState; readonly delta: string; readonly safe: (text: string) => string }): GapState {
+  const scan = scanDelta({ buffered: state.tail, delta, discardingLine: state.discardingLine, safe });
+  return { ...state, explanation: scan.explanation ?? state.explanation, tail: scan.tail, discardingLine: scan.discardingLine };
+}
+
+/** State after the terminal event, plus the revision to append when a late explanation fills an earlier gap. */
+function afterEnd({ state, safe }: { readonly state: GapState; readonly safe: (text: string) => string }): { readonly state: GapState; readonly revision: ToolGapEntry | null } {
+  const settled = settleTail({ state, safe });
+  const { lastGap, explanation } = settled;
+  const revision = lastGap && explanation && lastGap.gapLine === null ? { ...lastGap, gapLine: explanation } : null;
+  return { state: { ...settled, tail: '', explanation: null, lastGap: revision ?? lastGap }, revision };
+}
+
+/** Queues one entry behind earlier writes; a failed write is reported and never strands later ones. */
+function writeGapEntry(
+  { pending, identity, entry, onError }: {
+    readonly pending: Promise<void>;
+    readonly identity: GapIdentity & { readonly sink: ToolAttemptAuditSink; readonly workspaceId: string; readonly principalId: string };
+    readonly entry: ToolGapEntry;
+    readonly onError: ((error: unknown) => void) | undefined;
+  },
+): Promise<void> {
+  return pending.then(() => identity.sink.append({
+    attemptId: entry.id, executionId: null, workspaceId: identity.workspaceId,
+    principalId: identity.principalId, runId: identity.runId, toolId: TOOL_GAP_AUDIT_ID,
+    phase: 'requested', at: entry.at,
+  }, { detail: JSON.stringify(entry) })).catch(error => {
+    // Observation must not strand later writes if a host's error reporter itself throws.
+    try { onError?.(error); } catch { /* host reporter failed */ }
+  });
+}
+
 /** Observe normalized CLI events, independent of model cooperation. Writes immediately at tool use;
  * a later explanation appends a revision with the same id. One collector per live run.
  * Sink/redactor are injected; O(n) text work, O(g) identity state for g fallbacks in the run.
@@ -105,65 +207,26 @@ export function createToolGapCollector(required: {
   redact: (text: string) => string;
 }, optional: { onError?: (error: unknown) => void } = {}) {
   const seen = new Set<string>();
-  let tail = '';
-  let discardingLine = false;
-  let explanation: string | null = null;
-  let lastGap: ToolGapEntry | null = null;
+  let state = INITIAL_GAP_STATE;
   let pending = Promise.resolve();
   const safe = (text: string) => required.redact(text).slice(0, 500);
   const append = (entry: ToolGapEntry) => {
-    pending = pending.then(() => required.sink.append({
-      attemptId: entry.id, executionId: null, workspaceId: required.workspaceId,
-      principalId: required.principalId, runId: required.runId, toolId: TOOL_GAP_AUDIT_ID,
-      phase: 'requested', at: entry.at,
-    }, { detail: JSON.stringify(entry) })).catch(error => {
-      // Observation must not strand later writes if a host's error reporter itself throws.
-      try { optional.onError?.(error); } catch { /* host reporter failed */ }
-    });
-  };
-  const readLine = (line: string) => {
-    const match = /(?:^|\s)Tool gap:\s*(.+)/.exec(line);
-    if (!match) return;
-    // Prefer the next fallback: a missing explanation on an earlier tool must not steal the
-    // line announcing a later one. A final explanation is attached on the terminal event.
-    explanation = safe(`Tool gap: ${match[1]}`);
+    pending = writeGapEntry({ pending, identity: required, entry, onError: optional.onError });
   };
   /** Terminal event: read an unfinished line, then attach a final explanation as a revision. */
   const finishRun = () => {
-    if (!discardingLine) readLine(tail);
-    if (lastGap && explanation && lastGap.gapLine === null) {
-      lastGap = { ...lastGap, gapLine: explanation };
-      append(lastGap);
-    }
-    tail = ''; explanation = null;
-  };
-  const readDelta = (delta: string) => {
-    const lines = (tail + delta).split('\n');
-    // String.prototype.split always returns at least one element, so the last piece exists.
-    tail = lines.pop()!;
-    for (const line of lines) {
-      if (!discardingLine) readLine(line);
-      discardingLine = false;
-    }
-    // Discard whole oversized lines rather than cutting a secret token before redaction.
-    if (tail.length > 2048) discardingLine = true;
-    if (discardingLine) tail = '';
+    const end = afterEnd({ state, safe });
+    state = end.state;
+    if (end.revision) append(end.revision);
   };
   const recordNativeTool = (tool: ToolUse, ts: number) => {
-    // Never store native/MCP inputs: they may contain prompts, credentials or document bodies.
-    append({ id: `${required.runId}:native:${tool.id}`, type: 'native_tool_used',
-      at: new Date(ts).toISOString(), site: required.site, chatId: required.chatId,
-      runId: required.runId, provider: required.provider, toolUsed: safe(tool.name),
-      summary: 'Native tool used', gapLine: null });
+    append(nativeToolEntry({ identity: required, tool, ts, safe }));
   };
   const recordGap = (tool: ToolUse, summary: string, ts: number) => {
-    if (!discardingLine) readLine(tail);
-    tail = ''; discardingLine = false;
-    lastGap = { id: `${required.runId}:gap:${tool.id}`, type: 'tool_gap', at: new Date(ts).toISOString(),
-      site: required.site, chatId: required.chatId, runId: required.runId,
-      provider: required.provider, toolUsed: safe(tool.name), summary: safe(summary), gapLine: explanation };
-    explanation = null;
-    append(lastGap);
+    state = { ...settleTail({ state, safe }), tail: '', discardingLine: false };
+    const entry = gapEntry({ identity: required, tool, summary, ts, safe, gapLine: state.explanation });
+    state = { ...state, explanation: null, lastGap: entry };
+    append(entry);
   };
   const recordToolUse = (tool: ToolUse, ts: number) => {
     if (seen.has(tool.id)) return;
@@ -181,7 +244,7 @@ export function createToolGapCollector(required: {
       if (event.kind === 'end') { finishRun(); return; }
       if (event.kind !== 'agent') return;
       const payload = event.payload;
-      if (payload.type === 'text_delta') readDelta(payload.delta);
+      if (payload.type === 'text_delta') state = afterDelta({ state, delta: payload.delta, safe });
       if (payload.type === 'tool_use') recordToolUse(payload, event.ts);
     },
     /** Await outstanding audit writes during graceful shutdown/tests. */

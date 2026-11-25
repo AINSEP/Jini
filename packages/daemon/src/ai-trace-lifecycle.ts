@@ -37,6 +37,49 @@ export interface TracedRunLifecycle extends RunLifecycle {
   dispose(): void;
 }
 
+interface TraceEntry { recorder: AiTraceRecorder; unsubscribe?: () => void }
+
+/** Only tracing effects are contained; the underlying lifecycle's errors still propagate. */
+function containTraceFailure({ action, onSinkError }: { action: () => void; onSinkError: AiTracingOptions['onSinkError'] }): void {
+  try { action(); } catch (error) {
+    try { onSinkError?.(error); } catch { /* Reporting must not change committed run behavior. */ }
+  }
+}
+
+/** Finishes and releases one run's trace entry; a no-op for an unknown run. */
+function closeTrace(
+  { recorders, runId, outcome, safely }: { recorders: Map<string, TraceEntry>; runId: string; outcome: AiRunOutcome; safely: (args: { action: () => void }) => void },
+): void {
+  const entry = recorders.get(runId);
+  if (!entry) return;
+  try {
+    safely({ action: () => entry.recorder.finish({ outcome }) });
+  } finally {
+    recorders.delete(runId);
+    safely({ action: () => entry.unsubscribe?.() });
+  }
+}
+
+/** Releases every open trace WITHOUT finishing it: no terminal outcome is invented. */
+function releaseAllTraces({ recorders, safely }: { recorders: Map<string, TraceEntry>; safely: (args: { action: () => void }) => void }): void {
+  for (const [runId, entry] of recorders) {
+    recorders.delete(runId);
+    safely({ action: () => entry.unsubscribe?.() });
+  }
+}
+
+/** The trace outcome a terminal `end` event maps to. */
+function endOutcome({ event }: { event: Extract<RunProtocolEvent, { kind: 'end' }> }): AiRunOutcome {
+  const { status } = event.payload;
+  return status === 'canceled' ? 'cancelled' : status ?? 'failed';
+}
+
+/** Feeds one non-terminal committed event to its run's recorder (agent and error events only). */
+function recordTraceEvent({ event, recorder }: { event: RunProtocolEvent; recorder: AiTraceRecorder | undefined }): void {
+  if (event.kind === 'agent') recorder?.observe(event.payload as unknown as Record<string, unknown>);
+  if (event.kind === 'error') recorder?.observe({ type: 'error', message: event.payload.message, code: event.payload.error?.code });
+}
+
 /**
  * Records the lifecycle's committed stream, including internal terminal transitions.
  * @param required - Existing lifecycle owner and vendor-neutral sink.
@@ -45,41 +88,24 @@ export interface TracedRunLifecycle extends RunLifecycle {
  * @complexity O(1) per live event; initial replay uses the lifecycle's O(e) stream for e committed events.
  */
 export function withAiTracing({ lifecycle, sink }: { lifecycle: RunLifecycle; sink: AiTraceSink }, options: AiTracingOptions = {}): TracedRunLifecycle {
-  const recorders = new Map<string, { recorder: AiTraceRecorder; unsubscribe?: () => void }>();
+  const recorders = new Map<string, TraceEntry>();
   const { providerOf = ({ agentId }) => agentId, sessionOf = ({ contextRef }) => contextRef, ...recorderOptions } = options;
   const teardown = new AbortController();
 
-  /** Only tracing effects are contained; the underlying lifecycle's errors still propagate. */
-  function safely({ action }: { action: () => void }): void {
-    try { action(); } catch (error) {
-      try { options.onSinkError?.(error); } catch { /* Reporting must not change committed run behavior. */ }
-    }
-  }
+  const safely = ({ action }: { action: () => void }): void => containTraceFailure({ action, onSinkError: options.onSinkError });
 
   function close({ runId, outcome }: { runId: string; outcome: AiRunOutcome }): void {
-    const entry = recorders.get(runId);
-    if (!entry) return;
-    try {
-      safely({ action: () => entry.recorder.finish({ outcome }) });
-    } finally {
-      recorders.delete(runId);
-      safely({ action: () => entry.unsubscribe?.() });
-    }
+    closeTrace({ recorders, runId, outcome, safely });
   }
 
   function observe({ event }: { event: RunProtocolEvent }): void {
-    if (event.kind === 'end') {
-      const { status } = event.payload;
-      return close({ runId: event.runId, outcome: status === 'canceled' ? 'cancelled' : status ?? 'failed' });
-    }
-    const recorder = recorders.get(event.runId)?.recorder;
-    if (event.kind === 'agent') recorder?.observe(event.payload as unknown as Record<string, unknown>);
-    if (event.kind === 'error') recorder?.observe({ type: 'error', message: event.payload.message, code: event.payload.error?.code });
+    if (event.kind === 'end') return close({ runId: event.runId, outcome: endOutcome({ event }) });
+    recordTraceEvent({ event, recorder: recorders.get(event.runId)?.recorder });
   }
 
   async function open({ runId, contextRef, agentId }: { runId: string; contextRef: string; agentId: string }): Promise<void> {
     const recorder = createAiTraceRecorder({ sink, runId, agentId }, { ...recorderOptions, provider: providerOf({ agentId }), sessionId: sessionOf({ contextRef }) });
-    const entry: { recorder: AiTraceRecorder; unsubscribe?: () => void } = { recorder };
+    const entry: TraceEntry = { recorder };
     recorders.set(runId, entry);
     recorder.start({});
     const subscription = await lifecycle.stream({ runId, onEvent: (event) => safely({ action: () => observe({ event }) }) });
@@ -123,10 +149,7 @@ export function withAiTracing({ lifecycle, sink }: { lifecycle: RunLifecycle; si
     },
     dispose() {
       teardown.abort();
-      for (const [runId, entry] of recorders) {
-        recorders.delete(runId);
-        safely({ action: () => entry.unsubscribe?.() });
-      }
+      releaseAllTraces({ recorders, safely });
     },
   };
 }

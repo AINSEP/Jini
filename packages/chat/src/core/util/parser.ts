@@ -143,6 +143,75 @@ function tailPrefixHoldback({ buffer, ranges }: SkipContext): number {
   return OPEN_PREFIX.startsWith(slice) && slice.length < OPEN_PREFIX.length ? tailLt : -1;
 }
 
+/** Emit text up to the next open tag; `true` when an artifact was opened and draining should continue. */
+function* drainOutside(state: ParserState): Generator<ArtifactEvent, boolean> {
+  const open = findOpenTag(state.buffer);
+  const textEnd = open.kind === 'none' ? state.buffer.length : open.start;
+  if (textEnd > 0) {
+    yield { type: 'text', delta: state.buffer.slice(0, textEnd) };
+    state.buffer = state.buffer.slice(textEnd);
+  }
+  if (open.kind !== 'complete') return false;
+  const attrs = parseQuotedAttrs({ raw: open.attrs });
+  Object.assign(state, {
+    inside: true,
+    identifier: attrs['identifier'] ?? '',
+    artifactType: attrs['type'] ?? '',
+    title: attrs['title'] ?? '',
+    content: '',
+    buffer: state.buffer.slice(open.end - open.start),
+  });
+  yield {
+    type: 'artifact:start',
+    identifier: state.identifier,
+    artifactType: state.artifactType,
+    title: state.title,
+  };
+  return true;
+}
+
+/** Emit body up to the close tag; `true` when the artifact closed and draining should continue. */
+function* drainInside(state: ParserState): Generator<ArtifactEvent, boolean> {
+  const closeIdx = state.buffer.indexOf(CLOSE_TAG);
+  // Hold back enough bytes to detect a partial close tag at the tail.
+  const chunkEnd = closeIdx === -1 ? state.buffer.length - (CLOSE_TAG.length - 1) : closeIdx;
+  if (chunkEnd > 0) {
+    const chunk = state.buffer.slice(0, chunkEnd);
+    state.content += chunk;
+    state.buffer = state.buffer.slice(chunkEnd);
+    yield { type: 'artifact:chunk', identifier: state.identifier, delta: chunk };
+  }
+  if (closeIdx === -1) return false;
+  yield { type: 'artifact:end', identifier: state.identifier, fullContent: state.content };
+  Object.assign(state, {
+    inside: false,
+    identifier: '',
+    artifactType: '',
+    title: '',
+    content: '',
+    buffer: state.buffer.slice(CLOSE_TAG.length),
+  });
+  return true;
+}
+
+/** End-of-stream: close an open artifact (emitting its buffered body) or emit the buffered text, then reset. */
+function* flushState(state: ParserState): Generator<ArtifactEvent> {
+  const wasInside = state.inside;
+  if (wasInside) {
+    if (state.buffer.length > 0) {
+      state.content += state.buffer;
+      yield { type: 'artifact:chunk', identifier: state.identifier, delta: state.buffer };
+      state.buffer = '';
+    }
+    yield { type: 'artifact:end', identifier: state.identifier, fullContent: state.content };
+  }
+  if (!wasInside && state.buffer.length > 0) {
+    yield { type: 'text', delta: state.buffer };
+  }
+  state.buffer = '';
+  state.inside = false;
+}
+
 /**
  * Create a fresh streaming artifact parser. Call `feed({ delta })` for each
  * chunk as it arrives (iterate its generator to drain queued events), and
@@ -170,79 +239,11 @@ export function createArtifactParser(_requiredArgs: Record<string, never>): {
     state.buffer += delta;
     let progressed = true;
     while (progressed && state.buffer.length > 0) {
-      progressed = state.inside ? yield* drainInside() : yield* drainOutside();
+      progressed = state.inside ? yield* drainInside(state) : yield* drainOutside(state);
     }
   }
 
-  /** Emit text up to the next open tag; `true` when an artifact was opened and draining should continue. */
-  function* drainOutside(): Generator<ArtifactEvent, boolean> {
-    const open = findOpenTag(state.buffer);
-    const textEnd = open.kind === 'none' ? state.buffer.length : open.start;
-    if (textEnd > 0) {
-      yield { type: 'text', delta: state.buffer.slice(0, textEnd) };
-      state.buffer = state.buffer.slice(textEnd);
-    }
-    if (open.kind !== 'complete') return false;
-    const attrs = parseQuotedAttrs({ raw: open.attrs });
-    Object.assign(state, {
-      inside: true,
-      identifier: attrs['identifier'] ?? '',
-      artifactType: attrs['type'] ?? '',
-      title: attrs['title'] ?? '',
-      content: '',
-      buffer: state.buffer.slice(open.end - open.start),
-    });
-    yield {
-      type: 'artifact:start',
-      identifier: state.identifier,
-      artifactType: state.artifactType,
-      title: state.title,
-    };
-    return true;
-  }
-
-  /** Emit body up to the close tag; `true` when the artifact closed and draining should continue. */
-  function* drainInside(): Generator<ArtifactEvent, boolean> {
-    const closeIdx = state.buffer.indexOf(CLOSE_TAG);
-    // Hold back enough bytes to detect a partial close tag at the tail.
-    const chunkEnd = closeIdx === -1 ? state.buffer.length - (CLOSE_TAG.length - 1) : closeIdx;
-    if (chunkEnd > 0) {
-      const chunk = state.buffer.slice(0, chunkEnd);
-      state.content += chunk;
-      state.buffer = state.buffer.slice(chunkEnd);
-      yield { type: 'artifact:chunk', identifier: state.identifier, delta: chunk };
-    }
-    if (closeIdx === -1) return false;
-    yield { type: 'artifact:end', identifier: state.identifier, fullContent: state.content };
-    Object.assign(state, {
-      inside: false,
-      identifier: '',
-      artifactType: '',
-      title: '',
-      content: '',
-      buffer: state.buffer.slice(CLOSE_TAG.length),
-    });
-    return true;
-  }
-
-  function* flush(_requiredArgs: Record<string, never>): Generator<ArtifactEvent> {
-    const wasInside = state.inside;
-    if (wasInside) {
-      if (state.buffer.length > 0) {
-        state.content += state.buffer;
-        yield { type: 'artifact:chunk', identifier: state.identifier, delta: state.buffer };
-        state.buffer = '';
-      }
-      yield { type: 'artifact:end', identifier: state.identifier, fullContent: state.content };
-    }
-    if (!wasInside && state.buffer.length > 0) {
-      yield { type: 'text', delta: state.buffer };
-    }
-    state.buffer = '';
-    state.inside = false;
-  }
-
-  return { feed, flush };
+  return { feed, flush: () => flushState(state) };
 }
 
 /**

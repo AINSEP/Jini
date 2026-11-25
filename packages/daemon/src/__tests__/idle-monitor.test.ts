@@ -150,4 +150,13 @@ describe('createIdleMonitor', () => {
     expect(onIdle).toHaveBeenCalledTimes(1);
     expect(time.pendingCount()).toBe(0);
   });
+  it('after idle expiry the intake is fenced and nothing stays scheduled (g07 pin)', () => {
+    const time = createFakeTime();
+    const onIdle = vi.fn();
+    const monitor = createIdleMonitor({ ...time, isBusy: () => false, idleMs: 1_500 }, { onIdle });
+    time.advance({ ms: 1_500 });
+    expect(onIdle).toHaveBeenCalledTimes(1);
+    expect(monitor.acquire({})).toBeNull();
+    expect(time.pendingCount()).toBe(0);
+  });
 });

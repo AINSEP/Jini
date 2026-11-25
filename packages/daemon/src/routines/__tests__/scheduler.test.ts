@@ -197,6 +197,55 @@ describe('RoutineService.setRunHandler / lifecycle basics', () => {
   });
 });
 
+describe('RoutineService stop() teardown (g07 pin)', () => {
+  it('stop() cancels every scheduled routine so no callback escapes teardown, and start() re-arms them', async () => {
+    const persistence = new SharedRoutinePersistence([
+      fixtureRoutine({ id: 'routine-1' }),
+      fixtureRoutine({ id: 'routine-2' }),
+    ]);
+    const service = new RoutineService({ persistence });
+    let handlerCalls = 0;
+    service.setRunHandler({ handler: async () => { handlerCalls += 1; return handlerStart('agent-run'); } });
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-05-17T10:00:00.000Z'));
+    service.start({});
+    expect(service.nextRunAt({ routineId: 'routine-1' })).not.toBeNull();
+    expect(service.nextRunAt({ routineId: 'routine-2' })).not.toBeNull();
+    expect(vi.getTimerCount()).toBe(2);
+
+    service.stop({});
+    expect(vi.getTimerCount()).toBe(0);
+    expect(service.nextRunAt({ routineId: 'routine-1' })).toBeNull();
+    expect(service.nextRunAt({ routineId: 'routine-2' })).toBeNull();
+    await vi.advanceTimersByTimeAsync(3 * 60 * 60 * 1000);
+    expect(handlerCalls).toBe(0);
+    expect(persistence.runs).toHaveLength(0);
+
+    service.start({});
+    expect(vi.getTimerCount()).toBe(2);
+    service.stop({});
+    expect(vi.getTimerCount()).toBe(0);
+  });
+
+  it('one scheduled slot and a concurrent manual trigger for the same routine produce a single run', async () => {
+    const persistence = new SharedRoutinePersistence([fixtureRoutine()]);
+    const service = new RoutineService({ persistence });
+    let handlerCalls = 0;
+    let release!: () => void;
+    const gate = new Promise<void>((resolve) => { release = resolve; });
+    service.setRunHandler({ handler: async () => { handlerCalls += 1; await gate; return handlerStart('agent-run'); } });
+    const first = service.runNow({ routineId: 'routine-1' });
+    const second = service.runNow({ routineId: 'routine-1' });
+    release();
+    await Promise.all([first, second]);
+    expect(handlerCalls).toBe(1);
+    expect(persistence.runs).toHaveLength(1);
+    // The in-flight slot is released afterwards, so a later trigger starts a fresh run.
+    await service.runNow({ routineId: 'routine-1' });
+    expect(handlerCalls).toBe(2);
+  });
+});
+
 describe('RoutineService.retryScheduledSlot guards', () => {
   it('does not retry once the service has been stopped in the interim', async () => {
     vi.useFakeTimers();

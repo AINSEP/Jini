@@ -49,6 +49,8 @@ import { isLoopbackApiHost, isBlockedExternalApiHostname } from '@jini-ai/core/n
 import { isIpLiteralHostname } from '@jini-ai/core';
 import { trimCharsEnd } from '@jini-ai/core/text';
 import type { DnsLookupAddress, DnsLookupFn } from '@jini-ai/core/contracts/agents';
+import type { ClientRequest, IncomingMessage } from 'node:http';
+import type { RequestOptions } from 'node:https';
 
 export interface BaseUrlValidationResult {
   parsed?: URL;
@@ -254,106 +256,14 @@ export async function pinnedFetch({ url, init, pinnedAddress }: { url: string; i
   const { request: httpsRequest } = await import('node:https');
   const { request: httpRequest } = await import('node:http');
   const transportRequest = isHttps ? httpsRequest : httpRequest;
-  const family = pinnedAddress?.family === 6 ? 6 : 4;
 
   return new Promise<PinnedFetchResponse>((resolve, reject) => {
     const req = transportRequest(
-      {
-        hostname: parsed.hostname,
-        ...(parsed.port ? { port: Number(parsed.port) } : {}),
-        path: `${parsed.pathname}${parsed.search}`,
-        method: init.method,
-        // `identity` is explicit, not incidental. `fetch` transparently decompresses a response;
-        // `http(s).request` does NOT, so a compressed body would reach a caller that parses it as
-        // UTF-8 SSE and produce silent garbage — surfacing far from the cause as an empty stream
-        // or a JSON parse error. Node sends no `Accept-Encoding` of its own, so this only makes
-        // the existing behaviour explicit and survives a caller that sets its own headers.
-        // Paired with the `content-encoding` check below, which covers a server that compresses
-        // unbidden anyway.
-        headers: { 'accept-encoding': 'identity', ...init.headers },
-        // `servername` set explicitly to the ORIGINAL hostname (not `pinnedAddress`) is what SNI
-        // and certificate hostname validation actually run against — this is what makes it a pin
-        // rather than a redirect to a different origin. `rejectUnauthorized` is left at its
-        // `node:https` default (`true`, i.e. certificate validation stays ON); nothing in this
-        // function ever sets it, and it must stay that way.
-        ...(isHttps ? { servername: parsed.hostname } : {}),
-        ...(pinnedAddress
-          ? {
-              // Happy Eyeballs (`autoSelectFamily`, on by default since Node 20) races several
-              // resolved addresses and expects `lookup` to support its array-returning calling
-              // convention — the opposite of what pinning wants (exactly one address, no fallback
-              // to any other). Disabling it keeps `net`'s classic single-address `lookup` contract,
-              // which is what the callback below implements.
-              autoSelectFamily: false,
-              lookup: (
-                _hostname: string,
-                _options: unknown,
-                callback: (err: NodeJS.ErrnoException | null, address: string, family: number) => void,
-              ): void => {
-                callback(null, pinnedAddress.address, family);
-              },
-            }
-          : {}),
-      },
-      (res) => {
-        // `IncomingMessage.statusCode` is typed optional only because the same class also models
-        // server-side requests; a response handed to a `http(s).request` callback always carries
-        // one, so no fallback branch is needed.
-        const status = Number(res.statusCode);
-        // A server may compress despite `accept-encoding: identity`. Nothing downstream
-        // decompresses, so failing loudly here is strictly better than handing back bytes the
-        // caller will misparse: a hard error names the cause, silent garbage does not.
-        const encoding = res.headers['content-encoding'];
-        if (typeof encoding === 'string' && encoding.trim() !== '' && encoding.trim().toLowerCase() !== 'identity') {
-          res.resume(); // drain, so the socket is not left half-read
-          reject(
-            new Error(
-              `pinnedFetch: response used unsupported content-encoding "${encoding}". `
-              + 'This transport does not decompress; the request asked for identity.',
-            ),
-          );
-          return;
-        }
-        // `http(s).request` never auto-follows a redirect the way `fetch`'s default does, but
-        // that alone is a WEAKER posture than the `redirect: 'error'` callers ask for: real
-        // `fetch` THROWS on a 3xx, whereas simply not following one would resolve normally with
-        // `status: 302` and a likely-empty body — turning the guard's hard failure into a quiet
-        // `ok: false` a caller could half-handle as a generic upstream error. That undersells the
-        // reviewer's original finding: a guard-passing endpoint could 302 into blocked address
-        // space with auth headers still attached. So this rejects explicitly, matching `fetch`'s
-        // throw rather than merely approximating it by omission. Only the five redirect codes
-        // `fetch` itself treats as redirects (a `Location` header is what actually enables the
-        // rebinding hop) — NOT every 3xx: `304 Not Modified` carries no `Location` and no provider
-        // in this package sends conditional-request headers that could ever produce one.
-        if ([301, 302, 303, 307, 308].includes(status)) {
-          res.resume();
-          reject(
-            new Error(
-              `pinnedFetch: refused to follow a ${status} redirect`
-              + (typeof res.headers.location === 'string' ? ` to "${res.headers.location}"` : '')
-              + '. Matches fetch\'s redirect: \'error\' behavior — a guard-passing endpoint redirecting into blocked address space is the other half of the SSRF finding this transport closes.',
-            ),
-          );
-          return;
-        }
-        resolve({
-          ok: status >= 200 && status < 300,
-          status,
-          body: res,
-          text: () => readProviderResponseText({ body: res }, {
-            maxBytes: status >= 200 && status < 300 ? 8 * 1024 * 1024 : MAX_PROVIDER_ERROR_BYTES,
-          }),
-        });
-      },
+      buildPinnedRequestOptions({ parsed, isHttps, init, pinnedAddress }),
+      (res) => handlePinnedResponse({ res, resolve, reject }),
     );
 
-    if (init.signal) {
-      if (init.signal.aborted) {
-        req.destroy(new Error('The operation was aborted'));
-      } else {
-        init.signal.addEventListener('abort', () => req.destroy(new Error('The operation was aborted')), { once: true });
-      }
-    }
+    bindAbortSignal({ req, signal: init.signal });
 
     // Fires on socket INACTIVITY (no bytes sent or received), covering connect hangs, a
     // provider that accepts the connection and then never speaks, and a body that stalls
@@ -364,6 +274,120 @@ export async function pinnedFetch({ url, init, pinnedAddress }: { url: string; i
 
     req.on('error', reject);
     req.end(init.body);
+  });
+}
+
+/**
+ * Guarded request setup for {@link pinnedFetch}: the request line, headers, TLS server name and —
+ * when `pinnedAddress` is set — the connection binding. Pure over its inputs; opens nothing.
+ */
+function buildPinnedRequestOptions(
+  { parsed, isHttps, init, pinnedAddress }: { parsed: URL; isHttps: boolean; init: PinnedFetchInit; pinnedAddress: DnsLookupAddress | undefined },
+): RequestOptions {
+  return {
+    hostname: parsed.hostname,
+    ...(parsed.port ? { port: Number(parsed.port) } : {}),
+    path: `${parsed.pathname}${parsed.search}`,
+    method: init.method,
+    // `identity` is explicit, not incidental. `fetch` transparently decompresses a response;
+    // `http(s).request` does NOT, so a compressed body would reach a caller that parses it as
+    // UTF-8 SSE and produce silent garbage — surfacing far from the cause as an empty stream
+    // or a JSON parse error. Node sends no `Accept-Encoding` of its own, so this only makes
+    // the existing behaviour explicit and survives a caller that sets its own headers.
+    // Paired with the `content-encoding` check below, which covers a server that compresses
+    // unbidden anyway.
+    headers: { 'accept-encoding': 'identity', ...init.headers },
+    // `servername` set explicitly to the ORIGINAL hostname (not `pinnedAddress`) is what SNI
+    // and certificate hostname validation actually run against — this is what makes it a pin
+    // rather than a redirect to a different origin. `rejectUnauthorized` is left at its
+    // `node:https` default (`true`, i.e. certificate validation stays ON); nothing in this
+    // function ever sets it, and it must stay that way.
+    ...(isHttps ? { servername: parsed.hostname } : {}),
+    ...(pinnedAddress ? pinnedConnectionOptions({ pinnedAddress }) : {}),
+  };
+}
+
+/** The connection binding itself: dial exactly `pinnedAddress`, never a second DNS answer. */
+function pinnedConnectionOptions({ pinnedAddress }: { pinnedAddress: DnsLookupAddress }): Pick<RequestOptions, 'lookup'> & { autoSelectFamily: false } {
+  const family = pinnedAddress.family === 6 ? 6 : 4;
+  return {
+    // Happy Eyeballs (`autoSelectFamily`, on by default since Node 20) races several
+    // resolved addresses and expects `lookup` to support its array-returning calling
+    // convention — the opposite of what pinning wants (exactly one address, no fallback
+    // to any other). Disabling it keeps `net`'s classic single-address `lookup` contract,
+    // which is what the callback below implements.
+    autoSelectFamily: false,
+    lookup: (
+      _hostname: string,
+      _options: unknown,
+      callback: (err: NodeJS.ErrnoException | null, address: string, family: number) => void,
+    ): void => {
+      callback(null, pinnedAddress.address, family);
+    },
+  };
+}
+
+/** Aborts the in-flight request when the caller's signal fires (immediately if it already has). */
+function bindAbortSignal({ req, signal }: { req: ClientRequest; signal: AbortSignal | undefined }): void {
+  if (!signal) return;
+  if (signal.aborted) {
+    req.destroy(new Error('The operation was aborted'));
+  } else {
+    signal.addEventListener('abort', () => req.destroy(new Error('The operation was aborted')), { once: true });
+  }
+}
+
+/** Response handling for {@link pinnedFetch}: refuse compressed bodies and redirects, else resolve. */
+function handlePinnedResponse(
+  { res, resolve, reject }: { res: IncomingMessage; resolve: (value: PinnedFetchResponse) => void; reject: (reason: Error) => void },
+): void {
+  // `IncomingMessage.statusCode` is typed optional only because the same class also models
+  // server-side requests; a response handed to a `http(s).request` callback always carries
+  // one, so no fallback branch is needed.
+  const status = Number(res.statusCode);
+  // A server may compress despite `accept-encoding: identity`. Nothing downstream
+  // decompresses, so failing loudly here is strictly better than handing back bytes the
+  // caller will misparse: a hard error names the cause, silent garbage does not.
+  const encoding = res.headers['content-encoding'];
+  if (typeof encoding === 'string' && encoding.trim() !== '' && encoding.trim().toLowerCase() !== 'identity') {
+    res.resume(); // drain, so the socket is not left half-read
+    reject(
+      new Error(
+        `pinnedFetch: response used unsupported content-encoding "${encoding}". `
+        + 'This transport does not decompress; the request asked for identity.',
+      ),
+    );
+    return;
+  }
+  // `http(s).request` never auto-follows a redirect the way `fetch`'s default does, but
+  // that alone is a WEAKER posture than the `redirect: 'error'` callers ask for: real
+  // `fetch` THROWS on a 3xx, whereas simply not following one would resolve normally with
+  // `status: 302` and a likely-empty body — turning the guard's hard failure into a quiet
+  // `ok: false` a caller could half-handle as a generic upstream error. That undersells the
+  // reviewer's original finding: a guard-passing endpoint could 302 into blocked address
+  // space with auth headers still attached. So this rejects explicitly, matching `fetch`'s
+  // throw rather than merely approximating it by omission. Only the five redirect codes
+  // `fetch` itself treats as redirects (a `Location` header is what actually enables the
+  // rebinding hop) — NOT every 3xx: `304 Not Modified` carries no `Location` and no provider
+  // in this package sends conditional-request headers that could ever produce one.
+  if ([301, 302, 303, 307, 308].includes(status)) {
+    res.resume();
+    reject(
+      new Error(
+        `pinnedFetch: refused to follow a ${status} redirect`
+        + (typeof res.headers.location === 'string' ? ` to "${res.headers.location}"` : '')
+        + '. Matches fetch\'s redirect: \'error\' behavior — a guard-passing endpoint redirecting into blocked address space is the other half of the SSRF finding this transport closes.',
+      ),
+    );
+    return;
+  }
+  resolve({
+    ok: status >= 200 && status < 300,
+    status,
+    body: res,
+    text: () => readProviderResponseText({ body: res }, {
+      maxBytes: status >= 200 && status < 300 ? 8 * 1024 * 1024 : MAX_PROVIDER_ERROR_BYTES,
+    }),
   });
 }
 

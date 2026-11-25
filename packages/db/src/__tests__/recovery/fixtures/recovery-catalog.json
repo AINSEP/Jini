@@ -1,0 +1,168 @@
+[
+  {
+    "name": "backup_list_restore_points",
+    "description": "Lists restore points for the current site, newest first, with their capture trigger and cost class.",
+    "sideEffects": "none",
+    "authorization": {
+      "permission": "backup.read"
+    },
+    "inputSchema": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [],
+      "properties": {}
+    }
+  },
+  {
+    "name": "backup_get_capabilities",
+    "description": "Reports this site's restore-point cost class and mechanism kind. For repository backups, call repo_capabilities then repo_backup_push. Rendered static output commits are a separate publishing workflow.",
+    "sideEffects": "none",
+    "authorization": {
+      "permission": "backup.read"
+    },
+    "inputSchema": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [],
+      "properties": {}
+    }
+  },
+  {
+    "name": "backup_plan_restore",
+    "description": "Previews what restoring to a given restore point would change, including the discarded-write-window disclosure.",
+    "sideEffects": "none",
+    "authorization": {
+      "permission": "backup.read"
+    },
+    "inputSchema": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "restorePointId"
+      ],
+      "properties": {
+        "restorePointId": {
+          "type": "string",
+          "minLength": 1,
+          "description": "A restore point id, as returned by records_read.restore_point."
+        }
+      }
+    }
+  },
+  {
+    "name": "backup_execute_restore",
+    "description": "Replaces this site's current data with a restore point. Shows the user a confirm dialog first and only runs if they confirm. No restore point is taken first, so it can't be undone. Call backup_plan_restore first to see what would be lost.",
+    "sideEffects": "mutates-durable-state",
+    "authorization": {
+      "permission": "backup.restore"
+    },
+    "actorClassRule": "confirmer-must-equal-own-delegatedBy",
+    "inputSchema": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "restorePointId"
+      ],
+      "properties": {
+        "restorePointId": {
+          "type": "string",
+          "minLength": 1,
+          "description": "A restore point id, as returned by records_read.restore_point."
+        }
+      }
+    }
+  },
+  {
+    "name": "backup_create_restore_point",
+    "description": "Mints a new restore point independent of any migration, subject to the site's cost-acknowledgment rule.",
+    "sideEffects": "mutates-durable-state",
+    "authorization": {
+      "permission": "backup.create"
+    }
+  },
+  {
+    "name": "recovery_get_status",
+    "description": "Reports this site's current restore-point cost class plus the single highest-precedence degraded-state banner (migration interrupted, pending migration, an operation already in flight, cost class unavailable, or watermark baseline unavailable), if any.",
+    "sideEffects": "none",
+    "authorization": {
+      "permission": "backup.read"
+    },
+    "inputSchema": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [],
+      "properties": {}
+    }
+  },
+  {
+    "name": "recovery_resolve_deep_link",
+    "description": "Re-resolves a Database-Timeline deep-link envelope server-side (SPEC-123): looks up the envelope's restorePointId against the current restore-points list rather than trusting the envelope's own carried value. A stale or forged id resolves to found:false.",
+    "sideEffects": "none",
+    "authorization": {
+      "permission": "backup.read"
+    },
+    "inputSchema": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "envelope"
+      ],
+      "properties": {
+        "envelope": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "v",
+            "correlationId",
+            "siteId",
+            "ledgerEventId",
+            "restorePointId",
+            "drift",
+            "intent",
+            "issuedAt"
+          ],
+          "properties": {
+            "v": {
+              "type": "integer",
+              "description": "Envelope schema version."
+            },
+            "correlationId": {
+              "type": "string",
+              "description": "The incident/correlation id minted when this deep-link's chain began."
+            },
+            "siteId": {
+              "type": "string",
+              "description": "The site/workspace id the envelope was minted for. Re-verified server-side, never trusted as-is."
+            },
+            "ledgerEventId": {
+              "type": [
+                "string",
+                "null"
+              ],
+              "description": "The database ledger row id this envelope points at, or null."
+            },
+            "restorePointId": {
+              "type": [
+                "string",
+                "null"
+              ],
+              "description": "The restore point id this envelope points at, or null. Re-looked-up server-side; a stale or forged id resolves to found:false rather than being trusted."
+            },
+            "drift": {
+              "type": "string",
+              "description": "The drift status carried for display continuity only; never trusted as authoritative."
+            },
+            "intent": {
+              "type": "string",
+              "description": "The carried intent (e.g. 'view'), for display continuity only."
+            },
+            "issuedAt": {
+              "type": "string",
+              "description": "ISO-8601 timestamp the envelope was minted at."
+            }
+          }
+        }
+      }
+    }
+  }
+]
