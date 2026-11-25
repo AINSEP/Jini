@@ -6095,6 +6095,21 @@
    "SqlPublishContentBundleRepo": "class:99c1d7865e"
   }
  },
+ "./publish/trust/challenge": {
+  "types": "./dist/publish/trust/challenge.d.ts",
+  "symbols": {
+   "CHALLENGE_TTL_MS": "variable:9ea2d32e19",
+   "ChallengeVerification": "type:083f2936c5",
+   "InMemoryPublishChallengeStore": "class:087b615c2c",
+   "PublishChallengeRecord": "interface:e02ab57c71",
+   "PublishChallengeResponse": "interface:96ba5e0583",
+   "PublishChallengeStorePort": "interface:4f1ff585c3",
+   "VerifiedChallenge": "interface:53a020a447",
+   "buildChallengeMessage": "function:d5f23bf433",
+   "issuePublishChallenge": "function:e61e5f3cd9",
+   "verifyChallengeResponse": "function:55f5f47c6a"
+  }
+ },
  "./publish/trust/grant": {
   "types": "./dist/publish/trust/grant.d.ts",
   "symbols": {

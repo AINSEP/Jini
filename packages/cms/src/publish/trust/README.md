@@ -6,6 +6,11 @@ Architecture ADR: `ADS-memory/reports/jini-port/extraction-plan.md`.
 
 ## Wiring
 
+`challenge.ts` (`@jini-ai/cms/publish/trust/challenge`, runtime `node`: it verifies Ed25519 through `keys.ts`).
+
+- **Needs injected**: the host's pinned `messageVersion` (first line of the signed message) on `buildChallengeMessage`'s input and on `verifyChallengeResponse`'s `deps`, plus a `PublishChallengeStorePort` and a `clock`.
+- **Provides**: `buildChallengeMessage`, `issuePublishChallenge`, `verifyChallengeResponse` (nonce consumed first, one clock reading, never throws), `InMemoryPublishChallengeStore`, `CHALLENGE_TTL_MS`.
+
 `session.ts` (`@jini-ai/cms/publish/trust/session`, runtime `node`: it uses `node:crypto`).
 
 - **Needs injected**: a `KeyringPort` (`@jini-ai/core/contracts/vault`; only `derive` is called, under its own `publish-trust-session-key` purpose), the destination `workspaceId`, and a `clock`.
