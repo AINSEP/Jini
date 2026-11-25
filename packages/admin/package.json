@@ -365,6 +365,9 @@
       "./screens/plugins/hooks/agent-plugin-memory-port.hooks": "universal",
       "./screens/plugins/hooks/plugin-install-port.hooks": "universal",
       "./screens/plugins/hooks/plugins-port.hooks": "universal",
+      "./screens/plugins/AgentPluginSurfaceFrame": "browser",
+      "./screens/plugins/hooks/use-admin-surface-frame.hooks": "browser",
+      "./screens/plugins/admin-surface-theme": "browser",
       "./screens/plugins/rules": "universal",
       "./screens/plugins/PluginProviderSettingField.hooks": "browser",
       "./screens/plugins/hooks/use-plugin-provider-settings.hooks": "browser",
@@ -923,6 +926,9 @@
         "./shell/components/AssistantDock/FolderPathButton": "browser",
         "./shell/components/AssistantDock/dock-header-rules": "browser",
         "./screens/plugins/resolve-composer-discovery-outcome": "browser",
+        "./screens/plugins/AgentPluginSurfaceFrame": "browser",
+        "./screens/plugins/hooks/use-admin-surface-frame.hooks": "browser",
+        "./screens/plugins/admin-surface-theme": "browser",
         "./screens/plugins/rules": "universal",
         "./shell/components/AssistantDock/hooks/assistant-mcp-ui": "universal",
         "./screens/plugins/composer-skills.hooks": "browser",
@@ -2782,6 +2788,21 @@
       "types": "./dist/screens/plugins/rules.d.ts",
       "import": "./dist/screens/plugins/rules.js",
       "default": "./dist/screens/plugins/rules.js"
+    },
+    "./screens/plugins/admin-surface-theme": {
+      "types": "./dist/screens/plugins/admin-surface-theme.d.ts",
+      "import": "./dist/screens/plugins/admin-surface-theme.js",
+      "default": "./dist/screens/plugins/admin-surface-theme.js"
+    },
+    "./screens/plugins/hooks/use-admin-surface-frame.hooks": {
+      "types": "./dist/screens/plugins/hooks/use-admin-surface-frame.hooks.d.ts",
+      "import": "./dist/screens/plugins/hooks/use-admin-surface-frame.hooks.js",
+      "default": "./dist/screens/plugins/hooks/use-admin-surface-frame.hooks.js"
+    },
+    "./screens/plugins/AgentPluginSurfaceFrame": {
+      "types": "./dist/screens/plugins/AgentPluginSurfaceFrame.d.ts",
+      "import": "./dist/screens/plugins/AgentPluginSurfaceFrame.js",
+      "default": "./dist/screens/plugins/AgentPluginSurfaceFrame.js"
     },
     "./screens/plugins/hooks/plugins-port.hooks": {
       "types": "./dist/screens/plugins/hooks/plugins-port.hooks.d.ts",
