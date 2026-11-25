@@ -516,12 +516,14 @@
       "./publish/content/idempotency": "node",
       "./publish/content/plan-rows": "universal",
       "./publish/content/report-labels": "universal",
+      "./publish/trust/challenge": "node",
       "./publish/trust/grant": "universal",
       "./publish/trust/keys": "node",
       "./publish/trust/provisioning": "universal",
       "./publish/trust/provisioning-status": "universal",
       "./publish/trust/provisioning.node-io": "node",
       "./publish/trust/revocations": "universal",
+      "./publish/trust/session": "node",
       "./trash/site/directory-rollback-log": "universal",
       "./trash/permanent/agent-tools": "universal",
       "./publish/content/run-repo": "universal",
@@ -3538,6 +3540,11 @@
       "import": "./dist/publish/content/type-registry.js",
       "default": "./dist/publish/content/type-registry.js"
     },
+    "./publish/trust/challenge": {
+      "types": "./dist/publish/trust/challenge.d.ts",
+      "import": "./dist/publish/trust/challenge.js",
+      "default": "./dist/publish/trust/challenge.js"
+    },
     "./publish/trust/grant": {
       "types": "./dist/publish/trust/grant.d.ts",
       "import": "./dist/publish/trust/grant.js",
@@ -3567,6 +3574,11 @@
       "types": "./dist/publish/trust/revocations.d.ts",
       "import": "./dist/publish/trust/revocations.js",
       "default": "./dist/publish/trust/revocations.js"
+    },
+    "./publish/trust/session": {
+      "types": "./dist/publish/trust/session.d.ts",
+      "import": "./dist/publish/trust/session.js",
+      "default": "./dist/publish/trust/session.js"
     },
     "./trash/site/directory-rollback-log": {
       "types": "./dist/trash/site/directory-rollback-log.d.ts",
