@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { afterAll, describe, test } from "vitest";
+import { afterAll, beforeAll, describe, test } from "vitest";
 import { assertVersionedWrite, RecordVersionConflictError } from "@jini-ai/core/optimistic-concurrency";
 import type { KyselyKernel } from "@jini-ai/db/kernel";
 import type { WebhookDeliveryRecord, WebhookEventEnvelope, WebhookSubscriptionRecord } from "../../types.js";
@@ -25,6 +25,11 @@ const opened: KyselyKernel<unknown>[] = [];
 afterAll(async () => { for (const kernel of opened) await kernel.close(); });
 
 describe.each(["sqlite", "postgres"] as const)("webhook sql adapters [%s]", (dialect) => {
+  // PGlite is embedded (no server), but its first instance pays the WASM compile (~1.3 s). Paying it
+  // here, under the hook timeout, keeps that one-off cost out of whichever test happens to run first;
+  // on a loaded host it pushed the stale-save test past the 5 s test timeout while its assertions held.
+  beforeAll(async () => { opened.push(await openWebhookKernel({ dialect })); });
+
   async function make() {
     const kernel = await openWebhookKernel({ dialect });
     opened.push(kernel);
