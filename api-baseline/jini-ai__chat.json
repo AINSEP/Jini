@@ -458,6 +458,12 @@
    "translateAgUiEventToAgentEvent": "function:f12838d4e8"
   }
  },
+ "./core/assistant-tool-metadata": {
+  "types": "./dist/core/assistant-tool-metadata.d.ts",
+  "symbols": {
+   "toolMetadata": "variable:a8556bb7e0"
+  }
+ },
  "./core/durable-runs/run-finalizer": {
   "types": "./dist/core/durable-runs/run-finalizer.d.ts",
   "symbols": {

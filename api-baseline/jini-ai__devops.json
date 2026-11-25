@@ -70,6 +70,14 @@
    "warnCredentialContent": "function:8055565f09"
   }
  },
+ "./backup/site/saved-keys": {
+  "types": "./dist/backup/site/saved-keys.d.ts",
+  "symbols": {
+   "SiteSavedKeysDeps": "interface:510349483c",
+   "createSiteSavedKeys": "function:9c51f2e436",
+   "leaveSavedKeysOut": "variable:65efaf2c9b"
+  }
+ },
  "./backup/site/saved-keys-port": {
   "types": "./dist/backup/site/saved-keys-port.d.ts",
   "symbols": {

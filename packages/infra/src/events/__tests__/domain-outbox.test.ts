@@ -3,7 +3,7 @@ import { afterEach, test, vi } from "vitest";
 
 import type { DomainEvent } from "@jini-ai/core/contracts/events";
 import { InMemoryEventBus, InMemoryOutbox } from "../memory-bus.js";
-import { computeDomainOutboxBackoffMs, outboxWorkerArgs, processDomainOutbox } from "../domain-outbox.js";
+import { computeDomainOutboxBackoffMs, outboxWorkerArgs, processDomainOutbox, trackOutboxDelivery } from "../domain-outbox.js";
 import { DEFAULT_OUTBOX_DELIVERY_TIMEOUT_MS } from "../outbox/index.js";
 
 afterEach(() => { vi.restoreAllMocks(); });
@@ -75,4 +75,25 @@ test("outboxWorkerArgs hands the host's scheduler and logger to the worker uncha
   const args = outboxWorkerArgs({ outbox: new InMemoryOutbox(), bus: new InMemoryEventBus(), clock: { nowMs: () => 0 }, scheduler, logger });
   assert.equal(args.scheduler, scheduler);
   assert.equal(args.logger, logger);
+});
+
+test("trackOutboxDelivery traces each delivery as outbox.deliver labelled by event name only, and rethrows a failure", async () => {
+  const traces: { name: string; attributes: unknown; outcome?: unknown }[] = [];
+  const tracker = { trace: async ({ name, run }: { name: string; run: (span: { setOutcome: (o: unknown) => void }) => Promise<unknown> }, options: { attributes?: unknown } = {}) => {
+    const entry: { name: string; attributes: unknown; outcome?: unknown } = { name, attributes: options.attributes };
+    traces.push(entry);
+    return run({ setOutcome: (outcome) => { entry.outcome = outcome; } });
+  } } as unknown as Parameters<typeof trackOutboxDelivery>[0]["tracker"];
+  const published: string[] = [];
+  const bus = { publish: async ({ event }: { event: DomainEvent }) => { published.push(event.id); if (event.id === "boom") throw new Error("handler down"); } };
+  const traced = trackOutboxDelivery({ bus: bus as never, tracker });
+
+  await traced.publish({ event: makeEvent("ok", "entry.updated") });
+  await assert.rejects(traced.publish({ event: makeEvent("boom", "entry.deleted") }), /handler down/);
+
+  assert.deepEqual(published, ["ok", "boom"]);
+  assert.deepEqual(traces, [
+    { name: "outbox.deliver", attributes: { "event.name": "entry.updated" }, outcome: { outcome: "delivered", failed: false } },
+    { name: "outbox.deliver", attributes: { "event.name": "entry.deleted" } },
+  ]);
 });

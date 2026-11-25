@@ -40,6 +40,8 @@
       "./text": "universal",
       "./agent-handles": "universal",
       "./settings": "universal",
+      "./native-approval-memory": "universal",
+      "./operator-locale": "universal",
       "./plugin-directory": "universal",
       "./filesystem": "universal",
       "./optional-peer": "universal",
@@ -155,6 +157,30 @@
       "./contracts/headless/plugin-host": "universal",
       "./contracts/headless/site-cookie-consent": "universal",
       "./tool-metadata/analytics": "universal",
+      "./tool-metadata/agent-plugins": "universal",
+      "./tool-metadata/comments": "universal",
+      "./tool-metadata/commerce": "universal",
+      "./tool-metadata/custom-credentials": "universal",
+      "./tool-metadata/frontend-control": "universal",
+      "./tool-metadata/fs-files": "universal",
+      "./tool-metadata/media-generation": "universal",
+      "./tool-metadata/permanent-delete": "universal",
+      "./tool-metadata/plugin-runtime": "universal",
+      "./tool-metadata/recovery": "universal",
+      "./tool-metadata/redirects": "universal",
+      "./tool-metadata/search": "universal",
+      "./tool-metadata/seo": "universal",
+      "./tool-metadata/settings": "universal",
+      "./tool-metadata/site-evidence": "universal",
+      "./tool-metadata/site-guide": "universal",
+      "./tool-metadata/site-inspection": "universal",
+      "./tool-metadata/sites": "universal",
+      "./tool-metadata/trash": "universal",
+      "./tool-metadata/visitor-tools": "universal",
+      "./tool-metadata/web-screenshot": "universal",
+      "./tool-metadata/web": "universal",
+      "./tool-metadata/webhooks": "universal",
+      "./tool-metadata/widgets": "universal",
       "./tool-metadata/change-sets": "universal",
       "./tool-metadata/consent": "universal",
       "./tool-metadata/content-duplication": "universal",
@@ -251,6 +277,7 @@
         "./primitives": "core",
         "./fetch": "fetch",
         "./settings": "settings",
+        "./operator-locale": "settings",
         "./provider-registry": "providers",
         "./object-store": "providers"
       },
@@ -259,7 +286,8 @@
           "src/fetch"
         ],
         "settings": [
-          "src/settings"
+          "src/settings",
+          "src/operator-locale.ts"
         ],
         "providers": [
           "src/provider-registry.ts",
@@ -271,7 +299,8 @@
         "src/model-facing-tool-errors.ts",
         "src/tool-permissions.ts",
         "src/records.ts",
-        "src/tool-input-repairs.ts"
+        "src/tool-input-repairs.ts",
+        "src/errors/idioms.ts"
       ],
       "forbidden": {
         "universal": [
@@ -396,6 +425,16 @@
       "types": "./dist/optimistic-concurrency.d.ts",
       "import": "./dist/optimistic-concurrency.js",
       "default": "./dist/optimistic-concurrency.js"
+    },
+    "./operator-locale": {
+      "types": "./dist/operator-locale.d.ts",
+      "import": "./dist/operator-locale.js",
+      "default": "./dist/operator-locale.js"
+    },
+    "./native-approval-memory": {
+      "types": "./dist/native-approval-memory.d.ts",
+      "import": "./dist/native-approval-memory.js",
+      "default": "./dist/native-approval-memory.js"
     },
     "./list-page": {
       "types": "./dist/list-page.d.ts",
@@ -1001,6 +1040,126 @@
       "types": "./dist/contracts/headless/site-cookie-consent.d.ts",
       "import": "./dist/contracts/headless/site-cookie-consent.js",
       "default": "./dist/contracts/headless/site-cookie-consent.js"
+    },
+    "./tool-metadata/agent-plugins": {
+      "types": "./dist/tool-metadata/agent-plugins.d.ts",
+      "import": "./dist/tool-metadata/agent-plugins.js",
+      "default": "./dist/tool-metadata/agent-plugins.js"
+    },
+    "./tool-metadata/comments": {
+      "types": "./dist/tool-metadata/comments.d.ts",
+      "import": "./dist/tool-metadata/comments.js",
+      "default": "./dist/tool-metadata/comments.js"
+    },
+    "./tool-metadata/commerce": {
+      "types": "./dist/tool-metadata/commerce.d.ts",
+      "import": "./dist/tool-metadata/commerce.js",
+      "default": "./dist/tool-metadata/commerce.js"
+    },
+    "./tool-metadata/custom-credentials": {
+      "types": "./dist/tool-metadata/custom-credentials.d.ts",
+      "import": "./dist/tool-metadata/custom-credentials.js",
+      "default": "./dist/tool-metadata/custom-credentials.js"
+    },
+    "./tool-metadata/frontend-control": {
+      "types": "./dist/tool-metadata/frontend-control.d.ts",
+      "import": "./dist/tool-metadata/frontend-control.js",
+      "default": "./dist/tool-metadata/frontend-control.js"
+    },
+    "./tool-metadata/fs-files": {
+      "types": "./dist/tool-metadata/fs-files.d.ts",
+      "import": "./dist/tool-metadata/fs-files.js",
+      "default": "./dist/tool-metadata/fs-files.js"
+    },
+    "./tool-metadata/media-generation": {
+      "types": "./dist/tool-metadata/media-generation.d.ts",
+      "import": "./dist/tool-metadata/media-generation.js",
+      "default": "./dist/tool-metadata/media-generation.js"
+    },
+    "./tool-metadata/permanent-delete": {
+      "types": "./dist/tool-metadata/permanent-delete.d.ts",
+      "import": "./dist/tool-metadata/permanent-delete.js",
+      "default": "./dist/tool-metadata/permanent-delete.js"
+    },
+    "./tool-metadata/plugin-runtime": {
+      "types": "./dist/tool-metadata/plugin-runtime.d.ts",
+      "import": "./dist/tool-metadata/plugin-runtime.js",
+      "default": "./dist/tool-metadata/plugin-runtime.js"
+    },
+    "./tool-metadata/recovery": {
+      "types": "./dist/tool-metadata/recovery.d.ts",
+      "import": "./dist/tool-metadata/recovery.js",
+      "default": "./dist/tool-metadata/recovery.js"
+    },
+    "./tool-metadata/redirects": {
+      "types": "./dist/tool-metadata/redirects.d.ts",
+      "import": "./dist/tool-metadata/redirects.js",
+      "default": "./dist/tool-metadata/redirects.js"
+    },
+    "./tool-metadata/search": {
+      "types": "./dist/tool-metadata/search.d.ts",
+      "import": "./dist/tool-metadata/search.js",
+      "default": "./dist/tool-metadata/search.js"
+    },
+    "./tool-metadata/seo": {
+      "types": "./dist/tool-metadata/seo.d.ts",
+      "import": "./dist/tool-metadata/seo.js",
+      "default": "./dist/tool-metadata/seo.js"
+    },
+    "./tool-metadata/settings": {
+      "types": "./dist/tool-metadata/settings.d.ts",
+      "import": "./dist/tool-metadata/settings.js",
+      "default": "./dist/tool-metadata/settings.js"
+    },
+    "./tool-metadata/site-evidence": {
+      "types": "./dist/tool-metadata/site-evidence.d.ts",
+      "import": "./dist/tool-metadata/site-evidence.js",
+      "default": "./dist/tool-metadata/site-evidence.js"
+    },
+    "./tool-metadata/site-guide": {
+      "types": "./dist/tool-metadata/site-guide.d.ts",
+      "import": "./dist/tool-metadata/site-guide.js",
+      "default": "./dist/tool-metadata/site-guide.js"
+    },
+    "./tool-metadata/site-inspection": {
+      "types": "./dist/tool-metadata/site-inspection.d.ts",
+      "import": "./dist/tool-metadata/site-inspection.js",
+      "default": "./dist/tool-metadata/site-inspection.js"
+    },
+    "./tool-metadata/sites": {
+      "types": "./dist/tool-metadata/sites.d.ts",
+      "import": "./dist/tool-metadata/sites.js",
+      "default": "./dist/tool-metadata/sites.js"
+    },
+    "./tool-metadata/trash": {
+      "types": "./dist/tool-metadata/trash.d.ts",
+      "import": "./dist/tool-metadata/trash.js",
+      "default": "./dist/tool-metadata/trash.js"
+    },
+    "./tool-metadata/visitor-tools": {
+      "types": "./dist/tool-metadata/visitor-tools.d.ts",
+      "import": "./dist/tool-metadata/visitor-tools.js",
+      "default": "./dist/tool-metadata/visitor-tools.js"
+    },
+    "./tool-metadata/web-screenshot": {
+      "types": "./dist/tool-metadata/web-screenshot.d.ts",
+      "import": "./dist/tool-metadata/web-screenshot.js",
+      "default": "./dist/tool-metadata/web-screenshot.js"
+    },
+    "./tool-metadata/web": {
+      "types": "./dist/tool-metadata/web.d.ts",
+      "import": "./dist/tool-metadata/web.js",
+      "default": "./dist/tool-metadata/web.js"
+    },
+    "./tool-metadata/webhooks": {
+      "types": "./dist/tool-metadata/webhooks.d.ts",
+      "import": "./dist/tool-metadata/webhooks.js",
+      "default": "./dist/tool-metadata/webhooks.js"
+    },
+    "./tool-metadata/widgets": {
+      "types": "./dist/tool-metadata/widgets.d.ts",
+      "import": "./dist/tool-metadata/widgets.js",
+      "default": "./dist/tool-metadata/widgets.js"
     },
     "./tool-metadata/analytics": {
       "types": "./dist/tool-metadata/analytics.d.ts",

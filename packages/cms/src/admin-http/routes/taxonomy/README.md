@@ -1,7 +1,7 @@
 # Taxonomy admin route specs
 
-Server-neutral `defineJsonRoute` specs for Categories & Tags (ADR-044). Every plain taxonomy route
-lives here; only the gated merge-term ceremony is still host-mounted.
+Server-neutral `defineJsonRoute` specs for Categories & Tags (ADR-044). Every taxonomy route
+lives here, including the three-step gated merge-term ceremony.
 
 ## Wiring
 
@@ -18,12 +18,15 @@ lives here; only the gated merge-term ceremony is still host-mounted.
 | `taxonomyAssignTermsRoute` / `taxonomyUnassignTermsRoute` | `POST /api/admin/v1/taxonomy/{assign,unassign}-terms` | 204 |
 | `taxonomyAssignedTermsRoute` | `GET /api/admin/v1/taxonomy/assigned-terms` | `{ termIds }` |
 | `taxonomyDeleteRoute` / `taxonomyDeleteTermRoute` | `DELETE /api/admin/v1/taxonomy/:id`, `.../terms/:id` | `{ trashed, id, version }` |
+| `taxonomyMergePlanRoute` / `taxonomyMergeConfirmRoute` / `taxonomyMergeExecuteRoute` | `POST /api/admin/v1/taxonomy/terms/:id/merge/{plan,confirm,execute}` | `{ planId, planHash, details }` / `{ confirmationToken }` / `{ mergedCount }` |
 
 All gate on the domain's single `admin.taxonomy.manage` permission. List and the two deletes use the
 host's authorize port (deletes name the entity id). The write and assignment routes authorize inside
 the taxonomy write service through the injected `authorize` (the host's workspace-scoped RBAC
 authorizer, which the specs bind to `workspaceId`), so a denial answers the flat
 `{ error, code: "FORBIDDEN" }` 403; tagging also checks the content's own edit permission.
+
+**Merge ceremony.** The three merge specs never call the host authorize port: `admin.taxonomy.manage` is checked inside the gateway, whose `ForbiddenError` answers the 403 with its own reason code. The host injects its binding of the gateway call per step (`gatewayPlan` + `entryTermRepo.countOverlap`, `gatewayConfirm`, `gatewayExecute`); classified errors (`ForbiddenError`, `PlanStaleError`, `TokenExpiredError`, `TokenAlreadyRedeemedError`, `SameTermMergeError`) answer `{ error, code }`, anything else rethrows to the host's 500.
 
 **Needs injected**
 

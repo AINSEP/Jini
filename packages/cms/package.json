@@ -14,6 +14,7 @@
     "runtime": "universal",
     "entries": {
       "./themes/token-aliases": "universal",
+      "./themes/theme-slots": "universal",
       "./publish/transfer": "universal",
       "./publish/transfer/blob-staging": "node",
       "./publish/content/baseline-repo": "universal",
@@ -182,6 +183,7 @@
       "./public-http/middleware/canonical-site-host": "node",
       "./public-http/middleware/theme-asset-dirs": "node",
       "./public-http/middleware/theme-content-security-headers": "node",
+      "./public-http/middleware/public-page-security-headers": "universal",
       "./public-http/middleware/theme-static-assets": "universal",
       "./public-http/middleware/theme-page-preview": "universal",
       "./public-http/middleware/theme-preview-refresh": "universal",
@@ -276,6 +278,11 @@
       "./public-http/routes/members/shared": "universal",
       "./public-http/routes/members/sign-out": "universal",
       "./public-http/routes/agent-plugin-surfaces/files": "universal",
+      "./public-http/routes/site/seo-route-shared": "universal",
+      "./public-http/routes/site/sitemap": "universal",
+      "./public-http/routes/site/robots": "universal",
+      "./public-http/routes/site/feed": "universal",
+      "./public-http/routes/site/llms": "universal",
       "./public-http/routes/members/forgot-password": "universal",
       "./public-http/routes/members/login-providers": "universal",
       "./public-http/routes/members/me": "universal",
@@ -486,6 +493,17 @@
       "./settings/site/publish-content": "universal",
       "./settings/site/settings-confirm-write": "universal",
       "./publish/content/type-registry": "universal",
+      "./public-http/http/content/posts": "universal",
+      "./public-http/http/shared/post": "universal",
+      "./public-http/http/site/render-context": "universal",
+      "./public-http/http/site/render/components/layout": "universal",
+      "./public-http/routes/site/pages/render-context/taxonomy": "universal",
+      "./public-http/routes/site/product-checkout": "universal",
+      "./admin-http/http/posts": "universal",
+      "./publish/content/content-references": "universal",
+      "./publish/content/idempotency": "node",
+      "./publish/content/plan-rows": "universal",
+      "./publish/content/report-labels": "universal",
       "./publish/trust/grant": "universal",
       "./publish/trust/keys": "node",
       "./publish/trust/provisioning": "universal",
@@ -495,10 +513,19 @@
       "./trash/site/directory-rollback-log": "universal",
       "./trash/permanent/agent-tools": "universal",
       "./publish/content/run-repo": "universal",
+      "./publish/content/apply-run": "universal",
+      "./publish/content/repo-handler": "node",
+      "./publish/content/planner": "node",
+      "./publish/content/export-bundle": "node",
       "./publish/content/seed-hash": "universal",
       "./publish/content/backstop-refusal": "universal",
+      "./publish/content/backstop-preview": "node",
+      "./publish/content/publish-backstop-file": "node",
       "./publish/content/peers": "universal",
       "./publish/content/apply-retire": "universal",
+      "./publish/content/apply-failure": "universal",
+      "./publish/content/apply-row": "node",
+      "./publish/content/backstop-service": "universal",
       "./publish/content/composite-blob-source": "node",
       "./trash/site/adapters/marker-sql": "node",
       "./posts/tiptap-text-schema": "universal",
@@ -587,6 +614,9 @@
       "./admin-http/routes/forms/get-submission": "universal",
       "./admin-http/routes/forms/resolve-definition": "universal",
       "./admin-http/routes/forms/write-error": "universal",
+      "./admin-http/routes/forms/authoring": "universal",
+      "./admin-http/routes/forms/create": "universal",
+      "./admin-http/routes/forms/delete-submission": "universal",
       "./admin-http/routes/menus/shared": "universal",
       "./admin-http/routes/comments/shared": "universal",
       "./admin-http/routes/comments/moderation-queue": "universal",
@@ -611,6 +641,9 @@
       "./admin-http/routes/taxonomy/create-taxonomy": "universal",
       "./admin-http/routes/taxonomy/create-term": "universal",
       "./admin-http/routes/taxonomy/delete-term": "universal",
+      "./admin-http/routes/taxonomy/merge-plan": "universal",
+      "./admin-http/routes/taxonomy/merge-confirm": "universal",
+      "./admin-http/routes/taxonomy/merge-execute": "universal",
       "./admin-http/routes/taxonomy/rename-term": "universal",
       "./admin-http/routes/widgets/agent-tools-place": "universal",
       "./admin-http/routes/widgets/agent-tools-create": "universal",
@@ -717,6 +750,7 @@
         "src/posts/slug.ts",
         "src/widgets/date-label.ts",
         "src/admin-http/http/entity-not-live.ts",
+        "src/public-http/routes/site/seo-route-shared.ts",
         "src/publish/content/precheck-reasons.ts",
         "src/publish/transfer/apply-errors.ts",
         "src/seo/html-plain-text.ts",
@@ -733,6 +767,11 @@
         "./admin-http/routes/redirects/tombstone": "redirects",
         "./admin-http/routes/redirects/update": "redirects",
         "./public-http/routes/site/pages/listing/listing-state": "listing",
+        "./public-http/http/shared/post": "posts",
+        "./public-http/http/content/posts": "posts",
+        "./admin-http/http/posts": "posts",
+        "./public-http/routes/site/pages/render-context/taxonomy": "widgets",
+        "./publish/content/content-references": "widgets",
         "./admin-http/http/forms": "forms",
         "./admin-http/http/forms-write-error": "forms",
         "./admin-http/http/menus": "navigation",
@@ -844,6 +883,10 @@
         "./admin-http/routes/workspace/list": "workspace",
         "./admin-http/routes/workspace/update": "workspace",
         "./admin-http/routes/seo/deps": "seo",
+      "./public-http/routes/site/sitemap": "seo",
+      "./public-http/routes/site/robots": "seo",
+      "./public-http/routes/site/feed": "seo",
+      "./public-http/routes/site/llms": "seo",
         "./admin-http/http/widgets": "widgets",
         "./admin-http/routes/widgets/list": "widgets",
         "./admin-http/routes/widgets/get-by-id": "widgets",
@@ -861,6 +904,9 @@
         "./admin-http/routes/forms/get-submission": "forms",
         "./admin-http/routes/forms/resolve-definition": "forms",
         "./admin-http/routes/forms/write-error": "forms",
+        "./admin-http/routes/forms/authoring": "forms",
+        "./admin-http/routes/forms/create": "forms",
+        "./admin-http/routes/forms/delete-submission": "forms",
         "./admin-http/routes/menus/shared": "navigation",
         "./admin-http/routes/comments/shared": "comments",
         "./admin-http/routes/comments/moderation-queue": "comments",
@@ -885,6 +931,9 @@
         "./admin-http/routes/taxonomy/create-taxonomy": "taxonomy",
         "./admin-http/routes/taxonomy/create-term": "taxonomy",
         "./admin-http/routes/taxonomy/delete-term": "taxonomy",
+        "./admin-http/routes/taxonomy/merge-plan": "taxonomy",
+        "./admin-http/routes/taxonomy/merge-confirm": "taxonomy",
+        "./admin-http/routes/taxonomy/merge-execute": "taxonomy",
         "./admin-http/routes/taxonomy/rename-term": "taxonomy",
         "./admin-http/routes/widgets/agent-tools-place": "widgets",
         "./admin-http/routes/widgets/agent-tools-create": "widgets",
@@ -1669,6 +1718,61 @@
       "import": "./dist/public-http/http/site/render/value-readers.js",
       "default": "./dist/public-http/http/site/render/value-readers.js"
     },
+    "./public-http/http/content/posts": {
+      "types": "./dist/public-http/http/content/posts.d.ts",
+      "import": "./dist/public-http/http/content/posts.js",
+      "default": "./dist/public-http/http/content/posts.js"
+    },
+    "./public-http/http/shared/post": {
+      "types": "./dist/public-http/http/shared/post.d.ts",
+      "import": "./dist/public-http/http/shared/post.js",
+      "default": "./dist/public-http/http/shared/post.js"
+    },
+    "./public-http/http/site/render-context": {
+      "types": "./dist/public-http/http/site/render-context.d.ts",
+      "import": "./dist/public-http/http/site/render-context.js",
+      "default": "./dist/public-http/http/site/render-context.js"
+    },
+    "./public-http/http/site/render/components/layout": {
+      "types": "./dist/public-http/http/site/render/components/layout.d.ts",
+      "import": "./dist/public-http/http/site/render/components/layout.js",
+      "default": "./dist/public-http/http/site/render/components/layout.js"
+    },
+    "./public-http/routes/site/pages/render-context/taxonomy": {
+      "types": "./dist/public-http/routes/site/pages/render-context/taxonomy.d.ts",
+      "import": "./dist/public-http/routes/site/pages/render-context/taxonomy.js",
+      "default": "./dist/public-http/routes/site/pages/render-context/taxonomy.js"
+    },
+    "./public-http/routes/site/product-checkout": {
+      "types": "./dist/public-http/routes/site/product-checkout.d.ts",
+      "import": "./dist/public-http/routes/site/product-checkout.js",
+      "default": "./dist/public-http/routes/site/product-checkout.js"
+    },
+    "./admin-http/http/posts": {
+      "types": "./dist/admin-http/http/posts.d.ts",
+      "import": "./dist/admin-http/http/posts.js",
+      "default": "./dist/admin-http/http/posts.js"
+    },
+    "./publish/content/content-references": {
+      "types": "./dist/publish/content/content-references.d.ts",
+      "import": "./dist/publish/content/content-references.js",
+      "default": "./dist/publish/content/content-references.js"
+    },
+    "./publish/content/idempotency": {
+      "types": "./dist/publish/content/idempotency.d.ts",
+      "import": "./dist/publish/content/idempotency.js",
+      "default": "./dist/publish/content/idempotency.js"
+    },
+    "./publish/content/plan-rows": {
+      "types": "./dist/publish/content/plan-rows.d.ts",
+      "import": "./dist/publish/content/plan-rows.js",
+      "default": "./dist/publish/content/plan-rows.js"
+    },
+    "./publish/content/report-labels": {
+      "types": "./dist/publish/content/report-labels.d.ts",
+      "import": "./dist/publish/content/report-labels.js",
+      "default": "./dist/publish/content/report-labels.js"
+    },
     "./public-http/http/site/render/doc/doc-render-contract": {
       "types": "./dist/public-http/http/site/render/doc/doc-render-contract.d.ts",
       "import": "./dist/public-http/http/site/render/doc/doc-render-contract.js",
@@ -1743,6 +1847,16 @@
       "types": "./dist/public-http/middleware/theme-asset-dirs.d.ts",
       "import": "./dist/public-http/middleware/theme-asset-dirs.js",
       "default": "./dist/public-http/middleware/theme-asset-dirs.js"
+    },
+    "./themes/theme-slots": {
+      "types": "./dist/themes/theme-slots.d.ts",
+      "import": "./dist/themes/theme-slots.js",
+      "default": "./dist/themes/theme-slots.js"
+    },
+    "./public-http/middleware/public-page-security-headers": {
+      "types": "./dist/public-http/middleware/public-page-security-headers.d.ts",
+      "import": "./dist/public-http/middleware/public-page-security-headers.js",
+      "default": "./dist/public-http/middleware/public-page-security-headers.js"
     },
     "./public-http/middleware/theme-content-security-headers": {
       "types": "./dist/public-http/middleware/theme-content-security-headers.d.ts",
@@ -2218,6 +2332,31 @@
       "types": "./dist/public-http/routes/members/sign-out.d.ts",
       "import": "./dist/public-http/routes/members/sign-out.js",
       "default": "./dist/public-http/routes/members/sign-out.js"
+    },
+    "./public-http/routes/site/seo-route-shared": {
+      "types": "./dist/public-http/routes/site/seo-route-shared.d.ts",
+      "import": "./dist/public-http/routes/site/seo-route-shared.js",
+      "default": "./dist/public-http/routes/site/seo-route-shared.js"
+    },
+    "./public-http/routes/site/sitemap": {
+      "types": "./dist/public-http/routes/site/sitemap.d.ts",
+      "import": "./dist/public-http/routes/site/sitemap.js",
+      "default": "./dist/public-http/routes/site/sitemap.js"
+    },
+    "./public-http/routes/site/robots": {
+      "types": "./dist/public-http/routes/site/robots.d.ts",
+      "import": "./dist/public-http/routes/site/robots.js",
+      "default": "./dist/public-http/routes/site/robots.js"
+    },
+    "./public-http/routes/site/feed": {
+      "types": "./dist/public-http/routes/site/feed.d.ts",
+      "import": "./dist/public-http/routes/site/feed.js",
+      "default": "./dist/public-http/routes/site/feed.js"
+    },
+    "./public-http/routes/site/llms": {
+      "types": "./dist/public-http/routes/site/llms.d.ts",
+      "import": "./dist/public-http/routes/site/llms.js",
+      "default": "./dist/public-http/routes/site/llms.js"
     },
     "./public-http/routes/agent-plugin-surfaces/files": {
       "types": "./dist/public-http/routes/agent-plugin-surfaces/files.d.ts",
@@ -3314,6 +3453,26 @@
       "import": "./dist/trash/permanent/agent-tools.js",
       "default": "./dist/trash/permanent/agent-tools.js"
     },
+    "./publish/content/apply-run": {
+      "types": "./dist/publish/content/apply-run.d.ts",
+      "import": "./dist/publish/content/apply-run.js",
+      "default": "./dist/publish/content/apply-run.js"
+    },
+    "./publish/content/repo-handler": {
+      "types": "./dist/publish/content/repo-handler.d.ts",
+      "import": "./dist/publish/content/repo-handler.js",
+      "default": "./dist/publish/content/repo-handler.js"
+    },
+    "./publish/content/export-bundle": {
+      "types": "./dist/publish/content/export-bundle.d.ts",
+      "import": "./dist/publish/content/export-bundle.js",
+      "default": "./dist/publish/content/export-bundle.js"
+    },
+    "./publish/content/planner": {
+      "types": "./dist/publish/content/planner.d.ts",
+      "import": "./dist/publish/content/planner.js",
+      "default": "./dist/publish/content/planner.js"
+    },
     "./publish/content/run-repo": {
       "types": "./dist/publish/content/run-repo.d.ts",
       "import": "./dist/publish/content/run-repo.js",
@@ -3329,10 +3488,35 @@
       "import": "./dist/publish/content/backstop-refusal.js",
       "default": "./dist/publish/content/backstop-refusal.js"
     },
+    "./publish/content/backstop-preview": {
+      "types": "./dist/publish/content/backstop-preview.d.ts",
+      "import": "./dist/publish/content/backstop-preview.js",
+      "default": "./dist/publish/content/backstop-preview.js"
+    },
+    "./publish/content/publish-backstop-file": {
+      "types": "./dist/publish/content/publish-backstop-file.d.ts",
+      "import": "./dist/publish/content/publish-backstop-file.js",
+      "default": "./dist/publish/content/publish-backstop-file.js"
+    },
     "./publish/content/peers": {
       "types": "./dist/publish/content/peers.d.ts",
       "import": "./dist/publish/content/peers.js",
       "default": "./dist/publish/content/peers.js"
+    },
+    "./publish/content/apply-failure": {
+      "types": "./dist/publish/content/apply-failure.d.ts",
+      "import": "./dist/publish/content/apply-failure.js",
+      "default": "./dist/publish/content/apply-failure.js"
+    },
+    "./publish/content/apply-row": {
+      "types": "./dist/publish/content/apply-row.d.ts",
+      "import": "./dist/publish/content/apply-row.js",
+      "default": "./dist/publish/content/apply-row.js"
+    },
+    "./publish/content/backstop-service": {
+      "types": "./dist/publish/content/backstop-service.d.ts",
+      "import": "./dist/publish/content/backstop-service.js",
+      "default": "./dist/publish/content/backstop-service.js"
     },
     "./publish/content/apply-retire": {
       "types": "./dist/publish/content/apply-retire.d.ts",
@@ -3779,6 +3963,21 @@
       "import": "./dist/admin-http/routes/forms/write-error.js",
       "default": "./dist/admin-http/routes/forms/write-error.js"
     },
+    "./admin-http/routes/forms/authoring": {
+      "types": "./dist/admin-http/routes/forms/authoring.d.ts",
+      "import": "./dist/admin-http/routes/forms/authoring.js",
+      "default": "./dist/admin-http/routes/forms/authoring.js"
+    },
+    "./admin-http/routes/forms/create": {
+      "types": "./dist/admin-http/routes/forms/create.d.ts",
+      "import": "./dist/admin-http/routes/forms/create.js",
+      "default": "./dist/admin-http/routes/forms/create.js"
+    },
+    "./admin-http/routes/forms/delete-submission": {
+      "types": "./dist/admin-http/routes/forms/delete-submission.d.ts",
+      "import": "./dist/admin-http/routes/forms/delete-submission.js",
+      "default": "./dist/admin-http/routes/forms/delete-submission.js"
+    },
     "./admin-http/routes/menus/shared": {
       "types": "./dist/admin-http/routes/menus/shared.d.ts",
       "import": "./dist/admin-http/routes/menus/shared.js",
@@ -3898,6 +4097,21 @@
       "types": "./dist/admin-http/routes/taxonomy/delete-term.d.ts",
       "import": "./dist/admin-http/routes/taxonomy/delete-term.js",
       "default": "./dist/admin-http/routes/taxonomy/delete-term.js"
+    },
+    "./admin-http/routes/taxonomy/merge-plan": {
+      "types": "./dist/admin-http/routes/taxonomy/merge-plan.d.ts",
+      "import": "./dist/admin-http/routes/taxonomy/merge-plan.js",
+      "default": "./dist/admin-http/routes/taxonomy/merge-plan.js"
+    },
+    "./admin-http/routes/taxonomy/merge-confirm": {
+      "types": "./dist/admin-http/routes/taxonomy/merge-confirm.d.ts",
+      "import": "./dist/admin-http/routes/taxonomy/merge-confirm.js",
+      "default": "./dist/admin-http/routes/taxonomy/merge-confirm.js"
+    },
+    "./admin-http/routes/taxonomy/merge-execute": {
+      "types": "./dist/admin-http/routes/taxonomy/merge-execute.d.ts",
+      "import": "./dist/admin-http/routes/taxonomy/merge-execute.js",
+      "default": "./dist/admin-http/routes/taxonomy/merge-execute.js"
     },
     "./admin-http/routes/taxonomy/rename-term": {
       "types": "./dist/admin-http/routes/taxonomy/rename-term.d.ts",
