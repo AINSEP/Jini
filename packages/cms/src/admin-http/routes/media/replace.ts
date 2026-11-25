@@ -1,11 +1,13 @@
 import { defineJsonRoute, ok } from "@jini-ai/core/contracts/server";
 import type { AdminMediaEnvelope } from "@jini-ai/core/contracts/site/cms-media";
 import { decodeStrictBase64 } from "@jini-ai/core/contracts/site/strict-base64";
+import { describeUploadOverLimit } from "@jini-ai/core/text";
 import { rejectRoute } from "@jini-ai/core/errors/route-refusal";
 
 import type { OutwardErrorMessage } from "../../http/outward-error-message.js";
 import { DEFAULT_ALLOWED_MIME_TYPES } from "../../../media/media-service.js";
 import type { MediaRepoPort } from "../../../media/ports.js";
+import { resolveUploadCap, type UploadCaps } from "../../../media/upload-cap.js";
 import { resolveUploadContentType } from "../../../media/site/upload-content-type.js";
 import { MediaValidationError, type MediaRecord } from "../../../media/types.js";
 import { authorizeMedia, MEDIA_VALIDATION, mediaActorId, mediaIdParam, rejectMediaError, type MediaRoutePrincipal } from "./shared.js";
@@ -25,6 +27,8 @@ export interface MediaReplaceRouteDeps {
   mediaRepo: Pick<MediaRepoPort, "findById"> & { replaceFileIfVersion?: unknown; saveRenditionIfSource?: unknown };
   /** The host's upload byte cap (owner policy), also bound into `replaceFile`. */
   maxUploadBytes: number;
+  /** The host's larger cap for `video/*` files, when it has one (see `media/upload-cap.ts`). */
+  maxVideoUploadBytes?: number | undefined;
   /** The host's file switch; `null` when the asset's version moved meanwhile. */
   replaceFile: (required: MediaReplacement) => Promise<MediaRecord | null>;
   describeStored: MediaStoredDescriber;
@@ -49,16 +53,19 @@ function readReplacementFields({ body }: { body: unknown }, _optional: Record<st
  *  allowed type as sniffed from the bytes (not the declared label). A non-empty strict-base64
  *  payload always decodes to at least one byte, and `replaceMediaFile` refuses empty bytes too.
  *  @complexity O(n) in the payload length. */
-function parseReplacement({ body, maxUploadBytes }: { body: unknown; maxUploadBytes: number }, _optional: Record<string, never> = {}) {
+function parseReplacement({ body, caps }: { body: unknown; caps: UploadCaps }, _optional: Record<string, never> = {}) {
   const { filename, contentType, dataBase64 } = readReplacementFields({ body });
   const bytes = decodeStrictBase64({ value: dataBase64 });
   if (!bytes) throw new MediaValidationError({ message: "dataBase64 is not valid base64" });
-  if (bytes.byteLength > maxUploadBytes) {
-    throw new MediaValidationError({ message: `uploaded file exceeds the ${maxUploadBytes / (1024 * 1024)} MB size cap` });
-  }
   const verified = resolveUploadContentType({ bytes, declaredContentType: contentType });
   if (!DEFAULT_ALLOWED_MIME_TYPES.has(verified)) {
     throw new MediaValidationError({ message: `content type '${verified}' is not allowed for upload` });
+  }
+  // The cap depends on the SNIFFED type (a mislabeled file cannot borrow the video cap), so it is checked after the sniff.
+  const maxUploadBytes = resolveUploadCap({ contentType: verified }, caps);
+  if (bytes.byteLength > maxUploadBytes) {
+    // Plain words naming both sizes, the same sentence upload, the Library and the chat composer use.
+    throw new MediaValidationError({ message: describeUploadOverLimit({ fileBytes: bytes.byteLength, limitBytes: maxUploadBytes }) });
   }
   return { bytes, contentType: verified, provenance: { kind: "upload" as const, path: filename } };
 }
@@ -81,7 +88,7 @@ async function replaceFromBody(
   { deps, media, body, principalId }: { deps: MediaReplaceRouteDeps; media: MediaRecord; body: unknown; principalId: string },
   _optional: Record<string, never> = {},
 ): Promise<AdminMediaEnvelope> {
-  const upload = parseReplacement({ body, maxUploadBytes: deps.maxUploadBytes });
+  const upload = parseReplacement({ body, caps: { maxUploadBytes: deps.maxUploadBytes, maxVideoUploadBytes: deps.maxVideoUploadBytes } });
   const saved = await deps.replaceFile({ media, ...upload, principalId });
   if (!saved) rejectRoute({ status: 409, error: "media changed while replacing its file", code: "MEDIA_REPLACE_CONFLICT" });
   return deps.describeStored({ media: saved, contentType: upload.contentType, byteLength: upload.bytes.byteLength });

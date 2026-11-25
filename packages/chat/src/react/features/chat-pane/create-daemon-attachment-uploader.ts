@@ -35,6 +35,9 @@ import type { ChatPaneAttachmentUploadOptions, ChatPaneProps } from './types.js'
 export interface CreateDaemonAttachmentUploaderOptions {
   /** Per-file cap checked before any request is sent. Defaults to 20 MB, matching the route pack. */
   readonly maxAttachmentBytes?: number;
+  /** Per-file cap chosen from the file itself (a host that lets videos exceed every other type passes one
+   *  function backed by its single upload-limit source). Wins over {@link maxAttachmentBytes} when given. */
+  readonly maxAttachmentBytesFor?: (file: { readonly name: string; readonly type: string }) => number;
   /** Files per composer turn. Defaults to 10, matching the route pack. */
   readonly maxAttachmentCount?: number;
   /** Total bytes per composer turn. Defaults to 50 MB, matching the route pack. */
@@ -110,6 +113,7 @@ async function messageForFailedUpload(response: Response, fallback: string): Pro
 
 interface UploadQuota {
   readonly maxAttachmentBytes: number;
+  readonly maxAttachmentBytesFor?: CreateDaemonAttachmentUploaderOptions['maxAttachmentBytesFor'];
   readonly maxAttachmentCount: number;
   readonly maxBatchBytes: number;
 }
@@ -121,9 +125,10 @@ function assertWithinQuota({ files, current, incomingBytes, quota }: {
   incomingBytes: number;
   quota: UploadQuota;
 }): void {
-  const tooBig = files.find((file) => file.size > quota.maxAttachmentBytes);
+  const capOf = (file: File): number => quota.maxAttachmentBytesFor?.(file) ?? quota.maxAttachmentBytes;
+  const tooBig = files.find((file) => file.size > capOf(file));
   if (tooBig) {
-    throw new Error(describeUploadOverLimit({ fileBytes: tooBig.size, limitBytes: quota.maxAttachmentBytes }));
+    throw new Error(describeUploadOverLimit({ fileBytes: tooBig.size, limitBytes: capOf(tooBig) }));
   }
   if (current.count + files.length > quota.maxAttachmentCount) {
     throw new Error(`You can attach at most ${quota.maxAttachmentCount} files to one message.`);
@@ -198,6 +203,7 @@ export function createDaemonAttachmentUploader({ baseUrl, fetch }: { baseUrl: st
 ): NonNullable<ChatPaneProps['uploadAttachments']> {
   const quota: UploadQuota = {
     maxAttachmentBytes: options.maxAttachmentBytes ?? DEFAULTS.maxAttachmentBytes,
+    maxAttachmentBytesFor: options.maxAttachmentBytesFor,
     maxAttachmentCount: options.maxAttachmentCount ?? DEFAULTS.maxAttachmentCount,
     maxBatchBytes: options.maxBatchBytes ?? DEFAULTS.maxBatchBytes,
   };

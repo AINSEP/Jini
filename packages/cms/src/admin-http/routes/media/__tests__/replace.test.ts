@@ -1,3 +1,4 @@
+import { describeUploadOverLimit } from "@jini-ai/core/text";
 import { describe, expect, it } from "vitest";
 import type { MediaRecord } from "../../../../media/types.js";
 import { MediaValidationError } from "../../../../media/types.js";
@@ -73,8 +74,9 @@ describe("mediaReplaceRoute", () => {
     expect(log).toEqual([`find:${WORKSPACE_ID}:m-1`]);
   });
 
-  it("refuses bytes over the injected cap with its MB copy", async () => {
-    expect(await refusalOf(() => run(BODY, deps([], { maxUploadBytes: 1024 * 1024 * 0.00001 })))).toEqual({ status: 400, body: { error: `uploaded file exceeds the ${0.00001} MB size cap` } });
+  it("refuses bytes over the injected cap with the plain-words limit sentence", async () => {
+    expect(await refusalOf(() => run(BODY, deps([], { maxUploadBytes: 1024 * 1024 * 0.00001 })))).toEqual({ status: 400, body: { error: describeUploadOverLimit({ fileBytes: 16, limitBytes: 1024 * 1024 * 0.00001 }) } });
+    expect(describeUploadOverLimit({ fileBytes: 60 * 1024 * 1024, limitBytes: 50 * 1024 * 1024 })).toBe("That file is 60 MB; the limit is 50 MB.");
   });
 
   it("replaces with the sniffed type and upload provenance, then describes the stored asset", async () => {

@@ -956,7 +956,7 @@
  "./admin-http/routes/media/replace": {
   "types": "./dist/admin-http/routes/media/replace.d.ts",
   "symbols": {
-   "MediaReplaceRouteDeps": "interface:481ac53c81",
+   "MediaReplaceRouteDeps": "interface:87536fe128",
    "MediaReplacement": "interface:2676ce902f",
    "MediaStoredDescriber": "type:bb449fbc57",
    "mediaReplaceRoute": "variable:c13f2b1b42"
@@ -4070,7 +4070,7 @@
    "MediaStoreCredential": "type:964a814b26",
    "MediaStoreEnvChoice": "type:963d963378",
    "MediaStoreEnvDeclaration": "interface:06f24bd1fc",
-   "MediaToolDeps": "interface:b996cc779a",
+   "MediaToolDeps": "interface:7e70ffb95c",
    "MediaTranscoderPort": "interface:52485bac39",
    "MediaValidationError": "class:b419fdb163",
    "PRIVATE_NO_STORE": "variable:b3ee4f106d",
@@ -4107,7 +4107,7 @@
    "UpdateMediaMetadataRequired": "interface:34e82e1bb8",
    "UploadMediaDeps": "interface:2daf8c9f89",
    "UploadMediaInput": "interface:f5bc9128a3",
-   "UploadMediaOptional": "interface:ed48d53c5c",
+   "UploadMediaOptional": "interface:700849a2be",
    "UploadMediaRequired": "interface:a7dd1f0a6e",
    "VIDEO_CONVERSION_MESSAGES": "variable:b79309603a",
    "VIDEO_DEFAULT_FRAMES": "variable:f2113493b5",
@@ -4138,7 +4138,7 @@
    "VideoTranscodeTarget": "type:ff23eb513e",
    "blobStoreFromObjectStore": "function:b0b3b11d10",
    "buildConvertVideoRegistrations": "function:67ab56322b",
-   "buildMediaRegistrations": "function:a7396c2d98",
+   "buildMediaRegistrations": "function:bb2264bb23",
    "computeBlobStorageKey": "function:8947237945",
    "convertMediaVideo": "function:6f8efa5c43",
    "convertVideoToolDefinition": "variable:cc882812fb",
@@ -4183,7 +4183,7 @@
    "readMediaStoreEnvChoice": "function:d4dad1848f",
    "registerTransform": "function:48e25625d9",
    "renditionCacheControl": "function:5f709a9a23",
-   "replaceMediaFile": "function:3031c33af9",
+   "replaceMediaFile": "function:db53a42244",
    "resolveGcGraceMs": "function:98d95d5085",
    "resolveMediaRendition": "function:d9b26c9a5c",
    "resolveRenditionTransformSpec": "function:79b1e08c13",
@@ -4394,10 +4394,10 @@
  "./media/site/duplicate-asset": {
   "types": "./dist/media/site/duplicate-asset.d.ts",
   "symbols": {
-   "ContributeMediaDuplicateHandlersArgs": "interface:2565da361c",
+   "ContributeMediaDuplicateHandlersArgs": "interface:87f532b7d5",
    "DeriveDuplicateName": "type:41fd8f8284",
-   "contributeMediaDuplicateHandlers": "function:d0d0429362",
-   "duplicateMediaAsset": "function:48fe1f6f33"
+   "contributeMediaDuplicateHandlers": "function:a2bf372e4a",
+   "duplicateMediaAsset": "function:712cdaeaf9"
   }
  },
  "./media/site/hydrate-blob-store-from-seed": {
@@ -4414,7 +4414,7 @@
   "types": "./dist/media/site/import-media-entity.d.ts",
   "symbols": {
    "ImportMediaEntityBlockedCode": "type:168c1e4fed",
-   "ImportMediaEntityDeps": "interface:b5b05fa0ce",
+   "ImportMediaEntityDeps": "interface:acb85392eb",
    "ImportMediaEntityInput": "interface:b9f3da48c8",
    "ImportMediaEntityResult": "type:25d384a11d",
    "importMediaEntity": "function:c10428777c",

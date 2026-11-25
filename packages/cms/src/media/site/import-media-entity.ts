@@ -95,6 +95,11 @@ export interface ImportMediaEntityDeps {
    *  `reason`. This module keeps the classification (status, code); the host decides what a caller
    *  may read, so stored error text never leaves engine code raw. */
   readonly outwardErrorMessage: OutwardErrorMessage;
+  /** Size caps for a reviewed replacement's bytes, chosen by the file's sniffed type (see
+   *  `resolveUploadCap`). Omitted: the 50 MiB general cap, and video follows it, so a host that sets
+   *  nothing is unchanged. */
+  readonly maxUploadBytes?: number | undefined;
+  readonly maxVideoUploadBytes?: number | undefined;
 }
 
 export interface ImportMediaEntityInput {
@@ -421,7 +426,7 @@ async function replaceImportedMedia({ deps, input, existing, bytes }: {
       clock: { nowMs: () => Date.parse(deps.clock.nowIso()) } },
       media: existing, bytes, contentType: sniffContentType({ bytes }), principalId: input.blobCreatedByPrincipal,
       provenance: input.record.source.provenance, expectedSha256: input.record.source.sha256,
-      metadata: input.record }, { maxUploadBytes: HOST_MAX_UPLOAD_BYTES });
+      metadata: input.record }, { maxUploadBytes: deps.maxUploadBytes ?? HOST_MAX_UPLOAD_BYTES, maxVideoUploadBytes: deps.maxVideoUploadBytes });
     return saved ? { status: "imported", id: existing.id, blobWritten }
       : { status: "conflict", reason: "The live file changed during replacement. Plan publishing again." };
   } catch (error) {

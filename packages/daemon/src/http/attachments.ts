@@ -174,6 +174,12 @@ export interface AttachmentsHttpDeps {
    * `maxBatchBytes`. Defaults to 20 MB.
    */
   readonly maxAttachmentBytes?: number;
+  /**
+   * Per-request cap chosen from the sanitized file name (the body's content type is fixed, so the name's
+   * extension is the only type signal at upload time). A host that lets videos exceed every other type
+   * returns the larger number for those names. Wins over {@link maxAttachmentBytes} when given.
+   */
+  readonly maxAttachmentBytesFor?: (file: { readonly name: string }) => number;
   /** Capability ids one `DELETE` may name. Defaults to 10, matching the store's batch cap. */
   readonly maxCleanupPaths?: number;
   /**
@@ -339,9 +345,9 @@ export async function handleAttachmentUpload(
   _optional: Record<string, never> = {},
 ): Promise<Response> {
   const maxConcurrentUploads = deps.maxConcurrentUploads ?? 4;
-  const maxAttachmentBytes = deps.maxAttachmentBytes ?? 20 * 1024 * 1024;
   const query = readQuery({ request });
   const name = sanitizeAttachmentName({ requestedName: query.name });
+  const maxAttachmentBytes = deps.maxAttachmentBytesFor?.({ name }) ?? deps.maxAttachmentBytes ?? 20 * 1024 * 1024;
   const batchId = typeof query.batch === 'string' ? query.batch : '';
   // Every refusal below goes through `respondToUploadFailure`, so the reason -> status/code mapping
   // lives in exactly one place rather than being partly inlined here.

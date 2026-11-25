@@ -6,6 +6,7 @@ import { withSha256Lock } from './blob-gc-lock.js';
 import { sanitizeSvg } from './sanitize-svg.js';
 import { MediaValidationError } from './types.js';
 import { DEFAULT_MAX_UPLOAD_BYTES } from './media-service.js';
+import { resolveUploadCap } from './upload-cap.js';
 import { safeMediaProvenance } from './provenance.js';
 import { sniffContentType } from './content-type-sniffer.js';
 
@@ -93,12 +94,12 @@ export async function replaceMediaFile({ deps, media, bytes, contentType, princi
   provenance?: MediaProvenance | undefined;
   metadata?: MediaReplacementMetadata;
   expectedSha256?: string;
-}, { maxUploadBytes = DEFAULT_MAX_UPLOAD_BYTES }: { maxUploadBytes?: number } = {}): Promise<MediaRecord | null> {
+}, { maxUploadBytes = DEFAULT_MAX_UPLOAD_BYTES, maxVideoUploadBytes }: { maxUploadBytes?: number; maxVideoUploadBytes?: number | undefined } = {}): Promise<MediaRecord | null> {
   if (!deps.mediaRepo.replaceFileIfVersion) throw new MediaValidationError({ message: 'Atomic file replacement is unavailable. Update the destination before replacing this file.' });
   // Library v1 supports metadata rename, never byte replacement under an immutable document name.
   if (media.kind === 'document') throw new MediaValidationError({ message: 'document file replacement is unavailable' });
   if (media.source.private) throw new MediaValidationError({ message: 'Private submitted file replacement is unavailable. Keep the original submission file and upload a separate public media item if needed.' });
-  const safeBytes = await validatedReplacementBytes({ bytes, contentType, maxUploadBytes });
+  const safeBytes = await validatedReplacementBytes({ bytes, contentType, maxUploadBytes: resolveUploadCap({ contentType: sniffContentType({ bytes }) ?? contentType }, { maxUploadBytes, maxVideoUploadBytes }) });
   const sha256 = createHash('sha256').update(safeBytes).digest('hex');
   if (expectedSha256 !== undefined && expectedSha256 !== sha256) {
     throw new MediaValidationError({ message: 'Replacement bytes do not match the reviewed sha256 after sanitizing. Re-import the file and plan publishing again.' });

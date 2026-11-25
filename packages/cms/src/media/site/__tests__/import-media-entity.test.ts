@@ -109,3 +109,42 @@ test("importMediaEntity words a reviewed-replacement refusal through the host's 
   assert.equal(port.seen.length, 1);
   assert.deepEqual(result, { status: "blocked", code: "precondition", reason: `outward:${port.seen[0]?.constructor.name}` });
 });
+
+/** Why: a reviewed replacement is a write like any other, so its size cap follows the file's type
+ *  (owner decision 2026-11-24: video 500 MiB, everything else 50 MiB). Omitting the video cap keeps
+ *  every other host on the one general cap. */
+async function replaceWith({ bytes, caps }: { bytes: Uint8Array; caps: { maxUploadBytes?: number; maxVideoUploadBytes?: number } }) {
+  const { createHash } = await import("node:crypto");
+  const sha256 = createHash("sha256").update(bytes).digest("hex");
+  const deps = { ...makeDeps(), ...caps };
+  await importMediaEntity({ deps, input: { workspaceId: WORKSPACE_ID, record: makeRecord(),
+    bytes: HELLO_BYTES, blobCreatedByPrincipal: "importer-1", baseVersion: null } });
+  return importMediaEntity({ deps, input: { workspaceId: WORKSPACE_ID, record: makeRecord({ source: { sha256 } }), bytes,
+    blobCreatedByPrincipal: "importer-1", baseVersion: 1, sourceReplacement: { version: 1, sourceSha256: HELLO_SHA256 } } });
+}
+
+function sizedBytes({ size, magic }: { size: number; magic: readonly number[] }): Uint8Array {
+  const bytes = new Uint8Array(size);
+  bytes.set(magic, 0);
+  return bytes;
+}
+
+const MP4_MAGIC = [0, 0, 0, 16, ...Buffer.from("ftypisom")];
+const PNG_MAGIC = [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a];
+const SIXTY_MIB = 60 * 1024 * 1024;
+const CAPS = { maxUploadBytes: 50 * 1024 * 1024, maxVideoUploadBytes: 500 * 1024 * 1024 };
+
+test("importMediaEntity replaces a 60 MiB video when the host gives the video cap", async () => {
+  const result = await replaceWith({ bytes: sizedBytes({ size: SIXTY_MIB, magic: MP4_MAGIC }), caps: CAPS });
+  assert.equal(result.status, "imported");
+});
+
+test("importMediaEntity still refuses a 60 MiB image replacement when a video cap is given", async () => {
+  const result = await replaceWith({ bytes: sizedBytes({ size: SIXTY_MIB, magic: PNG_MAGIC }), caps: CAPS });
+  assert.equal(result.status, "blocked");
+});
+
+test("importMediaEntity without a video cap refuses a 60 MiB video at the general cap", async () => {
+  const result = await replaceWith({ bytes: sizedBytes({ size: SIXTY_MIB, magic: MP4_MAGIC }), caps: {} });
+  assert.equal(result.status, "blocked");
+});
