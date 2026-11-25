@@ -60,7 +60,7 @@ import {
   errorMessage,
 } from './values.js';
 import { defaultCleanupFailureSink } from './event-cleanup.js';
-import { confirmArgvPromptSelection, fitArgvPromptVariant, type ArgvPromptBudget } from './argv-prompt-variants.js';
+import { confirmArgvPromptSelection, createArgvPromptBudget, createArgvPromptComposer, fitArgvPromptVariant } from './argv-prompt-variants.js';
 import { DEFAULT_BUFFERED_STDOUT_MAX_BYTES } from './child-stdout.js';
 import { wireChildLifecycle } from './child-lifecycle.js';
 import { writePromptToStdin } from './child-input.js';
@@ -975,13 +975,6 @@ export function createAgentExecutor(requiredArgs: Pick<CreateAgentExecutorOption
   const claimUserMessages: AgentExecutor['claimUserMessages'] = ({ runId, via }) => liveRunRelays.get(runId)?.claim({ via }) ?? [];
 
   /** `AgentExecutor.sendUserMessage()` — see that interface method's own doc. @complexity O(1). */
-  /** The pure runtime budget predicates argv prompt variants are probed with (never the effectful guard). */
-  const argvPromptBudget: ArgvPromptBudget = {
-    promptArgvBudget: (required) => agentRuntime.launch.promptArgvBudget(required),
-    windowsCmdShimBudget: (required) => agentRuntime.launch.windowsCmdShimBudget(required),
-    windowsDirectExeBudget: (required) => agentRuntime.launch.windowsDirectExeBudget(required),
-  };
-
   async function sendUserMessage(
     { runId, text, id = randomUUID(), attachmentIds }: Parameters<AgentExecutor['sendUserMessage']>[0],
     { imageContents }: { readonly imageContents?: readonly MessageAttachmentImage[] } = {},
@@ -1100,23 +1093,13 @@ export function createAgentExecutor(requiredArgs: Pick<CreateAgentExecutorOption
     const preStagingRuntimeContext = computeRuntimeContext({ preparedPromptFile: null, preparedLogFile: null, mcpBridge: null }, sessionRuntimeContext(input, {}));
     const hostOverlay = computeSystemPromptOverlay(promptAugmenter, def.id);
     const systemPromptOverlay = input.filesystemNotice ? `${hostOverlay ?? ''}\n${input.filesystemNotice}\n` : hostOverlay;
-    const capabilities = agentRuntime.defs.capabilities({ defId: def.id });
     const deliverOverlay = (prompt: string) => resolveSystemPromptOverlayDelivery({
-      systemPromptDelivery: def.systemPromptDelivery,
-      resumesSessionViaCli: def.resumesSessionViaCli,
-      resumesSessionViaAcpLoad: def.resumesSessionViaAcpLoad,
-      overlay: systemPromptOverlay,
-      prompt,
-      resumeSessionId: preStagingRuntimeContext?.resumeSessionId,
-    }, { capabilities });
+      systemPromptDelivery: def.systemPromptDelivery, resumesSessionViaCli: def.resumesSessionViaCli, resumesSessionViaAcpLoad: def.resumesSessionViaAcpLoad,
+      overlay: systemPromptOverlay, prompt, resumeSessionId: preStagingRuntimeContext?.resumeSessionId,
+    }, { capabilities: agentRuntime.defs.capabilities({ defId: def.id }) });
     const overlayDelivery = deliverOverlay(imageDelivery.prompt);
-    // An argv prompt variant goes through the very same image-path and overlay transformations as
-    // the base, so its composed text is exactly what would occupy the base's argv slot.
-    const composePrompt = (prompt: string): string => deliverOverlay(applyImagePromptDelivery({
-      imageDelivery: def.imageDelivery, prompt, imagePaths: input.imagePaths, extraAllowedDirs: input.extraAllowedDirs,
-    }).prompt).prompt;
 
-    return { systemPromptOverlay, overlayDelivery, composePrompt };
+    return { systemPromptOverlay, overlayDelivery, composePrompt: createArgvPromptComposer({ def, imagePaths: input.imagePaths, extraAllowedDirs: input.extraAllowedDirs, deliverOverlay }) };
   }
 
   /** Resolve the launch environment before staging the run's private temp overrides.
@@ -1507,8 +1490,7 @@ export function createAgentExecutor(requiredArgs: Pick<CreateAgentExecutorOption
     // `Error` — breaking this driver's "never a bare throw, always an `AgentExecutorError`" contract
     // — and left the run `'running'` forever while still holding the process-global mutex and both
     // staged files, so no later run of that def could ever acquire the lock either.
-    const { args: baseArgs, envOverrides: systemPromptEnvOverrides } = await buildRunArgs({ input: { runId: input.runId, def, imageDelivery, imagePaths: input.imagePaths, runInput: input, systemPromptOverlay, overlayDelivery, runtimeContext }, deps: { releaseStagedResources, failBeforeSpawn } }
-    );
+    const { args: baseArgs, envOverrides: systemPromptEnvOverrides } = await buildRunArgs({ input: { runId: input.runId, def, imageDelivery, imagePaths: input.imagePaths, runInput: input, systemPromptOverlay, overlayDelivery, runtimeContext }, deps: { releaseStagedResources, failBeforeSpawn } });
 
     // Mechanism 1 of 5's one effect — stage this run's own MCP config file (run-scoped, see
     // `mcpJsonPathForRun`) before spawn so the `--mcp-config <path>` argv buildArgs just produced
@@ -1561,14 +1543,13 @@ export function createAgentExecutor(requiredArgs: Pick<CreateAgentExecutorOption
     // the verified last argument of that one argv is swapped, using pure budget predicates, because
     // sizing must not repeat adapter effects (`buildArgs`, policy, staging). A run without variants,
     // or a def that has not declared `argvPromptPosition: 'last'`, keeps `baseArgs` byte-identical.
-    const { args, selectedId } = await fitArgvPromptVariant({ runId: input.runId, def, resolvedBin: launch.launchPath, baseArgs, baseComposedPrompt: overlayDelivery.prompt, variants: input.argvPromptVariants, compose: composePrompt, budget: argvPromptBudget, releaseStagedResources, failBeforeSpawn });
+    const { args, selectedId } = await fitArgvPromptVariant({ runId: input.runId, def, resolvedBin: launch.launchPath, baseArgs, baseComposedPrompt: overlayDelivery.prompt, variants: input.argvPromptVariants, compose: composePrompt, budget: createArgvPromptBudget({ launch: agentRuntime.launch }), releaseStagedResources, failBeforeSpawn });
 
     // Post-buildArgs guard for argv-bound defs whose resolved binary is a
     // Windows .cmd/.bat shim or a direct .exe: a prompt under the raw byte
     // budget can still expand past CreateProcess's command-line cap once
     // quote-escaped. Both are no-ops off-Windows / for non-argv-bound defs.
-    await guardWindowsCommandLineBudget({ input: { runId: input.runId, def, launchPath: launch.launchPath, args }, deps: { windowsCmdShimBudget: (required) => agentRuntime.launch.windowsCmdShimBudget(required), windowsDirectExeBudget: (required) => agentRuntime.launch.windowsDirectExeBudget(required), releaseStagedResources, failBeforeSpawn } }
-    );
+    await guardWindowsCommandLineBudget({ input: { runId: input.runId, def, launchPath: launch.launchPath, args }, deps: { windowsCmdShimBudget: (required) => agentRuntime.launch.windowsCmdShimBudget(required), windowsDirectExeBudget: (required) => agentRuntime.launch.windowsDirectExeBudget(required), releaseStagedResources, failBeforeSpawn } });
 
     const invocation = await prepareRunCommand({ command: launch.launchPath, args, env: childEnv, runId: input.runId }, {
       createInvocation: createCommandInvocationFn, release: releaseStagedResources, failBeforeSpawn,

@@ -14,6 +14,7 @@
  * selected argv as the final check.
  */
 import type { RuntimeAgentDef, RuntimePromptBudgetError } from '@jini-ai/core/contracts/agents';
+import { applyImagePromptDelivery } from '../image-prompt-delivery.js';
 import type { AgentExecutorErrorCode, ArgvPromptVariant, ArgvPromptVariants } from './contracts.js';
 
 /** The pure runtime budget predicates (`AgentRuntimePort['launch']`) the probes reuse unchanged. */
@@ -22,6 +23,28 @@ export type ArgvPromptBudget = {
   readonly windowsCmdShimBudget: (required: { def: RuntimeAgentDef; resolvedBin: unknown; args: unknown }) => RuntimePromptBudgetError | null;
   readonly windowsDirectExeBudget: (required: { def: RuntimeAgentDef; resolvedBin: unknown; args: unknown }) => RuntimePromptBudgetError | null;
 };
+
+/** The pure runtime budget predicates argv prompt variants are probed with (never the effectful guard). */
+export function createArgvPromptBudget({ launch }: { readonly launch: ArgvPromptBudget }, _optional = {}): ArgvPromptBudget {
+  return {
+    promptArgvBudget: (required) => launch.promptArgvBudget(required),
+    windowsCmdShimBudget: (required) => launch.windowsCmdShimBudget(required),
+    windowsDirectExeBudget: (required) => launch.windowsDirectExeBudget(required),
+  };
+}
+
+/**
+ * An argv prompt variant goes through the very same image-path and overlay transformations as the
+ * base, so its composed text is exactly what would occupy the base's argv slot.
+ */
+export function createArgvPromptComposer({ def, imagePaths, extraAllowedDirs, deliverOverlay }: {
+  readonly def: RuntimeAgentDef;
+  readonly imagePaths: Parameters<typeof applyImagePromptDelivery>[0]['imagePaths'];
+  readonly extraAllowedDirs: Parameters<typeof applyImagePromptDelivery>[0]['extraAllowedDirs'];
+  readonly deliverOverlay: (prompt: string) => { readonly prompt: string };
+}, _optional = {}): (prompt: string) => string {
+  return (prompt) => deliverOverlay(applyImagePromptDelivery({ imageDelivery: def.imageDelivery, prompt, imagePaths, extraAllowedDirs }).prompt).prompt;
+}
 
 export type SelectedArgvPrompt = { readonly id: ArgvPromptVariant['id']; readonly prompt: string; readonly args: readonly string[] };
 
