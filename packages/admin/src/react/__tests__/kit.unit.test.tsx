@@ -1,7 +1,7 @@
 import { act, render, renderHook, screen, waitFor } from '@testing-library/react';
 import { createRef, type ReactNode } from 'react';
 import { describe, expect, it, vi } from 'vitest';
-import { AdminKitProvider, Button, Icon, InfoTip, TabBar, type AdminKitChat, type InfoTipProps, type KitIconName, useAdminKitChatPosters, useAdminKitValues, useAdminThemeKit, useChatT, useDirtyGuard, useFetchQuery, useMediaProviderRules, useT } from '../kit.js';
+import { AdminKitProvider, SearchableModelSelect, SeeMore, Button, Icon, InfoTip, TabBar, type AdminKitChat, type InfoTipProps, type KitIconName, useAdminKitChatPosters, useAdminKitValues, useAdminThemeKit, useChatT, useDirtyGuard, useFetchQuery, useMediaProviderRules, useT } from '../kit.js';
 import {
   CodeWithLines, CodeWrapToggle, I18nProvider, PreviewModalShell, RemixIcon, SettingsDialogShell, Toast,
   useAdminKitChatValues, useCodeWrap, useCopyToClipboard, useFabPosition, useInfoTip, usePanelPosition, useSelectDropdown, useSerialWrites, useTabBarKeyboard,
@@ -513,5 +513,22 @@ describe('admin kit: chat components and run values (x8)', () => {
     const required = { baseUrl: '', fetch: globalThis.fetch };
     expect(values.createDaemonAttachmentUploader(required, { concurrency: 1 })).toBe(upload);
     expect(chat.createDaemonAttachmentUploader).toHaveBeenCalledWith(required, { concurrency: 1 });
+  });
+});
+
+describe('admin kit: settings slots (SeeMore, SearchableModelSelect)', () => {
+  it('renders SeeMore and SearchableModelSelect through the injected host components with the screen props', () => {
+    const seen: Record<string, unknown> = {};
+    const kit = fakeAdminKit({ components: {
+      SeeMore: (props) => { seen.SeeMore = props; return <span data-testid="see-more">{props.children}</span>; },
+      SearchableModelSelect: (props) => { seen.Model = props; return <span data-testid="model-select">{props.value}</span>; },
+    } });
+    const onChange = () => {};
+    renderWithAdminKit(<><SeeMore lines={1} moreLabel="More">body</SeeMore>
+      <SearchableModelSelect models={[{ id: 'm1', label: 'M1' }]} value="m1" onChange={onChange} ariaLabel="Model" searchPlaceholder="Search" /></>, { kit });
+    expect(screen.getByTestId('see-more').textContent).toBe('body');
+    expect(screen.getByTestId('model-select').textContent).toBe('m1');
+    expect(seen.SeeMore).toMatchObject({ lines: 1, moreLabel: 'More' });
+    expect(seen.Model).toMatchObject({ ariaLabel: 'Model', searchPlaceholder: 'Search', onChange });
   });
 });
