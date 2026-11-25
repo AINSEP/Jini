@@ -128,7 +128,7 @@ export function boundMcpBridge(required: Pick<RuntimeAgentDef, 'id' | 'externalM
 }
 
 /** The staged-home slot the production binding supplies for a def (`undefined` for a def that stages no home). */
-export function boundMcpHome(required: Pick<RuntimeAgentDef, 'id' | 'externalMcpInjection'>, _optional: Record<string, never> = {}): { mcpHome?: NonNullable<ReturnType<AgentRuntimePort['strategies']['for']>['mcpHome']> } {
+export function boundMcpHome(required: Pick<RuntimeAgentDef, 'externalMcpInjection'>, _optional: Record<string, never> = {}): { mcpHome?: NonNullable<ReturnType<AgentRuntimePort['strategies']['for']>['mcpHome']> } {
   const mcpHome = agentRuntimeFixture().strategies.for({ def: required as RuntimeAgentDef }).mcpHome;
   return mcpHome === undefined ? {} : { mcpHome };
 }

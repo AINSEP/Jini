@@ -13,7 +13,7 @@ it.each(['stdio', 'http'] as const)('host-owned %s bridge staging keeps locked n
     runId: 'locked', def: getAgentDef({ id: 'codex' })!, nativeToolAccess: false,
     nativeCapabilities: { userMcp: false, userSettings: false },
     mcpBridge: transport === 'stdio' ? { kind: 'codex-toml' as const, serverEntry: { command: 'node', args: ['bridge'], env: { JINI_RUN_ID: 'locked', JINI_DAEMON_URL: 'http://daemon' } } } : null,
-    ...(transport === 'http' ? { httpEndpoint: { url: 'http://127.0.0.1:1234/mcp', token: 'fixture', close: async () => {} } } : {}),
+    ...(transport === 'http' ? { httpEndpoint: { url: 'http://127.0.0.1:1234/mcp', token: 'fixture' } } : {}),
   };
   const staged = await prepareBoundRunHome({ input, deps: {
     hostEnv: {}, releaseStagedResources: async () => {}, failBeforeSpawn: async error => { throw error; },
@@ -39,7 +39,7 @@ it('HTTP configuration preserves MCP isolation and native state links', async ()
   await writeFile(join(source, 'auth.json'), 'old login');
   await writeFile(join(source, 'config.toml'), 'model = "personal"\n[mcp_servers.chrome]\ncommand = "chrome"\n[projects."/personal"]\ntrust_level = "trusted"\n');
   const staged = await prepareBoundRunHome({ input: { runId: 'http', def: getAgentDef({ id: 'codex' })!, mcpBridge: null,
-    nativeCapabilities: { userMcp: false }, httpEndpoint: { url: 'http://127.0.0.1:1234/mcp', token: 'endpoint', close: async () => {} },
+    nativeCapabilities: { userMcp: false }, httpEndpoint: { url: 'http://127.0.0.1:1234/mcp', token: 'endpoint' },
   }, deps: { hostEnv: { CODEX_HOME: source }, mcpJsonInjection: { command: 'node', daemonUrl: 'http://daemon.invalid' },
     releaseStagedResources: async () => {}, failBeforeSpawn: async error => { throw error; },
   } });

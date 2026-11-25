@@ -52,8 +52,8 @@ describe('bound plans keep the same config and executable env keys the daemon us
     expect(var_({ externalMcpInjection: 'acp-merge' } as RuntimeAgentDef)).toBeUndefined();
   });
 
-  it('and still supplies the Vela executable override beside the runtime state names', () => {
-    expect(ports().launch.hostEnvNames()).toEqual(['AGENT_RUNTIME_HOME', 'AGENT_RUNTIME_RESOURCE_ROOT', 'VELA_OPENCODE_BIN']);
+  it('and still supplies the Vela executable override and the Codex home name beside the runtime state names', () => {
+    expect(ports().launch.hostEnvNames()).toEqual(['AGENT_RUNTIME_HOME', 'AGENT_RUNTIME_RESOURCE_ROOT', 'VELA_OPENCODE_BIN', 'CODEX_HOME']);
   });
 
   it('gives OpenCode and MiMo the receipt their shared dialect declares, bound from the def', () => {
