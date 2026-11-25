@@ -1,12 +1,5 @@
 [
   {
-    "file": "packages/chat/src/core/question-form/scan.ts",
-    "function": "balancedObjectEnd",
-    "line": 339,
-    "rule": "sonarjs/cognitive-complexity",
-    "value": 13
-  },
-  {
     "file": "packages/chat/src/embed-widget/browser/frontend-session-bridge.ts",
     "function": "openFetchFrontendStream.connect",
     "line": 482,

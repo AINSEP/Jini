@@ -42,6 +42,73 @@ export interface ArtifactTextSuppressorStats {
 
 const MAX_CANDIDATE_LENGTH = 512;
 
+interface SuppressorState {
+  suppressing: boolean;
+  candidate: string;
+  suppressedChars: number;
+  suppressedChunks: number;
+  openedBlocks: number;
+  closedBlocks: number;
+}
+
+interface SuppressorMatchers {
+  openRe: RegExp;
+  closeRe: RegExp;
+  isPossibleOpen: (required: { text: string }) => boolean;
+  isPossibleClose: (required: { text: string }) => boolean;
+}
+
+function noteSuppressed(state: SuppressorState, text: string): void {
+  if (text.length <= 0) return;
+  state.suppressedChars += text.length;
+  state.suppressedChunks += 1;
+}
+
+/** One step while inside a block: swallow up to the close tag, then hand the remainder back to `stripText`. */
+function stripSuppressed(state: SuppressorState, matchers: SuppressorMatchers, current: string): string {
+  const close = matchers.closeRe.exec(current);
+  if (!close || close.index === undefined) {
+    const closeCandidateStart = possibleTagStart(current, matchers.isPossibleClose);
+    if (closeCandidateStart !== -1) {
+      state.candidate = current.slice(closeCandidateStart);
+      noteSuppressed(state, current.slice(0, closeCandidateStart));
+    } else {
+      noteSuppressed(state, current);
+    }
+    return '';
+  }
+  state.suppressing = false;
+  const end = close.index + close[0].length;
+  state.closedBlocks += 1;
+  noteSuppressed(state, current.slice(0, end));
+  return stripText(state, matchers, current.slice(end));
+}
+
+/** One step while visible: emit up to an open tag (then continue inside it) or hold back a possible tag start. */
+function stripVisible(state: SuppressorState, matchers: SuppressorMatchers, current: string): string {
+  const open = matchers.openRe.exec(current);
+  if (open && open.index !== undefined) {
+    state.suppressing = true;
+    state.openedBlocks += 1;
+    const prefix = current.slice(0, open.index);
+    const tail = current.slice(open.index + open[0].length);
+    noteSuppressed(state, open[0]);
+    return `${prefix}${stripText(state, matchers, tail)}`;
+  }
+
+  const candidateStart = possibleTagStart(current, matchers.isPossibleOpen);
+  if (candidateStart === -1) return current;
+
+  state.candidate = current.slice(candidateStart);
+  return current.slice(0, candidateStart);
+}
+
+function stripText(state: SuppressorState, matchers: SuppressorMatchers, text: string): string {
+  const current = `${state.candidate}${text}`;
+  state.candidate = '';
+  return state.suppressing ? stripSuppressed(state, matchers, current) : stripVisible(state, matchers, current);
+}
+
 /**
  * Builds a suppressor for a tagged block delimited by `openRe`/`closeRe`.
  * `isPossibleOpen`/`isPossibleClose` decide whether a trailing `<...`
@@ -57,85 +124,33 @@ export function createTaggedTextSuppressor(args: {
   isPossibleOpen: (required: { text: string }) => boolean;
   isPossibleClose: (required: { text: string }) => boolean;
 }, _optional: Record<string, never> = {}): ArtifactTextSuppressor {
-  let suppressing = false;
-  let candidate = '';
-  let suppressedChars = 0;
-  let suppressedChunks = 0;
-  let openedBlocks = 0;
-  let closedBlocks = 0;
+  const state: SuppressorState = {
+    suppressing: false,
+    candidate: '',
+    suppressedChars: 0,
+    suppressedChunks: 0,
+    openedBlocks: 0,
+    closedBlocks: 0,
+  };
 
-  function noteSuppressed(text: string): void {
-    if (text.length <= 0) return;
-    suppressedChars += text.length;
-    suppressedChunks += 1;
-  }
-
-  function strip({ text }: { text: string }): string {
-    const current = `${candidate}${text}`;
-    candidate = '';
-
-    if (suppressing) {
-      const close = args.closeRe.exec(current);
-      if (!close || close.index === undefined) {
-        const closeCandidateStart = possibleTagStart(current, args.isPossibleClose);
-        if (closeCandidateStart !== -1) {
-          candidate = current.slice(closeCandidateStart);
-          noteSuppressed(current.slice(0, closeCandidateStart));
-        } else {
-          noteSuppressed(current);
-        }
-        return '';
-      }
-      suppressing = false;
-      const end = close.index + close[0].length;
-      closedBlocks += 1;
-      noteSuppressed(current.slice(0, end));
-      return strip({ text: current.slice(end) });
-    }
-
-    const open = args.openRe.exec(current);
-    if (open && open.index !== undefined) {
-      suppressing = true;
-      openedBlocks += 1;
-      const prefix = current.slice(0, open.index);
-      const tail = current.slice(open.index + open[0].length);
-      noteSuppressed(open[0]);
-      return `${prefix}${strip({ text: tail })}`;
-    }
-
-    const candidateStart = possibleTagStart(current, args.isPossibleOpen);
-    if (candidateStart === -1) return current;
-
-    candidate = current.slice(candidateStart);
-    return current.slice(0, candidateStart);
-  }
-
-  function flush(): string {
-    const text = candidate;
-    candidate = '';
-    return suppressing ? '' : text;
-  }
-
-  function isSuppressing(): boolean {
-    return suppressing;
-  }
-
-  function hasPendingCandidate(): boolean {
-    return candidate.length > 0;
-  }
-
-  function stats(): ArtifactTextSuppressorStats {
-    return {
-      suppressedChars,
-      suppressedChunks,
-      openedBlocks,
-      closedBlocks,
-      pendingCandidateChars: candidate.length,
-      suppressing,
-    };
-  }
-
-  return { strip, flush, isSuppressing, hasPendingCandidate, stats };
+  return {
+    strip: ({ text }) => stripText(state, args, text),
+    flush: () => {
+      const text = state.candidate;
+      state.candidate = '';
+      return state.suppressing ? '' : text;
+    },
+    isSuppressing: () => state.suppressing,
+    hasPendingCandidate: () => state.candidate.length > 0,
+    stats: () => ({
+      suppressedChars: state.suppressedChars,
+      suppressedChunks: state.suppressedChunks,
+      openedBlocks: state.openedBlocks,
+      closedBlocks: state.closedBlocks,
+      pendingCandidateChars: state.candidate.length,
+      suppressing: state.suppressing,
+    }),
+  };
 }
 
 /** Feeds `text` through `suppressor` and emits a `text_delta` on `onEvent` only when something survives. Returns whether an event was emitted. */

@@ -340,19 +340,17 @@ function balancedObjectEnd({ s, start }: { s: string; start: number }): number {
   let depth = 0;
   let i = start;
   while (i < s.length) {
-    const c = s[i];
-    if (c === '"') {
-      const end = jsonStringEnd({ s, start: i });
-      if (end === -1) return -1;
-      i = end;
+    if (s[i] === '"') {
+      // Quoted token: advance past the whole literal; braces inside it never reach the accounting below.
+      i = jsonStringEnd({ s, start: i });
+      if (i === -1) return -1;
       continue;
     }
-    if (c === '{') depth += 1;
-    if (c === '}') {
-      depth -= 1;
-      if (depth === 0) return i + 1;
-    }
+    depth += BRACE_DELTA[s[i] as string] ?? 0;
+    if (s[i] === '}' && depth === 0) return i + 1;
     i += 1;
   }
   return -1;
 }
+
+const BRACE_DELTA: Record<string, number> = { '{': 1, '}': -1 };
