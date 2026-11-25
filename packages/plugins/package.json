@@ -36,7 +36,8 @@
       "./site/store/manifest": "universal",
       "./runtime/lower-tool-access": "universal",
       "./runtime/sdk-resolver": "node",
-      "./runtime/service-ports": "universal"
+      "./runtime/service-ports": "universal",
+      "./runtime/built-ins/word-count/count-words": "universal"
     },
     "isolation": {
       "forbidden": {
@@ -172,6 +173,11 @@
       "types": "./dist/runtime/service-ports.d.ts",
       "import": "./dist/runtime/service-ports.js",
       "default": "./dist/runtime/service-ports.js"
+    },
+    "./runtime/built-ins/word-count/count-words": {
+      "types": "./dist/runtime/built-ins/word-count/count-words.d.ts",
+      "import": "./dist/runtime/built-ins/word-count/count-words.js",
+      "default": "./dist/runtime/built-ins/word-count/count-words.js"
     }
   },
   "files": [
