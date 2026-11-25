@@ -163,6 +163,8 @@ function admissibleValue({ value, redaction, secrets }: { value: unknown; redact
   if (typeof value !== 'string' || !ATTRIBUTE_VALUE.test(value)) return false;
   // The shape check does not redact: `[\w.:/-]` still fits a bearer token. A value holding a known
   // exact secret, or one the redactor would change (a recognised token shape), is dropped whole.
+  // The redactor also blanks exact secrets; the explicit check states the rule without depending on
+  // how the redactor matches them.
   return !secrets.some(secret => value.includes(secret)) && redactSecrets({ input: value }, redaction) === value;
 }
 

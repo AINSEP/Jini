@@ -401,6 +401,12 @@ describe('incident attributes', () => {
     expect(built.reports[0]!.context.attributes).toEqual(kept);
   });
 
+  test('a value of a recognised token shape fits the label pattern but is dropped by the redactor check', () => {
+    const built = build();
+    built.reporter.record({ error: new Error('x'), step: STEP, operation: OPERATION }, { attributes: { 'auth.token': `ghp_${'A1b2C3d4E5'.repeat(4).slice(0, 36)}`, 'tool.id': 'site.export' } });
+    expect(built.reports[0]!.context.attributes).toEqual({ 'tool.id': 'site.export' });
+  });
+
   test('describe forwards admitted attributes too', () => {
     const built = build();
     built.reporter.describe({ error: new Error('x'), step: STEP, operation: OPERATION, tracker, scope: 'members', fallback }, { attributes: { 'tool.id': 'site.export' } });
