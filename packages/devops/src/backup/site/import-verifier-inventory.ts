@@ -229,7 +229,7 @@ function retainListedFile(required: { path: string; content: Buffer; files: Map<
   required.files.set(required.path, required.content);
 }
 
-async function readListedFile(required: { entry: FileEntry; inventory: ReadonlyMap<string, InventoryRecord>; remainingBytes: number; manifest?: ArchiveManifest; modified?: Set<string>; host: ImportInventoryHost }, optional: { signal?: AbortSignal; packageFiles?: PackageFileInventory; bundledImportPluginIds?: ReadonlySet<string> }): Promise<Buffer> {
+async function readListedFile(required: { entry: FileEntry; inventory: ReadonlyMap<string, InventoryRecord>; remainingBytes: number; manifest?: ArchiveManifest | undefined; modified?: Set<string> | undefined; host: ImportInventoryHost }, optional: { signal?: AbortSignal; packageFiles?: PackageFileInventory; bundledImportPluginIds?: ReadonlySet<string> }): Promise<Buffer> {
   const { entry } = required;
   const expected = required.inventory.get(entry.entryPath);
   if (!expected) refuseArchive({ message: "Unlisted ZIP file." });
@@ -242,7 +242,7 @@ async function readListedFile(required: { entry: FileEntry; inventory: ReadonlyM
 }
 
 /** Count decompressed bytes before retaining each chunk; metadata is never a memory budget. */
-async function readBounded(required: { entry: FileEntry; maxBytes: number; signal?: AbortSignal }): Promise<Buffer> {
+async function readBounded(required: { entry: FileEntry; maxBytes: number; signal?: AbortSignal | undefined }): Promise<Buffer> {
   const chunks: Buffer[] = [];
   let size = 0;
   for await (const chunk of required.entry.openReadStream({})) {

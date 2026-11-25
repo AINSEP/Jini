@@ -170,7 +170,7 @@ export async function buildShareZip(required: { plan: ShareZipPlan; zip: ZipFold
 }
 
 /** Preserve older callers' omission explanations without adding any rendered file or inventory row. */
-function staticCopyOmission({ copy }: { copy?: StaticSiteCopy }, _options = {}): string | undefined {
+function staticCopyOmission({ copy }: { copy?: StaticSiteCopy | undefined }, _options = {}): string | undefined {
   if (!copy) return undefined;
   if ("reason" in copy) return copy.reason;
   return undefined;
