@@ -702,7 +702,15 @@
       "./react/publish-content/criteria-publish-result": "universal",
       "./react/publish-content/PublishSectionButton": "browser",
       "./posts/revision-thinning": "universal",
-      "./admin-http/routes/posts/revision-thinning": "universal"
+      "./admin-http/routes/posts/revision-thinning": "universal",
+      "./react/fs-files/fs-files-api": "universal",
+      "./react/publish-content/publish-criteria-deep-link": "browser",
+      "./react/pages/hooks/page-editor-save": "universal",
+      "./react/publish-content/api/publish-content-api": "universal",
+      "./react/publish-content/hooks/publish-content-port.hooks": "universal",
+      "./react/media/MediaEditDialog/MediaEditDialog": "browser",
+      "./react/media/MediaPickerDialog/MediaPickerDialog": "browser",
+      "./react/media/MediaPickerDialog/MediaPickerDialog.hooks": "browser"
     },
     "isolation": {
       "domains": {
@@ -821,6 +829,24 @@
           "kysely",
           "parse5",
           "react"
+        ],
+        "./react/media/MediaEditDialog/MediaEditDialog": [
+          "node:",
+          "express",
+          "kysely",
+          "parse5"
+        ],
+        "./react/media/MediaPickerDialog/MediaPickerDialog": [
+          "node:",
+          "express",
+          "kysely",
+          "parse5"
+        ],
+        "./react/media/MediaPickerDialog/MediaPickerDialog.hooks": [
+          "node:",
+          "express",
+          "kysely",
+          "parse5"
         ]
       },
       "shared": [
@@ -1037,7 +1063,15 @@
         "./admin-http/routes/widgets/agent-tools-diagnose": "widgets",
         "./admin-http/routes/forms/pull-submissions": "forms",
         "./react/publish-content/criteria-publish-result": "publish",
-        "./react/publish-content/PublishSectionButton": "publish"
+        "./react/publish-content/PublishSectionButton": "publish",
+        "./react/fs-files/fs-files-api": "fs-files",
+        "./react/publish-content/publish-criteria-deep-link": "publish",
+        "./react/pages/hooks/page-editor-save": "pages",
+        "./react/publish-content/api/publish-content-api": "publish",
+        "./react/publish-content/hooks/publish-content-port.hooks": "publish",
+        "./react/media/MediaEditDialog/MediaEditDialog": "media",
+        "./react/media/MediaPickerDialog/MediaPickerDialog": "media",
+        "./react/media/MediaPickerDialog/MediaPickerDialog.hooks": "media"
       }
     },
     "optionalPeers": {
@@ -4505,6 +4539,46 @@
       "types": "./dist/admin-http/routes/posts/revision-thinning.d.ts",
       "import": "./dist/admin-http/routes/posts/revision-thinning.js",
       "default": "./dist/admin-http/routes/posts/revision-thinning.js"
+    },
+    "./react/fs-files/fs-files-api": {
+      "types": "./dist/react/fs-files/fs-files-api.d.ts",
+      "import": "./dist/react/fs-files/fs-files-api.js",
+      "default": "./dist/react/fs-files/fs-files-api.js"
+    },
+    "./react/publish-content/publish-criteria-deep-link": {
+      "types": "./dist/react/publish-content/publish-criteria-deep-link.d.ts",
+      "import": "./dist/react/publish-content/publish-criteria-deep-link.js",
+      "default": "./dist/react/publish-content/publish-criteria-deep-link.js"
+    },
+    "./react/pages/hooks/page-editor-save": {
+      "types": "./dist/react/pages/hooks/page-editor-save.d.ts",
+      "import": "./dist/react/pages/hooks/page-editor-save.js",
+      "default": "./dist/react/pages/hooks/page-editor-save.js"
+    },
+    "./react/publish-content/api/publish-content-api": {
+      "types": "./dist/react/publish-content/api/publish-content-api.d.ts",
+      "import": "./dist/react/publish-content/api/publish-content-api.js",
+      "default": "./dist/react/publish-content/api/publish-content-api.js"
+    },
+    "./react/publish-content/hooks/publish-content-port.hooks": {
+      "types": "./dist/react/publish-content/hooks/publish-content-port.hooks.d.ts",
+      "import": "./dist/react/publish-content/hooks/publish-content-port.hooks.js",
+      "default": "./dist/react/publish-content/hooks/publish-content-port.hooks.js"
+    },
+    "./react/media/MediaEditDialog/MediaEditDialog": {
+      "types": "./dist/react/media/MediaEditDialog/MediaEditDialog.d.ts",
+      "import": "./dist/react/media/MediaEditDialog/MediaEditDialog.js",
+      "default": "./dist/react/media/MediaEditDialog/MediaEditDialog.js"
+    },
+    "./react/media/MediaPickerDialog/MediaPickerDialog": {
+      "types": "./dist/react/media/MediaPickerDialog/MediaPickerDialog.d.ts",
+      "import": "./dist/react/media/MediaPickerDialog/MediaPickerDialog.js",
+      "default": "./dist/react/media/MediaPickerDialog/MediaPickerDialog.js"
+    },
+    "./react/media/MediaPickerDialog/MediaPickerDialog.hooks": {
+      "types": "./dist/react/media/MediaPickerDialog/MediaPickerDialog.hooks.d.ts",
+      "import": "./dist/react/media/MediaPickerDialog/MediaPickerDialog.hooks.js",
+      "default": "./dist/react/media/MediaPickerDialog/MediaPickerDialog.hooks.js"
     }
   },
   "files": [
