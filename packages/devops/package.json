@@ -87,6 +87,7 @@
       "./backup/site/import-index/sweep": "node",
       "./backup/site/react/ShowMoreImports": "browser",
       "./backup/site/import-index/backfill": "node",
+      "./backup/site/import-index/mode": "node",
       "./deploy/site/deploy-config-registry": "node"
     },
     "isolation": {
@@ -111,6 +112,11 @@
       "types": "./dist/backup/site/import-index/backfill.d.ts",
       "import": "./dist/backup/site/import-index/backfill.js",
       "default": "./dist/backup/site/import-index/backfill.js"
+    },
+    "./backup/site/import-index/mode": {
+      "types": "./dist/backup/site/import-index/mode.d.ts",
+      "import": "./dist/backup/site/import-index/mode.js",
+      "default": "./dist/backup/site/import-index/mode.js"
     },
     "./backup/site/react/ShowMoreImports": {
       "types": "./dist/backup/site/react/ShowMoreImports.d.ts",
