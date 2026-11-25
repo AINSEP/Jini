@@ -1,6 +1,6 @@
 /** The slice of the host's frontend-session bridge this binding drives (structural, not a library import). */
 export interface PageBindingBridge {
-  rebind(required: { signal?: AbortSignal }, optional?: Record<string, never>): Promise<unknown>;
+  rebind(required: { signal?: AbortSignal | undefined }, optional?: Record<string, never>): Promise<unknown>;
   bindToken(): string | null | undefined;
 }
 
