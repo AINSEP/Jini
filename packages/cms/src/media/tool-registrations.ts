@@ -115,6 +115,8 @@ export interface MediaToolDeps {
    * contract {@link resolvePublicUrls} and {@link recordUploadContentType} already established.
    */
   maxUploadBytes?: number | undefined;
+  /** Cap for `video/*` uploads when it differs from {@link maxUploadBytes}; forwarded to `uploadMedia` (see `upload-cap.ts`). */
+  maxVideoUploadBytes?: number | undefined;
   /** Optional video transcoder; when present, `media_convert_video` is registered (see convert-video-tool.ts). */
   videoConversion?: VideoConversionToolOptions | undefined;
 }
@@ -300,7 +302,7 @@ function mediaUploadHandlers(routeDeps: MediaToolDeps): Record<string, ToolHandl
             credit: typeof input.credit === "string" ? input.credit : undefined,
             createdByPrincipal: ctx.principal.id,
           },
-        }, { maxUploadBytes: routeDeps.maxUploadBytes });
+        }, { maxUploadBytes: routeDeps.maxUploadBytes, maxVideoUploadBytes: routeDeps.maxVideoUploadBytes });
         if (routeDeps.recordUploadContentType) {
           try {
             await routeDeps.recordUploadContentType({ media, bytes });
@@ -371,7 +373,7 @@ function mediaTrashHandlers(routeDeps: MediaToolDeps): Record<string, ToolHandle
   };
 }
 
-export function buildMediaRegistrations(required: Omit<MediaToolDeps, "resolvePublicUrls" | "recordUploadContentType" | "maxUploadBytes" | "listContentTypes" | "videoConversion">, optional: Pick<MediaToolDeps, "resolvePublicUrls" | "recordUploadContentType" | "maxUploadBytes" | "listContentTypes" | "videoConversion"> = {}): ToolRegistration[] {
+export function buildMediaRegistrations(required: Omit<MediaToolDeps, "resolvePublicUrls" | "recordUploadContentType" | "maxUploadBytes" | "maxVideoUploadBytes" | "listContentTypes" | "videoConversion">, optional: Pick<MediaToolDeps, "resolvePublicUrls" | "recordUploadContentType" | "maxUploadBytes" | "maxVideoUploadBytes" | "listContentTypes" | "videoConversion"> = {}): ToolRegistration[] {
   const routeDeps: MediaToolDeps = {
     authorize: required.authorize,
     workspaceId: required.workspaceId,

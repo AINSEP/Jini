@@ -1411,6 +1411,17 @@ describe('POST /api/attachments', () => {
     });
   });
 
+  it('lets maxAttachmentBytesFor raise the streaming cap for one file name while every other name keeps maxAttachmentBytes', async () => {
+    const { url } = await harness({ maxAttachmentBytes: 4, maxAttachmentBytesFor: ({ name }: { name: string }) => (name.endsWith('.mp4') ? 20 : 4) });
+
+    const video = await upload(url, { batch: 'batch-upload-for-1', name: 'clip.mp4', body: 'ten bytes!' });
+    const other = await upload(url, { batch: 'batch-upload-for-2', name: 'big.bin', body: 'ten bytes!' });
+
+    expect(video.status).toBe(201);
+    expect(other.status).toBe(413);
+    expect(await other.json()).toMatchObject({ error: { message: 'Each attachment must be 4 bytes or smaller' } });
+  });
+
   it('rejects an upload past a store quota with 413 and its real message', async () => {
     const { store } = await diskStore({ maxAttachments: 1 });
     const { url } = await harness({ store });

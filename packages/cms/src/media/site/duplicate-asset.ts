@@ -64,9 +64,14 @@ export type DeriveDuplicateName = (required: { sourceName: string }, options: {
 }) => Promise<string>;
 
 /** Required args for {@link contributeMediaDuplicateHandlers}. */
-export interface ContributeMediaDuplicateHandlersArgs {
+export interface ContributeMediaDuplicateHandlersArgs extends DuplicateCaps {
   deriveDuplicateName: DeriveDuplicateName;
 }
+
+/** The two caps the copy's re-upload is checked against. Omitted: the 50 MiB general cap, and video
+ *  follows it — so a host that never sets a video cap sees no change. The re-upload goes through
+ *  `uploadMedia`, which picks between the two by the file's sniffed type. */
+type DuplicateCaps = { maxUploadBytes?: number | undefined; maxVideoUploadBytes?: number | undefined };
 
 /**
  * Resolves the content type to re-upload the copy under.
@@ -154,8 +159,8 @@ async function applyCopiedMetadata(
   return media;
 }
 
-async function uploadDuplicateMedia({ routeDeps, source, bytes, contentType, input }: {
-  routeDeps: MediaToolDeps & MediaPublicUrlDeps; source: MediaRecord; bytes: Uint8Array; contentType: string; input: DuplicateMediaInput;
+async function uploadDuplicateMedia({ routeDeps, source, bytes, contentType, input, caps }: {
+  routeDeps: MediaToolDeps & MediaPublicUrlDeps; source: MediaRecord; bytes: Uint8Array; contentType: string; input: DuplicateMediaInput; caps: DuplicateCaps;
 }): Promise<MediaRecord> {
   // Dedups by (workspaceId, sha256) inside the sha256 lock: the copy REFERENCES the source's bytes
   // rather than duplicating them, and a tombstoned blob is resurrected rather than left to be
@@ -186,7 +191,7 @@ async function uploadDuplicateMedia({ routeDeps, source, bytes, contentType, inp
       credit: source.credit,
       createdByPrincipal: input.principalId,
     },
-  }, { maxUploadBytes: MAX_UPLOAD_BYTES });
+  }, { maxUploadBytes: caps.maxUploadBytes ?? MAX_UPLOAD_BYTES, maxVideoUploadBytes: caps.maxVideoUploadBytes });
 
   return created;
 }
@@ -215,7 +220,7 @@ async function uploadDuplicateMedia({ routeDeps, source, bytes, contentType, inp
  * @complexity O(1) repo/store calls plus one full read of the source's bytes.
  */
 export async function duplicateMediaAsset(
-  { routeDeps, deriveDuplicateName, ...input }: { routeDeps: MediaToolDeps & MediaPublicUrlDeps; deriveDuplicateName: DeriveDuplicateName } & DuplicateMediaInput,
+  { routeDeps, deriveDuplicateName, maxUploadBytes, maxVideoUploadBytes, ...input }: { routeDeps: MediaToolDeps & MediaPublicUrlDeps; deriveDuplicateName: DeriveDuplicateName } & DuplicateCaps & DuplicateMediaInput,
   _optional: Record<string, never> = {},
 ): Promise<Record<string, unknown>> {
   // Rejected rather than ignored, mirroring the `"form"` resource: `content_duplicate`'s `status`
@@ -254,7 +259,7 @@ export async function duplicateMediaAsset(
   // twice is a drift risk this avoids.
   const title = await resolveDuplicateTitle({ routeDeps, deriveDuplicateName, source, overrideTitle: input.overrides.title });
 
-  const created = await uploadDuplicateMedia({ routeDeps, source, bytes, contentType, input });
+  const created = await uploadDuplicateMedia({ routeDeps, source, bytes, contentType, input, caps: { maxUploadBytes, maxVideoUploadBytes } });
 
   // Keyed by sha256, not by asset id, so for a source whose type was already recorded this is a
   // no-op rewrite of the same value. It is called anyway, and deliberately: an asset predating the
@@ -286,7 +291,7 @@ export async function duplicateMediaAsset(
  * data and imports only the registry's TYPE.
  */
 export function contributeMediaDuplicateHandlers(
-  { deriveDuplicateName }: ContributeMediaDuplicateHandlersArgs,
+  { deriveDuplicateName, maxUploadBytes, maxVideoUploadBytes }: ContributeMediaDuplicateHandlersArgs,
   _optional: Record<string, never> = {},
 ): DuplicateResourceHandlerContributor<MediaToolDeps & MediaPublicUrlDeps>[] {
   return [
@@ -294,7 +299,7 @@ export function contributeMediaDuplicateHandlers(
       resource: "media",
       build: (routeDeps, _optional = {}) => ({
         permission: "media.upload",
-        duplicate: (input, _optional = {}) => duplicateMediaAsset({ routeDeps: routeDeps as unknown as MediaToolDeps & MediaPublicUrlDeps, deriveDuplicateName, ...input }),
+        duplicate: (input, _optional = {}) => duplicateMediaAsset({ routeDeps: routeDeps as unknown as MediaToolDeps & MediaPublicUrlDeps, deriveDuplicateName, maxUploadBytes, maxVideoUploadBytes, ...input }),
       }),
     },
   ];

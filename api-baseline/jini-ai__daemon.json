@@ -382,7 +382,7 @@
    "AttachmentRejectedError": "class:655ea09607",
    "AttachmentRejectionReason": "type:345eae530a",
    "AttachmentUploadResponse": "interface:46f860aff2",
-   "AttachmentsHttpDeps": "interface:f896bc9437",
+   "AttachmentsHttpDeps": "interface:fdcfd83d8c",
    "AttachmentsInternalErrorContext": "interface:99fa5dddac",
    "AuthCredentials": "interface:d9a8934315",
    "AuthProvider": "interface:eba7004e2b",

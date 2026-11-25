@@ -222,6 +222,29 @@ describe('createDaemonAttachmentUploader', () => {
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
+  it('picks the per-file cap from the injected maxAttachmentBytesFor, so a video may exceed the cap an image gets', async () => {
+    const fetchMock = vi.fn().mockImplementation(() => jsonResponse({ attachment: uploadedFile }, 201));
+    globalThis.fetch = fetchMock;
+    const MB = 1024 * 1024;
+    const upload = createDaemonAttachmentUploader({ baseUrl: '', fetch: (...args) => globalThis.fetch(...args) }, {
+      maxAttachmentBytes: 50 * MB,
+      maxAttachmentBytesFor: (file) => (file.type.startsWith('video/') ? 500 * MB : 50 * MB),
+      maxBatchBytes: 600 * MB,
+    });
+    const sized = (name: string, type: string, bytes: number) => {
+      const file = new File(['x'], name, { type });
+      Object.defineProperty(file, 'size', { value: bytes });
+      return file;
+    };
+
+    await expect(upload([sized('clip.mp4', 'video/mp4', 60 * MB)], signalOptions('video-ok'))).resolves.toHaveLength(1);
+    await expect(upload([sized('photo.png', 'image/png', 60 * MB)], signalOptions('image-over')))
+      .rejects.toThrow('That file is 60 MB; the limit is 50 MB.');
+    await expect(upload([sized('big.mp4', 'video/mp4', 501 * MB)], signalOptions('video-over')))
+      .rejects.toThrow('That file is 501 MB; the limit is 500 MB.');
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
   it('counts uploads already staged for the same turn against the per-turn quota', async () => {
     globalThis.fetch = vi.fn().mockImplementation(() => jsonResponse({ attachment: uploadedFile }, 201));
     const upload = createDaemonAttachmentUploader({ baseUrl: '' , fetch: (...args) => globalThis.fetch(...args) }, { maxAttachmentCount: 2 });
