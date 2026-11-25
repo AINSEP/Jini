@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent, type RefObject } from "react";
 import { flushSync } from "react-dom";
-import type { ChatPaneComposerHandle, ComposerDiscoveryGroup } from "../../../../react/kit.js";
-import { rankComposerDiscoveryGroups } from "../../../../screens/plugins/composer-capabilities.js";
-import type { SelectedComposerSkill } from "../../../../screens/plugins/selected-skills.js";
+import type { ChatPaneComposerHandle, ComposerDiscoveryGroup } from "../../react/kit.js";
+import { rankComposerDiscoveryGroups } from "./composer-capabilities.js";
+import type { SelectedComposerSkill } from "./selected-skills.js";
 
 /** Uses the existing plugin tray and the same sticky-until-removed context behavior. */
 export function useSelectedSkills() {

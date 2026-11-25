@@ -1,9 +1,9 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { resolveComposerDiscoveryOutcome as resolveWithDeps, type ResolveComposerDiscoveryOutcomeDeps } from "../hooks/resolve-composer-discovery-outcome.js";
-import { projectComposerCapabilities } from "../../../../screens/plugins/composer-capabilities.js";
-import type { ComposerHostBinding, ComposerCapability as TovuComposerCapability } from "../../../../screens/plugins/composer-capabilities.js";
-import type { ComposerDiscoverySelection } from "../../../../react/kit.js";
+import { resolveComposerDiscoveryOutcome as resolveWithDeps, type ResolveComposerDiscoveryOutcomeDeps } from "../resolve-composer-discovery-outcome.js";
+import { projectComposerCapabilities } from "../composer-capabilities.js";
+import type { ComposerHostBinding, ComposerCapability as TovuComposerCapability } from "../composer-capabilities.js";
+import type { ComposerDiscoverySelection } from "../../../react/kit.js";
 
 /**
  * @file Direct, DI-only coverage for `resolveComposerDiscoveryOutcome` — debate 2's ("Composer

@@ -12,8 +12,10 @@ export interface DockLeadingAccessoryProps {
   readonly folderDrop: { readonly notice: FolderDropNoticeProps["notice"]; readonly dismiss: () => void; readonly retry: () => void };
   /** Whether the composer's folder button is showing, so the paste hint can point at it. */
   readonly canPickFolder?: boolean;
-  /** A browser tab's folder dialog is open on the computer running Tovu (`folderWindowOpenElsewhere`). */
+  /** A browser tab's folder dialog is open on the computer running the host (`folderWindowOpenElsewhere`). */
   readonly folderWindowOpenElsewhere?: boolean;
+  /** The host's chat-dictionary key for the folder-window note (its text names the host product). */
+  readonly folderWindowNoteKey: string;
   /** The pinned Agent Plugin chips and their remove action. */
   readonly pluginChips: SelectedAgentPluginTrayProps["chips"];
   readonly onRemovePlugin: SelectedAgentPluginTrayProps["onRemove"];
@@ -40,7 +42,7 @@ export interface DockLeadingAccessoryProps {
  * @returns A fragment of the parts that currently apply; each tray renders nothing when empty.
  * @complexity O(n) in the number of chips.
  */
-export function DockLeadingAccessory({ note, warning, folderDrop, canPickFolder = false, folderWindowOpenElsewhere = false, pluginChips, onRemovePlugin, skills, skillOnlySend }: DockLeadingAccessoryProps) {
+export function DockLeadingAccessory({ note, warning, folderDrop, canPickFolder = false, folderWindowOpenElsewhere = false, folderWindowNoteKey, pluginChips, onRemovePlugin, skills, skillOnlySend }: DockLeadingAccessoryProps) {
   return (
     <>
       {note && <p className="assistant-agent-auth-warning" role="status">{note}</p>}
@@ -51,7 +53,7 @@ export function DockLeadingAccessory({ note, warning, folderDrop, canPickFolder 
       ) : null}
       {/* In this in-flow row, not beside the footer's folder button: floated there it covered the
           text area (owner bug 11-01). Cleared when a folder is picked or the dialog is cancelled. */}
-      {folderWindowOpenElsewhere ? <FolderWindowNote /> : null}
+      {folderWindowOpenElsewhere ? <FolderWindowNote noteKey={folderWindowNoteKey} /> : null}
       <FolderDropNotice notice={folderDrop.notice} onDismiss={folderDrop.dismiss} onRetry={folderDrop.retry} canPickFolder={canPickFolder} />
       <SelectedAgentPluginTray useTHook={useChatT} chips={pluginChips} onRemove={onRemovePlugin} />
       <SelectedAgentPluginTray useTHook={useChatT} chips={skills.chips} onRemove={skills.removeSkill} {...(skillOnlySend.canSendSkills ? { onSendSkills: skillOnlySend.sendSkills } : {})} />
@@ -59,15 +61,14 @@ export function DockLeadingAccessory({ note, warning, folderDrop, canPickFolder 
   );
 }
 
-/** The one-line "Folder window opened on the computer running Tovu" status, styled like the folder-drop notices. */
-function FolderWindowNote({
-  useTHook = useChatT }: {
-  useTHook?: typeof useChatT; } = {}) {
+/** The one-line "folder window opened on the computer running the host" status, styled like the folder-drop notices. */
+function FolderWindowNote({ noteKey, useTHook = useChatT }: {
+  noteKey: string; useTHook?: typeof useChatT; }) {
   const t = useTHook();
   return (
-    <div className="jini-folder-drop-notice tovu-folder-window-note" role="status">
+    <div className="jini-folder-drop-notice jini-folder-window-note" role="status">
       <span className="jini-folder-drop-notice__icon" aria-hidden="true"><Icon name="folder" size={14} /></span>
-      <span className="jini-folder-drop-notice__label">{t("Folder window opened on the computer running Tovu")}</span>
+      <span className="jini-folder-drop-notice__label">{t(noteKey)}</span>
     </div>
   );
 }

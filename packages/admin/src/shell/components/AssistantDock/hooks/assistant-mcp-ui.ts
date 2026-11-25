@@ -1,8 +1,8 @@
 
 /**
  * Builds the MCP-UI sandbox proxy's iframe URL as a same-document `data:` URL, in place of a route
- * served from this admin app's own origin (`GET /mcp-ui/sandbox-proxy.html`, `apps/website`'s
- * `mcp-ui-sandbox-proxy-route.ts`). `@mcp-ui/client`'s `AppFrame` hardcodes `sandbox="allow-scripts
+ * served from this admin app's own origin (`GET /mcp-ui/sandbox-proxy.html`, the host's
+ * sandbox-proxy route). `@mcp-ui/client`'s `AppFrame` hardcodes `sandbox="allow-scripts
  * allow-same-origin allow-forms"` on the iframe it creates — not configurable away by this app or by
  * `@jini-ai/ui` — so a same-origin route means any third-party MCP server's HTML, once
  * `document.write`-n into that iframe by the proxy script, gets this admin origin's cookies, storage,

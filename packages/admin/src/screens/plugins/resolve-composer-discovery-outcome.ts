@@ -1,6 +1,6 @@
-import type { ComposerDiscoveryOutcome, ComposerDiscoverySelection } from "../../../../react/kit.js";
-import type { ComposerCapabilityProjection, ComposerHostBinding } from "../../../../screens/plugins/composer-capabilities.js";
-import { draftAfterSkillSelection, type SelectedComposerSkill } from "../../../../screens/plugins/selected-skills.js";
+import type { ComposerDiscoveryOutcome, ComposerDiscoverySelection } from "../../react/kit.js";
+import type { ComposerCapabilityProjection, ComposerHostBinding } from "./composer-capabilities.js";
+import { draftAfterSkillSelection, type SelectedComposerSkill } from "./selected-skills.js";
 
 export interface ResolveComposerDiscoveryOutcomeDeps {
   readonly capabilities: ComposerCapabilityProjection;

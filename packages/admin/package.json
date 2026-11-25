@@ -390,9 +390,9 @@
       "./shell/components/AssistantDock/FolderDropPathHint": "browser",
       "./shell/components/AssistantDock/FolderPathButton": "browser",
       "./shell/components/AssistantDock/dock-header-rules": "browser",
-      "./shell/components/AssistantDock/hooks/resolve-composer-discovery-outcome": "browser",
+      "./screens/plugins/resolve-composer-discovery-outcome": "browser",
       "./shell/components/AssistantDock/hooks/assistant-mcp-ui": "universal",
-      "./shell/components/AssistantDock/hooks/composer-skills.hooks": "browser",
+      "./screens/plugins/composer-skills.hooks": "browser",
       "./shell/components/AssistantDock/assistant-runtime-preferences": "universal",
       "./shell/components/AssistantDock/chat-display-preferences": "universal",
       "./shell/components/AssistantDock/FolderDropNotice": "browser",
@@ -715,7 +715,9 @@
         "src/browser/shell-navigation.ts",
         "src/browser/navigation.ts",
         "src/shell/components/AssistantDock/chat-agent-plugin-preferences.ts",
-        "src/media/html-attributes.ts"
+        "src/media/html-attributes.ts",
+        "src/screens/plugins/composer-capabilities.ts",
+        "src/screens/plugins/selected-skills.ts"
       ],
       "forbidden": {
         "universal": [
@@ -897,9 +899,9 @@
         "./shell/components/AssistantDock/FolderDropPathHint": "browser",
         "./shell/components/AssistantDock/FolderPathButton": "browser",
         "./shell/components/AssistantDock/dock-header-rules": "browser",
-        "./shell/components/AssistantDock/hooks/resolve-composer-discovery-outcome": "browser",
+        "./screens/plugins/resolve-composer-discovery-outcome": "browser",
         "./shell/components/AssistantDock/hooks/assistant-mcp-ui": "universal",
-        "./shell/components/AssistantDock/hooks/composer-skills.hooks": "browser",
+        "./screens/plugins/composer-skills.hooks": "browser",
         "./shell/components/AssistantDock/assistant-runtime-preferences": "universal",
         "./shell/components/AssistantDock/chat-display-preferences": "universal",
         "./shell/components/AssistantDock/FolderDropNotice": "browser",
@@ -2847,20 +2849,20 @@
       "import": "./dist/shell/components/AssistantDock/dock-header-rules.js",
       "default": "./dist/shell/components/AssistantDock/dock-header-rules.js"
     },
-    "./shell/components/AssistantDock/hooks/resolve-composer-discovery-outcome": {
-      "types": "./dist/shell/components/AssistantDock/hooks/resolve-composer-discovery-outcome.d.ts",
-      "import": "./dist/shell/components/AssistantDock/hooks/resolve-composer-discovery-outcome.js",
-      "default": "./dist/shell/components/AssistantDock/hooks/resolve-composer-discovery-outcome.js"
+    "./screens/plugins/resolve-composer-discovery-outcome": {
+      "types": "./dist/screens/plugins/resolve-composer-discovery-outcome.d.ts",
+      "import": "./dist/screens/plugins/resolve-composer-discovery-outcome.js",
+      "default": "./dist/screens/plugins/resolve-composer-discovery-outcome.js"
     },
     "./shell/components/AssistantDock/hooks/assistant-mcp-ui": {
       "types": "./dist/shell/components/AssistantDock/hooks/assistant-mcp-ui.d.ts",
       "import": "./dist/shell/components/AssistantDock/hooks/assistant-mcp-ui.js",
       "default": "./dist/shell/components/AssistantDock/hooks/assistant-mcp-ui.js"
     },
-    "./shell/components/AssistantDock/hooks/composer-skills.hooks": {
-      "types": "./dist/shell/components/AssistantDock/hooks/composer-skills.hooks.d.ts",
-      "import": "./dist/shell/components/AssistantDock/hooks/composer-skills.hooks.js",
-      "default": "./dist/shell/components/AssistantDock/hooks/composer-skills.hooks.js"
+    "./screens/plugins/composer-skills.hooks": {
+      "types": "./dist/screens/plugins/composer-skills.hooks.d.ts",
+      "import": "./dist/screens/plugins/composer-skills.hooks.js",
+      "default": "./dist/screens/plugins/composer-skills.hooks.js"
     },
     "./shell/components/AssistantDock/assistant-runtime-preferences": {
       "types": "./dist/shell/components/AssistantDock/assistant-runtime-preferences.d.ts",
