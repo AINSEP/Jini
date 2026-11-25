@@ -37,19 +37,20 @@ export function makeRootStore(initial: Record<string, string> = {}) {
   return { readCustomRoot, writeCustomRoot, writes, vanish: (workspaceId: string) => vanished.add(workspaceId) };
 }
 
-/** One recorded authorization: the permission, the entity type and, for by-id routes, the entity id. */
-export type RecordedAuthorize = { permission: string; entityType: string; entityId?: string };
+/** One recorded authorization, exactly as the spec asked: the permission and any other key it sent. */
+export type RecordedAuthorize = { permission: string; entityType?: string; entityId?: string };
 
 /** A recording `authorize`; `denied` permissions throw, as the host port's 403 refusal would. */
 export function recordingAuthorize(denied: readonly string[] = []): {
-  authorize: (r: { permission: string; entityType: string }, o?: { entityId?: string }) => Promise<void>; calls: RecordedAuthorize[];
+  authorize: (r: { permission: string; entityType?: string }, o?: { entityId?: string }) => Promise<void>; calls: RecordedAuthorize[];
 } {
   const calls: RecordedAuthorize[] = [];
   return {
     calls,
-    authorize: async ({ permission, entityType }, optional = {}) => {
-      calls.push({ permission, entityType, ...optional });
-      if (denied.includes(permission)) throw new Error(`denied ${permission}`);
+    // Records the args object as sent (spread, not destructured), so a key the spec adds shows up.
+    authorize: async (args, optional = {}) => {
+      calls.push({ ...args, ...optional });
+      if (denied.includes(args.permission)) throw new Error(`denied ${args.permission}`);
     },
   };
 }
