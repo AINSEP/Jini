@@ -99,8 +99,8 @@ function savedProviderMessage({ provider, tokenHint, locale, host }: {
  */
 export async function saveMediaCredential(required: { ctx: ToolExecutionContext; deps: MediaProviderToolDeps; surfaces: AssistantSurfaceDeps;
   host: {
-    getMediaProviderCredentials: (required: { repo: MediaProviderCredentialRepoPort }, optional: { workspaceId: string }) => Promise<Record<string, { apiKeyConfigured: boolean }>>;
-    saveProviders: (required: { deps: { repo: Pick<MediaProviderCredentialRepoPort, 'replaceWorkspace' | 'vault'>; sealer: SecretSealerPort; keyring: KeyringPort; clock: Clock; providerCatalog: MediaProviderListing }; workspaceId: string }, optional: { providers: Record<string, { apiKey: string }> }) => Promise<Record<string, { apiKeyConfigured: boolean; apiKeyHint?: CredentialTokenHint | null }>>;
+    getMediaProviderCredentials: (required: { repo: MediaProviderCredentialRepoPort }, optional: { workspaceId: string }) => Promise<Record<string, { apiKeyConfigured?: boolean | undefined }>>;
+    saveProviders: (required: { deps: { repo: Pick<MediaProviderCredentialRepoPort, 'replaceWorkspace' | 'vault'>; sealer: SecretSealerPort; keyring: KeyringPort; clock: Clock; providerCatalog: MediaProviderListing }; workspaceId: string }, optional: { providers: Record<string, { apiKey: string }> }) => Promise<Record<string, { apiKeyConfigured?: boolean | undefined; apiKeyHint?: CredentialTokenHint | null | undefined }>>;
     assertCredentialFreeField: (required: { value: string; field: string }) => void;
     credentialText: (required: { id: 'saved' | 'blank' | 'generationUnavailable'; locale: string }) => string;
     formatCredentialHint: (required: { hint: CredentialTokenHint | null | undefined; locale: string }) => string;

@@ -13,7 +13,7 @@ import type { MediaProviderCredentialRepoPort } from '../site/provider-credentia
  */
 export async function saveMediaProviderKey<D extends { repo: Pick<MediaProviderCredentialRepoPort, 'replaceWorkspace' | 'vault'> }>(input: {
   deps: D; workspaceId: string; provider: string; apiKey: string;
-  saveProviders: (required: { deps: D; workspaceId: string }, optional: { providers: Record<string, { apiKey: string }> }) => Promise<Record<string, { apiKeyConfigured: boolean; apiKeyHint?: CredentialTokenHint | null }>>;
+  saveProviders: (required: { deps: D; workspaceId: string }, optional: { providers: Record<string, { apiKey: string }> }) => Promise<Record<string, { apiKeyConfigured?: boolean | undefined; apiKeyHint?: CredentialTokenHint | null | undefined }>>;
 }, _optional = {}): Promise<{ configured: boolean; tokenHint: CredentialTokenHint | null }> {
   const { deps, workspaceId, provider, apiKey, saveProviders } = input;
   // Only `replaceWorkspace`: the store's save writes through nothing else.
