@@ -1,5 +1,5 @@
 import { fakeLatencyDelay } from '../../utils/fake-latency.js';
-import type { MediaProvidersPort } from './ports.js';
+import type { MediaProviderRowsPort, MediaProvidersPort } from './ports.js';
 import type { MediaProviderMap } from './types.js';
 
 export interface FakeMediaProvidersPortOptions {
@@ -44,6 +44,39 @@ export function createFakeMediaProvidersPort(options: FakeMediaProvidersPortOpti
       if (options.saveError) return delayedRejection(options.saveError);
       providers = { ...next };
       return delay({ value: { ...providers } });
+    },
+  };
+}
+
+/**
+ * The per-provider twin of {@link createFakeMediaProvidersPort}, with the same options: a patch
+ * merges into one entry and a removal drops one entry, so a test can prove another provider was
+ * left alone. `saveError` rejects both writes without persisting.
+ */
+export function createFakeMediaProviderRowsPort(options: FakeMediaProvidersPortOptions = {}): MediaProviderRowsPort {
+  let providers: MediaProviderMap = { ...(options.providers ?? {}) };
+  const latencyMs = options.latencyMs ?? 0;
+  const delay = fakeLatencyDelay({}, { latencyMs });
+  const write = (apply: () => void): Promise<MediaProviderMap> => {
+    if (options.saveError) return Promise.reject(new Error(options.saveError));
+    apply();
+    return delay({ value: { ...providers } });
+  };
+
+  return {
+    fetchMediaProviders() {
+      if (options.unreachable) return delay({ value: null });
+      return delay({ value: { ...providers } });
+    },
+    patchProvider({ providerId, fields }) {
+      return write(() => {
+        providers = { ...providers, [providerId]: { ...providers[providerId], ...fields } };
+      });
+    },
+    removeProvider({ providerId }) {
+      return write(() => {
+        providers = Object.fromEntries(Object.entries(providers).filter(([id]) => id !== providerId));
+      });
     },
   };
 }

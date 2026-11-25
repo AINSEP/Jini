@@ -193,8 +193,8 @@ export {
   shouldSyncLocalProvidersToDaemon,
   sortProvidersByConfigured,
 } from './features/media-providers/rules.js';
-export type { MediaProvidersPort } from './features/media-providers/ports.js';
-export { createFakeMediaProvidersPort } from './features/media-providers/dependencies.js';
+export type { AnyMediaProvidersPort, MediaProviderFields, MediaProviderRowsPort, MediaProvidersPort } from './features/media-providers/ports.js';
+export { createFakeMediaProviderRowsPort, createFakeMediaProvidersPort } from './features/media-providers/dependencies.js';
 export type { FakeMediaProvidersPortOptions } from './features/media-providers/dependencies.js';
 export { DEFAULT_MEDIA_PROVIDER_CATALOG } from './features/media-providers/constants.js';
 

@@ -1,7 +1,7 @@
 import { agentHandleProps, buildAgentListHandles } from '@jini-ai/core/agent-handles';
 import { useT } from '../../../i18n/index.js';
 import { Icon } from '../../../../react/components/Icon.js';
-import type { MediaProviderCatalogPolicy, MediaProvidersPort } from '../../ports.js';
+import type { AnyMediaProvidersPort, MediaProviderCatalogPolicy } from '../../ports.js';
 import { invalidBaseUrlProviderIds, sortProvidersByConfigured } from '../../rules.js';
 import type { MediaProviderMap, MediaProviderOption, MediaProvidersSaveState } from '../../types.js';
 import { useMediaProvidersTab } from '../hooks/useMediaProvidersTab.js';
@@ -41,7 +41,8 @@ export interface MediaProvidersTabLabels {
 }
 
 export interface MediaProvidersTabProps {
-  port: MediaProvidersPort;
+  /** A whole-map `MediaProvidersPort` or a per-provider `MediaProviderRowsPort`. */
+  port: AnyMediaProvidersPort;
   /** Host-owned provider catalog and its matching identity policy. */
   catalog: readonly MediaProviderOption[];
   catalogPolicy: MediaProviderCatalogPolicy;

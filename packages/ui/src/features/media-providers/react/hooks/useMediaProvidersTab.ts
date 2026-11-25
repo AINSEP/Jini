@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import type { MediaProviderCatalogPolicy, MediaProvidersPort } from '../../ports.js';
+import type { AnyMediaProvidersPort, MediaProviderCatalogPolicy, MediaProviderFields } from '../../ports.js';
 import {
   hasAnyConfiguredProvider,
+  hasRecoverableFields,
   isEntryEmpty,
   mergeDaemonProviders,
   shouldSyncLocalProvidersToDaemon,
@@ -21,7 +22,8 @@ import type {
 export type MediaProviderEditPatch = Pick<MediaProviderCredentials, 'apiKey' | 'baseUrl' | 'model'>;
 
 export interface UseMediaProvidersTabOptions {
-  port: MediaProvidersPort;
+  /** A whole-map `MediaProvidersPort`, or a per-provider `MediaProviderRowsPort` (see `sendProviders`). */
+  port: AnyMediaProvidersPort;
   /** Identity rules shared by catalog rows, local edits and daemon responses. Stable while mounted. */
   catalogPolicy: MediaProviderCatalogPolicy;
   /** Host-persisted local edits from before this tab mounted (e.g. the
@@ -92,6 +94,44 @@ function overlayTouchedProviders({
     else saved[providerId] = entry;
   }
   return saved;
+}
+
+/** The operator-editable fields of one entry, without server markers; an absent field is left out, so the host keeps it. */
+function editableFields({ entry }: { entry: MediaProviderCredentials }): MediaProviderFields {
+  return {
+    ...(entry.apiKey === undefined ? {} : { apiKey: entry.apiKey }),
+    ...(entry.baseUrl === undefined ? {} : { baseUrl: entry.baseUrl }),
+    ...(entry.model === undefined ? {} : { model: entry.model }),
+  };
+}
+
+/**
+ * Sends one write's worth of changes and resolves the server's resulting map. A whole-map port gets
+ * the send-time map, as it always has. A per-provider port gets one call per changed provider:
+ * a removal for each clear this write carries, and a patch for each pending provider that still
+ * has an entry.
+ *
+ * A provider missing from the local map is NOT removed unless the operator cleared it. Map omission
+ * is not evidence of intent to delete: an edit can empty an entry that was never saved, and a map
+ * read before another window's save simply never contained that provider. Only an explicit Clear
+ * says "delete this one", so only a clear becomes `removeProvider`.
+ */
+async function sendProviders({ port, sent, clears, pending }: {
+  port: AnyMediaProvidersPort;
+  sent: MediaProviderMap;
+  clears: readonly string[];
+  pending: readonly string[];
+}): Promise<MediaProviderMap> {
+  // A whole-map port has no `patchProvider`; `in` narrows the union to the per-provider shape.
+  if (!('patchProvider' in port)) return port.saveMediaProviders(sent);
+  let saved: MediaProviderMap | undefined;
+  for (const providerId of clears) saved = await port.removeProvider({ providerId });
+  for (const providerId of pending) {
+    const entry = sent[providerId];
+    if (entry !== undefined) saved = await port.patchProvider({ providerId, fields: editableFields({ entry }) });
+  }
+  // Nothing changed: the local map is already what the server holds for this write.
+  return saved ?? sent;
 }
 
 /** A save rejection as display text; a non-`Error` rejection is stringified rather than read as `.message`. */
@@ -223,7 +263,7 @@ export function useMediaProvidersTab({ port, catalogPolicy, initialProviders }: 
     // request never told the server about it.
     const clearsInFlight = [...clearedProviderIds.current].filter((providerId) => sent[providerId] === undefined);
     try {
-      const saved = await portRef.current.saveMediaProviders(sent);
+      const saved = await sendProviders({ port: portRef.current, sent, clears: clearsInFlight, pending: [...pendingRef.current] });
       if (!alive.current) return { status: 'abandoned' };
       const touched = mutatedSinceSend.current;
       releaseAcknowledgedClears({ cleared: clearedProviderIds.current, clearsInFlight, touched });
@@ -323,11 +363,17 @@ export function useMediaProvidersTab({ port, catalogPolicy, initialProviders }: 
         applyProviders(merged);
         setLoad({ status: 'ok' });
         if (migrateOnFirstUpload && shouldSyncLocalProvidersToDaemon({ localProviders: localBeforeMerge, daemonProviders: daemonResult })) {
+          // A per-provider port uploads only pending providers, so the migration marks the ones with
+          // something to upload; a whole-map port sends the entire map regardless.
+          if ('patchProvider' in portRef.current) {
+            const uploadable = Object.keys(merged).filter((providerId) => hasRecoverableFields({ entry: merged[providerId] }));
+            applyPending(new Set([...pendingRef.current, ...uploadable]));
+          }
           void persist();
         }
       });
     },
-    [persist, applyProviders, normalizeMediaProviderMap],
+    [persist, applyProviders, applyPending, normalizeMediaProviderMap],
   );
 
   useEffect(() => {

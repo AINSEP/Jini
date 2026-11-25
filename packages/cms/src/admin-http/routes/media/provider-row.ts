@@ -27,7 +27,6 @@ export interface MediaProviderRowErrorDeps {
 /** Longest provider id accepted; ids are catalog slugs, so anything longer is not one. */
 const MAX_PROVIDER_ID_LENGTH = 200;
 // A control character in an id would only ever be a forged path segment; it never names a provider.
-// eslint-disable-next-line no-control-regex -- rejecting control characters is the point.
 const CONTROL_CHARACTER = /[\u0000-\u001f\u007f]/;
 
 /** The `:providerId` path segment; Express always fills it, the `?? ""` mirrors the host's own guard. @complexity O(1). */

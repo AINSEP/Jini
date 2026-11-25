@@ -2,7 +2,7 @@ import { identityCatalogPolicy as catalogPolicy } from '../../catalog-policy.fix
 import { renderHook, waitFor } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 import { createFakeMediaProvidersPort } from '../../../dependencies.js';
-import type { MediaProvidersPort } from '../../../ports.js';
+import type { MediaProviderRowsPort, MediaProvidersPort } from '../../../ports.js';
 import type { MediaProviderMap } from '../../../types.js';
 import { useMediaProvidersTab } from '../../../react/hooks/useMediaProvidersTab.js';
 
@@ -563,5 +563,74 @@ describe('useMediaProvidersTab — edits made while a write is in flight', () =>
     // Still unflushed — it was never in the map that was sent.
     expect(result.current.pendingProviderIds.has('b')).toBe(true);
     expect(result.current.pendingProviderIds.has('a')).toBe(false);
+  });
+});
+
+describe('useMediaProvidersTab — per-provider port', () => {
+  /** A per-provider host double that records every operation and keeps the "server" copy it would answer from. */
+  function recordingRowsPort({ seed }: { seed: MediaProviderMap }) {
+    let stored: MediaProviderMap = { ...seed };
+    const calls: unknown[] = [];
+    const port: MediaProviderRowsPort = {
+      fetchMediaProviders: async () => ({ ...stored }),
+      patchProvider: async ({ providerId, fields }) => {
+        calls.push(['patch', providerId, fields]);
+        stored = { ...stored, [providerId]: { ...stored[providerId], ...fields } };
+        return { ...stored };
+      },
+      removeProvider: async ({ providerId }) => {
+        calls.push(['remove', providerId]);
+        stored = Object.fromEntries(Object.entries(stored).filter(([id]) => id !== providerId));
+        return { ...stored };
+      },
+    };
+    return { port, calls, stored: () => stored };
+  }
+
+  it("saving or removing one provider calls only that provider's operation", async () => {
+    const { port, calls, stored } = recordingRowsPort({
+      seed: { a: { apiKeyConfigured: true, apiKeyTail: '1111' }, b: { apiKeyConfigured: true, apiKeyTail: '2222', model: 'm-b' } },
+    });
+    const { result } = renderHook(() => useMediaProvidersTab({ catalogPolicy, port }));
+    await waitFor(() => expect(result.current.load).toEqual({ status: 'ok' }));
+
+    result.current.updateProvider('a', { apiKey: 'test-token-a' });
+    await waitFor(() => expect(result.current.pendingProviderIds.has('a')).toBe(true));
+    result.current.saveChanges();
+    await waitFor(() => expect(result.current.save).toEqual({ status: 'saved' }));
+    // Only the edited provider's editable fields: no markers, and nothing for `b`.
+    expect(calls).toEqual([['patch', 'a', { apiKey: 'test-token-a' }]]);
+    expect(result.current.pendingProviderIds.size).toBe(0);
+
+    result.current.clearProvider('b');
+    await waitFor(() => expect(calls).toHaveLength(2));
+    await waitFor(() => expect(result.current.save).toEqual({ status: 'saved' }));
+    expect(calls[1]).toEqual(['remove', 'b']);
+    expect(Object.keys(stored())).toEqual(['a']);
+    expect(result.current.providers.b).toBeUndefined();
+  });
+
+  it('an edit that empties a provider is not sent as a deletion', async () => {
+    const seed: MediaProviderMap = { a: { apiKeyConfigured: true, apiKeyTail: '1111' } };
+    const { port, calls, stored } = recordingRowsPort({ seed });
+    const { result } = renderHook(() => useMediaProvidersTab({ catalogPolicy, port }));
+    await waitFor(() => expect(result.current.load).toEqual({ status: 'ok' }));
+
+    result.current.updateProvider('c', { apiKey: 'test-token-c' });
+    result.current.updateProvider('c', { apiKey: '' });
+    await waitFor(() => expect(result.current.providers.c).toBeUndefined());
+    result.current.saveChanges();
+    await waitFor(() => expect(result.current.save).toEqual({ status: 'saved' }));
+    expect(calls).toEqual([]);
+    expect(stored()).toEqual(seed);
+  });
+
+  it('migrates local-only providers to an empty daemon one provider at a time', async () => {
+    const { port, calls } = recordingRowsPort({ seed: {} });
+    const initialProviders: MediaProviderMap = { a: { apiKey: 'test-token-a', model: 'm-a' }, b: { apiKeyConfigured: true } };
+    const { result } = renderHook(() => useMediaProvidersTab({ catalogPolicy, port, initialProviders }));
+
+    await waitFor(() => expect(result.current.save).toEqual({ status: 'saved' }));
+    expect(calls).toEqual([['patch', 'a', { apiKey: 'test-token-a', model: 'm-a' }]]);
   });
 });

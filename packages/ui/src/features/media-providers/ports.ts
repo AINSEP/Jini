@@ -1,7 +1,7 @@
 /** Catalog policy is UI-owned; the shared contract lives once in core. */
 export type { MediaProviderCatalogPolicy } from '@jini-ai/core';
 
-import type { MediaProviderMap } from './types.js';
+import type { MediaProviderCredentials, MediaProviderMap } from './types.js';
 
 /**
  * The daemon-side transport this tab needs: reading the server's current
@@ -46,10 +46,35 @@ export interface MediaProvidersPort {
    * build each payload when it is sent rather than when it is queued
    * (`useMediaProvidersTab`'s `persist`/`flushNow` is the reference).
    *
-   * Adding an expected-revision parameter would let the host reject staleness
-   * outright, but this port is host-implemented, so that is a breaking change
-   * and deliberately not taken; caller-side serialization closes the same race
-   * without one.
+   * Serialization only orders THIS tab's writes. A whole map from a tab opened
+   * earlier still omits a key another window saved since, and omission deletes.
+   * A host keeps this shape only if it can make the write conditional on what
+   * the tab last read (its last-read revision) and refuse a stale one; otherwise
+   * it implements {@link MediaProviderRowsPort} instead, which never needs one.
    */
   saveMediaProviders(providers: MediaProviderMap): Promise<MediaProviderMap>;
 }
+
+/** The operator-editable fields of one provider; server markers never travel back. An omitted `apiKey` keeps the stored key. */
+export type MediaProviderFields = Pick<MediaProviderCredentials, 'apiKey' | 'baseUrl' | 'model'>;
+
+/**
+ * The per-provider alternative to {@link MediaProvidersPort}: the same read, and one write per
+ * provider instead of a whole-map replace. A save sends only the provider that changed and a
+ * removal names the provider it removes, so another window's write to a different provider can
+ * never be undone by this tab, and deletion is never inferred from a provider's absence.
+ *
+ * Both writes REJECT on failure and resolve the server's authoritative map afterward (markers only),
+ * like `saveMediaProviders`. `useMediaProvidersTab` still issues one write at a time.
+ */
+export interface MediaProviderRowsPort {
+  /** Same contract as {@link MediaProvidersPort.fetchMediaProviders}, including `null` for unreachable. */
+  fetchMediaProviders(): Promise<MediaProviderMap | null>;
+  /** Merges `fields` into one provider's stored credentials; no other provider is touched. */
+  patchProvider(required: { providerId: string; fields: MediaProviderFields }, optional?: Record<string, never>): Promise<MediaProviderMap>;
+  /** Deletes exactly one provider's stored credentials. */
+  removeProvider(required: { providerId: string }, optional?: Record<string, never>): Promise<MediaProviderMap>;
+}
+
+/** Either transport the media-providers tab can drive. */
+export type AnyMediaProvidersPort = MediaProvidersPort | MediaProviderRowsPort;
