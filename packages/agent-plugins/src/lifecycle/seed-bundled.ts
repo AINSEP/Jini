@@ -178,6 +178,21 @@ export interface SeedBundledAgentPluginsRequired {
 // its ledger entry exist by now, and the retirement only has to decide whether to switch it on.
 // A successor whose seed FAILED has neither; `retire-bundled.ts` then keeps the retired plugin
 // rather than remove it in favour of a switch with no code behind it (its header, step 1a).
+/**
+ * Runs the layout migration that must precede seeding: the host's hook when it supplies one, else
+ * the default persistent-state migration. A caller already holding the workspace migration lock
+ * passes its ownership so the nested migration runs under it instead of reacquiring the lock.
+ * @complexity O(1) here; the migration itself is O(installed plugins).
+ */
+function migrateBeforeSeeding(
+  { ports, layout, workspaceId }: { ports: AgentPluginLifecyclePorts; layout: SeedBundledAgentPluginsRequired["layout"]; workspaceId: string },
+  held: { ownership?: WorkspaceMigrationOwnership } = {},
+) {
+  return ports.migrateBeforeSeed
+    ? ports.migrateBeforeSeed({ layout, workspaceId }, held)
+    : createPersistentStateModule(ports).migrate({ workspaceRoot: layout.forWorkspace({ workspaceId }).root }, held);
+}
+
 async function seedBundledAgentPlugins({ ports, required }: {
   ports: AgentPluginLifecyclePorts;
   required: SeedBundledAgentPluginsRequired;
@@ -186,10 +201,7 @@ async function seedBundledAgentPlugins({ ports, required }: {
 
   const pluginDirNames = await listBundledPluginDirs({ ports, sourceRoot });
   try {
-    const held = optional.ownership ? { ownership: optional.ownership } : {};
-    const migration = ports.migrateBeforeSeed
-      ? await ports.migrateBeforeSeed({ layout, workspaceId }, held)
-      : await createPersistentStateModule(ports).migrate({ workspaceRoot: layout.forWorkspace({ workspaceId }).root }, held);
+    const migration = await migrateBeforeSeeding({ ports, layout, workspaceId }, optional.ownership ? { ownership: optional.ownership } : {});
     if (!migration.complete) throw new Error('Legacy plugin layout migration has unfinished filesystem moves; see boot log');
   } catch (error) {
     const reason = describeSeedFailure({ err: error });
