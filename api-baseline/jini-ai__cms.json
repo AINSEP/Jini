@@ -4935,6 +4935,7 @@
    "PublicPostRecord": "interface:8aac675001",
    "ROOT_SLUG": "variable:526b751ce1",
    "SYSTEM_ACTOR_ID": "variable:13b1c1438d",
+   "SYSTEM_MUTATION_ACTOR": "variable:d7ba1c2b34",
    "isPublicPost": "function:d2fc128da8"
   }
  },
@@ -5041,9 +5042,10 @@
    "appendPostRevision": "function:34bbb536c9",
    "assertExpectedVersion": "function:7da642f971",
    "classifyStatusTransition": "function:8e4174ba48",
-   "emitPublicTransitionEvent": "function:2faadabb2a",
-   "enqueueContentWrite": "function:6a8b410162",
+   "emitPublicTransitionEvent": "function:38fff33aab",
+   "enqueueContentWrite": "function:9b7e5b551f",
    "persistUpdatedPost": "function:1c307415de",
+   "postEventActor": "function:89dc250cd5",
    "versionConflictMessage": "function:3f9014e3ae"
   }
  },
