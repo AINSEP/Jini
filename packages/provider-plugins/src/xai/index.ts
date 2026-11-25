@@ -12,7 +12,7 @@ export function createXaiRoutesProvider(_required: Readonly<Record<string, unkno
 export default {
   definition: {
     setup(sdk: PluginSdk): void {
-      sdk.providers.register({ contract: 'xai-routes', id: 'xai', contractVersion: 1, factory: createXaiRoutesProvider });
+      sdk.providers.register({ contract: 'xai_routes', id: 'xai', contractVersion: 1, factory: createXaiRoutesProvider });
     },
   },
 };

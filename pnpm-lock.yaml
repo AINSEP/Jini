@@ -1240,13 +1240,6 @@ importers:
         version: 3.2.7(vitest@3.2.7(@types/debug@4.1.13)(@types/node@24.13.3)(jiti@2.7.0)(jsdom@26.1.0)(lightningcss@1.33.0)(sass@1.51.0)(tsx@4.23.1)(yaml@2.9.0))
 
   packages/provider-plugins:
-    dependencies:
-      '@jini-ai/core':
-        specifier: workspace:^
-        version: link:../core
-      '@jini-ai/protocol':
-        specifier: workspace:^
-        version: link:../protocol
     devDependencies:
       '@jini-ai/agent-runtime':
         specifier: workspace:^
@@ -1266,12 +1259,18 @@ importers:
       '@jini-ai/cookie-consent':
         specifier: workspace:^
         version: link:../cookie-consent
+      '@jini-ai/core':
+        specifier: workspace:^
+        version: link:../core
       '@jini-ai/diagnostics':
         specifier: workspace:^
         version: link:../diagnostics
       '@jini-ai/plugins':
         specifier: workspace:^
         version: link:../plugins
+      '@jini-ai/protocol':
+        specifier: workspace:^
+        version: link:../protocol
       '@jini-ai/ui':
         specifier: workspace:^
         version: link:../ui

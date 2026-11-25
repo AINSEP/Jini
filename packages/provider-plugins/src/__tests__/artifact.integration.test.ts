@@ -69,6 +69,7 @@ const SPECS: Record<string, ServerSpec | BrowserSpec> = {
     probe: port => (port as { read(required: Record<string, never>): unknown }).read({}) },
   'formspree': { contract: 'form_collection', id: 'formspree', validate: port => typeof (port as { plan?: unknown })?.plan === 'function', input: () => ({}) },
   'google-forms': { contract: 'form_collection', id: 'google_forms', validate: port => typeof (port as { plan?: unknown })?.plan === 'function', input: () => ({}) },
+  'xai': { contract: 'xai_routes', id: 'xai', validate: port => typeof (port as { routes?: unknown })?.routes === 'function', input: () => ({}) },
   'payments-stripe': { contract: 'payments', id: 'stripe', validate: port => paymentsProviderContract.validate({ provider: port }) === undefined,
     input: () => ({}), context: paymentsProviderContract.context,
     standaloneOptions: '{ context: { paymentError: required => required, moneyProblem: () => null } }' },

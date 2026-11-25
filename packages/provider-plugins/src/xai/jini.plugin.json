@@ -10,7 +10,7 @@
     "open-marketing": { "id": "jini/xai" }
   },
   "capabilities": ["providers.register"],
-  "contributes": { "providers": [{ "contract": "xai-routes", "id": "xai", "contractVersion": 1 }] },
+  "contributes": { "providers": [{ "contract": "xai_routes", "id": "xai", "contractVersion": 1 }] },
   "hooks": [],
   "fields": [],
   "integrity": {}
