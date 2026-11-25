@@ -31,6 +31,8 @@ function makeDeps() {
     mediaRepo: new InMemoryVersionedMediaRepo({}),
     assetBlobRepo: new InMemoryAssetBlobRepo({}),
     blobStore: new InMemoryBlobStore(),
+    // Single-process characterization: the fence itself is covered by blob-fence-writers.test.ts.
+    blobFence: { claimWrite: async <T>({ work }: { work: (claim: { existing: null }) => Promise<T> }) => work({ existing: null }) },
     clock: { nowIso: () => "2026-09-18T00:00:00.000Z" },
     idGen: { newId: () => `generated-${++n}` },
     sha256: { isValidSha256Hex, bytesMatchSha256 },

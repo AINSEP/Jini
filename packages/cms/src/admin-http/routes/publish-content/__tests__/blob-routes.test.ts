@@ -86,7 +86,7 @@ describe("blobGetRoute", () => {
 
 function putDeps() {
   const writes: unknown[] = [];
-  const deps: BlobPutRouteDeps = { workspaceId: WS, maxUploadBytes: MAX_DOCUMENT_BYTES, blobStore: { putIfAbsent: async (input) => { writes.push(input); return { written: writes.length === 1 } as never; } } };
+  const deps: BlobPutRouteDeps = { workspaceId: WS, maxUploadBytes: MAX_DOCUMENT_BYTES, blobFence: { claimWrite: async ({ work }) => work({ existing: null }) }, blobStore: { putIfAbsent: async (input) => { writes.push(input); return { written: writes.length === 1 } as never; } } };
   return { deps, writes };
 }
 const putInput = (body: unknown, sha = SHA) => ({ claimedSha256: sha, rawBody: body });

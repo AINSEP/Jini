@@ -2,6 +2,8 @@
 import { MediaConflictError, MediaSourceImmutableError, resolveWriteOnceSource, replaceMediaFile, MediaValidationError, sniffContentType, MAX_DOCUMENT_BYTES as HOST_MAX_UPLOAD_BYTES } from "../index.js";
 import type { AssetBlobRecord, AssetBlobRepoPort, BlobStorePort, MediaRecord, VersionedMediaRepoPort } from "../index.js";
 import type { OutwardErrorMessage } from "../../admin-http/http/outward-error-message.js";
+import type { BlobGc } from "../blob-gc-fence.js";
+import { computeBlobStorageKey } from "../blob-key.js";
 
 /** The reviewed source a replace-on-import may overwrite (publish-content's precheck refusal carries it). */
 interface MediaSourceReplacement {
@@ -79,6 +81,8 @@ export interface ImportMediaEntityDeps {
   readonly mediaRepo: VersionedMediaRepoPort;
   readonly assetBlobRepo: AssetBlobRepoPort;
   readonly blobStore: BlobStorePort;
+  /** The cross-process blob fence (`createBlobGc(...)`); every byte write goes through `claimWrite`. */
+  readonly blobFence: Pick<BlobGc, "claimWrite">;
   readonly clock: { nowIso(): string };
   /** Consulted ONLY for a brand-new `asset_blobs` row's own `id` — never for the media row's id,
    *  which always comes from {@link ImportMediaEntityInput.record} verbatim (this file's whole
@@ -322,20 +326,26 @@ async function ensureAssetBlob(
   _options = {}
 ): Promise<boolean> {
   const { workspaceId, record } = input;
-  const existingBlob = await deps.assetBlobRepo.findByHash({ workspaceId, sha256: record.source.sha256 });
-  if (existingBlob) return false;
-  const { storageKey } = await deps.blobStore.putIfAbsent({ workspaceId, sha256: record.source.sha256, bytes });
-  const newBlob: AssetBlobRecord = {
-    id: deps.idGen.newId(),
-    workspaceId,
-    sha256: record.source.sha256,
-    storageKey,
-    createdByPrincipal: input.blobCreatedByPrincipal,
-    createdAt: deps.clock.nowIso(),
-    status: "active",
-  };
-  await deps.assetBlobRepo.save(newBlob);
-  return true;
+  const sha256 = record.source.sha256;
+  const fenceKey = computeBlobStorageKey({ workspaceId, sha256 });
+  // Find-then-put runs inside the blob fence: an unlinker in any process waits, and a tombstone is
+  // resurrected under the fence instead of being trusted as "existing" bytes a later GC may unlink.
+  return deps.blobFence.claimWrite({ workspaceId, storageKey: fenceKey, sha256, kind: "import", work: async ({ existing }) => {
+    // Content-addressed and idempotent: re-putting repairs bytes a foreign writer may have lost.
+    const { storageKey } = await deps.blobStore.putIfAbsent({ workspaceId, sha256, bytes });
+    if (existing) return false;
+    const newBlob: AssetBlobRecord = {
+      id: deps.idGen.newId(),
+      workspaceId,
+      sha256,
+      storageKey,
+      createdByPrincipal: input.blobCreatedByPrincipal,
+      createdAt: deps.clock.nowIso(),
+      status: "active",
+    };
+    await deps.assetBlobRepo.save(newBlob);
+    return true;
+  } });
 }
 
 /** The destination row: the SOURCE record under its own id, with destination-local bookkeeping. */
