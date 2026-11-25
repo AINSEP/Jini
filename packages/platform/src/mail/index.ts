@@ -25,7 +25,7 @@ export type { SenderDomainVerificationDeps } from "./sender-domain-verification.
 export { createMailPolicyWrapper } from "./delivery-wrapper.js";
 export type { MailPolicyWrapperDeps, MailPolicyWrapperOptions, MailPolicyWrapperInput } from "./delivery-wrapper.js";
 export { createResolvedMailer } from "./resolve-mailer.js";
-export type { ResolveMailerDeps, ResolveMailerOptions, ResolvedMailer } from "./resolve-mailer.js";
+export type { ResolveMailerDeps, ResolveMailerOptions, ResolvedMailer, CreatedResolvedMailer } from "./resolve-mailer.js";
 export { createTtlCache, MAIL_STATUS_TTL_MS } from "./mail-status-cache.js";
 export type { TtlCache } from "./mail-status-cache.js";
 export * from "./senders.js";

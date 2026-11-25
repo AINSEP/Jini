@@ -86,6 +86,9 @@ export interface ResolvedMailer {
   domainRequirements: (required: { workspaceId: string }) => Promise<DomainRequirement | null>;
 }
 
+/** What `createResolvedMailer` returns: the resolver always supplies the optional `effectiveProviderId`. */
+export type CreatedResolvedMailer = ResolvedMailer & Required<Pick<ResolvedMailer, "effectiveProviderId">>;
+
 type ResolvedEntry = { mailer: MailerPort; label?: string; fingerprint: string };
 type RecordError = (error: Omit<MailProviderError, "at">) => void;
 type CredentialLookup = { credential: MailAdapterCredential; reason?: undefined } | { credential?: undefined; reason: string };
@@ -427,7 +430,7 @@ function invalidate(state: ResolverState): void {
  * @complexity O(providers) cached mailers/flights; status holds one report for its TTL.
  * @example const control = createResolvedMailer(hostPorts, { clock }); await control.ready;
  */
-export function createResolvedMailer<TRecord extends MailCredentialFact = MailCredentialFact>(required: ResolveMailerDeps<TRecord>, optional: ResolveMailerOptions = {}): ResolvedMailer {
+export function createResolvedMailer<TRecord extends MailCredentialFact = MailCredentialFact>(required: ResolveMailerDeps<TRecord>, optional: ResolveMailerOptions = {}): CreatedResolvedMailer {
   const state: ResolverState = { deps: required, options: optional, nowMs: () => (optional.clock ?? { nowMs: () => Date.now() }).nowMs(),
     warn: optional.warn ?? (message => createConsoleLogger({ prefix: '' }).warn({ message })),
     wrap: optional.wrapProviderMailer ?? (({ mailer }) => mailer), consoleFallbacks: new WeakSet(), resolved: new Map(), inFlight: new Map(), warned: new Set(), generation: 0,
