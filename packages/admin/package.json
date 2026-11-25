@@ -721,7 +721,8 @@
       "./screens/library/library-i18n/library-i18n-data": "universal",
       "./screens/voice-input/hooks/mic-capture": "browser",
       "./screens/settings/rules": "universal",
-      "./screens/media/rules": "universal"
+      "./screens/media/rules": "universal",
+      "./shell/components/SecretInput/SecretInput": "browser"
     },
     "isolation": {
       "shared": [
@@ -1001,7 +1002,8 @@
         "./screens/email/hooks/use-email-template-view.hooks": "browser",
         "./screens/media/hooks/use-media-card-metadata.hooks": "media",
         "./screens/settings/rules": "universal",
-        "./screens/media/rules": "universal"
+        "./screens/media/rules": "universal",
+        "./shell/components/SecretInput/SecretInput": "browser"
       }
     },
     "optionalPeers": {
@@ -4486,6 +4488,11 @@
       "types": "./dist/screens/media/rules.d.ts",
       "import": "./dist/screens/media/rules.js",
       "default": "./dist/screens/media/rules.js"
+    },
+    "./shell/components/SecretInput/SecretInput": {
+      "types": "./dist/shell/components/SecretInput/SecretInput.d.ts",
+      "import": "./dist/shell/components/SecretInput/SecretInput.js",
+      "default": "./dist/shell/components/SecretInput/SecretInput.js"
     }
   },
   "files": [

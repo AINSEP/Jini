@@ -19,6 +19,7 @@ const formsKit: AdminKit = {
   components: {
     ...nativeKit, ConfirmDialog,
     InfoTip: ({ label }) => <span title={label} />,
+    SecretInput: () => { throw new Error('Forms tests do not supply SecretInput'); },
     Lightbox: () => { throw new Error('Forms tests do not supply Lightbox'); },
     WidgetSelect: () => { throw new Error('Forms tests do not supply WidgetSelect'); },
     TabBar: () => { throw new Error('Forms tests do not supply TabBar'); },
