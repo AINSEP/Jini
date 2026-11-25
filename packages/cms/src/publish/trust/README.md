@@ -6,6 +6,11 @@ Architecture ADR: `ADS-memory/reports/jini-port/extraction-plan.md`.
 
 ## Wiring
 
+`session.ts` (`@jini-ai/cms/publish/trust/session`, runtime `node`: it uses `node:crypto`).
+
+- **Needs injected**: a `KeyringPort` (`@jini-ai/core/contracts/vault`; only `derive` is called, under its own `publish-trust-session-key` purpose), the destination `workspaceId`, and a `clock`.
+- **Provides**: `mintPublishSession`, `verifyPublishSession` (never throws; MAC compared constant-time before the payload is parsed, then expiry, audience, workspace), `SESSION_TTL_MS`.
+
 `keys.ts` (`@jini-ai/cms/publish/trust/keys`, runtime `node`: it uses `node:crypto`).
 
 - **Needs injected**: a `KeyringPort` (`@jini-ai/core/contracts/vault`). Only `derive` is called; the keyring must bind `purpose`, workspace and `info` into the HKDF input so the two derivations stay domain-separated.

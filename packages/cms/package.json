@@ -520,6 +520,7 @@
       "./publish/trust/provisioning-status": "universal",
       "./publish/trust/provisioning.node-io": "node",
       "./publish/trust/revocations": "universal",
+      "./publish/trust/session": "node",
       "./trash/site/directory-rollback-log": "universal",
       "./trash/permanent/agent-tools": "universal",
       "./publish/content/run-repo": "universal",
@@ -3555,6 +3556,11 @@
       "types": "./dist/publish/trust/revocations.d.ts",
       "import": "./dist/publish/trust/revocations.js",
       "default": "./dist/publish/trust/revocations.js"
+    },
+    "./publish/trust/session": {
+      "types": "./dist/publish/trust/session.d.ts",
+      "import": "./dist/publish/trust/session.js",
+      "default": "./dist/publish/trust/session.js"
     },
     "./trash/site/directory-rollback-log": {
       "types": "./dist/trash/site/directory-rollback-log.d.ts",

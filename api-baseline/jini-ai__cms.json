@@ -6187,6 +6187,16 @@
    "parseRevocationDocument": "function:0b9d2ce5fb"
   }
  },
+ "./publish/trust/session": {
+  "types": "./dist/publish/trust/session.d.ts",
+  "symbols": {
+   "PublishSessionPayload": "interface:4de405cf0b",
+   "PublishSessionVerification": "type:c5e4b69d1d",
+   "SESSION_TTL_MS": "variable:672694cfee",
+   "mintPublishSession": "function:41864bf657",
+   "verifyPublishSession": "function:465abfd4df"
+  }
+ },
  "./react/media": {
   "types": "./dist/react/media/index.d.ts",
   "symbols": {
