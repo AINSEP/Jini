@@ -1,3 +1,4 @@
+import { assertVersionedWrite } from "@jini-ai/core/optimistic-concurrency";
 import { nowIso as kernelNowIso } from "@jini-ai/core/primitives";
 import { createTransactionalInMemoryIdentityRepos } from "../repo.memory-transactions.js";
 import { NodeSessionTokens } from "../session-tokens.js";
@@ -77,10 +78,10 @@ async function buildSeededDeps(): Promise<{
 }> {
   const repos: IdentityRepos = createTransactionalInMemoryIdentityRepos({ repos: {
     principals: new InMemoryPrincipalRepo({}),
-    users: new InMemoryUserRepo({}),
+    users: new InMemoryUserRepo({ assertVersionedWrite }),
     sessions: new InMemorySessionRepo({}),
-    roles: new InMemoryRoleRepo({}),
-    policies: new InMemoryPolicyRepo({}),
+    roles: new InMemoryRoleRepo({ assertVersionedWrite }),
+    policies: new InMemoryPolicyRepo({ assertVersionedWrite }),
     policyPermissions: new InMemoryPolicyPermissionRepo({}),
     rolePolicies: new InMemoryRolePolicyRepo({}),
     principalRoles: new InMemoryPrincipalRoleRepo({}),
@@ -399,7 +400,7 @@ test("UPDATE_USER: owner can edit its own email and preserves its username, pass
   assert.ok(before);
   const rolesBefore = await repos.principalRoles.listByPrincipalId({ workspaceId: WORKSPACE, principalId: ownerPrincipalId });
   const { user } = await updateUser({ deps, input: { workspaceId: WORKSPACE, callerPrincipalId: ownerPrincipalId, principalId: ownerPrincipalId } }, { email: "new-owner@example.com" });
-  assert.deepEqual(user, { ...before, email: "new-owner@example.com" });
+  assert.deepEqual(user, { ...before, email: "new-owner@example.com", version: (before?.version ?? 0) + 1 });
   assert.deepEqual(await repos.principalRoles.listByPrincipalId({ workspaceId: WORKSPACE, principalId: ownerPrincipalId }), rolesBefore);
 });
 
@@ -424,7 +425,7 @@ test("UPDATE_USER: member.manage keeps its existing self-profile edit without ch
   const rolesBefore = await repos.principalRoles.listByPrincipalId({ workspaceId: WORKSPACE, principalId: manager.id });
   const policiesBefore = await repos.principalPolicies.listByPrincipalId({ workspaceId: WORKSPACE, principalId: manager.id });
   const { user } = await updateUser({ deps, input: { workspaceId: WORKSPACE, callerPrincipalId: manager.id, principalId: manager.id } }, { email: "self@example.com" });
-  assert.deepEqual(user, { ...before, email: "self@example.com" });
+  assert.deepEqual(user, { ...before, email: "self@example.com", version: (before?.version ?? 0) + 1 });
   assert.deepEqual(await repos.principalRoles.listByPrincipalId({ workspaceId: WORKSPACE, principalId: manager.id }), rolesBefore);
   assert.deepEqual(await repos.principalPolicies.listByPrincipalId({ workspaceId: WORKSPACE, principalId: manager.id }), policiesBefore);
 });
@@ -891,7 +892,7 @@ test("AC-31/AC-26: DELETE_POLICY refuses a built-in target and (via WRITE_POLICY
 
   // Simulate a frozen (issuance-snapshot) policy directly via the repo (ISSUE_API_KEY is out of
   // this amendment's scope) to certify the guard checks is_frozen too, not only is_builtin.
-  await repos.policies.save({
+  await repos.policies.save({ version: 1,
     id: "frozen-policy-1",
     workspaceId: WORKSPACE,
     name: "frozen",
@@ -954,7 +955,7 @@ test("AC-26: WRITE_POLICY_PERMISSION refuses a built-in and a frozen policy targ
     IdentityValidationError
   );
 
-  await repos.policies.save({ id: "frozen-policy-2", workspaceId: WORKSPACE, name: "frozen2", isBuiltin: false, isFrozen: true });
+  await repos.policies.save({ version: 1, id: "frozen-policy-2", workspaceId: WORKSPACE, name: "frozen2", isBuiltin: false, isFrozen: true });
   await assert.rejects(
     () =>
       writePolicyPermission({
@@ -1111,7 +1112,7 @@ test("REMOVE_POLICY_PERMISSION refuses a permission id belonging to a DIFFERENT 
 
 test("INV-06: REMOVE_POLICY_PERMISSION refuses a built-in or frozen parent policy", async () => {
   const { deps, repos, ownerPrincipalId } = await buildSeededDeps();
-  await repos.policies.save({
+  await repos.policies.save({ version: 1,
     id: "frozen-policy-remove",
     workspaceId: WORKSPACE,
     name: "frozen",

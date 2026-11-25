@@ -30,7 +30,7 @@ async function addUser(h: TraceHarness, options: { status?: PrincipalStatus; wit
       createdAt: "2026-01-01T00:00:00.000Z",
     });
   }
-  await h.repos.users.save({ principalId: "p-1", workspaceId: WORKSPACE, username: "ed", passwordHash: "hash:pw" });
+  await h.repos.users.save({ version: 1, principalId: "p-1", workspaceId: WORKSPACE, username: "ed", passwordHash: "hash:pw" });
   h.calls.length = 0;
 }
 

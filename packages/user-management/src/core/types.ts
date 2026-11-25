@@ -64,6 +64,8 @@ export interface UserRecord {
   /** argon2id hash; the raw password is never stored. See docs/decisions/DR-001-identity-and-session-boundary.md. */
   passwordHash: string;
   lastLoginAt?: ISODateTime | undefined;
+  /** Edit basis for optimistic concurrency: 1 on create, +1 on each versioned save. Never a credential. */
+  version: number;
 }
 
 /**
@@ -91,6 +93,8 @@ export interface RoleRecord {
   workspaceId: UUID;
   name: string;
   isBuiltin: boolean;
+  /** Edit basis for optimistic concurrency: 1 on create, +1 on each versioned save. Never a credential. */
+  version: number;
 }
 
 /**
@@ -107,6 +111,8 @@ export interface PolicyRecord {
   description?: string | undefined;
   isBuiltin: boolean;
   isFrozen: boolean;
+  /** Edit basis for optimistic concurrency: 1 on create, +1 on each versioned save. Never a credential. */
+  version: number;
 }
 
 /**

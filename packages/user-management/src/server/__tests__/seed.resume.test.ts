@@ -1,3 +1,4 @@
+import { assertVersionedWrite } from "@jini-ai/core/optimistic-concurrency";
 import { createTransactionalInMemoryIdentityRepos } from "../repo.memory-transactions.js";
 import assert from "node:assert/strict";
 import { test } from "vitest";
@@ -85,10 +86,10 @@ class UniqueNamePolicyRepo extends InMemoryPolicyRepo {
 function buildRepos(required: { enforceUniqueNames: boolean }): IdentityRepos {
   return createTransactionalInMemoryIdentityRepos({ repos: {
     principals: new InMemoryPrincipalRepo({}),
-    users: new InMemoryUserRepo({}),
+    users: new InMemoryUserRepo({ assertVersionedWrite }),
     sessions: new InMemorySessionRepo({}),
-    roles: required.enforceUniqueNames ? new UniqueNameRoleRepo({}) : new InMemoryRoleRepo({}),
-    policies: required.enforceUniqueNames ? new UniqueNamePolicyRepo({}) : new InMemoryPolicyRepo({}),
+    roles: required.enforceUniqueNames ? new UniqueNameRoleRepo({ assertVersionedWrite }) : new InMemoryRoleRepo({ assertVersionedWrite }),
+    policies: required.enforceUniqueNames ? new UniqueNamePolicyRepo({ assertVersionedWrite }) : new InMemoryPolicyRepo({ assertVersionedWrite }),
     policyPermissions: new InMemoryPolicyPermissionRepo({}),
     rolePolicies: new InMemoryRolePolicyRepo({}),
     principalRoles: new InMemoryPrincipalRoleRepo({}),
@@ -259,7 +260,7 @@ test("a resumed seed refuses to adopt a pre-existing NON-built-in role of the sa
   // themselves must never be silently promoted into the built-in set (it would inherit the
   // built-in policy's permissions, which is a privilege escalation, not a convergence).
   const repos = buildRepos({ enforceUniqueNames: true });
-  await repos.roles.save({ id: "operator-made", workspaceId: WORKSPACE, name: "admin", isBuiltin: false });
+  await repos.roles.save({ version: 1, id: "operator-made", workspaceId: WORKSPACE, name: "admin", isBuiltin: false });
 
   await assert.rejects(
     seedIdentity({ deps: depsOver(repos, "fresh"), input: seedInput }),
@@ -277,7 +278,7 @@ test("a resumed seed refuses to adopt a pre-existing NON-built-in policy of the 
   // naming a policy of their own 'editor-builtin-policy', and adopting it would bind the built-in
   // editor role to a permission set nobody vetted.
   const repos = buildRepos({ enforceUniqueNames: true });
-  await repos.policies.save({
+  await repos.policies.save({ version: 1,
     id: "operator-made-policy",
     workspaceId: WORKSPACE,
     name: "editor-builtin-policy",

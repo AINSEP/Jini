@@ -1,4 +1,5 @@
 // PARITY: moved contracts preserve input refusals, independent risk gates and handler authorization.
+import { assertVersionedWrite } from "@jini-ai/core/optimistic-concurrency";
 import { NodeSessionTokens } from "../session-tokens.js";
 import { createTransactionalInMemoryIdentityRepos } from "../repo.memory-transactions.js";
 import assert from "node:assert/strict";
@@ -27,10 +28,10 @@ function counterIdGen() {
 async function buildHarness(): Promise<Harness> {
   const repos: IdentityRepos = createTransactionalInMemoryIdentityRepos({ repos: {
     principals: new InMemoryPrincipalRepo({}),
-    users: new InMemoryUserRepo({}),
+    users: new InMemoryUserRepo({ assertVersionedWrite }),
     sessions: new InMemorySessionRepo({}),
-    roles: new InMemoryRoleRepo({}),
-    policies: new InMemoryPolicyRepo({}),
+    roles: new InMemoryRoleRepo({ assertVersionedWrite }),
+    policies: new InMemoryPolicyRepo({ assertVersionedWrite }),
     policyPermissions: new InMemoryPolicyPermissionRepo({}),
     rolePolicies: new InMemoryRolePolicyRepo({}),
     principalRoles: new InMemoryPrincipalRoleRepo({}),
@@ -258,7 +259,7 @@ test("identity_user_list caps its fan-out and SAYS so, rather than silently retu
 
   for (let i = 0; i < 205; i++) {
     await repos.principals.save({ id: `bulk-${i}`, workspaceId: WORKSPACE_ID, kind: "user", displayName: `bulk-${i}`, status: "active", createdAt: "2026-01-01T00:00:00.000Z" });
-    await repos.users.save({ principalId: `bulk-${i}`, workspaceId: WORKSPACE_ID, username: `bulk-${i}`, passwordHash: "hash" });
+    await repos.users.save({ version: 1, principalId: `bulk-${i}`, workspaceId: WORKSPACE_ID, username: `bulk-${i}`, passwordHash: "hash" });
   }
 
   const result = (await wired(deps, "identity_user_list").handler(asOwner(ownerPrincipalId, {}))) as {
@@ -468,7 +469,7 @@ async function addPrincipal(repos: IdentityRepos, id: string): Promise<string> {
     status: "active",
     createdAt: "2026-01-01T00:00:00.000Z",
   });
-  await repos.users.save({ principalId: id, workspaceId: WORKSPACE_ID, username: id, passwordHash: "hash" });
+  await repos.users.save({ version: 1, principalId: id, workspaceId: WORKSPACE_ID, username: id, passwordHash: "hash" });
   return id;
 }
 
@@ -479,7 +480,7 @@ async function addPrincipal(repos: IdentityRepos, id: string): Promise<string> {
  */
 async function grant(repos: IdentityRepos, principalId: string, permissions: readonly string[]): Promise<void> {
   const policyId = `policy-for-${principalId}-${permissions.join("-")}`;
-  await repos.policies.save({ id: policyId, workspaceId: WORKSPACE_ID, name: policyId, isBuiltin: false, isFrozen: false });
+  await repos.policies.save({ version: 1, id: policyId, workspaceId: WORKSPACE_ID, name: policyId, isBuiltin: false, isFrozen: false });
   for (const permission of permissions) {
     await repos.policyPermissions.save({
       id: `pp-${policyId}-${permission}`,
@@ -518,8 +519,8 @@ async function seedTargets(repos: IdentityRepos): Promise<void> {
     id: "target-session", workspaceId: WORKSPACE_ID, principalId: "target-principal",
     tokenHash: "target-token-hash", createdAt: "2026-07-29T00:00:00.000Z", expiresAt: "2026-07-30T00:00:00.000Z",
   });
-  await repos.roles.save({ id: "target-role", workspaceId: WORKSPACE_ID, name: "Target Role", isBuiltin: false });
-  await repos.policies.save({ id: "target-policy", workspaceId: WORKSPACE_ID, name: "Target Policy", isBuiltin: false, isFrozen: false });
+  await repos.roles.save({ version: 1, id: "target-role", workspaceId: WORKSPACE_ID, name: "Target Role", isBuiltin: false });
+  await repos.policies.save({ version: 1, id: "target-policy", workspaceId: WORKSPACE_ID, name: "Target Policy", isBuiltin: false, isFrozen: false });
 }
 
 /** A cheap durable-state fingerprint: every table these tools can write. */

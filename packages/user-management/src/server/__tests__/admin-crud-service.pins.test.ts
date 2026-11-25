@@ -98,7 +98,7 @@ describe("enable / reset / role / policy edges", () => {
 
   it("updateRole refuses a missing or blank name and trims a valid one", async () => {
     const h = await renameHarness();
-    await h.repos.roles.save({ id: "role-1", workspaceId: W, name: "old", isBuiltin: false });
+    await h.repos.roles.save({ version: 1, id: "role-1", workspaceId: W, name: "old", isBuiltin: false });
     const input = { workspaceId: W, callerPrincipalId: h.ownerPrincipalId, roleId: "role-1" };
     const required = "role name is required";
     // Malformed-input fixture: an untyped route can deliver no name at all.
@@ -109,7 +109,7 @@ describe("enable / reset / role / policy edges", () => {
 
   it("updatePolicy keeps the stored name for a description-only edit and refuses a blank name", async () => {
     const h = await renameHarness();
-    await h.repos.policies.save({ id: "pol-1", workspaceId: W, name: "keep", description: "old", isBuiltin: false, isFrozen: false });
+    await h.repos.policies.save({ version: 1, id: "pol-1", workspaceId: W, name: "keep", description: "old", isBuiltin: false, isFrozen: false });
     const input = { workspaceId: W, callerPrincipalId: h.ownerPrincipalId, policyId: "pol-1" };
     expect((await updatePolicy({ deps: h.deps, input }, { description: "new" })).policy).toMatchObject({ name: "keep", description: "new" });
     await expectRefusal(updatePolicy({ deps: h.deps, input }, { name: "  " }), IdentityValidationError, "policy name is required");

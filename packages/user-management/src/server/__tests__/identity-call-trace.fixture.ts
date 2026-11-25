@@ -1,3 +1,4 @@
+import { assertVersionedWrite } from "@jini-ai/core/optimistic-concurrency";
 import { createTransactionalInMemoryIdentityRepos } from "../repo.memory-transactions.js";
 import {
   InMemoryPolicyPermissionRepo,
@@ -60,10 +61,10 @@ export function buildTraceHarness(nowIso = "2026-07-10T00:00:00.000Z"): TraceHar
   const base = createTransactionalInMemoryIdentityRepos({
     repos: {
       principals: new InMemoryPrincipalRepo({}),
-      users: new InMemoryUserRepo({}),
+      users: new InMemoryUserRepo({ assertVersionedWrite }),
       sessions: new InMemorySessionRepo({}),
-      roles: new InMemoryRoleRepo({}),
-      policies: new InMemoryPolicyRepo({}),
+      roles: new InMemoryRoleRepo({ assertVersionedWrite }),
+      policies: new InMemoryPolicyRepo({ assertVersionedWrite }),
       policyPermissions: new InMemoryPolicyPermissionRepo({}),
       rolePolicies: new InMemoryRolePolicyRepo({}),
       principalRoles: new InMemoryPrincipalRoleRepo({}),

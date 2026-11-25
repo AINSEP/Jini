@@ -1,3 +1,4 @@
+import { assertVersionedWrite } from "@jini-ai/core/optimistic-concurrency";
 import { describe, expect, it } from "vitest";
 import {
   InMemoryPolicyPermissionRepo, InMemoryPolicyRepo, InMemoryPrincipalPolicyRepo, InMemoryPrincipalRepo, InMemoryPrincipalRoleRepo,
@@ -23,7 +24,7 @@ describe("in-memory identity repos — cross-workspace isolation", () => {
   });
 
   it("users", async () => {
-    const repo = new InMemoryUserRepo({}, { initialRows: both({ principalId: "p", username: "alice" }) });
+    const repo = new InMemoryUserRepo({ assertVersionedWrite }, { initialRows: both({ principalId: "p", username: "alice" }) });
     expect((await repo.findByPrincipalId({ workspaceId: W2, principalId: "p" }) as never as { tag: string }).tag).toBe("two");
     expect((await repo.findByUsername({ workspaceId: W1, username: "alice" }) as never as { tag: string }).tag).toBe("one");
     expect(await repo.findByUsername({ workspaceId: "w3", username: "alice" })).toBeNull();
@@ -42,7 +43,7 @@ describe("in-memory identity repos — cross-workspace isolation", () => {
 
   for (const [label, Repo] of [["roles", InMemoryRoleRepo], ["policies", InMemoryPolicyRepo]] as const) {
     it(label, async () => {
-      const repo = new Repo({}, { initialRows: both({ id: "x", name: "admin" }) });
+      const repo = new Repo({ assertVersionedWrite }, { initialRows: both({ id: "x", name: "admin" }) });
       expect((await repo.findById({ workspaceId: W1, id: "x" }) as never as { tag: string }).tag).toBe("one");
       expect((await repo.findByName({ workspaceId: W2, name: "admin" }) as never as { tag: string }).tag).toBe("two");
       await repo.delete({ workspaceId: W1, id: "x" });

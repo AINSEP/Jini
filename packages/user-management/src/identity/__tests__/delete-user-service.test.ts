@@ -1,3 +1,4 @@
+import { assertVersionedWrite } from "@jini-ai/core/optimistic-concurrency";
 import assert from "node:assert/strict";
 import { test } from "vitest";
 
@@ -17,7 +18,7 @@ const NOW = "2026-09-24T00:00:00.000Z";
 const SEEDED = "seeded-owner";
 
 function memoryRepos(): Omit<IdentityRepos, "transactions"> {
-  return { principals: new InMemoryPrincipalRepo({}), users: new InMemoryUserRepo({}), sessions: new InMemorySessionRepo({}), roles: new InMemoryRoleRepo({}), policies: new InMemoryPolicyRepo({}), policyPermissions: new InMemoryPolicyPermissionRepo({}), principalPolicies: new InMemoryPrincipalPolicyRepo({}), principalRoles: new InMemoryPrincipalRoleRepo({}), rolePolicies: new InMemoryRolePolicyRepo({}) };
+  return { principals: new InMemoryPrincipalRepo({}), users: new InMemoryUserRepo({ assertVersionedWrite }), sessions: new InMemorySessionRepo({}), roles: new InMemoryRoleRepo({ assertVersionedWrite }), policies: new InMemoryPolicyRepo({ assertVersionedWrite }), policyPermissions: new InMemoryPolicyPermissionRepo({}), principalPolicies: new InMemoryPrincipalPolicyRepo({}), principalRoles: new InMemoryPrincipalRoleRepo({}), rolePolicies: new InMemoryRolePolicyRepo({}) };
 }
 
 /** `transactional: false` binds a pass-through transaction port, isolating the factory queue. */
@@ -30,11 +31,11 @@ async function harness({ transactional }: { transactional: boolean }) {
     tokens: new NodeSessionTokens({}), repos, clock: { nowMs: () => Date.parse(NOW) }, idGen: { newId: () => `id-${++id}` },
     hasher: { hash: async ({ password }) => `password:${password}`, verify: async ({ hash, password }) => hash === `password:${password}` },
   };
-  await repos.policies.save({ id: "owner-policy", workspaceId: WS, name: "owner", isBuiltin: false, isFrozen: false });
+  await repos.policies.save({ version: 1, id: "owner-policy", workspaceId: WS, name: "owner", isBuiltin: false, isFrozen: false });
   await repos.policyPermissions.save({ id: "owner-star", workspaceId: WS, policyId: "owner-policy", permission: "*", resourceType: null, constraintJson: null });
   const addUser = async ({ principalId, status, owner }: { principalId: string; status: "active" | "disabled"; owner: boolean }) => {
     await repos.principals.save({ id: principalId, workspaceId: WS, kind: "user", displayName: principalId, status, createdAt: NOW });
-    await repos.users.save({ principalId, workspaceId: WS, username: principalId, passwordHash: "password:x" });
+    await repos.users.save({ version: 1, principalId, workspaceId: WS, username: principalId, passwordHash: "password:x" });
     if (owner) await repos.principalPolicies.save({ id: `${principalId}-link`, workspaceId: WS, principalId, policyId: "owner-policy" });
   };
   // The disabled seeded owner still holds `*` (so it may call) but does not count toward the floor.

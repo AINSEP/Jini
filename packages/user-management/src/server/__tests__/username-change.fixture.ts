@@ -1,3 +1,4 @@
+import { assertVersionedWrite } from "@jini-ai/core/optimistic-concurrency";
 import { createTransactionalInMemoryIdentityRepos } from "../repo.memory-transactions.js";
 import { InMemoryPrincipalRepo, InMemoryUserRepo, InMemorySessionRepo, InMemoryRoleRepo,
   InMemoryPolicyRepo, InMemoryPolicyPermissionRepo, InMemoryRolePolicyRepo,
@@ -11,8 +12,8 @@ import type { UsernameChangePort } from "../../core/runtime-ports.js";
 
 export async function renameHarness() {
   const repos = createTransactionalInMemoryIdentityRepos({ repos: {
-    principals: new InMemoryPrincipalRepo({}), users: new InMemoryUserRepo({}), sessions: new InMemorySessionRepo({}),
-    roles: new InMemoryRoleRepo({}), policies: new InMemoryPolicyRepo({}), policyPermissions: new InMemoryPolicyPermissionRepo({}),
+    principals: new InMemoryPrincipalRepo({}), users: new InMemoryUserRepo({ assertVersionedWrite }), sessions: new InMemorySessionRepo({}),
+    roles: new InMemoryRoleRepo({ assertVersionedWrite }), policies: new InMemoryPolicyRepo({ assertVersionedWrite }), policyPermissions: new InMemoryPolicyPermissionRepo({}),
     rolePolicies: new InMemoryRolePolicyRepo({}), principalRoles: new InMemoryPrincipalRoleRepo({}), principalPolicies: new InMemoryPrincipalPolicyRepo({}),
   } });
   let id = 0;
@@ -29,7 +30,7 @@ export async function renameHarness() {
   }
   async function grant(principalId: string, permission: string) {
     const policyId = deps.idGen.newId();
-    await repos.policies.save({ id: policyId, workspaceId: "w", name: policyId, isBuiltin: false, isFrozen: false });
+    await repos.policies.save({ version: 1, id: policyId, workspaceId: "w", name: policyId, isBuiltin: false, isFrozen: false });
     await repos.policyPermissions.save({ id: deps.idGen.newId(), workspaceId: "w", policyId, permission, resourceType: null, constraintJson: null });
     await repos.principalPolicies.save({ id: deps.idGen.newId(), workspaceId: "w", principalId, policyId });
   }

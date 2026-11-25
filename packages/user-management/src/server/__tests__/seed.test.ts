@@ -1,3 +1,4 @@
+import { assertVersionedWrite } from "@jini-ai/core/optimistic-concurrency";
 import { createTransactionalInMemoryIdentityRepos } from "../repo.memory-transactions.js";
 import assert from "node:assert/strict";
 import { test } from "vitest";
@@ -44,10 +45,10 @@ function counterIdGen() {
 function buildDeps(): SeedIdentityDeps {
   const repos: IdentityRepos = createTransactionalInMemoryIdentityRepos({ repos: {
     principals: new InMemoryPrincipalRepo({}),
-    users: new InMemoryUserRepo({}),
+    users: new InMemoryUserRepo({ assertVersionedWrite }),
     sessions: new InMemorySessionRepo({}),
-    roles: new InMemoryRoleRepo({}),
-    policies: new InMemoryPolicyRepo({}),
+    roles: new InMemoryRoleRepo({ assertVersionedWrite }),
+    policies: new InMemoryPolicyRepo({ assertVersionedWrite }),
     policyPermissions: new InMemoryPolicyPermissionRepo({}),
     rolePolicies: new InMemoryRolePolicyRepo({}),
     principalRoles: new InMemoryPrincipalRoleRepo({}),
@@ -178,7 +179,7 @@ test("T025: a policy holding the deprecated integration.manage also gains admin.
   // Simulates a pre-existing policy from before the Phase 3 rename — fresh seeds no longer grant
   // the deprecated flat string directly (see seed.ts's BUILTIN_ADMIN_PERMISSIONS comment).
   const legacyPolicyId = "policy-legacy-integrations";
-  await deps.repos.policies.save({
+  await deps.repos.policies.save({ version: 1,
     id: legacyPolicyId,
     workspaceId: WORKSPACE,
     name: "legacy-integrations-policy",
@@ -238,7 +239,7 @@ test("internal audit F2: a policy holding settings.user.write also gains setting
   // Simulates an ALREADY-seeded installation: seedIdentity early-returns for these, so the
   // BUILTIN_ADMIN_PERMISSIONS addition cannot reach them — the fan-out is the only path.
   const preExistingPolicyId = "policy-pre-existing-settings-user-write";
-  await deps.repos.policies.save({
+  await deps.repos.policies.save({ version: 1,
     id: preExistingPolicyId,
     workspaceId: WORKSPACE,
     name: "pre-existing-settings-policy",

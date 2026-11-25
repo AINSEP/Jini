@@ -45,7 +45,8 @@ export interface UserRepoPort {
   findByUsername(required: { workspaceId: UUID; username: string }): Promise<UserRecord | null>;
   /** All `users` rows in the workspace (Users admin screen listing). Not paginated in v1 — matches `PrincipalRepoPort.list`/`RoleRepoPort.list`/`PolicyRepoPort.list`. */
   list(required: { workspaceId: UUID }): Promise<UserRecord[]>;
-  save(record: UserRecord): Promise<void>;
+  /** Whole-row save. With `expectedVersion`, refuses (RecordVersionConflictError) unless the stored user is still at that version — the editor's basis. Create/seed passes none. */
+  save(record: UserRecord, optional?: { expectedVersion?: number }): Promise<void>;
   /**
    * Set only `lastLoginAt` on an existing row (no-op when it is gone). Login paths use this instead
    * of a whole-row `save`, so a password reset, rename or email change that commits between login's
@@ -72,7 +73,8 @@ export interface RoleRepoPort {
   findById(required: { workspaceId: UUID; id: UUID }): Promise<RoleRecord | null>;
   findByName(required: { workspaceId: UUID; name: string }): Promise<RoleRecord | null>;
   list(required: { workspaceId: UUID }): Promise<RoleRecord[]>;
-  save(record: RoleRecord): Promise<void>;
+  /** Whole-row save. With `expectedVersion`, refuses (RecordVersionConflictError) unless the stored role is still at that version — the editor's basis. Create/seed passes none. */
+  save(record: RoleRecord, optional?: { expectedVersion?: number }): Promise<void>;
   /**. Callers must apply the is_builtin + zero-reference guards
    * themselves (see `admin-crud-service.ts`'s `deleteRole`) — this method performs the row deletion
    * only, no business rule (mirrors `WorkspaceRepoPort.delete`'s convention).
@@ -85,7 +87,8 @@ export interface PolicyRepoPort {
   findById(required: { workspaceId: UUID; id: UUID }): Promise<PolicyRecord | null>;
   findByName(required: { workspaceId: UUID; name: string }): Promise<PolicyRecord | null>;
   list(required: { workspaceId: UUID }): Promise<PolicyRecord[]>;
-  save(record: PolicyRecord): Promise<void>;
+  /** Whole-row save. With `expectedVersion`, refuses (RecordVersionConflictError) unless the stored policy is still at that version — the editor's basis. Create/seed passes none. */
+  save(record: PolicyRecord, optional?: { expectedVersion?: number }): Promise<void>;
   /**. See `RoleRepoPort.delete`'s doc — same "no business rule here"
    * contract.
  * See docs/decisions/DR-002-grant-authority-and-admin-safety.md.

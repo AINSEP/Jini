@@ -1,3 +1,4 @@
+import { assertVersionedWrite } from "@jini-ai/core/optimistic-concurrency";
 import { RouteRefusalError } from "@jini-ai/core/errors/route-refusal";
 
 import type { IdentityRepos } from "../../../../core/ports.js";
@@ -43,8 +44,8 @@ export async function refusalOf(fn: () => unknown): Promise<{ status: number; bo
 export async function seededIdentity(): Promise<{ services: AuthServiceDeps; repos: IdentityRepos; ownerId: string }> {
   let n = 0;
   const repos: IdentityRepos = createTransactionalInMemoryIdentityRepos({ repos: {
-    principals: new InMemoryPrincipalRepo({}), users: new InMemoryUserRepo({}), sessions: new InMemorySessionRepo({}),
-    roles: new InMemoryRoleRepo({}), policies: new InMemoryPolicyRepo({}), policyPermissions: new InMemoryPolicyPermissionRepo({}),
+    principals: new InMemoryPrincipalRepo({}), users: new InMemoryUserRepo({ assertVersionedWrite }), sessions: new InMemorySessionRepo({}),
+    roles: new InMemoryRoleRepo({ assertVersionedWrite }), policies: new InMemoryPolicyRepo({ assertVersionedWrite }), policyPermissions: new InMemoryPolicyPermissionRepo({}),
     rolePolicies: new InMemoryRolePolicyRepo({}), principalRoles: new InMemoryPrincipalRoleRepo({}), principalPolicies: new InMemoryPrincipalPolicyRepo({}),
   } });
   const services: AuthServiceDeps = {

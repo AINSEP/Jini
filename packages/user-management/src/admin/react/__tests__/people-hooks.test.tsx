@@ -22,8 +22,8 @@ import { owner, alice, bob, role, policy, member, member2 } from '../../__tests_
 
 // Real controllers over the in-memory adapters; the harness only republishes the controller's
 // own store through the context the hooks read, the same way the page components do.
-const builtinRole: RoleRecord = { id: 'rb', workspaceId: 'w', name: 'Owner', isBuiltin: true };
-const builtinPolicy: PolicyRecord = { id: 'pb', workspaceId: 'w', name: 'Everything', isBuiltin: true, isFrozen: true };
+const builtinRole: RoleRecord = { version: 1, id: 'rb', workspaceId: 'w', name: 'Owner', isBuiltin: true };
+const builtinPolicy: PolicyRecord = { version: 1, id: 'pb', workspaceId: 'w', name: 'Everything', isBuiltin: true, isFrozen: true };
 
 async function usersHarness() {
   const api = createMemoryUsersApi({ workspaceId: 'w' }, { permissions: ['*'], users: [owner, alice, bob], roles: [role, builtinRole], policies: [policy, builtinPolicy],

@@ -76,7 +76,7 @@ describe("fresh seed", () => {
     expect(result).toEqual({ ownerPrincipalId: expect.any(String), systemPrincipalId: "id-1" });
 
     const user = await h.repos.users.findByPrincipalId({ workspaceId: WORKSPACE, principalId: result.ownerPrincipalId });
-    expect(user).toEqual({ principalId: result.ownerPrincipalId, workspaceId: WORKSPACE, username: "admin", email: "o@example.test", passwordHash: "hash:pw" });
+    expect(user).toEqual({ principalId: result.ownerPrincipalId, workspaceId: WORKSPACE, username: "admin", email: "o@example.test", passwordHash: "hash:pw", version: 1 });
     const principals = await h.repos.principals.list({ workspaceId: WORKSPACE });
     expect(principals.map((p) => [p.id, p.kind, p.status, p.displayName])).toEqual([
       ["id-1", "system", "active", "System"],
@@ -127,13 +127,13 @@ describe("fresh seed", () => {
 describe("resume onto partial built-in rows", () => {
   test("reuses built-in role/policy/link rows and only adds missing unscoped grants", async () => {
     const h = buildTraceHarness();
-    await h.repos.roles.save({ id: "r-owner", workspaceId: WORKSPACE, name: "owner", isBuiltin: true });
-    await h.repos.policies.save({ id: "pol-owner", workspaceId: WORKSPACE, name: "owner-builtin-policy", description: "d", isBuiltin: true, isFrozen: false });
+    await h.repos.roles.save({ version: 1, id: "r-owner", workspaceId: WORKSPACE, name: "owner", isBuiltin: true });
+    await h.repos.policies.save({ version: 1, id: "pol-owner", workspaceId: WORKSPACE, name: "owner-builtin-policy", description: "d", isBuiltin: true, isFrozen: false });
     await h.repos.rolePolicies.save({ id: "rp", workspaceId: WORKSPACE, roleId: "r-owner", policyId: "pol-owner" });
     // A scoped and a constrained "*" must NOT satisfy the seed's unscoped wildcard grant.
     await h.repos.policyPermissions.save({ id: "scoped", workspaceId: WORKSPACE, policyId: "pol-owner", permission: "*", resourceType: "post", constraintJson: null });
     await h.repos.policyPermissions.save({ id: "constrained", workspaceId: WORKSPACE, policyId: "pol-owner", permission: "*", resourceType: null, constraintJson: "" });
-    await h.repos.policies.save({ id: "pol-viewer", workspaceId: WORKSPACE, name: "viewer-builtin-policy", description: "d", isBuiltin: true, isFrozen: false });
+    await h.repos.policies.save({ version: 1, id: "pol-viewer", workspaceId: WORKSPACE, name: "viewer-builtin-policy", description: "d", isBuiltin: true, isFrozen: false });
     await h.repos.policyPermissions.save({ id: "v1", workspaceId: WORKSPACE, policyId: "pol-viewer", permission: "content.read" });
     h.calls.length = 0;
 
@@ -147,7 +147,7 @@ describe("resume onto partial built-in rows", () => {
 
   test("refuses to adopt a non-built-in role of a built-in name", async () => {
     const h = buildTraceHarness();
-    await h.repos.roles.save({ id: "r", workspaceId: WORKSPACE, name: "owner", isBuiltin: false });
+    await h.repos.roles.save({ version: 1, id: "r", workspaceId: WORKSPACE, name: "owner", isBuiltin: false });
     await expect(seedIdentity({ deps: depsOf(h), input: INPUT })).rejects.toThrow(
       new Error(
         `seedIdentity: a non-built-in role named 'owner' already exists in workspace ${WORKSPACE}. Refusing to adopt it as the built-in 'owner' role — rename or remove it first.`,
@@ -157,7 +157,7 @@ describe("resume onto partial built-in rows", () => {
 
   test("refuses to adopt a non-built-in policy of a built-in policy name", async () => {
     const h = buildTraceHarness();
-    await h.repos.policies.save({ id: "p", workspaceId: WORKSPACE, name: "editor-builtin-policy", description: "d", isBuiltin: false, isFrozen: false });
+    await h.repos.policies.save({ version: 1, id: "p", workspaceId: WORKSPACE, name: "editor-builtin-policy", description: "d", isBuiltin: false, isFrozen: false });
     await expect(seedIdentity({ deps: depsOf(h), input: INPUT })).rejects.toThrow(
       new Error(
         `seedIdentity: a non-built-in policy named 'editor-builtin-policy' already exists in workspace ${WORKSPACE}. Refusing to adopt it as the built-in 'editor' policy — rename or remove it first.`,
@@ -179,7 +179,7 @@ describe("already-seeded workspace", () => {
     const h = buildTraceHarness();
     await h.repos.principals.save({ id: "user-local", workspaceId: WORKSPACE, kind: "system", displayName: "L", status: "disabled", createdAt: "x" });
     await h.repos.principals.save({ id: "p-own", workspaceId: WORKSPACE, kind: "user", displayName: "O", status: "active", createdAt: "x" });
-    await h.repos.users.save({ principalId: "p-own", workspaceId: WORKSPACE, username: "admin", passwordHash: "h" });
+    await h.repos.users.save({ version: 1, principalId: "p-own", workspaceId: WORKSPACE, username: "admin", passwordHash: "h" });
     await h.repos.principalRoles.save({ id: "l", workspaceId: WORKSPACE, principalId: "p-own", roleId: "anything" });
     expect(await seedIdentity({ deps: depsOf(h), input: INPUT })).toEqual({ ownerPrincipalId: "p-own", systemPrincipalId: "user-local" });
   });
@@ -187,7 +187,7 @@ describe("already-seeded workspace", () => {
   test("owner holding NO role is repaired: owner role converged and linked", async () => {
     const h = buildTraceHarness();
     await h.repos.principals.save({ id: "p-own", workspaceId: WORKSPACE, kind: "user", displayName: "O", status: "active", createdAt: "x" });
-    await h.repos.users.save({ principalId: "p-own", workspaceId: WORKSPACE, username: "admin", passwordHash: "h" });
+    await h.repos.users.save({ version: 1, principalId: "p-own", workspaceId: WORKSPACE, username: "admin", passwordHash: "h" });
     h.calls.length = 0;
     const result = await seedIdentity({ deps: depsOf(h), input: INPUT });
     expect(h.calls).toEqual(["users.findByUsername", "principalRoles.listByPrincipalId", ...rolePass(1), "principalRoles.save", "principals.list"]);
@@ -199,7 +199,7 @@ describe("already-seeded workspace", () => {
 
   test("owner holding a lesser role is NOT re-escalated", async () => {
     const h = buildTraceHarness();
-    await h.repos.users.save({ principalId: "p-own", workspaceId: WORKSPACE, username: "admin", passwordHash: "h" });
+    await h.repos.users.save({ version: 1, principalId: "p-own", workspaceId: WORKSPACE, username: "admin", passwordHash: "h" });
     await h.repos.principalRoles.save({ id: "l", workspaceId: WORKSPACE, principalId: "p-own", roleId: "viewer-role" });
     await seedIdentity({ deps: depsOf(h), input: INPUT });
     expect(await h.repos.roles.findByName({ workspaceId: WORKSPACE, name: "owner" })).toBeNull();
@@ -207,9 +207,9 @@ describe("already-seeded workspace", () => {
 
   test("bound seededOwnerPrincipalId wins over the username, even when the username now belongs to someone else", async () => {
     const h = buildTraceHarness();
-    await h.repos.users.save({ principalId: "p-bound", workspaceId: WORKSPACE, username: "renamed", passwordHash: "h" });
+    await h.repos.users.save({ version: 1, principalId: "p-bound", workspaceId: WORKSPACE, username: "renamed", passwordHash: "h" });
     await h.repos.principalRoles.save({ id: "l", workspaceId: WORKSPACE, principalId: "p-bound", roleId: "r" });
-    await h.repos.users.save({ principalId: "p-squatter", workspaceId: WORKSPACE, username: "admin", passwordHash: "h" });
+    await h.repos.users.save({ version: 1, principalId: "p-squatter", workspaceId: WORKSPACE, username: "admin", passwordHash: "h" });
     h.calls.length = 0;
     const result = await seedIdentity({ deps: depsOf(h), input: INPUT }, { seededOwnerPrincipalId: "p-bound" });
     expect(result.ownerPrincipalId).toBe("p-bound");
@@ -218,7 +218,7 @@ describe("already-seeded workspace", () => {
 
   test("bound seededOwnerPrincipalId with no user row refuses and writes nothing", async () => {
     const h = buildTraceHarness();
-    await h.repos.users.save({ principalId: "p-other", workspaceId: WORKSPACE, username: "admin", passwordHash: "h" });
+    await h.repos.users.save({ version: 1, principalId: "p-other", workspaceId: WORKSPACE, username: "admin", passwordHash: "h" });
     h.calls.length = 0;
     const error = await seedIdentity({ deps: depsOf(h), input: INPUT }, { seededOwnerPrincipalId: "p-missing" }).then(
       () => "resolved",

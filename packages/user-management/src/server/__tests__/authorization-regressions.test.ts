@@ -1,3 +1,4 @@
+import { assertVersionedWrite } from "@jini-ai/core/optimistic-concurrency";
 import assert from 'node:assert/strict';
 import { test } from 'vitest';
 import type { IdentityRepos } from '../../core/ports.js';
@@ -20,9 +21,9 @@ import {
 const workspaceId = 'authorization-regression';
 function rawRepos(): Omit<IdentityRepos, "transactions"> {
   return {
-    principals: new InMemoryPrincipalRepo({}), users: new InMemoryUserRepo({}),
-    sessions: new InMemorySessionRepo({}), roles: new InMemoryRoleRepo({}),
-    policies: new InMemoryPolicyRepo({}), policyPermissions: new InMemoryPolicyPermissionRepo({}),
+    principals: new InMemoryPrincipalRepo({}), users: new InMemoryUserRepo({ assertVersionedWrite }),
+    sessions: new InMemorySessionRepo({}), roles: new InMemoryRoleRepo({ assertVersionedWrite }),
+    policies: new InMemoryPolicyRepo({ assertVersionedWrite }), policyPermissions: new InMemoryPolicyPermissionRepo({}),
     rolePolicies: new InMemoryRolePolicyRepo({}), principalRoles: new InMemoryPrincipalRoleRepo({}),
     principalPolicies: new InMemoryPrincipalPolicyRepo({}),
   };
@@ -42,7 +43,7 @@ async function principal(repos: IdentityRepos, id: string) {
 }
 async function ownerGrant(repos: IdentityRepos, id: string) {
   await principal(repos, id);
-  await repos.policies.save({ id: `policy-${id}`, workspaceId, name: id, isBuiltin: false, isFrozen: false });
+  await repos.policies.save({ version: 1, id: `policy-${id}`, workspaceId, name: id, isBuiltin: false, isFrozen: false });
   await repos.policyPermissions.save({ id: `grant-${id}`, workspaceId, policyId: `policy-${id}`, permission: '*', resourceType: null, constraintJson: null });
   await repos.principalPolicies.save({ id: `binding-${id}`, workspaceId, principalId: id, policyId: `policy-${id}` });
 }
@@ -74,7 +75,7 @@ test('role deletion and concurrent assignment cannot leave a dangling assignment
   const { repos, deps } = fixture();
   await ownerGrant(repos, 'caller');
   await principal(repos, 'target');
-  await repos.roles.save({ id: 'role', workspaceId, name: 'custom', isBuiltin: false });
+  await repos.roles.save({ version: 1, id: 'role', workspaceId, name: 'custom', isBuiltin: false });
   const outcomes = await Promise.allSettled([
     deleteRole({ deps, input: { workspaceId, callerPrincipalId: 'caller', roleId: 'role' } }),
     assignRole({ deps, input: { workspaceId, callerPrincipalId: 'caller', principalId: 'target', roleId: 'role' } }),
@@ -108,7 +109,7 @@ test('policy deletion rolls its permission cascade back if the final delete fail
   const { deps } = fixture();
   deps.repos = repos;
   await ownerGrant(repos, 'caller');
-  await repos.policies.save({ id: 'doomed', workspaceId, name: 'doomed', isBuiltin: false, isFrozen: false });
+  await repos.policies.save({ version: 1, id: 'doomed', workspaceId, name: 'doomed', isBuiltin: false, isFrozen: false });
   const grant = { id: 'doomed-grant', workspaceId, policyId: 'doomed', permission: 'content.read' };
   await repos.policyPermissions.save(grant);
   await assert.rejects(deletePolicy({ deps, input: { workspaceId, callerPrincipalId: 'caller', policyId: 'doomed' } }), /delete failure/);
@@ -130,7 +131,7 @@ test('both grant transitions keep typed not-found for an absent target and write
 for (const constraintJson of ['', '{}']) {
   test(`resumed seed repairs an owner wildcard with constraint ${JSON.stringify(constraintJson)}`, async () => {
     const { repos, deps } = fixture();
-    await repos.policies.save({ id: 'partial-owner', workspaceId, name: 'owner-builtin-policy', isBuiltin: true, isFrozen: false });
+    await repos.policies.save({ version: 1, id: 'partial-owner', workspaceId, name: 'owner-builtin-policy', isBuiltin: true, isFrozen: false });
     await repos.policyPermissions.save({ id: 'constrained', workspaceId, policyId: 'partial-owner', permission: '*', resourceType: null, constraintJson });
     const { ownerPrincipalId } = await seedIdentity({ deps, input: { workspaceId, ownerUsername: 'owner', ownerPassword: 'explicit-password' } });
     assert.deepEqual(await authorize({ deps: repos, principalId: ownerPrincipalId, permission: 'role.manage', context: { workspaceId } }), { allowed: true, reason: 'owner_wildcard' });
@@ -151,7 +152,7 @@ test('migration failure restores every earlier policy write and a retry is idemp
   };
   const repos = createTransactionalInMemoryIdentityRepos({ repos: raw });
   for (const id of ['first', 'second']) {
-    await repos.policies.save({ id, workspaceId, name: id, isBuiltin: false, isFrozen: false });
+    await repos.policies.save({ version: 1, id, workspaceId, name: id, isBuiltin: false, isFrozen: false });
     await repos.policyPermissions.save({ id: `old-${id}`, workspaceId, policyId: id, permission: 'regression.old', resourceType: null, constraintJson: null });
   }
   const migrations = createPermissionMigrationRegistry({}, { migrations: [{ from: 'regression.old', to: ['regression.new'], reason: 'regression fixture' }] }).list({});

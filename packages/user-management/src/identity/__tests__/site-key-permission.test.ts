@@ -1,3 +1,4 @@
+import { assertVersionedWrite } from "@jini-ai/core/optimistic-concurrency";
 import assert from "node:assert/strict";
 import { test } from "vitest";
 
@@ -58,10 +59,10 @@ type Vintage = "fresh" | "pre-integrations-manage";
 async function buildChain(vintage: Vintage = "fresh"): Promise<Chain> {
   const repos: IdentityRepos = createTransactionalInMemoryIdentityRepos({ repos: {
     principals: new InMemoryPrincipalRepo({}),
-    users: new InMemoryUserRepo({}),
+    users: new InMemoryUserRepo({ assertVersionedWrite }),
     sessions: new InMemorySessionRepo({}),
-    roles: new InMemoryRoleRepo({}),
-    policies: new InMemoryPolicyRepo({}),
+    roles: new InMemoryRoleRepo({ assertVersionedWrite }),
+    policies: new InMemoryPolicyRepo({ assertVersionedWrite }),
     policyPermissions: new InMemoryPolicyPermissionRepo({}),
     rolePolicies: new InMemoryRolePolicyRepo({}),
     principalRoles: new InMemoryPrincipalRoleRepo({}),
@@ -202,7 +203,7 @@ test("the pre-integrations-manage backfill is additive — it never invents an a
 test("a custom policy holding only the integrations anchor inherits token management through migration", async () => {
   const { repos, can } = await buildChain();
   await repos.principals.save({ id: "custom-user", workspaceId: WORKSPACE, kind: "user", displayName: "Custom", status: "active", createdAt: clock.nowIso() });
-  await repos.policies.save({ id: "custom-policy", workspaceId: WORKSPACE, name: "custom-policy", isBuiltin: false, isFrozen: false });
+  await repos.policies.save({ version: 1, id: "custom-policy", workspaceId: WORKSPACE, name: "custom-policy", isBuiltin: false, isFrozen: false });
   await repos.principalPolicies.save({ id: "custom-link", workspaceId: WORKSPACE, principalId: "custom-user", policyId: "custom-policy" });
   await repos.policyPermissions.save({ id: "custom-anchor", workspaceId: WORKSPACE, policyId: "custom-policy", permission: "admin.integrations.manage" });
   assert.equal((await can("custom-user", SITE_KEY_MANAGE)).allowed, false);
@@ -215,7 +216,7 @@ test("C2: a custom policy holding only the former site-key permission keeps acce
   const oldPermission = "admin.security.tokens.manage";
   const newPermission = "admin.security.site-key.manage";
   await repos.principals.save({ id: "legacy-key-user", workspaceId: WORKSPACE, kind: "user", displayName: "Key manager", status: "active", createdAt: clock.nowIso() });
-  await repos.policies.save({ id: "legacy-key-policy", workspaceId: WORKSPACE, name: "legacy-key-policy", isBuiltin: false, isFrozen: false });
+  await repos.policies.save({ version: 1, id: "legacy-key-policy", workspaceId: WORKSPACE, name: "legacy-key-policy", isBuiltin: false, isFrozen: false });
   await repos.principalPolicies.save({ id: "legacy-key-link", workspaceId: WORKSPACE, principalId: "legacy-key-user", policyId: "legacy-key-policy" });
   await repos.policyPermissions.save({ id: "legacy-key-grant", workspaceId: WORKSPACE, policyId: "legacy-key-policy", permission: oldPermission });
   assert.deepEqual(await can("legacy-key-user", newPermission), { allowed: false, reason: "no_grant" });

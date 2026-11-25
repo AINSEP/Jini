@@ -31,7 +31,7 @@ function depsOf(h: TraceHarness, migrations: readonly PermissionMigration[]): Mi
 }
 
 async function addPolicy(h: TraceHarness, id: string, grants: Array<string | Omit<PolicyPermissionRecord, "id" | "workspaceId" | "policyId">>): Promise<void> {
-  await h.repos.policies.save({ id, workspaceId: WORKSPACE, name: id, description: id, isBuiltin: false, isFrozen: false });
+  await h.repos.policies.save({ version: 1, id, workspaceId: WORKSPACE, name: id, description: id, isBuiltin: false, isFrozen: false });
   let n = 0;
   for (const grant of grants) {
     const shape = typeof grant === "string" ? { permission: grant, resourceType: null, constraintJson: null } : grant;
