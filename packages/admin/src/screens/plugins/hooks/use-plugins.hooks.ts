@@ -23,9 +23,9 @@ import { interpolate, type Translate } from '@jini-ai/core/text';
  *
  * `deps.port` is injected (see `plugins-port.hooks.ts`) rather than reaching for `lib/api`'s `api`
  * directly — the same `useX(dependencies)` / `useWiredX()` split `redirects`/`widgets` use.
- * The host's plugins dictionary lookup — passed in as `translate` to avoid colliding with this
- * file's own bound `(key) => string` closure — serves this hook's OWN error strings: a pure
- * `DICT[locale]?.[key] ?? key` lookup with no host boundary, same "pure, no-I/O"
+ * `translatePlugins`'s own `t(locale, key)` — aliased `translate` here to avoid colliding with this
+ * file's own bound `(key) => string` closure — stays a direct import for this hook's OWN error
+ * strings: a pure `DICT[locale]?.[key] ?? key` lookup with no host boundary, same "pure, no-I/O"
  * category the convention doc names for `describeApiError`.
  *
  * `deps.t` (standing i18n rule, 2026-08-11 — a component with a hook gets a BOUND `t` from that
