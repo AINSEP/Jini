@@ -31,7 +31,7 @@ export const KEYS = {
  * This screen's name on `lib/content-refresh-bus.ts` — see `taxonomy/rules.ts`'s `TAXONOMY_RESOURCE`
  * for why this is a plain colocated constant rather than a shared registry, and
  * `use-content-refresh-subscription.hooks.ts` for the hook that reads it. No agent tool writes media
- * today (`apps/website/src/features` has no `media/agent-tools.ts`), but the grid still subscribes:
+ * today (the host has no `media/agent-tools.ts`), but the grid still subscribes:
  * the bus's own "unknown scope, refresh everything" default (`contentRefreshApplies`'s `null` case)
  * means every finished assistant run already notifies this resource whether or not the run touched
  * it, and wiring it now is a one-line, zero-risk way for this screen to inherit a future media tool's
@@ -77,7 +77,7 @@ export type MediaMetadataPatch = {
  *
  * `item` MUST be the same snapshot `draft` was seeded from, frozen for the caller's whole edit
  * session — never a live value that can advance independently of `draft` (2026-08-12 audit,
- * TM-TOVU-2026-08-12-A). If `item` moves out from under a frozen `draft`, an untouched field whose
+ * TM-2026-08-12-A). If `item` moves out from under a frozen `draft`, an untouched field whose
  * server value changed in the interim reads as "changed" here and gets wrongly included in the
  * patch, silently reverting whatever changed it. See `use-edit-media-panel.hooks.ts`'s
  * `baselineRef` for the caller-side guarantee. */
@@ -116,7 +116,7 @@ export function parseOptionalPixelSize({ value }: { value: string }, _optional: 
   return value.trim() === "" ? null : Number(value);
 }
 
-// The HTML-attribute allowlist and parser belong to the content domain (`@jini-ai/cms/widgets/markers`); `integrations/jini-admin/embed-policy-ports.ts` binds them to `@jini-ai/admin/media`'s `parseMediaHtmlAttributes`, and Tovu keeps only the translated message.
+// The HTML-attribute allowlist and parser belong to the content domain (`@jini-ai/cms/widgets/markers`); `integrations/jini-admin/embed-policy-ports.ts` binds them to `@jini-ai/admin/media`'s `parseMediaHtmlAttributes`, and the host keeps only the translated message.
 /** Formats a {@link MediaHtmlAttributeError} into the specific, visible message the edit form
  *  shows — always names the rejected attribute or fragment (owner requirement). Same
  *  `media-i18n.ts`'s `t` (COMMON_I18N-falling-back) + `.replace("{placeholder}", ...)` idiom
@@ -264,7 +264,7 @@ function compareAscending(a: string, b: string): number {
 /**
  * Orders the already-fully-fetched (unpaginated) media array for display — the client-side
  * counterpart to `SqliteMediaRepo.list()`'s own hardcoded newest-first `orderBy`
- * (`apps/website/src/platform/db/sqlite/media-repo.sqlite.ts`). See `use-media.hooks.ts`'s header
+ * (the host's sqlite media repo). See `use-media.hooks.ts`'s header
  * for why this control lives entirely on the client rather than threaded through the
  * `GET .../media` request as a query param: the grid has no pagination, so the full workspace
  * library is already in memory by the time an operator touches this control, and this function
