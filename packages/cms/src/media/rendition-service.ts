@@ -41,7 +41,7 @@ import { mimeForTransformFormat } from "./transform-types.js";
 import { isLatestTransformVersion, isReferencedByPublishedContent } from "./transform-registry.js";
 import { withRenditionLock } from "./transform-lock.js";
 import { withSha256Lock } from "./blob-gc-lock.js";
-import type { BlobGc } from "./blob-gc-fence.js";
+import { verifyWrittenBlob, type BlobGc } from "./blob-gc-fence.js";
 import { computeBlobStorageKey } from "./blob-key.js";
 import type { ImageTransformerPort } from "./image-transformer.js";
 
@@ -143,6 +143,7 @@ function generateMediaRendition(
         sha256: outputSha256,
         bytes: outputBytes,
       });
+      await verifyWrittenBlob({ blobStore: deps.blobStore, storageKey, sha256: outputSha256, byteLength: outputBytes.byteLength });
 
       const row: AssetRenditionRecord = {
         id: deps.idGen.newId(),

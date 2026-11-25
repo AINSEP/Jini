@@ -76,7 +76,7 @@ import {
 } from "./types.js";
 import type { AssetBlobRepoPort, AssetRenditionRepoPort, BlobStorePort, MediaRepoPort, MediaReferenceCheckPort } from "./ports.js";
 import { withSha256Lock } from "./blob-gc-lock.js";
-import type { BlobGc } from "./blob-gc-fence.js";
+import { verifyWrittenBlob, type BlobGc } from "./blob-gc-fence.js";
 import { computeBlobStorageKey } from "./blob-key.js";
 import { tombstoneBlobIfUnreferenced } from "./blob-gc.js";
 import { describeMediaHtmlAttributeError, parseMediaHtmlAttributes } from "./html-attributes.js";
@@ -406,6 +406,7 @@ async function claimUploadBlob(
     sha256,
     bytes,
   });
+  await verifyWrittenBlob({ blobStore: deps.blobStore, storageKey: written.storageKey, sha256, byteLength: bytes.byteLength });
   await deps.blobRepo.save({
     id: deps.idGen.newId(),
     workspaceId: input.workspaceId,

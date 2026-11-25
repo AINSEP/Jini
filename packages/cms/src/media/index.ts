@@ -78,6 +78,7 @@ export {
 } from "./blob-gc.js";
 
 export { createBlobGc, blobFenceKey, DEFAULT_BLOB_GC_GRACE_MS } from "./blob-gc-fence.js";
+export { BlobWriteMismatchError, verifyWrittenBlob } from "./blob-gc-fence.js";
 export type { BlobGc, BlobClaimWriteRequired, BlobUnlinkJournalPort, RenditionKeyOwnersPort, CreateBlobGcRequired, CreateBlobGcOptional } from "./blob-gc-fence.js";
 
 export { InMemoryBlobStore } from "./blob-store.memory.js";

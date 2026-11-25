@@ -78,9 +78,12 @@ test('replacement source hashes cannot reuse a previous text snapshot', async ()
   const replacement = await uploadMedia({ deps: f.deps, input: { workspaceId: 'site', filename: 'replacement.txt', kind: 'document',
     contentType: 'text/plain', bytes: Buffer.from('z'.repeat(80_000)), createdByPrincipal: 'owner' } });
   await f.deps.mediaRepo.save({ ...f.media, source: replacement.media.source });
+  // The upload's post-write size/hash check reads the new blob once; only document reads are counted.
+  const readsBeforeSecond = f.get.mock.calls.length;
+  expect(readsBeforeSecond).toBe(2);
   const second = await read({ ...f, input: { ...f.input, offset: first.nextOffset! } });
   expect(second.text).toBe('z'.repeat(80_000 - first.nextOffset!));
-  expect(f.get).toHaveBeenCalledTimes(2);
+  expect(f.get).toHaveBeenCalledTimes(readsBeforeSecond + 1);
 });
 
 test('same ids and hashes in another host never share cached bytes', async () => {

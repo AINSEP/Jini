@@ -25,6 +25,7 @@ import type {
   BlobUnlinkJournalRow,
   BlobUnlinkOutcome,
 } from "@jini-ai/core/contracts/blob-gc";
+import { createHash } from "node:crypto";
 import type { Clock } from "@jini-ai/core/primitives";
 import type { AssetBlobRepoPort, BlobStorePort, MediaRepoPort } from "./ports.js";
 import type { AssetBlobRecord } from "./types.js";
@@ -117,6 +118,28 @@ function fenced<T>(deps: Deps, key: { workspaceId: string; storageKey: string },
     await deps.kernel.lockKey(blobFenceKey(key));
     return run();
   });
+}
+
+/** A byte write that the store did not keep intact (short write, corruption, wrong key). */
+export class BlobWriteMismatchError extends Error {
+  constructor(required: { storageKey: string }, _optional: Record<string, never> = {}) {
+    super(`The saved file did not match what was sent (its size or checksum differs), so nothing was published. Try again. (${required.storageKey})`);
+    this.name = "BlobWriteMismatchError";
+  }
+}
+
+/**
+ * Reads a just-written blob back and checks its size and sha256 before any row may name it. Why
+ * read back: the fence only proves no unlinker interleaved; it cannot prove the store kept the
+ * bytes intact, and a row published over a truncated file would serve it as good.
+ */
+export async function verifyWrittenBlob(
+  required: { blobStore: Pick<BlobStorePort, "get">; storageKey: string; sha256: string; byteLength: number },
+  _optional: Record<string, never> = {},
+): Promise<void> {
+  const stored = await required.blobStore.get({ storageKey: required.storageKey });
+  const matches = stored.byteLength === required.byteLength && createHash("sha256").update(stored).digest("hex") === required.sha256;
+  if (!matches) throw new BlobWriteMismatchError({ storageKey: required.storageKey });
 }
 
 const nowIso = (deps: Deps): string => new Date(deps.clock.nowMs()).toISOString();

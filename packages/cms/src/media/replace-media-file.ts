@@ -3,7 +3,7 @@ import { nowIso, type Clock, type IdGenerator } from '@jini-ai/core/primitives';
 import type { AssetBlobRepoPort, BlobStorePort, MediaRepoPort } from './ports.js';
 import type { AssetRenditionRecord, MediaProvenance, MediaRecord } from './types.js';
 import { withSha256Lock } from './blob-gc-lock.js';
-import type { BlobGc } from './blob-gc-fence.js';
+import { verifyWrittenBlob, type BlobGc } from './blob-gc-fence.js';
 import { computeBlobStorageKey } from './blob-key.js';
 import { sanitizeSvg } from './sanitize-svg.js';
 import { MediaValidationError } from './types.js';
@@ -118,6 +118,7 @@ export async function replaceMediaFile({ deps, media, bytes, contentType, princi
       let blob = await deps.assetBlobRepo.findByHash({ workspaceId: deps.workspaceId, sha256 });
       if (!blob) {
         const { storageKey } = await deps.blobStore.put({ workspaceId: deps.workspaceId, sha256, bytes: safeBytes });
+        await verifyWrittenBlob({ blobStore: deps.blobStore, storageKey, sha256, byteLength: safeBytes.byteLength });
         blob = {
           id: deps.idGen.newId(), workspaceId: deps.workspaceId, sha256, storageKey,
           status: 'active', createdAt: updatedAt, createdByPrincipal: principalId

@@ -50,6 +50,19 @@ test("importMediaEntity saves the row under the SOURCE id and stamps a new blob"
   assert.equal(blob?.createdByPrincipal, "importer-1");
 });
 
+test("importMediaEntity with an existing blob claimed under the fence repairs the bytes and stamps no new row", async () => {
+  const deps = makeDeps();
+  const existing = { id: "blob-existing", workspaceId: WORKSPACE_ID, sha256: HELLO_SHA256, storageKey: "existing-key", createdByPrincipal: "other-writer",
+    createdAt: "2026-01-01T00:00:00.000Z", status: "active" as const };
+  await deps.assetBlobRepo.save(existing);
+  const fenced = { ...deps, blobFence: { claimWrite: async <T>({ work }: { work: (claim: { existing: typeof existing }) => Promise<T> }) => work({ existing }) } };
+  const result = await importMediaEntity({ deps: fenced, input: { workspaceId: WORKSPACE_ID, record: makeRecord(),
+    bytes: HELLO_BYTES, blobCreatedByPrincipal: "importer-1", baseVersion: null } });
+  assert.deepEqual(result, { status: "imported", id: "source-asset-1", blobWritten: false });
+  assert.equal((await deps.assetBlobRepo.findByHash({ workspaceId: WORKSPACE_ID, sha256: HELLO_SHA256 }))?.createdByPrincipal, "other-writer");
+  assert.equal((await deps.blobStore.putIfAbsent({ workspaceId: WORKSPACE_ID, sha256: HELLO_SHA256, bytes: HELLO_BYTES })).written, false, "the import re-put the bytes");
+});
+
 test("importMediaEntity refuses bytes that do not hash to the claimed sha256 and writes nothing", async () => {
   const deps = makeDeps();
   const result = await importMediaEntity({ deps, input: { workspaceId: WORKSPACE_ID, record: makeRecord(),
