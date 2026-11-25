@@ -1,8 +1,10 @@
 import { readFile, readdir } from "node:fs/promises";
+import { createHash } from "node:crypto";
 import type { Dirent } from "node:fs";
 import { join, relative, sep } from "node:path";
 
 import type { BlobStorePort } from "../index.js";
+import type { BlobFence, BlobStorageKeyFor } from "@jini-ai/core/contracts/blob-gc";
 
 /**
  * @file `hydrateBlobStoreFromSeed()` — fills in stock blob BYTES for `asset_blobs` rows a fresh
@@ -110,6 +112,9 @@ export interface HydrateBlobStoreFromSeedRequired {
   readonly seedUploadsDir: string;
   /** The site's real, running blob store — only `putIfAbsent` is needed. */
   readonly blobStore: Pick<BlobStorePort, "putIfAbsent">;
+  readonly blobFence: BlobFence;
+  readonly storageKeyFor: BlobStorageKeyFor;
+  readonly verifyStoredBlob: (required: { storageKey: string; sha256: string; byteLength: number }, _optional?: Record<string, never>) => Promise<void>;
 }
 
 /**
@@ -159,7 +164,7 @@ type SeedBlobOutcome =
  *   "never fail the whole run over one bad seed file" contract.
  */
 async function resolveOneSeedBlob(
-  { seedUploadsDir, blobStore, relativePath }: { seedUploadsDir: string; blobStore: Pick<BlobStorePort, "putIfAbsent">; relativePath: string },
+  { seedUploadsDir, blobStore, blobFence, storageKeyFor, verifyStoredBlob, relativePath }: HydrateBlobStoreFromSeedRequired & { relativePath: string },
   _optional: Record<string, never> = {}
 ): Promise<SeedBlobOutcome> {
   const match = SEED_BLOB_PATH_PATTERN.exec(relativePath);
@@ -176,10 +181,16 @@ async function resolveOneSeedBlob(
 
   try {
     const bytes = await readFile(join(seedUploadsDir, relativePath));
-    // Single atomic call — see this file's header for why a separate `exists()` check first
-    // would reopen the exact TOCTOU gap this function used to have.
-    const { written } = await blobStore.putIfAbsent({ workspaceId, sha256, bytes });
-    return written ? { kind: "copied" } : { kind: "skipped" };
+    const storageKey = storageKeyFor({ workspaceId, sha256 });
+    if (relativePath !== storageKey || createHash("sha256").update(bytes).digest("hex") !== sha256) throw new Error("Seed blob does not match its storage key and digest");
+    return await blobFence.withKeys({ workspaceId, storageKeys: [storageKey], work: async (): Promise<SeedBlobOutcome> => {
+      // Single atomic call — see this file's header for why a separate `exists()` check first
+      // would reopen the exact TOCTOU gap this function used to have.
+      const stored = await blobStore.putIfAbsent({ workspaceId, sha256, bytes });
+      if (stored.storageKey !== storageKey) throw new Error("Stored blob key does not match the fenced key");
+      await verifyStoredBlob({ storageKey, sha256, byteLength: bytes.byteLength }, {});
+      return stored.written ? { kind: "copied" } : { kind: "skipped" };
+    } }, {});
   } catch (err) {
     return { kind: "failed", failure: { relativePath, error: err instanceof Error ? err.message : String(err) } };
   }
@@ -209,7 +220,7 @@ function computeHydrateStatus({ copied, failedCount }: { copied: number; failedC
 export async function hydrateBlobStoreFromSeed(
   required: HydrateBlobStoreFromSeedRequired
 ): Promise<HydrateBlobStoreFromSeedResult> {
-  const { seedUploadsDir, blobStore } = required;
+  const { seedUploadsDir } = required;
 
   const relativePaths = await listSeedBlobRelativePaths({ root: seedUploadsDir });
   if (relativePaths.length === 0) {
@@ -221,7 +232,7 @@ export async function hydrateBlobStoreFromSeed(
   const failed: HydrateBlobStoreFromSeedFailure[] = [];
 
   for (const relativePath of relativePaths) {
-    const outcome = await resolveOneSeedBlob({ seedUploadsDir, blobStore, relativePath });
+    const outcome = await resolveOneSeedBlob({ ...required, relativePath });
     if (outcome.kind === "copied") copied++;
     else if (outcome.kind === "skipped") skipped++;
     else failed.push(outcome.failure);

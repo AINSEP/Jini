@@ -4,10 +4,16 @@ import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { test } from "vitest";
+import type { BlobFence } from "@jini-ai/core/contracts/blob-gc";
 
 import { computeBlobStorageKey, InMemoryBlobStore, type PutBlobInput } from "../../index.js";
 
 import { hydrateBlobStoreFromSeed } from "../hydrate-blob-store-from-seed.js";
+
+const blobFence: BlobFence = {
+  withKeys: async ({ work }) => work(),
+  withAsset: async ({ work }) => work(),
+};
 
 /**
  * @file Proves `hydrateBlobStoreFromSeed()` — the fix for the production incident this pair of
@@ -113,7 +119,11 @@ test("hydrateBlobStoreFromSeed: no-op when the seed payload does not exist", asy
     const store = new InMemoryBlobStore();
     const result = await hydrateBlobStoreFromSeed({
       seedUploadsDir: join(dir, "absent-uploads"),
-      blobStore: store,
+      blobStore: store, blobFence, storageKeyFor: computeBlobStorageKey,
+      verifyStoredBlob: async ({ storageKey, sha256, byteLength }) => {
+        const stored = await store.get({ storageKey });
+        if (stored.byteLength !== byteLength || createHash("sha256").update(stored).digest("hex") !== sha256) throw new Error("Stored blob failed verification");
+      },
     });
     assert.equal(result.status, "no-seed-source");
     assert.equal(result.copied, 0);
@@ -138,7 +148,11 @@ test("hydrateBlobStoreFromSeed: fills in a missing blob — reproduces the failu
       "precondition: the live store must NOT have this blob yet — otherwise this test would not be exercising the bug"
     );
 
-    const result = await hydrateBlobStoreFromSeed({ seedUploadsDir: dir, blobStore: store });
+    const result = await hydrateBlobStoreFromSeed({ seedUploadsDir: dir, blobStore: store, blobFence, storageKeyFor: computeBlobStorageKey,
+      verifyStoredBlob: async ({ storageKey, sha256, byteLength }) => {
+        const stored = await store.get({ storageKey });
+        if (stored.byteLength !== byteLength || createHash("sha256").update(stored).digest("hex") !== sha256) throw new Error("Stored blob failed verification");
+      } });
 
     assert.equal(result.status, "seeded");
     assert.equal(result.copied, 1);
@@ -153,7 +167,7 @@ test("hydrateBlobStoreFromSeed: fills in a missing blob — reproduces the failu
   });
 });
 
-test("hydrateBlobStoreFromSeed: never overwrites a key that already exists in the live store", async () => {
+test("seed hydrate reports a corrupt occupied key rather than already-present", async () => {
   await withTempDir(async (dir) => {
     const workspaceId = `ws-${randomUUID()}`;
     const seedBytes = new TextEncoder().encode("stock seed bytes — must never land here");
@@ -162,16 +176,21 @@ test("hydrateBlobStoreFromSeed: never overwrites a key that already exists in th
     const store = new InMemoryBlobStore();
     const realBytes = new TextEncoder().encode("real bytes already in the live store");
     // Same sha256 the seed file was written under, but pre-populated with DIFFERENT bytes — this
-    // can only happen if content differs from what its own hash implies, which is exactly why the
-    // gate must be "does this key already exist", not "do the bytes match" — the function has no
-    // way to know which content is the "right" one for a given key, so it must never guess.
+    // can only happen if content differs from what its own hash implies. Verification must
+    // report the mismatch while leaving the occupied object untouched, never guessing which
+    // other owner may still depend on the stored bytes.
     await store.put({ workspaceId, sha256: seeded.sha256, bytes: realBytes });
 
-    const result = await hydrateBlobStoreFromSeed({ seedUploadsDir: dir, blobStore: store });
+    const result = await hydrateBlobStoreFromSeed({ seedUploadsDir: dir, blobStore: store, blobFence, storageKeyFor: computeBlobStorageKey,
+      verifyStoredBlob: async ({ storageKey, sha256, byteLength }) => {
+        const stored = await store.get({ storageKey });
+        if (stored.byteLength !== byteLength || createHash("sha256").update(stored).digest("hex") !== sha256) throw new Error("Stored blob failed verification");
+      } });
 
-    assert.equal(result.status, "already-present");
+    assert.equal(result.status, "partial");
     assert.equal(result.copied, 0);
-    assert.equal(result.skipped, 1);
+    assert.equal(result.skipped, 0);
+    assert.deepEqual(result.failed, [{ relativePath: seeded.storageKey, error: "Stored blob failed verification" }]);
     assert.deepEqual(
       await store.get({ storageKey: seeded.storageKey }),
       realBytes,
@@ -188,14 +207,22 @@ test("hydrateBlobStoreFromSeed: is a no-op on a second run once the store alread
 
     const store = new InMemoryBlobStore();
 
-    const first = await hydrateBlobStoreFromSeed({ seedUploadsDir: dir, blobStore: store });
+    const first = await hydrateBlobStoreFromSeed({ seedUploadsDir: dir, blobStore: store, blobFence, storageKeyFor: computeBlobStorageKey,
+      verifyStoredBlob: async ({ storageKey, sha256, byteLength }) => {
+        const stored = await store.get({ storageKey });
+        if (stored.byteLength !== byteLength || createHash("sha256").update(stored).digest("hex") !== sha256) throw new Error("Stored blob failed verification");
+      } });
     assert.equal(first.status, "seeded");
     assert.equal(first.copied, 1);
 
     // Simulates a later redeploy against the SAME (already-populated) volume — this must never
     // re-copy, matching `hydrateContentDbFromSeed`'s own "never touch it again" guarantee applied
     // per-key instead of per-file.
-    const second = await hydrateBlobStoreFromSeed({ seedUploadsDir: dir, blobStore: store });
+    const second = await hydrateBlobStoreFromSeed({ seedUploadsDir: dir, blobStore: store, blobFence, storageKeyFor: computeBlobStorageKey,
+      verifyStoredBlob: async ({ storageKey, sha256, byteLength }) => {
+        const stored = await store.get({ storageKey });
+        if (stored.byteLength !== byteLength || createHash("sha256").update(stored).digest("hex") !== sha256) throw new Error("Stored blob failed verification");
+      } });
     assert.equal(second.status, "already-present");
     assert.equal(second.copied, 0);
     assert.equal(second.skipped, 1);
@@ -214,7 +241,11 @@ test("hydrateBlobStoreFromSeed: a malformed seed entry is reported, not thrown, 
     await writeFile(join(dir, "ws", workspaceId, "not-a-blob.txt"), "unrelated file");
 
     const store = new InMemoryBlobStore();
-    const result = await hydrateBlobStoreFromSeed({ seedUploadsDir: dir, blobStore: store });
+    const result = await hydrateBlobStoreFromSeed({ seedUploadsDir: dir, blobStore: store, blobFence, storageKeyFor: computeBlobStorageKey,
+      verifyStoredBlob: async ({ storageKey, sha256, byteLength }) => {
+        const stored = await store.get({ storageKey });
+        if (stored.byteLength !== byteLength || createHash("sha256").update(stored).digest("hex") !== sha256) throw new Error("Stored blob failed verification");
+      } });
 
     assert.equal(result.status, "partial");
     assert.equal(result.copied, 1);
@@ -238,7 +269,11 @@ test("hydrateBlobStoreFromSeed: REGRESSION — a concurrent production write lan
     // leave open — see `RaceInjectingBlobStore`'s own doc for exactly which call it fires on.
     store.armConcurrentWrite(seeded.storageKey, productionBytes);
 
-    await hydrateBlobStoreFromSeed({ seedUploadsDir: dir, blobStore: store });
+    await hydrateBlobStoreFromSeed({ seedUploadsDir: dir, blobStore: store, blobFence, storageKeyFor: computeBlobStorageKey,
+      verifyStoredBlob: async ({ storageKey, sha256, byteLength }) => {
+        const stored = await store.get({ storageKey });
+        if (stored.byteLength !== byteLength || createHash("sha256").update(stored).digest("hex") !== sha256) throw new Error("Stored blob failed verification");
+      } });
 
     // Against the OLD exists()-then-put() implementation this fails: exists() observes the key
     // absent (the race hasn't landed yet), the concurrent write then lands, and the hydrator's own
@@ -279,7 +314,11 @@ test("hydrateBlobStoreFromSeed: a putIfAbsent failure for one file is reported, 
     const seededBad = await writeSeedBlob(dir, { workspaceId, bytes: badBytes });
 
     const store = new ThrowingBlobStore(seededBad.storageKey);
-    const result = await hydrateBlobStoreFromSeed({ seedUploadsDir: dir, blobStore: store });
+    const result = await hydrateBlobStoreFromSeed({ seedUploadsDir: dir, blobStore: store, blobFence, storageKeyFor: computeBlobStorageKey,
+      verifyStoredBlob: async ({ storageKey, sha256, byteLength }) => {
+        const stored = await store.get({ storageKey });
+        if (stored.byteLength !== byteLength || createHash("sha256").update(stored).digest("hex") !== sha256) throw new Error("Stored blob failed verification");
+      } });
 
     assert.equal(result.status, "partial");
     assert.equal(result.copied, 1);
@@ -311,7 +350,11 @@ test("hydrateBlobStoreFromSeed: a putIfAbsent rejection with a non-Error value i
     await writeSeedBlob(dir, { workspaceId, bytes: new TextEncoder().encode("bytes") });
 
     const store = new NonErrorThrowingBlobStore();
-    const result = await hydrateBlobStoreFromSeed({ seedUploadsDir: dir, blobStore: store });
+    const result = await hydrateBlobStoreFromSeed({ seedUploadsDir: dir, blobStore: store, blobFence, storageKeyFor: computeBlobStorageKey,
+      verifyStoredBlob: async ({ storageKey, sha256, byteLength }) => {
+        const stored = await store.get({ storageKey });
+        if (stored.byteLength !== byteLength || createHash("sha256").update(stored).digest("hex") !== sha256) throw new Error("Stored blob failed verification");
+      } });
 
     assert.equal(result.status, "partial");
     assert.equal(result.failed.length, 1);
@@ -325,8 +368,50 @@ test("hydrateBlobStoreFromSeed: an unreadable seed directory (not merely absent)
     const seedUploadsDir = join(dir, "uploads");
     await writeFile(seedUploadsDir, "a file where the seed directory should be");
     const store = new InMemoryBlobStore();
-    await assert.rejects(hydrateBlobStoreFromSeed({ seedUploadsDir, blobStore: store }), (err: NodeJS.ErrnoException) => err.code === "ENOTDIR");
+    await assert.rejects(hydrateBlobStoreFromSeed({ seedUploadsDir, blobStore: store, blobFence, storageKeyFor: computeBlobStorageKey,
+      verifyStoredBlob: async ({ storageKey, sha256, byteLength }) => {
+        const stored = await store.get({ storageKey });
+        if (stored.byteLength !== byteLength || createHash("sha256").update(stored).digest("hex") !== sha256) throw new Error("Stored blob failed verification");
+      } }), (err: NodeJS.ErrnoException) => err.code === "ENOTDIR");
   } finally {
     await rm(dir, { recursive: true, force: true });
   }
+});
+
+test("each writer holds the byte fence across write and publish", async () => {
+  await withTempDir(async (dir) => {
+    const bytes = new TextEncoder().encode("fenced seed bytes");
+    const seeded = await writeSeedBlob(dir, { workspaceId: "workspace", bytes });
+    const store = new InMemoryBlobStore();
+    let release = () => {};
+    let entered = () => {};
+    const gate = new Promise<void>((resolve) => { release = resolve; });
+    const entry = new Promise<"entered">((resolve) => { entered = () => resolve("entered"); });
+    let held = false;
+    let verified = false;
+    const pending = hydrateBlobStoreFromSeed({ seedUploadsDir: dir, blobStore: store,
+      storageKeyFor: computeBlobStorageKey,
+      blobFence: { ...blobFence, withKeys: async ({ workspaceId, storageKeys, work }) => {
+        assert.equal(workspaceId, "workspace");
+        assert.deepEqual(storageKeys, [seeded.storageKey]);
+        entered();
+        await gate;
+        held = true;
+        try { return await work(); } finally { held = false; }
+      } },
+      verifyStoredBlob: async ({ storageKey, sha256, byteLength }) => {
+        assert.equal(held, true);
+        const stored = await store.get({ storageKey });
+        assert.equal(stored.byteLength, byteLength);
+        assert.equal(createHash("sha256").update(stored).digest("hex"), sha256);
+        verified = true;
+      },
+    });
+    try {
+      assert.equal(await Promise.race([entry, pending.then(() => "completed")]), "entered");
+      assert.equal(await store.exists({ storageKey: seeded.storageKey }), false);
+    } finally { release(); }
+    assert.deepEqual(await pending, { status: "seeded", copied: 1, skipped: 0, failed: [] });
+    assert.equal(verified, true);
+  });
 });

@@ -1,6 +1,7 @@
 import { defineJsonRoute, ok } from "@jini-ai/core/contracts/server";
 import { decodeStrictBase64 } from "@jini-ai/core/contracts/site/strict-base64";
 import { rejectRoute } from "@jini-ai/core/errors/route-refusal";
+import type { BlobFence, BlobStorageKeyFor } from "@jini-ai/core/contracts/blob-gc";
 
 import { bytesMatchSha256 } from "../../../publish/transfer/blob-staging.js";
 import { authorizePublishContentPermission, blobShaParam } from "./blob-shared.js";
@@ -32,7 +33,10 @@ import type { PublishRoutePrincipal } from "./transport-shared.js";
 export interface BlobPutRouteDeps {
   workspaceId: string;
   /** The host's content-addressed blob store (create-only; it does not verify the sha itself). */
-  blobStore: { putIfAbsent(required: { workspaceId: string; sha256: string; bytes: Uint8Array }): Promise<{ written: boolean }> };
+  blobStore: { putIfAbsent(required: { workspaceId: string; sha256: string; bytes: Uint8Array }): Promise<{ storageKey: string; written: boolean }> };
+  blobFence: BlobFence;
+  storageKeyFor: BlobStorageKeyFor;
+  verifyStoredBlob: (required: { storageKey: string; sha256: string; byteLength: number }, _optional?: Record<string, never>) => Promise<void>;
   /** The upload ceiling in bytes (the media library's `MAX_DOCUMENT_BYTES`). */
   maxUploadBytes: number;
 }
@@ -70,7 +74,12 @@ export const blobPutRoute = defineJsonRoute<{ claimedSha256: string; rawBody: un
     if (!bytesMatchSha256({ bytes, claimedSha256 })) {
       rejectRoute({ status: 422, error: "the uploaded bytes do not hash to the claimed sha256", code: "SHA256_MISMATCH" });
     }
-    const { written } = await deps.blobStore.putIfAbsent({ workspaceId: deps.workspaceId, sha256: claimedSha256, bytes });
-    return ok({ value: { sha256: claimedSha256, written } });
+    const storageKey = deps.storageKeyFor({ workspaceId: deps.workspaceId, sha256: claimedSha256 });
+    return deps.blobFence.withKeys({ workspaceId: deps.workspaceId, storageKeys: [storageKey], work: async () => {
+      const stored = await deps.blobStore.putIfAbsent({ workspaceId: deps.workspaceId, sha256: claimedSha256, bytes });
+      if (stored.storageKey !== storageKey) throw new Error("Stored blob key does not match the fenced key");
+      await deps.verifyStoredBlob({ storageKey, sha256: claimedSha256, byteLength: bytes.byteLength }, {});
+      return ok({ value: { sha256: claimedSha256, written: stored.written } });
+    } }, {});
   },
 });

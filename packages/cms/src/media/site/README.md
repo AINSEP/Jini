@@ -30,6 +30,12 @@ one) and `restoreImportedMedia` undoes it. It needs one deps object, `ImportMedi
 
 - `mediaRepo: VersionedMediaRepoPort` — compare-and-set media rows (`insertIfAbsent` / `saveIfVersion`).
 - `assetBlobRepo: AssetBlobRepoPort`, `blobStore: BlobStorePort` — content-addressed bytes.
+- `blobFence: BlobFence`, `storageKeyFor: BlobStorageKeyFor` — the host's shared durable
+  byte-key fence and canonical key rule, from `@jini-ai/core/contracts/blob-gc`.
+- `verifyStoredBlob({ storageKey, sha256, byteLength }, {})` — reads the stored object and
+  rejects a length or digest mismatch, including an active dedup hit or `written: false`.
+  A size-only check cannot approve bytes; bounded `get` bindings compare length and hash
+  the returned bytes once. Verification must neither overwrite nor delete a corrupt object.
 - `clock: { nowIso(): string }`, `idGen: { newId(): string }` — only for a new blob row's id.
 - `sha256: { isValidSha256Hex, bytesMatchSha256 }` — the staged-bytes digest rule the host's publish transfer uses.
 - `outwardErrorMessage: OutwardErrorMessage` (required) — words a classified media error (write-once
@@ -44,7 +50,8 @@ typed result, and only unexpected storage failures throw.
 import { importMediaEntity } from "@jini-ai/cms/media/site/import-media-entity";
 
 const result = await importMediaEntity({
-  deps: { mediaRepo, assetBlobRepo, blobStore, clock, idGen, sha256, outwardErrorMessage: ({ error }) => error.message },
+  deps: { mediaRepo, assetBlobRepo, blobStore, blobFence, storageKeyFor, verifyStoredBlob,
+    clock, idGen, sha256, outwardErrorMessage: ({ error }) => error.message },
   input: { workspaceId, record, bytes, blobCreatedByPrincipal: principalId, baseVersion: expectedVersion ?? null },
 });
 if (result.status !== "imported") return result; // the host maps blocked/conflict to its own report
@@ -62,7 +69,7 @@ adapters and passes them in.
 | `chat-preview` | `routeDeps.imageCodec?: ImageCodecPort` (absent means no preview) | `withChatPreview`, `MEDIA_CHAT_PREVIEW_MAX_EDGE_PX` |
 | `content-type-store` | a persistent adapter for `MediaContentTypeStorePort` (`getMany` / `set`) | the port, `InMemoryMediaContentTypeStore` (test double) |
 | `content-type-resolution` | `ContentTypeDeps`: `workspaceId`, `mediaContentTypeStore`, `assetBlobRepo`, `blobStore` | `resolveContentTypes`, `readRecordedContentType` |
-| `hydrate-blob-store-from-seed` | `seedUploadsDir` (a path) and `blobStore: Pick<BlobStorePort, "putIfAbsent">` | `hydrateBlobStoreFromSeed` and its result types |
+| `hydrate-blob-store-from-seed` | `seedUploadsDir`, `blobStore: Pick<BlobStorePort, "putIfAbsent">`, `blobFence`, `storageKeyFor`, `verifyStoredBlob` | `hydrateBlobStoreFromSeed` and its result types |
 | `original-bytes` | `deps` (`workspaceId`, `assetBlobRepo`, `blobStore`) and `errorPrefix` (the calling tool's name) | `readStoredBytes` |
 | `public-path` | nothing, pure | `mediaUrlKey`, `mediaPublicPath` |
 | `upload-content-type` | nothing, pure | `resolveUploadContentType`, `assertAllowedSniffedContentType` |
@@ -74,8 +81,10 @@ What the host can rely on:
 - `resolveContentTypes` sniffs and records any blob with no stored type; an unreadable blob is
   skipped (its type stays unrecorded), never a failed list. `readRecordedContentType` never reads bytes.
 - `hydrateBlobStoreFromSeed` writes per key with `putIfAbsent`, so it is safe on every boot. A bad
-  seed file lands in `failed`; only an unreadable seed directory throws. It reads the seed with
-  `node:fs`, so it is node-only.
+  seed file or corrupt occupied object lands in `failed`; only an unreadable seed directory
+  throws. It validates the seed's canonical path and input digest, then holds the byte fence
+  through create-only staging and stored-object verification. It reads the seed with `node:fs`,
+  so it is node-only. Hydration creates no media ownership rows.
 - `withChatPreview` is best effort and returns `result` unchanged on any failure.
 - Refusals are typed errors (`ToolInputError`, `MediaValidationError`); the host maps them to its wire format.
 
@@ -86,7 +95,7 @@ import { resolveContentTypes } from "@jini-ai/cms/media/site/content-type-resolu
 import { mediaPublicPath, mediaUrlKey } from "@jini-ai/cms/media/site/public-path";
 
 await ensureCoreMediaTransform({ deps: { clock, idGen, transformRepo }, input: { workspaceId } }); // once per boot
-void hydrateBlobStoreFromSeed({ seedUploadsDir, blobStore }).catch(hostLog); // boot effect, never gates a request
+void hydrateBlobStoreFromSeed({ seedUploadsDir, blobStore, blobFence, storageKeyFor, verifyStoredBlob }).catch(hostLog); // boot effect, never gates a request
 const types = await resolveContentTypes({ deps: { workspaceId, mediaContentTypeStore, assetBlobRepo, blobStore }, media: records });
 const href = mediaPublicPath({ key: mediaUrlKey(record), variant: { kind: "transform", name: "public", version: 1, ext: "webp" } });
 ```
@@ -95,6 +104,17 @@ These modules must never import host code (routes, composition roots, product to
 an HTTP framework, or a host logger; host collaborators arrive through the deps object. Product
 names stay out too. Only `hydrate-blob-store-from-seed` touches the filesystem, and only through
 `node:fs` / `node:path`.
+
+`importMediaEntity` keeps the byte fence until its conditional media write finishes, verifies
+existing blob rows, and resurrects tombstones without changing blob attribution. `blobWritten`
+still reports creation of the blob row, independently of create-only staging's `written` flag.
+The publish-content blob PUT leaf requires the same three ports, verifies before returning
+`{ sha256, written }`, and creates no active `asset_blobs` row for staging.
+
+Bind every writer and purge to the same fence. Lock order is process-local single-flight lock
+→ `withAsset` → `withKeys` (sorted, deduplicated keys) → storage transaction; never acquire an
+asset fence from inside a byte fence. This import/staging slice does not replace the separate
+replacement/restore or purge/collector work. Consume it together with the host bindings.
 
 ### `where-used` / `purge-media`
 
