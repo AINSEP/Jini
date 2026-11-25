@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import { mintToolErrorId } from '@jini-ai/core/errors/error-id';
 import { describeDelegatedInternalError, TOOL_ERROR_ID_PATTERN } from '../redaction.js';
+import { createRecordingReporter } from '@jini-ai/core/errors/testing';
 
 // F1 fix wave (Stryker L8 §4 tool-recovery/redaction.ts:39 quantifiers/anchors, 107 reason
 // fallbacks): one row per regex rule and per reason branch.
@@ -29,7 +30,10 @@ describe('TOOL_ERROR_ID_PATTERN', () => {
 });
 
 describe('describeDelegatedInternalError — reason branches', () => {
-  const deps = () => ({ mintErrorId: () => 'ERR-0000-0000-0000-0001', redactSecretShapes: ({ text }: { text: string }) => ({ text, redactions: 0 }), onFailure: vi.fn() });
+  const deps = () => {
+    const recorded = createRecordingReporter({ ids: ['ERR-0000-0000-0000-0001'], iso: '2026-11-25T00:00:00.000Z' });
+    return { reporter: recorded.reporter, redactSecretShapes: ({ text }: { text: string }) => ({ text, redactions: 0 }), entries: recorded.entries };
+  };
   const ctx = (extra: Record<string, unknown>) => ({ source: 'delegated', toolId: 'echo', runId: 'r', correlationId: 'c-1', ...extra }) as never;
   it.each<[string, Record<string, unknown>, string]>([
     ['timed-out', { status: 'timed-out', error: new Error('ignored') }, 'tool "echo" timed out before it finished'],
@@ -41,11 +45,12 @@ describe('describeDelegatedInternalError — reason branches', () => {
     ['object', { error: { message: 'not an Error' } }, 'tool "echo" failed'],
   ])('%s', (_l, extra, reason) => {
     const d = deps();
-    expect(describeDelegatedInternalError({ context: ctx(extra), ...d })).toBe(`Error ERR-0000-0000-0000-0001: ${reason}`);
-    expect(d.onFailure).toHaveBeenCalledWith({ errorId: 'ERR-0000-0000-0000-0001', toolId: 'echo', runId: 'r', principalId: '(unresolved)', executionId: '(none) correlationId=c-1', redactions: 0, message: reason });
+    expect(describeDelegatedInternalError({ context: ctx(extra), reporter: d.reporter, redactSecretShapes: d.redactSecretShapes })).toBe(`Error ERR-0000-0000-0000-0001: ${reason}`);
+    expect(d.entries).toHaveLength(1);
+    expect(d.entries[0]?.meta).toMatchObject({ errorId: 'ERR-0000-0000-0000-0001', step: 'Run tool', attributes: { 'agent.run.id': 'r' } });
   });
-  it('a throwing failure sink never turns the description into a throw', () => {
-    expect(describeDelegatedInternalError({ context: ctx({ error: 'x' }), ...deps(), onFailure: () => { throw new Error('sink'); } })).toBe('Error ERR-0000-0000-0000-0001: x');
+  it('a throwing reporter never turns the description into a throw', () => {
+    expect(describeDelegatedInternalError({ context: ctx({ error: 'x' }), reporter: { record: () => { throw new Error('sink'); } }, redactSecretShapes: deps().redactSecretShapes })).toBe('x');
   });
 });
 

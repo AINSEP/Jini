@@ -84,11 +84,11 @@ test("timed-out is failed and reported; denied, confirmation-denied and cancelle
   for (const status of ["timed-out", "denied", "confirmation-denied", "cancelled"] as const) {
     const fake = createFakePort(); const rec = recording();
     await withToolCallObservability({ inner: executorReturning(() => ({ executionId: "e", status })), reporter: rec.reporter, observability: fake.port }, {}).execute(CALL);
-    outcomes.push({ status, failed: fake.operations[0]?.end?.failed, reported: rec.reports.length + rec.hostRecords().length / 10 });
+    outcomes.push({ status, failed: fake.operations[0]?.end?.failed, reported: rec.reports.length, records: rec.hostRecords().length });
   }
   expect(outcomes).toEqual([
-    { status: "timed-out", failed: true, reported: 1.1 }, { status: "denied", failed: false, reported: 0 },
-    { status: "confirmation-denied", failed: false, reported: 0 }, { status: "cancelled", failed: false, reported: 0 },
+    { status: "timed-out", failed: true, reported: 1, records: 1 }, { status: "denied", failed: false, reported: 0, records: 0 },
+    { status: "confirmation-denied", failed: false, reported: 0, records: 0 }, { status: "cancelled", failed: false, reported: 0, records: 0 },
   ]);
 });
 
@@ -182,4 +182,87 @@ test("withToolCallAnalytics: one tool_call product event per call, after it sett
     { name: "tool_call", userId: "p1", properties: { tool_id: "pages_list", outcome: "failed", failed: true, error_kind: "validation" } },
     { name: "tool_call", userId: "p1", properties: { tool_id: UNREGISTERED_TOOL_LABEL, outcome: "threw", failed: true } },
   ]);
+});
+
+// ---- P4-J4: the tool boundary records through the host reporter ----
+
+const TAGGED = "ERR-AAAA-BBBB-CCCC-DDDD";
+
+test("an internal failure gives one report tagged with the result's id and end({ failed: true })", async () => {
+  const fake = createFakePort(); const rec = recording();
+  const result = { executionId: "e", status: "failed", error: `Error ${TAGGED}: boom`, errorId: TAGGED } as ToolExecutionResult;
+  const settled = await withToolCallObservability({ inner: executorReturning(() => result), reporter: rec.reporter, observability: fake.port }, {}).execute(CALL);
+  expect(settled).toBe(result);
+  expect(rec.reports.map((report) => report.context.incidentId)).toEqual([TAGGED]);
+  expect(rec.hostRecords().map((entry) => entry.meta?.errorId)).toEqual([TAGGED]);
+  expect(fake.operations[0]?.end).toEqual({ outcome: "failed", failed: true, attributes: { "tool.error_kind": "internal" } });
+});
+
+test("a ToolInputError gives zero reports", async () => {
+  const fake = createFakePort(); const rec = recording();
+  const error = new ToolInputError({ message: 'unknown tool "x"' });
+  await expect(withToolCallObservability({ inner: executorReturning(() => { throw error; }), reporter: rec.reporter, observability: fake.port }, {}).execute(CALL)).rejects.toBe(error);
+  expect(rec.reports).toEqual([]);
+  expect(rec.entries).toEqual([]);
+});
+
+test("a validation failed result gives zero reports", async () => {
+  const rec = recording();
+  const result: ToolExecutionResult = { executionId: "e", status: "failed", errorKind: "validation", error: "name is required" };
+  expect(await withToolCallObservability({ inner: executorReturning(() => result), reporter: rec.reporter }, {}).execute(CALL)).toBe(result);
+  expect(rec.reports).toEqual([]);
+  expect(rec.entries).toEqual([]);
+});
+
+test("with observability disabled a failed tool still writes one host record", async () => {
+  const failed = { executionId: "e", status: "failed", error: `Error ${TAGGED}: boom`, errorId: TAGGED } as ToolExecutionResult;
+  const trackOperation = vi.fn(createFakePort().port.trackOperation);
+  for (const wiring of [{}, { observability: { trackOperation }, off: true }] as const) {
+    const rec = recording();
+    const executor = withToolCallObservability({ inner: executorReturning(() => failed), reporter: rec.reporter, ...("observability" in wiring ? { observability: wiring.observability } : {}) },
+      "off" in wiring ? { observabilityEnabled: () => false } : {});
+    expect(await executor.execute(CALL)).toBe(failed);
+    expect(rec.hostRecords().map((entry) => entry.meta?.errorId)).toEqual([TAGGED]);
+  }
+  expect(trackOperation).not.toHaveBeenCalled();
+});
+
+test("the report carries the operation tracker's trace ids", async () => {
+  const rec = recording();
+  const sentinel: TraceIds = { traceId: "sentinel-trace", spanId: "sentinel-span" };
+  const observability = { trackOperation: () => ({ run: <T>(fn: () => T) => fn(), end: () => {}, traceIds: () => sentinel }) };
+  const error = new Error("db down");
+  await expect(withToolCallObservability({ inner: executorReturning(() => { throw error; }), reporter: rec.reporter, observability }, {}).execute(CALL)).rejects.toBe(error);
+  expect(rec.reports).toHaveLength(1);
+  expect(rec.reports[0]?.context.trace).toBe(sentinel);
+});
+
+test("a timed-out result is recorded once and stamped with the recorded id", async () => {
+  const fake = createFakePort(); const rec = recording();
+  const settled = await withToolCallObservability({ inner: executorReturning(() => ({ executionId: "e", status: "timed-out" })), reporter: rec.reporter, observability: fake.port }, {}).execute(CALL);
+  expect(settled).toEqual({ executionId: "e", status: "timed-out", errorId: IDS[0] });
+  expect(rec.hostRecords().map((entry) => entry.meta?.errorId)).toEqual([IDS[0]]);
+  expect(rec.reports).toHaveLength(1);
+  expect(fake.operations[0]?.end).toEqual({ outcome: "timed-out", failed: true });
+});
+
+test("a thrown tool error described after the decorator is recorded once under the decorator's id", async () => {
+  const rec = recording();
+  const error = new Error("db down");
+  await expect(withToolCallObservability({ inner: executorReturning(() => { throw error; }), reporter: rec.reporter }, {}).execute(CALL)).rejects.toBe(error);
+  const disclosure = delegatedToolErrorDisclosure({ reporter: rec.reporter, redactSecretShapes: ({ text }) => ({ text, redactions: 0 }) });
+  expect(disclosure.describeInternalError({ source: "delegated-tools", runId: "run-1", toolId: "pages_list", correlationId: "c", error })).toBe(`Error ${IDS[0]}: db down`);
+  expect(rec.hostRecords()).toHaveLength(1);
+  expect(rec.reports).toHaveLength(1);
+});
+
+test("a throwing reporter changes neither the result nor the throw", async () => {
+  const reporter = { record: () => { throw new Error("reporter down"); } };
+  const failed: ToolExecutionResult = { executionId: "e", status: "failed", error: "boom" };
+  const timedOut: ToolExecutionResult = { executionId: "e", status: "timed-out" };
+  for (const result of [failed, timedOut]) {
+    expect(await withToolCallObservability({ inner: executorReturning(() => result), reporter }, {}).execute(CALL)).toBe(result);
+  }
+  const error = new Error("db down");
+  await expect(withToolCallObservability({ inner: executorReturning(() => { throw error; }), reporter }, {}).execute(CALL)).rejects.toBe(error);
 });

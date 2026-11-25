@@ -73,9 +73,8 @@ test('an alternate host metadata detector changes recovery output without a pack
   expect((await probe(true)).output).toBe(diagnostic);
 });
 
-test('redaction retains safe failure text when its reporting port throws', async () => {
+test('redaction replaces unsafe failure text with the redactor output and one id', async () => {
   const wrapped = withRedactedToolFailures({ inner: executor(async () => ({ executionId: 'execution', status: 'failed', error: 'unsafe fixture' })),
-    redactSecretShapes: () => ({ text: 'safe failure', redactions: 1 }), mintErrorId: () => 'ERR-0000-0000-0000-0000',
-    onFailure: () => { throw new Error('observer failure'); } }, {});
+    redactSecretShapes: () => ({ text: 'safe failure', redactions: 1 }), mintErrorId: () => 'ERR-0000-0000-0000-0000' }, {});
   expect((await wrapped.execute(required, {})).error).toBe('Error ERR-0000-0000-0000-0000: safe failure');
 });
