@@ -15,7 +15,7 @@ const campaign: CampaignRecord = {
   version: 3, createdByPrincipal: "actor-1", createdAt: NOW, updatedAt: NOW,
 };
 
-test.each(["create", "edit"])("saveCampaign refuses an archived list before writing a campaign or revision", async (mode) => {
+test.each(["create", "edit"])("saveCampaign refuses an archived list before writing a campaign or revision (%s)", async (mode) => {
   const campaignRepo = new InMemoryNewsletterCampaignRepo({ campaigns: [campaign] });
   const rowWrites = vi.spyOn(campaignRepo, "saveCampaignRow");
   const revisionWrites = vi.spyOn(campaignRepo, "appendRevision");
