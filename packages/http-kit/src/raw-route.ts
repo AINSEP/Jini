@@ -6,7 +6,7 @@
  */
 import type { Express, Request, Response } from 'express';
 import type { OperationAttributes } from '@jini-ai/core/contracts/observability';
-import type { RouteErrorPorts, RouteHostContext } from '@jini-ai/core/contracts/server';
+import { httpFallbackCopy, type RouteErrorPorts, type RouteHostContext } from '@jini-ai/core/contracts/server';
 import { runOperation, UNAVAILABLE_ERROR_ID, type DescribedFailure, type ErrorReporter, type OperationVerdict } from '@jini-ai/core/errors/reporter';
 import { allowRouteBody, allowRouteOrigin, applyAdmittedResponseHeaders, applyResponseHeaders, assertRequestFactsPort, requestScopedDeps, routeAuthorize, routeRequestInput, sendRouteException } from './adapter.js';
 import { deferredBodyReader } from './deferred-body.js';
@@ -116,10 +116,6 @@ async function writeRawResponse({ req, res, spec, response, signal }: Pick<RawCa
 /** What a client that hung up is logged as (nginx's convention); nobody receives it. */
 const CLIENT_CLOSED_STATUS = 499;
 const CANCELLED: OperationVerdict = { outcome: 'cancelled', failed: false, attributes: { 'http.status_code': CLIENT_CLOSED_STATUS } };
-const HTTP_FALLBACK = {
-  message: 'The server could not finish this request.',
-  action: 'Check whether your change was saved, then try again. If it keeps failing, report the error ID.',
-} as const;
 
 /** The work's result: `handle`'s `Response` (absent when a gate or `onError` already answered) and its verdict. */
 interface RawTagged { readonly response: globalThis.Response | undefined; readonly verdict: OperationVerdict }
@@ -134,7 +130,7 @@ async function reporterRawRoute<Deps, Context>(call: RawCall<Deps, Context>, { e
   // The registered pattern (`/files/:id`), never `req.url`: a URL carries ids, query strings and tokens.
   const attributes = { 'http.method': method, 'http.route': call.spec.path };
   const run = await runOperation<RawTagged>({
-    deps: errors, operation: 'http.route', scope: 'http', step: `Handle ${method} ${call.spec.path}`, fallback: HTTP_FALLBACK, attributes,
+    deps: errors, operation: 'http.route', scope: 'http', step: `Handle ${method} ${call.spec.path}`, fallback: httpFallbackCopy({ method }), attributes,
     work: () => tracedRawRoute(call, { errors }),
     classify: (tagged) => tagged.verdict,
     settle: (error) => disconnectVerdict({ signal: call.signal, error }),
@@ -234,8 +230,9 @@ async function writeTracedResponse<Deps, Context>(call: RawCall<Deps, Context>, 
       return;
     }
     const errorId = recordOnce({ reporter, error, step: 'Write response', attributes });
+    const fallback = httpFallbackCopy({ method: call.spec.method });
     if (res.headersSent) res.destroy();
-    else sendApiError({ res, status: 500, error: { code: 'INTERNAL_ERROR', message: `${HTTP_FALLBACK.message} ${HTTP_FALLBACK.action} (error ${errorId})`, requestId: errorId } });
+    else sendApiError({ res, status: 500, error: { code: 'INTERNAL_ERROR', message: `${fallback.message} ${fallback.action} (error ${errorId})`, requestId: errorId } });
   }
 }
 

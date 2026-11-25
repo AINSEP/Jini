@@ -11,6 +11,7 @@ import { guardSameOrigin, type OriginContext } from './origin.js';
 import { readQuery } from './query.js';
 import { readJsonBody } from './request-body.js';
 import { ClientFacingError } from './client-facing-error.js';
+import { httpFallbackCopy, internalErrorMessage } from './failure-copy.js';
 import type { Result } from './result.js';
 
 /**
@@ -184,10 +185,6 @@ const COMPLETED: OperationVerdict = { outcome: 'completed', failed: false };
 const REFUSED: OperationVerdict = { outcome: 'refused', failed: false };
 const FAILED: OperationVerdict = { outcome: 'failed', failed: true };
 const CANCELLED: OperationVerdict = { outcome: 'cancelled', failed: false };
-const HTTP_FALLBACK = {
-  message: 'The server could not finish this request.',
-  action: 'Check whether your change was saved, then try again. If it keeps failing, report the error ID.',
-} as const;
 
 /** Stamps the answer's status on the verdict, so the operation ends with `http.status_code`. */
 function tag({ response, verdict }: { readonly response: Response; readonly verdict: OperationVerdict }): TaggedAnswer {
@@ -264,7 +261,7 @@ async function legacyAnswer<I, O, D, C>(call: RouteCall<I, O, D, C>, { host }: {
 async function reporterAnswer<I, O, D, C>(call: RouteCall<I, O, D, C>, { host, errors }: { readonly host: RouteHostContext | undefined; readonly errors: RouteErrorPorts }): Promise<Response> {
   const method = call.spec.method.toUpperCase();
   const run = await runOperation<TaggedAnswer>({
-    deps: errors, operation: 'http.route', scope: 'http', step: `Handle ${method} ${call.spec.path}`, fallback: HTTP_FALLBACK,
+    deps: errors, operation: 'http.route', scope: 'http', step: `Handle ${method} ${call.spec.path}`, fallback: httpFallbackCopy({ method }),
     // The registered pattern (`/runs/:id`), never `request.url`: a URL carries ids, query strings and
     // tokens, which would leak into telemetry and give every request its own unbounded group.
     attributes: { 'http.method': method, 'http.route': call.spec.path },
@@ -422,7 +419,7 @@ async function exceptionAnswer<I, O, D, C>({ call, error }: { readonly call: Rou
   const apiError = call.reportInternalError<Omit<RouteHostInternalErrorContext, 'correlationId'>>({
     report: { method: spec.method, path: spec.path, error },
     logSource: `${spec.method.toUpperCase()} ${spec.path}`,
-    message: 'The server could not finish this request. Check whether your change was saved, then copy the request ID and report this problem.',
+    message: internalErrorMessage({ method: spec.method }),
   }, { onInternalError: host?.onInternalError });
   return errorAnswer({ error: apiError });
 }

@@ -210,7 +210,8 @@ describe('http adapter', () => {
     expect(res.status).toHaveBeenCalledWith(500);
     const body = res.json.mock.calls[0]![0] as { error: { code: string; message: string; requestId?: string } };
     expect(body.error.code).toBe('INTERNAL_ERROR');
-    expect(body.error.message).toBe('The server could not finish this request. Check whether your change was saved, then copy the request ID and report this problem.');
+    // A GET changed nothing, so its copy says so rather than sending the caller to look for a saved change.
+    expect(body.error.message).toBe('The server could not finish this request. Nothing was changed. Try again; if it keeps failing, copy the request ID and report this problem.');
     expect(body.error).not.toHaveProperty('details');
     expect(JSON.stringify(body)).not.toContain('/srv/secret/data.db');
     expect(JSON.stringify(body)).not.toContain('hunter2');

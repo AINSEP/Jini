@@ -4,7 +4,7 @@
  * file in the module that knows about Express `req`/`res` on the mounting side.
  */
 import type { Express, Request, Response } from 'express';
-import { ClientFacingError, guardSameOrigin, isRouteReply, payloadTooLargeError, statusForError, type JsonRouteAuthorize, type RouteReply, type Result, type RouteHostInternalErrorContext, type RouteErrorPorts, type RouteHostContext, type RouteInputContext, type ServerApiError } from '@jini-ai/core/contracts/server';
+import { ClientFacingError, guardSameOrigin, httpFallbackCopy, internalErrorMessage, isRouteReply, payloadTooLargeError, statusForError, type JsonRouteAuthorize, type RouteReply, type Result, type RouteHostInternalErrorContext, type RouteErrorPorts, type RouteHostContext, type RouteInputContext, type ServerApiError } from '@jini-ai/core/contracts/server';
 import { runOperation, UNAVAILABLE_ERROR_ID, type DescribedFailure, type ErrorReporter, type OperationVerdict } from '@jini-ai/core/errors/reporter';
 import { reportRouteInternalError } from './internal-error.js';
 import { rawInput } from './request.js';
@@ -100,10 +100,6 @@ const REFUSED: OperationVerdict = { outcome: 'refused', failed: false };
 const FAILED: OperationVerdict = { outcome: 'failed', failed: true };
 /** The non-standard "client closed request" sentinel, used only as the ended operation's status label. */
 const CLIENT_CLOSED_STATUS = 499;
-const HTTP_FALLBACK = {
-  message: 'The server could not finish this request.',
-  action: 'Check whether your change was saved, then try again. If it keeps failing, report the error ID.',
-} as const;
 const noWrite = (): void => {};
 
 /** Stamps the status the write will send on the verdict, so the operation ends with `http.status_code`. */
@@ -139,7 +135,7 @@ async function legacyServe<Input, Output, Deps, Context>(call: ExpressRouteCall<
 async function reporterServe<Input, Output, Deps, Context>(call: ExpressRouteCall<Input, Output, Deps, Context>, { errors }: { readonly errors: RouteErrorPorts }): Promise<void> {
   const method = call.spec.method.toUpperCase();
   const run = await runOperation<ExpressAnswer>({
-    deps: errors, operation: 'http.route', scope: 'http', step: `Handle ${method} ${call.spec.path}`, fallback: HTTP_FALLBACK,
+    deps: errors, operation: 'http.route', scope: 'http', step: `Handle ${method} ${call.spec.path}`, fallback: httpFallbackCopy({ method }),
     // The registered pattern (`/runs/:id`), never `req.originalUrl`: a URL carries ids, query strings
     // and tokens, which would leak into telemetry and give every request its own unbounded group.
     attributes: { 'http.method': method, 'http.route': call.spec.path },
@@ -224,7 +220,8 @@ function deliver<Input, Output, Deps, Context>({ call, write }: { readonly call:
   } catch (writeError) {
     const { errorId } = recordQuietly({ reporter: errors.reporter, error: writeError, step: `Write ${spec.method.toUpperCase()} ${spec.path} response` });
     const id = errorId ?? UNAVAILABLE_ERROR_ID;
-    const error: ServerApiError = { code: 'INTERNAL_ERROR', message: `${HTTP_FALLBACK.message} ${HTTP_FALLBACK.action} (error ${id})`, requestId: id };
+    const fallback = httpFallbackCopy({ method: spec.method });
+    const error: ServerApiError = { code: 'INTERNAL_ERROR', message: `${fallback.message} ${fallback.action} (error ${id})`, requestId: id };
     if (res.headersSent) res.destroy?.();
     else sendApiError({ res, status: 500, error });
   }
@@ -536,7 +533,7 @@ export function sendRouteException<Deps, Context>({ res, spec, adapter, error: e
   const apiError = reportRouteInternalError<Omit<RouteHostInternalErrorContext, 'correlationId'>>({
     report: { method: spec.method, path: spec.path, error: e },
     logSource: `${spec.method.toUpperCase()} ${spec.path}`,
-    message: 'The server could not finish this request. Check whether your change was saved, then copy the request ID and report this problem.',
+    message: internalErrorMessage({ method: spec.method }),
   }, { onInternalError: adapter?.onInternalError });
   sendApiError({ res, status: 500, error: apiError });
 }
