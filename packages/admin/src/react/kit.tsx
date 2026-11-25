@@ -18,6 +18,8 @@ import type { Translate } from '@jini-ai/core/text';
 import type { MediaProviderCatalogPolicy, MediaProviderOption } from '@jini-ai/core';
 import type { UserFacingError } from '@jini-ai/core';
 import type { AdminMediaProvidersKit } from './kit-media-providers.js';
+import type { AdminSurfaceProtocolKit } from './kit-admin-surfaces.js';
+import type { AdminPluginProviderSettingField } from '../screens/plugins/api/plugins-api.types.js';
 import type { ByokConfig, ExecutionConfig } from '@jini-ai/core/contracts/execution';
 import type { CreateExecutionPortOptions, CursorPages, ExecutionCredentialController, ExecutionCredentialEffects, ExecutionCredentialPort, ExecutionCredentialView,
   ExecutionProbeTransport, FolderPathDropPort, HtmlPreviewPort, HtmlPreviewState, KitSaveState, SettingsSlice, SettingsSliceOptions, SourceConfigItem, SourceFieldSpec,
@@ -87,6 +89,8 @@ export interface InfoTipProps {
   /** The trigger's accessible name when it differs from the tip text; `descriptionId` ties the tip to a described control. */
   triggerLabel?: string | undefined; descriptionId?: string | undefined;
   placement?: 'top' | 'bottom' | 'inline' | undefined; icon?: ReactNode | undefined;
+  /** Replaces the tip's own controller (e.g. a padlock whose press follows a link instead of pinning the tip). */
+  useTip?: ((required?: Record<string, never>, optional?: { placement?: 'top' | 'bottom' | undefined }) => InfoTipController) | undefined;
 }
 type LightboxPart = 'dialog' | 'close' | 'previous' | 'next';
 export interface LightboxProps {
@@ -416,7 +420,10 @@ export type EditorHtmlTarget = HtmlEditorTarget;
 export type RequestEditHtml = (target: EditorHtmlTarget, options: object) => void | Promise<void>;
 /** How a conversation title was produced; decides whether it is shown as saved or re-derived. */
 export type KitConversationTitleSource = 'fallback' | 'generated' | 'manual';
-export interface AdminKitValues {
+export interface AdminKitValues extends AdminSurfaceProtocolKit {
+  /** Whether a plugin provider setting must be filled given the other entered values. */
+  readonly isProviderSettingRequired: (required: { field: Pick<AdminPluginProviderSettingField, 'required' | 'requiredUnless' | 'requiredWhen'>; values: Readonly<Record<string, unknown>> },
+    optional?: Record<string, never>) => boolean;
   readonly SETTINGS_DIALOG_DICTIONARIES: KitDictionaries;
   readonly DEFAULT_NOTIFICATIONS_PREFERENCES: KitNotificationsPreferences;
   /** The waits between retries while the host is unreachable. */
@@ -692,4 +699,5 @@ export function useAdminThemeKit(): AdminThemeKit { return useAdminKit().theme; 
 /** The injected plain values, read once per render. The same objects the host passed: never copied. */
 export function useAdminKitValues(_required: Record<string, never> = {}, _optional: Record<string, never> = {}): AdminKitValues { return useAdminKit().values; }
 
+export type * from './kit-admin-surfaces.js';
 export type { MediaProviderCatalogPolicy, MediaProviderOption };
