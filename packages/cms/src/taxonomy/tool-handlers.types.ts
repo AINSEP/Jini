@@ -4,7 +4,7 @@
  * built content-target ports and the merge hooks are passed in, so a host binds them to its own
  * token policy, confirm dialog and content-type registry.
  */
-import type { AuthorizeFn, OutboxPort, TransactionalRepoPort } from "@jini-ai/core/contracts/events";
+import type { AuthorizeFn, MutationActor, OutboxPort, TransactionalRepoPort } from "@jini-ai/core/contracts/events";
 import type { GatedMutationHooks, GatewayPlan, PrincipalKind } from "@jini-ai/core/gated-mutations";
 import type { Clock } from "@jini-ai/core/primitives";
 import type { HostReadVocabulary, HumanConfirmer, SurfaceExchangeStore, ToolExecutionContext, ToolHandler } from "@jini-ai/core";
@@ -66,6 +66,8 @@ export interface TaxonomyPackageToolDeps {
   taxonomyRevisionRepo: TaxonomyRevisionRepoPort;
   /** Read whole by `toTaxonomyOutbox`, together with `clock`, `idGen` and `workspaceId`. */
   outbox: OutboxPort;
+  /** The host's trusted attribution for the assistant tool channel. Optional for now; unbound, writes record no actor. */
+  mutationActor?: ((required: { principalId: string }) => MutationActor) | undefined;
   stampWatermark: () => Promise<void> | void;
   contentTargetPorts(): { contentLookup: ContentLookupPort; contentTypeTaxonomyPolicy: ContentTypeTaxonomyPolicyPort };
   collectionTermPolicy(): ContentTypeTaxonomyPolicyPort;

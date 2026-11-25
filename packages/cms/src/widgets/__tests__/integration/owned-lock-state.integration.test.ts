@@ -9,7 +9,7 @@ import { bindWidgetArea, mutateWidgetAreaPlacements, type RegionAreaServiceDeps 
 import { widgetHostFixture, InMemoryEntryRefsRepo, InMemoryOutbox } from '../support/host.fixture.js';
 
 type Services = WidgetTrashDeps & EmbedServiceDeps & RegionAreaServiceDeps;
-const actor = { principalId: 'operator', kind: 'user' };
+const actor = { principalId: 'operator', kind: 'user' as const };
 const common = { workspaceId: 'workspace-a', actor };
 const readError = new Error('fixture reached protected read');
 function deferred() {

@@ -23,6 +23,8 @@ import {
 } from "../write-validation.js";
 import { TaxonomyNotApplicableError, ContentTypeMismatchError } from "../validation-chain.js";
 import { ForbiddenError } from "../../core/commands/command.js";
+import { ConflictingMutationActorError } from "../../core/mutation-actor.js";
+import { toTaxonomyOutbox } from "../repo.memory.js";
 
 /**
  * @file The taxonomy write-service's ordinary (non-gated) mutations.
@@ -1024,4 +1026,49 @@ test("unassign returns only removed ids and suppresses no-op watermark/outbox wr
   assert.deepEqual(await unassignTerms({ deps, principalId: "u-1", contentType: "post", contentId: "post-1", termIds: ["term-1"] }), { removedTermIds: [] });
   assert.equal(deps.watermarkStamps, 2);
   assert.equal(deps.outboxEvents.length, 2);
+});
+
+// ---------------------------------------------------------------------------
+// P10-H2.J — the assignment event carries the trusted actor its channel vouched for. The execution
+// channel supplies attribution, the principal ID still governs authorization, and the two are not
+// interchangeable.
+// ---------------------------------------------------------------------------
+
+function capturedTaxonomyOutbox() {
+  const events: Array<{ name: string; actorId?: string; actor?: { id: string; kind: string } }> = [];
+  const outbox = toTaxonomyOutbox({
+    outbox: { enqueue: async (event: (typeof events)[number]) => { events.push(event); } } as never,
+    clock: { nowMs: () => Date.parse("2026-11-25T00:00:00.000Z") } as never,
+    idGen: { newId: () => "evt-1" },
+    workspaceId: "ws-1",
+  });
+  return { events, outbox };
+}
+
+test("a taxonomy assignment by an agent records kind agent", async () => {
+  const { events, outbox } = capturedTaxonomyOutbox();
+  const deps = baseDeps({ outbox });
+  await assignTerms({ deps, principalId: "owner-1", actor: { id: "owner-1", kind: "agent" }, contentType: "post", contentId: "post-1", termIds: ["term-1"] });
+
+  assert.equal(events.length, 1);
+  assert.deepEqual(events[0]?.actor, { id: "owner-1", kind: "agent" });
+  assert.equal(events[0]?.actorId, "owner-1");
+});
+
+test("a taxonomy assignment without a vouched actor records none rather than guessing a kind", async () => {
+  const { events, outbox } = capturedTaxonomyOutbox();
+  await assignTerms({ deps: baseDeps({ outbox }), principalId: "owner-1", contentType: "post", contentId: "post-1", termIds: ["term-1"] });
+
+  assert.equal(events[0]?.actor, undefined);
+});
+
+test("a taxonomy assignment handed another principal's actor is refused before any write", async () => {
+  const { events, outbox } = capturedTaxonomyOutbox();
+  const deps = baseDeps({ outbox });
+  await assert.rejects(
+    assignTerms({ deps, principalId: "owner-1", actor: { id: "someone-else", kind: "user" }, contentType: "post", contentId: "post-1", termIds: ["term-1"] }),
+    ConflictingMutationActorError,
+  );
+  assert.equal(deps.watermarkStamps, 0);
+  assert.equal(events.length, 0);
 });

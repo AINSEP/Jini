@@ -1,3 +1,4 @@
+import type { MutationActor } from "@jini-ai/core/contracts/events";
 import type { ContentTypeFieldDef, ContentTypeStatus } from "../content-types/types.js";
 
 /**
@@ -48,6 +49,9 @@ export interface OwningContentType {
 export interface ActorIdentityInput {
   actorId: string;
   principalKind?: "user" | "agent" | "api_key";
+  /** Trusted attribution for this write's outbox event, supplied by the caller's execution channel.
+   *  Its `id` must equal `actorId`; omitted, the event records no actor rather than a guessed kind. */
+  actor?: MutationActor | undefined;
   delegatedByWorkspaceId?: string | null;
   delegatedById?: string | null;
 }

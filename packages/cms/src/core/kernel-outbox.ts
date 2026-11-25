@@ -1,10 +1,11 @@
 import { nowIso as kernelNowIso } from "@jini-ai/core/primitives";
 import type { Clock } from "@jini-ai/core/primitives";
+import type { MutationActor } from "@jini-ai/core/contracts/events";
 
 /** The wrapped real `core/ports` outbox plus what a full `DomainEvent` needs beyond `{name,payload}`. */
 export interface KernelOutboxAdapterDeps {
   outbox: {
-    enqueue(event: { id: string; workspaceId: string; name: string; occurredAt: string; payload: Record<string, unknown> }): Promise<void>;
+    enqueue(event: { id: string; workspaceId: string; name: string; occurredAt: string; payload: Record<string, unknown>; actorId?: string; actor?: MutationActor }): Promise<void>;
   };
   clock: Clock;
   idGen: { newId(): string };
@@ -23,7 +24,7 @@ export interface KernelOutboxAdapterDeps {
 export function toKernelOutbox(
   required: KernelOutboxAdapterDeps,
   _optional: Record<string, never> = {},
-): { enqueue(event: { name: string; payload: Record<string, unknown> }): Promise<void> } {
+): { enqueue(event: { name: string; payload: Record<string, unknown>; actor?: MutationActor | undefined }): Promise<void> } {
   return {
     enqueue: async (event) => {
       await required.outbox.enqueue({
@@ -32,6 +33,9 @@ export function toKernelOutbox(
         name: event.name,
         occurredAt: kernelNowIso({ clock: required.clock }),
         payload: event.payload,
+        // The writer's trusted actor rides on the event itself, never inside the payload, so the
+        // outbox serializer round-trips its kind; an unattributed write records no actor at all.
+        ...(event.actor ? { actorId: event.actor.id, actor: event.actor } : {}),
       });
     },
   };

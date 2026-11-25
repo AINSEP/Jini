@@ -25,7 +25,7 @@ import { nowIso as clockNowIso } from "@jini-ai/core/primitives";
  * `widgets` domain logic (implementation outline C-005).
  */
 import type { Clock as ClockPort, JsonObject, UUID } from "@jini-ai/core/primitives";
-import type { OutboxPort } from "@jini-ai/core/contracts/events";
+import type { MutationActor, OutboxPort } from "@jini-ai/core/contracts/events";
 import type { EntryRefsRepoPort } from "./ports.js";
 
 import type { ContentTypeRepoPort } from "../content-types/index.js";
@@ -36,6 +36,7 @@ import {
   type WidgetsAuthorizeFn,
 } from "./authorize-helper.js";
 import { withEntryLock, type EntryLockState } from "./concurrency.js";
+import { trustedWidgetActor, type WidgetWriteActor } from "./authorize-helper.js";
 import { validateWidgetConfig, type WidgetConfigFieldError } from "./config-validation.js";
 import {
   buildWidgetInstanceFieldsJson,
@@ -154,7 +155,7 @@ function assertValidWidgetConfig(
 
 export interface CreateWidgetInstanceInput {
   readonly workspaceId: UUID;
-  readonly actor: { readonly principalId: UUID };
+  readonly actor: WidgetWriteActor;
   readonly widgetType: WidgetTypeKey;
   readonly title: string;
   readonly config: Record<string, unknown>;
@@ -191,6 +192,7 @@ export async function createWidgetInstance(required: CreateWidgetInstanceRequire
     deps: instanceEntriesWriteDeps({ deps, workspaceId: input.workspaceId }),
     input: {
       actorId: input.actor.principalId,
+      actor: trustedWidgetActor({ actor: input.actor }),
       workspaceId: input.workspaceId,
       type: WIDGET_CONTENT_TYPE,
       slug,
@@ -205,7 +207,7 @@ export async function createWidgetInstance(required: CreateWidgetInstanceRequire
 
 export interface UpdateWidgetInstanceInput {
   readonly workspaceId: UUID;
-  readonly actor: { readonly principalId: UUID };
+  readonly actor: WidgetWriteActor;
   readonly widgetInstanceId: UUID;
   readonly baseVersion: number;
   readonly config: Record<string, unknown>;
@@ -249,6 +251,7 @@ export async function updateWidgetInstance(required: UpdateWidgetInstanceRequire
         deps: instanceEntriesWriteDeps({ deps, workspaceId: input.workspaceId }),
         input: {
           actorId: input.actor.principalId,
+          actor: trustedWidgetActor({ actor: input.actor }),
           workspaceId: input.workspaceId,
           id: input.widgetInstanceId,
           title: input.title,
@@ -272,7 +275,7 @@ export async function updateWidgetInstance(required: UpdateWidgetInstanceRequire
 
 export interface ImportWidgetInstanceInput {
   readonly workspaceId: UUID;
-  readonly actor: { readonly principalId: UUID };
+  readonly actor: WidgetWriteActor;
   /** The source's own id, kept so a publish round trip lands on the same row (and placements that
    *  name it still resolve). */
   readonly id: UUID;
@@ -315,6 +318,7 @@ export async function importWidgetInstance(required: ImportWidgetInstanceRequire
         deps: instanceEntriesWriteDeps({ deps, workspaceId: input.workspaceId }),
         input: {
           actorId: input.actor.principalId,
+          actor: trustedWidgetActor({ actor: input.actor }),
           workspaceId: input.workspaceId,
           id: input.id,
           type: WIDGET_CONTENT_TYPE,
@@ -411,6 +415,10 @@ const LEGACY_DELETED_STATUSES: ReadonlySet<string> = new Set(["trash", "purged"]
 
 /** Who the Trash records as having moved an adopted widget there. */
 const ADOPTION_ACTOR = { principalId: "system" } as const;
+
+/** The same named actor as recorded on the adoption's entry event: a system write, stamped as one by
+ *  this writer because it knows it acts for nobody — not because the id happens to read "system". */
+const ADOPTION_MUTATION_ACTOR: MutationActor = { id: ADOPTION_ACTOR.principalId, kind: "system" };
 
 /** The status a restore brings an adopted widget back to — recorded as its Trash row's prior marker. */
 const ADOPTED_WIDGET_PRIOR_STATUS = "active" satisfies WidgetInstanceStatus;
@@ -512,6 +520,7 @@ export async function restoreWidgetPriorStatus(required: RestoreWidgetPriorStatu
     },
     input: {
       actorId: ADOPTION_ACTOR.principalId,
+      actor: ADOPTION_MUTATION_ACTOR,
       workspaceId: input.workspaceId,
       id: widget.id,
       fieldsJson: buildWidgetInstanceFieldsJson({ payload: { ...payload, status: ADOPTED_WIDGET_PRIOR_STATUS } }),

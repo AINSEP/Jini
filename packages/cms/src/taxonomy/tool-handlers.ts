@@ -152,7 +152,7 @@ export const taxonomyAssignTermsHandler = ({ deps }: TaxonomyHandlerArgs): ToolH
       if (result.allowed) await requireTaggableContentType({ deps, contentType });
       return result;
     } },
-    principalId: ctx.principal.id, contentType, contentId, termIds,
+    principalId: ctx.principal.id, actor: deps.mutationActor?.({ principalId: ctx.principal.id }), contentType, contentId, termIds,
   });
   return { contentType, contentId, assignedTermIds: termIds };
 };
@@ -174,6 +174,7 @@ export const taxonomyUnassignTermsHandler = ({ deps }: TaxonomyHandlerArgs): Too
   const { removedTermIds } = await unassignTerms({
     deps: { ...taxonomyDeps(deps), entryTerms: deps.entryTermRepo },
     principalId: ctx.principal.id,
+    actor: deps.mutationActor?.({ principalId: ctx.principal.id }),
     contentType,
     contentId,
     termIds,

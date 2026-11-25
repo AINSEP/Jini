@@ -85,7 +85,7 @@ export const widgetCreateToolRoute = defineJsonRoute<CreateToolInput, WidgetCrea
     return ok({ value: parsed });
   },
   handle: async ({ input, deps, context }) => {
-    const actor = { principalId: widgetActorId({ context }), kind: "user" };
+    const actor = { principalId: widgetActorId({ context }), kind: "user" as const };
     const instance = await createToolInstance({ deps, actor, input });
     try {
       const result = await placeWidgetToolTarget({ deps, actor, target: input.target, widgetEntryId: instance.id });
