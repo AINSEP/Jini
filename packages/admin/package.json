@@ -410,6 +410,7 @@
       "./shell/components/AssistantDock/FolderDropNotice": "browser",
       "./shell/components/AssistantDock/DockLeadingAccessory": "browser",
       "./shell/components/AssistantDock/DockHeaderTip": "browser",
+      "./shell/components/AssistantDock/DockHeader": "browser",
       "./shell/components/AssistantDock/DockHeaderTip.hooks": "browser",
       "./shell/components/WidgetConfigFields/HtmlAttributeRows.hooks": "browser",
       "./shell/components/MediaPickerDialog/JiniMediaPicker.hooks": "browser",
@@ -966,6 +967,7 @@
         "./shell/components/AssistantDock/FolderDropNotice": "browser",
         "./shell/components/AssistantDock/DockLeadingAccessory": "browser",
         "./shell/components/AssistantDock/DockHeaderTip": "browser",
+        "./shell/components/AssistantDock/DockHeader": "browser",
         "./shell/components/AssistantDock/DockHeaderTip.hooks": "browser",
         "./shell/components/WidgetConfigFields/HtmlAttributeRows.hooks": "browser",
         "./shell/components/MediaPickerDialog/JiniMediaPicker.hooks": "browser",
@@ -3028,6 +3030,11 @@
       "types": "./dist/shell/components/AssistantDock/DockLeadingAccessory.d.ts",
       "import": "./dist/shell/components/AssistantDock/DockLeadingAccessory.js",
       "default": "./dist/shell/components/AssistantDock/DockLeadingAccessory.js"
+    },
+    "./shell/components/AssistantDock/DockHeader": {
+      "types": "./dist/shell/components/AssistantDock/DockHeader.d.ts",
+      "import": "./dist/shell/components/AssistantDock/DockHeader.js",
+      "default": "./dist/shell/components/AssistantDock/DockHeader.js"
     },
     "./shell/components/AssistantDock/DockHeaderTip": {
       "types": "./dist/shell/components/AssistantDock/DockHeaderTip.d.ts",

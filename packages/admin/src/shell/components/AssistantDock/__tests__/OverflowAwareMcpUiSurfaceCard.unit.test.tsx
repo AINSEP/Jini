@@ -15,20 +15,26 @@ import { OverflowAwareMcpUiSurfaceCard } from "../OverflowAwareMcpUiSurfaceCard.
  * surface at once (see this component's own doc for the double-`data-agent-element`-handle /
  * double-live-session bug an earlier version had).
  *
- * The chat library's real `McpUiSurfaceCard` (the kit's `chat.McpUiSurfaceCard`) mounts a sandboxed `@mcp-ui/client` iframe and
+ * `@jini-ai/chat/react`'s real `McpUiSurfaceCard` mounts a sandboxed `@mcp-ui/client` iframe and
  * drives a real handshake (see that component's own module doc) — mounting the real thing here
- * would test that library's iframe plumbing, not this wrapping decision. The fake kit's card is replaced
- * with a thin recorder, the same "recorder, not the real component" approach the host's
- * routed-a2ui card tests use.
+ * would test that package's iframe plumbing, not this host's wrapping decision. It is replaced
+ * with a thin recorder, the same "recorder, not the real component" approach
+ * `RoutedA2uiSurfaceCard.unit.test.tsx` already uses for `A2uiSurfaceCard`.
  *
  * Overflow detection itself is `useOverflowDetection.hooks.unit.test.ts`'s job; this file drives
  * this component's `useOverflowDetectionHook` seam directly instead of faking `ResizeObserver`.
+ *
+ * In this package the recorder rides in through the fake admin kit's `chat.McpUiSurfaceCard` slot instead of a
+ * `vi.mock("@jini-ai/chat/react")` call, and the "host" above is whichever product mounts the shell — the
+ * reasoning is otherwise unchanged.
  */
 
 const mcpUiSurfaceCardSpy = vi.hoisted(() => vi.fn());
 
-// MessageOverflowModal reads its lightbox helpers from the admin kit: the real ones; the MCP-UI
-// card is the recorder, the rest faked.
+// MessageOverflowModal reads its lightbox helpers from the admin kit: the real ones, the rest faked
+// (this file mocks the chat package, so the host's full kit cannot load here).
+// Here the kit is faked outright, so the chat package is not mocked and the MCP-UI card recorder is
+// injected through the fake kit's `chat` slot below.
 const kit = fakeAdminKit({
   values: { openLightboxDialog, closeLightboxDialog },
   chat: {

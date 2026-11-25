@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { describe, expect, it, vi } from "vitest";
 
-import { activateDockMenuItem, dockSettingsMenuSections, shouldShowHeaderTip } from "../dock-header-rules.js";
+import { activateDockMenuItem, dockSettingsMenuSections, renameActiveConversation, shouldShowHeaderTip } from "../dock-header-rules.js";
 
 /**
  * @file The dock header's pure rules: when a header tooltip may open, how a chosen gear row runs,
@@ -76,5 +76,19 @@ describe("dock header rules", () => {
     sections[2]!.items[0]!.onSelect?.();
     expect(update).toHaveBeenCalledWith({ toolCalls: "hidden" });
     expect(runtimeUpdate).toHaveBeenCalledWith({ replyLength: "short" });
+  });
+});
+
+describe("renameActiveConversation", () => {
+  it("renames the active conversation to the new title", () => {
+    const rename = vi.fn(async () => undefined);
+    renameActiveConversation({ activeId: "conv-1", rename })("Quarterly report");
+    expect(rename).toHaveBeenCalledWith({ id: "conv-1", title: "Quarterly report" });
+  });
+
+  it("does nothing without an active conversation", () => {
+    const rename = vi.fn(async () => undefined);
+    expect(renameActiveConversation({ activeId: null, rename })("Quarterly report")).toBeUndefined();
+    expect(rename).not.toHaveBeenCalled();
   });
 });
