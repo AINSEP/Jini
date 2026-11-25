@@ -26,9 +26,8 @@ function themeOptions(props: AdminShellBaseProps): ThemeOptions {
 
 /**
  * Loading, login or session-error UI for every state except an authenticated one.
- * The loading state carries `jini-admin-boot-screen` and the legacy `boot-screen` alias: the Tovu admin
- * host styles `.boot-screen` (apps/admin/src/styles.css) and Jini ships no rule for either name, so the
- * alias is a host contract to keep until that host selects the prefixed class.
+ * The loading state carries `jini-admin-boot-screen` and the legacy `boot-screen` alias: Jini ships no rule for either name, but consuming admin hosts style the legacy `.boot-screen` selector,
+ * so the alias is a host contract to keep until every host selects the prefixed class.
  */
 function renderSessionGate({ props, context, state, refresh }: {
   readonly props: AdminShellBaseProps; readonly context: AdminShellContext; readonly state: GateState; readonly refresh: () => Promise<void>;
@@ -85,9 +84,9 @@ interface ShellLayoutArgs {
 
 /**
  * The topbar, `<main>` with the routed panel (or `noAccess`) and the host's `afterMain` content.
- * Each topbar element carries its `jini-admin-topbar*` class and the legacy `admin-topbar*` alias: the Tovu
- * admin host styles the legacy names (apps/admin/src/styles.css, App.chrome.tsx) and Jini ships no rule for
- * either, so the alias is a host contract to keep until that host selects the prefixed classes.
+ * Each topbar element carries its `jini-admin-topbar*` class and the legacy `admin-topbar*` alias: Jini
+ * ships no rule for either name, but consuming admin hosts style the legacy `.admin-topbar*` selectors, so
+ * the alias is a host contract to keep until every host selects the prefixed classes.
  */
 function ShellMainColumn({ props, view, drawer, ids }: {
   readonly props: AdminShellBaseProps; readonly view: ShellView; readonly drawer: ReturnType<typeof useShellDrawer>;

@@ -5,7 +5,7 @@ import type { AdminShellHostProps } from '../types.js';
 import { authenticated, baseFields, controller, ports, renderWithKit as render } from './shell-fixture.js';
 
 // Two hosts share the shell chrome markup. A Jini-aware host styles the `jini-admin-*` classes; the
-// Tovu admin host (apps/admin/src/styles.css `.boot-screen`, `.admin-topbar*`; App.chrome.tsx) still
+// consuming admin host (its `.boot-screen` and `.admin-topbar*` selectors) still
 // styles the legacy names. Both stylesheets are injected here, each from the host's own selectors,
 // so renaming a class in markup without its selector (or dropping the alias) turns a pin red.
 const jiniHostCss = `
