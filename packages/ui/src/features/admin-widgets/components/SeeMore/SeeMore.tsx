@@ -52,9 +52,9 @@ export function resolveSeeMoreView({
   toggleClassName?: string | undefined;
 } = {}): SeeMoreView {
   return {
-    wrapperClassName: className ? `see-more ${className}` : "see-more",
-    textClassName: withClassName({ base: expanded ? "see-more-text is-expanded" : "see-more-text", extra: textClassName }),
-    toggleClassName: toggleClassName ? `see-more-toggle ${toggleClassName}` : "see-more-toggle",
+    wrapperClassName: className ? `jini-ui-see-more ${className}` : "jini-ui-see-more",
+    textClassName: withClassName({ base: expanded ? "jini-ui-see-more-text is-expanded" : "jini-ui-see-more-text", extra: textClassName }),
+    toggleClassName: toggleClassName ? `jini-ui-see-more-toggle ${toggleClassName}` : "jini-ui-see-more-toggle",
     toggleLabel: expanded ? lessLabel : moreLabel,
   };
 }

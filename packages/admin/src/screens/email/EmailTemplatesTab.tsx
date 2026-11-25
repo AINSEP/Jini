@@ -36,7 +36,7 @@ export function EmailTemplatesTab(props: { controller: EmailTemplatesController;
         agentHandle="email-template-rename"
         title={t({ locale, key: "Rename template" })}
         body={(
-          <div className="jini-field email-field">
+          <div className="jini-field jini-admin-email-field">
             <label className="jini-field-label" htmlFor="email-template-rename">{t({ locale, key: "Name" })}</label>
             <input id="email-template-rename" className="jini-input" value={renaming?.name ?? ""} maxLength={200}
               onChange={(e) => controller.setRenameName(e.target.value)}
@@ -85,11 +85,11 @@ function renderEmailTemplatesTable(
                 </a>
               ),
             },
-            { key: "subject", header: t({ locale, key: "Subject" }), cell: (template) => <span className="email-break">{template.subject}</span> },
+            { key: "subject", header: t({ locale, key: "Subject" }), cell: (template) => <span className="jini-admin-email-break">{template.subject}</span> },
             {
               key: "fields",
               header: t({ locale, key: "Fields" }),
-              cell: (template) => (template.fields.length === 0 ? "—" : <code className="email-break">{template.fields.map((field) => `{{${field.name}}}`).join(" ")}</code>),
+              cell: (template) => (template.fields.length === 0 ? "—" : <code className="jini-admin-email-break">{template.fields.map((field) => `{{${field.name}}}`).join(" ")}</code>),
             },
             { key: "updated", header: t({ locale, key: "Updated" }), cell: (template) => when({ iso: template.updatedAt, locale }) },
             {

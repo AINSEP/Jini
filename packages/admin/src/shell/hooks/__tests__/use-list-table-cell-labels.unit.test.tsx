@@ -19,14 +19,14 @@ function table(html: string): HTMLElement {
 describe("labelListTableCells", () => {
   it.each([undefined, "Roles"])("excludes tooltip help from card labels with explicit title %s", (label) => {
     const root = table(`<table class="list-table">
-      <thead><tr><th ${label === undefined ? "" : `data-label="${label}"`}>Roles<span class="info-tip">
+      <thead><tr><th ${label === undefined ? "" : `data-label="${label}"`}>Roles<span class="jini-ui-info-tip">
         <span role="button">ⓘ</span><span hidden>Owner — full control, including users and site keys.</span>
       </span></th></tr></thead><tbody><tr><td>Owner</td></tr></tbody></table>`);
     labelListTableCells({ root, tableSelector: "table.list-table" });
     const cell = root.querySelector("td")!;
     expect(cell.getAttribute("data-label")).toBe("Roles");
     expect(cell.textContent).toBe("Owner");
-    expect(root.querySelector("th .info-tip [hidden]")?.textContent)
+    expect(root.querySelector("th .jini-ui-info-tip [hidden]")?.textContent)
       .toBe("Owner — full control, including users and site keys.");
   });
 

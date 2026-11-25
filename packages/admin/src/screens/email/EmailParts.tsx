@@ -24,10 +24,10 @@ export function Chip(props: { tone: Tone; children: ReactNode }) {
 export function Section(props: { id: string; title: string; hideTitle?: boolean; actions?: ReactNode; children: ReactNode }) {
   const named = props.hideTitle ? { "aria-label": props.title } : { "aria-labelledby": `email-${props.id}-title` };
   return (
-    <section id={props.id} className={`jini-settings-section email-section${props.hideTitle ? " email-section-untitled" : ""}`} {...named}>
-      <div className="jini-settings-section-card email-card">
+    <section id={props.id} className={`jini-settings-section jini-admin-email-section${props.hideTitle ? " jini-admin-email-section-untitled" : ""}`} {...named}>
+      <div className="jini-settings-section-card jini-admin-email-card">
         {props.hideTitle && !props.actions ? null : (
-          <div className="email-card-head">
+          <div className="jini-admin-email-card-head">
             {props.hideTitle ? null : <h2 className="jini-byok-card-title" id={`email-${props.id}-title`}>{props.title}</h2>}
             {props.actions}
           </div>
@@ -48,7 +48,7 @@ export function Loaded<T>(props: { view: LoadView<T>; locale: string; retry?: ()
   if (view.kind === "loading") return <p className="jini-field-hint" role="status">{t({ locale, key: "Loading…" })}</p>;
   if (view.kind === "forbidden") return <p className="jini-field-hint">{t({ locale, key: "You don't have permission to see this." })}</p>;
   return (
-    <div className="email-row" role="alert">
+    <div className="jini-admin-email-row" role="alert">
       <Chip tone="warning">{t({ locale, key: "Couldn't load" })}</Chip>
       <span className="jini-field-hint">{t({ locale, key: view.message })}</span>
       {props.retry ? <button type="button" className="btn-secondary" onClick={props.retry}>{t({ locale, key: "Retry" })}</button> : null}
@@ -62,7 +62,7 @@ export function CopyButton(props: { text: string; label: string; locale: string;
   return (
     <button
       type="button"
-      className="btn-secondary email-copy"
+      className="btn-secondary jini-admin-email-copy"
       aria-label={`${t({ locale: props.locale, key: "Copy" })}: ${props.label}`}
       onClick={() => {
         void navigator.clipboard?.writeText(props.text).then(() => {

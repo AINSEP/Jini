@@ -1,4 +1,6 @@
-import { PLUGIN_MANIFEST_FILENAME, LEGACY_PLUGIN_MANIFEST_FILENAME } from '../../plugin-format.js';
+const LEGACY_PLUGIN_MANIFEST_FILENAME = "legacy.plugin.json";
+const manifestRead = { legacyManifestFilenames: [LEGACY_PLUGIN_MANIFEST_FILENAME] };
+import { PLUGIN_MANIFEST_FILENAME } from "../../plugin-format.js";
 import assert from 'node:assert/strict';
 import { cp, link, mkdir, mkdtemp, readFile, readdir, rm, symlink, writeFile } from 'node:fs/promises';
 import path from 'node:path';
@@ -7,6 +9,7 @@ import { afterEach, test } from 'vitest';
 import { createPluginSourceService, PLUGIN_SOURCE_LIMITS } from '../../node/source-drafts.js';
 import { computePluginIntegrity, installSitePlugin, previewSitePluginInstall, pruneSitePluginVersions, snapshotSitePluginPackage, type PluginInstallerPort } from '../../node/install.js';
 import { addedPluginCapabilities, createPluginSourcePolicy, pluginCapabilitySet } from '../../source-policy.js';
+import { listSitePluginPackage } from '../../node/package-files.js';
 import { discoverPlugins, siteEntryPath } from '../../node/discovery.js';
 import { manifestHost, tierPolicy, createInvocationCoreDeps } from '../support/fixture-bindings.js';
 import { InMemoryPluginActivationRepo } from '../support/repo.memory.js';
@@ -21,14 +24,14 @@ async function fixture(options: { hosted?: boolean; optIn?: boolean; reload?: ()
   const root = await mkdtemp(path.join(tmpdir(), 'plugin-source-test-')); roots.push(root);
   const installDir = path.join(root, 'plugins');
   const repo = new InMemoryPluginActivationRepo();
-  const deps = { ...manifestHost, tierPolicy, installDir, builtInIds: ['bundled'], repo,
+  const deps = { ...manifestHost, ...manifestRead, tierPolicy, installDir, builtInIds: ['bundled'], repo,
     archiveReader: async () => { throw new Error('Folder sealing must reuse the folder installer.'); }, conflicts: async () => [] };
   const calls: string[] = [];
   const installer: PluginInstallerPort = {
     preview: async (input, options = {}) => { calls.push('preview'); return previewSitePluginInstall({ ...input, deps: { ...deps, ...options } }); },
     install: async (input, options = {}) => { calls.push('install'); return installSitePlugin({ ...input, deps: { ...deps, ...options } }); },
   };
-  const sourceDeps = { ...manifestHost, installDir, builtInIds: ['bundled'], installer, fileLock: { withFileLock },
+  const sourceDeps = { ...manifestHost, ...manifestRead, installDir, builtInIds: ['bundled'], installer, fileLock: { withFileLock },
     policy: createPluginSourcePolicy({ hosted: options.hosted ?? false, localInstallOptIn: options.optIn ?? false }), scaffoldEntry: entry,
     reload: async () => { calls.push('reload'); return options.reload ? options.reload() : false; } };
   const retainedSourceDeps = { ...sourceDeps, pruneVersions: ({ id }: { id: string }) => pruneSitePluginVersions({ id, installDir, repo }) };
@@ -45,13 +48,13 @@ test('scaffold has the host SDK contract and loads through real discovery and lo
   const manifest = JSON.parse((await f.service.read({ id, path: PLUGIN_MANIFEST_FILENAME })).content);
   assert.equal(manifest.sdkRange, '^0.1.0'); assert.equal(manifest.engine, 1); assert.equal(manifest.tier, 'tier-3');
   assert.deepEqual(manifest.capabilities, []); assert.deepEqual(manifest.hooks, []); assert.deepEqual(manifest.fields, []);
-  assert.deepEqual(manifest.integrity, await computePluginIntegrity({ sourceDir: f.draft }));
+  assert.deepEqual(manifest.integrity, await computePluginIntegrity({ sourceDir: f.draft }, manifestRead));
   assert.match((await f.service.read({ id, path: 'README.md' })).content, /Content rules for this site/);
-  assert.deepEqual(await discoverPlugins({ ...manifestHost, tierPolicy, installDir: f.installDir, builtIns: [] }), [], 'drafts are ignored');
+  assert.deepEqual(await discoverPlugins({ ...manifestHost, ...manifestRead, tierPolicy, installDir: f.installDir, builtIns: [] }), [], 'drafts are ignored');
   // Prove the scaffold itself is a valid package before sealing changes it.
   await mkdir(path.join(f.installDir, id), { recursive: true });
   await cp(f.draft, path.join(f.installDir, id, '0.1.0'), { recursive: true });
-  const [record] = await discoverPlugins({ ...manifestHost, tierPolicy, installDir: f.installDir, builtIns: [] });
+  const [record] = await discoverPlugins({ ...manifestHost, ...manifestRead, tierPolicy, installDir: f.installDir, builtIns: [] });
   assert.ok(record);
   assert.equal(record.status, 'valid'); assert.ok(record.manifest);
   const loaded = await loadPlugin({ record, manifest: record.manifest, entryPath: siteEntryPath({ installDir: f.installDir, id, version: '0.1.0' }), coreDeps: createInvocationCoreDeps({ pluginId: id, declaredHooks: [] }).coreDeps });
@@ -71,13 +74,17 @@ test('draft reads accept legacy manifests, prefer canonical bytes, and write onl
   await assert.rejects(readFile(path.join(f.draft, LEGACY_PLUGIN_MANIFEST_FILENAME)), { code: 'ENOENT' }); // legacy alias
 });
 
-test('opening and sealing a legacy installed package writes canonical drafts and releases', async () => {
+test('a configured legacy filename remains readable through install, discovery, retained export and draft', async () => {
   const f = await fixture(); await f.create();
   const first = await f.service.seal({ id });
   const release = path.join(f.installDir, id, first.plugin.version);
   const content = await readFile(path.join(release, PLUGIN_MANIFEST_FILENAME), 'utf8');
   await rm(path.join(release, PLUGIN_MANIFEST_FILENAME));
   await writeFile(path.join(release, LEGACY_PLUGIN_MANIFEST_FILENAME), content); // legacy alias
+  const records = await discoverPlugins({ ...f.deps, builtIns: [] });
+  assert.equal(records[0]!.status, 'valid');
+  const retained = await listSitePluginPackage({ installDir: f.installDir, record: records[0]! }, manifestRead);
+  assert.equal(retained.files[0]!.relativePath, LEGACY_PLUGIN_MANIFEST_FILENAME);
   await rm(f.draft, { recursive: true });
   await f.service.open({ id });
   assert.equal(await readFile(path.join(f.draft, PLUGIN_MANIFEST_FILENAME), 'utf8'), content);
@@ -197,20 +204,20 @@ test('seal hashes all files, pins the installer digest, bumps patches, preserves
   const firstRoot = path.join(f.installDir, id, '0.1.0');
   const manifest = JSON.parse(await readFile(path.join(firstRoot, PLUGIN_MANIFEST_FILENAME), 'utf8'));
   assert.deepEqual(Object.keys(manifest.integrity).sort(), ['README.md', 'server/helper.mjs', 'server/index.mjs']);
-  assert.deepEqual(manifest.integrity, await computePluginIntegrity({ sourceDir: firstRoot }));
+  assert.deepEqual(manifest.integrity, await computePluginIntegrity({ sourceDir: firstRoot }, manifestRead));
   await f.service.write({ id, path: 'server/helper.mjs', content: 'export const value = 2;' });
   const second = await f.service.seal({ id });
   assert.equal(second.plugin.version, '0.1.1');
   assert.deepEqual((await readdir(path.join(f.installDir, id))).sort(), ['0.1.0', '0.1.1']);
   assert.equal(await readFile(path.join(firstRoot, 'server/helper.mjs'), 'utf8'), 'export const value = 1;');
   assert.deepEqual(await f.repo.listAll(), [], 'authoring does not enable a plugin');
-  const latest = await discoverPlugins({ ...manifestHost, tierPolicy, installDir: f.installDir, builtIns: [] });
+  const latest = await discoverPlugins({ ...manifestHost, ...manifestRead, tierPolicy, installDir: f.installDir, builtIns: [] });
   assert.equal(latest[0]?.version, '0.1.1');
-  const pinned = await discoverPlugins({ ...manifestHost, tierPolicy, installDir: f.installDir, builtIns: [] }, { versions: new Map([[id, '0.1.0']]) });
+  const pinned = await discoverPlugins({ ...manifestHost, ...manifestRead, tierPolicy, installDir: f.installDir, builtIns: [] }, { versions: new Map([[id, '0.1.0']]) });
   assert.equal(pinned[0]?.version, '0.1.0'); assert.equal(pinned[0]?.status, 'valid');
-  const missing = await discoverPlugins({ ...manifestHost, tierPolicy, installDir: f.installDir, builtIns: [] }, { versions: new Map([[id, '9.0.0']]) });
+  const missing = await discoverPlugins({ ...manifestHost, ...manifestRead, tierPolicy, installDir: f.installDir, builtIns: [] }, { versions: new Map([[id, '9.0.0']]) });
   assert.equal(missing[0]?.status, 'invalid'); assert.equal(missing[0]?.version, '9.0.0');
-  await assert.rejects(discoverPlugins({ ...manifestHost, tierPolicy, installDir: f.installDir, builtIns: [] }, { versions: new Map([[id, '../outside']]) }));
+  await assert.rejects(discoverPlugins({ ...manifestHost, ...manifestRead, tierPolicy, installDir: f.installDir, builtIns: [] }, { versions: new Map([[id, '../outside']]) }));
 });
 
 test('seal can append for enabled workspaces; ordinary installs and same-version replacement still refuse enabled packages', async () => {

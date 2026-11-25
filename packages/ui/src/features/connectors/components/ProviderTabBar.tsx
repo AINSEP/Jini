@@ -28,7 +28,7 @@ export function ProviderTabBar({ tabs, selectedId, onSelect, ariaLabel, agentHan
             type="button"
             role="tab"
             aria-selected={active}
-            className={`connectors-provider-tab${active ? ' is-active' : ''}`}
+            className={`jini-ui-connectors-provider-tab${active ? ' is-active' : ''}`}
             onClick={() => onSelect(tab.id)}
             data-testid={`connectors-provider-tab-${tab.id}`}
             {...agentHandleProps({}, { base: tabHandles?.[index], ...({ role: 'button', label: t(tab.label) }) })}

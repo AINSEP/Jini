@@ -7,7 +7,7 @@
 .jini-install-tab-card .card-title { margin: 0; }
 .jini-install-tab-option { display: flex; flex-direction: column; gap: var(--jini-admin-space-2); }
 .jini-install-tab-option + .jini-install-tab-option { padding-top: var(--jini-admin-space-4); border-top: 1px solid var(--jini-admin-border); }
-.jini-install-tab-option.is-soon { opacity: 0.7; }
+.jini-install-tab-option.jini-install-tab-is-soon { opacity: 0.7; }
 .jini-install-tab-option-heading {
   display: flex; align-items: center; gap: var(--jini-admin-space-2);
   margin: 0; font-size: var(--jini-admin-text-sm); font-weight: 650; color: var(--jini-admin-fg);
@@ -27,7 +27,7 @@
   background: var(--jini-admin-surface-2);
   transition: border-color 120ms ease, background-color 120ms ease;
 }
-.jini-install-tab-dropzone.is-dragging {
+.jini-install-tab-dropzone.jini-install-tab-is-dragging {
   border-color: var(--jini-admin-accent);
   background: color-mix(in srgb, var(--jini-admin-accent) 6%, var(--jini-admin-surface-2));
 }

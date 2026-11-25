@@ -1,3 +1,4 @@
+import type { PluginManifestReadOptions } from "../plugin-format.js";
 import type { PluginLookupPort } from "@jini-ai/core/plugin-directory";
 import type { Clock as ClockPort } from "@jini-ai/core/primitives";
 import type { FileLockPort } from "@jini-ai/core/contracts/runtime";
@@ -108,7 +109,7 @@ export interface PluginRuntimeCoreBindings {
  * identity namespace, install-disabled wording, tier policy, archive reader, digest format and the
  * per-load invocation binding factory). The archive reader is always host-supplied (no fallback).
  */
-export interface PluginRuntimeHostBinding {
+export interface PluginRuntimeHostBinding extends PluginManifestReadOptions {
   readonly capabilityVocabulary: readonly string[];
   readonly declarativeContentTypes: DeclarativeContentTypesPort;
   readonly coreOwnerName: string;
@@ -195,7 +196,7 @@ export interface PluginRuntimeCoreRequired<TEvent = unknown, TOptions = unknown>
    */
   readonly createModuleImporter: (
     required: { manifest: PluginManifest; source: "built-in" | "site" },
-    optional?: { importModule?: (entryPath: string) => Promise<unknown>; snapshots?: NonNullable<ReturnType<typeof createPluginModuleSnapshotLifecycle>> },
+    optional?: PluginManifestReadOptions & { importModule?: (entryPath: string) => Promise<unknown>; snapshots?: NonNullable<ReturnType<typeof createPluginModuleSnapshotLifecycle>> },
   ) => PluginModuleImportPort;
   readonly text: PluginRuntimeText;
   /** Host projection of one quarantine into its own telemetry event; called only when `tracker` is set. */

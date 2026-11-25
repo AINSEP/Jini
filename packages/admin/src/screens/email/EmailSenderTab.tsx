@@ -47,18 +47,18 @@ function SenderForm(props: { controller: EmailSenderController; locale: string }
   const { controller, locale } = props;
   const state = controller.saveState;
   return (
-    <form className="email-provider-form" onSubmit={(event) => { event.preventDefault(); void controller.save(); }}>
-      <div className="jini-field email-field">
+    <form className="jini-admin-email-provider-form" onSubmit={(event) => { event.preventDefault(); void controller.save(); }}>
+      <div className="jini-field jini-admin-email-field">
         <label className="jini-field-label" htmlFor="email-sender-name">{t({ locale, key: "Name" })}</label>
         <input id="email-sender-name" className="jini-input" value={controller.draft.name} onChange={(e) => controller.setDraft({ name: e.target.value })}
           placeholder={t({ locale, key: "Your site's name" })} {...agentHandle({ handle: "email-sender-name" }, { role: "field", label: "Sender display name" })} />
       </div>
-      <div className="jini-field email-field">
+      <div className="jini-field jini-admin-email-field">
         <label className="jini-field-label" htmlFor="email-sender-email">{t({ locale, key: "From address" })}</label>
         <input id="email-sender-email" className="jini-input" type="email" value={controller.draft.email} onChange={(e) => controller.setDraft({ email: e.target.value })}
           placeholder="hello@example.com" aria-invalid={typeof state === "object"} {...agentHandle({ handle: "email-sender-email" }, { role: "field", label: "Sender From address" })} />
       </div>
-      <div className="email-row">
+      <div className="jini-admin-email-row">
         <button type="submit" disabled={!controller.dirty || state === "saving"} {...agentHandle({ handle: "email-sender-save" }, { role: "button", label: "Save the sender" })}>
           {state === "saving" ? t({ locale, key: "Saving…" }) : t({ locale, key: "Save" })}
         </button>
@@ -73,28 +73,28 @@ function Records(props: { dns: NonNullable<MailDnsStatus["dns"]>; locale: string
   const { dns, locale } = props;
   if (dns.records.length === 0) return <p className="jini-field-hint">{t({ locale, key: "This provider needs no DNS records." })}</p>;
   return (
-    <ul className="email-list email-dns">
+    <ul className="jini-admin-email-list email-dns">
       {dns.records.map((record, index) => {
         const status = RECORD_STATUS[record.status] ?? { tone: "neutral" as const, label: record.status };
         const key = `${record.type}-${record.host}-${index}`;
         return (
-          <li key={key} className="email-dns-record">
-            <div className="email-row">
+          <li key={key} className="jini-admin-email-dns-record">
+            <div className="jini-admin-email-row">
               <Chip tone={status.tone}>{t({ locale, key: status.label })}</Chip>
               <strong>{record.type}</strong>
               {record.priority !== undefined ? <span className="jini-field-hint">{t({ locale, key: "Priority" })} {record.priority}</span> : null}
             </div>
-            <dl className="email-dns-values">
-              <div className="email-dns-value">
+            <dl className="jini-admin-email-dns-values">
+              <div className="jini-admin-email-dns-value">
                 <dt className="jini-field-label">{t({ locale, key: "Host" })}</dt>
                 <dd><code>{record.host}</code><CopyButton text={record.host} label={t({ locale, key: "{type} host" }).replace("{type}", () => record.type)} locale={locale} handle={`email-dns-${index}-copy-host`} /></dd>
               </div>
-              <div className="email-dns-value">
+              <div className="jini-admin-email-dns-value">
                 <dt className="jini-field-label">{t({ locale, key: "Value" })}</dt>
                 <dd><code>{record.expected}</code><CopyButton text={record.expected} label={t({ locale, key: "{type} value" }).replace("{type}", () => record.type)} locale={locale} handle={`email-dns-${index}-copy-value`} /></dd>
               </div>
               {record.status === "Mismatch" && record.observed.length > 0 ? (
-                <div className="email-dns-value">
+                <div className="jini-admin-email-dns-value">
                   <dt className="jini-field-label">{t({ locale, key: "Found" })}</dt>
                   <dd><code>{record.observed.join(" · ")}</code></dd>
                 </div>
@@ -114,7 +114,7 @@ export function SenderDomain(props: { status: Pick<MailDnsStatus, "senderDomain"
   if (!status.senderDomain) return null;
   const verdict = status.providerVerification ? PROVIDER_VERDICT[status.providerVerification.state] : undefined;
   return (
-    <div className="email-row">
+    <div className="jini-admin-email-row">
       <span className="jini-field-label">{t({ locale, key: "Domain" })}</span>
       <code>{status.senderDomain}</code>
       {verdict ? <Chip tone={verdict.tone}>{t({ locale, key: verdict.label })}</Chip> : null}
@@ -171,7 +171,7 @@ function SenderSection(props: { controller: EmailSenderController; warnings?: re
   return (
     <Section id="sender" title={t({ locale, key: "Sender" })} hideTitle={props.hideTitle}>
       {(props.warnings ?? []).map((warning) => (
-        <div key={warning} className="email-row">
+        <div key={warning} className="jini-admin-email-row">
           <Chip tone="warning">{t({ locale, key: "Needs attention" })}</Chip>
           <span className="jini-field-hint">{t({ locale, key: SENDER_WARNING[warning] ?? warning })}</span>
         </div>

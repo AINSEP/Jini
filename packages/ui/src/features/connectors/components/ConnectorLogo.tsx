@@ -39,7 +39,7 @@ export function ConnectorLogo({ connectorId, connectorName, logoUrl, size = 'sm'
 
   return (
     <span
-      className={`connector-logo size-${size} state-${state}${showImage ? '' : ' is-fallback'}`}
+      className={`jini-ui-connector-logo size-${size} state-${state}${showImage ? '' : ' is-fallback'}`}
       data-palette={palette}
       aria-hidden="true"
     >

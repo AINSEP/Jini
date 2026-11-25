@@ -59,7 +59,7 @@
           {
             "name": "mediaKeyPrefix",
             "label": "Media key prefix (optional)",
-            "help": "Optional folder-like prefix for media objects in the media bucket, e.g. tovu-media/. Blank stores them at ws/… directly."
+            "help": "Optional folder-like prefix for media objects in the media bucket, e.g. site-media/. Blank stores them at ws/… directly."
           }
         ]
       },

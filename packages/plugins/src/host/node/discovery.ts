@@ -27,7 +27,7 @@ import { constants } from "node:fs";
 import { open, readdir, type FileHandle } from "node:fs/promises";
 import path from "node:path";
 import { readAtMost, readNoFollowFlags } from "./open-flags.js";
-import { PLUGIN_MANIFEST_FILENAME, PLUGIN_MANIFEST_FILENAMES } from "../plugin-format.js";
+import { PLUGIN_MANIFEST_FILENAME, pluginManifestFilenames, type PluginManifestReadOptions } from "../plugin-format.js";
 
 import * as semver from "semver";
 
@@ -212,8 +212,8 @@ async function readOpenManifest(handle: FileHandle): Promise<SiteManifestRead> {
 /** The first manifest present (current name, then the legacy alias); `missing` when neither exists.
  * A present manifest that is not a small regular file is `unreadable`: that plugin is invalid, and
  * discovery (which boot runs) never hangs on a FIFO, follows a link or buffers a huge file. */
-async function readSiteManifest(versionDir: string): Promise<SiteManifestRead> {
-  for (const filename of PLUGIN_MANIFEST_FILENAMES) { // legacy alias
+async function readSiteManifest(versionDir: string, optional: PluginManifestReadOptions = {}): Promise<SiteManifestRead> {
+  for (const filename of pluginManifestFilenames({}, optional)) { // legacy alias
     const handle = await openManifest(path.join(versionDir, filename));
     if (handle === null) continue;
     if (typeof handle === "string") return { missing: false, manifestValue: null, unreadable: handle };
@@ -257,7 +257,7 @@ async function discoverOneSiteCandidate(
   const versionFolderName = requestedVersion ?? await pickLatestVersionFolder(idFolderPath);
   if (versionFolderName === null) return null;
 
-  const read = await readSiteManifest(path.join(idFolderPath, versionFolderName));
+  const read = await readSiteManifest(path.join(idFolderPath, versionFolderName), host);
   const { manifestValue } = read;
   const errors = manifestReadErrors({ read, idFolderName, builtInIds, host });
 

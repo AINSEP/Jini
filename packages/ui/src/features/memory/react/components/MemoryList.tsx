@@ -27,9 +27,9 @@ function MemoryListCounts({ savedCount, extractionCount, useTHook = useT }: { sa
   const t = useTHook();
   return (
     <div className="jini-memory-management-counts">
-      <span className="memory-source-badge">{savedCount} {t('saved')}</span>
+      <span className="jini-ui-memory-source-badge">{savedCount} {t('saved')}</span>
       {extractionCount > 0 ? (
-        <span className="memory-source-badge">
+        <span className="jini-ui-memory-source-badge">
           {extractionCount} {extractionCount === 1 ? t('extraction') : t('extractions')}
         </span>
       ) : null}
@@ -273,9 +273,9 @@ export function MemoryList({
 }) {
   const t = useTHook();
   return (
-    <section ref={sectionRef} className="settings-section settings-section-card memory-records-section">
-      <div className="memory-management-panel">
-        <div className="memory-subsection-head">
+    <section ref={sectionRef} className="settings-section jini-ui-settings-section-card jini-ui-memory-records-section">
+      <div className="jini-ui-memory-management-panel">
+        <div className="jini-ui-memory-subsection-head">
           <div>
             <h4>{t('Saved memory')}</h4>
             <p className="hint">{t('Saved facts, preferences, and project context available to future chats.')}</p>
@@ -294,7 +294,7 @@ export function MemoryList({
           agentHandle={agentHandle}
         />
 
-        <div className="library-content memory-unified-list">
+        <div className="jini-ui-library-content memory-unified-list">
           {unifiedMemoryCount === 0 ? (
             <MemoryListEmpty />
           ) : (

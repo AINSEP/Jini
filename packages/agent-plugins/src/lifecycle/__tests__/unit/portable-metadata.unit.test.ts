@@ -1,7 +1,8 @@
+const fixtureLegacyIdentity = { namespace: "tovu", warning: 'Legacy extensions.tovu agent-plugin metadata is deprecated; compatibility is retained through at least 2027-05-06. Portable packages use extensions.jini and unprefixed MCP metadata.' };
 import { describe, expect, test } from 'vitest';
-import { parseAgentPluginManifest, parseAgentPluginMcpConfig, readAgentPluginMetadata, legacyAgentPluginMetadataWarning, type LegacyMcpAliases } from '../../manifest.js';
+import { parseAgentPluginManifest, parseAgentPluginMcpConfig, readAgentPluginMetadata, type LegacyMcpAliases } from '../../manifest.js';
 
-const legacyMcpAliases = { names: { authMode: 'tovuAuthMode', defaultTools: 'tovuDefaultTools', tokenAuth: 'tovuTokenAuth', renamedTools: 'tovuRenamedTools' }, warning: legacyAgentPluginMetadataWarning } satisfies LegacyMcpAliases;
+const legacyMcpAliases = { names: { authMode: 'tovuAuthMode', defaultTools: 'tovuDefaultTools', tokenAuth: 'tovuTokenAuth', renamedTools: 'tovuRenamedTools' }, warning: fixtureLegacyIdentity.warning } satisfies LegacyMcpAliases;
 
 const schema = 'https://agent-plugins.org/schemas/1.0.0/';
 const plugin = (extension: unknown, namespace = 'jini') => ({ $schema: `${schema}plugin.schema.json`, name: 'portable', extensions: { [namespace]: extension } });
@@ -25,7 +26,7 @@ describe('portable manifest metadata', () => {
   test('new namespace wins as a whole and legacy metadata warns without user action', () => {
     const value = { ...plugin({ summary: 'new' }), extensions: { jini: { summary: 'new' }, tovu: { summary: 'old', displayName: 'Old' } } };
     expect(readAgentPluginMetadata({ value }).metadata).toEqual({ summary: 'new' });
-    const legacy = parseAgentPluginManifest({ value: plugin({ id: 'publisher/portable', summary: 'old' }, 'tovu') });
+    const legacy = parseAgentPluginManifest({ value: plugin({ id: 'publisher/portable', summary: 'old' }, 'tovu') }, { legacyIdentity: fixtureLegacyIdentity });
     expect(legacy).toMatchObject({ ok: true, manifest: { summary: 'old' }, warnings: [expect.stringContaining('2027-05-06')] });
   });
   test('invalid advisory metadata is omitted with warnings; malformed advice drops signal declaration', () => {
@@ -48,7 +49,7 @@ describe('portable manifest metadata', () => {
     const tokenAuth = { helpUrl: 'https://example.test/token', probeUrl: 'https://example.test/probe' };
     const renamedTools = { old_inspect: 'inspect' };
     const value = mcp({ tovuAuthMode: 'oauth', tovuDefaultTools: { allow: ['inspect'], read: ['inspect'] }, tovuTokenAuth: tokenAuth, tovuRenamedTools: renamedTools });
-    const legacy = parseAgentPluginMcpConfig({ value }, { pluginManifest: plugin({ mcpServers: { remote: { tovuAuthMode: null, tovuDefaultTools: null } } }, 'tovu'), legacyMcpAliases });
+    const legacy = parseAgentPluginMcpConfig({ value }, { legacyIdentity: fixtureLegacyIdentity, pluginManifest: plugin({ mcpServers: { remote: { tovuAuthMode: null, tovuDefaultTools: null } } }, 'tovu'), legacyMcpAliases });
     expect(legacy).toMatchObject({ ok: true, config: { servers: { remote: { authMode: 'oauth', defaultTools: { allow: ['inspect'], read: [], write: [] }, tokenAuth, renamedTools } } } });
     for (const field of ['authMode', 'defaultTools']) {
       const canonical = parseAgentPluginMcpConfig({ value }, { pluginManifest: plugin({ mcpServers: { remote: { [field]: null } } }), legacyMcpAliases });

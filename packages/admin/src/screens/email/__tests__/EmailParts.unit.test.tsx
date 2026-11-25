@@ -1,4 +1,7 @@
 // @vitest-environment jsdom
+import { readFileSync } from "node:fs";
+import { EmailSenderTab } from "../EmailSenderTab.js";
+import type { EmailSenderController } from "../hooks/use-email-sender.hooks.js";
 import { act, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
@@ -54,4 +57,37 @@ describe("EmailParts", () => {
     expect(when({ iso: "not a date", locale: "en" })).toBe("not a date");
     expect(when({ iso: "2026-11-24T10:00:00Z", locale: "en" })).toContain("2026");
   });
+});
+
+it("email form spacing and provider loading paint survive the selector cutover", () => {
+  const css = readFileSync(new URL("../email.css", import.meta.url), "utf8");
+  const providerCss = readFileSync(new URL("../../plugins/provider-settings-dialog.css", import.meta.url), "utf8");
+  const controller: EmailSenderController = {
+    sender: { kind: "loaded", data: { name: "Site", email: "site@example.com" } },
+    draft: { name: "Site", email: "site@example.com" }, setDraft: vi.fn(), dirty: true,
+    save: vi.fn(async () => {}), saveState: "saving", dns: { kind: "loading" },
+    checking: false, checkError: null, checkAgain: vi.fn(async () => {}),
+  };
+  const { container } = render(<div className="page settings-ui-section">
+    <EmailSenderTab controller={controller} locale="en" part="sender" />
+    <div role="dialog" aria-label="Provider" className="jini-admin-provider-settings-dialog">
+      <button disabled className="jini-admin-provider-settings-save">
+        <span className="jini-admin-provider-settings-spinner" aria-hidden="true" />Saving…
+      </button>
+    </div>
+  </div>);
+  expect(container.querySelector("form")).toHaveClass("jini-admin-email-provider-form");
+  expect(screen.getByRole("textbox", { name: "From address" })).toHaveAttribute("id", "email-sender-email");
+  expect(screen.getByRole("region", { name: "Sender" })).toHaveClass("jini-admin-email-section-untitled");
+  for (const node of container.querySelectorAll("[class]")) {
+    for (const token of node.classList) {
+      if (token.startsWith("jini-admin-email-") && token !== "jini-admin-email-section") expect(css).toContain(`.${token}`);
+      if (token.startsWith("jini-admin-provider-settings-")) expect(providerCss).toContain(`.${token}`);
+      expect(token).not.toMatch(/^(email-|provider-settings-)/);
+    }
+  }
+  expect(css).not.toMatch(/\.email-/);
+  expect(providerCss).not.toMatch(/\.provider-settings-/);
+  expect(providerCss).toContain("animation: provider-settings-spin");
+  expect(providerCss).toContain("prefers-reduced-motion");
 });

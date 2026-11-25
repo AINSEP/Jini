@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs";
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
@@ -41,4 +42,20 @@ describe('ConnectorSearchBar', () => {
     await userEvent.click(screen.getByTestId('connectors-search-input'));
     expect(onFocus).toHaveBeenCalledTimes(1);
   });
+});
+
+it('the connector toolbar keeps its search layout and Escape action', async () => {
+  const css = readFileSync(new URL('../../../settings/dialog/styles/settings-dialog.css', import.meta.url), 'utf8');
+  const onChange = vi.fn();
+  const { container } = render(<div className="tab-panel-toolbar"><ConnectorSearchBar value="slack" onChange={onChange} /></div>);
+  expect(container.querySelector('.jini-ui-toolbar-search')).not.toBeNull();
+  expect(css).toContain('.tab-panel-toolbar .jini-ui-toolbar-search');
+  const clear = screen.getByRole('button', { name: 'Clear search' });
+  expect(clear).toHaveClass('jini-ui-toolbar-search-clear');
+  expect(css).toContain('.jini-ui-toolbar-search-clear');
+  const search = screen.getByRole('searchbox', { name: 'Search connectors' });
+  search.focus();
+  await userEvent.keyboard('{Escape}');
+  expect(onChange).toHaveBeenCalledWith('');
+  expect(search).toHaveFocus();
 });

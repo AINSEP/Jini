@@ -1,6 +1,6 @@
 /** Portable advisory metadata. Invalid declarations warn and contribute nothing; parsing never
  * executes a plugin or turns presentation copy into an authorization decision. */
-import { readAgentPluginPortableExtension, readAgentPluginCompatibilityWarnings } from '../core/identity-namespace.js';
+import { type AgentPluginIdentityReadOptions, readAgentPluginPortableExtension, readAgentPluginCompatibilityWarnings } from '../core/identity-namespace.js';
 
 export interface AgentPluginHostSignal {
   readonly env: string;
@@ -44,7 +44,7 @@ function validSignal(value: unknown): value is AgentPluginHostSignal {
  * @returns Typed advisory fields and host-visible diagnostics. @complexity O(k + s) metadata keys/signals. */
 export function readAgentPluginMetadata(
   required: { readonly value: unknown },
-  optional: { readonly identityNamespace?: string } = {},
+  optional: AgentPluginIdentityReadOptions = {},
 ): { readonly metadata: AgentPluginMetadata; readonly warnings: readonly string[] } {
   const extension = readAgentPluginPortableExtension(required, optional) ?? {};
   const warnings = [...readAgentPluginCompatibilityWarnings(required, optional)];

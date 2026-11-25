@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { createCredentialCardsContribution } from '../../../connect/credential-cards.js';
 import { parsePluginCredentialCards, parseCredentialCardUsedFor } from '../../credential-card-metadata.js';
 
 const card = { target: 'example', label: 'Example key', category: 'hosting', baseUrl: 'https://api.example.com', title: 'Connect Example', intro: 'Publish this site.', keyHint: 'Grant deployment access.' };
@@ -12,7 +13,7 @@ describe('portable credential card metadata', () => {
 
   it('retains legacy declarations with a visible warning while portable keys take precedence', () => {
     const warnings: string[] = [];
-    const legacy = parsePluginCredentialCards({ raw: raw([card], 'tovu') }, { onWarning: warning => warnings.push(warning) });
+    const legacy = parsePluginCredentialCards({ raw: raw([card], 'tovu') }, { legacyIdentity: { namespace: 'tovu', warning: 'Legacy extensions.tovu uses extensions.jini.' }, onWarning: warning => warnings.push(warning) });
     expect(legacy.ok && legacy.descriptors[0]?.providerId).toBe('example');
     expect(warnings).toHaveLength(1);
     expect(warnings[0]).toMatch(/extensions\.tovu.*extensions\.jini/);
@@ -56,4 +57,15 @@ describe('portable credential card metadata', () => {
       expect(() => parseCredentialCardUsedFor({ value })).toThrow(/usedFor/);
     }
   });
+});
+
+it('legacy-only manifest produces the same capability decisions before and after boot', () => {
+  const legacyIdentity = { namespace: 'alpha', warning: 'Alpha legacy' };
+  const input = { raw: raw([card], 'alpha') };
+  const warnings: string[] = [];
+  const parsed = parsePluginCredentialCards(input, { legacyIdentity, onWarning: warning => warnings.push(warning) });
+  expect(parsed.ok && parsed.descriptors[0]?.providerId).toBe('example');
+  expect(warnings).toEqual(['Alpha legacy']);
+  expect(createCredentialCardsContribution({ legacyIdentity }).parse(input)).toEqual(parsed);
+  expect(createCredentialCardsContribution({}).parse(input)).toEqual({ ok: true, descriptors: [] });
 });

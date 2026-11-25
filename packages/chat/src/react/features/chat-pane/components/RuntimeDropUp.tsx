@@ -34,7 +34,7 @@ function RuntimeDropUpTipBubble({ tip, valueLabel }: { tip: RuntimeDropUpTip; va
   return createPortal(
     <span
       ref={tip.bubbleRef}
-      className={tip.placement === 'below' ? 'info-tip-bubble info-tip-bubble-below' : 'info-tip-bubble'}
+      className={tip.placement === 'below' ? 'jini-ui-info-tip-bubble jini-ui-info-tip-bubble-below' : 'jini-ui-info-tip-bubble'}
       role="presentation"
       aria-hidden="true"
       style={infoTipBubbleStyle(tip.coords)}

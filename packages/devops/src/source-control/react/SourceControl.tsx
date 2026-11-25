@@ -65,6 +65,7 @@ export interface SourceControlTabBarProps {
 }
 
 export interface SourceControlProps {
+  readonly classes: { readonly page: string; readonly pageHeader: string; readonly pageHeaderText: string; readonly pageKicker: string; readonly pageTitle: string; readonly pageDescription: string };
   /** The `?tab=` query value from `panels.tsx`'s `source-control` route (`URLSearchParams.get`
    *  returns `null` when the param is absent). See {@link resolveSourceControlTabId}. */
   tabId?: string | null | undefined;
@@ -85,7 +86,7 @@ export interface SourceControlProps {
 }
 
 export function SourceControl({
-  useAdminLocaleHook, t, resolveActiveTabId, TabBar, onTabChange, providerIcon, providers, headerAttrs, copy, ...props }: SourceControlProps) {
+  useAdminLocaleHook, t, resolveActiveTabId, TabBar, onTabChange, providerIcon, providers, headerAttrs, copy, classes, ...props }: SourceControlProps) {
   const locale = useAdminLocaleHook({});
   const activeTabId = resolveSourceControlTabId({ tabId: props.tabId, resolveActiveTabId });
 
@@ -100,15 +101,15 @@ export function SourceControl({
   ];
 
   return (
-    <div className="page">
+    <div className={classes.page}>
       <div
-        className="page-header"
+        className={classes.pageHeader}
         {...headerAttrs}
       >
-        <div className="page-header-text">
-          <p className="page-kicker">{t({ locale: locale, key: "Operations" })}</p>
-          <h1 className="page-title">{t({ locale: locale, key: "Source Control" })}</h1>
-          <p className="page-description">
+        <div className={classes.pageHeaderText}>
+          <p className={classes.pageKicker}>{t({ locale: locale, key: "Operations" })}</p>
+          <h1 className={classes.pageTitle}>{t({ locale: locale, key: "Source Control" })}</h1>
+          <p className={classes.pageDescription}>
             {t({ locale: locale, key: copy.descriptionKey }
             )}
           </p>

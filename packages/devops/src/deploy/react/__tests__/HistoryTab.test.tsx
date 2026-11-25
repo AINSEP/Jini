@@ -6,6 +6,7 @@ import { HistoryTab } from "../index.js";
 describe("HistoryTab", () => {
   it("renders a heading and real empty state with the supplied publish link and stable handles", () => {
     const html = renderToStaticMarkup(<HistoryTab
+      classes={{ tab: "deployment-tab", card: "card", empty: "deployment-empty", mark: "deployment-empty-mark", title: "deployment-empty-title", body: "deployment-empty-body", secondaryButton: "btn-secondary" }}
       useAdminLocaleHook={() => "en"}
       t={({ key }) => key}
       historyIcon={<svg data-history-icon="fixture" />}
@@ -19,4 +20,14 @@ describe("HistoryTab", () => {
     expect(html).toContain('href="/fixture/publish?tab=export"');
     expect(html).toContain('<span class="deployment-empty-mark"><svg data-history-icon="fixture"></svg></span>');
   });
+});
+
+it("history, success and a failed run use the bound layout roles", () => {
+  for (const host of ['host-a', 'host-b']) {
+    const classes = { tab: `${host}-tab`, card: `${host}-card`, empty: `${host}-empty`, mark: `${host}-mark`, title: `${host}-title`, body: `${host}-body`, secondaryButton: `${host}-button` };
+    const html = renderToStaticMarkup(<HistoryTab classes={classes} useAdminLocaleHook={() => 'en'} t={({ key }) => key} historyIcon="+" publishHref="/publish" agentHandle={agentHandle} />);
+    for (const token of Object.values(classes)) expect(html).toContain(`class="${token}"`);
+    expect(html).toContain('href="/publish"');
+    expect(html).toContain('No deploys yet');
+  }
 });

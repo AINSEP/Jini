@@ -54,7 +54,7 @@ export function SourceConfigListView<TSource extends SourceConfigItem>(props: So
   const resolvedAddFormHandle = addForm.agentHandle ?? (agentHandle ? sourceConfigAddFormHandle({ listBase: agentHandle }) : undefined);
 
   return (
-    <section className="source-config-list">
+    <section className="jini-ui-source-config-list">
       <SourceConfigListHead title={title} subtitle={subtitle} />
 
       <SourceConfigAddForm
@@ -99,7 +99,7 @@ function SourceConfigListBody<TSource extends SourceConfigItem>({ useTHook = use
   const { sources, loading, emptyMessage, agentHandle } = props;
   if (loading) {
     return (
-      <div className="source-config-list-loading" role="status">
+      <div className="jini-ui-source-config-list-loading" role="status">
         {t('Loading…')}
       </div>
     );
@@ -112,7 +112,7 @@ function SourceConfigListBody<TSource extends SourceConfigItem>({ useTHook = use
   // per item.
   const itemHandles = agentHandle ? sourceConfigItemHandles({ listBase: agentHandle, sourceIds: sources.map((source) => source.id) }) : undefined;
   return (
-    <div className="source-config-list-items">
+    <div className="jini-ui-source-config-list-items">
       {sources.map((source, index) => (
         <SourceConfigListItem key={source.id} {...props} source={source} {...(itemHandles ? { itemHandle: itemHandles[index] } : {})} />
       ))}

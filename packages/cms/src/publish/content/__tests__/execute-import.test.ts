@@ -4,7 +4,7 @@ import { test } from "vitest";
 import { executePublishContentImport, RestorePointUnavailableError } from "../execute-import.js";
 
 // F4.4/F2.5: the restore-point gate alone decides whether the real gateway may run.
-test("an unavailable restore point refuses import before the gateway can perform any write", async () => {
+test("unavailable restore point is still a hard refusal with no attestation override", async () => {
   const writes: string[] = [];
   await assert.rejects(executePublishContentImport({
     workspaceId: "destination-ws", costClass: "unavailable",
@@ -13,7 +13,7 @@ test("an unavailable restore point refuses import before the gateway can perform
     constructor: RestorePointUnavailableError,
     name: "RestorePointUnavailableError",
     message: "workspace 'destination-ws' has restore-point costClass 'unavailable' — publish-content import " +
-      "is refused with no attestation override (mirrors ADR-041 §2's forward-migrate rule)",
+      "is refused with no attestation override",
   });
   assert.deepEqual(writes, []);
 });

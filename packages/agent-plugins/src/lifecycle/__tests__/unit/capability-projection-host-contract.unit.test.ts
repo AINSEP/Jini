@@ -1,12 +1,13 @@
+const fixtureLegacyIdentity = { namespace: "tovu", warning: 'Legacy extensions.tovu agent-plugin metadata is deprecated; compatibility is retained through at least 2027-05-06. Portable packages use extensions.jini and unprefixed MCP metadata.' };
 import { afterAll, beforeAll, describe, expect, test } from 'vitest';
 import { mkdir, mkdtemp, rm, symlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { PackagePathViolation, createAgentPluginLayout, createAgentPluginLifecycle } from '../../index.js';
-import { parseAgentPluginMcpConfig, legacyAgentPluginMetadataWarning, type LegacyMcpAliases } from '../../manifest.js';
+import { parseAgentPluginMcpConfig, type LegacyMcpAliases } from '../../manifest.js';
 import { ports } from '../test-support.js';
 
-const legacyMcpAliases = { names: { authMode: 'tovuAuthMode', defaultTools: 'tovuDefaultTools', tokenAuth: 'tovuTokenAuth', renamedTools: 'tovuRenamedTools' }, warning: legacyAgentPluginMetadataWarning } satisfies LegacyMcpAliases;
+const legacyMcpAliases = { names: { authMode: 'tovuAuthMode', defaultTools: 'tovuDefaultTools', tokenAuth: 'tovuTokenAuth', renamedTools: 'tovuRenamedTools' }, warning: fixtureLegacyIdentity.warning } satisfies LegacyMcpAliases;
 
 /**
  * @file Host contract for the capability projection reached through `createAgentPluginLifecycle`'s
@@ -28,7 +29,7 @@ beforeAll(async () => {
   events = [];
   api = createAgentPluginLifecycle(
     { ...ports, extensionNamespace: 'jini', layout: createAgentPluginLayout({ root: path.join(dir, 'layout') }) },
-    { legacyMcpAliases, onEvent: ({ event, message }) => { events.push({ event, message }); } },
+    { legacyIdentity: fixtureLegacyIdentity, legacyMcpAliases, onEvent: ({ event, message }) => { events.push({ event, message }); } },
   );
 });
 afterAll(() => rm(dir, { recursive: true, force: true }));
@@ -111,7 +112,7 @@ describe('readInstalledMcpServers / readInstalledMcpServerIds (object API)', () 
     const mcp = { $schema: MCP_SCHEMA, mcpServers: { remote: { type: 'streamable-http', url: 'https://example.test/mcp' }, local: { type: 'stdio', command: './bin/server' } } };
     const root = await packageRoot('mcp-legacy-manifest', { 'plugin.json': JSON.stringify(manifest), 'mcp.json': JSON.stringify(mcp) });
     const before = events.length;
-    const standalone = parseAgentPluginMcpConfig({ value: mcp }, { pluginManifest: manifest });
+    const standalone = parseAgentPluginMcpConfig({ value: mcp }, { legacyIdentity: fixtureLegacyIdentity, pluginManifest: manifest });
     expect(standalone.ok).toBe(true);
     if (!standalone.ok) return;
     expect(standalone.warnings?.length).toBeGreaterThan(0);
@@ -120,4 +121,16 @@ describe('readInstalledMcpServers / readInstalledMcpServerIds (object API)', () 
     expect(events.slice(before).map(entry => entry.message)).toEqual([...(standalone.warnings ?? [])]);
     expect(await api.readInstalledMcpServerIds({ packageRoot: root })).toEqual([...standalone.config.serverIds]);
   });
+});
+
+test('the bound identity policy survives capability projection with exactly one warning per read', async () => {
+  const warnings: HostEvent[] = [];
+  const legacyIdentity = { namespace: 'alpha', warning: 'Alpha legacy' };
+  const api = createAgentPluginLifecycle({ ...ports, extensionNamespace: 'custom', layout: createAgentPluginLayout({ root: path.join(dir, 'alpha-layout') }) }, { legacyIdentity, onEvent: event => warnings.push(event) });
+  const root = await packageRoot('alpha-identity', {
+    'plugin.json': JSON.stringify({ $schema: PLUGIN_SCHEMA, name: 'alpha', extensions: { alpha: { id: 'publisher/alpha', mcpServers: { remote: { authMode: 'oauth', defaultTools: { read: ['inspect'] } } } } } }),
+    'mcp.json': JSON.stringify({ $schema: MCP_SCHEMA, mcpServers: { remote: { type: 'streamable-http', url: 'https://example.test/mcp' } } }),
+  });
+  expect(await api.readInstalledMcpServers({ packageRoot: root })).toMatchObject({ remote: { authMode: 'oauth', defaultTools: { read: ['inspect'] } } });
+  expect(warnings.filter(event => event.message === 'Alpha legacy')).toHaveLength(1);
 });

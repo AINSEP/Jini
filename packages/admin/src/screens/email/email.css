@@ -1,114 +1,114 @@
 /* Email screen (phase 1) — layout only. Type comes from the shared `.jini-byok-card-title`,
    `.jini-field-label`, `.jini-field-hint` and `.status` classes, the same ones Authentication uses. */
-.email-page { max-width: var(--jini-admin-form-measure); }
-.email-sections { min-width: 0; }
-.email-card { display: flex; flex-direction: column; gap: var(--jini-admin-space-3); }
-.email-row { display: flex; align-items: center; flex-wrap: wrap; gap: var(--jini-admin-space-2); }
-.email-coming-next { display: flex; align-items: center; flex-wrap: wrap; gap: var(--jini-admin-space-2); margin: 0; }
-.email-subhead, .email-card p { margin: 0; }
-.email-list { display: flex; flex-direction: column; gap: var(--jini-admin-space-2); margin: 0; padding: 0; list-style: none; }
-.email-facts { display: flex; flex-direction: column; gap: var(--jini-admin-space-2); margin: 0; }
-.email-fact { display: grid; grid-template-columns: 11rem 1fr; align-items: center; gap: var(--jini-admin-space-3); }
-.email-fact dd { display: flex; align-items: center; flex-wrap: wrap; gap: var(--jini-admin-space-2); margin: 0; min-width: 0; }
+.jini-admin-email-page { max-width: var(--jini-admin-form-measure); }
+.jini-admin-email-sections { min-width: 0; }
+.jini-admin-email-card { display: flex; flex-direction: column; gap: var(--jini-admin-space-3); }
+.jini-admin-email-row { display: flex; align-items: center; flex-wrap: wrap; gap: var(--jini-admin-space-2); }
+.jini-admin-email-coming-next { display: flex; align-items: center; flex-wrap: wrap; gap: var(--jini-admin-space-2); margin: 0; }
+.jini-admin-email-subhead, .jini-admin-email-card p { margin: 0; }
+.jini-admin-email-list { display: flex; flex-direction: column; gap: var(--jini-admin-space-2); margin: 0; padding: 0; list-style: none; }
+.jini-admin-email-facts { display: flex; flex-direction: column; gap: var(--jini-admin-space-2); margin: 0; }
+.jini-admin-email-fact { display: grid; grid-template-columns: 11rem 1fr; align-items: center; gap: var(--jini-admin-space-3); }
+.jini-admin-email-fact dd { display: flex; align-items: center; flex-wrap: wrap; gap: var(--jini-admin-space-2); margin: 0; min-width: 0; }
 @media (max-width: 480px) {
-  .email-fact { grid-template-columns: 1fr; gap: var(--jini-admin-space-1); }
+  .jini-admin-email-fact { grid-template-columns: 1fr; gap: var(--jini-admin-space-1); }
 }
 
 /* Round 2 (2026-10-22): the wired tabs and the template editor page. Layout only. */
-.email-card-head { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: var(--jini-admin-space-2); }
-.email-field { display: flex; flex-direction: column; gap: var(--jini-admin-space-1); min-width: 0; }
-.email-input-row { display: flex; gap: var(--jini-admin-space-2); min-width: 0; }
-.email-input-row > .jini-input, .email-input-row > .jini-secret { flex: 1; min-width: 0; }
-.email-provider-form, .email-test-form { display: flex; flex-direction: column; gap: var(--jini-admin-space-3); margin: 0; }
-.email-providers { gap: var(--jini-admin-space-3); }
-.email-provider { display: flex; flex-direction: column; gap: var(--jini-admin-space-2); padding: var(--jini-admin-space-3); border: 1px solid var(--jini-admin-border); border-radius: 10px; }
+.jini-admin-email-card-head { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: var(--jini-admin-space-2); }
+.jini-admin-email-field { display: flex; flex-direction: column; gap: var(--jini-admin-space-1); min-width: 0; }
+.jini-admin-email-input-row { display: flex; gap: var(--jini-admin-space-2); min-width: 0; }
+.jini-admin-email-input-row > .jini-input, .jini-admin-email-input-row > .jini-secret { flex: 1; min-width: 0; }
+.jini-admin-email-provider-form, .jini-admin-email-test-form { display: flex; flex-direction: column; gap: var(--jini-admin-space-3); margin: 0; }
+.jini-admin-email-providers { gap: var(--jini-admin-space-3); }
+.jini-admin-email-provider { display: flex; flex-direction: column; gap: var(--jini-admin-space-2); padding: var(--jini-admin-space-3); border: 1px solid var(--jini-admin-border); border-radius: 10px; }
 /* Item names sit under the section heading (14px/600) and above the 12px hints. */
-.email-provider-name, .email-use-name { font-size: var(--jini-admin-text-sm); font-weight: 600; }
-.email-use, .email-activity { display: flex; flex-direction: column; gap: var(--jini-admin-space-1); padding-block: var(--jini-admin-space-2); border-bottom: 1px solid var(--jini-admin-border); }
-.email-use:last-child, .email-activity:last-child { border-bottom: 0; }
-.email-reasons { margin: 0; padding-inline-start: 1.2em; }
-.email-push-end { margin-inline-start: auto; }
-.email-activity-recipient { overflow-wrap: anywhere; min-width: 0; }
+.jini-admin-email-provider-name, .jini-admin-email-use-name { font-size: var(--jini-admin-text-sm); font-weight: 600; }
+.jini-admin-email-use, .jini-admin-email-activity { display: flex; flex-direction: column; gap: var(--jini-admin-space-1); padding-block: var(--jini-admin-space-2); border-bottom: 1px solid var(--jini-admin-border); }
+.jini-admin-email-use:last-child, .jini-admin-email-activity:last-child { border-bottom: 0; }
+.jini-admin-email-reasons { margin: 0; padding-inline-start: 1.2em; }
+.jini-admin-email-push-end { margin-inline-start: auto; }
+.jini-admin-email-activity-recipient { overflow-wrap: anywhere; min-width: 0; }
 /* One layout for every row: status, then who/when stacked (wraps inside), then Details pinned right —
  * a free-wrapping row dropped Details onto its own line only when the recipient was long. */
-.email-activity-row { flex-wrap: nowrap; }
-.email-activity-row > :not(.email-activity-what) { flex-shrink: 0; }
-.email-activity-what { display: flex; flex-direction: column; flex: 1 1 auto; min-width: 0; }
+.jini-admin-email-activity-row { flex-wrap: nowrap; }
+.jini-admin-email-activity-row > :not(.jini-admin-email-activity-what) { flex-shrink: 0; }
+.jini-admin-email-activity-what { display: flex; flex-direction: column; flex: 1 1 auto; min-width: 0; }
 /* Phones: status + Details on one line, who/when full width beneath — every row the same shape. */
 @media (max-width: 480px) {
-  .email-activity-row { flex-wrap: wrap; }
-  .email-activity-what { order: 3; flex-basis: 100%; }
+  .jini-admin-email-activity-row { flex-wrap: wrap; }
+  .jini-admin-email-activity-what { order: 3; flex-basis: 100%; }
 }
-.email-activity-detail { padding: var(--jini-admin-space-2) var(--jini-admin-space-3); border-radius: 8px; background: var(--jini-bg-subtle); }
-.email-filters { display: flex; flex-wrap: wrap; gap: var(--jini-admin-space-2); }
-.email-filters .jini-input { flex: 1 1 12rem; min-width: 0; }
-.email-blocked { padding-block: var(--jini-admin-space-1); }
-.email-removal { display: flex; flex-direction: column; gap: var(--jini-admin-space-2); }
-.email-removal p { margin: 0; }
-.email-dns-record { display: flex; flex-direction: column; gap: var(--jini-admin-space-2); padding: var(--jini-admin-space-3); border: 1px solid var(--jini-admin-border); border-radius: 10px; }
-.email-dns-values { display: flex; flex-direction: column; gap: var(--jini-admin-space-2); margin: 0; }
-.email-dns-value { display: grid; grid-template-columns: 5rem 1fr; gap: var(--jini-admin-space-2); align-items: start; }
-.email-dns-value dd { display: flex; align-items: flex-start; gap: var(--jini-admin-space-2); margin: 0; min-width: 0; }
-.email-dns-value code, .email-break { overflow-wrap: anywhere; word-break: break-all; min-width: 0; }
-.email-dns-value code { flex: 1; }
-.email-copy { flex: none; }
+.jini-admin-email-activity-detail { padding: var(--jini-admin-space-2) var(--jini-admin-space-3); border-radius: 8px; background: var(--jini-bg-subtle); }
+.jini-admin-email-filters { display: flex; flex-wrap: wrap; gap: var(--jini-admin-space-2); }
+.jini-admin-email-filters .jini-input { flex: 1 1 12rem; min-width: 0; }
+.jini-admin-email-blocked { padding-block: var(--jini-admin-space-1); }
+.jini-admin-email-removal { display: flex; flex-direction: column; gap: var(--jini-admin-space-2); }
+.jini-admin-email-removal p { margin: 0; }
+.jini-admin-email-dns-record { display: flex; flex-direction: column; gap: var(--jini-admin-space-2); padding: var(--jini-admin-space-3); border: 1px solid var(--jini-admin-border); border-radius: 10px; }
+.jini-admin-email-dns-values { display: flex; flex-direction: column; gap: var(--jini-admin-space-2); margin: 0; }
+.jini-admin-email-dns-value { display: grid; grid-template-columns: 5rem 1fr; gap: var(--jini-admin-space-2); align-items: start; }
+.jini-admin-email-dns-value dd { display: flex; align-items: flex-start; gap: var(--jini-admin-space-2); margin: 0; min-width: 0; }
+.jini-admin-email-dns-value code, .jini-admin-email-break { overflow-wrap: anywhere; word-break: break-all; min-width: 0; }
+.jini-admin-email-dns-value code { flex: 1; }
+.jini-admin-email-copy { flex: none; }
 
 /* Template editor (owner, 2026-10-22): laid out like the Pages editor, so the page itself takes the
    shared `.page.content-editor-page` spacing and chrome from `styles/editor.css` + `styles/pages.css`.
    The name input wears `.content-editor-title` (the Pages title underline); the subject sits where
    Pages shows the slug, read-only. */
-.content-editor-header .email-template-name:disabled { opacity: 0.6; }
-.content-editor-header > .email-template-subject { gap: var(--jini-admin-space-2); max-width: 22rem; color: var(--jini-admin-fg-2); }
-.email-template-subject-text { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--jini-admin-fg); }
-.email-template-source { min-height: 36rem; }
-.email-template-preview { display: flex; flex-direction: column; gap: var(--jini-admin-space-2); min-width: 0; margin-top: -15px; }
-.email-template-fields { margin: 0; padding: var(--jini-admin-space-2) var(--jini-admin-space-3); border: 1px solid var(--jini-admin-border); border-radius: 10px; }
+.content-editor-header .jini-admin-email-template-name:disabled { opacity: 0.6; }
+.content-editor-header > .jini-admin-email-template-subject { gap: var(--jini-admin-space-2); max-width: 22rem; color: var(--jini-admin-fg-2); }
+.jini-admin-email-template-subject-text { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--jini-admin-fg); }
+.jini-admin-email-template-source { min-height: 36rem; }
+.jini-admin-email-template-preview { display: flex; flex-direction: column; gap: var(--jini-admin-space-2); min-width: 0; margin-top: -15px; }
+.jini-admin-email-template-fields { margin: 0; padding: var(--jini-admin-space-2) var(--jini-admin-space-3); border: 1px solid var(--jini-admin-border); border-radius: 10px; }
 /* `.jini-field-label` makes the summary flex, which hides the disclosure triangle that says it folds. */
-.email-template-fields > summary { cursor: pointer; display: list-item; }
-.email-template-fields[open] > summary { margin-bottom: var(--jini-admin-space-2); }
-.email-template-field-list { display: flex; flex-wrap: wrap; gap: var(--jini-admin-space-3); }
-.email-template-field-list .email-field { flex: 1 1 12rem; }
-.email-template-field-list label { display: flex; align-items: center; gap: var(--jini-admin-space-2); }
-.email-template-preview .page-preview-frame { background: var(--jini-admin-site-preview-bg, #fff); }
-.email-template-empty { padding: var(--jini-admin-space-3); margin: 0; }
+.jini-admin-email-template-fields > summary { cursor: pointer; display: list-item; }
+.jini-admin-email-template-fields[open] > summary { margin-bottom: var(--jini-admin-space-2); }
+.jini-admin-email-template-field-list { display: flex; flex-wrap: wrap; gap: var(--jini-admin-space-3); }
+.jini-admin-email-template-field-list .jini-admin-email-field { flex: 1 1 12rem; }
+.jini-admin-email-template-field-list label { display: flex; align-items: center; gap: var(--jini-admin-space-2); }
+.jini-admin-email-template-preview .page-preview-frame { background: var(--jini-admin-site-preview-bg, #fff); }
+.jini-admin-email-template-empty { padding: var(--jini-admin-space-3); margin: 0; }
 @media (max-width: 900px) {
-  .email-template-source { min-height: 20rem; }
+  .jini-admin-email-template-source { min-height: 20rem; }
 }
 @media (max-width: 480px) {
-  .email-dns-value { grid-template-columns: 1fr; gap: var(--jini-admin-space-1); }
+  .jini-admin-email-dns-value { grid-template-columns: 1fr; gap: var(--jini-admin-space-1); }
 }
 
 /* Chrome check 2026-10-22. `.jini-field-error` is only styled inside `.jini-page`/`.jini-dialog`
    (jini-media.css), so here it rendered as plain 16px body text. Same recipe as there. */
-:is(.email-page, .email-template-page) .jini-field-error { margin: 0; font-size: var(--jini-admin-text-xs); color: var(--jini-admin-danger); }
+:is(.jini-admin-email-page, .jini-admin-email-template-page) .jini-field-error { margin: 0; font-size: var(--jini-admin-text-xs); color: var(--jini-admin-danger); }
 /* `settings.css`'s `.settings-ui-section button:disabled` clears the fill for Jini's cards, which
    turned a disabled bare (filled) button here — "Use this provider", "Send test" while sending —
    into a borderless label. Restores the global `button:disabled` neutral fill (0,3,1 beats 0,2,1). */
-.email-sections button:not([class]):disabled { background: var(--jini-admin-surface-3); color: var(--jini-admin-muted); }
+.jini-admin-email-sections button:not([class]):disabled { background: var(--jini-admin-surface-3); color: var(--jini-admin-muted); }
 
 /* Segmented pill (owner, 2026-10-22): one section of Overview / Provider / Sender & DNS at a time.
    The pill's look is the gear menu's `.jini-chat-settings-segmented` (styles/assistant.css). */
-.email-segments { display: flex; min-width: 0; }
+.jini-admin-email-segments { display: flex; min-width: 0; }
 
 /* Flat panels (owner, 2026-10-22: "take the card outlines off in Email subtabs"). The tab bar and the
    segmented pill already frame each section, so it sits on the page: no border, fill or inset — the
    heading and the gaps do the grouping. Beats `.settings-ui-section .jini-settings-section-card`
    (styles.css) by one class. Inputs, buttons and the DNS record boxes keep their borders. */
-.email-sections .jini-settings-section-card.email-card { padding: 0; border: 0; border-radius: 0; background: none; }
-.email-sections .email-provider { padding: 0; border: 0; border-radius: 0; }
+.jini-admin-email-sections .jini-settings-section-card.jini-admin-email-card { padding: 0; border: 0; border-radius: 0; background: none; }
+.jini-admin-email-sections .jini-admin-email-provider { padding: 0; border: 0; border-radius: 0; }
 
 /* Duplicate titles (owner, 2026-10-22): a section whose heading repeated its tab or segment drops it
    (`Section`'s `hideTitle`). With no heading, the shared section's 14px top margin left an empty band
    under the tab bar; Provider now has a segmented pill too, so the existing gaps are enough. */
-.email-sections > .email-section-untitled:first-child { margin-top: 0; }
+.jini-admin-email-sections > .jini-admin-email-section-untitled:first-child { margin-top: 0; }
 
 /* Control widths (owner, 2026-10-22: "no reason this needs to be as wide as it is"). Each control is
    sized to what it holds, not the column, like Cookie Consent: addresses, keys and URLs 24rem with
    their button beside, selects 12–18rem, searches 20rem. Phones still shrink them to fit. */
-.email-sections .email-field > .jini-input { width: 24rem; max-width: 100%; }
+.jini-admin-email-sections .jini-admin-email-field > .jini-input { width: 24rem; max-width: 100%; }
 /* `>`: a descendant match would also hit the input inside `.jini-secret` (a column flexbox), where
    a 24rem flex-basis becomes its HEIGHT. */
-.email-input-row > .jini-input, .email-input-row > .jini-secret { flex: 0 1 24rem; }
-.email-filters select.jini-input { flex: 0 1 auto; width: auto; min-width: 12rem; max-width: min(18rem, 100%); }
-.email-sections input[type="search"].jini-input { width: 20rem; max-width: 100%; }
-.email-filters input[type="search"].jini-input { flex: 0 1 20rem; }
+.jini-admin-email-input-row > .jini-input, .jini-admin-email-input-row > .jini-secret { flex: 0 1 24rem; }
+.jini-admin-email-filters select.jini-input { flex: 0 1 auto; width: auto; min-width: 12rem; max-width: min(18rem, 100%); }
+.jini-admin-email-sections input[type="search"].jini-input { width: 20rem; max-width: 100%; }
+.jini-admin-email-filters input[type="search"].jini-input { flex: 0 1 20rem; }

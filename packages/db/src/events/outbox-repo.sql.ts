@@ -97,10 +97,13 @@ export function outboxEventValues(event: DomainEvent<object>) {
 export function preparedOutboxEvent(required: { event: DomainEvent }, optional: OutboxEventPreparation = {}): DomainEvent {
   const { event } = required;
   if (!optional.prepareOutboxEvent) return event;
+  const { id, workspaceId, occurredAt, actorId } = event;
+  const actor = event.actor === undefined ? undefined : { ...event.actor };
   try {
-    const prepared = optional.prepareOutboxEvent({ event });
+    const prepared = optional.prepareOutboxEvent({ event: { ...event, ...(actor === undefined ? {} : { actor: { ...actor } }) } });
     if (typeof prepared !== "object" || prepared === null) return event;
-    return { ...prepared, id: event.id, workspaceId: event.workspaceId, occurredAt: event.occurredAt };
+    const { actor: _preparedActor, actorId: _preparedActorId, ...envelope } = prepared;
+    return { ...envelope, id, workspaceId, occurredAt, ...(actor === undefined ? {} : { actor }), ...(actorId === undefined ? {} : { actorId }) };
   } catch {
     return event;
   }

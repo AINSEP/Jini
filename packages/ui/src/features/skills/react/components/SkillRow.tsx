@@ -209,7 +209,7 @@ function SkillRowActions({ skill, enabled, confirmDelete, editActionLabel, onSta
           standalone toggle rows) with no slider span at all, so the CSS
           track+thumb (`input:checked + .toggle-slider`) had no element to
           attach to and could never render regardless of styling. */}
-      <label className="toggle-switch toggle-switch-sm jini-skills-row-enable" title={l.enableToggleLabel}>
+      <label className="jini-ui-toggle-switch jini-ui-toggle-switch-sm jini-skills-row-enable" title={l.enableToggleLabel}>
         <input
           type="checkbox"
           checked={enabled}
@@ -217,7 +217,7 @@ function SkillRowActions({ skill, enabled, confirmDelete, editActionLabel, onSta
           aria-label={l.enableToggleLabel}
           {...agentHandleProps({}, { base: agentHandle, action: 'enabled', role: 'checkbox', label: l.enableToggleLabel })}
         />
-        <span className="toggle-slider" />
+        <span className="jini-ui-toggle-slider" />
       </label>
     </div>
   );

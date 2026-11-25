@@ -164,11 +164,11 @@
   color: var(--jini-admin-muted);
 }
 
-.jini-dash-stat-value.is-error {
+.jini-dash-stat-value.jini-dash-is-error {
   color: var(--jini-admin-faint);
 }
 
-.jini-dash-stat-meta.is-error {
+.jini-dash-stat-meta.jini-dash-is-error {
   color: var(--jini-admin-danger);
 }
 
@@ -252,7 +252,7 @@
   transform: rotate(90deg);
 }
 
-.jini-dash-panel.is-collapsed .jini-dash-panel-head {
+.jini-dash-panel.jini-dash-is-collapsed .jini-dash-panel-head {
   border-bottom: none;
 }
 

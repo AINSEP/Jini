@@ -24,7 +24,7 @@ export function InstallTabCard({ titleId, title, lede, children }: { titleId: st
 /** One way to install. `badge` marks an option that is shown but not available yet ("Coming soon"). */
 export function InstallTabOption({ heading, badge, hint, children }: { heading?: string; badge?: string; hint?: string; children?: ReactNode }) {
   return (
-    <div className={`jini-install-tab-option${badge ? " is-soon" : ""}`}>
+    <div className={`jini-install-tab-option${badge ? " jini-install-tab-is-soon" : ""}`}>
       {heading ? (
         <h3 className="jini-install-tab-option-heading">
           {heading}
@@ -144,7 +144,7 @@ export function ZipDropZone({
   return (
     <>
       <div
-        className={`jini-install-tab-dropzone${drop.dragging ? " is-dragging" : ""}`}
+        className={`jini-install-tab-dropzone${drop.dragging ? " jini-install-tab-is-dragging" : ""}`}
         onDragOver={drop.onDragOver}
         onDragLeave={drop.onDragLeave}
         onDrop={drop.onDrop}

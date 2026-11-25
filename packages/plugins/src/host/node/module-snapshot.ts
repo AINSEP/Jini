@@ -10,7 +10,7 @@ import { pathToFileURL } from "node:url";
 import { snapshotSitePluginPackage } from "./install.js";
 import type { PluginManifest } from "../manifest.js";
 import type { PluginModuleImportPort } from "../ports.js";
-import { PLUGIN_MANIFEST_FILENAMES } from "../plugin-format.js";
+import { pluginManifestFilenames, type PluginManifestReadOptions } from "../plugin-format.js";
 import { isPluginRelativePath } from "../browser-providers.js";
 
 export class PluginSnapshotIntegrityError extends Error {}
@@ -233,10 +233,10 @@ export function createPluginModuleSnapshotLifecycle(
  */
 export async function snapshotPluginModuleGraph(
   required: { pluginRoot: string; manifest: PluginManifest },
-  optional: SnapshotWriteOptions & { lifecycle?: PluginModuleSnapshotLifecycle } = {},
+  optional: SnapshotWriteOptions & PluginManifestReadOptions & { lifecycle?: PluginModuleSnapshotLifecycle } = {},
 ): Promise<string> {
   const files = await snapshotSitePluginPackage({ sourceDir: required.pluginRoot });
-  verifyPluginSnapshotIntegrity({ files, integrity: required.manifest.integrity });
+  verifyPluginSnapshotIntegrity({ files, integrity: required.manifest.integrity }, optional);
   const cacheRoot = path.dirname(path.dirname(required.pluginRoot)) + "-runtime";
   if (optional.lifecycle) {
     if (optional.lifecycle.runtimeRoot !== path.resolve(cacheRoot)) throw new PluginSnapshotLifecycleError({ code: "SNAPSHOT_ROOT_MISMATCH" });
@@ -252,11 +252,11 @@ export async function snapshotPluginModuleGraph(
  */
 export function verifyPluginSnapshotIntegrity(
   required: { files: ReadonlyMap<string, Uint8Array>; integrity: Readonly<Record<string, string>> },
-  _options: Record<string, never> = {},
+  optional: PluginManifestReadOptions = {},
 ): void {
   const { files, integrity } = required;
   for (const [key, bytes] of files) {
-    if (PLUGIN_MANIFEST_FILENAMES.includes(key)) continue; // legacy alias
+    if (pluginManifestFilenames({}, optional).includes(key)) continue; // legacy alias
     const digest = `sha256-${createHash("sha256").update(bytes).digest("hex")}`;
     if (integrity[key] !== digest) throw new PluginSnapshotIntegrityError("Package changed before loading.");
   }
@@ -279,7 +279,7 @@ export function verifyPluginSnapshotIntegrity(
  */
 export function createPluginModuleImporter(
   required: { manifest: PluginManifest; source: "built-in" | "site" },
-  optional: { importModule?: (entryPath: string) => Promise<unknown>; snapshots?: PluginModuleSnapshotLifecycle } = {},
+  optional: PluginManifestReadOptions & { importModule?: (entryPath: string) => Promise<unknown>; snapshots?: PluginModuleSnapshotLifecycle } = {},
 ): PluginModuleImportPort {
   return async ({ plugin, modulePath }) => {
     if (optional.importModule) {
@@ -292,7 +292,7 @@ export function createPluginModuleImporter(
       // The immutable snapshot owner rejects symlinks/hardlinks and checks every retained byte.
       if (!entry.startsWith(root + path.sep)) return `module path '${modulePath}' escapes the plugin root`;
       entryPath = await snapshotPluginModuleGraph({ pluginRoot: plugin.packageRoot, manifest: required.manifest },
-        optional.snapshots ? { lifecycle: optional.snapshots } : {});
+        { legacyManifestFilenames: optional.legacyManifestFilenames, ...(optional.snapshots ? { lifecycle: optional.snapshots } : {}) });
     }
     const imported = await import(pathToFileURL(entryPath).href);
     return { exported: imported.default };

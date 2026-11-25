@@ -1,6 +1,7 @@
 import { upsertRecord } from "@jini-ai/core/records";
 import type {
-  DomainEvent,
+  AttributedDomainEvent,
+  NewChangeSetRecord,
   OutboxPort,
   ChangeSetItemRecord,
   ChangeSetRecord,
@@ -23,8 +24,8 @@ export class InMemoryChangeSetRepo implements ChangeSetRepoPort {
   }
 
   async insert(
-    { record, items }: { record: ChangeSetRecord; items: ChangeSetItemRecord[] },
-    { event }: { event?: DomainEvent } = {},
+    { record, items }: { record: NewChangeSetRecord; items: ChangeSetItemRecord[] },
+    { event }: { event?: AttributedDomainEvent | undefined } = {},
   ): Promise<void> {
     this.rows.push(record);
     this.itemRows.push(...items);

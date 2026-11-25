@@ -63,12 +63,12 @@ export function MemorySuggestionPanel({
   const typeLabel = useMemo(() => memoryTypeLabels({ t }), [t]);
   return (
     <div className="memory-suggestion-panel">
-      <div className="memory-subsection-head">
+      <div className="jini-ui-memory-subsection-head">
         <div>
           <h4>{t('Suggested memories')}</h4>
           <p className="hint">{t('Review design-related memories before saving them.')}</p>
         </div>
-        <span className="memory-source-badge">
+        <span className="jini-ui-memory-source-badge">
           {selectedConnectorSuggestions.length} {t('selected')}
         </span>
       </div>

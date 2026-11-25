@@ -36,7 +36,7 @@ export function ConnectorSearchBar({
   const { inputRef, hasQuery, onKeyDown } = useConnectorSearchBarHook({ value, onChange });
 
   return (
-    <div className="toolbar-search connectors-search">
+    <div className="jini-ui-toolbar-search jini-ui-connectors-search">
       <span className="search-icon" aria-hidden>
         <Icon name="search" size={13} />
       </span>
@@ -56,7 +56,7 @@ export function ConnectorSearchBar({
       {hasQuery ? (
         <button
           type="button"
-          className="toolbar-search-clear"
+          className="jini-ui-toolbar-search-clear"
           aria-label={resolvedClearAriaLabel}
           onClick={() => {
             onChange('');

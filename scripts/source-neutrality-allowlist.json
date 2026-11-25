@@ -1,10 +1,5 @@
 [
   {
-    "file": "packages/plugins/src/host/plugin-format.ts",
-    "rule": "N1-consumer-identity",
-    "reason": "legacy read-time alias, owner decision 2026-10-13"
-  },
-  {
     "file": "packages/agent-plugins/src/core/identity-namespace.ts",
     "rule": "N1-consumer-identity",
     "reason": "Read-time compatibility for installed manifests: extensions.jini is canonical; extensions.tovu is read only when jini is absent. Legacy copies remain supported through at least 2027-05-06, with no automatic removal."

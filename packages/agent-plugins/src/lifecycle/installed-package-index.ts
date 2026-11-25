@@ -24,7 +24,7 @@ function readDisplayText(required: { readonly manifest: AgentPluginManifest; rea
 }
 
 function createInstalledManifestReader(ports: AgentPluginLifecyclePorts, readFile: AgentPluginLifecyclePorts['filesystem']['readFile']) {
-  const parseAgentPluginManifest = (value: unknown) => parseAgentPluginManifestValue({ value }, { identityNamespace: resolveAgentPluginLifecycleNamespace({ value, extensionNamespace: ports.extensionNamespace }) });
+  const parseAgentPluginManifest = (value: unknown) => parseAgentPluginManifestValue({ value }, { identityNamespace: resolveAgentPluginLifecycleNamespace({ value, extensionNamespace: ports.extensionNamespace }, { legacyIdentity: ports.legacyIdentity }), legacyIdentity: ports.legacyIdentity });
   /** Reads and validates `packageRoot`'s `plugin.json`, refusing a missing, unparseable or invalid one. */
   return async function readInstalledManifest({ packageRoot }: { readonly packageRoot: string }) {
     let manifestRaw: string;

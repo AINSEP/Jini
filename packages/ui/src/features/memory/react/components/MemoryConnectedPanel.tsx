@@ -201,7 +201,7 @@ function MemoryConnectedSummary({
           {t('Choose apps to scan for design preferences, project context, and visual references. Nothing is scanned until you select an app.')}
         </p>
       </div>
-      <span className="memory-source-badge">{connectorsLoading ? t('Loading') : `${connectedCount} ${t('connected')}`}</span>
+      <span className="jini-ui-memory-source-badge">{connectorsLoading ? t('Loading') : `${connectedCount} ${t('connected')}`}</span>
       <button type="button" className="ghost memory-source-action" onClick={onOpenConnectors} disabled={!onOpenConnectors}>
         {t('Manage')}
       </button>
@@ -359,7 +359,7 @@ function MemoryConnectorPickerHead({ selectedCount, useTHook = useT }: { selecte
         <h4>{t('Choose sources')}</h4>
         <p className="hint">{t('Select connected apps first. Only the apps you choose are scanned.')}</p>
       </div>
-      <span className="memory-source-badge">
+      <span className="jini-ui-memory-source-badge">
         {selectedCount} {t('selected')}
       </span>
     </div>

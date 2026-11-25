@@ -56,9 +56,9 @@
  * caller that reads the file and hands the parsed value here.
  */
 import { isAgentPluginName, MAX_NAME_LENGTH } from '../core/plugin-name.js';
-import { type LegacyMcpAliases, resolveAgentPluginIdentityNamespace, readCompatibleAgentPluginServerMetadata, hasLegacyAgentPluginServerMetadata, readAgentPluginCompatibilityWarnings, isPortableAgentPluginNamespace } from '../core/identity-namespace.js';
+import { type AgentPluginIdentityReadOptions, type LegacyMcpAliases, resolveAgentPluginIdentityNamespace, readCompatibleAgentPluginServerMetadata, hasLegacyAgentPluginServerMetadata, readAgentPluginCompatibilityWarnings, isPortableAgentPluginNamespace } from '../core/identity-namespace.js';
 import type { AgentPluginExportMetadata, PluginManifestAuthor } from "@jini-ai/core/contracts/site/agent-plugins-lifecycle";
-export { type LegacyMcpAliases, resolveAgentPluginIdentityNamespace, readAgentPluginPortableExtension, readAgentPluginCompatibilityWarnings, legacyAgentPluginMetadataWarning } from '../core/identity-namespace.js';
+export { type AgentPluginIdentityReadOptions, type LegacyAgentPluginIdentity, type LegacyMcpAliases, resolveAgentPluginIdentityNamespace, readAgentPluginPortableExtension, readAgentPluginCompatibilityWarnings } from '../core/identity-namespace.js';
 import { readAgentPluginMetadata, type AgentPluginMetadata } from './metadata.js';
 export * from './metadata.js';
 export * from './credential-card-metadata.js';
@@ -231,7 +231,7 @@ function collectManifestProblems(
  * `packages/plugins/src/host/node/discovery.ts`).
  * @complexity O(k + n) time and space in the input keys and keyword entries.
  */
-export function parseAgentPluginManifest({ value }: { readonly value: unknown }, optional: { readonly identityNamespace?: string } = {}): ParseAgentPluginManifestResult {
+export function parseAgentPluginManifest({ value }: { readonly value: unknown }, optional: AgentPluginIdentityReadOptions = {}): ParseAgentPluginManifestResult {
   if (!isJsonObject(value)) return { ok: false, errors: ["plugin.json must be a JSON object"] };
 
   const raw = value;
@@ -564,8 +564,8 @@ function collectMcpConfigErrors({ raw }: { readonly raw: Readonly<Record<string,
 }
 
 /** The per-server metadata `plugin.json` declares under `extensionNamespace`, or `{}` when it declares none. */
-function readExtensionServers({ pluginManifest, extensionNamespace }: { readonly pluginManifest: unknown; readonly extensionNamespace: string }): Readonly<Record<string, unknown>> {
-  const manifest = parseAgentPluginManifest({ value: pluginManifest }, { identityNamespace: extensionNamespace });
+function readExtensionServers({ pluginManifest, extensionNamespace }: { readonly pluginManifest: unknown; readonly extensionNamespace: string }, optional: Pick<AgentPluginIdentityReadOptions, "legacyIdentity"> = {}): Readonly<Record<string, unknown>> {
+  const manifest = parseAgentPluginManifest({ value: pluginManifest }, { identityNamespace: extensionNamespace, ...optional });
   if (!manifest.ok) return {};
   return readAgentPluginExtension({ manifest: manifest.manifest, namespace: extensionNamespace, read: ({ value }) => isJsonObject(value.mcpServers) ? value.mcpServers : {} }) ?? {};
 }
@@ -579,7 +579,7 @@ function readExtensionServers({ pluginManifest, extensionNamespace }: { readonly
  * @throws Nothing — see {@link parseAgentPluginManifest}.
  * @complexity O(s) in the number of declared servers.
  */
-export function parseAgentPluginMcpConfig({ value, extensionNamespace }: { readonly value: unknown; readonly extensionNamespace?: string }, optional: { readonly pluginManifest?: unknown; readonly readServerMetadata?: AgentPluginServerMetadataReader | undefined; readonly legacyMcpAliases?: LegacyMcpAliases | undefined } = {}): ParseAgentPluginMcpConfigResult {
+export function parseAgentPluginMcpConfig({ value, extensionNamespace }: { readonly value: unknown; readonly extensionNamespace?: string }, optional: { readonly pluginManifest?: unknown; readonly readServerMetadata?: AgentPluginServerMetadataReader | undefined; readonly legacyMcpAliases?: LegacyMcpAliases | undefined; readonly legacyIdentity?: AgentPluginIdentityReadOptions["legacyIdentity"] } = {}): ParseAgentPluginMcpConfigResult {
   if (extensionNamespace !== undefined && !extensionNamespace.trim()) throw new Error("An extension namespace is required");
   if (!isJsonObject(value)) return { ok: false, errors: ["mcp.json must be a JSON object"] };
 
@@ -592,14 +592,14 @@ export function parseAgentPluginMcpConfig({ value, extensionNamespace }: { reado
 /** Valid transports are independent siblings; a malformed declaration never hides their ids. */
 function parseMcpServers(
   { raw, extensionNamespace }: { readonly raw: Readonly<Record<string, unknown>>; readonly extensionNamespace: string | undefined },
-  optional: { readonly pluginManifest?: unknown; readonly readServerMetadata?: AgentPluginServerMetadataReader | undefined; readonly legacyMcpAliases?: LegacyMcpAliases | undefined },
+  optional: { readonly pluginManifest?: unknown; readonly readServerMetadata?: AgentPluginServerMetadataReader | undefined; readonly legacyMcpAliases?: LegacyMcpAliases | undefined; readonly legacyIdentity?: AgentPluginIdentityReadOptions["legacyIdentity"] },
 ): ParseAgentPluginMcpConfigResult {
-  const namespace = resolveAgentPluginIdentityNamespace({ value: optional.pluginManifest }, extensionNamespace === undefined ? {} : { identityNamespace: extensionNamespace });
-  const extensionServers = readExtensionServers({ pluginManifest: optional.pluginManifest, extensionNamespace: namespace });
+  const namespace = resolveAgentPluginIdentityNamespace({ value: optional.pluginManifest }, { identityNamespace: extensionNamespace, legacyIdentity: optional.legacyIdentity });
+  const extensionServers = readExtensionServers({ pluginManifest: optional.pluginManifest, extensionNamespace: namespace }, optional);
   const entries = Object.entries(raw.mcpServers as Record<string, unknown>);
   const servers: Record<string, McpServerConfig> = Object.create(null);
-  const warnings = [...readAgentPluginCompatibilityWarnings({ value: optional.pluginManifest }, { identityNamespace: namespace })];
-  const portable = isPortableAgentPluginNamespace({ namespace: extensionNamespace });
+  const warnings = [...readAgentPluginCompatibilityWarnings({ value: optional.pluginManifest }, { identityNamespace: namespace, legacyIdentity: optional.legacyIdentity })];
+  const portable = isPortableAgentPluginNamespace({ namespace: extensionNamespace }, optional);
   const readServerMetadata: AgentPluginServerMetadataReader | undefined = optional.readServerMetadata ?? (portable ? (required) => readCompatibleAgentPluginServerMetadata(required, { legacyMcpAliases: optional.legacyMcpAliases }) : undefined);
   for (const [serverId, rawServer] of entries) {
     const extension = Object.hasOwn(extensionServers, serverId) ? extensionServers[serverId] : undefined;

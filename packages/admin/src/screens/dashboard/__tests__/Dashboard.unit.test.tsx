@@ -1,4 +1,5 @@
 // @vitest-environment jsdom
+import { readFileSync } from "node:fs";
 import { screen, within } from "@testing-library/react";
 import { renderWithAdminKit } from "../../../react/__tests__/render-with-admin-kit.js";
 import userEvent from "@testing-library/user-event";
@@ -69,9 +70,9 @@ describe("stat cards", () => {
 
   it("show a failed stat's own reason and an em-dash, leaving the others intact", () => {
     const { container } = renderDashboard({ media: { value: null, error: "media unavailable" } });
-    expect(within(statCard(container, "Media")).getByText("—")).toHaveClass("is-error");
-    expect(within(statCard(container, "Media")).getByText("media unavailable")).toHaveClass("is-error");
-    expect(within(statCard(container, "Posts")).getByText("3")).not.toHaveClass("is-error");
+    expect(within(statCard(container, "Media")).getByText("—")).toHaveClass("jini-dash-is-error");
+    expect(within(statCard(container, "Media")).getByText("media unavailable")).toHaveClass("jini-dash-is-error");
+    expect(within(statCard(container, "Posts")).getByText("3")).not.toHaveClass("jini-dash-is-error");
   });
 
   it("read '…' while a value is pending", () => {
@@ -163,4 +164,17 @@ describe("header, banners and appearance", () => {
     expect(screen.getByRole("alert")).toHaveTextContent("theme unavailable");
     expect(screen.queryByText("Active theme")).not.toBeInTheDocument();
   });
+});
+
+it("collapsed and error dashboard states match the shipped selectors", () => {
+  const css = readFileSync(new URL("../dashboard.css", import.meta.url), "utf8");
+  const { container } = renderDashboard({ media: { value: null, error: "media unavailable" } }, {
+    useRecentActivityDisclosureHook: () => ({ open: false, toggle: () => {}, panelId: "recent-panel" }),
+  });
+  expect(container.querySelector(".jini-dash-is-collapsed")).not.toBeNull();
+  expect(within(statCard(container, "Media")).getByText("—")).toHaveClass("jini-dash-is-error");
+  for (const node of container.querySelectorAll("[class]")) {
+    for (const token of node.classList) if (token.startsWith("jini-dash-")) expect(css).toContain(`.${token}`);
+  }
+  expect(css).not.toMatch(/\.jini-dash-[^{}]*\.is-(error|collapsed)\b/);
 });

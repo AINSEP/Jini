@@ -7,7 +7,7 @@ import { tmpdir } from 'node:os';
 import * as semver from 'semver';
 import { FileLockTimeoutError, type FileLockPort, type FileLockPortOptions } from '@jini-ai/core/contracts/runtime';
 import { validateManifest, validatePluginIdFormat } from '../manifest.js';
-import { PLUGIN_MANIFEST_FILENAME as MANIFEST, LEGACY_PLUGIN_MANIFEST_FILENAME, PLUGIN_MANIFEST_FILENAMES, canonicalizePluginManifest } from '../plugin-format.js';
+import { PLUGIN_MANIFEST_FILENAME as MANIFEST, pluginManifestFilenames, type PluginManifestReadOptions, canonicalizePluginManifest } from '../plugin-format.js';
 import type { ManifestHostPorts } from '../ports.js';
 import type { PluginSourcePolicyPort } from '../source-policy.js';
 import { computePluginIntegrity, digestSitePluginSnapshot, snapshotSitePluginPackage, type PluginInstallerPort, type PluginInstallPreview, type PluginPackageSnapshot } from './install.js';
@@ -132,8 +132,8 @@ async function missingSegmentCount(base: string, segments: readonly string[]): P
   return missing;
 }
 /** The draft's manifest JSON (current name first, then the legacy alias), or a refusal. */
-function parseDraftManifest(files: ReadonlyMap<string, Buffer>): unknown {
-  const filename = PLUGIN_MANIFEST_FILENAMES.find(name => files.has(name)); // legacy alias
+function parseDraftManifest(files: ReadonlyMap<string, Buffer>, manifestFilenames: readonly string[]): unknown {
+  const filename = manifestFilenames.find(name => files.has(name)); // legacy alias
   try { return JSON.parse(filename === undefined ? '' : files.get(filename)!.toString('utf8')); }
   catch { return fail('PLUGIN_MANIFEST_INVALID', `A valid ${MANIFEST} is required.`); }
 }
@@ -154,7 +154,7 @@ function createDraftContext(required: PluginSourceDeps, optional: NonNullable<Pa
   // path (ids cannot start with '.') can write it. Per site: one approval covers every workspace.
   const approval = (id: string) => path.join(drafts, '.sealed', id, 'approved.json');
 
-  return { required, optional, root, drafts, draft, marker, approval };
+  return { required, optional, root, drafts, draft, marker, approval, manifestFilenames: pluginManifestFilenames({}, required) };
 }
 
 type DraftContext = ReturnType<typeof createDraftContext>;
@@ -208,7 +208,7 @@ function createDraftInstaller(ctx: DraftContext) {
     await mkdir(drafts, { recursive: true });
     const staging = await mkdtemp(path.join(drafts, '.open-'));
     try {
-      for (const [file, bytes] of canonicalizePluginManifest({ files })) { safeFile(file); await writeAtomic(root, path.join(staging, file), bytes); } // legacy alias
+      for (const [file, bytes] of canonicalizePluginManifest({ files }, { legacyManifestFilenames: ctx.manifestFilenames })) { safeFile(file); await writeAtomic(root, path.join(staging, file), bytes); } // legacy alias
       await confined(root, draft(id));
       await rename(staging, draft(id));
     } finally { await rm(staging, { recursive: true, force: true }); }
@@ -234,7 +234,7 @@ function createDraftWriter(ctx: DraftContext, deps: { snapshot: ReturnType<typeo
   const { snapshot } = deps;
   return async function write(id: string, file: string, content: string): Promise<{ bytesWritten: number }> {
     safeFile(file);
-    if (file === LEGACY_PLUGIN_MANIFEST_FILENAME) file = MANIFEST; // legacy alias
+    if (ctx.manifestFilenames.includes(file)) file = MANIFEST; // legacy alias
     const { segments, bytes } = draftWriteInput(file, content);
     const files = await snapshot(draft(id));
     await confined(root, path.join(draft(id), file));
@@ -245,7 +245,7 @@ function createDraftWriter(ctx: DraftContext, deps: { snapshot: ReturnType<typeo
     const addedEntries = await missingSegmentCount(draft(id), segments);
     if (total > PLUGIN_SOURCE_LIMITS.maxTotalBytes || files.entryCount + addedEntries > PLUGIN_SOURCE_LIMITS.maxEntries) fail('PLUGIN_SOURCE_TOO_LARGE', 'Draft exceeds 8 MiB or 512 entries.');
     await writeAtomic(root, path.join(draft(id), file), bytes);
-    if (file === MANIFEST) await rm(path.join(draft(id), LEGACY_PLUGIN_MANIFEST_FILENAME), { force: true }); // legacy alias
+    if (file === MANIFEST) for (const alias of ctx.manifestFilenames) if (alias !== MANIFEST) await rm(path.join(draft(id), alias), { force: true }); // legacy alias
     return { bytesWritten: bytes.length };
   };
 }
@@ -256,7 +256,7 @@ function createDraftReader(ctx: DraftContext, deps: { snapshot: ReturnType<typeo
   return async function read(id: string, file: string): Promise<{ content: string; bytes: number; digest: string }> {
     safeFile(file);
     const files = await snapshot(draft(id));
-    if (PLUGIN_MANIFEST_FILENAMES.includes(file)) file = PLUGIN_MANIFEST_FILENAMES.find(name => files.has(name)) ?? MANIFEST; // legacy alias
+    if (ctx.manifestFilenames.includes(file)) file = ctx.manifestFilenames.find(name => files.has(name)) ?? MANIFEST; // legacy alias
     const bytes = files.get(file);
     if (!bytes) fail('PLUGIN_SOURCE_FILE_MISSING', 'The requested file is not in the draft.');
     return { content: bytes.toString('utf8'), bytes: bytes.length, digest: digestSitePluginSnapshot({ files: new Map([[file, bytes]]) }) };
@@ -278,7 +278,7 @@ function createDraftPublisher(ctx: DraftContext, deps: { validate: ReturnType<ty
    * encoder is needed; the folder installer refuses sources inside its own destination. */
   return async function publish(id: string, files: ReadonlyMap<string, Buffer>, rollbackFrom?: string): Promise<PluginSourceSealResult> {
     if (!required.policy.localInstallEnabled({}, {})) fail('PLUGIN_LOCAL_INSTALL_DISABLED', required.localInstallDisabledMessage ?? 'Local plugin install is disabled by the host.');
-    const raw = parseDraftManifest(files);
+    const raw = parseDraftManifest(files, ctx.manifestFilenames);
     // `validate` checks the manifest against `folderName: id`, so a manifest whose id is missing or
     // differs from the draft id is already refused there (ID_FOLDER_MISMATCH).
     validate(id, raw);
@@ -286,7 +286,7 @@ function createDraftPublisher(ctx: DraftContext, deps: { validate: ReturnType<ty
     const version = nextSealVersion((await versions(id))[0], String(manifest.version));
     const staging = await mkdtemp(path.join(optional.temporaryDir ?? tmpdir(), 'plugin-source-'));
     try {
-      await stageSealedPackage(staging, files, { ...manifest, version });
+      await stageSealedPackage(staging, files, { ...manifest, version }, { legacyManifestFilenames: ctx.manifestFilenames });
       const input = { sourceDir: staging };
       const preview = await required.installer.preview(input, { versionAppend: true });
       const plugin = await required.installer.install({ ...input, expectedDigest: preview.digest }, { versionAppend: true });
@@ -300,9 +300,9 @@ function createDraftPublisher(ctx: DraftContext, deps: { validate: ReturnType<ty
 }
 
 /** Writes the draft files, then the manifest with the sealed version and fresh integrity. */
-async function stageSealedPackage(staging: string, files: ReadonlyMap<string, Buffer>, manifest: Record<string, unknown>): Promise<void> {
-  for (const [file, bytes] of canonicalizePluginManifest({ files })) { safeFile(file); await writeAtomic(staging, path.join(staging, file), bytes); } // legacy alias
-  const integrity = await computePluginIntegrity({ sourceDir: staging });
+async function stageSealedPackage(staging: string, files: ReadonlyMap<string, Buffer>, manifest: Record<string, unknown>, optional: PluginManifestReadOptions = {}): Promise<void> {
+  for (const [file, bytes] of canonicalizePluginManifest({ files }, optional)) { safeFile(file); await writeAtomic(staging, path.join(staging, file), bytes); } // legacy alias
+  const integrity = await computePluginIntegrity({ sourceDir: staging }, optional);
   await writeAtomic(staging, path.join(staging, MANIFEST), jsonBytes({ ...manifest, integrity }));
 }
 
@@ -347,7 +347,7 @@ function draftFileOperations(ctx: DraftOperations): Pick<PluginSourcePort, 'crea
       const manifest = { id, name, version: '0.1.0', engine: 1, sdkRange: '^' + required.pluginSdkBinding.runtimeSdkVersion, tier: 'tier-3', capabilities: [], hooks: [], fields: [], integrity: {} };
       validate(id, manifest);
       await putDraft(id, new Map([[MANIFEST, jsonBytes(manifest)], ['server/index.mjs', Buffer.from(required.scaffoldEntry)], ['README.md', Buffer.from(`${name}\n\n${description}\n\nSite-local tier-3 plugin. Full server access; sandboxing is deferred.\n`)]]));
-      const integrity = await computePluginIntegrity({ sourceDir: draft(id) });
+      const integrity = await computePluginIntegrity({ sourceDir: draft(id) }, { legacyManifestFilenames: ctx.manifestFilenames });
       await writeAtomic(root, path.join(draft(id), MANIFEST), jsonBytes({ ...manifest, integrity }));
       return { created: true };
     }, { createRoot: true }),

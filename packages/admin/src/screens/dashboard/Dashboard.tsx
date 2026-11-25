@@ -99,7 +99,7 @@ function RecentActivityBody(props: {
   if (props.recent === null && props.postsError && props.pagesError) {
     return (
       <div className="jini-dash-panel-body">
-        <p className="jini-dash-stat-meta is-error" role="alert">
+        <p className="jini-dash-stat-meta jini-dash-is-error" role="alert">
           {t("Could not load recent activity.")} {props.postsError}
         </p>
       </div>
@@ -148,7 +148,7 @@ function RecentActivityPanel(props: {
   // The host's disclosure hook is a required prop, called through `props` (never imported or defaulted).
   const { open, toggle, panelId } = props.useRecentActivityDisclosureHook();
   return (
-    <div className={`jini-dash-panel${open ? "" : " is-collapsed"}`}>
+    <div className={`jini-dash-panel${open ? "" : " jini-dash-is-collapsed"}`}>
       <div className="jini-dash-panel-head">
         <h2 className="jini-dash-panel-title">
           <button
@@ -181,7 +181,7 @@ function AppearanceBody(props: { themeError: string | null; themeName: string | 
   const { t } = props;
   if (props.themeError) {
     return (
-      <p className="jini-dash-stat-meta is-error" role="alert">
+      <p className="jini-dash-stat-meta jini-dash-is-error" role="alert">
         {props.themeError}
       </p>
     );
@@ -394,10 +394,10 @@ function Stat(props: { href: string; label: string; state: StatState; meta: stri
       {...agentHandle({ handle: props.agentHandleId }, { role: "link", label: `${props.label} stat card — go to ${props.href}` })}
     >
       <span className="jini-dash-stat-label">{props.label}</span>
-      <span className={`jini-dash-stat-value${failed ? " is-error" : ""}`}>
+      <span className={`jini-dash-stat-value${failed ? " jini-dash-is-error" : ""}`}>
         {failed ? "—" : (props.state.value ?? "…")}
       </span>
-      <span className={`jini-dash-stat-meta${failed ? " is-error" : ""}`}>{failed ? props.state.error : props.meta}</span>
+      <span className={`jini-dash-stat-meta${failed ? " jini-dash-is-error" : ""}`}>{failed ? props.state.error : props.meta}</span>
     </a>
   );
 }

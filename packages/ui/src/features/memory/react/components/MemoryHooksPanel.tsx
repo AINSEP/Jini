@@ -76,30 +76,30 @@ export function MemoryHooksPanel({
 }) {
   const t = useTHook();
   return (
-    <div className="memory-hooks-panel" data-testid="memory-hooks-panel">
-      <div className="memory-hooks-panel-head">
-        <span className="memory-hooks-panel-head-icon" aria-hidden="true">
+    <div className="jini-ui-memory-hooks-panel" data-testid="memory-hooks-panel">
+      <div className="jini-ui-memory-hooks-panel-head">
+        <span className="jini-ui-memory-hooks-panel-head-icon" aria-hidden="true">
           <Icon name="sliders" size={15} />
         </span>
         <div>
-          <h4 className="memory-hooks-panel-title">{t('Memory hooks')}</h4>
-          <p className="memory-hooks-panel-hint">
+          <h4 className="jini-ui-memory-hooks-panel-title">{t('Memory hooks')}</h4>
+          <p className="jini-ui-memory-hooks-panel-hint">
             {t('Fine-tune how memory is captured and used, without turning it off entirely.')}
           </p>
         </div>
       </div>
-      <ul className="memory-hooks-panel-list">
+      <ul className="jini-ui-memory-hooks-panel-list">
         {HOOKS.map((hook) => (
-          <li key={hook.key} className="memory-hooks-panel-row">
-            <span className="memory-hooks-panel-row-icon" aria-hidden="true">
+          <li key={hook.key} className="jini-ui-memory-hooks-panel-row">
+            <span className="jini-ui-memory-hooks-panel-row-icon" aria-hidden="true">
               <Icon name={hook.icon} size={14} />
             </span>
-            <span className="memory-hooks-panel-row-copy">
-              <span className="memory-hooks-panel-row-label">{t(hook.label)}</span>
-              <small className="memory-hooks-panel-row-desc">{t(hook.description)}</small>
+            <span className="jini-ui-memory-hooks-panel-row-copy">
+              <span className="jini-ui-memory-hooks-panel-row-label">{t(hook.label)}</span>
+              <small className="jini-ui-memory-hooks-panel-row-desc">{t(hook.description)}</small>
             </span>
-            <label className="memory-hooks-panel-toggle" title={t(hook.label)}>
-              <span className="toggle-switch toggle-switch-sm">
+            <label className="jini-ui-memory-hooks-panel-toggle" title={t(hook.label)}>
+              <span className="jini-ui-toggle-switch jini-ui-toggle-switch-sm">
                 <input
                   type="checkbox"
                   // aria-label belongs on the input itself — the visible label
@@ -111,7 +111,7 @@ export function MemoryHooksPanel({
                   onChange={(e) => onToggle(hook.key, e.target.checked)}
                   {...agentHandleProps({}, { base: agentHandle, ...({ action: `hook-${hook.action}`, role: 'checkbox', label: t(hook.label) }) })}
                 />
-                <span className="toggle-slider" />
+                <span className="jini-ui-toggle-slider" />
               </span>
             </label>
           </li>

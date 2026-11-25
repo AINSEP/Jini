@@ -122,7 +122,7 @@ describe("Select", () => {
   });
 
   // REGRESSION, found live in a real browser via a long "Existing Text widgets" list (25 items) at
-  // a short viewport: `.select-list` genuinely overflows its own `max-height`, ArrowDown correctly
+  // a short viewport: `.jini-ui-select-list` genuinely overflows its own `max-height`, ArrowDown correctly
   // moved `aria-activedescendant`/`.is-highlighted`, but nothing ever scrolled the list to keep the
   // highlighted row inside the visible panel — confirmed via `getBoundingClientRect()`, the
   // highlighted row's rect sat entirely below the panel's own visible bounds after 20 ArrowDowns.
@@ -380,7 +380,7 @@ describe("Select", () => {
       // Still visible per the bounding-rect check alone, so the panel stays open and repositioned
       // rather than closed — the obscured-by-another-element check simply never runs.
       expect(screen.getByRole("listbox")).toBeInTheDocument();
-      await waitFor(() => expect(document.querySelector(".select-panel")).toHaveStyle({ top: "91px", left: "0px", width: "100px" }));
+      await waitFor(() => expect(document.querySelector(".jini-ui-select-panel")).toHaveStyle({ top: "91px", left: "0px", width: "100px" }));
     } finally {
       document.elementFromPoint = original;
     }
@@ -427,7 +427,7 @@ describe("Select", () => {
     // Dispatch at the panel to exercise its missing-trigger Tab branch without native Tab moving
     // focus from the outside button.
     try {
-      fireEvent.keyDown(document.querySelector(".select-panel")!, { key: "Tab" });
+      fireEvent.keyDown(document.querySelector(".jini-ui-select-panel")!, { key: "Tab" });
       expect(screen.queryByRole("listbox")).not.toBeInTheDocument(); // still closes
       expect(document.activeElement).toBe(focusBefore);
     } finally {
@@ -513,7 +513,7 @@ describe("Select", () => {
     try {
       window.dispatchEvent(new Event("scroll"));
       expect(screen.getByRole("listbox")).toBeInTheDocument();
-      await waitFor(() => expect(document.querySelector(".select-panel")).toHaveStyle({ top: "91px", left: "0px", width: "100px" }));
+      await waitFor(() => expect(document.querySelector(".jini-ui-select-panel")).toHaveStyle({ top: "91px", left: "0px", width: "100px" }));
     } finally {
       document.elementFromPoint = originalElementFromPoint;
     }
@@ -630,21 +630,21 @@ describe("resolveSelectTriggerLabel", () => {
   it("shows the selected option's label with no placeholder class when a value is selected", () => {
     expect(resolveSelectTriggerLabel({ selectedOption: { value: "a", label: "Alpha" }, placeholder: "Pick one" })).toEqual({
       text: "Alpha",
-      className: "select-trigger-label",
+      className: "jini-ui-select-trigger-label",
     });
   });
 
   it("falls back to the caller's placeholder, with the placeholder class, when nothing is selected", () => {
     expect(resolveSelectTriggerLabel({ selectedOption: null, placeholder: "Pick one" })).toEqual({
       text: "Pick one",
-      className: "select-trigger-label is-placeholder",
+      className: "jini-ui-select-trigger-label is-placeholder",
     });
   });
 
   it("falls back to the default placeholder text when the caller supplies none", () => {
     expect(resolveSelectTriggerLabel({ selectedOption: null, placeholder: undefined })).toEqual({
       text: "Select…",
-      className: "select-trigger-label is-placeholder",
+      className: "jini-ui-select-trigger-label is-placeholder",
     });
   });
 });

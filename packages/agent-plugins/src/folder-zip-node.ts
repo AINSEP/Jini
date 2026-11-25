@@ -3,7 +3,7 @@ import { constants } from "node:fs";
 import path from "node:path";
 import { FOLDER_MAX_FILES, FOLDER_UNREADABLE, FolderZipError, zipFolderFiles } from "./folder-zip.js";
 import { isAgentPluginName } from './core/plugin-name.js';
-import { readAgentPluginPortableExtension } from './core/identity-namespace.js';
+import { type AgentPluginIdentityReadOptions, readAgentPluginPortableExtension } from './core/identity-namespace.js';
 
 /** Code-unit order, independent of locale. */
 function compareCodeUnits(a: string, b: string): number {
@@ -148,7 +148,7 @@ function sanitizeHostIdentities({ extensions, localId }: { extensions: Record<st
 
 /** A fork must not retain its publisher identity or historical aliases and supersession claims.
  * The requesting host always gets a fresh `local/<name>` id, even when the source declared none. */
-function customizeManifest({ text, name, identityNamespace }: { text: string; name: string; identityNamespace: string }): string {
+function customizeManifest({ text, name, identityNamespace }: { text: string; name: string; identityNamespace: string }, optional: Pick<AgentPluginIdentityReadOptions, "legacyIdentity"> = {}): string {
   const manifest = JSON.parse(text);
   if (!isAgentPluginName({ value: name }) || manifest.name === name) {
     throw new FolderZipError('unreadable', 'Choose a valid new Agent Plugin id different from the source.');
@@ -158,7 +158,7 @@ function customizeManifest({ text, name, identityNamespace }: { text: string; na
   if (!isPlainObject(manifest.extensions)) throw new FolderZipError('unreadable', 'plugin.json extensions must be an object.');
   const localId = `local/${name}`;
   // Creating the portable key must preserve the installed copy's capabilities and display copy.
-  manifest.extensions[identityNamespace] ??= identityNamespace === 'jini' ? { ...readAgentPluginPortableExtension({ value: manifest }) } : {};
+  manifest.extensions[identityNamespace] ??= identityNamespace === 'jini' ? { ...readAgentPluginPortableExtension({ value: manifest }, optional) } : {};
   sanitizeHostIdentities({ extensions: manifest.extensions, localId });
   const host = manifest.extensions[identityNamespace];
   if (isPlainObject(host)) host.id = localId;
@@ -174,7 +174,7 @@ function customizeManifest({ text, name, identityNamespace }: { text: string; na
  * @complexity O(e log e + b) time and O(e + b) space, bounded by upload entry/byte ceilings.
  * @example zipCustomizedAgentPluginFolder({ path, maxBytes, name: 'my-plugin', identityNamespace: 'host', edit })
  */
-export async function zipCustomizedAgentPluginFolder(required: CustomizeAgentPluginFolderInput, _optional: Record<string, never> = {}): Promise<Uint8Array> {
+export async function zipCustomizedAgentPluginFolder(required: CustomizeAgentPluginFolderInput, optional: Pick<AgentPluginIdentityReadOptions, "legacyIdentity"> = {}): Promise<Uint8Array> {
   const files = await collectLocalFiles(required);
   // Match captured package paths, never join a model-supplied edit path onto the filesystem.
   const target = files.findIndex(file => file.webkitRelativePath === `folder/${required.edit.path}`);
@@ -184,6 +184,6 @@ export async function zipCustomizedAgentPluginFolder(required: CustomizeAgentPlu
   }
   const text = decodeEditableText(new Uint8Array(await files[target]!.arrayBuffer()));
   files[target] = replaceCapturedFile({ file: files[target]!, text: customizeText({ text, edit: required.edit }) });
-  files[manifest] = replaceCapturedFile({ file: files[manifest]!, text: customizeManifest({ text: await files[manifest]!.text(), name: required.name, identityNamespace: required.identityNamespace }) });
+  files[manifest] = replaceCapturedFile({ file: files[manifest]!, text: customizeManifest({ text: await files[manifest]!.text(), name: required.name, identityNamespace: required.identityNamespace }, optional) });
   return encodeLocalFiles({ files, maxBytes: required.maxBytes });
 }

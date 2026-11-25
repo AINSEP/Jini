@@ -48,7 +48,7 @@ function ConnectorCardTitleDot({ status, isAuthorizationPending, useTHook = useT
   if (status === 'connected') {
     return (
       <span
-        className={`connector-status-dot jini-connector-card-title-dot status-${status}`}
+        className={`jini-ui-connector-status-dot jini-connector-card-title-dot status-${status}`}
         aria-label={t(statusLabel({ status }))}
         title={t(statusLabel({ status }))}
         role="img"
@@ -58,7 +58,7 @@ function ConnectorCardTitleDot({ status, isAuthorizationPending, useTHook = useT
   if (!isAuthorizationPending) return null;
   return (
     <span
-      className="connector-status-dot jini-connector-card-title-dot status-pending"
+      className="jini-ui-connector-status-dot jini-connector-card-title-dot status-pending"
       aria-label={t('Authorization pending')}
       title={t('Authorization pending')}
       role="img"
@@ -155,7 +155,7 @@ function ConnectorCancelAuthorizationButton({ onActivate, useTHook = useT }: { o
 function ConnectorStatusPill({ status, useTHook = useT }: { status: ConnectorStatusValue; useTHook?: typeof useT; }) {
   const t = useTHook();
   if (status !== 'error' && status !== 'disabled') return null;
-  return <span className={`connector-status-pill status-${status}`}>{t(statusLabel({ status }))}</span>;
+  return <span className={`jini-ui-connector-status-pill status-${status}`}>{t(statusLabel({ status }))}</span>;
 }
 
 interface ConnectorCardHintsProps {
@@ -224,7 +224,7 @@ export function ConnectorCard({
 
   return (
     <article
-      className={`connector-card status-${connector.status}${disabled ? ' is-locked' : ''}`}
+      className={`jini-ui-connector-card status-${connector.status}${disabled ? ' is-locked' : ''}`}
       data-connector-id={connector.id}
       role="button"
       tabIndex={disabled ? -1 : 0}
@@ -234,21 +234,21 @@ export function ConnectorCard({
       onKeyDown={onKeyActivate}
       {...agentHandleProps({}, { base: agentHandle, role: 'button', label: connector.name })}
     >
-      <div className="connector-card-top">
+      <div className="jini-ui-connector-card-top">
         <ConnectorLogo connectorId={connector.id} connectorName={connector.name} logoUrl={connector.logoUrl} size="sm" />
-        <div className="connector-card-head">
-          <h3 className="connector-card-title">
-            <span className="connector-card-title-name">{connector.name}</span>
+        <div className="jini-ui-connector-card-head">
+          <h3 className="jini-ui-connector-card-title">
+            <span className="jini-ui-connector-card-title-name">{connector.name}</span>
             <ConnectorCardTitleDot status={connector.status} isAuthorizationPending={flags.isAuthorizationPending} />
           </h3>
-          <div className="connector-meta">
-            <span className="connector-meta-item connector-meta-category" title={categoryLabel}>
+          <div className="jini-ui-connector-meta">
+            <span className="jini-ui-connector-meta-item jini-ui-connector-meta-category" title={categoryLabel}>
               {categoryLabel}
             </span>
             <ConnectorCardToolsBadge connector={connector} toolsLoaded={toolsLoaded} />
           </div>
         </div>
-        <div className="connector-card-actions">
+        <div className="jini-ui-connector-card-actions">
           {flags.isConnected ? (
             <ConnectorDisconnectButton {...actionProps} onActivate={() => onDisconnect(connector.id)} />
           ) : (
