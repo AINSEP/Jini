@@ -249,8 +249,13 @@ async function answerProxyStream({ request, host, provider, onInternalError, ent
 }
 
 /**
- * Binds each injected registration to this proxy's deps, keyed by id: both the fixed routes and the generic
- * catch-all dispatch through the result. `executeTool` is a fresh wrapper over the host's `<id>ExecuteTool`
+ * Builds the `provider name -> {parse, run}` table that both the five fixed routes and the generic
+ * catch-all dispatch through. Each entry's `run` closure captures `deps` for the optional
+ * `executeTool` wiring and the transport test seams. `executeTool` is a fresh wrapper that calls
+ * `deps.<provider>ExecuteTool` as a method at call time, so the host function sees exactly one
+ * argument. (The "five" are now whichever registrations the host injects, not a fixed list.)
+ *
+ * Binds each injected registration to this proxy's deps, keyed by id. `executeTool` is a fresh wrapper over the host's `<id>ExecuteTool`
  * option, looked up at call time, so the host function sees exactly one argument. The lookup is by name
  * because those options are the advertised per-provider surface and the daemon cannot list providers.
  */
@@ -265,6 +270,7 @@ function buildProxyProviderRegistry(deps: ModelProxyHttpDeps): ReadonlyMap<strin
       run: (parsed, onEvent) => registration.run(parsed, {
         toolTurns: deps.toolTurns,
         onEvent,
+        // The test-seam transport options every turn-runner accepts; each is forwarded only when the host supplied it (see `ModelProxyHttpDeps.fetchImpl`).
         shared: {
           ...(deps.fetchImpl ? { fetchImpl: deps.fetchImpl } : {}),
           ...(deps.dnsLookup ? { dnsLookup: deps.dnsLookup } : {}),
@@ -332,6 +338,8 @@ export function modelProxyRoutes({ deps, host }: { readonly deps: ModelProxyHttp
   const onInternalError = deps.onInternalError;
   const registry = buildProxyProviderRegistry(deps);
   // Each fixed route is a thin wrapper over `answerProxyStream` with `provider` fixed, not read from the path.
+  // Fixed-route order is no longer load-bearing (a literal segment is matched before `:provider`), but the list stays the one source of the five names.
+  // (Now the injected registrations' ids rather than a hard-coded five.)
   const fixed = [...registry.keys()].map((provider): DaemonRoute => gated({
     route: { method: 'POST', path: `/api/proxy/${provider}/stream`, handler: ({ request }) => answerProxyStream({ request, host, provider, onInternalError, entry: registry.get(provider)! }) },
     gates: [{ name: 'same-origin' }],

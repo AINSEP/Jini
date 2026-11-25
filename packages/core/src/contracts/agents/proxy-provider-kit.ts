@@ -1,8 +1,12 @@
 /**
- * @file Request-field kit for `/api/proxy/*` provider registrations: primitive type tests, the table-driven
- * "optional field present but badly typed" check, the required-field 400 builder, the shared
- * `apiKey`/`model`/`messages` parse and the "forward an optional field only when present" copy. Transport-level
- * shape only: nothing here knows any provider's wire protocol. Lives in core (not daemon) so a vendor plugin
+ * @module model-proxy-fields
+ *
+ * Request-body field helpers for `model-proxy.ts`'s provider parsers: primitive type tests, the
+ * table-driven "optional field present but badly typed" check, the required-field 400 builder, and
+ * the "forward an optional field only when present" copy. Transport-level shape only — nothing here
+ * knows any provider's wire protocol (see `model-proxy.ts`'s module doc).
+ *
+ * Also holds the shared `apiKey`/`model`/`messages` parse. Lives in core (not daemon) so a vendor plugin
  * package, which may import only core and protocol, builds its registration from the same helpers the daemon's
  * generic route layer is tested against.
  */
