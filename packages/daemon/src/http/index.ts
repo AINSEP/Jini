@@ -395,3 +395,8 @@ export {
 } from './surface-callback-request.js';
 export { a2uiActionsRoutes, a2uiNotPendingBody, answerA2uiAction, deliverA2uiAction, readA2uiAction, type A2uiActionsRouteDeps, type ReadA2uiActionResult } from './a2ui-actions.js';
 export { answerSurfaceCallback, surfaceCallbackRoutes, type SurfaceCallbackHttpRequest, type SurfaceCallbackRouteDeps } from './surface-callback-route.js';
+export {
+  AGENT_PLUGIN_PREFLIGHT_ROUTE_PATH, agentPluginPreflightRoute, parseAgentPluginPreflightBody,
+  type AgentPluginPreflightCommitResponse, type AgentPluginPreflightInput, type AgentPluginPreflightOfferResponse, type AgentPluginPreflightPrefix,
+  type AgentPluginPreflightPrepared, type AgentPluginPreflightResponse, type AgentPluginPreflightRouteDeps,
+} from './agent-plugin-preflight.js';

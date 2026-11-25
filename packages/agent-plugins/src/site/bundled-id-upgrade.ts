@@ -25,6 +25,7 @@
  */
 import path from "node:path";
 import type { FilesystemPort } from "../lifecycle/index.js";
+import type { WorkspaceMigrationOwnership } from "../../core/persistent-state.js";
 
 /** Local id -> the pre-rename and canonical publisher-qualified ids. */
 export type BundledPluginRenames = ReadonlyMap<string, { readonly from: string; readonly to: string }>;
@@ -135,7 +136,9 @@ async function unverifiedReason({ port, ledger, ledgerMismatchReason, revision, 
 }
 
 /** Puts back the revisions of every upgrade whose canonical package did not seed, so the site keeps
- * the copy it had rather than no copy at all. A failed put-back leaves the saved copy in place.
+ * the copy it had rather than no copy at all. `restored` is reported only once every put-back rename
+ * succeeded. A failed put-back leaves the saved copy where it is and reports `held`: the site is not
+ * repaired yet, and saying `restored` would hide a missing package.
  * @complexity O(m) renames for m moved revisions. */
 export async function restoreUnseededUpgrades(
   required: { readonly outcomes: readonly BundledIdUpgradeOutcome[]; readonly seededIds: ReadonlySet<string>; readonly filesystem: BundledIdUpgradePort["filesystem"] },
@@ -144,12 +147,50 @@ export async function restoreUnseededUpgrades(
   const result: BundledIdUpgradeOutcome[] = [];
   for (const outcome of required.outcomes) {
     if (outcome.status !== "upgraded" || required.seededIds.has(outcome.pluginId)) { result.push(outcome); continue; }
+    let allPutBack = true;
     for (const revision of outcome.moved) {
-      await moveFrozenTree({ filesystem: required.filesystem, from: revision.savedAt, to: revision.packageRoot }).catch(() => undefined);
+      // One failed put-back must not stop the others; each kept saved copy stays for the next start.
+      await moveFrozenTree({ filesystem: required.filesystem, from: revision.savedAt, to: revision.packageRoot }).catch(() => { allPutBack = false; });
     }
-    result.push({ ...outcome, status: "restored" });
+    result.push(allPutBack ? { ...outcome, status: "restored" } : { status: "held", pluginId: outcome.pluginId, to: outcome.to, reason: RESTORE_PENDING_REASON });
   }
   return result;
+}
+
+const RESTORE_PENDING_REASON = "its earlier copy could not be put back yet; the saved copy is kept for the next start";
+
+/** Runs a caller's window while holding one workspace's migration lock (the host injects the lock effect). */
+export type WorkspaceLockRunner = <T>(required: { readonly workspaceRoot: string; readonly run: (held: { readonly ownership: WorkspaceMigrationOwnership }) => Promise<T> }) => Promise<T>;
+
+/**
+ * One lock ordering for the publisher-ID move, the seed and the put-back: the workspace migration
+ * lock is taken first and held across all three, so no migration or second boot can run between a
+ * move and its seed or restore. The seed receives the held `ownership` (its nested layout migration
+ * runs under it, never reacquiring) and the held ids (they never reach install). Per-plugin locks
+ * are only taken inside, under this one.
+ * @throws What the injected lock or seed throws; the lock is released either way, and moved copies
+ * are put back first when the seed itself throws.
+ * @complexity As {@link upgradeRenamedBundledPlugins} plus one seed and O(m) put-back renames.
+ */
+export async function seedWithBundledIdUpgrade<R extends { readonly outcomes: readonly { readonly pluginId: string; readonly status: string }[] }>(
+  required: Parameters<typeof upgradeRenamedBundledPlugins>[0] & {
+    readonly withWorkspaceLock: WorkspaceLockRunner;
+    readonly seed: (required: { readonly ownership: WorkspaceMigrationOwnership; readonly heldPluginIds: ReadonlyMap<string, string> }) => Promise<R>;
+  },
+  _optional: Record<string, never> = {},
+): Promise<{ readonly seeded: R; readonly idUpgrades: BundledIdUpgradeOutcome[] }> {
+  const { withWorkspaceLock, seed, ...upgradeInput } = required;
+  return withWorkspaceLock({ workspaceRoot: required.workspaceRoot, run: async ({ ownership }) => {
+    // Optional step: a listing fault moves nothing, and seeding then reports each conflict itself.
+    const upgrades = await upgradeRenamedBundledPlugins(upgradeInput).catch((): BundledIdUpgradeOutcome[] => []);
+    const heldPluginIds = new Map(upgrades.flatMap(outcome => outcome.status === "held" ? [[outcome.pluginId, outcome.reason] as const] : []));
+    const restore = (seededIds: ReadonlySet<string>) => restoreUnseededUpgrades({ outcomes: upgrades, seededIds, filesystem: required.port.filesystem });
+    let seeded: R;
+    try { seeded = await seed({ ownership, heldPluginIds }); }
+    catch (error) { await restore(new Set()); throw error; }
+    const seededIds = new Set(seeded.outcomes.flatMap(outcome => outcome.status === "seeded" ? [outcome.pluginId] : []));
+    return { seeded, idUpgrades: upgrades.length === 0 ? [] : await restore(seededIds) };
+  } });
 }
 
 /** Renames a frozen (0o555) package tree: a directory move needs write permission on the directory

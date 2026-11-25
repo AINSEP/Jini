@@ -1,4 +1,5 @@
 import { render, screen, within } from './harness.js';
+import { useWiredFormEditor } from "../hooks/use-form-editor.hooks.js";
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it } from 'vitest';
 import { FetchQueryProvider } from '@jini-ai/ui/fetch-query';
@@ -33,7 +34,7 @@ function renderForms(children: ReactNode, mode: 'builder' | 'html' = 'builder') 
 describe('forms copy polish', () => {
   it.each(['builder', 'html'] as const)('carries %s field labels from the editor through the list into detail', async mode => {
     const user = userEvent.setup();
-    renderForms(<FormEditor formId="contact" tab="submissions" />, mode);
+    renderForms(<FormEditor useFormEditorHook={useWiredFormEditor} formId="contact" tab="submissions" />, mode);
     expect(await screen.findByRole('columnheader', { name: 'Full name' })).toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: 'View' }));
     const name = await screen.findByText('Full name');

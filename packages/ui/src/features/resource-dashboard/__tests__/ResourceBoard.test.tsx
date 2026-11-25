@@ -34,6 +34,26 @@ function seedItems(): ResourceBoardItem[] {
 const useQuotingT: typeof useT = () => (key) => `«${key}»`;
 
 describe('ResourceBoard', () => {
+  it("Escape returns focus to the exact trigger after opening a second card's menu", async () => {
+    render(<ResourceBoard dependencies={createFakeResourceBoardDependencies({ items: seedItems() })} statusOptions={STATUS_OPTIONS} onOpenItem={() => {}} />);
+    await screen.findByText('Alpha');
+    const [first, second] = screen.getAllByRole('button', { name: 'More' });
+    await userEvent.click(first!);
+    await userEvent.click(second!);
+    await userEvent.keyboard('{Escape}');
+    expect(screen.queryByRole('menu')).not.toBeInTheDocument();
+    expect(document.activeElement).toBe(second);
+  });
+  it('outside click keeps focus on the clicked control', async () => {
+    render(<ResourceBoard dependencies={createFakeResourceBoardDependencies({ items: seedItems() })} statusOptions={STATUS_OPTIONS} onOpenItem={() => {}} />);
+    await screen.findByText('Alpha');
+    const [first, second] = screen.getAllByRole('button', { name: 'More' });
+    await userEvent.click(first!);
+    await userEvent.click(second!);
+    const control = screen.getByPlaceholderText('Search…'); const restore = vi.spyOn(second!, 'focus');
+    await userEvent.click(control);
+    expect(document.activeElement).toBe(control); expect(restore).not.toHaveBeenCalled(); expect(screen.queryByRole('menu')).not.toBeInTheDocument();
+  });
   it('loads and renders items', async () => {
     const dependencies = createFakeResourceBoardDependencies({ items: seedItems() });
     render(<ResourceBoard dependencies={dependencies} statusOptions={STATUS_OPTIONS} onOpenItem={() => {}} />);

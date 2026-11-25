@@ -1,4 +1,4 @@
-import type { KeyboardEvent, RefObject } from 'react';
+import { useEffect, useRef, type KeyboardEvent, type RefObject } from 'react';
 import { StatusPill } from './StatusPill.js';
 import { menuFocusIndex } from '../../../../browser/useMenuKeyboard.js';
 import type { ResourceBoardItem, ResourceMenuActionSpec, ResourceStatusToneMap } from '../../types.js';
@@ -25,14 +25,19 @@ export function ResourceCardMenuItems({
   menuActionLabel: ((kind: string, fallback: string) => string) | undefined;
   onAction: (kind: string) => void;
 }) {
+  const menuRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    menuRef.current?.querySelector<HTMLButtonElement>('[role="menuitem"]:not(:disabled)')?.focus();
+  }, []);
   return (
     <div
       className="jini-resource-board-card-menu"
       role="menu"
+      ref={menuRef}
       onClick={(event) => event.stopPropagation()}
       onKeyDown={(event) => {
         if (event.key !== 'Escape') event.stopPropagation();
-        const entries = [...event.currentTarget.querySelectorAll<HTMLButtonElement>('[role="menuitem"]')];
+        const entries = [...event.currentTarget.querySelectorAll<HTMLButtonElement>('[role="menuitem"]:not(:disabled)')];
         const next = menuFocusIndex({ key: event.key, current: entries.findIndex((entry) => entry === event.target), count: entries.length });
         if (next === null) return;
         event.preventDefault();

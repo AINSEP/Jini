@@ -32,6 +32,13 @@ export interface ToolCallDetailOptions {
   readonly maxChars?: number;
   /** Defaults to the chat text policy, so a tool call never shows a key the rest of the chat would hide. */
   readonly redact?: RedactUserText;
+  /**
+   * `"display"` (default) shows a refused-arguments protocol error in plain words. `"copy-diagnostic"`
+   * keeps that protocol text for a person who chose to copy it for support, still through the same
+   * formatter, redactor, and cap. It must never be rendered: the protocol text is for the assistant
+   * to repair its call, not a user-facing explanation.
+   */
+  readonly resultPresentation?: 'display' | 'copy-diagnostic';
 }
 
 const DEFAULT_MAX_CHARS = 10_000;
@@ -47,10 +54,10 @@ const DEFAULT_MAX_CHARS = 10_000;
  */
 export function describeToolCallDetail(
   { input, result }: { readonly input: unknown; readonly result?: { readonly content: string; readonly isError?: boolean } | undefined },
-  { runStreaming = false, runSucceeded = false, maxChars = DEFAULT_MAX_CHARS, redact = redactUserText }: ToolCallDetailOptions = {},
+  { runStreaming = false, runSucceeded = false, maxChars = DEFAULT_MAX_CHARS, redact = redactUserText, resultPresentation = 'display' }: ToolCallDetailOptions = {},
 ): ToolCallDetail {
   const inputText = showSafely({ text: serializeInput(input), redact, maxChars });
-  const { text, noteKey } = selectOutputOrNote({ result, runStreaming, runSucceeded });
+  const { text, noteKey } = selectOutputOrNote({ result, runStreaming, runSucceeded, resultPresentation });
   return { inputText, outputText: showSafely({ text, redact, maxChars }), noteKey };
 }
 
@@ -64,13 +71,25 @@ function showSafely(
 
 /** The unredacted output text to show, or the note explaining why there is none. */
 function selectOutputOrNote(
-  { result, runStreaming, runSucceeded }: { result: Parameters<typeof describeToolCallDetail>[0]['result']; runStreaming: boolean; runSucceeded: boolean },
+  { result, runStreaming, runSucceeded, resultPresentation }: { result: Parameters<typeof describeToolCallDetail>[0]['result']; runStreaming: boolean; runSucceeded: boolean; resultPresentation: 'display' | 'copy-diagnostic' },
   _optional = {},
 ): { text: string | null; noteKey: ToolCallDetailNote | null } {
   if (!result) return { text: null, noteKey: missingResultNote({ runStreaming, runSucceeded }) };
   if (!result.content.trim()) return { text: null, noteKey: result.isError ? 'Failed without an error message.' : 'Finished with no output.' };
-  const text = result.isError && isRefusedArgumentsError(result.content) ? REFUSED_ARGUMENTS_SENTENCE : formatToolOutputForDisplay({ text: result.content });
-  return { text, noteKey: null };
+  return { text: resultText({ result, resultPresentation }), noteKey: null };
+}
+
+/**
+ * The output text before redaction and the cap: the C130 plain-words sentence for a refused call on the
+ * display path, the formatted tool output otherwise. Copy-diagnostic mode skips only that substitution.
+ * @complexity O(n) in the result length.
+ */
+function resultText(
+  { result, resultPresentation }: { result: { readonly content: string; readonly isError?: boolean }; resultPresentation: 'display' | 'copy-diagnostic' },
+  _optional: Record<string, never> = {},
+): string {
+  const plainWords = resultPresentation === 'display' && result.isError === true && isRefusedArgumentsError(result.content);
+  return plainWords ? REFUSED_ARGUMENTS_SENTENCE : formatToolOutputForDisplay({ text: result.content });
 }
 
 /**

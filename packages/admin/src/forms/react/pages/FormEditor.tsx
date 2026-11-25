@@ -1,17 +1,18 @@
 import { ConfirmDialog } from '../../../react/components/ConfirmDialog/ConfirmDialog.js';
-import { useWiredFormEditor } from "../hooks/use-form-editor.hooks.js";
+import type { useWiredFormEditor } from "../hooks/use-form-editor.hooks.js";
 import { FormEditorFieldsSlot } from "../components/FormEditorFieldsSlot.js";
 import { FormEditorHeader } from "../components/FormEditorHeader.js";
 import { FormEditorTabStrip } from "../components/FormEditorTabStrip.js";
 import { FormEditorMainPanel } from "../components/FormEditorMainPanel.js";
+import { FormEditorReloadNotice } from "../components/FormEditorReloadNotice.js";
 export interface FormEditorProps {
   formId: string;
   /** Which tab is active, derived from the route by `panels.tsx` (`/forms/:formId` -> `"fields"`,
    *  `/forms/:formId/submissions` -> `"submissions"`). Ignored while `isNew`/tabs aren't
    *  shown. */
   tab: "fields" | "submissions";
-  /** Dependency injection seam for tests — see `PostsProps.usePostsHook` for the convention. */
-  useFormEditorHook?: typeof useWiredFormEditor;
+  /** Required: the module mount binds `useWiredFormEditor`; direct-view fixtures pass it explicitly. */
+  useFormEditorHook: typeof useWiredFormEditor;
 }
 
 /** The name/slug fields, the field-definition table, and the status-toggle/save action row —
@@ -20,9 +21,9 @@ export interface FormEditorProps {
  * JSX value rather than two copies). Split into its own top-level component, not just a local
  * `const`, because a `const` assigned inside `FormEditor` still executes in that function's own
  * scope — every branch inside it would still count toward `FormEditor`'s own complexity score. */
-export function FormEditor({ formId, tab, useFormEditorHook = useWiredFormEditor }: FormEditorProps) {
+export function FormEditor({ formId, tab, useFormEditorHook }: FormEditorProps) {
   const editor = useFormEditorHook({ formId, tab });
-  const { answerColumns, isNew, form, name, tab: activeTab, onTabChange, error, showTabs, tabRefs, onTabsKeyDown, leave, t } = editor;
+  const { answerColumns, isNew, form, name, tab: activeTab, onTabChange, error, showTabs, tabRefs, onTabsKeyDown, leave, reload, t } = editor;
 
   if (!isNew && !form && !error) return <div className="notice">{t("Loading form…")}</div>;
   // Previously this was the ONLY guard, and it only covers the pre-error case — once the load
@@ -44,6 +45,7 @@ export function FormEditor({ formId, tab, useFormEditorHook = useWiredFormEditor
     <div className="page">
       <FormEditorHeader isNew={isNew} name={name} onBack={leave.onBack} t={t} />
       {error ? <div className="notice error">{error}</div> : null}
+      <FormEditorReloadNotice reload={reload} t={t} />
 
       <FormEditorTabStrip showTabs={showTabs} tab={activeTab} onTabChange={onTabChange} tabRefs={tabRefs} onTabsKeyDown={onTabsKeyDown} t={t} />
 

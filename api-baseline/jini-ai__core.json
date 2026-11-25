@@ -476,7 +476,7 @@
    "RunContextSelection": "interface:c7e2d5827b",
    "RunPlan": "type:47862acb92",
    "RunPlanHost": "interface:6abdcd75c2",
-   "RuntimeAgentDef": "type:9db91ea915",
+   "RuntimeAgentDef": "type:153b55ebfd",
    "RuntimeBuildOptions": "type:e465bac53c",
    "RuntimeCapabilityMap": "type:9c0cf463b2",
    "RuntimeContext": "type:68794893ee",
@@ -1874,7 +1874,7 @@
  "./contracts/site/core-commands": {
   "types": "./dist/contracts/site/core-commands.d.ts",
   "symbols": {
-   "EntityReverter": "interface:74e231bfd5",
+   "EntityReverter": "interface:2e2ec6d701",
    "RevertRegistry": "interface:91f5b4a576"
   }
  },
@@ -1927,6 +1927,8 @@
  "./contracts/site/daemon": {
   "types": "./dist/contracts/site/daemon.d.ts",
   "symbols": {
+   "AgentPluginGuidanceAttempt": "type:ec98453ace",
+   "AgentPluginGuidanceOffer": "type:4bffbbf801",
    "FrontendSessionOwner": "interface:cce57cd050",
    "PrepareToolGuidance": "type:9337bb6e56",
    "ToolAccessChange": "interface:15c759db73"

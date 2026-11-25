@@ -509,7 +509,7 @@
    "AgentPluginLayout": "type:08d4efab5f",
    "AgentPluginLayoutPort": "interface:d85ecc33eb",
    "AgentPluginLifecycleOptional": "type:5e69b9ca3d",
-   "AgentPluginLifecyclePorts": "interface:84c6df1f4e",
+   "AgentPluginLifecyclePorts": "interface:17a4ec2939",
    "AgentPluginLifecycleRequired": "type:5ed9a704ff",
    "AgentPluginManifest": "interface:0243f71b24",
    "AgentPluginMcpConfig": "interface:c642887fd5",
@@ -591,7 +591,7 @@
    "RetireBundledAgentPluginsRequired": "interface:ca73f41682",
    "RetiredAgentPluginOutcome": "type:32fb4ef2ca",
    "RetiredAgentPluginSuccessorOutcome": "type:7021705397",
-   "SeedBundledAgentPluginsOptional": "interface:b24db3beb9",
+   "SeedBundledAgentPluginsOptional": "interface:1ba330c0e0",
    "SeedBundledAgentPluginsRequired": "interface:898b2227b8",
    "SeedBundledAgentPluginsResult": "interface:d283e27ecb",
    "SeededAgentPluginOutcome": "type:d36c816d49",
@@ -620,7 +620,7 @@
    "createAgentPluginActivations": "function:a98be8f4c9",
    "createAgentPluginLayout": "function:07b16a4480",
    "createAgentPluginLifecycle": "function:cbbc64217e",
-   "createAutomaticAgentPluginUse": "function:b30cfb12d4",
+   "createAutomaticAgentPluginUse": "function:7a4756541a",
    "createPluginContributionLoader": "function:91849dd6a0",
    "createSkillFileReader": "function:cfa60bca9f",
    "createVersionedPluginActivationReader": "function:771de6a6a6",
@@ -847,11 +847,13 @@
    "PluginMemoryKind": "type:86981af25d",
    "PluginStateEffects": "interface:ade43730b5",
    "PluginStatePaths": "interface:0164e6c832",
+   "WorkspaceMigrationOwnership": "interface:fc10a3761f",
    "assertPluginStatePath": "function:234ef12956",
    "createPluginMemory": "function:026992c641",
-   "migratePluginLayout": "function:69aba6d306",
+   "migratePluginLayout": "function:c76dfe64c9",
    "pluginStatePaths": "function:6481e625d3",
-   "withPluginStateLock": "function:98e06a3be9"
+   "withPluginStateLock": "function:98e06a3be9",
+   "withWorkspaceMigrationLock": "function:4fb0160eed"
   }
  },
  "./posthog": {
@@ -1018,7 +1020,9 @@
    "BundledPluginRenames": "type:4f05f062fb",
    "InstalledRevision": "interface:33d4da1711",
    "MovedRevision": "interface:e4a2640bf9",
+   "WorkspaceLockRunner": "type:0b35c31b3f",
    "restoreUnseededUpgrades": "function:7437d899c2",
+   "seedWithBundledIdUpgrade": "function:92ef5b4fd3",
    "upgradeRenamedBundledPlugins": "function:5e9e191c6c"
   }
  },

@@ -77,6 +77,7 @@
  * (`installAgentPlugin`, where every extraction guarantee lives), and `activation.ts` (the record).
  * No guarantee of its own.
  */
+import type { WorkspaceMigrationOwnership } from '../../core/persistent-state.js';
 import { createPersistentStateModule } from "./persistent-state.js";
 /** Extracted from the host plugin lifecycle. Effects are supplied per host context. */
 import type { Dirent } from "node:fs";
@@ -114,6 +115,11 @@ export type PackingForSource = (
 
 export interface SeedBundledAgentPluginsOptional {
   readonly packing?: PackAgentPluginDirectoryOptional | PackingForSource;
+  /** The caller holds this workspace's migration lock; the nested migration runs under it. */
+  readonly ownership?: WorkspaceMigrationOwnership;
+  /** Bundled ids a maintenance step refused to clear (id -> plain-words reason). Each is reported
+   *  failed with that reason and never reaches install, so no alternate path can admit it. */
+  readonly heldPluginIds?: ReadonlyMap<string, string>;
 }
 
 export interface SeedBundledAgentPluginsResult {
@@ -172,6 +178,21 @@ export interface SeedBundledAgentPluginsRequired {
 // its ledger entry exist by now, and the retirement only has to decide whether to switch it on.
 // A successor whose seed FAILED has neither; `retire-bundled.ts` then keeps the retired plugin
 // rather than remove it in favour of a switch with no code behind it (its header, step 1a).
+/**
+ * Runs the layout migration that must precede seeding: the host's hook when it supplies one, else
+ * the default persistent-state migration. A caller already holding the workspace migration lock
+ * passes its ownership so the nested migration runs under it instead of reacquiring the lock.
+ * @complexity O(1) here; the migration itself is O(installed plugins).
+ */
+function migrateBeforeSeeding(
+  { ports, layout, workspaceId }: { ports: AgentPluginLifecyclePorts; layout: SeedBundledAgentPluginsRequired["layout"]; workspaceId: string },
+  held: { ownership?: WorkspaceMigrationOwnership } = {},
+) {
+  return ports.migrateBeforeSeed
+    ? ports.migrateBeforeSeed({ layout, workspaceId }, held)
+    : createPersistentStateModule(ports).migrate({ workspaceRoot: layout.forWorkspace({ workspaceId }).root }, held);
+}
+
 async function seedBundledAgentPlugins({ ports, required }: {
   ports: AgentPluginLifecyclePorts;
   required: SeedBundledAgentPluginsRequired;
@@ -180,9 +201,7 @@ async function seedBundledAgentPlugins({ ports, required }: {
 
   const pluginDirNames = await listBundledPluginDirs({ ports, sourceRoot });
   try {
-    const migration = ports.migrateBeforeSeed
-      ? await ports.migrateBeforeSeed({ layout, workspaceId }, {})
-      : await createPersistentStateModule(ports).migrate({ workspaceRoot: layout.forWorkspace({ workspaceId }).root });
+    const migration = await migrateBeforeSeeding({ ports, layout, workspaceId }, optional.ownership ? { ownership: optional.ownership } : {});
     if (!migration.complete) throw new Error('Legacy plugin layout migration has unfinished filesystem moves; see boot log');
   } catch (error) {
     const reason = describeSeedFailure({ err: error });
@@ -200,6 +219,8 @@ async function seedBundledAgentPlugins({ ports, required }: {
 
   const outcomes: SeededAgentPluginOutcome[] = [];
   for (const dirName of pluginDirNames) {
+    const heldReason = optional.heldPluginIds?.get(dirName);
+    if (heldReason !== undefined) { outcomes.push({ pluginId: dirName, status: "failed", reason: heldReason }); continue; }
     outcomes.push(await seedOne({
       ports,
       args: { layout, workspaceId, sourceDir: path.join(sourceRoot, dirName), dirName },

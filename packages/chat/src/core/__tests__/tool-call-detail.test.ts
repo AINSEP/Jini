@@ -29,6 +29,23 @@ describe('describeToolCallDetail', () => {
     expect(describeCollapsedToolCall({ input: { path: 3 }, result: { content: raw, isError: true } })).not.toContain('Accepted arguments');
   });
 
+  it('copy diagnostic redacts without changing the C130 display wording', () => {
+    const key = 'sk-' + 'AbCdEf0123456789'.repeat(2);
+    const raw = `invalid arguments for assistant_ask_choice: change \`options\`: Expected array. token ${key}`;
+    const result = { content: raw, isError: true };
+    // Default and explicit display keep the plain-words substitution.
+    const sentence = 'This step did not run because the assistant sent details the tool could not use. It usually corrects itself and tries again.';
+    expect(describeToolCallDetail({ input: undefined, result }).outputText).toBe(sentence);
+    expect(describeToolCallDetail({ input: undefined, result }, { resultPresentation: 'display' }).outputText).toBe(sentence);
+    // The diagnostic keeps the protocol text but still passes the same redactor and cap.
+    const copy = describeToolCallDetail({ input: undefined, result }, { resultPresentation: 'copy-diagnostic' });
+    expect(copy.outputText).toContain('change `options`: Expected array.');
+    expect(copy.outputText).not.toContain(key);
+    expect(copy.inputText).toBeNull();
+    const capped = describeToolCallDetail({ input: undefined, result }, { resultPresentation: 'copy-diagnostic', maxChars: 20 });
+    expect(capped.outputText).toHaveLength(20);
+  });
+
   it('does not reword a successful result that merely starts with the same words', () => {
     const detail = describeToolCallDetail({ input: {}, result: { content: 'invalid arguments for the note you wrote', isError: false } });
     expect(detail.outputText).toBe('invalid arguments for the note you wrote');

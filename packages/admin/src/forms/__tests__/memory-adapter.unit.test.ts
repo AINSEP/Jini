@@ -22,7 +22,7 @@ describe('createMemoryFormsApi — definitions', () => {
     const api = createMemoryFormsApi();
     expect(await api.listFormDefinitions({})).toEqual([]);
     const created = await api.createFormDefinition({ name: 'N', slug: 'n', fields: [] });
-    expect(created).toEqual({ name: 'N', slug: 'n', fields: [], id: 'fake-1', notify: { enabled: false, recipients: [] }, status: 'active', createdAt: '1970-01-01T00:00:00.000Z', updatedAt: '1970-01-01T00:00:00.000Z' });
+    expect(created).toEqual({ name: 'N', slug: 'n', fields: [], id: 'fake-1', notify: { enabled: false, recipients: [] }, status: 'active', createdAt: '1970-01-01T00:00:00.000Z', updatedAt: '1970-01-01T00:00:00.000Z', version: 1 });
   });
 
   it('clones seeded definitions so caller mutation cannot reach the fixture', async () => {
@@ -101,7 +101,8 @@ describe('createMemoryFormsApi — updateFormDefinition', () => {
     const api = seeded();
     const patch: AdminFormUpdatePatch = { name: 'Renamed', notify: { enabled: true, recipients: ['r@example.com'] }, status: 'disabled', mode: 'html', html: '<form></form>' };
     const updated = await api.updateFormDefinition({ id: 'f1' }, patch);
-    expect(updated).toEqual({ ...definition('f1', 'one'), ...patch, updatedAt: 'NOW' });
+    // An unversioned seed gains version 1 on its first actual write (version-aware refresh).
+    expect(updated).toEqual({ ...definition('f1', 'one'), ...patch, updatedAt: 'NOW', version: 1 });
     expect(api.forms[0]).toEqual(updated);
   });
 
@@ -215,4 +216,50 @@ it('returns shared built-in settings and isolates injected provider descriptions
   const first = await api.listFormProviders!({});
   expect(first[0]!.label).toBe('Fourth');
   expect(await api.listFormProviders!({})).not.toBe(first);
+});
+
+describe('createMemoryFormsApi — version compare-and-set', () => {
+  const versioned = () => createMemoryFormsApi({}, { forms: [definition('f1', 'one', { version: 3 })], now: () => 'NOW' });
+
+  it('memory adapter refuses a stale expectedVersion with VERSION_CONFLICT and stores no precondition', async () => {
+    const api = versioned();
+    const before = structuredClone(api.forms[0]);
+    const error = await rejection(api.updateFormDefinition({ id: 'f1' }, { name: 'Stale edit', expectedVersion: 2 }));
+    expect(error.status).toBe(409);
+    expect(error.code).toBe('VERSION_CONFLICT');
+    expect(error.message).toBe('This form changed since you opened it. Reload it before saving.');
+    expect(api.forms[0]).toEqual(before);
+  });
+
+  it('a fresh basis increments once and is never stored as a form field', async () => {
+    const api = versioned();
+    const updated = await api.updateFormDefinition({ id: 'f1' }, { name: 'Fresh edit', expectedVersion: 3 });
+    expect(updated).toEqual({ ...definition('f1', 'one'), name: 'Fresh edit', updatedAt: 'NOW', version: 4 });
+    expect(Object.keys(api.forms[0]!)).not.toContain('expectedVersion');
+    expect(api.forms[0]).toEqual(updated);
+  });
+
+  it('new rows start at version 1; numbered writes without a basis still increment', async () => {
+    const api = createMemoryFormsApi({});
+    const created = await api.createFormDefinition({ name: 'New', slug: 'new', fields: [] });
+    expect(created.version).toBe(1);
+    expect((await api.updateFormDefinition({ id: created.id }, { status: 'disabled' })).version).toBe(2);
+  });
+
+  it('an unversioned seed stays unversioned on read and an empty unversioned patch assigns no version', async () => {
+    const api = createMemoryFormsApi({}, { forms: [definition('f1', 'one')], now: () => 'NOW' });
+    expect(Object.keys(await api.getFormDefinition({ id: 'f1' }))).not.toContain('version');
+    expect(Object.keys(await api.updateFormDefinition({ id: 'f1' }, {}))).not.toContain('version');
+    expect((await api.updateFormDefinition({ id: 'f1' }, { name: 'First write' })).version).toBe(1);
+  });
+
+  it('refuses a versioned status change or a versioned empty patch with VALIDATION_ERROR and writes nothing', async () => {
+    const api = versioned();
+    const before = structuredClone(api.forms[0]);
+    for (const patch of [{ status: 'disabled', name: 'x', expectedVersion: 3 }, { expectedVersion: 3 }] as AdminFormUpdatePatch[]) {
+      const error = await rejection(api.updateFormDefinition({ id: 'f1' }, patch));
+      expect([error.status, error.code]).toEqual([400, 'VALIDATION_ERROR']);
+    }
+    expect(api.forms[0]).toEqual(before);
+  });
 });

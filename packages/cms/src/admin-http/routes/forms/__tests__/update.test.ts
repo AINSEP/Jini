@@ -1,21 +1,26 @@
 import { RecordVersionConflictError } from "@jini-ai/core/optimistic-concurrency";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { ForbiddenError } from "../../../../core/index.js";
 import { FormFieldValidationError, FormSlugConflictError, FormSubmissionNotFoundError } from "../../../../forms/index.js";
 import { formsUpdateRoute, type FormsUpdateRouteDeps } from "../update.js";
 import { formsWriteErrorAnswer } from "../write-error.js";
 import { fakeDefinition, PRINCIPAL, raw, recordingAuthorize, refusalOf, WORKSPACE_ID } from "./helpers.js";
 
-type Writes = { patches: unknown[]; statuses: unknown[] };
+type Writes = { patches: unknown[]; statuses: unknown[]; options: unknown[] };
 
 function deps(overrides: Partial<FormsUpdateRouteDeps> = {}): FormsUpdateRouteDeps & Writes {
-  const writes: Writes = { patches: [], statuses: [] };
+  const writes: Writes = { patches: [], statuses: [], options: [] };
   return {
     ...writes,
     workspaceId: WORKSPACE_ID,
     outwardErrorMessage: ({ error }) => error.message,
+    versionedUpdateMessages: {
+      mixedStatus: "Save the form and change its status as two separate actions.",
+      missingDefinition: "Send at least one form field you want to change.",
+      stale: "This form changed since you opened it. Reload it before saving.",
+    },
     formDefinitionRepo: { findById: async ({ id }) => (id === "form-1" ? fakeDefinition() : null) },
-    updateFormDefinition: async ({ input }) => { writes.patches.push(input); return { definition: fakeDefinition({ name: input.patch.name ?? "Contact", version: 2 }) }; },
+    updateFormDefinition: async ({ input }, optional) => { writes.patches.push(input); writes.options.push(optional); return { definition: fakeDefinition({ name: input.patch.name ?? "Contact", version: 2 }) }; },
     setFormDefinitionStatus: async ({ input }) => { writes.statuses.push(input); return { definition: fakeDefinition({ status: input.status, version: 3 }) }; },
     ...overrides,
   };
@@ -25,6 +30,88 @@ const call = (body: Record<string, unknown>, d: FormsUpdateRouteDeps, formId = "
   formsUpdateRoute.handle({ input: { formId, body }, deps: d, context: PRINCIPAL, authorize: recordingAuthorize().authorize });
 
 describe("formsUpdateRoute", () => {
+  it("a versioned definition PUT forwards the basis separately from the patch", async () => {
+    const d = deps();
+    const patch = { name: "New", fields: [{ id: "a" }], notify: { enabled: true, recipients: [] }, provider: "p" };
+    const result = await call({ ...patch, expectedVersion: 0, slug: "ignored", mode: "html", html: "<form></form>" }, d);
+    expect(d.patches).toEqual([{ workspaceId: WORKSPACE_ID, actor: { id: "principal-1", kind: "user" }, formId: "form-1", patch }]);
+    expect(d.options).toEqual([{ expectedVersion: 0 }]);
+    expect(d.statuses).toEqual([]);
+    expect(result.ok && result.value.data).toMatchObject({ name: "New", version: 2 });
+  });
+
+  it("a versioned PUT with any status key refuses before either write", async () => {
+    const findById = vi.fn(async () => fakeDefinition());
+    const d = deps({ formDefinitionRepo: { findById } });
+    for (const status of ["disabled", "archived", undefined]) {
+      expect(await refusalOf(() => call({ expectedVersion: 1, name: "New", status }, d))).toEqual({
+        status: 400, body: { error: d.versionedUpdateMessages.mixedStatus, code: "VALIDATION_ERROR" },
+      });
+    }
+    expect(d.patches).toEqual([]);
+    expect(d.statuses).toEqual([]);
+    expect(findById).not.toHaveBeenCalled();
+  });
+
+  it("a versioned PUT with no definition fields refuses before lookup or write", async () => {
+    const findById = vi.fn(async () => fakeDefinition());
+    const d = deps({ formDefinitionRepo: { findById } });
+    for (const body of [{ expectedVersion: 1 }, { expectedVersion: 1, slug: "ignored", mode: "html", html: "<form></form>", name: 7, fields: {} }]) {
+      expect(await refusalOf(() => call(body, d))).toEqual({
+        status: 400, body: { error: d.versionedUpdateMessages.missingDefinition, code: "VALIDATION_ERROR" },
+      });
+    }
+    expect(findById).not.toHaveBeenCalled();
+    expect(d.patches).toEqual([]);
+    expect(d.statuses).toEqual([]);
+  });
+
+  it("malformed expectedVersion is a 400 without a write", async () => {
+    const findById = vi.fn(async () => fakeDefinition());
+    const d = deps({ formDefinitionRepo: { findById } });
+    for (const expectedVersion of ["1", null, -1, 1.5, Number.MAX_SAFE_INTEGER + 1]) {
+      expect(await refusalOf(() => call({ expectedVersion, name: "New" }, d))).toEqual({
+        status: 400, body: { error: "'expectedVersion' must be a non-negative integer when present", code: "VALIDATION_ERROR" },
+      });
+    }
+    expect(d.patches).toEqual([]);
+    expect(d.statuses).toEqual([]);
+    expect(findById).not.toHaveBeenCalled();
+  });
+
+  it("a stale ordinary PUT uses the injected copy and keeps VERSION_CONFLICT details", async () => {
+    const d = deps({
+      outwardErrorMessage: () => "unclassified conflict copy",
+      versionedUpdateMessages: { mixedStatus: "separate actions", missingDefinition: "definition required", stale: "host stale copy" },
+      updateFormDefinition: async () => { throw new RecordVersionConflictError({ recordKind: "form_definition", recordId: "form-1", expectedVersion: 1, currentVersion: 2 }); },
+    });
+    expect(await refusalOf(() => call({ expectedVersion: 1, name: "New" }, d))).toEqual({
+      status: 409,
+      body: { error: "host stale copy", code: "VERSION_CONFLICT", details: { recordKind: "form_definition", recordId: "form-1", expectedVersion: 1, currentVersion: 2 } },
+    });
+    expect(d.statuses).toEqual([]);
+  });
+
+  it("unversioned empty, status-only and mixed requests keep their current behavior", async () => {
+    const findById = vi.fn(async () => fakeDefinition());
+    const d = deps({ formDefinitionRepo: { findById } });
+    const writer = vi.spyOn(d, "updateFormDefinition");
+    const statusWriter = vi.spyOn(d, "setFormDefinitionStatus");
+    for (const body of [{}, { slug: "ignored", mode: "html", html: "<form></form>" }]) {
+      const result = await call(body, d);
+      expect(result.ok && result.value.data).toMatchObject({ name: "Contact", status: "active", version: 1 });
+    }
+    const status = await call({ status: "disabled" }, d);
+    expect(status.ok && status.value.data).toMatchObject({ status: "disabled", version: 3 });
+    const mixed = await call({ name: "New", status: "active" }, d);
+    expect(mixed.ok && mixed.value.data).toMatchObject({ status: "active", version: 3 });
+    const target = { workspaceId: WORKSPACE_ID, actor: { id: "principal-1", kind: "user" }, formId: "form-1" };
+    expect(writer.mock.calls).toEqual([[{ input: { ...target, patch: { name: "New" } } }]]);
+    expect(statusWriter.mock.calls).toEqual([[{ input: { ...target, status: "disabled" } }], [{ input: { ...target, status: "active" } }]]);
+    expect(writer.mock.invocationCallOrder[0]).toBeLessThan(statusWriter.mock.invocationCallOrder[1]!);
+    expect(findById).toHaveBeenCalledTimes(2);
+  });
+
   it("keeps the path and defaults a missing formId and body", () => {
     expect(formsUpdateRoute.method).toBe("put");
     expect(formsUpdateRoute.path).toBe("/api/admin/v1/workspaces/:workspaceId/forms/:formId");

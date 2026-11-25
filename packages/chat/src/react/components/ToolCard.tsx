@@ -26,6 +26,7 @@ const RUNNING_TITLE_CLASS = ' shimmer-text';
 import { createContext, useContext, useId, useMemo, useState, type ReactNode } from 'react';
 import { COLLAPSED_DETAIL_MAX_CHARS, describeCollapsedToolCall, describeToolCallDetail, humanizeToolName, isDelegatedWrapperToolName, isTodoWriteToolName, parseTodoWriteInput, redactUserText, toRenderProps } from '../../core/index.js';
 import { useT, useToolRendererRegistry } from '../hooks/context.js';
+import { useCopyToClipboard } from '../hooks/useCopyToClipboard.js';
 import type { ToolRendererRegistry } from '../tool-renderer-registry.js';
 import { Icon } from './Icon.js';
 import { SAFE_LINK_HREF } from './Markdown.js';
@@ -61,14 +62,18 @@ const RetriedContext = createContext(false);
 /** A Jini registry tool id: dotted, lowercase, snake_case segments — `page.fill`, `daemon.db.vacuum`, `chat.send_message`. Never matches an agent-vendor tool name (`Bash`, `Write`, `mcp__jini__execute_delegated_tool`), which is the point — this is how a canonical delegated-tool event is told apart from everything else. */
 const JINI_TOOL_ID_PATTERN = /^[a-z][a-z_]*(\.[a-z][a-z_]*)+$/;
 
-export function ToolCard({ use, result, runStreaming, runSucceeded, projectFileNames, onRequestOpenFile, retried = false, report, useToolRendererRegistryHook = useToolRendererRegistry }: ToolCardProps & { useToolRendererRegistryHook?: typeof useToolRendererRegistry }) {
+export function ToolCard({ use, result, runStreaming, runSucceeded, projectFileNames, onRequestOpenFile, retried = false, report, useToolRendererRegistryHook = useToolRendererRegistry, useCopyToClipboardHook = useCopyToClipboard }: ToolCardProps & { useToolRendererRegistryHook?: typeof useToolRendererRegistry; useCopyToClipboardHook?: typeof useCopyToClipboard }) {
   const registry = useToolRendererRegistryHook();
   // Resolve vendor dialects for rendering only; tool ids and stored events stay intact.
   const presentation = toolPresentation(use);
   use = { ...use, ...presentation };
   const name = use.name;
   const card: CardProps = { input: use.input, result: result, runStreaming: runStreaming ?? false, runSucceeded: runSucceeded ?? false };
-  const content = renderToolCardBody({ use, card, wrapper: presentation.wrapper, fileCtx: { projectFileNames, onRequestOpenFile }, registry, report });
+  // Classified on the normalized name and ahead of every registered or family renderer: a failed
+  // choice's protocol text must not reach any renderer, including one a host registers later.
+  const content = result?.isError === true && isChoiceToolName({ name: name })
+    ? <FailedChoiceCard result={result} useTHook={useT} useCopyToClipboardHook={useCopyToClipboardHook} />
+    : renderToolCardBody({ use, card, wrapper: presentation.wrapper, fileCtx: { projectFileNames, onRequestOpenFile }, registry, report });
   if (content === null) return null;
   // Tagged once here, at the single dispatch point every branch below funnels through, rather than
   // in each of the dozen card variants — one place to keep correct, and every variant (including a
@@ -79,6 +84,59 @@ export function ToolCard({ use, result, runStreaming, runSucceeded, projectFileN
     <div data-agent-element={`tool-call-${use.id}`} data-agent-role="region" data-agent-label={`A ${humanizeToolName({ name: name })} tool call the AI made`}>
       <RetriedContext.Provider value={retried}>{content}</RetriedContext.Provider>
     </div>
+  );
+}
+
+const CHOICE_TOOL_NAME = 'assistant_ask_choice';
+
+/** Bare `assistant_ask_choice`, or `mcp__<server>__assistant_ask_choice` whose exact tool segment is it — never a suffix match (`my_assistant_ask_choice`). O(n) in the name. */
+function isChoiceToolName({ name }: { name: string }, _optional: Record<string, never> = {}): boolean {
+  if (name === CHOICE_TOOL_NAME) return true;
+  if (!name.startsWith('mcp__')) return false;
+  // The server segment is at least one character, so its closing `__` starts at index 6 or later.
+  const separator = name.indexOf('__', 6);
+  return separator !== -1 && name.slice(separator + 2) === CHOICE_TOOL_NAME;
+}
+
+/** A host translation, or the English default when the adapter has none (it echoes the key or returns ''). */
+function translated({ t, key, fallback }: { t: ReturnType<typeof useT>; key: string; fallback: string }, _optional: Record<string, never> = {}): string {
+  const text = t(key);
+  return text === '' || text === key ? fallback : text;
+}
+
+/**
+ * A failed `assistant_ask_choice`. Failed tool protocol text (the choice schema, the assistant's own
+ * inputs) is for the assistant to repair its call, not a user-facing explanation, so the row,
+ * badge, collapsed reader and panel only ever get a safe projection carrying the plain sentence.
+ * The redacted diagnostic is built on click and handed straight to the clipboard hook — never
+ * rendered, logged, or stored in an attribute. The two representations stay separate so a new
+ * renderer cannot accidentally publish the diagnostic.
+ */
+function FailedChoiceCard({ result, useTHook, useCopyToClipboardHook }: { result: ToolResultEvent; useTHook: typeof useT; useCopyToClipboardHook: typeof useCopyToClipboard }, _optional: Record<string, never> = {}) {
+  const t = useTHook();
+  const { copied, copy } = useCopyToClipboardHook();
+  const sentence = translated({ t, key: 'chat.toolCard.choiceFailed', fallback: "The assistant couldn't open the choice form. Ask it to try again." });
+  const copyLabel = translated({ t, key: 'chat.toolCard.copyDetails', fallback: 'Copy details' });
+  const safeResult: ToolResultEvent = { kind: 'tool_result', toolUseId: result.toolUseId, content: sentence, isError: true };
+  const safeCall: CardProps = { input: undefined, result: safeResult, runStreaming: false, runSucceeded: false };
+  const copyDetails = () => {
+    const diagnostic = describeToolCallDetail({ input: undefined, result }, { resultPresentation: 'copy-diagnostic' }).outputText;
+    void copy(diagnostic ?? sentence);
+  };
+  return (
+    <ExpandableCard className="jini-op-generic jini-op-choice-failed" call={safeCall} head={
+      <>
+        <ResultBadge result={safeResult} runStreaming={false} runSucceeded={false} />
+        <span className="jini-op-sr-prefix">{`${t('Tool call')} · `}</span>
+        <span className="op-title">{sentence}</span>
+      </>
+    }>
+      <div className="jini-op-card-detail">
+        <p className="jini-op-detail-note">{sentence}</p>
+        <button type="button" className="jini-op-copy-details" onClick={copyDetails}>{copied ? t('Copied') : copyLabel}</button>
+        <span className="jini-message-copy-status" aria-live="polite">{copied ? t('Copied to clipboard') : ''}</span>
+      </div>
+    </ExpandableCard>
   );
 }
 

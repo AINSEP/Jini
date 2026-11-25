@@ -1,5 +1,5 @@
 import { resolveAgentPluginLifecycleNamespace } from '../core/identity-namespace.js';
-import { createPluginMemory, migratePluginLayout, assertPluginStatePath, withPluginStateLock } from '../../core/persistent-state.js';
+import { createPluginMemory, migratePluginLayout, assertPluginStatePath, withPluginStateLock, withWorkspaceMigrationLock, type WorkspaceMigrationOwnership } from '../../core/persistent-state.js';
 import path from 'node:path';
 import { createPackagePathsModule } from './package-paths.js';
 import { parseAgentPluginManifest } from './manifest.js';
@@ -21,10 +21,13 @@ export function createPersistentStateModule(ports: AgentPluginLifecyclePorts, _o
   return {
     withIdentityLock: <T>(required: { workspaceRoot: string; run(): Promise<T> }, _optional = {}) =>
       effects.withLock({ lockPath: path.join(required.workspaceRoot, '.publisher-identity.lock'), run: required.run }),
+    // Outermost lock of the workspace ordering; see `withWorkspaceMigrationLock`.
+    withWorkspaceLock: <T>(required: { workspaceRoot: string; run(held: { ownership: WorkspaceMigrationOwnership }): Promise<T> }, _optional = {}) =>
+      withWorkspaceMigrationLock({ ...effects, ...required }),
     withPluginLock: <T>(required: { workspaceRoot: string; pluginId: string; run(): Promise<T> }, optional = {}) => withPluginStateLock({ ...effects, ...required }, optional),
     memory: (required: { workspaceRoot: string; pluginId: string }, optional = {}) => createPluginMemory({ ...effects, ...required }, optional),
     assertOwnedPath: (required: { workspaceRoot: string; entryPath: string }, optional = {}) => assertPluginStatePath({ ...effects, ...required }, optional),
-    migrate: (required: { workspaceRoot: string }, optional = {}) => migratePluginLayout({ ...effects, ...required,
+    migrate: (required: { workspaceRoot: string }, optional: { ownership?: WorkspaceMigrationOwnership } = {}) => migratePluginLayout({ ...effects, ...required,
       parsePluginId: ({ value }) => {
         const parsed = parseAgentPluginManifest({ value }, { identityNamespace: resolveAgentPluginLifecycleNamespace({ value, extensionNamespace: ports.extensionNamespace }) });
         if (!parsed.ok) throw new Error(parsed.errors.join('; '));

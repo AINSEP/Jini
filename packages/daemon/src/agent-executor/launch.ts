@@ -60,6 +60,7 @@ import {
   errorMessage,
 } from './values.js';
 import { defaultCleanupFailureSink } from './event-cleanup.js';
+import { confirmArgvPromptSelection, createArgvPromptBudget, createArgvPromptComposer, fitArgvPromptVariant } from './argv-prompt-variants.js';
 import { DEFAULT_BUFFERED_STDOUT_MAX_BYTES } from './child-stdout.js';
 import { wireChildLifecycle } from './child-lifecycle.js';
 import { writePromptToStdin } from './child-input.js';
@@ -1092,16 +1093,13 @@ export function createAgentExecutor(requiredArgs: Pick<CreateAgentExecutorOption
     const preStagingRuntimeContext = computeRuntimeContext({ preparedPromptFile: null, preparedLogFile: null, mcpBridge: null }, sessionRuntimeContext(input, {}));
     const hostOverlay = computeSystemPromptOverlay(promptAugmenter, def.id);
     const systemPromptOverlay = input.filesystemNotice ? `${hostOverlay ?? ''}\n${input.filesystemNotice}\n` : hostOverlay;
-    const overlayDelivery = resolveSystemPromptOverlayDelivery({
-      systemPromptDelivery: def.systemPromptDelivery,
-      resumesSessionViaCli: def.resumesSessionViaCli,
-      resumesSessionViaAcpLoad: def.resumesSessionViaAcpLoad,
-      overlay: systemPromptOverlay,
-      prompt: imageDelivery.prompt,
-      resumeSessionId: preStagingRuntimeContext?.resumeSessionId,
+    const deliverOverlay = (prompt: string) => resolveSystemPromptOverlayDelivery({
+      systemPromptDelivery: def.systemPromptDelivery, resumesSessionViaCli: def.resumesSessionViaCli, resumesSessionViaAcpLoad: def.resumesSessionViaAcpLoad,
+      overlay: systemPromptOverlay, prompt, resumeSessionId: preStagingRuntimeContext?.resumeSessionId,
     }, { capabilities: agentRuntime.defs.capabilities({ defId: def.id }) });
+    const overlayDelivery = deliverOverlay(imageDelivery.prompt);
 
-    return { systemPromptOverlay, overlayDelivery };
+    return { systemPromptOverlay, overlayDelivery, composePrompt: createArgvPromptComposer({ def, imagePaths: input.imagePaths, extraAllowedDirs: input.extraAllowedDirs, deliverOverlay }) };
   }
 
   /** Resolve the launch environment before staging the run's private temp overrides.
@@ -1337,7 +1335,7 @@ export function createAgentExecutor(requiredArgs: Pick<CreateAgentExecutorOption
    * @complexity O(1) setup (registry lookup, launch resolution, one spawn call); steady-state cost thereafter belongs to {@link wireChildLifecycle}.
    * @overallScore 100/100
    */
-  async function run(requiredArgs: Pick<AgentExecutorRunInput, "runId" | "agentId" | "prompt" | "cwd">, optionalArgs: Pick<AgentExecutorRunInput, "filesystemRoot" | "model" | "reasoning" | "nativeToolAccess" | "nativeCapabilities" | "cliParity" | "permissionMode" | "imagePaths" | "imageContents" | "extraAllowedDirs" | "readOnlyExtraDirs" | "uploadRoot" | "credentialEnv" | "env" | "resumeSessionId" | "newSessionId" | "disallowedTools" | "allowedTools" | "settingSources" | "settings" | "chromeIntegration" | "subagentStartContext"> = {}): Promise<void> {
+  async function run(requiredArgs: Pick<AgentExecutorRunInput, "runId" | "agentId" | "prompt" | "cwd">, optionalArgs: Pick<AgentExecutorRunInput, "filesystemRoot" | "model" | "reasoning" | "nativeToolAccess" | "nativeCapabilities" | "cliParity" | "permissionMode" | "imagePaths" | "imageContents" | "extraAllowedDirs" | "readOnlyExtraDirs" | "uploadRoot" | "credentialEnv" | "env" | "resumeSessionId" | "newSessionId" | "disallowedTools" | "allowedTools" | "settingSources" | "settings" | "chromeIntegration" | "subagentStartContext" | "argvPromptVariants"> = {}): Promise<void> {
     const { input, def, streamFormat } = await prepareRunContext({ requiredArgs, optionalArgs }, {});
 
     // Computed once, before anything downstream ever looks at "the prompt" or "the allowed
@@ -1357,7 +1355,7 @@ export function createAgentExecutor(requiredArgs: Pick<CreateAgentExecutorOption
 
     const { launch, spawnEnv } = await resolveRunLaunch({ input, def }, {});
     await enforceFilesystemRuntime({ input, def, launch, spawnEnv }, {});
-    const { systemPromptOverlay, overlayDelivery } = resolveRunOverlay({ input, def, imageDelivery }, {});
+    const { systemPromptOverlay, overlayDelivery, composePrompt } = resolveRunOverlay({ input, def, imageDelivery }, {});
     const modelCatalog = await selectRunModel({ input, def, launch, spawnEnv }, {});
     // Fill the def's `--help` capability gate before `buildArgs` reads it. Without this, only a
     // host that happened to call `detectAgents` in THIS process ever had the gate filled, so e.g.
@@ -1492,8 +1490,7 @@ export function createAgentExecutor(requiredArgs: Pick<CreateAgentExecutorOption
     // `Error` — breaking this driver's "never a bare throw, always an `AgentExecutorError`" contract
     // — and left the run `'running'` forever while still holding the process-global mutex and both
     // staged files, so no later run of that def could ever acquire the lock either.
-    const { args, envOverrides: systemPromptEnvOverrides } = await buildRunArgs({ input: { runId: input.runId, def, imageDelivery, imagePaths: input.imagePaths, runInput: input, systemPromptOverlay, overlayDelivery, runtimeContext }, deps: { releaseStagedResources, failBeforeSpawn } }
-    );
+    const { args: baseArgs, envOverrides: systemPromptEnvOverrides } = await buildRunArgs({ input: { runId: input.runId, def, imageDelivery, imagePaths: input.imagePaths, runInput: input, systemPromptOverlay, overlayDelivery, runtimeContext }, deps: { releaseStagedResources, failBeforeSpawn } });
 
     // Mechanism 1 of 5's one effect — stage this run's own MCP config file (run-scoped, see
     // `mcpJsonPathForRun`) before spawn so the `--mcp-config <path>` argv buildArgs just produced
@@ -1542,16 +1539,24 @@ export function createAgentExecutor(requiredArgs: Pick<CreateAgentExecutorOption
       def, preparedCodexHome, preparedClaudeConfigDir, preparedSystemPromptOverlayFile, systemPromptEnvOverrides,
     }, {}));
 
+    // Argv prompt variants are fitted here, after the single `buildArgs` call and its staging: only
+    // the verified last argument of that one argv is swapped, using pure budget predicates, because
+    // sizing must not repeat adapter effects (`buildArgs`, policy, staging). A run without variants,
+    // or a def that has not declared `argvPromptPosition: 'last'`, keeps `baseArgs` byte-identical.
+    const { args, selectedId } = await fitArgvPromptVariant({ runId: input.runId, def, resolvedBin: launch.launchPath, baseArgs, baseComposedPrompt: overlayDelivery.prompt, variants: input.argvPromptVariants, compose: composePrompt, budget: createArgvPromptBudget({ launch: agentRuntime.launch }), releaseStagedResources, failBeforeSpawn });
+
     // Post-buildArgs guard for argv-bound defs whose resolved binary is a
     // Windows .cmd/.bat shim or a direct .exe: a prompt under the raw byte
     // budget can still expand past CreateProcess's command-line cap once
     // quote-escaped. Both are no-ops off-Windows / for non-argv-bound defs.
-    await guardWindowsCommandLineBudget({ input: { runId: input.runId, def, launchPath: launch.launchPath, args }, deps: { windowsCmdShimBudget: (required) => agentRuntime.launch.windowsCmdShimBudget(required), windowsDirectExeBudget: (required) => agentRuntime.launch.windowsDirectExeBudget(required), releaseStagedResources, failBeforeSpawn } }
-    );
+    await guardWindowsCommandLineBudget({ input: { runId: input.runId, def, launchPath: launch.launchPath, args }, deps: { windowsCmdShimBudget: (required) => agentRuntime.launch.windowsCmdShimBudget(required), windowsDirectExeBudget: (required) => agentRuntime.launch.windowsDirectExeBudget(required), releaseStagedResources, failBeforeSpawn } });
 
     const invocation = await prepareRunCommand({ command: launch.launchPath, args, env: childEnv, runId: input.runId }, {
       createInvocation: createCommandInvocationFn, release: releaseStagedResources, failBeforeSpawn,
     });
+    // The selection is reported only once the candidate and the final invocation are validated, and
+    // before spawn; a refusal releases staging and fails here, so no process ever starts.
+    await confirmArgvPromptSelection({ runId: input.runId, def, variants: input.argvPromptVariants, selectedId, releaseStagedResources, failBeforeSpawn });
 
     // Kept a synchronous call (no `await`) on purpose — see `spawnAgentChildProcess`'s own doc for
     // the microtask-timing race this avoids. The error branch's own cleanup/failBeforeSpawn calls are

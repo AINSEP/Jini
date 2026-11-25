@@ -298,27 +298,61 @@ async function finishPluginLayoutMigration({ fs, workspaceRoot, marker, emit }, 
   emit('migration-complete', workspaceRoot);
 }
 
-/** Interrupted moves are resumable; refused legacy entries are kept in quarantine and reported. */
-export async function migratePluginLayout({ filesystem: fs, contain, workspaceRoot, parsePluginId, withLock, onEvent }, _optional = {}) {
+const LAYOUT_MARKER = '.agent-plugin-layout-migrated';
+
+/** Containment returns canonical paths; relative moves must use the same root (e.g. /var -> /private/var). */
+async function canonicalWorkspaceRoot(fs, workspaceRoot) {
   await fs.mkdir(workspaceRoot, { recursive: true, mode: 0o700 });
-  // Containment returns canonical paths; relative moves must use the same root (e.g. /var -> /private/var).
-  workspaceRoot = await fs.realpath(workspaceRoot);
-  const marker = path.join(workspaceRoot, '.agent-plugin-layout-migrated');
-  const emit = (event, message) => onEvent?.({ event, message });
-  return withLock({ lockPath: `${marker}.lock`, run: async () => {
-    await assertPluginStatePath({ filesystem: fs, contain, workspaceRoot, entryPath: path.basename(marker) });
-    try { if (JSON.parse(await fs.readFile(marker, 'utf8')).layoutVersion === 2) return { complete: true, moved: 0 }; }
-    catch (error) { if (code(error) !== 'ENOENT') emit('migration-marker-invalid', String(error)); }
-    const progress = { complete: true, moved: 0 };
-    const context = { fs, contain, workspaceRoot, parsePluginId, withLock, emit };
-    const operations = createLegacyMigrationOperations(context, progress);
-    const oldPackages = path.join(workspaceRoot, 'packages', 'sha256');
-    await migrateLegacyPackages({ ...context, oldPackages }, operations, progress);
-    await migrateLegacyStateBuckets(context, operations, progress);
-    await prepareMigratedPluginRoots(context, operations, progress);
-    if (progress.complete) {
-      await finishPluginLayoutMigration({ fs, workspaceRoot, marker, emit }, oldPackages);
-    }
-    return { complete: progress.complete, moved: progress.moved };
+  return fs.realpath(workspaceRoot);
+}
+
+/**
+ * Holds one workspace's layout-migration lock across a caller's whole window. Lock order is
+ * workspace migration lock first, then per-plugin state locks; nothing inside the window may take
+ * this lock again. `run` receives explicit ownership to pass into a nested migration so that
+ * migration runs under this lock instead of reacquiring it (which would wait on itself).
+ * The ownership is scoped to this canonical workspace root and stops being honoured on release.
+ */
+export async function withWorkspaceMigrationLock({ filesystem: fs, workspaceRoot, withLock, run }, _optional = {}) {
+  const root = await canonicalWorkspaceRoot(fs, workspaceRoot);
+  const lockPath = path.join(root, `${LAYOUT_MARKER}.lock`);
+  let held = false;
+  const ownership = Object.freeze({ workspaceRoot: root, lockPath, isHeld: () => held });
+  return withLock({ lockPath, run: async () => {
+    held = true;
+    try { return await run({ ownership }); } finally { held = false; }
   } });
+}
+
+async function runPluginLayoutMigration({ fs, contain, workspaceRoot, parsePluginId, withLock, emit }) {
+  const marker = path.join(workspaceRoot, LAYOUT_MARKER);
+  await assertPluginStatePath({ filesystem: fs, contain, workspaceRoot, entryPath: path.basename(marker) });
+  try { if (JSON.parse(await fs.readFile(marker, 'utf8')).layoutVersion === 2) return { complete: true, moved: 0 }; }
+  catch (error) { if (code(error) !== 'ENOENT') emit('migration-marker-invalid', String(error)); }
+  const progress = { complete: true, moved: 0 };
+  const context = { fs, contain, workspaceRoot, parsePluginId, withLock, emit };
+  const operations = createLegacyMigrationOperations(context, progress);
+  const oldPackages = path.join(workspaceRoot, 'packages', 'sha256');
+  await migrateLegacyPackages({ ...context, oldPackages }, operations, progress);
+  await migrateLegacyStateBuckets(context, operations, progress);
+  await prepareMigratedPluginRoots(context, operations, progress);
+  if (progress.complete) {
+    await finishPluginLayoutMigration({ fs, workspaceRoot, marker, emit }, oldPackages);
+  }
+  return { complete: progress.complete, moved: progress.moved };
+}
+
+/** Interrupted moves are resumable; refused legacy entries are kept in quarantine and reported.
+ * A direct call takes the workspace migration lock. A caller already holding it passes its
+ * `ownership` (from {@link withWorkspaceMigrationLock}); the migration then runs under that lock and
+ * never acquires it again. Ownership of another workspace, or one already released, is refused. */
+export async function migratePluginLayout({ filesystem: fs, contain, workspaceRoot, parsePluginId, withLock, onEvent }, { ownership } = {}) {
+  const root = await canonicalWorkspaceRoot(fs, workspaceRoot);
+  const emit = (event, message) => onEvent?.({ event, message });
+  const context = { fs, contain, workspaceRoot: root, parsePluginId, withLock, emit };
+  if (ownership === undefined) {
+    return withLock({ lockPath: path.join(root, `${LAYOUT_MARKER}.lock`), run: () => runPluginLayoutMigration(context) });
+  }
+  if (ownership.workspaceRoot !== root || !ownership.isHeld()) throw new Error('The passed migration ownership does not hold this workspace\'s lock');
+  return runPluginLayoutMigration(context);
 }

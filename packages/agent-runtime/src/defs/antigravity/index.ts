@@ -274,6 +274,9 @@ export const antigravityAgentDef = {
   // deepseek) rather than `promptViaStdin`. Without one of these three
   // fields `assessAgentExecutorCompatibility` rejects the def outright.
   maxPromptArgBytes: 30_000,
+  // `buildArgs` pushes the prompt verbatim as the final argv element (pinned by
+  // `defs/__tests__/argv-prompt-position.test.ts`), so prompt variants may fit that slot.
+  argvPromptPosition: 'last',
   // Structured receipts enable native-tool auditing; they do not enforce an OFF switch.
   // agy's CLI reference exposes no run-scoped settings/permission/MCP override. Global settings
   // writes race other runs, and relocating HOME breaks auth, so audited output alone cannot grant this.

@@ -468,6 +468,13 @@ export type RuntimeAgentDef = Partial<AgentModelDiscoveryPort> & {
    */
   imageDelivery?: 'native' | 'prompt-path' | 'unsupported';
   maxPromptArgBytes?: number;
+  /**
+   * Declares that `buildArgs` emits the composed prompt verbatim as its LAST argv element. Only an
+   * argv-bound def (no `promptViaStdin`/`promptViaFile`) may declare it; an executor uses it to fit a
+   * host-supplied shorter prompt variant into the same argument slot without rebuilding the argv.
+   * `undefined` means the prompt's argv position is not promised, so no variant is ever substituted.
+   */
+  readonly argvPromptPosition?: 'last';
   mcpDiscovery?: string;
   // How the caller forwards the user's external MCP servers to this
   // runtime at spawn time. The shape of the injection is one of a small

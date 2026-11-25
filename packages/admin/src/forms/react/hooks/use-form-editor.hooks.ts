@@ -1,7 +1,6 @@
 import type { FormProviderDescription } from "@jini-ai/core/contracts/forms";
 import type { AdminFormProviderSelection, AdminFormsPort } from "../../../core/ports/forms.js";
 import type { FormsCatalogPort } from "../../../core/ports/forms-catalog.js";
-import { formView } from "../../models.js";
 import { describeApiError } from '@jini-ai/core/admin-runtime';
 import { useFormsPorts, useFormsOptions } from "./FormsPorts.hooks.js";
 import { useFormsController } from "./FormsPorts.hooks.js";
@@ -9,9 +8,11 @@ import { createFormEditorController, initialFormEditorState } from "../../contro
 import { formAnswerColumns, type FormAnswerColumn } from "../../html-rules.js";
 import type { AdminFormDefinition, AdminFormField } from "../../models.js";
 import { existingFieldIdsOf } from "../../rules.js";
+import type { FormsEventsPort } from "../../ports.js";
 import {
-  useFormEditorActions, useFormEditorLeave, useFormEditorMutations, useFormEditorOutcome, useFormEditorQueries, useFormEditorSeed, useFormEditorSetters, useFormEditorTabs,
+  useFormEditorActions, useFormEditorLeave, useFormEditorMutations, useFormEditorOutcome, useFormEditorQueries, useFormEditorSetters, useFormEditorTabs,
 } from "./use-form-editor-parts.hooks.js";
+import { useFormEditorGeneration, useFormEditorRefresh, type FormEditorReload } from "./use-form-editor-refresh.hooks.js";
 
 /**
  * @file Everything the FormEditor SCREEN does — load, save, status toggle, and the Fields/
@@ -55,10 +56,13 @@ import {
  * `form`/`name`/`slug`/`fields`/`notify` live in the section controller — the operator edits `name`/`slug`/
  * `fields`; `notify` has no UI of its own (owner ask 2026-09-22 removed the notify checkbox/
  * recipients input — see this file's own `notify` state comment) and is only ever carried through
- * unchanged. All are seeded from `list.data` exactly once per `formId` via `seededFormIdRef`, the
- * same shape `collections/hooks/use-collection-entry-editor.hooks.ts`'s `seededIdentityRef`
- * establishes (see that file's header for the regression it guards against: a background refetch of
- * the SAME identity must not clobber in-progress edits). `handleSave`/`handleStatusToggle` set `form`
+ * unchanged. They used to be seeded from `list.data` exactly once per `formId` via `seededFormIdRef`
+ * (the `use-collection-entry-editor.hooks.ts` `seededIdentityRef` shape), which protected drafts: a
+ * background refetch of the SAME identity must not clobber in-progress edits. Version-aware refresh
+ * (`use-form-editor-refresh.hooks.ts`) keeps that protection — a dirty draft is never replaced
+ * without confirmation — while letting a clean editor follow outside edits. The detail key
+ * `KEYS.form(id)` and `KEYS.list` must stay siblings so list invalidation never refetches an open
+ * editor behind its back. `handleSave`/`handleStatusToggle` set `form`
  * (and, for save, the rest of the seeded fields) directly from each MUTATION's own response, and
  * neither mutation invalidates this hook's OWN `KEYS.form(formId)` read (only the sibling
  * `KEYS.list`) — mirroring `save()`/`toggleLifecycle()` in that same collections hook, which
@@ -120,13 +124,16 @@ export interface FormEditorController {
   /** Bound translator — see this file's own header for why it arrives via the hook rather than
    *  `FormEditor.tsx` calling `useAdminLocale()`/`FORMS_DICT` directly. */
   t: (key: string) => string;
+  /** An outside change is waiting (or a stale Save was refused): the notice, its confirmation, and
+   *  the in-flight reload. `request`/`confirm`/`cancel` take no event or data. */
+  reload: FormEditorReload;
 }
 
 /** Load and save the editor through its injected port, preserving authoring and collection metadata.
  * @complexity O(f + b) draft state for fields/HTML bytes; one definition request per save, no provider I/O.
  * @overallScore 95 — Low: the existing screen lifecycle remains one hook with independently tested callbacks. */
 export function useFormEditor(
-  props: { formId: string; tab: "fields" | "submissions"; port: AdminFormsPort; catalog: FormsCatalogPort; navigate: (path: string) => void; t: (key: string) => string },
+  props: { formId: string; tab: "fields" | "submissions"; port: AdminFormsPort; catalog: FormsCatalogPort; navigate: (path: string) => void; t: (key: string) => string; events?: FormsEventsPort | undefined },
   { clipboard }: { clipboard?: { writeText: (text: string) => Promise<void> } } = {},
 ): FormEditorController {
   const { port, catalog, navigate, t, tab } = props;
@@ -141,10 +148,11 @@ export function useFormEditor(
   // wipes out a `notify` setting that predates this UI removal. Lives in the section controller, not a
   // `const`, only so `handleSave`'s existing-form branch can resync it from the write's own response
   // exactly like `form`/`name`/`slug`/`fields` already do below.
-  const { discovery, list } = useFormEditorQueries({ port, formId: props.formId, isNew });
-  useFormEditorSeed({ stateController, formId: props.formId, isNew, list });
-  const mutations = useFormEditorMutations({ port, form, formId: props.formId });
-  const actions = useFormEditorActions({ isNew, state, stateController, setters, mutations, navigate, t, clipboard });
+  const generation = useFormEditorGeneration({ formId: props.formId });
+  const { discovery, list } = useFormEditorQueries({ port, formId: props.formId, isNew, generation });
+  const refresh = useFormEditorRefresh({ stateController, formId: props.formId, isNew, list, events: props.events, generation });
+  const mutations = useFormEditorMutations({ port, formId: props.formId });
+  const actions = useFormEditorActions({ isNew, state, stateController, setters, mutations, navigate, t, clipboard, generation, refresh });
   const leave = useFormEditorLeave({ state, isNew, navigate });
   const { saving, error } = useFormEditorOutcome({ mutations, list, form, t });
   const tabs = useFormEditorTabs({ tab, formId: props.formId, navigate });
@@ -162,7 +170,7 @@ export function useFormEditor(
     showTabs: !isNew && form !== null,
     tabRefs: tabs.tabRefs, onTabsKeyDown: tabs.onTabsKeyDown,
     handleSave: actions.handleSave, handleStatusToggle: actions.handleStatusToggle,
-    leave, t,
+    leave, t, reload: refresh.reload,
   };
 }
 
@@ -175,11 +183,12 @@ export function useFormEditor(
  * `the memory adapter`, a fake `navigate`, and a fake `t`.
  */
 export function useWiredFormEditor(props: { formId: string; tab: "fields" | "submissions" }, _optional = {}): FormEditorController {
-  const { formsApi, formsCatalog, formsNavigation } = useFormsPorts();
+  const { formsApi, formsCatalog, formsNavigation, formsEvents } = useFormsPorts();
   const { t, clipboard, adminBase } = useFormsOptions();
   const navigate = (routePath: string) => {
     if (!formsNavigation) throw new Error('Missing forms navigation port');
     formsNavigation.navigate({ base: adminBase, routePath });
   };
-  return useFormEditor({ ...props, port: formsApi, catalog: formsCatalog, navigate, t }, clipboard ? { clipboard } : {});
+  // Forwards the already-injected scoped refresh events, as the list does.
+  return useFormEditor({ ...props, port: formsApi, catalog: formsCatalog, navigate, t, ...(formsEvents === undefined ? {} : { events: formsEvents }) }, clipboard ? { clipboard } : {});
 }

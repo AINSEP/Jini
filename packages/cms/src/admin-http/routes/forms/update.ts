@@ -1,4 +1,6 @@
 import { defineJsonRoute, ok } from "@jini-ai/core/contracts/server";
+import { rejectRoute, RouteRefusalError } from "@jini-ai/core/errors/route-refusal";
+import { parseExpectedVersion, RecordVersionConflictError, versionConflictBody } from "@jini-ai/core/optimistic-concurrency";
 import type { OutwardErrorMessage } from "../../http/outward-error-message.js";
 
 import {
@@ -23,7 +25,10 @@ export type FormsUpdatePatch = { name?: string; fields?: FieldDescriptor[]; noti
 export interface FormsUpdateWriteTarget { workspaceId: string; actor: { id: string; kind: "user" }; formId: string }
 
 /** The host's audited field-patch write (its permission, reserved slugs and authoring are bound by the host). */
-export type FormsUpdateDefinitionFn = (required: { input: FormsUpdateWriteTarget & { patch: FormsUpdatePatch } }) => Promise<{ definition: FormDefinitionRecord }>;
+export type FormsUpdateDefinitionFn = (
+  required: { input: FormsUpdateWriteTarget & { patch: FormsUpdatePatch } },
+  optional?: { expectedVersion?: number },
+) => Promise<{ definition: FormDefinitionRecord }>;
 
 /** The host's audited status write. */
 export type FormsSetDefinitionStatusFn = (required: { input: FormsUpdateWriteTarget & { status: FormDefinitionStatus } }) => Promise<{ definition: FormDefinitionRecord }>;
@@ -36,6 +41,7 @@ export interface FormsUpdateRouteDeps {
   formDefinitionRepo: Pick<FormDefinitionRepoPort, "findById">;
   updateFormDefinition: FormsUpdateDefinitionFn;
   setFormDefinitionStatus: FormsSetDefinitionStatusFn;
+  versionedUpdateMessages: { mixedStatus: string; missingDefinition: string; stale: string };
 }
 
 /** The `:formId` param plus the untyped PUT body. */
@@ -59,11 +65,13 @@ function buildFormPatch({ body }: { body: Record<string, unknown> }, _optional =
  * @throws {FormDefinitionNotFoundError} if neither write ran and the form id doesn't exist either.
  * @complexity O(1) — at most two writes and one read.
  */
-async function resolveFormUpdateResult({ deps, target, body }: { deps: FormsUpdateRouteDeps; target: FormsUpdateWriteTarget; body: Record<string, unknown> }, _optional = {}): Promise<FormDefinitionRecord> {
+async function resolveFormUpdateResult({ deps, target, body, expectedVersion }: { deps: FormsUpdateRouteDeps; target: FormsUpdateWriteTarget; body: Record<string, unknown>; expectedVersion: number | undefined }, _optional = {}): Promise<FormDefinitionRecord> {
   const patch = buildFormPatch({ body });
   let definition: FormDefinitionRecord | undefined;
   if (Object.keys(patch).length > 0) {
-    ({ definition } = await deps.updateFormDefinition({ input: { ...target, patch } }));
+    ({ definition } = expectedVersion === undefined
+      ? await deps.updateFormDefinition({ input: { ...target, patch } })
+      : await deps.updateFormDefinition({ input: { ...target, patch } }, { expectedVersion }));
   }
 
   if (typeof body.status === "string" && VALID_STATUSES.includes(body.status as FormDefinitionStatus)) {
@@ -96,11 +104,25 @@ export const formsUpdateRoute = defineJsonRoute<FormsUpdateInput, { data: AdminF
     // Empty/ignored bodies fall through to a read without invoking the write service's
     // gateway. Gate that path too, before it can return a definition or disclose its absence.
     await authorizeForms({ authorize, permission: FORMS_MANAGE, entityType: "form_definition" }, { entityId: formId });
+    let expectedVersion: number | undefined;
     try {
+      expectedVersion = parseExpectedVersion({ value: body.expectedVersion });
+      if (expectedVersion !== undefined && Object.prototype.hasOwnProperty.call(body, "status")) {
+        rejectRoute({ status: 400, error: deps.versionedUpdateMessages.mixedStatus, code: "VALIDATION_ERROR" });
+      }
+      if (expectedVersion !== undefined && Object.keys(buildFormPatch({ body })).length === 0) {
+        rejectRoute({ status: 400, error: deps.versionedUpdateMessages.missingDefinition, code: "VALIDATION_ERROR" });
+      }
       const target = { workspaceId: deps.workspaceId, actor: { id: actorId, kind: "user" as const }, formId };
-      const definition = await resolveFormUpdateResult({ deps, target, body });
+      const definition = await resolveFormUpdateResult({ deps, target, body, expectedVersion });
       return ok({ value: toAdminFormDefinitionResponse({ definition }) });
     } catch (err) {
+      if (err instanceof RecordVersionConflictError && expectedVersion !== undefined) {
+        throw new RouteRefusalError({
+          status: 409,
+          body: { ...versionConflictBody({ error: err }), error: deps.versionedUpdateMessages.stale },
+        });
+      }
       return rejectFormsWriteError({ err, outwardErrorMessage: deps.outwardErrorMessage });
     }
   },

@@ -171,6 +171,9 @@ export const formsMessagesEn = {
   "Your changes to this form have not been saved.": "Your changes to this form have not been saved.",
   "Discard changes": "Discard changes",
   "Keep editing": "Keep editing",
+  "This form changed since you opened it. Reload it to see the latest version.": "This form changed since you opened it. Reload it to see the latest version.",
+  "Reload form": "Reload form",
+  "Reloading discards your unsaved changes.": "Reloading discards your unsaved changes.",
   "Classes are unrestricted, e.g. Tailwind md:col-span-2. Attribute names must be aria-*, data-* or a safe layout attribute; event handlers like onclick are rejected.": "Classes are unrestricted, e.g. Tailwind md:col-span-2. Attribute names must be aria-*, data-* or a safe layout attribute; event handlers like onclick are rejected.",
 } as const;
 /** Host translators may replace any key; the default preserves the original English bytes. */

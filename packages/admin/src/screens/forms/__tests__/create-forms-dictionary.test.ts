@@ -3,28 +3,29 @@ import { createFormsDictionary } from "../create-forms-dictionary.js";
 
 // Hard-coded from the host's single-file `forms-i18n.ts` as it was BEFORE it was split (evaluated, with
 // every overlay merged in): the split must not drop or add a key in any locale.
+// +3 per locale: the form editor reload notice, its button and its confirmation (version-aware refresh).
 const EXPECTED_KEYS_PER_LOCALE: Record<string, number> = {
-  es: 152,
-  id: 143,
-  de: 143,
-  "zh-CN": 143,
-  "zh-TW": 143,
-  "pt-BR": 143,
-  ru: 143,
-  fa: 143,
-  ar: 143,
-  ja: 143,
-  ko: 143,
-  pl: 143,
-  hu: 143,
-  fr: 143,
-  uk: 143,
-  tr: 143,
-  th: 143,
-  it: 143,
-  hi: 152,
-  ur: 152,
-  bn: 152,
+  es: 155,
+  id: 146,
+  de: 146,
+  "zh-CN": 146,
+  "zh-TW": 146,
+  "pt-BR": 146,
+  ru: 146,
+  fa: 146,
+  ar: 146,
+  ja: 146,
+  ko: 146,
+  pl: 146,
+  hu: 146,
+  fr: 146,
+  uk: 146,
+  tr: 146,
+  th: 146,
+  it: 146,
+  hi: 155,
+  ur: 155,
+  bn: 155,
 };
 
 describe("createFormsDictionary", () => {
@@ -50,6 +51,6 @@ describe("createFormsDictionary", () => {
     });
     expect(dictionary.es?.["Unknown field"]).toBe("Texto del producto");
     expect(dictionary.es?.["Zzz product"]).toBe("Producto");
-    expect(Object.keys(dictionary.es ?? {})).toHaveLength(152 + 1);
+    expect(Object.keys(dictionary.es ?? {})).toHaveLength(155 + 1);
   });
 });

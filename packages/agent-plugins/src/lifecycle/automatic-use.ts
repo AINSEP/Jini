@@ -3,6 +3,11 @@ import type { AgentPluginSearchCandidate, AgentPluginSearchMatch } from './searc
 import type { AgentPluginSkillRequest, ResolveAgentPluginRefsResult } from './resolve-agent-plugin-refs.js';
 import type { AgentPluginLifecyclePorts } from './ports.js';
 import { agentVisiblePluginCandidate } from './search-projection.js';
+import type { AgentPluginGuidanceAttempt, AgentPluginGuidanceOffer } from '@jini-ai/core/contracts/site/daemon';
+import {
+  assertAttemptLive, assertOfferedChoice, currentGuidanceOffer, guidanceScopeKey, isRetiredGuidanceScope, refuseGuidance,
+  sameGuidanceChoice, sameGuidanceScope, type GuidanceAttemptLiveness, type StoredGuidanceOffer,
+} from './automatic-use-offer.js';
 
 export type ChatAgentPlugins = 'auto' | 'ask' | 'off';
 export const DEFAULT_CHAT_AGENT_PLUGINS: ChatAgentPlugins = 'auto';
@@ -28,10 +33,11 @@ function describeMatch({ plugin }: { plugin: AgentPluginSearchCandidate }, _opti
     why: (plugin.summary ?? plugin.description ?? `Provides ${(plugin.provides ?? plugin.keywords).join(', ')}`).split(/[\n.]/)[0]!.replace(/\s+/g, ' ').slice(0, 180) };
 }
 
-function enabledPluginCatalog({ ctx, candidates }: {
-  ctx: UseContext; candidates: readonly AgentPluginSearchCandidate[];
+/** `drafted` names full sections an offer carries but has not recorded; they leave the catalog too. */
+function enabledPluginCatalog({ ctx, candidates, drafted }: {
+  ctx: UseContext; candidates: readonly AgentPluginSearchCandidate[]; drafted: readonly string[];
 }, _options = {}): string {
-  const rows = [...candidates].filter(plugin => !ctx.state.excluded.includes(plugin.pluginId) && !ctx.delivered.has(plugin.pluginId))
+  const rows = [...candidates].filter(plugin => !ctx.state.excluded.includes(plugin.pluginId) && !ctx.delivered.has(plugin.pluginId) && !drafted.includes(plugin.pluginId))
     .sort((a, b) => a.pluginId.localeCompare(b.pluginId));
   return rows.length ? 'Enabled agent plugins (load one before acting on its part):\n' + rows.map(plugin => catalogRow({ ctx, plugin })).join('\n') : '';
 }
@@ -114,7 +120,13 @@ interface UseContext {
   readonly alreadyLoaded: Set<string>;
   publishedSize: number | undefined;
   queue: Promise<unknown>;
+  /** The one current guidance offer of this logical turn; a newer attempt replaces it. */
+  offer: StoredGuidanceOffer | undefined;
+  /** Scopes whose offer was replaced; they can neither commit nor offer again. */
+  readonly retired: Set<string>;
 }
+/** One drafted section: full guidance, or a deferred pointer that never records delivery. */
+interface DraftSection { plugin: AgentPluginSearchCandidate; text: string; full: boolean }
 
 /** Ask mode admits only consented matches; the first non-empty match set asks the person once. */
 async function applyConsent({ ctx, matches }: {
@@ -170,6 +182,7 @@ function recordDelivery({ ctx, plugin, result }: {
   if (result.status === 'loaded') ctx.delivered.set(plugin.pluginId, plugin.displayName ?? plugin.pluginId);
 }
 /** Bound automatic attachments before recording delivery; explicit loads retain complete text.
+ * The bounded sections land in a draft; recording delivery is the caller's separate step.
  * O(p*b) in resolved plugins and guidance bytes; a deferred plugin remains retryable.
  */
 async function resolveGuidance({ ctx, matches }: {
@@ -178,10 +191,10 @@ async function resolveGuidance({ ctx, matches }: {
 }, { budget, signal }: {
   budget?: number | undefined;
   signal?: AbortSignal | undefined;
-} = {}): Promise<string[]> {
-  const guidance: string[] = [];
+} = {}): Promise<DraftSection[]> {
+  const guidance: DraftSection[] = [];
   // Unloaded plugins contribute nothing; oversized guidance becomes a pointer instead of the text.
-  const guidanceFor = async (match: AgentPluginSearchMatch): Promise<string | undefined> => {
+  const guidanceFor = async (match: AgentPluginSearchMatch): Promise<DraftSection | undefined> => {
     const result = await resolveOneGuidance(ctx, { plugin: match }, { signal });
     if (result.status !== 'loaded') return undefined;
     const bytes = new TextEncoder().encode(result.guidance).length + (budget !== undefined && guidance.length ? 2 : 0);
@@ -189,11 +202,10 @@ async function resolveGuidance({ ctx, matches }: {
       if (budget !== undefined) return undefined;
       const pointer = ctx.ports.formatPluginToolPointer?.({ pluginId: match.pluginId, skill: match.pluginId, file: 'SKILL.md' });
       const howToLoad = pointer === undefined ? '' : ` Load the full instructions with ${pointer}; use the same call with file '<relative path>' for supporting references.`;
-      return `Agent Plugin '${match.pluginId}' guidance is deferred because it exceeds the automatic byte limit.${howToLoad}`;
+      return { plugin: match, full: false, text: `Agent Plugin '${match.pluginId}' guidance is deferred because it exceeds the automatic byte limit.${howToLoad}` };
     }
-    recordDelivery({ ctx, plugin: match, result });
     if (budget !== undefined) budget -= bytes;
-    return result.guidance;
+    return { plugin: match, full: true, text: result.guidance };
   };
   for (const match of matches) {
     if (signal?.aborted) break;
@@ -227,64 +239,82 @@ async function publishUsage(ctx: UseContext, ): Promise<void> {
 async function prepare({ ctx, input }: { ctx: UseContext; input: PrepareInput }): Promise<string> {
   for (const id of input.loaded ?? []) ctx.alreadyLoaded.add(id);
   if (ctx.mode === 'off' || input.signal?.aborted) return '';
-  const installed = (await ctx.ports.list({}, {})).filter(plugin => !ctx.state.excluded.includes(plugin.pluginId));
-  const candidates = installed.filter(plugin => plugin.enabled);
-  for (const id of ctx.alreadyLoaded) if (!candidates.some(plugin => plugin.pluginId === id)) ctx.alreadyLoaded.delete(id);
-  const matches = await consentedMatches({ ctx, candidates, input });
-  const result = await preparedGuidance({ ctx, matches, input });
+  const { installed, candidates } = await admittedCatalog(ctx);
+  pruneUnavailablePins({ ctx, pinned: ctx.alreadyLoaded, candidates });
+  const matches = await consentedMatches({ ctx, candidates, input, pinned: ctx.alreadyLoaded });
+  const sections = await preparedGuidance({ ctx, matches, input, pinned: ctx.alreadyLoaded });
+  // Obtaining consent and resolving bytes do not prove full guidance was selected for delivery;
+  // one-shot preparation selects every full section it drafted, so it records them all here.
+  for (const section of sections) if (section.full) recordDelivery({ ctx, plugin: section.plugin, result: { status: 'loaded', guidance: section.text } });
   rememberDelivery(ctx);
   await publishUsage(ctx);
-  return withPluginNotes({ ctx, input, installed, candidates, result });
+  return withPluginNotes({ ctx, input, installed, candidates, result: joinSections({ sections }), drafted: [] });
+}
+/** Installed packages minus exclusions, and the enabled subset automatic use may draft from. */
+async function admittedCatalog(ctx: UseContext): Promise<{ installed: AgentPluginSearchCandidate[]; candidates: AgentPluginSearchCandidate[] }> {
+  const installed = (await ctx.ports.list({}, {})).filter(plugin => !ctx.state.excluded.includes(plugin.pluginId));
+  return { installed, candidates: installed.filter(plugin => plugin.enabled) };
+}
+/** Pins whose plugin is no longer enabled stop counting as delivered. O(p*c). */
+function pruneUnavailablePins({ pinned, candidates }: { ctx: UseContext; pinned: Set<string>; candidates: readonly AgentPluginSearchCandidate[] }): void {
+  for (const id of pinned) if (!candidates.some(plugin => plugin.pluginId === id)) pinned.delete(id);
+}
+function joinSections({ sections }: { sections: readonly DraftSection[] }): string {
+  return sections.map(section => section.text).join('\n\n');
 }
 /** Appends the enabled-plugin catalog and the off-plugin note to the prepared guidance. */
-function withPluginNotes({ ctx, input, installed, candidates, result }: {
+function withPluginNotes({ ctx, input, installed, candidates, result, drafted }: {
   ctx: UseContext;
   input: PrepareInput;
   installed: readonly AgentPluginSearchCandidate[];
   candidates: readonly AgentPluginSearchCandidate[];
   result: string;
+  drafted: readonly string[];
 }): string {
   // Preflight never resolves off packages implicitly. A catalog line offers an explicit read;
   // its setup guidance may explain whether enabling or credentials are needed.
   const off = offPluginNote(ctx, { catalog: installed, input });
-  const catalog = input.query !== undefined && !input.capabilities?.length ? enabledPluginCatalog({ ctx, candidates: candidates.filter(plugin => !input.loaded?.includes(plugin.pluginId)) }) : '';
+  const catalog = input.query !== undefined && !input.capabilities?.length ? enabledPluginCatalog({ ctx, candidates: candidates.filter(plugin => !input.loaded?.includes(plugin.pluginId)), drafted }) : '';
   return [result, catalog, off].filter(Boolean).join('\n\n');
 }
 /** Rank enabled candidates, drop plugins this run already has, then apply the person's consent. */
-async function consentedMatches({ ctx, candidates, input }: {
+async function consentedMatches({ ctx, candidates, input, pinned }: {
   ctx: UseContext;
   candidates: readonly AgentPluginSearchCandidate[];
   input: PrepareInput;
+  pinned: ReadonlySet<string>;
 }): Promise<AgentPluginSearchMatch[]> {
   const ranked = rankCandidates({ candidates, input, ports: ctx.ports });
   // Owner decision 2026-10-18: no per-chat plugin count; the relevance threshold and vendor gate decide.
   const planned = input.capabilities ? ranked : withRequiredProviders({ ranked, candidates });
-  const relevant = planned.filter(plugin => !ctx.delivered.has(plugin.pluginId) && !input.loaded?.includes(plugin.pluginId) && (!ctx.alreadyLoaded.has(plugin.pluginId) || !!input.query));
+  const relevant = planned.filter(plugin => !ctx.delivered.has(plugin.pluginId) && !input.loaded?.includes(plugin.pluginId) && (!pinned.has(plugin.pluginId) || !!input.query));
   const consented = await applyConsent({ ctx, matches: relevant }, { signal: input.signal });
   const topAccepted = consented.some(plugin => plugin.pluginId === ranked[0]?.pluginId);
   return consented.filter(plugin => topAccepted || !ranked[0]?.companions?.includes(plugin.pluginId) || ranked.some(match => match.pluginId === plugin.pluginId));
 }
 /** Capability calls resolve every match; a query resolves the top and required providers. */
-async function preparedGuidance({ ctx, matches, input }: {
+async function preparedGuidance({ ctx, matches, input, pinned }: {
   ctx: UseContext;
   matches: AgentPluginSearchMatch[];
   input: PrepareInput;
-}): Promise<string> {
-  const shouldLoad = !!input.capabilities?.length;
-  const primary = primaryMatch({ ctx, matches, input });
-  return shouldLoad ? (await resolveGuidance({ ctx, matches }, { signal: input.signal })).join('\n\n') : (await resolveGuidance({ ctx, matches: primary }, { budget: MAX_QUERY_GUIDANCE_BYTES, signal: input.signal })).join('\n\n');
+  pinned: ReadonlySet<string>;
+}): Promise<DraftSection[]> {
+  if (input.capabilities?.length) return resolveGuidance({ ctx, matches }, { signal: input.signal });
+  return resolveGuidance({ ctx, matches: primaryMatch({ matches, input, pinned }) }, { budget: MAX_QUERY_GUIDANCE_BYTES, signal: input.signal });
 }
 /** The top match and required providers a fresh, unbounded query preflight delivers in full; otherwise none. */
-function primaryMatch({ ctx, matches, input }: {
-  ctx: UseContext;
+function primaryMatch({ matches, input, pinned }: {
   matches: AgentPluginSearchMatch[];
   input: PrepareInput;
+  pinned: ReadonlySet<string>;
 }): AgentPluginSearchMatch[] {
-  if (!(input.maxPromptArgBytes === undefined && input.query && !input.loaded?.length && !ctx.alreadyLoaded.has(matches[0]?.pluginId ?? ''))) return [];
+  // The argument-size skip applies only to legacy one-shot preparation: an offer carries no
+  // maxPromptArgBytes because the launcher sizes the full and catalog variants itself.
+  if (!(input.maxPromptArgBytes === undefined && input.query && !input.loaded?.length && !pinned.has(matches[0]?.pluginId ?? ''))) return [];
   const [top, ...rest] = matches;
   if (!top) return [];
-  const companions = rest.filter(plugin => top.companions?.includes(plugin.pluginId) && !ctx.alreadyLoaded.has(plugin.pluginId));
-  const additional = rest.filter(plugin => !top.companions?.includes(plugin.pluginId) && !ctx.alreadyLoaded.has(plugin.pluginId));
+  const companions = rest.filter(plugin => top.companions?.includes(plugin.pluginId) && !pinned.has(plugin.pluginId));
+  const additional = rest.filter(plugin => !top.companions?.includes(plugin.pluginId) && !pinned.has(plugin.pluginId));
   return [top, ...companions, ...additional.slice(0, 3)];
 }
 /** Rank readable metadata for off plugins; never load their tools or guidance implicitly. O(p*t). */
@@ -327,7 +357,83 @@ async function loadPermitted(ctx: UseContext, { plugin, ...request }: { plugin: 
   await publishUsage(ctx);
   return result;
 }
-/** Share one queue between preflight, explicit reads and simultaneous guarded writes. */
+type OfferInput = { query: string; loaded?: readonly string[]; signal?: AbortSignal };
+type OfferRequired = { scope: AgentPluginGuidanceAttempt; offerId: string; input: OfferInput; isAttemptLive: GuidanceAttemptLiveness };
+type CommitRequired = { scope: AgentPluginGuidanceAttempt; offerId: string; deliveredIds: readonly string[] };
+type OfferDraft = Pick<StoredGuidanceOffer, 'offer' | 'offered' | 'loaded'>;
+
+/** Draft or reuse this attempt's offer. It may ask for consent or save Auto, but records and publishes nothing.
+ * A newer attempt retires the older scope first, so that scope can never commit or offer again.
+ */
+async function offer(ctx: UseContext, { scope, offerId, input, isAttemptLive }: OfferRequired): Promise<AgentPluginGuidanceOffer> {
+  const current = ctx.offer;
+  if (isRetiredGuidanceScope({ scope, current, retired: ctx.retired })) refuseGuidance({ reason: 'not-current' });
+  if (!(await isAttemptLive(scope, input.signal ? { signal: input.signal } : {}))) refuseGuidance({ reason: 'not-current' });
+  if (current && sameGuidanceScope({ left: current.scope, right: scope })) {
+    if (current.offerId !== offerId && current.committed) refuseGuidance({ reason: 'not-current' });
+    current.offerId = offerId;
+    return { offerId, ...current.offer };
+  }
+  if (current) ctx.retired.add(guidanceScopeKey({ scope: current.scope }));
+  ctx.offer = undefined;
+  const draft = await draftOffer(ctx, { input });
+  ctx.offer = { scope: { runId: scope.runId, attempt: scope.attempt, principalId: scope.principalId }, offerId, isAttemptLive, ...draft };
+  return { offerId, ...draft.offer };
+}
+/** The legacy query draft without its argument-size skip; pins are read, not added to the delivered set. */
+async function draftOffer(ctx: UseContext, { input }: { input: OfferInput }): Promise<OfferDraft> {
+  const loaded = [...(input.loaded ?? [])];
+  if (ctx.mode === 'off' || input.signal?.aborted) return { loaded, offered: new Map(), offer: { fullSections: [], fullPrefix: '', catalogPrefix: '' } };
+  const { installed, candidates } = await admittedCatalog(ctx);
+  const pinned = new Set([...ctx.alreadyLoaded, ...loaded]);
+  pruneUnavailablePins({ ctx, pinned, candidates });
+  const query: PrepareInput = { query: input.query, ...(input.loaded ? { loaded: input.loaded } : {}), ...(input.signal ? { signal: input.signal } : {}) };
+  const matches = await consentedMatches({ ctx, candidates, input: query, pinned });
+  const sections = await preparedGuidance({ ctx, matches, input: query, pinned });
+  // Obtaining consent and resolving bytes do not prove full guidance was selected for delivery;
+  // only a matching commit records the sections the host actually delivered.
+  const full = sections.filter(section => section.full);
+  const notes = (kept: readonly DraftSection[], drafted: readonly string[]) => withPluginNotes({ ctx, input: query, installed, candidates, result: joinSections({ sections: kept }), drafted });
+  return { loaded, offered: new Map(full.map(({ plugin }) => [plugin.pluginId, plugin.displayName ?? plugin.pluginId])), offer: {
+    fullSections: full.map(({ plugin, text }) => ({ pluginId: plugin.pluginId, text })),
+    fullPrefix: notes(sections, full.map(({ plugin }) => plugin.pluginId)),
+    catalogPrefix: notes(sections.filter(section => !section.full), []),
+  } };
+}
+/** Record exactly the delivered ids of the current offer, all or nothing.
+ * The live-attempt check is the last await before recording, inside the serialized queue.
+ */
+async function commit(ctx: UseContext, { scope, offerId, deliveredIds }: CommitRequired, { signal }: { signal?: AbortSignal | undefined } = {}): Promise<{ readonly guidanceIds: readonly string[] }> {
+  const stored = currentGuidanceOffer({ stored: ctx.offer, scope, offerId });
+  if (stored.committed) {
+    if (!sameGuidanceChoice({ left: stored.committed.ids, right: deliveredIds })) refuseGuidance({ reason: 'replay' });
+    await assertAttemptLive({ stored, signal });
+    return stored.committed.result;
+  }
+  assertOfferedChoice({ stored, deliveredIds });
+  const { candidates, selected } = await recheckAdmission(ctx, { deliveredIds, signal });
+  await assertAttemptLive({ stored, signal });
+  for (const id of stored.loaded) ctx.alreadyLoaded.add(id);
+  if (ctx.mode !== 'off') pruneUnavailablePins({ ctx, pinned: ctx.alreadyLoaded, candidates });
+  for (const plugin of selected) recordDelivery({ ctx, plugin, result: { status: 'loaded', guidance: '' } });
+  rememberDelivery(ctx);
+  const result = { guidanceIds: currentGuidanceIds(ctx) };
+  stored.committed = { ids: [...deliveredIds], result };
+  await publishUsage(ctx);
+  return result;
+}
+/** Selected ids must still be enabled and not excluded; one unavailable id refuses the whole choice. */
+async function recheckAdmission(ctx: UseContext, { deliveredIds, signal }: { deliveredIds: readonly string[]; signal?: AbortSignal | undefined }): Promise<{ candidates: AgentPluginSearchCandidate[]; selected: AgentPluginSearchCandidate[] }> {
+  if (signal?.aborted) refuseGuidance({ reason: 'cancelled' });
+  const { candidates } = await admittedCatalog(ctx);
+  const selected = deliveredIds.map(id => candidates.find(plugin => plugin.pluginId === id) ?? refuseGuidance({ reason: 'unavailable' }));
+  return { candidates, selected };
+}
+/** Pinned or delivered ids this run can truthfully claim, minus later exclusions. */
+function currentGuidanceIds(ctx: UseContext): string[] {
+  return [...new Set([...ctx.alreadyLoaded, ...ctx.delivered.keys()])].filter(id => !ctx.state.excluded.includes(id));
+}
+/** Share one queue between preflight, offers, commits, explicit reads and simultaneous guarded writes. */
 function enqueue<T>({ ctx, operation }: { ctx: UseContext; operation: () => Promise<T> }): Promise<T> {
   const next = ctx.queue.then(operation);
   ctx.queue = next.catch(() => undefined);
@@ -346,11 +452,11 @@ export function createAutomaticAgentPluginUse(
 ) {
   const state = readChatAgentPluginState({ value: initialState });
   const ctx: UseContext = {
-    mode, state, ports, delivered: new Map<string, string>(), publishedSize: undefined, queue: Promise.resolve(),
+    mode, state, ports, delivered: new Map<string, string>(), publishedSize: undefined, queue: Promise.resolve(), offer: undefined, retired: new Set<string>(),
     alreadyLoaded: new Set(mode === 'off' ? [] : state.decision?.delivered?.filter(id => !state.excluded.includes(id))),
   };
   return {
-    guidanceIds: (_required: Record<string, never>, _options = {}) => [...new Set([...ctx.alreadyLoaded, ...ctx.delivered.keys()])].filter(id => !ctx.state.excluded.includes(id)),
+    guidanceIds: (_required: Record<string, never>, _options = {}) => currentGuidanceIds(ctx),
     /** Suggest relevant metadata for a query; capability calls load only their providers. */
     prepare: (input: PrepareInput, _options = {}) => enqueue({ ctx, operation: () => prepare({ ctx, input }) }),
     /** Resolve one active, permitted id and publish usage only after real guidance is read.
@@ -358,5 +464,14 @@ export function createAutomaticAgentPluginUse(
      * @example await controller.load({ pluginId: 'my-plugin' });
      */
     load: (input: { pluginId: string; signal?: AbortSignal } & AgentPluginSkillRequest, _options = {}) => enqueue({ ctx, operation: () => load(ctx, input) }),
+    /** Draft guidance for one live attempt without recording delivery; the host injects the offer id and liveness check.
+     * @example const draft = await controller.offer({ scope, offerId, input: { query }, isAttemptLive });
+     */
+    offer: (required: OfferRequired, _optional = {}): Promise<AgentPluginGuidanceOffer> => enqueue({ ctx, operation: () => offer(ctx, required) }),
+    /** Record the offered ids the host actually delivered; a same-choice replay returns the cached result.
+     * @example await controller.commit({ scope, offerId, deliveredIds: ['plugin-a'] });
+     */
+    commit: (required: CommitRequired, optional: { signal?: AbortSignal } = {}): Promise<{ readonly guidanceIds: readonly string[] }> =>
+      enqueue({ ctx, operation: () => commit(ctx, required, optional) }),
   };
 }

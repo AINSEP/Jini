@@ -1,4 +1,5 @@
 import { render, screen, within } from "./harness.js";
+import { useWiredFormEditor } from "../hooks/use-form-editor.hooks.js";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -42,7 +43,7 @@ afterEach(() => {
 describe("field settings in the form editor", () => {
   it("the type picker groups every type under a plain-language name", async () => {
     fetchMock.mockResolvedValueOnce(jsonResponse({ data: topicForm() }));
-    render(<FormsTestProvider><FormEditor formId="f1" tab="fields" /></FormsTestProvider>);
+    render(<FormsTestProvider><FormEditor useFormEditorHook={useWiredFormEditor} formId="f1" tab="fields" /></FormsTestProvider>);
     const picker = await screen.findByRole("combobox", { name: /field 1 type/i });
     expect([...picker.querySelectorAll("optgroup")].map((group) => group.label)).toEqual(["Text", "Choices", "Numbers and dates", "Other"]);
     expect(within(picker).getByRole("option", { name: "Dropdown" })).toHaveProperty("selected", true);
@@ -56,7 +57,7 @@ describe("field settings in the form editor", () => {
     fetchMock
       .mockResolvedValueOnce(jsonResponse({ data: topicForm() }))
       .mockResolvedValueOnce(jsonResponse({ data: topicForm() }));
-    render(<FormsTestProvider><FormEditor formId="f1" tab="fields" /></FormsTestProvider>);
+    render(<FormsTestProvider><FormEditor useFormEditorHook={useWiredFormEditor} formId="f1" tab="fields" /></FormsTestProvider>);
 
     await user.click(await screen.findByRole("button", { name: /settings for field "topic"/i }));
     const dialog = within(await screen.findByRole("dialog", { name: /field settings/i }));
@@ -81,7 +82,7 @@ describe("field settings in the form editor", () => {
   it("an option without a label keeps the dialog open with the error", async () => {
     const user = userEvent.setup();
     fetchMock.mockResolvedValueOnce(jsonResponse({ data: topicForm() }));
-    render(<FormsTestProvider><FormEditor formId="f1" tab="fields" /></FormsTestProvider>);
+    render(<FormsTestProvider><FormEditor useFormEditorHook={useWiredFormEditor} formId="f1" tab="fields" /></FormsTestProvider>);
 
     await user.click(await screen.findByRole("button", { name: /settings for field "topic"/i }));
     const dialog = within(await screen.findByRole("dialog", { name: /field settings/i }));

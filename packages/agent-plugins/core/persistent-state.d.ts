@@ -18,7 +18,10 @@ export interface PluginMemory {
 }
 export function pluginStatePaths(required: { workspaceRoot: string; pluginId: string }, optional?: {}): PluginStatePaths;
 export function createPluginMemory(required: PluginStateEffects & { workspaceRoot: string; pluginId: string }, optional?: { limits?: Partial<typeof DEFAULT_PLUGIN_MEMORY_LIMITS> }): PluginMemory;
-export function migratePluginLayout(required: PluginStateEffects & { workspaceRoot: string; parsePluginId(required: { value: unknown }): string; onEvent?(required: { event: string; message: string }): void }, optional?: {}): Promise<{ complete: boolean; moved: number }>;
+/** Proof that a caller holds one canonical workspace's layout-migration lock; honoured only while held. */
+export interface WorkspaceMigrationOwnership { readonly workspaceRoot: string; readonly lockPath: string; isHeld(): boolean; }
+export function withWorkspaceMigrationLock<T>(required: Pick<PluginStateEffects, 'filesystem' | 'withLock'> & { workspaceRoot: string; run(held: { ownership: WorkspaceMigrationOwnership }): Promise<T> }, optional?: {}): Promise<T>;
+export function migratePluginLayout(required: PluginStateEffects & { workspaceRoot: string; parsePluginId(required: { value: unknown }): string; onEvent?(required: { event: string; message: string }): void }, optional?: { ownership?: WorkspaceMigrationOwnership }): Promise<{ complete: boolean; moved: number }>;
 
 export function assertPluginStatePath(required: Pick<PluginStateEffects, "filesystem" | "contain"> & { workspaceRoot: string; entryPath: string }, optional?: {}): Promise<string>;
 

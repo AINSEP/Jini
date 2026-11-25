@@ -8473,5 +8473,15 @@
       "MediaProviderPatchFn": "type:3ec8c4a807",
       "mediaPatchProviderRoute": "variable:36353f75ab"
     }
+  },
+  "./admin-http/routes/posts/template-preview-embeds": {
+    "types": "./dist/admin-http/routes/posts/template-preview-embeds.d.ts",
+    "symbols": {
+      "PreviewEmbedsInput": "interface:0e03fe29eb",
+      "PreviewEmbedsPrincipal": "interface:7656d21eb7",
+      "PreviewEmbedsRouteDeps": "interface:40ee2ac0b5",
+      "PreviewEmbedsRouteSpec": "type:d2392211bf",
+      "createTemplatePreviewEmbedsRoute": "function:410fceac06"
+    }
   }
 }

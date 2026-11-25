@@ -4,6 +4,7 @@ import { describe, expect, it, afterEach, vi } from 'vitest';
 import { ToolCard } from '../ToolCard.js';
 import { registerToolRenderer, clearToolRenderers } from '../../tool-renderer-registry.js';
 import { formatToolOutputForDisplay } from '../../../core/tool-output.js';
+import { I18nContext } from '../../hooks/context.js';
 
 vi.mock('../../../core/tool-output.js', async (importOriginal) => {
   const actual = await importOriginal<typeof import('../../../core/tool-output.js')>();
@@ -992,6 +993,112 @@ describe('ToolCard', () => {
     );
     await userEvent.click(screen.getByRole('button'));
     expect(document.querySelector('.op-output')?.textContent).toBe(JSON.stringify({ tools: [{ id: 'content_post_list' }] }, null, 2));
+  });
+
+  // A refused `assistant_ask_choice` carries protocol text (the choice schema, the assistant's own
+  // inputs) meant for the assistant to repair its call. The row must say so in plain words and keep
+  // that text out of every DOM sink; only an explicit Copy details puts a redacted copy on the clipboard.
+  describe('failed assistant_ask_choice', () => {
+    const SENTENCE = "The assistant couldn't open the choice form. Ask it to try again.";
+    const choiceInput = { title: 'ZEBRA-TITLE pick a plan', options: [{ label: 'ZEBRA-OPTION', value: 'zebra' }] };
+    const secret = 'sk-' + 'AbCdEf0123456789'.repeat(2);
+    const schemaError = `invalid arguments for assistant_ask_choice: change \`options\`: Expected array. Accepted arguments: {"options":{"type":"array"}} token ${secret}`;
+    const failed = (id: string, content = schemaError) => ({ kind: 'tool_result' as const, toolUseId: id, content, isError: true });
+    const fakeCopy = () => {
+      const copy = vi.fn(async (_text: string) => true);
+      return { copy, hook: () => ({ copied: false, copy }) };
+    };
+    const assertNoRawText = (container: HTMLElement) => {
+      for (const raw of ['ZEBRA', 'Accepted arguments', 'change `options`', secret, 'This step did not run']) expect(container.innerHTML).not.toContain(raw);
+    };
+
+    it.each([
+      ['bare', 'assistant_ask_choice'],
+      ['MCP-qualified', 'mcp__site__assistant_ask_choice'],
+    ])('a failed bare and MCP-qualified assistant_ask_choice shows the plain sentence collapsed and expanded (%s)', async (_label, name) => {
+      const { container } = render(<ToolCard use={{ kind: 'tool_use', id: `fc-${name}`, name, input: choiceInput }} result={failed(`fc-${name}`)} runSucceeded />);
+      expect(container.querySelector('.jini-op-card-reader-text')?.textContent).toBe(SENTENCE);
+      expect(screen.getByRole('button').textContent).toContain(SENTENCE);
+      assertNoRawText(container);
+      await userEvent.click(screen.getByRole('button', { name: /couldn't open/ }));
+      expect(container.querySelector('.accordion-collapsible.open')?.textContent).toContain(SENTENCE);
+      expect(screen.getByRole('button', { name: 'Copy details' })).toBeInTheDocument();
+      assertNoRawText(container);
+    });
+
+    it.each([
+      ['bare', 'assistant_ask_choice'],
+      ['MCP-qualified', 'mcp__site__assistant_ask_choice'],
+    ])('a failed normalized MCP wrapper shows the same plain sentence without matching error wording (%s inner)', (_label, toolName) => {
+      const use = { kind: 'tool_use' as const, id: `fw-${toolName}`, name: 'call_mcp_tool', input: { ServerName: 'site', ToolName: toolName, Arguments: choiceInput } };
+      const { container } = render(<ToolCard use={use} result={failed(use.id, 'ZEBRA unexpected failure with no known prefix')} runSucceeded />);
+      expect(container.querySelector('.jini-op-card-reader-text')?.textContent).toBe(SENTENCE);
+      assertNoRawText(container);
+    });
+
+    it('failed choice leaves no schema text in the title, accessible description or collapsed reader', () => {
+      const renderer = vi.fn((props: unknown) => <span>{JSON.stringify(props)}</span>);
+      registerToolRenderer({ name: 'assistant_ask_choice', renderer });
+      const { container } = render(<ToolCard use={{ kind: 'tool_use', id: 'fc-spy', name: 'assistant_ask_choice', input: choiceInput }} result={failed('fc-spy')} runSucceeded />);
+      expect(renderer).not.toHaveBeenCalled();
+      for (const el of container.querySelectorAll('[title], [aria-label], [aria-description]')) {
+        for (const attr of ['title', 'aria-label', 'aria-description']) expect(el.getAttribute(attr) ?? '').not.toMatch(/ZEBRA|Accepted arguments|sk-/);
+      }
+      expect(container.querySelector('.jini-op-card-reader-text')?.textContent).toBe(SENTENCE);
+      expect(screen.getByRole('button').textContent).not.toMatch(/ZEBRA|Accepted/);
+      assertNoRawText(container);
+    });
+
+    it('Copy details copies the redacted diagnostic without the secret canary', async () => {
+      const { copy, hook } = fakeCopy();
+      const { container } = render(<ToolCard use={{ kind: 'tool_use', id: 'fc-copy', name: 'assistant_ask_choice', input: choiceInput }} result={failed('fc-copy')} runSucceeded useCopyToClipboardHook={hook} />);
+      await userEvent.click(screen.getByRole('button', { name: /couldn't open/ }));
+      await userEvent.click(screen.getByRole('button', { name: 'Copy details' }));
+      expect(copy).toHaveBeenCalledTimes(1);
+      const copied = copy.mock.calls[0]![0];
+      expect(copied).toContain('change `options`: Expected array.');
+      expect(copied).not.toContain(secret);
+      expect(copied).not.toContain('ZEBRA');
+      assertNoRawText(container);
+    });
+
+    it('Copy details falls back to the plain sentence when the failure carried no text', async () => {
+      const { copy, hook } = fakeCopy();
+      render(<ToolCard use={{ kind: 'tool_use', id: 'fc-empty', name: 'assistant_ask_choice', input: choiceInput }} result={failed('fc-empty', '  ')} runSucceeded useCopyToClipboardHook={hook} />);
+      await userEvent.click(screen.getByRole('button', { name: /couldn't open/ }));
+      await userEvent.click(screen.getByRole('button', { name: 'Copy details' }));
+      expect(copy).toHaveBeenCalledWith(SENTENCE);
+    });
+
+    it('resolves the sentence and button label through the I18nAdapter, with English defaults for an echoed key or empty string', async () => {
+      const dictionary: Record<string, string> = { 'chat.toolCard.choiceFailed': 'Formulaire indisponible.', 'chat.toolCard.copyDetails': '' };
+      const i18n = { locale: 'fr', t: (key: string) => dictionary[key] ?? key };
+      render(<I18nContext.Provider value={i18n}><ToolCard use={{ kind: 'tool_use', id: 'fc-i18n', name: 'assistant_ask_choice', input: choiceInput }} result={failed('fc-i18n')} runSucceeded /></I18nContext.Provider>);
+      expect(document.querySelector('.jini-op-card-reader-text')?.textContent).toBe('Formulaire indisponible.');
+      await userEvent.click(screen.getByRole('button', { name: /Formulaire/ }));
+      expect(screen.getByRole('button', { name: 'Copy details' })).toBeInTheDocument();
+    });
+
+    it.each([
+      ['lookalike bare suffix', 'my_assistant_ask_choice', failed('x')],
+      ['lookalike MCP segment', 'mcp__site__assistant_ask_choice_v2', failed('x')],
+      ['nested MCP segment', 'mcp__site__foo__assistant_ask_choice', failed('x')],
+    ])('a lookalike tool and successful and pending choices keep their existing rows (%s)', (_label, name, result) => {
+      const { container } = render(<ToolCard use={{ kind: 'tool_use', id: 'x', name, input: choiceInput }} result={result} runSucceeded />);
+      expect(container.textContent).not.toContain(SENTENCE);
+      expect(container.querySelector('.jini-op-card-reader-text')?.textContent).toContain('ZEBRA-TITLE');
+    });
+
+    it('a lookalike tool and successful and pending choices keep their existing rows (successful and pending choice)', () => {
+      const ok = { kind: 'tool_result' as const, toolUseId: 'ok', content: '{"status":"submitted","selected":["zebra"]}', isError: false };
+      const done = render(<ToolCard use={{ kind: 'tool_use', id: 'ok', name: 'assistant_ask_choice', input: choiceInput }} result={ok} runSucceeded />);
+      expect(done.container.textContent).not.toContain(SENTENCE);
+      expect(done.container.querySelector('.jini-op-card-reader-text')?.textContent).toContain('"submitted"');
+      done.unmount();
+      const pending = render(<ToolCard use={{ kind: 'tool_use', id: 'p', name: 'assistant_ask_choice', input: choiceInput }} runStreaming />);
+      expect(pending.container.textContent).not.toContain(SENTENCE);
+      expect(pending.container.querySelector('.jini-op-card-reader-text')?.textContent).toContain('Waiting for the result or answer…');
+    });
   });
 
   // Owner 2026-10-08: some rows (a pending `assistant_ask_choice`, CLI built-ins like Fetch) could
