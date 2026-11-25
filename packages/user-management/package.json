@@ -141,7 +141,10 @@
       "./mail/site/capture-clear": "universal",
       "./newsletter/http-error-responses": "universal",
       "./newsletter/confirmation": "universal",
-      "./newsletter/subscriptions": "universal"
+      "./newsletter/subscriptions": "universal",
+      "./project-keys/site-references": "universal",
+      "./project-keys/service": "universal",
+      "./project-keys/tools": "universal"
     },
     "optionalPeers": {
       "kysely": "opt-in: sql storage adapters; import @jini-ai/user-management/members/repo — SQL storage adapters could not load kysely. Install kysely to enable this feature, or check its installed version and native binaries.",
@@ -833,6 +836,21 @@
       "types": "./dist/newsletter/subscriptions.d.ts",
       "import": "./dist/newsletter/subscriptions.js",
       "default": "./dist/newsletter/subscriptions.js"
+    },
+    "./project-keys/site-references": {
+      "types": "./dist/project-keys/site-references.d.ts",
+      "import": "./dist/project-keys/site-references.js",
+      "default": "./dist/project-keys/site-references.js"
+    },
+    "./project-keys/service": {
+      "types": "./dist/project-keys/service.d.ts",
+      "import": "./dist/project-keys/service.js",
+      "default": "./dist/project-keys/service.js"
+    },
+    "./project-keys/tools": {
+      "types": "./dist/project-keys/tools.d.ts",
+      "import": "./dist/project-keys/tools.js",
+      "default": "./dist/project-keys/tools.js"
     }
   },
   "files": [

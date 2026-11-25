@@ -750,7 +750,14 @@
       "./pages/tool-registrations": "node",
       "./seo/content-analyzer-plugin/plugin": "node",
       "./posts/agent-tools": "universal",
-      "./posts/content-stats-tool": "node"
+      "./posts/content-stats-tool": "node",
+      "./posts/search-index.memory": "universal",
+      "./publish/trust/revocations.sql": "node",
+      "./site-inspection/agent-tools": "universal",
+      "./trash/site/move-to-trash": "universal",
+      "./trash/site/adapters/member": "universal",
+      "./trash/site/adapters/media": "node",
+      "./trash/site/adapters/post": "node"
     },
     "isolation": {
       "domains": {
@@ -4830,6 +4837,41 @@
       "types": "./dist/posts/content-stats-tool.d.ts",
       "import": "./dist/posts/content-stats-tool.js",
       "default": "./dist/posts/content-stats-tool.js"
+    },
+    "./posts/search-index.memory": {
+      "types": "./dist/posts/search-index.memory.d.ts",
+      "import": "./dist/posts/search-index.memory.js",
+      "default": "./dist/posts/search-index.memory.js"
+    },
+    "./publish/trust/revocations.sql": {
+      "types": "./dist/publish/trust/revocations.sql.d.ts",
+      "import": "./dist/publish/trust/revocations.sql.js",
+      "default": "./dist/publish/trust/revocations.sql.js"
+    },
+    "./site-inspection/agent-tools": {
+      "types": "./dist/site-inspection/agent-tools.d.ts",
+      "import": "./dist/site-inspection/agent-tools.js",
+      "default": "./dist/site-inspection/agent-tools.js"
+    },
+    "./trash/site/move-to-trash": {
+      "types": "./dist/trash/site/move-to-trash.d.ts",
+      "import": "./dist/trash/site/move-to-trash.js",
+      "default": "./dist/trash/site/move-to-trash.js"
+    },
+    "./trash/site/adapters/member": {
+      "types": "./dist/trash/site/adapters/member.d.ts",
+      "import": "./dist/trash/site/adapters/member.js",
+      "default": "./dist/trash/site/adapters/member.js"
+    },
+    "./trash/site/adapters/media": {
+      "types": "./dist/trash/site/adapters/media.d.ts",
+      "import": "./dist/trash/site/adapters/media.js",
+      "default": "./dist/trash/site/adapters/media.js"
+    },
+    "./trash/site/adapters/post": {
+      "types": "./dist/trash/site/adapters/post.d.ts",
+      "import": "./dist/trash/site/adapters/post.js",
+      "default": "./dist/trash/site/adapters/post.js"
     }
   },
   "files": [
