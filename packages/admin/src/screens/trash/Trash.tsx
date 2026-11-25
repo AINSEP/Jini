@@ -25,7 +25,7 @@ import { VIEWER_TIME_ZONE } from "../../shell/lib/viewer-time-zone.js";
  * by the Users title's shared InfoTip pattern, keeping exceptions discoverable with less intro copy.
  */
 
-/** The Trash dictionary bound to one locale — what the Trash rules take as `translate`. */
+/** The Trash dictionary bound to one locale — what `@jini-ai/admin`'s Trash rules take as `translate`. */
 function trashTranslator({ t, locale }: { t: TrashT; locale: string }, _optional = {}): Translate {
   return (key: string): string => t({ locale, key });
 }

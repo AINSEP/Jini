@@ -763,7 +763,8 @@
         "src/media/html-attributes.ts",
         "src/screens/plugins/composer-capabilities.ts",
         "src/screens/plugins/selected-skills.ts",
-        "src/agent-plugins/package-file-tree.ts"
+        "src/agent-plugins/package-file-tree.ts",
+        "src/screens/trash/rules.ts"
       ],
       "forbidden": {
         "universal": [
