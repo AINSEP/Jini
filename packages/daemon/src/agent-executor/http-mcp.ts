@@ -2,7 +2,8 @@ import { randomBytes } from 'node:crypto';
 import type { RuntimeAgentDef } from '@jini-ai/core/contracts/agents';
 import type { RunLifecycle } from '../run-lifecycle.js';
 import type { McpHttpEndpoint, McpJsonInjectionOptions } from './contracts.js';
-import { prepareClaudeHttpMcpConfig } from './claude/mcp-config.js';
+import type { AgentRuntimeStrategies } from '../ports/agent-runtime.js';
+import { JINI_MCP_SERVER_KEY } from './mcp-json-file.js';
 import { supportsMessageRelay } from './message-relay.js';
 
 /** Owned transport resources; cleanup is idempotent and also armed on cancellation/termination. */
@@ -48,12 +49,12 @@ function httpLaunchOptions({ def, runId, injection }: {
 }
 
 /** Claude's path is staged before argv; other vendors use their existing env/home carriers. */
-async function stageHttpConfig({ cwd, def, injection, endpoint, inheritUserMcp }: {
-  cwd: string; def: RuntimeAgentDef; injection: McpJsonInjectionOptions;
+async function stageHttpConfig({ cwd, mcpConfigFile, injection, endpoint, inheritUserMcp }: {
+  cwd: string; mcpConfigFile: AgentRuntimeStrategies['mcpConfigFile']; injection: McpJsonInjectionOptions;
   endpoint: McpHttpEndpoint; inheritUserMcp: boolean;
 }): Promise<{ mcpJsonPath?: string; cleanupConfig?: () => Promise<void> }> {
-  if (def.externalMcpInjection !== 'claude-mcp-json') return {};
-  const config = await prepareClaudeHttpMcpConfig({ cwd, endpoint }, { inheritUserMcp,
+  if (mcpConfigFile === undefined) return {};
+  const config = await mcpConfigFile.prepareHttp({ cwd, endpoint, serverName: JINI_MCP_SERVER_KEY }, { inheritUserMcp,
     ...(injection.readFile ? { readFile: injection.readFile } : {}),
   });
   return { mcpJsonPath: config.path, cleanupConfig: config.cleanup };
@@ -70,8 +71,8 @@ function stdioFallback(injection: McpJsonInjectionOptions | undefined, reason: s
  * @throws Configuration staging errors after closing the endpoint; never retries dispatched work.
  * @complexity O(config bytes) for Claude; O(1) otherwise, plus the injected host preparation.
  */
-export async function prepareHttpMcpForRun({ runId, cwd, def, lifecycle, injection, inheritUserMcp = true }: {
-  runId: string; cwd: string; def: RuntimeAgentDef; lifecycle: RunLifecycle;
+export async function prepareHttpMcpForRun({ runId, cwd, def, lifecycle, injection, mcpConfigFile, inheritUserMcp = true }: {
+  runId: string; cwd: string; def: RuntimeAgentDef; lifecycle: RunLifecycle; mcpConfigFile?: AgentRuntimeStrategies['mcpConfigFile'];
   injection: McpJsonInjectionOptions | undefined; inheritUserMcp?: boolean;
 }, _options = {}): Promise<PreparedHttpMcp | null> {
   if (!injection?.prepareHttp || !def.externalMcpInjection) return stdioFallback(injection, 'HTTP preparation is unavailable');
@@ -90,7 +91,7 @@ export async function prepareHttpMcpForRun({ runId, cwd, def, lifecycle, injecti
     return fallback;
   }
   try {
-    const config = await stageHttpConfig({ cwd, def, injection, endpoint, inheritUserMcp });
+    const config = await stageHttpConfig({ cwd, mcpConfigFile, injection, endpoint, inheritUserMcp });
     const cleanup = watchEndpoint({ endpoint, lifecycle, runId, ...config });
     return { endpoint, ...(config.mcpJsonPath ? { mcpJsonPath: config.mcpJsonPath } : {}), cleanup };
   } catch (error) { await endpoint.close({}); throw error; }

@@ -1,6 +1,6 @@
 import { createAgentRuntimeBindings, createNativeAgentRuntime, type AgentRuntimeState } from '@jini-ai/agent-runtime';
 import type { RuntimeAgentDef } from '@jini-ai/core/contracts/agents';
-import type { AgentRuntimePort } from '../../ports/agent-runtime.js';
+import type { AgentRuntimePort, AgentRuntimeStrategies } from '../../ports/agent-runtime.js';
 import type { ProcessSnapshot, RuntimePlatform, StopProcessesResult } from '@jini-ai/core/contracts/runtime';
 import { nodeAtomicWriter, nodeFileLock, nodeProcessControl } from './node-os-ports.js';
 import { createSpawnPort, nodeCommandShell, nodeSpawnPort, type SpawnFunction } from '@jini-ai/node-adapters/process';
@@ -118,6 +118,17 @@ export function agentRuntimeFixture(script: AgentRuntimeScript = {}, optional: {
 export function boundMcpDelivery(required: Pick<RuntimeAgentDef, 'externalMcpInjection'>, _optional: Record<string, never> = {}): { mcpDelivery?: NonNullable<ReturnType<AgentRuntimePort['strategies']['for']>['mcpDelivery']> } {
   const mcpDelivery = agentRuntimeFixture().strategies.for({ def: required as RuntimeAgentDef }).mcpDelivery;
   return mcpDelivery === undefined ? {} : { mcpDelivery };
+}
+
+/** The scratch config-dir slot the production binding supplies for a def (absent for any def that does not bind one). */
+export function boundConfigDir(required: Pick<RuntimeAgentDef, 'id'>, _optional: Record<string, never> = {}): { configDir: AgentRuntimeStrategies['configDir'] } {
+  return { configDir: agentRuntimeFixture().strategies.for({ def: required as RuntimeAgentDef }).configDir };
+}
+
+/** The run-scoped MCP config-file slot the production binding supplies for a strategy (the JSON-config-file one by default). */
+export function boundMcpConfigFile(required: Pick<RuntimeAgentDef, 'externalMcpInjection'> = { externalMcpInjection: 'claude-mcp-json' }, _optional: Record<string, never> = {}): { mcpConfigFile?: NonNullable<AgentRuntimeStrategies['mcpConfigFile']> } {
+  const mcpConfigFile = agentRuntimeFixture().strategies.for({ def: required as RuntimeAgentDef }).mcpConfigFile;
+  return mcpConfigFile === undefined ? {} : { mcpConfigFile };
 }
 
 /** The MCP bridge-preparation slot the production binding supplies for a def, as the launcher passes it to the bridge. */

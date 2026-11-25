@@ -3,7 +3,7 @@ import { mkdtemp, mkdir, readFile, readdir, rm, stat, writeFile } from 'node:fs/
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, expect, it } from 'vitest';
-import { prepareClaudeSubagentStartSettings } from '../subagent-start.js';
+import { prepareClaudeSubagentStartSettings } from '../claude/subagent-start.js';
 
 const scratch = await mkdtemp(join(tmpdir(), 'jini-subagent-start-'));
 afterAll(() => rm(scratch, { recursive: true, force: true }));

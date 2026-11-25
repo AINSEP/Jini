@@ -1,3 +1,4 @@
+import { boundMcpConfigFile } from './runtime-fixture.js';
 import { access } from 'node:fs/promises';
 import { afterEach, expect, it, vi } from 'vitest';
 import { getAgentDef } from '@jini-ai/agent-runtime';
@@ -15,7 +16,7 @@ afterEach(() => warn.mockClear());
 async function fixture(prepareHttp: NonNullable<import('../contracts.js').McpJsonInjectionOptions['prepareHttp']>, runtime = def, httpPolicy?: 'required') {
   const lifecycle = createRunLifecycle({ eventLog: createInMemoryEventLog({}) });
   const { run } = await lifecycle.start({ contextRef: 'http' });
-  const prepared = await prepareHttpMcpForRun({ runId: run.id, cwd: '/fixture', def: runtime, lifecycle,
+  const prepared = await prepareHttpMcpForRun({ ...boundMcpConfigFile(), runId: run.id, cwd: '/fixture', def: runtime, lifecycle,
     injection: { command: 'stdio-fallback', daemonUrl: 'http://daemon.invalid', prepareHttp, ...(httpPolicy ? { httpPolicy } : {}) } });
   return { prepared, lifecycle, runId: run.id };
 }
@@ -89,7 +90,7 @@ it.each(['missing preparation', 'unsupported runtime', 'listener failure'])('req
   const lifecycle = createRunLifecycle({ eventLog: createInMemoryEventLog({}) });
   const { run } = await lifecycle.start({ contextRef: 'required-http' });
   const prepare = vi.fn(async () => { throw new Error('private listener details'); });
-  await expect(prepareHttpMcpForRun({ runId: run.id, cwd: '/fixture', def: scenario === 'unsupported runtime' ? { ...def, mcpHttp: false } : def,
+  await expect(prepareHttpMcpForRun({ ...boundMcpConfigFile(), runId: run.id, cwd: '/fixture', def: scenario === 'unsupported runtime' ? { ...def, mcpHttp: false } : def,
     lifecycle, injection: { command: 'stdio', daemonUrl: 'http://daemon.invalid', httpPolicy: 'required',
       ...(scenario === 'missing preparation' ? {} : { prepareHttp: prepare }) } })).rejects.toThrow(/HTTP.*required/i);
   expect(warn.mock.calls.flat().join(' ')).not.toContain('private');
