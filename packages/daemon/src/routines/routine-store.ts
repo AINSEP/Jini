@@ -133,6 +133,51 @@ function cloneRoutine(routine: Routine): Routine {
 }
 
 /**
+ * The initial `Routine` for a create call: caller-omitted optional fields take their documented
+ * defaults, and `nextRunAt`/`lastRun` start empty (the scheduler and run history own them).
+ */
+function buildRoutine({ input, id, createdAt }: { readonly input: RoutineCreateInput; readonly id: string; readonly createdAt: number }): Routine {
+  return {
+    id,
+    name: input.name,
+    prompt: input.prompt,
+    schedule: input.schedule,
+    target: input.target,
+    skillId: input.skillId ?? null,
+    agentId: input.agentId ?? null,
+    context: input.context ?? {},
+    enabled: input.enabled ?? true,
+    nextRunAt: null,
+    lastRun: null,
+    createdAt: createdAt,
+    updatedAt: createdAt,
+  };
+}
+
+/** Applies only the fields the patch supplies (`undefined` means untouched, `null` clears), and stamps `updatedAt`. */
+function applyRoutinePatch({ existing, patch, updatedAt }: { readonly existing: Routine; readonly patch: RoutineUpdateInput; readonly updatedAt: number }): Routine {
+  return {
+    ...existing,
+    ...(patch.name !== undefined ? { name: patch.name } : {}),
+    ...(patch.prompt !== undefined ? { prompt: patch.prompt } : {}),
+    ...(patch.schedule !== undefined ? { schedule: patch.schedule } : {}),
+    ...(patch.target !== undefined ? { target: patch.target } : {}),
+    ...(patch.skillId !== undefined ? { skillId: patch.skillId } : {}),
+    ...(patch.agentId !== undefined ? { agentId: patch.agentId } : {}),
+    ...(patch.context !== undefined ? { context: patch.context } : {}),
+    ...(patch.enabled !== undefined ? { enabled: patch.enabled } : {}),
+    updatedAt,
+  };
+}
+
+/** A routine's runs, newest first; ties break by id so the order is deterministic. */
+function runsForRoutine({ runs, routineId }: { readonly runs: readonly RoutineRun[]; readonly routineId: string }): RoutineRun[] {
+  return runs
+    .filter((run) => run.routineId === routineId)
+    .sort((a, b) => b.startedAt - a.startedAt || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
+}
+
+/**
  * Reference `RoutineStore` implementation: an in-process `Map` of routines plus a flat array of
  * runs, no durable copy — matching `createInMemoryEventLog`'s own scope (a real persistent
  * adapter is the storage owner's job).
@@ -146,14 +191,8 @@ export function createInMemoryRoutineStore(_requiredArgs: Record<string, never>,
   const routines = new Map<string, Routine>();
   const runs: RoutineRun[] = [];
 
-  function runsFor(routineId: string): RoutineRun[] {
-    return runs
-      .filter((run) => run.routineId === routineId)
-      .sort((a, b) => b.startedAt - a.startedAt || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
-  }
-
   async function withLastRun(routine: Routine): Promise<Routine> {
-    const latest = runsFor(routine.id)[0] ?? null;
+    const latest = runsForRoutine({ runs, routineId: routine.id })[0] ?? null;
     return { ...cloneRoutine(routine), lastRun: summarizeLastRun({ run: latest }) };
   }
 
@@ -169,23 +208,8 @@ export function createInMemoryRoutineStore(_requiredArgs: Record<string, never>,
     },
 
     async create(requiredArgs: Pick<RoutineCreateInput, "name" | "prompt" | "schedule" | "target">, optionalArgs: Pick<RoutineCreateInput, "skillId" | "agentId" | "context" | "enabled"> = {}): Promise<Routine> {
-      const input: RoutineCreateInput = { ...requiredArgs, ...optionalArgs };
       const createdAt = now();
-      const routine: Routine = {
-        id: `routine-${newId()}`,
-        name: input.name,
-        prompt: input.prompt,
-        schedule: input.schedule,
-        target: input.target,
-        skillId: input.skillId ?? null,
-        agentId: input.agentId ?? null,
-        context: input.context ?? {},
-        enabled: input.enabled ?? true,
-        nextRunAt: null,
-        lastRun: null,
-        createdAt: createdAt,
-        updatedAt: createdAt,
-      };
+      const routine = buildRoutine({ input: { ...requiredArgs, ...optionalArgs }, id: `routine-${newId()}`, createdAt });
       routines.set(routine.id, routine);
       return withLastRun(routine);
     },
@@ -193,18 +217,7 @@ export function createInMemoryRoutineStore(_requiredArgs: Record<string, never>,
     async update({ id, patch }: { readonly id: string; readonly patch: RoutineUpdateInput }): Promise<Routine | null> {
       const existing = routines.get(id);
       if (!existing) return null;
-      const updated: Routine = {
-        ...existing,
-        ...(patch.name !== undefined ? { name: patch.name } : {}),
-        ...(patch.prompt !== undefined ? { prompt: patch.prompt } : {}),
-        ...(patch.schedule !== undefined ? { schedule: patch.schedule } : {}),
-        ...(patch.target !== undefined ? { target: patch.target } : {}),
-        ...(patch.skillId !== undefined ? { skillId: patch.skillId } : {}),
-        ...(patch.agentId !== undefined ? { agentId: patch.agentId } : {}),
-        ...(patch.context !== undefined ? { context: patch.context } : {}),
-        ...(patch.enabled !== undefined ? { enabled: patch.enabled } : {}),
-        updatedAt: now(),
-      };
+      const updated = applyRoutinePatch({ existing, patch, updatedAt: now() });
       routines.set(id, updated);
       return withLastRun(updated);
     },
@@ -214,11 +227,11 @@ export function createInMemoryRoutineStore(_requiredArgs: Record<string, never>,
     },
 
     async listRuns({ routineId, limit }: { readonly routineId: string; readonly limit: number }, optional: { readonly cursor?: string | null } = {}): Promise<ListPage<RoutineRun>> {
-      return pageFromArray({ rows: runsFor(routineId), limit, cursor: optional.cursor ?? null, positionOf: (run) => [-run.startedAt, run.id], shape: ['number', 'string'] });
+      return pageFromArray({ rows: runsForRoutine({ runs, routineId }), limit, cursor: optional.cursor ?? null, positionOf: (run) => [-run.startedAt, run.id], shape: ['number', 'string'] });
     },
 
     async getLatestRun({ routineId }: { readonly routineId: string }): Promise<RoutineRun | null> {
-      return runsFor(routineId)[0] ?? null;
+      return runsForRoutine({ runs, routineId })[0] ?? null;
     },
 
     recordRun({ run }: { readonly run: RoutineRun }): boolean {

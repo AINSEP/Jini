@@ -45,4 +45,18 @@ describe('withAiTracing(RunLifecycle)', () => {
     await traced.start({ contextRef: 'c' }, { agentId: 'a', idempotencyKey: 'k' });
     expect(sink.events.filter((e) => e.kind === 'run_started')).toHaveLength(1);
   });
+  it('metadata capture records only allow-listed fields: no prompt, tool input, tool output or streamed text', async () => {
+    const { sink, traced } = tracedLifecycle('metadata');
+    const { run } = await traced.start({ contextRef: 'chat-9' }, { agentId: 'claude' });
+    traced.noteRunInput({ runId: run.id, input: 'SECRET-PROMPT' });
+    const emit = (data: Record<string, unknown>) => traced.emit({ runId: run.id, input: { event: 'agent', data: data as never } });
+    await emit({ type: 'status', label: 'starting_model', model: 'claude-sonnet-4-5' });
+    await emit({ type: 'tool_use', id: 't1', name: 'content_post_create', input: { body: 'SECRET-INPUT' } });
+    await emit({ type: 'tool_result', toolUseId: 't1', content: 'SECRET-OUTPUT', isError: false });
+    await emit({ type: 'text_delta', delta: 'SECRET-ANSWER' });
+    await traced.finish({ runId: run.id, status: 'succeeded', code: 0, signal: null, resumable: false });
+
+    expect(sink.events.map((e) => e.kind)).toContain('run_finished');
+    expect(JSON.stringify(sink.events)).not.toMatch(/SECRET/);
+  });
 });

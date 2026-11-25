@@ -350,6 +350,55 @@ export class RoutineService {
     }
   }
 
+  /**
+   * The single async frame of one routine run: handler call, row claim, prepare, completion wiring
+   * and start. Kept as one async method (the former inline IIFE) so the microtask ordering that
+   * callers observe is unchanged.
+   */
+  private async executeRun(
+    { routine, trigger, startedAt, runId }: { readonly routine: Routine; readonly trigger: RoutineRunTrigger; readonly startedAt: number; readonly runId: string },
+    options: { scheduledSlotAt?: number },
+  ): Promise<RoutineRunHandlerStart> {
+    const handler = this.runHandler;
+    if (!handler) throw new Error('Routine run handler is not configured');
+    const handlerStart = await handler({ routine, trigger, startedAt, runId });
+    const run: RoutineRun = {
+      id: runId,
+      routineId: routine.id,
+      trigger,
+      status: 'running',
+      projectId: handlerStart.projectId,
+      conversationId: handlerStart.conversationId,
+      agentRunId: handlerStart.agentRunId,
+      startedAt,
+      completedAt: null,
+      summary: null,
+      error: null,
+      errorCode: null,
+    };
+    const attempt: RoutineRunAttempt = {
+      routine,
+      run,
+      runId,
+      handlerStart,
+      scheduledSlotAt: options.scheduledSlotAt,
+      insertOptions: options,
+    };
+    if (!this.claimRunRow(attempt)) return handlerStart;
+    // `await` stays inline here rather than moving into a helper: wrapping it in an extra async
+    // frame would add microtask ticks that callers observe.
+    try {
+      await handlerStart.prepare?.(run);
+      this.persistPreparedIds(attempt);
+    } catch (error) {
+      this.finalizeUnpreparedRun(attempt, error);
+      throw error;
+    }
+    this.wireRunCompletion(attempt);
+    this.startPreparedRun(attempt);
+    return handlerStart;
+  }
+
   private async start_(
     routineId: string,
     trigger: RoutineRunTrigger,
@@ -364,46 +413,7 @@ export class RoutineService {
 
     const startedAt = this.now();
     const runId = `routine-run-${this.newId()}`;
-    const promise = (async () => {
-      const handler = this.runHandler;
-      if (!handler) throw new Error('Routine run handler is not configured');
-      const handlerStart = await handler({ routine, trigger, startedAt, runId });
-      const run: RoutineRun = {
-        id: runId,
-        routineId: routine.id,
-        trigger,
-        status: 'running',
-        projectId: handlerStart.projectId,
-        conversationId: handlerStart.conversationId,
-        agentRunId: handlerStart.agentRunId,
-        startedAt,
-        completedAt: null,
-        summary: null,
-        error: null,
-        errorCode: null,
-      };
-      const attempt: RoutineRunAttempt = {
-        routine,
-        run,
-        runId,
-        handlerStart,
-        scheduledSlotAt: options.scheduledSlotAt,
-        insertOptions: options,
-      };
-      if (!this.claimRunRow(attempt)) return handlerStart;
-      // `await` stays inline here rather than moving into a helper: wrapping it in an extra async
-      // frame would add microtask ticks that callers observe.
-      try {
-        await handlerStart.prepare?.(run);
-        this.persistPreparedIds(attempt);
-      } catch (error) {
-        this.finalizeUnpreparedRun(attempt, error);
-        throw error;
-      }
-      this.wireRunCompletion(attempt);
-      this.startPreparedRun(attempt);
-      return handlerStart;
-    })();
+    const promise = this.executeRun({ routine, trigger, startedAt, runId }, options);
     this.inflight.set(routineId, promise);
     // The trailing `finally(...)` returns a new promise that mirrors the original rejection;
     // without `.catch` it would surface as an unhandled rejection (fatal in modern Node) when the

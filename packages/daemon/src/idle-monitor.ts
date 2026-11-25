@@ -10,6 +10,17 @@ export interface IdleMonitor {
 }
 
 /**
+ * Pure idle decision for one observation: busy discards idle credit, an idle observation starts
+ * (or keeps) the interval, and `remainingMs` is what is left of it. No clock or scheduler access.
+ */
+function decideIdle(
+  { now, busy, idleSince, idleMs }: { readonly now: number; readonly busy: boolean; readonly idleSince: number | undefined; readonly idleMs: number },
+): { readonly idleSince: number | undefined; readonly remainingMs: number } {
+  const since = busy ? undefined : idleSince ?? now;
+  return { idleSince: since, remainingMs: since === undefined ? idleMs : idleMs - (now - since) };
+}
+
+/**
  * Observe host busy state immediately, scheduling polls at most 1s ahead; fire once after a full
  * observed idle interval. Busy observations discard idle credit; the next idle
  * observation starts a new interval. acquire() also records activity between observations.
@@ -46,10 +57,9 @@ export function createIdleMonitor(
   // The host owns parking; this callback only observes state and reports idle.
   const observe = (): void => {
     if (stopped) return;
-    const now = clock.nowMs();
-    if (active > 0 || isBusy()) idleSince = undefined;
-    else idleSince ??= now;
-    const remainingMs = idleSince === undefined ? idleMs : idleMs - (now - idleSince);
+    const decision = decideIdle({ now: clock.nowMs(), busy: active > 0 || isBusy(), idleSince, idleMs });
+    idleSince = decision.idleSince;
+    const { remainingMs } = decision;
     if (remainingMs <= 0) {
       stop();
       onIdle();
