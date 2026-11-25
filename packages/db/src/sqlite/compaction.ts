@@ -220,21 +220,17 @@ type StepOptional = { maxPages?: number; minFreeRatio?: number; minFreeBytes?: n
  * @complexity O(maxPages) page moves; two metadata reads before and after.
  */
 export async function incrementalVacuumStep(required: StepRequired, _optional: StepOptional = {}): Promise<SqliteVacuumStepOutcome> {
-  const { maxPages = 2048, minFreeRatio = 0.2, minFreeBytes = 8 * MiB, busyTimeoutMs = 250 } = _optional;
   const { db, filePath, marker, fs: io, mono } = required;
   if (db.inTransaction) throw new Error('incrementalVacuumStep must run outside a transaction.');
-  const recorded = await marker.read();
-  const converted = recorded?.state === 'converted' && recorded.identity === await io.identity(filePath);
-  if (!converted || db.pragma('auto_vacuum', { simple: true }) !== AUTO_VACUUM_INCREMENTAL) {
+  if (!(await isConvertedHere({ db, filePath, marker, io }))) {
     return { status: 'skipped', reason: 'not-converted', message: COMPACTION_MESSAGES.notConverted };
   }
   const before = await measure({ db, filePath, io });
-  const pageCount = Number(db.pragma('page_count', { simple: true }));
-  if (before.freePages === 0 || (before.freePages * before.pageSize < minFreeBytes && before.freePages / pageCount < minFreeRatio)) {
+  if (!worthReclaiming({ db, before, ..._optional })) {
     return { status: 'skipped', reason: 'nothing-to-reclaim', message: COMPACTION_MESSAGES.nothingToReclaim, before };
   }
   const started = mono();
-  if (!runBoundedVacuum({ db, maxPages, busyTimeoutMs })) return { status: 'skipped', reason: 'busy', message: COMPACTION_MESSAGES.busy, before };
+  if (!runBoundedVacuum({ db, ..._optional })) return { status: 'skipped', reason: 'busy', message: COMPACTION_MESSAGES.busy, before };
   const after = await measure({ db, filePath, io });
   return {
     status: 'reclaimed', before, after, elapsedMs: mono() - started,
@@ -242,8 +238,26 @@ export async function incrementalVacuumStep(required: StepRequired, _optional: S
   };
 }
 
+/** Converted under THIS file's identity (a restored or replaced file does not inherit it) and `auto_vacuum` reads 2. */
+async function isConvertedHere(
+  { db, filePath, marker, io }: { db: SqliteDb; filePath: string; marker: SqliteCompactionMarkerStore; io: SqliteCompactionFs },
+): Promise<boolean> {
+  const recorded = await marker.read();
+  if (recorded?.state !== 'converted' || recorded.identity !== await io.identity(filePath)) return false;
+  return db.pragma('auto_vacuum', { simple: true }) === AUTO_VACUUM_INCREMENTAL;
+}
+
+/** False when there are no free pages, or free space is below BOTH the byte and the ratio threshold. */
+function worthReclaiming(
+  { db, before, minFreeRatio = 0.2, minFreeBytes = 8 * MiB }: { db: SqliteDb; before: SqliteFileSizes; minFreeRatio?: number; minFreeBytes?: number },
+): boolean {
+  if (before.freePages === 0) return false;
+  const pageCount = Number(db.pragma('page_count', { simple: true }));
+  return before.freePages * before.pageSize >= minFreeBytes || before.freePages / pageCount >= minFreeRatio;
+}
+
 /** False when SQLite reported busy/locked. The handle's prior busy timeout is restored either way. */
-function runBoundedVacuum({ db, maxPages, busyTimeoutMs }: { db: SqliteDb; maxPages: number; busyTimeoutMs: number }): boolean {
+function runBoundedVacuum({ db, maxPages = 2048, busyTimeoutMs = 250 }: { db: SqliteDb; maxPages?: number; busyTimeoutMs?: number }): boolean {
   const previousTimeout = db.pragma('busy_timeout', { simple: true });
   db.pragma(`busy_timeout = ${Math.max(0, Math.floor(busyTimeoutMs))}`);
   try {

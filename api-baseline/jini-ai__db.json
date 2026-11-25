@@ -350,6 +350,7 @@
  "./sqlite": {
   "types": "./dist/sqlite/index.d.ts",
   "symbols": {
+   "COMPACTION_MESSAGES": "variable:367bf94f32",
    "CheckedSqliteClient": "interface:17573e7ab1",
    "DATABASE_COPY_RETENTION": "variable:0881a47be9",
    "DEFAULT_PRAGMAS": "variable:45459e26c9",
@@ -372,7 +373,10 @@
    "assertDatabaseCopySpace": "function:08ccc46f36",
    "assertSqliteStopped": "function:32f44e8b3b",
    "checkpointStoppedSqliteWal": "function:8a26a37aed",
+   "compactionRecoveryCopyPath": "function:48cd43cc86",
+   "convertToIncrementalVacuum": "function:e7baaa0102",
    "createCheckedSqliteClient": "function:2bebb25e9a",
+   "incrementalVacuumStep": "function:424306eb3b",
    "inspectSqliteDatabase": "function:095239dc8b",
    "inspectStoppedSqlite": "function:4bf4efadff",
    "openSqliteConnection": "function:b1fd8e4121",
