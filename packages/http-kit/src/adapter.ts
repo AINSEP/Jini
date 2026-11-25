@@ -4,7 +4,8 @@
  * file in the module that knows about Express `req`/`res` on the mounting side.
  */
 import type { Express, Request, Response } from 'express';
-import { ClientFacingError, isRouteReply, payloadTooLargeError, statusForError, type JsonRouteAuthorize, type RouteReply, type Result, type RouteHostInternalErrorContext, type RouteHostContext, type RouteInputContext, type ServerApiError } from '@jini-ai/core/contracts/server';
+import { ClientFacingError, guardSameOrigin, isRouteReply, payloadTooLargeError, statusForError, type JsonRouteAuthorize, type RouteReply, type Result, type RouteHostInternalErrorContext, type RouteErrorPorts, type RouteHostContext, type RouteInputContext, type ServerApiError } from '@jini-ai/core/contracts/server';
+import { runOperation, UNAVAILABLE_ERROR_ID, type DescribedFailure, type ErrorReporter, type OperationVerdict } from '@jini-ai/core/errors/reporter';
 import { reportRouteInternalError } from './internal-error.js';
 import { rawInput } from './request.js';
 import { sendApiError, sendJson } from './response.js';
@@ -328,12 +329,19 @@ export function allowRouteBody({ req, res, spec }: {
   readonly res: Response;
   readonly spec: Pick<JsonRouteSpec<unknown, unknown, unknown>, 'maxBodyBytes'>;
 }, _optional: Record<string, never> = {}): boolean {
-  const maxBytes = spec.maxBodyBytes;
-  if (maxBytes === undefined || req.method === 'GET' || req.method === 'HEAD') return true;
-  if (parsedBodyBytes(req.body) <= maxBytes) return true;
-  const error = payloadTooLargeError({ maxBytes });
+  const error = routeBodyRefusal({ req, spec });
+  if (!error) return true;
   sendApiError({ res, status: statusForError({ error }), error });
   return false;
+}
+
+/** The body-cap decision of {@link allowRouteBody} without the write, so reporter mode can end the
+ *  operation before the 413 goes out. `undefined` admits the request. */
+function routeBodyRefusal({ req, spec }: { readonly req: Request; readonly spec: Pick<JsonRouteSpec<unknown, unknown, unknown>, 'maxBodyBytes'> }): ServerApiError | undefined {
+  const maxBytes = spec.maxBodyBytes;
+  if (maxBytes === undefined || req.method === 'GET' || req.method === 'HEAD') return undefined;
+  if (parsedBodyBytes(req.body) <= maxBytes) return undefined;
+  return payloadTooLargeError({ maxBytes });
 }
 
 /**
@@ -367,34 +375,53 @@ export function allowRouteOrigin({ req, res, spec, adapter }: {
   return passesSameOriginGuard({ req, res, origin: adapter });
 }
 
-function sendRouteResult<Output>({ res, result, spec, signal }: {
+/** The same-origin decision without the write (`passesSameOriginGuard` writes the 403 itself), so
+ *  the adapter owns that write and can make it after the operation ended. `undefined` admits. */
+function routeOriginRefusal({ req, spec, adapter }: {
+  readonly req: Request;
+  readonly spec: Pick<JsonRouteSpec<unknown, unknown, unknown>, 'requireSameOrigin'>;
+  readonly adapter: RouteHostContext | undefined;
+}): ServerApiError | undefined {
+  if (!spec.requireSameOrigin) return undefined;
+  if (!adapter) throw new Error('same-origin adapter context is required');
+  const verdict = guardSameOrigin({ req, origin: adapter });
+  return verdict.ok ? undefined : verdict.error;
+}
+
+function routeResultAnswer<Output>({ res, result, spec, signal }: {
   readonly res: Response;
   readonly result: Result<Output>;
   readonly spec: { readonly successStatus: number | undefined; readonly onReturnedError: JsonRoutePorts<unknown>['onReturnedError'] };
   readonly signal: AbortSignal;
-}, _optional: Record<string, never> = {}): void {
-  // `signal` can only have been aborted by `onResponseClose` firing while the
-  // `await spec.handle` in `parseHandleAndSend` was pending — nothing here runs concurrently
-  // with it — so this unambiguously means the client was already gone before any response was
-  // sent. Writing one now would be wasted work at best and, worse, would route a benign
-  // disconnect into the SEC-005 catch as a false internal error if the socket rejects the write.
-  if (signal.aborted) return;
-  if (!result.ok) {
-    sendReturnedFailure({ res, onReturnedError: spec.onReturnedError, error: result.error, phase: 'handle' });
-    return;
-  }
-  if (isRouteReply(result.value)) {
-    sendRouteReply({ res, reply: result.value });
-    return;
-  }
+}, _optional: Record<string, never> = {}): ExpressAnswer {
+  // `signal` can only have been aborted by `onResponseClose` firing while the `await spec.handle`
+  // in `serveExpressRoute` was pending — nothing here runs concurrently with it — so this
+  // unambiguously means the client was already gone before any response was sent. Writing one now
+  // would be wasted work at best and, worse, would route a benign disconnect into the SEC-005
+  // catch as a false internal error if the socket rejects the write.
+  if (signal.aborted) return answer({ verdict: { outcome: 'cancelled', failed: false }, status: CLIENT_CLOSED_STATUS, write: noWrite });
+  if (!result.ok) return returnedFailureAnswer({ res, onReturnedError: spec.onReturnedError, error: result.error, phase: 'handle' });
+  const value = result.value;
+  if (isRouteReply(value)) return answer({ verdict: COMPLETED, status: value.status, write: () => sendRouteReply({ res, reply: value }) });
   const status = spec.successStatus ?? 200;
   // A no-content status forbids a body: end the response instead of serializing `result.value`
   // through `res.json`, matching hand-mounted handlers that answered `res.status(204).end()`.
-  if (NO_CONTENT_STATUSES.has(status)) {
-    res.status(status).end();
-    return;
-  }
-  sendJson({ res, status, body: result.value });
+  if (NO_CONTENT_STATUSES.has(status)) return answer({ verdict: COMPLETED, status, write: () => { res.status(status).end(); } });
+  return answer({ verdict: COMPLETED, status, write: () => sendJson({ res, status, body: value }) });
+}
+
+/**
+ * A returned parse/handle failure. It is classified here, from the core status, BEFORE the host's
+ * `onReturnedError` shapes the wire: that port only chooses the bytes, never the verdict, so a
+ * host that re-maps the status cannot turn a producer-reported `INTERNAL_ERROR` into a refusal.
+ */
+function returnedFailureAnswer({ res, onReturnedError, error, phase }: {
+  readonly res: Response;
+  readonly onReturnedError: JsonRoutePorts<unknown>['onReturnedError'];
+  readonly error: ServerApiError;
+  readonly phase: 'parse' | 'handle';
+}): ExpressAnswer {
+  return answer({ verdict: verdictFor({ apiError: error }), status: statusForError({ error }), write: () => sendReturnedFailure({ res, onReturnedError, error, phase }) });
 }
 
 /**

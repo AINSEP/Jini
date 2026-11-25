@@ -14,6 +14,7 @@ export { defineJsonRoute, mountJsonRoute } from './adapter.js';
 export { defineRawRoute, mountRawRoute } from './raw-route.js';
 export type { RouteInternalErrorContext, RouteInternalErrorSink } from './internal-error.js';
 export { reportRouteInternalError } from './internal-error.js';
+export { createReporterRouteInternalError } from './reporter-internal-error.js';
 export type { InstallRouteRegistrationGuardOptions, RouteRegistration } from './route-registration-guard.js';
 export {
   getRouteRegistrationInventory,
