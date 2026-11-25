@@ -7,13 +7,17 @@ import {
   OriginRegistry,
 } from "@jini-ai/core/contracts/server/verified-origin";
 import { InMemoryOutbox } from "./support/events.fixture.js";
+import { REDIRECT_ENTITY_TYPE, removeEntityWithoutBlocker } from "./support/trash.fixture.js";
+import { createRecordStoreTrashAdapter, createTrashService, InMemoryTrashRepo } from "../../trash/index.js";
 import { redirectMatcher } from "../matcher.js";
+import { DYNAMIC_SET_LIMIT } from "../resolver.js";
 import { InMemoryRedirectRepo } from "../repo.memory.js";
 import {
   checkRedirectFieldsWouldWrite,
   createRedirect,
   importRedirects,
   siteRelativeTargetReason,
+  tombstoneRedirect,
   updateRedirect,
   type RedirectsWriteDeps,
 } from "../redirects.js";
@@ -298,4 +302,136 @@ test("an intervening redirect edit cannot pass the version-gated write", async (
   // The losing writer leaves no revision and no success event behind.
   assert.deepEqual(repo.listRevisionsForTests({ redirectId: "dest" }).map((rev) => [rev.seq, rev.actorId]), [[2, "first-writer"]]);
   assert.deepEqual(await pendingEvents(deps), ["redirect.updated:dest"]);
+});
+
+/** Holds the first `insertRedirect` made after `arm()` until `release` settles — i.e. after that
+ *  writer's validation has returned and before its row lands. Seeding before `arm()` is not held. */
+class PausingFirstWriteRepo extends InMemoryRedirectRepo {
+  private armed = false;
+  constructor(private readonly gate: { paused: () => void; release: Promise<void> }) { super(); }
+  arm(): void { this.armed = true; }
+  override async insertRedirect(row: RedirectRecord): Promise<void> {
+    if (this.armed) { this.armed = false; this.gate.paused(); await this.gate.release; }
+    return super.insertRedirect(row);
+  }
+}
+
+/** Every active exact rule's `from -> to` edge, sorted, so a stored cycle is visible in one assertion. */
+async function activeExactEdges(repo: InMemoryRedirectRepo): Promise<string[]> {
+  const rows = await repo.list({ workspaceId: WORKSPACE_ID });
+  return rows.filter((row) => row.status === "active" && row.matchType === "exact").map((row) => `${row.fromPattern}->${row.toTarget}`).sort();
+}
+
+// B270. Both rules start disabled, so neither write collapses through the other on the OLD graph:
+// validated against it, /a -> /b and /b -> /a would each be stored uncollapsed, closing a cycle.
+test("a redirect validated against an old graph cannot commit a cycle introduced by an intervening write", async () => {
+  const firstPaused = deferred();
+  const releaseFirst = deferred();
+  const repo = new PausingFirstWriteRepo({ paused: firstPaused.resolve, release: releaseFirst.promise });
+  await repo.insertRedirect(record({ id: "a", fromPattern: "/a", toTarget: "/x", status: "disabled" }));
+  await repo.insertRedirect(record({ id: "b", fromPattern: "/b", toTarget: "/y", status: "disabled" }));
+  repo.arm();
+  const lock = writerLock();
+  const deps: RedirectsWriteDeps = { ...makeDeps(repo), transaction: lock.transaction };
+  const enable = (id: string, toTarget: string) =>
+    updateRedirect({ deps, input: { workspaceId: WORKSPACE_ID, id, status: "active", toTarget, actorId: ACTOR_ID } });
+
+  // The first writer has validated /a -> /b (no live /b yet) and is held before its row lands.
+  const first = enable("a", "/b");
+  await firstPaused.promise;
+  const second = enable("b", "/a");
+  const secondSettled = second.then(() => undefined, () => undefined);
+  // Either the second writer queues behind the lock, or it validates against the old graph and commits.
+  await Promise.race([lock.queued, secondSettled]);
+  releaseFirst.resolve();
+  const [firstResult, secondResult] = await Promise.allSettled([first, second]);
+
+  assert.equal(firstResult.status, "fulfilled");
+  assert.ok(secondResult.status === "rejected" && secondResult.reason instanceof RedirectLoopError, "the second writer must see /a -> /b and refuse the loop");
+  assert.deepEqual(await activeExactEdges(repo), ["/a->/b"]);
+  assert.deepEqual(await pendingEvents(deps), ["redirect.updated:a"]);
+});
+
+// B270, create arm. RED today: `createRedirect` runs `validateWriteFields` BEFORE it asks for the
+// writer lock (`persistRedirectWrite` only wraps the insert), so an update that commits between the
+// two is never seen. Kept as a todo, not a failing active test; the body is the reproduction.
+test.todo("a created redirect validated against an old graph cannot commit a cycle introduced by an intervening update", async () => {
+  const repo = new InMemoryRedirectRepo();
+  await repo.insertRedirect(record({ id: "a", fromPattern: "/a", toTarget: "/x", status: "disabled" }));
+  const lock = writerLock();
+  const createValidated = deferred();
+  const releaseCreate = deferred();
+  let gateNext = true;
+  // The create's own transaction call is the first one after its validation returned; hold it there.
+  const gatedTransaction: RedirectsWriteDeps["transaction"] = async (fn) => {
+    if (gateNext) { gateNext = false; createValidated.resolve(); await releaseCreate.promise; }
+    return lock.transaction(fn);
+  };
+  const base = makeDeps(repo);
+  const createDeps: RedirectsWriteDeps = { ...base, transaction: gatedTransaction };
+  const updateDeps: RedirectsWriteDeps = { ...base, transaction: lock.transaction };
+
+  const created = createRedirect({ deps: createDeps, input: { ...fields, fromPattern: "/b", toTarget: "/a", actorId: ACTOR_ID } });
+  await createValidated.promise;
+  // The intervening write: a real update through the same writer lock re-enables /a -> /b.
+  await updateRedirect({ deps: updateDeps, input: { workspaceId: WORKSPACE_ID, id: "a", status: "active", toTarget: "/b", actorId: ACTOR_ID } });
+  releaseCreate.resolve();
+
+  await assert.rejects(created, (err: unknown) => err instanceof RedirectLoopError);
+  assert.deepEqual(await activeExactEdges(repo), ["/a->/b"]);
+});
+
+/** Write deps whose `isInTrash`/`restore` go through ONE real `TrashService` over a record-store
+ *  adapter, wired like `redirects.test.ts`'s `makeDepsWithRealTrash`, so a restore is the real one. */
+function makeDepsWithRealTrash(repo: InMemoryRedirectRepo): { deps: RedirectsWriteDeps; isTrashed: (id: string) => Promise<boolean> } {
+  const trashRepo = new InMemoryTrashRepo({});
+  const adapter = createRecordStoreTrashAdapter<RedirectRecord>({
+    entityType: REDIRECT_ENTITY_TYPE,
+    store: { findById: (required) => repo.findById(required), save: async ({ record: row }) => { await repo.insertRedirect(row); } },
+    isHidden: ({ record: row }) => row.status === "disabled",
+    hidden: ({ record: row, at }) => ({ ...row, status: "disabled", updatedAt: at }),
+    shown: ({ record: row, at }) => ({ ...row, status: "active", updatedAt: at }),
+  });
+  const adapters = new Map([[REDIRECT_ENTITY_TYPE, adapter]]);
+  let trashIds = 0;
+  const trash = createTrashService({
+    repo: trashRepo, adapters, idGen: { newId: () => `trash-${++trashIds}` },
+    transaction: ({ work }) => work(), entityPolicy: ({ entityType }) => adapters.has(entityType),
+  });
+  const isTrashed = async (id: string) =>
+    (await trashRepo.findByEntity({ workspaceId: WORKSPACE_ID, entityType: REDIRECT_ENTITY_TYPE, entityId: id })) !== null;
+  const deps: RedirectsWriteDeps = {
+    ...makeDeps(repo),
+    remove: removeEntityWithoutBlocker({
+      remove: (required: Parameters<RedirectsWriteDeps["remove"]>[0]) => trash.trash({
+        workspaceId: required.workspaceId, entityType: REDIRECT_ENTITY_TYPE, entityId: required.id, actor: required.actor,
+        display: required.display, at: required.at, expectedVersion: required.expectedVersion,
+      }),
+    }),
+    isInTrash: async (required) => isTrashed(required.id),
+    restore: (required) => trash.restore({ workspaceId: required.workspaceId, entityType: REDIRECT_ENTITY_TYPE, entityId: required.id, at: required.at }, { actor: required.actor }),
+  };
+  return { deps, isTrashed };
+}
+
+// B272. RED today: `restoreTrashedRedirect` hands the row straight to `deps.restore` and never runs
+// `requireWildcardCapacity`, so a pure restore re-activates a 501st wildcard rule. Kept as a todo,
+// not a failing active test; the body is the reproduction through the real Trash restore.
+test.todo("restoring a wildcard redirect at capacity leaves it in Trash", async () => {
+  const repo = new InMemoryRedirectRepo();
+  const { deps, isTrashed } = makeDepsWithRealTrash(repo);
+  const { record: wildcard } = await createRedirect({ deps, input: { ...fields, matchType: "wildcard", fromPattern: "/old/*", toTarget: "/new", actorId: ACTOR_ID } });
+  await tombstoneRedirect({ deps, input: { workspaceId: WORKSPACE_ID, id: wildcard.id, actorId: ACTOR_ID } });
+  for (let i = 0; i < DYNAMIC_SET_LIMIT; i++) {
+    await repo.insertRedirect(record({ id: `w${i}`, matchType: "wildcard", fromPattern: `/full${i}/*`, toTarget: "/landing" }));
+  }
+  await deps.outbox.claimPending({ batchSize: 10, nowIso: "2099-01-01T00:00:00.000Z" });
+
+  await assert.rejects(
+    () => updateRedirect({ deps, input: { workspaceId: WORKSPACE_ID, id: wildcard.id, status: "active", actorId: ACTOR_ID } }),
+    (err: unknown) => err instanceof RedirectValidationError,
+  );
+  assert.equal((await repo.findById({ workspaceId: WORKSPACE_ID, id: wildcard.id }))?.status, "disabled");
+  assert.equal(await isTrashed(wildcard.id), true);
+  assert.deepEqual(await pendingEvents(deps), []);
 });
