@@ -13,6 +13,8 @@
     "kind": "user-management",
     "runtime": "universal",
     "entries": {
+      "./member-login/unlink-identity": "node",
+      "./member-login/oidc-request": "node",
       "./members/public-member-auth-response": "universal",
       "./members/public-member-response": "universal",
       ".": "universal",
@@ -148,6 +150,8 @@
     },
     "isolation": {
       "entries": {
+        "./member-login/unlink-identity": "members",
+        "./member-login/oidc-request": "server",
         "./identity/boot-session-token": "server",
         "./identity/builtin-role-grants": "server",
         "./identity/permission-grants": "server",
@@ -183,6 +187,16 @@
   "type": "module",
   "sideEffects": false,
   "exports": {
+    "./member-login/unlink-identity": {
+      "types": "./dist/member-login/unlink-identity.d.ts",
+      "import": "./dist/member-login/unlink-identity.js",
+      "default": "./dist/member-login/unlink-identity.js"
+    },
+    "./member-login/oidc-request": {
+      "types": "./dist/member-login/oidc-request.d.ts",
+      "import": "./dist/member-login/oidc-request.js",
+      "default": "./dist/member-login/oidc-request.js"
+    },
     "./members/public-member-auth-response": {
       "types": "./dist/members/public-member-auth-response.d.ts",
       "import": "./dist/members/public-member-auth-response.js",

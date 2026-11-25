@@ -13,6 +13,19 @@
     "kind": "content-model",
     "runtime": "universal",
     "entries": {
+      "./admin-http/routes/system/publish-site/destinations": "universal",
+      "./admin-http/routes/system/publish-site/trigger": "universal",
+      "./admin-http/routes/settings/events": "universal",
+      "./admin-http/routes/plugins/install": "universal",
+      "./admin-http/routes/external-mcp/probe": "universal",
+      "./admin-http/routes/external-mcp/oauth": "universal",
+      "./media/site/rendition-access": "universal",
+      "./public-http/routes/plugin-contributions": "universal",
+      "./public-http/routes/site/products": "universal",
+      "./public-http/routes/site/member-pages": "universal",
+      "./public-http/routes/site/pages/response": "universal",
+      "./public-http/http/site/render/page-body": "universal",
+      "./public-http/http/site/render/content-html": "universal",
       "./public-http/routes/site/pages/extra-head": "universal",
       "./public-http/http/site/bare-page": "universal",
       "./public-http/http/site/render/components/marketing": "universal",
@@ -886,6 +899,10 @@
         "src/publish/content/media-references.ts"
       ],
       "entries": {
+        "./media/site/rendition-access": "media",
+        "./public-http/routes/site/pages/response": "presentation",
+        "./public-http/http/site/render/page-body": "presentation",
+        "./public-http/http/site/render/content-html": "presentation",
         "./public-http/routes/site/pages/extra-head": "presentation",
         "./public-http/http/site/bare-page": "presentation",
         "./public-http/http/site/render/components/marketing": "presentation",
@@ -1111,6 +1128,71 @@
   "main": "./dist/core/index.js",
   "types": "./dist/core/index.d.ts",
   "exports": {
+    "./admin-http/routes/system/publish-site/destinations": {
+      "types": "./dist/admin-http/routes/system/publish-site/destinations.d.ts",
+      "import": "./dist/admin-http/routes/system/publish-site/destinations.js",
+      "default": "./dist/admin-http/routes/system/publish-site/destinations.js"
+    },
+    "./admin-http/routes/system/publish-site/trigger": {
+      "types": "./dist/admin-http/routes/system/publish-site/trigger.d.ts",
+      "import": "./dist/admin-http/routes/system/publish-site/trigger.js",
+      "default": "./dist/admin-http/routes/system/publish-site/trigger.js"
+    },
+    "./admin-http/routes/settings/events": {
+      "types": "./dist/admin-http/routes/settings/events.d.ts",
+      "import": "./dist/admin-http/routes/settings/events.js",
+      "default": "./dist/admin-http/routes/settings/events.js"
+    },
+    "./admin-http/routes/plugins/install": {
+      "types": "./dist/admin-http/routes/plugins/install.d.ts",
+      "import": "./dist/admin-http/routes/plugins/install.js",
+      "default": "./dist/admin-http/routes/plugins/install.js"
+    },
+    "./admin-http/routes/external-mcp/probe": {
+      "types": "./dist/admin-http/routes/external-mcp/probe.d.ts",
+      "import": "./dist/admin-http/routes/external-mcp/probe.js",
+      "default": "./dist/admin-http/routes/external-mcp/probe.js"
+    },
+    "./admin-http/routes/external-mcp/oauth": {
+      "types": "./dist/admin-http/routes/external-mcp/oauth.d.ts",
+      "import": "./dist/admin-http/routes/external-mcp/oauth.js",
+      "default": "./dist/admin-http/routes/external-mcp/oauth.js"
+    },
+    "./media/site/rendition-access": {
+      "types": "./dist/media/site/rendition-access.d.ts",
+      "import": "./dist/media/site/rendition-access.js",
+      "default": "./dist/media/site/rendition-access.js"
+    },
+    "./public-http/routes/plugin-contributions": {
+      "types": "./dist/public-http/routes/plugin-contributions.d.ts",
+      "import": "./dist/public-http/routes/plugin-contributions.js",
+      "default": "./dist/public-http/routes/plugin-contributions.js"
+    },
+    "./public-http/routes/site/products": {
+      "types": "./dist/public-http/routes/site/products.d.ts",
+      "import": "./dist/public-http/routes/site/products.js",
+      "default": "./dist/public-http/routes/site/products.js"
+    },
+    "./public-http/routes/site/member-pages": {
+      "types": "./dist/public-http/routes/site/member-pages.d.ts",
+      "import": "./dist/public-http/routes/site/member-pages.js",
+      "default": "./dist/public-http/routes/site/member-pages.js"
+    },
+    "./public-http/routes/site/pages/response": {
+      "types": "./dist/public-http/routes/site/pages/response.d.ts",
+      "import": "./dist/public-http/routes/site/pages/response.js",
+      "default": "./dist/public-http/routes/site/pages/response.js"
+    },
+    "./public-http/http/site/render/page-body": {
+      "types": "./dist/public-http/http/site/render/page-body.d.ts",
+      "import": "./dist/public-http/http/site/render/page-body.js",
+      "default": "./dist/public-http/http/site/render/page-body.js"
+    },
+    "./public-http/http/site/render/content-html": {
+      "types": "./dist/public-http/http/site/render/content-html.d.ts",
+      "import": "./dist/public-http/http/site/render/content-html.js",
+      "default": "./dist/public-http/http/site/render/content-html.js"
+    },
     "./public-http/routes/site/pages/extra-head": {
       "types": "./dist/public-http/routes/site/pages/extra-head.d.ts",
       "import": "./dist/public-http/routes/site/pages/extra-head.js",
