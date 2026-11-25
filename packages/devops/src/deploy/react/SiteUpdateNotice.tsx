@@ -1,4 +1,6 @@
-import type { SiteUpdateStatusReply } from '@jini-ai/core/contracts/site/devops-deploy';
+import type {
+  SiteUpdateAvailability, SiteUpdateLastAttempt, SiteUpdateStatusReply,
+} from '@jini-ai/core/contracts/site/devops-deploy';
 import type { ComponentType, ReactNode } from 'react';
 
 export interface SiteUpdateNoticeProps {
@@ -14,10 +16,33 @@ export interface SiteUpdateNoticeProps {
   };
 }
 
+type NoticeTone = 'info' | 'success' | 'warning' | 'danger';
+type SiteUpdateAvailable = Extract<SiteUpdateAvailability, { kind: 'available' }>;
+
+// Only a verified update is a success: an accepted hand-off may still roll back after the restart.
+const LAST_ATTEMPT_TONE: Record<SiteUpdateLastAttempt['status'], NoticeTone> = {
+  updating: 'info',
+  updated: 'success',
+  'rolled-back': 'warning',
+  failed: 'danger',
+};
+
 export function SiteUpdateNotice(required: SiteUpdateNoticeProps, _optional: Record<string, never> = {}): ReactNode {
   const status = required.useSiteUpdateStatusHook({});
-  if (status === null || status.availability.kind !== 'available') return null;
-  const { availability } = status;
+  if (status === null) return null;
+  const { availability, lastAttempt } = status;
+  if (availability.kind !== 'available' && lastAttempt === undefined) return null;
+  const Notice = required.kit.components.Notice;
+  // The last attempt renders independently of availability, so a reconnecting owner sees how it settled.
+  return (
+    <>
+      {lastAttempt !== undefined && <Notice tone={LAST_ATTEMPT_TONE[lastAttempt.status]}>{lastAttempt.summary}</Notice>}
+      {availability.kind === 'available' && renderAvailable(required, availability)}
+    </>
+  );
+}
+
+function renderAvailable(required: SiteUpdateNoticeProps, availability: SiteUpdateAvailable): ReactNode {
   const Notice = required.kit.components.Notice;
   // The notice is informational because the chat card remains the only write path.
   return (

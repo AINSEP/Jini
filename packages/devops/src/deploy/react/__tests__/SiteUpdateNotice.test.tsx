@@ -51,4 +51,18 @@ describe('SiteUpdateNotice', () => {
       expect(useSiteUpdateStatusHook).toHaveBeenCalledExactlyOnceWith({});
     }
   });
+
+  it('an accepted hand-off is not shown as a finished update', () => {
+    const render = (lastAttempt: NonNullable<SiteUpdateStatusReply['lastAttempt']>) => renderToStaticMarkup(<SiteUpdateNotice
+      kit={{ components: { Notice: ({ children, tone }) => <aside data-tone={tone}>{children}</aside> } }}
+      useSiteUpdateStatusHook={() => ({ availability: { kind: 'current', runningVersion: '1.0.0' }, lastAttempt })}
+      copy={{ updateAvailable: ({ latest }) => latest, releaseNotes: 'Release notes' }}
+    />);
+
+    expect(render({ status: 'updating', toVersion: '2.0.0', summary: 'Updating to 2.0.0. <b>The site restarts.</b>' }))
+      .toBe('<aside data-tone="info">Updating to 2.0.0. &lt;b&gt;The site restarts.&lt;/b&gt;</aside>');
+    expect(render({ status: 'updated', toVersion: '2.0.0', summary: 'Updated to 2.0.0.' })).toBe('<aside data-tone="success">Updated to 2.0.0.</aside>');
+    expect(render({ status: 'rolled-back', toVersion: '2.0.0', summary: 'Put back.' })).toBe('<aside data-tone="warning">Put back.</aside>');
+    expect(render({ status: 'failed', toVersion: '2.0.0', summary: 'Failed.' })).toBe('<aside data-tone="danger">Failed.</aside>');
+  });
 });

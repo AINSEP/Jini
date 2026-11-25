@@ -12,7 +12,18 @@ export type SiteUpdateAvailability =
   | { kind: 'available'; runningVersion: string; latest: string; notes: string }
   | { kind: 'check-failed' };
 
-export type SiteUpdateStatusReply = { availability: SiteUpdateAvailability };
+/**
+ * The most recent update attempt, so the owner sees the settled result after reconnecting. `updating`
+ * means the hand-off was accepted and the replacement is not yet verified; it is never a finished update.
+ * `summary` is safe, host-written copy.
+ */
+export type SiteUpdateLastAttempt = {
+  status: 'updating' | 'updated' | 'rolled-back' | 'failed';
+  toVersion: string;
+  summary: string;
+};
+
+export type SiteUpdateStatusReply = { availability: SiteUpdateAvailability; lastAttempt?: SiteUpdateLastAttempt };
 
 /** A private locator is kept by the consumer; only verified public URLs reach recipients. */
 export interface ArtifactUpload {

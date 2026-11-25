@@ -42,9 +42,15 @@ export interface SiteBackupPort {
   createBackup(required: { fromVersion: string }, optional?: SiteUpdateCallOptions): Promise<{ backupId: string }>;
 }
 
+/** Options of {@link MigrationReadinessPort.check}: the backup just captured and the version it was taken of. */
+export interface SiteUpdateReadinessOptions extends SiteUpdateCallOptions {
+  backupId?: string | undefined;
+  fromVersion?: string | undefined;
+}
+
 /** Answers whether stored data is ready for `toVersion` (pending migrations, incompatible schema). */
 export interface MigrationReadinessPort {
-  check(required: { toVersion: string }, optional?: SiteUpdateCallOptions): Promise<MigrationReadiness>;
+  check(required: { toVersion: string }, optional?: SiteUpdateReadinessOptions): Promise<MigrationReadiness>;
 }
 
 /** The platform side: find, plan, deploy, check and undo an update. */

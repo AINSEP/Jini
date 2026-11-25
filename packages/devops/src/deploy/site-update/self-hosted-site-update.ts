@@ -58,7 +58,19 @@ export function imageTagForVersion(required: { version: string }, _optional: Ima
 export interface SelfHostedSiteUpdateOptions extends ImageTagForVersionOptions {
   /** Pass when the new image migrates data on start, so a rollback also restores the data backup. */
   data?: SiteDataRestorePort | undefined;
+  /**
+   * The host's managed recovery: stop the site, restore the data backup, restart on `previousTag`, and
+   * check the old version is healthy, as one operation. When given it replaces the legacy tag switch and
+   * `data` restore entirely; managed production updates always pass it.
+   */
+  rollbackDeployment?: SelfHostedRollbackDeploymentPort | undefined;
 }
+
+/** Puts the kept previous image and its data back together; see {@link SelfHostedSiteUpdateOptions.rollbackDeployment}. */
+export type SelfHostedRollbackDeploymentPort = (
+  required: { previousTag: string; backupId: string },
+  optional?: SiteUpdateCallOptions,
+) => Promise<void>;
 
 /**
  * Builds the self-hosted adapter.
@@ -104,7 +116,12 @@ export function createSelfHostedSiteUpdate(
     },
     rollback: async ({ to, backupId }, optional) => {
       // Without a recorded apply (e.g. the adapter was rebuilt after a restart) the kept version names the tag.
-      await switchTo(previousTags.get(backupId) ?? tagFor(to), optional);
+      const previousTag = previousTags.get(backupId) ?? tagFor(to);
+      // The online database adapter cannot choose when to replace a live database file, so managed
+      // rollback delegates image and data recovery together instead of running the legacy pair first.
+      const { rollbackDeployment } = _optional;
+      if (rollbackDeployment) return rollbackDeployment({ previousTag, backupId }, optional);
+      await switchTo(previousTag, optional);
       await _optional.data?.restore({ backupId }, optional);
     },
   };

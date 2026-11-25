@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import type { SiteUpdateApproval, SiteUpdatePlan } from '../contracts.js';
+import type { SiteUpdateApproval, SiteUpdatePlan, SiteUpdateReadinessOptions } from '../contracts.js';
 import { createFakeSiteUpdate, type FakeSiteUpdateOptions } from '../fake-site-update.js';
-import { runSiteUpdate } from '../run-site-update.js';
+import { finishPreparedSiteUpdate, prepareSiteUpdate, runSiteUpdate, type PreparedSiteUpdate } from '../run-site-update.js';
 
 const plan: SiteUpdatePlan = { fromVersion: '0.7.3-next.2', toVersion: '0.7.3', notes: 'Faster pages.' };
 const approval: SiteUpdateApproval = { kind: 'owner-approval', approvedBy: 'owner-1', toVersion: '0.7.3' };
@@ -226,5 +226,88 @@ describe('createFakeSiteUpdate', () => {
     const fake = setup();
     await runSiteUpdate({ ports: fake.ports, plan, approval });
     expect(await fake.ports.site.checkForUpdate({ runningVersion: fake.state.liveVersion })).toBeNull();
+  });
+});
+
+/** Prepares in one process and returns what a host would persist and reload after the restart. */
+async function preparedAcrossRestart(): Promise<PreparedSiteUpdate> {
+  const preparation = await prepareSiteUpdate({ ports: setup().ports, plan, approval });
+  if (preparation.status !== 'prepared') throw new Error('expected a prepared update');
+  return JSON.parse(JSON.stringify(preparation.prepared)) as PreparedSiteUpdate;
+}
+
+describe('prepareSiteUpdate / finishPreparedSiteUpdate — restart hand-off', () => {
+  it('preparation gives readiness the exact captured backup and never applies', async () => {
+    const fake = setup();
+    const seen: Array<{ toVersion: string; optional: SiteUpdateReadinessOptions | undefined }> = [];
+    const check = fake.ports.readiness.check;
+    fake.ports.readiness.check = async (input, optional) => { seen.push({ toVersion: input.toVersion, optional }); return check(input, optional); };
+    const controller = new AbortController();
+    const preparation = await prepareSiteUpdate({ ports: fake.ports, plan, approval }, { signal: controller.signal });
+    expect(preparation).toEqual({
+      status: 'prepared',
+      prepared: {
+        plan,
+        backupId: 'backup-1',
+        steps: [
+          { step: 'approval', status: 'done', detail: 'Approved by owner-1 for 0.7.3.' },
+          { step: 'backup', status: 'done', detail: 'Backup backup-1 made of 0.7.3-next.2.' },
+          { step: 'readiness', status: 'done', detail: 'Stored data is ready for 0.7.3.' },
+        ],
+      },
+    });
+    expect(seen).toEqual([{ toVersion: '0.7.3', optional: { signal: controller.signal, backupId: 'backup-1', fromVersion: '0.7.3-next.2' } }]);
+    expect(fake.calls).toEqual(['createBackup', 'check:0.7.3']);
+    expect(fake.state.liveVersion).toBe('0.7.3-next.2');
+  });
+
+  it('preparation stops with the inline result when the owner has not approved', async () => {
+    const fake = setup();
+    const preparation = await prepareSiteUpdate({ ports: fake.ports, plan, approval: undefined });
+    expect(preparation.status).toBe('stopped');
+    expect(preparation.status === 'stopped' && preparation.result.outcome).toBe('refused');
+    expect(fake.calls).toEqual([]);
+  });
+
+  it('a reloaded preparation verifies the replacement without applying or backing up again', async () => {
+    const prepared = await preparedAcrossRestart();
+    const fake = setup();
+    const result = await finishPreparedSiteUpdate({
+      prepared, ports: { site: fake.ports.site, ids: fake.ports.ids }, apply: { status: 'landed', summary: 'Swapped in 0.7.3 after the restart.' },
+    });
+    expect(fake.calls).toEqual(['verifyUpdate:0.7.3']);
+    expect(result.outcome).toBe('updated');
+    expect(result.changes).toEqual(plan);
+    expect(result.backupId).toBe('backup-1');
+    expect(result.steps.map((s) => `${s.step}:${s.status}`)).toEqual(['approval:done', 'backup:done', 'readiness:done', 'apply:done', 'verify:done']);
+    expect(result.steps[3]).toEqual({ step: 'apply', status: 'done', detail: 'Swapped in 0.7.3 after the restart.' });
+    expect(prepared.steps).toHaveLength(3);
+  });
+
+  it('failed replacement verification rolls back on its own lifetime', async () => {
+    const prepared = await preparedAcrossRestart();
+    const run = new AbortController();
+    const rollbackLifetime = new AbortController();
+    const fake = setup({ verify: { status: 'unhealthy', reason: 'Blank page.' }, onCall: (name) => { if (name.startsWith('verifyUpdate:')) run.abort(); } });
+    withCancellationAwareRollback(fake);
+    const result = await finishPreparedSiteUpdate(
+      { prepared, ports: { site: fake.ports.site, ids: fake.ports.ids }, apply: { status: 'landed', summary: 'Swapped in.' } },
+      { signal: run.signal, rollbackSignal: rollbackLifetime.signal },
+    );
+    expect(result.outcome).toBe('rolled-back');
+    expect(result.changes).toBeUndefined();
+    expect(fake.calls).toEqual(['verifyUpdate:0.7.3', 'rollback:0.7.3-next.2:backup-1']);
+    expect(fake.signals.at(-1)).toBe(rollbackLifetime.signal);
+    expect(fake.state.liveVersion).toBe('0.7.3-next.2');
+  });
+
+  it('a confirmed failed replacement rolls back without a live check', async () => {
+    const prepared = await preparedAcrossRestart();
+    const fake = setup();
+    const result = await finishPreparedSiteUpdate({ prepared, ports: { site: fake.ports.site, ids: fake.ports.ids }, apply: { status: 'failed' } });
+    expect(fake.calls).toEqual(['rollback:0.7.3-next.2:backup-1']);
+    expect(result.outcome).toBe('rolled-back');
+    expect(result.errorId).toBe('ERR-FAKE-0000-0000-0001');
+    expect(result.steps.at(-2)).toEqual({ step: 'apply', status: 'failed', detail: 'ERR-FAKE-0000-0000-0001: The new version did not land.' });
   });
 });
