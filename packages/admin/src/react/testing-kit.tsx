@@ -327,6 +327,16 @@ const fakeChat: AdminKitChat = {
   SECRET_REDACTED_NOTICE: 'fake secret-redacted notice',
   CREDENTIAL_CARD_GUIDANCE: 'fake credential-card guidance',  // Terminal means the run will not change again.
   isTerminalRunStatus: ({ status }) => status === 'succeeded' || status === 'failed' || status === 'canceled',
+  // Components render inert markers (a test that needs real behaviour injects its own); children pass through so a provider never hides its subtree.
+  ChatPane: () => <div data-testid="fake-chat-pane" />,
+  ChatSettingsDialog: ({ open }) => (open ? <div role="dialog" data-testid="fake-chat-settings-dialog" /> : null),
+  JiniChatProvider: ({ children }) => <>{children}</>,
+  ConversationList: ({ conversations }) => <div data-testid="fake-conversation-list">{conversations.length}</div>,
+  ChatSettingsSegmented: ({ name, items }) => <div data-testid={`fake-segmented-${name}`}>{items.map((item) => item.label).join('|')}</div>,
+  McpUiSurfaceCard: () => <div data-testid="fake-mcp-ui-card" />,
+  A2uiSurfaceCard: () => <div data-testid="fake-a2ui-card" />,
+  // An uploader that stages nothing (no network): every file is refused with an empty result.
+  createDaemonAttachmentUploader: () => async () => [],
   // A real in-memory registry: private per call, so one test's renderers never reach another's.
   createExtEventRendererRegistry: () => {
     const renderers = new Map<string, { renderer: ExtEventRenderer; options: ExtEventRendererOptions }>();

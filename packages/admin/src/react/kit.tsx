@@ -522,6 +522,12 @@ export type { AgentInventoryEntry, AgentInventorySnapshot, AgentInventorySnapsho
   AttemptResult, ChatAttachmentValidatorInput, ChatAttachmentValidatorOptions, ComposerDiscoveryArgument, ComposerDiscoveryGroup, ComposerDiscoveryItem, ComposerDiscoveryOutcome,
   ComposerDiscoverySelection, CreateA2uiActionPosterOptions, DeliverTypedAnswer, DurableRunBinding, DurableSubscriptionPorts, ExtEventRenderer, ExtEventRendererOptions,
   ExtEventRendererRegistry, ExtEventSlotKey, LastConversationStorage, LastConversationStore, SaveFailureInput, SaveOutcome, UseAssistantChats, UserTextRedactionOptions } from './kit-chat-types.js';
+export type { FrontendSessionBridge, KitByokRuntimeSummary, KitChatPaneAgentBridgeAccess, KitChatPaneAgentControlOptions, KitChatPaneAgentToolAction, KitChatPaneAttachmentUploadOptions,
+  KitChatPaneComposerSlots, KitChatPaneProps, KitChatPaneRunContext, KitChatPermissionsPort, KitChatSettingsDialogProps, KitChatSettingsSection, KitChatSettingsSegmentedProps,
+  KitA2uiSurfaceCardProps, KitConversationListItem, KitConversationListProps, KitDaemonAttachmentUploaderOptions, KitJiniChatProviderProps,
+  KitMcpUiSurfaceCardProps, KitMcpUiToolCall, KitSurfaceExpiryClock, KitToolCallDisplay, KitUploadAttachments } from './kit-chat-component-types.js';
+import type { KitA2uiSurfaceCardProps, KitChatPaneProps, KitChatSettingsDialogProps, KitChatSettingsSegmentedProps, KitConversationListProps, KitDaemonAttachmentUploaderOptions,
+  KitJiniChatProviderProps, KitMcpUiSurfaceCardProps, KitUploadAttachments } from './kit-chat-component-types.js';
 import type { AgentEvent, ChatAttachment, ChatMessage, ChatPaneAgent, ChatPaneAgentOption, ChatPaneAgentSelection, ChatPaneRuntimeAccess, ChatPaneComposerHandle, ChatRole, ChatRunStatus, ChatTransport, ExtEventCall, ExtEventRenderProps, FabPositionInput, FabPositionResult, FeedbackChange, I18nAdapter, KitA2uiActionDeliveryOutcome, KitA2uiActionPosterInput, KitChatAttachment, KitChatTranslator, KitDeliverMidRunMessage, KitDeliverTypedAnswer, KitMidRunMessageDelivery, KitPosterRequestOptions, KitRedactUserText, KitSecretRedactionSignal, KitTypedAnswerDelivery, KitUserTextRedactionOptions, ReattachRunOptions, RunHandlers, SecretRedactionSignal, StartRunInput, ToolResultMediaBlock } from './kit-chat-types.js';
 import type { AgentInventoryEntry, AgentInventorySnapshot, AgentInventorySnapshotArgs, AssistantChatsClient, AssistantChatsClientPorts, ChatAttachmentValidatorInput,
   ChatAttachmentValidatorOptions, ExtEventRendererRegistry, LastConversationStorage, LastConversationStore } from './kit-chat-types.js';
@@ -569,6 +575,16 @@ export interface AdminKitChat {
   /** Drops attachments whose files no longer exist on the host. */
   createChatAttachmentValidator(required: ChatAttachmentValidatorInput, optional?: Omit<ChatAttachmentValidatorOptions, 'fetchImpl'>)
     : (attachments: readonly ChatAttachment[]) => Promise<readonly ChatAttachment[]>;
+  /** The chat pane, its settings dialog and provider, the conversation switcher and the two ext-event cards (props restated; see `kit-chat-component-types.ts`). */
+  ChatPane: ComponentType<KitChatPaneProps>;
+  ChatSettingsDialog: ComponentType<KitChatSettingsDialogProps>;
+  JiniChatProvider: ComponentType<KitJiniChatProviderProps>;
+  ConversationList: ComponentType<KitConversationListProps>;
+  ChatSettingsSegmented: ComponentType<KitChatSettingsSegmentedProps>;
+  McpUiSurfaceCard: ComponentType<KitMcpUiSurfaceCardProps>;
+  A2uiSurfaceCard: ComponentType<KitA2uiSurfaceCardProps>;
+  /** Uploads composer files to the daemon's attachment route; `baseUrl: ''` keeps the same-origin proxy. */
+  createDaemonAttachmentUploader(required: { baseUrl: string; fetch?: typeof globalThis.fetch }, optional?: KitDaemonAttachmentUploaderOptions): KitUploadAttachments;
 }
 
 export interface AdminKit {
@@ -679,6 +695,19 @@ export function useAdminKitChatPosters(_required: Record<string, never> = {}, _o
 }
 
 export const useFabPosition: AdminKitChat['useFabPosition'] = (r, o) => useAdminKit().chat.useFabPosition(r, o);
+/* Same-name facades of the chat components: each renders the kit's real implementation, so moved admin code imports them from here, never from the chat library. */
+export const ChatPane: AdminKitChat['ChatPane'] = (props) => { const Impl = useAdminKit().chat.ChatPane; return <Impl {...props} />; };
+export const ChatSettingsDialog: AdminKitChat['ChatSettingsDialog'] = (props) => { const Impl = useAdminKit().chat.ChatSettingsDialog; return <Impl {...props} />; };
+export const JiniChatProvider: AdminKitChat['JiniChatProvider'] = (props) => { const Impl = useAdminKit().chat.JiniChatProvider; return <Impl {...props} />; };
+export const ConversationList: AdminKitChat['ConversationList'] = (props) => { const Impl = useAdminKit().chat.ConversationList; return <Impl {...props} />; };
+export const ChatSettingsSegmented: AdminKitChat['ChatSettingsSegmented'] = (props) => { const Impl = useAdminKit().chat.ChatSettingsSegmented; return <Impl {...props} />; };
+export const McpUiSurfaceCard: AdminKitChat['McpUiSurfaceCard'] = (props) => { const Impl = useAdminKit().chat.McpUiSurfaceCard; return <Impl {...props} />; };
+export const A2uiSurfaceCard: AdminKitChat['A2uiSurfaceCard'] = (props) => { const Impl = useAdminKit().chat.A2uiSurfaceCard; return <Impl {...props} />; };
+/** The attachment uploader factory, read once per render: the injected function, never copied. */
+export function useAdminKitChatRunValues(_required: Record<string, never> = {}, _optional: Record<string, never> = {})
+  : Pick<AdminKitChat, 'createDaemonAttachmentUploader'> {
+  return useAdminKit().chat;
+}
 /** The chat library's plain values (selection resolver and notice copy), read once per render: the injected object, never copied. */
 export function useAdminKitChatValues(_required: Record<string, never> = {}, _optional: Record<string, never> = {})
   : Pick<AdminKitChat, 'resolveChatPaneSelection' | 'SECRET_REDACTED_NOTICE' | 'CREDENTIAL_CARD_GUIDANCE' | 'conversationTitleForDisplay' | 'deriveConversationTitle'

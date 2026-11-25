@@ -6,6 +6,7 @@ import {
   CodeWithLines, CodeWrapToggle, I18nProvider, PreviewModalShell, RemixIcon, SettingsDialogShell, Toast,
   useAdminKitChatValues, useCodeWrap, useCopyToClipboard, useFabPosition, useInfoTip, usePanelPosition, useSelectDropdown, useSerialWrites, useTabBarKeyboard,
   useTabbedDialog, useCursorPages, useDebouncedHtmlPreview, useExecutionCredential, useI18n, useSettingsSlice, useStandingDraftAutosave, useWiredCopyToClipboard,
+  A2uiSurfaceCard, ChatPane, ChatSettingsDialog, ChatSettingsSegmented, ConversationList, JiniChatProvider, McpUiSurfaceCard, useAdminKitChatRunValues,
   type AdminKit, type AdminKitHooks, type AdminKitValues, type ChatPaneAgent, type FabPositionInput,
 } from '../kit.js';
 import { fakeAdminKit, fixtureQuery } from '../testing-kit.js';
@@ -470,5 +471,47 @@ describe('admin kit: plugin admin-surface values and provider-setting rule', () 
     const kit = fakeAdminKit({ components: { InfoTip: (props) => { seen.push(props); return null; } } });
     renderWithAdminKit(<InfoTip label="x" useTip={useTip} />, { kit });
     expect(seen[0]?.useTip).toBe(useTip);
+  });
+});
+
+describe('admin kit: chat components and run values (x8)', () => {
+  const noop = () => {};
+  it('renders each same-name facade through the injected implementation, passing props intact', () => {
+    const seen: unknown[] = [];
+    const chat: Partial<AdminKitChat> = {
+      ChatPane: (props) => { seen.push(props); return <div data-testid="inj-pane">{props.title}</div>; },
+      ChatSettingsDialog: ({ open }) => <div data-testid="inj-dialog">{String(open)}</div>,
+      JiniChatProvider: ({ children }) => <section data-testid="inj-provider">{children}</section>,
+      ConversationList: ({ conversations, triggerLabel }) => <div data-testid="inj-list">{conversations.length}:{triggerLabel}</div>,
+      ChatSettingsSegmented: ({ name }) => <div data-testid="inj-seg">{name}</div>,
+      McpUiSurfaceCard: ({ name }) => <div data-testid="inj-mcp">{name}</div>,
+      A2uiSurfaceCard: ({ name }) => <div data-testid="inj-a2ui">{name}</div>,
+    };
+    const transport = { startRun: async () => ({ runId: 'r' }), reattachRun: async () => {}, fetchRunStatus: async () => null, stopRun: async () => {} };
+    const cardProps = { name: 'card', events: [], runStreaming: false, runSucceeded: false, runId: undefined };
+    renderWithAdminKit(<JiniChatProvider transport={transport}>
+      <ChatPane transport={transport} title="Assistant" />
+      <ChatSettingsDialog open onClose={noop} displaySections={[]} permissions={{ enabled: true, canEdit: true, capabilities: [], onChange: noop }} />
+      <ConversationList conversations={[{ id: 'c1', title: null }]} activeConversationId="c1" onSelect={noop} onCreate={noop} triggerLabel="Chats" />
+      <ChatSettingsSegmented name="tools" items={[]} />
+      <McpUiSurfaceCard {...cardProps} sandboxProxyUrl={new URL('https://proxy.test/')} />
+      <A2uiSurfaceCard {...cardProps} clock={{ nowMs: () => 0 }} />
+    </JiniChatProvider>, { kit: fakeAdminKit({ chat }) });
+    expect(screen.getByTestId('inj-pane').textContent).toBe('Assistant');
+    expect(screen.getByTestId('inj-dialog').textContent).toBe('true');
+    expect(screen.getByTestId('inj-list').textContent).toBe('1:Chats');
+    expect(screen.getByTestId('inj-seg').textContent).toBe('tools');
+    expect(screen.getByTestId('inj-mcp').textContent).toBe('card');
+    expect(screen.getByTestId('inj-a2ui').textContent).toBe('card');
+    expect((seen[0] as { transport: unknown }).transport).toBe(transport);
+  });
+  it('hands the uploader factory out as the injected function, uncopied', () => {
+    const upload = async () => [];
+    const chat: Partial<AdminKitChat> = { createDaemonAttachmentUploader: vi.fn(() => upload) };
+    const wrapper = ({ children }: { children: ReactNode }) => <AdminKitProvider kit={fakeAdminKit({ chat })}>{children}</AdminKitProvider>;
+    const values = renderHook(() => useAdminKitChatRunValues(), { wrapper }).result.current;
+    const required = { baseUrl: '', fetch: globalThis.fetch };
+    expect(values.createDaemonAttachmentUploader(required, { concurrency: 1 })).toBe(upload);
+    expect(chat.createDaemonAttachmentUploader).toHaveBeenCalledWith(required, { concurrency: 1 });
   });
 });
