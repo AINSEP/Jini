@@ -1,3 +1,4 @@
+import type { MutationActor } from "@jini-ai/core/contracts/events";
 import {
   insertWidgetEmbed,
   mutateWidgetAreaPlacements,
@@ -49,7 +50,7 @@ export interface WidgetToolPlacementDeps extends WidgetToolRemovalDeps {
 }
 
 /** The tool call's actor; `kind` is its provenance for the embed service's post-save attribution. */
-export interface WidgetToolActor { principalId: string; kind: string }
+export interface WidgetToolActor { principalId: string; kind: MutationActor["kind"] }
 
 /** The `widget_area` entry bound to `regionKey`, refusing an unbound region or a missing area
  *  entry with the same 404 the region routes return. @complexity O(1) repository reads. */

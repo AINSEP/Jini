@@ -591,7 +591,9 @@
     "symbols": {
       "ENV_ACCESS_RULES": "variable:cc740d81dc",
       "EnvAccessSource": "interface:1169651cc3",
-      "createEnvAccessInspector": "function:f9be6ef611"
+      "createEnvAccessInspector": "function:f9be6ef611",
+      "DeclaredEnvMap": "type:34cfd19c16",
+      "readDeclaredEnvKey": "function:f362858952"
     }
   },
   "./checks/live-verify-checks": {

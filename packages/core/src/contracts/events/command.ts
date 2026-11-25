@@ -1,11 +1,17 @@
 import type { Clock, IdGenerator, JsonObject, UUID } from "../../primitives/index.js";
 import type { ChangeSetItemRecord, ChangeSetOperation, ChangeSetRecord, ChangeSetRepoPort } from "./change-set.js";
-import type { DomainEvent, OutboxPort } from "./ports.js";
+import type { DomainEvent, MutationActor, OutboxPort } from "./ports.js";
 
-/** Principal executing a command. Agents act on behalf of a user. */
-export interface CommandActor {
-  id: UUID;
-  kind: "user" | "agent";
+/**
+ * Principal executing a command. Agents act on behalf of a user; a `system` actor is a stable,
+ * named identity for a truly autonomous job that acts for nobody.
+ * A `MutationActor` plus the delegation field.
+ *
+ * The execution channel supplies attribution (`kind`), the principal ID still governs
+ * authorization (`id`), and the two are not interchangeable.
+ */
+export interface CommandActor extends MutationActor {
+  kind: MutationActor["kind"];
   /** User the agent is acting for; unset for direct human commands. */
   onBehalfOfId?: UUID | undefined;
 }

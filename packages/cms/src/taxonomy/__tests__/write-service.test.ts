@@ -23,6 +23,8 @@ import {
 } from "../write-validation.js";
 import { TaxonomyNotApplicableError, ContentTypeMismatchError } from "../validation-chain.js";
 import { ForbiddenError } from "../../core/commands/command.js";
+import { ConflictingMutationActorError } from "../../core/mutation-actor.js";
+import { toTaxonomyOutbox } from "../repo.memory.js";
 
 /**
  * @file The taxonomy write-service's ordinary (non-gated) mutations.
@@ -1024,4 +1026,101 @@ test("unassign returns only removed ids and suppresses no-op watermark/outbox wr
   assert.deepEqual(await unassignTerms({ deps, principalId: "u-1", contentType: "post", contentId: "post-1", termIds: ["term-1"] }), { removedTermIds: [] });
   assert.equal(deps.watermarkStamps, 2);
   assert.equal(deps.outboxEvents.length, 2);
+});
+
+// ---------------------------------------------------------------------------
+// P10-H2.J — the assignment event carries the trusted actor its channel vouched for. The execution
+// channel supplies attribution, the principal ID still governs authorization, and the two are not
+// interchangeable.
+// ---------------------------------------------------------------------------
+
+function capturedTaxonomyOutbox() {
+  const events: Array<{ name: string; actorId?: string; actor?: { id: string; kind: string } }> = [];
+  const outbox = toTaxonomyOutbox({
+    outbox: { enqueue: async (event: (typeof events)[number]) => { events.push(event); } } as never,
+    clock: { nowMs: () => Date.parse("2026-11-25T00:00:00.000Z") } as never,
+    idGen: { newId: () => "evt-1" },
+    workspaceId: "ws-1",
+  });
+  return { events, outbox };
+}
+
+test("a taxonomy assignment by an agent records kind agent", async () => {
+  const { events, outbox } = capturedTaxonomyOutbox();
+  const deps = baseDeps({ outbox });
+  await assignTerms({ deps, principalId: "owner-1", actor: { id: "owner-1", kind: "agent" }, contentType: "post", contentId: "post-1", termIds: ["term-1"] });
+
+  assert.equal(events.length, 1);
+  assert.deepEqual(events[0]?.actor, { id: "owner-1", kind: "agent" });
+  assert.equal(events[0]?.actorId, "owner-1");
+});
+
+test("a taxonomy assignment without a vouched actor records none rather than guessing a kind", async () => {
+  const { events, outbox } = capturedTaxonomyOutbox();
+  await assignTerms({ deps: baseDeps({ outbox }), principalId: "owner-1", contentType: "post", contentId: "post-1", termIds: ["term-1"] });
+
+  assert.equal(events[0]?.actor, undefined);
+});
+
+test("a taxonomy assignment handed another principal's actor is refused before any write", async () => {
+  const { events, outbox } = capturedTaxonomyOutbox();
+  const deps = baseDeps({ outbox });
+  await assert.rejects(
+    assignTerms({ deps, principalId: "owner-1", actor: { id: "someone-else", kind: "user" }, contentType: "post", contentId: "post-1", termIds: ["term-1"] }),
+    ConflictingMutationActorError,
+  );
+  assert.equal(deps.watermarkStamps, 0);
+  assert.equal(events.length, 0);
+});
+
+// ---------------------------------------------------------------------------
+// P10-H2.J — create, rename and the guarded hard deletes stamp the same trusted actor as
+// assign/unassign. The execution channel supplies attribution, the principal ID still governs
+// authorization, and the two are not interchangeable.
+// ---------------------------------------------------------------------------
+
+function deletableDeps() {
+  const recorder = transactionRecorder();
+  return Object.assign(baseDeps(), {
+    terms: deletableTermsDeps([{ id: "term-1", taxonomyId: "tax-1" }], recorder),
+    entryTerms: countableEntryTermsDeps({}, recorder),
+    taxonomies: { async findById({ id }: { id: string }) { return { id, hierarchical: true }; }, async insert(row: unknown) { return row; }, async delete() {} },
+    transaction: recorder.transaction,
+  });
+}
+
+test("a term delete by an agent records kind agent on its event", async () => {
+  const deps = deletableDeps();
+  await deleteTerm({ deps, principalId: "owner-1", actor: { id: "owner-1", kind: "agent" }, termId: "term-1" });
+
+  assert.deepEqual((deps.outboxEvents[0] as { actor?: unknown }).actor, { id: "owner-1", kind: "agent" });
+  assert.equal((deps.outboxEvents[0] as { actorId?: string }).actorId, "owner-1");
+});
+
+test("a term delete handed another principal's actor is refused before any write", async () => {
+  const deps = deletableDeps();
+  await assert.rejects(
+    deleteTerm({ deps, principalId: "owner-1", actor: { id: "someone-else", kind: "user" }, termId: "term-1" }),
+    ConflictingMutationActorError,
+  );
+  assert.deepEqual(deps.terms.deleted, []);
+  assert.equal(deps.outboxEvents.length, 0);
+});
+
+test("taxonomy delete, create, term create and rename each stamp the vouched actor, and none without one", async () => {
+  const actor = { id: "owner-1", kind: "user" as const };
+  const writes = [
+    (deps: ReturnType<typeof deletableDeps>, a?: typeof actor) => deleteTaxonomy({ deps, principalId: "owner-1", actor: a, taxonomyId: "tax-1" }),
+    (deps: ReturnType<typeof deletableDeps>, a?: typeof actor) => createTaxonomy({ deps, principalId: "owner-1", actor: a, name: "Tags", hierarchical: false }),
+    (deps: ReturnType<typeof deletableDeps>, a?: typeof actor) => createTerm({ deps, principalId: "owner-1", actor: a, taxonomyId: "tax-1", name: "Tag" }),
+    (deps: ReturnType<typeof deletableDeps>, a?: typeof actor) => renameTerm({ deps, principalId: "owner-1", actor: a, termId: "term-1", newName: "Renamed" }),
+  ];
+  for (const write of writes) {
+    const stamped = deletableDeps();
+    await write(stamped, actor);
+    assert.deepEqual((stamped.outboxEvents.at(-1) as { actor?: unknown }).actor, actor, write.toString());
+    const unstamped = deletableDeps();
+    await write(unstamped);
+    assert.equal((unstamped.outboxEvents.at(-1) as { actor?: unknown }).actor, undefined, write.toString());
+  }
 });

@@ -29,3 +29,35 @@ export type AdminMedia = Omit<AdminMediaDto, AdminMediaLegacyOptionalField> & Pa
 
 /** The {@link AdminMedia} fields a legacy server may omit. */
 type AdminMediaLegacyOptionalField = "kind" | "originalFilename" | "displayFilename" | "byteSize" | "createdBy";
+
+/** One tab of the bounded media grid: every ordinary asset, images, videos, or the trash. */
+export type MediaGridTab = "all" | "images" | "videos" | "trash";
+
+/** The grid's sort: newest first (then id), or by trimmed, locale-lower-cased title (then id). */
+export type MediaGridOrder = "created" | "alphabetical";
+
+/**
+ * One request to the bounded media grid route. A page request names a tab, an order, an optional
+ * page size (bounded server-side to 1..100, default 50) and the opaque `nextCursor` of the previous
+ * page. An exact lookup (`itemId`) is a distinct mode: it reads that one asset in the tab, takes no
+ * cursor, and never scans pages to find it.
+ */
+export interface MediaGridRequest {
+  tab: MediaGridTab;
+  orderBy: MediaGridOrder;
+  limit?: number;
+  cursor?: string;
+  itemId?: string;
+}
+
+/**
+ * One bounded grid answer. `media` is the page (or the one exact-lookup asset); `nextCursor` is the
+ * position after its last row, `null` on the last page and for an exact lookup. `counts` and
+ * `hasUntypedActive` describe every matching row in the workspace, never just this page.
+ */
+export interface MediaGridPage {
+  media: AdminMedia[];
+  nextCursor: string | null;
+  counts: Record<MediaGridTab, number>;
+  hasUntypedActive: boolean;
+}

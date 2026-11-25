@@ -48,6 +48,24 @@ export interface ProcessedEventStore {
   release(required: ProcessedEventKey): Promise<void>;
 }
 
+/** The identity an outbox subscriber's key is derived from; every field is fixed across retries. */
+export interface OutboxSubscribedEvent { readonly id: string; readonly name: string; readonly workspaceId: string }
+/** What an outbox subscriber receives: the event and its stable `[workspaceId, event.id, handlerId]` key. */
+export type OutboxSubscriberHandler<Event extends OutboxSubscribedEvent> =
+  (required: { event: Event; idempotencyKey: string }, optional?: Empty) => Promise<void>;
+/**
+ * Host-injected completion record for one subscriber's run of one event. It runs `effect` unless
+ * `key` is already recorded, and records the key only together with the effect: a transactional
+ * subscriber commits both in one transaction; an external effect hands the key to a provider or
+ * ledger that dedupes it. A claim with no atomic effect and no recoverable lease is not a completion
+ * record. Where the provider cannot dedupe after process loss, delivery stays at least once.
+ */
+export type ProcessOnce = (required: { key: string; effect: () => Promise<void> }, optional?: Empty) => Promise<void>;
+/** The slice of an event bus an outbox subscription registers on; ordinary listeners are unaffected. */
+export interface OutboxSubscriptionBus<Event extends OutboxSubscribedEvent, Unsubscribe> {
+  subscribe(required: { eventName: string; handler: (event: Event) => Promise<void> }): Promise<Unsubscribe>;
+}
+
 export interface ScheduledTask { cancel(): void }
 export interface Scheduler {
   /** Deferred callback, even for delayMs=0. Node adapters should unref their timers. */

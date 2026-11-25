@@ -63,6 +63,8 @@ export type MediaMetadataPatch = {
   alt?: string;
   caption?: string;
   credit?: string;
+  /** Blank string is an explicit clear; omitted leaves the stored description unchanged. */
+  description?: string;
   width?: number | null;
   height?: number | null;
   cssClass?: string | null;
@@ -83,7 +85,7 @@ export type MediaMetadataPatch = {
  * `baselineRef` for the caller-side guarantee. */
 export function diffMediaMetadata(required: {
   item: AdminMedia;
-  draft: Required<MediaMetadataPatch>;
+  draft: Required<Omit<MediaMetadataPatch, "description">>;
 }): MediaMetadataPatch {
   const { item, draft } = required;
   const patch: Record<string, unknown> = {};
@@ -93,9 +95,10 @@ export function diffMediaMetadata(required: {
   return patch as MediaMetadataPatch;
 }
 
+// `description` is deliberately not diffed here: whether blank means "clear" or "nothing to do" depends on whether the host's asset was ever described, so the host adds it to the patch itself.
 /** Every editable field {@link diffMediaMetadata} compares, in patch order. A list rather than one
  *  `if` per field so adding a field is one entry, not one more branch in that function. */
-const MEDIA_METADATA_PATCH_FIELDS: readonly (keyof MediaMetadataPatch)[] = [
+const MEDIA_METADATA_PATCH_FIELDS: readonly (keyof Omit<MediaMetadataPatch, "description">)[] = [
   "title",
   "slug",
   "alt",

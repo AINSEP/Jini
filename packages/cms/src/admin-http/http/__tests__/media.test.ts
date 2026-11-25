@@ -16,6 +16,18 @@ import { fakeMedia, fakeMediaDto } from "../../routes/media/__tests__/helpers.js
 type Same<A, B> = [A] extends [B] ? ([B] extends [A] ? true : false) : false;
 
 describe("media wire DTOs", () => {
+  it("admin media returns a stored description and omits a missing one", () => {
+    const described = toAdminMediaResponse({
+      media: fakeMedia({ description: "An amber lighthouse above the sea." }),
+      contentType: "image/png", publicUrl: "/m/hero/public", byteSize: 1234,
+    });
+    expect(described.description).toBe("An amber lighthouse above the sea.");
+    const undescribed = toAdminMediaResponse({
+      media: fakeMedia(), contentType: "image/png", publicUrl: "/m/hero/public", byteSize: 1234,
+    });
+    expect(undescribed).not.toHaveProperty("description");
+  });
+
   it("serializes through object arguments into the Core shapes", () => {
     const media = fakeMedia();
     const dto: AdminMediaDto = toAdminMediaResponse({ media, contentType: "image/test+ff", publicUrl: "/m/hero/public", byteSize: 1234 });

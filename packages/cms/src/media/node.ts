@@ -8,11 +8,6 @@ export {
 
 // Video previews: policy/port plus a bounded optional-host codec adapter.
 export {
-  createFfmpegVideoFrameExtractor, createVideoExtractionLock, findVideoBinaries, runLowPriorityVideoProcess,
+  createFfmpegVideoFrameExtractor, createFfmpegVideoCodecProbe, VIDEO_CODEC_PROBE_TIMEOUT_MS, createVideoExtractionLock, findVideoBinaries, runLowPriorityVideoProcess,
   type VideoExtractionLock, type VideoBinaries, type VideoBinaryFinder, type VideoProcessRunner,
 } from './video-frames.ffmpeg.js';
-
-// Web-safe video conversion through a local ffmpeg binary (optional host codec).
-export {
-  createFfmpegMediaTranscoder, buildVideoTranscodeArgs, VIDEO_TRANSCODE_TIMEOUT_MS, type FfmpegMediaTranscoderDeps,
-} from './video-transcode.ffmpeg.js';

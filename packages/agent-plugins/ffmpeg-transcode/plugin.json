@@ -1,0 +1,16 @@
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
+  "name": "ffmpeg-transcode",
+  "version": "0.1.0",
+  "description": "Converts videos to a web-safe MP4 on the host computer with a local ffmpeg program. Local ffmpeg is required and is not bundled or installed by this plugin; without it, conversion is refused in plain words.",
+  "license": "Apache-2.0",
+  "extensions": {
+    "jini": {
+      "id": "jini/ffmpeg-transcode",
+      "displayName": "FFmpeg transcode",
+      "summary": "Converts videos to a web-safe MP4 on this computer, using the ffmpeg already installed here.",
+      "provides": ["media-transcode"]
+    }
+  },
+  "keywords": ["ffmpeg", "video", "transcode"]
+}

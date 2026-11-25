@@ -6,7 +6,7 @@ import { InMemoryAssetBlobRepo, InMemoryAssetRenditionRepo, InMemoryMediaRepo } 
 import { InMemoryBlobStore } from "../blob-store.memory.js";
 import { uploadMedia } from "../media-service.js";
 import { CONVERT_VIDEO_TOOL_ID } from "../convert-video-tool.js";
-import type { MediaTranscoderPort } from "../video-transcode.js";
+import type { MediaTranscoderPort } from "@jini-ai/core/contracts/site/cms-media";
 
 const WORKSPACE_ID = "ws-convert-video-tool";
 const context = (input: Record<string, unknown>): ToolExecutionContext =>

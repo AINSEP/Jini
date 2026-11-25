@@ -182,6 +182,29 @@ export type AdminMediaStatus = 'active' | 'trashed';
 /** `"document"` for a private Library document, `"media"` for ordinary media (CMS `MediaKind`). */
 export type AdminMediaKind = 'media' | 'document';
 
+/** Compatibility hint for a stored video, read from its decoded stream metadata. `other` is a
+ *  confirmed codec outside the named ones; an unknown codec is an absent hint, never a guess. */
+export type VideoCodec = 'hevc' | 'h264' | 'other';
+
+/** Host-bound codec probe over admitted, byte-sniffed video bytes. Resolves `undefined` when the
+ *  codec cannot be confirmed (missing tool, unsupported metadata, timeout, abort); callers treat a
+ *  rejection the same way, so probing never changes whether bytes are accepted. */
+export interface VideoCodecProbePort {
+  probe(required: { bytes: Uint8Array; contentType: string }, optional?: { signal?: AbortSignal }): Promise<VideoCodec | undefined>;
+}
+
+/** Static wire code for a single file over its upload byte limit. */
+export const MEDIA_UPLOAD_TOO_LARGE = 'MEDIA_UPLOAD_TOO_LARGE';
+
+/** The admin upload/replace refusal body for one file over its byte limit (status 400): the plain
+ *  sentence plus the measured size and the limit that applied, so a client need not parse words. */
+export interface AdminMediaUploadTooLargeRefusal {
+  error: string;
+  code: typeof MEDIA_UPLOAD_TOO_LARGE;
+  fileBytes: number;
+  limitBytes: number;
+}
+
 /** One asset as the admin API answers it. */
 export interface AdminMediaDto {
   id: string;
@@ -198,6 +221,7 @@ export interface AdminMediaDto {
   alt: string;
   caption: string;
   credit: string;
+  description?: string;
   sha256: string;
   /** Original blob bytes; null when storage is missing or cannot report a size. */
   byteSize: number | null;
@@ -233,6 +257,8 @@ export interface AdminMediaDto {
    * fabricated guess.
    */
   publicUrl: string | null;
+  /** Confirmed video codec of the current source bytes; omitted when unknown or not a video. */
+  videoCodec?: VideoCodec;
 }
 
 export type MediaConversionNotice = "web-copy-unavailable";
@@ -311,4 +337,20 @@ export interface MediaAssetRenderMeta {
    * or off-origin `src` renders the uncaptioned player (`@jini-ai/cms` `caption-track.ts`).
    */
   captionsTrack?: { readonly src: string; readonly srclang: string; readonly label?: string | null } | null;
+}
+
+/** The only encoding a host converter is asked for: a web-safe MP4 that streams before it finishes loading. */
+export type VideoTranscodeTarget = "mp4-h264-aac-faststart";
+export type VideoTranscodeFailureReason = "unavailable" | "busy" | "too-large" | "timeout" | "canceled" | "invalid";
+export type VideoTranscodeResult =
+  | { readonly ok: true; readonly bytes: Uint8Array }
+  | { readonly ok: false; readonly reason: VideoTranscodeFailureReason; readonly message: string };
+
+/** Turns authorized video bytes into the requested web-safe encoding. Inputs are bytes, never
+ * caller paths. Implementations report expected failures as results and keep the original intact. */
+export interface MediaTranscoderPort {
+  transcode(
+    required: { input: Uint8Array; target: VideoTranscodeTarget },
+    optional?: { signal?: AbortSignal | undefined; maxOutputBytes?: number | undefined },
+  ): Promise<VideoTranscodeResult>;
 }

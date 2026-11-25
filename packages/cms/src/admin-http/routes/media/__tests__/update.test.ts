@@ -48,4 +48,26 @@ describe("mediaUpdateRoute", () => {
     await expect(run({ alt: "x" }, deps, recordingAuthorize(["media.update"]).authorize)).rejects.toThrow("denied");
     expect((await deps.mediaRepo.findById({ workspaceId: WORKSPACE_ID, id: "a1" }))?.alt).toBe("");
   });
+
+  it("stores a PATCH description, clears it with blank or null, and leaves it alone when omitted", async () => {
+    const deps = updateDeps();
+    const stored = () => deps.mediaRepo.findById({ workspaceId: WORKSPACE_ID, id: "a1" }).then((m) => m?.description);
+    await run({ description: "  A fox on a hill.  " }, deps);
+    expect(await stored()).toBe("A fox on a hill.");
+    await run({ alt: "unrelated edit" }, deps);
+    expect(await stored()).toBe("A fox on a hill.");
+    await run({ description: "" }, deps);
+    expect(await stored()).toBe("");
+    await run({ description: "again" }, deps);
+    await run({ description: null }, deps);
+    expect(await stored()).toBe("");
+  });
+
+  it("refuses a non-string or over-long PATCH description with the service's own 400 and writes nothing", async () => {
+    const deps = updateDeps();
+    expect(await refusalOf(() => run({ description: 7 }, deps))).toEqual({ status: 400, body: { error: expect.stringContaining("description") } });
+    expect(await refusalOf(() => run({ description: "x".repeat(2001) }, deps))).toEqual({ status: 400, body: { error: expect.stringContaining("MEDIA_MAX_DESCRIPTION_LENGTH") } });
+    expect((await deps.mediaRepo.findById({ workspaceId: WORKSPACE_ID, id: "a1" }))?.description).toBeUndefined();
+    expect(await run({ description: "x".repeat(2000) }, deps)).toMatchObject({ ok: true });
+  });
 });

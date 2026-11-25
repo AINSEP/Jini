@@ -1,5 +1,5 @@
 import type { ISODateTime, JsonObject, UUID } from "../../primitives/index.js";
-import type { DomainEvent } from "./ports.js";
+import type { DomainEvent, MutationActor } from "./ports.js";
 
 /**
  * @file Change-set vocabulary and persistence contract.
@@ -34,6 +34,11 @@ export interface ChangeSetRecord {
   workspaceId: UUID;
   /** Principal (user or agent) that caused the change. */
   actorId?: UUID | undefined;
+  /**
+   * Attribution stamped by the trusted writer; `actor.id` must equal `actorId` when both are set.
+   * Absent on historic rows recorded before provenance existed: unknown, never a guessed kind.
+   */
+  actor?: MutationActor | undefined;
   status: ChangeSetStatus;
   /** Human-readable description shown in audit/review UIs. */
   summary: string;

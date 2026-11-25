@@ -287,3 +287,14 @@ describe('library controller writes', () => {
     expect(controller.getSnapshot().pendingPurge).toBeNull();
   });
 });
+
+describe('memory media api description patch', () => {
+  it('stores a patched description, clears it with a blank string and leaves it alone when omitted', async () => {
+    const api = createMemoryMediaApi({});
+    const created = await api.upload({ filename: 'fox.png', contentType: 'image/png', dataBase64: 'AAAA' });
+    const described = await api.update({ id: created.id, patch: { description: 'A fox on a hill.' } });
+    expect(described.description).toBe('A fox on a hill.');
+    expect((await api.update({ id: created.id, patch: { alt: 'Fox' } })).description).toBe('A fox on a hill.');
+    expect((await api.update({ id: created.id, patch: { description: '' } })).description).toBe('');
+  });
+});

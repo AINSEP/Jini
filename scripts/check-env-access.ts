@@ -1,4 +1,5 @@
 /** Environment-access ratchet (HW9-env-access, HW12-env-import-time). Run directly, or through guard.ts.
+ * HW13-env-undeclared-entry joins them: each process entry is checked against its rows in jini-env-schema.ts.
  *
  * This script is the host half of `@jini-ai/devops/checks/env-access`: it decides where to look and
  * which files are process entries. Both come from the tree and the package manifests, so there is
@@ -15,6 +16,7 @@ import { createHardwiringInspector, diffHardwiringDebt } from '../packages/devop
 import type { HardwiringViolation } from '../packages/devops/src/checks/hardwiring.js';
 import { packageSourceFiles, payloadSourceFiles, sourcePackages } from './lib/package-sources.js';
 import type { SourcePackage } from './lib/package-sources.js';
+import { declaredEnvNamesFor, JINI_ENTRY_ENV_NAMES } from './jini-env-schema.js';
 
 const root = resolve(fileURLToPath(new URL('..', import.meta.url)));
 const DEBT_FILE = 'scripts/env-access-debt.json';
@@ -25,6 +27,9 @@ const BUNDLED_RUNTIMES: ReadonlySet<string> = new Set(['browser', 'dom', 'univer
 const PAYLOAD_FOLDER = /^[^/]+\/(?:lib|worker|ui)\/.+\.mjs$/;
 
 interface ScannedFile { file: string; envRoot: boolean; buildDefine: boolean }
+type EntryEnvNames = Readonly<Record<string, readonly string[]>>;
+/** Which entry declarations to apply; tests scan fixture trees with their own rows. */
+interface EnvAccessScanOptions { entryEnvNames?: EntryEnvNames }
 type EntryManifest = SourcePackage['manifest'] & { bin?: string | Record<string, string>; jini?: { runtime?: string } };
 
 /** A package's process entries: everything under `src/bin/`, and the source of each manifest `bin` target. */
@@ -57,18 +62,28 @@ function payloadAndExampleFiles(required: { repoRoot: string }): ScannedFile[] {
   return [...payloads, ...exampleSources].map(file => ({ file, envRoot: false, buildDefine: false }));
 }
 
-/** Scan package source, plugin payloads and examples; no builds, no imports of the scanned code, no network. */
-export function collectEnvAccess(required: { repoRoot: string }, _options: Record<string, never> = {}): HardwiringViolation[] {
+/** A declaration for a file the scan does not treat as an entry would silently grant nothing; fail instead. */
+function assertDeclaredEntriesExist({ entries, schema }: { entries: ReadonlySet<string>; schema: EntryEnvNames }): void {
+  const stale = Object.keys(schema).filter(entry => !entries.has(entry));
+  if (stale.length) throw new Error(`${stale.length} env schema row(s) name a file that is not a scanned process entry; fix them in scripts/jini-env-schema.ts.`);
+}
+
+/** Scan package source, plugin payloads and examples; no builds, no imports of the scanned code, no network.
+ * Each process entry is checked against the names declared for its repo-relative path. */
+export function collectEnvAccess(required: { repoRoot: string }, { entryEnvNames = JINI_ENTRY_ENV_NAMES }: EnvAccessScanOptions = {}): HardwiringViolation[] {
   const inspector = createEnvAccessInspector({ compiler: ts, inspector: createHardwiringInspector({ compiler: ts }) });
-  const files = [...packageFiles({ packagesDir: join(required.repoRoot, 'packages') }), ...payloadAndExampleFiles(required)];
-  return files.flatMap(({ file, envRoot, buildDefine }) => inspector.inspect({
-    file: relative(required.repoRoot, file).replaceAll('\\', '/'), source: readFileSync(file, 'utf8'), envRoot, buildDefine,
+  const files = [...packageFiles({ packagesDir: join(required.repoRoot, 'packages') }), ...payloadAndExampleFiles(required)]
+    .map(scanned => ({ ...scanned, file: relative(required.repoRoot, scanned.file).replaceAll('\\', '/'), path: scanned.file }));
+  assertDeclaredEntriesExist({ entries: new Set(files.filter(f => f.envRoot).map(f => f.file)), schema: entryEnvNames });
+  return files.flatMap(({ file, path, envRoot, buildDefine }) => inspector.inspect({
+    file, source: readFileSync(path, 'utf8'), envRoot, buildDefine,
+    ...(envRoot ? { declaredEnvNames: declaredEnvNamesFor({ entry: file }, { schema: entryEnvNames }) } : {}),
   }));
 }
 
 /** Guard aggregators receive only new debt; existing occurrences stay visible in the counts. */
-export function checkEnvAccess(required: { repoRoot: string } = { repoRoot: root }, _options: Record<string, never> = {}): HardwiringViolation[] {
-  const current = collectEnvAccess(required);
+export function checkEnvAccess(required: { repoRoot: string } = { repoRoot: root }, options: EnvAccessScanOptions = {}): HardwiringViolation[] {
+  const current = collectEnvAccess(required, options);
   const baseline = JSON.parse(readFileSync(join(required.repoRoot, DEBT_FILE), 'utf8')) as { violations: HardwiringViolation[] };
   const diff = diffHardwiringDebt({ baseline: baseline.violations, current });
   for (const rule of ENV_ACCESS_RULES) logger.info({ message: `[hardwiring] ${rule}: ${current.filter(v => v.rule === rule).length} total; ${diff.added.filter(v => v.rule === rule).length} new` });

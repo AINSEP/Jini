@@ -103,6 +103,7 @@ export const taxonomyCreateTaxonomyHandler = ({ deps }: TaxonomyHandlerArgs): To
   const taxonomy = await createTaxonomy({
     deps: taxonomyDeps(deps),
     principalId: ctx.principal.id,
+    actor: deps.mutationActor?.({ principalId: ctx.principal.id }),
     name: requireString({ input: input, key: "name" }),
     hierarchical: input.hierarchical === true,
   });
@@ -114,6 +115,7 @@ export const taxonomyCreateTermHandler = ({ deps }: TaxonomyHandlerArgs): ToolHa
   const term = await createTerm({
     deps: taxonomyDeps(deps),
     principalId: ctx.principal.id,
+    actor: deps.mutationActor?.({ principalId: ctx.principal.id }),
     taxonomyId: requireString({ input: input, key: "taxonomyId" }),
     name: requireString({ input: input, key: "name" }),
   }, { parentId: optionalString({ input: input, key: "parentId" }) ?? null });
@@ -125,6 +127,7 @@ export const taxonomyRenameTermHandler = ({ deps }: TaxonomyHandlerArgs): ToolHa
   const term = await renameTerm({
     deps: { ...taxonomyDeps(deps), transaction: (required) => deps.taxonomyRepo.transaction(required) },
     principalId: ctx.principal.id,
+    actor: deps.mutationActor?.({ principalId: ctx.principal.id }),
     termId: requireString({ input: input, key: "termId" }),
     newName: requireString({ input: input, key: "newName" }),
   });
@@ -152,7 +155,7 @@ export const taxonomyAssignTermsHandler = ({ deps }: TaxonomyHandlerArgs): ToolH
       if (result.allowed) await requireTaggableContentType({ deps, contentType });
       return result;
     } },
-    principalId: ctx.principal.id, contentType, contentId, termIds,
+    principalId: ctx.principal.id, actor: deps.mutationActor?.({ principalId: ctx.principal.id }), contentType, contentId, termIds,
   });
   return { contentType, contentId, assignedTermIds: termIds };
 };
@@ -174,6 +177,7 @@ export const taxonomyUnassignTermsHandler = ({ deps }: TaxonomyHandlerArgs): Too
   const { removedTermIds } = await unassignTerms({
     deps: { ...taxonomyDeps(deps), entryTerms: deps.entryTermRepo },
     principalId: ctx.principal.id,
+    actor: deps.mutationActor?.({ principalId: ctx.principal.id }),
     contentType,
     contentId,
     termIds,

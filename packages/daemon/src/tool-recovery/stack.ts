@@ -49,7 +49,7 @@
  * arguments and constructs no policy, sink, or registry of its own.
  */
 import { createToolExecutor } from '../tool-executor.js';
-import { type ToolExecutor, type ToolExecutionResult, type PrepareToolGuidance } from '../tool-executor-types.js';
+import { type ToolExecutor, type ToolExecutionResult, type PrepareToolGuidance, type ToolOutputValidation } from '../tool-executor-types.js';
 import type { ToolRegistry } from "@jini-ai/core";
 import { isNoopObservabilityPort, type ObservabilityPort } from "@jini-ai/core/contracts/observability";
 import type { ErrorReporter } from "@jini-ai/core/errors/reporter";
@@ -66,6 +66,8 @@ import { reportNestedFailure, toolCallLabel, withToolCallObservability, type IsR
 export interface AssistantToolExecutorDeps extends Omit<ToolFailureRecoveryDeps, "registry"> {
   readonly registry: ToolRegistry;
   readonly prepareGuidance?: PrepareToolGuidance;
+  /** Host-bound output validator and mode; omitted leaves every output unchecked. */
+  readonly outputValidation?: ToolOutputValidation;
   readonly surfaceExchanges: SurfaceExchangeStore;
   readonly newExecutionId: () => string;
   /** Optional sink is a real supported configuration; never require a dummy observer. */
@@ -98,6 +100,7 @@ export function createAssistantToolExecutor(deps: AssistantToolExecutorDeps, _op
   const isRegisteredTool: IsRegisteredTool = ({ toolId }) => deps.registry.has({ toolId });
   const guarded = withReadOnlyToolConstraint({ inner: createToolExecutor({ registry: deps.registry }, {
     ...(deps.prepareGuidance ? { prepareGuidance: deps.prepareGuidance } : {}),
+    ...(deps.outputValidation ? { outputValidation: deps.outputValidation } : {}),
     redactNestedFailure: ({ result, toolId, runId }) => redactAndReportNested({ result, toolId, runId, deps, isRegisteredTool }),
   }),
     registry: deps.registry, idGenerator: { newId: deps.newExecutionId }, messages: deps.readOnlyMessages }, {});

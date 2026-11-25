@@ -11,6 +11,8 @@ export interface MediaAsset extends PickerAsset {
   readonly sha256: string;
   readonly caption: string;
   readonly credit: string;
+  /** Plain-language description of the picture; absent until one is stored. */
+  readonly description?: string;
   readonly createdAt: string;
   readonly updatedAt: string;
   readonly version: number;
@@ -41,6 +43,8 @@ export interface MediaMetadataPatch {
   readonly alt?: string;
   readonly caption?: string;
   readonly credit?: string;
+  /** Blank string clears the stored description; omitted leaves it unchanged. */
+  readonly description?: string;
 }
 export interface MediaRequestOptions {
   readonly signal?: AbortSignal;

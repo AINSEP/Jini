@@ -11,7 +11,8 @@ import type { Clock, IdGenerator } from "@jini-ai/core/primitives";
 import { buildDomainRegistrations, indexCatalogById, requireInputRecord, requireString, type AgentToolDefinition, type AgentToolSideEffect, type ToolRegistration } from "@jini-ai/core";
 import { adaptLegacyAuthorize, requireToolPermission } from "../core/tools/index.js";
 import type { AssetBlobRepoPort, AssetRenditionRepoPort, BlobStorePort, MediaRepoPort } from "./ports.js";
-import { VideoConversionError, convertMediaVideo, type DerivedMediaLinkPort, type MediaTranscoderPort } from "./video-transcode.js";
+import { VideoConversionError, convertMediaVideo, type DerivedMediaLinkPort } from "./video-transcode.js";
+import type { MediaTranscoderPort } from "@jini-ai/core/contracts/site/cms-media";
 
 export const CONVERT_VIDEO_TOOL_ID = "media_convert_video";
 

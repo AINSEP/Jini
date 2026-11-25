@@ -28,11 +28,11 @@ test("public commands entry reverts in reverse order and preserves the agent for
     idGen: { newId: () => "event" },
   };
   await expect(revertChangeSet({ deps, input: {
-    workspaceId: "workspace", changeSetId: "change", force: true, principalKind: "agent",
+    workspaceId: "workspace", changeSetId: "change", force: true, principalKind: "agent", actor: { id: "owner", kind: "agent" },
   } }, {})).rejects.toBeInstanceOf(RevertForbiddenError);
   expect(applied).toEqual([]);
   expect(await repo.findById({ workspaceId: "other", id: "change" })).toBeNull();
-  const reverted = await revertChangeSet({ deps, input: { workspaceId: "workspace", changeSetId: "change" } }, {});
+  const reverted = await revertChangeSet({ deps, input: { workspaceId: "workspace", changeSetId: "change", actor: { id: "owner", kind: "user" } } }, {});
   expect(applied).toEqual(["doc-1", "doc-0"]);
   expect(reverted.status).toBe("reverted");
   expect(reverted.revertedAt).toBe("2026-11-07T01:00:00.000Z");

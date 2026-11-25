@@ -410,6 +410,7 @@
       "./admin-http/routes/media/text": "universal",
       "./admin-http/routes/media/replace": "node",
       "./admin-http/routes/media/upload": "node",
+      "./admin-http/routes/media/grid": "node",
       "./admin-http/routes/assistant/execution-shared": "universal",
       "./admin-http/routes/assistant/detect-agents": "universal",
       "./admin-http/routes/assistant/list-models": "universal",
@@ -931,6 +932,7 @@
         "./admin-http/routes/media/text": "media",
         "./admin-http/routes/media/replace": "media",
         "./admin-http/routes/media/upload": "media",
+        "./admin-http/routes/media/grid": "media",
         "./admin-http/routes/assistant/execution-shared": "admin-http",
         "./admin-http/routes/assistant/detect-agents": "admin-http",
         "./admin-http/routes/assistant/list-models": "admin-http",
@@ -3086,6 +3088,11 @@
       "types": "./dist/admin-http/routes/media/upload.d.ts",
       "import": "./dist/admin-http/routes/media/upload.js",
       "default": "./dist/admin-http/routes/media/upload.js"
+    },
+    "./admin-http/routes/media/grid": {
+      "types": "./dist/admin-http/routes/media/grid.d.ts",
+      "import": "./dist/admin-http/routes/media/grid.js",
+      "default": "./dist/admin-http/routes/media/grid.js"
     },
     "./admin-http/routes/assistant/execution-shared": {
       "types": "./dist/admin-http/routes/assistant/execution-shared.d.ts",

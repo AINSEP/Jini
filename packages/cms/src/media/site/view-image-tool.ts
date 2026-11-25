@@ -70,21 +70,25 @@ type AgentToolDefinition = SharedAgentToolDefinition & { inputSchema: Readonly<R
 export interface MediaViewImageAgentToolCatalogArgs {
   /** The host's read tool id for one media asset, named where the model is told how to find an id or slug. */
   mediaAssetReadToolId: string;
+  mediaMetadataWriteToolId: string;
 }
 
 /** Builds the tool's catalog with the host's media-asset read tool id bound into its description. */
 export function buildMediaViewImageAgentToolCatalog(
-  { mediaAssetReadToolId }: MediaViewImageAgentToolCatalogArgs,
+  { mediaAssetReadToolId, mediaMetadataWriteToolId }: MediaViewImageAgentToolCatalogArgs,
   _optional: Record<string, never> = {},
 ): AgentToolDefinition[] {
   return [{
     name: MEDIA_VIEW_IMAGE_TOOL_ID,
+    // Only the authorized write path may change durable metadata, even when a read supplies the evidence.
     description:
       "THIS IS HOW TO LOOK AT / SEE / VIEW AN IMAGE in the media library — opens one image and returns the actual picture so you can see what it shows. " +
       "Call this before writing or improving alt text, writing a caption, describing a photo, checking what a picture contains, or choosing between images; " +
       `never guess what an image shows from its title or filename. Pass exactly one of \`mediaId\` or \`slug\` (find them with ${mediaAssetReadToolId}). ` +
       `Returns the image (WebP, long edge at most ${VIEW_IMAGE_MAX_EDGE_PX}px, downscaled when larger) plus its metadata as JSON: id, slug, title, current alt, caption, status, the original's type and dimensions, and the returned dimensions. ` +
-      "Read-only: it changes nothing — to save new alt text afterwards, use media_update_metadata. For video still frames use media_view_video; this tool refuses anything that is not a still image.",
+      `Read-only: it changes nothing — to save new alt text afterwards, use ${mediaMetadataWriteToolId}. ` +
+      `When asked to save what you see, call ${mediaMetadataWriteToolId} with a short factual description of the picture and the asset's current version. ` +
+      "For video still frames use media_view_video; this tool refuses anything that is not a still image.",
     sideEffects: "none",
     authorization: { permission: "media.read" },
     inputSchema: {
@@ -181,7 +185,7 @@ function assertStillImage({ asset, contentType }: { asset: MediaRecord; contentT
  * @returns One registration: `media_view_image`, read-only.
  */
 export function buildMediaViewImageRegistrations(
-  { deps, mediaAssetReadToolId }: { deps: MediaViewImageToolDeps } & MediaViewImageAgentToolCatalogArgs,
+  { deps, mediaAssetReadToolId, mediaMetadataWriteToolId }: { deps: MediaViewImageToolDeps } & MediaViewImageAgentToolCatalogArgs,
   _optional: Record<string, never> = {},
 ): ToolRegistration[] {
   const handlers: Record<string, ToolHandler> = {
@@ -222,7 +226,7 @@ export function buildMediaViewImageRegistrations(
   return buildDomainRegistrations({ metadata: toolMetadata,
     domain: "media-view",
     catalogModule: "features/media/view-image-tool.ts",
-    catalog: indexCatalogById({ catalog: buildMediaViewImageAgentToolCatalog({ mediaAssetReadToolId }) }),
+    catalog: indexCatalogById({ catalog: buildMediaViewImageAgentToolCatalog({ mediaAssetReadToolId, mediaMetadataWriteToolId }) }),
     handlers,
     derivedRisk: mediaViewImageDerivedRisk,
   });
@@ -230,8 +234,8 @@ export function buildMediaViewImageRegistrations(
 
 /** Contributes the tool to the assistant catalog — installed by `tool-catalog-manifest.ts`. */
 export function contributeMediaViewImageTools(
-  { mediaAssetReadToolId }: MediaViewImageAgentToolCatalogArgs,
+  { mediaAssetReadToolId, mediaMetadataWriteToolId }: MediaViewImageAgentToolCatalogArgs,
   _optional: Record<string, never> = {},
 ): ToolContributor<MediaViewImageToolDeps, unknown> {
-  return { domain: "media-view", build: (deps) => buildMediaViewImageRegistrations({ deps, mediaAssetReadToolId }), risk: mediaViewImageDerivedRisk };
+  return { domain: "media-view", build: (deps) => buildMediaViewImageRegistrations({ deps, mediaAssetReadToolId, mediaMetadataWriteToolId }), risk: mediaViewImageDerivedRisk };
 }

@@ -1,3 +1,4 @@
+import type { MutationActor } from "@jini-ai/core/contracts/events";
 import { defineJsonRoute, ok, type JsonRouteSpec } from "@jini-ai/core/contracts/server";
 import { rejectRoute } from "@jini-ai/core/errors/route-refusal";
 
@@ -76,7 +77,7 @@ const parseAssignmentBody: AssignmentSpec<TaxonomyAssignmentInput, void>["parse"
  *  `admin.taxonomy.manage` itself); 204 on success.
  * @complexity O(1) beyond the write service. */
 function assignmentWriteRoute(
-  { path, write }: { path: string; write: (required: { deps: ReturnType<typeof assignmentDeps>; principalId: string } & TaxonomyAssignmentInput) => Promise<unknown> },
+  { path, write }: { path: string; write: (required: { deps: ReturnType<typeof assignmentDeps>; principalId: string; actor: MutationActor | undefined } & TaxonomyAssignmentInput) => Promise<unknown> },
   _optional: Record<string, never> = {},
 ): AssignmentSpec<TaxonomyAssignmentInput, void> {
   return defineJsonRoute<TaxonomyAssignmentInput, void, TaxonomyAssignTermsRouteDeps, TaxonomyRoutePrincipal>({
@@ -87,7 +88,7 @@ function assignmentWriteRoute(
       const principal = taxonomyPrincipal({ context });
       try {
         await authorizeContentEdit({ deps, principalId: principal.id, contentType: input.contentType });
-        await write({ deps: assignmentDeps({ deps }), principalId: principal.id, ...input });
+        await write({ deps: assignmentDeps({ deps }), principalId: principal.id, actor: deps.mutationActor?.({ principalId: principal.id }), ...input });
         return ok({ value: undefined });
       } catch (err) {
         return rejectTaxonomyError({ err, outwardErrorMessage: deps.outwardErrorMessage, refusals: ASSIGNMENT_REFUSALS });

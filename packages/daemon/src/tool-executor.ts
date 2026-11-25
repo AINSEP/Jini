@@ -67,10 +67,11 @@ import { createExecutionExecute } from './tool-executor-invocation.js';
  * @param options.delegate - Transport-supplied authorize/confirm UI seam;
  * omit for a headless caller whose tools never need interactive gating.
  * @param options.maxAuditRecords - Finished audit records kept, see {@link DEFAULT_MAX_AUDIT_RECORDS}.
+ * @param options.outputValidation - Host validator and mode for tools that declare an `outputSchema`.
  * @complexity Known-id `execute` adds schema-guided normalization to the handler's cost; unknown ids scan O(n) descriptors for hints. `resumeConfirmation`/`cancel`/`getAuditRecord` are O(1) map lookups.
  * @overallScore 100/100
  */
-export function createToolExecutor(requiredArgs: Pick<CreateToolExecutorOptions, "registry">, optionalArgs: Pick<CreateToolExecutorOptions, "delegate" | "now" | "prepareGuidance" | "redactNestedFailure" | "maxAuditRecords"> = {}): ToolExecutor {
+export function createToolExecutor(requiredArgs: Pick<CreateToolExecutorOptions, "registry">, optionalArgs: Pick<CreateToolExecutorOptions, "delegate" | "now" | "prepareGuidance" | "redactNestedFailure" | "maxAuditRecords" | "outputValidation"> = {}): ToolExecutor {
   const options: CreateToolExecutorOptions = { ...requiredArgs, ...optionalArgs };
   const { registry, delegate, now, maxAuditRecords, audits, finishedAudits, pendingConfirmations, approvalWaits, activeControllers, cancelledConfirmations } = createExecutionState(options);
   const approvalStateChange = createExecutionApprovalStateChange({ approvalWaits });
@@ -93,7 +94,7 @@ export function createToolExecutor(requiredArgs: Pick<CreateToolExecutorOptions,
   const wantsGuidance = createExecutionWantsGuidance({ options });
   const nestedFailureMessage = createExecutionNestedFailureMessage({ options });
   const nestedInvoker = createExecutionNestedInvoker({ getExecute: () => execute, nestedFailureMessage });
-  const settleOutput = createExecutionSettleOutput({ failureResult, appendEvent });
+  const settleOutput = createExecutionSettleOutput({ failureResult, appendEvent }, { outputValidation: options.outputValidation });
   const runHandler = createExecutionRunHandler({ wantsGuidance, prepareGuidanceSafely, terminal, approvalRefusal, approvalStateChange, appendEvent, nestedInvoker, settleOutput, failureResult });
   const execute = createExecutionExecute({ registry, openAudit, terminal, activeControllers, watchTransportAbort, authorize, authorizationFailure, admitAuthorized, confirmGate, runHandler });
   const getAuditRecord = createExecutionGetAuditRecord({ audits });

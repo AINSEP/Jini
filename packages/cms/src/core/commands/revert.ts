@@ -5,6 +5,7 @@ import type {
   ChangeSetRecord,
   ChangeSetRepoPort,
   ChangeSetItemRecord,
+  MutationActor,
 } from "@jini-ai/core/contracts/events";
 import type { RevertRegistry, EntityReverter } from "./appliers.js";
 
@@ -103,6 +104,13 @@ export interface RevertChangeSetRequired {
     force?: boolean;
     /** Required with `force` (a force without it is refused); unused when `force` is not set. */
     principalKind?: RevertPrincipalKind;
+    /**
+     * Who performs this revert, stamped on `change-set.reverted`. Required: the revert is a new
+     * write, so it carries its own trusted attribution rather than the reverted set's author.
+     * The execution channel supplies attribution, the principal ID still governs authorization,
+     * and the two are not interchangeable.
+     */
+    actor: MutationActor;
   };
 }
 
@@ -128,14 +136,16 @@ const ITEM_PERMISSION_DENIED_MESSAGE = "You don't have permission to undo one of
 const ITEM_CANNOT_FORCE_MESSAGE =
   "This change can't be forced back over a newer version. Keep the newer version and edit it again instead.";
 
-function revertedChangeSetEvent(deps: RevertChangeSetDeps, reverted: ChangeSetRecord): DomainEvent<{ changeSetId: UUID }> {
+function revertedChangeSetEvent(deps: RevertChangeSetDeps, reverted: ChangeSetRecord, actor: MutationActor): DomainEvent<{ changeSetId: UUID }> {
   return {
     id: deps.idGen.newId(),
     name: "change-set.reverted",
     occurredAt: reverted.revertedAt!,
     aggregateId: reverted.id,
     workspaceId: reverted.workspaceId,
-    actorId: reverted.actorId,
+    // The reverting actor, not the reverted set's author: undoing someone's change is a new act.
+    actorId: actor.id,
+    actor: { id: actor.id, kind: actor.kind },
     changeSetId: reverted.id,
     payload: { changeSetId: reverted.id },
   } as DomainEvent<{ changeSetId: UUID }>;
@@ -203,7 +213,7 @@ export async function revertChangeSet(
   await changeSets.save(reverted);
 
   if (deps.outbox) {
-    const event = revertedChangeSetEvent(deps, reverted);
+    const event = revertedChangeSetEvent(deps, reverted, input.actor);
     await deps.outbox.enqueue(event);
   }
 

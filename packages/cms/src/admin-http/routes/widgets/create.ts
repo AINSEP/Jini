@@ -57,7 +57,7 @@ export const widgetCreateRoute = defineJsonRoute<WidgetCreateBody, { widget: Wid
     try {
       const { instance } = await createWidgetInstance({
         deps: deps.widgetsDeps(),
-        input: { workspaceId: deps.workspaceId, actor: { principalId: widgetActorId({ context }) }, ...input },
+        input: { workspaceId: deps.workspaceId, actor: { principalId: widgetActorId({ context }), kind: "user" }, ...input },
       });
       return ok({ value: toAdminWidgetResponse(instance) });
     } catch (err) {

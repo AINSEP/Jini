@@ -726,7 +726,7 @@ Every listed name is exported from the root; source links define fields and lite
 | [defs/qwen.ts](../../src/defs/qwen.ts) | `qwenAgentDef` |
 | [defs/reasonix.ts](../../src/defs/reasonix.ts) | `reasonixAgentDef` |
 | [defs/trae-cli.ts](../../src/defs/trae-cli.ts) | `traeCliAgentDef` |
-| [defs/vibe.ts](../../src/defs/vibe.ts) | `vibeAgentDef` |
+| [defs/vibe/index.ts](../../src/defs/vibe/index.ts) | `vibeAgentDef` |
 | [model-registry.ts](../../src/model-registry.ts) | `AgentModelChoice` |
 | [claude-stream.ts](../../src/claude-stream.ts) | `ClaudeStreamEvent` |
 | [qoder-stream.ts](../../src/qoder-stream.ts) | `QoderEvent` |

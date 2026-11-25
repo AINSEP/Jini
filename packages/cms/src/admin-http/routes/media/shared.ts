@@ -3,7 +3,7 @@ import { RouteRefusalError, rejectRoute } from "@jini-ai/core/errors/route-refus
 import type { AdminMediaDto } from "@jini-ai/core/contracts/site/cms-media";
 
 import { EntityNotLiveError } from "../../../core/entity-liveness.js";
-import { MediaConflictError, MediaNotFoundError, MediaValidationError, type MediaRecord } from "../../../media/types.js";
+import { MediaConflictError, MediaNotFoundError, MediaUploadSizeError, MediaValidationError, type MediaRecord } from "../../../media/types.js";
 import { toAdminMediaResponse } from "../../http/media.js";
 import type { OutwardErrorMessage } from "../../http/outward-error-message.js";
 
@@ -31,12 +31,20 @@ export interface MediaErrorMapping {
   readonly code?: string | "own";
   /** Fixed caller copy instead of the error's own message (a host-worded refusal whose cause stays private). */
   readonly error?: string;
+  /** Typed numeric fields added beside `error`/`code` (the single-file size refusal). */
+  readonly fields?: (required: { err: unknown }, optional?: Record<string, never>) => Record<string, number>;
 }
 
 /** A trashed or tombstoned asset: 409 with the liveness error's own code (`entityNotLiveResponse`'s rule). */
 export const MEDIA_NOT_LIVE: MediaErrorMapping = { matches: ({ err }, _o = {}) => err instanceof EntityNotLiveError, status: 409, code: "own" };
 export const MEDIA_NOT_FOUND: MediaErrorMapping = { matches: ({ err }, _o = {}) => err instanceof MediaNotFoundError, status: 404 };
 export const MEDIA_VALIDATION: MediaErrorMapping = { matches: ({ err }, _o = {}) => err instanceof MediaValidationError, status: 400 };
+// Listed before MEDIA_VALIDATION: the same 400 and plain sentence, plus the measured size and limit.
+// Only the byte checks raise this subtype, so empty, forbidden-type and batch refusals stay unlabelled.
+export const MEDIA_UPLOAD_SIZE: MediaErrorMapping = {
+  matches: ({ err }, _o = {}) => err instanceof MediaUploadSizeError, status: 400, code: MediaUploadSizeError.code,
+  fields: ({ err }, _o = {}) => { const { fileBytes, limitBytes } = err as MediaUploadSizeError; return { fileBytes, limitBytes }; },
+};
 // A slug collision — either `resolveSlugForUpdate`'s own app-level courtesy check, or (on a
 // genuine race) `SqliteMediaRepo.save()`'s translated UNIQUE-constraint catch; both throw the
 // same `MediaConflictError` so this route needs only one branch regardless of which layer
@@ -58,6 +66,7 @@ export function rejectMediaError(
   if (!mapping) throw err;
   const error = mapping.error ?? (err instanceof Error ? outwardErrorMessage({ error: err }) : String(err));
   const code = mapping.code === "own" ? (err as { code?: string }).code : mapping.code;
+  if (mapping.fields) throw new RouteRefusalError({ status: mapping.status, body: { error, code, ...mapping.fields({ err }) } });
   return rejectRoute(code === undefined ? { status: mapping.status, error } : { status: mapping.status, error, code });
 }
 

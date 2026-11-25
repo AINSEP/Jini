@@ -45,8 +45,8 @@ export interface MediaProviderRegistry extends VendorAdapterLookup, MediaModelCa
 export const MEDIA_PROVIDER_CONTRACT = 'media';
 
 /** The registry key for a public media provider id (aliases resolved, `-` -> `_`). @complexity O(n) in id length. */
-export function mediaProviderRegistryId({ id }: { id: string }, _optional: Record<string, never> = {}): string {
-  return canonicalMediaProviderId({ id }).replaceAll('-', '_');
+export function mediaProviderRegistryId({ id }: { id: string }, { aliases = {} }: { aliases?: Readonly<Record<string, string>> } = {}): string {
+  return canonicalMediaProviderId({ id }, { aliases }).replaceAll('-', '_');
 }
 
 /** Wraps one contribution as a shared-registry definition. @complexity O(1). */
@@ -120,12 +120,13 @@ function asMediaModel(model: MediaProviderModel): MediaModel {
  * Builds the media provider registry. Built-ins register with the throwing policy; plugins go through
  * `providers.contribute` (or agent-plugins' `contributeProviders`) and are refused, never thrown.
  * @param optional.contributions - Core contributions; defaults to {@link builtinMediaProviderContributions}.
+ * @param optional.aliases - Host-injected legacy provider ids (old id -> registered id) accepted on lookups.
  * @throws {ProviderRegistryError} When a core contribution is malformed or duplicated.
  * @complexity Lookups O(m) over registered models (tens), registration O(m).
  */
 export function createMediaProviderRegistry(
   _required: Record<string, never> = {},
-  { contributions = builtinMediaProviderContributions() }: { contributions?: readonly MediaProviderContribution[] } = {},
+  { contributions = builtinMediaProviderContributions(), aliases = {} }: { contributions?: readonly MediaProviderContribution[]; aliases?: Readonly<Record<string, string>> } = {},
 ): MediaProviderRegistry {
   let current: ProviderRegistry<MediaProviderContribution> | undefined;
   const providers = createProviderRegistry<MediaProviderContribution>({ contract: MEDIA_PROVIDER_CONTRACT }, {
@@ -135,7 +136,7 @@ export function createMediaProviderRegistry(
   current = providers;
   for (const contribution of contributions) providers.register({ definition: mediaProviderDefinition({ contribution }) });
 
-  const entryFor = (id: string) => providers.get({ id: mediaProviderRegistryId({ id }) })?.provider;
+  const entryFor = (id: string) => providers.get({ id: mediaProviderRegistryId({ id }, { aliases }) })?.provider;
   const allModels = () => providers.list().flatMap(entry => entry.provider.models).map((model, index) => ({ model, index })).sort(byOrder).map(({ model }) => model);
 
   return {

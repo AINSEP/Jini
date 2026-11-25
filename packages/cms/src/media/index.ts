@@ -26,6 +26,7 @@ export type {
 export {
   MediaNotFoundError,
   MediaValidationError,
+  MediaUploadSizeError,
   MediaConflictError,
   MediaSourceImmutableError,
   MediaStillReferencedError,
@@ -189,9 +190,12 @@ export {
 export {
   VIDEO_TRANSCODE_THRESHOLD_BYTES, VIDEO_TRANSCODE_MAX_INPUT_BYTES, VIDEO_CONVERSION_MESSAGES, VideoConversionError,
   shouldTranscodeOnImport, convertMediaVideo,
-  type VideoTranscodeTarget, type VideoTranscodeFailureReason, type VideoTranscodeResult, type MediaTranscoderPort,
   type DerivedMediaLinkPort, type VideoConversionFailureReason, type ConvertMediaVideoDeps, type ConvertMediaVideoRequired, type ConvertMediaVideoOptional,
 } from './video-transcode.js';
+export type {
+  VideoTranscodeTarget, VideoTranscodeFailureReason, VideoTranscodeResult, MediaTranscoderPort,
+  VideoCodec, VideoCodecProbePort,
+} from '@jini-ai/core/contracts/site/cms-media';
 export {
   CONVERT_VIDEO_TOOL_ID, convertVideoToolDefinition, buildConvertVideoRegistrations,
   type VideoConversionToolOptions, type ConvertVideoToolDeps,
@@ -203,6 +207,7 @@ export { sanitizeSvg } from "./sanitize-svg.js";
 
 export { replaceMediaFile, mediaReplacementMetadata, mediaFileReplacementRecord, type ReplaceMediaFileDeps, type MediaFileReplacementRepoPort, type MediaFileReplacementInput, type MediaReplacementMetadata } from './replace-media-file.js';
 
+export { MEDIA_MAX_UPLOAD_BYTES } from "@jini-ai/core/contracts/site/media-upload-limits";
 export { MAX_DOCUMENT_BYTES, DOCUMENT_CONTENT_TYPES, documentContentType, validateDocumentIngress, decodeDocumentUtf8, documentDisplayFilename, type DocumentArchiveReaderPort } from "./document-ingress.js";
 export { DOCUMENT_TEXT_PAGE_BYTES, readDocumentText, createDocumentTextReader, isDocumentOnlyBlob } from "./document-read.js";
 

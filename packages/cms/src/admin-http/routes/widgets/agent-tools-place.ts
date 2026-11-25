@@ -26,7 +26,7 @@ export const widgetPlaceToolRoute = defineJsonRoute<WidgetPlaceToolInput, Widget
   },
   handle: async ({ input, deps, context }) => {
     try {
-      const actor = { principalId: widgetActorId({ context }), kind: "user" };
+      const actor = { principalId: widgetActorId({ context }), kind: "user" as const };
       const result = await placeWidgetToolTarget({ deps, actor, target: input.target, widgetEntryId: input.widgetInstanceId });
       return ok({ value: { tool: "widgets.place", result } });
     } catch (err) {

@@ -26,8 +26,13 @@ const DDL = {
 } as const;
 
 /** A fresh in-memory database of the dialect with the three tables applied. */
-export async function openEventsKernel({ dialect }: { dialect: "sqlite" | "postgres" }, _optional: Record<string, never> = {}): Promise<KyselyKernel<unknown>> {
+export async function openEventsKernel(
+  { dialect }: { dialect: "sqlite" | "postgres" },
+  { actorKindColumn = false }: { actorKindColumn?: boolean } = {},
+): Promise<KyselyKernel<unknown>> {
   const kernel: KyselyKernel<unknown> = dialect === "sqlite" ? sqliteKernel<unknown>({ source: new Database(":memory:") }) : openPgliteKernel({ PGlite });
   for (const statement of DDL[dialect]) await kernel.execute(sql.raw(statement));
+  // A host that has migrated adds the nullable provenance column; the default stays the legacy schema.
+  if (actorKindColumn) await kernel.execute(sql.raw("ALTER TABLE change_sets ADD COLUMN actor_kind text"));
   return kernel;
 }

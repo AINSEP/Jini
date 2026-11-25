@@ -16,7 +16,8 @@ function repo(files: Record<string, string>): string {
   }
   return root;
 }
-const found = (root: string) => collectEnvAccess({ repoRoot: root }).map(v => [v.rule, v.file, v.line]);
+const found = (root: string, entryEnvNames: Record<string, readonly string[]> = {}) =>
+  collectEnvAccess({ repoRoot: root }, { entryEnvNames }).map(v => [v.rule, v.file, v.line]);
 const manifest = (extra: Record<string, unknown> = {}) => JSON.stringify({ name: '@jini-ai/fixture', jini: { runtime: 'node' }, ...extra });
 
 afterEach(() => {
@@ -52,7 +53,7 @@ describe('env-access host scan (where it looks and which files are process entri
       'packages/single/src/start.ts': READ,
       'packages/single/src/index.ts': 'export const port = process.env.PORT;',
     });
-    expect(found(root)).toEqual([
+    expect(found(root, { 'packages/tool/src/main.ts': ['PORT'], 'packages/tool/src/bin/serve.ts': ['PORT'], 'packages/tool/src/cli/run.ts': ['KEY'], 'packages/single/src/start.ts': ['KEY'] })).toEqual([
       ['HW9-env-access', 'packages/single/src/index.ts', 1],
       ['HW12-env-import-time', 'packages/single/src/index.ts', 1],
       ['HW9-env-access', 'packages/tool/src/binary/serve.ts', 1],
@@ -80,6 +81,28 @@ describe('env-access host scan (where it looks and which files are process entri
     ]);
   });
 
+  it('checks each process entry against the names declared for its repo-relative path', () => {
+    const root = repo({
+      'packages/tool/package.json': manifest({ bin: { tool: './dist/main.js' } }),
+      'packages/tool/src/main.ts': 'const { PORT, HOST: host } = process.env;\nexport function start() { return run({ env: process.env, port: PORT, host }); }',
+      'packages/tool/src/bin/serve.ts': 'export function read(name) { return process.env[name]; }',
+      'packages/tool/src/helper.ts': 'export function port({ env }) { return env.PORT; }',
+    });
+    expect(found(root, { 'packages/tool/src/main.ts': ['PORT'] })).toEqual([
+      ['HW13-env-undeclared-entry', 'packages/tool/src/bin/serve.ts', 1],
+      ['HW13-env-undeclared-entry', 'packages/tool/src/main.ts', 1],
+    ]);
+    expect(found(root, { 'packages/tool/src/main.ts': ['PORT', 'HOST'] })).toEqual([
+      ['HW13-env-undeclared-entry', 'packages/tool/src/bin/serve.ts', 1],
+    ]);
+  });
+
+  it('fails closed on a declaration row for a file that is not a scanned process entry', () => {
+    const root = repo({ 'packages/tool/package.json': manifest(), 'packages/tool/src/helper.ts': 'export const ok = 1;' });
+    expect(() => found(root, { 'packages/tool/src/helper.ts': ['PORT'] }))
+      .toThrow('1 env schema row(s) name a file that is not a scanned process entry; fix them in scripts/jini-env-schema.ts.');
+  });
+
   it('scans plugin payloads under lib, worker and ui, and example sources', () => {
     const root = repo({
       'packages/agent-plugins/package.json': manifest({ name: '@jini-ai/agent-plugins' }),
@@ -103,15 +126,16 @@ describe('env-access host scan (where it looks and which files are process entri
 
   it('returns only occurrences that are not in the debt file, and says when debt is stale', () => {
     const root = repo({ 'packages/tool/package.json': manifest(), 'packages/tool/src/a.ts': READ, 'packages/tool/src/b.ts': READ });
-    const all = collectEnvAccess({ repoRoot: root });
+    const all = collectEnvAccess({ repoRoot: root }, { entryEnvNames: {} });
     const stale = { ...all[0]!, file: 'packages/tool/src/gone.ts' };
     mkdirSync(join(root, 'scripts'));
     writeFileSync(join(root, 'scripts/env-access-debt.json'), JSON.stringify({ violations: [all[0], stale] }));
-    const log = vi.spyOn(console, 'log').mockImplementation(() => {});
-    expect(checkEnvAccess({ repoRoot: root })).toEqual([all[1]]);
+    const log = vi.spyOn(console, 'info').mockImplementation(() => {});
+    expect(checkEnvAccess({ repoRoot: root }, { entryEnvNames: {} })).toEqual([all[1]]);
     expect(log.mock.calls.map(([line]) => line)).toEqual([
       '[hardwiring] HW9-env-access: 2 total; 1 new',
       '[hardwiring] HW12-env-import-time: 0 total; 0 new',
+      '[hardwiring] HW13-env-undeclared-entry: 0 total; 0 new',
       '[hardwiring] 1 stale debt occurrences; remove them from scripts/env-access-debt.json.',
     ]);
   });
@@ -119,7 +143,7 @@ describe('env-access host scan (where it looks and which files are process entri
 
 describe('env-access debt file of this repository', () => {
   it('is current: no occurrence is missing from it and none in it is stale', () => {
-    vi.spyOn(console, 'log').mockImplementation(() => {});
+    vi.spyOn(console, 'info').mockImplementation(() => {});
     const repoRoot = join(import.meta.dirname, '../..');
     const debt = JSON.parse(readFileSync(join(repoRoot, 'scripts/env-access-debt.json'), 'utf8')) as { violations: unknown[] };
     expect(checkEnvAccess({ repoRoot })).toEqual([]);

@@ -1,8 +1,9 @@
 import { loadOptionalPeer } from '@jini-ai/core/optional-peer';
+import { MEDIA_MAX_UPLOAD_BYTES } from '@jini-ai/core/contracts/site/media-upload-limits';
 import { MediaValidationError } from './types.js';
 
 /** Shared 50 MiB document limit for admission, extraction and host upload policy. */
-export const MAX_DOCUMENT_BYTES = 50 * 1024 * 1024;
+export const MAX_DOCUMENT_BYTES = MEDIA_MAX_UPLOAD_BYTES;
 export const DOCUMENT_CONTENT_TYPES = {
   md: 'text/markdown', txt: 'text/plain', csv: 'text/csv', json: 'application/json',
   doc: 'application/msword', xls: 'application/vnd.ms-excel', rtf: 'application/rtf',

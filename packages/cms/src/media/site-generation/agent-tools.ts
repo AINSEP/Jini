@@ -31,6 +31,10 @@ export type AgentToolDefinition = SharedAgentToolDefinition & { sideEffects: Age
 // every non-OpenAI vendor (including a machine's only configured one, Nano Banana / `nanobanana`)
 // unreachable through this tool no matter what credential existed.
 
+// Why-comment — a description is evidence about the picture, so the tool text forbids passing the generation prompt as if it were one.
+const MEDIA_DESCRIPTION_INPUT_HELP =
+  "Optional. A short factual description of what the picture shows, saved so the library can be searched and the picture found again. Describe only what is visible; never the generation prompt or a guess about its origin.";
+
 const generateSchema = (imageModelIds: readonly string[]) => ({
   type: "object",
   additionalProperties: false,
@@ -65,6 +69,7 @@ const generateSchema = (imageModelIds: readonly string[]) => ({
     alt: { type: "string", description: "Optional accessibility alt text for the uploaded asset." },
     caption: { type: "string", description: "Optional display caption for the uploaded asset." },
     credit: { type: "string", description: "Optional attribution/credit line for the uploaded asset." },
+    description: { type: "string", description: MEDIA_DESCRIPTION_INPUT_HELP },
   },
 }) as const;
 

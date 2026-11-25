@@ -74,10 +74,6 @@ const starterCatalog: readonly MediaProviderOption[] = [
     id: 'volcengine-ark',
     label: 'Volcengine Ark (Doubao)',
   },
-  {
-    id: 'xai-grok-imagine',
-    label: 'xAI Grok Imagine',
-  },
 ];
 
 export const DEFAULT_MEDIA_PROVIDER_CATALOG: readonly MediaProviderOption[] = starterCatalog.map((entry) => {

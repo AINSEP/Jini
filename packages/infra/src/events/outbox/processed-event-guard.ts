@@ -1,4 +1,26 @@
-import type { ProcessedEventKey, ProcessedEventStore } from './ports.js';
+import type { Empty, ProcessedEventKey, ProcessedEventStore } from './ports.js';
+
+/**
+ * Reference `ProcessOnce` (see `subscribeOutbox`) for tests and single-process hosts. The key is
+ * recorded only after the effect succeeds, so a failed or crashed run leaves nothing behind and the
+ * outbox's retry runs it again. A concurrent duplicate waits for the in-flight run and shares its
+ * outcome. It forgets everything on restart: durable hosts commit the key with the effect itself.
+ * @complexity O(1) per call plus one effect run. */
+export class InMemoryProcessOnceLedger {
+  readonly #committed = new Set<string>();
+  readonly #inFlight = new Map<string, Promise<void>>();
+
+  readonly processOnce = async (required: { key: string; effect: () => Promise<void> }, _optional: Empty = {}): Promise<void> => {
+    const { key, effect } = required;
+    if (this.#committed.has(key)) return;
+    const running = this.#inFlight.get(key);
+    if (running) return running;
+    const run = effect().then(() => { this.#committed.add(key); })
+      .finally(() => { this.#inFlight.delete(key); });
+    this.#inFlight.set(key, run);
+    return run;
+  };
+}
 
 /**
  * Reference `ProcessedEventStore` for tests and single-process hosts. Each method mutates
@@ -27,6 +49,8 @@ function processedEventKeyOf(required: ProcessedEventKey): string {
 
 /**
  * Wrap one subscriber so a redelivered event (same `event.id`) runs it once per `handlerId`.
+ * Kept for in-memory callers; durable outbox subscribers use `subscribeOutbox`, whose key commits
+ * with the effect instead of being claimed before it.
  * Apply it when subscribing, e.g. `bus.subscribe({ eventName, handler: withProcessedEventGuard({ store, handlerId: 'sitemap', handler }) })`.
  *
  * Claim first, then run: a lost claim means another delivery already ran, or is running, this

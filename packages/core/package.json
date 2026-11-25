@@ -98,6 +98,7 @@
       "./contracts/site/api-ai-assistant-api-types": "universal",
       "./contracts/site/cms-forms": "universal",
       "./contracts/site/cms-media": "universal",
+      "./contracts/site/media-upload-limits": "universal",
       "./contracts/site/cookie-consent-react": "universal",
       "./contracts/site/cookie-consent": "universal",
       "./contracts/site/daemon-tool-audit": "universal",
@@ -151,6 +152,7 @@
       "./errors/route-refusal": "universal",
       "./contracts/env": "universal",
       "./env/parse-env": "universal",
+      "./config/env-schema": "universal",
       "./env/format-env-issue": "universal",
       "./env/describe-env-for-diagnostics": "universal",
       "./contracts/headless/form-delivery-status": "universal",
@@ -240,6 +242,7 @@
       "./contracts/site/admin-surfaces-connections": "universal",
       "./contracts/site/api-connections-hosted-mcp": "universal",
       "./contracts/site/media-providers-catalog": "universal",
+      "./contracts/site/media-provider-contribution": "universal",
       "./contracts/site/core-custom-credential-categories": "universal",
       "./contracts/site/packaging-electron": "universal",
       "./contracts/site/platform-process": "universal",
@@ -506,6 +509,11 @@
       "types": "./dist/env/parse-env.d.ts",
       "import": "./dist/env/parse-env.js",
       "default": "./dist/env/parse-env.js"
+    },
+    "./config/env-schema": {
+      "types": "./dist/config/env-schema.d.ts",
+      "import": "./dist/config/env-schema.js",
+      "default": "./dist/config/env-schema.js"
     },
     "./env/format-env-issue": {
       "types": "./dist/env/format-env-issue.d.ts",
@@ -781,6 +789,11 @@
       "types": "./dist/contracts/site/cms-forms.d.ts",
       "import": "./dist/contracts/site/cms-forms.js",
       "default": "./dist/contracts/site/cms-forms.js"
+    },
+    "./contracts/site/media-upload-limits": {
+      "types": "./dist/contracts/site/media-upload-limits.d.ts",
+      "import": "./dist/contracts/site/media-upload-limits.js",
+      "default": "./dist/contracts/site/media-upload-limits.js"
     },
     "./contracts/site/cms-media": {
       "types": "./dist/contracts/site/cms-media.d.ts",
@@ -1471,6 +1484,11 @@
       "types": "./dist/contracts/site/media-providers-catalog.d.ts",
       "import": "./dist/contracts/site/media-providers-catalog.js",
       "default": "./dist/contracts/site/media-providers-catalog.js"
+    },
+    "./contracts/site/media-provider-contribution": {
+      "types": "./dist/contracts/site/media-provider-contribution.d.ts",
+      "import": "./dist/contracts/site/media-provider-contribution.js",
+      "default": "./dist/contracts/site/media-provider-contribution.js"
     },
     "./contracts/site/core-custom-credential-categories": {
       "types": "./dist/contracts/site/core-custom-credential-categories.d.ts",

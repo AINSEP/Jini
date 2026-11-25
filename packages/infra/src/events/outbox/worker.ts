@@ -293,6 +293,7 @@ async function deliver<Event extends EventEnvelope>(required: {
  * adapter claim tokens accompany every outcome and fence stale late writes. An unfenced adapter
  * retains the historical late-write race; even fenced delivery is at least once and effects need
  * host idempotency. No storage schema or connection is created by this orchestration.
+ * Per-subscriber idempotency keys come from `subscribeOutbox` (subscription.ts).
  *
  * The complete envelope and its identity pass through unchanged; only name is read by the worker.
  * The host retains payload and workspace metadata. There are no global timers, console calls,

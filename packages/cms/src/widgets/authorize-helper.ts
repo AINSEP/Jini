@@ -1,3 +1,5 @@
+import type { MutationActor } from "@jini-ai/core/contracts/events";
+import type { UUID } from "@jini-ai/core/primitives";
 import { WidgetForbiddenError } from "./errors.js";
 
 /**
@@ -51,3 +53,25 @@ export const PRE_AUTHORIZED: WidgetsAuthorizeFn = async () => ({
 
 /** The actor id attributed to fully-automatic, system-driven writes (content-type seeding, theme-activation region seeding — REQ-13). Mirrors `server/seed.ts`'s `SETTINGS_MIGRATION_SYSTEM_PRINCIPAL_ID` convention. */
 export const WIDGETS_SYSTEM_ACTOR_ID = "system-widgets";
+
+/** {@link WIDGETS_SYSTEM_ACTOR_ID} as stamped on the entry events of those system writes. Its `system`
+ *  kind is declared here, by the writer that knows it acts for nobody — never inferred from the id. */
+export const WIDGETS_SYSTEM_MUTATION_ACTOR: MutationActor = { id: WIDGETS_SYSTEM_ACTOR_ID, kind: "system" };
+
+/**
+ * The acting principal of a widget write. `kind` is the attribution its execution channel vouches
+ * for (an admin route says `user`, the assistant's tool surface says `agent`); `principalId` still
+ * governs authorization. The two are not interchangeable, so a missing `kind` records no actor on
+ * the event rather than one guessed from the id. Optional only until every host passes it.
+ */
+export interface WidgetWriteActor {
+  readonly principalId: UUID;
+  readonly kind?: MutationActor["kind"] | undefined;
+}
+
+/** The trusted actor a widget write stamps on its entry event, or `undefined` when its caller vouched for no kind.
+ *  @complexity O(1). */
+export function trustedWidgetActor({ actor }: { actor: WidgetWriteActor }, _optional: Record<string, never> = {}): MutationActor | undefined {
+  return actor.kind ? { id: actor.principalId, kind: actor.kind } : undefined;
+}
+

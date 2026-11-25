@@ -29,6 +29,9 @@ import {
   PRE_AUTHORIZED,
   requireWidgetPermission,
   WIDGETS_SYSTEM_ACTOR_ID,
+  WIDGETS_SYSTEM_MUTATION_ACTOR,
+  trustedWidgetActor,
+  type WidgetWriteActor,
   type WidgetsAuthorizeFn,
 } from "./authorize-helper.js";
 import { withEntryLock, type EntryLockState } from "./concurrency.js";
@@ -144,6 +147,8 @@ export async function bindWidgetArea(required: BindWidgetAreaRequired, _optional
         deps: entriesWriteDeps(deps, input.workspaceId),
         input: {
           actorId: WIDGETS_SYSTEM_ACTOR_ID,
+          // The widgets subsystem creating its own region area acts for nobody: a system write.
+          actor: WIDGETS_SYSTEM_MUTATION_ACTOR,
           workspaceId: input.workspaceId,
           type: WIDGET_AREA_CONTENT_TYPE,
           slug,
@@ -168,7 +173,7 @@ export async function bindWidgetArea(required: BindWidgetAreaRequired, _optional
 
 export interface MutateWidgetAreaPlacementsInput {
   readonly workspaceId: UUID;
-  readonly actor: { readonly principalId: UUID };
+  readonly actor: WidgetWriteActor;
   readonly areaEntryId: UUID;
   readonly baseVersion: number;
   /** The complete resulting ordered list — always a whole-document write, never a per-row patch (INV-03). */
@@ -244,6 +249,7 @@ export async function mutateWidgetAreaPlacements(
       deps: entriesWriteDeps(deps, input.workspaceId),
       input: {
         actorId: input.actor.principalId,
+        actor: trustedWidgetActor({ actor: input.actor }),
         workspaceId: input.workspaceId,
         id: input.areaEntryId,
         fieldsJson: buildWidgetAreaFieldsJson({ payload: { regionKey: currentPayload.regionKey, doc: nextDoc } }),

@@ -10,6 +10,7 @@
   },
   "include": [],
   "files": [
-    "src/observability-opentelemetry/otel-port.ts"
+    "src/observability-opentelemetry/otel-port.ts",
+    "src/xai-grok-imagine/media.ts"
   ]
 }

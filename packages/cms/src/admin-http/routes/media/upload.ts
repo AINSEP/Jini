@@ -7,9 +7,9 @@ import type { OutwardErrorMessage } from "../../http/outward-error-message.js";
 import { documentContentType, MAX_DOCUMENT_BYTES } from "../../../media/document-ingress.js";
 import { parseOptionalStringField } from "../../../media/metadata-fields.js";
 import { resolveUploadContentType } from "../../../media/site/upload-content-type.js";
-import { MediaConflictError, MediaValidationError, type MediaKind, type MediaRecord } from "../../../media/types.js";
+import { MediaConflictError, MediaUploadSizeError, MediaValidationError, type MediaKind, type MediaRecord } from "../../../media/types.js";
 import type { MediaStoredDescriber } from "./replace.js";
-import { authorizeMedia, MEDIA_VALIDATION, mediaActorId, rejectMediaError, type MediaErrorMapping, type MediaRoutePrincipal } from "./shared.js";
+import { authorizeMedia, MEDIA_UPLOAD_SIZE, MEDIA_VALIDATION, mediaActorId, rejectMediaError, type MediaErrorMapping, type MediaRoutePrincipal } from "./shared.js";
 
 /** An upload request's fields after {@link parseUploadRequestFields}. */
 export interface UploadRequestFields {
@@ -103,7 +103,9 @@ function decodeUploadPayload(
   // Refuse document base64 inflation before allocation, then let the shared ingress owner
   // check actual bytes. Authorization precedes decoding, archive work, and storage I/O.
   if (kind === "document" && dataBase64.length > 4 * Math.ceil(MAX_DOCUMENT_BYTES / 3)) {
-    throw new MediaValidationError({ message: "document exceeds the 50 MiB limit" });
+    // The decoded size follows from the payload length alone, so it is reported without allocating.
+    const fileBytes = Math.floor(dataBase64.length / 4) * 3 - (dataBase64.endsWith("==") ? 2 : dataBase64.endsWith("=") ? 1 : 0);
+    throw new MediaUploadSizeError({ message: "document exceeds the 50 MiB limit", fileBytes, limitBytes: MAX_DOCUMENT_BYTES });
   }
   // `decodeStrictBase64`, not `Buffer.from(x, "base64")`: the latter never throws (it skips
   // characters outside the alphabet instead of refusing them), so a bare try/catch around it can
@@ -142,6 +144,7 @@ async function persistUpload(
  *  failure is 400 and anything else rethrown for the host's private 500. */
 const UPLOAD_ERRORS: readonly MediaErrorMapping[] = [
   { matches: ({ err }, _o = {}) => err instanceof MediaConflictError, status: 409 },
+  MEDIA_UPLOAD_SIZE,
   MEDIA_VALIDATION,
 ];
 

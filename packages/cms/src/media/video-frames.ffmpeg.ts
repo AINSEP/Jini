@@ -5,7 +5,8 @@ import { tmpdir } from 'node:os';
 import { performance } from 'node:perf_hooks';
 import { delimiter, isAbsolute, join } from 'node:path';
 import { sniffContentType } from './content-type-sniffer.js';
-import { getVideoFrameEdge, parseVideoProbe, planVideoFrames, planVideoContactSheets, VIDEO_EXTRACTION_TIMEOUT_MS, VIDEO_MAX_SHEET_BYTES, VIDEO_MAX_FRAME_BYTES, VIDEO_MAX_INPUT_BYTES, VIDEO_MAX_OUTPUT_BYTES, type VideoFrameExtractor, type VideoFrameResult } from './video-frames.js';
+import { getVideoFrameEdge, parseVideoProbe, planVideoFrames, planVideoContactSheets, VIDEO_EXTRACTION_TIMEOUT_MS, VIDEO_MAX_SHEET_BYTES, VIDEO_MAX_FRAME_BYTES, VIDEO_MAX_INPUT_BYTES, VIDEO_MAX_OUTPUT_BYTES, type VideoFrameExtractor, type VideoFrameResult, type VideoMetadata } from './video-frames.js';
+import type { VideoCodec, VideoCodecProbePort } from '@jini-ai/core/contracts/site/cms-media';
 
 export interface VideoBinaries { readonly nice: string; readonly ffmpeg: string; readonly ffprobe: string }
 export type VideoBinaryFinder = (required: Record<string, never>, optional: { env?: NodeJS.ProcessEnv; platform?: NodeJS.Platform }) => Promise<VideoBinaries | undefined>;
@@ -289,6 +290,16 @@ async function assembleSheets(
   return images;
 }
 
+/** The metadata-only ffprobe pass over a private local input; it never decodes a frame.
+ * @throws VideoProcessError from the bounded run, or Error for unusable metadata. @complexity O(1) passes. */
+async function probeVideoMetadata(
+  { input, sizeBytes, ffprobe }: { input: string; sizeBytes: number; ffprobe: string },
+  extraction: Pick<ExtractionRun, 'run'>,
+): Promise<VideoMetadata> {
+  const probe = await extraction.run({ binary: ffprobe, args: ['-v', 'error', ...localInputFlags, '-show_entries', 'format=duration,format_name:stream=codec_type,codec_name,width,height,duration:stream_disposition=attached_pic', '-of', 'json', '-i', input] }, { maxOutputBytes: DIAGNOSTIC_OUTPUT_BYTES });
+  return parseVideoProbe({ output: Buffer.from(probe).toString('utf8'), sizeBytes }, {});
+}
+
 interface ExtractorDeps {
   readonly findBinaries: VideoBinaryFinder;
   readonly runProcess: VideoProcessRunner;
@@ -312,8 +323,7 @@ async function extractLocked(
   const input = join(directory, 'input');
   await writeFile(input, bytes, { mode: 0o600, flag: 'wx' });
   const extraction = createExtractionRun({ binaries, runProcess, nowMs, deadline }, { signal: options.signal });
-  const probe = await extraction.run({ binary: binaries.ffprobe, args: ['-v', 'error', ...localInputFlags, '-show_entries', 'format=duration,format_name:stream=codec_type,codec_name,width,height,duration:stream_disposition=attached_pic', '-of', 'json', '-i', input] }, { maxOutputBytes: DIAGNOSTIC_OUTPUT_BYTES });
-  const metadata = parseVideoProbe({ output: Buffer.from(probe).toString('utf8'), sizeBytes: bytes.byteLength }, {});
+  const metadata = await probeVideoMetadata({ input, sizeBytes: bytes.byteLength, ffprobe: binaries.ffprobe }, extraction);
   const times = planVideoFrames({ duration: metadata.duration }, options);
   const plan = options.layout === 'sheet' ? planSheetOutputs({ directory, times }) : planFrameOutputs({ directory, times });
   const frames = await extractSourceTiles({ input, times, plan, ffmpeg: binaries.ffmpeg }, extraction);
@@ -352,5 +362,52 @@ export function createFfmpegVideoFrameExtractor(
       release();
       return cleanupFailure ?? result;
     }
+  };
+}
+
+/** Fixed wall-clock bound for one metadata-only codec probe; far shorter than a frame extraction. */
+export const VIDEO_CODEC_PROBE_TIMEOUT_MS = 10_000;
+const NAMED_CODECS: ReadonlyMap<string, VideoCodec> = new Map([['hevc', 'hevc'], ['h264', 'h264']]);
+
+/** The locked part of one codec probe: discovery, private input, one bounded ffprobe pass.
+ * Records the temporary directory in `workspace` as soon as it exists so the caller always removes it. */
+async function probeCodecLocked(
+  { bytes, signal, workspace }: { bytes: Uint8Array; signal: AbortSignal | undefined; workspace: { directory?: string } },
+  deps: ExtractorDeps,
+): Promise<VideoCodec | undefined> {
+  const binaries = await discoverBinaries(deps);
+  if (!binaries) return undefined;
+  const directory = workspace.directory = await mkdtemp(join(tmpdir(), 'video-codec-'));
+  const input = join(directory, 'input');
+  await writeFile(input, bytes, { mode: 0o600, flag: 'wx' });
+  const deadline = deps.nowMs() + VIDEO_CODEC_PROBE_TIMEOUT_MS;
+  const extraction = createExtractionRun({ binaries, runProcess: deps.runProcess, nowMs: deps.nowMs, deadline }, { signal });
+  const { codec } = await probeVideoMetadata({ input, sizeBytes: bytes.byteLength, ffprobe: binaries.ffprobe }, extraction);
+  // Compatibility depends on the codec, not the filename or container.
+  return codec === 'unknown' ? undefined : NAMED_CODECS.get(codec) ?? 'other';
+}
+
+/** Bounded host codec probe over sniffed MP4/MOV/M4V/WebM bytes: same binaries, low-priority runner,
+ * local-input allowlist and shared decoder lock as frame extraction, but metadata only. The declared
+ * content type is never consulted. Every failure (busy lock, missing binaries, unsupported metadata,
+ * timeout, abort) resolves `undefined`; the private input is removed before the lock is released.
+ * @complexity O(1) subprocesses; O(bytes) to stage the private input. */
+export function createFfmpegVideoCodecProbe(
+  { findBinaries = findVideoBinaries, runProcess = runLowPriorityVideoProcess, nowMs = () => performance.now(), lock = defaultExtractionLock, env, platform }: { lock?: VideoExtractionLock; env?: NodeJS.ProcessEnv; platform?: NodeJS.Platform; findBinaries?: VideoBinaryFinder; runProcess?: VideoProcessRunner; nowMs?: (required: Record<string, never>, optional: Record<string, never>) => number },
+  _optional: Record<string, never> = {},
+): VideoCodecProbePort {
+  const deps: ExtractorDeps = { findBinaries, runProcess, nowMs: () => nowMs({}, {}), env, platform };
+  return {
+    probe: async ({ bytes }, { signal } = {}) => {
+      if (signal?.aborted || rejectVideoInput({ bytes })) return undefined;
+      const release = lock.tryAcquire({}, {});
+      if (!release) return undefined;
+      const workspace: { directory?: string } = {};
+      const codec = await probeCodecLocked({ bytes, signal, workspace }, deps).catch(() => undefined);
+      // Neither step throws, so the lock is always released, and only after cleanup.
+      await removeWorkspace(workspace);
+      release();
+      return codec;
+    },
   };
 }

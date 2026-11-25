@@ -5,12 +5,13 @@ import { createToolRegistry, withBatchInput, ToolInputError, type BatchResult, t
 import { createSurfaceExchangeStore } from "../../surface-exchanges.js";
 import { createTimeoutScheduler } from "../../scheduler.js";
 import { createRecordingReporter } from "@jini-ai/core/errors/testing";
+import type { ToolOutputValidation } from "../../tool-executor-types.js";
 import { createAssistantToolExecutor, issueCredentialSetup, type RedactedToolFailuresDeps } from "../index.js";
 
 const call = { principal: { id: "operator" }, run: { id: "run-1" }, toolId: "deploy", input: {} };
 const readOnlyMessages = { unverifiableMessage: "cannot verify", toolRefusalMessage: () => "write refused", unknownToolMessage: () => "unknown tool" };
 
-function assemble({ audit, guided, toolFailures }: { audit?: { appended: unknown[]; sinkErrors?: unknown[] }; guided?: string[]; toolFailures?: Partial<RedactedToolFailuresDeps> } = {}) {
+function assemble({ audit, guided, toolFailures, outputValidation }: { audit?: { appended: unknown[]; sinkErrors?: unknown[] }; guided?: string[]; toolFailures?: Partial<RedactedToolFailuresDeps>; outputValidation?: ToolOutputValidation } = {}) {
   const registry = createToolRegistry({});
   const failing: ToolRegistration = {
     descriptor: { id: "deploy", metadata: { guidanceCapabilities: ["deploy-checklist"] } },
@@ -36,6 +37,7 @@ function assemble({ audit, guided, toolFailures }: { audit?: { appended: unknown
     buildRecoveryForm: () => ({}),
     toolFailures: { mintErrorId: () => "ERR-AAAA-BBBB-CCCC-DDDD", redactSecretShapes: ({ text }) => ({ text, redactions: 0 }), ...toolFailures },
     reporter: recorded.reporter,
+    ...(outputValidation ? { outputValidation } : {}),
     ...(guided ? { prepareGuidance: async ({ tool }: { tool: { id: string } }) => { guided.push(tool.id); return ""; } } : {}),
     ...(audit ? { toolAttemptAudit: {
       sink: { append: async (event: unknown) => { audit.appended.push(event); } },
@@ -174,4 +176,13 @@ test("a nested internal failure is recorded once under the id in the parent's wo
   expect(result).toMatchObject({ status: "completed" });
   expect(String((seen as Error | undefined)?.message ?? seen)).toContain("Error ERR-AAAA-BBBB-CCCC-DDDD: child broke");
   expect(failures.map((entry) => [entry.meta?.errorId, entry.meta?.step])).toEqual([["ERR-AAAA-BBBB-CCCC-DDDD", "Run nested tool"]]);
+});
+
+test("the assembled stack hands its output validation to the bare executor", async () => {
+  const reportMismatch = vi.fn();
+  const { executor, registry } = assemble({ outputValidation: { mode: "report", validator: { validate: () => false }, reportMismatch } });
+  registry.register({ descriptor: { id: "shaped", outputSchema: { type: "object" } }, policy: { authorize: () => "allow" }, handler: async () => "raw" });
+  const result = await executor.execute({ ...call, toolId: "shaped" });
+  expect(result).toMatchObject({ status: "completed", output: "raw" });
+  expect(reportMismatch.mock.calls).toEqual([[{ toolId: "shaped", code: "TOOL_OUTPUT_SCHEMA_MISMATCH" }]]);
 });

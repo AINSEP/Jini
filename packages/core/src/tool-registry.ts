@@ -58,6 +58,13 @@ export interface ToolDescriptor {
    * Optional and additive, so no existing registration changes shape.
    */
   readonly inputSchema?: unknown;
+  /**
+   * JSON-Schema-shaped description of the raw value this tool's handler resolves with, carried as
+   * `unknown` for the same reason as `inputSchema`: the kernel holds no validator. A host-injected
+   * {@link ToolOutputValidator} checks the raw settled output against it before the executor
+   * decorates or records the result. Optional; a tool without one keeps its result untouched.
+   */
+  readonly outputSchema?: unknown;
   /** When true, `ToolExecutor` asks the transport's `ExecutionDelegate.onConfirm` before running, in addition to authorization. */
   readonly requiresConfirmation?: boolean;
   /** Milliseconds before `ToolExecutor` aborts an in-flight call and reports `'timed-out'`. Omit for no timeout. */
@@ -84,6 +91,24 @@ export interface ToolDescriptor {
   /** Independently checked domain risk, retained for discovery; never grants permission. */
   readonly sideEffects?: AgentToolSideEffect;
 }
+
+/**
+ * Host-supplied check of a tool's raw output against its declared `outputSchema`. The kernel never
+ * picks a schema dialect, so the concrete validator lives with the host.
+ * @returns `true` when `value` satisfies `schema`. A throw is treated by the caller as a failed check.
+ */
+export interface ToolOutputValidator {
+  validate(required: { readonly schema: unknown; readonly value: unknown }, optional?: Record<string, never>): boolean;
+}
+
+/** The one value-free diagnostic a mismatch produces: the tool id and a stable code, never the value, schema or validator error. */
+export interface ToolOutputMismatchDiagnostic {
+  readonly toolId: string;
+  readonly code: 'TOOL_OUTPUT_SCHEMA_MISMATCH';
+}
+
+/** Receives a {@link ToolOutputMismatchDiagnostic} for each output that failed (or could not run) validation. */
+export type ToolOutputMismatchReporter = (required: ToolOutputMismatchDiagnostic, optional?: Record<string, never>) => void;
 
 /**
  * The single read-only determination: may this tool run through a surface that has promised its

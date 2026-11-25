@@ -4,6 +4,8 @@ import {
   type AuthorizationDecision,
   type Principal,
   type RunRef,
+  type ToolOutputMismatchReporter,
+  type ToolOutputValidator,
   type ToolRegistration,
   type ToolRegistry,
 } from '@jini-ai/core';
@@ -855,4 +857,94 @@ it('does not grant a second human-wait window after execution resumes', async ()
     await vi.advanceTimersByTimeAsync(24_001);
     expect(await pending).toMatchObject({ status: 'timed-out' });
   } finally { vi.useRealTimers(); }
+});
+
+// Bad tool output is a server contract problem, not bad caller input.
+describe('declared tool output validation', () => {
+  const schema = { type: 'object', required: ['ok'] };
+  const code = 'TOOL_OUTPUT_SCHEMA_MISMATCH';
+  function validation(mode: 'enforce' | 'report', validate: ToolOutputValidator['validate']) {
+    const validator = { validate: vi.fn(validate) };
+    const reportMismatch = vi.fn<ToolOutputMismatchReporter>();
+    return { validator, reportMismatch, outputValidation: { mode, validator, reportMismatch } };
+  }
+  const isOkObject: ToolOutputValidator['validate'] = ({ value }) => typeof value === 'object' && value !== null && 'ok' in value;
+
+  it('wrong raw output fails in enforce mode before completed audit', async () => {
+    const registry = registryWith({ descriptor: { id: 'shaped', outputSchema: schema }, policy: allowAll(), handler: async () => 'private-raw-value' });
+    const { outputValidation, reportMismatch } = validation('enforce', isOkObject);
+    const executor = createToolExecutor({ registry }, { outputValidation });
+    const result = await executor.execute({ principal, run, toolId: 'shaped', input: {} });
+    expect(result).toEqual({ executionId: result.executionId, status: 'failed', error: 'The tool returned an unexpected result.', errorKind: 'internal' });
+    const audit = executor.getAuditRecord({ executionId: result.executionId });
+    expect(audit?.events.map((e) => e.phase)).toEqual(['requested', 'authorized', 'started', 'failed']);
+    expect(JSON.stringify({ result, audit })).not.toContain('private-raw-value');
+    expect(reportMismatch).not.toHaveBeenCalled();
+  });
+
+  it('report mode preserves output and omits raw data from diagnostics', async () => {
+    const registry = registryWith(
+      { descriptor: { id: 'mismatch', outputSchema: schema }, policy: allowAll(), handler: async () => 'private-raw-value' },
+      { descriptor: { id: 'broken-check', outputSchema: schema }, policy: allowAll(), handler: async () => ({ ok: true }) },
+    );
+    const { outputValidation, reportMismatch } = validation('report', ({ value }) => {
+      if (typeof value === 'object') throw new Error('validator-exception at /ok');
+      return false;
+    });
+    const executor = createToolExecutor({ registry }, { outputValidation });
+    const mismatch = await executor.execute({ principal, run, toolId: 'mismatch', input: {} });
+    const broken = await executor.execute({ principal, run, toolId: 'broken-check', input: {} });
+    expect(mismatch).toMatchObject({ status: 'completed', output: 'private-raw-value' });
+    expect(broken).toMatchObject({ status: 'completed', output: { ok: true } });
+    expect(reportMismatch.mock.calls).toEqual([[{ toolId: 'mismatch', code }], [{ toolId: 'broken-check', code }]]);
+    const audits = [mismatch, broken].map((r) => executor.getAuditRecord({ executionId: r.executionId }));
+    expect(audits.map((a) => a?.events.map((e) => e.phase))).toEqual([['requested', 'authorized', 'started', 'completed'], ['requested', 'authorized', 'started', 'completed']]);
+    expect(JSON.stringify({ audits, calls: reportMismatch.mock.calls })).not.toMatch(/private-raw-value|validator-exception|required/);
+  });
+
+  it('report mode survives a throwing reporter', async () => {
+    const registry = registryWith({ descriptor: { id: 'mismatch', outputSchema: schema }, policy: allowAll(), handler: async () => 'raw' });
+    const { outputValidation } = validation('report', () => false);
+    outputValidation.reportMismatch.mockImplementation(() => { throw new Error('sink down'); });
+    const result = await createToolExecutor({ registry }, { outputValidation }).execute({ principal, run, toolId: 'mismatch', input: {} });
+    expect(result).toMatchObject({ status: 'completed', output: 'raw' });
+  });
+
+  it('a validator exception in enforce mode is the same fixed failure, without the exception text', async () => {
+    const registry = registryWith({ descriptor: { id: 'shaped', outputSchema: schema }, policy: allowAll(), handler: async () => ({ ok: true }) });
+    const { outputValidation } = validation('enforce', () => { throw new Error('validator-exception at /ok'); });
+    const executor = createToolExecutor({ registry }, { outputValidation });
+    const result = await executor.execute({ principal, run, toolId: 'shaped', input: {} });
+    expect(result).toMatchObject({ status: 'failed', error: 'The tool returned an unexpected result.', errorKind: 'internal' });
+    expect(JSON.stringify(executor.getAuditRecord({ executionId: result.executionId }))).not.toContain('validator-exception');
+  });
+
+  it('guidance cannot make valid raw output fail validation', async () => {
+    const registry = registryWith({ descriptor: { id: 'write', outputSchema: { type: 'string', const: 'raw' }, metadata: { guidanceCapabilities: ['ui-design'] } }, policy: allowAll(), handler: async () => 'raw' });
+    const { outputValidation, validator, reportMismatch } = validation('enforce', ({ value }) => value === 'raw');
+    const result = await createToolExecutor({ registry }, { outputValidation, prepareGuidance: async () => 'Design guidance' }).execute({ principal, run, toolId: 'write', input: {} });
+    expect(result).toMatchObject({ status: 'completed', output: 'raw\n\nDesign guidance' });
+    expect(validator.validate).toHaveBeenCalledWith({ schema: { type: 'string', const: 'raw' }, value: 'raw' }, {});
+    expect(reportMismatch).not.toHaveBeenCalled();
+  });
+
+  it('timed-out results never invoke the validator', async () => {
+    const registry = registryWith({ descriptor: { id: 'stubborn', timeoutMs: 10, outputSchema: schema }, policy: allowAll(), handler: async () => {
+      await new Promise((resolve) => setTimeout(resolve, 60));
+      return 'late';
+    } });
+    const { outputValidation, validator, reportMismatch } = validation('report', () => false);
+    const result = await createToolExecutor({ registry }, { outputValidation }).execute({ principal, run, toolId: 'stubborn', input: {} });
+    expect(result.status).toBe('timed-out');
+    expect(validator.validate).not.toHaveBeenCalled();
+    expect(reportMismatch).not.toHaveBeenCalled();
+  });
+
+  it('preserves results for tools with no declared output schema', async () => {
+    const registry = registryWith({ descriptor: { id: 'plain' }, policy: allowAll(), handler: async () => 'anything' });
+    const { outputValidation, validator } = validation('enforce', () => false);
+    const result = await createToolExecutor({ registry }, { outputValidation }).execute({ principal, run, toolId: 'plain', input: {} });
+    expect(result).toMatchObject({ status: 'completed', output: 'anything' });
+    expect(validator.validate).not.toHaveBeenCalled();
+  });
 });

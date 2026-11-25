@@ -4,8 +4,9 @@ import type { AssetBlobRepoPort, BlobStorePort, MediaRepoPort } from './ports.js
 import type { AssetRenditionRecord, MediaProvenance, MediaRecord } from './types.js';
 import { withSha256Lock } from './blob-gc-lock.js';
 import { sanitizeSvg } from './sanitize-svg.js';
-import { MediaValidationError } from './types.js';
-import { DEFAULT_MAX_UPLOAD_BYTES } from './media-service.js';
+import { MediaUploadSizeError, MediaValidationError } from './types.js';
+import type { VideoCodec, VideoCodecProbePort } from '@jini-ai/core/contracts/site/cms-media';
+import { DEFAULT_MAX_UPLOAD_BYTES, probeVideoCodec } from './media-service.js';
 import { resolveUploadCap } from './upload-cap.js';
 import { safeMediaProvenance } from './provenance.js';
 import { sniffContentType } from './content-type-sniffer.js';
@@ -26,19 +27,21 @@ export type MediaFileReplacementInput = {
   workspaceId: string; id: string; ifVersion: number; sha256: string; storageKey: string;
   originalRenditionId: string; updatedAt: string;
   metadata?: MediaReplacementMetadata;
-} & ({ restore?: undefined; contentType: string; provenance: MediaProvenance } | {
+} & ({ restore?: undefined; contentType: string; provenance: MediaProvenance;
+  /** Codec of the NEW bytes only; absent when unknown, never carried over from the old source. */
+  videoCodec?: VideoCodec } | {
   /** Internal compensation restores bookkeeping/source verbatim, only while the applied version holds. */
   restore: { version: number; updatedAt: string; source: MediaRecord['source'] };
-  contentType?: never; provenance?: never;
+  contentType?: never; provenance?: never; videoCodec?: never;
 });
 
 /** Build a replacement or compensation row without copying caller identity fields.
  * @returns A fresh record. @complexity O(1), fixed metadata fields; no effects. */
 export function mediaFileReplacementRecord({ media, input }: { media: MediaRecord; input: Pick<MediaFileReplacementInput,
-  'metadata' | 'restore' | 'sha256' | 'contentType' | 'provenance' | 'ifVersion' | 'updatedAt'> }, _options = {}): MediaRecord {
+  'metadata' | 'restore' | 'sha256' | 'contentType' | 'provenance' | 'videoCodec' | 'ifVersion' | 'updatedAt'> }, _options = {}): MediaRecord {
   const metadata = input.metadata ? mediaReplacementMetadata({ media: input.metadata }) : {};
   return { ...media, ...metadata, source: input.restore?.source ?? { sha256: input.sha256,
-    contentType: input.contentType, provenance: input.provenance },
+    contentType: input.contentType, provenance: input.provenance, ...(input.videoCodec ? { videoCodec: input.videoCodec } : {}) },
     version: input.restore?.version ?? input.ifVersion + 1, updatedAt: input.restore?.updatedAt ?? input.updatedAt };
 }
 
@@ -69,12 +72,15 @@ export interface ReplaceMediaFileDeps {
 async function validatedReplacementBytes({ bytes, contentType, maxUploadBytes }: {
   bytes: Uint8Array; contentType: string; maxUploadBytes: number;
 }, _options = {}): Promise<Uint8Array> {
-  if (bytes.byteLength === 0 || bytes.byteLength > maxUploadBytes) {
-    throw new MediaValidationError({ message: 'replacement file is empty or exceeds the upload size cap' });
+  if (bytes.byteLength === 0) throw new MediaValidationError({ message: 'replacement file is empty or exceeds the upload size cap' });
+  if (bytes.byteLength > maxUploadBytes) {
+    throw new MediaUploadSizeError({ message: 'replacement file is empty or exceeds the upload size cap', fileBytes: bytes.byteLength, limitBytes: maxUploadBytes });
   }
   // Replacement bypasses uploadMedia, so it must call the same SVG sanitizer before hashing.
   const safeBytes = contentType === 'image/svg+xml' ? await sanitizeSvg({ bytes }) : bytes;
-  if (safeBytes.byteLength > maxUploadBytes) throw new MediaValidationError({ message: 'sanitized file exceeds the upload size cap' });
+  if (safeBytes.byteLength > maxUploadBytes) {
+    throw new MediaUploadSizeError({ message: 'sanitized file exceeds the upload size cap', fileBytes: safeBytes.byteLength, limitBytes: maxUploadBytes });
+  }
   return safeBytes;
 }
 
@@ -94,7 +100,10 @@ export async function replaceMediaFile({ deps, media, bytes, contentType, princi
   provenance?: MediaProvenance | undefined;
   metadata?: MediaReplacementMetadata;
   expectedSha256?: string;
-}, { maxUploadBytes = DEFAULT_MAX_UPLOAD_BYTES, maxVideoUploadBytes }: { maxUploadBytes?: number; maxVideoUploadBytes?: number | undefined } = {}): Promise<MediaRecord | null> {
+}, { maxUploadBytes = DEFAULT_MAX_UPLOAD_BYTES, maxVideoUploadBytes, videoCodecProbe, signal }: {
+  maxUploadBytes?: number; maxVideoUploadBytes?: number | undefined;
+  videoCodecProbe?: VideoCodecProbePort | undefined; signal?: AbortSignal | undefined;
+} = {}): Promise<MediaRecord | null> {
   if (!deps.mediaRepo.replaceFileIfVersion) throw new MediaValidationError({ message: 'Atomic file replacement is unavailable. Update the destination before replacing this file.' });
   // Library v1 supports metadata rename, never byte replacement under an immutable document name.
   if (media.kind === 'document') throw new MediaValidationError({ message: 'document file replacement is unavailable' });
@@ -104,7 +113,10 @@ export async function replaceMediaFile({ deps, media, bytes, contentType, princi
   if (expectedSha256 !== undefined && expectedSha256 !== sha256) {
     throw new MediaValidationError({ message: 'Replacement bytes do not match the reviewed sha256 after sanitizing. Re-import the file and plan publishing again.' });
   }
-  const source = { sha256, contentType: sniffContentType({ bytes: safeBytes }), provenance: safeMediaProvenance({ source: provenance }) };
+  const sniffedType = sniffContentType({ bytes: safeBytes });
+  const source = { sha256, contentType: sniffedType, provenance: safeMediaProvenance({ source: provenance }),
+    // Derived from the new bytes only, so a replacement never inherits the previous video's codec.
+    ...await probeVideoCodec({ bytes: safeBytes, contentType: sniffedType }, { videoCodecProbe, signal }) };
   const updatedAt = nowIso({ clock: deps.clock });
   return withSha256Lock({
     key: sha256, criticalSection: async () => {
@@ -127,6 +139,7 @@ export async function replaceMediaFile({ deps, media, bytes, contentType, princi
         workspaceId: deps.workspaceId,
         id: media.id, ifVersion: media.version, sha256, storageKey: blob.storageKey,
         originalRenditionId: deps.idGen.newId(), updatedAt, contentType: source.contentType, provenance: source.provenance,
+        ...(source.videoCodec ? { videoCodec: source.videoCodec } : {}),
         ...(metadata ? { metadata } : {})
       };
       const { applied } = await deps.mediaRepo.replaceFileIfVersion!(replacement);

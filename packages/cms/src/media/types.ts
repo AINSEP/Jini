@@ -23,6 +23,7 @@
  * independent of the entries model, so no scope adjustment was needed there.
  */
 import type { ISODateTime, UUID } from "@jini-ai/core/primitives";
+import { MEDIA_UPLOAD_TOO_LARGE, type VideoCodec } from "@jini-ai/core/contracts/site/cms-media";
 
 /** Deletion ladder status (mirrored from `navigation`'s menu ladder). */
 export type MediaStatus = "active" | "trashed";
@@ -46,6 +47,8 @@ export interface MediaSource {
   contentType?: string | undefined;
   /** Origin of this editorial item, independent of the deduplicated blob's creator. */
   provenance?: MediaProvenance | undefined;
+  /** Confirmed codec of these bytes from a host probe; absent when unknown or not a video. */
+  videoCodec?: VideoCodec | undefined;
 }
 
 export type MediaProvenance =
@@ -221,6 +224,19 @@ export class MediaNotFoundError extends Error {
 export class MediaValidationError extends Error {
   constructor({ message }: { message: string }, optionalArgs: ErrorOptions = {}) {
     super(message, optionalArgs);
+  }
+}
+/** One file over its upload byte limit, raised from the actual byte checks. Stays a
+ *  {@link MediaValidationError} so every existing boundary keeps its status and plain message; the
+ *  measured size and applied limit ride along for a typed wire refusal. */
+export class MediaUploadSizeError extends MediaValidationError {
+  static readonly code = MEDIA_UPLOAD_TOO_LARGE;
+  readonly fileBytes: number;
+  readonly limitBytes: number;
+  constructor({ message, fileBytes, limitBytes }: { message: string; fileBytes: number; limitBytes: number }, optionalArgs: ErrorOptions = {}) {
+    super({ message }, optionalArgs);
+    this.fileBytes = fileBytes;
+    this.limitBytes = limitBytes;
   }
 }
 export class MediaConflictError extends Error {

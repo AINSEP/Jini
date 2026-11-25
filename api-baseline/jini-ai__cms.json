@@ -1005,7 +1005,8 @@
       "mediaIdParam": "function:b265d30368",
       "principalOf": "function:8f9b6b6d03",
       "rejectMediaError": "function:33f5e50b09",
-      "rejectMediaNotFound": "function:fb2a29b890"
+      "rejectMediaNotFound": "function:fb2a29b890",
+      "MEDIA_UPLOAD_SIZE": "variable:6b48bed6d4"
     }
   },
   "./admin-http/routes/media/text": {
@@ -4294,7 +4295,11 @@
       "withChatPreview": "function:fa8d62fb2e",
       "withRenditionLock": "variable:6dc5cc8f75",
       "withSha256Lock": "function:89efad6fe9",
-      "withTransformRegistryLock": "variable:53b32c6350"
+      "withTransformRegistryLock": "variable:53b32c6350",
+      "MEDIA_MAX_UPLOAD_BYTES": "variable:bd6915b362",
+      "MediaUploadSizeError": "class:cb908b7281",
+      "VideoCodec": "type:cc5757055c",
+      "VideoCodecProbePort": "interface:598db0059c"
     }
   },
   "./media/cover-image": {
@@ -4348,7 +4353,9 @@
       "createFfmpegVideoFrameExtractor": "function:676709bdcd",
       "createVideoExtractionLock": "function:bf09c43c0e",
       "findVideoBinaries": "variable:fb87829ada",
-      "runLowPriorityVideoProcess": "variable:ec36b9b55a"
+      "runLowPriorityVideoProcess": "variable:ec36b9b55a",
+      "VIDEO_CODEC_PROBE_TIMEOUT_MS": "variable:8180645df4",
+      "createFfmpegVideoCodecProbe": "function:29cad892d9"
     }
   },
   "./media/plugins/document-text/mammoth": {
@@ -5025,7 +5032,8 @@
       "PublicPostRecord": "interface:8aac675001",
       "ROOT_SLUG": "variable:526b751ce1",
       "SYSTEM_ACTOR_ID": "variable:13b1c1438d",
-      "isPublicPost": "function:d2fc128da8"
+      "isPublicPost": "function:d2fc128da8",
+      "SYSTEM_MUTATION_ACTOR": "variable:d7ba1c2b34"
     }
   },
   "./posts/post-before-save": {
@@ -5134,7 +5142,8 @@
       "emitPublicTransitionEvent": "function:2faadabb2a",
       "enqueueContentWrite": "function:6a8b410162",
       "persistUpdatedPost": "function:1c307415de",
-      "versionConflictMessage": "function:3f9014e3ae"
+      "versionConflictMessage": "function:3f9014e3ae",
+      "postEventActor": "function:89dc250cd5"
     }
   },
   "./posts/post-write-fields": {
@@ -8171,7 +8180,10 @@
       "widgetAreaSlug": "function:a5595189e7",
       "widgetsAgentToolCatalog": "variable:e520cc7dfe",
       "widgetsDerivedRisk": "variable:fe8acc5ac6",
-      "withEntryLock": "function:93e1d19b33"
+      "withEntryLock": "function:93e1d19b33",
+      "WIDGETS_SYSTEM_MUTATION_ACTOR": "variable:3b5f3e5b5b",
+      "WidgetWriteActor": "interface:26ebe76c35",
+      "trustedWidgetActor": "function:4c19d212d1"
     }
   },
   "./widgets/capability-card": {
@@ -8487,6 +8499,20 @@
       "PreviewEmbedsRouteDeps": "interface:40ee2ac0b5",
       "PreviewEmbedsRouteSpec": "type:d2392211bf",
       "createTemplatePreviewEmbedsRoute": "function:410fceac06"
+    }
+  },
+  "./admin-http/routes/media/grid": {
+    "types": "./dist/admin-http/routes/media/grid.d.ts",
+    "symbols": {
+      "MediaGridCursor": "interface:abd011357e",
+      "MediaGridEnrichment": "interface:2dce6704cd",
+      "MediaGridInput": "interface:c0d13e564d",
+      "MediaGridPosition": "interface:c3e833bc95",
+      "MediaGridRouteDeps": "interface:0c4fdb76b5",
+      "MediaGridRouteInput": "interface:037cc7ff21",
+      "MediaGridSummary": "interface:86662a44b2",
+      "mediaGridRoute": "variable:dc83e48bfd",
+      "parseMediaGridInput": "function:ea40d22a08"
     }
   }
 }

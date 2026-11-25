@@ -28,7 +28,7 @@ describe("MEDIA_PROVIDER_CATALOG", () => {
     for (const uiSpelling of UI_SPELLINGS_THAT_MUST_NOT_APPEAR) {
       expect(ids, `${uiSpelling} is the @jini-ai/ui spelling and must not be rendered`).not.toContain(uiSpelling);
     }
-    for (const canonical of ["grok", "nanobanana", "fal", "leonardo", "custom-image", "volcengine", "tavily"]) {
+    for (const canonical of ["nanobanana", "fal", "leonardo", "custom-image", "volcengine", "tavily"]) {
       expect(ids, `${canonical} is the engine spelling and must be present`).toContain(canonical);
     }
   });
@@ -37,7 +37,7 @@ describe("MEDIA_PROVIDER_CATALOG", () => {
     // The UI sample ships 15; the engine catalogue is materially larger, minus the two exclusions.
     expect(MEDIA_PROVIDER_CATALOG.length).toBeGreaterThan(15);
     expect(MEDIA_PROVIDER_CATALOG.map((provider) => provider.id).sort()).toEqual([
-      "openai", "volcengine", "grok", "nanobanana", "imagerouter", "openrouter", "custom-image",
+      "openai", "volcengine", "nanobanana", "imagerouter", "openrouter", "custom-image",
       "comfyui", "bfl", "fal", "leonardo", "replicate", "google", "kling", "midjourney", "minimax",
       "suno", "udio", "elevenlabs", "fishaudio", "senseaudio", "aihubmix", "tavily",
     ].sort());

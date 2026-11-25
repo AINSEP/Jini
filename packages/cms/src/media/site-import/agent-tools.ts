@@ -48,6 +48,10 @@ export interface MediaImportAgentToolCatalogArgs {
   mediaAssetReadToolId: string;
 }
 
+// Why-comment — a description is evidence about the picture, so the tool text forbids passing the generation prompt as if it were one.
+const MEDIA_DESCRIPTION_INPUT_HELP =
+  "Optional. A short factual description of what the picture shows, saved so the library can be searched and the picture found again. Describe only what is visible; never the generation prompt or a guess about its origin.";
+
 const localImportSchema = ({ fsRootIds, fsFolderReadRecovery }: Omit<MediaImportAgentToolCatalogArgs, "mediaAssetReadToolId">) => ({
   type: "object",
   additionalProperties: false,
@@ -65,6 +69,7 @@ const localImportSchema = ({ fsRootIds, fsFolderReadRecovery }: Omit<MediaImport
     title: { type: "string", description: "Optional media title; defaults to the file's name without its extension." },
     alt: { type: "string", description: "Optional accessibility alt text." },
     caption: { type: "string", description: "Optional display caption." },
+    description: { type: "string", description: MEDIA_DESCRIPTION_INPUT_HELP },
   },
 }) as const;
 
@@ -93,6 +98,7 @@ const IMPORT_SCHEMA = {
     },
     alt: { type: "string", description: "Optional accessibility alt text for the imported asset." },
     caption: { type: "string", description: "Optional display caption for the imported asset." },
+    description: { type: "string", description: MEDIA_DESCRIPTION_INPUT_HELP },
     credit: { type: "string", description: "Optional attribution/credit line for the imported asset — e.g. the vendor, photographer, or videographer it came from." },
   },
 } as const;

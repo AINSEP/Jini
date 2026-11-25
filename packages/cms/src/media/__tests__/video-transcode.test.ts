@@ -5,8 +5,9 @@ import { InMemoryBlobStore } from "../blob-store.memory.js";
 import { uploadMedia } from "../media-service.js";
 import {
   VIDEO_TRANSCODE_THRESHOLD_BYTES, VideoConversionError, convertMediaVideo, shouldTranscodeOnImport,
-  type ConvertMediaVideoDeps, type MediaTranscoderPort, type VideoTranscodeResult,
+  type ConvertMediaVideoDeps,
 } from "../video-transcode.js";
+import type { MediaTranscoderPort, VideoTranscodeResult } from "@jini-ai/core/contracts/site/cms-media";
 
 const WORKSPACE_ID = "ws-video-transcode";
 const PRINCIPAL_ID = "principal-video";

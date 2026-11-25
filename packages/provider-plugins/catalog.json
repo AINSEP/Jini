@@ -48,5 +48,10 @@
     "id": "payments-stripe",
     "version": "0.7.3-next.2",
     "path": "plugins/payments-stripe/0.7.3-next.2"
+  },
+  {
+    "id": "xai-grok-imagine",
+    "version": "0.7.3-next.2",
+    "path": "plugins/xai-grok-imagine/0.7.3-next.2"
   }
 ]

@@ -1,4 +1,4 @@
-import type { Kysely } from "kysely";
+import type { Kysely, Selectable } from "kysely";
 import type { StorageKernel } from "@jini-ai/core/contracts/storage";
 import type {
   DomainEvent,
@@ -13,6 +13,7 @@ import {
   toItemRow,
   toRecord,
   toRow,
+  type ActorKindColumn,
   type ChangeSetItemsTable,
   type ChangeSetsTable,
   type OutboxEventsTable,
@@ -52,17 +53,33 @@ export interface ChangeSetSqlRequired {
   kernel: StorageKernel<Kysely<unknown>, unknown>;
   tables: ChangeSetTables;
 }
-export type ChangeSetSqlOptional = Record<string, never>;
+/**
+ * `actorKindColumn` (default off): set it only once the host schema has `change_sets.actor_kind`,
+ * so a rolling host never selects or inserts a column its database does not have yet.
+ */
+export type ChangeSetSqlOptional = ActorKindColumn;
 
 export class SqlChangeSetRepo implements ChangeSetRepoPort {
   protected readonly kernel: StorageKernel<Kysely<unknown>, unknown>;
   protected readonly tables: ChangeSetTables;
   private readonly preparation: OutboxEventPreparation;
-  /** @param optional.prepareOutboxEvent host hook preparing the co-persisted event inside this repo's one transaction. */
-  constructor({ kernel, tables }: ChangeSetSqlRequired, optional: OutboxEventPreparation = {}) {
+  private readonly columns: ActorKindColumn;
+  /**
+   * @param optional.actorKindColumn read/write `change_sets.actor_kind` (see `ChangeSetSqlOptional`).
+   * @param optional.prepareOutboxEvent host hook preparing the co-persisted event for this repo's one transaction.
+   */
+  constructor(
+    { kernel, tables }: ChangeSetSqlRequired,
+    { actorKindColumn = false, ...preparation }: ChangeSetSqlOptional & OutboxEventPreparation = {},
+  ) {
     this.kernel = kernel;
     this.tables = tables;
-    this.preparation = optional;
+    this.preparation = preparation;
+    this.columns = { actorKindColumn };
+  }
+
+  private read(row: Selectable<ChangeSetsTable>): ChangeSetRecord {
+    return toRecord(row, this.columns);
   }
 
   // Host-owned table names need an explicit column schema, as in the settings adapter.
@@ -81,11 +98,15 @@ export class SqlChangeSetRepo implements ChangeSetRepoPort {
     { record, items }: { record: ChangeSetRecord; items: ChangeSetItemRecord[] },
     { event }: { event?: DomainEvent } = {},
   ): Promise<void> {
+    // Build every row first so conflicting attribution is refused before the transaction opens.
+    const header = toRow(record, this.columns);
+    // The host preparation runs first so the actor check sees the envelope that is actually stored.
+    const eventRow = event ? outboxEventValues(preparedOutboxEvent({ event }, this.preparation)) : undefined;
     await this.kernel.transaction(async () =>
       this.kernel.run(async (db) => {
-        await this.sets(db).insertInto(this.tables.changeSets).values(toRow(record)).execute();
+        await this.sets(db).insertInto(this.tables.changeSets).values(header).execute();
         for (const item of items) await this.items(db).insertInto(this.tables.changeSetItems).values(toItemRow(item)).execute();
-        if (event) await db.withTables<Record<string, OutboxEventsTable>>().insertInto(this.tables.outboxEvents).values(outboxEventValues(preparedOutboxEvent({ event }, this.preparation))).execute();
+        if (eventRow) await db.withTables<Record<string, OutboxEventsTable>>().insertInto(this.tables.outboxEvents).values(eventRow).execute();
       })
     );
   }
@@ -106,7 +127,7 @@ export class SqlChangeSetRepo implements ChangeSetRepoPort {
         .where("change_set_id", "=", row.id)
         .orderBy("position")
         .execute();
-      return { changeSet: toRecord(row), items: itemRows.map(toItemRecord) };
+      return { changeSet: this.read(row), items: itemRows.map(toItemRecord) };
     });
   }
 
@@ -120,14 +141,14 @@ export class SqlChangeSetRepo implements ChangeSetRepoPort {
         .limit(1)
         .executeTakeFirst()
     );
-    return row ? toRecord(row) : null;
+    return row ? this.read(row) : null;
   }
 
   async listByWorkspace(required: { workspaceId: string }, _optional: ChangeSetSqlOptional = {}): Promise<ChangeSetRecord[]> {
     const rows = await this.kernel.run((db) =>
       this.sets(db).selectFrom(this.tables.changeSets).selectAll().where("workspace_id", "=", required.workspaceId).orderBy("created_at").execute()
     );
-    return rows.map(toRecord);
+    return rows.map((row) => this.read(row));
   }
 
   async save(record: ChangeSetRecord): Promise<void> {

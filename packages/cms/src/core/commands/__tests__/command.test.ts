@@ -164,6 +164,7 @@ describe("executeCommand change-set record", () => {
             id: "id-0",
             workspaceId: "ws-1",
             actorId: "actor-1",
+            actor: { id: "actor-1", kind: "user" },
             status: "applied",
             summary: "Update",
             idempotencyKey: "key",
@@ -200,10 +201,22 @@ describe("executeCommand change-set record", () => {
         aggregateId: "id-0",
         workspaceId: "ws-1",
         actorId: "actor-1",
+        actor: { id: "actor-1", kind: "user" },
         changeSetId: "id-0",
         payload: { changeSetId: "id-0", entityType: "entry", entityId: "entity-1" },
       },
     });
+  });
+
+  test("one agent command records the same actor in its change set and applied event", async () => {
+    const h = harness();
+    const agent = { id: "agent-7", kind: "agent", onBehalfOfId: "user-3" } as const;
+    await executeCommand({ ...h, command: { ...h.command, actor: agent }, deps: { ...h.deps, outbox: fakeOutbox() } });
+    const { record } = h.inserts[0]!.required;
+    const event = h.inserts[0]!.optional?.event;
+    expect(record.actor).toStrictEqual({ id: "agent-7", kind: "agent" });
+    expect(event?.actor).toStrictEqual(record.actor);
+    expect([record.actorId, event?.actorId]).toEqual(["agent-7", "agent-7"]);
   });
 
   test("a null inverse is recorded as an absent inverse payload", async () => {

@@ -4,6 +4,7 @@ import type { DomainEvent } from "@jini-ai/core/contracts/events";
 import { sql } from "kysely";
 import type { KyselyKernel } from "../../kernel/port.js";
 import { outboxEventValues, SqlOutboxAdapter } from "../outbox-repo.sql.js";
+import { SqlChangeSetRepo } from "../change-set-repo.sql.js";
 import { openEventsKernel, TABLES } from "./support/events-tables.fixture.js";
 
 /**
@@ -37,6 +38,18 @@ describe.each(["sqlite", "postgres"] as const)("outbox sql adapter [%s]", (diale
       sql`SELECT id, status, attempts, next_attempt_at, last_error FROM outbox_events ORDER BY id`)).map((row) => ({ ...row, attempts: Number(row.attempts) }));
     return { kernel, outbox, rows };
   }
+
+  test("outbox JSON round trips actor and event identity together", async () => {
+    const { kernel, outbox } = await make();
+    const attributed: DomainEvent = { ...event("e-agent"), actorId: "agent-7", actor: { id: "agent-7", kind: "agent" }, changeSetId: "cs-1" };
+    await outbox.enqueue(attributed);
+    const repo = new SqlChangeSetRepo({ kernel, tables: TABLES }, {});
+    const viaChangeSet: DomainEvent = { ...attributed, id: "e-system", actorId: "sys-1", actor: { id: "sys-1", kind: "system" } };
+    await repo.insert({ record: { id: "cs-1", workspaceId: "ws-1", status: "applied", summary: "s", createdAt: T0 }, items: [] }, { event: viaChangeSet });
+    const claimed = await outbox.claimPending({ batchSize: 5, nowIso: T0 });
+    assert.deepEqual(claimed.map((row) => row.event).sort((a, b) => a.id.localeCompare(b.id)), [attributed, viaChangeSet]);
+    await assert.rejects(outbox.enqueue({ ...attributed, id: "e-bad", actorId: "user-1" }), /actor/);
+  });
 
   test("enqueue stores the pending row; a repeated id is a no-op even once delivered", async () => {
     const { outbox, rows } = await make();

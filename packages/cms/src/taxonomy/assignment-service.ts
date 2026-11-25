@@ -1,3 +1,5 @@
+import type { MutationActor } from "@jini-ai/core/contracts/events";
+import { checkedMutationActor } from "../core/mutation-actor.js";
 import { nowIso as kernelNowIso } from "@jini-ai/core/primitives";
 import { validateContentJoin } from "./validation-chain.js";
 import type { EntryTermRepoPort, WriteServiceDeps } from "./write-contracts.js";
@@ -19,6 +21,9 @@ export function isContentTypeOnAllowList(requiredArgs: { contentType: string }, 
 export interface AssignTermsRequired {
   deps: WriteServiceDeps;
   principalId: string;
+  /** Trusted attribution from the caller's execution channel (admin route `user`, assistant tool
+   *  `agent`); its `id` must be `principalId`. Optional for now: omitted, the event records no actor. */
+  actor?: MutationActor | undefined;
   contentType: string;
   contentId: string;
   termIds: string[];
@@ -128,6 +133,9 @@ export async function assignTerms(
   _optional: Record<string, never> = {}
 ): Promise<void> {
   const { deps, principalId, contentType, contentId, termIds } = required;
+  // The execution channel supplies attribution, the principal ID still governs authorization, and
+  // the two are not interchangeable: refuse an actor naming someone else before any write.
+  const actor = checkedMutationActor({ principalId, actor: required.actor });
   await authorizeTaxonomyManage(deps, principalId);
 
   await validateAssignmentTarget({ deps, contentType, contentId, termIds });
@@ -145,6 +153,7 @@ export async function assignTerms(
       contentId,
       termIds,
       actorId: principalId,
+      ...(actor ? { actor } : {}),
       occurredAt: now,
     }
   });
@@ -160,6 +169,9 @@ export interface UnassignableEntryTermRepoPort {
 export interface UnassignTermsRequired {
   deps: Omit<WriteServiceDeps, "entryTerms"> & { entryTerms: EntryTermRepoPort & UnassignableEntryTermRepoPort };
   principalId: string;
+  /** Trusted attribution from the caller's execution channel (admin route `user`, assistant tool
+   *  `agent`); its `id` must be `principalId`. Optional for now: omitted, the event records no actor. */
+  actor?: MutationActor | undefined;
   contentType: string;
   contentId: string;
   termIds: string[];
@@ -180,6 +192,9 @@ export async function unassignTerms(
   _optional: Record<string, never> = {}
 ): Promise<{ removedTermIds: string[] }> {
   const { deps, principalId, contentType, contentId, termIds } = required;
+  // The execution channel supplies attribution, the principal ID still governs authorization, and
+  // the two are not interchangeable: refuse an actor naming someone else before any write.
+  const actor = checkedMutationActor({ principalId, actor: required.actor });
   await authorizeTaxonomyManage(deps, principalId);
 
   await validateAssignmentTarget({ deps, contentType, contentId, termIds });
@@ -199,6 +214,7 @@ export async function unassignTerms(
       contentId,
       termIds: removedTermIds,
       actorId: principalId,
+      ...(actor ? { actor } : {}),
       occurredAt: now,
     }
   });

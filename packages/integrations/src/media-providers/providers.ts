@@ -17,7 +17,6 @@ export const VENDOR_API_BASE_URLS = {
   anthropic: 'https://api.anthropic.com', openai: 'https://api.openai.com/v1', azure: '',
   google: 'https://generativelanguage.googleapis.com', openrouter: 'https://openrouter.ai/api/v1',
   ollama: 'http://localhost:11434/v1', volcengine: 'https://ark.cn-beijing.volces.com/api/v3',
-  grok: 'https://api.x.ai/v1',
   imagerouter: 'https://api.imagerouter.io/v1/openai', comfyui: 'http://127.0.0.1:8188',
   bfl: 'https://api.bfl.ai', fal: 'https://fal.run', leonardo: 'https://cloud.leonardo.ai/api/rest/v1',
   replicate: 'https://api.replicate.com', minimax: 'https://api.minimaxi.chat/v1',
@@ -28,29 +27,29 @@ export const VENDOR_API_BASE_URLS = {
 /** Old UI ids remain accepted at boundaries; canonical ids match the existing dispatch catalog. */
 export const MEDIA_PROVIDER_ID_ALIASES: Readonly<Record<string, string>> = {
   'nano-banana': 'nanobanana', 'custom-image-api': CUSTOM_IMAGE_PROVIDER_ID, 'fal-ai': 'fal',
-  'leonardo-ai': 'leonardo', 'tavily-search': 'tavily', 'volcengine-ark': 'volcengine', 'xai-grok-imagine': 'grok',
+  'leonardo-ai': 'leonardo', 'tavily-search': 'tavily', 'volcengine-ark': 'volcengine',
 };
-/** Resolve legacy aliases without changing unknown extension IDs. @complexity O(1). */
-export function canonicalMediaProviderId({ id }: { id: string }, _optional: Record<string, never> = {}): string {
+/** Resolve legacy aliases without changing unknown extension IDs. `aliases` is host-injected legacy ids layered over the built-in table. @complexity O(1). */
+export function canonicalMediaProviderId({ id }: { id: string }, { aliases = {} }: { aliases?: Readonly<Record<string, string>> } = {}): string {
+  if (Object.prototype.hasOwnProperty.call(aliases, id)) return aliases[id]!;
   return Object.prototype.hasOwnProperty.call(MEDIA_PROVIDER_ID_ALIASES, id) ? MEDIA_PROVIDER_ID_ALIASES[id]! : id;
 }
 /** Canonical entries win conflicts, so an old alias can never replace a newer explicit edit.
  * Returns a copy without changing supplied values or reading credentials. @complexity O(n) entries. */
-export function normalizeMediaProviderMap<T>({ providers }: { providers: Readonly<Record<string, T>> }, _optional: Record<string, never> = {}): Record<string, T> {
+export function normalizeMediaProviderMap<T>({ providers }: { providers: Readonly<Record<string, T>> }, { aliases = {} }: { aliases?: Readonly<Record<string, string>> } = {}): Record<string, T> {
   const entries = Object.entries(providers);
+  const canonical = (id: string) => canonicalMediaProviderId({ id }, { aliases });
   return Object.fromEntries([
-    ...entries.filter(([id]) => canonicalMediaProviderId({ id }) !== id).map(([id, value]) => [canonicalMediaProviderId({ id }), value]),
-    ...entries.filter(([id]) => canonicalMediaProviderId({ id }) === id),
+    ...entries.filter(([id]) => canonical(id) !== id).map(([id, value]) => [canonical(id), value]),
+    ...entries.filter(([id]) => canonical(id) === id),
   ]);
 }
-
 /** Host-injected UI policy; reuse the catalog's existing identity and normalization owner. */
 export const mediaProviderCatalogPolicy = { canonicalMediaProviderId, normalizeMediaProviderMap };
 
 export const MEDIA_PROVIDERS: readonly MediaProvider[] = [
   { id: 'openai', label: 'OpenAI', hint: 'gpt-image-2 / dall-e-3', integrated: true, defaultBaseUrl: VENDOR_API_BASE_URLS.openai },
   { id: 'volcengine', label: 'Volcengine Ark (Doubao)', hint: 'Seedance 2.0 / Seedream', integrated: true, defaultBaseUrl: VENDOR_API_BASE_URLS.volcengine },
-  { id: 'grok', label: 'xAI Grok Imagine', hint: 'grok-imagine — image + video with native audio', integrated: true, defaultBaseUrl: VENDOR_API_BASE_URLS.grok },
   { id: 'hyperframes', label: 'HyperFrames', hint: 'Local HTML -> MP4 renderer', integrated: false, credentialsRequired: false, settingsVisible: false },
   { id: 'nanobanana', label: 'Nano Banana', hint: 'Google official by default; custom gateway configurable', integrated: true, defaultBaseUrl: VENDOR_API_BASE_URLS.google, supportsCustomModel: true },
   { id: 'imagerouter', label: 'ImageRouter', hint: 'OpenAI-compatible image + video routing', integrated: true, defaultBaseUrl: VENDOR_API_BASE_URLS.imagerouter, docsUrl: 'https://docs.imagerouter.io/api-reference/image-generation/', supportsCustomModel: true, customModelPlaceholder: 'openai/gpt-image-2 or xAI/grok-imagine-video' },
@@ -100,7 +99,6 @@ export const IMAGE_MODELS: readonly MediaModel[] = [
   { id: 'doubao-seedream-5-0-260128', label: 'seedream-5.0', hint: 'SenseAudio · ByteDance Seedream 5.0 hi-res', provider: 'senseaudio', caps: ['t2i', 'i2i'] },
   { id: 'aihubmix-gpt-image-1', label: 'gpt-image-1 (AIHubMix)', hint: 'AIHubMix · OpenAI gpt-image-1', provider: 'aihubmix', caps: ['t2i', 'i2i'] },
   { id: 'aihubmix-dall-e-3', label: 'dall-e-3 (AIHubMix)', hint: 'AIHubMix · OpenAI DALL·E 3', provider: 'aihubmix', caps: ['t2i'] },
-  { id: 'grok-imagine-image', label: 'grok-imagine-image', hint: 'xAI · 2K text-to-image', provider: 'grok', caps: ['t2i'] },
   { id: 'gemini-3.1-flash-image-preview', label: 'nano-banana-2', hint: 'Nano Banana · text-to-image', provider: 'nanobanana', caps: ['t2i'] },
   { id: 'openai/gpt-image-2', label: 'openai/gpt-image-2', hint: 'ImageRouter · routed GPT Image', provider: 'imagerouter', caps: ['t2i'] },
   { id: 'openai/gpt-image-1.5', label: 'openai/gpt-image-1.5', hint: 'ImageRouter · routed GPT Image', provider: 'imagerouter', caps: ['t2i'] },
@@ -139,7 +137,6 @@ export const VIDEO_MODELS: readonly MediaModel[] = [
   { id: 'doubao-seedance-1-0-pro-250528', label: 'seedance-1.0-pro', hint: 'ByteDance · 1.0', provider: 'volcengine', caps: ['t2v', 'i2v'] },
   { id: 'doubao-seedance-1-0-lite-i2v-250428', label: 'seedance-1.0-lite-i2v', hint: 'ByteDance · image-to-video', provider: 'volcengine', caps: ['i2v'] },
   { id: 'doubao-seedance-1-0-lite-t2v-250428', label: 'seedance-1.0-lite-t2v', hint: 'ByteDance · text-to-video', provider: 'volcengine', caps: ['t2v'] },
-  { id: 'grok-imagine-video', label: 'grok-imagine-video', hint: 'xAI · 720p t2v + i2v + native audio', provider: 'grok', caps: ['t2v', 'i2v', 'audio'] },
   { id: 'openrouter/bytedance/seedance-2.0:1080p', label: 'seedance-2.0 1080p (OR)', hint: 'OpenRouter · ByteDance · 1080p', provider: 'openrouter', caps: ['t2v', 'i2v'], default: true },
   { id: 'openrouter/bytedance/seedance-2.0', label: 'seedance-2.0 720p (OR)', hint: 'OpenRouter · ByteDance · 720p', provider: 'openrouter', caps: ['t2v', 'i2v'] },
   { id: 'openrouter/bytedance/seedance-2.0:480p', label: 'seedance-2.0 480p (OR)', hint: 'OpenRouter · ByteDance · 480p', provider: 'openrouter', caps: ['t2v', 'i2v'] },
@@ -181,7 +178,6 @@ export const AUDIO_MODELS_BY_KIND: Readonly<Record<AudioKind, readonly MediaMode
     { id: 'doubao-tts', label: 'doubao-tts', hint: 'Volcengine', provider: 'volcengine', caps: ['tts'] },
     { id: 'gpt-4o-mini-tts', label: 'gpt-4o-mini-tts', hint: 'OpenAI', provider: 'openai', caps: ['tts'] },
     { id: 'aihubmix-tts-1', label: 'tts-1 (AIHubMix)', hint: 'AIHubMix · OpenAI tts-1', provider: 'aihubmix', caps: ['tts'] },
-    { id: 'grok-tts', label: 'grok-tts', hint: 'xAI · multilingual · uses Grok subscription', provider: 'grok', caps: ['tts'] },
   ],
   sfx: [
     { id: 'elevenlabs-sfx', label: 'elevenlabs-sfx', hint: 'ElevenLabs SFX', provider: 'elevenlabs', caps: ['sfx'], default: true },
@@ -234,7 +230,6 @@ export function modelsForSurface({ surface }: { surface: MediaSurface }, { audio
 export const PROVIDER_CREDENTIAL_ENV_VARS: Readonly<Record<string, readonly string[]>> = {
   openai: ['OPENAI_API_KEY'],
   volcengine: ['ARK_API_KEY', 'VOLCENGINE_API_KEY'],
-  grok: ['XAI_API_KEY'],
   nanobanana: ['GOOGLE_API_KEY', 'GEMINI_API_KEY'],
   imagerouter: ['IMAGEROUTER_API_KEY'],
   openrouter: ['OPENROUTER_API_KEY'],

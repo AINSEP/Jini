@@ -392,3 +392,18 @@ test("importTaxonomy does not resolve before an async watermark stamp finishes",
 
   assert.equal(finished, 1);
 });
+
+// ---------------------------------------------------------------------------
+// P10-H2.J — the publish import stamps the trusted actor its caller vouched for, like every other
+// taxonomy writer; without one it records none rather than guessing a kind.
+// ---------------------------------------------------------------------------
+
+test("a taxonomy and term import record the vouched actor on their events", async () => {
+  const actor = { id: "user-1", kind: "system" as const };
+  const { deps, outboxEvents } = baseDeps();
+  await importTaxonomy({ deps, principalId: "user-1", actor, id: "src-tax-1", name: "Cuisine", hierarchical: true, expectedVersion: undefined });
+  await importTerm({ deps, principalId: "user-1", actor, id: "src-term-1", taxonomyId: "tax-1", name: "Mexican", expectedVersion: undefined }, { parentId: null });
+  await importTerm({ deps, principalId: "user-1", id: "src-term-2", taxonomyId: "tax-1", name: "Thai", expectedVersion: undefined }, { parentId: null });
+
+  assert.deepEqual(outboxEvents.map(event => (event as { actor?: unknown }).actor), [actor, actor, undefined]);
+});

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { opencodeAcpAgentDef } from '../opencode-acp.js';
+import { opencodeAcpAgentDef } from '../opencode-acp/index.js';
 import { BASE_AGENT_DEFS } from '../../registry.js';
 import { spawnEnvForAgent } from '../../env.js';
 

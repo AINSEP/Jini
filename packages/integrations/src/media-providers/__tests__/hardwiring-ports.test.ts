@@ -26,7 +26,7 @@ it('both durable media stores use the host opener and retain their storage contr
 
 // hwb #13: old IDs resolve to the dispatch owner, and canonical credentials win regardless of insertion order.
 it('resolves old vendor ids and normalizes conflicting aliases without mutation', () => {
-  for (const [alias, canonical] of [['nano-banana', 'nanobanana'], ['fal-ai', 'fal'], ['xai-grok-imagine', 'grok'], ['tavily-search', 'tavily']]) {
+  for (const [alias, canonical] of [['nano-banana', 'nanobanana'], ['fal-ai', 'fal'], ['tavily-search', 'tavily']]) {
     expect(canonicalMediaProviderId({ id: alias! })).toBe(canonical);
     expect(findProvider({ id: alias! })).toBe(findProvider({ id: canonical! }));
   }

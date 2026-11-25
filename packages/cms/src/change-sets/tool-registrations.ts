@@ -1,7 +1,7 @@
 import { toolMetadata } from '@jini-ai/core/tool-metadata/change-sets';
 import { type Clock } from "@jini-ai/core/primitives";
 import { adaptLegacyAuthorize, requireToolPermission, ToolPermissionDeniedError } from "@jini-ai/core";
-import { ToolInputError } from "@jini-ai/core";
+import { AGENT_TOOL_PRINCIPAL_KIND, ToolInputError } from "@jini-ai/core";
 import { buildDomainRegistrations, indexCatalogById, optionalNumber, requireInputRecord, requireString, type AgentToolSideEffect, type DerivedRiskByToolId, type ToolHandler, type ToolRegistration } from "@jini-ai/core";
 import {
   type AuthorizeFn,
@@ -164,6 +164,8 @@ export function toChangeSetView({ changeSet }: { changeSet: ChangeSetRecord }, _
             // unconditional rule rather than merely a convention this handler follows.
             force: false,
             principalKind: "agent",
+            // Reaching a tool handler IS the agent path; the principal id stays the acting user's.
+            actor: { id: ctx.principal.id, kind: AGENT_TOOL_PRINCIPAL_KIND },
           },
         }, { actorId: ctx.principal.id, authorizeItem });
         return { reverted: true, changeSet: toChangeSetView({ changeSet: reverted }) };

@@ -1,9 +1,10 @@
 import type { UUID } from "@jini-ai/core/primitives";
-import { type PostRepoPort, type PostRecord, type PostRevisionOp, type PostRevisionAppendResult, SYSTEM_ACTOR_ID, PostVersionConflictError, PostNotFoundError } from "./post.js";
+import { type PostRepoPort, type PostRecord, type PostRevisionOp, type PostRevisionAppendResult, SYSTEM_ACTOR_ID, SYSTEM_MUTATION_ACTOR, PostVersionConflictError, PostNotFoundError } from "./post.js";
 import { isTrashed } from "@jini-ai/core/contracts/site/soft-delete";
 import type { PostStatus } from "../core/index.js";
 import { isLiveAt } from "@jini-ai/core/scheduled-publish";
-import type { OutboxPort } from "@jini-ai/core/contracts/events";
+import type { MutationActor, OutboxPort } from "@jini-ai/core/contracts/events";
+import { checkedMutationActor } from "../core/mutation-actor.js";
 import { announcePendingGoLive } from "../entries/go-live.js";
 
 /** Who a revision is attributed to; an absent actor is {@link SYSTEM_ACTOR_ID}, absent delegation `null`. */
@@ -29,6 +30,8 @@ export function appendPostRevision(
     seq: post.version,
     op,
     stateJson: post,
+    // The ledger has no kind column: the fallback is the bare id. The write's events carry a kind
+    // only when its channel vouched an actor (`postEventActor`); none is guessed here.
     actorId: attribution.actorId ?? SYSTEM_ACTOR_ID,
     delegatedByWorkspaceId: attribution.delegatedByWorkspaceId ?? null,
     delegatedById: attribution.delegatedById ?? null,
@@ -162,13 +165,16 @@ export function classifyStatusTransition(
  * Call it inside the write's transaction, so the row and its events commit or roll back together.
  */
 export async function emitPublicTransitionEvent(
-  required: { outbox: OutboxPort; previous: PostRecord | null; next: PostRecord; nowIso: string; actorId?: string | undefined; source?: string | undefined },
+  required: { outbox: OutboxPort; previous: PostRecord | null; next: PostRecord; nowIso: string; actorId?: string | undefined; source?: string | undefined;
+    /** The trusted actor the write's channel vouched for; its `id` must be `actorId` (or the system id when `actorId` is absent). */
+    actor?: MutationActor | undefined },
   _optional: Record<string, never> = {}
 ): Promise<void> {
   const { outbox, previous, next, nowIso } = required;
+  const actor = postEventActor({ actorId: required.actorId, actor: required.actor });
   if (previous) await announcePendingGoLive({ outbox, post: previous, nowIso });
   const previousStatus = previous ? publicFacingStatus({ post: previous, nowIso }) : "draft";
-  await emitStatusTransitionEvent({ outbox, previousStatus, nextStatus: publicFacingStatus({ post: next, nowIso }), post: next }, { actorId: required.actorId, source: required.source });
+  await emitStatusTransitionEvent({ outbox, previousStatus, nextStatus: publicFacingStatus({ post: next, nowIso }), post: next, actor }, { actorId: required.actorId, source: required.source });
 }
 
 /**
@@ -179,7 +185,7 @@ export async function emitPublicTransitionEvent(
  * (`"draft"`) without actually changing the trashed row's own stored `status` field.
  */
 async function emitStatusTransitionEvent(
-  { outbox, previousStatus, nextStatus, post }: { outbox: OutboxPort; previousStatus: PostStatus; nextStatus: PostStatus; post: PostRecord },
+  { outbox, previousStatus, nextStatus, post, actor }: { outbox: OutboxPort; previousStatus: PostStatus; nextStatus: PostStatus; post: PostRecord; actor: MutationActor | undefined },
   analytics: { actorId?: string | undefined; source?: string | undefined } = {},
 ): Promise<void> {
   const transitionEventName = classifyStatusTransition(previousStatus, nextStatus);
@@ -193,18 +199,42 @@ async function emitStatusTransitionEvent(
     // Omitted, not undefined: analytics fields are never fabricated, and an in-memory outbox must
     // carry the same payload a persisted (JSON) one does.
     payload: { entryId: post.id, contentType: post.kind, ...Object.fromEntries(Object.entries(analytics).filter(([, value]) => value !== undefined)) },
+    ...actorEnvelope({ actor }),
   });
 }
 
 /** Enqueue only after a changed revision write, inside its transaction. No document text is copied.
  * @complexity O(1), one outbox insert. */
 export async function enqueueContentWrite(
-  { outbox, post, actorId, source, operation }: { outbox: OutboxPort; post: PostRecord; actorId?: string | undefined;
-    source?: string | undefined; operation: "created" | "saved" },
+  { outbox, post, actorId, source, operation, actor }: { outbox: OutboxPort; post: PostRecord; actorId?: string | undefined;
+    source?: string | undefined; operation: "created" | "saved";
+    /** The trusted actor the write's channel vouched for; its `id` must be `actorId` (or the system id when `actorId` is absent). */
+    actor?: MutationActor | undefined },
   _optional: Record<string, never> = {},
 ): Promise<void> {
+  const eventActor = postEventActor({ actorId, actor });
   await outbox.enqueue({ id: `${post.id}-content.${operation}-${post.version}`, name: `content.${operation}`,
     workspaceId: post.workspaceId, aggregateId: post.id, occurredAt: post.updatedAt,
     payload: { contentType: post.kind, entryId: post.id, actorId, source: source ?? "service", initialStatus: post.status },
+    ...actorEnvelope({ actor: eventActor }),
   });
+}
+
+/**
+ * The actor a post write's events carry. The execution channel supplies the kind and the principal id
+ * still governs authorization, so a vouched actor naming somebody else is refused. Without a vouched
+ * actor the event records none: neither a missing `actorId` (the ledger's {@link SYSTEM_ACTOR_ID}
+ * fallback) nor a principal id says which channel wrote, and provenance that is not known stays
+ * unknown rather than guessed. An autonomous job passes {@link SYSTEM_MUTATION_ACTOR} explicitly.
+ * @throws {ConflictingMutationActorError} When `actor.id` is not the write's principal.
+ * @complexity O(1).
+ */
+export function postEventActor(required: { actorId: string | undefined; actor: MutationActor | undefined }, _optional: Record<string, never> = {}): MutationActor | undefined {
+  if (required.actor) return checkedMutationActor({ principalId: required.actorId ?? SYSTEM_ACTOR_ID, actor: required.actor });
+  return undefined;
+}
+
+/** The envelope fields a stamped actor adds; nothing at all for an unattributed event. @complexity O(1). */
+function actorEnvelope({ actor }: { actor: MutationActor | undefined }, _optional: Record<string, never> = {}) {
+  return actor ? { actorId: actor.id, actor } : {};
 }
