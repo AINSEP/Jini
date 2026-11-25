@@ -42,8 +42,8 @@ env-var names. `allowStubFallback` defaults to `false`: with no real renderer fo
 (provider, surface) pair, generation throws rather than returning placeholder bytes that could be
 mistaken for a real result.
 
-**Per-vendor renderers** — `renderOpenAIImage`, `renderOpenAISpeech`, `renderGrokImage`,
-`renderXAITTS`, `renderElevenLabsTTS`, `renderElevenLabsSfx`, `renderFishAudioTTS`,
+**Per-vendor renderers** — `renderOpenAIImage`, `renderOpenAISpeech`,
+`renderElevenLabsTTS`, `renderElevenLabsSfx`, `renderFishAudioTTS`,
 `renderMinimaxTTS`, `renderNanoBananaImage`, `renderOpenRouterImage`, `renderImageRouterImage`,
 `renderImageRouterVideo`, `renderSenseAudioImage`, `renderSenseAudioTTS`, `renderVolcengineImage`,
 `renderAIHubMixImage`, `renderAIHubMixTTS`, `renderCustomOpenAIImage`, plus `renderStub` /

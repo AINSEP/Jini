@@ -74,7 +74,6 @@ describe('mediaVendorRegistry — the shared singleton', () => {
         await import('../providers/fishaudio.js');
         await import('../providers/imagerouter.js');
         await import('../providers/custom-image.js');
-        await import('../providers/grok.js');
         await import('../providers/nanobanana.js');
         await import('../providers/openrouter.js');
         await import('../providers/volcengine.js');
@@ -89,8 +88,6 @@ describe('mediaVendorRegistry — the shared singleton', () => {
         expect(mediaVendorRegistry.has({ providerId: 'imagerouter', routeKey: 'image' })).toBe(true);
         expect(mediaVendorRegistry.has({ providerId: 'imagerouter', routeKey: 'video' })).toBe(true);
         expect(mediaVendorRegistry.has({ providerId: 'custom-image', routeKey: 'image' })).toBe(true);
-        expect(mediaVendorRegistry.has({ providerId: 'grok', routeKey: 'image' })).toBe(true);
-        expect(mediaVendorRegistry.has({ providerId: 'grok', routeKey: 'audio:speech' })).toBe(true);
         expect(mediaVendorRegistry.has({ providerId: 'nanobanana', routeKey: 'image' })).toBe(true);
         expect(mediaVendorRegistry.has({ providerId: 'openrouter', routeKey: 'image' })).toBe(true);
         expect(mediaVendorRegistry.has({ providerId: 'volcengine', routeKey: 'image' })).toBe(true);

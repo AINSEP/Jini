@@ -12,16 +12,16 @@ describe('vendor registration runs at use rather than import', () => {
       expect(createVendorAdapterRegistry().list()).toEqual([]);
 
       const pairs = mediaVendorRegistry.list();
-      expect(pairs).toHaveLength(18);
-      expect(new Set(pairs.map(([provider, route]) => `${provider}:${route}`)).size).toBe(18);
+      expect(pairs).toHaveLength(16);
+      expect(new Set(pairs.map(([provider, route]) => `${provider}:${route}`)).size).toBe(16);
       expect(pairs).toContainEqual(['openai', 'image']);
       expect(pairs).toContainEqual(['elevenlabs', 'audio:sfx']);
-      expect(register).toHaveBeenCalledTimes(18);
+      expect(register).toHaveBeenCalledTimes(16);
 
       expect(mediaVendorRegistry.has({ providerId: 'openai', routeKey: 'image' })).toBe(true);
       expect(mediaVendorRegistry.get({ providerId: 'elevenlabs', routeKey: 'audio:sfx' })).toBeDefined();
       expect(mediaVendorRegistry.list()).toEqual(pairs);
-      expect(register).toHaveBeenCalledTimes(18);
+      expect(register).toHaveBeenCalledTimes(16);
       expect(createVendorAdapterRegistry().list()).toEqual([]);
     } finally {
       register.mockRestore();

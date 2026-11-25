@@ -43,7 +43,7 @@ function injectedContribution(): CoreContribution {
 
 const request = (value: MediaGenerationRequest) => partitionArgs({ value, requiredKeys: ['surface', 'model'] });
 const engineFor = (registry: ReturnType<typeof createMediaProviderRegistry>, credentials: Record<string, { apiKey: string }>) =>
-  createMediaDispatchEngine({ registry, catalog: registry, httpClient: createNodeMediaHttpClient({}), guardedFetch: nodeMediaGuardedFetch }, { credentials });
+  createMediaDispatchEngine({ registry, httpClient: createNodeMediaHttpClient({}), guardedFetch: nodeMediaGuardedFetch }, { credentials, catalog: registry });
 
 describe('xAI media is absent without the plugin and preserves image and TTS dispatch when injected', () => {
   it('has no xAI provider, model or adapter route in the built-in set', () => {
@@ -103,4 +103,10 @@ describe('the built-in URL, reverse alias and env-key row are gone', () => {
     expect(resolveProviderCredentialsFromEnv({ providerId: 'xai-grok-imagine', env: { XAI_API_KEY: ' k ' } }, { envVars: { 'xai-grok-imagine': ['XAI_API_KEY'] } })).toEqual({ apiKey: 'k' });
     expect(resolveProviderCredentialsFromEnv({ providerId: 'grok', env: { XAI_API_KEY: 'k' } }, { envVars: { 'xai-grok-imagine': ['XAI_API_KEY'] }, aliases: { grok: 'xai-grok-imagine' } })).toEqual({ apiKey: 'k' });
   });
+});
+
+vi.mock('@jini-ai/platform/http/guarded', async (importOriginal) => {
+  const original = await importOriginal<typeof import('@jini-ai/platform/http/guarded')>();
+  const { testNodeGuardedHttpPorts } = await import('./outbound-fixtures.js');
+  return { ...original, createNodeGuardedHttpPorts: testNodeGuardedHttpPorts };
 });

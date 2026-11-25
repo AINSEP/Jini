@@ -24,6 +24,14 @@ describe('the xAI media contribution catalogue', () => {
   });
 });
 
+describe('ImageRouter routed xAI video is not claimed by the plugin', () => {
+  it('offers only its own three model ids, never the routed id ImageRouter catalogues', () => {
+    const ids = contribution.models.map(model => model.id);
+    expect(ids).not.toContain('xAI/grok-imagine-video');
+    expect(ids.every(id => !id.includes('/'))).toBe(true);
+  });
+});
+
 describe('xAI image adapter', () => {
   it('throws a clear error when no API key is configured', async () => {
     await expect(runAdapter({ adapter: image, ctx: renderContext(), credentials: {}, respond: () => new Response('') })).rejects.toThrow(/no xAI credential/);
