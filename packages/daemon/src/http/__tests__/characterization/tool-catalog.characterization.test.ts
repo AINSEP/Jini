@@ -99,7 +99,8 @@ describe('tool catalog routes, every answer', () => {
       const { error } = answer.json as { error: { code: string; message: string; requestId: string } };
       expect(Object.keys(error).sort()).toEqual(['code', 'message', 'requestId']);
       expect(error.code).toBe('INTERNAL_ERROR');
-      expect(error.message).toBe('The server could not finish this request. Check whether your change was saved, then copy the request ID and report this problem.');
+      // A failed GET changed nothing, so the fallback copy says so instead of asking whether a change was saved.
+      expect(error.message).toBe('The server could not finish this request. Nothing was changed. Try again; if it keeps failing, copy the request ID and report this problem.');
       expect(answer.text).not.toContain(INTERNAL_FAILURE_MARKER);
       const reported = harness.internalErrors.slice(before) as { error: Error; correlationId: string }[];
       expect(reported).toHaveLength(1);

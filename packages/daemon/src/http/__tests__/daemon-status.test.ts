@@ -101,7 +101,8 @@ describe('daemonStatusRoute', () => {
     // Redacted, not echoed: the route's catch is a last-resort handler for unanticipated exceptions and must not forward their text to the caller.
     const body = await response.json() as { error: { code: string; message: string } };
     expect(body.error.code).toBe('INTERNAL_ERROR');
-    expect(body.error.message).toBe('The server could not finish this request. Check whether your change was saved, then copy the request ID and report this problem.');
+    // A failed GET changed nothing, so the fallback copy says so instead of asking whether a change was saved.
+    expect(body.error.message).toBe('The server could not finish this request. Nothing was changed. Try again; if it keeps failing, copy the request ID and report this problem.');
   });
 });
 
