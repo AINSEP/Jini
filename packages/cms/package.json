@@ -842,6 +842,9 @@
         "src/widgets/markers/marker.ts",
         "src/navigation/href.ts",
         "src/media/cover-image.ts",
+        "src/public-http/http/site/render/post-body.ts",
+        "src/public-http/http/site/render/template-render-data.ts",
+        "src/listing",
         "src/media/blob-key.ts",
         "src/html/site/slug.ts",
         "src/widgets/markers/gallery.ts",
@@ -863,6 +866,8 @@
       "entries": {
         "./public-http/routes/site/pages/extra-head": "presentation",
         "./public-http/http/site/bare-page": "presentation",
+        "./public-http/http/site/render/template-render-data": "media",
+        "./public-http/http/site/render/components/entry-lists": "media",
         "./admin-http/routes/system/site-share-password": "admin-http",
         "./admin-http/routes/publish-content/route-helpers": "publish",
         "./admin-http/routes/publish-content/import-errors": "publish",
