@@ -1,5 +1,6 @@
 import { trimChars, trimCharsEnd } from "@jini-ai/core/primitives";
 import { describeUploadOverLimit } from "@jini-ai/core/text";
+import { resolveUploadCap } from "./upload-cap.js";
 import { validateDocumentIngress, documentContentType, MAX_DOCUMENT_BYTES, type DocumentArchiveReaderPort } from "./document-ingress.js";
 import { safeMediaProvenance } from './provenance.js';
 import { sanitizeSvg } from "./sanitize-svg.js";
@@ -293,6 +294,8 @@ export interface UploadMediaRequired {
 
 export interface UploadMediaOptional {
   maxUploadBytes?: number | undefined;
+  /** Cap for `video/*` files when it differs from `maxUploadBytes` (see `upload-cap.ts`). */
+  maxVideoUploadBytes?: number | undefined;
   allowedMimeTypes?: ReadonlySet<string> | undefined;
 }
 
@@ -357,7 +360,7 @@ function assertWithinUploadCap(byteLength: number, maxUploadBytes: number): void
 
 /** Applies the MIME, empty-file and size policy for this kind; returns the cap that applied. */
 function assertUploadAdmissible({ input, kind }: { input: UploadMediaRequired["input"]; kind: UploadKind }, optional: UploadMediaOptional): number {
-  const maxUploadBytes = kind === "document" ? MAX_DOCUMENT_BYTES : optional.maxUploadBytes ?? DEFAULT_MAX_UPLOAD_BYTES;
+  const maxUploadBytes = kind === "document" ? MAX_DOCUMENT_BYTES : resolveUploadCap({ contentType: input.contentType }, { maxUploadBytes: optional.maxUploadBytes ?? DEFAULT_MAX_UPLOAD_BYTES, maxVideoUploadBytes: optional.maxVideoUploadBytes });
   const allowedMimeTypes = optional.allowedMimeTypes ?? DEFAULT_ALLOWED_MIME_TYPES;
   if (kind === "media" && !allowedMimeTypes.has(input.contentType)) {
     throw new MediaValidationError({ message: `content type '${input.contentType}' is not allowed for upload` });
