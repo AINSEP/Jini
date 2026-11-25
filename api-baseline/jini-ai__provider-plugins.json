@@ -92,5 +92,17 @@
  "./plugins/*": {
   "types": null,
   "symbols": {}
+ },
+ "./xai/media": {
+  "types": "./dist/xai/media/index.d.ts",
+  "symbols": {
+   "XAI_MEDIA_PROVIDER_ID": "variable:ee83e1c979",
+   "createXaiMediaContribution": "function:d1da313629",
+   "grokAspectFor": "function:e14d0c875d",
+   "grokImageAdapter": "variable:1897381a88",
+   "renderGrokImage": "function:82e0f1730d",
+   "renderXAITTS": "function:9e6c876b86",
+   "xaiTTSAdapter": "variable:9691dbbd9f"
+  }
  }
 }
