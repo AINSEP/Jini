@@ -123,7 +123,11 @@
       "./members/subscriber-directory": "universal",
       "./members/trash-member": "universal",
       "./members/types": "universal",
-      "./members/write-service": "node"
+      "./members/write-service": "node",
+      "./identity/repo": "node",
+      "./identity/repo.authentication": "node",
+      "./identity/repo.authorization": "node",
+      "./identity/permission-list-tool": "universal"
     },
     "optionalPeers": {
       "kysely": "opt-in: sql storage adapters; import @jini-ai/user-management/members/repo — SQL storage adapters could not load kysely. Install kysely to enable this feature, or check its installed version and native binaries.",
@@ -151,7 +155,10 @@
         "./member-login/oidc-login": "server",
         "./member-login/link-service": "members",
         "./public-http/routes/newsletter/confirm": "newsletter",
-        "./public-http/routes/newsletter/unsubscribe": "newsletter"
+        "./public-http/routes/newsletter/unsubscribe": "newsletter",
+        "./identity/repo": "server",
+        "./identity/repo.authentication": "server",
+        "./identity/repo.authorization": "server"
       },
       "shared": [
         "src/server/auth-challenge.ts",
@@ -720,6 +727,26 @@
       "types": "./dist/members/write-service.d.ts",
       "import": "./dist/members/write-service.js",
       "default": "./dist/members/write-service.js"
+    },
+    "./identity/repo": {
+      "types": "./dist/identity/repo.d.ts",
+      "import": "./dist/identity/repo.js",
+      "default": "./dist/identity/repo.js"
+    },
+    "./identity/repo.authentication": {
+      "types": "./dist/identity/repo.authentication.d.ts",
+      "import": "./dist/identity/repo.authentication.js",
+      "default": "./dist/identity/repo.authentication.js"
+    },
+    "./identity/repo.authorization": {
+      "types": "./dist/identity/repo.authorization.d.ts",
+      "import": "./dist/identity/repo.authorization.js",
+      "default": "./dist/identity/repo.authorization.js"
+    },
+    "./identity/permission-list-tool": {
+      "types": "./dist/identity/permission-list-tool.d.ts",
+      "import": "./dist/identity/permission-list-tool.js",
+      "default": "./dist/identity/permission-list-tool.js"
     }
   },
   "files": [
