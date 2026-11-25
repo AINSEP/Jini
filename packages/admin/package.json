@@ -751,6 +751,7 @@
       "./shell/components/AssistantDock/OverflowAwareMcpUiSurfaceCard": "browser",
       "./shell/components/AssistantDock/hooks/run-context.hooks": "browser",
       "./shell/components/AssistantDock/hooks/assistant-transport.hooks": "browser",
+      "./shell/components/AssistantDock/hooks/composer-files.hooks": "browser",
       "./screens/trash/Trash": "browser",
       "./screens/trash/hooks/use-trash.hooks": "browser",
       "./screens/library/Library": "browser",
@@ -776,7 +777,9 @@
         "src/screens/plugins/agent-plugins-visuals.tsx",
         "src/agent-plugins/package-file-tree.ts",
         "src/screens/taxonomy/TaxonomyRowMenu.hooks.ts",
-        "src/screens/trash/rules.ts"
+        "src/screens/trash/rules.ts",
+        "src/shell/components/AssistantDock/hooks/chat-package-kind.ts",
+        "src/screens/skills/skill-drop.ts"
       ],
       "forbidden": {
         "universal": [
@@ -1069,6 +1072,7 @@
         "./shell/components/AssistantDock/OverflowAwareMcpUiSurfaceCard": "browser",
         "./shell/components/AssistantDock/hooks/run-context.hooks": "browser",
         "./shell/components/AssistantDock/hooks/assistant-transport.hooks": "browser",
+        "./shell/components/AssistantDock/hooks/composer-files.hooks": "browser",
         "./screens/trash/Trash": "browser",
         "./screens/trash/hooks/use-trash.hooks": "browser",
         "./screens/trash/rules": "universal"
@@ -4701,6 +4705,11 @@
       "types": "./dist/shell/components/AssistantDock/hooks/assistant-transport.hooks.d.ts",
       "import": "./dist/shell/components/AssistantDock/hooks/assistant-transport.hooks.js",
       "default": "./dist/shell/components/AssistantDock/hooks/assistant-transport.hooks.js"
+    },
+    "./shell/components/AssistantDock/hooks/composer-files.hooks": {
+      "types": "./dist/shell/components/AssistantDock/hooks/composer-files.hooks.d.ts",
+      "import": "./dist/shell/components/AssistantDock/hooks/composer-files.hooks.js",
+      "default": "./dist/shell/components/AssistantDock/hooks/composer-files.hooks.js"
     },
     "./screens/trash/Trash": {
       "types": "./dist/screens/trash/Trash.d.ts",
