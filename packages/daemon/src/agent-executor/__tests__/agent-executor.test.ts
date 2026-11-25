@@ -53,9 +53,7 @@ import {
   isSupportedStreamFormat,
   mergeEnvContentInstructions,
   mergeEnvContentMcpConfig,
-  mergeMcpJsonContent,
   prepareSystemPromptOverlayFileIfNeeded,
-  resolveSourceClaudeConfigDir,
   resolveSystemPromptOverlayDelivery,
   translateAgentRuntimeEvent,
   type AgentExecutor,
@@ -4730,48 +4728,6 @@ describe('buildMcpJsonServerEntry', () => {
   });
 });
 
-describe('mergeMcpJsonContent', () => {
-  const entry = { command: 'jini-mcp', args: [], env: { JINI_RUN_ID: 'run-1', JINI_DAEMON_URL: 'http://d' } };
-
-  it('produces a fresh document when no existing content is given', () => {
-    expect(JSON.parse(mergeMcpJsonContent({ existingRaw: undefined, serverEntry: entry }))).toEqual({ mcpServers: { jini: entry } });
-  });
-
-  it('preserves unrelated top-level keys and other registered servers', () => {
-    const existing = JSON.stringify({ someOtherKey: true, mcpServers: { other: { command: 'other-bin', args: [], env: {} } } });
-    const merged = JSON.parse(mergeMcpJsonContent({ existingRaw: existing, serverEntry: entry }));
-    expect(merged).toEqual({
-      someOtherKey: true,
-      mcpServers: { other: { command: 'other-bin', args: [], env: {} }, jini: entry },
-    });
-  });
-
-  it('overwrites a pre-existing "jini" entry rather than merging into it', () => {
-    const existing = JSON.stringify({ mcpServers: { jini: { command: 'stale', args: ['--old'], env: {} } } });
-    const merged = JSON.parse(mergeMcpJsonContent({ existingRaw: existing, serverEntry: entry }));
-    expect(merged.mcpServers.jini).toEqual(entry);
-  });
-
-  it('starts fresh when the existing content is not valid JSON', () => {
-    expect(JSON.parse(mergeMcpJsonContent({ existingRaw: '{not json', serverEntry: entry }))).toEqual({ mcpServers: { jini: entry } });
-  });
-
-  it('starts fresh when the existing content parses to a JSON array, not an object', () => {
-    expect(JSON.parse(mergeMcpJsonContent({ existingRaw: '[1,2,3]', serverEntry: entry }))).toEqual({ mcpServers: { jini: entry } });
-  });
-
-  it('starts fresh when the existing document has a non-object "mcpServers" field', () => {
-    const existing = JSON.stringify({ mcpServers: 'not-an-object' });
-    expect(JSON.parse(mergeMcpJsonContent({ existingRaw: existing, serverEntry: entry }))).toEqual({ mcpServers: { jini: entry } });
-  });
-
-  it('emits pretty-printed JSON terminated by a trailing newline', () => {
-    const content = mergeMcpJsonContent({ existingRaw: undefined, serverEntry: entry });
-    expect(content.endsWith('\n')).toBe(true);
-    expect(content).toContain('\n  "mcpServers"');
-  });
-});
-
 describe('AgentExecutor — gap 3 part 2 spawn-time .mcp.json injection (CreateAgentExecutorOptions.mcpJsonInjection)', () => {
   function createMcpFsSpies(existing: string | undefined = undefined): {
     mcpJsonInjection: McpJsonInjectionOptions;
@@ -5255,20 +5211,6 @@ describe('mergeEnvContentMcpConfig', () => {
     expect(parsed.mcp.jini.command).toEqual(['jini-mcp', '--quiet']);
     expect(JSON.stringify(parsed.mcp.jini.command)).not.toContain('run-scoped-secret');
     expect(parsed.mcp.jini.environment.JINI_DAEMON_TOKEN).toBe('run-scoped-secret');
-  });
-});
-
-describe('resolveSourceClaudeConfigDir', () => {
-  it('uses hostEnv.CLAUDE_CONFIG_DIR when set to a non-blank value', () => {
-    expect(resolveSourceClaudeConfigDir({ hostEnv: { CLAUDE_CONFIG_DIR: '/custom/claude-config' } })).toBe('/custom/claude-config');
-  });
-
-  it('falls back to ~/.claude when CLAUDE_CONFIG_DIR is unset', () => {
-    expect(resolveSourceClaudeConfigDir({ hostEnv: {} })).toBe(path.join(os.homedir(), '.claude'));
-  });
-
-  it('treats a blank/whitespace-only CLAUDE_CONFIG_DIR the same as unset', () => {
-    expect(resolveSourceClaudeConfigDir({ hostEnv: { CLAUDE_CONFIG_DIR: '   ' } })).toBe(path.join(os.homedir(), '.claude'));
   });
 });
 
