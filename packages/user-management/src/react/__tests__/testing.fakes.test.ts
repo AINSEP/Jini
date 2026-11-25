@@ -20,7 +20,7 @@ describe('createFakeRolesPort', () => {
   it('creates, renames and deletes roles, observable through listRoles', async () => {
     const port = createFakeRolesPort({}, { roles: [role] });
     const { role: created } = await port.createRole({ name: 'Auditor' });
-    expect(created).toEqual({ id: 'fake-role-2', workspaceId: 'fake-ws', name: 'Auditor', isBuiltin: false });
+    expect(created).toEqual({ id: 'fake-role-2', workspaceId: 'fake-ws', name: 'Auditor', isBuiltin: false, version: 1 });
     const { role: renamed } = await port.updateRole({ roleId: 'r1', name: 'Lead reviewer' });
     expect(renamed).toEqual({ ...role, name: 'Lead reviewer' });
     await port.deleteRole({ roleId: 'fake-role-2' });
