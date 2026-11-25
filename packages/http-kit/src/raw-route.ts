@@ -77,8 +77,9 @@ async function legacyRawRoute<Deps, Context>(call: RawCall<Deps, Context>): Prom
 }
 
 /**
- * The gates and `handle`; `undefined` when a gate already answered (the gate helpers own that
- * refusal's write, as in `mountJsonRoute`).
+ * Covers the gates, `handle`, and the write-back of its `Response`; returns early when a gate answered,
+ * with `undefined` (the gate helpers own that refusal's write, as in `mountJsonRoute`). The write-back
+ * itself is the caller's, after the operation ends (`writeTracedResponse`): this hands it back unwritten.
  */
 async function executeRawRoute<Deps, Context>({ req, res, spec, deps, adapter, signal }: RawCall<Deps, Context>): Promise<globalThis.Response | undefined> {
   applyResponseHeaders({ res, headers: spec.responseHeaders });

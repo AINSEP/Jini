@@ -33,30 +33,9 @@ import type { Principal, RunRef } from "@jini-ai/core";
 import type { ToolExecutionResult, ToolExecutor } from "../tool-executor-types.js";
 import { decorateToolExecutor } from "./decorate-executor.js";
 import { ToolExecutionFailure, type ToolFailureReporter } from "./observability.js";
+import { readToolErrorId, TOOL_ERROR_ID_PATTERN, type RedactedToolExecutionResult } from "../core/tool-error-id.js";
 
 
-
-/** Matches a minted error ID anywhere in a string — exported for tests and for a later chat-side
- *  copy button (`ToolCard` matching this against `result.content`, tracked separately). The IDs are
- *  minted by `mintToolErrorId` in `@jini-ai/core/errors/error-id`, the one owner of the format. */
-export const TOOL_ERROR_ID_PATTERN = /\bERR-[0-9A-F]{4}(?:-[0-9A-F]{4}){3}\b/;
-
-/** A `ToolExecutionResult` that may additionally carry the minted error ID — the ONLY field this
- *  decorator ever adds. Every other field is `inner`'s own, untouched. */
-export type RedactedToolExecutionResult = ToolExecutionResult & { readonly errorId?: string };
-
-/**
- * Reads the error ID this decorator attached, if any.
- *
- * @param result - Any `ToolExecutionResult`, redacted or not.
- * @returns The ID, or `undefined` for a result this decorator never touched (not `failed`,
- *   `errorKind: 'validation'`, or produced upstream of this layer).
- * @complexity O(1).
- */
-export function readToolErrorId({ result }: { result: ToolExecutionResult }, _optional = {}): string | undefined {
-  const id = (result as RedactedToolExecutionResult).errorId;
-  return typeof id === "string" ? id : undefined;
-}
 
 /**
  * `@jini-ai/http-kit`'s `isModelSafeToolFailure` predicate for the delegated-tool route: `true` only
@@ -86,7 +65,9 @@ export interface DelegatedInternalErrorContext {
   readonly error: unknown;
   /** Set for a settled `timed-out`/`cancelled`/`failed` result; absent for a throw. */
   readonly status?: string;
-  /** The id the in-process tool stack already recorded this result under (`readToolErrorId`); absent for a throw. */
+  /** The id the in-process tool stack already recorded this result under (`readToolErrorId`); absent for a throw.
+   *  There is no `correlationId` field: http-kit's own id for this failure — the one its `[@jini-ai/http-kit] internal error`
+   *  log line carries — is not handed over, because the route now asks the describer before anything is logged. */
   readonly errorId?: string;
 }
 
@@ -133,6 +114,10 @@ function delegatedErrorId({ context, reporter, text }: { context: DelegatedInter
  * passed through {@link withRedactedToolFailures}. Same "hide secrets only" rule and the same
  * `Error <ID>: <reason>` shape as that decorator, with at most one host record per failure.
  *
+ * There is no execution or resolved principal to record for a throw, so the record no longer carries
+ * http-kit's `correlationId` in `executionId` instead: the one host record (or the stamped id) is the id
+ * that joins it to the route's answer for the same failure.
+ *
  * @param required The failure as http-kit reports it, plus the host reporter and redactor.
  * @returns The incident id and `Error <ID>: <redacted reason>`.
  * @throws Whatever a breached reporter throws, so the route reports the original failure itself.
@@ -166,6 +151,15 @@ export function delegatedToolErrorDisclosure(deps: DelegatedToolErrorDisclosureD
   };
 }
 
+/** No `onFailure` dep any more. Where a `ToolFailureRecord` was reported for every internal failure —
+ *  the §3(b) server-side record — is now the host reporter the observation layer records through
+ *  (`withToolCallObservability`). It must not throw; a throwing sink is contained without logging its
+ *  own exception, never allowed to turn a redacted result into a thrown error.
+ *
+ *  This file's old `safeOnFailure` calls `onFailure`, containing a throw so a hostile or buggy sink can never
+ *  turn a redacted result into a thrown error — audit is observation, never a gate, the same rule
+ *  `packages/daemon/src/core/tool-audit.ts`'s `appendSafely` enforces for its own sink. That rule now
+ *  lives in `observability.ts`'s `recordSafely`, which wraps the host reporter. */
 export interface RedactedToolFailuresDeps {
   /** Host ID source; inject a deterministic source in tests. */
   readonly mintErrorId: () => string;
@@ -175,6 +169,13 @@ export interface RedactedToolFailuresDeps {
 /**
  * Redacts one `failed` result per this file's Behavior table — the only place this file makes a
  * decision; `withRedactedToolFailures` itself is pure plumbing around this.
+ *
+ * The value-free server-side record for one internal failure — everything needed to find the tool,
+ * run, principal, execution and full (already redacted) message under its ID, with no secret value
+ * ever entering it — is written by the observation layer from this result: `error` is the text AFTER
+ * {@link redactSecretShapes}. The correlating ids `redactFailedResult` needs are now only `toolId`,
+ * pulled out of `execute`'s own parameters so the function below takes one small object instead of
+ * three positional strings.
  *
  * @complexity O(1) plus {@link redactSecretShapes}'s own O(text length) pass.
  */

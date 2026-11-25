@@ -1,6 +1,6 @@
-/** Failed-tool redaction: model-facing failures carry only a redacted message plus an error id (the
- * record is the observation layer's job, under that id), and delegated internal errors get the same
- * disclosure shape with one host record through the reporter. */
+/** Failed-tool redaction: model-facing failures carry only a redacted message plus an error id, the
+ * real record goes to the host reporter (written by the observation layer, under that id), and
+ * delegated internal errors get the same disclosure shape with one host record. */
 import { expect, test } from "vitest";
 import { createRecordingReporter } from "@jini-ai/core/errors/testing";
 import { mintToolErrorId } from "@jini-ai/core/errors/error-id";

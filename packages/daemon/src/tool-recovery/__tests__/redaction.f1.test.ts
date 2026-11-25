@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import { mintToolErrorId } from '@jini-ai/core/errors/error-id';
-import { describeDelegatedInternalError, TOOL_ERROR_ID_PATTERN } from '../redaction.js';
+import { describeDelegatedInternalError } from '../redaction.js';
+import { TOOL_ERROR_ID_PATTERN } from '../../core/tool-error-id.js';
 import { createRecordingReporter } from '@jini-ai/core/errors/testing';
 
 // F1 fix wave (Stryker L8 §4 tool-recovery/redaction.ts:39 quantifiers/anchors, 107 reason
@@ -56,7 +57,8 @@ describe('describeDelegatedInternalError — reason branches', () => {
 
 describe('readToolErrorId — F1', () => {
   it('only a string errorId counts', async () => {
-    const { readToolErrorId, isRedactedToolFailure } = await import('../redaction.js');
+    const { isRedactedToolFailure } = await import('../redaction.js');
+    const { readToolErrorId } = await import('../../core/tool-error-id.js');
     const failed = { status: 'failed', error: 'x' } as never;
     expect(readToolErrorId({ result: { ...(failed as object), errorId: 5 } as never })).toBeUndefined();
     expect(isRedactedToolFailure({ result: { ...(failed as object), errorId: 5 } as never })).toBe(false);

@@ -46,7 +46,8 @@ import * as readOnlyTools from '../core/read-only-tools.js';
 import { resolveToolTarget, unknownToolDetails, unknownToolMessage } from '../core/tool-target.js';
 import { withValidationGuidance } from './validation-guidance.js';
 import type { ToolFamilyPort } from '../core/tool-family.js';
-import { readToolErrorId, TOOL_ERROR_ID_PATTERN, type DelegatedToolErrorDisclosureResult } from '../tool-recovery/redaction.js';
+import type { DelegatedToolErrorDisclosureResult } from '../tool-recovery/redaction.js';
+import { readToolErrorId, TOOL_ERROR_ID_PATTERN } from '../core/tool-error-id.js';
 
 export interface DelegatedToolExecuteRequest {
   readonly runId: string;
@@ -228,8 +229,8 @@ function isDisclosure(value: unknown): value is DelegatedToolErrorDisclosureResu
 }
 
 /**
- * The host's {@link DelegatedToolsHttpDeps.describeInternalError} answer for `context`, or `undefined`
- * when there is no describer, it declines, or it throws.
+ * The host's {@link DelegatedToolsHttpDeps.describeInternalError} text for `context` (its id and words), or `undefined`
+ * when there is no describer, it declines (`undefined`, `''` words or no id), or it throws.
  *
  * @complexity O(1) plus the describer's own cost.
  */
@@ -251,10 +252,16 @@ function trustedStampedId(context: DelegatedToolsInternalErrorContext): string |
 }
 
 /**
- * One incident, one id: the describer's id and words; else the trusted stamped id with the generic words
- * (no second write); else the host's `reportInternalError`, called once (SEC-005: never the raw exception).
+ * Logs the real failure through the incident owner and returns plain words with the request ID (SEC-005:
+ * never the raw exception). One incident, one id: the describer's id and words; else the trusted stamped
+ * id with the generic words (no second write); else the host's `reportInternalError`, called once.
+ *
+ * Which failure `reportInternalError` reports: everything in its context except the minted `correlationId`,
+ * and since that field no longer exists (the incident id is the reporter's own), that is the whole context.
  */
 function reportInternalError({ deps, report }: { readonly deps: DelegatedToolsHttpDeps; readonly report: DelegatedToolsInternalErrorContext }, _optional: Record<string, never> = {}): ReturnType<typeof createApiError> {
+  // Every caller either omits `status` or sets it, so spreading keeps "absent" absent; the report then
+  // reaches the describer as is, with no second spread here.
   const described = describeSafely(deps, report);
   if (described !== undefined) return createApiError({ code: 'INTERNAL_ERROR', message: described.message }, { requestId: described.errorId });
   const stamped = trustedStampedId(report);

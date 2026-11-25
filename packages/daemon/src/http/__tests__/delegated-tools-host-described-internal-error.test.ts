@@ -97,7 +97,9 @@ describe('delegated tool route: describeInternalError (host-supplied model-safe 
     expect(context).toMatchObject({ source: 'delegated-tool-execute', runId, toolId: 'nope' });
     expect(context.status).toBeUndefined();
     expect(context.errorId).toBeUndefined();
-    // The describer owns the incident, so the route writes no second record under another id.
+    // The operator sink still sees the same correlated failure — describing never replaces logging, it
+    // moves it: the describer owns the incident (recording under the id it returns), so the route writes
+    // no second record under another id.
     expect(onInternalError).not.toHaveBeenCalled();
   });
 

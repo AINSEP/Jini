@@ -6,7 +6,8 @@
  * The port type comes from `@jini-ai/core/contracts/observability`, which keeps this package free of
  * `@jini-ai/diagnostics`. That keeps the daemon free of any observability vendor AND of the diagnostics
  * package; the host composes them.
- * Every call is wrapped, whether or not telemetry is on: the observation predicate decides spans
+ * A host whose telemetry is off should still wrap (diagnostics' `isNoopObservabilityPort` no longer
+ * decides it), so a disabled install keeps the wrapper frame: the observation predicate decides spans
  * and metrics, never recording. A failed tool always writes its one host record through the
  * injected reporter (owner 2026-11, P4-J4), because an incident that only exists when tracing is on
  * is an incident a disabled install silently drops.
@@ -17,7 +18,7 @@ import type { ObservabilityPort, OperationAttributes, OperationTracker } from "@
 import { endOnce, NOOP_OPERATION_TRACKER, startOperation, type ErrorReporter } from "@jini-ai/core/errors/reporter";
 import type { ToolExecutionResult, ToolExecutionStatus, ToolExecutor } from "../tool-executor-types.js";
 import { decorateToolExecutor } from "./decorate-executor.js";
-import { readToolErrorId, type RedactedToolExecutionResult } from "./redaction.js";
+import { readToolErrorId, type RedactedToolExecutionResult } from "../core/tool-error-id.js";
 
 export const TOOL_CALL_OPERATION = "tool.call";
 
@@ -94,6 +95,7 @@ function recordSafely({ reporter, required, options }: { reporter: ToolFailureRe
   try {
     return reporter.record(required, options).errorId;
   } catch {
+    // A failing observer must neither gate the result nor leak its own exception text.
     return undefined;
   }
 }
@@ -197,14 +199,15 @@ async function observeToolCall({ observation, required, options }: { observation
  * {@link UNREGISTERED_TOOL_LABEL}), `agent.run.id` and `user.id` (the principal, pseudonymous) at start,
  * the settled status as outcome, `tool.error_kind` (`validation` vs `internal`) for a failure, and
  * the duration the adapter measures between start and end. Execution errors (an internal failure, a
- * timeout, a non-input throw) are recorded once through `reporter` with the operation's tracker, so
- * trace adapters attach them to its span. A validation failure, a denial and a cancellation are NOT
- * recorded: they are the caller (usually the model) or the system working as designed.
+ * timeout, a non-input throw) also go through `reporter.record`, once, with the operation's tracker so
+ * trace adapters attach them to its span. A validation failure is NOT reported: it is the caller (usually
+ * the model) sending bad input — counted on the operation, but not an incident to page anyone for. A
+ * denial and a cancellation are not recorded either: the system working as designed.
  * @param required The executor, the host reporter and the optional span/metric ports.
- * @param optional `isRegisteredTool`: the host's registry check; `observabilityEnabled`: the live
- *   tracing switch, which turns spans and metrics off but never recording.
- * @returns A drop-in `ToolExecutor`; throws pass through unchanged, a timed-out result gains its
- *   `errorId`, every other result passes through as the same object; other methods delegate.
+ * @param optional `isRegisteredTool`: the host's registry check; without it only the id's shape is checked.
+ *   `observabilityEnabled`: the live tracing switch, which turns spans and metrics off but never recording.
+ * @returns A drop-in `ToolExecutor`; results and throws pass through unchanged (except that a timed-out
+ *   result gains its `errorId`); other methods delegate.
  * @complexity O(1) beyond `inner`'s own cost.
  */
 export function withToolCallObservability({ inner, reporter, observability }: { inner: ToolExecutor; reporter: ToolFailureReporter; observability?: ToolCallObservability | undefined }, { isRegisteredTool, observabilityEnabled }: { isRegisteredTool?: IsRegisteredTool; observabilityEnabled?: () => boolean } = {}): ToolExecutor {

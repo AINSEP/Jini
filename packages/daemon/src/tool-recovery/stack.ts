@@ -58,7 +58,8 @@ import type { SurfaceExchangeStore } from "../surface-exchanges.js";
 import { withReadOnlyToolConstraint } from "../core/read-only-tools.js";
 import { withToolAttemptAudit } from "../core/tool-audit.js";
 import { withToolFailureRecovery, type ToolFailureRecoveryDeps } from "./recovery.js";
-import { withRedactedToolFailures, redactFailedResult, readToolErrorId, type RedactedToolFailuresDeps } from "./redaction.js";
+import { withRedactedToolFailures, redactFailedResult, type RedactedToolFailuresDeps } from "./redaction.js";
+import { readToolErrorId } from "../core/tool-error-id.js";
 import { withSurfaceExchangeLifetime } from './surface-lifetime.js';
 import { reportNestedFailure, toolCallLabel, withToolCallObservability, type IsRegisteredTool } from "./observability.js";
 

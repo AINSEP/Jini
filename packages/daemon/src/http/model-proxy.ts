@@ -365,7 +365,7 @@ interface ProxyProviderRegistryEntry {
   readonly run: (parsed: unknown, onEvent: (event: { type: string }) => void) => Promise<unknown>;
 }
 
-/** Reports a failure and returns the incident the client is answered with (the real error goes only to the host's sinks). */
+/** Reports a failure and returns the request ID the client gets, as the incident it is answered with (the real error goes only to the host's sinks). */
 function reportProxyError(
   { host, provider, error }: { readonly host: DaemonRouteHost; readonly provider: ProxyProvider; readonly error: unknown },
   { onInternalError }: { readonly onInternalError?: InternalErrorSink | undefined } = {},

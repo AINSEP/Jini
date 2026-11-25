@@ -243,10 +243,13 @@ function writeFailure({ res, failure }: { readonly res: Response; readonly failu
 }
 
 /**
- * The route's gates, parse and handle, deciding the answer without writing it (`write` does).
+ * Parse, authorize, handle and answer, after the pre-parse gates admitted the request (those gates now
+ * run here too), deciding the answer without writing it (`write` does). Split out of the per-request
+ * callback only to keep it within the complexity budget, and so reporter mode can end the operation
+ * before that write.
  * Gate order is unchanged: body cap → workspace → origin → authenticate → parse → handle.
  * Not awaited-before-handle: `parse` and `authorize` are synchronous, so `handle` still starts in
- * the same tick as the request (adapter-pins.test.ts pins that a disconnect right after dispatch
+ * the same tick as before the split (adapter-pins.test.ts pins that a disconnect right after dispatch
  * reaches `handle`'s signal).
  */
 async function serveExpressRoute<Input, Output, Deps, Context>(call: ExpressRouteCall<Input, Output, Deps, Context>): Promise<ExpressAnswer> {
