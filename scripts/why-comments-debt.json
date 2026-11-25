@@ -1752,6 +1752,10 @@
     {
       "id": "a53cc2fe1cc3",
       "reason": "Superseded by 9a9da3df3: formatMaxUploadBytesAsMb was replaced by describeUploadOverLimit (packages/core/src/text/upload-limit-message.ts), which names both sizes and never shows a raw byte count for MB-scale limits; its own docblock states the rounding rule."
+    },
+    {
+      "id": "0315b5702515",
+      "reason": "P10-S6.J: only the dangling archived-source-map pointer was replaced by a commit-qualified citation (070311a07^:packages/ui/source-map.md); the reason (host-owned footer slot, no default footer shipped) is unchanged and still in the comment."
     }
   ]
 }

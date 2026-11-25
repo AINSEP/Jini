@@ -10,4 +10,5 @@ export {
   type CommandPaletteController,
 } from './react/hooks/useCommandPalette.js';
 export { CommandPaletteRow, type CommandPaletteRowProps } from './react/components/CommandPaletteRow.js';
+export { useCommandPaletteView } from './react/components/CommandPalette.hooks.js';
 export { CommandPalette, type CommandPaletteProps } from './react/components/CommandPalette.js';

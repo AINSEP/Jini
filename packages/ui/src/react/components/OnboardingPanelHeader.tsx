@@ -1,7 +1,7 @@
 // Trivial title+body panel header, used above a form section. Origin:
 // `OnboardingPanelHeader` in `EntryShell.tsx` (OD), verbatim
 // structural port — title/body are caller-supplied props, so there was
-// nothing product-specific to strip. See archived UI source map.
+// nothing product-specific to strip. See `070311a07^:packages/ui/source-map.md` (section "bucket-A flat atoms").
 
 export interface OnboardingPanelHeaderProps {
   title: string;

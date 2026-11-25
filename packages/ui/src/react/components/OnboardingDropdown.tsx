@@ -16,7 +16,7 @@
 //    available'` for an empty non-searchable field (the origin's fallback
 //    text talked about "text models", which was itself a leftover from the
 //    one call site it happened to serve, not a generic empty state).
-// See archived UI source map.
+// See `070311a07^:packages/ui/source-map.md` (section "bucket-A flat atoms").
 //
 // Shape: this module follows the package's "dumb component + co-located
 // testable hooks" pattern (see `TooltipLayer.tsx`). All state, refs,

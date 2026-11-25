@@ -8,7 +8,7 @@ import { refusal } from './api.mjs';
    * dedup key (the direct-upload protocol needs a stable 32-hex-char key per
    * file, not a specific algorithm). Swapped from the OD origin's
    * `blake3-wasm` to Node's built-in `crypto` so this package carries no
-   * native/WASM dependency — see `source-map.md`.
+   * native/WASM dependency.
    */
 export function assetHash({ file, data }, _options = {}) {
   const extension = file.includes('.') ? file.slice(file.lastIndexOf('.') + 1) : '';

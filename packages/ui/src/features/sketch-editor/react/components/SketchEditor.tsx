@@ -39,7 +39,7 @@ export interface SketchEditorProps {
   /** Overrides the default locale → Excalidraw `langCode` mapping. */
   excalidrawLangCode?: (locale: string) => string;
   /** Host translations for Excalidraw's own baked-in English UI text — no
-   *  default translated copy ships (see `archived UI source map`). */
+   *  default translated copy ships (see `070311a07^:packages/ui/source-map.md` (section "features/sketch-editor/")). */
   domTextOverrides?: SketchDomTextOverrides;
   tooltipTargets?: readonly SketchTooltipTarget[];
   contextMenuActionOrder?: readonly string[];
@@ -171,7 +171,7 @@ function SketchCanvas({ props, engine, theme, sceneState, workflow, hasContent, 
  * orchestration with content-signature deduping, and a DOM-enhancement
  * toolkit (tooltips, simplified context menu, DOM text overrides, portal
  * polish) that makes embedding a third-party editor with no extension
- * hooks feel native. See `archived UI source map` for what stayed
+ * hooks feel native. See `070311a07^:packages/ui/source-map.md` (section "features/sketch-editor/") for what stayed
  * behind (the source product's legacy pre-Excalidraw item migration, its
  * `.sketch.json` naming convention, and its own translated copy).
  */

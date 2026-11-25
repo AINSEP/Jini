@@ -20,7 +20,7 @@ export interface SegmentedToggleProps<TValue extends string> {
  * `aria-pressed` for the viewport toggle vs. an implicit tab-like button
  * group for the mode tabs) — this version standardizes on
  * `role="group"`/`aria-pressed` for both, a disclosed simplification (see
- * `archived UI source map`) rather than shipping two near-identical
+ * `070311a07^:packages/ui/source-map.md` (section "features/viewer-shell/")) rather than shipping two near-identical
  * primitives for a minor ARIA-pattern difference.
  */
 export function SegmentedToggle<TValue extends string>({
