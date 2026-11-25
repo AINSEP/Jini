@@ -46,7 +46,6 @@ export function useAttachmentUploader(
 
 /**
  * Routes skill packages to the install proposal; ordinary files retain their uploader result.
- * `legacyManifestNames` are the host's older plugin-manifest aliases, still recognised as skill packages.
  * @returns A stable callback, refreshed when either injected dependency changes.
  * @complexity O(files) selection time and O(1) routing space; upload costs belong to the adapters.
  */
@@ -58,6 +57,7 @@ export function useSkillAwareAttachmentUploader(
   },
   _optional: Record<string, never> = {},
 ): KitUploadAttachments {
+  // `legacyManifestNames` are the host's older plugin-manifest aliases, still recognised as skill packages.
   return useCallback(async (files, options) => {
     const { skills, attachments } = await partitionChatPackages({ files, legacyManifestNames });
     if (skills.length > 0) await proposeFiles(skills);
