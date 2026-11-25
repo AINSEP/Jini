@@ -63,5 +63,6 @@ export const securityApiToken = adminPort<SecurityApiPort, 'admin.security.api'>
 export const otherCredentialsToken = adminPort<OtherCredentialsPort, 'admin.security.other'>({ id: 'admin.security.other' });
 export const rootKeyToken = adminPort<RootKeyPort, 'admin.security.root-key'>({ id: 'admin.security.root-key' });
 export interface SecurityTransportPort {
-  request<T>(required: { path: string; method: 'GET' | 'POST' | 'PUT' | 'DELETE'; body?: unknown }, optional?: RequestOptions): Promise<T>;
+  // PATCH carries one media provider's row write (`…/media/providers/:providerId`); a host transport forwards it like PUT.
+  request<T>(required: { path: string; method: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE'; body?: unknown }, optional?: RequestOptions): Promise<T>;
 }

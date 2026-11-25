@@ -60,6 +60,10 @@ function validateFields(fields: { subject: string; preheader?: string | null }):
 async function requireEditableListId({ deps, workspaceId, listId }: { deps: CampaignWriteServiceDeps; workspaceId: UUID; listId: UUID }, _options = {}): Promise<void> {
   const list = await deps.listRepo.findById({ workspaceId, id: listId });
   if (!list) throw new NewsletterListNotFoundError(`list ${listId} was not found`);
+  // Archiving a list restricts writes; it does not remove campaigns from history.
+  if (list.status === "archived") {
+    throw new NewsletterValidationError({ field: "listId", reason: "archived", message: "This list is archived." });
+  }
 }
 
 async function writeRevision(

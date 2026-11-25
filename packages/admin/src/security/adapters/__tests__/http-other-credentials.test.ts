@@ -7,51 +7,50 @@ function transport(replies: unknown[]) {
   const port: SecurityTransportPort = { async request<T>(required: Parameters<SecurityTransportPort['request']>[0], _optional: RequestOptions = {}): Promise<T> { calls.push(required); return replies.shift() as T; } };
   return { port, calls };
 }
-/** The GET view of the media map. `apiKey` / `apiKeyTail` are view facts a PUT must never echo. */
-const MEDIA = {
-  a: { apiKeyConfigured: true, apiKeyTail: 'ATAI', apiKey: 'SIBLING_SECRET_A', baseUrl: 'https://a', model: 'a-model' },
-  b: { apiKeyConfigured: true, apiKeyTail: 'BTAI', apiKey: 'SIBLING_SECRET_B', baseUrl: 'https://b' },
-  c: { model: 'c-model' },
-};
-type Order = 'in-place' | 'replaced-last';
-async function mediaBody({ order, action }: { order?: Order; action: (api: ReturnType<typeof createHttpOtherCredentials>) => Promise<void> }) {
-  const t = transport([structuredClone(MEDIA), undefined]);
-  await action(createHttpOtherCredentials({ transport: t.port, workspacePath: '/w' }, order ? { mediaOrder: order } : {}));
-  expect(t.calls[1]).toMatchObject({ path: '/w/media/providers', method: 'PUT' });
-  return JSON.stringify(t.calls[1]?.body);
-}
+type MediaOrder = 'in-place' | 'replaced-last';
+/** Every media write option a host can pass; the one-row wire must not depend on any of them. */
+const MEDIA_OPTIONS = [{}, { mediaOrder: 'in-place' as MediaOrder }, { mediaOrder: 'replaced-last' as MediaOrder }];
 describe('createHttpOtherCredentials (SEC-13)', () => {
   it('built-in MCP servers are not listed', async () => {
     const t = transport([{ servers: [{ serverId: 'host-tools', label: 'Renamed host', envNames: [], builtIn: true }, { serverId: 'user-server', label: 'Desktop', envNames: ['TOKEN'], builtIn: false }] }]);
     const rows = await createHttpOtherCredentials({ transport: t.port, workspacePath: '/w' }).list({ store: 'external-mcp' });
     expect(rows.map(row => row.id)).toEqual(['user-server']);
   });
-  describe('W12 media whole-map write, byte for byte', () => {
-    const replace = (id: string) => (api: ReturnType<typeof createHttpOtherCredentials>) => api.replace({ store: 'media-provider', id, token: 'fixture-token' });
-    const remove = (id: string) => (api: ReturnType<typeof createHttpOtherCredentials>) => api.remove({ store: 'media-provider', id });
-    it('replaces an existing provider in place by default and appends it last for replaced-last', async () => {
-      const inPlace = '{"a":{"baseUrl":"https://a","model":"a-model","apiKey":"fixture-token"},"b":{"baseUrl":"https://b"},"c":{"model":"c-model"}}';
-      expect(await mediaBody({ action: replace('a') })).toBe(inPlace);
-      expect(await mediaBody({ order: 'in-place', action: replace('a') })).toBe(inPlace);
-      expect(await mediaBody({ order: 'replaced-last', action: replace('a') })).toBe('{"b":{"baseUrl":"https://b"},"c":{"model":"c-model"},"a":{"apiKey":"fixture-token","baseUrl":"https://a","model":"a-model"}}');
-    });
-    it('adds a provider that is not in the map last, in both orders', async () => {
-      const added = '{"a":{"baseUrl":"https://a","model":"a-model"},"b":{"baseUrl":"https://b"},"c":{"model":"c-model"},"z":{"apiKey":"fixture-token"}}';
-      expect(await mediaBody({ order: 'in-place', action: replace('z') })).toBe(added);
-      expect(await mediaBody({ order: 'replaced-last', action: replace('z') })).toBe(added);
-    });
-    it('drops a removed provider, in both orders', async () => {
-      const removed = '{"a":{"baseUrl":"https://a","model":"a-model"},"c":{"model":"c-model"}}';
-      expect(await mediaBody({ order: 'in-place', action: remove('b') })).toBe(removed);
-      expect(await mediaBody({ order: 'replaced-last', action: remove('b') })).toBe(removed);
-    });
-    it('echoes siblings as { baseUrl?, model? } only: a sibling apiKey or apiKeyTail never leaves', async () => {
-      for (const order of ['in-place', 'replaced-last'] as const) {
-        for (const action of [replace('a'), replace('z'), remove('a')]) {
-          const body = await mediaBody({ order, action });
-          for (const secret of ['SIBLING_SECRET_A', 'SIBLING_SECRET_B', 'ATAI', 'BTAI', 'apiKeyConfigured']) expect(body).not.toContain(secret);
-        }
+  describe('media keys go through the one-row routes, never a whole-map rewrite', () => {
+    it('Replace sends one PATCH naming only that provider, with only the typed key, in every write order', async () => {
+      for (const options of MEDIA_OPTIONS) {
+        const t = transport([{ a: { apiKeyConfigured: true } }]);
+        await createHttpOtherCredentials({ transport: t.port, workspacePath: '/w/' }, options).replace({ store: 'media-provider', id: 'a', token: 'fixture-token' });
+        expect(t.calls).toEqual([{ path: '/w/media/providers/a', method: 'PATCH', body: { apiKey: 'fixture-token' } }]);
       }
+    });
+    it('Remove sends one DELETE naming only that provider, with no body, in every write order', async () => {
+      for (const options of MEDIA_OPTIONS) {
+        const t = transport([{}]);
+        await createHttpOtherCredentials({ transport: t.port, workspacePath: '/w' }, options).remove({ store: 'media-provider', id: 'b' });
+        expect(t.calls).toEqual([{ path: '/w/media/providers/b', method: 'DELETE' }]);
+      }
+    });
+    it('path-encodes the provider id so it names exactly one row', async () => {
+      const t = transport([{}, {}]);
+      const api = createHttpOtherCredentials({ transport: t.port, workspacePath: '/w' });
+      await api.replace({ store: 'media-provider', id: 'plugin/x y?z', token: 'fixture-token' });
+      await api.remove({ store: 'media-provider', id: '../providers' });
+      expect(t.calls.map(call => `${call.method} ${call.path}`)).toEqual(['PATCH /w/media/providers/plugin%2Fx%20y%3Fz', 'DELETE /w/media/providers/..%2Fproviders']);
+    });
+    it('a refused row write is not retried as a read-then-rewrite of the map', async () => {
+      const calls: { path: string; method: string }[] = [];
+      const refusal = new Error('Someone else changed media providers. Reload and try again.');
+      const port: SecurityTransportPort = { async request(required) { calls.push(required); throw refusal; } };
+      const api = createHttpOtherCredentials({ transport: port, workspacePath: '/w' });
+      await expect(api.replace({ store: 'media-provider', id: 'a', token: 'fixture-token' })).rejects.toBe(refusal);
+      await expect(api.remove({ store: 'media-provider', id: 'a' })).rejects.toBe(refusal);
+      expect(calls.map(call => call.method)).toEqual(['PATCH', 'DELETE']);
+    });
+    it('a blank key is refused in plain words before anything is sent', async () => {
+      const t = transport([]);
+      await expect(createHttpOtherCredentials({ transport: t.port, workspacePath: '/w' }).replace({ store: 'media-provider', id: 'a', token: '  ' })).rejects.toThrow('Enter a credential');
+      expect(t.calls).toEqual([]);
     });
   });
   describe('masked token hints (opt-in, server-approved)', () => {

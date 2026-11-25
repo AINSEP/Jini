@@ -57,6 +57,21 @@ test("an installed CLI is summarized with its probed models, reasoning options a
   });
 });
 
+test("inventory preserves explicit false capability flags as well as true flags", async () => {
+  const p = ports({ defs: [def("explicit", { supportsCustomModel: false }), def("omitted")] });
+  const summaries = await createAgentInventory(p)({ rescan: false });
+  assert.deepEqual(summaries[0], {
+    id: "explicit",
+    name: "explicit CLI",
+    available: true,
+    version: null,
+    models: [{ id: "explicit-live", label: "Live" }],
+    reasoningOptions: [],
+    supportsCustomModel: false,
+  });
+  assert.equal("supportsCustomModel" in summaries[1]!, false);
+});
+
 test("a failed model probe falls back to the def's own models rather than failing the list", async () => {
   const p = ports({ probeModels: async () => { throw new Error("probe timed out"); } });
   const summary = await summarizeAgent({ def: def("codex"), ports: p });

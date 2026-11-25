@@ -9,26 +9,26 @@ describe("mediaGetProvidersRoute", () => {
     expect(mediaGetProvidersRoute.parse(raw({ workspaceId: WORKSPACE_ID }))).toEqual({ ok: true, value: {} });
   });
 
-  it("authorizes media.read id-free, then answers the bare provider map for this workspace", async () => {
+  it("authorizes media.read id-free, then answers the bare provider map for this workspace with its revision as the ETag", async () => {
     const { authorize, calls } = recordingAuthorize();
     const reads: unknown[] = [];
     const providers = { openai: { apiKeyConfigured: true, apiKeyTail: "abcd" } };
-    const deps = { workspaceId: WORKSPACE_ID, getProviders: async (input: { workspaceId: string }) => { reads.push(input); return providers; } };
+    const deps = { workspaceId: WORKSPACE_ID, getProviders: async (input: { workspaceId: string }) => { reads.push(input); return { providers, revision: "rev-4" }; } };
     const result = await mediaGetProvidersRoute.handle({ input: {}, deps, context: PRINCIPAL, authorize }, { signal });
     expect(calls).toEqual([{ permission: "media.read", entityType: "media" }]);
     expect(reads).toEqual([{ workspaceId: WORKSPACE_ID }]);
-    expect(result).toEqual({ ok: true, value: providers });
+    expect(result).toEqual({ ok: true, value: { status: 200, body: providers, headers: { etag: '"rev-4"' } } });
   });
 
   it("answers an empty map as-is, distinct from an unreachable store", async () => {
     const { authorize } = recordingAuthorize();
-    const deps = { workspaceId: WORKSPACE_ID, getProviders: async () => ({}) };
-    expect(await mediaGetProvidersRoute.handle({ input: {}, deps, context: PRINCIPAL, authorize }, { signal })).toEqual({ ok: true, value: {} });
+    const deps = { workspaceId: WORKSPACE_ID, getProviders: async () => ({ providers: {}, revision: "rev-0" }) };
+    expect(await mediaGetProvidersRoute.handle({ input: {}, deps, context: PRINCIPAL, authorize }, { signal })).toEqual({ ok: true, value: { status: 200, body: {}, headers: { etag: '"rev-0"' } } });
   });
 
   it("does not read credentials when authorization refuses", async () => {
     let reads = 0;
-    const deps = { workspaceId: WORKSPACE_ID, getProviders: async () => { reads += 1; return {}; } };
+    const deps = { workspaceId: WORKSPACE_ID, getProviders: async () => { reads += 1; return { providers: {}, revision: "rev-0" }; } };
     await expect(mediaGetProvidersRoute.handle({ input: {}, deps, context: PRINCIPAL, authorize: async () => { throw new Error("denied"); } })).rejects.toThrow("denied");
     expect(reads).toBe(0);
   });

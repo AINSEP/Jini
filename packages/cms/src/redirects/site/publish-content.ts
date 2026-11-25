@@ -1,3 +1,4 @@
+import { EntityNotLiveError } from "../../core/entity-liveness.js";
 import { malformedKey } from "../../publish/content/precheck-reasons.js";
 import type { PackedEntity } from "../../publish/transfer/packed-entity.js";
 import type { RedirectRepoPort } from "../ports.js";
@@ -185,11 +186,16 @@ export function contributeRedirectPublish<TContributor>(
       const { record } = existing
         ? await updateRedirect({
             deps: ports,
-            input: { ...fields, id: existing.id, status: (state.status as RedirectStatus | undefined) ?? "active" },
+            // The version the handler checked: compared again under the writer lock, so an edit that
+            // lands after that check is refused rather than overwritten.
+            input: { ...fields, id: existing.id, status: (state.status as RedirectStatus | undefined) ?? "active", expectedVersion: existing.version },
           })
         : await createRedirect({ deps: ports, input: fields, source: "import" });
       return { changeSetId: record.id };
     },
-    errors: { blocked: [RedirectValidationError, RedirectTargetNotAllowedError, RedirectLoopError, RedirectConflictError] },
+    // `EntityNotLiveError` is `updateRedirect`'s refusal to edit a rule in the Trash: that one row is
+    // blocked (its message says the redirect is in the Trash) and the run goes on. Publish never
+    // restores it. Any other exception is not listed and still aborts the run.
+    errors: { blocked: [RedirectValidationError, RedirectTargetNotAllowedError, RedirectLoopError, RedirectConflictError, EntityNotLiveError] },
   });
 }

@@ -20,10 +20,9 @@ describe('security HTTP wire contract', () => {
     const rows = await createHttpSecurityApi({ transport: t.port, workspacePath: '/w' }).providers({}); expect(rows.map(r => [r.kind, r.id, r.tokenField])).toEqual([['publish', 'git-pages', 'apiToken'], ['source-control', 'git', 'token']]);
     expect(t.calls.map(c => c.path)).toEqual(['/w/system/publish-targets', '/w/system/source-control/providers']);
   });
-  it('preserves sibling media settings through replace and removes only the selected entry', async () => {
-    const current = { a: { apiKeyConfigured: true, apiKeyTail: 'tail', baseUrl: 'https://a', model: 'a-model' }, b: { apiKeyConfigured: true, baseUrl: 'https://b', model: 'b-model' } };
-    const t = transport([current, {}, current, {}]); const api = createHttpOtherCredentials({ transport: t.port, workspacePath: '/w' }); await api.replace({ store: 'media-provider', id: 'a', token: 'new-secret' }); await api.remove({ store: 'media-provider', id: 'a' });
-    expect(t.calls[1]).toEqual({ path: '/w/media/providers', method: 'PUT', body: { a: { apiKey: 'new-secret', baseUrl: 'https://a', model: 'a-model' }, b: { baseUrl: 'https://b', model: 'b-model' } } }); expect(t.calls[3]?.body).toEqual({ b: { baseUrl: 'https://b', model: 'b-model' } });
+  it('leaves sibling media settings untouched through replace and removes only the selected entry', async () => {
+    const t = transport([{}, {}]); const api = createHttpOtherCredentials({ transport: t.port, workspacePath: '/w' }); await api.replace({ store: 'media-provider', id: 'a', token: 'new-secret' }); await api.remove({ store: 'media-provider', id: 'a' });
+    expect(t.calls).toEqual([{ path: '/w/media/providers/a', method: 'PATCH', body: { apiKey: 'new-secret' } }, { path: '/w/media/providers/a', method: 'DELETE' }]);
   });
   it('reads other stores without exposing masked tails or secret extras, and refuses single-field MCP replacement', async () => {
     const t = transport([{ data: { isSet: true, masked: 'SECRET_SUFFIX', apiKey: 'RAW', updatedAt: 'd' } }, { servers: [{ serverId: 'm/c', label: 'MCP', envNames: ['KEY'], env: { KEY: 'SECRET' } }] }, undefined]); const api = createHttpOtherCredentials({ transport: t.port, workspacePath: '/w' });
@@ -88,10 +87,10 @@ describe('security HTTP projections and routing boundaries', () => {
     await api.replace({ store: 'site-assistant', id: 'site-assistant', token: 'k' }); await api.remove({ store: 'admin-byok', id: 'admin-byok' });
     expect(t.calls).toEqual([{ path: '/w/assistant/site-credential', method: 'PUT', body: { apiKey: 'k' } }, { path: '/w/assistant/execution-credential', method: 'DELETE' }]);
   });
-  it('rebuilds media entries without absent settings, and keeps a stored key by omission', async () => {
-    const t = transport([{ a: { apiKeyConfigured: true }, b: { apiKeyConfigured: true, apiKey: 'STORED', apiKeyTail: 'tail' } }, undefined]);
+  it('sends only the typed media key, so stored settings and sibling keys are kept by omission', async () => {
+    const t = transport([undefined]);
     await createHttpOtherCredentials({ transport: t.port, workspacePath: '/w' }).replace({ store: 'media-provider', id: 'a', token: 'k' });
-    expect(t.calls[1]?.body).toEqual({ a: { apiKey: 'k' }, b: {} });
+    expect(t.calls).toEqual([{ path: '/w/media/providers/a', method: 'PATCH', body: { apiKey: 'k' } }]);
   });
   it('does not dispatch an aborted other-store read', async () => { const t = transport([]); await expect(createHttpOtherCredentials({ transport: t.port, workspacePath: '/w' }).list({ store: 'external-mcp' }, { signal: aborted() })).rejects.toThrow('This operation was aborted'); expect(t.calls).toEqual([]); });
   it('projects optional root-key status and result fields', async () => {

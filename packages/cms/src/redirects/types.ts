@@ -195,6 +195,12 @@ export interface UpdateRedirectInput {
   priority?: number | undefined;
   actorId: UUID;
   pluginId?: string | undefined;
+  /**
+   * The row version the caller's decision was based on (publish passes the destination row it
+   * checked). Compared inside the same writer transaction as the write; a mismatch raises
+   * `RedirectConflictError` and writes nothing. Omitted means "update whatever is there now".
+   */
+  expectedVersion?: number | undefined;
 }
 
 /** Filter for admin/AI listing. */

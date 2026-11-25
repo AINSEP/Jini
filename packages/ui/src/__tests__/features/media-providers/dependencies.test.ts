@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 // Through the barrel — a symbol missing from `index.ts` fails here rather
 // than at some host's build.
-import { createFakeMediaProvidersPort } from '../../../features/media-providers/dependencies.js';
+import { createFakeMediaProviderRowsPort, createFakeMediaProvidersPort } from '../../../features/media-providers/index.js';
 
 describe('createFakeMediaProvidersPort', () => {
   it('resolves an empty map by default — reached, manages nothing', async () => {
@@ -62,5 +62,26 @@ describe('createFakeMediaProvidersPort', () => {
     const start = Date.now();
     await expect(port.saveMediaProviders({})).rejects.toThrow('slow failure');
     expect(Date.now() - start).toBeGreaterThanOrEqual(4);
+  });
+});
+
+describe('createFakeMediaProviderRowsPort', () => {
+  it('patches one provider and removes one provider, leaving the others as they were', async () => {
+    const port = createFakeMediaProviderRowsPort({ providers: { a: { apiKeyConfigured: true, model: 'm-a' }, b: { apiKeyConfigured: true } } });
+    expect('saveMediaProviders' in port).toBe(false);
+    await expect(port.patchProvider({ providerId: 'a', fields: { baseUrl: 'https://a.test' } }))
+      .resolves.toEqual({ a: { apiKeyConfigured: true, model: 'm-a', baseUrl: 'https://a.test' }, b: { apiKeyConfigured: true } });
+    await expect(port.removeProvider({ providerId: 'b' })).resolves.toEqual({ a: { apiKeyConfigured: true, model: 'm-a', baseUrl: 'https://a.test' } });
+    await expect(port.fetchMediaProviders()).resolves.toEqual({ a: { apiKeyConfigured: true, model: 'm-a', baseUrl: 'https://a.test' } });
+  });
+
+  it('resolves null when unreachable and rejects writes with saveError without persisting', async () => {
+    const port = createFakeMediaProviderRowsPort({ providers: { a: { apiKeyConfigured: true } }, unreachable: true, saveError: 'store is down' });
+    await expect(port.fetchMediaProviders()).resolves.toBeNull();
+    await expect(port.patchProvider({ providerId: 'b', fields: { model: 'm' } })).rejects.toThrow('store is down');
+    await expect(port.removeProvider({ providerId: 'a' })).rejects.toThrow('store is down');
+    const reachable = createFakeMediaProviderRowsPort({ providers: { a: { apiKeyConfigured: true } }, saveError: 'store is down' });
+    await expect(reachable.removeProvider({ providerId: 'a' })).rejects.toThrow('store is down');
+    await expect(reachable.fetchMediaProviders()).resolves.toEqual({ a: { apiKeyConfigured: true } });
   });
 });

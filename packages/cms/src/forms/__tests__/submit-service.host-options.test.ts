@@ -336,36 +336,77 @@ test("submitForm: a repeat is suppressed for the window measured from acceptance
   assert.equal((await storedSubmissions(deps)).length, 2, "64s after the first: a new submission");
 });
 
-test("submitForm: concurrent copies straddling a minute boundary still store one row, even when the first pauses before its insert", async () => {
+/** A promise plus its resolver, so a test can hold one step until another has provably happened. */
+function deferred<T = void>(): { promise: Promise<T>; resolve: (value: T) => void } {
+  let resolve!: (value: T) => void;
+  const promise = new Promise<T>((done) => { resolve = done; });
+  return { promise, resolve };
+}
+
+// The race this pins: a copy that reaches the attempt claim while the first copy's insert is still
+// in flight must wait on that claim, not decide from the (still empty) table. Each step is held by
+// an explicit deferred, so the interleaving is the one under test rather than a timing accident.
+test("submitForm: a duplicate reaching the claim before the first insert completes stores one row across a minute boundary", async (t) => {
   const deps = makeDeps();
   await deps.definitionRepo.create(makeDefinition());
+  const enqueued = recordEnqueued(t, deps);
+  const steps: string[] = [];
+  const firstInsertEntered = deferred();
+  const releaseFirstInsert = deferred();
+  const secondReachedClaim = deferred();
+
   // The first copy reads the clock just before a minute boundary, the second just after it.
+  // Here that is tied to steps: once the first insert is in flight the clock moves past the
+  // boundary, so every read the duplicate makes lands in the next minute.
   const boundary = 1000 * 60_000;
-  let reads = 0;
-  const clock = { nowMs: () => (++reads <= 2 ? boundary - 1 : boundary + 1) };
+  let pastBoundary = false;
+  const clock = { nowMs: () => (pastBoundary ? boundary + 1 : boundary - 1) };
+
   // The first insert stalls, so the second copy decides while the first row is not yet written.
-  const repo = deps.submissionRepo;
-  let stalled = false;
-  const stallFirst = <A extends unknown[], R>(write: (...args: A) => Promise<R>) => async (...args: A): Promise<R> => {
-    if (!stalled) { stalled = true; await new Promise((resolve) => setTimeout(resolve, 20)); }
+  let inserts = 0;
+  const holdFirst = <A extends unknown[], R>(write: (...args: A) => Promise<R>) => async (...args: A): Promise<R> => {
+    if (++inserts === 1) { steps.push("first insert entered"); firstInsertEntered.resolve(); await releaseFirstInsert.promise; }
     return write(...args);
   };
-  const submissionRepo = new Proxy(repo, {
+  const submissionRepo = new Proxy(deps.submissionRepo, {
     get(target, prop, receiver) {
       const value = Reflect.get(target, prop, receiver) as unknown;
       return (prop === "create" || prop === "createOnce") && typeof value === "function"
-        ? stallFirst((value as (...args: unknown[]) => Promise<unknown>).bind(target))
+        ? holdFirst((value as (...args: unknown[]) => Promise<unknown>).bind(target))
         : value;
     },
   });
-  const fixedClock = { nowMs: () => boundary };
-  const clocked = { ...deps, submissionRepo, clock, rateLimiter: createRateLimiter({ profile: FORMS_SUBMIT_PROFILE, clock: fixedClock }) };
+
+  const real = createSubmissionAttempts();
+  let claims = 0;
+  const attempts: typeof real = {
+    ...real,
+    once: (required) => {
+      if (++claims === 2) { steps.push("duplicate reached claim"); secondReachedClaim.resolve(); }
+      return real.once(required);
+    },
+  };
+  const clocked = { ...deps, submissionRepo, clock, rateLimiter: createRateLimiter({ profile: FORMS_SUBMIT_PROFILE, clock: { nowMs: () => boundary } }) };
   const input = attempt("tok-window");
 
-  const results = await Promise.all([submitForm({ deps: clocked, input }), submitForm({ deps: clocked, input })]);
+  const first = submitForm({ deps: clocked, input }, { attempts });
+  let second: ReturnType<typeof submitForm> | undefined;
+  try {
+    await firstInsertEntered.promise;
+    pastBoundary = true;
+    second = submitForm({ deps: clocked, input }, { attempts });
+    const reached = await Promise.race([secondReachedClaim.promise.then(() => "claim"), second.then(() => "finished")]);
+    assert.equal(reached, "claim", "the duplicate must reach the attempt claim while the first insert is held");
+  } finally {
+    steps.push("first insert released");
+    releaseFirstInsert.resolve();
+  }
 
+  const results = await Promise.all([first, second]);
+  assert.deepEqual(steps, ["first insert entered", "duplicate reached claim", "first insert released"]);
   assert.deepEqual(results, [{ status: "accepted" }, { status: "accepted" }]);
   assert.equal((await storedSubmissions(deps)).length, 1);
+  assert.equal(enqueued.length, 1);
 });
 
 test("submitForm: without a token, identical answers behind one IP are distinct submissions", async () => {
