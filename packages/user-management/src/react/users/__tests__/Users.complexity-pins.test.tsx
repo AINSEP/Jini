@@ -17,8 +17,8 @@ const alice: AdminIdentityUser = { principalId: "alice", workspaceId: "w", usern
   status: "active", roleIds: ["r1"], policyIds: ["p1"], createdAt: "2026-10-01", isOwner: false };
 const bob: AdminIdentityUser = { ...alice, principalId: "bob", username: "bob", email: undefined, status: "disabled",
   roleIds: [], policyIds: [] };
-const roleR1: AdminRole = { id: "r1", workspaceId: "w", name: "editor", isBuiltin: true };
-const policyP1: AdminPolicy = { id: "p1", workspaceId: "w", name: "read-only", isBuiltin: false, isFrozen: false };
+const roleR1: AdminRole = { id: "r1", workspaceId: "w", name: "editor", isBuiltin: true, version: 1 };
+const policyP1: AdminPolicy = { id: "p1", workspaceId: "w", name: "read-only", isBuiltin: false, version: 1, isFrozen: false };
 
 function fakeController(overrides: Partial<UsersController> = {}): UsersController {
   const noop = vi.fn();

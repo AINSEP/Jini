@@ -6,8 +6,8 @@ import type { AdminMember, AdminPolicy, AdminRole } from '../models.js';
 // real ports: mutations are visible through the list calls, unknown ids reject, and each
 // configured error rejects only its own operation.
 
-const policy: AdminPolicy = { id: 'p1', workspaceId: 'ws', name: 'Editors', isBuiltin: false, isFrozen: false };
-const role: AdminRole = { id: 'r1', workspaceId: 'ws', name: 'Reviewer', isBuiltin: false };
+const policy: AdminPolicy = { id: 'p1', workspaceId: 'ws', name: 'Editors', isBuiltin: false, isFrozen: false, version: 1 };
+const role: AdminRole = { id: 'r1', workspaceId: 'ws', name: 'Reviewer', isBuiltin: false, version: 1 };
 
 describe('createFakeRolesPort', () => {
   it('starts empty when no seed data is supplied', async () => {
@@ -37,7 +37,7 @@ describe('createFakeRolesPort', () => {
   it('creates policies with an optional description, updates keep the name when omitted, and deletes', async () => {
     const port = createFakeRolesPort({}, { policies: [policy] });
     const { policy: created } = await port.createPolicy({ name: 'Viewers' }, { description: 'read only' });
-    expect(created).toEqual({ id: 'fake-policy-2', workspaceId: 'fake-ws', name: 'Viewers', description: 'read only', isBuiltin: false, isFrozen: false });
+    expect(created).toEqual({ id: 'fake-policy-2', workspaceId: 'fake-ws', name: 'Viewers', description: 'read only', isBuiltin: false, isFrozen: false, version: 1 });
     const { policy: described } = await port.updatePolicy({ policyId: 'p1' }, { description: 'can edit' });
     expect(described).toEqual({ ...policy, description: 'can edit' });
     const { policy: renamed } = await port.updatePolicy({ policyId: 'p1' }, { name: 'Writers' });

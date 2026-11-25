@@ -24,8 +24,8 @@ function wrapper({ children }: { children: ReactNode }) {
   return createElement(AdminKitProvider, { kit, children: createElement(FetchQueryProvider, { children }) });
 }
 
-const ROLE: AdminRole = { id: "r1", workspaceId: "w1", name: "Editor", isBuiltin: false };
-const POLICY: AdminPolicy = { id: "p1", workspaceId: "w1", name: "Content", description: "d", isBuiltin: false, isFrozen: false };
+const ROLE: AdminRole = { id: "r1", workspaceId: "w1", name: "Editor", isBuiltin: false, version: 1 };
+const POLICY: AdminPolicy = { id: "p1", workspaceId: "w1", name: "Content", description: "d", isBuiltin: false, version: 1, isFrozen: false };
 
 function fakePort(overrides: Partial<RolesPort> = {}): RolesPort {
   return {

@@ -9,7 +9,7 @@ const translate = (key: string) => key;
 const owner: AdminIdentityUser = { principalId: "owner", workspaceId: "w", username: "admin", status: "active",
   createdAt: "now", roleIds: ["owner-role"], policyIds: [], isOwner: true, isProtectedAccount: true };
 const ordinary: AdminIdentityUser = { ...owner, principalId: "ordinary", username: "alice", roleIds: [], isOwner: false, isProtectedAccount: false };
-const role = { id: "owner-role", workspaceId: "w", name: "owner", isBuiltin: true };
+const role = { id: "owner-role", workspaceId: "w", name: "owner", isBuiltin: true, version: 1 };
 const handlers = { onRequestDisable() {}, onEnable() {}, onManage() {}, onResetPassword() {}, onRequestDelete() {} };
 function wrapper({ children }: { children: React.ReactNode }) { return <FetchQueryProvider>{children}</FetchQueryProvider>; }
 
@@ -60,7 +60,7 @@ describe("account row capabilities", () => {
     expect(isOwnerAccount({ user: { ...ordinary, username: "admin" }, roles: new Map() })).toBe(false);
     expect(isOwnerAccount({ user: { ...owner, isOwner: undefined }, roles: new Map([[role.id, role]]) })).toBe(true);
     expect(formatGrantLabel({ ids: [role.id], byId: new Map([[role.id, role]]), translate })).toBe("Owner");
-    expect(formatGrantLabel({ ids: [role.id], byId: new Map([[role.id, { ...role, isBuiltin: false }]]), translate })).toBe("owner");
+    expect(formatGrantLabel({ ids: [role.id], byId: new Map([[role.id, { ...role, isBuiltin: false, version: 1 }]]), translate })).toBe("owner");
   });
 });
 

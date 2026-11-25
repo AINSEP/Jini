@@ -34,6 +34,11 @@ export function useRolesState(
 
   const [editingRoleId, setEditingRoleId] = useState<string | null>(null);
   const [editingRoleName, setEditingRoleName] = useState("");
+  // The version of the row the open editor was seeded from — the save's compare-and-set basis. Captured
+  // at edit start, not read from the live list at save time: a list refresh mid-edit must not silently
+  // advance the basis past a change the operator never saw.
+  const [editingRoleVersion, setEditingRoleVersion] = useState<number | undefined>(undefined);
+  const [editingPolicyVersion, setEditingPolicyVersion] = useState<number | undefined>(undefined);
   const [editingPolicyId, setEditingPolicyId] = useState<string | null>(null);
   const [editingPolicyName, setEditingPolicyName] = useState("");
   const [editingPolicyDescription, setEditingPolicyDescription] = useState("");
@@ -80,7 +85,7 @@ export function useRolesState(
   return {
     port, errors, locale, boundT, roles, policies, error, rowError, setRowError, roleName, setRoleName, policyName, setPolicyName, policyDescription,
     setPolicyDescription, editingRoleId, setEditingRoleId, editingRoleName, setEditingRoleName, editingPolicyId, setEditingPolicyId, editingPolicyName,
-    setEditingPolicyName, editingPolicyDescription, setEditingPolicyDescription, rowSavingId, setRowSavingId, permissionPolicyId, setPermissionPolicyId,
+    editingRoleVersion, setEditingRoleVersion, editingPolicyVersion, setEditingPolicyVersion, setEditingPolicyName, editingPolicyDescription, setEditingPolicyDescription, rowSavingId, setRowSavingId, permissionPolicyId, setPermissionPolicyId,
     permissionInput, setPermissionInput, resourceTypeInput, setResourceTypeInput, permissionRows, setPermissionRows, permissionsLoading, setPermissionsLoading,
     removingPermissionId, setRemovingPermissionId, permissionsGenerationRef, permissionPolicyIdRef, pendingRoleDelete, setPendingRoleDelete, pendingPolicyDelete,
     setPendingPolicyDelete, pendingPermissionRemove, setPendingPermissionRemove,

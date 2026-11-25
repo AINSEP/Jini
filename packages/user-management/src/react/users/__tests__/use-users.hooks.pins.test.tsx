@@ -16,9 +16,9 @@ const base: AdminIdentityUser = { principalId: "u1", workspaceId: "w", username:
   status: "active", createdAt: "2026-08-01T00:00:00.000Z", roleIds: [], policyIds: [] };
 const CALLER: AdminIdentityUser = { ...base, principalId: "caller", username: "caller" };
 const TARGET: AdminIdentityUser = { ...base, principalId: "target", username: "target" };
-const OWNER_ROLE: AdminRole = { id: "owner-role", workspaceId: "w", name: "owner", isBuiltin: true };
-const EDITOR_ROLE: AdminRole = { id: "editor-role", workspaceId: "w", name: "Editor", isBuiltin: false };
-const POLICY = { id: "p1", workspaceId: "w", name: "Content", isBuiltin: false, isFrozen: false };
+const OWNER_ROLE: AdminRole = { id: "owner-role", workspaceId: "w", name: "owner", isBuiltin: true, version: 1 };
+const EDITOR_ROLE: AdminRole = { id: "editor-role", workspaceId: "w", name: "Editor", isBuiltin: false, version: 1 };
+const POLICY = { id: "p1", workspaceId: "w", name: "Content", isBuiltin: false, version: 1, isFrozen: false };
 
 function deferred<T>() {
   let resolve!: (value: T) => void;

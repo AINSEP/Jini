@@ -1,3 +1,5 @@
+import { VERSION_CONFLICT_CODE } from "@jini-ai/core/optimistic-concurrency";
+import { VERSION_CONFLICT_MESSAGE } from "../shell/lib/version-conflict.js";
 import type { RowMenuItem } from "../react/components/RowMenu/RowMenu.js";
 
 import type { AdminPolicy, AdminRole } from "@jini-ai/core/contracts/site/user-management-react";
@@ -44,6 +46,9 @@ const STATIC_ERROR_MESSAGES: Readonly<Record<string, string>> = {
   RESOURCE_CONFLICT: "It is still in use — remove that assignment/attachment first.",
   PERMISSION_UNKNOWN: "That permission is not recognized.",
   GRANT_EXCEEDS_ISSUER: "You cannot grant a permission you do not hold.",
+  // A stale `expectedVersion` save: the editor's draft stays open (cleared only on success), and the
+  // shared, already-translated copy tells the operator to keep what they typed and reload — nothing resubmits for them.
+  [VERSION_CONFLICT_CODE]: VERSION_CONFLICT_MESSAGE,
 };
 
 /** Overrides layered on the shared default (`lib/api.ts`'s `describeApiError`) — this screen's
