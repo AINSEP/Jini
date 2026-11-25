@@ -46,7 +46,7 @@ export const externalMcpOAuthConnectRoute = defineJsonRoute<{ serverId: string; 
   },
 });
 
-export const externalMcpOAuthPollRoute = defineJsonRoute<{ serverId: string }, unknown, { pollDeviceAuthorization: ExternalMcpOAuthService['pollDeviceAuthorization'] }>({
+export const externalMcpOAuthPollRoute = defineJsonRoute<{ serverId: string }, unknown, { pollDeviceAuthorization: ExternalMcpOAuthService['pollDeviceAuthorization'] }, ExternalMcpRoutePrincipal>({
   method: 'post', path: `${BASE}/device/poll`,
   parse: raw => ok({ value: { serverId: String(raw.params.serverId ?? '') } }),
   handle: async ({ input, deps, authorize }) => {

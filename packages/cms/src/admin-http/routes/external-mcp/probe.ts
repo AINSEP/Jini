@@ -1,9 +1,9 @@
 import { defineJsonRoute, ok, routeReply } from '@jini-ai/core/contracts/server';
-import { authorizeExternalMcp, externalMcpParam } from './shared.js';
+import { authorizeExternalMcp, externalMcpParam, type ExternalMcpRoutePrincipal } from './shared.js';
 
 export const externalMcpProbeRoute = defineJsonRoute<{ serverId: string }, unknown, {
   probe(required: { serverId: string }): Promise<{ ok: true; body: unknown } | { ok: false; status: number; body: unknown }>;
-}>({
+}, ExternalMcpRoutePrincipal>({
   method: 'post', path: '/api/admin/v1/workspaces/:workspaceId/mcp-servers/:serverId/probe',
   parse: raw => ok({ value: { serverId: externalMcpParam({ params: raw.params, name: 'serverId' }) } }),
   handle: async ({ input, deps, authorize }) => {

@@ -1,7 +1,8 @@
-import { buildDomainRegistrations, indexCatalogById, requireInputRecord, ToolInputError, type AgentToolDefinition, type ToolExecutionContext, type DerivedRiskByToolId, type ToolHandler, type ToolExecutionOptions, type ToolMetadataById, type ToolRegistration } from "@jini-ai/core";
+import { buildDomainRegistrations, indexCatalogById, requireInputRecord, ToolInputError, type AgentToolDefinition, type ToolExecutionContext, type DerivedRiskByToolId, type ToolHandler, type ToolExecutionOptions, type ToolMetadataById, type ToolRegistration , type AgentToolSideEffect } from "@jini-ai/core";
 import type { AssistantSurfaceDeps } from "@jini-ai/core/contracts/site/daemon-surface-exchanges";
 import type { DevRestartPort } from "@jini-ai/core/contracts/site/dev-supervisor-dev-restart";
 import type { PluginCredentialCard } from "@jini-ai/core/contracts/credentials";
+import type { SurfaceDetail } from "@jini-ai/core/contracts/cards";
 import type { ProjectKeysPort } from "./service.js";
 
 export function createProjectKeysCatalog({ readPermission, restartPermission, descriptions }: {
@@ -13,7 +14,7 @@ export function createProjectKeysCatalog({ readPermission, restartPermission, de
   { name: "site_restart", description: descriptions.restart, sideEffects: "mutates-durable-state", authorization: { permission: restartPermission }, inputSchema: { type: "object", additionalProperties: false, properties: {} } },
   ];
 }
-export const projectKeysRisk: DerivedRiskByToolId = new Map([["project_keys_list", "none"], ["project_key_use", "mutates-durable-state"], ["site_restart", "mutates-durable-state"]]);
+export const projectKeysRisk: ReadonlyMap<string, AgentToolSideEffect> = new Map<string, AgentToolSideEffect>([["project_keys_list", "none"], ["project_key_use", "mutates-durable-state"], ["site_restart", "mutates-durable-state"]]);
 
 export function buildProjectKeyRegistrations({ keys, authorize, loadCards, surfaces, restart, host }: {
   keys?: ProjectKeysPort; authorize: (input: { ctx: ToolExecutionContext; permission: string }) => Promise<void>;
@@ -28,7 +29,7 @@ export function buildProjectKeyRegistrations({ keys, authorize, loadCards, surfa
       surfaces: AssistantSurfaceDeps;
       prepare: (required: { ctx: ToolExecutionContext }) => Promise<{ restart: DevRestartPort | null }>;
       describe: (required: { ctx: ToolExecutionContext; prepared: { restart: DevRestartPort | null } }) => {
-        toolId: string; errorCode: string; title: string; warning: string; details: readonly string[]; confirmLabel: string;
+        toolId: string; errorCode: string; title: string; warning: string; details: readonly SurfaceDetail[]; confirmLabel: string;
       };
       run: (required: { ctx: ToolExecutionContext; prepared: { restart: DevRestartPort | null }; executionOptions: ToolExecutionOptions }) => Promise<unknown>;
     }, optional: {
