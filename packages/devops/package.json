@@ -85,6 +85,7 @@
       "./backup/site/share-preparation": "node",
       "./backup/site/archive-manifest": "node",
       "./backup/site/sources": "node",
+      "./backup/site/archive-extensions": "node",
       "./backup/site/static-download-landing": "universal",
       "./backup/site/static-copy": "node",
       "./backup/site/static-download-layout": "node",
@@ -475,6 +476,11 @@
       "types": "./dist/backup/site/sources.d.ts",
       "import": "./dist/backup/site/sources.js",
       "default": "./dist/backup/site/sources.js"
+    },
+    "./backup/site/archive-extensions": {
+      "types": "./dist/backup/site/archive-extensions.d.ts",
+      "import": "./dist/backup/site/archive-extensions.js",
+      "default": "./dist/backup/site/archive-extensions.js"
     },
     "./backup/site/static-download-landing": {
       "types": "./dist/backup/site/static-download-landing.d.ts",
