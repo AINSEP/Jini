@@ -281,7 +281,10 @@
       "./contracts/site/post-kind": "universal",
       "./scheduled-publish": "universal",
       "./tool-metadata/post": "universal",
-      "./tool-metadata/image-transform": "universal"
+      "./tool-metadata/image-transform": "universal",
+      "./contracts/site/source-control-credentials": "universal",
+      "./contracts/site/vendor-credentials": "universal",
+      "./contracts/site/credential-project-half": "universal"
     },
     "isolation": {
       "entries": {
@@ -1686,6 +1689,21 @@
       "types": "./dist/tool-metadata/image-transform.d.ts",
       "import": "./dist/tool-metadata/image-transform.js",
       "default": "./dist/tool-metadata/image-transform.js"
+    },
+    "./contracts/site/source-control-credentials": {
+      "types": "./dist/contracts/site/source-control-credentials.d.ts",
+      "import": "./dist/contracts/site/source-control-credentials.js",
+      "default": "./dist/contracts/site/source-control-credentials.js"
+    },
+    "./contracts/site/vendor-credentials": {
+      "types": "./dist/contracts/site/vendor-credentials.d.ts",
+      "import": "./dist/contracts/site/vendor-credentials.js",
+      "default": "./dist/contracts/site/vendor-credentials.js"
+    },
+    "./contracts/site/credential-project-half": {
+      "types": "./dist/contracts/site/credential-project-half.d.ts",
+      "import": "./dist/contracts/site/credential-project-half.js",
+      "default": "./dist/contracts/site/credential-project-half.js"
     }
   },
   "files": [
