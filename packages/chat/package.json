@@ -43,6 +43,7 @@
       "./server/durable-runs": "node",
       "./core/durable-runs/run-finalizer": "universal",
       "./store/runtime": "node",
+      "./store/attempt-base-retention": "node",
       "./vanilla": "browser",
       "./browser/lazy-loader": "browser",
       "./vanilla/style.css": "browser",
@@ -227,6 +228,11 @@
       "types": "./dist/store/runtime/entry.d.ts",
       "import": "./dist/store/runtime/entry.js",
       "default": "./dist/store/runtime/entry.js"
+    },
+    "./store/attempt-base-retention": {
+      "types": "./dist/store/runtime/attempt-base-retention.d.ts",
+      "import": "./dist/store/runtime/attempt-base-retention.js",
+      "default": "./dist/store/runtime/attempt-base-retention.js"
     },
     "./vanilla": {
       "types": "./dist/embed-widget/vanilla/index.d.ts",
@@ -420,6 +426,9 @@
       ],
       "store/runtime": [
         "./dist/store/runtime/entry.d.ts"
+      ],
+      "store/attempt-base-retention": [
+        "./dist/store/runtime/attempt-base-retention.d.ts"
       ],
       "vanilla": [
         "./dist/embed-widget/vanilla/index.d.ts"
