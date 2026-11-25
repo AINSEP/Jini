@@ -11,7 +11,7 @@ function deps(overrides: Partial<TrashListRouteDeps> = {}): TrashListRouteDeps {
   return {
     workspaceId: WORKSPACE_ID, authorizeEntry: recordingGate().authorizeEntry, clock: { nowIso: () => NOW },
     trash: { list: async () => ({ items: [], nextCursor: null }) }, filterVisible: async ({ items }) => [...items],
-    userRepo: { list: unexpected }, loadPostDisplayKinds: async () => new Map(), ...overrides,
+    userRepo: { list: unexpected }, loadPostDisplayKinds: async () => new Map(), retentionDays: 30, ...overrides,
   };
 }
 const run = (d: TrashListRouteDeps, input = { limit: 50, entityTypes: undefined, cursor: null } as { limit: number; entityTypes: string[] | undefined; cursor: string | null }, context: { id: string } | null = PRINCIPAL) =>
@@ -51,12 +51,15 @@ describe("trashListRoute", () => {
       filterVisible: async ({ principalId, items }) => { expect(principalId).toBe(PRINCIPAL.id); return items.filter((i) => i.entityType !== "media"); },
       userRepo: { list: async ({ workspaceId }) => { expect(workspaceId).toBe(WORKSPACE_ID); return [{ principalId: "principal-1", username: "ada" }]; } },
       loadPostDisplayKinds: async ({ items }) => { kindsAsked.push([...items]); return new Map([["post-1", "page"]]); },
+      // Not the default 30: the page must echo the host-injected window, so the admin can state it.
+      retentionDays: 14,
     });
     const usernames = new Map([["principal-1", "ada"]]);
     expect(await run(d, { limit: 10, entityTypes: ["post"], cursor: "c" })).toEqual({ ok: true, value: {
       items: [{ ...toAdminTrashResponse({ item: post, now: NOW, usernameByPrincipalId: usernames }), displayKind: "page" },
         toAdminTrashResponse({ item: comment, now: NOW, usernameByPrincipalId: usernames })],
       nextCursor: "next",
+      retentionDays: 14,
     } });
     expect(listed).toEqual([{ required: { workspaceId: WORKSPACE_ID, now: NOW, limit: 10 }, optional: { entityTypes: ["post"], cursor: "c" } }]);
     expect(kindsAsked).toEqual([[post, comment]]);
@@ -64,7 +67,7 @@ describe("trashListRoute", () => {
 
   it("skips the username lookup on an empty visible page", async () => {
     expect(await run(deps({ trash: { list: async () => ({ items: [fakeItem()], nextCursor: null }) }, filterVisible: async () => [] })))
-      .toEqual({ ok: true, value: { items: [], nextCursor: null } });
+      .toEqual({ ok: true, value: { items: [], nextCursor: null, retentionDays: 30 } });
   });
 
   it("fails closed without a principal and rethrows unexpected failures", async () => {

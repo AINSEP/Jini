@@ -30,6 +30,6 @@ describe("trash rules take their copy from the injected translator", () => {
   it("describes batch outcomes", () => {
     expect(describeRestoreReport({ translate, report: { restored: 2, results: [{ outcome: "restored" }, { outcome: "restored" }] } as never })).toBe("«Restored.»");
     expect(describePurgeReport({ translate, report: { purged: 0, results: [{ outcome: "still-referenced" }] } as never })).toBe("«Nothing was deleted.» «Items still in use were not deleted.»");
-    expect(coverageLine({ translate })).toContain("«Collection entries");
+    expect(coverageLine({ translate })).toContain("«Deleted items wait here");
   });
 });

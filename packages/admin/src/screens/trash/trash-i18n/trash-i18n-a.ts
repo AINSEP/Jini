@@ -24,8 +24,10 @@ export const TRASH_I18N_A: Record<string, Record<string, string>> = {
     "Loading…": "Cargando…",
     "Each item shows how many days it has left.":
       "Cada elemento muestra cuántos días le quedan.",
-    "Collection entries aren't kept in Trash. Deleted theme files go to the theme's own trash — ask the assistant to restore them.":
-      "Las entradas de colecciones no se guardan en la papelera. Los archivos de temas eliminados van a la papelera del propio tema; pide al asistente que los restaure.",
+    "Items are permanently deleted {days} days after they are moved to Trash.":
+      "Los elementos se eliminan definitivamente {days} días después de moverse a la papelera.",
+    "Deleted items wait here so you can restore them until their days run out. Collection entries aren't kept in Trash. Deleted theme files go to the theme's own trash — ask the assistant to restore them.":
+      "Los elementos eliminados esperan aquí para que puedas restaurarlos hasta que se agoten sus días. Las entradas de colecciones no se guardan en la papelera. Los archivos de temas eliminados van a la papelera del propio tema; pide al asistente que los restaure.",
     Post: "Entrada",
     Page: "Página",
     Comment: "Comentario",
@@ -80,8 +82,10 @@ export const TRASH_I18N_A: Record<string, Record<string, string>> = {
     "Loading…": "Memuat…",
     "Each item shows how many days it has left.":
       "Setiap item menampilkan sisa harinya.",
-    "Collection entries aren't kept in Trash. Deleted theme files go to the theme's own trash — ask the assistant to restore them.":
-      "Entri koleksi tidak disimpan di Sampah. File tema yang dihapus masuk ke sampah tema itu sendiri — minta asisten untuk memulihkannya.",
+    "Items are permanently deleted {days} days after they are moved to Trash.":
+      "Item dihapus permanen {days} hari setelah dipindahkan ke Sampah.",
+    "Deleted items wait here so you can restore them until their days run out. Collection entries aren't kept in Trash. Deleted theme files go to the theme's own trash — ask the assistant to restore them.":
+      "Item yang dihapus menunggu di sini agar Anda dapat memulihkannya sampai harinya habis. Entri koleksi tidak disimpan di Sampah. File tema yang dihapus masuk ke sampah tema itu sendiri — minta asisten untuk memulihkannya.",
     Post: "Pos",
     Page: "Halaman",
     Comment: "Komentar",
@@ -136,8 +140,10 @@ export const TRASH_I18N_A: Record<string, Record<string, string>> = {
     "Loading…": "Wird geladen…",
     "Each item shows how many days it has left.":
       "Jedes Element zeigt, wie viele Tage ihm noch bleiben.",
-    "Collection entries aren't kept in Trash. Deleted theme files go to the theme's own trash — ask the assistant to restore them.":
-      "Sammlungseinträge werden nicht im Papierkorb aufbewahrt. Gelöschte Theme-Dateien landen im eigenen Papierkorb des Themes — bitte den Assistenten, sie wiederherzustellen.",
+    "Items are permanently deleted {days} days after they are moved to Trash.":
+      "Elemente werden {days} Tage nach dem Verschieben in den Papierkorb endgültig gelöscht.",
+    "Deleted items wait here so you can restore them until their days run out. Collection entries aren't kept in Trash. Deleted theme files go to the theme's own trash — ask the assistant to restore them.":
+      "Gelöschte Elemente warten hier, damit du sie wiederherstellen kannst, bis ihre Tage abgelaufen sind. Sammlungseinträge werden nicht im Papierkorb aufbewahrt. Gelöschte Theme-Dateien landen im eigenen Papierkorb des Themes — bitte den Assistenten, sie wiederherzustellen.",
     Post: "Beitrag",
     Page: "Seite",
     Comment: "Kommentar",
@@ -192,8 +198,10 @@ export const TRASH_I18N_A: Record<string, Record<string, string>> = {
     "Loading…": "加载中…",
     "Each item shows how many days it has left.":
       "每个项目都会显示其剩余天数。",
-    "Collection entries aren't kept in Trash. Deleted theme files go to the theme's own trash — ask the assistant to restore them.":
-      "集合条目不会保留在回收站中。删除的主题文件会进入主题自己的回收站，请让助手恢复它们。",
+    "Items are permanently deleted {days} days after they are moved to Trash.":
+      "项目移入回收站 {days} 天后将被永久删除。",
+    "Deleted items wait here so you can restore them until their days run out. Collection entries aren't kept in Trash. Deleted theme files go to the theme's own trash — ask the assistant to restore them.":
+      "已删除的项目会保留在这里，在剩余天数用完之前都可以恢复。集合条目不会保留在回收站中。删除的主题文件会进入主题自己的回收站，请让助手恢复它们。",
     Post: "文章",
     Page: "页面",
     Comment: "评论",
@@ -248,8 +256,10 @@ export const TRASH_I18N_A: Record<string, Record<string, string>> = {
     "Loading…": "載入中…",
     "Each item shows how many days it has left.":
       "每個項目都會顯示其剩餘天數。",
-    "Collection entries aren't kept in Trash. Deleted theme files go to the theme's own trash — ask the assistant to restore them.":
-      "集合項目不會保留在垃圾桶中。刪除的佈景主題檔案會進入該主題自己的垃圾桶，請讓助理還原。",
+    "Items are permanently deleted {days} days after they are moved to Trash.":
+      "項目移至資源回收筒 {days} 天後將永久刪除。",
+    "Deleted items wait here so you can restore them until their days run out. Collection entries aren't kept in Trash. Deleted theme files go to the theme's own trash — ask the assistant to restore them.":
+      "已刪除的項目會保留在這裡，在剩餘天數用完之前都可以還原。集合項目不會保留在垃圾桶中。刪除的佈景主題檔案會進入該主題自己的垃圾桶，請讓助理還原。",
     Post: "文章",
     Page: "頁面",
     Comment: "留言",
@@ -304,8 +314,10 @@ export const TRASH_I18N_A: Record<string, Record<string, string>> = {
     "Loading…": "Carregando…",
     "Each item shows how many days it has left.":
       "Cada item mostra quantos dias ainda restam.",
-    "Collection entries aren't kept in Trash. Deleted theme files go to the theme's own trash — ask the assistant to restore them.":
-      "As entradas de coleções não são mantidas na Lixeira. Os arquivos de tema excluídos vão para a lixeira do próprio tema — peça ao assistente para restaurá-los.",
+    "Items are permanently deleted {days} days after they are moved to Trash.":
+      "Os itens são excluídos permanentemente {days} dias depois de serem movidos para a Lixeira.",
+    "Deleted items wait here so you can restore them until their days run out. Collection entries aren't kept in Trash. Deleted theme files go to the theme's own trash — ask the assistant to restore them.":
+      "Os itens excluídos ficam aqui para que você possa restaurá-los até que os dias acabem. As entradas de coleções não são mantidas na Lixeira. Os arquivos de tema excluídos vão para a lixeira do próprio tema — peça ao assistente para restaurá-los.",
     Post: "Publicação",
     Page: "Página",
     Comment: "Comentário",
@@ -360,8 +372,10 @@ export const TRASH_I18N_A: Record<string, Record<string, string>> = {
     "Loading…": "Загрузка…",
     "Each item shows how many days it has left.":
       "Для каждого элемента показано, сколько дней у него осталось.",
-    "Collection entries aren't kept in Trash. Deleted theme files go to the theme's own trash — ask the assistant to restore them.":
-      "Записи коллекций не сохраняются в Корзине. Удалённые файлы темы попадают в собственную корзину темы — попросите ассистента восстановить их.",
+    "Items are permanently deleted {days} days after they are moved to Trash.":
+      "Элементы удаляются навсегда через {days} дн. после перемещения в корзину.",
+    "Deleted items wait here so you can restore them until their days run out. Collection entries aren't kept in Trash. Deleted theme files go to the theme's own trash — ask the assistant to restore them.":
+      "Удалённые элементы хранятся здесь, и их можно восстановить, пока не истекут их дни. Записи коллекций не сохраняются в Корзине. Удалённые файлы темы попадают в собственную корзину темы — попросите ассистента восстановить их.",
     Post: "Запись",
     Page: "Страница",
     Comment: "Комментарий",

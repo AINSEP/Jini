@@ -50,6 +50,8 @@ export interface TrashController {
   /** `null` until the first page settles. */
   items: AdminTrashItemDto[] | null;
   nextCursor: string | null;
+  /** The server-reported retention window in days; `null` until the first page settles. */
+  retentionDays: number | null;
   loadingMore: boolean;
   loadMore: () => void;
   error: string | null;
@@ -282,6 +284,7 @@ export function useTrash(deps: TrashDependencies): TrashController {
   return {
     items,
     nextCursor: moreCursor,
+    retentionDays: firstPage.data?.retentionDays ?? null,
     loadingMore,
     loadMore,
     error: firstPage.error ? describeLoadError({ error: firstPage.error, locale }) : actionError,

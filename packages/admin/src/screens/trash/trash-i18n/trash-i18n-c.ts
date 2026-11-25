@@ -24,8 +24,10 @@ export const TRASH_I18N_C: Record<string, Record<string, string>> = {
     "Loading…": "Завантаження…",
     "Each item shows how many days it has left.":
       "Для кожного елемента показано, скільки днів йому залишилось.",
-    "Collection entries aren't kept in Trash. Deleted theme files go to the theme's own trash — ask the assistant to restore them.":
-      "Записи колекцій не зберігаються в Кошику. Видалені файли теми потрапляють до власного кошика теми — попросіть асистента відновити їх.",
+    "Items are permanently deleted {days} days after they are moved to Trash.":
+      "Елементи остаточно видаляються через {days} дн. після переміщення до кошика.",
+    "Deleted items wait here so you can restore them until their days run out. Collection entries aren't kept in Trash. Deleted theme files go to the theme's own trash — ask the assistant to restore them.":
+      "Видалені елементи зберігаються тут, і їх можна відновити, доки не минуть їхні дні. Записи колекцій не зберігаються в Кошику. Видалені файли теми потрапляють до власного кошика теми — попросіть асистента відновити їх.",
     Post: "Запис",
     Page: "Сторінка",
     Comment: "Коментар",
@@ -80,8 +82,10 @@ export const TRASH_I18N_C: Record<string, Record<string, string>> = {
     "Loading…": "Yükleniyor…",
     "Each item shows how many days it has left.":
       "Her öğe, kaç günü kaldığını gösterir.",
-    "Collection entries aren't kept in Trash. Deleted theme files go to the theme's own trash — ask the assistant to restore them.":
-      "Koleksiyon kayıtları Çöp Kutusu’nda saklanmaz. Silinen tema dosyaları temanın kendi çöp kutusuna gider — geri yüklemek için asistandan yardım isteyin.",
+    "Items are permanently deleted {days} days after they are moved to Trash.":
+      "Öğeler çöp kutusuna taşındıktan {days} gün sonra kalıcı olarak silinir.",
+    "Deleted items wait here so you can restore them until their days run out. Collection entries aren't kept in Trash. Deleted theme files go to the theme's own trash — ask the assistant to restore them.":
+      "Silinen öğeler, günleri dolana kadar geri yükleyebilmeniz için burada bekler. Koleksiyon kayıtları Çöp Kutusu’nda saklanmaz. Silinen tema dosyaları temanın kendi çöp kutusuna gider — geri yüklemek için asistandan yardım isteyin.",
     Post: "Yazı",
     Page: "Sayfa",
     Comment: "Yorum",
@@ -136,8 +140,10 @@ export const TRASH_I18N_C: Record<string, Record<string, string>> = {
     "Loading…": "กำลังโหลด…",
     "Each item shows how many days it has left.":
       "แต่ละรายการจะแสดงจำนวนวันที่เหลืออยู่",
-    "Collection entries aren't kept in Trash. Deleted theme files go to the theme's own trash — ask the assistant to restore them.":
-      "รายการในคอลเลกชันจะไม่ถูกเก็บไว้ในถังขยะ ไฟล์ธีมที่ลบจะไปอยู่ในถังขยะของธีมนั้น — ขอให้ผู้ช่วยกู้คืนไฟล์ได้",
+    "Items are permanently deleted {days} days after they are moved to Trash.":
+      "รายการจะถูกลบถาวร {days} วันหลังจากย้ายไปยังถังขยะ",
+    "Deleted items wait here so you can restore them until their days run out. Collection entries aren't kept in Trash. Deleted theme files go to the theme's own trash — ask the assistant to restore them.":
+      "รายการที่ลบจะรออยู่ที่นี่ เพื่อให้คุณกู้คืนได้จนกว่าจะครบจำนวนวัน รายการในคอลเลกชันจะไม่ถูกเก็บไว้ในถังขยะ ไฟล์ธีมที่ลบจะไปอยู่ในถังขยะของธีมนั้น — ขอให้ผู้ช่วยกู้คืนไฟล์ได้",
     Post: "โพสต์",
     Page: "หน้า",
     Comment: "ความคิดเห็น",
@@ -192,8 +198,10 @@ export const TRASH_I18N_C: Record<string, Record<string, string>> = {
     "Loading…": "Caricamento…",
     "Each item shows how many days it has left.":
       "Ogni elemento mostra quanti giorni gli restano.",
-    "Collection entries aren't kept in Trash. Deleted theme files go to the theme's own trash — ask the assistant to restore them.":
-      "Le voci delle raccolte non vengono conservate nel Cestino. I file del tema eliminati vanno nel cestino del tema stesso — chiedi all’assistente di ripristinarli.",
+    "Items are permanently deleted {days} days after they are moved to Trash.":
+      "Gli elementi vengono eliminati definitivamente {days} giorni dopo essere stati spostati nel Cestino.",
+    "Deleted items wait here so you can restore them until their days run out. Collection entries aren't kept in Trash. Deleted theme files go to the theme's own trash — ask the assistant to restore them.":
+      "Gli elementi eliminati restano qui, così puoi ripristinarli finché non scadono i loro giorni. Le voci delle raccolte non vengono conservate nel Cestino. I file del tema eliminati vanno nel cestino del tema stesso — chiedi all’assistente di ripristinarli.",
     Post: "Articolo",
     Page: "Pagina",
     Comment: "Commento",
@@ -248,8 +256,10 @@ export const TRASH_I18N_C: Record<string, Record<string, string>> = {
     "Loading…": "लोड हो रहा है…",
     "Each item shows how many days it has left.":
       "हर आइटम दिखाता है कि उसके कितने दिन बचे हैं।",
-    "Collection entries aren't kept in Trash. Deleted theme files go to the theme's own trash — ask the assistant to restore them.":
-      "कलेक्शन की प्रविष्टियाँ ट्रैश में नहीं रखी जातीं। हटाई गई थीम फ़ाइलें थीम के अपने ट्रैश में जाती हैं — उन्हें बहाल करने के लिए असिस्टेंट से कहें।",
+    "Items are permanently deleted {days} days after they are moved to Trash.":
+      "आइटम ट्रैश में ले जाए जाने के {days} दिन बाद स्थायी रूप से हटा दिए जाते हैं।",
+    "Deleted items wait here so you can restore them until their days run out. Collection entries aren't kept in Trash. Deleted theme files go to the theme's own trash — ask the assistant to restore them.":
+      "हटाए गए आइटम यहाँ रहते हैं ताकि उनके दिन पूरे होने तक आप उन्हें पुनर्स्थापित कर सकें। कलेक्शन की प्रविष्टियाँ ट्रैश में नहीं रखी जातीं। हटाई गई थीम फ़ाइलें थीम के अपने ट्रैश में जाती हैं — उन्हें बहाल करने के लिए असिस्टेंट से कहें।",
     Post: "पोस्ट",
     Page: "पेज",
     Comment: "टिप्पणी",
@@ -304,8 +314,10 @@ export const TRASH_I18N_C: Record<string, Record<string, string>> = {
     "Loading…": "لوڈ ہو رہا ہے…",
     "Each item shows how many days it has left.":
       "ہر آئٹم دکھاتا ہے کہ اس کے کتنے دن باقی ہیں۔",
-    "Collection entries aren't kept in Trash. Deleted theme files go to the theme's own trash — ask the assistant to restore them.":
-      "کلیکشن کے اندراجات کوڑے دان میں محفوظ نہیں رہتے۔ حذف شدہ تھیم فائلیں تھیم کے اپنے کوڑے دان میں جاتی ہیں — انہیں بحال کرنے کے لیے اسسٹنٹ سے کہیں۔",
+    "Items are permanently deleted {days} days after they are moved to Trash.":
+      "آئٹمز ردی کی ٹوکری میں منتقل ہونے کے {days} دن بعد مستقل طور پر حذف ہو جاتے ہیں۔",
+    "Deleted items wait here so you can restore them until their days run out. Collection entries aren't kept in Trash. Deleted theme files go to the theme's own trash — ask the assistant to restore them.":
+      "حذف شدہ آئٹمز یہاں رہتے ہیں تاکہ ان کے دن پورے ہونے تک آپ انہیں بحال کر سکیں۔ کلیکشن کے اندراجات کوڑے دان میں محفوظ نہیں رہتے۔ حذف شدہ تھیم فائلیں تھیم کے اپنے کوڑے دان میں جاتی ہیں — انہیں بحال کرنے کے لیے اسسٹنٹ سے کہیں۔",
     Post: "پوسٹ",
     Page: "صفحہ",
     Comment: "تبصرہ",
@@ -360,8 +372,10 @@ export const TRASH_I18N_C: Record<string, Record<string, string>> = {
     "Loading…": "লোড হচ্ছে…",
     "Each item shows how many days it has left.":
       "প্রতিটি আইটেম দেখায় তার আর কত দিন বাকি আছে।",
-    "Collection entries aren't kept in Trash. Deleted theme files go to the theme's own trash — ask the assistant to restore them.":
-      "কালেকশনের এন্ট্রিগুলো ট্র্যাশে রাখা হয় না। মুছে ফেলা থিম ফাইলগুলো থিমের নিজস্ব ট্র্যাশে যায় — সেগুলো পুনরুদ্ধার করতে সহকারীকে বলুন।",
+    "Items are permanently deleted {days} days after they are moved to Trash.":
+      "ট্র্যাশে সরানোর {days} দিন পরে আইটেমগুলো স্থায়ীভাবে মুছে ফেলা হয়।",
+    "Deleted items wait here so you can restore them until their days run out. Collection entries aren't kept in Trash. Deleted theme files go to the theme's own trash — ask the assistant to restore them.":
+      "মুছে ফেলা আইটেমগুলো এখানে থাকে, যাতে তাদের দিন শেষ না হওয়া পর্যন্ত আপনি সেগুলো পুনরুদ্ধার করতে পারেন। কালেকশনের এন্ট্রিগুলো ট্র্যাশে রাখা হয় না। মুছে ফেলা থিম ফাইলগুলো থিমের নিজস্ব ট্র্যাশে যায় — সেগুলো পুনরুদ্ধার করতে সহকারীকে বলুন।",
     Post: "পোস্ট",
     Page: "পেজ",
     Comment: "মন্তব্য",

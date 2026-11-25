@@ -49,6 +49,10 @@ export interface AdminTrashItemDto {
 export interface AdminTrashPageDto {
   readonly items: readonly AdminTrashItemDto[];
   readonly nextCursor: string | null;
+  /** The host's retention window for items trashed NOW, in days, so the screen can state it without
+   *  hard-coding it. Rows trashed under an earlier window keep their own stamped `purgeAfter`, which
+   *  each row's `daysRemaining` already reflects. */
+  readonly retentionDays: number;
 }
 
 /** Per-item restore outcomes. `forbidden` means the operator lacks THAT ROW'S kind's permission. */

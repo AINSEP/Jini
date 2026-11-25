@@ -7,7 +7,7 @@ import type { AdminTrashItemDto } from "@jini-ai/core/contracts/site/cms-trash";
 
 import type { AdminNavLabelTranslator } from "../../shell/lib/admin-nav-i18n.js";
 import type { Translate } from "@jini-ai/core/text";
-import { actorLabel, coverageLine, entityTypeLabel, itemSubtitle } from "./rules.js";
+import { actorLabel, coverageLine, entityTypeLabel, itemSubtitle, retentionLine } from "./rules.js";
 import type { TrashController, TrashT } from "./hooks/use-trash.hooks.js";
 
 import { formatTimestamp, interpolate } from '@jini-ai/core/text';
@@ -289,7 +289,10 @@ export function Trash({ useTrashHook, translateAdminNavLabel }: TrashProps) {
             <InfoTip label={coverageLine({ translate: trashTranslator({ t, locale }) })} agentHandle="trash-coverage-info" />
           </h1>
           <p className="jini-page-description">
-            {t({ locale: locale, key: "Each item shows how many days it has left." })}
+            {/* The window applies to items trashed now; older rows keep their stamp, hence the per-row days. */}
+            {[retentionLine({ translate: trashTranslator({ t, locale }), retentionDays: controller.retentionDays }), t({ locale: locale, key: "Each item shows how many days it has left." })]
+              .filter((part): part is string => part !== null)
+              .join(" ")}
           </p>
         </div>
       </div>

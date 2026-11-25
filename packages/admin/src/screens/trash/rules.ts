@@ -1,6 +1,6 @@
 import type { QueryKey } from "@jini-ai/core/fetch";
 import type { AdminTrashItemDto, AdminTrashPurgeOutcome, AdminTrashRestoreOutcome } from "@jini-ai/core/contracts/site/cms-trash";
-import type { Translate } from "@jini-ai/core/text";
+import { interpolate, type Translate } from "@jini-ai/core/text";
 
 /**
  * @file Pure decisions for the Trash screen — cache keys, the coverage sentence, selection
@@ -41,7 +41,17 @@ export const TRASH_RESOURCE = "trash";
  * subtitle; the original always-visible requirement above is superseded, but the exceptions remain.
  */
 export function coverageLine({ translate }: { translate: Translate }, _optional: Record<string, never> = {}): string {
-  return translate("Collection entries aren't kept in Trash. Deleted theme files go to the theme's own trash — ask the assistant to restore them.");
+  // Leads with what Trash is for: a tip that only listed exceptions never said what the page holds.
+  return translate("Deleted items wait here so you can restore them until their days run out. Collection entries aren't kept in Trash. Deleted theme files go to the theme's own trash — ask the assistant to restore them.");
+}
+
+/**
+ * The header's window sentence, interpolated from the server-reported retention so it never drifts
+ * from the host's policy. `null` (first page not settled) states no window rather than guessing one.
+ */
+export function retentionLine({ translate, retentionDays }: { translate: Translate; retentionDays: number | null }, _optional: Record<string, never> = {}): string | null {
+  if (retentionDays === null) return null;
+  return interpolate({ template: translate("Items are permanently deleted {days} days after they are moved to Trash."), vars: { days: String(retentionDays) } });
 }
 
 /** A human label for a row's kind. Unknown kinds print as themselves rather than being hidden —

@@ -31,13 +31,16 @@ export interface TrashListRouteDeps {
   filterVisible: TrashVisibilityFilterFn;
   userRepo: TrashUserLister;
   loadPostDisplayKinds: TrashPostDisplayKindsFn;
+  /** The host's retention window (the same value it passes `createTrashService`), echoed on every page
+   *  so the admin can state it instead of hard-coding a number that drifts from the policy. */
+  retentionDays: number;
 }
 
 /** The parsed query. */
 export interface TrashListInput { limit: number; entityTypes: string[] | undefined; cursor: string | null }
 
 /** One page of rows; `displayKind` only on a post row whose subtype resolved. */
-export interface AdminTrashListEnvelope { items: (AdminTrashRow & { displayKind?: string })[]; nextCursor: string | null }
+export interface AdminTrashListEnvelope { items: (AdminTrashRow & { displayKind?: string })[]; nextCursor: string | null; retentionDays: number }
 
 /** @complexity O(n) in the filter's length. Unknown kinds are left in — the per-row filter drops them. */
 function readEntityTypes({ raw }: { raw: unknown }, _optional: Record<string, never> = {}): string[] | undefined {
@@ -103,6 +106,6 @@ export const trashListRoute = defineJsonRoute<TrashListInput, AdminTrashListEnve
       const displayKind = item.entityType === "post" ? postKindById.get(item.entityId) : undefined;
       return { ...toAdminTrashResponse({ item, now, usernameByPrincipalId }), ...(displayKind ? { displayKind } : {}) };
     });
-    return ok({ value: { items, nextCursor: page.nextCursor } });
+    return ok({ value: { items, nextCursor: page.nextCursor, retentionDays: deps.retentionDays } });
   },
 });
