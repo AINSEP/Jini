@@ -311,7 +311,7 @@ export type { TodoCardProps } from './components/TodoCard.js';
  * `ChatHistoryStore`, an HTTP endpoint, or a plain array. Drop it into `ChatPane`'s
  * `leadingAccessory` slot; it needs no changes to `ChatPane` itself.
  */
-export { ConversationList } from './components/ConversationList.js';
+export { ConversationList, defaultConversationListHooks } from './components/ConversationList.js';
 export { ConversationTitle, ConversationTitleEditor } from './components/ConversationTitleEditor.js';
 export type { ConversationTitleProps, ConversationTitleEditorProps } from './components/ConversationTitleEditor.js';
 export type { ConversationListProps, ConversationListItem } from './components/ConversationList.js';
@@ -419,3 +419,6 @@ export type {
 
 // Hosts implement this to let the frontend session bridge forward page-control requests.
 export type { ChatPagePort } from '../core/page-port.js';
+
+export type { ConversationListHooks } from './components/ConversationList.js';
+export { ChatCleanupDialog } from './components/ChatCleanupDialog.js';

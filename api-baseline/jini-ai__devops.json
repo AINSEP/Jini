@@ -1767,5 +1767,11 @@
       "SiteUpdateNotice": "function:058d514278",
       "SiteUpdateNoticeProps": "interface:680f42a224"
     }
+  },
+  "./react/site-share-expiry": {
+    "types": "./dist/react/site-share-expiry/index.d.ts",
+    "symbols": {
+      "ShareExpiryControls": "function:ccf875807f"
+    }
   }
 }

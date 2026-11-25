@@ -9,11 +9,15 @@ CREATE TABLE IF NOT EXISTS ai_chats (
                 CHECK (title_source IN ('fallback','generated','manual')),
   created_at    BIGINT NOT NULL,
   updated_at    BIGINT NOT NULL,
-  expires_at    BIGINT
+  expires_at    BIGINT,
+  pinned_at     BIGINT
 );
 
 CREATE INDEX IF NOT EXISTS idx_ai_chats_owner
   ON ai_chats(scope_id, owner_kind, owner_id, updated_at DESC);
+
+CREATE INDEX IF NOT EXISTS idx_ai_chats_owner_cleanup
+  ON ai_chats(scope_id, owner_kind, owner_id, pinned_at, updated_at);
 
 CREATE INDEX IF NOT EXISTS idx_ai_chats_expiry
   ON ai_chats(expires_at) WHERE expires_at IS NOT NULL;

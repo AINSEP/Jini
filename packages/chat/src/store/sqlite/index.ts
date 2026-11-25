@@ -44,3 +44,5 @@ export function createChatHistoryStore({ db, scope, clock }: { db: SqliteConnect
 export function createChatHistoryMaintenance({ db }: { db: SqliteConnectionSource }): ChatHistoryMaintenance {
   return createSqliteChatMaintenance({ kernel: sqliteKernel<ChatDatabase>({ source: db }) });
 }
+
+export { createChatBulkDeletion } from '../sql/bulk-deletion.js';

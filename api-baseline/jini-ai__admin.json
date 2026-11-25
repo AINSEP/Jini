@@ -7179,5 +7179,11 @@
     "symbols": {
       "WIDGETS_REGIONS_I18N": "variable:a8c9cc929a"
     }
+  },
+  "./screens/storage/StoragePanel": {
+    "types": "./dist/screens/storage/StoragePanel.d.ts",
+    "symbols": {
+      "StoragePanel": "function:7a20ccdf90"
+    }
   }
 }

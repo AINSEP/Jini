@@ -381,7 +381,11 @@
       "pruneDatabaseCopies": "function:44a70b9818",
       "selectDatabaseCopiesToPrune": "function:cfcf12aa2e",
       "verifySqliteIntegrity": "function:c1788fe0f8",
-      "withSqliteTransaction": "function:6029cb090c"
+      "withSqliteTransaction": "function:6029cb090c",
+      "COMPACTION_MESSAGES": "variable:367bf94f32",
+      "compactionRecoveryCopyPath": "function:48cd43cc86",
+      "convertToIncrementalVacuum": "function:e7baaa0102",
+      "incrementalVacuumStep": "function:424306eb3b"
     }
   },
   "./testing/pg-fixture": {
@@ -508,7 +512,8 @@
       "reseedIdentitySql": "function:b346feb93a",
       "runCopy": "function:9b81301cc0",
       "siteSchemaName": "function:835102398f",
-      "topologicalTableCopyOrder": "function:2c3b2df947"
+      "topologicalTableCopyOrder": "function:2c3b2df947",
+      "SqliteBackupTempRoot": "type:fde5d14299"
     }
   },
   "./verified-origin": {

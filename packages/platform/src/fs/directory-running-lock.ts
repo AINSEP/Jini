@@ -3,7 +3,7 @@ import { type BootIdentity } from "@jini-ai/core/contracts/runtime";
 import type { DurableJsonFile } from "./durable-json.js";
 
 export interface DirectoryRunningRecord {
-  pid: number; port: number; app: string; started: string; token: string; scheme: "http" | "https"; bootId?: string;
+  pid: number; port: number; app: string; started: string; token: string; scheme: "http" | "https"; bootId?: string; purpose?: "serve" | "maintenance";
 }
 export interface DirectoryRunningLock {
   peek(required: Record<string, never>, options?: {}): DirectoryRunningRecord | null;
@@ -74,6 +74,7 @@ export function createDirectoryRunningLock(
       file.withLock({ critical: () => {
         const record = readLive();
         if (!record || record.token !== token) throw new Error("Running lock ownership was lost.");
+        if (record.purpose === "maintenance") throw new Error("A maintenance owner has no address.");
         file.write({ value: { ...record, port } });
       } });
     },
@@ -88,7 +89,8 @@ export function createDirectoryRunningLock(
 function validRunningRecord(value: unknown): value is DirectoryRunningRecord {
   if (!validRunningOwner(value)) return false;
   const validPort = Number.isInteger(value.port) && typeof value.port === "number" && value.port >= 0 && value.port <= 65535;
-  return validPort && (value.scheme === "http" || value.scheme === "https");
+  const validPurpose = [undefined, "serve", "maintenance"].includes(value.purpose);
+  return validPurpose && (value.purpose !== "maintenance" || value.port === 0) && validPort && (value.scheme === "http" || value.scheme === "https");
 }
 
 /** Address corruption must not prevent dead-holder recovery, but never guess a holder. O(1). */
@@ -107,4 +109,9 @@ function validRunningIdentity({ record }: { record: Omit<DirectoryRunningRecord,
 
 function isNonEmptyString(value: unknown): value is string {
   return typeof value === "string" && value.length > 0;
+}
+
+// A portless maintenance owner excludes writers but can never be an attach target.
+export function isServeRecord({ record }: { record: DirectoryRunningRecord }, _optional = {}): boolean {
+  return record.purpose === undefined || record.purpose === "serve";
 }

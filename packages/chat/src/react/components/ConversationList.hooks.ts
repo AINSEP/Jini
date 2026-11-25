@@ -152,7 +152,7 @@ export function useConversationListView({ savedConversations, activeConversation
     };
   }, [onSearch, deferredQuery, report]);
 
-  const visible = useMemo(() => {
+  const filtered = useMemo(() => {
     if (onSearch) return serverResults ?? conversations;
     const needle = deferredQuery.trim().toLocaleLowerCase();
     if (!needle) return conversations;
@@ -161,6 +161,8 @@ export function useConversationListView({ savedConversations, activeConversation
     );
   }, [onSearch, serverResults, conversations, deferredQuery, t]);
 
+  const visible = useMemo(() => [...filtered].sort((a, b) => Number(Boolean(b.pinned)) - Number(Boolean(a.pinned))), [filtered]);
+  const selectionAnchor = useRef<string | null>(null);
   // One timestamp for the whole render so every row's "5m ago" is computed against the same
   // instant — otherwise rows drawn either side of a second boundary disagree.
   const now = Date.now();
@@ -222,5 +224,5 @@ export function useConversationListView({ savedConversations, activeConversation
     runConversationListHostEffect({ effectName: 'onCreate', effect: () => onCreate() }, { report });
     setOpen(false);
   };
-  return { open, setOpen, query, setQuery, conversations, rawTitles, editingId, setEditingId, rootRef, visible, now, commitRename, startRename, requestDelete, active, emptyLabel, scheduleSelect, createConversation };
+  return { open, setOpen, query, setQuery, conversations, rawTitles, editingId, setEditingId, rootRef, visible, now, commitRename, startRename, requestDelete, active, emptyLabel, scheduleSelect, createConversation, selectionAnchor };
 }

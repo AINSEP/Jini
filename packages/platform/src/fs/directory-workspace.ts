@@ -269,9 +269,9 @@ function createWorkspaceRunningAccess({ canonicalPath, runningName, config, sett
         } }),
       };
     },
-    claim({ path: dir, app, port = 0, scheme = "http" }: { path: string; app: string; port?: number; scheme?: "http" | "https" }, _options = {}) {
+    claim({ path: dir, app, port = 0, scheme = "http", purpose }: { path: string; app: string; port?: number; scheme?: "http" | "https"; purpose?: "serve" | "maintenance" }, _options = {}) {
       const lock = this.running({ path: dir });
-      return lock.claim({ record: { pid: ports.process.pid, port, app, scheme, started: new Date(ports.clock.nowMs()).toISOString(), token: randomUUID() } });
+      return lock.claim({ record: { pid: ports.process.pid, port, app, scheme, started: new Date(ports.clock.nowMs()).toISOString(), token: randomUUID(), ...(purpose === undefined ? {} : { purpose }) } });
     },
   };
 }

@@ -1,6 +1,7 @@
 import { act, fireEvent, render, screen } from '@testing-library/react';
 import { createElement, Fragment, isValidElement, type ReactElement } from 'react';
 import { expect, it } from 'vitest';
+import { defaultConversationListHooks } from '../../../components/ConversationList.js';
 import { ConversationChatPane } from '../components/ConversationChatPane.js';
 import { useConversationChatPane } from '../hooks/useConversationChatPane.hooks.js';
 import { selectionRunContext } from '../rules.js';
@@ -16,7 +17,7 @@ function renderPane(fakes: PaneFakes = {}) {
     ChatPane: (props: Record<string, unknown>) => { rendered.chat = props; return createElement('textarea', { placeholder: props.placeholder as string }); },
   } as unknown as ConversationChatPaneComponents;
   const view = render(
-    <ConversationChatPane onClose={() => fake.calls.push('close')} labels={LABELS} variant="workspace" components={components} useConversationChatPaneHook={useConversationChatPane} {...fake.hooks} />,
+    <ConversationChatPane conversationListHooks={defaultConversationListHooks} onClose={() => fake.calls.push('close')} labels={LABELS} variant="workspace" components={components} useConversationChatPaneHook={useConversationChatPane} {...fake.hooks} />,
   );
   return { ...view, fake, rendered, calls: fake.calls };
 }
@@ -37,6 +38,7 @@ it("with a transport the switcher and the chat pane get the hook state, under th
   const { list, chat } = rendered;
   expect(list?.conversations).toEqual([{ id: 'c1', title: 'Fleet triage' }, { id: 'c2', title: 'Deploy check' }]);
   expect(list?.activeConversationId).toBe('c1');
+  expect(list?.hooks).toBe(defaultConversationListHooks);
   expect(list?.onSelect).toBe(fake.conversations.select);
   expect(list?.onCreate).toBe(fake.conversations.create);
   expect(list?.onDelete).toBe(fake.conversations.remove);

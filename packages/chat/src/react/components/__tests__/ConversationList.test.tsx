@@ -9,7 +9,7 @@ import { act, fireEvent, render, screen, waitFor, within } from '@testing-librar
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
 
-import { ConversationList, type ConversationListItem } from '../ConversationList.js';
+import { ConversationList, defaultConversationListHooks, type ConversationListItem } from '../ConversationList.js';
 
 const ITEMS: ConversationListItem[] = [
   { id: 'c1', title: 'Slow mornings research', messageCount: 6, updatedAt: Date.now() - 60_000 },
@@ -18,7 +18,7 @@ const ITEMS: ConversationListItem[] = [
 ];
 
 function setup(overrides: Partial<React.ComponentProps<typeof ConversationList>> = {}) {
-  const props = {
+  const props = { hooks: defaultConversationListHooks,
     conversations: ITEMS,
     activeConversationId: 'c1',
     onSelect: vi.fn(),
@@ -412,7 +412,7 @@ describe('host-supported conversation actions', () => {
     const onSelect = vi.fn();
     const onCreate = vi.fn();
     const user = userEvent.setup();
-    render(<ConversationList conversations={ITEMS} activeConversationId="c1"
+    render(<ConversationList hooks={defaultConversationListHooks} conversations={ITEMS} activeConversationId="c1"
       onSelect={onSelect} onCreate={onCreate} confirmDelete={() => true}
       {...(rename ? { onRename } : {})} {...(remove ? { onDelete } : {})} />);
     await openMenu(user);

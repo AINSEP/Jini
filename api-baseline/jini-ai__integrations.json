@@ -532,7 +532,10 @@
       "jsonPostInit": "function:a7430c7145",
       "parseOpenAICompatibleJson": "function:af8676cff8",
       "sniffImageExt": "function:e88d572f93",
-      "standardImageAspectFor": "function:e14d0c875d"
+      "standardImageAspectFor": "function:e14d0c875d",
+      "grokAspectFor": "function:e14d0c875d",
+      "renderGrokImage": "function:82e0f1730d",
+      "renderXAITTS": "function:9e6c876b86"
     }
   },
   "./media-providers/catalog": {
@@ -625,7 +628,9 @@
     "symbols": {
       "CAPTURES_DIR_NAME": "variable:4172f41930",
       "captureRootFor": "function:83da56505f",
-      "createCaptureFileWriter": "function:ece31278af"
+      "createCaptureFileWriter": "function:ece31278af",
+      "CAPTURE_PARTIAL_SUFFIX": "variable:1cf2b031f6",
+      "CaptureRootLock": "interface:55285284d7"
     }
   },
   "./web-screenshot/desktop-page-capture": {
@@ -860,6 +865,19 @@
       "getWebhooksAgentToolCatalog": "function:27a1ef3956",
       "toWebhookDeliveryView": "function:5919d91c9f",
       "webhooksDerivedRisk": "variable:b058cd467f"
+    }
+  },
+  "./web-screenshot/capture-retention": {
+    "types": "./dist/web-screenshot/capture-retention.d.ts",
+    "symbols": {
+      "CaptureEntry": "interface:56f02ca1e7",
+      "CaptureFs": "interface:dadb595f42",
+      "CaptureRetentionPreview": "interface:f774cde31c",
+      "CaptureRetentionResult": "interface:844b875ac4",
+      "ListOwnedCaptures": "type:0bb3c953d1",
+      "RemoveOwnedCapture": "type:f83d91cbdb",
+      "createCaptureFilePorts": "function:79a66ba168",
+      "createCaptureRetention": "function:932f37fa50"
     }
   }
 }

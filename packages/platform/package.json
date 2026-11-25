@@ -53,7 +53,8 @@
       "./child-environment": "node",
       "./retention": "node",
       "./object-store/site/setting": "node",
-      "./object-store/site/registry": "node"
+      "./object-store/site/registry": "node",
+      "./retention/routes": "node"
     },
     "isolation": {
       "entries": {
@@ -291,6 +292,11 @@
       "types": "./dist/object-store/site/registry.d.ts",
       "import": "./dist/object-store/site/registry.js",
       "default": "./dist/object-store/site/registry.js"
+    },
+    "./retention/routes": {
+      "types": "./dist/retention/routes.d.ts",
+      "import": "./dist/retention/routes.js",
+      "default": "./dist/retention/routes.js"
     }
   },
   "files": [

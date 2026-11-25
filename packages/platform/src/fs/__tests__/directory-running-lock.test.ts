@@ -1,5 +1,5 @@
 import { expect, it } from "vitest";
-import { createDirectoryRunningLock, type DirectoryRunningRecord } from "../directory-running-lock.js";
+import { createDirectoryRunningLock, isServeRecord, type DirectoryRunningRecord } from "../directory-running-lock.js";
 import type { DurableJsonFile } from "../durable-json.js";
 import type { JsonFileRead } from "@jini-ai/core/contracts/site/fs-durable-json";
 import { BOOT_CLOCK_TOLERANCE_MS } from "../boot-identity.js";
@@ -105,4 +105,33 @@ it("release with a different token never cleans up even a dead owner's record", 
   expect(storedValue()).toEqual({ state: "ok", value: record });
   lock.release({ token: record.token });
   expect(storedValue()).toEqual({ state: "missing" });
+});
+
+it("contested claim returns the maintenance record (incl. legacy record without purpose = serve)", () => {
+  const { lock, record } = fixture();
+  const maintenance: DirectoryRunningRecord = { ...record, purpose: "maintenance" };
+  lock.claim({ record: maintenance });
+  const contested = lock.claim({ record: { ...record, pid: 20, token: "second", purpose: "serve" } });
+  expect(contested).toEqual({ acquired: false, record: maintenance });
+  expect(isServeRecord({ record: contested.record }, {})).toBe(false);
+  expect(isServeRecord({ record }, {})).toBe(true);
+  expect(isServeRecord({ record: { ...record, purpose: "serve" } }, {})).toBe(true);
+  lock.release({ token: "second" });
+  expect(lock.read({})).toEqual(maintenance);
+  lock.release({ token: record.token });
+  expect(lock.read({})).toBeNull();
+});
+
+it("rejects a nonzero maintenance port", () => {
+  const { lock, record } = fixture();
+  expect(() => lock.claim({ record: { ...record, purpose: "maintenance", port: 3100 } })).toThrow("Cannot claim an invalid running lock.");
+  expect(() => lock.claim({ record: { ...record, purpose: "invalid" } as unknown as DirectoryRunningRecord })).toThrow("Cannot claim an invalid running lock.");
+  expect(lock.read({})).toBeNull();
+});
+
+it("rejects update for a maintenance record", () => {
+  const { lock, record } = fixture();
+  lock.claim({ record: { ...record, purpose: "maintenance" } });
+  expect(() => lock.update({ token: record.token, port: 3100 }, {})).toThrow("A maintenance owner has no address.");
+  expect(lock.read({})).toEqual({ ...record, purpose: "maintenance" });
 });

@@ -29,3 +29,13 @@ Behavior tests live in `src/mail/__tests__/`.
 ## Legacy vault codecs (w4-runtime, 2026-11-24)
 
 Original host source at the original host `3a93322474`: `apps/website/src/server/runtime/composition/vault-legacy-codecs.ts` → `src/secrets/legacy-codecs.ts` (`@jini-ai/platform/secrets/legacy-codecs`). The host's former custom-vault owner key is injected as `formerCustomOwnerKey`; why-comments kept verbatim.
+
+## Owned temporary roots (P11 ST-6c.J, 2026-11-25)
+
+`src/fs/owned-temp-root.ts` (`@jini-ai/platform/fs`): `withOwnedTempRoot` and `sweepOwnedTempRoots`. New code, no ported source.
+**Accepted deviation from ALGO-P11 §9.7**, which placed the writer helper in the host
+(`platform/temp/owned-root.ts`, "move to Jini later — not now, one consumer"). The lock-first /
+provenance-marker / proven-dead-owner protocol is product-neutral, so it lives here; hosts supply
+the prefixes, the parent folders and the lock adapter (whose process port is the liveness probe).
+A `<root>.owner` provenance marker was added to the design so a failed in-`finally` removal stays
+sweepable; roots without it are report-only.

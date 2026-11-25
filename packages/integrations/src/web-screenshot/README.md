@@ -42,9 +42,18 @@ const result = await service.screenshot(
 
 ### Adapters beside the domain
 
-- `capture-files.ts` — `createCaptureFileWriter({ rootDir })` (a `SaveCaptureFiles` that never
-  overwrites and refuses paths escaping the folder) and `captureRootFor({ siteDir })`
-  (`<siteDir>/.captures`). Uses `node:fs`; the host binds it per booted site folder.
+- `capture-files.ts` — `createCaptureFileWriter({ rootDir, lock }, {})` (a `SaveCaptureFiles` that
+  stages each capture as `<name>.partial`, links it to its final name under
+  `lock.withLock({ key: rootDir })`, never overwrites, and refuses paths escaping the folder) and
+  `captureRootFor({ siteDir })` (`<siteDir>/.captures`). Uses `node:fs`; the host binds it per booted
+  site folder and supplies the root-keyed lock (required since the manual cleanup below shares it).
+- `capture-retention.ts` — `createCaptureRetention({ root, listOwned, removeOwned, previewStore,
+  clock, lock }, { limit })`: owner-triggered "delete screenshots older than…" as `preview` →
+  single-use token → `apply({ previewToken, confirm: true })`. Offers only finished, writer-named
+  regular files (by `lstat`, no symlinks, no `.partial`); apply re-checks identity, containment and
+  cutoff under the same lock, so replaced, unknown or in-progress files stay. Captures are owner
+  artifacts, not a cache: nothing here runs on a schedule. `createCaptureFilePorts({ fs })` gives
+  the default `listOwned` / `removeOwned` over an injected `node:fs/promises`.
 - `own-site-opener.ts` — `createOwnSiteOpener({ themes, openLoopback })`: the host injects its
   discovered theme roster (read per call) and its loopback site-server opener; an unknown or
   invalid `themeId` is refused before anything boots.

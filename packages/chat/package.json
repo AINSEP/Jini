@@ -43,13 +43,15 @@
       "./server/durable-runs": "node",
       "./core/durable-runs/run-finalizer": "universal",
       "./store/runtime": "node",
+      "./store/attempt-base-retention": "node",
       "./vanilla": "browser",
       "./browser/lazy-loader": "browser",
       "./vanilla/style.css": "browser",
       "./browser/frontend-session-bridge": "browser",
       "./browser/embed-send-bridge": "browser",
       "./react/styles/chat-settings.css": "browser",
-      "./react/features/voice-input/space-hold-rules": "browser"
+      "./react/features/voice-input/space-hold-rules": "browser",
+      "./server/chat-cleanup-routes": "node"
     },
     "neutralEntries": [
       "src/store/contracts"
@@ -227,6 +229,11 @@
       "import": "./dist/store/runtime/entry.js",
       "default": "./dist/store/runtime/entry.js"
     },
+    "./store/attempt-base-retention": {
+      "types": "./dist/store/runtime/attempt-base-retention.d.ts",
+      "import": "./dist/store/runtime/attempt-base-retention.js",
+      "default": "./dist/store/runtime/attempt-base-retention.js"
+    },
     "./vanilla": {
       "types": "./dist/embed-widget/vanilla/index.d.ts",
       "import": "./dist/embed-widget/vanilla/index.js",
@@ -253,6 +260,11 @@
       "types": "./dist/react/features/voice-input/space-hold-rules.d.ts",
       "import": "./dist/react/features/voice-input/space-hold-rules.js",
       "default": "./dist/react/features/voice-input/space-hold-rules.js"
+    },
+    "./server/chat-cleanup-routes": {
+      "types": "./dist/server/chat-cleanup-routes.d.ts",
+      "import": "./dist/server/chat-cleanup-routes.js",
+      "default": "./dist/server/chat-cleanup-routes.js"
     }
   },
   "files": [
@@ -415,6 +427,9 @@
       "store/runtime": [
         "./dist/store/runtime/entry.d.ts"
       ],
+      "store/attempt-base-retention": [
+        "./dist/store/runtime/attempt-base-retention.d.ts"
+      ],
       "vanilla": [
         "./dist/embed-widget/vanilla/index.d.ts"
       ],
@@ -426,6 +441,9 @@
       ],
       "browser/embed-send-bridge": [
         "./dist/embed-widget/browser/embed-send-bridge.d.ts"
+      ],
+      "server/chat-cleanup-routes": [
+        "./dist/server/chat-cleanup-routes.d.ts"
       ]
     }
   },

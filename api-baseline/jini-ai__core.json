@@ -2649,7 +2649,15 @@
       "row": "function:110b5299f8",
       "rows": "function:26ee0bccea",
       "toBool": "function:7d31541683",
-      "toBytes": "function:8f4c6a3a5f"
+      "toBytes": "function:8f4c6a3a5f",
+      "CleanupPreviewStore": "interface:aa1b84d5b2",
+      "SqliteCompactionFs": "interface:d9d735244b",
+      "SqliteCompactionHoldReason": "type:e83833c9de",
+      "SqliteCompactionMarker": "type:7b7b8ec094",
+      "SqliteCompactionMarkerStore": "interface:a4c651a8cc",
+      "SqliteConversionOutcome": "type:61c689701a",
+      "SqliteFileSizes": "interface:af1bd0a72e",
+      "SqliteVacuumStepOutcome": "type:6f44677af8"
     }
   },
   "./contracts/tool-result-block": {

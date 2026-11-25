@@ -17,6 +17,7 @@
       "./media-providers/catalog": "universal",
       "./web-screenshot/web-screenshot": "node",
       "./web-screenshot/capture-files": "node",
+      "./web-screenshot/capture-retention": "node",
       "./web-screenshot/own-site-opener": "node",
       "./web-screenshot/screenshot-image": "node",
       "./web-screenshot/desktop-page-capture": "node",
@@ -92,6 +93,11 @@
       "types": "./dist/web-screenshot/capture-files.d.ts",
       "import": "./dist/web-screenshot/capture-files.js",
       "default": "./dist/web-screenshot/capture-files.js"
+    },
+    "./web-screenshot/capture-retention": {
+      "types": "./dist/web-screenshot/capture-retention.d.ts",
+      "import": "./dist/web-screenshot/capture-retention.js",
+      "default": "./dist/web-screenshot/capture-retention.js"
     },
     "./web-screenshot/own-site-opener": {
       "types": "./dist/web-screenshot/own-site-opener.d.ts",
@@ -272,6 +278,9 @@
       ],
       "web-screenshot/capture-files": [
         "./dist/web-screenshot/capture-files.d.ts"
+      ],
+      "web-screenshot/capture-retention": [
+        "./dist/web-screenshot/capture-retention.d.ts"
       ],
       "web-screenshot/own-site-opener": [
         "./dist/web-screenshot/own-site-opener.d.ts"

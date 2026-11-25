@@ -20,7 +20,7 @@
    "ChatAgentFailurePort": "interface:6faa9c10ad",
    "ChatAgentPolicyPort": "interface:42b96c0ee7",
    "ChatAttachment": "interface:09c6600a09",
-   "ChatConversation": "interface:80a815ecb9",
+   "ChatConversation": "interface:22f04e57d2",
    "ChatHistoryMaintenance": "interface:96a37f6da3",
    "ChatHistoryReader": "interface:c030ee36a4",
    "ChatHistoryStore": "type:2eb7733d94",
@@ -36,7 +36,7 @@
    "ChatSearchCapability": "interface:35c4c974ab",
    "ChatSearchHit": "interface:0514cfebae",
    "ChatSearchInput": "interface:25d0735de1",
-   "ChatStore": "interface:d5a8f9c0fe",
+   "ChatStore": "interface:b68cdad96c",
    "ChatStoreError": "class:2e4b1ca87f",
    "ChatStoreErrorCode": "type:6a8dad9cae",
    "ChatStoreFactory": "type:66b5112444",
@@ -264,7 +264,7 @@
    "ChatAgentFailurePort": "interface:6faa9c10ad",
    "ChatAgentPolicyPort": "interface:42b96c0ee7",
    "ChatAttachment": "interface:09c6600a09",
-   "ChatConversation": "interface:80a815ecb9",
+   "ChatConversation": "interface:22f04e57d2",
    "ChatHistoryMaintenance": "interface:96a37f6da3",
    "ChatHistoryReader": "interface:c030ee36a4",
    "ChatHistoryStore": "type:2eb7733d94",
@@ -280,7 +280,7 @@
    "ChatSearchCapability": "interface:35c4c974ab",
    "ChatSearchHit": "interface:0514cfebae",
    "ChatSearchInput": "interface:25d0735de1",
-   "ChatStore": "interface:d5a8f9c0fe",
+   "ChatStore": "interface:b68cdad96c",
    "ChatStoreError": "class:2e4b1ca87f",
    "ChatStoreErrorCode": "type:6a8dad9cae",
    "ChatStoreFactory": "type:66b5112444",
@@ -541,6 +541,7 @@
    "CHAT_FAB_DRAG_THRESHOLD_PX": "variable:2465549ca2",
    "CHAT_FAB_EDGE_MARGIN_PX": "variable:c48438b0ac",
    "CHAT_PANE_AGENT_TOOLS": "variable:44a666e6c2",
+   "ChatCleanupDialog": "function:0340892050",
    "ChatFab": "function:5f6b2ceb93",
    "ChatFabPosition": "interface:9a0d67cb43",
    "ChatFabProps": "interface:f838866ade",
@@ -586,9 +587,10 @@
    "ComposerPlusItem": "interface:8e39a484b1",
    "ComposerProps": "interface:69c76a5bf7",
    "ComposerSlots": "interface:105e5017ee",
-   "ConversationList": "function:f676375254",
-   "ConversationListItem": "interface:e24ccefda1",
-   "ConversationListProps": "interface:fe9dc05118",
+   "ConversationList": "function:7916946091",
+   "ConversationListHooks": "type:64c6524928",
+   "ConversationListItem": "interface:d99ae5bf68",
+   "ConversationListProps": "interface:370898622f",
    "ConversationTitle": "function:7e0b762877",
    "ConversationTitleEditor": "function:2a7cc11c1c",
    "ConversationTitleEditorProps": "interface:08b1502756",
@@ -732,6 +734,7 @@
    "createTypedAnswerPoster": "function:6ca8e65f6d",
    "currentOrigin": "function:b8eb7c9bde",
    "defaultChatPaneSelection": "function:8f551e3a87",
+   "defaultConversationListHooks": "variable:52cafe5f82",
    "definedProps": "function:cbeb5e3cdb",
    "extEventSlot": "function:4569745a1f",
    "getExtEventRenderer": "function:9f1d1583fd",
@@ -860,7 +863,7 @@
  "./react/conversation-chat-pane": {
   "types": "./dist/react/features/conversation-chat-pane/index.d.ts",
   "symbols": {
-   "ConversationChatPane": "function:b571b56f74",
+   "ConversationChatPane": "function:d52481a3c5",
    "ConversationChatPaneComponents": "interface:0af4e39cee",
    "ConversationChatPaneConversations": "interface:1c5bcf1163",
    "ConversationChatPaneDeleteConfirmation": "interface:77d8cfcb1e",
@@ -868,7 +871,7 @@
    "ConversationChatPaneHooks": "interface:d842fc1146",
    "ConversationChatPaneInput": "interface:a130be83d9",
    "ConversationChatPaneLabels": "interface:7ddd1634b0",
-   "ConversationChatPaneProps": "interface:c92744fa79",
+   "ConversationChatPaneProps": "interface:ba8230df36",
    "ConversationChatPaneState": "interface:e96ea8bc3f",
    "ConversationChatPaneTransport": "interface:6765b777e1",
    "ConversationListView": "interface:c1b622ac94",
@@ -936,6 +939,16 @@
    "resolveAgUiRunInput": "function:fc716f3a3f"
   }
  },
+ "./server/chat-cleanup-routes": {
+  "types": "./dist/server/chat-cleanup-routes.d.ts",
+  "symbols": {
+   "ChatCleanupApplyDeps": "type:fcc2ec3ec3",
+   "ChatCleanupPatchDeps": "interface:b727b9dd68",
+   "ChatCleanupPreviewDeps": "type:f62ed55811",
+   "ChatCleanupSelectedDeps": "type:38fc151506",
+   "createChatCleanupRoutes": "function:0e14ec661b"
+  }
+ },
  "./server/durable-runs": {
   "types": "./dist/server/durable-runs/entry.d.ts",
   "symbols": {
@@ -985,7 +998,7 @@
  "./store": {
   "types": "./dist/store/index.d.ts",
   "symbols": {
-   "ChatConversation": "interface:80a815ecb9",
+   "ChatConversation": "interface:22f04e57d2",
    "ChatHistoryMaintenance": "interface:96a37f6da3",
    "ChatHistoryReader": "interface:c030ee36a4",
    "ChatHistoryStore": "type:2eb7733d94",
@@ -998,12 +1011,21 @@
    "ChatSearchCapability": "interface:35c4c974ab",
    "ChatSearchHit": "interface:0514cfebae",
    "ChatSearchInput": "interface:25d0735de1",
-   "ChatStore": "interface:d5a8f9c0fe",
+   "ChatStore": "interface:b68cdad96c",
    "ChatStoreError": "class:2e4b1ca87f",
    "ChatStoreErrorCode": "type:6a8dad9cae",
    "ChatStoreFactory": "type:66b5112444",
    "ChatTitleSource": "type:fc63ee4c42",
    "CreateChatConversationInput": "interface:73f1564479"
+  }
+ },
+ "./store/attempt-base-retention": {
+  "types": "./dist/store/runtime/attempt-base-retention.d.ts",
+  "symbols": {
+   "ATTEMPT_BASE_READERS": "variable:6bda4db947",
+   "AttemptBaseReaderProof": "interface:e96b1e1e9b",
+   "AttemptBaseTrimPolicy": "interface:e6c9274c39",
+   "createAttemptBaseTrimPolicy": "function:49be2709cb"
   }
  },
  "./store/legacy": {
@@ -1036,8 +1058,9 @@
   "types": "./dist/store/pglite/index.d.ts",
   "symbols": {
    "AiChatMessagesTable": "type:e58253a98e",
-   "AiChatsTable": "type:a280a8481b",
+   "AiChatsTable": "type:4f960467f9",
    "ChatDatabase": "type:791155507e",
+   "createChatBulkDeletion": "function:fc32516916",
    "createPgliteChatMaintenance": "function:9235daa49b",
    "createPgliteChatStore": "function:f744a6091f"
   }
@@ -1046,8 +1069,9 @@
   "types": "./dist/store/postgres/index.d.ts",
   "symbols": {
    "AiChatMessagesTable": "type:e58253a98e",
-   "AiChatsTable": "type:a280a8481b",
+   "AiChatsTable": "type:4f960467f9",
    "ChatDatabase": "type:791155507e",
+   "createChatBulkDeletion": "function:fc32516916",
    "createPostgresChatMaintenance": "function:e00725a0a5",
    "createPostgresChatStore": "function:6114f86e34"
   }
@@ -1099,9 +1123,10 @@
   "types": "./dist/store/sqlite/index.d.ts",
   "symbols": {
    "AiChatMessagesTable": "type:e58253a98e",
-   "AiChatsTable": "type:a280a8481b",
-   "CHAT_HISTORY_DDL": "variable:7512890b5b",
+   "AiChatsTable": "type:4f960467f9",
+   "CHAT_HISTORY_DDL": "variable:acab43bd05",
    "ChatDatabase": "type:791155507e",
+   "createChatBulkDeletion": "function:fc32516916",
    "createChatHistoryMaintenance": "function:6576460941",
    "createChatHistoryStore": "function:76d6bf27f9",
    "createSqliteChatMaintenance": "function:3a94ebb583",

@@ -8514,5 +8514,19 @@
       "mediaGridRoute": "variable:dc83e48bfd",
       "parseMediaGridInput": "function:ea40d22a08"
     }
+  },
+  "./admin-http/routes/posts/revision-thinning": {
+    "types": "./dist/admin-http/routes/posts/revision-thinning.d.ts",
+    "symbols": {
+      "RevisionThinningApplyDeps": "interface:6aa3c4d867",
+      "RevisionThinningPreviewDeps": "interface:0fa79f2bfa",
+      "createRevisionThinningRoutes": "function:ea18f7cfa4"
+    }
+  },
+  "./posts/revision-thinning": {
+    "types": "./dist/posts/revision-thinning.d.ts",
+    "symbols": {
+      "createRevisionThinning": "function:dae49705af"
+    }
   }
 }

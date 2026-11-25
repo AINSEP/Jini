@@ -1920,6 +1920,10 @@
     {
       "id": "2b6d20b712fe",
       "reason": "packages/daemon/src/agent-executor/claude/config-dir.ts:130-152 (prepareClaudeConfigDirIfNeeded doc): K02b split the function along the new strategy seam, so the block was split with it, not dropped. The per-CLI half (staging is for the real claude CLI only, keyed by def id rather than the shared claude-mcp-json delivery, unconditional for claude runs) lives with the configDir slot binding in packages/agent-runtime/src/runtime-strategies.ts and defs/claude/config-dir.ts; the gate half (deps.enabled defaults off because Keychain login is keyed by the config-dir variable; a host flipping it on must not stage for any other def) is kept on prepareStagedConfigDirIfNeeded in packages/daemon/src/agent-executor/staged-config-dir.ts, worded without vendor names for the R15 daemon vendor-neutral ratchet."
+    },
+    {
+      "id": "538da77440c0",
+      "reason": "P11 ST-8b.J made ConversationList `hooks` a required prop (major), so 'defaults to the real ones' is false; the rewritten doc on defaultConversationListHooks says the host passes them."
     }
   ]
 }

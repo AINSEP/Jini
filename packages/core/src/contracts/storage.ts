@@ -5,3 +5,5 @@ export * from "./storage/values.js";
 export * from "./storage/rows.js";
 export type * from "./storage/sqlite.js";
 export type * from "./storage/migration.js";
+export type * from "./storage/cleanup-preview.js";
+export type * from "./storage/sqlite-compaction.js";

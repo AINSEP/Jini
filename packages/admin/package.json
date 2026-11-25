@@ -771,7 +771,8 @@
       "./screens/trash/Trash": "browser",
       "./screens/trash/hooks/use-trash.hooks": "browser",
       "./screens/library/Library": "browser",
-      "./screens/library/hooks/library-api-port.hooks": "browser"
+      "./screens/library/hooks/library-api-port.hooks": "browser",
+      "./screens/storage/StoragePanel": "browser"
     },
     "isolation": {
       "shared": [
@@ -4831,6 +4832,11 @@
       "types": "./dist/screens/library/hooks/library-api-port.hooks.d.ts",
       "import": "./dist/screens/library/hooks/library-api-port.hooks.js",
       "default": "./dist/screens/library/hooks/library-api-port.hooks.js"
+    },
+    "./screens/storage/StoragePanel": {
+      "types": "./dist/screens/storage/StoragePanel.d.ts",
+      "import": "./dist/screens/storage/StoragePanel.js",
+      "default": "./dist/screens/storage/StoragePanel.js"
     }
   },
   "files": [
@@ -5340,7 +5346,9 @@
         "./dist/screens/library/Library.d.ts"
       ],
       "screens/library/hooks/library-api-port.hooks": [
-        "./dist/screens/library/hooks/library-api-port.hooks.d.ts"
+        "./dist/screens/library/hooks/library-api-port.hooks.d.ts",
+      "screens/storage/StoragePanel": [
+        "./dist/screens/storage/StoragePanel.d.ts"
       ]
     }
   },

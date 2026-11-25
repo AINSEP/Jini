@@ -25,3 +25,4 @@ export {
   type StorageTreeMeasurement,
   type StorageTreeStats,
 } from './measure-tree.js';
+export { createCleanupPreviewStore } from './preview-store.js';

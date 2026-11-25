@@ -45,6 +45,7 @@ interface ConversationRow {
   created_at: number;
   updated_at: number;
   expires_at: number | null;
+  pinned_at: number | null;
   message_count: number | string | bigint | null;
 }
 
@@ -68,6 +69,7 @@ function toConversation(row: ConversationRow): ChatConversation {
     id: row.id,
     title: row.title,
     titleSource: row.title_source as ChatTitleSource,
+    ...(row.pinned_at === null ? {} : { pinned: true }),
     // COUNT(*) never yields null; Number() also maps a driver's string/bigint count.
     messageCount: Number(row.message_count),
     createdAt: Number(row.created_at),
@@ -267,6 +269,7 @@ export function createSqlChatStore<DB extends ChatDatabase>(
         "c.created_at",
         CONVERSATION_UPDATED_AT,
         "c.expires_at",
+        "c.pinned_at",
         eb
           .selectFrom("ai_chat_messages as m")
           .select(sql<number>`coalesce(sum(1 + case when m.role = 'assistant' then ${midRunCount} else 0 end), 0)`.as("n"))
@@ -494,6 +497,22 @@ export function createSqlChatStore<DB extends ChatDatabase>(
       return get({ id });
     },
 
+    async setPinned({ id, pinned }, _optional = {}) {
+      return store.updateConversation({ id, pinned }, {});
+    },
+
+    async updateConversation({ id, title, pinned }, { source = "manual" } = {}) {
+      return kernel.transaction(async () => {
+        await kernel.lockKey(`chat-slot:${id}`);
+        if (title !== undefined) await store.rename({ id, title }, { source });
+        if (pinned !== undefined) await run(db => db.updateTable("ai_chats")
+          .set({ pinned_at: pinned ? clock.nowMs() : null })
+          .where("id", "=", id).where("scope_id", "=", scopeId)
+          .where("owner_kind", "=", ownerKind).where("owner_id", "=", ownerId).execute());
+        return get({ id });
+      });
+    },
+
     async touch({ id }: { readonly id: string }, options: { readonly expiresAt?: number } = {}) {
       const ts = clock.nowMs();
       await run((db) =>
@@ -608,6 +627,8 @@ export function createSqlChatStore<DB extends ChatDatabase>(
     get: (required, optional = {}) => atStoreBoundary({ operation: () => store.get(required, optional) }),
     create: (required, optional = {}) => atStoreBoundary({ operation: () => store.create(required, optional) }),
     rename: (required, optional = {}) => atStoreBoundary({ operation: () => store.rename(required, optional) }),
+    setPinned: (required, optional = {}) => atStoreBoundary({ operation: () => store.setPinned(required, optional) }),
+    updateConversation: (required, optional = {}) => atStoreBoundary({ operation: () => store.updateConversation(required, optional) }),
     touch: (required, optional = {}) => atStoreBoundary({ operation: () => store.touch(required, optional) }),
     delete: (required, optional = {}) => atStoreBoundary({ operation: () => store.delete(required, optional) }),
     messages: (required, optional = {}) => atStoreBoundary({ operation: () => store.messages(required, optional) }),
