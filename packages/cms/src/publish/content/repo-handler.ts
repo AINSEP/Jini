@@ -1,4 +1,6 @@
 import { executeCommand } from "../../core/index.js";
+import type { MutationActor } from "@jini-ai/core/contracts/events";
+import { MissingMutationActorError } from "../../core/mutation-actor.js";
 import type { JsonObject } from "@jini-ai/core/primitives";
 
 import { PublishContentApplyRowError } from "../transfer/index.js";
@@ -434,4 +436,22 @@ export function createRepoPublishHandler<Row, Ports, P>(config: RepoPublishTypeC
     ...(config.coversTables ? { coversTables: config.coversTables } : {}),
     ...(config.coversRoots ? { coversRoots: config.coversRoots } : {}),
   };
+}
+
+/**
+ * The trusted actor an apply run's write records — the one the apply port merged in from the
+ * ceremony's required `actor`. Only an apply run writes, so its absence is a wiring bug, refused
+ * rather than papered over with a guessed kind (FIX 19 / H2).
+ *
+ * @param required - `deps`: the apply run's publish deps; `principalId`: the principal writing.
+ * @returns The run's actor.
+ * @throws {MissingMutationActorError} Outside an apply run (no `mutationActor`).
+ * @complexity O(1).
+ */
+export function applyRunActor(
+  required: { deps: { readonly mutationActor?: MutationActor | undefined }; principalId: string },
+  _optional: Record<string, never> = {},
+): MutationActor {
+  if (!required.deps.mutationActor) throw new MissingMutationActorError({ principalId: required.principalId });
+  return required.deps.mutationActor;
 }
