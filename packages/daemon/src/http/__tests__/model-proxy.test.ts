@@ -3,15 +3,22 @@ import { createRecordingOriginPolicy } from '@jini-ai/core/contracts/server/test
 import { modelProxyRoutes, type ModelProxyHttpDeps as BoundModelProxyHttpDeps } from '../model-proxy.js';
 import { fakeProviderToolTurnPort } from '../../ports/__tests__/provider-http-ports.fake.js';
 import { runAnthropicToolTurn, runAzureToolTurn, runGoogleToolTurn, runOllamaToolTurn, runOpenAiToolTurn } from '@jini-ai/agent-runtime';
+import { createAnthropicProxyRegistration } from '@jini-ai/provider-plugins/model-proxy-anthropic';
+import { createAzureProxyRegistration } from '@jini-ai/provider-plugins/model-proxy-azure';
+import { createGoogleProxyRegistration } from '@jini-ai/provider-plugins/model-proxy-google';
+import { createOllamaProxyRegistration } from '@jini-ai/provider-plugins/model-proxy-ollama';
+import { createOpenAiProxyRegistration } from '@jini-ai/provider-plugins/model-proxy-openai';
 import { describeRoutes } from '../route-table.js';
 import { fakeDaemonRouteHost } from './fakes/route-host.js';
 import { serveRoutes } from './fakes/serve-routes.js';
 
 /** The real provider tool-turn runners, bound the way the host binds them (the transport is still faked through `fetchImpl`). */
 const toolTurns = { anthropic: runAnthropicToolTurn, openai: runOpenAiToolTurn, azure: runAzureToolTurn, google: runGoogleToolTurn, ollama: runOllamaToolTurn };
-/** What each test supplies: everything but the host-bound runners, which {@link proxyRoutes} adds. */
-type ModelProxyHttpDeps = Omit<BoundModelProxyHttpDeps, 'toolTurns'>;
-const proxyRoutes = ({ deps, host }: { readonly deps: ModelProxyHttpDeps; readonly host: Parameters<typeof modelProxyRoutes>[0]['host'] }) => modelProxyRoutes({ deps: { toolTurns, ...deps }, host });
+/** The five vendor registrations, assembled the way a host injects them. */
+const providers = [createAnthropicProxyRegistration(), createOpenAiProxyRegistration(), createAzureProxyRegistration(), createGoogleProxyRegistration(), createOllamaProxyRegistration()];
+/** What each test supplies: everything but the host-bound runners and registrations, which {@link proxyRoutes} adds. */
+type ModelProxyHttpDeps = Omit<BoundModelProxyHttpDeps, 'toolTurns' | 'providers'>;
+const proxyRoutes = ({ deps, host }: { readonly deps: ModelProxyHttpDeps; readonly host: Parameters<typeof modelProxyRoutes>[0]['host'] }) => modelProxyRoutes({ deps: { toolTurns, providers, ...deps }, host });
 
 // `@jini-ai/agent-runtime`'s provider adapters (anthropic-messages.ts, openai-chat.ts — azure-chat.ts
 // delegates to the latter — google-messages.ts, ollama-chat.ts) all call `pinnedFetch` from
@@ -345,114 +352,6 @@ describe('POST /api/proxy/anthropic/stream', () => {
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
-  it('streams SSE events end-to-end for a plain text response and auto-closes on the end event', async () => {
-    const fetchMock = vi.fn().mockResolvedValue(okResponse(sseBody(anthropicChunk('Hello there'))));
-    injectedFetch.mockImplementation(fetchMock);
-    const res = makeSseRes();
-    await handler()(makeReq(validAnthropicBody), res);
-
-    expect(res.statusCode).toBe(200);
-    expect(res.setHeader).toHaveBeenCalledWith('Content-Type', 'text/event-stream; charset=utf-8');
-    const events = writtenEvents(res);
-    expect(events).toContainEqual({ kind: 'text_delta', data: { type: 'text_delta', delta: 'Hello there' } });
-    expect(events.at(-1)).toEqual({ kind: 'end', data: { type: 'end', reason: 'stop' } });
-    expect(res.end).toHaveBeenCalledOnce();
-
-    const [{ url, init }] = fetchMock.mock.calls[0]!;
-    expect(url).toBe('https://api.anthropic.com/v1/messages');
-    const requestBody = JSON.parse(init.body);
-    expect(requestBody.max_tokens).toBe(256);
-    expect(requestBody.messages).toEqual([{ role: 'user', content: 'hi' }]);
-  });
-
-  it('forwards optional baseUrl/apiVersion/system/tools/temperature/maxToolTurns/extraHeaders to the turn-runner', async () => {
-    const fetchMock = vi.fn().mockResolvedValue(okResponse(sseBody(anthropicChunk('hi'))));
-    injectedFetch.mockImplementation(fetchMock);
-    const res = makeSseRes();
-    await handler()(
-      makeReq({
-        ...validAnthropicBody,
-        baseUrl: 'https://gateway.example.com',
-        apiVersion: '2099-01-01',
-        system: 'be terse',
-        tools: [{ name: 'get_weather', input_schema: { type: 'object', properties: {} } }],
-        temperature: 0.4,
-        maxToolTurns: 2,
-        extraHeaders: { 'X-Custom': 'yes' },
-      }),
-      res,
-    );
-    const [{ url, init }] = fetchMock.mock.calls[0]!;
-    expect(url).toBe('https://gateway.example.com/v1/messages');
-    expect(init.headers['anthropic-version']).toBe('2099-01-01');
-    expect(init.headers['X-Custom']).toBe('yes');
-    const body = JSON.parse(init.body);
-    expect(body.system).toBe('be terse');
-    expect(body.temperature).toBe(0.4);
-    expect(body.tools).toEqual([{ name: 'get_weather', input_schema: { type: 'object', properties: {} } }]);
-  });
-
-  it('invokes the injected anthropicExecuteTool for a tool_use round and completes the loop', async () => {
-    const fetchMock = vi
-      .fn()
-      .mockResolvedValueOnce(okResponse(sseBody(anthropicToolUseChunk('toolu_1', 'get_weather', { location: 'SF' }))))
-      .mockResolvedValueOnce(okResponse(sseBody(anthropicChunk('Sunny.'))));
-    injectedFetch.mockImplementation(fetchMock);
-    const anthropicExecuteTool = vi.fn().mockResolvedValue({ content: '72F' });
-    const res = makeSseRes();
-    await handler({ anthropicExecuteTool })(makeReq(validAnthropicBody), res);
-    expect(anthropicExecuteTool).toHaveBeenCalledWith({ id: 'toolu_1', name: 'get_weather', input: { location: 'SF' } });
-    expect(fetchMock).toHaveBeenCalledTimes(2);
-    const events = writtenEvents(res);
-    expect(events).toContainEqual({
-      kind: 'tool_result',
-      data: { type: 'tool_result', toolUseId: 'toolu_1', content: '72F', isError: false },
-    });
-    expect(events.at(-1)).toEqual({ kind: 'end', data: { type: 'end', reason: 'stop' } });
-  });
-
-  // Proves the full live route, not just the agent-runtime adapter in isolation: `parseCommon`
-  // never reshapes `messages`/tool-result content (see its own doc comment — provider wire-protocol
-  // shape is explicitly not this package's concern), and `writtenEvents` parses the *actual*
-  // `res.write` SSE bytes via `JSON.parse` rather than reading the in-memory event object, so this
-  // also proves `sse.ts`'s `JSON.stringify`-based wire format survives a nested image content block
-  // intact (no `String(...)` coercion anywhere on the way out — see `defaultFormatEvent`). This is
-  // the class of test MSG-2 asked for: it would have caught a silent-strip or a `[object Object]`
-  // stringification bug that a pure agent-runtime unit test (which only sees JS objects, never the
-  // JSON round trip) cannot.
-  it('round-trips an image-bearing tool result through the full live route: SSE-out and the continuation request body', async () => {
-    const fetchMock = vi
-      .fn()
-      .mockResolvedValueOnce(okResponse(sseBody(anthropicToolUseChunk('toolu_1', 'take_screenshot', {}))))
-      .mockResolvedValueOnce(okResponse(sseBody(anthropicChunk('looks right'))));
-    injectedFetch.mockImplementation(fetchMock);
-    const imageBlock = {
-      type: 'image',
-      source: { type: 'base64', media_type: 'image/png', data: 'iVBORw0KGgoAAAANSUhEUg==' },
-    };
-    const anthropicExecuteTool = vi.fn().mockResolvedValue({ content: [imageBlock] });
-    const res = makeSseRes();
-    await handler({ anthropicExecuteTool })(makeReq(validAnthropicBody), res);
-
-    // 1. The image survives out over the real SSE wire bytes (JSON.parse'd from res.write, not the
-    //    in-memory JS object) — proves `sse.ts` does not coerce `content` to a string.
-    const events = writtenEvents(res);
-    expect(events).toContainEqual({
-      kind: 'tool_result',
-      data: { type: 'tool_result', toolUseId: 'toolu_1', content: [imageBlock], isError: false },
-    });
-
-    // 2. The image survives into the second (continuation) request body sent to Anthropic — proves
-    //    `parseCommon`/the registry's `run` closure never reshapes tool-result content en route.
-    expect(fetchMock).toHaveBeenCalledTimes(2);
-    const secondRequestBody = JSON.parse(fetchMock.mock.calls[1]![0].init.body);
-    expect(secondRequestBody.messages[2].content[0]).toEqual({
-      type: 'tool_result',
-      tool_use_id: 'toolu_1',
-      content: [imageBlock],
-    });
-  });
-
   it('SEC-005: catches an executeTool exception, redacts it behind a correlation id, and still ends the stream exactly once', async () => {
     const fetchMock = vi.fn().mockResolvedValue(okResponse(sseBody(anthropicToolUseChunk('toolu_1', 'boom_tool', {}))));
     injectedFetch.mockImplementation(fetchMock);
@@ -566,67 +465,6 @@ describe('POST /api/proxy/openai/stream', () => {
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
-  it('streams SSE text_delta events and auto-closes on the end event', async () => {
-    const fetchMock = vi.fn().mockResolvedValue(okResponse(sseBody(openAiChunk('Hello'))));
-    injectedFetch.mockImplementation(fetchMock);
-    const res = makeSseRes();
-    await handler()(makeReq(validOpenAiBody), res);
-    const events = writtenEvents(res);
-    expect(events).toContainEqual({ kind: 'text_delta', data: { type: 'text_delta', delta: 'Hello' } });
-    expect(events.at(-1)).toEqual({ kind: 'end', data: { type: 'end', reason: 'stop' } });
-    expect(res.end).toHaveBeenCalledOnce();
-    const [{ url }] = fetchMock.mock.calls[0]!;
-    expect(url).toBe('https://api.openai.com/v1/chat/completions');
-  });
-
-  it('forwards optional baseUrl/tools/temperature/maxTokens/maxToolTurns/extraHeaders to the turn-runner', async () => {
-    const fetchMock = vi.fn().mockResolvedValue(okResponse(sseBody(openAiChunk('hi'))));
-    injectedFetch.mockImplementation(fetchMock);
-    const res = makeSseRes();
-    await handler()(
-      makeReq({
-        ...validOpenAiBody,
-        baseUrl: 'https://gateway.example.com',
-        tools: [{ type: 'function', function: { name: 'get_weather', parameters: { type: 'object', properties: {} } } }],
-        temperature: 0.7,
-        maxTokens: 512,
-        maxToolTurns: 3,
-        extraHeaders: { 'X-Custom': 'yes' },
-      }),
-      res,
-    );
-    const [{ url, init }] = fetchMock.mock.calls[0]!;
-    expect(url).toBe('https://gateway.example.com/v1/chat/completions');
-    expect(init.headers['X-Custom']).toBe('yes');
-    const body = JSON.parse(init.body);
-    expect(body.temperature).toBe(0.7);
-    // maxTokens is optional for OpenAI (the turn-runner defaults it to 8192) — this pins that an
-    // explicitly supplied value is actually forwarded rather than silently dropped by the route.
-    expect(body.max_tokens).toBe(512);
-    expect(body.tools).toEqual([{ type: 'function', function: { name: 'get_weather', parameters: { type: 'object', properties: {} } } }]);
-  });
-
-  it('invokes the injected openaiExecuteTool and never leaks a hardcoded product-identity header', async () => {
-    const firstChunk = { id: 'c1', choices: [{ index: 0, delta: { tool_calls: [{ index: 0, id: 'call_1', type: 'function', function: { name: 'get_weather', arguments: '{}' } }] }, finish_reason: null }] };
-    const finishFirst = { id: 'c1', choices: [{ index: 0, delta: {}, finish_reason: 'tool_calls' }] };
-    const fetchMock = vi
-      .fn()
-      .mockResolvedValueOnce(okResponse(sseBody(`data: ${JSON.stringify(firstChunk)}\n\n`, `data: ${JSON.stringify(finishFirst)}\n\n`, 'data: [DONE]\n\n')))
-      .mockResolvedValueOnce(okResponse(sseBody(openAiChunk('Sunny.'))));
-    injectedFetch.mockImplementation(fetchMock);
-    const openaiExecuteTool = vi.fn().mockResolvedValue({ content: '72F' });
-    const res = makeSseRes();
-    await handler({ openaiExecuteTool })(makeReq(validOpenAiBody), res);
-    expect(openaiExecuteTool).toHaveBeenCalledWith({ id: 'call_1', name: 'get_weather', input: {} });
-    const [{ init }] = fetchMock.mock.calls[0]!;
-    expect(init.headers['HTTP-Referer']).toBeUndefined();
-    expect(init.headers['X-Title']).toBeUndefined();
-    // No hardcoded product-identity string anywhere in the outbound headers — the confirmed OD
-    // leak's exact value, assembled at runtime (not spelled out as a literal) so this regression
-    // check itself never trips `scripts/check-engine-boundaries.ts`'s own R5-neutrality scan.
-    const productIdentityString = ['Open', 'Design'].join(' ');
-    expect(JSON.stringify(init.headers)).not.toContain(productIdentityString);
-  });
 });
 
 describe('POST /api/proxy/azure/stream', () => {
@@ -661,60 +499,6 @@ describe('POST /api/proxy/azure/stream', () => {
     expect(res.status).toHaveBeenCalledWith(400);
     expect(res.json.mock.calls[0]![0].error.message).toBe(message);
     expect(fetchMock).not.toHaveBeenCalled();
-  });
-
-  it('streams SSE events and builds the deployment-scoped Azure URL from baseUrl/model/apiVersion', async () => {
-    const fetchMock = vi.fn().mockResolvedValue(okResponse(sseBody(azureChunk('Hello from Azure'))));
-    injectedFetch.mockImplementation(fetchMock);
-    const res = makeSseRes();
-    await handler()(makeReq(validAzureBody), res);
-
-    const events = writtenEvents(res);
-    expect(events).toContainEqual({ kind: 'text_delta', data: { type: 'text_delta', delta: 'Hello from Azure' } });
-    expect(events.at(-1)).toEqual({ kind: 'end', data: { type: 'end', reason: 'stop' } });
-    expect(res.end).toHaveBeenCalledOnce();
-
-    const [{ url, init }] = fetchMock.mock.calls[0]!;
-    // `model` is the Azure *deployment* name, and apiVersion rides as a query param, not a header.
-    expect(url).toBe('http://127.0.0.1:8443/openai/deployments/my-deployment/chat/completions?api-version=2024-10-21');
-    expect(init.headers['api-key']).toBe('azure-test-key');
-  });
-
-  it('forwards optional tools/temperature/maxTokens/maxToolTurns/extraHeaders to the turn-runner', async () => {
-    const fetchMock = vi.fn().mockResolvedValue(okResponse(sseBody(azureChunk('hi'))));
-    injectedFetch.mockImplementation(fetchMock);
-    const res = makeSseRes();
-    await handler()(
-      makeReq({
-        ...validAzureBody,
-        tools: [{ type: 'function', function: { name: 'get_weather', parameters: { type: 'object', properties: {} } } }],
-        temperature: 0.2,
-        maxTokens: 128,
-        maxToolTurns: 4,
-        extraHeaders: { 'X-Custom': 'azure' },
-      }),
-      res,
-    );
-    const [{ init }] = fetchMock.mock.calls[0]!;
-    expect(init.headers['X-Custom']).toBe('azure');
-    const body = JSON.parse(init.body);
-    expect(body.temperature).toBe(0.2);
-    expect(body.max_tokens).toBe(128);
-    expect(body.tools).toHaveLength(1);
-  });
-
-  it('invokes the injected azureExecuteTool for a tool_calls round and completes the loop', async () => {
-    const fetchMock = vi
-      .fn()
-      .mockResolvedValueOnce(okResponse(sseBody(openAiToolCallChunk('call_az', 'get_weather', '{}'))))
-      .mockResolvedValueOnce(okResponse(sseBody(azureChunk('Sunny.'))));
-    injectedFetch.mockImplementation(fetchMock);
-    const azureExecuteTool = vi.fn().mockResolvedValue({ content: '72F' });
-    const res = makeSseRes();
-    await handler({ azureExecuteTool })(makeReq(validAzureBody), res);
-    expect(azureExecuteTool).toHaveBeenCalledWith({ id: 'call_az', name: 'get_weather', input: {} });
-    expect(fetchMock).toHaveBeenCalledTimes(2);
-    expect(writtenEvents(res).at(-1)).toEqual({ kind: 'end', data: { type: 'end', reason: 'stop' } });
   });
 
   it('SEC-005: redacts an executeTool exception behind a correlation id under the azure provider tag', async () => {
@@ -763,73 +547,6 @@ describe('POST /api/proxy/google/stream', () => {
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
-  it('streams SSE events and sends the uniform `messages` body field as Gemini `contents`', async () => {
-    const fetchMock = vi.fn().mockResolvedValue(okResponse(sseBody(googleChunk('Hello from Gemini'))));
-    injectedFetch.mockImplementation(fetchMock);
-    const res = makeSseRes();
-    await handler()(makeReq(validGoogleBody), res);
-
-    const events = writtenEvents(res);
-    expect(events).toContainEqual({ kind: 'text_delta', data: { type: 'text_delta', delta: 'Hello from Gemini' } });
-    expect(events.at(-1)).toEqual({ kind: 'end', data: { type: 'end', reason: 'stop' } });
-
-    const [{ url, init }] = fetchMock.mock.calls[0]!;
-    expect(url).toContain('/models/gemini-2.5-flash:streamGenerateContent');
-    expect(init.headers['x-goog-api-key']).toBe('goog-test');
-    // The HTTP JSON schema stays `messages` across all five providers; only Gemini's own turn-runner
-    // renames it to `contents` on the wire (see `parseGoogleProxyRequest`'s doc).
-    expect(JSON.parse(init.body).contents).toEqual([{ role: 'user', parts: [{ text: 'hi' }] }]);
-  });
-
-  it('forwards optional system/tools/temperature/maxOutputTokens/maxToolTurns/extraHeaders', async () => {
-    const fetchMock = vi.fn().mockResolvedValue(okResponse(sseBody(googleChunk('hi'))));
-    injectedFetch.mockImplementation(fetchMock);
-    const res = makeSseRes();
-    await handler()(
-      makeReq({
-        ...validGoogleBody,
-        system: 'be terse',
-        tools: [{ functionDeclarations: [{ name: 'get_weather', parameters: { type: 'object', properties: {} } }] }],
-        temperature: 0.9,
-        maxOutputTokens: 64,
-        maxToolTurns: 2,
-        extraHeaders: { 'X-Custom': 'gemini' },
-      }),
-      res,
-    );
-    const [{ init }] = fetchMock.mock.calls[0]!;
-    expect(init.headers['X-Custom']).toBe('gemini');
-    const body = JSON.parse(init.body);
-    expect(body.systemInstruction).toEqual({ parts: [{ text: 'be terse' }] });
-    expect(body.generationConfig.temperature).toBe(0.9);
-    expect(body.generationConfig.maxOutputTokens).toBe(64);
-    expect(body.tools).toHaveLength(1);
-  });
-
-  it('invokes the injected googleExecuteTool for a functionCall round and completes the loop', async () => {
-    const fetchMock = vi
-      .fn()
-      .mockResolvedValueOnce(okResponse(sseBody(googleFunctionCallChunk('get_weather', { location: 'SF' }))))
-      .mockResolvedValueOnce(okResponse(sseBody(googleChunk('Sunny.'))));
-    injectedFetch.mockImplementation(fetchMock);
-    const googleExecuteTool = vi.fn().mockResolvedValue({ content: '72F' });
-    const res = makeSseRes();
-    await handler({ googleExecuteTool })(makeReq(validGoogleBody), res);
-    expect(googleExecuteTool).toHaveBeenCalledWith(expect.objectContaining({ name: 'get_weather', input: { location: 'SF' } }));
-    expect(fetchMock).toHaveBeenCalledTimes(2);
-    expect(writtenEvents(res).at(-1)).toEqual({ kind: 'end', data: { type: 'end', reason: 'stop' } });
-  });
-
-  it('falls back to the public Gemini endpoint when baseUrl is omitted', async () => {
-    const fetchMock = vi.fn().mockResolvedValue(okResponse(sseBody(googleChunk('hi'))));
-    injectedFetch.mockImplementation(fetchMock);
-    const res = makeSseRes();
-    await handler()(makeReq({ apiKey: 'goog-test', model: 'gemini-2.5-flash', messages: [{ role: 'user', parts: [{ text: 'hi' }] }] }), res);
-    expect(fetchMock.mock.calls[0]![0].url).toBe(
-      'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:streamGenerateContent?alt=sse',
-    );
-  });
-
   it('SEC-005: redacts an executeTool exception behind a correlation id under the google provider tag', async () => {
     const fetchMock = vi.fn().mockResolvedValue(okResponse(sseBody(googleFunctionCallChunk('boom', {}))));
     injectedFetch.mockImplementation(fetchMock);
@@ -857,116 +574,6 @@ describe('POST /api/proxy/ollama/stream', () => {
     await handler()(makeReq(validOllamaBody), res);
     expect(res.status).toHaveBeenCalledWith(403);
     expect(fetchMock).not.toHaveBeenCalled();
-  });
-
-  // apiKey is required for Ollama too — an earlier version of this module made it optional on a
-  // "local install needs no auth" rationale that did not match the real upstream behavior, whose
-  // default target is Ollama Cloud (see `model-proxy.ts`'s BYOK module-doc section).
-  it('rejects a missing apiKey with 400, exactly like the other four providers', async () => {
-    const fetchMock = vi.fn();
-    injectedFetch.mockImplementation(fetchMock);
-    const res = makeSseRes();
-    await handler()(makeReq({ ...validOllamaBody, apiKey: undefined }), res);
-    expect(res.status).toHaveBeenCalledWith(400);
-    expect(res.json.mock.calls[0]![0].error.message).toBe('apiKey must be a non-empty string');
-    expect(fetchMock).not.toHaveBeenCalled();
-  });
-
-  it('rejects a non-array tools with 400', async () => {
-    const fetchMock = vi.fn();
-    injectedFetch.mockImplementation(fetchMock);
-    const res = makeSseRes();
-    await handler()(makeReq({ ...validOllamaBody, tools: 'nope' }), res);
-    expect(res.status).toHaveBeenCalledWith(400);
-    expect(res.json.mock.calls[0]![0].error.message).toBe('tools must be an array when provided');
-  });
-
-  it('streams NDJSON-sourced SSE events against the native /api/chat endpoint', async () => {
-    const fetchMock = vi
-      .fn()
-      .mockResolvedValue(okResponse(ollamaBody(ollamaTextLine('Hello from Ollama'), ollamaDoneLine())));
-    injectedFetch.mockImplementation(fetchMock);
-    const res = makeSseRes();
-    await handler()(makeReq(validOllamaBody), res);
-
-    const events = writtenEvents(res);
-    expect(events).toContainEqual({ kind: 'text_delta', data: { type: 'text_delta', delta: 'Hello from Ollama' } });
-    expect(events.at(-1)).toEqual({ kind: 'end', data: { type: 'end', reason: 'stop' } });
-
-    const [{ url, init }] = fetchMock.mock.calls[0]!;
-    expect(url).toBe('http://127.0.0.1:11434/api/chat');
-    expect(init.headers.authorization).toBe('Bearer sk-ollama-cloud');
-  });
-
-  it('forwards optional tools/temperature/maxTokens/maxToolTurns/extraHeaders to the turn-runner', async () => {
-    const fetchMock = vi.fn().mockResolvedValue(okResponse(ollamaBody(ollamaDoneLine())));
-    injectedFetch.mockImplementation(fetchMock);
-    const res = makeSseRes();
-    await handler()(
-      makeReq({
-        ...validOllamaBody,
-        tools: [{ type: 'function', function: { name: 'get_weather', parameters: { type: 'object', properties: {} } } }],
-        temperature: 0.1,
-        maxTokens: 256,
-        maxToolTurns: 5,
-        extraHeaders: { 'X-Custom': 'ollama' },
-      }),
-      res,
-    );
-    const [{ init }] = fetchMock.mock.calls[0]!;
-    expect(init.headers['X-Custom']).toBe('ollama');
-    const body = JSON.parse(init.body);
-    expect(body.options.temperature).toBe(0.1);
-    expect(body.tools).toHaveLength(1);
-  });
-
-  it('invokes the injected ollamaExecuteTool for a tool_calls round and completes the loop', async () => {
-    const fetchMock = vi
-      .fn()
-      .mockResolvedValueOnce(okResponse(ollamaBody(ollamaToolCallLine('get_weather', { location: 'SF' }))))
-      .mockResolvedValueOnce(okResponse(ollamaBody(ollamaTextLine('Sunny.'), ollamaDoneLine())));
-    injectedFetch.mockImplementation(fetchMock);
-    const ollamaExecuteTool = vi.fn().mockResolvedValue({ content: '72F' });
-    const res = makeSseRes();
-    await handler({ ollamaExecuteTool })(makeReq(validOllamaBody), res);
-    expect(ollamaExecuteTool).toHaveBeenCalledWith(expect.objectContaining({ name: 'get_weather', input: { location: 'SF' } }));
-    expect(fetchMock).toHaveBeenCalledTimes(2);
-    expect(writtenEvents(res).at(-1)).toEqual({ kind: 'end', data: { type: 'end', reason: 'stop' } });
-  });
-
-  // Ollama Cloud, not a local install — the corrected default (see module doc's BYOK section).
-  // Same class of test as the Anthropic one above (MSG-2): reads the actual `res.write` SSE bytes
-  // via `writtenEvents`'s `JSON.parse`, and asserts the bare-base64 image survives into the real
-  // continuation request body — proving the live route, not just the adapter in isolation. Ollama's
-  // `parseCommon`/registry wiring is identical to every other provider's (see model-proxy.ts's own
-  // doc — the ignorance of `messages` contents is uniform across all five providers, not
-  // Anthropic-specific), so this closes the same gap MSG-2 investigated for the fifth provider.
-  it('round-trips a bare-base64 image-bearing tool result through the full live route', async () => {
-    const fetchMock = vi
-      .fn()
-      .mockResolvedValueOnce(okResponse(ollamaBody(ollamaToolCallLine('take_screenshot', {}), ollamaDoneLine())))
-      .mockResolvedValueOnce(okResponse(ollamaBody(ollamaTextLine('looks right'), ollamaDoneLine())));
-    injectedFetch.mockImplementation(fetchMock);
-    const ollamaExecuteTool = vi.fn().mockResolvedValue({ content: 'here is the screenshot', images: ['iVBORw0KGgoAAAANSUhEUg=='] });
-    const res = makeSseRes();
-    await handler({ ollamaExecuteTool })(makeReq(validOllamaBody), res);
-
-    const events = writtenEvents(res);
-    const toolResultEvent = events.find((e) => e.kind === 'tool_result')!;
-    expect((toolResultEvent.data as { images?: string[] }).images).toEqual(['iVBORw0KGgoAAAANSUhEUg==']);
-
-    expect(fetchMock).toHaveBeenCalledTimes(2);
-    const secondRequestBody = JSON.parse(fetchMock.mock.calls[1]![0].init.body);
-    const toolMessage = secondRequestBody.messages.find((m: { role: string }) => m.role === 'tool');
-    expect(toolMessage.images).toEqual(['iVBORw0KGgoAAAANSUhEUg==']);
-  });
-
-  it('falls back to https://ollama.com/api/chat when baseUrl is omitted', async () => {
-    const fetchMock = vi.fn().mockResolvedValue(okResponse(ollamaBody(ollamaDoneLine())));
-    injectedFetch.mockImplementation(fetchMock);
-    const res = makeSseRes();
-    await handler()(makeReq({ apiKey: 'sk-ollama-cloud', model: 'llama3', messages: [{ role: 'user', content: 'hi' }] }), res);
-    expect(fetchMock.mock.calls[0]![0].url).toBe('https://ollama.com/api/chat');
   });
 
   it('SEC-005: redacts an executeTool exception behind a correlation id under the ollama provider tag', async () => {
@@ -1574,10 +1181,145 @@ describe('model-proxy pins — azure required fields', () => {
 describe('modelProxyRoutes — host-bound tool-turn runners', () => {
   it('dispatches each fixed route to the injected runner and relays its events', async () => {
     const port = fakeProviderToolTurnPort({ events: [{ type: 'text_delta', delta: 'from-port' }, { type: 'end', reason: 'stop' }] });
-    const fetch = serveRoutes({ routes: modelProxyRoutes({ deps: { toolTurns: port }, host: proxyHost() }) });
+    const fetch = serveRoutes({ routes: modelProxyRoutes({ deps: { toolTurns: port, providers }, host: proxyHost() }) });
     const response = await fetch(new Request('http://local/api/proxy/openai/stream', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ apiKey: 'k', model: 'm', messages: [{ role: 'user', content: 'hi' }] }) }));
     expect(await response.text()).toContain('from-port');
     expect(port.calls.map((call) => call.member)).toEqual(['openai']);
     expect(port.calls[0]!.required).toMatchObject({ apiKey: 'k', model: 'm', messages: [{ role: 'user', content: 'hi' }] });
+  });
+});
+
+/**
+ * K06 pin: which provider answers a request, what an unsupported provider gets, how a bad request is
+ * answered before any stream exists, and how a provider failure reaches the client. Two assembled
+ * providers with different capabilities (one streams text, one fails upstream) are used so a daemon that
+ * answered from a built-in provider list instead of the assembled one would be caught.
+ */
+describe('model proxy provider selection and projection', () => {
+  const anthropicBody = { apiKey: 'k', model: 'm', maxTokens: 10, messages: [{ role: 'user', content: 'hi' }] };
+  const openaiBody = { apiKey: 'k', model: 'm', messages: [{ role: 'user', content: 'hi' }] };
+
+  function twoProviderPort() {
+    const streaming = fakeProviderToolTurnPort({ events: [{ type: 'text', text: 'streamed-by-anthropic' }, { type: 'end', reason: 'stop' }] });
+    const calls = streaming.calls;
+    return {
+      calls,
+      port: {
+        ...streaming,
+        openai: async (_required: unknown): Promise<never> => { throw new Error('openai upstream blew up api_key=SECRETSECRETSECRETSECRET'); },
+      },
+    };
+  }
+
+  async function post({ routes, path, body, params }: { readonly routes: ReturnType<typeof modelProxyRoutes>; readonly path: string; readonly body: unknown; readonly params?: Record<string, string> }) {
+    const route = routes.find((candidate) => candidate.path === path)!;
+    const request = new Request(`http://local${path.replace(':provider', params?.provider ?? '')}`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) });
+    return route.handler({ request, params: params ?? {}, locals: {} });
+  }
+
+  it('answers each provider path from that provider only, with the runner events as the stream', async () => {
+    const { port, calls } = twoProviderPort();
+    const routes = modelProxyRoutes({ deps: { toolTurns: port, providers }, host: proxyHost() });
+    const response = await post({ routes, path: '/api/proxy/anthropic/stream', body: anthropicBody });
+    const text = await response.text();
+    expect(response.headers.get('content-type')).toContain('text/event-stream');
+    expect(text).toContain('streamed-by-anthropic');
+    expect(calls.map((call) => call.member)).toEqual(['anthropic']);
+  });
+
+  it('answers an unsupported provider on the catch-all with a 400 and never calls a runner', async () => {
+    const { port, calls } = twoProviderPort();
+    const routes = modelProxyRoutes({ deps: { toolTurns: port, providers }, host: proxyHost() });
+    for (const provider of ['cohere', 'constructor']) {
+      const response = await post({ routes, path: '/api/proxy/:provider/stream', body: anthropicBody, params: { provider } });
+      expect(response.status).toBe(400);
+      expect(await response.json()).toMatchObject({ error: { code: 'BAD_REQUEST', message: `unknown provider: ${provider}` } });
+    }
+    expect(calls).toEqual([]);
+  });
+
+  it('answers a malformed request as a plain JSON 400 before any stream, per provider rules', async () => {
+    const { port, calls } = twoProviderPort();
+    const routes = modelProxyRoutes({ deps: { toolTurns: port, providers }, host: proxyHost() });
+    const noKey = await post({ routes, path: '/api/proxy/openai/stream', body: { model: 'm', messages: [{}] } });
+    const noMaxTokens = await post({ routes, path: '/api/proxy/anthropic/stream', body: { apiKey: 'k', model: 'm', messages: [{}] } });
+    for (const response of [noKey, noMaxTokens]) {
+      expect(response.status).toBe(400);
+      expect(response.headers.get('content-type')).toContain('application/json');
+    }
+    expect(await noKey.json()).toMatchObject({ error: { details: { issues: [{ path: 'apiKey' }] } } });
+    expect(await noMaxTokens.json()).toMatchObject({ error: { details: { issues: [{ path: 'maxTokens' }] } } });
+    expect(calls).toEqual([]);
+  });
+
+  it('forwards only the optional fields a request carried', async () => {
+    const { port, calls } = twoProviderPort();
+    const routes = modelProxyRoutes({ deps: { toolTurns: port, providers }, host: proxyHost() });
+    await (await post({ routes, path: '/api/proxy/anthropic/stream', body: { ...anthropicBody, system: 'be brief' } })).text();
+    expect(calls[0]!.optional).toEqual({ system: 'be brief' });
+  });
+
+  it('projects an upstream failure to fixed words plus a request id, keeping the real error for the host sink', async () => {
+    const { port } = twoProviderPort();
+    const host = proxyHost();
+    const routes = modelProxyRoutes({ deps: { toolTurns: port, providers }, host });
+    const text = await (await post({ routes, path: '/api/proxy/openai/stream', body: openaiBody })).text();
+    expect(text).not.toContain('SECRETSECRET');
+    expect(text).toContain('The assistant response stopped.');
+    expect(text).toContain('"reason":"error"');
+    expect(host.reports).toHaveLength(1);
+    expect(host.reports[0]).toMatchObject({ logSource: 'model-proxy/openai' });
+    expect(host.reports[0]!.report.error).toMatchObject({ message: expect.stringContaining('api_key=SECRET') });
+  });
+});
+
+/** K06 pin: the daemon serves exactly the registrations it was given, so two fixtures with ids no vendor list knows must be reachable. */
+describe('model proxy injected provider registrations', () => {
+  const body = JSON.stringify({ any: 'thing' });
+  const fixture = ({ id, text, accepts }: { readonly id: string; readonly text: string; readonly accepts: boolean }) => ({
+    id,
+    parse: (raw: unknown) => (accepts ? { ok: true as const, value: raw } : { ok: false as const, error: { code: 'BAD_REQUEST', message: `${id} refuses this body` } as never }),
+    run: async (_parsed: unknown, { onEvent, shared }: Parameters<BoundModelProxyHttpDeps['providers'][number]['run']>[1]) => {
+      onEvent({ type: 'text', text } as never);
+      if (shared.executeTool) onEvent({ type: 'tool-result', result: await shared.executeTool('call-1') } as never);
+      onEvent({ type: 'end' });
+    },
+  });
+  const alpha = fixture({ id: 'alpha', text: 'from-alpha', accepts: true });
+  const beta = fixture({ id: 'beta', text: 'from-beta', accepts: false });
+  const routesFor = (extra: Record<string, unknown> = {}) =>
+    modelProxyRoutes({ deps: { toolTurns: fakeProviderToolTurnPort(), providers: [alpha, beta], ...extra } as never, host: proxyHost() });
+  const call = (routes: ReturnType<typeof routesFor>, path: string, params?: Record<string, string>) =>
+    routes.find((route) => route.path === path)!.handler({ request: new Request(`http://local${path.replace(':provider', params?.provider ?? '')}`, { method: 'POST', headers: { 'content-type': 'application/json' }, body }), params: params ?? {}, locals: {} });
+
+  it('mounts one fixed route per injected registration plus the catch-all, and no vendor route', () => {
+    expect(routesFor().map((route) => route.path)).toEqual(['/api/proxy/alpha/stream', '/api/proxy/beta/stream', '/api/proxy/:provider/stream']);
+  });
+
+  it('selects the registration by id, on the fixed route and on the catch-all', async () => {
+    const routes = routesFor();
+    expect(await (await call(routes, '/api/proxy/alpha/stream')).text()).toContain('from-alpha');
+    expect(await (await call(routes, '/api/proxy/:provider/stream', { provider: 'alpha' })).text()).toContain('from-alpha');
+  });
+
+  it('applies the selected registration\'s own parser, so a refusing provider answers a 400 and never runs', async () => {
+    const response = await call(routesFor(), '/api/proxy/beta/stream');
+    expect(response.status).toBe(400);
+    expect(await response.json()).toMatchObject({ error: { message: 'beta refuses this body' } });
+  });
+
+  it('answers a provider that was not injected as unknown, even a vendor name', async () => {
+    const response = await call(routesFor(), '/api/proxy/:provider/stream', { provider: 'anthropic' });
+    expect(response.status).toBe(400);
+    expect(await response.json()).toMatchObject({ error: { message: 'unknown provider: anthropic' } });
+  });
+
+  it('hands the registration the host executor named <id>ExecuteTool', async () => {
+    const text = await (await call(routesFor({ alphaExecuteTool: async (callId: unknown) => `ran:${String(callId)}` }), '/api/proxy/alpha/stream')).text();
+    expect(text).toContain('ran:call-1');
+  });
+
+  it('refuses two registrations with one id rather than silently shadowing one', () => {
+    expect(() => modelProxyRoutes({ deps: { toolTurns: fakeProviderToolTurnPort(), providers: [alpha, alpha] }, host: proxyHost() })).toThrow(/duplicate provider registration "alpha"/);
   });
 });

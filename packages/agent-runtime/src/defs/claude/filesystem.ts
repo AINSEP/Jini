@@ -1,8 +1,16 @@
 import { promises as fs } from 'node:fs';
-import type { AgentRuntimePort } from '../../ports/agent-runtime.js';
-import type { MutableRunInput } from '../launch.js';
+import type { RuntimeBuildOptions } from '@jini-ai/core/contracts/agents';
 
-async function prepareClaudeRuntimeTemp({ input, spawnEnv, runtimeTemps }: { input: MutableRunInput; spawnEnv: NodeJS.ProcessEnv; runtimeTemps: string[] }): Promise<void> {
+/** The launcher's mutable run input, as far as this policy touches it. */
+export type ClaudeFilesystemRunInput = RuntimeBuildOptions & { filesystemRuntimeReadPaths?: readonly string[]; filesystemRuntimeTempBase?: string };
+
+/** The runtime port's filesystem policy members the supported branch reads. */
+export interface ClaudeFilesystemPolicy {
+  runtimePaths(required: { launchPath: string }): readonly string[];
+  settings(required: { options: RuntimeBuildOptions }): string;
+}
+
+async function prepareClaudeRuntimeTemp({ input, spawnEnv, runtimeTemps }: { input: ClaudeFilesystemRunInput; spawnEnv: NodeJS.ProcessEnv; runtimeTemps: string[] }): Promise<void> {
   // Read denies also block create/unlink, so Claude's cwd files cannot live under /tmp.
   // /var/tmp exists on macOS/Linux; its realpath plus /claude-<uid> must fit 44 bytes
   // or the policy refuses launch instead of letting Bash fall back to shared scratch.
@@ -14,15 +22,15 @@ async function prepareClaudeRuntimeTemp({ input, spawnEnv, runtimeTemps }: { inp
 }
 
 export const claudeFilesystemAdapter = {
-  prepare({ input, spawnEnv, runtimeTemps }: { input: MutableRunInput; spawnEnv: NodeJS.ProcessEnv; runtimeTemps: string[] }): Promise<void> | void {
+  prepare({ input, spawnEnv, runtimeTemps }: { input: ClaudeFilesystemRunInput; spawnEnv: NodeJS.ProcessEnv; runtimeTemps: string[] }): Promise<void> | void {
     if (process.platform === 'win32') return;
     return prepareClaudeRuntimeTemp({ input, spawnEnv, runtimeTemps });
   },
-  unsupported({ input }: { input: MutableRunInput }): void {
+  unsupported({ input }: { input: ClaudeFilesystemRunInput }): void {
     // Personal Claude hooks/permissions stay excluded even on an unconfined CLI fallback.
     input.settingSources = [];
   },
-  supported({ input, launchPath, spawnEnv }: { input: MutableRunInput; launchPath: string; spawnEnv: NodeJS.ProcessEnv }, { filesystem }: { filesystem: Pick<AgentRuntimePort['filesystem'], 'runtimePaths' | 'settings'> }): void {
+  supported({ input, launchPath, spawnEnv }: { input: ClaudeFilesystemRunInput; launchPath: string; spawnEnv: NodeJS.ProcessEnv }, { filesystem }: { filesystem: ClaudeFilesystemPolicy }): void {
     input.filesystemRuntimeReadPaths = filesystem.runtimePaths({ launchPath });
     // Validates host settings here so a malformed value fails cleanly; buildArgs merges again (idempotent).
     input.settings = filesystem.settings({ options: input });

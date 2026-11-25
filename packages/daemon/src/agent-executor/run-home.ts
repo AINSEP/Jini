@@ -27,16 +27,25 @@ export async function prepareRunHomeIfNeeded({ input, deps }: { readonly input: 
 ): Promise<PreparedRunHome | null> {
   const { mcpHome, mcpJsonInjection } = deps;
   if (mcpHome === undefined) return null;
-  const entry = input.httpEndpoint ?? (input.mcpBridge?.kind === 'codex-toml' ? input.mcpBridge.serverEntry : undefined);
-  if (entry === undefined || mcpJsonInjection === undefined) {
-    if (mcpHome.turnsOffPersonalConfig(input)) {
-      await deps.releaseStagedResources();
-      return deps.failBeforeSpawn({ runId: input.runId, code: 'NATIVE_TOOL_POLICY_UNSUPPORTED',
-        message: 'AgentExecutor: disabling personal Codex configuration requires run-scoped home staging.' });
-    }
-    return null;
-  }
-  let staged: Awaited<ReturnType<NonNullable<AgentRuntimeStrategies['mcpHome']>['stage']>>;
+  const entry = input.httpEndpoint ?? (input.mcpBridge?.kind === mcpHome.deliveryKind ? input.mcpBridge.serverEntry : undefined);
+  if (entry === undefined || mcpJsonInjection === undefined) return refuseUnstageableOrSkip({ input, mcpHome, deps });
+  return stageRunHome({ input, entry, mcpHome, mcpJsonInjection, deps });
+}
+
+type HomeDeps = { readonly hostEnv: NodeJS.ProcessEnv; readonly releaseStagedResources: () => Promise<void>; readonly failBeforeSpawn: FailBeforeSpawn };
+type HomeSlot = NonNullable<AgentRuntimeStrategies['mcpHome']>;
+
+/** With nothing to stage, only a run that turns off personal config must refuse: that isolation exists solely in a staged home. */
+async function refuseUnstageableOrSkip({ input, mcpHome, deps }: { input: { readonly runId: string; readonly nativeCapabilities?: Partial<NativeCapabilities> }; mcpHome: HomeSlot; deps: HomeDeps }, _optional: Record<string, never> = {}): Promise<null> {
+  if (!mcpHome.turnsOffPersonalConfig(input)) return null;
+  await deps.releaseStagedResources();
+  return deps.failBeforeSpawn({ runId: input.runId, code: 'NATIVE_TOOL_POLICY_UNSUPPORTED',
+    message: `AgentExecutor: disabling personal configuration requires run-scoped ${mcpHome.envVar} staging.` });
+}
+
+/** Stages through the slot; a rejection or a refusal releases every earlier staged resource before the run fails. */
+async function stageRunHome({ input, entry, mcpHome, mcpJsonInjection, deps }: { input: { readonly runId: string; readonly nativeToolAccess?: boolean | undefined; readonly nativeCapabilities?: Partial<NativeCapabilities>; readonly def: RuntimeAgentDef }; entry: Parameters<HomeSlot['stage']>[0]['entry']; mcpHome: HomeSlot; mcpJsonInjection: McpJsonInjectionOptions; deps: HomeDeps }, _optional: Record<string, never> = {}): Promise<PreparedRunHome | null> {
+  let staged: Awaited<ReturnType<HomeSlot['stage']>>;
   try {
     staged = await mcpHome.stage({
       runId: input.runId, entry, nativeToolAccess: input.nativeToolAccess, nativeCapabilities: input.nativeCapabilities,

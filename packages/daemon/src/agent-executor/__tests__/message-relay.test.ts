@@ -1,16 +1,16 @@
+import { boundMcpConfigFile, boundMcpHome } from './runtime-fixture.js';
 import { fakeRuntimePorts } from '../../ports/__tests__/fakes/runtime.js';
 import { expect, it } from 'vitest';
 import type { RunAgentPayload } from '@jini-ai/protocol';
 import { createMessageRelay } from '../message-relay.js';
 import { getAgentDef } from '@jini-ai/agent-runtime';
 import { resolveMcpBridgeForRun } from '../mcp-bridge.js';
-import { boundMcpHome } from './runtime-fixture.js';
 
 it('spawn_gate_uses_fresh_nonces_only_for_mcp_relay_engines', async () => {
   const options = { command: 'node', daemonUrl: 'http://daemon', env: { JINI_MESSAGE_RELAY: '1', JINI_MESSAGE_RELAY_NONCE: 'forged' } };
   const resolve = async (agentId: string, runId: string) => resolveMcpBridgeForRun({
     input: { runId, cwd: '/work', def: getAgentDef({ id: agentId })! },
-    deps: { mcpJsonInjection: options, ...fakeRuntimePorts(), ...boundMcpHome(getAgentDef({ id: agentId })!), cleanupStagedFiles: async () => {}, failBeforeSpawn: async ({ message }) => { throw new Error(message); } },
+    deps: { ...boundMcpConfigFile(), mcpJsonInjection: options, ...fakeRuntimePorts(), ...boundMcpHome(getAgentDef({ id: agentId })!), cleanupStagedFiles: async () => {}, failBeforeSpawn: async ({ message }) => { throw new Error(message); } },
   });
   const native = await resolve('claude', 'native');
   expect(native?.kind).toBe('claude-mcp-json');

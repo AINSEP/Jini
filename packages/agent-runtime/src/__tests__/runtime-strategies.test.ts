@@ -2,6 +2,8 @@ import { describe, expect, it } from 'vitest';
 import type { RuntimeAgentDef } from '@jini-ai/core/contracts/agents';
 import { opencodeAgentDef } from '../defs/opencode/index.js';
 import { opencodeAcpAgentDef } from '../defs/opencode-acp.js';
+import { claudeAgentDef } from '../defs/claude/index.js';
+import { codebuddyAgentDef } from '../defs/codebuddy/index.js';
 import { mimoAgentDef } from '../defs/mimo/index.js';
 import { createNativeAgentRuntime } from '../native-runtime.js';
 import { createAgentRuntimeBindings } from '../runtime-port-bindings.js';
@@ -38,8 +40,9 @@ describe('tool-call receipts bound by dialect', () => {
   });
 
   it('binds nothing for a dialect with no receipt or a def that declares none', () => {
-    expect(forDialect('codex')).toEqual({});
-    expect(ports().strategies.for({ def: {} as RuntimeAgentDef })).toEqual({});
+    // Only the shared folder-limit policy is bound for every def; no receipt, delivery, bridge or staging slot appears.
+    expect(forDialect('codex')).toEqual({ filesystem: { supported: expect.any(Function) } });
+    expect(ports().strategies.for({ def: {} as RuntimeAgentDef })).toEqual({ filesystem: { supported: expect.any(Function) } });
   });
 });
 
@@ -52,12 +55,34 @@ describe('bound plans keep the same config and executable env keys the daemon us
     expect(var_({ externalMcpInjection: 'acp-merge' } as RuntimeAgentDef)).toBeUndefined();
   });
 
-  it('and still supplies the Vela executable override and the Codex home name beside the runtime state names', () => {
-    expect(ports().launch.hostEnvNames()).toEqual(['AGENT_RUNTIME_HOME', 'AGENT_RUNTIME_RESOURCE_ROOT', 'VELA_OPENCODE_BIN', 'CODEX_HOME']);
+  it('and still supplies the Vela executable override, the Claude config dir name and the Codex home name beside the runtime state names', () => {
+    expect(ports().launch.hostEnvNames()).toEqual(['AGENT_RUNTIME_HOME', 'AGENT_RUNTIME_RESOURCE_ROOT', 'VELA_OPENCODE_BIN', 'CLAUDE_CONFIG_DIR', 'CODEX_HOME']);
   });
 
   it('gives OpenCode and MiMo the receipt their shared dialect declares, bound from the def', () => {
     expect(mimoAgentDef.eventParser).toBe(opencodeAgentDef.eventParser);
     expect(ports().strategies.for({ def: mimoAgentDef }).toolCallReceipt).toBe(ports().strategies.for({ def: opencodeAgentDef }).toolCallReceipt);
+  });
+});
+
+describe('claude staging slots bound by definition', () => {
+  const slots = (def: RuntimeAgentDef) => ports().strategies.for({ def });
+
+  it('binds the config dir, subagent-start and filesystem extras to claude alone', () => {
+    const claude = slots(claudeAgentDef);
+    expect(claude.configDir?.envKey).toBe('CLAUDE_CONFIG_DIR');
+    expect(claude.subagentStart).toBeDefined();
+    expect(claude.filesystem?.prepare).toBeDefined();
+    expect(claude.filesystem?.unsupported).toBeDefined();
+    const buddy = slots(codebuddyAgentDef);
+    expect(buddy.configDir).toBeUndefined();
+    expect(buddy.subagentStart).toBeUndefined();
+    expect(buddy.filesystem?.prepare).toBeUndefined();
+  });
+
+  it('shares the claude-mcp-json config-file slot with every def declaring that strategy', () => {
+    expect(slots(claudeAgentDef).mcpConfigFile).toBeDefined();
+    expect(slots(codebuddyAgentDef).mcpConfigFile).toBe(slots(claudeAgentDef).mcpConfigFile);
+    expect(slots({ externalMcpInjection: 'acp-merge' } as RuntimeAgentDef).mcpConfigFile).toBeUndefined();
   });
 });

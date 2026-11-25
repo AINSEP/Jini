@@ -49,7 +49,8 @@ function defaultRemoveCodexHomeDir({ path }: { readonly path: string }): Promise
   return fsPromises.rm(path, { recursive: true, force: true });
 }
 
-/** The `'codex-toml'` mechanism's injectable filesystem seams, real by default — see the host's `RunHomeSeams` (`mkdtemp`/`removeDir`/`linkSessionStore`) docs. */
+/** The `'codex-toml'` mechanism's injectable filesystem seams, real by default — see {@link McpJsonInjectionOptions}'s `mkdtemp`/`removeDir`/`readFile`/`writeFile` docs.
+ * Here those docs live on the host's `RunHomeSeams` (`mkdtemp`/`removeDir`/`linkSessionStore`). */
 interface CodexHomeSeams extends CodexHomeIo {
   readonly mkdtemp: NonNullable<CodexHomeIo['mkdtemp']>;
   readonly removeDir: NonNullable<CodexHomeIo['removeDir']>;

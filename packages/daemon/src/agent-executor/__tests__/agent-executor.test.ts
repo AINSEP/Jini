@@ -50,11 +50,7 @@ import {
   createAgentExecutor,
   isAgentExecutorSupported,
   isSupportedStreamFormat,
-  mergeEnvContentInstructions,
-  mergeEnvContentMcpConfig,
-  mergeMcpJsonContent,
   prepareSystemPromptOverlayFileIfNeeded,
-  resolveSourceClaudeConfigDir,
   resolveSystemPromptOverlayDelivery,
   translateAgentRuntimeEvent,
   type AgentExecutor,
@@ -67,7 +63,7 @@ import {
   type McpBridgeProbeResult,
   type McpBridgeProbe,
 } from '../../index.js';
-import { runtimeFixture, agentRuntimeFixture, boundMcpDelivery, boundMcpHome } from './runtime-fixture.js';
+import { runtimeFixture, agentRuntimeFixture, boundEnvContent, boundInstructionsDocument, boundMcpDelivery, boundMcpConfigFile, boundMcpHome } from './runtime-fixture.js';
 
 // Fake defs take no stream-json stdin, so every bridged run also carries the mid-run message
 // relay (f40db242) with a fresh per-run nonce.
@@ -4729,48 +4725,6 @@ describe('buildMcpJsonServerEntry', () => {
   });
 });
 
-describe('mergeMcpJsonContent', () => {
-  const entry = { command: 'jini-mcp', args: [], env: { JINI_RUN_ID: 'run-1', JINI_DAEMON_URL: 'http://d' } };
-
-  it('produces a fresh document when no existing content is given', () => {
-    expect(JSON.parse(mergeMcpJsonContent({ existingRaw: undefined, serverEntry: entry }))).toEqual({ mcpServers: { jini: entry } });
-  });
-
-  it('preserves unrelated top-level keys and other registered servers', () => {
-    const existing = JSON.stringify({ someOtherKey: true, mcpServers: { other: { command: 'other-bin', args: [], env: {} } } });
-    const merged = JSON.parse(mergeMcpJsonContent({ existingRaw: existing, serverEntry: entry }));
-    expect(merged).toEqual({
-      someOtherKey: true,
-      mcpServers: { other: { command: 'other-bin', args: [], env: {} }, jini: entry },
-    });
-  });
-
-  it('overwrites a pre-existing "jini" entry rather than merging into it', () => {
-    const existing = JSON.stringify({ mcpServers: { jini: { command: 'stale', args: ['--old'], env: {} } } });
-    const merged = JSON.parse(mergeMcpJsonContent({ existingRaw: existing, serverEntry: entry }));
-    expect(merged.mcpServers.jini).toEqual(entry);
-  });
-
-  it('starts fresh when the existing content is not valid JSON', () => {
-    expect(JSON.parse(mergeMcpJsonContent({ existingRaw: '{not json', serverEntry: entry }))).toEqual({ mcpServers: { jini: entry } });
-  });
-
-  it('starts fresh when the existing content parses to a JSON array, not an object', () => {
-    expect(JSON.parse(mergeMcpJsonContent({ existingRaw: '[1,2,3]', serverEntry: entry }))).toEqual({ mcpServers: { jini: entry } });
-  });
-
-  it('starts fresh when the existing document has a non-object "mcpServers" field', () => {
-    const existing = JSON.stringify({ mcpServers: 'not-an-object' });
-    expect(JSON.parse(mergeMcpJsonContent({ existingRaw: existing, serverEntry: entry }))).toEqual({ mcpServers: { jini: entry } });
-  });
-
-  it('emits pretty-printed JSON terminated by a trailing newline', () => {
-    const content = mergeMcpJsonContent({ existingRaw: undefined, serverEntry: entry });
-    expect(content.endsWith('\n')).toBe(true);
-    expect(content).toContain('\n  "mcpServers"');
-  });
-});
-
 describe('AgentExecutor — gap 3 part 2 spawn-time .mcp.json injection (CreateAgentExecutorOptions.mcpJsonInjection)', () => {
   function createMcpFsSpies(existing: string | undefined = undefined): {
     mcpJsonInjection: McpJsonInjectionOptions;
@@ -5207,70 +5161,6 @@ describe('buildAcpMcpBridgeServers', () => {
   });
 });
 
-describe('mergeEnvContentMcpConfig', () => {
-  const entry = { command: 'jini-mcp', args: ['--quiet'], env: { JINI_RUN_ID: 'run-1', JINI_DAEMON_URL: 'http://d' } };
-  const jiniEntry = {
-    type: 'local',
-    command: ['jini-mcp', '--quiet'],
-    environment: { JINI_RUN_ID: 'run-1', JINI_DAEMON_URL: 'http://d' },
-    enabled: true,
-  };
-
-  it('produces a fresh OpenCode-schema document when the variable was unset', () => {
-    expect(JSON.parse(mergeEnvContentMcpConfig({ existingRaw: undefined, entry: entry }))).toEqual({ mcp: { jini: jiniEntry } });
-  });
-
-  it('treats an empty-string existing value as unset', () => {
-    expect(JSON.parse(mergeEnvContentMcpConfig({ existingRaw: '', entry: entry }))).toEqual({ mcp: { jini: jiniEntry } });
-  });
-
-  // The variable a host uses to hand the CLI the *user's* own MCP servers is the same variable this
-  // bridge rides in. Clobbering it would silently delete them.
-  it('preserves unrelated top-level keys and other registered servers', () => {
-    const existing = JSON.stringify({ provider: { openai: {} }, mcp: { other: { type: 'local', command: ['x'] } } });
-    expect(JSON.parse(mergeEnvContentMcpConfig({ existingRaw: existing, entry: entry }))).toEqual({
-      provider: { openai: {} },
-      mcp: { other: { type: 'local', command: ['x'] }, jini: jiniEntry },
-    });
-  });
-
-  it('overwrites a stale "jini" entry rather than merging into it', () => {
-    const existing = JSON.stringify({ mcp: { jini: { type: 'local', command: ['stale'], enabled: false } } });
-    expect(JSON.parse(mergeEnvContentMcpConfig({ existingRaw: existing, entry: entry })).mcp.jini).toEqual(jiniEntry);
-  });
-
-  it('starts fresh for content that is not valid JSON, a JSON array, or has a non-object "mcp" field', () => {
-    for (const existing of ['{not json', '[1,2,3]', JSON.stringify({ mcp: 'not-an-object' })]) {
-      expect(JSON.parse(mergeEnvContentMcpConfig({ existingRaw: existing, entry: entry }))).toMatchObject({ mcp: { jini: jiniEntry } });
-    }
-  });
-
-  // SEC: this whole string becomes an *environment variable value*, never argv — see the executor's
-  // `childEnv` comment. Within it, the token must sit in `environment` (the MCP child's env), not in
-  // `command` (which OpenCode spawns, putting it in `ps`).
-  it('keeps a resolved credential in environment and out of command', () => {
-    const withToken = { ...entry, env: { ...entry.env, JINI_DAEMON_TOKEN: 'run-scoped-secret' } };
-    const parsed = JSON.parse(mergeEnvContentMcpConfig({ existingRaw: undefined, entry: withToken }));
-    expect(parsed.mcp.jini.command).toEqual(['jini-mcp', '--quiet']);
-    expect(JSON.stringify(parsed.mcp.jini.command)).not.toContain('run-scoped-secret');
-    expect(parsed.mcp.jini.environment.JINI_DAEMON_TOKEN).toBe('run-scoped-secret');
-  });
-});
-
-describe('resolveSourceClaudeConfigDir', () => {
-  it('uses hostEnv.CLAUDE_CONFIG_DIR when set to a non-blank value', () => {
-    expect(resolveSourceClaudeConfigDir({ hostEnv: { CLAUDE_CONFIG_DIR: '/custom/claude-config' } })).toBe('/custom/claude-config');
-  });
-
-  it('falls back to ~/.claude when CLAUDE_CONFIG_DIR is unset', () => {
-    expect(resolveSourceClaudeConfigDir({ hostEnv: {} })).toBe(path.join(os.homedir(), '.claude'));
-  });
-
-  it('treats a blank/whitespace-only CLAUDE_CONFIG_DIR the same as unset', () => {
-    expect(resolveSourceClaudeConfigDir({ hostEnv: { CLAUDE_CONFIG_DIR: '   ' } })).toBe(path.join(os.homedir(), '.claude'));
-  });
-});
-
 describe('buildMcpBridgeDelivery', () => {
   const options: McpJsonInjectionOptions = {
     command: '/usr/bin/jini-mcp',
@@ -5280,18 +5170,18 @@ describe('buildMcpBridgeDelivery', () => {
   const base = { cwd: '/work/proj', runId: 'run-1', options, credential: undefined };
 
   it('returns null when the host configured no injection at all', () => {
-    expect(buildMcpBridgeDelivery({ ...base, strategy: 'acp-merge', options: undefined })).toBeNull();
+    expect(buildMcpBridgeDelivery({ ...boundMcpConfigFile(), ...base, strategy: 'acp-merge', options: undefined })).toBeNull();
   });
 
   it('returns null for a def declaring no externalMcpInjection strategy', () => {
-    expect(buildMcpBridgeDelivery({ ...base, strategy: undefined })).toBeNull();
+    expect(buildMcpBridgeDelivery({ ...boundMcpConfigFile(), ...base, strategy: undefined })).toBeNull();
   });
 
   // Run-scoped, not a shared `cwd/.mcp.json` — see `mcpJsonPathForRun`'s own doc for the cross-run
   // credential leak a shared filename caused (two runs in one cwd overwrite each other's bearer
   // token before either child has read it).
   it('maps claude-mcp-json to a run-scoped .mcp.jini-<runId>.json path, not a shared cwd/.mcp.json', () => {
-    const delivery = buildMcpBridgeDelivery({ ...base, strategy: 'claude-mcp-json' });
+    const delivery = buildMcpBridgeDelivery({ ...boundMcpConfigFile(), ...base, strategy: 'claude-mcp-json' });
     expect(delivery).toMatchObject({
       kind: 'claude-mcp-json',
       mcpJsonPath: path.join('/work/proj', '.mcp.jini-run-1.json'),
@@ -5299,16 +5189,16 @@ describe('buildMcpBridgeDelivery', () => {
   });
 
   it('maps acp-merge to ACP session/new mcpServers entries', () => {
-    const delivery = buildMcpBridgeDelivery({ ...base, strategy: 'acp-merge' });
+    const delivery = buildMcpBridgeDelivery({ ...boundMcpConfigFile(), ...base, strategy: 'acp-merge' });
     expect(delivery).toMatchObject({ kind: 'acp-merge', mcpServers: [{ name: 'jini', command: '/usr/bin/jini-mcp' }] });
   });
 
   it('maps the two env-content strategies to their own env var, sharing one serialiser', () => {
-    expect(buildMcpBridgeDelivery({ ...base, strategy: 'opencode-env-content', ...boundMcpDelivery({ externalMcpInjection: 'opencode-env-content' }) })).toMatchObject({
+    expect(buildMcpBridgeDelivery({ ...boundMcpConfigFile(), ...base, strategy: 'opencode-env-content', ...boundMcpDelivery({ externalMcpInjection: 'opencode-env-content' }) })).toMatchObject({
       kind: 'env-content',
       envVarName: 'OPENCODE_CONFIG_CONTENT',
     });
-    expect(buildMcpBridgeDelivery({ ...base, strategy: 'mimo-env-content', ...boundMcpDelivery({ externalMcpInjection: 'mimo-env-content' }) })).toMatchObject({
+    expect(buildMcpBridgeDelivery({ ...boundMcpConfigFile(), ...base, strategy: 'mimo-env-content', ...boundMcpDelivery({ externalMcpInjection: 'mimo-env-content' }) })).toMatchObject({
       kind: 'env-content',
       envVarName: 'MIMOCODE_CONFIG_CONTENT',
     });
@@ -5318,7 +5208,7 @@ describe('buildMcpBridgeDelivery', () => {
   // scratch CODEX_HOME directory needs `fs.mkdtemp` (a real, non-deterministic effect), which this
   // pure, synchronous dispatch cannot perform. `prepareCodexHomeIfNeeded` stages it separately.
   it('maps codex-toml to a bare serverEntry with no path — the directory is staged separately', () => {
-    const delivery = buildMcpBridgeDelivery({ ...base, strategy: 'codex-toml', ...boundMcpHome({ externalMcpInjection: 'codex-toml' }) });
+    const delivery = buildMcpBridgeDelivery({ ...boundMcpConfigFile(), ...base, strategy: 'codex-toml', ...boundMcpHome({ externalMcpInjection: 'codex-toml' }) });
     expect(delivery).toEqual({
       kind: 'codex-toml',
       serverEntry: {
@@ -5334,7 +5224,7 @@ describe('buildMcpBridgeDelivery', () => {
   // consumer applies `serverEntry.env` directly to the child's own environment (see
   // `computeChildEnv`'s tests below), never to a config document or a named carrier variable.
   it('maps env-passthrough to a bare serverEntry, carrying no path and no carrier variable', () => {
-    const delivery = buildMcpBridgeDelivery({ ...base, strategy: 'env-passthrough' });
+    const delivery = buildMcpBridgeDelivery({ ...boundMcpConfigFile(), ...base, strategy: 'env-passthrough' });
     expect(delivery).toEqual({
       kind: 'env-passthrough',
       serverEntry: {
@@ -5347,11 +5237,11 @@ describe('buildMcpBridgeDelivery', () => {
 
   it('threads the resolved credential into every mechanism, not just claude-mcp-json', () => {
     const withToken = { ...base, credential: 'run-scoped-secret' };
-    const claude = buildMcpBridgeDelivery({ ...withToken, strategy: 'claude-mcp-json' });
-    const acp = buildMcpBridgeDelivery({ ...withToken, strategy: 'acp-merge' });
-    const env = buildMcpBridgeDelivery({ ...withToken, strategy: 'mimo-env-content', ...boundMcpDelivery({ externalMcpInjection: 'mimo-env-content' }) });
-    const codex = buildMcpBridgeDelivery({ ...withToken, strategy: 'codex-toml', ...boundMcpHome({ externalMcpInjection: 'codex-toml' }) });
-    const passthrough = buildMcpBridgeDelivery({ ...withToken, strategy: 'env-passthrough' });
+    const claude = buildMcpBridgeDelivery({ ...boundMcpConfigFile(), ...withToken, strategy: 'claude-mcp-json' });
+    const acp = buildMcpBridgeDelivery({ ...boundMcpConfigFile(), ...withToken, strategy: 'acp-merge' });
+    const env = buildMcpBridgeDelivery({ ...boundMcpConfigFile(), ...withToken, strategy: 'mimo-env-content', ...boundMcpDelivery({ externalMcpInjection: 'mimo-env-content' }) });
+    const codex = buildMcpBridgeDelivery({ ...boundMcpConfigFile(), ...withToken, strategy: 'codex-toml', ...boundMcpHome({ externalMcpInjection: 'codex-toml' }) });
+    const passthrough = buildMcpBridgeDelivery({ ...boundMcpConfigFile(), ...withToken, strategy: 'env-passthrough' });
     expect(claude).toMatchObject({ serverEntry: { env: { JINI_DAEMON_TOKEN: 'run-scoped-secret' } } });
     expect(acp).toMatchObject({ mcpServers: [{ env: { JINI_DAEMON_TOKEN: 'run-scoped-secret' } }] });
     expect(env).toMatchObject({ serverEntry: { env: { JINI_DAEMON_TOKEN: 'run-scoped-secret' } } });
@@ -5366,7 +5256,7 @@ describe('buildMcpBridgeDelivery', () => {
     const declaring = AGENT_DEFS.filter((def) => def.externalMcpInjection !== undefined);
     expect(declaring.length).toBeGreaterThan(0);
     const undelivered = declaring
-      .filter((def) => buildMcpBridgeDelivery({ ...base, strategy: def.externalMcpInjection, ...boundMcpDelivery(def), ...boundMcpHome(def) }) === null)
+      .filter((def) => buildMcpBridgeDelivery({ ...boundMcpConfigFile(), ...base, strategy: def.externalMcpInjection, ...boundMcpDelivery(def), ...boundMcpHome(def) }) === null)
       .map((def) => def.id);
     expect(undelivered).toEqual([]);
   });
@@ -5390,7 +5280,7 @@ describe('buildMcpBridgeDelivery', () => {
     // Driven from each real def's own declared strategy, not a repeated literal, so a def silently
     // switching strategies shows up here.
     for (const def of acpMergeDefs) {
-      expect(buildMcpBridgeDelivery({ ...base, strategy: def.externalMcpInjection })).toMatchObject({
+      expect(buildMcpBridgeDelivery({ ...boundMcpConfigFile(), ...base, strategy: def.externalMcpInjection })).toMatchObject({
         kind: 'acp-merge',
       });
     }
@@ -5624,43 +5514,6 @@ describe('prepareSystemPromptOverlayFileIfNeeded', () => {
   });
 });
 
-describe('mergeEnvContentInstructions', () => {
-  it('starts a fresh document when there is no existing value', () => {
-    expect(JSON.parse(mergeEnvContentInstructions({ existingRaw: undefined, instructionsFilePath: '/tmp/overlay.md' }))).toEqual({
-      instructions: ['/tmp/overlay.md'],
-    });
-  });
-
-  it('appends to, never clobbers, an existing instructions array', () => {
-    const existing = JSON.stringify({ instructions: ['/existing/one.md'] });
-    expect(JSON.parse(mergeEnvContentInstructions({ existingRaw: existing, instructionsFilePath: '/tmp/overlay.md' }))).toEqual({
-      instructions: ['/existing/one.md', '/tmp/overlay.md'],
-    });
-  });
-
-  it('preserves an existing mcp key untouched, alongside the new instructions entry — the coexistence this whole mechanism depends on', () => {
-    const existing = JSON.stringify({ mcp: { jini: { type: 'local', command: ['node', 'x.mjs'], environment: {}, enabled: true } } });
-    const merged = JSON.parse(mergeEnvContentInstructions({ existingRaw: existing, instructionsFilePath: '/tmp/overlay.md' }));
-    expect(merged).toEqual({
-      mcp: { jini: { type: 'local', command: ['node', 'x.mjs'], environment: {}, enabled: true } },
-      instructions: ['/tmp/overlay.md'],
-    });
-  });
-
-  it('starts fresh (does not throw) when the existing value is unparseable JSON', () => {
-    expect(JSON.parse(mergeEnvContentInstructions({ existingRaw: 'not json{', instructionsFilePath: '/tmp/overlay.md' }))).toEqual({
-      instructions: ['/tmp/overlay.md'],
-    });
-  });
-
-  it('ignores non-string entries in an existing instructions array rather than propagating malformed data', () => {
-    const existing = JSON.stringify({ instructions: ['/existing/one.md', 42, null] });
-    expect(JSON.parse(mergeEnvContentInstructions({ existingRaw: existing, instructionsFilePath: '/tmp/overlay.md' }))).toEqual({
-      instructions: ['/existing/one.md', '/tmp/overlay.md'],
-    });
-  });
-});
-
 describe('computeChildEnv — stagedInstructionsFile param', () => {
   it('merges the staged instructions file into the named var, alongside an existing mcp-key value on the same var', () => {
     const mcpBridge: McpBridgeDelivery = {
@@ -5668,7 +5521,7 @@ describe('computeChildEnv — stagedInstructionsFile param', () => {
       envVarName: 'OPENCODE_CONFIG_CONTENT',
       serverEntry: { command: '/usr/bin/jini-mcp', args: ['--quiet'], env: { JINI_RUN_ID: 'run-1', JINI_DAEMON_URL: 'http://127.0.0.1:4242' } },
     };
-    const result = computeChildEnv({ spawnEnv: {}, mcpBridge: mcpBridge }, { stagedInstructionsFile: {
+    const result = computeChildEnv({ spawnEnv: {}, mcpBridge: mcpBridge }, { ...boundEnvContent({ externalMcpInjection: 'opencode-env-content' }), ...boundInstructionsDocument({ systemPromptDelivery: { strategy: 'config-instructions-file', varName: 'OPENCODE_CONFIG_CONTENT' } }), stagedInstructionsFile: {
       varName: 'OPENCODE_CONFIG_CONTENT',
       path: '/tmp/overlay.md',
     } });

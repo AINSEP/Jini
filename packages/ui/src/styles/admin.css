@@ -291,5 +291,5 @@
 .jini-coming-soon-notice h1 { margin: 0 0 .4rem; }
 .jini-coming-soon-notice p { color: var(--jini-text-muted); }
 
-.admin-layout { background: var(--jini-bg); color: var(--jini-text); font-family: var(--jini-font-body); }
-.admin-layout :is(h1, h2, h3) { font-family: var(--jini-font-heading); }
+.jini-admin-layout, .admin-layout { background: var(--jini-bg); color: var(--jini-text); font-family: var(--jini-font-body); }
+:is(.jini-admin-layout, .admin-layout) :is(h1, h2, h3) { font-family: var(--jini-font-heading); }

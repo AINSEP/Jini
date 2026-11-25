@@ -102,6 +102,9 @@ importers:
       '@jini-ai/platform':
         specifier: workspace:*
         version: link:../../packages/platform
+      '@jini-ai/provider-plugins':
+        specifier: workspace:*
+        version: link:../../packages/provider-plugins
       '@jini-ai/registry':
         specifier: workspace:*
         version: link:../../packages/registry
@@ -896,6 +899,9 @@ importers:
       '@jini-ai/node-adapters':
         specifier: workspace:^
         version: link:../node-adapters
+      '@jini-ai/provider-plugins':
+        specifier: workspace:^
+        version: link:../provider-plugins
       '@types/better-sqlite3':
         specifier: ^7.6.11
         version: 7.6.13

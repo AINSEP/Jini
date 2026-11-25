@@ -309,7 +309,7 @@
 }
 
 @media (max-width: 640px) {
-  .admin-content :is(.page-toolbar, .page-actions, .themes-header-side, .jini-dash-panel-head, .editor-slug) > a:not([class*="btn"]) {
+  :is(.jini-admin-content, .admin-content) :is(.page-toolbar, .page-actions, .themes-header-side, .jini-dash-panel-head, .editor-slug) > a:not([class*="btn"]) {
     display: inline-block;
     padding-block: 13px;
     margin-block: -13px;

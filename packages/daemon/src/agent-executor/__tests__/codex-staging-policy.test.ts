@@ -20,7 +20,7 @@ it('refuses to ignore a personal-settings restriction when Codex home staging is
   let released = 0;
   await expect(prepareBoundRunHome({ input: { runId: 'run', def: codexDef, mcpBridge: null, nativeCapabilities: { userSettings: false } },
     deps: { hostEnv: {}, mcpJsonInjection: undefined, releaseStagedResources: async () => { released++; }, failBeforeSpawn: refuse } }))
-    .rejects.toEqual({ runId: 'run', code: 'NATIVE_TOOL_POLICY_UNSUPPORTED', message: 'AgentExecutor: disabling personal Codex configuration requires run-scoped home staging.' });
+    .rejects.toEqual({ runId: 'run', code: 'NATIVE_TOOL_POLICY_UNSUPPORTED', message: 'AgentExecutor: disabling personal configuration requires run-scoped CODEX_HOME staging.' });
   expect(released).toBe(1);
 });
 

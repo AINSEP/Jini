@@ -1,15 +1,24 @@
 import { promises as fsPromises } from 'node:fs';
 import { homedir, tmpdir } from 'node:os';
 import { join } from 'node:path';
-import type { RuntimeAgentDef } from '@jini-ai/core/contracts/agents';
-import type { ClaudeConfigDirIsolationOptions, ClaudeConfigDirSeams, FailBeforeSpawn, PreparedClaudeConfigDir } from '../contracts.js';
-import { defaultReadMcpJsonFile, defaultWriteMcpJsonFile } from '../mcp-json-file.js';
-import { errorMessage } from '../values.js';
+import { defaultReadMcpJsonFile, defaultWriteMcpJsonFile } from './mcp-json.js';
 
 export const CLAUDE_CONFIG_DIR_ENV = 'CLAUDE_CONFIG_DIR';
 
-export function withStagedClaudeConfigDir({ env, configDir }: { env: NodeJS.ProcessEnv; configDir: string }): NodeJS.ProcessEnv {
-  return { ...env, [CLAUDE_CONFIG_DIR_ENV]: configDir };
+/** A staged, run-scoped `claude` CLI config directory and the release of everything it holds. */
+export type PreparedClaudeConfigDir = {
+  /** Absolute path to hand to the spawned child as its `CLAUDE_CONFIG_DIR` env var. */
+  readonly path: string;
+  /** Recursively removes the staged directory — it may hold a copied login credential (see {@link prepareClaudeConfigDirForRun}'s doc). Safe to call more than once. */
+  readonly cleanup: () => Promise<void>;
+};
+
+/** The staging mechanism's filesystem seams, all required once resolved. */
+export interface ClaudeConfigDirSeams {
+  readonly mkdtemp: ({ prefix }: { readonly prefix: string }) => Promise<string>;
+  readonly readFile: ({ path }: { readonly path: string }) => Promise<string>;
+  readonly writeFile: ({ path, content }: { readonly path: string; readonly content: string }) => Promise<void>;
+  readonly removeDir: ({ path }: { readonly path: string }) => Promise<void>;
 }
 
 function defaultMkdtempClaudeConfigDir({ prefix }: { readonly prefix: string }): Promise<string> {
@@ -20,7 +29,7 @@ function defaultRemoveClaudeConfigDir({ path }: { readonly path: string }): Prom
   return fsPromises.rm(path, { recursive: true, force: true });
 }
 
-function resolveClaudeConfigDirSeams(options: ClaudeConfigDirIsolationOptions | undefined): ClaudeConfigDirSeams {
+function resolveClaudeConfigDirSeams(options: Partial<ClaudeConfigDirSeams> | undefined): ClaudeConfigDirSeams {
   return {
     mkdtemp: options?.mkdtemp ?? defaultMkdtempClaudeConfigDir,
     readFile: options?.readFile ?? defaultReadMcpJsonFile,
@@ -31,7 +40,7 @@ function resolveClaudeConfigDirSeams(options: ClaudeConfigDirIsolationOptions | 
 
 /**
  * Where `claude`'s own config resolution reads the operator's REAL config from, to seed a run's
- * scratch copy — never where it writes. Mirrors {@link resolveSourceCodexHomeDir}'s exact reasoning
+ * scratch copy — never where it writes. Mirrors `resolveSourceCodexHomeDir`'s exact reasoning
  * and resolution order: `CLAUDE_CONFIG_DIR` is not in `BASELINE_AGENT_ENV_KEYS`, so a spawned child
  * never inherits it anyway — the whole point is finding wherever the *operator's actual* Claude Code
  * install lives, a host-machine fact resolved against the daemon HOST process's own environment.
@@ -48,10 +57,10 @@ export function resolveSourceClaudeConfigDir({ hostEnv }: { readonly hostEnv: No
 
 /**
  * Stages a fresh, randomly-named `CLAUDE_CONFIG_DIR` directory (same non-determinism requirement as
- * {@link McpJsonInjectionOptions.mkdtemp}'s own doc — `os.tmpdir()` is a shared location on a
+ * `McpJsonInjectionOptions.mkdtemp`'s own doc — `os.tmpdir()` is a shared location on a
  * multi-user host, so a guessable name is a real pre-plant/symlink target).
  *
- * **Deliberately empty by default** — unlike {@link prepareCodexHomeForRun}, which copies the real
+ * **Deliberately empty by default** — unlike `prepareCodexHomeForRun`, which copies the real
  * `config.toml` wholesale (Codex has no personal-data problem in that file), this directory gets
  * NOTHING written into it beyond a best-effort copy of `.credentials.json` (see below). That is the
  * fix: the operator's real `skills`/`plugins`/`agents`/`memory-path index`/`settings.json` must NOT
@@ -87,10 +96,10 @@ export function resolveSourceClaudeConfigDir({ hostEnv }: { readonly hostEnv: No
  * consequence on a host with no such credential configured yet.
  *
  * **Never touches the real config directory.** `sourceConfigDir` is read-only throughout.
- * @param runId - Embedded in the temp-dir prefix for traceability, same sanitization discipline as {@link prepareCodexHomeForRun}'s `safeRunId`.
+ * @param runId - Embedded in the temp-dir prefix for traceability, same sanitization discipline as `prepareCodexHomeForRun`'s `safeRunId`.
  * @param sourceConfigDir - Where to read a possible real `.credentials.json` from — see {@link resolveSourceClaudeConfigDir}.
  * @param seams - Injectable mkdtemp/readFile/writeFile/removeDir, real filesystem by default.
- * @throws Whatever `mkdtemp` rejects with — the caller ({@link prepareClaudeConfigDirIfNeeded}) turns that into a pre-spawn `AGENT_SPAWN_FAILED` failure, matching {@link prepareCodexHomeForRun}'s own contract.
+ * @throws Whatever `mkdtemp` rejects with — the caller ({@link stageClaudeConfigDir}) turns that into a pre-spawn `AGENT_SPAWN_FAILED` failure, matching `prepareCodexHomeForRun`'s own contract.
  * @complexity O(1) plus one directory creation and up to one best-effort file read/write round trip.
  */
 async function prepareClaudeConfigDirForRun(
@@ -129,48 +138,23 @@ async function prepareClaudeConfigDirForRun(
 
 /**
  * Finding 1 of SEC-assistant-env-isolation-2026-09-07's one effect — stages this run's scratch
- * `CLAUDE_CONFIG_DIR` directory, returning the prepared handle `cleanupStagedFiles` should later
- * release (`null` for every def other than `claude` — see {@link prepareClaudeConfigDirForRun}'s
- * own doc for why this is unconditional for `claude` runs, unlike {@link prepareCodexHomeIfNeeded}'s
- * gate on a host-configured MCP bridge strategy).
+ * `CLAUDE_CONFIG_DIR` directory, returning the prepared handle the launcher's `cleanupStagedFiles` should later
+ * release (see {@link prepareClaudeConfigDirForRun}'s own doc for why this is unconditional for `claude` runs, unlike
+ * the Codex home's gate on a host-configured MCP bridge strategy).
  *
- * Gated on `def.id === 'claude'` directly rather than on `externalMcpInjection === 'claude-mcp-json'`
- * (which `codebuddy` also declares): isolating the operator's personal `~/.claude` is specific to
- * the real `claude` CLI's own config resolution, not to every def that happens to share its `.mcp.
- * json` delivery shape. Matches the existing `USER`-for-claude-login special case already singled
+ * Bound only to the real `claude` CLI's own definition id (`runtime-strategies.ts`) rather than to
+ * `externalMcpInjection === 'claude-mcp-json'` (which `codebuddy` also declares): isolating the operator's personal
+ * `~/.claude` is specific to the real `claude` CLI's own config resolution, not to every def that happens to share its
+ * `.mcp.json` delivery shape. Matches the existing `USER`-for-claude-login special case already singled
  * out by id in `BASELINE_AGENT_ENV_KEYS`'s own doc in `launch.ts`.
- *
- * ALSO gated on `deps.enabled` (`CreateAgentExecutorOptions.claudeConfigDirIsolationEnabled`, default
- * `false`) since this task's own fix — see that field's doc for why it defaults off (Keychain login
- * is `CLAUDE_CONFIG_DIR`-keyed and no caller was supplying a credential when this was unconditional).
- * `def.id === 'claude'` is still checked first and independently: a host that flips this flag on
- * should not suddenly stage a directory for `codebuddy` or any other def.
- * @param input.def - Used for both the `id` gate and the failure message.
- * @param deps.enabled - The isolation on/off switch — see this function's own doc above.
- * @param deps.hostEnv - The daemon's own environment, threaded through to {@link resolveSourceClaudeConfigDir} rather than read from a module-level `process.env`, matching {@link prepareCodexHomeIfNeeded}'s identical testability reasoning.
+ * @param required.hostEnv - The daemon's own environment, threaded through to {@link resolveSourceClaudeConfigDir} rather than read from a module-level `process.env`, matching the Codex home staging's identical testability reasoning.
+ * @param optional.seams - Injectable mkdtemp/readFile/writeFile/removeDir, real filesystem by default.
+ * @throws Whatever staging rejects with; the caller turns that into a pre-spawn `AGENT_SPAWN_FAILED` failure.
  * @complexity O(1) plus {@link prepareClaudeConfigDirForRun}'s own cost.
  */
-export async function prepareClaudeConfigDirIfNeeded({ input, deps }: { readonly input: { readonly runId: string; readonly def: RuntimeAgentDef }; readonly deps: {
-    readonly enabled: boolean;
-    readonly claudeConfigDirIsolation: ClaudeConfigDirIsolationOptions | undefined;
-    readonly hostEnv: NodeJS.ProcessEnv;
-    readonly releaseStagedResources: () => Promise<void>;
-    readonly failBeforeSpawn: FailBeforeSpawn;
-  } }
-): Promise<PreparedClaudeConfigDir | null> {
-  if (input.def.id !== 'claude' || !deps.enabled) {
-    return null;
-  }
-  try {
-    return await prepareClaudeConfigDirForRun(
-      input.runId,
-      resolveSourceClaudeConfigDir({ hostEnv: deps.hostEnv }),
-      resolveClaudeConfigDirSeams(deps.claudeConfigDirIsolation),
-    );
-  } catch (err) {
-    await deps.releaseStagedResources();
-    return deps.failBeforeSpawn(
-      { runId: input.runId, code: 'AGENT_SPAWN_FAILED', message: `AgentExecutor: could not stage a CLAUDE_CONFIG_DIR for agent "${input.def.id}": ${errorMessage({ err })}` },
-    );
-  }
+export function stageClaudeConfigDir(
+  { runId, hostEnv }: { readonly runId: string; readonly hostEnv: NodeJS.ProcessEnv },
+  { seams }: { readonly seams?: Partial<ClaudeConfigDirSeams> | undefined } = {},
+): Promise<PreparedClaudeConfigDir> {
+  return prepareClaudeConfigDirForRun(runId, resolveSourceClaudeConfigDir({ hostEnv }), resolveClaudeConfigDirSeams(seams));
 }

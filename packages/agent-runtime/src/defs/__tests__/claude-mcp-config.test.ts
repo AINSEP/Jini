@@ -2,11 +2,11 @@ import { mkdtemp, readFile, rm, stat } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { expect, it, vi } from 'vitest';
-import { prepareClaudeHttpMcpConfig } from '../mcp-config.js';
+import { prepareClaudeHttpMcpConfig } from '../claude/mcp-config.js';
 
 it('HTTP credentials appear only in the private config', async () => {
   const cwd = await mkdtemp(join(tmpdir(), 'http-project-'));
-  const config = await prepareClaudeHttpMcpConfig({ cwd, endpoint: { url: 'http://127.0.0.1:1234/mcp', token: 'listener' } });
+  const config = await prepareClaudeHttpMcpConfig({ cwd, serverName: 'jini', endpoint: { url: 'http://127.0.0.1:1234/mcp', token: 'listener' } });
   try {
     expect(dirname(config.path)).not.toBe(cwd);
     expect(JSON.parse(await readFile(config.path, 'utf8'))).toEqual({ mcpServers: { jini: { type: 'http', url: 'http://127.0.0.1:1234/mcp', headers: { Authorization: 'Bearer listener' } } } });
@@ -18,7 +18,7 @@ it('HTTP credentials appear only in the private config', async () => {
 });
 
 it('same-directory runs cannot overwrite each other', async () => {
-  const configs = await Promise.all(['first', 'second'].map(token => prepareClaudeHttpMcpConfig({ cwd: '/unavailable-project', endpoint: { url: 'http://127.0.0.1:1234/mcp', token } })));
+  const configs = await Promise.all(['first', 'second'].map(token => prepareClaudeHttpMcpConfig({ cwd: '/unavailable-project', serverName: 'jini', endpoint: { url: 'http://127.0.0.1:1234/mcp', token } })));
   try {
     expect(configs[0]!.path).not.toBe(configs[1]!.path);
     await configs[0]!.cleanup();
@@ -29,8 +29,8 @@ it('same-directory runs cannot overwrite each other', async () => {
 it('private HTTP config preserves only permitted project servers', async () => {
   const readFile = vi.fn(async () => '{"mcpServers":{"personal":{"command":"personal"},"jini":{"command":"stale","env":{"JINI_DAEMON_TOKEN":"callback"}}}}');
   const endpoint = { url: 'http://127.0.0.1:1234/mcp', token: 'listener' };
-  const inherited = await prepareClaudeHttpMcpConfig({ cwd: '/fixture', endpoint }, { readFile });
-  const isolated = await prepareClaudeHttpMcpConfig({ cwd: '/fixture', endpoint }, { readFile, inheritUserMcp: false });
+  const inherited = await prepareClaudeHttpMcpConfig({ cwd: '/fixture', serverName: 'jini', endpoint }, { readFile });
+  const isolated = await prepareClaudeHttpMcpConfig({ cwd: '/fixture', serverName: 'jini', endpoint }, { readFile, inheritUserMcp: false });
   try {
     const withUser = JSON.parse(await readFileFromDisk(inherited.path));
     const withoutUser = JSON.parse(await readFileFromDisk(isolated.path));

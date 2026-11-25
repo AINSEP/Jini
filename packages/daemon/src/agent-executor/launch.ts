@@ -1,6 +1,4 @@
 import { prepareHttpMcpForRun, type PreparedHttpMcp } from './http-mcp.js';
-import { withOpenCodeHttpMcp } from './opencode/mcp-config.js';
-import { prepareClaudeSubagentStartSettings } from './claude/subagent-start.js';
 import { buildAgentEnv } from './agent-env.js';
 import { randomUUID } from 'node:crypto';
 import { supportsMessageRelay, type RunMessageRelay } from './message-relay.js';
@@ -46,7 +44,6 @@ import {
   type AgentExecutor,
   type AgentCleanupFailureContext,
   type McpBridgeDelivery,
-  type PreparedClaudeConfigDir,
   type CreateAgentExecutorOptions,
   type FailBeforeSpawn,
   type SystemPromptOverlayDelivery,
@@ -68,18 +65,14 @@ import {
   resolveMcpBridgeForRun,
   writeMcpJsonIfNeeded,
 } from './mcp-bridge.js';
-import { mergeEnvContentMcpConfig, mergeEnvContentInstructions } from './opencode/mcp-config.js';
-import { defaultRemoveMcpJsonFile } from './mcp-json-file.js';
+import { JINI_MCP_SERVER_KEY, defaultRemoveMcpJsonFile } from './mcp-json-file.js';
 import { prepareRunHomeIfNeeded } from './run-home.js';
-import { CLAUDE_CONFIG_DIR_ENV, prepareClaudeConfigDirIfNeeded, withStagedClaudeConfigDir } from './claude/config-dir.js';
-import { claudeFilesystemAdapter } from './claude/filesystem.js';
+import { prepareStagedConfigDirIfNeeded, withStagedConfigDir, type StagedConfigDir } from './staged-config-dir.js';
 import {
   acquireRuntimeLockIfConfigured,
   armHandoffWatcher,
 } from './handoff.js';
 
-const HTTP_MCP_ENV_ADAPTERS: ReadonlyMap<string, typeof withOpenCodeHttpMcp> = new Map([['opencode', withOpenCodeHttpMcp], ['opencode-acp', withOpenCodeHttpMcp]]);
-const FILESYSTEM_ADAPTERS: ReadonlyMap<string, typeof claudeFilesystemAdapter> = new Map([['claude', claudeFilesystemAdapter]]);
 
 /**
  * Narrows a `RuntimeAgentDef.streamFormat` string to the supported
@@ -174,7 +167,7 @@ function toStringEnvRecord(env: NodeJS.ProcessEnv): Record<string, string> {
  * Returns an independent allowlisted record. @complexity O(1), fixed key list. */
 export function selectAgentExecutorHostEnv({ env, hostEnvNames }: { env: NodeJS.ProcessEnv; hostEnvNames: readonly string[] }, _optional: Record<string, never> = {}): NodeJS.ProcessEnv {
   const selected = buildAgentEnv({ hostEnv: env });
-  for (const key of [CLAUDE_CONFIG_DIR_ENV, 'AGENT_RUNTIME_HOME', 'AGENT_RUNTIME_RESOURCE_ROOT', 'VP_HOME', 'NPM_CONFIG_PREFIX', 'npm_config_prefix', 'APPDATA', 'LOCALAPPDATA', 'MISE_DATA_DIR', 'FNM_DIR'] as const) {
+  for (const key of ['AGENT_RUNTIME_HOME', 'AGENT_RUNTIME_RESOURCE_ROOT', 'VP_HOME', 'NPM_CONFIG_PREFIX', 'npm_config_prefix', 'APPDATA', 'LOCALAPPDATA', 'MISE_DATA_DIR', 'FNM_DIR'] as const) {
     if (typeof env[key] === 'string') selected[key] = env[key];
   }
   // Host-configured resolution names are explicit configuration (the runtime's `launch.hostEnvNames()`), never a scan of the env bag.
@@ -322,6 +315,12 @@ export async function stageLogFile({ input, deps }: { readonly input: { readonly
   }
 }
 
+/** An env-content delivery or a staged instructions file is only resolved for a def whose runtime binds the matching slot, so a missing one is a binding bug: fail before spawn rather than start the CLI without its bridge or overlay. */
+function requireSlot<T>({ slot, name }: { slot: T | undefined; name: string }, _options = {}): T {
+  if (slot === undefined) throw new Error(`AgentExecutor: this delivery needs the runtime strategies' ${name} slot`);
+  return slot;
+}
+
 /**
  * Phase 6a/10c: the subprocess environment every env-riding mechanism uses — mechanism 3+4
  * (`'opencode-env-content'`/`'mimo-env-content'`, merged into whatever the host already set there,
@@ -331,7 +330,7 @@ export async function stageLogFile({ input, deps }: { readonly input: { readonly
  * document — see {@link McpBridgeDelivery}'s own doc), a
  * `systemPromptDelivery: 'env-var'` def's overlay (`reasonix`'s `REASONIX_ACP_SYSTEM_APPEND` today
  * — see `resolveSystemPromptOverlayDelivery`'s own doc), and a `'config-instructions-file'` def's
- * staged overlay file (`opencode` today — see {@link mergeEnvContentInstructions}'s own doc). Pure
+ * staged overlay file (`opencode` today — see `mergeEnvContentInstructions`'s own doc (agent-runtime opencode def)). Pure
  * — `stagedHome` and `stagedInstructionsFile` arrive already staged by
  * {@link prepareRunHomeIfNeeded} and {@link prepareSystemPromptOverlayFileIfNeeded} respectively,
  * the only parts of this mechanism that are NOT pure (real `mkdtemp`/`writeFile` calls).
@@ -339,17 +338,17 @@ export async function stageLogFile({ input, deps }: { readonly input: { readonly
  * @param mcpBridge - This run's resolved bridge delivery, or `null` for an unconfigured host / no-strategy def.
  * @param stagedHome - The staged scratch home path for a `'codex-toml'` def with the runtime's `withStagedHome` that points the child at it, or `undefined` for every other run (including a `'codex-toml'` def when `mcpJsonInjection` was never configured — see `prepareRunHomeIfNeeded`'s own gate).
  * @param systemPromptEnvOverrides - `resolveSystemPromptOverlayDelivery`'s `envOverrides` — `{}` (default) for every def but an `'env-var'`-strategy one with an overlay present, in which case it carries that one var. Applied after `stagedHome`, so it can never be shadowed by it — the two never share a key (`CODEX_HOME` vs. e.g. `REASONIX_ACP_SYSTEM_APPEND`), so the ordering is a documentation choice, not a correctness one.
- * @param stagedInstructionsFile - `varName` (from the def's own `systemPromptDelivery` declaration) and the staged overlay file's `path`, or `undefined` for every def but a `'config-instructions-file'` one with an overlay present. Merged into `varName`'s value AFTER the `mcp` merge above (reading `envContentApplied`, not the original `spawnEnv`, for that same key) so both a `mcp` entry and an `instructions` entry from the two mechanisms survive together in one document — confirmed live this coexistence is safe (see {@link mergeEnvContentInstructions}'s doc).
+ * @param stagedInstructionsFile - `varName` (from the def's own `systemPromptDelivery` declaration) and the staged overlay file's `path`, or `undefined` for every def but a `'config-instructions-file'` one with an overlay present. Merged into `varName`'s value AFTER the `mcp` merge above (reading `envContentApplied`, not the original `spawnEnv`, for that same key) so both a `mcp` entry and an `instructions` entry from the two mechanisms survive together in one document — confirmed live this coexistence is safe (see `mergeEnvContentInstructions`'s doc (agent-runtime opencode def)).
  * @complexity O(1) plus `mergeEnvContentMcpConfig`'s and `mergeEnvContentInstructions`'s own `JSON.parse`/`JSON.stringify` cost.
  * @overallScore 100/100
  */
-export function computeChildEnv({ spawnEnv, mcpBridge }: { readonly spawnEnv: NodeJS.ProcessEnv; readonly mcpBridge: McpBridgeDelivery | null }, { stagedHome, systemPromptEnvOverrides, stagedInstructionsFile, claudeConfigDir }: { readonly stagedHome?: { readonly dir: string; readonly withStagedHome: NonNullable<AgentRuntimeStrategies['mcpHome']>['withStagedHome'] }; readonly systemPromptEnvOverrides?: Readonly<Record<string, string>>; readonly stagedInstructionsFile?: { readonly varName: string; readonly path: string }; readonly claudeConfigDir?: string } = {}
+export function computeChildEnv({ spawnEnv, mcpBridge }: { readonly spawnEnv: NodeJS.ProcessEnv; readonly mcpBridge: McpBridgeDelivery | null }, { stagedHome, systemPromptEnvOverrides, stagedInstructionsFile, stagedConfigDir, envContent, instructionsDocument }: { readonly envContent?: AgentRuntimeStrategies['envContent']; readonly instructionsDocument?: AgentRuntimeStrategies['instructionsDocument']; readonly stagedHome?: { readonly dir: string; readonly withStagedHome: NonNullable<AgentRuntimeStrategies['mcpHome']>['withStagedHome'] }; readonly systemPromptEnvOverrides?: Readonly<Record<string, string>>; readonly stagedInstructionsFile?: { readonly varName: string; readonly path: string }; readonly stagedConfigDir?: Pick<StagedConfigDir, 'envKey' | 'path'> } = {}
 ): NodeJS.ProcessEnv {
   const envContentApplied =
     mcpBridge?.kind === 'env-content'
       ? {
           ...spawnEnv,
-          [mcpBridge.envVarName]: mergeEnvContentMcpConfig({ existingRaw: spawnEnv[mcpBridge.envVarName], entry: mcpBridge.serverEntry }),
+          [mcpBridge.envVarName]: requireSlot({ slot: envContent, name: 'envContent' }).mergeMcp({ existingRaw: spawnEnv[mcpBridge.envVarName], entry: mcpBridge.serverEntry, serverName: JINI_MCP_SERVER_KEY }),
         }
       : spawnEnv;
   // `'env-passthrough'` (antigravity): no document, no named carrier variable — the bridge
@@ -364,7 +363,7 @@ export function computeChildEnv({ spawnEnv, mcpBridge }: { readonly spawnEnv: No
       ? envPassthroughApplied
       : {
           ...envPassthroughApplied,
-          [stagedInstructionsFile.varName]: mergeEnvContentInstructions({ existingRaw: envPassthroughApplied[stagedInstructionsFile.varName], instructionsFilePath: stagedInstructionsFile.path }
+          [stagedInstructionsFile.varName]: requireSlot({ slot: instructionsDocument, name: 'instructionsDocument' }).merge({ existingRaw: envPassthroughApplied[stagedInstructionsFile.varName], instructionsFilePath: stagedInstructionsFile.path }
           ),
         };
   const codexHomeApplied = stagedHome === undefined ? instructionsApplied : stagedHome.withStagedHome({ env: instructionsApplied, homeDir: stagedHome.dir });
@@ -373,7 +372,7 @@ export function computeChildEnv({ spawnEnv, mcpBridge }: { readonly spawnEnv: No
   // for a 'codex-toml' bridge, claudeConfigDir only ever for a `claude`-id run), so both existing
   // side by side here is a documentation convenience, not a real collision risk.
   const claudeConfigDirApplied =
-    claudeConfigDir === undefined ? codexHomeApplied : withStagedClaudeConfigDir({ env: codexHomeApplied, configDir: claudeConfigDir });
+    stagedConfigDir === undefined ? codexHomeApplied : withStagedConfigDir({ env: codexHomeApplied, stagedConfigDir });
   return systemPromptEnvOverrides === undefined ? claudeConfigDirApplied : { ...claudeConfigDirApplied, ...systemPromptEnvOverrides };
 }
 
@@ -623,15 +622,16 @@ export function resolveSystemPromptOverlayDelivery(input: {
 }
 
 /** A def with a SubagentStart hook gets one when this run allows subagents and has a temp dir and start context. */
-async function addSubagentStartSettings({ def, runInput, options }: {
+async function addSubagentStartSettings({ def, runInput, options, subagentStart }: {
   readonly def: RuntimeAgentDef;
+  readonly subagentStart: AgentRuntimeStrategies['subagentStart'];
   readonly runInput: AgentBuildInput & Pick<AgentExecutorRunInput, 'subagentStartContext'>;
   readonly options: RuntimeBuildOptions;
 }, _optional = {}): Promise<void> {
-  if (def.subagentStartHook && def.supportsSubagents === true && runInput.nativeCapabilities?.subagents !== false && runInput.filesystemTempDir && runInput.subagentStartContext) {
-    options.settings = await prepareClaudeSubagentStartSettings({ directory: runInput.filesystemTempDir,
+  if (subagentStart && def.subagentStartHook && def.supportsSubagents === true && runInput.nativeCapabilities?.subagents !== false && runInput.filesystemTempDir && runInput.subagentStartContext) {
+    options.settings = await subagentStart.prepare({ directory: runInput.filesystemTempDir,
       context: runInput.subagentStartContext, ...(options.settings === undefined ? {} : { settings: options.settings }),
-    }, {});
+    });
   }
 }
 
@@ -654,12 +654,12 @@ export async function buildRunArgs({ input, deps }: { readonly input: {
     readonly systemPromptOverlay: string | null | undefined;
     readonly overlayDelivery: SystemPromptOverlayDelivery;
     readonly runtimeContext: RuntimeContext | undefined;
-  }; readonly deps: { readonly releaseStagedResources: () => Promise<void>; readonly failBeforeSpawn: FailBeforeSpawn } }
+  }; readonly deps: { readonly releaseStagedResources: () => Promise<void>; readonly failBeforeSpawn: FailBeforeSpawn; readonly subagentStart?: AgentRuntimeStrategies['subagentStart'] } }
 ): Promise<{ readonly args: string[]; readonly envOverrides: Readonly<Record<string, string>> }> {
   try {
     const delivery = input.overlayDelivery;
     const options = buildAgentBuildArgsOptions({ input: input.runInput, systemPromptOverlay: input.systemPromptOverlay });
-    await addSubagentStartSettings({ def: input.def, runInput: input.runInput, options });
+    await addSubagentStartSettings({ def: input.def, runInput: input.runInput, options, subagentStart: deps.subagentStart });
     const args = input.def.buildArgs(
       { prompt: delivery.prompt, imagePaths: [...(input.imagePaths ?? [])] }, {
         ...(input.imageDelivery.extraAllowedDirs === undefined ? {} : { extraAllowedDirs: [...input.imageDelivery.extraAllowedDirs] }),
@@ -687,7 +687,7 @@ export async function buildRunArgs({ input, deps }: { readonly input: {
  * Phase 10b1: `systemPromptDelivery: { strategy: 'config-instructions-file' }`'s one effect —
  * stages the computed overlay to a fresh, run-scoped temp file, so `computeChildEnv` has a real
  * path to merge into that def's `instructions` config array (see
- * {@link mergeEnvContentInstructions}'s own doc for the live verification this mechanism rests on).
+ * `mergeEnvContentInstructions`'s own doc (agent-runtime opencode def) for the live verification this mechanism rests on).
  * `null` for every other strategy, an unset `systemPromptDelivery`, or no overlay present at all —
  * byte-identical to before this mechanism existed, matching {@link writeMcpJsonIfNeeded}'s and
  * {@link prepareRunHomeIfNeeded}'s identical no-op-when-inapplicable gate.
@@ -844,8 +844,8 @@ function launchModelContext({ input, launch, spawnEnv }: { input: AgentExecutorR
 }
 
 /** Paths are available only after staging; retain the strategy gate for instructions files. */
-function stagedChildEnvOptions({ def, mcpHome, preparedRunHome, preparedClaudeConfigDir, preparedSystemPromptOverlayFile, systemPromptEnvOverrides }: {
-  def: RuntimeAgentDef; mcpHome: AgentRuntimeStrategies['mcpHome']; preparedRunHome: PreparedRunHome | null; preparedClaudeConfigDir: PreparedClaudeConfigDir | null;
+function stagedChildEnvOptions({ def, mcpHome, preparedRunHome, preparedClaudeConfigDir, preparedSystemPromptOverlayFile, systemPromptEnvOverrides, envContent, instructionsDocument }: {
+  def: RuntimeAgentDef; envContent: AgentRuntimeStrategies['envContent']; instructionsDocument: AgentRuntimeStrategies['instructionsDocument']; mcpHome: AgentRuntimeStrategies['mcpHome']; preparedRunHome: PreparedRunHome | null; preparedClaudeConfigDir: StagedConfigDir | null;
   preparedSystemPromptOverlayFile: PreparedSystemPromptOverlayFile | null; systemPromptEnvOverrides: Readonly<Record<string, string>>;
 }, _options = {}) {
   return {
@@ -854,7 +854,9 @@ function stagedChildEnvOptions({ def, mcpHome, preparedRunHome, preparedClaudeCo
     ...(preparedSystemPromptOverlayFile && def.systemPromptDelivery?.strategy === 'config-instructions-file'
       ? { stagedInstructionsFile: { varName: def.systemPromptDelivery.varName, path: preparedSystemPromptOverlayFile.path } }
       : {}),
-    ...(preparedClaudeConfigDir === null ? {} : { claudeConfigDir: preparedClaudeConfigDir.path }),
+    ...(preparedClaudeConfigDir === null ? {} : { stagedConfigDir: preparedClaudeConfigDir }),
+    ...(envContent === undefined ? {} : { envContent }),
+    ...(instructionsDocument === undefined ? {} : { instructionsDocument }),
   };
 }
 
@@ -867,28 +869,34 @@ function withHttpMcpJsonPath(
     ? { ...runtimeContext, mcpJsonPath: preparedHttpMcp.mcpJsonPath } : runtimeContext;
 }
 
-/** A def with a staged home receives the HTTP MCP endpoint through it; every other def gets nothing extra. */
+/** Supply the HTTP endpoint to this CLI's run-scoped home staging. `codex` receives the HTTP MCP endpoint through its staged home; every other def gets nothing extra.
+ * A def with a staged home receives the HTTP MCP endpoint through it, so the runtime's `mcpHome` slot is the gate. */
 function homeHttpMcpInput({ mcpHome, preparedHttpMcp }: { mcpHome: AgentRuntimeStrategies['mcpHome']; preparedHttpMcp: PreparedHttpMcp | null }, _options = {}) {
   return preparedHttpMcp && mcpHome ? { httpEndpoint: preparedHttpMcp.endpoint } : {};
 }
 
-/** `opencode` receives the HTTP MCP endpoint through its inline config env; every other def keeps the spawn env. */
+/** A def whose runtime binds an `httpMcpEnv` slot receives the HTTP MCP endpoint through its inline config env; every other def keeps the spawn env. */
 function httpMcpSpawnEnv(
-  { def, spawnEnv, preparedHttpMcp, envVar }: { def: RuntimeAgentDef; spawnEnv: NodeJS.ProcessEnv; preparedHttpMcp: PreparedHttpMcp | null; envVar: string | undefined },
+  { spawnEnv, preparedHttpMcp, envVar, httpMcpEnv }: { spawnEnv: NodeJS.ProcessEnv; preparedHttpMcp: PreparedHttpMcp | null; envVar: string | undefined; httpMcpEnv: AgentRuntimeStrategies['httpMcpEnv'] },
   _options = {},
 ): NodeJS.ProcessEnv {
   // The variable's name is the runtime's to bind; without one there is no document to merge the endpoint into.
-  const adapter = envVar === undefined ? undefined : HTTP_MCP_ENV_ADAPTERS.get(def.id);
   return preparedHttpMcp && envVar !== undefined
-    ? adapter?.({ env: spawnEnv, endpoint: preparedHttpMcp.endpoint, envVar }) ?? spawnEnv
+    ? httpMcpEnv?.({ env: spawnEnv, endpoint: preparedHttpMcp.endpoint, envVar, serverName: JINI_MCP_SERVER_KEY }) ?? spawnEnv
     : spawnEnv;
+}
+
+/** The filesystem slot's members with an absent one as a no-op, so the launch path branches only on the policy decision. */
+function filesystemHooks({ slot }: { slot: AgentRuntimeStrategies['filesystem'] }, _options = {}) {
+  const none = () => undefined;
+  return { prepare: slot?.prepare?.bind(slot) ?? none, unsupported: slot?.unsupported?.bind(slot) ?? none, supported: slot?.supported.bind(slot) ?? none };
 }
 
 /** The runtime's bound MCP delivery slot for `def`, as the optional dep `resolveMcpBridgeForRun` reads.
  * Also carries the bound bridge-preparation slot (`mcpBridge`) the same function reads. */
-function mcpDeliveryDep({ agentRuntime, def }: { agentRuntime: Pick<AgentRuntimePort, 'strategies'>; def: RuntimeAgentDef }, _options = {}): { mcpDelivery?: NonNullable<ReturnType<AgentRuntimePort['strategies']['for']>['mcpDelivery']>; mcpBridge?: NonNullable<ReturnType<AgentRuntimePort['strategies']['for']>['mcpBridge']>; mcpHome?: NonNullable<ReturnType<AgentRuntimePort['strategies']['for']>['mcpHome']> } {
-  const { mcpDelivery, mcpBridge, mcpHome } = agentRuntime.strategies.for({ def });
-  return { ...(mcpDelivery === undefined ? {} : { mcpDelivery }), ...(mcpBridge === undefined ? {} : { mcpBridge }), ...(mcpHome === undefined ? {} : { mcpHome }) };
+function mcpDeliveryDep({ agentRuntime, def }: { agentRuntime: Pick<AgentRuntimePort, 'strategies'>; def: RuntimeAgentDef }, _options = {}): { mcpDelivery?: NonNullable<AgentRuntimeStrategies['mcpDelivery']>; mcpBridge?: NonNullable<AgentRuntimeStrategies['mcpBridge']>; mcpHome?: NonNullable<AgentRuntimeStrategies['mcpHome']>; mcpConfigFile?: NonNullable<AgentRuntimeStrategies['mcpConfigFile']> } {
+  const { mcpDelivery, mcpBridge, mcpHome, mcpConfigFile } = agentRuntime.strategies.for({ def });
+  return { ...(mcpDelivery === undefined ? {} : { mcpDelivery }), ...(mcpBridge === undefined ? {} : { mcpBridge }), ...(mcpHome === undefined ? {} : { mcpHome }), ...(mcpConfigFile === undefined ? {} : { mcpConfigFile }) };
 }
 
 /** A required transport refusal is actionable without exposing listener/configuration details. */
@@ -1058,19 +1066,20 @@ export function createAgentExecutor(requiredArgs: Pick<CreateAgentExecutorOption
       spawnEnv.TMPDIR = input.filesystemTempDir;
       spawnEnv.TMP = input.filesystemTempDir;
       spawnEnv.TEMP = input.filesystemTempDir;
-      const filesystemAdapter = FILESYSTEM_ADAPTERS.get(def.id);
-      const preparation = filesystemAdapter?.prepare({ input, spawnEnv, runtimeTemps });
+      const filesystemAdapter = filesystemHooks({ slot: agentRuntime.strategies.for({ def }).filesystem });
+      const preparation = filesystemAdapter.prepare({ input, spawnEnv, runtimeTemps });
       if (preparation) await preparation;
       if (supported === false) {
         input.filesystemNotice = 'files and shell are not folder-limited for this agent';
         console.warn('[agent-executor] files and shell are not folder-limited for this agent');
-        filesystemAdapter?.unsupported({ input });
+        filesystemAdapter.unsupported({ input });
         delete input.filesystemRoot;
         return;
       }
       if (supported === undefined) console.warn('[agent-executor] filesystem capability unknown; applying read block and sandbox settings');
       // A host-supplied probe may report support for another id; preserve the existing policy in that case.
-      (filesystemAdapter ?? claudeFilesystemAdapter).supported({ input, launchPath: launch.launchPath, spawnEnv }, { filesystem: agentRuntime.filesystem });
+      // (The runtime now binds that shared policy for every definition.)
+      filesystemAdapter.supported({ input, launchPath: launch.launchPath, spawnEnv }, { filesystem: agentRuntime.filesystem });
     } catch {
       await failBeforeSpawn({ runId: input.runId, code: 'FILESYSTEM_POLICY_UNSUPPORTED', message: 'Folder-limited launch refused: invalid host settings or private runtime directory.' });
     }
@@ -1326,7 +1335,7 @@ export function createAgentExecutor(requiredArgs: Pick<CreateAgentExecutorOption
     input: AgentExecutorRunInput; def: RuntimeAgentDef; cleanupStagedFiles: () => Promise<void>;
   }, _options = {}): Promise<PreparedHttpMcp | null> {
     try {
-      return await prepareHttpMcpForRun({ runId: input.runId, cwd: input.cwd, def, lifecycle,
+      return await prepareHttpMcpForRun({ runId: input.runId, cwd: input.cwd, def, lifecycle, mcpConfigFile: agentRuntime.strategies.for({ def }).mcpConfigFile,
         injection: mcpJsonInjection, inheritUserMcp: input.nativeToolAccess !== false && input.nativeCapabilities?.userMcp !== false });
     } catch {
       await cleanupStagedFiles();
@@ -1417,7 +1426,7 @@ export function createAgentExecutor(requiredArgs: Pick<CreateAgentExecutorOption
      * copied login credential) to remove. Cleared as it is consumed, matching `preparedRunHome`'s
      * identical single-removal discipline. Only a `claude`-id run stages a directory this way.
      */
-    let preparedClaudeConfigDir: PreparedClaudeConfigDir | null = null;
+    let preparedClaudeConfigDir: StagedConfigDir | null = null;
     /**
      * Set once `prepareSystemPromptOverlayFileIfNeeded` has actually staged this run's overlay file
      * for a `'config-instructions-file'` def, so `cleanupStagedFiles` knows there is a temp
@@ -1499,7 +1508,7 @@ export function createAgentExecutor(requiredArgs: Pick<CreateAgentExecutorOption
     // `Error` — breaking this driver's "never a bare throw, always an `AgentExecutorError`" contract
     // — and left the run `'running'` forever while still holding the process-global mutex and both
     // staged files, so no later run of that def could ever acquire the lock either.
-    const { args, envOverrides: systemPromptEnvOverrides } = await buildRunArgs({ input: { runId: input.runId, def, imageDelivery, imagePaths: input.imagePaths, runInput: input, systemPromptOverlay, overlayDelivery, runtimeContext }, deps: { releaseStagedResources, failBeforeSpawn } }
+    const { args, envOverrides: systemPromptEnvOverrides } = await buildRunArgs({ input: { runId: input.runId, def, imageDelivery, imagePaths: input.imagePaths, runInput: input, systemPromptOverlay, overlayDelivery, runtimeContext }, deps: { releaseStagedResources, failBeforeSpawn, subagentStart: agentRuntime.strategies.for({ def }).subagentStart } }
     );
 
     // Mechanism 1 of 5's one effect — stage this run's own MCP config file (run-scoped, see
@@ -1507,7 +1516,7 @@ export function createAgentExecutor(requiredArgs: Pick<CreateAgentExecutorOption
     // points at a real file. Skipped entirely for the other four mechanisms and whenever no bridge
     // was resolved at all. `writtenMcpJsonPath` is set only once the write actually happens, so
     // `cleanupStagedFiles` knows there is a live-token file to remove afterward.
-    writtenMcpJsonPath = await writeMcpJsonIfNeeded({ input: { runId: input.runId, cwd: input.cwd, nativeToolAccess: input.nativeToolAccess, ...nativeCapabilityInput({ input }, {}), def, mcpBridge }, deps: { mcpJsonInjection, releaseStagedResources, failBeforeSpawn } }
+    writtenMcpJsonPath = await writeMcpJsonIfNeeded({ input: { runId: input.runId, cwd: input.cwd, nativeToolAccess: input.nativeToolAccess, ...nativeCapabilityInput({ input }, {}), def, mcpBridge }, deps: { mcpJsonInjection, releaseStagedResources, failBeforeSpawn, ...mcpDeliveryDep({ agentRuntime, def }) } }
     );
 
     // Mechanism 5 of 5's one effect — stage this run's scratch `CODEX_HOME` directory. Skipped
@@ -1524,9 +1533,9 @@ export function createAgentExecutor(requiredArgs: Pick<CreateAgentExecutorOption
     // `prepareClaudeConfigDirIfNeeded`'s own doc for why). Placed here only to stay adjacent to the
     // other pre-`computeChildEnv` staging steps; `claude.ts`'s `buildArgs` needs no argv change for
     // this (CLAUDE_CONFIG_DIR is an env var, not a flag), same as CODEX_HOME.
-    preparedClaudeConfigDir = await prepareClaudeConfigDirIfNeeded({ input: { runId: input.runId, def }, deps: {
+    preparedClaudeConfigDir = await prepareStagedConfigDirIfNeeded({ input: { runId: input.runId, def, configDir: agentRuntime.strategies.for({ def }).configDir }, deps: {
         enabled: claudeConfigDirIsolationEnabled,
-        claudeConfigDirIsolation,
+        isolationSeams: claudeConfigDirIsolation,
         hostEnv,
         releaseStagedResources,
         failBeforeSpawn,
@@ -1545,9 +1554,10 @@ export function createAgentExecutor(requiredArgs: Pick<CreateAgentExecutorOption
     // `McpBridgeDelivery`'s `'codex-toml'` variant doc for why it cannot be pre-computed the way
     // `'claude-mcp-json'`'s deterministic path is). Nothing between the old, earlier call site and
     // here ever read `childEnv`, so moving the call cost nothing.
-    const httpSpawnEnv = httpMcpSpawnEnv({ def, spawnEnv, preparedHttpMcp, envVar: agentRuntime.strategies.for({ def }).mcpDelivery?.envContentVar });
+    const boundStrategies = agentRuntime.strategies.for({ def });
+    const httpSpawnEnv = httpMcpSpawnEnv({ spawnEnv, preparedHttpMcp, envVar: boundStrategies.mcpDelivery?.envContentVar, httpMcpEnv: boundStrategies.httpMcpEnv });
     const childEnv = computeChildEnv({ spawnEnv: httpSpawnEnv, mcpBridge }, stagedChildEnvOptions({
-      def, mcpHome, preparedRunHome, preparedClaudeConfigDir, preparedSystemPromptOverlayFile, systemPromptEnvOverrides,
+      def, mcpHome, preparedRunHome, preparedClaudeConfigDir, preparedSystemPromptOverlayFile, systemPromptEnvOverrides, envContent: boundStrategies.envContent, instructionsDocument: boundStrategies.instructionsDocument,
     }, {}));
 
     // Post-buildArgs guard for argv-bound defs whose resolved binary is a

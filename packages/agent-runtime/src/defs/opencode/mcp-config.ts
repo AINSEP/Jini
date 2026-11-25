@@ -1,23 +1,27 @@
-import type { McpHttpEndpoint } from '../contracts.js';
-import { isRecord } from '../values.js';
-import { JINI_MCP_SERVER_KEY, type McpJsonServerEntry } from '../mcp-json-file.js';
+import { isRecord } from '../../json-event-stream-shared.js';
+
+/** The bridge entry the daemon hands over, structurally its `McpJsonServerEntry`: the daemon owns that shape, this file only reads it. */
+type StdioBridgeEntry = { readonly command: string; readonly args: readonly string[]; readonly env: Readonly<Record<string, string>> };
+type RemoteBridgeEntry = { readonly type: 'remote'; readonly url: string; readonly headers: Readonly<Record<string, string>> };
+type HttpEndpoint = { readonly url: string; readonly token: string };
 
 /** Merge the run-scoped HTTP endpoint into OpenCode's existing inline configuration. `envVar` is the variable the
  * runtime bound for this def's config document (the daemon no longer owns that name; K03 moves this file). */
+// `serverName` is the key the daemon registers its bridge under.
 export function withOpenCodeHttpMcp(
-  { env, endpoint, envVar }: { env: NodeJS.ProcessEnv; endpoint: McpHttpEndpoint; envVar: string },
+  { env, endpoint, envVar, serverName }: { env: NodeJS.ProcessEnv; endpoint: HttpEndpoint; envVar: string; serverName: string },
 ): NodeJS.ProcessEnv {
-  return { ...env, [envVar]: mergeOpenCodeHttpMcpConfig({ existingRaw: env[envVar], endpoint }) };
+  return { ...env, [envVar]: mergeOpenCodeHttpMcpConfig({ existingRaw: env[envVar], endpoint, serverName }) };
 }
 
 /** Keep OpenCode's run-local inline carrier and its existing settings/instruction merge owner.
  * @returns Remote entry replacing stale stdio fields; only the endpoint token is delivered.
  * @complexity O(config bytes) time/space, without I/O.
  */
-export function mergeOpenCodeHttpMcpConfig({ existingRaw, endpoint }: {
-  existingRaw: string | undefined; endpoint: Pick<McpHttpEndpoint, 'url' | 'token'>;
+export function mergeOpenCodeHttpMcpConfig({ existingRaw, endpoint, serverName }: {
+  existingRaw: string | undefined; endpoint: HttpEndpoint; serverName: string;
 }, _options = {}): string {
-  return mergeEnvContentMcpConfig({ existingRaw, entry: {
+  return mergeEnvContentMcpConfig({ existingRaw, serverName, entry: {
     type: 'remote', url: endpoint.url, headers: { Authorization: `Bearer ${endpoint.token}` },
   } });
 }
@@ -26,7 +30,7 @@ export function mergeOpenCodeHttpMcpConfig({ existingRaw, endpoint }: {
  * Serialises the bridge entry into the OpenCode-schema config JSON that `OPENCODE_CONFIG_CONTENT`
  * / `MIMOCODE_CONFIG_CONTENT` carries, merging into whatever the host already put in that variable
  * rather than replacing it — the same "merge, never clobber" discipline
- * {@link mergeMcpJsonContent} applies to `.mcp.json`, and for the same reason: a host may already
+ * `mergeMcpJsonContent` (daemon `.mcp.json` merge) applies to `.mcp.json`, and for the same reason: a host may already
  * be handing the CLI the *user's* configured MCP servers through this exact variable, and
  * overwriting it would silently delete them.
  *
@@ -44,12 +48,13 @@ export function mergeOpenCodeHttpMcpConfig({ existingRaw, endpoint }: {
  * the `.mcp.json` and ACP paths.
  *
  * @param existingRaw - Whatever the spawn env already held for this variable, or `undefined`.
- * @param entry - The shared bridge entry from {@link buildMcpJsonServerEntry}.
+ * @param entry - The shared bridge entry from `buildMcpJsonServerEntry` (daemon).
+ * @param serverName - The `mcp` key the entry is registered under (the daemon's bridge key).
  * @returns The full JSON string to set as the env var's value.
  * @complexity O(1) plus `JSON.parse`/`JSON.stringify` over a small config document.
  * @overallScore 100/100
  */
-export function mergeEnvContentMcpConfig({ existingRaw, entry }: { readonly existingRaw: string | undefined; readonly entry: McpJsonServerEntry | { readonly type: 'remote'; readonly url: string; readonly headers: Readonly<Record<string, string>> } }): string {
+export function mergeEnvContentMcpConfig({ existingRaw, entry, serverName }: { readonly existingRaw: string | undefined; readonly entry: StdioBridgeEntry | RemoteBridgeEntry; readonly serverName: string }): string {
   let doc: Record<string, unknown> = {};
   if (existingRaw !== undefined && existingRaw.length > 0) {
     try {
@@ -62,7 +67,7 @@ export function mergeEnvContentMcpConfig({ existingRaw, entry }: { readonly exis
   const existingMcp = isRecord(doc.mcp) ? doc.mcp : {};
   const mcp = {
     ...existingMcp,
-    [JINI_MCP_SERVER_KEY]: 'command' in entry ? {
+    [serverName]: 'command' in entry ? {
       type: 'local',
       command: [entry.command, ...entry.args],
       environment: { ...entry.env },
@@ -94,14 +99,14 @@ export function mergeEnvContentMcpConfig({ existingRaw, entry }: { readonly exis
  *      session and seeing the second turn immediately reflect it while still recalling
  *      conversation memory from turn one) — so this mechanism is safe to redeliver every turn like
  *      `'append-flag'`/`'env-var'`, exempt from the prompt-prefix fallback's create-only gating
- *      (see {@link resolveSystemPromptOverlayDelivery}'s doc): nothing here is ever baked into
+ *      (see `resolveSystemPromptOverlayDelivery`'s doc (daemon)): nothing here is ever baked into
  *      opencode's own persisted session state the way re-injecting fallback prompt text would be.
  *
  * @param existingRaw - Whatever the spawn env already held for this variable (already possibly
  * carrying `mcp`, if `mergeEnvContentMcpConfig` ran first on the same value — order between the two
  * doesn't matter, each only touches its own top-level key), or `undefined`.
  * @param instructionsFilePath - The staged overlay file's absolute path (see
- * {@link prepareSystemPromptOverlayFileIfNeeded}).
+ * `prepareSystemPromptOverlayFileIfNeeded` (daemon)).
  * @returns The full JSON string to set as the env var's value. Appends to, never clobbers, any
  * `instructions` entries already present — the same "merge, never clobber" discipline
  * {@link mergeEnvContentMcpConfig} applies to `mcp`, in case a host is already using this same

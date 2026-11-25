@@ -13,6 +13,7 @@
   },
   "dependencies": {
     "@jini-ai/agent-runtime": "workspace:*",
+    "@jini-ai/provider-plugins": "workspace:*",
     "@jini-ai/agentic": "workspace:*",
     "@jini-ai/chat": "workspace:*",
     "@jini-ai/core": "workspace:*",

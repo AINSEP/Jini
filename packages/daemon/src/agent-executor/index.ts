@@ -157,9 +157,6 @@ export {
   resolveMcpBridgeForRun,
   writeMcpJsonIfNeeded,
 } from './mcp-bridge.js';
-export { prepareClaudeConfigDirIfNeeded, resolveSourceClaudeConfigDir } from './claude/config-dir.js';
-export { mergeEnvContentMcpConfig, mergeEnvContentInstructions } from './opencode/mcp-config.js';
-export { mergeMcpJsonContent } from './mcp-json-file.js';
 export { prepareRunHomeIfNeeded } from './run-home.js';
 export type { PreparedRunHome } from '../ports/agent-runtime.js';
 export { probeMcpBridge, type McpBridgeProbe, type McpBridgeProbeEntry, type McpBridgeProbeResult } from './mcp-bridge-probe.js';

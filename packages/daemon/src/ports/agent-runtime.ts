@@ -11,6 +11,11 @@ import type {
 import type { AtomicFileWriterPort, FileLockPort } from '@jini-ai/core/contracts/runtime';
 import type { AcpAttachOptional, AcpAttachRequired, AcpSessionController, PiRpcAttachOptional, PiRpcAttachRequired, PiRpcSession } from './agent-runtime-sessions.js';
 
+/** The definition-declared MCP strategy that stages a JSON config file (every `*-mcp-json` value), named structurally so the port stays vendor-neutral. */
+type McpJsonFileStrategy = Extract<NonNullable<RuntimeAgentDef['externalMcpInjection']>, `${string}-mcp-json`>;
+/** The definition-declared MCP strategy that stages a run-scoped home directory (every `*-toml` value), named structurally for the same reason. */
+type StagedHomeStrategy = Extract<NonNullable<RuntimeAgentDef['externalMcpInjection']>, `${string}-toml`>;
+
 /** A stream parser the launcher feeds the child's stdout. */
 export interface AgentStreamHandler { feed(required: { chunk: string }): void; flush(): void }
 /** Every parser reports plain records with a `type` discriminant; the launcher translates them. */
@@ -20,10 +25,10 @@ type LaunchProbe = { agentId: string; launchPath: string; env: RuntimeEnv };
 
 export interface RunHomeSeams {
   /**
-   * `'codex-toml'` only. Creates a fresh, randomly-named directory the `mcpHome` slot stages
-   * as a run's scratch `CODEX_HOME`. **Must be non-deterministic (a real `mkdtemp`, not a
+   * Staged-home delivery only. Creates a fresh, randomly-named directory the `mcpHome` slot stages
+   * as a run's scratch home. **Must be non-deterministic (a real `mkdtemp`, not a
    * caller-computed path)** — unlike `mcpJsonPathForRun`'s deterministic path inside the run's own
-   * `cwd`, this directory holds a copy of the operator's real Codex login credential, and
+   * `cwd`, this directory holds a copy of the operator's real login credential, and
    * `os.tmpdir()` is a shared location on a multi-user host: a guessable name there is a real
    * pre-plant/symlink target for another local user. `fs.mkdtemp`'s random suffix plus its `0700`
    * directory mode is the actual confidentiality control, matching the same reasoning
@@ -35,13 +40,13 @@ export interface RunHomeSeams {
    */
   readonly mkdtemp?: ({ prefix }: { readonly prefix: string }) => Promise<string>;
   /**
-   * `'codex-toml'` only. Recursively removes the scratch `CODEX_HOME` directory `mkdtemp` above
+   * Staged-home delivery only. Recursively removes the scratch home directory `mkdtemp` above
    * created — the directory-level analogue of `removeFile`, needed because this mechanism stages a
    * whole directory (`config.toml` plus a copied `auth.json`), not one file.
    * @default `fs.rm(path, { recursive: true, force: true })` — already-gone is success, not an error.
    */
   readonly removeDir?: ({ path }: { readonly path: string }) => Promise<void>;
-  /** `'codex-toml'` only. Links the run home's sessions/archived_sessions to the operator's
+  /** Staged-home delivery only. Links the run home's sessions/archived_sessions to the operator's
    * persistent rollout store and authentication. Parity also links user home entries; config alone stays isolated.
    * @default Native mkdir (0700) and directory symlinks; errors fail staging before spawn. */
   readonly linkSessionStore?: (required: { runHome: string; sourceHome: string }, optional?: { inheritUserConfig?: boolean }) => Promise<void>;
@@ -55,6 +60,11 @@ export type PreparedRunHome = {
   readonly cleanup: () => Promise<void>;
 };
 
+/** The bridge entry a `*-env-content` document carries: the stdio launch, or a remote HTTP endpoint. */
+export type EnvContentBridgeEntry =
+  | { readonly command: string; readonly args: readonly string[]; readonly env: Readonly<Record<string, string>> }
+  | { readonly type: 'remote'; readonly url: string; readonly headers: Readonly<Record<string, string>> };
+
 /** Vendor behaviour for one definition. Every slot is optional: a definition that needs none gets `{}`, and the launcher
  * then does nothing vendor-specific for it. The binding picks each slot from what the definition declares. */
 export interface AgentRuntimeStrategies {
@@ -67,13 +77,53 @@ export interface AgentRuntimeStrategies {
   readonly mcpBridge?: {
     prepare(required: { delivery: { readonly kind: string } | null; serverName: string; fileLock: FileLockPort; writer: AtomicFileWriterPort }): Promise<void>;
   };
+  /** For a `*-env-content` MCP delivery: serialises the bridge entry into the config document the CLI reads from the env
+   * variable `mcpDelivery.envContentVar` names, keeping whatever the host already put there. `serverName` is the key the
+   * daemon registers its bridge under. Absent: the definition has no such document. */
+  readonly envContent?: {
+    mergeMcp(required: { existingRaw: string | undefined; entry: EnvContentBridgeEntry; serverName: string }): string;
+  };
+  /** For a `config-instructions-file` system-prompt delivery: appends the staged overlay file's path to the `instructions`
+   * of the config document in the env variable the definition names, keeping what is already there. Absent: no such delivery. */
+  readonly instructionsDocument?: {
+    merge(required: { existingRaw: string | undefined; instructionsFilePath: string }): string;
+  };
+  /** Merges a run-scoped HTTP MCP endpoint into the spawn env's config document (`envVar` names it, from `mcpDelivery`); absent: the spawn env is kept. */
+  readonly httpMcpEnv?: (required: { env: NodeJS.ProcessEnv; endpoint: { readonly url: string; readonly token: string }; envVar: string; serverName: string }) => NodeJS.ProcessEnv;
+  /** The CLI's private filesystem policy hooks around a folder-limited launch: acquire a runtime temp, degrade when the
+   * CLI cannot confine itself, apply the shared read-block and settings policy. `supported` alone is bound for every
+   * definition so the policy still applies to a definition whose probe reports support; `prepare`/`unsupported` are
+   * the CLI's own extras and absent elsewhere. */
+  readonly filesystem?: {
+    prepare?(required: { input: RuntimeBuildOptions & { filesystemRuntimeTempBase?: string }; spawnEnv: NodeJS.ProcessEnv; runtimeTemps: string[] }): Promise<void> | void;
+    unsupported?(required: { input: RuntimeBuildOptions }): void;
+    supported(required: { input: RuntimeBuildOptions & { filesystemRuntimeReadPaths?: readonly string[] }; launchPath: string; spawnEnv: NodeJS.ProcessEnv }, optional: { filesystem: { runtimePaths(required: { launchPath: string }): readonly string[]; settings(required: { options: RuntimeBuildOptions }): string } }): void;
+  };
+  /** A scratch config directory the CLI reads instead of the operator's own, handed to the child under `envKey`.
+   * `stage` may copy a credential into it; the host owns the returned `cleanup`. Absent: nothing to stage. */
+  readonly configDir?: {
+    readonly envKey: string;
+    stage(required: { runId: string; hostEnv: NodeJS.ProcessEnv }, optional?: { seams?: { mkdtemp?: (required: { prefix: string }) => Promise<string>; readFile?: (required: { path: string }) => Promise<string>; writeFile?: (required: { path: string; content: string }) => Promise<void>; removeDir?: (required: { path: string }) => Promise<void> } | undefined }): Promise<{ readonly path: string; readonly cleanup: () => Promise<void> }>;
+  };
+  /** A run-scoped JSON MCP config file the CLI is pointed at. Generic over the host's server-entry shape, which the CLI only echoes. */
+  readonly mcpConfigFile?: {
+    build<Entry extends { readonly command: string; readonly args: string[]; readonly env: Readonly<Record<string, string>> }>(required: { cwd: string; runId: string; serverEntry: Entry }): { kind: McpJsonFileStrategy; mcpJsonPath: string; serverEntry: Entry };
+    write(required: { cwd: string; delivery: { readonly kind: string; readonly mcpJsonPath?: string; readonly serverEntry?: { readonly command: string; readonly args: string[]; readonly env: Readonly<Record<string, string>> } }; options: { readonly readFile?: (required: { path: string }) => Promise<string>; readonly writeFile?: (required: { path: string; content: string }) => Promise<void> }; serverName: string }, optional?: { inheritUserConfig?: boolean | undefined }): Promise<string>;
+    prepareHttp(required: { cwd: string; endpoint: { readonly url: string; readonly token: string }; serverName: string }, optional?: { inheritUserMcp?: boolean; readFile?: (required: { path: string }) => Promise<string> }): Promise<{ path: string; cleanup: () => Promise<void> }>;
+  };
+  /** Settings JSON that registers the CLI's own subagent-start hook so each child loads the parent's plugins. */
+  readonly subagentStart?: {
+    prepare(required: { directory: string; context: { ids: readonly string[]; instructions: string }; settings?: string }): Promise<string>;
+  };
   /** A CLI that takes its MCP config from a run-scoped home directory the host stages before spawn. The directory may hold a
    * link to the operator's real login and a bearer token, so `stage` owns isolation and the host owns release: a rejection or a
    * `refused` result leaves nothing staged, and `cleanup` on a staged home removes links, never their targets. Absent: no staged home. */
   readonly mcpHome?: {
     /** The environment variable the spawned child reads the staged directory from; it is also kept from the host env. */
     readonly envVar: string;
-    buildDelivery<E>(required: { serverEntry: E }): { readonly kind: 'codex-toml'; readonly serverEntry: E };
+    /** The `McpBridgeDelivery.kind` that `buildDelivery` produces, so the host recognises this slot's delivery without naming a CLI. */
+    readonly deliveryKind: StagedHomeStrategy;
+    buildDelivery<E>(required: { serverEntry: E }): { readonly kind: StagedHomeStrategy; readonly serverEntry: E };
     withStagedHome(required: { env: NodeJS.ProcessEnv; homeDir: string }): NodeJS.ProcessEnv;
     /** True when the run turns off personal config, which only a staged home can do: with no staging available the host refuses the start. */
     turnsOffPersonalConfig(required: { nativeCapabilities?: Partial<NativeCapabilities> }): boolean;

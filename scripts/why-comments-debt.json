@@ -1792,6 +1792,26 @@
     {
       "id": "4b9866fd46b6",
       "reason": "packages/server/src/create-local-node-daemon.ts:434-436: the inline vendor-listener stop was removed with the slot (K04); feature teardown ordering is unchanged and still pinned by the existing stop() tests."
+    },
+    {
+      "id": "e5e5ff1d4d1d",
+      "reason": "K06 (dcfe6d018): the type-erased registry entry is gone; ProxyProviderRegistryEntry now binds a typed ProxyProviderRegistration (the erasure lives in the vendor plugin's registration factory), so 'type-erased' no longer describes it."
+    },
+    {
+      "id": "6c627561ba6b",
+      "reason": "K06 (dcfe6d018): defineProvider (the single type-erasing cast) was deleted; the daemon holds no per-provider concrete types any more, so there is no cast to explain."
+    },
+    {
+      "id": "f04ff93b6180",
+      "reason": "K06 (dcfe6d018): the registry is a Map now (Map.get('constructor') is undefined), so the second isRecognizedProvider check, which only existed to reject inherited plain-object keys, was deleted."
+    },
+    {
+      "id": "7952bfeebc46",
+      "reason": "K06 (06a759fac): the zero-config anthropic server test was replaced by a host-injected fixture-provider test; the apiKey-less anthropic body it described no longer exists in packages/server."
+    },
+    {
+      "id": "2b6d20b712fe",
+      "reason": "packages/daemon/src/agent-executor/claude/config-dir.ts:130-152 (prepareClaudeConfigDirIfNeeded doc): K02b split the function along the new strategy seam, so the block was split with it, not dropped. The per-CLI half (staging is for the real claude CLI only, keyed by def id rather than the shared claude-mcp-json delivery, unconditional for claude runs) lives with the configDir slot binding in packages/agent-runtime/src/runtime-strategies.ts and defs/claude/config-dir.ts; the gate half (deps.enabled defaults off because Keychain login is keyed by the config-dir variable; a host flipping it on must not stage for any other def) is kept on prepareStagedConfigDirIfNeeded in packages/daemon/src/agent-executor/staged-config-dir.ts, worded without vendor names for the R15 daemon vendor-neutral ratchet."
     }
   ]
 }
