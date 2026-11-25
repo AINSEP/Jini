@@ -702,7 +702,12 @@
       "./react/publish-content/criteria-publish-result": "universal",
       "./react/publish-content/PublishSectionButton": "browser",
       "./posts/revision-thinning": "universal",
-      "./admin-http/routes/posts/revision-thinning": "universal"
+      "./admin-http/routes/posts/revision-thinning": "universal",
+      "./forms/destinations/connection-port": "universal",
+      "./forms/destinations/port": "universal",
+      "./media/site-generation/provider-credential-save": "universal",
+      "./media/site-generation/providers-tools": "universal",
+      "./html/site/export-html-policy": "node"
     },
     "isolation": {
       "domains": {
@@ -4505,6 +4510,31 @@
       "types": "./dist/admin-http/routes/posts/revision-thinning.d.ts",
       "import": "./dist/admin-http/routes/posts/revision-thinning.js",
       "default": "./dist/admin-http/routes/posts/revision-thinning.js"
+    },
+    "./forms/destinations/connection-port": {
+      "types": "./dist/forms/destinations/connection-port.d.ts",
+      "import": "./dist/forms/destinations/connection-port.js",
+      "default": "./dist/forms/destinations/connection-port.js"
+    },
+    "./forms/destinations/port": {
+      "types": "./dist/forms/destinations/port.d.ts",
+      "import": "./dist/forms/destinations/port.js",
+      "default": "./dist/forms/destinations/port.js"
+    },
+    "./media/site-generation/provider-credential-save": {
+      "types": "./dist/media/site-generation/provider-credential-save.d.ts",
+      "import": "./dist/media/site-generation/provider-credential-save.js",
+      "default": "./dist/media/site-generation/provider-credential-save.js"
+    },
+    "./media/site-generation/providers-tools": {
+      "types": "./dist/media/site-generation/providers-tools.d.ts",
+      "import": "./dist/media/site-generation/providers-tools.js",
+      "default": "./dist/media/site-generation/providers-tools.js"
+    },
+    "./html/site/export-html-policy": {
+      "types": "./dist/html/site/export-html-policy.d.ts",
+      "import": "./dist/html/site/export-html-policy.js",
+      "default": "./dist/html/site/export-html-policy.js"
     }
   },
   "files": [

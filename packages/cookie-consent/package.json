@@ -53,10 +53,13 @@
       "./site/service": "node",
       "./site/region-plugins": "universal",
       "./site/ensure-privacy-defaults": "universal",
-      "./site/tool-registrations": "node"
+      "./site/tool-registrations": "node",
+      "./site/request": "universal",
+      "./site/revisions.repo": "node"
     },
     "optionalPeers": {
-      "react": "opt-in: react consent settings; import @jini-ai/cookie-consent/react — React consent settings could not load react. Install react to enable this feature, or check its installed version."
+      "react": "opt-in: react consent settings; import @jini-ai/cookie-consent/react — React consent settings could not load react. Install react to enable this feature, or check its installed version.",
+      "kysely": "opt-in: SQL consent revisions — Install kysely to use the site consent SQL store."
     }
   },
   "type": "module",
@@ -164,6 +167,16 @@
       "types": "./dist/site/tool-registrations.d.ts",
       "import": "./dist/site/tool-registrations.js",
       "default": "./dist/site/tool-registrations.js"
+    },
+    "./site/request": {
+      "types": "./dist/site/request.d.ts",
+      "import": "./dist/site/request.js",
+      "default": "./dist/site/request.js"
+    },
+    "./site/revisions.repo": {
+      "types": "./dist/site/revisions.repo.d.ts",
+      "import": "./dist/site/revisions.repo.js",
+      "default": "./dist/site/revisions.repo.js"
     }
   },
   "files": [
@@ -199,13 +212,18 @@
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
     "typescript": "^5.6.0",
-    "vitest": "^3.2.6"
+    "vitest": "^3.2.6",
+    "kysely": "^0.29.6"
   },
   "peerDependencies": {
-    "react": "^18.3.0 || ^19.0.0"
+    "react": "^18.3.0 || ^19.0.0",
+    "kysely": "^0.29.6"
   },
   "peerDependenciesMeta": {
     "react": {
+      "optional": true
+    },
+    "kysely": {
       "optional": true
     }
   }

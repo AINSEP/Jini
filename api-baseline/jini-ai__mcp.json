@@ -445,6 +445,13 @@
    "validateExternalMcpToolNames": "function:7f84f14ea4"
   }
  },
+ "./federation/hosted/external-mcp-repo": {
+  "types": "./dist/federation/hosted/external-mcp-repo.d.ts",
+  "symbols": {
+   "ExternalMcpServersTable": "interface:e872fc4a82",
+   "SqlExternalMcpServerRepo": "class:6fb4ff3ec7"
+  }
+ },
  "./federation/stdio": {
   "types": "./dist/federation/stdio/index.d.ts",
   "symbols": {

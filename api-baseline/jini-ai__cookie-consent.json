@@ -124,9 +124,9 @@
   "symbols": {
    "CONSENT_PREVIEW_DESKTOP_WIDTH": "variable:f2e37bdec8",
    "ConsentAppearanceView": "interface:726ea9ab6d",
-   "ConsentBannerFields": "function:92edbc3d2a",
+   "ConsentBannerFields": "function:d9e4a6fae9",
    "ConsentFieldProblem": "interface:3030577d40",
-   "ConsentFieldsProps": "interface:c9e35df51f",
+   "ConsentFieldsProps": "interface:2152b5d564",
    "ConsentLightColors": "interface:e8c2a09f20",
    "ConsentLookFields": "function:8beb966b92",
    "ConsentPreviewFrame": "function:ce141d0904",
@@ -244,6 +244,14 @@
    "toRegionResolvers": "function:8050d21a95"
   }
  },
+ "./site/request": {
+  "types": "./dist/site/request.d.ts",
+  "symbols": {
+   "consentPagePath": "function:29ccdcff36",
+   "consentRevisionToken": "function:b83e8ba2b9",
+   "readConsentRequest": "function:b86647eac9"
+  }
+ },
  "./site/revisions": {
   "types": "./dist/site/revisions.d.ts",
   "symbols": {
@@ -251,6 +259,12 @@
    "SiteConsentRevision": "interface:2723553d42",
    "SiteConsentState": "interface:0fe7545e5e",
    "SiteConsentStore": "interface:4e26baeea2"
+  }
+ },
+ "./site/revisions.repo": {
+  "types": "./dist/site/revisions.repo.d.ts",
+  "symbols": {
+   "createSiteConsentStore": "function:5ddb11deb7"
   }
  },
  "./site/service": {

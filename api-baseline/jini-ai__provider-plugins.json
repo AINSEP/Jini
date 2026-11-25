@@ -1,184 +1,160 @@
 {
-  "./ai-trace-langfuse": {
-    "types": null,
-    "symbols": {}
-  },
-  "./ai-trace-langfuse/*": {
-    "types": null,
-    "symbols": {}
-  },
-  "./analytics-posthog": {
-    "types": null,
-    "symbols": {}
-  },
-  "./analytics-posthog/*": {
-    "types": null,
-    "symbols": {}
-  },
-  "./catalog": {
-    "types": null,
-    "symbols": {}
-  },
-  "./charts-echarts/*": {
-    "types": null,
-    "symbols": {}
-  },
-  "./charts-recharts/*": {
-    "types": null,
-    "symbols": {}
-  },
-  "./fixture-provider/*": {
-    "types": null,
-    "symbols": {}
-  },
-  "./formspree": {
-    "types": null,
-    "symbols": {}
-  },
-  "./formspree/*": {
-    "types": null,
-    "symbols": {}
-  },
-  "./google-forms": {
-    "types": null,
-    "symbols": {}
-  },
-  "./google-forms/*": {
-    "types": null,
-    "symbols": {}
-  },
-  "./observability-opentelemetry": {
-    "types": null,
-    "symbols": {}
-  },
-  "./observability-opentelemetry/*": {
-    "types": null,
-    "symbols": {}
-  },
-  "./observability-opentelemetry/port": {
-    "types": "./dist/observability-opentelemetry/otel-port.d.ts",
-    "symbols": {
-      "ExporterFactory": "interface:d8cee9285d",
-      "OtelAdapterDependencies": "interface:e7d8a8768c",
-      "OtelAdapterOptions": "interface:f3f75876ea",
-      "TraceSpanKind": "type:dc2c763271",
-      "TracerPort": "interface:9b4dea9f67",
-      "TracerProviderFactory": "interface:ea1de01798",
-      "createOtelObservabilityPort": "function:be4b7795ae",
-      "outboundTargetAttributes": "function:81a28602aa",
-      "redactRequestTarget": "function:b7f7351bf5"
-    }
-  },
-  "./observability-sentry": {
-    "types": null,
-    "symbols": {}
-  },
-  "./observability-sentry/*": {
-    "types": null,
-    "symbols": {}
-  },
-  "./package.json": {
-    "types": null,
-    "symbols": {}
-  },
-  "./payments-stripe": {
-    "types": null,
-    "symbols": {}
-  },
-  "./payments-stripe/*": {
-    "types": null,
-    "symbols": {}
-  },
-  "./plugins/*": {
-    "types": null,
-    "symbols": {}
-  },
-  "./xai-grok-imagine": {
-    "types": null,
-    "symbols": {}
-  },
-  "./xai-grok-imagine/*": {
-    "types": null,
-    "symbols": {}
-  },
-  "./xai-grok-imagine/media": {
-    "types": "./dist/xai-grok-imagine/media.d.ts",
-    "symbols": {
-      "createXaiMediaContribution": "function:28db2db50a"
-    }
-  },
-  "./model-proxy-*": {
-    "types": null,
-    "symbols": {}
-  },
-  "./xai": {
-    "types": null,
-    "symbols": {}
-  },
-  "./xai/*": {
-    "types": null,
-    "symbols": {}
-  },
-  "./xai/media": {
-    "types": "./dist/xai/media/index.d.ts",
-    "symbols": {
-      "XAI_MEDIA_PROVIDER_ID": "variable:ee83e1c979",
-      "XaiCredentialGuard": "type:6188657c96",
-      "XaiCredentials": "interface:4df37cb525",
-      "XaiMediaKit": "interface:4461a6a971",
-      "XaiRawBytesParserOptions": "interface:82cfaedce2",
-      "XaiRenderContext": "interface:0b8d17eaba",
-      "XaiRenderResult": "interface:ffdc51ae5d",
-      "XaiResponseParser": "type:eede743729",
-      "XaiVendorAdapter": "interface:aea61d6f68",
-      "XaiVendorRequest": "interface:e642d286a8",
-      "createGrokImageAdapter": "function:40c4617ae3",
-      "createXaiMediaContribution": "function:8b9703dd89",
-      "createXaiTTSAdapter": "function:302898e441"
-    }
-  },
-  "./xai/oauth-port": {
-    "types": "./dist/xai/oauth-port.d.ts",
-    "symbols": {
-      "OAuthCallbackListener": "interface:36c82c83ed",
-      "OAuthCallbackOutcome": "type:5d2f8ce9c4",
-      "OAuthPendingAuthorizations": "interface:4a6a5bed16",
-      "OAuthPkceFlowPort": "interface:c54cdaddf1",
-      "OAuthPkceProviderConfig": "interface:8d4e003bd4",
-      "OAuthTokenResponse": "interface:85b8074deb",
-      "ResolvedOAuthCredential": "interface:06484d1d94",
-      "StoredOAuthToken": "interface:a2fc95ca3d"
-    }
-  },
-  "./xai/preset": {
-    "types": "./dist/xai/preset.d.ts",
-    "symbols": {
-      "XAI_OAUTH_PROVIDER_CONFIG": "variable:1de8d34649",
-      "XAI_OAUTH_PROVIDER_ID": "variable:4f01a1d3d1",
-      "XAI_OAUTH_REDIRECT_HOST": "variable:1b9ba41d71",
-      "XAI_OAUTH_REDIRECT_PATH": "variable:8bf9f53952",
-      "XAI_OAUTH_REDIRECT_PORT": "variable:5296f7ad49",
-      "xaiOAuthRedirectUri": "function:cb1b7857d2"
-    }
-  },
-  "./xai/routes": {
-    "types": "./dist/xai/routes.d.ts",
-    "symbols": {
-      "XaiAuthStatusResponse": "interface:84fb8d27a7",
-      "XaiHttpDeps": "interface:216077b8ec",
-      "XaiInternalErrorContext": "interface:d2ae2ff970",
-      "XaiOauthStartResponse": "interface:ee0abcf56f",
-      "XaiOkResponse": "interface:b9d3f761a5",
-      "XaiRouteHost": "interface:7aef8d8d38",
-      "XaiSearchResponse": "interface:074bed322c",
-      "toStoredOAuthToken": "function:ba839f3a7f",
-      "xaiAuthStatusRoute": "variable:706b1dd6b6",
-      "xaiOauthCancelRoute": "variable:a6b8b85547",
-      "xaiOauthCompleteRoute": "variable:89ac155892",
-      "xaiOauthDisconnectRoute": "variable:5ce1f46956",
-      "xaiOauthStartRoute": "variable:ef699442dc",
-      "xaiRoutes": "function:ad3c6fb48b",
-      "xaiSearchRoute": "variable:e6826f510b"
-    }
+ "./ai-trace-langfuse": {
+  "types": null,
+  "symbols": {}
+ },
+ "./ai-trace-langfuse/*": {
+  "types": null,
+  "symbols": {}
+ },
+ "./analytics-posthog": {
+  "types": null,
+  "symbols": {}
+ },
+ "./analytics-posthog/*": {
+  "types": null,
+  "symbols": {}
+ },
+ "./catalog": {
+  "types": null,
+  "symbols": {}
+ },
+ "./charts-echarts/*": {
+  "types": null,
+  "symbols": {}
+ },
+ "./charts-recharts/*": {
+  "types": null,
+  "symbols": {}
+ },
+ "./fixture-provider/*": {
+  "types": null,
+  "symbols": {}
+ },
+ "./formspree": {
+  "types": null,
+  "symbols": {}
+ },
+ "./formspree/*": {
+  "types": null,
+  "symbols": {}
+ },
+ "./google-forms": {
+  "types": null,
+  "symbols": {}
+ },
+ "./google-forms/*": {
+  "types": null,
+  "symbols": {}
+ },
+ "./model-proxy-*": {
+  "types": null,
+  "symbols": {}
+ },
+ "./observability-opentelemetry": {
+  "types": null,
+  "symbols": {}
+ },
+ "./observability-opentelemetry/*": {
+  "types": null,
+  "symbols": {}
+ },
+ "./observability-opentelemetry/port": {
+  "types": "./dist/observability-opentelemetry/otel-port.d.ts",
+  "symbols": {
+   "ExporterFactory": "interface:d8cee9285d",
+   "OtelAdapterDependencies": "interface:e7d8a8768c",
+   "OtelAdapterOptions": "interface:f3f75876ea",
+   "TraceSpanKind": "type:dc2c763271",
+   "TracerPort": "interface:9b4dea9f67",
+   "TracerProviderFactory": "interface:ea1de01798",
+   "createOtelObservabilityPort": "function:be4b7795ae",
+   "outboundTargetAttributes": "function:81a28602aa",
+   "redactRequestTarget": "function:b7f7351bf5"
   }
+ },
+ "./observability-sentry": {
+  "types": null,
+  "symbols": {}
+ },
+ "./observability-sentry/*": {
+  "types": null,
+  "symbols": {}
+ },
+ "./package.json": {
+  "types": null,
+  "symbols": {}
+ },
+ "./payments-stripe": {
+  "types": null,
+  "symbols": {}
+ },
+ "./payments-stripe/*": {
+  "types": null,
+  "symbols": {}
+ },
+ "./plugins/*": {
+  "types": null,
+  "symbols": {}
+ },
+ "./xai": {
+  "types": null,
+  "symbols": {}
+ },
+ "./xai/*": {
+  "types": null,
+  "symbols": {}
+ },
+ "./xai/media": {
+  "types": "./dist/xai/media/index.d.ts",
+  "symbols": {
+   "XAI_MEDIA_PROVIDER_ALIASES": "variable:681316b356",
+   "XAI_MEDIA_PROVIDER_ID": "variable:ee83e1c979",
+   "createXaiMediaContribution": "function:28db2db50a"
+  }
+ },
+ "./xai/oauth-port": {
+  "types": "./dist/xai/oauth-port.d.ts",
+  "symbols": {
+   "OAuthCallbackListener": "interface:36c82c83ed",
+   "OAuthCallbackOutcome": "type:5d2f8ce9c4",
+   "OAuthPendingAuthorizations": "interface:4a6a5bed16",
+   "OAuthPkceFlowPort": "interface:c54cdaddf1",
+   "OAuthPkceProviderConfig": "interface:8d4e003bd4",
+   "OAuthTokenResponse": "interface:85b8074deb",
+   "ResolvedOAuthCredential": "interface:06484d1d94",
+   "StoredOAuthToken": "interface:a2fc95ca3d"
+  }
+ },
+ "./xai/preset": {
+  "types": "./dist/xai/preset.d.ts",
+  "symbols": {
+   "XAI_OAUTH_PROVIDER_CONFIG": "variable:1de8d34649",
+   "XAI_OAUTH_PROVIDER_ID": "variable:4f01a1d3d1",
+   "XAI_OAUTH_REDIRECT_HOST": "variable:1b9ba41d71",
+   "XAI_OAUTH_REDIRECT_PATH": "variable:8bf9f53952",
+   "XAI_OAUTH_REDIRECT_PORT": "variable:5296f7ad49",
+   "xaiOAuthRedirectUri": "function:cb1b7857d2"
+  }
+ },
+ "./xai/routes": {
+  "types": "./dist/xai/routes.d.ts",
+  "symbols": {
+   "XaiAuthStatusResponse": "interface:84fb8d27a7",
+   "XaiHttpDeps": "interface:2a13189251",
+   "XaiInternalErrorContext": "interface:d2ae2ff970",
+   "XaiOauthStartResponse": "interface:ee0abcf56f",
+   "XaiOkResponse": "interface:b9d3f761a5",
+   "XaiRouteHost": "interface:7aef8d8d38",
+   "XaiSearchResponse": "interface:074bed322c",
+   "toStoredOAuthToken": "function:ba839f3a7f",
+   "xaiAuthStatusRoute": "variable:706b1dd6b6",
+   "xaiOauthCancelRoute": "variable:a6b8b85547",
+   "xaiOauthCompleteRoute": "variable:89ac155892",
+   "xaiOauthDisconnectRoute": "variable:5ce1f46956",
+   "xaiOauthStartRoute": "variable:ef699442dc",
+   "xaiRoutes": "function:ad3c6fb48b",
+   "xaiSearchRoute": "variable:e6826f510b"
+  }
+ }
 }
