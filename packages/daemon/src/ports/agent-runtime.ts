@@ -11,6 +11,9 @@ import type {
 import type { AtomicFileWriterPort, FileLockPort } from '@jini-ai/core/contracts/runtime';
 import type { AcpAttachOptional, AcpAttachRequired, AcpSessionController, PiRpcAttachOptional, PiRpcAttachRequired, PiRpcSession } from './agent-runtime-sessions.js';
 
+/** The definition-declared MCP strategy that stages a JSON config file (every `*-mcp-json` value), named structurally so the port stays vendor-neutral. */
+type McpJsonFileStrategy = Extract<NonNullable<RuntimeAgentDef['externalMcpInjection']>, `${string}-mcp-json`>;
+
 /** A stream parser the launcher feeds the child's stdout. */
 export interface AgentStreamHandler { feed(required: { chunk: string }): void; flush(): void }
 /** Every parser reports plain records with a `type` discriminant; the launcher translates them. */
@@ -48,6 +51,31 @@ export interface AgentRuntimeStrategies {
   };
   /** Merges a run-scoped HTTP MCP endpoint into the spawn env's config document (`envVar` names it, from `mcpDelivery`); absent: the spawn env is kept. */
   readonly httpMcpEnv?: (required: { env: NodeJS.ProcessEnv; endpoint: { readonly url: string; readonly token: string }; envVar: string; serverName: string }) => NodeJS.ProcessEnv;
+  /** The CLI's private filesystem policy hooks around a folder-limited launch: acquire a runtime temp, degrade when the
+   * CLI cannot confine itself, apply the shared read-block and settings policy. `supported` alone is bound for every
+   * definition so the policy still applies to a definition whose probe reports support; `prepare`/`unsupported` are
+   * the CLI's own extras and absent elsewhere. */
+  readonly filesystem?: {
+    prepare?(required: { input: RuntimeBuildOptions & { filesystemRuntimeTempBase?: string }; spawnEnv: NodeJS.ProcessEnv; runtimeTemps: string[] }): Promise<void> | void;
+    unsupported?(required: { input: RuntimeBuildOptions }): void;
+    supported(required: { input: RuntimeBuildOptions & { filesystemRuntimeReadPaths?: readonly string[] }; launchPath: string; spawnEnv: NodeJS.ProcessEnv }, optional: { filesystem: { runtimePaths(required: { launchPath: string }): readonly string[]; settings(required: { options: RuntimeBuildOptions }): string } }): void;
+  };
+  /** A scratch config directory the CLI reads instead of the operator's own, handed to the child under `envKey`.
+   * `stage` may copy a credential into it; the host owns the returned `cleanup`. Absent: nothing to stage. */
+  readonly configDir?: {
+    readonly envKey: string;
+    stage(required: { runId: string; hostEnv: NodeJS.ProcessEnv }, optional?: { seams?: { mkdtemp?: (required: { prefix: string }) => Promise<string>; readFile?: (required: { path: string }) => Promise<string>; writeFile?: (required: { path: string; content: string }) => Promise<void>; removeDir?: (required: { path: string }) => Promise<void> } | undefined }): Promise<{ readonly path: string; readonly cleanup: () => Promise<void> }>;
+  };
+  /** A run-scoped JSON MCP config file the CLI is pointed at. Generic over the host's server-entry shape, which the CLI only echoes. */
+  readonly mcpConfigFile?: {
+    build<Entry extends { readonly command: string; readonly args: string[]; readonly env: Readonly<Record<string, string>> }>(required: { cwd: string; runId: string; serverEntry: Entry }): { kind: McpJsonFileStrategy; mcpJsonPath: string; serverEntry: Entry };
+    write(required: { cwd: string; delivery: { readonly kind: string; readonly mcpJsonPath?: string; readonly serverEntry?: { readonly command: string; readonly args: string[]; readonly env: Readonly<Record<string, string>> } }; options: { readonly readFile?: (required: { path: string }) => Promise<string>; readonly writeFile?: (required: { path: string; content: string }) => Promise<void> }; serverName: string }, optional?: { inheritUserConfig?: boolean | undefined }): Promise<string>;
+    prepareHttp(required: { cwd: string; endpoint: { readonly url: string; readonly token: string }; serverName: string }, optional?: { inheritUserMcp?: boolean; readFile?: (required: { path: string }) => Promise<string> }): Promise<{ path: string; cleanup: () => Promise<void> }>;
+  };
+  /** Settings JSON that registers the CLI's own subagent-start hook so each child loads the parent's plugins. */
+  readonly subagentStart?: {
+    prepare(required: { directory: string; context: { ids: readonly string[]; instructions: string }; settings?: string }): Promise<string>;
+  };
 }
 
 export interface AgentRuntimePort {

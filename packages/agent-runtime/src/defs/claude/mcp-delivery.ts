@@ -1,9 +1,7 @@
 import { join } from 'node:path';
-import type { McpBridgeDelivery, McpJsonInjectionOptions } from '../contracts.js';
-import type { McpDeliveryBuildInput } from '../mcp-delivery-types.js';
-import { defaultReadMcpJsonFile, defaultWriteMcpJsonFile, mergeMcpJsonContent } from '../mcp-json-file.js';
+import { defaultReadMcpJsonFile, defaultWriteMcpJsonFile, mergeMcpJsonContent, type McpServerEntryLike } from './mcp-json.js';
 
-export function buildClaudeMcpDelivery({ cwd, runId, serverEntry }: McpDeliveryBuildInput): McpBridgeDelivery {
+export function buildClaudeMcpDelivery<Entry extends McpServerEntryLike>({ cwd, runId, serverEntry }: { cwd: string; runId: string; serverEntry: Entry }): { kind: 'claude-mcp-json'; mcpJsonPath: string; serverEntry: Entry } {
   return { kind: 'claude-mcp-json', mcpJsonPath: mcpJsonPathForRun(cwd, runId), serverEntry };
 }
 
@@ -52,7 +50,7 @@ function mcpJsonPathForRun(cwd: string, runId: string): string {
  * @param cwd - The run's working directory, so the project's own `.mcp.json` can be read as the
  * merge base — not carried on `delivery` itself, since that only describes the write target.
  * @param delivery - The already-built `'claude-mcp-json'` delivery (path + entry). Both fields come
- * from {@link buildMcpBridgeDelivery}, so the credential was resolved exactly once, for this run.
+ * from `buildMcpBridgeDelivery`, so the credential was resolved exactly once, for this run.
  * @param options - Supplies the injectable `readFile`/`writeFile` seams.
  * @throws Whatever `writeFile` rejects with — the caller (`run()`) turns that into a pre-spawn
  * `AGENT_SPAWN_FAILED` failure, matching the pre-spawn filesystem guards in `launch.ts`
@@ -61,10 +59,10 @@ function mcpJsonPathForRun(cwd: string, runId: string): string {
  * @overallScore 100/100
  */
 export async function writeMcpJsonForRun(
-  { cwd, delivery, options }: { cwd: string; delivery: McpBridgeDelivery; options: McpJsonInjectionOptions },
+  { cwd, delivery, options, serverName }: { cwd: string; delivery: { readonly kind: string; readonly mcpJsonPath?: string; readonly serverEntry?: McpServerEntryLike }; options: { readonly readFile?: (required: { readonly path: string }) => Promise<string>; readonly writeFile?: (required: { readonly path: string; readonly content: string }) => Promise<void> }; serverName: string },
   { inheritUserConfig = true }: { inheritUserConfig?: boolean | undefined } = {},
 ): Promise<string> {
-  if (delivery.kind !== 'claude-mcp-json') throw new TypeError('Unexpected MCP delivery');
+  if (delivery.kind !== 'claude-mcp-json' || delivery.mcpJsonPath === undefined || delivery.serverEntry === undefined) throw new TypeError('Unexpected MCP delivery');
   const readFileFn = options.readFile ?? defaultReadMcpJsonFile;
   const writeFileFn = options.writeFile ?? defaultWriteMcpJsonFile;
   let existingRaw: string | undefined;
@@ -75,7 +73,7 @@ export async function writeMcpJsonForRun(
     // degrade to "start fresh", matching mergeMcpJsonContent's own doc.
     existingRaw = undefined;
   }
-  await writeFileFn({ path: delivery.mcpJsonPath, content: mergeMcpJsonContent({ existingRaw: existingRaw, serverEntry: delivery.serverEntry }) });
+  await writeFileFn({ path: delivery.mcpJsonPath, content: mergeMcpJsonContent({ existingRaw: existingRaw, serverEntry: delivery.serverEntry, serverName }) });
   return delivery.mcpJsonPath;
 }
 

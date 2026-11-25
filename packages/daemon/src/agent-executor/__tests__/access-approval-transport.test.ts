@@ -13,7 +13,7 @@ import { scheduler } from '../../__tests__/surface-fixture.js';
 import { createToolExecutor } from '../../tool-executor.js';
 import { withSurfaceExchangeLifetime } from '../../tool-recovery/surface-lifetime.js';
 import { computeChildEnv } from '../launch.js';
-import { boundEnvContent, boundMcpDelivery } from './runtime-fixture.js';
+import { boundEnvContent, boundMcpDelivery, boundMcpConfigFile } from './runtime-fixture.js';
 import { prepareCodexHomeIfNeeded } from '../codex/home-staging.js';
 import { resolveMcpBridgeForRun, writeMcpJsonIfNeeded } from '../mcp-bridge.js';
 
@@ -35,7 +35,7 @@ async function stage(def: RuntimeAgentDef, runId: string, credential: string) {
   };
   const delivery = await resolveMcpBridgeForRun({
     input: { runId, cwd: '/fixture', def, nativeCapabilities: { userMcp: true } },
-    deps: { mcpJsonInjection: options, cleanupStagedFiles: async () => {}, failBeforeSpawn: refuse, ...fakeRuntimePorts(), ...boundMcpDelivery(def) },
+    deps: { ...boundMcpConfigFile(), mcpJsonInjection: options, cleanupStagedFiles: async () => {}, failBeforeSpawn: refuse, ...fakeRuntimePorts(), ...boundMcpDelivery(def) },
   });
   if (delivery === null) {
     expect(computeChildEnv({ spawnEnv: {}, mcpBridge: delivery })).toEqual({});
@@ -58,7 +58,7 @@ async function stage(def: RuntimeAgentDef, runId: string, credential: string) {
   expect(delivery.serverEntry.args).toEqual(options.args);
   if (delivery.kind === 'claude-mcp-json') {
     await writeMcpJsonIfNeeded({ input: { runId, cwd: '/fixture', def, mcpBridge: delivery, nativeCapabilities: { userMcp: false } },
-      deps: { mcpJsonInjection: options, releaseStagedResources: async () => {}, failBeforeSpawn: refuse } });
+      deps: { ...boundMcpConfigFile(), mcpJsonInjection: options, releaseStagedResources: async () => {}, failBeforeSpawn: refuse } });
     return JSON.parse(written.get(delivery.mcpJsonPath)!).mcpServers.jini.env as Record<string, string>;
   }
   if (delivery.kind === 'codex-toml') {

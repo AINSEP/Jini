@@ -6,7 +6,8 @@ type RemoteBridgeEntry = { readonly type: 'remote'; readonly url: string; readon
 type HttpEndpoint = { readonly url: string; readonly token: string };
 
 /** Merge the run-scoped HTTP endpoint into OpenCode's existing inline configuration. `envVar` is the variable the
- * runtime bound for this def's config document; `serverName` is the key the daemon registers its bridge under. */
+ * runtime bound for this def's config document (the daemon no longer owns that name; K03 moves this file). */
+// `serverName` is the key the daemon registers its bridge under.
 export function withOpenCodeHttpMcp(
   { env, endpoint, envVar, serverName }: { env: NodeJS.ProcessEnv; endpoint: HttpEndpoint; envVar: string; serverName: string },
 ): NodeJS.ProcessEnv {

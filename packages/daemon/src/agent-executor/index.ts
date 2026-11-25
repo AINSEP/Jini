@@ -158,8 +158,6 @@ export {
   resolveMcpBridgeForRun,
   writeMcpJsonIfNeeded,
 } from './mcp-bridge.js';
-export { prepareClaudeConfigDirIfNeeded, resolveSourceClaudeConfigDir } from './claude/config-dir.js';
-export { mergeMcpJsonContent } from './mcp-json-file.js';
 export { buildCodexMcpServerToml, buildCodexHomeConfigToml } from './codex/home-config.js';
 export { resolveSourceCodexHomeDir, prepareCodexHomeIfNeeded } from './codex/home-staging.js';
 export { probeMcpBridge, type McpBridgeProbe, type McpBridgeProbeEntry, type McpBridgeProbeResult } from './mcp-bridge-probe.js';

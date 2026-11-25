@@ -21,7 +21,7 @@ it('copies host-configured resolution names from the runtime port, never from sc
 it('snapshots an explicit host allowlist and keeps configuration paths out of the child environment', () => {
   const env = { PATH: '/bin', USER: 'operator', HOME: '/home/operator', CODEX_HOME: '/host/codex', CLAUDE_CONFIG_DIR: '/host/claude', UNRELATED_TOKEN: 'fixture-secret' };
   expect(selectAgentExecutorHostEnv({ env: { HOST_RUNTIME_HOME: '/host/runtime', UNRELATED_TOKEN: 'fixture-secret' }, hostEnvNames: ['HOST_RUNTIME_HOME'] })).toEqual({ HOST_RUNTIME_HOME: '/host/runtime' });
-  const selected = selectAgentExecutorHostEnv({ env, hostEnvNames: [] });
+  const selected = selectAgentExecutorHostEnv({ env, hostEnvNames: agentRuntimeFixture().launch.hostEnvNames() });
   expect(selected).toEqual({ PATH: '/bin', USER: 'operator', HOME: '/home/operator', CODEX_HOME: '/host/codex', CLAUDE_CONFIG_DIR: '/host/claude' });
   env.CODEX_HOME = '/changed';
   expect(selected.CODEX_HOME).toBe('/host/codex');
@@ -72,7 +72,7 @@ it('F1: allowlisted and host-configured keys with non-string values are dropped,
 it('F1: every documented config key is carried (first, middle and last of the list)', () => {
   const keys = ['CODEX_HOME', 'CLAUDE_CONFIG_DIR', 'AGENT_RUNTIME_HOME', 'AGENT_RUNTIME_RESOURCE_ROOT', 'VP_HOME', 'NPM_CONFIG_PREFIX', 'npm_config_prefix', 'APPDATA', 'LOCALAPPDATA', 'MISE_DATA_DIR', 'FNM_DIR'];
   const env = Object.fromEntries(keys.map((k) => [k, `/v/${k}`]));
-  expect(selectAgentExecutorHostEnv({ env, hostEnvNames: [] })).toEqual(env);
+  expect(selectAgentExecutorHostEnv({ env, hostEnvNames: agentRuntimeFixture().launch.hostEnvNames() })).toEqual(env);
 });
 
 // The Vela executable override is the runtime's to name (it moved out of the daemon's literal list): the bound port

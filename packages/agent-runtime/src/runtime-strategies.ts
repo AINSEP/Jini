@@ -4,6 +4,11 @@
 import type { RuntimeAgentDef } from '@jini-ai/core/contracts/agents';
 import type { AtomicFileWriterPort, FileLockPort } from '@jini-ai/core/contracts/runtime';
 import { ensureAntigravityMcpPermission, prepareAntigravityBridge } from './defs/antigravity/permissions.js';
+import { CLAUDE_CONFIG_DIR_ENV, stageClaudeConfigDir } from './defs/claude/config-dir.js';
+import { claudeFilesystemAdapter } from './defs/claude/filesystem.js';
+import { prepareClaudeHttpMcpConfig } from './defs/claude/mcp-config.js';
+import { buildClaudeMcpDelivery, writeMcpJsonForRun } from './defs/claude/mcp-delivery.js';
+import { prepareClaudeSubagentStartSettings } from './defs/claude/subagent-start.js';
 import { AMR_OPENCODE_BIN_ENV } from './defs/amr/executable-env.js';
 import { geminiToolCallReceipt } from './defs/gemini/tool-calls.js';
 import { OPENCODE_CONFIG_ENV } from './defs/opencode/constants.js';
@@ -16,6 +21,12 @@ type McpBridgeSlot = { prepare(required: { delivery: { readonly kind: string } |
 
 type EnvContentSlot = { mergeMcp: typeof mergeEnvContentMcpConfig };
 type InstructionsDocumentSlot = { merge: typeof mergeEnvContentInstructions };
+
+/** Structurally the daemon port's `AgentRuntimeStrategies['filesystem' | 'configDir' | 'mcpConfigFile' | 'subagentStart']`; the host checks each binding against that port. */
+type FilesystemSlot = { prepare?: typeof claudeFilesystemAdapter.prepare; unsupported?: typeof claudeFilesystemAdapter.unsupported; supported: typeof claudeFilesystemAdapter.supported };
+type ConfigDirSlot = { readonly envKey: string; stage: (required: { runId: string; hostEnv: NodeJS.ProcessEnv }, optional?: { seams?: NonNullable<Parameters<typeof stageClaudeConfigDir>[1]>['seams'] }) => ReturnType<typeof stageClaudeConfigDir> };
+type McpConfigFileSlot = { build: typeof buildClaudeMcpDelivery; write: typeof writeMcpJsonForRun; prepareHttp: typeof prepareClaudeHttpMcpConfig };
+type SubagentStartSlot = { prepare: typeof prepareClaudeSubagentStartSettings };
 
 type ToolCallReceipt = (required: { event: Record<string, unknown> }) => Record<string, unknown>;
 
@@ -56,10 +67,25 @@ const HTTP_MCP_ENV_BY_ID: ReadonlyMap<string, typeof withOpenCodeHttpMcp> = new 
   ['opencode-acp', withOpenCodeHttpMcp],
 ]);
 
-/** Env names the launcher must copy from the host env besides the runtime state's own (`launch.hostEnvNames`). */
-export const RUNTIME_STRATEGY_HOST_ENV_NAMES: readonly string[] = [AMR_OPENCODE_BIN_ENV];
+/** Claude's folder-limit policy applies to every definition whose probe reports support; its temp and degrade steps are Claude's own. */
+const FILESYSTEM_BY_ID: ReadonlyMap<string, FilesystemSlot> = new Map([['claude', claudeFilesystemAdapter]]);
+const SHARED_FILESYSTEM_SLOT: FilesystemSlot = { supported: claudeFilesystemAdapter.supported };
 
-type StrategyDef = Pick<RuntimeAgentDef, 'id' | 'eventParser' | 'externalMcpInjection' | 'systemPromptDelivery'>;
+/** Keyed by definition id, not by the shared `claude-mcp-json` delivery: isolating the operator's own config is the real CLI's concern, not `codebuddy`'s. */
+const CONFIG_DIR_BY_ID: ReadonlyMap<string, ConfigDirSlot> = new Map([['claude', { envKey: CLAUDE_CONFIG_DIR_ENV, stage: stageClaudeConfigDir }]]);
+/** Keyed by the declared `subagentStartHook`: a definition that says its CLI fires a SubagentStart hook gets the settings that register one. */
+const SUBAGENT_START: SubagentStartSlot = { prepare: prepareClaudeSubagentStartSettings };
+
+/** Keyed by the declared `externalMcpInjection` strategy, which `codebuddy` shares with `claude`. */
+const MCP_CONFIG_FILE_BY_STRATEGY: ReadonlyMap<string, McpConfigFileSlot> = new Map([
+  ['claude-mcp-json', { build: buildClaudeMcpDelivery, write: writeMcpJsonForRun, prepareHttp: prepareClaudeHttpMcpConfig }],
+]);
+
+/** Env names the launcher must copy from the host env besides the runtime state's own (`launch.hostEnvNames`).
+ * `CLAUDE_CONFIG_DIR` is not in the child baseline env, but the staging step reads the operator's real value from the host env. */
+export const RUNTIME_STRATEGY_HOST_ENV_NAMES: readonly string[] = [AMR_OPENCODE_BIN_ENV, CLAUDE_CONFIG_DIR_ENV];
+
+type StrategyDef = Pick<RuntimeAgentDef, 'id' | 'eventParser' | 'externalMcpInjection' | 'systemPromptDelivery' | 'subagentStartHook'>;
 
 /** The slots a definition's own declarations select (dialect, MCP delivery strategy, system-prompt strategy). */
 function declaredSlots({ def }: { def: StrategyDef }, _optional: Record<string, never> = {}) {
@@ -75,14 +101,28 @@ function declaredSlots({ def }: { def: StrategyDef }, _optional: Record<string, 
   };
 }
 
-/** The slots bound to one CLI by definition id, where a shared declared strategy is not enough to select them. */
+/** The claude-shaped staging slots a definition is bound to; each key is present only when bound. */
+function stagingSlotsForDef({ def }: { def: StrategyDef }, _optional: Record<string, never> = {}) {
+  const configDir = CONFIG_DIR_BY_ID.get(def.id);
+  const subagentStart = def.subagentStartHook === true ? SUBAGENT_START : undefined;
+  const mcpConfigFile = def.externalMcpInjection === undefined ? undefined : MCP_CONFIG_FILE_BY_STRATEGY.get(def.externalMcpInjection);
+  return {
+    ...(configDir ? { configDir } : {}),
+    ...(subagentStart ? { subagentStart } : {}),
+    ...(mcpConfigFile ? { mcpConfigFile } : {}),
+  };
+}
+
+/** The slots bound to one CLI by definition id, where a shared declared strategy is not enough to select them.
+ * Except the shared folder-limit policy, which is bound for every definition (see `SHARED_FILESYSTEM_SLOT`). */
 function idSlots({ def }: { def: Pick<RuntimeAgentDef, 'id'> }, _optional: Record<string, never> = {}) {
   const mcpBridge = MCP_BRIDGE_BY_ID.get(def.id);
   const httpMcpEnv = HTTP_MCP_ENV_BY_ID.get(def.id);
-  return { ...(mcpBridge ? { mcpBridge } : {}), ...(httpMcpEnv ? { httpMcpEnv } : {}) };
+  return { filesystem: FILESYSTEM_BY_ID.get(def.id) ?? SHARED_FILESYSTEM_SLOT, ...(mcpBridge ? { mcpBridge } : {}), ...(httpMcpEnv ? { httpMcpEnv } : {}) };
 }
 
-/** Strategies for one definition. O(1): six map lookups. A definition that declares nothing gets `{}`. */
+/** Strategies for one definition. O(1): a handful of map lookups. A definition that declares nothing gets `{}`
+ * (plus the shared folder-limit policy, see `idSlots`). */
 export function strategiesForDef({ def }: { def: StrategyDef }, _optional: Record<string, never> = {}) {
-  return { ...declaredSlots({ def }), ...idSlots({ def }) };
+  return { ...declaredSlots({ def }), ...stagingSlotsForDef({ def }), ...idSlots({ def }) };
 }

@@ -302,7 +302,7 @@
    "completeOAuthPkce": "function:55dbb55fd8",
    "configureExecutableResolutionEnv": "function:eb72e95b31",
    "createAgentModelDiscovery": "function:dfa755d38c",
-   "createAgentRuntimeBindings": "function:ef3de894a5",
+   "createAgentRuntimeBindings": "function:910aefd6be",
    "createAgentRuntimeState": "function:e68cf59719",
    "createAgentSelectionResolver": "function:69c5fd59ae",
    "createClaudeFilesystemSupportProbe": "function:ea992e38f1",

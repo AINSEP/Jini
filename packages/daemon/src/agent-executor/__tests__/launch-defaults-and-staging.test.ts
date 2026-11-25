@@ -209,6 +209,23 @@ it('required HTTP failure reports the transport policy and never falls back or m
   expect((await lifecycle.get({ runId: run.id }))?.state).toBe('failed');
 });
 
+it('a refused Claude start stages no scratch config dir, so no copied login is left behind', async () => {
+  const lifecycle = createRunLifecycle({ eventLog: createInMemoryEventLog({}) });
+  const def = createDef({ ...getAgentDef({ id: 'claude' })!, ...fixtureModelDiscovery });
+  const mkdtemp = vi.fn(async ({ prefix }: { prefix: string }) => join(scratch, `${prefix}fixture`));
+  const spawn = vi.fn();
+  const prepareHttp = vi.fn(async () => { throw new Error('private listener failure'); });
+  const executor = createAgentExecutor({ lifecycle, hostEnv: {}, runtime: runtimeFixture({ spawn }), agentRuntime: agentRuntimeFixture({ getAgentDef: () => def, resolveAgentLaunch: fixedLaunch, resolveModelForLaunch: fixtureLaunchModel, ensureAgentCapabilities: async () => {} }) }, {
+    claudeConfigDirIsolationEnabled: true, claudeConfigDirIsolation: { mkdtemp },
+    mcpJsonInjection: { command: 'stdio-bridge', daemonUrl: 'http://daemon.invalid', prepareHttp, httpPolicy: 'required' },
+  });
+  const { run } = await lifecycle.start({ contextRef: 'refused-claude' });
+  await expect(executor.run({ runId: run.id, agentId: def.id, cwd: scratch, prompt: 'hello' }, { permissionMode: 'bypass' }))
+    .rejects.toThrow('requires an HTTP tool connection');
+  expect(mkdtemp).not.toHaveBeenCalled();
+  expect(spawn).not.toHaveBeenCalled();
+});
+
 it.each(['complete', 'manifest', 'oversized', 'staging-failure', 'subagents-denied', 'adapter-no-hook', 'unsupported-subagents', 'no-context'] as const)('declared child-hook launch: %s', async scenario => {
   const site = join(scratch, scenario);
   mkdirSync(site);
