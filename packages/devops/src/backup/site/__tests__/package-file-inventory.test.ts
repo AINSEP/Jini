@@ -19,7 +19,7 @@ const pack: PackBundledSourceDirectory = async ({ sourceDir }) => ({ sha256: `di
 const reader: CreateBundledSourceArchiveReader = () => ({
   async *entries({ archive }) {
     const name = Buffer.from(archive).toString();
-    yield { kind: 'directory', entryPath: `${name}/`, openReadStream: async function* () { yield Buffer.from('ignored'); } };
+    yield { kind: 'directory', entryPath: `${name}/` };
     yield { kind: 'file', entryPath: 'a.txt', openReadStream: async function* () { yield Buffer.from(name); yield Buffer.from('-tail'); } };
   },
 });

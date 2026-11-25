@@ -54,13 +54,13 @@ test("L061 peer call preserves archive precedence, JSON/null encoding, empty bod
   for (const payload of [{}, { body: null }, { body: { x: 1 } }, { body: { ignored: true }, archive }]) {
     assert.equal(await callPeer({ deps, request: { method: "POST", path: "/route", ...payload } }), undefined);
   }
-  assert.equal(deps.calls[0].body, undefined);
-  assert.equal(deps.calls[0].headers["content-type"], undefined);
-  assert.equal(deps.calls[1].body, "null");
-  assert.equal(deps.calls[2].body, '{"x":1}');
-  assert.equal(deps.calls[2].headers["content-type"], "application/json");
-  assert.equal(deps.calls[3].body, archive);
-  assert.equal(deps.calls[3].headers["content-type"], "application/zip");
+  assert.equal(deps.calls[0]!.body, undefined);
+  assert.equal(deps.calls[0]!.headers["content-type"], undefined);
+  assert.equal(deps.calls[1]!.body, "null");
+  assert.equal(deps.calls[2]!.body, '{"x":1}');
+  assert.equal(deps.calls[2]!.headers["content-type"], "application/json");
+  assert.equal(deps.calls[3]!.body, archive);
+  assert.equal(deps.calls[3]!.headers["content-type"], "application/zip");
   for (const call of deps.calls) {
     assert.equal(call.headers.authorization, `Bearer ${credential.apiKey}`);
     assert.equal(call.timeoutMs, 60_000);

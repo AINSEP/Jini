@@ -20,11 +20,9 @@ export type BundledPackageInventory = ReadonlyMap<string, ReadonlyMap<string, st
 export type PackBundledSourceDirectory = (required: { sourceDir: string }) => Promise<{ sha256: string; bytes: Uint8Array }>;
 
 /** One entry of the installer's archive reader; only files are hashed. */
-export interface BundledSourceArchiveEntry {
-  readonly kind: string;
-  readonly entryPath: string;
-  openReadStream(): AsyncIterable<Uint8Array>;
-}
+export type BundledSourceArchiveEntry =
+  | { readonly kind: "file"; readonly entryPath: string; openReadStream(): AsyncIterable<Uint8Array> }
+  | { readonly kind: "directory" | "symlink" | "hardlink" | "device" | "fifo"; readonly entryPath: string };
 
 /** The installer's own archive reader, so the inventory is read back exactly as the installer reads it. */
 export type CreateBundledSourceArchiveReader = () => { entries(required: { archive: Uint8Array }): AsyncIterable<BundledSourceArchiveEntry> };
