@@ -69,7 +69,7 @@ describe("createSiteImportBackend", () => {
     const pending = await backend.importBackup({ principalId: "p1", source: { url: "https://share.example/a.zip" }, requestId: "r1" });
     expect(pending).toMatchObject({ status: "needs-owner", setupUrl: `/imports/${pending.importId}/owner` });
     const ready = await backend.completeOwner({ principalId: "p1", importId: pending.importId, adminPassword: "pw-1" });
-    expect(created).toEqual([{ name: "imported-site", displayName: "Verified Name", adminPassword: "resolved:pw-1" }]);
+    expect(created).toEqual([{ name: "verified-name", displayName: "Verified Name", adminPassword: "resolved:pw-1" }]);
     expect(ready).toMatchObject({ status: "ready", newSiteId: "site-1", adminUrl: "http://site.example/admin" });
   });
 

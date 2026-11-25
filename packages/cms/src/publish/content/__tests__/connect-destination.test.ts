@@ -91,6 +91,7 @@ function repoFailingOn(
   return {
     inner,
     vault: inner.vault,
+    binding: inner.binding,
     insert: async ({ record }) => {
       if (method === "insert") throw new Error(message);
       return inner.insert({ record });

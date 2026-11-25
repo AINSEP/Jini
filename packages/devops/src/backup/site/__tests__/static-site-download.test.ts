@@ -93,6 +93,11 @@ describe("staticDownloadLayout", () => {
     const files = staticDownloadLayout({ copy: copy([page("index.html")]), host: layoutHost() });
     assert.ok(files.some(file => file.path === "sites/folder-t1/index.html"));
   });
+  it("resolves content-route links through the injected URL parsers", () => {
+    const home = { path: "index.html", content: Buffer.from('<html><head><title>T</title></head><body><a href="/about/">A</a></body></html>') };
+    const files = staticDownloadLayout({ copy: copy([home, page("about/index.html")]), host: layoutHost() });
+    assert.match(files.find(file => file.path === "sites/folder-t1/index.html")!.content.toString(), /href="about\/index\.html"/);
+  });
   it("validates every source path through the injected policy", () => {
     const seen: string[] = [];
     staticDownloadLayout({ copy: copy([page("index.html"), page("about/index.html")]), host: layoutHost({ validateSharePath: ({ path }) => { seen.push(path); } }) });
