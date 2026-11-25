@@ -385,6 +385,7 @@
       "./admin-http/routes/media/delete": "universal",
       "./admin-http/routes/media/byte-size": "universal",
       "./admin-http/routes/media/trash": "universal",
+      "./admin-http/routes/media/list": "universal",
       "./admin-http/routes/media/get-providers": "universal",
       "./admin-http/routes/media/put-providers": "universal",
       "./admin-http/routes/media/update": "node",
@@ -841,6 +842,7 @@
         "./admin-http/routes/media/delete": "media",
         "./admin-http/routes/media/byte-size": "media",
         "./admin-http/routes/media/trash": "media",
+        "./admin-http/routes/media/list": "media",
         "./admin-http/routes/media/get-providers": "media",
         "./admin-http/routes/media/put-providers": "media",
         "./admin-http/routes/media/import-url": "media",
@@ -2877,6 +2879,11 @@
       "types": "./dist/admin-http/routes/media/trash.d.ts",
       "import": "./dist/admin-http/routes/media/trash.js",
       "default": "./dist/admin-http/routes/media/trash.js"
+    },
+    "./admin-http/routes/media/list": {
+      "types": "./dist/admin-http/routes/media/list.d.ts",
+      "import": "./dist/admin-http/routes/media/list.js",
+      "default": "./dist/admin-http/routes/media/list.js"
     },
     "./admin-http/routes/media/get-providers": {
       "types": "./dist/admin-http/routes/media/get-providers.d.ts",

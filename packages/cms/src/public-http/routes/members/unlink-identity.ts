@@ -70,11 +70,13 @@ async function unlinkSteps({ raw, deps, clientAddress }: { raw: Parameters<Publi
  *  so the reissued session cookie is APPENDED after any `Set-Cookie` an earlier handler wrote.
  * @complexity O(s) affected sessions; the host's transactional helper owns all persistence.
  */
-export const memberUnlinkIdentityRoute: PublicMemberRawRoute<MemberUnlinkIdentityRouteDeps> & { readonly readHeaders: readonly string[]; readonly requestFacts: true } = {
+export const memberUnlinkIdentityRoute: PublicMemberRawRoute<MemberUnlinkIdentityRouteDeps> & { readonly readHeaders: readonly string[]; readonly requestFacts: true; readonly bufferedReply: true } = {
   method: "post",
   path: "/api/members/v1/workspaces/:workspaceId/identities/:providerId/unlink",
   readHeaders: ["cookie"],
   requestFacts: true,
+  // Written as the hand-written `res.json` wrote it: a stated Content-Length and the app's ETag, not a chunked stream.
+  bufferedReply: true,
   handle: async ({ raw, deps }) => {
     const clientAddress = memberClientAddress({ raw });
     try {

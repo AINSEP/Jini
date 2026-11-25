@@ -52,7 +52,7 @@ const INVALID = { status: 401, body: { error: "member login failed", code: "LOGI
 
 describe("memberUnlinkIdentityRoute", () => {
   it("declares the public POST path, the cookie header and the request facts", () => {
-    expect(memberUnlinkIdentityRoute).toMatchObject({ method: "post", path: "/api/members/v1/workspaces/:workspaceId/identities/:providerId/unlink", readHeaders: ["cookie"], requestFacts: true });
+    expect(memberUnlinkIdentityRoute).toMatchObject({ method: "post", path: "/api/members/v1/workspaces/:workspaceId/identities/:providerId/unlink", readHeaders: ["cookie"], requestFacts: true, bufferedReply: true });
   });
 
   it("unlinks behind both counters and appends only the reissued member session cookie", async () => {
