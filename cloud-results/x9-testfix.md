@@ -1,6 +1,6 @@
-DONE 640cea5aec d71677aee9 | FILES LEFT 1044 (excl. themes) / 505
+DONE 640cea5aec a56e6acfb | FILES LEFT 1044 (excl. themes) / 505
 
-> The SHAs on the first line are the tested code tips: Tovu `640cea5aec`, Jini `d71677aee9`. The commit that adds this report sits on top of them.
+> The SHAs on the first line are the tested code tips: Tovu `640cea5aec`, Jini `a56e6acfb`. The commit that adds this report sits on top of them. (Jini `a56e6acfb` has the same tree as the tested `d71677aee9`: a pull-rebase linearized the PT03 merge before push.)
 
 # x9 batch — test-and-fix + OPUS-CLOUD finish (2026-11-25, unattended cloud run)
 
