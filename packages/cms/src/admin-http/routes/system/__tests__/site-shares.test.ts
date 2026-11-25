@@ -50,7 +50,7 @@ describe('site-share specs', () => {
 
   it('answer each admin operation from the backend', async () => {
     const { run, permissions } = harness();
-    expect(JSON.parse((await run(siteShareListRoute)).text)).toEqual({ shares: ['row'] });
+    expect(JSON.parse((await run(siteShareListRoute)).text)).toEqual({ shares: ['row'], expiryChoices: [null] });
     expect(JSON.parse((await run(siteShareCreateRoute, { body: { jobId: 'j' } })).text)).toEqual({ principalId: 'owner', signal: true, body: { jobId: 'j' } });
     expect(JSON.parse((await run(siteShareStaticOptionsRoute)).text)).toEqual({ themes: [] });
     expect(JSON.parse((await run(siteShareStaticCreateRoute, { body: 'b' })).text)).toEqual({ principalId: 'owner', signal: true, format: 'static', static: 'b' });
@@ -113,7 +113,19 @@ it('list passes a row with url:null and no storage through unchanged', async () 
   const h = harness();
   const row = { shareId: 'peer', url: null };
   h.backend.list = async () => [row];
-  expect(JSON.parse((await h.run(siteShareListRoute)).text)).toEqual({ shares: [row] });
+  expect(JSON.parse((await h.run(siteShareListRoute)).text)).toEqual({ shares: [row], expiryChoices: [null] });
+});
+it('list answers expiryChoices with Never first', async () => {
+  const h = harness();
+  Object.assign(h.backend, { expiryChoices: async () => [7, 30, 90] });
+  expect(JSON.parse((await h.run(siteShareListRoute)).text)).toEqual({ shares: ['row'], expiryChoices: [null, 7, 30, 90] });
+});
+it('list keeps Never the only default when the host offers nothing usable', async () => {
+  const h = harness();
+  Object.assign(h.backend, { expiryChoices: async () => [null, 0, -7, 1.5, 30] });
+  expect(JSON.parse((await h.run(siteShareListRoute)).text)).toEqual({ shares: ['row'], expiryChoices: [null, 30] });
+  Object.assign(h.backend, { expiryChoices: async () => [] });
+  expect(JSON.parse((await h.run(siteShareListRoute)).text)).toEqual({ shares: ['row'], expiryChoices: [null] });
 });
 it('poll cannot revise the initial choice', async () => {
   const h = harness();
