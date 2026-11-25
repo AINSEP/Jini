@@ -15,8 +15,10 @@ export function StoragePanel({ useStorage, kit: { Button }, copy, links }: {
   const storage = useStorage();
   // Measurement comes before offering a destructive choice so the owner can review its scope.
   return <section>
-    {(['automatic', 'yours', 'shown'] as const).map(kind => <section key={kind}>
-      <h2>{copy[kind]}</h2>
+    {/* `.jini-card`/`.jini-card-title` (the host stylesheet), the section primitive sibling screens use; a bare
+        `<h2>` renders at the UA default and reads as unstyled text (live-found on the Storage page, 2026-11-25). */}
+    {(['automatic', 'yours', 'shown'] as const).map(kind => <section key={kind} className="jini-card">
+      <h2 className="jini-card-title">{copy[kind]}</h2>
       <ul>{storage.classes[kind].map(item => <li key={item.id}>{item.label}: {item.bytes}</li>)}</ul>
     </section>)}
     {storage.lastAutomaticPass === undefined ? null : <p>{copy.lastAutomaticPass}: {storage.lastAutomaticPass}</p>}

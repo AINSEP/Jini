@@ -12,6 +12,14 @@ it('three class labels', () => {
   expect(screen.getByRole('heading', { name: 'Yours' })).toBeTruthy();
   expect(screen.getByRole('heading', { name: 'Shown only' })).toBeTruthy();
 });
+it('styles each class section as a host card, not a bare UA-default heading', () => {
+  render(<StoragePanel useStorage={() => ({ phase: 'load', classes: { automatic: [], yours: [], shown: [] }, outcomes: [], canConfirm: false, dryRun: vi.fn(), confirm: vi.fn(), cleanup: vi.fn() })} kit={{ Button: 'button' }} copy={copy} links={[]} />);
+  for (const name of ['Cleaned automatically', 'Yours', 'Shown only']) {
+    const heading = screen.getAllByRole('heading', { name }).at(-1)!;
+    expect(heading.className).toBe('jini-card-title');
+    expect(heading.parentElement?.className).toBe('jini-card');
+  }
+});
 it('dry-run list first', async () => {
   const calls: string[] = [];
   const useStorage = () => {
