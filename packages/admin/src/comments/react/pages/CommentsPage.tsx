@@ -1,7 +1,7 @@
 import { QueueSection } from '../components/QueueSection.js';
 import { SettingsSection } from '../components/SettingsSection.js';
 import { useWiredComments } from '../hooks/use-comments.hooks.js';
-import { useCommentsPage } from '../hooks/CommentsPage.hooks.js';
+import type { useCommentsPage } from '../hooks/CommentsPage.hooks.js';
 
 export interface CommentsProps {
   /**
@@ -12,7 +12,9 @@ export interface CommentsProps {
   useCommentsHook?: typeof useWiredComments;
 }
 
-export function CommentsPage({ useCommentsPageHook = useCommentsPage, ...props }: CommentsProps & { useCommentsPageHook?: typeof useCommentsPage } = {}) {
+/** The page's view-model hook is a required prop: every mount (the module factory, tests) names
+ * the hook it wires, so a missing injection is a compile error rather than a silent fallback. */
+export function CommentsPage({ useCommentsPageHook, ...props }: CommentsProps & { useCommentsPageHook: typeof useCommentsPage }) {
   const { permissions, error, t, canRead, canConfigure } = useCommentsPageHook(props);
 
   if (error) return <div className="notice error">{error}</div>;

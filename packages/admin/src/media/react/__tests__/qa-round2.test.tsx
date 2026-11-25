@@ -9,6 +9,7 @@ import { createOverlayController } from '../../../react/overlays.js';
 import { media } from '../index.js';
 import { MediaLightbox } from '../components/MediaLightbox.js';
 import { EditMediaPanel } from '../components/EditMediaPanel.js';
+import { useEditMediaPanel } from '../hooks/EditMediaPanel.hooks.js';
 import type { MediaApiPort } from '../../ports.js';
 import { realEmbedPolicy } from '../../__tests__/fakes/embed-policy.js';
 import { EmbedPolicyScope } from './embed-policy-scope.js';
@@ -41,10 +42,10 @@ it('continues lightbox navigation when a replaced preview loses focus to the doc
 }, 20000);
 it('opens the editor at Title and at the top even after a prior scrolled dialog', async () => {
   const { api, a } = await fixture();
-  const view = render(<EditMediaPanel api={api} item={a} onSaved={vi.fn()} onClose={vi.fn()} />, { wrapper: EmbedPolicyScope });
+  const view = render(<EditMediaPanel useEditMediaPanelHook={useEditMediaPanel} api={api} item={a} onSaved={vi.fn()} onClose={vi.fn()} />, { wrapper: EmbedPolicyScope });
   expect(screen.getByLabelText('Title')).toHaveFocus();
   const dialog = screen.getByRole('dialog'); dialog.scrollTop = 450;
-  view.unmount(); render(<EditMediaPanel api={api} item={a} onSaved={vi.fn()} onClose={vi.fn()} />, { wrapper: EmbedPolicyScope });
+  view.unmount(); render(<EditMediaPanel useEditMediaPanelHook={useEditMediaPanel} api={api} item={a} onSaved={vi.fn()} onClose={vi.fn()} />, { wrapper: EmbedPolicyScope });
   expect(screen.getByLabelText('Title')).toHaveFocus(); expect(screen.getByRole('dialog').scrollTop).toBe(0);
 }, 20000);
 it('keeps the existing grid mounted during uploads and focuses it without scrolling', async () => {
