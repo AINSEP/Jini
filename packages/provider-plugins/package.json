@@ -41,7 +41,6 @@
       "./xai/routes": "node",
       "./xai/preset": "node",
       "./xai/oauth-port": "node",
-      "./xai/media": "node",
       "./xai/*": "node"
     }
   },
@@ -91,10 +90,6 @@
       "types": "./dist/xai/oauth-port.d.ts",
       "import": "./dist/xai/oauth-port.js"
     },
-    "./xai/media": {
-      "types": "./dist/xai/media/index.d.ts",
-      "import": "./dist/xai/media/index.js"
-    },
     "./xai/*": "./plugins/xai/*"
   },
   "files": [
@@ -134,7 +129,8 @@
     "registry": "https://registry.npmjs.org"
   },
   "peerDependencies": {
-    "@jini-ai/core": "workspace:^"
+    "@jini-ai/core": "workspace:^",
+    "@jini-ai/protocol": "workspace:^"
   },
   "devDependencies": {
     "@jini-ai/agent-runtime": "workspace:^",

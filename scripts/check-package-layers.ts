@@ -3,6 +3,7 @@
  * are exempt; type imports still count because they appear in published declarations.
  * Domain-to-domain edges are never inferred from the current manifests.
  */
+import { relative as pathRelative, resolve as pathResolve } from 'node:path';
 import { readFileSync } from 'node:fs';
 import { join, relative } from 'node:path';
 import ts from 'typescript';
@@ -72,7 +73,11 @@ function isPublicEntry(
 
 /** A plugin-packaging distribution bundles its sources at build time and ships no runtime
  * dependencies, so its source imports are declared as devDependencies (see its README). */
-function bundledAtBuild({ pkg, target }: { pkg: SourcePackage; target: string }): boolean {
+/** Only bundled payloads inline a dev dependency. `src/` is emitted by tsc with its imports intact, so a
+ *  published `dist/` module that imports a dev-only package fails to resolve once installed (FIX 23). */
+function bundledAtBuild({ pkg, target, file }: { pkg: SourcePackage; target: string; file: string }): boolean {
+  if (!pathRelative(pathResolve(pkg.directory), pathResolve(file)).startsWith('..')
+    && pathRelative(pathResolve(pkg.directory, 'src'), pathResolve(file)).split(/[\\/]/)[0] !== '..') return false;
   return (pkg.manifest as { jini?: { kind?: string } }).jini?.kind === 'plugin-packaging'
     && pkg.manifest.devDependencies?.[`@jini-ai/${target}`] !== undefined;
 }
@@ -164,7 +169,7 @@ function checkBrowserPlatform(edge: LayerEdge, file: string, reason: string, vio
 
 function checkSourceDeclaration(edge: LayerEdge, file: string, reason: string, violations: LayerViolation[]): void {
   const { sourcePath, pkg, target, byName } = edge;
-  if (sourcePath !== undefined && !bundledAtBuild({ pkg, target }) && !pkg.manifest.dependencies?.[`@jini-ai/${target}`]
+  if (sourcePath !== undefined && !bundledAtBuild({ pkg, target, file }) && !pkg.manifest.dependencies?.[`@jini-ai/${target}`]
     && !pkg.manifest.peerDependencies?.[`@jini-ai/${target}`]) {
     violations.push({ rule: 'L3-undeclared-edge', file, reason: `${reason}: production import must be a dependency or peerDependency` });
   }
