@@ -708,7 +708,7 @@
    "ChangeSetRepoPort": "interface:f5977e5aba",
    "ChangeSetStatus": "type:411e5eed4c",
    "ChangeSetWithItems": "interface:58817f5ef7",
-   "CommandActor": "interface:b228185f4b",
+   "CommandActor": "interface:04d401d3f4",
    "CommandEnvelope": "interface:8d32d4faf2",
    "CommandMutation": "interface:410c93838d",
    "DomainEvent": "interface:4ce3365b02",
