@@ -28,7 +28,7 @@
       "./external/external-mcp-host-copy": "universal",
       "./external/save-form": "universal",
       "./federation/external-mcp-probe": "node",
-      "./external/external-mcp-repo": "node"
+      "./federation/hosted/external-mcp-repo": "node"
     },
     "optionalPeers": {
       "kysely": "opt-in: hosted MCP SQL — Install kysely to use the hosted MCP SQL repository."
@@ -114,10 +114,10 @@
       "import": "./dist/federation/external-mcp-probe.js",
       "default": "./dist/federation/external-mcp-probe.js"
     },
-    "./external/external-mcp-repo": {
-      "types": "./dist/external/external-mcp-repo.d.ts",
-      "import": "./dist/external/external-mcp-repo.js",
-      "default": "./dist/external/external-mcp-repo.js"
+    "./federation/hosted/external-mcp-repo": {
+      "types": "./dist/federation/hosted/external-mcp-repo.d.ts",
+      "import": "./dist/federation/hosted/external-mcp-repo.js",
+      "default": "./dist/federation/hosted/external-mcp-repo.js"
     }
   },
   "bin": {

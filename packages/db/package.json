@@ -39,14 +39,9 @@
       ]
     },
     "optionalPeers": {
-      "better-sqlite3": "opt-in: sqlite storage — SQLite storage could not load better-sqlite3. Install better-sqlite3 to enable this feature, or check its installed version and native binaries.",
-      "@electric-sql/pglite": "opt-in: embedded postgresql storage — Embedded PostgreSQL storage could not load @electric-sql/pglite. Install @electric-sql/pglite to enable this feature, or check its installed version and native binaries.",
-      "pg": "opt-in: postgresql storage — PostgreSQL storage could not load pg. Install pg to enable this feature, or check its installed version and native binaries."
-    },
-    "entries": {
-      "./site/repo.memory": "universal",
-      "./transfer/confirmation-ui": "universal",
-      "./transfer/destination-store": "universal"
+      "better-sqlite3": "opt-in: sqlite storage \u2014 SQLite storage could not load better-sqlite3. Install better-sqlite3 to enable this feature, or check its installed version and native binaries.",
+      "@electric-sql/pglite": "opt-in: embedded postgresql storage \u2014 Embedded PostgreSQL storage could not load @electric-sql/pglite. Install @electric-sql/pglite to enable this feature, or check its installed version and native binaries.",
+      "pg": "opt-in: postgresql storage \u2014 PostgreSQL storage could not load pg. Install pg to enable this feature, or check its installed version and native binaries."
     }
   },
   "type": "module",

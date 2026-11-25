@@ -2,7 +2,7 @@ import { expect, it, vi } from "vitest";
 import { DummyDriver, Kysely, PostgresAdapter, PostgresIntrospector, PostgresQueryCompiler, type CompiledQuery, type RawBuilder } from "kysely";
 import { VaultError, type VaultRecord, type VaultRepoPort } from "@jini-ai/core/contracts/vault";
 import type { ExternalMcpServerRecord } from "@jini-ai/core/contracts/hosted-mcp";
-import { externalMcpAccessSnapshot, externalMcpVaultEnvelope } from "../../federation/hosted/index.js";
+import { externalMcpAccessSnapshot, externalMcpVaultEnvelope } from "../index.js";
 import { SqlExternalMcpServerRepo } from "../external-mcp-repo.js";
 import { toRow } from "../external-mcp-repo.writes.js";
 

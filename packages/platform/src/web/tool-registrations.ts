@@ -14,7 +14,7 @@ import { MAX_MAX_CHARS, readWebFetchInput, type WebFetchInput, type WebFetchResu
 const DOMAIN = "web";
 
 /** This layer's own risk classification, cross-checked against the catalog's `sideEffects`. */
-export const webDerivedRisk: DerivedRiskByToolId = new Map<string, AgentToolSideEffect>([
+export const webDerivedRisk: ReadonlyMap<string, AgentToolSideEffect> = new Map<string, AgentToolSideEffect>([
   // -> fetchWebPage(): guarded anonymous reads, optionally with browser data POST/PUT/PATCH; no local writes.
   ["web_fetch_page", "none"],
 ]);

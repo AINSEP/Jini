@@ -28,7 +28,7 @@ interface WebScreenshotService {
 
 const DOMAIN = "web-screenshot";
 
-export const webScreenshotDerivedRisk: DerivedRiskByToolId = new Map<string, AgentToolSideEffect>([
+export const webScreenshotDerivedRisk: ReadonlyMap<string, AgentToolSideEffect> = new Map<string, AgentToolSideEffect>([
   // -> one headless page load whose every request goes through the egress guard (or this site's own
   // per-call loopback render), plus an image encode. Writes nothing to the site: the only write is
   // the capture JPEGs into `<siteDir>/.captures/` (agent artifacts, see capture-files.ts).

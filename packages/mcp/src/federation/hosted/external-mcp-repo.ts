@@ -1,12 +1,12 @@
 import { isDeepStrictEqual } from "node:util";
 import { sql, type Selectable, type Kysely, type RawBuilder } from "kysely";
 import { VaultError, type VaultRecord, type VaultRepoPort, type VaultMeta } from "@jini-ai/core/contracts/vault";
-import { persistExternalMcpVaultEnvelope, type HostedMcpVaultPorts } from "../federation/hosted/index.js";
+import { persistExternalMcpVaultEnvelope, type HostedMcpVaultPorts } from "./index.js";
 import type { StorageKernel } from "@jini-ai/core/contracts/storage";
 
 import type { UUID } from "@jini-ai/core/primitives";
 
-import { externalMcpAccessSnapshot, externalMcpVaultEnvelope, deleteExternalMcpVaultEnvelope } from "../federation/hosted/index.js";
+import { externalMcpAccessSnapshot, externalMcpVaultEnvelope, deleteExternalMcpVaultEnvelope } from "./index.js";
 import { insertRow, toRow, updateRowIfVersion, updateRuntime, type ServerKey } from "./external-mcp-repo.writes.js";
 import type { ExternalMcpAccessUpdate, ExternalMcpOAuthRuntimePatch, ExternalMcpReplacedSecrets, ExternalMcpServerRecord, ExternalMcpServerRepoPort } from "@jini-ai/core/contracts/hosted-mcp";
 import type { SealedSecret } from "@jini-ai/core/contracts/vault";
@@ -56,8 +56,8 @@ import { toBool } from "@jini-ai/core/contracts/storage";
 /**
  * @file THE `ExternalMcpServerRepoPort` adapter: one Kysely query body for every dialect (storage
  * plan §4, ADR-066) — the ADR-006 rule-of-two "second adapter" half;
- * `features/external-mcp/external-mcp-store.memory.ts` is the first. `apps/website/src/features/external-mcp/external-mcp-repo.sqlite.ts` is
- * the thin subclass the composition root builds from the content db handle.
+ * the host's in-memory store is the first. A host's SQLite subclass is the thin adapter its
+ * composition root builds from the content db handle.
  *
  * Secret envelopes live in Jini's vault, with two pointers on the server. Reads hydrate both
  * pointers in one query; writes join the host transaction before replacing pointers or status.

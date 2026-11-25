@@ -707,7 +707,7 @@
       "./forms/destinations/port": "universal",
       "./media/site-generation/provider-credential-save": "universal",
       "./media/site-generation/providers-tools": "universal",
-      "./html/site/export-html-policy": "universal"
+      "./html/site/export-html-policy": "node"
     },
     "isolation": {
       "domains": {

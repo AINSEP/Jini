@@ -1,6 +1,6 @@
 import { toolMetadata } from '@jini-ai/core/tool-metadata/identity';
 import { ToolInputError } from "@jini-ai/core";
-import { buildDomainRegistrations, indexCatalogById, requireInputRecord, type DerivedRiskByToolId, type ToolRegistration, type AgentToolDefinition } from "@jini-ai/core";
+import { buildDomainRegistrations, indexCatalogById, requireInputRecord, type AgentToolSideEffect, type DerivedRiskByToolId, type ToolRegistration, type AgentToolDefinition } from "@jini-ai/core";
 import { adaptLegacyAuthorize, requireToolPermission } from "@jini-ai/core";
 import { type AuthorizeFn } from "@jini-ai/core/contracts/events";
 import type { ToolContributor } from "@jini-ai/core";
@@ -10,7 +10,7 @@ import type { PolicyRepoPort, PolicyPermissionRepoPort } from "../core/index.js"
 export interface Deps { workspaceId: string; authorize: AuthorizeFn; policyRepo: Pick<PolicyRepoPort, "findById">; policyPermissionRepo: Pick<PolicyPermissionRepoPort, "listByPolicyId">; }
 
 /** Independently derived from the service calls below. */
-export const derivedRisk: DerivedRiskByToolId = new Map([
+export const derivedRisk: ReadonlyMap<string, AgentToolSideEffect> = new Map<string, AgentToolSideEffect>([
   // policyRepo.findById + policyPermissionRepo.listByPolicyId: reads only.
   ["identity_policy_list_permissions", "none"],
 ]);

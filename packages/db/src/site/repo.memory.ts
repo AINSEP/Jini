@@ -9,7 +9,7 @@ import type { DatabaseHealthSummary, DatabaseIntrospectionPort, PendingMigration
 /**
  * @file In-memory `LedgerReadPort` double (ADR-006 rule-of-two's "one being built now" partner
  * to `db/sqlite/database-journal-repo.ts`'s `SqliteDatabaseLedgerRepo`). Backs
- * `apps/website/src/server/runtime/composition/app.ts`'s hermetic test/dev composition, mirroring every other feature's
+ * a host's hermetic test/dev composition, mirroring every other feature's
  * `repo.memory.ts`/`repo.sqlite.ts` split in this codebase.
  */
 export class InMemoryDatabaseLedgerRepo implements LedgerReadPort, BootLedgerPort {
@@ -80,7 +80,7 @@ export class InMemoryDatabaseLedgerRepo implements LedgerReadPort, BootLedgerPor
  * idempotency-keyed persistence side) and `database/restore-points.ts`'s `RestorePointListPort`
  * (the read side this dispatch adds) — the same dual-port shape
  * `db/sqlite/database-journal-repo.ts`'s real `SqliteRestorePointsRepo` already implements.
- * Backs `apps/website/src/server/runtime/composition/app.ts`'s hermetic composition.
+ * Backs a host's hermetic composition.
  */
 export class InMemoryRestorePointsRepo implements CreateRestorePointRepoPort, RestorePointListPort {
   private readonly rows: Array<{
@@ -135,8 +135,8 @@ export class InMemoryRestorePointsRepo implements CreateRestorePointRepoPort, Re
  * caller is wired this pass (`reconcileInterruptedMigrationOnBoot`/`evaluateBootMigrationPolicy`
  * are domain logic only, not yet invoked from a composition root's boot sequence; see this
  * dispatch's handoff), so this status only ever changes if a future route/boot-hook calls
- * `.set()`. Backs both `apps/website/src/server/runtime/composition/app.ts` and, until a real persisted site-status store exists,
- * `apps/website/src/server/runtime/composition/deps.ts` too. */
+ * `.set()`. Backs a host's hermetic composition and, until a real persisted site-status store exists,
+ * its live composition too. */
 export class InMemorySiteStatusRepo implements SiteStatusPort {
   private status: SiteServeStatus = "SERVING";
 
@@ -150,7 +150,7 @@ export class InMemorySiteStatusRepo implements SiteStatusPort {
 }
 
 /** In-memory `MigrationRunsRepoPort` double (Finding 2 fix, TM-adr041-043-044-045-audit-001) —
- * `apps/website/src/server/runtime/composition/app.ts`'s hermetic composition never runs a real migration, so `findNonTerminalForSite`
+ * a host's hermetic composition never runs a real migration, so `findNonTerminalForSite`
  * always returns `null` by default; tests that DO need to simulate a crash-interrupted migration
  * can override via `setNonTerminal`. */
 export class InMemoryMigrationRunsRepo implements MigrationRunsRepoPort {
@@ -175,8 +175,8 @@ export class InMemoryMigrationRunsRepo implements MigrationRunsRepoPort {
 /** In-memory `DbOpsPort` double (`@jini-ai/core/contracts/site/gated-mutations-ports`) — reports the same static
  * `cheap`/`file-snapshot` capability `db/sqlite/db-ops.ts`'s real `SqliteDbOpsAdapter` reports
  * for a SQLite-backed site (this codebase's only dialect today), and fabricates an in-process
- * `artifactRef` instead of performing a real online backup, since `apps/website/src/server/runtime/composition/app.ts`'s hermetic
- * composition never touches a real content.db file. `apps/website/src/server/runtime/composition/sqlite-only-services.ts`'s real composition uses
+ * `artifactRef` instead of performing a real online backup, since a host's hermetic
+ * composition never touches a real content.db file. a host's real composition uses
  * `SqliteDbOpsAdapter` instead. */
 export class InMemoryDbOpsAdapter implements DbOpsPort {
   private watermark = 0;
@@ -191,14 +191,14 @@ export class InMemoryDbOpsAdapter implements DbOpsPort {
   }
 
   /** No real content.db file exists in this hermetic composition — nothing to swap, no restart
-   * needed. `apps/website/src/server/runtime/composition/sqlite-only-services.ts`'s real composition uses `SqliteDbOpsAdapter.restoreFromArtifact`
+   * needed. a host's real composition uses `SqliteDbOpsAdapter.restoreFromArtifact`
    * instead, which performs the actual atomic file swap. */
   async restoreFromArtifact(_required: { artifactRef: string }): Promise<{ restartRequired: boolean }> {
     return { restartRequired: false };
   }
 }
 
-/** In-memory `DatabaseIntrospectionPort` double (`adapter.sqlite.ts`) — `apps/website/src/server/runtime/composition/app.ts`'s hermetic
+/** In-memory `DatabaseIntrospectionPort` double (`adapter.sqlite.ts`) — a host's hermetic
  * composition never opens a real `content.db`/`.site-meta.json` pair, so this reports a fixed,
  * always-"in-sync" snapshot with zero pending migrations rather than touching a filesystem. Mirrors
  * `InMemoryDbOpsAdapter`'s identical "plausible static double" precedent. */

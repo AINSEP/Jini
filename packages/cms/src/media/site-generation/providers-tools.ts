@@ -4,7 +4,7 @@ import { resolveOperatorLocale } from '@jini-ai/core/operator-locale';
 import type { OperatorLocaleDeps } from '@jini-ai/core/contracts/headless/plugin-host';
 import { type Clock } from "@jini-ai/core/primitives";
 import { adaptLegacyAuthorize } from "@jini-ai/core";
-import { buildDomainRegistrations, indexCatalogById, optionalString, requireInputRecord, requireNoInput, requireString, type DerivedRiskByToolId, type ToolRegistration } from "@jini-ai/core";
+import { buildDomainRegistrations, indexCatalogById, optionalString, requireInputRecord, requireNoInput, requireString, type AgentToolSideEffect, type DerivedRiskByToolId, type ToolRegistration } from "@jini-ai/core";
 import { requireToolPermission } from "@jini-ai/core";
 import { ToolInputError, type ToolExecutionOptions, type ToolExecutionContext } from '@jini-ai/core';
 import type { MediaModel, MediaProvider } from "@jini-ai/core/contracts/site/media-providers-catalog";
@@ -64,7 +64,7 @@ export const mediaProvidersAgentToolCatalog: AgentToolDefinition[] = [
   },
 
 ];
-export const mediaProvidersDerivedRisk: DerivedRiskByToolId = new Map([
+export const mediaProvidersDerivedRisk: ReadonlyMap<string, AgentToolSideEffect> = new Map<string, AgentToolSideEffect>([
   // -> getMediaProviderCredentials: marker-only repo read, no decrypt or writes.
   ['media_list_providers', 'none'],
   // -> saveMediaProviderKey -> saveMediaProviderCredentials: seals and writes after human submit.
