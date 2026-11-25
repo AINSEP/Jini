@@ -5,29 +5,13 @@ import { createTrashDictionary } from "../create-trash-dictionary.js";
 // row that names the product is composed back in through `productEntries`): the split must not drop or add a
 // key in any locale, and the slices must keep the host-visible locale order. Mutation: drop one slice from the
 // factory's `base` and the missing locales (and their counts) go red.
-const EXPECTED_KEYS_PER_LOCALE: Record<string, number> = {
-  es: 51,
-  id: 51,
-  de: 51,
-  "zh-CN": 51,
-  "zh-TW": 51,
-  "pt-BR": 51,
-  ru: 51,
-  fa: 51,
-  ar: 51,
-  ja: 51,
-  ko: 51,
-  pl: 51,
-  hu: 51,
-  fr: 51,
-  uk: 51,
-  tr: 51,
-  th: 51,
-  it: 51,
-  hi: 51,
-  ur: 51,
-  bn: 51
-};
+const ORIGINAL_NEUTRAL_KEYS = 51;
+// Keys added after the split, on purpose (bug d2: the header states the retention window). Each is
+// asserted present in every locale below, so the count can only grow by a key that actually landed.
+const ADDED_SINCE_SPLIT = ["Items are permanently deleted {days} days after they are moved to Trash."];
+const EXPECTED_KEYS_PER_LOCALE: Record<string, number> = Object.fromEntries(
+  ["es", "id", "de", "zh-CN", "zh-TW", "pt-BR", "ru", "fa", "ar", "ja", "ko", "pl", "hu", "fr", "uk", "tr", "th", "it", "hi", "ur", "bn"].map((locale) => [locale, ORIGINAL_NEUTRAL_KEYS + ADDED_SINCE_SPLIT.length])
+);
 
 describe("createTrashDictionary", () => {
   const common = { es: { Cancel: "Cancelar" } };
@@ -37,6 +21,7 @@ describe("createTrashDictionary", () => {
     expect(Object.keys(dictionary)).toEqual(Object.keys(EXPECTED_KEYS_PER_LOCALE));
     for (const [locale, count] of Object.entries(EXPECTED_KEYS_PER_LOCALE)) {
       expect(Object.keys(dictionary[locale] ?? {}).length, locale).toBe(count);
+      for (const key of ADDED_SINCE_SPLIT) expect(dictionary[locale]?.[key], `${locale}: ${key}`).toMatch(/\{days\}/);
     }
   });
 
