@@ -2321,6 +2321,16 @@
    "readRequestFacts": "function:44761104bf"
   }
  },
+ "./contracts/site/routines": {
+  "types": "./dist/contracts/site/routines.d.ts",
+  "symbols": {
+   "RoutineAvailability": "type:fa8f711766",
+   "RoutineRow": "interface:b635b916d0",
+   "RoutineRunSummary": "interface:1599e58ed0",
+   "RoutineSchedule": "type:808e25b68d",
+   "Weekday": "type:8d620176c2"
+  }
+ },
  "./contracts/site/sandbox-node-worker": {
   "types": "./dist/contracts/site/sandbox-node-worker.d.ts",
   "symbols": {

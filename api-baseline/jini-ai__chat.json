@@ -1061,7 +1061,7 @@
    "ChatKernel": "type:67461c919d",
    "ChatPrincipal": "type:e5d6d25cd7",
    "ChatRunLedger": "interface:70e3ad8d41",
-   "ChatRunRecoveryOptions": "interface:2cb62e7d1c",
+   "ChatRunRecoveryOptions": "interface:902dced40f",
    "ChatStoreFactory": "type:886870cc44",
    "CheckpointOptions": "interface:7d35c2c9e0",
    "CheckpointState": "interface:6b154d16cf",
