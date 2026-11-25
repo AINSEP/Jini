@@ -44,6 +44,7 @@ export function normalizeMediaProviderMap<T>({ providers }: { providers: Readonl
     ...entries.filter(([id]) => canonical(id) === id),
   ]);
 }
+/** Host-injected UI policy; reuse the catalog's existing identity and normalization owner. */
 export const mediaProviderCatalogPolicy = { canonicalMediaProviderId, normalizeMediaProviderMap };
 
 export const MEDIA_PROVIDERS: readonly MediaProvider[] = [

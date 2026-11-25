@@ -3,8 +3,8 @@ import type { ChangeSetItemRecord, ChangeSetOperation, ChangeSetRecord, ChangeSe
 import type { DomainEvent, MutationActor, OutboxPort } from "./ports.js";
 
 /**
- * Principal executing a command: a `MutationActor` narrowed to the kinds that run commands,
- * plus the delegation field. Agents act on behalf of a user.
+ * Principal executing a command. Agents act on behalf of a user.
+ * A `MutationActor` narrowed to the kinds that run commands, plus the delegation field.
  */
 export interface CommandActor extends MutationActor {
   kind: "user" | "agent";

@@ -13,6 +13,47 @@ import type {
   MediaProviderContribution, MediaProviderCredentials, MediaRenderContext, MediaVendorAdapter, MediaVendorRequest, MediaWirePort,
 } from '@jini-ai/core/contracts/site/media-provider-contribution';
 
+/**
+ * Provider: xAI Grok — image generation via an OpenAI-images-compatible
+ * `/images/generations` endpoint (`renderGrokImage`), plus text-to-speech
+ * via a dedicated `/tts` endpoint (`renderXAITTS`). Ported near-verbatim
+ * from Open Design's `apps/daemon/src/media/index.ts` `renderGrokImage`/
+ * `renderXAITTS` — see `archived provenance ledger`.
+ *
+ * Image response shape (`{ data: [{ b64_json | url }] }`) is identical to
+ * OpenAI's images API, so `renderGrokImage` routes through
+ * `openai-compatible.ts`'s already-ported JSON-parsing/byte-extraction/
+ * URL-building helpers rather than re-implementing them. `/tts` is xAI's
+ * own dedicated endpoint (not the OpenAI `/audio/speech` shape) — it
+ * returns raw audio bytes directly from a plain JSON POST, with no
+ * per-request format negotiation the caller can control, so `renderXAITTS`
+ * doesn't route through `openai-compatible.ts` at all (only the generic
+ * `truncate`/`withRequestInit` helpers are shared).
+ *
+ * Dropped from the origin's no-credential error messages (both
+ * functions): the OD-specific "sign in with your SuperGrok subscription
+ * (in OD or via `hermes auth add xai-oauth`)" OAuth guidance — this
+ * package has no OAuth chain or local-CLI-login concept; credentials are
+ * always host-injected (see `types.ts`'s `ProviderCredentials`), matching
+ * every other ported provider's error-message style (e.g. `openai.ts`'s
+ * `OPENAI_IMAGE_NO_CREDENTIAL_MESSAGE`).
+ *
+ * 2026-07-21: migrated onto the generic vendor-adapter dispatch engine
+ * (`vendor-adapter.ts`/`vendor-registry.ts`) — two adapters registered on
+ * the same `grok` provider id (`image`/`audio:speech`). External behavior
+ * is unchanged (verified against `grok.test.ts`, which asserts URL/body/
+ * header/error-message/providerNote shape and passes unmodified) — only
+ * the internal implementation moved. The image adapter is not routed
+ * through `response-parsers.ts`'s factories (reuses
+ * `openai-compatible.ts`'s JSON-parsing helpers directly, same as before —
+ * see `imagerouter.ts`'s module doc for the identical reasoning); the TTS
+ * adapter's response (raw bytes, no envelope) is the same shape
+ * `fishaudio.ts`/`openai.ts`'s speech renderer return, so it now shares
+ * `response-parsers.ts`'s `createRawBytesParser`.
+ */
+// After the move the image and speech adapters below are `createImageAdapter` and `createSpeechAdapter`, and the host's
+// wire helpers (the former `openai-compatible.ts` / `response-parsers.ts` functions) arrive as the injected `mediaWire` port.
+
 const PROVIDER_ID = 'xai-grok-imagine';
 const DEFAULT_BASE_URL = 'https://api.x.ai/v1';
 const NO_CREDENTIAL_MESSAGE = 'no xAI credential — configure an API key or set XAI_API_KEY.';
@@ -60,8 +101,12 @@ function createImageAdapter({ mediaWire }: { mediaWire: MediaWirePort }, _option
 }
 
 /**
- * The `/tts` endpoint takes only `{ text, voice_id, language }` — no per-request output-format field —
- * and always returns mp3 audio bytes directly (not wrapped in JSON), so `speechFormat` has no equivalent.
+ * xAI's `/tts` endpoint takes only `{ text, voice_id, language }` — no
+ * per-request output-format field — and always returns mp3/24kHz/128kbps
+ * audio bytes directly (not wrapped in JSON), matching the origin exactly.
+ * `ctx.speechFormat` (used by `openai.ts`'s `renderOpenAISpeech`/AIHubMix's
+ * TTS) has no equivalent here since the wire protocol offers nothing to
+ * set it with.
  */
 function createSpeechAdapter({ mediaWire }: { mediaWire: MediaWirePort }, _optional: Record<string, never> = {}): MediaVendorAdapter<TtsMeta> {
   return {

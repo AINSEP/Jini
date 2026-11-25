@@ -1,9 +1,12 @@
 import assert from "node:assert/strict";
+import { execFileSync } from "node:child_process";
 import { existsSync } from "node:fs";
 import { mkdtemp, readdir, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, test } from "vitest";
+import { sniffContentType as sniffRealContentType, VIDEO_CONVERSION_MESSAGES, VIDEO_TRANSCODE_MAX_INPUT_BYTES } from "@jini-ai/cms/media";
+import { createVideoExtractionLock, findVideoBinaries, runLowPriorityVideoProcess } from "@jini-ai/cms/media/node";
 import { buildVideoTranscodeArgs, createFfmpegMediaTranscoder, type VideoBinaryFinder, type VideoProcessRunner } from "../adapter.js";
 
 const BINARIES = { nice: "/usr/bin/nice", ffmpeg: "/usr/bin/ffmpeg", ffprobe: "/usr/bin/ffprobe" };
@@ -160,3 +163,27 @@ test("a busy lock returns the busy refusal before any scratch folder is made", a
   assert.deepEqual(await transcoder.transcode(request), { ok: false, reason: "busy", message: MESSAGES.busy });
   assert.equal(existsSync(tempRoot), false);
 });
+
+// Real codec round trip; skipped on hosts without nice/ffmpeg/ffprobe.
+const hasFfmpeg = existsSync("/usr/bin/ffmpeg") && existsSync("/usr/bin/ffprobe") && existsSync("/usr/bin/nice");
+test.skipIf(!hasFfmpeg)("a real ffmpeg turns a QuickTime clip into a faststart MP4", async () => {
+  const work = await tempDir();
+  const source = join(work, "clip.mov");
+  execFileSync("ffmpeg", ["-hide_banner", "-loglevel", "error", "-f", "lavfi", "-i", "testsrc=duration=1:size=320x240:rate=10",
+    "-f", "lavfi", "-i", "sine=frequency=440:duration=1", "-c:v", "mpeg4", "-c:a", "pcm_s16le", "-f", "mov", source]);
+  const binaries = await findVideoBinaries({}, {});
+  assert.ok(binaries);
+  // The same real dependencies the host hands in; only the byte sniffer and messages come from the media package.
+  const transcoder = createFfmpegMediaTranscoder({
+    findBinaries: findVideoBinaries, runProcess: runLowPriorityVideoProcess, lock: createVideoExtractionLock({}),
+    sniffContentType: sniffRealContentType, maxInputBytes: VIDEO_TRANSCODE_MAX_INPUT_BYTES,
+    messages: VIDEO_CONVERSION_MESSAGES, env: process.env,
+  }, { tempDir: await tempDir(), timeoutMs: 60_000 });
+  const result = await transcoder.transcode({ input: await readFile(source), target: "mp4-h264-aac-faststart" });
+  assert.ok(result.ok, !result.ok ? result.message : "");
+  assert.equal(sniffRealContentType({ bytes: result.bytes }), "video/mp4");
+  const text = Buffer.from(result.bytes).toString("latin1");
+  assert.ok(text.indexOf("moov") < text.indexOf("mdat"), "faststart puts the moov index before the media data");
+  assert.ok(text.includes("avc1"), "video track is H.264");
+  assert.ok(text.includes("mp4a"), "audio track is AAC");
+}, 90_000);

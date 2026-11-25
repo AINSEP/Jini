@@ -1,12 +1,16 @@
 /**
- * @file ffmpeg adapter for the media transcoder port: a local ffmpeg binary, run at nice 19 on
+ * @file ffmpeg adapter for {@link MediaTranscoderPort}: a local ffmpeg binary, run at nice 19 on
  * private temp files, one conversion at a time per lock.
+ *
+ * Reuses `video-frames.ffmpeg.ts`'s binary discovery, low-priority process runner (process-group
+ * kill, timeout, abort) and lock type. Arguments are always an array, never a shell string, and
+ * input parsing is restricted to local files and the container demuxers phones and browsers produce.
+ * Since the move out of the CMS package those three arrive as host-supplied ports rather than imports.
  *
  * Why-comment — conversion is a host capability with local process risk, not a dependency of
  * portable media services. The host hands in binary discovery, the process runner (process-group
  * kill, timeout, abort), the lock, the byte sniffer and the policy, so this file imports no media
- * package. Arguments are always an array, never a shell string, and input parsing is restricted to
- * local files and the container demuxers phones and browsers produce. ffmpeg is never bundled.
+ * package. ffmpeg is never bundled.
  */
 import { mkdtemp, readFile, rm, stat, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -54,7 +58,7 @@ export function buildVideoTranscodeArgs(
 export interface FfmpegMediaTranscoderRequired {
   findBinaries: VideoBinaryFinder;
   runProcess: VideoProcessRunner;
-  /** Share with the frame extractor's lock to keep one ffmpeg per process. */
+  /** Share with the frame extractor's lock to keep one ffmpeg per process; defaults to a per-adapter lock. The host now supplies it, so there is no default here. */
   lock: VideoExtractionLock;
   /** Names the real type of the converted bytes; only an MP4 result is accepted. */
   sniffContentType: (required: { bytes: Uint8Array }) => string | undefined;
@@ -110,6 +114,7 @@ function earlyRefusal(
   return input.byteLength > maxInputBytes ? "too-large" : undefined;
 }
 
+// Web-safe video conversion through a local ffmpeg binary (optional host codec).
 /**
  * Creates the ffmpeg-backed transcoder. Missing ffmpeg (or nice/ffprobe, which ship with it on
  * supported hosts; Windows is never supported because nice is required) is reported with the
