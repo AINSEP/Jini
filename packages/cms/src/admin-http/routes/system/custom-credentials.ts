@@ -1,5 +1,6 @@
 import { defineJsonRoute, ok } from "@jini-ai/core/contracts/server";
 import type { JsonRouteAuthorize, RouteInputContext } from "@jini-ai/core/contracts/server";
+import { RouteRefusalError } from "@jini-ai/core/errors/route-refusal";
 
 import {
   authorizeCredentials, credentialErrorRows, credentialRouteInput, presentFields, withCredentialStoreErrors,
@@ -14,9 +15,10 @@ import {
  * the host's custom-credential store — every validation, uniqueness and shape rule lives there; these
  * routes check auth, shape the request into the store's input, map its thrown errors to statuses, and
  * return the credential summary — never the sealed connection, a token, or a username. Structurally
- * mirrors `source-control-credentials.ts`. The collection `GET` and the by-id `PUT` are not specs here:
- * with a cross-site project key store they decide on how the request authenticated (owner session vs
- * machine credential), so they stay with the host until that is a port.
+ * mirrors `source-control-credentials.ts`. The collection `GET` and the by-id `PUT` also decide on how
+ * the request authenticated (owner session vs machine credential) when the host has a cross-site
+ * project key store: the host binds that per request as `credentialKind` (and the installation owner
+ * as `ownerPrincipalId`), so these specs never see the request.
  *
  * `custom-credentials.write` gates every verb, a dot-namespaced permission of its own (not reused from
  * a sibling feature); the seeded owner's wildcard grant authorizes it with no seed edit. Every write
@@ -111,3 +113,97 @@ export const customCredentialDeleteRoute = defineJsonRoute<CredentialRouteInput,
     return ok({ value: undefined });
   },
 }, { successStatus: 204 });
+
+/** One project key's usage as the host's key store lists it (`keyId` = the credential id). */
+export interface CustomCredentialListedKey { readonly keyId: string; readonly usedBy?: readonly string[]; readonly usedByThisSite?: boolean }
+/** The host's cross-site project key store as the list reads it. */
+export interface CustomCredentialProjectKeyList { list(args: Record<string, never>): Promise<readonly CustomCredentialListedKey[]> }
+/** The host's own copy for the two Shared Keys refusals (product wording stays with the host). */
+export interface CustomCredentialSharedKeysCopy { readonly sessionRequired: string; readonly ownerRequired: string }
+
+/** Per-request facts the host binds for the owner-session decisions: how THIS request authenticated
+ *  (`"session"` for a browser sign-in) and the installation owner's principal id. */
+interface CustomCredentialSessionDeps { credentialKind: () => unknown; ownerPrincipalId: () => unknown }
+
+export interface CustomCredentialListRouteDeps extends CustomCredentialBaseDeps, CustomCredentialSessionDeps {
+  listInventory: () => Promise<readonly CustomCredentialView[]>;
+  projectKeys: () => CustomCredentialProjectKeyList | undefined;
+  copy: CustomCredentialSharedKeysCopy;
+}
+export interface CustomCredentialUpdateRouteDeps extends CustomCredentialBaseDeps, CustomCredentialSessionDeps {
+  describeCredential: (args: { workspaceId: string; id: string }) => Promise<CustomCredentialView | null | undefined>;
+  updateCredential: (args: { allowSharedKeyReplacement: boolean; input: { workspaceId: string; id: string } & Record<string, unknown> }) => Promise<CustomCredentialView>;
+  prepareInvalidation: PrepareCustomCredentialInvalidation;
+}
+
+/** With a project key store, Shared Keys are listed only to the owner's own browser session: a machine
+ *  credential gets the session-only 403 first, then any other session the owner-only 403.
+ * @complexity O(1) beyond the host's owner lookup. */
+async function rejectUnlessOwnerSession({ deps, principal }: { deps: CustomCredentialListRouteDeps; principal: CredentialRoutePrincipal }, _optional: Record<string, never> = {}): Promise<void> {
+  if (deps.credentialKind() !== "session") {
+    throw new RouteRefusalError({ status: 403, body: {
+      error: deps.copy.sessionRequired, code: "FORBIDDEN", details: { permission: PERMISSION, reason: "credential_kind_not_permitted" },
+    } });
+  }
+  if (principal.id !== await deps.ownerPrincipalId()) throw new RouteRefusalError({ status: 403, body: { error: deps.copy.ownerRequired } });
+}
+
+/** Project-scoped rows carry their key's cross-site usage (a key the store does not list is unused).
+ * @complexity O(n + k). */
+function withKeyUsage({ inventory, keys }: { inventory: readonly CustomCredentialView[]; keys: readonly CustomCredentialListedKey[] }, _optional: Record<string, never> = {}) {
+  const usage = new Map(keys.map(key => [key.keyId, key]));
+  return inventory.map(credential => {
+    if (credential.scope !== "project") return credential;
+    const key = usage.get(credential.id);
+    return { ...credential, usedBy: key?.usedBy ?? [], usedByThisSite: key?.usedByThisSite ?? false };
+  });
+}
+
+export const customCredentialListRoute = defineJsonRoute<CredentialRouteInput, { credentials: readonly CustomCredentialView[]; projectKeysAvailable?: true }, CustomCredentialListRouteDeps, CredentialRoutePrincipal>({
+  method: "get",
+  path: BASE_PATH,
+  parse,
+  handle: async ({ deps, authorize, context }) => {
+    await authorizeCustom({ authorize });
+    if (deps.projectKeys()) await rejectUnlessOwnerSession({ deps, principal: context as CredentialRoutePrincipal });
+    const credentials = await withCredentialStoreErrors({ rows: rowsFor({ deps }), run: async () => {
+      const [inventory, keys] = await Promise.all([deps.listInventory(), deps.projectKeys()?.list({}) ?? Promise.resolve([])]);
+      return withKeyUsage({ inventory, keys });
+    } });
+    return ok({ value: { credentials, ...(deps.projectKeys() ? { projectKeysAvailable: true as const } : {}) } });
+  },
+});
+
+/** The partial-update input: each field forwarded only when the request supplied that key.
+ * @complexity O(1). */
+function updateInput({ workspaceId, input }: { workspaceId: string; input: CredentialRouteInput }, _optional: Record<string, never> = {}) {
+  return {
+    workspaceId,
+    id: input.id,
+    // Independent of `connection` (2026-09-01) — `body.username` travels through even on a
+    // request that carries no `connection` at all. `null` (an explicit clear) survives this
+    // check exactly like a string does; only an actually-absent JSON key reads as `undefined`
+    // and gets skipped, same "omitted key vs. present null" distinction `store.ts`'s own
+    // `UpdateCustomCredentialInput.username` doc relies on.
+    ...presentFields({ body: input.body, keys: ["label", "category", "baseUrl", "additionalHosts", "worksFor", "connection", "username"] }),
+  };
+}
+
+export const customCredentialUpdateRoute = defineJsonRoute<CredentialRouteInput, { credential: CustomCredentialView }, CustomCredentialUpdateRouteDeps, CredentialRoutePrincipal>({
+  method: "put",
+  path: `${BASE_PATH}/:id`,
+  parse,
+  handle: async ({ input, deps, authorize, context }) => {
+    await authorizeCustom({ authorize });
+    const credential = await withCredentialStoreErrors({ rows: rowsFor({ deps }), run: async () => {
+      const invalidate = await deps.prepareInvalidation();
+      const before = await deps.describeCredential({ workspaceId: deps.workspaceId, id: input.id });
+      // Only the installation owner's own browser session may replace a shared (project) key.
+      const ownerSession = deps.credentialKind() === "session" && (context as CredentialRoutePrincipal).id === await deps.ownerPrincipalId();
+      const updated = await deps.updateCredential({ allowSharedKeyReplacement: ownerSession, input: updateInput({ workspaceId: deps.workspaceId, input }) });
+      if (before && input.body.worksFor !== undefined) invalidate?.({ before, after: updated });
+      return updated;
+    } });
+    return ok({ value: { credential } });
+  },
+});

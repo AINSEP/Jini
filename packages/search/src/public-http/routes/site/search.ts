@@ -3,20 +3,22 @@ import type { SearchServiceResult } from '@jini-ai/core/contracts/site/search';
 import { parseSearchRequest, type SearchQueryIssue } from '../../../http-query.js';
 
 /**
- * @file `GET /api/search?q=&collection=&limit=&cursor=` — the public site-search endpoint.
+ * @file `GET /api/search?q=&collection=&limit=&cursor=` — the public site-search endpoint (lot S4).
  * Public and unauthenticated, like the other site routes; every hit has already been re-checked by
  * the search service's fail-closed access port before it reaches this file.
  *
- * Viewer audiences come ONLY from the visitor's own member session (the host binds the token from
- * the same cookie and resolver the member-gated page routes use), never from the query string: a
- * member sees their members-only matches, everyone else public ones. Because the answer can differ
- * per visitor, it is sent `private, no-store`, the convention every member-gated route follows.
+ * Viewer audiences come ONLY from the visitor's own member session cookie (the same cookie and
+ * resolver the member-gated page routes use), never from the query string: a member sees their
+ * members-only matches, everyone else public ones. Because the answer can differ per visitor, it is
+ * sent `private, no-store`, the convention every member-gated route here follows.
  *
  * Responses: `200 { hits: [{ url, title, snippet, highlights, collection }], nextCursor }` (plain-text
  * snippets; `nextCursor` is `null` on the last page), `400 { error: 'invalid_request', message }`,
  * `503 { error: 'search_unavailable', reason }` (no runtime in this composition, no configured
- * provider, timeout, provider down, access check failed); anything unexpected is thrown to the
- * host's error port.
+ * provider, timeout, provider down, access check failed) and `500` for anything unexpected.
+ *
+ * The session token is read from that cookie by the host, bound to the request (`sessionToken`); the
+ * `500` is the host's error port, since a rejection is thrown, not caught here.
  */
 
 /** The query shape `parseSearchRequest` accepts (what the service is asked for, minus audiences). */
@@ -67,8 +69,7 @@ function searchReply({ result }: { result: SearchServiceResult }, _optional: Rec
 
 /**
  * One search: session audiences after the runtime is ready, the provider query, the bucketed event.
- * A rejection is not caught here: Express 4 does not catch a rejected async handler, so the mount's
- * error port answers instead of hanging the caller.
+ * A rejection is not caught here; the mount's error port answers it.
  * @complexity Per request: one member-session read, one provider query and one access check.
  */
 async function runSearch({ runtime, deps, query }: { runtime: SiteSearchRouteRuntime; deps: SiteSearchRouteDeps; query: ParsedSearchQuery }, _optional: Record<string, never> = {}): Promise<unknown> {
