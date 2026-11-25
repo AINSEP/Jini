@@ -1,5 +1,5 @@
 import { toolMetadata } from "@jini-ai/core/tool-metadata/image-transform";
-import { buildDomainRegistrations, indexCatalogById, requireInputRecord, withSchemaOnRejection, type AgentToolDefinition, type DerivedRiskByToolId, type ToolContributor, type ToolExecutionContext, type ToolRegistration } from "@jini-ai/core";
+import { buildDomainRegistrations, indexCatalogById, requireInputRecord, withSchemaOnRejection, type AgentToolDefinition, type DerivedRiskByToolId, type ToolContributor, type ToolExecutionContext, type ToolRegistration , type AgentToolSideEffect } from "@jini-ai/core";
 import type { AssistantSurfaceDeps, HumanConfirmSurfaceDeps } from "@jini-ai/core/contracts/site/daemon-surface-exchanges";
 import type { AssetSourceSchema, AssetTheme, PreparedAssets } from "@jini-ai/core/contracts/site/asset-transfer-tool-ports";
 import type { ImageCodecPort } from "@jini-ai/core/contracts/site/cms-media";
@@ -55,7 +55,7 @@ const CATALOG: AgentToolDefinition = {
 }
 
 /** -> guarded read + in-memory render; then a theme file, a media item or (carded) picked-folder files. */
-export const imageTransformDerivedRisk: DerivedRiskByToolId = new Map([[IMAGE_TRANSFORM_TOOL_ID, "mutates-durable-state"]]);
+export const imageTransformDerivedRisk: ReadonlyMap<string, AgentToolSideEffect> = new Map<string, AgentToolSideEffect>([[IMAGE_TRANSFORM_TOOL_ID, "mutates-durable-state"]]);
 
 interface Prepared { source: Awaited<ReturnType<typeof inspectImage>>; rendered: RenderedImage[]; assets?: PreparedAssets<Buffer> }
 const isCallerError = <Theme extends AssetTheme>({ error, deps }: { error: unknown; deps: ImageTransformToolDeps<Theme> }, _optional = {}) => {

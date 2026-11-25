@@ -29,7 +29,7 @@ export interface ContentStatsToolDeps {
 
 export const contentStatsAgentToolCatalog = [{
   name: "content_stats",
-  description: "Counts posts, pages, collection entries and media by status, with word counts. Use for 'how many posts do I have', 'posts vs pages', 'how long are my articles', and before drawing a chart of the site's content. Does not list the items themselves — use content_read.content_post for that. Counts live content, excluding trash. Returns posts/pages totals and byStatus, optional words (total, average, longest), entries by contentType, and media totals (images, videos, other). Requires content.read; denied admin.collections.read or media.read sections are omitted and named in omitted. Word counts use the listing's plain text extraction, including its document text cap.",
+  description: "Counts posts, pages, collection entries and media by status, with word counts. Use for 'how many posts do I have', 'posts vs pages', 'how long are my articles', and before drawing a chart of the site's content. Does not list the items themselves — use the host's content read tool for that. Counts live content, excluding trash. Returns posts/pages totals and byStatus, optional words (total, average, longest), entries by contentType, and media totals (images, videos, other). Requires content.read; denied admin.collections.read or media.read sections are omitted and named in omitted. Word counts use the listing's plain text extraction, including its document text cap.",
   sideEffects: "none" as const,
   authorization: { permission: "content.read" },
   inputSchema: { type: "object", additionalProperties: false, properties: {
@@ -38,7 +38,7 @@ export const contentStatsAgentToolCatalog = [{
   } },
 }];
 
-export const contentStatsDerivedRisk: DerivedRiskByToolId = new Map<string, AgentToolSideEffect>([
+export const contentStatsDerivedRisk: ReadonlyMap<string, AgentToolSideEffect> = new Map<string, AgentToolSideEffect>([
   // -> postRepo.list, contentTypeRepo/entryRepo.listByWorkspace, mediaRepo.list,
   // mediaContentTypeStore.getMany and (only for legacy misses) assetBlobRepo.list/blobStore.get.
   // Sniffing is in memory; no metadata backfill or other writes.

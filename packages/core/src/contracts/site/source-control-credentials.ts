@@ -82,7 +82,7 @@ export interface CanonicalSourceControlKeys {
 }
 
 /** The vault/scope/hint collaborator a credential repo carries, bound to that repo's own vault rows where the
- * host composition root builds the repo. Policy (Tovu's credential kinds, owner key, typed storage errors) lives with
+ * host composition root builds the repo. Policy (the host's credential kinds, owner key, typed storage errors) lives with
  * the binding's owner; this store only says which typed error a storage failure becomes. */
 export interface CredentialVaultBinding {
   open(required: { repo: { vault?: VaultRepoPort }; sealer?: SecretSealerPort; keyring?: KeyringPort; clock?: Clock; idGen?: { newId(): string }; storageError: () => Error }, optional?: Record<string, never>): SecretsVaultService;

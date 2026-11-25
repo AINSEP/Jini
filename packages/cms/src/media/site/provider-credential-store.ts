@@ -10,7 +10,7 @@ type VaultPutRecord = Parameters<VaultRepoPort["put"]>[0]["record"];
 /**
  * One provider as the admin screen sees it — the marker half only, never the key.
  *
- * Field names are `@jini-ai/ui`'s `MediaProviderCredentials`, not Tovu's own, because this shape
+ * Field names are `@jini-ai/ui`'s `MediaProviderCredentials`, not the host's own, because this shape
  * crosses the wire straight into that component. Structurally duplicated rather than imported:
  * `@jini-ai/ui` is a browser/React package and this is server code, so the wire contract is
  * restated here and pinned by `__tests__/provider-credential-store.test.ts`.
@@ -34,7 +34,7 @@ const MAX_FIELD_LENGTH = 2048;
 
 export class MediaProviderCredentialValidationError extends Error {}
 
-/** Thrown when a caller supplies a new key but the site key (`TOVU_SITE_KEY`) is
+/** Thrown when a caller supplies a new key but the site key (the host's site-key variable) is
  *  unavailable — fail-closed, mirroring the two sibling credential stores so the route can map it
  *  to its own `503 SECRET_STORE_UNCONFIGURED` rather than a generic `400`. */
 export class MediaProviderCredentialSecretStoreUnconfiguredError extends Error {}
@@ -151,7 +151,7 @@ export interface MediaProviderCredentialWriteDeps extends MediaProviderCredentia
   createVault(required: { repo: Pick<MediaProviderCredentialRepoPort, "vault">; sealer: SecretSealerPort; keyring?: KeyringPort; clock?: ClockPort; storageError: () => Error }): Pick<SecretsVaultService, "prepare" | "findOne">;
 }
 
-/** Structurally the two real credential rules (`assertCredentialFreeField` binds Tovu's secret-shape detector). */
+/** Structurally the two real credential rules (`assertCredentialFreeField` binds the host's secret-shape detector). */
 export interface MediaProviderCredentialPolicy {
   assertCredentialFreeField(required: { value: string; field: string }, optional?: Record<string, never>): void;
   normalizeCredentialToken(required: { value: unknown; field?: string; hosted?: boolean }, optional?: Record<string, never>): string;
@@ -307,7 +307,7 @@ function buildProviderUpsertRow(input: {
  *
  * Ordering is deliberate and load-bearing: every entry is validated, then every new key is sealed,
  * and only then is anything written. Sealing is the one step that can fail for an environmental
- * reason (a missing `TOVU_SITE_KEY`), so doing it up front means that failure cannot
+ * reason (a missing the host's site-key variable), so doing it up front means that failure cannot
  * leave the workspace half-rewritten — the alternative, sealing inside the write loop, would delete
  * some providers and abort before writing the rest.
  *

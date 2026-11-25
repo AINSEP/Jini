@@ -165,7 +165,7 @@ function ManageAccessTokensLink({ t: translate, navigate }: Pick<ProvidersTabPro
 
 /** The host rows — loading/error states, then one row per listed host (and per saved connection's
  *  unlisted host). Split out of {@link ProvidersTab} purely for the complexity gate, same reasoning every
- *  other per-section split in this app documents: this repo's real `apps/admin` ESLint gate is a
+ *  other per-section split in this app documents: this repo's real `host admin app` ESLint gate is a
  *  hard 9/9 cyclomatic/cognitive ceiling, and the loading/error branches plus the `.map()` counted
  *  directly in the tab component would have pushed it over budget alongside the header markup. */
 function SourceControlCredentialsList({ controller, t: translate, ...props }: Pick<ProvidersTabProps, "viewerTimeZone" | "CredentialHint" | "kit" | "lineIcon" | "fieldHelpText" | "fieldNameHandleSegment" | "copy"> & { controller: SourceControlCredentialsController; t: Translate }) {

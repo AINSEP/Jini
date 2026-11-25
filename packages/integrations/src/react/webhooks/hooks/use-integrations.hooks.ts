@@ -54,7 +54,7 @@ export interface IntegrationsPort {
  * `useContentRefreshSubscription` (staleness-bug generalization pass — see that hook's own header):
  * re-invalidates `KEYS.list` on an out-of-band content-refresh notification — today an assistant
  * run that called `webhooks_create_subscription`/`webhooks_pause_subscription`/
- * `webhooks_delete_subscription` (`apps/website/src/features/webhooks/agent-tools.ts`) — the same
+ * `webhooks_delete_subscription` (the host's `features/webhooks/agent-tools.ts`) — the same
  * one-line adoption `use-media.hooks.ts` uses. The create form's `label`/`targetUrl`/`topics` local
  * state is untouched by an invalidate (it only replaces `list.data`), so an in-progress "new
  * subscription" draft survives a background refresh.

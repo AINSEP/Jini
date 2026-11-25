@@ -3,7 +3,7 @@ import { toPostSearchDocument, type PostSearchHit, type PostSearchPort, type Pos
 
 /**
  * @file The rule-of-two partner to `search-index.sqlite.ts`: the `PostSearchPort` the hermetic
- * composition root (`apps/website/src/server/runtime/composition/app.ts`'s `createRouteDeps`, which pairs it with `InMemoryPostRepo`)
+ * composition root (the host's `server/runtime/composition/app.ts`'s `createRouteDeps`, which pairs it with `InMemoryPostRepo`)
  * wires, so `content_post_search` behaves identically whether a caller booted the SQLite server or
  * the in-memory one.
  *

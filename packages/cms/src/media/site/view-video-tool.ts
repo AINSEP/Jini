@@ -49,7 +49,7 @@ export function createMediaViewVideoCatalog({ mediaAssetReadToolId }: { mediaAss
 },
 }] as const;
 }
-export const mediaViewVideoDerivedRisk: DerivedRiskByToolId = new Map([[MEDIA_VIEW_VIDEO_TOOL_ID, 'none']]);
+export const mediaViewVideoDerivedRisk: ReadonlyMap<string, AgentToolSideEffect> = new Map<string, AgentToolSideEffect>([[MEDIA_VIEW_VIDEO_TOOL_ID, 'none']]);
 
 // Slugs are lookup keys, not ids. The shared assistant content-target adapter now resolves them
 // after site selection and authorization, using the repository's historical slug aliases too.

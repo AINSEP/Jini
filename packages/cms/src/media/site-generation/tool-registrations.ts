@@ -80,10 +80,10 @@ const DOMAIN = "media-generation";
  * calls — see `DerivedRiskByToolId` in the kit for why it is independent of the catalog's own
  * `sideEffects` declaration.
  */
-export const mediaGenerationDerivedRisk: DerivedRiskByToolId = new Map<string, AgentToolSideEffect>([
+export const mediaGenerationDerivedRisk: ReadonlyMap<string, AgentToolSideEffect> = new Map<string, AgentToolSideEffect>([
   // -> resolveMediaProviderCredential (a decrypting read) + one outbound generation call to the
   // vendor's API + uploadMedia (mediaRepo.save/blobRepo.save/renditionRepo.save) +
-  // mediaContentTypeStore.set. A genuine durable Tovu-side write, same classification
+  // mediaContentTypeStore.set. A genuine durable host-side write, same classification
   // media_upload_asset's own entry carries.
   ["media_generate_asset", "mutates-durable-state"],
 ]);
@@ -188,7 +188,7 @@ async function storeGeneratedImage(
     },
   }, {});
 
-  // Same "record what the bytes actually are" write `apps/website/src/server/inbound/admin-http/routes/media/upload.ts` performs
+  // Same "record what the bytes actually are" write the host's `server/inbound/admin-http/routes/media/upload.ts` performs
   // after every human upload — see that route's own doc for why this is sniffed rather than
   // trusted from the (here, fixed) `contentType` string.
   const sniffed = sniffContentType({ bytes: generated.bytes });

@@ -158,7 +158,7 @@ export interface PostEditorPort<Row extends {
   uploadMedia(input: { filename: string; contentType: string; dataBase64: string }, optional?: Record<string, never>): Promise<{ media: AdminMedia }>;
   /**
    * Synchronous URL builder for the admin-only template-preview iframe/form target (2026-08-14, moved
-   * out of `PostEditor.tsx`/`PostPreview` — see `apps/admin/INFO.md`'s Hooks section) — NOT a network
+   * out of `PostEditor.tsx`/`PostPreview` — see the host's `INFO.md`'s Hooks section) — NOT a network
    * call itself; the browser navigates to the returned URL when the iframe's `src` is set or the
    * hidden form submits. `templateChoice: null` omits the query param (server renders the post's own
    * saved template); `""` sends an explicit empty value ("no template"); a real filename requests

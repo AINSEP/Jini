@@ -2,7 +2,7 @@ import { ToolInputError, type DerivedRiskByToolId, type AgentToolSideEffect } fr
 import { PUBLISH_CONTENT_PUBLISH_TOOL_ID, PUBLISH_BACKSTOP_GAPS_TOOL_ID, PUBLISH_CONTENT_STATUS_TOOL_ID, PUBLISH_CONTENT_PLAN_PULL_TOOL_ID, PUBLISH_CONTENT_EXECUTE_PULL_TOOL_ID, PUBLISH_CONTENT_CONNECT_TOOL_ID } from "./agent-tools.js";
 import { entityKey, type PublishContentReport } from "./plan-rows.js";
 
-export const publishContentDerivedRisk: DerivedRiskByToolId = new Map<string, AgentToolSideEffect>([
+export const publishContentDerivedRisk: ReadonlyMap<string, AgentToolSideEffect> = new Map<string, AgentToolSideEffect>([
   // External write: uploads/stages on live and confirms/executes its gateway, applying durable
   // remote content. The registry's write classification is mutates-durable-state (no separate
   // external-write enum); this must never be marked read-only or token-only.

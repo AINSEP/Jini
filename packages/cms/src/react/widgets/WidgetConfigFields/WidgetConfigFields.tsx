@@ -72,7 +72,7 @@ export interface WidgetConfigFieldsProps {
  * is a second, NESTED seam underneath the already-reachable `useFetchedOptions` prop (not a new
  * component prop of its own): a test overriding `useFetchedOptions` with a fake never calls the
  * closure at all, so the port is exercised only on the real path, the same "one seam per reachable
- * boundary" reasoning `apps/admin/INFO.md`'s Components section gives for not double-injecting
+ * boundary" reasoning the host's `INFO.md`'s Components section gives for not double-injecting
  * `useWidgetPickerDialog`'s inner `useExistingInstances`.
  *
  * ## Agent handles

@@ -5,13 +5,13 @@ import type { HumanConfirmSpec } from "@jini-ai/core/contracts/site/human-confir
  * @file The confirmation dialog `tool-registrations.ts` raises before running a DELETE through a
  * saved custom credential (2026-08-31, owner decision: "the only thing we maybe should be worried
  * about is deletion, but we can gate that with MCP-UI"). Structurally mirrors
- * `apps/website/src/contracts/core/human-confirm.ts` — see that file's own header for the mechanism this one
+ * the host's `contracts/core/human-confirm.ts` — see that file's own header for the mechanism this one
  * reuses rather than reinventing (a held-open `SurfaceExchangeStore` exchange, `askOnce`, a
  * confirm/cancel tool action carrying `SURFACE_EXCHANGE_ID_PARAM` back to the SAME tool call).
  *
  * Differs from that file only in WHAT the dialog shows and WHERE it is keyed: there is no existing
  * row/version to re-version against here (a DELETE-through-credential is a live outbound call, not an
- * edit to a Tovu-owned entity) — so the `ui://` URI is keyed by the exchange id alone, the same
+ * edit to a host-owned entity) — so the `ui://` URI is keyed by the exchange id alone, the same
  * reasoning `features/deployments/publish-agent-tools.ts`'s own `publishConfirmationUri` gives for the
  * identical "nothing to re-version" shape.
  */

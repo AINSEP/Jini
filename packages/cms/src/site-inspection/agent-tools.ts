@@ -109,7 +109,7 @@ export function createSiteInspectionAgentToolCatalog({ readPermission, capabilit
     name: "fetch_published_page",
     description: descriptions.published,
     // The handler issues one ordinary GET against this site's own public surface — the same thing
-    // the static exporter (`apps/website/src/features/site-export/site-exporter.ts`) does for every route, and the same thing any
+    // the static exporter (the host's `features/site-export/site-exporter.ts`) does for every route, and the same thing any
     // visitor does. It writes nothing itself. One disclosed caveat rather than a silent one: a path
     // that matches a live redirect rule records a redirect HIT through the ordinary redirect
     // middleware, exactly as a real visit to that path would. That is an analytics counter moving,

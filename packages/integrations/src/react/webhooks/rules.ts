@@ -29,7 +29,7 @@ export const KEYS = {
 /** This screen's name on `lib/content-refresh-bus.ts` — see `taxonomy/rules.ts`'s
  *  `TAXONOMY_RESOURCE` for why this is a plain colocated constant rather than a shared registry.
  *  Agent-writable via `webhooks_create_subscription`/`webhooks_pause_subscription`/
- *  `webhooks_delete_subscription` (`apps/website/src/features/webhooks/agent-tools.ts` — the
+ *  `webhooks_delete_subscription` (the host's `features/webhooks/agent-tools.ts` — the
  *  website domain is named "webhooks", this admin feature is named "integrations"; both name the
  *  same `WebhookSubscriptionRecord` resource). No sibling constant for the deliveries log
  *  (`use-integration-deliveries.hooks.ts`): no Webhooks agent tool writes a delivery row — deliveries

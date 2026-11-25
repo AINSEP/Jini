@@ -33,7 +33,8 @@
       "./react/external-mcp/ExternalMcpSettingsPanel.hooks": "browser"
     },
     "optionalPeers": {
-      "kysely": "opt-in: hosted MCP SQL — Install kysely to use the hosted MCP SQL repository."
+      "kysely": "opt-in: hosted MCP SQL \u2014 Install kysely to use the hosted MCP SQL repository.",
+      "react": "opt-in: react browser bindings; import @jini-ai/mcp/react/external-mcp/ExternalMcpAdmissionsBanner \u2014 React browser bindings could not load react. Install react to enable this feature, or check its installed version."
     }
   },
   "type": "module",

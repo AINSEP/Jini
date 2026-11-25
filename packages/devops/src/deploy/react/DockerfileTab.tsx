@@ -7,7 +7,7 @@ import type { DockerfileSourceController } from "./hooks/use-dockerfile-source.h
 import { type Translate } from '@jini-ai/core/text';
 /**
  * @file Dockerfile tab — the repo-root `Dockerfile`'s contents, fetched from and now also written to
- * `.../system/dockerfile` (`apps/website/src/server/inbound/admin-http/routes/system/dockerfile-source.ts`).
+ * `.../system/dockerfile` (the host's `server/inbound/admin-http/routes/system/dockerfile-source.ts`).
  *
  * ## Third pass (2026-08-15) — read-only became editable
  *

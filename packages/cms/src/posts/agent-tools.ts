@@ -40,7 +40,7 @@ import { POST_KIND_SCHEMA, PUBLISH_AT_SCHEMA, POST_LIST_FIELDS, TIPTAP_TEXT_BODY
  * that `PostRepoPort` exposed exactly four methods (`findById`/`findBySlug`/`list`/`save`) with no
  * delete method anywhere in the domain to wrap. That is no longer true and the absence is no longer
  * deliberate: `post.ts` now exports `deletePost`, `PostRepoPort` now carries `softDelete`, both
- * adapters implement it, and `apps/website/src/server/inbound/admin-http/routes/posts/delete.ts` + `.../pages/delete.ts` are the
+ * adapters implement it, and the host's `server/inbound/admin-http/routes/posts/delete.ts` + `.../pages/delete.ts` are the
  * human-facing routes `content_post_delete` mirrors. The note is kept rather than erased because a
  * reader who remembers the old claim needs to see that it was retired on purpose.
  *
@@ -92,7 +92,7 @@ import { POST_KIND_SCHEMA, PUBLISH_AT_SCHEMA, POST_LIST_FIELDS, TIPTAP_TEXT_BODY
  * (ADR-021 §2), because no such self-enforcement exists here to duplicate.
  *
  * `bodyJson`'s published schema (see `TIPTAP_DOC_SCHEMA` below) describes the TipTap/ProseMirror
- * document vocabulary this codebase's own renderer (`apps/website/src/server/inbound/public-http/http/site/render/content-html.ts`'s `renderDocNode`)
+ * document vocabulary this codebase's own renderer (the host's `server/inbound/public-http/http/site/render/content-html.ts`'s `renderDocNode`)
  * actually interprets: `doc`/`paragraph` (attrs.textAlign)/`heading` (attrs.level/textAlign)/`text`
  * (with `bold`/`italic`/`code`/`strike`/`underline`/`subscript`/`superscript`/`textStyle`/`highlight`/
  * `link` marks)/`bulletList`/`orderedList`/`listItem`/`taskList`/`taskItem`/`blockquote`/`codeBlock`

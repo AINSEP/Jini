@@ -242,7 +242,7 @@ function changedLedgerEntries(
  * `loadExecutionConfig` always returns `byok.apiKey: ""` (this file's header, item 2 — the server
  * never returns key material), and `refresh()` fires on ANY out-of-band notification — including a
  * same-tab echo of THIS SLICE'S OWN debounced write arriving back over the settings-changed SSE feed
- * (`settings-events.ts`; `apps/website/src/server/inbound/admin-http/routes/settings/events.ts` broadcasts to every open
+ * (`settings-events.ts`; the host's `server/inbound/admin-http/routes/settings/events.ts` broadcasts to every open
  * connection for the workspace on a ~1s poll, the writer's own tab included, with no self-exclusion).
  *
  * The failure this prevents: an operator types a key, then edits a ledger field (baseUrl, model,

@@ -1,7 +1,7 @@
 import { defineJsonRoute, ok, routeReply, type RouteInputContext, type JsonRouteAuthorize, type RouteReply } from '@jini-ai/core/contracts/server';
 import type { PluginInstallInput, PluginInstallPreview, PluginInstallerPort } from '@jini-ai/core/contracts/site/host-node';
 
-const conflicts = new Set(['PLUGIN_SHADOWS_BUILT_IN', 'PLUGIN_ID_CONFLICT', 'PLUGIN_IN_TRASH', 'PLUGIN_ENABLED', 'PLUGIN_VERSION_EXISTS', 'PLUGIN_DOWNGRADE', 'PLUGIN_CHANGED_SINCE_PREVIEW', 'PLUGIN_INSTALL_BUSY']);
+const conflicts: ReadonlySet<string> = new Set(['PLUGIN_SHADOWS_BUILT_IN', 'PLUGIN_ID_CONFLICT', 'PLUGIN_IN_TRASH', 'PLUGIN_ENABLED', 'PLUGIN_VERSION_EXISTS', 'PLUGIN_DOWNGRADE', 'PLUGIN_CHANGED_SINCE_PREVIEW', 'PLUGIN_INSTALL_BUSY']);
 const REVIEWED_DIGEST = /^sha256-[a-f0-9]{64}$/;
 const INPUT_INVALID = 'PLUGIN_INSTALL_INPUT_INVALID';
 type InstallRoute = { zip: boolean; preview: boolean };

@@ -99,7 +99,7 @@ export async function withCallerSafeEgressRefusal<T>(
  * calls — see `DerivedRiskByToolId` in the kit for why it is independent of the catalog's own
  * `sideEffects` declaration.
  */
-export const mediaImportDerivedRisk: DerivedRiskByToolId = new Map<string, AgentToolSideEffect>([
+export const mediaImportDerivedRisk: ReadonlyMap<string, AgentToolSideEffect> = new Map<string, AgentToolSideEffect>([
   ["media_replace_file", "mutates-durable-state"],
   ["media_import_from_url", "mutates-durable-state"],
   ["media_import_local_file", "mutates-durable-state"],

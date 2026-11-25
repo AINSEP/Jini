@@ -35,10 +35,10 @@ export function toSourceControlCredentialRecord({ row, meta, provider, sealed }:
     providerId: provider, isDefault: row.isDefault, accountLabel: (meta.accountLabel ?? null) as string | null, createdAt: row.createdAt, updatedAt: row.updatedAt };
 }
 
-/** Tovu's historical DTOs retain their fields; vault revisions and hints are adapter details. */
+/** the host's historical DTOs retain their fields; vault revisions and hints are adapter details. */
 export class CredentialSetVaultAdapter<R extends CredentialSetRecord> {
   readonly vault: VaultRepoPort;
-  /** Tovu's vault/scope/hint policy, carried by every repo the composition root builds (site and project halves
+  /** the host's vault/scope/hint policy, carried by every repo the composition root builds (site and project halves
    *  alike). `open` takes the repo it opens explicitly, never `this`: a wrapper (the abort guard around a save)
    *  passes itself, so its guarded vault is the one written. */
   readonly credentialVault: CredentialVaultBinding;

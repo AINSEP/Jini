@@ -1,5 +1,5 @@
 import { basename, matchesGlob } from "node:path";
-import { ToolInputError, buildDomainRegistrations, indexCatalogById, requireInputRecord, requireString, withSchemaOnRejection, type AgentToolDefinition, type DerivedRiskByToolId, type HumanConfirmer, type ToolContributor, type ToolExecutionContext, type ToolExecutionOptions, type ToolHandler, type ToolRegistration } from "@jini-ai/core";
+import { ToolInputError, buildDomainRegistrations, indexCatalogById, requireInputRecord, requireString, withSchemaOnRejection, type AgentToolDefinition, type DerivedRiskByToolId, type HumanConfirmer, type ToolContributor, type ToolExecutionContext, type ToolExecutionOptions, type ToolHandler, type ToolRegistration , type AgentToolSideEffect } from "@jini-ai/core";
 import type { AssistantSurfaceDeps, HumanConfirmSurfaceDeps } from "@jini-ai/core/contracts/site/daemon-surface-exchanges";
 import type { HumanConfirmSpec } from "@jini-ai/core/contracts/site/human-confirm";
 import type { AssetFile, AssetSourceSchema, AssetTheme, OverwritePolicy, PreparedAssetBatch, PreparedAssets } from "@jini-ai/core/contracts/site/asset-transfer-tool-ports";
@@ -73,7 +73,7 @@ const catalog: AgentToolDefinition = {
 };
   return [catalog];
 }
-export const filesCopyDerivedRisk: DerivedRiskByToolId = new Map([["files_copy", "mutates-durable-state"]]);
+export const filesCopyDerivedRisk: ReadonlyMap<string, AgentToolSideEffect> = new Map<string, AgentToolSideEffect>([["files_copy", "mutates-durable-state"]]);
 const callerError = <Theme extends AssetTheme>({ error, deps }: { error: unknown; deps: FilesCopyToolDeps<Theme> }, _optional = {}) => {
   return deps.isFsShapeRejection({ error }) || deps.isDocumentShapeRejection({ error }) || deps.isThemeShapeRejection({ error }) || deps.isImportShapeRejection({ error });
 };

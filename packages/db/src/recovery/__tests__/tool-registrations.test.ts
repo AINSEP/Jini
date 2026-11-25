@@ -22,11 +22,11 @@ function fixture() {
     catalog: createRecoveryAgentToolCatalog({ backupWorkflowGuidance: "backup", restorePointIdSource: "list" }), metadata: toolMetadata, catalogModule: "host/recovery", readPermission: "read", restorePermission: "restore", coveredCategories: [],
     capabilityGuidance: { fullSiteBackup: { discoveryTool: "discover", planTool: "plan", pushTool: "push", guidance: "backup" }, portableExport: { href: "/export", guidance: "export" } },
     authorize: vi.fn(async () => { calls.push("authorize"); }),
-    plan: vi.fn(async input => { calls.push(`plan:${input.actorId}:${input.principalKind}`); return { ok: true, value: { planId: "plan", planHash: "hash" } }; }),
-    confirm: vi.fn(async input => { calls.push(`confirm:${input.confirmer.id}:${input.confirmer.kind}`); return { ok: true, value: { confirmationToken: "token" } }; }),
-    execute: vi.fn(async input => { expect(held).toBe(true); calls.push(`execute:${input.actorId}`); return { ok: true, value: { restoreRunId: "restore", state: "RESTORED" } }; }),
+    plan: vi.fn(async input => { calls.push(`plan:${input.actorId}:${input.principalKind}`); return { ok: true as const, value: { planId: "plan", planHash: "hash" } }; }),
+    confirm: vi.fn(async input => { calls.push(`confirm:${input.confirmer.id}:${input.confirmer.kind}`); return { ok: true as const, value: { confirmationToken: "token" } }; }),
+    execute: vi.fn(async input => { expect(held).toBe(true); calls.push(`execute:${input.actorId}`); return { ok: true as const, value: { restoreRunId: "restore", state: "RESTORED" } }; }),
     operationLock: {
-      acquireOperationLock: vi.fn(async () => { held = true; calls.push("lock"); return { ok: true, value: { siteId: "site", operationKind: "restore", acquiredAt: "now" } }; }),
+      acquireOperationLock: vi.fn(async () => { held = true; calls.push("lock"); return { ok: true as const, value: { siteId: "site", operationKind: "restore", acquiredAt: "now" } }; }),
       releaseOperationLock: vi.fn(async () => { calls.push("release"); held = false; }),
     }, isOperationInFlight: () => held,
     describe: () => ({ toolId: "backup_execute_restore", errorCode: "RECOVERY", title: "restore", details: [], warning: "replace", danger: true, confirmLabel: "restore" }),
@@ -86,7 +86,8 @@ test("denied plan cannot reach the unavailable-capability branch", async () => {
 
 test("a malformed internal confirm result must not proceed to execute", async () => {
   const f = fixture();
-  f.host.confirm = vi.fn(async () => ({ ok: true, value: { token: "wrong-field" } }));
+  // Deliberately the wrong result shape: the registration must reject it at runtime.
+  f.host.confirm = vi.fn(async () => ({ ok: true, value: { token: "wrong-field" } })) as unknown as typeof f.host.confirm;
   const registration = buildRecoveryRegistrations(f).find(row => row.descriptor.id === "backup_execute_restore");
   if (!registration) throw new Error("restore missing");
   await expect(registration.handler(ctx, { emitSurface: vi.fn() })).rejects.toThrow();

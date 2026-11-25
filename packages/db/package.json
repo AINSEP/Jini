@@ -41,11 +41,11 @@
       ]
     },
     "optionalPeers": {
-      "better-sqlite3": "opt-in: sqlite storage — SQLite storage could not load better-sqlite3. Install better-sqlite3 to enable this feature, or check its installed version and native binaries.",
-      "@electric-sql/pglite": "opt-in: embedded postgresql storage — Embedded PostgreSQL storage could not load @electric-sql/pglite. Install @electric-sql/pglite to enable this feature, or check its installed version and native binaries.",
-      "pg": "opt-in: postgresql storage — PostgreSQL storage could not load pg. Install pg to enable this feature, or check its installed version and native binaries.",
-      "react": "opt-in: react browser bindings; import @jini-ai/db/react/recovery/Recovery — React browser bindings could not load react. Install react to enable this feature, or check its installed version.",
-      "react-dom": "opt-in: react browser bindings; import @jini-ai/db/react/recovery/Recovery — React browser bindings could not load react-dom. Install react-dom to enable this feature, or check its installed version."
+      "better-sqlite3": "opt-in: sqlite storage \u2014 SQLite storage could not load better-sqlite3. Install better-sqlite3 to enable this feature, or check its installed version and native binaries.",
+      "@electric-sql/pglite": "opt-in: embedded postgresql storage \u2014 Embedded PostgreSQL storage could not load @electric-sql/pglite. Install @electric-sql/pglite to enable this feature, or check its installed version and native binaries.",
+      "pg": "opt-in: postgresql storage \u2014 PostgreSQL storage could not load pg. Install pg to enable this feature, or check its installed version and native binaries.",
+      "react": "opt-in: react browser bindings; import @jini-ai/db/react/recovery/Recovery \u2014 React browser bindings could not load react. Install react to enable this feature, or check its installed version.",
+      "react-dom": "opt-in: react browser bindings; import @jini-ai/db/react/recovery/Recovery \u2014 React browser bindings could not load react-dom. Install react-dom to enable this feature, or check its installed version."
     },
     "entries": {
       "./core": "node",
@@ -72,7 +72,10 @@
       "./verified-origin": "node",
       "./data-modules": "node",
       "./watermark/kernel": "node",
-      "./react/recovery/Recovery": "browser"
+      "./react/recovery/Recovery": "browser",
+      "./site/repo.memory": "node",
+      "./transfer/confirmation-ui": "node",
+      "./transfer/destination-store": "node"
     }
   },
   "type": "module",

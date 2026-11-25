@@ -25,7 +25,7 @@ export interface ApiConnectionVaultPolicy {
 }
 
 /**
- * @file Tovu's storage for plugin-declared API connections, all in the existing secrets vault under
+ * @file the host's storage for plugin-declared API connections, all in the existing secrets vault under
  * the `api-connection` kind (migration 0020): the sealed token sets (Jini's vault token store), the
  * connection records and the single-use sign-in attempts. The same kind also holds plugin settings
  * rows (`plugin-state.ts`), so plugin state needs no new table or vault kind (no migration 0021).

@@ -49,7 +49,7 @@ export interface RecoveryToolHost<D extends RecoveryToolDeps> {
  * `sideEffects` declaration. Neither excluded tool appears here at all, which is itself the
  * strongest of the guards: an unclassified id cannot be wired.
  */
-export const recoveryDerivedRisk: DerivedRiskByToolId = new Map<string, AgentToolSideEffect>([
+export const recoveryDerivedRisk: ReadonlyMap<string, AgentToolSideEffect> = new Map<string, AgentToolSideEffect>([
   // -> listRestorePoints (@jini-ai/db/tools, the same repo Database's own list
   //    tool reads): one read.
   ["backup_list_restore_points", "none"],
@@ -71,7 +71,7 @@ export const recoveryDerivedRisk: DerivedRiskByToolId = new Map<string, AgentToo
 
 const RESTORE_TOOL_ID = "backup_execute_restore";
 
-const UNWIRED_RECOVERY_TOOL_IDS = new Set([
+const UNWIRED_RECOVERY_TOOL_IDS: ReadonlySet<string> = new Set([
   // Pre-existing (SPEC-019) catalog entry, deliberately left unwired HERE: this id collides with
   // `features/database/agent-tools.ts`'s own `backup_create_restore_point`, which
   // `buildDatabaseRegistrations` already wires as the canonical tool (ADR-041 §6 names the

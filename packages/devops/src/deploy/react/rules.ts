@@ -18,7 +18,7 @@ import { trimChars } from "@jini-ai/core/primitives";
 /** The Static Site tab's export-status name on `lib/content-refresh-bus.ts` — see
  *  `taxonomy/rules.ts`'s `TAXONOMY_RESOURCE` for why this is a plain colocated constant rather than
  *  a shared registry. Agent-writable via `deployment_trigger_export`
- *  (`apps/website/src/features/deployments/agent-tools.ts`), which starts a run this tab polls.
+ *  (the host's `features/deployments/agent-tools.ts`), which starts a run this tab polls.
  *  `use-static-export.hooks.ts`'s own header explains why the refresh is a bespoke re-fetch rather
  *  than the usual `useInvalidate()` one-liner — `run` seeds once and is never re-derived from the
  *  query afterward. There is deliberately NO sibling constant for `use-dockerfile-source.hooks.ts`:

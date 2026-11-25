@@ -1,7 +1,7 @@
 import { toolMetadata } from '@jini-ai/core/tool-metadata/media';
 /**
  * @file The chat-attachment -> media-library bridge: `media_promote_chat_attachment`, closing the
- * capability gap `2026-09-06-handoff-to-tovu-73.md` diagnosed — `media_upload_asset`
+ * capability gap a host handoff note diagnosed — `media_upload_asset`
  * (`@jini-ai/cms/media`) only ever accepted `dataBase64`, and nothing bridged a file the chat
  * composer had already uploaded (`@jini-ai/daemon/http`'s `AttachmentStore`) into it.
  *
@@ -12,7 +12,7 @@ import { toolMetadata } from '@jini-ai/core/tool-metadata/media';
  * `{filename, contentType, dataBase64}` input — the exact same code path a model's own
  * `media_upload_asset` call takes, including its `requireToolPermission` check, `uploadMedia()`
  * validation/rendition gate, and the `recordUploadContentType`/`resolvePublicUrls` hooks
- * (`features/media/tool-registrations.ts`'s `buildMediaRegistrationsForTovu`). Nothing about that
+ * (`features/media/tool-registrations.ts`'s host media registrations builder). Nothing about that
  * gate is duplicated here — `__tests__/promote-chat-attachment.test.ts` proves this by asserting the
  * SAME sniffed-content-type-recording behavior `tool-registrations.test.ts` polices for
  * `media_upload_asset` itself, reached through this bridge instead.
@@ -43,7 +43,7 @@ import { toolMetadata } from '@jini-ai/core/tool-metadata/media';
  * by always passing `ctx.run.id`, so one session can never promote another session's in-flight
  * attachment through this tool. It does NOT (and structurally cannot) reach across SITES: each site
  * runs its own daemon process with its own in-memory `AttachmentStore` (`agent-daemon-server.ts`'s
- * own `TOVU_WORKSPACE` doc), so a reference minted on one site's daemon is not a key that exists in
+ * own workspace doc), so a reference minted on one site's daemon is not a key that exists in
  * another site's store at all.
  *
  * What this does NOT close: an attachment that was never claimed by any run yet (the common real
@@ -205,7 +205,7 @@ export function buildPromoteChatAttachmentTool({ getStore, mediaUploadHandler, r
       inputSchema: INPUT_SCHEMA,
     },
     handler,
-    // Pass-through `allow` — ADR-021 §2, same as every other Tovu registration built outside the
+    // Pass-through `allow` — ADR-021 §2, same as every other the host registration built outside the
     // `@jini-ai/cms` domain machinery (`createFrontendControl`'s own registrations use the identical
     // `{ authorize: () => "allow" }`, `agent-daemon-server.ts`). The real authorization decision is
     // `media_upload_asset`'s own `requireToolPermission(..., "media.upload", ...)` check, run inside

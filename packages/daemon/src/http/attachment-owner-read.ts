@@ -7,7 +7,7 @@
  * and `DELETE /api/attachments` (`attachmentUploadRoutes`, `attachmentCleanupRoutes`) — so bytes could be staged and
  * abandoned but never read again. The admin's attachment preview modal therefore worked only for
  * the current session, off a client-side `File` cache keyed by upload path
- * (`apps/admin/.../attachment-preview-cache.ts`): anything from an earlier turn, or anything at all
+ * (the host's `.../attachment-preview-cache.ts`): anything from an earlier turn, or anything at all
  * after a reload, could never be previewed. This module is the server half that makes those bytes
  * reachable; `@jini-ai/cms/admin-http/routes/assistant/get-chat-attachment` (bound in
  * `server/runtime/composition/modules/assistant-attachment-read.ts`) is the HTTP half.
@@ -24,7 +24,7 @@
  *   already claimed, which is precisely the "attachment from an earlier turn" case this exists for.
  *
  * The remaining source of truth is the sidecar record `createDiskAttachmentStore` writes under
- * `<uploadDirectory>/.records/` when constructed with `retainAcrossRestarts` (Tovu opts in at
+ * `<uploadDirectory>/.records/` when constructed with `retainAcrossRestarts` (the host opts in at
  * `agent-daemon-server.ts`, commit `72e1e529`). That is what this module reads.
  *
  * **This is a real coupling to another package's on-disk format, stated rather than hidden.**
@@ -54,7 +54,7 @@
  * Deliberately NOT wider:
  * - not "any authenticated admin". `chat_list_pending_attachments` scopes by admin account rather
  *   than by conversation, an accepted widening recorded in
- *   `ADS-memory/reports/2026-09-06-tovu-f6-outstanding-worklist.md` §A.6. This route matches that
+ *   a host worklist §A.6. This route matches that
  *   scope and does not go past it — one principal, their own uploads.
  * - not gated by an additional `authorize()` permission either, and that is not an omission: the
  *   upload route itself requires only `requireAdminSession` (`modules/assistant.ts`), so a

@@ -60,7 +60,7 @@ export interface PagesHtmlDocumentStoreDeps {
 type GoLiveColumns = Pick<PageHtmlStatementRow, "id" | "workspace_id" | "kind" | "status" | "publish_at" | "updated_at" | "deleted_at">;
 
 /**
- * Tovu's page HTML store over one `"html"`-format Page row (SPEC-047/ADR-056 REQ-4).
+ * the host's page HTML store over one `"html"`-format Page row (SPEC-047/ADR-056 REQ-4).
  *
  * Stateful by necessity, not by convenience: this port's `read()` returns only a string (no version),
  * so the row's `version` at the time of the most recent `read()`

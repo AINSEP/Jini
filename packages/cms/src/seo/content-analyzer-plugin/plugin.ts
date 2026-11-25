@@ -7,8 +7,8 @@
  * `{ count }`; the host namespaces them).
  *
  * Architectural role:
- * This is exactly what a third party would ship as `server/index.mjs`: it imports ONLY `@tovu/sdk`
- * and its own pure sibling modules — never Tovu internals — because it runs inside a worker on the
+ * This is exactly what a third party would ship as `server/index.mjs`: it imports ONLY the host plugin SDK
+ * and its own pure sibling modules — never the host internals — because it runs inside a worker on the
  * far side of the plugin ABI (ADR-024 §3/§4) and the server process never imports it
  * (`./index.ts`'s `importModule` refuses). Everything crossing that boundary is structured-clone
  * plain data, which is WHY `report` is a JSON string: `ExtPatch` values are scalars only.

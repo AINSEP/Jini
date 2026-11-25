@@ -32,7 +32,7 @@ import { normalizePageInput } from "./tool-registrations.shared.js";
  * too would cost `editor` a capability REQ-9 never asked to take, for no security gain.
  */
 
-const pagesDerivedRisk: DerivedRiskByToolId = new Map<string, AgentToolSideEffect>([
+const pagesDerivedRisk: ReadonlyMap<string, AgentToolSideEffect> = new Map<string, AgentToolSideEffect>([
   // -> PagesHtmlDocumentStore.read(): one indexed SELECT, no writes.
   ["pages_read_html", "none"],
   // -> ensureHtmlFormat() + write(): converts the row's format on first call, then a
@@ -102,7 +102,7 @@ export { pagesDerivedRisk };
 
 /**
  * Contributes Pages' AI tools to the assistant's catalog — called once by
- * `apps/website/src/server/runtime/composition/tool-catalog-manifest.ts`'s `installFirstPartyToolContributors()`, not by importing this
+ * the host's `server/runtime/composition/tool-catalog-manifest.ts`'s `installFirstPartyToolContributors()`, not by importing this
  * module. `assistant/tool-registrations.ts` no longer imports `buildPagesRegistrations`/
  * `pagesDerivedRisk` by name; this is the seam that replaced it (Stage 2 batch 2). Safe: the only
  * importer of `features/pages/tool-registrations` (relative or `#src/*` subpath) is

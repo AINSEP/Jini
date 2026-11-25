@@ -141,7 +141,7 @@ function scanEntryAssets(entry: PostRecord, savedWidgets?: ReadonlyMap<string, R
  *
  * Keeping a GATED draft as a referrer costs nothing the old rule protected. The admin composer,
  * which `MediaRenditionRouteDeps`'s own doc cites as the reason drafts stay reachable, does not use
- * this route at all — `apps/admin/src/lib/media-image-extension.tsx` resolves editor previews
+ * this route at all — the host's `lib/media-image-extension.tsx` resolves editor previews
  * through `api.mediaOriginalUrl(assetId)`, the AUTHENTICATED admin route, precisely because "the
  * editor is itself an authenticated admin surface, unlike the public render path." A PUBLIC draft
  * is still skipped, so a freshly uploaded or draft-only public asset stays reachable exactly as
