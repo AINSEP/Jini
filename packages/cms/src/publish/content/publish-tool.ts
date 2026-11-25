@@ -67,6 +67,16 @@ type Criteria = PublishCriteria & { readonly excludeItems?: readonly string[] };
 
 /** Strict tool boundary: misspelled filters must never widen an autonomous publish. */
 function readCriteria({ input, host }: { input: Record<string, unknown>; host: Pick<PublishToolHost<never, never>, "ui" | "criteriaCapabilityId"> }): Criteria {
+  assertStringLists({ input });
+  try {
+    return { ...host.ui.parsePublishContentToolInput({ input }), ...(input.excludeItems === undefined ? {} : { excludeItems: input.excludeItems as string[] }) };
+  } catch (error) {
+    throw new ToolInputError({ message: criteriaErrorMessage({ error, prefix: `${host.criteriaCapabilityId}:` }) });
+  }
+}
+
+/** Rejects a present `types`/`items`/`excludeItems` that is not a bounded array of non-empty strings. */
+function assertStringLists({ input }: { input: Record<string, unknown> }): void {
   for (const key of ["types", "items", "excludeItems"] as const) {
     const value = input[key];
     if (value !== undefined && (!Array.isArray(value) || value.length > 1000 ||
@@ -74,12 +84,12 @@ function readCriteria({ input, host }: { input: Record<string, unknown>; host: P
       throw new ToolInputError({ message: `'${key}' must be an array of at most 1000 non-empty strings.` });
     }
   }
-  try {
-    return { ...host.ui.parsePublishContentToolInput({ input }), ...(input.excludeItems === undefined ? {} : { excludeItems: input.excludeItems as string[] }) };
-  } catch (error) {
-    const prefix = `${host.criteriaCapabilityId}:`;
-    throw new ToolInputError({ message: error instanceof Error ? (error.message.startsWith(prefix) ? "publish_content_publish:" + error.message.slice(prefix.length) : error.message) : "Invalid publish selection." });
-  }
+}
+
+/** The criteria parser's error re-prefixed with this tool's id. */
+function criteriaErrorMessage({ error, prefix }: { error: unknown; prefix: string }): string {
+  if (!(error instanceof Error)) return "Invalid publish selection.";
+  return error.message.startsWith(prefix) ? "publish_content_publish:" + error.message.slice(prefix.length) : error.message;
 }
 
 /** The remote report is untrusted; refuse malformed/refused plans before any confirm call. */

@@ -1,5 +1,20 @@
 import type { CleanupPreviewStore } from '@jini-ai/core/contracts/storage';
 
+type RevisionScope = { workspaceId: string; postId: string; kind: string };
+type RevisionProtections = Record<'isPublished' | 'isRestoreTarget' | 'isRestoredFrom' | 'isUndoReferenced', (required: { scope: RevisionScope; id: string }, optional: Record<string, never>) => Promise<boolean>>;
+
+/** The name of the first protection that holds (or throws, which counts as holding), else `undefined`. */
+async function firstProtection(
+  { protections, scope, id }: { protections: RevisionProtections; scope: RevisionScope; id: string },
+): Promise<string | undefined> {
+  for (const name of ['isPublished', 'isRestoreTarget', 'isRestoredFrom', 'isUndoReferenced'] as const) {
+    try {
+      if (await protections[name]({ scope, id }, {})) return name;
+    } catch { return name; }
+  }
+  return undefined;
+}
+
 export function createRevisionThinning(
   { revisions, protections, previewStore }: {
     revisions: {
@@ -32,12 +47,7 @@ export function createRevisionThinning(
         const newest = await revisions.newestId({ scope }, {});
         for (const { id } of rows) {
           if (!confirmed.has(id) || id === newest) { kept.push({ id, reason: id === newest ? 'newest' : 'unconfirmed' }); break; }
-          let reason: string | undefined;
-          for (const name of ['isPublished', 'isRestoreTarget', 'isRestoredFrom', 'isUndoReferenced'] as const) {
-            try {
-              if (await protections[name]({ scope, id }, {})) { reason = name; break; }
-            } catch { reason = name; break; }
-          }
+          const reason = await firstProtection({ protections, scope, id });
           // A gap in protection stops thinning so later snapshots cannot jump over retained history.
           if (reason) { kept.push({ id, reason }); break; }
           deleted.push(id);

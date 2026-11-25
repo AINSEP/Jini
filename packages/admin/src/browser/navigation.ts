@@ -23,6 +23,24 @@ export function readRoutePath(
   return currentRoutePath({ pathname: window.location.pathname }, { base });
 }
 
+/** How `url` relates to the current location; see the no-op guard in `navigate` for why `URL` is used. */
+function compareToCurrent(
+  { url, window }: { readonly url: string; readonly window: Pick<Window, 'location'> },
+): { readonly samePath: boolean; readonly sameSearch: boolean; readonly isCurrent: boolean } {
+  const target = new URL(url, window.location.href);
+  const samePath =
+    stripTrailingSlash({ pathname: target.pathname }) ===
+    stripTrailingSlash({ pathname: window.location.pathname });
+  const sameSearch = target.search === window.location.search;
+  const isCurrent = samePath && sameSearch && target.hash === window.location.hash;
+  return { samePath, sameSearch, isCurrent };
+}
+
+/** `false` when a listener cancelled the pending link navigation. */
+function askBeforeLinkNavigation({ window }: { readonly window: Pick<Window, 'dispatchEvent'> }): boolean {
+  return window.dispatchEvent(new Event(BEFORE_LINK_NAVIGATION_EVENT, { cancelable: true }));
+}
+
 /**
  * Navigates without a page load.
  *
@@ -52,19 +70,10 @@ export function navigate(
    * and `/settings` are the same screen. Query and hash are compared in full: a
    * same-path/different-query navigation is a real one.
    */
-  const target = new URL(url, window.location.href);
-  const samePath =
-    stripTrailingSlash({ pathname: target.pathname }) ===
-    stripTrailingSlash({ pathname: window.location.pathname });
-  const sameSearch = target.search === window.location.search;
-  const isCurrent = samePath && sameSearch && target.hash === window.location.hash;
+  const { samePath, sameSearch, isCurrent } = compareToCurrent({ url, window });
   if (isCurrent) return;
   // Ask before changing history; the router does not know what makes an editor dirty.
-  if (
-    options.fromInternalLink &&
-    !(samePath && sameSearch) &&
-    !window.dispatchEvent(new Event(BEFORE_LINK_NAVIGATION_EVENT, { cancelable: true }))
-  ) return;
+  if (options.fromInternalLink && !(samePath && sameSearch) && !askBeforeLinkNavigation({ window })) return;
 
   if (options.replace) window.history.replaceState(null, '', url);
   else window.history.pushState(null, '', url);

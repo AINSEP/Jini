@@ -23,10 +23,20 @@ export function StoragePanel({ useStorage, kit: { Button }, copy, links }: {
     <ul>{links.map(link => <li key={link.href}><a href={link.href}>{link.label}</a></li>)}</ul>
     {storage.notice === undefined ? null : <p role="status">{storage.notice}</p>}
     <ul>{storage.outcomes.map(item => <li key={item.id}>{item.label}: {item.outcome}</li>)}</ul>
-    {storage.phase === 'ready' ? <Button type="button" onClick={storage.dryRun}>{copy.dryRun}</Button> : null}
-    {storage.phase === 'outcomes' && storage.canConfirm ? <Button type="button" onClick={storage.confirm}>{copy.confirm}</Button> : null}
-    {storage.phase === 'confirm' && storage.canConfirm ? <Button type="button" onClick={storage.cleanup}>{copy.clean}</Button> : null}
+    <StorageAction Button={Button} storage={storage} copy={copy} />
     {storage.freed === undefined ? null : <p>{copy.freed}: {storage.freed}</p>}
     {storage.failures === undefined ? null : <p role="alert">{copy.failures}: {storage.failures}</p>}
   </section>;
+}
+
+/** The one phase-gated action button (dry run, confirm, or clean), or nothing. */
+function StorageAction({ Button, storage, copy }: {
+  Button: ElementType<ButtonHTMLAttributes<HTMLButtonElement>>;
+  storage: Pick<ReturnType<Parameters<typeof StoragePanel>[0]['useStorage']>, 'phase' | 'canConfirm' | 'dryRun' | 'confirm' | 'cleanup'>;
+  copy: { dryRun: string; confirm: string; clean: string };
+}) {
+  if (storage.phase === 'ready') return <Button type="button" onClick={storage.dryRun}>{copy.dryRun}</Button>;
+  if (storage.phase === 'outcomes' && storage.canConfirm) return <Button type="button" onClick={storage.confirm}>{copy.confirm}</Button>;
+  if (storage.phase === 'confirm' && storage.canConfirm) return <Button type="button" onClick={storage.cleanup}>{copy.clean}</Button>;
+  return null;
 }

@@ -123,6 +123,108 @@ function ConversationActions({ itemId, editing, canRename, canDelete, onRename, 
 export const defaultConversationListHooks = { useT, useConversationListView };
 export type ConversationListHooks = typeof defaultConversationListHooks;
 
+type ConversationListView = ReturnType<ConversationListHooks['useConversationListView']>;
+
+/** The selection after a click on `itemId`: shift-click extends from the anchor, otherwise it toggles. */
+function nextSelection({ selectedIds, visible, anchorId, itemId, shiftKey }: {
+  selectedIds: readonly string[] | undefined;
+  visible: readonly ConversationListItem[];
+  anchorId: string | null;
+  itemId: string;
+  shiftKey: boolean;
+}): Set<string> {
+  const selected = new Set(selectedIds);
+  const anchor = visible.findIndex(row => row.id === anchorId);
+  const target = visible.findIndex(row => row.id === itemId);
+  if (shiftKey && anchor !== -1) {
+    for (const row of visible.slice(Math.min(anchor, target), Math.max(anchor, target) + 1)) selected.add(row.id);
+  } else if (selected.has(itemId)) selected.delete(itemId);
+  else selected.add(itemId);
+  return selected;
+}
+
+function SelectCheckbox({ item, view, t, selectedIds, onSelectionChange }: {
+  item: ConversationListItem;
+  view: ConversationListView;
+  t: (key: string) => string;
+  selectedIds: readonly string[] | undefined;
+  onSelectionChange: ConversationListProps['onSelectionChange'];
+}) {
+  const { visible, selectionAnchor } = view;
+  return <button type="button" role="checkbox" aria-checked={selectedIds?.includes(item.id) ?? false}
+    aria-label={`${t('Select')} ${item.title ?? t('Untitled')}`}
+    onClick={event => {
+      // Optimistic state belongs to the host, which also owns persistence and rejection handling.
+      const selected = nextSelection({ selectedIds, visible, anchorId: selectionAnchor.current, itemId: item.id, shiftKey: event.shiftKey });
+      selectionAnchor.current = item.id;
+      onSelectionChange?.({ ids: [...selected] });
+    }} />;
+}
+
+function ConversationItemBody({ item, view, t, onRename }: {
+  item: ConversationListItem;
+  view: ConversationListView;
+  t: (key: string) => string;
+  onRename: ConversationListProps['onRename'];
+}) {
+  const { rawTitles, editingId, setEditingId, commitRename, startRename, scheduleSelect, now } = view;
+  if (onRename && editingId === item.id) {
+    return (
+      <ConversationTitleEditor
+        title={rawTitles.get(item.id) ?? null}
+        data-testid={`conversation-rename-${item.id}`}
+        onCommit={(next) => commitRename(item.id, next)}
+        onCancel={() => setEditingId(null)}
+      />
+    );
+  }
+  return (
+    <button
+      type="button"
+      className="jini-conv-item-select"
+      data-testid={`conversation-select-${item.id}`}
+      title={onRename ? t('Double-click to rename') : undefined}
+      onClick={() => scheduleSelect(item.id)}
+      onDoubleClick={onRename ? () => startRename(item.id) : undefined}
+    >
+      <span className="jini-conv-item-title">{item.title ?? t('Untitled')}</span>
+      <span className="jini-conv-item-meta">
+        {item.messageCount === undefined ? '' : `${item.messageCount} msg · `}
+        {relativeTime(item.updatedAt, now)}
+      </span>
+    </button>
+  );
+}
+
+function ConversationRow({ item, view, t, activeConversationId, selectable, selectedIds, onSelectionChange, onTogglePin, onRename, onDelete }: {
+  item: ConversationListItem;
+  view: ConversationListView;
+  t: (key: string) => string;
+  activeConversationId: string | null;
+  selectable: boolean | undefined;
+  selectedIds: readonly string[] | undefined;
+  onSelectionChange: ConversationListProps['onSelectionChange'];
+  onTogglePin: ConversationListProps['onTogglePin'];
+  onRename: ConversationListProps['onRename'];
+  onDelete: ConversationListProps['onDelete'];
+}) {
+  const { editingId, startRename, requestDelete } = view;
+  return (
+    <div
+      className={`jini-conv-item${item.id === activeConversationId ? ' jini-conv-item-active' : ''}`}
+      data-testid={`conversation-item-${item.id}`}
+    >
+      {selectable ? <SelectCheckbox item={item} view={view} t={t} selectedIds={selectedIds} onSelectionChange={onSelectionChange} /> : null}
+      {onTogglePin ? <button type="button" aria-label={`${t(item.pinned ? 'Unpin' : 'Pin')} ${item.title ?? t('Untitled')}`}
+        onClick={() => onTogglePin({ id: item.id, pinned: !item.pinned })}>{t(item.pinned ? 'Unpin' : 'Pin')}</button> : null}
+      <ConversationItemBody item={item} view={view} t={t} onRename={onRename} />
+      <ConversationActions itemId={item.id} editing={editingId === item.id}
+        canRename={Boolean(onRename)} canDelete={Boolean(onDelete)}
+        onRename={() => startRename(item.id)} onDelete={() => requestDelete(item)} t={t} />
+    </div>
+  );
+}
+
 export function ConversationList({
   conversations: savedConversations,
   activeConversationId,
@@ -138,7 +240,8 @@ export function ConversationList({
   nativeTitle = true, hooks, report, selectable, selectedIds, onTogglePin, onSelectionChange,
 }: ConversationListProps, _optional = {}) {
   const t = hooks.useT();
-  const { open, setOpen, query, setQuery, conversations, rawTitles, editingId, setEditingId, rootRef, visible, now, commitRename, startRename, requestDelete, active, emptyLabel, scheduleSelect, createConversation, selectionAnchor } = hooks.useConversationListView({ savedConversations, activeConversationId, onSelect, onCreate, onDelete, onRename, onSearch, confirmDelete, emptyState, t }, { report });
+  const view = hooks.useConversationListView({ savedConversations, activeConversationId, onSelect, onCreate, onDelete, onRename, onSearch, confirmDelete, emptyState, t }, { report });
+  const { open, setOpen, query, setQuery, conversations, visible, now, active, emptyLabel, createConversation, rootRef } = view;
 
   return (
     <div className="jini-conv" ref={rootRef}>
@@ -197,54 +300,9 @@ export function ConversationList({
               <div className="jini-conv-empty">{emptyLabel()}</div>
             ) : (
               visible.map((item) => (
-                <div
-                  key={item.id}
-                  className={`jini-conv-item${item.id === activeConversationId ? ' jini-conv-item-active' : ''}`}
-                  data-testid={`conversation-item-${item.id}`}
-                >
-                  {selectable ? <button type="button" role="checkbox" aria-checked={selectedIds?.includes(item.id) ?? false}
-                    aria-label={`${t('Select')} ${item.title ?? t('Untitled')}`}
-                    onClick={event => {
-                      // Optimistic state belongs to the host, which also owns persistence and rejection handling.
-                      const selected = new Set(selectedIds);
-                      const anchor = visible.findIndex(row => row.id === selectionAnchor.current);
-                      const target = visible.findIndex(row => row.id === item.id);
-                      if (event.shiftKey && anchor !== -1) {
-                        for (const row of visible.slice(Math.min(anchor, target), Math.max(anchor, target) + 1)) selected.add(row.id);
-                      } else if (selected.has(item.id)) selected.delete(item.id);
-                      else selected.add(item.id);
-                      selectionAnchor.current = item.id;
-                      onSelectionChange?.({ ids: [...selected] });
-                    }} /> : null}
-                  {onTogglePin ? <button type="button" aria-label={`${t(item.pinned ? 'Unpin' : 'Pin')} ${item.title ?? t('Untitled')}`}
-                    onClick={() => onTogglePin({ id: item.id, pinned: !item.pinned })}>{t(item.pinned ? 'Unpin' : 'Pin')}</button> : null}
-                  {onRename && editingId === item.id ? (
-                    <ConversationTitleEditor
-                      title={rawTitles.get(item.id) ?? null}
-                      data-testid={`conversation-rename-${item.id}`}
-                      onCommit={(next) => commitRename(item.id, next)}
-                      onCancel={() => setEditingId(null)}
-                    />
-                  ) : (
-                    <button
-                      type="button"
-                      className="jini-conv-item-select"
-                      data-testid={`conversation-select-${item.id}`}
-                      title={onRename ? t('Double-click to rename') : undefined}
-                      onClick={() => scheduleSelect(item.id)}
-                      onDoubleClick={onRename ? () => startRename(item.id) : undefined}
-                    >
-                      <span className="jini-conv-item-title">{item.title ?? t('Untitled')}</span>
-                      <span className="jini-conv-item-meta">
-                        {item.messageCount === undefined ? '' : `${item.messageCount} msg · `}
-                        {relativeTime(item.updatedAt, now)}
-                      </span>
-                    </button>
-                  )}
-                  <ConversationActions itemId={item.id} editing={editingId === item.id}
-                    canRename={Boolean(onRename)} canDelete={Boolean(onDelete)}
-                    onRename={() => startRename(item.id)} onDelete={() => requestDelete(item)} t={t} />
-                </div>
+                <ConversationRow key={item.id} item={item} view={view} t={t} activeConversationId={activeConversationId}
+                  selectable={selectable} selectedIds={selectedIds} onSelectionChange={onSelectionChange}
+                  onTogglePin={onTogglePin} onRename={onRename} onDelete={onDelete} />
               ))
             )}
           </div>

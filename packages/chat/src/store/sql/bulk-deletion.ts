@@ -3,6 +3,27 @@ import type { ChatKernel } from '../runtime/kernel.js';
 import type { ChatOwnerScope } from '../ports.js';
 import { copyScope } from './boundary.js';
 
+type PreviewRow = { id: string; pinned_at: unknown; active: unknown; recoverable: unknown };
+
+/** Why a previewed chat is kept, or `undefined` when it may be deleted. */
+function previewKeepReason({ row, open }: { row: PreviewRow; open: ReadonlySet<string> | undefined }): string | undefined {
+  if (row.pinned_at !== null) return 'pinned';
+  if (open === undefined) return 'unknown';
+  if (open.has(row.id)) return 'open';
+  if (row.active) return 'active';
+  if (row.recoverable) return 'recoverable';
+  return undefined;
+}
+
+/** Total stored bytes of the messages in the given conversations. */
+async function measureMessageBytes({ kernel, ids }: { kernel: ChatKernel; ids: string[] }): Promise<number> {
+  const text = sql<string>`content || coalesce(events_json, '') || coalesce(attachments_json, '')`;
+  const length = kernel.dialect === 'sqlite' ? sql<number>`length(cast(${text} as blob))` : sql<number>`octet_length(${text})`;
+  const measured = await kernel.run(db => db.selectFrom('ai_chat_messages').select(sql<number>`coalesce(sum(${length}), 0)`.as('bytes'))
+    .where('conversation_id', 'in', ids).executeTakeFirstOrThrow());
+  return Number(measured.bytes);
+}
+
 export function createChatBulkDeletion(
   { kernel, scope: inputScope, now, openConversations }: {
     kernel: ChatKernel; scope: ChatOwnerScope; now: () => number;
@@ -23,20 +44,13 @@ export function createChatBulkDeletion(
             .where(eb => eb.or([eb('m.run_status', 'is', null), eb('m.run_status', 'not in', ['queued', 'running', 'succeeded', 'failed', 'canceled']), eb('a.recovery_deadline', '>', now())]))).as('recoverable'),
         ]).orderBy('updated_at').orderBy('id').limit(previewLimit).execute());
       const ids: string[] = [], kept: { id: string; title: string | null; reason: string }[] = [];
-      let bytes = 0;
       const open = await openConversations().catch(() => undefined);
       for (const row of rows) {
-        const reason = row.pinned_at !== null ? 'pinned' : open === undefined ? 'unknown' : open.has(row.id) ? 'open' : row.active ? 'active' : row.recoverable ? 'recoverable' : undefined;
+        const reason = previewKeepReason({ row, open });
         if (reason) { kept.push({ id: row.id, title: row.title, reason }); continue; }
         ids.push(row.id);
       }
-      if (ids.length) {
-        const text = sql<string>`content || coalesce(events_json, '') || coalesce(attachments_json, '')`;
-        const length = kernel.dialect === 'sqlite' ? sql<number>`length(cast(${text} as blob))` : sql<number>`octet_length(${text})`;
-        const measured = await kernel.run(db => db.selectFrom('ai_chat_messages').select(sql<number>`coalesce(sum(${length}), 0)`.as('bytes'))
-          .where('conversation_id', 'in', ids).executeTakeFirstOrThrow());
-        bytes = Number(measured.bytes);
-      }
+      const bytes = ids.length ? await measureMessageBytes({ kernel, ids }) : 0;
       return { ids, count: ids.length, bytes, before, kept };
     },
     async apply({ ids, before }: { ids: readonly string[]; before?: number }, _optional = {}) {

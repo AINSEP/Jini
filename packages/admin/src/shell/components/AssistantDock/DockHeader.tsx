@@ -61,6 +61,25 @@ export interface DockHeaderProps {
   readonly conversationTools: DockConversationTools | null;
 }
 
+/** The conversations the switcher lists: the host's filtered view when it supplies one. */
+function dockConversations(
+  { chats, conversationTools }: Pick<DockHeaderProps, "chats" | "conversationTools">,
+): DockHeaderProps["chats"]["conversations"] {
+  return conversationTools ? conversationTools.visibleConversations({ conversations: chats.conversations }) : chats.conversations;
+}
+
+/** Whether any gear-menu preference failed to persist. */
+function anySaveFailed(
+  { chatDisplay, agentPlugins, runtime }: Pick<DockHeaderProps, "chatDisplay" | "agentPlugins"> & { runtime: DockHeaderProps["runtime"] | undefined },
+): boolean {
+  return Boolean(chatDisplay.saveFailed || agentPlugins.saveFailed || runtime?.saveFailed);
+}
+
+/** The stored title of the active conversation, or `null` when none is active. */
+function activeStoredTitle({ chats }: Pick<DockHeaderProps, "chats">): string | null {
+  return chats.conversations.find((chat) => chat.id === chats.activeId)?.title ?? null;
+}
+
 /**
  * The dock's replacement for `ChatPane`'s default header: title, subagents indicator, conversation
  * switcher and gear in one row, plus the empty-transcript greeting. See the `header` prop's doc in
@@ -93,7 +112,7 @@ export function DockHeader({
           <h2 className="jini-chat-pane__title" title={activeTitle} aria-label={activeTitle}>
             <ConversationTitle
               key={chats.activeId ?? 'new'}
-              title={chats.conversations.find((chat) => chat.id === chats.activeId)?.title ?? null}
+              title={activeStoredTitle({ chats })}
               displayTitle={activeTitle}
               disabled={!chats.activeId}
               onRename={renameActiveConversation(chats)}
@@ -107,7 +126,7 @@ export function DockHeader({
         <DockHeaderTip label={t({ key: "Chats" })}>
           <ConversationList
             {...conversationTools?.listProps}
-            conversations={conversationTools ? conversationTools.visibleConversations({ conversations: chats.conversations }) : chats.conversations}
+            conversations={dockConversations({ chats, conversationTools })}
             activeConversationId={chats.activeId}
             onSelect={onSelect}
             onCreate={chats.create}
@@ -130,7 +149,7 @@ export function DockHeader({
         {/* Right of the switcher; the bar's ✕ (App.tsx) sits to its right. */}
         <DockHeaderTip label={t({ key: "Settings" })}>
           <DockSettingsMenu label={t({ key: "Settings" })} sections={dockSettingsMenuSections({ t: (key) => t({ key }), toolCallOptions, replyLengthOptions }, { display: chatDisplay, agentPlugins, runtime, onMoreSettings })}
-            notice={chatDisplay.saveFailed || agentPlugins.saveFailed || runtime?.saveFailed ? t({ key: "Couldn't save. This choice lasts until you reload." }) : undefined}
+            notice={anySaveFailed({ chatDisplay, agentPlugins, runtime }) ? t({ key: "Couldn't save. This choice lasts until you reload." }) : undefined}
             useTaxonomyRowMenuHook={useTaxonomyRowMenu} ChatSettingsSegmented={ChatSettingsSegmented} />
         </DockHeaderTip>
       </div>
