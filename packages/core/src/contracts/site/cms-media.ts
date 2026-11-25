@@ -198,6 +198,7 @@ export interface AdminMediaDto {
   alt: string;
   caption: string;
   credit: string;
+  description?: string;
   sha256: string;
   /** Original blob bytes; null when storage is missing or cannot report a size. */
   byteSize: number | null;

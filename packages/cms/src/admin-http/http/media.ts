@@ -49,6 +49,7 @@ export function toAdminMediaResponse(
     alt: media.alt,
     caption: media.caption,
     credit: media.credit,
+    ...(media.description === undefined ? {} : { description: media.description }),
     sha256: media.source.sha256,
     byteSize,
     status: media.status,

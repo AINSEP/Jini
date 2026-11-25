@@ -64,3 +64,13 @@ test('legacy media lists hide private submission uploads too', async () => {
   await mediaRepo.save(row({ id: 'public' }));
   expect((await listMedia({ deps: { mediaRepo }, input: { workspaceId: 'site' } })).media.map(item => item.id)).toEqual(['public']);
 });
+
+test('finds an asset by description alone without returning a private document', async () => {
+  const mediaRepo = new InMemoryMediaRepo({});
+  await mediaRepo.save(row({ id: 'image' }, { description: 'An amber lighthouse above the sea.' }));
+  await mediaRepo.save(row({ id: 'private-document' }, {
+    kind: 'document', description: 'An amber lighthouse above the sea.', source: { sha256: 'private', private: true },
+  }));
+  const page = await listMediaPage({ mediaRepo, workspaceId: 'site', library: false, input: { query: 'AMBER' } });
+  expect(page.media.map(item => item.id)).toEqual(['image']);
+});

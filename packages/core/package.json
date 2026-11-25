@@ -149,6 +149,7 @@
       "./errors/route-refusal": "universal",
       "./contracts/env": "universal",
       "./env/parse-env": "universal",
+      "./config/env-schema": "universal",
       "./env/format-env-issue": "universal",
       "./env/describe-env-for-diagnostics": "universal",
       "./contracts/headless/form-delivery-status": "universal",
@@ -490,6 +491,11 @@
       "types": "./dist/env/parse-env.d.ts",
       "import": "./dist/env/parse-env.js",
       "default": "./dist/env/parse-env.js"
+    },
+    "./config/env-schema": {
+      "types": "./dist/config/env-schema.d.ts",
+      "import": "./dist/config/env-schema.js",
+      "default": "./dist/config/env-schema.js"
     },
     "./env/format-env-issue": {
       "types": "./dist/env/format-env-issue.d.ts",

@@ -3,7 +3,7 @@ import { discoveryContext, offlineDiscoveryDeps } from './discovery-fakes.js';
 import { setAcpModelProbe } from '../../acp-model-probe.js';
 import { type AcpModelProbe } from '@jini-ai/core/contracts/agents';
 import type { RuntimeAgentDef } from '@jini-ai/core/contracts/agents';
-import { vibeAgentDef } from '../vibe.js';
+import { vibeAgentDef } from '../vibe/index.js';
 import { DEFAULT_MODEL_OPTION } from '../shared.js';
 
 afterEach(() => {
