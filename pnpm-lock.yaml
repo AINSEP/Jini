@@ -893,6 +893,9 @@ importers:
       '@jini-ai/node-adapters':
         specifier: workspace:^
         version: link:../node-adapters
+      '@jini-ai/provider-plugins':
+        specifier: workspace:^
+        version: link:../provider-plugins
       '@types/better-sqlite3':
         specifier: ^7.6.11
         version: 7.6.13

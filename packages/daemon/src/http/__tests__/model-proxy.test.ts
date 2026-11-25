@@ -3,15 +3,22 @@ import { createRecordingOriginPolicy } from '@jini-ai/core/contracts/server/test
 import { modelProxyRoutes, type ModelProxyHttpDeps as BoundModelProxyHttpDeps } from '../model-proxy.js';
 import { fakeProviderToolTurnPort } from '../../ports/__tests__/provider-http-ports.fake.js';
 import { runAnthropicToolTurn, runAzureToolTurn, runGoogleToolTurn, runOllamaToolTurn, runOpenAiToolTurn } from '@jini-ai/agent-runtime';
+import { createAnthropicProxyRegistration } from '@jini-ai/provider-plugins/model-proxy-anthropic';
+import { createAzureProxyRegistration } from '@jini-ai/provider-plugins/model-proxy-azure';
+import { createGoogleProxyRegistration } from '@jini-ai/provider-plugins/model-proxy-google';
+import { createOllamaProxyRegistration } from '@jini-ai/provider-plugins/model-proxy-ollama';
+import { createOpenAiProxyRegistration } from '@jini-ai/provider-plugins/model-proxy-openai';
 import { describeRoutes } from '../route-table.js';
 import { fakeDaemonRouteHost } from './fakes/route-host.js';
 import { serveRoutes } from './fakes/serve-routes.js';
 
 /** The real provider tool-turn runners, bound the way the host binds them (the transport is still faked through `fetchImpl`). */
 const toolTurns = { anthropic: runAnthropicToolTurn, openai: runOpenAiToolTurn, azure: runAzureToolTurn, google: runGoogleToolTurn, ollama: runOllamaToolTurn };
-/** What each test supplies: everything but the host-bound runners, which {@link proxyRoutes} adds. */
-type ModelProxyHttpDeps = Omit<BoundModelProxyHttpDeps, 'toolTurns'>;
-const proxyRoutes = ({ deps, host }: { readonly deps: ModelProxyHttpDeps; readonly host: Parameters<typeof modelProxyRoutes>[0]['host'] }) => modelProxyRoutes({ deps: { toolTurns, ...deps }, host });
+/** The five vendor registrations, assembled the way a host injects them. */
+const providers = [createAnthropicProxyRegistration(), createOpenAiProxyRegistration(), createAzureProxyRegistration(), createGoogleProxyRegistration(), createOllamaProxyRegistration()];
+/** What each test supplies: everything but the host-bound runners and registrations, which {@link proxyRoutes} adds. */
+type ModelProxyHttpDeps = Omit<BoundModelProxyHttpDeps, 'toolTurns' | 'providers'>;
+const proxyRoutes = ({ deps, host }: { readonly deps: ModelProxyHttpDeps; readonly host: Parameters<typeof modelProxyRoutes>[0]['host'] }) => modelProxyRoutes({ deps: { toolTurns, providers, ...deps }, host });
 
 // `@jini-ai/agent-runtime`'s provider adapters (anthropic-messages.ts, openai-chat.ts — azure-chat.ts
 // delegates to the latter — google-messages.ts, ollama-chat.ts) all call `pinnedFetch` from
@@ -1574,7 +1581,7 @@ describe('model-proxy pins — azure required fields', () => {
 describe('modelProxyRoutes — host-bound tool-turn runners', () => {
   it('dispatches each fixed route to the injected runner and relays its events', async () => {
     const port = fakeProviderToolTurnPort({ events: [{ type: 'text_delta', delta: 'from-port' }, { type: 'end', reason: 'stop' }] });
-    const fetch = serveRoutes({ routes: modelProxyRoutes({ deps: { toolTurns: port }, host: proxyHost() }) });
+    const fetch = serveRoutes({ routes: modelProxyRoutes({ deps: { toolTurns: port, providers }, host: proxyHost() }) });
     const response = await fetch(new Request('http://local/api/proxy/openai/stream', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ apiKey: 'k', model: 'm', messages: [{ role: 'user', content: 'hi' }] }) }));
     expect(await response.text()).toContain('from-port');
     expect(port.calls.map((call) => call.member)).toEqual(['openai']);
@@ -1612,7 +1619,7 @@ describe('model proxy provider selection and projection', () => {
 
   it('answers each provider path from that provider only, with the runner events as the stream', async () => {
     const { port, calls } = twoProviderPort();
-    const routes = modelProxyRoutes({ deps: { toolTurns: port }, host: proxyHost() });
+    const routes = modelProxyRoutes({ deps: { toolTurns: port, providers }, host: proxyHost() });
     const response = await post({ routes, path: '/api/proxy/anthropic/stream', body: anthropicBody });
     const text = await response.text();
     expect(response.headers.get('content-type')).toContain('text/event-stream');
@@ -1622,7 +1629,7 @@ describe('model proxy provider selection and projection', () => {
 
   it('answers an unsupported provider on the catch-all with a 400 and never calls a runner', async () => {
     const { port, calls } = twoProviderPort();
-    const routes = modelProxyRoutes({ deps: { toolTurns: port }, host: proxyHost() });
+    const routes = modelProxyRoutes({ deps: { toolTurns: port, providers }, host: proxyHost() });
     for (const provider of ['cohere', 'constructor']) {
       const response = await post({ routes, path: '/api/proxy/:provider/stream', body: anthropicBody, params: { provider } });
       expect(response.status).toBe(400);
@@ -1633,7 +1640,7 @@ describe('model proxy provider selection and projection', () => {
 
   it('answers a malformed request as a plain JSON 400 before any stream, per provider rules', async () => {
     const { port, calls } = twoProviderPort();
-    const routes = modelProxyRoutes({ deps: { toolTurns: port }, host: proxyHost() });
+    const routes = modelProxyRoutes({ deps: { toolTurns: port, providers }, host: proxyHost() });
     const noKey = await post({ routes, path: '/api/proxy/openai/stream', body: { model: 'm', messages: [{}] } });
     const noMaxTokens = await post({ routes, path: '/api/proxy/anthropic/stream', body: { apiKey: 'k', model: 'm', messages: [{}] } });
     for (const response of [noKey, noMaxTokens]) {
@@ -1647,7 +1654,7 @@ describe('model proxy provider selection and projection', () => {
 
   it('forwards only the optional fields a request carried', async () => {
     const { port, calls } = twoProviderPort();
-    const routes = modelProxyRoutes({ deps: { toolTurns: port }, host: proxyHost() });
+    const routes = modelProxyRoutes({ deps: { toolTurns: port, providers }, host: proxyHost() });
     await (await post({ routes, path: '/api/proxy/anthropic/stream', body: { ...anthropicBody, system: 'be brief' } })).text();
     expect(calls[0]!.optional).toEqual({ system: 'be brief' });
   });
@@ -1655,7 +1662,7 @@ describe('model proxy provider selection and projection', () => {
   it('projects an upstream failure to fixed words plus a request id, keeping the real error for the host sink', async () => {
     const { port } = twoProviderPort();
     const host = proxyHost();
-    const routes = modelProxyRoutes({ deps: { toolTurns: port }, host });
+    const routes = modelProxyRoutes({ deps: { toolTurns: port, providers }, host });
     const text = await (await post({ routes, path: '/api/proxy/openai/stream', body: openaiBody })).text();
     expect(text).not.toContain('SECRETSECRET');
     expect(text).toContain('The assistant response stopped.');
@@ -1663,5 +1670,56 @@ describe('model proxy provider selection and projection', () => {
     expect(host.reports).toHaveLength(1);
     expect(host.reports[0]).toMatchObject({ logSource: 'model-proxy/openai' });
     expect(host.reports[0]!.report.error).toMatchObject({ message: expect.stringContaining('api_key=SECRET') });
+  });
+});
+
+/** K06 pin: the daemon serves exactly the registrations it was given, so two fixtures with ids no vendor list knows must be reachable. */
+describe('model proxy injected provider registrations', () => {
+  const body = JSON.stringify({ any: 'thing' });
+  const fixture = ({ id, text, accepts }: { readonly id: string; readonly text: string; readonly accepts: boolean }) => ({
+    id,
+    parse: (raw: unknown) => (accepts ? { ok: true as const, value: raw } : { ok: false as const, error: { code: 'BAD_REQUEST', message: `${id} refuses this body` } as never }),
+    run: async (_parsed: unknown, { onEvent, shared }: Parameters<BoundModelProxyHttpDeps['providers'][number]['run']>[1]) => {
+      onEvent({ type: 'text', text } as never);
+      if (shared.executeTool) onEvent({ type: 'tool-result', result: await shared.executeTool('call-1') } as never);
+      onEvent({ type: 'end' });
+    },
+  });
+  const alpha = fixture({ id: 'alpha', text: 'from-alpha', accepts: true });
+  const beta = fixture({ id: 'beta', text: 'from-beta', accepts: false });
+  const routesFor = (extra: Record<string, unknown> = {}) =>
+    modelProxyRoutes({ deps: { toolTurns: fakeProviderToolTurnPort(), providers: [alpha, beta], ...extra } as never, host: proxyHost() });
+  const call = (routes: ReturnType<typeof routesFor>, path: string, params?: Record<string, string>) =>
+    routes.find((route) => route.path === path)!.handler({ request: new Request(`http://local${path.replace(':provider', params?.provider ?? '')}`, { method: 'POST', headers: { 'content-type': 'application/json' }, body }), params: params ?? {}, locals: {} });
+
+  it('mounts one fixed route per injected registration plus the catch-all, and no vendor route', () => {
+    expect(routesFor().map((route) => route.path)).toEqual(['/api/proxy/alpha/stream', '/api/proxy/beta/stream', '/api/proxy/:provider/stream']);
+  });
+
+  it('selects the registration by id, on the fixed route and on the catch-all', async () => {
+    const routes = routesFor();
+    expect(await (await call(routes, '/api/proxy/alpha/stream')).text()).toContain('from-alpha');
+    expect(await (await call(routes, '/api/proxy/:provider/stream', { provider: 'alpha' })).text()).toContain('from-alpha');
+  });
+
+  it('applies the selected registration\'s own parser, so a refusing provider answers a 400 and never runs', async () => {
+    const response = await call(routesFor(), '/api/proxy/beta/stream');
+    expect(response.status).toBe(400);
+    expect(await response.json()).toMatchObject({ error: { message: 'beta refuses this body' } });
+  });
+
+  it('answers a provider that was not injected as unknown, even a vendor name', async () => {
+    const response = await call(routesFor(), '/api/proxy/:provider/stream', { provider: 'anthropic' });
+    expect(response.status).toBe(400);
+    expect(await response.json()).toMatchObject({ error: { message: 'unknown provider: anthropic' } });
+  });
+
+  it('hands the registration the host executor named <id>ExecuteTool', async () => {
+    const text = await (await call(routesFor({ alphaExecuteTool: async (callId: unknown) => `ran:${String(callId)}` }), '/api/proxy/alpha/stream')).text();
+    expect(text).toContain('ran:call-1');
+  });
+
+  it('refuses two registrations with one id rather than silently shadowing one', () => {
+    expect(() => modelProxyRoutes({ deps: { toolTurns: fakeProviderToolTurnPort(), providers: [alpha, alpha] }, host: proxyHost() })).toThrow(/duplicate provider registration "alpha"/);
   });
 });

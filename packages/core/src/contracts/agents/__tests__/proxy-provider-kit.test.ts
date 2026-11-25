@@ -9,7 +9,7 @@ import {
   pickDefined,
   requiredFieldError,
   type OptionalFieldCheck,
-} from '../model-proxy-fields.js';
+} from '../proxy-provider-kit.js';
 
 describe('model-proxy-fields — primitive tests', () => {
   it('isRecord accepts plain objects only', () => {

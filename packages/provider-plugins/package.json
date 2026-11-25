@@ -27,6 +27,7 @@
       "./observability-opentelemetry/port": "node",
       "./observability-opentelemetry/*": "node",
       "./xai/media": "node",
+      "./model-proxy-*": "node",
       "./observability-sentry": "node",
       "./observability-sentry/*": "node",
       "./payments-stripe": "node",
@@ -58,6 +59,10 @@
       "types": "./dist/xai/media/index.d.ts",
       "import": "./dist/xai/media/index.js"
     },
+    "./model-proxy-*": {
+      "types": "./dist/model-proxy-*/index.d.ts",
+      "import": "./dist/model-proxy-*/index.js"
+    },
     "./observability-sentry": "./plugins/observability-sentry/0.7.3-next.2/jini.plugin.json",
     "./observability-sentry/*": "./plugins/observability-sentry/*",
     "./payments-stripe": "./plugins/payments-stripe/0.7.3-next.2/jini.plugin.json",
@@ -71,6 +76,11 @@
   "files": [
     "dist/observability-opentelemetry",
     "dist/xai",
+    "dist/model-proxy-anthropic",
+    "dist/model-proxy-azure",
+    "dist/model-proxy-google",
+    "dist/model-proxy-ollama",
+    "dist/model-proxy-openai",
     "plugins/ai-trace-langfuse",
     "plugins/analytics-posthog",
     "plugins/charts-echarts",
@@ -97,6 +107,9 @@
   "publishConfig": {
     "access": "public",
     "registry": "https://registry.npmjs.org"
+  },
+  "peerDependencies": {
+    "@jini-ai/core": "workspace:^"
   },
   "devDependencies": {
     "@jini-ai/agent-runtime": "workspace:^",

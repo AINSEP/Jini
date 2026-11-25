@@ -11,6 +11,11 @@
   "include": [],
   "files": [
     "src/observability-opentelemetry/otel-port.ts",
-    "src/xai/media/index.ts"
+    "src/xai/media/index.ts",
+    "src/model-proxy-anthropic/index.ts",
+    "src/model-proxy-azure/index.ts",
+    "src/model-proxy-google/index.ts",
+    "src/model-proxy-ollama/index.ts",
+    "src/model-proxy-openai/index.ts"
   ]
 }
