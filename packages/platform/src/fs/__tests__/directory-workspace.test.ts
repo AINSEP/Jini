@@ -403,7 +403,7 @@ describe("leases with a user config policy", () => {
 });
 
 it("contested claim returns the maintenance record (incl. legacy record without purpose = serve)", () => {
-  const root = tempRoot(), host = workspace(root);
+  const root = tempRoot(), host = plainWorkspace(root);
   const claimed = host.claim({ path: root, app: "Example", purpose: "maintenance" }, {});
   expect(claimed.record.purpose).toBe("maintenance");
   const contested = host.claim({ path: root, app: "Example", purpose: "serve" }, {});

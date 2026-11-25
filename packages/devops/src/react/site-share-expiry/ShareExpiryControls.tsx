@@ -1,4 +1,4 @@
-import type { ButtonHTMLAttributes, ElementType, SelectHTMLAttributes } from 'react';
+import type { ButtonHTMLAttributes, ChangeEvent, ElementType, SelectHTMLAttributes } from 'react';
 
 export function ShareExpiryControls({ useShareExpiry, kit: { Button, Select }, copy, choices, status, expiresAt, showExpired = true }: {
   useShareExpiry: () => {
@@ -14,7 +14,7 @@ export function ShareExpiryControls({ useShareExpiry, kit: { Button, Select }, c
   const expiry = useShareExpiry();
   // An absent recipient URL is not evidence that a link is inactive.
   return <div>
-    <Select aria-label={copy.never} value={expiry.expiresInDays ?? 'never'} onChange={event => expiry.change({ expiresInDays: event.currentTarget.value === 'never' ? null : Number(event.currentTarget.value) as 7 | 30 | 90 })}>
+    <Select aria-label={copy.never} value={expiry.expiresInDays ?? 'never'} onChange={(event: ChangeEvent<HTMLSelectElement>) => expiry.change({ expiresInDays: event.currentTarget.value === 'never' ? null : Number(event.currentTarget.value) as 7 | 30 | 90 })}>
       <option value="never">{copy.never}</option>
       {choices.map(days => <option key={days} value={days}>{copy.days(days)}</option>)}
     </Select>
