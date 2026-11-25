@@ -27,7 +27,7 @@ export function RadioGroupField({ options, value, disabled, onValueChange }: Rad
       {options.map((option) => {
         const itemId = `${groupId}-${option.value}`;
         return (
-          <div key={option.value} className="flex items-center gap-2">
+          <div key={option.value} className="jini-ui-radio-group-field-option">
             <RadioGroupItem id={itemId} value={option.value} />
             <Label htmlFor={itemId}>{option.label}</Label>
           </div>

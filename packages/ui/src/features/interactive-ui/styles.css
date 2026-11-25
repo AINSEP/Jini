@@ -10,6 +10,7 @@
 @import "tailwindcss/utilities.css" layer(utilities) source(none);
 @import "./data-table.css";
 @import "./checkbox-field.css";
+@import "./radio-group-field.css";
 @source "./providers/**/*.{ts,tsx}";
 
 @theme inline {
