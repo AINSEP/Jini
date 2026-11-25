@@ -174,3 +174,46 @@ test("disconnect then replay-from-cursor then caller abort: ordered, no duplicat
     expect(vi.getTimerCount()).toBe(0);
   } finally { vi.useRealTimers(); }
 });
+
+// Before the G01 split, `disconnected()` called the stream teardown without forgetting it, so a later
+// `stop()` (or reopen) called the same teardown again. With an idempotent port (EventSource.close,
+// AbortController.abort) that second call was a silent no-op, but a port whose teardown releases a
+// counted resource released it twice. The chosen semantics: every stream teardown runs exactly once,
+// and repeated stop()/abort() are idempotent.
+test("a dropped stream stopped before reconnect is released exactly once, and repeated stop/abort release nothing more", async () => {
+  vi.useFakeTimers();
+  let held = 0;
+  const releases: number[] = [];
+  const streams: Parameters<DurableSubscriptionPorts["stream"]>[0][] = [];
+  const controller = new AbortController();
+  const ports: DurableSubscriptionPorts = {
+    read: async () => ({ id: "answer", role: "assistant", content: "", runId: "run", runStatus: "running" }),
+    stream: input => {
+      streams.push(input);
+      held += 1;
+      const index = streams.length;
+      return () => {
+        if (held === 0) throw new Error(`stream ${index} released twice`);
+        held -= 1;
+        releases.push(index);
+      };
+    },
+    schedule: ({ work, delayMs }) => { const timer = setTimeout(work, delayMs); return () => clearTimeout(timer); },
+  };
+  const stop = followDurableRun({ runId: "run", ports, bindings: new Map(), signal: controller.signal,
+    notices: { toolStepLimit: { kind: "status", label: "Limit" }, interrupted: { kind: "status", label: "Interrupted" },
+      neverStarted: { kind: "status", label: "Never started" }, canceledLabel: "Canceled", failedLabel: "Failed", terminalDetail: () => "Ended" },
+    handlers: { onEvent: () => {}, onDone: () => {}, onError: () => {} },
+  }, { report: { info: () => {} } });
+  try {
+    expect(streams).toHaveLength(1);
+    streams[0]!.dropped("connection-error");
+    expect(releases).toEqual([1]);
+    expect(() => { stop(); stop(); controller.abort(); }).not.toThrow();
+    await vi.advanceTimersByTimeAsync(60_000);
+    expect(releases).toEqual([1]);
+    expect(held).toBe(0);
+    expect(streams).toHaveLength(1);
+    expect(vi.getTimerCount()).toBe(0);
+  } finally { vi.useRealTimers(); }
+});
