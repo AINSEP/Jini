@@ -148,7 +148,12 @@ export class InMemoryUserRepo extends InMemoryIdentityRows<UserRecord> implement
 
   async save(record: UserRecord, optional: { expectedVersion?: number } = {}): Promise<void> {
     const index = this.rows.findIndex(row => matchesRecordFields({ record: row, fields: { workspaceId: record.workspaceId, principalId: record.principalId } }));
-    return writeVersionedRow({ rows: this.rows, index, record, recordKind: "user", recordId: record.principalId, assertVersionedWrite: this.assertVersionedWrite }, optional);
+    const stored = this.rows[index];
+    // A versioned save is a profile edit: login and password bookkeeping are written by their own
+    // paths and are not part of the editor's snapshot, so the stored values are kept.
+    const written = optional.expectedVersion !== undefined && stored !== undefined
+      ? { ...record, passwordHash: stored.passwordHash, lastLoginAt: stored.lastLoginAt } : record;
+    return writeVersionedRow({ rows: this.rows, index, record: written, recordKind: "user", recordId: record.principalId, assertVersionedWrite: this.assertVersionedWrite }, optional);
   }
 
   async recordLogin(required: { workspaceId: string; principalId: string; lastLoginAt: string }): Promise<void> {
