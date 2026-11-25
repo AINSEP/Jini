@@ -1,7 +1,8 @@
 import assert from "node:assert/strict";
 import { test } from "vitest";
 
-import { InMemoryAssetBlobRepo, InMemoryBlobStore, InMemoryVersionedMediaRepo, type MediaRecord } from "../../index.js";
+import { computeBlobStorageKey, InMemoryAssetBlobRepo, InMemoryBlobStore, InMemoryVersionedMediaRepo, type MediaRecord } from "../../index.js";
+import type { BlobFence } from "@jini-ai/core/contracts/blob-gc";
 import { importMediaEntity, type ImportMediaEntityDeps } from "../import-media-entity.js";
 import { bytesMatchSha256, isValidSha256Hex } from "../../../publish/transfer/blob-staging.js";
 
@@ -27,16 +28,80 @@ function makeRecord(overrides: Partial<MediaRecord> = {}): MediaRecord {
 
 function makeDeps() {
   let n = 0;
+  const blobStore = new InMemoryBlobStore();
   return {
     mediaRepo: new InMemoryVersionedMediaRepo({}),
     assetBlobRepo: new InMemoryAssetBlobRepo({}),
-    blobStore: new InMemoryBlobStore(),
+    blobStore,
+    blobFence: {
+      withKeys: async ({ work }) => work(),
+      withAsset: async ({ work }) => work(),
+    } satisfies BlobFence,
+    storageKeyFor: computeBlobStorageKey,
+    verifyStoredBlob: async ({ storageKey, sha256, byteLength }: { storageKey: string; sha256: string; byteLength: number }) => {
+      const stored = await blobStore.get({ storageKey });
+      if (stored.byteLength !== byteLength || !bytesMatchSha256({ bytes: stored, claimedSha256: sha256 })) {
+        throw new Error("Stored blob failed verification");
+      }
+    },
     clock: { nowIso: () => "2026-09-18T00:00:00.000Z" },
     idGen: { newId: () => `generated-${++n}` },
     sha256: { isValidSha256Hex, bytesMatchSha256 },
     outwardErrorMessage: ({ error }: { error: Error }) => error.message,
   } satisfies ImportMediaEntityDeps;
 }
+
+test("import verifies an existing object's size and hash before publishing", async () => {
+  for (const corrupt of [HELLO_BYTES.slice(1), new TextEncoder().encode("HELLO WORLD")]) {
+    const deps = makeDeps();
+    await importMediaEntity({ deps, input: { workspaceId: WORKSPACE_ID, record: makeRecord(),
+      bytes: HELLO_BYTES, blobCreatedByPrincipal: "importer-1", baseVersion: null } });
+    const blob = await deps.assetBlobRepo.findByHash({ workspaceId: WORKSPACE_ID, sha256: HELLO_SHA256 });
+    assert.ok(blob);
+    await deps.blobStore.put({ workspaceId: WORKSPACE_ID, sha256: HELLO_SHA256, bytes: corrupt });
+    await assert.rejects(importMediaEntity({ deps, input: { workspaceId: WORKSPACE_ID,
+      record: makeRecord({ id: "second-asset", slug: "second-photo" }), bytes: HELLO_BYTES,
+      blobCreatedByPrincipal: "importer-2", baseVersion: null } }), /Stored blob failed verification/);
+    assert.equal(await deps.mediaRepo.findById({ workspaceId: WORKSPACE_ID, id: "second-asset" }), null);
+    assert.deepEqual(await deps.blobStore.get({ storageKey: blob.storageKey }), corrupt);
+    assert.equal((await deps.assetBlobRepo.findByHash({ workspaceId: WORKSPACE_ID, sha256: HELLO_SHA256 }))?.createdByPrincipal, "importer-1");
+  }
+});
+
+test("each writer holds the byte fence across write and publish", async () => {
+  const deps = makeDeps();
+  let release = () => {};
+  let entered = () => {};
+  const gate = new Promise<void>((resolve) => { release = resolve; });
+  const entry = new Promise<"entered">((resolve) => { entered = () => resolve("entered"); });
+  let held = false;
+  let verified = false;
+  const verify = deps.verifyStoredBlob;
+  const insert = deps.mediaRepo.insertIfAbsent.bind(deps.mediaRepo);
+  deps.blobFence.withKeys = async ({ workspaceId, storageKeys, work }) => {
+    assert.equal(workspaceId, WORKSPACE_ID);
+    assert.deepEqual(storageKeys, [`ws/${WORKSPACE_ID}/blobs/b9/${HELLO_SHA256}`]);
+    entered();
+    await gate;
+    held = true;
+    try { return await work(); } finally { held = false; }
+  };
+  deps.verifyStoredBlob = async (input) => { assert.equal(held, true); await verify(input); verified = true; };
+  deps.mediaRepo.insertIfAbsent = async (input) => {
+    assert.equal(held, true);
+    assert.equal(verified, true);
+    return insert(input);
+  };
+  const pending = importMediaEntity({ deps, input: { workspaceId: WORKSPACE_ID, record: makeRecord(),
+    bytes: HELLO_BYTES, blobCreatedByPrincipal: "importer-1", baseVersion: null } });
+  try {
+    assert.equal(await Promise.race([entry, pending.then(() => "completed")]), "entered");
+    assert.equal(await deps.mediaRepo.findById({ workspaceId: WORKSPACE_ID, id: "source-asset-1" }), null);
+    assert.equal(await deps.blobStore.exists({ storageKey: `ws/${WORKSPACE_ID}/blobs/b9/${HELLO_SHA256}` }), false);
+  } finally { release(); }
+  assert.deepEqual(await pending, { status: "imported", id: "source-asset-1", blobWritten: true });
+  assert.equal(verified, true);
+});
 
 test("importMediaEntity saves the row under the SOURCE id and stamps a new blob", async () => {
   const deps = makeDeps();

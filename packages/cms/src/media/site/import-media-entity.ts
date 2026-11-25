@@ -2,6 +2,7 @@
 import { MediaConflictError, MediaSourceImmutableError, resolveWriteOnceSource, replaceMediaFile, MediaValidationError, sniffContentType, MAX_DOCUMENT_BYTES as HOST_MAX_UPLOAD_BYTES } from "../index.js";
 import type { AssetBlobRecord, AssetBlobRepoPort, BlobStorePort, MediaRecord, VersionedMediaRepoPort } from "../index.js";
 import type { OutwardErrorMessage } from "../../admin-http/http/outward-error-message.js";
+import type { BlobFence, BlobStorageKeyFor } from "@jini-ai/core/contracts/blob-gc";
 
 /** The reviewed source a replace-on-import may overwrite (publish-content's precheck refusal carries it). */
 interface MediaSourceReplacement {
@@ -60,8 +61,8 @@ interface MediaSourceReplacement {
  *    .save` is a wholesale upsert keyed on `(workspaceId, sha256)` (verified against
  *    `InMemoryAssetBlobRepo`/the SQLite adapter) — calling it unconditionally on every import would
  *    silently overwrite an existing blob's original attribution with the importing operator's every
- *    time a second media row happens to dedup onto the same bytes. This function calls
- *    `assetBlobRepo.save` ONLY when `findByHash` finds nothing.
+ *    time a second media row happens to dedup onto the same bytes. A resurrection saves the
+ *    existing attribution unchanged; otherwise `assetBlobRepo.save` only creates a missing row.
  * 5. **The media row write is a compare-and-set on {@link ImportMediaEntityInput.baseVersion}, not a
  *    blind `save()`.** `publish-content.ts`'s own Guard 1 compares a version read several `await`s
  *    (real blob-store I/O) before this command's write — two concurrent importers can both pass that
@@ -79,6 +80,9 @@ export interface ImportMediaEntityDeps {
   readonly mediaRepo: VersionedMediaRepoPort;
   readonly assetBlobRepo: AssetBlobRepoPort;
   readonly blobStore: BlobStorePort;
+  readonly blobFence: BlobFence;
+  readonly storageKeyFor: BlobStorageKeyFor;
+  readonly verifyStoredBlob: (required: { storageKey: string; sha256: string; byteLength: number }, _optional?: Record<string, never>) => Promise<void>;
   readonly clock: { nowIso(): string };
   /** Consulted ONLY for a brand-new `asset_blobs` row's own `id` — never for the media row's id,
    *  which always comes from {@link ImportMediaEntityInput.record} verbatim (this file's whole
@@ -312,9 +316,9 @@ function writeOnceSource(
 
 /**
  * Safety property 4 (never re-stamp an existing blob's attribution) — `assetBlobRepo.save` is
- * reached only on the "no existing row" branch.
+ * preserves existing attribution on resurrection and otherwise only creates a missing row.
  *
- * @returns whether this call wrote the blob bytes and its `asset_blobs` row.
+ * @returns whether this call created the `asset_blobs` row, independently of create-only staging.
  * @complexity O(1) — one lookup, plus one store put and one row save for a new blob.
  */
 async function ensureAssetBlob(
@@ -322,9 +326,16 @@ async function ensureAssetBlob(
   _options = {}
 ): Promise<boolean> {
   const { workspaceId, record } = input;
+  const storageKey = deps.storageKeyFor({ workspaceId, sha256: record.source.sha256 });
   const existingBlob = await deps.assetBlobRepo.findByHash({ workspaceId, sha256: record.source.sha256 });
-  if (existingBlob) return false;
-  const { storageKey } = await deps.blobStore.putIfAbsent({ workspaceId, sha256: record.source.sha256, bytes });
+  if (existingBlob) {
+    if (existingBlob.storageKey !== storageKey) throw new MediaValidationError({ message: "Stored blob key does not match the fenced key" });
+    if (existingBlob.status === "tombstoned") {
+      await deps.assetBlobRepo.save({ ...existingBlob, status: "active", tombstonedAt: undefined });
+    }
+    await deps.verifyStoredBlob({ storageKey, sha256: record.source.sha256, byteLength: bytes.byteLength }, {});
+    return false;
+  }
   const newBlob: AssetBlobRecord = {
     id: deps.idGen.newId(),
     workspaceId,
@@ -335,6 +346,9 @@ async function ensureAssetBlob(
     status: "active",
   };
   await deps.assetBlobRepo.save(newBlob);
+  const stored = await deps.blobStore.putIfAbsent({ workspaceId, sha256: record.source.sha256, bytes });
+  if (stored.storageKey !== storageKey) throw new MediaValidationError({ message: "Stored blob key does not match the fenced key" });
+  await deps.verifyStoredBlob({ storageKey, sha256: record.source.sha256, byteLength: bytes.byteLength }, {});
   return true;
 }
 
@@ -369,7 +383,7 @@ function importedRow(
 export async function importMediaEntity(required: {
   readonly deps: ImportMediaEntityDeps;
   readonly input: ImportMediaEntityInput;
-}): Promise<ImportMediaEntityResult> {
+}, _optional: Record<string, never> = {}): Promise<ImportMediaEntityResult> {
   const { deps, input } = required;
   const { workspaceId, record, baseVersion } = input;
 
@@ -395,15 +409,18 @@ export async function importMediaEntity(required: {
   const resolved = writeOnceSource({ record, existingById, outwardErrorMessage: deps.outwardErrorMessage });
   if (!("source" in resolved)) return resolved;
 
-  const blobWritten = await ensureAssetBlob({ deps, input, bytes: checked.bytes });
-  const row = importedRow({ deps, input, existingById, source: resolved.source });
+  return deps.blobFence.withKeys({ workspaceId,
+    storageKeys: [deps.storageKeyFor({ workspaceId, sha256: record.source.sha256 })], work: async (): Promise<ImportMediaEntityResult> => {
+      const blobWritten = await ensureAssetBlob({ deps, input, bytes: checked.bytes });
+      const row = importedRow({ deps, input, existingById, source: resolved.source });
 
-  // Safety property 5 (compare-and-set write) — the version compare traveled INTO this write via
-  // `baseVersion`; see this function's own header and `writeMediaRowConditionally`'s doc.
-  const refusal = await writeMediaRowConditionally({ deps, row, baseVersion });
-  if (refusal) return refusal;
+      // Safety property 5 (compare-and-set write) — the version compare traveled INTO this write via
+      // `baseVersion`; see this function's own header and `writeMediaRowConditionally`'s doc.
+      const refusal = await writeMediaRowConditionally({ deps, row, baseVersion });
+      if (refusal) return refusal;
 
-  return { status: "imported", id: record.id, blobWritten };
+      return { status: "imported", id: record.id, blobWritten };
+    } }, {});
 }
 
 /** Replace only the source/version reviewed on live. Byte and slug checks already ran above.

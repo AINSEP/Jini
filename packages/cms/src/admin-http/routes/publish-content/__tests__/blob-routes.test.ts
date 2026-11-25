@@ -1,8 +1,9 @@
 import { createHash } from "node:crypto";
 import { describe, expect, it } from "vitest";
 import { routeReply } from "@jini-ai/core/contracts/server";
+import type { BlobFence } from "@jini-ai/core/contracts/blob-gc";
 
-import { MAX_DOCUMENT_BYTES } from "../../../../media/index.js";
+import { computeBlobStorageKey, InMemoryBlobStore, MAX_DOCUMENT_BYTES } from "../../../../media/index.js";
 import { blobGetRoute, type BlobGetRouteDeps } from "../blob-get.js";
 import { blobPutRoute, decodeBlobBytes, type BlobPutRouteDeps } from "../blob-put.js";
 
@@ -86,12 +87,62 @@ describe("blobGetRoute", () => {
 
 function putDeps() {
   const writes: unknown[] = [];
-  const deps: BlobPutRouteDeps = { workspaceId: WS, maxUploadBytes: MAX_DOCUMENT_BYTES, blobStore: { putIfAbsent: async (input) => { writes.push(input); return { written: writes.length === 1 } as never; } } };
-  return { deps, writes };
+  const store = new InMemoryBlobStore();
+  const deps: BlobPutRouteDeps = {
+    workspaceId: WS, maxUploadBytes: MAX_DOCUMENT_BYTES,
+    blobStore: { putIfAbsent: async (input) => { writes.push(input); return store.putIfAbsent(input); } },
+    blobFence: {
+      withKeys: async ({ work }) => work(),
+      withAsset: async ({ work }) => work(),
+    } satisfies BlobFence,
+    storageKeyFor: computeBlobStorageKey,
+    verifyStoredBlob: async ({ storageKey, sha256, byteLength }) => {
+      const stored = await store.get({ storageKey });
+      if (stored.byteLength !== byteLength || createHash("sha256").update(stored).digest("hex") !== sha256) {
+        throw new Error("Stored blob failed verification");
+      }
+    },
+  };
+  return { deps, writes, store };
 }
 const putInput = (body: unknown, sha = SHA) => ({ claimedSha256: sha, rawBody: body });
 
 describe("blobPutRoute", () => {
+  it("blob PUT refuses a short or same-length corrupt stored object", async () => {
+    for (const corrupt of [BYTES.slice(1), new TextEncoder().encode("HELLO BLOB")]) {
+      const { deps, store } = putDeps();
+      const { storageKey } = await store.put({ workspaceId: WS, sha256: SHA, bytes: corrupt });
+      await expect(blobPutRoute.handle({ input: putInput({ dataBase64: Buffer.from(BYTES).toString("base64") }),
+        deps, context: PRINCIPAL, authorize: recordingAuthorize().authorize })).rejects.toThrow("Stored blob failed verification");
+      expect(await store.get({ storageKey })).toEqual(corrupt);
+    }
+  });
+  it("each writer holds the byte fence across write and publish", async () => {
+    const { deps, store, writes } = putDeps();
+    let release = () => {};
+    let entered = () => {};
+    const gate = new Promise<void>((resolve) => { release = resolve; });
+    const entry = new Promise<"entered">((resolve) => { entered = () => resolve("entered"); });
+    let held = false;
+    const verify = deps.verifyStoredBlob;
+    deps.blobFence.withKeys = async ({ workspaceId, storageKeys, work }) => {
+      expect(workspaceId).toBe(WS);
+      expect(storageKeys).toEqual([computeBlobStorageKey({ workspaceId: WS, sha256: SHA })]);
+      entered();
+      await gate;
+      held = true;
+      try { return await work(); } finally { held = false; }
+    };
+    deps.verifyStoredBlob = async (input) => { expect(held).toBe(true); await verify(input); };
+    const pending = blobPutRoute.handle({ input: putInput({ dataBase64: Buffer.from(BYTES).toString("base64") }),
+      deps, context: PRINCIPAL, authorize: recordingAuthorize().authorize });
+    try {
+      expect(await Promise.race([entry, pending.then(() => "completed")])).toBe("entered");
+      expect(writes).toEqual([]);
+    } finally { release(); }
+    expect(await pending).toEqual({ ok: true, value: { sha256: SHA, written: true } });
+    expect(await store.get({ storageKey: computeBlobStorageKey({ workspaceId: WS, sha256: SHA }) })).toEqual(BYTES);
+  });
   it("pins method, path, success status and no body cap", () => {
     expect([blobPutRoute.method, blobPutRoute.path, blobPutRoute.successStatus, blobPutRoute.maxBodyBytes]).toEqual(["put", "/api/admin/v1/workspaces/:workspaceId/publish-content/blobs/:sha", undefined, undefined]);
   });
