@@ -721,7 +721,8 @@
       "./forms/destinations/connection-port": "universal",
       "./forms/destinations/port": "universal",
       "./media/site-generation/provider-credential-save": "universal",
-      "./media/site-generation/providers-tools": "universal"
+      "./media/site-generation/providers-tools": "universal",
+      "./html/site/export-html-policy": "universal"
     },
     "isolation": {
       "domains": {
@@ -4652,6 +4653,11 @@
       "types": "./dist/media/site-generation/providers-tools.d.ts",
       "import": "./dist/media/site-generation/providers-tools.js",
       "default": "./dist/media/site-generation/providers-tools.js"
+    },
+    "./html/site/export-html-policy": {
+      "types": "./dist/html/site/export-html-policy.d.ts",
+      "import": "./dist/html/site/export-html-policy.js",
+      "default": "./dist/html/site/export-html-policy.js"
     }
   },
   "files": [

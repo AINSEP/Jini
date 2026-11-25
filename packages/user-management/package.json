@@ -129,7 +129,15 @@
       "./identity/repo": "node",
       "./identity/repo.authentication": "node",
       "./identity/repo.authorization": "node",
-      "./identity/permission-list-tool": "universal"
+      "./identity/permission-list-tool": "universal",
+      "./project-keys/attached-vault": "universal",
+      "./project-keys/create-vault": "universal",
+      "./project-keys/site-sealer": "universal",
+      "./member-login/providers": "universal",
+      "./member-login/credentials": "universal",
+      "./member-login/ready-providers": "universal",
+      "./mail/site/capture-clear": "universal",
+      "./newsletter/http-error-responses": "universal"
     },
     "optionalPeers": {
       "kysely": "opt-in: sql storage adapters; import @jini-ai/user-management/members/repo — SQL storage adapters could not load kysely. Install kysely to enable this feature, or check its installed version and native binaries.",
@@ -759,6 +767,46 @@
       "types": "./dist/identity/permission-list-tool.d.ts",
       "import": "./dist/identity/permission-list-tool.js",
       "default": "./dist/identity/permission-list-tool.js"
+    },
+    "./project-keys/attached-vault": {
+      "types": "./dist/project-keys/attached-vault.d.ts",
+      "import": "./dist/project-keys/attached-vault.js",
+      "default": "./dist/project-keys/attached-vault.js"
+    },
+    "./project-keys/create-vault": {
+      "types": "./dist/project-keys/create-vault.d.ts",
+      "import": "./dist/project-keys/create-vault.js",
+      "default": "./dist/project-keys/create-vault.js"
+    },
+    "./project-keys/site-sealer": {
+      "types": "./dist/project-keys/site-sealer.d.ts",
+      "import": "./dist/project-keys/site-sealer.js",
+      "default": "./dist/project-keys/site-sealer.js"
+    },
+    "./member-login/providers": {
+      "types": "./dist/member-login/providers.d.ts",
+      "import": "./dist/member-login/providers.js",
+      "default": "./dist/member-login/providers.js"
+    },
+    "./member-login/credentials": {
+      "types": "./dist/member-login/credentials.d.ts",
+      "import": "./dist/member-login/credentials.js",
+      "default": "./dist/member-login/credentials.js"
+    },
+    "./member-login/ready-providers": {
+      "types": "./dist/member-login/ready-providers.d.ts",
+      "import": "./dist/member-login/ready-providers.js",
+      "default": "./dist/member-login/ready-providers.js"
+    },
+    "./mail/site/capture-clear": {
+      "types": "./dist/mail/site/capture-clear.d.ts",
+      "import": "./dist/mail/site/capture-clear.js",
+      "default": "./dist/mail/site/capture-clear.js"
+    },
+    "./newsletter/http-error-responses": {
+      "types": "./dist/newsletter/http-error-responses.d.ts",
+      "import": "./dist/newsletter/http-error-responses.js",
+      "default": "./dist/newsletter/http-error-responses.js"
     }
   },
   "files": [
