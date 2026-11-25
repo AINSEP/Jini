@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { isRouteReply, type JsonRouteSpec, type RouteReply } from '@jini-ai/core/contracts/server';
 import { RouteRefusalError } from '@jini-ai/core/errors/route-refusal';
-import { dockerfileReadRoute, dockerfileWriteRoute, type DockerfileSourceRouteDeps, type DockerfileSourceSnapshot, type DockerfileWriteResult } from '../dockerfile-source.js';
+import { dockerfileReadRoute, dockerfileWriteRoute, type DockerfileSourcePrincipal, type DockerfileSourceRouteDeps, type DockerfileSourceSnapshot, type DockerfileWriteResult } from '../dockerfile-source.js';
 
 const SNAPSHOT: DockerfileSourceSnapshot = { exists: true, contents: 'FROM node', etag: '"abc"' };
 const CURRENT: DockerfileSourceSnapshot = { exists: true, contents: 'FROM bun', etag: '"cur"' };
@@ -16,12 +16,12 @@ function makeDeps(overrides: Partial<DockerfileSourceRouteDeps> = {}) {
   return { deps, log };
 }
 
-async function run(spec: JsonRouteSpec<any, RouteReply<any>, DockerfileSourceRouteDeps, undefined>, deps: DockerfileSourceRouteDeps, raw: { body?: unknown; headers?: Record<string, string> } = {}, { deny = false } = {}) {
+async function run(spec: JsonRouteSpec<any, RouteReply<any>, DockerfileSourceRouteDeps, DockerfileSourcePrincipal>, deps: DockerfileSourceRouteDeps, raw: { body?: unknown; headers?: Record<string, string> } = {}, { deny = false } = {}) {
   const asked: unknown[] = [];
   const authorize = async (...args: unknown[]) => { asked.push(args); if (deny) throw new RouteRefusalError({ status: 403, body: { error: 'denied' } }); };
   const parsed = spec.parse({ body: 'body' in raw ? raw.body : {}, query: {}, params: { workspaceId: 'ws' }, ...(raw.headers ? { headers: raw.headers } : {}) });
   if (!parsed.ok) throw new Error('parse must be total');
-  const result = await spec.handle({ input: parsed.value, deps, context: undefined, authorize }, {});
+  const result = await spec.handle({ input: parsed.value, deps, context: { id: 'p1' }, authorize }, {});
   if (!result.ok) throw new Error('handle never returns an error result');
   expect(isRouteReply(result.value)).toBe(true);
   return { asked, reply: result.value };

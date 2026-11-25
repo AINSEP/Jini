@@ -60,9 +60,12 @@ export interface DockerfileSourceBody { exists: boolean; contents: string | null
 /** What `PUT` carries to its handler: the `If-Match` header and the raw body, both unchecked until authorization. */
 export interface DockerfileWriteInput { ifMatch: string | undefined; body: unknown }
 
+/** The authenticated principal the host mount provides; these specs read no field of it. */
+export interface DockerfileSourcePrincipal { id: string }
+
 type DockerfileReply = RouteReply<unknown>;
-type DockerfileReadSpec = JsonRouteSpec<Record<string, never>, DockerfileReply, DockerfileSourceRouteDeps>;
-type DockerfileWriteSpec = JsonRouteSpec<DockerfileWriteInput, DockerfileReply, DockerfileSourceRouteDeps> & { readHeaders: readonly string[] };
+type DockerfileReadSpec = JsonRouteSpec<Record<string, never>, DockerfileReply, DockerfileSourceRouteDeps, DockerfileSourcePrincipal>;
+type DockerfileWriteSpec = JsonRouteSpec<DockerfileWriteInput, DockerfileReply, DockerfileSourceRouteDeps, DockerfileSourcePrincipal> & { readHeaders: readonly string[] };
 
 const DOCKERFILE_PATH = '/api/admin/v1/workspaces/:workspaceId/system/dockerfile';
 const ENTITY_TYPE = 'dockerfile-source';
@@ -104,7 +107,7 @@ function parseWriteRequestBody({ body }: { body: unknown }, _optional: Record<st
 
 /** `GET .../system/dockerfile`: the file's `{exists, contents}`, its etag in the `ETag` header.
  * @complexity O(1) plus the injected read. */
-export const dockerfileReadRoute: DockerfileReadSpec = defineJsonRoute<Record<string, never>, DockerfileReply, DockerfileSourceRouteDeps>({
+export const dockerfileReadRoute: DockerfileReadSpec = defineJsonRoute<Record<string, never>, DockerfileReply, DockerfileSourceRouteDeps, DockerfileSourcePrincipal>({
   method: 'get',
   path: DOCKERFILE_PATH,
   parse: () => ok({ value: {} }),
@@ -134,7 +137,7 @@ function writeReply({ input, deps }: { input: DockerfileWriteInput; deps: Docker
   return routeReply({ status: 200, body: toResponseBody({ snapshot: result.snapshot }), headers: { ETag: result.snapshot.etag } });
 }
 
-const writeSpec = defineJsonRoute<DockerfileWriteInput, DockerfileReply, DockerfileSourceRouteDeps>({
+const writeSpec = defineJsonRoute<DockerfileWriteInput, DockerfileReply, DockerfileSourceRouteDeps, DockerfileSourcePrincipal>({
   method: 'put',
   path: DOCKERFILE_PATH,
   parse: (raw) => ok({ value: { ifMatch: raw.headers?.['if-match'], body: raw.body } }),
