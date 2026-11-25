@@ -1,5 +1,7 @@
 import assert from "node:assert/strict";
-import { access, readdir } from "node:fs/promises";
+import { access, mkdtemp, readdir, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import path from "node:path";
 import { parse, type DefaultTreeAdapterMap } from "parse5";
 import { escapeHtml } from "@jini-ai/core/text";
 import { describe, it } from "vitest";
@@ -86,6 +88,26 @@ describe("captureStaticSite", () => {
     assert.ok(seen.dir && seen.dir.split("/").pop()!.startsWith("scratch-xyz-"));
     await assert.rejects(access(seen.dir!));
     assert.ok(!(await readdir(seen.dir!.slice(0, seen.dir!.lastIndexOf("/")))).some(name => name === seen.dir!.split("/").pop()));
+  });
+
+  it("renders into an injected host-owned temp root and finishes reading before the scope settles", async () => {
+    const seen: { dir?: string } = {};
+    const events: string[] = [];
+    const owned = await mkdtemp(path.join(tmpdir(), "owned-root-"));
+    const tempRoot = async <T>({ work }: { work: (o: { root: string }) => Promise<T> }): Promise<T> => {
+      events.push("lock");
+      try { return await work({ root: owned }); } finally { events.push("release"); await rm(owned, { recursive: true, force: true }); }
+    };
+    const result = await captureStaticSite({ ports: ports(seen), host: host() }, { tempRoot });
+    assert.ok("filename" in result && result.filename === "STEM-static-2026-01-02-0304.zip");
+    assert.equal(seen.dir, owned);
+    assert.deepEqual(events, ["lock", "release"]);
+  });
+
+  it("refuses in plain words when the injected temp root cannot be prepared", async () => {
+    const tempRoot = async (): Promise<never> => { throw new Error("lock busy"); };
+    const result = await captureStaticSite({ ports: ports({}), host: host() }, { tempRoot });
+    assert.deepEqual(result, { reason: "Static render folder could not be prepared: Error: lock busy" });
   });
 });
 

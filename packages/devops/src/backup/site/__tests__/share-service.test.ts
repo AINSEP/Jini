@@ -8,7 +8,9 @@ import { SiteShareRegistry } from "../share-registry.js";
 import { SHARE_DOWNLOAD_HEADERS, createSiteShareService, shareFileStem, type ShareServiceHost } from "../share-service.js";
 
 /** A neutral host: `.pkg.zip` artifacts, a `local-fs` own-folder provider. */
-const HOST: ShareServiceHost = { shareFile: /^[a-z0-9][a-z0-9-]{0,79}\.pkg\.zip$/, artifactSuffix: ".pkg.zip", ownFolderProvider: "local-fs" };
+const HOST: ShareServiceHost = { shareFile: /^[a-z0-9][a-z0-9-]{0,79}\.pkg\.zip$/, artifactSuffix: ".pkg.zip", ownFolderProvider: "local-fs",
+  expiry: { choices: [7, 30, 90], copy: { choices: "7, 30 or 90 days, or never.", notHostedHere: "Only own-folder links can expire.", remote: ({ provider }) => `${provider} links cannot expire.` },
+    expiredMessage: ({ row }) => `Expired on ${row.expiresAt?.slice(0, 10) ?? "?"}.` } };
 const ARCHIVE = Buffer.from("PK zip bytes");
 const URL = "https://cdn.example/share.zip";
 const dirs: string[] = [];

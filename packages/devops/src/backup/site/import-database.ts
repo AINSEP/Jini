@@ -9,6 +9,7 @@ import { FileLockTimeoutError } from "@jini-ai/core/contracts/runtime";
 import { createInterface } from "node:readline";
 import type { Readable } from "node:stream";
 import { SiteShareRefusal, archiveRefusalName } from "./share-refusal.js";
+import type { OwnedTempRootScope } from "./owned-temp-root.js";
 
 /** The slice of a forked helper this module drives: its failure/exit events and a kill switch. */
 export interface ImportWorkerChild {
@@ -30,6 +31,8 @@ export interface RebuildImportDatabaseOptions {
   limits?: { readonly maxExpandedBytes: number };
   statfs?: (root: string) => Promise<{ bavail: number; bsize: number }>;
   fork?: (modulePath: string, args: string[], options: childProcess.ForkOptions) => ImportWorkerChild;
+  /** A host-owned private root (lock, then marker, then folder) to stage in instead of the engine's own locked temp folder; the host's temp-root tidy sweeps the same parent. */
+  tempRoot?: OwnedTempRootScope;
 }
 
 /** Host values and collaborators the import-database helper cannot own. Every member is REQUIRED. */
@@ -159,12 +162,16 @@ export async function rebuildImportDatabase<TProjection extends { bytes: Buffer 
   const { limits = host.limits, statfs: readSpace = statfs, fork = childProcess.fork } = optional;
   optional.signal?.throwIfAborted();
   if (required.snapshot.length > limits.maxExpandedBytes) throw new SiteShareRefusal({ code: "LIMIT_EXCEEDED", message: "Import database exceeds 300 MiB." });
+  const rebuild = (root: string) => rebuildInRoot<TProjection>({ host, root, snapshot: required.snapshot, moduleUrl: required.moduleUrl, ...(required.omittedMediaIds ? { omittedMediaIds: required.omittedMediaIds } : {}), limits, readSpace, fork }, { signal: optional.signal });
+  // The owned root takes its lock before the folder exists and keeps it through the helper's exit and
+  // every read, so the host's temp-root tidy never sees an unowned or abandoned-looking live root.
+  if (optional.tempRoot) return optional.tempRoot({ work: ({ root }) => rebuild(root) });
   const root = path.join(tmpdir(), host.stagingPrefix + randomUUID());
   return host.withFileLock({ lockPath: root + ".lock", run: async () => {
     // No staging directory exists until this parent owns its sibling lock.
     await mkdir(root, { mode: 0o700 });
     try {
-      return await rebuildInRoot<TProjection>({ host, root, snapshot: required.snapshot, moduleUrl: required.moduleUrl, ...(required.omittedMediaIds ? { omittedMediaIds: required.omittedMediaIds } : {}), limits, readSpace, fork }, { signal: optional.signal });
+      return await rebuild(root);
     } finally { await rm(root, { recursive: true, force: true }); }
   } }, { staleMs: Infinity, timeoutMessage: () => "The temporary import database is still being cleaned up. Try importing again." });
 }
