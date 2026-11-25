@@ -772,7 +772,11 @@
       "./screens/trash/hooks/use-trash.hooks": "browser",
       "./screens/library/Library": "browser",
       "./screens/library/hooks/library-api-port.hooks": "browser",
-      "./screens/storage/StoragePanel": "browser"
+      "./screens/storage/StoragePanel": "browser",
+      "./browser/server-reconnect": "browser",
+      "./browser/settings-events": "browser",
+      "./react/shell/Placeholder": "browser",
+      "./react/shell/appearance": "browser"
     },
     "isolation": {
       "shared": [
@@ -1101,7 +1105,11 @@
         "./shell/components/AssistantDock/hooks/composer-files.hooks": "browser",
         "./screens/trash/Trash": "browser",
         "./screens/trash/hooks/use-trash.hooks": "browser",
-        "./screens/trash/rules": "universal"
+        "./screens/trash/rules": "universal",
+        "./browser/server-reconnect": "browser",
+        "./browser/settings-events": "browser",
+        "./react/shell/Placeholder": "browser",
+        "./react/shell/appearance": "browser"
       }
     },
     "optionalPeers": {
@@ -4837,6 +4845,26 @@
       "types": "./dist/screens/storage/StoragePanel.d.ts",
       "import": "./dist/screens/storage/StoragePanel.js",
       "default": "./dist/screens/storage/StoragePanel.js"
+    },
+    "./browser/server-reconnect": {
+      "types": "./dist/browser/server-reconnect.d.ts",
+      "import": "./dist/browser/server-reconnect.js",
+      "default": "./dist/browser/server-reconnect.js"
+    },
+    "./browser/settings-events": {
+      "types": "./dist/browser/settings-events.d.ts",
+      "import": "./dist/browser/settings-events.js",
+      "default": "./dist/browser/settings-events.js"
+    },
+    "./react/shell/Placeholder": {
+      "types": "./dist/react/shell/Placeholder.d.ts",
+      "import": "./dist/react/shell/Placeholder.js",
+      "default": "./dist/react/shell/Placeholder.js"
+    },
+    "./react/shell/appearance": {
+      "types": "./dist/react/shell/appearance.d.ts",
+      "import": "./dist/react/shell/appearance.js",
+      "default": "./dist/react/shell/appearance.js"
     }
   },
   "files": [
@@ -5350,6 +5378,18 @@
       ],
       "screens/storage/StoragePanel": [
         "./dist/screens/storage/StoragePanel.d.ts"
+      ],
+      "browser/server-reconnect": [
+        "./dist/browser/server-reconnect.d.ts"
+      ],
+      "browser/settings-events": [
+        "./dist/browser/settings-events.d.ts"
+      ],
+      "react/shell/Placeholder": [
+        "./dist/react/shell/Placeholder.d.ts"
+      ],
+      "react/shell/appearance": [
+        "./dist/react/shell/appearance.d.ts"
       ]
     }
   },

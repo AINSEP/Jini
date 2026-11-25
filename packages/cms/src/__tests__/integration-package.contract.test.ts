@@ -111,8 +111,9 @@ it('gives every public export a source target for a subsequent clean build', () 
   // PARITY: each advertised entry must still resolve to an actual source module after moves.
   const missing: string[] = [];
   for (const [subpath, target] of Object.entries(manifest.exports)) {
-    const source = target.import.replace(/^\.\/dist\//, 'src/').replace(/\.js$/, '.ts');
-    if (!existsSync(new URL(source, packageRoot))) missing.push(subpath);
+    // A React leaf compiles from `.tsx`; either source extension is a real module.
+    const source = target.import.replace(/^\.\/dist\//, 'src/').replace(/\.js$/, '');
+    if (!['.ts', '.tsx'].some(extension => existsSync(new URL(source + extension, packageRoot)))) missing.push(subpath);
     expect(target.default).toBe(target.import);
     expect(target.types).toBe(target.import.replace(/\.js$/, '.d.ts'));
   }

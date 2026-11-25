@@ -238,7 +238,6 @@
       "./contracts/site/gated-mutations-ports": "universal",
       "./contracts/site/legacy-owner-store": "universal",
       "./contracts/site/composition-provider-config-source": "universal",
-      "./contracts/site/cms-trash": "universal",
       "./contracts/site/seo-content-analysis": "universal",
       "./contracts/site/ui-sections": "universal",
       "./contracts/site/admin-surfaces-connections": "universal",
@@ -285,7 +284,9 @@
       "./tool-metadata/post": "universal",
       "./tool-metadata/image-transform": "universal",
       "./contracts/site/database-introspection": "universal",
-      "./contracts/site/external-mcp-tool-ports": "universal"
+      "./contracts/site/external-mcp-tool-ports": "universal",
+      "./contracts/site/deployment-admin": "universal",
+      "./contracts/site/content-editor-ports": "universal"
     },
     "isolation": {
       "entries": {
@@ -294,7 +295,9 @@
         "./settings": "settings",
         "./operator-locale": "settings",
         "./provider-registry": "providers",
-        "./object-store": "providers"
+        "./object-store": "providers",
+        "./contracts/site/deployment-admin": "core",
+        "./contracts/site/content-editor-ports": "core"
       },
       "domains": {
         "fetch": [
@@ -1466,11 +1469,6 @@
       "import": "./dist/contracts/site/legacy-owner-store.js",
       "default": "./dist/contracts/site/legacy-owner-store.js"
     },
-    "./contracts/site/cms-trash": {
-      "types": "./dist/contracts/site/cms-trash.d.ts",
-      "import": "./dist/contracts/site/cms-trash.js",
-      "default": "./dist/contracts/site/cms-trash.js"
-    },
     "./contracts/site/composition-provider-config-source": {
       "types": "./dist/contracts/site/composition-provider-config-source.d.ts",
       "import": "./dist/contracts/site/composition-provider-config-source.js",
@@ -1710,6 +1708,16 @@
       "types": "./dist/contracts/site/external-mcp-tool-ports.d.ts",
       "import": "./dist/contracts/site/external-mcp-tool-ports.js",
       "default": "./dist/contracts/site/external-mcp-tool-ports.js"
+    },
+    "./contracts/site/deployment-admin": {
+      "types": "./dist/contracts/site/deployment-admin.d.ts",
+      "import": "./dist/contracts/site/deployment-admin.js",
+      "default": "./dist/contracts/site/deployment-admin.js"
+    },
+    "./contracts/site/content-editor-ports": {
+      "types": "./dist/contracts/site/content-editor-ports.d.ts",
+      "import": "./dist/contracts/site/content-editor-ports.js",
+      "default": "./dist/contracts/site/content-editor-ports.js"
     }
   },
   "files": [

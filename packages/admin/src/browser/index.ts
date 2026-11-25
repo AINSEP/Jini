@@ -20,3 +20,6 @@ export { createBrowserTelemetry, installBrowserErrorListeners, type BrowserTelem
 
 export { toRouteTemplate } from '../core/routing/route-template.js';
 export { createReactRootErrorHandlers } from './react-root-errors.js';
+
+export { createServerReconnect, shouldRetryAfterReconnect, probeReadyz, type ServerConnectionStatus, type ServerReconnectDeps, type ServerReconnectOptional, type ServerReconnect } from './server-reconnect.js';
+export { subscribeToSettingsChanges } from './settings-events.js';
