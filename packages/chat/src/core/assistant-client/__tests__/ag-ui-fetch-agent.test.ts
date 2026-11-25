@@ -28,6 +28,52 @@ test('joins split SSE frames, ignores comments and delivers the first event befo
   expect(observer.error).not.toHaveBeenCalled();
 });
 
+test('reports byte activity before a split event completes', async () => {
+  let push: ReadableStreamDefaultController<Uint8Array> | undefined;
+  const body = new ReadableStream<Uint8Array>({ start(controller) { push = controller; } });
+  const order: string[] = [];
+  const onBytes = vi.fn(({ byteLength }: { byteLength: number }) => { order.push(`bytes:${byteLength}`); });
+  const agent = createAgUiFetchAgent({ request: async () => new Response(body) }, { onBytes });
+  const observer = { next: vi.fn(() => { order.push('event'); }), error: vi.fn(), complete: vi.fn() };
+  agent.run(input).subscribe(observer);
+  const bytes = new TextEncoder();
+  const heartbeat = bytes.encode(': heartbeat\n\n');
+  const prefix = bytes.encode('data: {"type":"TEXT_MESSAGE_CONTENT","messageId":"m",');
+  const suffix = bytes.encode('"delta":"hi"}\n\n');
+  push!.enqueue(heartbeat);
+  push!.enqueue(new Uint8Array(0));
+  push!.enqueue(prefix);
+  await vi.waitFor(() => expect(onBytes).toHaveBeenCalledTimes(2));
+  expect(observer.next).not.toHaveBeenCalled();
+  push!.enqueue(suffix);
+  await vi.waitFor(() => expect(observer.next).toHaveBeenCalledOnce());
+  expect(observer.next).toHaveBeenCalledWith({ type: EventType.TEXT_MESSAGE_CONTENT, messageId: 'm', delta: 'hi' });
+  expect(order).toEqual([`bytes:${heartbeat.byteLength}`, `bytes:${prefix.byteLength}`, `bytes:${suffix.byteLength}`, 'event']);
+  push!.close();
+  await vi.waitFor(() => expect(observer.complete).toHaveBeenCalledOnce());
+});
+
+test('uses the supplied controller and cancels the reader once', async () => {
+  const cancel = vi.fn();
+  const body = new ReadableStream<Uint8Array>({ cancel });
+  const abortController = new AbortController();
+  const request = vi.fn(async () => new Response(body));
+  const agent = createAgUiFetchAgent({ request }, { abortController });
+  expect(agent.abortController).toBe(abortController);
+  const observer = { next: vi.fn(), error: vi.fn(), complete: vi.fn() };
+  agent.run(input).subscribe(observer);
+  await vi.waitFor(() => expect(body.locked).toBe(true));
+  expect(request).toHaveBeenCalledWith({ input, signal: abortController.signal });
+  abortController.abort();
+  await vi.waitFor(() => expect(observer.error).toHaveBeenCalledOnce());
+  agent.abortRun();
+  await new Promise((resolve) => setTimeout(resolve, 0));
+  expect(cancel).toHaveBeenCalledOnce();
+  expect(observer.next).not.toHaveBeenCalled();
+  expect(observer.complete).not.toHaveBeenCalled();
+  expect(observer.error).toHaveBeenCalledOnce();
+});
+
 test('abort cancels the response reader and releases its lock', async () => {
   const cancel = vi.fn();
   const body = new ReadableStream<Uint8Array>({ cancel });

@@ -35,7 +35,7 @@
  * their own metadata in it. The engine stays neutral and the host keeps one place to look.
  */
 import { createConsoleLogger } from '@jini-ai/core/primitives';
-import type { FrontendSessionOwner, FrontendSessionRegistry } from '../frontend-session-registry.js';
+import type { FrontendInvocationDelivery, FrontendSessionOwner, FrontendSessionRegistry } from '../frontend-session-registry.js';
 import type { FrontendSessionsHttpDeps } from './frontend-sessions.js';
 import type { ToolPolicy, ToolRegistration } from '@jini-ai/core';
 import {
@@ -97,8 +97,13 @@ export interface CreateFrontendControlOptions {
 
 export interface FrontendControl {
   begin(required: { runId: string; invocationId: string; owner: FrontendSessionOwner }, optional?: Record<string, never>): boolean;
-  /** Request-lifetime binding for hosts without daemon runs; release in finally and on cancel. */
-  bindRequest(required: { runId: string; bindToken: string; owner: FrontendSessionOwner; signal: AbortSignal }, optional?: Record<string, never>): () => void;
+  /**
+   * Request-lifetime binding for hosts without daemon runs; release in finally and on cancel.
+   * `deliverInvocation` opts this one run into run-specific delivery (see the registry's
+   * `FrontendInvocationDelivery`). It needs the session owner hook, because only the owner-gated
+   * `begin` route can claim such an invocation; without one the bind is refused.
+   */
+  bindRequest(required: { runId: string; bindToken: string; owner: FrontendSessionOwner; signal: AbortSignal }, optional?: { readonly deliverInvocation?: FrontendInvocationDelivery }): () => void;
   /**
    * The frontend-session stream and response routes, as data. A host mounts the list on its own
    * server (`mountRoutes` on a Node preset) with the host it built.
@@ -177,10 +182,14 @@ function createBindOnStarted({ registry, options }: { readonly registry: Fronten
 }
 
 /** Request-lifetime binding for hosts without daemon runs. */
-function createBindRequest({ registry }: { readonly registry: FrontendSessionRegistry }): FrontendControl['bindRequest'] {
-  const bindRequest: FrontendControl['bindRequest'] = ({ runId, bindToken, owner, signal }) => {
+function createBindRequest({ registry, session }: { readonly registry: FrontendSessionRegistry; readonly session: CreateFrontendControlOptions['session'] }): FrontendControl['bindRequest'] {
+  const ownerGated = session?.resolveOwner !== undefined;
+  const bindRequest: FrontendControl['bindRequest'] = ({ runId, bindToken, owner, signal }, { deliverInvocation } = {}) => {
     if (signal.aborted) throw new Error('Frontend request cancelled');
-    const unbind = registry.bindRunByToken({ runId, bindToken, owner });
+    // Without the owner gate there is no begin route, so an opted-in invocation could never be
+    // claimed and its result never accepted. Refuse up front instead of failing every call later.
+    if (deliverInvocation && !ownerGated) throw new Error('Run-specific frontend delivery needs an owner hook');
+    const unbind = registry.bindRunByToken({ runId, bindToken, owner }, deliverInvocation ? { deliverInvocation } : {});
     const release = () => { signal.removeEventListener('abort', release); unbind(); };
     signal.addEventListener('abort', release, { once: true });
     return release;
@@ -221,6 +230,6 @@ export function createFrontendControl(requiredArgs: Omit<CreateFrontendControlOp
   });
 
   const bindOnStarted = createBindOnStarted({ registry, options: { ...options, onBindError } });
-  const bindRequest = createBindRequest({ registry });
+  const bindRequest = createBindRequest({ registry, session: options.session });
   return { routes, toolRegistrations, bindOnStarted, bindRequest, begin: registry.begin };
 }

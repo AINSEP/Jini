@@ -6,7 +6,8 @@
  * reads them back. Strict interruption ordering closes a message before a tool starts. IDs and custom event names
  * are injected, with official AG-UI types authoritative; auth, routes and encoder stay with the host.
  * The host emits RUN_STARTED and terminal RUN_FINISHED/RUN_ERROR outside this pure projection. */
-import { EventType, InterruptSchema, RunAgentInputSchema, type AGUIEvent, type Interrupt } from '@ag-ui/core';
+import { EventType, type AGUIEvent, type Interrupt } from '@ag-ui/core';
+import { InterruptSchema, RunAgentInputSchema } from '@ag-ui/core/schemas';
 import { readSseFrames, readTerminalReason, translateRunFrame, type RunFrameCarry, type RunFrameOutcome, type RunNotices } from '../run-events/entry.js';
 import type { AgentEvent } from "@jini-ai/core/contracts/site/chat-core";
 
@@ -291,10 +292,12 @@ export async function drainRunFramesToAgUi(
     for await (const frame of readSseFrames({ body: streamFromReader({ reader: ctx.reader }) })) {
       const outcome = translateRunFrame({ kind: frame.event, raw: frame.data, notices: ctx.notices }, { carry });
       if (frame.event === 'agent' && outcome.events.length > 0) {
+        // AG-UI 1.0's validator output types optional fields as `T | undefined`, its generated
+        // `Interrupt` as absent-or-`T`; the parsed value never carries an explicit `undefined`.
         const marker = InterruptSchema.safeParse(JSON.parse(frame.data).payload.pendingApproval);
         if (marker.success) {
           writeAllAgUiEvents({ write: ctx.write, events: closeAgUiRun({ state: ctx.state }) });
-          ctx.write(confirmationInterrupt({ threadId: ctx.threadId, runId: ctx.runId, interrupt: marker.data }));
+          ctx.write(confirmationInterrupt({ threadId: ctx.threadId, runId: ctx.runId, interrupt: marker.data as Interrupt }));
           return { status: 'succeeded' };
         }
       }
@@ -349,7 +352,7 @@ function readOwnedResumeEntry({ input, threadId, runId, interruptId }: {
 function decodeResumeDecision({ entry }: { entry: ResumeEntry }, _optional: Record<string, never> = {}): { decision: 'allow' | 'deny' } | undefined {
   if (entry.status === 'cancelled') return { decision: 'deny' };
   if (entry.payload === 'allow') return { decision: 'allow' };
-  if (['deny', 'dismissed'].includes(entry.payload)) return { decision: 'deny' };
+  if (entry.payload === 'deny' || entry.payload === 'dismissed') return { decision: 'deny' };
   return undefined;
 }
 

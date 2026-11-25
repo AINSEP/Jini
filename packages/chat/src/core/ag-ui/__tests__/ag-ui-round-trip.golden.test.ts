@@ -8,7 +8,7 @@
  * Regenerate with `UPDATE_GOLDEN=1` only in a commit that names the wire change. */
 import { readFileSync, writeFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
-import { EventSchemas, RunAgentInputSchema } from '@ag-ui/core';
+import { EventSchemas, RunAgentInputSchema } from '@ag-ui/core/schemas';
 import { describe, expect, it } from 'vitest';
 import { closeAgUiRun, createAgUiTranslationState, translateAgentEventToAgUi, type AgUiEvent } from '../event-projection.js';
 import { createAgUiToAgentTranslationState, translateAgUiEventToAgentEvent } from '../event-reduction.js';
@@ -79,7 +79,7 @@ describe('AG-UI round trip golden', () => {
   });
 });
 
-describe('design wire examples parse with the locked 0.0.58 schemas', () => {
+describe('design wire examples parse with the locked 1.0.4 schemas', () => {
   it('a run that pauses for a confirmation (design 5.1)', () => {
     const event = {
       type: 'RUN_FINISHED', threadId: 't1', runId: 'r1',
@@ -97,10 +97,15 @@ describe('design wire examples parse with the locked 0.0.58 schemas', () => {
       threadId: 't1', runId: 'r2', parentRunId: 'r1', state: null, messages: [], tools: [], context: [], forwardedProps: {},
       resume: [{ interruptId: 'pause-1', status: 'resolved', payload: { allow: true } }],
     };
-    expect(RunAgentInputSchema.parse(input)).toStrictEqual(input);
+    // 1.0 normalizes an explicit `state: null` to an absent state; every other field round-trips.
+    expect(RunAgentInputSchema.parse(input)).toStrictEqual({ ...input, state: undefined });
   });
 
-  it('a run input without `context` is refused', () => {
-    expect(RunAgentInputSchema.safeParse({ threadId: 't1', runId: 'r2', messages: [], tools: [], forwardedProps: {} }).success).toBe(false);
+  it('a run input without `context` gets the 1.0 default of no context', () => {
+    expect(RunAgentInputSchema.parse({ threadId: 't1', runId: 'r2', messages: [], tools: [], forwardedProps: {} }).context).toStrictEqual([]);
+  });
+
+  it('a run input without a thread or run id is refused', () => {
+    expect(RunAgentInputSchema.safeParse({ messages: [], tools: [], context: [], forwardedProps: {} }).success).toBe(false);
   });
 });

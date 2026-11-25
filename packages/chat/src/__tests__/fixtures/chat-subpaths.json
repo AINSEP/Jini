@@ -91,7 +91,7 @@
     }
   },
   "peerDependencies": {
-    "@ag-ui/core": "0.0.58"
+    "@ag-ui/core": "1.0.4"
   },
   "peerDependenciesMeta": {
     "@ag-ui/core": {
@@ -102,6 +102,6 @@
     "@jini-ai/agent-runtime": "workspace:*"
   },
   "devDependencies": {
-    "@ag-ui/core": "0.0.58"
+    "@ag-ui/core": "1.0.4"
   }
 }
