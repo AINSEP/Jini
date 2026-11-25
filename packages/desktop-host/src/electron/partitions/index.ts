@@ -4,5 +4,6 @@ export * from './partition-root.js';
 export * from './profile-interlock.js';
 export * from './retirement-ledger.js';
 export * from './partition-pass.js';
+export { listAmbiguousPartitions, type PartitionInventory } from './partition-inventory.js';
 export * from './cache-maintenance.js';
 export * from './maintenance-marker.js';
