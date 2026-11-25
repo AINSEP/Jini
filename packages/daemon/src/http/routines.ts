@@ -413,104 +413,146 @@ export function routineRoutes({ deps, host }: { readonly deps: RoutineHttpDeps; 
   ];
 }
 
-export function createRoutineListRoute({ path, copy }: { path: string; copy: Readonly<Record<string, string>> }, _optional = {}) {
-  return defineJsonRoute({ ...routineListRoute, path, handle: async (required: Parameters<typeof routineListRoute.handle>[0]) => {
-    try { const result = await routineListRoute.handle(required); return result.ok || result.error.code !== 'NOT_FOUND' ? result : err({ error: { ...result.error, message: copy.ROUTINE_NOT_FOUND ?? result.error.message, details: { reason: 'ROUTINE_NOT_FOUND' } } }); } catch (error) {
-      if (error instanceof ClientFacingError) return err({ error: { ...error.apiError, message: copy[String((error.apiError.details as { reason?: string } | undefined)?.reason)] ?? error.apiError.message } });
-      const code = typeof error === 'object' && error !== null && 'code' in error ? error.code : undefined; if (code === 'SQLITE_BUSY' || code === 'SQLITE_FULL') { const reason = code === 'SQLITE_BUSY' ? 'ROUTINES_BUSY' : 'ROUTINES_DISK_FULL'; return err({ error: { code: code === 'SQLITE_BUSY' ? 'SERVICE_UNAVAILABLE' : 'INSUFFICIENT_STORAGE', message: copy[reason] ?? 'Routine storage is unavailable', details: { reason } } }); }
-      throw error;
-    } } });
+type RouteCopy = Readonly<Record<string, string>>;
+type RouteFailure = Result<never>;
+
+function sqliteFailure(error: unknown, copy: RouteCopy): RouteFailure | null {
+  const code = typeof error === 'object' && error !== null && 'code' in error ? error.code : undefined;
+  if (code !== 'SQLITE_BUSY' && code !== 'SQLITE_FULL') return null;
+  const reason = code === 'SQLITE_BUSY' ? 'ROUTINES_BUSY' : 'ROUTINES_DISK_FULL';
+  return err({ error: { code: code === 'SQLITE_BUSY' ? 'SERVICE_UNAVAILABLE' : 'INSUFFICIENT_STORAGE', message: copy[reason] ?? 'Routine storage is unavailable', details: { reason } } });
 }
-export function createRoutineGetRoute({ path, copy }: { path: string; copy: Readonly<Record<string, string>> }, _optional = {}) {
-  return defineJsonRoute({ ...routineGetRoute, path, handle: async (required: Parameters<typeof routineGetRoute.handle>[0]) => {
-    try { const result = await routineGetRoute.handle(required); return result.ok || result.error.code !== 'NOT_FOUND' ? result : err({ error: { ...result.error, message: copy.ROUTINE_NOT_FOUND ?? result.error.message, details: { reason: 'ROUTINE_NOT_FOUND' } } }); } catch (error) {
-      if (error instanceof ClientFacingError) return err({ error: { ...error.apiError, message: copy[String((error.apiError.details as { reason?: string } | undefined)?.reason)] ?? error.apiError.message } });
-      const code = typeof error === 'object' && error !== null && 'code' in error ? error.code : undefined; if (code === 'SQLITE_BUSY' || code === 'SQLITE_FULL') { const reason = code === 'SQLITE_BUSY' ? 'ROUTINES_BUSY' : 'ROUTINES_DISK_FULL'; return err({ error: { code: code === 'SQLITE_BUSY' ? 'SERVICE_UNAVAILABLE' : 'INSUFFICIENT_STORAGE', message: copy[reason] ?? 'Routine storage is unavailable', details: { reason } } }); }
-      throw error;
-    } } });
+
+function clientFacingFailure(error: unknown, copy: RouteCopy, mapActive: boolean): RouteFailure | null {
+  if (error instanceof ClientFacingError) return err({ error: { ...error.apiError, message: copy[String((error.apiError.details as { reason?: string } | undefined)?.reason)] ?? error.apiError.message } });
+  if (mapActive && error instanceof RoutineActiveError) return err({ error: { code: 'CONFLICT', message: copy.ROUTINE_RUN_ACTIVE ?? 'Routine already has an active run', details: { reason: 'ROUTINE_RUN_ACTIVE' } } });
+  return null;
 }
-export function createRoutineRunNowRoute({ path, copy }: { path: string; copy: Readonly<Record<string, string>> }, _optional = {}) {
-  return defineJsonRoute({ ...routineRunNowRoute, path, handle: async (required: Parameters<typeof routineRunNowRoute.handle>[0]) => {
-    try { const result = await routineRunNowRoute.handle(required); return result.ok || result.error.code !== 'NOT_FOUND' ? result : err({ error: { ...result.error, message: copy.ROUTINE_NOT_FOUND ?? result.error.message, details: { reason: 'ROUTINE_NOT_FOUND' } } }); } catch (error) {
-      if (error instanceof ClientFacingError) return err({ error: { ...error.apiError, message: copy[String((error.apiError.details as { reason?: string } | undefined)?.reason)] ?? error.apiError.message } });
-      if (error instanceof RoutineActiveError) return err({ error: { code: 'CONFLICT', message: copy.ROUTINE_RUN_ACTIVE ?? 'Routine already has an active run', details: { reason: 'ROUTINE_RUN_ACTIVE' } } });
-      const code = typeof error === 'object' && error !== null && 'code' in error ? error.code : undefined; if (code === 'SQLITE_BUSY' || code === 'SQLITE_FULL') { const reason = code === 'SQLITE_BUSY' ? 'ROUTINES_BUSY' : 'ROUTINES_DISK_FULL'; return err({ error: { code: code === 'SQLITE_BUSY' ? 'SERVICE_UNAVAILABLE' : 'INSUFFICIENT_STORAGE', message: copy[reason] ?? 'Routine storage is unavailable', details: { reason } } }); }
-      throw error;
-    } } });
+
+/** Shared catch-block mapping for every routine route: client-facing errors and SQLite busy/full become wire errors; anything else is rethrown. `mapActive` is set only by run-now, the one route that can surface `RoutineActiveError`. */
+function mapRoutineError(error: unknown, copy: RouteCopy, { mapActive = false }: { mapActive?: boolean } = {}): RouteFailure {
+  const mapped = clientFacingFailure(error, copy, mapActive) ?? sqliteFailure(error, copy);
+  if (mapped) return mapped;
+  throw error;
 }
-export function createRoutineRunsRoute({ path, copy }: { path: string; copy: Readonly<Record<string, string>> }, _optional = {}) {
-  return defineJsonRoute({ ...routineRunsListRoute, path, handle: async (required: Parameters<typeof routineRunsListRoute.handle>[0]) => {
-    try { const result = await routineRunsListRoute.handle(required); return result.ok || result.error.code !== 'NOT_FOUND' ? result : err({ error: { ...result.error, message: copy.ROUTINE_NOT_FOUND ?? result.error.message, details: { reason: 'ROUTINE_NOT_FOUND' } } }); } catch (error) {
-      if (error instanceof ClientFacingError) return err({ error: { ...error.apiError, message: copy[String((error.apiError.details as { reason?: string } | undefined)?.reason)] ?? error.apiError.message } });
-      const code = typeof error === 'object' && error !== null && 'code' in error ? error.code : undefined; if (code === 'SQLITE_BUSY' || code === 'SQLITE_FULL') { const reason = code === 'SQLITE_BUSY' ? 'ROUTINES_BUSY' : 'ROUTINES_DISK_FULL'; return err({ error: { code: code === 'SQLITE_BUSY' ? 'SERVICE_UNAVAILABLE' : 'INSUFFICIENT_STORAGE', message: copy[reason] ?? 'Routine storage is unavailable', details: { reason } } }); }
-      throw error;
-    } } });
+
+function routineNotFound(copy: RouteCopy) {
+  return err({ error: { code: 'NOT_FOUND', message: copy.ROUTINE_NOT_FOUND ?? ROUTINE_NOT_FOUND_MESSAGE, details: { reason: 'ROUTINE_NOT_FOUND' } } });
 }
-export function createRoutineCreateRoute({ path, copy }: { path: string; copy: Readonly<Record<string, string>> }, _optional = {}) {
-  return defineJsonRoute<Omit<RoutineCreateInput, 'target'> & { target?: RoutineProjectTarget }, RoutineResponse,
-    { store: Pick<RoutineStore, 'create'>; scheduler: Pick<RoutineScheduler, 'rescheduleOne' | 'nextRunAt'>;
-      defaults?: { target: RoutineProjectTarget }; resolveCreator(required: { context: unknown }, optional: Record<string, never>): string | null | Promise<string | null> }, unknown>({
-    method: 'post', path, parse: (raw) => {
-      if (!isRecord(raw.body)) return err({ error: validationError({ message: 'body must be a JSON object' }) });
-      const fields = parseRoutineFields({ body: raw.body }, { onlyProvided: true });
-      if (!fields.ok) return err({ error: { ...fields.error, details: { reason: 'INVALID_SCHEDULE' } } });
-      for (const key of ['name', 'prompt']) { const parsed = parseNonEmptyString(raw.body[key], key); if (!parsed.ok) return parsed; }
-      const schedule = parseSchedule(raw.body.schedule);
-      if (!schedule.ok) return err({ error: { ...schedule.error, details: { reason: 'INVALID_SCHEDULE' } } });
-      return ok({ value: fields.value as Omit<RoutineCreateInput, 'target'> & { target?: RoutineProjectTarget } });
-    }, handle: async ({ input, deps, context }) => {
-      try {
-        const creatorId = await deps.resolveCreator({ context }, {});
-        if (creatorId === null) return err({ error: { code: 'UNAUTHORIZED', message: copy.UNAUTHORIZED ?? 'A trusted creator is required' } });
-        const target = input.target ?? deps.defaults?.target;
-        if (!target) return err({ error: validationError({ message: 'target is required' }) });
-        const routine = await deps.store.create({ ...input, target }, { creatorId });
-        deps.scheduler.rescheduleOne({ routineId: routine.id });
-        return ok({ value: { routine: attachNextRunAt(routine, deps.scheduler) } });
-      } catch (error) {
-      if (error instanceof ClientFacingError) return err({ error: { ...error.apiError, message: copy[String((error.apiError.details as { reason?: string } | undefined)?.reason)] ?? error.apiError.message } });
-      const code = typeof error === 'object' && error !== null && 'code' in error ? error.code : undefined; if (code === 'SQLITE_BUSY' || code === 'SQLITE_FULL') { const reason = code === 'SQLITE_BUSY' ? 'ROUTINES_BUSY' : 'ROUTINES_DISK_FULL'; return err({ error: { code: code === 'SQLITE_BUSY' ? 'SERVICE_UNAVAILABLE' : 'INSUFFICIENT_STORAGE', message: copy[reason] ?? 'Routine storage is unavailable', details: { reason } } }); }
-      throw error; }
+
+/** Runs a spec's own handler, relocalizing its NOT_FOUND and mapping thrown errors through `mapRoutineError`. */
+async function handleWithRoutineErrors<T>(run: () => Result<T> | Promise<Result<T>>, copy: RouteCopy, options: { mapActive?: boolean } = {}): Promise<Result<T>> {
+  try {
+    const result = await run();
+    if (result.ok || result.error.code !== 'NOT_FOUND') return result;
+    return err({ error: { ...result.error, message: copy.ROUTINE_NOT_FOUND ?? result.error.message, details: { reason: 'ROUTINE_NOT_FOUND' } } });
+  } catch (error) {
+    return mapRoutineError(error, copy, options);
+  }
+}
+
+type RoutePathCopy = { path: string; copy: RouteCopy };
+
+export function createRoutineListRoute({ path, copy }: RoutePathCopy, _optional = {}) {
+  return defineJsonRoute({ ...routineListRoute, path, handle: (required: Parameters<typeof routineListRoute.handle>[0]) =>
+    handleWithRoutineErrors(() => routineListRoute.handle(required), copy) });
+}
+export function createRoutineGetRoute({ path, copy }: RoutePathCopy, _optional = {}) {
+  return defineJsonRoute({ ...routineGetRoute, path, handle: (required: Parameters<typeof routineGetRoute.handle>[0]) =>
+    handleWithRoutineErrors(() => routineGetRoute.handle(required), copy) });
+}
+export function createRoutineRunNowRoute({ path, copy }: RoutePathCopy, _optional = {}) {
+  return defineJsonRoute({ ...routineRunNowRoute, path, handle: (required: Parameters<typeof routineRunNowRoute.handle>[0]) =>
+    handleWithRoutineErrors(() => routineRunNowRoute.handle(required), copy, { mapActive: true }) });
+}
+export function createRoutineRunsRoute({ path, copy }: RoutePathCopy, _optional = {}) {
+  return defineJsonRoute({ ...routineRunsListRoute, path, handle: (required: Parameters<typeof routineRunsListRoute.handle>[0]) =>
+    handleWithRoutineErrors(() => routineRunsListRoute.handle(required), copy) });
+}
+
+type RoutineCreateBody = Omit<RoutineCreateInput, 'target'> & { target?: RoutineProjectTarget };
+type RoutineCreateDeps = { store: Pick<RoutineStore, 'create'>; scheduler: Pick<RoutineScheduler, 'rescheduleOne' | 'nextRunAt'>;
+  defaults?: { target: RoutineProjectTarget }; resolveCreator(required: { context: unknown }, optional: Record<string, never>): string | null | Promise<string | null> };
+
+function invalidSchedule(error: ApiError) {
+  return err({ error: { ...error, details: { reason: 'INVALID_SCHEDULE' } } });
+}
+
+function parseCreateBody(raw: RouteInputContext): Result<RoutineCreateBody> {
+  if (!isRecord(raw.body)) return err({ error: validationError({ message: 'body must be a JSON object' }) });
+  const fields = parseRoutineFields({ body: raw.body }, { onlyProvided: true });
+  if (!fields.ok) return invalidSchedule(fields.error);
+  for (const key of ['name', 'prompt']) { const parsed = parseNonEmptyString(raw.body[key], key); if (!parsed.ok) return parsed; }
+  const schedule = parseSchedule(raw.body.schedule);
+  if (!schedule.ok) return invalidSchedule(schedule.error);
+  return ok({ value: fields.value as RoutineCreateBody });
+}
+
+async function handleCreate({ input, deps, context }: { input: RoutineCreateBody; deps: RoutineCreateDeps; context?: unknown }, copy: RouteCopy) {
+  const creatorId = await deps.resolveCreator({ context }, {});
+  if (creatorId === null) return err({ error: { code: 'UNAUTHORIZED', message: copy.UNAUTHORIZED ?? 'A trusted creator is required' } });
+  const target = input.target ?? deps.defaults?.target;
+  if (!target) return err({ error: validationError({ message: 'target is required' }) });
+  const routine = await deps.store.create({ ...input, target }, { creatorId });
+  deps.scheduler.rescheduleOne({ routineId: routine.id });
+  return ok({ value: { routine: attachNextRunAt(routine, deps.scheduler) } });
+}
+
+export function createRoutineCreateRoute({ path, copy }: RoutePathCopy, _optional = {}) {
+  return defineJsonRoute<RoutineCreateBody, RoutineResponse, RoutineCreateDeps, unknown>({
+    method: 'post', path, parse: parseCreateBody,
+    handle: async (required) => {
+      try { return await handleCreate(required, copy); } catch (error) { return mapRoutineError(error, copy); }
     },
   }, { requireSameOrigin: true, successStatus: 201 });
 }
-export function createRoutineUpdateRoute({ path, copy }: { path: string; copy: Readonly<Record<string, string>> }, _optional = {}) {
-  return defineJsonRoute<RoutineUpdateRequest & { expectedRevision?: number }, RoutineResponse,
+
+type RoutineUpdateBody = RoutineUpdateRequest & { expectedRevision?: number };
+
+function parseUpdateBody(raw: RouteInputContext): Result<RoutineUpdateBody> {
+  const parsed = parseRoutineUpdate(raw); if (!parsed.ok) return invalidSchedule(parsed.error);
+  const revision = (raw.body as Record<string, unknown>).expectedRevision;
+  if (revision !== undefined && (typeof revision !== 'number' || !Number.isSafeInteger(revision) || revision < 1)) return err({ error: validationError({ message: 'expectedRevision must be a positive safe integer' }) });
+  return ok({ value: { ...parsed.value, ...(revision === undefined ? {} : { expectedRevision: revision }) } });
+}
+
+function revisionOption(expectedRevision: number | undefined): { expectedRevision?: number } {
+  return expectedRevision === undefined ? {} : { expectedRevision };
+}
+
+export function createRoutineUpdateRoute({ path, copy }: RoutePathCopy, _optional = {}) {
+  return defineJsonRoute<RoutineUpdateBody, RoutineResponse,
     { store: Pick<RoutineStore, 'update'>; scheduler: Pick<RoutineScheduler, 'rescheduleOne' | 'nextRunAt'> }>({
-    method: 'patch', path, parse: (raw) => {
-      const parsed = parseRoutineUpdate(raw); if (!parsed.ok) return err({ error: { ...parsed.error, details: { reason: 'INVALID_SCHEDULE' } } });
-      const revision = (raw.body as Record<string, unknown>).expectedRevision;
-      if (revision !== undefined && (typeof revision !== 'number' || !Number.isSafeInteger(revision) || revision < 1)) return err({ error: validationError({ message: 'expectedRevision must be a positive safe integer' }) });
-      return ok({ value: { ...parsed.value, ...(revision === undefined ? {} : { expectedRevision: revision }) } });
-    }, handle: async ({ input: { id, patch, expectedRevision }, deps }) => {
+    method: 'patch', path, parse: parseUpdateBody,
+    handle: async ({ input: { id, patch, expectedRevision }, deps }) => {
       try {
-        const routine = await deps.store.update({ id, patch }, expectedRevision === undefined ? {} : { expectedRevision });
-        if (!routine) return err({ error: { code: 'NOT_FOUND', message: copy.ROUTINE_NOT_FOUND ?? ROUTINE_NOT_FOUND_MESSAGE, details: { reason: 'ROUTINE_NOT_FOUND' } } });
+        const routine = await deps.store.update({ id, patch }, revisionOption(expectedRevision));
+        if (!routine) return routineNotFound(copy);
         deps.scheduler.rescheduleOne({ routineId: id }); return ok({ value: { routine: attachNextRunAt(routine, deps.scheduler) } });
-      } catch (error) {
-      if (error instanceof ClientFacingError) return err({ error: { ...error.apiError, message: copy[String((error.apiError.details as { reason?: string } | undefined)?.reason)] ?? error.apiError.message } });
-      const code = typeof error === 'object' && error !== null && 'code' in error ? error.code : undefined; if (code === 'SQLITE_BUSY' || code === 'SQLITE_FULL') { const reason = code === 'SQLITE_BUSY' ? 'ROUTINES_BUSY' : 'ROUTINES_DISK_FULL'; return err({ error: { code: code === 'SQLITE_BUSY' ? 'SERVICE_UNAVAILABLE' : 'INSUFFICIENT_STORAGE', message: copy[reason] ?? 'Routine storage is unavailable', details: { reason } } }); }
-      throw error; }
+      } catch (error) { return mapRoutineError(error, copy); }
     },
   }, { requireSameOrigin: true });
 }
-export function createRoutineDeleteRoute({ path, copy }: { path: string; copy: Readonly<Record<string, string>> }, _optional = {}) {
+
+function parseDeleteQuery(raw: RouteInputContext): Result<{ id: string; expectedRevision?: number }> {
+  const id = parseRoutineId(raw); if (!id.ok) return id;
+  const value = raw.query.revision;
+  if (value === undefined) return ok({ value: { id: id.value } });
+  const revision = Number(value);
+  if (typeof value !== 'string' || !/^[0-9]+$/.test(value) || !Number.isSafeInteger(revision) || revision < 1) return err({ error: validationError({ message: 'revision must be a positive safe integer' }) });
+  return ok({ value: { id: id.value, expectedRevision: revision } });
+}
+
+export function createRoutineDeleteRoute({ path, copy }: RoutePathCopy, _optional = {}) {
   return defineJsonRoute<{ id: string; expectedRevision?: number }, RoutineDeleteResponse,
     { store: Pick<RoutineStore, 'delete'>; scheduler: Pick<RoutineScheduler, 'unschedule'> }>({
-    method: 'delete', path, parse: (raw) => {
-      const id = parseRoutineId(raw); if (!id.ok) return id;
-      const value = raw.query.revision; const revision = value === undefined ? undefined : Number(value);
-      if (value !== undefined && (typeof value !== 'string' || !/^[0-9]+$/.test(value) || !Number.isSafeInteger(revision) || revision! < 1)) return err({ error: validationError({ message: 'revision must be a positive safe integer' }) });
-      return ok({ value: { id: id.value, ...(revision === undefined ? {} : { expectedRevision: revision }) } });
-    }, handle: async ({ input: { id, expectedRevision }, deps }) => {
+    method: 'delete', path, parse: parseDeleteQuery,
+    handle: async ({ input: { id, expectedRevision }, deps }) => {
       try {
-        const removed = await deps.store.delete({ id }, expectedRevision === undefined ? {} : { expectedRevision });
-        if (!removed) return err({ error: { code: 'NOT_FOUND', message: copy.ROUTINE_NOT_FOUND ?? ROUTINE_NOT_FOUND_MESSAGE, details: { reason: 'ROUTINE_NOT_FOUND' } } });
+        const removed = await deps.store.delete({ id }, revisionOption(expectedRevision));
+        if (!removed) return routineNotFound(copy);
         deps.scheduler.unschedule({ routineId: id }); return ok({ value: { ok: true } });
-      } catch (error) {
-      if (error instanceof ClientFacingError) return err({ error: { ...error.apiError, message: copy[String((error.apiError.details as { reason?: string } | undefined)?.reason)] ?? error.apiError.message } });
-      const code = typeof error === 'object' && error !== null && 'code' in error ? error.code : undefined; if (code === 'SQLITE_BUSY' || code === 'SQLITE_FULL') { const reason = code === 'SQLITE_BUSY' ? 'ROUTINES_BUSY' : 'ROUTINES_DISK_FULL'; return err({ error: { code: code === 'SQLITE_BUSY' ? 'SERVICE_UNAVAILABLE' : 'INSUFFICIENT_STORAGE', message: copy[reason] ?? 'Routine storage is unavailable', details: { reason } } }); }
-      throw error; }
+      } catch (error) { return mapRoutineError(error, copy); }
     },
   }, { requireSameOrigin: true });
 }

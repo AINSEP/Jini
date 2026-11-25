@@ -10,14 +10,54 @@ import { JINI_ROUTINES_LEDGER_TABLE, pinnedChecksum } from './migrations/index.j
 export { SQLITE_ROUTINES_SCHEMA } from './migrations/0001_jini_routines_v1.js';
 export { JINI_ROUTINES_LEDGER_TABLE, JINI_ROUTINES_MIGRATIONS, migrateJiniRoutines, pinnedChecksum } from './migrations/index.js';
 
+function assertMigrationHistory(db: SqliteDb, schemaSetup: string): void {
+  const history = db.prepare<[], { id: string; checksum: string }>(`SELECT id, checksum FROM ${JINI_ROUTINES_LEDGER_TABLE}`).all();
+  if (schemaSetup !== 'host' || history.length !== 1 || history[0]?.id !== '0001_jini_routines_v1'
+    || history[0].checksum !== pinnedChecksum({ id: '0001_jini_routines_v1' }, {})) throw new Error('Routine migration history mismatch');
+}
+
+function assertRevision(row: DurableRoutine, expectedRevision: number | undefined): void {
+  if (expectedRevision !== undefined && row.revision !== expectedRevision) throw new ClientFacingError({ apiError:
+    { code: 'CONFLICT', message: 'Routine changed', details: { reason: 'ROUTINE_CHANGED' } } });
+}
+
+const pick = <T>(patched: T | undefined, current: T): T => (patched === undefined ? current : patched);
+
+function updatedNextRunAt(row: DurableRoutine, patch: RoutineUpdateInput, now: () => number): number | null {
+  if (patch.schedule === undefined && patch.enabled === undefined) return row.nextRunAt;
+  const enabled = patch.enabled ?? row.enabled;
+  return enabled ? nextRunAtForSchedule({ schedule: patch.schedule ?? row.schedule }, { now: new Date(now()) })?.getTime() ?? null : null;
+}
+
+type RunsPosition = { s: number; i: string };
+
+/** Decodes an opaque history cursor; any malformed cursor is the same client error. */
+function decodeRunsCursor(cursor: string): RunsPosition {
+  try {
+    if (!/^[A-Za-z0-9_-]+$/.test(cursor)) throw new Error();
+    const decoded = Buffer.from(cursor, 'base64url');
+    if (decoded.toString('base64url') !== cursor) throw new Error();
+    const value = JSON.parse(new TextDecoder('utf-8', { fatal: true }).decode(decoded));
+    if (!value || Object.keys(value).sort().join(',') !== 'i,s' || !Number.isSafeInteger(value.s)
+      || typeof value.i !== 'string' || !value.i) throw new Error();
+    return value;
+  } catch { throw new ToolInputError({ message: 'Invalid routine history cursor' }); }
+}
+
+function isBeforePosition(run: DurableRoutineRun, position: RunsPosition | undefined): boolean {
+  return !position || run.startedAt < position.s || (run.startedAt === position.s && run.id < position.i);
+}
+
+function encodeRunsCursor(last: DurableRoutineRun): string {
+  return Buffer.from(JSON.stringify({ s: last.startedAt, i: last.id })).toString('base64url');
+}
+
 export function createSqliteRoutineStore(
   { db, scope }: { db: SqliteDb; scope: string },
   { now = Date.now, newId = randomUUID, holderId, schemaSetup = 'host', historyLimit = 100 }:
   { now?: () => number; newId?: () => string; holderId?: string; schemaSetup?: 'host'; historyLimit?: number } = {},
 ): { store: RoutineStore; persistence: RoutineDurablePersistence } {
-  const history = db.prepare<[], { id: string; checksum: string }>(`SELECT id, checksum FROM ${JINI_ROUTINES_LEDGER_TABLE}`).all();
-  if (schemaSetup !== 'host' || history.length !== 1 || history[0]?.id !== '0001_jini_routines_v1'
-    || history[0].checksum !== pinnedChecksum({ id: '0001_jini_routines_v1' }, {})) throw new Error('Routine migration history mismatch');
+  assertMigrationHistory(db, schemaSetup);
   const rows = db.prepare<[string], Omit<DurableRoutine, 'schedule' | 'target' | 'context' | 'enabled'> &
     { schedule: string; target: string; context: string; enabled: number }>(`SELECT id,name,prompt,schedule,target,
       skill_id AS skillId,agent_id AS agentId,model,context,creator_id AS creatorId,enabled,next_run_at AS nextRunAt,
@@ -51,13 +91,17 @@ export function createSqliteRoutineStore(
   const list = (): DurableRoutine[] => rows.all(scope).map((r) => ({ ...r, schedule: JSON.parse(r.schedule),
     target: JSON.parse(r.target), context: JSON.parse(r.context), enabled: Boolean(r.enabled),
     lastRun: summarizeLastRun({ run: listRuns(r.id)[0] ?? null }) }));
+  const slotRejection = (routine: DurableRoutine | undefined, input: Parameters<RoutineDurablePersistence['claimDueSlot']>[0]): 'gone' | 'disabled' | 'slot-moved' | null => {
+    if (!routine) return 'gone';
+    if (!routine.enabled) return 'disabled';
+    if (routine.nextRunAt !== input.expectedNextRunAt) return 'slot-moved';
+    return duplicate.get(scope, input.routineId, input.expectedNextRunAt) ? 'slot-moved' : null;
+  };
   const claimDueSlot = db.transaction((input: Parameters<RoutineDurablePersistence['claimDueSlot']>[0]): ClaimResult => {
     if (!lease.get(scope, input.holderId, input.now)) return { claimed: false, reason: 'lease-lost' };
     const routine = list().find((r) => r.id === input.routineId);
-    if (!routine) return { claimed: false, reason: 'gone' };
-    if (!routine.enabled) return { claimed: false, reason: 'disabled' };
-    if (routine.nextRunAt !== input.expectedNextRunAt) return { claimed: false, reason: 'slot-moved' };
-    if (duplicate.get(scope, input.routineId, input.expectedNextRunAt)) return { claimed: false, reason: 'slot-moved' };
+    const rejected = slotRejection(routine, input);
+    if (rejected || !routine) return { claimed: false, reason: rejected ?? 'gone' };
     advance.run(input.nextRunAt, scope, routine.id, input.expectedNextRunAt);
     if (active.get(scope, routine.id)) return { claimed: false, reason: 'active-run' };
     insertRun(input.run);
@@ -66,17 +110,15 @@ export function createSqliteRoutineStore(
   const update = db.transaction(({ id, patch }: { id: string; patch: RoutineUpdateInput }, { expectedRevision }: { expectedRevision?: number }) => {
     const row = list().find((r) => r.id === id);
     if (!row) return null;
-    if (expectedRevision !== undefined && row.revision !== expectedRevision) throw new ClientFacingError({ apiError:
-      { code: 'CONFLICT', message: 'Routine changed', details: { reason: 'ROUTINE_CHANGED' } } });
+    assertRevision(row, expectedRevision);
     const schedule = patch.schedule ?? row.schedule;
     const enabled = patch.enabled ?? row.enabled;
-    const next = patch.schedule !== undefined || patch.enabled !== undefined
-      ? (enabled ? nextRunAtForSchedule({ schedule }, { now: new Date(now()) })?.getTime() ?? null : null) : row.nextRunAt;
+    const next = updatedNextRunAt(row, patch, now);
     db.prepare(`UPDATE jini_routines SET name=?,prompt=?,schedule=?,target=?,skill_id=?,agent_id=?,model=?,context=?,enabled=?,
       next_run_at=?,revision=revision+1,updated_at=? WHERE scope=? AND id=? AND deleted_at IS NULL`).run(
       patch.name ?? row.name, patch.prompt ?? row.prompt, JSON.stringify(schedule), JSON.stringify(patch.target ?? row.target),
-      patch.skillId === undefined ? row.skillId : patch.skillId, patch.agentId === undefined ? row.agentId : patch.agentId,
-      patch.model === undefined ? row.model : patch.model, JSON.stringify(patch.context ?? row.context), Number(enabled), next, now(), scope, id);
+      pick(patch.skillId, row.skillId), pick(patch.agentId, row.agentId),
+      pick(patch.model, row.model), JSON.stringify(patch.context ?? row.context), Number(enabled), next, now(), scope, id);
     return list().find((r) => r.id === id)!;
   });
   const store: RoutineStore = {
@@ -104,31 +146,19 @@ export function createSqliteRoutineStore(
       return db.transaction(() => {
         const row = list().find((r) => r.id === id);
         if (!row) return false;
-        if (expectedRevision !== undefined && row.revision !== expectedRevision) throw new ClientFacingError({ apiError:
-          { code: 'CONFLICT', message: 'Routine changed', details: { reason: 'ROUTINE_CHANGED' } } });
+        assertRevision(row, expectedRevision);
         db.prepare('UPDATE jini_routines SET deleted_at=?,enabled=0,next_run_at=NULL,revision=revision+1,updated_at=? WHERE scope=? AND id=?').run(now(), now(), scope, id);
         return true;
       }).immediate();
     },
     async listRuns({ routineId, limit: legacyLimit }, { cursor, limit = legacyLimit ?? 20 } = {}) {
-      let position: { s: number; i: string } | undefined;
-      if (cursor != null) {
-        try {
-          if (!/^[A-Za-z0-9_-]+$/.test(cursor)) throw new Error();
-          const decoded = Buffer.from(cursor, 'base64url');
-          if (decoded.toString('base64url') !== cursor) throw new Error();
-          const value = JSON.parse(new TextDecoder('utf-8', { fatal: true }).decode(decoded));
-          if (!value || Object.keys(value).sort().join(',') !== 'i,s' || !Number.isSafeInteger(value.s)
-            || typeof value.i !== 'string' || !value.i) throw new Error();
-          position = value;
-        } catch { throw new ToolInputError({ message: 'Invalid routine history cursor' }); }
-      }
+      const position = cursor == null ? undefined : decodeRunsCursor(cursor);
       if (!Number.isSafeInteger(limit) || limit < 1) throw new ToolInputError({ message: 'Invalid routine history limit' });
       const size = Math.min(50, limit);
-      const found = listRuns(routineId).filter((r) => !position || r.startedAt < position.s || (r.startedAt === position.s && r.id < position.i));
+      const found = listRuns(routineId).filter((r) => isBeforePosition(r, position));
       const items = found.slice(0, size);
       const last = items.at(-1);
-      return { items, nextCursor: found.length > size && last ? Buffer.from(JSON.stringify({ s: last.startedAt, i: last.id })).toString('base64url') : null };
+      return { items, nextCursor: found.length > size && last ? encodeRunsCursor(last) : null };
     },
     async getLatestRun({ routineId }) { return listRuns(routineId)[0] ?? null; },
     async setApproval({ runId, state }, { ref, expectedRef, since } = {}) {
