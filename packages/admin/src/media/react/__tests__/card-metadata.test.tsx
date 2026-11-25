@@ -18,3 +18,8 @@ it('formats dates by locale and omits invalid legacy dates', () => {
   expect(formatUploadDate({ createdAt: '' })).toBeNull();
   expect(formatUploadDate({ createdAt: 'invalid' })).toBeNull();
 });
+it('formats the upload day in the owner time zone: a 23:30 local upload on the previous UTC day shows the local day', () => {
+  // 2026-10-04T06:30Z is 23:30 on Oct 3 in Los Angeles (PDT, UTC-7): the owner uploaded it on Oct 3.
+  expect(formatUploadDate({ createdAt: '2026-10-04T06:30:00Z' }, { timeZone: 'America/Los_Angeles' })).toBe('Oct 3, 2026');
+  expect(formatUploadDate({ createdAt: '2026-10-04T06:30:00Z' }, { timeZone: 'UTC' })).toBe('Oct 4, 2026');
+});

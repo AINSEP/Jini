@@ -5,14 +5,21 @@ import { formatByteSize } from "@jini-ai/core/text";
 import { useMediaCardMetadata } from "../use-media-card-metadata.hooks.js";
 
 describe("legacy media card metadata", () => {
-  it("defaults to Jini's en-US size and UTC upload calendar date", () => {
+  it("defaults to Jini's en-US size; an injected UTC zone gives the UTC upload calendar date", () => {
     const { result } = renderHook(() => useMediaCardMetadata({
       item: { byteSize: 9_961_472, createdAt: "2026-10-03T23:30:00-02:00" },
-    }));
+    }, { timeZone: "UTC" }));
     expect(result.current).toEqual({
       byteSize: "9.5 MB", uploadDate: "Oct 4, 2026",
       uploadDateTime: "2026-10-03T23:30:00-02:00", metadataSeparator: " · ", hasMetadata: true,
     });
+  });
+
+  it("shows the owner's local upload day for the injected time zone, not the UTC day", () => {
+    const { result } = renderHook(() => useMediaCardMetadata({
+      item: { byteSize: null, createdAt: "2026-10-04T06:30:00Z" },
+    }, { timeZone: "America/Los_Angeles" }));
+    expect(result.current.uploadDate).toBe("Oct 3, 2026");
   });
 
   it("forwards the card locale to both Jini formatters", () => {

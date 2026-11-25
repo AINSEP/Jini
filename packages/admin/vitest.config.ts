@@ -2,6 +2,9 @@ import { defineConfig } from 'vitest/config';
 
 export default defineConfig({
   test: {
+    // Dates render in the runtime's zone unless a caller injects one (media upload dates, 2026-11-25): pin it so
+    // default-zone assertions are reproducible on any machine; zone-specific behavior is tested with explicit zones.
+    env: { TZ: 'UTC' },
     // No `environment: 'jsdom'` at the top level, matching `@jini-ai/ui`'s `./core` subpath: `src/core/**` must
     // stay universal (no React, no DOM), and a DOM-dependent test landing there would mean the
     // boundary this package exists to hold has already leaked. Let it fail loudly.
