@@ -1,20 +1,22 @@
-import { reportRouteInternalError } from '@jini-ai/http-kit';
 import { mkdir, mkdtemp, readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { denyAllOrigins } from '@jini-ai/core/contracts/server/testing';
-import { fakeDaemonRouteHost } from './fakes/route-host.js';
-import { jsonRequest, serveRoutes } from './fakes/serve-routes.js';
-import { describeRoutes } from '../route-table.js';
+import { fakeXaiRouteHost, jsonRequest, serveRoutes } from './fakes.js';
 import {
   beginOAuthPkce,
-  setStoredOAuthToken,
+  clearStoredOAuthToken,
+  completeOAuthPkce,
+  getStoredOAuthToken,
   PendingAuthCache,
-  XAI_OAUTH_PROVIDER_CONFIG,
-  type OAuthCallbackListener,
-  type OAuthCallbackOutcome,
+  resolveOAuthBearer,
+  setStoredOAuthToken,
+  startOAuthCallbackListener,
+  validateBaseUrl,
 } from '@jini-ai/agent-runtime';
+import type { OAuthCallbackListener, OAuthCallbackOutcome, OAuthPkceFlowPort } from '../oauth-port.js';
+import { XAI_OAUTH_PROVIDER_CONFIG } from '../preset.js';
 import {
   xaiRoutes,
   toStoredOAuthToken,
@@ -25,7 +27,31 @@ import {
   xaiOauthStartRoute,
   xaiSearchRoute,
   type XaiHttpDeps,
-} from '../xai.js';
+} from '../routes.js';
+
+/** The host binding of the port: agent-runtime's real OAuth functions, called with no adapter (the `satisfies` is the proof). */
+const REAL_OAUTH = {
+  begin: (required) => beginOAuthPkce(required),
+  complete: (required, optional = {}) => completeOAuthPkce(required, optional),
+  tokens: {
+    get: (required) => getStoredOAuthToken(required),
+    set: (required) => setStoredOAuthToken(required),
+    clear: (required) => clearStoredOAuthToken(required),
+  },
+  resolveBearer: (required, optional = {}) => resolveOAuthBearer(required, optional),
+  startCallbackListener: (required, optional = {}) => startOAuthCallbackListener(required, optional),
+  createPendingCache: (required = {}, optional = {}) => new PendingAuthCache(required, optional),
+} satisfies OAuthPkceFlowPort<PendingAuthCache>;
+const PORTS = { oauth: REAL_OAUTH as OAuthPkceFlowPort, baseUrlGuard: { validate: (required: { baseUrl: string }) => validateBaseUrl(required) }, now: () => Date.now() };
+
+/** Tests script the loopback listener per call; it is the one port member they replace. */
+function withPorts<T extends object>(deps: T): Omit<T, 'startCallbackListener'> & typeof PORTS {
+  const { startCallbackListener, ...rest } = deps as T & { startCallbackListener?: OAuthPkceFlowPort['startCallbackListener'] };
+  return { ...rest, ...PORTS, oauth: startCallbackListener ? { ...PORTS.oauth, startCallbackListener } : PORTS.oauth };
+}
+
+/** The reporter a direct-handler test passes; the mounted-list tests use a host of their own to read reports back. */
+const reportRouteInternalError = fakeXaiRouteHost().reportInternalError;
 
 const REDIRECT_URI = 'http://127.0.0.1:56121/callback';
 
@@ -47,6 +73,7 @@ function okSearchResponse(body: unknown) {
 }
 
 type TestDeps = XaiHttpDeps & {
+  startCallbackListener?: OAuthPkceFlowPort['startCallbackListener'];
   dataDir: string;
   pending: PendingAuthCache;
   listenerRef: { current: OAuthCallbackListener | null };
@@ -72,14 +99,14 @@ afterEach(async () => {
  * explicit injection seam instead, so overrides are accepted loosely here and cast once at the end.
  */
 function makeDeps(overrides: Record<string, unknown> = {}): TestDeps {
-  return {
+  return withPorts({
     reportInternalError: reportRouteInternalError,
     dataDir,
     pending: new PendingAuthCache({}, { ttlMs: 30 * 60 * 1000 }),
     listenerRef: { current: null },
     fetchImpl: vi.fn(),
     ...overrides,
-  } as TestDeps;
+  }) as unknown as TestDeps;
 }
 
 /** Seeds a real pending PKCE state the way `xaiOauthStartRoute` would, without going through the route (so `oauth/complete`/`oauth/cancel` tests can start from a known-valid state). */
@@ -532,19 +559,17 @@ describe('xaiAuthStatusRoute', () => {
 
   // Every other SEC-005 case in this file injects `onInternalError`, so the console.error fallback a
   // host gets by default was never exercised — and it is the only record of a redacted failure.
-  it('falls back to console.error when no onInternalError sink is supplied', async () => {
-    const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => { });
+  it('reports a token-file read failure to the host reporter under the xai/auth-status source (the reporter, not this route, owns the console fallback)', async () => {
     // A directory where the token file belongs makes `readFile` fail for a real reason (EISDIR),
     // no fs mocking and no network involved — same technique as the injected-sink case below.
     await mkdir(path.join(dataDir, 'xai-oauth-token.json'));
+    const host = fakeXaiRouteHost();
 
-    const result = await xaiAuthStatusRoute.handle({ input: undefined, deps: { reportInternalError: reportRouteInternalError, dataDir } });
+    const result = await xaiAuthStatusRoute.handle({ input: undefined, deps: { ...PORTS, reportInternalError: host.reportInternalError, dataDir } });
 
-    expect(result).toMatchObject({ ok: false, error: { code: 'INTERNAL_ERROR' } });
-    expect(consoleErrorSpy).toHaveBeenCalledTimes(1);
-    expect(consoleErrorSpy.mock.calls[0]![0]).toContain('internal error (xai/auth-status, correlationId=');
-    expect(consoleErrorSpy.mock.calls[0]?.[1]).toBe('Error(EISDIR)');
-    consoleErrorSpy.mockRestore();
+    expect(result).toMatchObject({ ok: false, error: { code: 'INTERNAL_ERROR', requestId: 'req-1' } });
+    expect(host.reports).toHaveLength(1);
+    expect(host.reports[0]).toMatchObject({ logSource: 'xai/auth-status', report: { source: 'auth-status', error: { code: 'EISDIR' } } });
   });
 
   // MOVE: openid-client requires token_type; optional expiry/scope still report explicit nulls.
@@ -575,7 +600,7 @@ describe('xaiAuthStatusRoute', () => {
 
     const cwdSpy = vi.spyOn(process, 'cwd').mockReturnValue(dataDir);
     try {
-      const result = await xaiAuthStatusRoute.handle({ input: undefined, deps: { reportInternalError: reportRouteInternalError } });
+      const result = await xaiAuthStatusRoute.handle({ input: undefined, deps: { ...PORTS, reportInternalError: reportRouteInternalError } });
       expect(result).toMatchObject({ ok: true, value: { connected: true, scope: 'openid api:access' } });
       expect(cwdSpy).toHaveBeenCalled();
     } finally {
@@ -1080,21 +1105,21 @@ describe('xaiSearchRoute.handle', () => {
 
 describe('xaiRoutes', () => {
   type Served = (request: Request) => Promise<Response>;
-  const listen = (deps: Omit<XaiHttpDeps, 'reportInternalError'>, { denyOrigins = false }: { denyOrigins?: boolean } = {}): Served =>
-    serveRoutes({ routes: xaiRoutes({ deps, host: fakeDaemonRouteHost({}, denyOrigins ? { originPolicy: denyAllOrigins } : {}) }) });
+  const listen = (deps: object, { denyOrigins = false }: { denyOrigins?: boolean } = {}): Served =>
+    serveRoutes({ routes: xaiRoutes({ deps: withPorts(deps), host: fakeXaiRouteHost({}, denyOrigins ? { originPolicy: denyAllOrigins } : {}) }) });
   async function send(served: Served, method: string, routePath: string, body?: unknown) {
     const response = await served(jsonRequest({ path: routePath, method }, { body }));
     return { status: response.status, body: await response.json() as Record<string, unknown> };
   }
 
-  it('lists exactly the six xai routes, each behind the same-origin gate', () => {
-    expect(describeRoutes({ routes: xaiRoutes({ deps: { dataDir }, host: fakeDaemonRouteHost() }) })).toEqual([
-      { method: 'POST', path: '/api/xai/oauth/start', gates: ['same-origin'] },
-      { method: 'POST', path: '/api/xai/oauth/complete', gates: ['same-origin'] },
-      { method: 'POST', path: '/api/xai/oauth/cancel', gates: ['same-origin'] },
-      { method: 'GET', path: '/api/xai/auth/status', gates: ['same-origin'] },
-      { method: 'POST', path: '/api/xai/oauth/disconnect', gates: ['same-origin'] },
-      { method: 'POST', path: '/api/xai/search', gates: ['same-origin'] },
+  it('lists exactly the six xai routes', () => {
+    expect(xaiRoutes({ deps: withPorts({ dataDir }), host: fakeXaiRouteHost() }).map(({ method, path: routePath }) => ({ method, path: routePath }))).toEqual([
+      { method: 'POST', path: '/api/xai/oauth/start' },
+      { method: 'POST', path: '/api/xai/oauth/complete' },
+      { method: 'POST', path: '/api/xai/oauth/cancel' },
+      { method: 'GET', path: '/api/xai/auth/status' },
+      { method: 'POST', path: '/api/xai/oauth/disconnect' },
+      { method: 'POST', path: '/api/xai/search' },
     ]);
   });
 
@@ -1229,7 +1254,7 @@ describe('xaiRoutes', () => {
 
 it('retains the injected reporter through xAI dependency resolution', async () => {
   await mkdir(path.join(dataDir, 'xai-oauth-token.json'));
-  const host = fakeDaemonRouteHost();
+  const host = fakeXaiRouteHost();
   const result = await xaiOauthDisconnectRoute.handle({ input: undefined, deps: makeDeps({ reportInternalError: host.reportInternalError }) });
   expect(result).toMatchObject({ ok: false, error: { code: 'INTERNAL_ERROR', requestId: 'req-1' } });
   expect(host.reports[0]).toMatchObject({ report: { source: 'oauth-disconnect', error: expect.any(Error) } });
