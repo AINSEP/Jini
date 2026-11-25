@@ -1,4 +1,4 @@
-import { useId, type ReactNode } from 'react';
+import { useId, type KeyboardEvent, type ReactNode } from 'react';
 import { agentHandleProps, agentSubHandle } from '@jini-ai/core/agent-handles';
 import { useT } from '../../../i18n/index.js';
 import { CUSTOM_MODEL_SENTINEL } from '../../constants.js';
@@ -41,6 +41,12 @@ export interface ByokProviderFormProps {
   modelDiscovery: ModelDiscoveryState;
   connectionTest: ConnectionTestState;
   onTestConnection: () => void;
+  /**
+   * Called when the operator commits the Base URL field — on blur, or on Enter outside IME
+   * composition — with the input's current value. Typing alone only patches `config`; a host that
+   * sends the key to this URL (model discovery) should treat only this call as the operator's intent.
+   */
+  onBaseUrlCommit?: (required: { readonly baseUrl: string }, _optional?: Record<string, never>) => void;
   /** Hides the "Test connection" control for hosts with no probe endpoint. */
   canTestConnection?: boolean;
   /**
@@ -168,6 +174,7 @@ export function ByokProviderForm({
   modelDiscovery,
   connectionTest,
   onTestConnection,
+  onBaseUrlCommit,
   canTestConnection = true,
   apiKeyFooter,
   formFooter,
@@ -183,7 +190,7 @@ export function ByokProviderForm({
   const { revealKey, setRevealKey, explicitCustomModel, setExplicitCustomModel, validation, patch } = hooks.useByokProviderForm({ config, onConfigChange, preset, apiKeyStoredExternally, deferMissingFeedback });
   const part: ByokFieldPartProps = { config, patch, preset, agentHandle, validation };
 
-  const connectionFields = <ByokConnectionFields {...part} />;
+  const connectionFields = <ByokConnectionFields {...part} onBaseUrlCommit={onBaseUrlCommit} />;
 
   return (
     <div className="jini-byok-card">
@@ -231,7 +238,22 @@ export function ByokProviderForm({
 }
 
 /** Base URL (unless the preset has a fixed origin) and Max tokens, on one wrapping row. */
-function ByokConnectionFields({ config, patch, preset, agentHandle, validation, useTHook = useT }: ByokFieldPartProps) {
+/**
+ * Enter commits the Base URL, except while an IME is composing (that Enter picks a candidate, not
+ * the field's value). The committing Enter is default-prevented so it does not also submit an
+ * enclosing host form. Reads the input's current value, never a value captured at render.
+ */
+function commitBaseUrlOnEnter({ event, onBaseUrlCommit }: {
+  event: KeyboardEvent<HTMLInputElement>; onBaseUrlCommit: ByokProviderFormProps['onBaseUrlCommit'];
+}, _optional = {}): void {
+  if (!onBaseUrlCommit || event.key !== 'Enter' || event.nativeEvent.isComposing) return;
+  event.preventDefault();
+  onBaseUrlCommit({ baseUrl: event.currentTarget.value });
+}
+
+function ByokConnectionFields({ config, patch, preset, agentHandle, validation, onBaseUrlCommit, useTHook = useT }: ByokFieldPartProps & {
+  onBaseUrlCommit: ByokProviderFormProps['onBaseUrlCommit'];
+}) {
   const t = useTHook();
   return (
     <>
@@ -257,6 +279,8 @@ function ByokConnectionFields({ config, patch, preset, agentHandle, validation, 
               spellCheck={false}
               value={config.baseUrl}
               onChange={(event) => patch({ baseUrl: event.target.value })}
+              onBlur={(event) => onBaseUrlCommit?.({ baseUrl: event.currentTarget.value })}
+              onKeyDown={(event) => commitBaseUrlOnEnter({ event, onBaseUrlCommit })}
               {...agentHandleProps({}, { base: agentHandle, ...({ action: 'base-url', role: 'field', label: t('Base URL') }) })}
             />
             <span className={'jini-field-hint' + (validation.baseUrlInvalid ? ' is-error' : '')}>

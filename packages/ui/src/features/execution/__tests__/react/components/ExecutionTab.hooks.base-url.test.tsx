@@ -1,7 +1,7 @@
 import { act, renderHook } from '../../../../../__tests__/ui-kit-render-support.js';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createFakeExecutionPort } from '../../../dependencies.js';
-import type { ByokConfig, ExecutionConfig } from '@jini-ai/core/contracts/execution';
+import type { ByokConfig, ExecutionConfig, ExecutionPort } from '@jini-ai/core/contracts/execution';
 import { useExecutionTabView } from '../../../react/components/ExecutionTab.hooks.js';
 
 const KEY = `sk-test-${'0'.repeat(32)}`;
@@ -11,14 +11,15 @@ const byok = (overrides: Partial<ByokConfig> = {}): ExecutionConfig => ({
 } as ExecutionConfig);
 
 // B216: model discovery sends the provider key to the Base URL. It used to probe on every
-// keystroke, then on a 600 ms pause; neither is the operator saying "this is the endpoint".
+// keystroke, so the key went to every half-typed host ("https://ap", "https://api.ex", …).
+// A 600 ms pause replaced that, but a pause is not the operator saying "this is the endpoint".
 describe('BYOK model discovery waits for an explicitly committed Base URL', () => {
   beforeEach(() => { vi.useFakeTimers(); });
   afterEach(() => { vi.useRealTimers(); });
 
   function mount(initial: ExecutionConfig = byok()) {
     const port = createFakeExecutionPort({ models: ['m'] });
-    const listModels = vi.spyOn(port, 'listModels');
+    const listModels = vi.spyOn(port as Required<ExecutionPort>, 'listModels');
     const view = renderHook(({ config }) => useExecutionTabView({ config, onConfigChange: () => {}, port, presets: [],
       autoDetect: false, canDiscoverModels: true, describeProbeError: undefined }), { initialProps: { config: initial } });
     return { listModels, view };

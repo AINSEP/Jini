@@ -99,7 +99,7 @@ function mountStateful({ byok = {}, canDiscoverModels = true, wrapInForm = false
   byok?: Partial<ExecutionConfig['byok']>; canDiscoverModels?: boolean; wrapInForm?: boolean;
 } = {}) {
   const port = createFakeExecutionPort({ models: ['m'] });
-  const listModels = vi.spyOn(port, 'listModels');
+  const listModels = vi.spyOn(port as Required<ExecutionPort>, 'listModels');
   const testConnection = vi.spyOn(port, 'testConnection');
   const onSubmit = vi.fn((event: { preventDefault: () => void }) => event.preventDefault());
   const initial = config({ byok: { protocol: 'anthropic', providerId: 'anthropic', apiKey: KEY, baseUrl: SAVED, model: 'm', ...byok } });
@@ -118,8 +118,9 @@ describe('ExecutionTab BYOK endpoint approval', () => {
   it('blur with a complete URL probes once', async () => {
     const { baseUrlInput, probedUrls } = mountStateful();
     expect(probedUrls()).toEqual([SAVED]);
-    await userEvent.clear(baseUrlInput());
-    await userEvent.type(baseUrlInput(), DRAFT);
+    // Typed over the selection rather than cleared first: an emptied field is the host's default
+    // endpoint, which is approved by design and would add its own (legitimate) probe.
+    await userEvent.type(baseUrlInput(), DRAFT, { initialSelectionStart: 0, initialSelectionEnd: SAVED.length });
     expect(probedUrls()).toEqual([SAVED]);
     await userEvent.tab();
     expect(probedUrls()).toEqual([SAVED, DRAFT]);
