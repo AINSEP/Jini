@@ -130,7 +130,7 @@ describe('env-access host scan (where it looks and which files are process entri
     const stale = { ...all[0]!, file: 'packages/tool/src/gone.ts' };
     mkdirSync(join(root, 'scripts'));
     writeFileSync(join(root, 'scripts/env-access-debt.json'), JSON.stringify({ violations: [all[0], stale] }));
-    const log = vi.spyOn(console, 'log').mockImplementation(() => {});
+    const log = vi.spyOn(console, 'info').mockImplementation(() => {});
     expect(checkEnvAccess({ repoRoot: root }, { entryEnvNames: {} })).toEqual([all[1]]);
     expect(log.mock.calls.map(([line]) => line)).toEqual([
       '[hardwiring] HW9-env-access: 2 total; 1 new',
@@ -143,7 +143,7 @@ describe('env-access host scan (where it looks and which files are process entri
 
 describe('env-access debt file of this repository', () => {
   it('is current: no occurrence is missing from it and none in it is stale', () => {
-    vi.spyOn(console, 'log').mockImplementation(() => {});
+    vi.spyOn(console, 'info').mockImplementation(() => {});
     const repoRoot = join(import.meta.dirname, '../..');
     const debt = JSON.parse(readFileSync(join(repoRoot, 'scripts/env-access-debt.json'), 'utf8')) as { violations: unknown[] };
     expect(checkEnvAccess({ repoRoot })).toEqual([]);
