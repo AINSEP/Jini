@@ -1,0 +1,44 @@
+/* Only Skills' composition; row, field, button and dialog paint stays shared. */
+/* D-32: Skills is a page in the shared scroll flow, not a viewport-height settings panel. */
+.jini-skills-page.settings-ui-section { max-width: none; height: auto; }
+.jini-skills-page.settings-ui-section > .jini-tabbed-dialog { flex: none; }
+/* Keep the shared inline shell in page flow, with the shared page insets. */
+.jini-skills-page .jini-tabbed-dialog {
+  height: auto;
+  min-height: 0;
+  grid-template-columns: minmax(0, 1fr);
+  background: transparent;
+  border: none;
+  border-radius: 0;
+  box-shadow: var(--jini-panel-shadow-flat);
+}
+.jini-skills-page .jini-tabbed-dialog-head { padding-top: 0; padding-inline: 0; }
+.jini-skills-page .jini-tabbed-dialog-head-line { flex-direction: column; align-items: flex-start; gap: var(--jini-admin-space-1); }
+.jini-skills-page .jini-tabbed-dialog-content { overflow: visible; padding-inline: 0; }
+.jini-skills-page .jini-tabbed-dialog--inline .jini-tabbed-dialog-sidebar { padding-inline: 0; }
+.jini-skills-file-input[hidden] { display: none; }
+/* The shared row's `--row-text-min` basis decides when the actions wrap under this block (styles.css). */
+.jini-skills-row-summary { flex: 1 1 var(--jini-admin-row-text-min); min-width: 0; padding-bottom: 12px; }
+.jini-skills-row-summary .agent-plugin-row-summary { width: 100%; padding-bottom: 4px; }
+.jini-skills-row-summary .agent-plugin-row-text { flex: 1; }
+.jini-skills-row-identity { display: flex; align-items: center; }
+.jini-skills-row-identity .agent-plugin-row-summary { flex: 1; min-width: 0; width: auto; }
+.jini-skills-row-expander { margin-right: 14px; }
+.jini-skills-row-expander[aria-expanded="true"] .jini-agent-plugin-chevron-glyph { transform: rotate(90deg); }
+.jini-skills-row-source { margin: 0; padding-left: 63px; font-size: 11.5px; color: var(--jini-text-muted); }
+.jini-skills-row-source code { font: inherit; font-family: var(--jini-admin-font-mono); }
+.jini-skills-confirm-dialog { box-sizing: border-box; width: calc(100% - 2rem); max-height: calc(100dvh - 2rem); overflow-y: auto; }
+.jini-skills-confirm-source { overflow-wrap: anywhere; }
+/* Container (2026-10-11): the pane's width; 536px ≈ the old 560px viewport minus phone padding. */
+@container admin-content (max-width: 536px) {
+  .jini-skills-row-source { padding-right: 14px; }
+}
+/* The narrow shared row moves 9px of the bottom inset onto `.agent-plugin-row-main` (styles.css). */
+@container agent-plugin-list (max-width: 560px) {
+  .jini-skills-row-summary { padding-bottom: 3px; }
+}
+
+/* A failed drop is an in-flow alert, never a flexible transcript pane. */
+.jini-skills-install-error.notice { flex: 0 0 auto; display: flex; align-items: center; gap: var(--jini-admin-space-2); }
+.jini-skills-install-error > span { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+.jini-skills-install-error > button { min-width: 44px; min-height: 44px; flex-shrink: 0; }

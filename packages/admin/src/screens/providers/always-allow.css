@@ -1,0 +1,12 @@
+/**
+ * `features/providers/AlwaysAllowPanel.tsx` — one heading + table per server. Existing tokens
+ * only, so light and dark mode come from `styles.css` like everything else.
+ */
+
+.jini-always-allow-panel { display: grid; gap: var(--jini-admin-space-5); }
+.jini-always-allow-panel > .page-description { margin: 0; }
+.jini-always-allow-server { display: grid; gap: var(--jini-admin-space-2); }
+.jini-always-allow-server .card-title { margin: 0; }
+.jini-always-allow-server .list-table td:first-child { width: 100%; }
+.jini-always-allow-server .list-table td { white-space: nowrap; }
+.jini-always-allow-actions { text-align: right; }

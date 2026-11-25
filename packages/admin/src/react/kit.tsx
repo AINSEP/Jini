@@ -11,13 +11,21 @@
  * FetchQueryBinding, "keep the adapter fixed for this provider's lifetime").
  */
 import { createContext, forwardRef, useContext, useState } from 'react';
-import type { ComponentProps, ComponentType, Dispatch, KeyboardEvent as ReactKeyboardEvent, MouseEvent,
+import type { ComponentProps, ComponentType, CSSProperties, Dispatch, KeyboardEvent as ReactKeyboardEvent, MouseEvent,
   ReactElement, ReactNode, Ref, RefObject, SetStateAction, SyntheticEvent } from 'react';
 import type { FetchQueryAdapter } from '@jini-ai/core/fetch';
 import type { Translate } from '@jini-ai/core/text';
 import type { MediaProviderCatalogPolicy, MediaProviderOption } from '@jini-ai/core';
 import type { UserFacingError } from '@jini-ai/core';
 import type { AdminMediaProvidersKit } from './kit-media-providers.js';
+import type { AdminSurfaceProtocolKit } from './kit-admin-surfaces.js';
+import type { AdminPluginProviderSettingField } from '../screens/plugins/api/plugins-api.types.js';
+import type { ByokConfig, ExecutionConfig } from '@jini-ai/core/contracts/execution';
+import type { CreateExecutionPortOptions, CursorPages, ExecutionCredentialController, ExecutionCredentialEffects, ExecutionCredentialPort, ExecutionCredentialView,
+  ExecutionProbeTransport, FolderPathDropPort, HtmlPreviewPort, HtmlPreviewState, KitSaveState, SettingsSlice, SettingsSliceOptions, SourceConfigItem, SourceFieldSpec,
+  UseExecutionCredentialInput, SecretInputProps } from './kit-ui-types.js';
+import type { ExecutionPort, ProviderPreset } from '@jini-ai/core/contracts/execution';
+import type { QueryKey } from '@jini-ai/core/fetch';
 
 /* ---------- shared shapes (local; structurally equal to the host kit's) ---------- */
 /** Opaque host metadata; implementations spread it onto the documented focus target. */
@@ -81,6 +89,8 @@ export interface InfoTipProps {
   /** The trigger's accessible name when it differs from the tip text; `descriptionId` ties the tip to a described control. */
   triggerLabel?: string | undefined; descriptionId?: string | undefined;
   placement?: 'top' | 'bottom' | 'inline' | undefined; icon?: ReactNode | undefined;
+  /** Replaces the tip's own controller (e.g. a padlock whose press follows a link instead of pinning the tip). */
+  useTip?: ((required?: Record<string, never>, optional?: { placement?: 'top' | 'bottom' | undefined }) => InfoTipController) | undefined;
 }
 type LightboxPart = 'dialog' | 'close' | 'previous' | 'next';
 export interface LightboxProps {
@@ -221,6 +231,8 @@ export interface AdminKitComponents {
   RemixIcon: ComponentType<RemixIconProps>; Toast: ComponentType<ToastProps>; I18nProvider: ComponentType<I18nProviderProps>;
   SettingsDialogShell: ComponentType<SettingsDialogShellProps>; CodeWithLines: ComponentType<CodeWithLinesProps>;
   CodeWrapToggle: ComponentType<CodeWrapToggleProps>; PreviewModalShell: ComponentType<PreviewModalShellProps>;
+  /** A masked password/token/key input with an eye toggle; every `<input>` prop passes through, and the ref reaches the input. */
+  SecretInput: ComponentType<SecretInputProps & { ref?: Ref<HTMLInputElement> }>;
 }
 
 /* ---------- hooks ---------- */
@@ -310,6 +322,24 @@ export interface AdminKitHooks {
   useTabbedDialog(required: { tabs: readonly SettingsDialogTab[]; initialActiveTabId?: string | undefined }, optional?: Record<string, never>): TabbedDialogView;
   /** `copied` turns true after a successful copy and back to false after `resetMs`. */
   useCopyToClipboard(clipboard: KitClipboardPort, resetMs?: number): CopyToClipboardController;
+  /** Reads the admin-stored execution credential and saves/migrates it; the host supplies the port and effects. */
+  useExecutionCredential<TStored extends ExecutionCredentialView>(required: UseExecutionCredentialInput & {
+    port: ExecutionCredentialPort<TStored>; effects: ExecutionCredentialEffects<TStored>;
+  }, optional?: Record<string, never>): ExecutionCredentialController<TStored>;
+  /** One settings slice: loaded once, saved after a debounce, refreshed when another slice publishes its namespace. */
+  useSettingsSlice<T>(options: SettingsSliceOptions<T>): SettingsSlice<T>;
+  useStandingDraftAutosave(deps: StandingDraftAutosaveOptions, options?: Record<string, never>): StandingDraftAutosaveController;
+  /** `useCopyToClipboard` over the browser's own clipboard. */
+  useWiredCopyToClipboard(resetMs?: number): CopyToClipboardController;
+  /** Cursor-paged list: re-fetches from the first page when the filters change. */
+  useCursorPages<Filters, Item>(required: {
+    key: (required: { filters: Filters }) => QueryKey;
+    fetchPage: (required: { filters: Filters }, optional?: { cursor?: string | undefined }) => Promise<{ items: Item[]; nextCursor: string | null }>;
+    initialFilters: Filters;
+  }, optional?: Record<string, never>): CursorPages<Filters, Item>;
+  /** The UI library's locale context: the active locale, its setter and the translator. */
+  useI18n(): { locale: Locale; setLocale: (next: Locale) => void; t: KitTranslator };
+  useDebouncedHtmlPreview(required: { source: string; render: HtmlPreviewPort }, optional?: { revision?: string; delayMs?: number }): HtmlPreviewState;
 }
 /** A translator with optional interpolation variables, as the UI library's `useT` returns. */
 export type KitTranslator = (key: string, vars?: Readonly<Record<string, string | number>>) => string;
@@ -379,7 +409,23 @@ export interface VisibilitySource {
   addEventListener(type: 'visibilitychange', listener: () => void): void;
   removeEventListener(type: 'visibilitychange', listener: () => void): void;
 }
-export interface AdminKitValues {
+/* ---------- restated shapes (A-K2-0c) ---------- */
+/** A settings slice's save status (the UI library's panel-kit shape). */
+export type SaveState = KitSaveState;
+/** The settings dialog's theme choice. */
+export type SettingsThemeChoice = 'system' | 'light' | 'dark';
+/** The host's notifications preferences (same shape as {@link KitNotificationsPreferences}). */
+export type NotificationsPreferences = KitNotificationsPreferences;
+/** The editor's target for a protected block (same shape as {@link HtmlEditorTarget}). */
+export type EditorHtmlTarget = HtmlEditorTarget;
+/** The editor's "open the HTML source for this block" callback. */
+export type RequestEditHtml = (target: EditorHtmlTarget, options: object) => void | Promise<void>;
+/** How a conversation title was produced; decides whether it is shown as saved or re-derived. */
+export type KitConversationTitleSource = 'fallback' | 'generated' | 'manual';
+export interface AdminKitValues extends AdminSurfaceProtocolKit {
+  /** Whether a plugin provider setting must be filled given the other entered values. */
+  readonly isProviderSettingRequired: (required: { field: Pick<AdminPluginProviderSettingField, 'required' | 'requiredUnless' | 'requiredWhen'>; values: Readonly<Record<string, unknown>> },
+    optional?: Record<string, never>) => boolean;
   readonly SETTINGS_DIALOG_DICTIONARIES: KitDictionaries;
   readonly DEFAULT_NOTIFICATIONS_PREFERENCES: KitNotificationsPreferences;
   /** The waits between retries while the host is unreachable. */
@@ -403,11 +449,82 @@ export interface AdminKitValues {
   /** The requested tab when it is present, else the first tab, else null. */
   readonly resolveInitialActiveTabId: <T extends SettingsDialogTab>(required: { tabs: readonly T[] }, optional?: { initialTabId?: string | null | undefined }) => string | null;
   readonly findActiveTab: <T extends SettingsDialogTab>(required: { tabs: readonly T[]; activeTabId: string | null }, optional?: Record<string, never>) => T | undefined;
+  /** Black or white, whichever reads on the given hex background. */
+  readonly readableTextColor: (required: { hex: string }, optional?: Record<string, never>) => string;
+  /** Whether an external refresh may replace a settings slice's value right now. */
+  readonly canAcceptRefresh: (required: { timerPending: boolean; hasUnsavedEdits: boolean; mounted: boolean; commitsUnchanged: boolean }, optional?: Record<string, never>) => boolean;
+  readonly mergeSaveStates: (required: { states: readonly SaveState[] }, optional?: Record<string, never>) => SaveState;
+  /** Debounce (ms) for text fields in a settings slice. */
+  readonly SAVE_DEBOUNCE_MS: number;
+  /** Runs `tick` every `periodMs` while the document is visible; returns the stop function. */
+  readonly startVisibleInterval: (required: { tick: () => void; periodMs: number }, optional?: { doc?: VisibilitySource }) => () => void;  /** Execution-config writers: switch the selected agent, set its model or its reasoning level, returning the next config. */
+  readonly nextConfigForAgentSelect: (required: { config: ExecutionConfig; agentId: string }, optional?: Record<string, never>) => ExecutionConfig;
+  readonly nextConfigForAgentModel: (required: { config: ExecutionConfig; agentId: string; model: string }, optional?: Record<string, never>) => ExecutionConfig;
+  readonly nextConfigForAgentReasoning: (required: { config: ExecutionConfig; agentId: string; reasoning: string }, optional?: Record<string, never>) => ExecutionConfig;
+  /** The preset the BYOK config points at, or null when it matches none. */
+  readonly resolveSelectedPreset: (required: { presets: readonly ProviderPreset[]; config: ByokConfig }, optional?: Record<string, never>) => ProviderPreset | null;
+  readonly createExecutionHttpAdapter: (required: { transport: ExecutionProbeTransport }, optional?: Record<string, never>) => {
+    createPort: (required?: Record<string, never>, options?: CreateExecutionPortOptions) => ExecutionPort;
+    resetDetectionCache: (required?: Record<string, never>, optional?: Record<string, never>) => void;
+  };
+  /** The response's `data`, or a plain-words error naming the call site when it is missing. */
+  readonly requireExecutionResponseData: <T>(required: { response: { data?: T | null } | null | undefined; callSite: string }, optional?: Record<string, never>) => T;
+  /** Runs `load`, retrying on the host's unreachable delays while `isUnreachable` says the failure is a lost connection. */
+  readonly retryWhileUnreachable: <T>(required: { load: () => Promise<T>; signal: AbortSignal; isUnreachable: (error: unknown) => boolean },
+    optional?: { delaysMs?: readonly number[]; wait?: (required: { ms: number; signal: AbortSignal }) => Promise<void> }) => Promise<T>;
+  readonly createBrowserViewerClipboard: () => KitClipboardPort;
+  /** The folder paths of the dropped files, through the host's path port. */
+  readonly folderPathsFromDataTransfer: (required: { dataTransfer: DataTransfer; port: FolderPathDropPort }, optional?: Record<string, never>) => string[];
+  readonly findEditorBlockOpening: (required: { html: string; target: EditorHtmlTarget }, optional?: object) => { start: number; end: number; openingTag: string } | undefined;
+  readonly isEditorSourceError: (required: { error: unknown }, optional?: object) => boolean;
+  readonly resolveAccentColor: (required: { value: unknown }) => string;
+  readonly normalizeAccentColor: (required: { value: unknown }) => string | null;
+  readonly resolveSelectTriggerLabel: (required: { selectedOption: WidgetSelectOption | null; placeholder: string | undefined },
+    optional?: { t?: Translate | undefined }) => { text: string; className: string };
+  readonly infoTipBubbleStyle: (coords: { top: number; left: number; arrowLeft?: number | undefined }) => CSSProperties;
+  /** Markdown to HTML that is safe to inject (scripts and event handlers stripped). */
+  readonly renderMarkdownToSafeHtml: (markdown: string) => string;
+  readonly sourceDisplayLabel: (required: { source: SourceConfigItem; fieldSpecs: readonly SourceFieldSpec[] }, optional?: Record<string, never>) => string;
+}
+
+/** The host's execution contract lives in core; admin re-exports it by name so screens import one kit. */
+export type { ApiProtocol, ByokConfig, ByokProviderCredentials, ExecutionCardAgent, ExecutionConfig, ExecutionMode, ExecutionPort, LocalCliConfig, ProviderPreset } from '@jini-ai/core/contracts/execution';
+export type { DetectedAgent } from '@jini-ai/core/contracts/site/agent-runtime';
+export type { FetchQueryEnvironmentPort, QueryKey } from '@jini-ai/core/fetch';
+export type { AddSourceInput, AddSourceResult, CreateExecutionPortOptions, CursorPage, CursorPages, ExecutionCredentialController, ExecutionCredentialEffects,
+  ExecutionCredentialPatch, ExecutionCredentialPort, ExecutionCredentialSaveState, ExecutionCredentialView, ExecutionProbeFlags, ExecutionProbeTransport, FolderPathDropPort,
+  HtmlPreviewPort, HtmlPreviewState, MemoryConfigFlagKey, MemoryEntrySummary, MemoryExtractionPhase, MemoryExtractionProvider, MemoryExtractionRecord,
+  MemoryExtractionSkipReason, MemoryType, PrivacyConsentState, SecretInputProps, SettingsRefreshScope, SettingsSlice, SettingsSliceOptions, SettingsSliceRefreshPort,
+  SourceConfigDependencies, SourceConfigItem, SourceConfigPort, SourceConnectionStatus, SourceFieldKind, SourceFieldOption, SourceFieldSpec, SourceFieldValues,
+  SourceTestResult, SourceUpdateInput, TelemetryPreferences, UseExecutionCredentialInput } from './kit-ui-types.js';
+/** The standing-draft autosave's port, controller and options (the UI library's panel-kit shapes). */
+export interface StandingDraftAutosavePort {
+  getBackupPrincipalId?: (required: Record<string, never>, optional?: Record<string, never>) => string | null;
+  putAutosave(required: { id: string; draft: StandingDraftAutosaveInput }, options?: { keepalive?: boolean }): Promise<{ applied: boolean }>;
+  getAutosave(required: { id: string }, optional?: Record<string, never>): Promise<{ autosave: StandingDraftAutosaveSnapshot | null }>;
+  discardAutosave(required: { id: string }, optional?: Record<string, never>): Promise<{ ok: boolean }>;
+}
+export interface StandingDraftStaleBasis { baseVersion: number; draft: StandingDraftAutosaveInput }
+export interface StandingDraftAutosaveController {
+  recoverableDraft: StandingDraftAutosaveSnapshot | null; staleBasis: StandingDraftStaleBasis | null; dismissRecoverable: () => void;
+  scheduleAutosave: (draft: StandingDraftAutosaveInput) => void;
+  clearStandingDraft: (required?: Record<string, never>, optional?: { keepOnFailure?: boolean }) => Promise<{ discarded: boolean }>;
+  supersedeBasis: (baseVersion: number) => void;
+  preserveFailedSave: (required: { error: unknown; draft: StandingDraftAutosaveInput }, optional?: Record<string, never>) => void;
+}
+export interface StandingDraftAutosaveOptions {
+  port: StandingDraftAutosavePort; backup: StandingDraftLocalBackup; entryId: string | null; enabled: boolean; serverUpdatedAt?: string | undefined;
 }
 
 /* ---------- chat (the host's chat library: its translator and the run posters; shapes restated) ---------- */
 export type { A2uiSurfaceCardProps, AgentEvent, ChatAttachment, ChatMessage, ChatPaneAgent, ChatPaneAgentOption, ChatPaneAgentSelection, ChatPaneRuntimeAccess, ChatPaneComposerHandle, ChatPaneWorkingDirectoryAccess, ChatRole, ChatRunStatus, ChatTransport, ExtEventCall, ExtEventRenderProps, FabPositionInput, FabPositionResult, FeedbackChange, I18nAdapter, KitA2uiActionDeliveryOutcome, KitA2uiActionPosterInput, KitChatAttachment, KitChatTranslator, KitDeliverMidRunMessage, KitDeliverTypedAnswer, KitMidRunMessageDelivery, KitPosterRequestOptions, KitRedactUserText, KitSecretRedactionSignal, KitTypedAnswerDelivery, KitUserTextRedactionOptions, ReattachRunOptions, RunHandlers, SecretRedactionSignal, StartRunInput, ToolResultMediaBlock } from './kit-chat-types.js';
+export type { AgentInventoryEntry, AgentInventorySnapshot, AgentInventorySnapshotArgs, AssistantChatsClient, AssistantChatsClientPorts, AssistantChatsPort, AssistantConversation,
+  AttemptResult, ChatAttachmentValidatorInput, ChatAttachmentValidatorOptions, ComposerDiscoveryArgument, ComposerDiscoveryGroup, ComposerDiscoveryItem, ComposerDiscoveryOutcome,
+  ComposerDiscoverySelection, CreateA2uiActionPosterOptions, DeliverTypedAnswer, DurableRunBinding, DurableSubscriptionPorts, ExtEventRenderer, ExtEventRendererOptions,
+  ExtEventRendererRegistry, ExtEventSlotKey, LastConversationStorage, LastConversationStore, SaveFailureInput, SaveOutcome, UseAssistantChats, UserTextRedactionOptions } from './kit-chat-types.js';
 import type { AgentEvent, ChatAttachment, ChatMessage, ChatPaneAgent, ChatPaneAgentOption, ChatPaneAgentSelection, ChatPaneRuntimeAccess, ChatPaneComposerHandle, ChatRole, ChatRunStatus, ChatTransport, ExtEventCall, ExtEventRenderProps, FabPositionInput, FabPositionResult, FeedbackChange, I18nAdapter, KitA2uiActionDeliveryOutcome, KitA2uiActionPosterInput, KitChatAttachment, KitChatTranslator, KitDeliverMidRunMessage, KitDeliverTypedAnswer, KitMidRunMessageDelivery, KitPosterRequestOptions, KitRedactUserText, KitSecretRedactionSignal, KitTypedAnswerDelivery, KitUserTextRedactionOptions, ReattachRunOptions, RunHandlers, SecretRedactionSignal, StartRunInput, ToolResultMediaBlock } from './kit-chat-types.js';
+import type { AgentInventoryEntry, AgentInventorySnapshot, AgentInventorySnapshotArgs, AssistantChatsClient, AssistantChatsClientPorts, ChatAttachmentValidatorInput,
+  ChatAttachmentValidatorOptions, ExtEventRendererRegistry, LastConversationStorage, LastConversationStore } from './kit-chat-types.js';
 
 export interface AdminKitChat {
   /** The chat translator hook. Screens receive it as an injected hook prop (`useChatT`), never a direct import. */
@@ -422,9 +539,36 @@ export interface AdminKitChat {
   useFabPosition(required: FabPositionInput, optional?: Record<string, never>): FabPositionResult;
   /** Normalizes a requested agent/model/effort against the inventory, as the chat pane does. */
   resolveChatPaneSelection(required: { agents: readonly ChatPaneAgent[]; requested: ChatPaneAgentSelection }, optional?: Record<string, never>): ChatPaneAgentSelection;
+  /** The title to display for a conversation, or null when it has none yet. */
+  conversationTitleForDisplay(required: { title: string | null; titleSource: KitConversationTitleSource; firstPrompt?: string | undefined }, optional?: Record<string, never>): string | null;
+  /** The heuristic title derived from a first prompt. */
+  deriveConversationTitle(required: { prompt: string }, optional?: Record<string, never>): string;
+  /** One transcript slot per MCP-UI surface / mid-run user message; `undefined` when the event carries no id. */
+  mcpUiSurfaceSlotKey(required: { data: unknown }, optional?: Record<string, never>): string | undefined;
+  midRunUserMessageSlotKey(required: { data: unknown }, optional?: Record<string, never>): string | undefined;
+  /** The ext-event names those slots render under. */
+  readonly MCP_UI_EXT_EVENT_NAME: string;
+  readonly MID_RUN_USER_MESSAGE_EXT_EVENT_NAME: string;
   /** The chat library's own copy shown after a typed secret was redacted, and the credential-card guidance line. */
   readonly SECRET_REDACTED_NOTICE: string;
   readonly CREDENTIAL_CARD_GUIDANCE: string;
+  /** True for a run status that will not change again (succeeded, failed or canceled). */
+  isTerminalRunStatus(required: { status: ChatRunStatus | undefined }, optional?: Record<string, never>): boolean;
+  /** A private registry of ext-event renderers (the host builds one per dock instead of using the library's shared one). */
+  createExtEventRendererRegistry(required?: Record<string, never>, optional?: Record<string, never>): ExtEventRendererRegistry;
+  /** Remembers which conversation was last open under `scope`; `storage: null` disables persistence. */
+  createLastConversationStore(required: { scope: string }, optional?: { storage?: LastConversationStorage | null }): LastConversationStore;
+  /** The saved-conversation hook and its save/retry helpers, over the host's ports. */
+  createAssistantChatsClient(required: { ports: AssistantChatsClientPorts }, optional?: Record<string, never>): AssistantChatsClient;
+  /** Session-scoped cache of the last agent list, under the host's storage key. */
+  createAgentInventorySnapshot<T extends AgentInventoryEntry>(required: AgentInventorySnapshotArgs, optional?: Record<string, never>): AgentInventorySnapshot<T>;
+  /** Reads a conversation's messages, reusing the last answer when the host reports it unchanged. */
+  createConditionalHistoryRead(required: {
+    read: (required: { conversationId: string }, optional: { version?: string | undefined }) => Promise<{ messages?: ChatMessage[]; version?: string | undefined; unchanged?: boolean }>;
+  }, optional?: Record<string, never>): (required: { conversationId: string }, optional?: Record<string, never>) => Promise<ChatMessage[]>;
+  /** Drops attachments whose files no longer exist on the host. */
+  createChatAttachmentValidator(required: ChatAttachmentValidatorInput, optional?: Omit<ChatAttachmentValidatorOptions, 'fetchImpl'>)
+    : (attachments: readonly ChatAttachment[]) => Promise<readonly ChatAttachment[]>;
 }
 
 export interface AdminKit {
@@ -489,6 +633,7 @@ export const SettingsDialogShell = slot('SettingsDialogShell');
 export const CodeWithLines = slot('CodeWithLines');
 export const CodeWrapToggle = slot('CodeWrapToggle');
 export const PreviewModalShell = slot('PreviewModalShell');
+export const SecretInput = slot('SecretInput');
 
 export const useAgentHandle: AdminKitHooks['useAgentHandle'] = (r, o) => useAdminKit().hooks.useAgentHandle(r, o);
 export const useFocusTrap: AdminKitHooks['useFocusTrap'] = (r, o) => useAdminKit().hooks.useFocusTrap(r, o);
@@ -515,6 +660,13 @@ export const usePanelPosition: AdminKitHooks['usePanelPosition'] = (r, o) => use
 export const useSelectDropdown: AdminKitHooks['useSelectDropdown'] = (r, o) => useAdminKit().hooks.useSelectDropdown(r, o);
 export const useTabbedDialog: AdminKitHooks['useTabbedDialog'] = (r, o) => useAdminKit().hooks.useTabbedDialog(r, o);
 export const useCopyToClipboard: AdminKitHooks['useCopyToClipboard'] = (clipboard, resetMs) => useAdminKit().hooks.useCopyToClipboard(clipboard, resetMs);
+export const useExecutionCredential: AdminKitHooks['useExecutionCredential'] = (r, o) => useAdminKit().hooks.useExecutionCredential(r, o);
+export const useSettingsSlice: AdminKitHooks['useSettingsSlice'] = (options) => useAdminKit().hooks.useSettingsSlice(options);
+export const useStandingDraftAutosave: AdminKitHooks['useStandingDraftAutosave'] = (deps, options) => useAdminKit().hooks.useStandingDraftAutosave(deps, options);
+export const useWiredCopyToClipboard: AdminKitHooks['useWiredCopyToClipboard'] = (resetMs) => useAdminKit().hooks.useWiredCopyToClipboard(resetMs);
+export const useCursorPages: AdminKitHooks['useCursorPages'] = (r, o) => useAdminKit().hooks.useCursorPages(r, o);
+export const useI18n: AdminKitHooks['useI18n'] = () => useAdminKit().hooks.useI18n();
+export const useDebouncedHtmlPreview: AdminKitHooks['useDebouncedHtmlPreview'] = (r, o) => useAdminKit().hooks.useDebouncedHtmlPreview(r, o);
 
 /** The host's CHAT translator (the chat library's locale context), distinct from the UI `useT` above. */
 export function useChatT(_required: Record<string, never> = {}, _optional: Record<string, never> = {}): KitChatTranslator {
@@ -529,7 +681,10 @@ export function useAdminKitChatPosters(_required: Record<string, never> = {}, _o
 export const useFabPosition: AdminKitChat['useFabPosition'] = (r, o) => useAdminKit().chat.useFabPosition(r, o);
 /** The chat library's plain values (selection resolver and notice copy), read once per render: the injected object, never copied. */
 export function useAdminKitChatValues(_required: Record<string, never> = {}, _optional: Record<string, never> = {})
-  : Pick<AdminKitChat, 'resolveChatPaneSelection' | 'SECRET_REDACTED_NOTICE' | 'CREDENTIAL_CARD_GUIDANCE'> {
+  : Pick<AdminKitChat, 'resolveChatPaneSelection' | 'SECRET_REDACTED_NOTICE' | 'CREDENTIAL_CARD_GUIDANCE' | 'conversationTitleForDisplay' | 'deriveConversationTitle'
+    | 'mcpUiSurfaceSlotKey' | 'midRunUserMessageSlotKey' | 'MCP_UI_EXT_EVENT_NAME' | 'MID_RUN_USER_MESSAGE_EXT_EVENT_NAME'
+    | 'isTerminalRunStatus' | 'createExtEventRendererRegistry' | 'createLastConversationStore' | 'createAssistantChatsClient' | 'createAgentInventorySnapshot'
+    | 'createConditionalHistoryRead' | 'createChatAttachmentValidator'> {
   return useAdminKit().chat;
 }
 
@@ -547,4 +702,5 @@ export function useAdminThemeKit(): AdminThemeKit { return useAdminKit().theme; 
 /** The injected plain values, read once per render. The same objects the host passed: never copied. */
 export function useAdminKitValues(_required: Record<string, never> = {}, _optional: Record<string, never> = {}): AdminKitValues { return useAdminKit().values; }
 
+export type * from './kit-admin-surfaces.js';
 export type { MediaProviderCatalogPolicy, MediaProviderOption };
