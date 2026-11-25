@@ -9,6 +9,7 @@ import {
 } from "../errors.js";
 import type { EntryRevisionInput } from "../write-service.js";
 import { createEntry } from "../write-service.js";
+import { MissingMutationActorError } from "../../core/mutation-actor.js";
 import type { EntryRecord } from "../types.js";
 
 /**
@@ -236,4 +237,19 @@ test("a non-delegated create writes null delegation columns on its revision, not
   assert.ok(revision, "a revision row must have been appended");
   assert.strictEqual(revision.delegatedByWorkspaceId, null, "the common non-delegated case must still bind null");
   assert.strictEqual(revision.delegatedById, null);
+});
+
+test("an untyped caller that names no trusted actor is refused before anything is written (FIX 19 / H2)", async () => {
+  const events: unknown[] = [];
+  const entryRepo = fakeEntryRepo();
+  const contentTypeRepo = fakeContentTypeRepo(activeContentType());
+  // The type makes `actor` required; this is the JS / `as`-cast caller the runtime guard exists for.
+  const input = { workspaceId: "ws-1", actorId: "user-1", type: "recipe", slug: "chili-unattributed", title: "Chili", fieldsJson: { ext: { site: {} } } };
+
+  await assert.rejects(
+    createEntry({ deps: { entryRepo, contentTypeRepo, clock, ids, authorize: alwaysAllow, outbox: { enqueue: async (e: unknown) => { events.push(e); } } }, input: input as never }),
+    (err: Error) => err instanceof MissingMutationActorError,
+  );
+  assert.equal(await entryRepo.findBySlug({ workspaceId: "ws-1", type: "recipe", slug: "chili-unattributed" } as never), null);
+  assert.equal(events.length, 0);
 });
