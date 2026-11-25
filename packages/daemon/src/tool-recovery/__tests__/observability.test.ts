@@ -117,7 +117,10 @@ test.each(['completed', 'timed-out', 'denied', 'confirmation-denied'] as const)(
   if (status !== 'completed') expected.push([{ name: 'tool.failures', value: 1 }, { kind: 'counter', attributes: { 'tool.id': 'pages_list', kind: status === 'timed-out' ? 'internal' : 'refused' } }]);
   expect(metric.mock.calls).toEqual(expected);
   expect(fake.operations[0]?.end?.failed).toBe(status === 'timed-out');
-  expect(fake.operations[0]?.errors).toHaveLength(status === 'timed-out' ? 1 : 0);
+  // Since the P4 reporter seam the decorator records failures through the host reporter (which
+  // carries the tracker's trace ids), never straight onto the span port: one record per timeout.
+  expect(fake.operations[0]?.errors).toEqual([]);
+  expect(rec.reports).toHaveLength(status === 'timed-out' ? 1 : 0);
 });
 
 test('records exactly one classified counter per non-canceled tool failure', async () => {
@@ -129,7 +132,7 @@ test('records exactly one classified counter per non-canceled tool failure', asy
   ] as const) {
     const metric = vi.fn();
     const executor = withToolCallObservability({ inner: executorReturning(() => result),
-      observability: { ...createFakePort().port, metric, supportsMetric: true } });
+      reporter: recording().reporter, observability: { ...createFakePort().port, metric, supportsMetric: true } });
     expect(await executor.execute(CALL)).toBe(result);
     expect(metric.mock.calls).toEqual([
       [{ name: 'tool.calls', value: 1 }, { kind: 'counter', attributes: { 'tool.id': 'pages_list' } }],
@@ -139,7 +142,7 @@ test('records exactly one classified counter per non-canceled tool failure', asy
   for (const [error, kind] of [[new ToolInputError({ message: 'invalid input' }), 'input'], [new Error('unexpected'), 'internal']] as const) {
     const metric = vi.fn();
     const executor = withToolCallObservability({ inner: executorReturning(() => { throw error; }),
-      observability: { ...createFakePort().port, metric, supportsMetric: true } });
+      reporter: recording().reporter, observability: { ...createFakePort().port, metric, supportsMetric: true } });
     await expect(executor.execute(CALL)).rejects.toBe(error);
     expect(metric.mock.calls).toEqual([
       [{ name: 'tool.calls', value: 1 }, { kind: 'counter', attributes: { 'tool.id': 'pages_list' } }],
