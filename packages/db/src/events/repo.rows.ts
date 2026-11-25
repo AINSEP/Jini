@@ -107,14 +107,19 @@ export function toItemRecord(row: Selectable<ChangeSetItemsTable>): ChangeSetIte
   };
 }
 
-/** `toRecord`'s inverse: every absent optional field is written as SQL NULL; `actor_kind` only under `ActorKindColumn`. */
-export function toRow(record: ChangeSetRecord, { actorKindColumn = false }: ActorKindColumn = {}): Insertable<ChangeSetsTable> {
+/** The attribution columns of a record, refusing conflicting ids; `actor_kind` is named only under `ActorKindColumn`. */
+function actorColumns(record: ChangeSetRecord, { actorKindColumn = false }: ActorKindColumn): Pick<Insertable<ChangeSetsTable>, "actor_id" | "actor_kind"> {
   assertConsistentActor(record);
+  const actorId = record.actorId ?? record.actor?.id ?? null;
+  return actorKindColumn ? { actor_id: actorId, actor_kind: record.actor?.kind ?? null } : { actor_id: actorId };
+}
+
+/** `toRecord`'s inverse: every absent optional field is written as SQL NULL; `actor_kind` only under `ActorKindColumn`. */
+export function toRow(record: ChangeSetRecord, options: ActorKindColumn = {}): Insertable<ChangeSetsTable> {
   return {
-    ...(actorKindColumn ? { actor_kind: record.actor?.kind ?? null } : {}),
+    ...actorColumns(record, options),
     id: record.id,
     workspace_id: record.workspaceId,
-    actor_id: record.actorId ?? record.actor?.id ?? null,
     status: record.status,
     summary: record.summary,
     idempotency_key: record.idempotencyKey ?? null,
