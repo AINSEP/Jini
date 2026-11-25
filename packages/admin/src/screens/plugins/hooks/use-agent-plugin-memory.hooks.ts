@@ -1,5 +1,5 @@
 import { describeErrorForLog } from "@jini-ai/core/model-facing-tool-errors";
-import { useFetchQuery, useFetchMutation, useCachedLoader } from "@jini-ai/ui/fetch-query";
+import { useFetchQuery, useFetchMutation, useCachedLoader } from "../../../react/kit.js";
 import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
 import type { AgentPluginMemoryPort, PluginMemoryListing } from "./agent-plugin-memory-port.hooks.js";
 
