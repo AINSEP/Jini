@@ -57,3 +57,30 @@ export interface MediaImportRefusalPorts {
   logEgressRefusal(required: { line: string }, optional?: Record<string, never>): void;
   isPathRefusal(required: { error: unknown }, optional?: Record<string, never>): boolean;
 }
+
+export interface ImageGenerationCredential {
+  readonly apiKey?: string;
+  readonly baseUrl?: string;
+}
+
+export interface GeneratedImageBytes {
+  readonly bytes: Uint8Array;
+  readonly providerId: string;
+  readonly usedStubFallback: boolean;
+}
+
+export interface ImageGenerationPorts {
+  readSavedSelections(
+    required: { workspaceId: string }, optional?: Record<string, never>,
+  ): Promise<Readonly<Record<string, { apiKeyConfigured?: boolean; model?: string }>>>;
+  readSavedCredential(
+    required: { workspaceId: string; providerId: string }, optional?: Record<string, never>,
+  ): Promise<ImageGenerationCredential | null>;
+  readEnvCredential(
+    required: { providerId: string }, optional?: Record<string, never>,
+  ): ImageGenerationCredential | null;
+  generateImage(
+    required: { model: string; prompt: string; providerId: string; credentials: ImageGenerationCredential; allowStubFallback: boolean },
+    optional: { signal: AbortSignal },
+  ): Promise<GeneratedImageBytes>;
+}

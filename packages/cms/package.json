@@ -773,7 +773,10 @@
       "./asset-transfer/asset-destinations": "node",
       "./publish/content/sql/raw-row-sqlite": "node",
       "./publish/content/tool-helpers": "universal",
-      "./trash/visibility": "universal"
+      "./trash/visibility": "universal",
+      "./asset-transfer/copy-tool": "node",
+      "./media/site-transform/tool": "node",
+      "./media/site-generation/tool-registrations": "node"
     },
     "isolation": {
       "domains": {
@@ -4998,6 +5001,21 @@
       "types": "./dist/trash/visibility.d.ts",
       "import": "./dist/trash/visibility.js",
       "default": "./dist/trash/visibility.js"
+    },
+    "./asset-transfer/copy-tool": {
+      "types": "./dist/asset-transfer/copy-tool.d.ts",
+      "import": "./dist/asset-transfer/copy-tool.js",
+      "default": "./dist/asset-transfer/copy-tool.js"
+    },
+    "./media/site-transform/tool": {
+      "types": "./dist/media/site-transform/tool.d.ts",
+      "import": "./dist/media/site-transform/tool.js",
+      "default": "./dist/media/site-transform/tool.js"
+    },
+    "./media/site-generation/tool-registrations": {
+      "types": "./dist/media/site-generation/tool-registrations.d.ts",
+      "import": "./dist/media/site-generation/tool-registrations.js",
+      "default": "./dist/media/site-generation/tool-registrations.js"
     }
   },
   "files": [

@@ -40,3 +40,12 @@ try {
 **Must never import.** Host modules (theme or media tool catalogs, composition roots), a server
 framework, a filesystem API, `sharp` directly, or product names. The host's codec adapter is the
 only path to pixels.
+
+## Tool registration
+
+`@jini-ai/cms/media/site-transform/tool` composes these operations with injected source readers,
+`AssetDestinationKit` from `@jini-ai/cms/asset-transfer/asset-destinations`, and the host's branded
+approval handler. The codec is required. Inspection reads and inspects without resolving a destination.
+Site and picked-folder outputs use the guarded writer's one prepared batch and approval card; the
+same bytes and paths reach the writer after confirmation. Theme outputs use the injected theme writer
+and one reload because those edits retain the theme owner's validation and undo behavior.
