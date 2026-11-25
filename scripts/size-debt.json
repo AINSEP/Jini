@@ -189,13 +189,6 @@
     "value": 275
   },
   {
-    "file": "packages/plugins/src/host/node/runtime-core.ts",
-    "function": "createPluginRuntimeCore",
-    "line": 387,
-    "rule": "max-lines-per-function",
-    "value": 393
-  },
-  {
     "file": "packages/server/src/builtin-features.ts",
     "function": "createBuiltInFeatures",
     "line": 226,
