@@ -6865,6 +6865,12 @@
    "resolveSiteTimeZone": "function:0125f4b887"
   }
  },
+ "./settings/site/site-timezone-fallback": {
+  "types": "./dist/settings/site/site-timezone-fallback.d.ts",
+  "symbols": {
+   "createSiteTimeZoneFallbackReporter": "function:2fec8ca476"
+  }
+ },
  "./settings/site/site-title": {
   "types": "./dist/settings/site/site-title.d.ts",
   "symbols": {
@@ -6899,6 +6905,13 @@
    "SiteTitlePreservationStorePort": "interface:cebc19a1bc",
    "SiteTitlePreservationTables": "interface:3ad8711c81",
    "SqlSiteTitlePreservationStore": "class:f72057b030"
+  }
+ },
+ "./settings/site/site-title-reporter": {
+  "types": "./dist/settings/site/site-title-reporter.d.ts",
+  "symbols": {
+   "createSiteTitleFailureReporter": "function:ecc7c1a759",
+   "createSiteTitlePreservationSummaryReporter": "function:24fc658604"
   }
  },
  "./settings/site/site-title-write": {
