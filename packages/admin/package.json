@@ -741,7 +741,9 @@
       "./screens/plugins/AgentPluginRow": "browser",
       "./screens/plugins/PackageFilesModal": "browser",
       "./screens/plugins/PluginPackageFilesModal": "browser",
-      "./screens/plugins/rules-context": "browser"
+      "./screens/plugins/rules-context": "browser",
+      "./screens/trash/Trash": "browser",
+      "./screens/trash/hooks/use-trash.hooks": "browser"
     },
     "isolation": {
       "shared": [
@@ -4623,6 +4625,16 @@
       "types": "./dist/screens/plugins/rules-context.d.ts",
       "import": "./dist/screens/plugins/rules-context.js",
       "default": "./dist/screens/plugins/rules-context.js"
+    },
+    "./screens/trash/Trash": {
+      "types": "./dist/screens/trash/Trash.d.ts",
+      "import": "./dist/screens/trash/Trash.js",
+      "default": "./dist/screens/trash/Trash.js"
+    },
+    "./screens/trash/hooks/use-trash.hooks": {
+      "types": "./dist/screens/trash/hooks/use-trash.hooks.d.ts",
+      "import": "./dist/screens/trash/hooks/use-trash.hooks.js",
+      "default": "./dist/screens/trash/hooks/use-trash.hooks.js"
     }
   },
   "files": [
@@ -5121,6 +5133,12 @@
       ],
       "screens/settings/hooks/use-external-mcp-tool-picker.hooks": [
         "./dist/screens/settings/hooks/use-external-mcp-tool-picker.hooks.d.ts"
+      ],
+      "screens/trash/Trash": [
+        "./dist/screens/trash/Trash.d.ts"
+      ],
+      "screens/trash/hooks/use-trash.hooks": [
+        "./dist/screens/trash/hooks/use-trash.hooks.d.ts"
       ]
     }
   },
