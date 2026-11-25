@@ -36,6 +36,33 @@ function run(fields: unknown, d = deps(), authorize = recordingAuthorize().autho
 }
 
 describe("mediaUploadRoute", () => {
+  it("upload returns the original media with a safe conversion notice", async () => {
+    const stored = fakeMedia({ id: "original-video" });
+    const d = { ...deps(), storeUpload: async () => ({ media: stored, conversionNotice: "web-copy-unavailable" as const }) };
+    expect(await run(FIELDS, d)).toStrictEqual({
+      ok: true, value: { media: { id: stored.id }, conversionNotice: "web-copy-unavailable" },
+    });
+  });
+
+  it("successful and non-video uploads omit conversionNotice", async () => {
+    const video = { ...FIELDS, filename: "a.mp4", contentType: "video/mp4", dataBase64: Buffer.from("000000186674797069736f6d0000000069736f6d6d703432", "hex").toString("base64") };
+    for (const fields of [video, FIELDS]) {
+      const result = await run(fields);
+      expect(result).toStrictEqual({ ok: true, value: { media: { id: "m-9" } } });
+      if (!result.ok) throw new Error("expected upload success");
+      expect(result.value).not.toHaveProperty("conversionNotice");
+    }
+  });
+
+  it("omits an arbitrary conversion notice without changing the projected media", async () => {
+    const stored = fakeMedia({ id: "original-video" });
+    const d = { ...deps(), storeUpload: async () => ({ media: stored, conversionNotice: "/tmp/x provider said …" as never }) };
+    const result = await run(FIELDS, d);
+    expect(result).toStrictEqual({ ok: true, value: { media: { id: stored.id } } });
+    if (!result.ok) throw new Error("expected upload success");
+    expect(result.value).not.toHaveProperty("conversionNotice");
+  });
+
   it("keeps the method, path and 201", () => {
     expect(mediaUploadRoute.method).toBe("post");
     expect(mediaUploadRoute.path).toBe("/api/admin/v1/workspaces/:workspaceId/media");

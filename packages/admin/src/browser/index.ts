@@ -6,6 +6,7 @@
  */
 
 export {
+  BEFORE_LINK_NAVIGATION_EVENT,
   NAVIGATION_EVENT,
   installInternalLinkInterceptor,
   navigate,

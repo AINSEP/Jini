@@ -235,6 +235,9 @@ export interface AdminMediaDto {
   publicUrl: string | null;
 }
 
+export type MediaConversionNotice = "web-copy-unavailable";
+export type MediaUploadResult<Media> = { media: Media; conversionNotice?: MediaConversionNotice };
+
 /** The single-asset body (update, trash). */
 export interface AdminMediaEnvelope { media: AdminMediaDto }
 

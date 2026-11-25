@@ -1,4 +1,5 @@
 import type { AdminMedia } from "@jini-ai/core/contracts/site/cms-admin-media";
+import type { MediaUploadResult } from "@jini-ai/core/contracts/site/cms-media";
 
 /**
  * @file What `use-media.hooks.ts`, `use-edit-media-panel.hooks.ts`, and `use-media-preview.hooks.ts`
@@ -38,7 +39,7 @@ export interface MediaPort {
   uploadMedia(
     input: { filename: string; contentType: string; dataBase64: string },
     options?: { alt?: string; caption?: string; credit?: string }
-  ): Promise<{ media: AdminMedia }>;
+  ): Promise<MediaUploadResult<AdminMedia>>;
   updateMedia(
     target: { id: string },
     options?: {

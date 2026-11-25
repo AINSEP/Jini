@@ -103,12 +103,14 @@ The same example can import from `/core`. For entities, supply backend-scoped po
 | Current signature | Return |
 |---|---|
 | `readRoutePath({ window: Pick<Window,'location'> }, { base?: string } = {})` | `string` pathname-only route |
-| `navigate({ routePath: string, window: Pick<Window,'location'|'history'|'dispatchEvent'> }, { replace?: boolean, base?: string } = {})` | `void` |
+| `navigate({ routePath: string, window: Pick<Window,'location'|'history'|'dispatchEvent'> }, { replace?: boolean, base?: string, fromInternalLink?: boolean } = {})` | `void` |
 | `installInternalLinkInterceptor({ window: Pick<Window,'location'|'history'|'dispatchEvent'>, document: Pick<Document,'addEventListener'|'removeEventListener'> }, { base?: string } = {})` | `() => void` teardown |
 | `subscribeToRoute({ window: Pick<Window,'addEventListener'|'removeEventListener'>, onChange: () => void })` | `() => void` teardown |
 | `createAdminShellNavigation({ location: Pick<Location,'pathname'|'search'>, window: Pick<Window,'location'|'history'|'dispatchEvent'|'addEventListener'|'removeEventListener'>, document: Pick<Document,'addEventListener'|'removeEventListener'> })` | `AdminShellNavigationPort` |
 
-The first four and `NAVIGATION_EVENT = 'jini:admin-navigate'` are on `/browser`. The factory is on `/browser` and `/browser/shell-navigation`; pass a live location object matching the supplied window.
+The first four, `NAVIGATION_EVENT = 'jini:admin-navigate'`, and `BEFORE_LINK_NAVIGATION_EVENT = 'jini:admin-before-link-navigate'` are on `/browser`. The factory is on `/browser` and `/browser/shell-navigation`; pass a live location object matching the supplied window.
+
+Internal-link navigation dispatches the cancelable preflight before changing history when the pathname or search changes. Canceling leaves history unchanged and emits no navigation notification. Hash-only changes and ordinary programmatic navigation skip the preflight; browser Back and Forward are outside this guard.
 
 ```ts
 import { subscribeToRoute, navigate } from '@jini-ai/admin/browser';
@@ -456,6 +458,8 @@ export interface AdminMenusPort {
   assignMenuLocation(id: string, locationKey: string): Promise<AdminAssignMenuLocationResult>;
 }
 ```
+
+`/screens/menus/hooks/use-menu-editor.hooks` exports `MenuEditorController`, whose optional `readonly leaveGuardOwner?: "router"` field lets the host assign the Back-link leave check to the router. Without the field, the header calls the existing `confirmLeave` check itself.
 
 ### Forms
 

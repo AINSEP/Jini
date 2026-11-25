@@ -18,12 +18,12 @@ the hook itself never reads the kit.
 **Provides:**
 - `hooks/use-edit-media-modal.hooks` — `useEditMediaModal({ open, onClose, openLightboxDialog, closeLightboxDialog }, _optional = {})` returning
   `EditMediaModalController` (`dialogRef`, `handleNativeCancel`, `handleBackdropClick`).
-- `hooks/use-media-card-metadata.hooks` — `useMediaCardMetadata({ item }, { locale?, timeZone?, formatters? })`
+- `hooks/use-media-card-metadata.hooks` — `useMediaCardMetadata({ item }, { locale?, viewerTimeZone?, formatters? })`
   returning the card's size/upload-date line. `item` is the structural slice
   `MediaCardMetadataSource` (`byteSize?: number | null; createdAt: string`); `formatters`
   (`MediaMetadataFormatters`) is optional and defaults to `@jini-ai/core/text`'s `formatByteSize`
-  plus `../../media/rules`'s `formatUploadDate`. The date is the owner's local calendar day in `timeZone`
-  (IANA zone the host injects; omitted, the runtime's zone), not the UTC day.
+  plus `../../media/rules`'s `formatUploadDate`. The date is the viewer's calendar day in `viewerTimeZone`
+  (IANA zone the host injects; omitted, UTC).
 - `hooks/use-media-card-details.hooks` — `useMediaCardDetails<Item>({ onToggleEdit }, { matchMedia? })`
   returning `{ isPhone, openDetails }`; `Item` is whatever the host's edit action takes, passed through
   untouched. `matchMedia` defaults to `window.matchMedia` (absent on the server → desktop card).

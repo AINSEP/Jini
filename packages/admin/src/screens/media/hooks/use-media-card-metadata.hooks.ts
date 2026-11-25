@@ -4,7 +4,7 @@ import { formatUploadDate } from "../../../media/rules.js";
 /** Jini owns generic formatting; this hook only adapts the legacy card's view model. */
 export interface MediaMetadataFormatters {
   formatByteSize: (required: { bytes: number }, optional?: { locale?: string }) => string;
-  formatUploadDate?: (required: { createdAt: string }, optional?: { locale?: string; timeZone?: string }) => string | null;
+  formatUploadDate?: (required: { createdAt: string }, optional?: { locale?: string; viewerTimeZone?: string | undefined }) => string | null;
 }
 
 /** The structural slice of the host's media item this hook reads; the host's wire DTO stays with the host. */
@@ -21,17 +21,17 @@ const defaultFormatters: MediaMetadataFormatters = { formatByteSize, formatUploa
  * the host's max-upload-bytes cap and chat's formatByteLimit rather than IEC KiB/MiB names. Whole B/KB
  * avoid unhelpful fractions; one decimal for MB/GB distinguishes similar clips near the 50 MB
  * upload cap. Intl.NumberFormat supplies locale separators, defaulting to en-US. The upload date is the
- * owner's local calendar day in `timeZone` (an IANA zone the host injects; omitted, the runtime's zone). */
+ * viewer's calendar day in `viewerTimeZone` (an IANA zone the host injects; omitted, UTC). */
 export function useMediaCardMetadata(
   { item }: { item: MediaCardMetadataSource },
-  { locale = "en-US", timeZone, formatters = defaultFormatters }: {
+  { locale = "en-US", formatters = defaultFormatters, viewerTimeZone }: {
     locale?: string;
-    timeZone?: string;
     formatters?: MediaMetadataFormatters;
+    viewerTimeZone?: string | undefined;
   } = {},
 ) {
   const byteSize = item.byteSize == null ? null : formatters.formatByteSize({ bytes: item.byteSize }, { locale });
-  const uploadDate = formatters.formatUploadDate?.({ createdAt: item.createdAt }, { locale, ...(timeZone ? { timeZone } : {}) }) ?? null;
+  const uploadDate = formatters.formatUploadDate?.({ createdAt: item.createdAt }, viewerTimeZone === undefined ? { locale } : { locale, viewerTimeZone }) ?? null;
   return legacyCardMetadata({ byteSize, uploadDate, createdAt: item.createdAt });
 }
 

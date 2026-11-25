@@ -1832,6 +1832,22 @@
     {
       "id": "7ecf2a610ca0",
       "reason": "P4-J4 item 3: test comment claimed the catch-all incident reaches the adapter's generic route sink; it now goes through the injected `reportInternalError`, which the rewritten test asserts (one record, same request ID)."
+    },
+    {
+      "id": "8e2fc0930e08",
+      "reason": "P8-J1.J deleted the timer-based Base URL approval (useSettledBaseUrl, mayProbeBaseUrl, BASE_URL_SETTLE_MS) outright per the sheet; the replacement useEndpointApproval in ExecutionTab.hooks.ts carries the B216 why (explicit commit, exact provider/protocol/URL, seeding exception)."
+    },
+    {
+      "id": "209de28cee7f",
+      "reason": "P8-J1.J deleted the timer-based Base URL approval (useSettledBaseUrl, mayProbeBaseUrl, BASE_URL_SETTLE_MS) outright per the sheet; the replacement useEndpointApproval in ExecutionTab.hooks.ts carries the B216 why (explicit commit, exact provider/protocol/URL, seeding exception)."
+    },
+    {
+      "id": "5d1d23383a17",
+      "reason": "P8-J1.J deleted the timer-based Base URL approval (useSettledBaseUrl, mayProbeBaseUrl, BASE_URL_SETTLE_MS) outright per the sheet; the replacement useEndpointApproval in ExecutionTab.hooks.ts carries the B216 why (explicit commit, exact provider/protocol/URL, seeding exception)."
+    },
+    {
+      "id": "08aa98f5889b",
+      "reason": "P8-J1.J deleted the timer-based Base URL approval (useSettledBaseUrl, mayProbeBaseUrl, BASE_URL_SETTLE_MS) outright per the sheet; the replacement useEndpointApproval in ExecutionTab.hooks.ts carries the B216 why (explicit commit, exact provider/protocol/URL, seeding exception)."
     }
   ]
 }

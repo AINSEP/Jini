@@ -13,7 +13,7 @@ import type { CaptureClearState, EmailActivityController, PagedList } from "./ho
  * confirm — the server records the reason and only lets the owner do it), and whether provider
  * feedback (bounces, complaints) reaches this site. The page shows one section at a time (`part`,
  * from its segmented pill); with no `part` all three render. Recent sends also offers the owner
- * "Clear test emails" (previewed, then a confirm card with the count).
+ * "Clear captured test messages" (previewed, then a confirm card with the count).
  */
 
 const OUTCOMES = ["accepted", "delivered", "bounced", "complained", "suppressed", "deferred", "failed", "unknown", "captured"] as const;
@@ -117,15 +117,16 @@ function ActivityRow(props: { item: MailActivityItem; controller: EmailActivityC
 /** The words under the button: nothing to clear, how many were cleared, or why it did not work. */
 function CaptureNotice(props: { state: CaptureClearState; locale: string }) {
   const { state, locale } = props;
-  if (state.kind === "empty") return <p className="jini-field-hint" role="status">{t({ locale, key: "No test emails to clear" })}</p>;
-  if (state.kind === "cleared") return <p className="jini-field-hint" role="status">{t({ locale, key: "Cleared {count} test emails." }).replace("{count}", () => String(state.deleted))}</p>;
+  if (state.kind === "empty") return <p className="jini-field-hint" role="status">{t({ locale, key: "No captured test messages to clear. Email Activity records are kept separately." })}</p>;
+  if (state.kind === "cleared") return <p className="jini-field-hint" role="status">{t({ locale, key: "Cleared {count} captured test messages." }).replace("{count}", () => String(state.deleted))}</p>;
   if (state.kind === "error") return <p className="jini-field-error" role="alert">{t({ locale, key: state.message })}</p>;
   return null;
 }
 
 /**
- * "Clear test emails": owner-only (`controller.capture.canClear`), previewed first, then a confirm
- * card that names how many will go; only the captured test emails are deleted, never sent-mail records.
+ * "Clear captured test messages": owner-only (`controller.capture.canClear`), previewed first, then a confirm
+ * card that names how many will go; only the captured test messages are deleted, never sent-mail records.
+ * A delivery record can remain after its message copy is gone, or exist without a message copy at all.
  */
 function CaptureClear(props: { controller: EmailActivityController; locale: string }) {
   const { controller, locale } = props;
@@ -136,18 +137,18 @@ function CaptureClear(props: { controller: EmailActivityController; locale: stri
     <div className="email-capture-clear">
       <div className="email-row">
         <button type="button" className="btn-secondary" disabled={capture.state.kind === "checking"} onClick={() => void capture.start()}
-          {...agentHandle({ handle: "email-capture-clear" }, { role: "button", label: "Clear all captured test emails" })}>
-          {t({ locale, key: capture.state.kind === "checking" ? "Checking…" : "Clear test emails" })}
+          {...agentHandle({ handle: "email-capture-clear" }, { role: "button", label: "Clear all captured test messages" })}>
+          {t({ locale, key: capture.state.kind === "checking" ? "Checking…" : "Clear captured test messages" })}
         </button>
       </div>
       <CaptureNotice state={capture.state} locale={locale} />
       <ConfirmDialog
         open={step !== null}
         agentHandle="email-capture-clear-confirm"
-        title={t({ locale, key: "Clear all test emails?" })}
+        title={t({ locale, key: "Clear all captured test messages?" })}
         body={step ? (
           <div className="email-removal">
-            <p>{t({ locale, key: "Test emails kept on this machine: {count}. Clearing deletes all of them and nothing else. This cannot be undone." }).replace("{count}", () => String(step.plan.count))}</p>
+            <p>{t({ locale, key: "Captured test messages: {count}. This deletes their saved copies, not Email Activity records. This cannot be undone." }).replace("{count}", () => String(step.plan.count))}</p>
             {step.error ? <p className="jini-field-error" role="alert">{t({ locale, key: step.error })}</p> : null}
           </div>
         ) : null}

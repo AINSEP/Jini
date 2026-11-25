@@ -1,4 +1,5 @@
 import { defineJsonRoute, ok } from "@jini-ai/core/contracts/server";
+import type { MediaUploadResult } from "@jini-ai/core/contracts/site/cms-media";
 import { rejectRoute } from "@jini-ai/core/errors/route-refusal";
 
 import type { OutwardErrorMessage } from "../../http/outward-error-message.js";
@@ -28,7 +29,7 @@ export interface MediaImportUpload {
 export interface MediaImportUrlRouteDeps {
   workspaceId: string;
   fetchImage: (required: { url: string }) => Promise<FetchedImage>;
-  uploadMedia: (required: MediaImportUpload) => Promise<{ media: MediaRecord }>;
+  uploadMedia: (required: MediaImportUpload) => Promise<MediaUploadResult<MediaRecord>>;
   mediaContentTypeStore: { set: (required: { workspaceId: string; sha256: string; contentType: string }) => Promise<unknown> };
   egressRefusalMessage: (required: { error: unknown }) => string | undefined;
   /** Words a classified validation failure for the caller (see {@link OutwardErrorMessage}); the egress refusal keeps its own caller-safe sentence. */
@@ -67,7 +68,7 @@ function parseImportInput(required: { body: unknown }, _optional: Record<string,
  *
  * @complexity O(n) in bounded downloaded bytes, plus fixed-count repository calls.
  */
-export const mediaImportUrlRoute = defineJsonRoute<{ body: unknown }, { media: object }, MediaImportUrlRouteDeps, MediaRoutePrincipal>({
+export const mediaImportUrlRoute = defineJsonRoute<{ body: unknown }, MediaUploadResult<object>, MediaImportUrlRouteDeps, MediaRoutePrincipal>({
   method: "post",
   path: "/api/admin/v1/workspaces/:workspaceId/media/import-url",
   parse: (raw) => ok({ value: { body: raw.body } }),
@@ -80,15 +81,20 @@ export const mediaImportUrlRoute = defineJsonRoute<{ body: unknown }, { media: o
     try {
       const request = parseImportInput({ body: input.body });
       const fetched = await deps.fetchImage({ url: request.url });
-      const { media } = await deps.uploadMedia({
+      const result = await deps.uploadMedia({
         workspaceId: deps.workspaceId, bytes: fetched.bytes, contentType: fetched.contentType,
         filename: buildImportFilename({ url: fetched.url, contentType: fetched.contentType }, request.filename === undefined ? {} : { override: request.filename }),
         alt: request.alt, caption: request.caption, credit: request.credit, createdByPrincipal: principal.id,
       });
+      const { media } = result;
       // As with the assistant import and human upload, a failure here must not report success:
       // the next rendition needs the persisted sniffed type to serve this blob correctly.
       await deps.mediaContentTypeStore.set({ workspaceId: deps.workspaceId, sha256: media.source.sha256, contentType: fetched.contentType });
-      return ok({ value: { media: await deps.toMediaResponse({ media, contentType: fetched.contentType, byteSize: fetched.bytes.byteLength }) } });
+      // An upload succeeded even when making the optional playable copy failed; diagnostics never travel in the success response.
+      return ok({ value: {
+        media: await deps.toMediaResponse({ media, contentType: fetched.contentType, byteSize: fetched.bytes.byteLength }),
+        ...(result.conversionNotice === "web-copy-unavailable" ? { conversionNotice: "web-copy-unavailable" as const } : {}),
+      } });
     } catch (err) {
       return rejectImportFailure({ err, deps });
     }

@@ -34,6 +34,22 @@ const handle = (d: MediaImportUrlRouteDeps, body: unknown, authorize = recording
   mediaImportUrlRoute.handle({ input: { body }, deps: d, context: PRINCIPAL, authorize }, { signal });
 
 describe("mediaImportUrlRoute", () => {
+  it("URL import returns 201 with the original media and the same notice", async () => {
+    const d = { ...deps(), uploadMedia: async () => ({ media: STORED, conversionNotice: "web-copy-unavailable" as const }) };
+    expect(mediaImportUrlRoute.successStatus).toBe(201);
+    expect(await handle(d, { url: "https://cdn.example/a" })).toStrictEqual({
+      ok: true, value: { media: { id: STORED.id, contentType: "image/png", byteSize: 4 }, conversionNotice: "web-copy-unavailable" },
+    });
+  });
+
+  it("omits an arbitrary conversion notice without changing the projected media", async () => {
+    const d = { ...deps(), uploadMedia: async () => ({ media: STORED, conversionNotice: "/tmp/x provider said …" as never }) };
+    const result = await handle(d, { url: "https://cdn.example/a" });
+    expect(result).toStrictEqual({ ok: true, value: { media: { id: STORED.id, contentType: "image/png", byteSize: 4 } } });
+    if (!result.ok) throw new Error("expected import success");
+    expect(result.value).not.toHaveProperty("conversionNotice");
+  });
+
   it("keeps the method, path and 201, and passes the raw body through for validation after authorization", () => {
     expect(mediaImportUrlRoute.method).toBe("post");
     expect(mediaImportUrlRoute.path).toBe("/api/admin/v1/workspaces/:workspaceId/media/import-url");

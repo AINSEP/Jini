@@ -93,6 +93,25 @@ describe("MenuEditor header characterization", () => {
     expect(editor.save).toHaveBeenCalledTimes(saving ? 0 : 1);
   });
 
+  it("a router-owned Back link does not ask the header to confirm", () => {
+    const editor = controller({ overrides: { confirmLeave: vi.fn(() => false), leaveGuardOwner: "router" } });
+    render(<MenuEditor {...host} menuId="m1" useMenuEditorHook={() => editor} />);
+    const link = screen.getByRole("link", { name: "Back: Menus" });
+    let prevented: boolean | undefined;
+    const observe = (event: MouseEvent) => {
+      prevented = event.defaultPrevented;
+      event.preventDefault();
+    };
+    document.addEventListener("click", observe, { once: true });
+    try {
+      fireEvent.click(link);
+      expect(editor.confirmLeave).not.toHaveBeenCalled();
+      expect(prevented).toBe(false);
+    } finally {
+      document.removeEventListener("click", observe);
+    }
+  });
+
   it.each([true, false])("honors the leave guard result: %s", (allowed) => {
     const editor = controller({ overrides: { confirmLeave: vi.fn(() => allowed) } });
     render(<MenuEditor {...host} menuId="m1" useMenuEditorHook={() => editor} />);

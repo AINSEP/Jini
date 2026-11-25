@@ -6,16 +6,18 @@ import type { MenuEditorController } from "./hooks/use-menu-editor.hooks.js";
  * authoring modes. The back link's target is the host's list route, passed as `menusHref`.
  */
 
-export type MenuEditorHeaderState = Pick<MenuEditorController, "isNew" | "menu" | "copyHtmlEmbed" | "copyFeedback" | "message" | "save" | "saving" | "confirmLeave" | "t">;
+export type MenuEditorHeaderState = Pick<MenuEditorController, "isNew" | "menu" | "copyHtmlEmbed" | "copyFeedback" | "message" | "save" | "saving" | "confirmLeave" | "t" | "leaveGuardOwner">;
 
 /** The back link, guarded by the dirty check. */
-function MenuEditorBackLink({ menusHref, confirmLeave, t }: { menusHref: string } & Pick<MenuEditorHeaderState, "confirmLeave" | "t">) {
+function MenuEditorBackLink({ menusHref, confirmLeave, t, leaveGuardOwner }: { menusHref: string } & Pick<MenuEditorHeaderState, "confirmLeave" | "t" | "leaveGuardOwner">) {
   return (
     <div className="jini-page-header-lead">
       {/* Audit finding: no editor screen warns before an in-app navigation discards unsaved
-          edits — confirmed live on this exact screen. `preventDefault()` here also stops
+          edits — confirmed live on this exact screen. The header guards Back as a fallback when
+          the router does not own the dirty check; router ownership skips this call so each Back
+          click has only one confirmation owner. `preventDefault()` here stops
           the host router's document-level click interceptor from firing `navigate()`, since that
-          listener's first check is `event.defaultPrevented` — no change to the router needed.
+          listener's first check is `event.defaultPrevented`.
           Plain `<a className="jini-btn-secondary">`, not a `<button>` nested inside an `<a>`
           (invalid HTML) — same fix Pages/Posts/Forms' own back links already made; this one
           still carried the old nested-button markup.
@@ -28,7 +30,7 @@ function MenuEditorBackLink({ menusHref, confirmLeave, t }: { menusHref: string 
         className="jini-btn-secondary"
         href={menusHref}
         onClick={(e) => {
-          if (!confirmLeave()) e.preventDefault();
+          if (leaveGuardOwner !== "router" && !confirmLeave()) e.preventDefault();
         }}
         aria-label={`${t("Back")}: ${t("Menus")}`}
         {...agentHandle({ handle: "menu-editor-back" }, { role: "link", label: "Back to the list of all menus" })}
@@ -58,7 +60,7 @@ function MenuEditorActions({ menu, copyHtmlEmbed, copyFeedback, message, save, s
 
 /** The menu's navigation and save controls share one header in both authoring modes. */
 export function MenuEditorHeader({ editor, menusHref }: { editor: MenuEditorHeaderState; menusHref: string }) {
-  const { isNew, confirmLeave, t } = editor;
+  const { isNew, confirmLeave, t, leaveGuardOwner } = editor;
   /* `jini-page-header-split` — same shared idiom Pages/Posts/Forms already use:
         back link alone at the left rail, title block centred. Menus (like Widgets) never grew a
         separate `.editor-action-row` below a toolbar, so Save/status stay IN the header instead
@@ -74,7 +76,7 @@ export function MenuEditorHeader({ editor, menusHref }: { editor: MenuEditorHead
         label: "Menu editor header — the back link, the menu's title, and the Save button",
       })}
     >
-      <MenuEditorBackLink menusHref={menusHref} confirmLeave={confirmLeave} t={t} />
+      <MenuEditorBackLink menusHref={menusHref} confirmLeave={confirmLeave} t={t} {...(leaveGuardOwner === undefined ? {} : { leaveGuardOwner })} />
       <div className="jini-page-header-text">
         <p className="jini-page-kicker">{t("Content")}</p>
         <h1 className="jini-page-title">{t(isNew ? "New menu" : "Edit menu")}</h1>
