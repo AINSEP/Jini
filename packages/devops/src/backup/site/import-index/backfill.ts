@@ -1,32 +1,46 @@
 import type { ImportHistoryPolicy, SiteImportRecord } from '@jini-ai/core/contracts/site/site-import-history';
 import type { JsonFileRead } from '@jini-ai/core/contracts/site/fs-durable-json';
 import type { SqliteSyncClient } from '@jini-ai/core/contracts/storage';
-import { isTerminal, minimalOutcome, toRowParams } from './rows.js';
+import { isTerminal, minimalOutcome, replayFenceFor, toRowParams } from './rows.js';
 
 const ID = /^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/;
 
 export type BackfillResult = { state: 'blocked' } | { state: 'cutover'; dbId: string; cutoverAt: number; backfillCount: number };
 
-export function validateLegacyRow({ value, id }: { value: unknown; id: string }, _optional: Record<string, never> = {}): SiteImportRecord | undefined {
-  if (Object.prototype.toString.call(value) !== '[object Object]') return undefined;
-  const row = value as SiteImportRecord;
-  const checks = [
+function identityChecks({ row, id }: { row: SiteImportRecord; id: string }, _optional: Record<string, never> = {}): boolean[] {
+  return [
     ID.test(row.importId), row.importId === id, typeof row.principalId === 'string', /\S/.test(row.principalId),
     ['verifying', 'needs-owner', 'creating', 'ready', 'failed'].includes(row.status),
     typeof row.createdAt === 'string', Number.isFinite(Date.parse(row.createdAt)), Number.isSafeInteger(row.expiresAt),
+  ];
+}
+
+// Optional fields only have to be well formed when they are present.
+function optionalFieldChecks({ row }: { row: SiteImportRecord }, _optional: Record<string, never> = {}): boolean[] {
+  return [
     row.requestId === undefined ? true : [typeof row.requestId === 'string', /^[a-zA-Z0-9_-]{1,128}$/.test(row.requestId)].every(Boolean),
     row.sourceDigest === undefined ? true : [typeof row.sourceDigest === 'string', /^[a-fA-F0-9]{64}$/.test(row.sourceDigest)].every(Boolean),
+    row.status === 'creating' ? (row.creation === undefined ? true : typeof row.creation?.siteId === 'string') : true,
   ];
-  if (row.status === 'creating') checks.push(row.creation === undefined ? true : typeof row.creation?.siteId === 'string');
-  if (Object.prototype.toString.call(row.source) !== '[object Object]') return undefined;
-  checks.push(Object.keys(row.source).length === 1, ['url', 'uploadId'].filter(key => key in row.source).length === 1);
-  if ('url' in row.source) {
-    try {
-      const url = new URL(row.source.url);
-      checks.push(typeof row.source.url === 'string', url.protocol === 'https:', url.username === '', url.password === '', url.hash === '');
-    } catch { return undefined; }
-  } else checks.push(typeof row.source.uploadId === 'string', ID.test(row.source.uploadId));
-  return checks.every(Boolean) ? row : undefined;
+}
+
+// Returns undefined when the source is not even an object, or its link cannot be parsed: no check list can rescue that row.
+function sourceChecks({ source }: { source: SiteImportRecord['source'] }, _optional: Record<string, never> = {}): boolean[] | undefined {
+  if (Object.prototype.toString.call(source) !== '[object Object]') return undefined;
+  const checks = [Object.keys(source).length === 1, ['url', 'uploadId'].filter(key => key in source).length === 1];
+  if (!('url' in source)) return [...checks, typeof source.uploadId === 'string', ID.test(source.uploadId)];
+  try {
+    const url = new URL(source.url);
+    return [...checks, typeof source.url === 'string', url.protocol === 'https:', url.username === '', url.password === '', url.hash === ''];
+  } catch { return undefined; }
+}
+
+export function validateLegacyRow({ value, id }: { value: unknown; id: string }, _optional: Record<string, never> = {}): SiteImportRecord | undefined {
+  if (Object.prototype.toString.call(value) !== '[object Object]') return undefined;
+  const row = value as SiteImportRecord;
+  const source = sourceChecks({ source: row.source });
+  if (source === undefined) return undefined;
+  return [...identityChecks({ row, id }), ...optionalFieldChecks({ row }), ...source].every(Boolean) ? row : undefined;
 }
 
 export function scanLegacy({ root, fs, readJson }: {
@@ -62,19 +76,22 @@ export function pickFenceOwners({ candidates }: { candidates: {
   return [...owners.values()];
 }
 
+type FenceCandidate = Parameters<typeof pickFenceOwners>[0]['candidates'][number];
+
+function fenceCandidateFor({ row, createdMs }: { row: SiteImportRecord; createdMs: number }, _optional: Record<string, never> = {}): FenceCandidate {
+  return { principalId: row.principalId, requestId: row.requestId!, importId: row.importId, acceptedMs: createdMs, outcomeJson: JSON.stringify(minimalOutcome({ row })),
+    ...replayFenceFor({ source: row.source, digest: row.sourceDigest }) };
+}
+
 export function deriveBackfillRows({ rows, now, policy }: { rows: SiteImportRecord[]; now: number; policy: ImportHistoryPolicy }, _optional: Record<string, never> = {}) {
   const detail: ReturnType<typeof toRowParams>[] = [];
-  const candidates: Parameters<typeof pickFenceOwners>[0]['candidates'] = [];
+  const candidates: FenceCandidate[] = [];
   for (const row of rows) {
     const createdMs = Date.parse(row.createdAt);
     const terminal = isTerminal(row);
     // Legacy has no settlement timestamp.
     if (!terminal || now < createdMs + policy.historyVisibleMs) detail.push(toRowParams({ row, settledMs: terminal ? createdMs : null }));
-    if (row.requestId === undefined || now >= createdMs + policy.replayFenceMs) continue;
-    const digest = row.sourceDigest?.toLowerCase();
-    candidates.push({ principalId: row.principalId, requestId: row.requestId, importId: row.importId, acceptedMs: createdMs, outcomeJson: JSON.stringify(minimalOutcome({ row })),
-      fenceKind: 'uploadId' in row.source ? 'upload' : digest === undefined ? 'origin' : 'sha256',
-      fenceValue: 'uploadId' in row.source ? row.source.uploadId : digest === undefined ? new URL(row.source.url).origin : digest });
+    if (row.requestId !== undefined && now < createdMs + policy.replayFenceMs) candidates.push(fenceCandidateFor({ row, createdMs }));
   }
   return { rows: detail, fences: pickFenceOwners({ candidates }) };
 }

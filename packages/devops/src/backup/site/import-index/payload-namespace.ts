@@ -74,16 +74,28 @@ function writeMarker({ paths, fs }: { paths: ReturnType<typeof payloadPaths>; fs
   fs.fsyncDir({ dir: paths.dir });
 }
 
+function ensurePayloadDirectory({ paths, fs }: { paths: ReturnType<typeof payloadPaths>; fs: ImportPayloadFs }, _optional: Record<string, never> = {}): void {
+  const directory = fs.kind({ file: paths.dir });
+  if (directory === 'missing') fs.mkdir({ dir: paths.dir, mode: 0o700 });
+  else if (directory !== 'directory') throw new ImportHistoryUnavailable({ code: 'IMPORT_PAYLOADS_UNMOVABLE', status: 503, message: UNMOVABLE });
+  fs.chmod({ file: paths.dir, mode: 0o700 });
+}
+
+// Permission and disk-full failures get plain-words, retryable errors; anything else is a real bug and passes through.
+function namespaceFailure({ error }: { error: unknown }, _optional: Record<string, never> = {}): unknown {
+  const code = (error as { code?: string } | null)?.code;
+  if (code === 'EACCES' || code === 'EPERM') return new ImportHistoryUnavailable({ code: 'IMPORT_PAYLOADS_UNMOVABLE', status: 503, message: UNMOVABLE }, { cause: error });
+  if (code === 'ENOSPC') return new ImportHistoryUnavailable({ code: 'IMPORT_PAYLOADS_UNMOVABLE', status: 507, message: 'There is not enough free disk space to prepare imports. Free up space and try again.' }, { cause: error });
+  return error;
+}
+
 export function ensurePayloadNamespace({ root, paths, fs }: { root: string; paths: ReturnType<typeof payloadPaths>; fs: ImportPayloadFs }, _optional: Record<string, never> = {}): void {
   try {
     // The marker makes root enumeration a one-time migration cost.
     const marker = fs.kind({ file: paths.marker });
     if (marker === 'file') return;
     if (marker !== 'missing') throw new ImportHistoryUnavailable({ code: 'IMPORT_PAYLOADS_UNMOVABLE', status: 503, message: UNMOVABLE });
-    const directory = fs.kind({ file: paths.dir });
-    if (directory === 'missing') fs.mkdir({ dir: paths.dir, mode: 0o700 });
-    else if (directory !== 'directory') throw new ImportHistoryUnavailable({ code: 'IMPORT_PAYLOADS_UNMOVABLE', status: 503, message: UNMOVABLE });
-    fs.chmod({ file: paths.dir, mode: 0o700 });
+    ensurePayloadDirectory({ paths, fs });
     const names = fs.readdir({ dir: root });
     // ZIP precedes metadata on write and on migration.
     for (const suffix of ['.upload.zip', '.upload.json', '.stage']) movePass({ root, paths, fs, names, suffix });
@@ -91,38 +103,52 @@ export function ensurePayloadNamespace({ root, paths, fs }: { root: string; path
     fs.fsyncDir({ dir: root });
     writeMarker({ paths, fs });
   } catch (error) {
-    const code = (error as { code?: string } | null)?.code;
-    if (code === 'EACCES' || code === 'EPERM') throw new ImportHistoryUnavailable({ code: 'IMPORT_PAYLOADS_UNMOVABLE', status: 503, message: UNMOVABLE }, { cause: error });
-    if (code === 'ENOSPC') throw new ImportHistoryUnavailable({ code: 'IMPORT_PAYLOADS_UNMOVABLE', status: 507, message: 'There is not enough free disk space to prepare imports. Free up space and try again.' }, { cause: error });
-    throw error;
+    throw namespaceFailure({ error });
   }
+}
+
+type PayloadEntry = NonNullable<ReturnType<typeof classifyPayload>>;
+type ExpireReaders = {
+  readUpload: (required: { uploadId: string }, optional?: Record<string, never>) => JsonFileRead;
+  statusOf: (required: { importId: string }, optional?: Record<string, never>) => 'active' | 'terminal' | 'unreadable' | 'absent';
+};
+
+// Removes a stage no in-progress record owns; an unreadable record keeps its stage untouched.
+function expireStage({ entry, paths, fs, statusOf }: { entry: PayloadEntry; paths: ReturnType<typeof payloadPaths>; fs: ImportPayloadFs; statusOf: ExpireReaders['statusOf'] }, _optional: Record<string, never> = {}): void {
+  // An unreadable owner is not evidence that its stage is orphaned.
+  const status = statusOf({ importId: entry.id });
+  if (status === 'terminal' || status === 'absent') fs.rm({ file: paths.stage({ importId: entry.id }), recursive: true });
+}
+
+// A zip whose metadata is missing or unreadable is an orphan (a crash between the two writes), so it expires at once;
+// otherwise it expires only past its one-hour claim window. A metadata file we cannot read is kept, never guessed at.
+function isUploadExpired({ entry, read, now }: { entry: PayloadEntry; read: JsonFileRead; now: number }, _optional: Record<string, never> = {}): boolean {
+  if (entry.suffix === '.upload.json' && read.state !== 'ok') return false;
+  const metadata = read.state === 'ok' ? read.value as { createdAt: number } | null : null;
+  return metadata === null || metadata.createdAt + 3_600_000 < now;
+}
+
+// Removes an upload (payload, then record) once it is past its one-hour claim window.
+// Removes a zip whose metadata is missing or unreadable: a crash between the two writes.
+function expireUpload({ entry, paths, fs, now, readUpload }: { entry: PayloadEntry; paths: ReturnType<typeof payloadPaths>; fs: ImportPayloadFs; now: number; readUpload: ExpireReaders['readUpload'] }, _optional: Record<string, never> = {}): void {
+  if (!isUploadExpired({ entry, read: readUpload({ uploadId: entry.id }), now })) return;
+  const zip = paths.upload({ uploadId: entry.id });
+  if (fs.kind({ file: zip }) === 'file') fs.rm({ file: zip, recursive: false });
+  if (entry.suffix === '.upload.json') fs.rm({ file: paths.uploadMeta({ uploadId: entry.id }), recursive: false });
 }
 
 export function expirePayloads({ paths, fs, clock, readUpload, statusOf, report }: {
   paths: ReturnType<typeof payloadPaths>; fs: ImportPayloadFs; clock: { nowMs(): number };
-  readUpload: (required: { uploadId: string }, optional?: Record<string, never>) => JsonFileRead;
-  statusOf: (required: { importId: string }, optional?: Record<string, never>) => 'active' | 'terminal' | 'unreadable' | 'absent';
   report: (required: { operation: string; error: unknown }, optional?: Record<string, never>) => void;
-}, _optional: Record<string, never> = {}): void {
+} & ExpireReaders, _optional: Record<string, never> = {}): void {
   const now = clock.nowMs();
   for (const name of fs.readdir({ dir: paths.dir })) {
     const entry = classifyPayload({ name });
     if (!entry) continue;
     try {
       if (fs.kind({ file: `${paths.dir}/${name}` }) !== entry.kind) continue;
-      if (entry.suffix === '.stage') {
-        // An unreadable owner is not evidence that its stage is orphaned.
-        const status = statusOf({ importId: entry.id });
-        if (status === 'terminal' || status === 'absent') fs.rm({ file: paths.stage({ importId: entry.id }), recursive: true });
-        continue;
-      }
-      const read = readUpload({ uploadId: entry.id });
-      if (entry.suffix === '.upload.json' && read.state !== 'ok') continue;
-      const metadata = read.state === 'ok' ? read.value as { createdAt: number } | null : null;
-      if (metadata !== null && !(metadata.createdAt + 3_600_000 < now)) continue;
-      const zip = paths.upload({ uploadId: entry.id });
-      if (fs.kind({ file: zip }) === 'file') fs.rm({ file: zip, recursive: false });
-      if (entry.suffix === '.upload.json') fs.rm({ file: paths.uploadMeta({ uploadId: entry.id }), recursive: false });
+      if (entry.suffix === '.stage') expireStage({ entry, paths, fs, statusOf });
+      else expireUpload({ entry, paths, fs, now, readUpload });
     } catch (error) { report({ operation: 'expire-import-payload', error }); }
   }
 }
