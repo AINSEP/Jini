@@ -5,7 +5,9 @@ and the host owns mounting: [`ADS-memory/reports/jini-port/extraction-plan.md`](
 
 ## Wiring
 
-**Provides:** `mediaGetProvidersRoute` (GET `…/media/providers`), `mediaDeleteRoute` (DELETE
+**Provides:** `mediaGetProvidersRoute` (GET `…/media/providers`), `mediaPutProvidersRoute` (PUT
+`…/media/providers`, whole set, `If-Match` required), `mediaPatchProviderRoute` (PATCH
+`…/media/providers/:providerId`), `mediaDeleteProviderRoute` (DELETE `…/media/providers/:providerId`), `mediaDeleteRoute` (DELETE
 `…/media/:mediaId`), `mediaTrashRoute` (POST `…/media/:mediaId/trash`), `mediaWhereUsedRoute` (GET
 `…/media/:mediaId/where-used`), `mediaImportUrlRoute` (POST `…/media/import-url`, 201), plus `shared.ts`
 (`authorizeMedia`, `authorizeMediaOrForbid`, `principalOf`, `rejectMediaNotFound`, `MediaRoutePrincipal`).
@@ -13,7 +15,13 @@ and the host owns mounting: [`ADS-memory/reports/jini-port/extraction-plan.md`](
 port's `details`), for routes whose denied-permission body predates the shared one.
 
 **Needs injected** (each route's own deps type, nothing wider):
-- `MediaGetProvidersRouteDeps`: `workspaceId`, `getMediaProviderCredentials` (host store + sealer bound in).
+- `MediaGetProvidersRouteDeps`: `workspaceId`, `getProviders` (answers `{ providers, revision }`; the revision is a stored
+  write marker, never key material or a digest of it, and goes out as the `ETag`).
+- `MediaPutProvidersRouteDeps`: `workspaceId`, `saveProviders` (compares `expectedRevision` inside its writer boundary and
+  answers `{ outcome: "stale" }` without writing), `saveErrorMappings`, `outwardErrorMessage`. Mount with `readHeaders: ["if-match"]`;
+  a missing or stale basis is `409 MEDIA_PROVIDERS_STALE`.
+- `MediaPatchProviderRouteDeps` / `MediaDeleteProviderRouteDeps`: `workspaceId`, `patchProvider` / `removeProvider`, plus the
+  PUT's `saveErrorMappings` and `outwardErrorMessage`. Same `admin.integrations.manage` admission as the PUT.
 - `MediaDeleteRouteDeps`: `workspaceId`, `purgeMedia` (host's reference-checking purge), `forgetRemovedMedia`.
 - `MediaTrashRouteDeps`: `workspaceId`, `mediaRepo.findById`, `removeMedia` (`MediaTrashRemove`), `clock.nowIso`, `toMediaResponse` (host DTO).
 - `MediaWhereUsedRouteDeps`: `workspaceId`, `mediaRepo.findById`, `findWhereUsed` (host usage scan: reference index + current post bodies).

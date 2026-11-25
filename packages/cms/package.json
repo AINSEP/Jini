@@ -380,6 +380,8 @@
       "./admin-http/routes/media/trash": "universal",
       "./admin-http/routes/media/get-providers": "universal",
       "./admin-http/routes/media/put-providers": "universal",
+      "./admin-http/routes/media/patch-provider": "universal",
+      "./admin-http/routes/media/delete-provider": "universal",
       "./admin-http/routes/media/update": "node",
       "./admin-http/routes/media/where-used": "universal",
       "./admin-http/routes/media/import-url": "universal",
@@ -834,6 +836,8 @@
         "./admin-http/routes/media/trash": "media",
         "./admin-http/routes/media/get-providers": "media",
         "./admin-http/routes/media/put-providers": "media",
+        "./admin-http/routes/media/patch-provider": "media",
+        "./admin-http/routes/media/delete-provider": "media",
         "./admin-http/routes/media/import-url": "media",
         "./admin-http/routes/media/where-used": "media",
         "./admin-http/routes/media/update": "media",
@@ -2852,6 +2856,16 @@
       "types": "./dist/admin-http/routes/media/put-providers.d.ts",
       "import": "./dist/admin-http/routes/media/put-providers.js",
       "default": "./dist/admin-http/routes/media/put-providers.js"
+    },
+    "./admin-http/routes/media/patch-provider": {
+      "types": "./dist/admin-http/routes/media/patch-provider.d.ts",
+      "import": "./dist/admin-http/routes/media/patch-provider.js",
+      "default": "./dist/admin-http/routes/media/patch-provider.js"
+    },
+    "./admin-http/routes/media/delete-provider": {
+      "types": "./dist/admin-http/routes/media/delete-provider.d.ts",
+      "import": "./dist/admin-http/routes/media/delete-provider.js",
+      "default": "./dist/admin-http/routes/media/delete-provider.js"
     },
     "./admin-http/routes/media/update": {
       "types": "./dist/admin-http/routes/media/update.d.ts",
