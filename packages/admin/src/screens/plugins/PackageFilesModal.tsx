@@ -21,7 +21,7 @@ import { type Translate } from '@jini-ai/core/text';
  * `AGENT_PLUGIN_FILES` / `PLUGIN_FILES` (see `hooks/use-agent-plugin-details-modal.hooks.ts` and
  * `hooks/use-plugin-package-files.hooks.ts`).
  *
- * Class names keep the `agent-plugin-source-*` prefix they had before the extraction, so
+ * Class names keep the `jini-agent-plugin-source-*` prefix (renamed from `agent-plugin-source-*`), so
  * `styles.css` needed no change.
  */
 
@@ -88,12 +88,12 @@ const FILE_ICON_GLYPH: Readonly<Record<PackageFileIconKind, string>> = {
 /** Folder state and file type determine only the decorative tree glyphs. */
 function PackageTreeIcon({ folder, expanded, name }: { folder: boolean; expanded: boolean; name: string }) {
   if (folder) return <>
-    <RemixIcon name={expanded ? "arrow-down-s-line" : "arrow-right-s-line"} size={16} className="agent-plugin-source-tree-twistie" />
-    <RemixIcon name={expanded ? "folder-open-line" : "folder-line"} className="agent-plugin-source-tree-icon is-folder" />
+    <RemixIcon name={expanded ? "arrow-down-s-line" : "arrow-right-s-line"} size={16} className="jini-agent-plugin-source-tree-twistie" />
+    <RemixIcon name={expanded ? "folder-open-line" : "folder-line"} className="jini-agent-plugin-source-tree-icon is-folder" />
   </>;
   return <>
-    <span className="agent-plugin-source-tree-twistie" aria-hidden />
-    <RemixIcon name={FILE_ICON_GLYPH[packageFileIconKind({ fileName: name })]} className={`agent-plugin-source-tree-icon is-${packageFileIconKind({ fileName: name })}`} />
+    <span className="jini-agent-plugin-source-tree-twistie" aria-hidden />
+    <RemixIcon name={FILE_ICON_GLYPH[packageFileIconKind({ fileName: name })]} className={`jini-agent-plugin-source-tree-icon is-${packageFileIconKind({ fileName: name })}`} />
   </>;
 }
 
@@ -130,7 +130,7 @@ function PackageFileTree({
   const folderHandleByPath = new Map(folderPaths.map((path, index) => [path, folderHandles[index]]));
 
   return (
-    <div role="tree" aria-label={label} className="agent-plugin-source-tree" onKeyDown={tree.onKeyDown}>
+    <div role="tree" aria-label={label} className="jini-agent-plugin-source-tree" onKeyDown={tree.onKeyDown}>
       {tree.rows.map((row) => {
         const folder = row.expanded !== undefined;
         const expanded = row.expanded === true;
@@ -150,14 +150,14 @@ function PackageFileTree({
             tabIndex={row.tabIndex}
             title={row.path}
             data-tree-path={row.path}
-            className="agent-plugin-source-tree-row"
+            className="jini-agent-plugin-source-tree-row"
             onClick={row.onClick}
             onFocus={row.onFocus}
             {...handle}
           >
-            <span className="agent-plugin-source-tree-indent" style={{ width: `calc(${row.depth - 1} * var(--tree-indent))` }} aria-hidden />
+            <span className="jini-agent-plugin-source-tree-indent" style={{ width: `calc(${row.depth - 1} * var(--tree-indent))` }} aria-hidden />
             <PackageTreeIcon folder={folder} expanded={expanded} name={row.name} />
-            <span className="agent-plugin-source-tree-label">{row.name}</span>
+            <span className="jini-agent-plugin-source-tree-label">{row.name}</span>
           </div>
         );
       })}
@@ -195,8 +195,8 @@ function PackageFileContent({
   const hasContent = file.content !== null;
 
   return (
-    <section className="agent-plugin-source-content" aria-labelledby={headingId}>
-      <div className="agent-plugin-source-content-header">
+    <section className="jini-agent-plugin-source-content" aria-labelledby={headingId}>
+      <div className="jini-agent-plugin-source-content-header">
         <h3 id={headingId}>
           <PackageFilePath path={file.relativePath} />
         </h3>
@@ -229,8 +229,8 @@ interface PackageSourceBrowserProps extends Pick<PackageFilesModalProps, "files"
 /** The two-pane body of the modal's "Package files" view: the file tree beside the selected file. */
 function PackageSourceBrowser({ files, selectedFile, selectedHandle, fileHandleByPath, onSelectFile, status, listNotice, handlePrefix, headingId, t }: PackageSourceBrowserProps) {
   return (
-    <div className="agent-plugin-source-browser">
-      <nav className="agent-plugin-source-files" aria-label={t("Package files")}>
+    <div className="jini-agent-plugin-source-browser">
+      <nav className="jini-agent-plugin-source-files" aria-label={t("Package files")}>
         {listNotice ? (
           <p className="page-description" role="note">
             {listNotice}
@@ -286,7 +286,7 @@ export function PackageFilesModal({
 
   return (
     <PreviewModalShell
-      className="agent-plugin-source-modal"
+      className="jini-agent-plugin-source-modal"
       icons={CODE_PREVIEW_MODAL_ICONS}
       title={title}
       headerExtras={headerExtras}
