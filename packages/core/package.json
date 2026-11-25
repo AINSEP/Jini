@@ -179,6 +179,7 @@
       "./tool-metadata/visitor-tools": "universal",
       "./tool-metadata/web-screenshot": "universal",
       "./tool-metadata/web": "universal",
+      "./tool-metadata/site-update": "universal",
       "./tool-metadata/webhooks": "universal",
       "./tool-metadata/widgets": "universal",
       "./tool-metadata/change-sets": "universal",
@@ -1145,6 +1146,11 @@
       "types": "./dist/tool-metadata/web-screenshot.d.ts",
       "import": "./dist/tool-metadata/web-screenshot.js",
       "default": "./dist/tool-metadata/web-screenshot.js"
+    },
+    "./tool-metadata/site-update": {
+      "types": "./dist/tool-metadata/site-update.d.ts",
+      "import": "./dist/tool-metadata/site-update.js",
+      "default": "./dist/tool-metadata/site-update.js"
     },
     "./tool-metadata/web": {
       "types": "./dist/tool-metadata/web.d.ts",

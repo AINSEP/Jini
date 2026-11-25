@@ -5666,6 +5666,13 @@
    "withRefusedItem": "function:634dd374a5"
   }
  },
+ "./publish/content/apply-report": {
+  "types": "./dist/publish/content/apply-report.d.ts",
+  "symbols": {
+   "ApplyReportHost": "interface:9d1b8c81ab",
+   "applyPublishContentReport": "function:ee7fddd1b4"
+  }
+ },
  "./publish/content/apply-retire": {
   "types": "./dist/publish/content/apply-retire.d.ts",
   "symbols": {
@@ -5750,6 +5757,17 @@
    "createCompositePeerBlobSource": "function:c4f957dfa9"
   }
  },
+ "./publish/content/connect-destination": {
+  "types": "./dist/publish/content/connect-destination.d.ts",
+  "symbols": {
+   "ConnectAndRecordDeps": "interface:3d52e719af",
+   "DisconnectAndForgetDeps": "interface:f40f3df06b",
+   "GrantReverseResult": "interface:cbd67e6215",
+   "GrantWriteResult": "interface:7ab499a845",
+   "connectAndRecordDestination": "function:7ec64cdb24",
+   "disconnectAndForgetDestination": "function:fafbca3068"
+  }
+ },
  "./publish/content/content-hash": {
   "types": "./dist/publish/content/content-hash.d.ts",
   "symbols": {
@@ -5763,6 +5781,27 @@
   "symbols": {
    "collectBodyReferences": "function:c4ed5f5f57",
    "collectPlacementReferences": "function:cf889ad259"
+  }
+ },
+ "./publish/content/destination-credential": {
+  "types": "./dist/publish/content/destination-credential.d.ts",
+  "symbols": {
+   "DestinationCredentialPorts": "interface:48cb0d31b4",
+   "DestinationPeerRecord": "interface:f92d96e2e9",
+   "DestinationPeerRepo": "interface:b5103a29f5",
+   "DestinationSession": "interface:1a4fe78a29",
+   "ResolvedDestinationCredential": "interface:1bb96e0bfb",
+   "resolvePublishDestinationCredential": "function:cc2a71ce24"
+  }
+ },
+ "./publish/content/disconnect-tool": {
+  "types": "./dist/publish/content/disconnect-tool.d.ts",
+  "symbols": {
+   "PublishContentDisconnectDeps": "interface:a626e52148",
+   "PublishContentDisconnectHost": "interface:b330e46a59",
+   "catalog": "variable:8e881b74a7",
+   "createPublishContentDisconnectTools": "function:0214949d82",
+   "derivedRisk": "variable:f1765dc2a1"
   }
  },
  "./publish/content/execute-import": {
@@ -5787,6 +5826,39 @@
    "packAuthorizedEntities": "function:c970c2e13d",
    "packHandlerEntities": "function:1d62979ad6",
    "selectBundleEntities": "function:148f5f5b80"
+  }
+ },
+ "./publish/content/file-tree-policy": {
+  "types": "./dist/publish/content/file-tree-policy.d.ts",
+  "symbols": {
+   "FILE_TREE_KINDS": "variable:c299227069",
+   "FILE_TREE_LIMITS": "variable:a32480a51e",
+   "FileTreeFileInput": "interface:57d2f404a8",
+   "FileTreeKind": "type:8d75f89f82",
+   "FileTreeKindSpec": "interface:eaf9dafdd8",
+   "MAX_SECRET_SCAN_BYTES": "variable:826de76636",
+   "THEME_FILE_TREE_ALLOWED_EXTENSIONS": "variable:d7d4798c96",
+   "TextSecretScanner": "type:77a699ee9f",
+   "checkMcpJsonSecretPlaceholders": "function:ddb2338f43",
+   "checkTreeFiles": "function:8c6e208a55",
+   "checkTreePath": "function:f61f588ec8",
+   "credentialBaseName": "function:7d0652c553",
+   "isIgnoredTreeFileName": "function:3f466b6dd8",
+   "normalizeMode": "function:2e402282c8",
+   "resolveTreeRelativePath": "function:06430954c8",
+   "wrapTreePolicyReason": "function:a2ee654cd1"
+  }
+ },
+ "./publish/content/gated-hooks": {
+  "types": "./dist/publish/content/gated-hooks.d.ts",
+  "symbols": {
+   "BuildPublishContentImportHooksInput": "interface:593ef2a73c",
+   "PublishContentApplyPort": "interface:e7a120398c",
+   "PublishContentBundleNotFoundError": "class:13b91c7ef0",
+   "PublishContentDbOpsPort": "interface:6b607da782",
+   "PublishContentImportResult": "interface:adb4bd3b0c",
+   "PublishContentRestorePointSavePort": "interface:0867c9895e",
+   "buildPublishContentImportHooks": "function:c9b6c9b300"
   }
  },
  "./publish/content/idempotency": {
@@ -5814,6 +5886,62 @@
    "collectReferencedMediaKeys": "function:4c57c9a693"
   }
  },
+ "./publish/content/peer-registry": {
+  "types": "./dist/publish/content/peer-registry.d.ts",
+  "symbols": {
+   "CreatePeerInput": "interface:7a134d571e",
+   "PeerVaultServiceOptions": "interface:bb7550bf83",
+   "PeerVaultServicePort": "interface:16b59f5fde",
+   "PublishContentPeerReadDeps": "interface:453bfab7ad",
+   "PublishContentPeerRecord": "interface:6aad4ff47f",
+   "PublishContentPeerRepoPort": "interface:df4699fadd",
+   "PublishContentPeerSummary": "interface:850f4194d6",
+   "PublishContentPeerVaultBinding": "interface:db507fa23a",
+   "PublishContentPeerWriteDeps": "interface:31eab54132",
+   "ResolvedPeerCredential": "interface:a3d19d7543",
+   "UpdatePeerInput": "interface:76a64b289d",
+   "VaultPublishContentPeerRepo": "class:3d17fd9ffd",
+   "createPublishContentPeer": "function:8982cb208d",
+   "deletePublishContentPeer": "function:1b64f58911",
+   "getPublishContentPeerSummary": "function:2bf158e5c4",
+   "listPublishContentPeers": "function:1b8b83a703",
+   "maskApiKey": "function:3d06b3df98",
+   "removeConnectedDestination": "function:22be3d77b0",
+   "resolvePeerCredential": "function:a0ea459512",
+   "saveConnectedDestination": "function:952ffba7dd",
+   "selectConnectedDestination": "function:b584d93064",
+   "toPeerSummary": "function:b1fb86cb0b",
+   "updatePublishContentPeer": "function:df05be62ed"
+  }
+ },
+ "./publish/content/peer-transport": {
+  "types": "./dist/publish/content/peer-transport.d.ts",
+  "symbols": {
+   "ComputeStorageKey": "type:d233276761",
+   "NotSupportedByLiveEntry": "interface:2226f9c92b",
+   "PEER_REQUEST_TIMEOUT_MS": "variable:0043fea9ba",
+   "PUBLISH_CONTENT_PULL_MAX_BLOBS": "variable:c2dfcf011c",
+   "PeerBlobSink": "interface:17fa5c9732",
+   "PeerBlobSource": "interface:40fcbe66de",
+   "PeerCallDeps": "interface:f096214375",
+   "PeerEgressRefusal": "interface:30addf35a9",
+   "PeerHttpClient": "interface:32e56eec2d",
+   "PeerPublishTrigger": "type:e4bc80c9b0",
+   "PeerPullSinks": "interface:a83719512c",
+   "PeerPushSources": "interface:8dc463d222",
+   "PeerRequest": "interface:7f22315937",
+   "PeerTextRedactor": "type:817d0ae5da",
+   "PeerTransport": "type:0a7b965a7b",
+   "PeerTransportCredential": "interface:1813afe777",
+   "PeerTransportErrorCode": "type:5d96640e5a",
+   "PeerTransportHost": "interface:25a1cbabfc",
+   "PublishContentPeerTransportError": "class:4b37c4dd8d",
+   "PublishHistoryRecorder": "interface:77c4283fb6",
+   "PullBlobsResult": "interface:2c5feff09a",
+   "PushBundleResult": "interface:41bc326f44",
+   "createPeerTransport": "function:fe1d398c3e"
+  }
+ },
  "./publish/content/peer-url": {
   "types": "./dist/publish/content/peer-url.d.ts",
   "symbols": {
@@ -5833,6 +5961,18 @@
    "PublishContentPeerNotFoundError": "class:44897a05a4",
    "PublishContentPeerSecretStoreUnconfiguredError": "class:961f137dea",
    "PublishContentPeerValidationError": "class:b66d1cb3f1"
+  }
+ },
+ "./publish/content/permissions": {
+  "types": "./dist/publish/content/permissions.d.ts",
+  "symbols": {
+   "PUBLISH_BACKSTOP_PERMISSION": "variable:b27c1b79ba",
+   "PUBLISH_CONTENT_APPLY_PERMISSION": "variable:77e1ad81f0",
+   "PUBLISH_CONTENT_READ_PERMISSION": "variable:2540694335",
+   "PublishContentGrantCopy": "interface:3063019ecb",
+   "PublishContentGrantRegistry": "interface:9f5858c189",
+   "RegisterPermissionFn": "type:3551972caf",
+   "registerPublishContentPermissionGrants": "function:a34ee0177f"
   }
  },
  "./publish/content/plan-rows": {
@@ -5891,6 +6031,48 @@
    "PublishReadinessVerdict": "type:a00971cf4c",
    "describePublishReadiness": "function:2bdc9e420d",
    "siteLabelFor": "function:cfa3bbe22e"
+  }
+ },
+ "./publish/content/publish-tool": {
+  "types": "./dist/publish/content/publish-tool.d.ts",
+  "symbols": {
+   "PublishToolDeps": "interface:66f11b108e",
+   "PublishToolHost": "interface:b6c3d1fb41",
+   "PublishToolUi": "interface:88664c5868",
+   "createPublishContentFromTool": "function:cbddde68f7"
+  }
+ },
+ "./publish/content/pull": {
+  "types": "./dist/publish/content/pull.d.ts",
+  "symbols": {
+   "PublishContentPullDeps": "interface:9bfbb4739d",
+   "PublishContentPullHost": "interface:8a631079a1",
+   "StagedPeerPull": "interface:9bfff3d820",
+   "createPullAndStageFromPeer": "function:0c6c051e76"
+  }
+ },
+ "./publish/content/push-plan": {
+  "types": "./dist/publish/content/push-plan.d.ts",
+  "symbols": {
+   "PlanPublishToPeerDeps": "interface:7703a1884a",
+   "PlanPublishToPeerHost": "interface:f96fe8c81f",
+   "PublishToPeerPlan": "type:8d369668fa",
+   "createPlanPublishToPeer": "function:c38c371ae2"
+  }
+ },
+ "./publish/content/raw-file-contributor": {
+  "types": "./dist/publish/content/raw-file-contributor.d.ts",
+  "symbols": {
+   "RawFileContributorConfig": "interface:e3fc99ac5f",
+   "createRawFileContributor": "function:b1d2fe105e"
+  }
+ },
+ "./publish/content/raw-row-contributor": {
+  "types": "./dist/publish/content/raw-row-contributor.d.ts",
+  "symbols": {
+   "RawRowContributorConfig": "interface:6a44bad38e",
+   "createRawRowContributor": "function:c13f43008b",
+   "rawRowId": "function:b6b9416feb"
   }
  },
  "./publish/content/repo-handler": {

@@ -73,8 +73,36 @@
       "./backup/site/static-download-html": "universal",
       "./backup/site/credential-warnings": "universal",
       "./backup/site/share-refusal": "universal",
+      "./backup/site/share-backend": "node",
+      "./backup/site/share-file-policy": "node",
+      "./backup/site/import-verifier": "node",
+      "./backup/site/import-database": "node",
+      "./backup/site/share-service": "node",
       "./backup/site/archive-media": "universal",
       "./backup/site/static-export-selection": "universal",
+      "./backup/site/import-verifier-projection": "universal",
+      "./backup/site/import-plugin-state": "node",
+      "./backup/site/import-restore-placement": "node",
+      "./backup/site/share-preparation-steps": "node",
+      "./backup/site/share-preparation": "node",
+      "./backup/site/archive-manifest": "node",
+      "./backup/site/sources": "node",
+      "./backup/site/archive-extensions": "node",
+      "./backup/site/static-download-landing": "universal",
+      "./backup/site/static-copy": "node",
+      "./backup/site/static-download-layout": "node",
+      "./backup/site/static-site-packager": "node",
+      "./backup/site/package-file-inventory": "node",
+      "./backup/site/bundled-export-file-policy": "node",
+      "./backup/site/import-verifier-inventory": "node",
+      "./backup/site/import-keep-off": "node",
+      "./backup/site/import-restore": "node",
+      "./backup/site/share-zip": "node",
+      "./backup/site/share-hosting": "node",
+      "./backup/site/import-registry": "node",
+      "./backup/site/share-registry": "node",
+      "./backup/site/import-backend": "node",
+      "./backup/site/import-backend-steps": "node",
       "./deploy/site/ports": "universal",
       "./deploy/site/deploy-config": "node",
       "./deploy/site/deploy-config-registry": "node"
@@ -397,6 +425,31 @@
       "import": "./dist/backup/site/share-refusal.js",
       "default": "./dist/backup/site/share-refusal.js"
     },
+    "./backup/site/share-backend": {
+      "types": "./dist/backup/site/share-backend.d.ts",
+      "import": "./dist/backup/site/share-backend.js",
+      "default": "./dist/backup/site/share-backend.js"
+    },
+    "./backup/site/share-file-policy": {
+      "types": "./dist/backup/site/share-file-policy.d.ts",
+      "import": "./dist/backup/site/share-file-policy.js",
+      "default": "./dist/backup/site/share-file-policy.js"
+    },
+    "./backup/site/import-verifier": {
+      "types": "./dist/backup/site/import-verifier.d.ts",
+      "import": "./dist/backup/site/import-verifier.js",
+      "default": "./dist/backup/site/import-verifier.js"
+    },
+    "./backup/site/import-database": {
+      "types": "./dist/backup/site/import-database.d.ts",
+      "import": "./dist/backup/site/import-database.js",
+      "default": "./dist/backup/site/import-database.js"
+    },
+    "./backup/site/share-service": {
+      "types": "./dist/backup/site/share-service.d.ts",
+      "import": "./dist/backup/site/share-service.js",
+      "default": "./dist/backup/site/share-service.js"
+    },
     "./backup/site/archive-media": {
       "types": "./dist/backup/site/archive-media.d.ts",
       "import": "./dist/backup/site/archive-media.js",
@@ -406,6 +459,121 @@
       "types": "./dist/backup/site/static-export-selection.d.ts",
       "import": "./dist/backup/site/static-export-selection.js",
       "default": "./dist/backup/site/static-export-selection.js"
+    },
+    "./backup/site/import-verifier-projection": {
+      "types": "./dist/backup/site/import-verifier-projection.d.ts",
+      "import": "./dist/backup/site/import-verifier-projection.js",
+      "default": "./dist/backup/site/import-verifier-projection.js"
+    },
+    "./backup/site/import-plugin-state": {
+      "types": "./dist/backup/site/import-plugin-state.d.ts",
+      "import": "./dist/backup/site/import-plugin-state.js",
+      "default": "./dist/backup/site/import-plugin-state.js"
+    },
+    "./backup/site/import-restore-placement": {
+      "types": "./dist/backup/site/import-restore-placement.d.ts",
+      "import": "./dist/backup/site/import-restore-placement.js",
+      "default": "./dist/backup/site/import-restore-placement.js"
+    },
+    "./backup/site/import-restore": {
+      "types": "./dist/backup/site/import-restore.d.ts",
+      "import": "./dist/backup/site/import-restore.js",
+      "default": "./dist/backup/site/import-restore.js"
+    },
+    "./backup/site/share-preparation-steps": {
+      "types": "./dist/backup/site/share-preparation-steps.d.ts",
+      "import": "./dist/backup/site/share-preparation-steps.js",
+      "default": "./dist/backup/site/share-preparation-steps.js"
+    },
+    "./backup/site/share-preparation": {
+      "types": "./dist/backup/site/share-preparation.d.ts",
+      "import": "./dist/backup/site/share-preparation.js",
+      "default": "./dist/backup/site/share-preparation.js"
+    },
+    "./backup/site/archive-manifest": {
+      "types": "./dist/backup/site/archive-manifest.d.ts",
+      "import": "./dist/backup/site/archive-manifest.js",
+      "default": "./dist/backup/site/archive-manifest.js"
+    },
+    "./backup/site/sources": {
+      "types": "./dist/backup/site/sources.d.ts",
+      "import": "./dist/backup/site/sources.js",
+      "default": "./dist/backup/site/sources.js"
+    },
+    "./backup/site/archive-extensions": {
+      "types": "./dist/backup/site/archive-extensions.d.ts",
+      "import": "./dist/backup/site/archive-extensions.js",
+      "default": "./dist/backup/site/archive-extensions.js"
+    },
+    "./backup/site/static-download-landing": {
+      "types": "./dist/backup/site/static-download-landing.d.ts",
+      "import": "./dist/backup/site/static-download-landing.js",
+      "default": "./dist/backup/site/static-download-landing.js"
+    },
+    "./backup/site/static-copy": {
+      "types": "./dist/backup/site/static-copy.d.ts",
+      "import": "./dist/backup/site/static-copy.js",
+      "default": "./dist/backup/site/static-copy.js"
+    },
+    "./backup/site/static-download-layout": {
+      "types": "./dist/backup/site/static-download-layout.d.ts",
+      "import": "./dist/backup/site/static-download-layout.js",
+      "default": "./dist/backup/site/static-download-layout.js"
+    },
+    "./backup/site/static-site-packager": {
+      "types": "./dist/backup/site/static-site-packager.d.ts",
+      "import": "./dist/backup/site/static-site-packager.js",
+      "default": "./dist/backup/site/static-site-packager.js"
+    },
+    "./backup/site/package-file-inventory": {
+      "types": "./dist/backup/site/package-file-inventory.d.ts",
+      "import": "./dist/backup/site/package-file-inventory.js",
+      "default": "./dist/backup/site/package-file-inventory.js"
+    },
+    "./backup/site/bundled-export-file-policy": {
+      "types": "./dist/backup/site/bundled-export-file-policy.d.ts",
+      "import": "./dist/backup/site/bundled-export-file-policy.js",
+      "default": "./dist/backup/site/bundled-export-file-policy.js"
+    },
+    "./backup/site/import-verifier-inventory": {
+      "types": "./dist/backup/site/import-verifier-inventory.d.ts",
+      "import": "./dist/backup/site/import-verifier-inventory.js",
+      "default": "./dist/backup/site/import-verifier-inventory.js"
+    },
+    "./backup/site/import-keep-off": {
+      "types": "./dist/backup/site/import-keep-off.d.ts",
+      "import": "./dist/backup/site/import-keep-off.js",
+      "default": "./dist/backup/site/import-keep-off.js"
+    },
+    "./backup/site/share-zip": {
+      "types": "./dist/backup/site/share-zip.d.ts",
+      "import": "./dist/backup/site/share-zip.js",
+      "default": "./dist/backup/site/share-zip.js"
+    },
+    "./backup/site/share-hosting": {
+      "types": "./dist/backup/site/share-hosting.d.ts",
+      "import": "./dist/backup/site/share-hosting.js",
+      "default": "./dist/backup/site/share-hosting.js"
+    },
+    "./backup/site/import-registry": {
+      "types": "./dist/backup/site/import-registry.d.ts",
+      "import": "./dist/backup/site/import-registry.js",
+      "default": "./dist/backup/site/import-registry.js"
+    },
+    "./backup/site/share-registry": {
+      "types": "./dist/backup/site/share-registry.d.ts",
+      "import": "./dist/backup/site/share-registry.js",
+      "default": "./dist/backup/site/share-registry.js"
+    },
+    "./backup/site/import-backend": {
+      "types": "./dist/backup/site/import-backend.d.ts",
+      "import": "./dist/backup/site/import-backend.js",
+      "default": "./dist/backup/site/import-backend.js"
+    },
+    "./backup/site/import-backend-steps": {
+      "types": "./dist/backup/site/import-backend-steps.d.ts",
+      "import": "./dist/backup/site/import-backend-steps.js",
+      "default": "./dist/backup/site/import-backend-steps.js"
     },
     "./deploy/site/ports": {
       "types": "./dist/deploy/site/ports.d.ts",
