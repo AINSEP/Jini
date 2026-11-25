@@ -202,6 +202,7 @@
       "./contracts/site/integrations-credentialed-http": "universal",
       "./contracts/site/widgets-html": "universal",
       "./contracts/site/custom-credential-publish-compatibility": "universal",
+      "./contracts/site/project-key-attachments": "universal",
       "./contracts/site/integrations-api-connections": "universal",
       "./contracts/site/cms-menus": "universal",
       "./contracts/site/cms-publish-content": "universal",
@@ -1272,6 +1273,11 @@
       "types": "./dist/contracts/site/custom-credential-publish-compatibility.d.ts",
       "import": "./dist/contracts/site/custom-credential-publish-compatibility.js",
       "default": "./dist/contracts/site/custom-credential-publish-compatibility.js"
+    },
+    "./contracts/site/project-key-attachments": {
+      "types": "./dist/contracts/site/project-key-attachments.d.ts",
+      "import": "./dist/contracts/site/project-key-attachments.js",
+      "default": "./dist/contracts/site/project-key-attachments.js"
     },
     "./contracts/site/integrations-api-connections": {
       "types": "./dist/contracts/site/integrations-api-connections.d.ts",

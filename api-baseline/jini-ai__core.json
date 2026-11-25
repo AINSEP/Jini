@@ -2280,6 +2280,13 @@
    "PostKind": "type:294f476993"
   }
  },
+ "./contracts/site/project-key-attachments": {
+  "types": "./dist/contracts/site/project-key-attachments.d.ts",
+  "symbols": {
+   "KeyAttachments": "interface:f6c5e60136",
+   "ProjectKeyTransaction": "type:2b3faf6778"
+  }
+ },
  "./contracts/site/protocol-mcp-ui": {
   "types": "./dist/contracts/site/protocol-mcp-ui.d.ts",
   "symbols": {
