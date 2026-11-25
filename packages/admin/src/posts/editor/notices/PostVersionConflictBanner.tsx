@@ -43,7 +43,10 @@ export function PostVersionConflictBanner<TConflict>({
     >
       <p>{versionConflictMessage(saveConflict)}</p>
       <p>{t("Loading the latest version discards your unsaved edits.")}</p>
-      <button type="button" className="jini-post-notice__btn" onClick={onLoadLatest}>{t("Load latest")}</button>
+      <button type="button" className="jini-post-notice__btn" onClick={onLoadLatest} {...agentHandle(
+        { handle: "post-version-conflict-load-latest" },
+        { role: "button", label: "Load latest version, discarding my unsaved edits" },
+      )}>{t("Load latest")}</button>
       <button
         type="button"
         className="jini-post-notice__btn"

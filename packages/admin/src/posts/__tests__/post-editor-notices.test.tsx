@@ -51,6 +51,17 @@ describe('PostAutosaveStaleBanner', () => {
 });
 
 describe('PostVersionConflictBanner', () => {
+  it('Load latest carries the post conflict agent element, role and label', () => {
+    render(
+      <PostVersionConflictBanner saveConflict={{ expectedVersion: 3, currentVersion: 4 }} versionConflictMessage={() => 'someone else saved'}
+        onSaveAnyway={vi.fn()} onLoadLatest={vi.fn()} onDismiss={vi.fn()} t={t} />,
+    );
+    const button = screen.getByRole('button', { name: '~Load latest' });
+    expect(button.getAttribute('data-agent-element')).toBe('post-version-conflict-load-latest');
+    expect(button.getAttribute('data-agent-role')).toBe('button');
+    expect(button.getAttribute('data-agent-label')).toBe('Load latest version, discarding my unsaved edits');
+  });
+
   it('renders the injected conflict message and routes each button to its own callback', () => {
     const saveConflict = { expectedVersion: 3, currentVersion: 4 };
     const versionConflictMessage = vi.fn(() => 'someone else saved');

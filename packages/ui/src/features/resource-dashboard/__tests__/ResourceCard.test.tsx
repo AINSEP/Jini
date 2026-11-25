@@ -140,6 +140,39 @@ describe('ResourceCard', () => {
     expect(onOpen).not.toHaveBeenCalled();
   });
 
+  it('opening by click or keyboard focuses the first enabled item', async () => {
+    const item: ResourceBoardItem = { id: 'p1', title: 'X', menuActions: [{ kind: 'rename', label: 'Rename' }, { kind: 'delete', label: 'Delete' }] };
+    const onToggleMenu = vi.fn();
+    const props = baseProps({ item, onToggleMenu });
+    const { rerender } = render(<ResourceCard {...props} />);
+    onToggleMenu.mockImplementation(() => rerender(<ResourceCard {...props} menuOpen />));
+    const trigger = screen.getByRole('button', { name: 'More' });
+    for (const activation of ['click', '{Enter}', ' ']) {
+      trigger.focus();
+      if (activation === 'click') await userEvent.click(trigger);
+      else await userEvent.keyboard(activation);
+      expect(screen.getByRole('menuitem', { name: 'Rename' })).toHaveFocus();
+      rerender(<ResourceCard {...props} />);
+    }
+  });
+
+  it('opening with no enabled items leaves focus on the trigger', async () => {
+    const item: ResourceBoardItem = { id: 'p1', title: 'X', menuActions: [{ kind: 'rename', label: 'Rename' }, { kind: 'delete', label: 'Delete' }] };
+    const onToggleMenu = vi.fn();
+    const props = baseProps({ item, onToggleMenu, busy: true });
+    const { rerender } = render(<ResourceCard {...props} />);
+    onToggleMenu.mockImplementation(() => rerender(<ResourceCard {...props} menuOpen />));
+    const trigger = screen.getByRole('button', { name: 'More' });
+    expect(trigger).toHaveAttribute('aria-haspopup', 'menu');
+    trigger.focus();
+    const focus = vi.spyOn(HTMLButtonElement.prototype, 'focus');
+    await userEvent.click(trigger);
+    expect(screen.getAllByRole('menuitem').every((item) => item.hasAttribute('disabled'))).toBe(true);
+    expect(document.activeElement).toBe(trigger);
+    expect(focus).not.toHaveBeenCalled();
+    focus.mockRestore();
+  });
+
   it('moves focus between menu items with the arrow keys', async () => {
     const props = baseProps({ menuOpen: true, item: { id: 'p1', title: 'X', menuActions: [
       { kind: 'rename', label: 'Rename' },

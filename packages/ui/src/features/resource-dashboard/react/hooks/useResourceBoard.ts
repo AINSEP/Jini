@@ -183,7 +183,10 @@ function useBoardMenu() {
   useEffect(() => {
     if (!openMenuId) return undefined;
     const onKey = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') setOpenMenuId(null);
+      if (event.key === 'Escape') {
+        menuContainerRef.current?.querySelector<HTMLButtonElement>("button.jini-resource-board-card-more")?.focus();
+        setOpenMenuId(null);
+      }
     };
     const onPointerDown = (event: MouseEvent) => {
       const container = menuContainerRef.current;
