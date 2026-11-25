@@ -79,13 +79,6 @@ const RESPONSE_MATRIX: readonly (readonly [route: string, sameOrigin: string, fo
   ['POST /api/connectors/realtime/:channel/publish', '400 BAD_REQUEST', '403 FORBIDDEN'],
   // research
   ['POST /api/research/search', '400 BAD_REQUEST', '403 FORBIDDEN'],
-  // xai
-  ['POST /api/xai/oauth/start', '409 OAUTH_FLOW_IN_PROGRESS', '403 FORBIDDEN'],
-  ['POST /api/xai/oauth/complete', '400 BAD_REQUEST', '403 FORBIDDEN'],
-  ['POST /api/xai/oauth/cancel', '200 json{ok}', '403 FORBIDDEN'],
-  ['GET /api/xai/auth/status', '500 INTERNAL_ERROR', '403 FORBIDDEN'],
-  ['POST /api/xai/oauth/disconnect', '500 INTERNAL_ERROR', '403 FORBIDDEN'],
-  ['POST /api/xai/search', '400 BAD_REQUEST', '403 FORBIDDEN'],
   // remote-run-events
   ['POST /api/runs/:runId/tool-use', '401 REMOTE_TOOL_BRIDGE_TOKEN_REQUIRED', '401 REMOTE_TOOL_BRIDGE_TOKEN_REQUIRED'],
   ['POST /api/runs/:runId/tool-result', '401 REMOTE_TOOL_BRIDGE_TOKEN_REQUIRED', '401 REMOTE_TOOL_BRIDGE_TOKEN_REQUIRED'],

@@ -44,7 +44,7 @@ import type { AgentExecutorRuntimePorts } from '@jini-ai/daemon/ports/runtime';
 export type JiniKernelStorage =
   /** No files touched. Runs and their events vanish with the process — right for tests and for an
    * embedded host that treats runs as ephemeral. Features needing a real database file
-   * (`daemonDb`, `toolCatalog`, `xai`) cannot be activated against it. */
+   * (`daemonDb`, `toolCatalog`) cannot be activated against it. */
   | { readonly kind: 'memory' }
   /** `<dataDir>/events.db` + `<dataDir>/journal.db`. The directory must already exist. */
   | { readonly kind: 'sqlite'; readonly dataDir: string; readonly open: SqliteSyncOpener };

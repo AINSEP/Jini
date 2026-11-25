@@ -584,7 +584,7 @@ describe('createLocalNodeDaemon', () => {
 
     expect(daemon.activeFeatures).toEqual([
       'health', 'runs', 'agents', 'hostTools', 'modelProxy', 'activeContext', 'terminal',
-      'daemonDb', 'toolCatalog', 'delegatedToolCalls', 'connectors', 'research', 'xai', 'daemonStatus',
+      'daemonDb', 'toolCatalog', 'delegatedToolCalls', 'connectors', 'research', 'daemonStatus',
     ]);
   });
 

@@ -14,7 +14,7 @@
  *
  * **Capabilities are an upper bound, not a trigger.** Granting `net:egress` says "this host is
  * *permitted* to run features that reach the network"; it does not silently mount the model proxy,
- * research, connectors and xAI together. What a capability grant does is set the ceiling that a
+ * research and connectors together. What a capability grant does is set the ceiling that a
  * profile's activation policy and a caller's explicit `features` selection must both stay under.
  * The inverse is enforced too: explicitly enabling a feature whose capability is denied is a boot
  * error, never a silent win for either side.
