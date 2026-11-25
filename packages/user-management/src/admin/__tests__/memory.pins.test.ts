@@ -3,9 +3,9 @@ import { describe, expect, it, vi } from 'vitest';
 import { createMemoryAuthApi, createMemoryMembersApi, createMemoryRolesApi, createMemoryUsersApi, createMemoryUsersSafety } from '../adapters/memory.js';
 import type { AdminMember, AdminOperator, PolicyPermissionRecord, PolicyRecord, RoleRecord } from '../models.js';
 
-const role: RoleRecord = { id: 'r', workspaceId: 'w', name: 'Writer', isBuiltin: false };
-const builtinRole: RoleRecord = { id: 'rb', workspaceId: 'w', name: 'Admin', isBuiltin: true };
-const policy: PolicyRecord = { id: 'p', workspaceId: 'w', name: 'Read', isBuiltin: false, isFrozen: false };
+const role: RoleRecord = { version: 1, id: 'r', workspaceId: 'w', name: 'Writer', isBuiltin: false };
+const builtinRole: RoleRecord = { version: 1, id: 'rb', workspaceId: 'w', name: 'Admin', isBuiltin: true };
+const policy: PolicyRecord = { version: 1, id: 'p', workspaceId: 'w', name: 'Read', isBuiltin: false, isFrozen: false };
 const grant: PolicyPermissionRecord = { id: 'g', workspaceId: 'w', policyId: 'p', permission: 'content.read', resourceType: null, constraintJson: null };
 const owner: AdminOperator = { principalId: 'owner', workspaceId: 'w', username: 'owner', status: 'active', createdAt: '2026-01-01', roleIds: [], policyIds: [] };
 const alice: AdminOperator = { ...owner, principalId: 'alice', username: 'Alice' };
@@ -64,13 +64,13 @@ describe('createMemoryRolesApi operations (pin)', () => {
 
   it('trims and NFC-normalizes names and rejects blank ones', async () => {
     const api = manager();
-    expect((await api.createRole({ name: '  Café ' })).role).toEqual({ id: 'memory-1', workspaceId: 'w', name: 'Café', isBuiltin: false });
+    expect((await api.createRole({ name: '  Café ' })).role).toEqual({ id: 'memory-1', workspaceId: 'w', name: 'Café', isBuiltin: false, version: 1 });
     await expect(api.createRole({ name: ' \t ' })).rejects.toMatchObject(rolesErr('VALIDATION_ERROR', 'Name is required.'));
   });
 
   it('updates a role, allowing its own name in another case but not a sibling name', async () => {
     const api = manager();
-    expect((await api.updateRole({ roleId: 'r', name: 'WRITER' })).role).toEqual({ ...role, name: 'WRITER' });
+    expect((await api.updateRole({ roleId: 'r', name: 'WRITER' })).role).toEqual({ ...role, name: 'WRITER', version: role.version + 1 });
     await expect(api.updateRole({ roleId: 'r', name: 'admin' })).rejects.toMatchObject(rolesErr('RESOURCE_CONFLICT', 'Name already exists.'));
     await expect(api.updateRole({ roleId: 'rb', name: 'New' })).rejects.toMatchObject(rolesErr('VALIDATION_ERROR', 'Built-in role is immutable.'));
     await expect(api.updateRole({ roleId: 'missing', name: 'New' })).rejects.toMatchObject(rolesErr('RESOURCE_NOT_FOUND', 'Role not found.'));
@@ -84,16 +84,16 @@ describe('createMemoryRolesApi operations (pin)', () => {
 
   it('creates policies with and without a description', async () => {
     const api = manager();
-    expect((await api.createPolicy({ name: 'Plain' })).policy).toEqual({ id: 'memory-1', workspaceId: 'w', name: 'Plain', isBuiltin: false, isFrozen: false });
-    expect((await api.createPolicy({ name: 'Doc' }, { description: '' })).policy).toEqual({ id: 'memory-2', workspaceId: 'w', name: 'Doc', isBuiltin: false, isFrozen: false, description: '' });
+    expect((await api.createPolicy({ name: 'Plain' })).policy).toEqual({ id: 'memory-1', workspaceId: 'w', name: 'Plain', isBuiltin: false, isFrozen: false, version: 1 });
+    expect((await api.createPolicy({ name: 'Doc' }, { description: '' })).policy).toEqual({ id: 'memory-2', workspaceId: 'w', name: 'Doc', isBuiltin: false, isFrozen: false, description: '', version: 1 });
     await expect(api.createPolicy({ name: 'read' })).rejects.toMatchObject(rolesErr('RESOURCE_CONFLICT', 'Name already exists.'));
   });
 
   it('updates a policy name, description or both, and requires at least one', async () => {
     const api = manager();
     await expect(api.updatePolicy({ policyId: 'p' })).rejects.toMatchObject(rolesErr('VALIDATION_ERROR', 'At least one of name or description is required.'));
-    expect((await api.updatePolicy({ policyId: 'p' }, { description: 'why' })).policy).toEqual({ ...policy, description: 'why' });
-    expect((await api.updatePolicy({ policyId: 'p' }, { name: ' Reader ' })).policy).toEqual({ ...policy, name: 'Reader', description: 'why' });
+    expect((await api.updatePolicy({ policyId: 'p' }, { description: 'why' })).policy).toEqual({ ...policy, description: 'why', version: policy.version + 1 });
+    expect((await api.updatePolicy({ policyId: 'p' }, { name: ' Reader ' })).policy).toEqual({ ...policy, name: 'Reader', description: 'why', version: policy.version + 2 });
     await expect(api.updatePolicy({ policyId: 'missing' }, { name: 'x' })).rejects.toMatchObject(rolesErr('RESOURCE_NOT_FOUND', 'Policy not found.'));
   });
 

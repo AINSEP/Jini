@@ -18,10 +18,10 @@ const EXPECTED: [string, Record<string, string>, string[], string[]][] = [
   ["identity_user_enable", U, ["principalId"], ["principalId"]],
   ["identity_role_create", R, ["name"], ["name"]],
   ["identity_role_assign", R, ["principalId", "roleId"], ["principalId", "roleId"]],
-  ["identity_role_rename", R, ["roleId", "name"], ["roleId", "name"]],
+  ["identity_role_rename", R, ["roleId", "name", "expectedVersion"], ["roleId", "name", "expectedVersion"]],
   ["identity_role_delete", R, ["roleId"], ["roleId"]],
   ["identity_policy_create", R, ["name"], ["name", "description"]],
-  ["identity_policy_update", R, ["policyId"], ["policyId", "name", "description"]],
+  ["identity_policy_update", R, ["policyId", "expectedVersion"], ["policyId", "name", "description", "expectedVersion"]],
   ["identity_policy_delete", R, ["policyId"], ["policyId"]],
   ["identity_policy_attach", R, ["principalId", "policyId"], ["principalId", "policyId"]],
 ];

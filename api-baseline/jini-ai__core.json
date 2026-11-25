@@ -2453,8 +2453,8 @@
    "PasswordHasherPort": "interface:f502fa8476",
    "PolicyPermissionRecord": "interface:205752fcb3",
    "PolicyPermissionRepoPort": "interface:6d9d1ee9e3",
-   "PolicyRecord": "interface:daf7052fb5",
-   "PolicyRepoPort": "interface:b3a5462493",
+   "PolicyRecord": "interface:8e5ac8ea71",
+   "PolicyRepoPort": "interface:26c9234852",
    "PrincipalKind": "type:a515a37a8b",
    "PrincipalPolicyRecord": "interface:0466496e9c",
    "PrincipalPolicyRepoPort": "interface:ecff2742d9",
@@ -2465,12 +2465,12 @@
    "PrincipalStatus": "type:5db607e745",
    "RolePolicyRecord": "interface:4329268a51",
    "RolePolicyRepoPort": "interface:036e26aeb7",
-   "RoleRecord": "interface:26bf9402d4",
-   "RoleRepoPort": "interface:ed6178e3a5",
+   "RoleRecord": "interface:19d288ca36",
+   "RoleRepoPort": "interface:662c645f61",
    "SessionRecord": "interface:08ae02fd6a",
    "SessionRepoPort": "interface:0ac9ae46ad",
-   "UserRecord": "interface:9d8ad07d74",
-   "UserRepoPort": "interface:629df2aa02"
+   "UserRecord": "interface:2fc0128bc7",
+   "UserRepoPort": "interface:481ac5c20c"
   }
  },
  "./contracts/site/user-management-react": {

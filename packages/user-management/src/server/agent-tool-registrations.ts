@@ -300,9 +300,25 @@ function toIdentityUserView(record: { principal: PrincipalRecord; user: UserReco
   return view;
 }
 
-/** What an identity role tool returns to the model. `isBuiltin` is kept because it is what predicts a rename/delete refusal. */
-function toIdentityRoleView(role: RoleRecord): { id: string; name: string; isBuiltin: boolean } {
-  return { id: role.id, name: role.name, isBuiltin: role.isBuiltin };
+/** The model-facing policy view; see `toIdentityPolicyView`. */
+interface IdentityPolicyToolView { id: string; version: number; name: string; isBuiltin: boolean; isFrozen: boolean; description?: string }
+
+/** What an identity role tool returns to the model. `isBuiltin` is kept because it is what predicts a
+ *  rename/delete refusal; `version` is the basis identity_role_rename requires back. */
+function toIdentityRoleView(role: RoleRecord): { id: string; name: string; isBuiltin: boolean; version: number } {
+  return { id: role.id, name: role.name, isBuiltin: role.isBuiltin, version: role.version };
+}
+
+/**
+ * Refuses an identity edit before parsing when the caller sent no basis, naming the read tool that
+ * returns one. The schema also marks `expectedVersion` required; this check exists so the refusal
+ * tells the model where the basis comes from instead of only echoing the schema. @complexity O(1).
+ */
+function requireEditorBasis({ toolId, readTool, input }: { toolId: string; readTool: string; input: unknown }, _optional: Record<string, never> = {}): void {
+  if (typeof input === "object" && input !== null && (input as Record<string, unknown>).expectedVersion !== undefined) return;
+  throw new Error(
+    `identity tool '${toolId}' needs 'expectedVersion': call ${readTool} first and pass the 'version' it returned, so a change saved after that read is not overwritten.`,
+  );
 }
 
 /**
@@ -310,10 +326,12 @@ function toIdentityRoleView(role: RoleRecord): { id: string; name: string; isBui
  * together they are what predicts an update/delete/write-permission refusal (mirrors
  * `toIdentityRoleView`'s `isBuiltin`, extended for the second immutability flag policies carry that
  * roles do not). `description` is present only when set, matching `toIdentityUserView`'s `email`.
+ * `version` is the basis identity_policy_update requires back.
  */
-function toIdentityPolicyView(policy: PolicyRecord): { id: string; name: string; isBuiltin: boolean; isFrozen: boolean; description?: string } {
-  const view: { id: string; name: string; isBuiltin: boolean; isFrozen: boolean; description?: string } = {
+function toIdentityPolicyView(policy: PolicyRecord): IdentityPolicyToolView {
+  const view: IdentityPolicyToolView = {
     id: policy.id,
+    version: policy.version,
     name: policy.name,
     isBuiltin: policy.isBuiltin,
     isFrozen: policy.isFrozen,
@@ -549,11 +567,12 @@ function createIdentityRoleAssignHandler(routeDeps: IdentityToolDeps, serviceDep
 
 function createIdentityRoleRenameHandler(routeDeps: IdentityToolDeps, serviceDeps: () => AuthServiceDeps): ToolHandler {
   return async (ctx) => {
+      requireEditorBasis({ toolId: "identity_role_rename", readTool: "identity_role_list", input: ctx.input });
       const input = identityInput({ toolId: "identity_role_rename", input: ctx.input });
       const { role } = await updateRole({
         deps: serviceDeps(),
         input: { workspaceId: routeDeps.workspaceId, callerPrincipalId: ctx.principal.id, roleId: input.req("roleId"), name: input.req("name") },
-      });
+      }, { expectedVersion: input.int("expectedVersion") });
       return { role: toIdentityRoleView(role) };
     };
 }
@@ -591,6 +610,7 @@ function createIdentityPolicyCreateHandler(routeDeps: IdentityToolDeps, serviceD
 
 function createIdentityPolicyUpdateHandler(routeDeps: IdentityToolDeps, serviceDeps: () => AuthServiceDeps): ToolHandler {
   return async (ctx) => {
+      requireEditorBasis({ toolId: "identity_policy_update", readTool: "identity_policy_list", input: ctx.input });
       const input = identityInput({ toolId: "identity_policy_update", input: ctx.input });
       const { policy } = await updatePolicy({
         deps: serviceDeps(),
@@ -601,7 +621,7 @@ function createIdentityPolicyUpdateHandler(routeDeps: IdentityToolDeps, serviceD
           // Same absent-stays-absent reasoning as identity_policy_create — `updatePolicy` itself
           // distinguishes undefined ("leave unchanged") from an explicit empty string.
         },
-      }, { name: input.opt("name"), description: input.opt("description") });
+      }, { name: input.opt("name"), description: input.opt("description"), expectedVersion: input.int("expectedVersion") });
       return { policy: toIdentityPolicyView(policy) };
     };
 }

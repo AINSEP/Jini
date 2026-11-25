@@ -18,7 +18,25 @@ describe("roleUpdateRoute", () => {
     const { routeDeps, serviceDeps, OWNER } = await makeAccessDeps();
     const { role } = await createRole({ deps: serviceDeps, input: { workspaceId: WORKSPACE_ID, callerPrincipalId: OWNER.id, name: "Old" } });
     const result = await roleUpdateRoute.handle({ input: { roleId: role.id, name: "New" }, deps: routeDeps, context: OWNER });
-    expect(result).toEqual({ ok: true, value: { role: { id: role.id, workspaceId: WORKSPACE_ID, name: "New", isBuiltin: false } } });
+    expect(result).toEqual({ ok: true, value: { role: { id: role.id, workspaceId: WORKSPACE_ID, name: "New", isBuiltin: false, version: 2 } } });
+  });
+
+  it("carries the client's basis unparsed and refuses a malformed one 400 before any write", async () => {
+    expect(roleUpdateRoute.parse(raw({ roleId: "r1" }, { name: "N", expectedVersion: "3" }))).toEqual({ ok: true, value: { roleId: "r1", name: "N", expectedVersion: "3" } });
+    const { routeDeps, serviceDeps, OWNER, repos } = await makeAccessDeps();
+    const { role } = await createRole({ deps: serviceDeps, input: { workspaceId: WORKSPACE_ID, callerPrincipalId: OWNER.id, name: "Old" } });
+    expect(await refusalOf(() => roleUpdateRoute.handle({ input: { roleId: role.id, name: "New", expectedVersion: "3" }, deps: routeDeps, context: OWNER })))
+      .toEqual({ status: 400, body: { error: "'expectedVersion' must be a non-negative integer when present", code: "VALIDATION_ERROR" } });
+    expect((await repos.roles.findById({ workspaceId: WORKSPACE_ID, id: role.id }))?.name).toBe("Old");
+  });
+
+  it("answers the second editor from the same version 409 VERSION_CONFLICT and keeps the first save", async () => {
+    const { routeDeps, serviceDeps, OWNER, repos } = await makeAccessDeps();
+    const { role } = await createRole({ deps: serviceDeps, input: { workspaceId: WORKSPACE_ID, callerPrincipalId: OWNER.id, name: "Old" } });
+    await roleUpdateRoute.handle({ input: { roleId: role.id, name: "First", expectedVersion: role.version }, deps: routeDeps, context: OWNER });
+    expect(await refusalOf(() => roleUpdateRoute.handle({ input: { roleId: role.id, name: "Second", expectedVersion: role.version }, deps: routeDeps, context: OWNER })))
+      .toMatchObject({ status: 409, body: { code: "VERSION_CONFLICT" } });
+    expect(await repos.roles.findById({ workspaceId: WORKSPACE_ID, id: role.id })).toMatchObject({ name: "First", version: 2 });
   });
 
   it("answers an absent role 404 RESOURCE_NOT_FOUND from the real service", async () => {

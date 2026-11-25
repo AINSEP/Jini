@@ -1,3 +1,4 @@
+import { assertVersionedWrite } from "@jini-ai/core/optimistic-concurrency";
 import { resetUserPassword } from '../admin-crud-service.js';
 import { issueRecoveryCodes, resetOwnerPassword } from '../recovery-codes.js';
 import { expect, test } from 'vitest';
@@ -15,9 +16,9 @@ const passkeyRefusal = 'This passkey attempt was not accepted or has expired. St
 
 async function mfaFixture() {
   const repos = createTransactionalInMemoryIdentityRepos({ repos: {
-    principals: new memory.InMemoryPrincipalRepo({}), users: new memory.InMemoryUserRepo({}),
-    sessions: new memory.InMemorySessionRepo({}), roles: new memory.InMemoryRoleRepo({}),
-    policies: new memory.InMemoryPolicyRepo({}), policyPermissions: new memory.InMemoryPolicyPermissionRepo({}),
+    principals: new memory.InMemoryPrincipalRepo({}), users: new memory.InMemoryUserRepo({ assertVersionedWrite }),
+    sessions: new memory.InMemorySessionRepo({}), roles: new memory.InMemoryRoleRepo({ assertVersionedWrite }),
+    policies: new memory.InMemoryPolicyRepo({ assertVersionedWrite }), policyPermissions: new memory.InMemoryPolicyPermissionRepo({}),
     rolePolicies: new memory.InMemoryRolePolicyRepo({}), principalRoles: new memory.InMemoryPrincipalRoleRepo({}),
     principalPolicies: new memory.InMemoryPrincipalPolicyRepo({}),
   } });

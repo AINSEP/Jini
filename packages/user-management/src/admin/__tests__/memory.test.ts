@@ -4,8 +4,8 @@ import { createRolesController } from '../controllers/roles.controller.js';
 import { describeRolesError } from '../rules.js';
 import { RolesApiError } from '../ports.js';
 import type { RoleRecord, PolicyRecord } from '../models.js';
-const role: RoleRecord = { id: 'r', workspaceId: 'w', name: 'builtin', isBuiltin: true };
-const policy: PolicyRecord = { id: 'p', workspaceId: 'w', name: 'frozen', isBuiltin: false, isFrozen: true };
+const role: RoleRecord = { version: 1, id: 'r', workspaceId: 'w', name: 'builtin', isBuiltin: true };
+const policy: PolicyRecord = { version: 1, id: 'p', workspaceId: 'w', name: 'frozen', isBuiltin: false, isFrozen: true };
 describe('memory server contract', () => {
     it('denies every mutation without a server grant even if the controller has a client grant', async () => {
         const api = createMemoryRolesApi({ workspaceId: 'w' }, { roles: [role], policies: [policy] });

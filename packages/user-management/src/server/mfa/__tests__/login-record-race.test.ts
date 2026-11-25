@@ -1,3 +1,4 @@
+import { assertVersionedWrite } from "@jini-ai/core/optimistic-concurrency";
 import { expect, test, vi } from 'vitest';
 import { seedIdentity } from '../../seed.js';
 import { NodeSessionTokens } from '../../session-tokens.js';
@@ -9,10 +10,10 @@ import type { MfaFactor, MfaPending, OwnerMfaDeps } from '../ports.js';
 import { beginOwnerLogin, completeOwnerLogin } from '../service.js';
 
 async function fixture() {
-  const users = new memory.InMemoryUserRepo({}), sessions = new memory.InMemorySessionRepo({});
+  const users = new memory.InMemoryUserRepo({ assertVersionedWrite }), sessions = new memory.InMemorySessionRepo({});
   const repos = createTransactionalInMemoryIdentityRepos({ repos: {
     principals: new memory.InMemoryPrincipalRepo({}), users, sessions,
-    roles: new memory.InMemoryRoleRepo({}), policies: new memory.InMemoryPolicyRepo({}),
+    roles: new memory.InMemoryRoleRepo({ assertVersionedWrite }), policies: new memory.InMemoryPolicyRepo({ assertVersionedWrite }),
     policyPermissions: new memory.InMemoryPolicyPermissionRepo({}), rolePolicies: new memory.InMemoryRolePolicyRepo({}),
     principalRoles: new memory.InMemoryPrincipalRoleRepo({}), principalPolicies: new memory.InMemoryPrincipalPolicyRepo({}),
   } });

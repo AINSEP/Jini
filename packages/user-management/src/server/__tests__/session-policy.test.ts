@@ -1,3 +1,4 @@
+import { assertVersionedWrite } from "@jini-ai/core/optimistic-concurrency";
 import { expect, test } from "vitest";
 import { createSessionForPrincipal, login, validateSession, type AuthServiceDeps } from "../auth-service.js";
 import { defaultUserManagementMessages } from "../messages.js";
@@ -12,9 +13,9 @@ function fixture(): AuthServiceDeps {
   let id = 0;
   return {
     repos: createTransactionalInMemoryIdentityRepos({ repos: {
-      principals: new InMemoryPrincipalRepo({}), users: new InMemoryUserRepo({}),
-      sessions: new InMemorySessionRepo({}), roles: new InMemoryRoleRepo({}),
-      policies: new InMemoryPolicyRepo({}), policyPermissions: new InMemoryPolicyPermissionRepo({}),
+      principals: new InMemoryPrincipalRepo({}), users: new InMemoryUserRepo({ assertVersionedWrite }),
+      sessions: new InMemorySessionRepo({}), roles: new InMemoryRoleRepo({ assertVersionedWrite }),
+      policies: new InMemoryPolicyRepo({ assertVersionedWrite }), policyPermissions: new InMemoryPolicyPermissionRepo({}),
       rolePolicies: new InMemoryRolePolicyRepo({}), principalRoles: new InMemoryPrincipalRoleRepo({}),
       principalPolicies: new InMemoryPrincipalPolicyRepo({}),
     } }),

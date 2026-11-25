@@ -287,7 +287,7 @@ export async function createUser(required: {
     status: "active",
     createdAt: nowIso,
   };
-  const user: UserRecord = {
+  const user: UserRecord = { version: 1,
     principalId,
     workspaceId: input.workspaceId,
     username,
@@ -333,7 +333,7 @@ export async function createRole(required: {
     throw new IdentityValidationError({ message: "role name is required" });
   }
 
-  const role: RoleRecord = {
+  const role: RoleRecord = { version: 1,
     id: deps.idGen.newId(),
     workspaceId: input.workspaceId,
     name,
@@ -370,7 +370,7 @@ export async function createPolicy(required: {
     throw new IdentityValidationError({ message: "policy name is required" });
   }
 
-  const policy: PolicyRecord = {
+  const policy: PolicyRecord = { version: 1,
     id: deps.idGen.newId(),
     workspaceId: input.workspaceId,
     name,

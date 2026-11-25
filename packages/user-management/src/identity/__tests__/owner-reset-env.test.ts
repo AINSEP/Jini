@@ -1,3 +1,4 @@
+import { assertVersionedWrite } from "@jini-ai/core/optimistic-concurrency";
 import * as identity from '../../server/index.js';
 import assert from 'node:assert/strict';
 import { test } from 'vitest';
@@ -19,9 +20,9 @@ test('host fallback resolves the renamed owner and skips a password already sati
 /** Deterministic ports exercise the real Jini transition and the host's pre-write hook. */
 async function resetFixture() {
   const repos = identity.createTransactionalInMemoryIdentityRepos({ repos: {
-    principals: new identity.InMemoryPrincipalRepo({}), users: new identity.InMemoryUserRepo({}),
-    sessions: new identity.InMemorySessionRepo({}), roles: new identity.InMemoryRoleRepo({}),
-    policies: new identity.InMemoryPolicyRepo({}), policyPermissions: new identity.InMemoryPolicyPermissionRepo({}),
+    principals: new identity.InMemoryPrincipalRepo({}), users: new identity.InMemoryUserRepo({ assertVersionedWrite }),
+    sessions: new identity.InMemorySessionRepo({}), roles: new identity.InMemoryRoleRepo({ assertVersionedWrite }),
+    policies: new identity.InMemoryPolicyRepo({ assertVersionedWrite }), policyPermissions: new identity.InMemoryPolicyPermissionRepo({}),
     rolePolicies: new identity.InMemoryRolePolicyRepo({}), principalRoles: new identity.InMemoryPrincipalRoleRepo({}),
     principalPolicies: new identity.InMemoryPrincipalPolicyRepo({}),
   } });

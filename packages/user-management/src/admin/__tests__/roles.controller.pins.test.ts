@@ -7,12 +7,12 @@ import type { RoleRecord, PolicyRecord, PolicyPermissionRecord, RolesState } fro
 import { rolesMessagesEn as m } from '../messages.en.js';
 
 const deferred = <T>() => { let resolve!: (v: T) => void; let reject!: (v: unknown) => void; const promise = new Promise<T>((a, b) => { resolve = a; reject = b; }); return { promise, resolve, reject }; };
-const role: RoleRecord = { id: 'r1', workspaceId: 'w', name: 'Writer', isBuiltin: false };
-const builtinRole: RoleRecord = { id: 'rb', workspaceId: 'w', name: 'Owner', isBuiltin: true };
-const policy: PolicyRecord = { id: 'p1', workspaceId: 'w', name: 'Read', isBuiltin: false, isFrozen: false };
-const policy2: PolicyRecord = { id: 'p2', workspaceId: 'w', name: 'Write', isBuiltin: false, isFrozen: false, description: 'd' };
-const builtinPolicy: PolicyRecord = { id: 'pb', workspaceId: 'w', name: 'All', isBuiltin: true, isFrozen: false };
-const frozenPolicy: PolicyRecord = { id: 'pf', workspaceId: 'w', name: 'Frozen', isBuiltin: false, isFrozen: true };
+const role: RoleRecord = { version: 1, id: 'r1', workspaceId: 'w', name: 'Writer', isBuiltin: false };
+const builtinRole: RoleRecord = { version: 1, id: 'rb', workspaceId: 'w', name: 'Owner', isBuiltin: true };
+const policy: PolicyRecord = { version: 1, id: 'p1', workspaceId: 'w', name: 'Read', isBuiltin: false, isFrozen: false };
+const policy2: PolicyRecord = { version: 1, id: 'p2', workspaceId: 'w', name: 'Write', isBuiltin: false, isFrozen: false, description: 'd' };
+const builtinPolicy: PolicyRecord = { version: 1, id: 'pb', workspaceId: 'w', name: 'All', isBuiltin: true, isFrozen: false };
+const frozenPolicy: PolicyRecord = { version: 1, id: 'pf', workspaceId: 'w', name: 'Frozen', isBuiltin: false, isFrozen: true };
 const grant: PolicyPermissionRecord = { id: 'g1', workspaceId: 'w', policyId: 'p1', permission: 'content.read', resourceType: null };
 const MANAGE = { permissions: ['role.manage'] };
 

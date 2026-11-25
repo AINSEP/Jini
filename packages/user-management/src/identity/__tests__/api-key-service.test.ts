@@ -1,3 +1,4 @@
+import { assertVersionedWrite } from "@jini-ai/core/optimistic-concurrency";
 import { NodeSessionTokens } from "../../server/index.js";
 import { createTransactionalInMemoryIdentityRepos } from "../../server/index.js";
 import assert from "node:assert/strict";
@@ -28,16 +29,16 @@ async function harness() {
   const verified: Array<[string, string]> = [];
   const deps: ApiKeyServiceDeps = {
     tokens: new NodeSessionTokens({}),
-    repos: createTransactionalInMemoryIdentityRepos({ repos: { principals: new InMemoryPrincipalRepo({}), users: new InMemoryUserRepo({}), sessions: new InMemorySessionRepo({}), roles: new InMemoryRoleRepo({}), policies: new InMemoryPolicyRepo({}), policyPermissions: new InMemoryPolicyPermissionRepo({}), principalPolicies: new InMemoryPrincipalPolicyRepo({}), principalRoles: new InMemoryPrincipalRoleRepo({}), rolePolicies: new InMemoryRolePolicyRepo({}) } }),
+    repos: createTransactionalInMemoryIdentityRepos({ repos: { principals: new InMemoryPrincipalRepo({}), users: new InMemoryUserRepo({ assertVersionedWrite }), sessions: new InMemorySessionRepo({}), roles: new InMemoryRoleRepo({ assertVersionedWrite }), policies: new InMemoryPolicyRepo({ assertVersionedWrite }), policyPermissions: new InMemoryPolicyPermissionRepo({}), principalPolicies: new InMemoryPrincipalPolicyRepo({}), principalRoles: new InMemoryPrincipalRoleRepo({}), rolePolicies: new InMemoryRolePolicyRepo({}) } }),
     apiKeys: new InMemoryApiKeyRepo(), clock, idGen: { newId: () => `b08-${++id}` },
     hasher: { hash: async ({ password }) => `password:${password}`, verify: async ({ hash, password }) => hash === `password:${password}` },
     secretHasher: { hash: async ({ secret }) => `digest:${secret}`, verify: async ({ storedHash, secret }) => { verified.push([storedHash, secret]); return storedHash === `digest:${secret}`; } },
   };
   await deps.repos.principals.save({ id: "issuer", workspaceId: WS, kind: "user", displayName: "Owner", status: "active", createdAt: NOW });
-  await deps.repos.policies.save({ id: "issuer-policy", workspaceId: WS, name: "issuer", isBuiltin: false, isFrozen: false });
+  await deps.repos.policies.save({ version: 1, id: "issuer-policy", workspaceId: WS, name: "issuer", isBuiltin: false, isFrozen: false });
   await deps.repos.principalPolicies.save({ id: "issuer-grant", workspaceId: WS, principalId: "issuer", policyId: "issuer-policy" });
   await deps.repos.policyPermissions.save({ id: "owner-permission", workspaceId: WS, policyId: "issuer-policy", permission: "*", resourceType: null, constraintJson: null });
-  await deps.repos.policies.save({ id: "source", workspaceId: WS, name: "source", isBuiltin: false, isFrozen: false });
+  await deps.repos.policies.save({ version: 1, id: "source", workspaceId: WS, name: "source", isBuiltin: false, isFrozen: false });
   await deps.repos.policyPermissions.save({ id: "source-read", workspaceId: WS, policyId: "source", permission: "content.read", resourceType: "entry", constraintJson: '{"type":"recipe"}' });
   const { principal } = await createApiKeyPrincipal({ deps, input: { workspaceId: WS, callerPrincipalId: "issuer", displayName: "  Runner  " } });
   return { deps, principal, verified, setNow: (value: string) => clock.set(value), input: { workspaceId: WS, callerPrincipalId: "issuer", principalId: principal.id, label: "  Build key  ", policyIds: ["source"] } };
@@ -69,7 +70,7 @@ test("issuance freezes exact constrained permissions, canonicalizes expiry and s
 
 test("concurrent issuances for one grantless principal cannot union distinct snapshots", async () => {
   const h = await harness();
-  await h.deps.repos.policies.save({ id: "other-source", workspaceId: WS, name: "other-source", isBuiltin: false, isFrozen: false });
+  await h.deps.repos.policies.save({ version: 1, id: "other-source", workspaceId: WS, name: "other-source", isBuiltin: false, isFrozen: false });
   await h.deps.repos.policyPermissions.save({ id: "other-write", workspaceId: WS, policyId: "other-source", permission: "content.write", resourceType: null, constraintJson: null });
   const attempts = await Promise.allSettled([
     issueApiKey({ deps: h.deps, input: h.input }),
@@ -227,7 +228,7 @@ test("the grant clamp checks the second source policy even when the first permis
   for (const permission of ["apikey.manage", "content.read"]) {
     await h.deps.repos.policyPermissions.save({ id: `issuer-${permission}`, workspaceId: WS, policyId: "issuer-policy", permission, resourceType: null, constraintJson: null });
   }
-  await h.deps.repos.policies.save({ id: "second-source", workspaceId: WS, name: "Privileged", isBuiltin: false, isFrozen: false });
+  await h.deps.repos.policies.save({ version: 1, id: "second-source", workspaceId: WS, name: "Privileged", isBuiltin: false, isFrozen: false });
   await h.deps.repos.policyPermissions.save({ id: "second-permission", workspaceId: WS, policyId: "second-source", permission: "system.write", resourceType: null, constraintJson: null });
   await assert.rejects(issueApiKey({ deps: h.deps, input: { ...h.input, policyIds: ["source", "second-source"] } }), (error) => {
     assert(error instanceof GrantExceedsIssuerError);
@@ -323,7 +324,7 @@ for (const grantKind of ["role", "policy"] as const) {
   test(`a principal with an existing ${grantKind} grant cannot receive a snapshot`, async () => {
     const h = await harness();
     if (grantKind === "role") {
-      await h.deps.repos.roles.save({ id: "role", workspaceId: WS, name: "Runner role", isBuiltin: false });
+      await h.deps.repos.roles.save({ version: 1, id: "role", workspaceId: WS, name: "Runner role", isBuiltin: false });
       await h.deps.repos.principalRoles.save({ id: "grant", workspaceId: WS, principalId: h.principal.id, roleId: "role" });
     } else {
       await h.deps.repos.principalPolicies.save({ id: "grant", workspaceId: WS, principalId: h.principal.id, policyId: "source" });
