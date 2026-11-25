@@ -8543,5 +8543,40 @@
       "CollectionEntryViewController": "interface:pending-opus",
       "CollectionEntryEditor": "function:pending-opus"
     }
+  },
+  "./asset-transfer/copy-tool": {
+    "types": "./dist/asset-transfer/copy-tool.d.ts",
+    "symbols": {
+      "AssetApprovalToolHandler": "type:pending-opus",
+      "AssetBatchApproval": "interface:pending-opus",
+      "FilesCopyToolDeps": "interface:pending-opus",
+      "FILES_COPY_LIMITS": "variable:pending-opus",
+      "filesCopyDerivedRisk": "variable:pending-opus",
+      "buildFilesCopyAgentToolCatalog": "function:pending-opus",
+      "buildFilesCopyRegistrations": "function:pending-opus",
+      "contributeFilesCopyTools": "function:pending-opus"
+    }
+  },
+  "./media/site-transform/tool": {
+    "types": "./dist/media/site-transform/tool.d.ts",
+    "symbols": {
+      "ImageTransformToolDeps": "interface:pending-opus",
+      "IMAGE_TRANSFORM_TOOL_ID": "variable:pending-opus",
+      "imageTransformDerivedRisk": "variable:pending-opus",
+      "buildImageTransformAgentToolCatalog": "function:pending-opus",
+      "buildImageTransformRegistrations": "function:pending-opus",
+      "contributeImageTransformTools": "function:pending-opus"
+    }
+  },
+  "./media/site-generation/tool-registrations": {
+    "types": "./dist/media/site-generation/tool-registrations.d.ts",
+    "symbols": {
+      "MediaGenerationToolDeps": "interface:pending-opus",
+      "MediaGenerationCatalogInput": "type:pending-opus",
+      "mediaGenerationDerivedRisk": "variable:pending-opus",
+      "MediaGenerationValidationError": "class:pending-opus",
+      "buildMediaGenerationRegistrations": "function:pending-opus",
+      "contributeMediaGenerationTools": "function:pending-opus"
+    }
   }
 }

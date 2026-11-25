@@ -3762,5 +3762,18 @@
       "requiredFieldError": "function:bba34e4d8b",
       "toolsOption": "function:96386bda4a"
     }
+  },
+  "./contracts/site/media-tool-ports": {
+    "types": "./dist/contracts/site/media-tool-ports.d.ts",
+    "symbols": {
+      "MediaToolUploadInput": "interface:pending-opus",
+      "ImportedMediaView": "interface:pending-opus",
+      "MediaToolStoragePorts": "interface:pending-opus",
+      "MediaImportSourcePorts": "interface:pending-opus",
+      "MediaImportRefusalPorts": "interface:pending-opus",
+      "ImageGenerationCredential": "interface:pending-opus",
+      "GeneratedImageBytes": "interface:pending-opus",
+      "ImageGenerationPorts": "interface:pending-opus"
+    }
   }
 }
