@@ -1,185 +1,169 @@
-PARTIAL ac8d5af672 ebec2ca85 | FILES LEFT 1040 (excl. themes) / 507 | left: rv1125a FIX 1-4, 8-14, 16-25 (see Fixes); pending bugs 1, 5, 6; gates not run: Tovu hooks/boundaries/architecture/why-comments/admin vitest/node-tests sweep, Jini api:check/hooks/why-comments/complexity; Jini guard red (12); admin tsc 2 (chat-cleanup DockHeader)
+PARTIAL bf1519bba7 ad71bf68d | FILES LEFT 1059 (excl. themes) / 526 | left: final gates have reds that were not compared with merge-22 (Tovu admin vitest 17 red / 8 files, node tests 61 not-ok in the 4688 run before the 40-min cap, Jini why-comments 2, Jini vitest commerce / daemon characterization / provider-plugins artifact); FIX 4 legacy sink (7 callers left); FIX 19 H2 general seam; bug 1 needs a real-app check; 6 tovu-theme 1.1.4 tests need an owner decision
 
-> All 13 lanes are merged in both repos. The SHAs on the first line are the tested code tips: Tovu `ac8d5af672`, Jini `ebec2ca85`. FILES LEFT was measured at Tovu `abd42dae5b`, before feat-p11 and b-g6c merged. At `aa976cd5ef` it was 1039 / 506.
+> Code tips tested by the final gates: Tovu `bf1519bba7`, Jini `ad71bf68d`. This report's commit is on top of them. Wall-clock cap reached (14:30 → 16:55 UTC), so the gate reds below are reported, not triaged.
 
-# combine-23 (2026-11-25): Tovu + Jini `integ/merge-23-2026-11-25`
+# combine-23 continuation (2026-11-25): Tovu + Jini `integ/merge-23-2026-11-25`
 
-Unattended cloud run. Opus coordinated and did the small merges itself. Every hard merge, port and fix went to an Opus-high worker; the FILES LEFT count and two small bugs went to Sonnet. No more than 4 workers ran at once. Some workers went over the 50-call cap: 53, 63, 69.
+Unattended cloud run. Opus coordinated, with up to 4 workers at a time. Every fix, port and security item went to an Opus-high worker. Sonnet handled mechanical complexity refactors, the stale test imports and the FILES LEFT count.
 
 **Programmer skill confirmed.** I read `AI-Dev-Shop/agents/programmer/skills.md` (Programmer v1.7.5) first. Every worker brief carried its rules:
 - root cause first;
-- failing test first, plus a named mutation, for every bug;
-- merge-22's moves win on location, the lane's logic wins on behaviour;
-- never drop a test case;
+- failing test first, plus a named mutation;
+- never drop or soften a test;
 - inject everything;
 - hooks as required props;
 - fn ≤ 80, complexity ≤ 10;
 - no re-export shells;
 - Jini stays neutral;
 - themes untouched;
+- features stay dark;
 - never `--no-verify`.
 
 **Setup:**
-- **Node:** 24.22.3.
-- **Jini:** `pnpm install --frozen-lockfile && pnpm -r --filter './packages/*' build`.
-- **Tovu:** `npm ci --ignore-scripts` in root, admin, desktop and site-chat; `link-jini`; hooks; build of `packages/{contracts,sdk}`.
-- **Gate 0:** desktop `npm run gates` on merge-22 (`d4a934da86`), **6/6 PASS**.
+- Node 24.22.3.
+- Jini: `pnpm install --frozen-lockfile` and a full build.
+- Tovu: `npm ci --ignore-scripts` in root, admin, desktop and site-chat. `link:jini` needed `JINI_PACKAGES_DIR=/home/user/Jini/packages`. Then hooks and a build of `packages/{contracts,sdk}`.
 
 **Rules held:**
-- No force-push, no `--no-verify`, no tag, no publish, no codebase-memory tools, no RemoteTrigger.
-- `main`, `plan/*`, `release/*`, `codex/*` and older `integ/merge-*` were not written to.
-
-## Merge table
-
-Lanes were merged in the order from rv1125a's MERGE-ORDER, not the brief's order. Lane groups were pre-merged in scratch branches `integ/wip24-lane-{a..e}` (Tovu) and `integ/wip24-*-jini` (Jini), then merged into merge-23.
-
-**Tovu**
-
-| # | branch | merged? | conflicts resolved | tests at merge time |
-|---|---|---|---|---|
-| 1 | b-g6 | yes, `e42a8a972e` | 25 | root + admin tsc 0 |
-| 2 | b-g4 | yes, `45123aa4d6` | 8 | website credential 112/112; desktop gates 6/6 on push |
-| 3 | b-g2 | yes, via lane-b, `76bf9c8f44` | 9 + 4 | — |
-| 4 | feat-p4 | yes, via lane-a, `5166329d7d` | 0 | — |
-| 5 | feat-p3 | yes, via lane-a | 8 | admin daemon-starting-label 8/8 |
-| 6 | b-g3 | yes, via lane-a | 13 | — |
-| 7 | b-g5b | yes, via lane-d, `0584dac1b4` | 13 | — |
-| 8 | b-g6b | yes, via lane-d | 3 | xAI registry pin |
-| 9 | b-g1 | yes, via lane-c, `5efbbb55f0` | 16 | edit-html-permission all; migrations 202/214 (12 environmental or pre-existing) |
-| 10 | b-g5a | yes, via lane-c | 4 | newsletter 43/43 |
-| 11 | feat-p5 | yes, via lane-b, `aa976cd5ef` | 10 | — |
-| 12 | feat-p11 + FIX 6/7 | yes, via lane-e, `17b3e6ecbc` | 39 | storage-maintenance 11/11; blob-gc + actor-kind steps 6/6 |
-| 13 | b-g6c | yes, via lane-e | 0 | — |
-
-Tovu notes:
-- **b-g6:** the injected values (A11/A12) became required parameters on merge-22's thin host bindings.
-- **b-g4:** theme deltas were held at merge-22 (FIX 15). Per-provider PATCH/DELETE was ported into Jini's `createMediaApi` and `createMediaProvidersPort`.
-- **b-g2:** the theme plugin delta was held (FIX 12).
-- **feat-p3:** P4's reporter and P3's routines are both kept. `ROUTINES_RELEASE_ENABLED` is still false.
-- **b-g3:** P3's acceptance is kept. b-g3's `acceptOwnedAssistantRun` is added, with the browser marker stripped (`sanitizeBrowserRunContext`). Admin AG-UI stays off by default.
-- **b-g6b:** xAI is registered once: `@jini-ai/provider-plugins/xai/media`, id `grok`, alias `xai-grok-imagine`→`grok`.
-- **b-g1:** `viewerTimeZone` was adopted (Jini `formatUploadDate`).
-- **b-g5a:** site-update apply stays check-only (FIX 16).
-- **feat-p5:** the Jini port is `1796cc7e3`. `cutoverPolicy` stays `rollback`.
-- **feat-p11:** the Jini port is `655f83038` (share expiry and owned temp roots, as injected hooks). Migration `0046_blob_gc_journal` was renumbered to **`0048_blob_gc_journal`**, re-pinned through `UPDATE_MIGRATION_CHECKSUMS`.
-
-**Jini.** Lanes were merged into `integ/merge-23-2026-11-25` in the same order. Conflicts:
-- api-baseline and debt ledgers were unioned.
-- feat-p4 http-kit adapter and raw-route: the two-mode structure is kept, with every merge-22 gate carried into both modes.
-- b-g2 chat tool-call-detail, b-g3 AG-UI resume, b-g1 media `viewerTimeZone` and b-g5a `tool.failures kind` were resolved by hand on merge-22's structure.
-- b-g5b had 7 files.
-- b-g6b had 17 files (the xAI convergence).
-- feat-p11 package.json exports were repaired in `19065a481`.
-- b-g6c had 8 files: the split structure is kept and HEAD's behaviour carried into the split modules.
-
-Port branches merged into Jini: wip24-b-g4-jini, lane-b-jini, lane-c-jini, lane-d-jini, p5-jini, p11-jini, bugs34-jini, bug2-jini. Build fixes: `6703e07f3`, `70ded23e3`, `90aceee08`, and the opencode-acp test import.
+- No force-push, no `--no-verify`, hooks untouched.
+- No tag, no publish, no codebase-memory tools, no RemoteTrigger.
+- Only `integ/merge-23-2026-11-25` was written to.
+- Every Tovu push passed the desktop pre-push gates. Two pushes were refused (3/6 and 4/6) while workers had files in flight. Both were fixed and re-pushed green. Nothing was bypassed.
 
 ## Fixes table
 
-| item | status | evidence |
-|---|---|---|
-| rv FIX 5 (P11 live cleanup approval) | **NOT DONE** | Live cleanup is still reachable through the HTTP/tool path with `dryRun:false`. Pinned single-use approval is not built. |
-| rv FIX 6 (`storage clean` live by default) | **DONE** `3b602c2537` | Preview by default, explicit `--apply`. New test red → green. **M `storage-clean-default-live`** turned 1 of 11 red. |
-| rv FIX 7 (raw `error.message` log) | **DONE** `3b602c2537` | Logs the incident id plus class and errno only. Test red → green. |
-| rv FIX 12, FIX 15 (theme deltas) | **DONE** | Held at merge-22. Owner to decide on b-g2's tovu-theme plugin and b-g4's theme-toggle and classic fonts. |
-| rv FIX 18 (migration ordinal) | **DONE** | b-g5b keeps 0046/0047; P11 becomes 0048. |
-| rv FIX 20, FIX 23 (xAI twice / id) | **DONE** (merge) | One registry; `grok` is kept; alias pin. A clean packed-install check was not run. |
-| rv FIX 1-4, 8-11, 13, 14, 16, 17, 19, 21, 22, 24, 25 | **NOT DONE** | Out of time. FIX 16 and 17 hold, because nothing was turned on. |
-| bug 2 (trash retention) | **DONE** Jini `05713c898`, Tovu `f3420375c4` | The engine default (60) is removed and `retentionDays` is required. Tovu owns `TRASH_RETENTION_DAYS = 30`. **M `trash-default-60`**, **M `trash-retention-not-injected`**. |
-| bug 3 ("Cleared 1 … messages") | **DONE** Jini `766c0bb05` | `pickPlural` plus a singular key in 21 locales. **M `plural-cleared-always-other`**: 2 red. |
-| bug 4 (llms.txt Posts) | **DONE** Jini `0de69e21c` | `## Posts` and `## Pages` sections. **M `llms-all-pages`**: 2 red. |
-| bug 1 (Source Control providers empty) | **NOT DONE** | Diagnosed only. The likely cause is that the trust gate's `archiveDigest` does not match `bundled-digests.json` after the x8/x9 moves. The server log line `[source-control-providers]` names the refusal. |
-| bug 5 (merge-21 reds) | **NOT DONE** | Located only. publish-zero-setup's stale test import; wiring-identity row 7; postgres stale-save; CollectionEntries; missing modules. |
-| bug 6 (x9-testfix debt) | **NOT DONE** | There are no stale comments. Guard stale-debt rows: see Gates. |
+| item | status | Tovu / Jini commits | test → mutation |
+|---|---|---|---|
+| NEW BUG P11 ST-10 chat cleanup not mounted (admin tsc 2) | **DONE** | `fd95fa372` / `6097da065` | Jini `DockHeader` gets the required injected `conversationTools` (switcher extras + accessory slot). Tovu `DockCleanupHeader` takes the required `useChatCleanup`. `chat-cleanup.unit.test.tsx` 5/5, DockHeader 9/9. **M `chat-cleanup-slot-unmounted`** 1 red, **M `kit-list-hooks-not-forwarded`** 1, **M `dock-header-tools-slot-dropped`** 2. Admin tsc 0. |
+| FIX 1 recovery admission trusts the envelope | **DONE** | `8e61ac22d` | The persisted user turn must carry `routineUserTurnId(run, slot)`. **M `recovery-skips-persisted-turn`** 2 red. |
+| FIX 2 pending maps to error | **DONE** | `2878d0240` | New `starting` availability, `ROUTINES_STARTING` copy, discovery stays closed. **M `pending-maps-to-error`** 2. |
+| FIX 3 routines dark + marker strip | **DONE** (pins) | `e5fe58a91` | `ROUTINES_RELEASE_ENABLED === false` pin. The strip and trusted-only insert tests are green. |
+| FIX 4 legacy unbound sink | **PARTIAL** | `0f9a0dfc5`, `48bd5e36a`, `4b206cb5d` | All 18 listed sites are bound to the composed reporter. No-`res` sites take it as a required dependency. Shared probe test. **M `reporter-forwards-original-error`** 5, **M `fix4-unbind-sites`** 12, **M `seo-unbind`** 1, **M `consent-unbind`** 3. **Left:** 7 more unbound callers (`admin-json-route-ports.ts:299`, `analytics/recent-hits.ts:44`, `posts/template-preview.ts:70`, `http/widgets.ts:53`, `agent-plugins/install-response.ts:79`, `publish-content/import-errors.ts:32`, `route-helpers.ts:51`). The fallback in `sendAdminFailure` is still used by about 16 admin test files. So the legacy path stays and `reporter` stays optional. |
+| FIX 5 P11 live cleanup without approval (security) | **DONE** | `3a7f5ca87` | `features/storage/cleanup-gate.ts`. A live run needs a grant minted by the existing card or the Storage "Review and confirm". The grant is pinned to a sha256 of the plan, single-use (`take`), principal-bound and expiring, and shared by HTTP and the tool. **M `cleanup-live-without-grant`** 13, **M `cleanup-grant-replay`** 3. The CLI `--apply` is local-owner only and unchanged. |
+| FIX 8 cache trim outside the evidence gate | **DONE** | `ecc75028b`, `e1948993f` | Unknown or no-go evidence clears nothing. Trimming happens on erase only, never on untrack, so sign-in survives a re-add. **M `trim-bypasses-interlock`** 3. |
+| FIX 9 raw `Error.name` in the log | **DONE** | `ecc75028b` | Bounded errno allowlist, else `unknown-error`. **M `log-raw-error-name`** 1. |
+| FIX 10 daemon preflight imports http-kit | **DONE** | — / `15d418496`, `63eb04a73` | The route is declared at the core route seam. `AgentPluginPreflightRouteSpec`. Guard is the red→green witness. |
+| FIX 11 html recording without a rollback boundary in memory | **DONE** | `c581050d6` | Required `recordedHtmlWrites` (memory=`disabled`, sql=`enabled`). The new sqlite pin was already green before the change, so it records existing sqlite behaviour. **M `html-record-no-rollback`** 2. Test count in `html-undo.integration` went 25→16: the memory-root loop was removed as instructed, and its cases are now "unavailable, nothing written" pins. **Owner note:** a site on the in-memory composition now refuses assistant HTML page writes. |
+| FIX 12, FIX 15 theme deltas | **HELD** (unchanged) | — | Owner decides. See the 6 tovu-theme tests in New bugs. |
+| FIX 13 AG-UI raw error sinks | **DONE** | `6fb28bcf4` | A required injected reporter. One sanitized incident and the generic `RUN_ERROR`. **M `agui-raw-error-sink`** 1. |
+| FIX 14 acceptance reconcile | **DONE** (pins) | `e5fe58a91` | Browser marker strip, shared Stop, durable ownership. **M `agui-accept-keeps-browser-marker`** 1, **M `stop-skips-ownership`** 2. Admin AG-UI stays default-off. |
+| FIX 16 site-update apply without a handoff | **DONE** | `bbffa1101` | `canApply` requires `runtime.handoff`, so the desktop and self-hosted defaults are check-only. 15 apply tests moved onto a fake durable supervisor (now 16). **M `apply-without-handoff`** 3. **Left:** the redispatch-once-after-restart pin needs the U4b supervisor, which is not on this branch. |
+| FIX 17 O1.T stays unbound | **DONE** (pin) | `37021489f` | **M `o1t-observer-bound`** 2. |
+| FIX 18 migration ordinal | DONE earlier | — | (previous part of this run) |
+| FIX 19 typed actor at the write seam | **PARTIAL** | `241238e74`, `d3dc3401d` / `07b36390d`, `ed1fbd9a0` | `actor` is required at the import, restore and assistant writer seams (plus 2 more writers the type exposed). **M `writer-drops-actor-kind`** 1 / 2 / 1, **M `restore-ledger-drops-actor`** 2. **H2 stays open:** `ActorIdentityInput.actor` is still optional at about 68 sites, and the restore ledger has no `actor_kind` column (that needs an ADR-066 migration). |
+| FIX 20, FIX 23 xAI | **DONE** | — / `8cff6fb19` | The core peer was already declared. The real gap was L3 exempting tsc-emitted plugin-packaging sources. Fixed, and the undeclared `@jini-ai/protocol` peer is now declared. **M `xai-core-undeclared`** 45 L3 rows red (8 in xai). A duplicate `./xai/media` key in package.json was collapsed. A clean packed-install check was not run. `guard:plugins:packed` has 3 pre-existing rows (ffmpeg-transcode `plugin.json`, model-proxy-anthropic dist, cms-forms tarball). |
+| FIX 21 legacy share ciphertext | **DONE** + security bug | `54c84f584` / `637c25fcd` | A frozen pre-move fixture, generated once by the historical `6b9c36568` sealing code, opens through the browser-only owner route. **New bug fixed:** an expired share still revealed its password, and now returns `EXPIRED`. **M `share-legacy-aad-changed`** 1+1, **M `share-reveal-expiry-check-removed`** 2. **Owner decision:** owners can no longer read an expired share's password. |
+| FIX 22 old specifiers / shells | **DONE** | `47614e743` | `development/scripts/check-moved-specifiers.ts` and its test. Zero old-specifier importers for A01/R08/R09. **M `old-specifier-import-back`** 1. The open shells (OAuth, mail, secrets, cms/settings) are listed in open-bugs. |
+| FIX 24 unprefixed admin aliases | **DONE** | `629d9e99f` / `ef631b00e` | Only `admin-layout` and `admin-content` were live host contracts. 34 Tovu files moved to `jini-admin-*`; themes needed nothing. New check test. **M `unprefixed-alias-back`** 6+2. |
+| FIX 25 b-g6c compare | **DONE** | `d347d6deb` / `8ca89de51` | Tool text is byte-identical to the pre-split code (fixtures pass on both). The transport literals are identical. The double close was a latent double release, and the single close is pinned. **M `double-close`** 2. K01–K03 and K04/K06 splits are recorded as NOT delivered. |
+| pending bug 1 (Source Control providers empty) | **PARTIAL** | `c1cf03a7d`, `c8684bd0e` | Not reproduced with a fresh seed or the real composed bundle. A site **held on the pre-rename `tovu/github` copy** produces exactly this symptom: an empty list and no log line. It now logs a `[source-control-providers]` refusal naming github. **M `source-control-providers-empty`** 2. **UNVERIFIABLE-IN-CLOUD:** see below. |
+| pending bug 5 (pre-existing reds) | **MOSTLY DONE** | `be998112e`, `feb0cd540`, `549eb2c6a`, `8c18bf4ae`, `881aa766d`, `8a20fb178`, `bbc0b2cd9`, `d1db6136b`, `3a0205fdf`, `a7c20f22d`, `fb821ef1e`, `6dcd22500`, `7e1b8647d`, `190be8481`, `ea0768712`, `290382e63`, `9e9cfbcb4` / `8b78fb049`, `f221e8c34` | Fixed: publish-zero-setup, wiring-identity row 7, CollectionEntries pill class, 14 test files failing to load, publish-agent-tools (7 hidden reds), tw4 pins (2), AG-UI error goldens, tool-registrations contracts (plus a real bug: `media_convert_video` had no risk class), widgets embed fixtures, the MCP-UI allowlist with routine ids (proved no dark leak: exchange-only), tool-contribution domains, the allowlist-completeness scan, trashed page 409 (Jini). Jini postgres stale-save: a PGlite cold start on a loaded host, fixed by warming it in `beforeAll`. **Left:** `copy-engine.postgres` needs a live Postgres. |
+| pending bug 6 (stale debt rows) | **DONE** | — / `4f1dd0850` | 2 env-access rows pruned; the HW3 row was re-pointed after the `boundLogger` rename. |
+| Jini guard red | **DONE** | — / `badbb6187` … `8cff6fb19` | 0 violations, 0 stale rows. Admin's `@jini-ai/ui/core` imports were replaced by kit copies, with a type-equality test. |
+| gate fixes found while running | **DONE** | `a49de7660`, `e49f07a3d`, `f4d0cd6ec`, `bf1519bba` / `b48aa134b`, `d0aa05bc9`, `ffdf5f5d3`, `ad71bf68d`, `b3c7fe321` | typecheck:e2e (`beforeAddedRows` drift). Architecture: a new `features/post <-> platform` cycle and 2 cross-feature edges, broken through contracts. Tovu why-comments (8 restored, 2 debt rows). Jini complexity (21 functions split, no behaviour change). Jini why-comments vs merge-22 (2 restored, 13 debt rows citing commits). |
 
-## Gates (final)
+## Gates (final, Tovu `bf1519bba7` + Jini `ad71bf68d`; Jini built once at 16:04, no rebuild during tests)
 
-**Jini `ebec2ca85`:**
+**Jini:**
 - build: 0.
-- `pnpm typecheck`: 0.
-- `pnpm guard`: **12 violations**. Not compared against merge-22, which had at least one base-red, HW3.
-- Not run: `api:check` (api-baseline was union-merged, so it needs `api:update` + changeset), hooks, why-comments, complexity, full vitest.
+- typecheck (strict): **0**.
+- guard: **0** (merge-23 start: 12).
+- api:check: **0**.
+- hooks: **0**.
+- complexity: **0**.
+- why-comments `--base 311494d55` (merge-22): **2 blocks** deleted by the last complexity refactors (16:00 commits). Not fixed, out of time.
+- changed vitest (every test file changed since merge-22, per package): **35 packages green.** 3 are red and were **not compared with merge-22**:
+  - **commerce:** exit 1 with no FAIL line; probably a load error.
+  - **daemon:** `http/__tests__/characterization/*` (22 tests). A worker saw the same 22 failing before its refactor, so they are probably pre-existing. The cause is `harness.ts` `mountEverything`.
+  - **provider-plugins:** `artifact.integration` pack/install-outside-the-workspace tests. These are probably environmental (npm pack/install in the cloud) or a result of FIX 23's new peer declarations. Needs checking.
 
 **Tovu:**
-- root tsc: **0**.
-- admin tsc: **2**. Both are in `chat-cleanup.unit.test.tsx`, which imports the deleted local `DockHeader`. See New bugs.
-- Desktop gates: see the line below.
-- Not run: hooks, boundaries, architecture, why-comments, the admin vitest sweep, node tests on changed files and their importers.
-- Targeted tests per merge: see the merge table.
-- Desktop gates at `ac8d5af672` (`apps/desktop npm run gates`, also the pre-push hook): **6/6 PASS** (tree-quiet, tests, typecheck, coverage, complexity, js-backslide). Red at `322267817c` (tests/typecheck/coverage) was p11 x b-g1 drift. Fixed in `d064a667fd`: project-ipc tests now pass the required `beforeAddedRows`. Fixed in `ac8d5af672`: the removed-site cache trim uses the interlock's new `heldSiteSession` instead of a bare `session.fromPartition`, which T-2a.3 forbids; an unheld partition is skipped and left to the boot partition pass. That commit also adds the trim/warn deps to the site-retirement fixture.
+- root typecheck (incl. e2e): **0**.
+- admin tsc: **0** (merge-23 start: 2).
+- hooks: ok.
+- boundaries: 0 errors.
+- architecture: **OK**. merge-22 was red on 43 edges; this run is green. Runtime propagation cost 3.06→3.48 is a warning only.
+- why-comments `--base d4a934da86 --other-root ../Jini`: **ok**.
+- admin vitest (297 files changed since merge-22 plus direct importers, `--maxWorkers=2`): **6971 pass / 17 fail in 8 files**:
+  - `request-volume.measurement`
+  - `app-sites-section-visibility`
+  - `panels-render`
+  - `security/rules`
+  - `admin-screens-manifest`
+  - `api-request-shapes.characterization`
+  - `panel-access-parity`
+  - `panel-access`
+
+  Not compared with merge-22. Most look like manifest/panel parity drift from the new P11 Storage screen and the routines screen.
+- node tests (771 files changed in this continuation plus direct importers, concurrency 2): **4627 ok / 61 not ok** after 40 minutes. The run was cut off at the cap, so the files it never reached are not identified. Visible not-ok lines:
+  - Postgres copy-engine 826–835+ (environmental: they need a live Postgres server);
+  - 2 media catalog / model-view tests (433, 437; not triaged);
+  - plus the rest in the log.
+- desktop gates (`apps/desktop npm run gates`): **6/6 PASS**.
 
 ## UNVERIFIABLE IN CLOUD (owner must check)
 
-- Packaged desktop: P11's retirement interlock with the b-g1 cache trim, and that sign-in state survives an untrack.
-- Packaged desktop: routines stay dark.
-- Real-app check of the source-control providers list (bug 1).
-- Share links: 7/30/90-day expiry, plus an expired-link page in a browser.
-- The admin media grid: paging, the provider catalog and the viewer-zone date on a real site.
-- The xAI `grok` key saved before the merge still resolves.
-- Admin AG-UI off by default; the Stop-across-routes witness in Chrome and Electron.
-- The `/llms.txt` output on the live site.
-- `tovu storage clean` previews and deletes nothing without `--apply`.
+- **Bug 1:**
+  - On the real site, read `extensions.jini.id` in `<site>/agent-plugins/ws/workspace-local/github/package/sha256/<digest>/plugin.json`. `tovu/github` means a held pre-rename copy.
+  - Read the boot line `[bundled-agent-plugins] 'github' stays on its current version …` and the new `[source-control-providers]` refusal.
+  - Fix: reinstall github from Agent Plugins.
+- Postgres-only tests: copy-engine (14), revision-thinning.postgres (2), the Jini migration runner.
+- Packaged desktop:
+  - the trim only on erase, gated on evidence (all-unknown today ⇒ nothing clears);
+  - sign-in survives untrack and re-add;
+  - routines stay dark.
+- Storage cleanup in the real admin: preview → "Review and confirm" → live (one grant, a replay is refused). The chat approval card path.
+- Share links: an expired share now refuses the owner's password reveal.
+- Dev servers or e2e on the in-memory composition: assistant HTML page writes are refused (FIX 11).
+- Clean packed install of `@jini-ai/provider-plugins` xai outside the workspace.
+- Previous list still stands: the expired-link page, the media grid and viewer zone, the old `grok` key, AG-UI Stop in Chrome and Electron, `/llms.txt`, `tovu storage clean`.
 
-## New bugs
+## New bugs (found this run)
 
-1. P11's ST-10 chat-cleanup entry is not mounted. merge-22 moved DockHeader into `@jini-ai/admin`, which has no cleanup slot, so `useChatCleanup` and `ChatCleanupPanel` are orphaned. The admin test is red, 2 tsc errors. Fix: add a required cleanup slot to Jini's DockHeader.
-2. Jini `KitConversationListProps` lacks `hooks`. Tovu binds `defaultConversationListHooks` in `jini-kits.ts` as a stopgap.
-3. Jini's `createFakeMediaPort` lacks `listMediaGrid`. A Tovu host wrapper is the stopgap.
-4. Jini's import-registry payload type is not exported by name, so Tovu needed explicit parameter types.
-5. A lane commit (`4b88d1be43`) tracked `apps/*/node_modules` symlinks, which broke the installs. They were untracked in `c9501915f1`.
-6. Transport double-close: b-g6c's single close was kept. This changes behaviour from merge-22, which closed twice; please confirm.
-7. The migrations checksum test fails on the pinned `0002` digest. This is pre-existing. The Postgres runner tests need a server.
+1. **FIXED:** an expired share still revealed its password to the owner (Jini `637c25fcd`).
+2. **FIXED:** `media_convert_video` had no risk classification (`6dcd22500`).
+3. **FIXED:** widgets embed fixtures were missing the A14 `widgetPostWrites` (merge regression).
+4. **OWNER DECISION:** 6 tovu-theme tests ("Tovuize asks exactly one…", "Tovuize reuses local Media…", "draft homepage is previewed…", "survey comes before the single choice card", "tovu-theme packages … 1.1.4", "writes carry expectedVersion…"). They expect the 1.1.4 tovu-theme content that FIX 12 held back. Either admit 1.1.4 or hold those six tests back with it.
+5. `bootstrap.ts` `logBundledIdUpgrade` says a held plugin "keeps working". That is false for a pre-rename copy: all of its `tovu-*.json` declarations go unread.
+6. The admin Source Control page shows an empty list with no reason. The reason is in the server log only, because the route response lacks refusals.
+7. The `.jini-status-draft` pill has no style in Tovu's `jini-media.css`.
+8. Jini `pnpm guard` reports false SI-resolution rows when run before `pnpm -r build`, because of the generated cloudflare `cms-forms.mjs` and `portable-validation.mjs`.
+9. The HW3 shell failure log, and its six module-scope buses, still need instance ownership. The debt is tracked.
+10. Jini `provider-plugins` provenance comments still mention the source project and an env name. They pass the guard; the owner may want them neutralised.
+11. `mcp-ui-tool-calls-route.ts` has a stale comment: "every allowlisted id is registered" is not true for dark routine ids, which are exchange-only.
 
-## Per-area Jini-bound list (true count; full table in Jini/Tovu `cloud-results/combine-23.md` method section)
+## Per-area Jini-bound list (true / planner, excl. themes; Tovu `bf1519bba7`)
+
+FILES LEFT **1059 / 526**:
+- vs merge-23 @ `c8684bd0e`, 1057 / 524: +2. They are `contracts/core/post-revision-lock.ts` and `contracts/core/publish-trust-wire.ts`, pure contracts extracted to break the architecture cycle.
+- vs `abd42dae5b`, 1040 / 507: +19. The other +17 are feat-p11 and b-g6c's new files (chat cleanup 4, admin storage 7, `tool-metadata/storage.ts`, post revision thinning 2, share expiry, own-folder and retention 3).
+
+Method: `combine-18-plan.mjs` + `plans/P9-data/tools/scan.mjs` + the KEEP_RULES from `plans/count-1124/*`. It reproduces the earlier 1040 / 507 exactly at `abd42dae5b`.
 
 | area | true | planner |
 |---|---:|---:|
-| adm-other | 66 | 166 |
+| adm-other | 73 | 173 |
 | public-http | 47 | 86 |
+| adm-shell-components | 32 | 49 |
 | admin-http | 30 | 65 |
-| adm-shell-components | 28 | 45 |
 | agent-plugins | 28 | 44 |
-| site-backup | 25 | 33 |
+| site-backup | 28 | 36 |
+| post | 23 | 30 |
 | deployments | 23 | 28 |
-
-Comparison: merge-22 was 1008 / 474, so the count went up by 32 / 33. The rise is new Tovu feature code in Jini-bound folders (P3's routines screen, b-g5b's media grid, b-g2's html revert), not regressions. Method: `combine-18-plan.mjs` with `scan.mjs`, plus the KEEP_RULES from `plans/count-1124/*.md`, calibrated against combine-22's exact numbers on merge-22.
-| merge-22 (d4a934da86, recomputed) | 1128 | 1008 | 594 | 474 | 79 |
-| merge-23 @ aa976cd5ef | 1159 | 1039 | 626 | 506 | 91 |
-| **merge-23 @ abd42dae5b (origin tip)** | **1160** | **1040** | **627** | **507** | **92** |
-- Why up: the added files are new Tovu feature code that landed after merge-22 in Jini-bound dirs, not regressions in Jini ports: admin `routines/*` screen (9 files) + `tool-metadata/routines.ts`, admin media grid/provider panel (9), pages HTML revert (`html-inverse/html-reverter/html-change-recording`, 3), media-generation provider catalog (2), `web-screenshot/capture-retention.ts`, `outbox-trace-parent.ts`, `site-granted-vault.ts`, `ag-ui-approval-relay.ts`; the only file that left the true set is `site-backup/import-registry.ts`.
-- The count went UP vs merge-22 (+32 planner, +33 true), not down: true set +34 files / -1, planner set +34 / -2. Per-area delta planner/true: adm-other +19/+19, contracts-core +3/+3, pages +3/+3, admin-http +2/+2, adm-pages +2/+2, media-generation +2/+2, adm-shell-lib +1/+1, media +1/+1, web-screenshot +1/+1, site-backup -1/-1, post -1/+0.
-
-## Per-area Jini-bound files left (merge-23 tip; true count, planner in parens, ready(true) after; 5 examples = first by path, relative to apps/*/src/, `features/` dropped)
-- theme (themes, held out): 88 (88), ready 31 | contracts/core/tool-metadata/theme.ts ; theme/active-theme-publish-content.ts ; theme/active-theme.ts ; theme/agent-tools.ts ; theme/asset-operations.ts
-- adm-other: 66 (166), ready 6 | collections/CollectionEntryEditor.tsx ; database/Database.tsx ; email/Email.tsx ; email/EmailProviderTab.tsx ; email/EmailSegments.tsx
-- public-http: 47 (86), ready 2 | inbound/public-http/http/members.ts ; inbound/public-http/http/site/bare-page.ts ; inbound/public-http/http/site/render-site.ts ; inbound/public-http/http/site/render/blocks.ts ; inbound/public-http/http/site/render/components/entry-lists.ts
-- adm-themes (themes, held out): 32 (32), ready 10 | themes/HeldBackThemes.tsx ; themes/ThemeExplore.hooks.tsx ; themes/ThemeExplore.tsx ; themes/ThemePreviewReloadButton.tsx ; themes/Themes.tsx
-- admin-http: 30 (65), ready 2 | inbound/admin-http/http/presentation.ts ; inbound/admin-http/owner-mfa-routes.ts ; inbound/admin-http/owner-passkey-routes.ts ; inbound/admin-http/owner-recovery-routes.ts ; inbound/admin-http/routes/agent-plugins/install-response.ts
-- adm-shell-components: 28 (45), ready 0 | components/AdminByokKeyPanel.tsx ; components/AssistantDock/AssistantDock.state.hooks.ts ; components/AssistantDock/AssistantDock.tsx ; components/AssistantDock/DockChatPane.tsx ; components/AssistantDock/RoutedA2uiSurfaceCard.tsx
-- agent-plugins: 28 (44), ready 3 | agent-plugins/activation-effects.ts ; agent-plugins/apply-connect-defaults.ts ; agent-plugins/apply-tool-renames.ts ; agent-plugins/automatic-agent-plugins.ts ; agent-plugins/connect-destination.ts
-- site-backup: 25 (33), ready 1 | site-backup/archive-extensions.ts ; site-backup/archive-manifest.ts ; site-backup/backup-service.ts ; site-backup/import-backend.ts ; site-backup/import-database.ts
-- deployments: 23 (28), ready 1 | deployments/capability-card.ts ; deployments/deploy-ops/agent-tools.ts ; deployments/deploy-ops/registry.ts ; deployments/deploy-ops/run-ops.ts ; deployments/deploy-ops/secrets.ts
-- post: 21 (28), ready 3 | post/agent-tools.ts ; post/content-stats-tool.ts ; post/post-create.ts ; post/post-retire.ts ; post/post-tool-delete.ts
-- adm-posts: 15 (38), ready 1 | posts/Posts.tsx ; posts/editor/header/PostEditorActions.tsx ; posts/editor/header/PostEditorHeader.tsx ; posts/editor/notices/PostEditorNotices.tsx ; posts/editor/preview/PostPreview.tsx
-- adm-security: 15 (23), ready 0 | security/AccessTokensTab.hooks.tsx ; security/AccessTokensTab.tsx ; security/OtherCredentialsSection.hooks.tsx ; security/OtherCredentialsSection.tsx ; security/RecoveryCodesCard.tsx
-- adm-deployment: 14 (23), ready 4 | deployment/Deployment.tsx ; deployment/DockerfileTab.tsx ; deployment/OverviewTab.tsx ; deployment/StaticSiteTab.tsx ; deployment/api/publish-destination.types.ts
-- publish-content: 13 (15), ready 0 | publish-content/backstop-service.ts ; publish-content/destination-credential.ts ; publish-content/disconnect-tool.ts ; publish-content/peer-transport-binding.ts ; publish-content/peers.ts
-- media: 12 (15), ready 2 | media/derived-media-link.ts ; media/import-video-conversion.ts ; media/large-upload-routing-copy.ts ; media/library-save-attachment.ts ; media/media-search-source.ts
-- adm-shell-lib: 9 (36), ready 1 | lib/ag-ui-approval-relay.ts ; lib/browser-telemetry.ts ; lib/credential-copy.ts ; lib/durable-run-subscription.ts ; lib/execution-settings.ts
-- trash: 9 (14), ready 0 | trash/adapters/media.ts ; trash/adapters/member.ts ; trash/adapters/post.ts ; trash/adapters/redirect.ts ; trash/adapters/user.ts
-- contracts-core: 8 (30), ready 6 | contracts/core/approval-i18n.ts ; contracts/core/chat-delete-grant.ts ; contracts/core/events/outbox-trace-parent.ts ; contracts/core/human-confirm.ts ; contracts/core/site-granted-vault.ts
-- adm-pages: 8 (22), ready 2 | pages/PageEditor.tsx ; pages/PageEditorPreview.tsx ; pages/hooks/page-editor-port.hooks.ts ; pages/hooks/page-editor-save.ts ; pages/hooks/use-page-editor.hooks.ts
-- custom-credentials: 8 (14), ready 1 | custom-credentials/agent-tools.ts ; custom-credentials/credential-copy-tool.ts ; custom-credentials/credential-save-tool.ts ; custom-credentials/credentialed-request.ts ; custom-credentials/delete-request-confirmation-ui.ts
-- project-keys: 8 (8), ready 1 | project-keys/attached-vault.ts ; project-keys/attachments.ts ; project-keys/create-vault.ts ; project-keys/service.ts ; project-keys/shared-oauth-disconnect.ts
-- external-mcp: 7 (11), ready 0 | external-mcp/deps.ts ; external-mcp/external-mcp-oauth.ts ; external-mcp/external-mcp-repo.ts ; external-mcp/external-mcp-repo.writes.ts ; external-mcp/external-mcp-store.ts
-- pages: 7 (11), ready 0 | pages/agent-tools.ts ; pages/html-change-recording.ts ; pages/html-document-store.memory.ts ; pages/html-document-store.ts ; pages/html-inverse.ts
-- identity: 6 (13), ready 0 | identity/permission-list-tool.ts ; identity/repo.authentication.ts ; identity/repo.authorization.ts ; identity/repo.ts ; identity/tool-registrations.ts
-- adm-publish-content: 6 (11), ready 0 | publish-content/PublishContentDialog.hooks.tsx ; publish-content/PublishContentDialog.tsx ; publish-content/api/publish-content-api.ts ; publish-content/hooks/publish-content-port.hooks.ts ; publish-content/hooks/use-publish-content-confirm.hooks.ts
-- site-export: 6 (10), ready 1 | site-export/export-html-policy.ts ; site-export/export-preflight-copy.ts ; site-export/media-original-urls.ts ; site-export/route-manifest.ts ; site-export/site-exporter.ts
-- source-control: 5 (12), ready 0 | source-control/credential-setup.ts ; source-control/source-control-credential-repo.ts ; source-control/store.ts ; source-control/tool-registrations.ts ; source-control/types.ts
-- adm-source-control: 5 (8), ready 0 | source-control/ProvidersTab.tsx ; source-control/hooks/use-source-control-credentials.hooks.ts ; source-control/rules.ts ; source-control/source-control-panel.tsx ; source-control/source-control-visuals.tsx
-- newsletter: 5 (7), ready 0 | newsletter/confirmation.ts ; newsletter/delivery/tool-registrations.ts ; newsletter/http-error-responses.ts ; newsletter/subscriptions.ts ; newsletter/tool-registrations.ts
-- webhooks: 5 (7), ready 1 | webhooks/keyring.env.ts ; webhooks/seal-aad-invariant.ts ; webhooks/secret-scan-guard.ts ; webhooks/site-key-ensure.ts ; webhooks/site-key-sources.ts
-- media-generation: 5 (5), ready 0 | media-generation/host-media-providers.ts ; media-generation/media-provider-catalog.ts ; media-generation/provider-credential-save.ts ; media-generation/providers-tools.ts ; media-generation/tool-registrations.ts
-- other areas with 1-4 true files (35 areas, 63 files): plugin-runtime 4, adm-shell-hooks 3, api-connections 3, database-transfer 2, forms 2, vendor-credentials 2, database 3, site-inspection 2, adm-recovery 1, desktop 1, contracts-headless 1, mail-status 4, form-destinations 3, member-login 3, consent 2, fs-files 2, taxonomy 2, content-types 1, navigation 1, widgets 1, web-screenshot 3, asset-transfer 2, publish-trust 2, entries 1, members 1, recovery 1, web 1, platform-html 1, email-templates 2, mail 1, object-storage 1, content-duplication 1, image-transform 1, media-import 1, permanent-delete 1
-- planner-only (all kept by the count docs): settings 7, adm-members 6, adm-roles 5, platform-mail 5, adm-users 4, publish-content-ui 4, presentation 3, analytics 2, comments 2, skills 2, observability 1, redirects 1, seo 1, server-logs 1, site-search 1, tool-audit 1, webmcp 1, platform-routing 1
+| adm-posts | 15 | 38 |
+| adm-security | 15 | 23 |
+| adm-deployment | 14 | 23 |
+| publish-content | 13 | 15 |
+| media | 12 | 15 |
+| contracts-core | 11 | 33 |
+| adm-shell-lib | 9 | 36 |
+| trash | 9 | 14 |
+| adm-pages | 8 | 22 |
+| custom-credentials | 8 | 14 |
+| project-keys | 8 | 8 |
+| external-mcp | 7 | 11 |
+| pages | 7 | 11 |
+| identity | 6 | 13 |
+| adm-publish-content | 6 | 11 |
+| site-export | 6 | 10 |
+| others (≤ 5 true each; incl. planner-only areas) | 88 | 251 |
